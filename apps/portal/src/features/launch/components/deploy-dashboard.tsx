@@ -5,6 +5,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   Clock3,
+  Info,
   ExternalLink,
   Github,
   Loader2,
@@ -22,6 +23,7 @@ import {
   hasSourceForLaunchUrlContext,
   launchActivate,
   launchRedeploy,
+  launchSdkStatus,
   launchStatus,
   signOutGitHub,
   readLaunchUrlContext,
@@ -31,6 +33,7 @@ import {
   type GitHubSessionInfo,
   type LaunchUrlContext,
   type LaunchProgress,
+  type LaunchSdkStatus,
 } from "@portal/features/launch";
 import type { UserSource } from "@aomi-labs/deploy";
 import {
@@ -152,6 +155,8 @@ function SignedInDashboard({
 }) {
   const [sources, setSources] = useState<UserSource[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [sdkStatus, setSdkStatus] = useState<LaunchSdkStatus | null>(null);
+  const [sdkError, setSdkError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [showInstall, setShowInstall] = useState(false);
   const [urlContext] = useState<LaunchUrlContext | null>(() =>
@@ -187,6 +192,23 @@ function SignedInDashboard({
     load();
   }, [load]);
 
+  useEffect(() => {
+    let active = true;
+    launchSdkStatus()
+      .then((status) => {
+        if (!active) return;
+        setSdkStatus(status);
+        setSdkError(null);
+      })
+      .catch((e) => {
+        if (!active) return;
+        setSdkError(e instanceof Error ? e.message : String(e));
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
   if (loading && sources === null) {
     return <CenteredSpinner label="Loading your repositories…" />;
   }
@@ -203,6 +225,7 @@ function SignedInDashboard({
     return (
       <div className="space-y-6">
         {header}
+        <SdkStatusPanel status={sdkStatus} error={sdkError} />
         <LaunchContextMismatch
           context={urlContext}
           login={login}
@@ -224,6 +247,7 @@ function SignedInDashboard({
     return (
       <div className="space-y-6">
         {header}
+        <SdkStatusPanel status={sdkStatus} error={sdkError} />
         {showInstall && sources && sources.length > 0 && (
           <button
             type="button"
@@ -246,6 +270,7 @@ function SignedInDashboard({
   return (
     <div className="space-y-6">
       {header}
+      <SdkStatusPanel status={sdkStatus} error={sdkError} />
       {error && <ErrorBanner message={error} />}
       <div className="flex items-center justify-between">
         <h2 className="text-foreground text-sm font-medium">
@@ -263,6 +288,59 @@ function SignedInDashboard({
           <SourceCard key={source.id} source={source} />
         ))}
       </div>
+    </div>
+  );
+}
+
+function SdkStatusPanel({
+  status,
+  error,
+}: {
+  status: LaunchSdkStatus | null;
+  error: string | null;
+}) {
+  if (error) {
+    return (
+      <div className="border-destructive/30 bg-destructive/10 flex items-start gap-2 rounded-lg border p-3">
+        <AlertTriangle className="text-destructive mt-0.5 h-4 w-4 shrink-0" />
+        <div>
+          <div className="text-foreground text-sm font-medium">
+            SDK status unavailable
+          </div>
+          <p className="text-muted-foreground mt-1 text-sm">{error}</p>
+        </div>
+      </div>
+    );
+  }
+  if (!status) {
+    return (
+      <div className="border-input flex items-center gap-2 rounded-lg border p-3">
+        <Loader2 className="text-muted-foreground h-4 w-4 animate-spin" />
+        <span className="text-muted-foreground text-sm">
+          Checking backend SDK version…
+        </span>
+      </div>
+    );
+  }
+  const required = status.sdkStatus.requiredVersion;
+  return (
+    <div className="border-input flex flex-col gap-2 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-start gap-2">
+        <Info className="text-muted-foreground mt-0.5 h-4 w-4 shrink-0" />
+        <div>
+          <div className="text-foreground text-sm font-medium">
+            Backend requires aomi-sdk {required || "unknown"}
+          </div>
+          <p className="text-muted-foreground text-sm">
+            Deployable repos must pin the SDK exactly before activation.
+          </p>
+        </div>
+      </div>
+      {status.sdkStatus.fixCommand && (
+        <code className="bg-muted text-foreground rounded px-2 py-1 text-xs">
+          {status.sdkStatus.fixCommand}
+        </code>
+      )}
     </div>
   );
 }
@@ -554,6 +632,7 @@ function LifecyclePanel({
     setAction("activating");
     try {
       const result = await launchActivate({
+        appSourceId,
         releaseTags: lifecycle.releaseTags,
         apps: lifecycle.appNames,
       });
@@ -589,7 +668,7 @@ function LifecyclePanel({
       }
       setAction("idle");
     }
-  }, [lifecycle, onLifecycleChange, onLive]);
+  }, [appSourceId, lifecycle, onLifecycleChange, onLive]);
 
   const redeploy = useCallback(async () => {
     setError(null);

@@ -38,7 +38,7 @@ pnpm run lint:base      # lint the app
 ## Environment
 
 ```bash
-AOMI_PROXY_BACKEND_URL=https://api.aomi.dev
+AOMI_PROXY_BACKEND_URL=http://127.0.0.1:8080
 NEXT_PUBLIC_WALLET_APP_NAME=Aomi
 PIMLICO_PAYMASTER_URL=https://api.pimlico.io/v2/base/rpc?apikey=your_pimlico_api_key
 PAYMASTER_ALLOWED_ORIGINS=http://localhost:3000,https://your-ngrok-domain.ngrok-free.app
@@ -46,7 +46,7 @@ PAYMASTER_ALLOW_ORIGINLESS_REQUESTS=
 PAYMASTER_TRUST_FORWARDED_IP_HEADERS=
 ```
 
-`AOMI_PROXY_BACKEND_URL` is the server-side Aomi backend target for the catch-all API proxy.
+`AOMI_PROXY_BACKEND_URL` is the server-side Aomi backend target for the catch-all API proxy. Local development falls back to `http://127.0.0.1:8080` when this is unset; deployed environments must set an explicit backend URL and do not fall back to hosted production.
 
 `NEXT_PUBLIC_WALLET_APP_NAME` controls the app name shown in wallet connection flows.
 
@@ -62,13 +62,13 @@ PAYMASTER_TRUST_FORWARDED_IP_HEADERS=
 
 The page entry point, `app/page.tsx`, passes the same-origin `/api/paymaster` proxy URL into the client widget wrapper in `app/aomi-app.tsx`. The private Pimlico URL stays server-only inside the API route.
 
-The backend proxy lives in `app/api/[...slug]/route.ts`. It only forwards known widget routes and methods, strips sensitive browser headers, and returns generic upstream errors to clients.
+The backend proxy lives in `app/api/[...slug]/route.ts`. Base uses the shared proxy machinery with an anonymous, demo-only allowlist: chat/state/event/simulation primitives and thread creation are forwarded, while account, secrets, BYOK, control mutation, and thread-management routes are blocked.
 
 The paymaster proxy lives in `app/api/paymaster/route.ts`. It accepts only the expected paymaster JSON-RPC methods, enforces body and batch limits, rate-limits callers, adds sponsor metadata to stub responses, and forwards requests to Pimlico using the server-side API key.
 
 Styling is loaded from `app/globals.css`, including Tailwind and the Aomi widget stylesheet. Tailwind scans the local registry source so widget class changes are visible immediately during development.
 
-The widget/runtime code is consumed through the normal package names, `@aomi-labs/widget-lib` and `@aomi-labs/react`, but both dependencies are workspace packages. The app behaves like a package consumer while resolving changes directly from `apps/registry/src`, `packages/react/src`, and `packages/client/src`.
+The widget/runtime code is consumed through the normal package names, `@aomi-labs/widget-lib` and `@aomi-labs/react`, but both dependencies are workspace packages. The app behaves like a package consumer while resolving changes directly from `apps/shadcn-registry/src`, `packages/react/src`, and `packages/client/src`.
 
 ## Production Notes
 
@@ -76,7 +76,7 @@ The widget/runtime code is consumed through the normal package names, `@aomi-lab
 - Keep `PAYMASTER_ALLOWED_ORIGINS` narrow. Add exact local, ngrok, preview, or production origins when the paymaster caller is not same-origin.
 - Keep `PAYMASTER_ALLOW_ORIGINLESS_REQUESTS` disabled unless a native wallet relay requires it and you have another protection layer in front of `/api/paymaster`.
 - Set `PAYMASTER_TRUST_FORWARDED_IP_HEADERS=1` only for trusted local tunnel/proxy setups that overwrite forwarded IP headers.
-- Keep `AOMI_PROXY_BACKEND_URL` private to the server.
+- Keep `AOMI_PROXY_BACKEND_URL` private to the server and set it explicitly for every deployed Base environment.
 - On Vercel, make sure `PIMLICO_PAYMASTER_URL` is set for the deployed environment (`Production` or the relevant `Preview` branch). If it is missing, sponsored transactions will fail instead of falling back to user-paid gas.
 - Configure Vercel's Git production branch to `prod`. Pushes to `prod` should create Production deployments; pushes to `main` and feature branches should create Preview deployments.
 - Run `pnpm run build:base` and `pnpm run lint:base` before deploying.

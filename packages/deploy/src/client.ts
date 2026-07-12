@@ -1,5 +1,11 @@
 import { BackendError, BrowserEnvironmentError, DeployError } from "./errors";
 import type {
+  IngestSecretsInput,
+  IngestSecretsResult,
+  ListAppSecretsInput,
+  RemoveAppSecretInput,
+  ListSecretsInput,
+  ListSecretsResult,
   ActivateInput,
   ActivateResult,
   AppSource,
@@ -15,7 +21,22 @@ import type {
   GetUserSourceLatestDeploymentInput,
   GitHubIdentity,
   ListAppsInput,
+  DeactivateAppInput,
+  GetUserSourceUsageInput,
+  ListDeploymentRecordsInput,
+  ListDeploymentRecordsResult,
+  ListUserSourceLogsInput,
+  ListUserSourceTransactionsInput,
+  ListUserSourceDeploymentsInput,
   ListUserSourcesInput,
+  OperateAgentsResult,
+  OperateLogCursor,
+  OperateLogsResult,
+  OperateObservabilityResult,
+  OperateTransactionCursor,
+  OperateTransactionsResult,
+  OperateUsageResult,
+  OwnedOperateSourceInput,
   UserSource,
   UserSourceLatestDeployment,
   ListTokensInput,
@@ -24,6 +45,9 @@ import type {
   PlatformApp,
   PreflightInput,
   ProgressModel,
+  PromoteInput,
+  PromoteResult,
+  ServerTagsResult,
   RevokeTokenInput,
   ScaffoldInput,
   StatusInput,
@@ -163,10 +187,76 @@ export class DeploymentClient {
     return cameled;
   }
 
+  /** Deactivate one app: clears its live pointer and unloads the binary. The
+   *  deployment's git record and activation history are untouched. */
+  async deactivateApp(input: DeactivateAppInput): Promise<void> {
+    const platform = cleanPlatform(input.platform);
+    const app = required(input.app, "app");
+    const query =
+      input.appSourceId != null
+        ? `?app_source_id=${encodeURIComponent(String(input.appSourceId))}`
+        : "";
+    await this.post<unknown>(
+      `/api/platforms/${encodeURIComponent(platform)}/apps/${encodeURIComponent(app)}/deactivate${query}`,
+      {},
+      "deactivate",
+      this.resolveBearer(input.bearer),
+    );
+    await this.audit({
+      action: "deactivate",
+      platform,
+      apps: [app],
+      actor: input.actor,
+      ts: Date.now(),
+    });
+  }
+
+  async promote(input: PromoteInput): Promise<PromoteResult> {
+    const platform = cleanPlatform(input.platform);
+    const deploymentId = required(input.deploymentId, "deploymentId");
+    const result = await this.post<ActivateResult>(
+      `/api/platforms/${encodeURIComponent(platform)}/deployments/${encodeURIComponent(deploymentId)}/promote`,
+      {
+        deployment_id: deploymentId,
+        apps: input.apps,
+        target_tags: input.targetTags,
+        actor: input.actor,
+      },
+      "promote",
+      this.resolveBearer(),
+    );
+    await this.audit({
+      action: "promote",
+      platform,
+      apps: input.apps ?? [],
+      targetTags: input.targetTags,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    const cameled = camelActivateResult(result);
+    const releaseTags = cameled.activation.apps
+      .map((app) => app.releaseTag)
+      .filter((tag): tag is string => Boolean(tag));
+    return {
+      ok: cameled.ok,
+      promote: {
+        deploymentId,
+        releaseTags,
+        status: cameled.ok ? "promoted" : "blocked",
+        activation: cameled.activation,
+      },
+    };
+  }
+
   async status(input: StatusInput): Promise<DeploymentStatus> {
     const platform = cleanPlatform(input.platform);
+    const statusParams = new URLSearchParams();
+    if (input.githubUserId?.trim()) {
+      statusParams.set("github_user_id", input.githubUserId.trim());
+    }
+    const statusQuery = statusParams.toString();
     const path = input.deploymentId
-      ? `/api/platforms/${encodeURIComponent(platform)}/deployments/${encodeURIComponent(input.deploymentId)}/status`
+      ? `/api/platforms/${encodeURIComponent(platform)}/deployments/${encodeURIComponent(input.deploymentId)}/status${statusQuery ? `?${statusQuery}` : ""}`
       : (input.path ?? `/api/platforms/${encodeURIComponent(platform)}/status`);
     const result = await this.get<Record<string, unknown>>(
       path,
@@ -180,6 +270,18 @@ export class DeploymentClient {
       ts: Date.now(),
     });
     return camelStatusResult(result);
+  }
+
+  async serverTags(): Promise<ServerTagsResult> {
+    const result = await this.get<Record<string, unknown>>(
+      "/api/platforms/server-tags",
+      "server tags",
+      this.resolveBearer(),
+    );
+    return {
+      serverTags: (result.server_tags ?? result.serverTags ?? []) as string[],
+      sdkVersion: String(result.sdk_version ?? result.sdkVersion ?? ""),
+    };
   }
 
   /**
@@ -500,6 +602,9 @@ export class DeploymentClient {
     const code = required(input.code, "code");
     const params = new URLSearchParams({ code });
     if (input.app) params.set("app", String(input.app));
+    if (input.redirectUri?.trim()) {
+      params.set("redirect_uri", input.redirectUri.trim());
+    }
     const bearer = this.resolveBearer(input.bearer);
     const raw = await this.get<{
       github_user_id?: string;
@@ -571,6 +676,271 @@ export class DeploymentClient {
     return camelUserSourceLatestDeployment(raw.latest_deployment) ?? null;
   }
 
+  async listUserSourceDeployments(
+    input: ListUserSourceDeploymentsInput,
+  ): Promise<UserSourceLatestDeployment[]> {
+    const githubUserId = required(input.githubUserId, "githubUserId");
+    const platform = cleanPlatform(input.platform);
+    const appSourceId = required(String(input.appSourceId), "appSourceId");
+    const bearer = this.resolveBearer(input.bearer);
+    const params = new URLSearchParams({
+      github_user_id: githubUserId,
+      platform,
+    });
+    if (input.limit && Number.isSafeInteger(input.limit) && input.limit > 0) {
+      params.set("limit", String(input.limit));
+    }
+    const raw = await this.get<{ deployments?: unknown[] }>(
+      `/api/integrations/github-app/user/sources/${encodeURIComponent(
+        appSourceId,
+      )}/deployments?${params.toString()}`,
+      "list_user_source_deployments",
+      bearer,
+    );
+    await this.audit({
+      action: "list_user_source_deployments",
+      platform,
+      appSourceId: input.appSourceId,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return (raw.deployments ?? [])
+      .map(camelUserSourceLatestDeployment)
+      .filter((deployment): deployment is UserSourceLatestDeployment =>
+        Boolean(deployment),
+      );
+  }
+
+  async listUserSourceAgents(
+    input: OwnedOperateSourceInput,
+  ): Promise<OperateAgentsResult> {
+    const { appSourceId, params, platform, bearer } =
+      this.ownedOperateRequest(input);
+    const raw = await this.get<Record<string, unknown>>(
+      `/api/integrations/github-app/user/sources/${encodeURIComponent(
+        String(appSourceId),
+      )}/agents?${params.toString()}`,
+      "list_user_source_agents",
+      bearer,
+    );
+    await this.audit({
+      action: "list_user_source_agents",
+      platform,
+      appSourceId,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return {
+      source: camelAppSource(raw.source),
+      platform: String(raw.platform ?? platform),
+      agents: ((raw.agents ?? []) as unknown[]).map(camelPlatformApp),
+    };
+  }
+
+  async listUserSourceTransactions(
+    input: ListUserSourceTransactionsInput,
+  ): Promise<OperateTransactionsResult> {
+    const { appSourceId, params, platform, bearer } =
+      this.ownedOperateRequest(input);
+    if (input.limit && Number.isSafeInteger(input.limit) && input.limit > 0) {
+      params.set("limit", String(input.limit));
+    }
+    if (input.status?.trim()) params.set("status", input.status.trim());
+    const cursor = encodeTransactionCursor(input.cursor);
+    if (cursor) params.set("cursor", cursor);
+    const raw = await this.get<Record<string, unknown>>(
+      `/api/integrations/github-app/user/sources/${encodeURIComponent(
+        String(appSourceId),
+      )}/transactions?${params.toString()}`,
+      "list_user_source_transactions",
+      bearer,
+    );
+    await this.audit({
+      action: "list_user_source_transactions",
+      platform,
+      appSourceId,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return camelOperateTransactions(raw, platform);
+  }
+
+  async getUserSourceUsage(
+    input: GetUserSourceUsageInput,
+  ): Promise<OperateUsageResult> {
+    const { appSourceId, params, platform, bearer } =
+      this.ownedOperateRequest(input);
+    if (input.fromDate?.trim()) params.set("from_date", input.fromDate.trim());
+    if (input.toDate?.trim()) params.set("to_date", input.toDate.trim());
+    const raw = await this.get<Record<string, unknown>>(
+      `/api/integrations/github-app/user/sources/${encodeURIComponent(
+        String(appSourceId),
+      )}/usage?${params.toString()}`,
+      "get_user_source_usage",
+      bearer,
+    );
+    await this.audit({
+      action: "get_user_source_usage",
+      platform,
+      appSourceId,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return camelOperateUsage(raw, platform);
+  }
+
+  async listUserSourceLogs(
+    input: ListUserSourceLogsInput,
+  ): Promise<OperateLogsResult> {
+    const { appSourceId, params, platform, bearer } =
+      this.ownedOperateRequest(input);
+    if (input.limit && Number.isSafeInteger(input.limit) && input.limit > 0) {
+      params.set("limit", String(input.limit));
+    }
+    if (input.type?.trim()) params.set("type", input.type.trim());
+    const cursor = encodeLogCursor(input.cursor);
+    if (cursor) params.set("cursor", cursor);
+    const raw = await this.get<Record<string, unknown>>(
+      `/api/integrations/github-app/user/sources/${encodeURIComponent(
+        String(appSourceId),
+      )}/logs?${params.toString()}`,
+      "list_user_source_logs",
+      bearer,
+    );
+    await this.audit({
+      action: "list_user_source_logs",
+      platform,
+      appSourceId,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return camelOperateLogs(raw, platform);
+  }
+
+  async getUserSourceObservability(
+    input: OwnedOperateSourceInput,
+  ): Promise<OperateObservabilityResult> {
+    const { appSourceId, params, platform, bearer } =
+      this.ownedOperateRequest(input);
+    const raw = await this.get<Record<string, unknown>>(
+      `/api/integrations/github-app/user/sources/${encodeURIComponent(
+        String(appSourceId),
+      )}/observability?${params.toString()}`,
+      "get_user_source_observability",
+      bearer,
+    );
+    await this.audit({
+      action: "get_user_source_observability",
+      platform,
+      appSourceId,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return camelOperateObservability(raw, platform);
+  }
+
+  async listDeploymentRecords(
+    input: ListDeploymentRecordsInput,
+  ): Promise<ListDeploymentRecordsResult> {
+    const platform = cleanPlatform(input.platform);
+    const app = required(input.app, "app");
+    const query =
+      input.appSourceId != null
+        ? `?app_source_id=${encodeURIComponent(String(input.appSourceId))}`
+        : "";
+    const raw = await this.get<{
+      app?: string;
+      current_release_tag?: string | null;
+      records?: Array<Record<string, unknown>>;
+    }>(
+      `/api/platforms/${encodeURIComponent(platform)}/apps/${encodeURIComponent(app)}/records${query}`,
+      "list_deployment_records",
+      this.resolveBearer(input.bearer),
+    );
+    return {
+      app: raw.app ?? app,
+      currentReleaseTag: (raw.current_release_tag as string | null) ?? null,
+      records: (raw.records ?? []).map((row) => ({
+        deploymentId: String(row.deployment_id ?? ""),
+        releaseTag: String(row.release_tag ?? ""),
+        actor: (row.actor as string | null) ?? null,
+        createdAt: timestampSeconds(row.created_at),
+        sdkVersion: (row.sdk_version as string | null) ?? null,
+        current: Boolean(row.current),
+      })),
+    };
+  }
+
+  async listSecrets(input: ListSecretsInput = {}): Promise<ListSecretsResult> {
+    const params = new URLSearchParams();
+    const clientId = input.clientId ?? input.githubUserId;
+    if (clientId) params.set("client_id", clientId);
+    const query = params.toString();
+    const raw = await this.get<{ by_app?: Record<string, string[]> }>(
+      `/api/secrets${query ? `?${query}` : ""}`,
+      "list_secrets",
+      this.resolveBearer(input.bearer, { privileged: true }),
+    );
+    return { byApp: raw.by_app ?? {} };
+  }
+
+  /** Ingest app-scoped env vars into the secret vault under the GitHub user id.
+   *  The backend field is still named `user_id`, but GitHub is the only owner
+   *  scope this client accepts for app secrets. Service op. */
+  async ingestSecrets(input: IngestSecretsInput): Promise<IngestSecretsResult> {
+    const githubUserId = required(input.githubUserId, "githubUserId");
+    const app = required(input.app, "app");
+    const sourceId = input.sourceId?.trim();
+    const raw = await this.post<{ handles?: Record<string, string> }>(
+      `/api/_internal/secrets`,
+      {
+        user_id: githubUserId,
+        app,
+        ...(sourceId ? { source_id: sourceId } : {}),
+        secrets: input.secrets,
+      },
+      "ingest_secrets",
+      this.resolveBearer(input.bearer, { privileged: true }),
+    );
+    return { handles: raw.handles ?? {} };
+  }
+
+  /** List vault handle names (never values) for the GitHub user id, keyed by
+   *  app. Service read, so it works with the portal's service bearer (unlike
+   *  the session-scoped `listSecrets`). */
+  async listAppSecrets(input: ListAppSecretsInput): Promise<ListSecretsResult> {
+    const githubUserId = required(input.githubUserId, "githubUserId");
+    const params = new URLSearchParams({ user_id: githubUserId });
+    if (input.app?.trim()) params.set("app", input.app.trim());
+    if (input.sourceId?.trim()) params.set("source_id", input.sourceId.trim());
+    const raw = await this.get<{ by_app?: Record<string, string[]> }>(
+      `/api/_internal/secrets?${params.toString()}`,
+      "list_secrets",
+      this.resolveBearer(input.bearer, { privileged: true }),
+    );
+    return { byApp: raw.by_app ?? {} };
+  }
+
+  /** Remove one app-scoped secret. Service op. Returns whether it existed. */
+  async removeAppSecret(input: RemoveAppSecretInput): Promise<boolean> {
+    const githubUserId = required(input.githubUserId, "githubUserId");
+    const app = required(input.app, "app");
+    const name = required(input.name, "name");
+    const sourceId = input.sourceId?.trim();
+    const raw = await this.del<{ removed?: boolean }>(
+      `/api/_internal/secrets`,
+      "ingest_secrets",
+      this.resolveBearer(input.bearer, { privileged: true }),
+      {
+        user_id: githubUserId,
+        app,
+        ...(sourceId ? { source_id: sourceId } : {}),
+        name,
+      },
+    );
+    return Boolean(raw.removed);
+  }
+
   endpoint(path: string): string {
     const cleanPath = path.startsWith("/") ? path : `/${path}`;
     return `${this.baseUrl}${cleanPath}`;
@@ -597,6 +967,32 @@ export class DeploymentClient {
       default:
         return { completed: lastCompleted, total, label: "Waiting for build" };
     }
+  }
+
+  private ownedOperateRequest(input: OwnedOperateSourceInput): {
+    appSourceId: number;
+    params: URLSearchParams;
+    platform: string;
+    bearer: string;
+  } {
+    const githubUserId = required(input.githubUserId, "githubUserId");
+    const platform = cleanPlatform(input.platform);
+    const appSourceId = Number(input.appSourceId);
+    if (!Number.isSafeInteger(appSourceId) || appSourceId <= 0) {
+      throw new DeployError(
+        "INVALID_REQUEST",
+        "operate source reads require a positive appSourceId",
+      );
+    }
+    return {
+      appSourceId,
+      platform,
+      bearer: this.resolveBearer(input.bearer),
+      params: new URLSearchParams({
+        github_user_id: githubUserId,
+        platform,
+      }),
+    };
   }
 
   private backoffDelay(
@@ -637,8 +1033,17 @@ export class DeploymentClient {
     path: string,
     operation: string,
     bearer: string,
+    body?: unknown,
   ): Promise<Resp> {
-    return this.request<Resp>(path, { method: "DELETE" }, operation, bearer);
+    const init: RequestInit =
+      body === undefined
+        ? { method: "DELETE" }
+        : {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          };
+    return this.request<Resp>(path, init, operation, bearer);
   }
 
   private async request<Resp>(
@@ -661,7 +1066,7 @@ export class DeploymentClient {
       throw new BackendError(
         operation,
         0,
-        `${operation} request failed: ${err instanceof Error ? err.message : String(err)}`,
+        `${operation} request to ${url} failed: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
 
@@ -813,6 +1218,7 @@ function camelDeployResult(result: unknown): DeployResult {
     deployment: {
       id: deployment.id,
       status: deployment.status,
+      sdkVersion: deployment.sdk_version ?? deployment.sdkVersion ?? null,
       source: {
         installationId: source.installation_id,
         repositoryId: source.repository_id,
@@ -837,6 +1243,7 @@ function camelDeployResult(result: unknown): DeployResult {
           path: app.path,
           aomiTomlPath: app.aomi_toml_path,
           releaseTag: app.release_tag,
+          sdkVersion: app.sdk_version ?? app.sdkVersion ?? null,
           target: app.target ?? null,
           files: (app.files ?? []).map((file: Record<string, any>) => ({
             path: file.path,
@@ -997,6 +1404,21 @@ function camelPlatformApp(raw: unknown): PlatformApp {
   };
 }
 
+function timestampSeconds(value: unknown): number {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value > 100_000_000_000 ? Math.floor(value / 1000) : value;
+  }
+  if (typeof value !== "string") return 0;
+  const trimmed = value.trim();
+  if (!trimmed) return 0;
+  const numeric = Number(trimmed);
+  if (Number.isFinite(numeric)) {
+    return numeric > 100_000_000_000 ? Math.floor(numeric / 1000) : numeric;
+  }
+  const parsed = Date.parse(trimmed);
+  return Number.isFinite(parsed) ? Math.floor(parsed / 1000) : 0;
+}
+
 function camelUserSourceLatestDeployment(
   raw: unknown,
 ): UserSource["latestDeployment"] {
@@ -1014,11 +1436,13 @@ function camelUserSourceLatestDeployment(
     ciUrl: d.ci_url ?? d.ciUrl ?? d.ci?.url ?? null,
     ciRunId: d.ci_run_id ?? d.ciRunId ?? null,
     releaseTags: (d.release_tags ?? d.releaseTags ?? []) as string[],
+    sdkVersion: d.sdk_version ?? d.sdkVersion ?? null,
     artifactTarget: d.artifact_target ?? d.artifactTarget ?? null,
     buildTarget: d.build_target ?? d.buildTarget ?? d.target ?? null,
     apps: apps.map((app) => ({
       name: app.name,
       releaseTag: app.release_tag ?? app.releaseTag ?? null,
+      sdkVersion: app.sdk_version ?? app.sdkVersion ?? null,
       target: app.target ?? null,
       applicationId: app.application_id ?? app.applicationId ?? null,
       appSourceId: app.app_source_id ?? app.appSourceId ?? null,
@@ -1038,5 +1462,203 @@ function camelUserSource(raw: unknown): UserSource {
     latestDeployment: camelUserSourceLatestDeployment(
       s.latest_deployment ?? s.latestDeployment,
     ),
+    sdkVersion: s.sdk_version ?? s.sdkVersion ?? null,
+  };
+}
+
+function encodeTransactionCursor(
+  cursor: OperateTransactionCursor | string | null | undefined,
+): string | null {
+  if (!cursor) return null;
+  if (typeof cursor === "string") return cursor;
+  return JSON.stringify({ created_at: cursor.createdAt, id: cursor.id });
+}
+
+function encodeLogCursor(
+  cursor: OperateLogCursor | string | null | undefined,
+): string | null {
+  if (!cursor) return null;
+  if (typeof cursor === "string") return cursor;
+  return JSON.stringify({
+    occurred_at: cursor.occurredAt,
+    event_type: cursor.eventType,
+    id: cursor.id,
+  });
+}
+
+function camelTransactionCursor(raw: unknown): OperateTransactionCursor | null {
+  if (!raw || typeof raw !== "object") return null;
+  const c = raw as Record<string, any>;
+  const createdAt = timestampSeconds(c.created_at ?? c.createdAt);
+  const id = String(c.id ?? "");
+  return createdAt && id ? { createdAt, id } : null;
+}
+
+function camelLogCursor(raw: unknown): OperateLogCursor | null {
+  if (!raw || typeof raw !== "object") return null;
+  const c = raw as Record<string, any>;
+  const occurredAt = timestampSeconds(c.occurred_at ?? c.occurredAt);
+  const eventType = String(c.event_type ?? c.eventType ?? "");
+  const id = String(c.id ?? "");
+  return occurredAt && eventType && id ? { occurredAt, eventType, id } : null;
+}
+
+function camelOperateTransactions(
+  raw: Record<string, unknown>,
+  fallbackPlatform: string,
+): OperateTransactionsResult {
+  return {
+    source: camelAppSource(raw.source),
+    platform: String(raw.platform ?? fallbackPlatform),
+    transactions: ((raw.transactions ?? []) as Record<string, any>[]).map(
+      (row) => ({
+        id: String(row.id ?? ""),
+        externalTxId: String(row.external_tx_id ?? row.externalTxId ?? ""),
+        application: String(row.application ?? ""),
+        applicationId: row.application_id ?? row.applicationId ?? null,
+        status: String(row.status ?? ""),
+        txHash: row.tx_hash ?? row.txHash ?? null,
+        chainId: Number(row.chain_id ?? row.chainId ?? 0),
+        fromAddress: String(row.from_address ?? row.fromAddress ?? ""),
+        toAddress: String(row.to_address ?? row.toAddress ?? ""),
+        value: String(row.value ?? "0"),
+        hasCalldata: Boolean(row.has_calldata ?? row.hasCalldata),
+        calldataPreview: row.calldata_preview ?? row.calldataPreview ?? null,
+        description: row.description ?? null,
+        createdAt: timestampSeconds(row.created_at ?? row.createdAt),
+        updatedAt: timestampSeconds(row.updated_at ?? row.updatedAt),
+        submittedAt:
+          row.submitted_at == null && row.submittedAt == null
+            ? null
+            : timestampSeconds(row.submitted_at ?? row.submittedAt),
+      }),
+    ),
+    nextCursor: camelTransactionCursor(raw.next_cursor ?? raw.nextCursor),
+  };
+}
+
+function camelOperateUsage(
+  raw: Record<string, unknown>,
+  fallbackPlatform: string,
+): OperateUsageResult {
+  const range = (raw.range ?? {}) as Record<string, any>;
+  return {
+    source: camelAppSource(raw.source),
+    platform: String(raw.platform ?? fallbackPlatform),
+    range: {
+      fromDate: String(range.from_date ?? range.fromDate ?? ""),
+      toDate: String(range.to_date ?? range.toDate ?? ""),
+      maxDays: Number(range.max_days ?? range.maxDays ?? 90),
+    },
+    daily: ((raw.daily ?? []) as Record<string, any>[]).map((row) => ({
+      periodUtcDay: String(row.period_utc_day ?? row.periodUtcDay ?? ""),
+      application: String(row.application ?? ""),
+      applicationId: Number(row.application_id ?? row.applicationId ?? 0),
+      inputTokens: Number(row.input_tokens ?? row.inputTokens ?? 0),
+      outputTokens: Number(row.output_tokens ?? row.outputTokens ?? 0),
+      creditsUsed: Number(row.credits_used ?? row.creditsUsed ?? 0),
+    })),
+    breakdown: ((raw.breakdown ?? []) as Record<string, any>[]).map((row) => ({
+      provider: String(row.provider ?? ""),
+      model: String(row.model ?? ""),
+      paymentMethod: String(row.payment_method ?? row.paymentMethod ?? ""),
+      inputTokens: Number(row.input_tokens ?? row.inputTokens ?? 0),
+      outputTokens: Number(row.output_tokens ?? row.outputTokens ?? 0),
+      creditsUsed: Number(row.credits_used ?? row.creditsUsed ?? 0),
+      events: Number(row.events ?? 0),
+    })),
+  };
+}
+
+function camelOperateLogs(
+  raw: Record<string, unknown>,
+  fallbackPlatform: string,
+): OperateLogsResult {
+  return {
+    source: camelAppSource(raw.source),
+    platform: String(raw.platform ?? fallbackPlatform),
+    logs: ((raw.logs ?? []) as Record<string, any>[]).map((row) => ({
+      occurredAt: timestampSeconds(row.occurred_at ?? row.occurredAt),
+      eventType: String(row.event_type ?? row.eventType ?? ""),
+      id: String(row.id ?? ""),
+      application: String(row.application ?? ""),
+      applicationId: row.application_id ?? row.applicationId ?? null,
+      summary: String(row.summary ?? ""),
+      details: (row.details ?? {}) as Record<string, unknown>,
+    })),
+    nextCursor: camelLogCursor(raw.next_cursor ?? raw.nextCursor),
+  };
+}
+
+function camelOperateObservability(
+  raw: Record<string, unknown>,
+  fallbackPlatform: string,
+): OperateObservabilityResult {
+  const monitoring = (raw.monitoring ?? {}) as Record<string, any>;
+  return {
+    source: camelAppSource(raw.source),
+    platform: String(raw.platform ?? fallbackPlatform),
+    scope: String(raw.scope ?? "owned_applications"),
+    monitoring:
+      raw.monitoring && typeof raw.monitoring === "object"
+        ? {
+            provider: String(monitoring.provider ?? ""),
+            status: String(monitoring.status ?? ""),
+            windowSeconds: Number(
+              monitoring.window_seconds ?? monitoring.windowSeconds ?? 0,
+            ),
+          }
+        : null,
+    apps: ((raw.apps ?? []) as Record<string, any>[]).map((app) => ({
+      applicationId: Number(app.application_id ?? app.applicationId ?? 0),
+      application: String(app.application ?? ""),
+      active: Boolean(app.active),
+      loaded: Boolean(app.loaded),
+      releaseTag: app.release_tag ?? app.releaseTag ?? null,
+      sdkVersion: app.sdk_version ?? app.sdkVersion ?? null,
+      status: String(app.status ?? ""),
+      metrics: camelOperateAppMetrics(app.metrics),
+    })),
+    dashboardLinks: (
+      (raw.dashboard_links ?? raw.dashboardLinks ?? []) as Record<string, any>[]
+    ).map((link) => ({
+      label: String(link.label ?? ""),
+      url: String(link.url ?? ""),
+      scope: String(link.scope ?? ""),
+    })),
+    platformMetrics: (
+      (raw.platform_metrics ?? raw.platformMetrics ?? []) as Record<
+        string,
+        any
+      >[]
+    ).map((metric) => ({
+      label: String(metric.label ?? ""),
+      value:
+        metric.value === null || metric.value === undefined
+          ? null
+          : Number(metric.value),
+      unit: String(metric.unit ?? ""),
+      scope: String(metric.scope ?? ""),
+      description:
+        typeof metric.description === "string" ? metric.description : undefined,
+    })),
+  };
+}
+
+function camelOperateAppMetrics(raw: unknown) {
+  if (!raw || typeof raw !== "object") return null;
+  const metrics = raw as Record<string, any>;
+  const metricNumber = (snake: string, camel: string): number | null => {
+    const value = metrics[snake] ?? metrics[camel];
+    return value === null || value === undefined ? null : Number(value);
+  };
+  return {
+    provider: String(metrics.provider ?? ""),
+    windowSeconds: Number(metrics.window_seconds ?? metrics.windowSeconds ?? 0),
+    available: Boolean(metrics.available),
+    requestsPerMinute: metricNumber("requests_per_minute", "requestsPerMinute"),
+    errorRate: metricNumber("error_rate", "errorRate"),
+    p95LatencyMs: metricNumber("p95_latency_ms", "p95LatencyMs"),
+    inflightRequests: metricNumber("inflight_requests", "inflightRequests"),
   };
 }

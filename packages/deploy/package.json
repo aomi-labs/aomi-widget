@@ -1,7 +1,7 @@
 {
   "name": "@aomi-labs/deploy",
-  "version": "0.1.0",
-  "description": "Server-side TypeScript client for the Aomi platform deploy API. Node-only; never bundle into a browser.",
+  "version": "0.2.0",
+  "description": "TypeScript toolkit for the Aomi platform deploy API: server client, drop-in BFF route factories, and a browser launch client. Root and ./bff entries are server-only.",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -26,11 +26,32 @@
         "types": "./dist/lifecycle.d.cts",
         "default": "./dist/lifecycle.cjs"
       }
+    },
+    "./bff": {
+      "import": {
+        "types": "./dist/bff/index.d.ts",
+        "default": "./dist/bff/index.js"
+      },
+      "require": {
+        "types": "./dist/bff/index.d.cts",
+        "default": "./dist/bff/index.cjs"
+      }
+    },
+    "./launch": {
+      "import": {
+        "types": "./dist/launch/index.d.ts",
+        "default": "./dist/launch/index.js"
+      },
+      "require": {
+        "types": "./dist/launch/index.d.cts",
+        "default": "./dist/launch/index.cjs"
+      }
     }
   },
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "skills"
   ],
   "scripts": {
     "build": "tsup",
@@ -38,6 +59,9 @@
   },
   "engines": {
     "node": ">=18"
+  },
+  "dependencies": {
+    "jose": "^5.9.6"
   },
   "devDependencies": {
     "fast-check": "^4.8.0"

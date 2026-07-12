@@ -1,12 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  useApiKey,
-  useAuthEndpoints,
-  useByok,
-  usePerThreadControl,
-} from "@aomi-labs/react";
+import { useControl } from "@aomi-labs/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -21,23 +16,18 @@ import { Input } from "@/components/ui/input";
  * remain interactable).
  */
 export function SecretGate() {
-  const { state: authState } = useAuthEndpoints();
-  const { state: apiKeyState } = useApiKey();
-  const { ingestSecrets, listSecrets } = useByok().actions;
-  const { getCurrentThreadApp, getCurrentThreadApplicationId, onAppSelect } =
-    usePerThreadControl().actions;
+  const {
+    state,
+    getCurrentThreadApp,
+    ingestSecrets,
+    listSecrets,
+    onAppSelect,
+  } = useControl();
 
   const currentApp = getCurrentThreadApp();
-  const currentApplicationId = getCurrentThreadApplicationId();
   const descriptor = useMemo(
-    () =>
-      authState.appDescriptors.find(
-        (d) =>
-          d.name === currentApp &&
-          (d.applicationId?.toString() ?? "") ===
-            (currentApplicationId?.toString() ?? ""),
-      ) ?? authState.appDescriptors.find((d) => d.name === currentApp),
-    [authState.appDescriptors, currentApp, currentApplicationId],
+    () => state.appDescriptors.find((d) => d.name === currentApp),
+    [state.appDescriptors, currentApp],
   );
   const requiredSlots = useMemo(
     () => (descriptor?.secrets ?? []).filter((s) => s.required),
@@ -54,7 +44,7 @@ export function SecretGate() {
   // client id changes. Until we have a response, we render nothing — the
   // grey overlay only flashes when we know required slots are missing.
   useEffect(() => {
-    if (!apiKeyState.clientId || requiredSlots.length === 0) {
+    if (!state.clientId || requiredSlots.length === 0) {
       setFilled(new Set());
       setKnownEmpty(requiredSlots.length === 0);
       return;
@@ -75,7 +65,7 @@ export function SecretGate() {
     return () => {
       cancelled = true;
     };
-  }, [apiKeyState.clientId, currentApp, requiredSlots.length, listSecrets]);
+  }, [state.clientId, currentApp, requiredSlots.length, listSecrets]);
 
   const missing = useMemo(
     () => requiredSlots.filter((s) => !filled.has(s.name)),
@@ -115,14 +105,13 @@ export function SecretGate() {
   // app conventionally has none; any other already-satisfied app is also
   // acceptable. Falls back to "default" even if descriptor lookup fails.
   const handleSwitchAway = useCallback(() => {
-    const candidate = authState.appDescriptors.find(
+    const candidate = state.appDescriptors.find(
       (d) =>
-        d.name !== currentApp && (d.secrets ?? []).every((s) => !s.required),
+        d.name !== currentApp &&
+        (d.secrets ?? []).every((s) => !s.required),
     );
-    onAppSelect(candidate?.name ?? "default", {
-      applicationId: candidate?.applicationId,
-    });
-  }, [currentApp, onAppSelect, authState.appDescriptors]);
+    onAppSelect(candidate?.name ?? "default");
+  }, [currentApp, onAppSelect, state.appDescriptors]);
 
   if (!knownEmpty || missing.length === 0) return null;
 
@@ -178,7 +167,9 @@ export function SecretGate() {
           ))}
         </div>
 
-        {error && <p className="text-destructive mt-3 text-sm">{error}</p>}
+        {error && (
+          <p className="text-destructive mt-3 text-sm">{error}</p>
+        )}
 
         <div className="mt-5 flex items-center justify-between gap-3">
           <button

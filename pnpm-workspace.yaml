@@ -3,7 +3,30 @@ packages:
   - apps/*
   - packages/*
 
+overrides:
+  viem: 2.47.11
+  # Collapse react/react-dom to one version. Bun bundles the aomi-smither
+  # browser console (packages/smither/src/ui) at gateway request time; with two
+  # react copies in the tree its dedupe resolves react@19.2.3 against
+  # react-dom@19.2.7 and the app dies on "Incompatible React versions". Every
+  # workspace consumer declares ^19.2.0, so pinning 19.2.7 is an in-range patch
+  # alignment, not a bump past anyone's range.
+  react: 19.2.7
+  react-dom: 19.2.7
+
+# @inkjs/ui declares no react dependency (nor peer), so its bare `import react`
+# falls through to a hoisted copy that differs from the one ink's reconciler is
+# bound to — "Invalid hook call" crashes the aomi-smither TUI at startup.
+# Granting it a react peer makes pnpm resolve react within the smither context
+# so it shares ink's instance. (Restored after the main merge relocated pnpm
+# config here from package.json.)
+packageExtensions:
+  "@inkjs/ui":
+    peerDependencies:
+      react: "*"
+
 onlyBuiltDependencies:
+  - "@reown/appkit"
   - "@tailwindcss/oxide"
   - bufferutil
   - esbuild
@@ -11,3 +34,6 @@ onlyBuiltDependencies:
   - sharp
   - unrs-resolver
   - utf-8-validate
+
+allowBuilds:
+  '@reown/appkit': true

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button, Input } from "@aomi-labs/widget-lib";
-import { accountScopedFetch } from "@portal/lib/settings-api";
+import { settingsApiFetch } from "@portal/lib/settings-api";
 import {
   settingsActionRowClass,
   settingsBodyTextClass,
@@ -36,12 +36,12 @@ type AppKeysResponse = {
   app_keys: OwnedAppKey[];
 };
 
-type AppOption = string | { name?: string };
-
 type CreateAppKeyResponse = {
   app_key: string;
   key: OwnedAppKey;
 };
+
+type AppOption = string | { name?: string };
 
 function normalizeAppOptions(apps: AppOption[]): string[] {
   return [
@@ -75,11 +75,19 @@ export function AppKeys() {
   } | null>(null);
   const [createdAppKey, setCreatedAppKey] = useState<string | null>(null);
 
+  const ensureBoundSession = useCallback(async () => {
+    await settingsApiFetch<{ thread_id: string; title?: string | null }>(
+      "/api/threads",
+      { method: "POST", body: JSON.stringify({}) },
+    );
+  }, []);
+
   const loadAppKeys = useCallback(async () => {
     setLoadingKeys(true);
     setStatus(null);
     try {
-      const data = await accountScopedFetch<AppKeysResponse>(
+      await ensureBoundSession();
+      const data = await settingsApiFetch<AppKeysResponse>(
         "/api/account/app-keys",
       );
       setAppKeys(data.app_keys ?? []);
@@ -92,12 +100,12 @@ export function AppKeys() {
     } finally {
       setLoadingKeys(false);
     }
-  }, []);
+  }, [ensureBoundSession]);
 
   const loadApps = useCallback(async () => {
     setLoadingApps(true);
     try {
-      const data = await accountScopedFetch<AppOption[]>("/api/account/apps");
+      const data = await settingsApiFetch<AppOption[]>("/api/account/apps");
       const normalized = normalizeAppOptions(data ?? []);
       setAvailableApps(normalized);
       setSelectedApps((previous) => {
@@ -142,12 +150,13 @@ export function AppKeys() {
     setStatus(null);
     setCreatedAppKey(null);
     try {
+      await ensureBoundSession();
       const payload = {
         apps: selectedApps,
         label: labelInput.trim() || undefined,
         app_key: manualKeyInput.trim() || undefined,
       };
-      const data = await accountScopedFetch<CreateAppKeyResponse>(
+      const data = await settingsApiFetch<CreateAppKeyResponse>(
         "/api/account/app-keys",
         {
           method: "POST",
@@ -168,7 +177,14 @@ export function AppKeys() {
     } finally {
       setCreating(false);
     }
-  }, [canCreate, labelInput, loadAppKeys, manualKeyInput, selectedApps]);
+  }, [
+    canCreate,
+    ensureBoundSession,
+    labelInput,
+    loadAppKeys,
+    manualKeyInput,
+    selectedApps,
+  ]);
 
   const handleRemove = useCallback(
     async (key: OwnedAppKey) => {
@@ -180,7 +196,8 @@ export function AppKeys() {
       setDeletingHash(key.key_hash);
       setStatus(null);
       try {
-        await accountScopedFetch<{ revoked: boolean }>(
+        await ensureBoundSession();
+        await settingsApiFetch<{ revoked: boolean }>(
           `/api/account/app-keys/${encodeURIComponent(key.key_hash)}`,
           { method: "DELETE" },
         );
@@ -196,7 +213,7 @@ export function AppKeys() {
         setDeletingHash(null);
       }
     },
-    [deletingHash, loadAppKeys],
+    [deletingHash, ensureBoundSession, loadAppKeys],
   );
 
   return (
@@ -204,8 +221,8 @@ export function AppKeys() {
       <div className="space-y-4">
         <h1 className={settingsTitleClass}>App Keys</h1>
         <p className={settingsDescriptionClass}>
-          Programmatic access keys for Aomi. Send as <code>Aomi-App-Key</code>{" "}
-          to call <code>/api/chat</code> from your own services. Newly generated
+          Programmatic access keys for Aomi. Send as <code>AOMI-APP-KEY</code>{" "}
+          to call <code>/api/thread/chat</code> from your own services. Newly generated
           keys are shown only once.
         </p>
       </div>

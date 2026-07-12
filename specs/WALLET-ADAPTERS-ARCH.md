@@ -1,8 +1,16 @@
 # Wallet Adapter Architecture
 
-This document describes the current widget wallet adapter architecture. It
-covers the registry auth adapter, provider implementations, runtime transaction
-bridge, and client AA executor.
+> Historical reference. This May 2026 architecture snapshot predates the
+> wallet-kit path cleanup (`apps/registry/src/lib/aomi-wallet-kit/*` ->
+> `apps/registry/src/lib/wallet-kit/*`) and several later auth-stack changes.
+> Use `specs/DOMAIN.md`, `specs/WIDGET-AUTH-PLAN.md`, and
+> `docs/topics/auth/facts/wallet-kit.md` for the live architecture. Keep this
+> file for migration rationale until the broader executed wallet plan specs are
+> deleted or archived after merge.
+
+This document describes the May 2026 widget wallet adapter architecture. It
+covers the registry wallet kit, provider implementations, runtime transaction
+bridge, and client AA executor as they existed at that snapshot.
 
 **Last Updated:** 2026-05-03
 
@@ -11,16 +19,16 @@ bridge, and client AA executor.
 ## Overview
 
 The widget wallet layer is provider-based. UI components consume a single
-`AomiAuthAdapter` interface from context, while wallet-specific providers own
+`AomiWalletKit` interface from context, while wallet-specific providers own
 connection, identity, signing, transaction submission, and account-abstraction
 details.
 
-The current architecture supports:
+That snapshot supported:
 
-- Para-backed auth through `AomiParaAdapterProvider` / `AomiParaProvider`.
+- Para-backed auth through `AomiParaPluginProvider` / `AomiParaProvider`.
 - Base Account auth through `AomiBaseAccountProvider`.
-- Provider-neutral runtime user sync through `AomiAuthRuntimeUserSync`.
-- Provider-neutral transaction routing through `executeAdapterTransaction`.
+- Provider-neutral runtime user sync through `AomiWalletKitSync`.
+- Provider-neutral transaction routing through `executeWalletKitTransaction`.
 - Client-side execution through `executeWalletCalls`, including smart-account
   execution, native wallet `wallet_sendCalls`, atomic batching, paymaster
   sponsorship, and native fallback rules.
@@ -36,7 +44,7 @@ the adapter, and the widget reads only the shared adapter contract.
 
 Each wallet family owns its connection details. Para-specific SDK state stays in
 the Para provider. Base Account connector state stays in the Base Account
-provider. Shared UI components consume only `AomiAuthAdapter`.
+provider. Shared UI components consume only `AomiWalletKit`.
 
 ### Runtime user-state consistency
 
@@ -61,7 +69,7 @@ execution policy, including required sponsored batch execution.
 
 ### Modular registry installation
 
-The shadcn registry exposes the generic auth adapter, Para provider, Base
+The shadcn registry exposes the generic wallet kit, Para provider, Base
 Account provider, runtime transaction handler, control bar, and frame as
 separate installable units.
 
@@ -78,7 +86,7 @@ graph TD
   AomiFrame["AomiFrame.Root"]
   ConnectButton["ConnectButton"]
   RuntimeTxHandler["RuntimeTxHandler"]
-  LegacyAdapter["apps/registry/src/lib/aomi-auth-adapter.ts<br/>useAomiAuthAdapter"]
+  LegacyAdapter["apps/registry/src/lib/aomi-wallet-kit.ts<br/>useAomiWalletKit"]
   ParaHooks["Para hooks"]
   WagmiHooks["wagmi hooks"]
   AAState["createAAProviderState"]
@@ -107,15 +115,15 @@ adapter was a hook rather than a provider-supplied context value.
 graph TD
   App["App / registry consumer"]
   ProviderChoice{"Wallet provider mounted by app"}
-  ParaProvider["AomiParaProvider<br/>or AomiParaAdapterProvider"]
+  ParaProvider["AomiParaProvider<br/>or AomiParaPluginProvider"]
   BaseProvider["AomiBaseAccountProvider"]
-  AdapterContext["AomiAuthAdapterContext"]
+  AdapterContext["AomiWalletKitContext"]
   AomiFrame["AomiFrame.Root"]
-  UserSync["AomiAuthRuntimeUserSync"]
+  UserSync["AomiWalletKitSync"]
   ConnectButton["ConnectButton"]
   NetworkSelect["NetworkSelect"]
   RuntimeTxHandler["RuntimeTxHandler"]
-  SharedExecution["executeAdapterTransaction"]
+  SharedExecution["executeWalletKitTransaction"]
   ClientExecution["executeWalletCalls"]
   RuntimeUser["useUser runtime state"]
 
@@ -140,31 +148,31 @@ graph TD
 
 ## Implementation Layout
 
-### Auth adapter core
+### Wallet kit core
 
 | File                                                            | Responsibility                                                                                                             |
 | --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `apps/registry/src/lib/aomi-auth-adapter.ts`                    | Compatibility re-export shim to the adapter directory. Existing imports keep working.                                      |
-| `apps/registry/src/lib/aomi-auth-adapter/context.tsx`           | Adds `AomiAuthAdapterProvider` and `useAomiAuthAdapter` context hook.                                                      |
-| `apps/registry/src/lib/aomi-auth-adapter/types.ts`              | Adds the shared adapter, identity, and transaction-result interfaces.                                                      |
-| `apps/registry/src/lib/aomi-auth-adapter/identity.ts`           | Moves identity constants and formatting helpers into the adapter module. Adds `baseAccount` label support.                 |
-| `apps/registry/src/lib/aomi-auth-adapter/runtime-user-sync.tsx` | Adds the runtime user-state sync component now mounted by `AomiFrame.Root`.                                                |
-| `apps/registry/src/lib/aomi-auth-adapter/safe-wagmi-hooks.ts`   | Extracts safe wagmi hook wrappers and adds connect/disconnect/connectors helpers plus extended `sendCallsSync` forwarding. |
-| `apps/registry/src/lib/aomi-auth-adapter/wallet-execution.ts`   | Adds shared transaction execution orchestration used by provider implementations.                                          |
+| `apps/registry/src/lib/aomi-wallet-kit.ts`                    | Compatibility re-export shim to the adapter directory. Existing imports keep working.                                      |
+| `apps/registry/src/lib/aomi-wallet-kit/context.tsx`           | Adds `AomiWalletKitContextProvider` and `useAomiWalletKit` context hook.                                                      |
+| `apps/registry/src/lib/aomi-wallet-kit/types.ts`              | Adds the shared adapter, identity, and transaction-result interfaces.                                                      |
+| `apps/registry/src/lib/aomi-wallet-kit/identity.ts`           | Moves identity constants and formatting helpers into the adapter module. Adds `baseAccount` label support.                 |
+| `apps/registry/src/lib/aomi-wallet-kit/runtime-user-sync.tsx` | Adds the runtime user-state sync component now mounted by `AomiFrame.Root`.                                                |
+| `apps/registry/src/lib/aomi-wallet-kit/safe-wagmi-hooks.ts`   | Extracts safe wagmi hook wrappers and adds connect/disconnect/connectors helpers plus extended `sendCallsSync` forwarding. |
+| `apps/registry/src/lib/aomi-wallet-kit/wallet-execution.ts`   | Adds shared transaction execution orchestration used by provider implementations.                                          |
 
 ### Provider implementations
 
 | File                                                                 | Responsibility                                                                                                                              |
 | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `apps/registry/src/lib/aomi-auth-adapter/providers/para.tsx`         | Para implementation with `AomiParaProvider` / `AomiParaAdapterProvider`.                                                                    |
-| `apps/registry/src/lib/aomi-auth-adapter/providers/base-account.tsx` | Adds Base Account provider with wagmi `baseAccount` connector, connect/disconnect, signing, transaction execution, and sponsorship options. |
-| `apps/landing/app/components/landing-para-provider.tsx`              | Wraps the existing demo Para setup in `AomiParaAdapterProvider`, so the landing demo uses the adapter context.                              |
+| `apps/registry/src/lib/aomi-wallet-kit/providers/para.tsx`         | Para implementation with `AomiParaProvider` / `AomiParaPluginProvider`.                                                                    |
+| `apps/registry/src/lib/aomi-wallet-kit/providers/base-account.tsx` | Adds Base Account provider with wagmi `baseAccount` connector, connect/disconnect, signing, transaction execution, and sponsorship options. |
+| `apps/landing/app/components/landing-para-provider.tsx`              | Wraps the existing demo Para setup in `AomiParaPluginProvider`, so the landing demo uses the adapter context.                              |
 
 ### Widget components
 
 | File                                                          | Responsibility                                                                                                                    |
 | ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `apps/registry/src/components/aomi-frame.tsx`                 | Mounts `AomiAuthRuntimeUserSync` inside `AomiFrame.Root`.                                                                         |
+| `apps/registry/src/components/aomi-frame.tsx`                 | Mounts `AomiWalletKitSync` inside `AomiFrame.Root`.                                                                         |
 | `apps/registry/src/components/control-bar/connect-button.tsx` | Removes direct `useUser` sync, respects `adapter.canConnect` / `adapter.canManageAccount`, and only delegates to adapter actions. |
 | `apps/registry/src/components/control-bar/network-select.tsx` | Allows provider-specific supported chain lists via `adapter.supportedChains`.                                                     |
 | `apps/registry/src/components/runtime-tx-handler.tsx`         | Routes runtime transaction and signing requests through the active adapter.                                                       |
@@ -184,7 +192,7 @@ graph TD
 
 | File                            | Responsibility                                                                                                               |
 | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `apps/registry/src/registry.ts` | Adds registry entries for `aomi-auth-adapter`, `aomi-para-provider`, and `aomi-base-account-provider`; updates dependencies. |
+| `apps/registry/src/registry.ts` | Adds registry entries for `aomi-wallet-kit`, `aomi-para-provider`, and `aomi-base-account-provider`; updates dependencies. |
 | `apps/registry/dist/*.json`     | Regenerated registry output reflecting the current component/provider graph.                                                 |
 | `packages/client/package.json`  | Bumps client package version from `0.1.31` to `0.1.32`.                                                                      |
 | `packages/react/package.json`   | Bumps React package version from `0.3.14` to `0.3.15`.                                                                       |
@@ -206,10 +214,10 @@ The widget now has three layers:
 ```mermaid
 graph LR
   UI["Widget UI<br/>ConnectButton, NetworkSelect, RuntimeTxHandler"]
-  Interface["AomiAuthAdapter<br/>shared interface"]
+  Interface["AomiWalletKit<br/>shared interface"]
   Para["Para provider"]
   Base["Base Account provider"]
-  Shared["executeAdapterTransaction"]
+  Shared["executeWalletKitTransaction"]
   Client["executeWalletCalls"]
   Chain["wallet / AA provider / RPC"]
 
@@ -226,15 +234,15 @@ graph LR
 
 ## Core Interfaces
 
-### `AomiAuthAdapter`
+### `AomiWalletKit`
 
-Defined in `apps/registry/src/lib/aomi-auth-adapter/types.ts`.
+Defined in `apps/registry/src/lib/aomi-wallet-kit/types.ts`.
 
 This is the shared contract the widget consumes.
 
 ```ts
-export type AomiAuthAdapter = {
-  identity: AomiAuthIdentity;
+export type AomiWalletKit = {
+  identity: AomiSessionIdentity;
   isReady: boolean;
   isSwitchingChain: boolean;
 
@@ -265,7 +273,7 @@ Behavior:
 
 ### `AomiTxResult`
 
-Defined in `apps/registry/src/lib/aomi-auth-adapter/types.ts`.
+Defined in `apps/registry/src/lib/aomi-wallet-kit/types.ts`.
 
 This is what adapter transaction execution returns to the runtime request resolver.
 
@@ -403,11 +411,11 @@ Behavior:
 
 - The client executor needs concrete values.
 - The registry provider can accept callbacks that resolve URL/context per chain.
-- `executeAdapterTransaction` converts the registry provider shape into the client shape right before execution.
+- `executeWalletKitTransaction` converts the registry provider shape into the client shape right before execution.
 
 ### `BaseAccountSponsorshipOptions`
 
-Defined in `apps/registry/src/lib/aomi-auth-adapter/providers/base-account.tsx`.
+Defined in `apps/registry/src/lib/aomi-wallet-kit/providers/base-account.tsx`.
 
 This lets Base Account consumers configure whether sponsorship is disabled, optional, or required.
 
@@ -430,13 +438,13 @@ user-paid transactions.
 sequenceDiagram
   participant User
   participant CB as connect-button.tsx
-  participant Legacy as lib/aomi-auth-adapter.ts
+  participant Legacy as lib/aomi-wallet-kit.ts
   participant Para as Para hooks/modal
   participant Wagmi as wagmi hooks
   participant UserCtx as useUser runtime state
 
   User->>CB: click connect
-  CB->>Legacy: useAomiAuthAdapter()
+  CB->>Legacy: useAomiWalletKit()
   Legacy->>Para: read account, client, modal
   Legacy->>Wagmi: read wagmi account/chain/actions
   Legacy-->>CB: adapter object
@@ -454,15 +462,15 @@ coupled to `ConnectButton`.
 ```mermaid
 sequenceDiagram
   participant App
-  participant Provider as AomiParaAdapterProvider or AomiBaseAccountProvider
-  participant Ctx as AomiAuthAdapterContext
+  participant Provider as AomiParaPluginProvider or AomiBaseAccountProvider
+  participant Ctx as AomiWalletKitContext
   participant Frame as AomiFrame.Root
-  participant Sync as AomiAuthRuntimeUserSync
+  participant Sync as AomiWalletKitSync
   participant CB as ConnectButton
   participant UserCtx as useUser runtime state
 
   App->>Provider: mount chosen wallet provider
-  Provider->>Ctx: provide AomiAuthAdapter
+  Provider->>Ctx: provide AomiWalletKit
   App->>Frame: mount widget
   Frame->>Sync: auto-mount user sync
   Sync->>Ctx: read adapter.identity
@@ -490,7 +498,7 @@ sequenceDiagram
   participant UserCtx as @aomi-labs/react useUser
 
   User->>CB: click "Connect Account"
-  CB->>Ctx: useAomiAuthAdapter()
+  CB->>Ctx: useAomiWalletKit()
   Ctx-->>CB: Base adapter
   CB->>Base: adapter.connect()
   Base->>Safe: useSafeConnect() returned connectAsync
@@ -508,12 +516,12 @@ Function order:
 | Order | File                                                                 | Function or code path                                | Role                                                                                 |
 | ----- | -------------------------------------------------------------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------ |
 | 1     | `apps/registry/src/components/control-bar/connect-button.tsx`        | `handleClick`                                        | Decides connect vs manage based on adapter state.                                    |
-| 2     | `apps/registry/src/lib/aomi-auth-adapter/context.tsx`                | `useAomiAuthAdapter`                                 | Reads the active adapter from context.                                               |
-| 3     | `apps/registry/src/lib/aomi-auth-adapter/providers/base-account.tsx` | `BaseAccountAdapterInner` memoized `adapter.connect` | Calls wagmi `connectAsync` with the Base Account connector.                          |
-| 4     | `apps/registry/src/lib/aomi-auth-adapter/safe-wagmi-hooks.ts`        | `useSafeConnect`, `useSafeConnectors`                | Safely exposes wagmi connect helpers.                                                |
-| 5     | `apps/registry/src/lib/aomi-auth-adapter/providers/base-account.tsx` | `createBaseAccountConfig`                            | Creates wagmi config with `baseAccount({ appName, appLogoUrl, paymasterUrls: {} })`. |
-| 6     | `apps/registry/src/lib/aomi-auth-adapter/providers/base-account.tsx` | identity construction                                | Formats connected Base Account identity.                                             |
-| 7     | `apps/registry/src/lib/aomi-auth-adapter/runtime-user-sync.tsx`      | `AomiAuthRuntimeUserSync`                            | Pushes identity into runtime user state.                                             |
+| 2     | `apps/registry/src/lib/aomi-wallet-kit/context.tsx`                | `useAomiWalletKit`                                 | Reads the active adapter from context.                                               |
+| 3     | `apps/registry/src/lib/aomi-wallet-kit/providers/base-account.tsx` | `BaseAccountAdapterInner` memoized `adapter.connect` | Calls wagmi `connectAsync` with the Base Account connector.                          |
+| 4     | `apps/registry/src/lib/aomi-wallet-kit/safe-wagmi-hooks.ts`        | `useSafeConnect`, `useSafeConnectors`                | Safely exposes wagmi connect helpers.                                                |
+| 5     | `apps/registry/src/lib/aomi-wallet-kit/providers/base-account.tsx` | `createBaseAccountConfig`                            | Creates wagmi config with `baseAccount({ appName, appLogoUrl, paymasterUrls: {} })`. |
+| 6     | `apps/registry/src/lib/aomi-wallet-kit/providers/base-account.tsx` | identity construction                                | Formats connected Base Account identity.                                             |
+| 7     | `apps/registry/src/lib/aomi-wallet-kit/runtime-user-sync.tsx`      | `AomiWalletKitSync`                            | Pushes identity into runtime user state.                                             |
 
 ### Para connection order
 
@@ -529,7 +537,7 @@ sequenceDiagram
   participant UserCtx as @aomi-labs/react useUser
 
   User->>CB: click "Connect Account"
-  CB->>Ctx: useAomiAuthAdapter()
+  CB->>Ctx: useAomiWalletKit()
   Ctx-->>CB: Para adapter
   CB->>ParaProvider: adapter.connect()
   ParaProvider->>ParaSDK: paraModal.openModal({ step: "AUTH_MAIN" })
@@ -545,12 +553,12 @@ Function order:
 | Order | File                                                            | Function or code path                                         | Role                                                                     |
 | ----- | --------------------------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------ |
 | 1     | `apps/registry/src/components/control-bar/connect-button.tsx`   | `handleClick`                                                 | Decides connect vs manage based on adapter state.                        |
-| 2     | `apps/registry/src/lib/aomi-auth-adapter/context.tsx`           | `useAomiAuthAdapter`                                          | Reads the active adapter from context.                                   |
-| 3     | `apps/registry/src/lib/aomi-auth-adapter/providers/para.tsx`    | `AomiParaAdapterProvider` memoized `adapter.connect`          | Opens the Para auth modal at `AUTH_MAIN`.                                |
-| 4     | `apps/registry/src/lib/aomi-auth-adapter/providers/para.tsx`    | `useSafeParaAccount`, `useSafeParaClient`, `useSafeParaModal` | Safely reads Para SDK state.                                             |
-| 5     | `apps/registry/src/lib/aomi-auth-adapter/safe-wagmi-hooks.ts`   | `useSafeWagmiAccount`, `useSafeWalletClient`                  | Reads external wallet state when Para uses an external EVM wallet.       |
-| 6     | `apps/registry/src/lib/aomi-auth-adapter/providers/para.tsx`    | identity construction                                         | Chooses embedded email/social label, external address, or wagmi address. |
-| 7     | `apps/registry/src/lib/aomi-auth-adapter/runtime-user-sync.tsx` | `AomiAuthRuntimeUserSync`                                     | Pushes identity into runtime user state.                                 |
+| 2     | `apps/registry/src/lib/aomi-wallet-kit/context.tsx`           | `useAomiWalletKit`                                          | Reads the active adapter from context.                                   |
+| 3     | `apps/registry/src/lib/aomi-wallet-kit/providers/para.tsx`    | `AomiParaPluginProvider` memoized `adapter.connect`          | Opens the Para auth modal at `AUTH_MAIN`.                                |
+| 4     | `apps/registry/src/lib/aomi-wallet-kit/providers/para.tsx`    | `useSafeParaAccount`, `useSafeParaClient`, `useSafeParaModal` | Safely reads Para SDK state.                                             |
+| 5     | `apps/registry/src/lib/aomi-wallet-kit/safe-wagmi-hooks.ts`   | `useSafeWagmiAccount`, `useSafeWalletClient`                  | Reads external wallet state when Para uses an external EVM wallet.       |
+| 6     | `apps/registry/src/lib/aomi-wallet-kit/providers/para.tsx`    | identity construction                                         | Chooses embedded email/social label, external address, or wagmi address. |
+| 7     | `apps/registry/src/lib/aomi-wallet-kit/runtime-user-sync.tsx` | `AomiWalletKitSync`                                     | Pushes identity into runtime user state.                                 |
 
 ---
 
@@ -562,7 +570,7 @@ Function order:
 sequenceDiagram
   participant Backend as Aomi backend
   participant Runtime as runtime-tx-handler.tsx
-  participant Legacy as lib/aomi-auth-adapter.ts
+  participant Legacy as lib/aomi-wallet-kit.ts
   participant ParaAA as createAAProviderState
   participant Execute as executeWalletCalls
   participant Wallet as wagmi wallet
@@ -595,7 +603,7 @@ In the legacy flow, most orchestration lived in the Para-shaped adapter file.
 sequenceDiagram
   participant Backend as Aomi backend
   participant Runtime as runtime-tx-handler.tsx
-  participant Adapter as AomiAuthAdapter
+  participant Adapter as AomiWalletKit
   participant Shared as wallet-execution.ts
   participant Para as providers/para.tsx
   participant Base as providers/base-account.tsx
@@ -608,7 +616,7 @@ sequenceDiagram
   Runtime->>Runtime: simulateBatchTransactions()
   Runtime->>Runtime: appendFeeCallToPayload()
   Runtime->>Adapter: sendTransaction(payloadWithFee)
-  Adapter->>Shared: executeAdapterTransaction()
+  Adapter->>Shared: executeWalletKitTransaction()
   Shared->>Shared: toAAWalletCalls()
   Shared->>Shared: resolveRequestedAAMode()
   alt Para provider
@@ -627,7 +635,7 @@ sequenceDiagram
 ```
 
 In the current flow, `RuntimeTxHandler` prepares the request,
-`executeAdapterTransaction` performs provider-neutral transaction planning,
+`executeWalletKitTransaction` performs provider-neutral transaction planning,
 provider files supply wallet-specific state, and the client executor submits the
 calls.
 
@@ -640,7 +648,7 @@ sequenceDiagram
   participant Backend as Aomi backend
   participant Runtime as RuntimeTxHandler
   participant UserState as runtime user state
-  participant Adapter as active AomiAuthAdapter
+  participant Adapter as active AomiWalletKit
   participant BackendSim as simulateBatchTransactions
 
   Backend->>Runtime: wallet_tx_request
@@ -672,11 +680,11 @@ unresolved-provider fallback path remains.
 
 ### Shared transaction execution flow
 
-This happens in `apps/registry/src/lib/aomi-auth-adapter/wallet-execution.ts`.
+This happens in `apps/registry/src/lib/aomi-wallet-kit/wallet-execution.ts`.
 
 ```mermaid
 flowchart TD
-  Start["executeAdapterTransaction(payload, state, resolver?)"]
+  Start["executeWalletKitTransaction(payload, state, resolver?)"]
   Validate["Validate payload has call data"]
   Calls["toAAWalletCalls(payload, defaultChainId)"]
   RequestMode["resolveRequestedAAMode(payload, isBatch)"]
@@ -714,8 +722,8 @@ Para can use an Aomi-created smart account through Alchemy or Pimlico. It can ru
 ```mermaid
 sequenceDiagram
   participant Runtime as RuntimeTxHandler
-  participant ParaAdapter as AomiParaAdapterProvider
-  participant Shared as executeAdapterTransaction
+  participant ParaAdapter as AomiParaPluginProvider
+  participant Shared as executeWalletKitTransaction
   participant ParaResolve as resolveParaAAProviderState
   participant CreateAA as createAAProviderState
   participant ClientExec as executeWalletCalls
@@ -723,7 +731,7 @@ sequenceDiagram
   participant Wallet as wagmi sendTransaction
 
   Runtime->>ParaAdapter: adapter.sendTransaction(payloadWithFee)
-  ParaAdapter->>Shared: executeAdapterTransaction({ resolveAAProviderState })
+  ParaAdapter->>Shared: executeWalletKitTransaction({ resolveAAProviderState })
   Shared->>Shared: callList = toAAWalletCalls()
   Shared->>Shared: aaRequestedMode = resolveRequestedAAMode()
   Shared->>Shared: buildAaAttempts()
@@ -774,14 +782,14 @@ Base Account is handled as wallet-native execution. It does not create an Aomi `
 sequenceDiagram
   participant Runtime as RuntimeTxHandler
   participant BaseAdapter as AomiBaseAccountProvider
-  participant Shared as executeAdapterTransaction
+  participant Shared as executeWalletKitTransaction
   participant ClientExec as executeWalletCalls
   participant Caps as wallet capabilities
   participant SendCalls as sendCallsSyncAsync
   participant SendTx as sendTransactionAsync
 
   Runtime->>BaseAdapter: adapter.sendTransaction(payloadWithFee)
-  BaseAdapter->>Shared: executeAdapterTransaction({ nativeWalletExecution })
+  BaseAdapter->>Shared: executeWalletKitTransaction({ nativeWalletExecution })
   Shared->>Shared: callList = toAAWalletCalls()
   Shared->>Shared: aaRequestedMode = resolveRequestedAAMode()
   Shared->>Shared: resolveNativeWalletExecutionPolicy()
@@ -935,7 +943,7 @@ Signing did not need as much behavioral change as transactions, but it now trave
 sequenceDiagram
   participant Backend as Aomi backend
   participant Runtime as RuntimeTxHandler
-  participant Adapter as AomiAuthAdapter
+  participant Adapter as AomiWalletKit
   participant Provider as Base or Para provider
   participant Wagmi as wagmi signTypedDataAsync
 
@@ -985,9 +993,9 @@ Function order:
 | 1     | `apps/registry/src/components/runtime-tx-handler.tsx`                | `processRequest` sign branch | Handles non-transaction wallet requests.                    |
 | 2     | `packages/client/src/wallet-utils.ts`                                | `toViemSignTypedDataArgs`    | Normalizes EIP-712 payload into viem shape.                 |
 | 3     | `packages/client/src/wallet-utils.ts`                                | `parseChainId`               | Parses domain chain id.                                     |
-| 4     | `apps/registry/src/lib/aomi-auth-adapter/providers/base-account.tsx` | `adapter.switchChain`        | Uses wagmi `switchChainAsync` when request chain differs.   |
-| 5     | `apps/registry/src/lib/aomi-auth-adapter/providers/base-account.tsx` | `adapter.signTypedData`      | Converts payload again defensively and calls wagmi signing. |
-| 6     | `apps/registry/src/lib/aomi-auth-adapter/safe-wagmi-hooks.ts`        | `useSafeSignTypedData`       | Safely exposes `signTypedDataAsync`.                        |
+| 4     | `apps/registry/src/lib/aomi-wallet-kit/providers/base-account.tsx` | `adapter.switchChain`        | Uses wagmi `switchChainAsync` when request chain differs.   |
+| 5     | `apps/registry/src/lib/aomi-wallet-kit/providers/base-account.tsx` | `adapter.signTypedData`      | Converts payload again defensively and calls wagmi signing. |
+| 6     | `apps/registry/src/lib/aomi-wallet-kit/safe-wagmi-hooks.ts`        | `useSafeSignTypedData`       | Safely exposes `signTypedDataAsync`.                        |
 
 ### Para signing order
 
@@ -1020,20 +1028,20 @@ Function order:
 | 1     | `apps/registry/src/components/runtime-tx-handler.tsx`         | `processRequest` sign branch | Handles non-transaction wallet requests.                    |
 | 2     | `packages/client/src/wallet-utils.ts`                         | `toViemSignTypedDataArgs`    | Normalizes EIP-712 payload into viem shape.                 |
 | 3     | `packages/client/src/wallet-utils.ts`                         | `parseChainId`               | Parses domain chain id.                                     |
-| 4     | `apps/registry/src/lib/aomi-auth-adapter/providers/para.tsx`  | `adapter.switchChain`        | Uses wagmi `switchChainAsync` when request chain differs.   |
-| 5     | `apps/registry/src/lib/aomi-auth-adapter/providers/para.tsx`  | `adapter.signTypedData`      | Converts payload again defensively and calls wagmi signing. |
-| 6     | `apps/registry/src/lib/aomi-auth-adapter/safe-wagmi-hooks.ts` | `useSafeSignTypedData`       | Safely exposes `signTypedDataAsync`.                        |
+| 4     | `apps/registry/src/lib/aomi-wallet-kit/providers/para.tsx`  | `adapter.switchChain`        | Uses wagmi `switchChainAsync` when request chain differs.   |
+| 5     | `apps/registry/src/lib/aomi-wallet-kit/providers/para.tsx`  | `adapter.signTypedData`      | Converts payload again defensively and calls wagmi signing. |
+| 6     | `apps/registry/src/lib/aomi-wallet-kit/safe-wagmi-hooks.ts` | `useSafeSignTypedData`       | Safely exposes `signTypedDataAsync`.                        |
 
 ---
 
 ## Dependency Graphs
 
-### Registry auth adapter module graph
+### Registry wallet kit module graph
 
 ```mermaid
 graph TD
-  Shim["lib/aomi-auth-adapter.ts"]
-  Index["lib/aomi-auth-adapter/index.ts"]
+  Shim["lib/aomi-wallet-kit.ts"]
+  Index["lib/aomi-wallet-kit/index.ts"]
   Context["context.tsx"]
   Types["types.ts"]
   Identity["identity.ts"]
@@ -1078,7 +1086,7 @@ graph TD
   Sim["simulateBatchTransactions<br/>runtime API"]
   Fee["appendFeeCallToPayload<br/>packages/client/src/aa/fee.ts"]
   AdapterSend["adapter.sendTransaction"]
-  Shared["executeAdapterTransaction<br/>wallet-execution.ts"]
+  Shared["executeWalletKitTransaction<br/>wallet-execution.ts"]
   Calls["toAAWalletCalls<br/>wallet-utils.ts"]
   Mode["resolveRequestedAAMode<br/>wallet-execution.ts"]
   Execute["executeWalletCalls<br/>packages/client/src/aa/execute.ts"]
@@ -1109,8 +1117,8 @@ graph TD
   Connector["wagmi/connectors baseAccount"]
   Inner["BaseAccountAdapterInner"]
   SafeHooks["safe-wagmi-hooks.ts"]
-  Context["AomiAuthAdapterProvider"]
-  Exec["executeAdapterTransaction"]
+  Context["AomiWalletKitContextProvider"]
+  Exec["executeWalletKitTransaction"]
   ClientExec["executeWalletCalls"]
 
   BaseProvider --> Config
@@ -1131,23 +1139,23 @@ graph TD
 graph TD
   ParaProvider["AomiParaProvider"]
   SDK["ParaProvider from @getpara/react-sdk"]
-  AdapterProvider["AomiParaAdapterProvider"]
+  PluginProvider["AomiParaPluginProvider"]
   ParaHooks["useSafeParaAccount/useSafeParaClient/useSafeParaModal"]
   SafeHooks["safe-wagmi-hooks.ts"]
   ResolveAA["resolveParaAAProviderState"]
   CreateAA["createAAProviderState"]
-  Context["AomiAuthAdapterProvider"]
-  Exec["executeAdapterTransaction"]
+  Context["AomiWalletKitContextProvider"]
+  Exec["executeWalletKitTransaction"]
   ClientExec["executeWalletCalls"]
 
   ParaProvider --> SDK
-  SDK --> AdapterProvider
-  AdapterProvider --> ParaHooks
-  AdapterProvider --> SafeHooks
-  AdapterProvider --> ResolveAA
+  SDK --> PluginProvider
+  PluginProvider --> ParaHooks
+  PluginProvider --> SafeHooks
+  PluginProvider --> ResolveAA
   ResolveAA --> CreateAA
-  AdapterProvider --> Exec
-  AdapterProvider --> Context
+  PluginProvider --> Exec
+  PluginProvider --> Context
   Exec --> ClientExec
 ```
 
@@ -1176,7 +1184,7 @@ graph TD
 Primary test files:
 
 - `packages/client/test/aa/aa-eoa-capabilities.unit.test.ts`
-- `apps/registry/src/lib/aomi-auth-adapter/wallet-execution.test.ts`
+- `apps/registry/src/lib/aomi-wallet-kit/wallet-execution.test.ts`
 
 Coverage added:
 
@@ -1206,8 +1214,8 @@ Coverage added:
 
 | Function / component       | File                                                            | What it does                                                                                                                                                |
 | -------------------------- | --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `AomiFrame.Root`           | `apps/registry/src/components/aomi-frame.tsx`                   | Mounts the runtime provider, sidebar/frame layout, notifications, `AomiAuthRuntimeUserSync`, and `RuntimeTxHandler`.                                        |
-| `AomiAuthRuntimeUserSync`  | `apps/registry/src/lib/aomi-auth-adapter/runtime-user-sync.tsx` | Reads `adapter.identity` and calls `setUser({ address, chainId, isConnected })`.                                                                            |
+| `AomiFrame.Root`           | `apps/registry/src/components/aomi-frame.tsx`                   | Mounts the runtime provider, sidebar/frame layout, notifications, `AomiWalletKitSync`, and `RuntimeTxHandler`.                                        |
+| `AomiWalletKitSync`  | `apps/registry/src/lib/aomi-wallet-kit/runtime-user-sync.tsx` | Reads `adapter.identity` and calls `setUser({ address, chainId, isConnected })`.                                                                            |
 | `RuntimeTxHandler`         | `apps/registry/src/components/runtime-tx-handler.tsx`           | Processes pending runtime wallet requests, simulates tx fees, appends fee calls, sends transactions, and signs EIP-712 requests through the active adapter. |
 | `hasHydratedCalls`         | `apps/registry/src/components/runtime-tx-handler.tsx`           | Checks whether a transaction payload already contains concrete call data.                                                                                   |
 | `toSimulationTransactions` | `apps/registry/src/components/runtime-tx-handler.tsx`           | Converts payload calls into the shape expected by `simulateBatchTransactions`.                                                                              |
@@ -1218,63 +1226,63 @@ Coverage added:
 
 | Function / type                   | File                                                  | What it does                                                                                |
 | --------------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `AomiAuthAdapterProvider`         | `apps/registry/src/lib/aomi-auth-adapter/context.tsx` | Provides an `AomiAuthAdapter` through React context.                                        |
-| `useAomiAuthAdapter`              | `apps/registry/src/lib/aomi-auth-adapter/context.tsx` | Reads the active adapter from context, defaulting to a disconnected adapter if none exists. |
-| `AOMI_AUTH_DISCONNECTED_IDENTITY` | `apps/registry/src/lib/aomi-auth-adapter/identity.ts` | Shared disconnected identity object.                                                        |
-| `AOMI_AUTH_BOOTING_IDENTITY`      | `apps/registry/src/lib/aomi-auth-adapter/identity.ts` | Shared loading identity object.                                                             |
-| `formatAddress`                   | `apps/registry/src/lib/aomi-auth-adapter/identity.ts` | Shortens an EVM address for display.                                                        |
-| `formatAuthProvider`              | `apps/registry/src/lib/aomi-auth-adapter/identity.ts` | Converts provider ids like `google` or `baseAccount` into display labels.                   |
-| `inferAuthProvider`               | `apps/registry/src/lib/aomi-auth-adapter/identity.ts` | Picks a Para embedded auth method label from a Set.                                         |
+| `AomiWalletKitContextProvider`         | `apps/registry/src/lib/aomi-wallet-kit/context.tsx` | Provides an `AomiWalletKit` through React context.                                        |
+| `useAomiWalletKit`              | `apps/registry/src/lib/aomi-wallet-kit/context.tsx` | Reads the active adapter from context, defaulting to a disconnected adapter if none exists. |
+| `AOMI_SESSION_DISCONNECTED_IDENTITY` | `apps/registry/src/lib/aomi-wallet-kit/identity.ts` | Shared disconnected identity object.                                                        |
+| `AOMI_SESSION_BOOTING_IDENTITY`      | `apps/registry/src/lib/aomi-wallet-kit/identity.ts` | Shared loading identity object.                                                             |
+| `formatAddress`                   | `apps/registry/src/lib/aomi-wallet-kit/identity.ts` | Shortens an EVM address for display.                                                        |
+| `formatAuthMethod`              | `apps/registry/src/lib/aomi-wallet-kit/identity.ts` | Converts provider ids like `google` or `baseAccount` into display labels.                   |
+| `inferAuthMethod`               | `apps/registry/src/lib/aomi-wallet-kit/identity.ts` | Picks a Para embedded auth method label from a Set.                                         |
 
 ### Safe wagmi wrappers
 
 | Function                 | File                                                          | What it does                                                                            |
 | ------------------------ | ------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| `useSafeWagmiAccount`    | `apps/registry/src/lib/aomi-auth-adapter/safe-wagmi-hooks.ts` | Reads wagmi account state or returns disconnected defaults if no wagmi provider exists. |
-| `useSafeWalletClient`    | `apps/registry/src/lib/aomi-auth-adapter/safe-wagmi-hooks.ts` | Reads wagmi wallet client or returns `undefined`.                                       |
-| `useSafeWagmiConfig`     | `apps/registry/src/lib/aomi-auth-adapter/safe-wagmi-hooks.ts` | Reads wagmi chains or returns an empty list.                                            |
-| `useSafeSwitchChain`     | `apps/registry/src/lib/aomi-auth-adapter/safe-wagmi-hooks.ts` | Reads `switchChainAsync` and pending state safely.                                      |
-| `useSafeSendTransaction` | `apps/registry/src/lib/aomi-auth-adapter/safe-wagmi-hooks.ts` | Reads `sendTransactionAsync` safely.                                                    |
-| `useSafeSignTypedData`   | `apps/registry/src/lib/aomi-auth-adapter/safe-wagmi-hooks.ts` | Reads `signTypedDataAsync` safely.                                                      |
-| `useSafeCapabilities`    | `apps/registry/src/lib/aomi-auth-adapter/safe-wagmi-hooks.ts` | Reads wallet capabilities and normalizes `atomic.status: "ready"` to `"supported"`.     |
-| `useSafeSendCallsSync`   | `apps/registry/src/lib/aomi-auth-adapter/safe-wagmi-hooks.ts` | Reads `sendCallsSyncAsync` and forwards extended send-calls args.                       |
-| `useSafeConnect`         | `apps/registry/src/lib/aomi-auth-adapter/safe-wagmi-hooks.ts` | Reads wagmi `connectAsync` safely.                                                      |
-| `useSafeDisconnect`      | `apps/registry/src/lib/aomi-auth-adapter/safe-wagmi-hooks.ts` | Reads wagmi `disconnectAsync` safely.                                                   |
-| `useSafeConnectors`      | `apps/registry/src/lib/aomi-auth-adapter/safe-wagmi-hooks.ts` | Reads available wagmi connectors safely.                                                |
+| `useSafeWagmiAccount`    | `apps/registry/src/lib/aomi-wallet-kit/safe-wagmi-hooks.ts` | Reads wagmi account state or returns disconnected defaults if no wagmi provider exists. |
+| `useSafeWalletClient`    | `apps/registry/src/lib/aomi-wallet-kit/safe-wagmi-hooks.ts` | Reads wagmi wallet client or returns `undefined`.                                       |
+| `useSafeWagmiConfig`     | `apps/registry/src/lib/aomi-wallet-kit/safe-wagmi-hooks.ts` | Reads wagmi chains or returns an empty list.                                            |
+| `useSafeSwitchChain`     | `apps/registry/src/lib/aomi-wallet-kit/safe-wagmi-hooks.ts` | Reads `switchChainAsync` and pending state safely.                                      |
+| `useSafeSendTransaction` | `apps/registry/src/lib/aomi-wallet-kit/safe-wagmi-hooks.ts` | Reads `sendTransactionAsync` safely.                                                    |
+| `useSafeSignTypedData`   | `apps/registry/src/lib/aomi-wallet-kit/safe-wagmi-hooks.ts` | Reads `signTypedDataAsync` safely.                                                      |
+| `useSafeCapabilities`    | `apps/registry/src/lib/aomi-wallet-kit/safe-wagmi-hooks.ts` | Reads wallet capabilities and normalizes `atomic.status: "ready"` to `"supported"`.     |
+| `useSafeSendCallsSync`   | `apps/registry/src/lib/aomi-wallet-kit/safe-wagmi-hooks.ts` | Reads `sendCallsSyncAsync` and forwards extended send-calls args.                       |
+| `useSafeConnect`         | `apps/registry/src/lib/aomi-wallet-kit/safe-wagmi-hooks.ts` | Reads wagmi `connectAsync` safely.                                                      |
+| `useSafeDisconnect`      | `apps/registry/src/lib/aomi-wallet-kit/safe-wagmi-hooks.ts` | Reads wagmi `disconnectAsync` safely.                                                   |
+| `useSafeConnectors`      | `apps/registry/src/lib/aomi-wallet-kit/safe-wagmi-hooks.ts` | Reads available wagmi connectors safely.                                                |
 
 ### Base Account provider
 
 | Function / type                  | File                                                                 | What it does                                                                                                             |
 | -------------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `AomiBaseAccountProvider`        | `apps/registry/src/lib/aomi-auth-adapter/providers/base-account.tsx` | Top-level provider that creates wagmi Base Account config, query client, and adapter context.                            |
-| `BaseAccountAdapterInner`        | `apps/registry/src/lib/aomi-auth-adapter/providers/base-account.tsx` | Builds the actual `AomiAuthAdapter` from wagmi account/connect/sign/send state.                                          |
-| `createBaseAccountConfig`        | `apps/registry/src/lib/aomi-auth-adapter/providers/base-account.tsx` | Creates wagmi config using the `baseAccount` connector and Base/Base Sepolia chain set.                                  |
-| `syncPersistedBaseAccountConfig` | `apps/registry/src/lib/aomi-auth-adapter/providers/base-account.tsx` | Updates persisted Base Account SDK metadata in localStorage so stale app metadata/chains do not survive connector setup. |
-| `BaseAccountSponsorshipOptions`  | `apps/registry/src/lib/aomi-auth-adapter/providers/base-account.tsx` | Consumer-facing sponsorship configuration for Base Account native wallet execution.                                      |
+| `AomiBaseAccountProvider`        | `apps/registry/src/lib/aomi-wallet-kit/providers/base-account.tsx` | Top-level provider that creates wagmi Base Account config, query client, and adapter context.                            |
+| `BaseAccountAdapterInner`        | `apps/registry/src/lib/aomi-wallet-kit/providers/base-account.tsx` | Builds the actual `AomiWalletKit` from wagmi account/connect/sign/send state.                                          |
+| `createBaseAccountConfig`        | `apps/registry/src/lib/aomi-wallet-kit/providers/base-account.tsx` | Creates wagmi config using the `baseAccount` connector and Base/Base Sepolia chain set.                                  |
+| `syncPersistedBaseAccountConfig` | `apps/registry/src/lib/aomi-wallet-kit/providers/base-account.tsx` | Updates persisted Base Account SDK metadata in localStorage so stale app metadata/chains do not survive connector setup. |
+| `BaseAccountSponsorshipOptions`  | `apps/registry/src/lib/aomi-wallet-kit/providers/base-account.tsx` | Consumer-facing sponsorship configuration for Base Account native wallet execution.                                      |
 
 ### Para provider
 
 | Function / type              | File                                                         | What it does                                                                                                                   |
 | ---------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
-| `AomiParaProvider`           | `apps/registry/src/lib/aomi-auth-adapter/providers/para.tsx` | Optional full Para wrapper that configures `ParaProvider`, query client, networks, wallets, modal config, and adapter context. |
-| `AomiParaAdapterProvider`    | `apps/registry/src/lib/aomi-auth-adapter/providers/para.tsx` | Adapter-only provider used when a surrounding app already mounted `ParaProvider`.                                              |
-| `useSafeParaAccount`         | `apps/registry/src/lib/aomi-auth-adapter/providers/para.tsx` | Reads Para account state safely.                                                                                               |
-| `useSafeParaModal`           | `apps/registry/src/lib/aomi-auth-adapter/providers/para.tsx` | Reads Para modal opener safely.                                                                                                |
-| `useSafeParaClient`          | `apps/registry/src/lib/aomi-auth-adapter/providers/para.tsx` | Reads Para client/session safely.                                                                                              |
-| `resolveAAProvider`          | `apps/registry/src/lib/aomi-auth-adapter/providers/para.tsx` | Chooses Alchemy or Pimlico using env override/API-key availability.                                                            |
-| `resolveParaAAProviderState` | `apps/registry/src/lib/aomi-auth-adapter/providers/para.tsx` | Creates a Para-backed AA provider state for 4337/7702 or returns a disabled state with fallback reason.                        |
+| `AomiParaProvider`           | `apps/registry/src/lib/aomi-wallet-kit/providers/para.tsx` | Optional full Para wrapper that configures `ParaProvider`, query client, networks, wallets, modal config, and adapter context. |
+| `AomiParaPluginProvider`    | `apps/registry/src/lib/aomi-wallet-kit/providers/para.tsx` | Adapter-only provider used when a surrounding app already mounted `ParaProvider`.                                              |
+| `useSafeParaAccount`         | `apps/registry/src/lib/aomi-wallet-kit/providers/para.tsx` | Reads Para account state safely.                                                                                               |
+| `useSafeParaModal`           | `apps/registry/src/lib/aomi-wallet-kit/providers/para.tsx` | Reads Para modal opener safely.                                                                                                |
+| `useSafeParaClient`          | `apps/registry/src/lib/aomi-wallet-kit/providers/para.tsx` | Reads Para client/session safely.                                                                                              |
+| `resolveAAProvider`          | `apps/registry/src/lib/aomi-wallet-kit/providers/para.tsx` | Chooses Alchemy or Pimlico using env override/API-key availability.                                                            |
+| `resolveParaAAProviderState` | `apps/registry/src/lib/aomi-wallet-kit/providers/para.tsx` | Creates a Para-backed AA provider state for 4337/7702 or returns a disabled state with fallback reason.                        |
 
 ### Shared adapter transaction execution
 
 | Function / type                      | File                                                          | What it does                                                                                 |
 | ------------------------------------ | ------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `executeAdapterTransaction`          | `apps/registry/src/lib/aomi-auth-adapter/wallet-execution.ts` | Main provider-neutral transaction orchestrator used by Base and Para adapters.               |
-| `resolveRequestedAAMode`             | `apps/registry/src/lib/aomi-auth-adapter/wallet-execution.ts` | Converts payload preference and batch-ness into requested `"none"`, `"4337"`, or `"7702"`.   |
-| `normalizeAtomicCapabilities`        | `apps/registry/src/lib/aomi-auth-adapter/wallet-execution.ts` | Normalizes wallet capability data before it reaches the client executor.                     |
-| `buildAaAttempts`                    | `apps/registry/src/lib/aomi-auth-adapter/wallet-execution.ts` | Decides which Para AA attempts to try and in what order.                                     |
-| `resolveNativeWalletExecutionPolicy` | `apps/registry/src/lib/aomi-auth-adapter/wallet-execution.ts` | Converts provider callback-based native wallet policy into concrete client execution policy. |
-| `hasResolvedAAProvider`              | `apps/registry/src/lib/aomi-auth-adapter/wallet-execution.ts` | Checks whether a provider state actually has an AA account before trying to execute it.      |
-| `getPreferredRpcUrl`                 | `apps/registry/src/lib/aomi-auth-adapter/wallet-execution.ts` | Picks a chain RPC URL.                                                                       |
+| `executeWalletKitTransaction`          | `apps/registry/src/lib/aomi-wallet-kit/wallet-execution.ts` | Main provider-neutral transaction orchestrator used by Base and Para adapters.               |
+| `resolveRequestedAAMode`             | `apps/registry/src/lib/aomi-wallet-kit/wallet-execution.ts` | Converts payload preference and batch-ness into requested `"none"`, `"4337"`, or `"7702"`.   |
+| `normalizeAtomicCapabilities`        | `apps/registry/src/lib/aomi-wallet-kit/wallet-execution.ts` | Normalizes wallet capability data before it reaches the client executor.                     |
+| `buildAaAttempts`                    | `apps/registry/src/lib/aomi-wallet-kit/wallet-execution.ts` | Decides which Para AA attempts to try and in what order.                                     |
+| `resolveNativeWalletExecutionPolicy` | `apps/registry/src/lib/aomi-wallet-kit/wallet-execution.ts` | Converts provider callback-based native wallet policy into concrete client execution policy. |
+| `hasResolvedAAProvider`              | `apps/registry/src/lib/aomi-wallet-kit/wallet-execution.ts` | Checks whether a provider state actually has an AA account before trying to execute it.      |
+| `getPreferredRpcUrl`                 | `apps/registry/src/lib/aomi-wallet-kit/wallet-execution.ts` | Picks a chain RPC URL.                                                                       |
 
 ### Client wallet payload utilities
 
@@ -1312,7 +1320,7 @@ Coverage added:
 ```mermaid
 flowchart LR
   Request["Runtime wallet request"]
-  Adapter["AomiAuthAdapter"]
+  Adapter["AomiWalletKit"]
   Base["Base Account"]
   Para["Para"]
   BaseNative["Native wallet execution<br/>wallet_sendCalls / sendTransaction"]
@@ -1346,11 +1354,11 @@ Para:
 
 1. `ConnectButton` no longer syncs runtime user state.
 
-   That responsibility moved to `AomiAuthRuntimeUserSync`, which is mounted by `AomiFrame.Root`.
+   That responsibility moved to `AomiWalletKitSync`, which is mounted by `AomiFrame.Root`.
 
 2. Adapter selection is now provider-based.
 
-   Apps need to mount a provider like `AomiParaProvider`, `AomiParaAdapterProvider`, or `AomiBaseAccountProvider`.
+   Apps need to mount a provider like `AomiParaProvider`, `AomiParaPluginProvider`, or `AomiBaseAccountProvider`.
 
 3. Para logic is mostly preserved but moved.
 

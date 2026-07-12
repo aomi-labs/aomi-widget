@@ -62,7 +62,7 @@ export default function Page() {
 return <AomiFrame />;
 }
 
-> when apps/registry/src/components/assistant-ui/thread-list.tsx says this:
+> when apps/shadcn-registry/src/components/assistant-ui/thread-list.tsx says this:
 > import {
 > ThreadListItemPrimitive,
 > ThreadListPrimitive,

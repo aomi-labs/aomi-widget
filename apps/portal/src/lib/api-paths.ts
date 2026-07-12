@@ -19,8 +19,6 @@ export const API_PATHS = {
         signout: `${BFF}/auth/github/signout`,
         devSession: `${BFF}/auth/github/dev-session`,
       },
-      // Exchange a wallet provider credential (Para/Privy) for an aomi_session.
-      exchange: `${BFF}/auth/exchange`,
     },
     launch: {
       preflight: `${BFF}/launch/preflight`,
@@ -29,6 +27,7 @@ export const API_PATHS = {
       create: `${BFF}/launch/create`,
       activate: `${BFF}/launch/activate`,
       sources: `${BFF}/launch/sources`,
+      sdkStatus: `${BFF}/launch/sdk-status`,
       status: (deploymentId: string) =>
         `${BFF}/launch/status?deploymentId=${encodeURIComponent(deploymentId)}`,
       app: (name: string, releaseTag?: string) => {
@@ -36,6 +35,30 @@ export const API_PATHS = {
         if (releaseTag) params.set("releaseTag", releaseTag);
         return `${BFF}/launch/app?${params}`;
       },
+    },
+    deployments: {
+      preflight: `${BFF}/deployments/preflight`,
+      deploy: `${BFF}/deployments/deploy`,
+      redeploy: `${BFF}/deployments/redeploy`,
+      promote: `${BFF}/deployments/promote`,
+      sources: `${BFF}/deployments/sources`,
+      history: (appSourceId: number, limit?: number) => {
+        const params = new URLSearchParams({
+          appSourceId: String(appSourceId),
+        });
+        if (limit) params.set("limit", String(limit));
+        return `${BFF}/deployments/history?${params}`;
+      },
+      sdkStatus: `${BFF}/deployments/sdk-status`,
+      status: (deploymentId: string) =>
+        `${BFF}/deployments/status?deploymentId=${encodeURIComponent(deploymentId)}`,
+      secrets: (appSourceId: number) =>
+        `${BFF}/deployments/secrets?appSourceId=${appSourceId}`,
+      records: (app: string, appSourceId?: number) =>
+        `${BFF}/deployments/records?app=${encodeURIComponent(app)}${
+          appSourceId != null ? `&appSourceId=${appSourceId}` : ""
+        }`,
+      deactivate: `${BFF}/deployments/deactivate`,
     },
     e2e: {
       execute: `${BFF}/e2e/execute`,

@@ -24,7 +24,7 @@ export type AppGroup = {
   apps: AppInfo[];
 };
 
-const APP_CATEGORIES: Record<string, AppCategoryInfo> = {
+const APP_CATEGORIES = {
   all: { id: "all", label: "All", order: 0 },
   cex: { id: "cex", label: "Centralized Exchanges", order: 10 },
   dex: { id: "dex", label: "DEX & Swaps", order: 20 },
@@ -36,161 +36,158 @@ const APP_CATEGORIES: Record<string, AppCategoryInfo> = {
   gaming: { id: "gaming", label: "Gaming", order: 80 },
   wallets: { id: "wallets", label: "Wallets", order: 90 },
   custom: { id: "custom", label: "Other", order: 100 },
-};
+} satisfies Record<string, AppCategoryInfo>;
 
-const APP_DISPLAY_NAMES: Record<
-  string,
-  { displayName: string; abbr: string; category: AppCategoryInfo }
-> = {
+const APP_DISPLAY_NAMES: Record<string, Omit<AppInfo, "id">> = {
   default: {
-    displayName: "All Apps",
+    displayName: "Basic Apps",
     abbr: "All",
-    category: APP_CATEGORIES.all!,
+    category: APP_CATEGORIES.all,
   },
   across: {
     displayName: "Across",
     abbr: "A",
-    category: APP_CATEGORIES.dex!,
+    category: APP_CATEGORIES.dex,
   },
   binance: {
     displayName: "Binance",
     abbr: "B",
-    category: APP_CATEGORIES.cex!,
+    category: APP_CATEGORIES.cex,
   },
   bybit: {
     displayName: "Bybit",
     abbr: "B",
-    category: APP_CATEGORIES.cex!,
+    category: APP_CATEGORIES.cex,
   },
   cow: {
     displayName: "CoW Protocol",
     abbr: "CoW",
-    category: APP_CATEGORIES.dex!,
+    category: APP_CATEGORIES.dex,
   },
   defillama: {
     displayName: "DefiLlama",
     abbr: "DL",
-    category: APP_CATEGORIES.analytics!,
+    category: APP_CATEGORIES.analytics,
   },
   dune: {
     displayName: "Dune",
     abbr: "D",
-    category: APP_CATEGORIES.analytics!,
+    category: APP_CATEGORIES.analytics,
   },
   dydx: {
     displayName: "dYdX",
     abbr: "dY",
-    category: APP_CATEGORIES.perps!,
+    category: APP_CATEGORIES.perps,
   },
   gmx: {
     displayName: "GMX",
     abbr: "G",
-    category: APP_CATEGORIES.perps!,
+    category: APP_CATEGORIES.perps,
   },
   hyperliquid: {
     displayName: "Hyperliquid",
     abbr: "HL",
-    category: APP_CATEGORIES.perps!,
+    category: APP_CATEGORIES.perps,
   },
   kaito: {
     displayName: "Kaito",
     abbr: "K",
-    category: APP_CATEGORIES.social!,
+    category: APP_CATEGORIES.social,
   },
   kalshi: {
     displayName: "Kalshi",
     abbr: "K",
-    category: APP_CATEGORIES.prediction!,
+    category: APP_CATEGORIES.prediction,
   },
   khalani: {
     displayName: "Khalani",
     abbr: "K",
-    category: APP_CATEGORIES.dex!,
+    category: APP_CATEGORIES.dex,
   },
   lifi: {
     displayName: "LI.FI",
     abbr: "LI",
-    category: APP_CATEGORIES.dex!,
+    category: APP_CATEGORIES.dex,
   },
   limitless: {
     displayName: "Limitless",
     abbr: "L",
-    category: APP_CATEGORIES.prediction!,
+    category: APP_CATEGORIES.prediction,
   },
   manifold: {
     displayName: "Manifold",
     abbr: "M",
-    category: APP_CATEGORIES.prediction!,
+    category: APP_CATEGORIES.prediction,
   },
   molinar: {
     displayName: "Molinar",
     abbr: "Mo",
-    category: APP_CATEGORIES.gaming!,
+    category: APP_CATEGORIES.gaming,
   },
   morpho: {
     displayName: "Morpho",
     abbr: "M",
-    category: APP_CATEGORIES.yield!,
+    category: APP_CATEGORIES.yield,
   },
   neynar: {
     displayName: "Neynar",
     abbr: "N",
-    category: APP_CATEGORIES.social!,
+    category: APP_CATEGORIES.social,
   },
   okx: {
     displayName: "OKX",
     abbr: "OK",
-    category: APP_CATEGORIES.cex!,
+    category: APP_CATEGORIES.cex,
   },
   oneinch: {
     displayName: "1inch",
     abbr: "1i",
-    category: APP_CATEGORIES.dex!,
+    category: APP_CATEGORIES.dex,
   },
   para: {
     displayName: "Para",
     abbr: "P",
-    category: APP_CATEGORIES.wallets!,
+    category: APP_CATEGORIES.wallets,
   },
   "para-consumer": {
     displayName: "Para Consumer",
     abbr: "P",
-    category: APP_CATEGORIES.custom!,
+    category: APP_CATEGORIES.custom,
   },
   pelagos: {
     displayName: "Pelagos",
     abbr: "P",
-    category: APP_CATEGORIES.dex!,
+    category: APP_CATEGORIES.dex,
   },
   polymarket: {
     displayName: "Polymarket",
     abbr: "P",
-    category: APP_CATEGORIES.prediction!,
+    category: APP_CATEGORIES.prediction,
   },
   "polymarket-rewards": {
     displayName: "Polymarket Rewards",
     abbr: "PR",
-    category: APP_CATEGORIES.prediction!,
+    category: APP_CATEGORIES.prediction,
   },
   x: {
     displayName: "X",
     abbr: "X",
-    category: APP_CATEGORIES.social!,
+    category: APP_CATEGORIES.social,
   },
   yearn: {
     displayName: "Yearn",
     abbr: "Y",
-    category: APP_CATEGORIES.yield!,
+    category: APP_CATEGORIES.yield,
   },
   zerox: {
     displayName: "0x",
     abbr: "0x",
-    category: APP_CATEGORIES.dex!,
+    category: APP_CATEGORIES.dex,
   },
   zora: {
     displayName: "Zora",
     abbr: "Z",
-    category: APP_CATEGORIES.social!,
+    category: APP_CATEGORIES.social,
   },
 };
 
@@ -227,7 +224,7 @@ export function getAppInfo(appId: string | null | undefined): AppInfo {
       id: "unknown",
       displayName: "Unknown App",
       abbr: "?",
-      category: APP_CATEGORIES.custom!,
+      category: APP_CATEGORIES.custom,
     };
   }
   const canonicalId = APP_ALIASES[normalized] ?? normalized;
@@ -240,7 +237,7 @@ export function getAppInfo(appId: string | null | undefined): AppInfo {
     id: normalized,
     displayName,
     abbr: normalized.charAt(0).toUpperCase(),
-    category: APP_CATEGORIES.custom!,
+    category: APP_CATEGORIES.custom,
   };
 }
 
@@ -259,7 +256,7 @@ export function groupAppsByCategory(apps: string[]): AppGroup[] {
 
   return Array.from(grouped.values())
     .map((groupApps) => ({
-      category: groupApps[0]?.category ?? APP_CATEGORIES.custom!,
+      category: groupApps[0]?.category ?? APP_CATEGORIES.custom,
       apps: groupApps.sort((a, b) =>
         a.displayName.localeCompare(b.displayName, undefined, {
           numeric: true,

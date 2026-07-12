@@ -36,6 +36,8 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+tmp*.md
+specs/FINAL-REVIEW-CHECKLIST.md
 
 # env files (can opt-in for committing if needed)
 .env*

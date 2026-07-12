@@ -22,6 +22,19 @@ describe("backend OpenAPI route contract", () => {
     expectRouteContract(backendOpenApiFixture as OpenApiDocument);
   });
 
+  it("accepts legacy flat thread route names from a live backend during rollout", () => {
+    expectLiveRouteContract({
+      paths: {
+        "/api/chat": { post: { "x-aomi-auth": ["thread", "app_gate"] } },
+        "/api/events": { get: { "x-aomi-auth": ["thread"] } },
+        "/api/interrupt": { post: { "x-aomi-auth": ["thread"] } },
+        "/api/simulate": { post: { "x-aomi-auth": ["thread"] } },
+        "/api/state": { get: { "x-aomi-auth": ["thread"] } },
+        "/api/updates": { get: { "x-aomi-auth": ["thread"] } },
+      },
+    });
+  });
+
   it.runIf(process.env.AOMI_BACKEND_OPENAPI_URL)(
     "keeps the client route manifest aligned with a live backend OpenAPI document",
     async () => {
@@ -38,7 +51,7 @@ describe("backend OpenAPI route contract", () => {
         );
         return;
       }
-      expectRouteContract(openApi);
+      expectLiveRouteContract(openApi);
     },
   );
 });
@@ -48,6 +61,30 @@ function expectRouteContract(openApi: OpenApiDocument) {
   const clientRoutes = routeContractFromClientManifest();
 
   expect(clientRoutes).toEqual(backendRoutes);
+  expect(clientRoutes).toContain("GET /api/account [account]");
+  expect(clientRoutes).not.toContain("GET /api/account [account_token]");
+  expect(clientRoutes.some((route) => route.includes(" account_token"))).toBe(
+    false,
+  );
+  expect(clientRoutes.some((route) => route.includes("/api/settings/"))).toBe(
+    false,
+  );
+  expect(clientRoutes.some((route) => route.includes("/api/control/"))).toBe(
+    false,
+  );
+}
+
+function expectLiveRouteContract(openApi: OpenApiDocument) {
+  const backendRoutes = routeContractFromOpenApi(openApi).map(
+    canonicalLiveRouteContract,
+  );
+  const clientRoutes = routeContractFromClientManifest();
+  const clientRouteSet = new Set(clientRoutes);
+  const missingFromClient = backendRoutes.filter(
+    (route) => !clientRouteSet.has(route),
+  );
+
+  expect(missingFromClient).toEqual([]);
   expect(clientRoutes).toContain("GET /api/account [account]");
   expect(clientRoutes).not.toContain("GET /api/account [account_token]");
   expect(clientRoutes.some((route) => route.includes(" account_token"))).toBe(
@@ -102,13 +139,17 @@ function isAomiAuthList(value: unknown): value is readonly AomiAuthClass[] {
 
 function isAomiAuthClass(value: unknown): value is AomiAuthClass {
   return (
-    value === "session" ||
+    value === "thread" ||
     value === "account" ||
     value === "app_gate" ||
     value === "service" ||
     value === "admin" ||
     value === "activation"
   );
+}
+
+function canonicalLiveRouteContract(route: string) {
+  return LEGACY_LIVE_ROUTE_CONTRACTS[route] ?? route;
 }
 
 function usesLegacyAuthContract(openApi: OpenApiDocument) {
@@ -123,3 +164,13 @@ function usesLegacyAuthContract(openApi: OpenApiDocument) {
   }
   return false;
 }
+
+const LEGACY_LIVE_ROUTE_CONTRACTS: Record<string, string> = {
+  "GET /api/events [thread]": "GET /api/thread/events [thread]",
+  "GET /api/state [thread]": "GET /api/thread/state [thread]",
+  "GET /api/updates [thread]": "GET /api/thread/updates [thread]",
+  "POST /api/chat [thread, app_gate]":
+    "POST /api/thread/chat [thread, app_gate]",
+  "POST /api/interrupt [thread]": "POST /api/thread/interrupt [thread]",
+  "POST /api/simulate [thread]": "POST /api/exec/simulate [thread]",
+};

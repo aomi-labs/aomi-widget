@@ -6,7 +6,6 @@ import { SettingsSidebar, SettingsCategory } from "./settings-sidebar";
 import { ErrorBoundary } from "@portal/components/shell/error-boundary";
 import { GeneralSettings } from "@portal/features/general";
 import { AppsSettings } from "@portal/features/apps";
-import { DeployDashboard } from "@portal/features/launch/components";
 import { AppKeys } from "@portal/features/app-keys";
 import { Bots } from "@portal/features/bots";
 import { Secrets } from "@portal/features/secrets";
@@ -22,11 +21,11 @@ import {
   settingsTitleClass,
 } from "@portal/lib/settings-styles";
 
-// Tabs whose data is account-bearer scoped (`/api/account/*`). They're gated on
-// an established session so they never fire before the `aomi_session` cookie
-// exists (else the proxy forwards anonymous and the backend 401s). Secrets/BYOK
-// are device/client_id scoped and Deploy owns its own (onboarding) flow, so they
-// render regardless.
+// Tabs whose data is account-bearer scoped. They're gated on an established
+// session so they never fire before BetterAuth is ready (else the proxy rejects
+// protected account routes before forwarding). Secrets/BYOK are
+// device/client_id scoped and Deploy owns its own GitHub onboarding flow, so
+// they render regardless.
 const ACCOUNT_SCOPED_TABS: ReadonlySet<SettingsCategory> = new Set([
   "general",
   "apps",
@@ -105,6 +104,7 @@ export function SettingsLayout() {
       params.get("launch") === "github" ||
       params.has("github_error")
     ) {
+      window.location.replace(`/deployments?${params.toString()}`);
       setActiveCategory("deploy");
     }
   }, []);
@@ -117,9 +117,15 @@ export function SettingsLayout() {
         return <AppsSettings />;
       case "deploy":
         return (
-          <div className="min-w-0">
+          <div className={`${settingsCardStackClass} space-y-4`}>
             <ErrorBoundary>
-              <DeployDashboard />
+              <h1 className={settingsTitleClass}>Deployments</h1>
+              <p className={settingsBodyTextClass}>
+                Deployment management now lives in its own developer console.
+              </p>
+              <a href="/deployments" className={settingsPrimaryButtonClass}>
+                Open deployments
+              </a>
             </ErrorBoundary>
           </div>
         );

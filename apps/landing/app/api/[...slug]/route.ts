@@ -2,38 +2,133 @@ import { createBackendProxy, type AllowedRoute } from "@aomi-labs/account";
 
 /**
  * Landing's same-origin backend proxy. The transport machinery (header
- * filtering, bearer minting from the `aomi_session` cookie, SSE, forwarding)
+ * filtering, optional bearer minting, SSE, forwarding)
  * lives in `@aomi-labs/account`'s `createBackendProxy`, shared with portal +
- * base. Landing supplies only the route allowlist for the widget surface it
- * embeds — previously it forwarded *everything* (including the session cookie);
- * now it strips the cookie and forwards only these routes.
+ * base. Landing is unauthenticated in this cleanup, so it passes an anonymous
+ * resolver and forwards only the widget routes below.
  */
 const ALLOWED_ROUTES: AllowedRoute[] = [
   {
     pattern: /^\/api\/account(\/.*)?$/,
     methods: new Set(["GET", "POST", "PATCH", "PUT", "DELETE"]),
   },
-  { pattern: /^\/api\/state$/, methods: new Set(["GET"]) },
-  { pattern: /^\/api\/chat$/, methods: new Set(["POST"]) },
-  { pattern: /^\/api\/system$/, methods: new Set(["POST"]) },
-  { pattern: /^\/api\/interrupt$/, methods: new Set(["POST"]) },
+  {
+    pattern: /^\/api\/thread\/state$/,
+    methods: new Set(["GET"]),
+    auth: "optional",
+  },
+  {
+    pattern: /^\/api\/thread\/chat$/,
+    methods: new Set(["POST"]),
+    auth: "optional",
+  },
+  { pattern: /^\/api\/system$/, methods: new Set(["POST"]), auth: "optional" },
+  {
+    pattern: /^\/api\/thread\/interrupt$/,
+    methods: new Set(["POST"]),
+    auth: "optional",
+  },
   { pattern: /^\/api\/secrets$/, methods: new Set(["GET", "POST", "DELETE"]) },
   { pattern: /^\/api\/secrets\/[^/]+$/, methods: new Set(["DELETE"]) },
-  { pattern: /^\/api\/updates$/, methods: new Set(["GET"]) },
-  { pattern: /^\/api\/sessions$/, methods: new Set(["GET", "POST"]) },
+  {
+    pattern: /^\/api\/thread\/updates$/,
+    methods: new Set(["GET"]),
+    auth: "optional",
+  },
+  {
+    pattern: /^\/api\/threads$/,
+    methods: new Set(["GET", "POST"]),
+    auth: "optional",
+  },
+  {
+    pattern: /^\/api\/threads\/[^/]+$/,
+    methods: new Set(["GET", "PATCH", "DELETE"]),
+    auth: "optional",
+  },
+  {
+    pattern: /^\/api\/sessions$/,
+    methods: new Set(["GET", "POST"]),
+    auth: "optional",
+  },
   {
     pattern: /^\/api\/sessions\/[^/]+$/,
     methods: new Set(["GET", "PATCH", "DELETE"]),
+    auth: "optional",
   },
-  { pattern: /^\/api\/events$/, methods: new Set(["GET"]) },
-  { pattern: /^\/api\/session\/apps$/, methods: new Set(["GET"]) },
-  { pattern: /^\/api\/session\/models$/, methods: new Set(["GET"]) },
-  { pattern: /^\/api\/session\/model$/, methods: new Set(["POST"]) },
-  { pattern: /^\/api\/simulate$/, methods: new Set(["POST"]) },
+  {
+    pattern: /^\/api\/thread\/events$/,
+    methods: new Set(["GET"]),
+    auth: "optional",
+  },
+  {
+    pattern: /^\/api\/thread\/apps$/,
+    methods: new Set(["GET"]),
+    auth: "optional",
+  },
+  {
+    pattern: /^\/api\/thread\/models$/,
+    methods: new Set(["GET"]),
+    auth: "optional",
+  },
+  {
+    pattern: /^\/api\/thread\/model$/,
+    methods: new Set(["POST"]),
+    auth: "optional",
+  },
+  {
+    pattern: /^\/api\/session\/apps$/,
+    methods: new Set(["GET"]),
+    auth: "optional",
+  },
+  {
+    pattern: /^\/api\/session\/models$/,
+    methods: new Set(["GET"]),
+    auth: "optional",
+  },
+  {
+    pattern: /^\/api\/session\/model$/,
+    methods: new Set(["POST"]),
+    auth: "optional",
+  },
+  {
+    pattern: /^\/api\/exec\/simulate$/,
+    methods: new Set(["POST"]),
+    auth: "optional",
+  },
 ];
+
+function rewriteLegacyThreadPath(upstreamUrl: URL): void {
+  if (upstreamUrl.pathname === "/api/sessions") {
+    upstreamUrl.pathname = "/api/threads";
+    return;
+  }
+
+  if (upstreamUrl.pathname.startsWith("/api/sessions/")) {
+    upstreamUrl.pathname = `/api/threads/${upstreamUrl.pathname.slice(
+      "/api/sessions/".length,
+    )}`;
+    return;
+  }
+
+  if (upstreamUrl.pathname === "/api/session/apps") {
+    upstreamUrl.pathname = "/api/thread/apps";
+    return;
+  }
+
+  if (upstreamUrl.pathname === "/api/session/models") {
+    upstreamUrl.pathname = "/api/thread/models";
+    return;
+  }
+
+  if (upstreamUrl.pathname === "/api/session/model") {
+    upstreamUrl.pathname = "/api/thread/model";
+  }
+}
 
 export const { GET, POST, PUT, PATCH, DELETE } = createBackendProxy({
   allowedRoutes: ALLOWED_ROUTES,
+  resolveCanonicalUserId: async () => null,
+  applyDefaults: rewriteLegacyThreadPath,
 });
 
 export const dynamic = "force-dynamic";
