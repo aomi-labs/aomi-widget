@@ -41,16 +41,16 @@ export function ProjectRow({
   return (
     <a
       href={href ?? `/projects/${source.id}`}
-      className="flex items-center gap-3 border-b border-zinc-100 px-4 py-3 last:border-b-0 hover:bg-zinc-50"
+      className="flex items-center gap-3 border-b border-border px-4 py-3 last:border-b-0 hover:bg-accent-hover"
     >
-      <div className="flex size-8 shrink-0 items-center justify-center rounded-md border border-zinc-200 text-xs font-medium">
+      <div className="flex size-8 shrink-0 items-center justify-center rounded-md border border-border text-xs font-medium">
         {(source.repositoryLink ?? "A").slice(0, 1).toUpperCase()}
       </div>
       <div className="min-w-0 flex-1">
         <div className="truncate text-sm font-medium">
           {source.repositoryLink ?? "Unknown repository"}
         </div>
-        <div className="mt-1 flex items-center gap-2 text-xs text-zinc-500">
+        <div className="mt-1 flex items-center gap-2 text-xs text-dim">
           <StatusDot state={deploymentState} />
           <span>{deploymentLabel}</span>
           <span aria-hidden>·</span>

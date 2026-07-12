@@ -2,8 +2,8 @@
 
 ## Last Updated
 
-2026-07-11 — Overview read-path perf fixes (PR #309 follow-up from Codex
-review)
+2026-07-11 — Staging Para sign-in fix, followed by Overview read-path perf
+fixes for PR #309
 
 ## Overview read-path perf (2026-07-11, aomi-build)
 
@@ -108,7 +108,71 @@ the initial Overview load path, which the first round left untouched:
   ready. Ops note: freed ~80GB by deleting product-mono cargo incremental
   cache (disk hit ENOSPC mid-build; cache regenerates).
 
-## Aomi Build owned operate + pre-prod fixes (2026-07-08)
+## Staging account and environment fixes (2026-07-11)
+
+2026-07-11 — Staging Para sign-in fix (PARA_JWT_AUDIENCE) + blank-env hardening
+
+## Staging Para sign-in broken: aud mismatch (2026-07-11)
+
+Para login on chat-staging.aomi.dev authenticated at Para (embedded wallets
+connected) but never became an Aomi session: `POST /api/auth/aomi/provider/exchange`
+400'd repeatedly with jose `unexpected "aud" claim value`. Para **PROD** session
+JWTs carry the Para project UUID (`8c67b747-9c8f-416a-b4d4-067bb1209c9c`) as
+`aud`, but the deployed stack had no `PARA_JWT_AUDIENCE`, so
+`readAccountAuthEnv` fell back to `NEXT_PUBLIC_PARA_API_KEY` (`prod…` API key)
+as the expected audience. UI symptoms of the same 400: the Para modal never
+dismissed and /settings sat on "Connecting your account…".
+
+- **Vercel env (chat-portal project):** three branch-scoped
+  `PARA_JWT_AUDIENCE` Preview entries existed but were **empty strings**
+  (placeholders). Replaced them with one project-wide entry per environment —
+  Preview, Production, Development — set to the Para project UUID above (the
+  `aud` observed in our own frontend's Para tokens, signature-verified against
+  Para's PROD JWKS). Production previously had no audience configured at all
+  and would have broken identically on its next deploy.
+- **Redeployed** main (`chat-portal-5dbokzdxx`) so chat-staging picked the
+  value up; verified the alias moved and that the exchange endpoint now fails
+  a bogus token with a jose JWKS error instead of "Para JWKS verification is
+  not configured" / an aud mismatch. Full E2E Para login still needs a human
+  retry in the browser.
+- **Code hardening (working tree):** `packages/account/src/better-auth/env.ts`
+  now normalizes blank/whitespace env values to `undefined` (`nonEmpty`) for
+  all optional Privy/Para fields — an empty `PARA_JWT_AUDIENCE=""` is not
+  nullish, so it used to stop the `??` audience fallback chain and surface as
+  the misleading "Para JWKS verification is not configured". Re-added the
+  "prefers explicit Para JWT audience" test (lost in the packages/auth →
+  packages/account fold) plus a blank-values regression test in
+  `packages/account/test/env.test.ts`. 51/51 account tests green, tsc + eslint
+  clean.
+## Follow-ups from the same debugging session (2026-07-11, afternoon)
+
+Para sign-in now completes on chat-staging (modal dismisses, wallets connect,
+exchange 200s). Two residual breakages were root-caused; fixes are code-side
+or handed off, per Cecilia's direction (no direct backend/DB mutation):
+
+- **/settings "Couldn't connect your account" → backend `GET /api/account`
+  500s for every user.** The deployed `product-mono/backend:main` image runs
+  the app-billing usage query referencing `llm_usage_events.recipient`, but
+  migration `supabase/migrations/20260708010000_llm_usage_events_recipient.sql`
+  (additive: `ADD COLUMN IF NOT EXISTS recipient TEXT` + partial index) was
+  never applied to the shared staging/prod DB. Backend log:
+  `Failed to query usage range error=column e.recipient does not exist`.
+  **Pending: apply that one migration** (owner's call — staging DB IS prod
+  DB), then `/api/account` and the settings page recover.
+- **`GET /api/updates` 404 spam → stale committed `packages/client/dist` on
+  main.** `packages/client/src/sse.ts` already targets `/api/thread/updates`,
+  but main's committed dist still requests `/api/updates`, and consumers
+  resolve the package through dist. The rebuilt dist (uncommitted, verified
+  stable across a fresh `pnpm --filter @aomi-labs/client build`) sits in the
+  working tree ready to commit — that alone stops the 404s.
+- **Legacy widget-auth account graph still in the DB.** `public.aomi_users`,
+  `aomi_auth_identities`, `aomi_wallets`, `aomi_account_events` are orphaned
+  (zero references in aomi-widget or product-mono `origin/main`; the live
+  stack uses canonical `users`/`auth_providers`/`public_keys` + `ba_*`
+  better-auth tables). Staged `scripts/drop-legacy-aomi-account-tables.sql`
+  (pre-flight checks + RESTRICT drops, no CASCADE) for review; also fixed the
+  last stale `aomi_wallets` comment in
+  `apps/shadcn-registry/src/lib/wallet-kit/account/aomi-backend-runtime.ts`.
 
 ## Aomi Build owned operate + pre-prod fixes (2026-07-08)
 

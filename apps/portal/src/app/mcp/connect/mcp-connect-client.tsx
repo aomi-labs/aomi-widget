@@ -14,15 +14,16 @@ import { CheckCircle2, Loader2, ShieldCheck } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { AomiWalletKitProvider, useAomiWalletKit } from "@aomi-labs/widget-lib";
 import { authClient } from "@aomi-labs/account/better-auth/client";
+import {
+  providerExchangeError,
+  waitForProviderCredential,
+} from "./provider-credential";
 
 type Provider = "privy" | "para";
 
 const providerLabels = { privy: "Privy", para: "Para" } as const;
 
 const STASH_KEY = "aomi.mcp.authorize.query";
-
-/** How long to wait for the provider modal before letting the user retry. */
-const PROVIDER_SIGN_IN_TIMEOUT_MS = 120_000;
 
 const SCOPE_DESCRIPTIONS: Record<string, string> = {
   openid: "Confirm your Aomi identity",
@@ -42,7 +43,11 @@ const SCOPE_DESCRIPTIONS: Record<string, string> = {
  *    deny via `POST /api/auth/oauth2/consent`, then follow `redirectURI`
  *    back to the MCP client's callback.
  */
-export function McpConnectClient({ clientName }: { clientName: string | null }) {
+export function McpConnectClient({
+  clientName,
+}: {
+  clientName: string | null;
+}) {
   const params = useSearchParams();
   const consentCode = params.get("consent_code");
   const isAuthorizeRequest =
@@ -185,71 +190,35 @@ function ProviderSignIn({
   );
   const [pending, setPending] = useState(false);
   const [complete, setComplete] = useState(false);
-  const [providerRequested, setProviderRequested] = useState(false);
   const [exchangeRequested, setExchangeRequested] = useState(false);
+  const connectSocial = walletKit.connectSocial;
+  const getAccountCredential = walletKit.getAccountCredential;
 
   const start = useCallback(async () => {
     setPending(true);
     setStatus(`Opening ${providerLabels[provider]}...`);
     try {
-      await walletKit.connectSocial?.("google");
-      setProviderRequested(true);
-      setStatus(`Complete sign-in in ${providerLabels[provider]}...`);
+      await connectSocial?.("google");
+      setStatus("Waiting for provider credential...");
+      setExchangeRequested(true);
     } catch (error) {
       setStatus(
         error instanceof Error ? error.message : "Authentication failed",
       );
-      setProviderRequested(false);
       setPending(false);
     }
-  }, [provider, walletKit]);
-
-  useEffect(() => {
-    if (
-      !providerRequested ||
-      exchangeRequested ||
-      complete ||
-      !pending ||
-      !walletKit.getAccountCredential
-    ) {
-      return;
-    }
-    setStatus("Waiting for provider credential...");
-    setExchangeRequested(true);
-  }, [
-    complete,
-    exchangeRequested,
-    pending,
-    providerRequested,
-    walletKit.getAccountCredential,
-  ]);
-
-  // The provider modal can be dismissed without completing sign-in, in which
-  // case `getAccountCredential` never materializes and the effect above never
-  // fires. Without a deadline the page would sit disabled on "Complete
-  // sign-in..." forever; reset instead so the user can retry.
-  useEffect(() => {
-    if (!providerRequested || exchangeRequested || complete || !pending) {
-      return;
-    }
-    const timer = setTimeout(() => {
-      setStatus(`${providerLabels[provider]} sign-in timed out. Try again.`);
-      setProviderRequested(false);
-      setPending(false);
-    }, PROVIDER_SIGN_IN_TIMEOUT_MS);
-    return () => clearTimeout(timer);
-  }, [complete, exchangeRequested, pending, provider, providerRequested]);
+  }, [connectSocial, provider]);
 
   useEffect(() => {
     if (!exchangeRequested || complete || !pending) return;
     let cancelled = false;
     const run = async () => {
       try {
-        setStatus("Creating Aomi session...");
-        const credential = await waitForCredential(() =>
-          walletKit.getAccountCredential?.(),
+        const credential = await waitForProviderCredential(() =>
+          getAccountCredential?.(),
         );
         if (cancelled) return;
+        setStatus("Creating Aomi session...");
         const exchange = await fetch("/api/auth/aomi/provider/exchange", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -257,7 +226,7 @@ function ProviderSignIn({
           body: JSON.stringify(credential),
         });
         if (!exchange.ok) {
-          throw new Error(`Provider exchange failed: HTTP ${exchange.status}`);
+          throw await providerExchangeError(exchange);
         }
         setComplete(true);
         setStatus("Signed in. Preparing authorization...");
@@ -278,7 +247,7 @@ function ProviderSignIn({
     return () => {
       cancelled = true;
     };
-  }, [complete, exchangeRequested, pending, walletKit]);
+  }, [complete, exchangeRequested, getAccountCredential, pending]);
 
   return (
     <Shell title={title}>
@@ -333,7 +302,9 @@ function ConsentPanel({
         if (!response.ok || typeof body?.redirectURI !== "string") {
           throw new Error(`Consent failed: HTTP ${response.status}`);
         }
-        setStatus(accept ? "Authorized. Returning to your client..." : "Denied.");
+        setStatus(
+          accept ? "Authorized. Returning to your client..." : "Denied.",
+        );
         window.location.assign(body.redirectURI);
       } catch (error) {
         setStatus(error instanceof Error ? error.message : "Consent failed");
@@ -347,8 +318,8 @@ function ConsentPanel({
   return (
     <Shell title={`${name} wants to connect`}>
       <p className="text-muted-foreground mt-3 text-sm">
-        Allow {name} to access your Aomi account? It will be able to act as
-        you through the Aomi tools you invoke from it.
+        Allow {name} to access your Aomi account? It will be able to act as you
+        through the Aomi tools you invoke from it.
       </p>
       <ul className="mt-5 grid gap-2">
         {scopes.map((scope) => (
@@ -398,16 +369,4 @@ function Shell({ children, title }: { children?: ReactNode; title: string }) {
       </section>
     </main>
   );
-}
-
-async function waitForCredential(
-  getCredential: () => Promise<unknown> | undefined,
-): Promise<unknown> {
-  const startedAt = Date.now();
-  while (Date.now() - startedAt < 30_000) {
-    const credential = await getCredential();
-    if (credential) return credential;
-    await new Promise((resolve) => setTimeout(resolve, 500));
-  }
-  throw new Error("Timed out waiting for provider credential");
 }

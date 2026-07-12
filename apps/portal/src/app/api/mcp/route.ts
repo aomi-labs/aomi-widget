@@ -1,8 +1,8 @@
 import { auth } from "@aomi-labs/account/better-auth";
-import { getOrCreateAomiUserForBetterAuthSession } from "@aomi-labs/account/account";
 import { withMcpAuth } from "better-auth/plugins";
 
 import { MCP_TOOLS, dispatchTool } from "@portal/server/mcp/tools";
+import { resolveMcpCanonicalUser } from "@portal/server/mcp/session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -44,7 +44,11 @@ export const POST = withMcpAuth(auth, async (request, session) => {
   try {
     message = (await request.json()) as JsonRpcRequest;
   } catch {
-    return rpcError(null, -32700, "parse error: body must be a JSON-RPC message");
+    return rpcError(
+      null,
+      -32700,
+      "parse error: body must be a JSON-RPC message",
+    );
   }
   if (Array.isArray(message)) {
     return rpcError(null, -32600, "batch requests are not supported");
@@ -69,7 +73,7 @@ export const POST = withMcpAuth(auth, async (request, session) => {
         params?.arguments && typeof params.arguments === "object"
           ? (params.arguments as Record<string, unknown>)
           : {};
-      const canonicalUser = await getOrCreateAomiUserForBetterAuthSession({
+      const canonicalUser = await resolveMcpCanonicalUser({
         betterAuthUserId: session.userId,
       });
       const outcome = await dispatchTool(canonicalUser.id, name, args);

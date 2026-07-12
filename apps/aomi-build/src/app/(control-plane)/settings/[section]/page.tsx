@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { getSettingsSection, settingsSections } from "../settings-data";
+import { SettingsSecretsPanel } from "../settings-secrets-panel";
 
 export function generateStaticParams() {
   return settingsSections.map((section) => ({ section: section.slug }));
@@ -37,20 +38,24 @@ export default async function SettingsSectionPage({
         <p className="max-w-2xl text-sm text-subtle">{section.description}</p>
       </div>
 
-      <section className="rounded-lg border border-border bg-surface-1 p-4">
-        <div className="text-sm font-medium text-foreground">
-          {section.enabled ? "Current state" : "Not available yet"}
-        </div>
-        <p className="mt-2 text-[13px] text-dim">{section.detail}</p>
-        {section.actionHref ? (
-          <Link
-            href={section.actionHref}
-            className="mt-4 inline-flex h-8 items-center rounded-md bg-primary px-3 text-[12px] font-medium text-primary-foreground transition hover:bg-brand-hover"
-          >
-            {section.actionLabel}
-          </Link>
-        ) : null}
-      </section>
+      {slug === "secrets" ? (
+        <SettingsSecretsPanel />
+      ) : (
+        <section className="rounded-lg border border-border bg-surface-1 p-4">
+          <div className="text-sm font-medium text-foreground">
+            {section.enabled ? "Current state" : "Not available yet"}
+          </div>
+          <p className="mt-2 text-[13px] text-dim">{section.detail}</p>
+          {section.actionHref ? (
+            <Link
+              href={section.actionHref}
+              className="mt-4 inline-flex h-8 items-center rounded-md bg-primary px-3 text-[12px] font-medium text-primary-foreground transition hover:bg-brand-hover"
+            >
+              {section.actionLabel}
+            </Link>
+          ) : null}
+        </section>
+      )}
     </div>
   );
 }
