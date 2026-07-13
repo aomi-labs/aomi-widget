@@ -311,12 +311,47 @@
   }
 }
 
-/* While a turn is live the open trace is capped to a scrolling window (see
-   WorkingTrace). When older steps are pushed above the fold, this mask dissolves
-   them into transparency at the top edge instead of hard-clipping — the newest
-   steps stay fully legible at the bottom. Applied only while content overflows,
-   so a short trace is never faded. */
-.aui-working-trace-windowed {
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 60px);
-  mask-image: linear-gradient(to bottom, transparent 0, #000 60px);
+/* The capped trace stays scrollable without exposing browser scrollbar chrome.
+   Firefox uses the standard property, old Edge/IE use the MS override, and
+   Chromium/Safari use the WebKit pseudo-element. Wheel, touch, and keyboard
+   scrolling continue to work in each case. */
+.aui-working-trace-scroll {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.aui-working-trace-scroll::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+/* Smoothly dissolve clipped rows into the theme background at both edges. These
+   are color fades only — no backdrop blur, so text stays crisp until it fades.
+   Multiple alpha stops avoid a visible cutoff while pointer-transparent overlays
+   keep Chrome hover-wheel hit-testing on the viewport. */
+.aui-working-trace-edge-fade-top {
+  background: linear-gradient(
+    to bottom,
+    var(--background) 0%,
+    color-mix(in oklch, var(--background) 92%, transparent) 14%,
+    color-mix(in oklch, var(--background) 76%, transparent) 32%,
+    color-mix(in oklch, var(--background) 54%, transparent) 52%,
+    color-mix(in oklch, var(--background) 31%, transparent) 70%,
+    color-mix(in oklch, var(--background) 13%, transparent) 86%,
+    transparent 100%
+  );
+}
+
+.aui-working-trace-edge-fade-bottom {
+  background: linear-gradient(
+    to top,
+    var(--background) 0%,
+    color-mix(in oklch, var(--background) 92%, transparent) 14%,
+    color-mix(in oklch, var(--background) 76%, transparent) 32%,
+    color-mix(in oklch, var(--background) 54%, transparent) 52%,
+    color-mix(in oklch, var(--background) 31%, transparent) 70%,
+    color-mix(in oklch, var(--background) 13%, transparent) 86%,
+    transparent 100%
+  );
 }
