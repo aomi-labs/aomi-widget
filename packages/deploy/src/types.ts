@@ -37,6 +37,7 @@ export interface AuditEvent {
     | "get_app"
     | "exchange_github_code"
     | "list_user_sources"
+    | "list_user_deployments"
     | "list_user_source_deployments"
     | "list_user_source_agents"
     | "list_user_source_transactions"
@@ -489,6 +490,18 @@ export interface ListUserSourceDeploymentsInput extends BearerOverride {
   limit?: number;
 }
 
+export interface UserDeploymentsCursor {
+  createdAt: number;
+  id: number;
+}
+
+export interface ListUserDeploymentsInput extends BearerOverride {
+  githubUserId: string;
+  platform: string;
+  limit?: number;
+  cursor?: UserDeploymentsCursor | null;
+}
+
 /** One append-only promotion record from the backend deployment log. */
 export interface DeploymentRecord {
   deploymentId: string;
@@ -550,6 +563,16 @@ export interface UserSourceLatestDeployment {
    *  records that predate the timestamp. */
   createdAt?: number | null;
   apps: UserSourceDeploymentApp[];
+}
+
+export interface UserDeployment extends UserSourceLatestDeployment {
+  sourceId: number;
+  repositoryLink: string | null;
+}
+
+export interface UserDeploymentsPage {
+  deployments: UserDeployment[];
+  nextCursor: UserDeploymentsCursor | null;
 }
 
 /** A source repo plus the applications deployed from it. */

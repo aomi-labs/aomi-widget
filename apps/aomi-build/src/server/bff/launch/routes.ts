@@ -640,6 +640,62 @@ export async function deploymentHistoryRoute(req: Request) {
   }
 }
 
+export async function deploymentFeedRoute(req: Request) {
+  const blocked = checkRead(req);
+  if (blocked) return blocked;
+
+  const session = await getGitHubSession();
+  if (!session) {
+    return NextResponse.json(
+      { error: "not signed in with GitHub" },
+      { status: 401 },
+    );
+  }
+  const params = new URL(req.url).searchParams;
+  const limit = Number(params.get("limit") ?? "50");
+  const cursorCreatedAt = params.get("cursorCreatedAt");
+  const cursorId = params.get("cursorId");
+  if (
+    !Number.isSafeInteger(limit) ||
+    limit <= 0 ||
+    limit > 100 ||
+    (cursorCreatedAt === null) !== (cursorId === null)
+  ) {
+    return NextResponse.json(
+      { error: "invalid deployment feed pagination" },
+      { status: 400 },
+    );
+  }
+  const cursor =
+    cursorCreatedAt !== null && cursorId !== null
+      ? { createdAt: Number(cursorCreatedAt), id: Number(cursorId) }
+      : null;
+  if (
+    cursor &&
+    (!Number.isSafeInteger(cursor.createdAt) ||
+      !Number.isSafeInteger(cursor.id))
+  ) {
+    return NextResponse.json(
+      { error: "invalid deployment feed cursor" },
+      { status: 400 },
+    );
+  }
+
+  try {
+    const config = launchConfig();
+    const client = await deploymentClient();
+    const page = await client.listUserDeployments({
+      githubUserId: session.githubUserId,
+      platform: config.platform,
+      limit,
+      cursor,
+    });
+    return NextResponse.json(page);
+  } catch (err) {
+    return launchErrorResponse(err);
+  }
+}
+
 export async function deploymentSecretsRoute(req: Request) {
   const blocked = checkRead(req);
   if (blocked) return blocked;

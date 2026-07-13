@@ -5,6 +5,7 @@ import type {
   PromoteResult,
   SdkVersionStatus,
   UserSource,
+  UserDeploymentsPage,
   UserSourceLatestDeployment,
 } from "@aomi-labs/deploy";
 
@@ -121,6 +122,8 @@ export type DeploymentSourcesResult = {
 export type DeploymentHistoryResult = {
   deployments: UserSourceLatestDeployment[];
 };
+
+export type DeploymentFeedResult = UserDeploymentsPage;
 
 export type DeploymentSecretsResult = {
   byApp: Record<string, string[]>;

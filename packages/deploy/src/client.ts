@@ -27,6 +27,7 @@ import type {
   ListDeploymentRecordsResult,
   ListUserSourceLogsInput,
   ListUserSourceTransactionsInput,
+  ListUserDeploymentsInput,
   ListUserSourceDeploymentsInput,
   ListUserSourcesInput,
   OperateAgentsResult,
@@ -38,6 +39,8 @@ import type {
   OperateUsageResult,
   OwnedOperateSourceInput,
   UserSource,
+  UserDeployment,
+  UserDeploymentsPage,
   UserSourceLatestDeployment,
   ListTokensInput,
   MintTokenInput,
@@ -685,6 +688,47 @@ export class DeploymentClient {
       ts: Date.now(),
     });
     return (raw.sources ?? []).map(camelUserSource);
+  }
+
+  async listUserDeployments(
+    input: ListUserDeploymentsInput,
+  ): Promise<UserDeploymentsPage> {
+    const githubUserId = required(input.githubUserId, "githubUserId");
+    const platform = cleanPlatform(input.platform);
+    const bearer = this.resolveBearer(input.bearer);
+    const params = new URLSearchParams({
+      github_user_id: githubUserId,
+      platform,
+    });
+    if (input.limit && Number.isSafeInteger(input.limit) && input.limit > 0) {
+      params.set("limit", String(input.limit));
+    }
+    if (input.cursor) {
+      params.set("cursor_created_at", String(input.cursor.createdAt));
+      params.set("cursor_id", String(input.cursor.id));
+    }
+    const raw = await this.get<{
+      deployments?: unknown[];
+      next_cursor?: unknown;
+    }>(
+      `/api/integrations/github-app/user/deployments?${params.toString()}`,
+      "list_user_deployments",
+      bearer,
+    );
+    await this.audit({
+      action: "list_user_deployments",
+      platform,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return {
+      deployments: (raw.deployments ?? [])
+        .map(camelUserDeployment)
+        .filter((deployment): deployment is UserDeployment =>
+          Boolean(deployment),
+        ),
+      nextCursor: camelUserDeploymentsCursor(raw.next_cursor),
+    };
   }
 
   async getUserSourceLatestDeployment(
@@ -1495,6 +1539,33 @@ function camelUserSourceLatestDeployment(
       loaded: Boolean(app.loaded),
     })),
   };
+}
+
+function camelUserDeployment(raw: unknown): UserDeployment | null {
+  if (!raw || typeof raw !== "object") return null;
+  const deployment = camelUserSourceLatestDeployment(raw);
+  if (!deployment) return null;
+  const value = raw as Record<string, any>;
+  const sourceId = Number(value.source_id ?? value.sourceId);
+  if (!Number.isSafeInteger(sourceId) || sourceId <= 0) return null;
+  return {
+    ...deployment,
+    sourceId,
+    repositoryLink: value.repository_link ?? value.repositoryLink ?? null,
+  };
+}
+
+function camelUserDeploymentsCursor(
+  raw: unknown,
+): UserDeploymentsPage["nextCursor"] {
+  if (!raw || typeof raw !== "object") return null;
+  const value = raw as Record<string, any>;
+  const createdAt = Number(value.created_at ?? value.createdAt);
+  const id = Number(value.id);
+  if (!Number.isSafeInteger(createdAt) || !Number.isSafeInteger(id)) {
+    return null;
+  }
+  return { createdAt, id };
 }
 
 function camelUserSource(raw: unknown): UserSource {
