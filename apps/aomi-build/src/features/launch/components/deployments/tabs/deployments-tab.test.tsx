@@ -72,27 +72,27 @@ describe("DeploymentsTab", () => {
   it("renders deployments from the DB timeline, current first", async () => {
     renderTab(<DeploymentsTab detail={detail} />);
     expect(detail.loadRecords).toHaveBeenCalled();
-    expect(await screen.findByText("dep_1_ra_currentcmt")).toBeInTheDocument();
+    expect(await screen.findByText(/Live · my-bot · 2 deployments/i)).toBeInTheDocument();
+    expect(screen.getAllByText("my-bot").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("dep_1_ra_currentcmt")).toBeInTheDocument();
     expect(screen.getByText("dep_1_ra_oldcommit1")).toBeInTheDocument();
     expect(screen.getByText("Current")).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: /activity/i })).toHaveAttribute(
+    expect(screen.getByRole("tab", { name: /promotions/i })).toHaveAttribute(
       "aria-selected",
       "false",
     );
   });
 
-  it("renders promotion activity in the Activity subtab", async () => {
+  it("renders promotion activity in the Promotions subtab", async () => {
     renderTab(<DeploymentsTab detail={detail} />);
-    fireEvent.click(screen.getByRole("tab", { name: /activity/i }));
-    expect(screen.getByRole("tab", { name: /activity/i })).toHaveAttribute(
+    fireEvent.click(screen.getByRole("tab", { name: /promotions/i }));
+    expect(screen.getByRole("tab", { name: /promotions/i })).toHaveAttribute(
       "aria-selected",
       "true",
     );
-    expect(
-      await screen.findByText(/promoted · dep_1_ra_currentcmt/),
-    ).toBeInTheDocument();
+    expect((await screen.findAllByText(/promoted ·/)).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("dep_1_ra_currentcmt").length).toBeGreaterThan(0);
   });
-
   it("offers Deactivate in the toolbar and Promote on older deployments", () => {
     renderTab(<DeploymentsTab detail={detail} />);
     expect(

@@ -9,7 +9,12 @@ import { projectDeploymentStatus } from "../project-deployment-status";
 import { TimelineDeploymentRow } from "../ui/timeline-deployment-row";
 import { ConfirmDialog } from "../ui/confirm-dialog";
 import { LoadingPanel, EmptyPanel } from "../ui/state-panels";
-import { buildActivityList, buildDeploymentList } from "../deployment-timeline";
+import {
+  buildActivityList,
+  buildDeploymentList,
+  sortDeploymentsForTimeline,
+} from "../deployment-timeline";
+import { formatRelativeTime } from "../format-relative-time";
 
 type Detail = ReturnType<typeof useProjectDetail>;
 type OpState = {
@@ -73,14 +78,16 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
   );
   const deployments = useMemo(
     () =>
-      recordDeployments.map((deployment) => ({
-        ...deployment,
-        current: optimisticallyPromotedId
-          ? deployment.deploymentId === optimisticallyPromotedId
-          : runtimeCanResolveLive
-            ? deployment.releaseTags.some((tag) => liveReleaseTags.has(tag))
-            : deployment.current,
-      })),
+      sortDeploymentsForTimeline(
+        recordDeployments.map((deployment) => ({
+          ...deployment,
+          current: optimisticallyPromotedId
+            ? deployment.deploymentId === optimisticallyPromotedId
+            : runtimeCanResolveLive
+              ? deployment.releaseTags.some((tag) => liveReleaseTags.has(tag))
+              : deployment.current,
+        })),
+      ),
     [
       recordDeployments,
       optimisticallyPromotedId,
@@ -183,10 +190,26 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
     }
   };
 
+  const historyCountLabel =
+    deployments.length === 1
+      ? "1 deployment in history"
+      : `${deployments.length} deployments in history`;
+  const summaryLabel = status?.isLive
+    ? currentDeployment
+      ? `Live · ${currentDeployment.apps.join(", ") || "app"} · ${historyCountLabel}`
+      : `Live · ${historyCountLabel}`
+    : deactivated
+      ? `Deactivated · ${historyCountLabel}`
+      : deployments.length > 0
+        ? historyCountLabel
+        : status?.label ?? "No deployment";
+
   return (
     <div>
       <div className="border-b border-border px-4 py-2 text-xs text-dim">
-        Deployment history for this project.
+        <span className="text-foreground font-medium">{summaryLabel}</span>
+        <span className="text-dim"> · </span>
+        Newest and current first. Promote an older release to make it live.
       </div>
       <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
         <div
@@ -195,8 +218,8 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
           className="inline-flex rounded-md border border-border bg-surface-1 p-0.5"
         >
           {[
-            ["deployments", "Deployments"],
-            ["activity", "Activity"],
+            ["deployments", "History"],
+            ["activity", "Promotions"],
           ].map(([id, label]) => (
             <button
               key={id}
@@ -339,7 +362,9 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
       ) : null}
 
       {view === "activity" && activity.length === 0 && !detail.recordsError && (
-        <EmptyPanel>No promotion activity for this project.</EmptyPanel>
+        <EmptyPanel>
+          No promotions recorded yet. Promote a deployment to see it here.
+        </EmptyPanel>
       )}
 
       {view === "activity" && activity.length > 0 && (
@@ -349,14 +374,15 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
               key={`${row.app}-${row.deploymentId}-${row.releaseTag}-${row.createdAt}`}
               className="flex min-h-10 items-center justify-between gap-4 border-b border-border px-4 py-2 text-xs text-dim last:border-b-0"
             >
-              <span className="min-w-0 truncate font-mono">
-                promoted · {row.deploymentId}
+              <span className="min-w-0 truncate">
+                <span className="text-foreground font-medium">{row.app}</span>
+                <span className="text-dim"> · promoted · </span>
+                <span className="font-mono">{row.deploymentId}</span>
               </span>
-              <span className="shrink-0 text-right">
-                {row.app}
-                {row.current ? " · current" : ""}
-                {row.actor ? ` · ${row.actor}` : ""} ·{" "}
-                {new Date(row.createdAt * 1000).toLocaleString()}
+              <span className="shrink-0 text-right" title={new Date(row.createdAt * 1000).toLocaleString()}>
+                {row.current ? "current · " : ""}
+                {row.actor ? `${row.actor} · ` : ""}
+                {formatRelativeTime(row.createdAt)}
               </span>
             </div>
           ))}
