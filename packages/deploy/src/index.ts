@@ -11,6 +11,8 @@ export {
   ACTIVATION_REQUEST_EMBED_COLOR,
 } from "./activation-request";
 
+export { missingRequiredSecrets } from "./secrets";
+
 export {
   DeployError,
   BrowserEnvironmentError,
@@ -105,3 +107,5 @@ export type {
   ActivationRequestPayload,
   DiscordWebhookBody,
 } from "./activation-request";
+
+export type { SecretSlot, ReleaseManifest, ReleaseManifestPlugin } from "./types";
