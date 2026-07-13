@@ -1,4 +1,6 @@
-import type { ReleaseManifest, SecretSlot } from "../types";
+import type { DeploymentClient } from "../client";
+import type { ReleaseManifest, SecretSlot, UserSource } from "../types";
+import { missingRequiredSecrets } from "../secrets";
 
 const GITHUB_API = "https://api.github.com";
 
@@ -53,4 +55,46 @@ export async function fetchReleaseSecretSlots(input: {
   } catch {
     return {};
   }
+}
+
+/**
+ * Required slots the apps declare (from each release's manifest.json) that have
+ * no value in the vault yet, keyed by app name. Empty object = safe to activate.
+ *
+ * Returns `{}` when the GitHub token or the source's platform repo is unknown —
+ * activation must never be blocked by our inability to read the manifest.
+ */
+export async function missingSecretsForActivation(input: {
+  client: DeploymentClient;
+  githubUserId: string;
+  platform: string;
+  source: UserSource;
+  pairs: { app: string; releaseTag: string }[];
+  githubToken?: string;
+}): Promise<Record<string, string[]>> {
+  const githubToken = input.githubToken ?? process.env.GITHUB_TOKEN?.trim();
+  const platformRepo = input.source.latestDeployment?.platformRepo;
+  if (!githubToken || !platformRepo) return {};
+
+  const configured = await input.client.listAppSecrets({
+    githubUserId: input.githubUserId,
+    sourceId: String(input.source.id),
+  });
+
+  const missing: Record<string, string[]> = {};
+  for (const pair of input.pairs) {
+    const slots = await fetchReleaseSecretSlots({
+      platformRepo,
+      releaseTag: pair.releaseTag,
+      githubToken,
+    });
+    const configuredKeys = (configured.byApp[pair.app] ?? []).map(
+      (handle) => handle.split("::").pop() ?? handle,
+    );
+    const unfilled = missingRequiredSecrets(slots[pair.app], configuredKeys);
+    if (unfilled.length > 0) {
+      missing[pair.app] = unfilled.map((slot) => slot.name);
+    }
+  }
+  return missing;
 }

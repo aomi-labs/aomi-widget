@@ -64,4 +64,7 @@ export {
   appendSetCookie,
 } from "./cookies";
 
-export { fetchReleaseSecretSlots } from "./release-manifest";
+export {
+  fetchReleaseSecretSlots,
+  missingSecretsForActivation,
+} from "./release-manifest";

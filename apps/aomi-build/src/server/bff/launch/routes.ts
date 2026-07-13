@@ -9,6 +9,7 @@ import { appNamesFromDeployment, releaseTagsFromDeployment } from "./mappers";
 import { checkRateLimit, getClientIp } from "@build/lib/rate-limit";
 import { validateOrigin } from "@build/lib/csrf";
 import { getGitHubSession } from "@build/server/cookies/github";
+import { missingSecretsForActivation } from "@aomi-labs/deploy/bff";
 import {
   isValidDeploymentId,
   isValidInstallationId,
@@ -609,6 +610,19 @@ export async function activateLaunchRoute(req: Request) {
       return NextResponse.json(
         { error: "release not found for this user" },
         { status: 404 },
+      );
+    }
+    const missingByApp = await missingSecretsForActivation({
+      client,
+      githubUserId: session.githubUserId,
+      platform: config.platform,
+      source,
+      pairs,
+    });
+    if (Object.keys(missingByApp).length > 0) {
+      return NextResponse.json(
+        { error: "missing required secrets", missing: missingByApp },
+        { status: 409 },
       );
     }
     const result = await client.activate({

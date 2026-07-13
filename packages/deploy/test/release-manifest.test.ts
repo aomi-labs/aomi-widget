@@ -1,5 +1,9 @@
-import { describe, expect, it, vi } from "vitest";
-import { fetchReleaseSecretSlots } from "../src/bff/release-manifest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  fetchReleaseSecretSlots,
+  missingSecretsForActivation,
+} from "../src/bff/release-manifest";
+import type { DeploymentClient } from "../src/client";
 
 function fakeFetch(routes: Record<string, { status: number; body: unknown }>) {
   return vi.fn(async (input: RequestInfo | URL) => {
@@ -131,5 +135,87 @@ describe("fetchReleaseSecretSlots", () => {
         fetchImpl,
       }),
     ).resolves.toEqual({});
+  });
+});
+
+describe("missingSecretsForActivation", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  it("reports only the required slots with no configured key", async () => {
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url === RELEASE_URL) {
+        return new Response(
+          JSON.stringify({
+            assets: [
+              { name: "manifest.json", url: "https://api.github.com/asset/1" },
+            ],
+          }),
+          { status: 200 },
+        );
+      }
+      if (url === "https://api.github.com/asset/1") {
+        return new Response(
+          JSON.stringify({
+            plugins: {
+              binance: {
+                file: "libbinance.dylib",
+                sha256: "x",
+                secrets: [
+                  { name: "BINANCE_API_KEY", description: "d", required: true },
+                  {
+                    name: "BINANCE_SECRET_KEY",
+                    description: "d",
+                    required: true,
+                  },
+                ],
+              },
+            },
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response("not found", { status: 404 });
+    });
+    vi.stubGlobal("fetch", fetchImpl);
+
+    const client = {
+      listAppSecrets: vi.fn(async () => ({
+        byApp: { binance: ["$SECRET:APP:binance::BINANCE_API_KEY"] },
+      })),
+    } as unknown as DeploymentClient;
+
+    const missing = await missingSecretsForActivation({
+      client,
+      githubUserId: "gh-1",
+      platform: "community",
+      githubToken: "t",
+      source: {
+        id: 42,
+        latestDeployment: { platformRepo: "aomi-labs/community" },
+      } as never,
+      pairs: [{ app: "binance", releaseTag: "v1" }],
+    });
+    expect(missing).toEqual({ binance: ["BINANCE_SECRET_KEY"] });
+  });
+
+  it("never blocks activation when the platform repo is unknown", async () => {
+    const fetchImpl = vi.fn();
+    vi.stubGlobal("fetch", fetchImpl);
+
+    const client = { listAppSecrets: vi.fn() } as never;
+    const missing = await missingSecretsForActivation({
+      client,
+      githubUserId: "gh-1",
+      platform: "community",
+      githubToken: "t",
+      source: { id: 42, latestDeployment: null } as never,
+      pairs: [{ app: "binance", releaseTag: "v1" }],
+    });
+    expect(missing).toEqual({});
+    expect(fetchImpl).not.toHaveBeenCalled();
   });
 });

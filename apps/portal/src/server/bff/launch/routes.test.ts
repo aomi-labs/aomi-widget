@@ -105,6 +105,29 @@ function sourceDeployments() {
   });
 }
 
+/** Like `activationSource`, but with a `latestDeployment.platformRepo` so the
+ *  required-secrets check has a manifest to read. */
+function activationSourceWithRepo(platformRepo: string, id = 99) {
+  return Response.json({
+    sources: [
+      {
+        id,
+        installation_id: 555,
+        apps: [
+          {
+            name: "my-bot",
+            app_release_tag: "apps-555-r1-my-bot-abc",
+          },
+        ],
+        latest_deployment: {
+          platform_repo: platformRepo,
+          apps: [{ name: "my-bot", release_tag: "apps-555-r1-my-bot-abc" }],
+        },
+      },
+    ],
+  });
+}
+
 describe("launchDeployRoute", () => {
   beforeEach(() => {
     getGitHubSession.mockResolvedValue({
@@ -749,6 +772,7 @@ describe("activateLaunchRoute", () => {
     });
   });
   afterEach(() => {
+    vi.unstubAllEnvs();
     vi.restoreAllMocks();
     getGitHubSession.mockReset();
   });
@@ -766,6 +790,86 @@ describe("activateLaunchRoute", () => {
     );
     expect(res.status).toBe(401);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("409s when a required secret is unfilled", async () => {
+    vi.stubEnv("GITHUB_TOKEN", "gh-token");
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(activationSourceWithRepo("aomi-labs/my-bot-app"))
+      .mockResolvedValueOnce(sourceDeployments())
+      .mockResolvedValueOnce(
+        Response.json({
+          by_app: { "my-bot": ["$SECRET:APP:my-bot::MY_BOT_API_KEY"] },
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          assets: [
+            { name: "manifest.json", url: "https://api.github.com/asset/1" },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          plugins: {
+            "my-bot": {
+              file: "libmybot.dylib",
+              sha256: "x",
+              secrets: [
+                { name: "MY_BOT_API_KEY", description: "d", required: true },
+                {
+                  name: "MY_BOT_SECRET_KEY",
+                  description: "d",
+                  required: true,
+                },
+              ],
+            },
+          },
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await activateLaunchRoute(
+      activateReq({
+        appSourceId: 99,
+        apps: ["my-bot"],
+        releaseTags: ["apps-555-r1-my-bot-abc"],
+      }),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(409);
+    expect(body).toEqual({
+      error: "missing required secrets",
+      missing: { "my-bot": ["MY_BOT_SECRET_KEY"] },
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(5);
+  });
+
+  it("activates when the release manifest declares no secrets for the app", async () => {
+    vi.stubEnv("GITHUB_TOKEN", "gh-token");
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(activationSourceWithRepo("aomi-labs/my-bot-app"))
+      .mockResolvedValueOnce(sourceDeployments())
+      .mockResolvedValueOnce(Response.json({ by_app: {} }))
+      .mockResolvedValueOnce(Response.json({ assets: [] }))
+      .mockResolvedValueOnce(
+        Response.json({ ok: true, activation: { apps: [] } }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await activateLaunchRoute(
+      activateReq({
+        appSourceId: 99,
+        apps: ["my-bot"],
+        releaseTags: ["apps-555-r1-my-bot-abc"],
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledTimes(5);
   });
 
   it("requires appSourceId and app/tag pairs", async () => {
