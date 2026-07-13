@@ -389,3 +389,8 @@ build`, `CI=true npx -y pnpm@10.28.0 install --frozen-lockfile`, and
   and kept Show all / Collapse to recent behavior. Verified targeted ESLint,
   registry build, portal typecheck, all 221 registry tests, and a signed-in
   Chrome E2E against the local dev auth stack using an existing 19-step trace.
+- 2026-07-13 working-trace npm follow-up: audited the merged feature against the
+  main-branch npm workflow and confirmed only `@aomi-labs/widget-lib` ships the
+  touched source. Patch-bumped it from `1.4.1` to `1.4.2` and added a repository
+  rule requiring relevant publishable npm workspaces to be version-bumped before
+  future merges rather than corrected afterward.
