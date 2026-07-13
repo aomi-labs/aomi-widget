@@ -21,7 +21,7 @@ describe("LivePanel", () => {
 
   it("renders clone instructions with repo", () => {
     render(<LivePanel repo="user/my-agent" />);
-    expect(screen.getByText(/clone, edit/)).toBeInTheDocument();
+    expect(screen.getByText(/Clone, edit a tool/i)).toBeInTheDocument();
   });
 
   it("renders the correct clone command", () => {

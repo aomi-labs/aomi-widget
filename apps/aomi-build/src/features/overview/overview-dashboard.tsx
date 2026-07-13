@@ -137,17 +137,17 @@ export function OverviewDashboard() {
         <StatCard
           label="Projects"
           value={projectsLoading ? "—" : String(sources.length)}
-          helper="GitHub-owned app sources"
+          helper="App sources on GitHub"
         />
         <StatCard
           label="Live deployments"
           value={recordsPending ? "—" : String(currentDeployments.length)}
-          helper="Current deployment records"
+          helper="Active releases"
         />
         <StatCard
           label="Credits"
           value={formatNumber(usageTotals.creditsUsed)}
-          helper="Model/token usage meter — not Chat fees or invoices"
+          helper="Usage by app"
         />
         <StatCard
           label="Tokens"
@@ -166,7 +166,7 @@ export function OverviewDashboard() {
                 Recent deployments
               </div>
               <div className="text-dim text-xs">
-                Latest owned project activity
+                Latest project activity
               </div>
             </div>
             <Link
@@ -260,8 +260,8 @@ export function OverviewDashboard() {
               {usageError
                 ? `Usage unavailable: ${usageError}`
                 : latestDeployment
-                  ? "Credit meter by app. Billing plans live under Account → Billing later."
-                  : "Usage appears after app traffic. Not a billing invoice view."}
+                  ? "Credits by app"
+                  : "Appears after app traffic"}
             </div>
           </Link>
         </div>

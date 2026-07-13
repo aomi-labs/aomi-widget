@@ -35,7 +35,7 @@ export function LivePanel({
 
         <div className="space-y-2">
           <p className="text-muted-foreground text-sm">
-            Make it yours — clone, edit a tool, and redeploy:
+            Make it yours. Clone, edit a tool, and redeploy:
           </p>
           <pre className="bg-background/60 overflow-x-auto rounded-xl p-3 text-xs leading-relaxed">
             {`git clone ${repoUrl}.git

@@ -43,8 +43,7 @@ export function SettingsSecretsPanel() {
           No projects yet
         </div>
         <p className="mt-2 text-[13px] text-dim">
-          Secrets are managed per project. Import a GitHub repository first,
-          then set environment values on that project&apos;s Environment tab.
+          Create an app first, then set secrets on its Environment tab.
         </p>
         <Link
           href="/operate/deployments/new"
@@ -64,13 +63,12 @@ export function SettingsSecretsPanel() {
       <div className="space-y-3">
         <div className="rounded-lg border border-border bg-surface-1 p-4">
           <div className="text-sm font-medium text-foreground">
-            Secrets are managed per project
+            Per-project secrets
           </div>
           <p className="mt-2 text-[13px] text-dim">
-            Secrets for{" "}
-            <span className="text-foreground font-medium">{label}</span> live
-            on that project&apos;s Environment tab. There is no account-wide
-            secret store.
+            Edit environment values for{" "}
+            <span className="text-foreground font-medium">{label}</span> on
+            the project Environment tab.
           </p>
           <Link
             href={environmentHref(only.id)}
@@ -88,11 +86,10 @@ export function SettingsSecretsPanel() {
     <div className="space-y-3">
       <div className="rounded-lg border border-border bg-surface-1 p-4">
         <div className="text-sm font-medium text-foreground">
-          Secrets are managed per project
+          Per-project secrets
         </div>
         <p className="mt-2 text-[13px] text-dim">
-          Choose a project to manage its environment variables and secrets.
-          There is no account-wide secret store.
+          Choose a project to open its Environment tab.
         </p>
       </div>
 
@@ -107,7 +104,7 @@ export function SettingsSecretsPanel() {
                 <div className="text-foreground truncate text-sm font-medium">
                   {projectLabel(source)}
                 </div>
-                <div className="text-dim mt-0.5 text-xs">Environment →</div>
+                <div className="text-dim mt-0.5 text-xs">Environment</div>
               </div>
               <ArrowRight className="text-dim size-4 shrink-0" aria-hidden />
             </Link>
