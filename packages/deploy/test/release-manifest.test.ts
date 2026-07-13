@@ -71,4 +71,65 @@ describe("fetchReleaseSecretSlots", () => {
       }),
     ).resolves.toEqual({});
   });
+
+  it("returns {} when the fetch call rejects (network failure)", async () => {
+    const fetchImpl = vi.fn(async () => {
+      throw new Error("network down");
+    }) as unknown as typeof fetch;
+
+    await expect(
+      fetchReleaseSecretSlots({
+        platformRepo: "aomi-labs/community",
+        releaseTag: "v1",
+        githubToken: "t",
+        fetchImpl,
+      }),
+    ).resolves.toEqual({});
+  });
+
+  it("returns {} when the release response body is not valid JSON", async () => {
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url === RELEASE_URL) {
+        return new Response("<html>oops</html>", { status: 200 });
+      }
+      return new Response("not found", { status: 404 });
+    }) as unknown as typeof fetch;
+
+    await expect(
+      fetchReleaseSecretSlots({
+        platformRepo: "aomi-labs/community",
+        releaseTag: "v1",
+        githubToken: "t",
+        fetchImpl,
+      }),
+    ).resolves.toEqual({});
+  });
+
+  it("returns {} when the asset response body is not valid JSON", async () => {
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url === RELEASE_URL) {
+        return new Response(
+          JSON.stringify({
+            assets: [{ name: "manifest.json", url: "https://api.github.com/asset/1" }],
+          }),
+          { status: 200 },
+        );
+      }
+      if (url === "https://api.github.com/asset/1") {
+        return new Response("<html>oops</html>", { status: 200 });
+      }
+      return new Response("not found", { status: 404 });
+    }) as unknown as typeof fetch;
+
+    await expect(
+      fetchReleaseSecretSlots({
+        platformRepo: "aomi-labs/community",
+        releaseTag: "v1",
+        githubToken: "t",
+        fetchImpl,
+      }),
+    ).resolves.toEqual({});
+  });
 });
