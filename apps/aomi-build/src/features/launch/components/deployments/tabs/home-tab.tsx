@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import {
   ExternalLink,
@@ -13,19 +13,32 @@ import { operateFetch } from "@build/features/operate/client";
 import { chatAppUrl } from "@build/lib/chat-url";
 import { BUILD_GLOSSARY } from "@build/lib/glossary";
 import { projectDeploymentStatus } from "../project-deployment-status";
+import {
+  formatCompactCount,
+  summarizeProjectUsage,
+  type UsagePeek,
+} from "../usage-peek";
 import { EmptyPanel } from "../ui/state-panels";
 
 type Detail = ReturnType<typeof useProjectDetail>;
 
-type UsagePeek = {
-  creditsUsed: number;
-  tokens: number;
-  available: boolean;
-};
-
-function numberValue(value: unknown) {
-  const n = Number(value ?? 0);
-  return Number.isFinite(n) ? n : 0;
+function UsageSpark({ spark }: { spark: number[] }) {
+  if (spark.length === 0) return null;
+  return (
+    <div
+      className="mt-3 flex h-6 items-end gap-0.5"
+      aria-hidden
+      title="Credits by day"
+    >
+      {spark.map((value, index) => (
+        <span
+          key={index}
+          className="bg-foreground/25 w-1.5 rounded-sm"
+          style={{ height: `${Math.max(12, Math.round(value * 100))}%` }}
+        />
+      ))}
+    </div>
+  );
 }
 
 function StatusCard({
@@ -35,6 +48,7 @@ function StatusCard({
   actionHref,
   actionLabel,
   tone = "neutral",
+  meter,
 }: {
   label: string;
   value: string;
@@ -42,6 +56,7 @@ function StatusCard({
   actionHref?: string;
   actionLabel?: string;
   tone?: "good" | "warn" | "neutral";
+  meter?: ReactNode;
 }) {
   const toneClass =
     tone === "good"
@@ -55,6 +70,7 @@ function StatusCard({
       <div className="text-dim text-[11px] uppercase tracking-wide">{label}</div>
       <div className="text-foreground mt-1.5 text-sm font-medium">{value}</div>
       <p className="text-dim mt-1 text-xs leading-5">{hint}</p>
+      {meter}
       {actionHref && actionLabel ? (
         <Link
           href={actionHref}
@@ -65,6 +81,39 @@ function StatusCard({
       ) : null}
     </div>
   );
+}
+
+function usageCardCopy(usage: UsagePeek | null): {
+  value: string;
+  hint: string;
+  tone: "good" | "warn" | "neutral";
+} {
+  if (usage == null) {
+    return { value: "Loading…", hint: "Credits for this project.", tone: "neutral" };
+  }
+  if (!usage.available) {
+    return {
+      value: "Unavailable",
+      hint: "Could not load usage. Open Usage to retry. Not Billing.",
+      tone: "warn",
+    };
+  }
+  if (usage.creditsUsed <= 0 && usage.tokens <= 0) {
+    return {
+      value: "No traffic yet",
+      hint: "Credits appear after chat turns. Meter only — not Billing.",
+      tone: "neutral",
+    };
+  }
+  const dayHint =
+    usage.dayCount === 1
+      ? "1 day with traffic"
+      : `${usage.dayCount} days with traffic`;
+  return {
+    value: `${usage.creditsUsed.toFixed(2)} credits`,
+    hint: `${formatCompactCount(usage.tokens)} tokens · ${dayHint}. Not Billing.`,
+    tone: "good",
+  };
 }
 
 export function HomeTab({
@@ -88,22 +137,10 @@ export function HomeTab({
       daily?: Array<Record<string, unknown>>;
     }>("usage", source.id)
       .then((payload) => {
-        if (!alive) return;
-        const daily = payload.daily ?? [];
-        const totals = daily.reduce(
-          (acc, row) => ({
-            creditsUsed: acc.creditsUsed + numberValue(row.creditsUsed),
-            tokens:
-              acc.tokens +
-              numberValue(row.inputTokens) +
-              numberValue(row.outputTokens),
-          }),
-          { creditsUsed: 0, tokens: 0 },
-        );
-        setUsage({ ...totals, available: true });
+        if (alive) setUsage(summarizeProjectUsage(payload));
       })
       .catch(() => {
-        if (alive) setUsage({ creditsUsed: 0, tokens: 0, available: false });
+        if (alive) setUsage(summarizeProjectUsage(null));
       });
     return () => {
       alive = false;
@@ -157,6 +194,7 @@ export function HomeTab({
 
   const envReady = secretCount !== null && secretCount > 0;
   const envLoading = detail.secretsByApp === null && !detail.secretsError;
+  const usageCopy = usageCardCopy(usage);
 
   const nextAction =
     !isLive
@@ -237,18 +275,15 @@ export function HomeTab({
         />
         <StatusCard
           label="Usage"
-          value={
-            usage == null
-              ? "Loading…"
-              : !usage.available
-                ? "—"
-                : usage.creditsUsed > 0 || usage.tokens > 0
-                  ? `${usage.creditsUsed.toFixed(2)} credits`
-                  : "No traffic yet"
+          value={usageCopy.value}
+          hint={usageCopy.hint}
+          tone={usageCopy.tone}
+          meter={
+            usage?.available && usage.spark.length > 0 ? (
+              <UsageSpark spark={usage.spark} />
+            ) : null
           }
-          hint="Credits/tokens for this project. Not Billing."
-          tone="neutral"
-          actionHref="/operate/usage"
+          actionHref={`/operate/usage?project=${source.id}`}
           actionLabel="Open Usage"
         />
       </div>

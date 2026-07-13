@@ -63,5 +63,26 @@ describe("HomeTab", () => {
     expect(
       screen.getByRole("link", { name: /open environment/i }),
     ).toHaveAttribute("href", "/projects/1?tab=environment");
+    expect(await screen.findByText("No traffic yet")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /^open usage$/i })).toHaveAttribute(
+      "href",
+      "/operate/usage?project=1",
+    );
+  });
+
+  it("shows credits and tokens when usage has traffic", async () => {
+    operateFetch.mockResolvedValue({
+      daily: [
+        {
+          periodUtcDay: "2026-07-12",
+          creditsUsed: 1.5,
+          inputTokens: 1000,
+          outputTokens: 250,
+        },
+      ],
+    });
+    render(<HomeTab detail={detail} tabBaseHref="/projects/1" />);
+    expect(await screen.findByText("1.50 credits")).toBeInTheDocument();
+    expect(screen.getByText(/1\.3k tokens/i)).toBeInTheDocument();
   });
 });
