@@ -63,3 +63,5 @@ export {
   serializeCookie,
   appendSetCookie,
 } from "./cookies";
+
+export { fetchReleaseSecretSlots } from "./release-manifest";
