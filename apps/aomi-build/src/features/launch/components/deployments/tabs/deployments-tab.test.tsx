@@ -151,4 +151,17 @@ describe("DeploymentsTab", () => {
     );
     expect(detail.deployNewVersion).toHaveBeenCalled();
   });
+
+  it("is honest when live but deployment history is empty", () => {
+    const liveEmpty = {
+      ...detail,
+      recordsByApp: { "my-bot": [] },
+    } as typeof detail;
+    renderTab(<DeploymentsTab detail={liveEmpty} />);
+    expect(screen.getByText("No deployment history yet")).toBeInTheDocument();
+    expect(
+      screen.getByText(/project is live, but no deployment records/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("No deployments yet")).not.toBeInTheDocument();
+  });
 });

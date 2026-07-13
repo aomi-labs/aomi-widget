@@ -5,6 +5,7 @@ import { PowerOff, Rocket } from "lucide-react";
 import { EmptyState } from "@build/components/control-plane/empty-state";
 import { useToast } from "@build/components/control-plane/toast";
 import { useProjectDetail } from "@build/features/launch/hooks/use-project-detail";
+import { projectDeploymentStatus } from "../project-deployment-status";
 import { TimelineDeploymentRow } from "../ui/timeline-deployment-row";
 import { ConfirmDialog } from "../ui/confirm-dialog";
 import { LoadingPanel, EmptyPanel } from "../ui/state-panels";
@@ -34,6 +35,10 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
   }, [detail]);
 
   const source = detail.source;
+  const status = useMemo(
+    () => (source ? projectDeploymentStatus(source) : null),
+    [source],
+  );
   const recordDeployments = useMemo(
     () => buildDeploymentList(detail.recordsByApp),
     [detail.recordsByApp],
@@ -284,8 +289,18 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
       deployments.length === 0 &&
       !detail.recordsError ? (
         <EmptyState
-          title="No deployments yet"
-          description="Use Deploy new version to publish this project."
+          title={
+            status?.isLive
+              ? "No deployment history yet"
+              : "No deployments yet"
+          }
+          description={
+            status?.isLive
+              ? "This project is live, but no deployment records are available yet. Deploy a new version to start a history."
+              : "Use Deploy new version to publish this project."
+          }
+          onAction={() => void detail.deployNewVersion()}
+          actionLabel="Deploy new version"
         />
       ) : view === "deployments" && deployments.length > 0 ? (
         deployments.map((deployment) => {

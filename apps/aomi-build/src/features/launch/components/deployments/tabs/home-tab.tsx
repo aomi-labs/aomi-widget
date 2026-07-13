@@ -8,11 +8,11 @@ import {
   MessageSquare,
   Rocket,
 } from "lucide-react";
-import { deploymentLifecycleFromSource } from "@aomi-labs/deploy/lifecycle";
 import { useProjectDetail } from "@build/features/launch/hooks/use-project-detail";
 import { operateFetch } from "@build/features/operate/client";
 import { chatAppUrl } from "@build/lib/chat-url";
 import { BUILD_GLOSSARY } from "@build/lib/glossary";
+import { projectDeploymentStatus } from "../project-deployment-status";
 import { EmptyPanel } from "../ui/state-panels";
 
 type Detail = ReturnType<typeof useProjectDetail>;
@@ -110,10 +110,11 @@ export function HomeTab({
     };
   }, [source]);
 
-  const lifecycle = useMemo(
-    () => (source ? deploymentLifecycleFromSource(source) : null),
+  const status = useMemo(
+    () => (source ? projectDeploymentStatus(source) : null),
     [source],
   );
+  const lifecycle = status?.lifecycle ?? null;
 
   const secretCount = useMemo(() => {
     if (!detail.secretsByApp) return null;
