@@ -584,12 +584,9 @@ describe("deploymentPromoteRoute", () => {
       // sourceDeploymentPairs re-reads the same DB records to derive the
       // secret-gate pairs.
       .mockResolvedValueOnce(appRecords(DEPLOYMENT))
-      // This source has no latestDeployment (the real listUserSources
-      // shape), so missingSecretsForActivation resolves platformRepo via the
-      // per-source detail endpoint; there's no deployment at all here, so it
-      // returns null and the gate bails out (fail-open) before ever looking
-      // at the pairs' contents.
-      .mockResolvedValueOnce(Response.json({ latest_deployment: null }))
+      // No GITHUB_TOKEN is stubbed for this test, so
+      // missingSecretsForActivation fails open (token-first check) before
+      // ever fetching deployment state — no 4th call is made here.
       .mockResolvedValueOnce(
         Response.json({
           ok: true,
@@ -609,7 +606,7 @@ describe("deploymentPromoteRoute", () => {
     expect(res.status).toBe(202);
     expect(body.ok).toBe(true);
     expect(body.promote.deploymentId).toBe(DEPLOYMENT);
-    const [promoteUrl, promoteInit] = fetchMock.mock.calls[4];
+    const [promoteUrl, promoteInit] = fetchMock.mock.calls[3];
     expect(String(promoteUrl)).toContain(`/deployments/${DEPLOYMENT}/promote`);
     expect(String(promoteInit?.body)).toContain('"actor":"alice"');
   });
@@ -1157,10 +1154,9 @@ describe("activateLaunchRoute", () => {
       .fn()
       .mockResolvedValueOnce(activationSource())
       .mockResolvedValueOnce(sourceDeployments())
-      // No latestDeployment on the source and no deployment at the detail
-      // endpoint either: platformRepo is genuinely unknown, so
-      // missingSecretsForActivation fails open before the activate call.
-      .mockResolvedValueOnce(Response.json({ latest_deployment: null }))
+      // No GITHUB_TOKEN is stubbed for this test, so
+      // missingSecretsForActivation fails open (token-first check) before
+      // ever fetching deployment state.
       .mockResolvedValueOnce(
         Response.json({ ok: true, activation: { apps: [] } }),
       );
@@ -1174,8 +1170,8 @@ describe("activateLaunchRoute", () => {
       }),
     );
     expect(res.status).toBe(200);
-    expect(fetchMock).toHaveBeenCalledTimes(4);
-    expect(fetchMock.mock.calls[3][1]).toMatchObject({
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock.mock.calls[2][1]).toMatchObject({
       method: "POST",
       body: JSON.stringify({
         target: {

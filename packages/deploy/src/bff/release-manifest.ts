@@ -82,17 +82,22 @@ export async function missingSecretsForActivation(input: {
   githubToken?: string;
 }): Promise<Record<string, string[]>> {
   const githubToken = input.githubToken ?? process.env.GITHUB_TOKEN?.trim();
+  if (!githubToken) return {};
 
-  let platformRepo = input.source.latestDeployment?.platformRepo;
+  let platformRepo = input.source.latestDeployment?.platformRepo ?? undefined;
   if (!platformRepo) {
-    const latest = await input.client.getUserSourceLatestDeployment({
-      githubUserId: input.githubUserId,
-      platform: input.platform,
-      appSourceId: input.source.id,
-    });
-    platformRepo = latest?.platformRepo ?? undefined;
+    try {
+      const latest = await input.client.getUserSourceLatestDeployment({
+        githubUserId: input.githubUserId,
+        platform: input.platform,
+        appSourceId: input.source.id,
+      });
+      platformRepo = latest?.platformRepo ?? undefined;
+    } catch {
+      return {}; // couldn't read deployment state → fail open, never block activation
+    }
   }
-  if (!githubToken || !platformRepo) return {};
+  if (!platformRepo) return {};
 
   const configured = await input.client.listAppSecrets({
     githubUserId: input.githubUserId,

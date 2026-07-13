@@ -236,4 +236,55 @@ describe("missingSecretsForActivation", () => {
     expect(fetchImpl).not.toHaveBeenCalled();
     expect(client.listAppSecrets).not.toHaveBeenCalled();
   });
+
+  it("never fetches deployment state when the GitHub token is absent", async () => {
+    const fetchImpl = vi.fn();
+    vi.stubGlobal("fetch", fetchImpl);
+    vi.stubEnv("GITHUB_TOKEN", "");
+
+    const client = {
+      listAppSecrets: vi.fn(),
+      getUserSourceLatestDeployment: vi.fn(async () => ({
+        platformRepo: "aomi-labs/community",
+      })),
+    } as unknown as DeploymentClient;
+
+    const missing = await missingSecretsForActivation({
+      client,
+      githubUserId: "gh-1",
+      platform: "community",
+      githubToken: undefined,
+      source: { id: 42, latestDeployment: null } as never,
+      pairs: [{ app: "binance", releaseTag: "v1" }],
+    });
+
+    expect(missing).toEqual({});
+    expect(client.getUserSourceLatestDeployment).not.toHaveBeenCalled();
+    expect(client.listAppSecrets).not.toHaveBeenCalled();
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("fails open when getUserSourceLatestDeployment rejects", async () => {
+    const fetchImpl = vi.fn();
+    vi.stubGlobal("fetch", fetchImpl);
+
+    const client = {
+      listAppSecrets: vi.fn(),
+      getUserSourceLatestDeployment: vi.fn(async () => {
+        throw new Error("backend unavailable");
+      }),
+    } as unknown as DeploymentClient;
+
+    const missing = await missingSecretsForActivation({
+      client,
+      githubUserId: "gh-1",
+      platform: "community",
+      githubToken: "t",
+      source: { id: 42, latestDeployment: null } as never,
+      pairs: [{ app: "binance", releaseTag: "v1" }],
+    });
+
+    expect(missing).toEqual({});
+    expect(client.listAppSecrets).not.toHaveBeenCalled();
+  });
 });

@@ -1359,15 +1359,19 @@ export async function requiredSecretsRoute(req: Request) {
     // for the list); resolve the real value from the per-source
     // latest-deployment detail endpoint instead, same as the redeploy route.
     const githubToken = process.env.GITHUB_TOKEN?.trim();
-    const platformRepo =
-      source.latestDeployment?.platformRepo ??
-      (
-        await client.getUserSourceLatestDeployment({
+    let platformRepo = source.latestDeployment?.platformRepo ?? undefined;
+    if (githubToken && !platformRepo) {
+      try {
+        const latest = await client.getUserSourceLatestDeployment({
           githubUserId: session.githubUserId,
           platform: config.platform,
           appSourceId: source.id,
-        })
-      )?.platformRepo;
+        });
+        platformRepo = latest?.platformRepo ?? undefined;
+      } catch {
+        platformRepo = undefined; // couldn't read deployment state → degrade to empty slots
+      }
+    }
     const configured = await client.listAppSecrets({
       githubUserId: session.githubUserId,
       sourceId: String(source.id),
