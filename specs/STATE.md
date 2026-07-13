@@ -3,9 +3,29 @@
 ## Last Updated
 
 2026-07-13 — Build P1 control plane: ⌘K, toasts, Projects landing, glossary;
+2026-07-13 — Build P0 trust: Soon labels, gate Integrations Save, human errors;
+2026-07-13 — Build UI copy polish (em dashes / hedging essays);
 2026-07-13 — Billing option A: methods live on Chat (no fake Build fetch);
-2026-07-13 — BILLING-EXPERIENCE.md: backend ↔ UI map (code-checked);
-2026-07-13 — Account → Secrets: no single-project auto-redirect (explicit CTA)
+2026-07-13 — BILLING-EXPERIENCE.md: backend ↔ UI map (code-checked)
+
+## Build UI copy polish (2026-07-13)
+
+Branch `fix/build-ui-copy-polish`:
+
+- Shortened Settings, Billing, Secrets, Overview, Usage, Environment,
+  Integrations, and wizard user-facing copy.
+- Removed AI em dashes from product sentences; kept `—` only as empty
+  table/stat placeholders.
+
+## Build P0 trust — Soon, don't delete (2026-07-13)
+
+Branch `fix/build-p0-trust-soon`:
+
+- Integrations: Save gated (`Save · Soon`); no fake success on 501; forms kept.
+- Settings: `Planned` → `Soon`; unfinished sections stay listed as Coming soon.
+- Project Disconnect kept as `Disconnect · Soon` (disabled).
+- Sidebar Build already Soon (unchanged).
+- Auth sign-in + env errors humanized (`humanizeUserError`); no bearer essays.
 
 ## Build P1 control plane craft (2026-07-13)
 
@@ -48,8 +68,8 @@ Branch `feat/builders-billing-experience-phase-a` (PR #319):
 
 - Added `SettingsNav`, `SettingsLayout`, and `settings/layout.tsx` so all
   `/settings` routes share Account sub-navigation driven by `settings-data.ts`.
-- Overview + every section (including planned stubs) is one click away; badges
-  show Available / Project-scoped / Planned; Billing + Secrets panels unchanged.
+- Overview + every section (including Soon stubs) is one click away; badges
+  show Available / Project-scoped / Soon; Billing + Secrets panels unchanged.
 - Test: `settings-nav.test.tsx`.
 
 ## Billing experience plan rename (2026-07-12)

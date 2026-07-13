@@ -55,7 +55,7 @@ describe("SettingsSecretsPanel", () => {
 
     render(<SettingsSecretsPanel />);
 
-    expect(screen.getByText(/Secrets are managed per project/i)).toBeTruthy();
+    expect(screen.getByText(/Per-project secrets/i)).toBeTruthy();
     expect(screen.getByText(/alice\/only-bot/i)).toBeTruthy();
     expect(
       screen.getByRole("link", { name: /Open Environment/i }),

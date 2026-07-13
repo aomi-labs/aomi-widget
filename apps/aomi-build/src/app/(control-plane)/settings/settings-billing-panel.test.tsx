@@ -8,20 +8,18 @@ vi.mock("@build/lib/chat-url", () => ({
 import { SettingsBillingPanel } from "./settings-billing-panel";
 
 describe("SettingsBillingPanel", () => {
-  it("uses product language and does not expose rail jargon or fake invoices", () => {
+  it("keeps short product copy without rail jargon or fake invoices", () => {
     render(<SettingsBillingPanel />);
 
-    expect(screen.getByText(/^payment methods$/i)).toBeInTheDocument();
-    expect(screen.getAllByText(/how chat users pay/i).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/chat account/i).length).toBeGreaterThan(0);
-    expect(screen.getByText(/not available yet/i)).toBeInTheDocument();
-    expect(screen.getByText(/does not show live invoices/i)).toBeInTheDocument();
+    expect(screen.getByText(/^payment setup$/i)).toBeInTheDocument();
+    expect(screen.getByText(/managed in/i)).toBeInTheDocument();
+    expect(screen.getByText(/^coming later$/i)).toBeInTheDocument();
 
     expect(
       screen.getByRole("link", { name: /operate → usage/i }),
     ).toHaveAttribute("href", "/operate/usage");
     expect(
-      screen.getByRole("link", { name: /account → secrets → environment/i }),
+      screen.getByRole("link", { name: /secrets → environment/i }),
     ).toHaveAttribute("href", "/settings/secrets");
     expect(screen.getByRole("link", { name: /open chat/i })).toHaveAttribute(
       "href",

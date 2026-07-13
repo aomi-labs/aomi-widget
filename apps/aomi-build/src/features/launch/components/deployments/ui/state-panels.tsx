@@ -29,13 +29,13 @@ export function EmptyPanel({ children }: { children: ReactNode }) {
 export function GitHubSignInPanel({ error }: { error?: string | null }) {
   const errorMessage =
     error === "service_auth_forbidden"
-      ? "The backend rejected the Aomi Build service bearer. Use a local backend with the dev service key, or set PORTAL_SERVICE_PRIVATE_KEY to the matching staging or production BFF key for the backend you are targeting."
+      ? "Sign-in isn't available right now. Try again later."
       : error === "exchange_failed"
-        ? "GitHub sign-in reached the backend, but the OAuth exchange failed. Check the backend GitHub App OAuth settings and callback URL."
+        ? "GitHub sign-in failed. Try again."
         : error === "invalid_oauth_state"
-          ? "GitHub sign-in state expired. Start the sign-in flow again."
+          ? "Sign-in expired. Try again."
           : error === "identity_unresolved"
-            ? "GitHub sign-in completed, but the backend could not resolve your GitHub identity."
+            ? "Could not finish GitHub sign-in. Try again."
             : null;
 
   return (

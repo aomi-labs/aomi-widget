@@ -19,8 +19,15 @@ function formatDate(seconds: number) {
 export function GlobalDeploymentsList() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { projectsState, recordsState, sources, reload } =
-    useGlobalDeploymentRecords();
+  const {
+    projectsState,
+    recordsState,
+    sources,
+    reload,
+    loadMore,
+    hasMore,
+    loadingMore,
+  } = useGlobalDeploymentRecords();
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<"all" | "current" | "previous">("all");
   const projectParam = searchParams.get("project");
@@ -252,6 +259,18 @@ export function GlobalDeploymentsList() {
                   </span>
                 </Link>
               ))}
+              {hasMore ? (
+                <div className="flex justify-center px-4 py-3">
+                  <button
+                    type="button"
+                    onClick={loadMore}
+                    disabled={loadingMore}
+                    className="h-8 rounded-md border border-border bg-surface-1 px-3 text-sm font-medium hover:bg-accent-hover disabled:cursor-wait disabled:opacity-60"
+                  >
+                    {loadingMore ? "Loading…" : "Load more"}
+                  </button>
+                </div>
+              ) : null}
             </div>
           )}
         </div>

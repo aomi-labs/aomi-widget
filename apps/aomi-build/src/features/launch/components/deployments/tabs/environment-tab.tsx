@@ -5,6 +5,7 @@ import { Copy, Plus, Trash2 } from "lucide-react";
 import { useToast } from "@build/components/control-plane/toast";
 import { useProjectDetail } from "@build/features/launch/hooks/use-project-detail";
 import { BUILD_GLOSSARY } from "@build/lib/glossary";
+import { humanizeUserError } from "@build/lib/humanize-error";
 import { LoadingPanel } from "../ui/state-panels";
 
 type Detail = ReturnType<typeof useProjectDetail>;
@@ -66,7 +67,7 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
     } catch (err) {
       setStatus({
         kind: "error",
-        message: err instanceof Error ? err.message : "Failed to save",
+        message: humanizeUserError(err, "Could not save. Try again."),
       });
       toast({ title: "Failed. Retry", tone: "error" });
     }
@@ -77,11 +78,11 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
     try {
       await detail.deleteEnvVar(app, key);
       setStatus({ kind: "done", message: `Deleted ${key}.` });
-      toast({ title: "Saved", tone: "success" });
+      toast({ title: "Deleted", tone: "success" });
     } catch (err) {
       setStatus({
         kind: "error",
-        message: err instanceof Error ? err.message : "Failed to delete",
+        message: humanizeUserError(err, "Could not delete. Try again."),
       });
       toast({ title: "Failed. Retry", tone: "error" });
     }
@@ -157,7 +158,10 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
         </p>
         {detail.secretsError && (
           <div className="mt-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-            {detail.secretsError}
+            {humanizeUserError(
+              detail.secretsError,
+              "Could not load environment. Try again.",
+            )}
           </div>
         )}
       </div>
@@ -296,8 +300,8 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
             <p className="font-medium text-foreground">No variables yet</p>
             <p className="mt-1 text-xs leading-5">
               Add keys your agent needs (for example{" "}
-              <span className="font-mono">BINANCE_API_KEY</span>). Builders set
-              these here — chat users never paste API keys.
+              <span className="font-mono">BINANCE_API_KEY</span>). Chat users
+              never paste API keys.
             </p>
           </div>
         )
