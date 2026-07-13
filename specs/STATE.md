@@ -2,9 +2,14 @@
 
 ## Last Updated
 
+2026-07-13 — BILLING-EXPERIENCE.md: backend ↔ UI map (code-checked);
 2026-07-13 — Account → Secrets: no single-project auto-redirect (explicit CTA);
-2026-07-13 — Billing experience Phase A merged (PR #319); 2026-07-11 staging
-Para sign-in fix + Overview read-path perf
+2026-07-13 — Billing experience Phase A merged (PR #319)
+
+## Billing experience — backend/UI map in plan doc (2026-07-13)
+
+- Expanded `apps/aomi-build/BILLING-EXPERIENCE.md` with control/data plane
+  mermaid, HTTP-vs-internal table, and Build UI now/should map (Cursor-style).
 
 ## Account → Secrets stay-on-settings (2026-07-13)
 
