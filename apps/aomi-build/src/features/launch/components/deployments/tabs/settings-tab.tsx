@@ -47,16 +47,16 @@ export function SettingsTab({ detail }: { detail: Detail }) {
       <div className="border-t border-border px-4 py-4">
         <div className="text-sm font-medium text-foreground">Danger zone</div>
         <p className="mt-1 text-xs text-dim">
-          Disconnecting a project is not available.
+          Disconnect project is coming soon.
         </p>
         <button
           type="button"
           disabled
-          title="Soon"
-          aria-label="Disconnect (soon)"
+          title="Coming soon"
+          aria-label="Disconnect (coming soon)"
           className="mt-3 inline-flex h-8 cursor-not-allowed items-center rounded-md border border-border px-3 text-xs font-medium text-dim"
         >
-          Disconnect
+          Disconnect · Soon
         </button>
       </div>
     </div>

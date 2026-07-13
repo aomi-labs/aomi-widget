@@ -18,7 +18,7 @@ export type SettingsSection = {
   description: string;
   icon: LucideIcon;
   enabled: boolean;
-  status: "available" | "project-scoped" | "planned";
+  status: "available" | "project-scoped" | "soon";
   detail: string;
   actionHref?: string;
   actionLabel?: string;
@@ -31,8 +31,8 @@ export const settingsSections: SettingsSection[] = [
     description: "Profile and workspace defaults.",
     icon: UserRound,
     enabled: true,
-    status: "available",
-    detail: "Account profile persistence is not built yet.",
+    status: "soon",
+    detail: "Coming soon. Profile persistence is not built yet.",
   },
   {
     slug: "secrets",
@@ -48,27 +48,30 @@ export const settingsSections: SettingsSection[] = [
     title: "Notifications",
     description: "Alert channels and thresholds.",
     icon: Bell,
-    enabled: false,
-    status: "planned",
-    detail: "Not built yet.",
+    enabled: true,
+    status: "soon",
+    detail: "Coming soon.",
   },
   {
     slug: "appearance",
     title: "Appearance",
     description: "Theme and display.",
     icon: Palette,
-    enabled: false,
-    status: "planned",
-    detail: "Not built yet. Build uses the dark shell theme.",
+    enabled: true,
+    status: "soon",
+    detail: "Coming soon. Build uses the dark shell theme.",
   },
   {
     slug: "integrations",
     title: "Integrations",
     description: "External bots and services.",
     icon: Settings,
-    enabled: false,
-    status: "planned",
-    detail: "Use Account → Integrations in the sidebar.",
+    enabled: true,
+    status: "soon",
+    detail:
+      "Credential save is coming soon. Open Account → Integrations for docs.",
+    actionHref: "/integrations",
+    actionLabel: "Open Integrations",
   },
   {
     slug: "billing",
@@ -76,7 +79,7 @@ export const settingsSections: SettingsSection[] = [
     description: "Spend and payment setup. Usage is under Operate.",
     icon: CreditCard,
     enabled: true,
-    status: "planned",
+    status: "available",
     detail:
       "Invoices are not in Build yet. See Operate → Usage for spend.",
   },
@@ -85,43 +88,43 @@ export const settingsSections: SettingsSection[] = [
     title: "Bot setup",
     description: "Telegram and deploy bots.",
     icon: Bot,
-    enabled: false,
-    status: "planned",
-    detail: "Not built yet.",
+    enabled: true,
+    status: "soon",
+    detail: "Coming soon.",
   },
   {
     slug: "wallets",
     title: "Wallets",
     description: "Signer and wallet connections.",
     icon: WalletCards,
-    enabled: false,
-    status: "planned",
-    detail: "Not built yet.",
+    enabled: true,
+    status: "soon",
+    detail: "Coming soon.",
   },
   {
     slug: "observability",
     title: "Observability",
     description: "Metrics and alert exports.",
     icon: Activity,
-    enabled: false,
-    status: "planned",
-    detail: "Not built yet.",
+    enabled: true,
+    status: "soon",
+    detail: "Coming soon.",
   },
   {
     slug: "danger",
     title: "Danger zone",
     description: "Delete or transfer this workspace.",
     icon: ShieldAlert,
-    enabled: false,
-    status: "planned",
-    detail: "Not built yet.",
+    enabled: true,
+    status: "soon",
+    detail: "Coming soon.",
   },
 ];
 
 export function settingsStatusLabel(status: SettingsSection["status"]) {
   if (status === "available") return "Available";
   if (status === "project-scoped") return "Project-scoped";
-  return "Planned";
+  return "Soon";
 }
 
 export function getSettingsSection(slug: string) {

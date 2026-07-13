@@ -164,7 +164,7 @@ flowchart TB
 | `settings-data.ts` billing copy | Honest: invoices later; spend today → Usage; secrets → Environment |
 | `SettingsBillingPanel` | Honesty: payment setup → Chat; Usage + Secrets + Open Chat; no rail jargon / fake status |
 | `[section]/page.tsx` | Render panel when `slug === "billing"`; enable navigation to the page |
-| Settings sub-nav | `SettingsNav` + `SettingsLayout` on all `/settings` routes; Overview + sections from `settings-data.ts`; Planned/Available/Project-scoped badges |
+| Settings sub-nav | `SettingsNav` + `SettingsLayout` on all `/settings` routes; Overview + sections from `settings-data.ts`; Soon/Available/Project-scoped badges |
 | Overview + Usage | One sentence: credits meter ≠ partner fees / Billing is for money-plan later |
 | Secrets entry (#320) | Single-project: stay on Settings + **Open Environment** CTA (no auto-redirect) |
 

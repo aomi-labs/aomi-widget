@@ -7,8 +7,8 @@ export default function SettingsPage() {
       <div className="space-y-2">
         <h1 className="text-foreground text-2xl font-semibold">Settings</h1>
         <p className="text-subtle max-w-2xl text-sm">
-          Account controls for this GitHub session. Planned sections stay
-          visible but are not interactive yet.
+          Account controls for this GitHub session. Live sections work today;
+          others stay listed as Soon.
         </p>
       </div>
 

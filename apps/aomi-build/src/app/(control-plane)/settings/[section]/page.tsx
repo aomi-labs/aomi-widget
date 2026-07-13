@@ -39,7 +39,7 @@ export default async function SettingsSectionPage({
       ) : (
         <section className="rounded-lg border border-border bg-surface-1 p-4">
           <div className="text-sm font-medium text-foreground">
-            {section.enabled ? "About" : "Coming later"}
+            {section.status === "soon" ? "Coming soon" : "Current state"}
           </div>
           <p className="mt-2 text-[13px] text-dim">{section.detail}</p>
           {section.actionHref ? (

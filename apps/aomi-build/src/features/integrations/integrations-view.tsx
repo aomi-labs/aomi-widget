@@ -8,7 +8,6 @@ import {
   LoadingPanel,
 } from "@build/features/launch/components/deployments/ui/state-panels";
 import {
-  connectIntegration,
   fetchIntegrationStatuses,
   type IntegrationStatus,
 } from "./client";
@@ -17,11 +16,8 @@ import {
   type IntegrationProvider,
 } from "./providers";
 
-type SaveState =
-  | { status: "idle" }
-  | { status: "saving" }
-  | { status: "error"; message: string }
-  | { status: "success" };
+/** Persist is not wired (BFF returns 501). Keep the form; gate Save. */
+const INTEGRATIONS_SAVE_ENABLED = false;
 
 function IntegrationCard({
   provider,
@@ -31,25 +27,10 @@ function IntegrationCard({
   connected: boolean;
 }) {
   const [values, setValues] = useState<Record<string, string>>({});
-  const [save, setSave] = useState<SaveState>({ status: "idle" });
-
-  async function onSubmit(event: React.FormEvent) {
-    event.preventDefault();
-    setSave({ status: "saving" });
-    try {
-      await connectIntegration({ provider: provider.id, values });
-      setSave({ status: "success" });
-    } catch (err) {
-      setSave({
-        status: "error",
-        message: err instanceof Error ? err.message : String(err),
-      });
-    }
-  }
 
   return (
     <form
-      onSubmit={onSubmit}
+      onSubmit={(event) => event.preventDefault()}
       className="border-border bg-surface-1 flex h-full flex-col gap-4 rounded-lg border p-5"
     >
       <div className="flex items-start justify-between gap-3">
@@ -66,7 +47,7 @@ function IntegrationCard({
               : "border-border text-dim border"
           }`}
         >
-          {connected ? "Connected" : "Not connected"}
+          {connected ? "Connected" : "Coming soon"}
         </span>
       </div>
 
@@ -84,12 +65,12 @@ function IntegrationCard({
               autoComplete="off"
               placeholder={field.placeholder}
               value={values[field.key] ?? ""}
+              disabled={!INTEGRATIONS_SAVE_ENABLED}
               onChange={(event) => {
                 const next = event.target.value;
                 setValues((current) => ({ ...current, [field.key]: next }));
-                setSave({ status: "idle" });
               }}
-              className="border-border bg-surface text-foreground h-9 rounded-md border px-2 text-sm"
+              className="border-border bg-surface text-foreground h-9 rounded-md border px-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
             />
           </label>
         ))}
@@ -106,23 +87,18 @@ function IntegrationCard({
         </a>
         <button
           type="submit"
-          disabled={save.status === "saving"}
-          className="bg-foreground text-background disabled:text-dim h-9 rounded-md px-3 text-sm font-medium disabled:opacity-60"
+          disabled
+          title="Coming soon"
+          aria-label={`Save ${provider.name} (coming soon)`}
+          className="bg-foreground text-background disabled:text-dim h-9 cursor-not-allowed rounded-md px-3 text-sm font-medium disabled:opacity-60"
         >
-          {save.status === "saving" ? "Saving…" : "Save"}
+          Save · Soon
         </button>
       </div>
 
-      {save.status === "error" ? (
-        <div className="border-danger/30 bg-danger/5 text-danger rounded-md border px-3 py-2 text-xs">
-          {save.message}
-        </div>
-      ) : null}
-      {save.status === "success" ? (
-        <div className="rounded-md border border-emerald-500/30 bg-emerald-500/5 px-3 py-2 text-xs text-emerald-600">
-          Saved.
-        </div>
-      ) : null}
+      <p className="text-dim text-xs">
+        Saving credentials is coming soon. Docs stay available above.
+      </p>
     </form>
   );
 }
@@ -183,8 +159,8 @@ export function IntegrationsView() {
           </h1>
         </div>
         <p className="text-subtle max-w-2xl text-sm">
-          Connect bots and channels to your apps. Credentials stay on your
-          account.
+          Connect bots and channels to your apps. Credential save is coming
+          soon; docs links work today.
         </p>
       </div>
 

@@ -5,13 +5,7 @@ import { settingsStatusLabel, type SettingsSection } from "./settings-data";
 export function SettingsCard({ section }: { section: SettingsSection }) {
   const Icon = section.icon;
   const card = (
-    <div
-      className={`h-full rounded-lg border bg-surface-1 p-4 transition ${
-        section.enabled
-          ? "border-border hover:border-border-hover hover:bg-accent-hover"
-          : "border-border/70 opacity-45"
-      }`}
-    >
+    <div className="border-border hover:border-border-hover hover:bg-accent-hover h-full rounded-lg border bg-surface-1 p-4 transition">
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
           <Icon className="size-4 shrink-0 text-dim" />
@@ -26,8 +20,6 @@ export function SettingsCard({ section }: { section: SettingsSection }) {
       <p className="mt-3 text-[13px] text-dim">{section.description}</p>
     </div>
   );
-
-  if (!section.enabled) return card;
 
   return (
     <Link href={`/settings/${section.slug}`} className="block h-full">
