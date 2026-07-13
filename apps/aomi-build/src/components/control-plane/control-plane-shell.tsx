@@ -17,6 +17,7 @@ import {
   Plug,
   Rocket,
   ScrollText,
+  Search,
   Settings,
   WalletCards,
   X,
@@ -629,14 +630,17 @@ function ControlPlaneShellContent({ children }: { children: React.ReactNode }) {
           </IconButton>
           <div className="hidden lg:block" />
           <div className="flex items-center gap-2">
+            {/* Desktop-first: full Search · ⌘K on sm+. Phone: icon only (usable, not designed for). */}
             <button
               type="button"
               onClick={() => openCommandPalette()}
-              className="text-dim hover:bg-accent-hover hover:text-foreground border-border hidden h-8 items-center gap-2 rounded-md border px-2 text-xs sm:inline-flex"
-              aria-label="Open command palette"
+              className="text-dim hover:bg-accent-hover hover:text-foreground border-border inline-flex h-8 items-center gap-2 rounded-md border px-2 text-xs"
+              aria-label="Open command palette (⌘K)"
+              title="Search (⌘K)"
             >
-              <span>Search</span>
-              <kbd className="border-border rounded border px-1 py-0.5 text-[10px]">
+              <Search className="size-3.5 shrink-0" aria-hidden />
+              <span className="hidden sm:inline">Search</span>
+              <kbd className="border-border hidden rounded border px-1 py-0.5 text-[10px] sm:inline">
                 ⌘K
               </kbd>
             </button>

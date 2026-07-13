@@ -16,6 +16,8 @@ Branch `feat/build-p1-control-plane`:
 - Global toasts for env save/delete and promote/deactivate.
 - ⌘K command palette (+ header Search) for Projects, Deployments, Usage, Settings.
 - Default `/` opens last project or `/projects`; Overview moved to `/overview`.
+- Desktop-first surface bar locked: desktop best path; tablet unbroken; phone
+  usable (Search icon always visible; full Search · ⌘K from `sm+`).
 
 ## Billing option A — payment methods on Chat (2026-07-13)
 
