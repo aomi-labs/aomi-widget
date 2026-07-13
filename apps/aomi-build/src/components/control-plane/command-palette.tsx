@@ -123,10 +123,14 @@ export function CommandPalette() {
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      const isPalette =
-        (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k";
+      // Prefer event.code so layout/IME quirks don't miss "k".
+      // Capture phase so we see the chord before focused inputs swallow it.
+      const isK =
+        event.code === "KeyK" || event.key.toLowerCase() === "k";
+      const isPalette = (event.metaKey || event.ctrlKey) && isK && !event.altKey;
       if (isPalette) {
         event.preventDefault();
+        event.stopPropagation();
         setOpen((value) => !value);
         return;
       }
@@ -135,10 +139,10 @@ export function CommandPalette() {
     function onOpen() {
       setOpen(true);
     }
-    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keydown", onKeyDown, { capture: true });
     window.addEventListener(OPEN_EVENT, onOpen);
     return () => {
-      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keydown", onKeyDown, { capture: true });
       window.removeEventListener(OPEN_EVENT, onOpen);
     };
   }, []);
