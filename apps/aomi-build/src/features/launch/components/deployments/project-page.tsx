@@ -8,10 +8,12 @@ import { ProjectHeader } from "./project-header";
 import { ChatTab } from "./tabs/chat-tab";
 import { DeploymentsTab } from "./tabs/deployments-tab";
 import { EnvironmentTab } from "./tabs/environment-tab";
+import { HomeTab } from "./tabs/home-tab";
 import { SettingsTab } from "./tabs/settings-tab";
 import { LoadingPanel, ErrorPanel } from "./ui/state-panels";
 
 const TABS = [
+  { id: "home", label: "Home" },
   { id: "deployments", label: "Deployments" },
   { id: "chat", label: "Chat" },
   { id: "environment", label: "Environment" },
@@ -38,7 +40,7 @@ export function ProjectPage({
   const raw = searchParams.get("tab");
   const active: TabId = TABS.some((t) => t.id === raw)
     ? (raw as TabId)
-    : "deployments";
+    : "home";
 
   useEffect(() => {
     setLastProjectId(sourceId);
@@ -88,6 +90,8 @@ export function ProjectPage({
             <LoadingPanel label="Loading project…" />
           ) : detail.error ? (
             <ErrorPanel message={detail.error} />
+          ) : active === "home" ? (
+            <HomeTab detail={detail} tabBaseHref={tabBaseHref} />
           ) : active === "deployments" ? (
             <DeploymentsTab detail={detail} />
           ) : active === "chat" ? (

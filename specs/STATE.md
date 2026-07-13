@@ -2,11 +2,21 @@
 
 ## Last Updated
 
+2026-07-13 — Build P2 Project home (live / keys / Open Chat / usage glance);
 2026-07-13 — Build P1 control plane: ⌘K, toasts, Projects landing, glossary;
 2026-07-13 — Build P0 trust: Soon labels, gate Integrations Save, human errors;
 2026-07-13 — Build UI copy polish (em dashes / hedging essays);
 2026-07-13 — Billing option A: methods live on Chat (no fake Build fetch);
 2026-07-13 — BILLING-EXPERIENCE.md: backend ↔ UI map (code-checked)
+
+## Build P2 Project home (2026-07-13)
+
+Branch `feat/build-p2-project-home` (PR #330):
+
+- Project pages default to a **Home** tab with Live / Environment / Chat /
+  Usage status cards and one Next CTA (deploy → keys → Open Chat).
+- Reuses `deploymentLifecycleFromSource`, secrets load, and operate usage peek.
+- Existing Deployments / Chat / Environment / Details tabs unchanged.
 
 ## Build UI copy polish (2026-07-13)
 
