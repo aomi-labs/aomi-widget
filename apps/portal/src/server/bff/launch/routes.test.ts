@@ -478,6 +478,7 @@ describe("deploymentPromoteRoute", () => {
   });
 
   afterEach(() => {
+    vi.unstubAllEnvs();
     vi.restoreAllMocks();
     getGitHubSession.mockReset();
   });
@@ -549,6 +550,11 @@ describe("deploymentPromoteRoute", () => {
       .fn()
       .mockResolvedValueOnce(ownedSources(99))
       .mockResolvedValueOnce(appRecords(DEPLOYMENT))
+      // listUserSourceDeployments for the required-secrets gate: no
+      // matching deployment here, so pairs is empty and promotion proceeds
+      // (fail-open — see the "unfilled/filled" tests below for the gate
+      // itself).
+      .mockResolvedValueOnce(Response.json({ deployments: [] }))
       .mockResolvedValueOnce(
         Response.json({
           ok: true,
@@ -568,9 +574,124 @@ describe("deploymentPromoteRoute", () => {
     expect(res.status).toBe(202);
     expect(body.ok).toBe(true);
     expect(body.promote.deploymentId).toBe(DEPLOYMENT);
-    const [promoteUrl, promoteInit] = fetchMock.mock.calls[2];
+    const [promoteUrl, promoteInit] = fetchMock.mock.calls[3];
     expect(String(promoteUrl)).toContain(`/deployments/${DEPLOYMENT}/promote`);
     expect(String(promoteInit?.body)).toContain('"actor":"alice"');
+  });
+
+  it("409s a promote when a required secret is unfilled", async () => {
+    vi.stubEnv("GITHUB_TOKEN", "gh-token");
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        activationSourceWithRepo("aomi-labs/my-bot-app", 99),
+      )
+      .mockResolvedValueOnce(appRecords(DEPLOYMENT))
+      .mockResolvedValueOnce(
+        Response.json({
+          deployments: [
+            {
+              deployment_id: DEPLOYMENT,
+              release_tags: ["apps-555-r1-my-bot-abc"],
+              apps: [
+                { name: "my-bot", release_tag: "apps-555-r1-my-bot-abc" },
+              ],
+            },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          by_app: { "my-bot": ["$SECRET:APP:my-bot::MY_BOT_API_KEY"] },
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          assets: [
+            { name: "manifest.json", url: "https://api.github.com/asset/1" },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          plugins: {
+            "my-bot": {
+              file: "libmybot.dylib",
+              sha256: "x",
+              secrets: [
+                { name: "MY_BOT_API_KEY", description: "d", required: true },
+                {
+                  name: "MY_BOT_SECRET_KEY",
+                  description: "d",
+                  required: true,
+                },
+              ],
+            },
+          },
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await deploymentPromoteRoute(
+      promoteReq({ deploymentId: DEPLOYMENT, appSourceId: 99 }),
+    );
+
+    expect(res.status).toBe(409);
+    await expect(res.json()).resolves.toEqual({
+      error: "missing required secrets",
+      missing: { "my-bot": ["MY_BOT_SECRET_KEY"] },
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(6);
+  });
+
+  it("promotes when required secrets are filled", async () => {
+    vi.stubEnv("GITHUB_TOKEN", "gh-token");
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        activationSourceWithRepo("aomi-labs/my-bot-app", 99),
+      )
+      .mockResolvedValueOnce(appRecords(DEPLOYMENT))
+      .mockResolvedValueOnce(
+        Response.json({
+          deployments: [
+            {
+              deployment_id: DEPLOYMENT,
+              release_tags: ["apps-555-r1-my-bot-abc"],
+              apps: [
+                { name: "my-bot", release_tag: "apps-555-r1-my-bot-abc" },
+              ],
+            },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          by_app: {
+            "my-bot": [
+              "$SECRET:APP:my-bot::MY_BOT_API_KEY",
+              "$SECRET:APP:my-bot::MY_BOT_SECRET_KEY",
+            ],
+          },
+        }),
+      )
+      .mockResolvedValueOnce(Response.json({ assets: [] }))
+      .mockResolvedValueOnce(
+        Response.json({
+          ok: true,
+          activation: { status: "activating", apps: [] },
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await deploymentPromoteRoute(
+      promoteReq({ deploymentId: DEPLOYMENT, appSourceId: 99 }),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(202);
+    expect(body.ok).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(6);
   });
 });
 

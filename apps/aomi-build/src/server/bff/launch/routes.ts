@@ -1049,6 +1049,32 @@ export async function deploymentPromoteRoute(req: Request) {
       );
     }
 
+    // Gate promotion on required secrets, exactly as activate does — promote
+    // runs the same backend activation machinery.
+    const deployments = await client.listUserSourceDeployments({
+      githubUserId: session.githubUserId,
+      platform: config.platform,
+      appSourceId: source.id,
+      limit: 100,
+    });
+    const target = deployments.find((d) => d.deploymentId === deploymentId);
+    const pairs = (target?.apps ?? [])
+      .filter((a) => (apps ? apps.includes(a.name) : true))
+      .flatMap((a) => (a.releaseTag ? [{ app: a.name, releaseTag: a.releaseTag }] : []));
+    const missingByApp = await missingSecretsForActivation({
+      client,
+      githubUserId: session.githubUserId,
+      platform: config.platform,
+      source,
+      pairs,
+    });
+    if (Object.keys(missingByApp).length > 0) {
+      return NextResponse.json(
+        { error: "missing required secrets", missing: missingByApp },
+        { status: 409 },
+      );
+    }
+
     // Default the promotion actor to the signed-in GitHub user so Aomi Build
     // promotions are attributable without the client threading it.
     const actor =

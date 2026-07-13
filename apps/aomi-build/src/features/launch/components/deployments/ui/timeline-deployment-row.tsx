@@ -9,12 +9,14 @@ export function TimelineDeploymentRow({
   busy,
   message,
   runtimeState,
+  secretsBlocked,
   onPromote,
 }: {
   deployment: TimelineDeployment;
   busy: boolean;
   message?: string | null;
   runtimeState?: "loaded" | "not-loaded";
+  secretsBlocked?: boolean;
   onPromote: () => void;
 }) {
   const { deploymentId, commit, apps, current, actor, sdkVersion, createdAt } =
@@ -52,16 +54,25 @@ export function TimelineDeploymentRow({
           </span>
         </div>
         {message && <div className="mt-1 text-xs text-zinc-500">{message}</div>}
+        {!current && secretsBlocked && (
+          <div className="mt-1 text-xs text-amber-700">
+            Required secrets missing — set them in the Environment tab.
+          </div>
+        )}
       </div>
 
       <div className="flex items-center gap-2">
         {!current && (
           <button
             type="button"
-            disabled={busy}
+            disabled={busy || secretsBlocked}
             onClick={onPromote}
             className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-2.5 text-xs font-medium text-zinc-800 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
-            title="Promote this deployment to live"
+            title={
+              secretsBlocked
+                ? "Required secrets missing — set them in the Environment tab"
+                : "Promote this deployment to live"
+            }
           >
             <RotateCcw className="size-3.5" aria-hidden />
             Promote
