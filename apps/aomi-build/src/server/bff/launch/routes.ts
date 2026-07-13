@@ -9,7 +9,11 @@ import { appNamesFromDeployment, releaseTagsFromDeployment } from "./mappers";
 import { checkRateLimit, getClientIp } from "@build/lib/rate-limit";
 import { validateOrigin } from "@build/lib/csrf";
 import { getGitHubSession } from "@build/server/cookies/github";
-import { missingSecretsForActivation } from "@aomi-labs/deploy/bff";
+import {
+  fetchReleaseSecretSlots,
+  missingSecretsForActivation,
+} from "@aomi-labs/deploy/bff";
+import { missingRequiredSecrets, type SecretSlot } from "@aomi-labs/deploy";
 import {
   isValidDeploymentId,
   isValidInstallationId,
@@ -1245,6 +1249,86 @@ export async function userSourcesRoute(req: Request) {
       platform: config.platform,
     });
     return NextResponse.json({ sources, githubLogin: session.githubLogin });
+  } catch (err) {
+    return launchErrorResponse(err);
+  }
+}
+
+// GET /api/bff/deployments/required-secrets?appSourceId=<n> — the declared
+// secret slots per app (from the release manifest) plus which required slots
+// are still unfilled in the vault. Read-only twin of the 409 backstop on
+// activate: lets the UI disable Activate and explain why before the user
+// clicks it, instead of only rejecting after the fact. Never returns secret
+// VALUES — only key names, descriptions, and the `required` flag.
+export async function requiredSecretsRoute(req: Request) {
+  const blocked = checkRead(req);
+  if (blocked) return blocked;
+
+  const auth = await requireSession();
+  if ("response" in auth) return auth.response;
+  const { session } = auth;
+
+  const appSourceId = Number(
+    new URL(req.url).searchParams.get("appSourceId"),
+  );
+  if (!isValidAppSourceId(appSourceId)) {
+    return NextResponse.json(
+      { error: "missing or invalid `appSourceId`" },
+      { status: 400 },
+    );
+  }
+
+  try {
+    const config = launchConfig();
+    const client = await deploymentClient();
+    const source = await findOwnedSource(
+      client,
+      session.githubUserId,
+      config.platform,
+      appSourceId,
+    );
+    if (!source) {
+      return NextResponse.json(
+        { error: "app source not found for this user" },
+        { status: 404 },
+      );
+    }
+
+    // Neither an unreachable GitHub token nor an unknown platform repo may
+    // block the UI: both degrade to empty slots rather than looking blocked.
+    const githubToken = process.env.GITHUB_TOKEN?.trim();
+    const platformRepo = source.latestDeployment?.platformRepo;
+    const configured = await client.listAppSecrets({
+      githubUserId: session.githubUserId,
+      sourceId: String(source.id),
+    });
+
+    const byApp: Record<string, { slots: SecretSlot[]; missing: string[] }> =
+      {};
+    for (const app of source.apps) {
+      const releaseTag = app.appReleaseTag;
+      const slots =
+        githubToken && platformRepo && releaseTag
+          ? ((
+              await fetchReleaseSecretSlots({
+                platformRepo,
+                releaseTag,
+                githubToken,
+              })
+            )[app.name] ?? [])
+          : [];
+      const configuredKeys = (configured.byApp[app.name] ?? []).map(
+        (handle) => handle.split("::").pop() ?? handle,
+      );
+      byApp[app.name] = {
+        slots,
+        missing: missingRequiredSecrets(slots, configuredKeys).map(
+          (slot) => slot.name,
+        ),
+      };
+    }
+
+    return NextResponse.json({ byApp });
   } catch (err) {
     return launchErrorResponse(err);
   }
