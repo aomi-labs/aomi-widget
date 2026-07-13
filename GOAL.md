@@ -465,3 +465,8 @@ build`, `CI=true npx -y pnpm@10.28.0 install --frozen-lockfile`, and
   account `0.1.1`, client `0.3.2`, React `0.5.2`, and widget-lib `1.4.3`.
   The change set is ready to commit and push; no staging, commit, push, PR, or
   deployment was performed.
+- 2026-07-13 unified auth publication: committed the reviewed Portal-hosted
+  auth, `AomiWidget`, consumer example, documentation, generated artifacts,
+  and package-version changes on `codex/landing-auth-parity`, pushed the branch,
+  and opened draft PR `aomi#339`. GitHub CI and the Vercel previews are being
+  monitored before the user decides whether the PR can merge.
