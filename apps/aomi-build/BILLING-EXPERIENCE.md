@@ -162,7 +162,7 @@ flowchart TB
 | Change | Action |
 |---|---|
 | `settings-data.ts` billing copy | Honest: invoices later; spend today → Usage; secrets → Environment |
-| `SettingsBillingPanel` | Honesty: methods → Chat account; Usage + Secrets + Open Chat; no invoice / no fake BYOK status |
+| `SettingsBillingPanel` | Honesty: payment setup → Chat; Usage + Secrets + Open Chat; no rail jargon / fake status |
 | `[section]/page.tsx` | Render panel when `slug === "billing"`; enable navigation to the page |
 | Settings sub-nav | `SettingsNav` + `SettingsLayout` on all `/settings` routes; Overview + sections from `settings-data.ts`; Planned/Available/Project-scoped badges |
 | Overview + Usage | One sentence: credits meter ≠ partner fees / Billing is for money-plan later |
@@ -192,13 +192,14 @@ GitHub-session only. Proxy does not allowlist `/api/account/*`, and
 `resolveCanonicalUserId` is a no-op — no AccountBearer. A live methods fetch
 would 404/401.
 
-**Shipped (option A):** Billing teaches BYOK / Tempo live on the **Chat
-account**, links Open Chat + Usage + Secrets, and keeps “Not available yet”
-for balance/invoices. No fake method status.
+**Shipped (option A):** Billing teaches payment setup (credits, own API keys,
+wallet pay) lives on the **Chat account**, links Open Chat + Usage + Secrets,
+and keeps “Not available yet” for balance/invoices. No rail brand names
+(Tempo / BYOK / x402) in Build UI copy; no fake method status.
 
-**Later (option B):** Wire BetterAuth → AccountBearer into Build, allowlist
-`GET /api/account/payment`, then show real BYOK/Tempo status. After that:
-balance / `net_credits` only when HTTP wraps those helpers.
+**Later (option B):** Wire Chat account auth into Build, allowlist
+`GET /api/account/payment`, then show real method status in product language.
+After that: balance / `net_credits` only when HTTP wraps those helpers.
 
 Chat keeps silent 402.
 
@@ -221,7 +222,7 @@ Until then partner settlement stays chat-runtime (`outstanding_recipients` at ad
 6. Secrets with one project: stay on Settings until **Open Environment**  
 7. Open Chat link works  
 8. Overview / Usage helper doesn’t imply partner fees are shown there yet  
-9. No invoice table or mock balance / “Tempo: Connected” 
+9. No invoice table, mock balance, or rail brand names (Tempo / BYOK / x402) in Build UI 
 
 ---
 

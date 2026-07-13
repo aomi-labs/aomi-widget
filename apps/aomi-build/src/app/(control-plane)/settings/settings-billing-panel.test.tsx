@@ -8,13 +8,11 @@ vi.mock("@build/lib/chat-url", () => ({
 import { SettingsBillingPanel } from "./settings-billing-panel";
 
 describe("SettingsBillingPanel", () => {
-  it("teaches methods live on Chat and does not fake invoices or balances", () => {
+  it("uses product language and does not expose rail jargon or fake invoices", () => {
     render(<SettingsBillingPanel />);
 
     expect(screen.getByText(/^payment methods$/i)).toBeInTheDocument();
-    expect(
-      screen.getByText(/live on your/i),
-    ).toBeInTheDocument();
+    expect(screen.getAllByText(/how chat users pay/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/chat account/i).length).toBeGreaterThan(0);
     expect(screen.getByText(/not available yet/i)).toBeInTheDocument();
     expect(screen.getByText(/does not show live invoices/i)).toBeInTheDocument();
@@ -30,8 +28,10 @@ describe("SettingsBillingPanel", () => {
       "https://chat.aomi.dev",
     );
 
+    expect(screen.queryByText(/tempo/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/byok/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/x402/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/invoice #/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/\$\d/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/tempo: connected/i)).not.toBeInTheDocument();
   });
 });

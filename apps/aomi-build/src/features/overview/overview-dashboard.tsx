@@ -147,7 +147,7 @@ export function OverviewDashboard() {
         <StatCard
           label="Credits"
           value={formatNumber(usageTotals.creditsUsed)}
-          helper="LLM/token usage meter — not partner fees or invoices"
+          helper="Model/token usage meter — not Chat fees or invoices"
         />
         <StatCard
           label="Tokens"

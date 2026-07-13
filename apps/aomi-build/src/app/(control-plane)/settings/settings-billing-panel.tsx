@@ -6,8 +6,8 @@ import { resolveChatUrl } from "@build/lib/chat-url";
 /**
  * Honest Billing panel: teach the map without fake methods or invoices.
  *
- * `GET /api/account/payment` exists on the backend but Build is GitHub-session
- * only today (no AccountBearer / BetterAuth bridge), so we do not fetch it.
+ * Payment setup APIs exist on the backend, but Build is GitHub-session only
+ * today (no Chat account bridge), so we do not fetch method status here.
  */
 export function SettingsBillingPanel() {
   const chatUrl = resolveChatUrl();
@@ -19,14 +19,15 @@ export function SettingsBillingPanel() {
           Payment methods
         </div>
         <p className="mt-2 text-[13px] leading-5 text-dim">
-          BYOK and Tempo stream status live on your{" "}
+          How chat users pay (credits, their own API keys, wallet pay) is
+          managed on your{" "}
           <span className="text-foreground font-medium">Chat account</span>,
-          not in Build. Build uses GitHub for deploy/operate; it does not yet
-          share the Chat account session needed to read payment methods here.
+          not in Build. Build uses GitHub for deploy and operate; it does not
+          yet share the Chat session needed to show payment setup here.
         </p>
         <p className="mt-3 text-[13px] leading-5 text-dim">
-          Manage BYOK / Tempo in Chat when signed in. This page will not invent
-          a second methods store.
+          Open Chat while signed in to manage payment setup. This page will not
+          invent a second methods store.
         </p>
       </div>
 
@@ -35,14 +36,14 @@ export function SettingsBillingPanel() {
           Not available yet
         </div>
         <p className="mt-2 text-[13px] leading-5 text-dim">
-          Balance, invoices, spend caps, and partner fee history will land here
-          when Account billing is wired into Build. This is not a secret vault
-          and does not show live invoices today.
+          Balance, invoices, spend caps, and fees paid to app partners will
+          land here when account billing is wired into Build. This is not a
+          secret vault and does not show live invoices today.
         </p>
         <p className="mt-3 text-[13px] leading-5 text-dim">
           <span className="text-foreground font-medium">Credits today:</span>{" "}
-          Operate → Usage meters platform LLM/token spend — not partner tool
-          fees (those settle in chat when priced tools run).
+          Operate → Usage meters platform model/token spend — not fees that
+          settle in Chat when a priced tool runs.
         </p>
         <p className="mt-3 text-[13px] leading-5 text-dim">
           <span className="text-foreground font-medium">API keys:</span>{" "}
@@ -110,7 +111,7 @@ export function SettingsBillingPanel() {
                   Open Chat
                 </div>
                 <div className="text-dim mt-0.5 text-xs">
-                  Sign in there to manage BYOK / Tempo and settle payments
+                  Sign in there to manage how chat users pay
                 </div>
               </div>
             </div>
