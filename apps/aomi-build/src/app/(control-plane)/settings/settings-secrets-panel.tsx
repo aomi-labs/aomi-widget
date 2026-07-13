@@ -1,8 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { ArrowRight } from "lucide-react";
 
 import { useProjects } from "@build/features/launch/hooks/use-projects";
@@ -24,16 +22,7 @@ function projectLabel(source: {
 }
 
 export function SettingsSecretsPanel() {
-  const router = useRouter();
   const { state } = useProjects();
-
-  useEffect(() => {
-    if (state.status !== "ready") return;
-    if (state.sources.length !== 1) return;
-    const only = state.sources[0];
-    if (!only) return;
-    router.replace(environmentHref(only.id));
-  }, [router, state]);
 
   if (state.status === "loading") {
     return <LoadingPanel label="Loading projects…" />;
@@ -68,7 +57,31 @@ export function SettingsSecretsPanel() {
   }
 
   if (state.sources.length === 1) {
-    return <LoadingPanel label="Opening project environment…" />;
+    const only = state.sources[0]!;
+    const label = projectLabel(only);
+
+    return (
+      <div className="space-y-3">
+        <div className="rounded-lg border border-border bg-surface-1 p-4">
+          <div className="text-sm font-medium text-foreground">
+            Secrets are managed per project
+          </div>
+          <p className="mt-2 text-[13px] text-dim">
+            Secrets for{" "}
+            <span className="text-foreground font-medium">{label}</span> live
+            on that project&apos;s Environment tab. There is no account-wide
+            secret store.
+          </p>
+          <Link
+            href={environmentHref(only.id)}
+            className="mt-4 inline-flex h-8 items-center gap-1.5 rounded-md bg-primary px-3 text-[12px] font-medium text-primary-foreground transition hover:bg-brand-hover"
+          >
+            Open Environment
+            <ArrowRight className="size-3.5" aria-hidden />
+          </Link>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -94,9 +107,7 @@ export function SettingsSecretsPanel() {
                 <div className="text-foreground truncate text-sm font-medium">
                   {projectLabel(source)}
                 </div>
-                <div className="text-dim mt-0.5 text-xs">
-                  Environment →
-                </div>
+                <div className="text-dim mt-0.5 text-xs">Environment →</div>
               </div>
               <ArrowRight className="text-dim size-4 shrink-0" aria-hidden />
             </Link>

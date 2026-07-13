@@ -1,11 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
-
-const replace = vi.fn();
-
-vi.mock("next/navigation", () => ({
-  useRouter: () => ({ replace }),
-}));
+import { render, screen } from "@testing-library/react";
 
 vi.mock("@build/features/launch/hooks/use-projects", () => ({
   useProjects: vi.fn(),
@@ -18,7 +12,6 @@ const useProjectsMock = vi.mocked(useProjects);
 
 describe("SettingsSecretsPanel", () => {
   beforeEach(() => {
-    replace.mockReset();
     useProjectsMock.mockReset();
   });
 
@@ -41,7 +34,7 @@ describe("SettingsSecretsPanel", () => {
     );
   });
 
-  it("auto-routes a single project to its Environment tab", async () => {
+  it("stays on Settings for a single project with an Environment CTA", () => {
     useProjectsMock.mockReturnValue({
       state: {
         status: "ready",
@@ -61,9 +54,12 @@ describe("SettingsSecretsPanel", () => {
     });
 
     render(<SettingsSecretsPanel />);
-    await waitFor(() =>
-      expect(replace).toHaveBeenCalledWith("/projects/7?tab=environment"),
-    );
+
+    expect(screen.getByText(/Secrets are managed per project/i)).toBeTruthy();
+    expect(screen.getByText(/alice\/only-bot/i)).toBeTruthy();
+    expect(
+      screen.getByRole("link", { name: /Open Environment/i }),
+    ).toHaveAttribute("href", "/projects/7?tab=environment");
   });
 
   it("lists projects that deep-link to Environment", () => {
@@ -101,6 +97,5 @@ describe("SettingsSecretsPanel", () => {
       "href",
       "/projects/4?tab=environment",
     );
-    expect(replace).not.toHaveBeenCalled();
   });
 });
