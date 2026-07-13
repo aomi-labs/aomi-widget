@@ -470,3 +470,10 @@ build`, `CI=true npx -y pnpm@10.28.0 install --frozen-lockfile`, and
   and package-version changes on `codex/landing-auth-parity`, pushed the branch,
   and opened draft PR `aomi#339`. GitHub CI and the Vercel previews are being
   monitored before the user decides whether the PR can merge.
+- 2026-07-13 PR #339 preview repair: reproduced the failed Base Vercel build
+  locally and traced it to the new precompiled widget stylesheet dropping the
+  Tailwind theme contract needed by host-side utilities such as
+  `border-border`. Updated the package CSS builder to retain the theme/custom
+  variant directives alongside browser-ready compiled CSS. Widget-lib, Base,
+  Landing, and the Vite consumer now build successfully and full lint passes;
+  the fix is being pushed for a fresh CI and Vercel pass.
