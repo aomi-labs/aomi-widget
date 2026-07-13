@@ -129,6 +129,12 @@ export const settingsSections: SettingsSection[] = [
   },
 ];
 
+export function settingsStatusLabel(status: SettingsSection["status"]) {
+  if (status === "available") return "Available";
+  if (status === "project-scoped") return "Project-scoped";
+  return "Planned";
+}
+
 export function getSettingsSection(slug: string) {
   return settingsSections.find((section) => section.slug === slug);
 }

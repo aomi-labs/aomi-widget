@@ -63,6 +63,7 @@ Environment ≠ Billing. Usage ≠ broken Billing.
 | `settings-data.ts` billing copy | Honest: invoices later; spend today → Usage; secrets → Environment |
 | `SettingsBillingPanel` | Client island: guidance + links (Usage, Secrets/Environment path) — no invoice UI |
 | `[section]/page.tsx` | Render panel when `slug === "billing"`; enable navigation to the page |
+| Settings sub-nav | `SettingsNav` + `SettingsLayout` on all `/settings` routes; Overview + sections from `settings-data.ts`; Planned/Available/Project-scoped badges |
 | Overview + Usage | One sentence: credits meter ≠ partner fees / Billing is for money-plan later |
 
 **Do not:** fake invoices, balance widgets, `billing.toml` editors, payment forms.
@@ -97,11 +98,12 @@ Only when ledger exposes partner `BillItem`s: line items “Paid to partner X”
 
 ## Click-through checklist (Phase A)
 
-1. Settings → Billing opens (not greyed-out dead)  
-2. Copy points to **Operate → Usage** for spend  
-3. Copy points to **Secrets / Environment** for API keys  
-4. Overview / Usage helper doesn’t imply partner fees are shown there yet  
-5. No invoice table or mock balance  
+1. Settings sidebar: Overview + all sections visible; active route highlighted  
+2. Settings → Billing opens (not greyed-out dead)  
+3. Copy points to **Operate → Usage** for spend  
+4. Copy points to **Secrets / Environment** for API keys  
+5. Overview / Usage helper doesn’t imply partner fees are shown there yet  
+6. No invoice table or mock balance  
 
 ---
 

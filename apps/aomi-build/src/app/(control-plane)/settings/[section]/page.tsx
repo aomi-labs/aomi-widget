@@ -21,15 +21,8 @@ export default async function SettingsSectionPage({
   const Icon = section.icon;
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-6 py-6">
+    <div className="flex max-w-3xl flex-col gap-6">
       <div className="space-y-2">
-        <div className="flex items-center gap-1.5 text-[11px] text-dim">
-          <Link href="/settings" className="hover:text-subtle">
-            Settings
-          </Link>
-          <span>/</span>
-          <span className="text-subtle">{section.title}</span>
-        </div>
         <div className="flex items-center gap-2">
           <Icon className="size-5 text-dim" />
           <h1 className="text-2xl font-semibold text-foreground">
