@@ -227,7 +227,7 @@ export async function operateBotsCreateRoute(req: Request) {
       threadMode:
         typeof body.threadMode === "string" ? body.threadMode : undefined,
     });
-    return NextResponse.json({ bot }, { status: 201 });
+    return NextResponse.json({ bot: { ...bot, source } }, { status: 201 });
   } catch (err) {
     return launchErrorResponse(err);
   }

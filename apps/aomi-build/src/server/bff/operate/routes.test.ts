@@ -165,7 +165,7 @@ describe("operateBotsCreateRoute", () => {
     );
     expect(res.status).toBe(201);
     await expect(res.json()).resolves.toMatchObject({
-      bot: { id: "b1", platform: "telegram" },
+      bot: { id: "b1", platform: "telegram", source: { id: 42 } },
     });
     expect(client.createUserSourceBot).toHaveBeenCalledWith(
       expect.objectContaining({
