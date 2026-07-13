@@ -105,12 +105,15 @@ EOF
 
 ensure_backend_schema() {
   local migrations_dir
-  if [ -d "$DB_MASTER_DIR/migrations" ]; then
-    migrations_dir="$DB_MASTER_DIR/migrations"
-  elif [ -d "$PRODUCT_MONO_DIR/supabase/migrations" ]; then
+  # Keep the schema source aligned with the backend binary we launch below.
+  # db-master is retained as a fallback for older worktrees, but it can lag the
+  # product-mono runtime and leave newly required columns unapplied.
+  if [ -d "$PRODUCT_MONO_DIR/supabase/migrations" ]; then
     migrations_dir="$PRODUCT_MONO_DIR/supabase/migrations"
+  elif [ -d "$DB_MASTER_DIR/migrations" ]; then
+    migrations_dir="$DB_MASTER_DIR/migrations"
   else
-    echo "Missing migrations: $DB_MASTER_DIR/migrations or $PRODUCT_MONO_DIR/supabase/migrations" >&2
+    echo "Missing migrations: $PRODUCT_MONO_DIR/supabase/migrations or $DB_MASTER_DIR/migrations" >&2
     exit 1
   fi
 
@@ -171,17 +174,17 @@ ensure_backend_schema() {
     apply_migration 20260701020000_account_model_contract.sql
     apply_migration 20260701030000_account_model_slim.sql
   fi
+
+  if ! psql "$LOCAL_DB_URL" -tAc "select count(*) = 6 from information_schema.columns where table_schema = 'public' and table_name in ('llm_usage_events', 'user_transactions') and column_name in ('application_id', 'app_source_id', 'platform_id')" | grep -q t; then
+    apply_migration 20260707010000_owned_operate_attribution.sql
+  fi
+
+  if ! psql "$LOCAL_DB_URL" -tAc "select to_regclass('public.user_transactions_application_created_idx')" | grep -q user_transactions_application_created_idx; then
+    apply_migration 20260707010100_owned_operate_attribution_indexes.sql
+  fi
 }
 
 ensure_auth_schema() {
-  if [ ! -f "$ROOT_DIR/packages/auth/src/db/schema.sql" ]; then
-    echo "Missing Aomi auth schema.sql" >&2
-    exit 1
-  fi
-
-  echo "Ensuring Aomi auth tables"
-  psql "$LOCAL_DB_URL" -v ON_ERROR_STOP=1 -q -f "$ROOT_DIR/packages/auth/src/db/schema.sql"
-
   if [ ! -x "$ROOT_DIR/node_modules/.bin/tsx" ]; then
     echo "Missing node_modules/.bin/tsx. Run pnpm install in $ROOT_DIR first." >&2
     exit 1
@@ -196,7 +199,7 @@ import { getMigrations } from "better-auth/db/migration";
 (async () => {
   const root = process.cwd();
   const authModule = await import(
-    pathToFileURL(`${root}/packages/auth/src/better-auth/auth.ts`).href
+    pathToFileURL(`${root}/packages/account/src/better-auth/auth.ts`).href
   );
   const migrations = await getMigrations(authModule.auth.options);
   await migrations.runMigrations();

@@ -76,7 +76,6 @@ function parseFlagMap(argv: string[]): Map<string, string | boolean> {
   }
   return values;
 }
-
 function stringValue(values: Map<string, string | boolean>, key: string): string | undefined {
   const value = values.get(key);
   return typeof value === "string" ? value : undefined;
@@ -852,7 +851,7 @@ function RollbackApp({ args }: { args: RollbackArgs }) {
       try {
         const client = await rollbackClientFromEnv(args);
         const plan = planRollback(
-          await client.listActivations({
+          await client.listDeploymentRecords({
             platform: args.platform,
             app: args.app,
             appSourceId: args.appSourceId,
@@ -979,7 +978,7 @@ async function runRollbackHeadless(args: RollbackArgs): Promise<void> {
     return;
   }
   const plan = planRollback(
-    await client.listActivations({
+    await client.listDeploymentRecords({
       platform: args.platform,
       app: args.app,
       appSourceId: args.appSourceId,

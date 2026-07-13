@@ -17,6 +17,10 @@ import {
 } from "../contexts/thread-context";
 import { ExtUserProvider } from "../contexts/ext-user-context";
 import { AomiRuntimeCore } from "./core";
+import {
+  buildThreadPersistenceKey,
+  readPersistedThreadId,
+} from "./thread-persistence";
 
 // =============================================================================
 // Props
@@ -28,6 +32,14 @@ export type AomiRuntimeProviderProps = {
   applicationId?: number | string | null;
   appPlatforms?: AomiPlatformFilter;
   clientOptions?: Omit<AomiClientOptions, "baseUrl">;
+  /** Optional explicit initial thread. Takes precedence over stored state. */
+  initialThreadId?: string;
+  /** Persist the active materialized thread in localStorage. Defaults to true. */
+  persistThread?: boolean;
+  /** Full localStorage key override for vendors that need exact isolation. */
+  threadPersistenceKey?: string;
+  /** Extra key segment for tenant/user/app scoping without owning the full key. */
+  threadPersistenceScope?: string | null;
 };
 
 function normalizeBackendUrl(url: string): string {
@@ -53,7 +65,36 @@ export function AomiRuntimeProvider({
   applicationId,
   appPlatforms,
   clientOptions,
+  initialThreadId,
+  persistThread = true,
+  threadPersistenceKey,
+  threadPersistenceScope,
 }: Readonly<AomiRuntimeProviderProps>) {
+  const normalizedBackendUrl = normalizeBackendUrl(backendUrl);
+  const resolvedThreadPersistenceKey = useMemo(() => {
+    if (!persistThread) return null;
+    return (
+      threadPersistenceKey ??
+      buildThreadPersistenceKey({
+        backendUrl: normalizedBackendUrl,
+        applicationId,
+        scope: threadPersistenceScope,
+      })
+    );
+  }, [
+    applicationId,
+    normalizedBackendUrl,
+    persistThread,
+    threadPersistenceKey,
+    threadPersistenceScope,
+  ]);
+
+  const restoredThreadId = useMemo(() => {
+    if (initialThreadId) return initialThreadId;
+    if (!resolvedThreadPersistenceKey) return undefined;
+    return readPersistedThreadId(resolvedThreadPersistenceKey) ?? undefined;
+  }, [initialThreadId, resolvedThreadPersistenceKey]);
+
   const resolvedClientOptions = useMemo(
     () => ({
       logger: {
@@ -67,20 +108,22 @@ export function AomiRuntimeProvider({
   const aomiClient = useMemo(
     () =>
       new AomiClient({
-        baseUrl: normalizeBackendUrl(backendUrl),
+        baseUrl: normalizedBackendUrl,
         ...resolvedClientOptions,
       }),
-    [backendUrl, resolvedClientOptions],
+    [normalizedBackendUrl, resolvedClientOptions],
   );
 
   return (
-    <ThreadContextProvider>
+    <ThreadContextProvider initialThreadId={restoredThreadId}>
       <NotificationContextProvider>
         <ExtUserProvider>
           <AomiRuntimeInner
             aomiClient={aomiClient}
             applicationId={applicationId}
             appPlatforms={appPlatforms}
+            restoredThreadId={restoredThreadId}
+            threadPersistenceKey={resolvedThreadPersistenceKey}
           >
             {children}
           </AomiRuntimeInner>
@@ -99,6 +142,8 @@ type AomiRuntimeInnerProps = {
   aomiClient: AomiClient;
   applicationId?: number | string | null;
   appPlatforms?: AomiPlatformFilter;
+  restoredThreadId?: string;
+  threadPersistenceKey?: string | null;
 };
 
 function AomiRuntimeInner({
@@ -106,6 +151,8 @@ function AomiRuntimeInner({
   aomiClient,
   applicationId,
   appPlatforms,
+  restoredThreadId,
+  threadPersistenceKey,
 }: Readonly<AomiRuntimeInnerProps>) {
   const threadContext = useThreadContext();
 
@@ -121,7 +168,12 @@ function AomiRuntimeInner({
         aomiClient={aomiClient}
         sessionId={threadContext.currentThreadId}
       >
-        <AomiRuntimeCore aomiClient={aomiClient} applicationId={applicationId}>
+        <AomiRuntimeCore
+          aomiClient={aomiClient}
+          applicationId={applicationId}
+          restoredThreadId={restoredThreadId}
+          threadPersistenceKey={threadPersistenceKey}
+        >
           {children}
         </AomiRuntimeCore>
       </EventContextProvider>

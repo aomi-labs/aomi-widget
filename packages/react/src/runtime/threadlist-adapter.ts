@@ -113,6 +113,14 @@ export function buildThreadListAdapter({
     archivedThreads,
 
     onSwitchToNewThread: () => {
+      const currentThreadId = threadContext.currentThreadId;
+      if (
+        !isRemoteThread(currentThreadId) &&
+        threadContext.getThreadMessages(currentThreadId).length === 0
+      ) {
+        return;
+      }
+
       cleanupEmptyLocalThread();
       const threadId = generateUUID();
       threadContext.setThreadMetadata((prev) =>
