@@ -18,6 +18,11 @@ Current session goal: complete the Auth BFF BetterAuth cleanup, remove legacy
 endpoints, keep canonical backend UUIDs stable, and verify with CLI E2E before
 manual handoff.
 
+2026-07-13 follow-up: staging and production now use separate Supabase
+databases. Local schema convergence applies the backend's forward drop instead
+of recreating the retired `bff_cli_device_sessions` / `bff_cli_sessions`
+tables; fresh databases also finish replay with that drop.
+
 Progress:
 
 - Removed runtime `/api/bff/auth/siwe/*`, `/api/bff/auth/exchange`, and
