@@ -127,7 +127,7 @@ describe("EnvironmentTab", () => {
     });
     expect(screen.getByText("No variables yet")).toBeInTheDocument();
     expect(
-      screen.getByText(/Chat users never paste API keys/i),
+      screen.getByText(/Add keys your agent needs/i),
     ).toBeInTheDocument();
   });
 });
