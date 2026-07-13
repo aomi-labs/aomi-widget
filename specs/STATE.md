@@ -11,7 +11,7 @@
 
 ## Build P2 Project home (2026-07-13)
 
-Branch `feat/build-p2-project-home`:
+Branch `feat/build-p2-project-home` (PR #330):
 
 - Project pages default to a **Home** tab with Live / Environment / Chat /
   Usage status cards and one Next CTA (deploy → keys → Open Chat).

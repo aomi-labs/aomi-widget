@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { ToastProvider } from "@build/components/control-plane/toast";
 
 const searchParams = { current: new URLSearchParams("") };
@@ -82,9 +82,10 @@ describe("ProjectPage", () => {
   it("renders the tab named by ?tab=", () => {
     searchParams.current = new URLSearchParams("tab=deployments");
     renderPage();
-    expect(screen.getByRole("tab", { name: /deployments/i })).toHaveAttribute(
-      "aria-selected",
-      "true",
-    );
+    const projectTabs = screen.getAllByRole("tablist")[0];
+    expect(
+      within(projectTabs).getByRole("tab", { name: /^deployments$/i }),
+    ).toHaveAttribute("aria-selected", "true");
+    expect(screen.queryByText("Project home")).not.toBeInTheDocument();
   });
 });
