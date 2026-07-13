@@ -1569,3 +1569,157 @@ renders the 409 missing-secret map when the server rejects an activation."
 - **Backward compatibility:** `fetchReleaseSecretSlots` returns `{}` for releases predating Task 2, and `missingRequiredSecrets(undefined, …)` returns `[]`, so old releases activate unchanged. Covered by tests in Tasks 4, 5, 6.
 - **Type consistency:** `SecretSlot` is defined once (Task 4, `packages/deploy/src/types.ts`) and reused everywhere. `missingRequiredSecrets(slots, configuredKeys)` keeps that signature in Tasks 6, 7. `fetchReleaseSecretSlots` returns `Record<appName, SecretSlot[]>` in Tasks 5, 6, 7. The BFF route returns `{ byApp: Record<app, { slots, missing }> }` in Tasks 7, 8, 9, 10.
 - **Vault handles:** stripped with `handle.split("::").pop()` in Tasks 6 and 7, matching `environment-tab.tsx`'s existing display logic.
+
+---
+
+## Task 11: Extend secrets gating to the promote path (added 2026-07-10 after integration review)
+
+**Why:** The project console (`ProjectPage` → `DeploymentsTab`) makes an app live via **`promote`** (`deploymentPromoteRoute` → `/api/platforms/:id/deployments/:id/promote`), NOT `activate`. The backend `promote_target` runs the same `prepare_activation_releases` machinery as activate, so promote is equally secret-sensitive — yet Tasks 6/10 only covered `activate`, leaving the primary live path with no 409 and no UI gate. Additionally the wizard's `DeployStep` gate is inert because `oneshot-wizard.tsx` never passes it a `detail`. This task closes all three.
+
+**Files:**
+- Modify (409 backstop, all three copies): `apps/aomi-build/src/server/bff/launch/routes.ts`, `apps/portal/src/server/bff/launch/routes.ts`, `packages/deploy/src/bff/launch-routes.ts` — the promote handler.
+- Modify (UI gate): `apps/aomi-build/src/features/launch/components/deployments/tabs/deployments-tab.tsx`
+- Modify (wizard wiring): `apps/aomi-build/src/features/launch/components/oneshot-wizard.tsx`
+- Test: the three `routes.test.ts` / `launch-routes.test.ts`, and `deployments-tab.test.tsx`
+
+**Interfaces:**
+- Reuse `missingSecretsForActivation({ client, githubUserId, platform, source, pairs })` from `@aomi-labs/deploy/bff` (defined in Task 6) — do NOT write a second implementation.
+- `client.listUserSourceDeployments({ githubUserId, platform, appSourceId, limit })` returns `UserSourceLatestDeployment[]`, each with `.deploymentId` and `.apps: { name: string; releaseTag: string | null }[]`.
+- `DeploymentsTab` already has `detail` (useProjectDetail), `detail.hasMissingSecrets(app)`, `detail.loadRequiredSecrets()`, and per-row `deployment.apps: string[]`.
+
+### Part A — 409 on the promote route (all three copies)
+
+- [ ] **Step 1: Write the failing test (aomi-build copy)**
+
+Add to `apps/aomi-build/src/server/bff/launch/routes.test.ts`, `deploymentPromoteRoute` block, following the existing global-`fetch`-stub pattern used by the Task 6 activate tests:
+
+```ts
+it("409s a promote when a required secret is unfilled", async () => {
+  setSession({ githubUserId: "gh-1", githubLogin: "octocat" });
+  // owned source, deployment in the source's records, one app + release tag
+  stubOwnedSourceWithDeployment({
+    sourceId: 42,
+    platformRepo: "aomi-labs/community",
+    deploymentId: "dep_1_r_abc",
+    apps: [{ name: "binance", releaseTag: "v1" }],
+  });
+  stubAppSecrets({ binance: ["$SECRET:APP:binance::BINANCE_API_KEY"] });
+  stubReleaseManifest({
+    binance: [
+      { name: "BINANCE_API_KEY", description: "d", required: true },
+      { name: "BINANCE_SECRET_KEY", description: "d", required: true },
+    ],
+  });
+
+  const res = await deploymentPromoteRoute(
+    postJson({ deploymentId: "dep_1_r_abc", appSourceId: 42 }),
+  );
+
+  expect(res.status).toBe(409);
+  await expect(res.json()).resolves.toEqual({
+    error: "missing required secrets",
+    missing: { binance: ["BINANCE_SECRET_KEY"] },
+  });
+  expect(client.promote).not.toHaveBeenCalled();
+});
+
+it("promotes when required secrets are filled", async () => {
+  setSession({ githubUserId: "gh-1", githubLogin: "octocat" });
+  stubOwnedSourceWithDeployment({
+    sourceId: 42, platformRepo: "aomi-labs/community",
+    deploymentId: "dep_1_r_abc", apps: [{ name: "binance", releaseTag: "v1" }],
+  });
+  stubAppSecrets({ binance: ["$SECRET:APP:binance::BINANCE_API_KEY", "$SECRET:APP:binance::BINANCE_SECRET_KEY"] });
+  stubReleaseManifest({ binance: [
+    { name: "BINANCE_API_KEY", description: "d", required: true },
+    { name: "BINANCE_SECRET_KEY", description: "d", required: true },
+  ] });
+  client.promote.mockResolvedValue({ ok: true, promote: { releaseTags: ["v1"], status: "promoted" } });
+
+  const res = await deploymentPromoteRoute(postJson({ deploymentId: "dep_1_r_abc", appSourceId: 42 }));
+  expect(res.status).toBe(202);
+  expect(client.promote).toHaveBeenCalledTimes(1);
+});
+```
+
+(Adapt the stub helper names to whatever the existing test file uses — the Task 6 promote/activate tests already stub `listUserSources`, `listUserSourceDeployments`, `listAppSecrets`, and the release-manifest `fetch`. Match them.)
+
+- [ ] **Step 2: Run to verify it fails** — `pnpm --filter aomi-build exec vitest run src/server/bff/launch/routes.test.ts -t "required secret"` → FAIL (got 202, `client.promote` called).
+
+- [ ] **Step 3: Implement in each promote handler**, after the existing `known.has(deploymentId)` ownership check and BEFORE `client.promote(...)`:
+
+```ts
+    // Gate promotion on required secrets, exactly as activate does — promote
+    // runs the same backend activation machinery.
+    const deployments = await client.listUserSourceDeployments({
+      githubUserId: session.githubUserId,
+      platform: config.platform,
+      appSourceId: source.id,
+      limit: 100,
+    });
+    const target = deployments.find((d) => d.deploymentId === deploymentId);
+    const pairs = (target?.apps ?? [])
+      .filter((a) => (apps ? apps.includes(a.name) : true))
+      .flatMap((a) => (a.releaseTag ? [{ app: a.name, releaseTag: a.releaseTag }] : []));
+    const missingByApp = await missingSecretsForActivation({
+      client,
+      githubUserId: session.githubUserId,
+      platform: config.platform,
+      source,
+      pairs,
+    });
+    if (Object.keys(missingByApp).length > 0) {
+      return NextResponse.json(
+        { error: "missing required secrets", missing: missingByApp },
+        { status: 409 },
+      );
+    }
+```
+
+Import `missingSecretsForActivation` (already imported in these files for activate). In the package copy use `getSession(req)`'s session, `cfg.platform`, and `jsonResponse(body, 409)`.
+
+- [ ] **Step 4: Run** the three suites (`routes.test.ts` ×2, `launch-routes.test.ts`) → PASS. Then `pnpm --filter @aomi-labs/deploy build`, `pnpm --filter aomi-build type-check`, `pnpm --filter portal type-check`.
+
+### Part B — gate the promote button in DeploymentsTab
+
+- [ ] **Step 5: Write the failing test** in `deployments-tab.test.tsx`:
+
+```tsx
+it("disables Promote for a deployment whose app has a missing required secret", () => {
+  const detail = makeDetail({
+    deployments: [{ deploymentId: "dep_1", apps: ["binance"], releaseTags: ["v1"], current: false }],
+    requiredSecrets: { binance: { slots: [], missing: ["BINANCE_API_KEY"] } },
+  });
+  render(<DeploymentsTab detail={detail} />);
+  expect(screen.getByRole("button", { name: /promote/i })).toBeDisabled();
+});
+```
+
+- [ ] **Step 6: Implement.** In `DeploymentsTab`, call `detail.loadRequiredSecrets()` in the existing mount effect. For each deployment row, compute `const secretsBlocked = deployment.apps.some((app) => detail.hasMissingSecrets(app));` and AND it into the promote button's existing `disabled` (`disabled={deploying || secretsBlocked}`), with a short reason line when blocked ("required secrets missing — set them in the Environment tab"). Do not weaken the existing `deploying`/current-state conditions.
+
+- [ ] **Step 7: Run** `pnpm --filter aomi-build exec vitest run src/features/launch/components/deployments/tabs/deployments-tab.test.tsx` → PASS.
+
+### Part C — make the wizard gate live
+
+- [ ] **Step 8:** In `oneshot-wizard.tsx`, the wizard has no `useProjectDetail`. `DeployStep` already accepts an optional `detail?: SecretsGateDetail` and calls `launchActivate` (so the 409 already protects it). Wiring a full `useProjectDetail` here is out of proportion. Instead, pass a minimal inline adapter built from a `useState`-held `deploymentRequiredSecrets` fetch keyed on `progress.appSourceId`, OR — if `progress.appSourceId` is not reliably present during the build step — leave `DeployStep` ungated in the wizard and rely on its 409 (already in place), and note this explicitly. Decide based on whether `progress.appSourceId` exists at the build step; do not fabricate a hook. If you leave it 409-only, say so in the report and add a one-line code comment in `oneshot-wizard.tsx` explaining the wizard relies on the server 409.
+
+- [ ] **Step 9: Full verification**
+
+```bash
+cd /Users/han/github/aomi-widget
+pnpm --filter aomi-build type-check && pnpm --filter aomi-build lint
+pnpm --filter portal type-check && pnpm --filter portal lint
+pnpm --filter @aomi-labs/deploy build && pnpm exec vitest run packages/deploy/test/
+pnpm --filter aomi-build exec vitest run
+pnpm --filter portal exec vitest run
+```
+All green, 0 lint errors.
+
+- [ ] **Step 10: Commit**
+
+```bash
+git add apps/aomi-build/src/server/bff/launch/routes.ts apps/portal/src/server/bff/launch/routes.ts packages/deploy/src/bff/launch-routes.ts apps/aomi-build/src/features/launch/components/deployments/tabs/deployments-tab.tsx apps/aomi-build/src/features/launch/components/oneshot-wizard.tsx apps/aomi-build/src/server/bff/launch/routes.test.ts apps/portal/src/server/bff/launch/routes.test.ts packages/deploy/test/launch-routes.test.ts apps/aomi-build/src/features/launch/components/deployments/tabs/deployments-tab.test.tsx
+git commit -m "feat(aomi-build): gate promote on required secrets (the live console path)"
+```
+
+**Constraint:** do NOT `git add -A`. There is uncommitted WIP in `use-project-detail.ts` (both apps) that must stay untouched; stage only the paths above.
