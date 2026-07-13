@@ -11,6 +11,7 @@ import {
   normalizePrivateKey,
   parseAAProvider,
   parseAAMode,
+  validateSolanaPrivateKey,
 } from "../../validation";
 
 type SvmCluster = NonNullable<CliConfig["svmCluster"]>;
@@ -64,6 +65,14 @@ export const globalArgs = {
   "api-key": {
     type: "string",
     description: "API key for non-default apps",
+  },
+  json: {
+    type: "boolean",
+    description: "Print machine-readable JSON where supported",
+  },
+  verbose: {
+    type: "boolean",
+    description: "Show extra diagnostics such as local state file paths",
   },
   "account-bearer": {
     type: "string",
@@ -135,9 +144,7 @@ function derivePublicKeyFromPrivateKey(
   try {
     return privateKeyToAccount(privateKey as `0x${string}`).address;
   } catch {
-    fatal(
-      "Invalid private key. Pass a 32-byte hex key via `--private-key` or `PRIVATE_KEY`.",
-    );
+    fatal("Invalid private key. Expected a 0x-prefixed 32-byte hex string.");
   }
 }
 
@@ -221,8 +228,9 @@ export function buildCliConfig(args: Record<string, unknown>): CliConfig {
     );
   }
 
-  const solanaPrivateKey =
-    str(args["solana-private-key"]) ?? process.env.SOLANA_PRIVATE_KEY;
+  const solanaPrivateKey = validateSolanaPrivateKey(
+    str(args["solana-private-key"]) ?? process.env.SOLANA_PRIVATE_KEY,
+  );
 
   const svmCluster = parseSvmCluster(
     str(args.cluster) ?? process.env.AOMI_SOLANA_CLUSTER,
@@ -231,6 +239,8 @@ export function buildCliConfig(args: Record<string, unknown>): CliConfig {
   return {
     baseUrl: str(args["backend-url"]) ?? process.env.AOMI_BACKEND_URL,
     apiKey: str(args["api-key"]) ?? process.env.AOMI_API_KEY,
+    json: args.json === true,
+    verbose: args.verbose === true,
     accountBearer,
     embeddedProvider,
     embeddedProviderToken,

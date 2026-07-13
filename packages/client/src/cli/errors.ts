@@ -1,4 +1,7 @@
-export function mapDeployHttpError(status: number, message: string): DeployCliError {
+export function mapDeployHttpError(
+  status: number,
+  message: string,
+): DeployCliError {
   if (status === 401 || status === 403) {
     return new DeployCliError("AUTH_FAILED", message);
   }
@@ -45,5 +48,8 @@ export function fatal(message: string): never {
     console.error(`${DIM}${detail}${RESET}`);
   }
 
-  throw new CliExit(1);
+  if (process.env.AOMI_CLI_STRICT_EXIT === "1") {
+    throw new CliExit(1);
+  }
+  process.exit(1);
 }

@@ -347,20 +347,37 @@ export async function upsertWallet(input: {
   const address = canonicalAddress(input.family, input.address);
   const authProvider = await resolveWalletAuthProvider(input, db);
   const now = nowSeconds();
+  const walletMetadata =
+    input.label !== undefined ? { display_label: input.label } : {};
 
   const result = await db.query(
     `insert into public_keys
-       (chain_type, address, user_id, auth_provider_id, is_primary, created_at, updated_at)
-     values ($1, $2, $3, $4, $5, $6, $6)
+       (chain_type, address, user_id, auth_provider_id, is_primary,
+        authorization_metadata, created_at, updated_at)
+     values ($1, $2, $3, $4, $5, $6::jsonb, $7, $7)
      on conflict (chain_type, address)
      do update set
        user_id = excluded.user_id,
        auth_provider_id = excluded.auth_provider_id,
        is_primary = excluded.is_primary,
+       authorization_metadata =
+         case
+           when $6::jsonb ? 'display_label'
+             then public_keys.authorization_metadata || $6::jsonb
+           else public_keys.authorization_metadata
+         end,
        updated_at = excluded.updated_at
      where public_keys.user_id = excluded.user_id
      returning *`,
-    [chainType, address, input.userId, authProvider?.id ?? null, false, now],
+    [
+      chainType,
+      address,
+      input.userId,
+      authProvider?.id ?? null,
+      false,
+      JSON.stringify(walletMetadata),
+      now,
+    ],
   );
   if (!result.rows[0]) {
     throw new Error("wallet_already_linked_to_another_account");
@@ -498,13 +515,10 @@ export async function updateWalletLabel(input: {
 }): Promise<DbAomiWallet | null> {
   const db = input.db ?? getPool();
   await db.query(
-    `update auth_providers ap
-        set provider_metadata = provider_metadata || $3::jsonb,
+    `update public_keys
+        set authorization_metadata = authorization_metadata || $3::jsonb,
             updated_at = $4
-       from public_keys pk
-      where pk.auth_provider_id = ap.id
-        and pk.id = $1
-        and pk.user_id = $2`,
+      where id = $1 and user_id = $2`,
     [
       Number(input.walletId),
       input.userId,
@@ -721,7 +735,6 @@ async function resolveWalletAuthProvider(
       userId: input.userId,
       provider,
       subject,
-      displayLabel: input.label,
       db,
     });
     return { id: Number(identity.id), provider };
@@ -774,7 +787,8 @@ function mapIdentity(row: Row): DbAomiAuthIdentity {
 function mapWallet(row: Row, provider: string | null): DbAomiWallet {
   const family = walletFamily(String(row.chain_type));
   const address = String(row.address);
-  const metadata = asRecord(row.wallet_provider_metadata);
+  const walletMetadata = asRecord(row.authorization_metadata);
+  const providerMetadata = asRecord(row.wallet_provider_metadata);
   return {
     id: String(row.id),
     userId: String(row.user_id),
@@ -787,8 +801,10 @@ function mapWallet(row: Row, provider: string | null): DbAomiWallet {
     provider: provider ? publicProvider(provider) : null,
     providerWalletId: null,
     linkedVia: provider ? publicProvider(provider) : "import",
-    label: optionalString(metadata.display_label),
-    displayMetadata: {},
+    label:
+      optionalString(walletMetadata.display_label) ??
+      optionalString(providerMetadata.display_label),
+    displayMetadata: walletMetadata,
     verifiedAt: secondsToDate(row.created_at),
     lastSeenAt: secondsToDate(row.updated_at),
     revokedAt: null,

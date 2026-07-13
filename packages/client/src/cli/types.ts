@@ -7,6 +7,8 @@ export type CliEmbeddedProvider = "para" | "privy";
 export type CliConfig = {
   baseUrl?: string;
   apiKey?: string;
+  json?: boolean;
+  verbose?: boolean;
   accountBearer?: string;
   /** Legacy persisted session token slot. Prefer `auth.sessionToken`. */
   sessionCookie?: string;

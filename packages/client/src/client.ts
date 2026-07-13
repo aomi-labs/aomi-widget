@@ -195,11 +195,26 @@ type ThreadWire = {
   session_id?: string;
   title?: string | null;
   is_archived?: boolean;
+  last_active_at?: number | string;
 };
 
 function normalizeThreadWire(wire: ThreadWire): AomiThread {
-  const { thread_id, session_id, ...rest } = wire;
-  return { ...rest, session_id: session_id ?? thread_id ?? "" } as AomiThread;
+  const { thread_id, session_id, last_active_at, ...rest } = wire;
+  const normalizedLastActiveAt =
+    typeof last_active_at === "number"
+      ? last_active_at
+      : typeof last_active_at === "string"
+        ? Number(last_active_at)
+        : undefined;
+  return {
+    ...rest,
+    session_id: session_id ?? thread_id ?? "",
+    last_active_at:
+      normalizedLastActiveAt === undefined ||
+      Number.isNaN(normalizedLastActiveAt)
+        ? undefined
+        : normalizedLastActiveAt,
+  } as AomiThread;
 }
 
 function withSessionHeader(sessionId: string, init?: HeadersInit): HeadersInit {

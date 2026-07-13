@@ -7,13 +7,20 @@ export const YELLOW = "\x1b[33m";
 export const GREEN = "\x1b[32m";
 export const RESET = "\x1b[0m";
 
-export function printDataFileLocation(): void {
+export function printDataFileLocation(options?: { verbose?: boolean }): void {
+  if (options?.verbose !== true) {
+    return;
+  }
   const activeFile = getActiveStateFilePath();
   if (activeFile) {
     console.log(`Data stored at ${activeFile} 📝`);
     return;
   }
   console.log(`Data stored under ${STATE_ROOT_DIR} 📝`);
+}
+
+export function printJson(value: unknown): void {
+  console.log(JSON.stringify(value, null, 2));
 }
 
 export function printToolUpdate(event: AomiSSEEvent): void {
@@ -41,10 +48,11 @@ export function getToolNameFromEvent(event: AomiSSEEvent): string {
   );
 }
 
-export function getToolResultFromEvent(event: AomiSSEEvent): string | undefined {
+export function getToolResultFromEvent(
+  event: AomiSSEEvent,
+): string | undefined {
   return (
-    (event.result as string | undefined) ??
-    (event.output as string | undefined)
+    (event.result as string | undefined) ?? (event.output as string | undefined)
   );
 }
 
