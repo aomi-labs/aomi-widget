@@ -1,0 +1,12 @@
+@import "@aomi-labs/widget-lib/styles.css";
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 1rem;
+  background: #ececf0;
+  font-family: var(--font-geist-sans);
+}

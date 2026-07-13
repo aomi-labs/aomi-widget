@@ -5,45 +5,72 @@ description: The pre-built chat shell with sidebar, thread management, and contr
 
 # AomiFrame
 
-`AomiFrame` is the main widget component. It provides a complete chat interface with a sidebar, thread list, control bar, and message composer.
+`AomiFrame` is the advanced chat shell: sidebar, thread list, controls, and
+composer. Most consumers should mount [`AomiWidget`](/docs/build/quickstart),
+which wraps this frame with Portal auth/account transport, wallet providers,
+network catalogs, and execution defaults. Use `AomiFrame` when the host needs
+to own that composition.
 
 <WidgetDemo />
 
 ## Simple Usage
 
-Drop it into any page for a working chat interface:
+Mount it inside the provider tree required by your application:
 
 ```tsx
-import { AomiFrame } from "@/components/aomi-frame";
+import { AomiFrame, AomiWalletKitProvider } from "@aomi-labs/widget-lib";
+import "@aomi-labs/widget-lib/styles.css";
 
 export default function ChatPage() {
-  return <AomiFrame height="600px" />;
+  const portalUrl = "https://chat.aomi.dev";
+  return (
+    <AomiWalletKitProvider
+      auth={false}
+      account={{ mode: "aomi-backend", baseUrl: portalUrl }}
+    >
+      <AomiFrame
+        backendUrl={portalUrl}
+        clientOptions={{ credentials: "include" }}
+        height="600px"
+      />
+    </AomiWalletKitProvider>
+  );
 }
 ```
 
 ## Props
 
-| Prop | Type | Default | Description |
-| --- | --- | --- | --- |
-| `width` | `CSSProperties["width"]` | `"100%"` | Container width |
-| `height` | `CSSProperties["height"]` | `"80vh"` | Container height |
-| `className` | `string` | -- | Additional CSS classes |
-| `style` | `CSSProperties` | -- | Inline styles |
-| `walletPosition` | `"header" \| "footer" \| null` | `"footer"` | Wallet button placement in sidebar |
-| `backendUrl` | `string` | `env` or `localhost:8080` | Backend API URL |
+| Prop             | Type                                  | Default                   | Description                                                    |
+| ---------------- | ------------------------------------- | ------------------------- | -------------------------------------------------------------- |
+| `width`          | `CSSProperties["width"]`              | `"100%"`                  | Container width                                                |
+| `height`         | `CSSProperties["height"]`             | `"80vh"`                  | Container height                                               |
+| `className`      | `string`                              | --                        | Additional CSS classes                                         |
+| `style`          | `CSSProperties`                       | --                        | Inline styles                                                  |
+| `walletPosition` | `"header" \| "footer" \| null`        | `"footer"`                | Wallet button placement in sidebar                             |
+| `backendUrl`     | `string`                              | `env` or `localhost:8080` | Runtime API URL; use Portal for browser account auth           |
+| `clientOptions`  | `AomiClientOptions` without `baseUrl` | --                        | Transport policy, including credentialed cross-origin requests |
 
-The `backendUrl` resolves in this order: the prop value, `NEXT_PUBLIC_BACKEND_URL` environment variable, then `http://localhost:8080`.
+The `backendUrl` resolves in this order: the prop value,
+`NEXT_PUBLIC_BACKEND_URL`, then `http://localhost:8080`. Unlike `AomiWidget`,
+`AomiFrame` does not automatically align account and runtime URLs or enable
+credentialed transport. When targeting cross-origin Portal, pass
+`clientOptions={{ credentials: "include" }}` and configure the surrounding
+account provider with the same Portal origin.
 
 ## Compound Component Pattern
 
 For advanced layouts, use the compound components: `AomiFrame.Root`, `AomiFrame.Header`, and `AomiFrame.Composer`.
 
 ```tsx
-import { AomiFrame } from "@/components/aomi-frame";
+import { AomiFrame } from "@aomi-labs/widget-lib";
 
 export default function CustomLayout() {
   return (
-    <AomiFrame.Root height="600px" backendUrl="https://api.example.com">
+    <AomiFrame.Root
+      height="600px"
+      backendUrl="https://chat.aomi.dev"
+      clientOptions={{ credentials: "include" }}
+    >
       <AomiFrame.Header
         withControl={true}
         controlBarProps={{
@@ -67,14 +94,17 @@ The root container that provides all contexts: runtime provider, sidebar, and th
 <AomiFrame.Root
   width="100%"
   height="600px"
-  backendUrl="https://api.example.com"
+  backendUrl="https://chat.aomi.dev"
+  clientOptions={{ credentials: "include" }}
   walletPosition="footer"
 >
   {/* Header and Composer */}
 </AomiFrame.Root>
 ```
 
-**Props:** Same as the top-level `AomiFrame` (`width`, `height`, `className`, `style`, `walletPosition`, `backendUrl`), plus `children`.
+**Props:** Same as the top-level `AomiFrame` (`width`, `height`, `className`,
+`style`, `walletPosition`, `backendUrl`, and runtime/client options), plus
+`children`.
 
 ### AomiFrame.Header
 
@@ -94,32 +124,29 @@ The header bar with sidebar trigger, thread title breadcrumb, and optional contr
 </AomiFrame.Header>
 ```
 
-| Prop | Type | Default | Description |
-| --- | --- | --- | --- |
-| `withControl` | `boolean` | `false` | Show the control bar in the header |
-| `controlBarProps` | `ControlBarProps` | -- | Props passed to the ControlBar |
-| `className` | `string` | -- | Additional CSS classes |
-| `children` | `ReactNode` | -- | Extra content appended to the header |
+| Prop              | Type              | Default | Description                          |
+| ----------------- | ----------------- | ------- | ------------------------------------ |
+| `withControl`     | `boolean`         | `false` | Show the control bar in the header   |
+| `controlBarProps` | `ControlBarProps` | --      | Props passed to the ControlBar       |
+| `className`       | `string`          | --      | Additional CSS classes               |
+| `children`        | `ReactNode`       | --      | Extra content appended to the header |
 
 ### AomiFrame.Composer
 
 The main content area containing the message list and input composer.
 
 ```tsx
-<AomiFrame.Composer
-  withControl={false}
-  controlBarProps={{ hideModel: true }}
->
+<AomiFrame.Composer withControl={false} controlBarProps={{ hideModel: true }}>
   {/* Additional content below messages */}
 </AomiFrame.Composer>
 ```
 
-| Prop | Type | Default | Description |
-| --- | --- | --- | --- |
-| `withControl` | `boolean` | `false` | Show inline controls in the composer area |
-| `controlBarProps` | `ControlBarProps` | -- | Props passed to the inline ControlBar |
-| `className` | `string` | -- | Additional CSS classes |
-| `children` | `ReactNode` | -- | Extra content below the thread |
+| Prop              | Type              | Default | Description                               |
+| ----------------- | ----------------- | ------- | ----------------------------------------- |
+| `withControl`     | `boolean`         | `false` | Show inline controls in the composer area |
+| `controlBarProps` | `ControlBarProps` | --      | Props passed to the inline ControlBar     |
+| `className`       | `string`          | --      | Additional CSS classes                    |
+| `children`        | `ReactNode`       | --      | Extra content below the thread            |
 
 ## ControlBar Integration
 
@@ -129,11 +156,11 @@ The ControlBar provides model selection, app switching, API key input, wallet co
 <AomiFrame.Header
   withControl={true}
   controlBarProps={{
-    hideModel: false,      // Show model selector
-    hideApp: false,         // Show app/agent selector
-    hideApiKey: true,       // Hide API key input
-    hideWallet: true,       // Hide wallet connect
-    hideNetwork: false,     // Show network selector
+    hideModel: false, // Show model selector
+    hideApp: false, // Show app/agent selector
+    hideApiKey: true, // Hide API key input
+    hideWallet: true, // Hide wallet connect
+    hideNetwork: false, // Show network selector
   }}
 />
 ```
@@ -173,7 +200,8 @@ You can also place controls in the composer area instead of the header:
 
 ## Customization
 
-Since `aomi-frame.tsx` is a source file in your project, you can edit it directly. Common customizations:
+Package consumers can compose the public API; registry consumers can also edit
+the copied `aomi-frame.tsx` source directly. Common customizations:
 
 - **Remove the sidebar** by removing the `ThreadListSidebar` component
 - **Add a custom header** by replacing the `Header` compound component

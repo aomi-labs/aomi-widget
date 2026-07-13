@@ -10,15 +10,16 @@ npm install @aomi-labs/react @assistant-ui/react react react-dom
 pnpm add @aomi-labs/react @assistant-ui/react react react-dom
 ```
 
-Optional dependencies when wiring wallet UI through Para + wagmi:
+Optional dependencies when wiring your own external wallet UI:
 
 ```bash
 pnpm add wagmi viem
 ```
 
-If you use the registry-installed `AomiFrame` from `@aomi-labs/widget-lib`,
-wallet behavior comes from the surrounding Para + wagmi provider tree.
-`@aomi-labs/react` does not ship built-in wallet providers.
+`@aomi-labs/react` is headless and does not ship auth/account or wallet
+providers. Use package-level `AomiWidget` from `@aomi-labs/widget-lib` for the
+complete Para, Privy, or providerless/SIWE integration. Use this package
+directly only when the host intends to own that composition.
 
 ## Quick Start
 
@@ -29,7 +30,10 @@ import { AomiRuntimeProvider, useAomiRuntime } from "@aomi-labs/react";
 
 function App() {
   return (
-    <AomiRuntimeProvider backendUrl="https://api.aomi.dev">
+    <AomiRuntimeProvider
+      backendUrl="https://chat.aomi.dev"
+      clientOptions={{ credentials: "include" }}
+    >
       <Chat />
     </AomiRuntimeProvider>
   );
@@ -55,10 +59,17 @@ function Chat() {
 
 Root provider that composes thread, user, event, notification, and control contexts.
 
-| Prop | Default | Description |
-|------|---------|-------------|
-| `backendUrl` | `"http://localhost:8080"` | Aomi backend URL |
-| `children` | — | React children |
+| Prop            | Default                   | Description                                              |
+| --------------- | ------------------------- | -------------------------------------------------------- |
+| `backendUrl`    | `"http://localhost:8080"` | Runtime API URL; use Portal for browser account sessions |
+| `clientOptions` | --                        | `AomiClient` options such as `credentials: "include"`    |
+| `children`      | --                        | React children                                           |
+
+When a custom UI targets Portal from another origin, pass
+`clientOptions={{ credentials: "include" }}` and have Portal register the exact
+consumer origin in `AOMI_TRUSTED_ORIGINS`. The headless runtime does not mount
+BetterAuth, exchange provider credentials, or resolve the canonical account for
+you.
 
 ## Hooks
 
@@ -70,69 +81,69 @@ Returns an `AomiRuntimeApi` object with:
 
 **User API**
 
-| Property | Description |
-|----------|-------------|
-| `user` | Current user state (wallet address, chain, etc.) |
-| `setUser(data)` | Update user state (partial merge) |
-| `onUserStateChange(cb)` | Subscribe to user state changes |
+| Property                | Description                                      |
+| ----------------------- | ------------------------------------------------ |
+| `user`                  | Current user state (wallet address, chain, etc.) |
+| `setUser(data)`         | Update user state (partial merge)                |
+| `onUserStateChange(cb)` | Subscribe to user state changes                  |
 
 **Thread API**
 
-| Property | Description |
-|----------|-------------|
-| `currentThreadId` | Active thread ID |
-| `threadMetadata` | Map of all thread metadata |
-| `createThread()` | Create a new thread |
-| `deleteThread(id)` | Delete a thread |
-| `renameThread(id, title)` | Rename a thread |
-| `selectThread(id)` | Switch to a thread |
+| Property                  | Description                |
+| ------------------------- | -------------------------- |
+| `currentThreadId`         | Active thread ID           |
+| `threadMetadata`          | Map of all thread metadata |
+| `createThread()`          | Create a new thread        |
+| `deleteThread(id)`        | Delete a thread            |
+| `renameThread(id, title)` | Rename a thread            |
+| `selectThread(id)`        | Switch to a thread         |
 
 **Chat API**
 
-| Property | Description |
-|----------|-------------|
-| `isRunning` | Whether the agent is generating |
-| `getMessages(threadId?)` | Get messages for a thread |
-| `sendMessage(text)` | Send a message |
-| `cancelGeneration()` | Cancel current generation |
+| Property                 | Description                     |
+| ------------------------ | ------------------------------- |
+| `isRunning`              | Whether the agent is generating |
+| `getMessages(threadId?)` | Get messages for a thread       |
+| `sendMessage(text)`      | Send a message                  |
+| `cancelGeneration()`     | Cancel current generation       |
 
 **Wallet API**
 
-| Property | Description |
-|----------|-------------|
-| `pendingWalletRequests` | Queued wallet requests |
+| Property                           | Description               |
+| ---------------------------------- | ------------------------- |
+| `pendingWalletRequests`            | Queued wallet requests    |
 | `resolveWalletRequest(id, result)` | Complete a wallet request |
-| `rejectWalletRequest(id, error?)` | Reject a wallet request |
+| `rejectWalletRequest(id, error?)`  | Reject a wallet request   |
 
 **Event API**
 
-| Property | Description |
-|----------|-------------|
-| `subscribe(type, cb)` | Subscribe to backend events |
-| `sendSystemCommand(event)` | Send a system command |
-| `sseStatus` | SSE connection status |
+| Property                   | Description                 |
+| -------------------------- | --------------------------- |
+| `subscribe(type, cb)`      | Subscribe to backend events |
+| `sendSystemCommand(event)` | Send a system command       |
+| `sseStatus`                | SSE connection status       |
 
 ### Other Hooks
 
-| Hook | Description |
-|------|-------------|
-| `useUser()` | User/wallet state context |
-| `useThreadContext()` | Thread management context |
-| `useControl()` | Model/namespace/API key state |
-| `useNotification()` | Toast notification context |
-| `useEventContext()` | Raw event system access |
-| `useWalletHandler()` | Wallet request handler for custom adapter implementations |
-| `useNotificationHandler()` | Notification event handler |
+| Hook                       | Description                                               |
+| -------------------------- | --------------------------------------------------------- |
+| `useUser()`                | User/wallet state context                                 |
+| `useThreadContext()`       | Thread management context                                 |
+| `useControl()`             | Model/namespace/API key state                             |
+| `useNotification()`        | Toast notification context                                |
+| `useEventContext()`        | Raw event system access                                   |
+| `useWalletHandler()`       | Wallet request handler for custom adapter implementations |
+| `useNotificationHandler()` | Notification event handler                                |
 
 ## Utilities
 
 ```ts
 import {
-  cn,                // clsx + tailwind-merge
-  formatAddress,     // 0x1234...5678
-  getNetworkName,    // chainId → "Ethereum", "Polygon", etc.
-  getChainInfo,      // chainId → { name, symbol, explorer }
-  SUPPORTED_CHAINS,  // supported chain info map
+  cn, // clsx + tailwind-merge
+  formatAddress, // 0x1234...5678
+  getNetworkName, // chainId → "Ethereum", "Polygon", etc.
+  getChainInfo, // chainId → { name, symbol, explorer }
+  SUPPORTED_CHAINS, // supported chain info map
 } from "@aomi-labs/react";
 ```
 

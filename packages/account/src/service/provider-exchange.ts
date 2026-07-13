@@ -8,6 +8,7 @@ import type {
   AomiAccountResponse,
   AomiUserId,
   DbAomiUser,
+  SignalRef,
   SignalResolution,
 } from "../types";
 import {
@@ -23,6 +24,7 @@ import {
   linkProviderIdentity,
   syncProviderAttestedWallets,
 } from "./account-service";
+import { normalizeWalletAddress } from "./wallet-normalization";
 
 export {
   createDefaultProviderCredentialVerifiers,
@@ -99,6 +101,7 @@ export async function exchangeProviderForExistingSession(input: {
       email: seed.email,
       emailVerified: seed.emailVerified,
       name: seed.name,
+      accessSignals: providerAccessSignals(verified),
     });
   } catch (error) {
     if (isIdentityAlreadyLinkedError(error)) {
@@ -123,4 +126,31 @@ export async function exchangeProviderForExistingSession(input: {
       betterAuthUserId: input.betterAuthUserId,
     }),
   };
+}
+
+export function providerAccessSignals(
+  verified: VerifiedProviderTokenCredential,
+): SignalRef[] {
+  const signals: SignalRef[] = [
+    {
+      type: "identity",
+      provider: verified.provider,
+      subject: verified.token.subject,
+    },
+  ];
+  if (verified.token.email && verified.token.emailVerified) {
+    signals.push({
+      type: "email",
+      email: verified.token.email.trim().toLowerCase(),
+    });
+  }
+  for (const wallet of verified.token.walletAttestations ?? []) {
+    signals.push({
+      type: "wallet",
+      family: wallet.family,
+      normalizedAddress: normalizeWalletAddress(wallet.family, wallet.address),
+      chainScope: wallet.chainScope,
+    });
+  }
+  return signals;
 }

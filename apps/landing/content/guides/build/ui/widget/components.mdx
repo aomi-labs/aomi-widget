@@ -5,15 +5,36 @@ description: Browse all available UI components from the Aomi registry.
 
 # Component Catalog
 
-All UI components available through the Aomi shadcn registry. Each component can be installed individually or comes bundled when you install `aomi-frame`.
+The package-level `AomiWidget` is the default integration. The components below
+are available for advanced package composition or as source-owned entries in
+the Aomi shadcn registry.
 
 ## Aomi Components
 
 These components are maintained by Aomi and include features specific to the platform.
 
+### AomiWidget
+
+The complete consumer boundary with Portal auth/account transport, wallet
+providers, chains, and execution defaults.
+
+```bash
+npm install @aomi-labs/widget-lib
+```
+
+```tsx
+import { AomiWidget } from "@aomi-labs/widget-lib";
+import "@aomi-labs/widget-lib/styles.css";
+
+<AomiWidget apiUrl="https://chat.aomi.dev" />;
+```
+
+For copied source, install `https://aomi.dev/r/aomi-widget.json`.
+
 ### AomiFrame
 
-The main chat shell with sidebar, thread management, and all runtime wiring.
+The lower-level chat shell with sidebar, thread management, and runtime wiring.
+It does not configure embedded auth or canonical account transport by itself.
 
 ```bash
 npx shadcn add https://aomi.dev/r/aomi-frame.json
@@ -22,7 +43,7 @@ npx shadcn add https://aomi.dev/r/aomi-frame.json
 ```tsx
 import { AomiFrame } from "@/components/aomi-frame";
 
-<AomiFrame height="600px" />
+<AomiFrame height="600px" />;
 ```
 
 ### AssistantThread
@@ -36,12 +57,12 @@ npx shadcn add https://aomi.dev/r/assistant-thread.json
 ```tsx
 import { Thread } from "@/components/assistant-ui/thread";
 
-<Thread />
+<Thread />;
 ```
 
 ### ThreadList
 
-Displays all conversation threads in a list with create, rename, and delete actions.
+Displays conversation threads with create, rename, archive, and restore actions.
 
 ```bash
 npx shadcn add https://aomi.dev/r/assistant-thread-list.json
@@ -50,7 +71,7 @@ npx shadcn add https://aomi.dev/r/assistant-thread-list.json
 ```tsx
 import { ThreadList } from "@/components/assistant-ui/thread-list";
 
-<ThreadList />
+<ThreadList />;
 ```
 
 ### ThreadListSidebar
@@ -64,7 +85,7 @@ npx shadcn add https://aomi.dev/r/threadlist-sidebar.json
 ```tsx
 import { ThreadListSidebar } from "@/components/assistant-ui/threadlist-sidebar";
 
-<ThreadListSidebar walletPosition="footer" />
+<ThreadListSidebar walletPosition="footer" />;
 ```
 
 ### ToolFallback
@@ -78,7 +99,7 @@ npx shadcn add https://aomi.dev/r/tool-fallback.json
 ```tsx
 import { ToolFallback } from "@/components/assistant-ui/tool-fallback";
 
-<ToolFallback />
+<ToolFallback />;
 ```
 
 ### Notification
@@ -92,7 +113,7 @@ npx shadcn add https://aomi.dev/r/notification.json
 ```tsx
 import { NotificationToaster } from "@/components/ui/notification";
 
-<NotificationToaster />
+<NotificationToaster />;
 ```
 
 ## Control Bar Components
@@ -125,7 +146,7 @@ Dropdown to select the AI model. Fetches available models from the backend.
 ```tsx
 import { ModelSelect } from "@/components/control-bar";
 
-<ModelSelect placeholder="Choose model" className="w-[200px]" />
+<ModelSelect placeholder="Choose model" className="w-[200px]" />;
 ```
 
 ### AppSelect
@@ -135,7 +156,7 @@ Dropdown to select the app (AI agent/application).
 ```tsx
 import { AppSelect } from "@/components/control-bar";
 
-<AppSelect placeholder="Choose agent" className="w-[200px]" />
+<AppSelect placeholder="Choose agent" className="w-[200px]" />;
 ```
 
 ### ApiKeyInput
@@ -148,7 +169,7 @@ import { ApiKeyInput } from "@/components/control-bar";
 <ApiKeyInput
   title="API Key"
   description="Enter your API key to authenticate."
-/>
+/>;
 ```
 
 ### ConnectButton
@@ -161,7 +182,7 @@ import { ConnectButton } from "@/components/control-bar";
 <ConnectButton
   connectLabel="Connect Wallet"
   onConnectionChange={(connected) => console.log(connected)}
-/>
+/>;
 ```
 
 ### NetworkSelect
@@ -171,28 +192,28 @@ Dropdown to switch between blockchain networks.
 ```tsx
 import { NetworkSelect } from "@/components/control-bar";
 
-<NetworkSelect />
+<NetworkSelect />;
 ```
 
 ## shadcn Primitives
 
 These standard UI primitives are installed as dependencies. They come from the official shadcn registry.
 
-| Component | Description |
-| --- | --- |
-| `Button` | Clickable button with variants |
-| `Input` | Text input field |
-| `Label` | Form label |
-| `Card` | Content container |
-| `Dialog` | Modal dialog |
-| `Sheet` | Side panel overlay |
-| `Popover` | Floating content panel |
-| `Command` | Command palette / search |
-| `Drawer` | Bottom drawer |
-| `Sidebar` | Collapsible sidebar layout |
-| `Separator` | Visual divider |
-| `Breadcrumb` | Navigation breadcrumb |
-| `Tooltip` | Hover tooltip |
+| Component    | Description                    |
+| ------------ | ------------------------------ |
+| `Button`     | Clickable button with variants |
+| `Input`      | Text input field               |
+| `Label`      | Form label                     |
+| `Card`       | Content container              |
+| `Dialog`     | Modal dialog                   |
+| `Sheet`      | Side panel overlay             |
+| `Popover`    | Floating content panel         |
+| `Command`    | Command palette / search       |
+| `Drawer`     | Bottom drawer                  |
+| `Sidebar`    | Collapsible sidebar layout     |
+| `Separator`  | Visual divider                 |
+| `Breadcrumb` | Navigation breadcrumb          |
+| `Tooltip`    | Hover tooltip                  |
 
 ## Dependency Tree
 

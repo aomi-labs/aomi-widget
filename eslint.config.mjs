@@ -18,6 +18,7 @@ const eslintConfig = [
     ignores: [
       "**/.next/**",
       "**/dist/**",
+      "**/package-dist/**",
       "**/build/**",
       "**/.turbo/**",
       "**/node_modules/**",
@@ -29,6 +30,7 @@ const eslintConfig = [
     ignores: [
       "**/.next/**",
       "**/dist/**",
+      "**/package-dist/**",
       "**/build/**",
       "**/node_modules/**",
       "**/.turbo/**",

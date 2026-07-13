@@ -1,31 +1,44 @@
 {
   "name": "@aomi-labs/widget-lib",
-  "version": "1.4.2",
+  "version": "1.4.3",
   "description": "Shadcn registry for the Aomi widget.",
   "type": "module",
-  "main": "./src/index.ts",
+  "main": "./package-dist/index.js",
+  "module": "./package-dist/index.js",
+  "types": "./package-dist/index.d.ts",
   "exports": {
-    ".": "./src/index.ts",
+    ".": {
+      "types": "./package-dist/index.d.ts",
+      "import": "./package-dist/index.js"
+    },
     "./aomi-frame": "./src/components/aomi-frame.tsx",
-    "./aomi-frame-collapsible": "./src/components/aomi-frame-collapsible.tsx",
     "./control-bar": "./src/components/control-bar/index.tsx",
     "./components/ui/*": "./src/components/ui/*.tsx",
     "./components/assistant-ui/*": "./src/components/assistant-ui/*.tsx",
     "./components/control-bar/*": "./src/components/control-bar/*.tsx",
     "./hooks/*": "./src/hooks/*.ts",
     "./providers/base-account": "./src/lib/wallet-kit/providers/base-account.tsx",
-    "./providers/para": "./src/lib/wallet-kit/providers/para/index.ts",
-    "./providers/privy": "./src/lib/wallet-kit/providers/privy/index.ts",
-    "./styles.css": "./src/themes/default.css",
+    "./providers/para": {
+      "types": "./package-dist/providers/para.d.ts",
+      "import": "./package-dist/providers/para.js"
+    },
+    "./providers/privy": {
+      "types": "./package-dist/providers/privy.d.ts",
+      "import": "./package-dist/providers/privy.js"
+    },
+    "./styles.css": "./package-dist/styles.css",
     "./themes/*.css": "./src/themes/*.css"
   },
   "files": [
     "src",
-    "dist"
+    "dist",
+    "package-dist"
   ],
   "scripts": {
-    "build": "tsx scripts/build-registry.js",
-    "clean:dist": "rm -rf dist"
+    "build": "pnpm run build:npm && pnpm run build:registry",
+    "build:npm": "tsup && node scripts/build-package-css.mjs",
+    "build:registry": "tsx scripts/build-registry.js",
+    "clean:dist": "rm -rf dist package-dist"
   },
   "dependencies": {
     "@aomi-labs/client": "workspace:*",
@@ -65,6 +78,9 @@
     "react-dom": "^18.0.0 || ^19.0.0"
   },
   "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.0",
+    "postcss": "^8.5.0",
+    "tsup": "^8.5.1",
     "tsx": "^4.21.0"
   }
 }

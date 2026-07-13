@@ -62,6 +62,16 @@ export type AuthConfig =
     }
   | false;
 
+/** High-level auth configuration consumed by the complete `AomiWidget`. */
+export type AomiWidgetAuthConfig =
+  | false
+  | {
+      provider: AuthProviderId;
+      methods?: readonly AuthMethodId[];
+      /** Provider-specific wallet-kit config supplied by an auth helper. */
+      providers?: ProvidersConfig;
+    };
+
 export type EvmWalletsConfig = {
   chains?: readonly [Chain, ...Chain[]];
   preset?: EvmWalletPreset;

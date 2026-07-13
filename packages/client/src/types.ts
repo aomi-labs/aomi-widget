@@ -37,6 +37,8 @@ export type AomiClientOptions = {
   baseUrl: string;
   /** Optional fetch implementation for payment-aware browser transports and tests. */
   fetch?: typeof fetch;
+  /** Credentials policy applied to REST, polling, and native SSE fetches. */
+  credentials?: RequestCredentials;
   /** Default API key for non-default apps */
   apiKey?: string;
   /** Supplies a short-lived Aomi account bearer for REST and SSE requests. */

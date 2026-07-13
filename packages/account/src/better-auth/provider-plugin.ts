@@ -11,7 +11,10 @@ import {
   getOrCreateAomiUserForBetterAuthSession,
   isIdentityAlreadyLinkedError,
 } from "../service/account-service";
-import { linkVerifiedProviderCredentialForUser } from "../service/provider-exchange";
+import {
+  linkVerifiedProviderCredentialForUser,
+  providerAccessSignals,
+} from "../service/provider-exchange";
 import { buildAccountResponse } from "../db/queries";
 import type { AomiAccountCredential } from "../types";
 
@@ -94,13 +97,7 @@ export function aomiProviderAuthPlugin(): BetterAuthPlugin {
               email: seed.email,
               emailVerified: seed.emailVerified,
               name: seed.name,
-              accessSignals: [
-                {
-                  type: "identity",
-                  provider: verified.provider,
-                  subject: verified.token.subject,
-                },
-              ],
+              accessSignals: providerAccessSignals(verified),
             });
           } catch (error) {
             if (isIdentityAlreadyLinkedError(error)) {

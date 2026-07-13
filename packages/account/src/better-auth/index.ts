@@ -1,3 +1,7 @@
 export { auth } from "./auth";
-export { readAccountAuthEnv, type AccountAuthEnv } from "./env";
+export {
+  readAccountAuthEnv,
+  resolveAccountTrustedOrigins,
+  type AccountAuthEnv,
+} from "./env";
 export { verifySiweMessage } from "./siwe";

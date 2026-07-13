@@ -24,7 +24,7 @@ export const registry: RegistryComponent[] = [
   },
   {
     name: "aomi-frame",
-    file: "components/aomi-frame.tsx",
+    file: ["components/aomi-frame.tsx", "lib/public-env.ts"],
     dependencies: ["@aomi-labs/react"],
     registryDependencies: [
       // Theme (CSS variables required by all components)
@@ -44,9 +44,18 @@ export const registry: RegistryComponent[] = [
     description: "Full assistant shell with thread list and runtime wiring.",
   },
   {
+    name: "aomi-widget",
+    file: "components/aomi-widget.tsx",
+    dependencies: ["@aomi-labs/react"],
+    registryDependencies: [aomi("aomi-frame"), aomi("aomi-wallet-kit")],
+    description:
+      "Complete Aomi chat widget with Portal transport, account, wallet, network, and execution defaults.",
+  },
+  {
     name: "aomi-wallet-kit",
     file: [
       "lib/wallet-kit.ts",
+      "lib/public-env.ts",
       "lib/wallet-kit/index.ts",
       "lib/wallet-kit/context.tsx",
       "lib/wallet-kit/types.ts",
@@ -286,11 +295,13 @@ export const registry: RegistryComponent[] = [
     name: "aomi-para-provider",
     file: [
       "lib/wallet-kit/providers/para/index.ts",
+      "lib/public-env.ts",
       "lib/wallet-kit/providers/para/para-brand.ts",
       "lib/wallet-kit/providers/para/para-plugin.tsx",
       "lib/wallet-kit/providers/para/ParaPluginProvider.tsx",
       "lib/wallet-kit/providers/para/para-auth.ts",
       "lib/wallet-kit/providers/para/para-embedded-wallet.ts",
+      "lib/wallet-kit/providers/para/widget-auth.ts",
       "lib/wallet-kit/registry/use-wallet-registry.ts",
       "lib/wallet-kit/runtime/evm/registry-source.ts",
       "lib/wallet-kit/runtime/evm/provider.tsx",
@@ -328,6 +339,7 @@ export const registry: RegistryComponent[] = [
     name: "aomi-privy-provider",
     file: [
       "lib/wallet-kit/providers/privy/index.ts",
+      "lib/public-env.ts",
       "lib/wallet-kit/providers/privy/PrivyPluginProvider.tsx",
       "lib/wallet-kit/providers/privy/PrivyProvider.tsx",
       "lib/wallet-kit/providers/privy/privy-auth.ts",
@@ -335,6 +347,7 @@ export const registry: RegistryComponent[] = [
       "lib/wallet-kit/providers/privy/privy-plugin.tsx",
       "lib/wallet-kit/providers/privy/privy-svm.ts",
       "lib/wallet-kit/providers/privy/privy.tsx",
+      "lib/wallet-kit/providers/privy/widget-auth.ts",
       "lib/wallet-kit/providers/sources/embedded-session-source.ts",
       "lib/wallet-kit/catalog/evm-connector-catalog.ts",
       "lib/wallet-kit/catalog/wallet-ids.ts",

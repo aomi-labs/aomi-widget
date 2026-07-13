@@ -1,0 +1,5 @@
+@import "tailwindcss";
+@import "./themes/default.css";
+
+/* Generate utilities from the compiled, framework-neutral package entrypoints. */
+@source "../package-dist";

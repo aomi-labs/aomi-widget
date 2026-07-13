@@ -30,6 +30,7 @@ import type { SvmCluster, SvmNetworkOption } from "../../types";
 import type { EvmWalletsConfig, ExecutionConfig } from "../../config/types";
 import { AomiPrivyPluginProvider } from "./PrivyPluginProvider";
 import { buildPrivyClientConfig } from "./privy-auth";
+import { publicEnv } from "../../../public-env";
 
 const defaultNetworks = [
   mainnet,
@@ -63,7 +64,7 @@ export type AomiPrivyProviderProps = {
 
 function AomiPrivyProviderInner({
   children,
-  appId = process.env.NEXT_PUBLIC_PRIVY_APP_ID,
+  appId = publicEnv?.NEXT_PUBLIC_PRIVY_APP_ID,
   appName = "Aomi",
   appLogoUrl,
   networks = defaultNetworks,
@@ -71,7 +72,7 @@ function AomiPrivyProviderInner({
   loginMethods,
   execution,
   solana,
-  walletConnectProjectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID,
+  walletConnectProjectId = publicEnv?.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID,
 }: AomiPrivyProviderProps) {
   const [queryClient] = useState(() => new QueryClient());
   const { selectedEvmChainId } = useAomiWalletNetworkPreferences();

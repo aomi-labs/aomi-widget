@@ -45,7 +45,10 @@ export function normalizeSvmNetworkOptions(
 ): readonly SvmNetworkOption[] {
   const rawNetworks = config?.networks;
   if (!rawNetworks || rawNetworks.length === 0) {
-    return [buildLegacySvmNetwork(config)];
+    if (config?.cluster || config?.rpcHttpUrl || config?.rpcWsUrl) {
+      return [buildLegacySvmNetwork(config)];
+    }
+    return buildDefaultSvmNetworkOptions();
   }
 
   return rawNetworks.map((network, index) => ({

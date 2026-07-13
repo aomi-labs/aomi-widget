@@ -1,278 +1,195 @@
 ---
 title: Wallet Integration
-description: Connect wallets, sign transactions, and switch networks.
+description: Configure provider auth, external wallets, chains, and signing.
 ---
 
 # Wallet Integration
 
-Aomi widgets use the Para + wagmi provider tree directly. The registry install
-gives you the wallet UI plus `RuntimeTxHandler`; you provide the Para and wagmi
-providers in your host app.
+`AomiWidget` owns the default Para/Privy, wagmi, Solana, account, and runtime
+provider trees. Mount one component and select embedded auth with a helper, or
+omit `auth` for external-wallet/SIWE mode.
 
-## Setup
-
-### Install Dependencies
-
-If you installed the widget through `npx shadcn add https://aomi.dev/r/aomi-frame.json`,
-the wallet UI is already included. Use the setup below when you want to wire
-Para-based auth and external wallets in your host app.
+## Install
 
 ```bash
-npm install @getpara/react-sdk @getpara/evm-wallet-connectors wagmi viem @tanstack/react-query
+npm install @aomi-labs/widget-lib
 ```
 
-### Configure Para
+Import `@aomi-labs/widget-lib/styles.css` once. The CSS is precompiled and does
+not require Tailwind source scanning.
+
+## Provider modes
+
+### Para
 
 ```tsx
-"use client";
+import { AomiWidget } from "@aomi-labs/widget-lib";
+import { paraAuth } from "@aomi-labs/widget-lib/providers/para";
+import "@aomi-labs/widget-lib/styles.css";
 
-import "@getpara/react-sdk/styles.css";
-import { ParaProvider, Environment } from "@getpara/react-sdk";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { defineChain, http } from "viem";
-import { mainnet, polygon, arbitrum, base } from "wagmi/chains";
-
-const queryClient = new QueryClient();
-const walletConnectProjectId =
-  process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID ??
-  process.env.NEXT_PUBLIC_PROJECT_ID;
-
-const localhost = defineChain({
-  id: 31337,
-  name: "Localhost",
-  nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
-  rpcUrls: {
-    default: {
-      http: ["http://127.0.0.1:8545"],
-    },
-  },
-});
-
-const useAnvilForWallet = process.env.NEXT_PUBLIC_ANVIL_FOR_WALLET === "true";
-const networks = useAnvilForWallet
-  ? [localhost, mainnet, polygon, arbitrum, base]
-  : [mainnet, polygon, arbitrum, base];
-
-const transports = Object.fromEntries(
-  networks.map((chain) => [chain.id, http(chain.rpcUrls.default.http[0])]),
-);
-
-export function Providers({ children }: { children: React.ReactNode }) {
-  return (
-    <QueryClientProvider client={queryClient}>
-      <ParaProvider
-        paraClientConfig={{
-          apiKey: process.env.NEXT_PUBLIC_PARA_API_KEY!,
-          env:
-            (process.env.NEXT_PUBLIC_PARA_ENVIRONMENT as
-              | Environment
-              | undefined) ?? Environment.BETA,
-        }}
-        config={{ appName: "Your App" }}
-        paraModalConfig={{
-          disableEmailLogin: true,
-          oAuthMethods: ["GOOGLE"],
-        }}
-        externalWalletConfig={{
-          appDescription: "Your app description",
-          appUrl: "https://your-app.com",
-          wallets: [
-            "WALLETCONNECT",
-            "METAMASK",
-            "COINBASE",
-            "RAINBOW",
-            "RABBY",
-          ],
-          walletConnect: {
-            projectId: walletConnectProjectId!,
-          },
-          evmConnector: {
-            config: {
-              chains: networks,
-              transports,
-              ssr: true,
-            },
-          },
-        }}
-      >
-        {children}
-      </ParaProvider>
-    </QueryClientProvider>
-  );
-}
+<AomiWidget
+  apiUrl="https://chat.aomi.dev"
+  auth={paraAuth({
+    apiKey: process.env.NEXT_PUBLIC_PARA_API_KEY,
+    environment: "PROD",
+  })}
+/>;
 ```
 
-## Supported Chains
-
-Configure which chains are available by passing them to Para's EVM connector:
+### Privy
 
 ```tsx
-import { mainnet, polygon, arbitrum, base, optimism } from "wagmi/chains";
+import { AomiWidget } from "@aomi-labs/widget-lib";
+import { privyAuth } from "@aomi-labs/widget-lib/providers/privy";
 
-externalWalletConfig={{
-  evmConnector: {
-    config: {
+<AomiWidget
+  apiUrl="https://chat.aomi.dev"
+  auth={privyAuth({ appId: process.env.NEXT_PUBLIC_PRIVY_APP_ID })}
+/>;
+```
+
+### External wallet / SIWE
+
+```tsx
+import { AomiWidget } from "@aomi-labs/widget-lib";
+
+<AomiWidget apiUrl="https://chat.aomi.dev" />;
+```
+
+Providerless mode does not import a Para or Privy helper. It exposes configured
+external wallets, and an EVM wallet can prove ownership through Portal SIWE.
+No private key leaves the wallet.
+
+## Auth and account flow
+
+Provider auth and wallet signing are separate responsibilities:
+
+1. Para/Privy authenticates the user and exposes provider-attested wallets, or
+   an external EVM wallet signs a SIWE challenge.
+2. The widget sends the provider credential or SIWE proof to Portal.
+3. Portal verifies it and resolves the canonical Aomi account.
+4. Portal mints short-lived AccountBearers server-side when proxying protected
+   backend traffic.
+5. Transaction signing still happens in the selected browser wallet.
+
+The browser never receives Portal signing keys, provider verifier secrets, or
+backend account-bearer signing material.
+
+For cross-origin widgets, Portal must trust the exact consumer origin through
+`AOMI_TRUSTED_ORIGINS`. The provider public key/app id used in the browser must
+match Portal's Para/Privy verifier configuration.
+
+## Chains and wallets
+
+Ethereum, Arbitrum, Optimism, Base, Polygon, Sepolia, Linea, and Monad are
+available by default, alongside Solana mainnet, devnet, and testnet. Override
+the catalog only when the product needs a narrower set:
+
+```tsx
+import { arbitrum, base, mainnet, optimism, polygon } from "wagmi/chains";
+
+<AomiWidget
+  apiUrl="https://chat.aomi.dev"
+  wallets={{
+    evm: {
       chains: [mainnet, polygon, arbitrum, base, optimism],
-      transports: {
-        [mainnet.id]: http(),
-        [polygon.id]: http(),
-        [arbitrum.id]: http(),
-        [base.id]: http(),
-        [optimism.id]: http(),
-      },
+      wallets: ["metamask", "rabby", "coinbase", "baseAccount"],
+      walletConnectProjectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID,
     },
-  },
-}}
+    solana: false,
+  }}
+/>;
 ```
 
-The `NetworkSelect` component in the widget (or `getChainInfo` / `SUPPORTED_CHAINS` in the headless library) will reflect the configured chains.
+Use `walletFamilies={["evm"]}` to narrow the visible controls, or set
+`wallets.evm` / `wallets.solana` to `false` to disable a runtime entirely.
 
-## Transaction Signing Flow
+## Transaction signing flow
 
-When the AI assistant determines a transaction is needed, the following flow occurs:
+When the assistant determines that a transaction is needed:
 
+```text
+assistant tool call
+  → backend wallet request event
+  → widget review/approval UI
+  → local wallet signature
+  → transaction result returned to backend
+  → assistant continues with the result
 ```
-1. LLM emits wallet_tx_request tool call
-2. Backend sends wallet_tx_request event via SSE
-3. Frontend receives event via useWalletHandler
-4. UI prompts user to review and sign
-5. User signs with their wallet (wagmi)
-6. Frontend sends wallet:tx_complete event back to backend
-7. Backend injects transaction result into LLM context
-8. LLM continues the conversation with the result
-```
 
-### In the Widget
+`AomiWidget` includes the runtime transaction handler. The host app does not
+need to subscribe to wallet events for the default flow.
 
-The widget includes `RuntimeTxHandler` automatically. When a transaction
-request arrives, it executes through wagmi inside your Para provider tree and
-prompts the user to sign.
+## Account abstraction
 
-### In the Headless Library
-
-Handle transaction requests manually:
+The widget defaults to optional account abstraction with an external-wallet
+owner and native-wallet fallback. Customize it through `execution`:
 
 ```tsx
-import { useWalletHandler, useAomiRuntime } from "@aomi-labs/react";
-import { useSendTransaction, useSignTypedData } from "wagmi";
+<AomiWidget
+  apiUrl="https://chat.aomi.dev"
+  execution={{
+    aa: "optional",
+    provider: "alchemy",
+    modes: ["4337"],
+    owner: "external-wallet",
+    sponsorship: {
+      mode: "optional",
+      paymasterServiceUrl: "/api/paymaster",
+    },
+  }}
+/>
+```
+
+Keep paymaster and provider secrets behind a server endpoint. Only public
+provider identifiers belong in browser environment variables.
+
+## Headless signing
+
+Applications using `@aomi-labs/react` without the widget can handle requests
+manually:
+
+```tsx
+import { useAomiRuntime, useWalletHandler } from "@aomi-labs/react";
+import { useSendTransaction } from "wagmi";
 
 function WalletRequestHandler() {
   const { currentThreadId } = useAomiRuntime();
   const { pendingRequests, startProcessing, resolveRequest, rejectRequest } =
     useWalletHandler({ sessionId: currentThreadId });
-
   const { sendTransactionAsync } = useSendTransaction();
-  const { signTypedDataAsync } = useSignTypedData();
 
-  const handleRequest = async (request: WalletRequest) => {
+  async function approve(request: (typeof pendingRequests)[number]) {
     startProcessing(request.id);
-
     try {
-      if (request.kind === "transaction") {
-        const payload = request.payload as WalletTxPayload;
-        const hash = await sendTransactionAsync({
-          to: payload.to,
-          value: BigInt(payload.value ?? "0"),
-          data: payload.data,
-        });
-        resolveRequest(request.id, { txHash: hash });
-      }
-
-      if (request.kind === "eip712_sign") {
-        const payload = request.payload as WalletEip712Payload;
-        const signature = await signTypedDataAsync(payload.typedData);
-        resolveRequest(request.id, { signature });
-      }
+      if (request.kind !== "transaction") return;
+      const payload = request.payload as {
+        to: `0x${string}`;
+        value?: string;
+        data?: `0x${string}`;
+      };
+      const txHash = await sendTransactionAsync({
+        to: payload.to,
+        value: BigInt(payload.value ?? "0"),
+        data: payload.data,
+      });
+      resolveRequest(request.id, { txHash });
     } catch (error) {
-      rejectRequest(request.id, error.message);
+      rejectRequest(
+        request.id,
+        error instanceof Error ? error.message : "Wallet request failed",
+      );
     }
-  };
+  }
 
-  return (
-    <div>
-      {pendingRequests.map((req) => (
-        <div key={req.id}>
-          <p>Transaction request: {req.kind}</p>
-          <button onClick={() => handleRequest(req)}>Approve</button>
-          <button onClick={() => rejectRequest(req.id, "User rejected")}>
-            Reject
-          </button>
-        </div>
-      ))}
-    </div>
-  );
+  return pendingRequests.map((request) => (
+    <button key={request.id} onClick={() => void approve(request)}>
+      Review transaction
+    </button>
+  ));
 }
 ```
 
-## EIP-712 Typed Data Signing
-
-The AI can also request EIP-712 typed data signatures (used for gasless transactions, permit approvals, etc.). The flow is identical to transaction signing but uses `signTypedData` instead of `sendTransaction`.
-
-## Network Switching
-
-### In the Widget
-
-The `NetworkSelect` component provides a dropdown for switching chains. When the user selects a network, it calls `useSwitchChain` from wagmi and updates the Aomi runtime.
-
-### Programmatically
-
-```tsx
-import { useSwitchChain } from "wagmi";
-import { useUser } from "@aomi-labs/react";
-
-function NetworkSwitcher() {
-  const { switchChain } = useSwitchChain();
-  const { setUser } = useUser();
-
-  const handleSwitch = async (chainId: number) => {
-    await switchChain({ chainId });
-    // The widget auth bridge auto-syncs, but you can also set manually:
-    setUser({ chainId });
-  };
-}
-```
-
-## ConnectButton Component (Widget)
-
-The widget's `ConnectButton` component handles the full lifecycle:
-
-1. Renders a connect/manage account button
-2. On connect: opens the Para auth modal
-3. On successful connection: syncs address, chainId, and connection status to `useUser`
-4. When already connected: opens the Para account modal
-
-```tsx
-import { ConnectButton } from "@/components/control-bar";
-
-<ConnectButton
-  connectLabel="Connect Wallet"
-  onConnectionChange={(isConnected) => {
-    console.log("Wallet connected:", isConnected);
-  }}
-/>;
-```
-
-## Utilities
-
-The headless library provides wallet-related utilities:
-
-```tsx
-import {
-  formatAddress,
-  getNetworkName,
-  getChainInfo,
-  SUPPORTED_CHAINS,
-} from "@aomi-labs/react";
-
-formatAddress("0x1234567890abcdef1234567890abcdef12345678");
-// "0x1234...5678"
-
-getNetworkName(1);
-// "Ethereum"
-
-getChainInfo(137);
-// { name: "Polygon", ticker: "POL", ... }
-
-SUPPORTED_CHAINS;
-// [{ chainId: 1, name: "Ethereum", ... }, ...]
-```
+The headless path also makes the host responsible for provider composition,
+account auth, and credentialed Portal transport. Prefer `AomiWidget` unless a
+custom UI requires that control.

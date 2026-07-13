@@ -2,7 +2,9 @@
 
 import { describe, expect, it, vi } from "vitest";
 import {
+  createAomiUserForBetterAuth,
   revokeAuthIdentity,
+  updateAomiUserProfile,
   updateWalletLabel,
   upsertWallet,
 } from "../src/db/queries";
@@ -29,6 +31,72 @@ function fakeDb(
 }
 
 describe("canonical account queries", () => {
+  it("falls back to a collision-safe backend username", async () => {
+    const userId = "11111111-2222-3333-4444-555555555555";
+    const { db, calls } = fakeDb((call) => {
+      if (call.sql.includes("on conflict do nothing")) {
+        return { rows: [] };
+      }
+      if (call.sql.includes("select * from users where id")) {
+        return { rows: [] };
+      }
+      if (call.sql.includes("on conflict (id) do update")) {
+        return {
+          rows: [
+            {
+              id: userId,
+              username: `alice@example.com-${userId}`,
+              created_at: 1,
+              updated_at: 1,
+            },
+          ],
+        };
+      }
+      throw new Error(`unexpected query: ${call.sql}`);
+    });
+
+    const user = await createAomiUserForBetterAuth({
+      userId,
+      betterAuthUserId: "ba-user-1",
+      email: "alice@example.com",
+      name: "alice@example.com",
+      db: db as never,
+    });
+
+    expect(user.displayName).toBe(`alice@example.com-${userId}`);
+    expect(calls).toHaveLength(3);
+    expect(calls[2]?.params?.[1]).toBe(`alice@example.com-${userId}`);
+  });
+
+  it("keeps the current backend username when a provider label is already owned", async () => {
+    const { db, calls } = fakeDb((call) => {
+      if (call.sql.includes("update users")) {
+        return {
+          rows: [
+            {
+              id: "user-1",
+              username: "0x1111111111111111111111111111111111111111",
+              created_at: 1,
+              updated_at: 2,
+            },
+          ],
+        };
+      }
+      throw new Error(`unexpected query: ${call.sql}`);
+    });
+
+    const user = await updateAomiUserProfile({
+      userId: "user-1",
+      displayName: "alice@example.com",
+      primaryEmail: "alice@example.com",
+      db: db as never,
+    });
+
+    expect(user.displayName).toBe("0x1111111111111111111111111111111111111111");
+    expect(calls[0]?.sql).toContain("not exists");
+    expect(calls[0]?.params?.[1]).toBe("alice@example.com");
+  });
+
   it("links a SIWE wallet as an owned public key with SIWE provenance", async () => {
     const { db, calls } = fakeDb((call) => {
       if (call.sql.includes("insert into auth_providers")) {

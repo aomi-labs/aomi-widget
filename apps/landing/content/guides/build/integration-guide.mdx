@@ -90,19 +90,22 @@ flowchart LR
 
 **4. Deployed App** — Aomi compiles and deploys the configured Aomi App as an isolated app on our hosted platform. Each app gets a scoped API key and a dedicated chat endpoint. Deployment and scaling are managed by Aomi.
 
-**5. Client Integration** — You are responsible for your own product surface. Use any combination of our SDK, component library, or Telegram bot framework to integrate the deployed Aomi App into your frontend. We provide assistance throughout the integration process.
+**5. Client Integration** — You are responsible for your own product surface.
+Use the complete `AomiWidget`, the headless runtime, or Telegram. Browser
+widgets point at Portal, which owns auth, canonical accounts, and authenticated
+backend proxying. We provide assistance throughout the integration process.
 
 ### 1. Your APIs
 
 MyCoinDex exposes standard HTTP endpoints. Aomi does not modify them — your APIs stay exactly as they are. The only requirement is that they are reachable over HTTP.
 
-| Endpoint | Method | Description |
-| --- | --- | --- |
-| `/prices/{symbol}` | GET | Current token price |
-| `/trades` | POST | Execute a trade |
-| `/portfolio/{userId}` | GET | User portfolio and P&L |
-| `/markets` | GET | Available trading pairs |
-| `/orderbook/{pair}` | GET | Order book depth |
+| Endpoint              | Method | Description             |
+| --------------------- | ------ | ----------------------- |
+| `/prices/{symbol}`    | GET    | Current token price     |
+| `/trades`             | POST   | Execute a trade         |
+| `/portfolio/{userId}` | GET    | User portfolio and P&L  |
+| `/markets`            | GET    | Available trading pairs |
+| `/orderbook/{pair}`   | GET    | Order book depth        |
 
 Your backend owns all user state. The Aomi App is stateless — it retains conversation history but nothing about your users, balances, or sessions. That's why `GET /portfolio/user123` passes a user ID explicitly. Your APIs continue to handle authentication, authorization, and business logic as they normally would.
 
@@ -131,11 +134,11 @@ Never provide financial advice or price predictions.
 
 **Model Selection** — Different models have different strengths. Claude excels at nuanced reasoning, GPT-4o is strong at structured output, and smaller models like Haiku or GPT-4o Mini are faster and cheaper for simpler interactions. Models can be changed at runtime — no redeployment needed.
 
-| Provider | Models |
-| --- | --- |
-| Anthropic | Claude Sonnet, Claude Haiku |
-| OpenAI | GPT-4o, GPT-4o Mini |
-| OpenRouter | Access to 100+ models |
+| Provider   | Models                      |
+| ---------- | --------------------------- |
+| Anthropic  | Claude Sonnet, Claude Haiku |
+| OpenAI     | GPT-4o, GPT-4o Mini         |
+| OpenRouter | Access to 100+ models       |
 
 **RAG Document Store** — If you have documentation, FAQs, or knowledge base articles, we can set up RAG ingestion as part of the integration. The AI searches these documents when answering questions that go beyond what the tools can provide.
 
@@ -157,11 +160,18 @@ Each app is fully isolated. MyCoinDex's tools, preamble, and configuration do no
 
 You are responsible for your own product surface. Aomi provides the SDK, component library, and Telegram bot framework — use any combination to integrate the deployed Aomi App into your frontend. We provide assistance throughout the integration process.
 
-| Path | Install | Best For |
-| --- | --- | --- |
-| Widget (shadcn) | `npx shadcn add https://aomi.dev/r/aomi-frame.json` | Quick integration, standard chat UI |
-| Headless Library | `npm install @aomi-labs/react` | Custom designs, maximum control |
-| Telegram Bot | Managed by Aomi | Reaching users without frontend deployment |
+| Path                | Install                                              | Best For                                              |
+| ------------------- | ---------------------------------------------------- | ----------------------------------------------------- |
+| Complete Widget     | `npm install @aomi-labs/widget-lib`                  | Authenticated Para, Privy, or SIWE integration        |
+| Source-owned Widget | `npx shadcn add https://aomi.dev/r/aomi-widget.json` | Bespoke component-level customization                 |
+| Headless Library    | `npm install @aomi-labs/react`                       | Custom designs and host-owned auth/wallet composition |
+| Telegram Bot        | Managed by Aomi                                      | Reaching users without frontend deployment            |
+
+For a cross-origin web integration, register the exact product origin in
+Portal's `AOMI_TRUSTED_ORIGINS`. Pass the Portal origin to `AomiWidget.apiUrl`;
+do not point authenticated browser widgets at the raw backend or add a second
+BetterAuth instance to the product app. See the
+[Quickstart](/docs/build/quickstart) for Para, Privy, and providerless examples.
 
 ## Next Steps
 

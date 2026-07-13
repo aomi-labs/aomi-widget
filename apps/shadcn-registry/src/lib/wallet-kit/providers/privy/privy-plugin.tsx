@@ -11,6 +11,7 @@ import {
 import { AomiPrivyPluginProvider } from "./PrivyPluginProvider";
 import { buildPrivyClientConfig, toPrivyLoginMethods } from "./privy-auth";
 import type { AuthConfig, ProvidersConfig } from "../../config/types";
+import { publicEnv } from "../../../public-env";
 
 const PRIVY_BRAND_KEY = "privy";
 
@@ -33,7 +34,7 @@ function PrivyAuthLayer({
 }) {
   const enabled = isPrivyAuth(auth);
   const privy = providers?.privy === false ? undefined : providers?.privy;
-  const appId = privy?.appId ?? process.env.NEXT_PUBLIC_PRIVY_APP_ID;
+  const appId = privy?.appId ?? publicEnv?.NEXT_PUBLIC_PRIVY_APP_ID;
   const config = useMemo(
     () =>
       buildPrivyClientConfig({
@@ -62,7 +63,7 @@ export const privyPlugin: WalletProviderPlugin = {
     const enabled = isPrivyAuth(auth);
     const privy = providers?.privy === false ? undefined : providers?.privy;
     return Boolean(
-      enabled && (privy?.appId ?? process.env.NEXT_PUBLIC_PRIVY_APP_ID),
+      enabled && (privy?.appId ?? publicEnv?.NEXT_PUBLIC_PRIVY_APP_ID),
     );
   },
   wrap: (props) => <PrivyAuthLayer {...props} />,

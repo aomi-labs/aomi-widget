@@ -1443,6 +1443,12 @@ async function fetchStateResponse(fetchImpl, url, sessionId) {
     headers: withSessionHeader(sessionId)
   });
 }
+function wrapFetchWithCredentials(fetchImpl, credentials) {
+  if (!credentials) return fetchImpl;
+  return (input2, init) => fetchImpl(input2, __spreadProps(__spreadValues({}, init), {
+    credentials
+  }));
+}
 function wrapFetchWithAccountBearer(fetchImpl, getAccountBearer) {
   if (!getAccountBearer) return fetchImpl;
   return async (input2, init) => {
@@ -1550,8 +1556,14 @@ var init_client = __esm({
         var _a3;
         this.baseUrl = options.baseUrl.replace(/\/+$/, "");
         this.apiKey = options.apiKey;
-        const fetchImpl = (_a3 = options.fetch) != null ? _a3 : globalThis.fetch.bind(globalThis);
-        const rawFetchImpl = typeof globalThis.fetch === "function" ? globalThis.fetch.bind(globalThis) : fetchImpl;
+        const fetchImpl = wrapFetchWithCredentials(
+          (_a3 = options.fetch) != null ? _a3 : globalThis.fetch.bind(globalThis),
+          options.credentials
+        );
+        const rawFetchImpl = wrapFetchWithCredentials(
+          typeof globalThis.fetch === "function" ? globalThis.fetch.bind(globalThis) : fetchImpl,
+          options.credentials
+        );
         this.fetchImpl = wrapFetchWithAccountBearer(
           fetchImpl,
           options.getAccountBearer
@@ -6108,6 +6120,16 @@ var init_fee = __esm({
   }
 });
 
+// src/runtime-env.ts
+function runtimeEnv(name) {
+  return typeof process === "undefined" ? void 0 : process.env[name];
+}
+var init_runtime_env = __esm({
+  "src/runtime-env.ts"() {
+    "use strict";
+  }
+});
+
 // src/aa/alchemy/defaults.ts
 function trimToUndefined(value) {
   const trimmed = value == null ? void 0 : value.trim();
@@ -6117,10 +6139,10 @@ function resolveAlchemyApiKey(options) {
   const explicit = trimToUndefined(options == null ? void 0 : options.apiKey);
   if (explicit) return explicit;
   if (!(options == null ? void 0 : options.publicOnly)) {
-    const privateEnv = trimToUndefined(process.env.ALCHEMY_API_KEY);
+    const privateEnv = trimToUndefined(runtimeEnv("ALCHEMY_API_KEY"));
     if (privateEnv) return privateEnv;
   }
-  const publicEnv = trimToUndefined(process.env.NEXT_PUBLIC_ALCHEMY_API_KEY);
+  const publicEnv = trimToUndefined(runtimeEnv("NEXT_PUBLIC_ALCHEMY_API_KEY"));
   if (publicEnv) return publicEnv;
   return DEFAULT_ALCHEMY_API_KEY;
 }
@@ -6128,10 +6150,12 @@ function resolveAlchemyGasPolicyId(options) {
   const explicit = trimToUndefined(options == null ? void 0 : options.gasPolicyId);
   if (explicit) return explicit;
   if (!(options == null ? void 0 : options.publicOnly)) {
-    const privateEnv = trimToUndefined(process.env.ALCHEMY_GAS_POLICY_ID);
+    const privateEnv = trimToUndefined(runtimeEnv("ALCHEMY_GAS_POLICY_ID"));
     if (privateEnv) return privateEnv;
   }
-  const publicEnv = trimToUndefined(process.env.NEXT_PUBLIC_ALCHEMY_GAS_POLICY_ID);
+  const publicEnv = trimToUndefined(
+    runtimeEnv("NEXT_PUBLIC_ALCHEMY_GAS_POLICY_ID")
+  );
   if (publicEnv) return publicEnv;
   return DEFAULT_ALCHEMY_GAS_POLICY_ID;
 }
@@ -6139,6 +6163,7 @@ var DEFAULT_ALCHEMY_API_KEY, DEFAULT_ALCHEMY_GAS_POLICY_ID;
 var init_defaults = __esm({
   "src/aa/alchemy/defaults.ts"() {
     "use strict";
+    init_runtime_env();
     DEFAULT_ALCHEMY_API_KEY = "72eIUle_3rfixX00QJVwk";
     DEFAULT_ALCHEMY_GAS_POLICY_ID = "fb17d7d7-9a32-479d-937a-52d72b849c40";
   }
@@ -6556,8 +6581,9 @@ var init_create = __esm({
     init_policy();
     init_owner();
     init_defaults();
+    init_runtime_env();
     ALCHEMY_7702_DELEGATION_ADDRESS = "0x69007702764179f14F51cdce752f4f775d74E139";
-    AA_DEBUG_ENABLED = process.env.AOMI_AA_DEBUG === "1";
+    AA_DEBUG_ENABLED = runtimeEnv("AOMI_AA_DEBUG") === "1";
   }
 });
 
@@ -6574,6 +6600,7 @@ var init_alchemy = __esm({
 var init_resolve = __esm({
   "src/aa/pimlico/resolve.ts"() {
     "use strict";
+    init_runtime_env();
     init_types2();
   }
 });
@@ -6611,7 +6638,7 @@ async function createPimlicoAAState(options) {
     __spreadProps(__spreadValues({}, DEFAULT_AA_CONFIG), { provider: "pimlico" }),
     __spreadProps(__spreadValues({}, chainConfig), { defaultMode: effectiveMode })
   );
-  const apiKey = (_b = options.apiKey) != null ? _b : (_a3 = process.env.PIMLICO_API_KEY) == null ? void 0 : _a3.trim();
+  const apiKey = (_b = options.apiKey) != null ? _b : (_a3 = runtimeEnv("PIMLICO_API_KEY")) == null ? void 0 : _a3.trim();
   if (!apiKey) {
     throw new Error("Pimlico AA requires PIMLICO_API_KEY.");
   }
@@ -6900,7 +6927,8 @@ var init_create2 = __esm({
     init_types2();
     init_policy();
     init_owner();
-    AA_DEBUG_ENABLED2 = process.env.AOMI_AA_DEBUG === "1";
+    init_runtime_env();
+    AA_DEBUG_ENABLED2 = runtimeEnv("AOMI_AA_DEBUG") === "1";
   }
 });
 
@@ -10718,7 +10746,7 @@ init_shared();
 // package.json
 var package_default = {
   name: "@aomi-labs/client",
-  version: "0.3.1",
+  version: "0.3.2",
   description: "Platform-agnostic TypeScript client for the Aomi backend API",
   type: "module",
   main: "./dist/index.cjs",

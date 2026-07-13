@@ -18,6 +18,7 @@ import {
 } from "../plugin-registry";
 import { AomiParaPluginProvider } from "./ParaPluginProvider";
 import { defaultOAuthMethods } from "./para-auth";
+import { publicEnv } from "../../../public-env";
 
 function toParaEnvironment(value?: "PROD" | "BETA") {
   if (!value) return Environment.BETA;
@@ -57,7 +58,7 @@ function ParaAuthLayer({
 }) {
   const enabled = isParaAuth(auth);
   const para = providers?.para === false ? undefined : providers?.para;
-  const apiKey = para?.apiKey ?? process.env.NEXT_PUBLIC_PARA_API_KEY;
+  const apiKey = para?.apiKey ?? publicEnv?.NEXT_PUBLIC_PARA_API_KEY;
   const paraClientConfig = useMemo(
     () =>
       apiKey
@@ -123,7 +124,7 @@ export const paraPlugin: WalletProviderPlugin = {
     const enabled = isParaAuth(auth);
     const para = providers?.para === false ? undefined : providers?.para;
     return Boolean(
-      enabled && (para?.apiKey ?? process.env.NEXT_PUBLIC_PARA_API_KEY),
+      enabled && (para?.apiKey ?? publicEnv?.NEXT_PUBLIC_PARA_API_KEY),
     );
   },
   wrap: (props) => <ParaAuthLayer {...props} />,

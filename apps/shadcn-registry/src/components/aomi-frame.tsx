@@ -28,6 +28,7 @@ import {
   BreadcrumbList,
 } from "@/components/ui/breadcrumb";
 import { ControlBar, type ControlBarProps } from "@/components/control-bar";
+import { publicEnv } from "../lib/public-env";
 
 // =============================================================================
 // Composer Control Context - signals Thread to show inline controls
@@ -116,9 +117,7 @@ const Root: FC<RootProps> = ({
   threadPersistenceScope,
 }) => {
   const resolvedBackendUrl =
-    backendUrl ??
-    process.env.NEXT_PUBLIC_BACKEND_URL ??
-    "http://127.0.0.1:8080";
+    backendUrl ?? publicEnv?.NEXT_PUBLIC_BACKEND_URL ?? "http://127.0.0.1:8080";
   const frameStyle: CSSProperties = { width, height, ...style };
 
   return (

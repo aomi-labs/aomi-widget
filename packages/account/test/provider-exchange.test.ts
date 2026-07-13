@@ -31,6 +31,15 @@ vi.mock("../src/providers/account-credentials", () => ({
       email: "alice@example.com",
       emailVerified: true,
       providerMetadata: {},
+      walletAttestations: [
+        {
+          provider: "privy",
+          providerWalletId: "wallet-1",
+          family: "evm",
+          address: "0xFCAd0B19bB29D4674531d6f115237E16AfCE377c",
+          chainScope: null,
+        },
+      ],
     },
   })),
 }));
@@ -111,5 +120,77 @@ describe("exchangeProviderForExistingSession", () => {
       reason: "already_linked_to_another_account",
       signalType: "wallet",
     });
+  });
+
+  it("uses verified provider signals to adopt the existing canonical account", async () => {
+    const accountService = await import("../src/service/account-service");
+    const { exchangeProviderForExistingSession } =
+      await import("../src/service/provider-exchange");
+
+    await exchangeProviderForExistingSession({
+      betterAuthUserId: "ba-user-1",
+      credential: {
+        provider: "privy",
+        providerToken: "token",
+      },
+    });
+
+    expect(
+      accountService.getOrCreateAomiUserForBetterAuthSession,
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accessSignals: [
+          {
+            type: "identity",
+            provider: "privy",
+            subject: "did:privy:alice",
+          },
+          { type: "email", email: "alice@example.com" },
+          {
+            type: "wallet",
+            family: "evm",
+            normalizedAddress: "0xfcad0b19bb29d4674531d6f115237e16afce377c",
+            chainScope: null,
+          },
+        ],
+      }),
+    );
+  });
+
+  it("exposes the same adoption signals to new-session provider exchange", async () => {
+    const { providerAccessSignals } =
+      await import("../src/service/provider-exchange");
+
+    expect(
+      providerAccessSignals({
+        provider: "para",
+        walletAttestationProvider: "para",
+        token: {
+          subject: "para-user-1",
+          expiresAt: 1,
+          email: "Returning.User@Example.com ",
+          emailVerified: true,
+          providerMetadata: {},
+          walletAttestations: [
+            {
+              provider: "para",
+              providerWalletId: "wallet-1",
+              family: "evm",
+              address: "0xFCAd0B19bB29D4674531d6f115237E16AfCE377c",
+              chainScope: null,
+            },
+          ],
+        },
+      }),
+    ).toEqual([
+      { type: "identity", provider: "para", subject: "para-user-1" },
+      { type: "email", email: "returning.user@example.com" },
+      {
+        type: "wallet",
+        family: "evm",
+        normalizedAddress: "0xfcad0b19bb29d4674531d6f115237e16afce377c",
+        chainScope: null,
+      },
+    ]);
   });
 });

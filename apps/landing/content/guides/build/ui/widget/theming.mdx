@@ -1,11 +1,17 @@
 ---
 title: Theming
-description: Customize colors, typography, and visual appearance using CSS variables and Tailwind.
+description: Customize package or source-owned widget colors and layout.
 ---
 
 # Theming
 
-Aomi components follow shadcn conventions. Since component source files are copied into your project, you have full control over styling.
+Aomi components follow shadcn conventions. Package consumers first import the
+precompiled stylesheet and override its CSS variables or wrap the widget with a
+class. Registry consumers may also edit the copied component source.
+
+```tsx
+import "@aomi-labs/widget-lib/styles.css";
+```
 
 ## CSS Variables
 
@@ -54,8 +60,8 @@ Components use the `.dark` class for dark mode. Toggle with your preferred metho
 import { ThemeProvider } from "next-themes";
 
 <ThemeProvider attribute="class" defaultTheme="system">
-  <AomiFrame />
-</ThemeProvider>
+  <AomiWidget apiUrl="https://chat.aomi.dev" />
+</ThemeProvider>;
 ```
 
 Both light and dark variants are defined in the CSS variables above. The `.dark` class on a parent element activates the dark palette.
@@ -68,7 +74,7 @@ Override the color variables to match your brand:
 
 ```css
 :root {
-  --primary: 221.2 83.2% 53.3%;          /* Blue */
+  --primary: 221.2 83.2% 53.3%; /* Blue */
   --primary-foreground: 210 40% 98%;
 }
 ```
@@ -79,13 +85,13 @@ Adjust the global radius variable:
 
 ```css
 :root {
-  --radius: 0.75rem;  /* More rounded */
+  --radius: 0.75rem; /* More rounded */
 }
 ```
 
 ### Message Bubbles
 
-Edit `components/assistant-ui/thread.tsx` directly:
+Registry consumers can edit `components/assistant-ui/thread.tsx` directly:
 
 ```tsx
 <div
@@ -100,7 +106,7 @@ Edit `components/assistant-ui/thread.tsx` directly:
 
 ### Sidebar Width
 
-Edit `components/assistant-ui/threadlist-sidebar.tsx`:
+Registry consumers can edit `components/assistant-ui/threadlist-sidebar.tsx`:
 
 ```tsx
 <Sidebar className="w-64">  {/* Default is w-64 (256px) */}
@@ -108,10 +114,11 @@ Edit `components/assistant-ui/threadlist-sidebar.tsx`:
 
 ### Frame Container
 
-Add Tailwind classes to the AomiFrame:
+Add a class to `AomiWidget` (or the lower-level `AomiFrame`):
 
 ```tsx
-<AomiFrame
+<AomiWidget
+  apiUrl="https://chat.aomi.dev"
   className="rounded-xl shadow-lg"
   style={{ height: "calc(100vh - 80px)" }}
 />
@@ -128,19 +135,19 @@ import { cn } from "@aomi-labs/react";
   className={cn(
     "base-styles",
     isActive && "active-styles",
-    className,  // Allow overrides from props
+    className, // Allow overrides from props
   )}
-/>
+/>;
 ```
 
 ## Best Practices
 
-| Do | Don't |
-| --- | --- |
-| Edit component source directly | Use `!important` overrides |
-| Use CSS variables for colors | Hardcode hex values |
-| Keep Tailwind for layout | Create separate CSS files |
-| Extend the theme in `tailwind.config` | Override everything inline |
+| Do                                | Don't                                           |
+| --------------------------------- | ----------------------------------------------- |
+| Import package CSS once           | Duplicate the compiled widget stylesheet        |
+| Use CSS variables for colors      | Put server auth secrets in CSS/build config     |
+| Use wrapper classes for layout    | Add package source scanning just for the widget |
+| Edit source only in registry mode | Patch generated package bundles                 |
 
 ## Resources
 

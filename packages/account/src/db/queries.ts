@@ -90,20 +90,46 @@ export async function createAomiUserForBetterAuth(input: {
   const db = input.db ?? getPool();
   const userId = input.userId ?? randomUUID();
   const now = nowSeconds();
+  const displayName =
+    input.displayName ?? input.name ?? deriveDisplayName(input.email);
   const result = await db.query(
     `insert into users (id, username, created_at, updated_at)
      values ($1, $2, $3, $3)
-     on conflict (id) do update set
-       username = coalesce(users.username, excluded.username),
-       updated_at = excluded.updated_at
+     on conflict do nothing
      returning *`,
-    [
-      userId,
-      input.displayName ?? input.name ?? deriveDisplayName(input.email),
-      now,
-    ],
+    [userId, displayName, now],
   );
-  return mapUser(result.rows[0]);
+  if (result.rows[0]) return mapUser(result.rows[0]);
+
+  // `users.username` is a legacy unique backend handle, but provider display
+  // labels and emails are not unique identities. A stale or unrelated user can
+  // therefore own the preferred label. `ON CONFLICT DO NOTHING` keeps the
+  // surrounding transaction usable; preserve an existing adopted UUID, or
+  // create this user with a deterministic collision-safe handle.
+  const existing = await db.query(`select * from users where id = $1 limit 1`, [
+    userId,
+  ]);
+  if (existing.rows[0]?.username) return mapUser(existing.rows[0]);
+
+  const collisionSafeName = `${displayName ?? "aomi-user"}-${userId}`;
+  const fallback = existing.rows[0]
+    ? await db.query(
+        `update users
+            set username = $2, updated_at = $3
+          where id = $1
+          returning *`,
+        [userId, collisionSafeName, now],
+      )
+    : await db.query(
+        `insert into users (id, username, created_at, updated_at)
+         values ($1, $2, $3, $3)
+         on conflict (id) do update set
+           username = coalesce(users.username, excluded.username),
+           updated_at = excluded.updated_at
+         returning *`,
+        [userId, collisionSafeName, now],
+      );
+  return mapUser(fallback.rows[0]);
 }
 
 export async function findLegacyBackendUserIdByWallet(
@@ -445,7 +471,15 @@ export async function updateAomiUserProfile(input: {
   const db = input.db ?? getPool();
   const result = await db.query(
     `update users
-        set username = coalesce($2, username),
+        set username = case
+              when $2::text is null then username
+              when not exists (
+                select 1 from users owner
+                 where owner.username = $2
+                   and owner.id <> $1
+              ) then $2
+              else username
+            end,
             updated_at = $3
       where id = $1
       returning *`,

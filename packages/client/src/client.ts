@@ -234,6 +234,19 @@ async function fetchStateResponse(
   });
 }
 
+function wrapFetchWithCredentials(
+  fetchImpl: typeof fetch,
+  credentials?: RequestCredentials,
+): typeof fetch {
+  if (!credentials) return fetchImpl;
+
+  return (input, init) =>
+    fetchImpl(input, {
+      ...init,
+      credentials,
+    });
+}
+
 function wrapFetchWithAccountBearer(
   fetchImpl: typeof fetch,
   getAccountBearer?: GetAccountBearer,
@@ -358,11 +371,16 @@ export class AomiClient {
     // Strip trailing slash
     this.baseUrl = options.baseUrl.replace(/\/+$/, "");
     this.apiKey = options.apiKey;
-    const fetchImpl = options.fetch ?? globalThis.fetch.bind(globalThis);
-    const rawFetchImpl =
+    const fetchImpl = wrapFetchWithCredentials(
+      options.fetch ?? globalThis.fetch.bind(globalThis),
+      options.credentials,
+    );
+    const rawFetchImpl = wrapFetchWithCredentials(
       typeof globalThis.fetch === "function"
         ? globalThis.fetch.bind(globalThis)
-        : fetchImpl;
+        : fetchImpl,
+      options.credentials,
+    );
     this.fetchImpl = wrapFetchWithAccountBearer(
       fetchImpl,
       options.getAccountBearer,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   ConnectionProvider,
   WalletProvider,
@@ -540,7 +540,7 @@ function AomiExternalWalletProvider({
   );
 }
 
-export function AomiWalletKitProvider(input: AomiWalletKitProviderInput) {
+function AomiWalletKitProviderBrowser(input: AomiWalletKitProviderInput) {
   const props =
     detectProviderSugar(input) ?? (input as AomiWalletKitProviderProps);
   const presetProvider =
@@ -591,4 +591,13 @@ export function AomiWalletKitProvider(input: AomiWalletKitProviderInput) {
       </ExtUserProvider>
     </AomiWalletNetworkPreferencesProvider>
   );
+}
+
+export function AomiWalletKitProvider(input: AomiWalletKitProviderInput) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => setMounted(true), []);
+
+  if (!mounted) return null;
+  return <AomiWalletKitProviderBrowser {...input} />;
 }

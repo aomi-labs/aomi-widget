@@ -2,6 +2,31 @@
 # a local product-mono backend.
 BACKEND_URL=http://127.0.0.1:8080
 
+# Portal owns BetterAuth. These defaults are shown explicitly so local cookies,
+# SIWE messages, and cross-origin consumers all use the Portal host (port 3000),
+# not the Landing or Vite consumer host.
+BETTER_AUTH_URL=http://localhost:3000
+AOMI_AUTH_DOMAIN=localhost:3000
+BETTER_AUTH_SECRET=dev-better-auth-secret-change-me-at-least-32-bytes
+DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres
+
+# Browser origins allowed to call Portal's auth/account/BFF routes. The standard
+# Landing/Vite dev origins are trusted automatically; add any other integrator
+# as a comma-separated origin list (scheme + host + optional port, no path).
+AOMI_TRUSTED_ORIGINS=http://localhost:5173
+
+# Para provider verification. The audience must match the publishable key used
+# by the browser; the secret key is server-only and must never use NEXT_PUBLIC_.
+PARA_JWT_AUDIENCE=
+PARA_API_SECRET_KEY=
+
+# Privy provider verification. The app id may be public; every remaining value
+# is server-only.
+PRIVY_APP_ID=
+PRIVY_APP_SECRET=
+PRIVY_JWT_VERIFICATION_KEY=
+PRIVY_IDENTITY_JWT_VERIFICATION_KEY=
+
 # Dev-only BFF signer for the committed `aomi-bff-dev-1` public key.
 # Do not use this key for staging or production.
 PORTAL_SERVICE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nMC4CAQAwBQYDK2VwBCIEIA3YGS2n6pAbisXZxFbDPdncGRxMXI2m4eJN2gNSf+wi\n-----END PRIVATE KEY-----"

@@ -5,6 +5,17 @@ import {
 } from "./svm-networks";
 
 describe("SVM network resolution", () => {
+  it("provides mainnet, devnet, and testnet defaults", () => {
+    const networks = normalizeSvmNetworkOptions();
+
+    expect(networks.map((network) => network.cluster)).toEqual([
+      "solana:mainnet",
+      "solana:devnet",
+      "solana:testnet",
+    ]);
+    expect(resolveSelectedSvmNetwork(networks).cluster).toBe("solana:mainnet");
+  });
+
   it("resolves the selected SVM network RPC endpoint", () => {
     const networks = normalizeSvmNetworkOptions({
       networks: [

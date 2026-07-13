@@ -1,6 +1,8 @@
-# Aomi Widget Documentation
+# Aomi Landing and Widget Documentation
 
-This documentation site is built with [Fumadocs](https://fumadocs.vercel.app/), a powerful Next.js documentation framework.
+This Next.js app hosts the public site, Fumadocs documentation, and a real
+`AomiWidget` consumer. Landing does not mount BetterAuth, account routes, or a
+backend proxy; it calls Portal directly with credentialed browser requests.
 
 ## Quick Start
 
@@ -8,14 +10,25 @@ This documentation site is built with [Fumadocs](https://fumadocs.vercel.app/), 
 # Install dependencies (automatically runs fumadocs-mdx)
 pnpm install
 
-# Start development server
-pnpm dev
+# Start backend + Portal (from the repository root)
+./scripts/dev-auth-stack.sh start
+
+# Start Landing on a separate origin
+pnpm --filter landing dev -- -p 3001
 
 # Build for production
 pnpm build
 ```
 
-The docs will be available at http://localhost:3000/docs
+The docs will be available at `http://localhost:3001/docs`. Copy `.env.example`
+to `.env.local`; `NEXT_PUBLIC_AOMI_PORTAL_URL` must point at Portal on port 3000. The standard local Landing origins are trusted automatically. For any
+other port or production origin, add the exact origin to Portal's
+`AOMI_TRUSTED_ORIGINS`.
+
+The landing hero selects Para through `paraAuth()` when
+`NEXT_PUBLIC_PARA_API_KEY` is set and safely falls back to providerless
+external-wallet/SIWE mode when it is blank. Provider verifier secrets remain on
+Portal and must never be added to this app.
 
 ## Adding Documentation
 

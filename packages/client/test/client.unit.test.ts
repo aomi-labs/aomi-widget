@@ -459,12 +459,17 @@ describe("AomiClient transport selection", () => {
       const client = new AomiClient({
         baseUrl: "http://unit.test",
         fetch: customFetch,
+        credentials: "include",
       });
 
       await client.fetchState("session-1");
 
       expect(nativeFetch).toHaveBeenCalledTimes(1);
       expect(customFetch).not.toHaveBeenCalled();
+      expect(nativeFetch).toHaveBeenCalledWith(
+        "http://unit.test/api/thread/state",
+        expect.objectContaining({ credentials: "include" }),
+      );
     } finally {
       vi.stubGlobal("fetch", originalFetch);
     }
@@ -730,6 +735,7 @@ describe("AomiClient transport selection", () => {
       const client = new AomiClient({
         baseUrl: "http://unit.test",
         fetch: customFetch,
+        credentials: "include",
       });
 
       const onUpdate = vi.fn();
@@ -748,6 +754,10 @@ describe("AomiClient transport selection", () => {
       unsubscribe();
       expect(nativeFetch).toHaveBeenCalledTimes(1);
       expect(customFetch).not.toHaveBeenCalled();
+      expect(nativeFetch).toHaveBeenCalledWith(
+        "http://unit.test/api/thread/updates",
+        expect.objectContaining({ credentials: "include" }),
+      );
     } finally {
       vi.stubGlobal("fetch", originalFetch);
     }

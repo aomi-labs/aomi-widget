@@ -918,6 +918,12 @@ async function fetchStateResponse(fetchImpl, url, sessionId) {
     headers: withSessionHeader(sessionId)
   });
 }
+function wrapFetchWithCredentials(fetchImpl, credentials) {
+  if (!credentials) return fetchImpl;
+  return (input, init) => fetchImpl(input, __spreadProps(__spreadValues({}, init), {
+    credentials
+  }));
+}
 function wrapFetchWithAccountBearer(fetchImpl, getAccountBearer) {
   if (!getAccountBearer) return fetchImpl;
   return async (input, init) => {
@@ -1000,8 +1006,14 @@ var AomiClient = class {
     var _a;
     this.baseUrl = options.baseUrl.replace(/\/+$/, "");
     this.apiKey = options.apiKey;
-    const fetchImpl = (_a = options.fetch) != null ? _a : globalThis.fetch.bind(globalThis);
-    const rawFetchImpl = typeof globalThis.fetch === "function" ? globalThis.fetch.bind(globalThis) : fetchImpl;
+    const fetchImpl = wrapFetchWithCredentials(
+      (_a = options.fetch) != null ? _a : globalThis.fetch.bind(globalThis),
+      options.credentials
+    );
+    const rawFetchImpl = wrapFetchWithCredentials(
+      typeof globalThis.fetch === "function" ? globalThis.fetch.bind(globalThis) : fetchImpl,
+      options.credentials
+    );
     this.fetchImpl = wrapFetchWithAccountBearer(
       fetchImpl,
       options.getAccountBearer
@@ -3977,6 +3989,11 @@ function appendFeeCallToPayload(payload, fee, defaultChainId, options) {
   });
 }
 
+// src/runtime-env.ts
+function runtimeEnv(name) {
+  return typeof process === "undefined" ? void 0 : process.env[name];
+}
+
 // src/aa/alchemy/defaults.ts
 var DEFAULT_ALCHEMY_API_KEY = "72eIUle_3rfixX00QJVwk";
 var DEFAULT_ALCHEMY_GAS_POLICY_ID = "fb17d7d7-9a32-479d-937a-52d72b849c40";
@@ -3988,10 +4005,10 @@ function resolveAlchemyApiKey(options) {
   const explicit = trimToUndefined(options == null ? void 0 : options.apiKey);
   if (explicit) return explicit;
   if (!(options == null ? void 0 : options.publicOnly)) {
-    const privateEnv = trimToUndefined(process.env.ALCHEMY_API_KEY);
+    const privateEnv = trimToUndefined(runtimeEnv("ALCHEMY_API_KEY"));
     if (privateEnv) return privateEnv;
   }
-  const publicEnv = trimToUndefined(process.env.NEXT_PUBLIC_ALCHEMY_API_KEY);
+  const publicEnv = trimToUndefined(runtimeEnv("NEXT_PUBLIC_ALCHEMY_API_KEY"));
   if (publicEnv) return publicEnv;
   return DEFAULT_ALCHEMY_API_KEY;
 }
@@ -3999,10 +4016,12 @@ function resolveAlchemyGasPolicyId(options) {
   const explicit = trimToUndefined(options == null ? void 0 : options.gasPolicyId);
   if (explicit) return explicit;
   if (!(options == null ? void 0 : options.publicOnly)) {
-    const privateEnv = trimToUndefined(process.env.ALCHEMY_GAS_POLICY_ID);
+    const privateEnv = trimToUndefined(runtimeEnv("ALCHEMY_GAS_POLICY_ID"));
     if (privateEnv) return privateEnv;
   }
-  const publicEnv = trimToUndefined(process.env.NEXT_PUBLIC_ALCHEMY_GAS_POLICY_ID);
+  const publicEnv = trimToUndefined(
+    runtimeEnv("NEXT_PUBLIC_ALCHEMY_GAS_POLICY_ID")
+  );
   if (publicEnv) return publicEnv;
   return DEFAULT_ALCHEMY_GAS_POLICY_ID;
 }
@@ -4202,7 +4221,7 @@ function getUnsupportedOwnerState(resolved, provider, ownerKind, message) {
 
 // src/aa/alchemy/create.ts
 var ALCHEMY_7702_DELEGATION_ADDRESS = "0x69007702764179f14F51cdce752f4f775d74E139";
-var AA_DEBUG_ENABLED = process.env.AOMI_AA_DEBUG === "1";
+var AA_DEBUG_ENABLED = runtimeEnv("AOMI_AA_DEBUG") === "1";
 function extractExistingAccountAddress(error) {
   var _a;
   const message = error instanceof Error ? error.message : String(error);
@@ -4486,7 +4505,7 @@ function resolvePimlicoConfig(options) {
     }
     return null;
   }
-  const apiKey = (_c = preResolvedApiKey != null ? preResolvedApiKey : (_a = process.env.PIMLICO_API_KEY) == null ? void 0 : _a.trim()) != null ? _c : publicOnly ? (_b = process.env.NEXT_PUBLIC_PIMLICO_API_KEY) == null ? void 0 : _b.trim() : void 0;
+  const apiKey = (_c = preResolvedApiKey != null ? preResolvedApiKey : (_a = runtimeEnv("PIMLICO_API_KEY")) == null ? void 0 : _a.trim()) != null ? _c : publicOnly ? (_b = runtimeEnv("NEXT_PUBLIC_PIMLICO_API_KEY")) == null ? void 0 : _b.trim() : void 0;
   if (!apiKey) {
     if (throwOnMissingConfig) {
       throw new Error("Pimlico AA requires PIMLICO_API_KEY.");
@@ -4551,7 +4570,7 @@ function createPimlicoAAProvider({
 
 // src/aa/pimlico/create.ts
 import { privateKeyToAccount as privateKeyToAccount4 } from "viem/accounts";
-var AA_DEBUG_ENABLED2 = process.env.AOMI_AA_DEBUG === "1";
+var AA_DEBUG_ENABLED2 = runtimeEnv("AOMI_AA_DEBUG") === "1";
 function pimDebug(message, fields) {
   if (!AA_DEBUG_ENABLED2) return;
   if (fields) {
@@ -4574,7 +4593,7 @@ async function createPimlicoAAState(options) {
     __spreadProps(__spreadValues({}, DEFAULT_AA_CONFIG), { provider: "pimlico" }),
     __spreadProps(__spreadValues({}, chainConfig), { defaultMode: effectiveMode })
   );
-  const apiKey = (_b = options.apiKey) != null ? _b : (_a = process.env.PIMLICO_API_KEY) == null ? void 0 : _a.trim();
+  const apiKey = (_b = options.apiKey) != null ? _b : (_a = runtimeEnv("PIMLICO_API_KEY")) == null ? void 0 : _a.trim();
   if (!apiKey) {
     throw new Error("Pimlico AA requires PIMLICO_API_KEY.");
   }

@@ -28,6 +28,17 @@ const response = await client.sendMessage(threadId, "What's the price of ETH?");
 console.log(response.messages);
 ```
 
+When the client targets a credentialed cross-origin BFF, pass
+`credentials: "include"`. The policy is applied consistently to REST,
+polling, and native SSE requests.
+
+```ts
+const client = new AomiClient({
+  baseUrl: "https://chat.aomi.dev",
+  credentials: "include",
+});
+```
+
 ### Session (high-level)
 
 Handles polling, event dispatch, and wallet request management automatically.
@@ -315,21 +326,21 @@ $ npx @aomi-labs/client session log
 
 All config can be passed as flags (which take priority over env vars):
 
-| Flag                    | Env Variable      | Default                | Description                                  |
-| ----------------------- | ----------------- | ---------------------- | -------------------------------------------- |
-| `--backend-url`         | `AOMI_BACKEND_URL` | `https://chat.aomi.dev` | Aomi API/BFF URL                            |
-| `--api-key`             | `AOMI_API_KEY`    | —                      | API key for non-default apps                 |
-| `--app`                 | `AOMI_APP`        | `default`              | App                                          |
-| `--model`               | `AOMI_MODEL`      | —                      | Model rig to apply before chat               |
-| `--prompt`, `-p`        | —                 | —                      | Send a single prompt and exit                |
-| `--show-tool`           | —                 | —                      | Show tool output in root prompt/REPL mode    |
-| `--provider-key`        | —                 | —                      | Save a BYOK provider key as `PROVIDER:KEY`   |
-| `--public-key`          | `AOMI_PUBLIC_KEY` | —                      | Wallet address (tells agent your wallet)     |
-| `--private-key`         | `PRIVATE_KEY`     | —                      | Hex private key for `aomi tx sign`           |
-| `--rpc-url`             | `CHAIN_RPC_URL`   | —                      | RPC URL for transaction submission           |
-| `--chain`               | `AOMI_CHAIN_ID`   | `1`                    | Chain ID (1, 137, 42161, 8453, 10, 11155111) |
-| `--verbose`, `-v`       | —                 | —                      | Stream tool calls and agent responses live   |
-| `--version`, `-V`       | —                 | —                      | Print the installed CLI version              |
+| Flag              | Env Variable       | Default                 | Description                                  |
+| ----------------- | ------------------ | ----------------------- | -------------------------------------------- |
+| `--backend-url`   | `AOMI_BACKEND_URL` | `https://chat.aomi.dev` | Aomi API/BFF URL                             |
+| `--api-key`       | `AOMI_API_KEY`     | —                       | API key for non-default apps                 |
+| `--app`           | `AOMI_APP`         | `default`               | App                                          |
+| `--model`         | `AOMI_MODEL`       | —                       | Model rig to apply before chat               |
+| `--prompt`, `-p`  | —                  | —                       | Send a single prompt and exit                |
+| `--show-tool`     | —                  | —                       | Show tool output in root prompt/REPL mode    |
+| `--provider-key`  | —                  | —                       | Save a BYOK provider key as `PROVIDER:KEY`   |
+| `--public-key`    | `AOMI_PUBLIC_KEY`  | —                       | Wallet address (tells agent your wallet)     |
+| `--private-key`   | `PRIVATE_KEY`      | —                       | Hex private key for `aomi tx sign`           |
+| `--rpc-url`       | `CHAIN_RPC_URL`    | —                       | RPC URL for transaction submission           |
+| `--chain`         | `AOMI_CHAIN_ID`    | `1`                     | Chain ID (1, 137, 42161, 8453, 10, 11155111) |
+| `--verbose`, `-v` | —                  | —                       | Stream tool calls and agent responses live   |
+| `--version`, `-V` | —                  | —                       | Print the installed CLI version              |
 
 ```bash
 # Use a custom backend

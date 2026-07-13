@@ -286,14 +286,21 @@ smoke_chat() {
     "$PORTAL_URL/api/threads" | grep -q '^200$'
   echo "200"
 
+  printf "  select Gemini 3 Flash: "
+  curl -s -o /tmp/aomi-dev-stack-model.json -w "%{http_code}\n" \
+    -X POST \
+    -H "X-Thread-Id: $thread_id" \
+    "$PORTAL_URL/api/thread/model?rig=Gemini%203%20Flash&app=default&client_id=dev-stack-smoke" | grep -q '^200$'
+  echo "200"
+
   printf "  chat pong: "
   curl --max-time 30 -s -o /tmp/aomi-dev-stack-chat.json -w "%{http_code}\n" \
     -X POST \
     -H "X-Thread-Id: $thread_id" \
-    "$PORTAL_URL/api/chat?app=default&message=Say%20only%20pong&client_id=dev-stack-smoke" | grep -q '^200$'
+    "$PORTAL_URL/api/thread/chat?app=default&message=Say%20only%20pong&client_id=dev-stack-smoke" | grep -q '^200$'
 
   for _ in $(seq 1 18); do
-    body="$(curl -s -H "X-Thread-Id: $thread_id" "$PORTAL_URL/api/state")"
+    body="$(curl -s -H "X-Thread-Id: $thread_id" "$PORTAL_URL/api/thread/state?client_id=dev-stack-smoke")"
     if printf "%s" "$body" | grep -q '"is_processing":false'; then
       if printf "%s" "$body" | grep -q '"content":"pong"'; then
         echo "200 pong"

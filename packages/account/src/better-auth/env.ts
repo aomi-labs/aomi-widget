@@ -42,7 +42,7 @@ export function readAccountAuthEnv(
     databaseUrl: requiredDatabaseUrl(env),
     siweDomain: resolveSiweDomain(env, url.host),
     siweEmailDomain: env.AOMI_AUTH_EMAIL_DOMAIN,
-    trustedOrigins: collectTrustedOrigins(env, betterAuthUrl),
+    trustedOrigins: resolveAccountTrustedOrigins(env),
     privyAppId:
       nonEmpty(env.PRIVY_APP_ID) ?? nonEmpty(env.NEXT_PUBLIC_PRIVY_APP_ID),
     privyAppSecret: nonEmpty(env.PRIVY_APP_SECRET),
@@ -119,21 +119,27 @@ function resolveBetterAuthUrl(env: AccountAuthEnvInput): string {
 
   return (
     firstUrl(env.VERCEL_PROJECT_PRODUCTION_URL, env.VERCEL_URL) ??
-    "http://localhost:3001"
+    "http://localhost:3000"
   );
 }
 
-function collectTrustedOrigins(
-  env: AccountAuthEnvInput,
-  betterAuthUrl: string,
+export function resolveAccountTrustedOrigins(
+  env: AccountAuthEnvInput = process.env,
 ): string[] {
-  return uniqueOrigins([
+  const origins = [
     ...parseCsv(env.AOMI_TRUSTED_ORIGINS),
-    betterAuthUrl,
+    resolveBetterAuthUrl(env),
     firstUrl(env.VERCEL_BRANCH_URL),
     firstUrl(env.VERCEL_URL),
     firstUrl(env.VERCEL_PROJECT_PRODUCTION_URL),
-  ]);
+    "https://aomi.dev",
+  ];
+
+  if (isAccountAuthLocalRuntime(env)) {
+    origins.push("http://127.0.0.1:3001", "http://localhost:3001");
+  }
+
+  return uniqueOrigins(origins);
 }
 
 function resolveSiweDomain(

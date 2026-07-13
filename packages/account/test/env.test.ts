@@ -10,13 +10,19 @@ const TEST_DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/aomi";
 describe("readAccountAuthEnv", () => {
   it("keeps the local/test secret default but never defaults the database", () => {
     const env = readAccountAuthEnv({
-      BETTER_AUTH_URL: "http://localhost:3001",
+      BETTER_AUTH_URL: "http://localhost:3000",
       DATABASE_URL: TEST_DATABASE_URL,
       NODE_ENV: "test",
     });
 
     expect(env.betterAuthSecret).toBe(DEV_BETTER_AUTH_SECRET);
     expect(env.databaseUrl).toBe(TEST_DATABASE_URL);
+    expect(env.trustedOrigins).toEqual([
+      "http://localhost:3000",
+      "https://aomi.dev",
+      "http://127.0.0.1:3001",
+      "http://localhost:3001",
+    ]);
   });
 
   it("requires BetterAuth secret outside development and test", () => {
@@ -86,6 +92,7 @@ describe("readAccountAuthEnv", () => {
       "https://chat-portal-git-codex-merge-bff-betterauth-aomi-labs.vercel.app",
       "https://chat-portal-random-deployment-id-aomi-labs.vercel.app",
       "https://chat.aomi.dev",
+      "https://aomi.dev",
     ]);
   });
 
@@ -110,6 +117,7 @@ describe("readAccountAuthEnv", () => {
       "https://chat-staging.aomi.dev",
       "https://chat-portal-git-main-aomi-labs.vercel.app",
       "https://chat-portal-random-deployment-id-aomi-labs.vercel.app",
+      "https://aomi.dev",
     ]);
   });
 
@@ -129,12 +137,13 @@ describe("readAccountAuthEnv", () => {
     expect(env.trustedOrigins).toEqual([
       "https://chat.aomi.dev",
       "https://chat-portal-prod-deployment-aomi-labs.vercel.app",
+      "https://aomi.dev",
     ]);
   });
 
   it("prefers the explicit Para JWT audience over the public API key", () => {
     const env = readAccountAuthEnv({
-      BETTER_AUTH_URL: "http://localhost:3001",
+      BETTER_AUTH_URL: "http://localhost:3000",
       DATABASE_URL: TEST_DATABASE_URL,
       NODE_ENV: "test",
       PARA_JWT_AUDIENCE: "para-audience-uuid",
@@ -151,7 +160,7 @@ describe("readAccountAuthEnv", () => {
     // Para verifier would report itself unconfigured despite PARA_JWKS_URL
     // being set.
     const env = readAccountAuthEnv({
-      BETTER_AUTH_URL: "http://localhost:3001",
+      BETTER_AUTH_URL: "http://localhost:3000",
       DATABASE_URL: TEST_DATABASE_URL,
       NODE_ENV: "test",
       PARA_JWT_AUDIENCE: "",

@@ -27,6 +27,10 @@ export async function POST(req: Request): Promise<Response> {
     }
     return Response.json(result);
   } catch (error) {
+    console.warn(
+      "[aomi-account] Provider credential exchange failed",
+      error instanceof Error ? error.message : error,
+    );
     return json(400, {
       error:
         error instanceof Error ? error.message : "provider_exchange_failed",

@@ -25,6 +25,7 @@ import {
 import { toSocialLoginOption } from "../../runtime/evm/brands";
 import { canonicalWalletKey } from "../../catalog/wallet-branding";
 import { DEFAULT_SVM_CLUSTER } from "../../catalog/svm-networks";
+import { publicEnv } from "../../../public-env";
 import { REGISTRY_STORAGE_KEY } from "../../registry/types";
 import { walletDebug } from "../../wallet-debug";
 import { buildEvmExecutionRuntime } from "../../execution/execution-runtime";
@@ -218,11 +219,11 @@ export function AomiParaPluginProvider({
       cluster: svmConfig?.cluster ?? DEFAULT_SVM_CLUSTER,
       rpcHttpUrl:
         svmConfig?.rpcHttpUrl ??
-        process.env.NEXT_PUBLIC_SOLANA_RPC_URL ??
+        publicEnv?.NEXT_PUBLIC_SOLANA_RPC_URL ??
         DEFAULT_SVM_ENDPOINT,
       rpcWsUrl:
         svmConfig?.rpcWsUrl ??
-        process.env.NEXT_PUBLIC_SOLANA_RPC_WS_URL ??
+        publicEnv?.NEXT_PUBLIC_SOLANA_RPC_WS_URL ??
         undefined,
       preferDirectSend: svmConfig?.preferDirectSend ?? true,
     }),

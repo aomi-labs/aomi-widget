@@ -6,6 +6,7 @@ import type {
   AAMode,
   AAWalletCall,
 } from "../types";
+import { runtimeEnv } from "../../runtime-env";
 import {
   DEFAULT_AA_CONFIG,
   buildAAExecutionPlan,
@@ -65,7 +66,12 @@ export function resolvePimlicoConfig(
     return null;
   }
 
-  const apiKey = preResolvedApiKey ?? process.env.PIMLICO_API_KEY?.trim() ?? (publicOnly ? process.env.NEXT_PUBLIC_PIMLICO_API_KEY?.trim() : undefined);
+  const apiKey =
+    preResolvedApiKey ??
+    runtimeEnv("PIMLICO_API_KEY")?.trim() ??
+    (publicOnly
+      ? runtimeEnv("NEXT_PUBLIC_PIMLICO_API_KEY")?.trim()
+      : undefined);
   if (!apiKey) {
     if (throwOnMissingConfig) {
       throw new Error("Pimlico AA requires PIMLICO_API_KEY.");

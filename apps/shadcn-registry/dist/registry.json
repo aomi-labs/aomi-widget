@@ -24,6 +24,10 @@
         {
           "type": "registry:component",
           "path": "components/aomi-frame.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/public-env.ts"
         }
       ],
       "dependencies": [
@@ -43,6 +47,24 @@
       ]
     },
     {
+      "name": "aomi-widget",
+      "type": "registry:component",
+      "description": "Complete Aomi chat widget with Portal transport, account, wallet, network, and execution defaults.",
+      "files": [
+        {
+          "type": "registry:component",
+          "path": "components/aomi-widget.tsx"
+        }
+      ],
+      "dependencies": [
+        "@aomi-labs/react"
+      ],
+      "registryDependencies": [
+        "https://aomi.dev/r/aomi-frame.json",
+        "https://aomi.dev/r/aomi-wallet-kit.json"
+      ]
+    },
+    {
       "name": "aomi-wallet-kit",
       "type": "registry:component",
       "description": "Generic Aomi wallet kit context. Identity → UserState sync is mounted automatically by AomiWalletKitContextProvider.",
@@ -50,6 +72,10 @@
         {
           "type": "registry:component",
           "path": "lib/wallet-kit.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/public-env.ts"
         },
         {
           "type": "registry:component",
@@ -671,6 +697,10 @@
         },
         {
           "type": "registry:component",
+          "path": "lib/public-env.ts"
+        },
+        {
+          "type": "registry:component",
           "path": "lib/wallet-kit/providers/para/para-brand.ts"
         },
         {
@@ -688,6 +718,10 @@
         {
           "type": "registry:component",
           "path": "lib/wallet-kit/providers/para/para-embedded-wallet.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/wallet-kit/providers/para/widget-auth.ts"
         },
         {
           "type": "registry:component",
@@ -787,6 +821,10 @@
         },
         {
           "type": "registry:component",
+          "path": "lib/public-env.ts"
+        },
+        {
+          "type": "registry:component",
           "path": "lib/wallet-kit/providers/privy/PrivyPluginProvider.tsx"
         },
         {
@@ -812,6 +850,10 @@
         {
           "type": "registry:component",
           "path": "lib/wallet-kit/providers/privy/privy.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/wallet-kit/providers/privy/widget-auth.ts"
         },
         {
           "type": "registry:component",

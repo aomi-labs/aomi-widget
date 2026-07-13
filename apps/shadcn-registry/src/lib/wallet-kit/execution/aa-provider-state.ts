@@ -15,13 +15,14 @@ import {
   type WalletProviderState,
 } from "./wallet-execution";
 import type { EvmWalletRuntime } from "../runtime/evm/wallet-runtime";
+import { publicEnv } from "../../public-env";
 
-const ALCHEMY_API_KEY = process.env.NEXT_PUBLIC_ALCHEMY_API_KEY?.trim() ?? "";
+const ALCHEMY_API_KEY = publicEnv?.NEXT_PUBLIC_ALCHEMY_API_KEY?.trim() ?? "";
 const ALCHEMY_GAS_POLICY_ID =
-  process.env.NEXT_PUBLIC_ALCHEMY_GAS_POLICY_ID?.trim();
-const PIMLICO_API_KEY = process.env.NEXT_PUBLIC_PIMLICO_API_KEY?.trim() ?? "";
+  publicEnv?.NEXT_PUBLIC_ALCHEMY_GAS_POLICY_ID?.trim();
+const PIMLICO_API_KEY = publicEnv?.NEXT_PUBLIC_PIMLICO_API_KEY?.trim() ?? "";
 const AA_PROVIDER_OVERRIDE =
-  process.env.NEXT_PUBLIC_AA_PROVIDER?.trim().toLowerCase();
+  publicEnv?.NEXT_PUBLIC_AA_PROVIDER?.trim().toLowerCase();
 
 function resolveAAProvider(
   preference: WalletKitAAProviderPreference = "auto",
@@ -98,10 +99,7 @@ export async function resolveAAProviderState({
   const canUseExternalWalletOwner = Boolean(
     shouldUseExternalSigner && walletClient && address,
   );
-  if (
-    ownerStrategy.kind === "external-wallet" &&
-    !canUseExternalWalletOwner
-  ) {
+  if (ownerStrategy.kind === "external-wallet" && !canUseExternalWalletOwner) {
     return {
       providerState: { resolved: null, pending: false, error: null },
       resolvedMode,
@@ -117,7 +115,8 @@ export async function resolveAAProviderState({
     return {
       providerState: { resolved: null, pending: false, error: null },
       resolvedMode,
-      fallbackReason: fallbackReason ?? "provider_session_unavailable_fallback_eoa",
+      fallbackReason:
+        fallbackReason ?? "provider_session_unavailable_fallback_eoa",
     };
   }
 
@@ -177,14 +176,11 @@ export async function resolveAAProviderState({
     });
 
     if (!state.account || state.error) {
-      console.warn(
-        "[aomi-wallet-kit] AA unavailable; falling back to EOA",
-        {
-          provider,
-          mode: resolvedMode,
-          error: state.error?.message ?? "account_unavailable",
-        },
-      );
+      console.warn("[aomi-wallet-kit] AA unavailable; falling back to EOA", {
+        provider,
+        mode: resolvedMode,
+        error: state.error?.message ?? "account_unavailable",
+      });
       return {
         providerState: { resolved: null, pending: false, error: null },
         resolvedMode,
@@ -195,14 +191,11 @@ export async function resolveAAProviderState({
 
     return { providerState: state, resolvedMode, fallbackReason };
   } catch (error) {
-    console.warn(
-      "[aomi-wallet-kit] AA init failed; falling back to EOA",
-      {
-        provider,
-        mode: resolvedMode,
-        error: error instanceof Error ? error.message : String(error),
-      },
-    );
+    console.warn("[aomi-wallet-kit] AA init failed; falling back to EOA", {
+      provider,
+      mode: resolvedMode,
+      error: error instanceof Error ? error.message : String(error),
+    });
     return {
       providerState: { resolved: null, pending: false, error: null },
       resolvedMode,

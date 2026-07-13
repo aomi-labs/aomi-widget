@@ -1,14 +1,24 @@
 ---
 title: Widget Installation
-description: Install the bundled Aomi widget in a Next.js app.
+description: Install the complete Aomi widget in a React app.
 ---
 
 # Widget Installation
 
-The fastest way to embed Aomi is the bundled widget.
+The fastest way to embed Aomi is the compiled package widget:
 
 ```bash
-npx shadcn add https://aomi.dev/r/aomi-frame.json
+npm install @aomi-labs/widget-lib
 ```
 
-Then follow [Quickstart](/docs/build/quickstart) and [AomiFrame](/docs/build/ui/widget/aomi-frame).
+Then follow [Quickstart](/docs/build/quickstart) to configure Portal plus Para,
+Privy, or providerless SIWE.
+
+If you intentionally want source-owned shadcn components instead, install:
+
+```bash
+npx shadcn add https://aomi.dev/r/aomi-widget.json
+```
+
+Use [AomiFrame](/docs/build/ui/widget/aomi-frame) only for an advanced,
+host-composed layout.

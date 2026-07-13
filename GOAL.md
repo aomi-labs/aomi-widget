@@ -394,3 +394,74 @@ build`, `CI=true npx -y pnpm@10.28.0 install --frozen-lockfile`, and
   touched source. Patch-bumped it from `1.4.1` to `1.4.2` and added a repository
   rule requiring relevant publishable npm workspaces to be version-bumped before
   future merges rather than corrected afterward.
+- 2026-07-13 Portal-hosted Landing auth: removed the duplicated
+  Landing BetterAuth/account routes and the shared Next-route abstraction.
+  Landing now points both its account runtime and widget backend traffic at
+  Portal with credentialed fetches. Portal owns credentialed CORS and shares
+  its exact trusted-origin policy with BetterAuth. Added a client transport
+  credentials option covering REST, polling, and native SSE, patch-bumped and
+  rebuilt `@aomi-labs/client@0.3.2`, and verified typechecks, full lint,
+  library/client builds, 7 Landing tests, 687 root tests, and Landing/Portal
+  production builds. Live cross-origin preflight, account/session requests,
+  anonymous thread creation, chat, state polling, and a completed `pong`
+  response passed against the local backend/Portal/Landing stack. All three
+  services remain running on ports 8080, 3000, and 3001 for manual auth parity
+  testing.
+- 2026-07-13 Landing authenticated threads: stopped the React runtime from
+  silently rewriting caller-provided `localhost` backend URLs to `127.0.0.1`.
+  The rewrite crossed the Portal session cookie's host boundary after Landing
+  login, causing credentialed `/api/threads` requests to return 401. Added a
+  regression test that preserves the exact backend host and patch-bumped
+  `@aomi-labs/react` to `0.5.2` for the published runtime fix.
+- 2026-07-13 unified widget integration: replaced Landing's app-specific
+  wallet-kit and unused Privy wrappers with the package-level `AomiWidget`.
+  Consumers now always mount that one component, select embedded auth with the
+  tree-shakeable `paraAuth()` or `privyAuth()` helper, or omit `auth` for the
+  providerless external-wallet/SIWE path. The widget owns credentialed Portal
+  transport, account bridging, wallet providers, network catalogs, and
+  execution defaults. Added a two-page Vite consumer proving Para and
+  providerless integrations, with no Para/Privy auth SDK in the providerless
+  bundle.
+- 2026-07-13 returning-provider account recovery: shared verified identity,
+  email, and wallet adoption signals between existing-session and new-session
+  provider exchange, and made legacy backend usernames collision-safe. This
+  resolves the Para-authenticated-but-401 state caused by a stale canonical
+  username owner. Focused account and unified-widget tests pass, and the user
+  confirmed authenticated account, threads, and chat work in both Portal and
+  the consumer before the final regression pass.
+- 2026-07-13 unified-widget verification: passed 692 root tests, 229 widget
+  tests, Portal tests, full lint, affected-package typechecks/builds, frozen
+  install, Landing and Portal production builds, and pack audits for account
+  `0.1.1`, client `0.3.2`, React `0.5.2`, and widget-lib `1.4.3`. The Vite
+  consumer builds separate Para and providerless pages; bundle graph inspection
+  confirms providerless includes neither Para nor Privy auth SDK. The live auth
+  stack passed thread creation, Gemini 3 Flash selection, and a completed
+  `pong`; the widget package also ships precompiled CSS so external consumers
+  need no Tailwind source scanning. Portal, Para consumer, and providerless
+  consumer remain available on localhost for the user's manual verification.
+  No commit, push, or deployment was performed.
+- 2026-07-13 Vite Para modal compatibility: reproduced the consumer-only
+  Stencil failure where `cpsl-auth-modal` was unknown to its runtime, kept the
+  stable Para 2.19 package line, and added Para's required browser shims only
+  at the Vite consumer boundary (`buffer` and `os`, without injected mutable
+  Node globals). A clean dependency cache now contains one Para component
+  runtime, the prior Node externalization warnings are gone, the production
+  consumer build and all 229 widget tests pass, frozen install passes, and the
+  user manually confirmed that clicking Para opens the auth flow. Portal was
+  not changed. No commit or push was performed.
+- 2026-07-13 auth release review and documentation: fast-forwarded the working
+  branch to current `origin/main`, reviewed the full uncommitted integration,
+  and fixed the remaining release findings: the account package's local
+  BetterAuth fallback now targets Portal on port 3000, Portal CORS failures add
+  `Vary: Origin`, and widget-lib no longer publishes a dead
+  `aomi-frame-collapsible` export. Reworked the root, Landing, Portal, account,
+  React, widget-lib, and Vite-consumer READMEs plus the consumer Build guides
+  around `AomiWidget`, Para, Privy, providerless SIWE, credentialed Portal/BFF
+  transport, trusted origins, verifier secrets, compiled CSS, and the
+  same-site cookie deployment boundary. Reverified frozen install, full lint,
+  all 692 root tests and 229 widget tests, Portal tests, affected typechecks and
+  package builds, Landing/Portal/Vite production builds, registry mirroring,
+  providerless bundle isolation, and packed manifests/readmes/exports for
+  account `0.1.1`, client `0.3.2`, React `0.5.2`, and widget-lib `1.4.3`.
+  The change set is ready to commit and push; no staging, commit, push, PR, or
+  deployment was performed.

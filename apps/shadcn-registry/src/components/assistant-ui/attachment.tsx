@@ -1,7 +1,6 @@
 "use client";
 
 import { PropsWithChildren, useEffect, useState, type FC } from "react";
-import Image from "next/image";
 import { XIcon, PlusIcon, FileText } from "lucide-react";
 import {
   AttachmentPrimitive,
@@ -67,18 +66,17 @@ type AttachmentPreviewProps = {
 const AttachmentPreview: FC<AttachmentPreviewProps> = ({ src }) => {
   const [isLoaded, setIsLoaded] = useState(false);
   return (
-    <Image
+    // The widget is framework-neutral; consumer image URLs and object URLs
+    // cannot be routed through a framework-specific image optimizer.
+    <img
       src={src}
       alt="Image Preview"
-      width={1}
-      height={1}
       className={
         isLoaded
           ? "aui-attachment-preview-image-loaded block h-auto max-h-[80vh] w-auto max-w-full object-contain"
           : "aui-attachment-preview-image-loading hidden"
       }
-      onLoadingComplete={() => setIsLoaded(true)}
-      priority={false}
+      onLoad={() => setIsLoaded(true)}
     />
   );
 };

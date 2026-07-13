@@ -1,325 +1,201 @@
 ---
 title: Configuration
-description: Environment variables, props, hooks, and backend endpoints for the Aomi widget.
+description: Configure AomiWidget auth, accounts, transport, wallets, and layout.
 ---
 
 # Configuration
 
-Configure behavior, runtime options, and component props for the Aomi widget.
+`AomiWidget` is the complete consumer component. Its required `apiUrl` is the
+Portal/BFF origin used for BetterAuth, accounts, threads, chat, polling, and
+SSE. It must not point at the raw backend when browser account auth is enabled.
 
-## Environment Variables
-
-Set these in your `.env` file:
-
-```bash
-# Backend API URL (required)
-NEXT_PUBLIC_BACKEND_URL=https://api.example.com
-
-# Optional: Para API key for a Para-backed wallet bridge
-NEXT_PUBLIC_PARA_API_KEY=your_para_api_key
-
-# Optional: WalletConnect project ID for external wallets in the Para modal
-NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=your_walletconnect_project_id
-```
-
-## AomiFrame Props
-
-### Basic Configuration
+## Minimal configuration
 
 ```tsx
-import { AomiFrame } from "@/components/aomi-frame";
+import { AomiWidget } from "@aomi-labs/widget-lib";
+import "@aomi-labs/widget-lib/styles.css";
 
-<AomiFrame
-  width="100%"
-  height="600px"
-  backendUrl="https://api.example.com"
-  walletPosition="footer"
+<AomiWidget apiUrl="https://chat.aomi.dev" />;
+```
+
+This is providerless mode. External wallets remain available and EVM wallets
+can authenticate through Portal SIWE. The widget sends credentials on every
+Portal transport and aligns its account runtime with the same URL.
+
+## Auth providers
+
+Provider choice changes only the helper passed to `auth`.
+
+### Para
+
+```tsx
+import { paraAuth } from "@aomi-labs/widget-lib/providers/para";
+
+<AomiWidget
+  apiUrl={portalUrl}
+  auth={paraAuth({
+    apiKey: process.env.NEXT_PUBLIC_PARA_API_KEY,
+    environment: "PROD", // "BETA" by default
+    methods: ["email", "google"],
+    appName: "My product",
+    appDescription: "On-chain assistant",
+    appUrl: "https://app.example.com",
+  })}
 />;
 ```
 
-### Wallet Position Options
+### Privy
 
 ```tsx
-// Wallet button in sidebar footer (default)
-<AomiFrame walletPosition="footer" />
+import { privyAuth } from "@aomi-labs/widget-lib/providers/privy";
 
-// Wallet button in sidebar header
-<AomiFrame walletPosition="header" />
-
-// No wallet button in sidebar (use ControlBar wallet instead)
-<AomiFrame walletPosition={null} />
+<AomiWidget
+  apiUrl={portalUrl}
+  auth={privyAuth({
+    appId: process.env.NEXT_PUBLIC_PRIVY_APP_ID,
+    methods: ["email", "google", "wallet"],
+    appName: "My product",
+    appLogoUrl: "https://app.example.com/logo.png",
+  })}
+/>;
 ```
 
-### Custom Layout with Compound Components
+`paraAuth()` and `privyAuth()` trim their public identifier. A missing or empty
+identifier returns `false`, so optional local provider configuration falls back
+to providerless mode. Import only the provider helper you use; its SDK stays
+out of the other widget bundle.
+
+## Widget props
+
+| Prop                     | Type                                 | Default                          | Purpose                                           |
+| ------------------------ | ------------------------------------ | -------------------------------- | ------------------------------------------------- |
+| `apiUrl`                 | `string`                             | required                         | Portal/BFF origin for account and runtime traffic |
+| `auth`                   | `AomiWidgetAuthConfig`               | providerless                     | `paraAuth(...)`, `privyAuth(...)`, or `false`     |
+| `width`                  | CSS width                            | `"100%"`                         | Frame width                                       |
+| `height`                 | CSS height                           | `"80vh"`                         | Frame height                                      |
+| `className` / `style`    | React styling                        | --                               | Host container styling                            |
+| `walletPosition`         | `"header" \| "footer" \| null`       | `"footer"`                       | Sidebar wallet control placement                  |
+| `walletFamilies`         | `("evm" \| "solana")[]`              | both                             | Wallet families shown in controls                 |
+| `showSidebar`            | `boolean`                            | `true`                           | Thread sidebar visibility                         |
+| `showHeader`             | `boolean`                            | `true`                           | Header visibility                                 |
+| `controlBarProps`        | control props                        | --                               | Model, app, network, key, and wallet visibility   |
+| `clientOptions`          | `Omit<AomiClientOptions, "baseUrl">` | credentials included             | Advanced transport options                        |
+| `persistThread`          | `boolean`                            | runtime default                  | Restore the selected materialized thread          |
+| `threadPersistenceKey`   | `string`                             | derived                          | Explicit storage key                              |
+| `threadPersistenceScope` | `string \| null`                     | --                               | Tenant/user scope for the derived key             |
+| `providers`              | `ProvidersConfig`                    | --                               | Low-level provider overrides                      |
+| `wallets`                | `WalletsConfig`                      | built-in catalogs                | EVM/Solana wallet and network overrides           |
+| `execution`              | `ExecutionConfig`                    | optional AA, auto provider, 4337 | Signing and sponsorship policy                    |
+| `account`                | `AccountConfig`                      | Portal account mode              | Advanced account override or disable              |
+
+`clientOptions.credentials` defaults to `"include"`. Override it only for a
+deployment that intentionally does not use Portal cookies.
+
+## Wallets and networks
 
 ```tsx
-import { AomiFrame } from "@/components/aomi-frame";
+import { base, mainnet } from "wagmi/chains";
 
-<AomiFrame.Root height="600px" backendUrl="https://api.example.com">
-  <AomiFrame.Header
-    withControl={true}
-    controlBarProps={{
-      hideModel: false,
-      hideApp: false,
-      hideApiKey: true,
-      hideWallet: false,
-    }}
-  />
-  <AomiFrame.Composer />
-</AomiFrame.Root>;
+<AomiWidget
+  apiUrl={portalUrl}
+  wallets={{
+    evm: {
+      chains: [mainnet, base],
+      wallets: ["metamask", "rabby", "coinbase", "baseAccount"],
+      walletConnectProjectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID,
+      appName: "My product",
+    },
+    solana: false,
+  }}
+/>;
 ```
 
-### Control Bar in Composer Area
+By default the widget supplies Ethereum, Arbitrum, Optimism, Base, Polygon,
+Sepolia, Linea, and Monad EVM networks plus Solana mainnet, devnet, and testnet.
+Set a family to `false` to remove it.
 
-Place the control bar above the input instead of in the header:
+## Account abstraction and sponsorship
 
 ```tsx
-<AomiFrame.Root height="600px">
-  <AomiFrame.Header withControl={false} />
-  <AomiFrame.Composer
-    withControl={true}
-    controlBarProps={{ hideWallet: true }}
-  />
-</AomiFrame.Root>
+<AomiWidget
+  apiUrl={portalUrl}
+  execution={{
+    aa: "optional",
+    provider: "pimlico",
+    modes: ["4337"],
+    owner: "external-wallet",
+    sponsorship: {
+      mode: "optional",
+      paymasterServiceUrl: "/api/paymaster",
+    },
+  }}
+/>
 ```
 
-## ControlBar Configuration
+Use `aa: "required"` or sponsorship `mode: "required"` only when the selected
+chains and provider configuration guarantee that capability. Optional mode
+falls back to native wallet execution.
 
-### Show/Hide Controls
+## Controls and layout
 
 ```tsx
-import { ControlBar } from "@/components/control-bar";
-
-// Full control bar (all controls visible)
-<ControlBar />
-
-// Minimal: just model and app
-<ControlBar hideApiKey hideWallet />
-
-// Custom: hide defaults, add your own
-<ControlBar hideModel hideApp hideApiKey hideWallet>
-  <MyCustomModelPicker />
-  <MyCustomWalletButton />
-</ControlBar>
+<AomiWidget
+  apiUrl={portalUrl}
+  showSidebar={false}
+  walletPosition={null}
+  controlBarProps={{
+    hideModel: false,
+    hideApp: false,
+    hideApiKey: true,
+    hideWallet: false,
+    hideNetwork: false,
+  }}
+/>
 ```
 
-### ControlBar Props Reference
+Use [`AomiFrame`](/docs/build/ui/widget/aomi-frame) with
+`AomiWalletKitProvider` only when you need to replace the compound layout or
+provider composition. In that advanced path, set the account `baseUrl`, frame
+`backendUrl`, and client credentials consistently; `AomiWidget` normally does
+that wiring for you.
 
-| Prop          | Type        | Default | Description                      |
-| ------------- | ----------- | ------- | -------------------------------- |
-| `hideModel`   | `boolean`   | `false` | Hide the model selector dropdown |
-| `hideApp`     | `boolean`   | `false` | Hide the app/agent selector      |
-| `hideApiKey`  | `boolean`   | `false` | Hide the API key input button    |
-| `hideWallet`  | `boolean`   | `true`  | Hide the wallet connect button   |
-| `hideNetwork` | `boolean`   | `false` | Hide the network selector        |
-| `className`   | `string`    | --      | Additional CSS classes           |
-| `children`    | `ReactNode` | --      | Custom controls to append        |
+## Cross-origin deployment
 
-## Control State Management
+Portal and BetterAuth share one exact trusted-origin policy. Add every consumer
+origin to the Portal server, including preview origins that need auth:
 
-Access the control state with the `useControl` hook:
-
-```tsx
-import { useControl } from "@aomi-labs/react";
-
-function MyComponent() {
-  const {
-    state, // Global control state
-    setApiKey, // Update API key
-    getAvailableModels, // Fetch available models from backend
-    getAuthorizedApps, // Fetch authorized apps from backend
-    onModelSelect, // Select a model for the current thread
-    onAppSelect, // Select an app for the current thread
-    getCurrentThreadControl, // Get current thread's control state
-    isProcessing, // Whether model/app switching is disabled
-    getControlState, // Get state synchronously (for callbacks)
-    onControlStateChange, // Subscribe to state changes
-  } = useControl();
-
-  // Read global state
-  console.log(state.apiKey); // "sk-..." | null
-  console.log(state.availableModels); // ["claude-sonnet-4-20250514", "gpt-4o", ...]
-  console.log(state.authorizedApps); // ["default", "defi", ...]
-  console.log(state.defaultModel); // "claude-sonnet-4-20250514"
-  console.log(state.defaultApp); // "default"
-
-  // Read per-thread control
-  const threadControl = getCurrentThreadControl();
-  console.log(threadControl.model); // Selected model for this thread
-  console.log(threadControl.app); // Selected app for this thread
-
-  // Update state
-  setApiKey("sk-new-key");
-  await onModelSelect("gpt-4o");
-  onAppSelect("defi");
-}
+```bash
+AOMI_TRUSTED_ORIGINS=https://app.aomi.dev,https://preview.aomi.dev
 ```
 
-### Control State Shape
+Origins include scheme, host, and optional port, with no path. Portal returns
+credentialed CORS headers only to trusted origins. The consumer should not add
+its own `/api/auth/*`, `/api/aomi/*`, or backend catch-all proxy.
 
-```typescript
-type ControlState = {
-  apiKey: string | null;
-  availableModels: string[];
-  authorizedApps: string[];
-  defaultModel: string | null;
-  defaultApp: string | null;
-};
-```
+Direct credentialed requests assume Portal and the consumer are same-site (for
+example `chat.example.com` and `app.example.com`). On an unrelated top-level
+domain, use a customer-domain Portal or a transparent same-site reverse proxy
+and set `apiUrl` to that same-site origin. Trusted CORS does not bypass
+SameSite or browser third-party-cookie blocking.
 
-## Runtime API
+Para/Privy browser identifiers are public, but Portal verification keys and
+provider REST secrets are server-only. See the [Quickstart](/docs/build/quickstart)
+for the matching environment variables.
 
-Access the full runtime API with `useAomiRuntime`:
+## Portal routes used by the widget
 
-```tsx
-import { useAomiRuntime } from "@aomi-labs/react";
+| Route                                        | Purpose                                   |
+| -------------------------------------------- | ----------------------------------------- |
+| `/api/auth/*`                                | BetterAuth sessions and SIWE              |
+| `/api/aomi/account`                          | Canonical account and linked wallet graph |
+| `/api/aomi/provider/exchange`                | Verified Para/Privy session exchange      |
+| `/api/threads` and `/api/threads/:id`        | Thread list and lifecycle                 |
+| `/api/thread/chat`                           | Submit a message                          |
+| `/api/thread/state`                          | Poll thread state                         |
+| `/api/thread/updates`                        | Native SSE updates                        |
+| `/api/thread/models` and `/api/thread/model` | Model list and selection                  |
+| `/api/thread/apps`                           | Available Aomi Apps                       |
 
-function MyComponent() {
-  const api = useAomiRuntime();
-
-  // Thread management
-  const threadId = api.currentThreadId;
-  await api.createThread();
-  api.selectThread("thread-123");
-  await api.deleteThread("thread-123");
-  await api.renameThread("thread-123", "New Title");
-
-  // Messages
-  const messages = api.getMessages(threadId);
-  await api.sendMessage("Hello!");
-  const isGenerating = api.isRunning;
-  api.cancelGeneration();
-
-  // User state
-  const user = api.user;
-  api.setUser({ address: "0x...", chainId: 1, isConnected: true });
-
-  // Notifications
-  api.showNotification({ type: "success", title: "Done!" });
-  api.dismissNotification("notification-id");
-  api.clearAllNotifications();
-
-  // Events
-  const unsubscribe = api.subscribe("wallet_tx_request", (event) => {
-    console.log(event);
-  });
-  await api.sendSystemCommand({
-    type: "custom:action",
-    sessionId: threadId,
-    payload: { data: "value" },
-  });
-}
-```
-
-## Para Wallet Provider
-
-Wallet integration requires Para for the connect/manage flow and wagmi-compatible connectors under the hood. Configure it in your app providers:
-
-```tsx
-// app/providers.tsx
-import "@getpara/react-sdk/styles.css";
-import { ParaProvider, Environment } from "@getpara/react-sdk";
-import { http } from "viem";
-import { mainnet, polygon } from "wagmi/chains";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-
-const queryClient = new QueryClient();
-const walletConnectProjectId =
-  process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID ??
-  process.env.NEXT_PUBLIC_PROJECT_ID;
-
-export function Providers({ children }) {
-  return (
-    <QueryClientProvider client={queryClient}>
-      <ParaProvider
-        paraClientConfig={{
-          apiKey: process.env.NEXT_PUBLIC_PARA_API_KEY!,
-          env:
-            (process.env.NEXT_PUBLIC_PARA_ENVIRONMENT as
-              | Environment
-              | undefined) ?? Environment.BETA,
-        }}
-        config={{ appName: "Your App" }}
-        paraModalConfig={{
-          disableEmailLogin: true,
-          oAuthMethods: ["GOOGLE"],
-        }}
-        externalWalletConfig={{
-          appDescription: "Your app description",
-          appUrl: "https://your-app.com",
-          wallets: [
-            "WALLETCONNECT",
-            "METAMASK",
-            "COINBASE",
-            "RAINBOW",
-            "RABBY",
-          ],
-          walletConnect: {
-            projectId: walletConnectProjectId!,
-          },
-          evmConnector: {
-            config: {
-              chains: [mainnet, polygon],
-              transports: {
-                [mainnet.id]: http(),
-                [polygon.id]: http(),
-              },
-              ssr: true,
-            },
-          },
-        }}
-      >
-        {children}
-      </ParaProvider>
-    </QueryClientProvider>
-  );
-}
-```
-
-## Feature Flags
-
-Use props to toggle features:
-
-```tsx
-// Hide all controls for a minimal UI
-<AomiFrame.Root>
-  <AomiFrame.Header withControl={false} />
-  <AomiFrame.Composer />
-</AomiFrame.Root>
-
-// Hide wallet for non-web3 apps
-<AomiFrame.Root walletPosition={null}>
-  <AomiFrame.Header controlBarProps={{ hideWallet: true }} />
-  <AomiFrame.Composer />
-</AomiFrame.Root>
-
-// API-key only mode (no wallet, no app)
-<AomiFrame.Root walletPosition={null}>
-  <AomiFrame.Header
-    withControl
-    controlBarProps={{
-      hideModel: true,
-      hideApp: true,
-      hideWallet: true,
-      hideNetwork: true,
-    }}
-  />
-  <AomiFrame.Composer />
-</AomiFrame.Root>
-```
-
-## Backend Endpoints
-
-The widget communicates with your backend via these endpoints:
-
-| Endpoint              | Method       | Description            |
-| --------------------- | ------------ | ---------------------- |
-| `/api/thread/chat`           | POST         | Send a message         |
-| `/api/thread/state`          | GET          | Poll for state updates |
-| `/api/session/models` | GET          | Get available models   |
-| `/api/session/apps`   | GET          | Get authorized apps    |
-| `/api/session/model`  | POST         | Set the active model   |
-| `/api/sessions`       | GET/POST     | List/create threads    |
-| `/api/sessions/:id`   | PATCH/DELETE | Update/delete thread   |
-
-See the [API Reference](/docs/build/services/api-reference) for full endpoint documentation.
+All browser routes above go through Portal. Portal decides whether to forward
+an anonymous request or mint an AccountBearer for an authenticated canonical
+user.

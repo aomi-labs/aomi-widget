@@ -1,7 +1,7 @@
 # Widget User Auth — Current State And Remaining Work
 
 > Status: code-aligned current-state document.
-> Last checked against this repo on 2026-07-01.
+> Last checked against this repo on 2026-07-13.
 >
 > This is no longer only an implementation plan. It records what exists in the
 > code right now, where it lives, how the pieces fit together, and what is still
@@ -12,6 +12,14 @@
 > legacy Rust provider-exchange paths have been removed. The live backend-auth
 > path is BetterAuth session -> canonical Aomi user -> portal-minted EdDSA
 > AccountBearer via the static service topology.
+>
+> 2026-07-13 integration note: Portal is the sole browser auth, account, and
+> backend-BFF host. Landing and future widget integrators call Portal
+> cross-origin; they do not mount copies of Portal's Next routes.
+> Integrators mount one `AomiWidget`, choose embedded auth with `paraAuth()` or
+> `privyAuth()`, or omit `auth` for external-wallet/SIWE-only operation. The
+> provider helpers live on provider subpaths so the providerless bundle does
+> not include either embedded-auth SDK.
 
 ---
 
@@ -84,6 +92,7 @@ The code now implements this separation in the portal and widget layer:
 | BetterAuth backend JWT            | Removed. Backend trust now uses portal-minted EdDSA AccountBearer tokens, not BetterAuth JWT/JWKS.                                                 |
 | Rust canonical-user trust         | Shipped through the BFF proxy: `aomi_users.id` is mirrored to backend `users.id`, then used as AccountBearer `sub`.                                |
 | SIWE-only Rust history            | No longer anonymous after BFF login; SIWE creates a Better Auth session and the proxy mints the backend bearer from that session.                  |
+| External widget origins           | Landing calls Portal directly with credentialed fetches. Portal CORS and BetterAuth use one exact trusted-origin policy.                           |
 
 ---
 
@@ -221,12 +230,12 @@ The remaining seam is operational, not a separate auth design:
 
 Mounted by `apps/portal/src/app/api/auth/[...all]/route.ts`.
 
-| Route                                                     | Owner                      | Purpose                                                                                                |
-| --------------------------------------------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `/api/auth/siwe/nonce`                                    | BetterAuth SIWE plugin     | Create SIWE nonce.                                                                                     |
-| `/api/auth/siwe/verify`                                   | BetterAuth SIWE plugin     | Verify SIWE message/signature and create BetterAuth session.                                           |
-| `/api/auth/aomi/provider/exchange`                        | `aomiProviderAuthPlugin()` | Verify Privy/Para credential, create or find BetterAuth user, create Aomi account, set session cookie. |
-| `/api/auth/sign-out`                                      | BetterAuth                 | Clear BetterAuth session.                                                                              |
+| Route                              | Owner                      | Purpose                                                                                                |
+| ---------------------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `/api/auth/siwe/nonce`             | BetterAuth SIWE plugin     | Create SIWE nonce.                                                                                     |
+| `/api/auth/siwe/verify`            | BetterAuth SIWE plugin     | Verify SIWE message/signature and create BetterAuth session.                                           |
+| `/api/auth/aomi/provider/exchange` | `aomiProviderAuthPlugin()` | Verify Privy/Para credential, create or find BetterAuth user, create Aomi account, set session cookie. |
+| `/api/auth/sign-out`               | BetterAuth                 | Clear BetterAuth session.                                                                              |
 
 ### Aomi Account API
 
@@ -379,13 +388,13 @@ because the user is attaching a new wallet.
 
 There are still several credentials, and they intentionally do different jobs.
 
-| Credential                 | Made by    | Proves                                    | Stored?                  | Current use                                                      |
-| -------------------------- | ---------- | ----------------------------------------- | ------------------------ | ---------------------------------------------------------------- |
-| Privy access token         | Privy      | Privy login/session subject               | Raw token is not stored  | Can verify login proof; no email/linked accounts.                |
-| Privy identity token       | Privy      | Privy user plus identity claims           | Raw token is not stored  | Preferred account credential; can include email/linked accounts. |
-| Para session JWT           | Para       | Para session/user subject                 | Raw token is not stored  | Verifies via Para JWKS and feeds account link/sign-in.           |
-| BetterAuth session         | BetterAuth | Browser/device is BetterAuth user X       | BetterAuth session table | Primary portal session; carried by cookie or CLI bearer token.   |
-| AccountBearer              | Portal BFF | Backend may trust canonical `users.id`    | Not stored               | Minted per BFF request, verified by Rust service topology.       |
+| Credential           | Made by    | Proves                                 | Stored?                  | Current use                                                      |
+| -------------------- | ---------- | -------------------------------------- | ------------------------ | ---------------------------------------------------------------- |
+| Privy access token   | Privy      | Privy login/session subject            | Raw token is not stored  | Can verify login proof; no email/linked accounts.                |
+| Privy identity token | Privy      | Privy user plus identity claims        | Raw token is not stored  | Preferred account credential; can include email/linked accounts. |
+| Para session JWT     | Para       | Para session/user subject              | Raw token is not stored  | Verifies via Para JWKS and feeds account link/sign-in.           |
+| BetterAuth session   | BetterAuth | Browser/device is BetterAuth user X    | BetterAuth session table | Primary portal session; carried by cookie or CLI bearer token.   |
+| AccountBearer        | Portal BFF | Backend may trust canonical `users.id` | Not stored               | Minted per BFF request, verified by Rust service topology.       |
 
 ### Backend AccountBearer
 
@@ -683,6 +692,31 @@ backend AccountBearer server-side.
 `createAccountAccessTokenProvider()` remains for explicit cross-origin clients
 that need `/api/aomi/account-bearer`; it is not the normal portal widget path.
 
+### Landing and external widgets
+
+Landing mounts the package-level `AomiWidget` and selects Para with
+`auth={paraAuth(...)}`. `AomiWidget` passes the canonical Portal URL as both
+the account runtime `baseUrl` and the frame `backendUrl`. The client uses
+`credentials: "include"` for
+REST, polling, and streaming requests, so the Portal BetterAuth session is
+reused and Portal mints the same canonical-user AccountBearer for backend
+requests.
+
+The same component supports Privy through the Privy provider subpath and a
+providerless mode by omitting `auth`. Consumers do not need a Portal client,
+Next proxy, wallet-kit wrapper, chain list, or Solana network list for the
+default integration; each remains overridable through `AomiWidget` props.
+
+Portal's `src/proxy.ts` handles credentialed CORS for `/api/*`. Its exact
+origin allowlist comes from the same `resolveAccountTrustedOrigins()` function
+used by BetterAuth. The hosted Landing origin and standard local Landing
+origins are included; additional integrators must be added through
+`AOMI_TRUSTED_ORIGINS`.
+
+Landing intentionally retains no `/api/auth/*` or `/api/aomi/*` route mounts.
+Provider exchange, SIWE, account updates, wallet links, sign-out, and
+AccountBearer minting all remain Portal responsibilities.
+
 ---
 
 ## 13. MCP Boundary
@@ -722,11 +756,11 @@ The deprecated package layout and explicit legacy package subpaths were removed.
 
 Do not confuse this with widget user auth:
 
-| System                   | Answers                       | Routes / package surface                          |
-| ------------------------ | ----------------------------- | ------------------------------------------------- |
-| Widget account auth      | Who is this user?             | `/api/auth/*`, `/api/aomi/*`, `@aomi-labs/auth/*` |
-| Active MCP runtime       | What tools can this MCP call? | `/api/mcp/[transport]`, `@aomi-labs/mcp-core`     |
-| Removed MCP approvals    | May app X use provider Y?     | Removed package surface                           |
+| System                | Answers                       | Routes / package surface                          |
+| --------------------- | ----------------------------- | ------------------------------------------------- |
+| Widget account auth   | Who is this user?             | `/api/auth/*`, `/api/aomi/*`, `@aomi-labs/auth/*` |
+| Active MCP runtime    | What tools can this MCP call? | `/api/mcp/[transport]`, `@aomi-labs/mcp-core`     |
+| Removed MCP approvals | May app X use provider Y?     | Removed package surface                           |
 
 The former MCP approval helpers no longer share the root auth export, package
 subpaths, portal route aliases, or MCP runtime dependency graph.

@@ -22,7 +22,14 @@ Aomi treats every on-chain transaction as a first-class operation with built-in 
 
 Before any transaction reaches a user's wallet, Aomi forks the current network state using [Anvil](https://book.getfoundry.sh/anvil/) and simulates the transaction against it. The user sees exact token changes, gas costs, and contract calls before signing anything. This simulation-first approach is how the system prevents AI-generated transactions from executing without verification.
 
-Aomi is non-custodial by design. It never holds private keys or funds. Wallet connection and account management run through [Para](https://www.getpara.com), while transaction signing still happens locally in the user's wallet through wagmi-compatible connectors. The AI constructs and proposes transactions; the wallet signs them. Account abstraction is supported for session keys, gas sponsorship, and batched operations — smoother UX without compromising custody.
+Aomi is non-custodial by design. It never holds private keys or funds. Browser
+accounts can authenticate through Para, Privy, or external-wallet SIWE while
+transaction signing still happens locally in the selected wallet. Portal
+verifies identity, resolves one canonical Aomi account, and proxies protected
+backend traffic without exposing server credentials to the browser. The AI
+constructs and proposes transactions; the wallet signs them. Account
+abstraction is supported for session keys, gas sponsorship, and batched
+operations — smoother UX without compromising custody.
 
 This pipeline applies across all channels. Whether a user transacts through the web widget or a Telegram bot, the same simulation and approval flow runs.
 
@@ -42,24 +49,27 @@ Choose from Anthropic (Claude), OpenAI (GPT-4), or models via OpenRouter. Switch
 
 ## Integration Paths
 
-|                    | Widget (shadcn)                                               | Headless Library                                            | Telegram Bot                                           |
-| ------------------ | ------------------------------------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------ |
-| **Setup time**     | Minutes                                                       | Hours                                                       | Managed by Aomi                                        |
-| **Install method** | `npx shadcn add`                                              | `npm install`                                               | No frontend code                                       |
-| **UI included**    | Full chat interface, sidebar, controls                        | None — build your own                                       | Telegram-native                                        |
-| **Customization**  | Edit copied source files                                      | Build from scratch                                          | Bot commands and panels                                |
-| **Dependencies**   | `@aomi-labs/react`, `@assistant-ui/react`, shadcn primitives  | `@aomi-labs/react`, `@assistant-ui/react`                   | None                                                   |
-| **Framework**      | Next.js (React)                                               | Any React app (API client works anywhere)                   | N/A                                                    |
-| **Code ownership** | Components copied to your project                             | Library imported from npm                                   | Hosted by Aomi                                         |
-| **Best for**       | Quick integration, standard chat UI, projects using shadcn/ui | Fully custom designs, non-standard layouts, maximum control | Reaching users on Telegram without frontend deployment |
+|                    | Complete Widget                                            | Headless Library                                            | Telegram Bot                                           |
+| ------------------ | ---------------------------------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------ |
+| **Setup time**     | Minutes                                                    | Hours                                                       | Managed by Aomi                                        |
+| **Install method** | `npm install @aomi-labs/widget-lib`                        | `npm install @aomi-labs/react`                              | No frontend code                                       |
+| **UI included**    | Chat, sidebar, controls, auth/account/wallet composition   | None — build your own                                       | Telegram-native                                        |
+| **Customization**  | Props first; compound components or shadcn source optional | Build from scratch                                          | Bot commands and panels                                |
+| **Framework**      | React via Next.js, Vite, or another modern bundler         | Any React app (API client works anywhere)                   | N/A                                                    |
+| **Best for**       | Authenticated product integration with a standard chat UI  | Fully custom designs, non-standard layouts, maximum control | Reaching users on Telegram without frontend deployment |
 
-### Widget (shadcn)
+### Complete Widget
 
-Pre-built UI components installed via the shadcn CLI. Complete chat interface out of the box, with every line of source code editable.
+The package-level `AomiWidget` owns the normal consumer integration, including
+credentialed Portal transport and selectable auth. Import the precompiled CSS;
+no Tailwind source scanning is required.
 
 ```bash
-npx shadcn add https://aomi.dev/r/aomi-frame.json
+npm install @aomi-labs/widget-lib
 ```
+
+Use `npx shadcn add https://aomi.dev/r/aomi-widget.json` only when you
+intentionally want copied, source-owned components.
 
 ### Headless Library
 
@@ -75,18 +85,26 @@ Aomi hosts the bot and connects it to the same backend and tools as the widget. 
 
 ## Shared Foundation
 
-Both frontend paths use the same core. `@aomi-labs/react` provides all runtime logic — `AomiRuntimeProvider`, `useAomiRuntime`, `useControl`, `useUser`, and the `BackendApi` client. They share the same backend API endpoints for chat, threads, models, apps, and wallet operations, and the same authentication via API keys and wallet addresses.
+Both frontend paths use the same core. `@aomi-labs/react` provides runtime
+logic such as `AomiRuntimeProvider`, `useAomiRuntime`, `useControl`, and
+`useUser`. The complete widget points at Portal, which owns BetterAuth,
+provider/SIWE verification, the canonical account graph, and authenticated
+backend proxying.
 
 The widget is built on top of the headless library. Installing the widget pulls in `@aomi-labs/react` as a dependency automatically.
 
-**Start with the widget** if you want results quickly. The source code is copied into your project, so you can customize or replace individual components later. **Start with the headless library** if you have an existing design system and want to integrate Aomi logic into your own components from day one.
+**Start with the widget** if you want results quickly. Use its props first, then
+move to compound components or the shadcn registry if you need source-level
+customization. **Start with the headless library** if you have an existing
+design system and want to own auth, account, wallet, and UI composition.
 
 ## Platform Support
 
 | Platform            | Support                                                 |
 | ------------------- | ------------------------------------------------------- |
-| **Next.js 15**      | Primary target. App Router with Server Components.      |
-| **React 18 / 19**   | Supported via `@aomi-labs/react` and shadcn components. |
+| **Next.js 15+**     | Supported with client components and package CSS.       |
+| **Vite**            | Verified package consumer for Para and providerless UI. |
+| **React 18 / 19**   | Supported by the widget and headless runtime.           |
 | **Modern Browsers** | Chrome, Firefox, Safari, Edge (latest 2 versions).      |
 
 ## Next Steps
