@@ -7,9 +7,8 @@ export default function SettingsPage() {
       <div className="space-y-2">
         <h1 className="text-foreground text-2xl font-semibold">Settings</h1>
         <p className="text-subtle max-w-2xl text-sm">
-          Account and workspace controls for the current GitHub-scoped Aomi
-          Build session. Only sections backed by current app behavior are
-          interactive.
+          Account controls for this GitHub session. Live sections work today;
+          others stay listed as Soon.
         </p>
       </div>
 

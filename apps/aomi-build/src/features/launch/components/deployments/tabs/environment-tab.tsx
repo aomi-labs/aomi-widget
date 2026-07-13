@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Copy, Plus, Trash2 } from "lucide-react";
 import { useProjectDetail } from "@build/features/launch/hooks/use-project-detail";
+import { humanizeUserError } from "@build/lib/humanize-error";
 import { LoadingPanel } from "../ui/state-panels";
 
 type Detail = ReturnType<typeof useProjectDetail>;
@@ -62,7 +63,7 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
     } catch (err) {
       setStatus({
         kind: "error",
-        message: err instanceof Error ? err.message : "Failed to save",
+        message: humanizeUserError(err, "Could not save. Try again."),
       });
     }
   };
@@ -75,7 +76,7 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
     } catch (err) {
       setStatus({
         kind: "error",
-        message: err instanceof Error ? err.message : "Failed to delete",
+        message: humanizeUserError(err, "Could not delete. Try again."),
       });
     }
   };
@@ -152,7 +153,10 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
         </p>
         {detail.secretsError && (
           <div className="mt-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-            {detail.secretsError}
+            {humanizeUserError(
+              detail.secretsError,
+              "Could not load environment. Try again.",
+            )}
           </div>
         )}
       </div>

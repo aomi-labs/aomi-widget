@@ -51,7 +51,7 @@ export function SettingsNav() {
             href={href}
             className={cn(
               "interactive-item w-full",
-              !section.enabled && "opacity-70",
+              section.status === "soon" && "opacity-80",
             )}
             data-active={active ? "true" : undefined}
             aria-current={active ? "page" : undefined}

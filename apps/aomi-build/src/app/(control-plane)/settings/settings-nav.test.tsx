@@ -47,12 +47,12 @@ describe("SettingsNav", () => {
     }
   });
 
-  it("shows status badges for planned and project-scoped sections", () => {
+  it("shows status badges for soon and project-scoped sections", () => {
     usePathname.mockReturnValue("/settings");
 
     render(<SettingsNav />);
 
-    expect(screen.getAllByText("Planned").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Soon").length).toBeGreaterThan(0);
     expect(screen.getByText("Project-scoped")).toBeInTheDocument();
     expect(screen.getByText("Available")).toBeInTheDocument();
   });
