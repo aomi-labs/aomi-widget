@@ -1,7 +1,9 @@
 "use client";
 
+import { useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useProjectDetail } from "@build/features/launch/hooks/use-project-detail";
+import { setLastProjectId } from "@build/lib/last-project";
 import { ProjectHeader } from "./project-header";
 import { ChatTab } from "./tabs/chat-tab";
 import { DeploymentsTab } from "./tabs/deployments-tab";
@@ -37,6 +39,10 @@ export function ProjectPage({
   const active: TabId = TABS.some((t) => t.id === raw)
     ? (raw as TabId)
     : "deployments";
+
+  useEffect(() => {
+    setLastProjectId(sourceId);
+  }, [sourceId]);
 
   return (
     <main className="min-h-screen bg-background text-foreground">

@@ -55,6 +55,16 @@ flowchart TD
 - Avoid dead ends. Prefer guidance over documentation. The UI should teach the product.
 - Direction: closer to **Vercel** than a traditional dashboard — without cloning Vercel feature-for-feature.
 
+### Surface expectations (desktop-first)
+
+| Surface | Expectation |
+|---|---|
+| **Desktop / large** | Best path: ⌘K, dense tables, project tabs |
+| **Tablet / narrow laptop** | Should work without breaking |
+| **Phone** | Usable enough to check status; not where we design the product |
+
+Do not equal-effort redesign Build as a mobile app. Keep chrome discoverable on phone (e.g. Search icon → palette); invest craft in desktop/large.
+
 ---
 
 ## Hard constraint

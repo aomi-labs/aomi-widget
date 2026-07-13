@@ -372,3 +372,9 @@ build`, `CI=true npx -y pnpm@10.28.0 install --frozen-lockfile`, and
   tests (including the LI.FI interpreter cases), and a signed-in Chrome flow:
   zero trash/delete thread controls, animated trace rows/chips, and a live
   LI.FI ETH-to-USDC quote with no transaction staging or signature request.
+- 2026-07-13 PR #329 main sync: merged the latest `origin/main` into
+  `restore-chat-polish` without conflicts, retaining the restored chat polish
+  alongside the newer Build P1 control-plane work. Re-ran the exact CI workflow
+  locally: frozen install, lint, library and deploy builds, 682 root tests, 221
+  registry tests, registry build, landing production build, and the live
+  staging OpenAPI contract all passed before pushing the refreshed branch.

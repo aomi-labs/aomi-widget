@@ -2,7 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Copy, Plus, Trash2 } from "lucide-react";
+import { useToast } from "@build/components/control-plane/toast";
 import { useProjectDetail } from "@build/features/launch/hooks/use-project-detail";
+import { BUILD_GLOSSARY } from "@build/lib/glossary";
 import { humanizeUserError } from "@build/lib/humanize-error";
 import { LoadingPanel } from "../ui/state-panels";
 
@@ -10,6 +12,7 @@ type Detail = ReturnType<typeof useProjectDetail>;
 type Row = { key: string; value: string };
 
 export function EnvironmentTab({ detail }: { detail: Detail }) {
+  const { toast } = useToast();
   useEffect(() => {
     detail.loadSecrets();
   }, [detail]);
@@ -59,12 +62,14 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
         kind: "done",
         message: `Saved ${result.keys.length} variable(s).`,
       });
+      toast({ title: "Saved", tone: "success" });
       setRows([{ key: "", value: "" }]);
     } catch (err) {
       setStatus({
         kind: "error",
         message: humanizeUserError(err, "Could not save. Try again."),
       });
+      toast({ title: "Failed. Retry", tone: "error" });
     }
   };
 
@@ -73,11 +78,13 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
     try {
       await detail.deleteEnvVar(app, key);
       setStatus({ kind: "done", message: `Deleted ${key}.` });
+      toast({ title: "Deleted", tone: "success" });
     } catch (err) {
       setStatus({
         kind: "error",
         message: humanizeUserError(err, "Could not delete. Try again."),
       });
+      toast({ title: "Failed. Retry", tone: "error" });
     }
   };
 
@@ -145,10 +152,9 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
           </div>
         )}
         <p className="mt-3 text-xs leading-5 text-dim">
-          One vault for{" "}
-          <span className="font-mono">{app || "this app"}</span>. Values
-          are injected at runtime and write-only (you cannot reveal them later).
-          Chat users never paste API keys.
+          {BUILD_GLOSSARY.environment.meaning} Add KEY=value pairs for{" "}
+          <span className="font-mono">{app || "this app"}</span>. Values are
+          write-only. Builders set these; chat users never paste API keys.
         </p>
         {detail.secretsError && (
           <div className="mt-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">

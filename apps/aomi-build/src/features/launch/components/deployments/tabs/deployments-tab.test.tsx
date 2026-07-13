@@ -6,7 +6,12 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
+import { ToastProvider } from "@build/components/control-plane/toast";
 import { DeploymentsTab } from "./deployments-tab";
+
+function renderTab(ui: React.ReactElement) {
+  return render(<ToastProvider>{ui}</ToastProvider>);
+}
 
 const promote = vi.fn(async () => ({
   ok: true,
@@ -65,7 +70,7 @@ const detail = {
 
 describe("DeploymentsTab", () => {
   it("renders deployments from the DB timeline, current first", async () => {
-    render(<DeploymentsTab detail={detail} />);
+    renderTab(<DeploymentsTab detail={detail} />);
     expect(detail.loadRecords).toHaveBeenCalled();
     expect(await screen.findByText("dep_1_ra_currentcmt")).toBeInTheDocument();
     expect(screen.getByText("dep_1_ra_oldcommit1")).toBeInTheDocument();
@@ -77,7 +82,7 @@ describe("DeploymentsTab", () => {
   });
 
   it("renders promotion activity in the Activity subtab", async () => {
-    render(<DeploymentsTab detail={detail} />);
+    renderTab(<DeploymentsTab detail={detail} />);
     fireEvent.click(screen.getByRole("tab", { name: /activity/i }));
     expect(screen.getByRole("tab", { name: /activity/i })).toHaveAttribute(
       "aria-selected",
@@ -89,7 +94,7 @@ describe("DeploymentsTab", () => {
   });
 
   it("offers Deactivate in the toolbar and Promote on older deployments", () => {
-    render(<DeploymentsTab detail={detail} />);
+    renderTab(<DeploymentsTab detail={detail} />);
     expect(
       screen.getByRole("button", { name: /deactivate/i }),
     ).toBeInTheDocument();
@@ -99,7 +104,7 @@ describe("DeploymentsTab", () => {
   });
 
   it("confirms before promoting an older deployment", async () => {
-    render(<DeploymentsTab detail={detail} />);
+    renderTab(<DeploymentsTab detail={detail} />);
     fireEvent.click(screen.getByRole("button", { name: /promote/i }));
     expect(promote).not.toHaveBeenCalled();
     const dialog = screen.getByRole("dialog", { name: /promote deployment/i });
@@ -110,7 +115,7 @@ describe("DeploymentsTab", () => {
   });
 
   it("confirms before deactivating the current deployment", async () => {
-    render(<DeploymentsTab detail={detail} />);
+    renderTab(<DeploymentsTab detail={detail} />);
     fireEvent.click(screen.getByRole("button", { name: /deactivate/i }));
     expect(deactivate).not.toHaveBeenCalled();
     const dialog = screen.getByRole("dialog", {
@@ -123,7 +128,7 @@ describe("DeploymentsTab", () => {
   });
 
   it("shows a deactivated state and makes the previous current deployment promotable", async () => {
-    render(<DeploymentsTab detail={detail} />);
+    renderTab(<DeploymentsTab detail={detail} />);
     fireEvent.click(screen.getByRole("button", { name: /deactivate/i }));
     const dialog = screen.getByRole("dialog", {
       name: /deactivate deployment/i,
@@ -132,7 +137,7 @@ describe("DeploymentsTab", () => {
       within(dialog).getByRole("button", { name: /deactivate/i }),
     );
 
-    await screen.findByText("Deactivated");
+    await screen.findByText(/No deployment is currently live/i);
 
     expect(screen.queryByText("Current")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /deactivate/i })).toBeDisabled();
@@ -140,7 +145,7 @@ describe("DeploymentsTab", () => {
   });
 
   it("triggers a new-version deploy", () => {
-    render(<DeploymentsTab detail={detail} />);
+    renderTab(<DeploymentsTab detail={detail} />);
     fireEvent.click(
       screen.getByRole("button", { name: /deploy new version/i }),
     );

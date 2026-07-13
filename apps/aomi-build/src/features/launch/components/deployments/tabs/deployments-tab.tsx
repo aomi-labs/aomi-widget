@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { PowerOff, Rocket } from "lucide-react";
+import { EmptyState } from "@build/components/control-plane/empty-state";
+import { useToast } from "@build/components/control-plane/toast";
 import { useProjectDetail } from "@build/features/launch/hooks/use-project-detail";
 import { TimelineDeploymentRow } from "../ui/timeline-deployment-row";
 import { ConfirmDialog } from "../ui/confirm-dialog";
@@ -22,6 +24,7 @@ type Pending =
 type View = "deployments" | "activity";
 
 export function DeploymentsTab({ detail }: { detail: Detail }) {
+  const { toast } = useToast();
   const [op, setOp] = useState<OpState | null>(null);
   const [pending, setPending] = useState<Pending>(null);
   const [view, setView] = useState<View>("deployments");
@@ -128,6 +131,10 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
           ? `Promoted ${result.promote.releaseTags.length} release tag(s).`
           : result.promote.status,
       });
+      toast({
+        title: result.ok ? "Promoted" : "Failed. Retry",
+        tone: result.ok ? "success" : "error",
+      });
       detail.reload();
       detail.refreshRecords();
     } catch (err) {
@@ -137,6 +144,7 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
         status: "error",
         message: err instanceof Error ? err.message : "Promote failed",
       });
+      toast({ title: "Failed. Retry", tone: "error" });
     }
   };
 
@@ -156,6 +164,7 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
         status: "done",
         message: "Deactivated.",
       });
+      toast({ title: "Deactivated", tone: "success" });
       detail.reload();
       detail.refreshRecords();
     } catch (err) {
@@ -165,6 +174,7 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
         status: "error",
         message: err instanceof Error ? err.message : "Deactivate failed",
       });
+      toast({ title: "Failed. Retry", tone: "error" });
     }
   };
 
@@ -273,17 +283,10 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
       {view === "deployments" &&
       deployments.length === 0 &&
       !detail.recordsError ? (
-        <EmptyPanel>
-          <div className="flex flex-col items-center gap-2">
-            <p>
-              No deployments yet for this project. Use{" "}
-              <span className="font-medium text-foreground">
-                Deploy new version
-              </span>{" "}
-              to publish.
-            </p>
-          </div>
-        </EmptyPanel>
+        <EmptyState
+          title="No deployments yet"
+          description="Use Deploy new version to publish this project."
+        />
       ) : view === "deployments" && deployments.length > 0 ? (
         deployments.map((deployment) => {
           const running =

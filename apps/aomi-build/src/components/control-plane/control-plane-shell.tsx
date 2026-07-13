@@ -17,6 +17,7 @@ import {
   Plug,
   Rocket,
   ScrollText,
+  Search,
   Settings,
   WalletCards,
   X,
@@ -27,15 +28,20 @@ import { useQueryClient } from "@tanstack/react-query";
 
 import { AomiLogo } from "@build/components/brand/aomi-logo";
 import {
-  GITHUB_SIGNIN_URL,
-  signOutGitHub,
-} from "@build/features/launch/dashboard";
+  CommandPalette,
+  openCommandPalette,
+} from "@build/components/control-plane/command-palette";
 import {
   GitHubSessionProvider,
   signedOutGitHubAccount,
   useGitHubSession,
   type GitHubAccountState,
 } from "@build/components/control-plane/github-session-context";
+import { ToastProvider } from "@build/components/control-plane/toast";
+import {
+  GITHUB_SIGNIN_URL,
+  signOutGitHub,
+} from "@build/features/launch/dashboard";
 import { cn } from "@build/lib/utils";
 import { ControlPlaneQueryProvider } from "./control-plane-query-provider";
 
@@ -55,18 +61,20 @@ type NavGroup = {
 const navGroups: NavGroup[] = [
   {
     title: "Overview",
-    items: [{ label: "Overview", href: "/", icon: Home, enabled: true }],
-  },
-  {
-    title: "Build",
     items: [
-      { label: "Build", href: "/build", icon: Hammer, enabled: false },
+      { label: "Overview", href: "/overview", icon: Home, enabled: true },
       {
         label: "Projects",
         href: "/projects",
         icon: FolderKanban,
         enabled: true,
       },
+    ],
+  },
+  {
+    title: "Build",
+    items: [
+      { label: "Build", href: "/build", icon: Hammer, enabled: false },
     ],
   },
   {
@@ -518,7 +526,9 @@ export function ControlPlaneShell({ children }: { children: React.ReactNode }) {
   return (
     <ControlPlaneQueryProvider>
       <GitHubSessionProvider>
-        <ControlPlaneShellContent>{children}</ControlPlaneShellContent>
+        <ToastProvider>
+          <ControlPlaneShellContent>{children}</ControlPlaneShellContent>
+        </ToastProvider>
       </GitHubSessionProvider>
     </ControlPlaneQueryProvider>
   );
@@ -624,15 +634,32 @@ function ControlPlaneShellContent({ children }: { children: React.ReactNode }) {
             <Menu className="size-4" />
           </IconButton>
           <div className="hidden lg:block" />
-          <AccountMenu
-            account={account}
-            onSignedOut={() => {
-              queryClient.clear();
-              setAccount(signedOutGitHubAccount());
-            }}
-          />
+          <div className="flex items-center gap-2">
+            {/* Desktop-first: full Search · ⌘K on sm+. Phone: icon only (usable, not designed for). */}
+            <button
+              type="button"
+              onClick={() => openCommandPalette()}
+              className="text-dim hover:bg-accent-hover hover:text-foreground border-border inline-flex h-8 items-center gap-2 rounded-md border px-2 text-xs"
+              aria-label="Open command palette (⌘K)"
+              title="Search (⌘K)"
+            >
+              <Search className="size-3.5 shrink-0" aria-hidden />
+              <span className="hidden sm:inline">Search</span>
+              <kbd className="border-border hidden rounded border px-1 py-0.5 text-[10px] sm:inline">
+                ⌘K
+              </kbd>
+            </button>
+            <AccountMenu
+              account={account}
+              onSignedOut={() => {
+                queryClient.clear();
+                setAccount(signedOutGitHubAccount());
+              }}
+            />
+          </div>
         </header>
         <main className="min-h-0 flex-1 overflow-y-auto">{children}</main>
+        <CommandPalette />
       </div>
     </div>
   );

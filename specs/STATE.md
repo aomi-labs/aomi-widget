@@ -2,6 +2,7 @@
 
 ## Last Updated
 
+2026-07-13 — Build P1 control plane: ⌘K, toasts, Projects landing, glossary;
 2026-07-13 — Build P0 trust: Soon labels, gate Integrations Save, human errors;
 2026-07-13 — Build UI copy polish (em dashes / hedging essays);
 2026-07-13 — Billing option A: methods live on Chat (no fake Build fetch);
@@ -25,6 +26,18 @@ Branch `fix/build-p0-trust-soon`:
 - Project Disconnect kept as `Disconnect · Soon` (disabled).
 - Sidebar Build already Soon (unchanged).
 - Auth sign-in + env errors humanized (`humanizeUserError`); no bearer essays.
+
+## Build P1 control plane craft (2026-07-13)
+
+Branch `feat/build-p1-control-plane`:
+
+- Glossary terms (Project / App / Deployment / Environment) in `lib/glossary.ts`.
+- Empty states use one CTA (`EmptyState`) on Projects, Deployments, Overview, Operate.
+- Global toasts for env save/delete and promote/deactivate.
+- ⌘K command palette (+ header Search) for Projects, Deployments, Usage, Settings.
+- Default `/` opens last project or `/projects`; Overview moved to `/overview`.
+- Desktop-first surface bar locked: desktop best path; tablet unbroken; phone
+  usable (Search icon always visible; full Search · ⌘K from `sm+`).
 
 ## Billing option A — payment methods on Chat (2026-07-13)
 
