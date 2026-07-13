@@ -255,9 +255,28 @@ filled" — no such gate exists in the reconstructor. Flag to the backend team.)
 
 ## Revised options
 
-**A. Emit the slots from CI into the release manifest (recommended).**
-Change `aomi-sdk`'s release workflow so each plugin's declared slots land in
-`manifest.json`:
+**A. Emit the slots from `aomi-build compile` into the release manifest (CHOSEN).**
+
+Resolved 2026-07-10 after investigation: `aomi-build compile` **already**
+`dlopen`s every built plugin and reads its full `DynManifest`
+(`sdk/bin/build/compile/validate.rs:103` `read_manifest`, called from
+`validate_plugin`, invoked unconditionally at `compile/mod.rs:128`). The
+`secrets` array is already in memory at build time and simply discarded after
+validation. `libloading` is already an SDK dependency.
+
+Cross-compilation is a non-issue: the CI matrix pairs each target with its
+native runner (`ubuntu-latest → x86_64-unknown-linux-gnu`,
+`macos-latest → aarch64-apple-darwin`), so `dlopen` always succeeds.
+
+So: **have `compile` write `manifest.json` itself**, including per-plugin
+`secrets`, replacing the workflow's inline Python step. No host-target second
+build, no macro/build-script change. It propagates to every platform repo by
+bumping the SDK pin (the release Aomi Build reads is built in the *platform*
+repo, not `aomi-sdk`), and it removes an existing fragility: the Python step
+registers *every* file in `plugins/` as a plugin (`plugins[path.stem]`, skipping
+only `manifest.json`), so any stray file becomes a bogus entry.
+
+Resulting shape:
 
 ```json
 "plugins": { "binance": { "file": "...", "sha256": "...",
@@ -269,22 +288,29 @@ already holds a GitHub token (used today for CI-status enrichment and re-run) an
 knows the platform repo + release tag, so it can read the release's
 `manifest.json` asset directly and compute the missing set.
 
-Caveat: `manifest.json` is generated per matrix target, and extracting
-`DynManifest` requires `dlopen` of a built `.so`, which only works for the host
-target. The slot data is target-independent, so emit it from a host-target build,
-or have `dyn_aomi_app!` emit a compile-time JSON sidecar.
-
-**B. Backend extracts and persists at activation-verify time.**
+**B. Backend extracts and persists at activation-verify time.** (Rejected for now.)
 The backend already downloads and verifies release assets; it could read the
 manifest and persist slots on the application row, then expose them on the
 platform-apps payload. Cleaner long-term, but it still needs the slots to be
-extractable, so it largely depends on A anyway (or on the backend doing `dlopen`).
+extractable, so it depends on A anyway. Worth revisiting once A has shipped.
 
-**C. Post-activation surfacing only.**
+**C. Post-activation surfacing only.** (Rejected.)
 Read slots after the app loads and show "needs configuration" instead of gating.
 Does not satisfy "before it activates", and Aomi Build cannot call
 `/api/thread/apps` anyway (account-scoped — see the bots decision record).
 
-There is no path that ships purely inside `aomi-widget`. **Minimum unblock is A**,
-a small change in `aomi-sdk` CI; after that the BFF + UI work (sections 2-4) is
+There is no path that ships purely inside `aomi-widget`. **The unblock is A**, a
+small change in `aomi-sdk`; after that the BFF + UI work (sections 2-4) is
 self-contained and needs no backend involvement.
+
+## Revised data source (replaces section 1)
+
+`PlatformApp.secrets` is **not** the carrier. Instead:
+
+- `aomi-build compile` writes `secrets` per plugin into the release
+  `manifest.json`.
+- Aomi Build's BFF fetches that release asset from the platform repo (GitHub
+  token + `Platform.repository` + release tag, all already available at the
+  activate call site) and returns the slots.
+- `missingRequiredSecrets(slots, configuredKeys)` (section 2) is unchanged.
+- Sections 3 (UI gate) and 4 (409 backstop) are unchanged.
