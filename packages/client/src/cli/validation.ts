@@ -1,5 +1,6 @@
 import { SUPPORTED_CHAIN_IDS, CHAIN_NAMES } from "../chains";
-import type { CliAAMode, CliAAProvider } from "./types";
+import type { AAMode } from "../aa/types";
+import type { CliAAProvider } from "./types";
 import { fatal } from "./errors";
 
 export function parseChainId(value: string | undefined): number | undefined {
@@ -30,7 +31,7 @@ export function parseAAProvider(value: string | undefined): CliAAProvider | unde
   fatal("Unsupported AA provider. Use `alchemy` or `pimlico`.");
 }
 
-export function parseAAMode(value: string | undefined): CliAAMode | undefined {
+export function parseAAMode(value: string | undefined): AAMode | undefined {
   if (value === undefined || value.trim() === "") return undefined;
   if (value === "4337" || value === "7702") {
     return value;

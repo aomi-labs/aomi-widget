@@ -1,19 +1,17 @@
-const DEFAULT_CREDENTIAL_TIMEOUT_MS = 120_000;
-const DEFAULT_CREDENTIAL_POLL_MS = 500;
-const DEFAULT_CREDENTIAL_ATTEMPT_TIMEOUT_MS = 5_000;
+const CREDENTIAL_DEFAULTS = {
+  timeoutMs: 120_000,
+  pollMs: 500,
+  attemptTimeoutMs: 5_000,
+};
 
 export async function waitForProviderCredential(
   getCredential: () => Promise<unknown> | unknown,
-  options: {
-    timeoutMs?: number;
-    pollMs?: number;
-    attemptTimeoutMs?: number;
-  } = {},
+  options: Partial<typeof CREDENTIAL_DEFAULTS> = {},
 ): Promise<unknown> {
-  const timeoutMs = options.timeoutMs ?? DEFAULT_CREDENTIAL_TIMEOUT_MS;
-  const pollMs = options.pollMs ?? DEFAULT_CREDENTIAL_POLL_MS;
-  const attemptTimeoutMs =
-    options.attemptTimeoutMs ?? DEFAULT_CREDENTIAL_ATTEMPT_TIMEOUT_MS;
+  const { timeoutMs, pollMs, attemptTimeoutMs } = {
+    ...CREDENTIAL_DEFAULTS,
+    ...options,
+  };
   const deadline = Date.now() + timeoutMs;
 
   for (let remainingMs = deadline - Date.now(); remainingMs > 0; ) {

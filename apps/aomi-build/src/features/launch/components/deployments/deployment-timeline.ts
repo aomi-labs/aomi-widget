@@ -19,7 +19,7 @@ export type TimelineActivity = DeploymentRecord & {
   app: string;
 };
 
-function commitFromDeploymentId(deploymentId: string): string | null {
+export function commitFromDeploymentId(deploymentId: string): string | null {
   const parts = deploymentId.split("_");
   return parts.length === 4 ? parts[3] : null;
 }

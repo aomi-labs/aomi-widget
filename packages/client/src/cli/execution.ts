@@ -2,6 +2,7 @@ import type { Chain } from "viem";
 
 import {
   DISABLED_PROVIDER_STATE,
+  type AAMode,
   type AAState,
   type AAWalletCall,
   DEFAULT_AA_CONFIG,
@@ -9,7 +10,7 @@ import {
   createAAProviderState,
 } from "../aa";
 import { ALCHEMY_CHAIN_SLUGS } from "../chains";
-import type { CliAAProvider, CliAAMode, CliConfig } from "./types";
+import type { CliAAProvider, CliConfig } from "./types";
 import { resolveAlchemyApiKey } from "../aa/alchemy/defaults";
 
 // ---------------------------------------------------------------------------
@@ -33,7 +34,7 @@ function callsContainTokenOperations(calls: AAWalletCall[]): boolean {
  * 4337 executes from a separate smart-account contract that doesn't hold the
  * user's EOA tokens, so the batch is likely to revert.
  */
-function warnIfTokenOpsIn4337(mode: CliAAMode, callList: AAWalletCall[]): void {
+function warnIfTokenOpsIn4337(mode: AAMode, callList: AAWalletCall[]): void {
   if (mode !== "4337" || !callsContainTokenOperations(callList)) return;
   console.log(
     "⚠️  4337 batch contains ERC-20 calls. Tokens must be in the smart account, not your EOA.",
@@ -54,7 +55,7 @@ export type CliExecutionDecision =
   | {
       execution: "aa";
       provider: CliAAProvider;
-      aaMode: CliAAMode;
+      aaMode: AAMode;
       modeExplicit?: boolean;
       apiKey?: string;
       proxy?: boolean;
@@ -64,11 +65,11 @@ export type CliExecutionDecision =
  * Resolve the AA mode for a given chain from DEFAULT_AA_CONFIG.
  * All chains default to 7702; falls back to 4337 only when explicitly requested.
  */
-function resolveMode(chain: Chain, callList: AAWalletCall[], explicitMode?: CliAAMode): CliAAMode {
+function resolveMode(chain: Chain, callList: AAWalletCall[], explicitMode?: AAMode): AAMode {
   const chainConfig = getAAChainConfig(DEFAULT_AA_CONFIG, callList, {
     [chain.id]: chain,
   });
-  const mode = explicitMode ?? (chainConfig?.defaultMode as CliAAMode | undefined) ?? "7702";
+  const mode = explicitMode ?? (chainConfig?.defaultMode as AAMode | undefined) ?? "7702";
   warnIfTokenOpsIn4337(mode, callList);
   return mode;
 }
@@ -139,7 +140,7 @@ export function getAlternativeAAMode(
 ): CliExecutionDecision | null {
   if (decision.execution !== "aa") return null;
   if (decision.modeExplicit) return null;
-  const alt: CliAAMode = decision.aaMode === "7702" ? "4337" : "7702";
+  const alt: AAMode = decision.aaMode === "7702" ? "4337" : "7702";
   return { ...decision, aaMode: alt };
 }
 

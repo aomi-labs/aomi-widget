@@ -13,7 +13,9 @@
 //   - `session`  — the signed-in GitHub user for a request (see
 //                  `createGitHubSessionCodec` for the batteries-included one)
 //   - `guards`   — rate-limit/CSRF (defaults provided)
-//   - `githubToken` — optional; CI status enrichment + rerun
+//
+// No GitHub credential is configured here: CI status and rerun go through the
+// Aomi backend, whose GitHub App installation token makes every GitHub call.
 // =============================================================================
 
 import type { DeploymentClient } from "../client";
@@ -44,7 +46,7 @@ export type LaunchRoutes = {
   create: LaunchRouteHandler;
   /** POST — promote built release tags to live. */
   activate: LaunchRouteHandler;
-  /** GET `?deploymentId=` — deployment status, CI-enriched when a token is set. */
+  /** GET `?deploymentId=` — deployment status; CI resolved by the backend. */
   status: LaunchRouteHandler;
   /** GET `?name=&releaseTag=` — one app's live/pending state. */
   app: LaunchRouteHandler;
@@ -65,11 +67,6 @@ export type LaunchRoutesOptions = {
   config?: Partial<LaunchConfig>;
   /** Read/write request guards. Defaults: per-IP rate limit + same-origin. */
   guards?: Partial<LaunchGuards>;
-  /**
-   * GitHub API token used to enrich pending CI status and re-run CI.
-   * Defaults to `process.env.GITHUB_TOKEN`.
-   */
-  githubToken?: string;
   /** Prefix for generated one-shot repo names. Default `my-playground`. */
   createdRepoPrefix?: string;
 };
@@ -85,24 +82,6 @@ function sourceRefFromSource(source: {
   commitHash?: string | null;
 }): string | null {
   return sourceRef(source.sourceRef) ?? sourceRef(source.commitHash);
-}
-
-function branchFromActionsQuery(url: string | null | undefined): string | null {
-  if (!url) return null;
-  try {
-    const parsed = new URL(url);
-    const query = parsed.searchParams.get("query") ?? "";
-    const match = query.match(/(?:^|\s)branch:([^\s]+)/);
-    return match?.[1] ?? null;
-  } catch {
-    return null;
-  }
-}
-
-function ciRunIdFromUrl(url: string | null | undefined): string | null {
-  if (!url) return null;
-  const match = url.match(/\/actions\/runs\/(\d+)(?:\/|$)/);
-  return match?.[1] ?? null;
 }
 
 type OwnedSource = Awaited<
@@ -172,8 +151,6 @@ export function createLaunchRoutes(options: LaunchRoutesOptions): LaunchRoutes {
   const getSession = options.session;
   const createdRepoPrefix = options.createdRepoPrefix ?? "my-playground";
   const config = () => resolveLaunchConfig(options.config);
-  const githubToken = () =>
-    options.githubToken ?? process.env.GITHUB_TOKEN?.trim() ?? "";
 
   async function defaultRepoName(): Promise<string> {
     const normalized = createdRepoPrefix
@@ -182,103 +159,6 @@ export function createLaunchRoutes(options: LaunchRoutesOptions): LaunchRoutes {
       .replace(/[^a-z0-9._-]+/g, "-")
       .replace(/^-+|-+$/g, "");
     return `${normalized}-${await randomHex(4)}`;
-  }
-
-  type LaunchStatusPayload = Awaited<ReturnType<DeploymentClient["status"]>>;
-
-  // When the platform CI is still "pending", ask GitHub Actions directly
-  // whether the run for the recorded commit has in fact completed — the
-  // backend's poll can lag, and a completed-but-stale run must fail loudly.
-  async function enrichPendingCiStatus(
-    status: LaunchStatusPayload,
-  ): Promise<LaunchStatusPayload> {
-    const platform = status.deployment?.platform;
-    const ciStatus = status.ci?.status ?? platform?.ciStatus;
-    const ciUrl = status.ci?.url ?? platform?.ciUrl;
-    const repo = platform?.repository;
-    const branch = branchFromActionsQuery(ciUrl);
-    const targetCommit = platform?.commitHash ?? status.ci?.commitHash;
-    if (ciStatus !== "pending" || !repo || !branch || !isValidRepo(repo)) {
-      return status;
-    }
-
-    const token = githubToken();
-    const headers: Record<string, string> = {
-      Accept: "application/vnd.github+json",
-      "User-Agent": "aomi-launch-bff",
-      "X-GitHub-Api-Version": "2022-11-28",
-    };
-    if (token) headers.Authorization = `Bearer ${token}`;
-
-    const params = new URLSearchParams({
-      branch,
-      event: "push",
-      per_page: "10",
-    });
-    const res = await fetch(
-      `https://api.github.com/repos/${repo}/actions/runs?${params}`,
-      { headers },
-    );
-    if (!res.ok) return status;
-    const body = (await res.json().catch(() => ({}))) as {
-      workflow_runs?: Array<Record<string, unknown>>;
-    };
-    const runs = (body.workflow_runs ?? []).filter(
-      (candidate) => candidate.head_branch === branch,
-    );
-    const run =
-      (targetCommit
-        ? runs.find((candidate) => candidate.head_sha === targetCommit)
-        : undefined) ?? runs[0];
-    if (!run || run.status !== "completed") return status;
-
-    const conclusion = String(run.conclusion ?? "unknown");
-    const runSha = String(run.head_sha ?? "");
-    const runUrl = String(run.html_url ?? ciUrl ?? "");
-    const title = String(run.display_title ?? run.name ?? "GitHub Actions run");
-    if (targetCommit && runSha && runSha !== targetCommit) {
-      return {
-        ...status,
-        state: "failed",
-        ci: {
-          ...status.ci,
-          status: "stale",
-          url: runUrl,
-          commitHash: runSha,
-        },
-        message: `${title} completed with conclusion "${conclusion}" on stale commit ${runSha.slice(
-          0,
-          12,
-        )}; deployment commit ${targetCommit.slice(
-          0,
-          12,
-        )} has no matching Aomi CI run. ${runUrl}`,
-      };
-    }
-
-    if (conclusion === "success") {
-      return {
-        ...status,
-        ci: {
-          ...status.ci,
-          status: "passed",
-          url: runUrl,
-          commitHash: runSha || status.ci?.commitHash || undefined,
-        },
-      };
-    }
-
-    return {
-      ...status,
-      state: "failed",
-      ci: {
-        ...status.ci,
-        status: conclusion === "skipped" ? "skipped" : "failed",
-        url: runUrl,
-        commitHash: String(run.head_sha ?? "") || status.ci?.commitHash,
-      },
-      message: `${title} completed with conclusion "${conclusion}" on ${branch}. ${runUrl}`,
-    };
   }
 
   function deployRoute(preflight: boolean): LaunchRouteHandler {
@@ -469,15 +349,16 @@ export function createLaunchRoutes(options: LaunchRoutesOptions): LaunchRoutes {
     try {
       const cfg = config();
       const client = await getClient();
+      // The backend resolves CI live per poll (by the deployment's recorded
+      // commit, on its App installation token) and deep-links the run URL.
       const result = await client.status({
         platform: cfg.platform,
         deploymentId,
       });
-      const enriched = await enrichPendingCiStatus(result);
       return jsonResponse(
         {
-          ...enriched,
-          releaseTags: releaseTagsFromDeployment(enriched.deployment),
+          ...result,
+          releaseTags: releaseTagsFromDeployment(result.deployment),
         },
         200,
       );
@@ -648,61 +529,31 @@ export function createLaunchRoutes(options: LaunchRoutesOptions): LaunchRoutes {
         platform: cfg.platform,
         appSourceId: body.appSourceId,
       });
-      const platformRepo = latest?.platformRepo;
-      const ciRunId =
-        latest?.ciRunId === null || latest?.ciRunId === undefined
-          ? ciRunIdFromUrl(latest?.ciUrl)
-          : String(latest.ciRunId);
-
-      if (!platformRepo || !isValidRepo(platformRepo) || !ciRunId) {
+      const deploymentId = latest?.deploymentId ?? null;
+      if (!deploymentId) {
         return jsonResponse(
           {
             error:
-              "No backend-owned CI run is available for this source yet; refusing to reuse Deploy because GitHub can skip tree-identical pushes.",
+              "No backend-owned deployment is available for this source yet; refusing to reuse Deploy because GitHub can skip tree-identical pushes.",
           },
           409,
         );
       }
 
-      const token = githubToken();
-      if (!token) {
-        return jsonResponse(
-          { error: "GitHub rerun token is not configured" },
-          503,
-        );
-      }
-
-      const res = await fetch(
-        `https://api.github.com/repos/${platformRepo}/actions/runs/${ciRunId}/rerun`,
-        {
-          method: "POST",
-          headers: {
-            Accept: "application/vnd.github+json",
-            Authorization: `Bearer ${token}`,
-            "User-Agent": "aomi-launch-bff",
-            "X-GitHub-Api-Version": "2022-11-28",
-          },
-        },
-      );
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        return jsonResponse(
-          {
-            error: `GitHub CI rerun failed (${res.status})${text ? `: ${text}` : ""}`,
-          },
-          502,
-        );
-      }
-
+      // The backend re-runs the Actions run behind the deployment's recorded
+      // commit on its App installation token; no GitHub token in this layer.
+      const rerun = await client.rerunDeployment({
+        platform: cfg.platform,
+        deploymentId,
+        githubUserId: session.githubUserId,
+      });
       return jsonResponse(
         {
-          ok: true,
+          ok: rerun.ok,
           appSourceId: body.appSourceId,
-          platformRepo,
-          ciRunId,
-          ciUrl:
-            latest?.ciUrl ??
-            `https://github.com/${platformRepo}/actions/runs/${ciRunId}`,
+          platformRepo: latest?.platformRepo ?? null,
+          ciRunId: rerun.runId === null ? null : String(rerun.runId),
+          ciUrl: rerun.ciUrl ?? latest?.ciUrl ?? null,
         },
         200,
       );

@@ -63,7 +63,6 @@ import {
 // Re-export domain types so existing consumers that pull them from this file
 // keep compiling.
 export type { StoredByokKey } from "../control/byok";
-export type { AuthEndpointsState as ControlAuthEndpointsState } from "../control/auth-endpoints";
 
 // =============================================================================
 // Public types

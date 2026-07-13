@@ -67,6 +67,9 @@ export const API_PATHS = {
       logs: `${BFF}/operate/logs`,
       observability: `${BFF}/operate/observability`,
     },
+    integrations: {
+      base: `${BFF}/integrations`,
+    },
     e2e: {
       execute: `${BFF}/e2e/execute`,
       wallet: `${BFF}/e2e/wallet`,

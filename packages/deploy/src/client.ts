@@ -47,6 +47,8 @@ import type {
   ProgressModel,
   PromoteInput,
   PromoteResult,
+  RerunDeploymentInput,
+  RerunDeploymentResult,
   ServerTagsResult,
   RevokeTokenInput,
   ScaffoldInput,
@@ -245,6 +247,43 @@ export class DeploymentClient {
         status: cameled.ok ? "promoted" : "blocked",
         activation: cameled.activation,
       },
+    };
+  }
+
+  /**
+   * POST `/api/platforms/:platform/deployments/:id/rerun` — re-run the GitHub
+   * Actions run behind a deployment's recorded commit. The backend's App
+   * installation token makes the GitHub call; clients hold no GitHub token.
+   */
+  async rerunDeployment(
+    input: RerunDeploymentInput,
+  ): Promise<RerunDeploymentResult> {
+    const platform = cleanPlatform(input.platform);
+    const deploymentId = required(input.deploymentId, "deploymentId");
+    const params = new URLSearchParams();
+    if (input.githubUserId?.trim()) {
+      params.set("github_user_id", input.githubUserId.trim());
+    }
+    const query = params.toString();
+    const result = await this.post<Record<string, unknown>>(
+      `/api/platforms/${encodeURIComponent(platform)}/deployments/${encodeURIComponent(deploymentId)}/rerun${query ? `?${query}` : ""}`,
+      {},
+      "rerun",
+      this.resolveBearer(),
+    );
+    await this.audit({
+      action: "rerun",
+      platform,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return {
+      ok: result.ok === true,
+      deploymentId,
+      commitHash:
+        typeof result.commit_hash === "string" ? result.commit_hash : null,
+      runId: typeof result.run_id === "number" ? result.run_id : null,
+      ciUrl: typeof result.ci_url === "string" ? result.ci_url : null,
     };
   }
 
@@ -1439,6 +1478,10 @@ function camelUserSourceLatestDeployment(
     sdkVersion: d.sdk_version ?? d.sdkVersion ?? null,
     artifactTarget: d.artifact_target ?? d.artifactTarget ?? null,
     buildTarget: d.build_target ?? d.buildTarget ?? d.target ?? null,
+    createdAt:
+      typeof (d.created_at ?? d.createdAt) === "number"
+        ? (d.created_at ?? d.createdAt)
+        : null,
     apps: apps.map((app) => ({
       name: app.name,
       releaseTag: app.release_tag ?? app.releaseTag ?? null,
