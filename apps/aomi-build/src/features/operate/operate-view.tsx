@@ -212,14 +212,14 @@ function Rows({
       return (
         <EmptyState
           title="Usage"
-          description="Credit and token totals appear after your apps run chat turns. This is a usage meter — not invoices or partner fee settlements. Plans and balance will live under Account → Billing when wired."
+          description="Credit and token totals appear after your apps run chat turns. This is a usage meter — not invoices or fees that settle in Chat. Plans and balance will live under Account → Billing when wired."
         />
       );
     return (
       <div className="space-y-3">
         <p className="text-dim text-xs leading-5">
-          Platform LLM/token credits by app and day. Partner tool fees (when
-          priced) settle in chat — they are not listed here.{" "}
+          Platform model/token credits by app and day. Fees for priced tools
+          settle in Chat — they are not listed here.{" "}
           <Link href="/settings/billing" className="text-foreground hover:underline">
             Account → Billing
           </Link>{" "}
