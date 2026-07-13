@@ -76,10 +76,11 @@ describe("OperateView transactions", () => {
     render(<OperateView kind="transactions" />);
 
     await waitFor(() => {
-      expect(screen.getByText(/no transactions found/i)).toBeInTheDocument();
+      expect(screen.getByText(/no transactions yet/i)).toBeInTheDocument();
     });
-    expect(
-      screen.getByText(/configure its environment/i),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /open projects/i })).toHaveAttribute(
+      "href",
+      "/projects",
+    );
   });
 });

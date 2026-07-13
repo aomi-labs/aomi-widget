@@ -4,9 +4,9 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Filter, RefreshCw } from "lucide-react";
+import { EmptyState } from "@build/components/control-plane/empty-state";
 import { useGlobalDeploymentRecords } from "./use-global-deployment-records";
 import {
-  EmptyPanel,
   ErrorPanel,
   GitHubSignInPanel,
   LoadingPanel,
@@ -213,27 +213,19 @@ export function GlobalDeploymentsList() {
           ) : recordsState.status === "error" ? (
             <ErrorPanel message={recordsState.error} />
           ) : filtered.length === 0 ? (
-            <EmptyPanel>
-              {deployments.length === 0 ? (
-                <div className="flex flex-col items-center gap-3">
-                  <p>
-                    No deployments yet. Deploy an app from a connected project
-                    to see history here.
-                  </p>
-                  <Link
-                    href="/operate/deployments/new"
-                    className="inline-flex h-8 items-center justify-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:opacity-90"
-                  >
-                    New app
-                  </Link>
-                </div>
-              ) : (
-                <p>
-                  No deployments match the current filters. Clear filters or
-                  pick another project.
-                </p>
-              )}
-            </EmptyPanel>
+            deployments.length === 0 ? (
+              <EmptyState
+                title="No deployments yet"
+                description="Deploy an app from a connected project to see history here."
+                actionHref="/operate/deployments/new"
+                actionLabel="New app"
+              />
+            ) : (
+              <EmptyState
+                title="No matching deployments"
+                description="Clear filters or pick another project."
+              />
+            )
           ) : (
             <div className="divide-y divide-border">
               {filtered.map((deployment) => (

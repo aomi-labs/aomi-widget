@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { ToastProvider } from "@build/components/control-plane/toast";
 import { EnvironmentTab } from "./environment-tab";
 
 const setEnvVars = vi.fn(async () => ({ ok: true, keys: ["API_KEY"] }));
@@ -23,6 +24,16 @@ const detail = {
   typeof import("@build/features/launch/hooks/use-project-detail").useProjectDetail
 >;
 
+function renderTab(
+  props: { detail?: typeof detail } = {},
+) {
+  return render(
+    <ToastProvider>
+      <EnvironmentTab detail={props.detail ?? detail} />
+    </ToastProvider>,
+  );
+}
+
 describe("EnvironmentTab", () => {
   beforeEach(() => {
     setEnvVars.mockClear();
@@ -35,7 +46,7 @@ describe("EnvironmentTab", () => {
   });
 
   it("loads secrets on mount and lists configured keys (names only)", () => {
-    render(<EnvironmentTab detail={detail} />);
+    renderTab();
     expect(detail.loadSecrets).toHaveBeenCalled();
     expect(screen.getByText("EXISTING_KEY")).toBeInTheDocument();
     expect(screen.getByText("Builder secret")).toBeInTheDocument();
@@ -48,17 +59,17 @@ describe("EnvironmentTab", () => {
   });
 
   it("tells one vault story in the helper copy", () => {
-    render(<EnvironmentTab detail={detail} />);
+    renderTab();
     expect(
-      screen.getByText(/one vault for/i),
+      screen.getByText(/API keys and secrets for an app/i),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/chat users never paste api keys/i),
+      screen.getByText(/chat users never paste API keys/i),
     ).toBeInTheDocument();
   });
 
   it("writes masked vault values through the single editor", async () => {
-    render(<EnvironmentTab detail={detail} />);
+    renderTab();
     const value = screen.getByLabelText("Environment value");
     expect(value).toHaveAttribute("type", "password");
 
@@ -77,7 +88,7 @@ describe("EnvironmentTab", () => {
   });
 
   it("copies, overwrites, and deletes configured keys", async () => {
-    render(<EnvironmentTab detail={detail} />);
+    renderTab();
 
     fireEvent.click(screen.getByTitle("Copy EXISTING_KEY"));
     await waitFor(() =>
@@ -97,34 +108,26 @@ describe("EnvironmentTab", () => {
   });
 
   it("shows secret load failures", () => {
-    render(
-      <EnvironmentTab
-        detail={
-          {
-            ...detail,
-            secretsByApp: null,
-            secretsError: "vault unavailable",
-          } as typeof detail
-        }
-      />,
-    );
+    renderTab({
+      detail: {
+        ...detail,
+        secretsByApp: null,
+        secretsError: "vault unavailable",
+      } as typeof detail,
+    });
     expect(screen.getByText("vault unavailable")).toBeInTheDocument();
   });
 
   it("shows builder empty copy when no vars", () => {
-    render(
-      <EnvironmentTab
-        detail={
-          {
-            ...detail,
-            secretsByApp: { demo: [] },
-          } as typeof detail
-        }
-      />,
-    );
+    renderTab({
+      detail: {
+        ...detail,
+        secretsByApp: { demo: [] },
+      } as typeof detail,
+    });
     expect(screen.getByText("No variables yet")).toBeInTheDocument();
     expect(
-      screen.getByText(/builders set these here/i),
+      screen.getByText(/Add keys your agent needs/i),
     ).toBeInTheDocument();
   });
 });

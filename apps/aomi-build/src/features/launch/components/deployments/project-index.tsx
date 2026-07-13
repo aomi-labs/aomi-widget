@@ -1,12 +1,13 @@
 "use client";
 
+import { EmptyState } from "@build/components/control-plane/empty-state";
 import { useProjects } from "@build/features/launch/hooks/use-projects";
+import { BUILD_GLOSSARY } from "@build/lib/glossary";
 import { ProjectRow } from "./project-row";
 import { SdkBadge } from "./ui/sdk-badge";
 import {
   LoadingPanel,
   ErrorPanel,
-  EmptyPanel,
   GitHubSignInPanel,
 } from "./ui/state-panels";
 
@@ -30,7 +31,8 @@ export function ProjectIndex() {
               Projects
             </h1>
             <p className="mt-1 text-sm text-dim">
-              GitHub repositories connected as Aomi apps.
+              {BUILD_GLOSSARY.project.meaning} Each project can contain apps,
+              deployments, and an environment for keys.
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
@@ -72,20 +74,12 @@ export function ProjectIndex() {
             <GitHubSignInPanel error={githubError} />
           )}
           {state.status === "ready" && state.sources.length === 0 && (
-            <EmptyPanel>
-              <div className="flex flex-col items-center gap-3">
-                <p>
-                  No projects yet. Import a GitHub repository to deploy your
-                  first app.
-                </p>
-                <a
-                  href="/operate/deployments/new"
-                  className="inline-flex h-8 items-center justify-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:opacity-90"
-                >
-                  New app
-                </a>
-              </div>
-            </EmptyPanel>
+            <EmptyState
+              title="No projects yet"
+              description="Import a GitHub repository to deploy your first app."
+              actionHref="/operate/deployments/new"
+              actionLabel="New app"
+            />
           )}
           {state.status === "ready" &&
             state.sources.map((source) => (
