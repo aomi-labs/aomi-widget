@@ -14,7 +14,7 @@ sources_of_truth:
 
 # Repo Wiki Index
 
-`docs/` is the maintained knowledge surface for `aomi-widget`. Topic folders capture durable implementation knowledge under `facts/`, while generated inventories support discovery and ownership lookup.
+`docs/` is the maintained knowledge surface for `aomi`. Topic folders capture durable implementation knowledge under `facts/`, while generated inventories support discovery and ownership lookup.
 
 ## Primary Entry Points
 
