@@ -333,7 +333,10 @@ After the build loop completes (and only when `!plugin_manifests.is_empty()`), w
     let manifest = ReleaseManifest {
         app_release_tag: args.release_tag.clone().unwrap_or_default(),
         sdk_version: AOMI_SDK_VERSION.to_string(),
-        target: target_triple.unwrap_or(env!("TARGET")).to_string(),
+        // `env!("TARGET")` is only defined inside build scripts, not in a
+        // normal binary. When --target is omitted the build is for the host,
+        // and CI always passes --target explicitly.
+        target: target_triple.unwrap_or("host").to_string(),
         commit: args.commit.clone().unwrap_or_default(),
         plugins,
     };
@@ -729,14 +732,22 @@ git commit -m "feat(deploy): read declared secret slots from a release manifest.
 Repeat identically in all three files. The route already resolves `source` via `findOwnedSource` and validates each `(app, releaseTag)` pair, so the release tag and app names are in hand.
 
 **Files:**
+- Modify: `/Users/han/github/aomi-widget/packages/deploy/src/bff/release-manifest.ts` (add the shared helper)
 - Modify: `/Users/han/github/aomi-widget/apps/aomi-build/src/server/bff/launch/routes.ts` (`activateLaunchRoute`)
 - Modify: `/Users/han/github/aomi-widget/apps/portal/src/server/bff/launch/routes.ts` (`activateLaunchRoute`)
 - Modify: `/Users/han/github/aomi-widget/packages/deploy/src/bff/launch-routes.ts` (`activate`)
-- Test: the matching `routes.test.ts` in each app, and `packages/deploy/test/launch-routes.test.ts`
+- Test: `packages/deploy/test/release-manifest.test.ts`, the matching `routes.test.ts` in each app, and `packages/deploy/test/launch-routes.test.ts`
 
 **Interfaces:**
 - Consumes: `fetchReleaseSecretSlots` (Task 5), `missingRequiredSecrets` (Task 4), `listAppSecrets` (existing, `client.ts:911`).
-- Produces: on unfilled required slots, HTTP **409** with body `{ error: "missing required secrets", missing: Record<appName, string[]> }`.
+- Produces:
+  - `export async function missingSecretsForActivation(input: { client: DeploymentClient; githubUserId: string; platform: string; source: UserSource; pairs: { app: string; releaseTag: string }[]; githubToken?: string }): Promise<Record<string, string[]>>` — exported from `packages/deploy/src/bff/release-manifest.ts` and re-exported from `@aomi-labs/deploy/bff`.
+  - On unfilled required slots, HTTP **409** with body `{ error: "missing required secrets", missing: Record<appName, string[]> }`.
+
+> **Plan amendment (2026-07-10, approved):** the helper is defined **once** in
+> `packages/deploy` and imported by all three routes. Do **not** copy its body
+> into each route file. Each route contributes only the 8-line call-and-409
+> block below.
 
 - [ ] **Step 1: Write the failing test (aomi-build copy)**
 
@@ -809,50 +820,41 @@ Expected: FAIL — got 200, `client.activate` was called.
 
 - [ ] **Step 3: Write minimal implementation**
 
-In each `activateLaunchRoute`, immediately **after** the `authorized` pair check and **before** `client.activate`:
+First add the shared helper **once**, at the bottom of
+`packages/deploy/src/bff/release-manifest.ts`:
 
 ```ts
-    const missingByApp = await missingSecretsForActivation(
-      client,
-      session.githubUserId,
-      config,
-      source,
-      pairs,
-    );
-    if (Object.keys(missingByApp).length > 0) {
-      return NextResponse.json(
-        { error: "missing required secrets", missing: missingByApp },
-        { status: 409 },
-      );
-    }
-```
+import type { DeploymentClient } from "../client";
+import type { UserSource } from "../types";
+import { missingRequiredSecrets } from "../secrets";
 
-Add the helper next to `activationPairsBelongToSource` in the same file:
-
-```ts
 /**
- * Required slots the app declares (from the release's manifest.json) that have
+ * Required slots the apps declare (from each release's manifest.json) that have
  * no value in the vault yet, keyed by app name. Empty object = safe to activate.
+ *
+ * Returns `{}` when the GitHub token or the source's platform repo is unknown —
+ * activation must never be blocked by our inability to read the manifest.
  */
-async function missingSecretsForActivation(
-  client: DeploymentClientInstance,
-  githubUserId: string,
-  config: ReturnType<typeof launchConfig>,
-  source: OwnedSource,
-  pairs: ActivationPair[],
-): Promise<Record<string, string[]>> {
-  const githubToken = process.env.GITHUB_TOKEN?.trim();
-  const platformRepo = source.latestDeployment?.platformRepo;
+export async function missingSecretsForActivation(input: {
+  client: DeploymentClient;
+  githubUserId: string;
+  platform: string;
+  source: UserSource;
+  pairs: { app: string; releaseTag: string }[];
+  githubToken?: string;
+}): Promise<Record<string, string[]>> {
+  const githubToken = input.githubToken ?? process.env.GITHUB_TOKEN?.trim();
+  const platformRepo = input.source.latestDeployment?.platformRepo;
   if (!githubToken || !platformRepo) return {};
 
-  const configured = await client.listAppSecrets({
-    githubUserId,
-    platform: config.platform,
-    sourceId: source.id,
+  const configured = await input.client.listAppSecrets({
+    githubUserId: input.githubUserId,
+    platform: input.platform,
+    sourceId: input.source.id,
   });
 
   const missing: Record<string, string[]> = {};
-  for (const pair of pairs) {
+  for (const pair of input.pairs) {
     const slots = await fetchReleaseSecretSlots({
       platformRepo,
       releaseTag: pair.releaseTag,
@@ -870,14 +872,76 @@ async function missingSecretsForActivation(
 }
 ```
 
-Import at the top of each file:
+Export it from `packages/deploy/src/bff/index.ts` so `@aomi-labs/deploy/bff` exposes it.
+
+Add a test for it in `packages/deploy/test/release-manifest.test.ts`:
 
 ```ts
-import { fetchReleaseSecretSlots } from "@aomi-labs/deploy/bff";
-import { missingRequiredSecrets } from "@aomi-labs/deploy";
+it("reports only the required slots with no configured key", async () => {
+  const client = {
+    listAppSecrets: vi.fn(async () => ({
+      byApp: { binance: ["$SECRET:APP:binance::BINANCE_API_KEY"] },
+    })),
+  } as unknown as import("../src/client").DeploymentClient;
+
+  const missing = await missingSecretsForActivation({
+    client,
+    githubUserId: "gh-1",
+    platform: "community",
+    githubToken: "t",
+    source: {
+      id: 42,
+      latestDeployment: { platformRepo: "aomi-labs/community" },
+    } as never,
+    pairs: [{ app: "binance", releaseTag: "v1" }],
+  });
+  expect(missing).toEqual({ binance: ["BINANCE_SECRET_KEY"] });
+});
+
+it("never blocks activation when the platform repo is unknown", async () => {
+  const client = { listAppSecrets: vi.fn() } as never;
+  const missing = await missingSecretsForActivation({
+    client,
+    githubUserId: "gh-1",
+    platform: "community",
+    githubToken: "t",
+    source: { id: 42, latestDeployment: null } as never,
+    pairs: [{ app: "binance", releaseTag: "v1" }],
+  });
+  expect(missing).toEqual({});
+});
 ```
 
-In `packages/deploy/src/bff/launch-routes.ts` use the local imports (`./release-manifest`, `../secrets`), the injected `getSession(req)` session, and `jsonResponse({...}, 409)` instead of `NextResponse.json`.
+(The first test needs `fetchReleaseSecretSlots` stubbed to return the two binance slots — use `vi.spyOn` on the module, or inject via the existing `fetchImpl` seam.)
+
+Then, in **each** of the three routes, immediately **after** the `authorized`
+pair check and **before** `client.activate`, add only this call-and-409 block:
+
+```ts
+    const missingByApp = await missingSecretsForActivation({
+      client,
+      githubUserId: session.githubUserId,
+      platform: config.platform,
+      source,
+      pairs,
+    });
+    if (Object.keys(missingByApp).length > 0) {
+      return NextResponse.json(
+        { error: "missing required secrets", missing: missingByApp },
+        { status: 409 },
+      );
+    }
+```
+
+Import in the two app route files:
+
+```ts
+import { missingSecretsForActivation } from "@aomi-labs/deploy/bff";
+```
+
+In `packages/deploy/src/bff/launch-routes.ts` import from `./release-manifest`,
+take the session from `getSession(req)`, use `cfg.platform`, and return
+`jsonResponse({ ... }, 409)` instead of `NextResponse.json`.
 
 - [ ] **Step 4: Run tests to verify they pass**
 

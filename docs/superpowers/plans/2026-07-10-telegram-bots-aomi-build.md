@@ -564,8 +564,13 @@ application belongs to the source before touching a bot."
 - Consumes: the routes from Task 3.
 - Produces on `DeploymentClient`:
   - `listUserSourceBots(input: OwnedOperateSourceInput): Promise<BotRegistration[]>`
-  - `createUserSourceBot(input: OwnedOperateSourceInput & { applicationId: number; platform: string; credential: string; label?: string; threadMode?: string }): Promise<BotRegistration>`
+  - `createUserSourceBot(input: OwnedOperateSourceInput & { applicationId: number; botPlatform: string; credential: string; label?: string; threadMode?: string }): Promise<BotRegistration>`
   - `deleteUserSourceBot(input: OwnedOperateSourceInput & { botId: string }): Promise<void>`
+
+> **Naming (binding):** `OwnedOperateSourceInput.platform` is the **deploy**
+> platform (`"community"`). A bot's platform (`"telegram"`) is a different axis,
+> so the create input names it **`botPlatform`** and the client maps it to the
+> request body's `platform` field. Never introduce a `platform_` field.
 - And the type:
 
 ```ts
@@ -657,7 +662,7 @@ describe("DeploymentClient bots", () => {
       platform: "community",
       appSourceId: 42,
       applicationId: 7,
-      platform_: "telegram",
+      botPlatform: "telegram",
       credential: "tok",
     } as never);
     expect(JSON.stringify(bot)).not.toContain("LEAK");
@@ -846,7 +851,7 @@ export async function operateBotsCreateRoute(req: Request) {
       platform: owned.platform,
       appSourceId: source.id,
       applicationId: body.applicationId,
-      platform_: "telegram",
+      botPlatform: "telegram",
       credential: body.credential.trim(),
       label: typeof body.label === "string" ? body.label : undefined,
       threadMode: typeof body.threadMode === "string" ? body.threadMode : undefined,
