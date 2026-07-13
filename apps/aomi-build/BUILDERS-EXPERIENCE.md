@@ -111,9 +111,11 @@ flowchart LR
 flowchart LR
   Secrets["/settings/secrets"] --> N{project_count}
   N -->|0| Empty["Explain + New app CTA"]
-  N -->|1| Auto["Replace to /projects/id?tab=environment"]
+  N -->|1| One["Teach + Open Environment CTA"]
   N -->|2plus| List["List projects → Environment"]
 ```
+
+Stay on Account Settings until the builder clicks through. No auto-redirect.
 
 | Piece | Action |
 |---|---|
@@ -124,9 +126,9 @@ flowchart LR
 
 **Do not** add a secret editor on this page.
 
-**Done when:** No dead button; 0 / 1 / 2+ behaviors work; builders land in Environment.
+**Done when:** No dead button; 0 / 1 / 2+ stay on Settings until click; builders land in Environment only after an explicit CTA.
 
-**Stop gate:** Open `/settings/secrets` signed in. Does it feel like guidance, not a broken settings page?
+**Stop gate:** Open `/settings/secrets` with one project. Do you stay in Account and choose to open Environment?
 
 ---
 

@@ -2,9 +2,17 @@
 
 ## Last Updated
 
-2026-07-13 — Billing experience Phase A: settings sub-nav on PR #319 branch;
-2026-07-12 — Billing experience Phase A (local branch); 2026-07-11 staging Para
-sign-in fix + Overview read-path perf
+2026-07-13 — Account → Secrets: no single-project auto-redirect (explicit CTA);
+2026-07-13 — Billing experience Phase A merged (PR #319); 2026-07-11 staging
+Para sign-in fix + Overview read-path perf
+
+## Account → Secrets stay-on-settings (2026-07-13)
+
+Branch `feat/settings-secrets-no-auto-redirect`:
+
+- Single-project path no longer `router.replace`s to Environment.
+- Account → Secrets stays put with teaching copy + **Open Environment** CTA.
+- 0 / 2+ behaviors unchanged. Tests updated in `settings-secrets-panel.test.tsx`.
 
 ## Billing experience Phase A — settings sub-nav (2026-07-13)
 
