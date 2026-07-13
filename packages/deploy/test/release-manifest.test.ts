@@ -186,6 +186,12 @@ describe("missingSecretsForActivation", () => {
       listAppSecrets: vi.fn(async () => ({
         byApp: { binance: ["$SECRET:APP:binance::BINANCE_API_KEY"] },
       })),
+      // Production shape: `listUserSources` (the source of `input.source`)
+      // deliberately returns `latest_deployment: null` — the helper must
+      // resolve `platformRepo` itself via the detail endpoint.
+      getUserSourceLatestDeployment: vi.fn(async () => ({
+        platformRepo: "aomi-labs/community",
+      })),
     } as unknown as DeploymentClient;
 
     const missing = await missingSecretsForActivation({
@@ -195,18 +201,29 @@ describe("missingSecretsForActivation", () => {
       githubToken: "t",
       source: {
         id: 42,
-        latestDeployment: { platformRepo: "aomi-labs/community" },
+        latestDeployment: null,
       } as never,
       pairs: [{ app: "binance", releaseTag: "v1" }],
     });
     expect(missing).toEqual({ binance: ["BINANCE_SECRET_KEY"] });
+    expect(client.getUserSourceLatestDeployment).toHaveBeenCalledWith({
+      githubUserId: "gh-1",
+      platform: "community",
+      appSourceId: 42,
+    });
   });
 
   it("never blocks activation when the platform repo is unknown", async () => {
     const fetchImpl = vi.fn();
     vi.stubGlobal("fetch", fetchImpl);
 
-    const client = { listAppSecrets: vi.fn() } as never;
+    // No deployment at all for this source: the detail endpoint itself
+    // returns null, so platformRepo is genuinely unknown and the helper must
+    // still fail open (never block activation).
+    const client = {
+      listAppSecrets: vi.fn(),
+      getUserSourceLatestDeployment: vi.fn(async () => null),
+    } as unknown as DeploymentClient;
     const missing = await missingSecretsForActivation({
       client,
       githubUserId: "gh-1",
@@ -217,5 +234,6 @@ describe("missingSecretsForActivation", () => {
     });
     expect(missing).toEqual({});
     expect(fetchImpl).not.toHaveBeenCalled();
+    expect(client.listAppSecrets).not.toHaveBeenCalled();
   });
 });

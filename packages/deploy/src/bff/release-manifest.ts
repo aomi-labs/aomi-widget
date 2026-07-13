@@ -63,6 +63,15 @@ export async function fetchReleaseSecretSlots(input: {
  *
  * Returns `{}` when the GitHub token or the source's platform repo is unknown —
  * activation must never be blocked by our inability to read the manifest.
+ *
+ * `input.source` normally comes from `listUserSources`, and the backend
+ * deliberately returns `latest_deployment: null` on that list endpoint (it's
+ * lazy there). So `input.source.latestDeployment?.platformRepo` is checked
+ * first as a cheap path (in case a caller ever passes an already-populated
+ * source), but the real value comes from the per-source latest-deployment
+ * detail endpoint, which does populate `platformRepo`. `platformRepo` is a
+ * platform-level constant across a source's deployments, so the latest
+ * deployment's value is correct for any release tag being gated here.
  */
 export async function missingSecretsForActivation(input: {
   client: DeploymentClient;
@@ -73,7 +82,16 @@ export async function missingSecretsForActivation(input: {
   githubToken?: string;
 }): Promise<Record<string, string[]>> {
   const githubToken = input.githubToken ?? process.env.GITHUB_TOKEN?.trim();
-  const platformRepo = input.source.latestDeployment?.platformRepo;
+
+  let platformRepo = input.source.latestDeployment?.platformRepo;
+  if (!platformRepo) {
+    const latest = await input.client.getUserSourceLatestDeployment({
+      githubUserId: input.githubUserId,
+      platform: input.platform,
+      appSourceId: input.source.id,
+    });
+    platformRepo = latest?.platformRepo ?? undefined;
+  }
   if (!githubToken || !platformRepo) return {};
 
   const configured = await input.client.listAppSecrets({

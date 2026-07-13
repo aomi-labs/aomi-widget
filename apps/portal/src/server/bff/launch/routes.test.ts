@@ -125,9 +125,11 @@ function sourceDeployments() {
   });
 }
 
-/** Like `activationSource`, but with a `latestDeployment.platformRepo` so the
- *  required-secrets check has a manifest to read. */
-function activationSourceWithRepo(platformRepo: string, id = 99) {
+/** Like `activationSource`, but shaped like the real `listUserSources`
+ *  response: `latest_deployment` is always null there (the backend is lazy
+ *  for the list). Pair with `latestDeploymentResponse(platformRepo)` to stub
+ *  the per-source detail endpoint the required-secrets check now reads. */
+function activationSourceWithRepo(_platformRepo: string, id = 99) {
   return Response.json({
     sources: [
       {
@@ -139,12 +141,20 @@ function activationSourceWithRepo(platformRepo: string, id = 99) {
             app_release_tag: "apps-555-r1-my-bot-abc",
           },
         ],
-        latest_deployment: {
-          platform_repo: platformRepo,
-          apps: [{ name: "my-bot", release_tag: "apps-555-r1-my-bot-abc" }],
-        },
+        latest_deployment: null,
       },
     ],
+  });
+}
+
+/** The `getUserSourceLatestDeployment` detail-endpoint response —
+ *  the real source of `platformRepo` in production. */
+function latestDeploymentResponse(platformRepo: string) {
+  return Response.json({
+    latest_deployment: {
+      platform_repo: platformRepo,
+      apps: [{ name: "my-bot", release_tag: "apps-555-r1-my-bot-abc" }],
+    },
   });
 }
 
@@ -571,10 +581,14 @@ describe("deploymentPromoteRoute", () => {
       .mockResolvedValueOnce(ownedSources(99))
       .mockResolvedValueOnce(appRecords(DEPLOYMENT))
       // sourceDeploymentPairs re-reads the same DB records to derive the
-      // secret-gate pairs; this source has no platformRepo, so
-      // missingSecretsForActivation bails out (fail-open) before ever
-      // looking at the pairs' contents.
+      // secret-gate pairs.
       .mockResolvedValueOnce(appRecords(DEPLOYMENT))
+      // This source has no latestDeployment (the real listUserSources
+      // shape), so missingSecretsForActivation resolves platformRepo via the
+      // per-source detail endpoint; there's no deployment at all here, so it
+      // returns null and the gate bails out (fail-open) before ever looking
+      // at the pairs' contents.
+      .mockResolvedValueOnce(Response.json({ latest_deployment: null }))
       .mockResolvedValueOnce(
         Response.json({
           ok: true,
@@ -594,7 +608,7 @@ describe("deploymentPromoteRoute", () => {
     expect(res.status).toBe(202);
     expect(body.ok).toBe(true);
     expect(body.promote.deploymentId).toBe(DEPLOYMENT);
-    const [promoteUrl, promoteInit] = fetchMock.mock.calls[3];
+    const [promoteUrl, promoteInit] = fetchMock.mock.calls[4];
     expect(String(promoteUrl)).toContain(`/deployments/${DEPLOYMENT}/promote`);
     expect(String(promoteInit?.body)).toContain('"actor":"alice"');
   });
@@ -610,6 +624,9 @@ describe("deploymentPromoteRoute", () => {
       .mockResolvedValueOnce(
         appRecordsWithTag(DEPLOYMENT, "apps-555-r1-my-bot-abc"),
       )
+      // missingSecretsForActivation resolves platformRepo via the per-source
+      // detail endpoint since latestDeployment is null on the list response.
+      .mockResolvedValueOnce(latestDeploymentResponse("aomi-labs/my-bot-app"))
       .mockResolvedValueOnce(
         Response.json({
           by_app: { "my-bot": ["$SECRET:APP:my-bot::MY_BOT_API_KEY"] },
@@ -651,7 +668,7 @@ describe("deploymentPromoteRoute", () => {
       error: "missing required secrets",
       missing: { "my-bot": ["MY_BOT_SECRET_KEY"] },
     });
-    expect(fetchMock).toHaveBeenCalledTimes(6);
+    expect(fetchMock).toHaveBeenCalledTimes(7);
   });
 
   it("promotes when required secrets are filled", async () => {
@@ -665,6 +682,7 @@ describe("deploymentPromoteRoute", () => {
       .mockResolvedValueOnce(
         appRecordsWithTag(DEPLOYMENT, "apps-555-r1-my-bot-abc"),
       )
+      .mockResolvedValueOnce(latestDeploymentResponse("aomi-labs/my-bot-app"))
       .mockResolvedValueOnce(
         Response.json({
           by_app: {
@@ -691,7 +709,7 @@ describe("deploymentPromoteRoute", () => {
 
     expect(res.status).toBe(202);
     expect(body.ok).toBe(true);
-    expect(fetchMock).toHaveBeenCalledTimes(6);
+    expect(fetchMock).toHaveBeenCalledTimes(7);
   });
 
   it("gates promote by the authorized DB records, not a size-limited deployments listing (regression)", async () => {
@@ -717,6 +735,7 @@ describe("deploymentPromoteRoute", () => {
       .mockResolvedValueOnce(
         appRecordsWithTag(DEPLOYMENT, "apps-555-r1-my-bot-abc"),
       )
+      .mockResolvedValueOnce(latestDeploymentResponse("aomi-labs/my-bot-app"))
       .mockResolvedValueOnce(Response.json({ by_app: {} }))
       .mockResolvedValueOnce(
         Response.json({
@@ -749,7 +768,7 @@ describe("deploymentPromoteRoute", () => {
       error: "missing required secrets",
       missing: { "my-bot": ["MY_BOT_API_KEY"] },
     });
-    expect(fetchMock).toHaveBeenCalledTimes(6);
+    expect(fetchMock).toHaveBeenCalledTimes(7);
     expect(
       fetchMock.mock.calls.some(([url]) => String(url).includes("/promote")),
     ).toBe(false);
@@ -980,6 +999,7 @@ describe("activateLaunchRoute", () => {
       .fn()
       .mockResolvedValueOnce(activationSourceWithRepo("aomi-labs/my-bot-app"))
       .mockResolvedValueOnce(sourceDeployments())
+      .mockResolvedValueOnce(latestDeploymentResponse("aomi-labs/my-bot-app"))
       .mockResolvedValueOnce(
         Response.json({
           by_app: { "my-bot": ["$SECRET:APP:my-bot::MY_BOT_API_KEY"] },
@@ -1026,7 +1046,7 @@ describe("activateLaunchRoute", () => {
       error: "missing required secrets",
       missing: { "my-bot": ["MY_BOT_SECRET_KEY"] },
     });
-    expect(fetchMock).toHaveBeenCalledTimes(5);
+    expect(fetchMock).toHaveBeenCalledTimes(6);
   });
 
   it("activates when the release manifest declares no secrets for the app", async () => {
@@ -1035,6 +1055,7 @@ describe("activateLaunchRoute", () => {
       .fn()
       .mockResolvedValueOnce(activationSourceWithRepo("aomi-labs/my-bot-app"))
       .mockResolvedValueOnce(sourceDeployments())
+      .mockResolvedValueOnce(latestDeploymentResponse("aomi-labs/my-bot-app"))
       .mockResolvedValueOnce(Response.json({ by_app: {} }))
       .mockResolvedValueOnce(Response.json({ assets: [] }))
       .mockResolvedValueOnce(
@@ -1051,7 +1072,7 @@ describe("activateLaunchRoute", () => {
     );
 
     expect(res.status).toBe(200);
-    expect(fetchMock).toHaveBeenCalledTimes(5);
+    expect(fetchMock).toHaveBeenCalledTimes(6);
   });
 
   it("requires appSourceId and app/tag pairs", async () => {
@@ -1135,6 +1156,10 @@ describe("activateLaunchRoute", () => {
       .fn()
       .mockResolvedValueOnce(activationSource())
       .mockResolvedValueOnce(sourceDeployments())
+      // No latestDeployment on the source and no deployment at the detail
+      // endpoint either: platformRepo is genuinely unknown, so
+      // missingSecretsForActivation fails open before the activate call.
+      .mockResolvedValueOnce(Response.json({ latest_deployment: null }))
       .mockResolvedValueOnce(
         Response.json({ ok: true, activation: { apps: [] } }),
       );
@@ -1148,8 +1173,8 @@ describe("activateLaunchRoute", () => {
       }),
     );
     expect(res.status).toBe(200);
-    expect(fetchMock).toHaveBeenCalledTimes(3);
-    expect(fetchMock.mock.calls[2][1]).toMatchObject({
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(fetchMock.mock.calls[3][1]).toMatchObject({
       method: "POST",
       body: JSON.stringify({
         target: {

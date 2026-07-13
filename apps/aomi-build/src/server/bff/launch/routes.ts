@@ -1354,8 +1354,20 @@ export async function requiredSecretsRoute(req: Request) {
 
     // Neither an unreachable GitHub token nor an unknown platform repo may
     // block the UI: both degrade to empty slots rather than looking blocked.
+    // `source` comes from `findOwnedSource` -> `listUserSources`, and the
+    // backend deliberately returns `latest_deployment: null` there (it's lazy
+    // for the list); resolve the real value from the per-source
+    // latest-deployment detail endpoint instead, same as the redeploy route.
     const githubToken = process.env.GITHUB_TOKEN?.trim();
-    const platformRepo = source.latestDeployment?.platformRepo;
+    const platformRepo =
+      source.latestDeployment?.platformRepo ??
+      (
+        await client.getUserSourceLatestDeployment({
+          githubUserId: session.githubUserId,
+          platform: config.platform,
+          appSourceId: source.id,
+        })
+      )?.platformRepo;
     const configured = await client.listAppSecrets({
       githubUserId: session.githubUserId,
       sourceId: String(source.id),
