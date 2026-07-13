@@ -378,3 +378,14 @@ build`, `CI=true npx -y pnpm@10.28.0 install --frozen-lockfile`, and
   locally: frozen install, lint, library and deploy builds, 682 root tests, 221
   registry tests, registry build, landing production build, and the live
   staging OpenAPI contract all passed before pushing the refreshed branch.
+- 2026-07-13 working-trace scroll: kept long Working traces capped at 260px but
+  made the capped region wheel, touch, and keyboard scrollable with hidden
+  cross-browser scrollbars. Replaced the previous CSS mask with a
+  pair of pointer-transparent, theme-background edge fades so Chrome hover-wheel
+  hit-testing reaches the trace while rows dissolve cleanly at both edges without
+  smearing text; the bottom fade appears only while more content exists below, so
+  the newest step is fully clear at the scroll end;
+  preserved auto-follow for the newest live step unless the reader scrolls up,
+  and kept Show all / Collapse to recent behavior. Verified targeted ESLint,
+  registry build, portal typecheck, all 221 registry tests, and a signed-in
+  Chrome E2E against the local dev auth stack using an existing 19-step trace.
