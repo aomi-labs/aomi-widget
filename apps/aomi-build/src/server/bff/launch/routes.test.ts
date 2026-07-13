@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   deploymentDeactivateRoute,
+  deploymentFeedRoute,
   deploymentRecordsRoute,
   deploymentPromoteRoute,
   activateLaunchRoute,
@@ -948,6 +949,73 @@ describe("deploymentRecordsRoute", () => {
     );
     expect(res.status).toBe(404);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("deploymentFeedRoute", () => {
+  beforeEach(() => {
+    getGitHubSession.mockResolvedValue({
+      githubUserId: "42",
+      githubLogin: "alice",
+    });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    getGitHubSession.mockReset();
+  });
+
+  it("relays one account-scoped global feed request", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      Response.json({
+        deployments: [
+          {
+            deployment_id: "dep_1",
+            source_id: 7,
+            repository_link: "alice/app",
+            created_at: 100,
+            release_tags: [],
+            apps: [],
+          },
+        ],
+        next_cursor: { created_at: 100, id: 9 },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await deploymentFeedRoute(
+      new Request(
+        "http://localhost:3000/api/bff/deployments/feed?limit=50&cursorCreatedAt=200&cursorId=10",
+      ),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const [url] = fetchMock.mock.calls[0];
+    expect(String(url)).toContain(
+      "/api/integrations/github-app/user/deployments?",
+    );
+    expect(String(url)).toContain("github_user_id=42");
+    expect(String(url)).toContain("cursor_created_at=200");
+    expect(body).toMatchObject({
+      deployments: [{ deploymentId: "dep_1", sourceId: 7 }],
+      nextCursor: { createdAt: 100, id: 9 },
+    });
+  });
+
+  it("rejects partial cursors before calling manager", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await deploymentFeedRoute(
+      new Request(
+        "http://localhost:3000/api/bff/deployments/feed?limit=50&cursorId=10",
+      ),
+    );
+
+    expect(res.status).toBe(400);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 

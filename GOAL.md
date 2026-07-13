@@ -1,5 +1,18 @@
 # Auth BFF BetterAuth Cleanup Goal
 
+## Aomi Build Control Plane Performance
+
+- Replaced the deployments page's per-source history fan-out with one
+  keyset-paginated manager projection feed.
+- Added a shell-level TanStack Query cache so Projects and Deployments retain
+  data across tab remounts instead of loading from scratch.
+- Scoped project and deployment cache keys by GitHub login and clear the cache
+  on sign-out to prevent one account from reusing another account's data.
+- Projects remain fresh for 60 seconds, deployment history for 15 seconds, SDK
+  status for 5 minutes, and inactive entries remain cached for 15 minutes.
+- Kept backend endpoint contracts unchanged; the new global feed belongs to
+  manager and the Aomi Build BFF relays it.
+
 Current session goal: complete the Auth BFF BetterAuth cleanup, remove legacy
 `/api/bff/auth/*` auth-session routes, move CLI/native SIWE to BetterAuth
 endpoints, keep canonical backend UUIDs stable, and verify with CLI E2E before

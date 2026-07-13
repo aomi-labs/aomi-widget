@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import type { UserSource } from "@aomi-labs/deploy";
 import { useGitHubSession } from "@build/components/control-plane/github-session-context";
 import {
@@ -9,6 +10,7 @@ import {
 } from "@build/features/launch/client";
 import type { LaunchSdkStatus } from "@build/features/launch/contracts";
 import type { GitHubSessionInfo } from "@build/features/launch/dashboard";
+import { buildQueryKeys, githubAccountKey } from "../query-keys";
 
 export type ProjectsState =
   | { status: "loading" }
@@ -25,37 +27,58 @@ export function useProjects() {
   // The GitHub session comes from the shell-level provider — reusing it here
   // avoids a second `/auth/github/status` round trip on every page mount.
   const { account } = useGitHubSession();
-  const [state, setState] = useState<ProjectsState>({ status: "loading" });
+  const accountKey = githubAccountKey(account.githubLogin);
+  const sdk = useQuery({
+    queryKey: buildQueryKeys.sdkStatus(),
+    queryFn: () => deploymentSdkStatus().catch(() => null),
+    enabled: !account.loading,
+    staleTime: 5 * 60 * 1000,
+  });
+  const projects = useQuery({
+    queryKey: buildQueryKeys.projects(accountKey ?? "unavailable"),
+    queryFn: deploymentSources,
+    enabled: account.signedIn && accountKey !== null,
+    staleTime: 60 * 1000,
+  });
 
-  const reload = useCallback(async () => {
-    if (account.loading) return;
-    setState({ status: "loading" });
-    const { loading: _loading, ...github } = account;
-    try {
-      const sdkPromise = deploymentSdkStatus().catch(() => null);
-      if (!github.signedIn) {
-        setState({ status: "signed_out", sdk: await sdkPromise });
-        return;
-      }
-      const [{ sources }, sdk] = await Promise.all([
-        deploymentSources(),
-        sdkPromise,
-      ]);
-      setState({ status: "ready", sources, sdk, github });
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Failed to load projects";
-      if (message.toLowerCase().includes("not signed in with github")) {
-        setState({ status: "signed_out", sdk: null });
-        return;
-      }
-      setState({ status: "error", error: message });
+  const state = useMemo<ProjectsState>(() => {
+    if (account.loading) return { status: "loading" };
+    if (!account.signedIn) {
+      return { status: "signed_out", sdk: sdk.data ?? null };
     }
-  }, [account]);
+    if (!accountKey) {
+      return { status: "error", error: "GitHub account login is missing" };
+    }
+    if (projects.isPending) return { status: "loading" };
+    if (projects.error) {
+      const message =
+        projects.error instanceof Error
+          ? projects.error.message
+          : "Failed to load projects";
+      if (message.toLowerCase().includes("not signed in with github")) {
+        return { status: "signed_out", sdk: sdk.data ?? null };
+      }
+      return { status: "error", error: message };
+    }
+    const { loading: _loading, ...github } = account;
+    return {
+      status: "ready",
+      sources: projects.data?.sources ?? [],
+      sdk: sdk.data ?? null,
+      github,
+    };
+  }, [
+    account,
+    accountKey,
+    projects.data,
+    projects.error,
+    projects.isPending,
+    sdk.data,
+  ]);
 
-  useEffect(() => {
-    void reload();
-  }, [reload]);
+  const reload = useCallback(() => {
+    void Promise.all([projects.refetch(), sdk.refetch()]);
+  }, [projects, sdk]);
 
-  return { state, reload: () => void reload() };
+  return { state, reload };
 }

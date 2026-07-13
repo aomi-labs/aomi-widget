@@ -142,7 +142,7 @@ function Rows({
       return (
         <EmptyState
           title="Transactions"
-          description="On-chain actions from your apps show up here. Deploy an app, configure its Environment, and use it in chat to generate activity."
+          description="On-chain actions from your apps appear here after chat activity."
         />
       );
     return (
@@ -212,18 +212,17 @@ function Rows({
       return (
         <EmptyState
           title="Usage"
-          description="Credit and token totals appear after your apps run chat turns. This is a usage meter — not invoices or fees that settle in Chat. Plans and balance will live under Account → Billing when wired."
+          description="Credits and tokens appear after chat turns. Not invoices."
         />
       );
     return (
       <div className="space-y-3">
         <p className="text-dim text-xs leading-5">
-          Platform model/token credits by app and day. Fees for priced tools
-          settle in Chat — they are not listed here.{" "}
+          Model and token credits by app and day.{" "}
           <Link href="/settings/billing" className="text-foreground hover:underline">
             Account → Billing
           </Link>{" "}
-          will hold plans and invoices once connected.
+          covers payment setup in Chat.
         </p>
         <div className="grid gap-4 xl:grid-cols-[1fr_380px]">
         <div className="border-border overflow-x-auto rounded-md border">

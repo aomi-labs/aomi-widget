@@ -38,6 +38,9 @@ vi.mock("./use-global-deployment-records", () => ({
     },
     sources: [{ id: 42, repositoryLink: "alice/bot" }],
     reload: vi.fn(),
+    loadMore: vi.fn(),
+    hasMore: false,
+    loadingMore: false,
   }),
 }));
 

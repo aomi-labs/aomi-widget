@@ -26,7 +26,7 @@ export const INTEGRATION_PROVIDERS: IntegrationProvider[] = [
     id: "telegram",
     name: "Telegram",
     description:
-      "Connect a Telegram bot so your app can send and receive messages. Create a bot with @BotFather and paste the token it gives you.",
+      "Send and receive Telegram messages. Create a bot with @BotFather and paste its token.",
     docsUrl: "https://core.telegram.org/bots#how-do-i-create-a-bot",
     fields: [
       {
@@ -42,7 +42,7 @@ export const INTEGRATION_PROVIDERS: IntegrationProvider[] = [
     id: "discord",
     name: "Discord",
     description:
-      "Connect a Discord bot to relay messages and deployment alerts. Create an application in the Discord Developer Portal and paste its bot token.",
+      "Relay messages and deploy alerts. Create an app in the Discord Developer Portal and paste its bot token.",
     docsUrl: "https://discord.com/developers/docs/getting-started",
     fields: [
       {

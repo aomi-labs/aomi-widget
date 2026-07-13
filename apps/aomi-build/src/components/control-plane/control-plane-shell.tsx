@@ -23,6 +23,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { AomiLogo } from "@build/components/brand/aomi-logo";
 import {
@@ -36,6 +37,7 @@ import {
   type GitHubAccountState,
 } from "@build/components/control-plane/github-session-context";
 import { cn } from "@build/lib/utils";
+import { ControlPlaneQueryProvider } from "./control-plane-query-provider";
 
 type NavItem = {
   label: string;
@@ -514,9 +516,11 @@ function AccountMenu({
 
 export function ControlPlaneShell({ children }: { children: React.ReactNode }) {
   return (
-    <GitHubSessionProvider>
-      <ControlPlaneShellContent>{children}</ControlPlaneShellContent>
-    </GitHubSessionProvider>
+    <ControlPlaneQueryProvider>
+      <GitHubSessionProvider>
+        <ControlPlaneShellContent>{children}</ControlPlaneShellContent>
+      </GitHubSessionProvider>
+    </ControlPlaneQueryProvider>
   );
 }
 
@@ -525,6 +529,7 @@ function ControlPlaneShellContent({ children }: { children: React.ReactNode }) {
   const [expanded, setExpanded] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
   const { account, setAccount } = useGitHubSession();
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     setMobileOpen(false);
@@ -621,7 +626,10 @@ function ControlPlaneShellContent({ children }: { children: React.ReactNode }) {
           <div className="hidden lg:block" />
           <AccountMenu
             account={account}
-            onSignedOut={() => setAccount(signedOutGitHubAccount())}
+            onSignedOut={() => {
+              queryClient.clear();
+              setAccount(signedOutGitHubAccount());
+            }}
           />
         </header>
         <main className="min-h-0 flex-1 overflow-y-auto">{children}</main>

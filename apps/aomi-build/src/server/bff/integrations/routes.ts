@@ -77,7 +77,7 @@ export async function integrationsConnectRoute(req: Request) {
   // silently accepting (and dropping) the tokens.
   return NextResponse.json(
     {
-      error: `Saving ${provider.name} credentials isn't available yet.`,
+      error: `Saving ${provider.name} credentials is not available yet.`,
     },
     { status: 501 },
   );

@@ -42,6 +42,17 @@ export const API_PATHS = {
       redeploy: `${BFF}/deployments/redeploy`,
       promote: `${BFF}/deployments/promote`,
       sources: `${BFF}/deployments/sources`,
+      feed: (
+        limit: number,
+        cursor?: { createdAt: number; id: number } | null,
+      ) => {
+        const params = new URLSearchParams({ limit: String(limit) });
+        if (cursor) {
+          params.set("cursorCreatedAt", String(cursor.createdAt));
+          params.set("cursorId", String(cursor.id));
+        }
+        return `${BFF}/deployments/feed?${params}`;
+      },
       history: (appSourceId: number, limit?: number) => {
         const params = new URLSearchParams({
           appSourceId: String(appSourceId),

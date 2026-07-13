@@ -139,7 +139,7 @@ export function OneshotWizard({
         <div className="space-y-3">
           <div className="border-input bg-surface-1 space-y-3 rounded-md border p-4">
             <div className="text-foreground text-sm font-medium">
-              Step 1 — Install the Aomi GitHub App
+              Step 1: Install the Aomi GitHub App
             </div>
             <p className="text-muted-foreground text-sm leading-5">
               Installs <code>aomi-build-oneshot</code>. It can create a repo in
@@ -165,7 +165,7 @@ export function OneshotWizard({
         <div className="space-y-3">
           <div className="border-input bg-surface-1 space-y-3 rounded-md border p-4">
             <div className="text-foreground text-sm font-medium">
-              Step 2 — Create your repo
+              Step 2: Create your repo
             </div>
             <p className="text-muted-foreground text-sm leading-5">
               Creates a GitHub repo from <code>{TEMPLATE_REPO}</code> in the
@@ -211,7 +211,7 @@ export function OneshotWizard({
       {step === "build" && progress.installationId && progress.repo && (
         <div className="border-input bg-surface-1 space-y-3 rounded-md border p-4">
           <div className="text-foreground text-sm font-medium">
-            Step 3 — Build and activate
+            Step 3: Build and activate
           </div>
           <DeployStep
             installationId={progress.installationId}
