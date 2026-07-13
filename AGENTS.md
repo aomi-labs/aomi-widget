@@ -29,6 +29,8 @@ There is no dedicated automated test suite yet, so treat `pnpm run build:lib` an
 
 Commits follow short, imperative summaries (`Fix linting ci`, `Update packages for …`). Keep bodies optional but include rationale when touching build or security-sensitive files. For pull requests, add: 1) a concise description of the change and linked issue, 2) a checklist of commands you ran (lint, build, demo), and 3) screenshots or short clips for UI-impacting work. Make sure the PR mentions any `specs/` updates so reviewers can cross-check behavior changes.
 
+Before merging, audit every touched workspace against the npm publish workflow. If shipped files from a publishable npm package changed, bump that package's version in the same change (use a patch bump unless the release scope requires otherwise), refresh any affected lockfile or generated artifacts, and verify the package is publishable. Do not defer required npm version bumps until after merge.
+
 ## Security & Configuration Tips
 
 Never commit `.env` contents. Local development requires `NEXT_PUBLIC_PROJECT_ID` and `NEXT_PUBLIC_BACKEND_URL` (see README) so be sure to supply mock-safe values when recording demos. Wallet helpers in `utils/wallet.ts` assume checksummed addresses; validate inputs before invoking them, and funnel all network or key-related secrets through the backend instead of embedding them in this repo.
