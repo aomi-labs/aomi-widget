@@ -2,6 +2,7 @@ import "server-only";
 
 import { NextResponse } from "next/server";
 import type {
+  BotRegistration,
   OperateLogCursor,
   OperateLogsResult,
   OperateObservabilityResult,
@@ -160,29 +161,107 @@ async function ownedSources(req: Request): Promise<
   };
 }
 
-export async function operateAgentsRoute(req: Request) {
+export async function operateBotsRoute(req: Request) {
+  const owned = await ownedSources(req);
+  if ("response" in owned) return owned.response;
   try {
-    const owned = await ownedSources(req);
-    if ("response" in owned) return owned.response;
     const results = await Promise.all(
-      owned.sources.map((source) =>
-        owned.client.listUserSourceAgents({
+      owned.sources.map(async (source) => {
+        const bots = await owned.client.listUserSourceBots({
           githubUserId: owned.githubUserId,
           platform: owned.platform,
           appSourceId: source.id,
-        }),
-      ),
+        });
+        return bots.map((bot) => ({ ...bot, source }));
+      }),
     );
     return NextResponse.json({
-      sources: results.map((result) => result.source),
-      agents: results.flatMap((result) =>
-        result.agents.map((agent) => ({
-          ...agent,
-          source: result.source,
-          platform: result.platform,
-        })),
-      ),
+      sources: owned.sources,
+      bots: results.flat(),
     });
+  } catch (err) {
+    return launchErrorResponse(err);
+  }
+}
+
+export async function operateBotsCreateRoute(req: Request) {
+  const owned = await ownedSources(req);
+  if ("response" in owned) return owned.response;
+
+  const body = (await req.json().catch(() => ({}))) as {
+    appSourceId?: unknown;
+    applicationId?: unknown;
+    credential?: unknown;
+    label?: unknown;
+    threadMode?: unknown;
+  };
+  if (
+    !isValidAppSourceId(body.appSourceId) ||
+    typeof body.applicationId !== "number"
+  ) {
+    return NextResponse.json(
+      { error: "missing or invalid `appSourceId` / `applicationId`" },
+      { status: 400 },
+    );
+  }
+  if (typeof body.credential !== "string" || !body.credential.trim()) {
+    return NextResponse.json({ error: "missing `credential`" }, { status: 400 });
+  }
+  const source = owned.sources.find((s) => s.id === body.appSourceId);
+  if (!source) {
+    return NextResponse.json(
+      { error: "app source not found for this user" },
+      { status: 404 },
+    );
+  }
+
+  try {
+    const bot: BotRegistration = await owned.client.createUserSourceBot({
+      githubUserId: owned.githubUserId,
+      platform: owned.platform,
+      appSourceId: source.id,
+      applicationId: body.applicationId,
+      botPlatform: "telegram",
+      credential: body.credential.trim(),
+      label: typeof body.label === "string" ? body.label : undefined,
+      threadMode:
+        typeof body.threadMode === "string" ? body.threadMode : undefined,
+    });
+    return NextResponse.json({ bot }, { status: 201 });
+  } catch (err) {
+    return launchErrorResponse(err);
+  }
+}
+
+export async function operateBotsDeleteRoute(req: Request) {
+  const owned = await ownedSources(req);
+  if ("response" in owned) return owned.response;
+
+  const params = new URL(req.url).searchParams;
+  const requestedSourceId = Number(params.get("appSourceId"));
+  const botId = params.get("botId");
+  if (!isValidAppSourceId(requestedSourceId) || !botId) {
+    return NextResponse.json(
+      { error: "missing or invalid `appSourceId` / `botId`" },
+      { status: 400 },
+    );
+  }
+  const source = owned.sources.find((s) => s.id === requestedSourceId);
+  if (!source) {
+    return NextResponse.json(
+      { error: "app source not found for this user" },
+      { status: 404 },
+    );
+  }
+
+  try {
+    await owned.client.deleteUserSourceBot({
+      githubUserId: owned.githubUserId,
+      platform: owned.platform,
+      appSourceId: source.id,
+      botId,
+    });
+    return NextResponse.json({ ok: true });
   } catch (err) {
     return launchErrorResponse(err);
   }
