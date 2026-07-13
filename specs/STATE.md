@@ -2,6 +2,7 @@
 
 ## Last Updated
 
+2026-07-14 — Build P2 deep-link polish (⌘K / Billing / Overview → right tab);
 2026-07-13 — Build P2 usage peek (Home meter → Operate Usage);
 2026-07-13 — Build P2 Deployments timeline (history that reads as history);
 2026-07-13 — Build Live status consistency (one story across list/Home/Deployments);
@@ -12,9 +13,18 @@
 2026-07-13 — Billing option A: methods live on Chat (no fake Build fetch);
 2026-07-13 — BILLING-EXPERIENCE.md: backend ↔ UI map (code-checked)
 
+## Build P2 deep-link polish (2026-07-14)
+
+Branch `feat/build-p2-deep-links`:
+
+- Shared `deep-links.ts` for project tabs, last-project Home, Environment, Usage.
+- ⌘K Last project / Environment / Usage prefer last project when set.
+- Overview recent deploys → project Deployments tab; Usage card / Billing links
+  use last-project scoped Usage / Environment when available.
+
 ## Build P2 usage peek (2026-07-13)
 
-Branch `feat/build-p2-usage-peek`:
+Branch `feat/build-p2-usage-peek` (PR #335):
 
 - Home Usage card: credits + tokens + day spark; Environment ≠ Billing copy.
 - Deep link `/operate/usage?project=<id>`; Operate honors `?project=`.

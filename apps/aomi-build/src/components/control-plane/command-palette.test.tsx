@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { setLastProjectId } from "@build/lib/last-project";
 
 const push = vi.fn();
 
@@ -15,10 +16,12 @@ import {
 describe("CommandPalette", () => {
   beforeEach(() => {
     push.mockClear();
+    window.localStorage.clear();
   });
 
   afterEach(() => {
     document.body.innerHTML = "";
+    window.localStorage.clear();
   });
 
   it("opens from the header Search event", async () => {
@@ -56,5 +59,30 @@ describe("CommandPalette", () => {
         screen.queryByRole("dialog", { name: /command palette/i }),
       ).toBeNull();
     });
+  });
+
+  it("deep-links last project Home, Environment, and Usage", async () => {
+    setLastProjectId(42);
+    render(<CommandPalette />);
+    openCommandPalette();
+
+    await screen.findByRole("dialog", { name: /command palette/i });
+
+    fireEvent.click(screen.getByRole("button", { name: /^last project\b/i }));
+    expect(push).toHaveBeenCalledWith("/projects/42");
+
+    push.mockClear();
+    openCommandPalette();
+    await screen.findByRole("dialog", { name: /command palette/i });
+    fireEvent.click(
+      screen.getByRole("button", { name: /^environment \/ secrets\b/i }),
+    );
+    expect(push).toHaveBeenCalledWith("/projects/42?tab=environment");
+
+    push.mockClear();
+    openCommandPalette();
+    await screen.findByRole("dialog", { name: /command palette/i });
+    fireEvent.click(screen.getByRole("button", { name: /^usage\b/i }));
+    expect(push).toHaveBeenCalledWith("/operate/usage?project=42");
   });
 });
