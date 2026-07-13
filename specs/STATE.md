@@ -2,9 +2,20 @@
 
 ## Last Updated
 
+2026-07-13 — Build P1 control plane: ⌘K, toasts, Projects landing, glossary;
 2026-07-13 — Billing option A: methods live on Chat (no fake Build fetch);
 2026-07-13 — BILLING-EXPERIENCE.md: backend ↔ UI map (code-checked);
 2026-07-13 — Account → Secrets: no single-project auto-redirect (explicit CTA)
+
+## Build P1 control plane craft (2026-07-13)
+
+Branch `feat/build-p1-control-plane`:
+
+- Glossary terms (Project / App / Deployment / Environment) in `lib/glossary.ts`.
+- Empty states use one CTA (`EmptyState`) on Projects, Deployments, Overview, Operate.
+- Global toasts for env save/delete and promote/deactivate.
+- ⌘K command palette (+ header Search) for Projects, Deployments, Usage, Settings.
+- Default `/` opens last project or `/projects`; Overview moved to `/overview`.
 
 ## Billing option A — payment methods on Chat (2026-07-13)
 

@@ -5,14 +5,15 @@ import { Activity, Gauge, Rocket, WalletCards } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { useGitHubSession } from "@build/components/control-plane/github-session-context";
+import { EmptyState } from "@build/components/control-plane/empty-state";
 import {
-  EmptyPanel,
   ErrorPanel,
   GitHubSignInPanel,
   LoadingPanel,
 } from "@build/features/launch/components/deployments/ui/state-panels";
 import { useGlobalDeploymentRecords } from "@build/features/launch/components/deployments/use-global-deployment-records";
 import { operateFetch } from "@build/features/operate/client";
+import { BUILD_GLOSSARY } from "@build/lib/glossary";
 
 type UsagePayload = {
   daily?: Array<Record<string, any>>;
@@ -120,8 +121,13 @@ export function OverviewDashboard() {
         <div className="min-w-0">
           <h1 className="text-foreground text-2xl font-semibold">Overview</h1>
           <p className="text-dim mt-1 text-sm">
-            Owned applications connected to{" "}
-            {account.githubLogin ? `@${account.githubLogin}` : "GitHub"}.
+            Snapshot for{" "}
+            {account.githubLogin ? `@${account.githubLogin}` : "GitHub"}. Day-to-day
+            work starts from Projects.
+          </p>
+          <p className="text-dim mt-2 max-w-2xl text-xs leading-5">
+            {BUILD_GLOSSARY.project.term}: {BUILD_GLOSSARY.project.meaning}{" "}
+            {BUILD_GLOSSARY.deployment.term}: {BUILD_GLOSSARY.deployment.meaning}
           </p>
         </div>
         <button
@@ -184,7 +190,12 @@ export function OverviewDashboard() {
             </div>
           ) : null}
           {recordsState.status === "ready" && deployments.length === 0 ? (
-            <EmptyPanel>No deployments yet.</EmptyPanel>
+            <EmptyState
+              title="No deployments yet"
+              description={BUILD_GLOSSARY.deployment.meaning}
+              actionHref="/operate/deployments/new"
+              actionLabel="New app"
+            />
           ) : !recordsPending ? (
             <div className="divide-border divide-y">
               {deployments.slice(0, 5).map((deployment) => (

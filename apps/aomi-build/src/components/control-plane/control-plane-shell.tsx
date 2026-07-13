@@ -26,15 +26,20 @@ import { useEffect, useRef, useState } from "react";
 
 import { AomiLogo } from "@build/components/brand/aomi-logo";
 import {
-  GITHUB_SIGNIN_URL,
-  signOutGitHub,
-} from "@build/features/launch/dashboard";
+  CommandPalette,
+  openCommandPalette,
+} from "@build/components/control-plane/command-palette";
 import {
   GitHubSessionProvider,
   signedOutGitHubAccount,
   useGitHubSession,
   type GitHubAccountState,
 } from "@build/components/control-plane/github-session-context";
+import { ToastProvider } from "@build/components/control-plane/toast";
+import {
+  GITHUB_SIGNIN_URL,
+  signOutGitHub,
+} from "@build/features/launch/dashboard";
 import { cn } from "@build/lib/utils";
 
 type NavItem = {
@@ -53,18 +58,20 @@ type NavGroup = {
 const navGroups: NavGroup[] = [
   {
     title: "Overview",
-    items: [{ label: "Overview", href: "/", icon: Home, enabled: true }],
-  },
-  {
-    title: "Build",
     items: [
-      { label: "Build", href: "/build", icon: Hammer, enabled: false },
+      { label: "Overview", href: "/overview", icon: Home, enabled: true },
       {
         label: "Projects",
         href: "/projects",
         icon: FolderKanban,
         enabled: true,
       },
+    ],
+  },
+  {
+    title: "Build",
+    items: [
+      { label: "Build", href: "/build", icon: Hammer, enabled: false },
     ],
   },
   {
@@ -515,7 +522,9 @@ function AccountMenu({
 export function ControlPlaneShell({ children }: { children: React.ReactNode }) {
   return (
     <GitHubSessionProvider>
-      <ControlPlaneShellContent>{children}</ControlPlaneShellContent>
+      <ToastProvider>
+        <ControlPlaneShellContent>{children}</ControlPlaneShellContent>
+      </ToastProvider>
     </GitHubSessionProvider>
   );
 }
@@ -619,12 +628,26 @@ function ControlPlaneShellContent({ children }: { children: React.ReactNode }) {
             <Menu className="size-4" />
           </IconButton>
           <div className="hidden lg:block" />
-          <AccountMenu
-            account={account}
-            onSignedOut={() => setAccount(signedOutGitHubAccount())}
-          />
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => openCommandPalette()}
+              className="text-dim hover:bg-accent-hover hover:text-foreground border-border hidden h-8 items-center gap-2 rounded-md border px-2 text-xs sm:inline-flex"
+              aria-label="Open command palette"
+            >
+              <span>Search</span>
+              <kbd className="border-border rounded border px-1 py-0.5 text-[10px]">
+                ⌘K
+              </kbd>
+            </button>
+            <AccountMenu
+              account={account}
+              onSignedOut={() => setAccount(signedOutGitHubAccount())}
+            />
+          </div>
         </header>
         <main className="min-h-0 flex-1 overflow-y-auto">{children}</main>
+        <CommandPalette />
       </div>
     </div>
   );

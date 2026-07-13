@@ -88,15 +88,27 @@ function unitLabel(value: unknown, unit: string, digits = 1) {
 function EmptyState({
   title,
   description,
+  actionHref,
+  actionLabel,
 }: {
   title: string;
   description?: string;
+  actionHref?: string;
+  actionLabel?: string;
 }) {
   return (
     <div className="border-border bg-surface-subtle text-dim rounded-md border px-4 py-10 text-center text-sm">
-      <p>No {title.toLowerCase()} found.</p>
+      <p className="text-foreground font-medium">No {title.toLowerCase()} yet</p>
       {description ? (
         <p className="mt-2 text-xs leading-5">{description}</p>
+      ) : null}
+      {actionHref && actionLabel ? (
+        <Link
+          href={actionHref}
+          className="bg-primary text-primary-foreground mt-4 inline-flex h-8 items-center justify-center rounded-md px-3 text-xs font-medium hover:opacity-90"
+        >
+          {actionLabel}
+        </Link>
       ) : null}
     </div>
   );
@@ -142,7 +154,9 @@ function Rows({
       return (
         <EmptyState
           title="Transactions"
-          description="On-chain actions from your apps show up here. Deploy an app, configure its Environment, and use it in chat to generate activity."
+          description="On-chain actions from your apps show up here after chat activity."
+          actionHref="/projects"
+          actionLabel="Open Projects"
         />
       );
     return (
@@ -212,7 +226,9 @@ function Rows({
       return (
         <EmptyState
           title="Usage"
-          description="Credit and token totals appear after your apps run chat turns. This is a usage meter — not invoices or fees that settle in Chat. Plans and balance will live under Account → Billing when wired."
+          description="Credits and tokens appear after your apps run chat turns. This is a meter, not Billing."
+          actionHref="/projects"
+          actionLabel="Open Projects"
         />
       );
     return (
