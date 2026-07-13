@@ -17,6 +17,7 @@ type Row = { key: string; value: string };
 export function EnvironmentTab({ detail }: { detail: Detail }) {
   useEffect(() => {
     detail.loadSecrets();
+    detail.loadRequiredSecrets();
   }, [detail]);
 
   const appNames = useMemo(
@@ -26,6 +27,9 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
   const [app, setApp] = useState<string>("");
   const [envRows, setEnvRows] = useState<Row[]>([{ key: "", value: "" }]);
   const [secretRows, setSecretRows] = useState<Row[]>([{ key: "", value: "" }]);
+  const [requiredValues, setRequiredValues] = useState<Record<string, string>>(
+    {},
+  );
   const [status, setStatus] = useState<{
     kind: "idle" | "saving" | "done" | "error";
     message: string;
@@ -47,11 +51,20 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
     (handle) => ({ handle, key: handle.split("::").pop() ?? handle }),
   );
 
+  const required = app ? detail.requiredSecrets?.[app] : undefined;
+  const missingCount = required?.missing.length ?? 0;
+  const missingSlots = (required?.slots ?? []).filter((slot) =>
+    required?.missing.includes(slot.name),
+  );
+
   const save = async () => {
     const values: Record<string, string> = {};
     for (const row of [...envRows, ...secretRows]) {
       const key = row.key.trim();
       if (key && row.value.length > 0) values[key] = row.value;
+    }
+    for (const [key, value] of Object.entries(requiredValues)) {
+      if (key && value.length > 0) values[key] = value;
     }
     if (Object.keys(values).length === 0) {
       setStatus({ kind: "error", message: "Add at least one KEY and value." });
@@ -66,6 +79,7 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
       });
       setEnvRows([{ key: "", value: "" }]);
       setSecretRows([{ key: "", value: "" }]);
+      setRequiredValues({});
     } catch (err) {
       setStatus({
         kind: "error",
@@ -150,6 +164,39 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
         />
 
         <div className="mt-5 border-t border-zinc-100 pt-4">
+          {missingCount > 0 && (
+            <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              {missingCount} required secret{missingCount === 1 ? "" : "s"}{" "}
+              missing. This app cannot be activated until every required
+              value is set.
+            </div>
+          )}
+          {missingSlots.map((slot) => (
+            <div key={slot.name} className="mb-2">
+              <div className="flex items-center gap-2">
+                <input
+                  value={slot.name}
+                  readOnly
+                  aria-label={`${slot.name} key`}
+                  className="h-8 w-56 rounded-md border border-zinc-300 bg-zinc-50 px-2 font-mono text-xs"
+                />
+                <input
+                  type="password"
+                  value={requiredValues[slot.name] ?? ""}
+                  onChange={(e) =>
+                    setRequiredValues((v) => ({
+                      ...v,
+                      [slot.name]: e.target.value,
+                    }))
+                  }
+                  placeholder="value"
+                  aria-label={`${slot.name} value`}
+                  className="h-8 flex-1 rounded-md border border-zinc-300 px-2 text-xs"
+                />
+              </div>
+              <p className="mt-1 text-xs text-zinc-500">{slot.description}</p>
+            </div>
+          ))}
           <ValueEditor
             title="Secrets"
             badge="Secret"
