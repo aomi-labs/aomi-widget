@@ -1,8 +1,10 @@
 # Required-secret detection and activation gating
 
 Date: 2026-07-10
-Status: approved, ready for implementation planning
-Scope: `packages/deploy`, `apps/aomi-build`, `apps/portal`
+Status: **BLOCKED — original approach invalidated by backend verification (2026-07-10).**
+See "Verified backend finding" below. The UI/BFF design (sections 2-4) still
+holds; the data source (section 1) does not.
+Scope: `packages/deploy`, `apps/aomi-build`, `apps/portal`, and — newly — `aomi-sdk` CI
 
 ## Problem
 
@@ -221,9 +223,68 @@ GET /api/bff/deployments/secrets  -> listAppSecrets   -> { byApp: string[] }
   slot; enabled after saving it; missing slots render with name + description
   and a masked input.
 
-## Open dependency
+## Verified backend finding (2026-07-10) — invalidates section 1
 
-Confirm with the backend whether `/api/platforms/:platform/apps` (and
-`/apps/:app`) already includes `secrets` in its response. If yes, this ships as
-a frontend-only change. If no, it needs one additive field on an existing
-response before the gate can work.
+Traced against `product-mono` (the Rust backend) and `aomi-sdk`:
+
+- `DbApplication` (`crates/database/src/entities/application.rs:11`) has **no**
+  secrets column. Its `metadata` Jsonb is written at **activation**
+  (`handler/platforms/app_lifecycle.rs:202` → `registered_via: "activate_app"`).
+- `GET /api/thread/apps` sources slots from `runtime.catalog_entries()`
+  (`handler/app/apps.rs:241`). A catalog entry is only upserted **after the
+  runtime `dlopen`s the plugin and reads `aomi_manifest`**
+  (`crates/runtime/src/reconstructor.rs:538`). For any app not currently loaded,
+  `secrets_for()` returns `unwrap_or_default()` → `[]`.
+- The GitHub release asset `manifest.json` is only a checksum index —
+  `{app_release_tag, sdk_version, target, commit, plugins: {name: {file, sha256}}}`
+  (`aomi-sdk/.github/workflows/release-plugins.yml:86`). **It carries no secrets.**
+- There is no `aomi.toml` declaring secrets; `apps/binance` has only
+  `Cargo.toml`. Slots exist solely as Rust `Secret::new(...)` consts compiled
+  into the plugin `.so`, surfaced through `DynManifest.secrets`.
+
+**Therefore: before activation, the required-secret slots do not exist anywhere
+in the system** — not in the DB, not in the runtime catalog, not in the release
+assets. Populating `PlatformApp.secrets` from `camelPlatformApp` would correctly
+return `[]` for precisely the apps that need gating.
+
+Secondary correction: the app is **not** blocked from loading. `reconstructor.rs`
+upserts the catalog entry unconditionally after load; a missing required secret
+surfaces later, at vault resolution during a tool call. (`DynManifest.secrets`'
+doc comment claims "the host gates app load on every `required: true` slot being
+filled" — no such gate exists in the reconstructor. Flag to the backend team.)
+
+## Revised options
+
+**A. Emit the slots from CI into the release manifest (recommended).**
+Change `aomi-sdk`'s release workflow so each plugin's declared slots land in
+`manifest.json`:
+
+```json
+"plugins": { "binance": { "file": "...", "sha256": "...",
+  "secrets": [{ "name": "BINANCE_API_KEY", "description": "...", "required": true }] } }
+```
+
+Once that ships, **no backend change is required for the gate**: Aomi Build's BFF
+already holds a GitHub token (used today for CI-status enrichment and re-run) and
+knows the platform repo + release tag, so it can read the release's
+`manifest.json` asset directly and compute the missing set.
+
+Caveat: `manifest.json` is generated per matrix target, and extracting
+`DynManifest` requires `dlopen` of a built `.so`, which only works for the host
+target. The slot data is target-independent, so emit it from a host-target build,
+or have `dyn_aomi_app!` emit a compile-time JSON sidecar.
+
+**B. Backend extracts and persists at activation-verify time.**
+The backend already downloads and verifies release assets; it could read the
+manifest and persist slots on the application row, then expose them on the
+platform-apps payload. Cleaner long-term, but it still needs the slots to be
+extractable, so it largely depends on A anyway (or on the backend doing `dlopen`).
+
+**C. Post-activation surfacing only.**
+Read slots after the app loads and show "needs configuration" instead of gating.
+Does not satisfy "before it activates", and Aomi Build cannot call
+`/api/thread/apps` anyway (account-scoped — see the bots decision record).
+
+There is no path that ships purely inside `aomi-widget`. **Minimum unblock is A**,
+a small change in `aomi-sdk` CI; after that the BFF + UI work (sections 2-4) is
+self-contained and needs no backend involvement.
