@@ -624,7 +624,7 @@ export function DeployStep({
         {phase === "deploying" &&
           "Creating or updating the platform deploy branch."}
         {phase === "building" && "Waiting for platform CI and release assets."}
-        {phase === "releasing" && "Release built — verifying assets."}
+        {phase === "releasing" && "Release built. Verifying assets."}
         {phase === "ready" && "Build is ready for activation."}
         {phase === "activating" &&
           "Promoting the built release into the live branch."}

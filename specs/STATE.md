@@ -2,9 +2,18 @@
 
 ## Last Updated
 
+2026-07-13 — Build UI copy polish (em dashes / hedging essays);
 2026-07-13 — Billing option A: methods live on Chat (no fake Build fetch);
-2026-07-13 — BILLING-EXPERIENCE.md: backend ↔ UI map (code-checked);
-2026-07-13 — Account → Secrets: no single-project auto-redirect (explicit CTA)
+2026-07-13 — BILLING-EXPERIENCE.md: backend ↔ UI map (code-checked)
+
+## Build UI copy polish (2026-07-13)
+
+Branch `fix/build-ui-copy-polish`:
+
+- Shortened Settings, Billing, Secrets, Overview, Usage, Environment,
+  Integrations, and wizard user-facing copy.
+- Removed AI em dashes from product sentences; kept `—` only as empty
+  table/stat placeholders.
 
 ## Billing option A — payment methods on Chat (2026-07-13)
 

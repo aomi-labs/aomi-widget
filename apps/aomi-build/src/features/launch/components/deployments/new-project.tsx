@@ -43,8 +43,7 @@ export function NewProject({
             New app
           </h1>
           <p className="text-dim mt-1 text-sm">
-            Fork the template, deploy it, and go live — all from your GitHub
-            account.
+            Fork the template, deploy it, and go live from your GitHub account.
           </p>
         </div>
 

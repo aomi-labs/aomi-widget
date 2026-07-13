@@ -145,10 +145,9 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
         )}
         <p className="mt-3 text-xs leading-5 text-dim">
           One vault for{" "}
-          <span className="font-mono">{app || "this app"}</span>. Add
-          KEY=value pairs here — they are injected into the running app.
-          Values are write-only (you cannot reveal them later). Builders set
-          these; chat users never paste API keys.
+          <span className="font-mono">{app || "this app"}</span>. Values
+          are injected at runtime and write-only (you cannot reveal them later).
+          Chat users never paste API keys.
         </p>
         {detail.secretsError && (
           <div className="mt-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
@@ -291,8 +290,8 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
             <p className="font-medium text-foreground">No variables yet</p>
             <p className="mt-1 text-xs leading-5">
               Add keys your agent needs (for example{" "}
-              <span className="font-mono">BINANCE_API_KEY</span>). Builders set
-              these here — chat users never paste API keys.
+              <span className="font-mono">BINANCE_API_KEY</span>). Chat users
+              never paste API keys.
             </p>
           </div>
         )

@@ -183,9 +183,8 @@ export function IntegrationsView() {
           </h1>
         </div>
         <p className="text-subtle max-w-2xl text-sm">
-          Connect external bots and channels to your Aomi apps. Paste the API
-          token for each service you want to use — your credentials stay scoped
-          to your account.
+          Connect bots and channels to your apps. Credentials stay on your
+          account.
         </p>
       </div>
 
