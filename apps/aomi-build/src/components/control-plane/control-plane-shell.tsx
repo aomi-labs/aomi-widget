@@ -100,8 +100,8 @@ const navGroups: NavGroup[] = [
         requiresGitHub: true,
       },
       {
-        label: "Agents",
-        href: "/operate/agents",
+        label: "Bots",
+        href: "/operate/bots",
         icon: Bot,
         enabled: true,
         requiresGitHub: true,

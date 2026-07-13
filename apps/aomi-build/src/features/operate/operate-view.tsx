@@ -3,11 +3,11 @@
 import type { AppSource } from "@aomi-labs/deploy";
 import {
   Activity,
-  Bot,
   Gauge,
   ListFilter,
   ScrollText,
   WalletCards,
+  type LucideIcon,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useGitHubSession } from "@build/components/control-plane/github-session-context";
@@ -17,11 +17,15 @@ import {
 } from "@build/features/launch/components/deployments/ui/state-panels";
 import { operateFetch, type OperateKind } from "./client";
 
+// OperateView renders every operate surface except Bots, which has its own
+// dedicated BotsView (register form + table) instead of the generic
+// kind-indexed rows below.
+type ViewKind = Exclude<OperateKind, "bots">;
+
 type Sourceish = AppSource & { apps?: unknown[] };
 
 type OperatePayload = {
   sources?: Sourceish[];
-  agents?: Array<Record<string, any>>;
   transactions?: Array<Record<string, any>>;
   daily?: Array<Record<string, any>>;
   breakdown?: Array<Record<string, any>>;
@@ -34,12 +38,11 @@ type OperatePayload = {
 };
 
 const meta = {
-  agents: { title: "Agents", icon: Bot },
   transactions: { title: "Transactions", icon: WalletCards },
   usage: { title: "Usage", icon: Gauge },
   logs: { title: "Logs", icon: ScrollText },
   observability: { title: "Observability", icon: Activity },
-} satisfies Record<OperateKind, { title: string; icon: typeof Bot }>;
+} satisfies Record<ViewKind, { title: string; icon: LucideIcon }>;
 
 function sourceLabel(source: Sourceish) {
   return source.repositoryLink || source.githubAccount || `Source ${source.id}`;
@@ -79,36 +82,9 @@ function Rows({
   kind,
   payload,
 }: {
-  kind: OperateKind;
+  kind: ViewKind;
   payload: OperatePayload;
 }) {
-  if (kind === "agents") {
-    const rows = payload.agents ?? [];
-    if (!rows.length) return <EmptyState title="Agents" />;
-    return (
-      <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-        {rows.map((agent) => (
-          <div
-            key={`${agent.source?.id}-${agent.id}`}
-            className="border-border bg-surface rounded-md border px-3 py-3"
-          >
-            <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <div className="truncate text-sm font-medium">{agent.name}</div>
-                <div className="text-dim truncate text-xs">
-                  {agent.source?.repositoryLink}
-                </div>
-              </div>
-              <span className="text-dim text-xs">
-                {agent.loaded ? "Loaded" : "Idle"}
-              </span>
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  }
-
   if (kind === "transactions") {
     const rows = payload.transactions ?? [];
     if (!rows.length) return <EmptyState title="Transactions" />;
@@ -351,7 +327,7 @@ function Rows({
   );
 }
 
-export function OperateView({ kind }: { kind: OperateKind }) {
+export function OperateView({ kind }: { kind: ViewKind }) {
   const { account } = useGitHubSession();
   const [payload, setPayload] = useState<OperatePayload | null>(null);
   const [sourceId, setSourceId] = useState<number | null>(null);

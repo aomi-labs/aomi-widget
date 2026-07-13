@@ -61,7 +61,7 @@ export const API_PATHS = {
       deactivate: `${BFF}/deployments/deactivate`,
     },
     operate: {
-      agents: `${BFF}/operate/agents`,
+      bots: `${BFF}/operate/bots`,
       transactions: `${BFF}/operate/transactions`,
       usage: `${BFF}/operate/usage`,
       logs: `${BFF}/operate/logs`,
