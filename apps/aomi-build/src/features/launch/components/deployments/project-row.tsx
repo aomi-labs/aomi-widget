@@ -1,4 +1,5 @@
 import type { UserSource } from "@aomi-labs/deploy";
+import { projectDeploymentStatus } from "./project-deployment-status";
 import { StatusDot } from "./ui/status-dot";
 import { SdkBadge } from "./ui/sdk-badge";
 
@@ -11,22 +12,7 @@ export function ProjectRow({
   requiredSdk?: string | null;
   href?: string;
 }) {
-  const activeApps = source.apps.filter((app) => app.isActive).length;
-  const hasDeployment =
-    source.latestDeployment !== null ||
-    source.apps.some((app) => app.appReleaseTag != null);
-  const deploymentState =
-    activeApps > 0
-      ? (source.latestDeployment?.state ?? "live")
-      : hasDeployment
-        ? "deactivated"
-        : "none";
-  const deploymentLabel =
-    activeApps > 0
-      ? "Live deployment"
-      : hasDeployment
-        ? "Deactivated"
-        : "No deployment";
+  const status = projectDeploymentStatus(source);
   const appLabel =
     source.apps.length === 0
       ? "No apps"
@@ -51,8 +37,8 @@ export function ProjectRow({
           {source.repositoryLink ?? "Unknown repository"}
         </div>
         <div className="mt-1 flex items-center gap-2 text-xs text-dim">
-          <StatusDot state={deploymentState} />
-          <span>{deploymentLabel}</span>
+          <StatusDot state={status.dotState} />
+          <span>{status.label}</span>
           <span aria-hidden>·</span>
           <span>{appLabel}</span>
         </div>

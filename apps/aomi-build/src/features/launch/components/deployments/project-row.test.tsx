@@ -35,7 +35,11 @@ describe("ProjectRow", () => {
               appReleaseTag: "tag-old",
             },
           ],
-          latestDeployment: { state: "recorded", sdkVersion: "3.0.1" },
+          latestDeployment: {
+            state: "recorded",
+            sdkVersion: "3.0.1",
+            apps: [],
+          },
         }}
         requiredSdk="3.0.1"
       />,
@@ -44,5 +48,29 @@ describe("ProjectRow", () => {
     expect(screen.getByText("Deactivated")).toBeInTheDocument();
     expect(screen.getByText("my-bot")).toBeInTheDocument();
     expect(screen.queryByText(/live app/i)).not.toBeInTheDocument();
+  });
+
+  it("shows Live deployment when the source is live", () => {
+    render(
+      <ProjectRow
+        source={{
+          id: 42,
+          installationId: 1,
+          repositoryLink: "alice/bot",
+          apps: [
+            {
+              name: "playground-example",
+              isActive: true,
+              loaded: true,
+              appReleaseTag: "tag-1",
+            },
+          ],
+          latestDeployment: null,
+        }}
+      />,
+    );
+
+    expect(screen.getByText("Live deployment")).toBeInTheDocument();
+    expect(screen.getByText("playground-example")).toBeInTheDocument();
   });
 });
