@@ -9,6 +9,7 @@ import {
   ScrollText,
   WalletCards,
 } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import {
   useGitHubSession,
@@ -207,9 +208,24 @@ function Rows({
   if (kind === "usage") {
     const daily = payload.daily ?? [];
     const breakdown = payload.breakdown ?? [];
-    if (!daily.length && !breakdown.length) return <EmptyState title="Usage" />;
+    if (!daily.length && !breakdown.length)
+      return (
+        <EmptyState
+          title="Usage"
+          description="Credit and token totals appear after your apps run chat turns. This is a usage meter — not invoices or partner fee settlements. Plans and balance will live under Account → Billing when wired."
+        />
+      );
     return (
-      <div className="grid gap-4 xl:grid-cols-[1fr_380px]">
+      <div className="space-y-3">
+        <p className="text-dim text-xs leading-5">
+          Platform LLM/token credits by app and day. Partner tool fees (when
+          priced) settle in chat — they are not listed here.{" "}
+          <Link href="/settings/billing" className="text-foreground hover:underline">
+            Account → Billing
+          </Link>{" "}
+          will hold plans and invoices once connected.
+        </p>
+        <div className="grid gap-4 xl:grid-cols-[1fr_380px]">
         <div className="border-border overflow-x-auto rounded-md border">
           <table className="divide-border min-w-full divide-y text-sm">
             <thead className="bg-surface-subtle text-dim text-left text-xs uppercase">
@@ -256,6 +272,7 @@ function Rows({
             ))}
           </div>
         </div>
+      </div>
       </div>
     );
   }

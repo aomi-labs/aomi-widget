@@ -2,8 +2,27 @@
 
 ## Last Updated
 
-2026-07-11 — Staging Para sign-in fix, followed by Overview read-path perf
-fixes for PR #309
+2026-07-13 — Billing experience Phase A: settings sub-nav on PR #319 branch;
+2026-07-12 — Billing experience Phase A (local branch); 2026-07-11 staging Para
+sign-in fix + Overview read-path perf
+
+## Billing experience Phase A — settings sub-nav (2026-07-13)
+
+Branch `feat/builders-billing-experience-phase-a` (PR #319):
+
+- Added `SettingsNav`, `SettingsLayout`, and `settings/layout.tsx` so all
+  `/settings` routes share Account sub-navigation driven by `settings-data.ts`.
+- Overview + every section (including planned stubs) is one click away; badges
+  show Available / Project-scoped / Planned; Billing + Secrets panels unchanged.
+- Test: `settings-nav.test.tsx`.
+
+## Billing experience plan rename (2026-07-12)
+
+- Renamed `apps/aomi-build/BILLING-CLARITY.md` → `BILLING-EXPERIENCE.md`
+  (matches `BUILDERS-EXPERIENCE.md` naming). Content uses "Billing Experience";
+  A→D phases and mental model unchanged.
+- Local branch renamed to `feat/builders-billing-experience-phase-a`
+  (was unpushed `feat/builders-billing-phase-a-clarity`).
 
 ## Overview read-path perf (2026-07-11, aomi-build)
 

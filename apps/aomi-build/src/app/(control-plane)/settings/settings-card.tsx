@@ -1,12 +1,6 @@
 import Link from "next/link";
 
-import type { SettingsSection } from "./settings-data";
-
-function statusLabel(status: SettingsSection["status"]) {
-  if (status === "available") return "Available";
-  if (status === "project-scoped") return "Project-scoped";
-  return "Planned";
-}
+import { settingsStatusLabel, type SettingsSection } from "./settings-data";
 
 export function SettingsCard({ section }: { section: SettingsSection }) {
   const Icon = section.icon;
@@ -26,7 +20,7 @@ export function SettingsCard({ section }: { section: SettingsSection }) {
           </div>
         </div>
         <span className="shrink-0 rounded-sm border border-border px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-dim">
-          {statusLabel(section.status)}
+          {settingsStatusLabel(section.status)}
         </span>
       </div>
       <p className="mt-3 text-[13px] text-dim">{section.description}</p>
