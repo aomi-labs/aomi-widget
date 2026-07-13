@@ -22,6 +22,9 @@ vi.mock("@build/features/launch/client", () => ({
   deploymentSecrets: vi.fn(async () => ({
     byApp: { demo: ["$SECRET:APP:demo::KEY"] },
   })),
+  deploymentRequiredSecrets: vi.fn(async () => ({
+    byApp: {},
+  })),
   deploymentPromote: vi.fn(),
   deploymentDeactivate: vi.fn(async () => ({ ok: true, apps: ["my-bot"] })),
   launchPreflight: vi.fn(),
@@ -57,6 +60,7 @@ import {
   deploymentRecords,
   deploymentHistory,
   deploymentSecrets,
+  deploymentRequiredSecrets,
 } from "@build/features/launch/client";
 
 describe("useProjectDetail", () => {
@@ -165,5 +169,24 @@ describe("useProjectDetail", () => {
       expect(result.current.secretsByApp?.demo).toHaveLength(1),
     );
     expect(result.current.secretsError).toBeNull();
+  });
+
+  it("exposes the missing required secrets per app", async () => {
+    vi.mocked(deploymentRequiredSecrets).mockResolvedValue({
+      byApp: { binance: { slots: [], missing: ["BINANCE_SECRET_KEY"] } },
+    });
+    const { result } = renderHook(() => useProjectDetail(42));
+    act(() => result.current.loadRequiredSecrets());
+    await waitFor(() => expect(result.current.requiredSecrets).not.toBeNull());
+    expect(result.current.hasMissingSecrets("binance")).toBe(true);
+    expect(result.current.hasMissingSecrets("hello")).toBe(false);
+  });
+
+  it("surfaces a required-secrets load failure instead of a false empty state", async () => {
+    vi.mocked(deploymentRequiredSecrets).mockRejectedValue(new Error("boom"));
+    const { result } = renderHook(() => useProjectDetail(42));
+    act(() => result.current.loadRequiredSecrets());
+    await waitFor(() => expect(result.current.requiredSecretsError).toBe("boom"));
+    expect(result.current.requiredSecrets).toBeNull();
   });
 });
