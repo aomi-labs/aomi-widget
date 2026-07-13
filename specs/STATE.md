@@ -2,6 +2,7 @@
 
 ## Last Updated
 
+2026-07-13 — Build P2 usage peek (Home meter → Operate Usage);
 2026-07-13 — Build P2 Deployments timeline (history that reads as history);
 2026-07-13 — Build Live status consistency (one story across list/Home/Deployments);
 2026-07-13 — Build P2 Project home (live / keys / Open Chat / usage glance);
@@ -11,9 +12,16 @@
 2026-07-13 — Billing option A: methods live on Chat (no fake Build fetch);
 2026-07-13 — BILLING-EXPERIENCE.md: backend ↔ UI map (code-checked)
 
+## Build P2 usage peek (2026-07-13)
+
+Branch `feat/build-p2-usage-peek`:
+
+- Home Usage card: credits + tokens + day spark; Environment ≠ Billing copy.
+- Deep link `/operate/usage?project=<id>`; Operate honors `?project=`.
+
 ## Build P2 Deployments timeline (2026-07-13)
 
-Branch `feat/build-p2-deployments-timeline`:
+Branch `feat/build-p2-deployments-timeline` (PR #334):
 
 - Deployments tab summary uses the same Live story + history count.
 - Rows lead with app names + Current; deployment id is secondary.

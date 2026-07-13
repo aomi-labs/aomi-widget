@@ -10,6 +10,7 @@ import {
   WalletCards,
 } from "lucide-react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
   useGitHubSession,
@@ -457,13 +458,21 @@ function operateCacheKey(
   return `${accountKey}:${kind}:${sourceId ?? "all"}`;
 }
 
+function projectIdFromSearch(raw: string | null): number | null {
+  if (!raw) return null;
+  const id = Number(raw);
+  return Number.isSafeInteger(id) && id > 0 ? id : null;
+}
+
 export function OperateView({ kind }: { kind: OperateKind }) {
   const { account } = useGitHubSession();
+  const searchParams = useSearchParams();
+  const projectFromUrl = projectIdFromSearch(searchParams.get("project"));
   const accountCacheKey = operateAccountCacheKey(account);
+  const [sourceId, setSourceId] = useState<number | null>(projectFromUrl);
   const initialCacheKey = accountCacheKey
-    ? operateCacheKey(accountCacheKey, kind, null)
+    ? operateCacheKey(accountCacheKey, kind, sourceId)
     : null;
-  const [sourceId, setSourceId] = useState<number | null>(null);
   const [payload, setPayload] = useState<OperatePayload | null>(
     () => (initialCacheKey ? operateCache.get(initialCacheKey) : null) ?? null,
   );
@@ -476,6 +485,10 @@ export function OperateView({ kind }: { kind: OperateKind }) {
   const sources = useMemo(() => payload?.sources ?? [], [payload?.sources]);
   const canPage = kind === "transactions" || kind === "logs";
   const nextCursor = canPage ? payload?.nextCursor : null;
+
+  useEffect(() => {
+    if (projectFromUrl != null) setSourceId(projectFromUrl);
+  }, [projectFromUrl]);
 
   useEffect(() => {
     if (account.loading) {

@@ -3,6 +3,11 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { OperateView, truncateAddress } from "./operate-view";
 
 const operateFetch = vi.fn();
+const searchParams = { current: new URLSearchParams("") };
+
+vi.mock("next/navigation", () => ({
+  useSearchParams: () => searchParams.current,
+}));
 
 vi.mock("@build/components/control-plane/github-session-context", () => ({
   useGitHubSession: () => ({
@@ -28,6 +33,7 @@ describe("truncateAddress", () => {
 describe("OperateView transactions", () => {
   beforeEach(() => {
     operateFetch.mockReset();
+    searchParams.current = new URLSearchParams("");
   });
 
   it("renders denser columns from wire fields and truncates addresses", async () => {
@@ -82,5 +88,20 @@ describe("OperateView transactions", () => {
       "href",
       "/projects",
     );
+  });
+
+  it("honors ?project= when loading operate data", async () => {
+    searchParams.current = new URLSearchParams("project=42");
+    operateFetch.mockResolvedValue({
+      sources: [{ id: 42, repositoryLink: "a/b", apps: [] }],
+      daily: [],
+      breakdown: [],
+    });
+
+    render(<OperateView kind="usage" />);
+
+    await waitFor(() => {
+      expect(operateFetch).toHaveBeenCalledWith("usage", 42);
+    });
   });
 });
