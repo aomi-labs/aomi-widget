@@ -52,10 +52,10 @@ const walletSetDef = defineCommand({
 
 const walletCurrentDef = defineCommand({
   meta: { name: "current", description: "Show the configured wallet address" },
-  args: {},
-  async run() {
+  args: { ...globalArgs },
+  async run({ args }) {
     const { currentWalletCommand } = await import("../control");
-    currentWalletCommand();
+    currentWalletCommand(buildCliConfig(args));
   },
 });
 

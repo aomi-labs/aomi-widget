@@ -101,13 +101,36 @@ describe("aomi account link management", () => {
     await accountLinksCommand({ secrets: {} });
 
     expect(logSpy).toHaveBeenCalledWith("Account:  aomi-user-1");
-    expect(logSpy).toHaveBeenCalledWith("Links:    2");
+    expect(logSpy).toHaveBeenCalledWith("Login methods: 2");
     expect(logSpy).toHaveBeenCalledWith(
       expect.stringContaining("identity:identity-privy privy"),
     );
     expect(logSpy).toHaveBeenCalledWith(
       expect.stringContaining("wallet:wallet-privy evm [privy]"),
     );
+  });
+
+  it("prints account links as JSON", async () => {
+    const { CliSession } = await import("../../src/cli/cli-session");
+    const { accountLinksCommand } =
+      await import("../../src/cli/commands/account");
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => Response.json(accountGraph)),
+    );
+    const cli = CliSession.loadOrCreate(baseConfig);
+    cli.setAuthSession({
+      sessionToken: "session-token",
+      expiresAt: Date.now() + 60_000,
+    });
+
+    await accountLinksCommand({ secrets: {}, json: true });
+
+    const parsed = JSON.parse(String(logSpy.mock.calls[0]?.[0]));
+    expect(parsed.user.id).toBe("aomi-user-1");
+    expect(parsed.linkedAccounts).toHaveLength(2);
+    expect(parsed.wallets).toHaveLength(2);
   });
 
   it("links an EVM wallet with a SIWE account-link message", async () => {

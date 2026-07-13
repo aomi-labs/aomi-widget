@@ -34,9 +34,15 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MarkdownText } from "@/components/assistant-ui/markdown-text";
 import { ToolFallback } from "@/components/assistant-ui/tool-fallback";
+import { AssistantTurnParts } from "@/components/assistant-ui/working-trace";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
 
-import { cn, useNotification, useThreadContext } from "@aomi-labs/react";
+import {
+  cn,
+  useCurrentThreadMetadata,
+  useNotification,
+  useThreadContext,
+} from "@aomi-labs/react";
 import { useComposerControl } from "@/components/aomi-frame";
 import { ModelSelect } from "@/components/control-bar/model-select";
 import { AppSelect } from "@/components/control-bar/app-select";
@@ -46,26 +52,21 @@ import { ConnectButton } from "@/components/control-bar/connect-button";
 import { SecretGate } from "@/components/control-bar/secret-gate";
 import { PaymentRequiredGate } from "@/components/control-bar/payment-required-gate";
 import { shouldShowThreadLoadingSkeleton } from "@/components/assistant-ui/thread-loading";
-import {
-  useAssistantApi,
-  useAssistantState,
-  useMessage,
-} from "@assistant-ui/react";
+import { useThread, useComposerRuntime, useMessage } from "@assistant-ui/react";
 
 const seenSystemMessages = new Set<string>();
 
 export const Thread: FC = () => {
-  const api = useAssistantApi();
+  const composerRuntime = useComposerRuntime();
   const { threadViewKey } = useThreadContext();
 
   useEffect(() => {
     try {
-      const composer = api.composer();
-      composer.setText("");
+      composerRuntime.setText("");
     } catch (error) {
       console.error("Failed to reset composer input:", error);
     }
-  }, [api, threadViewKey]);
+  }, [composerRuntime, threadViewKey]);
 
   return (
     <LazyMotion features={domAnimation}>
@@ -73,7 +74,7 @@ export const Thread: FC = () => {
         <ThreadPrimitive.Root
           className="aui-root aui-thread-root @container bg-background relative flex h-full flex-col"
           style={{
-            ["--thread-max-width" as string]: "44rem",
+            ["--thread-max-width" as string]: "50rem",
           }}
         >
           <SecretGate />
@@ -121,7 +122,7 @@ const ThreadScrollToBottom: FC = () => {
 };
 
 const ThreadWelcome: FC = () => {
-  const isLoading = useAssistantState(({ thread }) => thread.isLoading);
+  const isLoading = useThread((t) => t.isLoading);
 
   if (isLoading) return null;
 
@@ -267,7 +268,7 @@ const ComposerAction: FC = () => {
               type="submit"
               variant="default"
               size="icon"
-              className="aui-composer-send bg-foreground text-background hover:bg-foreground/90 mr-2 size-[38px] shrink-0 rounded-full p-1 md:mr-3 md:size-[34px]"
+              className="aui-composer-send bg-foreground text-background hover:bg-foreground/90 mr-2 size-[38px] shrink-0 rounded-full p-1 md:mr-3"
               aria-label="Send message"
             >
               <ArrowUpIcon className="aui-composer-send-icon size-5" />
@@ -281,7 +282,7 @@ const ComposerAction: FC = () => {
               type="button"
               variant="default"
               size="icon"
-              className="aui-composer-cancel border-muted-foreground/60 hover:bg-primary/75 dark:border-muted-foreground/90 mr-2 size-[38px] shrink-0 rounded-full border md:mr-3 md:size-[34px]"
+              className="aui-composer-cancel border-muted-foreground/60 hover:bg-primary/75 dark:border-muted-foreground/90 mr-2 size-[38px] shrink-0 rounded-full border md:mr-3"
               aria-label="Stop generating"
             >
               <Square className="aui-composer-cancel-icon size-3.5 fill-white dark:fill-black" />
@@ -304,10 +305,10 @@ const MessageError: FC = () => {
 };
 
 const ThreadLoadingSkeleton: FC = () => {
-  const showSkeleton = useAssistantState(({ thread }) =>
+  const showSkeleton = useThread((t) =>
     shouldShowThreadLoadingSkeleton({
-      isLoading: thread.isLoading,
-      messageCount: thread.messages.length,
+      isLoading: t.isLoading,
+      messageCount: t.messages.length,
     }),
   );
 
@@ -357,12 +358,14 @@ const AssistantMessage: FC = () => {
   const isEmpty = useMessage((state) => state.content.length === 0);
   const isRunning = useMessage((state) => state.status?.type === "running");
   const isLast = useMessage((state) => state.isLast);
+  const turnPhase = useCurrentThreadMetadata()?.control.turnPhase ?? "idle";
   const notice = useMessage((state) => state.metadata?.custom) as
     | { aomiNoticeKind?: string; aomiNoticeTitle?: string }
     | undefined;
   const isPaymentRequiredNotice = notice?.aomiNoticeKind === "payment_required";
-  const showLoadingDot = isEmpty && isRunning && isLast;
-  const showFinishedEmptyMessage = isEmpty && !showLoadingDot;
+  const showLoadingDot =
+    isEmpty && isRunning && isLast && turnPhase !== "working";
+  const showFinishedEmptyMessage = isEmpty && !isRunning;
 
   return (
     <MessagePrimitive.Root asChild>
@@ -391,16 +394,7 @@ const AssistantMessage: FC = () => {
 
         {!showFinishedEmptyMessage && !isPaymentRequiredNotice && (
           <div className="aui-assistant-message-content text-foreground break-words px-3 text-sm leading-5">
-            {showLoadingDot ? (
-              <AssistantLoadingDot />
-            ) : (
-              <MessagePrimitive.Parts
-                components={{
-                  Text: MarkdownText,
-                  tools: { Fallback: ToolFallback },
-                }}
-              />
-            )}
+            {showLoadingDot ? <AssistantLoadingDot /> : <AssistantTurnParts />}
             <MessageError />
           </div>
         )}
@@ -440,7 +434,7 @@ const AssistantActionBar: FC = () => {
             <CheckIcon />
           </MessagePrimitive.If>
           <MessagePrimitive.If copied={false}>
-            <CopyIcon />
+            <CopyIcon className="size-3.5" />
           </MessagePrimitive.If>
         </Button>
       </ActionBarPrimitive.Copy>
@@ -451,7 +445,7 @@ const AssistantActionBar: FC = () => {
           className="aui-button-icon size-6 rounded-xl p-1"
           aria-label="Refresh"
         >
-          <RefreshCwIcon />
+          <RefreshCwIcon className="size-3.5" />
         </Button>
       </ActionBarPrimitive.Reload>
     </ActionBarPrimitive.Root>

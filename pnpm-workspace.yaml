@@ -13,6 +13,13 @@ overrides:
   # alignment, not a bump past anyone's range.
   react: 19.2.7
   react-dom: 19.2.7
+  # Pin a single @types/react so peer-dep resolution doesn't fan out into
+  # multiple physical copies of @assistant-ui/* (react/store/core). Duplicate
+  # copies each get their own React context, which breaks the shared AuiProvider
+  # (the runtime provider and the UI primitives would resolve to different
+  # instances → "requires an AuiProvider" at runtime).
+  "@types/react": 19.2.14
+  "@types/react-dom": 19.2.3
 
 # @inkjs/ui declares no react dependency (nor peer), so its bare `import react`
 # falls through to a hoisted copy that differs from the one ink's reconciler is
@@ -26,14 +33,35 @@ packageExtensions:
       react: "*"
 
 onlyBuiltDependencies:
+  - "@parcel/watcher"
   - "@reown/appkit"
+  - "@smithers-orchestrator/jj-darwin-arm64"
   - "@tailwindcss/oxide"
   - bufferutil
+  - es5-ext
   - esbuild
   - keccak
+  - msgpackr-extract
+  - protobufjs
+  - secp256k1
   - sharp
+  - tiny-secp256k1
   - unrs-resolver
   - utf-8-validate
 
 allowBuilds:
-  '@reown/appkit': true
+  "@parcel/watcher": true
+  "@reown/appkit": true
+  "@smithers-orchestrator/jj-darwin-arm64": true
+  "@tailwindcss/oxide": true
+  bufferutil: true
+  es5-ext: true
+  esbuild: true
+  keccak: true
+  msgpackr-extract: true
+  protobufjs: true
+  secp256k1: true
+  sharp: true
+  tiny-secp256k1: true
+  unrs-resolver: true
+  utf-8-validate: true
