@@ -29,7 +29,9 @@ import type {
   ListUserSourceTransactionsInput,
   ListUserSourceDeploymentsInput,
   ListUserSourcesInput,
-  OperateAgentsResult,
+  BotRegistration,
+  CreateUserSourceBotInput,
+  DeleteUserSourceBotInput,
   OperateLogCursor,
   OperateLogsResult,
   OperateObservabilityResult,
@@ -711,30 +713,83 @@ export class DeploymentClient {
       );
   }
 
-  async listUserSourceAgents(
+  async listUserSourceBots(
     input: OwnedOperateSourceInput,
-  ): Promise<OperateAgentsResult> {
+  ): Promise<BotRegistration[]> {
     const { appSourceId, params, platform, bearer } =
       this.ownedOperateRequest(input);
-    const raw = await this.get<Record<string, unknown>>(
+    const raw = await this.get<{ bot_registrations?: unknown[] }>(
       `/api/integrations/github-app/user/sources/${encodeURIComponent(
         String(appSourceId),
-      )}/agents?${params.toString()}`,
-      "list_user_source_agents",
+      )}/bots?${params.toString()}`,
+      "list_user_source_bots",
       bearer,
     );
     await this.audit({
-      action: "list_user_source_agents",
+      action: "list_user_source_bots",
       platform,
       appSourceId,
       actor: input.actor,
       ts: Date.now(),
     });
-    return {
-      source: camelAppSource(raw.source),
-      platform: String(raw.platform ?? platform),
-      agents: ((raw.agents ?? []) as unknown[]).map(camelPlatformApp),
-    };
+    return ((raw.bot_registrations ?? []) as unknown[]).map(
+      camelBotRegistration,
+    );
+  }
+
+  async createUserSourceBot(
+    input: CreateUserSourceBotInput,
+  ): Promise<BotRegistration> {
+    const { appSourceId, params, platform, bearer } =
+      this.ownedOperateRequest(input);
+    const botPlatform = required(input.botPlatform, "botPlatform");
+    const applicationId = required(
+      String(input.applicationId),
+      "applicationId",
+    );
+    const credential = required(input.credential, "credential");
+    const raw = await this.post<{ bot_registration?: unknown }>(
+      `/api/integrations/github-app/user/sources/${encodeURIComponent(
+        String(appSourceId),
+      )}/bots?${params.toString()}`,
+      {
+        platform: botPlatform,
+        application_id: Number(applicationId),
+        label: input.label,
+        credential,
+        thread_mode: input.threadMode,
+      },
+      "create_user_source_bot",
+      bearer,
+    );
+    await this.audit({
+      action: "create_user_source_bot",
+      platform,
+      appSourceId,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return camelBotRegistration(raw.bot_registration);
+  }
+
+  async deleteUserSourceBot(input: DeleteUserSourceBotInput): Promise<void> {
+    const { appSourceId, params, platform, bearer } =
+      this.ownedOperateRequest(input);
+    const botId = required(input.botId, "botId");
+    await this.del<unknown>(
+      `/api/integrations/github-app/user/sources/${encodeURIComponent(
+        String(appSourceId),
+      )}/bots/${encodeURIComponent(botId)}?${params.toString()}`,
+      "delete_user_source_bot",
+      bearer,
+    );
+    await this.audit({
+      action: "delete_user_source_bot",
+      platform,
+      appSourceId,
+      actor: input.actor,
+      ts: Date.now(),
+    });
   }
 
   async listUserSourceTransactions(
@@ -1401,6 +1456,22 @@ function camelPlatformApp(raw: unknown): PlatformApp {
     targetTags: a.target_tags ?? [],
     artifactReady: Boolean(a.artifact_ready ?? a.artifactReady),
     loaded: Boolean(a.loaded),
+  };
+}
+
+function camelBotRegistration(raw: unknown): BotRegistration {
+  const b = (raw ?? {}) as Record<string, any>;
+  return {
+    id: String(b.id),
+    platform: String(b.platform ?? ""),
+    status: String(b.status ?? ""),
+    label: b.label ?? null,
+    defaultApp: String(b.default_app ?? b.defaultApp ?? ""),
+    platformBotId: String(b.platform_bot_id ?? b.platformBotId ?? ""),
+    platformUsername: b.platform_username ?? b.platformUsername ?? null,
+    webhookUrl: b.webhook_url ?? b.webhookUrl ?? null,
+    threadMode: String(b.thread_mode ?? b.threadMode ?? "single"),
+    createdAt: Number(b.created_at ?? b.createdAt ?? 0),
   };
 }
 
