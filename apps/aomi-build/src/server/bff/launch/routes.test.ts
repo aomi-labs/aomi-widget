@@ -77,6 +77,26 @@ function appRecords(...deploymentIds: string[]) {
   });
 }
 
+/** Same shape as `appRecords`, but with an explicit release tag — used to
+ *  derive the promote secret-gate's (app, releaseTag) pairs from the DB
+ *  promotion records (the `sourceDeploymentPairs` call). */
+function appRecordsWithTag(deploymentId: string, releaseTag: string) {
+  return Response.json({
+    app: "my-bot",
+    current_release_tag: null,
+    records: [
+      {
+        deployment_id: deploymentId,
+        release_tag: releaseTag,
+        actor: null,
+        created_at: 0,
+        sdk_version: "3.0.1",
+        current: false,
+      },
+    ],
+  });
+}
+
 function activationSource(id = 99) {
   return Response.json({
     sources: [
@@ -551,11 +571,11 @@ describe("deploymentPromoteRoute", () => {
       .fn()
       .mockResolvedValueOnce(ownedSources(99))
       .mockResolvedValueOnce(appRecords(DEPLOYMENT))
-      // listUserSourceDeployments for the required-secrets gate: no
-      // matching deployment here, so pairs is empty and promotion proceeds
-      // (fail-open — see the "unfilled/filled" tests below for the gate
-      // itself).
-      .mockResolvedValueOnce(Response.json({ deployments: [] }))
+      // sourceDeploymentPairs re-reads the same DB records to derive the
+      // secret-gate pairs; this source has no platformRepo, so
+      // missingSecretsForActivation bails out (fail-open) before ever
+      // looking at the pairs' contents.
+      .mockResolvedValueOnce(appRecords(DEPLOYMENT))
       .mockResolvedValueOnce(
         Response.json({
           ok: true,
@@ -589,17 +609,7 @@ describe("deploymentPromoteRoute", () => {
       )
       .mockResolvedValueOnce(appRecords(DEPLOYMENT))
       .mockResolvedValueOnce(
-        Response.json({
-          deployments: [
-            {
-              deployment_id: DEPLOYMENT,
-              release_tags: ["apps-555-r1-my-bot-abc"],
-              apps: [
-                { name: "my-bot", release_tag: "apps-555-r1-my-bot-abc" },
-              ],
-            },
-          ],
-        }),
+        appRecordsWithTag(DEPLOYMENT, "apps-555-r1-my-bot-abc"),
       )
       .mockResolvedValueOnce(
         Response.json({
@@ -654,17 +664,7 @@ describe("deploymentPromoteRoute", () => {
       )
       .mockResolvedValueOnce(appRecords(DEPLOYMENT))
       .mockResolvedValueOnce(
-        Response.json({
-          deployments: [
-            {
-              deployment_id: DEPLOYMENT,
-              release_tags: ["apps-555-r1-my-bot-abc"],
-              apps: [
-                { name: "my-bot", release_tag: "apps-555-r1-my-bot-abc" },
-              ],
-            },
-          ],
-        }),
+        appRecordsWithTag(DEPLOYMENT, "apps-555-r1-my-bot-abc"),
       )
       .mockResolvedValueOnce(
         Response.json({
@@ -693,6 +693,67 @@ describe("deploymentPromoteRoute", () => {
     expect(res.status).toBe(202);
     expect(body.ok).toBe(true);
     expect(fetchMock).toHaveBeenCalledTimes(6);
+  });
+
+  it("gates promote by the authorized DB records, not a size-limited deployments listing (regression)", async () => {
+    // Regression for the bypass where the secret gate derived its pairs from
+    // listUserSourceDeployments (limit: 100) — a different, size-limited
+    // source than the ownership check (listDeploymentRecords, no limit). A
+    // deployment authorized via the records but absent from that limited
+    // listing yielded empty pairs and silently skipped the 409. This
+    // deployment IS authorized (present in the records used for ownership,
+    // same as `known`), so it must now fail closed on its unfilled required
+    // secret — and promote must never be called. Note there is no
+    // listUserSourceDeployments stub anywhere here: the fixed route never
+    // calls it for promote.
+    vi.stubEnv("GITHUB_TOKEN", "gh-token");
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        activationSourceWithRepo("aomi-labs/my-bot-app", 99),
+      )
+      .mockResolvedValueOnce(
+        appRecordsWithTag(DEPLOYMENT, "apps-555-r1-my-bot-abc"),
+      )
+      .mockResolvedValueOnce(
+        appRecordsWithTag(DEPLOYMENT, "apps-555-r1-my-bot-abc"),
+      )
+      .mockResolvedValueOnce(Response.json({ by_app: {} }))
+      .mockResolvedValueOnce(
+        Response.json({
+          assets: [
+            { name: "manifest.json", url: "https://api.github.com/asset/1" },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          plugins: {
+            "my-bot": {
+              file: "libmybot.dylib",
+              sha256: "x",
+              secrets: [
+                { name: "MY_BOT_API_KEY", description: "d", required: true },
+              ],
+            },
+          },
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await deploymentPromoteRoute(
+      promoteReq({ deploymentId: DEPLOYMENT, appSourceId: 99 }),
+    );
+
+    expect(res.status).toBe(409);
+    await expect(res.json()).resolves.toEqual({
+      error: "missing required secrets",
+      missing: { "my-bot": ["MY_BOT_API_KEY"] },
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(6);
+    expect(
+      fetchMock.mock.calls.some(([url]) => String(url).includes("/promote")),
+    ).toBe(false);
   });
 });
 

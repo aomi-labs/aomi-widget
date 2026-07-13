@@ -107,6 +107,37 @@ async function sourceDeploymentIds(
   return ids;
 }
 
+/** The (app, releaseTag) pairs for `deploymentId`, derived from the SAME DB
+ *  promotion records used for ownership (`sourceDeploymentIds`) rather than
+ *  the size-limited `listUserSourceDeployments` listing — so the secret gate
+ *  can never see an emptier set than the authorization check just proved. */
+async function sourceDeploymentPairs(
+  client: DeploymentClientInstance,
+  platform: string,
+  source: OwnedSource,
+  deploymentId: string,
+  appsFilter: string[] | undefined,
+): Promise<{ app: string; releaseTag: string }[]> {
+  const pairs: { app: string; releaseTag: string }[] = [];
+  await Promise.all(
+    source.apps.map(async (app) => {
+      if (appsFilter && !appsFilter.includes(app.name)) return;
+      const { records } = await client
+        .listDeploymentRecords({
+          platform,
+          app: app.name,
+          appSourceId: source.id,
+        })
+        .catch(() => ({ records: [] as { deploymentId: string; releaseTag: string }[] }));
+      const record = records.find((r) => r.deploymentId === deploymentId);
+      if (record?.releaseTag) {
+        pairs.push({ app: app.name, releaseTag: record.releaseTag });
+      }
+    }),
+  );
+  return pairs;
+}
+
 type ActivationPair = { app: string; releaseTag: string };
 
 function releaseTagForApp(app: {
@@ -1045,17 +1076,18 @@ export async function deploymentPromoteRoute(req: Request) {
     }
 
     // Gate promotion on required secrets, exactly as activate does — promote
-    // runs the same backend activation machinery.
-    const deployments = await client.listUserSourceDeployments({
-      githubUserId: session.githubUserId,
-      platform: config.platform,
-      appSourceId: source.id,
-      limit: 100,
-    });
-    const target = deployments.find((d) => d.deploymentId === deploymentId);
-    const pairs = (target?.apps ?? [])
-      .filter((a) => (apps ? apps.includes(a.name) : true))
-      .flatMap((a) => (a.releaseTag ? [{ app: a.name, releaseTag: a.releaseTag }] : []));
+    // runs the same backend activation machinery. The gate reads the TARGET
+    // deployment's release tag from the DB promotion records (the same
+    // records used for ownership above), which may differ from the
+    // current-release manifest the UI / requiredSecretsRoute reads — this
+    // backend gate is authoritative for what's about to go live.
+    const pairs = await sourceDeploymentPairs(
+      client,
+      config.platform,
+      source,
+      deploymentId,
+      apps,
+    );
     const missingByApp = await missingSecretsForActivation({
       client,
       githubUserId: session.githubUserId,
