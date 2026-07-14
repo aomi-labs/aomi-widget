@@ -2,6 +2,9 @@
 
 ## Last Updated
 
+2026-07-14 — Create stack #343–#349 merged to main (left #340);
+2026-07-14 — Create Recent rail UX: one Create-header toggle (no double collapse);
+2026-07-14 — Create Recent rail: user open/collapse + localStorage (⌘B);
 2026-07-14 — Create composer: UI-only model picker mock (Aomi + Soon);
 2026-07-14 — Create templates: Browse all opens a sheet;
 2026-07-14 — Create mobile: hide Plan steps when Progress is in-thread;
@@ -25,6 +28,16 @@
 2026-07-13 — Build UI copy polish (em dashes / hedging essays);
 2026-07-13 — Billing option A: methods live on Chat (no fake Build fetch);
 2026-07-13 — BILLING-EXPERIENCE.md: backend ↔ UI map (code-checked)
+
+## Create Recent sidebar toggle (2026-07-14)
+
+Branch `feat/build-recent-sidebar-toggle` (stack on #344 / p3):
+
+- Single mental model: Recent open OR closed.
+- Primary control: Create header panel icon (always visible); ⌘/Ctrl+B same state.
+- Closed = no left rail (header toggle reopens); removed in-Recent collapse + narrow History rail.
+- Preference persisted in localStorage; first visit defaults open on xl+ (after mount; SSR-safe).
+- Shell nav remains click-only.
 
 ## Create composer model picker mock (2026-07-14)
 
