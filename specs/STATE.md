@@ -2,6 +2,7 @@
 
 ## Last Updated
 
+2026-07-14 — Account menu: Docs (aomi.dev/docs) + Home page links (Vercel-style);
 2026-07-14 — Build P2 deep-link polish (⌘K / Billing / Overview → right tab);
 2026-07-14 — Create stack #343–#349 merged to main (left #340);
 2026-07-14 — Create Recent rail UX: one Create-header toggle (no double collapse);
