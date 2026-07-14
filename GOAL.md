@@ -20,6 +20,20 @@ manual handoff.
 
 Progress:
 
+- 2026-07-14 widget-auth handoff: documented PR #339's Portal-hosted auth,
+  unified `AomiWidget`, provider verification/account recovery, transport,
+  packaging, preview, and deployment work in
+  `specs/WIDGET-AUTH-HANDOFF.md`. Traced the remaining unrelated-domain
+  blockers to SIWE request-origin binding, Better Auth/third-party cookie
+  behavior, Para application origins/audiences, and the separation between
+  hosted authentication and wallet signing. Recommended an Aomi-hosted
+  authorization-code + PKCE bridge with short-lived widget credentials,
+  external/remote signer separation, and an optional self-service
+  consumer-owned provider mode that registers public tenant metadata rather
+  than private Para keys. Included a first-party Para failure decision tree,
+  a configuration inconsistency around required `PARA_JWKS_URL`, phased work,
+  test matrix, and owner decisions. No implementation code was changed.
+
 - 2026-07-14 Para/preview auth follow-up: traced `chat-staging` Para login to a
   canonical provider-exchange 409 rather than a Para origin/configuration
   rejection. Added guarded recovery that adopts an established provider/wallet
