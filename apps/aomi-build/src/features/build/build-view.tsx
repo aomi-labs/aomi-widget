@@ -8,20 +8,22 @@ import {
   ChatMessage,
   TypingIndicator,
 } from "@build/features/build/components/chat-message";
+import { CompileTestPanel } from "@build/features/build/components/compile-test-panel";
 import { FileTreePreview } from "@build/features/build/components/file-tree-preview";
 import { IntentComposer } from "@build/features/build/components/intent-composer";
 import { SessionHistory } from "@build/features/build/components/session-history";
 import { ShipHandoffBanner } from "@build/features/build/components/ship-handoff-banner";
+import { SmithersNodes } from "@build/features/build/components/smithers-nodes";
 import { TemplateGallery } from "@build/features/build/components/template-gallery";
 import { JOURNEY_STAGES } from "@build/features/build/contracts";
 import { useBuildSession } from "@build/features/build/hooks/use-build-session";
 import { useStreamingText } from "@build/features/build/hooks/use-streaming-text";
 import { BUILD_TEMPLATES } from "@build/features/build/templates";
 import { cn } from "@build/lib/utils";
+import { useToast } from "@build/components/control-plane/toast";
 
 const actionPills = [
-  { label: "Plan New Idea", hint: "⇧Tab", action: "plan" },
-  { label: "Multitask", action: "multitask" },
+  { label: "Plan from idea", hint: "⇧Tab", action: "plan" },
 ];
 
 function StreamingMessage({
@@ -76,6 +78,7 @@ function ContextPanelSection({
 export function BuildView() {
   const [input, setInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
+  const { toast } = useToast();
 
   const {
     activeSessionId,
@@ -83,15 +86,22 @@ export function BuildView() {
     messages,
     streamEvents,
     fileTree,
+    nodes,
     isGenerating,
     streamingMessageId,
     setStreamingMessageId,
+    awaitingVerify,
+    compileDone,
+    testDone,
+    verifyBusy,
     shipReady,
     showStreamInThread,
     loadSession,
     startNewSession,
     runBuildPipeline,
     handleStreamComplete,
+    runCompile,
+    runTest,
     recentSessions,
   } = useBuildSession();
 
@@ -129,10 +139,30 @@ export function BuildView() {
   const handleActionPill = useCallback((action: string) => {
     if (action === "plan") {
       setInput("Help me plan a new agent idea: ");
-    } else if (action === "multitask") {
-      setInput("Run these build tasks in parallel: ");
     }
   }, []);
+
+  const handleDownload = useCallback(() => {
+    const blob = new Blob(
+      [
+        "# Aomi Build — local mock export\n",
+        "# Real archive lands when Smithers / codegen is wired.\n",
+        fileTree.map((n) => n.path).join("\n"),
+        "\n",
+      ],
+      { type: "text/plain" },
+    );
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "aomi-build-mock-export.txt";
+    a.click();
+    URL.revokeObjectURL(url);
+    toast({
+      title: "Downloaded mock export",
+      description: "Placeholder file list — not a real repo archive.",
+    });
+  }, [fileTree, toast]);
 
   const handleTemplateSelect = useCallback(
     (template: (typeof BUILD_TEMPLATES)[0]) => {
@@ -257,7 +287,21 @@ export function BuildView() {
                     </div>
                   ) : null}
 
-                  {shipReady ? <ShipHandoffBanner /> : null}
+                  {nodes.length > 0 ? <SmithersNodes nodes={nodes} /> : null}
+
+                  {awaitingVerify ? (
+                    <CompileTestPanel
+                      compileDone={compileDone}
+                      testDone={testDone}
+                      busy={verifyBusy}
+                      onCompile={runCompile}
+                      onTest={runTest}
+                    />
+                  ) : null}
+
+                  {shipReady ? (
+                    <ShipHandoffBanner onDownload={handleDownload} />
+                  ) : null}
 
                   {isGenerating && !streamingMessageId ? (
                     <TypingIndicator />
@@ -291,6 +335,15 @@ export function BuildView() {
               <ContextPanelSection title="Build stream" icon={History}>
                 <BuildStreamTimeline events={streamEvents} compact />
               </ContextPanelSection>
+
+              {nodes.length > 0 ? (
+                <ContextPanelSection title="Smithers nodes" icon={History}>
+                  <SmithersNodes
+                    nodes={nodes}
+                    caption="Plan graph (local mock)"
+                  />
+                </ContextPanelSection>
+              ) : null}
 
               <ContextPanelSection title="Files" icon={Files}>
                 <FileTreePreview tree={fileTree} />

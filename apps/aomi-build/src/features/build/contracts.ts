@@ -77,6 +77,17 @@ export type BuildSession = {
   messages: BuildMessage[];
   streamEvents: BuildStreamEvent[];
   fileTree: BuildFileNode[];
+  nodes?: SmithersNode[];
+};
+
+export type SmithersNodeStatus = "pending" | "active" | "done";
+
+export type SmithersNode = {
+  id: string;
+  label: string;
+  agent: "codex" | "claude" | "local";
+  detail: string;
+  status: SmithersNodeStatus;
 };
 
 export type BuildTemplate = {
@@ -146,14 +157,71 @@ export const generatedFileTree: BuildFileNode[] = [
   },
 ];
 
-export const mockBuildResponse = `Done. Here's what the local mock generated:
+export const mockBuildResponse = `Tool layer is done (local mock). Here's what was generated:
 
 - \`src/agent.ts\` — Main agent loop with retry logic
 - \`src/config.ts\` — Configuration management
 - \`src/handlers.ts\` — Event handlers for on-chain actions
 - \`tests/agent.test.ts\` — Unit tests
 
-Checks passed in the local mock. Next: ship to Projects / GitHub — real Smithers SSE is not wired yet.`;
+Next: **Compile**, then **test with aomi-run**, then ship to Projects / GitHub.
+Real Smithers SSE is not wired yet.`;
+
+/** Derive mock Smithers plan nodes from the user prompt (Cecilia wireframe). */
+export function deriveSmithersNodes(prompt: string): SmithersNode[] {
+  const lower = prompt.toLowerCase();
+  const nodes: SmithersNode[] = [
+    {
+      id: "node_compose",
+      label: "smithers compose",
+      agent: "local",
+      detail: "smither writes smither — compose the workflow graph",
+      status: "pending",
+    },
+  ];
+
+  if (lower.includes("hyperliquid") || lower.includes("hype")) {
+    nodes.push({
+      id: "node_hype",
+      label: "aomi-openapi-gen hype",
+      agent: "codex",
+      detail: "Generate Hyperliquid OpenAPI tools / client",
+      status: "pending",
+    });
+  }
+  if (lower.includes("binance")) {
+    nodes.push({
+      id: "node_binance",
+      label: "aomi-openapi-gen binance",
+      agent: "codex",
+      detail: "Generate Binance OpenAPI tools / client",
+      status: "pending",
+    });
+  }
+  if (
+    !lower.includes("hyperliquid") &&
+    !lower.includes("hype") &&
+    !lower.includes("binance")
+  ) {
+    nodes.push({
+      id: "node_openapi",
+      label: "aomi-openapi-gen",
+      agent: "codex",
+      detail: "Generate tools from API surface in the prompt",
+      status: "pending",
+    });
+  }
+
+  nodes.push({
+    id: "node_run",
+    label: "arb-bot aomi-run",
+    agent: "claude",
+    detail: "Smoke / exercise the agent with aomi-run (after compile)",
+    status: "pending",
+  });
+
+  return nodes;
+}
 
 export const seedBuildSessions: BuildSession[] = [
   {

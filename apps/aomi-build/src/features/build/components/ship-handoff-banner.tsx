@@ -1,22 +1,34 @@
 import Link from "next/link";
-import { FolderKanban, Rocket } from "lucide-react";
+import { Download, FolderKanban, Rocket } from "lucide-react";
+
+type ShipHandoffBannerProps = {
+  onDownload?: () => void;
+};
 
 /**
  * End-of-run handoff → manage path (Projects), never /deploy/[id].
  */
-export function ShipHandoffBanner() {
+export function ShipHandoffBanner({ onDownload }: ShipHandoffBannerProps) {
   return (
     <div className="border-positive/30 bg-positive/5 mx-auto my-4 flex max-w-3xl flex-col gap-3 rounded-lg border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
       <div>
         <p className="text-foreground text-[13px] font-medium">
-          Local mock ready — ship toward Projects
+          Verified (local mock) — ship toward Projects
         </p>
         <p className="text-subtle text-[12px]">
-          Review the generated files, then manage deploy from Projects. Real
-          Smithers SSE is not wired yet.
+          Download a placeholder archive, or manage deploy from Projects. GitHub
+          init needs a Han API.
         </p>
       </div>
       <div className="flex shrink-0 flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={onDownload}
+          className="border-border text-foreground hover:bg-accent/40 inline-flex h-8 items-center gap-1.5 rounded-md border px-3 text-[12px] font-medium"
+        >
+          <Download className="size-3.5" />
+          Download code
+        </button>
         <Link
           href="/projects"
           className="bg-primary text-primary-foreground hover:bg-brand-hover inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-[12px] font-medium transition-colors"
@@ -24,9 +36,12 @@ export function ShipHandoffBanner() {
           <FolderKanban className="size-3.5" />
           Open Projects
         </Link>
-        <span className="text-dim inline-flex h-8 items-center gap-1.5 rounded-md border border-dashed px-3 text-[11px]">
+        <span
+          className="text-dim inline-flex h-8 items-center gap-1.5 rounded-md border border-dashed px-3 text-[11px]"
+          title="Needs Han GitHub create-repo API"
+        >
           <Rocket className="size-3.5" />
-          GitHub init · Soon
+          GitHub init · needs API
         </span>
       </div>
     </div>
