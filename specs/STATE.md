@@ -2,6 +2,7 @@
 
 ## Last Updated
 
+2026-07-14 — Create composer: UI-only model picker mock (Aomi + Soon);
 2026-07-14 — Create templates: Browse all opens a sheet;
 2026-07-14 — Create mobile: hide Plan steps when Progress is in-thread;
 2026-07-14 — Create Recent titles: derive + dedupe (hello → unique);
@@ -24,6 +25,16 @@
 2026-07-13 — Build UI copy polish (em dashes / hedging essays);
 2026-07-13 — Billing option A: methods live on Chat (no fake Build fetch);
 2026-07-13 — BILLING-EXPERIENCE.md: backend ↔ UI map (code-checked)
+
+## Create composer model picker mock (2026-07-14)
+
+Branch `feat/build-model-picker-mock` (stack on #344):
+
+- Cursor-like model control on Create composer (`ComposerModelPicker`).
+- Current selection: **Aomi** only; Auto / Custom rows disabled with Soon.
+- Hardcoded mock — no Han API, no fake live model list fetch.
+- Keeps quiet **Preview** honesty chip beside the picker (no Aomi branding spam).
+- Product language only (no Smithers / eng jargon in UI).
 
 ## Create template Browse all sheet (2026-07-14)
 
@@ -49,7 +60,8 @@ Shipped the review next-tranche on Create (`/build`):
 - Chat density: tighter message/banner spacing; less mid-thread void.
 - Stage strip: `resolveDisplayJourneyStage` + verify-gate stream honesty
   (Compile & test stays active until smoke test; Ship only when shipReady).
-- Composer: Preview chip only (no stacked Aomi / model chip).
+- Composer: Preview chip only (no stacked Aomi / model chip) — superseded by
+  model picker mock above for the picker PR.
 
 ## Create craft review + jargon migrate (2026-07-14)
 
