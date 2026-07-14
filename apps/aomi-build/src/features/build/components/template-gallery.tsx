@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { ChevronDown, LayoutTemplate } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { LayoutTemplate, X } from "lucide-react";
 
 import type { BuildTemplate } from "@build/features/build/contracts";
 import { FEATURED_TEMPLATE_IDS } from "@build/features/build/templates";
@@ -12,8 +12,43 @@ type TemplateGalleryProps = {
   onSelect: (template: BuildTemplate) => void;
 };
 
+function TemplateCard({
+  template,
+  onSelect,
+  dense,
+}: {
+  template: BuildTemplate;
+  onSelect: (template: BuildTemplate) => void;
+  dense?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(template)}
+      className="panel-row hover:border-border-hover hover:bg-accent-hover/40 text-left transition-colors"
+    >
+      <p
+        className={cn(
+          "text-foreground font-medium",
+          dense ? "text-[12px]" : "text-[13px]",
+        )}
+      >
+        {template.name}
+      </p>
+      <p
+        className={cn(
+          "text-subtle mt-0.5 line-clamp-2 leading-4",
+          dense ? "text-[10px]" : "text-[11px]",
+        )}
+      >
+        {template.description}
+      </p>
+    </button>
+  );
+}
+
 export function TemplateGallery({ templates, onSelect }: TemplateGalleryProps) {
-  const [showAll, setShowAll] = useState(false);
+  const [browseOpen, setBrowseOpen] = useState(false);
 
   const { featured, rest } = useMemo(() => {
     const featuredList: BuildTemplate[] = [];
@@ -33,6 +68,20 @@ export function TemplateGallery({ templates, onSelect }: TemplateGalleryProps) {
     };
   }, [templates]);
 
+  useEffect(() => {
+    if (!browseOpen) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setBrowseOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [browseOpen]);
+
+  const handleSelect = (template: BuildTemplate) => {
+    setBrowseOpen(false);
+    onSelect(template);
+  };
+
   return (
     <div className="mt-5 w-full">
       <div className="text-subtle mb-2.5 flex items-center gap-2 text-[12px] font-medium">
@@ -42,19 +91,11 @@ export function TemplateGallery({ templates, onSelect }: TemplateGalleryProps) {
 
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
         {featured.map((template) => (
-          <button
+          <TemplateCard
             key={template.id}
-            type="button"
-            onClick={() => onSelect(template)}
-            className="panel-row hover:border-border-hover hover:bg-accent-hover/40 text-left transition-colors"
-          >
-            <p className="text-foreground text-[13px] font-medium">
-              {template.name}
-            </p>
-            <p className="text-subtle mt-0.5 line-clamp-2 text-[11px] leading-4">
-              {template.description}
-            </p>
-          </button>
+            template={template}
+            onSelect={handleSelect}
+          />
         ))}
       </div>
 
@@ -62,36 +103,59 @@ export function TemplateGallery({ templates, onSelect }: TemplateGalleryProps) {
         <div className="mt-2">
           <button
             type="button"
-            onClick={() => setShowAll((v) => !v)}
+            onClick={() => setBrowseOpen(true)}
             className="text-dim hover:text-foreground inline-flex items-center gap-1 px-1 text-[11px] transition-colors"
           >
-            <ChevronDown
-              className={cn(
-                "size-3 transition-transform",
-                showAll && "rotate-180",
-              )}
-            />
-            {showAll ? "Hide templates" : `Browse all (${rest.length})`}
+            Browse all ({templates.length})
           </button>
-          {showAll ? (
-            <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
-              {rest.map((template) => (
-                <button
-                  key={template.id}
-                  type="button"
-                  onClick={() => onSelect(template)}
-                  className="panel-row hover:border-border-hover hover:bg-accent-hover/40 text-left transition-colors"
-                >
-                  <p className="text-foreground text-[12px] font-medium">
-                    {template.name}
-                  </p>
-                  <p className="text-subtle mt-0.5 line-clamp-2 text-[10px] leading-4">
-                    {template.description}
-                  </p>
-                </button>
-              ))}
+        </div>
+      ) : null}
+
+      {browseOpen ? (
+        <div className="fixed inset-0 z-50 flex justify-end">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/40"
+            aria-label="Close templates"
+            onClick={() => setBrowseOpen(false)}
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="All templates"
+            className="border-border bg-background relative flex h-full w-full max-w-md flex-col border-l shadow-lg sm:max-w-lg"
+          >
+            <div className="border-border flex items-center justify-between gap-3 border-b px-4 py-3">
+              <div>
+                <p className="text-foreground text-[13px] font-medium">
+                  All templates
+                </p>
+                <p className="text-dim text-[11px]">
+                  Pick one to seed the composer
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setBrowseOpen(false)}
+                className="text-dim hover:text-foreground inline-flex size-8 items-center justify-center rounded-md"
+                aria-label="Close"
+              >
+                <X className="size-4" />
+              </button>
             </div>
-          ) : null}
+            <div className="min-h-0 flex-1 overflow-y-auto p-4">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {templates.map((template) => (
+                  <TemplateCard
+                    key={template.id}
+                    template={template}
+                    onSelect={handleSelect}
+                    dense
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
       ) : null}
     </div>
