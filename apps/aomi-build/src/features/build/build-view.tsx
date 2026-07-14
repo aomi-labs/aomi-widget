@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Files,
-  History,
   ListChecks,
   PanelLeftClose,
   PanelLeftOpen,
@@ -106,14 +105,14 @@ function ContextPanelSection({
  */
 export function BuildView() {
   const [input, setInput] = useState("");
-  const [recentOpen, setRecentOpen] = useState(getInitialRecentRailOpen);
+  // SSR-safe false; restore preference after mount to avoid hydration mismatch.
+  const [recentOpen, setRecentOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<IntentComposerHandle>(null);
   const { toast } = useToast();
 
-  const setRecentRailOpen = useCallback((open: boolean) => {
-    setRecentOpen(open);
-    writeRecentRailPreference(open);
+  useEffect(() => {
+    setRecentOpen(getInitialRecentRailOpen());
   }, []);
 
   const toggleRecentRail = useCallback(() => {
@@ -323,22 +322,9 @@ export function BuildView() {
             activeSessionId={activeSessionId}
             onSelect={handleSelectSession}
             onNewSession={handleNewSession}
-            onCollapse={() => setRecentRailOpen(false)}
           />
         </aside>
-      ) : (
-        <aside className="border-border flex w-10 shrink-0 flex-col items-center gap-2 border-r py-2">
-          <button
-            type="button"
-            onClick={() => setRecentRailOpen(true)}
-            className="text-dim hover:bg-accent/40 hover:text-foreground inline-flex size-7 items-center justify-center rounded-md transition-colors"
-            title="Show Recent (⌘B)"
-            aria-label="Show Recent"
-          >
-            <History className="size-3.5" />
-          </button>
-        </aside>
-      )}
+      ) : null}
 
       <section className="bg-background flex min-w-0 flex-1 flex-col">
         <div className="border-border flex h-10 shrink-0 items-center justify-between gap-2 border-b px-3 sm:px-4">

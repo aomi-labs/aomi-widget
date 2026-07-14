@@ -1,6 +1,6 @@
 "use client";
 
-import { History, PanelLeftClose } from "lucide-react";
+import { History } from "lucide-react";
 
 import type { BuildSession } from "@build/features/build/contracts";
 import { JOURNEY_STAGES } from "@build/features/build/contracts";
@@ -11,8 +11,6 @@ type SessionHistoryProps = {
   activeSessionId: string | null;
   onSelect: (id: string) => void;
   onNewSession: () => void;
-  /** Hide Recent rail (Cursor-style collapse). */
-  onCollapse?: () => void;
   className?: string;
 };
 
@@ -42,7 +40,6 @@ export function SessionHistory({
   activeSessionId,
   onSelect,
   onNewSession,
-  onCollapse,
   className,
 }: SessionHistoryProps) {
   return (
@@ -52,26 +49,13 @@ export function SessionHistory({
           <History className="text-dim size-3.5" />
           Recent
         </div>
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={onNewSession}
-            className="text-dim hover:text-foreground text-[11px] transition-colors"
-          >
-            New
-          </button>
-          {onCollapse ? (
-            <button
-              type="button"
-              onClick={onCollapse}
-              className="text-dim hover:bg-accent/40 hover:text-foreground inline-flex size-6 items-center justify-center rounded-md transition-colors"
-              title="Hide Recent (⌘B)"
-              aria-label="Hide Recent"
-            >
-              <PanelLeftClose className="size-3.5" />
-            </button>
-          ) : null}
-        </div>
+        <button
+          type="button"
+          onClick={onNewSession}
+          className="text-dim hover:text-foreground text-[11px] transition-colors"
+        >
+          New
+        </button>
       </div>
       <div className="min-h-0 flex-1 space-y-1 overflow-y-auto">
         {sessions.length === 0 ? (

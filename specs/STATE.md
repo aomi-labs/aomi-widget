@@ -2,6 +2,7 @@
 
 ## Last Updated
 
+2026-07-14 — Create Recent rail UX: one Create-header toggle (no double collapse);
 2026-07-14 — Create Recent rail: user open/collapse + localStorage (⌘B);
 2026-07-14 — Create craft polish tranche (rail/empty/chat/stage/composer);
 2026-07-14 — Create craft review: jargon migrate + canvas;
@@ -27,10 +28,11 @@
 
 Branch `feat/build-recent-sidebar-toggle` (stack on #344 / p3):
 
-- Recent session rail is user-collapsible (not only `xl:flex`).
-- Header toggle + narrow History rail when closed; collapse in Recent header.
-- Preference persisted in localStorage; first visit defaults open on xl+.
-- ⌘/Ctrl+B toggles Recent (shell nav remains click-only).
+- Single mental model: Recent open OR closed.
+- Primary control: Create header panel icon (always visible); ⌘/Ctrl+B same state.
+- Closed = no left rail (header toggle reopens); removed in-Recent collapse + narrow History rail.
+- Preference persisted in localStorage; first visit defaults open on xl+ (after mount; SSR-safe).
+- Shell nav remains click-only.
 
 ## Create craft polish tranche (2026-07-14)
 
