@@ -56,6 +56,8 @@ describe("DeployStep", () => {
 
   it("renders idle state with preflight and deploy buttons", () => {
     render(<DeployStep {...defaultProps} />);
+    // `StepTrack` also renders "Preflight"/"Deploy"/"Activate" as step labels,
+    // so target the buttons specifically by role.
     expect(
       screen.getByRole("button", { name: "Preflight" }),
     ).toBeInTheDocument();
@@ -129,5 +131,43 @@ describe("DeployStep", () => {
     expect(
       screen.getByRole("button", { name: "Preflight" }),
     ).toBeInTheDocument();
+  });
+
+  it("shows the required-secrets banner and keeps Activate disabled when the target app is missing one", () => {
+    const detail = {
+      hasMissingSecrets: (app: string) => app === "binance",
+      requiredSecrets: {
+        binance: { slots: [], missing: ["BINANCE_API_KEY"] },
+      },
+      loadRequiredSecrets: vi.fn(),
+    };
+    render(
+      <DeployStep
+        {...defaultProps}
+        progress={{ ...baseProgress(), apps: ["binance"] }}
+        detail={detail}
+      />,
+    );
+    expect(detail.loadRequiredSecrets).toHaveBeenCalled();
+    expect(
+      screen.getByText(/1 required secret missing/i),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Activate" })).toBeDisabled();
+  });
+
+  it("does not show the required-secrets banner when nothing is missing", () => {
+    const detail = {
+      hasMissingSecrets: () => false,
+      requiredSecrets: { binance: { slots: [], missing: [] } },
+      loadRequiredSecrets: vi.fn(),
+    };
+    render(
+      <DeployStep
+        {...defaultProps}
+        progress={{ ...baseProgress(), apps: ["binance"] }}
+        detail={detail}
+      />,
+    );
+    expect(screen.queryByText(/required secret/i)).not.toBeInTheDocument();
   });
 });

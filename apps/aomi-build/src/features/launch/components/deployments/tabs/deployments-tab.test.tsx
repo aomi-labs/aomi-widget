@@ -23,50 +23,60 @@ const promote = vi.fn(async () => ({
 }));
 const deactivate = vi.fn(async () => ({ ok: true, apps: ["my-bot"] }));
 
-const detail = {
-  source: {
-    id: 1,
-    repositoryLink: "a/b",
-    apps: [
-      {
-        name: "my-bot",
-        isActive: true,
-        loaded: true,
-        appReleaseTag: "t-current",
-      },
-    ],
-  },
-  loading: false,
-  loadRecords: vi.fn(),
-  refreshRecords: vi.fn(),
-  deployNewVersion: vi.fn(),
-  deployFlow: { phase: "idle" },
-  recordsByApp: {
-    "my-bot": [
-      {
-        deploymentId: "dep_1_ra_currentcmt",
-        releaseTag: "t-current",
-        actor: "alice",
-        createdAt: 200,
-        sdkVersion: "3.0.1",
-        current: true,
-      },
-      {
-        deploymentId: "dep_1_ra_oldcommit1",
-        releaseTag: "t-old",
-        actor: "alice",
-        createdAt: 100,
-        sdkVersion: "3.0.1",
-        current: false,
-      },
-    ],
-  },
-  promote,
-  deactivate,
-  reload: vi.fn(),
-} as unknown as ReturnType<
-  typeof import("@build/features/launch/hooks/use-project-detail").useProjectDetail
->;
+/** Builds the `detail` prop DeploymentsTab expects. Defaults have no
+ *  required-secret gaps; pass `hasMissingSecrets` to simulate one. */
+function makeDetail(
+  overrides: { hasMissingSecrets?: (app: string) => boolean } = {},
+) {
+  return {
+    source: {
+      id: 1,
+      repositoryLink: "a/b",
+      apps: [
+        {
+          name: "my-bot",
+          isActive: true,
+          loaded: true,
+          appReleaseTag: "t-current",
+        },
+      ],
+    },
+    loading: false,
+    loadRecords: vi.fn(),
+    loadRequiredSecrets: vi.fn(),
+    hasMissingSecrets: overrides.hasMissingSecrets ?? (() => false),
+    refreshRecords: vi.fn(),
+    deployNewVersion: vi.fn(),
+    deployFlow: { phase: "idle" },
+    recordsByApp: {
+      "my-bot": [
+        {
+          deploymentId: "dep_1_ra_currentcmt",
+          releaseTag: "t-current",
+          actor: "alice",
+          createdAt: 200,
+          sdkVersion: "3.0.1",
+          current: true,
+        },
+        {
+          deploymentId: "dep_1_ra_oldcommit1",
+          releaseTag: "t-old",
+          actor: "alice",
+          createdAt: 100,
+          sdkVersion: "3.0.1",
+          current: false,
+        },
+      ],
+    },
+    promote,
+    deactivate,
+    reload: vi.fn(),
+  } as unknown as ReturnType<
+    typeof import("@build/features/launch/hooks/use-project-detail").useProjectDetail
+  >;
+}
+
+const detail = makeDetail();
 
 describe("DeploymentsTab", () => {
   it("renders deployments from the DB timeline, current first", async () => {
@@ -150,6 +160,18 @@ describe("DeploymentsTab", () => {
       screen.getByRole("button", { name: /deploy new version/i }),
     );
     expect(detail.deployNewVersion).toHaveBeenCalled();
+  });
+
+  it("disables Promote for a deployment whose app has a missing required secret", () => {
+    const blockedDetail = makeDetail({
+      hasMissingSecrets: (app) => app === "my-bot",
+    });
+    renderTab(<DeploymentsTab detail={blockedDetail} />);
+    expect(blockedDetail.loadRequiredSecrets).toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: /promote/i })).toBeDisabled();
+    expect(
+      screen.getByText(/required secrets missing/i),
+    ).toBeInTheDocument();
   });
 
   it("is honest when live but deployment history is empty", () => {

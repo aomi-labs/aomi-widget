@@ -13,6 +13,7 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { Button } from "@aomi-labs/widget-lib";
+import type { SecretSlot } from "@aomi-labs/deploy";
 import {
   launchActivate,
   launchAppStatus,
@@ -22,6 +23,19 @@ import {
   type LaunchDeployPayload,
   type LaunchProgress,
 } from "@build/features/launch";
+
+// The subset of `useProjectDetail`'s return value this step needs to gate
+// Activate on required secrets. Optional: the onboarding wizard renders this
+// step before a project (and its required-secret state) exists, so a missing
+// `detail` fails open — same policy as the 409 backstop.
+type SecretsGateDetail = {
+  hasMissingSecrets: (app: string) => boolean;
+  requiredSecrets: Record<
+    string,
+    { slots: SecretSlot[]; missing: string[] }
+  > | null;
+  loadRequiredSecrets: () => void;
+};
 
 type Phase =
   | "idle"
@@ -154,6 +168,7 @@ export function DeployStep({
   onProgress,
   onReconnectInstall,
   onReset,
+  detail,
 }: {
   /** GitHub App installation for wizard context; deploy uses appSourceId or repo. */
   installationId: string;
@@ -163,6 +178,7 @@ export function DeployStep({
   onProgress: (patch: Partial<LaunchProgress>) => void;
   onReconnectInstall?: () => void;
   onReset?: () => void;
+  detail?: SecretsGateDetail;
 }) {
   const [phase, setPhase] = useState<Phase>(() => initialPhase(progress));
   const [deployment, setDeployment] = useState<LaunchDeployPayload | undefined>(
@@ -194,6 +210,22 @@ export function DeployStep({
   const manifestJson = useMemo(
     () => (deployment ? JSON.stringify(deployment, null, 2) : ""),
     [deployment],
+  );
+
+  useEffect(() => {
+    detail?.loadRequiredSecrets();
+  }, [detail]);
+
+  // Gate on the apps this step is about to activate (`progress.apps`), not
+  // the `apps` memo above — that one falls back to the preflight/deploy
+  // manifest, which can list apps not yet targeted for this activation.
+  const blockedApps = (progress.apps ?? []).filter((app) =>
+    detail?.hasMissingSecrets(app),
+  );
+  const secretsBlocked = blockedApps.length > 0;
+  const missingSecretsCount = blockedApps.reduce(
+    (n, app) => n + (detail?.requiredSecrets?.[app]?.missing.length ?? 0),
+    0,
   );
 
   const applyDeployment = useCallback(
@@ -480,7 +512,16 @@ export function DeployStep({
       if (applicationId) onProgress({ applicationId });
       await verifyLive(apps, tags);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      const body = (e as { body?: { missing?: Record<string, string[]> } })
+        .body;
+      if (body?.missing) {
+        const names = Object.entries(body.missing)
+          .map(([app, keys]) => `${app}: ${keys.join(", ")}`)
+          .join("; ");
+        setError(`Missing required secrets — ${names}`);
+      } else {
+        setError(e instanceof Error ? e.message : String(e));
+      }
       setPhase("error");
     }
   }, [actor, apps, onProgress, progress.appSourceId, tags, verifyLive]);
@@ -580,7 +621,7 @@ export function DeployStep({
         </Button>
         <Button
           onClick={activate}
-          disabled={phase !== "ready" || tags.length === 0}
+          disabled={phase !== "ready" || tags.length === 0 || secretsBlocked}
           className="h-9 rounded-full px-3 text-sm font-medium"
         >
           {phase === "activating" || phase === "verifying" ? (
@@ -590,6 +631,13 @@ export function DeployStep({
           )}
           Activate
         </Button>
+        {secretsBlocked && (
+          <span className="text-xs text-amber-700">
+            {missingSecretsCount} required secret
+            {missingSecretsCount === 1 ? "" : "s"} missing — set them in the
+            Environment tab.
+          </span>
+        )}
         {["building", "ready", "activating", "verifying"].includes(phase) && (
           <Button
             onClick={reset}

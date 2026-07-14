@@ -785,6 +785,28 @@ export interface PromoteResult {
   };
 }
 
+/** A secret an app declares via the SDK's `Secret::new(name, description, required)`. */
+export interface SecretSlot {
+  name: string;
+  description: string;
+  required: boolean;
+}
+
+export interface ReleaseManifestPlugin {
+  file: string;
+  sha256: string;
+  secrets?: SecretSlot[];
+}
+
+/** The `manifest.json` asset published with every plugin release. */
+export interface ReleaseManifest {
+  app_release_tag: string;
+  sdk_version: string;
+  target: string;
+  commit: string;
+  plugins: Record<string, ReleaseManifestPlugin>;
+}
+
 export interface RerunDeploymentInput {
   platform: string;
   deploymentId: string;

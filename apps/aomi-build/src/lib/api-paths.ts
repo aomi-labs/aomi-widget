@@ -65,6 +65,8 @@ export const API_PATHS = {
         `${BFF}/deployments/status?deploymentId=${encodeURIComponent(deploymentId)}`,
       secrets: (appSourceId: number) =>
         `${BFF}/deployments/secrets?appSourceId=${appSourceId}`,
+      requiredSecrets: (appSourceId: number) =>
+        `${BFF}/deployments/required-secrets?appSourceId=${appSourceId}`,
       records: (app: string, appSourceId?: number) =>
         `${BFF}/deployments/records?app=${encodeURIComponent(app)}${
           appSourceId != null ? `&appSourceId=${appSourceId}` : ""

@@ -1,5 +1,6 @@
 "use client";
 
+import type { SecretSlot } from "@aomi-labs/deploy";
 import { API_PATHS } from "@build/lib/api-paths";
 import { sessionScopedFetch } from "@build/lib/settings-api";
 import {
@@ -146,6 +147,19 @@ export function deploymentSecrets(input: {
   return launchFetch(
     API_PATHS.bff.deployments.secrets(input.appSourceId),
     "deployment secrets",
+  );
+}
+
+export type RequiredSecretsResult = {
+  byApp: Record<string, { slots: SecretSlot[]; missing: string[] }>;
+};
+
+export function deploymentRequiredSecrets(input: {
+  appSourceId: number;
+}): Promise<RequiredSecretsResult> {
+  return launchFetch(
+    API_PATHS.bff.deployments.requiredSecrets(input.appSourceId),
+    "required secrets",
   );
 }
 

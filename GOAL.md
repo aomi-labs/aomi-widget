@@ -405,3 +405,9 @@ build`, `CI=true npx -y pnpm@10.28.0 install --frozen-lockfile`, and
   touched source. Patch-bumped it from `1.4.1` to `1.4.2` and added a repository
   rule requiring relevant publishable npm workspaces to be version-bumped before
   future merges rather than corrected afterward.
+- 2026-07-14 PR #336 main sync: merged `origin/main` into
+  `feat/required-secrets-gating`, preserving required-secret activation and
+  promotion gating across the newer Build control-plane UI. Resolved the
+  launch UI/type conflicts, fixed the merged usage-summary accumulator typing,
+  and verified focused Build tests, deploy package tests, the Aomi Build
+  typecheck, and the deploy package build.

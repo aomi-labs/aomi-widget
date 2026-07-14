@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { OneshotWizard } from "./oneshot-wizard";
-import { launchCreateRepo } from "@build/features/launch";
+import { launchCreateRepo, deploymentRequiredSecrets } from "@build/features/launch";
 import type { LaunchProgress } from "@build/features/launch";
 
 const noop = () => {};
@@ -42,6 +42,16 @@ vi.mock("@build/features/launch", () => ({
   },
   installationStatusLabel: () => null,
   launchCreateRepo: vi.fn(),
+  deploymentRequiredSecrets: vi.fn(),
+  // DeployStep (rendered at the "build" step) imports these too; they're
+  // only invoked from button clicks / a polling timer this suite never
+  // triggers, but they must exist so the mocked module doesn't crash on
+  // reference.
+  launchPreflight: vi.fn(),
+  launchDeploy: vi.fn(),
+  launchStatus: vi.fn(),
+  launchActivate: vi.fn(),
+  launchAppStatus: vi.fn(),
   TEMPLATE_REPO: "aomi-labs/playground-example",
   TEMPLATE_REPO_URL: "https://github.com/aomi-labs/playground-example",
 }));
@@ -159,5 +169,33 @@ describe("OneshotWizard", () => {
         repoName: "custom-playground",
       });
     });
+  });
+
+  it("wires progress.appSourceId into DeployStep's required-secrets gate at the build step", async () => {
+    vi.mocked(deploymentRequiredSecrets).mockResolvedValue({
+      byApp: { "my-bot": { slots: [], missing: ["MY_BOT_API_KEY"] } },
+    });
+
+    render(
+      <OneshotWizard
+        {...defaultProps}
+        progress={{
+          installationId: "12345",
+          repo: "alice/bot",
+          appSourceId: 7,
+          deploymentId: "dep_1",
+          apps: ["my-bot"],
+        }}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(deploymentRequiredSecrets).toHaveBeenCalledWith({
+        appSourceId: 7,
+      });
+    });
+    expect(
+      await screen.findByText(/1 required secret missing/i),
+    ).toBeInTheDocument();
   });
 });

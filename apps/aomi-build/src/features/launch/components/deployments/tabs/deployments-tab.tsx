@@ -37,6 +37,7 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
 
   useEffect(() => {
     detail.loadRecords();
+    detail.loadRequiredSecrets();
   }, [detail]);
 
   const source = detail.source;
@@ -343,6 +344,9 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
                 deployment.releaseTags.includes(app.appReleaseTag)
               );
             });
+          const secretsBlocked = deployment.apps.some((app) =>
+            detail.hasMissingSecrets(app),
+          );
           return (
             <TimelineDeploymentRow
               key={deployment.deploymentId}
@@ -350,6 +354,7 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
               busy={running}
               message={message}
               runtimeState={hasUnloadedCurrentApp ? "not-loaded" : "loaded"}
+              secretsBlocked={secretsBlocked}
               onPromote={() =>
                 setPending({
                   kind: "promote",
