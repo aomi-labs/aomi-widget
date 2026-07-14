@@ -20,6 +20,90 @@ manual handoff.
 
 Progress:
 
+- 2026-07-14 global canonical identity decision: updated
+  `specs/WIDGET-AUTH-HANDOFF.md` to define the target as multi-tenant provider
+  authentication feeding one global Aomi `users.id`. Added current-versus-
+  target tenancy analysis, tenant-scoped Para/Privy credential keys, global
+  SIWE wallet reuse, and an atomic all-signal resolution algorithm. The same
+  user-completed, high-assurance Google/email proof across Para audiences,
+  Privy apps, or provider types now automatically attaches to the same
+  canonical user; pregen/imported/custom/unknown claims require a one-time
+  Aomi email, wallet, or dual-session proof. Documented why raw email presence
+  is unsafe for permissionless consumer-owned provider tenants, required
+  assurance classes, schema/migration changes, and cross-tenant release gates.
+  No implementation code changed.
+
+- 2026-07-14 provider onboarding clarification: rewrote the Para and Privy
+  portions of `specs/WIDGET-AUTH-HANDOFF.md` around the exact consumer setup,
+  runtime proof, Portal trust anchor, identity/wallet claims, and optional
+  secret boundary. Para JWT auth is now explicitly registration-free: the
+  consumer configures only its browser API key/environment, Portal uses fixed
+  Para JWKS, accepts any valid signed `aud`, and namespaces by
+  `(environment, aud, sub)`. Privy retains a small authenticated deployment
+  form for app ID plus the app-specific public identity-token verification key
+  because Privy does not document a universal arbitrary-app JWKS discovery
+  contract. Documented why a runtime-supplied public key is unsafe, how public
+  key rotation works, and that Para/Privy server secrets are requested only for
+  future REST inventory/management operations and never in v1. No
+  implementation code changed.
+
+- 2026-07-14 permissionless SIWE authorization decision: updated
+  `specs/WIDGET-AUTH-HANDOFF.md` to grant a successfully resolved SIWE user the
+  full existing ordinary `role=user` permission set, rather than a reduced
+  widget scope. Aomi now explicitly accepts every valid HTTPS SIWE origin and
+  treats integration safety as the integrator's responsibility; observed
+  origin remains only for nonce/message/session binding, not customer approval
+  or attribution. Removed the SIWE origin allowlist, domain-ownership,
+  reseller-registry, embed-token, and widget-route-denylist requirements.
+  Kept Para/Privy registration solely for app-specific verifier selection and
+  preserved separate admin/service, app-entitlement, ownership, billing,
+  spending, and wallet-signature checks. No implementation code changed.
+
+- 2026-07-14 widget-auth provider research and handoff cleanup: reduced
+  `specs/WIDGET-AUTH-HANDOFF.md` from 1,680 to 700 lines and replaced residual
+  exploratory/self-service material with direct, source-backed decisions.
+  Confirmed permissionless pure SIWE needs no Aomi consumer key when Portal
+  derives the message from observed `Origin` (while treating origin as browser
+  context, not developer authentication). Documented exact minimum Para setup
+  (client web API key/environment; registered signed `aud`; Aomi-fixed JWKS;
+  no REST secret) and Privy setup (client app ID with identity tokens enabled;
+  registered app ID/public verification key; no app secret). Separated optional
+  provider REST credentials from JWT verification, audited the current code's
+  global verifier and reconciliation assumptions, and compared BFF placement
+  against current Rust route authorization. Kept Aomi-owned Portal BFF as the
+  recommendation because a consumer issuer can currently choose arbitrary
+  canonical `sub` values across broad user/account routes. No implementation
+  code changed.
+
+- 2026-07-14 Cecilia meeting follow-up: revised
+  `specs/WIDGET-AUTH-HANDOFF.md` to make the Aomi-owned Portal BFF and global
+  canonical user the explicit product boundaries. Replaced the first-slice
+  self-service/deployment registry with manually issued publishable widget keys
+  mapped to environment-backed origin/provider verification config; rejected
+  consumer-owned BFF service keys, canonical DB access, browser-initialized
+  verifier maps, and consumer assertions of canonical user IDs. Kept provider
+  SDKs/signers local, made Para/Privy provider credential requirements an
+  explicit confirmation gate, added the global-account link/recovery phase,
+  deferred partner/deployment automation, and expanded trust-boundary tests.
+  No implementation code changed.
+
+- 2026-07-14 widget-auth architecture refinement: replaced the hosted-popup-first
+  direction in `specs/WIDGET-AUTH-HANDOFF.md` with a concrete Portal-only Widget
+  Session Token architecture and permissionless consumer-origin SIWE as the
+  first public mode. Re-traced the current widget/account clients, Better Auth
+  configuration, Para/Privy verification, canonical account resolver, Portal
+  CORS/BFF, `db-master` account migrations, and Rust AccountBearer/app-key
+  verification. Added Mermaid flows and data model, credential taxonomy,
+  exact repository/file touchpoints, phased rollout, scope model, cross-repo
+  migration plan, release-blocking tests, and thirteen owner decisions. Flagged
+  current global provider subjects, first-owner resolution, email assurance,
+  provider-wide wallet reconciliation, and smart-account chain scope as
+  blockers for consumer-owned provider tenants. Clarified that the canonical
+  Aomi user is global but the same Google login across separate consumer-owned
+  Para tenants does not automatically recover that user or its threads; added
+  the resulting global-identity-versus-local-signer choice as a thirteenth
+  owner decision. No implementation code changed.
+
 - 2026-07-14 widget-auth handoff: documented PR #339's Portal-hosted auth,
   unified `AomiWidget`, provider verification/account recovery, transport,
   packaging, preview, and deployment work in
