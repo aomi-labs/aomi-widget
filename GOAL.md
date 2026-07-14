@@ -26,7 +26,8 @@ Progress:
   owner only when the current BetterAuth mapping is an auth-only shell with no
   durable account data, and prioritized provider identity/wallet ownership over
   email. Also aligned Portal CORS with BetterAuth wildcard matching for the
-  first-party Landing Vercel preview hosts and documented preview-origin setup.
+  first-party Landing Vercel preview hosts, paired Landing previews with the
+  matching Portal branch deployment, and documented preview-origin setup.
 
 - Removed runtime `/api/bff/auth/siwe/*`, `/api/bff/auth/exchange`, and
   `/api/bff/auth/token` mounts from portal, base, and landing.

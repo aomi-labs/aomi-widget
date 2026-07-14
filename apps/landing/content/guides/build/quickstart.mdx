@@ -122,7 +122,9 @@ AOMI_TRUSTED_ORIGINS=https://app.aomi.dev,https://preview-*.aomi.dev
 
 Prefer exact origins. Use `*` only for a narrowly scoped preview-host pattern.
 Aomi's first-party `landing-page-*-aomi-labs.vercel.app` previews are already
-trusted by Portal.
+trusted by Portal, and each first-party Landing branch automatically targets
+the matching `chat-portal` branch preview. `NEXT_PUBLIC_AOMI_PORTAL_URL` remains
+an explicit override.
 
 The browser-side provider identifier must match Portal's server-side verifier
 configuration:

@@ -714,6 +714,11 @@ origin, Aomi-owned Landing Vercel previews, and standard local Landing origins
 are included; additional integrators must be added through
 `AOMI_TRUSTED_ORIGINS`.
 
+On Vercel preview builds, Landing derives the matching `chat-portal` branch
+alias from its own `landing-page` branch alias. Production keeps
+`https://chat.aomi.dev`, and `NEXT_PUBLIC_AOMI_PORTAL_URL` remains the explicit
+override for custom deployments.
+
 Landing intentionally retains no `/api/auth/*` or `/api/aomi/*` route mounts.
 Provider exchange, SIWE, account updates, wallet links, sign-out, and
 AccountBearer minting all remain Portal responsibilities.

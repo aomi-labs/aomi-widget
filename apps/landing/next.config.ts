@@ -1,6 +1,7 @@
 import { createMDX } from "fumadocs-mdx/next";
 import type { NextConfig } from "next";
 import path from "node:path";
+import { resolveLandingAomiPortalUrl } from "./lib/aomi-portal-url";
 
 const withMDX = createMDX();
 
@@ -10,7 +11,10 @@ const clientPkgSrc = path.resolve(__dirname, "../../packages/client/src");
 const reactPkgSrc = path.resolve(__dirname, "../../packages/react/src");
 const docsSrc = path.resolve(__dirname);
 const landingSrc = path.resolve(__dirname, "src");
-const registryComponents = path.resolve(__dirname, "../shadcn-registry/src/components");
+const registryComponents = path.resolve(
+  __dirname,
+  "../shadcn-registry/src/components",
+);
 const contentDir = path.resolve(__dirname, "content");
 const contentExamplesComponents = path.join(
   contentDir,
@@ -47,17 +51,21 @@ const turbopackAliases: Record<string, string> = {
 
 const nextConfig: NextConfig = {
   reactStrictMode: false,
+  env: {
+    NEXT_PUBLIC_AOMI_PORTAL_URL: resolveLandingAomiPortalUrl(),
+  },
   experimental: {
     externalDir: true,
   },
   async headers() {
     return [
       {
-        source: '/embed-playground',
+        source: "/embed-playground",
         headers: [
           {
-            key: 'Content-Security-Policy',
-            value: "frame-ancestors 'self' https://aomilabs.mintlify.app https://*.mintlify.app",
+            key: "Content-Security-Policy",
+            value:
+              "frame-ancestors 'self' https://aomilabs.mintlify.app https://*.mintlify.app",
           },
         ],
       },
@@ -103,10 +111,7 @@ const nextConfig: NextConfig = {
         landingNodeModules,
         "@assistant-ui/react-markdown",
       ),
-      "@getpara/react-sdk": path.join(
-        landingNodeModules,
-        "@getpara/react-sdk",
-      ),
+      "@getpara/react-sdk": path.join(landingNodeModules, "@getpara/react-sdk"),
       "@tanstack/react-query": path.join(
         landingNodeModules,
         "@tanstack/react-query",
