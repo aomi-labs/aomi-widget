@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildActivityList, buildDeploymentList } from "./deployment-timeline";
+import { buildActivityList, buildDeploymentList, sortDeploymentsForTimeline } from "./deployment-timeline";
 
 describe("buildDeploymentList", () => {
   it("returns [] for null", () => {
@@ -62,8 +62,34 @@ describe("buildDeploymentList", () => {
       "dep_1_ra_new0",
       "dep_1_ra_old0",
     ]);
-    
+
     expect(rows[0].actor).toBe("bob");
+  });
+
+  it("sorts current first for the timeline view", () => {
+    const rows = sortDeploymentsForTimeline([
+      {
+        deploymentId: "dep_old",
+        commit: "old",
+        apps: ["bot"],
+        releaseTags: ["t-old"],
+        current: true,
+        actor: "alice",
+        sdkVersion: "3.0.1",
+        createdAt: 5,
+      },
+      {
+        deploymentId: "dep_new",
+        commit: "new",
+        apps: ["bot"],
+        releaseTags: ["t-new"],
+        current: false,
+        actor: "bob",
+        sdkVersion: "3.0.1",
+        createdAt: 20,
+      },
+    ]);
+    expect(rows.map((r) => r.deploymentId)).toEqual(["dep_old", "dep_new"]);
   });
 
   it("flattens activity newest-first with app names", () => {

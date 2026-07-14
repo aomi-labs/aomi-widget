@@ -87,9 +87,10 @@ export async function accountScopedFetch<T>(
   path: string,
   options?: RequestInit,
 ): Promise<T> {
-  // Same-origin `/api/account/*` through the app proxy, which injects the
-  // AccountBearer from the `aomi_session` cookie (established by
-  // AomiSessionBridge). The browser carries no bearer itself.
+  // Same-origin `/api/account/*` through the app proxy *when* the route is
+  // allowlisted and `resolveCanonicalUserId` can mint an AccountBearer.
+  // Build today is GitHub-session only — account payment routes are not
+  // wired. Prefer Operate BFF (GitHub) or Chat account surfaces until then.
   const response = await fetch(`${getBackendUrl()}${path}`, {
     ...options,
     headers: {

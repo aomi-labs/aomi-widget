@@ -317,6 +317,12 @@ export async function upsertVerifiedWallet(input: {
   if (identityResolution?.status === "conflict") {
     return identityResolution;
   }
+  if (
+    resolution.status === "noop" &&
+    (!identityResolution || identityResolution.status === "noop")
+  ) {
+    return { status: "noop" };
+  }
   await upsertWallet(input);
   if (resolution.status !== "noop") {
     await logAccountEvent({

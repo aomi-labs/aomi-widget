@@ -1,5 +1,5 @@
-import { OverviewDashboard } from "@build/features/overview/overview-dashboard";
+import { HomeRedirect } from "@build/features/overview/home-redirect";
 
-export default function OverviewPage() {
-  return <OverviewDashboard />;
+export default function HomePage() {
+  return <HomeRedirect />;
 }

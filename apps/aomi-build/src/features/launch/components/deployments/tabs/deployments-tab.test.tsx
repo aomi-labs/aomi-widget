@@ -6,7 +6,12 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
+import { ToastProvider } from "@build/components/control-plane/toast";
 import { DeploymentsTab } from "./deployments-tab";
+
+function renderTab(ui: React.ReactElement) {
+  return render(<ToastProvider>{ui}</ToastProvider>);
+}
 
 const promote = vi.fn(async () => ({
   ok: true,
@@ -65,31 +70,31 @@ const detail = {
 
 describe("DeploymentsTab", () => {
   it("renders deployments from the DB timeline, current first", async () => {
-    render(<DeploymentsTab detail={detail} />);
+    renderTab(<DeploymentsTab detail={detail} />);
     expect(detail.loadRecords).toHaveBeenCalled();
-    expect(await screen.findByText("dep_1_ra_currentcmt")).toBeInTheDocument();
+    expect(await screen.findByText(/Live · my-bot · 2 deployments/i)).toBeInTheDocument();
+    expect(screen.getAllByText("my-bot").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("dep_1_ra_currentcmt")).toBeInTheDocument();
     expect(screen.getByText("dep_1_ra_oldcommit1")).toBeInTheDocument();
     expect(screen.getByText("Current")).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: /activity/i })).toHaveAttribute(
+    expect(screen.getByRole("tab", { name: /promotions/i })).toHaveAttribute(
       "aria-selected",
       "false",
     );
   });
 
-  it("renders promotion activity in the Activity subtab", async () => {
-    render(<DeploymentsTab detail={detail} />);
-    fireEvent.click(screen.getByRole("tab", { name: /activity/i }));
-    expect(screen.getByRole("tab", { name: /activity/i })).toHaveAttribute(
+  it("renders promotion activity in the Promotions subtab", async () => {
+    renderTab(<DeploymentsTab detail={detail} />);
+    fireEvent.click(screen.getByRole("tab", { name: /promotions/i }));
+    expect(screen.getByRole("tab", { name: /promotions/i })).toHaveAttribute(
       "aria-selected",
       "true",
     );
-    expect(
-      await screen.findByText(/promoted · dep_1_ra_currentcmt/),
-    ).toBeInTheDocument();
+    expect((await screen.findAllByText(/promoted ·/)).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("dep_1_ra_currentcmt").length).toBeGreaterThan(0);
   });
-
   it("offers Deactivate in the toolbar and Promote on older deployments", () => {
-    render(<DeploymentsTab detail={detail} />);
+    renderTab(<DeploymentsTab detail={detail} />);
     expect(
       screen.getByRole("button", { name: /deactivate/i }),
     ).toBeInTheDocument();
@@ -99,7 +104,7 @@ describe("DeploymentsTab", () => {
   });
 
   it("confirms before promoting an older deployment", async () => {
-    render(<DeploymentsTab detail={detail} />);
+    renderTab(<DeploymentsTab detail={detail} />);
     fireEvent.click(screen.getByRole("button", { name: /promote/i }));
     expect(promote).not.toHaveBeenCalled();
     const dialog = screen.getByRole("dialog", { name: /promote deployment/i });
@@ -110,7 +115,7 @@ describe("DeploymentsTab", () => {
   });
 
   it("confirms before deactivating the current deployment", async () => {
-    render(<DeploymentsTab detail={detail} />);
+    renderTab(<DeploymentsTab detail={detail} />);
     fireEvent.click(screen.getByRole("button", { name: /deactivate/i }));
     expect(deactivate).not.toHaveBeenCalled();
     const dialog = screen.getByRole("dialog", {
@@ -123,7 +128,7 @@ describe("DeploymentsTab", () => {
   });
 
   it("shows a deactivated state and makes the previous current deployment promotable", async () => {
-    render(<DeploymentsTab detail={detail} />);
+    renderTab(<DeploymentsTab detail={detail} />);
     fireEvent.click(screen.getByRole("button", { name: /deactivate/i }));
     const dialog = screen.getByRole("dialog", {
       name: /deactivate deployment/i,
@@ -132,7 +137,7 @@ describe("DeploymentsTab", () => {
       within(dialog).getByRole("button", { name: /deactivate/i }),
     );
 
-    await screen.findByText("Deactivated");
+    await screen.findByText(/No deployment is currently live/i);
 
     expect(screen.queryByText("Current")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /deactivate/i })).toBeDisabled();
@@ -140,10 +145,23 @@ describe("DeploymentsTab", () => {
   });
 
   it("triggers a new-version deploy", () => {
-    render(<DeploymentsTab detail={detail} />);
+    renderTab(<DeploymentsTab detail={detail} />);
     fireEvent.click(
       screen.getByRole("button", { name: /deploy new version/i }),
     );
     expect(detail.deployNewVersion).toHaveBeenCalled();
+  });
+
+  it("is honest when live but deployment history is empty", () => {
+    const liveEmpty = {
+      ...detail,
+      recordsByApp: { "my-bot": [] },
+    } as typeof detail;
+    renderTab(<DeploymentsTab detail={liveEmpty} />);
+    expect(screen.getByText("No deployment history yet")).toBeInTheDocument();
+    expect(
+      screen.getByText(/project is live, but no deployment records/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("No deployments yet")).not.toBeInTheDocument();
   });
 });

@@ -1,5 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { createElement, type ReactNode } from "react";
 
 vi.mock("@build/features/launch/client", () => ({
   deploymentSources: vi.fn(async () => ({
@@ -18,7 +20,7 @@ vi.mock("@build/features/launch/client", () => ({
     serverTags: [],
     sdkStatus: { requiredVersion: "3.0.1", status: "unknown" },
   })),
-  deploymentHistory: vi.fn(),
+  deploymentFeed: vi.fn(),
 }));
 vi.mock("@build/features/launch/dashboard", () => ({
   fetchGitHubSession: vi.fn(async () => ({
@@ -28,16 +30,36 @@ vi.mock("@build/features/launch/dashboard", () => ({
   })),
 }));
 
+import { GitHubSessionProvider } from "@build/components/control-plane/github-session-context";
 import { useProjects } from "./use-projects";
-import { deploymentHistory } from "@build/features/launch/client";
+import { deploymentFeed } from "@build/features/launch/client";
+import { fetchGitHubSession } from "@build/features/launch/dashboard";
+
+function wrapper() {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return function Wrapper({ children }: { children: ReactNode }) {
+    return createElement(
+      QueryClientProvider,
+      { client },
+      createElement(GitHubSessionProvider, null, children),
+    );
+  };
+}
 
 describe("useProjects", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("loads sources and never fetches history", async () => {
-    const { result } = renderHook(() => useProjects());
+  it("loads sources off the shared session and never fetches history", async () => {
+    const { result } = renderHook(() => useProjects(), {
+      wrapper: wrapper(),
+    });
     await waitFor(() => expect(result.current.state.status).toBe("ready"));
-    expect(deploymentHistory).not.toHaveBeenCalled();
+    // The session must come from the provider — exactly one status fetch,
+    // not one per hook consumer.
+    expect(fetchGitHubSession).toHaveBeenCalledTimes(1);
+    expect(deploymentFeed).not.toHaveBeenCalled();
     if (result.current.state.status === "ready") {
       expect(result.current.state.sources).toHaveLength(1);
     }

@@ -1,10 +1,11 @@
 import { Pool } from "pg";
 
 /**
- * The single Postgres pool for the one shared database: BetterAuth's session
- * tables and the canonical account graph (`users` / `auth_providers` /
- * `public_keys`) live side by side, so a user the portal creates is
- * immediately found by the backend's find-only `DbUser::get`.
+ * The single Postgres pool for this environment's database: BetterAuth's
+ * session tables and the canonical account graph (`users` /
+ * `auth_providers` / `public_keys`) live side by side, so a user the portal
+ * creates is immediately found by the backend connected to the same
+ * environment. Staging and production use different databases.
  *
  * Connection string comes from `DATABASE_URL` — the only DB env var in this
  * package. Never hard-code it; it carries the DB password. Node runtime only

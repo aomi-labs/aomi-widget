@@ -76,7 +76,7 @@ stateDiagram-v2
 | `POST /api/platforms/:platform/sources/{create-from-template,sync-installed}` | create repo from template / resolve+upsert an existing install to get `app_source.id`                                                                                        |
 | `POST /api/platforms/:platform/{deploy,activate}`                             | push candidate / activate a built release                                                                                                                                    |
 
-**Portal BFF** — `aomi-widget/apps/portal/src/app/api/launch/*` (each proxies the BE)
+**Portal BFF** — `aomi/apps/portal/src/app/api/launch/*` (each proxies the BE)
 
 | BFF route                         | → Backend                                                                                                                |
 | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |

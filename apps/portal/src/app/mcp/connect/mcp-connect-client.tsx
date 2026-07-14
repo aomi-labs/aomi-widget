@@ -3,13 +3,7 @@
 import "@aomi-labs/widget-lib/providers/para";
 import "@aomi-labs/widget-lib/providers/privy";
 
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { CheckCircle2, Loader2, ShieldCheck } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { AomiWalletKitProvider, useAomiWalletKit } from "@aomi-labs/widget-lib";

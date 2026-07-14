@@ -460,6 +460,11 @@ export const AOMI_BACKEND_ENDPOINTS = [
   },
   {
     method: "POST",
+    path: "/api/platforms/:name/deployments/:deployment/rerun",
+    auth: ["activation"],
+  },
+  {
+    method: "POST",
     path: "/api/platforms/:name/sources/sync-installed",
     auth: ["activation"],
   },

@@ -3,14 +3,12 @@ import { settingsSections } from "./settings-data";
 
 export default function SettingsPage() {
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-6">
+    <div className="flex flex-col gap-6">
       <div className="space-y-2">
-        <p className="text-dim text-[12px] uppercase tracking-wide">Account</p>
         <h1 className="text-foreground text-2xl font-semibold">Settings</h1>
         <p className="text-subtle max-w-2xl text-sm">
-          Account and workspace controls for the current GitHub-scoped Aomi
-          Build session. Only sections backed by current app behavior are
-          interactive.
+          Account controls for this GitHub session. Live sections work today;
+          others stay listed as Soon.
         </p>
       </div>
 

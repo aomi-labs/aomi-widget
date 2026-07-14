@@ -1,19 +1,23 @@
 "use client";
 
+import { useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useProjectDetail } from "@build/features/launch/hooks/use-project-detail";
+import { setLastProjectId } from "@build/lib/last-project";
 import { ProjectHeader } from "./project-header";
 import { ChatTab } from "./tabs/chat-tab";
 import { DeploymentsTab } from "./tabs/deployments-tab";
 import { EnvironmentTab } from "./tabs/environment-tab";
+import { HomeTab } from "./tabs/home-tab";
 import { SettingsTab } from "./tabs/settings-tab";
 import { LoadingPanel, ErrorPanel } from "./ui/state-panels";
 
 const TABS = [
+  { id: "home", label: "Home" },
   { id: "deployments", label: "Deployments" },
   { id: "chat", label: "Chat" },
   { id: "environment", label: "Environment" },
-  { id: "settings", label: "Settings" },
+  { id: "settings", label: "Details" },
 ] as const;
 type TabId = (typeof TABS)[number]["id"];
 
@@ -36,10 +40,14 @@ export function ProjectPage({
   const raw = searchParams.get("tab");
   const active: TabId = TABS.some((t) => t.id === raw)
     ? (raw as TabId)
-    : "deployments";
+    : "home";
+
+  useEffect(() => {
+    setLastProjectId(sourceId);
+  }, [sourceId]);
 
   return (
-    <main className="min-h-screen bg-white text-zinc-950">
+    <main className="min-h-screen bg-background text-foreground">
       <ProjectHeader
         source={detail.source}
         latest={detail.source?.latestDeployment ?? null}
@@ -50,7 +58,7 @@ export function ProjectPage({
       <div className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6">
         <div
           role="tablist"
-          className="mb-4 flex w-fit items-center gap-1 rounded-md bg-zinc-100 p-1 text-sm"
+          className="mb-4 flex w-fit items-center gap-1 rounded-md bg-surface-2 p-1 text-sm"
         >
           {TABS.map((tab) => (
             <button
@@ -69,19 +77,21 @@ export function ProjectPage({
               }
               className={`h-7 rounded px-2.5 text-xs font-medium ${
                 active === tab.id
-                  ? "bg-white text-zinc-950 shadow-sm"
-                  : "text-zinc-500"
+                  ? "bg-surface-1 text-foreground shadow-sm"
+                  : "text-dim"
               }`}
             >
               {tab.label}
             </button>
           ))}
         </div>
-        <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white">
+        <div className="overflow-hidden rounded-lg border border-border bg-surface-1">
           {detail.loading && detail.source === null && !detail.error ? (
             <LoadingPanel label="Loading project…" />
           ) : detail.error ? (
             <ErrorPanel message={detail.error} />
+          ) : active === "home" ? (
+            <HomeTab detail={detail} tabBaseHref={tabBaseHref} />
           ) : active === "deployments" ? (
             <DeploymentsTab detail={detail} />
           ) : active === "chat" ? (

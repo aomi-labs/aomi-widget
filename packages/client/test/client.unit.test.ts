@@ -11,7 +11,7 @@ describe("AomiClient route manifest", () => {
         `${endpoint.method} ${endpoint.path} [${endpoint.auth.join(", ")}]`,
     );
 
-    expect(routeKeys).toHaveLength(104);
+    expect(routeKeys).toHaveLength(105);
     expect(new Set(routeKeys).size).toBe(routeKeys.length);
     expect(routeKeys).toContain("POST /api/exec/run [account, thread]");
     expect(routeKeys).toContain("GET /api/resource/search/apps [account]");
@@ -33,6 +33,9 @@ describe("AomiClient route manifest", () => {
     );
     expect(routeKeys).toContain(
       "POST /api/platforms/:name/deployments/:deployment/promote [activation]",
+    );
+    expect(routeKeys).toContain(
+      "POST /api/platforms/:name/deployments/:deployment/rerun [activation]",
     );
     expect(routeKeys).not.toContain("GET /api/control/apps [session]");
     expect(routeKeys.some((route) => route.includes("/api/control/"))).toBe(
@@ -478,9 +481,8 @@ describe("AomiClient transport selection", () => {
       },
     ] as Response[];
     const nativeFetch = vi.fn(async () => responses.shift() as Response);
-    const getAccountBearer = vi.fn(
-      async ({ forceRefresh = false } = {}) =>
-        forceRefresh ? "fresh-token" : "stale-token",
+    const getAccountBearer = vi.fn(async ({ forceRefresh = false } = {}) =>
+      forceRefresh ? "fresh-token" : "stale-token",
     );
     const originalFetch = globalThis.fetch;
     vi.stubGlobal("fetch", nativeFetch);
@@ -667,10 +669,16 @@ describe("AomiClient transport selection", () => {
     const fetch = vi
       .fn<typeof globalThis.fetch>()
       .mockResolvedValueOnce(
-        Response.json({ thread_id: "thread-1", title: null }),
+        Response.json({
+          thread_id: "thread-1",
+          title: null,
+          last_active_at: "123",
+        }),
       )
       .mockResolvedValueOnce(
-        Response.json([{ thread_id: "thread-1", title: "One" }]),
+        Response.json([
+          { thread_id: "thread-1", title: "One", last_active_at: 456 },
+        ]),
       );
     const client = new AomiClient({
       baseUrl: "http://unit.test",
@@ -680,12 +688,14 @@ describe("AomiClient transport selection", () => {
     await expect(client.createThread("thread-1")).resolves.toEqual({
       session_id: "thread-1",
       title: null,
+      last_active_at: 123,
     });
     await expect(client.listThreads("thread-1")).resolves.toEqual([
       {
         session_id: "thread-1",
         title: "One",
         is_archived: undefined,
+        last_active_at: 456,
       },
     ]);
 

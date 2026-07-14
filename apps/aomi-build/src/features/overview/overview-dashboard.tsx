@@ -5,14 +5,15 @@ import { Activity, Gauge, Rocket, WalletCards } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { useGitHubSession } from "@build/components/control-plane/github-session-context";
+import { EmptyState } from "@build/components/control-plane/empty-state";
 import {
-  EmptyPanel,
   ErrorPanel,
   GitHubSignInPanel,
   LoadingPanel,
 } from "@build/features/launch/components/deployments/ui/state-panels";
 import { useGlobalDeploymentRecords } from "@build/features/launch/components/deployments/use-global-deployment-records";
 import { operateFetch } from "@build/features/operate/client";
+import { BUILD_GLOSSARY } from "@build/lib/glossary";
 
 type UsagePayload = {
   daily?: Array<Record<string, any>>;
@@ -96,7 +97,10 @@ export function OverviewDashboard() {
     );
   }, [usage]);
 
-  if (account.loading || projectsState.status === "loading") {
+  // Only the (fast) session check blocks the page. While the project list is
+  // still loading, the shell renders immediately with placeholder stats so the
+  // user never stares at a full-page spinner waiting for sources.
+  if (account.loading) {
     return <LoadingPanel label="Loading overview..." />;
   }
   if (!account.signedIn || projectsState.status === "signed_out") {
@@ -105,6 +109,11 @@ export function OverviewDashboard() {
   if (projectsState.status === "error") {
     return <ErrorPanel message={projectsState.error} />;
   }
+  const projectsLoading = projectsState.status === "loading";
+  const recordsPending =
+    projectsLoading ||
+    recordsState.status === "idle" ||
+    recordsState.status === "loading";
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
@@ -112,8 +121,13 @@ export function OverviewDashboard() {
         <div className="min-w-0">
           <h1 className="text-foreground text-2xl font-semibold">Overview</h1>
           <p className="text-dim mt-1 text-sm">
-            Owned applications connected to{" "}
-            {account.githubLogin ? `@${account.githubLogin}` : "GitHub"}.
+            Snapshot for{" "}
+            {account.githubLogin ? `@${account.githubLogin}` : "GitHub"}. Day-to-day
+            work starts from Projects.
+          </p>
+          <p className="text-dim mt-2 max-w-2xl text-xs leading-5">
+            {BUILD_GLOSSARY.project.term}: {BUILD_GLOSSARY.project.meaning}{" "}
+            {BUILD_GLOSSARY.deployment.term}: {BUILD_GLOSSARY.deployment.meaning}
           </p>
         </div>
         <button
@@ -128,18 +142,18 @@ export function OverviewDashboard() {
       <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <StatCard
           label="Projects"
-          value={String(sources.length)}
-          helper="GitHub-owned app sources"
+          value={projectsLoading ? "—" : String(sources.length)}
+          helper="App sources on GitHub"
         />
         <StatCard
           label="Live deployments"
-          value={String(currentDeployments.length)}
-          helper="Current deployment records"
+          value={recordsPending ? "—" : String(currentDeployments.length)}
+          helper="Active releases"
         />
         <StatCard
           label="Credits"
           value={formatNumber(usageTotals.creditsUsed)}
-          helper="Usage in the selected backend range"
+          helper="Usage by app"
         />
         <StatCard
           label="Tokens"
@@ -158,7 +172,7 @@ export function OverviewDashboard() {
                 Recent deployments
               </div>
               <div className="text-dim text-xs">
-                Latest owned project activity
+                Latest project activity
               </div>
             </div>
             <Link
@@ -168,7 +182,7 @@ export function OverviewDashboard() {
               View all
             </Link>
           </div>
-          {recordsState.status === "loading" ? (
+          {recordsPending ? (
             <LoadingPanel label="Loading deployments..." />
           ) : recordsState.status === "error" ? (
             <div className="border-b border-red-100 bg-red-50 px-4 py-2 text-xs text-red-700">
@@ -176,8 +190,13 @@ export function OverviewDashboard() {
             </div>
           ) : null}
           {recordsState.status === "ready" && deployments.length === 0 ? (
-            <EmptyPanel>No deployments yet.</EmptyPanel>
-          ) : recordsState.status !== "loading" ? (
+            <EmptyState
+              title="No deployments yet"
+              description={BUILD_GLOSSARY.deployment.meaning}
+              actionHref="/operate/deployments/new"
+              actionLabel="New app"
+            />
+          ) : !recordsPending ? (
             <div className="divide-border divide-y">
               {deployments.slice(0, 5).map((deployment) => (
                 <Link
@@ -252,8 +271,8 @@ export function OverviewDashboard() {
               {usageError
                 ? `Usage unavailable: ${usageError}`
                 : latestDeployment
-                  ? "Daily app and model totals."
-                  : "Usage appears after app traffic."}
+                  ? "Credits by app"
+                  : "Appears after app traffic"}
             </div>
           </Link>
         </div>
