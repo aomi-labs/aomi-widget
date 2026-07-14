@@ -2,6 +2,11 @@
 
 ## Last Updated
 
+2026-07-14 — AI Builder P1 craft port: mock layout feel in ControlPlaneShell
+  (composer, stream, files, ship→Projects, in-page history; local mock timers);
+2026-07-14 — AI Builder P1: intent composer + templates + local session;
+2026-07-14 — AI-BUILDER-EXPERIENCE.md (Create / chat-mock port plan);
+2026-07-14 — Build AI Builder: enable sidebar Build + `/build` scaffold;
 2026-07-13 — Build P2 usage peek (Home meter → Operate Usage);
 2026-07-13 — Build P2 Deployments timeline (history that reads as history);
 2026-07-13 — Build Live status consistency (one story across list/Home/Deployments);
@@ -11,6 +16,39 @@
 2026-07-13 — Build UI copy polish (em dashes / hedging essays);
 2026-07-13 — Billing option A: methods live on Chat (no fake Build fetch);
 2026-07-13 — BILLING-EXPERIENCE.md: backend ↔ UI map (code-checked)
+
+## AI Builder P1 craft port (2026-07-14)
+
+Branch `feat/build-enable-route`:
+
+- Ported mock portal craft into `features/build/` inside ControlPlaneShell
+  (no BuildLayout, no Customize marketplace, no `/deploy/[id]`).
+- Empty: centered composer + templates; active: thread + stream, lg context
+  (files/stream), sticky compact composer, xl session list.
+- LocalStorage mock pipeline plan→generate→validate→ready mapped to journey
+  stages; ship banner → `/projects`; honest “Local mock” copy.
+
+## AI Builder P1 intent empty state (2026-07-14)
+
+Branch `feat/build-enable-route`:
+
+- Working intent composer + 8 templates (seed prompts).
+- Submit creates a local Create session + journey chrome.
+- Superseded visually by craft port (stream/files landed).
+
+## AI Builder experience plan (2026-07-14)
+
+- Added `apps/aomi-build/AI-BUILDER-EXPERIENCE.md`: Cecilia decode, platform
+  map, mock-vs-target, import policy, P0–P5 implementation phases.
+- Direction: adapt mock craft into live `features/build/` (not wholesale port).
+
+## Build AI Builder route (2026-07-14)
+
+Branch `feat/build-enable-route`:
+
+- Sidebar Build `enabled: true` (no Soon).
+- Real `/build` page scaffold: journey map + disabled “Start” (no Smithers
+  network yet). Manage path still Projects / Operate.
 
 ## Build P2 usage peek (2026-07-13)
 
