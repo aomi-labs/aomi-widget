@@ -74,7 +74,7 @@ const navGroups: NavGroup[] = [
   {
     title: "Build",
     items: [
-      { label: "Build", href: "/build", icon: Hammer, enabled: false },
+      { label: "Build", href: "/build", icon: Hammer, enabled: true },
     ],
   },
   {
