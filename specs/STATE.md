@@ -2,8 +2,13 @@
 
 ## Last Updated
 
+2026-07-14 — Create stack #343–#349 merged to main (left #340);
 2026-07-14 — Create Recent rail UX: one Create-header toggle (no double collapse);
 2026-07-14 — Create Recent rail: user open/collapse + localStorage (⌘B);
+2026-07-14 — Create composer: UI-only model picker mock (Aomi + Soon);
+2026-07-14 — Create templates: Browse all opens a sheet;
+2026-07-14 — Create mobile: hide Plan steps when Progress is in-thread;
+2026-07-14 — Create Recent titles: derive + dedupe (hello → unique);
 2026-07-14 — Create craft polish tranche (rail/empty/chat/stage/composer);
 2026-07-14 — Create craft review: jargon migrate + canvas;
 2026-07-14 — Create UI: builder language (no eng keywords in chat/sidebar);
@@ -34,6 +39,31 @@ Branch `feat/build-recent-sidebar-toggle` (stack on #344 / p3):
 - Preference persisted in localStorage; first visit defaults open on xl+ (after mount; SSR-safe).
 - Shell nav remains click-only.
 
+## Create composer model picker mock (2026-07-14)
+
+Branch `feat/build-model-picker-mock` (stack on #344):
+
+- Cursor-like model control on Create composer (`ComposerModelPicker`).
+- Current selection: **Aomi** only; Auto / Custom rows disabled with Soon.
+- Hardcoded mock — no Han API, no fake live model list fetch.
+- Keeps quiet **Preview** honesty chip beside the picker (no Aomi branding spam).
+- Product language only (no Smithers / eng jargon in UI).
+
+## Create template Browse all sheet (2026-07-14)
+
+- Empty Create keeps 3 featured templates; “Browse all” opens a right sheet
+  with the full template grid (Esc / overlay / X to dismiss).
+
+## Create mobile Progress/Plan dedupe (2026-07-14)
+
+- On `<lg`, Plan-steps cards stay hidden during generate so they do not compete
+  with the in-thread Progress timeline (rail Progress is lg+ only).
+
+## Create Recent title dedupe (2026-07-14)
+
+- `deriveSessionTitle` strips greeting fluff + soft-truncates; `uniqueSessionTitle`
+  avoids colliding sidebar labels; list remasters persisted dupes for display.
+
 ## Create craft polish tranche (2026-07-14)
 
 Shipped the review next-tranche on Create (`/build`):
@@ -43,7 +73,8 @@ Shipped the review next-tranche on Create (`/build`):
 - Chat density: tighter message/banner spacing; less mid-thread void.
 - Stage strip: `resolveDisplayJourneyStage` + verify-gate stream honesty
   (Compile & test stays active until smoke test; Ship only when shipReady).
-- Composer: Preview chip only (no stacked Aomi / model chip).
+- Composer: Preview chip only (no stacked Aomi / model chip) — superseded by
+  model picker mock above for the picker PR.
 
 ## Create craft review + jargon migrate (2026-07-14)
 

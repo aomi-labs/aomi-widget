@@ -24,6 +24,10 @@ import {
   subscribeBuildSessions,
 } from "@build/features/build/storage/build-session-storage";
 import { sanitizeBuildSession } from "@build/features/build/storage/sanitize-session-copy";
+import {
+  deriveSessionTitle,
+  uniqueSessionTitle,
+} from "@build/features/build/storage/session-title";
 
 function nowTime() {
   const d = new Date();
@@ -198,10 +202,10 @@ export function useBuildSession() {
     (userText: string, onAssistantReady: (msg: BuildMessage) => void) => {
       clearTimers();
       const sessionId = `run_${Date.now()}`;
-      const title =
-        userText.length > 48
-          ? `${userText.slice(0, 48).trim()}…`
-          : userText.trim();
+      const title = uniqueSessionTitle(
+        deriveSessionTitle(userText),
+        recentSessions.map((s) => s.title),
+      );
       const userMsg: BuildMessage = {
         id: `u_${Date.now()}`,
         role: "user",
@@ -367,7 +371,7 @@ export function useBuildSession() {
         timersRef.current.push(timerId);
       });
     },
-    [clearTimers],
+    [clearTimers, recentSessions],
   );
 
   const handleStreamComplete = useCallback(() => {

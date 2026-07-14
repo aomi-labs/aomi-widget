@@ -307,7 +307,7 @@ export function BuildView() {
       ? "Finish Compile → smoke test below, or start a new build (⌘N)."
       : undefined;
 
-  /** Unique plan steps only during plan/generate — not a second progress list. */
+  /** Plan steps in-thread on lg+ only — mobile already shows Progress. */
   const showPlanNodes =
     nodes.length > 0 &&
     isGenerating &&
@@ -460,7 +460,9 @@ export function BuildView() {
                   ) : null}
 
                   {showPlanNodes ? (
-                    <SmithersNodes nodes={nodes} caption="Plan steps" />
+                    <div className="hidden lg:block">
+                      <SmithersNodes nodes={nodes} caption="Plan steps" />
+                    </div>
                   ) : null}
 
                   {awaitingVerify ? (
