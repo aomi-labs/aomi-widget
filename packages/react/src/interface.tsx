@@ -122,6 +122,8 @@ export type AomiRuntimeApi = {
     sessionId: string;
     payload: unknown;
   }) => Promise<void>;
+  /** Record ephemeral UI context for the next model turn on the active thread. */
+  recordUiInteraction: (payload: unknown) => Promise<void>;
   /** Current SSE connection status */
   sseStatus: SSEStatus;
 };
@@ -162,7 +164,7 @@ export const AomiRuntimeApiProvider = AomiRuntimeContext.Provider;
  *   const { showNotification } = aomi;
  *
  *   // Event API
- *   const { subscribe, sendSystemCommand } = aomi;
+ *   const { subscribe, sendSystemCommand, recordUiInteraction } = aomi;
  * }
  * ```
  */

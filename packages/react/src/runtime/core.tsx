@@ -577,6 +577,12 @@ export function AomiRuntimeCore({
       // Event API
       subscribe: eventContext.subscribe,
       sendSystemCommand: eventContext.sendOutboundSystem,
+      recordUiInteraction: (payload) =>
+        eventContext.sendOutboundSystem({
+          type: "ui_interaction",
+          sessionId: threadContext.currentThreadId,
+          payload,
+        }),
       sseStatus: eventContext.sseStatus,
     }),
     [

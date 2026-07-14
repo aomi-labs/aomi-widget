@@ -285,6 +285,8 @@ type AomiRuntimeApi = {
         sessionId: string;
         payload: unknown;
     }) => Promise<void>;
+    /** Record ephemeral UI context for the next model turn on the active thread. */
+    recordUiInteraction: (payload: unknown) => Promise<void>;
     /** Current SSE connection status */
     sseStatus: SSEStatus;
 };
@@ -313,7 +315,7 @@ declare const AomiRuntimeApiProvider: react.Provider<AomiRuntimeApi | null>;
  *   const { showNotification } = aomi;
  *
  *   // Event API
- *   const { subscribe, sendSystemCommand } = aomi;
+ *   const { subscribe, sendSystemCommand, recordUiInteraction } = aomi;
  * }
  * ```
  */
