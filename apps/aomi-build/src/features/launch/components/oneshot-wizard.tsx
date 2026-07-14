@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { ExternalLink, Loader2, Plus, RotateCcw } from "lucide-react";
 import { Button } from "@aomi-labs/widget-lib";
+import type { SecretSlot } from "@aomi-labs/deploy";
 import {
+  deploymentRequiredSecrets,
   installationStatusLabel,
   launchCreateRepo,
   oneshotStep,
@@ -14,6 +16,43 @@ import { chatAppUrl } from "@build/lib/chat-url";
 import { Stepper } from "./stepper";
 import { DeployStep } from "./deploy-step";
 import { LivePanel } from "./live-panel";
+
+/**
+ * Minimal required-secrets gate for `DeployStep` during onboarding. The
+ * wizard has no persisted project row to hang a full `useProjectDetail` off
+ * of — it only ever has `progress.appSourceId`, which the "create repo" step
+ * mints alongside `progress.repo` (the wizard's sole setter of both). So this
+ * mirrors just the read-only slice `DeployStep` needs, keyed on that id,
+ * instead of fabricating a project-detail hook the wizard doesn't otherwise
+ * use. If `appSourceId` is ever absent, this fails open (no fetch, nothing
+ * ever reported missing) — same policy as the activate 409 backstop.
+ */
+function useWizardSecretsGate(appSourceId?: number) {
+  const [requiredSecrets, setRequiredSecrets] = useState<Record<
+    string,
+    { slots: SecretSlot[]; missing: string[] }
+  > | null>(null);
+  const requestedFor = useRef<number | null>(null);
+
+  const loadRequiredSecrets = useCallback(() => {
+    if (!appSourceId || requestedFor.current === appSourceId) return;
+    requestedFor.current = appSourceId;
+    void deploymentRequiredSecrets({ appSourceId })
+      .then((r) => setRequiredSecrets(r.byApp))
+      .catch(() => {
+        // Fail open: leave requiredSecrets as-is (nothing reported missing)
+        // and allow a retry on the next mount effect.
+        requestedFor.current = null;
+      });
+  }, [appSourceId]);
+
+  const hasMissingSecrets = useCallback(
+    (app: string) => (requiredSecrets?.[app]?.missing.length ?? 0) > 0,
+    [requiredSecrets],
+  );
+
+  return { requiredSecrets, loadRequiredSecrets, hasMissingSecrets };
+}
 
 const STEPS = [
   { key: "install", label: "Install" },
@@ -63,6 +102,7 @@ export function OneshotWizard({
 }) {
   const step = oneshotStep(progress);
   const installStatus = installationStatusLabel(progress.installationStatus);
+  const secretsGate = useWizardSecretsGate(progress.appSourceId);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [repoName, setRepoName] = useState(DEFAULT_REPO_NAME);
@@ -139,7 +179,7 @@ export function OneshotWizard({
         <div className="space-y-3">
           <div className="border-input bg-surface-1 space-y-3 rounded-md border p-4">
             <div className="text-foreground text-sm font-medium">
-              Step 1 — Install the Aomi GitHub App
+              Step 1: Install the Aomi GitHub App
             </div>
             <p className="text-muted-foreground text-sm leading-5">
               Installs <code>aomi-build-oneshot</code>. It can create a repo in
@@ -165,7 +205,7 @@ export function OneshotWizard({
         <div className="space-y-3">
           <div className="border-input bg-surface-1 space-y-3 rounded-md border p-4">
             <div className="text-foreground text-sm font-medium">
-              Step 2 — Create your repo
+              Step 2: Create your repo
             </div>
             <p className="text-muted-foreground text-sm leading-5">
               Creates a GitHub repo from <code>{TEMPLATE_REPO}</code> in the
@@ -211,7 +251,7 @@ export function OneshotWizard({
       {step === "build" && progress.installationId && progress.repo && (
         <div className="border-input bg-surface-1 space-y-3 rounded-md border p-4">
           <div className="text-foreground text-sm font-medium">
-            Step 3 — Build and activate
+            Step 3: Build and activate
           </div>
           <DeployStep
             installationId={progress.installationId}
@@ -220,6 +260,7 @@ export function OneshotWizard({
             progress={progress}
             onProgress={patch}
             onReset={onReset}
+            detail={secretsGate}
           />
         </div>
       )}

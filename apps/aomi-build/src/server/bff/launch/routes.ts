@@ -10,6 +10,11 @@ import { checkRateLimit, getClientIp } from "@build/lib/rate-limit";
 import { validateOrigin } from "@build/lib/csrf";
 import { getGitHubSession } from "@build/server/cookies/github";
 import {
+  fetchReleaseSecretSlots,
+  missingSecretsForActivation,
+} from "@aomi-labs/deploy/bff";
+import { missingRequiredSecrets, type SecretSlot } from "@aomi-labs/deploy";
+import {
   isValidDeploymentId,
   isValidInstallationId,
   isValidReleaseTags,
@@ -104,6 +109,37 @@ async function sourceDeploymentIds(
     }),
   );
   return ids;
+}
+
+/** The (app, releaseTag) pairs for `deploymentId`, derived from the SAME DB
+ *  promotion records used for ownership (`sourceDeploymentIds`) rather than
+ *  the size-limited `listUserSourceDeployments` listing — so the secret gate
+ *  can never see an emptier set than the authorization check just proved. */
+async function sourceDeploymentPairs(
+  client: DeploymentClientInstance,
+  platform: string,
+  source: OwnedSource,
+  deploymentId: string,
+  appsFilter: string[] | undefined,
+): Promise<{ app: string; releaseTag: string }[]> {
+  const pairs: { app: string; releaseTag: string }[] = [];
+  await Promise.all(
+    source.apps.map(async (app) => {
+      if (appsFilter && !appsFilter.includes(app.name)) return;
+      const { records } = await client
+        .listDeploymentRecords({
+          platform,
+          app: app.name,
+          appSourceId: source.id,
+        })
+        .catch(() => ({ records: [] as { deploymentId: string; releaseTag: string }[] }));
+      const record = records.find((r) => r.deploymentId === deploymentId);
+      if (record?.releaseTag) {
+        pairs.push({ app: app.name, releaseTag: record.releaseTag });
+      }
+    }),
+  );
+  return pairs;
 }
 
 type ActivationPair = { app: string; releaseTag: string };
@@ -411,127 +447,21 @@ export async function launchStatusRoute(req: Request) {
   try {
     const config = launchConfig();
     const client = await deploymentClient();
+    // The backend resolves CI live per poll (by the deployment's recorded
+    // commit, on the App installation token) and deep-links the run URL —
+    // no client-side GitHub enrichment on top.
     const result = await client.status({
       platform: config.platform,
       deploymentId,
       githubUserId: session.githubUserId,
     });
-    const enriched = await enrichPendingCiStatus(result);
     return NextResponse.json({
-      ...enriched,
-      releaseTags: releaseTagsFromDeployment(enriched.deployment),
+      ...result,
+      releaseTags: releaseTagsFromDeployment(result.deployment),
     });
   } catch (err) {
     return launchErrorResponse(err);
   }
-}
-
-type LaunchStatusPayload = Awaited<
-  ReturnType<Awaited<ReturnType<typeof deploymentClient>>["status"]>
->;
-
-function branchFromActionsQuery(url: string | null | undefined): string | null {
-  if (!url) return null;
-  try {
-    const parsed = new URL(url);
-    const query = parsed.searchParams.get("query") ?? "";
-    const match = query.match(/(?:^|\s)branch:([^\s]+)/);
-    return match?.[1] ?? null;
-  } catch {
-    return null;
-  }
-}
-
-async function enrichPendingCiStatus(
-  status: LaunchStatusPayload,
-): Promise<LaunchStatusPayload> {
-  const platform = status.deployment?.platform;
-  const ciStatus = status.ci?.status ?? platform?.ciStatus;
-  const ciUrl = status.ci?.url ?? platform?.ciUrl;
-  const repo = platform?.repository;
-  const branch = branchFromActionsQuery(ciUrl);
-  const targetCommit = platform?.commitHash ?? status.ci?.commitHash;
-  if (ciStatus !== "pending" || !repo || !branch || !isValidRepo(repo)) {
-    return status;
-  }
-
-  const token = process.env.GITHUB_TOKEN?.trim();
-  const headers: Record<string, string> = {
-    Accept: "application/vnd.github+json",
-    "User-Agent": "aomi-build",
-    "X-GitHub-Api-Version": "2022-11-28",
-  };
-  if (token) headers.Authorization = `Bearer ${token}`;
-
-  const params = new URLSearchParams({
-    branch,
-    event: "push",
-    per_page: "10",
-  });
-  const res = await fetch(
-    `https://api.github.com/repos/${repo}/actions/runs?${params}`,
-    { headers },
-  );
-  if (!res.ok) return status;
-  const body = (await res.json().catch(() => ({}))) as {
-    workflow_runs?: Array<Record<string, unknown>>;
-  };
-  const runs = (body.workflow_runs ?? []).filter(
-    (candidate) => candidate.head_branch === branch,
-  );
-  const run =
-    (targetCommit
-      ? runs.find((candidate) => candidate.head_sha === targetCommit)
-      : undefined) ?? runs[0];
-  if (!run || run.status !== "completed") return status;
-
-  const conclusion = String(run.conclusion ?? "unknown");
-  const runSha = String(run.head_sha ?? "");
-  const runUrl = String(run.html_url ?? ciUrl ?? "");
-  const title = String(run.display_title ?? run.name ?? "GitHub Actions run");
-  if (targetCommit && runSha && runSha !== targetCommit) {
-    return {
-      ...status,
-      state: "failed",
-      ci: {
-        ...status.ci,
-        status: "stale",
-        url: runUrl,
-        commitHash: runSha,
-      },
-      message: `${title} completed with conclusion "${conclusion}" on stale commit ${runSha.slice(
-        0,
-        12,
-      )}; deployment commit ${targetCommit.slice(
-        0,
-        12,
-      )} has no matching Aomi CI run. ${runUrl}`,
-    };
-  }
-
-  if (conclusion === "success") {
-    return {
-      ...status,
-      ci: {
-        ...status.ci,
-        status: "passed",
-        url: runUrl,
-        commitHash: runSha || status.ci?.commitHash || undefined,
-      },
-    };
-  }
-
-  return {
-    ...status,
-    state: "failed",
-    ci: {
-      ...status.ci,
-      status: conclusion === "skipped" ? "skipped" : "failed",
-      url: runUrl,
-      commitHash: String(run.head_sha ?? "") || status.ci?.commitHash,
-    },
-    message: `${title} completed with conclusion "${conclusion}" on ${branch}. ${runUrl}`,
-  };
 }
 
 export async function activateLaunchRoute(req: Request) {
@@ -609,6 +539,19 @@ export async function activateLaunchRoute(req: Request) {
       return NextResponse.json(
         { error: "release not found for this user" },
         { status: 404 },
+      );
+    }
+    const missingByApp = await missingSecretsForActivation({
+      client,
+      githubUserId: session.githubUserId,
+      platform: config.platform,
+      source,
+      pairs,
+    });
+    if (Object.keys(missingByApp).length > 0) {
+      return NextResponse.json(
+        { error: "missing required secrets", missing: missingByApp },
+        { status: 409 },
       );
     }
     const result = await client.activate({
@@ -741,6 +684,62 @@ export async function deploymentHistoryRoute(req: Request) {
       limit: Number.isSafeInteger(limit) && limit > 0 ? limit : undefined,
     });
     return NextResponse.json({ deployments });
+  } catch (err) {
+    return launchErrorResponse(err);
+  }
+}
+
+export async function deploymentFeedRoute(req: Request) {
+  const blocked = checkRead(req);
+  if (blocked) return blocked;
+
+  const session = await getGitHubSession();
+  if (!session) {
+    return NextResponse.json(
+      { error: "not signed in with GitHub" },
+      { status: 401 },
+    );
+  }
+  const params = new URL(req.url).searchParams;
+  const limit = Number(params.get("limit") ?? "50");
+  const cursorCreatedAt = params.get("cursorCreatedAt");
+  const cursorId = params.get("cursorId");
+  if (
+    !Number.isSafeInteger(limit) ||
+    limit <= 0 ||
+    limit > 100 ||
+    (cursorCreatedAt === null) !== (cursorId === null)
+  ) {
+    return NextResponse.json(
+      { error: "invalid deployment feed pagination" },
+      { status: 400 },
+    );
+  }
+  const cursor =
+    cursorCreatedAt !== null && cursorId !== null
+      ? { createdAt: Number(cursorCreatedAt), id: Number(cursorId) }
+      : null;
+  if (
+    cursor &&
+    (!Number.isSafeInteger(cursor.createdAt) ||
+      !Number.isSafeInteger(cursor.id))
+  ) {
+    return NextResponse.json(
+      { error: "invalid deployment feed cursor" },
+      { status: 400 },
+    );
+  }
+
+  try {
+    const config = launchConfig();
+    const client = await deploymentClient();
+    const page = await client.listUserDeployments({
+      githubUserId: session.githubUserId,
+      platform: config.platform,
+      limit,
+      cursor,
+    });
+    return NextResponse.json(page);
   } catch (err) {
     return launchErrorResponse(err);
   }
@@ -1031,6 +1030,33 @@ export async function deploymentPromoteRoute(req: Request) {
       );
     }
 
+    // Gate promotion on required secrets, exactly as activate does — promote
+    // runs the same backend activation machinery. The gate reads the TARGET
+    // deployment's release tag from the DB promotion records (the same
+    // records used for ownership above), which may differ from the
+    // current-release manifest the UI / requiredSecretsRoute reads — this
+    // backend gate is authoritative for what's about to go live.
+    const pairs = await sourceDeploymentPairs(
+      client,
+      config.platform,
+      source,
+      deploymentId,
+      apps,
+    );
+    const missingByApp = await missingSecretsForActivation({
+      client,
+      githubUserId: session.githubUserId,
+      platform: config.platform,
+      source,
+      pairs,
+    });
+    if (Object.keys(missingByApp).length > 0) {
+      return NextResponse.json(
+        { error: "missing required secrets", missing: missingByApp },
+        { status: 409 },
+      );
+    }
+
     // Default the promotion actor to the signed-in GitHub user so Aomi Build
     // promotions are attributable without the client threading it.
     const actor =
@@ -1114,12 +1140,6 @@ export async function deploymentDeactivateRoute(req: Request) {
   }
 }
 
-function ciRunIdFromUrl(url: string | null | undefined): string | null {
-  if (!url) return null;
-  const match = url.match(/\/actions\/runs\/(\d+)(?:\/|$)/);
-  return match?.[1] ?? null;
-}
-
 export async function redeployLaunchRoute(req: Request) {
   const blocked = checkWrite(req);
   if (blocked) return blocked;
@@ -1148,60 +1168,30 @@ export async function redeployLaunchRoute(req: Request) {
       platform: config.platform,
       appSourceId: body.appSourceId,
     });
-    const platformRepo = latest?.platformRepo;
-    const ciRunId =
-      latest?.ciRunId === null || latest?.ciRunId === undefined
-        ? ciRunIdFromUrl(latest?.ciUrl)
-        : String(latest.ciRunId);
-
-    if (!platformRepo || !isValidRepo(platformRepo) || !ciRunId) {
+    const deploymentId = latest?.deploymentId ?? null;
+    if (!deploymentId) {
       return NextResponse.json(
         {
           error:
-            "No backend-owned CI run is available for this source yet; refusing to reuse Deploy because GitHub can skip tree-identical pushes.",
+            "No backend-owned deployment is available for this source yet; refusing to reuse Deploy because GitHub can skip tree-identical pushes.",
         },
         { status: 409 },
       );
     }
 
-    const token = process.env.GITHUB_TOKEN?.trim();
-    if (!token) {
-      return NextResponse.json(
-        { error: "GitHub rerun token is not configured" },
-        { status: 503 },
-      );
-    }
-
-    const res = await fetch(
-      `https://api.github.com/repos/${platformRepo}/actions/runs/${ciRunId}/rerun`,
-      {
-        method: "POST",
-        headers: {
-          Accept: "application/vnd.github+json",
-          Authorization: `Bearer ${token}`,
-          "User-Agent": "aomi-build",
-          "X-GitHub-Api-Version": "2022-11-28",
-        },
-      },
-    );
-    if (!res.ok) {
-      const text = await res.text().catch(() => "");
-      return NextResponse.json(
-        {
-          error: `GitHub CI rerun failed (${res.status})${text ? `: ${text}` : ""}`,
-        },
-        { status: 502 },
-      );
-    }
-
+    // The backend re-runs the Actions run behind the deployment's recorded
+    // commit on its App installation token; no GitHub token in this layer.
+    const rerun = await client.rerunDeployment({
+      platform: config.platform,
+      deploymentId,
+      githubUserId: session.githubUserId,
+    });
     return NextResponse.json({
-      ok: true,
+      ok: rerun.ok,
       appSourceId: body.appSourceId,
-      platformRepo,
-      ciRunId,
-      ciUrl:
-        latest?.ciUrl ??
-        `https://github.com/${platformRepo}/actions/runs/${ciRunId}`,
+      platformRepo: latest?.platformRepo ?? null,
+      ciRunId: rerun.runId === null ? null : String(rerun.runId),
+      ciUrl: rerun.ciUrl ?? latest?.ciUrl ?? null,
     });
   } catch (err) {
     return launchErrorResponse(err);
@@ -1231,6 +1221,102 @@ export async function userSourcesRoute(req: Request) {
       platform: config.platform,
     });
     return NextResponse.json({ sources, githubLogin: session.githubLogin });
+  } catch (err) {
+    return launchErrorResponse(err);
+  }
+}
+
+// GET /api/bff/deployments/required-secrets?appSourceId=<n> — the declared
+// secret slots per app (from the release manifest) plus which required slots
+// are still unfilled in the vault. Read-only twin of the 409 backstop on
+// activate: lets the UI disable Activate and explain why before the user
+// clicks it, instead of only rejecting after the fact. Never returns secret
+// VALUES — only key names, descriptions, and the `required` flag.
+export async function requiredSecretsRoute(req: Request) {
+  const blocked = checkRead(req);
+  if (blocked) return blocked;
+
+  const auth = await requireSession();
+  if ("response" in auth) return auth.response;
+  const { session } = auth;
+
+  const appSourceId = Number(
+    new URL(req.url).searchParams.get("appSourceId"),
+  );
+  if (!isValidAppSourceId(appSourceId)) {
+    return NextResponse.json(
+      { error: "missing or invalid `appSourceId`" },
+      { status: 400 },
+    );
+  }
+
+  try {
+    const config = launchConfig();
+    const client = await deploymentClient();
+    const source = await findOwnedSource(
+      client,
+      session.githubUserId,
+      config.platform,
+      appSourceId,
+    );
+    if (!source) {
+      return NextResponse.json(
+        { error: "app source not found for this user" },
+        { status: 404 },
+      );
+    }
+
+    // Neither an unreachable GitHub token nor an unknown platform repo may
+    // block the UI: both degrade to empty slots rather than looking blocked.
+    // `source` comes from `findOwnedSource` -> `listUserSources`, and the
+    // backend deliberately returns `latest_deployment: null` there (it's lazy
+    // for the list); resolve the real value from the per-source
+    // latest-deployment detail endpoint instead, same as the redeploy route.
+    const githubToken = process.env.GITHUB_TOKEN?.trim();
+    let platformRepo = source.latestDeployment?.platformRepo ?? undefined;
+    if (githubToken && !platformRepo) {
+      try {
+        const latest = await client.getUserSourceLatestDeployment({
+          githubUserId: session.githubUserId,
+          platform: config.platform,
+          appSourceId: source.id,
+        });
+        platformRepo = latest?.platformRepo ?? undefined;
+      } catch {
+        platformRepo = undefined; // couldn't read deployment state → degrade to empty slots
+      }
+    }
+    const configured = await client.listAppSecrets({
+      githubUserId: session.githubUserId,
+      sourceId: String(source.id),
+    });
+
+    const byApp: Record<string, { slots: SecretSlot[]; missing: string[] }> =
+      {};
+    for (const app of source.apps) {
+      const releaseTag = app.appReleaseTag;
+      const slots =
+        githubToken && platformRepo && releaseTag
+          ? ((
+              await fetchReleaseSecretSlots({
+                platformRepo,
+                releaseTag,
+                githubToken,
+              })
+            )[app.name] ?? [])
+          : [];
+      const configuredKeys = (configured.byApp[app.name] ?? []).map(
+        (handle) => handle.split("::").pop() ?? handle,
+      );
+      byApp[app.name] = {
+        slots,
+        missing: missingRequiredSecrets(slots, configuredKeys).map(
+          (slot) => slot.name,
+        ),
+      };
+    }
+
+    return NextResponse.json({ byApp });
   } catch (err) {
     return launchErrorResponse(err);
   }

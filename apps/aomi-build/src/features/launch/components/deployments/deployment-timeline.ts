@@ -19,7 +19,7 @@ export type TimelineActivity = DeploymentRecord & {
   app: string;
 };
 
-function commitFromDeploymentId(deploymentId: string): string | null {
+export function commitFromDeploymentId(deploymentId: string): string | null {
   const parts = deploymentId.split("_");
   return parts.length === 4 ? parts[3] : null;
 }
@@ -67,6 +67,16 @@ export function buildDeploymentList(
   }
 
   return [...byId.values()].sort((a, b) => b.createdAt - a.createdAt);
+}
+
+/** Current first, then newest. Used after runtime remaps `current`. */
+export function sortDeploymentsForTimeline(
+  deployments: TimelineDeployment[],
+): TimelineDeployment[] {
+  return [...deployments].sort((a, b) => {
+    if (a.current !== b.current) return a.current ? -1 : 1;
+    return b.createdAt - a.createdAt;
+  });
 }
 
 export function buildActivityList(

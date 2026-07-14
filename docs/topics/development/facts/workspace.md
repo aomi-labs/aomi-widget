@@ -15,7 +15,7 @@ sources_of_truth:
 
 # Development Workspace
 
-`aomi-widget` is a pnpm workspace that ships the widget UI, React runtime, TypeScript client, CLI, auth support, and app validation surfaces from one TypeScript repo.
+`aomi` is a pnpm workspace that ships the widget UI, React runtime, TypeScript client, CLI, auth support, and app validation surfaces from one TypeScript repo.
 
 ## Workspace Shape
 

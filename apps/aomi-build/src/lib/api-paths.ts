@@ -42,6 +42,17 @@ export const API_PATHS = {
       redeploy: `${BFF}/deployments/redeploy`,
       promote: `${BFF}/deployments/promote`,
       sources: `${BFF}/deployments/sources`,
+      feed: (
+        limit: number,
+        cursor?: { createdAt: number; id: number } | null,
+      ) => {
+        const params = new URLSearchParams({ limit: String(limit) });
+        if (cursor) {
+          params.set("cursorCreatedAt", String(cursor.createdAt));
+          params.set("cursorId", String(cursor.id));
+        }
+        return `${BFF}/deployments/feed?${params}`;
+      },
       history: (appSourceId: number, limit?: number) => {
         const params = new URLSearchParams({
           appSourceId: String(appSourceId),
@@ -54,6 +65,8 @@ export const API_PATHS = {
         `${BFF}/deployments/status?deploymentId=${encodeURIComponent(deploymentId)}`,
       secrets: (appSourceId: number) =>
         `${BFF}/deployments/secrets?appSourceId=${appSourceId}`,
+      requiredSecrets: (appSourceId: number) =>
+        `${BFF}/deployments/required-secrets?appSourceId=${appSourceId}`,
       records: (app: string, appSourceId?: number) =>
         `${BFF}/deployments/records?app=${encodeURIComponent(app)}${
           appSourceId != null ? `&appSourceId=${appSourceId}` : ""
@@ -66,6 +79,9 @@ export const API_PATHS = {
       usage: `${BFF}/operate/usage`,
       logs: `${BFF}/operate/logs`,
       observability: `${BFF}/operate/observability`,
+    },
+    integrations: {
+      base: `${BFF}/integrations`,
     },
     e2e: {
       execute: `${BFF}/e2e/execute`,

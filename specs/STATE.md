@@ -2,6 +2,356 @@
 
 ## Last Updated
 
+2026-07-14 — Account menu: Docs (aomi.dev/docs) + Home page links (Vercel-style);
+2026-07-14 — Build P2 deep-link polish (⌘K / Billing / Overview → right tab);
+2026-07-14 — Create stack #343–#349 merged to main (left #340);
+2026-07-14 — Create Recent rail UX: one Create-header toggle (no double collapse);
+2026-07-14 — Create Recent rail: user open/collapse + localStorage (⌘B);
+2026-07-14 — Create composer: UI-only model picker mock (Aomi + Soon);
+2026-07-14 — Create templates: Browse all opens a sheet;
+2026-07-14 — Create mobile: hide Plan steps when Progress is in-thread;
+2026-07-14 — Create Recent titles: derive + dedupe (hello → unique);
+2026-07-14 — Create craft polish tranche (rail/empty/chat/stage/composer);
+2026-07-14 — Create craft review: jargon migrate + canvas;
+2026-07-14 — Create UI: builder language (no eng keywords in chat/sidebar);
+2026-07-14 — AI Builder P3 (#344): nodes + compile/aomi-run (review local first);
+2026-07-14 — AI Builder P0–P2 (#343): Create craft on /build;
+2026-07-14 — AI Builder P1 craft port: mock layout feel in ControlPlaneShell
+  (composer, stream, files, ship→Projects, in-page history; local mock timers);
+2026-07-14 — AI Builder P1: intent composer + templates + local session;
+2026-07-14 — AI-BUILDER-EXPERIENCE.md (Create / chat-mock port plan);
+2026-07-14 — Build AI Builder: enable sidebar Build + `/build` scaffold;
+2026-07-13 — Build P2 usage peek (Home meter → Operate Usage);
+2026-07-13 — Build P2 Deployments timeline (history that reads as history);
+2026-07-13 — Build Live status consistency (one story across list/Home/Deployments);
+2026-07-13 — Build P2 Project home (live / keys / Open Chat / usage glance);
+2026-07-13 — Build P1 control plane: ⌘K, toasts, Projects landing, glossary;
+2026-07-13 — Build P0 trust: Soon labels, gate Integrations Save, human errors;
+2026-07-13 — Build UI copy polish (em dashes / hedging essays);
+2026-07-13 — Billing option A: methods live on Chat (no fake Build fetch);
+2026-07-13 — BILLING-EXPERIENCE.md: backend ↔ UI map (code-checked)
+
+## Build P2 deep-link polish (2026-07-14)
+
+Branch `feat/build-p2-deep-links`:
+
+- Shared `deep-links.ts` for project tabs, last-project Home, Environment, Usage.
+- ⌘K Last project / Environment / Usage prefer last project when set.
+- Overview recent deploys → project Deployments tab; Usage card / Billing links
+  use last-project scoped Usage / Environment when available.
+
+## Create Recent sidebar toggle (2026-07-14)
+
+Branch `feat/build-recent-sidebar-toggle` (stack on #344 / p3):
+
+- Single mental model: Recent open OR closed.
+- Primary control: Create header panel icon (always visible); ⌘/Ctrl+B same state.
+- Closed = no left rail (header toggle reopens); removed in-Recent collapse + narrow History rail.
+- Preference persisted in localStorage; first visit defaults open on xl+ (after mount; SSR-safe).
+- Shell nav remains click-only.
+
+## Create composer model picker mock (2026-07-14)
+
+Branch `feat/build-model-picker-mock` (stack on #344):
+
+- Cursor-like model control on Create composer (`ComposerModelPicker`).
+- Current selection: **Aomi** only; Auto / Custom rows disabled with Soon.
+- Hardcoded mock — no Han API, no fake live model list fetch.
+- Keeps quiet **Preview** honesty chip beside the picker (no Aomi branding spam).
+- Product language only (no Smithers / eng jargon in UI).
+
+## Create template Browse all sheet (2026-07-14)
+
+- Empty Create keeps 3 featured templates; “Browse all” opens a right sheet
+  with the full template grid (Esc / overlay / X to dismiss).
+
+## Create mobile Progress/Plan dedupe (2026-07-14)
+
+- On `<lg`, Plan-steps cards stay hidden during generate so they do not compete
+  with the in-thread Progress timeline (rail Progress is lg+ only).
+
+## Create Recent title dedupe (2026-07-14)
+
+- `deriveSessionTitle` strips greeting fluff + soft-truncates; `uniqueSessionTitle`
+  avoids colliding sidebar labels; list remasters persisted dupes for display.
+
+## Create craft polish tranche (2026-07-14)
+
+Shipped the review next-tranche on Create (`/build`):
+
+- Right rail: single Progress timeline + Files (removed duplicate Build plan).
+- Empty Create: top-anchored hero, 3 featured templates + Browse all.
+- Chat density: tighter message/banner spacing; less mid-thread void.
+- Stage strip: `resolveDisplayJourneyStage` + verify-gate stream honesty
+  (Compile & test stays active until smoke test; Ship only when shipReady).
+- Composer: Preview chip only (no stacked Aomi / model chip) — superseded by
+  model picker mock above for the picker PR.
+
+## Create craft review + jargon migrate (2026-07-14)
+
+Screenshot review of empty Create + active session:
+
+- Stale localStorage still showed Local mock / Smithers / aomi-run after the
+  product-language pass — added `sanitize-session-copy` on load/save +
+  display guards; dropped redundant empty-state `aomi` chip and dual rail titles.
+- Craft canvas: `canvases/aomi-build-create-craft-review.canvas.tsx`
+- Follow-up tranche shipped (see above): rail / empty / chat / stage / composer.
+
+## Create product-language polish (2026-07-14)
+
+Branch `feat/build-p3-smithers-nodes`:
+
+- UI copy uses builder language only: Plan / Generator / Smoke test / Aomi /
+  Ready / Preview. Eng names (Smithers, aomi-run, Local mock, Han, etc.) stay
+  in types/comments, not rendered labels.
+- Chat: You (right) / Aomi (assistant) / quiet system; seed model = Aomi.
+- Sidebar sessions: Ready / In progress / Failed + journey stage titles.
+- Ship banner: Ready to ship + Download / Open Projects; GitHub init · soon.
+- Composer chip: Preview; blocked hint says smoke test (not aomi-run).
+
+## AI Builder P1 craft port (2026-07-14)
+
+Branch `feat/build-enable-route`:
+
+- Ported mock portal craft into `features/build/` inside ControlPlaneShell
+  (no BuildLayout, no Customize marketplace, no `/deploy/[id]`).
+- Empty: centered composer + templates; active: thread + stream, lg context
+  (files/stream), sticky compact composer, xl session list.
+- LocalStorage mock pipeline plan→generate→validate→ready mapped to journey
+  stages; ship banner → `/projects`; honest “Local mock” copy.
+
+## AI Builder P1 intent empty state (2026-07-14)
+
+Branch `feat/build-enable-route`:
+
+- Working intent composer + 8 templates (seed prompts).
+- Submit creates a local Create session + journey chrome.
+- Superseded visually by craft port (stream/files landed).
+
+## AI Builder experience plan (2026-07-14)
+
+- Added `apps/aomi-build/AI-BUILDER-EXPERIENCE.md`: Cecilia decode, platform
+  map, mock-vs-target, import policy, P0–P5 implementation phases.
+- Direction: adapt mock craft into live `features/build/` (not wholesale port).
+
+## Build AI Builder route (2026-07-14)
+
+Branch `feat/build-enable-route`:
+
+- Sidebar Build `enabled: true` (no Soon).
+- Real `/build` page scaffold: journey map + disabled “Start” (no Smithers
+  network yet). Manage path still Projects / Operate.
+
+## Build P2 usage peek (2026-07-13)
+
+Branch `feat/build-p2-usage-peek` (PR #335):
+
+- Home Usage card: credits + tokens + day spark; Environment ≠ Billing copy.
+- Deep link `/operate/usage?project=<id>`; Operate honors `?project=`.
+
+## Build P2 Deployments timeline (2026-07-13)
+
+Branch `feat/build-p2-deployments-timeline` (PR #334):
+
+- Deployments tab summary uses the same Live story + history count.
+- Rows lead with app names + Current; deployment id is secondary.
+- Current sorts first; relative timestamps; History / Promotions labels.
+
+## Build Live status consistency (2026-07-13)
+
+Branch `fix/build-live-status-consistency` (PR #331):
+
+- Shared `projectDeploymentStatus()` wraps `deploymentLifecycleFromSource`
+  so Projects list, Home, and Deployments tell the same Live story.
+- Deployments empty state: if live but records `[]`, show
+  "No deployment history yet" instead of "No deployments yet".
+
+## Build P2 Project home (2026-07-13)
+
+Branch `feat/build-p2-project-home` (PR #330):
+
+- Project pages default to a **Home** tab with Live / Environment / Chat /
+  Usage status cards and one Next CTA (deploy → keys → Open Chat).
+- Reuses `deploymentLifecycleFromSource`, secrets load, and operate usage peek.
+- Existing Deployments / Chat / Environment / Details tabs unchanged.
+
+## Build UI copy polish (2026-07-13)
+
+Branch `fix/build-ui-copy-polish`:
+
+- Shortened Settings, Billing, Secrets, Overview, Usage, Environment,
+  Integrations, and wizard user-facing copy.
+- Removed AI em dashes from product sentences; kept `—` only as empty
+  table/stat placeholders.
+
+## Build P0 trust — Soon, don't delete (2026-07-13)
+
+Branch `fix/build-p0-trust-soon`:
+
+- Integrations: Save gated (`Save · Soon`); no fake success on 501; forms kept.
+- Settings: `Planned` → `Soon`; unfinished sections stay listed as Coming soon.
+- Project Disconnect kept as `Disconnect · Soon` (disabled).
+- Sidebar Build already Soon (unchanged).
+- Auth sign-in + env errors humanized (`humanizeUserError`); no bearer essays.
+
+## Build P1 control plane craft (2026-07-13)
+
+Branch `feat/build-p1-control-plane`:
+
+- Glossary terms (Project / App / Deployment / Environment) in `lib/glossary.ts`.
+- Empty states use one CTA (`EmptyState`) on Projects, Deployments, Overview, Operate.
+- Global toasts for env save/delete and promote/deactivate.
+- ⌘K command palette (+ header Search) for Projects, Deployments, Usage, Settings.
+- Default `/` opens last project or `/projects`; Overview moved to `/overview`.
+- Desktop-first surface bar locked: desktop best path; tablet unbroken; phone
+  usable (Search icon always visible; full Search · ⌘K from `sm+`).
+
+## Billing option A — payment methods on Chat (2026-07-13)
+
+Branch `feat/billing-payment-methods-status`:
+
+- Account → Billing teaches BYOK/Tempo are on the Chat account; Build lacks
+  AccountBearer so we do not call `GET /api/account/payment`.
+- Adds Open Chat link; keeps Usage + Secrets; no fake method status.
+- Clarifies `accountScopedFetch` comment (auth not wired on Build).
+- Documents auth blocker + option A/B in `BILLING-EXPERIENCE.md` Phase C.
+
+## Billing experience — backend/UI map in plan doc (2026-07-13)
+
+- Expanded `apps/aomi-build/BILLING-EXPERIENCE.md` with control/data plane
+  mermaid, HTTP-vs-internal table, and Build UI now/should map (Cursor-style).
+
+## Account → Secrets stay-on-settings (2026-07-13)
+
+Branch `feat/settings-secrets-no-auto-redirect`:
+
+- Single-project path no longer `router.replace`s to Environment.
+- Account → Secrets stays put with teaching copy + **Open Environment** CTA.
+- 0 / 2+ behaviors unchanged. Tests updated in `settings-secrets-panel.test.tsx`.
+
+## Billing experience Phase A — settings sub-nav (2026-07-13)
+
+Branch `feat/builders-billing-experience-phase-a` (PR #319):
+
+- Added `SettingsNav`, `SettingsLayout`, and `settings/layout.tsx` so all
+  `/settings` routes share Account sub-navigation driven by `settings-data.ts`.
+- Overview + every section (including Soon stubs) is one click away; badges
+  show Available / Project-scoped / Soon; Billing + Secrets panels unchanged.
+- Test: `settings-nav.test.tsx`.
+
+## Billing experience plan rename (2026-07-12)
+
+- Renamed `apps/aomi-build/BILLING-CLARITY.md` → `BILLING-EXPERIENCE.md`
+  (matches `BUILDERS-EXPERIENCE.md` naming). Content uses "Billing Experience";
+  A→D phases and mental model unchanged.
+- Local branch renamed to `feat/builders-billing-experience-phase-a`
+  (was unpushed `feat/builders-billing-phase-a-clarity`).
+
+## Overview read-path perf (2026-07-11, aomi-build)
+
+Follow-up to the Codex performance review of PR #309 / product-mono#787 —
+the initial Overview load path, which the first round left untouched:
+
+- `useProjects` now consumes the shell-level `GitHubSessionProvider` instead
+  of refetching `/auth/github/status` (one session round trip per page, not
+  two).
+- Overview renders its shell immediately once the session is known; project
+  stats and the deployments card hydrate independently (no more full-page
+  `Loading overview...` gate on the sources fetch).
+- `useGlobalDeploymentRecords` fetches per-source `deploymentHistory()` (one
+  call per source, DB-backed via the `deployments` projection after
+  product-mono#787) instead of `deploymentRecords()` per app per source.
+  Needs backend `created_at` in deployment JSON (added in #787 branch) for
+  cross-source sorting; legacy records sort last at 0.
+- Operate BFF `ownedSources` caches `listUserSources` per user+platform for
+  15s with in-flight coalescing — concurrent operate widgets share one
+  backend ownership lookup.
+- NOT addressed (pre-existing, unrelated failures): `deploy-step.test.tsx` /
+  `project-row.test.tsx` fail at the branch base; another session appears to
+  be fixing them — left alone.
+- Projection cold start (Codex point 5) needs no new code: both latest and
+  history GitHub fallbacks already write back via `project_deployment`, so
+  each legacy source pays GitHub once and is DB-served afterwards.
+
+## Deploy control-plane plan (2026-07-10)
+
+- Drafted `docs/topics/deploy-control-plane-plan.md`: phased plan to restore
+  the "GitHub only behind the BE" invariant — Phase 1 BE rerun endpoint +
+  delete `enrichPendingCiStatus`/`githubToken` from app and
+  `@aomi-labs/deploy`; Phase 2 webhook-fed DB projection (kills per-poll
+  GitHub fan-out and the manifest/DB dual source of truth); Phase 3 R2
+  artifact store for release assets; Phase 4 extract a Rust control-plane bin
+  (move, not copy). Decisions + rejected alternatives recorded in the doc.
+- Working tree (`fix/deploy-flow-usability`, uncommitted): `commitMatches`
+  redeploy stale-run fix, activation error surfacing, sign-out wizard-state
+  reset, refresh latch fix, `settleBySource` operate fault tolerance.
+  Verified: launch suite 32/32, typecheck, lint. Note: the package copy
+  (`packages/deploy/src/bff/launch-routes.ts`) still has the pre-fix
+  `?? runs[0]` stale-fail behavior — either port or accept until Phase 1
+  deletes the function.
+- Phases 0–2 of the plan are IMPLEMENTED and verified in working trees
+  (uncommitted): Phase 1 backend (rerun endpoint, `CiOutcome.run_id`, run-URL
+  deep link) + Phase 1 TS (enrich/`githubToken` deleted from aomi-build,
+  portal AND `packages/deploy`; redeploy repointed via new
+  `DeploymentClient.rerunDeployment()`; OpenAPI fixture + route manifests
+  regenerated) + Phase 2 (github_ci_runs migration/entity, workflow_run
+  webhook projection, projection-first `resolve_deploy_ci` with 30-min
+  in-flight trust window + backfill, rerun marks row queued, release reads
+  skipped while CI in flight). Verified: backend 195/195 + fmt + clippy;
+  widget workspace 630 passed + typechecks. Phase 1 TS deletions subsume the
+  Phase 0 `commitMatches` fix; the other four Phase 0 fixes are intact in
+  this diff. Phases 3–4 intentionally blocked (see plan doc §5): Phase 4
+  moves the files Phases 1–2 edited (land those first); Phase 3 needs an R2
+  bucket + creds; both need the bin-name call.
+- Operational follow-ups for Phase 2: run the new supabase migration;
+  subscribe the GitHub App to `workflow_run` webhooks; grant the App
+  `Actions: read + write`.
+- Decisions locked (plan doc §6): control-plane bin = `aomi/bin/manager`;
+  R2 provisioning agent-driven via wrangler; keep polling (no SSE);
+  partner-scoped bearers as their own change before first partner onboards.
+- 2026-07-10 later session: Phase 2 REDESIGNED per Cecilia — `github_ci_runs`
+  replaced by a proper `deployments` projection table (full manifest JSONB +
+  indexed columns + webhook-fed ci_* columns; write-through at deploy, lazy
+  backfill on status reads, workflow_run webhook matching by repo+branch+
+  commit-prefix). Phase 3 CODE done: `crates/artifact-store` (config-gated
+  R2/SigV4 client) + cache-through in `AppFetcher::fetch`. NO live
+  Cloudflare changes; R2 is not even enabled on the account yet (dashboard
+  step, Cecilia). All verified: backend 195/195, database + runtime + crate
+  tests, fmt, clippy. Pre-existing env failure: runtime
+  `all_plugins_load_and_have_valid_manifests` fails on SDK 3.0.1 dylibs vs
+  3.0.2 host (see teammate's `docs/plans/2026-07-10-sdk-bump-app-rebuild.md`).
+- Phase 4 CODE done, then upgraded to a physical extraction (Cecilia's
+  call): the deploy domain — `platforms/*` handlers, deploy-surface HTTP
+  endpoints (+webhook), activation auth (`PlatformActivationToken`,
+  `Activation`, `AuthorizationHeaderExt`), and the `github_app.*.toml`
+  configs — now LIVES in the `manager` crate (`aomi/bin/manager`, lib+bin,
+  edition 2021). Dependency arrow: backend → manager (never reverse);
+  backend re-exports keep `crate::handler::platforms::*` /
+  `crate::auth::Activation` paths alive for its remaining callers (runtime
+  reconciler, runtime-coupled `apps` endpoints, AuthRouter). Endpoints are
+  substate-typed (`State<PlatformHandler>`/`State<DbPool>`) so the same fns
+  mount in both routers. `PlatformHandler::new(&SharedRuntime)` was dropped
+  (backend constructs via `from_pool`), keeping manager runtime-free.
+  Deploy workflow toml paths updated to `aomi/bin/manager/…` (repo file
+  only). Tests: backend 135 + manager 60 = same 195, all green; fmt +
+  clippy clean of new warnings. NO infra/live changes anywhere.
+- Read-path perf fixes done + committed (commit 2 on seperate-github-proxy):
+  card hydration (`user_source_latest_deployment`), history
+  (`user_source_deployments`), and the `deployment_status` hot-poll window
+  now serve from the `deployments` projection (record JSONB + webhook-fed
+  CI); GitHub only on row-miss, with lazy write-back backfill. New
+  `DbDeployment::list_for_source` + widened index in the unapplied
+  migration. Projects/Overview page loads become GitHub-free once each
+  source has one row.
+- Next (Cecilia): review + land both repos' diffs; run the deployments
+  migration; GitHub App settings (workflow_run webhook + Actions r/w);
+  enable R2 in the Cloudflare dashboard → I provision bucket/token + env;
+  infra cutover for manager (systemd unit + edge routes + webhook URL) when
+  ready. Ops note: freed ~80GB by deleting product-mono cargo incremental
+  cache (disk hit ENOSPC mid-build; cache regenerates).
+
+## Staging account and environment fixes (2026-07-11)
+
 2026-07-11 — Staging Para sign-in fix (PARA_JWT_AUDIENCE) + blank-env hardening
 
 ## Staging Para sign-in broken: aud mismatch (2026-07-11)
@@ -304,6 +654,85 @@ publishing 0.2.0; unifying the portal's own launch routes onto these factories.
 
 ## Recent Changes
 
+### Working trace: windowed view with animated expand/collapse (2026-07-07)
+
+Branch `feat/working-trace-a`. A long turn's trace marched down the whole screen.
+The open trace (live or after completion) is now **capped to a scrolling window**
+(~5 steps / `WORKING_WINDOW_PX = 260`): newest steps stay pinned at the bottom via
+flex `justify-end`, older ones clip and dissolve under a top mask. A "Show all N
+steps" pill lifts the cap; "Collapse to recent steps" restores it. Both directions
+tween the window height with the **Web Animations API** (`WINDOW_ANIM_MS = 300`,
+ease-out), which — unlike a CSS transition — animates cleanly to/from the uncapped
+`auto` height in both directions. Entirely presentational — no
+runtime/merge/interpreter changes. The pill uses a horizontal-ellipsis marker (not
+a chevron) so its glyph doesn't point at the header's open-chevron above it.
+
+- `apps/shadcn-registry/src/components/assistant-ui/working-trace.tsx`
+  (`WorkingTrace`): `expanded`/`overflowing`/`animating` state + `viewportRef`/
+  `bodyRef`; a `windowed = !expanded` viewport with `maxHeight`/`overflow-hidden`
+  and flex-end pinning; an effect measuring overflow (`bodyRef` natural height vs
+  the cap); a layout effect that runs a WAAP `max-height` tween when `expanded`
+  flips (skipped under reduced motion); the "Show all N steps" /
+  "Collapse to recent steps" pill.
+- `apps/shadcn-registry/src/themes/default.css`: new `.aui-working-trace-windowed`
+  rule — a `mask-image` gradient fading the top 60px (applied only while content
+  overflows and not mid-tween, so short traces are never faded).
+- Verified: file typecheck (only pre-existing unrelated wallet-kit test errors)
+  and eslint green. `packages/react/dist` rebuilt to sync the earlier
+  `SUBMITTING_TO_WORKING_GRACE_MS` source change (650→300). Live streaming path
+  (needs a real multi-tool agent turn) exercised in the user's environment.
+
+### Working trace: paced/staggered reveal (2026-07-07)
+
+Branch `feat/working-trace-a`. The Working trace looked "aggressive" — a burst of
+2-4 tool calls flashed in together and chips popped all at once, because tool
+steps arrive already-complete and a burst lands in one `messages` event, so React
+committed every `WorkingStep` in a single frame. Fix is entirely in
+`apps/shadcn-registry/src/components/assistant-ui/working-trace.tsx` +
+a shimmer tweak in `src/themes/default.css` (no backend/runtime change):
+
+- New `useStaggeredReveal(target, running)` hook reveals trace items one at a
+  time. Adaptive cadence (1200ms base, tightening to ~360ms as backlog grows) so a
+  model running ahead is caught up fast and in order; a ~220ms tail drain once the
+  turn ends so the final answer is never gated on the stagger. Respects
+  `prefers-reduced-motion`.
+- Hook lifted into `AssistantTurnParts`; the answer now reveals only after the
+  trace fully catches up. The newest revealed step shimmers as "live" (frontier
+  follows the reveal); auto-collapse waits for full reveal + a 500ms grace.
+- Chips fan in left-to-right via CSS `animationDelay` (100 + i·70ms) with
+  `fill-mode-both`. Shimmer slowed to `3.8s ease-in-out`.
+- Entrance animations play once: an `animatedCount` ref in `WorkingTrace` (survives
+  the body's collapse/remount) gates each item's animate class on first reveal, so
+  reopening a finished trace shows steps/chips static.
+- Pacing only applies to a turn that's live at mount (`useStaggeredReveal` seeds
+  `revealed = target` when not running), so a reloaded/scrollback/completed turn
+  reveals everything at once and the answer never sits behind a replayed animation.
+- Collapse is animated (grid-rows 1fr→0fr + opacity over 300ms, body stays
+  mounted) instead of snapping shut. The final answer fake-streams via a ~500ms
+  ease-out synthetic typewriter (`FakeStreamedText`); both the fake-stream and the
+  entrance are gated on `liveTurn` (a `liveTurnRef` in `AssistantTurnParts`) so a
+  loaded/completed turn renders the answer in full with no replay.
+- Plain replies (no tool calls) buffer while the turn is still running, because
+  text before the first tool call is provisional and may move into the Working
+  trace if a tool arrives later. If no tool arrives, the settled final answer
+  fake-streams through `FakeStreamedText` after completion, matching post-tool
+  answer behavior without the pre-tool text jumping.
+- Runtime turn merging only folds assistant runs that contain tool-call parts.
+  Contiguous text-only assistant fragments are treated as backend streaming
+  snapshots and collapse to the latest fragment, preventing duplicate replies
+  such as `...?Hey — ...` from being glued into one final bubble.
+- Text finalization also conservatively collapses a single text fragment that
+  already contains the same answer twice back-to-back, records
+  `control.lastCompletedAt` when a turn settles so late-mounted answers can
+  fake-stream, and keeps final-answer text normalization in the runtime instead
+  of duplicating fuzzy UI-side cleanup.
+- The generated assistant-thread registry payload and landing `/r` mirror were
+  refreshed so installed/served widgets get the same final-answer reveal branch.
+- Verified: focused React runtime/chat Vitest coverage, targeted ESLint, React
+  package build, widget registry build, and generated assistant-thread payload
+  guards with pinned `pnpm@10.28.0`. Not yet eyeballed on a live tool-calling
+  turn (needs backend + funded wallet).
+
 ### Auth docs cleanup pass (2026-07-02)
 
 Branch `codex/merge-bff-betterauth`. Consolidated the stale root
@@ -358,7 +787,7 @@ load until a manual page refresh.
 
 - **Root cause:** the thread-list effect in
   `packages/react/src/runtime/user-state-provider.tsx` fires when `isConnected`
-  flips true, but `isConnected` is forwarded from wallet *connection*
+  flips true, but `isConnected` is forwarded from wallet _connection_
   (`apps/registry/.../wallet-kit/context.tsx` -> `identity.isConnected`), which
   lands before the SIWE/provider sign-in writes the BetterAuth `better-auth.session_token`
   cookie. On the portal every `/api/*` call is same-origin through the BFF proxy

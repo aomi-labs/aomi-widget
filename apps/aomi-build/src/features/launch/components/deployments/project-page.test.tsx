@@ -1,10 +1,30 @@
-import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, expect, it, vi, beforeEach } from "vitest";
+import { render, screen, within } from "@testing-library/react";
+import { ToastProvider } from "@build/components/control-plane/toast";
+
+const searchParams = { current: new URLSearchParams("") };
 
 vi.mock("next/navigation", () => ({
-  useSearchParams: () => new URLSearchParams("tab=environment"),
+  useSearchParams: () => searchParams.current,
   useRouter: () => ({ push: vi.fn() }),
 }));
+
+vi.mock("@build/features/operate/client", () => ({
+  operateFetch: vi.fn(async () => ({ daily: [] })),
+}));
+
+vi.mock("@aomi-labs/deploy/lifecycle", () => ({
+  deploymentLifecycleFromSource: () => ({
+    kind: "empty",
+    repo: "a/b",
+    statusLabel: "No deployment",
+    statusTone: "muted",
+    message: "No deployment recorded yet.",
+    appNames: [],
+    releaseTags: [],
+  }),
+}));
+
 vi.mock("@build/features/launch/hooks/use-project-detail", () => ({
   useProjectDetail: () => ({
     source: {
@@ -21,21 +41,55 @@ vi.mock("@build/features/launch/hooks/use-project-detail", () => ({
     historyError: null,
     secretsByApp: {},
     secretsError: null,
+    requiredSecrets: null,
+    requiredSecretsError: null,
+    loadRequiredSecrets: vi.fn(),
+    hasMissingSecrets: () => false,
+    recordsByApp: {},
+    recordsError: null,
+    deployFlow: { phase: "idle" },
     loadHistory: vi.fn(),
     loadSecrets: vi.fn(),
+    loadRecords: vi.fn(),
     rollback: vi.fn(),
     reload: vi.fn(),
+    deployNewVersion: vi.fn(),
+    promote: vi.fn(),
+    deactivate: vi.fn(),
   }),
 }));
 
 import { ProjectPage } from "./project-page";
 
+function renderPage() {
+  return render(
+    <ToastProvider>
+      <ProjectPage sourceId={1} tabBaseHref="/projects/1" />
+    </ToastProvider>,
+  );
+}
+
 describe("ProjectPage", () => {
-  it("renders the tab named by ?tab=", () => {
-    render(<ProjectPage sourceId={1} />);
-    expect(screen.getByRole("tab", { name: /environment/i })).toHaveAttribute(
+  beforeEach(() => {
+    searchParams.current = new URLSearchParams("");
+  });
+
+  it("defaults to the Home tab", () => {
+    renderPage();
+    expect(screen.getByRole("tab", { name: /^home$/i })).toHaveAttribute(
       "aria-selected",
       "true",
     );
+    expect(screen.getByText("Project home")).toBeInTheDocument();
+  });
+
+  it("renders the tab named by ?tab=", () => {
+    searchParams.current = new URLSearchParams("tab=deployments");
+    renderPage();
+    const projectTabs = screen.getAllByRole("tablist")[0];
+    expect(
+      within(projectTabs).getByRole("tab", { name: /^deployments$/i }),
+    ).toHaveAttribute("aria-selected", "true");
+    expect(screen.queryByText("Project home")).not.toBeInTheDocument();
   });
 });

@@ -498,7 +498,8 @@ function initThreadControl() {
     app: null,
     applicationId: null,
     controlDirty: false,
-    isProcessing: false
+    isProcessing: false,
+    turnPhase: "idle"
   };
 }
 var ThreadStore = class {
@@ -1610,7 +1611,7 @@ function toInboundMessage(msg) {
   if (msg.content && msg.content.trim().length > 0) {
     content.push({ type: "text", text: msg.content });
   }
-  const [topic, toolContent] = (_a = parseToolPayload(msg)) != null ? _a : [];
+  const [topic, toolContent] = (_a = parseToolResult(msg.tool_result)) != null ? _a : [];
   if (topic && toolContent) {
     content.push({
       type: "tool-call",
@@ -1634,9 +1635,6 @@ function toInboundMessage(msg) {
     content
   }, msg.timestamp && { createdAt: new Date(msg.timestamp) });
   return threadMessage;
-}
-function parseToolPayload(msg) {
-  return parseToolResult(msg.tool_result);
 }
 function parseToolResult(toolResult) {
   if (!toolResult) return null;
@@ -1681,7 +1679,175 @@ var formatAddress = (addr) => addr ? `${addr.slice(0, 6)}...${addr.slice(-4)}` :
 var SUPPORTED_CHAINS = [...import_client4.SUPPORTED_CHAINS];
 var getChainInfo = (chainId) => chainId === void 0 ? void 0 : SUPPORTED_CHAINS.find((c) => c.id === chainId);
 
+// src/runtime/merge-turns.ts
+var hasNoticeKind = (message) => {
+  var _a, _b;
+  return Boolean(
+    (_b = (_a = message.metadata) == null ? void 0 : _a.custom) == null ? void 0 : _b.aomiNoticeKind
+  );
+};
+var isMergeableAssistant = (message) => message.role === "assistant" && !hasNoticeKind(message);
+var toContentParts = (content) => {
+  if (typeof content === "string") {
+    return content.length > 0 ? [{ type: "text", text: content }] : [];
+  }
+  return [...content];
+};
+var hasToolCallPart = (message) => toContentParts(message.content).some(
+  (part) => part.type === "tool-call"
+);
+var isTextPart = (part) => part.type === "text" && typeof part.text === "string";
+var collapseExactlyRepeatedText = (text) => {
+  const trimmed = text.trim();
+  for (let len = Math.floor(trimmed.length / 2); len >= 20; len--) {
+    const prefix = trimmed.slice(0, len);
+    const suffix = trimmed.slice(trimmed.length - len);
+    const middle = trimmed.slice(len, trimmed.length - len);
+    if (prefix === suffix && middle.trim().length === 0) {
+      return collapseExactlyRepeatedText(suffix);
+    }
+  }
+  return trimmed;
+};
+var normalizeTextOnlyMessage = (message) => {
+  const parts = toContentParts(message.content);
+  if (parts.length === 0 || parts.some((part) => !isTextPart(part))) {
+    return message;
+  }
+  return __spreadProps(__spreadValues({}, message), {
+    content: [
+      {
+        type: "text",
+        text: collapseExactlyRepeatedText(
+          parts.filter(isTextPart).map((part) => part.text).join("\n\n")
+        )
+      }
+    ]
+  });
+};
+var reindexToolCallIds = (message, messageIndex) => {
+  if (typeof message.content === "string") return message;
+  let changed = false;
+  const content = message.content.map((part, i) => {
+    if (part.type === "tool-call") {
+      changed = true;
+      return __spreadProps(__spreadValues({}, part), { toolCallId: `aomi-tc-${messageIndex}-${i}` });
+    }
+    return part;
+  });
+  return changed ? __spreadProps(__spreadValues({}, message), { content }) : message;
+};
+function mergeAssistantTurns(messages) {
+  const out = [];
+  let run = [];
+  const flush = () => {
+    if (run.length === 0) return;
+    if (run.length === 1) {
+      out.push(normalizeTextOnlyMessage(run[0]));
+    } else if (!run.some(hasToolCallPart)) {
+      out.push(normalizeTextOnlyMessage(run[run.length - 1]));
+    } else {
+      const first = run[0];
+      const mergedContent = [];
+      for (const message of run) {
+        mergedContent.push(...toContentParts(message.content));
+      }
+      out.push(__spreadProps(__spreadValues({}, first), {
+        content: mergedContent
+      }));
+    }
+    run = [];
+  };
+  for (const message of messages) {
+    if (isMergeableAssistant(message)) {
+      run.push(message);
+    } else {
+      flush();
+      out.push(message);
+    }
+  }
+  flush();
+  return out.map((message, index) => reindexToolCallIds(message, index));
+}
+
 // src/runtime/orchestrator.ts
+var MESSAGE_PROJECTION_STORAGE_PREFIX = "aomi:message-projection:v1:";
+var getMessageProjectionStorageKey = (threadId) => `${MESSAGE_PROJECTION_STORAGE_PREFIX}${threadId}`;
+var readMessageProjection = (threadId) => {
+  if (typeof window === "undefined") return null;
+  const key = getMessageProjectionStorageKey(threadId);
+  const raw = window.localStorage.getItem(key);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed.ranges) || parsed.ranges.some(
+      (range) => !Number.isSafeInteger(range.start) || range.start < 0 || range.end !== null && (!Number.isSafeInteger(range.end) || range.end < range.start)
+    )) {
+      throw new Error("Invalid message projection");
+    }
+    return parsed;
+  } catch (e) {
+    window.localStorage.removeItem(key);
+    return null;
+  }
+};
+var writeMessageProjection = (threadId, projection) => {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(
+    getMessageProjectionStorageKey(threadId),
+    JSON.stringify(projection)
+  );
+};
+var clearMessageProjection = (threadId) => {
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem(getMessageProjectionStorageKey(threadId));
+};
+var selectProjectedMessageEntries = (messages, projection) => {
+  if (!projection) {
+    return messages.map((message, rawIndex) => ({ message, rawIndex }));
+  }
+  return projection.ranges.flatMap((range) => {
+    var _a;
+    const end = Math.min((_a = range.end) != null ? _a : messages.length, messages.length);
+    const entries = [];
+    for (let rawIndex = range.start; rawIndex < end; rawIndex += 1) {
+      const message = messages[rawIndex];
+      if (message) entries.push({ message, rawIndex });
+    }
+    return entries;
+  });
+};
+var projectInboundMessages = (messages, projection) => {
+  const projectedMessages = [];
+  for (const { message } of selectProjectedMessageEntries(
+    messages,
+    projection
+  )) {
+    const converted = toInboundMessage(message);
+    if (converted) projectedMessages.push(converted);
+  }
+  return mergeAssistantTurns(projectedMessages);
+};
+var truncateProjectionBefore = (projection, rawIndex) => {
+  var _a, _b;
+  const sourceRanges = (_a = projection == null ? void 0 : projection.ranges) != null ? _a : [
+    { start: 0, end: null }
+  ];
+  const prefix = [];
+  for (const range of sourceRanges) {
+    const rangeEnd = (_b = range.end) != null ? _b : Number.POSITIVE_INFINITY;
+    if (rawIndex >= rangeEnd) {
+      prefix.push(range);
+      continue;
+    }
+    if (rawIndex > range.start) {
+      prefix.push({ start: range.start, end: rawIndex });
+    }
+    break;
+  }
+  return prefix;
+};
+var SUBMITTING_TO_WORKING_GRACE_MS = 300;
 var toErrorMessage = (error) => error instanceof Error ? error.message : "Message failed to send";
 var getHttpStatus = (error) => {
   const status = error == null ? void 0 : error.status;
@@ -1751,6 +1917,17 @@ var updateOptimisticMessage = (threadContext, threadId, messageId, status, error
     threadContext.setThreadMessages(threadId, nextMessages);
   }
 };
+var updateTurnPhase = (threadContext, threadId, turnPhase, options) => {
+  const metadata = threadContext.getThreadMetadata(threadId);
+  if (!metadata || metadata.control.turnPhase === turnPhase && !(options == null ? void 0 : options.completed)) {
+    return;
+  }
+  threadContext.updateThreadMetadata(threadId, {
+    control: __spreadValues(__spreadProps(__spreadValues({}, metadata.control), {
+      turnPhase
+    }), (options == null ? void 0 : options.completed) ? { lastCompletedAt: Date.now() } : null)
+  });
+};
 var appendPaymentRequiredMessage = (threadContext, threadId) => {
   var _a, _b;
   const messages = threadContext.getThreadMessages(threadId);
@@ -1783,7 +1960,31 @@ function useRuntimeOrchestrator(aomiClient, options) {
   const pendingFetches = (0, import_react10.useRef)(/* @__PURE__ */ new Set());
   const initialStatePromises = (0, import_react10.useRef)(/* @__PURE__ */ new Map());
   const hydratedThreadIds = (0, import_react10.useRef)(/* @__PURE__ */ new Set());
+  const messageProjections = (0, import_react10.useRef)(/* @__PURE__ */ new Map());
+  const loadedMessageProjectionIds = (0, import_react10.useRef)(/* @__PURE__ */ new Set());
   const listenerCleanups = (0, import_react10.useRef)(/* @__PURE__ */ new Map());
+  const getMessageProjection = (0, import_react10.useCallback)((threadId) => {
+    var _a;
+    if (!loadedMessageProjectionIds.current.has(threadId)) {
+      loadedMessageProjectionIds.current.add(threadId);
+      const stored = readMessageProjection(threadId);
+      if (stored) messageProjections.current.set(threadId, stored);
+    }
+    return (_a = messageProjections.current.get(threadId)) != null ? _a : null;
+  }, []);
+  const setMessageProjection = (0, import_react10.useCallback)(
+    (threadId, projection) => {
+      loadedMessageProjectionIds.current.add(threadId);
+      messageProjections.current.set(threadId, projection);
+      writeMessageProjection(threadId, projection);
+    },
+    []
+  );
+  const deleteMessageProjection = (0, import_react10.useCallback)((threadId) => {
+    loadedMessageProjectionIds.current.delete(threadId);
+    messageProjections.current.delete(threadId);
+    clearMessageProjection(threadId);
+  }, []);
   const cleanupSessionListeners = (0, import_react10.useCallback)((threadId) => {
     var _a;
     (_a = listenerCleanups.current.get(threadId)) == null ? void 0 : _a();
@@ -1796,9 +1997,10 @@ function useRuntimeOrchestrator(aomiClient, options) {
       pendingFetches.current.delete(threadId);
       initialStatePromises.current.delete(threadId);
       hydratedThreadIds.current.delete(threadId);
+      deleteMessageProjection(threadId);
       (_a = sessionManagerRef.current) == null ? void 0 : _a.close(threadId);
     },
-    [cleanupSessionListeners]
+    [cleanupSessionListeners, deleteMessageProjection]
   );
   const closeIdleSessionsExcept = (0, import_react10.useCallback)(
     (activeThreadId) => {
@@ -1821,6 +2023,8 @@ function useRuntimeOrchestrator(aomiClient, options) {
     pendingFetches.current.clear();
     initialStatePromises.current.clear();
     hydratedThreadIds.current.clear();
+    messageProjections.current.clear();
+    loadedMessageProjectionIds.current.clear();
     for (const threadId of Array.from(listenerCleanups.current.keys())) {
       cleanupSessionListeners(threadId);
     }
@@ -1865,11 +2069,8 @@ function useRuntimeOrchestrator(aomiClient, options) {
       const cleanups = [];
       cleanups.push(
         session.on("messages", (msgs) => {
-          const threadMessages = [];
-          for (const msg of msgs) {
-            const converted = toInboundMessage(msg);
-            if (converted) threadMessages.push(converted);
-          }
+          const projection = getMessageProjection(threadId);
+          const threadMessages = projectInboundMessages(msgs, projection);
           const existingMessages = threadContextRef.current.getThreadMessages(threadId);
           if (threadMessages.length === 0 && hasUnhydratedOptimisticMessage(existingMessages)) {
             return;
@@ -1879,6 +2080,7 @@ function useRuntimeOrchestrator(aomiClient, options) {
       );
       cleanups.push(
         session.on("processing_start", () => {
+          updateTurnPhase(threadContextRef.current, threadId, "working");
           if (threadContextRef.current.currentThreadId === threadId) {
             setIsRunning(true);
           }
@@ -1886,6 +2088,9 @@ function useRuntimeOrchestrator(aomiClient, options) {
       );
       cleanups.push(
         session.on("processing_end", () => {
+          updateTurnPhase(threadContextRef.current, threadId, "idle", {
+            completed: true
+          });
           if (threadContextRef.current.currentThreadId === threadId) {
             setIsRunning(false);
           }
@@ -1928,7 +2133,7 @@ function useRuntimeOrchestrator(aomiClient, options) {
       return session;
     },
     // Stable deps — option getters are refs
-    []
+    [getMessageProjection]
   );
   const ensureInitialState = (0, import_react10.useCallback)(
     async (threadId) => {
@@ -2006,6 +2211,12 @@ function useRuntimeOrchestrator(aomiClient, options) {
       threadContextRef.current.updateThreadMetadata(threadId, {
         lastActiveAt: (/* @__PURE__ */ new Date()).toISOString()
       });
+      updateTurnPhase(threadContextRef.current, threadId, "submitting");
+      const submittingFallbackTimer = setTimeout(() => {
+        const metadata = threadContextRef.current.getThreadMetadata(threadId);
+        if ((metadata == null ? void 0 : metadata.control.turnPhase) !== "submitting") return;
+        updateTurnPhase(threadContextRef.current, threadId, "working");
+      }, SUBMITTING_TO_WORKING_GRACE_MS);
       if (threadContextRef.current.currentThreadId === threadId) {
         setIsRunning(true);
       }
@@ -2023,6 +2234,7 @@ function useRuntimeOrchestrator(aomiClient, options) {
           sessionId: session.sessionId
         });
         await session.sendAsync(text);
+        clearTimeout(submittingFallbackTimer);
         console.debug("[aomi][runtime] sendMessage sendAsync complete", {
           threadId,
           sessionId: session.sessionId,
@@ -2030,6 +2242,11 @@ function useRuntimeOrchestrator(aomiClient, options) {
           pendingRequestCount: session.getPendingRequests().length
         });
         (_d = (_c = optionsRef.current).onSendSuccess) == null ? void 0 : _d.call(_c, threadId);
+        if (!session.getIsProcessing()) {
+          updateTurnPhase(threadContextRef.current, threadId, "idle", {
+            completed: true
+          });
+        }
         if (threadContextRef.current.currentThreadId === threadId) {
           setIsRunning(session.getIsProcessing());
         }
@@ -2044,6 +2261,7 @@ function useRuntimeOrchestrator(aomiClient, options) {
           session.getPendingRequests()
         );
       } catch (error) {
+        clearTimeout(submittingFallbackTimer);
         console.error("[aomi][runtime] sendMessage failed", {
           threadId,
           messagePreview: previewText(text),
@@ -2052,6 +2270,7 @@ function useRuntimeOrchestrator(aomiClient, options) {
         if (threadContextRef.current.currentThreadId === threadId) {
           setIsRunning(false);
         }
+        updateTurnPhase(threadContextRef.current, threadId, "idle");
         updateOptimisticMessage(
           threadContextRef.current,
           threadId,
@@ -2068,11 +2287,65 @@ function useRuntimeOrchestrator(aomiClient, options) {
     },
     [getSession]
   );
+  const regenerateMessage = (0, import_react10.useCallback)(
+    async (threadId, messageId, replacementText) => {
+      var _a;
+      const visibleMessages = threadContextRef.current.getThreadMessages(threadId);
+      const explicitIndex = visibleMessages.findIndex(
+        (message) => message.id === messageId
+      );
+      const numericIndex = explicitIndex === -1 && messageId !== null && /^\d+$/.test(messageId) ? Number(messageId) : -1;
+      let userMessageIndex = explicitIndex !== -1 ? explicitIndex : numericIndex;
+      if (userMessageIndex < 0 || userMessageIndex >= visibleMessages.length) {
+        throw new Error("Message to regenerate was not found.");
+      }
+      while (userMessageIndex >= 0 && ((_a = visibleMessages[userMessageIndex]) == null ? void 0 : _a.role) !== "user") {
+        userMessageIndex -= 1;
+      }
+      const userMessage = visibleMessages[userMessageIndex];
+      if (!userMessage || userMessage.role !== "user") {
+        throw new Error("Regeneration requires a user message.");
+      }
+      const originalText = typeof userMessage.content === "string" ? userMessage.content.trim() : userMessage.content.filter(
+        (part) => part.type === "text"
+      ).map((part) => part.text).join("\n").trim();
+      const nextText = (replacementText == null ? void 0 : replacementText.trim()) || originalText;
+      if (!nextText) {
+        throw new Error("Regeneration requires message text.");
+      }
+      const session = getSession(threadId);
+      const rawMessages = session.getMessages();
+      const currentProjection = getMessageProjection(threadId);
+      const userOrdinal = visibleMessages.slice(0, userMessageIndex + 1).filter((message) => message.role === "user").length;
+      const targetEntry = selectProjectedMessageEntries(
+        rawMessages,
+        currentProjection
+      ).filter(({ message }) => message.sender === "user")[userOrdinal - 1];
+      if (!targetEntry) {
+        throw new Error("Backend message to regenerate was not found.");
+      }
+      const nextProjection = {
+        ranges: [
+          ...truncateProjectionBefore(currentProjection, targetEntry.rawIndex),
+          { start: rawMessages.length, end: null }
+        ]
+      };
+      setMessageProjection(threadId, nextProjection);
+      threadContextRef.current.setThreadMessages(
+        threadId,
+        projectInboundMessages(rawMessages, nextProjection)
+      );
+      await sendMessage(nextText, threadId);
+    },
+    [getMessageProjection, getSession, sendMessage, setMessageProjection]
+  );
   const cancelGeneration = (0, import_react10.useCallback)(async (threadId) => {
     var _a;
     const session = (_a = sessionManagerRef.current) == null ? void 0 : _a.get(threadId);
     if (session) {
       await session.interrupt();
+    } else {
+      updateTurnPhase(threadContextRef.current, threadId, "idle");
     }
   }, []);
   (0, import_react10.useEffect)(() => {
@@ -2093,6 +2366,7 @@ function useRuntimeOrchestrator(aomiClient, options) {
     setIsRunning,
     ensureInitialState,
     sendMessage,
+    regenerateMessage,
     cancelGeneration,
     closeSession,
     closeAllSessions,
@@ -2165,6 +2439,10 @@ function buildThreadListAdapter({
     threads: regularThreads,
     archivedThreads,
     onSwitchToNewThread: () => {
+      const currentThreadId = threadContext.currentThreadId;
+      if (!isRemoteThread(currentThreadId) && threadContext.getThreadMessages(currentThreadId).length === 0) {
+        return;
+      }
       cleanupEmptyLocalThread();
       const threadId = generateUUID();
       threadContext.setThreadMetadata(
@@ -2535,7 +2813,7 @@ function useUserStateRequestResponder(context, sessions) {
     return unsubscribe;
   }, [eventContext, getSession, getUserState, threadContextRef]);
 }
-function useRemoteThreadListSync(context, sessions, remoteThreads) {
+function useRemoteThreadListSync(context, sessions, remoteThreads, threadPersistence) {
   const [isThreadListLoading, setIsThreadListLoading] = (0, import_react13.useState)(true);
   const [threadListError, setThreadListError] = (0, import_react13.useState)(false);
   const prefetchCancelRef = (0, import_react13.useRef)(null);
@@ -2555,6 +2833,7 @@ function useRemoteThreadListSync(context, sessions, remoteThreads) {
     warmThread
   } = remoteThreads;
   const isConnected = import_client6.UserState.isConnected(user) === true;
+  const restoredThreadId = threadPersistence == null ? void 0 : threadPersistence.restoredThreadId;
   const listThreadsWithAuthRetry = (0, import_react13.useCallback)(
     async (sessionId, isCancelled) => {
       let nextDelay = THREAD_LIST_AUTH_RETRY_BASE_DELAY_MS;
@@ -2614,7 +2893,7 @@ function useRemoteThreadListSync(context, sessions, remoteThreads) {
     [ensureInitialState, remoteThreadIdsRef, threadContextRef, warmThread]
   );
   (0, import_react13.useEffect)(() => {
-    var _a;
+    var _a, _b;
     if (!isConnected) {
       const wasPreviouslyConnected = wasConnectedRef.current;
       wasConnectedRef.current = false;
@@ -2630,6 +2909,7 @@ function useRemoteThreadListSync(context, sessions, remoteThreads) {
         closeAllSessions();
         if (hadRemoteThreads || hadSessions) {
           threadContextRef.current.resetToDefault();
+          (_b = threadPersistence == null ? void 0 : threadPersistence.onInvalidRestoredThread) == null ? void 0 : _b.call(threadPersistence);
         }
       }
       return;
@@ -2639,7 +2919,7 @@ function useRemoteThreadListSync(context, sessions, remoteThreads) {
     setIsThreadListLoading(true);
     setThreadListError(false);
     const fetchThreadList = async () => {
-      var _a2, _b, _c;
+      var _a2, _b2, _c, _d;
       try {
         const remoteThreadIdsAtFetchStart = new Set(remoteThreadIdsRef.current);
         const currentContext = threadContextRef.current;
@@ -2653,15 +2933,19 @@ function useRemoteThreadListSync(context, sessions, remoteThreads) {
         );
         if (cancelled) return;
         const remoteThreadIds = /* @__PURE__ */ new Set();
-        const newMetadata = new Map(currentContext.allThreadsMetadata);
+        const previousMetadata = currentContext.allThreadsMetadata;
+        const newMetadata = /* @__PURE__ */ new Map();
         const baseThreadCount = currentContext.threadCnt;
         let maxChatNum = baseThreadCount;
         for (const thread of threadList) {
           remoteThreadIds.add(thread.session_id);
           const rawTitle = (_a2 = thread.title) != null ? _a2 : "";
           const title = isPlaceholderTitle(rawTitle) ? "" : rawTitle;
-          const lastActive = ((_b = newMetadata.get(thread.session_id)) == null ? void 0 : _b.lastActiveAt) || (/* @__PURE__ */ new Date()).toISOString();
-          const existingControl = (_c = newMetadata.get(thread.session_id)) == null ? void 0 : _c.control;
+          const serverLastActiveAt = thread.last_active_at;
+          const lastActive = (serverLastActiveAt != null ? serverLastActiveAt : (_b2 = previousMetadata.get(thread.session_id)) == null ? void 0 : _b2.lastActiveAt) || (/* @__PURE__ */ new Date()).toISOString();
+          const existingControl = (_c = previousMetadata.get(
+            thread.session_id
+          )) == null ? void 0 : _c.control;
           newMetadata.set(thread.session_id, {
             title,
             status: thread.is_archived ? "archived" : "regular",
@@ -2674,6 +2958,11 @@ function useRemoteThreadListSync(context, sessions, remoteThreads) {
             if (num > maxChatNum) {
               maxChatNum = num;
             }
+          }
+        }
+        for (const [threadId, metadata] of previousMetadata.entries()) {
+          if (!newMetadata.has(threadId)) {
+            newMetadata.set(threadId, metadata);
           }
         }
         for (const threadId of remoteThreadIdsRef.current) {
@@ -2693,12 +2982,43 @@ function useRemoteThreadListSync(context, sessions, remoteThreads) {
         }
         scheduleThreadPrefetch(threadList.map((thread) => thread.session_id));
         const activeThreadId = threadContextRef.current.currentThreadId;
-        if (remoteThreadIds.has(activeThreadId)) {
+        let threadIdToLoad = activeThreadId;
+        const activeMessages = currentContext.getThreadMessages(activeThreadId);
+        const activeHasUserMessage = activeMessages.some(
+          (message) => message.role === "user"
+        );
+        if (restoredThreadId && activeThreadId === restoredThreadId && !remoteThreadIds.has(activeThreadId) && !activeHasUserMessage) {
+          (_d = threadPersistence == null ? void 0 : threadPersistence.onInvalidRestoredThread) == null ? void 0 : _d.call(threadPersistence);
+          currentContext.setThreadMetadata((prev) => {
+            const next = new Map(prev);
+            next.delete(activeThreadId);
+            return next;
+          });
+          currentContext.setThreads((prev) => {
+            const next = new Map(prev);
+            next.delete(activeThreadId);
+            return next;
+          });
+          const fallbackThread = threadList.filter((thread) => !thread.is_archived).sort((a, b) => {
+            var _a3, _b3;
+            const aLastActive = (_a3 = a.last_active_at) != null ? _a3 : 0;
+            const bLastActive = (_b3 = b.last_active_at) != null ? _b3 : 0;
+            return bLastActive - aLastActive;
+          })[0];
+          if (fallbackThread) {
+            threadIdToLoad = fallbackThread.session_id;
+            currentContext.setCurrentThreadId(fallbackThread.session_id);
+            currentContext.bumpThreadViewKey();
+          } else {
+            threadIdToLoad = currentContext.resetToDefault();
+          }
+        }
+        if (remoteThreadIds.has(threadIdToLoad)) {
           setIsThreadLoading(true);
           try {
-            await warmThread(activeThreadId);
+            await warmThread(threadIdToLoad);
             if (!cancelled) {
-              await ensureInitialState(activeThreadId);
+              await ensureInitialState(threadIdToLoad);
             }
           } finally {
             if (!cancelled) {
@@ -2734,6 +3054,8 @@ function useRemoteThreadListSync(context, sessions, remoteThreads) {
     sessionManager,
     setIsThreadLoading,
     threadContextRef,
+    restoredThreadId,
+    threadPersistence,
     isConnected,
     warmPromisesRef,
     warmedThreadIdsRef,
@@ -2750,7 +3072,8 @@ function useRuntimeUserStateEffects({
     ensureInitialState,
     setIsThreadLoading
   },
-  remoteThreads
+  remoteThreads,
+  threadPersistence
 }) {
   const threadContext = useThreadContext();
   const { user, getUserState, onUserStateChange } = useUser();
@@ -2775,7 +3098,12 @@ function useRuntimeUserStateEffects({
   };
   useWalletStateSync(context, sessions, remoteThreads);
   useUserStateRequestResponder(context, sessions);
-  return useRemoteThreadListSync(context, sessions, remoteThreads);
+  return useRemoteThreadListSync(
+    context,
+    sessions,
+    remoteThreads,
+    threadPersistence
+  );
 }
 function RuntimeUserStateProvider({
   children,
@@ -2816,12 +3144,58 @@ function RuntimeUserStateProvider({
   return /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(import_jsx_runtime6.Fragment, { children });
 }
 
+// src/runtime/thread-persistence.ts
+var THREAD_PERSISTENCE_KEY_PREFIX = "aomi:lastThread";
+var DEFAULT_SCOPE = "default";
+var normalizeKeyPart = (value) => {
+  if (value === null || value === void 0) return DEFAULT_SCOPE;
+  const text = String(value).trim();
+  return text.length > 0 ? text : DEFAULT_SCOPE;
+};
+function buildThreadPersistenceKey({
+  backendUrl,
+  applicationId,
+  scope
+}) {
+  return [
+    THREAD_PERSISTENCE_KEY_PREFIX,
+    normalizeKeyPart(backendUrl),
+    normalizeKeyPart(applicationId),
+    normalizeKeyPart(scope)
+  ].join(":");
+}
+function readPersistedThreadId(storageKey) {
+  var _a, _b;
+  try {
+    const threadId = (_b = (_a = globalThis.localStorage) == null ? void 0 : _a.getItem(storageKey)) == null ? void 0 : _b.trim();
+    return threadId && threadId.length > 0 ? threadId : null;
+  } catch (e) {
+    return null;
+  }
+}
+function writePersistedThreadId(storageKey, threadId) {
+  var _a;
+  try {
+    (_a = globalThis.localStorage) == null ? void 0 : _a.setItem(storageKey, threadId);
+  } catch (e) {
+  }
+}
+function clearPersistedThreadId(storageKey) {
+  var _a;
+  try {
+    (_a = globalThis.localStorage) == null ? void 0 : _a.removeItem(storageKey);
+  } catch (e) {
+  }
+}
+
 // src/runtime/core.tsx
 var import_jsx_runtime7 = require("react/jsx-runtime");
 function AomiRuntimeCore({
   children,
   aomiClient,
-  applicationId
+  applicationId,
+  restoredThreadId,
+  threadPersistenceKey
 }) {
   const threadContext = useThreadContext();
   const eventContext = useEventContext();
@@ -2848,6 +3222,7 @@ function AomiRuntimeCore({
     setIsRunning,
     ensureInitialState,
     sendMessage: orchestratorSendMessage,
+    regenerateMessage: orchestratorRegenerateMessage,
     cancelGeneration: orchestratorCancel,
     closeSession,
     closeIdleSessionsExcept,
@@ -2876,6 +3251,9 @@ function AomiRuntimeCore({
       const wasRemote = remoteThreadIdsRef.current.has(threadId);
       remoteThreadIdsRef.current.add(threadId);
       warmedThreadIdsRef.current.add(threadId);
+      if (threadPersistenceKey) {
+        writePersistedThreadId(threadPersistenceKey, threadId);
+      }
       threadsMaterializedForSendRef.current.delete(threadId);
       if (!wasRemote && threadContextRef.current.currentThreadId === threadId) {
         void syncCurrentThreadControl().catch((error) => {
@@ -2955,6 +3333,17 @@ function AomiRuntimeCore({
     },
     [getSession]
   );
+  const threadPersistence = (0, import_react14.useMemo)(
+    () => ({
+      restoredThreadId,
+      onInvalidRestoredThread: () => {
+        if (threadPersistenceKey) {
+          clearPersistedThreadId(threadPersistenceKey);
+        }
+      }
+    }),
+    [restoredThreadId, threadPersistenceKey]
+  );
   const { isThreadListLoading, threadListError } = useRuntimeUserStateEffects({
     sessions: {
       aomiClientRef,
@@ -2969,7 +3358,8 @@ function AomiRuntimeCore({
       warmPromisesRef,
       warmedThreadIdsRef,
       warmThread
-    }
+    },
+    threadPersistence
   });
   (0, import_react14.useEffect)(() => {
     const threadId = threadContext.currentThreadId;
@@ -3002,12 +3392,15 @@ function AomiRuntimeCore({
     warmThread
   ]);
   (0, import_react14.useEffect)(() => {
+    var _a;
     const threadId = threadContext.currentThreadId;
     const currentMeta = threadContext.getThreadMetadata(threadId);
-    if (currentMeta && currentMeta.control.isProcessing !== isRunning) {
+    const nextTurnPhase = isRunning ? (_a = currentMeta == null ? void 0 : currentMeta.control.turnPhase) != null ? _a : "working" : "idle";
+    if (currentMeta && (currentMeta.control.isProcessing !== isRunning || currentMeta.control.turnPhase !== nextTurnPhase)) {
       threadContext.updateThreadMetadata(threadId, {
         control: __spreadProps(__spreadValues({}, currentMeta.control), {
-          isProcessing: isRunning
+          isProcessing: isRunning,
+          turnPhase: nextTurnPhase
         })
       });
     }
@@ -3015,6 +3408,18 @@ function AomiRuntimeCore({
   const currentMessages = threadContext.getThreadMessages(
     threadContext.currentThreadId
   );
+  (0, import_react14.useEffect)(() => {
+    if (!threadPersistenceKey) return;
+    const threadId = threadContext.currentThreadId;
+    if (!remoteThreadIdsRef.current.has(threadId)) {
+      return;
+    }
+    writePersistedThreadId(threadPersistenceKey, threadId);
+  }, [
+    threadContext.allThreadsMetadata,
+    threadContext.currentThreadId,
+    threadPersistenceKey
+  ]);
   const isRemoteThread = (0, import_react14.useCallback)(
     (threadId) => remoteThreadIdsRef.current.has(threadId),
     []
@@ -3041,34 +3446,6 @@ function AomiRuntimeCore({
     ]
   );
   (0, import_react14.useEffect)(() => {
-    const showToolNotification = (eventType) => (event) => {
-      const payload = event.payload;
-      const toolName = typeof (payload == null ? void 0 : payload.tool_name) === "string" ? payload.tool_name : void 0;
-      if (eventType === "tool_complete" && toolName === "commit_txs") {
-        return;
-      }
-      const title = toolName ? `${eventType === "tool_update" ? "Tool update" : "Tool complete"}: ${toolName}` : eventType === "tool_update" ? "Tool update" : "Tool complete";
-      const message = typeof (payload == null ? void 0 : payload.message) === "string" ? payload.message : typeof (payload == null ? void 0 : payload.result) === "string" ? payload.result : void 0;
-      notificationContext.showNotification({
-        type: "notice",
-        title,
-        message
-      });
-    };
-    const unsubscribeUpdate = eventContext.subscribe(
-      "tool_update",
-      showToolNotification("tool_update")
-    );
-    const unsubscribeComplete = eventContext.subscribe(
-      "tool_complete",
-      showToolNotification("tool_complete")
-    );
-    return () => {
-      unsubscribeUpdate();
-      unsubscribeComplete();
-    };
-  }, [eventContext, notificationContext]);
-  (0, import_react14.useEffect)(() => {
     const unsubscribe = eventContext.subscribe("system_notice", (_event) => {
     });
     return unsubscribe;
@@ -3088,6 +3465,31 @@ function AomiRuntimeCore({
         } catch (error) {
           console.error("Failed to send message:", error);
         }
+      }
+    },
+    onEdit: async (message) => {
+      var _a;
+      const text = message.content.filter(
+        (part) => part.type === "text"
+      ).map((part) => part.text).join("\n");
+      try {
+        await orchestratorRegenerateMessage(
+          threadContext.currentThreadId,
+          (_a = message.sourceId) != null ? _a : message.parentId,
+          text
+        );
+      } catch (error) {
+        console.error("Failed to edit message:", error);
+      }
+    },
+    onReload: async (parentId) => {
+      try {
+        await orchestratorRegenerateMessage(
+          threadContext.currentThreadId,
+          parentId
+        );
+      } catch (error) {
+        console.error("Failed to reload message:", error);
       }
     },
     onCancel: async () => {
@@ -3126,8 +3528,15 @@ function AomiRuntimeCore({
     async (threadId) => {
       closeSession(threadId);
       await threadListAdapter.onDelete(threadId);
+      remoteThreadIdsRef.current.delete(threadId);
+      warmedThreadIdsRef.current.delete(threadId);
+      warmPromisesRef.current.delete(threadId);
+      const nextThreadId = threadContextRef.current.currentThreadId;
+      if (!remoteThreadIdsRef.current.has(nextThreadId) && threadPersistenceKey) {
+        clearPersistedThreadId(threadPersistenceKey);
+      }
     },
-    [closeSession, threadListAdapter]
+    [closeSession, threadListAdapter, threadPersistenceKey]
   );
   const renameThread = (0, import_react14.useCallback)(
     async (threadId, title) => {
@@ -3207,6 +3616,11 @@ function AomiRuntimeCore({
       // Event API
       subscribe: eventContext.subscribe,
       sendSystemCommand: eventContext.sendOutboundSystem,
+      recordUiInteraction: (payload) => eventContext.sendOutboundSystem({
+        type: "ui_interaction",
+        sessionId: threadContext.currentThreadId,
+        payload
+      }),
       sseStatus: eventContext.sseStatus
     }),
     [
@@ -3261,8 +3675,33 @@ function AomiRuntimeProvider({
   backendUrl = "http://127.0.0.1:8080",
   applicationId,
   appPlatforms,
-  clientOptions
+  clientOptions,
+  initialThreadId,
+  persistThread = true,
+  threadPersistenceKey,
+  threadPersistenceScope
 }) {
+  const normalizedBackendUrl = normalizeBackendUrl(backendUrl);
+  const resolvedThreadPersistenceKey = (0, import_react16.useMemo)(() => {
+    if (!persistThread) return null;
+    return threadPersistenceKey != null ? threadPersistenceKey : buildThreadPersistenceKey({
+      backendUrl: normalizedBackendUrl,
+      applicationId,
+      scope: threadPersistenceScope
+    });
+  }, [
+    applicationId,
+    normalizedBackendUrl,
+    persistThread,
+    threadPersistenceKey,
+    threadPersistenceScope
+  ]);
+  const restoredThreadId = (0, import_react16.useMemo)(() => {
+    var _a;
+    if (initialThreadId) return initialThreadId;
+    if (!resolvedThreadPersistenceKey) return void 0;
+    return (_a = readPersistedThreadId(resolvedThreadPersistenceKey)) != null ? _a : void 0;
+  }, [initialThreadId, resolvedThreadPersistenceKey]);
   const resolvedClientOptions = (0, import_react16.useMemo)(
     () => __spreadValues({
       logger: {
@@ -3273,16 +3712,18 @@ function AomiRuntimeProvider({
   );
   const aomiClient = (0, import_react16.useMemo)(
     () => new import_client7.AomiClient(__spreadValues({
-      baseUrl: normalizeBackendUrl(backendUrl)
+      baseUrl: normalizedBackendUrl
     }, resolvedClientOptions)),
-    [backendUrl, resolvedClientOptions]
+    [normalizedBackendUrl, resolvedClientOptions]
   );
-  return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(ThreadContextProvider, { children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(NotificationContextProvider, { children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(ExtUserProvider, { children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(ThreadContextProvider, { initialThreadId: restoredThreadId, children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(NotificationContextProvider, { children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(ExtUserProvider, { children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
     AomiRuntimeInner,
     {
       aomiClient,
       applicationId,
       appPlatforms,
+      restoredThreadId,
+      threadPersistenceKey: resolvedThreadPersistenceKey,
       children
     }
   ) }) }) });
@@ -3291,7 +3732,9 @@ function AomiRuntimeInner({
   children,
   aomiClient,
   applicationId,
-  appPlatforms
+  appPlatforms,
+  restoredThreadId,
+  threadPersistenceKey
 }) {
   const threadContext = useThreadContext();
   return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
@@ -3307,7 +3750,16 @@ function AomiRuntimeInner({
         {
           aomiClient,
           sessionId: threadContext.currentThreadId,
-          children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(AomiRuntimeCore, { aomiClient, applicationId, children })
+          children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
+            AomiRuntimeCore,
+            {
+              aomiClient,
+              applicationId,
+              restoredThreadId,
+              threadPersistenceKey,
+              children
+            }
+          )
         }
       )
     }

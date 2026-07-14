@@ -1,4 +1,5 @@
 import type { UserSource } from "@aomi-labs/deploy";
+import { projectDeploymentStatus } from "./project-deployment-status";
 import { StatusDot } from "./ui/status-dot";
 import { SdkBadge } from "./ui/sdk-badge";
 
@@ -11,22 +12,7 @@ export function ProjectRow({
   requiredSdk?: string | null;
   href?: string;
 }) {
-  const activeApps = source.apps.filter((app) => app.isActive).length;
-  const hasDeployment =
-    source.latestDeployment !== null ||
-    source.apps.some((app) => app.appReleaseTag != null);
-  const deploymentState =
-    activeApps > 0
-      ? (source.latestDeployment?.state ?? "live")
-      : hasDeployment
-        ? "deactivated"
-        : "none";
-  const deploymentLabel =
-    activeApps > 0
-      ? "Live deployment"
-      : hasDeployment
-        ? "Deactivated"
-        : "No deployment";
+  const status = projectDeploymentStatus(source);
   const appLabel =
     source.apps.length === 0
       ? "No apps"
@@ -41,18 +27,18 @@ export function ProjectRow({
   return (
     <a
       href={href ?? `/projects/${source.id}`}
-      className="flex items-center gap-3 border-b border-zinc-100 px-4 py-3 last:border-b-0 hover:bg-zinc-50"
+      className="flex items-center gap-3 border-b border-border px-4 py-3 last:border-b-0 hover:bg-accent-hover"
     >
-      <div className="flex size-8 shrink-0 items-center justify-center rounded-md border border-zinc-200 text-xs font-medium">
+      <div className="flex size-8 shrink-0 items-center justify-center rounded-md border border-border text-xs font-medium">
         {(source.repositoryLink ?? "A").slice(0, 1).toUpperCase()}
       </div>
       <div className="min-w-0 flex-1">
         <div className="truncate text-sm font-medium">
           {source.repositoryLink ?? "Unknown repository"}
         </div>
-        <div className="mt-1 flex items-center gap-2 text-xs text-zinc-500">
-          <StatusDot state={deploymentState} />
-          <span>{deploymentLabel}</span>
+        <div className="mt-1 flex items-center gap-2 text-xs text-dim">
+          <StatusDot state={status.dotState} />
+          <span>{status.label}</span>
           <span aria-hidden>·</span>
           <span>{appLabel}</span>
         </div>

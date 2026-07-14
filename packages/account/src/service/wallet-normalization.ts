@@ -7,4 +7,3 @@ export function normalizeWalletAddress(
   const trimmed = address.trim();
   return family === "evm" ? trimmed.toLowerCase() : trimmed;
 }
-

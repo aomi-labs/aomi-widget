@@ -5,6 +5,7 @@ import type {
   PromoteResult,
   SdkVersionStatus,
   UserSource,
+  UserDeploymentsPage,
   UserSourceLatestDeployment,
 } from "@aomi-labs/deploy";
 
@@ -102,9 +103,9 @@ export type LaunchAppStatus = {
 export type LaunchRedeployResult = {
   ok: boolean;
   appSourceId: number;
-  platformRepo: string;
-  ciRunId: string;
-  ciUrl: string;
+  platformRepo: string | null;
+  ciRunId: string | null;
+  ciUrl: string | null;
 };
 
 export type LaunchSdkStatus = {
@@ -121,6 +122,8 @@ export type DeploymentSourcesResult = {
 export type DeploymentHistoryResult = {
   deployments: UserSourceLatestDeployment[];
 };
+
+export type DeploymentFeedResult = UserDeploymentsPage;
 
 export type DeploymentSecretsResult = {
   byApp: Record<string, string[]>;
