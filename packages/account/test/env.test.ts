@@ -31,7 +31,7 @@ describe("readAccountAuthEnv", () => {
     );
   });
 
-  it("requires the one shared database URL in every environment", () => {
+  it("requires an explicit database URL in every environment", () => {
     for (const NODE_ENV of ["development", "test", "production"]) {
       expect(() =>
         readAccountAuthEnv({
