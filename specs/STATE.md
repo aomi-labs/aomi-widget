@@ -2,6 +2,7 @@
 
 ## Last Updated
 
+2026-07-14 — Create Recent titles: derive + dedupe (hello → unique);
 2026-07-14 — Create craft polish tranche (rail/empty/chat/stage/composer);
 2026-07-14 — Create craft review: jargon migrate + canvas;
 2026-07-14 — Create UI: builder language (no eng keywords in chat/sidebar);
@@ -21,6 +22,11 @@
 2026-07-13 — Build UI copy polish (em dashes / hedging essays);
 2026-07-13 — Billing option A: methods live on Chat (no fake Build fetch);
 2026-07-13 — BILLING-EXPERIENCE.md: backend ↔ UI map (code-checked)
+
+## Create Recent title dedupe (2026-07-14)
+
+- `deriveSessionTitle` strips greeting fluff + soft-truncates; `uniqueSessionTitle`
+  avoids colliding sidebar labels; list remasters persisted dupes for display.
 
 ## Create craft polish tranche (2026-07-14)
 
