@@ -6,6 +6,7 @@ import {
   countLoginFactors,
   createAomiUserForBetterAuth,
   deactivateAomiUser,
+  deleteAomiUserIfAuthOnlyShell,
   deleteBetterAuthSiweWallet,
   findAuthIdentityById,
   findAomiUserById,
@@ -76,11 +77,37 @@ export async function getOrCreateAomiUserForBetterAuthSession(input: {
 }): Promise<DbAomiUser> {
   await ensureAccountSchema();
   return withTransaction(async (db) => {
+    const siweSignals = await betterAuthSiweSignals(input.betterAuthUserId, db);
+    const signalOwner = await findFirstSignalOwner(
+      [...(input.accessSignals ?? []), ...siweSignals],
+      db,
+    );
     const existing = await findAomiUserByBetterAuthId(
       input.betterAuthUserId,
       db,
     );
     if (existing) {
+      if (signalOwner && signalOwner.id !== existing.id) {
+        // A rejected provider exchange can leave behind a canonical shell with
+        // only BetterAuth/email rows. A later verified provider credential is
+        // stronger ownership proof. Re-home the BetterAuth session only when
+        // the shell has no wallets, activity, grants, keys, or other provider
+        // identities; otherwise preserve both accounts and let linking report
+        // the ownership conflict.
+        const removedShell = await deleteAomiUserIfAuthOnlyShell(
+          existing.id,
+          db,
+        );
+        if (removedShell) {
+          await attachBetterAuthSession({
+            user: signalOwner,
+            input,
+            eventType: "session.recovered",
+            db,
+          });
+          return signalOwner;
+        }
+      }
       await touchAomiUser(existing.id, db);
       await upsertAuthIdentity({
         userId: existing.id,
@@ -99,31 +126,11 @@ export async function getOrCreateAomiUserForBetterAuthSession(input: {
       return existing;
     }
 
-    const siweSignals = await betterAuthSiweSignals(input.betterAuthUserId, db);
-    const signalOwner = await findFirstSignalOwner(
-      [...(input.accessSignals ?? []), ...siweSignals],
-      db,
-    );
     if (signalOwner) {
-      await touchAomiUser(signalOwner.id, db);
-      await upsertAuthIdentity({
-        userId: signalOwner.id,
-        provider: "better_auth",
-        subject: input.betterAuthUserId,
-        email: input.email,
-        db,
-      });
-      if (input.email && input.emailVerified) {
-        await upsertEmailIdentity({
-          userId: signalOwner.id,
-          email: input.email,
-          db,
-        });
-      }
-      await logAccountEvent({
-        userId: signalOwner.id,
+      await attachBetterAuthSession({
+        user: signalOwner,
+        input,
         eventType: "session.attached",
-        data: { betterAuthUserId: input.betterAuthUserId },
         db,
       });
       return signalOwner;
@@ -162,6 +169,35 @@ export async function getOrCreateAomiUserForBetterAuthSession(input: {
   });
 }
 
+async function attachBetterAuthSession(input: {
+  user: DbAomiUser;
+  input: Parameters<typeof getOrCreateAomiUserForBetterAuthSession>[0];
+  eventType: "session.attached" | "session.recovered";
+  db: Parameters<typeof touchAomiUser>[1];
+}): Promise<void> {
+  await touchAomiUser(input.user.id, input.db);
+  await upsertAuthIdentity({
+    userId: input.user.id,
+    provider: "better_auth",
+    subject: input.input.betterAuthUserId,
+    email: input.input.email,
+    db: input.db,
+  });
+  if (input.input.email && input.input.emailVerified) {
+    await upsertEmailIdentity({
+      userId: input.user.id,
+      email: input.input.email,
+      db: input.db,
+    });
+  }
+  await logAccountEvent({
+    userId: input.user.id,
+    eventType: input.eventType,
+    data: { betterAuthUserId: input.input.betterAuthUserId },
+    db: input.db,
+  });
+}
+
 async function findFirstLegacyWalletOwner(
   signals: SignalRef[],
   db: Parameters<typeof findLegacyBackendUserIdByWallet>[1],
@@ -189,7 +225,13 @@ async function findFirstSignalOwner(
   db: Parameters<typeof findSignalOwner>[1],
 ): Promise<DbAomiUser | null> {
   const seen = new Set<string>();
-  for (const signal of signals) {
+  // Provider identities and attested wallets are stronger account-ownership
+  // signals than an email. This also prevents a stale shell's verified email
+  // from masking the established owner of a Para/Privy wallet.
+  const orderedSignals = [...signals].sort(
+    (left, right) => signalPriority(left) - signalPriority(right),
+  );
+  for (const signal of orderedSignals) {
     const key = JSON.stringify(signal);
     if (seen.has(key)) continue;
     seen.add(key);
@@ -199,6 +241,12 @@ async function findFirstSignalOwner(
     if (owner) return owner;
   }
   return null;
+}
+
+function signalPriority(signal: SignalRef): number {
+  if (signal.type === "identity") return 0;
+  if (signal.type === "wallet") return 1;
+  return 2;
 }
 
 async function betterAuthSiweSignals(

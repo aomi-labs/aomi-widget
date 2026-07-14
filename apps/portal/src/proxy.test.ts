@@ -34,6 +34,24 @@ describe("Portal cross-origin API policy", () => {
     expect(response.headers.get("Vary")).toContain("Origin");
   });
 
+  it("allows first-party Landing Vercel previews with credentials", () => {
+    const origin =
+      "https://landing-page-git-codex-auth-fix-aomi-labs.vercel.app";
+    const response = proxy(request({ origin }));
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Access-Control-Allow-Origin")).toBe(origin);
+  });
+
+  it("does not trust unrelated Vercel projects", async () => {
+    const response = proxy(
+      request({ origin: "https://attacker-git-main-aomi-labs.vercel.app" }),
+    );
+
+    expect(response.status).toBe(403);
+    expect(response.headers.has("Access-Control-Allow-Origin")).toBe(false);
+  });
+
   it("allows the standard local Landing origin in development and test", () => {
     const response = proxy(request({ origin: "http://127.0.0.1:3001" }));
 

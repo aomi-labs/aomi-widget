@@ -116,9 +116,13 @@ and native SSE automatically.
 Cross-origin consumers must be explicitly trusted by Portal:
 
 ```bash
-# Portal server configuration; exact origins, comma separated, no paths
-AOMI_TRUSTED_ORIGINS=https://app.aomi.dev,https://preview.aomi.dev
+# Portal server configuration; comma separated, no paths
+AOMI_TRUSTED_ORIGINS=https://app.aomi.dev,https://preview-*.aomi.dev
 ```
+
+Prefer exact origins. Use `*` only for a narrowly scoped preview-host pattern.
+Aomi's first-party `landing-page-*-aomi-labs.vercel.app` previews are already
+trusted by Portal.
 
 The browser-side provider identifier must match Portal's server-side verifier
 configuration:

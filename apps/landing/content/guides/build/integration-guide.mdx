@@ -167,8 +167,9 @@ You are responsible for your own product surface. Aomi provides the SDK, compone
 | Headless Library    | `npm install @aomi-labs/react`                       | Custom designs and host-owned auth/wallet composition |
 | Telegram Bot        | Managed by Aomi                                      | Reaching users without frontend deployment            |
 
-For a cross-origin web integration, register the exact product origin in
-Portal's `AOMI_TRUSTED_ORIGINS`. Pass the Portal origin to `AomiWidget.apiUrl`;
+For a cross-origin web integration, register the product origin in Portal's
+`AOMI_TRUSTED_ORIGINS`; prefer an exact origin, or use a narrow `*` pattern for
+changing preview hosts. Pass the Portal origin to `AomiWidget.apiUrl`;
 do not point authenticated browser widgets at the raw backend or add a second
 BetterAuth instance to the product app. See the
 [Quickstart](/docs/build/quickstart) for Para, Privy, and providerless examples.

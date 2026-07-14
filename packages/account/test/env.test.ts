@@ -20,6 +20,7 @@ describe("readAccountAuthEnv", () => {
     expect(env.trustedOrigins).toEqual([
       "http://localhost:3000",
       "https://aomi.dev",
+      "https://landing-page-*-aomi-labs.vercel.app",
       "http://127.0.0.1:3001",
       "http://localhost:3001",
     ]);
@@ -93,6 +94,7 @@ describe("readAccountAuthEnv", () => {
       "https://chat-portal-random-deployment-id-aomi-labs.vercel.app",
       "https://chat.aomi.dev",
       "https://aomi.dev",
+      "https://landing-page-*-aomi-labs.vercel.app",
     ]);
   });
 
@@ -118,6 +120,7 @@ describe("readAccountAuthEnv", () => {
       "https://chat-portal-git-main-aomi-labs.vercel.app",
       "https://chat-portal-random-deployment-id-aomi-labs.vercel.app",
       "https://aomi.dev",
+      "https://landing-page-*-aomi-labs.vercel.app",
     ]);
   });
 
@@ -138,6 +141,7 @@ describe("readAccountAuthEnv", () => {
       "https://chat.aomi.dev",
       "https://chat-portal-prod-deployment-aomi-labs.vercel.app",
       "https://aomi.dev",
+      "https://landing-page-*-aomi-labs.vercel.app",
     ]);
   });
 

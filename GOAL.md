@@ -20,6 +20,14 @@ manual handoff.
 
 Progress:
 
+- 2026-07-14 Para/preview auth follow-up: traced `chat-staging` Para login to a
+  canonical provider-exchange 409 rather than a Para origin/configuration
+  rejection. Added guarded recovery that adopts an established provider/wallet
+  owner only when the current BetterAuth mapping is an auth-only shell with no
+  durable account data, and prioritized provider identity/wallet ownership over
+  email. Also aligned Portal CORS with BetterAuth wildcard matching for the
+  first-party Landing Vercel preview hosts and documented preview-origin setup.
+
 - Removed runtime `/api/bff/auth/siwe/*`, `/api/bff/auth/exchange`, and
   `/api/bff/auth/token` mounts from portal, base, and landing.
 - Added `/api/aomi/account-bearer` for direct AccountBearer minting from an

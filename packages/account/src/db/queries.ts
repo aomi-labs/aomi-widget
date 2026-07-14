@@ -78,6 +78,34 @@ export async function findAomiUserById(
   return result.rows[0] ? mapUser(result.rows[0]) : null;
 }
 
+export async function deleteAomiUserIfAuthOnlyShell(
+  userId: AomiUserId,
+  db: Db = getPool(),
+): Promise<boolean> {
+  const result = await db.query(
+    `delete from users u
+      where u.id = $1
+        and not exists (
+          select 1 from auth_providers ap
+           where ap.user_id = u.id
+             and ap.provider not in ('betterauth', 'better_auth', 'email')
+        )
+        and not exists (select 1 from public_keys pk where pk.user_id = u.id)
+        and not exists (select 1 from app_keys x where x.owner_user_id = u.id)
+        and not exists (select 1 from bot_registrations x where x.owner_user_id = u.id)
+        and not exists (select 1 from bff_cli_device_sessions x where x.user_id = u.id)
+        and not exists (select 1 from bff_cli_sessions x where x.user_id = u.id)
+        and not exists (select 1 from delegated_approval x where x.user_id = u.id)
+        and not exists (select 1 from llm_usage_events x where x.user_id = u.id)
+        and not exists (select 1 from threads x where x.user_id = u.id)
+        and not exists (select 1 from user_application_usage_daily x where x.user_id = u.id)
+        and not exists (select 1 from user_transactions x where x.user_id = u.id)
+     returning u.id`,
+    [userId],
+  );
+  return (result.rowCount ?? 0) > 0;
+}
+
 export async function createAomiUserForBetterAuth(input: {
   userId?: AomiUserId;
   betterAuthUserId: BetterAuthUserId;

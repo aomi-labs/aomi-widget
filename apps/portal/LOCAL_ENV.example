@@ -13,6 +13,7 @@ DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres
 # Browser origins allowed to call Portal's auth/account/BFF routes. The standard
 # Landing/Vite dev origins are trusted automatically; add any other integrator
 # as a comma-separated origin list (scheme + host + optional port, no path).
+# Prefer exact origins; narrow * patterns are supported for preview hosts.
 AOMI_TRUSTED_ORIGINS=http://localhost:5173
 
 # Para provider verification. The audience must match the publishable key used

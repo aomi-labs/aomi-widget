@@ -75,9 +75,10 @@ Provider auth and wallet signing are separate responsibilities:
 The browser never receives Portal signing keys, provider verifier secrets, or
 backend account-bearer signing material.
 
-For cross-origin widgets, Portal must trust the exact consumer origin through
-`AOMI_TRUSTED_ORIGINS`. The provider public key/app id used in the browser must
-match Portal's Para/Privy verifier configuration.
+For cross-origin widgets, Portal must trust the consumer origin through
+`AOMI_TRUSTED_ORIGINS`. Prefer exact origins; narrow `*` patterns are supported
+for changing preview hosts. The provider public key/app id used in the browser
+must match Portal's Para/Privy verifier configuration.
 
 ## Chains and wallets
 

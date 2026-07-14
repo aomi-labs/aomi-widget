@@ -25,6 +25,13 @@ type AccountAuthEnvInput = Record<string, string | undefined>;
 const DEV_BETTER_AUTH_SECRET =
   "dev-better-auth-secret-change-me-at-least-32-bytes";
 
+// The Landing app is a first-party cross-origin consumer of Portal's API.
+// Vercel branch and deployment aliases change on every preview, so an exact
+// origin cannot keep preview widgets working. Keep this scoped to the Aomi
+// Labs Landing project instead of trusting arbitrary *.vercel.app origins.
+const AOMI_LANDING_VERCEL_ORIGIN =
+  "https://landing-page-*-aomi-labs.vercel.app";
+
 export function readAccountAuthEnv(
   env: AccountAuthEnvInput = process.env,
 ): AccountAuthEnv {
@@ -133,6 +140,7 @@ export function resolveAccountTrustedOrigins(
     firstUrl(env.VERCEL_URL),
     firstUrl(env.VERCEL_PROJECT_PRODUCTION_URL),
     "https://aomi.dev",
+    AOMI_LANDING_VERCEL_ORIGIN,
   ];
 
   if (isAccountAuthLocalRuntime(env)) {
@@ -140,6 +148,17 @@ export function resolveAccountTrustedOrigins(
   }
 
   return uniqueOrigins(origins);
+}
+
+export function isAccountTrustedOrigin(
+  origin: string,
+  env: AccountAuthEnvInput = process.env,
+): boolean {
+  const normalizedOrigin = normalizeUrl(origin);
+  if (!normalizedOrigin || normalizedOrigin !== origin) return false;
+  return resolveAccountTrustedOrigins(env).some((pattern) =>
+    matchesOriginPattern(normalizedOrigin, pattern),
+  );
 }
 
 function resolveSiweDomain(
@@ -169,6 +188,17 @@ function normalizeUrl(value: string | undefined): string | undefined {
   } catch {
     return undefined;
   }
+}
+
+function matchesOriginPattern(origin: string, pattern: string): boolean {
+  if (!pattern.includes("*") && !pattern.includes("?")) {
+    return origin === pattern;
+  }
+  const expression = pattern
+    .replace(/[.+^${}()|[\]\\]/g, "\\$&")
+    .replaceAll("*", ".*")
+    .replaceAll("?", ".");
+  return new RegExp(`^${expression}$`, "u").test(origin);
 }
 
 function uniqueOrigins(values: Array<string | undefined>): string[] {

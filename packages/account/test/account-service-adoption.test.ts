@@ -8,6 +8,7 @@ const queryMocks = vi.hoisted(() => ({
   countLoginFactors: vi.fn(),
   createAomiUserForBetterAuth: vi.fn(),
   deactivateAomiUser: vi.fn(),
+  deleteAomiUserIfAuthOnlyShell: vi.fn(),
   deleteBetterAuthSiweWallet: vi.fn(),
   findAuthIdentityById: vi.fn(),
   findAomiUserById: vi.fn(),
@@ -62,9 +63,8 @@ describe("getOrCreateAomiUserForBetterAuthSession adoption", () => {
       id: legacyUserId,
     });
 
-    const { getOrCreateAomiUserForBetterAuthSession } = await import(
-      "../src/service/account-service"
-    );
+    const { getOrCreateAomiUserForBetterAuthSession } =
+      await import("../src/service/account-service");
 
     const user = await getOrCreateAomiUserForBetterAuthSession({
       betterAuthUserId: "ba-user-1",
@@ -92,6 +92,84 @@ describe("getOrCreateAomiUserForBetterAuthSession adoption", () => {
         subject: "ba-user-1",
         db,
       }),
+    );
+  });
+
+  it("recovers a failed provider login shell onto the established wallet owner", async () => {
+    const shellUser = { id: "shell-user" };
+    const walletOwner = { id: "wallet-owner" };
+    const db = { tag: "transaction-client" };
+    queryMocks.runAomiAuthSchema.mockResolvedValue(undefined);
+    queryMocks.withTransaction.mockImplementation(async (fn) => fn(db));
+    queryMocks.listBetterAuthSiweWallets.mockResolvedValue([]);
+    queryMocks.findAomiUserByBetterAuthId.mockResolvedValue(shellUser);
+    queryMocks.findSignalOwner.mockImplementation(async (signal) => {
+      if (signal.type === "wallet") return walletOwner.id;
+      if (signal.type === "email") return shellUser.id;
+      return null;
+    });
+    queryMocks.findAomiUserById.mockResolvedValue(walletOwner);
+    queryMocks.deleteAomiUserIfAuthOnlyShell.mockResolvedValue(true);
+
+    const { getOrCreateAomiUserForBetterAuthSession } =
+      await import("../src/service/account-service");
+    const user = await getOrCreateAomiUserForBetterAuthSession({
+      betterAuthUserId: "ba-user-1",
+      email: "alice@example.com",
+      emailVerified: true,
+      accessSignals: [
+        { type: "email", email: "alice@example.com" },
+        {
+          type: "wallet",
+          family: "evm",
+          normalizedAddress: "0xfcad0b19bb29d4674531d6f115237e16afce377c",
+          chainScope: null,
+        },
+      ],
+    });
+
+    expect(user).toBe(walletOwner);
+    expect(queryMocks.findSignalOwner.mock.calls[0]?.[0]).toMatchObject({
+      type: "wallet",
+    });
+    expect(queryMocks.deleteAomiUserIfAuthOnlyShell).toHaveBeenCalledWith(
+      shellUser.id,
+      db,
+    );
+    expect(queryMocks.upsertAuthIdentity).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: walletOwner.id,
+        provider: "better_auth",
+        subject: "ba-user-1",
+        db,
+      }),
+    );
+  });
+
+  it("does not move a BetterAuth mapping when the current account is not empty", async () => {
+    const currentUser = { id: "current-user" };
+    const walletOwner = { id: "wallet-owner" };
+    const db = { tag: "transaction-client" };
+    queryMocks.runAomiAuthSchema.mockResolvedValue(undefined);
+    queryMocks.withTransaction.mockImplementation(async (fn) => fn(db));
+    queryMocks.listBetterAuthSiweWallets.mockResolvedValue([]);
+    queryMocks.findAomiUserByBetterAuthId.mockResolvedValue(currentUser);
+    queryMocks.findSignalOwner.mockResolvedValue(walletOwner.id);
+    queryMocks.findAomiUserById.mockResolvedValue(walletOwner);
+    queryMocks.deleteAomiUserIfAuthOnlyShell.mockResolvedValue(false);
+
+    const { getOrCreateAomiUserForBetterAuthSession } =
+      await import("../src/service/account-service");
+    const user = await getOrCreateAomiUserForBetterAuthSession({
+      betterAuthUserId: "ba-user-1",
+      accessSignals: [
+        { type: "identity", provider: "para", subject: "para-user" },
+      ],
+    });
+
+    expect(user).toBe(currentUser);
+    expect(queryMocks.upsertAuthIdentity).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: currentUser.id }),
     );
   });
 });

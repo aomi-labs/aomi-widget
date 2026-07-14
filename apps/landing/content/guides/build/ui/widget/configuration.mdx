@@ -165,12 +165,15 @@ Portal and BetterAuth share one exact trusted-origin policy. Add every consumer
 origin to the Portal server, including preview origins that need auth:
 
 ```bash
-AOMI_TRUSTED_ORIGINS=https://app.aomi.dev,https://preview.aomi.dev
+AOMI_TRUSTED_ORIGINS=https://app.aomi.dev,https://preview-*.aomi.dev
 ```
 
 Origins include scheme, host, and optional port, with no path. Portal returns
-credentialed CORS headers only to trusted origins. The consumer should not add
-its own `/api/auth/*`, `/api/aomi/*`, or backend catch-all proxy.
+credentialed CORS headers only to trusted origins. Prefer exact origins and use
+`*` only for narrowly scoped preview-host patterns. Aomi's first-party
+`landing-page-*-aomi-labs.vercel.app` previews are trusted automatically. The
+consumer should not add its own `/api/auth/*`, `/api/aomi/*`, or backend
+catch-all proxy.
 
 Direct credentialed requests assume Portal and the consumer are same-site (for
 example `chat.example.com` and `app.example.com`). On an unrelated top-level

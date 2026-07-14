@@ -99,8 +99,10 @@ Omit `auth` (or pass `auth={false}`) for external wallets and Portal SIWE
 without an embedded auth provider. Provider helpers keep unused SDKs out of the
 consumer bundle while the widget component stays the same.
 
-For a cross-origin deployment, register the exact consumer origin in Portal's
-comma-separated `AOMI_TRUSTED_ORIGINS`. The widget sends
+For a cross-origin deployment, register the consumer origin in Portal's
+comma-separated `AOMI_TRUSTED_ORIGINS`. Exact origins are preferred; a narrowly
+scoped `*` wildcard is supported for changing preview hosts. Aomi's own
+`landing-page-*-aomi-labs.vercel.app` previews are trusted automatically. The widget sends
 `credentials: "include"` for REST, polling, and SSE; do not add auth routes or
 a second BetterAuth instance to the consumer app. The client-side Para key or
 Privy app id must match the provider verification configuration on Portal.
@@ -523,8 +525,9 @@ NEXT_PUBLIC_PARA_API_KEY=your_para_publishable_key
 NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=your_reown_project_id
 ```
 
-Portal must list each cross-origin consumer in `AOMI_TRUSTED_ORIGINS` and hold
-the matching server-only Para/Privy verifier credentials. See
+Portal must list each cross-origin consumer in `AOMI_TRUSTED_ORIGINS` (exact
+origin or a narrow preview wildcard) and hold the matching server-only
+Para/Privy verifier credentials. See
 [`apps/portal/LOCAL_ENV.example`](apps/portal/LOCAL_ENV.example).
 
 CLI (optional):

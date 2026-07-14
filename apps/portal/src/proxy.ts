@@ -1,4 +1,4 @@
-import { resolveAccountTrustedOrigins } from "@aomi-labs/account/better-auth/env";
+import { isAccountTrustedOrigin } from "@aomi-labs/account/better-auth/env";
 import { type NextRequest, NextResponse } from "next/server";
 
 const ALLOWED_METHODS = "GET, POST, PUT, PATCH, DELETE, OPTIONS";
@@ -43,8 +43,7 @@ export function proxy(request: NextRequest): NextResponse {
     return NextResponse.next();
   }
 
-  const trustedOrigins = new Set(resolveAccountTrustedOrigins());
-  if (!trustedOrigins.has(origin)) {
+  if (!isAccountTrustedOrigin(origin)) {
     const response = NextResponse.json(
       { error: "Origin is not allowed" },
       { status: 403 },

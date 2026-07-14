@@ -707,10 +707,11 @@ providerless mode by omitting `auth`. Consumers do not need a Portal client,
 Next proxy, wallet-kit wrapper, chain list, or Solana network list for the
 default integration; each remains overridable through `AomiWidget` props.
 
-Portal's `src/proxy.ts` handles credentialed CORS for `/api/*`. Its exact
-origin allowlist comes from the same `resolveAccountTrustedOrigins()` function
-used by BetterAuth. The hosted Landing origin and standard local Landing
-origins are included; additional integrators must be added through
+Portal's `src/proxy.ts` handles credentialed CORS for `/api/*`. Its origin
+allowlist comes from the same `resolveAccountTrustedOrigins()` function used by
+BetterAuth and applies the same exact/wildcard matching. The hosted Landing
+origin, Aomi-owned Landing Vercel previews, and standard local Landing origins
+are included; additional integrators must be added through
 `AOMI_TRUSTED_ORIGINS`.
 
 Landing intentionally retains no `/api/auth/*` or `/api/aomi/*` route mounts.
