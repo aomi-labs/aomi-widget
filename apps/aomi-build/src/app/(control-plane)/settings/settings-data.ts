@@ -18,7 +18,7 @@ export type SettingsSection = {
   description: string;
   icon: LucideIcon;
   enabled: boolean;
-  status: "available" | "project-scoped" | "planned";
+  status: "available" | "project-scoped" | "soon";
   detail: string;
   actionHref?: string;
   actionLabel?: string;
@@ -28,105 +28,104 @@ export const settingsSections: SettingsSection[] = [
   {
     slug: "general",
     title: "General",
-    description: "Workspace identity and local profile defaults.",
+    description: "Profile and workspace defaults.",
     icon: UserRound,
     enabled: true,
-    status: "available",
-    detail:
-      "Useful as the account entry point. Real profile and organization persistence still needs an account backend.",
+    status: "soon",
+    detail: "Coming soon. Profile persistence is not built yet.",
   },
   {
     slug: "secrets",
     title: "Secrets",
-    description: "Deployment and runtime environment values.",
+    description: "Per-project environment values.",
     icon: KeyRound,
     enabled: true,
     status: "project-scoped",
-    detail:
-      "Secrets are already implemented per project in the deployment Environment tab. There is no global secret store in this app yet.",
-    actionHref: "/operate/deployments?tab=environment",
-    actionLabel: "Open project environment",
+    detail: "Open a project Environment tab to edit secrets.",
   },
   {
     slug: "notifications",
     title: "Notifications",
-    description: "Alert channels, delivery rules, and thresholds.",
+    description: "Alert channels and thresholds.",
     icon: Bell,
-    enabled: false,
-    status: "planned",
-    detail:
-      "Notification preferences need backend storage and delivery channels before this can be actionable.",
+    enabled: true,
+    status: "soon",
+    detail: "Coming soon.",
   },
   {
     slug: "appearance",
     title: "Appearance",
-    description: "Theme and display preferences.",
+    description: "Theme and display.",
     icon: Palette,
-    enabled: false,
-    status: "planned",
-    detail:
-      "The shell currently uses the dark Aomi Build theme. User theme persistence is not implemented.",
+    enabled: true,
+    status: "soon",
+    detail: "Coming soon. Build uses the dark shell theme.",
   },
   {
     slug: "integrations",
     title: "Integrations",
-    description: "GitHub app, provider keys, and external services.",
+    description: "External bots and services.",
     icon: Settings,
-    enabled: false,
-    status: "planned",
+    enabled: true,
+    status: "soon",
     detail:
-      "GitHub sign-in is wired for deployments, but a full integration-management page is not implemented.",
+      "Credential save is coming soon. Open Account → Integrations for docs.",
+    actionHref: "/integrations",
+    actionLabel: "Open Integrations",
   },
   {
     slug: "billing",
     title: "Billing",
-    description: "Credits, spend, invoices, and plan management.",
+    description: "Spend and payment setup. Usage is under Operate.",
     icon: CreditCard,
-    enabled: false,
-    status: "planned",
-    detail: "No billing or invoice backend is connected to this app.",
+    enabled: true,
+    status: "available",
+    detail:
+      "Invoices are not in Build yet. See Operate → Usage for spend.",
   },
   {
     slug: "bots",
     title: "Bot setup",
-    description: "Telegram and deployment notification bots.",
+    description: "Telegram and deploy bots.",
     icon: Bot,
-    enabled: false,
-    status: "planned",
-    detail:
-      "Bot configuration needs backend support before this can be actionable.",
+    enabled: true,
+    status: "soon",
+    detail: "Coming soon.",
   },
   {
     slug: "wallets",
     title: "Wallets",
-    description: "Signer and wallet connection management.",
+    description: "Signer and wallet connections.",
     icon: WalletCards,
-    enabled: false,
-    status: "planned",
-    detail:
-      "Wallet management belongs here, but the current deployments flow does not expose this account API yet.",
+    enabled: true,
+    status: "soon",
+    detail: "Coming soon.",
   },
   {
     slug: "observability",
     title: "Observability",
-    description: "Metrics export, alerts, and Grafana links.",
+    description: "Metrics and alert exports.",
     icon: Activity,
-    enabled: false,
-    status: "planned",
-    detail:
-      "Runtime metrics and alert exports are not wired in the current frontend/backend contract.",
+    enabled: true,
+    status: "soon",
+    detail: "Coming soon.",
   },
   {
     slug: "danger",
     title: "Danger zone",
-    description: "Workspace deletion, transfer, and access revocation.",
+    description: "Delete or transfer this workspace.",
     icon: ShieldAlert,
-    enabled: false,
-    status: "planned",
-    detail:
-      "Destructive workspace operations need real account auth and audit logging before we expose them.",
+    enabled: true,
+    status: "soon",
+    detail: "Coming soon.",
   },
 ];
+
+export function settingsStatusLabel(status: SettingsSection["status"]) {
+  if (status === "available") return "Available";
+  if (status === "project-scoped") return "Project-scoped";
+  return "Soon";
+}
 
 export function getSettingsSection(slug: string) {
   return settingsSections.find((section) => section.slug === slug);

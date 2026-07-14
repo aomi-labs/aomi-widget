@@ -27,6 +27,7 @@ import type {
   ListDeploymentRecordsResult,
   ListUserSourceLogsInput,
   ListUserSourceTransactionsInput,
+  ListUserDeploymentsInput,
   ListUserSourceDeploymentsInput,
   ListUserSourcesInput,
   OperateAgentsResult,
@@ -38,6 +39,8 @@ import type {
   OperateUsageResult,
   OwnedOperateSourceInput,
   UserSource,
+  UserDeployment,
+  UserDeploymentsPage,
   UserSourceLatestDeployment,
   ListTokensInput,
   MintTokenInput,
@@ -47,6 +50,8 @@ import type {
   ProgressModel,
   PromoteInput,
   PromoteResult,
+  RerunDeploymentInput,
+  RerunDeploymentResult,
   ServerTagsResult,
   RevokeTokenInput,
   ScaffoldInput,
@@ -245,6 +250,43 @@ export class DeploymentClient {
         status: cameled.ok ? "promoted" : "blocked",
         activation: cameled.activation,
       },
+    };
+  }
+
+  /**
+   * POST `/api/platforms/:platform/deployments/:id/rerun` — re-run the GitHub
+   * Actions run behind a deployment's recorded commit. The backend's App
+   * installation token makes the GitHub call; clients hold no GitHub token.
+   */
+  async rerunDeployment(
+    input: RerunDeploymentInput,
+  ): Promise<RerunDeploymentResult> {
+    const platform = cleanPlatform(input.platform);
+    const deploymentId = required(input.deploymentId, "deploymentId");
+    const params = new URLSearchParams();
+    if (input.githubUserId?.trim()) {
+      params.set("github_user_id", input.githubUserId.trim());
+    }
+    const query = params.toString();
+    const result = await this.post<Record<string, unknown>>(
+      `/api/platforms/${encodeURIComponent(platform)}/deployments/${encodeURIComponent(deploymentId)}/rerun${query ? `?${query}` : ""}`,
+      {},
+      "rerun",
+      this.resolveBearer(),
+    );
+    await this.audit({
+      action: "rerun",
+      platform,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return {
+      ok: result.ok === true,
+      deploymentId,
+      commitHash:
+        typeof result.commit_hash === "string" ? result.commit_hash : null,
+      runId: typeof result.run_id === "number" ? result.run_id : null,
+      ciUrl: typeof result.ci_url === "string" ? result.ci_url : null,
     };
   }
 
@@ -646,6 +688,47 @@ export class DeploymentClient {
       ts: Date.now(),
     });
     return (raw.sources ?? []).map(camelUserSource);
+  }
+
+  async listUserDeployments(
+    input: ListUserDeploymentsInput,
+  ): Promise<UserDeploymentsPage> {
+    const githubUserId = required(input.githubUserId, "githubUserId");
+    const platform = cleanPlatform(input.platform);
+    const bearer = this.resolveBearer(input.bearer);
+    const params = new URLSearchParams({
+      github_user_id: githubUserId,
+      platform,
+    });
+    if (input.limit && Number.isSafeInteger(input.limit) && input.limit > 0) {
+      params.set("limit", String(input.limit));
+    }
+    if (input.cursor) {
+      params.set("cursor_created_at", String(input.cursor.createdAt));
+      params.set("cursor_id", String(input.cursor.id));
+    }
+    const raw = await this.get<{
+      deployments?: unknown[];
+      next_cursor?: unknown;
+    }>(
+      `/api/integrations/github-app/user/deployments?${params.toString()}`,
+      "list_user_deployments",
+      bearer,
+    );
+    await this.audit({
+      action: "list_user_deployments",
+      platform,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return {
+      deployments: (raw.deployments ?? [])
+        .map(camelUserDeployment)
+        .filter((deployment): deployment is UserDeployment =>
+          Boolean(deployment),
+        ),
+      nextCursor: camelUserDeploymentsCursor(raw.next_cursor),
+    };
   }
 
   async getUserSourceLatestDeployment(
@@ -1439,6 +1522,10 @@ function camelUserSourceLatestDeployment(
     sdkVersion: d.sdk_version ?? d.sdkVersion ?? null,
     artifactTarget: d.artifact_target ?? d.artifactTarget ?? null,
     buildTarget: d.build_target ?? d.buildTarget ?? d.target ?? null,
+    createdAt:
+      typeof (d.created_at ?? d.createdAt) === "number"
+        ? (d.created_at ?? d.createdAt)
+        : null,
     apps: apps.map((app) => ({
       name: app.name,
       releaseTag: app.release_tag ?? app.releaseTag ?? null,
@@ -1452,6 +1539,33 @@ function camelUserSourceLatestDeployment(
       loaded: Boolean(app.loaded),
     })),
   };
+}
+
+function camelUserDeployment(raw: unknown): UserDeployment | null {
+  if (!raw || typeof raw !== "object") return null;
+  const deployment = camelUserSourceLatestDeployment(raw);
+  if (!deployment) return null;
+  const value = raw as Record<string, any>;
+  const sourceId = Number(value.source_id ?? value.sourceId);
+  if (!Number.isSafeInteger(sourceId) || sourceId <= 0) return null;
+  return {
+    ...deployment,
+    sourceId,
+    repositoryLink: value.repository_link ?? value.repositoryLink ?? null,
+  };
+}
+
+function camelUserDeploymentsCursor(
+  raw: unknown,
+): UserDeploymentsPage["nextCursor"] {
+  if (!raw || typeof raw !== "object") return null;
+  const value = raw as Record<string, any>;
+  const createdAt = Number(value.created_at ?? value.createdAt);
+  const id = Number(value.id);
+  if (!Number.isSafeInteger(createdAt) || !Number.isSafeInteger(id)) {
+    return null;
+  }
+  return { createdAt, id };
 }
 
 function camelUserSource(raw: unknown): UserSource {

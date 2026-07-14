@@ -1,12 +1,13 @@
 "use client";
 
+import { EmptyState } from "@build/components/control-plane/empty-state";
 import { useProjects } from "@build/features/launch/hooks/use-projects";
+import { BUILD_GLOSSARY } from "@build/lib/glossary";
 import { ProjectRow } from "./project-row";
 import { SdkBadge } from "./ui/sdk-badge";
 import {
   LoadingPanel,
   ErrorPanel,
-  EmptyPanel,
   GitHubSignInPanel,
 } from "./ui/state-panels";
 
@@ -22,28 +23,29 @@ export function ProjectIndex() {
       : null;
 
   return (
-    <main className="min-h-screen bg-white text-zinc-950">
+    <main className="min-h-screen bg-background text-foreground">
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-8 sm:px-6">
         <div className="flex items-center justify-between gap-4">
           <div className="min-w-0">
             <h1 className="text-2xl font-semibold tracking-normal">
-              Deployments
+              Projects
             </h1>
-            <p className="mt-1 text-sm text-zinc-500">
-              Your connected projects and their latest deployments.
+            <p className="mt-1 text-sm text-dim">
+              {BUILD_GLOSSARY.project.meaning} Each project can contain apps,
+              deployments, and an environment for keys.
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <button
               type="button"
               onClick={reload}
-              className="inline-flex h-8 items-center justify-center rounded-md border border-zinc-300 bg-white px-3 text-sm font-medium hover:bg-zinc-50"
+              className="inline-flex h-8 items-center justify-center rounded-md border border-border bg-surface-1 px-3 text-sm font-medium hover:bg-accent-hover"
             >
               Refresh
             </button>
             <a
               href="/operate/deployments/new"
-              className="inline-flex h-8 items-center justify-center rounded-md bg-zinc-900 px-3 text-sm font-medium text-white hover:bg-zinc-800"
+              className="inline-flex h-8 items-center justify-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:opacity-90"
             >
               New app
             </a>
@@ -51,16 +53,16 @@ export function ProjectIndex() {
         </div>
 
         {requiredSdk && (
-          <div className="flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm">
-            <span className="text-zinc-500">Backend requires aomi-sdk</span>
+          <div className="flex items-center gap-2 rounded-lg border border-border bg-surface-1 px-3 py-2 text-sm">
+            <span className="text-dim">Backend requires aomi-sdk</span>
             <SdkBadge stamped={requiredSdk} required={requiredSdk} />
           </div>
         )}
 
-        <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white">
-          <div className="flex h-12 items-center justify-between border-b border-zinc-200 px-4">
+        <div className="overflow-hidden rounded-lg border border-border bg-surface-1">
+          <div className="flex h-12 items-center justify-between border-b border-border px-4">
             <div className="text-sm font-medium">Projects</div>
-            <div className="text-xs text-zinc-500">
+            <div className="text-xs text-dim">
               {state.status === "ready" ? state.sources.length : 0}
             </div>
           </div>
@@ -72,7 +74,12 @@ export function ProjectIndex() {
             <GitHubSignInPanel error={githubError} />
           )}
           {state.status === "ready" && state.sources.length === 0 && (
-            <EmptyPanel>No projects yet.</EmptyPanel>
+            <EmptyState
+              title="No projects yet"
+              description="Import a GitHub repository to deploy your first app."
+              actionHref="/operate/deployments/new"
+              actionLabel="New app"
+            />
           )}
           {state.status === "ready" &&
             state.sources.map((source) => (

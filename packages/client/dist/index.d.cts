@@ -182,7 +182,7 @@ interface AomiMessage {
     tool_result?: [string, string] | null;
 }
 /**
- * GET /api/state
+ * GET /api/thread/state
  * Fetches current session state including messages and processing status
  */
 interface AomiStateResponse {
@@ -193,7 +193,7 @@ interface AomiStateResponse {
     user_state?: UserState | null;
 }
 /**
- * POST /api/chat
+ * POST /api/thread/chat
  * Sends a chat message and returns updated session state
  */
 interface AomiChatResponse {
@@ -211,7 +211,7 @@ interface AomiSystemResponse {
     res?: AomiMessage | null;
 }
 /**
- * POST /api/simulate
+ * POST /api/exec/simulate
  * Batch-simulate pending transactions atomically (snapshot → sequential send → revert).
  */
 interface AomiSimulateFee {
@@ -247,7 +247,7 @@ interface AomiSimulateResponse {
     };
 }
 /**
- * POST /api/interrupt
+ * POST /api/thread/interrupt
  * Interrupts current processing and returns updated session state
  */
 type AomiInterruptResponse = AomiChatResponse;
@@ -260,6 +260,7 @@ interface AomiThread {
     session_id: string;
     title: string | null;
     is_archived?: boolean;
+    last_active_at?: number;
 }
 type AomiAccountResponse = AomiAccountProfile;
 /**

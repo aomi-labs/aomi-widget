@@ -1,6 +1,10 @@
 import { SUPPORTED_CHAIN_IDS, CHAIN_NAMES } from "../chains";
-import type { CliAAMode, CliAAProvider } from "./types";
+import type { AAMode } from "../aa/types";
+import type { CliAAProvider } from "./types";
 import { fatal } from "./errors";
+import { parseSolanaKeypairSecret } from "./solana-signer";
+
+const EVM_PRIVATE_KEY_PATTERN = /^0x[0-9a-fA-F]{64}$/;
 
 export function parseChainId(value: string | undefined): number | undefined {
   if (value === undefined) return undefined;
@@ -15,14 +19,37 @@ export function parseChainId(value: string | undefined): number | undefined {
   return n;
 }
 
-export function normalizePrivateKey(value: string | undefined): string | undefined {
+export function normalizePrivateKey(
+  value: string | undefined,
+): string | undefined {
   if (value === undefined) return undefined;
   const trimmed = value.trim();
   if (!trimmed) return undefined;
-  return trimmed.startsWith("0x") ? trimmed : `0x${trimmed}`;
+  if (!EVM_PRIVATE_KEY_PATTERN.test(trimmed)) {
+    fatal("Invalid private key. Expected a 0x-prefixed 32-byte hex string.");
+  }
+  return trimmed;
 }
 
-export function parseAAProvider(value: string | undefined): CliAAProvider | undefined {
+export function validateSolanaPrivateKey(
+  value: string | undefined,
+): string | undefined {
+  if (value === undefined) return undefined;
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  try {
+    parseSolanaKeypairSecret(trimmed);
+  } catch (err) {
+    fatal(
+      `Invalid Solana private key: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+  return trimmed;
+}
+
+export function parseAAProvider(
+  value: string | undefined,
+): CliAAProvider | undefined {
   if (value === undefined || value.trim() === "") return undefined;
   if (value === "alchemy" || value === "pimlico") {
     return value;
@@ -30,7 +57,7 @@ export function parseAAProvider(value: string | undefined): CliAAProvider | unde
   fatal("Unsupported AA provider. Use `alchemy` or `pimlico`.");
 }
 
-export function parseAAMode(value: string | undefined): CliAAMode | undefined {
+export function parseAAMode(value: string | undefined): AAMode | undefined {
   if (value === undefined || value.trim() === "") return undefined;
   if (value === "4337" || value === "7702") {
     return value;

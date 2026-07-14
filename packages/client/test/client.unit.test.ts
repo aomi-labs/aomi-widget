@@ -11,9 +11,11 @@ describe("AomiClient route manifest", () => {
         `${endpoint.method} ${endpoint.path} [${endpoint.auth.join(", ")}]`,
     );
 
-    expect(routeKeys).toHaveLength(96);
+    expect(routeKeys).toHaveLength(105);
     expect(new Set(routeKeys).size).toBe(routeKeys.length);
-    expect(routeKeys).toContain("POST /api/aa/v1/:chain_slug [thread]");
+    expect(routeKeys).toContain("POST /api/exec/run [account, thread]");
+    expect(routeKeys).toContain("GET /api/resource/search/apps [account]");
+    expect(routeKeys).toContain("GET /api/resource/search/tools [account]");
     expect(routeKeys).toContain("GET /api/thread/apps [thread]");
     expect(routeKeys).toContain("GET /api/_internal/secrets [service]");
     expect(routeKeys).toContain("DELETE /api/_internal/secrets [service]");
@@ -31,6 +33,9 @@ describe("AomiClient route manifest", () => {
     );
     expect(routeKeys).toContain(
       "POST /api/platforms/:name/deployments/:deployment/promote [activation]",
+    );
+    expect(routeKeys).toContain(
+      "POST /api/platforms/:name/deployments/:deployment/rerun [activation]",
     );
     expect(routeKeys).not.toContain("GET /api/control/apps [session]");
     expect(routeKeys.some((route) => route.includes("/api/control/"))).toBe(
@@ -303,7 +308,7 @@ describe("AomiClient account profile", () => {
 
       const [url, init] = nativeFetch.mock.calls[0] ?? [];
       expect(String(url)).toBe(
-        "http://unit.test/api/chat?app=default&message=swap+20+mon+to+usdc&client_id=client-1",
+        "http://unit.test/api/thread/chat?app=default&message=swap+20+mon+to+usdc&client_id=client-1",
       );
       expect((init as RequestInit | undefined)?.body).toBeUndefined();
       expect(
@@ -476,9 +481,8 @@ describe("AomiClient transport selection", () => {
       },
     ] as Response[];
     const nativeFetch = vi.fn(async () => responses.shift() as Response);
-    const getAccountBearer = vi.fn(
-      async ({ forceRefresh = false } = {}) =>
-        forceRefresh ? "fresh-token" : "stale-token",
+    const getAccountBearer = vi.fn(async ({ forceRefresh = false } = {}) =>
+      forceRefresh ? "fresh-token" : "stale-token",
     );
     const originalFetch = globalThis.fetch;
     vi.stubGlobal("fetch", nativeFetch);
@@ -665,10 +669,16 @@ describe("AomiClient transport selection", () => {
     const fetch = vi
       .fn<typeof globalThis.fetch>()
       .mockResolvedValueOnce(
-        Response.json({ thread_id: "thread-1", title: null }),
+        Response.json({
+          thread_id: "thread-1",
+          title: null,
+          last_active_at: "123",
+        }),
       )
       .mockResolvedValueOnce(
-        Response.json([{ thread_id: "thread-1", title: "One" }]),
+        Response.json([
+          { thread_id: "thread-1", title: "One", last_active_at: 456 },
+        ]),
       );
     const client = new AomiClient({
       baseUrl: "http://unit.test",
@@ -678,12 +688,14 @@ describe("AomiClient transport selection", () => {
     await expect(client.createThread("thread-1")).resolves.toEqual({
       session_id: "thread-1",
       title: null,
+      last_active_at: 123,
     });
     await expect(client.listThreads("thread-1")).resolves.toEqual([
       {
         session_id: "thread-1",
         title: "One",
         is_archived: undefined,
+        last_active_at: 456,
       },
     ]);
 

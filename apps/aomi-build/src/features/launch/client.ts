@@ -8,6 +8,7 @@ import {
   type LaunchAppStatus,
   type LaunchCreateRepoResult,
   type DeploymentHistoryResult,
+  type DeploymentFeedResult,
   type DeploymentSecretsResult,
   type ListDeploymentRecordsResult,
   type DeploymentPromoteResult,
@@ -126,6 +127,17 @@ export function deploymentHistory(input: {
   return launchFetch(
     API_PATHS.bff.deployments.history(input.appSourceId, input.limit),
     "deployment history",
+  );
+}
+
+export function deploymentFeed(input: {
+  limit?: number;
+  cursor?: DeploymentFeedResult["nextCursor"];
+}): Promise<DeploymentFeedResult> {
+  const limit = input.limit ?? 50;
+  return launchFetch(
+    API_PATHS.bff.deployments.feed(limit, input.cursor),
+    "deployment feed",
   );
 }
 

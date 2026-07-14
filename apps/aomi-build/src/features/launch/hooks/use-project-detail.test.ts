@@ -108,20 +108,6 @@ describe("useProjectDetail", () => {
     expect(result.current.recordsByApp).toEqual({});
   });
 
-  it("treats unknown app deployment records as an empty timeline", async () => {
-    vi.mocked(deploymentRecords).mockRejectedValueOnce(
-      new Error("unknown app `my-bot`"),
-    );
-    const { result } = renderHook(() => useProjectDetail(7));
-    await waitFor(() => expect(result.current.source?.id).toBe(7));
-
-    act(() => result.current.loadRecords());
-    await waitFor(() =>
-      expect(result.current.recordsByApp?.["my-bot"]).toEqual([]),
-    );
-    expect(result.current.recordsError).toBeNull();
-  });
-
   it("surfaces history load failures and allows retry", async () => {
     vi.mocked(deploymentHistory)
       .mockRejectedValueOnce(new Error("history failed (401)"))

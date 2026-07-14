@@ -1,117 +1,162 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { ToastProvider } from "@build/components/control-plane/toast";
 import { EnvironmentTab } from "./environment-tab";
-import type { useProjectDetail } from "@build/features/launch/hooks/use-project-detail";
 
-type Detail = ReturnType<typeof useProjectDetail>;
+const setEnvVars = vi.fn(async () => ({ ok: true, keys: ["API_KEY"] }));
+const deleteEnvVar = vi.fn(async () => ({ ok: true, removed: true }));
+const writeText = vi.fn(async () => undefined);
 
-function makeDetail(overrides: Partial<Detail> = {}): Detail {
-  return {
-    source: {
-      id: 1,
-      installationId: 5,
-      repositoryLink: "a/b",
-      apps: [{ name: "binance", isActive: true, loaded: true }],
-      latestDeployment: null,
-    },
-    loadSecrets: vi.fn(),
-    loadRequiredSecrets: vi.fn(),
-    setEnvVars: vi.fn(async () => ({ ok: true, keys: ["API_KEY"] })),
-    deleteEnvVar: vi.fn(async () => ({ ok: true, removed: true })),
-    secretsByApp: { binance: ["$SECRET:APP:binance::EXISTING_KEY"] },
-    secretsError: null,
-    requiredSecrets: null,
-    requiredSecretsError: null,
-    hasMissingSecrets: vi.fn(() => false),
-    ...overrides,
-  } as unknown as Detail;
+const detail = {
+  source: {
+    id: 1,
+    installationId: 5,
+    repositoryLink: "a/b",
+    apps: [{ name: "demo", isActive: true, loaded: true }],
+    latestDeployment: null,
+  },
+  loadSecrets: vi.fn(),
+  loadRequiredSecrets: vi.fn(),
+  setEnvVars,
+  deleteEnvVar,
+  secretsByApp: { demo: ["$SECRET:APP:demo::EXISTING_KEY"] },
+  secretsError: null,
+  requiredSecrets: null,
+  requiredSecretsError: null,
+} as unknown as ReturnType<
+  typeof import("@build/features/launch/hooks/use-project-detail").useProjectDetail
+>;
+
+function renderTab(
+  props: { detail?: typeof detail } = {},
+) {
+  return render(
+    <ToastProvider>
+      <EnvironmentTab detail={props.detail ?? detail} />
+    </ToastProvider>,
+  );
 }
 
 describe("EnvironmentTab", () => {
+  beforeEach(() => {
+    setEnvVars.mockClear();
+    deleteEnvVar.mockClear();
+    writeText.mockClear();
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+  });
+
   it("loads secrets on mount and lists configured keys (names only)", () => {
-    const detail = makeDetail();
-    render(<EnvironmentTab detail={detail} />);
+    renderTab();
     expect(detail.loadSecrets).toHaveBeenCalled();
-    // The handle prefix is stripped for display.
+    expect(detail.loadRequiredSecrets).toHaveBeenCalled();
     expect(screen.getByText("EXISTING_KEY")).toBeInTheDocument();
-    expect(screen.getByText("Env")).toBeInTheDocument();
-    expect(screen.getAllByText("Secret").length).toBeGreaterThan(0);
+    expect(screen.getByText("Builder secret")).toBeInTheDocument();
+    expect(screen.getByText("Runtime")).toBeInTheDocument();
+    expect(screen.getByLabelText("Value hidden")).toHaveTextContent("••••");
     expect(
       screen.getByRole("button", { name: /save values/i }),
     ).toBeInTheDocument();
+    expect(screen.queryByText("Env")).not.toBeInTheDocument();
   });
 
-  it("writes plain env and masked secret values", async () => {
-    const detail = makeDetail();
-    render(<EnvironmentTab detail={detail} />);
-    const envValue = screen.getByLabelText("Environment variables value");
-    const secretValue = screen.getByLabelText("Secrets value");
-    expect(envValue).toHaveAttribute("type", "text");
-    expect(secretValue).toHaveAttribute("type", "password");
+  it("tells one vault story in the helper copy", () => {
+    renderTab();
+    expect(
+      screen.getByText(/API keys and secrets for an app/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/chat users never paste API keys/i),
+    ).toBeInTheDocument();
+  });
 
-    fireEvent.change(screen.getByLabelText("Environment variables key"), {
+  it("writes masked vault values through the single editor", async () => {
+    renderTab();
+    const value = screen.getByLabelText("Environment value");
+    expect(value).toHaveAttribute("type", "password");
+
+    fireEvent.change(screen.getByLabelText("Environment key"), {
       target: { value: "API_KEY" },
     });
-    fireEvent.change(envValue, {
-      target: { value: "public" },
-    });
-    fireEvent.change(screen.getByLabelText("Secrets key"), {
-      target: { value: "TOKEN" },
-    });
-    fireEvent.change(secretValue, {
+    fireEvent.change(value, {
       target: { value: "secret" },
     });
     fireEvent.click(screen.getByRole("button", { name: /save values/i }));
     await waitFor(() =>
-      expect(detail.setEnvVars).toHaveBeenCalledWith("binance", {
-        API_KEY: "public",
-        TOKEN: "secret",
+      expect(setEnvVars).toHaveBeenCalledWith("demo", {
+        API_KEY: "secret",
       }),
     );
   });
 
-  it("removes a configured var", async () => {
-    const detail = makeDetail();
-    render(<EnvironmentTab detail={detail} />);
-    fireEvent.click(screen.getByTitle("Remove EXISTING_KEY"));
+  it("copies, overwrites, and deletes configured keys", async () => {
+    renderTab();
+
+    fireEvent.click(screen.getByTitle("Copy EXISTING_KEY"));
     await waitFor(() =>
-      expect(detail.deleteEnvVar).toHaveBeenCalledWith("binance", "EXISTING_KEY"),
+      expect(writeText).toHaveBeenCalledWith("EXISTING_KEY"),
+    );
+
+    fireEvent.click(screen.getByTitle("Overwrite EXISTING_KEY"));
+    expect(screen.getByLabelText("Environment key")).toHaveValue(
+      "EXISTING_KEY",
+    );
+    expect(screen.getByLabelText("Environment value")).toHaveValue("");
+
+    fireEvent.click(screen.getByTitle("Delete EXISTING_KEY"));
+    await waitFor(() =>
+      expect(deleteEnvVar).toHaveBeenCalledWith("demo", "EXISTING_KEY"),
     );
   });
 
   it("shows secret load failures", () => {
-    const detail = makeDetail({
-      secretsByApp: null,
-      secretsError: "vault unavailable",
+    renderTab({
+      detail: {
+        ...detail,
+        secretsByApp: null,
+        secretsError: "vault unavailable",
+      } as typeof detail,
     });
-    render(<EnvironmentTab detail={detail} />);
     expect(screen.getByText("vault unavailable")).toBeInTheDocument();
   });
 
-  it("renders each missing required slot with its description and a masked input", () => {
-    const detail = makeDetail({
-      requiredSecrets: {
-        binance: {
-          slots: [
-            { name: "BINANCE_API_KEY", description: "Binance dashboard API key.", required: true },
-          ],
-          missing: ["BINANCE_API_KEY"],
-        },
-      },
+  it("shows builder empty copy when no vars", () => {
+    renderTab({
+      detail: {
+        ...detail,
+        secretsByApp: { demo: [] },
+      } as typeof detail,
     });
-    render(<EnvironmentTab detail={detail} />);
-
-    expect(screen.getByText("Binance dashboard API key.")).toBeInTheDocument();
-    const input = screen.getByLabelText("BINANCE_API_KEY value");
-    expect(input).toHaveAttribute("type", "password");
-    expect(screen.getByDisplayValue("BINANCE_API_KEY")).toHaveAttribute("readonly");
+    expect(screen.getByText("No variables yet")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Add keys your agent needs/i),
+    ).toBeInTheDocument();
   });
 
-  it("shows a required banner listing the missing slots", () => {
-    const detail = makeDetail({
-      requiredSecrets: { binance: { slots: [], missing: ["A", "B"] } },
-    });
-    render(<EnvironmentTab detail={detail} />);
-    expect(screen.getByText(/2 required secrets missing/i)).toBeInTheDocument();
+  it("renders missing required slots with descriptions and masked inputs", () => {
+    const requiredDetail = {
+      ...detail,
+      requiredSecrets: {
+        demo: {
+          slots: [
+            {
+              name: "DEMO_API_KEY",
+              description: "Key from the demo provider.",
+              required: true,
+            },
+          ],
+          missing: ["DEMO_API_KEY"],
+        },
+      },
+    } as typeof detail;
+    renderTab({ detail: requiredDetail });
+    expect(screen.getByText("Key from the demo provider.")).toBeInTheDocument();
+    expect(screen.getByLabelText("DEMO_API_KEY value")).toHaveAttribute(
+      "type",
+      "password",
+    );
+    expect(screen.getByText(/1 required secret missing/i)).toBeInTheDocument();
   });
 });

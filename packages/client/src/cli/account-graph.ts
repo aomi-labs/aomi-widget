@@ -74,8 +74,6 @@ export type AccountGraphDeleteResponse = {
   revokedWallets: number;
 };
 
-export type AccountLinkKind = "identity" | "wallet";
-
 export type ResolvedAccountLink =
   | { kind: "identity"; id: string; link: AccountGraphLinkedAccount }
   | { kind: "wallet"; id: string; link: AccountGraphWallet };

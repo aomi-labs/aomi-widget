@@ -1,20 +1,18 @@
 "use client";
 
-import {
-  useEffect,
-  useMemo,
-  useState,
-  type Dispatch,
-  type SetStateAction,
-} from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Copy, Plus, Trash2 } from "lucide-react";
+import { useToast } from "@build/components/control-plane/toast";
 import { useProjectDetail } from "@build/features/launch/hooks/use-project-detail";
+import { BUILD_GLOSSARY } from "@build/lib/glossary";
+import { humanizeUserError } from "@build/lib/humanize-error";
 import { LoadingPanel } from "../ui/state-panels";
 
 type Detail = ReturnType<typeof useProjectDetail>;
 type Row = { key: string; value: string };
 
 export function EnvironmentTab({ detail }: { detail: Detail }) {
+  const { toast } = useToast();
   useEffect(() => {
     detail.loadSecrets();
     detail.loadRequiredSecrets();
@@ -25,8 +23,7 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
     [detail.source],
   );
   const [app, setApp] = useState<string>("");
-  const [envRows, setEnvRows] = useState<Row[]>([{ key: "", value: "" }]);
-  const [secretRows, setSecretRows] = useState<Row[]>([{ key: "", value: "" }]);
+  const [rows, setRows] = useState<Row[]>([{ key: "", value: "" }]);
   const [requiredValues, setRequiredValues] = useState<Record<string, string>>(
     {},
   );
@@ -34,6 +31,7 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
     kind: "idle" | "saving" | "done" | "error";
     message: string;
   }>({ kind: "idle", message: "" });
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   useEffect(() => {
     if ((!app || !appNames.includes(app)) && appNames.length > 0) {
@@ -59,7 +57,7 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
 
   const save = async () => {
     const values: Record<string, string> = {};
-    for (const row of [...envRows, ...secretRows]) {
+    for (const row of rows) {
       const key = row.key.trim();
       if (key && row.value.length > 0) values[key] = row.value;
     }
@@ -77,37 +75,63 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
         kind: "done",
         message: `Saved ${result.keys.length} variable(s).`,
       });
-      setEnvRows([{ key: "", value: "" }]);
-      setSecretRows([{ key: "", value: "" }]);
+      toast({ title: "Saved", tone: "success" });
+      setRows([{ key: "", value: "" }]);
       setRequiredValues({});
     } catch (err) {
       setStatus({
         kind: "error",
-        message: err instanceof Error ? err.message : "Failed to save",
+        message: humanizeUserError(err, "Could not save. Try again."),
       });
+      toast({ title: "Failed. Retry", tone: "error" });
     }
   };
 
   const remove = async (key: string) => {
-    setStatus({ kind: "saving", message: `Removing ${key}…` });
+    setStatus({ kind: "saving", message: `Deleting ${key}…` });
     try {
       await detail.deleteEnvVar(app, key);
-      setStatus({ kind: "done", message: `Removed ${key}.` });
+      setStatus({ kind: "done", message: `Deleted ${key}.` });
+      toast({ title: "Deleted", tone: "success" });
     } catch (err) {
       setStatus({
         kind: "error",
-        message: err instanceof Error ? err.message : "Failed to remove",
+        message: humanizeUserError(err, "Could not delete. Try again."),
+      });
+      toast({ title: "Failed. Retry", tone: "error" });
+    }
+  };
+
+  const overwrite = (key: string) => {
+    setRows([{ key, value: "" }]);
+    setStatus({
+      kind: "idle",
+      message: "",
+    });
+  };
+
+  const copyKey = async (key: string) => {
+    try {
+      await navigator.clipboard.writeText(key);
+      setCopiedKey(key);
+      window.setTimeout(() => {
+        setCopiedKey((current) => (current === key ? null : current));
+      }, 1500);
+    } catch {
+      setStatus({
+        kind: "error",
+        message: "Could not copy key name.",
       });
     }
   };
 
   return (
-    <div className="divide-y divide-zinc-100">
+    <div className="divide-y divide-border">
       <div className="px-4 py-3">
         <div className="flex items-center justify-between gap-3">
-          <div className="text-sm font-medium">Environment variables</div>
+          <div className="text-sm font-medium">Environment</div>
           {appNames.length === 1 && (
-            <span className="rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1 font-mono text-xs text-zinc-600">
+            <span className="rounded-md border border-border bg-surface-2 px-2 py-1 font-mono text-xs text-dim">
               {appNames[0]}
             </span>
           )}
@@ -116,7 +140,7 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
           <div
             role="tablist"
             aria-label="Application environment scope"
-            className="mt-3 flex flex-wrap gap-1 rounded-md bg-zinc-100 p-1"
+            className="mt-3 flex flex-wrap gap-1 rounded-md bg-surface-2 p-1"
           >
             {appNames.map((name) => (
               <button
@@ -127,8 +151,8 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
                 onClick={() => setApp(name)}
                 className={`h-7 rounded px-2.5 font-mono text-xs font-medium ${
                   app === name
-                    ? "bg-white text-zinc-950 shadow-sm"
-                    : "text-zinc-500 hover:text-zinc-800"
+                    ? "bg-surface-1 text-foreground shadow-sm"
+                    : "text-dim hover:text-foreground"
                 }`}
               >
                 {name}
@@ -137,74 +161,102 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
           </div>
         )}
         {appNames.length === 0 && (
-          <div className="mt-3 rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-500">
+          <div className="mt-3 rounded-md border border-border bg-surface-2 px-3 py-2 text-xs text-dim">
             No applications are attached to this project yet.
           </div>
         )}
-        <p className="mt-3 text-xs text-zinc-500">
-          Set environment values for{" "}
-          <span className="font-mono">{app || "this app"}</span>. Secrets are
-          masked while editing and all saved values are injected into the
-          running app.
+        <p className="mt-3 text-xs leading-5 text-dim">
+          {BUILD_GLOSSARY.environment.meaning} Add KEY=value pairs for{" "}
+          <span className="font-mono">{app || "this app"}</span>. Values are
+          write-only. Builders set these; chat users never paste API keys.
         </p>
         {detail.secretsError && (
-          <div className="mt-3 rounded-md border border-red-100 bg-red-50 px-3 py-2 text-xs text-red-700">
-            {detail.secretsError}
+          <div className="mt-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+            {humanizeUserError(
+              detail.secretsError,
+              "Could not load environment. Try again.",
+            )}
           </div>
         )}
       </div>
-      <div className="px-4 py-3">
-        <ValueEditor
-          title="Environment variables"
-          badge="Env"
-          rows={envRows}
-          setRows={setEnvRows}
-          valueType="text"
-          addLabel="Add environment variable"
-        />
 
-        <div className="mt-5 border-t border-zinc-100 pt-4">
-          {missingCount > 0 && (
-            <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-              {missingCount} required secret{missingCount === 1 ? "" : "s"}{" "}
-              missing. This app cannot be activated until every required
-              value is set.
+      <div className="px-4 py-3">
+        <div className="mb-2 text-xs font-medium uppercase tracking-wide text-dim">
+          Add or overwrite
+        </div>
+        {missingCount > 0 && (
+          <div className="mb-3 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning">
+            {missingCount} required secret{missingCount === 1 ? "" : "s"}{" "}
+            missing. This app cannot be activated until every required value is
+            set.
+          </div>
+        )}
+        {missingSlots.map((slot) => (
+          <div key={slot.name} className="mb-2">
+            <div className="flex items-center gap-2">
+              <input
+                value={slot.name}
+                readOnly
+                aria-label={`${slot.name} key`}
+                className="bg-input text-foreground h-8 w-40 rounded-md border border-border px-2 font-mono text-xs"
+              />
+              <input
+                type="password"
+                value={requiredValues[slot.name] ?? ""}
+                onChange={(e) =>
+                  setRequiredValues((v) => ({
+                    ...v,
+                    [slot.name]: e.target.value,
+                  }))
+                }
+                placeholder="value"
+                aria-label={`${slot.name} value`}
+                className="bg-input text-foreground h-8 flex-1 rounded-md border border-border px-2 text-xs"
+              />
             </div>
-          )}
-          {missingSlots.map((slot) => (
-            <div key={slot.name} className="mb-2">
-              <div className="flex items-center gap-2">
-                <input
-                  value={slot.name}
-                  readOnly
-                  aria-label={`${slot.name} key`}
-                  className="h-8 w-56 rounded-md border border-zinc-300 bg-zinc-50 px-2 font-mono text-xs"
-                />
-                <input
-                  type="password"
-                  value={requiredValues[slot.name] ?? ""}
-                  onChange={(e) =>
-                    setRequiredValues((v) => ({
-                      ...v,
-                      [slot.name]: e.target.value,
-                    }))
-                  }
-                  placeholder="value"
-                  aria-label={`${slot.name} value`}
-                  className="h-8 flex-1 rounded-md border border-zinc-300 px-2 text-xs"
-                />
-              </div>
-              <p className="mt-1 text-xs text-zinc-500">{slot.description}</p>
+            <p className="mt-1 text-xs text-dim">{slot.description}</p>
+          </div>
+        ))}
+        <div className="space-y-2">
+          {rows.map((row, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <input
+                value={row.key}
+                onChange={(e) =>
+                  setRows((rs) =>
+                    rs.map((r, j) =>
+                      j === i ? { ...r, key: e.target.value } : r,
+                    ),
+                  )
+                }
+                placeholder="KEY"
+                aria-label="Environment key"
+                className="bg-input text-foreground h-8 w-40 rounded-md border border-border px-2 font-mono text-xs"
+              />
+              <input
+                value={row.value}
+                onChange={(e) =>
+                  setRows((rs) =>
+                    rs.map((r, j) =>
+                      j === i ? { ...r, value: e.target.value } : r,
+                    ),
+                  )
+                }
+                placeholder="value"
+                aria-label="Environment value"
+                type="password"
+                className="bg-input text-foreground h-8 flex-1 rounded-md border border-border px-2 text-xs"
+              />
             </div>
           ))}
-          <ValueEditor
-            title="Secrets"
-            badge="Secret"
-            rows={secretRows}
-            setRows={setSecretRows}
-            valueType="password"
-            addLabel="Add secret"
-          />
+          <button
+            type="button"
+            onClick={() => setRows((rs) => [...rs, { key: "", value: "" }])}
+            className="inline-flex h-7 items-center gap-1 rounded-md border border-border bg-surface-1 px-2 text-xs font-medium hover:bg-accent-hover"
+          >
+            <Plus className="size-3.5" aria-hidden />
+            Add variable
+          </button>
         </div>
 
         <div className="mt-3 flex items-center gap-3">
@@ -212,14 +264,14 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
             type="button"
             disabled={!app || status.kind === "saving"}
             onClick={() => void save()}
-            className="inline-flex h-8 items-center justify-center rounded-md bg-zinc-900 px-3 text-xs font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex h-8 items-center justify-center rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
           >
             Save values
           </button>
           {status.kind !== "idle" && (
             <span
               className={`text-xs ${
-                status.kind === "error" ? "text-red-600" : "text-zinc-500"
+                status.kind === "error" ? "text-destructive" : "text-dim"
               }`}
             >
               {status.message}
@@ -228,115 +280,79 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
         </div>
       </div>
 
-      {currentKeys.length > 0 && (
+      {currentKeys.length > 0 ? (
         <div className="px-4 py-3">
-          <div className="text-xs font-medium uppercase tracking-wide text-zinc-400">
+          <div className="text-xs font-medium uppercase tracking-wide text-dim">
             Configured
           </div>
-          <ul className="mt-2 space-y-1">
+          <ul className="mt-2 space-y-2">
             {currentKeys.map(({ handle, key }) => (
               <li
                 key={handle}
-                className="flex items-center justify-between gap-3 py-0.5"
+                className="flex flex-wrap items-center justify-between gap-2 py-0.5"
               >
-                <span className="flex min-w-0 items-center gap-2">
-                  <span className="rounded-sm border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-700">
-                    Secret
-                  </span>
-                  <span className="truncate font-mono text-xs text-zinc-600">
+                <span className="flex min-w-0 flex-wrap items-center gap-2">
+                  <span className="truncate font-mono text-xs text-foreground">
                     {key}
                   </span>
+                  <span className="rounded-sm border border-warning/40 bg-warning/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-warning">
+                    Builder secret
+                  </span>
+                  <span className="rounded-sm border border-border bg-surface-2 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-dim">
+                    Runtime
+                  </span>
+                  <span
+                    className="font-mono text-xs tracking-widest text-dim"
+                    title="Value is write-only and cannot be revealed"
+                    aria-label="Value hidden"
+                  >
+                    ••••
+                  </span>
                 </span>
-                <button
-                  type="button"
-                  onClick={() => void remove(key)}
-                  className="inline-flex items-center gap-1 text-xs text-zinc-400 hover:text-red-600"
-                  title={`Remove ${key}`}
-                >
-                  <Trash2 className="size-3.5" aria-hidden />
-                  Remove
-                </button>
+                <span className="flex shrink-0 items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void copyKey(key)}
+                    className="inline-flex items-center gap-1 text-xs text-dim hover:text-foreground"
+                    title={`Copy ${key}`}
+                  >
+                    <Copy className="size-3.5" aria-hidden />
+                    {copiedKey === key ? "Copied" : "Copy key"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => overwrite(key)}
+                    className="text-xs text-dim hover:text-foreground"
+                    title={`Overwrite ${key}`}
+                  >
+                    Overwrite
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void remove(key)}
+                    className="inline-flex items-center gap-1 text-xs text-dim hover:text-destructive"
+                    title={`Delete ${key}`}
+                  >
+                    <Trash2 className="size-3.5" aria-hidden />
+                    Delete
+                  </button>
+                </span>
               </li>
             ))}
           </ul>
         </div>
-      )}
-    </div>
-  );
-}
-
-function ValueEditor({
-  title,
-  badge,
-  rows,
-  setRows,
-  valueType,
-  addLabel,
-}: {
-  title: string;
-  badge: "Env" | "Secret";
-  rows: Row[];
-  setRows: Dispatch<SetStateAction<Row[]>>;
-  valueType: "text" | "password";
-  addLabel: string;
-}) {
-  return (
-    <div>
-      <div className="mb-2 flex items-center gap-2">
-        <div className="text-xs font-medium uppercase tracking-wide text-zinc-400">
-          {title}
-        </div>
-        <span
-          className={`rounded-sm border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide ${
-            badge === "Env"
-              ? "border-blue-200 bg-blue-50 text-blue-700"
-              : "border-amber-200 bg-amber-50 text-amber-700"
-          }`}
-        >
-          {badge}
-        </span>
-      </div>
-      <div className="space-y-2">
-        {rows.map((row, i) => (
-          <div key={i} className="flex items-center gap-2">
-            <input
-              value={row.key}
-              onChange={(e) =>
-                setRows((rs) =>
-                  rs.map((r, j) =>
-                    j === i ? { ...r, key: e.target.value } : r,
-                  ),
-                )
-              }
-              placeholder="KEY"
-              aria-label={`${title} key`}
-              className="h-8 w-40 rounded-md border border-zinc-300 px-2 font-mono text-xs"
-            />
-            <input
-              value={row.value}
-              onChange={(e) =>
-                setRows((rs) =>
-                  rs.map((r, j) =>
-                    j === i ? { ...r, value: e.target.value } : r,
-                  ),
-                )
-              }
-              placeholder="value"
-              aria-label={`${title} value`}
-              type={valueType}
-              className="h-8 flex-1 rounded-md border border-zinc-300 px-2 text-xs"
-            />
+      ) : (
+        appNames.length > 0 && (
+          <div className="px-4 py-4 text-sm text-dim">
+            <p className="font-medium text-foreground">No variables yet</p>
+            <p className="mt-1 text-xs leading-5">
+              Add keys your agent needs (for example{" "}
+              <span className="font-mono">BINANCE_API_KEY</span>). Chat users
+              never paste API keys.
+            </p>
           </div>
-        ))}
-        <button
-          type="button"
-          onClick={() => setRows((rs) => [...rs, { key: "", value: "" }])}
-          className="inline-flex h-7 items-center gap-1 rounded-md border border-zinc-300 bg-white px-2 text-xs font-medium hover:bg-zinc-50"
-        >
-          <Plus className="size-3.5" aria-hidden />
-          {addLabel}
-        </button>
-      </div>
+        )
+      )}
     </div>
   );
 }

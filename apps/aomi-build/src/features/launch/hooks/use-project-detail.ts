@@ -40,12 +40,6 @@ export type DeployFlowState =
 const DEPLOY_POLL_MS = 4000;
 const DEPLOY_TIMEOUT_MS = 8 * 60 * 1000;
 
-function isMissingAppRecords(err: unknown) {
-  return (
-    err instanceof Error && err.message.toLowerCase().includes("unknown app")
-  );
-}
-
 export function useProjectDetail(sourceId: number) {
   const [source, setSource] = useState<UserSource | null>(null);
   const [sdk, setSdk] = useState<LaunchSdkStatus | null>(null);
@@ -82,6 +76,13 @@ export function useProjectDetail(sourceId: number) {
   const reload = useCallback(async () => {
     setLoading(true);
     setError(null);
+    // Clear the records latch so "Refresh" actually recovers a failed
+    // deployment-activity load. On error `fetchRecords` sets `recordsByApp` to
+    // `{}` (non-null), which otherwise makes `loadRecords` no-op forever and
+    // strands the tab on its error banner until a full page reload.
+    recordsReq.current = false;
+    setRecords(null);
+    setRecordsError(null);
     try {
       const [{ sources }, sdkStatus] = await Promise.all([
         deploymentSources(),
@@ -202,11 +203,6 @@ export function useProjectDetail(sourceId: number) {
           const result = await deploymentRecords({
             app: app.name,
             appSourceId: src.id,
-          }).catch((err: unknown) => {
-            if (isMissingAppRecords(err)) {
-              return { records: [] };
-            }
-            throw err;
           });
           return [app.name, result.records] as const;
         }),
@@ -308,7 +304,19 @@ export function useProjectDetail(sourceId: number) {
         releaseTags,
         apps,
       });
-      const unloaded = activated.activation.apps.filter((app) => !app.loaded);
+      // A rejected/partial activation still returns apps (with `error` set), and
+      // a malformed response may omit `activation` entirely — surface the real
+      // reason instead of throwing into the generic "Deploy failed" catch.
+      const activatedApps = activated.activation?.apps ?? [];
+      const failed = activatedApps.find((app) => app.error);
+      if (!activated.ok || failed) {
+        setDeployFlow({
+          phase: "error",
+          message: failed?.error ?? "Activation was not accepted.",
+        });
+        return;
+      }
+      const unloaded = activatedApps.filter((app) => !app.loaded);
       setDeployFlow({
         phase: unloaded.length ? "error" : "done",
         message: unloaded.length

@@ -12,7 +12,7 @@ sources_of_truth:
 
 # Repo Wiki Topics
 
-These topic pages are the maintained knowledge surface for `aomi-widget`. They are organized as semantic topic folders with raw facts under `facts/`; optional diagrams belong under `diagrahm/`, and scratch work belongs under `tmp/`.
+These topic pages are the maintained knowledge surface for `aomi`. They are organized as semantic topic folders with raw facts under `facts/`; optional diagrams belong under `diagrahm/`, and scratch work belongs under `tmp/`.
 
 Use `./scripts/repowiki list` to enumerate topics and `./scripts/repowiki look <topic>` to open one directly. Topic command handling comes from the neighboring `product-mono` Rust `repowiki` binary; this repo owns the wrapper, config, docs surface, and the local `./aomi` link that lets generated inventories reuse the shared Rust workspace metadata.
 

@@ -82,7 +82,7 @@ GET /api/sessions/{id}
 Send a message to the AI assistant. Returns a Server-Sent Events (SSE) stream.
 
 ```
-POST /api/chat?app={app}
+POST /api/thread/chat?app={app}
 ```
 
 **Query Parameters:**
@@ -141,7 +141,7 @@ data: {"type":"complete"}
 Get the current state snapshot for a session. Useful for polling session status and receiving pending updates.
 
 ```
-GET /api/state?session_id={session_id}
+GET /api/thread/state?session_id={session_id}
 ```
 
 **Query Parameters:**
@@ -172,7 +172,7 @@ GET /api/state?session_id={session_id}
 Cancel an in-progress response generation.
 
 ```
-POST /api/interrupt?session_id={session_id}
+POST /api/thread/interrupt?session_id={session_id}
 ```
 
 **Query Parameters:**
@@ -196,7 +196,7 @@ POST /api/interrupt?session_id={session_id}
 Subscribe to real-time updates for a session via SSE. This is a long-lived connection that receives system events, async tool results, and state changes.
 
 ```
-GET /api/updates
+GET /api/thread/updates
 ```
 
 **Headers:**
@@ -324,7 +324,7 @@ Each line starts with `data: ` followed by a JSON object and ends with two newli
 ### Consuming SSE in JavaScript
 
 ```ts
-const response = await fetch("/api/chat?app=mycoindex", {
+const response = await fetch("/api/thread/chat?app=mycoindex", {
   method: "POST",
   headers: {
     "Content-Type": "application/json",

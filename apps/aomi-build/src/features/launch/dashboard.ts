@@ -4,6 +4,7 @@
 
 import { API_PATHS } from "@build/lib/api-paths";
 import type { UserSource } from "@aomi-labs/deploy";
+import { resetLaunch } from "./state";
 
 export type { UserSource };
 
@@ -31,7 +32,14 @@ export async function fetchGitHubSession(): Promise<GitHubSessionInfo> {
 }
 
 export async function signOutGitHub(): Promise<void> {
-  await fetch(API_PATHS.bff.auth.github.signout, { method: "POST" });
+  try {
+    await fetch(API_PATHS.bff.auth.github.signout, { method: "POST" });
+  } finally {
+    // Signing out must not leave one account's in-flight wizard state
+    // (installation id, source id, repo, deployment id) in localStorage for the
+    // next account that signs in on the same browser — clear it every time.
+    resetLaunch();
+  }
 }
 
 export interface UserSourcesResult {

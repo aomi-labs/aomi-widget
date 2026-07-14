@@ -262,7 +262,7 @@ absent.
 Impact:
 
 The secret is exposed in source/history, and local or unconfigured runs can
-silently connect to the hosted shared DB.
+silently connect to the hosted production DB.
 
 Fix checklist:
 
