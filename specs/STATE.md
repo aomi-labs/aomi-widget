@@ -2,6 +2,8 @@
 
 ## Last Updated
 
+2026-07-14 — AI Builder P3 (#344): nodes + compile/aomi-run (review local first);
+2026-07-14 — AI Builder P0–P2 (#343): Create craft on /build;
 2026-07-14 — AI Builder P1 craft port: mock layout feel in ControlPlaneShell
   (composer, stream, files, ship→Projects, in-page history; local mock timers);
 2026-07-14 — AI Builder P1: intent composer + templates + local session;
