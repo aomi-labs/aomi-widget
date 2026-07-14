@@ -1,5 +1,12 @@
 import type { BuildTemplate } from "@build/features/build/contracts";
 
+/** First-viewport starters on empty Create (order matters). */
+export const FEATURED_TEMPLATE_IDS = [
+  "tpl_arbitrage_bot",
+  "tpl_openapi_agent",
+  "tpl_trading_agent",
+] as const;
+
 export const BUILD_TEMPLATES: BuildTemplate[] = [
   {
     id: "tpl_arbitrage_bot",

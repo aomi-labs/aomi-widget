@@ -1,12 +1,12 @@
 # Aomi Build — AI Builder (Create / “Chat Mock”) Plan
 
-> **Status:** P0–P2 + partial P4 landed (craft port). **Next = P3** (nodes + compile/test) — biggest gap vs Cecilia sketches.  
+> **Status:** P0–P3 on branch + **UX polish pass** (stop/⌘N/autofocus/collapsible files/prompt-aware tree). Review local before merge.  
 > **App:** `aomi/apps/aomi-build` → [build.aomi.dev](https://build.aomi.dev)  
 > **Reference mock:** `aomi-build` repo → `apps/portal` `/build`  
 > **Owner:** Gordian (`0xgordian`) — experience + mock UI  
 > **Backend / Smithers stream:** Han (`POST /api/build` + SSE — **not in product-mono yet**)  
-> **Branch:** `feat/build-enable-route`  
-> **Last updated:** 2026-07-14 (post-craft review)
+> **Branch:** `feat/build-p3-smithers-nodes` (stacks on #343 / #344)  
+> **Last updated:** 2026-07-14 (UX/DX polish)
 
 Local source of truth for bringing the **AI Builder** onto the live control plane.  
 Pair with a Scrum Board issue so Cecilia/Han can see status. This file alone is not team sync.
@@ -15,6 +15,24 @@ Related:
 
 - [BUILDERS-EXPERIENCE.md](./BUILDERS-EXPERIENCE.md) — manage/deploy/operate polish (**mostly done**; do not reopen for chrome)
 - [BILLING-EXPERIENCE.md](./BILLING-EXPERIENCE.md) — pay on Chat, not fake Build billing
+
+---
+
+## UX / DX polish (Cursor-agent bar)
+
+Even as a local mock, every control must work. Landed on `feat/build-p3-smithers-nodes`:
+
+- [x] **Stop** mid-run (header + composer square + Esc) cancels timers, leaves a system note
+- [x] **⌘N / New** starts a clean session and focuses composer
+- [x] **Autofocus** empty + after template / session select
+- [x] Working pills: Arb bot / OpenAPI agent seed prompts; Plan from idea (⇧Tab)
+- [x] Composer gate while verify: clear copy; don’t silently eat Enter
+- [x] **Collapsible** file tree folders; prompt-aware arb file tree
+- [x] Download lists flattened paths; toast confirms
+- [x] De-dupe: templates dropped from right rail; nodes compact in context
+- [x] Stream stays visible while generating; skip-to-end on assistant stream
+
+**Still later (don’t block demo):** real SSE, real GitHub init, mobile session drawer, edit-last-user-message.
 
 ---
 
@@ -273,10 +291,10 @@ You view **locally** (`pnpm run dev:aomi-build` → `/build`) and/or on the **Ve
 
 | PR | Phase(s) | Branch | Status |
 |----|----------|--------|--------|
-| **PR-A** | P0 + P1 + P2 + partial P4 (craft in shell) | `feat/build-enable-route` | Open next — click through locally first |
-| **PR-B** | P3 Smithers nodes + compile / aomi-run | `feat/build-p3-smithers-nodes` | After PR-A exists; implement next |
-| **PR-C** | P4 finish (download + GitHub-init copy) | `feat/build-p4-ship-polish` | After P3 / Cecilia gate |
-| **PR-D** | P5 Han SSE seams (no fake live) | `feat/build-p5-sse-seams` | After Han has API or accepted stubs |
+| **PR-A** | P0 + P1 + P2 + partial P4 (craft in shell) | `feat/build-enable-route` | **[#343](https://github.com/aomi-labs/aomi/pull/343)** — review local/preview; merge when you OK |
+| **PR-B** | P3 Smithers nodes + compile / aomi-run | `feat/build-p3-smithers-nodes` | Implement locally → PR after you OK |
+| **PR-C** | P4 leftovers / polish only if needed | `feat/build-p4-ship-polish` | Likely skip — folded into P3 |
+| **PR-D** | P5 Han SSE seams (no fake live) | `feat/build-p5-sse-seams` | After Han API or accepted stubs |
 
 ```mermaid
 flowchart LR
@@ -364,30 +382,28 @@ Nested in `ControlPlaneShell` (not BuildLayout). Ported mock craft:
 
 **Done when:** One click-through shows stream completing and a file tree appearing.
 
-### P3 — Smithers nodes + compile / test affordances ⬅️ NEXT
+### P3 — Smithers nodes + compile / test affordances ✅ (branch `feat/build-p3-smithers-nodes`)
 
-**Goal:** Closer to Cecilia wireframe than Cursor thread. **This closes the biggest product gap.**
+**Goal:** Closer to Cecilia wireframe than Cursor thread.
 
-- [ ] Add `components/smithers-nodes.tsx` — plan step shows **node cards** (e.g. `aomi-openapi-gen` hype / binance) — mock data OK
-- [ ] Show nodes during / after `plan` (not only progress list)
-- [ ] Explicit **Compile** and **Test with aomi-run** controls after generate (mock success / fail)
-- [ ] Copy: “smither writes smither” / agent nodes — honest that stream is local
-- [ ] Soften Cursor residue: remove or hide **Multitask**; keep one local-mock affordance
-- [ ] Optional with P3: mock **Download your code** on ship banner
+- [x] `components/smithers-nodes.tsx` — plan step shows **node cards**
+- [x] Nodes derive from prompt (hype/binance openapi-gen, aomi-run, compose)
+- [x] Explicit **Compile** and **Test with aomi-run** after generate (mock)
+- [x] Ship unlocked only after both verify steps
+- [x] Soften Cursor residue: drop Multitask pill
+- [x] Mock **Download code** on ship banner; GitHub init copy = needs API
 
-**Done when:** Cecilia can point at nodes + compile/test and say “that’s the product.”
+**Done when:** Local click-through: prompt → nodes → files → compile → aomi-run → download / Projects.
 
-**Stop gate:** Loom/GIF click-through → Cecilia/Han before more chrome.
+**Stop gate:** You review locally → open **PR-B** → merge only after OK. Cecilia Loom optional.
 
-### P4 — Ship handoff + light history ✅ (partial with craft port)
+### P4 — Ship handoff + light history ✅ (mostly; leftovers folded into P3)
 
-- [x] Banner: **Open Projects** (+ GitHub init Soon)
-- [x] In-page session history (not second global sidebar)
+- [x] Banner: **Open Projects**
+- [x] In-page session history
 - [x] Never deep-link to mock portal `/deploy/[id]`
-- [ ] Download (mock) button — fold into P3 pass
-- [ ] GitHub init copy: disabled with clear “needs Han API” (not ambiguous Soon forever)
-
-**Done when:** End of flow lands on manage path without confusion.
+- [x] Download (mock)
+- [x] GitHub init copy: “needs API”
 
 ### P5 — Han seams (no fake live)
 
@@ -462,7 +478,7 @@ If anything feels more like Cursor than Aomi Create → cut chrome, keep journey
 
 ## Next action
 
-1. Click through current craft: `/build` empty → run → stream/files → Open Projects.  
-2. Implement **P3** (nodes + compile/test + soft Cursor trim + optional download).  
-3. Stop gate for Cecilia — then PR (P0–P3) for preview/staging.  
-4. Only after that: P5 Han SSE seams.
+1. **PR-A** [#343](https://github.com/aomi-labs/aomi/pull/343) — view locally / Vercel preview; merge only when you OK (not auto).  
+2. On `feat/build-p3-smithers-nodes`: `pnpm run dev:aomi-build` → `/build` → arb prompt → nodes → compile → aomi-run → download.  
+3. When P3 feels right → push + **PR-B** (still no merge until you say).  
+4. **PR-D** later for Han SSE seams only.

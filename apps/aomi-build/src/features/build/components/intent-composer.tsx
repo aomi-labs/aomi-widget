@@ -1,7 +1,13 @@
 "use client";
 
-import { ArrowUp, Laptop, Loader2 } from "lucide-react";
-import { useCallback, useEffect, useRef } from "react";
+import { ArrowUp, Laptop, Loader2, Square } from "lucide-react";
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+} from "react";
 
 import { cn } from "@build/lib/utils";
 
@@ -11,37 +17,55 @@ type ActionPill = {
   action?: string;
 };
 
+export type IntentComposerHandle = {
+  focus: () => void;
+};
+
 type IntentComposerProps = {
   value: string;
   onChange: (value: string) => void;
   onSubmit: () => void;
+  /** Cursor-style: while generating, primary action stops the run. */
+  onStop?: () => void;
   disabled?: boolean;
   isLoading?: boolean;
   placeholder?: string;
   actionPills?: ActionPill[];
   onActionPillClick?: (action: string) => void;
-  /** Visual-only model chip — no picker (DropdownMenu not in live app). */
-  modelLabel?: string;
   compact?: boolean;
-  showContextStrip?: boolean;
   footerHint?: string;
+  autoFocus?: boolean;
 };
 
-export function IntentComposer({
-  value,
-  onChange,
-  onSubmit,
-  disabled,
-  isLoading,
-  placeholder = "What do you want to build?",
-  actionPills,
-  onActionPillClick,
-  modelLabel = "Local mock",
-  compact = false,
-  showContextStrip = true,
-  footerHint = "Local mock for now — Smithers streaming is not wired yet.",
-}: IntentComposerProps) {
+/**
+ * Intent composer — Preview honesty chip + send.
+ * No stacked Aomi branding (shell already brands); no model picker yet.
+ */
+export const IntentComposer = forwardRef<
+  IntentComposerHandle,
+  IntentComposerProps
+>(function IntentComposer(
+  {
+    value,
+    onChange,
+    onSubmit,
+    onStop,
+    disabled,
+    isLoading,
+    placeholder = "What do you want to build?",
+    actionPills,
+    onActionPillClick,
+    compact = false,
+    footerHint = "Enter to send · Shift+Enter newline · Esc stop · ⌘N new",
+    autoFocus = false,
+  },
+  ref,
+) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useImperativeHandle(ref, () => ({
+    focus: () => textareaRef.current?.focus(),
+  }));
 
   const adjustHeight = useCallback(() => {
     const el = textareaRef.current;
@@ -55,21 +79,30 @@ export function IntentComposer({
   }, [value, adjustHeight]);
 
   useEffect(() => {
+    if (autoFocus) textareaRef.current?.focus();
+  }, [autoFocus]);
+
+  useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Tab" && e.shiftKey) {
         e.preventDefault();
         onActionPillClick?.("plan");
       }
+      if (e.key === "Escape" && isLoading) {
+        e.preventDefault();
+        onStop?.();
+      }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onActionPillClick]);
+  }, [onActionPillClick, isLoading, onStop]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
-        if (!disabled && !isLoading && value.trim()) onSubmit();
+        if (isLoading) return;
+        if (!disabled && value.trim()) onSubmit();
       }
     },
     [disabled, isLoading, value, onSubmit],
@@ -79,21 +112,6 @@ export function IntentComposer({
 
   return (
     <div className="w-full">
-      {showContextStrip ? (
-        <div className="mb-2.5 flex items-center gap-1">
-          <span className="context-chip cursor-default" title="Local mock workspace">
-            aomi
-          </span>
-          <span
-            className="context-chip cursor-default"
-            title="Timers only until SSE"
-          >
-            <Laptop className="size-3.5 opacity-70" />
-            Local mock
-          </span>
-        </div>
-      ) : null}
-
       <div
         className={cn(
           "composer-surface",
@@ -105,46 +123,59 @@ export function IntentComposer({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={handleKeyDown}
-          disabled={disabled || isLoading}
-          placeholder={placeholder}
+          disabled={disabled && !isLoading}
+          placeholder={isLoading ? "Building… Esc to stop" : placeholder}
           rows={compact ? 2 : 3}
           className={cn(
             "text-foreground placeholder:text-dim w-full resize-none bg-transparent text-[14px] leading-relaxed outline-none disabled:opacity-50",
-            compact ? "min-h-[48px]" : "min-h-[80px]",
+            compact ? "min-h-[48px]" : "min-h-[72px]",
           )}
         />
 
-        <div className="mt-3 flex items-center justify-between">
+        <div className="mt-2.5 flex items-center justify-between gap-2">
           <span
-            className="context-chip cursor-default rounded-full border border-transparent px-2.5 py-1"
-            title="Model selection arrives with Smithers SSE"
+            className="context-chip cursor-default"
+            title="Preview build — timers until remote generate is connected"
           >
-            {modelLabel}
+            <Laptop className="size-3.5 opacity-70" />
+            Preview
           </span>
 
-          <button
-            type="button"
-            onClick={onSubmit}
-            disabled={!canSend}
-            className={cn(
-              "flex h-9 w-9 items-center justify-center rounded-full transition-all duration-150",
-              canSend
-                ? "bg-primary text-primary-foreground hover:bg-brand-hover shadow-sm hover:scale-[1.03]"
-                : "bg-surface-3 text-dim",
-            )}
-            aria-label="Send message"
-          >
-            {isLoading ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <ArrowUp className="size-4" />
-            )}
-          </button>
+          {isLoading && onStop ? (
+            <button
+              type="button"
+              onClick={onStop}
+              className="border-border bg-surface-2 text-foreground hover:bg-accent/50 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border transition-all duration-150"
+              aria-label="Stop generation"
+              title="Stop (Esc)"
+            >
+              <Square className="size-3.5 fill-current" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onSubmit}
+              disabled={!canSend}
+              className={cn(
+                "flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-all duration-150",
+                canSend
+                  ? "bg-primary text-primary-foreground hover:bg-brand-hover shadow-sm hover:scale-[1.03]"
+                  : "bg-surface-3 text-dim",
+              )}
+              aria-label="Send message"
+            >
+              {isLoading ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <ArrowUp className="size-4" />
+              )}
+            </button>
+          )}
         </div>
       </div>
 
-      {actionPills && actionPills.length > 0 ? (
-        <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+      {actionPills && actionPills.length > 0 && !isLoading ? (
+        <div className="mt-2.5 flex flex-wrap items-center justify-center gap-2">
           {actionPills.map((pill) => (
             <button
               key={pill.label}
@@ -162,10 +193,10 @@ export function IntentComposer({
       ) : null}
 
       {footerHint ? (
-        <p className="text-dim mt-4 text-center text-[12px] leading-relaxed">
+        <p className="text-dim mt-2.5 text-center text-[11px] leading-relaxed">
           {footerHint}
         </p>
       ) : null}
     </div>
   );
-}
+});

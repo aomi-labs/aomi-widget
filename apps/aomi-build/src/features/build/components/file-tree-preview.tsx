@@ -1,6 +1,7 @@
 "use client";
 
-import { ChevronRight, File, Folder } from "lucide-react";
+import { ChevronDown, ChevronRight, File, Folder } from "lucide-react";
+import { useState } from "react";
 
 import type { BuildFileNode } from "@build/features/build/contracts";
 import { cn } from "@build/lib/utils";
@@ -13,32 +14,50 @@ function FileTreeNode({
   depth?: number;
 }) {
   const isFolder = node.type === "folder";
+  const [open, setOpen] = useState(depth < 2);
   const name = node.path.split("/").pop() ?? node.path;
 
   return (
     <div>
-      <div
+      <button
+        type="button"
+        disabled={!isFolder}
+        onClick={() => isFolder && setOpen((v) => !v)}
         className={cn(
-          "flex items-center gap-1.5 rounded px-1.5 py-1 text-[12px]",
-          depth > 0 && "ml-3",
+          "flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left text-[12px] transition-colors",
+          isFolder ? "hover:bg-accent/40 cursor-pointer" : "cursor-default",
         )}
         style={{ paddingLeft: depth * 12 + 6 }}
+        title={node.path}
       >
+        {isFolder ? (
+          open ? (
+            <ChevronDown className="text-dim size-3 shrink-0" />
+          ) : (
+            <ChevronRight className="text-dim size-3 shrink-0" />
+          )
+        ) : (
+          <span className="inline-block w-3 shrink-0" />
+        )}
         {isFolder ? (
           <Folder className="text-warning size-3.5 shrink-0" />
         ) : (
           <File className="text-link size-3.5 shrink-0" />
         )}
-        <span className={cn(isFolder ? "text-foreground" : "text-subtle")}>
+        <span
+          className={cn(
+            "truncate",
+            isFolder ? "text-foreground" : "text-subtle",
+          )}
+        >
           {name}
         </span>
-        {isFolder ? (
-          <ChevronRight className="text-dim ml-auto size-3" />
-        ) : null}
-      </div>
-      {node.children?.map((child) => (
-        <FileTreeNode key={child.path} node={child} depth={depth + 1} />
-      ))}
+      </button>
+      {isFolder && open
+        ? node.children?.map((child) => (
+            <FileTreeNode key={child.path} node={child} depth={depth + 1} />
+          ))
+        : null}
     </div>
   );
 }
@@ -53,7 +72,7 @@ export function FileTreePreview({ tree, className }: FileTreePreviewProps) {
     return (
       <div className={cn("panel-inset p-4 text-center", className)}>
         <p className="text-dim text-[12px]">
-          Files appear as the local mock generates.
+          Files appear when generate runs.
         </p>
       </div>
     );

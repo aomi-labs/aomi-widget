@@ -24,11 +24,12 @@ export function BuildStreamTimeline({
         compact ? "p-3" : "p-4",
       )}
     >
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <p className="text-subtle text-[12px] font-medium">Build progress</p>
-        <span className="text-dim text-[10px]">Local mock</span>
-      </div>
-      <ol className="space-y-3">
+      {!compact ? (
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <p className="text-subtle text-[12px] font-medium">Progress</p>
+        </div>
+      ) : null}
+      <ol className={cn("space-y-3", compact && "space-y-2.5")}>
         {events.map((event) => (
           <li key={event.stage} className="flex gap-3">
             <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center">
