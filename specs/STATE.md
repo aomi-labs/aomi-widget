@@ -3,6 +3,23 @@
 ## Last Updated
 
 2026-07-14 — Build P2 deep-link polish (⌘K / Billing / Overview → right tab);
+2026-07-14 — Create stack #343–#349 merged to main (left #340);
+2026-07-14 — Create Recent rail UX: one Create-header toggle (no double collapse);
+2026-07-14 — Create Recent rail: user open/collapse + localStorage (⌘B);
+2026-07-14 — Create composer: UI-only model picker mock (Aomi + Soon);
+2026-07-14 — Create templates: Browse all opens a sheet;
+2026-07-14 — Create mobile: hide Plan steps when Progress is in-thread;
+2026-07-14 — Create Recent titles: derive + dedupe (hello → unique);
+2026-07-14 — Create craft polish tranche (rail/empty/chat/stage/composer);
+2026-07-14 — Create craft review: jargon migrate + canvas;
+2026-07-14 — Create UI: builder language (no eng keywords in chat/sidebar);
+2026-07-14 — AI Builder P3 (#344): nodes + compile/aomi-run (review local first);
+2026-07-14 — AI Builder P0–P2 (#343): Create craft on /build;
+2026-07-14 — AI Builder P1 craft port: mock layout feel in ControlPlaneShell
+  (composer, stream, files, ship→Projects, in-page history; local mock timers);
+2026-07-14 — AI Builder P1: intent composer + templates + local session;
+2026-07-14 — AI-BUILDER-EXPERIENCE.md (Create / chat-mock port plan);
+2026-07-14 — Build AI Builder: enable sidebar Build + `/build` scaffold;
 2026-07-13 — Build P2 usage peek (Home meter → Operate Usage);
 2026-07-13 — Build P2 Deployments timeline (history that reads as history);
 2026-07-13 — Build Live status consistency (one story across list/Home/Deployments);
@@ -21,6 +38,108 @@ Branch `feat/build-p2-deep-links`:
 - ⌘K Last project / Environment / Usage prefer last project when set.
 - Overview recent deploys → project Deployments tab; Usage card / Billing links
   use last-project scoped Usage / Environment when available.
+
+## Create Recent sidebar toggle (2026-07-14)
+
+Branch `feat/build-recent-sidebar-toggle` (stack on #344 / p3):
+
+- Single mental model: Recent open OR closed.
+- Primary control: Create header panel icon (always visible); ⌘/Ctrl+B same state.
+- Closed = no left rail (header toggle reopens); removed in-Recent collapse + narrow History rail.
+- Preference persisted in localStorage; first visit defaults open on xl+ (after mount; SSR-safe).
+- Shell nav remains click-only.
+
+## Create composer model picker mock (2026-07-14)
+
+Branch `feat/build-model-picker-mock` (stack on #344):
+
+- Cursor-like model control on Create composer (`ComposerModelPicker`).
+- Current selection: **Aomi** only; Auto / Custom rows disabled with Soon.
+- Hardcoded mock — no Han API, no fake live model list fetch.
+- Keeps quiet **Preview** honesty chip beside the picker (no Aomi branding spam).
+- Product language only (no Smithers / eng jargon in UI).
+
+## Create template Browse all sheet (2026-07-14)
+
+- Empty Create keeps 3 featured templates; “Browse all” opens a right sheet
+  with the full template grid (Esc / overlay / X to dismiss).
+
+## Create mobile Progress/Plan dedupe (2026-07-14)
+
+- On `<lg`, Plan-steps cards stay hidden during generate so they do not compete
+  with the in-thread Progress timeline (rail Progress is lg+ only).
+
+## Create Recent title dedupe (2026-07-14)
+
+- `deriveSessionTitle` strips greeting fluff + soft-truncates; `uniqueSessionTitle`
+  avoids colliding sidebar labels; list remasters persisted dupes for display.
+
+## Create craft polish tranche (2026-07-14)
+
+Shipped the review next-tranche on Create (`/build`):
+
+- Right rail: single Progress timeline + Files (removed duplicate Build plan).
+- Empty Create: top-anchored hero, 3 featured templates + Browse all.
+- Chat density: tighter message/banner spacing; less mid-thread void.
+- Stage strip: `resolveDisplayJourneyStage` + verify-gate stream honesty
+  (Compile & test stays active until smoke test; Ship only when shipReady).
+- Composer: Preview chip only (no stacked Aomi / model chip) — superseded by
+  model picker mock above for the picker PR.
+
+## Create craft review + jargon migrate (2026-07-14)
+
+Screenshot review of empty Create + active session:
+
+- Stale localStorage still showed Local mock / Smithers / aomi-run after the
+  product-language pass — added `sanitize-session-copy` on load/save +
+  display guards; dropped redundant empty-state `aomi` chip and dual rail titles.
+- Craft canvas: `canvases/aomi-build-create-craft-review.canvas.tsx`
+- Follow-up tranche shipped (see above): rail / empty / chat / stage / composer.
+
+## Create product-language polish (2026-07-14)
+
+Branch `feat/build-p3-smithers-nodes`:
+
+- UI copy uses builder language only: Plan / Generator / Smoke test / Aomi /
+  Ready / Preview. Eng names (Smithers, aomi-run, Local mock, Han, etc.) stay
+  in types/comments, not rendered labels.
+- Chat: You (right) / Aomi (assistant) / quiet system; seed model = Aomi.
+- Sidebar sessions: Ready / In progress / Failed + journey stage titles.
+- Ship banner: Ready to ship + Download / Open Projects; GitHub init · soon.
+- Composer chip: Preview; blocked hint says smoke test (not aomi-run).
+
+## AI Builder P1 craft port (2026-07-14)
+
+Branch `feat/build-enable-route`:
+
+- Ported mock portal craft into `features/build/` inside ControlPlaneShell
+  (no BuildLayout, no Customize marketplace, no `/deploy/[id]`).
+- Empty: centered composer + templates; active: thread + stream, lg context
+  (files/stream), sticky compact composer, xl session list.
+- LocalStorage mock pipeline plan→generate→validate→ready mapped to journey
+  stages; ship banner → `/projects`; honest “Local mock” copy.
+
+## AI Builder P1 intent empty state (2026-07-14)
+
+Branch `feat/build-enable-route`:
+
+- Working intent composer + 8 templates (seed prompts).
+- Submit creates a local Create session + journey chrome.
+- Superseded visually by craft port (stream/files landed).
+
+## AI Builder experience plan (2026-07-14)
+
+- Added `apps/aomi-build/AI-BUILDER-EXPERIENCE.md`: Cecilia decode, platform
+  map, mock-vs-target, import policy, P0–P5 implementation phases.
+- Direction: adapt mock craft into live `features/build/` (not wholesale port).
+
+## Build AI Builder route (2026-07-14)
+
+Branch `feat/build-enable-route`:
+
+- Sidebar Build `enabled: true` (no Soon).
+- Real `/build` page scaffold: journey map + disabled “Start” (no Smithers
+  network yet). Manage path still Projects / Operate.
 
 ## Build P2 usage peek (2026-07-13)
 
