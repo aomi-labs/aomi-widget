@@ -2,6 +2,7 @@
 
 ## Last Updated
 
+2026-07-14 — Create templates: Browse all opens a sheet;
 2026-07-14 — Create mobile: hide Plan steps when Progress is in-thread;
 2026-07-14 — Create Recent titles: derive + dedupe (hello → unique);
 2026-07-14 — Create craft polish tranche (rail/empty/chat/stage/composer);
@@ -23,6 +24,11 @@
 2026-07-13 — Build UI copy polish (em dashes / hedging essays);
 2026-07-13 — Billing option A: methods live on Chat (no fake Build fetch);
 2026-07-13 — BILLING-EXPERIENCE.md: backend ↔ UI map (code-checked)
+
+## Create template Browse all sheet (2026-07-14)
+
+- Empty Create keeps 3 featured templates; “Browse all” opens a right sheet
+  with the full template grid (Esc / overlay / X to dismiss).
 
 ## Create mobile Progress/Plan dedupe (2026-07-14)
 
