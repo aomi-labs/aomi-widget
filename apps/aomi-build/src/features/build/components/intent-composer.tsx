@@ -9,6 +9,7 @@ import {
   useRef,
 } from "react";
 
+import { ComposerModelPicker } from "@build/features/build/components/composer-model-picker";
 import { cn } from "@build/lib/utils";
 
 type ActionPill = {
@@ -38,8 +39,8 @@ type IntentComposerProps = {
 };
 
 /**
- * Intent composer — Preview honesty chip + send.
- * No stacked Aomi branding (shell already brands); no model picker yet.
+ * Intent composer — UI-only model picker + Preview honesty + send.
+ * Shell already brands Aomi; picker shows Aomi once as the current model.
  */
 export const IntentComposer = forwardRef<
   IntentComposerHandle,
@@ -133,13 +134,16 @@ export const IntentComposer = forwardRef<
         />
 
         <div className="mt-2.5 flex items-center justify-between gap-2">
-          <span
-            className="context-chip cursor-default"
-            title="Preview build — timers until remote generate is connected"
-          >
-            <Laptop className="size-3.5 opacity-70" />
-            Preview
-          </span>
+          <div className="flex min-w-0 items-center gap-1.5">
+            <ComposerModelPicker disabled={isLoading} />
+            <span
+              className="context-chip pointer-events-none cursor-default opacity-80"
+              title="Preview build — timers until remote generate is connected"
+            >
+              <Laptop className="size-3.5 opacity-70" />
+              Preview
+            </span>
+          </div>
 
           {isLoading && onStop ? (
             <button
