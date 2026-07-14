@@ -4,6 +4,7 @@ import { History } from "lucide-react";
 
 import type { BuildSession } from "@build/features/build/contracts";
 import { JOURNEY_STAGES } from "@build/features/build/contracts";
+import { disambiguateSessionTitles } from "@build/features/build/storage/session-title";
 import { cn } from "@build/lib/utils";
 
 type SessionHistoryProps = {
@@ -42,6 +43,8 @@ export function SessionHistory({
   onNewSession,
   className,
 }: SessionHistoryProps) {
+  const visible = disambiguateSessionTitles(sessions.slice(0, 12));
+
   return (
     <div className={cn("flex h-full flex-col gap-2", className)}>
       <div className="flex items-center justify-between gap-2 px-1">
@@ -63,7 +66,7 @@ export function SessionHistory({
             No builds yet. Describe an app to start.
           </p>
         ) : null}
-        {sessions.slice(0, 12).map((session) => (
+        {visible.map((session) => (
           <button
             key={session.id}
             type="button"
