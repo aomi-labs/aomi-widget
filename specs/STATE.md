@@ -3,6 +3,8 @@
 ## Last Updated
 
 2026-07-14 — Create templates: Browse all opens a sheet;
+2026-07-14 — Create mobile: hide Plan steps when Progress is in-thread;
+2026-07-14 — Create Recent titles: derive + dedupe (hello → unique);
 2026-07-14 — Create craft polish tranche (rail/empty/chat/stage/composer);
 2026-07-14 — Create craft review: jargon migrate + canvas;
 2026-07-14 — Create UI: builder language (no eng keywords in chat/sidebar);
@@ -27,6 +29,16 @@
 
 - Empty Create keeps 3 featured templates; “Browse all” opens a right sheet
   with the full template grid (Esc / overlay / X to dismiss).
+
+## Create mobile Progress/Plan dedupe (2026-07-14)
+
+- On `<lg`, Plan-steps cards stay hidden during generate so they do not compete
+  with the in-thread Progress timeline (rail Progress is lg+ only).
+
+## Create Recent title dedupe (2026-07-14)
+
+- `deriveSessionTitle` strips greeting fluff + soft-truncates; `uniqueSessionTitle`
+  avoids colliding sidebar labels; list remasters persisted dupes for display.
 
 ## Create craft polish tranche (2026-07-14)
 
