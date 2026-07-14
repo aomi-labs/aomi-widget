@@ -1,7 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Files, ListChecks, Plus, Square } from "lucide-react";
+import {
+  Files,
+  History,
+  ListChecks,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Plus,
+  Square,
+} from "lucide-react";
 
 import { useToast } from "@build/components/control-plane/toast";
 import { BuildStreamTimeline } from "@build/features/build/components/build-stream-timeline";
@@ -26,6 +34,10 @@ import {
 } from "@build/features/build/contracts";
 import { useBuildSession } from "@build/features/build/hooks/use-build-session";
 import { useStreamingText } from "@build/features/build/hooks/use-streaming-text";
+import {
+  getInitialRecentRailOpen,
+  writeRecentRailPreference,
+} from "@build/features/build/storage/recent-rail-preference";
 import { BUILD_TEMPLATES } from "@build/features/build/templates";
 import { cn } from "@build/lib/utils";
 
@@ -94,9 +106,23 @@ function ContextPanelSection({
  */
 export function BuildView() {
   const [input, setInput] = useState("");
+  const [recentOpen, setRecentOpen] = useState(getInitialRecentRailOpen);
   const scrollRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<IntentComposerHandle>(null);
   const { toast } = useToast();
+
+  const setRecentRailOpen = useCallback((open: boolean) => {
+    setRecentOpen(open);
+    writeRecentRailPreference(open);
+  }, []);
+
+  const toggleRecentRail = useCallback(() => {
+    setRecentOpen((prev) => {
+      const next = !prev;
+      writeRecentRailPreference(next);
+      return next;
+    });
+  }, []);
 
   const {
     activeSessionId,
@@ -173,16 +199,24 @@ export function BuildView() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "n") {
+      if (!(e.metaKey || e.ctrlKey) || e.altKey) return;
+      const key = e.key.toLowerCase();
+      if (key === "n") {
         e.preventDefault();
         startNewSession();
         setInput("");
         requestAnimationFrame(() => composerRef.current?.focus());
+        return;
+      }
+      // Shell sidebar is click-only; ⌘B toggles Create Recent rail.
+      if (key === "b") {
+        e.preventDefault();
+        toggleRecentRail();
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [startNewSession]);
+  }, [startNewSession, toggleRecentRail]);
 
   const handleSend = useCallback(() => {
     const text = input.trim();
@@ -282,42 +316,73 @@ export function BuildView() {
 
   return (
     <div className="flex h-[calc(100dvh-2.75rem)] min-h-0 w-full">
-      <aside className="border-border hidden w-[220px] shrink-0 flex-col gap-3 overflow-y-auto border-r p-3 xl:flex">
-        <SessionHistory
-          sessions={recentSessions}
-          activeSessionId={activeSessionId}
-          onSelect={handleSelectSession}
-          onNewSession={handleNewSession}
-        />
-      </aside>
+      {recentOpen ? (
+        <aside className="border-border flex w-[220px] shrink-0 flex-col gap-3 overflow-y-auto border-r p-3">
+          <SessionHistory
+            sessions={recentSessions}
+            activeSessionId={activeSessionId}
+            onSelect={handleSelectSession}
+            onNewSession={handleNewSession}
+            onCollapse={() => setRecentRailOpen(false)}
+          />
+        </aside>
+      ) : (
+        <aside className="border-border flex w-10 shrink-0 flex-col items-center gap-2 border-r py-2">
+          <button
+            type="button"
+            onClick={() => setRecentRailOpen(true)}
+            className="text-dim hover:bg-accent/40 hover:text-foreground inline-flex size-7 items-center justify-center rounded-md transition-colors"
+            title="Show Recent (⌘B)"
+            aria-label="Show Recent"
+          >
+            <History className="size-3.5" />
+          </button>
+        </aside>
+      )}
 
       <section className="bg-background flex min-w-0 flex-1 flex-col">
         <div className="border-border flex h-10 shrink-0 items-center justify-between gap-2 border-b px-3 sm:px-4">
-          {!isEmpty ? (
-            <ol className="hidden min-w-0 flex-1 flex-wrap items-center gap-1.5 sm:flex">
-              {JOURNEY_STAGES.map((stage, index) => {
-                const active = index === stageIndex;
-                const done = index < stageIndex;
-                return (
-                  <li
-                    key={stage.id}
-                    className={cn(
-                      "rounded-full border px-2 py-0.5 text-[10px]",
-                      active
-                        ? "border-foreground/30 text-foreground bg-surface-1"
-                        : done
-                          ? "border-border text-dim"
-                          : "border-border/60 text-dim/70",
-                    )}
-                  >
-                    {stage.title}
-                  </li>
-                );
-              })}
-            </ol>
-          ) : (
-            <p className="text-dim text-[12px]">Create</p>
-          )}
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <button
+              type="button"
+              onClick={toggleRecentRail}
+              className="text-dim hover:bg-accent/40 hover:text-foreground inline-flex size-7 shrink-0 items-center justify-center rounded-md transition-colors"
+              title={recentOpen ? "Hide Recent (⌘B)" : "Show Recent (⌘B)"}
+              aria-label={recentOpen ? "Hide Recent" : "Show Recent"}
+              aria-pressed={recentOpen}
+            >
+              {recentOpen ? (
+                <PanelLeftClose className="size-3.5" />
+              ) : (
+                <PanelLeftOpen className="size-3.5" />
+              )}
+            </button>
+            {!isEmpty ? (
+              <ol className="hidden min-w-0 flex-1 flex-wrap items-center gap-1.5 sm:flex">
+                {JOURNEY_STAGES.map((stage, index) => {
+                  const active = index === stageIndex;
+                  const done = index < stageIndex;
+                  return (
+                    <li
+                      key={stage.id}
+                      className={cn(
+                        "rounded-full border px-2 py-0.5 text-[10px]",
+                        active
+                          ? "border-foreground/30 text-foreground bg-surface-1"
+                          : done
+                            ? "border-border text-dim"
+                            : "border-border/60 text-dim/70",
+                      )}
+                    >
+                      {stage.title}
+                    </li>
+                  );
+                })}
+              </ol>
+            ) : (
+              <p className="text-dim text-[12px]">Create</p>
+            )}
+          </div>
 
           <div className="ml-auto flex shrink-0 items-center gap-1.5">
             {isGenerating ? (

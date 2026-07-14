@@ -2,6 +2,7 @@
 
 ## Last Updated
 
+2026-07-14 — Create Recent rail: user open/collapse + localStorage (⌘B);
 2026-07-14 — Create craft polish tranche (rail/empty/chat/stage/composer);
 2026-07-14 — Create craft review: jargon migrate + canvas;
 2026-07-14 — Create UI: builder language (no eng keywords in chat/sidebar);
@@ -21,6 +22,15 @@
 2026-07-13 — Build UI copy polish (em dashes / hedging essays);
 2026-07-13 — Billing option A: methods live on Chat (no fake Build fetch);
 2026-07-13 — BILLING-EXPERIENCE.md: backend ↔ UI map (code-checked)
+
+## Create Recent sidebar toggle (2026-07-14)
+
+Branch `feat/build-recent-sidebar-toggle` (stack on #344 / p3):
+
+- Recent session rail is user-collapsible (not only `xl:flex`).
+- Header toggle + narrow History rail when closed; collapse in Recent header.
+- Preference persisted in localStorage; first visit defaults open on xl+.
+- ⌘/Ctrl+B toggles Recent (shell nav remains click-only).
 
 ## Create craft polish tranche (2026-07-14)
 
