@@ -2,6 +2,7 @@
 
 ## Last Updated
 
+2026-07-14 — Create mobile: hide Plan steps when Progress is in-thread;
 2026-07-14 — Create craft polish tranche (rail/empty/chat/stage/composer);
 2026-07-14 — Create craft review: jargon migrate + canvas;
 2026-07-14 — Create UI: builder language (no eng keywords in chat/sidebar);
@@ -21,6 +22,11 @@
 2026-07-13 — Build UI copy polish (em dashes / hedging essays);
 2026-07-13 — Billing option A: methods live on Chat (no fake Build fetch);
 2026-07-13 — BILLING-EXPERIENCE.md: backend ↔ UI map (code-checked)
+
+## Create mobile Progress/Plan dedupe (2026-07-14)
+
+- On `<lg`, Plan-steps cards stay hidden during generate so they do not compete
+  with the in-thread Progress timeline (rail Progress is lg+ only).
 
 ## Create craft polish tranche (2026-07-14)
 
