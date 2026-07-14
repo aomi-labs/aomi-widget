@@ -1,5 +1,6 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { setLastProjectId } from "@build/lib/last-project";
 
 vi.mock("@build/lib/chat-url", () => ({
   resolveChatUrl: () => "https://chat.aomi.dev",
@@ -8,6 +9,14 @@ vi.mock("@build/lib/chat-url", () => ({
 import { SettingsBillingPanel } from "./settings-billing-panel";
 
 describe("SettingsBillingPanel", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
+  afterEach(() => {
+    window.localStorage.clear();
+  });
+
   it("keeps short product copy without rail jargon or fake invoices", () => {
     render(<SettingsBillingPanel />);
 
@@ -31,5 +40,16 @@ describe("SettingsBillingPanel", () => {
     expect(screen.queryByText(/x402/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/invoice #/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/\$\d/)).not.toBeInTheDocument();
+  });
+
+  it("deep-links Usage and Environment to the last project when set", () => {
+    setLastProjectId(9);
+    render(<SettingsBillingPanel />);
+    expect(
+      screen.getByRole("link", { name: /operate → usage/i }),
+    ).toHaveAttribute("href", "/operate/usage?project=9");
+    expect(
+      screen.getByRole("link", { name: /secrets → environment/i }),
+    ).toHaveAttribute("href", "/projects/9?tab=environment");
   });
 });
