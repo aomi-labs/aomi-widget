@@ -5,8 +5,8 @@ import { useCallback, useRef, useState, useSyncExternalStore } from "react";
 import {
   STREAM_TO_JOURNEY,
   defaultStreamTemplate,
+  deriveGeneratedFileTree,
   deriveSmithersNodes,
-  generatedFileTree,
   mockBuildResponse,
   type BuildFileNode,
   type BuildMessage,
@@ -23,6 +23,7 @@ import {
   savePersistedSession,
   subscribeBuildSessions,
 } from "@build/features/build/storage/build-session-storage";
+import { sanitizeBuildSession } from "@build/features/build/storage/sanitize-session-copy";
 
 function nowTime() {
   const d = new Date();
@@ -35,10 +36,10 @@ function nowStamp() {
 }
 
 const stageMessages: Record<BuildStreamEvent["stage"], string> = {
-  plan: "Composing Smithers nodes from your intent (local mock).",
-  generate: "Generating project files and configuration (local mock).",
-  validate: "Tool layer ready — compile & aomi-run are next (local mock).",
-  ready: "Waiting for compile + aomi-run before ship.",
+  plan: "Reading your intent and drafting a build plan.",
+  generate: "Generating project files and tool wiring.",
+  validate: "Ready for compile and smoke test.",
+  ready: "Waiting for compile + smoke test before ship.",
 };
 
 /**
@@ -88,28 +89,54 @@ export function useBuildSession() {
       clearTimers();
       const session = findSessionById(sessionId, persistedSessions);
       if (!session) return;
+      const clean = sanitizeBuildSession(session);
+      const healthy = clean.status === "healthy" && clean.stageId === "ship";
+      const needsVerify =
+        !healthy &&
+        (clean.stageId === "compile_test" ||
+          clean.status === "running");
+      let streamEvents = clean.streamEvents;
+      if (needsVerify && streamEvents.length > 0) {
+        // Persisted mid-verify runs may wrongly mark Ship done — coerce.
+        streamEvents = streamEvents.map((e) => {
+          if (e.stage === "plan" || e.stage === "generate") {
+            return { ...e, status: "done" as const };
+          }
+          if (e.stage === "validate") {
+            return {
+              ...e,
+              status: "active" as const,
+              message: e.message || "Ready for compile and smoke test.",
+            };
+          }
+          return {
+            ...e,
+            status: "pending" as const,
+            message: e.message || "Waiting for compile + smoke test before ship.",
+          };
+        });
+      }
       setActiveSessionId(sessionId);
-      setStageId(session.stageId);
-      setMessages(session.messages);
-      setStreamEvents(session.streamEvents);
-      setFileTree(session.fileTree);
-      setNodes(session.nodes ?? []);
-      const healthy = session.status === "healthy" && session.stageId === "ship";
+      setStageId(healthy ? "ship" : needsVerify ? "compile_test" : clean.stageId);
+      setMessages(clean.messages);
+      setStreamEvents(streamEvents);
+      setFileTree(clean.fileTree);
+      setNodes(clean.nodes ?? []);
       setShipReady(healthy);
-      setAwaitingVerify(session.stageId === "compile_test" && !healthy);
-      setCompileDone(healthy || session.stageId === "ship");
+      setAwaitingVerify(needsVerify);
+      setCompileDone(healthy);
       setTestDone(healthy);
       setVerifyBusy(null);
       setShowStreamInThread(false);
       setIsGenerating(false);
       setStreamingMessageId(null);
       sessionDraftRef.current = {
-        id: session.id,
-        title: session.title,
-        messages: session.messages,
-        streamEvents: session.streamEvents,
-        fileTree: session.fileTree,
-        nodes: session.nodes ?? [],
+        id: clean.id,
+        title: clean.title,
+        messages: clean.messages,
+        streamEvents,
+        fileTree: clean.fileTree,
+        nodes: clean.nodes ?? [],
       };
     },
     [clearTimers, persistedSessions],
@@ -133,6 +160,39 @@ export function useBuildSession() {
     setIsGenerating(false);
     setStreamingMessageId(null);
   }, [clearTimers]);
+
+  const cancelPipeline = useCallback(() => {
+    clearTimers();
+    setIsGenerating(false);
+    setStreamingMessageId(null);
+    setVerifyBusy(null);
+    setShowStreamInThread(true);
+    setStreamEvents((prev) =>
+      prev.map((e) =>
+        e.status === "active" ? { ...e, status: "pending" as const } : e,
+      ),
+    );
+    setMessages((prev) => {
+      const next: BuildMessage[] = [
+        ...prev,
+        {
+          id: `sys_cancel_${Date.now()}`,
+          role: "system",
+          content:
+            "Stopped. Edit your prompt and run again, or continue compile / smoke test if files already exist.",
+          timestamp: nowTime(),
+        },
+      ];
+      if (sessionDraftRef.current) {
+        sessionDraftRef.current.messages = next;
+      }
+      return next;
+    });
+    if (fileTree.length > 0) {
+      setAwaitingVerify(true);
+      setStageId("compile_test");
+    }
+  }, [clearTimers, fileTree.length]);
 
   const runBuildPipeline = useCallback(
     (userText: string, onAssistantReady: (msg: BuildMessage) => void) => {
@@ -175,12 +235,7 @@ export function useBuildSession() {
         nodes: plannedNodes,
       };
 
-      const stages: BuildStreamEvent["stage"][] = [
-        "plan",
-        "generate",
-        "validate",
-        "ready",
-      ];
+      const stages: BuildStreamEvent["stage"][] = ["plan", "generate"];
 
       let finalMessages: BuildMessage[] = [userMsg];
       let finalStreamEvents = initial;
@@ -189,8 +244,7 @@ export function useBuildSession() {
 
       stages.forEach((stage, index) => {
         const timerId = window.setTimeout(() => {
-          const journey = STREAM_TO_JOURNEY[stage];
-          setStageId(journey);
+          setStageId(STREAM_TO_JOURNEY[stage]);
 
           setStreamEvents((prev) => {
             const next = prev.map((e) => {
@@ -238,19 +292,37 @@ export function useBuildSession() {
           }
 
           if (stage === "generate") {
-            setFileTree(generatedFileTree);
-            finalFileTree = generatedFileTree;
+            const tree = deriveGeneratedFileTree(userText);
+            setFileTree(tree);
+            finalFileTree = tree;
             if (sessionDraftRef.current) {
               sessionDraftRef.current.fileTree = finalFileTree;
             }
-          }
 
-          if (stage === "ready") {
+            // End of generate → enter verify gates (do not mark Ship done).
             setStreamEvents((prev) => {
-              finalStreamEvents = prev.map((e) => ({
-                ...e,
-                status: "done" as const,
-              }));
+              finalStreamEvents = prev.map((e) => {
+                if (e.stage === "plan" || e.stage === "generate") {
+                  return {
+                    ...e,
+                    status: "done" as const,
+                    time: e.time || nowStamp(),
+                  };
+                }
+                if (e.stage === "validate") {
+                  return {
+                    ...e,
+                    status: "active" as const,
+                    time: nowStamp(),
+                    message: stageMessages.validate,
+                  };
+                }
+                return {
+                  ...e,
+                  status: "pending" as const,
+                  message: stageMessages.ready,
+                };
+              });
               if (sessionDraftRef.current) {
                 sessionDraftRef.current.streamEvents = finalStreamEvents;
               }
@@ -258,13 +330,14 @@ export function useBuildSession() {
             });
             setStageId("compile_test");
             setAwaitingVerify(true);
+            setIsGenerating(false);
 
             const assistantMsg: BuildMessage = {
               id: `a_${Date.now()}`,
               role: "assistant",
               content: mockBuildResponse,
               timestamp: nowTime(),
-              model: "Local mock",
+              model: "Aomi",
             };
             finalMessages = [...finalMessages, assistantMsg];
             setMessages(finalMessages);
@@ -277,13 +350,16 @@ export function useBuildSession() {
               id: sessionId,
               title: title || "New build",
               status: "running",
-              model: "Local mock",
+              model: "Aomi",
               updatedAt: "just now",
-              runtime: "local mock",
+              runtime: "local",
               stageId: "compile_test",
               messages: finalMessages,
               streamEvents: finalStreamEvents,
-              fileTree: finalFileTree.length ? finalFileTree : generatedFileTree,
+              fileTree:
+                finalFileTree.length > 0
+                  ? finalFileTree
+                  : deriveGeneratedFileTree(userText),
               nodes: finalNodes,
             });
           }
@@ -303,6 +379,7 @@ export function useBuildSession() {
   const runCompile = useCallback(() => {
     if (compileDone || verifyBusy) return;
     setVerifyBusy("compile");
+    setStageId("compile_test");
     const id = window.setTimeout(() => {
       setCompileDone(true);
       setVerifyBusy(null);
@@ -311,6 +388,32 @@ export function useBuildSession() {
           n.id === "node_run" ? n : { ...n, status: "done" as const },
         ),
       );
+      setStreamEvents((prev) => {
+        const next = prev.map((e) => {
+          if (e.stage === "validate") {
+            return {
+              ...e,
+              status: "active" as const,
+              message: "Compile done — smoke test next.",
+              time: e.time || nowStamp(),
+            };
+          }
+          if (e.stage === "ready") {
+            return {
+              ...e,
+              status: "pending" as const,
+              message: "Ship after smoke test passes.",
+            };
+          }
+          return e.stage === "plan" || e.stage === "generate"
+            ? { ...e, status: "done" as const }
+            : e;
+        });
+        if (sessionDraftRef.current) {
+          sessionDraftRef.current.streamEvents = next;
+        }
+        return next;
+      });
     }, 600);
     timersRef.current.push(id);
   }, [compileDone, verifyBusy]);
@@ -318,6 +421,7 @@ export function useBuildSession() {
   const runTest = useCallback(() => {
     if (!compileDone || testDone || verifyBusy) return;
     setVerifyBusy("test");
+    setStageId("compile_test");
     setNodes((prev) =>
       prev.map((n) =>
         n.id === "node_run" ? { ...n, status: "active" as const } : n,
@@ -332,22 +436,45 @@ export function useBuildSession() {
       setAwaitingVerify(false);
       setShipReady(true);
       setStageId("ship");
-      const draft = sessionDraftRef.current;
-      if (draft) {
-        savePersistedSession({
-          id: draft.id,
-          title: draft.title,
-          status: "healthy",
-          model: "Local mock",
-          updatedAt: "just now",
-          runtime: "local mock",
-          stageId: "ship",
-          messages: draft.messages,
-          streamEvents: draft.streamEvents,
-          fileTree: draft.fileTree,
-          nodes: draft.nodes.map((n) => ({ ...n, status: "done" })),
-        });
-      }
+      setStreamEvents((prev) => {
+        const next = prev.map((e) => ({
+          ...e,
+          status: "done" as const,
+          message:
+            e.stage === "ready"
+              ? "Ready to ship — open Projects or download files."
+              : e.stage === "validate"
+                ? "Compile and smoke test passed."
+                : e.message,
+          time: e.time || nowStamp(),
+        }));
+        const draft = sessionDraftRef.current;
+        if (draft) {
+          const doneNodes = draft.nodes.map((n) => ({
+            ...n,
+            status: "done" as const,
+          }));
+          sessionDraftRef.current = {
+            ...draft,
+            streamEvents: next,
+            nodes: doneNodes,
+          };
+          savePersistedSession({
+            id: draft.id,
+            title: draft.title,
+            status: "healthy",
+            model: "Aomi",
+            updatedAt: "just now",
+            runtime: "local",
+            stageId: "ship",
+            messages: draft.messages,
+            streamEvents: next,
+            fileTree: draft.fileTree,
+            nodes: doneNodes,
+          });
+        }
+        return next;
+      });
     }, 700);
     timersRef.current.push(id);
   }, [compileDone, testDone, verifyBusy]);
@@ -370,6 +497,7 @@ export function useBuildSession() {
     showStreamInThread,
     loadSession,
     startNewSession,
+    cancelPipeline,
     runBuildPipeline,
     handleStreamComplete,
     runCompile,

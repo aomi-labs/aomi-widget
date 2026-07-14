@@ -10,14 +10,11 @@ type ShipHandoffBannerProps = {
  */
 export function ShipHandoffBanner({ onDownload }: ShipHandoffBannerProps) {
   return (
-    <div className="border-positive/30 bg-positive/5 mx-auto my-4 flex max-w-3xl flex-col gap-3 rounded-lg border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+    <div className="border-positive/30 bg-positive/5 mx-auto my-2 flex max-w-3xl flex-col gap-3 rounded-lg border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
       <div>
-        <p className="text-foreground text-[13px] font-medium">
-          Verified (local mock) — ship toward Projects
-        </p>
+        <p className="text-foreground text-[13px] font-medium">Ready to ship</p>
         <p className="text-subtle text-[12px]">
-          Download a placeholder archive, or manage deploy from Projects. GitHub
-          init needs a Han API.
+          Download your files, or open Projects to manage deploy.
         </p>
       </div>
       <div className="flex shrink-0 flex-wrap items-center gap-2">
@@ -38,10 +35,10 @@ export function ShipHandoffBanner({ onDownload }: ShipHandoffBannerProps) {
         </Link>
         <span
           className="text-dim inline-flex h-8 items-center gap-1.5 rounded-md border border-dashed px-3 text-[11px]"
-          title="Needs Han GitHub create-repo API"
+          title="Coming when GitHub create-repo is connected"
         >
           <Rocket className="size-3.5" />
-          GitHub init · needs API
+          GitHub init · soon
         </span>
       </div>
     </div>

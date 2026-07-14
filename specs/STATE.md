@@ -2,6 +2,9 @@
 
 ## Last Updated
 
+2026-07-14 — Create craft polish tranche (rail/empty/chat/stage/composer);
+2026-07-14 — Create craft review: jargon migrate + canvas;
+2026-07-14 — Create UI: builder language (no eng keywords in chat/sidebar);
 2026-07-14 — AI Builder P3 (#344): nodes + compile/aomi-run (review local first);
 2026-07-14 — AI Builder P0–P2 (#343): Create craft on /build;
 2026-07-14 — AI Builder P1 craft port: mock layout feel in ControlPlaneShell
@@ -18,6 +21,39 @@
 2026-07-13 — Build UI copy polish (em dashes / hedging essays);
 2026-07-13 — Billing option A: methods live on Chat (no fake Build fetch);
 2026-07-13 — BILLING-EXPERIENCE.md: backend ↔ UI map (code-checked)
+
+## Create craft polish tranche (2026-07-14)
+
+Shipped the review next-tranche on Create (`/build`):
+
+- Right rail: single Progress timeline + Files (removed duplicate Build plan).
+- Empty Create: top-anchored hero, 3 featured templates + Browse all.
+- Chat density: tighter message/banner spacing; less mid-thread void.
+- Stage strip: `resolveDisplayJourneyStage` + verify-gate stream honesty
+  (Compile & test stays active until smoke test; Ship only when shipReady).
+- Composer: Preview chip only (no stacked Aomi / model chip).
+
+## Create craft review + jargon migrate (2026-07-14)
+
+Screenshot review of empty Create + active session:
+
+- Stale localStorage still showed Local mock / Smithers / aomi-run after the
+  product-language pass — added `sanitize-session-copy` on load/save +
+  display guards; dropped redundant empty-state `aomi` chip and dual rail titles.
+- Craft canvas: `canvases/aomi-build-create-craft-review.canvas.tsx`
+- Follow-up tranche shipped (see above): rail / empty / chat / stage / composer.
+
+## Create product-language polish (2026-07-14)
+
+Branch `feat/build-p3-smithers-nodes`:
+
+- UI copy uses builder language only: Plan / Generator / Smoke test / Aomi /
+  Ready / Preview. Eng names (Smithers, aomi-run, Local mock, Han, etc.) stay
+  in types/comments, not rendered labels.
+- Chat: You (right) / Aomi (assistant) / quiet system; seed model = Aomi.
+- Sidebar sessions: Ready / In progress / Failed + journey stage titles.
+- Ship banner: Ready to ship + Download / Open Projects; GitHub init · soon.
+- Composer chip: Preview; blocked hint says smoke test (not aomi-run).
 
 ## AI Builder P1 craft port (2026-07-14)
 

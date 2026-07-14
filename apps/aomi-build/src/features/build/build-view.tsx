@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Files, History, LayoutTemplate } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Files, ListChecks, Plus, Square } from "lucide-react";
 
+import { useToast } from "@build/components/control-plane/toast";
 import { BuildStreamTimeline } from "@build/features/build/components/build-stream-timeline";
 import {
   ChatMessage,
@@ -10,21 +11,37 @@ import {
 } from "@build/features/build/components/chat-message";
 import { CompileTestPanel } from "@build/features/build/components/compile-test-panel";
 import { FileTreePreview } from "@build/features/build/components/file-tree-preview";
-import { IntentComposer } from "@build/features/build/components/intent-composer";
+import {
+  IntentComposer,
+  type IntentComposerHandle,
+} from "@build/features/build/components/intent-composer";
 import { SessionHistory } from "@build/features/build/components/session-history";
 import { ShipHandoffBanner } from "@build/features/build/components/ship-handoff-banner";
 import { SmithersNodes } from "@build/features/build/components/smithers-nodes";
 import { TemplateGallery } from "@build/features/build/components/template-gallery";
-import { JOURNEY_STAGES } from "@build/features/build/contracts";
+import {
+  JOURNEY_STAGES,
+  resolveDisplayJourneyStage,
+  type BuildFileNode,
+} from "@build/features/build/contracts";
 import { useBuildSession } from "@build/features/build/hooks/use-build-session";
 import { useStreamingText } from "@build/features/build/hooks/use-streaming-text";
 import { BUILD_TEMPLATES } from "@build/features/build/templates";
 import { cn } from "@build/lib/utils";
-import { useToast } from "@build/components/control-plane/toast";
 
 const actionPills = [
+  { label: "Arb bot", action: "tpl_arbitrage_bot" },
+  { label: "OpenAPI agent", action: "tpl_openapi_agent" },
   { label: "Plan from idea", hint: "⇧Tab", action: "plan" },
 ];
+
+function flattenPaths(nodes: BuildFileNode[], out: string[] = []): string[] {
+  for (const node of nodes) {
+    out.push(node.path);
+    if (node.children) flattenPaths(node.children, out);
+  }
+  return out;
+}
 
 function StreamingMessage({
   content,
@@ -58,11 +75,11 @@ function ContextPanelSection({
   children,
 }: {
   title: string;
-  icon: typeof History;
+  icon: typeof Files;
   children: React.ReactNode;
 }) {
   return (
-    <section className="space-y-2">
+    <section className="space-y-1.5">
       <div className="text-subtle flex items-center gap-1.5 px-1 text-[12px] font-medium">
         <Icon className="text-dim size-3.5" />
         {title}
@@ -78,6 +95,7 @@ function ContextPanelSection({
 export function BuildView() {
   const [input, setInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
+  const composerRef = useRef<IntentComposerHandle>(null);
   const { toast } = useToast();
 
   const {
@@ -98,12 +116,39 @@ export function BuildView() {
     showStreamInThread,
     loadSession,
     startNewSession,
+    cancelPipeline,
     runBuildPipeline,
     handleStreamComplete,
     runCompile,
     runTest,
     recentSessions,
   } = useBuildSession();
+
+  const displayStageId = useMemo(
+    () =>
+      resolveDisplayJourneyStage({
+        stageId,
+        isGenerating,
+        awaitingVerify,
+        shipReady,
+        compileDone,
+        testDone,
+        verifyBusy,
+        streamEvents,
+        messageCount: messages.length,
+      }),
+    [
+      stageId,
+      isGenerating,
+      awaitingVerify,
+      shipReady,
+      compileDone,
+      testDone,
+      verifyBusy,
+      streamEvents,
+      messages.length,
+    ],
+  );
 
   const scrollToBottom = useCallback(() => {
     const el = scrollRef.current;
@@ -119,9 +164,25 @@ export function BuildView() {
     messages,
     streamingMessageId,
     showStreamInThread,
+    nodes,
+    awaitingVerify,
     shipReady,
+    fileTree,
     scrollToBottom,
   ]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "n") {
+        e.preventDefault();
+        startNewSession();
+        setInput("");
+        requestAnimationFrame(() => composerRef.current?.focus());
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [startNewSession]);
 
   const handleSend = useCallback(() => {
     const text = input.trim();
@@ -132,6 +193,16 @@ export function BuildView() {
     });
   }, [input, isGenerating, runBuildPipeline, setStreamingMessageId]);
 
+  const handleStop = useCallback(() => {
+    cancelPipeline();
+    toast({
+      title: "Stopped",
+      description: "Build cancelled.",
+      tone: "info",
+    });
+    requestAnimationFrame(() => composerRef.current?.focus());
+  }, [cancelPipeline, toast]);
+
   const handleStreamDone = useCallback(() => {
     handleStreamComplete();
   }, [handleStreamComplete]);
@@ -139,15 +210,24 @@ export function BuildView() {
   const handleActionPill = useCallback((action: string) => {
     if (action === "plan") {
       setInput("Help me plan a new agent idea: ");
+      requestAnimationFrame(() => composerRef.current?.focus());
+      return;
+    }
+    const template = BUILD_TEMPLATES.find((t) => t.id === action);
+    if (template) {
+      setInput(template.prompt);
+      requestAnimationFrame(() => composerRef.current?.focus());
     }
   }, []);
 
   const handleDownload = useCallback(() => {
+    const paths = flattenPaths(fileTree);
     const blob = new Blob(
       [
-        "# Aomi Build — local mock export\n",
-        "# Real archive lands when Smithers / codegen is wired.\n",
-        fileTree.map((n) => n.path).join("\n"),
+        "# Aomi Build — file list\n",
+        `# Session ${activeSessionId ?? "unknown"}\n`,
+        "# Full archive download comes when generate is connected.\n\n",
+        paths.join("\n"),
         "\n",
       ],
       { type: "text/plain" },
@@ -155,18 +235,20 @@ export function BuildView() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "aomi-build-mock-export.txt";
+    a.download = "aomi-build-files.txt";
     a.click();
     URL.revokeObjectURL(url);
     toast({
-      title: "Downloaded mock export",
-      description: "Placeholder file list — not a real repo archive.",
+      title: "Downloaded file list",
+      description: `${paths.length} paths listed — archive download comes later.`,
+      tone: "success",
     });
-  }, [fileTree, toast]);
+  }, [activeSessionId, fileTree, toast]);
 
   const handleTemplateSelect = useCallback(
     (template: (typeof BUILD_TEMPLATES)[0]) => {
       setInput(template.prompt);
+      requestAnimationFrame(() => composerRef.current?.focus());
     },
     [],
   );
@@ -174,6 +256,7 @@ export function BuildView() {
   const handleSelectSession = useCallback(
     (id: string) => {
       loadSession(id);
+      requestAnimationFrame(() => composerRef.current?.focus());
     },
     [loadSession],
   );
@@ -181,14 +264,24 @@ export function BuildView() {
   const handleNewSession = useCallback(() => {
     startNewSession();
     setInput("");
+    requestAnimationFrame(() => composerRef.current?.focus());
   }, [startNewSession]);
 
   const isEmpty = messages.length === 0;
-  const stageIndex = JOURNEY_STAGES.findIndex((s) => s.id === stageId);
+  const stageIndex = JOURNEY_STAGES.findIndex((s) => s.id === displayStageId);
+  const composerBlocked =
+    awaitingVerify && !shipReady
+      ? "Finish Compile → smoke test below, or start a new build (⌘N)."
+      : undefined;
+
+  /** Unique plan steps only during plan/generate — not a second progress list. */
+  const showPlanNodes =
+    nodes.length > 0 &&
+    isGenerating &&
+    (displayStageId === "plan" || displayStageId === "generate");
 
   return (
     <div className="flex h-[calc(100dvh-2.75rem)] min-h-0 w-full">
-      {/* Optional thin session column — in-page, not BuildLayout rail */}
       <aside className="border-border hidden w-[220px] shrink-0 flex-col gap-3 overflow-y-auto border-r p-3 xl:flex">
         <SessionHistory
           sessions={recentSessions}
@@ -199,9 +292,9 @@ export function BuildView() {
       </aside>
 
       <section className="bg-background flex min-w-0 flex-1 flex-col">
-        {!isEmpty ? (
-          <div className="border-border hidden h-10 items-center justify-between border-b px-4 sm:flex">
-            <ol className="flex flex-wrap items-center gap-1.5">
+        <div className="border-border flex h-10 shrink-0 items-center justify-between gap-2 border-b px-3 sm:px-4">
+          {!isEmpty ? (
+            <ol className="hidden min-w-0 flex-1 flex-wrap items-center gap-1.5 sm:flex">
               {JOURNEY_STAGES.map((stage, index) => {
                 const active = index === stageIndex;
                 const done = index < stageIndex;
@@ -222,34 +315,60 @@ export function BuildView() {
                 );
               })}
             </ol>
-            <span className="text-dim text-[11px]">Local mock · timers</span>
+          ) : (
+            <p className="text-dim text-[12px]">Create</p>
+          )}
+
+          <div className="ml-auto flex shrink-0 items-center gap-1.5">
+            {isGenerating ? (
+              <button
+                type="button"
+                onClick={handleStop}
+                className="border-border text-foreground hover:bg-accent/40 inline-flex h-7 items-center gap-1 rounded-md border px-2 text-[11px]"
+              >
+                <Square className="size-2.5 fill-current" />
+                Stop
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={handleNewSession}
+              className="border-border text-foreground hover:bg-accent/40 inline-flex h-7 items-center gap-1 rounded-md border px-2 text-[11px]"
+              title="New session (⌘N)"
+            >
+              <Plus className="size-3" />
+              New
+            </button>
           </div>
-        ) : null}
+        </div>
 
         <div className="flex min-h-0 flex-1">
           <div className="flex min-w-0 flex-1 flex-col">
             <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">
               {isEmpty ? (
-                <div className="flex h-full items-center justify-center px-4 py-10">
+                <div className="flex justify-center px-4 pt-8 pb-8 sm:pt-10">
                   <div className="w-full max-w-[640px]">
-                    <div className="mb-6 space-y-1 text-center sm:text-left">
+                    <div className="mb-4 space-y-1 text-center sm:text-left">
                       <h1 className="text-foreground text-base font-medium">
-                        Build
+                        What do you want to build?
                       </h1>
-                      <p className="text-dim text-sm leading-6">
-                        Describe what you want — local mock plans and generates
-                        — then ship to Projects. Real Smithers SSE comes later.
+                      <p className="text-dim text-[13px] leading-5">
+                        Describe an agent, review the plan and files, compile,
+                        smoke-test, then ship to Projects.
                       </p>
                     </div>
                     <IntentComposer
+                      ref={composerRef}
                       value={input}
                       onChange={setInput}
                       onSubmit={handleSend}
+                      onStop={handleStop}
                       disabled={isGenerating}
                       isLoading={isGenerating}
                       actionPills={actionPills}
                       onActionPillClick={handleActionPill}
-                      placeholder="What do you want to build?"
+                      placeholder="Describe an agent — e.g. hyperliquid & binance arb bot"
+                      autoFocus
                     />
                     <TemplateGallery
                       templates={BUILD_TEMPLATES}
@@ -258,7 +377,7 @@ export function BuildView() {
                   </div>
                 </div>
               ) : (
-                <div className="px-4">
+                <div className="mx-auto w-full max-w-3xl space-y-1 px-4 pt-3 pb-3">
                   {messages.map((msg) => {
                     if (streamingMessageId === msg.id) {
                       return (
@@ -281,13 +400,17 @@ export function BuildView() {
                     );
                   })}
 
-                  {showStreamInThread ? (
-                    <div className="mx-auto my-4 max-w-3xl">
+                  {/* Progress in-thread when right rail is hidden */}
+                  {(showStreamInThread || isGenerating || awaitingVerify) &&
+                  streamEvents.length > 0 ? (
+                    <div className="my-2 lg:hidden">
                       <BuildStreamTimeline events={streamEvents} />
                     </div>
                   ) : null}
 
-                  {nodes.length > 0 ? <SmithersNodes nodes={nodes} /> : null}
+                  {showPlanNodes ? (
+                    <SmithersNodes nodes={nodes} caption="Plan steps" />
+                  ) : null}
 
                   {awaitingVerify ? (
                     <CompileTestPanel
@@ -311,19 +434,32 @@ export function BuildView() {
             </div>
 
             {!isEmpty ? (
-              <div className="border-border border-t p-4">
-                <div className="mx-auto max-w-3xl">
+              <div className="border-border border-t px-4 py-3">
+                <div className="mx-auto max-w-3xl space-y-1.5">
+                  {composerBlocked ? (
+                    <p className="text-dim text-center text-[11px]">
+                      {composerBlocked}
+                    </p>
+                  ) : null}
                   <IntentComposer
+                    ref={composerRef}
                     value={input}
                     onChange={setInput}
                     onSubmit={handleSend}
-                    disabled={isGenerating}
+                    onStop={handleStop}
+                    disabled={isGenerating || (awaitingVerify && !shipReady)}
                     isLoading={isGenerating}
                     compact
-                    showContextStrip={false}
                     footerHint=""
-                    actionPills={actionPills}
+                    actionPills={
+                      awaitingVerify && !shipReady ? undefined : actionPills
+                    }
                     onActionPillClick={handleActionPill}
+                    placeholder={
+                      awaitingVerify && !shipReady
+                        ? "Verify below, or ⌘N for a new build…"
+                        : "Refine or start another build…"
+                    }
                   />
                 </div>
               </div>
@@ -331,42 +467,13 @@ export function BuildView() {
           </div>
 
           {!isEmpty ? (
-            <aside className="border-border bg-surface-1/40 hidden w-[300px] shrink-0 flex-col gap-4 overflow-y-auto border-l p-3 lg:flex">
-              <ContextPanelSection title="Build stream" icon={History}>
+            <aside className="border-border bg-surface-1/40 hidden w-[280px] shrink-0 flex-col gap-3 overflow-y-auto border-l p-3 lg:flex">
+              <ContextPanelSection title="Progress" icon={ListChecks}>
                 <BuildStreamTimeline events={streamEvents} compact />
               </ContextPanelSection>
 
-              {nodes.length > 0 ? (
-                <ContextPanelSection title="Smithers nodes" icon={History}>
-                  <SmithersNodes
-                    nodes={nodes}
-                    caption="Plan graph (local mock)"
-                  />
-                </ContextPanelSection>
-              ) : null}
-
               <ContextPanelSection title="Files" icon={Files}>
                 <FileTreePreview tree={fileTree} />
-              </ContextPanelSection>
-
-              <ContextPanelSection title="Templates" icon={LayoutTemplate}>
-                <div className="space-y-1">
-                  {BUILD_TEMPLATES.slice(0, 4).map((template) => (
-                    <button
-                      key={template.id}
-                      type="button"
-                      onClick={() => handleTemplateSelect(template)}
-                      className="panel-row w-full text-left"
-                    >
-                      <p className="text-foreground text-[13px]">
-                        {template.name}
-                      </p>
-                      <p className="text-subtle mt-0.5 text-[12px]">
-                        {template.description}
-                      </p>
-                    </button>
-                  ))}
-                </div>
               </ContextPanelSection>
             </aside>
           ) : null}

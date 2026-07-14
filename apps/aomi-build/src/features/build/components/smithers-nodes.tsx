@@ -1,25 +1,36 @@
 "use client";
 
-import { Bot, Check, Circle, Loader2 } from "lucide-react";
+import { Check, Circle, Loader2 } from "lucide-react";
 
 import type { SmithersNode } from "@build/features/build/contracts";
 import { cn } from "@build/lib/utils";
 
-type SmithersNodesProps = {
+type PlanNodesProps = {
   nodes: SmithersNode[];
+  /** Pass empty string to hide (parent section already titles the block). */
   caption?: string;
+  compact?: boolean;
 };
 
+/** Build plan steps — product labels only (no engine/codenames). */
 export function SmithersNodes({
   nodes,
-  caption = "Smithers nodes (local mock) — smither writes smither",
-}: SmithersNodesProps) {
+  caption = "Build plan",
+  compact = false,
+}: PlanNodesProps) {
   if (!nodes.length) return null;
 
   return (
-    <div className="border-border bg-surface-1 mx-auto my-4 max-w-3xl rounded-lg border p-4">
-      <p className="text-subtle mb-3 text-[12px] font-medium">{caption}</p>
-      <ul className="space-y-2">
+    <div
+      className={cn(
+        "border-border bg-surface-1 rounded-lg border",
+        compact ? "p-3" : "mx-auto my-2 max-w-3xl p-4",
+      )}
+    >
+      {caption ? (
+        <p className="text-subtle mb-3 text-[12px] font-medium">{caption}</p>
+      ) : null}
+      <ul className={cn("space-y-2", compact && "space-y-1.5")}>
         {nodes.map((node) => (
           <li
             key={node.id}
@@ -39,18 +50,19 @@ export function SmithersNodes({
                 <span className="text-foreground text-[13px] font-medium">
                   {node.label}
                 </span>
-                <span className="text-dim inline-flex items-center gap-1 text-[10px] uppercase tracking-wide">
-                  <Bot className="size-3" />
-                  {node.agent}
+                <span className="text-dim text-[10px] uppercase tracking-wide">
+                  {node.role}
                 </span>
               </div>
-              <p className="text-dim mt-0.5 text-[12px] leading-4">
-                {node.detail}
-              </p>
+              {!compact ? (
+                <p className="text-dim mt-0.5 text-[12px] leading-4">
+                  {node.detail}
+                </p>
+              ) : null}
             </div>
             <span
               className={cn(
-                "shrink-0 self-start text-[10px]",
+                "shrink-0 self-start text-[10px] capitalize",
                 node.status === "active"
                   ? "text-warning"
                   : node.status === "done"
@@ -58,7 +70,11 @@ export function SmithersNodes({
                     : "text-dim",
               )}
             >
-              {node.status}
+              {node.status === "done"
+                ? "Done"
+                : node.status === "active"
+                  ? "Running"
+                  : "Queued"}
             </span>
           </li>
         ))}

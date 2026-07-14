@@ -12,9 +12,7 @@ type CompileTestPanelProps = {
   onTest: () => void;
 };
 
-/**
- * Explicit Compile + aomi-run steps (Cecilia wireframe). Local mock only.
- */
+/** Explicit Compile + smoke test — builder language (no CLI codenames). */
 export function CompileTestPanel({
   compileDone,
   testDone,
@@ -23,13 +21,13 @@ export function CompileTestPanel({
   onTest,
 }: CompileTestPanelProps) {
   return (
-    <div className="border-border bg-surface-1 mx-auto my-4 max-w-3xl space-y-3 rounded-lg border p-4">
+    <div className="border-border bg-surface-1 mx-auto my-2 max-w-3xl space-y-3 rounded-lg border p-4">
       <div>
         <p className="text-foreground text-[13px] font-medium">
-          How do you want to verify?
+          Verify before you ship
         </p>
         <p className="text-dim mt-0.5 text-[12px] leading-5">
-          Tool layer is done — compile, then test with aomi-run (local mock).
+          Compile the generated app, then run a quick smoke test.
         </p>
       </div>
       <div className="flex flex-wrap gap-2">
@@ -52,7 +50,7 @@ export function CompileTestPanel({
           {busy === "compile"
             ? "Compiling…"
             : compileDone
-              ? "Compile · done"
+              ? "Compiled"
               : "Compile"}
         </button>
         <button
@@ -72,15 +70,15 @@ export function CompileTestPanel({
             <Play className="size-3.5" />
           )}
           {busy === "test"
-            ? "aomi-run…"
+            ? "Testing…"
             : testDone
-              ? "aomi-run · done"
-              : "Test with aomi-run"}
+              ? "Smoke test passed"
+              : "Smoke test"}
         </button>
       </div>
       {compileDone && testDone ? (
         <p className="text-positive text-[12px]">
-          Compile + aomi-run passed (mock). Ship when you’re ready.
+          Looking good — ship when you’re ready.
         </p>
       ) : null}
     </div>

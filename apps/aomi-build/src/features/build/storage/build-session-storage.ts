@@ -2,9 +2,14 @@ import {
   seedBuildSessions,
   type BuildSession,
 } from "@build/features/build/contracts";
+import {
+  sanitizeBuildSession,
+  sessionsNeedSanitize,
+} from "@build/features/build/storage/sanitize-session-copy";
 
 const STORAGE_KEY = "aomi-build-sessions-v1";
 const sessionListeners = new Set<() => void>();
+let didRewriteSanitized = false;
 
 function emitBuildSessionsChange() {
   sessionListeners.forEach((listener) => listener());
@@ -46,13 +51,31 @@ export function loadPersistedSessions(): BuildSession[] {
       value = emptySessions;
     }
   }
+
+  if (value.length > 0) {
+    const cleaned = value.map(sanitizeBuildSession);
+    if (sessionsNeedSanitize(value)) {
+      value = cleaned;
+      if (!didRewriteSanitized) {
+        didRewriteSanitized = true;
+        const nextRaw = JSON.stringify(cleaned);
+        queueMicrotask(() => {
+          localStorage.setItem(STORAGE_KEY, nextRaw);
+          sessionsCache = { raw: nextRaw, value: cleaned };
+          emitBuildSessionsChange();
+        });
+      }
+    }
+  }
+
   sessionsCache = { raw, value };
   return value;
 }
 
 export function savePersistedSession(session: BuildSession) {
-  const existing = loadPersistedSessions().filter((s) => s.id !== session.id);
-  const next = [session, ...existing].slice(0, 20);
+  const cleaned = sanitizeBuildSession(session);
+  const existing = loadPersistedSessions().filter((s) => s.id !== cleaned.id);
+  const next = [cleaned, ...existing].slice(0, 20);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
   emitBuildSessionsChange();
 }

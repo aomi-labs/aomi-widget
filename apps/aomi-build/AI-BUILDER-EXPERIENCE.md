@@ -1,12 +1,12 @@
 # Aomi Build — AI Builder (Create / “Chat Mock”) Plan
 
-> **Status:** P0–P2 + partial P4 landed (craft port). **Next = P3** (nodes + compile/test) — biggest gap vs Cecilia sketches.  
+> **Status:** P0–P3 on branch + **UX polish pass** (stop/⌘N/autofocus/collapsible files/prompt-aware tree). Review local before merge.  
 > **App:** `aomi/apps/aomi-build` → [build.aomi.dev](https://build.aomi.dev)  
 > **Reference mock:** `aomi-build` repo → `apps/portal` `/build`  
 > **Owner:** Gordian (`0xgordian`) — experience + mock UI  
 > **Backend / Smithers stream:** Han (`POST /api/build` + SSE — **not in product-mono yet**)  
-> **Branch:** `feat/build-enable-route`  
-> **Last updated:** 2026-07-14 (post-craft review)
+> **Branch:** `feat/build-p3-smithers-nodes` (stacks on #343 / #344)  
+> **Last updated:** 2026-07-14 (UX/DX polish)
 
 Local source of truth for bringing the **AI Builder** onto the live control plane.  
 Pair with a Scrum Board issue so Cecilia/Han can see status. This file alone is not team sync.
@@ -15,6 +15,24 @@ Related:
 
 - [BUILDERS-EXPERIENCE.md](./BUILDERS-EXPERIENCE.md) — manage/deploy/operate polish (**mostly done**; do not reopen for chrome)
 - [BILLING-EXPERIENCE.md](./BILLING-EXPERIENCE.md) — pay on Chat, not fake Build billing
+
+---
+
+## UX / DX polish (Cursor-agent bar)
+
+Even as a local mock, every control must work. Landed on `feat/build-p3-smithers-nodes`:
+
+- [x] **Stop** mid-run (header + composer square + Esc) cancels timers, leaves a system note
+- [x] **⌘N / New** starts a clean session and focuses composer
+- [x] **Autofocus** empty + after template / session select
+- [x] Working pills: Arb bot / OpenAPI agent seed prompts; Plan from idea (⇧Tab)
+- [x] Composer gate while verify: clear copy; don’t silently eat Enter
+- [x] **Collapsible** file tree folders; prompt-aware arb file tree
+- [x] Download lists flattened paths; toast confirms
+- [x] De-dupe: templates dropped from right rail; nodes compact in context
+- [x] Stream stays visible while generating; skip-to-end on assistant stream
+
+**Still later (don’t block demo):** real SSE, real GitHub init, mobile session drawer, edit-last-user-message.
 
 ---
 

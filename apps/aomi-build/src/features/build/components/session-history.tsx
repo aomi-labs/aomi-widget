@@ -14,6 +14,13 @@ type SessionHistoryProps = {
   className?: string;
 };
 
+function statusLabel(status: BuildSession["status"]) {
+  if (status === "healthy") return "Ready";
+  if (status === "failed") return "Failed";
+  if (status === "running") return "In progress";
+  return "Queued";
+}
+
 function statusTone(status: BuildSession["status"]) {
   if (status === "healthy") return "bg-positive/10 text-positive";
   if (status === "failed") return "bg-destructive/10 text-destructive";
@@ -26,7 +33,7 @@ function stageLabel(stageId: BuildSession["stageId"]) {
 }
 
 /**
- * Thin in-page session list — not an immersive BuildLayout rail.
+ * Thin in-page session list — product labels, not API enums.
  */
 export function SessionHistory({
   sessions,
@@ -36,11 +43,11 @@ export function SessionHistory({
   className,
 }: SessionHistoryProps) {
   return (
-    <div className={cn("flex flex-col gap-2", className)}>
+    <div className={cn("flex h-full flex-col gap-2", className)}>
       <div className="flex items-center justify-between gap-2 px-1">
         <div className="text-subtle flex items-center gap-1.5 text-[12px] font-medium">
           <History className="text-dim size-3.5" />
-          Sessions
+          Recent
         </div>
         <button
           type="button"
@@ -50,15 +57,21 @@ export function SessionHistory({
           New
         </button>
       </div>
-      <div className="space-y-1">
-        {sessions.slice(0, 8).map((session) => (
+      <div className="min-h-0 flex-1 space-y-1 overflow-y-auto">
+        {sessions.length === 0 ? (
+          <p className="text-dim px-1 py-3 text-[11px] leading-4">
+            No builds yet. Describe an app to start.
+          </p>
+        ) : null}
+        {sessions.slice(0, 12).map((session) => (
           <button
             key={session.id}
             type="button"
             onClick={() => onSelect(session.id)}
             className={cn(
               "panel-row w-full text-left",
-              activeSessionId === session.id && "border-border-hover bg-accent-selected",
+              activeSessionId === session.id &&
+                "border-border-hover bg-accent-selected",
             )}
           >
             <div className="flex items-center justify-between gap-2">
@@ -67,11 +80,11 @@ export function SessionHistory({
               </p>
               <span
                 className={cn(
-                  "shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium capitalize",
+                  "shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium",
                   statusTone(session.status),
                 )}
               >
-                {session.status}
+                {statusLabel(session.status)}
               </span>
             </div>
             <p className="text-dim mt-0.5 text-[11px]">
