@@ -64,7 +64,7 @@ export const MCP_TOOLS: McpToolDef[] = [
   {
     name: "aomi_search_tools",
     description:
-      "Ranked search for tools — the fast narrow pass. Scoped to one app when app is given, global when omitted. Prefer this over aomi_list_tools + aomi_describe_tool when you know the capability you want. Returns scored candidates with match reasons; call aomi_describe_tool for the exact schema before aomi_call_tool.",
+      "Ranked search for tools and protocol skills — the fast narrow pass. Scoped to one app when app is given, global when omitted. Prefer this over aomi_list_tools + aomi_describe_tool when you know the capability you want. Returns scored candidates with match reasons. A hit with kind 'skill' is a protocol instruction pack (aave, compound, pendle, …) driven through the generic evm/svm tools: follow it with aomi_describe_skill. For tool hits, call aomi_describe_tool for the exact schema before aomi_call_tool.",
     inputSchema: {
       type: "object",
       properties: {
@@ -140,6 +140,22 @@ export const MCP_TOOLS: McpToolDef[] = [
     },
   },
   {
+    name: "aomi_describe_skill",
+    description:
+      "Return one protocol skill's full instruction pack: the procedure, contract addresses, ABI signatures, and rules the Aomi runtime injects on activation. Most protocols (aave, compound, morpho, pendle, …) have no tools of their own — their skill drives the generic evm tools (encode_and_call, evm_stage_tx). Read the pack, then execute its steps via aomi_call_tool or aomi_run, passing skills=[\"<id>\"] so the skill's server-side guards stay active.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        skill_id: {
+          type: "string",
+          description:
+            "Skill id from aomi_search_tools (kind 'skill') or the list_skills tool, such as aave.",
+        },
+      },
+      required: ["skill_id"],
+    },
+  },
+  {
     name: "aomi_run",
     description: [
       "Run a multi-step orchestration program inside this user's Aomi thread: many tool calls in one request, with intermediate results staying server-side.",
@@ -166,6 +182,12 @@ export const MCP_TOOLS: McpToolDef[] = [
             "The orchestration program in the bash-like subset described above.",
         },
         app: { ...APP_PROPERTY },
+        skills: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Skill ids to activate for the whole plan (e.g. [\"aave\"]). Required when following an instruction-only skill's procedure so its server-side guards run; skill-owned tools named in the plan activate automatically.",
+        },
         thread_id: {
           type: "string",
           description:
@@ -178,7 +200,7 @@ export const MCP_TOOLS: McpToolDef[] = [
   {
     name: "aomi_call_tool",
     description:
-      "Execute a single Aomi tool inside this user's MCP thread on the Aomi backend. Skill-owned tools activate their skill automatically. For multi-step flows where results feed each other, prefer aomi_run.",
+      "Execute a single Aomi tool inside this user's MCP thread on the Aomi backend. Skill-owned tools activate their skill automatically; when following an instruction-only skill's procedure, pass its id in skills. For multi-step flows where results feed each other, prefer aomi_run.",
     inputSchema: {
       type: "object",
       properties: {
@@ -192,6 +214,12 @@ export const MCP_TOOLS: McpToolDef[] = [
             "JSON arguments matching the schema from aomi_describe_tool.",
         },
         app: { ...APP_PROPERTY },
+        skills: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Skill ids to activate for this call (e.g. [\"aave\"]). Required when following an instruction-only skill's procedure so its server-side guards run; redundant for skill-owned tools.",
+        },
         thread_id: {
           type: "string",
           description:
@@ -219,7 +247,7 @@ export async function dispatchTool(
         thread: { id: mcpThreadId(canonicalUserId), resolution: "deterministic" },
         catalog: apps.body,
         next_step:
-          "Use aomi_list_apps for discovery, then aomi_select_app, aomi_list_tools, aomi_describe_tool, and aomi_call_tool. Pass app explicitly on every call.",
+          "Use aomi_search_tools (or aomi_list_apps → aomi_select_app → aomi_list_tools) for discovery, aomi_describe_tool / aomi_describe_skill for schemas and protocol procedures, then aomi_call_tool or aomi_run. Pass app explicitly on every call.",
       });
     }
     case "aomi_list_apps": {
@@ -279,13 +307,24 @@ export async function dispatchTool(
       );
       return wrap(out, out.body);
     }
+    case "aomi_describe_skill": {
+      const skillId = text(args.skill_id);
+      if (!skillId) return invalid("skill_id is required");
+      const out = await resourceGet(
+        canonicalUserId,
+        `/api/resource/skills/${encodeURIComponent(skillId)}`,
+      );
+      return wrap(out, out.body);
+    }
     case "aomi_run": {
       const program = text(args.program);
       if (!program) return invalid("program is required");
       const threadId = text(args.thread_id) ?? mcpThreadId(canonicalUserId);
+      const skills = stringList(args.skills);
       const out = await execRun(canonicalUserId, threadId, {
         program,
         app: text(args.app),
+        ...(skills.length ? { skills } : {}),
       });
       return wrap(out, out.body);
     }
@@ -293,10 +332,12 @@ export async function dispatchTool(
       const toolId = text(args.tool_id);
       if (!toolId) return invalid("tool_id is required");
       const threadId = text(args.thread_id) ?? mcpThreadId(canonicalUserId);
+      const skills = stringList(args.skills);
       const out = await toolCall(canonicalUserId, threadId, {
         tool_id: toolId,
         arguments: objectArgs(args.arguments),
         app: text(args.app),
+        ...(skills.length ? { skills } : {}),
       });
       return wrap(out, out.body);
     }
@@ -325,6 +366,13 @@ function text(value: unknown): string | undefined {
 
 function numeric(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function stringList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(
+    (item): item is string => typeof item === "string" && item.trim().length > 0,
+  );
 }
 
 function objectArgs(value: unknown): Record<string, unknown> {

@@ -2,6 +2,8 @@
 
 ## Last Updated
 
+2026-07-14 — MCP skill reachability: aomi_describe_skill + skills param (FE) with
+  matching BE resource-plane/skills work in product-mono working tree (uncommitted);
 2026-07-14 — Account menu: Docs (aomi.dev/docs) + Home page links (Vercel-style);
 2026-07-14 — Build P2 deep-link polish (⌘K / Billing / Overview → right tab);
 2026-07-14 — Create stack #343–#349 merged to main (left #340);
@@ -30,6 +32,30 @@
 2026-07-13 — Build UI copy polish (em dashes / hedging essays);
 2026-07-13 — Billing option A: methods live on Chat (no fake Build fetch);
 2026-07-13 — BILLING-EXPERIENCE.md: backend ↔ UI map (code-checked)
+
+## MCP skill reachability (2026-07-14)
+
+Working tree on `main` (uncommitted), paired with backend changes in the
+product-mono checkout at `/private/tmp/product-mono-main-deploy-debug`
+(also uncommitted; diff backed up at `.mcp-opt-backend.patch` repo-root):
+
+- Portal MCP: new `aomi_describe_skill` tool → `GET /api/resource/skills/{id}`
+  (protocol instruction packs; 26 of 31 skills have no tools of their own).
+- `aomi_call_tool` / `aomi_run` accept `skills: []` — activates instruction-only
+  skills so their server-side guard hooks run; omitted from body when empty.
+- `aomi_search_tools` description now covers `kind: "skill"` hits.
+- Backend (product-mono): catalog serves honest (non-strict) schemas, skills
+  indexed in `Catalog` + `/api/resource/skills[/​:id]`, search ranks skill cards,
+  exec surface takes explicit `skills`, `encode_and_call` + `lifi_get_quote`
+  accept explicit `from` for wallet-less simulate/quote, serde arg errors
+  stripped of position noise.
+- Source analysis + plan: `/Users/cecilia/Code/aomi-skill/mcp-opt-plan.md`.
+
+Pending:
+- Backend changes live in a shared /tmp checkout that another agent switched to
+  branch `codex/retry-new-platform-branch-ref` mid-session — decide where they
+  should land (branch off main) before anyone resets that tree.
+- Staging deploy predates these features (aomi_run 404 etc. observed in eval).
 
 ## Build P2 deep-link polish (2026-07-14)
 

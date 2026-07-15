@@ -38,7 +38,12 @@ export async function resourceGet(
 export async function toolCall(
   canonicalUserId: string,
   threadId: string,
-  body: { tool_id: string; arguments: Record<string, unknown>; app?: string },
+  body: {
+    tool_id: string;
+    arguments: Record<string, unknown>;
+    app?: string;
+    skills?: string[];
+  },
 ): Promise<BackendResult> {
   const { bearer } = await mintAccountBearer(canonicalUserId);
   return backendJson(new URL(`${configuredBackendUrl()}/api/exec/tool-call`), {
@@ -55,7 +60,7 @@ export async function toolCall(
 export async function execRun(
   canonicalUserId: string,
   threadId: string,
-  body: { program: string; app?: string },
+  body: { program: string; app?: string; skills?: string[] },
 ): Promise<BackendResult> {
   const { bearer } = await mintAccountBearer(canonicalUserId);
   return backendJson(new URL(`${configuredBackendUrl()}/api/exec/run`), {
