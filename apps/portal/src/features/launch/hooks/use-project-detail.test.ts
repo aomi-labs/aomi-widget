@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { afterEach, describe, expect, it, vi, beforeEach } from "vitest";
 import { renderHook, waitFor, act } from "@testing-library/react";
 
 vi.mock("@portal/features/launch/client", () => ({
@@ -28,6 +28,7 @@ vi.mock("@portal/features/launch/client", () => ({
   launchDeploy: vi.fn(),
   launchStatus: vi.fn(),
   launchActivate: vi.fn(),
+  launchAppStatus: vi.fn(),
   deploymentRecords: vi.fn(async () => ({
     app: "my-bot",
     currentReleaseTag: "tag-b",
@@ -57,10 +58,48 @@ import {
   deploymentRecords,
   deploymentHistory,
   deploymentSecrets,
+  launchPreflight,
+  launchDeploy,
+  launchStatus,
+  launchActivate,
+  launchAppStatus,
 } from "@portal/features/launch/client";
 
 describe("useProjectDetail", () => {
   beforeEach(() => vi.clearAllMocks());
+  afterEach(() => vi.useRealTimers());
+
+  function mockReadyDeployment() {
+    vi.mocked(launchPreflight).mockResolvedValue({
+      appSourceId: 7,
+      sourceRef: "sha-1",
+      repo: "a/b",
+      deployment: {},
+      releaseTags: ["tag-c"],
+      apps: ["my-bot"],
+    });
+    vi.mocked(launchDeploy).mockResolvedValue({
+      appSourceId: 7,
+      sourceRef: "sha-1",
+      repo: "a/b",
+      deployment: { id: "dep-c" },
+      releaseTags: ["tag-c"],
+      apps: ["my-bot"],
+    });
+    vi.mocked(launchStatus).mockResolvedValue({
+      state: "ready",
+      releaseTags: ["tag-c"],
+    });
+    vi.mocked(launchActivate).mockResolvedValue({
+      ok: true,
+      activation: {
+        status: "activating",
+        platform: "test",
+        target: { kind: "release", value: "tag-c", promoted: [] },
+        apps: [{ name: "my-bot", releaseTag: "tag-c" }],
+      },
+    });
+  }
 
   it("resolves the source and lazily loads history once", async () => {
     const { result } = renderHook(() => useProjectDetail(7));
@@ -151,5 +190,112 @@ describe("useProjectDetail", () => {
       expect(result.current.secretsByApp?.demo).toHaveLength(1),
     );
     expect(result.current.secretsError).toBeNull();
+  });
+
+  it("keeps polling when runtime status is temporarily unavailable", async () => {
+    mockReadyDeployment();
+    vi.mocked(launchAppStatus)
+      .mockRejectedValueOnce(new Error("app not found yet"))
+      .mockResolvedValueOnce({
+        ok: false,
+        state: "pending",
+        app: { name: "my-bot", is_active: false, loaded: false },
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        state: "live",
+        app: { name: "my-bot", is_active: true, loaded: true },
+      });
+    const { result } = renderHook(() => useProjectDetail(7));
+    await waitFor(() => expect(result.current.source?.id).toBe(7));
+    vi.useFakeTimers();
+
+    let deployPromise!: Promise<void>;
+    await act(async () => {
+      deployPromise = result.current.deployNewVersion();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(launchAppStatus).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000);
+    });
+    expect(launchAppStatus).toHaveBeenCalledTimes(2);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000);
+      await deployPromise;
+    });
+
+    expect(result.current.deployFlow).toEqual({
+      phase: "done",
+      message: "New version is live.",
+    });
+  });
+
+  it("requires two consecutive terminal runtime results before failing", async () => {
+    mockReadyDeployment();
+    vi.mocked(launchAppStatus).mockResolvedValue({
+      ok: false,
+      state: "pending",
+      app: { name: "my-bot", is_active: false, loaded: false },
+    });
+    const { result } = renderHook(() => useProjectDetail(7));
+    await waitFor(() => expect(result.current.source?.id).toBe(7));
+    vi.useFakeTimers();
+
+    let deployPromise!: Promise<void>;
+    await act(async () => {
+      deployPromise = result.current.deployNewVersion();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(launchAppStatus).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000);
+      await deployPromise;
+    });
+
+    expect(launchAppStatus).toHaveBeenCalledTimes(2);
+    expect(result.current.deployFlow).toEqual({
+      phase: "error",
+      message: "Runtime check failed for my-bot.",
+    });
+  });
+
+  it("fails with a timeout after the bounded runtime polling window", async () => {
+    mockReadyDeployment();
+    vi.mocked(launchAppStatus).mockResolvedValue({
+      ok: false,
+      state: "pending",
+      app: { name: "my-bot", is_active: true, loaded: false },
+    });
+    const { result } = renderHook(() => useProjectDetail(7));
+    await waitFor(() => expect(result.current.source?.id).toBe(7));
+    vi.useFakeTimers();
+
+    let deployPromise!: Promise<void>;
+    await act(async () => {
+      deployPromise = result.current.deployNewVersion();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(launchAppStatus).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000 * 29);
+      await deployPromise;
+    });
+
+    expect(launchAppStatus).toHaveBeenCalledTimes(30);
+    expect(result.current.deployFlow).toEqual({
+      phase: "error",
+      message:
+        "Activation was accepted, but the app artifact did not become ready.",
+    });
   });
 });

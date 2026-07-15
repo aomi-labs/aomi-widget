@@ -278,8 +278,9 @@ export function useProjectDetail(sourceId: number) {
         apps,
       });
       const activatedApps = activated.activation.apps;
+      const terminalPolls = new Map<string, number>();
       for (let attempt = 0; attempt < RUNTIME_POLL_ATTEMPTS; attempt += 1) {
-        const checks = await Promise.all(
+        const results = await Promise.allSettled(
           activatedApps.map((app) =>
             launchAppStatus({
               name: app.name,
@@ -287,8 +288,15 @@ export function useProjectDetail(sourceId: number) {
             }),
           ),
         );
+        const checks = results.flatMap((result) =>
+          result.status === "fulfilled" ? [result.value] : [],
+        );
+        const pollFailed = results.some(
+          (result) => result.status === "rejected",
+        );
         if (
-          checks.length > 0 &&
+          !pollFailed &&
+          checks.length === activatedApps.length &&
           checks.every((check) => check.ok && check.state === "live")
         ) {
           setDeployFlow({ phase: "done", message: "New version is live." });
@@ -296,24 +304,44 @@ export function useProjectDetail(sourceId: number) {
           refreshRecords();
           return;
         }
-        const terminal = checks.find(
-          (check) =>
-            check.app?.is_active === false && check.app?.loaded === false,
-        );
-        if (terminal) {
-          setDeployFlow({
-            phase: "error",
-            message: terminal.app?.name
-              ? `Runtime check failed for ${terminal.app.name}.`
-              : "Runtime reported a terminal error during activation.",
+        if (pollFailed) {
+          // A freshly activated app may not be visible through the status
+          // endpoint yet. Treat lookup errors as pending and restart the
+          // terminal-failure streak so one transient miss cannot fail a live
+          // activation.
+          terminalPolls.clear();
+        } else {
+          const terminal = checks.find((check) => {
+            const app = check.app;
+            if (!app) return false;
+            if (app.is_active === false && app.loaded === false) {
+              const name = app.name;
+              const streak = (terminalPolls.get(name) ?? 0) + 1;
+              terminalPolls.set(name, streak);
+              return streak >= 2;
+            }
+            terminalPolls.delete(app.name);
+            return false;
           });
-          return;
+          if (terminal) {
+            setDeployFlow({
+              phase: "error",
+              message: terminal.app?.name
+                ? `Runtime check failed for ${terminal.app.name}.`
+                : "Runtime reported a terminal error during activation.",
+            });
+            await reload();
+            refreshRecords();
+            return;
+          }
         }
         setDeployFlow({
           phase: "activating",
           message: `Waiting for runtime… (${attempt + 1}/${RUNTIME_POLL_ATTEMPTS})`,
         });
-        await new Promise((resolve) => setTimeout(resolve, RUNTIME_POLL_MS));
+        if (attempt < RUNTIME_POLL_ATTEMPTS - 1) {
+          await new Promise((resolve) => setTimeout(resolve, RUNTIME_POLL_MS));
+        }
       }
       setDeployFlow({
         phase: "error",
