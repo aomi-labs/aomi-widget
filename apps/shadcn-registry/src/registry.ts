@@ -44,6 +44,14 @@ export const registry: RegistryComponent[] = [
     description: "Full assistant shell with thread list and runtime wiring.",
   },
   {
+    name: "aomi-widget",
+    file: "components/aomi-widget.tsx",
+    dependencies: ["@aomi-labs/client"],
+    registryDependencies: [aomi("aomi-frame"), aomi("aomi-wallet-kit")],
+    description:
+      "Cross-domain Aomi widget with an origin-bound, memory-only SIWE session.",
+  },
+  {
     name: "aomi-wallet-kit",
     file: [
       "lib/wallet-kit.ts",

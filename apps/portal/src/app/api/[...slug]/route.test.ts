@@ -2,12 +2,15 @@
 import { NextRequest } from "next/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { GET } from "./route";
+import { GET, OPTIONS } from "./route";
 
 const listApps = vi.fn();
 const launchConfigMock = vi.hoisted(() => ({
   catalogPlatforms: [] as string[],
 }));
+const principalMock = vi.hoisted(() =>
+  vi.fn(async () => null as string | null),
+);
 
 // Keep the real `createBackendProxy`; only stub the mint. Requests in these
 // tests are unauthenticated, so the portal resolver returns null and the proxy
@@ -27,8 +30,8 @@ vi.mock("@portal/server/backend-url", () => ({
   configuredBackendUrl: () => "https://api-staging.aomi.dev",
 }));
 
-vi.mock("@portal/lib/aomi-account/canonical-session", () => ({
-  resolveBetterAuthCanonicalUserId: vi.fn(async () => null),
+vi.mock("@portal/lib/widget-auth/principal", () => ({
+  resolvePortalCanonicalUserId: principalMock,
 }));
 
 vi.mock("@portal/server/bff/backend", () => ({
@@ -43,13 +46,19 @@ vi.mock("@portal/server/bff/launch/config", () => ({
   }),
 }));
 
-function apiRequest(path: string) {
+function apiRequest(
+  path: string,
+  init?: ConstructorParameters<typeof NextRequest>[1],
+) {
   const url = new URL(`https://chat-staging.aomi.dev${path}`);
   const slug = url.pathname
     .replace(/^\/api\/?/, "")
     .split("/")
     .filter(Boolean);
-  return [new NextRequest(url), { params: Promise.resolve({ slug }) }] as const;
+  return [
+    new NextRequest(url, init),
+    { params: Promise.resolve({ slug }) },
+  ] as const;
 }
 
 function proxiedUrl(call: unknown[] | undefined): URL {
@@ -64,6 +73,7 @@ describe("portal API proxy", () => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
     launchConfigMock.catalogPlatforms = [];
+    principalMock.mockResolvedValue(null);
     listApps.mockReset();
   });
 
@@ -159,5 +169,48 @@ describe("portal API proxy", () => {
     expect(res.status).toBe(404);
     expect(body).toEqual({ error: "Unsupported API route" });
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("binds cross-origin proxy responses to the observed widget origin", async () => {
+    principalMock.mockResolvedValue("user-1");
+    const fetchMock = vi.fn(async () => Response.json({ ok: true }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await GET(
+      ...apiRequest("/api/account", {
+        headers: {
+          Origin: "https://customer.example",
+          Authorization: "Bearer aomi_wst_test",
+        },
+      }),
+    );
+
+    expect(response.headers.get("Access-Control-Allow-Origin")).toBe(
+      "https://customer.example",
+    );
+    expect(response.headers.get("Access-Control-Allow-Credentials")).toBeNull();
+    const headers = new Headers(fetchMock.mock.calls[0]?.[1]?.headers);
+    expect(headers.get("Authorization")).toMatch(/^Bearer ey/);
+    expect(headers.get("Authorization")).not.toContain("aomi_wst_test");
+  });
+
+  it("preflights only methods exposed by the Portal proxy allowlist", async () => {
+    const [request, context] = apiRequest("/api/account", {
+      method: "OPTIONS",
+      headers: {
+        Origin: "https://customer.example",
+        "Access-Control-Request-Method": "PATCH",
+      },
+    });
+
+    const response = await OPTIONS(request, context);
+
+    expect(response.status).toBe(204);
+    expect(response.headers.get("Access-Control-Allow-Origin")).toBe(
+      "https://customer.example",
+    );
+    expect(response.headers.get("Access-Control-Allow-Methods")).toContain(
+      "PATCH",
+    );
   });
 });

@@ -1,12 +1,13 @@
 {
   "name": "@aomi-labs/widget-lib",
-  "version": "1.4.2",
+  "version": "1.4.3",
   "description": "Shadcn registry for the Aomi widget.",
   "type": "module",
   "main": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
     "./aomi-frame": "./src/components/aomi-frame.tsx",
+    "./aomi-widget": "./src/components/aomi-widget.tsx",
     "./aomi-frame-collapsible": "./src/components/aomi-frame-collapsible.tsx",
     "./control-bar": "./src/components/control-bar/index.tsx",
     "./components/ui/*": "./src/components/ui/*.tsx",

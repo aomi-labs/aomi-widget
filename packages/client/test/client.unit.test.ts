@@ -552,6 +552,28 @@ describe("AomiClient transport selection", () => {
     }
   });
 
+  it("does not downgrade required authorization failures to anonymous", async () => {
+    const nativeFetch = vi.fn();
+    const originalFetch = globalThis.fetch;
+    vi.stubGlobal("fetch", nativeFetch);
+
+    try {
+      const client = new AomiClient({
+        baseUrl: "http://unit.test",
+        authorization: async () => {
+          throw new Error("Widget signature rejected");
+        },
+      });
+
+      await expect(client.fetchState("session-1")).rejects.toThrow(
+        "Widget signature rejected",
+      );
+      expect(nativeFetch).not.toHaveBeenCalled();
+    } finally {
+      vi.stubGlobal("fetch", originalFetch);
+    }
+  });
+
   it("attaches bearer sessions to account probes", async () => {
     const accountResponse = {
       ok: true,

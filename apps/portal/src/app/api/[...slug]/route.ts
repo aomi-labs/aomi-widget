@@ -1,6 +1,11 @@
 import { createBackendProxy, type AllowedRoute } from "@aomi-labs/account";
-import { resolveBetterAuthCanonicalUserId } from "@portal/lib/aomi-account/canonical-session";
+import {
+  withWidgetCors,
+  widgetCorsPreflight,
+} from "@portal/lib/widget-auth/cors";
+import { resolvePortalCanonicalUserId } from "@portal/lib/widget-auth/principal";
 import { launchConfig } from "@portal/server/bff/launch/config";
+import type { NextRequest } from "next/server";
 
 const ALLOWED_ROUTES: AllowedRoute[] = [
   {
@@ -12,8 +17,16 @@ const ALLOWED_ROUTES: AllowedRoute[] = [
     methods: new Set(["GET"]),
     auth: "optional",
   },
-  { pattern: /^\/api\/thread\/state$/, methods: new Set(["GET"]), auth: "optional" },
-  { pattern: /^\/api\/thread\/chat$/, methods: new Set(["POST"]), auth: "optional" },
+  {
+    pattern: /^\/api\/thread\/state$/,
+    methods: new Set(["GET"]),
+    auth: "optional",
+  },
+  {
+    pattern: /^\/api\/thread\/chat$/,
+    methods: new Set(["POST"]),
+    auth: "optional",
+  },
   { pattern: /^\/api\/system$/, methods: new Set(["POST"]), auth: "optional" },
   {
     pattern: /^\/api\/thread\/interrupt$/,
@@ -22,7 +35,11 @@ const ALLOWED_ROUTES: AllowedRoute[] = [
   },
   { pattern: /^\/api\/secrets$/, methods: new Set(["GET", "POST", "DELETE"]) },
   { pattern: /^\/api\/secrets\/[^/]+$/, methods: new Set(["DELETE"]) },
-  { pattern: /^\/api\/thread\/updates$/, methods: new Set(["GET"]), auth: "optional" },
+  {
+    pattern: /^\/api\/thread\/updates$/,
+    methods: new Set(["GET"]),
+    auth: "optional",
+  },
   {
     pattern: /^\/api\/threads$/,
     methods: new Set(["GET", "POST"]),
@@ -33,7 +50,11 @@ const ALLOWED_ROUTES: AllowedRoute[] = [
     methods: new Set(["GET", "PATCH", "DELETE"]),
     auth: "optional",
   },
-  { pattern: /^\/api\/thread\/events$/, methods: new Set(["GET"]), auth: "optional" },
+  {
+    pattern: /^\/api\/thread\/events$/,
+    methods: new Set(["GET"]),
+    auth: "optional",
+  },
   {
     pattern: /^\/api\/thread\/apps$/,
     methods: new Set(["GET"]),
@@ -99,9 +120,9 @@ function rewriteLegacyThreadPath(upstreamUrl: URL): void {
   }
 }
 
-export const { GET, POST, PUT, PATCH, DELETE } = createBackendProxy({
+const proxy = createBackendProxy({
   allowedRoutes: ALLOWED_ROUTES,
-  resolveCanonicalUserId: resolveBetterAuthCanonicalUserId,
+  resolveCanonicalUserId: resolvePortalCanonicalUserId,
   applyDefaults: (upstreamUrl) => {
     rewriteLegacyThreadPath(upstreamUrl);
     if (
@@ -115,6 +136,35 @@ export const { GET, POST, PUT, PATCH, DELETE } = createBackendProxy({
     }
   },
 });
+
+export const GET = withWidgetCors(proxy.GET);
+export const POST = withWidgetCors(proxy.POST);
+export const PUT = withWidgetCors(proxy.PUT);
+export const PATCH = withWidgetCors(proxy.PATCH);
+export const DELETE = withWidgetCors(proxy.DELETE);
+
+export async function OPTIONS(
+  request: NextRequest,
+  context: { params: Promise<{ slug?: string[] }> },
+): Promise<Response> {
+  const method = request.headers
+    .get("access-control-request-method")
+    ?.toUpperCase();
+  if (!method) {
+    return Response.json({ error: "missing_cors_method" }, { status: 400 });
+  }
+  const { slug } = await context.params;
+  const url = new URL(`/api/${(slug ?? []).join("/")}`, request.url);
+  rewriteLegacyThreadPath(url);
+  const route = ALLOWED_ROUTES.find(
+    (candidate) =>
+      candidate.pattern.test(url.pathname) && candidate.methods.has(method),
+  );
+  if (!route) {
+    return Response.json({ error: "Unsupported API route" }, { status: 404 });
+  }
+  return widgetCorsPreflight(request, [...route.methods, "OPTIONS"]);
+}
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";

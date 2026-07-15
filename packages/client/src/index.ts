@@ -15,6 +15,12 @@ export type {
   BetterAuthAccountTokenSourceOptions,
   BetterAuthTokenResponse,
 } from "./account-session";
+export { createWidgetSessionProvider } from "./widget-session";
+export type {
+  WidgetSessionProvider,
+  WidgetSessionProviderOptions,
+  WidgetSessionSigner,
+} from "./widget-session";
 
 // =============================================================================
 // Types
@@ -34,6 +40,7 @@ export type {
   AomiIdentityWallet,
   AomiUsageStats,
   AomiUser,
+  GetAuthorization,
   GetAccountBearer,
   AomiMessage,
   AomiWalletFamily,

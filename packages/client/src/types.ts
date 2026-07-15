@@ -37,18 +37,27 @@ export type AomiClientOptions = {
   baseUrl: string;
   /** Optional fetch implementation for payment-aware browser transports and tests. */
   fetch?: typeof fetch;
+  /** Credentials policy applied to REST, polling, and native SSE fetches. */
+  credentials?: RequestCredentials;
+  /** Supplies required authorization; provider errors fail the request. */
+  authorization?: GetAuthorization;
   /** Default API key for non-default apps */
   apiKey?: string;
-  /** Supplies a short-lived Aomi account bearer for REST and SSE requests. */
+  /**
+   * Optional additive account bearer. Provider errors preserve the legacy
+   * anonymous fallback. Use `authorization` for required authentication.
+   */
   getAccountBearer?: GetAccountBearer;
   /** Optional logger for debug output (default: silent) */
   logger?: Logger;
 };
 
-export type GetAccountBearer = (options?: {
+export type GetAuthorization = (options?: {
   /** Force a refresh after an API 401. */
   forceRefresh?: boolean;
 }) => Promise<string | null | undefined>;
+
+export type GetAccountBearer = GetAuthorization;
 
 export type AomiRequestQueryValue =
   | string

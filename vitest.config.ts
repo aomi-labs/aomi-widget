@@ -31,6 +31,7 @@ export default defineConfig({
     setupFiles: ["./vitest.setup.ts"],
     include: [
       "packages/**/*.{test,spec}.{ts,tsx,mjs,cjs,js,jsx}",
+      "apps/portal/src/app/api/**/*.{test,spec}.{ts,tsx}",
       "apps/portal/src/{app,server}/mcp/**/*.{test,spec}.{ts,tsx}",
     ],
     exclude: [".claude/**", "**/.claude/**", "**/node_modules/**", "dist/**"],

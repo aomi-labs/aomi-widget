@@ -78,9 +78,8 @@ export async function findAomiUserById(
   return result.rows[0] ? mapUser(result.rows[0]) : null;
 }
 
-export async function createAomiUserForBetterAuth(input: {
+export async function createAomiUser(input: {
   userId?: AomiUserId;
-  betterAuthUserId: BetterAuthUserId;
   email?: string | null;
   name?: string | null;
   avatarUrl?: string | null;

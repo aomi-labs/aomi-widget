@@ -1,0 +1,20 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #f4f4f5;
+  color: #18181b;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+}
+
+main {
+  min-height: 100dvh;
+  padding: 1rem;
+}
+
+p {
+  margin: 0 0 0.75rem;
+  font-size: 0.875rem;
+}

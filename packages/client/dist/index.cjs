@@ -84,6 +84,7 @@ __export(index_exports, {
   createAccountBearerProvider: () => createAccountBearerProvider,
   createAlchemyAAProvider: () => createAlchemyAAProvider,
   createPimlicoAAProvider: () => createPimlicoAAProvider,
+  createWidgetSessionProvider: () => createWidgetSessionProvider,
   executeWalletCalls: () => executeWalletCalls,
   getAAChainConfig: () => getAAChainConfig,
   getWalletExecutorReady: () => getWalletExecutorReady,
@@ -1000,8 +1001,12 @@ async function fetchStateResponse(fetchImpl, url, sessionId) {
     headers: withSessionHeader(sessionId)
   });
 }
-function wrapFetchWithAccountBearer(fetchImpl, getAccountBearer) {
-  if (!getAccountBearer) return fetchImpl;
+function wrapFetchWithCredentials(fetchImpl, credentials) {
+  if (!credentials) return fetchImpl;
+  return (input, init) => fetchImpl(input, __spreadProps(__spreadValues({}, init), { credentials }));
+}
+function wrapFetchWithAuthorization(fetchImpl, getAuthorization, mode = "required") {
+  if (!getAuthorization) return fetchImpl;
   return async (input, init) => {
     var _a;
     const baseHeaders = new Headers(
@@ -1010,10 +1015,14 @@ function wrapFetchWithAccountBearer(fetchImpl, getAccountBearer) {
     const fetchWithBearer = async (forceRefresh) => {
       const headers = new Headers(baseHeaders);
       let bearer;
-      try {
-        bearer = await getAccountBearer({ forceRefresh });
-      } catch (e) {
-        bearer = void 0;
+      if (mode === "required") {
+        bearer = await getAuthorization({ forceRefresh });
+      } else {
+        try {
+          bearer = await getAuthorization({ forceRefresh });
+        } catch (e) {
+          bearer = void 0;
+        }
       }
       if (bearer) {
         headers.set("Authorization", `Bearer ${bearer}`);
@@ -1079,18 +1088,28 @@ async function postState(baseUrl, path, payload, sessionId, fetchImpl, apiKey, l
 }
 var AomiClient = class {
   constructor(options) {
-    var _a;
+    var _a, _b;
     this.baseUrl = options.baseUrl.replace(/\/+$/, "");
     this.apiKey = options.apiKey;
-    const fetchImpl = (_a = options.fetch) != null ? _a : globalThis.fetch.bind(globalThis);
-    const rawFetchImpl = typeof globalThis.fetch === "function" ? globalThis.fetch.bind(globalThis) : fetchImpl;
-    this.fetchImpl = wrapFetchWithAccountBearer(
-      fetchImpl,
-      options.getAccountBearer
+    const fetchImpl = wrapFetchWithCredentials(
+      (_a = options.fetch) != null ? _a : globalThis.fetch.bind(globalThis),
+      options.credentials
     );
-    this.rawFetchImpl = wrapFetchWithAccountBearer(
+    const rawFetchImpl = wrapFetchWithCredentials(
+      typeof globalThis.fetch === "function" ? globalThis.fetch.bind(globalThis) : fetchImpl,
+      options.credentials
+    );
+    const authorization = (_b = options.authorization) != null ? _b : options.getAccountBearer;
+    const authorizationMode = options.authorization ? "required" : "optional";
+    this.fetchImpl = wrapFetchWithAuthorization(
+      fetchImpl,
+      authorization,
+      authorizationMode
+    );
+    this.rawFetchImpl = wrapFetchWithAuthorization(
       rawFetchImpl,
-      options.getAccountBearer
+      authorization,
+      authorizationMode
     );
     this.logger = options.logger;
     this.sseSubscriber = createSseSubscriber({
@@ -1101,9 +1120,9 @@ var AomiClient = class {
       fetchImpl: this.rawFetchImpl,
       logger: this.logger
     });
-    if (supportsTokenRefreshSubscription(options.getAccountBearer)) {
-      options.getAccountBearer.subscribe(() => {
-        this.sseSubscriber.reconnect("account-token-refreshed");
+    if (supportsTokenRefreshSubscription(authorization)) {
+      authorization.subscribe(() => {
+        this.sseSubscriber.reconnect("authorization-refreshed");
       });
     }
   }
@@ -1971,6 +1990,176 @@ function decodeBase64Url(value) {
   throw new Error("No base64 decoder is available");
 }
 
+// src/widget-session.ts
+var import_viem = require("viem");
+var import_siwe = require("viem/siwe");
+var DEFAULT_REFRESH_BEFORE_EXPIRY_MS2 = 6e4;
+var NONCE_PATH = "/api/widget/auth/siwe/nonce";
+var VERIFY_PATH = "/api/widget/auth/siwe/verify";
+var SESSION_PATH = "/api/widget/auth/session";
+function createWidgetSessionProvider({
+  baseUrl,
+  getSigner,
+  fetch: fetchImpl = fetch,
+  now = Date.now,
+  refreshBeforeExpiryMs = DEFAULT_REFRESH_BEFORE_EXPIRY_MS2
+}) {
+  let cached = null;
+  let pending = null;
+  let disposed = false;
+  const listeners = /* @__PURE__ */ new Set();
+  const revokeSession = async (session) => {
+    await fetchImpl(joinUrl2(baseUrl, SESSION_PATH), {
+      method: "DELETE",
+      credentials: "omit",
+      headers: { Authorization: `Bearer ${session.accessToken}` }
+    }).catch(() => void 0);
+  };
+  const getAuthorization = async ({
+    forceRefresh = false
+  } = {}) => {
+    if (disposed) return void 0;
+    const signer = normalizeSigner(await getSigner());
+    const fingerprint = signerFingerprint(signer);
+    const refreshAt = cached ? cached.expiresAt * 1e3 - refreshBeforeExpiryMs : 0;
+    if (!forceRefresh && (cached == null ? void 0 : cached.fingerprint) === fingerprint && now() < refreshAt) {
+      return cached.accessToken;
+    }
+    if (cached) {
+      const stale = cached;
+      cached = null;
+      void revokeSession(stale);
+    }
+    if (!pending || pending.fingerprint !== fingerprint) {
+      const promise = authenticate({
+        baseUrl,
+        fetchImpl,
+        signer,
+        fingerprint
+      }).then((session) => {
+        if (disposed) return session;
+        cached = session;
+        for (const listener of listeners) listener();
+        return session;
+      });
+      pending = { fingerprint, promise };
+      const clearPending = () => {
+        if ((pending == null ? void 0 : pending.promise) === promise) pending = null;
+      };
+      void promise.then(clearPending, clearPending);
+    }
+    return (await pending.promise).accessToken;
+  };
+  getAuthorization.revoke = async () => {
+    const session = cached;
+    cached = null;
+    if (session) await revokeSession(session);
+  };
+  getAuthorization.dispose = () => {
+    disposed = true;
+    cached = null;
+    pending = null;
+    listeners.clear();
+  };
+  getAuthorization.subscribe = (listener) => {
+    listeners.add(listener);
+    return () => listeners.delete(listener);
+  };
+  return getAuthorization;
+}
+async function authenticate(input) {
+  const challengeResponse = await input.fetchImpl(
+    joinUrl2(input.baseUrl, NONCE_PATH),
+    {
+      method: "POST",
+      credentials: "omit",
+      headers: jsonHeaders(),
+      body: JSON.stringify({
+        wallet_address: input.signer.address,
+        chain_id: input.signer.chainId
+      })
+    }
+  );
+  if (!challengeResponse.ok) {
+    throw new Error(
+      `Widget SIWE challenge failed: ${challengeResponse.status}`
+    );
+  }
+  const challenge = parseChallenge(await challengeResponse.json());
+  const message = (0, import_siwe.createSiweMessage)({
+    address: input.signer.address,
+    chainId: input.signer.chainId,
+    domain: challenge.domain,
+    uri: challenge.uri,
+    version: "1",
+    nonce: challenge.nonce,
+    issuedAt: new Date(challenge.issuedAt),
+    expirationTime: new Date(challenge.expirationTime),
+    statement: "Sign in to Aomi from this site."
+  });
+  const signature = await input.signer.signMessage(message);
+  const verifyResponse = await input.fetchImpl(
+    joinUrl2(input.baseUrl, VERIFY_PATH),
+    {
+      method: "POST",
+      credentials: "omit",
+      headers: jsonHeaders(),
+      body: JSON.stringify({
+        message,
+        signature,
+        wallet_address: input.signer.address,
+        chain_id: input.signer.chainId
+      })
+    }
+  );
+  if (!verifyResponse.ok) {
+    throw new Error(`Widget SIWE verify failed: ${verifyResponse.status}`);
+  }
+  const session = parseSession(await verifyResponse.json());
+  return __spreadProps(__spreadValues({}, session), { fingerprint: input.fingerprint });
+}
+function normalizeSigner(signer) {
+  if (!Number.isInteger(signer.chainId) || signer.chainId <= 0) {
+    throw new Error("Widget SIWE signer has no valid chain id");
+  }
+  return __spreadProps(__spreadValues({}, signer), { address: (0, import_viem.getAddress)(signer.address) });
+}
+function signerFingerprint(signer) {
+  return `${signer.chainId}:${signer.address.toLowerCase()}`;
+}
+function parseChallenge(value) {
+  if (!value || typeof value !== "object") {
+    throw new Error("Widget SIWE challenge response is invalid");
+  }
+  if (!("nonce" in value) || typeof value.nonce !== "string" || !("domain" in value) || typeof value.domain !== "string" || !("uri" in value) || typeof value.uri !== "string" || !("issued_at" in value) || typeof value.issued_at !== "string" || !("expiration_time" in value) || typeof value.expiration_time !== "string") {
+    throw new Error("Widget SIWE challenge response is invalid");
+  }
+  return {
+    nonce: value.nonce,
+    domain: value.domain,
+    uri: value.uri,
+    issuedAt: value.issued_at,
+    expirationTime: value.expiration_time
+  };
+}
+function parseSession(value) {
+  if (!value || typeof value !== "object") {
+    throw new Error("Widget session response is invalid");
+  }
+  const accessToken = "access_token" in value ? value.access_token : void 0;
+  const expiresAt = "expires_at" in value ? value.expires_at : void 0;
+  if (typeof accessToken !== "string" || !accessToken || typeof expiresAt !== "number" || !Number.isFinite(expiresAt)) {
+    throw new Error("Widget session response is invalid");
+  }
+  return { accessToken, expiresAt };
+}
+function jsonHeaders() {
+  return { Accept: "application/json", "Content-Type": "application/json" };
+}
+function joinUrl2(baseUrl, path) {
+  return `${baseUrl.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`;
+}
+
 // src/types.ts
 function isInlineCall(event) {
   return "InlineCall" in event;
@@ -2113,7 +2302,7 @@ function isSubsetMatch(expected, actual) {
 }
 
 // src/wallet-utils.ts
-var import_viem = require("viem");
+var import_viem2 = require("viem");
 function asRecord(value) {
   if (!value || typeof value !== "object" || Array.isArray(value))
     return void 0;
@@ -2213,10 +2402,10 @@ function normalizeAddress(value) {
   const trimmed = value.trim();
   if (!trimmed) return void 0;
   try {
-    return (0, import_viem.getAddress)(trimmed);
+    return (0, import_viem2.getAddress)(trimmed);
   } catch (e) {
     if (/^0x[0-9a-fA-F]{40}$/.test(trimmed)) {
-      return (0, import_viem.getAddress)(trimmed.toLowerCase());
+      return (0, import_viem2.getAddress)(trimmed.toLowerCase());
     }
     return void 0;
   }
@@ -3390,9 +3579,9 @@ var ClientSession = class extends TypedEventEmitter {
 };
 
 // src/chains.ts
-var import_viem2 = require("viem");
+var import_viem3 = require("viem");
 var import_chains = require("viem/chains");
-var monad = (0, import_viem2.defineChain)({
+var monad = (0, import_viem3.defineChain)({
   id: 143,
   name: "Monad",
   nativeCurrency: {
@@ -3412,7 +3601,7 @@ var monad = (0, import_viem2.defineChain)({
     }
   }
 });
-var monadTestnet = (0, import_viem2.defineChain)({
+var monadTestnet = (0, import_viem3.defineChain)({
   id: 10143,
   name: "Monad Testnet",
   nativeCurrency: {
@@ -3568,7 +3757,7 @@ var DISABLED_PROVIDER_STATE = {
 };
 
 // src/aa/execute.ts
-var import_viem3 = require("viem");
+var import_viem4 = require("viem");
 var import_accounts = require("viem/accounts");
 var ERC20_PAYMENT_CONTEXT_KEYS = /* @__PURE__ */ new Set(["erc20", "paymasterAddress"]);
 var AA_DEBUG_STORAGE_KEYS = ["aomi:debug-aa", "AOMI_DEBUG_AA"];
@@ -3702,7 +3891,7 @@ async function resolve7702Delegation(txHash, callList, getPreferredRpcUrl) {
     const chain = CHAINS_BY_ID[chainId3];
     if (!chain) return void 0;
     const rpcUrl = getPreferredRpcUrl(chain);
-    const client = (0, import_viem3.createPublicClient)({ chain, transport: (0, import_viem3.http)(rpcUrl) });
+    const client = (0, import_viem4.createPublicClient)({ chain, transport: (0, import_viem4.http)(rpcUrl) });
     const tx = await client.getTransaction({ hash: txHash });
     const authList = tx.authorizationList;
     const target = (_d = (_b = authList == null ? void 0 : authList[0]) == null ? void 0 : _b.address) != null ? _d : (_c = authList == null ? void 0 : authList[0]) == null ? void 0 : _c.contractAddress;
@@ -3751,10 +3940,10 @@ async function executeViaEoa({
         throw new Error(`No RPC for chain ${call.chainId}`);
       }
       const account = (0, import_accounts.privateKeyToAccount)(localPrivateKey);
-      const walletClient = (0, import_viem3.createWalletClient)({
+      const walletClient = (0, import_viem4.createWalletClient)({
         account,
         chain,
-        transport: (0, import_viem3.http)(rpcUrl)
+        transport: (0, import_viem4.http)(rpcUrl)
       });
       const hash = await walletClient.sendTransaction({
         account,
@@ -3762,9 +3951,9 @@ async function executeViaEoa({
         value: call.value,
         data: call.data
       });
-      const publicClient = (0, import_viem3.createPublicClient)({
+      const publicClient = (0, import_viem4.createPublicClient)({
         chain,
-        transport: (0, import_viem3.http)(rpcUrl)
+        transport: (0, import_viem4.http)(rpcUrl)
       });
       await publicClient.waitForTransactionReceipt({ hash });
       hashes.push(hash);
@@ -3974,7 +4163,7 @@ function resolveChainCapabilities(capabilities, chainId3) {
 }
 
 // src/aa/fee.ts
-var import_viem4 = require("viem");
+var import_viem5 = require("viem");
 var MAX_AUTO_FEE_WEI = BigInt("50000000000000000");
 var ZERO_WEI = BigInt("0");
 function toPayloadCalls(payload, defaultChainId) {
@@ -4007,7 +4196,7 @@ function normalizeSimulatedFee(fee) {
     throw new Error("fee_exceeds_safety_limit");
   }
   return {
-    recipient: (0, import_viem4.getAddress)(fee.recipient),
+    recipient: (0, import_viem5.getAddress)(fee.recipient),
     amountWei
   };
 }
@@ -4980,6 +5169,7 @@ async function createAAProviderState(options) {
   createAccountBearerProvider,
   createAlchemyAAProvider,
   createPimlicoAAProvider,
+  createWidgetSessionProvider,
   executeWalletCalls,
   getAAChainConfig,
   getWalletExecutorReady,

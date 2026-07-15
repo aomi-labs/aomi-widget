@@ -4,7 +4,7 @@ import {
   buildAccountResponse,
   clearAomiBetterAuthUserIds,
   countLoginFactors,
-  createAomiUserForBetterAuth,
+  createAomiUser,
   deactivateAomiUser,
   deleteBetterAuthSiweWallet,
   findAuthIdentityById,
@@ -100,7 +100,7 @@ export async function getOrCreateAomiUserForBetterAuthSession(input: {
     }
 
     const siweSignals = await betterAuthSiweSignals(input.betterAuthUserId, db);
-    const signalOwner = await findFirstSignalOwner(
+    const signalOwner = await findConsistentSignalOwner(
       [...(input.accessSignals ?? []), ...siweSignals],
       db,
     );
@@ -133,9 +133,11 @@ export async function getOrCreateAomiUserForBetterAuthSession(input: {
       siweSignals,
       db,
     );
-    const user = await createAomiUserForBetterAuth({
-      ...input,
+    const user = await createAomiUser({
       userId: legacyWalletOwnerId ?? undefined,
+      email: input.email,
+      name: input.name,
+      avatarUrl: input.avatarUrl,
       db,
     });
     await upsertAuthIdentity({
@@ -184,21 +186,24 @@ export function isIdentityAlreadyLinkedError(error: unknown): boolean {
   );
 }
 
-async function findFirstSignalOwner(
+async function findConsistentSignalOwner(
   signals: SignalRef[],
   db: Parameters<typeof findSignalOwner>[1],
 ): Promise<DbAomiUser | null> {
   const seen = new Set<string>();
+  const ownerIds = new Set<string>();
   for (const signal of signals) {
     const key = JSON.stringify(signal);
     if (seen.has(key)) continue;
     seen.add(key);
     const ownerId = await findSignalOwner(signal, db);
-    if (!ownerId) continue;
-    const owner = await findAomiUserById(ownerId, db);
-    if (owner) return owner;
+    if (ownerId) ownerIds.add(ownerId);
   }
-  return null;
+  if (ownerIds.size > 1) {
+    throw new Error("conflicting_identity_owners");
+  }
+  const [ownerId] = ownerIds;
+  return ownerId ? findAomiUserById(ownerId, db) : null;
 }
 
 async function betterAuthSiweSignals(
@@ -256,6 +261,55 @@ export async function syncSiweWalletsForUser(input: {
   }
 }
 
+export async function getOrCreateAomiUserForSiwe(input: {
+  address: string;
+  chainId: number;
+}): Promise<DbAomiUser> {
+  await ensureAccountSchema();
+  return withTransaction(async (db) => {
+    const normalizedAddress = normalizeWalletAddress("evm", input.address);
+    const owner = await findConsistentSignalOwner(
+      [
+        {
+          type: "wallet",
+          family: "evm",
+          normalizedAddress,
+          chainScope: null,
+        },
+        {
+          type: "identity",
+          provider: "siwe",
+          subject: `eip155:*:${normalizedAddress}`,
+        },
+      ],
+      db,
+    );
+    const user =
+      owner ??
+      (await createAomiUser({
+        displayName: `${input.address.slice(0, 6)}...${input.address.slice(-4)}`,
+        db,
+      }));
+    if (owner) await touchAomiUser(owner.id, db);
+
+    const resolution = await upsertVerifiedWallet({
+      userId: user.id,
+      family: "evm",
+      address: input.address,
+      chainId: input.chainId,
+      chainScope: null,
+      kind: "external",
+      provider: "siwe",
+      linkedVia: "siwe",
+      db,
+    });
+    if (resolution.status === "conflict") {
+      throw new Error("conflicting_identity_owners");
+    }
+    return user;
+  });
+}
+
 export async function resolveSignal(input: {
   currentUserId: AomiUserId;
   signal: SignalRef;
@@ -291,7 +345,12 @@ export async function upsertVerifiedWallet(input: {
   providerWalletId?: string | null;
   linkedVia: LinkedVia;
   label?: string | null;
+  db?: import("pg").Pool | import("pg").PoolClient;
 }): Promise<SignalResolution> {
+  await ensureAccountSchema();
+  if (!input.db) {
+    return withTransaction((db) => upsertVerifiedWallet({ ...input, db }));
+  }
   const signal = {
     type: "wallet" as const,
     family: input.family,
@@ -301,6 +360,7 @@ export async function upsertVerifiedWallet(input: {
   const resolution = await resolveSignal({
     currentUserId: input.userId,
     signal,
+    db: input.db,
   });
   if (resolution.status === "conflict") return resolution;
   const siweSubject = siweIdentitySubject(input);
@@ -312,6 +372,7 @@ export async function upsertVerifiedWallet(input: {
           provider: "siwe",
           subject: siweSubject,
         },
+        db: input.db,
       })
     : null;
   if (identityResolution?.status === "conflict") {
@@ -323,6 +384,14 @@ export async function upsertVerifiedWallet(input: {
   ) {
     return { status: "noop" };
   }
+  if (siweSubject) {
+    await upsertAuthIdentity({
+      userId: input.userId,
+      provider: "siwe",
+      subject: siweSubject,
+      db: input.db,
+    });
+  }
   await upsertWallet(input);
   if (resolution.status !== "noop") {
     await logAccountEvent({
@@ -333,19 +402,16 @@ export async function upsertVerifiedWallet(input: {
         address: input.address,
         linkedVia: input.linkedVia,
       },
+      db: input.db,
     });
   }
   if (siweSubject) {
-    await upsertAuthIdentity({
-      userId: input.userId,
-      provider: "siwe",
-      subject: siweSubject,
-    });
     if (identityResolution?.status !== "noop") {
       await logAccountEvent({
         userId: input.userId,
         eventType: "identity.linked",
         data: { provider: "siwe", subject: siweSubject },
+        db: input.db,
       });
     }
   }

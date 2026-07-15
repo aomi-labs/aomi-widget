@@ -13,9 +13,11 @@
 - Kept backend endpoint contracts unchanged; the new global feed belongs to
   manager and the Aomi Build BFF relays it.
 
-Current session goal: pair product-mono PR #790 with a minimal published React
-runtime API for recording ephemeral UI interaction context on the active
-thread, without extending the serialized frontend `UserState` shape.
+Current session goal: implement the permissionless cross-domain widget auth
+slice from PR #339's handoff on latest frontend main: observed-origin EOA SIWE,
+origin-bound opaque widget sessions, Portal principal exchange, and a clean
+consumer-facing widget API. Para/Privy exchange remains gated on the canonical
+identity schema carrying verified issuer and tenant fields.
 
 2026-07-13 follow-up: staging and production now use separate Supabase
 databases. Local schema convergence applies the backend's forward drop instead
@@ -23,6 +25,18 @@ of recreating the retired `bff_cli_device_sessions` / `bff_cli_sessions`
 tables; fresh databases also finish replay with that drop.
 
 Progress:
+
+- 2026-07-15 cross-domain widget auth: added Portal-issued observed-origin SIWE
+  challenges, one-time nonce consumption, hashed 30-minute Widget Session
+  Tokens, origin-bound Portal principal resolution, credential-free CORS, and
+  AccountBearer minting without forwarding the widget token to the backend.
+  Added a memory-only client authorization provider, a high-level `AomiWidget`,
+  and a separate-origin Vite consumer harness. The current slice deliberately
+  accepts EOA SIWE only; smart accounts and provider JWTs remain explicit
+  follow-ups rather than being encoded into incomplete identity records.
+  Verified the full root Vitest suite (726 passed), account and Portal
+  typechecks, client/registry/consumer builds, targeted ESLint, generated
+  registry artifacts, and packed account/client/widget npm contents.
 
 - 2026-07-14 hosted SDK compatibility: Aomi Build now marks incompatible
   deployments as outdated, blocks their broken chat iframe, links users to the

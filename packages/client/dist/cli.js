@@ -1443,8 +1443,12 @@ async function fetchStateResponse(fetchImpl, url, sessionId) {
     headers: withSessionHeader(sessionId)
   });
 }
-function wrapFetchWithAccountBearer(fetchImpl, getAccountBearer) {
-  if (!getAccountBearer) return fetchImpl;
+function wrapFetchWithCredentials(fetchImpl, credentials) {
+  if (!credentials) return fetchImpl;
+  return (input2, init) => fetchImpl(input2, __spreadProps(__spreadValues({}, init), { credentials }));
+}
+function wrapFetchWithAuthorization(fetchImpl, getAuthorization, mode = "required") {
+  if (!getAuthorization) return fetchImpl;
   return async (input2, init) => {
     var _a3;
     const baseHeaders = new Headers(
@@ -1453,10 +1457,14 @@ function wrapFetchWithAccountBearer(fetchImpl, getAccountBearer) {
     const fetchWithBearer = async (forceRefresh) => {
       const headers = new Headers(baseHeaders);
       let bearer;
-      try {
-        bearer = await getAccountBearer({ forceRefresh });
-      } catch (e) {
-        bearer = void 0;
+      if (mode === "required") {
+        bearer = await getAuthorization({ forceRefresh });
+      } else {
+        try {
+          bearer = await getAuthorization({ forceRefresh });
+        } catch (e) {
+          bearer = void 0;
+        }
       }
       if (bearer) {
         headers.set("Authorization", `Bearer ${bearer}`);
@@ -1547,18 +1555,28 @@ var init_client = __esm({
     ]);
     AomiClient = class {
       constructor(options) {
-        var _a3;
+        var _a3, _b;
         this.baseUrl = options.baseUrl.replace(/\/+$/, "");
         this.apiKey = options.apiKey;
-        const fetchImpl = (_a3 = options.fetch) != null ? _a3 : globalThis.fetch.bind(globalThis);
-        const rawFetchImpl = typeof globalThis.fetch === "function" ? globalThis.fetch.bind(globalThis) : fetchImpl;
-        this.fetchImpl = wrapFetchWithAccountBearer(
-          fetchImpl,
-          options.getAccountBearer
+        const fetchImpl = wrapFetchWithCredentials(
+          (_a3 = options.fetch) != null ? _a3 : globalThis.fetch.bind(globalThis),
+          options.credentials
         );
-        this.rawFetchImpl = wrapFetchWithAccountBearer(
+        const rawFetchImpl = wrapFetchWithCredentials(
+          typeof globalThis.fetch === "function" ? globalThis.fetch.bind(globalThis) : fetchImpl,
+          options.credentials
+        );
+        const authorization = (_b = options.authorization) != null ? _b : options.getAccountBearer;
+        const authorizationMode = options.authorization ? "required" : "optional";
+        this.fetchImpl = wrapFetchWithAuthorization(
+          fetchImpl,
+          authorization,
+          authorizationMode
+        );
+        this.rawFetchImpl = wrapFetchWithAuthorization(
           rawFetchImpl,
-          options.getAccountBearer
+          authorization,
+          authorizationMode
         );
         this.logger = options.logger;
         this.sseSubscriber = createSseSubscriber({
@@ -1569,9 +1587,9 @@ var init_client = __esm({
           fetchImpl: this.rawFetchImpl,
           logger: this.logger
         });
-        if (supportsTokenRefreshSubscription(options.getAccountBearer)) {
-          options.getAccountBearer.subscribe(() => {
-            this.sseSubscriber.reconnect("account-token-refreshed");
+        if (supportsTokenRefreshSubscription(authorization)) {
+          authorization.subscribe(() => {
+            this.sseSubscriber.reconnect("authorization-refreshed");
           });
         }
       }
@@ -10718,7 +10736,7 @@ init_shared();
 // package.json
 var package_default = {
   name: "@aomi-labs/client",
-  version: "0.3.1",
+  version: "0.3.2",
   description: "Platform-agnostic TypeScript client for the Aomi backend API",
   type: "module",
   main: "./dist/index.cjs",

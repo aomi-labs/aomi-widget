@@ -25,7 +25,7 @@ import type {
   AomiSystemEvent,
   AomiSystemResponse,
   AomiThread,
-  GetAccountBearer,
+  GetAuthorization,
   Logger,
   AomiHttpMethod,
   AomiPlatformFilter,
@@ -234,11 +234,20 @@ async function fetchStateResponse(
   });
 }
 
-function wrapFetchWithAccountBearer(
+function wrapFetchWithCredentials(
   fetchImpl: typeof fetch,
-  getAccountBearer?: GetAccountBearer,
+  credentials?: RequestCredentials,
 ): typeof fetch {
-  if (!getAccountBearer) return fetchImpl;
+  if (!credentials) return fetchImpl;
+  return (input, init) => fetchImpl(input, { ...init, credentials });
+}
+
+function wrapFetchWithAuthorization(
+  fetchImpl: typeof fetch,
+  getAuthorization?: GetAuthorization,
+  mode: "required" | "optional" = "required",
+): typeof fetch {
+  if (!getAuthorization) return fetchImpl;
 
   return async (input, init) => {
     const baseHeaders = new Headers(
@@ -246,13 +255,15 @@ function wrapFetchWithAccountBearer(
     );
     const fetchWithBearer = async (forceRefresh: boolean) => {
       const headers = new Headers(baseHeaders);
-      // The account bearer is additive — never let a failing source break the
-      // request. A throwing/absent bearer just means no Authorization header.
       let bearer: string | null | undefined;
-      try {
-        bearer = await getAccountBearer({ forceRefresh });
-      } catch {
-        bearer = undefined;
+      if (mode === "required") {
+        bearer = await getAuthorization({ forceRefresh });
+      } else {
+        try {
+          bearer = await getAuthorization({ forceRefresh });
+        } catch {
+          bearer = undefined;
+        }
       }
       if (bearer) {
         headers.set("Authorization", `Bearer ${bearer}`);
@@ -267,8 +278,8 @@ function wrapFetchWithAccountBearer(
 }
 
 function supportsTokenRefreshSubscription(
-  provider: GetAccountBearer | undefined,
-): provider is GetAccountBearer & {
+  provider: GetAuthorization | undefined,
+): provider is GetAuthorization & {
   subscribe: (listener: () => void) => () => void;
 } {
   return (
@@ -358,18 +369,27 @@ export class AomiClient {
     // Strip trailing slash
     this.baseUrl = options.baseUrl.replace(/\/+$/, "");
     this.apiKey = options.apiKey;
-    const fetchImpl = options.fetch ?? globalThis.fetch.bind(globalThis);
-    const rawFetchImpl =
+    const fetchImpl = wrapFetchWithCredentials(
+      options.fetch ?? globalThis.fetch.bind(globalThis),
+      options.credentials,
+    );
+    const rawFetchImpl = wrapFetchWithCredentials(
       typeof globalThis.fetch === "function"
         ? globalThis.fetch.bind(globalThis)
-        : fetchImpl;
-    this.fetchImpl = wrapFetchWithAccountBearer(
-      fetchImpl,
-      options.getAccountBearer,
+        : fetchImpl,
+      options.credentials,
     );
-    this.rawFetchImpl = wrapFetchWithAccountBearer(
+    const authorization = options.authorization ?? options.getAccountBearer;
+    const authorizationMode = options.authorization ? "required" : "optional";
+    this.fetchImpl = wrapFetchWithAuthorization(
+      fetchImpl,
+      authorization,
+      authorizationMode,
+    );
+    this.rawFetchImpl = wrapFetchWithAuthorization(
       rawFetchImpl,
-      options.getAccountBearer,
+      authorization,
+      authorizationMode,
     );
     this.logger = options.logger;
 
@@ -382,9 +402,9 @@ export class AomiClient {
       fetchImpl: this.rawFetchImpl,
       logger: this.logger,
     });
-    if (supportsTokenRefreshSubscription(options.getAccountBearer)) {
-      options.getAccountBearer.subscribe(() => {
-        this.sseSubscriber.reconnect("account-token-refreshed");
+    if (supportsTokenRefreshSubscription(authorization)) {
+      authorization.subscribe(() => {
+        this.sseSubscriber.reconnect("authorization-refreshed");
       });
     }
   }

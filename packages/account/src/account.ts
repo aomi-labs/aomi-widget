@@ -1,14 +1,13 @@
 export { createDefaultWalletAttesters } from "./providers/default-wallet-attesters";
 
-export {
-  validWalletAddress,
-} from "./providers/wallet-attestation";
+export { validWalletAddress } from "./providers/wallet-attestation";
 
 export {
   ensureAccountSchema,
   deactivateAomiAccount,
   fetchAttestedProviderWallets,
   getAccountResponseForBetterAuthSession,
+  getOrCreateAomiUserForSiwe,
   getOrCreateAomiUserForBetterAuthSession,
   linkProviderIdentity,
   renameAuthIdentity,

@@ -43,6 +43,24 @@
       ]
     },
     {
+      "name": "aomi-widget",
+      "type": "registry:component",
+      "description": "Cross-domain Aomi widget with an origin-bound, memory-only SIWE session.",
+      "files": [
+        {
+          "type": "registry:component",
+          "path": "components/aomi-widget.tsx"
+        }
+      ],
+      "dependencies": [
+        "@aomi-labs/client"
+      ],
+      "registryDependencies": [
+        "https://aomi.dev/r/aomi-frame.json",
+        "https://aomi.dev/r/aomi-wallet-kit.json"
+      ]
+    },
+    {
       "name": "aomi-wallet-kit",
       "type": "registry:component",
       "description": "Generic Aomi wallet kit context. Identity → UserState sync is mounted automatically by AomiWalletKitContextProvider.",
