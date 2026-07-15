@@ -53,6 +53,7 @@ describe("MCP tool inventory", () => {
         "aomi_list_tools",
         "aomi_search_tools",
         "aomi_describe_tool",
+        "aomi_describe_skill",
         "aomi_call_tool",
         "aomi_run",
       ]),
@@ -112,6 +113,45 @@ describe("dispatchTool routing", () => {
       arguments: { chain: "1" },
       app: "default",
     });
+  });
+
+  it("aomi_describe_skill -> GET /api/resource/skills/{skill_id}", async () => {
+    await dispatchTool(USER, "aomi_describe_skill", { skill_id: "aave" });
+    expect(resourceGetMock).toHaveBeenCalledWith(
+      USER,
+      "/api/resource/skills/aave",
+    );
+  });
+
+  it("aomi_describe_skill requires skill_id", async () => {
+    const out = await dispatchTool(USER, "aomi_describe_skill", {});
+    expect(out.isError).toBe(true);
+    expect(resourceGetMock).not.toHaveBeenCalled();
+  });
+
+  it("aomi_call_tool forwards explicit skills for instruction-pack guards", async () => {
+    await dispatchTool(USER, "aomi_call_tool", {
+      tool_id: "encode_and_call",
+      arguments: {},
+      skills: ["aave"],
+    });
+    expect(toolCallMock).toHaveBeenCalledWith(
+      USER,
+      "thread-deterministic",
+      expect.objectContaining({ tool_id: "encode_and_call", skills: ["aave"] }),
+    );
+  });
+
+  it("aomi_run forwards explicit skills for instruction-pack guards", async () => {
+    await dispatchTool(USER, "aomi_run", {
+      program: "quote a=1",
+      skills: ["aave", "lido"],
+    });
+    expect(execRunMock).toHaveBeenCalledWith(
+      USER,
+      "thread-deterministic",
+      expect.objectContaining({ skills: ["aave", "lido"] }),
+    );
   });
 
   it("aomi_run -> POST /api/exec/run with program + app + deterministic thread", async () => {
