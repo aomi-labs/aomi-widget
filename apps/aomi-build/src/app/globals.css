@@ -15,7 +15,7 @@
 
   --border: var(--aomi-border);
   --border-hover: var(--aomi-border-strong);
-  --border-active: var(--aomi-ring);
+  --border-active: var(--aomi-accent-interactive);
 
   --brand: var(--aomi-primary);
   --brand-hover: var(--aomi-primary-hover);
@@ -40,15 +40,15 @@
   --muted: var(--aomi-bg-subtle);
   --muted-foreground: var(--aomi-text-muted);
   --accent: var(--aomi-accent-subtle);
-  --accent-hover: var(--aomi-primary-subtle);
-  --accent-selected: var(--aomi-accent-subtle);
+  --accent-hover: var(--aomi-state-hover);
+  --accent-selected: var(--aomi-accent-selected);
   --accent-foreground: var(--aomi-text);
   --destructive: var(--aomi-danger-500);
   --destructive-foreground: var(--aomi-cool-0);
   --input: var(--aomi-surface);
-  --ring: var(--aomi-ring);
+  --ring: var(--aomi-accent-interactive);
   --chart-1: var(--aomi-pink-500);
-  --chart-2: var(--aomi-lilac-500);
+  --chart-2: var(--aomi-pink-300);
   --chart-3: var(--aomi-sky-500);
   --chart-4: var(--aomi-success-500);
   --chart-5: var(--aomi-warning-500);
@@ -59,7 +59,7 @@
   --sidebar-accent: var(--aomi-primary-subtle);
   --sidebar-accent-foreground: var(--aomi-text);
   --sidebar-border: var(--aomi-border);
-  --sidebar-ring: var(--aomi-ring);
+  --sidebar-ring: var(--aomi-accent-interactive);
 
   --positive: var(--aomi-success-500);
   --negative: var(--aomi-danger-500);
@@ -234,6 +234,11 @@
 :focus:not(:focus-visible) {
   outline: none;
 }
+/* The composer card already signals focus via :focus-within on its border,
+   so the field inside must not draw its own focus outline. */
+.composer-surface :focus-visible {
+  outline: none;
+}
 
 @keyframes fade-up {
   from {
@@ -345,6 +350,8 @@
 .nav-link[data-active="true"] {
   background: var(--accent-selected);
   color: var(--text-primary);
+  box-shadow: inset 2.5px 0 0 var(--aomi-accent-interactive);
+  font-weight: 500;
 }
 .nav-link[data-active="true"] .nav-icon {
   color: var(--text-primary);
