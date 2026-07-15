@@ -56,6 +56,7 @@ export async function applyRequestedModelIfPresent(
 
   await session.client.setModel(cli.sessionId, requestedModel, {
     app: cli.app,
+    applicationId: config.applicationId,
     apiKey: cli.apiKey,
   });
   cli.setModel(requestedModel);

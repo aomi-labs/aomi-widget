@@ -3,6 +3,7 @@ import type { AAMode } from "../aa/types";
 export type CliExecutionMode = "aa" | "eoa";
 export type CliAAProvider = "alchemy" | "pimlico";
 export type CliEmbeddedProvider = "para" | "privy";
+export type CliPaymentMethod = "coinbase";
 
 export type CliConfig = {
   baseUrl?: string;
@@ -15,6 +16,7 @@ export type CliConfig = {
   embeddedProvider?: CliEmbeddedProvider;
   embeddedProviderToken?: string;
   app?: string;
+  applicationId?: string;
   model?: string;
   freshSession?: boolean;
   publicKey?: string;
@@ -41,4 +43,5 @@ export type CliConfig = {
   execution?: CliExecutionMode;
   aaProvider?: CliAAProvider;
   aaMode?: AAMode;
+  paymentMethod?: CliPaymentMethod;
 };

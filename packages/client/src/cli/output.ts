@@ -1,4 +1,5 @@
 import type { AomiMessage, AomiSSEEvent } from "../types";
+import type { CliPaymentEvent } from "./payment";
 import { STATE_ROOT_DIR, getActiveStateFilePath } from "./state";
 
 export const DIM = "\x1b[2m";
@@ -38,6 +39,37 @@ export function printToolComplete(event: AomiSSEEvent): void {
 
 export function printToolResultLine(name: string, result?: string): void {
   console.log(formatToolResultLine(name, result));
+}
+
+export function printPaymentEvent(event: CliPaymentEvent): void {
+  switch (event.type) {
+    case "required": {
+      const requirement = event.requirement;
+      const details = [
+        requirement?.amount ? `amount ${requirement.amount}` : undefined,
+        requirement?.network,
+        requirement?.payTo ? `beneficiary ${requirement.payTo}` : undefined,
+      ]
+        .filter(Boolean)
+        .join(" · ");
+      console.log(
+        `${YELLOW}💳 x402 payment required${details ? `: ${details}` : ""}${RESET}`,
+      );
+      return;
+    }
+    case "submitting":
+      console.log(`${DIM}✍️ Signing and submitting x402 payment…${RESET}`);
+      return;
+    case "settled":
+      console.log(
+        `${GREEN}✔ x402 payment settled${event.receiptId ? `: ${event.receiptId}` : ""}${RESET}`,
+      );
+      return;
+    case "rejected":
+      console.log(
+        `\x1b[31m✖ x402 payment rejected (HTTP ${event.status})${event.reason ? `: ${event.reason}` : ""}${RESET}`,
+      );
+  }
 }
 
 export function getToolNameFromEvent(event: AomiSSEEvent): string {
