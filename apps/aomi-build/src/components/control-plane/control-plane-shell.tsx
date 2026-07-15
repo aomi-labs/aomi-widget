@@ -28,6 +28,7 @@ import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { AomiLogo } from "@build/components/brand/aomi-logo";
+import { ColorThemeToggle } from "@build/components/control-plane/color-theme-toggle";
 import {
   CommandPalette,
   openCommandPalette,
@@ -617,7 +618,7 @@ function ControlPlaneShellContent({ children }: { children: React.ReactNode }) {
           <button
             type="button"
             onClick={() => setMobileOpen(false)}
-            className="h-full flex-1 bg-black/50"
+            className="h-full flex-1 bg-[var(--aomi-overlay)]"
             aria-label="Close sidebar"
           />
           <aside className="border-border bg-sidebar flex h-full w-72 flex-col border-l">
@@ -669,6 +670,7 @@ function ControlPlaneShellContent({ children }: { children: React.ReactNode }) {
                 ⌘K
               </kbd>
             </button>
+            <ColorThemeToggle />
             <AccountMenu
               account={account}
               onSignedOut={() => {
