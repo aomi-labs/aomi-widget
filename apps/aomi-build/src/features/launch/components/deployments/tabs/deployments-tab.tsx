@@ -268,7 +268,7 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
         <div
           role="tablist"
           aria-label="Deployment views"
-          className="border-border bg-surface-1 inline-flex rounded-md border p-0.5"
+          className="border-border bg-surface-1 inline-grid h-9 grid-cols-2 rounded-md border p-0.5"
         >
           {[
             ["deployments", "History"],
@@ -280,7 +280,7 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
               role="tab"
               aria-selected={view === id}
               onClick={() => setView(id as View)}
-              className={`h-7 rounded px-2.5 text-xs font-medium ${
+              className={`h-full w-24 rounded px-2.5 text-xs font-medium ${
                 view === id
                   ? "bg-primary text-primary-foreground"
                   : "text-dim hover:bg-accent-hover"
@@ -304,7 +304,7 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
                     })
                   : undefined
               }
-              className="border-border bg-surface-1 text-foreground hover:bg-accent-hover inline-flex h-8 items-center justify-center gap-1.5 rounded-md border px-2.5 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-50"
+              className="border-border bg-surface-1 text-foreground hover:bg-accent-hover inline-flex h-9 items-center justify-center gap-1.5 rounded-md border px-2.5 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-50"
               title={
                 deactivated
                   ? "No deployment is live"
@@ -322,7 +322,7 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
               setOp(null);
               void detail.redeploySource();
             }}
-            className="bg-primary text-primary-foreground inline-flex h-8 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-3 text-xs font-medium hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+            className="bg-primary text-primary-foreground inline-flex h-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-3 text-xs font-medium hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
             title="Deploy the source repo's latest commit and activate it"
           >
             <Rocket className="size-3.5" aria-hidden />
