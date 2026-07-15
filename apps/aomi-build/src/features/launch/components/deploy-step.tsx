@@ -23,6 +23,7 @@ import {
   type LaunchDeployPayload,
   type LaunchProgress,
 } from "@build/features/launch";
+import { MissingRequiredSecretsError } from "@build/features/launch/required-secrets";
 
 // The subset of `useProjectDetail`'s return value this step needs to gate
 // Activate on required secrets. Optional: the onboarding wizard renders this
@@ -34,7 +35,16 @@ type SecretsGateDetail = {
     string,
     { slots: SecretSlot[]; missing: string[] }
   > | null;
+  requiredSecretsError?: string | null;
   loadRequiredSecrets: () => void;
+  ensureRequiredSecrets?: (
+    apps: string[],
+    appSourceId?: number,
+  ) => Promise<void>;
+  setEnvVars?: (
+    app: string,
+    secrets: Record<string, string>,
+  ) => Promise<unknown>;
 };
 
 type Phase =
@@ -188,6 +198,10 @@ export function DeployStep({
     progress.deploymentId,
   );
   const [error, setError] = useState<string | null>(null);
+  const [requiredSecretValues, setRequiredSecretValues] = useState<
+    Record<string, string>
+  >({});
+  const [savingRequiredSecrets, setSavingRequiredSecrets] = useState(false);
   const [showManifest, setShowManifest] = useState(false);
   const [verifyAttempt, setVerifyAttempt] = useState(0);
   const [copied, setCopied] = useState(false);
@@ -216,17 +230,65 @@ export function DeployStep({
     detail?.loadRequiredSecrets();
   }, [detail]);
 
-  // Gate on the apps this step is about to activate (`progress.apps`), not
-  // the `apps` memo above — that one falls back to the preflight/deploy
-  // manifest, which can list apps not yet targeted for this activation.
-  const blockedApps = (progress.apps ?? []).filter((app) =>
-    detail?.hasMissingSecrets(app),
+  // Gate on the apps this step is about to deploy or activate. After a
+  // preflight, `apps` comes from the resolved deployment manifest even before
+  // the deploy result has been written back into progress.
+  const blockedApps = apps.filter((app) => detail?.hasMissingSecrets(app));
+  const secretsCheckPending = Boolean(
+    detail &&
+    apps.length > 0 &&
+    detail.requiredSecrets === null &&
+    !detail.requiredSecretsError,
   );
-  const secretsBlocked = blockedApps.length > 0;
+  const secretsCheckFailed = Boolean(
+    detail && apps.length > 0 && detail.requiredSecretsError,
+  );
+  const secretsBlocked = Boolean(
+    detail &&
+    apps.length > 0 &&
+    (secretsCheckPending || secretsCheckFailed || blockedApps.length > 0),
+  );
   const missingSecretsCount = blockedApps.reduce(
     (n, app) => n + (detail?.requiredSecrets?.[app]?.missing.length ?? 0),
     0,
   );
+  const missingSecretSlots = blockedApps.flatMap((app) =>
+    (detail?.requiredSecrets?.[app]?.slots ?? [])
+      .filter((slot) =>
+        detail?.requiredSecrets?.[app]?.missing.includes(slot.name),
+      )
+      .map((slot) => ({ app, slot })),
+  );
+
+  const saveRequiredSecrets = useCallback(async () => {
+    if (!detail?.setEnvVars || missingSecretSlots.length === 0) return;
+    const valuesByApp = new Map<string, Record<string, string>>();
+    for (const { app, slot } of missingSecretSlots) {
+      const value = requiredSecretValues[`${app}::${slot.name}`] ?? "";
+      if (!value) {
+        setError(`Enter a value for ${slot.name}.`);
+        return;
+      }
+      const values = valuesByApp.get(app) ?? {};
+      values[slot.name] = value;
+      valuesByApp.set(app, values);
+    }
+    setSavingRequiredSecrets(true);
+    setError(null);
+    try {
+      await Promise.all(
+        Array.from(valuesByApp, ([app, values]) =>
+          detail.setEnvVars?.(app, values),
+        ),
+      );
+      setRequiredSecretValues({});
+      await detail.ensureRequiredSecrets?.(apps);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSavingRequiredSecrets(false);
+    }
+  }, [apps, detail, missingSecretSlots, requiredSecretValues]);
 
   const applyDeployment = useCallback(
     (next: {
@@ -293,6 +355,7 @@ export function DeployStep({
       // preview); afterwards we go straight through by id.
       let appSourceId = progress.appSourceId;
       let sourceRef = progress.sourceRef ?? deployment?.source?.ref;
+      let targetApps = apps;
       if (!appSourceId || !sourceRef) {
         const preflightResult = await launchPreflight({
           installationId,
@@ -305,12 +368,14 @@ export function DeployStep({
         appSourceId = preflightResult.appSourceId;
         sourceRef =
           preflightResult.sourceRef ?? preflightResult.deployment.source?.ref;
+        targetApps = preflightResult.apps;
       }
       if (!appSourceId) {
         throw new Error(
           "Could not resolve a source to deploy. Run a preflight first.",
         );
       }
+      await detail?.ensureRequiredSecrets?.(targetApps, appSourceId);
       const result = await launchDeploy({
         appSourceId,
         sourceRef,
@@ -334,12 +399,19 @@ export function DeployStep({
       onProgress(patch);
       setPhase("building");
     } catch (e) {
+      if (e instanceof MissingRequiredSecretsError) {
+        setError(e.message);
+        setPhase("preflight_ready");
+        return;
+      }
       setError(e instanceof Error ? e.message : String(e));
       setPhase("error");
     }
   }, [
     actor,
     applyDeployment,
+    apps,
+    detail,
     installationId,
     onProgress,
     progress.appSourceId,
@@ -587,6 +659,14 @@ export function DeployStep({
   return (
     <div className="space-y-4 text-sm" aria-busy={busy}>
       <StepTrack phase={phase} />
+      {error && (
+        <div
+          className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-800"
+          role="alert"
+        >
+          {error}
+        </div>
+      )}
       <div className="flex flex-wrap items-center gap-2">
         <Button
           onClick={preflight}
@@ -631,13 +711,6 @@ export function DeployStep({
           )}
           Activate
         </Button>
-        {secretsBlocked && (
-          <span className="text-xs text-amber-700">
-            {missingSecretsCount} required secret
-            {missingSecretsCount === 1 ? "" : "s"} missing — set them in the
-            Environment tab.
-          </span>
-        )}
         {["building", "ready", "activating", "verifying"].includes(phase) && (
           <Button
             onClick={reset}
@@ -647,6 +720,65 @@ export function DeployStep({
           </Button>
         )}
       </div>
+
+      {secretsBlocked && (
+        <div
+          className="space-y-3 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs"
+          role="alert"
+        >
+          <div className="font-medium text-amber-800">
+            {secretsCheckPending
+              ? "Checking required secrets…"
+              : detail?.requiredSecretsError
+                ? "Required secrets could not be verified."
+                : `${missingSecretsCount} required secret${missingSecretsCount === 1 ? "" : "s"} missing.`}
+          </div>
+          {detail?.requiredSecretsError ? (
+            <div className="text-amber-800">
+              {detail.requiredSecretsError}. Refresh and try again.
+            </div>
+          ) : (
+            <>
+              {missingSecretSlots.map(({ app, slot }) => (
+                <label key={`${app}::${slot.name}`} className="block">
+                  <span className="mb-1 block font-mono text-[11px] text-amber-900">
+                    {app} · {slot.name}
+                  </span>
+                  <input
+                    type="password"
+                    value={requiredSecretValues[`${app}::${slot.name}`] ?? ""}
+                    onChange={(event) =>
+                      setRequiredSecretValues((values) => ({
+                        ...values,
+                        [`${app}::${slot.name}`]: event.target.value,
+                      }))
+                    }
+                    placeholder={slot.description || "Required value"}
+                    aria-label={`${app} ${slot.name}`}
+                    disabled={savingRequiredSecrets}
+                    className="bg-input text-foreground border-border h-8 w-full rounded-md border px-2 text-xs"
+                  />
+                </label>
+              ))}
+              {missingSecretSlots.length > 0 && detail?.setEnvVars && (
+                <Button
+                  onClick={() => void saveRequiredSecrets()}
+                  disabled={savingRequiredSecrets || secretsCheckPending}
+                  className="h-8 rounded-full px-3 text-xs font-medium"
+                >
+                  {savingRequiredSecrets ? "Saving…" : "Save required secrets"}
+                </Button>
+              )}
+              {missingSecretSlots.length > 0 && !detail?.setEnvVars && (
+                <div className="text-amber-800">
+                  Set these values in the project Environment tab before
+                  activating.
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
 
       <div
         className="text-muted-foreground flex min-h-5 items-center gap-2 text-xs"

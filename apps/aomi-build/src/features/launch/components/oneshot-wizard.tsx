@@ -3,8 +3,8 @@
 import { useCallback, useRef, useState } from "react";
 import { ExternalLink, Loader2, Plus, RotateCcw } from "lucide-react";
 import { Button } from "@aomi-labs/widget-lib";
-import type { SecretSlot } from "@aomi-labs/deploy";
 import {
+  deploymentSetSecrets,
   deploymentRequiredSecrets,
   installationStatusLabel,
   launchCreateRepo,
@@ -12,6 +12,11 @@ import {
   TEMPLATE_REPO,
   type LaunchProgress,
 } from "@build/features/launch";
+import {
+  MissingRequiredSecretsError,
+  missingRequiredSecrets,
+  type RequiredSecretsByApp,
+} from "@build/features/launch/required-secrets";
 import { chatAppUrl } from "@build/lib/chat-url";
 import { Stepper } from "./stepper";
 import { DeployStep } from "./deploy-step";
@@ -24,34 +29,75 @@ import { LivePanel } from "./live-panel";
  * mints alongside `progress.repo` (the wizard's sole setter of both). So this
  * mirrors just the read-only slice `DeployStep` needs, keyed on that id,
  * instead of fabricating a project-detail hook the wizard doesn't otherwise
- * use. If `appSourceId` is ever absent, this fails open (no fetch, nothing
- * ever reported missing) — same policy as the activate 409 backstop.
+ * use. If `appSourceId` is ever absent, there is no target app to gate yet.
+ * Once a source exists, failures are surfaced and block deployment/activation
+ * until the required-secret state can be verified.
  */
 function useWizardSecretsGate(appSourceId?: number) {
-  const [requiredSecrets, setRequiredSecrets] = useState<Record<
-    string,
-    { slots: SecretSlot[]; missing: string[] }
-  > | null>(null);
+  const [requiredSecrets, setRequiredSecrets] =
+    useState<RequiredSecretsByApp | null>(null);
+  const [requiredSecretsError, setRequiredSecretsError] = useState<
+    string | null
+  >(null);
   const requestedFor = useRef<number | null>(null);
 
   const loadRequiredSecrets = useCallback(() => {
     if (!appSourceId || requestedFor.current === appSourceId) return;
     requestedFor.current = appSourceId;
+    setRequiredSecretsError(null);
     void deploymentRequiredSecrets({ appSourceId })
       .then((r) => setRequiredSecrets(r.byApp))
-      .catch(() => {
-        // Fail open: leave requiredSecrets as-is (nothing reported missing)
-        // and allow a retry on the next mount effect.
+      .catch((err) => {
+        setRequiredSecretsError(
+          err instanceof Error
+            ? err.message
+            : "Failed to load required secrets",
+        );
         requestedFor.current = null;
       });
   }, [appSourceId]);
+
+  const ensureRequiredSecrets = useCallback(
+    async (apps: string[], sourceIdOverride?: number) => {
+      const sourceId = sourceIdOverride ?? appSourceId;
+      if (!sourceId) return;
+      const result = await deploymentRequiredSecrets({ appSourceId: sourceId });
+      setRequiredSecrets(result.byApp);
+      setRequiredSecretsError(null);
+      requestedFor.current = sourceId;
+      const missing = missingRequiredSecrets(result.byApp, apps);
+      if (Object.keys(missing).length > 0) {
+        throw new MissingRequiredSecretsError(missing);
+      }
+    },
+    [appSourceId],
+  );
+
+  const setEnvVars = useCallback(
+    async (app: string, secrets: Record<string, string>) => {
+      if (!appSourceId) throw new Error("App source is missing.");
+      await deploymentSetSecrets({ app, appSourceId, secrets });
+      const result = await deploymentRequiredSecrets({ appSourceId });
+      setRequiredSecrets(result.byApp);
+      setRequiredSecretsError(null);
+      requestedFor.current = appSourceId;
+    },
+    [appSourceId],
+  );
 
   const hasMissingSecrets = useCallback(
     (app: string) => (requiredSecrets?.[app]?.missing.length ?? 0) > 0,
     [requiredSecrets],
   );
 
-  return { requiredSecrets, loadRequiredSecrets, hasMissingSecrets };
+  return {
+    requiredSecrets,
+    requiredSecretsError,
+    loadRequiredSecrets,
+    ensureRequiredSecrets,
+    setEnvVars,
+    hasMissingSecrets,
+  };
 }
 
 const STEPS = [
