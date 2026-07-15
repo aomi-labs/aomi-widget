@@ -1,7 +1,11 @@
 import { describe, it, expect, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { OneshotWizard } from "./oneshot-wizard";
-import { launchCreateRepo, deploymentRequiredSecrets } from "@build/features/launch";
+import {
+  deploymentRequiredSecrets,
+  deploymentSetSecrets,
+  launchCreateRepo,
+} from "@build/features/launch";
 import type { LaunchProgress } from "@build/features/launch";
 
 const noop = () => {};
@@ -43,6 +47,7 @@ vi.mock("@build/features/launch", () => ({
   installationStatusLabel: () => null,
   launchCreateRepo: vi.fn(),
   deploymentRequiredSecrets: vi.fn(),
+  deploymentSetSecrets: vi.fn(),
   // DeployStep (rendered at the "build" step) imports these too; they're
   // only invoked from button clicks / a polling timer this suite never
   // triggers, but they must exist so the mocked module doesn't crash on
@@ -197,5 +202,49 @@ describe("OneshotWizard", () => {
     expect(
       await screen.findByText(/1 required secret missing/i),
     ).toBeInTheDocument();
+  });
+
+  it("lets a new project save the missing required secret before activation", async () => {
+    vi.mocked(deploymentRequiredSecrets).mockResolvedValue({
+      byApp: {
+        "my-bot": {
+          slots: [
+            {
+              name: "MY_BOT_API_KEY",
+              description: "API key for the bot.",
+              required: true,
+            },
+          ],
+          missing: ["MY_BOT_API_KEY"],
+        },
+      },
+    });
+
+    render(
+      <OneshotWizard
+        {...defaultProps}
+        progress={{
+          installationId: "12345",
+          repo: "alice/bot",
+          appSourceId: 7,
+          deploymentId: "dep_1",
+          apps: ["my-bot"],
+        }}
+      />,
+    );
+
+    const input = await screen.findByLabelText("my-bot MY_BOT_API_KEY");
+    fireEvent.change(input, { target: { value: "secret-value" } });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Save required secrets" }),
+    );
+
+    await waitFor(() =>
+      expect(deploymentSetSecrets).toHaveBeenCalledWith({
+        app: "my-bot",
+        appSourceId: 7,
+        secrets: { MY_BOT_API_KEY: "secret-value" },
+      }),
+    );
   });
 });

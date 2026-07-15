@@ -1,6 +1,5 @@
 "use client";
 
-import type { SecretSlot } from "@aomi-labs/deploy";
 import type { SourceSdkUpgradeResult } from "@aomi-labs/deploy";
 import { API_PATHS } from "@build/lib/api-paths";
 import { sessionScopedFetch } from "@build/lib/settings-api";
@@ -21,6 +20,7 @@ import {
   type LaunchSdkStatus,
   type LaunchStatus,
 } from "./contracts";
+import type { RequiredSecretsByApp } from "./required-secrets";
 import { normalizeRepo } from "./state";
 
 export type GithubAppOAuthStartResponse = {
@@ -53,6 +53,18 @@ export async function githubAppInstallUrl(args: {
 
 // Every launch BFF route returns the payload on success or `{ error }` on
 // failure. Centralize that contract so each call site stays a one-liner.
+export class LaunchRequestError extends Error {
+  readonly status: number;
+  readonly body: unknown;
+
+  constructor(message: string, status: number, body: unknown) {
+    super(message);
+    this.name = "LaunchRequestError";
+    this.status = status;
+    this.body = body;
+  }
+}
+
 async function launchFetch<T>(
   path: string,
   label: string,
@@ -61,7 +73,11 @@ async function launchFetch<T>(
   const res = await fetch(path, init);
   const json = (await res.json().catch(() => ({}))) as T & { error?: string };
   if (!res.ok) {
-    throw new Error(json.error || `${label} failed (${res.status})`);
+    throw new LaunchRequestError(
+      json.error || `${label} failed (${res.status})`,
+      res.status,
+      json,
+    );
   }
   return json;
 }
@@ -162,7 +178,7 @@ export function deploymentSecrets(input: {
 }
 
 export type RequiredSecretsResult = {
-  byApp: Record<string, { slots: SecretSlot[]; missing: string[] }>;
+  byApp: RequiredSecretsByApp;
 };
 
 export function deploymentRequiredSecrets(input: {

@@ -222,6 +222,27 @@ describe("DeploymentsTab", () => {
     expect(screen.getByText(/required secrets missing/i)).toBeInTheDocument();
   });
 
+  it("blocks redeploy and offers the Environment tab when secrets are missing", () => {
+    const blockedDetail = makeDetail({
+      hasMissingSecrets: (app) => app === "my-bot",
+    });
+    const openEnvironment = vi.fn();
+    renderTab(
+      <DeploymentsTab
+        detail={blockedDetail}
+        onOpenEnvironment={openEnvironment}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: /redeploy from linked repository/i }),
+    ).toBeDisabled();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Set required secrets" }),
+    );
+    expect(openEnvironment).toHaveBeenCalledOnce();
+  });
+
   it("is honest when live but deployment history is empty", () => {
     const liveEmpty = {
       ...detail,

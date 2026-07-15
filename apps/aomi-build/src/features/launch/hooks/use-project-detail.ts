@@ -1,11 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type {
-  SecretSlot,
-  UserSource,
-  UserSourceLatestDeployment,
-} from "@aomi-labs/deploy";
+import type { UserSource, UserSourceLatestDeployment } from "@aomi-labs/deploy";
 import {
   deploymentSources,
   deploymentHistory,
@@ -23,6 +19,11 @@ import {
   launchStatus,
   launchActivate,
 } from "@build/features/launch/client";
+import {
+  MissingRequiredSecretsError,
+  missingRequiredSecrets,
+  type RequiredSecretsByApp,
+} from "@build/features/launch/required-secrets";
 import type {
   LaunchSdkStatus,
   DeploymentPromoteResult,
@@ -59,10 +60,8 @@ export function useProjectDetail(sourceId: number) {
     DeploymentRecord[]
   > | null>(null);
   const [recordsError, setRecordsError] = useState<string | null>(null);
-  const [requiredSecrets, setRequiredSecrets] = useState<Record<
-    string,
-    { slots: SecretSlot[]; missing: string[] }
-  > | null>(null);
+  const [requiredSecrets, setRequiredSecrets] =
+    useState<RequiredSecretsByApp | null>(null);
   const [requiredSecretsError, setRequiredSecretsError] = useState<
     string | null
   >(null);
@@ -132,21 +131,45 @@ export function useProjectDetail(sourceId: number) {
       });
   }, [sourceId, secretsByApp]);
 
-  const loadRequiredSecrets = useCallback(() => {
-    if (requiredSecretsReq.current || requiredSecrets !== null) return;
+  const refreshRequiredSecrets = useCallback(async () => {
     requiredSecretsReq.current = true;
     setRequiredSecretsError(null);
-    void deploymentRequiredSecrets({ appSourceId: sourceId })
-      .then((r) => setRequiredSecrets(r.byApp))
-      .catch((err) => {
-        setRequiredSecretsError(
-          err instanceof Error
-            ? err.message
-            : "Failed to load required secrets",
-        );
-        requiredSecretsReq.current = false;
-      });
-  }, [sourceId, requiredSecrets]);
+    try {
+      const result = await deploymentRequiredSecrets({ appSourceId: sourceId });
+      setRequiredSecrets(result.byApp);
+      return result.byApp;
+    } catch (err) {
+      setRequiredSecretsError(
+        err instanceof Error ? err.message : "Failed to load required secrets",
+      );
+      requiredSecretsReq.current = false;
+      throw err;
+    }
+  }, [sourceId]);
+
+  const loadRequiredSecrets = useCallback(() => {
+    if (requiredSecretsReq.current || requiredSecrets !== null) return;
+    void refreshRequiredSecrets().catch(() => undefined);
+  }, [refreshRequiredSecrets, requiredSecrets]);
+
+  const ensureRequiredSecrets = useCallback(
+    async (apps: string[], appSourceIdOverride?: number) => {
+      const byApp =
+        appSourceIdOverride === undefined
+          ? await refreshRequiredSecrets()
+          : (
+              await deploymentRequiredSecrets({
+                appSourceId: appSourceIdOverride,
+              })
+            ).byApp;
+      if (appSourceIdOverride !== undefined) setRequiredSecrets(byApp);
+      const missing = missingRequiredSecrets(byApp, apps);
+      if (Object.keys(missing).length > 0) {
+        throw new MissingRequiredSecretsError(missing);
+      }
+    },
+    [refreshRequiredSecrets],
+  );
 
   const hasMissingSecrets = useCallback(
     (app: string) => (requiredSecrets?.[app]?.missing.length ?? 0) > 0,
@@ -176,11 +199,10 @@ export function useProjectDetail(sourceId: number) {
         secrets,
       });
       await refreshSecrets();
-      setRequiredSecrets(null);
-      requiredSecretsReq.current = false;
+      await refreshRequiredSecrets();
       return result;
     },
-    [sourceId, refreshSecrets],
+    [refreshRequiredSecrets, refreshSecrets, sourceId],
   );
 
   const deleteEnvVar = useCallback(
@@ -262,6 +284,7 @@ export function useProjectDetail(sourceId: number) {
       });
       const pre = await launchPreflight({ repo });
       const appSourceId = pre.appSourceId ?? sourceId;
+      await ensureRequiredSecrets(pre.apps, appSourceId);
       setDeployFlow({ phase: "deploying", message: "Deploying new version…" });
       const deployed = await launchDeploy({
         appSourceId,
@@ -334,7 +357,7 @@ export function useProjectDetail(sourceId: number) {
         message: err instanceof Error ? err.message : "Deploy failed",
       });
     }
-  }, [source, sourceId, reload, refreshRecords]);
+  }, [ensureRequiredSecrets, source, sourceId, reload, refreshRecords]);
 
   const upgradeSdk = useCallback(
     () => deploymentUpgradeSdk({ appSourceId: sourceId }),
@@ -358,6 +381,8 @@ export function useProjectDetail(sourceId: number) {
     loadHistory,
     loadSecrets,
     loadRequiredSecrets,
+    refreshRequiredSecrets,
+    ensureRequiredSecrets,
     hasMissingSecrets,
     setEnvVars,
     deleteEnvVar,

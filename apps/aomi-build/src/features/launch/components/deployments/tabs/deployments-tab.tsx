@@ -30,7 +30,13 @@ type Pending =
   | null;
 type View = "deployments" | "activity";
 
-export function DeploymentsTab({ detail }: { detail: Detail }) {
+export function DeploymentsTab({
+  detail,
+  onOpenEnvironment,
+}: {
+  detail: Detail;
+  onOpenEnvironment?: () => void;
+}) {
   const { toast } = useToast();
   const [op, setOp] = useState<OpState | null>(null);
   const [pending, setPending] = useState<Pending>(null);
@@ -116,6 +122,35 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
     () => new Map(source?.apps.map((app) => [app.name, app]) ?? []),
     [source],
   );
+  const missingRequiredApps = useMemo(
+    () =>
+      source?.apps
+        .map((app) => app.name)
+        .filter((app) => detail.hasMissingSecrets(app)) ?? [],
+    [detail, source],
+  );
+  const secretsCheckPending = Boolean(
+    source &&
+    source.apps.length > 0 &&
+    detail.requiredSecrets === null &&
+    !detail.requiredSecretsError,
+  );
+  const secretsCheckFailed = Boolean(
+    source && source.apps.length > 0 && detail.requiredSecretsError,
+  );
+  const secretsGateBlocked = Boolean(
+    source &&
+    source.apps.length > 0 &&
+    (secretsCheckPending ||
+      secretsCheckFailed ||
+      missingRequiredApps.length > 0),
+  );
+  const missingRequiredCount =
+    missingRequiredApps.reduce(
+      (count, app) =>
+        count + (detail.requiredSecrets?.[app]?.missing.length ?? 0),
+      0,
+    ) || missingRequiredApps.length;
 
   if (!source) {
     return detail.loading ? (
@@ -317,7 +352,7 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
           )}
           <button
             type="button"
-            disabled={deploying}
+            disabled={deploying || secretsGateBlocked}
             onClick={() => {
               setOp(null);
               void detail.redeploySource();
@@ -375,6 +410,30 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
         </div>
       )}
 
+      {secretsGateBlocked && (
+        <div
+          className="border-warning/40 bg-warning/10 text-warning flex items-center justify-between gap-3 border-b px-4 py-3 text-xs"
+          role="alert"
+        >
+          <span>
+            {secretsCheckPending
+              ? "Checking required secrets before deployment…"
+              : detail.requiredSecretsError
+                ? "Required secrets could not be verified. Refresh before deploying."
+                : `${missingRequiredCount} required secret${missingRequiredCount === 1 ? "" : "s"} missing for ${missingRequiredApps.join(", ")}.`}
+          </span>
+          {onOpenEnvironment && !secretsCheckPending && !secretsCheckFailed && (
+            <button
+              type="button"
+              onClick={onOpenEnvironment}
+              className="shrink-0 font-medium underline underline-offset-2"
+            >
+              Set required secrets
+            </button>
+          )}
+        </div>
+      )}
+
       {view === "deployments" &&
       deployments.length === 0 &&
       !detail.recordsError ? (
@@ -387,8 +446,16 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
               ? "This project is live, but no deployment records are available yet. Deploy a new version to start a history."
               : "Deploy the current version from the linked repository."
           }
-          onAction={() => void detail.redeploySource()}
-          actionLabel="Deploy from Linked Repository"
+          onAction={() =>
+            secretsGateBlocked
+              ? onOpenEnvironment?.()
+              : void detail.redeploySource()
+          }
+          actionLabel={
+            secretsGateBlocked
+              ? "Set required secrets"
+              : "Deploy from Linked Repository"
+          }
         />
       ) : view === "deployments" && deployments.length > 0 ? (
         deployments.map((deployment) => {
