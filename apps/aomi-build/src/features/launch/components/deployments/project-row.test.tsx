@@ -73,4 +73,33 @@ describe("ProjectRow", () => {
     expect(screen.getByText("Live deployment")).toBeInTheDocument();
     expect(screen.getByText("playground-example")).toBeInTheDocument();
   });
+
+  it("links an outdated project to its upgrade flow", () => {
+    render(
+      <ProjectRow
+        source={{
+          id: 42,
+          installationId: 1,
+          repositoryLink: "alice/bot",
+          sdkVersion: "3.0.2",
+          apps: [
+            {
+              name: "my-bot",
+              isActive: true,
+              loaded: false,
+              appReleaseTag: "tag-old",
+            },
+          ],
+          latestDeployment: null,
+        }}
+        requiredSdk="3.0.3"
+      />,
+    );
+
+    expect(screen.getByText("Outdated")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Upgrade" })).toHaveAttribute(
+      "href",
+      "/projects/42?tab=deployments",
+    );
+  });
 });

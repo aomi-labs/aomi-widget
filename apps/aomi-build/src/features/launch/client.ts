@@ -1,6 +1,7 @@
 "use client";
 
 import type { SecretSlot } from "@aomi-labs/deploy";
+import type { SourceSdkUpgradeResult } from "@aomi-labs/deploy";
 import { API_PATHS } from "@build/lib/api-paths";
 import { sessionScopedFetch } from "@build/lib/settings-api";
 import {
@@ -111,6 +112,16 @@ export function launchSdkStatus(): Promise<LaunchSdkStatus> {
 
 export function deploymentSources(): Promise<DeploymentSourcesResult> {
   return launchFetch(API_PATHS.bff.deployments.sources, "deployment sources");
+}
+
+export function deploymentUpgradeSdk(input: {
+  appSourceId: number;
+}): Promise<SourceSdkUpgradeResult> {
+  return postJson(
+    API_PATHS.bff.deployments.sdkUpgrade,
+    "source SDK upgrade",
+    input,
+  );
 }
 
 export function deploymentSdkStatus(): Promise<LaunchSdkStatus> {

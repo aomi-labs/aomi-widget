@@ -24,6 +24,12 @@ tables; fresh databases also finish replay with that drop.
 
 Progress:
 
+- 2026-07-14 hosted SDK compatibility: Aomi Build now marks incompatible
+  deployments as outdated, blocks their broken chat iframe, links users to the
+  Deployments tab, and requests a source-owned SDK upgrade pull request before
+  redeployment. Renamed the existing action to describe its actual linked-repo
+  behavior and patch-bumped `@aomi-labs/deploy` to 0.2.1.
+
 - 2026-07-14 UI interaction context: added active-thread
   `recordUiInteraction(payload)` over the existing `/api/system` transport,
   documented ordering before an immediate chat send, patch-bumped

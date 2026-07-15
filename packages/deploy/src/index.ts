@@ -71,6 +71,7 @@ export type {
   ListUserSourceLogsInput,
   GetUserSourceUsageInput,
   OwnedOperateSourceInput,
+  SourceSdkUpgradeResult,
   OperateAgentsResult,
   OperateTransaction,
   OperateTransactionCursor,
@@ -112,4 +113,8 @@ export type {
   DiscordWebhookBody,
 } from "./activation-request";
 
-export type { SecretSlot, ReleaseManifest, ReleaseManifestPlugin } from "./types";
+export type {
+  SecretSlot,
+  ReleaseManifest,
+  ReleaseManifestPlugin,
+} from "./types";
