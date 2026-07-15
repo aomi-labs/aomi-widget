@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import {
+  CircleArrowUp,
   ExternalLink,
   KeyRound,
   MessageSquare,
@@ -13,6 +14,7 @@ import { operateFetch } from "@build/features/operate/client";
 import { chatAppUrl } from "@build/lib/chat-url";
 import { BUILD_GLOSSARY } from "@build/lib/glossary";
 import { projectDeploymentStatus } from "../project-deployment-status";
+import { sdkCompatibility, sourceSdkVersion } from "../sdk-compatibility";
 import {
   formatCompactCount,
   summarizeProjectUsage,
@@ -67,7 +69,9 @@ function StatusCard({
 
   return (
     <div className={`rounded-md border px-3 py-3 ${toneClass}`}>
-      <div className="text-dim text-[11px] uppercase tracking-wide">{label}</div>
+      <div className="text-dim text-[11px] uppercase tracking-wide">
+        {label}
+      </div>
       <div className="text-foreground mt-1.5 text-sm font-medium">{value}</div>
       <p className="text-dim mt-1 text-xs leading-5">{hint}</p>
       {meter}
@@ -89,7 +93,11 @@ function usageCardCopy(usage: UsagePeek | null): {
   tone: "good" | "warn" | "neutral";
 } {
   if (usage == null) {
-    return { value: "Loading…", hint: "Credits for this project.", tone: "neutral" };
+    return {
+      value: "Loading…",
+      hint: "Credits for this project.",
+      tone: "neutral",
+    };
   }
   if (!usage.available) {
     return {
@@ -152,6 +160,10 @@ export function HomeTab({
     [source],
   );
   const lifecycle = status?.lifecycle ?? null;
+  const requiredSdk = detail.sdk?.sdkStatus.requiredVersion ?? null;
+  const outdated =
+    sdkCompatibility(source ? sourceSdkVersion(source) : null, requiredSdk) ===
+    "outdated";
 
   const secretCount = useMemo(() => {
     if (!detail.secretsByApp) return null;
@@ -168,7 +180,8 @@ export function HomeTab({
   const tabHref = (tab: string) =>
     tabBaseHref ? `${tabBaseHref}?tab=${tab}` : `?tab=${tab}`;
 
-  const isLive = lifecycle.kind === "live" && Boolean(lifecycle.chatApp);
+  const isLive =
+    lifecycle.kind === "live" && Boolean(lifecycle.chatApp) && !outdated;
   const chatUrl = isLive
     ? chatAppUrl(lifecycle.chatApp!, {
         locked: true,
@@ -176,8 +189,9 @@ export function HomeTab({
       })
     : null;
 
-  const liveValue =
-    lifecycle.kind === "live"
+  const liveValue = outdated
+    ? "Outdated"
+    : lifecycle.kind === "live"
       ? "Live"
       : lifecycle.kind === "building" || lifecycle.kind === "build_ready"
         ? lifecycle.statusLabel
@@ -185,8 +199,9 @@ export function HomeTab({
           ? lifecycle.statusLabel
           : "Not live";
 
-  const liveTone =
-    lifecycle.kind === "live"
+  const liveTone = outdated
+    ? "warn"
+    : lifecycle.kind === "live"
       ? "good"
       : lifecycle.kind === "failed"
         ? "warn"
@@ -197,35 +212,41 @@ export function HomeTab({
   const usageCopy = usageCardCopy(usage);
 
   const nextAction =
-    !isLive
+    outdated && requiredSdk
       ? {
           href: tabHref("deployments"),
-          label: "Deploy new version",
-          copy: "Publish a deployment, then set keys and open chat.",
+          label: `Upgrade to ${requiredSdk}`,
+          copy: "Update the linked repository before opening chat.",
         }
-      : !envReady
+      : !isLive
         ? {
-            href: tabHref("environment"),
-            label: "Open Environment",
-            copy: "Add API keys so the live app can call tools.",
+            href: tabHref("deployments"),
+            label: "Redeploy from Linked Repository",
+            copy: "Publish a deployment, then set keys and open chat.",
           }
-        : chatUrl
+        : !envReady
           ? {
-              href: chatUrl,
-              label: "Open Chat",
-              copy: "App is live and keys look set. Try it in chat.",
-              external: true,
+              href: tabHref("environment"),
+              label: "Open Environment",
+              copy: "Add API keys so the live app can call tools.",
             }
-          : {
-              href: tabHref("chat"),
-              label: "Open Chat tab",
-              copy: "Continue in the Chat tab.",
-            };
+          : chatUrl
+            ? {
+                href: chatUrl,
+                label: "Open Chat",
+                copy: "App is live and keys look set. Try it in chat.",
+                external: true,
+              }
+            : {
+                href: tabHref("chat"),
+                label: "Open Chat tab",
+                copy: "Continue in the Chat tab.",
+              };
 
   return (
-    <div className="divide-y divide-border">
+    <div className="divide-border divide-y">
       <div className="px-4 py-4">
-        <div className="text-sm font-medium text-foreground">Project home</div>
+        <div className="text-foreground text-sm font-medium">Project home</div>
         <p className="text-dim mt-1 max-w-2xl text-xs leading-5">
           {BUILD_GLOSSARY.project.meaning} Check live status, environment keys,
           and open chat from here.
@@ -237,9 +258,11 @@ export function HomeTab({
           label="Live"
           value={liveValue}
           hint={
-            isLive
-              ? `${lifecycle.chatApp} is active.`
-              : lifecycle.message || "Deploy and activate an app to go live."
+            outdated && requiredSdk
+              ? `This deployment must be rebuilt with aomi-sdk ${requiredSdk}.`
+              : isLive
+                ? `${lifecycle.chatApp} is active.`
+                : lifecycle.message || "Deploy and activate an app to go live."
           }
           tone={liveTone}
           actionHref={tabHref("deployments")}
@@ -291,7 +314,7 @@ export function HomeTab({
       <div className="border-border bg-surface-2/40 px-4 py-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0">
-            <div className="text-sm font-medium text-foreground">Next</div>
+            <div className="text-foreground text-sm font-medium">Next</div>
             <p className="text-dim mt-1 text-xs leading-5">{nextAction.copy}</p>
           </div>
           {"external" in nextAction && nextAction.external ? (
@@ -310,7 +333,9 @@ export function HomeTab({
               href={nextAction.href}
               className="bg-primary text-primary-foreground inline-flex h-9 items-center gap-1.5 rounded-md px-3 text-sm font-medium hover:opacity-90"
             >
-              {nextAction.label === "Deploy new version" ? (
+              {nextAction.label.startsWith("Upgrade to ") ? (
+                <CircleArrowUp className="size-3.5" aria-hidden />
+              ) : nextAction.label === "Redeploy from Linked Repository" ? (
                 <Rocket className="size-3.5" aria-hidden />
               ) : nextAction.label === "Open Environment" ? (
                 <KeyRound className="size-3.5" aria-hidden />

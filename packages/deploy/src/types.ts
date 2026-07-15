@@ -44,6 +44,7 @@ export interface AuditEvent {
     | "get_user_source_usage"
     | "list_user_source_logs"
     | "get_user_source_observability"
+    | "upgrade_user_source_sdk"
     | "list_deployment_records"
     | "get_user_source_latest_deployment"
     | "deactivate"
@@ -589,6 +590,32 @@ export interface OwnedOperateSourceInput extends BearerOverride {
   platform: string;
   appSourceId: number;
 }
+
+export type SourceSdkUpgradeResult =
+  | {
+      status: "current";
+      requiredSdkVersion: string;
+      sourceRef: string;
+    }
+  | {
+      status: "pull_request";
+      requiredSdkVersion: string;
+      sourceRef: string;
+      branch: string;
+      files: string[];
+      pullRequest: {
+        number: number;
+        url: string;
+        created: boolean;
+      };
+    }
+  | {
+      status: "manual";
+      requiredSdkVersion: string;
+      sourceRef: string;
+      reason: string;
+      command: string;
+    };
 
 export interface ListUserSourceTransactionsInput extends OwnedOperateSourceInput {
   cursor?: OperateTransactionCursor | string | null;

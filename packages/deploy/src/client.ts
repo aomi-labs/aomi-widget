@@ -56,6 +56,7 @@ import type {
   RevokeTokenInput,
   ScaffoldInput,
   StatusInput,
+  SourceSdkUpgradeResult,
   SyncSourceInput,
   TokenRecord,
   WatchDeploymentOptions,
@@ -922,6 +923,62 @@ export class DeploymentClient {
     return camelOperateObservability(raw, platform);
   }
 
+  async upgradeUserSourceSdk(
+    input: OwnedOperateSourceInput,
+  ): Promise<SourceSdkUpgradeResult> {
+    const { appSourceId, params, platform, bearer } =
+      this.ownedOperateRequest(input);
+    const raw = await this.post<Record<string, unknown>>(
+      `/api/integrations/github-app/user/sources/${encodeURIComponent(
+        String(appSourceId),
+      )}/sdk-upgrade?${params.toString()}`,
+      {},
+      "upgrade_user_source_sdk",
+      bearer,
+    );
+    await this.audit({
+      action: "upgrade_user_source_sdk",
+      platform,
+      appSourceId,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    const status = raw.status;
+    const requiredSdkVersion = String(raw.required_sdk_version ?? "");
+    const sourceRef = String(raw.source_ref ?? "");
+    if (status === "current") {
+      return { status, requiredSdkVersion, sourceRef };
+    }
+    if (status === "pull_request") {
+      const pullRequest = responseRecord(raw.pull_request, "pull_request");
+      return {
+        status,
+        requiredSdkVersion,
+        sourceRef,
+        branch: String(raw.branch ?? ""),
+        files: Array.isArray(raw.files) ? raw.files.map(String) : [],
+        pullRequest: {
+          number: Number(pullRequest.number),
+          url: String(pullRequest.url ?? ""),
+          created: Boolean(pullRequest.created),
+        },
+      };
+    }
+    if (status === "manual") {
+      return {
+        status,
+        requiredSdkVersion,
+        sourceRef,
+        reason: String(raw.reason ?? "SDK upgrade requires a local change."),
+        command: String(raw.command ?? ""),
+      };
+    }
+    throw new DeployError(
+      "BACKEND",
+      "backend returned an unknown source SDK upgrade status",
+    );
+  }
+
   async listDeploymentRecords(
     input: ListDeploymentRecordsInput,
   ): Promise<ListDeploymentRecordsResult> {
@@ -1274,6 +1331,20 @@ function required(value: string | undefined | null, field: string): string {
   const clean = value?.trim();
   if (!clean) throw new DeployError("INVALID_REQUEST", `${field} is required`);
   return clean;
+}
+
+function isResponseRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function responseRecord(
+  value: unknown,
+  field: string,
+): Record<string, unknown> {
+  if (!isResponseRecord(value)) {
+    throw new DeployError("BACKEND", `backend response is missing ${field}`);
+  }
+  return value;
 }
 
 function cleanStringList(

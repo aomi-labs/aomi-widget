@@ -17,6 +17,7 @@ import {
   deploymentPromote,
   deploymentRecords,
   deploymentDeactivate,
+  deploymentUpgradeSdk,
   launchPreflight,
   launchDeploy,
   launchStatus,
@@ -28,7 +29,7 @@ import type {
   DeploymentRecord,
 } from "@build/features/launch/contracts";
 
-/** Progress of an in-flight "deploy new version" pipeline (deploy → CI → activate). */
+/** Progress of an in-flight linked-source redeploy (deploy → CI → activate). */
 export type DeployFlowState =
   | { phase: "idle" }
   | { phase: "deploying"; message: string }
@@ -139,7 +140,9 @@ export function useProjectDetail(sourceId: number) {
       .then((r) => setRequiredSecrets(r.byApp))
       .catch((err) => {
         setRequiredSecretsError(
-          err instanceof Error ? err.message : "Failed to load required secrets",
+          err instanceof Error
+            ? err.message
+            : "Failed to load required secrets",
         );
         requiredSecretsReq.current = false;
       });
@@ -246,7 +249,7 @@ export function useProjectDetail(sourceId: number) {
   // Deploy the source repo's current HEAD and activate the resulting release
   // once CI publishes it. GitHub is read only here (status polling) — the
   // "update deployment" operation — never on the passive tab render.
-  const deployNewVersion = useCallback(async () => {
+  const redeploySource = useCallback(async () => {
     const repo = source?.repositoryLink;
     if (!repo) {
       setDeployFlow({ phase: "error", message: "Source repo is unknown." });
@@ -333,6 +336,11 @@ export function useProjectDetail(sourceId: number) {
     }
   }, [source, sourceId, reload, refreshRecords]);
 
+  const upgradeSdk = useCallback(
+    () => deploymentUpgradeSdk({ appSourceId: sourceId }),
+    [sourceId],
+  );
+
   return {
     source,
     loading,
@@ -357,7 +365,8 @@ export function useProjectDetail(sourceId: number) {
     refreshRecords,
     promote,
     deactivate,
-    deployNewVersion,
+    redeploySource,
+    upgradeSdk,
     reload: () => void reload(),
   };
 }

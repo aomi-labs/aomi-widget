@@ -72,6 +72,7 @@ export const API_PATHS = {
           appSourceId != null ? `&appSourceId=${appSourceId}` : ""
         }`,
       deactivate: `${BFF}/deployments/deactivate`,
+      sdkUpgrade: `${BFF}/deployments/sdk-upgrade`,
     },
     operate: {
       agents: `${BFF}/operate/agents`,

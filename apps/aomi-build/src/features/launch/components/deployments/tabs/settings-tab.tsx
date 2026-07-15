@@ -1,6 +1,7 @@
 "use client";
 
 import { useProjectDetail } from "@build/features/launch/hooks/use-project-detail";
+import { sourceSdkVersion } from "../sdk-compatibility";
 import { SdkBadge } from "../ui/sdk-badge";
 import { EmptyPanel } from "../ui/state-panels";
 
@@ -20,33 +21,28 @@ export function SettingsTab({ detail }: { detail: Detail }) {
   if (!source) {
     return <EmptyPanel>Project not found.</EmptyPanel>;
   }
-  const latest = source.latestDeployment;
-  const stamped =
-    source.sdkVersion ??
-    latest?.sdkVersion ??
-    latest?.apps.find((a) => a.sdkVersion)?.sdkVersion ??
-    null;
+  const stamped = sourceSdkVersion(source);
   const required = detail.sdk?.sdkStatus.requiredVersion;
 
   return (
     <div className="text-sm">
-      <dl className="divide-y divide-border">
+      <dl className="divide-border divide-y">
         <Row label="Repository" value={source.repositoryLink ?? "-"} />
         <Row label="Source ID" value={`#${source.id}`} />
         <Row label="Installation" value={String(source.installationId)} />
       </dl>
-      <div className="flex items-center justify-between border-t border-border px-4 py-3">
+      <div className="border-border flex items-center justify-between border-t px-4 py-3">
         <div>
           <div className="font-medium">SDK compatibility</div>
-          <div className="mt-1 text-xs text-dim">
+          <div className="text-dim mt-1 text-xs">
             Backend requires {required ?? "unknown"}
           </div>
         </div>
         <SdkBadge stamped={stamped} required={required} />
       </div>
-      <div className="border-t border-border px-4 py-4">
-        <div className="text-sm font-medium text-foreground">Danger zone</div>
-        <p className="mt-1 text-xs text-dim">
+      <div className="border-border border-t px-4 py-4">
+        <div className="text-foreground text-sm font-medium">Danger zone</div>
+        <p className="text-dim mt-1 text-xs">
           Disconnect project is coming soon.
         </p>
         <button
@@ -54,7 +50,7 @@ export function SettingsTab({ detail }: { detail: Detail }) {
           disabled
           title="Coming soon"
           aria-label="Disconnect (coming soon)"
-          className="mt-3 inline-flex h-8 cursor-not-allowed items-center rounded-md border border-border px-3 text-xs font-medium text-dim"
+          className="border-border text-dim mt-3 inline-flex h-8 cursor-not-allowed items-center rounded-md border px-3 text-xs font-medium"
         >
           Disconnect · Soon
         </button>
