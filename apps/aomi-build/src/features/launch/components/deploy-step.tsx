@@ -37,6 +37,7 @@ type SecretsGateDetail = {
   > | null;
   requiredSecretsError?: string | null;
   loadRequiredSecrets: () => void;
+  refreshRequiredSecrets?: () => Promise<unknown>;
   ensureRequiredSecrets?: (
     apps: string[],
     appSourceId?: number,
@@ -202,6 +203,7 @@ export function DeployStep({
     Record<string, string>
   >({});
   const [savingRequiredSecrets, setSavingRequiredSecrets] = useState(false);
+  const [retryingRequiredSecrets, setRetryingRequiredSecrets] = useState(false);
   const [showManifest, setShowManifest] = useState(false);
   const [verifyAttempt, setVerifyAttempt] = useState(0);
   const [copied, setCopied] = useState(false);
@@ -289,6 +291,19 @@ export function DeployStep({
       setSavingRequiredSecrets(false);
     }
   }, [apps, detail, missingSecretSlots, requiredSecretValues]);
+
+  const retryRequiredSecrets = useCallback(async () => {
+    if (!detail?.refreshRequiredSecrets) return;
+    setRetryingRequiredSecrets(true);
+    setError(null);
+    try {
+      await detail.refreshRequiredSecrets();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setRetryingRequiredSecrets(false);
+    }
+  }, [detail]);
 
   const applyDeployment = useCallback(
     (next: {
@@ -734,8 +749,19 @@ export function DeployStep({
                 : `${missingSecretsCount} required secret${missingSecretsCount === 1 ? "" : "s"} missing.`}
           </div>
           {detail?.requiredSecretsError ? (
-            <div className="text-amber-800">
-              {detail.requiredSecretsError}. Refresh and try again.
+            <div className="flex flex-wrap items-center gap-3 text-amber-800">
+              <span>{detail.requiredSecretsError}. Try again.</span>
+              {detail.refreshRequiredSecrets && (
+                <Button
+                  onClick={() => void retryRequiredSecrets()}
+                  disabled={retryingRequiredSecrets}
+                  className="h-8 rounded-full px-3 text-xs font-medium"
+                >
+                  {retryingRequiredSecrets
+                    ? "Retrying…"
+                    : "Retry required secrets"}
+                </Button>
+              )}
             </div>
           ) : (
             <>

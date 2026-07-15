@@ -41,36 +41,46 @@ function useWizardSecretsGate(appSourceId?: number) {
   >(null);
   const requestedFor = useRef<number | null>(null);
 
-  const loadRequiredSecrets = useCallback(() => {
-    if (!appSourceId || requestedFor.current === appSourceId) return;
+  const refreshRequiredSecrets = useCallback(async () => {
+    if (!appSourceId) return;
     requestedFor.current = appSourceId;
     setRequiredSecretsError(null);
-    void deploymentRequiredSecrets({ appSourceId })
-      .then((r) => setRequiredSecrets(r.byApp))
-      .catch((err) => {
-        setRequiredSecretsError(
-          err instanceof Error
-            ? err.message
-            : "Failed to load required secrets",
-        );
-        requestedFor.current = null;
-      });
+    try {
+      const result = await deploymentRequiredSecrets({ appSourceId });
+      setRequiredSecrets(result.byApp);
+      return result.byApp;
+    } catch (err) {
+      setRequiredSecretsError(
+        err instanceof Error ? err.message : "Failed to load required secrets",
+      );
+      requestedFor.current = null;
+      throw err;
+    }
   }, [appSourceId]);
+
+  const loadRequiredSecrets = useCallback(() => {
+    if (!appSourceId || requestedFor.current === appSourceId) return;
+    void refreshRequiredSecrets().catch(() => undefined);
+  }, [appSourceId, refreshRequiredSecrets]);
 
   const ensureRequiredSecrets = useCallback(
     async (apps: string[], sourceIdOverride?: number) => {
       const sourceId = sourceIdOverride ?? appSourceId;
       if (!sourceId) return;
-      const result = await deploymentRequiredSecrets({ appSourceId: sourceId });
-      setRequiredSecrets(result.byApp);
+      const byApp =
+        sourceId === appSourceId
+          ? await refreshRequiredSecrets()
+          : (await deploymentRequiredSecrets({ appSourceId: sourceId })).byApp;
+      if (!byApp) return;
+      setRequiredSecrets(byApp);
       setRequiredSecretsError(null);
       requestedFor.current = sourceId;
-      const missing = missingRequiredSecrets(result.byApp, apps);
+      const missing = missingRequiredSecrets(byApp, apps);
       if (Object.keys(missing).length > 0) {
         throw new MissingRequiredSecretsError(missing);
       }
     },
-    [appSourceId],
+    [appSourceId, refreshRequiredSecrets],
   );
 
   const setEnvVars = useCallback(
@@ -94,6 +104,7 @@ function useWizardSecretsGate(appSourceId?: number) {
     requiredSecrets,
     requiredSecretsError,
     loadRequiredSecrets,
+    refreshRequiredSecrets,
     ensureRequiredSecrets,
     setEnvVars,
     hasMissingSecrets,

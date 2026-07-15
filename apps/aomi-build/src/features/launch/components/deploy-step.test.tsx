@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { DeployStep } from "./deploy-step";
 import type { LaunchDeployPayload } from "@build/features/launch";
 import type { LaunchProgress } from "@build/features/launch";
@@ -149,9 +149,7 @@ describe("DeployStep", () => {
       />,
     );
     expect(detail.loadRequiredSecrets).toHaveBeenCalled();
-    expect(
-      screen.getByText(/1 required secret missing/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/1 required secret missing/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Activate" })).toBeDisabled();
   });
 
@@ -169,5 +167,28 @@ describe("DeployStep", () => {
       />,
     );
     expect(screen.queryByText(/required secret/i)).not.toBeInTheDocument();
+  });
+
+  it("offers an in-place retry when required-secret verification fails", async () => {
+    const refreshRequiredSecrets = vi.fn().mockResolvedValue({});
+    const detail = {
+      hasMissingSecrets: () => false,
+      requiredSecrets: null,
+      requiredSecretsError: "Temporary gateway error",
+      loadRequiredSecrets: vi.fn(),
+      refreshRequiredSecrets,
+    };
+    render(
+      <DeployStep
+        {...defaultProps}
+        progress={{ ...baseProgress(), apps: ["binance"] }}
+        detail={detail}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Retry required secrets" }),
+    );
+    await waitFor(() => expect(refreshRequiredSecrets).toHaveBeenCalledOnce());
   });
 });
