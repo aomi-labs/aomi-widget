@@ -20,6 +20,15 @@ manual handoff.
 
 Progress:
 
+- 2026-07-14 landing dev resource diagnostic: confirmed the auth-research
+  worktree's landing server is burst-heavy rather than continuously busy. The
+  first `/` compile generated a 1.4 GB `.next` tree (including a 1.0 GB
+  Turbopack cache) and spent 21.9 seconds writing that cache, then returned to
+  0% CPU while idle. The branch only adds research content/assets; the large
+  graph comes from the existing widget, live workspace sources, MDX/docs, and
+  wallet/chain SDK dependencies. Also found a separate 16-hour-old portal dev
+  server and an editor TypeScript server contributing transient CPU spikes. No
+  implementation or configuration changes were made.
 - Removed runtime `/api/bff/auth/siwe/*`, `/api/bff/auth/exchange`, and
   `/api/bff/auth/token` mounts from portal, base, and landing.
 - Added `/api/aomi/account-bearer` for direct AccountBearer minting from an

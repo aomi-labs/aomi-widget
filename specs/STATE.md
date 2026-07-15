@@ -2,6 +2,7 @@
 
 ## Last Updated
 
+2026-07-13 — Research post: auth-across-two-worlds (landing, article + 14 SVG figures);
 2026-07-13 — Build Live status consistency (one story across list/Home/Deployments);
 2026-07-13 — Build P2 Project home (live / keys / Open Chat / usage glance);
 2026-07-13 — Build P1 control plane: ⌘K, toasts, Projects landing, glossary;
@@ -9,6 +10,28 @@
 2026-07-13 — Build UI copy polish (em dashes / hedging essays);
 2026-07-13 — Billing option A: methods live on Chat (no fake Build fetch);
 2026-07-13 — BILLING-EXPERIENCE.md: backend ↔ UI map (code-checked)
+
+## Research post: auth-across-two-worlds (2026-07-13)
+
+New landing research article rewritten from the auth draft, styled after
+`aomibench-v0-1`:
+
+- `apps/landing/content/research/auth-across-two-worlds.md` — 13-section design
+  study: opens with the general counting/limits/linking problem, then a
+  four-proofs framework, six stack-agnostic patterns each with a "how we built
+  it" Aomi tilt, token taxonomy, threats, "why this particular stack",
+  tradeoffs. Figures referenced by absolute `/research/auth-across-two-worlds/…`
+  paths (the shared renderer's `figures/` rewrite is hardcoded to aomibench).
+- `apps/landing/public/research/auth-across-two-worlds/figures/` — 14 hand
+  authored SVGs in the aomibench house style: f00–f10 diagrams (f00 counting
+  problem, f09 credential pipeline, f10 unattended execution) + code1–code3
+  syntax-highlighted code cards (no fenced code blocks remain in the md).
+- Sybil-resistance / tiered-limits / Better Auth Sentinel paragraph in §3;
+  §8 "execution that outlives the session" (cron runs sign via policy axis
+  `signing_mode=auto` set by wallet-signed permit + capability axis delegated
+  approval, fail-closed — facts verified against product-mono sign/runtime
+  crates); signing-mode permit added to token taxonomy.
+- `apps/landing/lib/research.ts` — post registered first in `researchPosts`.
 
 ## Build Live status consistency (2026-07-13)
 
