@@ -1,3 +1,5 @@
+import { sdkCompatibility } from "../sdk-compatibility";
+
 export function SdkBadge({
   stamped,
   required,
@@ -5,11 +7,11 @@ export function SdkBadge({
   stamped?: string | null;
   required?: string | null;
 }) {
-  const state = !stamped
-    ? "missing"
-    : required && stamped === required
+  const compatibility = sdkCompatibility(stamped, required);
+  const state =
+    compatibility === "current"
       ? "ok"
-      : required
+      : compatibility === "outdated"
         ? "outdated"
         : "missing";
   const tone =
@@ -24,7 +26,7 @@ export function SdkBadge({
       data-state={state}
       className={`inline-flex h-6 items-center rounded-full border px-2 text-xs font-medium ${tone}`}
     >
-      {stamped ?? "no SDK"}
+      {stamped ?? "SDK unknown"}
     </span>
   );
 }

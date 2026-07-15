@@ -13,10 +13,9 @@
 - Kept backend endpoint contracts unchanged; the new global feed belongs to
   manager and the Aomi Build BFF relays it.
 
-Current session goal: complete the Auth BFF BetterAuth cleanup, remove legacy
-`/api/bff/auth/*` auth-session routes, move CLI/native SIWE to BetterAuth
-endpoints, keep canonical backend UUIDs stable, and verify with CLI E2E before
-manual handoff.
+Current session goal: pair product-mono PR #790 with a minimal published React
+runtime API for recording ephemeral UI interaction context on the active
+thread, without extending the serialized frontend `UserState` shape.
 
 2026-07-13 follow-up: staging and production now use separate Supabase
 databases. Local schema convergence applies the backend's forward drop instead
@@ -24,6 +23,19 @@ of recreating the retired `bff_cli_device_sessions` / `bff_cli_sessions`
 tables; fresh databases also finish replay with that drop.
 
 Progress:
+
+- 2026-07-14 hosted SDK compatibility: Aomi Build now marks incompatible
+  deployments as outdated, blocks their broken chat iframe, links users to the
+  Deployments tab, and requests a source-owned SDK upgrade pull request before
+  redeployment. Renamed the existing action to describe its actual linked-repo
+  behavior and patch-bumped `@aomi-labs/deploy` to 0.2.1.
+
+- 2026-07-14 UI interaction context: added active-thread
+  `recordUiInteraction(payload)` over the existing `/api/system` transport,
+  documented ordering before an immediate chat send, patch-bumped
+  `@aomi-labs/react` to 0.5.2, and regenerated its publishable artifacts.
+  Verified focused runtime tests, targeted ESLint, library and landing
+  typechecks, the React package build, and the packed npm tarball.
 
 - Removed runtime `/api/bff/auth/siwe/*`, `/api/bff/auth/exchange`, and
   `/api/bff/auth/token` mounts from portal, base, and landing.
@@ -399,3 +411,9 @@ build`, `CI=true npx -y pnpm@10.28.0 install --frozen-lockfile`, and
   touched source. Patch-bumped it from `1.4.1` to `1.4.2` and added a repository
   rule requiring relevant publishable npm workspaces to be version-bumped before
   future merges rather than corrected afterward.
+- 2026-07-14 PR #336 main sync: merged `origin/main` into
+  `feat/required-secrets-gating`, preserving required-secret activation and
+  promotion gating across the newer Build control-plane UI. Resolved the
+  launch UI/type conflicts, fixed the merged usage-summary accumulator typing,
+  and verified focused Build tests, deploy package tests, the Aomi Build
+  typecheck, and the deploy package build.

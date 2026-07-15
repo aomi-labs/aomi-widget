@@ -38,7 +38,7 @@ export function summarizeProjectUsage(payload: {
   }
 
   const daily = payload.daily ?? [];
-  const totals = daily.reduce(
+  const totals = daily.reduce<{ creditsUsed: number; tokens: number }>(
     (acc, row) => ({
       creditsUsed: acc.creditsUsed + numberValue(row.creditsUsed),
       tokens:

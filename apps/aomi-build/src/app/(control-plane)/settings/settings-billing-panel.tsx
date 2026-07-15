@@ -1,7 +1,10 @@
+"use client";
+
 import Link from "next/link";
 import { ArrowRight, Gauge, KeyRound, MessageSquare } from "lucide-react";
 
 import { resolveChatUrl } from "@build/lib/chat-url";
+import { lastEnvironmentHref, lastUsageHref } from "@build/lib/deep-links";
 
 /**
  * Billing guidance: payment setup lives on Chat; spend meter is Usage.
@@ -34,7 +37,7 @@ export function SettingsBillingPanel() {
       <ul className="divide-border overflow-hidden rounded-lg border border-border bg-surface-1 divide-y">
         <li>
           <Link
-            href="/operate/usage"
+            href={lastUsageHref()}
             className="hover:bg-accent-hover flex items-center justify-between gap-3 px-4 py-3 transition"
           >
             <div className="flex min-w-0 items-start gap-3">
@@ -53,7 +56,7 @@ export function SettingsBillingPanel() {
         </li>
         <li>
           <Link
-            href="/settings/secrets"
+            href={lastEnvironmentHref()}
             className="hover:bg-accent-hover flex items-center justify-between gap-3 px-4 py-3 transition"
           >
             <div className="flex min-w-0 items-start gap-3">

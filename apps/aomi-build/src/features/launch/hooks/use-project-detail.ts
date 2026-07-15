@@ -1,17 +1,23 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { UserSource, UserSourceLatestDeployment } from "@aomi-labs/deploy";
+import type {
+  SecretSlot,
+  UserSource,
+  UserSourceLatestDeployment,
+} from "@aomi-labs/deploy";
 import {
   deploymentSources,
   deploymentHistory,
   deploymentSecrets,
   deploymentSetSecrets,
   deploymentDeleteSecret,
+  deploymentRequiredSecrets,
   deploymentSdkStatus,
   deploymentPromote,
   deploymentRecords,
   deploymentDeactivate,
+  deploymentUpgradeSdk,
   launchPreflight,
   launchDeploy,
   launchStatus,
@@ -23,7 +29,7 @@ import type {
   DeploymentRecord,
 } from "@build/features/launch/contracts";
 
-/** Progress of an in-flight "deploy new version" pipeline (deploy → CI → activate). */
+/** Progress of an in-flight linked-source redeploy (deploy → CI → activate). */
 export type DeployFlowState =
   | { phase: "idle" }
   | { phase: "deploying"; message: string }
@@ -53,12 +59,20 @@ export function useProjectDetail(sourceId: number) {
     DeploymentRecord[]
   > | null>(null);
   const [recordsError, setRecordsError] = useState<string | null>(null);
+  const [requiredSecrets, setRequiredSecrets] = useState<Record<
+    string,
+    { slots: SecretSlot[]; missing: string[] }
+  > | null>(null);
+  const [requiredSecretsError, setRequiredSecretsError] = useState<
+    string | null
+  >(null);
   const [deployFlow, setDeployFlow] = useState<DeployFlowState>({
     phase: "idle",
   });
   const historyReq = useRef(false);
   const secretsReq = useRef(false);
   const recordsReq = useRef(false);
+  const requiredSecretsReq = useRef(false);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -118,6 +132,27 @@ export function useProjectDetail(sourceId: number) {
       });
   }, [sourceId, secretsByApp]);
 
+  const loadRequiredSecrets = useCallback(() => {
+    if (requiredSecretsReq.current || requiredSecrets !== null) return;
+    requiredSecretsReq.current = true;
+    setRequiredSecretsError(null);
+    void deploymentRequiredSecrets({ appSourceId: sourceId })
+      .then((r) => setRequiredSecrets(r.byApp))
+      .catch((err) => {
+        setRequiredSecretsError(
+          err instanceof Error
+            ? err.message
+            : "Failed to load required secrets",
+        );
+        requiredSecretsReq.current = false;
+      });
+  }, [sourceId, requiredSecrets]);
+
+  const hasMissingSecrets = useCallback(
+    (app: string) => (requiredSecrets?.[app]?.missing.length ?? 0) > 0,
+    [requiredSecrets],
+  );
+
   const refreshSecrets = useCallback(async () => {
     setSecretsError(null);
     try {
@@ -141,6 +176,8 @@ export function useProjectDetail(sourceId: number) {
         secrets,
       });
       await refreshSecrets();
+      setRequiredSecrets(null);
+      requiredSecretsReq.current = false;
       return result;
     },
     [sourceId, refreshSecrets],
@@ -212,7 +249,7 @@ export function useProjectDetail(sourceId: number) {
   // Deploy the source repo's current HEAD and activate the resulting release
   // once CI publishes it. GitHub is read only here (status polling) — the
   // "update deployment" operation — never on the passive tab render.
-  const deployNewVersion = useCallback(async () => {
+  const redeploySource = useCallback(async () => {
     const repo = source?.repositoryLink;
     if (!repo) {
       setDeployFlow({ phase: "error", message: "Source repo is unknown." });
@@ -299,6 +336,11 @@ export function useProjectDetail(sourceId: number) {
     }
   }, [source, sourceId, reload, refreshRecords]);
 
+  const upgradeSdk = useCallback(
+    () => deploymentUpgradeSdk({ appSourceId: sourceId }),
+    [sourceId],
+  );
+
   return {
     source,
     loading,
@@ -310,16 +352,21 @@ export function useProjectDetail(sourceId: number) {
     secretsError,
     recordsByApp,
     recordsError,
+    requiredSecrets,
+    requiredSecretsError,
     deployFlow,
     loadHistory,
     loadSecrets,
+    loadRequiredSecrets,
+    hasMissingSecrets,
     setEnvVars,
     deleteEnvVar,
     loadRecords,
     refreshRecords,
     promote,
     deactivate,
-    deployNewVersion,
+    redeploySource,
+    upgradeSdk,
     reload: () => void reload(),
   };
 }

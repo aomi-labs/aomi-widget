@@ -192,7 +192,6 @@ export const phaseSchema = z.discriminatedUnion("kind", [
   waitExternalPhaseSchema,
 ]);
 export type Phase = z.infer<typeof phaseSchema>;
-export type WaitExternalPhase = z.infer<typeof waitExternalPhaseSchema>;
 
 // ---------------------------------------------------------------------------
 // BuildPlan

@@ -16,10 +16,13 @@ const detail = {
     latestDeployment: null,
   },
   loadSecrets: vi.fn(),
+  loadRequiredSecrets: vi.fn(),
   setEnvVars,
   deleteEnvVar,
   secretsByApp: { demo: ["$SECRET:APP:demo::EXISTING_KEY"] },
   secretsError: null,
+  requiredSecrets: null,
+  requiredSecretsError: null,
 } as unknown as ReturnType<
   typeof import("@build/features/launch/hooks/use-project-detail").useProjectDetail
 >;
@@ -48,6 +51,7 @@ describe("EnvironmentTab", () => {
   it("loads secrets on mount and lists configured keys (names only)", () => {
     renderTab();
     expect(detail.loadSecrets).toHaveBeenCalled();
+    expect(detail.loadRequiredSecrets).toHaveBeenCalled();
     expect(screen.getByText("EXISTING_KEY")).toBeInTheDocument();
     expect(screen.getByText("Builder secret")).toBeInTheDocument();
     expect(screen.getByText("Runtime")).toBeInTheDocument();
@@ -129,5 +133,30 @@ describe("EnvironmentTab", () => {
     expect(
       screen.getByText(/Add keys your agent needs/i),
     ).toBeInTheDocument();
+  });
+
+  it("renders missing required slots with descriptions and masked inputs", () => {
+    const requiredDetail = {
+      ...detail,
+      requiredSecrets: {
+        demo: {
+          slots: [
+            {
+              name: "DEMO_API_KEY",
+              description: "Key from the demo provider.",
+              required: true,
+            },
+          ],
+          missing: ["DEMO_API_KEY"],
+        },
+      },
+    } as typeof detail;
+    renderTab({ detail: requiredDetail });
+    expect(screen.getByText("Key from the demo provider.")).toBeInTheDocument();
+    expect(screen.getByLabelText("DEMO_API_KEY value")).toHaveAttribute(
+      "type",
+      "password",
+    );
+    expect(screen.getByText(/1 required secret missing/i)).toBeInTheDocument();
   });
 });

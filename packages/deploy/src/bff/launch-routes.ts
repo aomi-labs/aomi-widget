@@ -25,6 +25,7 @@ import { resolveLaunchConfig, type LaunchConfig } from "./config";
 import { launchErrorResponse } from "./errors";
 import { appNamesFromDeployment, releaseTagsFromDeployment } from "./mappers";
 import { createDefaultGuards, jsonResponse, type LaunchGuards } from "./guards";
+import { missingSecretsForActivation } from "./release-manifest";
 import { randomHex } from "./cookies";
 import type { GitHubSession } from "./github-session";
 import {
@@ -432,6 +433,19 @@ export function createLaunchRoutes(options: LaunchRoutesOptions): LaunchRoutes {
       );
       if (!authorized) {
         return jsonResponse({ error: "release not found for this user" }, 404);
+      }
+      const missingByApp = await missingSecretsForActivation({
+        client,
+        githubUserId: session.githubUserId,
+        platform: cfg.platform,
+        source,
+        pairs,
+      });
+      if (Object.keys(missingByApp).length > 0) {
+        return jsonResponse(
+          { error: "missing required secrets", missing: missingByApp },
+          409,
+        );
       }
       const result = await client.activate({
         platform: cfg.platform,

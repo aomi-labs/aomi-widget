@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Activity,
+  BookOpen,
   CircleUserRound,
   Github,
   FolderKanban,
@@ -74,7 +75,7 @@ const navGroups: NavGroup[] = [
   {
     title: "Build",
     items: [
-      { label: "Build", href: "/build", icon: Hammer, enabled: false },
+      { label: "Build", href: "/build", icon: Hammer, enabled: true },
     ],
   },
   {
@@ -507,6 +508,25 @@ function AccountMenu({
           <Settings className="size-3.5" />
           Settings
         </Link>
+        <div className="bg-border -mx-1 my-1 h-px" />
+        <a
+          href="https://aomi.dev/docs"
+          target="_blank"
+          rel="noreferrer"
+          className="hover:bg-accent-hover hover:text-foreground flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs transition"
+        >
+          <BookOpen className="size-3.5" />
+          Docs
+        </a>
+        <a
+          href="https://aomi.dev"
+          target="_blank"
+          rel="noreferrer"
+          className="hover:bg-accent-hover hover:text-foreground flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs transition"
+        >
+          <Home className="size-3.5" />
+          Home page
+        </a>
         <div className="bg-border -mx-1 my-1 h-px" />
         <button
           type="button"

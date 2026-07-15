@@ -35,7 +35,7 @@ import {
   type LaunchProgress,
   type LaunchSdkStatus,
 } from "@build/features/launch";
-import type { UserSource } from "@aomi-labs/deploy";
+import type { SecretSlot, UserSource } from "@aomi-labs/deploy";
 import {
   deploymentLifecycleFromSource,
   deploymentLifecycleFromStatus,
@@ -45,8 +45,21 @@ import {
   type DeploymentLifecycle,
 } from "@aomi-labs/deploy/lifecycle";
 import { chatAppUrl } from "@build/lib/chat-url";
+import { useProjectDetail } from "@build/features/launch/hooks/use-project-detail";
 import { DeployStep } from "./deploy-step";
 import { Onboarding } from "./onboarding";
+
+// The subset of `useProjectDetail`'s return value the deploy dashboard needs
+// to gate Activate on required secrets — kept narrow (structural typing) so
+// this legacy flow doesn't have to mock the whole hook in tests.
+export type SecretsGateDetail = {
+  hasMissingSecrets: (app: string) => boolean;
+  requiredSecrets: Record<
+    string,
+    { slots: SecretSlot[]; missing: string[] }
+  > | null;
+  loadRequiredSecrets: () => void;
+};
 
 type SessionState =
   | { status: "loading" }
@@ -451,6 +464,7 @@ function LaunchContextMismatch({
 // ── Page 3 card + Page 4 chat ────────────────────────────────────────────────
 
 function SourceCard({ source }: { source: UserSource }) {
+  const detail = useProjectDetail(source.id);
   const [localLiveApp, setLocalLiveApp] = useState<{
     name: string;
     applicationId?: number;
@@ -553,6 +567,7 @@ function SourceCard({ source }: { source: UserSource }) {
           repo={visibleLifecycle.repo}
           progress={progress}
           onProgress={patch}
+          detail={detail}
         />
       ) : (
         <LifecyclePanel
@@ -560,6 +575,7 @@ function SourceCard({ source }: { source: UserSource }) {
           lifecycle={visibleLifecycle}
           onLifecycleChange={setStatusLifecycle}
           onLive={setLocalLiveApp}
+          detail={detail}
         />
       )}
 
@@ -602,16 +618,18 @@ function shouldShowChatForLifecycle(lifecycle: DeploymentLifecycle): boolean {
   return lifecycle.kind === "live" && Boolean(lifecycle.chatApp);
 }
 
-function LifecyclePanel({
+export function LifecyclePanel({
   appSourceId,
   lifecycle,
   onLifecycleChange,
   onLive,
+  detail,
 }: {
   appSourceId: number;
   lifecycle: DeploymentLifecycle;
   onLifecycleChange: (lifecycle: DeploymentLifecycle) => void;
   onLive: (app: { name: string; applicationId?: number }) => void;
+  detail: SecretsGateDetail;
 }) {
   const [action, setAction] = useState<
     "idle" | "activating" | "redeploying" | "redeploy_done"
@@ -622,6 +640,19 @@ function LifecyclePanel({
     lifecycle.kind === "live" ||
     lifecycle.kind === "build_ready" ||
     lifecycle.kind === "failed";
+
+  useEffect(() => {
+    detail.loadRequiredSecrets();
+  }, [detail]);
+
+  const blockedApps = lifecycle.appNames.filter((app) =>
+    detail.hasMissingSecrets(app),
+  );
+  const secretsBlocked = blockedApps.length > 0;
+  const missingCount = blockedApps.reduce(
+    (n, app) => n + (detail.requiredSecrets?.[app]?.missing.length ?? 0),
+    0,
+  );
 
   const activate = useCallback(async () => {
     if (lifecycle.releaseTags.length === 0 || lifecycle.appNames.length === 0) {
@@ -664,7 +695,16 @@ function LifecyclePanel({
         });
         setError(null);
       } else {
-        setError(message);
+        const body = (e as { body?: { missing?: Record<string, string[]> } })
+          .body;
+        if (body?.missing) {
+          const names = Object.entries(body.missing)
+            .map(([app, keys]) => `${app}: ${keys.join(", ")}`)
+            .join("; ");
+          setError(`Missing required secrets — ${names}`);
+        } else {
+          setError(message);
+        }
       }
       setAction("idle");
     }
@@ -707,7 +747,7 @@ function LifecyclePanel({
         {canActivate && (
           <Button
             onClick={activate}
-            disabled={action === "activating"}
+            disabled={action === "activating" || secretsBlocked}
             className="h-9 rounded-full px-3 text-sm font-medium"
           >
             {action === "activating" ? (
@@ -717,6 +757,12 @@ function LifecyclePanel({
             )}
             Activate
           </Button>
+        )}
+        {canActivate && secretsBlocked && (
+          <span className="text-xs text-amber-700">
+            {missingCount} required secret{missingCount === 1 ? "" : "s"}{" "}
+            missing — set them in the Environment tab.
+          </span>
         )}
         {canRedeploy && (
           <Button

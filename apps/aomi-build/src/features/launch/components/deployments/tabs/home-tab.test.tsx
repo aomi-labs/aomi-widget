@@ -58,7 +58,9 @@ describe("HomeTab", () => {
     expect(screen.getByText("Not live")).toBeInTheDocument();
     expect(screen.getByText("Keys missing")).toBeInTheDocument();
     expect(
-      await screen.findByRole("link", { name: /deploy new version/i }),
+      await screen.findByRole("link", {
+        name: /redeploy from linked repository/i,
+      }),
     ).toHaveAttribute("href", "/projects/1?tab=deployments");
     expect(
       screen.getByRole("link", { name: /open environment/i }),
