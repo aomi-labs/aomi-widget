@@ -450,22 +450,35 @@ export class AomiClient {
     sessionId: string,
     userState?: UserStateShape,
     clientId?: string,
+    options?: { app?: string; applicationId?: number | string | null },
   ): Promise<AomiStateResponse> {
     const normalizedUserState = stripBulkyPendingFields(
       UserState.normalize(userState),
     );
+    const applicationId = options?.applicationId?.toString().trim();
+    const stateContext = {
+      app: options?.app,
+      application_id: applicationId || undefined,
+    };
     const urlWithSyncParams = buildApiUrl(this.baseUrl, "/api/thread/state", {
+      ...stateContext,
       user_state: normalizedUserState
         ? JSON.stringify(normalizedUserState)
         : undefined,
       client_id: clientId,
     });
-    const bareUrl = buildApiUrl(this.baseUrl, "/api/thread/state");
+    const bareUrl = buildApiUrl(
+      this.baseUrl,
+      "/api/thread/state",
+      stateContext,
+    );
     const shouldRetryWithoutSyncParams =
       Boolean(normalizedUserState) || Boolean(clientId);
 
     this.logger?.debug("[aomi][client] GET /api/thread/state start", {
       sessionId,
+      app: options?.app,
+      applicationId,
       clientId,
       hasUserState: Boolean(normalizedUserState),
     });
@@ -522,6 +535,7 @@ export class AomiClient {
       apiKey?: string;
       userState?: UserStateShape;
       clientId?: string;
+      paymentMethod?: string | null;
     },
   ): Promise<AomiChatResponse> {
     const app = options?.app ?? "default";
@@ -538,6 +552,7 @@ export class AomiClient {
         ? JSON.stringify(normalizedUserState)
         : undefined,
       client_id: options?.clientId,
+      payment_method: options?.paymentMethod ?? undefined,
     });
 
     this.logger?.debug("[aomi][client] POST /api/thread/chat prepared", {
@@ -545,6 +560,7 @@ export class AomiClient {
       app,
       applicationId,
       clientId: options?.clientId,
+      paymentMethod: options?.paymentMethod,
       hasUserState: Boolean(normalizedUserState),
       messagePreview: previewText(message),
     });
