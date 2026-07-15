@@ -12,6 +12,7 @@ import { getGitHubSession } from "@build/server/cookies/github";
 import {
   fetchReleaseSecretSlots,
   missingSecretsForActivation,
+  RequiredSecretsCheckError,
 } from "@aomi-labs/deploy/bff";
 import { missingRequiredSecrets, type SecretSlot } from "@aomi-labs/deploy";
 import {
@@ -132,7 +133,9 @@ async function sourceDeploymentPairs(
           app: app.name,
           appSourceId: source.id,
         })
-        .catch(() => ({ records: [] as { deploymentId: string; releaseTag: string }[] }));
+        .catch(() => ({
+          records: [] as { deploymentId: string; releaseTag: string }[],
+        }));
       const record = records.find((r) => r.deploymentId === deploymentId);
       if (record?.releaseTag) {
         pairs.push({ app: app.name, releaseTag: record.releaseTag });
@@ -1240,9 +1243,7 @@ export async function requiredSecretsRoute(req: Request) {
   if ("response" in auth) return auth.response;
   const { session } = auth;
 
-  const appSourceId = Number(
-    new URL(req.url).searchParams.get("appSourceId"),
-  );
+  const appSourceId = Number(new URL(req.url).searchParams.get("appSourceId"));
   if (!isValidAppSourceId(appSourceId)) {
     return NextResponse.json(
       { error: "missing or invalid `appSourceId`" },
@@ -1266,15 +1267,17 @@ export async function requiredSecretsRoute(req: Request) {
       );
     }
 
-    // Neither an unreachable GitHub token nor an unknown platform repo may
-    // block the UI: both degrade to empty slots rather than looking blocked.
+    // Required-secret metadata must be verified before the UI can show an
+    // activation path. An empty slot list is only valid when GitHub confirms
+    // that the release predates manifest secret declarations.
     // `source` comes from `findOwnedSource` -> `listUserSources`, and the
     // backend deliberately returns `latest_deployment: null` there (it's lazy
     // for the list); resolve the real value from the per-source
     // latest-deployment detail endpoint instead, same as the redeploy route.
     const githubToken = process.env.GITHUB_TOKEN?.trim();
+    if (!githubToken) throw new RequiredSecretsCheckError();
     let platformRepo = source.latestDeployment?.platformRepo ?? undefined;
-    if (githubToken && !platformRepo) {
+    if (!platformRepo) {
       try {
         const latest = await client.getUserSourceLatestDeployment({
           githubUserId: session.githubUserId,
@@ -1283,9 +1286,10 @@ export async function requiredSecretsRoute(req: Request) {
         });
         platformRepo = latest?.platformRepo ?? undefined;
       } catch {
-        platformRepo = undefined; // couldn't read deployment state → degrade to empty slots
+        throw new RequiredSecretsCheckError();
       }
     }
+    if (!platformRepo) throw new RequiredSecretsCheckError();
     const configured = await client.listAppSecrets({
       githubUserId: session.githubUserId,
       sourceId: String(source.id),
