@@ -301,15 +301,14 @@ export function useProjectDetail(sourceId: number) {
           terminalPolls.clear();
         } else {
           const terminal = checks.find((check) => {
-            const app = check.app;
-            if (!app) return false;
-            if (app.is_active === false && app.loaded === false) {
-              const name = app.name;
+            const name = check.app?.name;
+            if (!name) return false;
+            if (check.app.is_active === false && check.app.loaded === false) {
               const streak = (terminalPolls.get(name) ?? 0) + 1;
               terminalPolls.set(name, streak);
               return streak >= 2;
             }
-            terminalPolls.delete(app.name);
+            terminalPolls.delete(name);
             return false;
           });
           if (terminal) {

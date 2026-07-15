@@ -277,7 +277,18 @@ export function useProjectDetail(sourceId: number) {
         releaseTags,
         apps,
       });
-      const activatedApps = activated.activation.apps;
+      // A rejected/partial activation still returns apps (with `error` set), and
+      // a malformed response may omit `activation` entirely — surface the real
+      // reason instead of throwing into the generic "Deploy failed" catch.
+      const activatedApps = activated.activation?.apps ?? [];
+      const failed = activatedApps.find((app) => app.error);
+      if (!activated.ok || failed) {
+        setDeployFlow({
+          phase: "error",
+          message: failed?.error ?? "Activation was not accepted.",
+        });
+        return;
+      }
       const terminalPolls = new Map<string, number>();
       for (let attempt = 0; attempt < RUNTIME_POLL_ATTEMPTS; attempt += 1) {
         const results = await Promise.allSettled(
@@ -312,15 +323,14 @@ export function useProjectDetail(sourceId: number) {
           terminalPolls.clear();
         } else {
           const terminal = checks.find((check) => {
-            const app = check.app;
-            if (!app) return false;
-            if (app.is_active === false && app.loaded === false) {
-              const name = app.name;
+            const name = check.app?.name;
+            if (!name) return false;
+            if (check.app.is_active === false && check.app.loaded === false) {
               const streak = (terminalPolls.get(name) ?? 0) + 1;
               terminalPolls.set(name, streak);
               return streak >= 2;
             }
-            terminalPolls.delete(app.name);
+            terminalPolls.delete(name);
             return false;
           });
           if (terminal) {
