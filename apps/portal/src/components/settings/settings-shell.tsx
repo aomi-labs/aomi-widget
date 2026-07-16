@@ -14,10 +14,20 @@ function SettingsShellInner({ children }: { children: ReactNode }) {
   );
 }
 
-/** Wraps chat (or any host) with settings controller + ChatGPT-style modal. */
+/**
+ * Wraps chat with settings controller + modal.
+ * Suspense fallback must NOT render children (PortalAomiFrame calls
+ * useSettingsController) — useSearchParams() suspends on first paint.
+ */
 export function SettingsShell({ children }: { children: ReactNode }) {
   return (
-    <Suspense fallback={children}>
+    <Suspense
+      fallback={
+        <div className="bg-background text-muted-foreground flex h-screen items-center justify-center text-sm">
+          Loading…
+        </div>
+      }
+    >
       <SettingsShellInner>{children}</SettingsShellInner>
     </Suspense>
   );
