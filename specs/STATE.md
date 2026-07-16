@@ -2,6 +2,7 @@
 
 ## Last Updated
 
+2026-07-16 — Environment tab: unified Variables list (declared slots + configured, `*` = required);
 2026-07-14 — Account menu: Docs (aomi.dev/docs) + Home page links (Vercel-style);
 2026-07-14 — Build P2 deep-link polish (⌘K / Billing / Overview → right tab);
 2026-07-14 — Create stack #343–#349 merged to main (left #340);
@@ -70,6 +71,24 @@ production.
   four files), `@aomi-labs/deploy` build clean, `aomi-build` + `portal`
   type-check clean.
 - Full writeup: `.superpowers/sdd/fix-p1-failopen-report.md`.
+
+## Environment tab unified Variables view (2026-07-16)
+
+`apps/aomi-build/src/features/launch/components/deployments/tabs/environment-tab.tsx`:
+
+- Merged the split "missing required inputs inside Add or overwrite" +
+  "Configured" sections into one **Variables** list: declared manifest slots
+  (required + optional) and configured vault keys in a single view.
+- Missing slots render as solid list rows (`Not set` chip, warning-tinted when
+  required) with a **Set value** action that prefills the Add-or-overwrite
+  editor — no more read-only key inputs injected into the editor.
+- Required slots marked with `*` (+ legend "Required — the app cannot be
+  activated without it"); optional declared slots now visible too.
+- Missing-required rows sort first, directly under the "N required secrets
+  missing" banner; custom configured keys follow declared slots.
+- Removed the `requiredValues` state path from save(). Tests updated/added in
+  `environment-tab.test.tsx` (8 pass; full launch suite 129 pass; lint clean;
+  tsc failure is pre-existing stale `.next/types/validator.ts` on main).
 
 ## Build P2 deep-link polish (2026-07-14)
 
