@@ -1697,6 +1697,68 @@ ${body}` : ""}`
   }
 };
 
+// src/authorization.ts
+function posterFromClient(client) {
+  return (path, body) => client.request("POST", path, { body, raw: true });
+}
+function authorizationChallenge(post, request) {
+  return post("/api/account/authorization/challenge", request);
+}
+function authorizationCommit(post, request) {
+  return post("/api/account/authorization/commit", request);
+}
+async function ensureSvmWalletBoundVia(post, wallet, signMessage) {
+  let challenge;
+  try {
+    challenge = await authorizationChallenge(post, {
+      chain_type: "svm",
+      wallet,
+      mode: "bind"
+    });
+  } catch (error) {
+    if (isAlreadyBound(error)) return { status: "already_bound" };
+    throw error;
+  }
+  if (!challenge.message_base64) {
+    throw new Error("bind challenge returned no svm message payload");
+  }
+  const signature = await signMessage(base64ToBytes(challenge.message_base64));
+  try {
+    return {
+      status: "bound",
+      state: await authorizationCommit(post, {
+        permit: challenge.permit,
+        signature: bytesToBase64(signature)
+      })
+    };
+  } catch (error) {
+    if (isAlreadyBound(error)) return { status: "already_bound" };
+    throw error;
+  }
+}
+function ensureSvmWalletBound(client, wallet, signMessage) {
+  return ensureSvmWalletBoundVia(posterFromClient(client), wallet, signMessage);
+}
+function isUnboundWalletError(error) {
+  const text = error instanceof Error ? error.message : typeof error === "string" ? error : "";
+  return text.includes("signing_unbound_wallet");
+}
+function isAlreadyBound(error) {
+  return error instanceof Error && error.message.includes("already_bound");
+}
+function base64ToBytes(value) {
+  if (typeof Buffer !== "undefined") {
+    return new Uint8Array(Buffer.from(value, "base64"));
+  }
+  return Uint8Array.from(atob(value), (char) => char.charCodeAt(0));
+}
+function bytesToBase64(bytes) {
+  if (typeof Buffer !== "undefined") {
+    return Buffer.from(bytes).toString("base64");
+  }
+  return btoa(String.fromCharCode(...bytes));
+}
+
 // src/account-session.ts
 var AccountCredentialUnavailableError = class extends Error {
   constructor(message = "Account credential is not available yet") {
@@ -2694,6 +2756,7 @@ var SessionWalletController = class {
     }
     this.remove(requestId);
     this.resolvedRequestIds.add(requestId);
+    this.clearResolvedSolanaPending(req);
     if (req.kind === "transaction" && result.kind === "transaction") {
       await this.resolveTransaction(req.payload, result);
     } else if (req.kind === "eip712_sign" && result.kind === "eip712_sign") {
@@ -2740,9 +2803,12 @@ var SessionWalletController = class {
       throw new Error(`No pending wallet request with id "${requestId}"`);
     }
     this.resolvedRequestIds.add(requestId);
+    this.clearResolvedSolanaPending(req);
     if (req.kind === "transaction") {
       const pendingTxIds = txIdsFromPayload(req.payload);
-      const requestedMode = aaRequestedModeFromPreference(req.payload.aaPreference);
+      const requestedMode = aaRequestedModeFromPreference(
+        req.payload.aaPreference
+      );
       await this.deps.sendSystemEvent("wallet:tx_complete", {
         txHash: "",
         status: "failed",
@@ -2822,6 +2888,38 @@ var SessionWalletController = class {
       delegation_7702: result.Delegation7702
     });
   }
+  clearResolvedSolanaPending(request) {
+    const userState = this.deps.getUserState();
+    const pending = isRecord2(userState == null ? void 0 : userState.pending) ? userState.pending : void 0;
+    if (!userState || !pending) return;
+    if (request.kind === "transaction" || request.kind === "eip712_sign")
+      return;
+    if (request.payload.pendingSolanaId === void 0) return;
+    const ids = [request.payload.pendingSolanaId];
+    const targets = request.kind === "solana_sign" || request.kind === "solana_sign_message" ? [
+      ["svm_sigs", ids],
+      ["solana_sigs", ids]
+    ] : [
+      ["svm_ixs", ids],
+      ["solana_txs", ids]
+    ];
+    const nextPending = __spreadValues({}, pending);
+    let changed = false;
+    for (const [bucketName, ids2] of targets) {
+      const bucket = isRecord2(nextPending[bucketName]) ? __spreadValues({}, nextPending[bucketName]) : void 0;
+      if (!bucket) continue;
+      for (const id of ids2) {
+        if (Object.hasOwn(bucket, String(id))) {
+          delete bucket[String(id)];
+          changed = true;
+        }
+      }
+      nextPending[bucketName] = bucket;
+    }
+    if (changed) {
+      this.deps.resolveUserState(__spreadProps(__spreadValues({}, userState), { pending: nextPending }));
+    }
+  }
   syncTransactions(next, pendingTxs) {
     var _a, _b;
     const entries = Object.entries(pendingTxs != null ? pendingTxs : {}).filter(([id]) => Number.isInteger(Number(id))).sort((left, right) => Number(left[0]) - Number(right[0]));
@@ -2829,7 +2927,9 @@ var SessionWalletController = class {
     const covered = /* @__PURE__ */ new Set();
     const existing = this.requests.filter(
       (request) => request.kind === "transaction"
-    ).map((request) => ({ request, txIds: txIdsFromPayload(request.payload) })).filter(({ txIds }) => txIds.length > 0 && txIds.every((id) => pendingIds.has(id))).sort(
+    ).map((request) => ({ request, txIds: txIdsFromPayload(request.payload) })).filter(
+      ({ txIds }) => txIds.length > 0 && txIds.every((id) => pendingIds.has(id))
+    ).sort(
       (left, right) => left.txIds.length !== right.txIds.length ? right.txIds.length - left.txIds.length : left.request.timestamp - right.request.timestamp
     );
     for (const { request, txIds } of existing) {
@@ -2915,7 +3015,8 @@ var SessionWalletController = class {
       if (typeof eip712Id === "number") return `eip712-${eip712Id}`;
     } else {
       const { pendingSolanaId } = payload;
-      if (typeof pendingSolanaId === "number") return `${kind}-${pendingSolanaId}`;
+      if (typeof pendingSolanaId === "number")
+        return `${kind}-${pendingSolanaId}`;
     }
     return `wreq-${this.nextId++}`;
   }
@@ -3066,9 +3167,7 @@ var ClientSession = class extends TypedEventEmitter {
    */
   async resolve(requestId, result) {
     await this.walletController.resolve(requestId, result);
-    if (this._isProcessing) {
-      this.startPolling();
-    }
+    this.resumeAfterWalletResponse();
   }
   /**
    * Reject a pending wallet request.
@@ -3076,9 +3175,7 @@ var ClientSession = class extends TypedEventEmitter {
    */
   async reject(requestId, reason) {
     await this.walletController.reject(requestId, reason);
-    if (this._isProcessing) {
-      this.startPolling();
-    }
+    this.resumeAfterWalletResponse();
   }
   // ===========================================================================
   // Public API — Control
@@ -3321,6 +3418,13 @@ var ClientSession = class extends TypedEventEmitter {
       app: this.app,
       applicationId: this.applicationId
     });
+  }
+  resumeAfterWalletResponse() {
+    if (!this._isProcessing) {
+      this._isProcessing = true;
+      this.emit("processing_start", void 0);
+    }
+    this.startPolling();
   }
   resolvePending() {
     if (this.pendingResolve) {
@@ -4960,12 +5064,16 @@ export {
   adaptSmartAccount,
   appIdentityKey,
   appendFeeCallToPayload,
+  authorizationChallenge,
+  authorizationCommit,
   buildAAExecutionPlan,
   buildFeeAAWalletCall,
   createAAProviderState,
   createAccountBearerProvider,
   createAlchemyAAProvider,
   createPimlicoAAProvider,
+  ensureSvmWalletBound,
+  ensureSvmWalletBoundVia,
   executeWalletCalls,
   getAAChainConfig,
   getWalletExecutorReady,
@@ -4975,6 +5083,7 @@ export {
   isInlineCall,
   isSystemError,
   isSystemNotice,
+  isUnboundWalletError,
   monad,
   monadTestnet,
   normalizeAppDescriptor,
@@ -4985,6 +5094,7 @@ export {
   normalizeSolanaWalletRequest,
   normalizeTxPayload,
   parseChainId3 as parseChainId,
+  posterFromClient,
   resolvePimlicoConfig,
   robinhood,
   toAAWalletCall,

@@ -129,7 +129,11 @@ export function WalletProviders({ children, e2eWallet }: Props) {
 
   if (e2eWallet) {
     return (
-      <E2EWalletProvider seed={e2eWallet} networks={networks}>
+      <E2EWalletProvider
+        seed={e2eWallet}
+        networks={networks}
+        solanaNetworks={solanaNetworks}
+      >
         {children}
       </E2EWalletProvider>
     );

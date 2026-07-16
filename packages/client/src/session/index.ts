@@ -190,9 +190,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
    */
   async resolve(requestId: string, result: WalletRequestResult): Promise<void> {
     await this.walletController.resolve(requestId, result);
-    if (this._isProcessing) {
-      this.startPolling();
-    }
+    this.resumeAfterWalletResponse();
   }
 
   /**
@@ -201,9 +199,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
    */
   async reject(requestId: string, reason?: string): Promise<void> {
     await this.walletController.reject(requestId, reason);
-    if (this._isProcessing) {
-      this.startPolling();
-    }
+    this.resumeAfterWalletResponse();
   }
 
   // ===========================================================================
@@ -509,6 +505,14 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       app: this.app,
       applicationId: this.applicationId,
     });
+  }
+
+  private resumeAfterWalletResponse(): void {
+    if (!this._isProcessing) {
+      this._isProcessing = true;
+      this.emit("processing_start", undefined);
+    }
+    this.startPolling();
   }
 
   private resolvePending(): void {

@@ -1558,6 +1558,16 @@ describe("ClientSession ext helpers", () => {
     sendMessage.mockResolvedValueOnce({
       is_processing: false,
       messages: [],
+      user_state: {
+        pending: {
+          svm_ixs: {
+            "12": {
+              unsigned_tx: "AQABAg",
+              pending_solana_id: 12,
+            },
+          },
+        },
+      },
       system_events: [
         {
           InlineCall: {
@@ -1578,6 +1588,7 @@ describe("ClientSession ext helpers", () => {
 
     await session.sendAsync("send solana");
     const request = (await requestPromise) as { id: string };
+    const startPolling = vi.spyOn(session, "startPolling");
 
     await session.resolve(request.id, {
       kind: "solana_send",
@@ -1600,6 +1611,8 @@ describe("ClientSession ext helpers", () => {
       }),
       { app: "default" },
     );
+    expect(session.getUserState()?.pending?.svm_ixs).toEqual({});
+    expect(startPolling).toHaveBeenCalledOnce();
 
     session.close();
   });

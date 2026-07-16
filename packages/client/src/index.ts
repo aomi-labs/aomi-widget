@@ -4,6 +4,21 @@
 
 export { AomiClient } from "./client";
 export {
+  authorizationChallenge,
+  authorizationCommit,
+  ensureSvmWalletBound,
+  ensureSvmWalletBoundVia,
+  isUnboundWalletError,
+  posterFromClient,
+} from "./authorization";
+export type {
+  AomiAuthorizationChallenge,
+  AomiAuthorizationPermit,
+  AomiAuthorizationState,
+  AomiEnsureBoundResult,
+  AuthorizationPoster,
+} from "./authorization";
+export {
   AccountCredentialUnavailableError,
   createAccountBearerProvider,
 } from "./account-session";

@@ -50,8 +50,8 @@ using `google/gemini-3-flash-preview` completed:
 7. Backend pending state cleared and the recipient balance moved from
    20,000,000 to 21,000,000 lamports.
 
-This closes the original minimal acceptance target. Portal/browser work remains
-separate and is intentionally not part of this backend/CLI verification.
+This closes the original minimal acceptance target. Portal/browser acceptance
+was completed separately on 2026-07-16 and is recorded below.
 
 ## Default-runtime parity acceptance
 
@@ -78,4 +78,23 @@ through one `default` app session holding both wallet families and using
 
 The full client suite passed 322 tests with 28 intentional integration skips,
 and the package build (including declarations and the distributable CLI)
-passed. No portal or browser code was changed.
+passed.
+
+## Portal/browser acceptance
+
+The current portal now exposes the SVM bind challenge/commit ceremony in
+settings and as a contextual recovery action for `signing_unbound_wallet`.
+The shared client removes resolved SVM pending state before the next poll and
+always resumes polling after a wallet response.
+
+A local-only injected Solana wallet proved the browser path without exposing a
+secret to the page. Its server signer is gated to loopback RPC and
+devnet/testnet. Against Surfpool, Gemini 3 Flash drove four fresh native SOL
+transfers through stage, simulation, approval, signing, broadcast, callback,
+and UI confirmation. Every signature finalized with `err:null`; the recipient
+moved from 1,000,000 to 4,750,000 lamports. The final portal-displayed signature
+was `3kLs6aymkWiFYBgvc8gjYRqnUoBpW7jCm9qzCgNUkeKAdrKWJHmawumYWomeMTcBhdBq1oxhQHaShBem6qS5996n`.
+
+The root Vitest run passed 725 tests with 28 intentional integration skips;
+portal typechecking and production build passed. Real Phantom/Para extension
+popups and funded mainnet Jupiter remain separate manual release checks.

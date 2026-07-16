@@ -105,7 +105,9 @@ export class SessionWalletController {
 
   sync(): void {
     const userState = this.deps.getUserState();
-    const pending = isRecord(userState?.pending) ? userState.pending : undefined;
+    const pending = isRecord(userState?.pending)
+      ? userState.pending
+      : undefined;
     const pendingTxs = isRecord(pending?.evm_txs) ? pending.evm_txs : undefined;
     const pendingEip712s = isRecord(pending?.evm_sigs)
       ? pending.evm_sigs
@@ -156,6 +158,7 @@ export class SessionWalletController {
     }
     this.remove(requestId);
     this.resolvedRequestIds.add(requestId);
+    this.clearResolvedSolanaPending(req);
 
     if (req.kind === "transaction" && result.kind === "transaction") {
       await this.resolveTransaction(req.payload, result);
@@ -233,10 +236,13 @@ export class SessionWalletController {
       throw new Error(`No pending wallet request with id "${requestId}"`);
     }
     this.resolvedRequestIds.add(requestId);
+    this.clearResolvedSolanaPending(req);
 
     if (req.kind === "transaction") {
       const pendingTxIds = txIdsFromPayload(req.payload);
-      const requestedMode = aaRequestedModeFromPreference(req.payload.aaPreference);
+      const requestedMode = aaRequestedModeFromPreference(
+        req.payload.aaPreference,
+      );
       await this.deps.sendSystemEvent("wallet:tx_complete", {
         txHash: "",
         status: "failed",
@@ -313,7 +319,8 @@ export class SessionWalletController {
   ): Promise<void> {
     const pendingTxIds = txIdsFromPayload(payload);
     const requestedMode =
-      result.aaRequestedMode ?? aaRequestedModeFromPreference(payload.aaPreference);
+      result.aaRequestedMode ??
+      aaRequestedModeFromPreference(payload.aaPreference);
     const resolvedMode =
       result.aaResolvedMode ??
       aaModeFromExecutionKind(result.executionKind) ??
@@ -329,9 +336,9 @@ export class SessionWalletController {
           ...prevAa,
           mode: resolvedMode,
           smart_account:
-            resolvedMode === "4337" ? result.SmartAccount4337 ?? null : null,
+            resolvedMode === "4337" ? (result.SmartAccount4337 ?? null) : null,
           delegation_7702:
-            resolvedMode === "7702" ? result.Delegation7702 ?? null : null,
+            resolvedMode === "7702" ? (result.Delegation7702 ?? null) : null,
         },
       },
     });
@@ -352,6 +359,50 @@ export class SessionWalletController {
     });
   }
 
+  private clearResolvedSolanaPending(request: WalletRequest): void {
+    const userState = this.deps.getUserState();
+    const pending = isRecord(userState?.pending)
+      ? userState.pending
+      : undefined;
+    if (!userState || !pending) return;
+
+    if (request.kind === "transaction" || request.kind === "eip712_sign")
+      return;
+    if (request.payload.pendingSolanaId === undefined) return;
+
+    const ids = [request.payload.pendingSolanaId];
+    const targets: Array<[string, number[]]> =
+      request.kind === "solana_sign" || request.kind === "solana_sign_message"
+        ? [
+            ["svm_sigs", ids],
+            ["solana_sigs", ids],
+          ]
+        : [
+            ["svm_ixs", ids],
+            ["solana_txs", ids],
+          ];
+
+    const nextPending = { ...pending };
+    let changed = false;
+    for (const [bucketName, ids] of targets) {
+      const bucket = isRecord(nextPending[bucketName])
+        ? { ...nextPending[bucketName] }
+        : undefined;
+      if (!bucket) continue;
+      for (const id of ids) {
+        if (Object.hasOwn(bucket, String(id))) {
+          delete bucket[String(id)];
+          changed = true;
+        }
+      }
+      nextPending[bucketName] = bucket;
+    }
+
+    if (changed) {
+      this.deps.resolveUserState({ ...userState, pending: nextPending });
+    }
+  }
+
   private syncTransactions(
     next: WalletRequest[],
     pendingTxs: Record<string, unknown> | undefined,
@@ -368,7 +419,10 @@ export class SessionWalletController {
           request.kind === "transaction",
       )
       .map((request) => ({ request, txIds: txIdsFromPayload(request.payload) }))
-      .filter(({ txIds }) => txIds.length > 0 && txIds.every((id) => pendingIds.has(id)))
+      .filter(
+        ({ txIds }) =>
+          txIds.length > 0 && txIds.every((id) => pendingIds.has(id)),
+      )
       .sort((left, right) =>
         left.txIds.length !== right.txIds.length
           ? right.txIds.length - left.txIds.length
@@ -404,8 +458,8 @@ export class SessionWalletController {
         kind: "transaction",
         payload,
         timestamp:
-          this.requests.find((request) => request.id === requestId)?.timestamp ??
-          Date.now(),
+          this.requests.find((request) => request.id === requestId)
+            ?.timestamp ?? Date.now(),
       });
     }
   }
@@ -427,8 +481,8 @@ export class SessionWalletController {
         kind: "eip712_sign",
         payload,
         timestamp:
-          this.requests.find((request) => request.id === requestId)?.timestamp ??
-          Date.now(),
+          this.requests.find((request) => request.id === requestId)
+            ?.timestamp ?? Date.now(),
       });
     }
   }
@@ -455,8 +509,8 @@ export class SessionWalletController {
           normalized.kind,
           normalized.payload,
           requestId,
-          this.requests.find((request) => request.id === requestId)?.timestamp ??
-            Date.now(),
+          this.requests.find((request) => request.id === requestId)
+            ?.timestamp ?? Date.now(),
         ),
       );
     }
@@ -472,7 +526,10 @@ export class SessionWalletController {
   ): string {
     if (kind === "transaction") {
       const txPayload = payload as WalletTxPayload;
-      if (typeof txPayload.requestId === "string" && txPayload.requestId.length > 0) {
+      if (
+        typeof txPayload.requestId === "string" &&
+        txPayload.requestId.length > 0
+      ) {
         return `txreq-${txPayload.requestId}`;
       }
       const txIds = txIdsFromPayload(txPayload);
@@ -484,7 +541,8 @@ export class SessionWalletController {
       const { pendingSolanaId } = payload as
         | WalletSolanaSignPayload
         | WalletSolanaSignMessagePayload;
-      if (typeof pendingSolanaId === "number") return `${kind}-${pendingSolanaId}`;
+      if (typeof pendingSolanaId === "number")
+        return `${kind}-${pendingSolanaId}`;
     }
     return `wreq-${this.nextId++}`;
   }
