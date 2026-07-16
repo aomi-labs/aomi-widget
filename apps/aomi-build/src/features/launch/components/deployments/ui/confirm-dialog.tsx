@@ -15,7 +15,7 @@ export function ConfirmDialog({
 }) {
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--aomi-overlay)]">
       <div
         role="dialog"
         aria-label={title}
