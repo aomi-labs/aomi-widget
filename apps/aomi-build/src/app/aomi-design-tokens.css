@@ -190,8 +190,9 @@
     --aomi-accent-hover: var(--aomi-sky-400);
     --aomi-accent-active: var(--aomi-sky-500);
     --aomi-accent-subtle: var(--aomi-sky-100);
-    /* Selected fills need a full ramp step over cool-100 surfaces. */
-    --aomi-accent-selected: var(--aomi-sky-200);
+    /* Selected bars are solid accent with on-brand text. */
+    --aomi-accent-selected: var(--aomi-sky-500);
+    --aomi-accent-selected-text: var(--aomi-cool-0);
     /* Interactive accent — focus rings, links, accent CTAs. */
     --aomi-accent-interactive: var(--aomi-sky-500);
     /* Hover fill for items resting on cool-100 surfaces. */
@@ -256,7 +257,8 @@
     --aomi-accent-hover: var(--aomi-sky-300);
     --aomi-accent-active: var(--aomi-sky-200);
     --aomi-accent-subtle: var(--aomi-cool-800);
-    --aomi-accent-selected: var(--aomi-cool-800);
+    --aomi-accent-selected: var(--aomi-sky-500);
+    --aomi-accent-selected-text: var(--aomi-cool-0);
     --aomi-accent-interactive: var(--aomi-sky-400);
     --aomi-state-hover: var(--aomi-cool-800);
 

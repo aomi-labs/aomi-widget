@@ -151,7 +151,7 @@ function IconButton({
       onClick={onClick}
       aria-label={label}
       className={cn(
-        "text-dim hover:bg-accent-hover hover:text-foreground focus-visible:ring-ring inline-flex h-8 w-8 items-center justify-center rounded-md transition focus-visible:ring-1",
+        "icon-button focus-visible:ring-ring inline-flex h-8 w-8 items-center justify-center rounded-md transition focus-visible:ring-1",
         className,
       )}
     >
@@ -419,7 +419,7 @@ function TopBarMenu({
         onClick={() => setOpen((value) => !value)}
         aria-label={label}
         aria-expanded={open}
-        className="text-dim hover:bg-accent-hover hover:text-foreground focus-visible:ring-ring relative inline-flex h-8 w-8 items-center justify-center rounded-full transition focus-visible:ring-1"
+        className="icon-button focus-visible:ring-ring relative inline-flex h-8 w-8 items-center justify-center rounded-full transition focus-visible:ring-1"
       >
         {trigger}
       </button>
@@ -574,11 +574,16 @@ function ControlPlaneShellContent({ children }: { children: React.ReactNode }) {
           expanded ? "w-56" : "w-14",
         )}
       >
-        <div className="border-border relative h-11 shrink-0 border-b">
+        <div
+          className={cn(
+            "border-border relative shrink-0 border-b",
+            expanded && "h-11",
+          )}
+        >
           <div
             className={cn(
-              "flex h-full items-center gap-2 px-3",
-              expanded ? "justify-between" : "justify-center px-2",
+              "flex items-center gap-2 px-3",
+              expanded ? "h-full justify-between" : "h-11 justify-center px-2",
             )}
           >
             <AomiLogo
@@ -660,7 +665,7 @@ function ControlPlaneShellContent({ children }: { children: React.ReactNode }) {
             <button
               type="button"
               onClick={() => openCommandPalette()}
-              className="text-dim hover:bg-accent-hover hover:text-foreground border-border inline-flex h-8 items-center gap-2 rounded-md border px-2 text-xs"
+              className="icon-button border-border inline-flex h-8 items-center gap-2 rounded-md border px-2 text-xs"
               aria-label="Open command palette (⌘K)"
               title="Search (⌘K)"
             >
