@@ -86,6 +86,73 @@ function unitLabel(value: unknown, unit: string, digits = 1) {
   return label === "No data" ? label : `${label} ${unit}`;
 }
 
+function countLabel(value: unknown) {
+  if (value === null || value === undefined || value === "") return "No data";
+  const n = Number(value);
+  return Number.isFinite(n) ? Math.round(n).toLocaleString() : "No data";
+}
+
+function bytesLabel(value: unknown): string | null {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  const mb = n / (1024 * 1024);
+  return mb >= 1 ? `${mb.toFixed(1)} MB` : `${Math.round(n / 1024)} KB`;
+}
+
+const STATUS_DOT: Record<string, string> = {
+  healthy: "bg-emerald-500",
+  not_loaded: "bg-amber-500",
+  inactive: "bg-zinc-400",
+};
+
+function Sparkline({ points }: { points: number[] }) {
+  const max = Math.max(...points, 1);
+  const step = points.length > 1 ? 100 / (points.length - 1) : 100;
+  const path = points
+    .map(
+      (p, i) =>
+        `${(i * step).toFixed(1)},${(23 - (p / max) * 20).toFixed(1)}`,
+    )
+    .join(" ");
+  return (
+    <svg
+      viewBox="0 0 100 24"
+      preserveAspectRatio="none"
+      className="text-dim h-6 w-full"
+      aria-hidden
+    >
+      <polyline
+        points={path}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        vectorEffect="non-scaling-stroke"
+      />
+    </svg>
+  );
+}
+
+/** 24h count tile with an hourly sparkline; renders nothing without data. */
+function TrendTile({
+  label,
+  count,
+  series,
+}: {
+  label: string;
+  count: unknown;
+  series?: number[] | null;
+}) {
+  return (
+    <div className="min-w-0">
+      <div className="text-dim">{label}</div>
+      <div className="text-foreground text-base font-semibold">
+        {countLabel(count)}
+      </div>
+      {series?.length ? <Sparkline points={series} /> : null}
+    </div>
+  );
+}
+
 function EmptyState({
   title,
   description,
@@ -358,6 +425,19 @@ function Rows({
       <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
         {apps.map((app) => {
           const metrics = app.metrics ?? {};
+          const hasTrend =
+            metrics.chats24h != null ||
+            metrics.toolCalls24h != null ||
+            metrics.transactions24h != null;
+          const hasErrorSplit =
+            metrics.toolErrorRate != null || metrics.txErrorRate != null;
+          const lifecycle = [
+            app.sdkVersion ? `SDK ${app.sdkVersion}` : null,
+            metrics.coldStartMs != null
+              ? `cold start ${unitLabel(metrics.coldStartMs, "ms", 0)}`
+              : null,
+            bytesLabel(metrics.dylibBytes),
+          ].filter(Boolean);
           return (
             <div
               key={`${app.source?.id}-${app.applicationId}`}
@@ -372,21 +452,65 @@ function Rows({
                     {app.releaseTag ?? "No release"}
                   </div>
                 </div>
-                <span className="text-dim text-xs">{app.status}</span>
+                <span className="text-dim flex items-center gap-1.5 text-xs">
+                  <span
+                    className={`size-2 rounded-full ${STATUS_DOT[String(app.status)] ?? "bg-zinc-400"}`}
+                  />
+                  {app.status}
+                </span>
               </div>
-              <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
-                <div>
-                  <div className="text-dim">Requests/min</div>
-                  <div className="text-foreground font-medium">
-                    {numberLabel(metrics.requestsPerMinute)}
-                  </div>
+              {hasTrend ? (
+                <div className="mt-3 grid grid-cols-3 gap-x-3 text-xs">
+                  <TrendTile
+                    label="Chats 24h"
+                    count={metrics.chats24h}
+                    series={metrics.chatsHourly}
+                  />
+                  <TrendTile
+                    label="Tool calls 24h"
+                    count={metrics.toolCalls24h}
+                    series={metrics.toolCallsHourly}
+                  />
+                  <TrendTile
+                    label="Tx 24h"
+                    count={metrics.transactions24h}
+                    series={metrics.transactionsHourly}
+                  />
                 </div>
+              ) : null}
+              <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
+                {hasTrend ? null : (
+                  <div>
+                    <div className="text-dim">Requests/min</div>
+                    <div className="text-foreground font-medium">
+                      {numberLabel(metrics.requestsPerMinute)}
+                    </div>
+                  </div>
+                )}
                 <div>
-                  <div className="text-dim">Error rate</div>
+                  <div className="text-dim">
+                    {hasErrorSplit ? "Chat errors" : "Error rate"}
+                  </div>
                   <div className="text-foreground font-medium">
                     {percentLabel(metrics.errorRate)}
                   </div>
                 </div>
+                {hasErrorSplit ? (
+                  <>
+                    <div>
+                      <div className="text-dim">Tool errors</div>
+                      <div className="text-foreground font-medium">
+                        {percentLabel(metrics.toolErrorRate)}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-dim">Tx failures</div>
+                      <div className="text-foreground font-medium">
+                        {percentLabel(metrics.txErrorRate)}
+                      </div>
+                    </div>
+                  </>
+                ) : null}
                 <div>
                   <div className="text-dim">P95 latency</div>
                   <div className="text-foreground font-medium">
@@ -400,6 +524,11 @@ function Rows({
                   </div>
                 </div>
               </div>
+              {lifecycle.length ? (
+                <div className="border-border text-dim mt-3 border-t pt-2 text-xs">
+                  {lifecycle.join(" · ")}
+                </div>
+              ) : null}
             </div>
           );
         })}

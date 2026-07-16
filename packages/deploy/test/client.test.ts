@@ -465,6 +465,18 @@ describe("DeploymentClient operate observability", () => {
       errorRate: 0.025,
       p95LatencyMs: 1234,
       inflightRequests: 3,
+      // Legacy payload: the 24h trend contract stays null.
+      trendWindowSeconds: null,
+      chats24h: null,
+      toolCalls24h: null,
+      transactions24h: null,
+      chatsHourly: null,
+      toolCallsHourly: null,
+      transactionsHourly: null,
+      toolErrorRate: null,
+      txErrorRate: null,
+      coldStartMs: null,
+      dylibBytes: null,
     });
     expect(result.platformMetrics[0]).toEqual({
       label: "DB pool waiting",
@@ -472,6 +484,61 @@ describe("DeploymentClient operate observability", () => {
       unit: "connections",
       scope: "platform",
       description: "Shared DB pressure.",
+    });
+  });
+
+  it("maps the 24h trend contract when the manager emits it", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({
+          monitoring: { provider: "grafana_prometheus", status: "ok", window_seconds: 900 },
+          apps: [
+            {
+              application_id: 77,
+              application: "demo",
+              active: true,
+              loaded: true,
+              status: "healthy",
+              metrics: {
+                provider: "grafana_prometheus",
+                window_seconds: 900,
+                available: true,
+                trend_window_seconds: 86400,
+                chats_24h: 47,
+                tool_calls_24h: 130,
+                transactions_24h: 12,
+                chats_hourly: [0, 3, "5"],
+                tool_calls_hourly: [1, 2],
+                transactions_hourly: [],
+                tool_error_rate: 0.12,
+                tx_error_rate: 0,
+                cold_start_ms: 1250,
+                dylib_bytes: 4718592,
+              },
+            },
+          ],
+        }),
+      ),
+    );
+
+    const result = await client().getUserSourceObservability({
+      githubUserId: "4738254",
+      platform: "community",
+      appSourceId: 42,
+    });
+    expect(result.apps[0].metrics).toMatchObject({
+      trendWindowSeconds: 86400,
+      chats24h: 47,
+      toolCalls24h: 130,
+      transactions24h: 12,
+      chatsHourly: [0, 3, 5],
+      toolCallsHourly: [1, 2],
+      transactionsHourly: [],
+      toolErrorRate: 0.12,
+      txErrorRate: 0,
+      coldStartMs: 1250,
+      dylibBytes: 4718592,
     });
   });
 });

@@ -1837,6 +1837,10 @@ function camelOperateAppMetrics(raw: unknown) {
     const value = metrics[snake] ?? metrics[camel];
     return value === null || value === undefined ? null : Number(value);
   };
+  const metricSeries = (snake: string, camel: string): number[] | null => {
+    const value = metrics[snake] ?? metrics[camel];
+    return Array.isArray(value) ? value.map(Number) : null;
+  };
   return {
     provider: String(metrics.provider ?? ""),
     windowSeconds: Number(metrics.window_seconds ?? metrics.windowSeconds ?? 0),
@@ -1845,5 +1849,22 @@ function camelOperateAppMetrics(raw: unknown) {
     errorRate: metricNumber("error_rate", "errorRate"),
     p95LatencyMs: metricNumber("p95_latency_ms", "p95LatencyMs"),
     inflightRequests: metricNumber("inflight_requests", "inflightRequests"),
+    trendWindowSeconds: metricNumber(
+      "trend_window_seconds",
+      "trendWindowSeconds",
+    ),
+    chats24h: metricNumber("chats_24h", "chats24h"),
+    toolCalls24h: metricNumber("tool_calls_24h", "toolCalls24h"),
+    transactions24h: metricNumber("transactions_24h", "transactions24h"),
+    chatsHourly: metricSeries("chats_hourly", "chatsHourly"),
+    toolCallsHourly: metricSeries("tool_calls_hourly", "toolCallsHourly"),
+    transactionsHourly: metricSeries(
+      "transactions_hourly",
+      "transactionsHourly",
+    ),
+    toolErrorRate: metricNumber("tool_error_rate", "toolErrorRate"),
+    txErrorRate: metricNumber("tx_error_rate", "txErrorRate"),
+    coldStartMs: metricNumber("cold_start_ms", "coldStartMs"),
+    dylibBytes: metricNumber("dylib_bytes", "dylibBytes"),
   };
 }

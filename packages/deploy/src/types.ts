@@ -737,9 +737,24 @@ export interface OperateAppMetrics {
   windowSeconds: number;
   available: boolean;
   requestsPerMinute: number | null;
+  /** Chat-request error rate; tool/tx failures are separate domains below. */
   errorRate: number | null;
   p95LatencyMs: number | null;
   inflightRequests: number | null;
+  // 24h trend contract. Null until the manager emits grouped
+  // query_range reads; the card falls back to the live tiles.
+  trendWindowSeconds: number | null;
+  chats24h: number | null;
+  toolCalls24h: number | null;
+  transactions24h: number | null;
+  /** Hourly counts over the trend window, oldest bucket first. */
+  chatsHourly: number[] | null;
+  toolCallsHourly: number[] | null;
+  transactionsHourly: number[] | null;
+  toolErrorRate: number | null;
+  txErrorRate: number | null;
+  coldStartMs: number | null;
+  dylibBytes: number | null;
 }
 
 export interface OperateDashboardLink {
