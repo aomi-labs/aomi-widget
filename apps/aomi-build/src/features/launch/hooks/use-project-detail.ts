@@ -154,18 +154,30 @@ export function useProjectDetail(sourceId: number) {
 
   const ensureRequiredSecrets = useCallback(
     async (apps: string[], appSourceIdOverride?: number) => {
-      const byApp =
-        appSourceIdOverride === undefined
-          ? await refreshRequiredSecrets()
-          : (
-              await deploymentRequiredSecrets({
-                appSourceId: appSourceIdOverride,
-              })
-            ).byApp;
-      if (appSourceIdOverride !== undefined) setRequiredSecrets(byApp);
-      const missing = missingRequiredSecrets(byApp, apps);
-      if (Object.keys(missing).length > 0) {
-        throw new MissingRequiredSecretsError(missing);
+      try {
+        const byApp =
+          appSourceIdOverride === undefined
+            ? await refreshRequiredSecrets()
+            : (
+                await deploymentRequiredSecrets({
+                  appSourceId: appSourceIdOverride,
+                })
+              ).byApp;
+        if (appSourceIdOverride !== undefined) setRequiredSecrets(byApp);
+        const missing = missingRequiredSecrets(byApp, apps);
+        if (Object.keys(missing).length > 0) {
+          throw new MissingRequiredSecretsError(missing);
+        }
+      } catch (err) {
+        if (!(err instanceof MissingRequiredSecretsError)) {
+          setRequiredSecretsError(
+            err instanceof Error
+              ? err.message
+              : "Failed to verify required secrets",
+          );
+          requiredSecretsReq.current = false;
+        }
+        throw err;
       }
     },
     [refreshRequiredSecrets],

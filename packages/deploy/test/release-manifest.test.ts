@@ -22,7 +22,11 @@ describe("fetchReleaseSecretSlots", () => {
     const fetchImpl = fakeFetch({
       [RELEASE_URL]: {
         status: 200,
-        body: { assets: [{ name: "manifest.json", url: "https://api.github.com/asset/1" }] },
+        body: {
+          assets: [
+            { name: "manifest.json", url: "https://api.github.com/asset/1" },
+          ],
+        },
       },
       "https://api.github.com/asset/1": {
         status: 200,
@@ -64,7 +68,7 @@ describe("fetchReleaseSecretSlots", () => {
     ).resolves.toEqual({});
   });
 
-  it("returns {} when the release does not exist", async () => {
+  it("throws when the release cannot be read", async () => {
     const fetchImpl = fakeFetch({});
     await expect(
       fetchReleaseSecretSlots({
@@ -73,10 +77,13 @@ describe("fetchReleaseSecretSlots", () => {
         githubToken: "t",
         fetchImpl,
       }),
-    ).resolves.toEqual({});
+    ).rejects.toMatchObject({
+      name: "RequiredSecretsCheckError",
+      code: "REQUIRED_SECRETS_CHECK_UNAVAILABLE",
+    });
   });
 
-  it("returns {} when the fetch call rejects (network failure)", async () => {
+  it("throws when the fetch call rejects (network failure)", async () => {
     const fetchImpl = vi.fn(async () => {
       throw new Error("network down");
     }) as unknown as typeof fetch;
@@ -88,10 +95,13 @@ describe("fetchReleaseSecretSlots", () => {
         githubToken: "t",
         fetchImpl,
       }),
-    ).resolves.toEqual({});
+    ).rejects.toMatchObject({
+      name: "RequiredSecretsCheckError",
+      code: "REQUIRED_SECRETS_CHECK_UNAVAILABLE",
+    });
   });
 
-  it("returns {} when the release response body is not valid JSON", async () => {
+  it("throws when the release response body is not valid JSON", async () => {
     const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
       const url = typeof input === "string" ? input : input.toString();
       if (url === RELEASE_URL) {
@@ -107,16 +117,21 @@ describe("fetchReleaseSecretSlots", () => {
         githubToken: "t",
         fetchImpl,
       }),
-    ).resolves.toEqual({});
+    ).rejects.toMatchObject({
+      name: "RequiredSecretsCheckError",
+      code: "REQUIRED_SECRETS_CHECK_UNAVAILABLE",
+    });
   });
 
-  it("returns {} when the asset response body is not valid JSON", async () => {
+  it("throws when the asset response body is not valid JSON", async () => {
     const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
       const url = typeof input === "string" ? input : input.toString();
       if (url === RELEASE_URL) {
         return new Response(
           JSON.stringify({
-            assets: [{ name: "manifest.json", url: "https://api.github.com/asset/1" }],
+            assets: [
+              { name: "manifest.json", url: "https://api.github.com/asset/1" },
+            ],
           }),
           { status: 200 },
         );
@@ -134,7 +149,10 @@ describe("fetchReleaseSecretSlots", () => {
         githubToken: "t",
         fetchImpl,
       }),
-    ).resolves.toEqual({});
+    ).rejects.toMatchObject({
+      name: "RequiredSecretsCheckError",
+      code: "REQUIRED_SECRETS_CHECK_UNAVAILABLE",
+    });
   });
 });
 
@@ -213,31 +231,31 @@ describe("missingSecretsForActivation", () => {
     });
   });
 
-  it("never blocks activation when the platform repo is unknown", async () => {
+  it("blocks activation when the platform repo is unknown", async () => {
     const fetchImpl = vi.fn();
     vi.stubGlobal("fetch", fetchImpl);
 
     // No deployment at all for this source: the detail endpoint itself
-    // returns null, so platformRepo is genuinely unknown and the helper must
-    // still fail open (never block activation).
+    // returns null, so the release manifest cannot be verified.
     const client = {
       listAppSecrets: vi.fn(),
       getUserSourceLatestDeployment: vi.fn(async () => null),
     } as unknown as DeploymentClient;
-    const missing = await missingSecretsForActivation({
-      client,
-      githubUserId: "gh-1",
-      platform: "community",
-      githubToken: "t",
-      source: { id: 42, latestDeployment: null } as never,
-      pairs: [{ app: "binance", releaseTag: "v1" }],
-    });
-    expect(missing).toEqual({});
+    await expect(
+      missingSecretsForActivation({
+        client,
+        githubUserId: "gh-1",
+        platform: "community",
+        githubToken: "t",
+        source: { id: 42, latestDeployment: null } as never,
+        pairs: [{ app: "binance", releaseTag: "v1" }],
+      }),
+    ).rejects.toMatchObject({ code: "REQUIRED_SECRETS_CHECK_UNAVAILABLE" });
     expect(fetchImpl).not.toHaveBeenCalled();
     expect(client.listAppSecrets).not.toHaveBeenCalled();
   });
 
-  it("never fetches deployment state when the GitHub token is absent", async () => {
+  it("blocks activation when the GitHub token is absent", async () => {
     const fetchImpl = vi.fn();
     vi.stubGlobal("fetch", fetchImpl);
     vi.stubEnv("GITHUB_TOKEN", "");
@@ -249,22 +267,22 @@ describe("missingSecretsForActivation", () => {
       })),
     } as unknown as DeploymentClient;
 
-    const missing = await missingSecretsForActivation({
-      client,
-      githubUserId: "gh-1",
-      platform: "community",
-      githubToken: undefined,
-      source: { id: 42, latestDeployment: null } as never,
-      pairs: [{ app: "binance", releaseTag: "v1" }],
-    });
-
-    expect(missing).toEqual({});
+    await expect(
+      missingSecretsForActivation({
+        client,
+        githubUserId: "gh-1",
+        platform: "community",
+        githubToken: undefined,
+        source: { id: 42, latestDeployment: null } as never,
+        pairs: [{ app: "binance", releaseTag: "v1" }],
+      }),
+    ).rejects.toMatchObject({ code: "REQUIRED_SECRETS_CHECK_UNAVAILABLE" });
     expect(client.getUserSourceLatestDeployment).not.toHaveBeenCalled();
     expect(client.listAppSecrets).not.toHaveBeenCalled();
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
-  it("fails open when getUserSourceLatestDeployment rejects", async () => {
+  it("blocks when getUserSourceLatestDeployment rejects", async () => {
     const fetchImpl = vi.fn();
     vi.stubGlobal("fetch", fetchImpl);
 
@@ -275,16 +293,16 @@ describe("missingSecretsForActivation", () => {
       }),
     } as unknown as DeploymentClient;
 
-    const missing = await missingSecretsForActivation({
-      client,
-      githubUserId: "gh-1",
-      platform: "community",
-      githubToken: "t",
-      source: { id: 42, latestDeployment: null } as never,
-      pairs: [{ app: "binance", releaseTag: "v1" }],
-    });
-
-    expect(missing).toEqual({});
+    await expect(
+      missingSecretsForActivation({
+        client,
+        githubUserId: "gh-1",
+        platform: "community",
+        githubToken: "t",
+        source: { id: 42, latestDeployment: null } as never,
+        pairs: [{ app: "binance", releaseTag: "v1" }],
+      }),
+    ).rejects.toMatchObject({ code: "REQUIRED_SECRETS_CHECK_UNAVAILABLE" });
     expect(client.listAppSecrets).not.toHaveBeenCalled();
   });
 });
