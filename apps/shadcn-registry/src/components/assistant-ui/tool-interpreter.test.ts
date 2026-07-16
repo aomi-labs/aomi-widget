@@ -556,6 +556,24 @@ describe("tool interpreter", () => {
     expect(step.chips[3].dot).toBeUndefined();
   });
 
+  it("recognizes successful Solana simulations", () => {
+    const step = interpretToolStep({
+      toolName: "Simulate staged Solana instructions",
+      result: {
+        simulation: {
+          err: null,
+          logs: ["Program 11111111111111111111111111111111 success"],
+          units_consumed: 450,
+        },
+        last_batch_status: "SVM ixs [1] passed",
+        ix_ids: [1],
+      },
+    });
+
+    expect(step.title).toBe("Simulate batch");
+    expect(labelsFor(step.chips)).toEqual(["1 tx", "Success"]);
+  });
+
   it("recognizes pending wallet approval", () => {
     const step = interpretToolStep({
       toolName: "Commit Aerodrome USDC to AERO swap batch",

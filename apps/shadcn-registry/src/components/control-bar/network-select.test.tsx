@@ -235,6 +235,32 @@ describe("NetworkSelect", () => {
     });
   });
 
+  it("shows the connected Solana cluster instead of a stale preference", () => {
+    globalThis.localStorage?.setItem(
+      "aomi.wallet-preferences.default",
+      JSON.stringify({ selectedSolanaNetworkId: "solana-mainnet" }),
+    );
+
+    render(
+      <ExtUserProvider>
+        <AomiWalletNetworkPreferencesProvider
+          evmChains={evmChains}
+          solanaNetworks={solanaNetworks}
+        >
+          <Harness
+            adapter={createHarnessAdapter({
+              connected: true,
+              address: "0xda6f0000000000000000000000000000000000f0",
+              svmAddress: "So11111111111111111111111111111111111111112",
+            })}
+          />
+        </AomiWalletNetworkPreferencesProvider>
+      </ExtUserProvider>,
+    );
+
+    expect(screen.getByRole("combobox").textContent).toMatch(/Base.*Devnet/);
+  });
+
   it("confirms destructive Para-style Solana network switches", async () => {
     const selectNetwork = vi.fn();
     render(

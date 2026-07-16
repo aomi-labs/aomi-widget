@@ -157,7 +157,11 @@ export const NetworkSelect: FC<NetworkSelectProps> = ({
   const activeEvmChain = evmChains.find(
     (chain) => chain.id === activeEvmChainId,
   );
-  const activeSolanaNetwork = selectedSolanaNetwork;
+  const liveSolanaCluster = identity.svmCluster ?? identity.solanaCluster;
+  const liveSolanaNetwork = solanaConnected
+    ? solanaNetworks.find((network) => network.cluster === liveSolanaCluster)
+    : undefined;
+  const activeSolanaNetwork = liveSolanaNetwork ?? selectedSolanaNetwork;
 
   const sections = useMemo<NetworkSection[]>(() => {
     const result: NetworkSection[] = [];

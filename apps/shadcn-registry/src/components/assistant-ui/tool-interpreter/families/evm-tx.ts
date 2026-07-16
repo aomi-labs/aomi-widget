@@ -71,10 +71,19 @@ export const matchSimulation: ToolMatcher = ({ rawLabel, resultRecord }) => {
       : null;
   if (!(sim || "batch_success" in resultRecord)) return null;
 
-  const batchSuccess =
-    (sim?.batch_success ?? resultRecord.batch_success) === true;
+  const explicitBatchSuccess = sim?.batch_success ?? resultRecord.batch_success;
+  const simulationStatus =
+    explicitBatchSuccess !== undefined
+      ? explicitBatchSuccess
+      : sim && "err" in sim
+        ? sim.err == null
+        : resultRecord.last_batch_status;
   const gas = asNumber(sim?.total_gas) ?? asNumber(resultRecord.total_gas);
-  const steps = Array.isArray(sim?.steps) ? sim.steps.length : undefined;
+  const steps = Array.isArray(sim?.steps)
+    ? sim.steps.length
+    : Array.isArray(resultRecord.ix_ids)
+      ? resultRecord.ix_ids.length
+      : undefined;
 
   return op("evm.tx.simulate_batch", rawLabel, [
     chainFactFromRecord(resultRecord) ?? chainFact(undefined, sim?.network),
@@ -86,7 +95,7 @@ export const matchSimulation: ToolMatcher = ({ rawLabel, resultRecord }) => {
           source: "result",
         }
       : null,
-    statusFact(batchSuccess),
+    statusFact(simulationStatus),
     gas != null
       ? {
           kind: "gas",
