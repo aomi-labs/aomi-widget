@@ -1,68 +1,23 @@
 "use client";
 
-// TEMPORARY design mock: the ideal per-app drill-down dashboard, with every
-// data source we planned wired in (Prometheus trends, Postgres ledger,
-// registry lifecycle). Fixture data only. Delete with the harness page.
+// TEMPORARY design mock: the per-app drill-down dashboard, hydrated from an
+// AppFixture (Prometheus trends, Postgres ledger, registry lifecycle — as if
+// real). Rows deep-link out: tools → Logs, transactions → Transactions.
 
 import { ArrowLeft, ExternalLink } from "lucide-react";
+import type { AppFixture, TxRecord } from "./fixtures";
 
-const HOURS = [
-  "00", "01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11",
-  "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23",
-];
-const CHATS = [0, 1, 0, 2, 3, 1, 0, 0, 2, 4, 5, 3, 2, 1, 0, 1, 3, 4, 6, 3, 2, 1, 2, 1];
-const TOOLS = [0, 2, 1, 5, 8, 3, 1, 0, 6, 11, 14, 9, 5, 3, 1, 2, 8, 12, 17, 9, 6, 3, 3, 1];
-const P95_S = [0, 4.1, 0, 5.2, 6.0, 3.8, 0, 0, 5.5, 7.2, 8.4, 6.9, 5.1, 4.2, 0, 3.9, 6.1, 7.8, 8.1, 6.4, 5.0, 4.4, 4.9, 3.7];
-const CREDITS_7D = [1.8, 2.1, 2.9, 2.4, 2.45, 3.1, 3.42];
-const DAYS_7D = ["Jul 9", "Jul 10", "Jul 11", "Jul 12", "Jul 13", "Jul 14", "Jul 15"];
-
-const FUNNEL = [
-  { label: "Chats", value: 47 },
-  { label: "Tool calls", value: 130 },
-  { label: "Tx proposed", value: 14 },
-  { label: "Tx submitted", value: 12 },
-  { label: "Tx confirmed", value: 11 },
-];
-
-const TOOL_ROWS = [
-  { tool: "get_price", calls: 52, errors: 1, errorRate: "1.9%", p95: "320 ms", last: "—" },
-  { tool: "swap_quote", calls: 34, errors: 4, errorRate: "11.8%", p95: "2100 ms", last: "slippage exceeded · 42m ago", bad: true },
-  { tool: "portfolio_overview", calls: 18, errors: 0, errorRate: "0%", p95: "890 ms", last: "—" },
-  { tool: "set_goal", calls: 14, errors: 0, errorRate: "0%", p95: "150 ms", last: "—" },
-  { tool: "rebalance_plan", calls: 12, errors: 1, errorRate: "8.3%", p95: "1400 ms", last: "insufficient balance · 3h ago" },
-];
-
-const TX_ROWS = [
-  { id: "tx-1", time: "17:48", desc: "Swap 0.25 ETH → USDC on Uniswap v3", chain: "Base", status: "confirmed", gas: "0.00041 ETH", fee: "0.20 bps" },
-  { id: "tx-2", time: "16:53", desc: "Approve USDC for Aave v3 pool", chain: "Ethereum", status: "confirmed", gas: "0.00088 ETH", fee: "—" },
-  { id: "tx-3", time: "15:23", desc: "Bridge 0.05 ETH to Arbitrum", chain: "Base", status: "reverted", gas: "0.00019 ETH", fee: "—", bad: true },
-  { id: "tx-4", time: "14:02", desc: "Add 1.2 ETH liquidity to ETH/USDC", chain: "Ethereum", status: "pending", gas: "—", fee: "—" },
-];
-
-const RELEASES = [
-  { tag: "r1dac12ad71", when: "Jul 15, 17:45", current: true, note: "SDK 3.0.2" },
-  { tag: "r0998aa77c2", when: "Jul 12, 09:12", current: false, note: "SDK 3.0.2" },
-  { tag: "r08812c9f10", when: "Jul 8, 21:30", current: false, note: "SDK 3.0.1" },
-];
-
-const LOG_ROWS = [
-  { when: "17:45", type: "deployment", text: "Activated release apps-141779906-r1dac12ad71-goal-digger" },
-  { when: "16:48", type: "tool_error", text: "swap_quote failed: slippage exceeded (12 retries in 1h)" },
-  { when: "14:10", type: "app_evicted", text: "Evicted after 45m idle (memory pressure policy)" },
-  { when: "12:33", type: "app_loaded", text: "Cold start in 1250 ms (dylib 4.5 MB, SDK 3.0.2)" },
-];
+const HOUR_LABELS = ["00:00", "06:00", "12:00", "18:00", "23:00"];
 
 function BarChart({
   series,
-  labels,
   height = 96,
 }: {
   series: Array<{ values: number[]; className: string }>;
-  labels: string[];
   height?: number;
 }) {
   const max = Math.max(...series.flatMap((s) => s.values), 1);
-  const n = labels.length;
+  const n = Math.max(...series.map((s) => s.values.length), 1);
   const band = 100 / n;
   return (
     <svg viewBox={`0 0 100 ${height}`} preserveAspectRatio="none" className="w-full" style={{ height }} aria-hidden>
@@ -125,21 +80,38 @@ function Panel({ title, right, children }: { title: string; right?: React.ReactN
   );
 }
 
-const STATUS_CHIP: Record<string, string> = {
+const STATUS_CHIP: Record<TxRecord["status"], string> = {
   confirmed: "bg-emerald-500/10 text-emerald-500 border-emerald-500/30",
-  pending: "bg-amber-500/10 text-amber-500 border-amber-500/30",
-  reverted: "bg-red-500/10 text-red-500 border-red-500/30",
+  submitted: "bg-amber-500/10 text-amber-500 border-amber-500/30",
+  failed: "bg-red-500/10 text-red-500 border-red-500/30",
+  created: "bg-surface-subtle text-dim border-border",
 };
 
+const STATUS_DOT: Record<string, string> = {
+  healthy: "bg-emerald-500",
+  not_loaded: "bg-amber-500",
+  inactive: "bg-zinc-400",
+};
+
+function clockOf(tx: TxRecord): string {
+  const clock = tx.time.split(", ")[1] ?? tx.time;
+  return clock.replace(/(\d+:\d+):\d+ (AM|PM)/, "$1 $2");
+}
+
 export function AppDetailMock({
+  app,
   onBack,
   onOpenTrace,
   onOpenTx,
 }: {
+  app: AppFixture;
   onBack: () => void;
   onOpenTrace: (tool: string) => void;
   onOpenTx: (txId: string) => void;
 }) {
+  const { meta, detail } = app;
+  const recentTx = app.transactions.slice(0, 4);
+  const recentEvents = app.logs.filter((log) => log.kind === "event").slice(0, 4);
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-6 sm:px-6 lg:px-8">
       {/* Header */}
@@ -150,13 +122,21 @@ export function AppDetailMock({
           </button>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-xl font-semibold">goal-digger</h1>
+              <h1 className="text-xl font-semibold">{meta.name}</h1>
               <span className="flex items-center gap-1.5 text-xs">
-                <span className="size-2 rounded-full bg-emerald-500" /> healthy
+                <span className={`size-2 rounded-full ${STATUS_DOT[meta.status] ?? "bg-zinc-400"}`} /> {meta.status}
               </span>
+              {meta.families.map((family) => (
+                <span
+                  key={family}
+                  className="border-border bg-surface-subtle text-dim rounded-full border px-2 py-0.5 text-[10px] uppercase"
+                >
+                  {family}
+                </span>
+              ))}
             </div>
             <div className="text-dim text-xs">
-              apps-141779906-r1dac12ad71-goal-digger · SDK 3.0.2 · aomi-labs/apps
+              {meta.releaseTag ?? "No release"} · SDK {meta.sdkVersion ?? "—"} · {meta.repo}
             </div>
           </div>
         </div>
@@ -181,15 +161,15 @@ export function AppDetailMock({
       {/* Funnel */}
       <Panel title="Conversion funnel · 24h">
         <div className="flex flex-wrap items-stretch gap-0">
-          {FUNNEL.map((stage, i) => {
-            const prev = i > 0 ? FUNNEL[i - 1].value : null;
+          {detail.funnel.map((stage, i) => {
+            const prev = i > 0 ? detail.funnel[i - 1].value : null;
             const conv = prev ? Math.round((stage.value / prev) * 100) : null;
             return (
               <div key={stage.label} className="flex items-center">
                 {i > 0 ? (
                   <div className="text-dim px-3 text-center text-xs">
                     <div>→</div>
-                    <div>{conv}%</div>
+                    <div>{prev ? `${conv}%` : "—"}</div>
                   </div>
                 ) : null}
                 <div className="border-border bg-surface-subtle min-w-28 rounded-md border px-4 py-3 text-center">
@@ -200,24 +180,18 @@ export function AppDetailMock({
             );
           })}
           <div className="text-dim ml-auto flex flex-col justify-center pl-4 text-xs">
-            <div>
-              1 reverted · <span className="text-red-500">tx failure 8.3%</span>
-            </div>
-            <div>chat→tx conversion 23%</div>
+            {detail.funnelNote.map((note) => (
+              <div key={note}>{note}</div>
+            ))}
           </div>
         </div>
       </Panel>
 
       {/* KPI tiles */}
       <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-8">
-        <Tile label="Chat errors" value="2.5%" />
-        <Tile label="Tool errors" value="12.0%" tone="bad" sub="swap_quote drives it" />
-        <Tile label="Tx failures" value="8.3%" tone="warn" />
-        <Tile label="P95 turn" value="8.4 s" />
-        <Tile label="Inflight" value="2" />
-        <Tile label="Active users" value="9" sub="24h" />
-        <Tile label="Credits" value="3.42" sub="0.073 / turn" />
-        <Tile label="Fee accrued" value="0.0021 ETH" sub="20 bps on gas" />
+        {detail.kpis.map((kpi) => (
+          <Tile key={kpi.label} label={kpi.label} value={kpi.value} sub={kpi.sub} tone={kpi.tone} />
+        ))}
       </div>
 
       {/* Charts */}
@@ -232,32 +206,38 @@ export function AppDetailMock({
           }
         >
           <BarChart
-            labels={HOURS}
             series={[
-              { values: TOOLS, className: "fill-foreground/25" },
-              { values: CHATS, className: "fill-emerald-500/80" },
+              { values: detail.toolCallsHourly, className: "fill-foreground/25" },
+              { values: detail.chatsHourly, className: "fill-emerald-500/80" },
             ]}
           />
           <div className="text-dim mt-1 flex justify-between text-[10px]">
-            <span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>23:00</span>
+            {HOUR_LABELS.map((label) => (
+              <span key={label}>{label}</span>
+            ))}
           </div>
         </Panel>
         <Panel title="P95 turn latency" right={<span className="text-dim text-xs">seconds</span>}>
-          <LineChart values={P95_S} />
+          <LineChart values={detail.p95Hourly} />
           <div className="text-dim mt-1 flex justify-between text-[10px]">
-            <span>00:00</span><span>peak 8.4 s</span><span>23:00</span>
+            <span>00:00</span>
+            <span>peak {Math.max(...detail.p95Hourly)} s</span>
+            <span>23:00</span>
           </div>
         </Panel>
         <Panel title="Credits per day" right={<span className="text-dim text-xs">7d · from usage ledger</span>}>
-          <BarChart labels={DAYS_7D} series={[{ values: CREDITS_7D, className: "fill-amber-500/70" }]} />
+          <BarChart series={[{ values: detail.creditsDaily.values, className: "fill-amber-500/70" }]} />
           <div className="text-dim mt-1 flex justify-between text-[10px]">
-            <span>{DAYS_7D[0]}</span><span>{DAYS_7D[6]} · 3.42</span>
+            <span>{detail.creditsDaily.days[0]}</span>
+            <span>
+              {detail.creditsDaily.days.at(-1)} · {detail.creditsDaily.values.at(-1)}
+            </span>
           </div>
         </Panel>
       </div>
 
       {/* Tools table → click a row to open its trace in Logs */}
-      <Panel title="Tools · 24h" right={<span className="text-dim text-xs">130 calls · 6 errors · click a row to open its trace in Logs</span>}>
+      <Panel title="Tools · 24h" right={<span className="text-dim text-xs">{detail.toolsSummary} · click a row to open its trace in Logs</span>}>
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead className="text-dim text-left text-xs uppercase">
@@ -271,7 +251,7 @@ export function AppDetailMock({
               </tr>
             </thead>
             <tbody className="divide-border divide-y">
-              {TOOL_ROWS.map((row) => (
+              {detail.tools.map((row) => (
                 <tr
                   key={row.tool}
                   onClick={() => onOpenTrace(row.tool)}
@@ -290,63 +270,56 @@ export function AppDetailMock({
         </div>
       </Panel>
 
-
       {/* Transactions + right column */}
       <div className="grid gap-2 lg:grid-cols-[1fr_340px]">
-        <Panel title="Recent transactions" right={<span className="text-dim text-xs">gas 24h 0.0042 ETH · click a row to open it in Transactions</span>}>
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead className="text-dim text-left text-xs uppercase">
-                <tr>
-                  <th className="py-1.5 pr-3">Time</th>
-                  <th className="py-1.5 pr-3">Action</th>
-                  <th className="py-1.5 pr-3">Chain</th>
-                  <th className="py-1.5 pr-3">Status</th>
-                  <th className="py-1.5 pr-3">Gas</th>
-                  <th className="py-1.5 pr-3">Fee</th>
-                  <th className="py-1.5">Explorer</th>
-                </tr>
-              </thead>
-              <tbody className="divide-border divide-y">
-                {TX_ROWS.map((row) => (
-                  <tr
-                    key={row.id}
-                    onClick={() => onOpenTx(row.id)}
-                    className="hover:bg-surface-subtle cursor-pointer"
-                  >
-                    <td className="text-dim py-2 pr-3 text-xs">{row.time}</td>
-                    <td className="max-w-64 truncate py-2 pr-3">{row.desc}</td>
-                    <td className="py-2 pr-3">{row.chain}</td>
-                    <td className="py-2 pr-3">
-                      <span className={`rounded-full border px-2 py-0.5 text-xs ${STATUS_CHIP[row.status] ?? ""}`}>{row.status}</span>
-                    </td>
-                    <td className="py-2 pr-3 font-mono text-xs">{row.gas}</td>
-                    <td className="py-2 pr-3 font-mono text-xs">{row.fee}</td>
-                    <td className="py-2">
-                      {row.status !== "pending" ? (
-                        <a href="https://basescan.org" target="_blank" rel="noreferrer" className="text-dim hover:text-foreground">
-                          <ExternalLink className="size-3.5" />
-                        </a>
-                      ) : (
-                        <span className="text-dim text-xs">—</span>
-                      )}
-                    </td>
+        <Panel
+          title="Recent transactions"
+          right={<span className="text-dim text-xs">{detail.fees24h} · click a row to open it in Transactions</span>}
+        >
+          {recentTx.length ? (
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead className="text-dim text-left text-xs uppercase">
+                  <tr>
+                    <th className="py-1.5 pr-3">Time</th>
+                    <th className="py-1.5 pr-3">Action</th>
+                    <th className="py-1.5 pr-3">Chain</th>
+                    <th className="py-1.5 pr-3">Status</th>
+                    <th className="py-1.5 pr-3">Fee</th>
+                    <th className="py-1.5">Platform fee</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-border divide-y">
+                  {recentTx.map((tx) => (
+                    <tr
+                      key={tx.id}
+                      onClick={() => onOpenTx(tx.id)}
+                      className="hover:bg-surface-subtle cursor-pointer"
+                    >
+                      <td className="text-dim py-2 pr-3 text-xs">{clockOf(tx)}</td>
+                      <td className="max-w-64 truncate py-2 pr-3">{tx.description}</td>
+                      <td className="py-2 pr-3">{tx.chain}</td>
+                      <td className="py-2 pr-3">
+                        <span className={`rounded-full border px-2 py-0.5 text-xs ${STATUS_CHIP[tx.status]}`}>{tx.status}</span>
+                      </td>
+                      <td className="py-2 pr-3 font-mono text-xs">{tx.txFee ?? "—"}</td>
+                      <td className="py-2 font-mono text-xs">{tx.platformFee ?? "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="text-dim py-6 text-center text-sm">
+              No transactions — read-only app.
+            </div>
+          )}
         </Panel>
 
         <div className="flex flex-col gap-2">
           <Panel title="Lifecycle">
             <dl className="space-y-1.5 text-sm">
-              {[
-                ["Cold start", "1250 ms"],
-                ["Dylib size", "4.5 MB"],
-                ["Loads · 24h", "3"],
-                ["Evictions · 24h", "2"],
-              ].map(([k, v]) => (
+              {detail.lifecycle.map(([k, v]) => (
                 <div key={k} className="flex justify-between">
                   <dt className="text-dim">{k}</dt>
                   <dd className="font-medium">{v}</dd>
@@ -356,7 +329,7 @@ export function AppDetailMock({
           </Panel>
           <Panel title="Releases">
             <div className="space-y-2 text-sm">
-              {RELEASES.map((release) => (
+              {detail.releases.map((release) => (
                 <div key={release.tag} className="flex items-center justify-between gap-2">
                   <span className="min-w-0 truncate font-mono text-xs">{release.tag}</span>
                   <span className="text-dim text-xs">{release.when}</span>
@@ -372,15 +345,21 @@ export function AppDetailMock({
         </div>
       </div>
 
-      {/* Logs */}
-      <Panel title="Recent events" right={<span className="text-dim text-xs">app-filtered</span>}>
+      {/* Events */}
+      <Panel title="Recent events" right={<span className="text-dim text-xs">app-filtered · full stream in Logs</span>}>
         <div className="space-y-2">
-          {LOG_ROWS.map((entry) => (
-            <div key={`${entry.when}-${entry.type}`} className="flex items-baseline justify-between gap-3 text-sm">
-              <span className="min-w-0 truncate">{entry.text}</span>
-              <span className="text-dim shrink-0 text-xs">{entry.type} · {entry.when}</span>
-            </div>
-          ))}
+          {recentEvents.length ? (
+            recentEvents.map((entry) => (
+              <div key={`${entry.at}-${entry.eventType}`} className="flex items-baseline justify-between gap-3 text-sm">
+                <span className={`min-w-0 truncate ${entry.status === "error" ? "text-red-500" : ""}`}>{entry.summary}</span>
+                <span className="text-dim shrink-0 text-xs">
+                  {entry.eventType} · {entry.at}
+                </span>
+              </div>
+            ))
+          ) : (
+            <div className="text-dim py-4 text-center text-sm">No recent events.</div>
+          )}
         </div>
       </Panel>
     </div>

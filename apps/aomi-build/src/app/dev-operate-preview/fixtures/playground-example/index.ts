@@ -1,0 +1,83 @@
+import type { AppFixture } from "../types";
+import { transactions } from "./transactions";
+import { logs } from "./logs";
+import { usage } from "./usage";
+
+// playground-example — dual-VM app (SVM + EVM). Medium activity across
+// Base, Ethereum, and Solana; one cross-family bridge tool that errors.
+
+export const playgroundExample: AppFixture = {
+  meta: {
+    name: "playground-example",
+    applicationId: 79,
+    families: ["svm", "evm"],
+    releaseTag: "apps-142228159-rb87f6980b6-playground-example",
+    sdkVersion: "3.0.2",
+    status: "healthy",
+    repo: "aomi-labs/apps",
+  },
+  card: {
+    requestsPerMinute: 0.05,
+    errorRate: 0,
+    p95LatencyMs: 4100,
+    inflightRequests: 0,
+    chats24h: 9,
+    toolCalls24h: 21,
+    transactions24h: 3,
+    chatsHourly: [0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 1, 1, 2, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0],
+    toolCallsHourly: [0, 0, 0, 0, 2, 0, 0, 0, 2, 3, 1, 2, 3, 4, 2, 0, 0, 2, 0, 0, 0, 0, 0, 0],
+    transactionsHourly: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0],
+    toolErrorRate: 0.048,
+    txErrorRate: 0,
+    coldStartMs: 1010,
+    dylibBytes: 3250585,
+  },
+  detail: {
+    funnel: [
+      { label: "Chats", value: 9 },
+      { label: "Tool calls", value: 21 },
+      { label: "Tx proposed", value: 4 },
+      { label: "Tx submitted", value: 3 },
+      { label: "Tx confirmed", value: 2 },
+    ],
+    funnelNote: ["1 awaiting confirmation", "chat→tx conversion 33%"],
+    kpis: [
+      { label: "Chat errors", value: "0.0%" },
+      { label: "Tool errors", value: "4.8%", tone: "warn", sub: "bridge_quote" },
+      { label: "Tx failures", value: "0.0%" },
+      { label: "P95 turn", value: "4.1 s" },
+      { label: "Inflight", value: "0" },
+      { label: "Active users", value: "3", sub: "24h" },
+      { label: "Credits", value: "1.02", sub: "0.113 / turn" },
+      { label: "Fee accrued", value: "0.62 USDC", sub: "10 bps on value" },
+    ],
+    chatsHourly: [0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 1, 1, 2, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0],
+    toolCallsHourly: [0, 0, 0, 0, 2, 0, 0, 0, 2, 3, 1, 2, 3, 4, 2, 0, 0, 2, 0, 0, 0, 0, 0, 0],
+    p95Hourly: [0, 0, 0, 0, 2.9, 0, 0, 0, 3.1, 3.6, 2.8, 3.3, 3.9, 4.1, 3.2, 0, 0, 3.4, 0, 0, 0, 0, 0, 0],
+    creditsDaily: {
+      days: ["Jul 9", "Jul 10", "Jul 11", "Jul 12", "Jul 13", "Jul 14", "Jul 15"],
+      values: [0.2, 0.35, 0.3, 0.44, 0.61, 0.8, 1.02],
+    },
+    tools: [
+      { tool: "get_price", calls: 8, errors: 0, errorRate: "0%", p95: "340 ms", last: "—" },
+      { tool: "swap_quote", calls: 6, errors: 0, errorRate: "0%", p95: "1900 ms", last: "—" },
+      { tool: "send_token", calls: 4, errors: 0, errorRate: "0%", p95: "1100 ms", last: "—" },
+      { tool: "bridge_quote", calls: 3, errors: 1, errorRate: "33%", p95: "2400 ms", last: "route not found · 3h ago", bad: true },
+    ],
+    toolsSummary: "21 calls · 1 error",
+    fees24h: "gas 24h 0.00037 ETH + 0.000011 SOL",
+    lifecycle: [
+      ["Cold start", "1010 ms"],
+      ["Dylib size", "3.1 MB"],
+      ["Loads · 24h", "2"],
+      ["Evictions · 24h", "1"],
+    ],
+    releases: [
+      { tag: "rb87f6980b6", when: "Jul 14, 16:03", current: true, note: "SDK 3.0.2" },
+      { tag: "r9a01cc31f2", when: "Jul 10, 12:11", current: false, note: "SDK 3.0.1" },
+    ],
+  },
+  transactions,
+  logs,
+  usage,
+};
