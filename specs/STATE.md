@@ -2,7 +2,20 @@
 
 ## Last Updated
 
-2026-07-08 — Aomi Build owned-application operate hardening + UI polish
+2026-07-16 — Bots page 404 root-caused to product-mono edge routing
+
+## Bots page `list_user_source_bots failed (404)` fix (2026-07-16)
+
+- Cause was NOT in this repo: the dev edge proxy (product-mono
+  `scripts/dev-edge-proxy.mjs`, which imports `isManagerPath` from
+  `infra/cloudflare/worker/src/index.js`) had no `bots` entry in
+  `MANAGER_ROUTE_PATTERNS`, so `/api/integrations/github-app/user/sources/:id/bots`
+  fell through to the backend (:8080) instead of the manager (:8081) → 404.
+- Fixed in product-mono (branch `feat/builder-owned-github-bots`, uncommitted):
+  added `/^\/api\/integrations\/github-app\/user\/sources\/[^/]+\/bots(\/[^/]+)?$/`
+  and restarted the dev proxy. Verified bots/agents/sources all reach the manager.
+- Pending: commit the pattern in product-mono AND redeploy the Cloudflare worker
+  before staging/prod use the bots tab, or the same 404 recurs there.
 
 ## Aomi Build owned operate + pre-prod fixes (2026-07-08)
 
