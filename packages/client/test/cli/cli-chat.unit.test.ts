@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { CliConfig } from "../../src/cli/types";
 import {
+  resolveSvmAddressForChat,
   shouldBroadcastWalletStateChange,
   syncWalletStateForChat,
 } from "../../src/cli/commands/chat";
@@ -16,6 +17,17 @@ function createConfig(overrides: Partial<CliConfig> = {}): CliConfig {
 }
 
 describe("CLI chat wallet sync", () => {
+  it("treats a base58 --public-key as SVM in an SVM cluster context", () => {
+    expect(
+      resolveSvmAddressForChat(
+        createConfig({ app: "svm", svmCluster: "solana:devnet" }),
+        "J2w7ZT5Wd4ACuQAH3dmzjWoRhaqejMRoMRL4C7Qbg5Ks",
+        undefined,
+        undefined,
+      ),
+    ).toBe("J2w7ZT5Wd4ACuQAH3dmzjWoRhaqejMRoMRL4C7Qbg5Ks");
+  });
+
   it("broadcasts wallet changes only when a private key-backed wallet changes", () => {
     const config = createConfig({ privateKey: "0xabc" });
 

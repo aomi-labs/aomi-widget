@@ -90,6 +90,7 @@ export class CliSession {
       publicKey: config.publicKey ?? seed?.publicKey,
       privateKey: seed?.privateKey,
       svmPublicKey: svmPublicKey ?? seed?.svmPublicKey,
+      svmCluster: config.svmCluster ?? seed?.svmCluster,
       // Carry forward only persisted Solana keys from `wallet set --solana`.
       // Keys supplied via --solana-private-key/env stay transient.
       svmPrivateKey: seed?.svmPrivateKey,
@@ -134,6 +135,9 @@ export class CliSession {
   }
   get svmPublicKey(): string | undefined {
     return this.state.svmPublicKey;
+  }
+  get svmCluster(): CliSessionState["svmCluster"] {
+    return this.state.svmCluster;
   }
   get chainId(): number | undefined {
     return this.state.chainId;
@@ -237,6 +241,13 @@ export class CliSession {
       } catch {
         // Ignore parse failures — signing will produce a clearer error at sign time.
       }
+    }
+    if (
+      config.svmCluster !== undefined &&
+      config.svmCluster !== this.state.svmCluster
+    ) {
+      this.state.svmCluster = config.svmCluster;
+      changed = true;
     }
     if (config.chain !== undefined && config.chain !== this.state.chainId) {
       this.state.chainId = config.chain;
@@ -515,6 +526,7 @@ export class CliSession {
         aaMode: this.state.aaMode ?? null,
         smartAccount: this.state.smartAccount ?? null,
         svmAddress: this.state.svmPublicKey,
+        svmCluster: config?.svmCluster ?? this.state.svmCluster,
       }),
     );
     return session;

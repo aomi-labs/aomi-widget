@@ -2340,15 +2340,23 @@ function hydrateTxPayloadFromUserState(payload, userState, options) {
   });
 }
 function normalizeSolanaSignPayload(payload) {
-  var _a, _b, _c, _d;
+  var _a, _b, _c, _d, _e, _f;
   const args = getToolArgs(payload);
   const unsignedTxRaw = (_a = args.unsigned_tx) != null ? _a : args.unsignedTx;
   const unsignedTx = typeof unsignedTxRaw === "string" ? unsignedTxRaw : void 0;
   const description = typeof args.description === "string" ? args.description : void 0;
   const clusterRaw = args.cluster;
   const cluster = typeof clusterRaw === "string" ? clusterRaw : void 0;
-  const pendingSolanaId = (_d = (_c = (_b = parsePendingId(args.pendingSolanaId)) != null ? _b : parsePendingId(args.pending_solana_id)) != null ? _c : parsePendingId(args.pendingSvmSigId)) != null ? _d : parsePendingId(args.pending_svm_sig_id);
-  return { unsignedTx, description, cluster, pendingSolanaId };
+  const rawPendingIds = (_b = args.svm_tx_ids) != null ? _b : args.svm_ix_ids;
+  const pendingSolanaIds = Array.isArray(rawPendingIds) ? rawPendingIds.map(parsePendingId).filter((id) => id !== void 0) : void 0;
+  const pendingSolanaId = (_f = (_e = (_d = (_c = parsePendingId(args.pendingSolanaId)) != null ? _c : parsePendingId(args.pending_solana_id)) != null ? _d : parsePendingId(args.pendingSvmSigId)) != null ? _e : parsePendingId(args.pending_svm_sig_id)) != null ? _f : pendingSolanaIds == null ? void 0 : pendingSolanaIds[0];
+  return {
+    unsignedTx,
+    description,
+    cluster,
+    pendingSolanaId,
+    pendingSolanaIds
+  };
 }
 function normalizeSolanaSignMessagePayload(payload) {
   var _a, _b, _c, _d, _e;
@@ -2362,11 +2370,11 @@ function normalizeSolanaSignMessagePayload(payload) {
   return { message, description, cluster, pendingSolanaId };
 }
 function normalizeSolanaWalletRequest(payload) {
-  var _a;
+  var _a, _b, _c;
   const root = asRecord(payload);
   const args = getToolArgs(payload);
   const solanaRequest = __spreadValues(__spreadValues({}, root != null ? root : {}), args);
-  const chainKind = (_a = parseChainKind(args.chain_kind)) != null ? _a : parseChainKind(root == null ? void 0 : root.chain_kind);
+  const chainKind = (_c = (_b = (_a = parseChainKind(args.chain_kind)) != null ? _a : parseChainKind(args.chain_family)) != null ? _b : parseChainKind(root == null ? void 0 : root.chain_kind)) != null ? _c : parseChainKind(root == null ? void 0 : root.chain_family);
   if (chainKind !== "svm") {
     return null;
   }

@@ -74,6 +74,8 @@ export type WalletSolanaSignPayload = {
   cluster?: string;
   /** Server-side correlation id for the staged sign request. */
   pendingSolanaId?: number;
+  /** All staged instruction/transaction ids resolved by this wallet request. */
+  pendingSolanaIds?: number[];
 };
 
 export type WalletSolanaSignMessagePayload = {
@@ -446,13 +448,26 @@ export function normalizeSolanaSignPayload(
   const clusterRaw = args.cluster;
   const cluster = typeof clusterRaw === "string" ? clusterRaw : undefined;
 
+  const rawPendingIds = args.svm_tx_ids ?? args.svm_ix_ids;
+  const pendingSolanaIds = Array.isArray(rawPendingIds)
+    ? rawPendingIds
+        .map(parsePendingId)
+        .filter((id): id is number => id !== undefined)
+    : undefined;
   const pendingSolanaId =
     parsePendingId(args.pendingSolanaId) ??
     parsePendingId(args.pending_solana_id) ??
     parsePendingId(args.pendingSvmSigId) ??
-    parsePendingId(args.pending_svm_sig_id);
+    parsePendingId(args.pending_svm_sig_id) ??
+    pendingSolanaIds?.[0];
 
-  return { unsignedTx, description, cluster, pendingSolanaId };
+  return {
+    unsignedTx,
+    description,
+    cluster,
+    pendingSolanaId,
+    pendingSolanaIds,
+  };
 }
 
 export function normalizeSolanaSignMessagePayload(
@@ -488,7 +503,10 @@ export function normalizeSolanaWalletRequest(
     ...args,
   };
   const chainKind =
-    parseChainKind(args.chain_kind) ?? parseChainKind(root?.chain_kind);
+    parseChainKind(args.chain_kind) ??
+    parseChainKind(args.chain_family) ??
+    parseChainKind(root?.chain_kind) ??
+    parseChainKind(root?.chain_family);
   if (chainKind !== "svm") {
     return null;
   }

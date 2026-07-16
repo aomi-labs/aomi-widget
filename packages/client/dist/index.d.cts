@@ -975,6 +975,8 @@ type WalletSolanaSignPayload = {
     cluster?: string;
     /** Server-side correlation id for the staged sign request. */
     pendingSolanaId?: number;
+    /** All staged instruction/transaction ids resolved by this wallet request. */
+    pendingSolanaIds?: number[];
 };
 type WalletSolanaSignMessagePayload = {
     /** Base64 of the raw message bytes to sign. */

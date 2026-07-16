@@ -1,4 +1,5 @@
 import { type Chain, createWalletClient, http } from "viem";
+import { Connection } from "@solana/web3.js";
 import { privateKeyToAccount } from "viem/accounts";
 import * as viemChains from "viem/chains";
 import {
@@ -239,14 +240,15 @@ async function simulatePendingTransactions(params: {
 }
 
 /**
- * Drive the Solana sign branch end-to-end:
+ * Drive the Solana wallet branch end-to-end:
  *   1. Load + parse the local Solana keypair from `--solana-private-key`
  *      (or `SOLANA_PRIVATE_KEY` env).
  *   2. Sign the base64 unsigned tx in place.
- *   3. Post `wallet::solana_sign_complete` to the backend with the signed
- *      bytes, so the agent's bound `signed_tx` artifact resolves and any
- *      `submit_*` continuation can fire.
- *   4. Persist the signed record locally for `aomi tx list`.
+ *   3. For send requests, submit and confirm the signed bytes through the
+ *      selected Solana RPC; for sign-only requests, return the signed bytes.
+ *   4. Post the corresponding terminal callback so backend pending state and
+ *      continuation routes resolve.
+ *   5. Persist the signed record locally for `aomi tx list`.
  *
  * Singular by design — host doesn't batch Solana signs. The host's
  * `domain.svm.address` is informational; this CLI path always signs with
@@ -291,7 +293,8 @@ async function signSolanaPending(params: {
     );
   }
 
-  console.log(`Kind:    solana_sign`);
+  const requestKind = pendingTx.requestKind ?? "solana_sign";
+  console.log(`Kind:    ${requestKind}`);
   console.log(`Tx:      ${pendingTx.id}`);
   if (pendingTx.cluster) console.log(`Cluster: ${pendingTx.cluster}`);
   if (pendingTx.description) console.log(`Desc:    ${pendingTx.description}`);
@@ -303,19 +306,49 @@ async function signSolanaPending(params: {
     `✅ Signed! signed_tx: ${outcome.signedTxBase64.slice(0, 24)}... (${outcome.signedTxBase64.length} chars)`,
   );
 
-  await session.client.sendSystemMessage(
-    cli.sessionId,
-    JSON.stringify({
-      type: "wallet::solana_sign_complete",
-      payload: {
-        status: "signed",
-        signed_tx: outcome.signedTxBase64,
-        description: pendingTx.description,
-        pending_solana_id: pendingTx.solanaId,
-      },
-    }),
-    { app: cli.app },
-  );
+  let signature: string | undefined;
+  if (requestKind === "solana_send" || requestKind === "solana_sign_and_send") {
+    const rpcUrl = config.chainRpcUrl ?? defaultSolanaRpcUrl(pendingTx.cluster);
+    const connection = new Connection(rpcUrl, "confirmed");
+    signature = await connection.sendRawTransaction(
+      Buffer.from(outcome.signedTxBase64, "base64"),
+      { skipPreflight: false, maxRetries: 3 },
+    );
+    const confirmation = await connection.confirmTransaction(signature, "confirmed");
+    if (confirmation.value.err) {
+      throw new Error(
+        `Solana transaction ${signature} failed: ${JSON.stringify(confirmation.value.err)}`,
+      );
+    }
+    console.log(`✅ Confirmed! signature: ${signature}`);
+    await session.client.sendSystemMessage(
+      cli.sessionId,
+      JSON.stringify({
+        type: "wallet:tx_complete",
+        payload: {
+          status: "confirmed",
+          identifier: { kind: "signature", value: signature },
+          pending_svm_tx_ids:
+            pendingTx.solanaIds?.length ? pendingTx.solanaIds : [pendingTx.solanaId],
+        },
+      }),
+      { app: cli.app },
+    );
+  } else {
+    await session.client.sendSystemMessage(
+      cli.sessionId,
+      JSON.stringify({
+        type: "wallet::solana_sign_complete",
+        payload: {
+          status: "signed",
+          signed_tx: outcome.signedTxBase64,
+          description: pendingTx.description,
+          pending_solana_id: pendingTx.solanaId,
+        },
+      }),
+      { app: cli.app },
+    );
+  }
 
   // Re-sync to drop the now-discarded pending entry on the host side.
   const syncedState = await session.syncUserState();
@@ -325,12 +358,19 @@ async function signSolanaPending(params: {
     id: pendingTx.id,
     signedTx: outcome.signedTxBase64,
     signer: outcome.signer,
+    signature,
     cluster: pendingTx.cluster,
     description: pendingTx.description,
     timestamp: Date.now(),
   });
 
   console.log("Backend notified.");
+}
+
+function defaultSolanaRpcUrl(cluster: string | undefined): string {
+  if (cluster?.includes("devnet")) return "https://api.devnet.solana.com";
+  if (cluster?.includes("testnet")) return "https://api.testnet.solana.com";
+  return "https://api.mainnet-beta.solana.com";
 }
 
 async function executeCliTransaction(params: {

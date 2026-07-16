@@ -257,12 +257,11 @@ export function pendingTxsFromBackendUserState(
  * EVM/EIP-712 state and Solana state stay in separate arrays rather than
  * a discriminated union.
  *
- * SEMANTIC GAP: the backend moved Solana from a full-tx signing model
- * (`unsigned_tx`) to an instruction-staging model (`svm_ixs` + `svm_sigs`).
- * Staged-instruction records carry no `unsigned_tx`, so the guard below filters
- * them out — they render nothing rather than being mis-mapped. Wiring the
- * instruction-staging / `svm_sigs` flow into the CLI signer needs product-level
- * rework; this only keeps legacy unsigned-tx records working.
+ * Instruction-staging records do not themselves carry `unsigned_tx`; that
+ * byte envelope arrives in the wallet event. While an authoritative staged id
+ * remains pending, preserve the matching event-derived local request. Once the
+ * backend removes the id after a terminal callback, the local request is
+ * removed on the next sync.
  *
  * Accept both the legacy `pending.solana_txs` / `pending.solana_sigs` shape
  * and the canonical `pending.svm_ixs` / `pending.svm_sigs` buckets because the
@@ -300,6 +299,13 @@ export function pendingSolTxsFromBackendUserState(
       parseOptionalString(request.unsignedTx) ??
       parseOptionalString(request.unsigned_tx);
     if (!unsignedTx) {
+      const existing = existingPendingSolTxs.find(
+        (tx) =>
+          tx.solanaId === pendingId || tx.solanaIds?.includes(pendingId) === true,
+      );
+      if (existing && !next.some((tx) => tx.id === existing.id)) {
+        next.push(existing);
+      }
       continue;
     }
 
@@ -307,10 +313,21 @@ export function pendingSolTxsFromBackendUserState(
     const description = parseOptionalString(request.description);
     const cluster = parseOptionalString(request.cluster);
     const signer = parseOptionalString(request.signer);
+    const rawRequestKind =
+      parseOptionalString(request.requestKind) ??
+      parseOptionalString(request.request_kind);
+    const requestKind =
+      rawRequestKind === "send_transaction"
+        ? "solana_send"
+        : rawRequestKind === "sign_and_send_transaction"
+          ? "solana_sign_and_send"
+          : "solana_sign";
 
     next.push({
       id,
       solanaId: pendingId,
+      solanaIds: [pendingId],
+      requestKind,
       unsignedTx,
       cluster,
       signer,

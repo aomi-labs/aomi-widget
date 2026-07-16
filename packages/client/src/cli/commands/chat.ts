@@ -24,6 +24,7 @@ import type { CliConfig } from "../types";
 import { buildCliUserState } from "../user-state";
 import type { UserStateAAMode } from "../../user-state";
 import { parseSolanaKeypairSecret } from "../solana-signer";
+import { walletRequestToPendingSolTx } from "../transactions";
 
 type WalletSnapshot = {
   publicKey?: string;
@@ -77,6 +78,28 @@ function deriveSvmAddress(
   } catch {
     return undefined;
   }
+}
+
+export function resolveSvmAddressForChat(
+  config: Pick<CliConfig, "app" | "svmCluster">,
+  publicKey: string | undefined,
+  persistedSvmAddress: string | undefined,
+  solanaPrivateKey: string | undefined,
+): string | undefined {
+  const derived = deriveSvmAddress(solanaPrivateKey);
+  if (derived || persistedSvmAddress) {
+    return derived ?? persistedSvmAddress;
+  }
+  const app = config.app?.trim().toLowerCase();
+  const isSvmContext =
+    config.svmCluster !== undefined ||
+    app === "sol" ||
+    app === "solana" ||
+    app === "svm" ||
+    app === "byreal";
+  return isSvmContext && publicKey && !publicKey.startsWith("0x")
+    ? publicKey
+    : undefined;
 }
 
 export function shouldBroadcastWalletStateChange(
@@ -192,7 +215,12 @@ export async function chatCommand(
   // key persisted by `wallet set --solana` even for `--new-session` flows
   // (the key is seeded from the previous session into the new one in create()).
   const resolvedSolanaKey = cli.resolvedSvmPrivateKey(config.solanaPrivateKey);
-  const svmAddress = deriveSvmAddress(resolvedSolanaKey) ?? cli.svmPublicKey;
+  const svmAddress = resolveSvmAddressForChat(
+    config,
+    cli.publicKey,
+    cli.svmPublicKey,
+    resolvedSolanaKey,
+  );
 
   try {
     await ensureAccountBoundThread(cli, session);
@@ -316,10 +344,15 @@ export async function chatCommand(
       console.log(`${DIM}✅ Done${RESET}`);
     }
 
-    const syncedPending = cli.syncPendingFromUserState(session.getUserState());
+    cli.syncPendingFromUserState(session.getUserState());
+    for (const request of session.getPendingRequests()) {
+      const pending = walletRequestToPendingSolTx(request);
+      if (pending) cli.addPendingSolTx(pending);
+    }
+    cli.reload();
     const newPendingTxs = [
-      ...syncedPending.pendingTxs,
-      ...syncedPending.pendingSolTxs,
+      ...cli.pendingTxs,
+      ...cli.pendingSolTxs,
     ].filter((tx) => !previousPendingIds.has(tx.id));
 
     for (const pending of newPendingTxs) {

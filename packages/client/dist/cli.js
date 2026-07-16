@@ -2670,15 +2670,23 @@ function hydrateTxPayloadFromUserState(payload, userState, options) {
   });
 }
 function normalizeSolanaSignPayload(payload) {
-  var _a3, _b, _c, _d;
+  var _a3, _b, _c, _d, _e, _f;
   const args = getToolArgs(payload);
   const unsignedTxRaw = (_a3 = args.unsigned_tx) != null ? _a3 : args.unsignedTx;
   const unsignedTx = typeof unsignedTxRaw === "string" ? unsignedTxRaw : void 0;
   const description = typeof args.description === "string" ? args.description : void 0;
   const clusterRaw = args.cluster;
   const cluster = typeof clusterRaw === "string" ? clusterRaw : void 0;
-  const pendingSolanaId = (_d = (_c = (_b = parsePendingId(args.pendingSolanaId)) != null ? _b : parsePendingId(args.pending_solana_id)) != null ? _c : parsePendingId(args.pendingSvmSigId)) != null ? _d : parsePendingId(args.pending_svm_sig_id);
-  return { unsignedTx, description, cluster, pendingSolanaId };
+  const rawPendingIds = (_b = args.svm_tx_ids) != null ? _b : args.svm_ix_ids;
+  const pendingSolanaIds = Array.isArray(rawPendingIds) ? rawPendingIds.map(parsePendingId).filter((id) => id !== void 0) : void 0;
+  const pendingSolanaId = (_f = (_e = (_d = (_c = parsePendingId(args.pendingSolanaId)) != null ? _c : parsePendingId(args.pending_solana_id)) != null ? _d : parsePendingId(args.pendingSvmSigId)) != null ? _e : parsePendingId(args.pending_svm_sig_id)) != null ? _f : pendingSolanaIds == null ? void 0 : pendingSolanaIds[0];
+  return {
+    unsignedTx,
+    description,
+    cluster,
+    pendingSolanaId,
+    pendingSolanaIds
+  };
 }
 function normalizeSolanaSignMessagePayload(payload) {
   var _a3, _b, _c, _d, _e;
@@ -2692,11 +2700,11 @@ function normalizeSolanaSignMessagePayload(payload) {
   return { message, description, cluster, pendingSolanaId };
 }
 function normalizeSolanaWalletRequest(payload) {
-  var _a3;
+  var _a3, _b, _c;
   const root2 = asRecord(payload);
   const args = getToolArgs(payload);
   const solanaRequest = __spreadValues(__spreadValues({}, root2 != null ? root2 : {}), args);
-  const chainKind = (_a3 = parseChainKind(args.chain_kind)) != null ? _a3 : parseChainKind(root2 == null ? void 0 : root2.chain_kind);
+  const chainKind = (_c = (_b = (_a3 = parseChainKind(args.chain_kind)) != null ? _a3 : parseChainKind(args.chain_family)) != null ? _b : parseChainKind(root2 == null ? void 0 : root2.chain_kind)) != null ? _c : parseChainKind(root2 == null ? void 0 : root2.chain_family);
   if (chainKind !== "svm") {
     return null;
   }
@@ -3976,7 +3984,7 @@ function pendingTxsFromBackendUserState(userState, existingPendingTxs = []) {
   return nextPendingTxs;
 }
 function pendingSolTxsFromBackendUserState(userState, existingPendingSolTxs = []) {
-  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s;
+  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t;
   const normalizedUserState = UserState.normalize(userState);
   if (!normalizedUserState) {
     return [];
@@ -3994,20 +4002,33 @@ function pendingSolTxsFromBackendUserState(userState, existingPendingSolTxs = []
     }
     const unsignedTx = (_f = parseOptionalString(request.unsignedTx)) != null ? _f : parseOptionalString(request.unsigned_tx);
     if (!unsignedTx) {
+      const existing = existingPendingSolTxs.find(
+        (tx) => {
+          var _a4;
+          return tx.solanaId === pendingId || ((_a4 = tx.solanaIds) == null ? void 0 : _a4.includes(pendingId)) === true;
+        }
+      );
+      if (existing && !next.some((tx) => tx.id === existing.id)) {
+        next.push(existing);
+      }
       continue;
     }
     const id = pendingDisplayId(pendingId);
     const description = parseOptionalString(request.description);
     const cluster = parseOptionalString(request.cluster);
     const signer = parseOptionalString(request.signer);
+    const rawRequestKind = (_g = parseOptionalString(request.requestKind)) != null ? _g : parseOptionalString(request.request_kind);
+    const requestKind = rawRequestKind === "send_transaction" ? "solana_send" : rawRequestKind === "sign_and_send_transaction" ? "solana_sign_and_send" : "solana_sign";
     next.push({
       id,
       solanaId: pendingId,
+      solanaIds: [pendingId],
+      requestKind,
       unsignedTx,
       cluster,
       signer,
       description,
-      timestamp: (_h = (_g = existingById.get(id)) == null ? void 0 : _g.timestamp) != null ? _h : fallbackNow,
+      timestamp: (_i = (_h = existingById.get(id)) == null ? void 0 : _h.timestamp) != null ? _i : fallbackNow,
       payload: {
         pending_solana_id: pendingId,
         pendingSolanaId: pendingId,
@@ -4019,14 +4040,14 @@ function pendingSolTxsFromBackendUserState(userState, existingPendingSolTxs = []
       }
     });
   }
-  const pendingSolanaSigs = (_p = (_o = (_m = (_k = asRecord2((_i = normalizedUserState.pending) == null ? void 0 : _i.solanaSigs)) != null ? _k : asRecord2((_j = normalizedUserState.pending) == null ? void 0 : _j.solana_sigs)) != null ? _m : asRecord2((_l = normalizedUserState.pending) == null ? void 0 : _l.svmSigs)) != null ? _o : asRecord2((_n = normalizedUserState.pending) == null ? void 0 : _n.svm_sigs)) != null ? _p : {};
+  const pendingSolanaSigs = (_q = (_p = (_n = (_l = asRecord2((_j = normalizedUserState.pending) == null ? void 0 : _j.solanaSigs)) != null ? _l : asRecord2((_k = normalizedUserState.pending) == null ? void 0 : _k.solana_sigs)) != null ? _n : asRecord2((_m = normalizedUserState.pending) == null ? void 0 : _m.svmSigs)) != null ? _p : asRecord2((_o = normalizedUserState.pending) == null ? void 0 : _o.svm_sigs)) != null ? _q : {};
   for (const [rawId, rawValue] of Object.entries(pendingSolanaSigs)) {
     const pendingId = parsePendingId2(rawId);
     const request = asRecord2(rawValue);
     if (!pendingId || !request) {
       continue;
     }
-    const unsignedTx = (_q = parseOptionalString(request.unsigned_tx)) != null ? _q : parseOptionalString(request.unsignedTx);
+    const unsignedTx = (_r = parseOptionalString(request.unsigned_tx)) != null ? _r : parseOptionalString(request.unsignedTx);
     if (!unsignedTx) {
       continue;
     }
@@ -4041,7 +4062,7 @@ function pendingSolTxsFromBackendUserState(userState, existingPendingSolTxs = []
       cluster,
       signer,
       description,
-      timestamp: (_s = (_r = existingById.get(id)) == null ? void 0 : _r.timestamp) != null ? _s : fallbackNow,
+      timestamp: (_t = (_s = existingById.get(id)) == null ? void 0 : _s.timestamp) != null ? _t : fallbackNow,
       payload: {
         pending_solana_id: pendingId,
         pendingSolanaId: pendingId,
@@ -4134,6 +4155,7 @@ function toCliSessionState(stored) {
     publicKey: stored.publicKey,
     privateKey: stored.privateKey,
     svmPublicKey: stored.svmPublicKey,
+    svmCluster: stored.svmCluster,
     svmPrivateKey: stored.svmPrivateKey,
     chainId: stored.chainId,
     aaProvider: stored.aaProvider,
@@ -4180,6 +4202,7 @@ function readStoredSession(path) {
       publicKey: parsed.publicKey,
       privateKey: parsed.privateKey,
       svmPublicKey: parsed.svmPublicKey,
+      svmCluster: parsed.svmCluster,
       svmPrivateKey: parsed.svmPrivateKey,
       chainId: parsed.chainId,
       aaProvider: parsed.aaProvider,
@@ -4923,7 +4946,7 @@ var init_cli_session = __esm({
       }
       /** Create a fresh session and persist it. */
       static create(config, seed) {
-        var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m;
+        var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n;
         let svmPublicKey;
         if (config.solanaPrivateKey) {
           try {
@@ -4947,12 +4970,13 @@ var init_cli_session = __esm({
           publicKey: (_j = config.publicKey) != null ? _j : seed == null ? void 0 : seed.publicKey,
           privateKey: seed == null ? void 0 : seed.privateKey,
           svmPublicKey: svmPublicKey != null ? svmPublicKey : seed == null ? void 0 : seed.svmPublicKey,
+          svmCluster: (_k = config.svmCluster) != null ? _k : seed == null ? void 0 : seed.svmCluster,
           // Carry forward only persisted Solana keys from `wallet set --solana`.
           // Keys supplied via --solana-private-key/env stay transient.
           svmPrivateKey: seed == null ? void 0 : seed.svmPrivateKey,
-          chainId: (_k = config.chain) != null ? _k : seed == null ? void 0 : seed.chainId,
-          aaProvider: (_l = config.aaProvider) != null ? _l : seed == null ? void 0 : seed.aaProvider,
-          aaMode: (_m = config.aaMode) != null ? _m : seed == null ? void 0 : seed.aaMode,
+          chainId: (_l = config.chain) != null ? _l : seed == null ? void 0 : seed.chainId,
+          aaProvider: (_m = config.aaProvider) != null ? _m : seed == null ? void 0 : seed.aaProvider,
+          aaMode: (_n = config.aaMode) != null ? _n : seed == null ? void 0 : seed.aaMode,
           secretHandles: seed == null ? void 0 : seed.secretHandles,
           auth: seed == null ? void 0 : seed.auth
         };
@@ -4989,6 +5013,9 @@ var init_cli_session = __esm({
       }
       get svmPublicKey() {
         return this.state.svmPublicKey;
+      }
+      get svmCluster() {
+        return this.state.svmCluster;
       }
       get chainId() {
         return this.state.chainId;
@@ -5077,6 +5104,10 @@ var init_cli_session = __esm({
             }
           } catch (e) {
           }
+        }
+        if (config.svmCluster !== void 0 && config.svmCluster !== this.state.svmCluster) {
+          this.state.svmCluster = config.svmCluster;
+          changed = true;
         }
         if (config.chain !== void 0 && config.chain !== this.state.chainId) {
           this.state.chainId = config.chain;
@@ -5287,7 +5318,7 @@ Available: ${available}`);
       // ---------------------------------------------------------------------------
       /** Build a ClientSession from the current state. */
       createClientSession(config, options) {
-        var _a3, _b, _c, _d;
+        var _a3, _b, _c, _d, _e;
         const paymentFetch = createCliPaymentFetch(config, options == null ? void 0 : options.onPayment);
         const session = new ClientSession(
           {
@@ -5311,7 +5342,8 @@ Available: ${available}`);
             aaProvider: (_b = (_a3 = this.state.aaProvider) != null ? _a3 : config == null ? void 0 : config.aaProvider) != null ? _b : null,
             aaMode: (_c = this.state.aaMode) != null ? _c : null,
             smartAccount: (_d = this.state.smartAccount) != null ? _d : null,
-            svmAddress: this.state.svmPublicKey
+            svmAddress: this.state.svmPublicKey,
+            svmCluster: (_e = config == null ? void 0 : config.svmCluster) != null ? _e : this.state.svmCluster
           })
         );
         return session;
@@ -5547,10 +5579,127 @@ var init_context = __esm({
   }
 });
 
+// src/cli/transactions.ts
+function walletRequestToPendingSolTx(request) {
+  if (request.kind !== "solana_sign" && request.kind !== "solana_send" && request.kind !== "solana_sign_and_send") {
+    return null;
+  }
+  const payload = request.payload;
+  if (payload.pendingSolanaId === void 0 || payload.unsignedTx === void 0) {
+    return null;
+  }
+  return {
+    solanaId: payload.pendingSolanaId,
+    solanaIds: payload.pendingSolanaIds,
+    requestKind: request.kind,
+    unsignedTx: payload.unsignedTx,
+    cluster: payload.cluster,
+    description: payload.description,
+    timestamp: request.timestamp,
+    payload: request.payload
+  };
+}
+function pendingTxToCallList(tx) {
+  if (tx.kind !== "transaction" || !tx.to) {
+    throw new Error("pending_transaction_missing_call_data");
+  }
+  return [
+    toAAWalletCall({
+      to: tx.to,
+      value: tx.value,
+      data: tx.data,
+      chainId: tx.chainId
+    })
+  ];
+}
+function toSignedTransactionRecord(tx, execution, from, chainId3, timestamp2, aaProvider, aaMode2) {
+  return {
+    id: tx.id,
+    kind: "transaction",
+    txHash: execution.txHash,
+    txHashes: execution.txHashes,
+    executionKind: execution.executionKind,
+    aaProvider,
+    aaMode: aaMode2,
+    batched: execution.batched,
+    sponsored: execution.sponsored,
+    smartAccount4337: execution.SmartAccount4337,
+    Delegation7702: execution.Delegation7702,
+    from,
+    to: tx.to,
+    value: tx.value,
+    chainId: chainId3,
+    timestamp: timestamp2
+  };
+}
+function formatTxLine(tx, prefix) {
+  var _a3;
+  const parts = [`${prefix} ${tx.id}`];
+  if (tx.kind === "transaction") {
+    parts.push(`to: ${(_a3 = tx.to) != null ? _a3 : "?"}`);
+    if (tx.value) parts.push(`value: ${tx.value}`);
+    if (tx.chainId) parts.push(`chain: ${tx.chainId}`);
+    if (tx.data) parts.push(`data: ${tx.data.slice(0, 20)}...`);
+  } else {
+    parts.push(tx.payload.non_typed_data ? "erc191" : "eip712");
+    if (tx.description) parts.push(tx.description);
+  }
+  parts.push(`(${new Date(tx.timestamp).toLocaleTimeString()})`);
+  return parts.join("  ");
+}
+function formatSignedTxLine(tx, prefix) {
+  var _a3;
+  const parts = [`${prefix} ${tx.id}`];
+  if (tx.kind === "eip712_sign") {
+    parts.push(`sig: ${(_a3 = tx.signature) == null ? void 0 : _a3.slice(0, 20)}...`);
+    if (tx.description) parts.push(tx.description);
+  } else {
+    parts.push(`hash: ${tx.txHash}`);
+    if (tx.executionKind) parts.push(`exec: ${tx.executionKind}`);
+    if (tx.aaProvider) parts.push(`provider: ${tx.aaProvider}`);
+    if (tx.aaMode) parts.push(`mode: ${tx.aaMode}`);
+    if (tx.txHashes && tx.txHashes.length > 1) {
+      parts.push(`txs: ${tx.txHashes.length}`);
+    }
+    if (tx.sponsored) parts.push("sponsored");
+    if (tx.smartAccount4337) parts.push(`4337: ${tx.smartAccount4337}`);
+    if (tx.Delegation7702) parts.push(`delegation: ${tx.Delegation7702}`);
+    if (tx.to) parts.push(`to: ${tx.to}`);
+    if (tx.value) parts.push(`value: ${tx.value}`);
+  }
+  parts.push(`(${new Date(tx.timestamp).toLocaleTimeString()})`);
+  return parts.join("  ");
+}
+function formatPendingSolTxLine(tx, prefix) {
+  const parts = [`${prefix} ${tx.id}`, "solana"];
+  if (tx.cluster) parts.push(`cluster: ${tx.cluster}`);
+  if (tx.description) parts.push(tx.description);
+  if (tx.signer) parts.push(`signer: ${tx.signer}`);
+  if (tx.unsignedTx) parts.push(`tx: ${tx.unsignedTx.slice(0, 20)}...`);
+  parts.push(`(${new Date(tx.timestamp).toLocaleTimeString()})`);
+  return parts.join("  ");
+}
+function formatSignedSolTxLine(tx, prefix) {
+  const parts = [`${prefix} ${tx.id}`, "solana"];
+  if (tx.signedTx) parts.push(`signed: ${tx.signedTx.slice(0, 20)}...`);
+  if (tx.cluster) parts.push(`cluster: ${tx.cluster}`);
+  if (tx.signer) parts.push(`signer: ${tx.signer}`);
+  if (tx.description) parts.push(tx.description);
+  parts.push(`(${new Date(tx.timestamp).toLocaleTimeString()})`);
+  return parts.join("  ");
+}
+var init_transactions = __esm({
+  "src/cli/transactions.ts"() {
+    "use strict";
+    init_wallet_utils();
+  }
+});
+
 // src/cli/commands/chat.ts
 var chat_exports = {};
 __export(chat_exports, {
   chatCommand: () => chatCommand,
+  resolveSvmAddressForChat: () => resolveSvmAddressForChat,
   shouldBroadcastWalletStateChange: () => shouldBroadcastWalletStateChange,
   syncWalletStateForChat: () => syncWalletStateForChat
 });
@@ -5586,6 +5735,16 @@ function deriveSvmAddress(solanaPrivateKey) {
   } catch (e) {
     return void 0;
   }
+}
+function resolveSvmAddressForChat(config, publicKey, persistedSvmAddress, solanaPrivateKey) {
+  var _a3;
+  const derived = deriveSvmAddress(solanaPrivateKey);
+  if (derived || persistedSvmAddress) {
+    return derived != null ? derived : persistedSvmAddress;
+  }
+  const app = (_a3 = config.app) == null ? void 0 : _a3.trim().toLowerCase();
+  const isSvmContext = config.svmCluster !== void 0 || app === "sol" || app === "solana" || app === "svm" || app === "byreal";
+  return isSvmContext && publicKey && !publicKey.startsWith("0x") ? publicKey : void 0;
 }
 function shouldBroadcastWalletStateChange(config, previous, next) {
   var _a3, _b;
@@ -5625,7 +5784,7 @@ async function syncWalletStateForChat(config, previous, next, cli, session) {
   );
 }
 async function chatCommand(config, message, verbose) {
-  var _a3, _b, _c, _d, _e, _f, _g, _h;
+  var _a3, _b, _c, _d, _e, _f, _g;
   if (!message) {
     fatal("Usage: aomi chat <message>");
   }
@@ -5644,7 +5803,12 @@ async function chatCommand(config, message, verbose) {
     onPayment: printPaymentEvent
   });
   const resolvedSolanaKey = cli.resolvedSvmPrivateKey(config.solanaPrivateKey);
-  const svmAddress3 = (_d = deriveSvmAddress(resolvedSolanaKey)) != null ? _d : cli.svmPublicKey;
+  const svmAddress3 = resolveSvmAddressForChat(
+    config,
+    cli.publicKey,
+    cli.svmPublicKey,
+    resolvedSolanaKey
+  );
   try {
     await ensureAccountBoundThread(cli, session);
     await ingestSecretsForSession(config, cli, session.client);
@@ -5655,9 +5819,9 @@ async function chatCommand(config, message, verbose) {
       {
         publicKey: cli.publicKey,
         chainId: cli.chainId,
-        aaProvider: (_f = (_e = cli.toState().aaProvider) != null ? _e : config.aaProvider) != null ? _f : null,
-        aaMode: (_g = cli.toState().aaMode) != null ? _g : null,
-        smartAccount: (_h = cli.toState().smartAccount) != null ? _h : null,
+        aaProvider: (_e = (_d = cli.toState().aaProvider) != null ? _d : config.aaProvider) != null ? _e : null,
+        aaMode: (_f = cli.toState().aaMode) != null ? _f : null,
+        smartAccount: (_g = cli.toState().smartAccount) != null ? _g : null,
         svmAddress: svmAddress3
       },
       cli,
@@ -5745,10 +5909,15 @@ async function chatCommand(config, message, verbose) {
       );
       console.log(`${DIM}\u2705 Done${RESET}`);
     }
-    const syncedPending = cli.syncPendingFromUserState(session.getUserState());
+    cli.syncPendingFromUserState(session.getUserState());
+    for (const request of session.getPendingRequests()) {
+      const pending = walletRequestToPendingSolTx(request);
+      if (pending) cli.addPendingSolTx(pending);
+    }
+    cli.reload();
     const newPendingTxs = [
-      ...syncedPending.pendingTxs,
-      ...syncedPending.pendingSolTxs
+      ...cli.pendingTxs,
+      ...cli.pendingSolTxs
     ].filter((tx) => !previousPendingIds.has(tx.id));
     for (const pending of newPendingTxs) {
       console.log(`\u26A1 Wallet request queued: ${pending.id}`);
@@ -5807,6 +5976,7 @@ var init_chat = __esm({
     init_errors();
     init_user_state2();
     init_solana_signer();
+    init_transactions();
   }
 });
 
@@ -7321,103 +7491,6 @@ var init_execution = __esm({
   }
 });
 
-// src/cli/transactions.ts
-function pendingTxToCallList(tx) {
-  if (tx.kind !== "transaction" || !tx.to) {
-    throw new Error("pending_transaction_missing_call_data");
-  }
-  return [
-    toAAWalletCall({
-      to: tx.to,
-      value: tx.value,
-      data: tx.data,
-      chainId: tx.chainId
-    })
-  ];
-}
-function toSignedTransactionRecord(tx, execution, from, chainId3, timestamp2, aaProvider, aaMode2) {
-  return {
-    id: tx.id,
-    kind: "transaction",
-    txHash: execution.txHash,
-    txHashes: execution.txHashes,
-    executionKind: execution.executionKind,
-    aaProvider,
-    aaMode: aaMode2,
-    batched: execution.batched,
-    sponsored: execution.sponsored,
-    smartAccount4337: execution.SmartAccount4337,
-    Delegation7702: execution.Delegation7702,
-    from,
-    to: tx.to,
-    value: tx.value,
-    chainId: chainId3,
-    timestamp: timestamp2
-  };
-}
-function formatTxLine(tx, prefix) {
-  var _a3;
-  const parts = [`${prefix} ${tx.id}`];
-  if (tx.kind === "transaction") {
-    parts.push(`to: ${(_a3 = tx.to) != null ? _a3 : "?"}`);
-    if (tx.value) parts.push(`value: ${tx.value}`);
-    if (tx.chainId) parts.push(`chain: ${tx.chainId}`);
-    if (tx.data) parts.push(`data: ${tx.data.slice(0, 20)}...`);
-  } else {
-    parts.push(tx.payload.non_typed_data ? "erc191" : "eip712");
-    if (tx.description) parts.push(tx.description);
-  }
-  parts.push(`(${new Date(tx.timestamp).toLocaleTimeString()})`);
-  return parts.join("  ");
-}
-function formatSignedTxLine(tx, prefix) {
-  var _a3;
-  const parts = [`${prefix} ${tx.id}`];
-  if (tx.kind === "eip712_sign") {
-    parts.push(`sig: ${(_a3 = tx.signature) == null ? void 0 : _a3.slice(0, 20)}...`);
-    if (tx.description) parts.push(tx.description);
-  } else {
-    parts.push(`hash: ${tx.txHash}`);
-    if (tx.executionKind) parts.push(`exec: ${tx.executionKind}`);
-    if (tx.aaProvider) parts.push(`provider: ${tx.aaProvider}`);
-    if (tx.aaMode) parts.push(`mode: ${tx.aaMode}`);
-    if (tx.txHashes && tx.txHashes.length > 1) {
-      parts.push(`txs: ${tx.txHashes.length}`);
-    }
-    if (tx.sponsored) parts.push("sponsored");
-    if (tx.smartAccount4337) parts.push(`4337: ${tx.smartAccount4337}`);
-    if (tx.Delegation7702) parts.push(`delegation: ${tx.Delegation7702}`);
-    if (tx.to) parts.push(`to: ${tx.to}`);
-    if (tx.value) parts.push(`value: ${tx.value}`);
-  }
-  parts.push(`(${new Date(tx.timestamp).toLocaleTimeString()})`);
-  return parts.join("  ");
-}
-function formatPendingSolTxLine(tx, prefix) {
-  const parts = [`${prefix} ${tx.id}`, "solana"];
-  if (tx.cluster) parts.push(`cluster: ${tx.cluster}`);
-  if (tx.description) parts.push(tx.description);
-  if (tx.signer) parts.push(`signer: ${tx.signer}`);
-  if (tx.unsignedTx) parts.push(`tx: ${tx.unsignedTx.slice(0, 20)}...`);
-  parts.push(`(${new Date(tx.timestamp).toLocaleTimeString()})`);
-  return parts.join("  ");
-}
-function formatSignedSolTxLine(tx, prefix) {
-  const parts = [`${prefix} ${tx.id}`, "solana"];
-  if (tx.signedTx) parts.push(`signed: ${tx.signedTx.slice(0, 20)}...`);
-  if (tx.cluster) parts.push(`cluster: ${tx.cluster}`);
-  if (tx.signer) parts.push(`signer: ${tx.signer}`);
-  if (tx.description) parts.push(tx.description);
-  parts.push(`(${new Date(tx.timestamp).toLocaleTimeString()})`);
-  return parts.join("  ");
-}
-var init_transactions = __esm({
-  "src/cli/transactions.ts"() {
-    "use strict";
-    init_wallet_utils();
-  }
-});
-
 // src/cli/tables.ts
 function truncateCell(value, maxWidth) {
   if (value.length <= maxWidth) return value;
@@ -7572,6 +7645,7 @@ __export(wallet_exports, {
   txCommand: () => txCommand
 });
 import { createWalletClient as createWalletClient2, http as http2 } from "viem";
+import { Connection } from "@solana/web3.js";
 import { privateKeyToAccount as privateKeyToAccount8 } from "viem/accounts";
 import * as viemChains from "viem/chains";
 async function txCommand(config) {
@@ -7733,7 +7807,7 @@ async function simulatePendingTransactions(params) {
   return simResponse.result;
 }
 async function signSolanaPending(params) {
-  var _a3;
+  var _a3, _b, _c, _d;
   const { cli, session, config, pendingTx } = params;
   const secret = (_a3 = cli.resolvedSvmPrivateKey(config.solanaPrivateKey)) != null ? _a3 : process.env.SOLANA_PRIVATE_KEY;
   if (!secret) {
@@ -7762,7 +7836,8 @@ async function signSolanaPending(params) {
       `\u26A0\uFE0F  Local signer ${keypair.publicKey.toBase58()} differs from expected ${pendingTx.signer}`
     );
   }
-  console.log(`Kind:    solana_sign`);
+  const requestKind = (_b = pendingTx.requestKind) != null ? _b : "solana_sign";
+  console.log(`Kind:    ${requestKind}`);
   console.log(`Tx:      ${pendingTx.id}`);
   if (pendingTx.cluster) console.log(`Cluster: ${pendingTx.cluster}`);
   if (pendingTx.description) console.log(`Desc:    ${pendingTx.description}`);
@@ -7772,30 +7847,65 @@ async function signSolanaPending(params) {
   console.log(
     `\u2705 Signed! signed_tx: ${outcome.signedTxBase64.slice(0, 24)}... (${outcome.signedTxBase64.length} chars)`
   );
-  await session.client.sendSystemMessage(
-    cli.sessionId,
-    JSON.stringify({
-      type: "wallet::solana_sign_complete",
-      payload: {
-        status: "signed",
-        signed_tx: outcome.signedTxBase64,
-        description: pendingTx.description,
-        pending_solana_id: pendingTx.solanaId
-      }
-    }),
-    { app: cli.app }
-  );
+  let signature;
+  if (requestKind === "solana_send" || requestKind === "solana_sign_and_send") {
+    const rpcUrl = (_c = config.chainRpcUrl) != null ? _c : defaultSolanaRpcUrl(pendingTx.cluster);
+    const connection = new Connection(rpcUrl, "confirmed");
+    signature = await connection.sendRawTransaction(
+      Buffer.from(outcome.signedTxBase64, "base64"),
+      { skipPreflight: false, maxRetries: 3 }
+    );
+    const confirmation = await connection.confirmTransaction(signature, "confirmed");
+    if (confirmation.value.err) {
+      throw new Error(
+        `Solana transaction ${signature} failed: ${JSON.stringify(confirmation.value.err)}`
+      );
+    }
+    console.log(`\u2705 Confirmed! signature: ${signature}`);
+    await session.client.sendSystemMessage(
+      cli.sessionId,
+      JSON.stringify({
+        type: "wallet:tx_complete",
+        payload: {
+          status: "confirmed",
+          identifier: { kind: "signature", value: signature },
+          pending_svm_tx_ids: ((_d = pendingTx.solanaIds) == null ? void 0 : _d.length) ? pendingTx.solanaIds : [pendingTx.solanaId]
+        }
+      }),
+      { app: cli.app }
+    );
+  } else {
+    await session.client.sendSystemMessage(
+      cli.sessionId,
+      JSON.stringify({
+        type: "wallet::solana_sign_complete",
+        payload: {
+          status: "signed",
+          signed_tx: outcome.signedTxBase64,
+          description: pendingTx.description,
+          pending_solana_id: pendingTx.solanaId
+        }
+      }),
+      { app: cli.app }
+    );
+  }
   const syncedState = await session.syncUserState();
   cli.syncPendingFromUserState(syncedState.user_state);
   cli.addSignedSolTx({
     id: pendingTx.id,
     signedTx: outcome.signedTxBase64,
     signer: outcome.signer,
+    signature,
     cluster: pendingTx.cluster,
     description: pendingTx.description,
     timestamp: Date.now()
   });
   console.log("Backend notified.");
+}
+function defaultSolanaRpcUrl(cluster) {
+  if (cluster == null ? void 0 : cluster.includes("devnet")) return "https://api.devnet.solana.com";
+  if (cluster == null ? void 0 : cluster.includes("testnet")) return "https://api.testnet.solana.com";
+  return "https://api.mainnet-beta.solana.com";
 }
 async function executeCliTransaction(params) {
   const {
@@ -11030,6 +11140,9 @@ var SUBCOMMAND_NAMES = /* @__PURE__ */ new Set([
   "config",
   "secret"
 ]);
+function hasRootSubcommand(rawArgs) {
+  return rawArgs.some((arg) => SUBCOMMAND_NAMES.has(arg));
+}
 var logoutDef = defineCommand11({
   meta: {
     name: "logout",
@@ -11063,8 +11176,7 @@ var root = defineCommand11({
     }
   }),
   async run({ args, rawArgs }) {
-    const firstToken = rawArgs.find((arg) => !arg.startsWith("-"));
-    if (firstToken && SUBCOMMAND_NAMES.has(firstToken)) {
+    if (hasRootSubcommand(rawArgs)) {
       return;
     }
     const { runRootCli: runRootCli2 } = await Promise.resolve().then(() => (init_repl(), repl_exports));

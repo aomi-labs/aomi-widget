@@ -67,6 +67,10 @@ export type PendingSolTx = {
   id: string;
   /** Backend-assigned id for the staged Solana sign request. */
   solanaId: number;
+  /** All staged backend ids covered by this transaction. */
+  solanaIds?: number[];
+  /** Wallet operation requested by the backend. */
+  requestKind?: "solana_sign" | "solana_send" | "solana_sign_and_send";
   /** Base64 of the unsigned Solana transaction (host never decodes). */
   unsignedTx: string;
   /** CAIP-2 cluster, e.g. "solana:mainnet" / "solana:devnet". */
@@ -88,6 +92,7 @@ export type SignedSolTx = {
   id: string;
   signedTx: string;
   signer: string;
+  signature?: string;
   cluster?: string;
   description?: string;
   timestamp: number;
@@ -124,6 +129,8 @@ export type CliSessionState = {
   privateKey?: string;
   /** Solana public key (base58), derived from the Solana keypair when provided. */
   svmPublicKey?: string;
+  /** Canonical CAIP-2 Solana cluster selected for this session. */
+  svmCluster?: "solana:mainnet" | "solana:devnet" | "solana:testnet";
   /** Solana private key (base58), persisted by `wallet set --solana`. Used as
    * the signing key fallback when `--solana-private-key` is not passed on a
    * command. Never printed in output. */
@@ -238,6 +245,7 @@ function toCliSessionState(stored: StoredSessionState): CliSessionState {
     publicKey: stored.publicKey,
     privateKey: stored.privateKey,
     svmPublicKey: stored.svmPublicKey,
+    svmCluster: stored.svmCluster,
     svmPrivateKey: stored.svmPrivateKey,
     chainId: stored.chainId,
     aaProvider: stored.aaProvider,
@@ -293,6 +301,7 @@ function readStoredSession(path: string): StoredSessionState | null {
       publicKey: parsed.publicKey,
       privateKey: parsed.privateKey,
       svmPublicKey: parsed.svmPublicKey,
+      svmCluster: parsed.svmCluster,
       svmPrivateKey: parsed.svmPrivateKey,
       chainId: parsed.chainId,
       aaProvider: parsed.aaProvider,

@@ -50,7 +50,11 @@ export function walletRequestToPendingTx(
 export function walletRequestToPendingSolTx(
   request: WalletRequest,
 ): Omit<PendingSolTx, "id"> | null {
-  if (request.kind !== "solana_sign") {
+  if (
+    request.kind !== "solana_sign" &&
+    request.kind !== "solana_send" &&
+    request.kind !== "solana_sign_and_send"
+  ) {
     return null;
   }
   const payload = request.payload as WalletSolanaSignPayload;
@@ -63,6 +67,8 @@ export function walletRequestToPendingSolTx(
 
   return {
     solanaId: payload.pendingSolanaId,
+    solanaIds: payload.pendingSolanaIds,
+    requestKind: request.kind,
     unsignedTx: payload.unsignedTx,
     cluster: payload.cluster,
     description: payload.description,
