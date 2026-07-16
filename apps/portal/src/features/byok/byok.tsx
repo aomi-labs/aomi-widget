@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from "react";
 import { useByok } from "@aomi-labs/react";
 import { Input } from "@aomi-labs/widget-lib";
 import {
+  SettingsConfirmPill,
   SettingsEmpty,
   SettingsPanel,
   SettingsPill,
@@ -29,9 +30,6 @@ export function Byok() {
   const [labelInput, setLabelInput] = useState("");
   const [saving, setSaving] = useState(false);
   const [deletingProvider, setDeletingProvider] = useState<string | null>(null);
-  const [confirmDeleteProvider, setConfirmDeleteProvider] = useState<
-    string | null
-  >(null);
   const [status, setStatus] = useState<{
     type: "success" | "error";
     text: string;
@@ -78,7 +76,6 @@ export function Byok() {
 
   const handleDelete = useCallback(
     async (provider: string) => {
-      setConfirmDeleteProvider(null);
       setDeletingProvider(provider);
       setStatus(null);
       try {
@@ -102,7 +99,7 @@ export function Byok() {
   return (
     <SettingsPanel
       title="BYOK"
-      description="Bring your own LLM provider keys. BYOK usage is recorded but does not consume Aomi credits."
+      description="Your LLM keys. Usage is logged; it does not spend Aomi credits."
     >
       {status ? (
         <SettingsStatus tone={status.type}>{status.text}</SettingsStatus>
@@ -110,7 +107,7 @@ export function Byok() {
 
       <SettingsRow
         label="Provider"
-        description="One active key per provider — saving replaces the previous value"
+        description="One key per provider. Saving replaces the old one."
       >
         <div className="flex flex-wrap justify-end gap-1.5">
           {PROVIDERS.map((provider) => (
@@ -125,7 +122,7 @@ export function Byok() {
         </div>
       </SettingsRow>
 
-      <SettingsRow label="Label" description="Optional name for this key">
+      <SettingsRow label="Label" description="Optional">
         <Input
           value={labelInput}
           onChange={(event) => setLabelInput(event.target.value)}
@@ -136,7 +133,7 @@ export function Byok() {
 
       <SettingsRow
         label="API key"
-        description="Your key, your billing — never shown again after save"
+        description="Billed by the provider. Hidden after save."
       >
         <Input
           value={byokInput}
@@ -148,10 +145,7 @@ export function Byok() {
         />
       </SettingsRow>
 
-      <SettingsRow
-        label="Save key"
-        description="Synchronized with the backend vault"
-      >
+      <SettingsRow label="Save key" description="Stored in the vault">
         <SettingsPill
           tone="primary"
           disabled={!canSave}
@@ -163,15 +157,15 @@ export function Byok() {
 
       {byokKeys.length === 0 ? (
         <SettingsEmpty
-          title="No BYOK keys saved"
-          description="Saved provider keys show up here with a masked preview."
+          title="No keys yet"
+          description="Saved keys appear here masked."
         />
       ) : (
         byokKeys.map((key) => (
           <SettingsRow
             key={key.provider}
             label={key.label?.trim() ? key.label : key.provider}
-            description="Your key, your billing — never shown again after save"
+            description="Hidden after save"
           >
             <span className="text-muted-foreground text-[12px] capitalize">
               {key.provider}
@@ -179,23 +173,13 @@ export function Byok() {
             <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 font-mono text-xs">
               {key.keyPrefix}
             </span>
-            <SettingsPill
-              tone="danger"
-              disabled={deletingProvider === key.provider}
-              onClick={() => {
-                if (confirmDeleteProvider === key.provider) {
-                  void handleDelete(key.provider);
-                } else {
-                  setConfirmDeleteProvider(key.provider);
-                }
-              }}
-            >
-              {deletingProvider === key.provider
-                ? "Removing…"
-                : confirmDeleteProvider === key.provider
-                  ? "Confirm?"
-                  : "Delete"}
-            </SettingsPill>
+            <SettingsConfirmPill
+              label="Delete"
+              confirmLabel="Confirm?"
+              busyLabel="Removing…"
+              busy={deletingProvider === key.provider}
+              onConfirm={() => void handleDelete(key.provider)}
+            />
           </SettingsRow>
         ))
       )}

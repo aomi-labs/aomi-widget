@@ -9,6 +9,7 @@ import {
 } from "@aomi-labs/react";
 import { Input } from "@aomi-labs/widget-lib";
 import {
+  SettingsConfirmPill,
   SettingsEmpty,
   SettingsPanel,
   SettingsPill,
@@ -83,8 +84,6 @@ export function Secrets() {
   const [saving, setSaving] = useState(false);
   const [removing, setRemoving] = useState<string | null>(null);
   const [clearingApp, setClearingApp] = useState<string | null>(null);
-  const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
-  const [confirmClearApp, setConfirmClearApp] = useState<string | null>(null);
   const [status, setStatus] = useState<{
     type: "success" | "error";
     text: string;
@@ -208,7 +207,6 @@ export function Secrets() {
     async (app: string, name: string) => {
       if (removing) return;
       const key = `${app}:${name}`;
-      setConfirmRemove(null);
       setRemoving(key);
       setStatus(null);
       try {
@@ -244,7 +242,6 @@ export function Secrets() {
   const handleClearApp = useCallback(
     async (app: string) => {
       if (clearingApp) return;
-      setConfirmClearApp(null);
       setClearingApp(app);
       setStatus(null);
       try {
@@ -280,11 +277,11 @@ export function Secrets() {
   return (
     <SettingsPanel
       title="Secrets"
-      description="API credentials for external services Aomi tools call on your behalf. Stored in the backend vault; tools receive them as opaque $SECRET:NAME handles."
+      description="Credentials for tools. Stored in the vault as $SECRET:NAME."
     >
       {!apiKeyState.clientId ? (
         <SettingsStatus tone="error">
-          Waiting for client id to initialize…
+          Waiting for client id…
         </SettingsStatus>
       ) : null}
 
@@ -296,8 +293,8 @@ export function Secrets() {
         label="App"
         description={
           appsWithSecrets.length === 0
-            ? "No apps declare secret slots in this session"
-            : "Choose which app the secrets belong to"
+            ? "No secret slots in this session"
+            : "App these secrets belong to"
         }
       >
         {appsWithSecrets.length > 0 ? (
@@ -337,7 +334,7 @@ export function Secrets() {
                 }
                 placeholder={
                   index[activeDescriptor.name]?.[slot.name]
-                    ? `${index[activeDescriptor.name][slot.name].valuePrefix} (set — paste to rotate)`
+                    ? `${index[activeDescriptor.name][slot.name].valuePrefix} (set; paste to rotate)`
                     : "Paste value"
                 }
                 autoComplete="off"
@@ -347,7 +344,7 @@ export function Secrets() {
           ))}
           <SettingsRow
             label="Save secrets"
-            description={`Encrypted and scoped to ${activeDescriptor.name}`}
+            description={`Scoped to ${activeDescriptor.name}`}
           >
             <SettingsPill
               tone="primary"
@@ -365,7 +362,7 @@ export function Secrets() {
       {savedApps.length === 0 ? (
         <SettingsEmpty
           title="No secrets saved"
-          description="Saved secrets show up here with a masked preview."
+          description="Saved values appear here masked."
         />
       ) : (
         savedApps.map(([app, slots]) => (
@@ -375,23 +372,13 @@ export function Secrets() {
               description="Saved secrets for this app"
               className="bg-muted/20"
             >
-              <SettingsPill
-                tone="danger"
-                disabled={clearingApp === app}
-                onClick={() => {
-                  if (confirmClearApp === app) {
-                    void handleClearApp(app);
-                  } else {
-                    setConfirmClearApp(app);
-                  }
-                }}
-              >
-                {clearingApp === app
-                  ? "Clearing…"
-                  : confirmClearApp === app
-                    ? "Confirm?"
-                    : "Remove all"}
-              </SettingsPill>
+              <SettingsConfirmPill
+                label="Remove all"
+                confirmLabel="Confirm?"
+                busyLabel="Clearing…"
+                busy={clearingApp === app}
+                onConfirm={() => void handleClearApp(app)}
+              />
             </SettingsRow>
             {Object.entries(slots)
               .sort(([a], [b]) => a.localeCompare(b))
@@ -403,23 +390,13 @@ export function Secrets() {
                     label={name}
                     description={`${entry.valuePrefix} · added ${formatTs(entry.addedAt)}`}
                   >
-                    <SettingsPill
-                      tone="danger"
-                      disabled={removing === key}
-                      onClick={() => {
-                        if (confirmRemove === key) {
-                          void handleRemove(app, name);
-                        } else {
-                          setConfirmRemove(key);
-                        }
-                      }}
-                    >
-                      {removing === key
-                        ? "Removing…"
-                        : confirmRemove === key
-                          ? "Confirm?"
-                          : "Remove"}
-                    </SettingsPill>
+                    <SettingsConfirmPill
+                      label="Remove"
+                      confirmLabel="Confirm?"
+                      busyLabel="Removing…"
+                      busy={removing === key}
+                      onConfirm={() => void handleRemove(app, name)}
+                    />
                   </SettingsRow>
                 );
               })}

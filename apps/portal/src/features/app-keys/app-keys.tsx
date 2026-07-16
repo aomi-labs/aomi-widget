@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Input } from "@aomi-labs/widget-lib";
 import { settingsApiFetch } from "@portal/lib/settings-api";
 import {
+  SettingsConfirmPill,
   SettingsEmpty,
   SettingsPanel,
   SettingsPill,
@@ -62,9 +63,6 @@ export function AppKeys() {
   const [loadingApps, setLoadingApps] = useState(false);
   const [creating, setCreating] = useState(false);
   const [deletingHash, setDeletingHash] = useState<string | null>(null);
-  const [confirmDeleteHash, setConfirmDeleteHash] = useState<string | null>(
-    null,
-  );
   const [labelInput, setLabelInput] = useState("");
   const [manualKeyInput, setManualKeyInput] = useState("");
   const [selectedApps, setSelectedApps] = useState<string[]>([]);
@@ -189,7 +187,6 @@ export function AppKeys() {
     async (key: OwnedAppKey) => {
       if (deletingHash) return;
 
-      setConfirmDeleteHash(null);
       setDeletingHash(key.key_hash);
       setStatus(null);
       try {
@@ -216,16 +213,13 @@ export function AppKeys() {
   return (
     <SettingsPanel
       title="App keys"
-      description="Programmatic access keys for Aomi. Send as AOMI-APP-KEY to call /api/thread/chat from your own services. New keys are shown only once."
+      description="API keys for your services. Send as AOMI-APP-KEY. Shown once."
     >
       {status ? (
         <SettingsStatus tone={status.type}>{status.text}</SettingsStatus>
       ) : null}
 
-      <SettingsRow
-        label="Label"
-        description="Optional name to recognize this key later"
-      >
+      <SettingsRow label="Label" description="Optional">
         <Input
           type="text"
           value={labelInput}
@@ -235,10 +229,7 @@ export function AppKeys() {
         />
       </SettingsRow>
 
-      <SettingsRow
-        label="Key value"
-        description="Leave blank to auto-generate a secure key"
-      >
+      <SettingsRow label="Key value" description="Blank = auto-generate">
         <Input
           type="password"
           value={manualKeyInput}
@@ -253,9 +244,9 @@ export function AppKeys() {
         label="Apps"
         description={
           loadingApps
-            ? "Loading apps…"
+            ? "Loading…"
             : availableApps.length === 0
-              ? "No apps available for this session"
+              ? "No apps in this session"
               : "Apps this key can access"
         }
       >
@@ -279,7 +270,7 @@ export function AppKeys() {
         description={
           selectedApps.length > 0
             ? `Scoped to ${selectedApps.join(", ")}`
-            : "Select at least one app first"
+            : "Pick at least one app"
         }
       >
         <SettingsPill
@@ -296,7 +287,7 @@ export function AppKeys() {
       {createdAppKey ? (
         <SettingsStatus tone="success">
           <p className="font-medium">
-            New app key — copy it now, it won&apos;t be shown again.
+            New app key. Copy it now; it will not be shown again.
           </p>
           <p className="mt-1 break-all font-mono">{createdAppKey}</p>
           <div className="mt-2 flex gap-2">
@@ -319,7 +310,7 @@ export function AppKeys() {
       {!loadingKeys && appKeys.length === 0 ? (
         <SettingsEmpty
           title="No app keys yet"
-          description="Create a key above to call the API from your own services."
+          description="Create a key above to call the API."
         />
       ) : null}
 
@@ -345,23 +336,13 @@ export function AppKeys() {
                 {formatTs(key.last_used_at)}
               </td>
               <td className="px-3 py-2.5 text-right">
-                <SettingsPill
-                  tone="danger"
-                  disabled={deletingHash === key.key_hash}
-                  onClick={() => {
-                    if (confirmDeleteHash === key.key_hash) {
-                      void handleRemove(key);
-                    } else {
-                      setConfirmDeleteHash(key.key_hash);
-                    }
-                  }}
-                >
-                  {deletingHash === key.key_hash
-                    ? "Removing…"
-                    : confirmDeleteHash === key.key_hash
-                      ? "Confirm?"
-                      : "Remove"}
-                </SettingsPill>
+                <SettingsConfirmPill
+                  label="Remove"
+                  confirmLabel="Confirm?"
+                  busyLabel="Removing…"
+                  busy={deletingHash === key.key_hash}
+                  onConfirm={() => void handleRemove(key)}
+                />
               </td>
             </tr>
           ))}

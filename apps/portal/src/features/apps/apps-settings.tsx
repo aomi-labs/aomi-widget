@@ -84,7 +84,7 @@ export function AppsSettings() {
   return (
     <SettingsPanel
       title="Usage"
-      description="Credits and tokens across apps for a date range."
+      description="Credits and tokens by app and date range."
     >
       <SettingsRow label="From" description="UTC start date">
         <Input
@@ -117,7 +117,7 @@ export function AppsSettings() {
 
       {!loading && error ? (
         <SettingsPromoCard
-          title="Couldn't load usage"
+          title="Could not load usage"
           description={error}
           action={
             <SettingsPill onClick={() => void fetchOverview()}>
@@ -177,7 +177,7 @@ export function AppsSettings() {
           ) : (
             <SettingsEmpty
               title="No usage in this range"
-              description="Try a wider date range or send a few chat messages first."
+              description="Widen the range or send a few messages first."
             />
           )}
         </>

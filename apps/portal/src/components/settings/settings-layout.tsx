@@ -1,7 +1,7 @@
 "use client";
 
 import { X } from "lucide-react";
-import { useAomiAuthAdapter } from "@aomi-labs/widget-lib";
+import { useAomiAuthAdapter, useAomiWalletKit } from "@aomi-labs/widget-lib";
 import { ErrorBoundary } from "@portal/components/shell/error-boundary";
 import { GeneralSettings } from "@portal/features/general";
 import { AppsSettings } from "@portal/features/apps";
@@ -17,18 +17,66 @@ import { useSettingsController } from "./settings-controller";
 import {
   SettingsPanel,
   SettingsPill,
+  SettingsPreviewBadge,
   SettingsPromoCard,
   SettingsSkeletonRows,
 } from "./settings-primitives";
 import { SettingsRail } from "./settings-rail";
 import type { SettingsCategory } from "./settings-types";
 
+/** Tabs that still need a ready account session. General always renders. */
 const ACCOUNT_SCOPED_TABS: ReadonlySet<SettingsCategory> = new Set([
-  "general",
   "apps",
   "app-keys",
   "bots",
 ]);
+
+function shortenAddress(address?: string | null): string {
+  if (!address) return "Not connected";
+  if (address.length < 12) return address;
+  return `${address.slice(0, 6)}…${address.slice(-4)}`;
+}
+
+function SettingsAccountHeader() {
+  const adapter = useAomiWalletKit();
+  const identity = adapter.identity;
+  const connected = identity.isConnected;
+  const label = connected
+    ? shortenAddress(identity.address)
+    : "Not connected";
+
+  return (
+    <div className="bg-muted/50 mx-2 mb-1 rounded-xl px-2.5 py-2.5">
+      <div className="flex items-center gap-2.5">
+        <div
+          className="bg-foreground/15 text-foreground flex size-8 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold tracking-wide"
+          aria-hidden
+        >
+          {connected && identity.address
+            ? identity.address.slice(2, 4).toUpperCase()
+            : "?"}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-foreground truncate text-[12.5px] font-medium">
+            {label}
+          </p>
+          <p className="text-muted-foreground truncate text-[11px]">
+            {connected ? "Connected · Free" : "Not connected"}
+          </p>
+        </div>
+      </div>
+      {!connected && adapter.canConnect ? (
+        <SettingsPill
+          tone="primary"
+          className="mt-2 w-full"
+          onClick={() => void adapter.connect()}
+        >
+          Connect
+        </SettingsPill>
+      ) : null}
+    </div>
+  );
+}
 
 function SessionGate({
   status,
@@ -41,7 +89,11 @@ function SessionGate({
 }) {
   if (status === "establishing") {
     return (
-      <SettingsPanel title="Connecting">
+      <SettingsPanel
+        title="Account"
+        description="Connecting…"
+        badge={<SettingsPreviewBadge />}
+      >
         <SettingsSkeletonRows count={4} />
       </SettingsPanel>
     );
@@ -49,10 +101,14 @@ function SessionGate({
 
   if (status === "error") {
     return (
-      <SettingsPanel title="Account">
+      <SettingsPanel
+        title="Account"
+        description="Could not load this tab."
+        badge={<SettingsPreviewBadge />}
+      >
         <SettingsPromoCard
-          title="Couldn't connect your account"
-          description="Retry the session, then reopen settings if this persists."
+          title="Account offline"
+          description="Retry, or use General meanwhile."
           action={
             <SettingsPill type="button" onClick={onRetry}>
               Retry
@@ -64,10 +120,14 @@ function SessionGate({
   }
 
   return (
-    <SettingsPanel title="Account">
+    <SettingsPanel
+      title="Account"
+      description="Connect to open this tab."
+      badge={<SettingsPreviewBadge />}
+    >
       <SettingsPromoCard
-        title="Connect your account"
-        description="Settings are tied to your account. Connect to view identity, usage, keys, and bots."
+        title="Not connected"
+        description="Usage, keys, and bots need a connected account."
         action={
           onConnect ? (
             <SettingsPill type="button" tone="primary" onClick={onConnect}>
@@ -105,8 +165,8 @@ export function SettingsLayout({ onClose }: { onClose?: () => void }) {
   const adapter = useAomiAuthAdapter();
 
   return (
-    <div className="bg-background border-border flex h-full min-h-0 w-full flex-col overflow-hidden rounded-t-2xl border shadow-2xl sm:flex-row sm:rounded-2xl">
-      <aside className="border-border bg-muted/20 flex shrink-0 flex-col border-b sm:w-[168px] sm:border-r sm:border-b-0">
+    <div className="bg-background text-foreground border-border/70 flex h-full min-h-0 w-full flex-col overflow-hidden rounded-t-2xl border shadow-2xl sm:flex-row sm:rounded-2xl">
+      <aside className="border-border/60 bg-muted/20 flex shrink-0 flex-col border-b sm:w-[176px] sm:border-r sm:border-b-0">
         <div className="flex items-center justify-between gap-2 px-2 pt-2 sm:justify-start">
           {onClose ? (
             <button
@@ -120,10 +180,20 @@ export function SettingsLayout({ onClose }: { onClose?: () => void }) {
           ) : (
             <span className="size-8" />
           )}
-          <p className="text-foreground pr-2 text-[13px] font-medium sm:hidden">
-            Settings
-          </p>
+          <div className="flex items-center gap-2 pr-1 sm:hidden">
+            <p className="text-foreground text-[13px] font-medium">Settings</p>
+            <SettingsPreviewBadge />
+          </div>
           <span className="size-8 sm:hidden" />
+        </div>
+        <div className="hidden px-1 pt-1 sm:block">
+          <div className="mb-2 flex items-center justify-between px-2">
+            <p className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">
+              Settings
+            </p>
+            <SettingsPreviewBadge />
+          </div>
+          <SettingsAccountHeader />
         </div>
         <div className="min-h-0 overflow-x-auto overflow-y-hidden sm:overflow-x-hidden sm:overflow-y-auto">
           <SettingsRail

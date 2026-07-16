@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -59,23 +60,38 @@ export function SettingsControllerProvider({
   const [category, setCategoryState] = useState<SettingsCategory>(
     queryCategory ?? "general",
   );
+  const pendingCategoryRef = useRef<SettingsCategory | null>(null);
 
+  // Hydrate from URL only when it changes and we're not mid local navigation.
   useEffect(() => {
-    if (queryCategory) {
-      setOpen(true);
-      setCategoryState(queryCategory);
+    if (!queryCategory) {
+      setOpen(false);
+      pendingCategoryRef.current = null;
       return;
     }
-    setOpen(false);
+    setOpen(true);
+    if (pendingCategoryRef.current === queryCategory) {
+      pendingCategoryRef.current = null;
+      return;
+    }
+    if (pendingCategoryRef.current) {
+      // Local click is ahead of the URL; wait for replace to catch up.
+      return;
+    }
+    setCategoryState(queryCategory);
   }, [queryCategory]);
 
   const syncUrl = useCallback(
     (nextOpen: boolean, nextCategory: SettingsCategory) => {
       if (pathname !== "/" && pathname !== "/settings") return;
-      const href = writeSettingsQuery(pathname === "/settings" ? "/" : pathname, searchParams, {
-        open: nextOpen,
-        category: nextCategory,
-      });
+      const href = writeSettingsQuery(
+        pathname === "/settings" ? "/" : pathname,
+        searchParams,
+        {
+          open: nextOpen,
+          category: nextCategory,
+        },
+      );
       router.replace(href, { scroll: false });
     },
     [pathname, router, searchParams],
@@ -83,6 +99,7 @@ export function SettingsControllerProvider({
 
   const openSettings = useCallback(
     (nextCategory: SettingsCategory = "general") => {
+      pendingCategoryRef.current = nextCategory;
       setCategoryState(nextCategory);
       setOpen(true);
       syncUrl(true, nextCategory);
@@ -91,12 +108,14 @@ export function SettingsControllerProvider({
   );
 
   const closeSettings = useCallback(() => {
+    pendingCategoryRef.current = null;
     setOpen(false);
     syncUrl(false, category);
   }, [category, syncUrl]);
 
   const setCategory = useCallback(
     (nextCategory: SettingsCategory) => {
+      pendingCategoryRef.current = nextCategory;
       setCategoryState(nextCategory);
       if (open) syncUrl(true, nextCategory);
     },

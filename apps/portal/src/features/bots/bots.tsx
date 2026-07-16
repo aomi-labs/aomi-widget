@@ -197,7 +197,7 @@ export function Bots() {
   return (
     <SettingsPanel
       title="Bots"
-      description="Register Telegram bots that use your Aomi backend. Credentials are encrypted and never shown after registration."
+      description="Telegram bots on your Aomi backend. Token is encrypted and not shown again."
     >
       {status ? (
         <SettingsStatus tone={status.type}>{status.text}</SettingsStatus>
@@ -209,10 +209,7 @@ export function Bots() {
         </SettingsStatus>
       ) : null}
 
-      <SettingsRow
-        label="Label"
-        description="Optional name for this bot registration"
-      >
+      <SettingsRow label="Label" description="Optional">
         <Input
           type="text"
           value={labelInput}
@@ -225,7 +222,7 @@ export function Bots() {
 
       <SettingsRow
         label="Bot token"
-        description="From BotFather — verified with Telegram, webhook activated automatically"
+        description="From BotFather. Verified and webhooked on register."
       >
         <Input
           type="password"
@@ -242,10 +239,10 @@ export function Bots() {
         label="Default app"
         description={
           loadingApps
-            ? "Loading apps…"
+            ? "Loading…"
             : availableApps.length === 0
-              ? "No apps available for this account"
-              : "App the bot uses by default"
+              ? "No apps on this account"
+              : "Default app for the bot"
         }
       >
         {availableApps.length > 0 ? (
@@ -259,7 +256,7 @@ export function Bots() {
 
       <SettingsRow
         label="Thread mode"
-        description="Single keeps the bot simple; multiple lets users switch threads with session commands"
+        description="Single thread, or multiple with session commands"
       >
         <SettingsSelect
           value={threadMode}
@@ -273,7 +270,7 @@ export function Bots() {
 
       <SettingsRow
         label="Register bot"
-        description="People who message the bot keep their own Aomi identity, wallets, and threads"
+        description="Users keep their own Aomi identity"
       >
         <SettingsPill
           tone="primary"
@@ -288,7 +285,7 @@ export function Bots() {
 
       <details className="border-border/50 group border-b px-3 py-3.5">
         <summary className="text-foreground cursor-pointer list-none text-[13.5px] font-medium leading-5">
-          How to set up BotFather commands (optional)
+          How to set BotFather commands
           <span className="text-muted-foreground ml-2 text-[12px] group-open:hidden">
             Show
           </span>
@@ -297,9 +294,8 @@ export function Bots() {
           </span>
         </summary>
         <p className="text-muted-foreground mt-2 text-[12.5px] leading-4">
-          The bot works without commands, but pasting this list into
-          BotFather&apos;s /setcommands makes the supported slash commands
-          visible in Telegram.
+          Optional. Paste into BotFather /setcommands to show slash commands in
+          Telegram.
         </p>
         <pre className="text-foreground border-border bg-muted/40 mt-2 overflow-x-auto rounded-xl border p-3 font-mono text-xs leading-6">
           {BOTFATHER_COMMANDS}
@@ -310,8 +306,8 @@ export function Bots() {
 
       {!loading && bots.length === 0 ? (
         <SettingsEmpty
-          title="No bots registered yet"
-          description="Paste a BotFather token above to register your first bot."
+          title="No bots yet"
+          description="Paste a BotFather token above to register one."
         />
       ) : null}
 

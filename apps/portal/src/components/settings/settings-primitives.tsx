@@ -1,30 +1,43 @@
 "use client";
 
 import { cn } from "@portal/lib/utils";
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ButtonHTMLAttributes,
+  type ReactNode,
+} from "react";
 
 export function SettingsPanel({
   title,
   description,
   children,
   className,
+  badge,
 }: {
   title: string;
   description?: string;
   children: ReactNode;
   className?: string;
+  badge?: ReactNode;
 }) {
   return (
     <div className={cn("flex min-h-0 flex-col", className)}>
-      <div className="border-border/60 shrink-0 border-b px-5 py-4">
-        <h2 className="text-foreground text-[17px] font-semibold tracking-tight">
-          {title}
-        </h2>
-        {description ? (
-          <p className="text-muted-foreground mt-1 text-[13px] leading-5">
-            {description}
-          </p>
-        ) : null}
+      <div className="border-border/50 shrink-0 border-b px-5 py-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="text-foreground text-[17px] font-semibold tracking-tight">
+              {title}
+            </h2>
+            {description ? (
+              <p className="text-muted-foreground mt-1 text-[13px] leading-5">
+                {description}
+              </p>
+            ) : null}
+          </div>
+          {badge}
+        </div>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-2 py-1 sm:px-3">
         {children}
@@ -47,7 +60,7 @@ export function SettingsRow({
   return (
     <div
       className={cn(
-        "border-border/50 flex items-center justify-between gap-4 border-b px-3 py-3.5 last:border-b-0",
+        "border-border/40 flex items-center justify-between gap-4 border-b px-3 py-3.5 last:border-b-0",
         className,
       )}
     >
@@ -82,7 +95,7 @@ export function SettingsPromoCard({
   return (
     <div
       className={cn(
-        "border-border bg-muted/40 mx-3 my-3 flex items-start justify-between gap-3 rounded-xl border px-3.5 py-3",
+        "bg-muted/50 mx-3 my-3 flex items-start justify-between gap-3 rounded-xl px-3.5 py-3",
         className,
       )}
     >
@@ -113,7 +126,7 @@ export function SettingsPill({
         tone === "default" &&
           "border-border text-foreground hover:bg-accent/60 bg-transparent",
         tone === "primary" &&
-          "border-foreground/20 bg-foreground text-background hover:opacity-90",
+          "border-transparent bg-foreground text-background hover:opacity-90",
         tone === "danger" &&
           "border-destructive/40 text-destructive hover:bg-destructive/10",
         className,
@@ -122,6 +135,56 @@ export function SettingsPill({
     >
       {children}
     </button>
+  );
+}
+
+/** Two-click destructive action: first click arms, second confirms; auto-cancels. */
+export function SettingsConfirmPill({
+  label,
+  confirmLabel = "Confirm?",
+  busyLabel,
+  busy = false,
+  onConfirm,
+  className,
+}: {
+  label: string;
+  confirmLabel?: string;
+  busyLabel?: string;
+  busy?: boolean;
+  onConfirm: () => void | Promise<void>;
+  className?: string;
+}) {
+  const [armed, setArmed] = useState(false);
+  const timerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!armed) return;
+    timerRef.current = window.setTimeout(() => setArmed(false), 4000);
+    return () => {
+      if (timerRef.current) window.clearTimeout(timerRef.current);
+    };
+  }, [armed]);
+
+  return (
+    <SettingsPill
+      tone="danger"
+      disabled={busy}
+      className={cn(armed && "bg-destructive/15 ring-destructive/40 ring-1", className)}
+      onClick={() => {
+        if (busy) return;
+        if (armed) {
+          setArmed(false);
+          void onConfirm();
+          return;
+        }
+        setArmed(true);
+      }}
+      onBlur={() => {
+        // Keep armed briefly so users can still confirm; timeout clears it.
+      }}
+    >
+      {busy ? (busyLabel ?? "Working…") : armed ? confirmLabel : label}
+    </SettingsPill>
   );
 }
 
@@ -141,7 +204,7 @@ export function SettingsSelect({
       value={value}
       onChange={(e) => onChange(e.target.value)}
       className={cn(
-        "border-border bg-background text-foreground hover:bg-accent/40 h-8 rounded-full border px-3 text-[12.5px] outline-none",
+        "border-border bg-background text-foreground hover:bg-accent/50 h-8 rounded-full border px-3 text-[12.5px] outline-none",
         className,
       )}
     >
@@ -220,7 +283,7 @@ export function SettingsTable({
   children: ReactNode;
 }) {
   return (
-    <div className="mx-3 my-3 overflow-x-auto rounded-xl border border-border/60">
+    <div className="border-border/60 mx-3 my-3 overflow-x-auto rounded-xl border">
       <table className="min-w-full text-left text-[12.5px]">
         <thead>
           <tr className="border-border/60 text-muted-foreground border-b">
@@ -234,5 +297,16 @@ export function SettingsTable({
         <tbody>{children}</tbody>
       </table>
     </div>
+  );
+}
+
+export function SettingsPreviewBadge() {
+  return (
+    <span
+      title="Settings revamp preview"
+      className="bg-muted text-muted-foreground shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase"
+    >
+      Preview
+    </span>
   );
 }

@@ -39,7 +39,7 @@ function RailGroup({
   onCategoryChange: (category: SettingsCategory) => void;
 }) {
   return (
-    <div className="space-y-1">
+    <div className="space-y-0.5">
       <p className="text-muted-foreground px-2.5 pb-1 text-[10px] font-medium tracking-wide uppercase">
         {label}
       </p>
@@ -50,15 +50,22 @@ function RailGroup({
           <button
             key={item.id}
             type="button"
+            aria-current={active ? "page" : undefined}
             onClick={() => onCategoryChange(item.id)}
             className={cn(
-              "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] transition-colors",
+              "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] transition-colors outline-none",
+              "focus-visible:ring-ring focus-visible:ring-1 focus-visible:ring-offset-0",
               active
                 ? "bg-accent text-foreground font-medium"
-                : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+                : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
             )}
           >
-            <Icon className="size-3.5 shrink-0 opacity-80" />
+            <Icon
+              className={cn(
+                "size-3.5 shrink-0",
+                active ? "opacity-100" : "opacity-70",
+              )}
+            />
             <span>{item.label}</span>
           </button>
         );
@@ -81,7 +88,6 @@ export function SettingsRail({
 
   return (
     <>
-      {/* Mobile: horizontal chips */}
       {orientation === "responsive" ? (
         <nav className="flex gap-1.5 overflow-x-auto px-2 pb-2 sm:hidden">
           {ALL_ITEMS.map((item) => {
@@ -91,12 +97,14 @@ export function SettingsRail({
               <button
                 key={item.id}
                 type="button"
+                aria-current={active ? "page" : undefined}
                 onClick={() => onCategoryChange(item.id)}
                 className={cn(
-                  "inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[12px] transition-colors",
+                  "inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[12px] transition-colors outline-none",
+                  "focus-visible:ring-ring focus-visible:ring-1",
                   active
-                    ? "bg-accent text-foreground font-medium"
-                    : "text-muted-foreground hover:bg-accent/50",
+                    ? "bg-foreground text-background font-medium"
+                    : "bg-muted text-muted-foreground hover:bg-accent hover:text-foreground",
                 )}
               >
                 <Icon className="size-3 opacity-80" />
@@ -107,7 +115,6 @@ export function SettingsRail({
         </nav>
       ) : null}
 
-      {/* Desktop (and vertical-only): stacked groups */}
       <nav
         className={cn(
           "flex h-full flex-col gap-5 overflow-y-auto px-2 py-3",

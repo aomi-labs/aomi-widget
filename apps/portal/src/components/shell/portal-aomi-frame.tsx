@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Settings } from "lucide-react";
+import { PortalAccountMenu } from "@portal/components/shell/portal-account-menu";
 import { AomiFrame, useAomiWalletKit } from "@aomi-labs/widget-lib";
 import {
   type AomiClientOptions,
@@ -416,14 +417,17 @@ export function PortalAomiFrame() {
           locked={Boolean(lockedApp)}
         />
         <AomiFrame.Header>
-          <button
-            type="button"
-            onClick={() => openSettings("general")}
-            className="text-muted-foreground hover:bg-accent hover:text-foreground inline-flex items-center justify-center rounded-full p-2 transition-colors"
-            aria-label="Open settings"
-          >
-            <Settings className="size-4" />
-          </button>
+          <div className="flex items-center gap-0.5">
+            <button
+              type="button"
+              onClick={() => openSettings("general")}
+              className="text-muted-foreground hover:bg-accent hover:text-foreground inline-flex items-center justify-center rounded-full p-2 transition-colors"
+              aria-label="Open settings"
+            >
+              <Settings className="size-4" />
+            </button>
+            <PortalAccountMenu />
+          </div>
         </AomiFrame.Header>
         <AomiFrame.Composer
           withControl
