@@ -9,6 +9,7 @@ import {
   activateLaunchRoute,
   launchAppRoute,
   launchDeployRoute,
+  launchSdkStatusRoute,
   launchStatusRoute,
   redeployLaunchRoute,
   requiredSecretsRoute,
@@ -485,6 +486,37 @@ describe("launchDeployRoute", () => {
 
     const res = await POST(req);
     expect(res.status).toBe(502);
+  });
+});
+
+describe("launchSdkStatusRoute", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+
+  it("prints the configured backend URL in the local SDK repair command", async () => {
+    vi.stubEnv("BACKEND_URL", "");
+    vi.stubEnv("NEXT_PUBLIC_BACKEND_URL", "https://api.example.test/");
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      Response.json({ server_tags: ["staging"], sdk_version: "3.0.2" }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await launchSdkStatusRoute(
+      new Request("https://build.example.test/api/bff/launch/sdk-status"),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.sdkStatus.fixCommand).toBe(
+      "aomi-build sdk fix --backend https://api.example.test",
+    );
+    expect(body.sdkStatus.fixCommand).not.toContain("build.example.test");
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(String(fetchMock.mock.calls[0][0])).toBe(
+      "https://api.example.test/api/platforms/server-tags",
+    );
   });
 });
 

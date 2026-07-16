@@ -3,6 +3,8 @@
 ## Last Updated
 
 2026-07-16 — Environment tab: unified Variables list (declared slots + configured, `*` = required);
+2026-07-16 — PR #358 (+): env-aware default chat host (prod → chat.aomi.dev,
+  preview/dev → chat-staging.aomi.dev; NEXT_PUBLIC_CHAT_URL still overrides);
 2026-07-14 — Account menu: Docs (aomi.dev/docs) + Home page links (Vercel-style);
 2026-07-14 — Build P2 deep-link polish (⌘K / Billing / Overview → right tab);
 2026-07-14 — Create stack #343–#349 merged to main (left #340);
