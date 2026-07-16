@@ -5,16 +5,14 @@ import { Input } from "@aomi-labs/widget-lib";
 import { settingsApiFetch } from "@portal/lib/settings-api";
 import { defaultUsageDateRange } from "@portal/lib/usage-range";
 import {
-  settingsBodyTextClass,
-  settingsCardStackClass,
-  settingsCardTitleClass,
-  settingsInputClass,
-  settingsLabelClass,
-  settingsPageClass,
-  settingsSubTitleClass,
-  settingsTableCardClass,
-  settingsTitleClass,
-} from "@portal/lib/settings-styles";
+  SettingsEmpty,
+  SettingsPanel,
+  SettingsPromoCard,
+  SettingsPill,
+  SettingsRow,
+  SettingsSkeletonRows,
+  SettingsTable,
+} from "@portal/components/settings/settings-primitives";
 
 type AppRow = {
   app: string;
@@ -27,12 +25,6 @@ type AppRow = {
 };
 
 type AppOverview = {
-  user: {
-    user_id: string;
-    public_key: string;
-    tier: string;
-    verified_email?: string | null;
-  };
   period_utc_from: string;
   period_utc_to: string;
   overall: {
@@ -51,12 +43,10 @@ function formatNumber(n?: number): string {
 
 export function AppsSettings() {
   const [overview, setOverview] = useState<AppOverview | null>(null);
-  const [fromDate, setFromDate] = useState<string>(
+  const [fromDate, setFromDate] = useState(
     () => defaultUsageDateRange().fromDate,
   );
-  const [toDate, setToDate] = useState<string>(
-    () => defaultUsageDateRange().toDate,
-  );
+  const [toDate, setToDate] = useState(() => defaultUsageDateRange().toDate);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -80,7 +70,7 @@ export function AppsSettings() {
       setOverview(data);
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Failed to load apps overview",
+        err instanceof Error ? err.message : "Failed to load usage overview",
       );
     } finally {
       setLoading(false);
@@ -92,115 +82,106 @@ export function AppsSettings() {
   }, [fetchOverview]);
 
   return (
-    <div className={settingsPageClass}>
-      <div>
-        <h1 className={`${settingsTitleClass} mb-4`}>Usage</h1>
-        <div className={settingsCardStackClass}>
-          {loading && <p className={settingsBodyTextClass}>Loading usage...</p>}
-          {error && (
-            <p className="text-destructive text-sm">
-              Failed to load usage: {error}
-            </p>
-          )}
-          <p className={settingsCardTitleClass}>Date Range</p>
-          <div className="mr-2 grid gap-8 sm:grid-cols-2">
-            <label className={settingsLabelClass}>
-              From
-              <Input
-                type="date"
-                value={fromDate}
-                max={toDate}
-                onChange={(e) => {
-                  const next = e.target.value;
-                  setFromDate(next);
-                  if (next > toDate) {
-                    setToDate(next);
-                  }
-                }}
-                className={`${settingsInputClass} mt-2`}
-              />
-            </label>
-            <label className={settingsLabelClass}>
-              To
-              <Input
-                type="date"
-                value={toDate}
-                min={fromDate}
-                onChange={(e) => {
-                  const next = e.target.value;
-                  setToDate(next);
-                  if (next < fromDate) {
-                    setFromDate(next);
-                  }
-                }}
-                className={`${settingsInputClass} mt-1`}
-              />
-            </label>
-          </div>
-          {!loading && overview && (
-            <>
-              <p className={settingsBodyTextClass}>
-                Range: {overview.period_utc_from} to {overview.period_utc_to}
-              </p>
-              <p className={settingsBodyTextClass}>
-                Credits: {formatNumber(overview.overall.credit_used)} /{" "}
-                {formatNumber(overview.overall.credit_paid)}
-              </p>
-              <p className={settingsBodyTextClass}>
-                Tokens: in {formatNumber(overview.overall.input_tokens)} | out{" "}
-                {formatNumber(overview.overall.output_tokens)}
-              </p>
-            </>
-          )}
-        </div>
-      </div>
+    <SettingsPanel
+      title="Usage"
+      description="Credits and tokens across apps for a date range."
+    >
+      <SettingsRow label="From" description="UTC start date">
+        <Input
+          type="date"
+          value={fromDate}
+          max={toDate}
+          onChange={(e) => {
+            const next = e.target.value;
+            setFromDate(next);
+            if (next > toDate) setToDate(next);
+          }}
+          className="border-border h-8 w-auto rounded-full border px-3 text-[12.5px] shadow-none"
+        />
+      </SettingsRow>
+      <SettingsRow label="To" description="UTC end date">
+        <Input
+          type="date"
+          value={toDate}
+          min={fromDate}
+          onChange={(e) => {
+            const next = e.target.value;
+            setToDate(next);
+            if (next < fromDate) setFromDate(next);
+          }}
+          className="border-border h-8 w-auto rounded-full border px-3 text-[12.5px] shadow-none"
+        />
+      </SettingsRow>
 
-      <div>
-        <h2 className={`${settingsSubTitleClass} mb-4`}>Usage by App</h2>
-        <div className={settingsTableCardClass}>
-          <table className="min-w-full text-sm">
-            <thead>
-              <tr className="text-muted-foreground text-center">
-                <th className="px-3 py-2">App</th>
-                <th className="px-3 py-2">Source</th>
-                <th className="px-3 py-2">Credits</th>
-                <th className="px-3 py-2">Tokens In</th>
-                <th className="px-3 py-2">Tokens Out</th>
-              </tr>
-            </thead>
-            <tbody>
-              {overview?.apps?.map((row) => (
-                <tr key={row.app} className="border-border border-t">
-                  <td className="text-foreground px-3 py-2">{row.app}</td>
-                  <td className="text-muted-foreground px-3 py-2">
+      {loading ? <SettingsSkeletonRows count={4} /> : null}
+
+      {!loading && error ? (
+        <SettingsPromoCard
+          title="Couldn't load usage"
+          description={error}
+          action={
+            <SettingsPill onClick={() => void fetchOverview()}>
+              Retry
+            </SettingsPill>
+          }
+        />
+      ) : null}
+
+      {!loading && !error && overview ? (
+        <>
+          <SettingsRow
+            label="Credits"
+            description={`${overview.period_utc_from} → ${overview.period_utc_to}`}
+          >
+            <span className="text-foreground text-[12.5px] font-medium">
+              {formatNumber(overview.overall.credit_used)} /{" "}
+              {formatNumber(overview.overall.credit_paid)}
+            </span>
+          </SettingsRow>
+          <SettingsRow label="Tokens in">
+            <span className="text-muted-foreground text-[12.5px]">
+              {formatNumber(overview.overall.input_tokens)}
+            </span>
+          </SettingsRow>
+          <SettingsRow label="Tokens out">
+            <span className="text-muted-foreground text-[12.5px]">
+              {formatNumber(overview.overall.output_tokens)}
+            </span>
+          </SettingsRow>
+
+          {overview.apps.length ? (
+            <SettingsTable
+              headers={["App", "Source", "Credits", "In", "Out"]}
+            >
+              {overview.apps.map((row) => (
+                <tr key={row.app} className="border-border/50 border-t">
+                  <td className="text-foreground px-3 py-2.5 font-medium">
+                    {row.app}
+                  </td>
+                  <td className="text-muted-foreground px-3 py-2.5">
                     {row.source}
                   </td>
-                  <td className="text-muted-foreground px-3 py-2">
+                  <td className="text-muted-foreground px-3 py-2.5">
                     {formatNumber(row.credits_used)} /{" "}
                     {formatNumber(row.credit_paid)}
                   </td>
-                  <td className="text-muted-foreground px-3 py-2">
+                  <td className="text-muted-foreground px-3 py-2.5">
                     {formatNumber(row.input_tokens)}
                   </td>
-                  <td className="text-muted-foreground px-3 py-2">
+                  <td className="text-muted-foreground px-3 py-2.5">
                     {formatNumber(row.output_tokens)}
                   </td>
                 </tr>
               ))}
-              {!overview?.apps?.length && (
-                <tr>
-                  <td
-                    className="text-muted-foreground px-3 py-4 text-center"
-                    colSpan={5}
-                  >
-                    No usage found.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
+            </SettingsTable>
+          ) : (
+            <SettingsEmpty
+              title="No usage in this range"
+              description="Try a wider date range or send a few chat messages first."
+            />
+          )}
+        </>
+      ) : null}
+    </SettingsPanel>
   );
 }

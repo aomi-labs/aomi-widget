@@ -1,24 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Button, Input } from "@aomi-labs/widget-lib";
+import { Input } from "@aomi-labs/widget-lib";
 import { settingsApiFetch } from "@portal/lib/settings-api";
 import {
-  settingsActionRowClass,
-  settingsBodyTextClass,
-  settingsCardStackClass,
-  settingsCardTitleClass,
-  settingsDescriptionClass,
-  settingsInputClass,
-  settingsLabelClass,
-  settingsPageClass,
-  settingsPillClass,
-  settingsPrimaryButtonClass,
-  settingsStatusClass,
-  settingsSubTitleClass,
-  settingsTableCardClass,
-  settingsTitleClass,
-} from "@portal/lib/settings-styles";
+  SettingsEmpty,
+  SettingsPanel,
+  SettingsPill,
+  SettingsRow,
+  SettingsSkeletonRows,
+  SettingsStatus,
+  SettingsTable,
+} from "@portal/components/settings/settings-primitives";
 
 type OwnedAppKey = {
   key_hash: string;
@@ -43,6 +36,9 @@ type CreateAppKeyResponse = {
 
 type AppOption = string | { name?: string };
 
+const inputClass =
+  "border-border h-8 w-52 rounded-full border px-3 text-[12.5px] shadow-none sm:w-64";
+
 function normalizeAppOptions(apps: AppOption[]): string[] {
   return [
     ...new Set(
@@ -66,6 +62,9 @@ export function AppKeys() {
   const [loadingApps, setLoadingApps] = useState(false);
   const [creating, setCreating] = useState(false);
   const [deletingHash, setDeletingHash] = useState<string | null>(null);
+  const [confirmDeleteHash, setConfirmDeleteHash] = useState<string | null>(
+    null,
+  );
   const [labelInput, setLabelInput] = useState("");
   const [manualKeyInput, setManualKeyInput] = useState("");
   const [selectedApps, setSelectedApps] = useState<string[]>([]);
@@ -190,9 +189,7 @@ export function AppKeys() {
     async (key: OwnedAppKey) => {
       if (deletingHash) return;
 
-      const shouldDelete = window.confirm(`Remove app key ${key.key_prefix}?`);
-      if (!shouldDelete) return;
-
+      setConfirmDeleteHash(null);
       setDeletingHash(key.key_hash);
       setStatus(null);
       try {
@@ -217,216 +214,159 @@ export function AppKeys() {
   );
 
   return (
-    <div className={settingsPageClass}>
-      <div className="space-y-4">
-        <h1 className={settingsTitleClass}>App Keys</h1>
-        <p className={settingsDescriptionClass}>
-          Programmatic access keys for Aomi. Send as <code>AOMI-APP-KEY</code>{" "}
-          to call <code>/api/thread/chat</code> from your own services. Newly generated
-          keys are shown only once.
-        </p>
-      </div>
+    <SettingsPanel
+      title="App keys"
+      description="Programmatic access keys for Aomi. Send as AOMI-APP-KEY to call /api/thread/chat from your own services. New keys are shown only once."
+    >
+      {status ? (
+        <SettingsStatus tone={status.type}>{status.text}</SettingsStatus>
+      ) : null}
 
-      {status && (
-        <div
-          className={`${settingsStatusClass} ${
-            status.type === "success"
-              ? "border-green-500/20 bg-green-500/10 text-green-700 dark:text-green-400"
-              : "border-destructive/20 bg-destructive/10 text-destructive"
-          }`}
+      <SettingsRow
+        label="Label"
+        description="Optional name to recognize this key later"
+      >
+        <Input
+          type="text"
+          value={labelInput}
+          onChange={(event) => setLabelInput(event.target.value)}
+          placeholder="Trading bot"
+          className={inputClass}
+        />
+      </SettingsRow>
+
+      <SettingsRow
+        label="Key value"
+        description="Leave blank to auto-generate a secure key"
+      >
+        <Input
+          type="password"
+          value={manualKeyInput}
+          onChange={(event) => setManualKeyInput(event.target.value)}
+          placeholder="Auto-generate"
+          autoComplete="off"
+          className={inputClass}
+        />
+      </SettingsRow>
+
+      <SettingsRow
+        label="Apps"
+        description={
+          loadingApps
+            ? "Loading apps…"
+            : availableApps.length === 0
+              ? "No apps available for this session"
+              : "Apps this key can access"
+        }
+      >
+        {availableApps.length > 0 ? (
+          <div className="flex max-w-[280px] flex-wrap justify-end gap-1.5">
+            {availableApps.map((app) => (
+              <SettingsPill
+                key={app}
+                tone={selectedApps.includes(app) ? "primary" : "default"}
+                onClick={() => toggleApp(app)}
+              >
+                {app}
+              </SettingsPill>
+            ))}
+          </div>
+        ) : null}
+      </SettingsRow>
+
+      <SettingsRow
+        label="Create key"
+        description={
+          selectedApps.length > 0
+            ? `Scoped to ${selectedApps.join(", ")}`
+            : "Select at least one app first"
+        }
+      >
+        <SettingsPill
+          tone="primary"
+          disabled={!canCreate}
+          onClick={() => {
+            void handleCreate();
+          }}
         >
-          {status.text}
-        </div>
-      )}
+          {creating ? "Creating…" : "Create app key"}
+        </SettingsPill>
+      </SettingsRow>
 
-      <div className={`${settingsCardStackClass} space-y-5`}>
-        <h2 className={settingsCardTitleClass}>Add App Key</h2>
-        <div className="grid gap-5 xl:grid-cols-2">
-          <div className="min-w-0 space-y-4">
-            <label htmlFor="app-key-label" className={settingsLabelClass}>
-              Label (optional)
-            </label>
-            <Input
-              id="app-key-label"
-              type="text"
-              value={labelInput}
-              onChange={(event) => setLabelInput(event.target.value)}
-              placeholder="Trading bot"
-              className={settingsInputClass}
-            />
-          </div>
-          <div className="min-w-0 space-y-4">
-            <label
-              htmlFor="manual-app-key-input"
-              className={settingsLabelClass}
+      {createdAppKey ? (
+        <SettingsStatus tone="success">
+          <p className="font-medium">
+            New app key — copy it now, it won&apos;t be shown again.
+          </p>
+          <p className="mt-1 break-all font-mono">{createdAppKey}</p>
+          <div className="mt-2 flex gap-2">
+            <SettingsPill
+              onClick={() => {
+                void navigator.clipboard.writeText(createdAppKey);
+              }}
             >
-              App Key Value (optional)
-            </label>
-            <Input
-              id="manual-app-key-input"
-              type="password"
-              value={manualKeyInput}
-              onChange={(event) => setManualKeyInput(event.target.value)}
-              placeholder="Leave empty to auto-generate"
-              className={settingsInputClass}
-            />
-            <p className={settingsBodyTextClass}>
-              Leave blank to create a secure generated key.
-            </p>
+              Copy key
+            </SettingsPill>
+            <SettingsPill onClick={() => setCreatedAppKey(null)}>
+              Hide
+            </SettingsPill>
           </div>
-        </div>
+        </SettingsStatus>
+      ) : null}
 
-        <div className="min-w-0 space-y-4">
-          <p className={settingsCardTitleClass}>Apps</p>
-          {loadingApps && (
-            <p className={settingsBodyTextClass}>Loading apps...</p>
-          )}
-          {!loadingApps && availableApps.length === 0 && (
-            <p className={settingsBodyTextClass}>
-              No apps available for this session.
-            </p>
-          )}
-          {!loadingApps && availableApps.length > 0 && (
-            <div className="flex min-w-0 flex-wrap gap-3">
-              {availableApps.map((app) => {
-                const selected = selectedApps.includes(app);
-                return (
-                  <button
-                    key={app}
-                    type="button"
-                    onClick={() => toggleApp(app)}
-                    className={`${settingsPillClass} ${
-                      selected
-                        ? "border-primary bg-primary text-primary-foreground"
-                        : "border-input bg-background text-foreground hover:bg-accent"
-                    }`}
-                  >
-                    {app}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
+      {loadingKeys ? <SettingsSkeletonRows count={4} /> : null}
 
-        <div className={settingsActionRowClass}>
-          <Button
-            type="button"
-            onClick={() => {
-              void handleCreate();
-            }}
-            disabled={!canCreate}
-            className={settingsPrimaryButtonClass}
-          >
-            {creating ? "Creating..." : "Create app key"}
-          </Button>
-        </div>
+      {!loadingKeys && appKeys.length === 0 ? (
+        <SettingsEmpty
+          title="No app keys yet"
+          description="Create a key above to call the API from your own services."
+        />
+      ) : null}
 
-        {createdAppKey && (
-          <div className="space-y-4 rounded-3xl border border-green-500/20 bg-green-500/5 p-6">
-            <p className={settingsLabelClass}>New app key</p>
-            <p className="text-foreground break-all font-mono text-sm leading-7">
-              {createdAppKey}
-            </p>
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                onClick={() => {
-                  void navigator.clipboard.writeText(createdAppKey);
-                }}
-              >
-                Copy key
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setCreatedAppKey(null)}
-              >
-                Hide
-              </Button>
-            </div>
-          </div>
-        )}
-      </div>
-
-      <div className="space-y-4">
-        <h2 className={settingsSubTitleClass}>Owned Keys</h2>
-        <div className={settingsTableCardClass}>
-          <table className="min-w-full text-sm">
-            <thead>
-              <tr className="text-muted-foreground text-center">
-                <th className="px-3 py-2">Key</th>
-                <th className="px-3 py-2">Label</th>
-                <th className="px-3 py-2">Apps</th>
-                <th className="px-3 py-2">Status</th>
-                <th className="px-3 py-2">Last used</th>
-                <th className="px-3 py-2">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loadingKeys && (
-                <tr>
-                  <td
-                    className="text-muted-foreground px-3 py-4 text-center"
-                    colSpan={6}
-                  >
-                    Loading app keys...
-                  </td>
-                </tr>
-              )}
-              {!loadingKeys && appKeys.length === 0 && (
-                <tr>
-                  <td
-                    className="text-muted-foreground px-3 py-4 text-center"
-                    colSpan={6}
-                  >
-                    No app keys found.
-                  </td>
-                </tr>
-              )}
-              {!loadingKeys &&
-                appKeys.map((key) => (
-                  <tr key={key.key_hash} className="border-border border-t">
-                    <td className="text-foreground px-3 py-2 font-mono">
-                      {key.key_prefix}
-                    </td>
-                    <td className="text-muted-foreground px-3 py-2">
-                      {key.label || "-"}
-                    </td>
-                    <td className="text-muted-foreground px-3 py-2">
-                      {key.apps.join(", ")}
-                    </td>
-                    <td className="text-muted-foreground px-3 py-2">
-                      {key.is_active ? "Active" : "Inactive"}
-                    </td>
-                    <td className="text-muted-foreground px-3 py-2">
-                      {formatTs(key.last_used_at)}
-                    </td>
-                    <td className="px-3 py-2 text-right">
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        size="sm"
-                        onClick={() => {
-                          void handleRemove(key);
-                        }}
-                        disabled={deletingHash === key.key_hash}
-                        className="rounded-full"
-                      >
-                        {deletingHash === key.key_hash
-                          ? "Removing..."
-                          : "Remove"}
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
+      {!loadingKeys && appKeys.length > 0 ? (
+        <SettingsTable
+          headers={["Key", "Label", "Apps", "Status", "Last used", ""]}
+        >
+          {appKeys.map((key) => (
+            <tr key={key.key_hash} className="border-border/50 border-t">
+              <td className="text-foreground px-3 py-2.5 font-mono">
+                {key.key_prefix}
+              </td>
+              <td className="text-muted-foreground px-3 py-2.5">
+                {key.label || "-"}
+              </td>
+              <td className="text-muted-foreground px-3 py-2.5">
+                {key.apps.join(", ")}
+              </td>
+              <td className="text-muted-foreground px-3 py-2.5">
+                {key.is_active ? "Active" : "Inactive"}
+              </td>
+              <td className="text-muted-foreground px-3 py-2.5">
+                {formatTs(key.last_used_at)}
+              </td>
+              <td className="px-3 py-2.5 text-right">
+                <SettingsPill
+                  tone="danger"
+                  disabled={deletingHash === key.key_hash}
+                  onClick={() => {
+                    if (confirmDeleteHash === key.key_hash) {
+                      void handleRemove(key);
+                    } else {
+                      setConfirmDeleteHash(key.key_hash);
+                    }
+                  }}
+                >
+                  {deletingHash === key.key_hash
+                    ? "Removing…"
+                    : confirmDeleteHash === key.key_hash
+                      ? "Confirm?"
+                      : "Remove"}
+                </SettingsPill>
+              </td>
+            </tr>
+          ))}
+        </SettingsTable>
+      ) : null}
+    </SettingsPanel>
   );
 }

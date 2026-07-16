@@ -7,22 +7,14 @@ import {
   useByok,
   type AomiAppDescriptor,
 } from "@aomi-labs/react";
-import { Button, Input } from "@aomi-labs/widget-lib";
+import { Input } from "@aomi-labs/widget-lib";
 import {
-  settingsActionRowClass,
-  settingsBodyTextClass,
-  settingsCardStackClass,
-  settingsCardTitleClass,
-  settingsDescriptionClass,
-  settingsInputClass,
-  settingsPageClass,
-  settingsPillClass,
-  settingsPrimaryButtonClass,
-  settingsStatusClass,
-  settingsSubTitleClass,
-  settingsTableCardClass,
-  settingsTitleClass,
-} from "@portal/lib/settings-styles";
+  SettingsEmpty,
+  SettingsPanel,
+  SettingsPill,
+  SettingsRow,
+  SettingsStatus,
+} from "@portal/components/settings/settings-primitives";
 
 type StoredEntry = {
   valuePrefix: string;
@@ -32,6 +24,9 @@ type StoredEntry = {
 const SECRETS_INDEX_STORAGE_KEY = "aomi_secrets_index";
 
 type LocalIndex = Record<string, Record<string, StoredEntry>>;
+
+const inputClass =
+  "border-border h-8 w-52 rounded-full border px-3 text-[12.5px] shadow-none sm:w-64";
 
 function readIndex(): LocalIndex {
   if (typeof window === "undefined") return {};
@@ -88,6 +83,8 @@ export function Secrets() {
   const [saving, setSaving] = useState(false);
   const [removing, setRemoving] = useState<string | null>(null);
   const [clearingApp, setClearingApp] = useState<string | null>(null);
+  const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
+  const [confirmClearApp, setConfirmClearApp] = useState<string | null>(null);
   const [status, setStatus] = useState<{
     type: "success" | "error";
     text: string;
@@ -210,9 +207,8 @@ export function Secrets() {
   const handleRemove = useCallback(
     async (app: string, name: string) => {
       if (removing) return;
-      const ok = window.confirm(`Remove ${name} from ${app}?`);
-      if (!ok) return;
       const key = `${app}:${name}`;
+      setConfirmRemove(null);
       setRemoving(key);
       setStatus(null);
       try {
@@ -248,8 +244,7 @@ export function Secrets() {
   const handleClearApp = useCallback(
     async (app: string) => {
       if (clearingApp) return;
-      const ok = window.confirm(`Remove every secret stored for ${app}?`);
-      if (!ok) return;
+      setConfirmClearApp(null);
       setClearingApp(app);
       setStatus(null);
       try {
@@ -283,213 +278,154 @@ export function Secrets() {
   );
 
   return (
-    <div className={settingsPageClass}>
-      <div className="space-y-4">
-        <h1 className={settingsTitleClass}>Secrets</h1>
-        <p className={settingsDescriptionClass}>
-          API credentials for external services Aomi tools call on your behalf
-          (e.g. <code>LIMITLESS_API_KEY</code>, <code>OKX_API_KEY</code>).
-          Stored in the backend vault scoped to this browser and the chosen app;
-          tools receive them as opaque <code>$SECRET:NAME</code> handles.
-        </p>
-        {!apiKeyState.clientId && (
-          <p className={settingsBodyTextClass}>
-            Waiting for client id to initialize…
-          </p>
-        )}
-      </div>
+    <SettingsPanel
+      title="Secrets"
+      description="API credentials for external services Aomi tools call on your behalf. Stored in the backend vault; tools receive them as opaque $SECRET:NAME handles."
+    >
+      {!apiKeyState.clientId ? (
+        <SettingsStatus tone="error">
+          Waiting for client id to initialize…
+        </SettingsStatus>
+      ) : null}
 
-      {status && (
-        <div
-          className={`${settingsStatusClass} ${
-            status.type === "success"
-              ? "border-green-500/20 bg-green-500/10 text-green-700 dark:text-green-400"
-              : "border-destructive/20 bg-destructive/10 text-destructive"
-          }`}
-        >
-          {status.text}
-        </div>
-      )}
+      {status ? (
+        <SettingsStatus tone={status.type}>{status.text}</SettingsStatus>
+      ) : null}
 
-      <div className={`${settingsCardStackClass} space-y-6`}>
-        <div className="space-y-4">
-          <p className={settingsCardTitleClass}>App</p>
-          {appsWithSecrets.length === 0 ? (
-            <p className={settingsBodyTextClass}>
-              No apps declare secret slots in this session.
-            </p>
-          ) : (
-            <div className="flex min-w-0 flex-wrap gap-2">
-              {appsWithSecrets.map((descriptor) => {
-                const active = selectedApp === descriptor.name;
+      <SettingsRow
+        label="App"
+        description={
+          appsWithSecrets.length === 0
+            ? "No apps declare secret slots in this session"
+            : "Choose which app the secrets belong to"
+        }
+      >
+        {appsWithSecrets.length > 0 ? (
+          <div className="flex max-w-[280px] flex-wrap justify-end gap-1.5">
+            {appsWithSecrets.map((descriptor) => (
+              <SettingsPill
+                key={descriptor.name}
+                tone={selectedApp === descriptor.name ? "primary" : "default"}
+                onClick={() => setSelectedApp(descriptor.name)}
+              >
+                {descriptor.name}
+              </SettingsPill>
+            ))}
+          </div>
+        ) : null}
+      </SettingsRow>
+
+      {activeDescriptor ? (
+        <>
+          {activeSlots.map((slot) => (
+            <SettingsRow
+              key={slot.name}
+              label={slot.name}
+              description={`${slot.required ? "Required" : "Optional"}${
+                slot.description ? ` · ${slot.description}` : ""
+              }`}
+            >
+              <Input
+                id={`slot-${activeDescriptor.name}-${slot.name}`}
+                type="password"
+                value={slotValues[slot.name] ?? ""}
+                onChange={(event) =>
+                  setSlotValues((prev) => ({
+                    ...prev,
+                    [slot.name]: event.target.value,
+                  }))
+                }
+                placeholder={
+                  index[activeDescriptor.name]?.[slot.name]
+                    ? `${index[activeDescriptor.name][slot.name].valuePrefix} (set — paste to rotate)`
+                    : "Paste value"
+                }
+                autoComplete="off"
+                className={inputClass}
+              />
+            </SettingsRow>
+          ))}
+          <SettingsRow
+            label="Save secrets"
+            description={`Encrypted and scoped to ${activeDescriptor.name}`}
+          >
+            <SettingsPill
+              tone="primary"
+              disabled={!canSave}
+              onClick={() => {
+                void handleSave();
+              }}
+            >
+              {saving ? "Saving…" : "Save secrets"}
+            </SettingsPill>
+          </SettingsRow>
+        </>
+      ) : null}
+
+      {savedApps.length === 0 ? (
+        <SettingsEmpty
+          title="No secrets saved"
+          description="Saved secrets show up here with a masked preview."
+        />
+      ) : (
+        savedApps.map(([app, slots]) => (
+          <div key={app}>
+            <SettingsRow
+              label={app}
+              description="Saved secrets for this app"
+              className="bg-muted/20"
+            >
+              <SettingsPill
+                tone="danger"
+                disabled={clearingApp === app}
+                onClick={() => {
+                  if (confirmClearApp === app) {
+                    void handleClearApp(app);
+                  } else {
+                    setConfirmClearApp(app);
+                  }
+                }}
+              >
+                {clearingApp === app
+                  ? "Clearing…"
+                  : confirmClearApp === app
+                    ? "Confirm?"
+                    : "Remove all"}
+              </SettingsPill>
+            </SettingsRow>
+            {Object.entries(slots)
+              .sort(([a], [b]) => a.localeCompare(b))
+              .map(([name, entry]) => {
+                const key = `${app}:${name}`;
                 return (
-                  <button
-                    key={descriptor.name}
-                    type="button"
-                    onClick={() => setSelectedApp(descriptor.name)}
-                    className={`${settingsPillClass} ${
-                      active
-                        ? "border-primary bg-primary text-primary-foreground"
-                        : "border-input bg-background text-foreground hover:bg-accent"
-                    }`}
+                  <SettingsRow
+                    key={name}
+                    label={name}
+                    description={`${entry.valuePrefix} · added ${formatTs(entry.addedAt)}`}
                   >
-                    {descriptor.name}
-                  </button>
+                    <SettingsPill
+                      tone="danger"
+                      disabled={removing === key}
+                      onClick={() => {
+                        if (confirmRemove === key) {
+                          void handleRemove(app, name);
+                        } else {
+                          setConfirmRemove(key);
+                        }
+                      }}
+                    >
+                      {removing === key
+                        ? "Removing…"
+                        : confirmRemove === key
+                          ? "Confirm?"
+                          : "Remove"}
+                    </SettingsPill>
+                  </SettingsRow>
                 );
               })}
-            </div>
-          )}
-        </div>
-
-        {activeDescriptor && (
-          <>
-            <h2 className={settingsCardTitleClass}>
-              Add Secret for {activeDescriptor.name}
-            </h2>
-            <div className="min-w-0 space-y-5">
-              {activeSlots.map((slot) => (
-                <div key={slot.name} className="space-y-4">
-                  <label
-                    htmlFor={`slot-${activeDescriptor.name}-${slot.name}`}
-                    className="text-foreground flex items-baseline gap-2 pl-2 text-sm font-medium"
-                  >
-                    <span className="font-mono tracking-[0.02em]">
-                      {slot.name}
-                    </span>
-                    {slot.required ? (
-                      <span className="text-destructive text-sm">required</span>
-                    ) : (
-                      <span className="text-muted-foreground text-sm">
-                        optional
-                      </span>
-                    )}
-                  </label>
-                  <Input
-                    id={`slot-${activeDescriptor.name}-${slot.name}`}
-                    type="password"
-                    value={slotValues[slot.name] ?? ""}
-                    onChange={(event) =>
-                      setSlotValues((prev) => ({
-                        ...prev,
-                        [slot.name]: event.target.value,
-                      }))
-                    }
-                    placeholder={
-                      index[activeDescriptor.name]?.[slot.name]
-                        ? `${index[activeDescriptor.name][slot.name].valuePrefix} (set — paste a new value to rotate)`
-                        : "Paste the value from the provider's dashboard"
-                    }
-                    autoComplete="off"
-                    className={settingsInputClass}
-                  />
-                  <p className={settingsBodyTextClass}>{slot.description}</p>
-                </div>
-              ))}
-              <div className={settingsActionRowClass}>
-                <Button
-                  type="button"
-                  onClick={() => {
-                    void handleSave();
-                  }}
-                  disabled={!canSave}
-                  className={`${settingsPrimaryButtonClass} mb-2`}
-                >
-                  {saving ? "Saving..." : "Save secret"}
-                </Button>
-              </div>
-            </div>
-          </>
-        )}
-      </div>
-
-      <div className="space-y-4">
-        <h2 className={settingsSubTitleClass}>Saved Secrets</h2>
-        {savedApps.length === 0 ? (
-          <div className={settingsTableCardClass}>
-            <table className="min-w-full text-sm">
-              <thead>
-                <tr className="text-muted-foreground text-center">
-                  <th className="px-3 py-2">Name</th>
-                  <th className="px-3 py-2">Preview</th>
-                  <th className="px-3 py-2">Added</th>
-                  <th className="px-3 py-2">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td className="text-muted-foreground px-3 py-4 text-center" colSpan={4}>
-                    No secrets saved.
-                  </td>
-                </tr>
-              </tbody>
-            </table>
           </div>
-        ) : (
-          savedApps.map(([app, slots]) => (
-            <div key={app} className={settingsTableCardClass}>
-              <div className="flex items-center justify-between px-3 py-2">
-                <span className="text-foreground font-medium">{app}</span>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    void handleClearApp(app);
-                  }}
-                  disabled={clearingApp === app}
-                  className="text-muted-foreground hover:text-destructive"
-                >
-                  {clearingApp === app ? "Clearing..." : "Remove all"}
-                </Button>
-              </div>
-              <table className="min-w-full text-sm">
-                <thead>
-                  <tr className="text-muted-foreground text-left">
-                    <th className="px-3 py-2">Name</th>
-                    <th className="px-3 py-2">Preview</th>
-                    <th className="px-3 py-2">Added</th>
-                    <th className="px-3 py-2 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {Object.entries(slots)
-                    .sort(([a], [b]) => a.localeCompare(b))
-                    .map(([name, entry]) => {
-                      const key = `${app}:${name}`;
-                      return (
-                        <tr key={name} className="border-border border-t">
-                          <td className="text-foreground px-3 py-2 font-mono">
-                            {name}
-                          </td>
-                          <td className="text-muted-foreground px-3 py-2 font-mono">
-                            {entry.valuePrefix}
-                          </td>
-                          <td className="text-muted-foreground px-3 py-2">
-                            {formatTs(entry.addedAt)}
-                          </td>
-                          <td className="px-3 py-2 text-right">
-                            <Button
-                              type="button"
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => {
-                                void handleRemove(app, name);
-                              }}
-                              disabled={removing === key}
-                              className="rounded-full"
-                            >
-                              {removing === key ? "Removing..." : "Remove"}
-                            </Button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                </tbody>
-              </table>
-            </div>
-          ))
-        )}
-      </div>
-    </div>
+        ))
+      )}
+    </SettingsPanel>
   );
 }

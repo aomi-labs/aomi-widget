@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Button, useAomiAuthAdapter } from "@aomi-labs/widget-lib";
-import { SettingsSidebar, SettingsCategory } from "./settings-sidebar";
+import { X } from "lucide-react";
+import { useAomiAuthAdapter } from "@aomi-labs/widget-lib";
 import { ErrorBoundary } from "@portal/components/shell/error-boundary";
 import { GeneralSettings } from "@portal/features/general";
 import { AppsSettings } from "@portal/features/apps";
@@ -14,18 +13,16 @@ import {
   useAomiSession,
   type AomiSessionStatus,
 } from "@portal/components/providers/aomi-session-bridge";
+import { useSettingsController } from "./settings-controller";
 import {
-  settingsBodyTextClass,
-  settingsCardStackClass,
-  settingsPrimaryButtonClass,
-  settingsTitleClass,
-} from "@portal/lib/settings-styles";
+  SettingsPanel,
+  SettingsPill,
+  SettingsPromoCard,
+  SettingsSkeletonRows,
+} from "./settings-primitives";
+import { SettingsRail } from "./settings-rail";
+import type { SettingsCategory } from "./settings-types";
 
-// Tabs whose data is account-bearer scoped. They're gated on an established
-// session so they never fire before BetterAuth is ready (else the proxy rejects
-// protected account routes before forwarding). Secrets/BYOK are
-// device/client_id scoped and Deploy owns its own GitHub onboarding flow, so
-// they render regardless.
 const ACCOUNT_SCOPED_TABS: ReadonlySet<SettingsCategory> = new Set([
   "general",
   "apps",
@@ -33,11 +30,6 @@ const ACCOUNT_SCOPED_TABS: ReadonlySet<SettingsCategory> = new Set([
   "bots",
 ]);
 
-/**
- * Account-session gate for the settings shell. Keeping it here (not in each tab)
- * lets the account-scoped tabs stay identity-agnostic: they assume an
- * authenticated context instead of each re-checking wallet/session state.
- */
 function SessionGate({
   status,
   onRetry,
@@ -47,110 +39,98 @@ function SessionGate({
   onRetry: () => void;
   onConnect?: () => void;
 }) {
+  if (status === "establishing") {
+    return (
+      <SettingsPanel title="Connecting">
+        <SettingsSkeletonRows count={4} />
+      </SettingsPanel>
+    );
+  }
+
+  if (status === "error") {
+    return (
+      <SettingsPanel title="Account">
+        <SettingsPromoCard
+          title="Couldn't connect your account"
+          description="Retry the session, then reopen settings if this persists."
+          action={
+            <SettingsPill type="button" onClick={onRetry}>
+              Retry
+            </SettingsPill>
+          }
+        />
+      </SettingsPanel>
+    );
+  }
+
   return (
-    <div className={`${settingsCardStackClass} space-y-4`}>
-      {status === "anonymous" && (
-        <>
-          <h1 className={settingsTitleClass}>Connect your account</h1>
-          <p className={settingsBodyTextClass}>
-            Settings are tied to your account. Connect to view and manage them.
-          </p>
-          {onConnect && (
-            <Button
-              type="button"
-              onClick={onConnect}
-              className={settingsPrimaryButtonClass}
-            >
-              Connect account
-            </Button>
-          )}
-        </>
-      )}
-      {status === "establishing" && (
-        <p className={settingsBodyTextClass}>Connecting your account…</p>
-      )}
-      {status === "error" && (
-        <>
-          <p className={settingsBodyTextClass}>
-            Couldn’t connect your account. Please try again.
-          </p>
-          <Button
-            type="button"
-            onClick={onRetry}
-            className={settingsPrimaryButtonClass}
-          >
-            Retry
-          </Button>
-        </>
-      )}
-    </div>
+    <SettingsPanel title="Account">
+      <SettingsPromoCard
+        title="Connect your account"
+        description="Settings are tied to your account. Connect to view identity, usage, keys, and bots."
+        action={
+          onConnect ? (
+            <SettingsPill type="button" tone="primary" onClick={onConnect}>
+              Connect
+            </SettingsPill>
+          ) : undefined
+        }
+      />
+    </SettingsPanel>
   );
 }
 
-export function SettingsLayout() {
-  const [activeCategory, setActiveCategory] =
-    useState<SettingsCategory>("general");
+function SettingsBody({ category }: { category: SettingsCategory }) {
+  switch (category) {
+    case "general":
+      return <GeneralSettings />;
+    case "apps":
+      return <AppsSettings />;
+    case "app-keys":
+      return <AppKeys />;
+    case "bots":
+      return <Bots />;
+    case "secrets":
+      return <Secrets />;
+    case "byok":
+      return <Byok />;
+    default:
+      return <GeneralSettings />;
+  }
+}
+
+export function SettingsLayout({
+  onClose,
+}: {
+  onClose?: () => void;
+}) {
+  const { category, setCategory } = useSettingsController();
   const { status, retry } = useAomiSession();
   const adapter = useAomiAuthAdapter();
 
-  // Returning from GitHub flows lands on /settings with query params
-  // (category is React state, not the URL), so open the Deploy tab where the
-  // launch flow can pick the redirect/session up.
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const params = new URLSearchParams(window.location.search);
-    if (
-      params.has("installation_id") ||
-      params.get("launch") === "github" ||
-      params.has("github_error")
-    ) {
-      window.location.replace(`/deployments?${params.toString()}`);
-      setActiveCategory("deploy");
-    }
-  }, []);
-
-  const renderContent = () => {
-    switch (activeCategory) {
-      case "general":
-        return <GeneralSettings />;
-      case "apps":
-        return <AppsSettings />;
-      case "deploy":
-        return (
-          <div className={`${settingsCardStackClass} space-y-4`}>
-            <ErrorBoundary>
-              <h1 className={settingsTitleClass}>Deployments</h1>
-              <p className={settingsBodyTextClass}>
-                Deployment management now lives in its own developer console.
-              </p>
-              <a href="/deployments" className={settingsPrimaryButtonClass}>
-                Open deployments
-              </a>
-            </ErrorBoundary>
-          </div>
-        );
-      case "app-keys":
-        return <AppKeys />;
-      case "bots":
-        return <Bots />;
-      case "secrets":
-        return <Secrets />;
-      case "byok":
-        return <Byok />;
-      default:
-        return <GeneralSettings />;
-    }
-  };
-
   return (
-    <div className="bg-background flex h-screen w-full min-w-0">
-      <SettingsSidebar
-        activeCategory={activeCategory}
-        onCategoryChange={setActiveCategory}
-      />
-      <div className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden px-8 py-10 lg:px-12">
-        <div className="mx-auto w-full min-w-0 max-w-4xl">
-          {ACCOUNT_SCOPED_TABS.has(activeCategory) && status !== "ready" ? (
+    <div className="bg-background border-border flex h-full min-h-0 w-full overflow-hidden rounded-2xl border shadow-2xl">
+      <aside className="border-border bg-muted/20 flex w-[176px] shrink-0 flex-col border-r sm:w-[188px]">
+        <div className="flex items-center gap-1 px-2 pt-2">
+          {onClose ? (
+            <button
+              type="button"
+              className="text-muted-foreground hover:bg-accent hover:text-foreground inline-flex size-8 items-center justify-center rounded-lg transition-colors"
+              onClick={onClose}
+              aria-label="Close settings"
+            >
+              <X className="size-4" />
+            </button>
+          ) : null}
+        </div>
+        <SettingsRail
+          activeCategory={category}
+          onCategoryChange={setCategory}
+        />
+      </aside>
+      <div className="bg-background flex min-w-0 flex-1 flex-col">
+        <ErrorBoundary>
+          {ACCOUNT_SCOPED_TABS.has(category) && status !== "ready" ? (
             <SessionGate
               status={status}
               onRetry={retry}
@@ -163,9 +143,9 @@ export function SettingsLayout() {
               }
             />
           ) : (
-            renderContent()
+            <SettingsBody category={category} />
           )}
-        </div>
+        </ErrorBoundary>
       </div>
     </div>
   );

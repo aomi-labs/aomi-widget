@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
 import { Settings } from "lucide-react";
 import { AomiFrame, useAomiWalletKit } from "@aomi-labs/widget-lib";
 import {
@@ -10,6 +9,7 @@ import {
   usePerThreadControl,
 } from "@aomi-labs/react";
 import { RequiredSecretsGate } from "@portal/components/shell/required-secrets-gate";
+import { useSettingsController } from "@portal/components/settings/settings-controller";
 import { createPortalAccountBearerProvider } from "@portal/lib/account-bearer";
 import { x402Client } from "@x402/core/client";
 import { ExactEvmScheme } from "@x402/evm/exact/client";
@@ -392,6 +392,7 @@ function AppSelectUrlBootstrap({
 }
 
 export function PortalAomiFrame() {
+  const { openSettings } = useSettingsController();
   const requestedApp = useRequestedAppConfig();
   const lockedApp = requestedApp.locked ? requestedApp.app : null;
   const lockedApplicationId = lockedApp ? requestedApp.applicationId : null;
@@ -415,13 +416,14 @@ export function PortalAomiFrame() {
           locked={Boolean(lockedApp)}
         />
         <AomiFrame.Header>
-          <Link
-            href="/settings"
+          <button
+            type="button"
+            onClick={() => openSettings("general")}
             className="text-muted-foreground hover:bg-accent hover:text-foreground inline-flex items-center justify-center rounded-full p-2 transition-colors"
             aria-label="Open settings"
           >
             <Settings className="size-4" />
-          </Link>
+          </button>
         </AomiFrame.Header>
         <AomiFrame.Composer
           withControl

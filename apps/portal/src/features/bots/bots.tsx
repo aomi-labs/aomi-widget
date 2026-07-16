@@ -1,23 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Button, Input } from "@aomi-labs/widget-lib";
+import { Input } from "@aomi-labs/widget-lib";
 import { settingsApiFetch } from "@portal/lib/settings-api";
 import {
-  settingsActionRowClass,
-  settingsBodyTextClass,
-  settingsCardStackClass,
-  settingsCardTitleClass,
-  settingsDescriptionClass,
-  settingsInputClass,
-  settingsLabelClass,
-  settingsPageClass,
-  settingsPrimaryButtonClass,
-  settingsStatusClass,
-  settingsSubTitleClass,
-  settingsTableCardClass,
-  settingsTitleClass,
-} from "@portal/lib/settings-styles";
+  SettingsEmpty,
+  SettingsPanel,
+  SettingsPill,
+  SettingsRow,
+  SettingsSelect,
+  SettingsSkeletonRows,
+  SettingsStatus,
+  SettingsTable,
+} from "@portal/components/settings/settings-primitives";
 
 type BotRegistration = {
   id: string;
@@ -55,6 +50,9 @@ const BOTFATHER_COMMANDS = [
   "network - View or switch network",
   "settings - Open bot settings",
 ].join("\n");
+
+const inputClass =
+  "border-border h-8 w-52 rounded-full border px-3 text-[12.5px] shadow-none sm:w-64";
 
 function formatTs(ts?: number | null): string {
   if (!ts) return "-";
@@ -197,223 +195,166 @@ export function Bots() {
   ]);
 
   return (
-    <div className={settingsPageClass}>
-      <div className="space-y-4">
-        <h1 className={settingsTitleClass}>Bots</h1>
-        <p className={settingsDescriptionClass}>
-          Register Telegram bots that use your Aomi backend, selected app, and
-          runtime session flow. Bot credentials are encrypted and never shown
-          after registration.
-        </p>
-      </div>
+    <SettingsPanel
+      title="Bots"
+      description="Register Telegram bots that use your Aomi backend. Credentials are encrypted and never shown after registration."
+    >
+      {status ? (
+        <SettingsStatus tone={status.type}>{status.text}</SettingsStatus>
+      ) : null}
 
-      {status && (
-        <div
-          className={`${settingsStatusClass} ${
-            status.type === "success"
-              ? "border-green-500/20 bg-green-500/10 text-green-700 dark:text-green-400"
-              : "border-destructive/20 bg-destructive/10 text-destructive"
-          }`}
-        >
-          {status.text}
-        </div>
-      )}
-
-      {error && (
-        <div
-          className={`${settingsStatusClass} border-destructive/20 bg-destructive/10 text-destructive`}
-        >
+      {error ? (
+        <SettingsStatus tone="error">
           Failed to load bots: {error}
-        </div>
-      )}
+        </SettingsStatus>
+      ) : null}
 
-      <section className={`${settingsCardStackClass} space-y-5`}>
-        <div className="space-y-2">
-          <h2 className={settingsCardTitleClass}>Register Telegram Bot</h2>
-          <p className={settingsBodyTextClass}>
-            Create the bot in BotFather, paste its token here, and we will
-            verify it with Telegram and activate the webhook automatically. This
-            account owns the bot configuration; people who message the bot still
-            use their own Aomi identity, wallets, and threads.
-          </p>
-        </div>
+      <SettingsRow
+        label="Label"
+        description="Optional name for this bot registration"
+      >
+        <Input
+          type="text"
+          value={labelInput}
+          onChange={(event) => setLabelInput(event.target.value)}
+          placeholder="Trading assistant"
+          disabled={creating}
+          className={inputClass}
+        />
+      </SettingsRow>
 
-        <div className="grid gap-5 xl:grid-cols-2">
-          <div className="min-w-0 space-y-4">
-            <label htmlFor="bot-label" className={settingsLabelClass}>
-              Label (optional)
-            </label>
-            <Input
-              id="bot-label"
-              type="text"
-              value={labelInput}
-              onChange={(event) => setLabelInput(event.target.value)}
-              placeholder="Trading assistant"
-              className={settingsInputClass}
-              disabled={creating}
-            />
-          </div>
-          <div className="min-w-0 space-y-4">
-            <label htmlFor="bot-token" className={settingsLabelClass}>
-              Bot Token
-            </label>
-            <Input
-              id="bot-token"
-              type="password"
-              value={tokenInput}
-              onChange={(event) => setTokenInput(event.target.value)}
-              placeholder="Paste Telegram BotFather token"
-              className={settingsInputClass}
-              disabled={creating}
-            />
-          </div>
-        </div>
+      <SettingsRow
+        label="Bot token"
+        description="From BotFather — verified with Telegram, webhook activated automatically"
+      >
+        <Input
+          type="password"
+          value={tokenInput}
+          onChange={(event) => setTokenInput(event.target.value)}
+          placeholder="Paste BotFather token"
+          autoComplete="off"
+          disabled={creating}
+          className={inputClass}
+        />
+      </SettingsRow>
 
-        <div className="grid gap-5 xl:grid-cols-2">
-          <div className="min-w-0 space-y-4">
-            <label htmlFor="bot-app" className={settingsLabelClass}>
-              Default App
-            </label>
-            <select
-              id="bot-app"
-              value={selectedApp}
-              onChange={(event) => setSelectedApp(event.target.value)}
-              className={`${settingsInputClass} w-full`}
-              disabled={creating || loadingApps}
-            >
-              {availableApps.map((app) => (
-                <option key={app} value={app}>
-                  {app}
-                </option>
-              ))}
-            </select>
-            {loadingApps && (
-              <p className={settingsBodyTextClass}>Loading apps...</p>
-            )}
-            {!loadingApps && availableApps.length === 0 && (
-              <p className={settingsBodyTextClass}>
-                No apps available for this account.
-              </p>
-            )}
-          </div>
-          <div className="min-w-0 space-y-4">
-            <label htmlFor="bot-thread-mode" className={settingsLabelClass}>
-              Thread Mode
-            </label>
-            <select
-              id="bot-thread-mode"
-              value={threadMode}
-              onChange={(event) => setThreadMode(event.target.value)}
-              className={`${settingsInputClass} w-full`}
-              disabled={creating}
-            >
-              <option value="single">Single thread</option>
-              <option value="multi">Multiple threads</option>
-            </select>
-            <p className={settingsBodyTextClass}>
-              Single keeps the bot simple; multiple lets users switch threads
-              with session commands. For a true single-chat Telegram experience,
-              also disable threaded/topic mode for the bot in BotFather.
-            </p>
-          </div>
-        </div>
+      <SettingsRow
+        label="Default app"
+        description={
+          loadingApps
+            ? "Loading apps…"
+            : availableApps.length === 0
+              ? "No apps available for this account"
+              : "App the bot uses by default"
+        }
+      >
+        {availableApps.length > 0 ? (
+          <SettingsSelect
+            value={selectedApp}
+            onChange={setSelectedApp}
+            options={availableApps.map((app) => ({ value: app, label: app }))}
+          />
+        ) : null}
+      </SettingsRow>
 
-        <div className={settingsActionRowClass}>
-          <Button
-            type="button"
-            onClick={() => {
-              void handleCreate();
-            }}
-            disabled={!canCreate}
-            className={settingsPrimaryButtonClass}
-          >
-            {creating ? "Registering..." : "Register bot"}
-          </Button>
-        </div>
-      </section>
+      <SettingsRow
+        label="Thread mode"
+        description="Single keeps the bot simple; multiple lets users switch threads with session commands"
+      >
+        <SettingsSelect
+          value={threadMode}
+          onChange={setThreadMode}
+          options={[
+            { value: "single", label: "Single thread" },
+            { value: "multi", label: "Multiple threads" },
+          ]}
+        />
+      </SettingsRow>
 
-      <section className={settingsCardStackClass}>
-        <h2 className={settingsCardTitleClass}>Optional BotFather Commands</h2>
-        <p className={settingsBodyTextClass}>
-          The bot works without configuring commands, but this list makes the
-          supported slash commands visible in Telegram.
+      <SettingsRow
+        label="Register bot"
+        description="People who message the bot keep their own Aomi identity, wallets, and threads"
+      >
+        <SettingsPill
+          tone="primary"
+          disabled={!canCreate}
+          onClick={() => {
+            void handleCreate();
+          }}
+        >
+          {creating ? "Registering…" : "Register bot"}
+        </SettingsPill>
+      </SettingsRow>
+
+      <details className="border-border/50 group border-b px-3 py-3.5">
+        <summary className="text-foreground cursor-pointer list-none text-[13.5px] font-medium leading-5">
+          How to set up BotFather commands (optional)
+          <span className="text-muted-foreground ml-2 text-[12px] group-open:hidden">
+            Show
+          </span>
+          <span className="text-muted-foreground ml-2 hidden text-[12px] group-open:inline">
+            Hide
+          </span>
+        </summary>
+        <p className="text-muted-foreground mt-2 text-[12.5px] leading-4">
+          The bot works without commands, but pasting this list into
+          BotFather&apos;s /setcommands makes the supported slash commands
+          visible in Telegram.
         </p>
-        <pre className="text-foreground border-input bg-muted/30 overflow-x-auto rounded-2xl border p-4 font-mono text-xs leading-6">
+        <pre className="text-foreground border-border bg-muted/40 mt-2 overflow-x-auto rounded-xl border p-3 font-mono text-xs leading-6">
           {BOTFATHER_COMMANDS}
         </pre>
-      </section>
+      </details>
 
-      <div className="space-y-4">
-        <h2 className={settingsSubTitleClass}>Registered Bots</h2>
-        <div className={settingsTableCardClass}>
-          <table className="min-w-full text-sm">
-            <thead>
-              <tr className="text-muted-foreground text-center">
-                <th className="px-3 py-2">Bot</th>
-                <th className="px-3 py-2">Platform</th>
-                <th className="px-3 py-2">App</th>
-                <th className="px-3 py-2">Thread Mode</th>
-                <th className="px-3 py-2">Webhook</th>
-                <th className="px-3 py-2">Status</th>
-                <th className="px-3 py-2">Created</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading && (
-                <tr>
-                  <td
-                    className="text-muted-foreground px-3 py-4 text-center"
-                    colSpan={7}
-                  >
-                    Loading bots...
-                  </td>
-                </tr>
-              )}
-              {!loading && bots.length === 0 && (
-                <tr>
-                  <td
-                    className="text-muted-foreground px-3 py-4 text-center"
-                    colSpan={7}
-                  >
-                    No bots registered yet.
-                  </td>
-                </tr>
-              )}
-              {!loading &&
-                bots.map((bot) => (
-                  <tr key={bot.id} className="border-border border-t">
-                    <td className="text-foreground px-3 py-2">
-                      <div>{displayBotName(bot)}</div>
-                      {bot.platform_username && bot.label && (
-                        <div className="text-muted-foreground text-xs">
-                          @{bot.platform_username}
-                        </div>
-                      )}
-                    </td>
-                    <td className="text-muted-foreground px-3 py-2">
-                      {bot.platform}
-                    </td>
-                    <td className="text-muted-foreground px-3 py-2">
-                      {bot.default_app}
-                    </td>
-                    <td className="text-muted-foreground px-3 py-2">
-                      {bot.thread_mode}
-                    </td>
-                    <td className="text-muted-foreground px-3 py-2">
-                      {bot.webhook_url ? "Configured" : "Not configured"}
-                    </td>
-                    <td className="text-muted-foreground px-3 py-2">
-                      {bot.status}
-                    </td>
-                    <td className="text-muted-foreground px-3 py-2">
-                      {formatTs(bot.created_at)}
-                    </td>
-                  </tr>
-                ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
+      {loading ? <SettingsSkeletonRows count={3} /> : null}
+
+      {!loading && bots.length === 0 ? (
+        <SettingsEmpty
+          title="No bots registered yet"
+          description="Paste a BotFather token above to register your first bot."
+        />
+      ) : null}
+
+      {!loading && bots.length > 0 ? (
+        <SettingsTable
+          headers={[
+            "Bot",
+            "App",
+            "Thread mode",
+            "Webhook",
+            "Status",
+            "Created",
+          ]}
+        >
+          {bots.map((bot) => (
+            <tr key={bot.id} className="border-border/50 border-t">
+              <td className="text-foreground px-3 py-2.5">
+                <div>{displayBotName(bot)}</div>
+                {bot.platform_username && bot.label ? (
+                  <div className="text-muted-foreground text-xs">
+                    @{bot.platform_username}
+                  </div>
+                ) : null}
+              </td>
+              <td className="text-muted-foreground px-3 py-2.5">
+                {bot.default_app}
+              </td>
+              <td className="text-muted-foreground px-3 py-2.5">
+                {bot.thread_mode}
+              </td>
+              <td className="text-muted-foreground px-3 py-2.5">
+                {bot.webhook_url ? "Configured" : "Not configured"}
+              </td>
+              <td className="text-muted-foreground px-3 py-2.5">
+                {bot.status}
+              </td>
+              <td className="text-muted-foreground px-3 py-2.5">
+                {formatTs(bot.created_at)}
+              </td>
+            </tr>
+          ))}
+        </SettingsTable>
+      ) : null}
+    </SettingsPanel>
   );
 }
