@@ -33,6 +33,46 @@
 2026-07-13 — Billing option A: methods live on Chat (no fake Build fetch);
 2026-07-13 — BILLING-EXPERIENCE.md: backend ↔ UI map (code-checked)
 
+2026-07-13 — Fixed required-secrets gate fail-open (P1, external review)
+
+## Required-secrets gate fail-open fix (2026-07-13)
+
+Branch `feat/required-secrets-gating`, commit `5b5dea59`. External code review
+found the required-secret activation/promotion gate ALWAYS failed open in
+production: `missingSecretsForActivation`
+(`packages/deploy/src/bff/release-manifest.ts`) read
+`input.source.latestDeployment?.platformRepo`, but `source` comes from
+`listUserSources`, and the backend deliberately returns
+`latest_deployment: null` on that list endpoint (lazy for the list). So
+`platformRepo` was always undefined and the gate silently returned `{}` —
+activate, promote, and `requiredSecretsRoute` all saw zero required secret
+slots regardless of what was actually missing. The existing tests hid this by
+stubbing a populated `latestDeployment`, a shape that never occurs in
+production.
+
+- **Fix**: `missingSecretsForActivation` now resolves `platformRepo` via
+  `client.getUserSourceLatestDeployment(...)` (the per-source detail endpoint
+  that does populate it, same pattern as the redeploy route) when the cheap
+  `source.latestDeployment?.platformRepo` path is empty. Fail-open is
+  preserved only for the genuinely-unknown case (no GitHub token, or a source
+  with no deployment at all). Fixes aomi-build + portal activate/promote
+  (shared helper) plus aomi-build's `requiredSecretsRoute` (same pattern,
+  fixed separately since it doesn't go through the shared helper).
+- **Tests**: rewrote fixtures across
+  `packages/deploy/test/release-manifest.test.ts`,
+  `apps/aomi-build/src/server/bff/launch/routes.test.ts`,
+  `apps/portal/src/server/bff/launch/routes.test.ts`, and
+  `packages/deploy/test/launch-routes.test.ts` to use the real
+  `latestDeployment: null` shape with a `getUserSourceLatestDeployment` stub,
+  so they exercise the real production path instead of masking the bug.
+  Proved the regression: reverted only `release-manifest.ts`, confirmed the
+  corrected test fails against the old code (`{}` instead of the expected
+  missing-secret map), then restored and confirmed it passes.
+- **Verified**: all four vitest suites green (107 tests total across the
+  four files), `@aomi-labs/deploy` build clean, `aomi-build` + `portal`
+  type-check clean.
+- Full writeup: `.superpowers/sdd/fix-p1-failopen-report.md`.
+
 ## Build P2 deep-link polish (2026-07-14)
 
 Branch `feat/build-p2-deep-links`:

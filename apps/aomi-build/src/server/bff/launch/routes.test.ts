@@ -610,6 +610,7 @@ describe("deploymentPromoteRoute", () => {
   });
 
   it("promotes an owned deployment and attributes the GitHub login", async () => {
+    vi.stubEnv("GITHUB_TOKEN", "gh-token");
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(ownedSources(99))
@@ -617,9 +618,9 @@ describe("deploymentPromoteRoute", () => {
       // sourceDeploymentPairs re-reads the same DB records to derive the
       // secret-gate pairs.
       .mockResolvedValueOnce(appRecords(DEPLOYMENT))
-      // No GITHUB_TOKEN is stubbed for this test, so
-      // missingSecretsForActivation fails open (token-first check) before
-      // ever fetching deployment state — no 4th call is made here.
+      .mockResolvedValueOnce(latestDeploymentResponse("aomi-labs/community"))
+      .mockResolvedValueOnce(Response.json({ by_app: {} }))
+      .mockResolvedValueOnce(Response.json({ assets: [] }))
       .mockResolvedValueOnce(
         Response.json({
           ok: true,
@@ -639,7 +640,7 @@ describe("deploymentPromoteRoute", () => {
     expect(res.status).toBe(202);
     expect(body.ok).toBe(true);
     expect(body.promote.deploymentId).toBe(DEPLOYMENT);
-    const [promoteUrl, promoteInit] = fetchMock.mock.calls[3];
+    const [promoteUrl, promoteInit] = fetchMock.mock.calls[6];
     expect(String(promoteUrl)).toContain(`/deployments/${DEPLOYMENT}/promote`);
     expect(String(promoteInit?.body)).toContain('"actor":"alice"');
   });
@@ -1202,13 +1203,14 @@ describe("activateLaunchRoute", () => {
   });
 
   it("activates only an owned app/tag pair", async () => {
+    vi.stubEnv("GITHUB_TOKEN", "gh-token");
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(activationSource())
       .mockResolvedValueOnce(sourceDeployments())
-      // No GITHUB_TOKEN is stubbed for this test, so
-      // missingSecretsForActivation fails open (token-first check) before
-      // ever fetching deployment state.
+      .mockResolvedValueOnce(latestDeploymentResponse("aomi-labs/community"))
+      .mockResolvedValueOnce(Response.json({ by_app: {} }))
+      .mockResolvedValueOnce(Response.json({ assets: [] }))
       .mockResolvedValueOnce(
         Response.json({ ok: true, activation: { apps: [] } }),
       );
@@ -1222,8 +1224,8 @@ describe("activateLaunchRoute", () => {
       }),
     );
     expect(res.status).toBe(200);
-    expect(fetchMock).toHaveBeenCalledTimes(3);
-    expect(fetchMock.mock.calls[2][1]).toMatchObject({
+    expect(fetchMock).toHaveBeenCalledTimes(6);
+    expect(fetchMock.mock.calls[5][1]).toMatchObject({
       method: "POST",
       body: JSON.stringify({
         target: {
@@ -1322,7 +1324,9 @@ describe("requiredSecretsRoute", () => {
       );
     vi.stubGlobal("fetch", fetchMock);
 
-    const res = await requiredSecretsRoute(requiredSecretsReq("?appSourceId=42"));
+    const res = await requiredSecretsRoute(
+      requiredSecretsReq("?appSourceId=42"),
+    );
 
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({
@@ -1344,7 +1348,9 @@ describe("requiredSecretsRoute", () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
 
-    const res = await requiredSecretsRoute(requiredSecretsReq("?appSourceId=42"));
+    const res = await requiredSecretsRoute(
+      requiredSecretsReq("?appSourceId=42"),
+    );
 
     expect(res.status).toBe(401);
     expect(fetchMock).not.toHaveBeenCalled();
@@ -1354,9 +1360,31 @@ describe("requiredSecretsRoute", () => {
     const fetchMock = vi.fn().mockResolvedValueOnce(ownedSources(1));
     vi.stubGlobal("fetch", fetchMock);
 
-    const res = await requiredSecretsRoute(requiredSecretsReq("?appSourceId=99"));
+    const res = await requiredSecretsRoute(
+      requiredSecretsReq("?appSourceId=99"),
+    );
 
     expect(res.status).toBe(404);
+  });
+
+  it("503s when required-secret metadata cannot be verified", async () => {
+    vi.stubEnv("GITHUB_TOKEN", "");
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        ownedSourceWithApp(42, { name: "binance", appReleaseTag: "v1" }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await requiredSecretsRoute(
+      requiredSecretsReq("?appSourceId=42"),
+    );
+
+    expect(res.status).toBe(503);
+    await expect(res.json()).resolves.toEqual({
+      error: "Unable to verify required secrets. Try again.",
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
 
