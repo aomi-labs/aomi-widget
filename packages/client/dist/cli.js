@@ -221,12 +221,9 @@ var init_chains = __esm({
 });
 
 // src/cli/solana-signer.ts
-import {
-  Keypair,
-  Transaction,
-  VersionedTransaction
-} from "@solana/web3.js";
+import { Keypair, Transaction, VersionedTransaction } from "@solana/web3.js";
 import bs58 from "bs58";
+import nacl from "tweetnacl";
 function parseSolanaKeypairSecret(input2) {
   const trimmed = input2.trim();
   if (!trimmed) {
@@ -303,6 +300,17 @@ function signSolanaTransaction(unsignedTxBase64, keypair) {
       );
     }
   }
+}
+function signSolanaMessage(messageBase64, keypair) {
+  const message = decodeBase64(messageBase64);
+  if (message.length === 0) {
+    throw new Error("Solana message must decode to at least one byte.");
+  }
+  const signature = nacl.sign.detached(message, keypair.secretKey);
+  return {
+    signer: keypair.publicKey.toBase58(),
+    signatureBase64: encodeBase64(signature)
+  };
 }
 var init_solana_signer = __esm({
   "src/cli/solana-signer.ts"() {
@@ -3984,7 +3992,7 @@ function pendingTxsFromBackendUserState(userState, existingPendingTxs = []) {
   return nextPendingTxs;
 }
 function pendingSolTxsFromBackendUserState(userState, existingPendingSolTxs = []) {
-  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t;
+  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u;
   const normalizedUserState = UserState.normalize(userState);
   if (!normalizedUserState) {
     return [];
@@ -4040,7 +4048,11 @@ function pendingSolTxsFromBackendUserState(userState, existingPendingSolTxs = []
       }
     });
   }
-  const pendingSolanaSigs = (_q = (_p = (_n = (_l = asRecord2((_j = normalizedUserState.pending) == null ? void 0 : _j.solanaSigs)) != null ? _l : asRecord2((_k = normalizedUserState.pending) == null ? void 0 : _k.solana_sigs)) != null ? _n : asRecord2((_m = normalizedUserState.pending) == null ? void 0 : _m.svmSigs)) != null ? _p : asRecord2((_o = normalizedUserState.pending) == null ? void 0 : _o.svm_sigs)) != null ? _q : {};
+  const pendingSolanaSigs = (_q = (_p = (_n = (_l = asRecord2((_j = normalizedUserState.pending) == null ? void 0 : _j.solanaSigs)) != null ? _l : asRecord2((_k = normalizedUserState.pending) == null ? void 0 : _k.solana_sigs)) != null ? _n : asRecord2(
+    (_m = normalizedUserState.pending) == null ? void 0 : _m.svmSigs
+  )) != null ? _p : asRecord2(
+    (_o = normalizedUserState.pending) == null ? void 0 : _o.svm_sigs
+  )) != null ? _q : {};
   for (const [rawId, rawValue] of Object.entries(pendingSolanaSigs)) {
     const pendingId = parsePendingId2(rawId);
     const request = asRecord2(rawValue);
@@ -4048,7 +4060,14 @@ function pendingSolTxsFromBackendUserState(userState, existingPendingSolTxs = []
       continue;
     }
     const unsignedTx = (_r = parseOptionalString(request.unsigned_tx)) != null ? _r : parseOptionalString(request.unsignedTx);
-    if (!unsignedTx) {
+    const message = (_s = parseOptionalString(request.message_base64)) != null ? _s : parseOptionalString(request.messageBase64);
+    if (!unsignedTx && !message) {
+      const existing = existingPendingSolTxs.find(
+        (tx) => tx.solanaId === pendingId
+      );
+      if (existing && !next.some((tx) => tx.id === existing.id)) {
+        next.push(existing);
+      }
       continue;
     }
     const id = pendingDisplayId(pendingId);
@@ -4058,16 +4077,20 @@ function pendingSolTxsFromBackendUserState(userState, existingPendingSolTxs = []
     next.push({
       id,
       solanaId: pendingId,
+      requestKind: message ? "solana_sign_message" : "solana_sign",
       unsignedTx,
+      message,
       cluster,
       signer,
       description,
-      timestamp: (_t = (_s = existingById.get(id)) == null ? void 0 : _s.timestamp) != null ? _t : fallbackNow,
+      timestamp: (_u = (_t = existingById.get(id)) == null ? void 0 : _t.timestamp) != null ? _u : fallbackNow,
       payload: {
         pending_solana_id: pendingId,
         pendingSolanaId: pendingId,
         unsigned_tx: unsignedTx,
         unsignedTx,
+        message_base64: message,
+        messageBase64: message,
         cluster,
         description,
         signer
@@ -5264,21 +5287,35 @@ var init_cli_session = __esm({
         this.reload();
         return result;
       }
-      /** Find a pending Solana tx by display id, or undefined if unknown. */
+      /** Find a pending Solana request by legacy or chain-qualified display id. */
       findPendingSolTx(txId) {
         var _a3;
-        return ((_a3 = this.state.pendingSolTxs) != null ? _a3 : []).find((tx) => tx.id === txId);
+        const id = this.chainSelector(txId, "svm");
+        return id ? ((_a3 = this.state.pendingSolTxs) != null ? _a3 : []).find((tx) => tx.id === id) : void 0;
       }
-      /** Find a pending EVM/EIP-712 tx by display id, or undefined. */
+      /** Find a pending EVM/EIP-712 request by legacy or qualified display id. */
       findPendingTx(txId) {
         var _a3;
-        return ((_a3 = this.state.pendingTxs) != null ? _a3 : []).find((tx) => tx.id === txId);
+        const id = this.chainSelector(txId, "evm");
+        return id ? ((_a3 = this.state.pendingTxs) != null ? _a3 : []).find((tx) => tx.id === id) : void 0;
+      }
+      /** Selectors users can pass to `tx sign`; qualify only colliding ids. */
+      pendingSelectors() {
+        var _a3, _b, _c, _d;
+        const evmIds = new Set(((_a3 = this.state.pendingTxs) != null ? _a3 : []).map((tx) => tx.id));
+        const svmIds = new Set(((_b = this.state.pendingSolTxs) != null ? _b : []).map((tx) => tx.id));
+        return [
+          ...((_c = this.state.pendingTxs) != null ? _c : []).map(
+            (tx) => svmIds.has(tx.id) ? `evm:${tx.id}` : tx.id
+          ),
+          ...((_d = this.state.pendingSolTxs) != null ? _d : []).map(
+            (tx) => evmIds.has(tx.id) ? `svm:${tx.id}` : tx.id
+          )
+        ];
       }
       /** Get a pending tx by ID, or fatal() if not found. */
       requirePendingTx(txId) {
-        var _a3;
-        const pending = (_a3 = this.state.pendingTxs) != null ? _a3 : [];
-        const tx = pending.find((t) => t.id === txId);
+        const tx = this.findPendingTx(txId);
         if (!tx) {
           const available = this.allDisplayIds().join(", ") || "(none)";
           fatal(`Transaction "${txId}" not found.
@@ -5307,11 +5344,13 @@ Available: ${available}`);
         return tx;
       }
       allDisplayIds() {
-        var _a3, _b;
-        return [
-          ...((_a3 = this.state.pendingTxs) != null ? _a3 : []).map((tx) => tx.id),
-          ...((_b = this.state.pendingSolTxs) != null ? _b : []).map((tx) => tx.id)
-        ];
+        return this.pendingSelectors();
+      }
+      chainSelector(selector, expected) {
+        const match = selector.trim().toLowerCase().match(/^(?:(evm|svm|solana):)?(tx-\d+)$/);
+        if (!match) return selector;
+        const family = match[1] === "solana" ? "svm" : match[1];
+        return family && family !== expected ? void 0 : match[2];
       }
       // ---------------------------------------------------------------------------
       // Bridge to ClientSession
@@ -5581,6 +5620,21 @@ var init_context = __esm({
 
 // src/cli/transactions.ts
 function walletRequestToPendingSolTx(request) {
+  if (request.kind === "solana_sign_message") {
+    const payload2 = request.payload;
+    if (payload2.pendingSolanaId === void 0 || payload2.message === void 0) {
+      return null;
+    }
+    return {
+      solanaId: payload2.pendingSolanaId,
+      requestKind: request.kind,
+      message: payload2.message,
+      cluster: payload2.cluster,
+      description: payload2.description,
+      timestamp: request.timestamp,
+      payload: request.payload
+    };
+  }
   if (request.kind !== "solana_sign" && request.kind !== "solana_send" && request.kind !== "solana_sign_and_send") {
     return null;
   }
@@ -5671,17 +5725,21 @@ function formatSignedTxLine(tx, prefix) {
   return parts.join("  ");
 }
 function formatPendingSolTxLine(tx, prefix) {
-  const parts = [`${prefix} ${tx.id}`, "solana"];
+  var _a3;
+  const parts = [`${prefix} ${tx.id}`, (_a3 = tx.requestKind) != null ? _a3 : "solana_sign"];
   if (tx.cluster) parts.push(`cluster: ${tx.cluster}`);
   if (tx.description) parts.push(tx.description);
   if (tx.signer) parts.push(`signer: ${tx.signer}`);
   if (tx.unsignedTx) parts.push(`tx: ${tx.unsignedTx.slice(0, 20)}...`);
+  if (tx.message) parts.push(`message: ${tx.message.slice(0, 20)}...`);
   parts.push(`(${new Date(tx.timestamp).toLocaleTimeString()})`);
   return parts.join("  ");
 }
 function formatSignedSolTxLine(tx, prefix) {
-  const parts = [`${prefix} ${tx.id}`, "solana"];
+  var _a3;
+  const parts = [`${prefix} ${tx.id}`, (_a3 = tx.requestKind) != null ? _a3 : "solana_sign"];
   if (tx.signedTx) parts.push(`signed: ${tx.signedTx.slice(0, 20)}...`);
+  if (tx.signature) parts.push(`sig: ${tx.signature.slice(0, 20)}...`);
   if (tx.cluster) parts.push(`cluster: ${tx.cluster}`);
   if (tx.signer) parts.push(`signer: ${tx.signer}`);
   if (tx.description) parts.push(tx.description);
@@ -5743,8 +5801,8 @@ function resolveSvmAddressForChat(config, publicKey, persistedSvmAddress, solana
     return derived != null ? derived : persistedSvmAddress;
   }
   const app = (_a3 = config.app) == null ? void 0 : _a3.trim().toLowerCase();
-  const isSvmContext = config.svmCluster !== void 0 || app === "sol" || app === "solana" || app === "svm" || app === "byreal";
-  return isSvmContext && publicKey && !publicKey.startsWith("0x") ? publicKey : void 0;
+  const acceptsSvmPublicKey = !app || app === "default" || config.svmCluster !== void 0 || app === "sol" || app === "solana" || app === "svm" || app === "byreal";
+  return acceptsSvmPublicKey && publicKey && !publicKey.startsWith("0x") ? publicKey : void 0;
 }
 function shouldBroadcastWalletStateChange(config, previous, next) {
   var _a3, _b;
@@ -5757,7 +5815,7 @@ function shouldBroadcastWalletStateChange(config, previous, next) {
   return normalizeAddress2(previous == null ? void 0 : previous.publicKey) !== normalizeAddress2(next.publicKey) || (previous == null ? void 0 : previous.chainId) !== next.chainId || (previous == null ? void 0 : previous.aaProvider) !== next.aaProvider || (previous == null ? void 0 : previous.aaMode) !== next.aaMode || normalizeAddress2((_a3 = previous == null ? void 0 : previous.smartAccount) != null ? _a3 : void 0) !== normalizeAddress2((_b = next.smartAccount) != null ? _b : void 0);
 }
 async function syncWalletStateForChat(config, previous, next, cli, session) {
-  var _a3, _b, _c, _d;
+  var _a3, _b, _c, _d, _e;
   if (!shouldBroadcastWalletStateChange(config, previous, next) || !next.publicKey) {
     return;
   }
@@ -5767,7 +5825,9 @@ async function syncWalletStateForChat(config, previous, next, cli, session) {
     aaMode: (_c = next.aaMode) != null ? _c : null,
     smartAccount: (_d = next.smartAccount) != null ? _d : null,
     svmAddress: next.svmAddress,
-    svmCluster: config.svmCluster
+    // An EVM-only command must not silently reset a persisted devnet/testnet
+    // Solana wallet to mainnet in the shared default-runtime context.
+    svmCluster: (_e = config.svmCluster) != null ? _e : cli.svmCluster
   });
   session.resolveUserState(userState);
   await session.syncUserState();
@@ -5827,7 +5887,10 @@ async function chatCommand(config, message, verbose) {
       cli,
       session
     );
-    const previousPendingIds = new Set(cli.pendingTxs.map((tx) => tx.id));
+    const previousPendingIds = /* @__PURE__ */ new Set([
+      ...cli.pendingTxs.map((tx) => `evm:${tx.id}`),
+      ...cli.pendingSolTxs.map((tx) => `svm:${tx.id}`)
+    ]);
     let printedAgentCount = 0;
     const seenToolResults = /* @__PURE__ */ new Set();
     session.on("tool_complete", (event) => {
@@ -5916,9 +5979,11 @@ async function chatCommand(config, message, verbose) {
     }
     cli.reload();
     const newPendingTxs = [
-      ...cli.pendingTxs,
-      ...cli.pendingSolTxs
-    ].filter((tx) => !previousPendingIds.has(tx.id));
+      ...cli.pendingTxs.filter((tx) => !previousPendingIds.has(`evm:${tx.id}`)),
+      ...cli.pendingSolTxs.filter(
+        (tx) => !previousPendingIds.has(`svm:${tx.id}`)
+      )
+    ];
     for (const pending of newPendingTxs) {
       console.log(`\u26A1 Wallet request queued: ${pending.id}`);
       if ("kind" in pending && pending.kind === "transaction") {
@@ -7673,6 +7738,9 @@ async function txCommand(config) {
   }
   const pending = [...cli.pendingTxs];
   const pendingSol = [...cli.pendingSolTxs];
+  const pendingSelectors = cli.pendingSelectors();
+  const evmSelectors = pendingSelectors.slice(0, pending.length);
+  const svmSelectors = pendingSelectors.slice(pending.length);
   const signed = [...cli.signedTxs];
   const signedSol = [...cli.signedSolTxs];
   const totalPending = pending.length + pendingSol.length;
@@ -7681,16 +7749,18 @@ async function txCommand(config) {
     printJson({
       active: true,
       pending: [
-        ...pending.map((tx) => toPendingTxMetadata(tx)),
-        ...pendingSol.map((tx) => {
-          var _a3, _b, _c;
+        ...pending.map((tx, index) => __spreadProps(__spreadValues({}, toPendingTxMetadata(tx)), {
+          id: evmSelectors[index]
+        })),
+        ...pendingSol.map((tx, index) => {
+          var _a3, _b, _c, _d;
           return {
-            id: tx.id,
-            kind: tx.kind,
+            id: svmSelectors[index],
+            kind: (_a3 = tx.requestKind) != null ? _a3 : "solana_sign",
             solanaId: tx.solanaId,
-            signer: (_a3 = tx.signer) != null ? _a3 : null,
-            cluster: (_b = tx.cluster) != null ? _b : null,
-            description: (_c = tx.description) != null ? _c : null,
+            signer: (_b = tx.signer) != null ? _b : null,
+            cluster: (_c = tx.cluster) != null ? _c : null,
+            description: (_d = tx.description) != null ? _d : null,
             timestamp: new Date(tx.timestamp).toISOString()
           };
         })
@@ -7698,14 +7768,14 @@ async function txCommand(config) {
       signed: [
         ...signed.map((tx) => toSignedTxMetadata(tx)),
         ...signedSol.map((tx) => {
-          var _a3, _b, _c, _d;
+          var _a3, _b, _c, _d, _e;
           return {
             id: tx.id,
-            kind: "solana_sign",
-            signedTx: (_a3 = tx.signedTx) != null ? _a3 : null,
-            signer: (_b = tx.signer) != null ? _b : null,
-            cluster: (_c = tx.cluster) != null ? _c : null,
-            description: (_d = tx.description) != null ? _d : null,
+            kind: (_a3 = tx.requestKind) != null ? _a3 : "solana_sign",
+            signedTx: (_b = tx.signedTx) != null ? _b : null,
+            signer: (_c = tx.signer) != null ? _c : null,
+            cluster: (_d = tx.cluster) != null ? _d : null,
+            description: (_e = tx.description) != null ? _e : null,
             timestamp: new Date(tx.timestamp).toISOString()
           };
         })
@@ -7720,11 +7790,13 @@ async function txCommand(config) {
   }
   if (totalPending > 0) {
     console.log(`Pending (${totalPending}):`);
-    for (const tx of pending) {
-      console.log(formatTxLine(tx, "  \u23F3"));
+    for (const [index, tx] of pending.entries()) {
+      console.log(formatTxLine(__spreadProps(__spreadValues({}, tx), { id: evmSelectors[index] }), "  \u23F3"));
     }
-    for (const tx of pendingSol) {
-      console.log(formatPendingSolTxLine(tx, "  \u23F3"));
+    for (const [index, tx] of pendingSol.entries()) {
+      console.log(
+        formatPendingSolTxLine(__spreadProps(__spreadValues({}, tx), { id: svmSelectors[index] }), "  \u23F3")
+      );
     }
   }
   if (totalSigned > 0) {
@@ -7813,7 +7885,7 @@ async function signSolanaPending(params) {
   if (!secret) {
     fatal(
       [
-        "Solana keypair required for `aomi tx sign` on a solana_sign request.",
+        "Solana keypair required for `aomi tx sign` on an SVM request.",
         "Pass one of:",
         "  aomi wallet set --solana <base58-key>             # persist once",
         "  aomi tx sign --solana-private-key <base58|json> <tx-id>",
@@ -7843,6 +7915,48 @@ async function signSolanaPending(params) {
   if (pendingTx.description) console.log(`Desc:    ${pendingTx.description}`);
   console.log(`Signer:  ${keypair.publicKey.toBase58()}`);
   console.log();
+  if (requestKind === "solana_sign_message") {
+    if (!pendingTx.message) {
+      throw new Error("Solana message-sign request is missing message bytes.");
+    }
+    const outcome2 = signSolanaMessage(pendingTx.message, keypair);
+    console.log(
+      `\u2705 Signed message! signature: ${outcome2.signatureBase64.slice(0, 24)}...`
+    );
+    await session.client.sendSystemMessage(
+      cli.sessionId,
+      JSON.stringify({
+        type: "wallet::solana_sign_complete",
+        payload: {
+          status: "signed",
+          signature: outcome2.signatureBase64,
+          signed_message_base64: pendingTx.message,
+          signature_type: "ed25519",
+          description: pendingTx.description,
+          pending_svm_sig_id: pendingTx.solanaId
+        }
+      }),
+      { app: cli.app }
+    );
+    const syncedState2 = await session.syncUserState();
+    cli.syncPendingFromUserState(syncedState2.user_state);
+    cli.addSignedSolTx({
+      id: pendingTx.id,
+      requestKind,
+      signer: outcome2.signer,
+      signature: outcome2.signatureBase64,
+      cluster: pendingTx.cluster,
+      description: pendingTx.description,
+      timestamp: Date.now()
+    });
+    console.log("Backend notified.");
+    return;
+  }
+  if (!pendingTx.unsignedTx) {
+    throw new Error(
+      "Solana transaction request is missing unsigned transaction bytes."
+    );
+  }
   const outcome = signSolanaTransaction(pendingTx.unsignedTx, keypair);
   console.log(
     `\u2705 Signed! signed_tx: ${outcome.signedTxBase64.slice(0, 24)}... (${outcome.signedTxBase64.length} chars)`
@@ -7855,7 +7969,10 @@ async function signSolanaPending(params) {
       Buffer.from(outcome.signedTxBase64, "base64"),
       { skipPreflight: false, maxRetries: 3 }
     );
-    const confirmation = await connection.confirmTransaction(signature, "confirmed");
+    const confirmation = await connection.confirmTransaction(
+      signature,
+      "confirmed"
+    );
     if (confirmation.value.err) {
       throw new Error(
         `Solana transaction ${signature} failed: ${JSON.stringify(confirmation.value.err)}`
@@ -7893,6 +8010,7 @@ async function signSolanaPending(params) {
   cli.syncPendingFromUserState(syncedState.user_state);
   cli.addSignedSolTx({
     id: pendingTx.id,
+    requestKind,
     signedTx: outcome.signedTxBase64,
     signer: outcome.signer,
     signature,
@@ -7968,8 +8086,16 @@ async function signCommand(config, txIds) {
     const unknownIds = uniqueIds.filter(
       (id) => cli.findPendingSolTx(id) === void 0 && cli.findPendingTx(id) === void 0
     );
+    const ambiguousIds = uniqueIds.filter(
+      (id) => !id.includes(":") && cli.findPendingSolTx(id) !== void 0 && cli.findPendingTx(id) !== void 0
+    );
+    if (ambiguousIds.length > 0) {
+      fatal(
+        `Ambiguous transaction ${ambiguousIds.join(", ")}. Use the chain-qualified selector shown by \`aomi tx list\` (for example \`evm:tx-1\` or \`svm:tx-1\`).`
+      );
+    }
     if (unknownIds.length > 0) {
-      const available = [...cli.pendingTxs, ...cli.pendingSolTxs].map((tx) => tx.id).join(", ") || "(none)";
+      const available = cli.pendingSelectors().join(", ") || "(none)";
       const label = unknownIds.length === 1 ? "Transaction" : "Transactions";
       fatal(
         `${label} "${unknownIds.join('", "')}" not found.
@@ -7983,15 +8109,14 @@ Available: ${available}`
     }
     if (solanaIds.length > 0) {
       if (solanaIds.length > 1) {
-        fatal("Solana signing is singular \u2014 pass exactly one tx-id at a time.");
+        console.log(
+          `${DIM}Solana requests execute sequentially; confirmed transactions are not rolled back if a later request fails.${RESET}`
+        );
       }
-      const solanaTx = cli.requirePendingSolTx(solanaIds[0]);
-      await signSolanaPending({
-        cli,
-        session,
-        config,
-        pendingTx: solanaTx
-      });
+      const pendingSolana = solanaIds.map((id) => cli.requirePendingSolTx(id));
+      for (const pendingTx of pendingSolana) {
+        await signSolanaPending({ cli, session, config, pendingTx });
+      }
       return;
     }
     const pendingTxs = cli.requirePendingTxs(uniqueIds);
@@ -8182,10 +8307,25 @@ Available: ${available}`
           }
         }
       }
-      console.log(`\u2705 Sent! Hash: ${execution.txHash}`);
-      if (execution.txHashes.length > 1) {
-        console.log(`Count:   ${execution.txHashes.length}`);
+      let reportedExecution = execution;
+      let feeTxHash;
+      if (autoFeeCall && execution.executionKind === "eoa" && execution.txHashes.length === decisionCallList.length) {
+        const actionTxHashes = execution.txHashes.slice(0, baseCallList.length);
+        feeTxHash = execution.txHashes[baseCallList.length];
+        const actionTxHash = actionTxHashes[actionTxHashes.length - 1];
+        if (actionTxHash) {
+          reportedExecution = __spreadProps(__spreadValues({}, execution), {
+            txHash: actionTxHash,
+            txHashes: actionTxHashes,
+            batched: baseCallList.length > 1
+          });
+        }
       }
+      console.log(`\u2705 Sent! Hash: ${reportedExecution.txHash}`);
+      if (reportedExecution.txHashes.length > 1) {
+        console.log(`Count:   ${reportedExecution.txHashes.length}`);
+      }
+      if (feeTxHash) console.log(`Fee tx:  ${feeTxHash}`);
       if (execution.sponsored) {
         console.log("Gas:     sponsored");
       }
@@ -8203,7 +8343,7 @@ Available: ${available}`
       signedRecords = pendingTxs.map(
         (tx, index) => toSignedTransactionRecord(
           tx,
-          execution,
+          reportedExecution,
           account.address,
           resolvedChainIds[index],
           Date.now(),
@@ -8218,14 +8358,15 @@ Available: ${available}`
       });
       backendNotifications = pendingTxs.map((tx) => ({
         type: "wallet:tx_complete",
-        payload: __spreadProps(__spreadValues({
-          txHash: execution.txHash,
+        payload: __spreadProps(__spreadValues(__spreadProps(__spreadValues({
+          txHash: reportedExecution.txHash,
           status: "success",
           pending_tx_ids: tx.txId !== void 0 ? [tx.txId] : []
         }, completionMetadata), {
           execution_kind: execution.executionKind,
-          batched: execution.batched,
-          call_count: execution.txHashes.length,
+          batched: reportedExecution.batched,
+          call_count: reportedExecution.txHashes.length
+        }), feeTxHash ? { service_fee_tx_hash: feeTxHash } : {}), {
           sponsored: execution.sponsored,
           smart_account_4337: execution.SmartAccount4337,
           delegation_7702: execution.Delegation7702
@@ -11122,6 +11263,7 @@ var package_default = {
     bs58: "^6.0.0",
     citty: "^0.2.2",
     permissionless: "^0.3.5",
+    tweetnacl: "^1.0.3",
     viem: "^2.47.11"
   }
 };

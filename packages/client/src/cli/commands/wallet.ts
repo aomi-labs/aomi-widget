@@ -19,6 +19,7 @@ import { CliSession } from "../cli-session";
 import { CliExit, fatal } from "../errors";
 import {
   parseSolanaKeypairSecret,
+  signSolanaMessage,
   signSolanaTransaction,
 } from "../solana-signer";
 import {
@@ -71,6 +72,9 @@ export async function txCommand(config: CliConfig): Promise<void> {
 
   const pending = [...cli.pendingTxs];
   const pendingSol = [...cli.pendingSolTxs];
+  const pendingSelectors = cli.pendingSelectors();
+  const evmSelectors = pendingSelectors.slice(0, pending.length);
+  const svmSelectors = pendingSelectors.slice(pending.length);
   const signed = [...cli.signedTxs];
   const signedSol = [...cli.signedSolTxs];
 
@@ -81,10 +85,13 @@ export async function txCommand(config: CliConfig): Promise<void> {
     printJson({
       active: true,
       pending: [
-        ...pending.map((tx) => toPendingTxMetadata(tx)),
-        ...pendingSol.map((tx) => ({
-          id: tx.id,
-          kind: tx.kind,
+        ...pending.map((tx, index) => ({
+          ...toPendingTxMetadata(tx),
+          id: evmSelectors[index],
+        })),
+        ...pendingSol.map((tx, index) => ({
+          id: svmSelectors[index],
+          kind: tx.requestKind ?? "solana_sign",
           solanaId: tx.solanaId,
           signer: tx.signer ?? null,
           cluster: tx.cluster ?? null,
@@ -96,7 +103,7 @@ export async function txCommand(config: CliConfig): Promise<void> {
         ...signed.map((tx) => toSignedTxMetadata(tx)),
         ...signedSol.map((tx) => ({
           id: tx.id,
-          kind: "solana_sign",
+          kind: tx.requestKind ?? "solana_sign",
           signedTx: tx.signedTx ?? null,
           signer: tx.signer ?? null,
           cluster: tx.cluster ?? null,
@@ -116,11 +123,13 @@ export async function txCommand(config: CliConfig): Promise<void> {
 
   if (totalPending > 0) {
     console.log(`Pending (${totalPending}):`);
-    for (const tx of pending) {
-      console.log(formatTxLine(tx, "  ⏳"));
+    for (const [index, tx] of pending.entries()) {
+      console.log(formatTxLine({ ...tx, id: evmSelectors[index] }, "  ⏳"));
     }
-    for (const tx of pendingSol) {
-      console.log(formatPendingSolTxLine(tx, "  ⏳"));
+    for (const [index, tx] of pendingSol.entries()) {
+      console.log(
+        formatPendingSolTxLine({ ...tx, id: svmSelectors[index] }, "  ⏳"),
+      );
     }
   }
 
@@ -250,9 +259,8 @@ async function simulatePendingTransactions(params: {
  *      continuation routes resolve.
  *   5. Persist the signed record locally for `aomi tx list`.
  *
- * Singular by design — host doesn't batch Solana signs. The host's
- * `domain.svm.address` is informational; this CLI path always signs with
- * whatever keypair the user provided. We do warn on mismatch.
+ * The host's `domain.svm.address` is informational; this CLI path always signs
+ * with whatever keypair the user provided. We do warn on mismatch.
  */
 async function signSolanaPending(params: {
   cli: CliSession;
@@ -267,7 +275,7 @@ async function signSolanaPending(params: {
   if (!secret) {
     fatal(
       [
-        "Solana keypair required for `aomi tx sign` on a solana_sign request.",
+        "Solana keypair required for `aomi tx sign` on an SVM request.",
         "Pass one of:",
         "  aomi wallet set --solana <base58-key>             # persist once",
         "  aomi tx sign --solana-private-key <base58|json> <tx-id>",
@@ -301,6 +309,49 @@ async function signSolanaPending(params: {
   console.log(`Signer:  ${keypair.publicKey.toBase58()}`);
   console.log();
 
+  if (requestKind === "solana_sign_message") {
+    if (!pendingTx.message) {
+      throw new Error("Solana message-sign request is missing message bytes.");
+    }
+    const outcome = signSolanaMessage(pendingTx.message, keypair);
+    console.log(
+      `✅ Signed message! signature: ${outcome.signatureBase64.slice(0, 24)}...`,
+    );
+    await session.client.sendSystemMessage(
+      cli.sessionId,
+      JSON.stringify({
+        type: "wallet::solana_sign_complete",
+        payload: {
+          status: "signed",
+          signature: outcome.signatureBase64,
+          signed_message_base64: pendingTx.message,
+          signature_type: "ed25519",
+          description: pendingTx.description,
+          pending_svm_sig_id: pendingTx.solanaId,
+        },
+      }),
+      { app: cli.app },
+    );
+    const syncedState = await session.syncUserState();
+    cli.syncPendingFromUserState(syncedState.user_state);
+    cli.addSignedSolTx({
+      id: pendingTx.id,
+      requestKind,
+      signer: outcome.signer,
+      signature: outcome.signatureBase64,
+      cluster: pendingTx.cluster,
+      description: pendingTx.description,
+      timestamp: Date.now(),
+    });
+    console.log("Backend notified.");
+    return;
+  }
+
+  if (!pendingTx.unsignedTx) {
+    throw new Error(
+      "Solana transaction request is missing unsigned transaction bytes.",
+    );
+  }
   const outcome = signSolanaTransaction(pendingTx.unsignedTx, keypair);
   console.log(
     `✅ Signed! signed_tx: ${outcome.signedTxBase64.slice(0, 24)}... (${outcome.signedTxBase64.length} chars)`,
@@ -314,7 +365,10 @@ async function signSolanaPending(params: {
       Buffer.from(outcome.signedTxBase64, "base64"),
       { skipPreflight: false, maxRetries: 3 },
     );
-    const confirmation = await connection.confirmTransaction(signature, "confirmed");
+    const confirmation = await connection.confirmTransaction(
+      signature,
+      "confirmed",
+    );
     if (confirmation.value.err) {
       throw new Error(
         `Solana transaction ${signature} failed: ${JSON.stringify(confirmation.value.err)}`,
@@ -328,8 +382,9 @@ async function signSolanaPending(params: {
         payload: {
           status: "confirmed",
           identifier: { kind: "signature", value: signature },
-          pending_svm_tx_ids:
-            pendingTx.solanaIds?.length ? pendingTx.solanaIds : [pendingTx.solanaId],
+          pending_svm_tx_ids: pendingTx.solanaIds?.length
+            ? pendingTx.solanaIds
+            : [pendingTx.solanaId],
         },
       }),
       { app: cli.app },
@@ -356,6 +411,7 @@ async function signSolanaPending(params: {
 
   cli.addSignedSolTx({
     id: pendingTx.id,
+    requestKind,
     signedTx: outcome.signedTxBase64,
     signer: outcome.signer,
     signature,
@@ -444,10 +500,9 @@ export async function signCommand(
     );
     cli.syncPendingFromUserState(initialState.user_state);
 
-    // Membership check: each requested id resolves to exactly one of the
-    // two authoritative arrays (EVM/EIP-712 or Solana) — backend ids are
-    // unique across kinds. Mixing kinds in a single invocation is a UX
-    // error, so dispatch wholesale.
+    // EVM and SVM have independent backend id spaces, so the default dual-chain
+    // runtime can legitimately have both `evm:tx-1` and `svm:tx-1` pending.
+    // Legacy unqualified ids remain accepted whenever they are unambiguous.
     const solanaIds = uniqueIds.filter(
       (id) => cli.findPendingSolTx(id) !== undefined,
     );
@@ -459,11 +514,19 @@ export async function signCommand(
         cli.findPendingSolTx(id) === undefined &&
         cli.findPendingTx(id) === undefined,
     );
+    const ambiguousIds = uniqueIds.filter(
+      (id) =>
+        !id.includes(":") &&
+        cli.findPendingSolTx(id) !== undefined &&
+        cli.findPendingTx(id) !== undefined,
+    );
+    if (ambiguousIds.length > 0) {
+      fatal(
+        `Ambiguous transaction ${ambiguousIds.join(", ")}. Use the chain-qualified selector shown by \`aomi tx list\` (for example \`evm:tx-1\` or \`svm:tx-1\`).`,
+      );
+    }
     if (unknownIds.length > 0) {
-      const available =
-        [...cli.pendingTxs, ...cli.pendingSolTxs]
-          .map((tx) => tx.id)
-          .join(", ") || "(none)";
+      const available = cli.pendingSelectors().join(", ") || "(none)";
       const label = unknownIds.length === 1 ? "Transaction" : "Transactions";
       fatal(
         `${label} "${unknownIds.join('", "')}" not found.\nAvailable: ${available}`,
@@ -475,18 +538,18 @@ export async function signCommand(
       );
     }
 
-    // Solana sign branch: singular, no EVM key, no chain/RPC needed.
+    // Solana requests execute sequentially because each has an independent
+    // blockhash and callback. A later failure cannot roll back an earlier send.
     if (solanaIds.length > 0) {
       if (solanaIds.length > 1) {
-        fatal("Solana signing is singular — pass exactly one tx-id at a time.");
+        console.log(
+          `${DIM}Solana requests execute sequentially; confirmed transactions are not rolled back if a later request fails.${RESET}`,
+        );
       }
-      const solanaTx = cli.requirePendingSolTx(solanaIds[0]);
-      await signSolanaPending({
-        cli,
-        session,
-        config,
-        pendingTx: solanaTx,
-      });
+      const pendingSolana = solanaIds.map((id) => cli.requirePendingSolTx(id));
+      for (const pendingTx of pendingSolana) {
+        await signSolanaPending({ cli, session, config, pendingTx });
+      }
       return;
     }
 
@@ -734,10 +797,37 @@ export async function signCommand(
         }
       }
 
-      console.log(`✅ Sent! Hash: ${execution.txHash}`);
-      if (execution.txHashes.length > 1) {
-        console.log(`Count:   ${execution.txHashes.length}`);
+      // EOA fallback sends calls sequentially. When the backend quoted a
+      // service fee, that fee is appended after the user's calls, so the raw
+      // execution's last/primary hash belongs to the fee transfer. Keep the
+      // wallet-facing record and callback anchored to the requested action;
+      // the fee hash remains visible separately for auditability. AA execution
+      // stays atomic and therefore has one shared receipt hash.
+      let reportedExecution = execution;
+      let feeTxHash: string | undefined;
+      if (
+        autoFeeCall &&
+        execution.executionKind === "eoa" &&
+        execution.txHashes.length === decisionCallList.length
+      ) {
+        const actionTxHashes = execution.txHashes.slice(0, baseCallList.length);
+        feeTxHash = execution.txHashes[baseCallList.length];
+        const actionTxHash = actionTxHashes[actionTxHashes.length - 1];
+        if (actionTxHash) {
+          reportedExecution = {
+            ...execution,
+            txHash: actionTxHash,
+            txHashes: actionTxHashes,
+            batched: baseCallList.length > 1,
+          };
+        }
       }
+
+      console.log(`✅ Sent! Hash: ${reportedExecution.txHash}`);
+      if (reportedExecution.txHashes.length > 1) {
+        console.log(`Count:   ${reportedExecution.txHashes.length}`);
+      }
+      if (feeTxHash) console.log(`Fee tx:  ${feeTxHash}`);
       if (execution.sponsored) {
         console.log("Gas:     sponsored");
       }
@@ -769,7 +859,7 @@ export async function signCommand(
       signedRecords = pendingTxs.map((tx, index) =>
         toSignedTransactionRecord(
           tx,
-          execution,
+          reportedExecution,
           account.address,
           resolvedChainIds[index],
           Date.now(),
@@ -789,13 +879,14 @@ export async function signCommand(
       backendNotifications = pendingTxs.map((tx) => ({
         type: "wallet:tx_complete",
         payload: {
-          txHash: execution.txHash,
+          txHash: reportedExecution.txHash,
           status: "success",
           pending_tx_ids: tx.txId !== undefined ? [tx.txId] : [],
           ...completionMetadata,
           execution_kind: execution.executionKind,
-          batched: execution.batched,
-          call_count: execution.txHashes.length,
+          batched: reportedExecution.batched,
+          call_count: reportedExecution.txHashes.length,
+          ...(feeTxHash ? { service_fee_tx_hash: feeTxHash } : {}),
           sponsored: execution.sponsored,
           smart_account_4337: execution.SmartAccount4337,
           delegation_7702: execution.Delegation7702,

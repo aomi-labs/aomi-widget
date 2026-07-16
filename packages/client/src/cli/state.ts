@@ -56,13 +56,7 @@ export type SignedTx = {
   timestamp: number;
 };
 
-/**
- * Solana sign-only request waiting for the local CLI signer. Mirrors
- * [`PendingTx`] but kept as its own type — the host treats Solana as a
- * separate domain (no batching, no chain id, no `to`/`value`) so a flat
- * non-union record is cleaner than co-mingling Solana-only fields onto
- * [`PendingTx`].
- */
+/** Solana wallet request waiting for the local CLI signer. */
 export type PendingSolTx = {
   id: string;
   /** Backend-assigned id for the staged Solana sign request. */
@@ -70,9 +64,15 @@ export type PendingSolTx = {
   /** All staged backend ids covered by this transaction. */
   solanaIds?: number[];
   /** Wallet operation requested by the backend. */
-  requestKind?: "solana_sign" | "solana_send" | "solana_sign_and_send";
-  /** Base64 of the unsigned Solana transaction (host never decodes). */
-  unsignedTx: string;
+  requestKind?:
+    | "solana_sign"
+    | "solana_sign_message"
+    | "solana_send"
+    | "solana_sign_and_send";
+  /** Base64 unsigned transaction for transaction requests. */
+  unsignedTx?: string;
+  /** Base64 message bytes for `solana_sign_message`. */
+  message?: string;
   /** CAIP-2 cluster, e.g. "solana:mainnet" / "solana:devnet". */
   cluster?: string;
   /** Base58 pubkey the host expects to sign (informational; CLI signs
@@ -90,7 +90,8 @@ export type PendingSolTx = {
  */
 export type SignedSolTx = {
   id: string;
-  signedTx: string;
+  requestKind?: PendingSolTx["requestKind"];
+  signedTx?: string;
   signer: string;
   signature?: string;
   cluster?: string;

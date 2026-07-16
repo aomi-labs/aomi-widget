@@ -91,13 +91,15 @@ export function resolveSvmAddressForChat(
     return derived ?? persistedSvmAddress;
   }
   const app = config.app?.trim().toLowerCase();
-  const isSvmContext =
+  const acceptsSvmPublicKey =
+    !app ||
+    app === "default" ||
     config.svmCluster !== undefined ||
     app === "sol" ||
     app === "solana" ||
     app === "svm" ||
     app === "byreal";
-  return isSvmContext && publicKey && !publicKey.startsWith("0x")
+  return acceptsSvmPublicKey && publicKey && !publicKey.startsWith("0x")
     ? publicKey
     : undefined;
 }
@@ -166,7 +168,9 @@ export async function syncWalletStateForChat(
     aaMode: next.aaMode ?? null,
     smartAccount: next.smartAccount ?? null,
     svmAddress: next.svmAddress,
-    svmCluster: config.svmCluster,
+    // An EVM-only command must not silently reset a persisted devnet/testnet
+    // Solana wallet to mainnet in the shared default-runtime context.
+    svmCluster: config.svmCluster ?? cli.svmCluster,
   });
 
   session.resolveUserState(userState);
@@ -241,7 +245,10 @@ export async function chatCommand(
       session,
     );
 
-    const previousPendingIds = new Set(cli.pendingTxs.map((tx) => tx.id));
+    const previousPendingIds = new Set([
+      ...cli.pendingTxs.map((tx) => `evm:${tx.id}`),
+      ...cli.pendingSolTxs.map((tx) => `svm:${tx.id}`),
+    ]);
     let printedAgentCount = 0;
     const seenToolResults = new Set<string>();
 
@@ -351,9 +358,11 @@ export async function chatCommand(
     }
     cli.reload();
     const newPendingTxs = [
-      ...cli.pendingTxs,
-      ...cli.pendingSolTxs,
-    ].filter((tx) => !previousPendingIds.has(tx.id));
+      ...cli.pendingTxs.filter((tx) => !previousPendingIds.has(`evm:${tx.id}`)),
+      ...cli.pendingSolTxs.filter(
+        (tx) => !previousPendingIds.has(`svm:${tx.id}`),
+      ),
+    ];
 
     for (const pending of newPendingTxs) {
       console.log(`⚡ Wallet request queued: ${pending.id}`);

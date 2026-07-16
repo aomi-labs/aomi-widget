@@ -12,18 +12,21 @@
 // Both versioned (v0) and legacy transactions are supported, matching what
 // wallet adapters accept.
 
-import {
-  Keypair,
-  Transaction,
-  VersionedTransaction,
-} from "@solana/web3.js";
+import { Keypair, Transaction, VersionedTransaction } from "@solana/web3.js";
 import bs58 from "bs58";
+import nacl from "tweetnacl";
 
 export type SolanaSignOutcome = {
   /** Base58 signer pubkey (the keypair's `publicKey.toBase58()`). */
   signer: string;
   /** Base64 of the full signed transaction bytes. */
   signedTxBase64: string;
+};
+
+export type SolanaMessageSignOutcome = {
+  signer: string;
+  /** Base64 Ed25519 signature, matching the backend verifier contract. */
+  signatureBase64: string;
 };
 
 /**
@@ -42,7 +45,10 @@ export function parseSolanaKeypairSecret(input: string): Keypair {
   let bytes: Uint8Array;
   if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
     const parsed = JSON.parse(trimmed) as unknown;
-    if (!Array.isArray(parsed) || parsed.some((value) => typeof value !== "number")) {
+    if (
+      !Array.isArray(parsed) ||
+      parsed.some((value) => typeof value !== "number")
+    ) {
       throw new Error(
         "Solana keypair JSON must be an array of byte values (e.g. `[1,2,...,64]`).",
       );
@@ -125,7 +131,9 @@ export function signSolanaTransaction(
       };
     } catch (legacyErr) {
       const versionedMsg =
-        versionedErr instanceof Error ? versionedErr.message : String(versionedErr);
+        versionedErr instanceof Error
+          ? versionedErr.message
+          : String(versionedErr);
       const legacyMsg =
         legacyErr instanceof Error ? legacyErr.message : String(legacyErr);
       throw new Error(
@@ -133,4 +141,20 @@ export function signSolanaTransaction(
       );
     }
   }
+}
+
+/** Sign a base64 message with the wallet's Ed25519 keypair. */
+export function signSolanaMessage(
+  messageBase64: string,
+  keypair: Keypair,
+): SolanaMessageSignOutcome {
+  const message = decodeBase64(messageBase64);
+  if (message.length === 0) {
+    throw new Error("Solana message must decode to at least one byte.");
+  }
+  const signature = nacl.sign.detached(message, keypair.secretKey);
+  return {
+    signer: keypair.publicKey.toBase58(),
+    signatureBase64: encodeBase64(signature),
+  };
 }

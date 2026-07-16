@@ -444,20 +444,39 @@ export class CliSession {
     return result;
   }
 
-  /** Find a pending Solana tx by display id, or undefined if unknown. */
+  /** Find a pending Solana request by legacy or chain-qualified display id. */
   findPendingSolTx(txId: string): PendingSolTx | undefined {
-    return (this.state.pendingSolTxs ?? []).find((tx) => tx.id === txId);
+    const id = this.chainSelector(txId, "svm");
+    return id
+      ? (this.state.pendingSolTxs ?? []).find((tx) => tx.id === id)
+      : undefined;
   }
 
-  /** Find a pending EVM/EIP-712 tx by display id, or undefined. */
+  /** Find a pending EVM/EIP-712 request by legacy or qualified display id. */
   findPendingTx(txId: string): PendingTx | undefined {
-    return (this.state.pendingTxs ?? []).find((tx) => tx.id === txId);
+    const id = this.chainSelector(txId, "evm");
+    return id
+      ? (this.state.pendingTxs ?? []).find((tx) => tx.id === id)
+      : undefined;
+  }
+
+  /** Selectors users can pass to `tx sign`; qualify only colliding ids. */
+  pendingSelectors(): string[] {
+    const evmIds = new Set((this.state.pendingTxs ?? []).map((tx) => tx.id));
+    const svmIds = new Set((this.state.pendingSolTxs ?? []).map((tx) => tx.id));
+    return [
+      ...(this.state.pendingTxs ?? []).map((tx) =>
+        svmIds.has(tx.id) ? `evm:${tx.id}` : tx.id,
+      ),
+      ...(this.state.pendingSolTxs ?? []).map((tx) =>
+        evmIds.has(tx.id) ? `svm:${tx.id}` : tx.id,
+      ),
+    ];
   }
 
   /** Get a pending tx by ID, or fatal() if not found. */
   requirePendingTx(txId: string): PendingTx {
-    const pending = this.state.pendingTxs ?? [];
-    const tx = pending.find((t) => t.id === txId);
+    const tx = this.findPendingTx(txId);
     if (!tx) {
       const available = this.allDisplayIds().join(", ") || "(none)";
       fatal(`Transaction "${txId}" not found.\nAvailable: ${available}`);
@@ -487,10 +506,20 @@ export class CliSession {
   }
 
   private allDisplayIds(): string[] {
-    return [
-      ...(this.state.pendingTxs ?? []).map((tx) => tx.id),
-      ...(this.state.pendingSolTxs ?? []).map((tx) => tx.id),
-    ];
+    return this.pendingSelectors();
+  }
+
+  private chainSelector(
+    selector: string,
+    expected: "evm" | "svm",
+  ): string | undefined {
+    const match = selector
+      .trim()
+      .toLowerCase()
+      .match(/^(?:(evm|svm|solana):)?(tx-\d+)$/);
+    if (!match) return selector;
+    const family = match[1] === "solana" ? "svm" : match[1];
+    return family && family !== expected ? undefined : match[2];
   }
 
   // ---------------------------------------------------------------------------

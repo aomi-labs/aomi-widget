@@ -141,7 +141,7 @@ export function buildCliUserState(
   }
   const anyConnected = Boolean(
     (hasEvm && publicKey !== undefined) ||
-      (hasSvm && (svmAddress ?? publicKey) !== undefined),
+    (hasSvm && (svmAddress ?? publicKey) !== undefined),
   );
   if (anyConnected) {
     userState.connection = {
@@ -166,9 +166,7 @@ export function pendingTxsFromBackendUserState(
 
   const pending = asRecord(normalizedUserState.pending) ?? {};
   const pendingTxs =
-    asRecord(pending.evmTxs) ??
-    asRecord(pending.evm_txs) ??
-    {};
+    asRecord(pending.evmTxs) ?? asRecord(pending.evm_txs) ?? {};
   for (const [rawId, rawValue] of Object.entries(pendingTxs)) {
     const pendingId = parsePendingId(rawId);
     const tx = asRecord(rawValue);
@@ -207,9 +205,7 @@ export function pendingTxsFromBackendUserState(
   }
 
   const pendingEip712s =
-    asRecord(pending.evmSigs) ??
-    asRecord(pending.evm_sigs) ??
-    {};
+    asRecord(pending.evmSigs) ?? asRecord(pending.evm_sigs) ?? {};
   for (const [rawId, rawValue] of Object.entries(pendingEip712s)) {
     const pendingId = parsePendingId(rawId);
     const request = asRecord(rawValue);
@@ -301,7 +297,8 @@ export function pendingSolTxsFromBackendUserState(
     if (!unsignedTx) {
       const existing = existingPendingSolTxs.find(
         (tx) =>
-          tx.solanaId === pendingId || tx.solanaIds?.includes(pendingId) === true,
+          tx.solanaId === pendingId ||
+          tx.solanaIds?.includes(pendingId) === true,
       );
       if (existing && !next.some((tx) => tx.id === existing.id)) {
         next.push(existing);
@@ -345,16 +342,20 @@ export function pendingSolTxsFromBackendUserState(
     });
   }
 
-  // Also surface pending Solana sign-only tx requests that were staged in the
-  // signature bucket (`solana_sigs` / `svm_sigs`) by `svm_sign_tx`. Message
-  // signatures remain message-sign requests and should not be reconstructed as
-  // tx-sign prompts here. The backend serializes keys snake_to_camel on the
-  // wire, so also accept `solanaSigs` / `svmSigs`.
+  // Surface pending Solana transaction and message signatures from the
+  // canonical signature bucket. The backend serializes keys snake_to_camel on
+  // some surfaces, so accept both forms.
   const pendingSolanaSigs =
     asRecord(normalizedUserState.pending?.solanaSigs) ??
     asRecord(normalizedUserState.pending?.solana_sigs) ??
-    asRecord((normalizedUserState.pending as Record<string, unknown> | undefined)?.svmSigs) ??
-    asRecord((normalizedUserState.pending as Record<string, unknown> | undefined)?.svm_sigs) ??
+    asRecord(
+      (normalizedUserState.pending as Record<string, unknown> | undefined)
+        ?.svmSigs,
+    ) ??
+    asRecord(
+      (normalizedUserState.pending as Record<string, unknown> | undefined)
+        ?.svm_sigs,
+    ) ??
     {};
   for (const [rawId, rawValue] of Object.entries(pendingSolanaSigs)) {
     const pendingId = parsePendingId(rawId);
@@ -366,7 +367,16 @@ export function pendingSolTxsFromBackendUserState(
     const unsignedTx =
       parseOptionalString(request.unsigned_tx) ??
       parseOptionalString(request.unsignedTx);
-    if (!unsignedTx) {
+    const message =
+      parseOptionalString(request.message_base64) ??
+      parseOptionalString(request.messageBase64);
+    if (!unsignedTx && !message) {
+      const existing = existingPendingSolTxs.find(
+        (tx) => tx.solanaId === pendingId,
+      );
+      if (existing && !next.some((tx) => tx.id === existing.id)) {
+        next.push(existing);
+      }
       continue;
     }
 
@@ -378,7 +388,9 @@ export function pendingSolTxsFromBackendUserState(
     next.push({
       id,
       solanaId: pendingId,
+      requestKind: message ? "solana_sign_message" : "solana_sign",
       unsignedTx,
+      message,
       cluster,
       signer,
       description,
@@ -388,6 +400,8 @@ export function pendingSolTxsFromBackendUserState(
         pendingSolanaId: pendingId,
         unsigned_tx: unsignedTx,
         unsignedTx,
+        message_base64: message,
+        messageBase64: message,
         cluster,
         description,
         signer,

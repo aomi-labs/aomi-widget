@@ -52,3 +52,30 @@ using `google/gemini-3-flash-preview` completed:
 
 This closes the original minimal acceptance target. Portal/browser work remains
 separate and is intentionally not part of this backend/CLI verification.
+
+## Default-runtime parity acceptance
+
+Verified again from a clean Anvil + Surfpool state on 2026-07-16, this time
+through one `default` app session holding both wallet families and using
+`google/gemini-3-flash-preview`:
+
+1. Gemini staged a semantic System Program transfer whose backend-generated
+   data was `AgAAAEBCDwAAAAAA`; simulation passed at 450 CU.
+2. The CLI signed, broadcast, and confirmed
+   `5ERWH1kEjagNuTfSvoPEUF8nEwdHttUcQ1kq7MSQZArabGcoKksuJ5Kg7zUdh7YMvHHeLLbsRvTdFsGSbedkBkP5`.
+   Recipient `EGb7vRkfDWbWmvmoSHiBVW6QYy6RFgnpN2HFu5zmLXtU` moved from 0 to
+   exactly 1,000,000 lamports.
+3. In the same session Gemini switched to EVM chain 1 and staged exactly
+   1,000,000,000,000 wei to `0x000000000000000000000000000000000000dEaD`.
+4. The CLI confirmed the requested action as
+   `0x9bd96def2775b1da7f5050c19110e410c92a6539a42d8119ba97ffa6444dfe67`
+   and separately labeled the service-fee transaction as
+   `0x82549dd3f08ba8b659eecb64fab8fc2dec41960148d01a2929ecf086ed4e92e2`.
+   The recipient moved from 0 to exactly 1,000,000,000,000 wei.
+5. Both pending queues cleared. A final Gemini readback saw EVM chain 1 and
+   Solana devnet together; an EVM-only chat no longer resets a persisted SVM
+   devnet/testnet context to mainnet.
+
+The full client suite passed 322 tests with 28 intentional integration skips,
+and the package build (including declarations and the distributable CLI)
+passed. No portal or browser code was changed.
