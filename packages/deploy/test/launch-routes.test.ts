@@ -306,7 +306,9 @@ describe("createLaunchRoutes redeploy", () => {
       );
     vi.stubGlobal("fetch", fetchMock);
 
-    const res = await routes().redeploy(writeReq("redeploy", { appSourceId: 99 }));
+    const res = await routes().redeploy(
+      writeReq("redeploy", { appSourceId: 99 }),
+    );
     const body = await res.json();
 
     expect(res.status).toBe(200);
@@ -652,13 +654,18 @@ describe("createLaunchRoutes activate/app security", () => {
 
   it("activates an owned app/tag pair", async () => {
     session.mockResolvedValueOnce({ githubUserId: "42", githubLogin: "alice" });
+    vi.stubEnv("GITHUB_TOKEN", "gh-token");
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(activationSource())
       .mockResolvedValueOnce(sourceDeployments())
-      // No GITHUB_TOKEN is stubbed for this test, so
-      // missingSecretsForActivation fails open (token-first check) before
-      // ever fetching deployment state.
+      .mockResolvedValueOnce(
+        Response.json({
+          latest_deployment: { platform_repo: "aomi-labs/community" },
+        }),
+      )
+      .mockResolvedValueOnce(Response.json({ by_app: {} }))
+      .mockResolvedValueOnce(Response.json({ assets: [] }))
       .mockResolvedValueOnce(
         Response.json({ ok: true, activation: { apps: [] } }),
       );
@@ -673,8 +680,8 @@ describe("createLaunchRoutes activate/app security", () => {
     );
 
     expect(res.status).toBe(200);
-    expect(fetchMock).toHaveBeenCalledTimes(3);
-    expect(fetchMock.mock.calls[2][1]).toMatchObject({
+    expect(fetchMock).toHaveBeenCalledTimes(6);
+    expect(fetchMock.mock.calls[5][1]).toMatchObject({
       method: "POST",
       body: JSON.stringify({
         target: {

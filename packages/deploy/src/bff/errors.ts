@@ -4,6 +4,7 @@
 
 import { BackendError, DeployError } from "../errors";
 import { jsonResponse } from "./guards";
+import { RequiredSecretsCheckError } from "./release-manifest";
 
 function backendErrorMessage(body?: string): string | null {
   if (!body) return null;
@@ -32,7 +33,9 @@ function activationErrorMessage(err: unknown): string | null {
 export function launchErrorResponse(err: unknown): Response {
   let status = 502;
   let message = err instanceof Error ? err.message : String(err);
-  if (err instanceof BackendError) {
+  if (err instanceof RequiredSecretsCheckError) {
+    status = 503;
+  } else if (err instanceof BackendError) {
     if (err.status >= 400 && err.status < 600) status = err.status;
     message =
       backendErrorMessage(err.body) ?? activationErrorMessage(err) ?? message;

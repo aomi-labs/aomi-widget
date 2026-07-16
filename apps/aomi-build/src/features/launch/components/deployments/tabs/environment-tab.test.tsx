@@ -135,7 +135,7 @@ describe("EnvironmentTab", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders missing required slots with descriptions and masked inputs", () => {
+  it("lists missing required slots in the unified view (no inline inputs)", () => {
     const requiredDetail = {
       ...detail,
       requiredSecrets: {
@@ -153,10 +153,47 @@ describe("EnvironmentTab", () => {
     } as typeof detail;
     renderTab({ detail: requiredDetail });
     expect(screen.getByText("Key from the demo provider.")).toBeInTheDocument();
-    expect(screen.getByLabelText("DEMO_API_KEY value")).toHaveAttribute(
-      "type",
-      "password",
-    );
     expect(screen.getByText(/1 required secret missing/i)).toBeInTheDocument();
+    // Missing slots are list rows, not editor inputs.
+    expect(screen.queryByLabelText("DEMO_API_KEY value")).toBeNull();
+    expect(screen.getByText("Not set")).toBeInTheDocument();
+    expect(screen.getByLabelText("Required")).toBeInTheDocument();
+    // Configured key sits in the same list as the missing slot.
+    expect(screen.getByText("EXISTING_KEY")).toBeInTheDocument();
+    // Set value prefills the editor with the slot's key.
+    fireEvent.click(screen.getByTitle("Set DEMO_API_KEY"));
+    expect(screen.getByLabelText("Environment key")).toHaveValue(
+      "DEMO_API_KEY",
+    );
+  });
+
+  it("marks required vs optional slots with an asterisk", () => {
+    const requiredDetail = {
+      ...detail,
+      secretsByApp: { demo: [] },
+      requiredSecrets: {
+        demo: {
+          slots: [
+            {
+              name: "DEMO_API_KEY",
+              description: "Key from the demo provider.",
+              required: true,
+            },
+            {
+              name: "DEMO_BASE_URL",
+              description: "Optional override.",
+              required: false,
+            },
+          ],
+          missing: ["DEMO_API_KEY"],
+        },
+      },
+    } as typeof detail;
+    renderTab({ detail: requiredDetail });
+    // Both slots render as rows; only the required one carries the asterisk.
+    expect(screen.getByText("DEMO_BASE_URL")).toBeInTheDocument();
+    expect(screen.getAllByLabelText("Required")).toHaveLength(1);
+    expect(screen.getAllByText("Not set")).toHaveLength(2);
+    expect(screen.getByText(/cannot be activated without it/i)).toBeInTheDocument();
   });
 });

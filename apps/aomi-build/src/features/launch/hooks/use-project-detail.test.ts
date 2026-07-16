@@ -172,7 +172,25 @@ describe("useProjectDetail", () => {
     vi.mocked(deploymentRequiredSecrets).mockRejectedValue(new Error("boom"));
     const { result } = renderHook(() => useProjectDetail(42));
     act(() => result.current.loadRequiredSecrets());
-    await waitFor(() => expect(result.current.requiredSecretsError).toBe("boom"));
+    await waitFor(() =>
+      expect(result.current.requiredSecretsError).toBe("boom"),
+    );
     expect(result.current.requiredSecrets).toBeNull();
+  });
+
+  it("surfaces direct required-secret check failures for a redeploy target", async () => {
+    vi.mocked(deploymentRequiredSecrets).mockRejectedValueOnce(
+      new Error("manifest unavailable"),
+    );
+    const { result } = renderHook(() => useProjectDetail(42));
+
+    await act(async () => {
+      await expect(
+        result.current.ensureRequiredSecrets(["binance"], 99),
+      ).rejects.toThrow("manifest unavailable");
+    });
+    await waitFor(() =>
+      expect(result.current.requiredSecretsError).toBe("manifest unavailable"),
+    );
   });
 });
