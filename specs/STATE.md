@@ -2,28 +2,9 @@
 
 ## Last Updated
 
-2026-07-16 — /build E2E verified in-browser against a REAL smither run
-  (geckoterminal: binaries → codegen → curate via live Claude agent →
-  validate-loop cargo → result; resume replay lands the page on Ship). Fixes
-  found by the E2E: workflow.tsx ok/green checks must be truthy not `=== true`
-  (booleans round-trip as 0/1 through the store); bun-compat gained a minimal
-  `Bun` global polyfill (sleep/which, no `version` so isBunRuntime stays
-  honest) and a functional node:sqlite-backed bun:sqlite shim (the engine's
-  single-runner opens an in-memory scratch sqlite on every backend); engine
-  maps RunStatus "finished"/"continued" (not "completed"), captures
-  result.error, backfills stage statuses on replayed completed runs, and
-  auto-resumes settled apps on re-POST;
-2026-07-16 — /build wired to real aomi-smither (flagged): smithers-orchestrator
-  0.26.1→0.27.0 (Node ≥22 + pglite/postgres backends via new SmitherBackend
-  seam in packages/smither run.ts/workflow.tsx; SMITHER_DATABASE_URL wins,
-  Bun keeps bun:sqlite, Node falls back to per-app PGlite); aomi-build BFF
-  build engine (src/server/bff/build/engine.ts + routes; POST/GET
-  /api/bff/build/runs, POST /api/bff/build/runs/decision; GitHub session +
-  origin + rate-limit gated; autoApprove default until UI renders approvals);
-  Node loader hooks for Bun-flavored smithers sources (src/instrumentation.ts
-  + src/server/bun-compat.ts; serverExternalPackages in next.config.ts);
-  use-build-session drives the real engine when NEXT_PUBLIC_BUILD_ENGINE=
-  smither (poll → smither-run-mapper.ts, mock pipeline unchanged by default);
+2026-07-16 — Environment tab: unified Variables list (declared slots + configured, `*` = required);
+2026-07-16 — PR #358 (+): env-aware default chat host (prod → chat.aomi.dev,
+  preview/dev → chat-staging.aomi.dev; NEXT_PUBLIC_CHAT_URL still overrides);
 2026-07-14 — Account menu: Docs (aomi.dev/docs) + Home page links (Vercel-style);
 2026-07-14 — Build P2 deep-link polish (⌘K / Billing / Overview → right tab);
 2026-07-14 — Create stack #343–#349 merged to main (left #340);
@@ -52,6 +33,64 @@
 2026-07-13 — Build UI copy polish (em dashes / hedging essays);
 2026-07-13 — Billing option A: methods live on Chat (no fake Build fetch);
 2026-07-13 — BILLING-EXPERIENCE.md: backend ↔ UI map (code-checked)
+
+2026-07-13 — Fixed required-secrets gate fail-open (P1, external review)
+
+## Required-secrets gate fail-open fix (2026-07-13)
+
+Branch `feat/required-secrets-gating`, commit `5b5dea59`. External code review
+found the required-secret activation/promotion gate ALWAYS failed open in
+production: `missingSecretsForActivation`
+(`packages/deploy/src/bff/release-manifest.ts`) read
+`input.source.latestDeployment?.platformRepo`, but `source` comes from
+`listUserSources`, and the backend deliberately returns
+`latest_deployment: null` on that list endpoint (lazy for the list). So
+`platformRepo` was always undefined and the gate silently returned `{}` —
+activate, promote, and `requiredSecretsRoute` all saw zero required secret
+slots regardless of what was actually missing. The existing tests hid this by
+stubbing a populated `latestDeployment`, a shape that never occurs in
+production.
+
+- **Fix**: `missingSecretsForActivation` now resolves `platformRepo` via
+  `client.getUserSourceLatestDeployment(...)` (the per-source detail endpoint
+  that does populate it, same pattern as the redeploy route) when the cheap
+  `source.latestDeployment?.platformRepo` path is empty. Fail-open is
+  preserved only for the genuinely-unknown case (no GitHub token, or a source
+  with no deployment at all). Fixes aomi-build + portal activate/promote
+  (shared helper) plus aomi-build's `requiredSecretsRoute` (same pattern,
+  fixed separately since it doesn't go through the shared helper).
+- **Tests**: rewrote fixtures across
+  `packages/deploy/test/release-manifest.test.ts`,
+  `apps/aomi-build/src/server/bff/launch/routes.test.ts`,
+  `apps/portal/src/server/bff/launch/routes.test.ts`, and
+  `packages/deploy/test/launch-routes.test.ts` to use the real
+  `latestDeployment: null` shape with a `getUserSourceLatestDeployment` stub,
+  so they exercise the real production path instead of masking the bug.
+  Proved the regression: reverted only `release-manifest.ts`, confirmed the
+  corrected test fails against the old code (`{}` instead of the expected
+  missing-secret map), then restored and confirmed it passes.
+- **Verified**: all four vitest suites green (107 tests total across the
+  four files), `@aomi-labs/deploy` build clean, `aomi-build` + `portal`
+  type-check clean.
+- Full writeup: `.superpowers/sdd/fix-p1-failopen-report.md`.
+
+## Environment tab unified Variables view (2026-07-16)
+
+`apps/aomi-build/src/features/launch/components/deployments/tabs/environment-tab.tsx`:
+
+- Merged the split "missing required inputs inside Add or overwrite" +
+  "Configured" sections into one **Variables** list: declared manifest slots
+  (required + optional) and configured vault keys in a single view.
+- Missing slots render as solid list rows (`Not set` chip, warning-tinted when
+  required) with a **Set value** action that prefills the Add-or-overwrite
+  editor — no more read-only key inputs injected into the editor.
+- Required slots marked with `*` (+ legend "Required — the app cannot be
+  activated without it"); optional declared slots now visible too.
+- Missing-required rows sort first, directly under the "N required secrets
+  missing" banner; custom configured keys follow declared slots.
+- Removed the `requiredValues` state path from save(). Tests updated/added in
+  `environment-tab.test.tsx` (8 pass; full launch suite 129 pass; lint clean;
+  tsc failure is pre-existing stale `.next/types/validator.ts` on main).
 
 ## Build P2 deep-link polish (2026-07-14)
 

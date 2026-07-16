@@ -332,7 +332,7 @@ export function BuildView() {
             <button
               type="button"
               onClick={toggleRecentRail}
-              className="text-dim hover:bg-accent/40 hover:text-foreground inline-flex size-7 shrink-0 items-center justify-center rounded-md transition-colors"
+              className="icon-button inline-flex size-7 shrink-0 items-center justify-center rounded-md transition-colors"
               title={recentOpen ? "Hide Recent (⌘B)" : "Show Recent (⌘B)"}
               aria-label={recentOpen ? "Hide Recent" : "Show Recent"}
               aria-pressed={recentOpen}

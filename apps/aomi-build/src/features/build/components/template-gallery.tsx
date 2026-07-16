@@ -115,7 +115,7 @@ export function TemplateGallery({ templates, onSelect }: TemplateGalleryProps) {
         <div className="fixed inset-0 z-50 flex justify-end">
           <button
             type="button"
-            className="absolute inset-0 bg-black/40"
+            className="absolute inset-0 bg-[var(--aomi-overlay)]"
             aria-label="Close templates"
             onClick={() => setBrowseOpen(false)}
           />

@@ -2,6 +2,7 @@ import "server-only";
 
 import { NextResponse } from "next/server";
 import { BackendError, DeployError } from "@aomi-labs/deploy";
+import { RequiredSecretsCheckError } from "@aomi-labs/deploy/bff";
 
 function backendErrorMessage(body?: string): string | null {
   if (!body) return null;
@@ -29,9 +30,12 @@ function activationErrorMessage(err: unknown): string | null {
 export function launchErrorResponse(err: unknown): NextResponse {
   let status = 502;
   let message = err instanceof Error ? err.message : String(err);
-  if (err instanceof BackendError) {
+  if (err instanceof RequiredSecretsCheckError) {
+    status = 503;
+  } else if (err instanceof BackendError) {
     if (err.status >= 400 && err.status < 600) status = err.status;
-    message = backendErrorMessage(err.body) ?? activationErrorMessage(err) ?? message;
+    message =
+      backendErrorMessage(err.body) ?? activationErrorMessage(err) ?? message;
   } else if (err instanceof DeployError) {
     if (err.code === "INVALID_REQUEST") status = 400;
     message = activationErrorMessage(err) ?? message;
