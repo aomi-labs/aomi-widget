@@ -657,6 +657,7 @@ export interface OperateTransaction {
   application: string;
   applicationId: number | null;
   status: string;
+  /** EVM tx hash or SVM signature */
   txHash: string | null;
   chainId: number;
   fromAddress: string;
@@ -668,6 +669,28 @@ export interface OperateTransaction {
   createdAt: number;
   updatedAt: number;
   submittedAt: number | null;
+  // Receipt contract — null until the confirmation watcher lands.
+  family: "evm" | "svm" | null;
+  chainName: string | null;
+  fromLabel: string | null;
+  toLabel: string | null;
+  valueUsd: string | null;
+  block: string | null;
+  slot: string | null;
+  confirmations: number | null;
+  gasUsed: string | null;
+  gasLimit: string | null;
+  effGasPrice: string | null;
+  computeUnits: string | null;
+  computeLimit: string | null;
+  priorityFee: string | null;
+  txFee: string | null;
+  platformFee: string | null;
+  nonce: number | null;
+  method: string | null;
+  transfers: string[] | null;
+  revertReason: string | null;
+  explorerUrl: string | null;
 }
 
 export interface OperateTransactionsResult {
@@ -696,12 +719,60 @@ export interface OperateUsageBreakdownRow {
   events: number;
 }
 
+// Billing-statement contract: the Usage page is a revenue-share statement
+// (gross / platform fee / net + charges), not a token meter. Rows are
+// preformatted amounts — the ledger is the source of truth, not the UI.
+export interface OperateUsageRevenueRow {
+  stream: string;
+  pricing: string;
+  application: string;
+  activity: string;
+  gross: string;
+  platformFee: string;
+  net: string;
+  unpriced: boolean;
+}
+
+export interface OperateUsageChargeRow {
+  item: string;
+  application: string;
+  description: string;
+  amount: string;
+  keySource: "managed" | "byok" | null;
+}
+
+export interface OperateUsageLedgerRow {
+  occurredAt: number;
+  day: string;
+  application: string;
+  entry: string;
+  gross: string;
+  platformFee: string;
+  modelCost: string;
+  net: string;
+}
+
+export interface OperateUsageStatement {
+  summary: {
+    gross: string;
+    platformFees: string;
+    serviceCharges: string;
+    net: string;
+    period: string;
+  } | null;
+  revenue: OperateUsageRevenueRow[];
+  charges: OperateUsageChargeRow[];
+  ledger: OperateUsageLedgerRow[];
+}
+
 export interface OperateUsageResult {
   source: AppSource;
   platform: string;
   range: { fromDate: string; toDate: string; maxDays: number };
   daily: OperateUsageDailyRow[];
   breakdown: OperateUsageBreakdownRow[];
+  /** Null until statement billing ships; the page falls back to the meter. */
+  statement: OperateUsageStatement | null;
 }
 
 export interface OperateLogEntry {
@@ -712,6 +783,16 @@ export interface OperateLogEntry {
   applicationId: number | null;
   summary: string;
   details: Record<string, unknown>;
+  // Invocation-trace contract — null/absent for plain control-plane events.
+  // Privacy: args/results are operational payloads; user intents never ship.
+  kind: "invocation" | "event" | null;
+  status: "ok" | "error" | "info" | null;
+  tool: string | null;
+  durationMs: number | null;
+  retries: number | null;
+  threadId: string | null;
+  args: string | null;
+  result: string | null;
 }
 
 export interface OperateLogsResult {

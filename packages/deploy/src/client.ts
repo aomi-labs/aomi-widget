@@ -1688,6 +1688,15 @@ function camelLogCursor(raw: unknown): OperateLogCursor | null {
   return occurredAt && eventType && id ? { occurredAt, eventType, id } : null;
 }
 
+
+function optString(value: unknown): string | null {
+  return value === null || value === undefined ? null : String(value);
+}
+
+function optNumber(value: unknown): number | null {
+  return value === null || value === undefined ? null : Number(value);
+}
+
 function camelOperateTransactions(
   raw: Record<string, unknown>,
   fallbackPlatform: string,
@@ -1716,6 +1725,27 @@ function camelOperateTransactions(
           row.submitted_at == null && row.submittedAt == null
             ? null
             : timestampSeconds(row.submitted_at ?? row.submittedAt),
+        family: (row.family ?? null) as "evm" | "svm" | null,
+        chainName: optString(row.chain_name ?? row.chainName),
+        fromLabel: optString(row.from_label ?? row.fromLabel),
+        toLabel: optString(row.to_label ?? row.toLabel),
+        valueUsd: optString(row.value_usd ?? row.valueUsd),
+        block: optString(row.block),
+        slot: optString(row.slot),
+        confirmations: optNumber(row.confirmations),
+        gasUsed: optString(row.gas_used ?? row.gasUsed),
+        gasLimit: optString(row.gas_limit ?? row.gasLimit),
+        effGasPrice: optString(row.eff_gas_price ?? row.effGasPrice),
+        computeUnits: optString(row.compute_units ?? row.computeUnits),
+        computeLimit: optString(row.compute_limit ?? row.computeLimit),
+        priorityFee: optString(row.priority_fee ?? row.priorityFee),
+        txFee: optString(row.tx_fee ?? row.txFee),
+        platformFee: optString(row.platform_fee ?? row.platformFee),
+        nonce: optNumber(row.nonce),
+        method: optString(row.method),
+        transfers: Array.isArray(row.transfers) ? row.transfers.map(String) : null,
+        revertReason: optString(row.revert_reason ?? row.revertReason),
+        explorerUrl: optString(row.explorer_url ?? row.explorerUrl),
       }),
     ),
     nextCursor: camelTransactionCursor(raw.next_cursor ?? raw.nextCursor),
@@ -1752,6 +1782,51 @@ function camelOperateUsage(
       creditsUsed: Number(row.credits_used ?? row.creditsUsed ?? 0),
       events: Number(row.events ?? 0),
     })),
+    statement: camelUsageStatement(raw.statement),
+  };
+}
+
+function camelUsageStatement(raw: unknown) {
+  if (!raw || typeof raw !== "object") return null;
+  const statement = raw as Record<string, any>;
+  const summary = statement.summary as Record<string, any> | null | undefined;
+  return {
+    summary: summary
+      ? {
+          gross: String(summary.gross ?? ""),
+          platformFees: String(summary.platform_fees ?? summary.platformFees ?? ""),
+          serviceCharges: String(summary.service_charges ?? summary.serviceCharges ?? ""),
+          net: String(summary.net ?? ""),
+          period: String(summary.period ?? ""),
+        }
+      : null,
+    revenue: ((statement.revenue ?? []) as Record<string, any>[]).map((row) => ({
+      stream: String(row.stream ?? ""),
+      pricing: String(row.pricing ?? ""),
+      application: String(row.application ?? ""),
+      activity: String(row.activity ?? ""),
+      gross: String(row.gross ?? ""),
+      platformFee: String(row.platform_fee ?? row.platformFee ?? ""),
+      net: String(row.net ?? ""),
+      unpriced: Boolean(row.unpriced),
+    })),
+    charges: ((statement.charges ?? []) as Record<string, any>[]).map((row) => ({
+      item: String(row.item ?? ""),
+      application: String(row.application ?? ""),
+      description: String(row.description ?? ""),
+      amount: String(row.amount ?? ""),
+      keySource: (row.key_source ?? row.keySource ?? null) as "managed" | "byok" | null,
+    })),
+    ledger: ((statement.ledger ?? []) as Record<string, any>[]).map((row) => ({
+      occurredAt: timestampSeconds(row.occurred_at ?? row.occurredAt),
+      day: String(row.day ?? ""),
+      application: String(row.application ?? ""),
+      entry: String(row.entry ?? ""),
+      gross: String(row.gross ?? ""),
+      platformFee: String(row.platform_fee ?? row.platformFee ?? ""),
+      modelCost: String(row.model_cost ?? row.modelCost ?? ""),
+      net: String(row.net ?? ""),
+    })),
   };
 }
 
@@ -1770,6 +1845,14 @@ function camelOperateLogs(
       applicationId: row.application_id ?? row.applicationId ?? null,
       summary: String(row.summary ?? ""),
       details: (row.details ?? {}) as Record<string, unknown>,
+      kind: (row.kind ?? null) as "invocation" | "event" | null,
+      status: (row.status ?? null) as "ok" | "error" | "info" | null,
+      tool: optString(row.tool),
+      durationMs: optNumber(row.duration_ms ?? row.durationMs),
+      retries: optNumber(row.retries),
+      threadId: optString(row.thread_id ?? row.threadId),
+      args: optString(row.args),
+      result: optString(row.result),
     })),
     nextCursor: camelLogCursor(raw.next_cursor ?? raw.nextCursor),
   };

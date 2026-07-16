@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { OperateView, truncateAddress } from "./operate-view";
 
 const operateFetch = vi.fn();
@@ -59,7 +59,7 @@ describe("OperateView transactions", () => {
     render(<OperateView kind="transactions" />);
 
     await waitFor(() => {
-      expect(screen.getByText("demo")).toBeInTheDocument();
+      expect(screen.getAllByText("demo").length).toBeGreaterThan(0);
     });
 
     expect(screen.getByText("From")).toBeInTheDocument();
@@ -174,6 +174,155 @@ describe("OperateView transactions", () => {
     expect(screen.getByText("Error rate")).toBeInTheDocument();
     expect(screen.queryByText("Chats 24h")).not.toBeInTheDocument();
     expect(screen.queryByText("Tool errors")).not.toBeInTheDocument();
+  });
+
+  it("expands a tx row into the receipt detail with SVM vocabulary", async () => {
+    operateFetch.mockResolvedValue({
+      sources: [],
+      transactions: [
+        {
+          id: "tx-svm",
+          application: "goal-digger",
+          status: "failed",
+          family: "svm",
+          chainName: "Solana",
+          chainId: 0,
+          fromAddress: "7fUAJdStEuGbc3sM84cKRL6yYaaSstyLSU4ve5oovLS7",
+          toAddress: "675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8",
+          toLabel: "Raydium AMM v4",
+          value: "4.0 SOL",
+          description: "Swap 4 SOL to BONK",
+          txHash: "4kNwPz2eXcRv9qLtB1sJdYgFmA7oHiU3TnKehM6ybWaGr8CQ",
+          slot: "289,432,881",
+          txFee: "0.000012 SOL",
+          computeUnits: "41,022",
+          computeLimit: "200,000",
+          revertReason: "custom program error 0x1771 — SlippageToleranceExceeded",
+          createdAt: 1_700_000_000,
+        },
+      ],
+      nextCursor: null,
+    });
+
+    render(<OperateView kind="transactions" />);
+    await waitFor(() => {
+      expect(screen.getByText("Solana")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText("Swap 4 SOL to BONK"));
+    expect(screen.getByText("Signature")).toBeInTheDocument();
+    expect(screen.getByText("Slot")).toBeInTheDocument();
+    expect(screen.getByText("Program")).toBeInTheDocument();
+    expect(screen.getByText(/SlippageToleranceExceeded/)).toBeInTheDocument();
+    expect(screen.getByText(/41,022 CU of 200,000/)).toBeInTheDocument();
+    // Privacy ruling: intents never render.
+    expect(screen.getByText("hidden · user privacy")).toBeInTheDocument();
+  });
+
+  it("renders invocation log records dense and expands args/result", async () => {
+    operateFetch.mockResolvedValue({
+      sources: [],
+      logs: [
+        {
+          id: "log-1",
+          occurredAt: 1_700_000_000,
+          eventType: "tool_invocation",
+          application: "goal-digger",
+          summary: "SOL → USDC 2.5 · out 412.34",
+          kind: "invocation",
+          status: "ok",
+          tool: "swap_quote",
+          durationMs: 1840,
+          threadId: "thread_af92c1",
+          args: '{ "token_in": "SOL" }',
+          result: '{ "amount_out": "412.34" }',
+        },
+        {
+          id: "log-2",
+          occurredAt: 1_699_990_000,
+          eventType: "deployment",
+          application: "goal-digger",
+          summary: "Activated release r1dac12ad71",
+        },
+      ],
+      nextCursor: null,
+    });
+
+    render(<OperateView kind="logs" />);
+    await waitFor(() => {
+      // Appears in both the tool filter and the record line.
+      expect(screen.getAllByText("swap_quote").length).toBeGreaterThan(0);
+    });
+    expect(screen.getByText("1840ms")).toBeInTheDocument();
+    expect(screen.getByText("Activated release r1dac12ad71")).toBeInTheDocument();
+    // Expand the invocation record.
+    fireEvent.click(screen.getByText("SOL → USDC 2.5 · out 412.34"));
+    expect(screen.getByText(/token_in/)).toBeInTheDocument();
+    expect(screen.getByText(/amount_out/)).toBeInTheDocument();
+  });
+
+  it("renders the billing statement when present, meter otherwise", async () => {
+    operateFetch.mockResolvedValue({
+      sources: [],
+      daily: [],
+      breakdown: [],
+      statement: {
+        summary: {
+          gross: "$183.25",
+          platformFees: "−$28.33",
+          serviceCharges: "−$31.90",
+          net: "+$123.02",
+          period: "Jul 1 – Jul 15",
+        },
+        revenue: [
+          {
+            stream: "Tool invocations",
+            pricing: "x402 · $1.00 per call",
+            application: "goal-digger",
+            activity: "128 paid calls",
+            gross: "$128.00",
+            platformFee: "$12.80 (10%)",
+            net: "$115.20",
+            unpriced: false,
+          },
+        ],
+        charges: [
+          {
+            item: "App hosting",
+            application: "goal-digger",
+            description: "Standard plan · $10.00 per app / month",
+            amount: "$10.00",
+            keySource: null,
+          },
+        ],
+        ledger: [],
+      },
+    });
+
+    render(<OperateView kind="usage" />);
+    await waitFor(() => {
+      expect(screen.getByText("Gross revenue")).toBeInTheDocument();
+    });
+    expect(screen.getByText("+$123.02")).toBeInTheDocument();
+    expect(screen.getByText("Tool invocations")).toBeInTheDocument();
+    expect(screen.getByText("$115.20")).toBeInTheDocument();
+  });
+
+  it("falls back to the token meter without a statement", async () => {
+    operateFetch.mockResolvedValue({
+      sources: [],
+      daily: [
+        { periodUtcDay: "2026-07-15", application: "demo", inputTokens: 412000, outputTokens: 58400, creditsUsed: 3.4182 },
+      ],
+      breakdown: [],
+      statement: null,
+    });
+
+    render(<OperateView kind="usage" />);
+    await waitFor(() => {
+      expect(screen.getByText("412,000")).toBeInTheDocument();
+    });
+    expect(screen.queryByText("Gross revenue")).not.toBeInTheDocument();
   });
 
   it("honors ?project= when loading operate data", async () => {
