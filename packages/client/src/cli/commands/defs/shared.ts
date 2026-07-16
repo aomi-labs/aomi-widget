@@ -11,6 +11,8 @@ import {
   normalizePrivateKey,
   parseAAProvider,
   parseAAMode,
+  validateSolanaPrivateKey,
+  parsePaymentMethod,
 } from "../../validation";
 
 type SvmCluster = NonNullable<CliConfig["svmCluster"]>;
@@ -65,6 +67,14 @@ export const globalArgs = {
     type: "string",
     description: "API key for non-default apps",
   },
+  json: {
+    type: "boolean",
+    description: "Print machine-readable JSON where supported",
+  },
+  verbose: {
+    type: "boolean",
+    description: "Show extra diagnostics such as local state file paths",
+  },
   "account-bearer": {
     type: "string",
     description: "Aomi account bearer for authenticated REST/SSE requests",
@@ -81,6 +91,10 @@ export const globalArgs = {
   app: {
     type: "string",
     description: 'App (default: "default")',
+  },
+  "application-id": {
+    type: "string",
+    description: "Concrete backend application id for dynamic apps",
   },
   model: {
     type: "string",
@@ -117,6 +131,10 @@ export const globalArgs = {
     type: "string",
     description: "RPC URL for transaction submission",
   },
+  "payment-method": {
+    type: "string",
+    description: 'Payment method for paid chat turns, e.g. "coinbase"',
+  },
 } satisfies ArgsDef;
 
 // ---------------------------------------------------------------------------
@@ -135,9 +153,7 @@ function derivePublicKeyFromPrivateKey(
   try {
     return privateKeyToAccount(privateKey as `0x${string}`).address;
   } catch {
-    fatal(
-      "Invalid private key. Pass a 32-byte hex key via `--private-key` or `PRIVATE_KEY`.",
-    );
+    fatal("Invalid private key. Expected a 0x-prefixed 32-byte hex string.");
   }
 }
 
@@ -221,8 +237,9 @@ export function buildCliConfig(args: Record<string, unknown>): CliConfig {
     );
   }
 
-  const solanaPrivateKey =
-    str(args["solana-private-key"]) ?? process.env.SOLANA_PRIVATE_KEY;
+  const solanaPrivateKey = validateSolanaPrivateKey(
+    str(args["solana-private-key"]) ?? process.env.SOLANA_PRIVATE_KEY,
+  );
 
   const svmCluster = parseSvmCluster(
     str(args.cluster) ?? process.env.AOMI_SOLANA_CLUSTER,
@@ -231,10 +248,14 @@ export function buildCliConfig(args: Record<string, unknown>): CliConfig {
   return {
     baseUrl: str(args["backend-url"]) ?? process.env.AOMI_BACKEND_URL,
     apiKey: str(args["api-key"]) ?? process.env.AOMI_API_KEY,
+    json: args.json === true,
+    verbose: args.verbose === true,
     accountBearer,
     embeddedProvider,
     embeddedProviderToken,
     app: str(args.app) ?? process.env.AOMI_APP,
+    applicationId:
+      str(args["application-id"]) ?? process.env.AOMI_APPLICATION_ID,
     model: str(args.model) ?? process.env.AOMI_MODEL,
     freshSession: args["new-session"] === true,
     publicKey: configuredPublicKey ?? derivedPublicKey,
@@ -247,6 +268,9 @@ export function buildCliConfig(args: Record<string, unknown>): CliConfig {
     execution,
     aaProvider,
     aaMode,
+    paymentMethod: parsePaymentMethod(
+      str(args["payment-method"]) ?? process.env.AOMI_PAYMENT_METHOD,
+    ),
   };
 }
 

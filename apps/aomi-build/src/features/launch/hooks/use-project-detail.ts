@@ -8,22 +8,29 @@ import {
   deploymentSecrets,
   deploymentSetSecrets,
   deploymentDeleteSecret,
+  deploymentRequiredSecrets,
   deploymentSdkStatus,
   deploymentPromote,
   deploymentRecords,
   deploymentDeactivate,
+  deploymentUpgradeSdk,
   launchPreflight,
   launchDeploy,
   launchStatus,
   launchActivate,
 } from "@build/features/launch/client";
+import {
+  MissingRequiredSecretsError,
+  missingRequiredSecrets,
+  type RequiredSecretsByApp,
+} from "@build/features/launch/required-secrets";
 import type {
   LaunchSdkStatus,
   DeploymentPromoteResult,
   DeploymentRecord,
 } from "@build/features/launch/contracts";
 
-/** Progress of an in-flight "deploy new version" pipeline (deploy → CI → activate). */
+/** Progress of an in-flight linked-source redeploy (deploy → CI → activate). */
 export type DeployFlowState =
   | { phase: "idle" }
   | { phase: "deploying"; message: string }
@@ -34,12 +41,6 @@ export type DeployFlowState =
 
 const DEPLOY_POLL_MS = 4000;
 const DEPLOY_TIMEOUT_MS = 8 * 60 * 1000;
-
-function isMissingAppRecords(err: unknown) {
-  return (
-    err instanceof Error && err.message.toLowerCase().includes("unknown app")
-  );
-}
 
 export function useProjectDetail(sourceId: number) {
   const [source, setSource] = useState<UserSource | null>(null);
@@ -59,16 +60,29 @@ export function useProjectDetail(sourceId: number) {
     DeploymentRecord[]
   > | null>(null);
   const [recordsError, setRecordsError] = useState<string | null>(null);
+  const [requiredSecrets, setRequiredSecrets] =
+    useState<RequiredSecretsByApp | null>(null);
+  const [requiredSecretsError, setRequiredSecretsError] = useState<
+    string | null
+  >(null);
   const [deployFlow, setDeployFlow] = useState<DeployFlowState>({
     phase: "idle",
   });
   const historyReq = useRef(false);
   const secretsReq = useRef(false);
   const recordsReq = useRef(false);
+  const requiredSecretsReq = useRef(false);
 
   const reload = useCallback(async () => {
     setLoading(true);
     setError(null);
+    // Clear the records latch so "Refresh" actually recovers a failed
+    // deployment-activity load. On error `fetchRecords` sets `recordsByApp` to
+    // `{}` (non-null), which otherwise makes `loadRecords` no-op forever and
+    // strands the tab on its error banner until a full page reload.
+    recordsReq.current = false;
+    setRecords(null);
+    setRecordsError(null);
     try {
       const [{ sources }, sdkStatus] = await Promise.all([
         deploymentSources(),
@@ -117,6 +131,63 @@ export function useProjectDetail(sourceId: number) {
       });
   }, [sourceId, secretsByApp]);
 
+  const refreshRequiredSecrets = useCallback(async () => {
+    requiredSecretsReq.current = true;
+    setRequiredSecretsError(null);
+    try {
+      const result = await deploymentRequiredSecrets({ appSourceId: sourceId });
+      setRequiredSecrets(result.byApp);
+      return result.byApp;
+    } catch (err) {
+      setRequiredSecretsError(
+        err instanceof Error ? err.message : "Failed to load required secrets",
+      );
+      requiredSecretsReq.current = false;
+      throw err;
+    }
+  }, [sourceId]);
+
+  const loadRequiredSecrets = useCallback(() => {
+    if (requiredSecretsReq.current || requiredSecrets !== null) return;
+    void refreshRequiredSecrets().catch(() => undefined);
+  }, [refreshRequiredSecrets, requiredSecrets]);
+
+  const ensureRequiredSecrets = useCallback(
+    async (apps: string[], appSourceIdOverride?: number) => {
+      try {
+        const byApp =
+          appSourceIdOverride === undefined
+            ? await refreshRequiredSecrets()
+            : (
+                await deploymentRequiredSecrets({
+                  appSourceId: appSourceIdOverride,
+                })
+              ).byApp;
+        if (appSourceIdOverride !== undefined) setRequiredSecrets(byApp);
+        const missing = missingRequiredSecrets(byApp, apps);
+        if (Object.keys(missing).length > 0) {
+          throw new MissingRequiredSecretsError(missing);
+        }
+      } catch (err) {
+        if (!(err instanceof MissingRequiredSecretsError)) {
+          setRequiredSecretsError(
+            err instanceof Error
+              ? err.message
+              : "Failed to verify required secrets",
+          );
+          requiredSecretsReq.current = false;
+        }
+        throw err;
+      }
+    },
+    [refreshRequiredSecrets],
+  );
+
+  const hasMissingSecrets = useCallback(
+    (app: string) => (requiredSecrets?.[app]?.missing.length ?? 0) > 0,
+    [requiredSecrets],
+  );
+
   const refreshSecrets = useCallback(async () => {
     setSecretsError(null);
     try {
@@ -140,9 +211,10 @@ export function useProjectDetail(sourceId: number) {
         secrets,
       });
       await refreshSecrets();
+      await refreshRequiredSecrets();
       return result;
     },
-    [sourceId, refreshSecrets],
+    [refreshRequiredSecrets, refreshSecrets, sourceId],
   );
 
   const deleteEnvVar = useCallback(
@@ -168,11 +240,6 @@ export function useProjectDetail(sourceId: number) {
           const result = await deploymentRecords({
             app: app.name,
             appSourceId: src.id,
-          }).catch((err: unknown) => {
-            if (isMissingAppRecords(err)) {
-              return { records: [] };
-            }
-            throw err;
           });
           return [app.name, result.records] as const;
         }),
@@ -216,7 +283,7 @@ export function useProjectDetail(sourceId: number) {
   // Deploy the source repo's current HEAD and activate the resulting release
   // once CI publishes it. GitHub is read only here (status polling) — the
   // "update deployment" operation — never on the passive tab render.
-  const deployNewVersion = useCallback(async () => {
+  const redeploySource = useCallback(async () => {
     const repo = source?.repositoryLink;
     if (!repo) {
       setDeployFlow({ phase: "error", message: "Source repo is unknown." });
@@ -229,6 +296,7 @@ export function useProjectDetail(sourceId: number) {
       });
       const pre = await launchPreflight({ repo });
       const appSourceId = pre.appSourceId ?? sourceId;
+      await ensureRequiredSecrets(pre.apps, appSourceId);
       setDeployFlow({ phase: "deploying", message: "Deploying new version…" });
       const deployed = await launchDeploy({
         appSourceId,
@@ -274,7 +342,19 @@ export function useProjectDetail(sourceId: number) {
         releaseTags,
         apps,
       });
-      const unloaded = activated.activation.apps.filter((app) => !app.loaded);
+      // A rejected/partial activation still returns apps (with `error` set), and
+      // a malformed response may omit `activation` entirely — surface the real
+      // reason instead of throwing into the generic "Deploy failed" catch.
+      const activatedApps = activated.activation?.apps ?? [];
+      const failed = activatedApps.find((app) => app.error);
+      if (!activated.ok || failed) {
+        setDeployFlow({
+          phase: "error",
+          message: failed?.error ?? "Activation was not accepted.",
+        });
+        return;
+      }
+      const unloaded = activatedApps.filter((app) => !app.loaded);
       setDeployFlow({
         phase: unloaded.length ? "error" : "done",
         message: unloaded.length
@@ -289,7 +369,12 @@ export function useProjectDetail(sourceId: number) {
         message: err instanceof Error ? err.message : "Deploy failed",
       });
     }
-  }, [source, sourceId, reload, refreshRecords]);
+  }, [ensureRequiredSecrets, source, sourceId, reload, refreshRecords]);
+
+  const upgradeSdk = useCallback(
+    () => deploymentUpgradeSdk({ appSourceId: sourceId }),
+    [sourceId],
+  );
 
   return {
     source,
@@ -302,16 +387,23 @@ export function useProjectDetail(sourceId: number) {
     secretsError,
     recordsByApp,
     recordsError,
+    requiredSecrets,
+    requiredSecretsError,
     deployFlow,
     loadHistory,
     loadSecrets,
+    loadRequiredSecrets,
+    refreshRequiredSecrets,
+    ensureRequiredSecrets,
+    hasMissingSecrets,
     setEnvVars,
     deleteEnvVar,
     loadRecords,
     refreshRecords,
     promote,
     deactivate,
-    deployNewVersion,
+    redeploySource,
+    upgradeSdk,
     reload: () => void reload(),
   };
 }

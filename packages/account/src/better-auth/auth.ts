@@ -1,13 +1,29 @@
 import { betterAuth } from "better-auth";
 import { generateRandomString } from "better-auth/crypto";
 import { nextCookies } from "better-auth/next-js";
-import { bearer, siwe } from "better-auth/plugins";
+import { bearer, mcp, siwe } from "better-auth/plugins";
 import { getPool } from "../db/pool";
 import { readAccountAuthEnv } from "./env";
 import { verifySiweMessage } from "./siwe";
 import { aomiProviderAuthPlugin } from "./provider-plugin";
 
 const env = readAccountAuthEnv();
+const HEADLESS_MCP_AUTH_METADATA = {
+  aomi_headless_authentication: {
+    proof: "siwe",
+    nonce_endpoint: `${env.betterAuthUrl}/siwe/nonce`,
+    verify_endpoint: `${env.betterAuthUrl}/siwe/verify`,
+    oauth_register_endpoint: `${env.betterAuthUrl}/mcp/register`,
+    oauth_authorize_endpoint: `${env.betterAuthUrl}/mcp/authorize`,
+    oauth_token_endpoint: `${env.betterAuthUrl}/mcp/token`,
+    session_token_usage:
+      "Use the token returned by SIWE verify as Authorization: Bearer for MCP OAuth authorize, or keep the returned session cookie.",
+    public_key_policy:
+      "A public key is only an identifier; Aomi requires signed SIWE possession proof before MCP OAuth.",
+  },
+} as unknown as NonNullable<
+  NonNullable<Parameters<typeof mcp>[0]["oidcConfig"]>["metadata"]
+>;
 
 // BetterAuth's storage lives in the SAME database as the canonical account
 // graph, but under our house schema style: `ba_`-prefixed snake_case tables
@@ -34,6 +50,36 @@ function snakeCasedSiwe(plugin: ReturnType<typeof siwe>) {
       },
     },
   };
+}
+
+// Same ba_ + snake_case treatment for the MCP plugin's OAuth-provider models
+// (client registrations, access tokens, consents). Tables live in
+// supabase/migrations/*_better_auth_mcp_oauth_tables.sql (product-mono);
+// keep names in lockstep.
+function snakeCasedMcp(plugin: ReturnType<typeof mcp>) {
+  const modelNames: Record<string, string> = {
+    oauthApplication: "ba_oauth_applications",
+    oauthAccessToken: "ba_oauth_access_tokens",
+    oauthConsent: "ba_oauth_consents",
+  };
+  const snake = (name: string) =>
+    name.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
+  const schema = Object.fromEntries(
+    Object.entries(plugin.schema!).map(([model, definition]) => [
+      model,
+      {
+        ...definition,
+        modelName: modelNames[model] ?? model,
+        fields: Object.fromEntries(
+          Object.entries(definition.fields).map(([name, field]) => [
+            name,
+            { ...field, fieldName: snake(name) },
+          ]),
+        ),
+      },
+    ]),
+  ) as unknown as typeof plugin.schema;
+  return { ...plugin, schema };
 }
 
 export const auth = betterAuth({
@@ -101,6 +147,23 @@ export const auth = betterAuth({
       }),
     ),
     bearer(),
+    // OAuth provider for MCP clients (Claude, Codex): dynamic client
+    // registration + PKCE + access tokens. `withMcpAuth` on the /api/mcp
+    // route consumes the sessions this issues. /mcp/connect handles both
+    // halves of the ceremony: sign-in (loginPage) and the explicit
+    // approve/deny step (consentPage → POST /oauth2/consent).
+    snakeCasedMcp(
+      mcp({
+        loginPage: "/mcp/connect",
+        // `mcp()` copies its own `loginPage` over this one; the field is only
+        // repeated because `OIDCOptions` requires it.
+        oidcConfig: {
+          loginPage: "/mcp/connect",
+          consentPage: "/mcp/connect",
+          metadata: HEADLESS_MCP_AUTH_METADATA,
+        },
+      }),
+    ),
     aomiProviderAuthPlugin(),
     nextCookies(),
   ],

@@ -27,6 +27,8 @@ import { buildCliUserState } from "./user-state";
 import { fatal } from "./errors";
 import { parseSolanaKeypairSecret } from "./solana-signer";
 import { createCliAuthTokenProvider } from "./auth";
+import { DEFAULT_CLI_BASE_URL } from "./client-factory";
+import { createCliPaymentFetch, type CliPaymentListener } from "./payment";
 
 export class CliSession {
   private state: CliSessionState;
@@ -76,7 +78,7 @@ export class CliSession {
     const state: CliSessionState = {
       sessionId: crypto.randomUUID(),
       clientId: crypto.randomUUID(),
-      baseUrl: config.baseUrl ?? seed?.baseUrl ?? "https://api.aomi.dev",
+      baseUrl: config.baseUrl ?? seed?.baseUrl ?? DEFAULT_CLI_BASE_URL,
       app: config.app ?? seed?.app,
       model: config.model ?? seed?.model,
       apiKey: config.apiKey ?? seed?.apiKey,
@@ -86,13 +88,14 @@ export class CliSession {
       embeddedProviderToken:
         config.embeddedProviderToken ?? seed?.embeddedProviderToken,
       publicKey: config.publicKey ?? seed?.publicKey,
-      privateKey: config.privateKey ?? seed?.privateKey,
+      privateKey: seed?.privateKey,
       svmPublicKey: svmPublicKey ?? seed?.svmPublicKey,
-      // Carry forward the persisted Solana private key so `wallet set --solana`
-      // survives `--new-session` — signing key is a user preference, not a
-      // per-session artifact.
-      svmPrivateKey: config.solanaPrivateKey ?? seed?.svmPrivateKey,
+      // Carry forward only persisted Solana keys from `wallet set --solana`.
+      // Keys supplied via --solana-private-key/env stay transient.
+      svmPrivateKey: seed?.svmPrivateKey,
       chainId: config.chain ?? seed?.chainId,
+      aaProvider: config.aaProvider ?? seed?.aaProvider,
+      aaMode: config.aaMode ?? seed?.aaMode,
       secretHandles: seed?.secretHandles,
       auth: seed?.auth,
     };
@@ -239,6 +242,17 @@ export class CliSession {
       this.state.chainId = config.chain;
       changed = true;
     }
+    if (
+      config.aaProvider !== undefined &&
+      config.aaProvider !== this.state.aaProvider
+    ) {
+      this.state.aaProvider = config.aaProvider;
+      changed = true;
+    }
+    if (config.aaMode !== undefined && config.aaMode !== this.state.aaMode) {
+      this.state.aaMode = config.aaMode;
+      changed = true;
+    }
     if (!this.state.clientId) {
       this.state.clientId = crypto.randomUUID();
       changed = true;
@@ -314,6 +328,19 @@ export class CliSession {
     if (!this.state.auth) return;
     delete this.state.auth;
     this.save();
+  }
+
+  clearSigningKeys(): void {
+    let changed = false;
+    if (this.state.privateKey !== undefined) {
+      delete this.state.privateKey;
+      changed = true;
+    }
+    if (this.state.svmPrivateKey !== undefined) {
+      delete this.state.svmPrivateKey;
+      changed = true;
+    }
+    if (changed) this.save();
   }
 
   /** Ensure clientId exists, generate if absent. Returns the clientId. */
@@ -460,23 +487,31 @@ export class CliSession {
   // ---------------------------------------------------------------------------
 
   /** Build a ClientSession from the current state. */
-  createClientSession(_config?: Partial<CliConfig>): ClientSession {
+  createClientSession(
+    config?: Partial<CliConfig>,
+    options?: { onPayment?: CliPaymentListener },
+  ): ClientSession {
+    const paymentFetch = createCliPaymentFetch(config, options?.onPayment);
     const session = new ClientSession(
       {
         baseUrl: this.state.baseUrl,
         apiKey: this.state.apiKey,
+        fetch: paymentFetch,
         getAccountBearer: createCliAuthTokenProvider(() => this.state),
       },
       {
         sessionId: this.state.sessionId,
         clientId: this.state.clientId,
         app: this.state.app,
+        applicationId: config?.applicationId,
         apiKey: this.state.apiKey,
+        paymentMethod: config?.paymentMethod,
       },
     );
     session.resolveUserState(
       buildCliUserState(this.state.publicKey, this.state.chainId, {
         app: this.state.app,
+        aaProvider: this.state.aaProvider ?? config?.aaProvider ?? null,
         aaMode: this.state.aaMode ?? null,
         smartAccount: this.state.smartAccount ?? null,
         svmAddress: this.state.svmPublicKey,

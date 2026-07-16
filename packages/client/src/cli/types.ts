@@ -2,18 +2,21 @@ import type { AAMode } from "../aa/types";
 
 export type CliExecutionMode = "aa" | "eoa";
 export type CliAAProvider = "alchemy" | "pimlico";
-export type CliAAMode = AAMode;
 export type CliEmbeddedProvider = "para" | "privy";
+export type CliPaymentMethod = "coinbase";
 
 export type CliConfig = {
   baseUrl?: string;
   apiKey?: string;
+  json?: boolean;
+  verbose?: boolean;
   accountBearer?: string;
   /** Legacy persisted session token slot. Prefer `auth.sessionToken`. */
   sessionCookie?: string;
   embeddedProvider?: CliEmbeddedProvider;
   embeddedProviderToken?: string;
   app?: string;
+  applicationId?: string;
   model?: string;
   freshSession?: boolean;
   publicKey?: string;
@@ -39,5 +42,6 @@ export type CliConfig = {
   /** undefined = auto: use AA if provider configured, else EOA */
   execution?: CliExecutionMode;
   aaProvider?: CliAAProvider;
-  aaMode?: CliAAMode;
+  aaMode?: AAMode;
+  paymentMethod?: CliPaymentMethod;
 };

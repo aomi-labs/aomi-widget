@@ -476,6 +476,50 @@ describe("DeploymentClient operate observability", () => {
   });
 });
 
+describe("DeploymentClient source SDK upgrade", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("POSTs the owned source request and normalizes the upgrade PR", async () => {
+    const fetchMock = vi.fn(async () =>
+      Response.json({
+        status: "pull_request",
+        required_sdk_version: "3.0.3",
+        source_ref: "abc1234",
+        branch: "aomi/sdk-3.0.3",
+        files: ["Cargo.toml"],
+        pull_request: {
+          number: 7,
+          url: "https://github.com/alice/demo/pull/7",
+          created: true,
+        },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await client().upgradeUserSourceSdk({
+      githubUserId: "4738254",
+      platform: "community",
+      appSourceId: 42,
+    });
+
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      "https://staging-api.example.com/api/integrations/github-app/user/sources/42/sdk-upgrade?github_user_id=4738254&platform=community",
+    );
+    expect(result).toEqual({
+      status: "pull_request",
+      requiredSdkVersion: "3.0.3",
+      sourceRef: "abc1234",
+      branch: "aomi/sdk-3.0.3",
+      files: ["Cargo.toml"],
+      pullRequest: {
+        number: 7,
+        url: "https://github.com/alice/demo/pull/7",
+        created: true,
+      },
+    });
+  });
+});
+
 describe("server-only guard", () => {
   it("throws in a browser-like environment", () => {
     const g = globalThis as Record<string, unknown>;

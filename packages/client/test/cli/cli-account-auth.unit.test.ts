@@ -67,7 +67,9 @@ describe("CLI account auth wiring", () => {
       const headers = new Headers(
         (nativeFetch.mock.calls[0]?.[1] as RequestInit).headers,
       );
-      expect(String(nativeFetch.mock.calls[0]?.[0])).toContain("/api/state");
+      expect(String(nativeFetch.mock.calls[0]?.[0])).toContain(
+        "/api/thread/state",
+      );
       expect(headers.get("Authorization")).toBeNull();
     } finally {
       vi.stubGlobal("fetch", originalFetch);

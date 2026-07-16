@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { DeployStep } from "./deploy-step";
 import type { LaunchDeployPayload } from "@build/features/launch";
 import type { LaunchProgress } from "@build/features/launch";
@@ -56,9 +56,15 @@ describe("DeployStep", () => {
 
   it("renders idle state with preflight and deploy buttons", () => {
     render(<DeployStep {...defaultProps} />);
-    expect(screen.getByText("Preflight")).toBeInTheDocument();
-    expect(screen.getByText("Deploy")).toBeInTheDocument();
-    expect(screen.getByText("Activate")).toBeInTheDocument();
+    // `StepTrack` also renders "Preflight"/"Deploy"/"Activate" as step labels,
+    // so target the buttons specifically by role.
+    expect(
+      screen.getByRole("button", { name: "Preflight" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Deploy" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Activate" }),
+    ).toBeInTheDocument();
   });
 
   it("shows the deployment ID when progress has one", () => {
@@ -102,12 +108,12 @@ describe("DeployStep", () => {
       } satisfies LaunchDeployPayload,
     };
     render(<DeployStep {...defaultProps} progress={progress} />);
-    expect(screen.getByText("Deploy")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Deploy" })).toBeDisabled();
   });
 
   it("disables activate when phase is not ready", () => {
     render(<DeployStep {...defaultProps} />);
-    expect(screen.getByText("Activate")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Activate" })).toBeDisabled();
   });
 
   it("shows the idle phase hint text", () => {
@@ -122,6 +128,67 @@ describe("DeployStep", () => {
     );
 
     // just verify the component renders without crashing
-    expect(screen.getByText("Preflight")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Preflight" }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the required-secrets banner and keeps Activate disabled when the target app is missing one", () => {
+    const detail = {
+      hasMissingSecrets: (app: string) => app === "binance",
+      requiredSecrets: {
+        binance: { slots: [], missing: ["BINANCE_API_KEY"] },
+      },
+      loadRequiredSecrets: vi.fn(),
+    };
+    render(
+      <DeployStep
+        {...defaultProps}
+        progress={{ ...baseProgress(), apps: ["binance"] }}
+        detail={detail}
+      />,
+    );
+    expect(detail.loadRequiredSecrets).toHaveBeenCalled();
+    expect(screen.getByText(/1 required secret missing/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Activate" })).toBeDisabled();
+  });
+
+  it("does not show the required-secrets banner when nothing is missing", () => {
+    const detail = {
+      hasMissingSecrets: () => false,
+      requiredSecrets: { binance: { slots: [], missing: [] } },
+      loadRequiredSecrets: vi.fn(),
+    };
+    render(
+      <DeployStep
+        {...defaultProps}
+        progress={{ ...baseProgress(), apps: ["binance"] }}
+        detail={detail}
+      />,
+    );
+    expect(screen.queryByText(/required secret/i)).not.toBeInTheDocument();
+  });
+
+  it("offers an in-place retry when required-secret verification fails", async () => {
+    const refreshRequiredSecrets = vi.fn().mockResolvedValue({});
+    const detail = {
+      hasMissingSecrets: () => false,
+      requiredSecrets: null,
+      requiredSecretsError: "Temporary gateway error",
+      loadRequiredSecrets: vi.fn(),
+      refreshRequiredSecrets,
+    };
+    render(
+      <DeployStep
+        {...defaultProps}
+        progress={{ ...baseProgress(), apps: ["binance"] }}
+        detail={detail}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Retry required secrets" }),
+    );
+    await waitFor(() => expect(refreshRequiredSecrets).toHaveBeenCalledOnce());
   });
 });

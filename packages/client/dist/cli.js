@@ -67,7 +67,10 @@ function fatal(message) {
     }
     console.error(`${DIM2}${detail}${RESET2}`);
   }
-  throw new CliExit(1);
+  if (process.env.AOMI_CLI_STRICT_EXIT === "1") {
+    throw new CliExit(1);
+  }
+  process.exit(1);
 }
 var CliExit, DeployCliError;
 var init_errors = __esm({
@@ -97,6 +100,7 @@ import {
   arbitrum,
   optimism,
   base,
+  baseSepolia,
   sepolia,
   linea,
   lineaSepolia,
@@ -152,6 +156,7 @@ var init_chains = __esm({
       { id: 137, name: "Polygon", ticker: "MATIC" },
       { id: 42161, name: "Arbitrum", ticker: "ARB" },
       { id: 8453, name: "Base", ticker: "BASE" },
+      { id: 84532, name: "Base Sepolia", ticker: "ETH" },
       { id: 10, name: "Optimism", ticker: "OP" },
       { id: 11155111, name: "Sepolia", ticker: "SEP" },
       { id: 59144, name: "Linea Mainnet", ticker: "LINEA" },
@@ -169,6 +174,7 @@ var init_chains = __esm({
       137: "polygon-mainnet",
       42161: "arb-mainnet",
       8453: "base-mainnet",
+      84532: "base-sepolia",
       10: "opt-mainnet",
       11155111: "eth-sepolia",
       59144: "linea-mainnet",
@@ -180,6 +186,7 @@ var init_chains = __esm({
       42161: arbitrum,
       10: optimism,
       8453: base,
+      84532: baseSepolia,
       11155111: sepolia,
       59144: linea,
       59141: lineaSepolia,
@@ -187,6 +194,96 @@ var init_chains = __esm({
       10143: monadTestnet,
       31337: foundry
     };
+  }
+});
+
+// src/cli/solana-signer.ts
+import {
+  Keypair,
+  Transaction,
+  VersionedTransaction
+} from "@solana/web3.js";
+import bs58 from "bs58";
+function parseSolanaKeypairSecret(input2) {
+  const trimmed = input2.trim();
+  if (!trimmed) {
+    throw new Error("Solana keypair secret is empty.");
+  }
+  let bytes;
+  if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+    const parsed = JSON.parse(trimmed);
+    if (!Array.isArray(parsed) || parsed.some((value) => typeof value !== "number")) {
+      throw new Error(
+        "Solana keypair JSON must be an array of byte values (e.g. `[1,2,...,64]`)."
+      );
+    }
+    bytes = Uint8Array.from(parsed);
+  } else {
+    try {
+      bytes = bs58.decode(trimmed);
+    } catch (err) {
+      throw new Error(
+        `Failed to decode Solana keypair as base58: ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
+  }
+  if (bytes.length !== 64) {
+    throw new Error(
+      `Solana keypair secret must be 64 bytes (got ${bytes.length}). Use the full secret key, not just the seed.`
+    );
+  }
+  return Keypair.fromSecretKey(bytes);
+}
+function decodeBase64(value) {
+  if (typeof Buffer !== "undefined") {
+    return new Uint8Array(Buffer.from(value, "base64"));
+  }
+  const binary = atob(value);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+function encodeBase64(bytes) {
+  if (typeof Buffer !== "undefined") {
+    return Buffer.from(bytes).toString("base64");
+  }
+  let binary = "";
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+function signSolanaTransaction(unsignedTxBase64, keypair) {
+  const bytes = decodeBase64(unsignedTxBase64);
+  try {
+    const versioned = VersionedTransaction.deserialize(bytes);
+    versioned.sign([keypair]);
+    return {
+      signer: keypair.publicKey.toBase58(),
+      signedTxBase64: encodeBase64(versioned.serialize())
+    };
+  } catch (versionedErr) {
+    try {
+      const legacy = Transaction.from(bytes);
+      legacy.partialSign(keypair);
+      return {
+        signer: keypair.publicKey.toBase58(),
+        signedTxBase64: encodeBase64(legacy.serialize())
+      };
+    } catch (legacyErr) {
+      const versionedMsg = versionedErr instanceof Error ? versionedErr.message : String(versionedErr);
+      const legacyMsg = legacyErr instanceof Error ? legacyErr.message : String(legacyErr);
+      throw new Error(
+        `Failed to deserialize Solana transaction (versioned: ${versionedMsg}; legacy: ${legacyMsg}).`
+      );
+    }
+  }
+}
+var init_solana_signer = __esm({
+  "src/cli/solana-signer.ts"() {
+    "use strict";
   }
 });
 
@@ -209,7 +306,23 @@ function normalizePrivateKey(value) {
   if (value === void 0) return void 0;
   const trimmed = value.trim();
   if (!trimmed) return void 0;
-  return trimmed.startsWith("0x") ? trimmed : `0x${trimmed}`;
+  if (!EVM_PRIVATE_KEY_PATTERN.test(trimmed)) {
+    fatal("Invalid private key. Expected a 0x-prefixed 32-byte hex string.");
+  }
+  return trimmed;
+}
+function validateSolanaPrivateKey(value) {
+  if (value === void 0) return void 0;
+  const trimmed = value.trim();
+  if (!trimmed) return void 0;
+  try {
+    parseSolanaKeypairSecret(trimmed);
+  } catch (err) {
+    fatal(
+      `Invalid Solana private key: ${err instanceof Error ? err.message : String(err)}`
+    );
+  }
+  return trimmed;
 }
 function parseAAProvider(value) {
   if (value === void 0 || value.trim() === "") return void 0;
@@ -225,11 +338,22 @@ function parseAAMode(value) {
   }
   fatal("Unsupported AA mode. Use `4337` or `7702`.");
 }
+function parsePaymentMethod(value) {
+  if (value === void 0 || value.trim() === "") return void 0;
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "coinbase") {
+    return normalized;
+  }
+  fatal("Unsupported payment method. Use `coinbase`.");
+}
+var EVM_PRIVATE_KEY_PATTERN;
 var init_validation = __esm({
   "src/cli/validation.ts"() {
     "use strict";
     init_chains();
     init_errors();
+    init_solana_signer();
+    EVM_PRIVATE_KEY_PATTERN = /^0x[0-9a-fA-F]{64}$/;
   }
 });
 
@@ -271,9 +395,7 @@ function derivePublicKeyFromPrivateKey(privateKey) {
   try {
     return privateKeyToAccount(privateKey).address;
   } catch (e) {
-    fatal(
-      "Invalid private key. Pass a 32-byte hex key via `--private-key` or `PRIVATE_KEY`."
-    );
+    fatal("Invalid private key. Expected a 0x-prefixed 32-byte hex string.");
   }
 }
 function resolveExecution(args) {
@@ -289,7 +411,7 @@ function resolveExecution(args) {
   return void 0;
 }
 function buildCliConfig(args) {
-  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o;
+  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q;
   const execution = resolveExecution(args);
   const privateKey = normalizePrivateKey(
     (_a3 = str(args["private-key"])) != null ? _a3 : process.env.PRIVATE_KEY
@@ -328,29 +450,37 @@ function buildCliConfig(args) {
       "`--embedded-provider` is required when `--embedded-provider-token` is set."
     );
   }
-  const solanaPrivateKey = (_h = str(args["solana-private-key"])) != null ? _h : process.env.SOLANA_PRIVATE_KEY;
+  const solanaPrivateKey = validateSolanaPrivateKey(
+    (_h = str(args["solana-private-key"])) != null ? _h : process.env.SOLANA_PRIVATE_KEY
+  );
   const svmCluster = parseSvmCluster(
     (_i = str(args.cluster)) != null ? _i : process.env.AOMI_SOLANA_CLUSTER
   );
   return {
     baseUrl: (_j = str(args["backend-url"])) != null ? _j : process.env.AOMI_BACKEND_URL,
     apiKey: (_k = str(args["api-key"])) != null ? _k : process.env.AOMI_API_KEY,
+    json: args.json === true,
+    verbose: args.verbose === true,
     accountBearer,
     embeddedProvider,
     embeddedProviderToken,
     app: (_l = str(args.app)) != null ? _l : process.env.AOMI_APP,
-    model: (_m = str(args.model)) != null ? _m : process.env.AOMI_MODEL,
+    applicationId: (_m = str(args["application-id"])) != null ? _m : process.env.AOMI_APPLICATION_ID,
+    model: (_n = str(args.model)) != null ? _n : process.env.AOMI_MODEL,
     freshSession: args["new-session"] === true,
     publicKey: configuredPublicKey != null ? configuredPublicKey : derivedPublicKey,
     privateKey,
     solanaPrivateKey,
     svmCluster,
-    chainRpcUrl: (_n = str(args["rpc-url"])) != null ? _n : process.env.CHAIN_RPC_URL,
-    chain: parseChainId((_o = str(args.chain)) != null ? _o : process.env.AOMI_CHAIN_ID),
+    chainRpcUrl: (_o = str(args["rpc-url"])) != null ? _o : process.env.CHAIN_RPC_URL,
+    chain: parseChainId((_p = str(args.chain)) != null ? _p : process.env.AOMI_CHAIN_ID),
     secrets: {},
     execution,
     aaProvider,
-    aaMode: aaMode2
+    aaMode: aaMode2,
+    paymentMethod: parsePaymentMethod(
+      (_q = str(args["payment-method"])) != null ? _q : process.env.AOMI_PAYMENT_METHOD
+    )
   };
 }
 function getPositionals(args) {
@@ -377,6 +507,14 @@ var init_shared = __esm({
         type: "string",
         description: "API key for non-default apps"
       },
+      json: {
+        type: "boolean",
+        description: "Print machine-readable JSON where supported"
+      },
+      verbose: {
+        type: "boolean",
+        description: "Show extra diagnostics such as local state file paths"
+      },
       "account-bearer": {
         type: "string",
         description: "Aomi account bearer for authenticated REST/SSE requests"
@@ -392,6 +530,10 @@ var init_shared = __esm({
       app: {
         type: "string",
         description: 'App (default: "default")'
+      },
+      "application-id": {
+        type: "string",
+        description: "Concrete backend application id for dynamic apps"
       },
       model: {
         type: "string",
@@ -424,6 +566,10 @@ var init_shared = __esm({
       "rpc-url": {
         type: "string",
         description: "RPC URL for transaction submission"
+      },
+      "payment-method": {
+        type: "string",
+        description: 'Payment method for paid chat turns, e.g. "coinbase"'
       }
     };
   }
@@ -1055,7 +1201,7 @@ function createSseSubscriber({
         if (subscription.lastEventId) {
           headers.set("Last-Event-ID", subscription.lastEventId);
         }
-        const response = await fetchImpl(`${backendUrl}/api/updates`, {
+        const response = await fetchImpl(`${backendUrl}/api/thread/updates`, {
           headers,
           signal: controller.signal
         });
@@ -1303,8 +1449,12 @@ function encodeJsonBody(body) {
 }
 function normalizeThreadWire(wire) {
   var _b;
-  const _a3 = wire, { thread_id, session_id } = _a3, rest = __objRest(_a3, ["thread_id", "session_id"]);
-  return __spreadProps(__spreadValues({}, rest), { session_id: (_b = session_id != null ? session_id : thread_id) != null ? _b : "" });
+  const _a3 = wire, { thread_id, session_id, last_active_at } = _a3, rest = __objRest(_a3, ["thread_id", "session_id", "last_active_at"]);
+  const normalizedLastActiveAt = typeof last_active_at === "number" ? last_active_at : typeof last_active_at === "string" ? Number(last_active_at) : void 0;
+  return __spreadProps(__spreadValues({}, rest), {
+    session_id: (_b = session_id != null ? session_id : thread_id) != null ? _b : "",
+    last_active_at: normalizedLastActiveAt === void 0 || Number.isNaN(normalizedLastActiveAt) ? void 0 : normalizedLastActiveAt
+  });
 }
 function withSessionHeader(sessionId, init) {
   const headers = new Headers(init);
@@ -1498,19 +1648,30 @@ ${body}` : ""}`
       /**
        * Fetch current session state (messages, processing status, title).
        */
-      async fetchState(sessionId, userState, clientId) {
-        var _a3, _b, _c;
+      async fetchState(sessionId, userState, clientId, options) {
+        var _a3, _b, _c, _d;
         const normalizedUserState = stripBulkyPendingFields(
           UserState.normalize(userState)
         );
-        const urlWithSyncParams = buildApiUrl(this.baseUrl, "/api/state", {
+        const applicationId = (_a3 = options == null ? void 0 : options.applicationId) == null ? void 0 : _a3.toString().trim();
+        const stateContext = {
+          app: options == null ? void 0 : options.app,
+          application_id: applicationId || void 0
+        };
+        const urlWithSyncParams = buildApiUrl(this.baseUrl, "/api/thread/state", __spreadProps(__spreadValues({}, stateContext), {
           user_state: normalizedUserState ? JSON.stringify(normalizedUserState) : void 0,
           client_id: clientId
-        });
-        const bareUrl = buildApiUrl(this.baseUrl, "/api/state");
+        }));
+        const bareUrl = buildApiUrl(
+          this.baseUrl,
+          "/api/thread/state",
+          stateContext
+        );
         const shouldRetryWithoutSyncParams = Boolean(normalizedUserState) || Boolean(clientId);
-        (_a3 = this.logger) == null ? void 0 : _a3.debug("[aomi][client] GET /api/state start", {
+        (_b = this.logger) == null ? void 0 : _b.debug("[aomi][client] GET /api/thread/state start", {
           sessionId,
+          app: options == null ? void 0 : options.app,
+          applicationId,
           clientId,
           hasUserState: Boolean(normalizedUserState)
         });
@@ -1520,8 +1681,8 @@ ${body}` : ""}`
           sessionId
         );
         if (!response.ok && shouldRetryWithoutSyncParams && (response.status === 400 || response.status === 414)) {
-          (_b = this.logger) == null ? void 0 : _b.debug(
-            "[aomi][client] GET /api/state retrying without sync params",
+          (_c = this.logger) == null ? void 0 : _c.debug(
+            "[aomi][client] GET /api/thread/state retrying without sync params",
             {
               sessionId,
               initialStatus: response.status,
@@ -1535,7 +1696,7 @@ ${body}` : ""}`
             sessionId
           );
         }
-        (_c = this.logger) == null ? void 0 : _c.debug("[aomi][client] GET /api/state response", {
+        (_d = this.logger) == null ? void 0 : _d.debug("[aomi][client] GET /api/thread/state response", {
           sessionId,
           status: response.status,
           ok: response.ok
@@ -1549,25 +1710,27 @@ ${body}` : ""}`
        * Send a chat message and return updated session state.
        */
       async sendMessage(sessionId, message, options) {
-        var _a3, _b, _c, _d, _e, _f;
+        var _a3, _b, _c, _d, _e, _f, _g;
         const app = (_a3 = options == null ? void 0 : options.app) != null ? _a3 : "default";
         const apiKey = (_b = options == null ? void 0 : options.apiKey) != null ? _b : this.apiKey;
         const normalizedUserState = stripBulkyPendingFields(
           UserState.normalize(options == null ? void 0 : options.userState)
         );
         const applicationId = (_c = options == null ? void 0 : options.applicationId) == null ? void 0 : _c.toString().trim();
-        const url = buildApiUrl(this.baseUrl, "/api/chat", {
+        const url = buildApiUrl(this.baseUrl, "/api/thread/chat", {
           app,
           application_id: applicationId || void 0,
           message,
           user_state: normalizedUserState ? JSON.stringify(normalizedUserState) : void 0,
-          client_id: options == null ? void 0 : options.clientId
+          client_id: options == null ? void 0 : options.clientId,
+          payment_method: (_d = options == null ? void 0 : options.paymentMethod) != null ? _d : void 0
         });
-        (_d = this.logger) == null ? void 0 : _d.debug("[aomi][client] POST /api/chat prepared", {
+        (_e = this.logger) == null ? void 0 : _e.debug("[aomi][client] POST /api/thread/chat prepared", {
           sessionId,
           app,
           applicationId,
           clientId: options == null ? void 0 : options.clientId,
+          paymentMethod: options == null ? void 0 : options.paymentMethod,
           hasUserState: Boolean(normalizedUserState),
           messagePreview: previewText(message)
         });
@@ -1575,8 +1738,8 @@ ${body}` : ""}`
         if (apiKey) {
           headers.set(APP_KEY_HEADER, apiKey);
         }
-        (_e = this.logger) == null ? void 0 : _e.debug("[aomi][client] POST start", {
-          path: "/api/chat",
+        (_f = this.logger) == null ? void 0 : _f.debug("[aomi][client] POST start", {
+          path: "/api/thread/chat",
           sessionId,
           hasApiKey: Boolean(apiKey),
           url
@@ -1585,8 +1748,8 @@ ${body}` : ""}`
           method: "POST",
           headers
         });
-        (_f = this.logger) == null ? void 0 : _f.debug("[aomi][client] POST response", {
-          path: "/api/chat",
+        (_g = this.logger) == null ? void 0 : _g.debug("[aomi][client] POST response", {
+          path: "/api/thread/chat",
           sessionId,
           status: response.status,
           ok: response.ok
@@ -1631,12 +1794,12 @@ ${body}` : ""}`
        */
       async interrupt(sessionId) {
         var _a3;
-        (_a3 = this.logger) == null ? void 0 : _a3.debug("[aomi][client] POST /api/interrupt prepared", {
+        (_a3 = this.logger) == null ? void 0 : _a3.debug("[aomi][client] POST /api/thread/interrupt prepared", {
           sessionId
         });
         return postState(
           this.baseUrl,
-          "/api/interrupt",
+          "/api/thread/interrupt",
           {},
           sessionId,
           this.fetchImpl,
@@ -1859,7 +2022,7 @@ ${body}` : ""}`
        * Get system events for a session.
        */
       async getSystemEvents(sessionId, count) {
-        const url = buildApiUrl(this.baseUrl, "/api/events", {
+        const url = buildApiUrl(this.baseUrl, "/api/thread/events", {
           count: count !== void 0 ? String(count) : void 0
         });
         const response = await this.fetchImpl(url, {
@@ -2070,7 +2233,7 @@ ${body}` : ""}`
        * Sends full tx payloads — the backend does not look up by ID.
        */
       async simulateBatch(sessionId, transactions, options) {
-        const url = joinApiPath(this.baseUrl, "/api/simulate");
+        const url = joinApiPath(this.baseUrl, "/api/exec/simulate");
         const headers = new Headers(
           withSessionHeader(sessionId, { "Content-Type": "application/json" })
         );
@@ -3235,6 +3398,7 @@ var init_session = __esm({
         this.app = (_b = sessionOptions == null ? void 0 : sessionOptions.app) != null ? _b : "default";
         this.applicationId = sessionOptions == null ? void 0 : sessionOptions.applicationId;
         this.apiKey = sessionOptions == null ? void 0 : sessionOptions.apiKey;
+        this.paymentMethod = sessionOptions == null ? void 0 : sessionOptions.paymentMethod;
         const initialUserState = UserState.reconcile(
           void 0,
           sessionOptions == null ? void 0 : sessionOptions.userState
@@ -3274,7 +3438,8 @@ var init_session = __esm({
           applicationId: this.applicationId,
           apiKey: this.apiKey,
           userState: this.userState,
-          clientId: this.clientId
+          clientId: this.clientId,
+          paymentMethod: this.paymentMethod
         });
         this.assertUserStateAligned(response.user_state);
         this.applyState(response);
@@ -3299,7 +3464,8 @@ var init_session = __esm({
           applicationId: this.applicationId,
           apiKey: this.apiKey,
           userState: this.userState,
-          clientId: this.clientId
+          clientId: this.clientId,
+          paymentMethod: this.paymentMethod
         });
         this.assertUserStateAligned(response.user_state);
         this.applyState(response);
@@ -3453,7 +3619,8 @@ var init_session = __esm({
         const state = await this.client.fetchState(
           this.sessionId,
           this.userState,
-          this.clientId
+          this.clientId,
+          { app: this.app, applicationId: this.applicationId }
         );
         this.assertUserStateAligned(state.user_state);
         this.applyState(state);
@@ -3475,7 +3642,8 @@ var init_session = __esm({
         const state = await this.client.fetchState(
           this.sessionId,
           this.userState,
-          this.clientId
+          this.clientId,
+          { app: this.app, applicationId: this.applicationId }
         );
         this.assertUserStateAligned(state.user_state);
         this.applyState(state);
@@ -3516,7 +3684,8 @@ var init_session = __esm({
           const state = await this.client.fetchState(
             this.sessionId,
             this.userState,
-            this.clientId
+            this.clientId,
+            { app: this.app, applicationId: this.applicationId }
           );
           if (!this.pollTimer) return;
           this.assertUserStateAligned(state.user_state);
@@ -3669,6 +3838,9 @@ function buildCliUserState(publicKey, chainId3, options) {
   if (hasEvm) {
     if ((options == null ? void 0 : options.aaMode) === "4337" || (options == null ? void 0 : options.aaMode) === "7702") {
       const aaState = { mode: options.aaMode };
+      if (options.aaProvider != null) {
+        aaState.provider = options.aaProvider;
+      }
       if (options.smartAccount != null) {
         aaState.smart_account = options.smartAccount;
       }
@@ -3880,6 +4052,7 @@ var init_user_state2 = __esm({
 
 // src/cli/state.ts
 import {
+  chmodSync,
   existsSync,
   mkdirSync,
   readFileSync,
@@ -3898,7 +4071,12 @@ function hasSameBackendPendingId(existing, next) {
   return existing.kind === next.kind && existingBackendId !== void 0 && nextBackendId !== void 0 && existingBackendId === nextBackendId;
 }
 function ensureStorageDirs() {
-  mkdirSync(SESSIONS_DIR, { recursive: true });
+  mkdirSync(SESSIONS_DIR, { recursive: true, mode: STATE_DIR_MODE });
+  try {
+    chmodSync(STATE_ROOT_DIR, STATE_DIR_MODE);
+    chmodSync(SESSIONS_DIR, STATE_DIR_MODE);
+  } catch (e) {
+  }
 }
 function parseSessionFileLocalId(filename) {
   const match = filename.match(/^session-(\d+)\.json$/);
@@ -3930,6 +4108,7 @@ function toCliSessionState(stored) {
     svmPublicKey: stored.svmPublicKey,
     svmPrivateKey: stored.svmPrivateKey,
     chainId: stored.chainId,
+    aaProvider: stored.aaProvider,
     aaMode: stored.aaMode,
     smartAccount: stored.smartAccount,
     pendingTxs: stored.pendingTxs,
@@ -3975,6 +4154,7 @@ function readStoredSession(path) {
       svmPublicKey: parsed.svmPublicKey,
       svmPrivateKey: parsed.svmPrivateKey,
       chainId: parsed.chainId,
+      aaProvider: parsed.aaProvider,
       aaMode: parsed.aaMode,
       smartAccount: parsed.smartAccount,
       pendingTxs: parsed.pendingTxs,
@@ -4025,7 +4205,13 @@ function writeActiveLocalId(localId) {
       return;
     }
     ensureStorageDirs();
-    writeFileSync(ACTIVE_SESSION_FILE, String(localId));
+    writeFileSync(ACTIVE_SESSION_FILE, String(localId), {
+      mode: STATE_FILE_MODE
+    });
+    try {
+      chmodSync(ACTIVE_SESSION_FILE, STATE_FILE_MODE);
+    } catch (e) {
+    }
   } catch (e) {
   }
 }
@@ -4078,7 +4264,14 @@ function migrateLegacyStateIfNeeded() {
       updatedAt: now
     });
     ensureStorageDirs();
-    writeFileSync(toSessionFilePath(1), JSON.stringify(migrated, null, 2));
+    const migratedPath = toSessionFilePath(1);
+    writeFileSync(migratedPath, JSON.stringify(migrated, null, 2), {
+      mode: STATE_FILE_MODE
+    });
+    try {
+      chmodSync(migratedPath, STATE_FILE_MODE);
+    } catch (e) {
+    }
     writeActiveLocalId(1);
     rmSync(LEGACY_STATE_FILE);
   } catch (e) {
@@ -4185,7 +4378,14 @@ function writeState(state) {
     createdAt,
     updatedAt: now
   });
-  writeFileSync(toSessionFilePath(localId), JSON.stringify(payload, null, 2));
+  const stateFilePath = toSessionFilePath(localId);
+  writeFileSync(stateFilePath, JSON.stringify(payload, null, 2), {
+    mode: STATE_FILE_MODE
+  });
+  try {
+    chmodSync(stateFilePath, STATE_FILE_MODE);
+  } catch (e) {
+  }
   writeActiveLocalId(localId);
 }
 function clearState() {
@@ -4234,7 +4434,7 @@ function syncPendingTxsFromUserState(state, userState) {
     pendingSolTxs: state.pendingSolTxs
   };
 }
-var SESSION_FILE_PREFIX, SESSION_FILE_SUFFIX, _a, LEGACY_STATE_FILE, _a2, STATE_ROOT_DIR, SESSIONS_DIR, ACTIVE_SESSION_FILE, _migrationDone;
+var SESSION_FILE_PREFIX, SESSION_FILE_SUFFIX, STATE_DIR_MODE, STATE_FILE_MODE, _a, LEGACY_STATE_FILE, _a2, STATE_ROOT_DIR, SESSIONS_DIR, ACTIVE_SESSION_FILE, _migrationDone;
 var init_state2 = __esm({
   "src/cli/state.ts"() {
     "use strict";
@@ -4242,6 +4442,8 @@ var init_state2 = __esm({
     init_user_state2();
     SESSION_FILE_PREFIX = "session-";
     SESSION_FILE_SUFFIX = ".json";
+    STATE_DIR_MODE = 448;
+    STATE_FILE_MODE = 384;
     LEGACY_STATE_FILE = join(
       (_a = process.env.XDG_RUNTIME_DIR) != null ? _a : tmpdir(),
       "aomi-session.json"
@@ -4250,96 +4452,6 @@ var init_state2 = __esm({
     SESSIONS_DIR = join(STATE_ROOT_DIR, "sessions");
     ACTIVE_SESSION_FILE = join(STATE_ROOT_DIR, "active-session.txt");
     _migrationDone = false;
-  }
-});
-
-// src/cli/solana-signer.ts
-import {
-  Keypair,
-  Transaction,
-  VersionedTransaction
-} from "@solana/web3.js";
-import bs58 from "bs58";
-function parseSolanaKeypairSecret(input2) {
-  const trimmed = input2.trim();
-  if (!trimmed) {
-    throw new Error("Solana keypair secret is empty.");
-  }
-  let bytes;
-  if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
-    const parsed = JSON.parse(trimmed);
-    if (!Array.isArray(parsed) || parsed.some((value) => typeof value !== "number")) {
-      throw new Error(
-        "Solana keypair JSON must be an array of byte values (e.g. `[1,2,...,64]`)."
-      );
-    }
-    bytes = Uint8Array.from(parsed);
-  } else {
-    try {
-      bytes = bs58.decode(trimmed);
-    } catch (err) {
-      throw new Error(
-        `Failed to decode Solana keypair as base58: ${err instanceof Error ? err.message : String(err)}`
-      );
-    }
-  }
-  if (bytes.length !== 64) {
-    throw new Error(
-      `Solana keypair secret must be 64 bytes (got ${bytes.length}). Use the full secret key, not just the seed.`
-    );
-  }
-  return Keypair.fromSecretKey(bytes);
-}
-function decodeBase64(value) {
-  if (typeof Buffer !== "undefined") {
-    return new Uint8Array(Buffer.from(value, "base64"));
-  }
-  const binary = atob(value);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-  return bytes;
-}
-function encodeBase64(bytes) {
-  if (typeof Buffer !== "undefined") {
-    return Buffer.from(bytes).toString("base64");
-  }
-  let binary = "";
-  for (let i = 0; i < bytes.byteLength; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return btoa(binary);
-}
-function signSolanaTransaction(unsignedTxBase64, keypair) {
-  const bytes = decodeBase64(unsignedTxBase64);
-  try {
-    const versioned = VersionedTransaction.deserialize(bytes);
-    versioned.sign([keypair]);
-    return {
-      signer: keypair.publicKey.toBase58(),
-      signedTxBase64: encodeBase64(versioned.serialize())
-    };
-  } catch (versionedErr) {
-    try {
-      const legacy = Transaction.from(bytes);
-      legacy.partialSign(keypair);
-      return {
-        signer: keypair.publicKey.toBase58(),
-        signedTxBase64: encodeBase64(legacy.serialize())
-      };
-    } catch (legacyErr) {
-      const versionedMsg = versionedErr instanceof Error ? versionedErr.message : String(versionedErr);
-      const legacyMsg = legacyErr instanceof Error ? legacyErr.message : String(legacyErr);
-      throw new Error(
-        `Failed to deserialize Solana transaction (versioned: ${versionedMsg}; legacy: ${legacyMsg}).`
-      );
-    }
-  }
-}
-var init_solana_signer = __esm({
-  "src/cli/solana-signer.ts"() {
-    "use strict";
   }
 });
 
@@ -4586,6 +4698,163 @@ var init_auth = __esm({
   }
 });
 
+// src/cli/client-factory.ts
+function resolveCliBaseUrl(config) {
+  var _a3;
+  return (_a3 = config.baseUrl) != null ? _a3 : DEFAULT_CLI_BASE_URL;
+}
+function createCliGetAccountBearer(config) {
+  if (config.accountBearer) {
+    const bearer = config.accountBearer;
+    return async () => bearer;
+  }
+  if (config.sessionCookie) {
+    const sessionCookie = config.sessionCookie;
+    return async () => sessionCookie;
+  }
+  return void 0;
+}
+function createCliClient(config, overrides = {}) {
+  var _a3, _b;
+  const mergedConfig = __spreadProps(__spreadValues({}, config), {
+    baseUrl: (_a3 = overrides.baseUrl) != null ? _a3 : config.baseUrl,
+    apiKey: (_b = overrides.apiKey) != null ? _b : config.apiKey
+  });
+  return new AomiClient({
+    baseUrl: resolveCliBaseUrl(mergedConfig),
+    apiKey: mergedConfig.apiKey,
+    getAccountBearer: createCliGetAccountBearer(mergedConfig)
+  });
+}
+var DEFAULT_CLI_BASE_URL;
+var init_client_factory = __esm({
+  "src/cli/client-factory.ts"() {
+    "use strict";
+    init_client();
+    DEFAULT_CLI_BASE_URL = "https://chat.aomi.dev";
+  }
+});
+
+// src/cli/payment.ts
+import { x402Client } from "@x402/core/client";
+import { ExactEvmScheme } from "@x402/evm/exact/client";
+import { wrapFetchWithPayment } from "@x402/fetch";
+import { privateKeyToAccount as privateKeyToAccount3 } from "viem/accounts";
+function stringValue(value) {
+  return typeof value === "string" && value.length > 0 ? value : void 0;
+}
+function parseBase64Json(value) {
+  try {
+    const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized.padEnd(
+      normalized.length + (4 - normalized.length % 4) % 4,
+      "="
+    );
+    return JSON.parse(atob(padded));
+  } catch (e) {
+    return void 0;
+  }
+}
+async function paymentRequirementFrom(response) {
+  var _a3;
+  const fromHeader = response.headers.get("Payment-Required");
+  const payload = fromHeader ? parseBase64Json(fromHeader) : await response.clone().json().catch(() => void 0);
+  const accepted = (_a3 = payload == null ? void 0 : payload.accepts) == null ? void 0 : _a3[0];
+  if (!accepted) return void 0;
+  return {
+    amount: stringValue(accepted.amount),
+    asset: stringValue(accepted.asset),
+    network: stringValue(accepted.network),
+    payTo: stringValue(accepted.payTo),
+    error: stringValue(payload == null ? void 0 : payload.error)
+  };
+}
+function receiptIdFrom(response) {
+  var _a3;
+  const header = paymentResponseHeader(response);
+  const settlement = header ? parseBase64Json(header) : void 0;
+  return (_a3 = stringValue(settlement == null ? void 0 : settlement.transaction)) != null ? _a3 : stringValue(settlement == null ? void 0 : settlement.network);
+}
+function paymentResponseHeader(response) {
+  var _a3;
+  return (_a3 = response.headers.get("Payment-Response")) != null ? _a3 : response.headers.get("X-Payment-Response");
+}
+function hasPaymentSignature(request) {
+  return request.headers.has("Payment-Signature") || request.headers.has("X-Payment");
+}
+function createTracedFetch(onPayment) {
+  return async (input2, init) => {
+    var _a3;
+    const request = new Request(input2, init);
+    const isPaymentRetry = hasPaymentSignature(request);
+    if (isPaymentRetry) {
+      onPayment == null ? void 0 : onPayment({ type: "submitting", url: request.url });
+    }
+    const response = await globalThis.fetch(request);
+    if (!onPayment) return response;
+    if (isPaymentRetry) {
+      const settled = response.ok || paymentResponseHeader(response) !== null;
+      onPayment(
+        settled ? {
+          type: "settled",
+          url: request.url,
+          status: response.status,
+          receiptId: receiptIdFrom(response)
+        } : {
+          type: "rejected",
+          url: request.url,
+          status: response.status,
+          reason: (_a3 = await paymentRequirementFrom(response)) == null ? void 0 : _a3.error
+        }
+      );
+    } else if (response.status === 402) {
+      onPayment({
+        type: "required",
+        url: request.url,
+        requirement: await paymentRequirementFrom(response)
+      });
+    }
+    return response;
+  };
+}
+function followSettledPaymentChallenges(paymentFetch) {
+  return async (input2, init) => {
+    const original = new Request(input2, init);
+    let response = await paymentFetch(original.clone());
+    for (let challenge = 1; challenge < MAX_SEQUENTIAL_PAYMENT_CHALLENGES && response.status === 402 && paymentResponseHeader(response) !== null; challenge += 1) {
+      response = await paymentFetch(original.clone());
+    }
+    return response;
+  };
+}
+function createCliPaymentFetch(config, onPayment) {
+  if (!(config == null ? void 0 : config.paymentMethod)) {
+    return void 0;
+  }
+  if (config.paymentMethod !== "coinbase") {
+    fatal("Unsupported payment method. Use `coinbase`.");
+  }
+  if (!config.privateKey) {
+    fatal(
+      "`--payment-method coinbase` requires an EVM private key. Pass `--private-key` or set `PRIVATE_KEY`."
+    );
+  }
+  const account = privateKeyToAccount3(config.privateKey);
+  const paymentClient = new x402Client();
+  paymentClient.register("eip155:*", new ExactEvmScheme(account));
+  return followSettledPaymentChallenges(
+    wrapFetchWithPayment(createTracedFetch(onPayment), paymentClient)
+  );
+}
+var MAX_SEQUENTIAL_PAYMENT_CHALLENGES;
+var init_payment = __esm({
+  "src/cli/payment.ts"() {
+    "use strict";
+    init_errors();
+    MAX_SEQUENTIAL_PAYMENT_CHALLENGES = 4;
+  }
+});
+
 // src/cli/cli-session.ts
 var CliSession;
 var init_cli_session = __esm({
@@ -4597,6 +4866,8 @@ var init_cli_session = __esm({
     init_errors();
     init_solana_signer();
     init_auth();
+    init_client_factory();
+    init_payment();
     CliSession = class _CliSession {
       constructor(state) {
         this.state = state;
@@ -4637,7 +4908,7 @@ var init_cli_session = __esm({
         const state = {
           sessionId: crypto.randomUUID(),
           clientId: crypto.randomUUID(),
-          baseUrl: (_b = (_a3 = config.baseUrl) != null ? _a3 : seed == null ? void 0 : seed.baseUrl) != null ? _b : "https://api.aomi.dev",
+          baseUrl: (_b = (_a3 = config.baseUrl) != null ? _a3 : seed == null ? void 0 : seed.baseUrl) != null ? _b : DEFAULT_CLI_BASE_URL,
           app: (_c = config.app) != null ? _c : seed == null ? void 0 : seed.app,
           model: (_d = config.model) != null ? _d : seed == null ? void 0 : seed.model,
           apiKey: (_e = config.apiKey) != null ? _e : seed == null ? void 0 : seed.apiKey,
@@ -4646,13 +4917,14 @@ var init_cli_session = __esm({
           embeddedProvider: (_h = config.embeddedProvider) != null ? _h : seed == null ? void 0 : seed.embeddedProvider,
           embeddedProviderToken: (_i = config.embeddedProviderToken) != null ? _i : seed == null ? void 0 : seed.embeddedProviderToken,
           publicKey: (_j = config.publicKey) != null ? _j : seed == null ? void 0 : seed.publicKey,
-          privateKey: (_k = config.privateKey) != null ? _k : seed == null ? void 0 : seed.privateKey,
+          privateKey: seed == null ? void 0 : seed.privateKey,
           svmPublicKey: svmPublicKey != null ? svmPublicKey : seed == null ? void 0 : seed.svmPublicKey,
-          // Carry forward the persisted Solana private key so `wallet set --solana`
-          // survives `--new-session` — signing key is a user preference, not a
-          // per-session artifact.
-          svmPrivateKey: (_l = config.solanaPrivateKey) != null ? _l : seed == null ? void 0 : seed.svmPrivateKey,
-          chainId: (_m = config.chain) != null ? _m : seed == null ? void 0 : seed.chainId,
+          // Carry forward only persisted Solana keys from `wallet set --solana`.
+          // Keys supplied via --solana-private-key/env stay transient.
+          svmPrivateKey: seed == null ? void 0 : seed.svmPrivateKey,
+          chainId: (_k = config.chain) != null ? _k : seed == null ? void 0 : seed.chainId,
+          aaProvider: (_l = config.aaProvider) != null ? _l : seed == null ? void 0 : seed.aaProvider,
+          aaMode: (_m = config.aaMode) != null ? _m : seed == null ? void 0 : seed.aaMode,
           secretHandles: seed == null ? void 0 : seed.secretHandles,
           auth: seed == null ? void 0 : seed.auth
         };
@@ -4782,6 +5054,14 @@ var init_cli_session = __esm({
           this.state.chainId = config.chain;
           changed = true;
         }
+        if (config.aaProvider !== void 0 && config.aaProvider !== this.state.aaProvider) {
+          this.state.aaProvider = config.aaProvider;
+          changed = true;
+        }
+        if (config.aaMode !== void 0 && config.aaMode !== this.state.aaMode) {
+          this.state.aaMode = config.aaMode;
+          changed = true;
+        }
         if (!this.state.clientId) {
           this.state.clientId = crypto.randomUUID();
           changed = true;
@@ -4842,6 +5122,18 @@ var init_cli_session = __esm({
         if (!this.state.auth) return;
         delete this.state.auth;
         this.save();
+      }
+      clearSigningKeys() {
+        let changed = false;
+        if (this.state.privateKey !== void 0) {
+          delete this.state.privateKey;
+          changed = true;
+        }
+        if (this.state.svmPrivateKey !== void 0) {
+          delete this.state.svmPrivateKey;
+          changed = true;
+        }
+        if (changed) this.save();
       }
       /** Ensure clientId exists, generate if absent. Returns the clientId. */
       ensureClientId() {
@@ -4966,26 +5258,31 @@ Available: ${available}`);
       // Bridge to ClientSession
       // ---------------------------------------------------------------------------
       /** Build a ClientSession from the current state. */
-      createClientSession(_config) {
-        var _a3, _b;
+      createClientSession(config, options) {
+        var _a3, _b, _c, _d;
+        const paymentFetch = createCliPaymentFetch(config, options == null ? void 0 : options.onPayment);
         const session = new ClientSession(
           {
             baseUrl: this.state.baseUrl,
             apiKey: this.state.apiKey,
+            fetch: paymentFetch,
             getAccountBearer: createCliAuthTokenProvider(() => this.state)
           },
           {
             sessionId: this.state.sessionId,
             clientId: this.state.clientId,
             app: this.state.app,
-            apiKey: this.state.apiKey
+            applicationId: config == null ? void 0 : config.applicationId,
+            apiKey: this.state.apiKey,
+            paymentMethod: config == null ? void 0 : config.paymentMethod
           }
         );
         session.resolveUserState(
           buildCliUserState(this.state.publicKey, this.state.chainId, {
             app: this.state.app,
-            aaMode: (_a3 = this.state.aaMode) != null ? _a3 : null,
-            smartAccount: (_b = this.state.smartAccount) != null ? _b : null,
+            aaProvider: (_b = (_a3 = this.state.aaProvider) != null ? _a3 : config == null ? void 0 : config.aaProvider) != null ? _b : null,
+            aaMode: (_c = this.state.aaMode) != null ? _c : null,
+            smartAccount: (_d = this.state.smartAccount) != null ? _d : null,
             svmAddress: this.state.svmPublicKey
           })
         );
@@ -5030,13 +5327,19 @@ Available: ${available}`);
 });
 
 // src/cli/output.ts
-function printDataFileLocation() {
+function printDataFileLocation(options) {
+  if ((options == null ? void 0 : options.verbose) !== true) {
+    return;
+  }
   const activeFile = getActiveStateFilePath();
   if (activeFile) {
     console.log(`Data stored at ${activeFile} \u{1F4DD}`);
     return;
   }
   console.log(`Data stored under ${STATE_ROOT_DIR} \u{1F4DD}`);
+}
+function printJson(value) {
+  console.log(JSON.stringify(value, null, 2));
 }
 function printToolUpdate(event) {
   var _a3;
@@ -5052,6 +5355,34 @@ function printToolComplete(event) {
 }
 function printToolResultLine(name, result) {
   console.log(formatToolResultLine(name, result));
+}
+function printPaymentEvent(event) {
+  switch (event.type) {
+    case "required": {
+      const requirement = event.requirement;
+      const details = [
+        (requirement == null ? void 0 : requirement.amount) ? `amount ${requirement.amount}` : void 0,
+        requirement == null ? void 0 : requirement.network,
+        (requirement == null ? void 0 : requirement.payTo) ? `beneficiary ${requirement.payTo}` : void 0
+      ].filter(Boolean).join(" \xB7 ");
+      console.log(
+        `${YELLOW}\u{1F4B3} x402 payment required${details ? `: ${details}` : ""}${RESET}`
+      );
+      return;
+    }
+    case "submitting":
+      console.log(`${DIM}\u270D\uFE0F Signing and submitting x402 payment\u2026${RESET}`);
+      return;
+    case "settled":
+      console.log(
+        `${GREEN}\u2714 x402 payment settled${event.receiptId ? `: ${event.receiptId}` : ""}${RESET}`
+      );
+      return;
+    case "rejected":
+      console.log(
+        `\x1B[31m\u2716 x402 payment rejected (HTTP ${event.status})${event.reason ? `: ${event.reason}` : ""}${RESET}`
+      );
+  }
 }
 function getToolNameFromEvent(event) {
   var _a3, _b;
@@ -5142,7 +5473,7 @@ var init_output = __esm({
 function createControlClient(config) {
   var _a3;
   return new AomiClient({
-    baseUrl: (_a3 = config.baseUrl) != null ? _a3 : "https://api.aomi.dev",
+    baseUrl: (_a3 = config.baseUrl) != null ? _a3 : DEFAULT_CLI_BASE_URL,
     apiKey: config.apiKey,
     getAccountBearer: createCliAuthTokenProvider(() => {
       var _a4;
@@ -5173,6 +5504,7 @@ async function applyRequestedModelIfPresent(config, cli, session) {
   }
   await session.client.setModel(cli.sessionId, requestedModel, {
     app: cli.app,
+    applicationId: config.applicationId,
     apiKey: cli.apiKey
   });
   cli.setModel(requestedModel);
@@ -5182,6 +5514,7 @@ var init_context = __esm({
     "use strict";
     init_client();
     init_auth();
+    init_client_factory();
     init_state2();
   }
 });
@@ -5234,33 +5567,37 @@ function shouldBroadcastWalletStateChange(config, previous, next) {
   if (!next.publicKey || next.chainId === void 0) {
     return false;
   }
-  return normalizeAddress2(previous == null ? void 0 : previous.publicKey) !== normalizeAddress2(next.publicKey) || (previous == null ? void 0 : previous.chainId) !== next.chainId || (previous == null ? void 0 : previous.aaMode) !== next.aaMode || normalizeAddress2((_a3 = previous == null ? void 0 : previous.smartAccount) != null ? _a3 : void 0) !== normalizeAddress2((_b = next.smartAccount) != null ? _b : void 0);
+  return normalizeAddress2(previous == null ? void 0 : previous.publicKey) !== normalizeAddress2(next.publicKey) || (previous == null ? void 0 : previous.chainId) !== next.chainId || (previous == null ? void 0 : previous.aaProvider) !== next.aaProvider || (previous == null ? void 0 : previous.aaMode) !== next.aaMode || normalizeAddress2((_a3 = previous == null ? void 0 : previous.smartAccount) != null ? _a3 : void 0) !== normalizeAddress2((_b = next.smartAccount) != null ? _b : void 0);
 }
 async function syncWalletStateForChat(config, previous, next, cli, session) {
-  var _a3, _b;
+  var _a3, _b, _c, _d;
   if (!shouldBroadcastWalletStateChange(config, previous, next) || !next.publicKey) {
     return;
   }
   const userState = buildCliUserState(next.publicKey, next.chainId, {
     app: config.app,
-    aaMode: (_a3 = next.aaMode) != null ? _a3 : null,
-    smartAccount: (_b = next.smartAccount) != null ? _b : null,
+    aaProvider: (_b = (_a3 = next.aaProvider) != null ? _a3 : config.aaProvider) != null ? _b : null,
+    aaMode: (_c = next.aaMode) != null ? _c : null,
+    smartAccount: (_d = next.smartAccount) != null ? _d : null,
     svmAddress: next.svmAddress,
     svmCluster: config.svmCluster
   });
   session.resolveUserState(userState);
   await session.syncUserState();
+  if (!hasAccountCredential(cli)) {
+    return;
+  }
   await session.client.sendSystemMessage(
     cli.sessionId,
     JSON.stringify({
       type: "wallet:state_changed",
       payload: userState
     }),
-    { app: config.app }
+    { app: config.app, applicationId: config.applicationId }
   );
 }
 async function chatCommand(config, message, verbose) {
-  var _a3, _b, _c, _d, _e;
+  var _a3, _b, _c, _d, _e, _f, _g, _h;
   if (!message) {
     fatal("Usage: aomi chat <message>");
   }
@@ -5268,15 +5605,18 @@ async function chatCommand(config, message, verbose) {
   const previousWallet = previousCli ? {
     publicKey: previousCli.publicKey,
     chainId: previousCli.chainId,
-    aaMode: (_a3 = previousCli.toState().aaMode) != null ? _a3 : null,
-    smartAccount: (_b = previousCli.toState().smartAccount) != null ? _b : null,
+    aaProvider: (_a3 = previousCli.toState().aaProvider) != null ? _a3 : null,
+    aaMode: (_b = previousCli.toState().aaMode) != null ? _b : null,
+    smartAccount: (_c = previousCli.toState().smartAccount) != null ? _c : null,
     svmAddress: void 0
     // force re-sync of SVM state on every chat
   } : null;
   const cli = CliSession.loadOrCreate(config);
-  const session = cli.createClientSession(config);
+  const session = cli.createClientSession(config, {
+    onPayment: printPaymentEvent
+  });
   const resolvedSolanaKey = cli.resolvedSvmPrivateKey(config.solanaPrivateKey);
-  const svmAddress3 = (_c = deriveSvmAddress(resolvedSolanaKey)) != null ? _c : cli.svmPublicKey;
+  const svmAddress3 = (_d = deriveSvmAddress(resolvedSolanaKey)) != null ? _d : cli.svmPublicKey;
   try {
     await ensureAccountBoundThread(cli, session);
     await ingestSecretsForSession(config, cli, session.client);
@@ -5287,8 +5627,9 @@ async function chatCommand(config, message, verbose) {
       {
         publicKey: cli.publicKey,
         chainId: cli.chainId,
-        aaMode: (_d = cli.toState().aaMode) != null ? _d : null,
-        smartAccount: (_e = cli.toState().smartAccount) != null ? _e : null,
+        aaProvider: (_f = (_e = cli.toState().aaProvider) != null ? _e : config.aaProvider) != null ? _f : null,
+        aaMode: (_g = cli.toState().aaMode) != null ? _g : null,
+        smartAccount: (_h = cli.toState().smartAccount) != null ? _h : null,
         svmAddress: svmAddress3
       },
       cli,
@@ -5313,7 +5654,7 @@ async function chatCommand(config, message, verbose) {
     });
     if (verbose) {
       session.on("processing_start", () => {
-        console.log(`${DIM}\u23F3 Processing\u2026${RESET}`);
+        console.log(`${DIM}\u23F3 Thinking\u2026${RESET}`);
       });
       session.on("system_notice", ({ message: msg }) => {
         console.log(`${YELLOW}\u{1F4E2} ${msg}${RESET}`);
@@ -5407,6 +5748,7 @@ async function chatCommand(config, message, verbose) {
         console.log(last.content);
       } else if (newPendingTxs.length === 0) {
         console.log("(no response)");
+        fatal("Backend returned an empty agent message.");
       }
       if (newPendingTxs.length === 0) {
         const mentionedTxIds = extractMentionedTxIds(last == null ? void 0 : last.content);
@@ -5538,7 +5880,7 @@ var init_types2 = __esm({
 
 // src/aa/execute.ts
 import { createPublicClient, createWalletClient, http } from "viem";
-import { privateKeyToAccount as privateKeyToAccount3 } from "viem/accounts";
+import { privateKeyToAccount as privateKeyToAccount4 } from "viem/accounts";
 function normalizeRpcCallData(data) {
   return data === "0x" ? void 0 : data;
 }
@@ -5717,7 +6059,7 @@ async function executeViaEoa({
       if (!rpcUrl) {
         throw new Error(`No RPC for chain ${call.chainId}`);
       }
-      const account = privateKeyToAccount3(localPrivateKey);
+      const account = privateKeyToAccount4(localPrivateKey);
       const walletClient = createWalletClient({
         account,
         chain,
@@ -6080,13 +6422,13 @@ var init_adapt = __esm({
 });
 
 // src/aa/owner.ts
-import { privateKeyToAccount as privateKeyToAccount4 } from "viem/accounts";
+import { privateKeyToAccount as privateKeyToAccount5 } from "viem/accounts";
 function getDirectOwnerParams(owner) {
   return {
     kind: "ready",
     ownerParams: {
       para: void 0,
-      signer: privateKeyToAccount4(owner.privateKey)
+      signer: privateKeyToAccount5(owner.privateKey)
     }
   };
 }
@@ -6173,7 +6515,7 @@ var init_owner = __esm({
 });
 
 // src/aa/alchemy/create.ts
-import { privateKeyToAccount as privateKeyToAccount5 } from "viem/accounts";
+import { privateKeyToAccount as privateKeyToAccount6 } from "viem/accounts";
 function extractExistingAccountAddress(error) {
   var _a3;
   const message = error instanceof Error ? error.message : String(error);
@@ -6330,7 +6672,7 @@ async function createAlchemyAAState(options) {
 async function createAlchemyWalletApisState(params) {
   const { createSmartWalletClient, alchemyWalletTransport } = await import("@alchemy/wallet-apis");
   const transport = params.proxyBaseUrl ? alchemyWalletTransport({ url: params.proxyBaseUrl }) : alchemyWalletTransport({ apiKey: params.apiKey });
-  const signer = privateKeyToAccount5(params.privateKey);
+  const signer = privateKeyToAccount6(params.privateKey);
   const alchemyClient = createSmartWalletClient(__spreadValues({
     transport,
     chain: params.chain,
@@ -6467,7 +6809,7 @@ var init_provider2 = __esm({
 });
 
 // src/aa/pimlico/create.ts
-import { privateKeyToAccount as privateKeyToAccount6 } from "viem/accounts";
+import { privateKeyToAccount as privateKeyToAccount7 } from "viem/accounts";
 function pimDebug(message, fields) {
   if (!AA_DEBUG_ENABLED2) return;
   if (fields) {
@@ -6507,7 +6849,7 @@ async function createPimlicoAAState(options) {
   }
   const permissionlessSigner = owner.kind === "session" || owner.kind === "external-wallet" ? resolvePimlicoSessionSigner(ownerParams.ownerParams) : null;
   try {
-    const signer = owner.kind === "direct" ? privateKeyToAccount6(owner.privateKey) : permissionlessSigner;
+    const signer = owner.kind === "direct" ? privateKeyToAccount7(owner.privateKey) : permissionlessSigner;
     if (signer) {
       return await createPimlicoPermissionlessState({
         resolved: execution,
@@ -7048,6 +7390,153 @@ var init_transactions = __esm({
   }
 });
 
+// src/cli/tables.ts
+function truncateCell(value, maxWidth) {
+  if (value.length <= maxWidth) return value;
+  return `${value.slice(0, maxWidth - 1)}\u2026`;
+}
+function padRight(value, width) {
+  return value.padEnd(width, " ");
+}
+function estimateTokenCount(messages) {
+  var _a3;
+  let totalChars = 0;
+  for (const message of messages) {
+    const content = formatLogContent(message.content);
+    if (content) {
+      totalChars += content.length + 1;
+    }
+    if ((_a3 = message.tool_result) == null ? void 0 : _a3[1]) {
+      totalChars += message.tool_result[1].length;
+    }
+  }
+  return Math.round(totalChars / 4);
+}
+function toIsoTimestamp(timestamp2) {
+  if (typeof timestamp2 !== "number" || !Number.isFinite(timestamp2)) {
+    return null;
+  }
+  try {
+    return new Date(timestamp2).toISOString();
+  } catch (e) {
+    return null;
+  }
+}
+function toPendingTxMetadata(tx) {
+  var _a3, _b, _c, _d, _e, _f;
+  return {
+    id: tx.id,
+    kind: tx.kind,
+    txId: (_a3 = tx.txId) != null ? _a3 : null,
+    eip712Id: (_b = tx.eip712Id) != null ? _b : null,
+    to: (_c = tx.to) != null ? _c : null,
+    value: (_d = tx.value) != null ? _d : null,
+    chainId: (_e = tx.chainId) != null ? _e : null,
+    description: (_f = tx.description) != null ? _f : null,
+    timestamp: toIsoTimestamp(tx.timestamp)
+  };
+}
+function toSignedTxMetadata(tx) {
+  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o;
+  return {
+    id: tx.id,
+    kind: tx.kind,
+    txHash: (_a3 = tx.txHash) != null ? _a3 : null,
+    txHashes: (_b = tx.txHashes) != null ? _b : null,
+    executionKind: (_c = tx.executionKind) != null ? _c : null,
+    aaProvider: (_d = tx.aaProvider) != null ? _d : null,
+    aaMode: (_e = tx.aaMode) != null ? _e : null,
+    batched: (_f = tx.batched) != null ? _f : null,
+    sponsored: (_g = tx.sponsored) != null ? _g : null,
+    smartAccount4337: (_h = tx.smartAccount4337) != null ? _h : null,
+    Delegation7702: (_i = tx.Delegation7702) != null ? _i : null,
+    signature: (_j = tx.signature) != null ? _j : null,
+    from: (_k = tx.from) != null ? _k : null,
+    to: (_l = tx.to) != null ? _l : null,
+    value: (_m = tx.value) != null ? _m : null,
+    chainId: (_n = tx.chainId) != null ? _n : null,
+    description: (_o = tx.description) != null ? _o : null,
+    timestamp: toIsoTimestamp(tx.timestamp)
+  };
+}
+function printKeyValueTable(rows, color = CYAN) {
+  const labels = rows.map(([label]) => label);
+  const values = rows.map(
+    ([, value]) => truncateCell(value, MAX_TABLE_VALUE_WIDTH)
+  );
+  const keyWidth = Math.max("field".length, ...labels.map((label) => label.length));
+  const valueWidth = Math.max("value".length, ...values.map((value) => value.length));
+  const border = `+${"-".repeat(keyWidth + 2)}+${"-".repeat(valueWidth + 2)}+`;
+  console.log(`${color}${border}${RESET}`);
+  console.log(
+    `${color}| ${padRight("field", keyWidth)} | ${padRight("value", valueWidth)} |${RESET}`
+  );
+  console.log(`${color}${border}${RESET}`);
+  for (let i = 0; i < rows.length; i++) {
+    console.log(
+      `${color}| ${padRight(labels[i], keyWidth)} | ${padRight(values[i], valueWidth)} |${RESET}`
+    );
+    console.log(`${color}${border}${RESET}`);
+  }
+}
+function printTransactionTable(pendingTxs, signedTxs, color = GREEN) {
+  const safePendingTxs = pendingTxs.filter(
+    (tx) => typeof tx === "object" && tx !== null
+  );
+  const safeSignedTxs = signedTxs.filter(
+    (tx) => typeof tx === "object" && tx !== null
+  );
+  const rows = [
+    ...safePendingTxs.map((tx) => ({
+      status: "pending",
+      metadata: toPendingTxMetadata(tx)
+    })),
+    ...safeSignedTxs.map((tx) => ({
+      status: "signed",
+      metadata: toSignedTxMetadata(tx)
+    }))
+  ];
+  if (rows.length === 0) {
+    console.log(`${YELLOW}No transactions in local CLI state.${RESET}`);
+    return;
+  }
+  const visibleRows = rows.slice(0, MAX_TX_ROWS);
+  const statusWidth = Math.max(
+    "status".length,
+    ...visibleRows.map((row) => row.status.length)
+  );
+  const jsonCells = visibleRows.map(
+    (row) => truncateCell(JSON.stringify(row.metadata), MAX_TX_JSON_WIDTH)
+  );
+  const jsonWidth = Math.max("metadata_json".length, ...jsonCells.map((v) => v.length));
+  const border = `+${"-".repeat(statusWidth + 2)}+${"-".repeat(jsonWidth + 2)}+`;
+  console.log(`${color}${border}${RESET}`);
+  console.log(
+    `${color}| ${padRight("status", statusWidth)} | ${padRight("metadata_json", jsonWidth)} |${RESET}`
+  );
+  console.log(`${color}${border}${RESET}`);
+  for (let i = 0; i < visibleRows.length; i++) {
+    console.log(
+      `${color}| ${padRight(visibleRows[i].status, statusWidth)} | ${padRight(jsonCells[i], jsonWidth)} |${RESET}`
+    );
+    console.log(`${color}${border}${RESET}`);
+  }
+  if (rows.length > MAX_TX_ROWS) {
+    const omitted = rows.length - MAX_TX_ROWS;
+    console.log(`${DIM}${omitted} transaction rows omitted${RESET}`);
+  }
+}
+var MAX_TABLE_VALUE_WIDTH, MAX_TX_JSON_WIDTH, MAX_TX_ROWS;
+var init_tables = __esm({
+  "src/cli/tables.ts"() {
+    "use strict";
+    init_output();
+    MAX_TABLE_VALUE_WIDTH = 72;
+    MAX_TX_JSON_WIDTH = 96;
+    MAX_TX_ROWS = 8;
+  }
+});
+
 // src/cli/commands/wallet.ts
 var wallet_exports = {};
 __export(wallet_exports, {
@@ -7055,13 +7544,17 @@ __export(wallet_exports, {
   txCommand: () => txCommand
 });
 import { createWalletClient as createWalletClient2, http as http2 } from "viem";
-import { privateKeyToAccount as privateKeyToAccount7 } from "viem/accounts";
+import { privateKeyToAccount as privateKeyToAccount8 } from "viem/accounts";
 import * as viemChains from "viem/chains";
 async function txCommand(config) {
   const cli = CliSession.load();
   if (!cli) {
+    if (config.json) {
+      printJson({ active: false, pending: [], signed: [] });
+      return;
+    }
     console.log("No active session");
-    printDataFileLocation();
+    printDataFileLocation({ verbose: config.verbose });
     return;
   }
   const session = cli.createClientSession(config);
@@ -7082,9 +7575,45 @@ async function txCommand(config) {
   const signedSol = [...cli.signedSolTxs];
   const totalPending = pending.length + pendingSol.length;
   const totalSigned = signed.length + signedSol.length;
+  if (config.json) {
+    printJson({
+      active: true,
+      pending: [
+        ...pending.map((tx) => toPendingTxMetadata(tx)),
+        ...pendingSol.map((tx) => {
+          var _a3, _b, _c;
+          return {
+            id: tx.id,
+            kind: tx.kind,
+            solanaId: tx.solanaId,
+            signer: (_a3 = tx.signer) != null ? _a3 : null,
+            cluster: (_b = tx.cluster) != null ? _b : null,
+            description: (_c = tx.description) != null ? _c : null,
+            timestamp: new Date(tx.timestamp).toISOString()
+          };
+        })
+      ],
+      signed: [
+        ...signed.map((tx) => toSignedTxMetadata(tx)),
+        ...signedSol.map((tx) => {
+          var _a3, _b, _c, _d;
+          return {
+            id: tx.id,
+            kind: "solana_sign",
+            signedTx: (_a3 = tx.signedTx) != null ? _a3 : null,
+            signer: (_b = tx.signer) != null ? _b : null,
+            cluster: (_c = tx.cluster) != null ? _c : null,
+            description: (_d = tx.description) != null ? _d : null,
+            timestamp: new Date(tx.timestamp).toISOString()
+          };
+        })
+      ]
+    });
+    return;
+  }
   if (totalPending === 0 && totalSigned === 0) {
     console.log("No transactions.");
-    printDataFileLocation();
+    printDataFileLocation({ verbose: config.verbose });
     return;
   }
   if (totalPending > 0) {
@@ -7106,7 +7635,7 @@ async function txCommand(config) {
       console.log(formatSignedSolTxLine(tx, "  \u2705"));
     }
   }
-  printDataFileLocation();
+  printDataFileLocation({ verbose: config.verbose });
 }
 function resolveChain(targetChainId, rpcUrl) {
   const knownChain = Object.values(viemChains).find((candidate) => {
@@ -7339,7 +7868,7 @@ Available: ${available}`
         ].join("\n")
       );
     }
-    const account = privateKeyToAccount7(privateKey);
+    const account = privateKeyToAccount8(privateKey);
     if (cli.publicKey && account.address.toLowerCase() !== cli.publicKey.toLowerCase()) {
       console.log(
         `\u26A0\uFE0F  Signer ${account.address} differs from session public key ${cli.publicKey}`
@@ -7598,7 +8127,9 @@ Available: ${available}`
             }));
           }
         } catch (err) {
-          console.warn(`[aomi tx sign] failed to fetch typed_data from backend: ${err}`);
+          console.warn(
+            `[aomi tx sign] failed to fetch typed_data from backend: ${err}`
+          );
         }
       }
       if (signArgs && messageArgs) {
@@ -7683,43 +8214,7 @@ var init_wallet2 = __esm({
     init_transactions();
     init_chains();
     init_defaults();
-  }
-});
-
-// src/cli/client-factory.ts
-function resolveCliBaseUrl(config) {
-  var _a3;
-  return (_a3 = config.baseUrl) != null ? _a3 : DEFAULT_CLI_BASE_URL;
-}
-function createCliGetAccountBearer(config) {
-  if (config.accountBearer) {
-    const bearer = config.accountBearer;
-    return async () => bearer;
-  }
-  if (config.sessionCookie) {
-    const sessionCookie = config.sessionCookie;
-    return async () => sessionCookie;
-  }
-  return void 0;
-}
-function createCliClient(config, overrides = {}) {
-  var _a3, _b;
-  const mergedConfig = __spreadProps(__spreadValues({}, config), {
-    baseUrl: (_a3 = overrides.baseUrl) != null ? _a3 : config.baseUrl,
-    apiKey: (_b = overrides.apiKey) != null ? _b : config.apiKey
-  });
-  return new AomiClient({
-    baseUrl: resolveCliBaseUrl(mergedConfig),
-    apiKey: mergedConfig.apiKey,
-    getAccountBearer: createCliGetAccountBearer(mergedConfig)
-  });
-}
-var DEFAULT_CLI_BASE_URL;
-var init_client_factory = __esm({
-  "src/cli/client-factory.ts"() {
-    "use strict";
-    init_client();
-    DEFAULT_CLI_BASE_URL = "https://chat.aomi.dev";
+    init_tables();
   }
 });
 
@@ -7824,153 +8319,6 @@ var init_simulate = __esm({
     init_client_factory();
     init_errors();
     init_output();
-  }
-});
-
-// src/cli/tables.ts
-function truncateCell(value, maxWidth) {
-  if (value.length <= maxWidth) return value;
-  return `${value.slice(0, maxWidth - 1)}\u2026`;
-}
-function padRight(value, width) {
-  return value.padEnd(width, " ");
-}
-function estimateTokenCount(messages) {
-  var _a3;
-  let totalChars = 0;
-  for (const message of messages) {
-    const content = formatLogContent(message.content);
-    if (content) {
-      totalChars += content.length + 1;
-    }
-    if ((_a3 = message.tool_result) == null ? void 0 : _a3[1]) {
-      totalChars += message.tool_result[1].length;
-    }
-  }
-  return Math.round(totalChars / 4);
-}
-function toIsoTimestamp(timestamp2) {
-  if (typeof timestamp2 !== "number" || !Number.isFinite(timestamp2)) {
-    return null;
-  }
-  try {
-    return new Date(timestamp2).toISOString();
-  } catch (e) {
-    return null;
-  }
-}
-function toPendingTxMetadata(tx) {
-  var _a3, _b, _c, _d, _e, _f;
-  return {
-    id: tx.id,
-    kind: tx.kind,
-    txId: (_a3 = tx.txId) != null ? _a3 : null,
-    eip712Id: (_b = tx.eip712Id) != null ? _b : null,
-    to: (_c = tx.to) != null ? _c : null,
-    value: (_d = tx.value) != null ? _d : null,
-    chainId: (_e = tx.chainId) != null ? _e : null,
-    description: (_f = tx.description) != null ? _f : null,
-    timestamp: toIsoTimestamp(tx.timestamp)
-  };
-}
-function toSignedTxMetadata(tx) {
-  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o;
-  return {
-    id: tx.id,
-    kind: tx.kind,
-    txHash: (_a3 = tx.txHash) != null ? _a3 : null,
-    txHashes: (_b = tx.txHashes) != null ? _b : null,
-    executionKind: (_c = tx.executionKind) != null ? _c : null,
-    aaProvider: (_d = tx.aaProvider) != null ? _d : null,
-    aaMode: (_e = tx.aaMode) != null ? _e : null,
-    batched: (_f = tx.batched) != null ? _f : null,
-    sponsored: (_g = tx.sponsored) != null ? _g : null,
-    smartAccount4337: (_h = tx.smartAccount4337) != null ? _h : null,
-    Delegation7702: (_i = tx.Delegation7702) != null ? _i : null,
-    signature: (_j = tx.signature) != null ? _j : null,
-    from: (_k = tx.from) != null ? _k : null,
-    to: (_l = tx.to) != null ? _l : null,
-    value: (_m = tx.value) != null ? _m : null,
-    chainId: (_n = tx.chainId) != null ? _n : null,
-    description: (_o = tx.description) != null ? _o : null,
-    timestamp: toIsoTimestamp(tx.timestamp)
-  };
-}
-function printKeyValueTable(rows, color = CYAN) {
-  const labels = rows.map(([label]) => label);
-  const values = rows.map(
-    ([, value]) => truncateCell(value, MAX_TABLE_VALUE_WIDTH)
-  );
-  const keyWidth = Math.max("field".length, ...labels.map((label) => label.length));
-  const valueWidth = Math.max("value".length, ...values.map((value) => value.length));
-  const border = `+${"-".repeat(keyWidth + 2)}+${"-".repeat(valueWidth + 2)}+`;
-  console.log(`${color}${border}${RESET}`);
-  console.log(
-    `${color}| ${padRight("field", keyWidth)} | ${padRight("value", valueWidth)} |${RESET}`
-  );
-  console.log(`${color}${border}${RESET}`);
-  for (let i = 0; i < rows.length; i++) {
-    console.log(
-      `${color}| ${padRight(labels[i], keyWidth)} | ${padRight(values[i], valueWidth)} |${RESET}`
-    );
-    console.log(`${color}${border}${RESET}`);
-  }
-}
-function printTransactionTable(pendingTxs, signedTxs, color = GREEN) {
-  const safePendingTxs = pendingTxs.filter(
-    (tx) => typeof tx === "object" && tx !== null
-  );
-  const safeSignedTxs = signedTxs.filter(
-    (tx) => typeof tx === "object" && tx !== null
-  );
-  const rows = [
-    ...safePendingTxs.map((tx) => ({
-      status: "pending",
-      metadata: toPendingTxMetadata(tx)
-    })),
-    ...safeSignedTxs.map((tx) => ({
-      status: "signed",
-      metadata: toSignedTxMetadata(tx)
-    }))
-  ];
-  if (rows.length === 0) {
-    console.log(`${YELLOW}No transactions in local CLI state.${RESET}`);
-    return;
-  }
-  const visibleRows = rows.slice(0, MAX_TX_ROWS);
-  const statusWidth = Math.max(
-    "status".length,
-    ...visibleRows.map((row) => row.status.length)
-  );
-  const jsonCells = visibleRows.map(
-    (row) => truncateCell(JSON.stringify(row.metadata), MAX_TX_JSON_WIDTH)
-  );
-  const jsonWidth = Math.max("metadata_json".length, ...jsonCells.map((v) => v.length));
-  const border = `+${"-".repeat(statusWidth + 2)}+${"-".repeat(jsonWidth + 2)}+`;
-  console.log(`${color}${border}${RESET}`);
-  console.log(
-    `${color}| ${padRight("status", statusWidth)} | ${padRight("metadata_json", jsonWidth)} |${RESET}`
-  );
-  console.log(`${color}${border}${RESET}`);
-  for (let i = 0; i < visibleRows.length; i++) {
-    console.log(
-      `${color}| ${padRight(visibleRows[i].status, statusWidth)} | ${padRight(jsonCells[i], jsonWidth)} |${RESET}`
-    );
-    console.log(`${color}${border}${RESET}`);
-  }
-  if (rows.length > MAX_TX_ROWS) {
-    const omitted = rows.length - MAX_TX_ROWS;
-    console.log(`${DIM}${omitted} transaction rows omitted${RESET}`);
-  }
-}
-var MAX_TABLE_VALUE_WIDTH, MAX_TX_JSON_WIDTH, MAX_TX_ROWS;
-var init_tables = __esm({
-  "src/cli/tables.ts"() {
-    "use strict";
-    init_output();
-    MAX_TABLE_VALUE_WIDTH = 72;
-    MAX_TX_JSON_WIDTH = 96;
-    MAX_TX_ROWS = 8;
   }
 });
 
@@ -8125,8 +8473,12 @@ async function statusCommand(config) {
   var _a3, _b, _c, _d, _e, _f;
   const cli = CliSession.load();
   if (!cli) {
+    if (config.json) {
+      printJson({ active: false });
+      return;
+    }
     console.log("No active session");
-    printDataFileLocation();
+    printDataFileLocation({ verbose: config.verbose });
     return;
   }
   cli.mergeConfig(config);
@@ -8155,7 +8507,7 @@ async function statusCommand(config) {
         2
       )
     );
-    printDataFileLocation();
+    printDataFileLocation({ verbose: config.verbose });
   } finally {
     session.close();
   }
@@ -8184,10 +8536,22 @@ async function appsCommand(config) {
     apiKey: (_b = config.apiKey) != null ? _b : cli == null ? void 0 : cli.apiKey
   });
   if (apps.length === 0) {
+    if (config.json) {
+      printJson([]);
+      return;
+    }
     console.log("No apps available.");
     return;
   }
   const currentApp = (_c = cli == null ? void 0 : cli.app) != null ? _c : config.app;
+  if (config.json) {
+    printJson(
+      apps.map((descriptor) => __spreadProps(__spreadValues({}, descriptor), {
+        current: currentApp === descriptor.name
+      }))
+    );
+    return;
+  }
   for (const descriptor of apps) {
     const name = descriptor.name;
     const marker = currentApp === name ? "  (current)" : "";
@@ -8213,22 +8577,39 @@ async function modelsCommand(config) {
     console.log(`${model}${marker}`);
   }
 }
-function currentAppCommand() {
+function currentAppCommand(config = { secrets: {} }) {
+  var _a3, _b;
+  const cli = CliSession.load();
+  if (!cli) {
+    if (config.json) {
+      printJson({ active: false, app: null });
+      return;
+    }
+    console.log("No active session");
+    printDataFileLocation({ verbose: config.verbose });
+    return;
+  }
+  if (config.json) {
+    printJson({ active: true, app: (_a3 = cli.app) != null ? _a3 : "default" });
+    return;
+  }
+  console.log((_b = cli.app) != null ? _b : "(default)");
+  printDataFileLocation({ verbose: config.verbose });
+}
+function currentChainCommand(config = { secrets: {} }) {
   var _a3;
   const cli = CliSession.load();
   if (!cli) {
+    if (config.json) {
+      printJson({ active: false, chainId: null });
+      return;
+    }
     console.log("No active session");
-    printDataFileLocation();
+    printDataFileLocation({ verbose: config.verbose });
     return;
   }
-  console.log((_a3 = cli.app) != null ? _a3 : "(default)");
-  printDataFileLocation();
-}
-function currentChainCommand() {
-  const cli = CliSession.load();
-  if (!cli) {
-    console.log("No active session");
-    printDataFileLocation();
+  if (config.json) {
+    printJson({ active: true, chainId: (_a3 = cli.chainId) != null ? _a3 : null });
     return;
   }
   if (cli.chainId === void 0) {
@@ -8236,7 +8617,7 @@ function currentChainCommand() {
   } else {
     console.log(String(cli.chainId));
   }
-  printDataFileLocation();
+  printDataFileLocation({ verbose: config.verbose });
 }
 function currentBackendCommand() {
   const cli = CliSession.load();
@@ -8248,18 +8629,41 @@ function currentBackendCommand() {
   console.log(cli.baseUrl);
   printDataFileLocation();
 }
-function currentWalletCommand() {
+function currentWalletCommand(config = { secrets: {} }) {
+  var _a3, _b;
   const cli = CliSession.load();
   if (!cli) {
+    if (config.json) {
+      printJson({ active: false, wallets: [] });
+      return;
+    }
     console.log("No active session");
-    printDataFileLocation();
+    printDataFileLocation({ verbose: config.verbose });
     return;
   }
   const state = cli.toState();
+  const wallets = [
+    cli.publicKey ? {
+      family: "evm",
+      address: cli.publicKey,
+      chainId: (_a3 = cli.chainId) != null ? _a3 : null,
+      hasSavedSigner: Boolean(cli.privateKey)
+    } : null,
+    state.svmPublicKey ? {
+      family: "solana",
+      address: state.svmPublicKey,
+      cluster: (_b = state.svmCluster) != null ? _b : null,
+      hasSavedSigner: Boolean(state.svmPrivateKey)
+    } : null
+  ].filter((wallet) => wallet !== null);
+  if (config.json) {
+    printJson({ active: true, wallets });
+    return;
+  }
   const hasAny = cli.publicKey || state.svmPublicKey;
   if (!hasAny) {
     console.log("No wallet configured");
-    printDataFileLocation();
+    printDataFileLocation({ verbose: config.verbose });
     return;
   }
   if (cli.publicKey) {
@@ -8270,7 +8674,7 @@ function currentWalletCommand() {
     const signerStatus = state.svmPrivateKey ? "saved signer" : "address only";
     console.log(`Solana: ${state.svmPublicKey} (${signerStatus})`);
   }
-  printDataFileLocation();
+  printDataFileLocation({ verbose: config.verbose });
 }
 function currentModelCommand() {
   var _a3;
@@ -8305,23 +8709,42 @@ async function setModelCommand(config, model, options) {
   try {
     await session.client.setModel(cli.sessionId, model, {
       app: cli.app,
+      applicationId: config.applicationId,
       apiKey: cli.apiKey
     });
     cli.setModel(model);
     console.log(`Model set to ${model}`);
     if ((options == null ? void 0 : options.printLocation) !== false) {
-      printDataFileLocation();
+      printDataFileLocation({ verbose: config.verbose });
     }
   } finally {
     session.close();
   }
 }
-function chainsCommand() {
-  var _a3;
+function chainsCommand(config = { secrets: {} }) {
   const cli = CliSession.load();
   const currentChainId = cli == null ? void 0 : cli.chainId;
-  for (const id of SUPPORTED_CHAIN_IDS) {
-    const name = (_a3 = CHAIN_NAMES[id]) != null ? _a3 : `Chain ${id}`;
+  const chains = SUPPORTED_CHAIN_IDS.map((id) => {
+    var _a3;
+    const aaChain = DEFAULT_AA_CONFIG.chains.find((c) => c.chainId === id);
+    return {
+      id,
+      name: (_a3 = CHAIN_NAMES[id]) != null ? _a3 : `Chain ${id}`,
+      aa: (aaChain == null ? void 0 : aaChain.enabled) ? {
+        enabled: true,
+        defaultMode: aaChain.defaultMode,
+        supportedModes: aaChain.supportedModes
+      } : { enabled: false },
+      current: currentChainId === id
+    };
+  });
+  if (config.json) {
+    printJson(chains);
+    return;
+  }
+  for (const chain of chains) {
+    const id = chain.id;
+    const name = chain.name;
     const aaChain = DEFAULT_AA_CONFIG.chains.find((c) => c.chainId === id);
     const aaInfo = (aaChain == null ? void 0 : aaChain.enabled) ? `  AA: ${aaChain.defaultMode} (${aaChain.supportedModes.join(", ")})` : "";
     const marker = currentChainId === id ? "  (current)" : "";
@@ -8453,7 +8876,7 @@ __export(preferences_exports, {
   setSvmWalletCommand: () => setSvmWalletCommand,
   setWalletCommand: () => setWalletCommand
 });
-import { privateKeyToAccount as privateKeyToAccount8 } from "viem/accounts";
+import { privateKeyToAccount as privateKeyToAccount9 } from "viem/accounts";
 function loadOrCreateForSettings() {
   const existing = CliSession.load();
   if (existing) return existing;
@@ -8468,7 +8891,7 @@ function setWalletCommand(privateKeyInput) {
   if (!privateKey) {
     fatal("Usage: aomi wallet set <private-key>  (EVM hex key)");
   }
-  const account = privateKeyToAccount8(privateKey);
+  const account = privateKeyToAccount9(privateKey);
   const cli = loadOrCreateForSettings();
   cli.setWallet(privateKey, account.address);
   console.log(`EVM wallet set to ${account.address}`);
@@ -8781,7 +9204,7 @@ var init_device_auth = __esm({
 });
 
 // src/cli/account-graph.ts
-import { privateKeyToAccount as privateKeyToAccount9 } from "viem/accounts";
+import { privateKeyToAccount as privateKeyToAccount10 } from "viem/accounts";
 function requireAccountGraphClient(cli) {
   var _a3;
   const sessionToken = (_a3 = cli.auth) == null ? void 0 : _a3.sessionToken;
@@ -8823,7 +9246,7 @@ async function buildSignedWalletLink(input2) {
   var _a3, _b, _c;
   const client = requireAccountGraphClient(input2.cli);
   const privateKey = resolveAccountPrivateKey(input2.cli, input2.config);
-  const account = privateKeyToAccount9(privateKey);
+  const account = privateKeyToAccount10(privateKey);
   const chainId3 = (_b = (_a3 = input2.config.chain) != null ? _a3 : input2.cli.chainId) != null ? _b : 1;
   const nonce = await client.getWalletLinkNonce({
     address: account.address,
@@ -9036,9 +9459,15 @@ __export(account_exports, {
   whoamiCommand: () => whoamiCommand
 });
 async function accountLoginCommand(config, options = {}) {
+  var _a3;
   const cli = CliSession.loadOrCreate(config);
+  let rewroteLegacyBackend = false;
   if (!config.baseUrl && cli.baseUrl === LEGACY_RAW_BACKEND_URL) {
     cli.setBaseUrl(DEFAULT_CLI_BASE_URL);
+    rewroteLegacyBackend = true;
+  }
+  if (rewroteLegacyBackend && !config.json) {
+    console.log(`Backend updated to ${DEFAULT_CLI_BASE_URL}`);
   }
   if (options.wallet || options.noBrowser || config.privateKey) {
     await accountLoginWithSiwe(cli, config);
@@ -9053,13 +9482,23 @@ async function accountLoginCommand(config, options = {}) {
     provider
   });
   cli.setAuthSession(result.auth);
+  if (config.json) {
+    printJson({
+      status: "signed_in",
+      provider: (_a3 = result.provider) != null ? _a3 : null,
+      baseUrl: cli.baseUrl,
+      migratedLegacyBackend: rewroteLegacyBackend,
+      expiresAt: new Date(result.auth.expiresAt).toISOString()
+    });
+    return;
+  }
   console.log(
     `Signed in${result.provider ? ` with ${formatProvider(result.provider)}` : ""}`
   );
   console.log(
     `Session expires at ${new Date(result.auth.expiresAt).toISOString()}`
   );
-  printDataFileLocation();
+  printDataFileLocation({ verbose: config.verbose });
 }
 async function accountLoginWithSiwe(cli, config) {
   var _a3, _b, _c;
@@ -9080,11 +9519,22 @@ async function accountLoginWithSiwe(cli, config) {
     cli.setChainId(chainId3);
   }
   cli.setAuthSession(result.auth);
+  if (config.json) {
+    printJson({
+      status: "signed_in",
+      provider: "siwe",
+      address: result.address,
+      chainId: chainId3,
+      baseUrl: cli.baseUrl,
+      expiresAt: new Date(result.auth.expiresAt).toISOString()
+    });
+    return;
+  }
   console.log(`Signed in with ${result.address}`);
   console.log(
     `Session expires at ${new Date(result.auth.expiresAt).toISOString()}`
   );
-  printDataFileLocation();
+  printDataFileLocation({ verbose: config.verbose });
 }
 function formatProvider(provider) {
   return provider === "privy" ? "Privy" : "Para";
@@ -9093,16 +9543,24 @@ async function accountWhoamiCommand(config) {
   var _a3, _b;
   const cli = CliSession.load();
   if (!cli) {
+    if (config.json) {
+      printJson({ active: false });
+      return;
+    }
     console.log("No active session");
-    printDataFileLocation();
+    printDataFileLocation({ verbose: config.verbose });
     return;
   }
   cli.mergeConfig(config);
   if ((_a3 = cli.auth) == null ? void 0 : _a3.sessionToken) {
     try {
       const account = await requireAccountGraphClient(cli).getAccount();
-      printAccountGraph(account);
-      printDataFileLocation();
+      if (config.json) {
+        printJson(account);
+        return;
+      }
+      printAccountSummary(account);
+      printDataFileLocation({ verbose: config.verbose });
       return;
     } catch (e) {
     }
@@ -9110,6 +9568,10 @@ async function accountWhoamiCommand(config) {
   const session = cli.createClientSession();
   try {
     const account = await session.client.getAccount(cli.sessionId);
+    if (config.json) {
+      printJson(account);
+      return;
+    }
     const user = account.user;
     console.log(`Account:  ${user.user_id}`);
     if (user.username) console.log(`Username: ${user.username}`);
@@ -9126,8 +9588,16 @@ async function accountWhoamiCommand(config) {
         `- ${formatWalletChainType(wallet.chain_type)} [${wallet.wallet_provider}]: ${wallet.address}${walletId}`
       );
     }
-    printDataFileLocation();
+    printDataFileLocation({ verbose: config.verbose });
   } catch (e) {
+    if (config.json) {
+      printJson({
+        active: true,
+        bound: false,
+        hasCredential: hasAccountCredential2(cli.toState())
+      });
+      return;
+    }
     console.log("Not bound to an account (anonymous session).");
     if (!hasAccountCredential2(cli.toState())) {
       console.log(
@@ -9138,7 +9608,7 @@ async function accountWhoamiCommand(config) {
         "An account credential was sent, but the backend did not bind or accept this session."
       );
     }
-    printDataFileLocation();
+    printDataFileLocation({ verbose: config.verbose });
   } finally {
     session.close();
   }
@@ -9147,8 +9617,12 @@ async function accountLinksCommand(config) {
   const cli = loadMergedCli(config);
   const client = requireAccountGraphClient(cli);
   const account = await client.getAccount();
-  printAccountGraph(account);
-  printDataFileLocation();
+  if (config.json) {
+    printJson(account);
+    return;
+  }
+  printAccountLinks(account);
+  printDataFileLocation({ verbose: config.verbose });
 }
 async function accountLinkCommand(config, options = {}) {
   var _a3, _b;
@@ -9168,11 +9642,15 @@ async function accountLinkCommand(config, options = {}) {
     if (result.status === "conflict") {
       fatal("This login method is already linked to another Aomi account.");
     }
+    if (config.json) {
+      printJson(result);
+      return;
+    }
     console.log(`Linked ${formatProvider(provider)} login method`);
     if (result.status === "linked" && result.account) {
-      printAccountGraph(result.account);
+      printAccountLinks(result.account);
     }
-    printDataFileLocation();
+    printDataFileLocation({ verbose: config.verbose });
     return;
   }
   if (wantsWallet) {
@@ -9182,13 +9660,17 @@ async function accountLinkCommand(config, options = {}) {
       label: options.label
     });
     const result = await client.linkWallet(body);
+    if (config.json) {
+      printJson(result);
+      return;
+    }
     console.log(
       result.status === "noop" ? `Login method already linked for ${body.address}` : `Linked wallet login method ${body.address}`
     );
     if (result.account) {
-      printAccountGraph(result.account);
+      printAccountLinks(result.account);
     }
-    printDataFileLocation();
+    printDataFileLocation({ verbose: config.verbose });
   }
 }
 async function accountUnlinkCommand(config, selector, options = {}) {
@@ -9202,8 +9684,12 @@ async function accountUnlinkCommand(config, selector, options = {}) {
   } else {
     await client.unlinkWallet(link.id);
   }
+  if (config.json) {
+    printJson({ status: "unlinked", link: serializeResolvedLink(link) });
+    return;
+  }
   console.log(`Unlinked ${formatResolvedLink(link)}`);
-  printDataFileLocation();
+  printDataFileLocation({ verbose: config.verbose });
 }
 async function accountRenameCommand(config, selector, options = {}) {
   if (options.label === void 0) {
@@ -9218,8 +9704,16 @@ async function accountRenameCommand(config, selector, options = {}) {
   } else {
     await client.updateWallet(link.id, { label: options.label });
   }
+  if (config.json) {
+    printJson({
+      status: "renamed",
+      label: options.label,
+      link: serializeResolvedLink(link)
+    });
+    return;
+  }
   console.log(`Renamed ${formatResolvedLink(link)}`);
-  printDataFileLocation();
+  printDataFileLocation({ verbose: config.verbose });
 }
 async function accountUpdateCommand(config, input2) {
   if (input2.displayName === void 0 && input2.avatarUrl === void 0) {
@@ -9231,9 +9725,13 @@ async function accountUpdateCommand(config, input2) {
     displayName: input2.displayName,
     avatarUrl: input2.avatarUrl
   });
+  if (config.json) {
+    printJson(account);
+    return;
+  }
   console.log("Updated account profile");
-  printAccountGraph(account);
-  printDataFileLocation();
+  printAccountSummary(account);
+  printDataFileLocation({ verbose: config.verbose });
 }
 async function accountDeleteCommand(config, options = {}) {
   requireConfirmed(options.yes, "delete this Aomi account");
@@ -9241,10 +9739,14 @@ async function accountDeleteCommand(config, options = {}) {
   const client = requireAccountGraphClient(cli);
   const result = await client.deleteAccount();
   cli.clearAuthSession();
+  if (config.json) {
+    printJson(result);
+    return;
+  }
   console.log(
     `Deleted account (${result.revokedIdentities} login methods, ${result.revokedWallets} wallets revoked)`
   );
-  printDataFileLocation();
+  printDataFileLocation({ verbose: config.verbose });
 }
 async function accountSessionsCommand(config) {
   await sessionsCommand(config);
@@ -9270,8 +9772,12 @@ async function logoutCommand(config) {
   var _a3;
   const cli = CliSession.load();
   if (!cli) {
+    if (config.json) {
+      printJson({ active: false });
+      return;
+    }
     console.log("No active session");
-    printDataFileLocation();
+    printDataFileLocation({ verbose: config.verbose });
     return;
   }
   cli.mergeConfig(config);
@@ -9283,9 +9789,14 @@ async function logoutCommand(config) {
     });
   } finally {
     cli.clearAuthSession();
+    cli.clearSigningKeys();
+  }
+  if (config.json) {
+    printJson({ status: "signed_out" });
+    return;
   }
   console.log("Signed out");
-  printDataFileLocation();
+  printDataFileLocation({ verbose: config.verbose });
 }
 function loadMergedCli(config) {
   const cli = CliSession.load();
@@ -9301,7 +9812,28 @@ function normalizeProviderOption(provider) {
   if (normalized === "privy" || normalized === "para") return normalized;
   fatal('Unknown --provider value. Use "privy" or "para".');
 }
-function printAccountGraph(account) {
+function printAccountSummary(account) {
+  var _a3;
+  if (!account.user) {
+    console.log("No active account");
+    return;
+  }
+  console.log(`Account:  ${account.user.id}`);
+  if (account.user.displayName) {
+    console.log(`Name:     ${account.user.displayName}`);
+  }
+  if (account.user.email) {
+    console.log(`Email:    ${account.user.email}`);
+  }
+  if ((_a3 = account.session) == null ? void 0 : _a3.expiresAt) {
+    console.log(
+      `Session:  expires ${new Date(account.session.expiresAt).toISOString()}`
+    );
+  }
+  console.log(`Login methods: ${account.linkedAccounts.length}`);
+  console.log(`Wallets:       ${account.wallets.length}`);
+}
+function printAccountLinks(account) {
   var _a3, _b;
   if (!account.user) {
     console.log("No active account");
@@ -9320,7 +9852,7 @@ function printAccountGraph(account) {
     );
   }
   const identities = (_b = account.linkedAccounts) != null ? _b : [];
-  console.log(`Links:    ${identities.length}`);
+  console.log(`Login methods: ${identities.length}`);
   for (const identity of identities) {
     console.log(formatIdentityLine(identity));
     const childWallets = account.wallets.filter(
@@ -9344,6 +9876,14 @@ function printAccountGraph(account) {
       console.log(formatWalletLine(wallet));
     }
   }
+}
+function serializeResolvedLink(link) {
+  return {
+    kind: link.kind,
+    id: link.id,
+    provider: link.kind === "identity" ? link.link.provider : link.link.provider,
+    family: link.kind === "wallet" ? link.link.family : void 0
+  };
 }
 function formatIdentityLine(identity) {
   const label = identity.displayLabel ? ` "${identity.displayLabel}"` : "";
@@ -9708,7 +10248,7 @@ var init_repl = __esm({
 });
 
 // src/cli/main.ts
-import { runMain } from "citty";
+import { runCommand, runMain } from "citty";
 
 // src/cli/root.ts
 import { defineCommand as defineCommand11 } from "citty";
@@ -9951,10 +10491,10 @@ var appListDef = defineCommand5({
 });
 var appCurrentDef = defineCommand5({
   meta: { name: "current", description: "Show the current app" },
-  args: {},
-  async run() {
+  args: __spreadValues({}, globalArgs),
+  async run({ args }) {
     const { currentAppCommand: currentAppCommand2 } = await Promise.resolve().then(() => (init_control(), control_exports));
-    currentAppCommand2();
+    currentAppCommand2(buildCliConfig(args));
   }
 });
 var appDef = defineCommand5({
@@ -9966,13 +10506,14 @@ var appDef = defineCommand5({
 });
 
 // src/cli/commands/defs/chain.ts
+init_shared();
 import { defineCommand as defineCommand6 } from "citty";
 var chainListDef = defineCommand6({
   meta: { name: "list", description: "List supported chains" },
-  args: {},
-  async run() {
+  args: __spreadValues({}, globalArgs),
+  async run({ args }) {
     const { chainsCommand: chainsCommand2 } = await Promise.resolve().then(() => (init_control(), control_exports));
-    chainsCommand2();
+    chainsCommand2(buildCliConfig(args));
   }
 });
 var chainSetDef = defineCommand6({
@@ -9991,10 +10532,10 @@ var chainSetDef = defineCommand6({
 });
 var chainCurrentDef = defineCommand6({
   meta: { name: "current", description: "Show the active chain ID" },
-  args: {},
-  async run() {
+  args: __spreadValues({}, globalArgs),
+  async run({ args }) {
     const { currentChainCommand: currentChainCommand2 } = await Promise.resolve().then(() => (init_control(), control_exports));
-    currentChainCommand2();
+    currentChainCommand2(buildCliConfig(args));
   }
 });
 var chainDef = defineCommand6({
@@ -10052,10 +10593,10 @@ var walletSetDef = defineCommand7({
 });
 var walletCurrentDef = defineCommand7({
   meta: { name: "current", description: "Show the configured wallet address" },
-  args: {},
-  async run() {
+  args: __spreadValues({}, globalArgs),
+  async run({ args }) {
     const { currentWalletCommand: currentWalletCommand2 } = await Promise.resolve().then(() => (init_control(), control_exports));
-    currentWalletCommand2();
+    currentWalletCommand2(buildCliConfig(args));
   }
 });
 var walletWhoamiDef = defineCommand7({
@@ -10399,7 +10940,7 @@ init_shared();
 // package.json
 var package_default = {
   name: "@aomi-labs/client",
-  version: "0.3.0",
+  version: "0.3.1",
   description: "Platform-agnostic TypeScript client for the Aomi backend API",
   type: "module",
   main: "./dist/index.cjs",
@@ -10437,6 +10978,9 @@ var package_default = {
     "@getpara/aa-alchemy": "2.21.0",
     "@getpara/aa-pimlico": "2.21.0",
     "@solana/web3.js": "^1.98.4",
+    "@x402/core": "^2.10.0",
+    "@x402/evm": "^2.10.0",
+    "@x402/fetch": "^2.10.0",
     bs58: "^6.0.0",
     citty: "^0.2.2",
     permissionless: "^0.3.5",
@@ -10527,7 +11071,6 @@ var ROOT_SUBCOMMANDS = /* @__PURE__ */ new Set([
   "logout",
   "config",
   "secret",
-  "account",
   "deploy"
 ]);
 function isPnpmExecWrapper() {
@@ -10576,13 +11119,11 @@ function printRootHelp() {
     "  --account-bearer <token>     Aomi account bearer for authenticated requests"
   );
   console.log(
-    "  --embedded-provider <name>    Deprecated; provider exchange is disabled"
+    "  --json                       Print machine-readable JSON where supported"
   );
-  console.log("  --embedded-provider-token <t>");
-  console.log(
-    "                               Deprecated; use --account-bearer"
-  );
+  console.log("  --verbose                    Show extra diagnostics");
   console.log("  --app <name>                 Active app");
+  console.log("  --application-id <id>        Dynamic app row id");
   console.log("  --model <rig>                Active model");
   console.log("  --new-session                Create a fresh active session");
   console.log(
@@ -10590,6 +11131,9 @@ function printRootHelp() {
   );
   console.log("  --public-key <address>       Wallet address for chat context");
   console.log("  --private-key <hex>          Signing key for EVM tx sign");
+  console.log(
+    "  --payment-method <method>    Paid chat rail, e.g. coinbase/x402"
+  );
   console.log(
     "  --solana-private-key <key>   Solana keypair (base58 or JSON byte array)"
   );
@@ -10625,6 +11169,10 @@ function printRootHelp() {
   );
   console.log("");
   console.log("Use aomi <command> --help for command-specific details.");
+  console.log("");
+  console.log(
+    "Deprecated compatibility flags: --embedded-provider, --embedded-provider-token"
+  );
 }
 async function runCli(argv = process.argv) {
   const strictExit = process.env.AOMI_CLI_STRICT_EXIT === "1";
@@ -10634,7 +11182,15 @@ async function runCli(argv = process.argv) {
       printRootHelp();
       return;
     }
-    await runMain(root, { rawArgs });
+    if (rawArgs.includes("--help") || rawArgs.includes("-h")) {
+      await runMain(root, { rawArgs });
+      return;
+    }
+    if (rawArgs.length === 1 && (rawArgs[0] === "--version" || rawArgs[0] === "-v")) {
+      await runMain(root, { rawArgs });
+      return;
+    }
+    await runCommand(root, { rawArgs });
   } catch (err) {
     if (err instanceof CliExit) {
       if (!strictExit && isPnpmExecWrapper()) {

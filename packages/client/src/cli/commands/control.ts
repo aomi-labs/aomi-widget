@@ -1,7 +1,7 @@
 import { SUPPORTED_CHAIN_IDS, CHAIN_NAMES } from "../../chains";
 import { CliSession } from "../cli-session";
 import { createControlClient } from "../context";
-import { printDataFileLocation } from "../output";
+import { printDataFileLocation, printJson } from "../output";
 import type { CliConfig } from "../types";
 import { DEFAULT_AA_CONFIG } from "../../aa/types";
 import { fatal } from "../errors";
@@ -9,8 +9,12 @@ import { fatal } from "../errors";
 export async function statusCommand(config: CliConfig): Promise<void> {
   const cli = CliSession.load();
   if (!cli) {
+    if (config.json) {
+      printJson({ active: false });
+      return;
+    }
     console.log("No active session");
-    printDataFileLocation();
+    printDataFileLocation({ verbose: config.verbose });
     return;
   }
   cli.mergeConfig(config);
@@ -40,7 +44,7 @@ export async function statusCommand(config: CliConfig): Promise<void> {
         2,
       ),
     );
-    printDataFileLocation();
+    printDataFileLocation({ verbose: config.verbose });
   } finally {
     session.close();
   }
@@ -72,11 +76,24 @@ export async function appsCommand(config: CliConfig): Promise<void> {
   });
 
   if (apps.length === 0) {
+    if (config.json) {
+      printJson([]);
+      return;
+    }
     console.log("No apps available.");
     return;
   }
 
   const currentApp = cli?.app ?? config.app;
+  if (config.json) {
+    printJson(
+      apps.map((descriptor) => ({
+        ...descriptor,
+        current: currentApp === descriptor.name,
+      })),
+    );
+    return;
+  }
   for (const descriptor of apps) {
     const name = descriptor.name;
     const marker = currentApp === name ? "  (current)" : "";
@@ -108,22 +125,38 @@ export async function modelsCommand(config: CliConfig): Promise<void> {
   }
 }
 
-export function currentAppCommand(): void {
+export function currentAppCommand(config: CliConfig = { secrets: {} }): void {
   const cli = CliSession.load();
   if (!cli) {
+    if (config.json) {
+      printJson({ active: false, app: null });
+      return;
+    }
     console.log("No active session");
-    printDataFileLocation();
+    printDataFileLocation({ verbose: config.verbose });
+    return;
+  }
+  if (config.json) {
+    printJson({ active: true, app: cli.app ?? "default" });
     return;
   }
   console.log(cli.app ?? "(default)");
-  printDataFileLocation();
+  printDataFileLocation({ verbose: config.verbose });
 }
 
-export function currentChainCommand(): void {
+export function currentChainCommand(config: CliConfig = { secrets: {} }): void {
   const cli = CliSession.load();
   if (!cli) {
+    if (config.json) {
+      printJson({ active: false, chainId: null });
+      return;
+    }
     console.log("No active session");
-    printDataFileLocation();
+    printDataFileLocation({ verbose: config.verbose });
+    return;
+  }
+  if (config.json) {
+    printJson({ active: true, chainId: cli.chainId ?? null });
     return;
   }
   if (cli.chainId === undefined) {
@@ -131,7 +164,7 @@ export function currentChainCommand(): void {
   } else {
     console.log(String(cli.chainId));
   }
-  printDataFileLocation();
+  printDataFileLocation({ verbose: config.verbose });
 }
 
 export function currentBackendCommand(): void {
@@ -145,19 +178,47 @@ export function currentBackendCommand(): void {
   printDataFileLocation();
 }
 
-export function currentWalletCommand(): void {
+export function currentWalletCommand(
+  config: CliConfig = { secrets: {} },
+): void {
   const cli = CliSession.load();
   if (!cli) {
+    if (config.json) {
+      printJson({ active: false, wallets: [] });
+      return;
+    }
     console.log("No active session");
-    printDataFileLocation();
+    printDataFileLocation({ verbose: config.verbose });
     return;
   }
 
   const state = cli.toState();
+  const wallets = [
+    cli.publicKey
+      ? {
+          family: "evm",
+          address: cli.publicKey,
+          chainId: cli.chainId ?? null,
+          hasSavedSigner: Boolean(cli.privateKey),
+        }
+      : null,
+    state.svmPublicKey
+      ? {
+          family: "solana",
+          address: state.svmPublicKey,
+          cluster: state.svmCluster ?? null,
+          hasSavedSigner: Boolean(state.svmPrivateKey),
+        }
+      : null,
+  ].filter((wallet): wallet is NonNullable<typeof wallet> => wallet !== null);
+  if (config.json) {
+    printJson({ active: true, wallets });
+    return;
+  }
   const hasAny = cli.publicKey || state.svmPublicKey;
   if (!hasAny) {
     console.log("No wallet configured");
-    printDataFileLocation();
+    printDataFileLocation({ verbose: config.verbose });
     return;
   }
 
@@ -169,7 +230,7 @@ export function currentWalletCommand(): void {
     const signerStatus = state.svmPrivateKey ? "saved signer" : "address only";
     console.log(`Solana: ${state.svmPublicKey} (${signerStatus})`);
   }
-  printDataFileLocation();
+  printDataFileLocation({ verbose: config.verbose });
 }
 
 export function currentModelCommand(): void {
@@ -218,24 +279,45 @@ export async function setModelCommand(
   try {
     await session.client.setModel(cli.sessionId, model, {
       app: cli.app,
+      applicationId: config.applicationId,
       apiKey: cli.apiKey,
     });
     cli.setModel(model);
     console.log(`Model set to ${model}`);
     if (options?.printLocation !== false) {
-      printDataFileLocation();
+      printDataFileLocation({ verbose: config.verbose });
     }
   } finally {
     session.close();
   }
 }
 
-export function chainsCommand(): void {
+export function chainsCommand(config: CliConfig = { secrets: {} }): void {
   const cli = CliSession.load();
   const currentChainId = cli?.chainId;
+  const chains = SUPPORTED_CHAIN_IDS.map((id) => {
+    const aaChain = DEFAULT_AA_CONFIG.chains.find((c) => c.chainId === id);
+    return {
+      id,
+      name: CHAIN_NAMES[id] ?? `Chain ${id}`,
+      aa: aaChain?.enabled
+        ? {
+            enabled: true,
+            defaultMode: aaChain.defaultMode,
+            supportedModes: aaChain.supportedModes,
+          }
+        : { enabled: false },
+      current: currentChainId === id,
+    };
+  });
+  if (config.json) {
+    printJson(chains);
+    return;
+  }
 
-  for (const id of SUPPORTED_CHAIN_IDS) {
-    const name = CHAIN_NAMES[id] ?? `Chain ${id}`;
+  for (const chain of chains) {
+    const id = chain.id;
+    const name = chain.name;
     const aaChain = DEFAULT_AA_CONFIG.chains.find((c) => c.chainId === id);
     const aaInfo = aaChain?.enabled
       ? `  AA: ${aaChain.defaultMode} (${aaChain.supportedModes.join(", ")})`

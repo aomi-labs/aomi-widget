@@ -1,4 +1,4 @@
-import { runMain } from "citty";
+import { runCommand, runMain } from "citty";
 import { root } from "./root";
 import { CliExit, DeployCliError } from "./errors";
 import packageJson from "../../package.json";
@@ -15,7 +15,6 @@ const ROOT_SUBCOMMANDS = new Set([
   "logout",
   "config",
   "secret",
-  "account",
   "deploy",
 ]);
 
@@ -67,13 +66,11 @@ function printRootHelp(): void {
     "  --account-bearer <token>     Aomi account bearer for authenticated requests",
   );
   console.log(
-    "  --embedded-provider <name>    Deprecated; provider exchange is disabled",
+    "  --json                       Print machine-readable JSON where supported",
   );
-  console.log("  --embedded-provider-token <t>");
-  console.log(
-    "                               Deprecated; use --account-bearer",
-  );
+  console.log("  --verbose                    Show extra diagnostics");
   console.log("  --app <name>                 Active app");
+  console.log("  --application-id <id>        Dynamic app row id");
   console.log("  --model <rig>                Active model");
   console.log("  --new-session                Create a fresh active session");
   console.log(
@@ -81,6 +78,9 @@ function printRootHelp(): void {
   );
   console.log("  --public-key <address>       Wallet address for chat context");
   console.log("  --private-key <hex>          Signing key for EVM tx sign");
+  console.log(
+    "  --payment-method <method>    Paid chat rail, e.g. coinbase/x402",
+  );
   console.log(
     "  --solana-private-key <key>   Solana keypair (base58 or JSON byte array)",
   );
@@ -116,6 +116,10 @@ function printRootHelp(): void {
   );
   console.log("");
   console.log("Use aomi <command> --help for command-specific details.");
+  console.log("");
+  console.log(
+    "Deprecated compatibility flags: --embedded-provider, --embedded-provider-token",
+  );
 }
 
 export async function runCli(argv: string[] = process.argv): Promise<void> {
@@ -128,7 +132,20 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
       return;
     }
 
-    await runMain(root, { rawArgs });
+    if (rawArgs.includes("--help") || rawArgs.includes("-h")) {
+      await runMain(root, { rawArgs });
+      return;
+    }
+
+    if (
+      rawArgs.length === 1 &&
+      (rawArgs[0] === "--version" || rawArgs[0] === "-v")
+    ) {
+      await runMain(root, { rawArgs });
+      return;
+    }
+
+    await runCommand(root, { rawArgs });
   } catch (err) {
     if (err instanceof CliExit) {
       if (!strictExit && isPnpmExecWrapper()) {

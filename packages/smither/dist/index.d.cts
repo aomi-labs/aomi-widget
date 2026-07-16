@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { DeploymentClient, ListActivationsResult } from '@aomi-labs/deploy';
+import { DeploymentClient, ListDeploymentRecordsResult } from '@aomi-labs/deploy';
 import { AgentLike, CreateSmithersApi, SmithersEvent, RunResult } from 'smithers-orchestrator';
 
 type CommandResult = {
@@ -1471,7 +1471,7 @@ declare function distillIntent(options: {
     runner?: CommandRunner;
 }): Promise<IntentDraft>;
 
-type RollbackClient = Pick<DeploymentClient, "listActivations" | "rollback">;
+type RollbackClient = Pick<DeploymentClient, "listDeploymentRecords" | "promote">;
 type RollbackTarget = {
     deploymentId: string;
     releaseTag: string;
@@ -1486,7 +1486,7 @@ type RollbackPlanSummary = {
     previous: RollbackTarget | null;
     activations: RollbackTarget[];
 };
-declare function planRollback(result: ListActivationsResult): RollbackPlanSummary;
+declare function planRollback(result: ListDeploymentRecordsResult): RollbackPlanSummary;
 declare function executeRollback(client: RollbackClient, input: {
     platform: string;
     app: string;

@@ -521,8 +521,9 @@ export function resolveLinkedWalletName(input: {
 /**
  * Build a first-link default label like "Rabby 1" / "MetaMask 2" so the
  * account-management row is never blank before the user renames it. Only used
- * as the initial value — `upsertWallet` keeps an existing label via
- * `coalesce(aomi_wallets.label, excluded.label)`, so user renames stick.
+ * as the initial value — the account service persists labels as
+ * `auth_providers.provider_metadata.display_label` and keeps the stored one on
+ * re-link, so user renames stick.
  */
 export function buildDefaultWalletLabel(input: {
   walletName?: string | null;

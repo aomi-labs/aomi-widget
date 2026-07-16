@@ -1,14 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import type { UserSource } from "@aomi-labs/deploy";
-import { deploymentRecords } from "@build/features/launch/client";
-import type { DeploymentRecord } from "@build/features/launch/contracts";
+import { useCallback, useMemo } from "react";
+import { useInfiniteQuery } from "@tanstack/react-query";
+import type { UserDeployment, UserDeploymentsCursor } from "@aomi-labs/deploy";
+import { useGitHubSession } from "@build/components/control-plane/github-session-context";
+import { deploymentFeed } from "@build/features/launch/client";
 import {
-  buildDeploymentList,
+  commitFromDeploymentId,
   type TimelineDeployment,
 } from "./deployment-timeline";
-import { useProjects, type ProjectsState } from "../../hooks/use-projects";
+import { useProjects } from "../../hooks/use-projects";
+import { buildQueryKeys, githubAccountKey } from "../../query-keys";
 
 export type GlobalDeployment = TimelineDeployment & {
   sourceId: number;
@@ -20,42 +22,35 @@ type RecordsState =
   | { status: "ready"; deployments: GlobalDeployment[] }
   | { status: "error"; error: string; deployments: GlobalDeployment[] };
 
-function isMissingAppRecords(err: unknown) {
-  return (
-    err instanceof Error && err.message.toLowerCase().includes("unknown app")
-  );
-}
-
-async function loadSourceDeployments(
-  source: UserSource,
-): Promise<GlobalDeployment[]> {
-  const entries = await Promise.all(
-    source.apps.map(async (app) => {
-      const result = await deploymentRecords({
-        app: app.name,
-        appSourceId: source.id,
-      }).catch((err: unknown) => {
-        if (isMissingAppRecords(err)) {
-          return { records: [] };
-        }
-        throw err;
-      });
-      return [app.name, result.records] as const;
-    }),
-  );
-  return buildDeploymentList(
-    Object.fromEntries(entries) as Record<string, DeploymentRecord[]>,
-  ).map((deployment) => ({
-    ...deployment,
-    sourceId: source.id,
-    repositoryLink: source.repositoryLink ?? null,
-  }));
+function globalDeployment(deployment: UserDeployment): GlobalDeployment | null {
+  if (!deployment.deploymentId) return null;
+  return {
+    deploymentId: deployment.deploymentId,
+    commit:
+      deployment.commitHash ?? commitFromDeploymentId(deployment.deploymentId),
+    apps: deployment.apps.map((app) => app.name),
+    releaseTags: deployment.releaseTags,
+    current: deployment.apps.some((app) => app.isActive),
+    actor: null,
+    sdkVersion: deployment.sdkVersion ?? null,
+    createdAt: deployment.createdAt ?? 0,
+    sourceId: deployment.sourceId,
+    repositoryLink: deployment.repositoryLink,
+  };
 }
 
 export function useGlobalDeploymentRecords() {
   const { state: projectsState, reload: reloadProjects } = useProjects();
-  const [recordsState, setRecordsState] = useState<RecordsState>({
-    status: "idle",
+  const { account } = useGitHubSession();
+  const accountKey = githubAccountKey(account.githubLogin);
+  const feed = useInfiniteQuery({
+    queryKey: buildQueryKeys.deployments(accountKey ?? "unavailable"),
+    queryFn: ({ pageParam }) =>
+      deploymentFeed({ limit: 50, cursor: pageParam }),
+    initialPageParam: null as UserDeploymentsCursor | null,
+    getNextPageParam: (page) => page.nextCursor ?? undefined,
+    enabled: account.signedIn && accountKey !== null,
+    staleTime: 15 * 1000,
   });
 
   const sources = useMemo(
@@ -63,36 +58,43 @@ export function useGlobalDeploymentRecords() {
     [projectsState],
   );
 
-  const loadRecords = useCallback(async (readyState: ProjectsState) => {
-    if (readyState.status !== "ready") return;
-    setRecordsState({ status: "loading" });
-    try {
-      const perSource = await Promise.all(
-        readyState.sources.map((source) => loadSourceDeployments(source)),
-      );
-      const deployments = perSource
-        .flat()
-        .sort((a, b) => b.createdAt - a.createdAt);
-      setRecordsState({ status: "ready", deployments });
-    } catch (err) {
-      setRecordsState({
+  const deployments = useMemo(
+    () =>
+      (feed.data?.pages ?? [])
+        .flatMap((page) => page.deployments)
+        .map(globalDeployment)
+        .filter((deployment): deployment is GlobalDeployment =>
+          Boolean(deployment),
+        ),
+    [feed.data],
+  );
+  const recordsState = useMemo<RecordsState>(() => {
+    if (feed.isPending) return { status: "loading" };
+    if (feed.error && deployments.length === 0) {
+      return {
         status: "error",
         error:
-          err instanceof Error
-            ? err.message
+          feed.error instanceof Error
+            ? feed.error.message
             : "Failed to load deployment records",
         deployments: [],
-      });
+      };
     }
-  }, []);
-
-  useEffect(() => {
-    void loadRecords(projectsState);
-  }, [projectsState, loadRecords]);
+    return { status: "ready", deployments };
+  }, [deployments, feed.error, feed.isPending]);
 
   const reload = useCallback(() => {
     reloadProjects();
-  }, [reloadProjects]);
+    void feed.refetch();
+  }, [feed, reloadProjects]);
 
-  return { projectsState, recordsState, sources, reload };
+  return {
+    projectsState,
+    recordsState,
+    sources,
+    reload,
+    loadMore: () => void feed.fetchNextPage(),
+    hasMore: feed.hasNextPage,
+    loadingMore: feed.isFetchingNextPage,
+  };
 }

@@ -720,7 +720,7 @@ function createSseSubscriber({
         if (subscription.lastEventId) {
           headers.set("Last-Event-ID", subscription.lastEventId);
         }
-        const response = await fetchImpl(`${backendUrl}/api/updates`, {
+        const response = await fetchImpl(`${backendUrl}/api/thread/updates`, {
           headers,
           signal: controller.signal
         });
@@ -982,8 +982,12 @@ function encodeJsonBody(body) {
 }
 function normalizeThreadWire(wire) {
   var _b;
-  const _a = wire, { thread_id, session_id } = _a, rest = __objRest(_a, ["thread_id", "session_id"]);
-  return __spreadProps(__spreadValues({}, rest), { session_id: (_b = session_id != null ? session_id : thread_id) != null ? _b : "" });
+  const _a = wire, { thread_id, session_id, last_active_at } = _a, rest = __objRest(_a, ["thread_id", "session_id", "last_active_at"]);
+  const normalizedLastActiveAt = typeof last_active_at === "number" ? last_active_at : typeof last_active_at === "string" ? Number(last_active_at) : void 0;
+  return __spreadProps(__spreadValues({}, rest), {
+    session_id: (_b = session_id != null ? session_id : thread_id) != null ? _b : "",
+    last_active_at: normalizedLastActiveAt === void 0 || Number.isNaN(normalizedLastActiveAt) ? void 0 : normalizedLastActiveAt
+  });
 }
 function withSessionHeader(sessionId, init) {
   const headers = new Headers(init);
@@ -1152,19 +1156,30 @@ ${body}` : ""}`
   /**
    * Fetch current session state (messages, processing status, title).
    */
-  async fetchState(sessionId, userState, clientId) {
-    var _a, _b, _c;
+  async fetchState(sessionId, userState, clientId, options) {
+    var _a, _b, _c, _d;
     const normalizedUserState = stripBulkyPendingFields(
       UserState.normalize(userState)
     );
-    const urlWithSyncParams = buildApiUrl(this.baseUrl, "/api/state", {
+    const applicationId = (_a = options == null ? void 0 : options.applicationId) == null ? void 0 : _a.toString().trim();
+    const stateContext = {
+      app: options == null ? void 0 : options.app,
+      application_id: applicationId || void 0
+    };
+    const urlWithSyncParams = buildApiUrl(this.baseUrl, "/api/thread/state", __spreadProps(__spreadValues({}, stateContext), {
       user_state: normalizedUserState ? JSON.stringify(normalizedUserState) : void 0,
       client_id: clientId
-    });
-    const bareUrl = buildApiUrl(this.baseUrl, "/api/state");
+    }));
+    const bareUrl = buildApiUrl(
+      this.baseUrl,
+      "/api/thread/state",
+      stateContext
+    );
     const shouldRetryWithoutSyncParams = Boolean(normalizedUserState) || Boolean(clientId);
-    (_a = this.logger) == null ? void 0 : _a.debug("[aomi][client] GET /api/state start", {
+    (_b = this.logger) == null ? void 0 : _b.debug("[aomi][client] GET /api/thread/state start", {
       sessionId,
+      app: options == null ? void 0 : options.app,
+      applicationId,
       clientId,
       hasUserState: Boolean(normalizedUserState)
     });
@@ -1174,8 +1189,8 @@ ${body}` : ""}`
       sessionId
     );
     if (!response.ok && shouldRetryWithoutSyncParams && (response.status === 400 || response.status === 414)) {
-      (_b = this.logger) == null ? void 0 : _b.debug(
-        "[aomi][client] GET /api/state retrying without sync params",
+      (_c = this.logger) == null ? void 0 : _c.debug(
+        "[aomi][client] GET /api/thread/state retrying without sync params",
         {
           sessionId,
           initialStatus: response.status,
@@ -1189,7 +1204,7 @@ ${body}` : ""}`
         sessionId
       );
     }
-    (_c = this.logger) == null ? void 0 : _c.debug("[aomi][client] GET /api/state response", {
+    (_d = this.logger) == null ? void 0 : _d.debug("[aomi][client] GET /api/thread/state response", {
       sessionId,
       status: response.status,
       ok: response.ok
@@ -1203,25 +1218,27 @@ ${body}` : ""}`
    * Send a chat message and return updated session state.
    */
   async sendMessage(sessionId, message, options) {
-    var _a, _b, _c, _d, _e, _f;
+    var _a, _b, _c, _d, _e, _f, _g;
     const app = (_a = options == null ? void 0 : options.app) != null ? _a : "default";
     const apiKey = (_b = options == null ? void 0 : options.apiKey) != null ? _b : this.apiKey;
     const normalizedUserState = stripBulkyPendingFields(
       UserState.normalize(options == null ? void 0 : options.userState)
     );
     const applicationId = (_c = options == null ? void 0 : options.applicationId) == null ? void 0 : _c.toString().trim();
-    const url = buildApiUrl(this.baseUrl, "/api/chat", {
+    const url = buildApiUrl(this.baseUrl, "/api/thread/chat", {
       app,
       application_id: applicationId || void 0,
       message,
       user_state: normalizedUserState ? JSON.stringify(normalizedUserState) : void 0,
-      client_id: options == null ? void 0 : options.clientId
+      client_id: options == null ? void 0 : options.clientId,
+      payment_method: (_d = options == null ? void 0 : options.paymentMethod) != null ? _d : void 0
     });
-    (_d = this.logger) == null ? void 0 : _d.debug("[aomi][client] POST /api/chat prepared", {
+    (_e = this.logger) == null ? void 0 : _e.debug("[aomi][client] POST /api/thread/chat prepared", {
       sessionId,
       app,
       applicationId,
       clientId: options == null ? void 0 : options.clientId,
+      paymentMethod: options == null ? void 0 : options.paymentMethod,
       hasUserState: Boolean(normalizedUserState),
       messagePreview: previewText(message)
     });
@@ -1229,8 +1246,8 @@ ${body}` : ""}`
     if (apiKey) {
       headers.set(APP_KEY_HEADER, apiKey);
     }
-    (_e = this.logger) == null ? void 0 : _e.debug("[aomi][client] POST start", {
-      path: "/api/chat",
+    (_f = this.logger) == null ? void 0 : _f.debug("[aomi][client] POST start", {
+      path: "/api/thread/chat",
       sessionId,
       hasApiKey: Boolean(apiKey),
       url
@@ -1239,8 +1256,8 @@ ${body}` : ""}`
       method: "POST",
       headers
     });
-    (_f = this.logger) == null ? void 0 : _f.debug("[aomi][client] POST response", {
-      path: "/api/chat",
+    (_g = this.logger) == null ? void 0 : _g.debug("[aomi][client] POST response", {
+      path: "/api/thread/chat",
       sessionId,
       status: response.status,
       ok: response.ok
@@ -1285,12 +1302,12 @@ ${body}` : ""}`
    */
   async interrupt(sessionId) {
     var _a;
-    (_a = this.logger) == null ? void 0 : _a.debug("[aomi][client] POST /api/interrupt prepared", {
+    (_a = this.logger) == null ? void 0 : _a.debug("[aomi][client] POST /api/thread/interrupt prepared", {
       sessionId
     });
     return postState(
       this.baseUrl,
-      "/api/interrupt",
+      "/api/thread/interrupt",
       {},
       sessionId,
       this.fetchImpl,
@@ -1513,7 +1530,7 @@ ${body}` : ""}`
    * Get system events for a session.
    */
   async getSystemEvents(sessionId, count) {
-    const url = buildApiUrl(this.baseUrl, "/api/events", {
+    const url = buildApiUrl(this.baseUrl, "/api/thread/events", {
       count: count !== void 0 ? String(count) : void 0
     });
     const response = await this.fetchImpl(url, {
@@ -1724,7 +1741,7 @@ ${body}` : ""}`
    * Sends full tx payloads — the backend does not look up by ID.
    */
   async simulateBatch(sessionId, transactions, options) {
-    const url = joinApiPath(this.baseUrl, "/api/simulate");
+    const url = joinApiPath(this.baseUrl, "/api/exec/simulate");
     const headers = new Headers(
       withSessionHeader(sessionId, { "Content-Type": "application/json" })
     );
@@ -3028,6 +3045,7 @@ var ClientSession = class extends TypedEventEmitter {
     this.app = (_b = sessionOptions == null ? void 0 : sessionOptions.app) != null ? _b : "default";
     this.applicationId = sessionOptions == null ? void 0 : sessionOptions.applicationId;
     this.apiKey = sessionOptions == null ? void 0 : sessionOptions.apiKey;
+    this.paymentMethod = sessionOptions == null ? void 0 : sessionOptions.paymentMethod;
     const initialUserState = UserState.reconcile(
       void 0,
       sessionOptions == null ? void 0 : sessionOptions.userState
@@ -3067,7 +3085,8 @@ var ClientSession = class extends TypedEventEmitter {
       applicationId: this.applicationId,
       apiKey: this.apiKey,
       userState: this.userState,
-      clientId: this.clientId
+      clientId: this.clientId,
+      paymentMethod: this.paymentMethod
     });
     this.assertUserStateAligned(response.user_state);
     this.applyState(response);
@@ -3092,7 +3111,8 @@ var ClientSession = class extends TypedEventEmitter {
       applicationId: this.applicationId,
       apiKey: this.apiKey,
       userState: this.userState,
-      clientId: this.clientId
+      clientId: this.clientId,
+      paymentMethod: this.paymentMethod
     });
     this.assertUserStateAligned(response.user_state);
     this.applyState(response);
@@ -3246,7 +3266,8 @@ var ClientSession = class extends TypedEventEmitter {
     const state = await this.client.fetchState(
       this.sessionId,
       this.userState,
-      this.clientId
+      this.clientId,
+      { app: this.app, applicationId: this.applicationId }
     );
     this.assertUserStateAligned(state.user_state);
     this.applyState(state);
@@ -3268,7 +3289,8 @@ var ClientSession = class extends TypedEventEmitter {
     const state = await this.client.fetchState(
       this.sessionId,
       this.userState,
-      this.clientId
+      this.clientId,
+      { app: this.app, applicationId: this.applicationId }
     );
     this.assertUserStateAligned(state.user_state);
     this.applyState(state);
@@ -3309,7 +3331,8 @@ var ClientSession = class extends TypedEventEmitter {
       const state = await this.client.fetchState(
         this.sessionId,
         this.userState,
-        this.clientId
+        this.clientId,
+        { app: this.app, applicationId: this.applicationId }
       );
       if (!this.pollTimer) return;
       this.assertUserStateAligned(state.user_state);
@@ -3434,6 +3457,7 @@ var SUPPORTED_CHAINS = [
   { id: 137, name: "Polygon", ticker: "MATIC" },
   { id: 42161, name: "Arbitrum", ticker: "ARB" },
   { id: 8453, name: "Base", ticker: "BASE" },
+  { id: 84532, name: "Base Sepolia", ticker: "ETH" },
   { id: 10, name: "Optimism", ticker: "OP" },
   { id: 11155111, name: "Sepolia", ticker: "SEP" },
   { id: 59144, name: "Linea Mainnet", ticker: "LINEA" },
@@ -3451,6 +3475,7 @@ var ALCHEMY_CHAIN_SLUGS = {
   137: "polygon-mainnet",
   42161: "arb-mainnet",
   8453: "base-mainnet",
+  84532: "base-sepolia",
   10: "opt-mainnet",
   11155111: "eth-sepolia",
   59144: "linea-mainnet",
@@ -3462,6 +3487,7 @@ var CHAINS_BY_ID = {
   42161: import_chains.arbitrum,
   10: import_chains.optimism,
   8453: import_chains.base,
+  84532: import_chains.baseSepolia,
   11155111: import_chains.sepolia,
   59144: import_chains.linea,
   59141: import_chains.lineaSepolia,

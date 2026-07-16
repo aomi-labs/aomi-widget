@@ -43,19 +43,29 @@ export function readAccountAuthEnv(
     siweDomain: resolveSiweDomain(env, url.host),
     siweEmailDomain: env.AOMI_AUTH_EMAIL_DOMAIN,
     trustedOrigins: collectTrustedOrigins(env, betterAuthUrl),
-    privyAppId: env.PRIVY_APP_ID ?? env.NEXT_PUBLIC_PRIVY_APP_ID,
-    privyAppSecret: env.PRIVY_APP_SECRET,
-    privyAccessTokenVerificationKey: env.PRIVY_JWT_VERIFICATION_KEY,
+    privyAppId:
+      nonEmpty(env.PRIVY_APP_ID) ?? nonEmpty(env.NEXT_PUBLIC_PRIVY_APP_ID),
+    privyAppSecret: nonEmpty(env.PRIVY_APP_SECRET),
+    privyAccessTokenVerificationKey: nonEmpty(env.PRIVY_JWT_VERIFICATION_KEY),
     privyIdentityTokenVerificationKey:
-      env.PRIVY_IDENTITY_JWT_VERIFICATION_KEY ?? env.PRIVY_JWT_VERIFICATION_KEY,
+      nonEmpty(env.PRIVY_IDENTITY_JWT_VERIFICATION_KEY) ??
+      nonEmpty(env.PRIVY_JWT_VERIFICATION_KEY),
     paraAudience:
-      env.PARA_JWT_AUDIENCE ??
-      env.PARA_AUDIENCE ??
-      env.PARA_API_KEY ??
-      env.NEXT_PUBLIC_PARA_API_KEY,
-    paraJwksUrl: env.PARA_JWKS_URL,
-    paraApiKey: env.PARA_API_SECRET_KEY,
+      nonEmpty(env.PARA_JWT_AUDIENCE) ??
+      nonEmpty(env.PARA_AUDIENCE) ??
+      nonEmpty(env.PARA_API_KEY) ??
+      nonEmpty(env.NEXT_PUBLIC_PARA_API_KEY),
+    paraJwksUrl: nonEmpty(env.PARA_JWKS_URL),
+    paraApiKey: nonEmpty(env.PARA_API_SECRET_KEY),
   };
+}
+
+// An env var created with a blank value (easy to do in the Vercel dashboard/CLI)
+// must behave like an unset one: "" is not nullish, so it would otherwise stop a
+// `??` fallback chain and then read as "configured" downstream.
+function nonEmpty(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
 }
 
 export function isAccountAuthLocalRuntime(

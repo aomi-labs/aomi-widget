@@ -36,7 +36,7 @@ Sessions are created by the client. The client generates a UUID and sends it as 
 ```ts
 const sessionId = crypto.randomUUID();
 
-const response = await fetch("/api/chat?app=mycoindex", {
+const response = await fetch("/api/thread/chat?app=mycoindex", {
   method: "POST",
   headers: {
     "X-Session-Id": sessionId,
@@ -192,7 +192,7 @@ Use the state endpoint to poll for the current session state:
 
 ```ts
 const state = await fetch(
-  `/api/state?session_id=${sessionId}`
+  `/api/thread/state?session_id=${sessionId}`
 ).then((r) => r.json());
 
 console.log(state.status); // "idle" | "processing"
@@ -205,7 +205,7 @@ For real-time updates without polling, subscribe to the SSE updates endpoint:
 
 ```ts
 const events = new EventSource(
-  `/api/updates?session_id=${sessionId}`,
+  `/api/thread/updates?session_id=${sessionId}`,
 );
 
 events.onmessage = (event) => {

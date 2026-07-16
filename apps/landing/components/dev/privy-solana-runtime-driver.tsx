@@ -249,6 +249,7 @@ function PrivySolanaRuntimeDriverInner() {
       },
       subscribe: () => () => undefined,
       sendSystemCommand: async () => undefined,
+      recordUiInteraction: async () => undefined,
       sseStatus: "connected",
     }),
     [

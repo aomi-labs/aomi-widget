@@ -4,13 +4,16 @@
 
 **Goal:** Detect the secrets an Aomi app declares and force the builder to fill every required one before the app can be activated.
 
-**Architecture:** `aomi-build compile` already `dlopen`s each built plugin and reads its `DynManifest` (which carries `secrets: [{name, description, required}]`) purely to validate it, then throws it away. We persist that data into the release's `manifest.json`. Aomi Build's BFF then fetches that release asset from GitHub (using the token it already holds), diffs the required slots against the vault's configured key names, disables the Activate button until the set is empty, and re-checks server-side with a 409.
+**Architecture:** A plugin's declared secrets live in its `DynManifest`, readable only by `dlopen`ing the built cdylib. `aomi-sdk` exposes that as `aomi-build manifest --lib <path>`. The platform repo's CI (`community-apps/.github/scripts/build_candidate.py`), which builds each app's cdylib and publishes the release, calls that command and records the slots into the release's `manifest.json`. Aomi Build's BFF then fetches that release asset from GitHub (using the token it already holds), diffs the required slots against the vault's configured key names, disables the Activate button until the set is empty, and re-checks server-side with a 409.
 
-**Tech Stack:** Rust (`aomi-sdk`: clap, serde, libloading), TypeScript (`packages/deploy`, Next.js App Router BFF, React), vitest, cargo test.
+**Tech Stack:** Rust (`aomi-sdk`: clap, serde, libloading), Python (`community-apps` CI), TypeScript (`packages/deploy`, Next.js App Router BFF, React), vitest, cargo test, unittest.
 
 ## Global Constraints
 
-- Two repos: `/Users/han/github/aomi-sdk` and `/Users/han/github/aomi-widget`. No backend (`product-mono`) change.
+- Three repos: `/Users/han/github/aomi-sdk`, `aomi-labs/community-apps` (clone fresh; **PR only, never merge**), and `/Users/han/github/aomi-widget`. No backend (`product-mono`) change.
+- **`aomi-build compile` is NOT the producer of the manifest Aomi Build reads.** Builder app releases are published by `community-apps/.github/scripts/build_candidate.py`, which builds the cdylib with `cargo` directly and never invokes `compile`. Verified 2026-07-10 against the public repo.
+- An app pins an exact `aomi-sdk` version (`aomi-sdk = "=3.0.2"`, a crates.io dep). The `manifest` subcommand must ship in a new SDK release before apps pinning it can be gated; apps on older pins get no `secrets` key and are simply not gated.
+- Adding `secrets` to a plugin entry is backward compatible: product-mono's `AppEntry` (`crates/runtime/src/app/mod.rs:63`) has no `deny_unknown_fields`, and `verify_tarball` reads only `file`/`sha256`.
 - Secret **values** are never read back. The vault returns key names only. Never render or log a value.
 - Slot shape is fixed by the SDK: `{ name: string, description: string, required: bool }`.
 - Vault handles are `$SECRET:APP:<app>::<KEY>`; display strips to `<KEY>`.
@@ -25,10 +28,13 @@
 ## File Structure
 
 **`aomi-sdk`:**
-- Modify `sdk/bin/build/compile/validate.rs` — expose the manifest it already reads.
-- Create `sdk/bin/build/compile/release_manifest.rs` — build + serialize `manifest.json`.
-- Modify `sdk/bin/build/compile/mod.rs` — collect manifests, write the file, accept `--release-tag` / `--commit`.
-- Modify `.github/workflows/release-plugins.yml` — drop the inline Python step.
+- Modify `sdk/bin/build/compile/validate.rs` — expose the manifest it already reads (Task 1: `inspect_plugin`; Task 2: `read_manifest` becomes `pub(crate)`).
+- Create `sdk/bin/build/manifest.rs` — the `aomi-build manifest --lib <path>` subcommand.
+- Modify `sdk/bin/build/main.rs` — register the subcommand.
+
+**`aomi-labs/community-apps`** (clone fresh, PR only):
+- Modify `.github/scripts/build_candidate.py` — call `aomi-build manifest`, record `secrets` per plugin entry.
+- Create `.github/scripts/test_build_candidate.py` — unit tests for the new helper.
 
 **`aomi-widget`:**
 - Modify `packages/deploy/src/types.ts` — `SecretSlot`, `ReleaseManifest`.
@@ -154,270 +160,317 @@ persist the declared secret slots."
 
 ---
 
-## Task 2: Build and write `manifest.json` from `compile` (aomi-sdk)
+## Task 2: `aomi-build manifest` subcommand (aomi-sdk)
+
+**Why this shape:** the release that Aomi Build reads is published by
+`aomi-labs/community-apps/.github/scripts/build_candidate.py`, which builds the
+cdylib with `cargo` directly and **never calls `aomi-build compile`**. The
+emitter must therefore be a standalone command that Python can invoke. Python
+cannot reasonably `dlopen` the Rust ABI itself.
 
 **Files:**
-- Create: `/Users/han/github/aomi-sdk/sdk/bin/build/compile/release_manifest.rs`
-- Modify: `/Users/han/github/aomi-sdk/sdk/bin/build/compile/mod.rs`
+- Modify: `/Users/han/github/aomi-sdk/sdk/bin/build/compile/validate.rs` (make `read_manifest` `pub(crate)`)
+- Create: `/Users/han/github/aomi-sdk/sdk/bin/build/manifest.rs`
+- Modify: `/Users/han/github/aomi-sdk/sdk/bin/build/main.rs` (register the subcommand)
 
 **Interfaces:**
-- Consumes: `inspect_plugin` (Task 1).
-- Produces: `pub struct ReleaseManifest`, `pub fn build_release_manifest(entries: &[PluginEntry], app_release_tag: &str, commit: &str, target: &str) -> ReleaseManifest`, and `pub struct PluginEntry { pub name: String, pub file: String, pub sha256: String, pub secrets: Vec<SecretSlot> }`.
+- Consumes: `read_manifest` from Task 1's module.
+- Produces:
+  - CLI: `aomi-build manifest --lib <path/to/libfoo.so>` prints the plugin's `DynManifest` as pretty JSON on stdout, exit 0. On failure prints the error to stderr and exits 1.
+  - `pub(crate) fn manifest_json(lib: &Path) -> Result<String, String>`
 
-The emitted JSON keeps the existing top-level shape so nothing downstream breaks, and adds `secrets` per plugin:
-
-```json
-{
-  "app_release_tag": "v0.4.1",
-  "sdk_version": "0.4.1",
-  "target": "aarch64-apple-darwin",
-  "commit": "abc123",
-  "plugins": {
-    "binance": {
-      "file": "libbinance.dylib",
-      "sha256": "…",
-      "secrets": [
-        { "name": "BINANCE_API_KEY", "description": "Binance dashboard API key…", "required": true }
-      ]
-    }
-  }
-}
-```
+> **Do not** reuse `inspect_plugin` here. It compares `manifest.sdk_version`
+> against the *building* SDK's version and would reject a plugin built by a
+> different SDK release. This command must read the manifest, nothing more.
 
 - [ ] **Step 1: Write the failing test**
 
-Create `sdk/bin/build/compile/release_manifest.rs`:
+Create `sdk/bin/build/manifest.rs`:
 
 ```rust
-//! Build the release `manifest.json` from the plugin manifests that
-//! `compile` already reads during validation.
+//! `aomi-build manifest --lib <path>` — print a built plugin's DynManifest as
+//! JSON. Consumed by platform-repo CI (community-apps `build_candidate.py`) to
+//! record each app's declared secret slots in the release `manifest.json`.
 
-use aomi_sdk::SecretSlot;
-use serde::Serialize;
-use std::collections::BTreeMap;
+use clap::Args;
+use std::path::{Path, PathBuf};
 
-#[derive(Debug, Clone, Serialize)]
-pub struct PluginEntry {
-    pub file: String,
-    pub sha256: String,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub secrets: Vec<SecretSlot>,
+use crate::compile::validate::read_manifest;
+
+#[derive(Args, Debug)]
+pub struct ManifestArgs {
+    /// Path to the built cdylib (`.so` / `.dylib`).
+    #[arg(long)]
+    pub lib: PathBuf,
 }
 
-#[derive(Debug, Clone, Serialize)]
-pub struct ReleaseManifest {
-    pub app_release_tag: String,
-    pub sdk_version: String,
-    pub target: String,
-    pub commit: String,
-    pub plugins: BTreeMap<String, PluginEntry>,
+pub(crate) fn manifest_json(lib: &Path) -> Result<String, String> {
+    let manifest = read_manifest(lib)?;
+    serde_json::to_string_pretty(&manifest).map_err(|e| format!("serialize manifest: {e}"))
+}
+
+pub fn run(args: ManifestArgs) -> anyhow::Result<()> {
+    match manifest_json(&args.lib) {
+        Ok(json) => {
+            println!("{json}");
+            Ok(())
+        }
+        Err(err) => {
+            eprintln!("{err}");
+            std::process::exit(1);
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn slot(name: &str, required: bool) -> SecretSlot {
-        SecretSlot {
-            name: name.to_string(),
-            description: "d".to_string(),
-            required,
-        }
+    #[test]
+    fn manifest_json_errors_for_a_missing_library() {
+        let err = manifest_json(Path::new("/nonexistent/libnope.so"))
+            .expect_err("a missing library must not produce a manifest");
+        assert!(err.contains("dlopen"), "got: {err}");
     }
 
     #[test]
-    fn serializes_secrets_per_plugin() {
-        let mut plugins = BTreeMap::new();
-        plugins.insert(
-            "binance".to_string(),
-            PluginEntry {
-                file: "libbinance.dylib".to_string(),
-                sha256: "deadbeef".to_string(),
-                secrets: vec![slot("BINANCE_API_KEY", true)],
-            },
-        );
-        let manifest = ReleaseManifest {
-            app_release_tag: "v0.4.1".to_string(),
-            sdk_version: "0.4.1".to_string(),
-            target: "aarch64-apple-darwin".to_string(),
-            commit: "abc123".to_string(),
-            plugins,
+    fn a_manifest_with_secrets_serializes_the_slots() {
+        // Guards the exact contract build_candidate.py depends on:
+        // `secrets` is an array of {name, description, required}.
+        use aomi_sdk::{DynManifest, SecretSlot};
+        let manifest = DynManifest {
+            sdk_version: "3.0.2".into(),
+            name: "binance".into(),
+            version: "0.1.0".into(),
+            preamble: String::new(),
+            tools: vec![],
+            namespaces: None,
+            secrets: Some(vec![SecretSlot {
+                name: "BINANCE_API_KEY".into(),
+                description: "Binance dashboard API key.".into(),
+                required: true,
+            }]),
+            ..Default::default()
         };
-
-        let json = serde_json::to_value(&manifest).expect("serialize");
-        assert_eq!(json["plugins"]["binance"]["sha256"], "deadbeef");
-        assert_eq!(
-            json["plugins"]["binance"]["secrets"][0]["name"],
-            "BINANCE_API_KEY"
-        );
-        assert_eq!(json["plugins"]["binance"]["secrets"][0]["required"], true);
-    }
-
-    #[test]
-    fn omits_secrets_when_the_plugin_declares_none() {
-        let mut plugins = BTreeMap::new();
-        plugins.insert(
-            "hello".to_string(),
-            PluginEntry {
-                file: "libhello.dylib".to_string(),
-                sha256: "cafe".to_string(),
-                secrets: vec![],
-            },
-        );
-        let manifest = ReleaseManifest {
-            app_release_tag: "v1".to_string(),
-            sdk_version: "1".to_string(),
-            target: "t".to_string(),
-            commit: "c".to_string(),
-            plugins,
-        };
-        let json = serde_json::to_value(&manifest).expect("serialize");
-        assert!(json["plugins"]["hello"].get("secrets").is_none());
+        let json: serde_json::Value =
+            serde_json::from_str(&serde_json::to_string(&manifest).unwrap()).unwrap();
+        assert_eq!(json["secrets"][0]["name"], "BINANCE_API_KEY");
+        assert_eq!(json["secrets"][0]["required"], true);
     }
 }
 ```
+
+If `DynManifest` does not implement `Default`, construct it field-by-field
+instead of using `..Default::default()` — do not add a `Default` impl to the SDK.
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd /Users/han/github/aomi-sdk && cargo test -p aomi-sdk --features cli --bin aomi-build release_manifest`
-Expected: FAIL — module `release_manifest` not declared in `compile/mod.rs`.
+Run: `cd /Users/han/github/aomi-sdk && cargo test -p aomi-sdk --features cli --bin aomi-build manifest_json_errors`
+Expected: FAIL — module `manifest` is not declared in `main.rs`; `read_manifest` is private.
 
 - [ ] **Step 3: Write minimal implementation**
 
-Add to the top of `sdk/bin/build/compile/mod.rs`:
+In `sdk/bin/build/compile/validate.rs`, change the signature's visibility only:
 
 ```rust
-mod release_manifest;
-use release_manifest::{PluginEntry, ReleaseManifest};
+pub(crate) fn read_manifest(path: &Path) -> Result<DynManifest, String> {
 ```
 
-Ensure `SecretSlot` derives `Serialize` in `sdk/src/secrets.rs` (it already derives `Deserialize`; add `Serialize` if missing).
+In `sdk/bin/build/compile/mod.rs`, re-export the module so `crate::compile::validate` resolves:
+
+```rust
+pub(crate) mod validate;
+```
+
+In `sdk/bin/build/main.rs`, declare the module, add the variant, and dispatch it:
+
+```rust
+mod manifest;
+```
+
+```rust
+    /// Print a built plugin's manifest (including declared secret slots) as JSON.
+    Manifest(manifest::ManifestArgs),
+```
+
+```rust
+        Cmd::Manifest(args) => manifest::run(args),
+```
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd /Users/han/github/aomi-sdk && cargo test -p aomi-sdk --features cli --bin aomi-build release_manifest`
+Run: `cd /Users/han/github/aomi-sdk && cargo test -p aomi-sdk --features cli --bin aomi-build manifest`
 Expected: PASS (2 passed).
 
-- [ ] **Step 5: Wire it into `compile` and add the CLI args**
+Run: `cargo clippy -p aomi-sdk --features cli --bin aomi-build -- -D warnings`
+Expected: clean.
 
-In `sdk/bin/build/compile/mod.rs`, add to `CompileArgs`:
+- [ ] **Step 5: Verify against a real plugin**
 
-```rust
-    /// Release tag written into `plugins/manifest.json` (CI supplies this).
-    #[arg(long)]
-    pub release_tag: Option<String>,
-
-    /// Commit SHA written into `plugins/manifest.json` (CI supplies this).
-    #[arg(long)]
-    pub commit: Option<String>,
+Run:
+```bash
+cd /Users/han/github/aomi-sdk
+cargo run -p aomi-sdk --features cli --bin aomi-build -- compile
+cargo run -p aomi-sdk --features cli --bin aomi-build -- manifest --lib plugins/$(ls plugins | grep -i binance | head -1)
 ```
+Expected: JSON on stdout whose `secrets` array contains `BINANCE_API_KEY` and
+`BINANCE_SECRET_KEY`, each with `required: true` and a non-empty `description`.
 
-After the build loop completes (and only when `!plugin_manifests.is_empty()`), write the file:
-
-```rust
-    let mut plugins = std::collections::BTreeMap::new();
-    for (plugin_name, plugin_manifest) in &plugin_manifests {
-        let file = library_file_name(plugin_name, target_triple);
-        let bytes = fs::read(plugins_dir.join(&file))
-            .unwrap_or_else(|err| panic!("failed to read {file} for hashing: {err}"));
-        plugins.insert(
-            plugin_manifest.name.clone(),
-            PluginEntry {
-                file,
-                sha256: sha256_hex(&bytes),
-                secrets: plugin_manifest.secrets.clone().unwrap_or_default(),
-            },
-        );
-    }
-
-    let manifest = ReleaseManifest {
-        app_release_tag: args.release_tag.clone().unwrap_or_default(),
-        sdk_version: AOMI_SDK_VERSION.to_string(),
-        // `env!("TARGET")` is only defined inside build scripts, not in a
-        // normal binary. When --target is omitted the build is for the host,
-        // and CI always passes --target explicitly.
-        target: target_triple.unwrap_or("host").to_string(),
-        commit: args.commit.clone().unwrap_or_default(),
-        plugins,
-    };
-
-    let manifest_path = plugins_dir.join("manifest.json");
-    let json = serde_json::to_string_pretty(&manifest).expect("serialize release manifest");
-    fs::write(&manifest_path, format!("{json}\n"))
-        .unwrap_or_else(|err| panic!("failed to write {}: {err}", manifest_path.display()));
-    println!("wrote {}", manifest_path.display());
-```
-
-Add a `sha256_hex` helper in `release_manifest.rs` (add `sha2 = "0.10"` to `sdk/Cargo.toml` if absent):
-
-```rust
-pub fn sha256_hex(bytes: &[u8]) -> String {
-    use sha2::{Digest, Sha256};
-    let mut hasher = Sha256::new();
-    hasher.update(bytes);
-    hasher.finalize().iter().map(|b| format!("{b:02x}")).collect()
-}
-```
-
-- [ ] **Step 6: Verify end-to-end locally**
-
-Run: `cd /Users/han/github/aomi-sdk && cargo run -p aomi-sdk --features cli --bin aomi-build -- compile --release-tag v0.0.0-test --commit local`
-Expected: `wrote .../plugins/manifest.json`.
-
-Run: `python3 -c "import json;m=json.load(open('plugins/manifest.json'));print(json.dumps(m['plugins'].get('binance',{}),indent=2))"`
-Expected: a `secrets` array containing `BINANCE_API_KEY` and `BINANCE_SECRET_KEY` with `required: true`.
-
-- [ ] **Step 7: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 cd /Users/han/github/aomi-sdk
-git add sdk/bin/build/compile/ sdk/Cargo.toml sdk/src/secrets.rs
-git commit -m "feat(compile): emit manifest.json with declared secret slots
+git add sdk/bin/build/manifest.rs sdk/bin/build/main.rs sdk/bin/build/compile/
+git commit -m "feat(cli): aomi-build manifest --lib prints a plugin's DynManifest
 
-compile already dlopens every plugin and reads its DynManifest. Persist the
-declared secrets into the release manifest so deploy tooling can gate
-activation on required slots being filled."
+Platform-repo CI builds app cdylibs directly and cannot dlopen the Rust ABI
+from Python. This exposes the manifest -- and therefore each app's declared
+secret slots -- as a callable command."
 ```
 
 ---
 
-## Task 3: Drop the inline Python step from CI (aomi-sdk)
+## Task 3: Emit `secrets` from community-apps CI (PR to a fourth repo)
 
-The Python step registers *every* file in `plugins/` as a plugin (`plugins[path.stem]`), so any stray file becomes a bogus entry. `compile` now writes the file authoritatively.
+**Repo:** `aomi-labs/community-apps` (public). Clone it fresh, branch
+`feat/emit-declared-secrets`, and open a PR. **Do not merge.**
 
-**Files:**
-- Modify: `/Users/han/github/aomi-sdk/.github/workflows/release-plugins.yml:83-118`
+**Verified facts you must not re-derive:**
+- `.github/scripts/build_candidate.py` writes the bundle manifest at ~line 404:
+  `"plugins": { app_name: { "file": ..., "sha256": ... } }`, then
+  `verify_tarball` compares the round-tripped manifest to that same dict and
+  reads only `entry["file"]` / `entry["sha256"]`. Adding a `secrets` key is safe.
+- `resolve_sdk_version(app_dir)` already returns the app's exact pinned
+  `aomi-sdk` version (apps pin e.g. `aomi-sdk = "=3.0.2"`, a crates.io dep).
+- The workflow (`.github/workflows/build-candidate.yml`, `ubuntu-latest`) already
+  installs a Rust toolchain via `dtolnay/rust-toolchain@stable`.
+- product-mono's runtime `AppEntry` has no `deny_unknown_fields`, so older
+  readers ignore `secrets`.
 
-- [ ] **Step 1: Replace the two steps**
+**Interfaces:**
+- Consumes: `aomi-build manifest --lib <path>` (Task 2).
+- Produces: each `plugins[app_name]` entry gains `"secrets": [{name, description, required}]` when the app declares any.
 
-Replace the `Build all plugins` and `Generate manifest.json` steps with a single step:
-
-```yaml
-      - name: Build all plugins
-        run: |
-          cargo run -p aomi-sdk --features cli --bin aomi-build -- compile \
-            --release --target ${{ matrix.target }} \
-            --release-tag ${{ needs.resolve.outputs.tag }} \
-            --commit ${{ github.sha }}
-
-      - name: Show manifest
-        run: cat plugins/manifest.json
-```
-
-- [ ] **Step 2: Verify the tarball still contains manifest.json**
-
-The next step is `tar czf … plugins/`, which now includes the `compile`-written `manifest.json`. No change needed. Confirm by reading the workflow that `Create tarball` still runs after the build step.
-
-- [ ] **Step 3: Commit**
+- [ ] **Step 1: Clone and branch**
 
 ```bash
-cd /Users/han/github/aomi-sdk
-git add .github/workflows/release-plugins.yml
-git commit -m "ci: let aomi-build compile own manifest.json
-
-Removes the inline Python step, which treated every file in plugins/ as a
-plugin. compile knows exactly which libraries it built and validated."
+cd /tmp && rm -rf community-apps
+gh repo clone aomi-labs/community-apps
+cd community-apps && git checkout -b feat/emit-declared-secrets
 ```
+
+- [ ] **Step 2: Write the failing test**
+
+Add `.github/scripts/test_build_candidate.py`:
+
+```python
+import json, pathlib, sys, types, unittest
+sys.path.insert(0, str(pathlib.Path(__file__).parent))
+import build_candidate as bc
+
+
+class ReadPluginSecretsTests(unittest.TestCase):
+    def test_returns_slots_from_the_manifest_command(self):
+        bc.run = lambda cmd, **kw: json.dumps(
+            {"name": "binance",
+             "secrets": [{"name": "BINANCE_API_KEY", "description": "d", "required": True}]}
+        )
+        slots = bc.read_plugin_secrets(pathlib.Path("/tmp/libbinance.so"), "3.0.2")
+        self.assertEqual(slots[0]["name"], "BINANCE_API_KEY")
+
+    def test_returns_empty_when_the_sdk_lacks_the_subcommand(self):
+        def boom(cmd, **kw):
+            raise RuntimeError("unrecognized subcommand 'manifest'")
+        bc.run = boom
+        self.assertEqual(bc.read_plugin_secrets(pathlib.Path("/tmp/x.so"), "3.0.1"), [])
+
+    def test_returns_empty_when_the_manifest_has_no_secrets(self):
+        bc.run = lambda cmd, **kw: json.dumps({"name": "hello"})
+        self.assertEqual(bc.read_plugin_secrets(pathlib.Path("/tmp/x.so"), "3.0.2"), [])
+
+
+if __name__ == "__main__":
+    unittest.main()
+```
+
+- [ ] **Step 3: Run test to verify it fails**
+
+Run: `cd /tmp/community-apps && python3 .github/scripts/test_build_candidate.py`
+Expected: FAIL — `module 'build_candidate' has no attribute 'read_plugin_secrets'`.
+
+- [ ] **Step 4: Write minimal implementation**
+
+In `build_candidate.py`, add above `build_bundle` (or wherever `bundle_manifest`
+is constructed):
+
+```python
+def read_plugin_secrets(plugin_path: pathlib.Path, sdk_version: str) -> list[dict[str, Any]]:
+    """Declared secret slots for a built plugin, via `aomi-build manifest`.
+
+    Installs the app's exact pinned aomi-sdk so the manifest reader matches the
+    ABI the plugin was built against. Returns [] for any SDK release that
+    predates the `manifest` subcommand -- a missing slot list must never fail a
+    build, it only means the app cannot be secret-gated.
+    """
+    try:
+        bin_root = pathlib.Path(tempfile.mkdtemp(prefix="aomi-build-cli-"))
+        run([
+            "cargo", "install", "aomi-sdk",
+            "--version", f"={sdk_version}",
+            "--features", "cli", "--bin", "aomi-build",
+            "--locked", "--root", str(bin_root),
+        ])
+        output = run([str(bin_root / "bin" / "aomi-build"), "manifest", "--lib", str(plugin_path)])
+        manifest = json.loads(output)
+    except Exception as err:  # noqa: BLE001 - never fail the build over this
+        print(f"::warning::could not read declared secrets for {plugin_path.name}: {err}")
+        return []
+    secrets = manifest.get("secrets") or []
+    return secrets if isinstance(secrets, list) else []
+```
+
+Then, where `bundle_manifest` is built (~line 404), attach the slots:
+
+```python
+    entry: dict[str, Any] = {"file": final_plugin.name, "sha256": digest}
+    secrets = read_plugin_secrets(final_plugin, sdk_version)
+    if secrets:
+        entry["secrets"] = secrets
+    bundle_manifest = {
+        "app_release_tag": release_tag,
+        "sdk_version": sdk_version,
+        "target": target,
+        "commit": info["source_commit"],
+        "plugins": {app_name: entry},
+    }
+```
+
+Ensure `import tempfile` is present.
+
+- [ ] **Step 5: Run test to verify it passes**
+
+Run: `cd /tmp/community-apps && python3 .github/scripts/test_build_candidate.py`
+Expected: PASS (3 passed).
+
+- [ ] **Step 6: Open the PR**
+
+```bash
+cd /tmp/community-apps
+git add .github/scripts/
+git commit -m "feat(ci): record each app's declared secret slots in manifest.json
+
+Runs `aomi-build manifest` (from the app's exact pinned aomi-sdk) against the
+built cdylib and records the declared secrets per plugin. Apps on an SDK
+without the subcommand get no secrets key and are simply not gated."
+git push -u origin feat/emit-declared-secrets
+gh pr create --draft --title "ci: record declared secret slots in manifest.json" \
+  --body "Lets Aomi Build detect an app's required secrets before activation. Backward compatible: product-mono's AppEntry ignores unknown fields, and apps on an older SDK get no secrets key. Depends on the \`aomi-build manifest\` subcommand shipping in a new aomi-sdk release."
+```
+
+**Note the release-ordering dependency:** apps pin an exact `aomi-sdk` version.
+The subcommand must ship in a new SDK release before any app pinning it can be
+gated. Apps on older pins fall back to no secrets, which Task 5 already handles
+by returning `{}`.
 
 ---
 
@@ -1498,8 +1551,9 @@ renders the 409 missing-secret map when the server rejects an activation."
 
 ## Manual verification
 
-1. `cd /Users/han/github/aomi-sdk && cargo run -p aomi-sdk --features cli --bin aomi-build -- compile --release-tag v0-test --commit local`
-   → `plugins/manifest.json` contains `binance.secrets` with both keys, `required: true`.
+1. `cd /Users/han/github/aomi-sdk && cargo run -p aomi-sdk --features cli --bin aomi-build -- compile && cargo run -p aomi-sdk --features cli --bin aomi-build -- manifest --lib plugins/<binance-lib>`
+   → JSON whose `secrets` array holds `BINANCE_API_KEY` and `BINANCE_SECRET_KEY`, both `required: true`.
+   Then `cd /tmp/community-apps && python3 .github/scripts/test_build_candidate.py` → 3 passed.
 2. `cd /Users/han/github/aomi-widget && pnpm --filter aomi-build dev`, sign in via `/api/bff/auth/github/dev-session?login=octocat&id=1`.
 3. Open a project whose app declares secrets → Environment tab shows an amber "2 required secrets missing" banner and two prefilled, read-only-key rows with descriptions and masked inputs.
 4. Deployments tab → **Activate** is disabled, with "2 required secrets missing — set them in the Environment tab."
@@ -1515,3 +1569,157 @@ renders the 409 missing-secret map when the server rejects an activation."
 - **Backward compatibility:** `fetchReleaseSecretSlots` returns `{}` for releases predating Task 2, and `missingRequiredSecrets(undefined, …)` returns `[]`, so old releases activate unchanged. Covered by tests in Tasks 4, 5, 6.
 - **Type consistency:** `SecretSlot` is defined once (Task 4, `packages/deploy/src/types.ts`) and reused everywhere. `missingRequiredSecrets(slots, configuredKeys)` keeps that signature in Tasks 6, 7. `fetchReleaseSecretSlots` returns `Record<appName, SecretSlot[]>` in Tasks 5, 6, 7. The BFF route returns `{ byApp: Record<app, { slots, missing }> }` in Tasks 7, 8, 9, 10.
 - **Vault handles:** stripped with `handle.split("::").pop()` in Tasks 6 and 7, matching `environment-tab.tsx`'s existing display logic.
+
+---
+
+## Task 11: Extend secrets gating to the promote path (added 2026-07-10 after integration review)
+
+**Why:** The project console (`ProjectPage` → `DeploymentsTab`) makes an app live via **`promote`** (`deploymentPromoteRoute` → `/api/platforms/:id/deployments/:id/promote`), NOT `activate`. The backend `promote_target` runs the same `prepare_activation_releases` machinery as activate, so promote is equally secret-sensitive — yet Tasks 6/10 only covered `activate`, leaving the primary live path with no 409 and no UI gate. Additionally the wizard's `DeployStep` gate is inert because `oneshot-wizard.tsx` never passes it a `detail`. This task closes all three.
+
+**Files:**
+- Modify (409 backstop, all three copies): `apps/aomi-build/src/server/bff/launch/routes.ts`, `apps/portal/src/server/bff/launch/routes.ts`, `packages/deploy/src/bff/launch-routes.ts` — the promote handler.
+- Modify (UI gate): `apps/aomi-build/src/features/launch/components/deployments/tabs/deployments-tab.tsx`
+- Modify (wizard wiring): `apps/aomi-build/src/features/launch/components/oneshot-wizard.tsx`
+- Test: the three `routes.test.ts` / `launch-routes.test.ts`, and `deployments-tab.test.tsx`
+
+**Interfaces:**
+- Reuse `missingSecretsForActivation({ client, githubUserId, platform, source, pairs })` from `@aomi-labs/deploy/bff` (defined in Task 6) — do NOT write a second implementation.
+- `client.listUserSourceDeployments({ githubUserId, platform, appSourceId, limit })` returns `UserSourceLatestDeployment[]`, each with `.deploymentId` and `.apps: { name: string; releaseTag: string | null }[]`.
+- `DeploymentsTab` already has `detail` (useProjectDetail), `detail.hasMissingSecrets(app)`, `detail.loadRequiredSecrets()`, and per-row `deployment.apps: string[]`.
+
+### Part A — 409 on the promote route (all three copies)
+
+- [ ] **Step 1: Write the failing test (aomi-build copy)**
+
+Add to `apps/aomi-build/src/server/bff/launch/routes.test.ts`, `deploymentPromoteRoute` block, following the existing global-`fetch`-stub pattern used by the Task 6 activate tests:
+
+```ts
+it("409s a promote when a required secret is unfilled", async () => {
+  setSession({ githubUserId: "gh-1", githubLogin: "octocat" });
+  // owned source, deployment in the source's records, one app + release tag
+  stubOwnedSourceWithDeployment({
+    sourceId: 42,
+    platformRepo: "aomi-labs/community",
+    deploymentId: "dep_1_r_abc",
+    apps: [{ name: "binance", releaseTag: "v1" }],
+  });
+  stubAppSecrets({ binance: ["$SECRET:APP:binance::BINANCE_API_KEY"] });
+  stubReleaseManifest({
+    binance: [
+      { name: "BINANCE_API_KEY", description: "d", required: true },
+      { name: "BINANCE_SECRET_KEY", description: "d", required: true },
+    ],
+  });
+
+  const res = await deploymentPromoteRoute(
+    postJson({ deploymentId: "dep_1_r_abc", appSourceId: 42 }),
+  );
+
+  expect(res.status).toBe(409);
+  await expect(res.json()).resolves.toEqual({
+    error: "missing required secrets",
+    missing: { binance: ["BINANCE_SECRET_KEY"] },
+  });
+  expect(client.promote).not.toHaveBeenCalled();
+});
+
+it("promotes when required secrets are filled", async () => {
+  setSession({ githubUserId: "gh-1", githubLogin: "octocat" });
+  stubOwnedSourceWithDeployment({
+    sourceId: 42, platformRepo: "aomi-labs/community",
+    deploymentId: "dep_1_r_abc", apps: [{ name: "binance", releaseTag: "v1" }],
+  });
+  stubAppSecrets({ binance: ["$SECRET:APP:binance::BINANCE_API_KEY", "$SECRET:APP:binance::BINANCE_SECRET_KEY"] });
+  stubReleaseManifest({ binance: [
+    { name: "BINANCE_API_KEY", description: "d", required: true },
+    { name: "BINANCE_SECRET_KEY", description: "d", required: true },
+  ] });
+  client.promote.mockResolvedValue({ ok: true, promote: { releaseTags: ["v1"], status: "promoted" } });
+
+  const res = await deploymentPromoteRoute(postJson({ deploymentId: "dep_1_r_abc", appSourceId: 42 }));
+  expect(res.status).toBe(202);
+  expect(client.promote).toHaveBeenCalledTimes(1);
+});
+```
+
+(Adapt the stub helper names to whatever the existing test file uses — the Task 6 promote/activate tests already stub `listUserSources`, `listUserSourceDeployments`, `listAppSecrets`, and the release-manifest `fetch`. Match them.)
+
+- [ ] **Step 2: Run to verify it fails** — `pnpm --filter aomi-build exec vitest run src/server/bff/launch/routes.test.ts -t "required secret"` → FAIL (got 202, `client.promote` called).
+
+- [ ] **Step 3: Implement in each promote handler**, after the existing `known.has(deploymentId)` ownership check and BEFORE `client.promote(...)`:
+
+```ts
+    // Gate promotion on required secrets, exactly as activate does — promote
+    // runs the same backend activation machinery.
+    const deployments = await client.listUserSourceDeployments({
+      githubUserId: session.githubUserId,
+      platform: config.platform,
+      appSourceId: source.id,
+      limit: 100,
+    });
+    const target = deployments.find((d) => d.deploymentId === deploymentId);
+    const pairs = (target?.apps ?? [])
+      .filter((a) => (apps ? apps.includes(a.name) : true))
+      .flatMap((a) => (a.releaseTag ? [{ app: a.name, releaseTag: a.releaseTag }] : []));
+    const missingByApp = await missingSecretsForActivation({
+      client,
+      githubUserId: session.githubUserId,
+      platform: config.platform,
+      source,
+      pairs,
+    });
+    if (Object.keys(missingByApp).length > 0) {
+      return NextResponse.json(
+        { error: "missing required secrets", missing: missingByApp },
+        { status: 409 },
+      );
+    }
+```
+
+Import `missingSecretsForActivation` (already imported in these files for activate). In the package copy use `getSession(req)`'s session, `cfg.platform`, and `jsonResponse(body, 409)`.
+
+- [ ] **Step 4: Run** the three suites (`routes.test.ts` ×2, `launch-routes.test.ts`) → PASS. Then `pnpm --filter @aomi-labs/deploy build`, `pnpm --filter aomi-build type-check`, `pnpm --filter portal type-check`.
+
+### Part B — gate the promote button in DeploymentsTab
+
+- [ ] **Step 5: Write the failing test** in `deployments-tab.test.tsx`:
+
+```tsx
+it("disables Promote for a deployment whose app has a missing required secret", () => {
+  const detail = makeDetail({
+    deployments: [{ deploymentId: "dep_1", apps: ["binance"], releaseTags: ["v1"], current: false }],
+    requiredSecrets: { binance: { slots: [], missing: ["BINANCE_API_KEY"] } },
+  });
+  render(<DeploymentsTab detail={detail} />);
+  expect(screen.getByRole("button", { name: /promote/i })).toBeDisabled();
+});
+```
+
+- [ ] **Step 6: Implement.** In `DeploymentsTab`, call `detail.loadRequiredSecrets()` in the existing mount effect. For each deployment row, compute `const secretsBlocked = deployment.apps.some((app) => detail.hasMissingSecrets(app));` and AND it into the promote button's existing `disabled` (`disabled={deploying || secretsBlocked}`), with a short reason line when blocked ("required secrets missing — set them in the Environment tab"). Do not weaken the existing `deploying`/current-state conditions.
+
+- [ ] **Step 7: Run** `pnpm --filter aomi-build exec vitest run src/features/launch/components/deployments/tabs/deployments-tab.test.tsx` → PASS.
+
+### Part C — make the wizard gate live
+
+- [ ] **Step 8:** In `oneshot-wizard.tsx`, the wizard has no `useProjectDetail`. `DeployStep` already accepts an optional `detail?: SecretsGateDetail` and calls `launchActivate` (so the 409 already protects it). Wiring a full `useProjectDetail` here is out of proportion. Instead, pass a minimal inline adapter built from a `useState`-held `deploymentRequiredSecrets` fetch keyed on `progress.appSourceId`, OR — if `progress.appSourceId` is not reliably present during the build step — leave `DeployStep` ungated in the wizard and rely on its 409 (already in place), and note this explicitly. Decide based on whether `progress.appSourceId` exists at the build step; do not fabricate a hook. If you leave it 409-only, say so in the report and add a one-line code comment in `oneshot-wizard.tsx` explaining the wizard relies on the server 409.
+
+- [ ] **Step 9: Full verification**
+
+```bash
+cd /Users/han/github/aomi-widget
+pnpm --filter aomi-build type-check && pnpm --filter aomi-build lint
+pnpm --filter portal type-check && pnpm --filter portal lint
+pnpm --filter @aomi-labs/deploy build && pnpm exec vitest run packages/deploy/test/
+pnpm --filter aomi-build exec vitest run
+pnpm --filter portal exec vitest run
+```
+All green, 0 lint errors.
+
+- [ ] **Step 10: Commit**
+
+```bash
+git add apps/aomi-build/src/server/bff/launch/routes.ts apps/portal/src/server/bff/launch/routes.ts packages/deploy/src/bff/launch-routes.ts apps/aomi-build/src/features/launch/components/deployments/tabs/deployments-tab.tsx apps/aomi-build/src/features/launch/components/oneshot-wizard.tsx apps/aomi-build/src/server/bff/launch/routes.test.ts apps/portal/src/server/bff/launch/routes.test.ts packages/deploy/test/launch-routes.test.ts apps/aomi-build/src/features/launch/components/deployments/tabs/deployments-tab.test.tsx
+git commit -m "feat(aomi-build): gate promote on required secrets (the live console path)"
+```
+
+**Constraint:** do NOT `git add -A`. There is uncommitted WIP in `use-project-detail.ts` (both apps) that must stay untouched; stage only the paths above.

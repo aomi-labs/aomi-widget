@@ -26,6 +26,7 @@ export interface AuditEvent {
     | "deploy"
     | "activate"
     | "promote"
+    | "rerun"
     | "status"
     | "mint_token"
     | "list_tokens"
@@ -36,6 +37,7 @@ export interface AuditEvent {
     | "get_app"
     | "exchange_github_code"
     | "list_user_sources"
+    | "list_user_deployments"
     | "list_user_source_deployments"
     | "list_user_source_bots"
     | "create_user_source_bot"
@@ -44,6 +46,7 @@ export interface AuditEvent {
     | "get_user_source_usage"
     | "list_user_source_logs"
     | "get_user_source_observability"
+    | "upgrade_user_source_sdk"
     | "list_deployment_records"
     | "get_user_source_latest_deployment"
     | "deactivate"
@@ -490,6 +493,18 @@ export interface ListUserSourceDeploymentsInput extends BearerOverride {
   limit?: number;
 }
 
+export interface UserDeploymentsCursor {
+  createdAt: number;
+  id: number;
+}
+
+export interface ListUserDeploymentsInput extends BearerOverride {
+  githubUserId: string;
+  platform: string;
+  limit?: number;
+  cursor?: UserDeploymentsCursor | null;
+}
+
 /** One append-only promotion record from the backend deployment log. */
 export interface DeploymentRecord {
   deploymentId: string;
@@ -547,7 +562,20 @@ export interface UserSourceLatestDeployment {
   sdkVersion?: string | null;
   artifactTarget?: string | null;
   buildTarget?: string | null;
+  /** Epoch seconds of the deploy request (`created_at`); null on legacy
+   *  records that predate the timestamp. */
+  createdAt?: number | null;
   apps: UserSourceDeploymentApp[];
+}
+
+export interface UserDeployment extends UserSourceLatestDeployment {
+  sourceId: number;
+  repositoryLink: string | null;
+}
+
+export interface UserDeploymentsPage {
+  deployments: UserDeployment[];
+  nextCursor: UserDeploymentsCursor | null;
 }
 
 /** A source repo plus the applications deployed from it. */
@@ -564,6 +592,32 @@ export interface OwnedOperateSourceInput extends BearerOverride {
   platform: string;
   appSourceId: number;
 }
+
+export type SourceSdkUpgradeResult =
+  | {
+      status: "current";
+      requiredSdkVersion: string;
+      sourceRef: string;
+    }
+  | {
+      status: "pull_request";
+      requiredSdkVersion: string;
+      sourceRef: string;
+      branch: string;
+      files: string[];
+      pullRequest: {
+        number: number;
+        url: string;
+        created: boolean;
+      };
+    }
+  | {
+      status: "manual";
+      requiredSdkVersion: string;
+      sourceRef: string;
+      reason: string;
+      command: string;
+    };
 
 export interface ListUserSourceTransactionsInput extends OwnedOperateSourceInput {
   cursor?: OperateTransactionCursor | string | null;
@@ -781,4 +835,42 @@ export interface PromoteResult {
     sdkStatus?: SdkVersionStatus | null;
     activation?: ActivateResult["activation"];
   };
+}
+
+/** A secret an app declares via the SDK's `Secret::new(name, description, required)`. */
+export interface SecretSlot {
+  name: string;
+  description: string;
+  required: boolean;
+}
+
+export interface ReleaseManifestPlugin {
+  file: string;
+  sha256: string;
+  secrets?: SecretSlot[];
+}
+
+/** The `manifest.json` asset published with every plugin release. */
+export interface ReleaseManifest {
+  app_release_tag: string;
+  sdk_version: string;
+  target: string;
+  commit: string;
+  plugins: Record<string, ReleaseManifestPlugin>;
+}
+
+export interface RerunDeploymentInput {
+  platform: string;
+  deploymentId: string;
+  /** Optional owner filter enforced by the backend for Aomi Build calls. */
+  githubUserId?: string;
+  actor?: string;
+}
+
+export interface RerunDeploymentResult {
+  ok: boolean;
+  deploymentId: string;
+  commitHash: string | null;
+  runId: number | null;
+  ciUrl: string | null;
 }

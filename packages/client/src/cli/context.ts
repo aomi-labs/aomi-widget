@@ -4,11 +4,12 @@ import type { ClientSession } from "../session";
 import type { CliConfig } from "./types";
 import type { CliSession } from "./cli-session";
 import { createCliAuthTokenProvider } from "./auth";
+import { DEFAULT_CLI_BASE_URL } from "./client-factory";
 import { readState } from "./state";
 
 export function createControlClient(config: CliConfig): AomiClient {
   return new AomiClient({
-    baseUrl: config.baseUrl ?? "https://api.aomi.dev",
+    baseUrl: config.baseUrl ?? DEFAULT_CLI_BASE_URL,
     apiKey: config.apiKey,
     getAccountBearer: createCliAuthTokenProvider(() => readState() ?? {}),
   });
@@ -55,6 +56,7 @@ export async function applyRequestedModelIfPresent(
 
   await session.client.setModel(cli.sessionId, requestedModel, {
     app: cli.app,
+    applicationId: config.applicationId,
     apiKey: cli.apiKey,
   });
   cli.setModel(requestedModel);

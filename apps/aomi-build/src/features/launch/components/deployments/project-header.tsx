@@ -21,12 +21,12 @@ export function ProjectHeader({
       : `https://github.com/${source.repositoryLink}`
     : null;
   return (
-    <header className="flex min-h-14 flex-wrap items-center justify-between gap-3 border-b border-zinc-200 px-4 py-3 sm:px-6">
+    <header className="flex min-h-14 flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3 sm:px-6">
       <div className="flex min-w-0 items-center gap-2 text-sm">
-        <a href={backHref} className="text-zinc-500 hover:text-zinc-900">
+        <a href={backHref} className="text-dim hover:text-foreground">
           {backLabel}
         </a>
-        <span className="text-zinc-300">/</span>
+        <span className="text-dim">/</span>
         <span className="truncate font-semibold">
           {source?.repositoryLink ?? "Project"}
         </span>
@@ -38,7 +38,7 @@ export function ProjectHeader({
             href={repoUrl}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-zinc-300 px-2.5 text-xs font-medium hover:bg-zinc-50"
+            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-xs font-medium hover:bg-accent-hover"
           >
             <Github className="size-3.5" aria-hidden />
             GitHub
@@ -47,7 +47,7 @@ export function ProjectHeader({
         <button
           type="button"
           onClick={onRefresh}
-          className="inline-flex h-8 items-center rounded-md border border-zinc-300 bg-white px-3 text-sm font-medium hover:bg-zinc-50"
+          className="inline-flex h-8 items-center rounded-md border border-border bg-surface-1 px-3 text-sm font-medium hover:bg-accent-hover"
         >
           Refresh
         </button>
