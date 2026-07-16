@@ -4,7 +4,7 @@
 
 2026-07-16 — Portal settings craft pass (PR #365): account menu, ungate General,
   dark-first modal, active-tab fix, preview badge, inline confirms, account header;
-2026-07-16 — Portal settings revamp (preview branch): ChatGPT-style modal over chat;
+2026-07-16 — Portal settings revamp (preview branch): settings modal over chat;
 2026-07-16 — Environment tab: unified Variables list (declared slots + configured, `*` = required);
 2026-07-16 — PR #358 (+): env-aware default chat host (prod → chat.aomi.dev,
   preview/dev → chat-staging.aomi.dev; NEXT_PUBLIC_CHAT_URL still overrides);

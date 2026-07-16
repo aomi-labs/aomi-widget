@@ -11,7 +11,7 @@ import {
 
 /**
  * Deep-link compatibility: /settings → /?settings=<tab>
- * so the ChatGPT-style modal opens over chat instead of a full settings page.
+ * so the settings modal opens over chat instead of a full settings page.
  */
 function SettingsRedirectInner() {
   const router = useRouter();
