@@ -13,24 +13,18 @@ import {
 import { cn } from "@portal/lib/utils";
 import type { SettingsCategory } from "./settings-types";
 
-const ACCOUNT_ITEMS: Array<{
+const ALL_ITEMS: Array<{
   id: SettingsCategory;
   label: string;
   icon: LucideIcon;
+  group: "Account" | "Access";
 }> = [
-  { id: "general", label: "General", icon: Settings },
-  { id: "apps", label: "Usage", icon: Layers },
-];
-
-const ACCESS_ITEMS: Array<{
-  id: SettingsCategory;
-  label: string;
-  icon: LucideIcon;
-}> = [
-  { id: "app-keys", label: "App Keys", icon: KeyRound },
-  { id: "bots", label: "Bots", icon: Bot },
-  { id: "secrets", label: "Secrets", icon: Lock },
-  { id: "byok", label: "BYOK", icon: Unplug },
+  { id: "general", label: "General", icon: Settings, group: "Account" },
+  { id: "apps", label: "Usage", icon: Layers, group: "Account" },
+  { id: "app-keys", label: "App Keys", icon: KeyRound, group: "Access" },
+  { id: "bots", label: "Bots", icon: Bot, group: "Access" },
+  { id: "secrets", label: "Secrets", icon: Lock, group: "Access" },
+  { id: "byok", label: "BYOK", icon: Unplug, group: "Access" },
 ];
 
 function RailGroup({
@@ -40,7 +34,7 @@ function RailGroup({
   onCategoryChange,
 }: {
   label: string;
-  items: Array<{ id: SettingsCategory; label: string; icon: LucideIcon }>;
+  items: typeof ALL_ITEMS;
   activeCategory: SettingsCategory;
   onCategoryChange: (category: SettingsCategory) => void;
 }) {
@@ -76,24 +70,63 @@ function RailGroup({
 export function SettingsRail({
   activeCategory,
   onCategoryChange,
+  orientation = "vertical",
 }: {
   activeCategory: SettingsCategory;
   onCategoryChange: (category: SettingsCategory) => void;
+  orientation?: "vertical" | "responsive";
 }) {
+  const accountItems = ALL_ITEMS.filter((item) => item.group === "Account");
+  const accessItems = ALL_ITEMS.filter((item) => item.group === "Access");
+
   return (
-    <nav className="flex h-full flex-col gap-5 overflow-y-auto px-2 py-3">
-      <RailGroup
-        label="Account"
-        items={ACCOUNT_ITEMS}
-        activeCategory={activeCategory}
-        onCategoryChange={onCategoryChange}
-      />
-      <RailGroup
-        label="Access"
-        items={ACCESS_ITEMS}
-        activeCategory={activeCategory}
-        onCategoryChange={onCategoryChange}
-      />
-    </nav>
+    <>
+      {/* Mobile: horizontal chips */}
+      {orientation === "responsive" ? (
+        <nav className="flex gap-1.5 overflow-x-auto px-2 pb-2 sm:hidden">
+          {ALL_ITEMS.map((item) => {
+            const Icon = item.icon;
+            const active = activeCategory === item.id;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => onCategoryChange(item.id)}
+                className={cn(
+                  "inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[12px] transition-colors",
+                  active
+                    ? "bg-accent text-foreground font-medium"
+                    : "text-muted-foreground hover:bg-accent/50",
+                )}
+              >
+                <Icon className="size-3 opacity-80" />
+                {item.label}
+              </button>
+            );
+          })}
+        </nav>
+      ) : null}
+
+      {/* Desktop (and vertical-only): stacked groups */}
+      <nav
+        className={cn(
+          "flex h-full flex-col gap-5 overflow-y-auto px-2 py-3",
+          orientation === "responsive" && "hidden sm:flex",
+        )}
+      >
+        <RailGroup
+          label="Account"
+          items={accountItems}
+          activeCategory={activeCategory}
+          onCategoryChange={onCategoryChange}
+        />
+        <RailGroup
+          label="Access"
+          items={accessItems}
+          activeCategory={activeCategory}
+          onCategoryChange={onCategoryChange}
+        />
+      </nav>
+    </>
   );
 }

@@ -99,19 +99,15 @@ function SettingsBody({ category }: { category: SettingsCategory }) {
   }
 }
 
-export function SettingsLayout({
-  onClose,
-}: {
-  onClose?: () => void;
-}) {
+export function SettingsLayout({ onClose }: { onClose?: () => void }) {
   const { category, setCategory } = useSettingsController();
   const { status, retry } = useAomiSession();
   const adapter = useAomiAuthAdapter();
 
   return (
-    <div className="bg-background border-border flex h-full min-h-0 w-full overflow-hidden rounded-2xl border shadow-2xl">
-      <aside className="border-border bg-muted/20 flex w-[176px] shrink-0 flex-col border-r sm:w-[188px]">
-        <div className="flex items-center gap-1 px-2 pt-2">
+    <div className="bg-background border-border flex h-full min-h-0 w-full flex-col overflow-hidden rounded-t-2xl border shadow-2xl sm:flex-row sm:rounded-2xl">
+      <aside className="border-border bg-muted/20 flex shrink-0 flex-col border-b sm:w-[168px] sm:border-r sm:border-b-0">
+        <div className="flex items-center justify-between gap-2 px-2 pt-2 sm:justify-start">
           {onClose ? (
             <button
               type="button"
@@ -121,14 +117,23 @@ export function SettingsLayout({
             >
               <X className="size-4" />
             </button>
-          ) : null}
+          ) : (
+            <span className="size-8" />
+          )}
+          <p className="text-foreground pr-2 text-[13px] font-medium sm:hidden">
+            Settings
+          </p>
+          <span className="size-8 sm:hidden" />
         </div>
-        <SettingsRail
-          activeCategory={category}
-          onCategoryChange={setCategory}
-        />
+        <div className="min-h-0 overflow-x-auto overflow-y-hidden sm:overflow-x-hidden sm:overflow-y-auto">
+          <SettingsRail
+            activeCategory={category}
+            onCategoryChange={setCategory}
+            orientation="responsive"
+          />
+        </div>
       </aside>
-      <div className="bg-background flex min-w-0 flex-1 flex-col">
+      <div className="bg-background flex min-h-0 min-w-0 flex-1 flex-col">
         <ErrorBoundary>
           {ACCOUNT_SCOPED_TABS.has(category) && status !== "ready" ? (
             <SessionGate

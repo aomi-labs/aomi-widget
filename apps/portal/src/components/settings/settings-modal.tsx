@@ -21,18 +21,18 @@ export function SettingsModal() {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center p-3 sm:p-6">
+    <div className="fixed inset-0 z-[80] flex items-end justify-center sm:items-center sm:p-6">
       <button
         type="button"
         aria-label="Dismiss settings"
-        className="absolute inset-0 bg-black/55 backdrop-blur-[2px]"
+        className="absolute inset-0 bg-black/55 backdrop-blur-[1px]"
         onClick={closeSettings}
       />
       <div
         role="dialog"
         aria-modal="true"
         aria-label="Settings"
-        className="relative z-[81] flex h-[min(720px,92dvh)] w-full max-w-[820px] flex-col"
+        className="relative z-[81] flex h-[min(640px,88dvh)] w-full max-w-[680px] flex-col sm:h-[min(560px,82dvh)] sm:w-[min(680px,calc(100vw-3rem))]"
       >
         <SettingsRuntimeProvider>
           <SettingsLayout onClose={closeSettings} />
