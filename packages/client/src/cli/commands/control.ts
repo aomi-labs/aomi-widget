@@ -279,6 +279,7 @@ export async function setModelCommand(
   try {
     await session.client.setModel(cli.sessionId, model, {
       app: cli.app,
+      applicationId: config.applicationId,
       apiKey: cli.apiKey,
     });
     cli.setModel(model);

@@ -50,6 +50,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   private apiKey?: string;
   private userState?: UserStateShape;
   private clientId: string;
+  private paymentMethod?: string | null;
   private syncPendingTxRequestsFromUserState: boolean;
   private pollIntervalMs: number;
   private logger?: { debug: (...args: unknown[]) => void };
@@ -81,6 +82,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     this.app = sessionOptions?.app ?? "default";
     this.applicationId = sessionOptions?.applicationId;
     this.apiKey = sessionOptions?.apiKey;
+    this.paymentMethod = sessionOptions?.paymentMethod;
     const initialUserState = UserState.reconcile(
       undefined,
       sessionOptions?.userState,
@@ -128,6 +130,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       apiKey: this.apiKey,
       userState: this.userState,
       clientId: this.clientId,
+      paymentMethod: this.paymentMethod,
     });
 
     this.assertUserStateAligned(response.user_state);
@@ -159,6 +162,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       apiKey: this.apiKey,
       userState: this.userState,
       clientId: this.clientId,
+      paymentMethod: this.paymentMethod,
     });
 
     this.assertUserStateAligned(response.user_state);
@@ -353,6 +357,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       this.sessionId,
       this.userState,
       this.clientId,
+      { app: this.app, applicationId: this.applicationId },
     );
     this.assertUserStateAligned(state.user_state);
     this.applyState(state);
@@ -379,6 +384,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       this.sessionId,
       this.userState,
       this.clientId,
+      { app: this.app, applicationId: this.applicationId },
     );
 
     this.assertUserStateAligned(state.user_state);
@@ -424,6 +430,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
         this.sessionId,
         this.userState,
         this.clientId,
+        { app: this.app, applicationId: this.applicationId },
       );
 
       // Guard: polling may have been stopped while awaiting fetch
