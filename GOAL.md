@@ -44,6 +44,15 @@ Progress:
   Verified focused theme tests, Aomi Build lint/typecheck/production build,
   and live `/build` rendering plus reload persistence in both themes.
 
+- 2026-07-16 Solana transaction parity: completed the shared HTTP client and
+  CLI paths for SVM approval normalization, signing, broadcast, and terminal
+  callbacks; added portal wallet binding and a loopback-only injected Solana
+  signer for browser E2E; and made the default runtime preserve both EVM and
+  SVM wallet/network state. Patch-bumped `@aomi-labs/client` to 0.3.2 and
+  regenerated its publishable artifacts. Verified a Gemini 3 Flash transfer
+  through the CLI and portal, including finalized on-chain signatures, backend
+  pending-state cleanup, and interpreted Solana trace steps.
+
 - 2026-07-14 hosted SDK compatibility: Aomi Build now marks incompatible
   deployments as outdated, blocks their broken chat iframe, links users to the
   Deployments tab, and requests a source-owned SDK upgrade pull request before

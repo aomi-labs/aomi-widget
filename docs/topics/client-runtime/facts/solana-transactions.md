@@ -1,7 +1,21 @@
-# Solana HTTP delivery gap — resolved
+---
+title: Solana Transactions
+owner: sdk
+status: authoritative
+area: client-runtime
+review_after_days: 30
+sources_of_truth:
+  - packages/client/src/authorization.ts
+  - packages/client/src/session/wallet.ts
+  - packages/client/src/cli/commands/wallet.ts
+  - apps/portal/src/features/general/use-svm-wallet-binding.ts
+---
 
-Resolved and verified locally on 2026-07-15. This document records the failure
-chain and the acceptance evidence; it is no longer an open debugging guide.
+# Solana Transactions
+
+The Solana HTTP transaction path was completed and verified locally on
+2026-07-15. This page records its durable client contract, root causes, and
+acceptance evidence.
 
 ## Root causes
 
