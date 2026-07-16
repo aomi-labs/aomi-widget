@@ -294,7 +294,7 @@ function NavItemLink({
   if (!enabled) {
     return (
       <div
-        className="nav-link cursor-not-allowed opacity-45"
+        className="nav-link cursor-not-allowed opacity-65"
         title={
           !expanded
             ? item.requiresGitHub
@@ -338,7 +338,7 @@ function NavGroupList({
   return (
     <div className="mb-1">
       {expanded ? (
-        <div className="text-dim px-2.5 py-1.5 text-[11px] font-medium">
+        <div className="text-subtle px-2.5 py-1.5 text-[11px] font-medium tracking-wide uppercase">
           {group.title}
         </div>
       ) : null}

@@ -335,17 +335,17 @@
   @apply flex h-8 items-center gap-2.5 rounded-md px-2.5 text-[13px] transition-all duration-150;
 }
 .nav-link[data-active="false"] {
-  color: var(--text-subtle);
+  color: var(--aomi-text-secondary);
 }
 .nav-link[data-active="false"]:hover {
   background: var(--accent-hover);
   color: var(--text-primary);
 }
 .nav-link[data-active="false"] .nav-icon {
-  color: var(--text-dim);
+  color: var(--text-subtle);
 }
 .nav-link[data-active="false"]:hover .nav-icon {
-  color: var(--text-subtle);
+  color: var(--text-primary);
 }
 .nav-link[data-active="true"] {
   background: var(--accent-selected);

@@ -169,6 +169,8 @@
     --aomi-overlay: rgba(13, 13, 15, 0.45);
 
     --aomi-text: var(--aomi-cool-950);
+    /* Secondary text — nav items, list labels: readable, clearly not primary. */
+    --aomi-text-secondary: var(--aomi-cool-700);
     --aomi-text-muted: var(--aomi-cool-500);
     --aomi-text-subtle: var(--aomi-cool-400);
     --aomi-text-on-brand: var(--aomi-cool-0);
@@ -236,6 +238,7 @@
     --aomi-overlay: rgba(0, 0, 0, 0.6);
 
     --aomi-text: var(--aomi-cool-50);
+    --aomi-text-secondary: var(--aomi-cool-300);
     --aomi-text-muted: var(--aomi-cool-400);
     --aomi-text-subtle: var(--aomi-cool-500);
     --aomi-text-on-brand: var(--aomi-cool-950);
