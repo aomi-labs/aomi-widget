@@ -574,10 +574,10 @@ function ControlPlaneShellContent({ children }: { children: React.ReactNode }) {
           expanded ? "w-56" : "w-14",
         )}
       >
-        <div className="border-border relative border-b">
+        <div className="border-border relative h-11 shrink-0 border-b">
           <div
             className={cn(
-              "flex h-11 items-center gap-2 px-3",
+              "flex h-full items-center gap-2 px-3",
               expanded ? "justify-between" : "justify-center px-2",
             )}
           >
