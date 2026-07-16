@@ -648,7 +648,6 @@ declare const phaseSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
     label: z.ZodOptional<z.ZodString>;
 }, z.core.$strip>], "kind">;
 type Phase = z.infer<typeof phaseSchema>;
-type WaitExternalPhase = z.infer<typeof waitExternalPhaseSchema>;
 /**
  * The contract between the intent conversation and the Smithers workflow.
  * The chat distills user intent into this plan; `buildAppWorkflow` renders
@@ -961,6 +960,10 @@ declare function agentSpecsFor(plan: BuildPlan): Array<{
  *  and the workflow all derive from this single source. A parallel phase emits
  *  a header row plus one row per branch leaf (each has its own node id and
  *  lights up independently); a loop stays a single row (its body collapses). */
+/** Fold a workflow node id onto the stage row that represents it: inner
+ *  phases of a loop light the loop's single row (`stagesFor` collapses loop
+ *  bodies). Every other node id is its own row. */
+declare function stageKeyForNode(plan: BuildPlan, nodeIdValue: string): string;
 declare function stagesFor(plan: BuildPlan): PlanStage[];
 /** Human-readable plan summary for the preview screen and dry-run output. */
 declare function describePlan(plan: BuildPlan): string[];
@@ -1327,15 +1330,11 @@ declare const smitherSchemas: {
 type SmitherSchemas = typeof smitherSchemas;
 type BinariesRow = z.infer<SmitherSchemas["binaries"]>;
 type CodegenRow = z.infer<SmitherSchemas["codegen"]>;
-type CurationRow = z.infer<SmitherSchemas["curation"]>;
-type ReviewRow = z.infer<SmitherSchemas["review"]>;
 type ValidationRow = z.infer<SmitherSchemas["validation"]>;
 type SmokeRow = z.infer<SmitherSchemas["smoke"]>;
 type GateRow = z.infer<SmitherSchemas["gate"]>;
 type ClarifyRow = z.infer<SmitherSchemas["clarify"]>;
-type AgentWorkRow = z.infer<SmitherSchemas["agentWork"]>;
 type EvaluationRow = z.infer<SmitherSchemas["evaluation"]>;
-type ExternalRow = z.infer<SmitherSchemas["external"]>;
 type DeploymentRow = z.infer<SmitherSchemas["deployment"]>;
 type ResultRow = z.infer<SmitherSchemas["result"]>;
 declare function boundedLog(log: string, max?: number): string;
@@ -1541,7 +1540,20 @@ declare function makeWorkAgent(kind: AgentKind, options: {
 
 type AomiSmitherApi = CreateSmithersApi<SmitherSchemas>;
 type AomiWorkflow = ReturnType<AomiSmitherApi["smithers"]>;
-declare function createAomiSmither(dbPath: string): Promise<AomiSmitherApi>;
+/** Where the durable run state lives. `sqlite` is Bun-only (bun:sqlite);
+ *  `pglite`/`postgres` run on Node — the web (`aomi-build` BFF) path. */
+type SmitherBackend = {
+    kind: "sqlite";
+    dbPath: string;
+} | {
+    kind: "pglite";
+    dataDir: string;
+} | {
+    kind: "postgres";
+    connectionString: string;
+};
+declare function describeBackend(backend: SmitherBackend): string;
+declare function createAomiSmither(backend: string | SmitherBackend): Promise<AomiSmitherApi>;
 type WorkflowDeps = {
     runner?: CommandRunner;
     env?: NodeJS.ProcessEnv;
@@ -1620,7 +1632,18 @@ declare function startConsoleForApp(options: {
     builtinConsole?: boolean;
 }): Promise<ConsoleHandle>;
 
+declare function isBunRuntime(): boolean;
+/** Bun-only surfaces (the gateway console bundles its UI with Bun.build). */
 declare function assertBunRuntime(): void;
+/**
+ * Pick where run state lives. An explicit SMITHER_DATABASE_URL wins on any
+ * runtime (shared/durable Postgres); otherwise Bun keeps the classic
+ * bun:sqlite file and Node falls back to an embedded PGlite dir beside it.
+ */
+declare function resolveRunBackend(app: string, options?: {
+    runsRoot?: string;
+    env?: NodeJS.ProcessEnv;
+}): SmitherBackend;
 type PreparedRun = {
     api: AomiSmitherApi;
     workflow: Awaited<ReturnType<typeof buildAppWorkflow>>;
@@ -1628,13 +1651,16 @@ type PreparedRun = {
     runId: string;
     /** True when a prior run exists for this app and we're continuing it. */
     resume: boolean;
-    dbPath: string;
+    backend: SmitherBackend;
+    /** Human-readable state location (sqlite path, pglite dir, or "postgres"). */
+    stateLocation: string;
 };
 declare function prepareRun(options: {
     plan: BuildPlan;
     deps?: WorkflowDeps;
     runsRoot?: string;
     overwrite?: boolean;
+    backend?: SmitherBackend;
 }): Promise<PreparedRun>;
 declare function executeRun(prepared: PreparedRun, options?: {
     onEvent?: (event: SmithersEvent) => void;
@@ -1688,4 +1714,4 @@ declare function decideApproval(options: {
     };
 }): Promise<void>;
 
-export { type ActivationCredential, type AgentKind, type AgentPhase, type AgentRole, type AgentWorkRow, type AomiBuildCommand, type AomiSmitherApi, type AomiWorkflow, type BinariesRow, type BuildPlan, type ClarifyOption, type ClarifyRow, type CodegenRow, type CommandResult, type CommandRunner, type ComputeOp, type ConsoleHandle, type ConsoleOptions, type CurationRow, DEFAULT_CONSOLE_PORT, type DeploymentRow, type EvalPhase, type EvaluationRow, type ExternalRow, type GateRow, type InnerPhase, type IntakePhase, type IntakeServerHandle, type IntakeState, type IntentAgent, type IntentDraft, type IntentTurn, type Phase, type PlanStage, type PreparedRun, type PromptContext, type ResolvedBinaries, type ResultRow, type ReviewRow, type RollbackClient, type RollbackPlanSummary, type RollbackTarget, type RunState, type SdkFreshness, type SmitherSchemas, type SmokeRow, type ValidationRow, WORKFLOW_NAME, type WaitExternalPhase, type WorkflowDeps, activationConfigPath, agentPhaseSchema, agentRoleSchema, agentSpecsFor, assertBunRuntime, boundedLog, buildAppWorkflow, buildPlanSchema, clarifyOptionSchema, clarifyPhaseSchema, classicComposition, compositionIssues, computeOpSchema, computePhaseSchema, createAomiSmither, createRunState, curatePrompt, decideApproval, defaultRunner, defaultRunsRoot, defaultSdkRoot, describePlan, designPrompt, distillIntent, draftSpecPrompt, ensureFreshSdkCheckout, evalJudge, evalPhaseSchema, executeRollback, executeRun, executeRunUntilSettled, extractJsonObject, finalizePlan, fixPrompt, gatePhaseSchema, innerPhaseSchema, innerPhasesOf, intentDraftSchema, intentPlanFields, intentPrompt, judgePrompt, loadPlan, loadRunState, loopPhaseSchema, makeWorkAgent, mergePlanDraft, newAppArgs, nodeId, packageRoot, parallelPhaseSchema, phaseAgent, phaseSchema, planPath, planRollback, pluginLibraryFileName, prepareRun, researchPrompt, resetRunState, resolveActivationCredential, resolveAgentCwd, resolveAomiBinaries, resolveComposition, resolveFreshAomiBinaries, reviewPrompt, rolePrompt, rollbackClientFromEnv, runAomiBuild, runAomiRun, runAppCargoChecks, runDir, runEvalStep, runStatePath, sanitizeAppName, savePlan, sendSignal, smitherDbPath, smitherSchemas, stagesFor, startConsole, startConsoleForApp, startIntakeServer, synthesizePrompt, targetBinaryPaths, waitExternalPhaseSchema };
+export { type ActivationCredential, type AgentKind, type AgentPhase, type AgentRole, type AomiBuildCommand, type AomiSmitherApi, type AomiWorkflow, type BinariesRow, type BuildPlan, type ClarifyOption, type ClarifyRow, type CodegenRow, type CommandResult, type CommandRunner, type ComputeOp, type ConsoleHandle, type ConsoleOptions, DEFAULT_CONSOLE_PORT, type DeploymentRow, type EvalPhase, type EvaluationRow, type GateRow, type InnerPhase, type IntakePhase, type IntakeServerHandle, type IntakeState, type IntentAgent, type IntentDraft, type IntentTurn, type Phase, type PlanStage, type PreparedRun, type PromptContext, type ResolvedBinaries, type ResultRow, type RollbackClient, type RollbackPlanSummary, type RollbackTarget, type RunState, type SdkFreshness, type SmitherBackend, type SmitherSchemas, type SmokeRow, type ValidationRow, WORKFLOW_NAME, type WorkflowDeps, activationConfigPath, agentPhaseSchema, agentRoleSchema, agentSpecsFor, assertBunRuntime, boundedLog, buildAppWorkflow, buildPlanSchema, clarifyOptionSchema, clarifyPhaseSchema, classicComposition, compositionIssues, computeOpSchema, computePhaseSchema, createAomiSmither, createRunState, curatePrompt, decideApproval, defaultRunner, defaultRunsRoot, defaultSdkRoot, describeBackend, describePlan, designPrompt, distillIntent, draftSpecPrompt, ensureFreshSdkCheckout, evalJudge, evalPhaseSchema, executeRollback, executeRun, executeRunUntilSettled, extractJsonObject, finalizePlan, fixPrompt, gatePhaseSchema, innerPhaseSchema, innerPhasesOf, intentDraftSchema, intentPlanFields, intentPrompt, isBunRuntime, judgePrompt, loadPlan, loadRunState, loopPhaseSchema, makeWorkAgent, mergePlanDraft, newAppArgs, nodeId, packageRoot, parallelPhaseSchema, phaseAgent, phaseSchema, planPath, planRollback, pluginLibraryFileName, prepareRun, researchPrompt, resetRunState, resolveActivationCredential, resolveAgentCwd, resolveAomiBinaries, resolveComposition, resolveFreshAomiBinaries, resolveRunBackend, reviewPrompt, rolePrompt, rollbackClientFromEnv, runAomiBuild, runAomiRun, runAppCargoChecks, runDir, runEvalStep, runStatePath, sanitizeAppName, savePlan, sendSignal, smitherDbPath, smitherSchemas, stageKeyForNode, stagesFor, startConsole, startConsoleForApp, startIntakeServer, synthesizePrompt, targetBinaryPaths, waitExternalPhaseSchema };

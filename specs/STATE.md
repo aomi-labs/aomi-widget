@@ -2,6 +2,28 @@
 
 ## Last Updated
 
+2026-07-16 — /build E2E verified in-browser against a REAL smither run
+  (geckoterminal: binaries → codegen → curate via live Claude agent →
+  validate-loop cargo → result; resume replay lands the page on Ship). Fixes
+  found by the E2E: workflow.tsx ok/green checks must be truthy not `=== true`
+  (booleans round-trip as 0/1 through the store); bun-compat gained a minimal
+  `Bun` global polyfill (sleep/which, no `version` so isBunRuntime stays
+  honest) and a functional node:sqlite-backed bun:sqlite shim (the engine's
+  single-runner opens an in-memory scratch sqlite on every backend); engine
+  maps RunStatus "finished"/"continued" (not "completed"), captures
+  result.error, backfills stage statuses on replayed completed runs, and
+  auto-resumes settled apps on re-POST;
+2026-07-16 — /build wired to real aomi-smither (flagged): smithers-orchestrator
+  0.26.1→0.27.0 (Node ≥22 + pglite/postgres backends via new SmitherBackend
+  seam in packages/smither run.ts/workflow.tsx; SMITHER_DATABASE_URL wins,
+  Bun keeps bun:sqlite, Node falls back to per-app PGlite); aomi-build BFF
+  build engine (src/server/bff/build/engine.ts + routes; POST/GET
+  /api/bff/build/runs, POST /api/bff/build/runs/decision; GitHub session +
+  origin + rate-limit gated; autoApprove default until UI renders approvals);
+  Node loader hooks for Bun-flavored smithers sources (src/instrumentation.ts
+  + src/server/bun-compat.ts; serverExternalPackages in next.config.ts);
+  use-build-session drives the real engine when NEXT_PUBLIC_BUILD_ENGINE=
+  smither (poll → smither-run-mapper.ts, mock pipeline unchanged by default);
 2026-07-14 — Account menu: Docs (aomi.dev/docs) + Home page links (Vercel-style);
 2026-07-14 — Build P2 deep-link polish (⌘K / Billing / Overview → right tab);
 2026-07-14 — Create stack #343–#349 merged to main (left #340);
@@ -2098,6 +2120,11 @@ Controls disabled while isProcessing === true
 
 ## Pending
 
+- /build engine mode: render approvals/clarifies in the UI (decision route
+  exists; runs default to autoApprove until then)
+- /build engine mode: real fileTree from run outputs (left empty for now)
+- Vercel prod shape for the engine: SMITHER_DATABASE_URL (shared Postgres) +
+  @smithers-orchestrator/vercel sandbox provider for compute phases (v2)
 - End-to-end testing of wallet tx request flow
 - SSE event handling verification (SystemNotice, AsyncCallback)
 - E2E verification of control flow: apiKey → namespaces → model selection
