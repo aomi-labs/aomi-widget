@@ -23,12 +23,14 @@ describe("supported chain metadata", () => {
   it("includes the networks surfaced by the headless SDK and widget UI", () => {
     expect(SUPPORTED_CHAIN_IDS).toEqual(
       expect.arrayContaining([
-        1, 137, 42161, 8453, 10, 11155111, 59144, 59141, 143, 10143, 31337,
+        1, 137, 42161, 8453, 84532, 10, 11155111, 59144, 59141, 143, 10143,
+        31337,
       ]),
     );
   });
 
   it("defines Alchemy slugs for supported Alchemy-backed RPC chains", () => {
+    expect(ALCHEMY_CHAIN_SLUGS[84532]).toBe("base-sepolia");
     expect(ALCHEMY_CHAIN_SLUGS[59144]).toBe("linea-mainnet");
     expect(ALCHEMY_CHAIN_SLUGS[59141]).toBe("linea-sepolia");
   });

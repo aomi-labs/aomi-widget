@@ -319,6 +319,35 @@ describe("AomiClient account profile", () => {
     }
   });
 
+  it("passes chat payment method as a query param", async () => {
+    const response = {
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      json: vi.fn(async () => ({ messages: [], is_processing: false })),
+    } as unknown as Response;
+    const nativeFetch = vi.fn(async () => response);
+    const originalFetch = globalThis.fetch;
+    vi.stubGlobal("fetch", nativeFetch);
+
+    try {
+      const client = new AomiClient({ baseUrl: "http://unit.test" });
+
+      await client.sendMessage("session-1", "paid turn", {
+        app: "somm-agent",
+        applicationId: 31,
+        clientId: "client-1",
+        paymentMethod: "coinbase",
+      });
+
+      expect(String(nativeFetch.mock.calls[0]?.[0])).toBe(
+        "http://unit.test/api/thread/chat?app=somm-agent&application_id=31&message=paid+turn&client_id=client-1&payment_method=coinbase",
+      );
+    } finally {
+      vi.stubGlobal("fetch", originalFetch);
+    }
+  });
+
   it("sends setModel as query params instead of a JSON body", async () => {
     const response = {
       ok: true,
