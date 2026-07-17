@@ -129,21 +129,12 @@ const ThreadWelcome: FC = () => {
   return (
     <div className="aui-thread-welcome-root mx-auto my-auto flex w-full max-w-[var(--thread-max-width)] flex-grow flex-col px-2">
       <div className="aui-thread-welcome-center flex w-full flex-grow flex-col items-center justify-center">
-        <div className="aui-thread-welcome-message flex size-full flex-col justify-center gap-2 px-6 md:px-8">
-          <m.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 8 }}
-            className="aui-thread-welcome-eyebrow text-muted-foreground text-[10.5px] font-medium tracking-[0.09em] uppercase"
-          >
-            Workspace
-          </m.div>
+        <div className="aui-thread-welcome-message flex size-full flex-col justify-center gap-1.5 px-6 md:px-8">
           <m.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 10 }}
-            transition={{ delay: 0.04 }}
-            className="aui-thread-welcome-message-motion-1 text-foreground text-[1.625rem] leading-tight font-semibold tracking-tight antialiased md:text-[1.75rem]"
+            className="aui-thread-welcome-message-motion-1 text-foreground text-[1.5rem] leading-tight font-semibold tracking-tight antialiased md:text-[1.625rem]"
           >
             Hello there!
           </m.div>
@@ -151,8 +142,8 @@ const ThreadWelcome: FC = () => {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 10 }}
-            transition={{ delay: 0.1 }}
-            className="aui-thread-welcome-message-motion-2 text-muted-foreground max-w-md text-sm leading-relaxed antialiased md:text-[0.9375rem]"
+            transition={{ delay: 0.06 }}
+            className="aui-thread-welcome-message-motion-2 text-muted-foreground max-w-md text-sm leading-relaxed antialiased"
           >
             How can I help you today?
           </m.div>
@@ -163,106 +154,82 @@ const ThreadWelcome: FC = () => {
   );
 };
 
-const SUGGESTION_ACCENTS = [
-  "var(--portal-status-info, oklch(0.68 0.12 230))",
-  "var(--portal-status-warning, oklch(0.75 0.14 75))",
-  "var(--portal-status-success, oklch(0.62 0.14 155))",
-  "oklch(0.7 0.14 310)",
-] as const;
-
 const ThreadSuggestions: FC = () => {
   return (
-    <div className="aui-thread-welcome-suggestions flex w-full flex-col gap-2 px-1 pb-4">
-      <div className="aui-thread-welcome-suggestions-label text-muted-foreground px-1 text-[10.5px] font-medium tracking-[0.09em] uppercase">
-        Suggestions
-      </div>
-      <div className="@md:grid-cols-2 grid w-full gap-2">
-        {[
-          {
-            title: (
-              <>
-                Show my wallet balances
-              </>
-            ),
-            label: "and positions",
-            action: "Show my wallet balances and positions",
-            icon: WalletIcon,
-          },
-          {
-            title: (
-              <>
-                Swap{" "}
-                <span className="aui-thread-welcome-suggestion-numeric font-[family-name:var(--font-geist-mono)] tabular-nums">
-                  1
-                </span>{" "}
-                ETH to USDC
-              </>
-            ),
-            label: "with the best price",
-            action: "Swap 1 ETH to USDC with the best price",
-            icon: ArrowLeftRightIcon,
-          },
-          {
-            title: (
-              <>
-                Stake half of my ETH
-              </>
-            ),
-            label: "in the highest yield pool",
-            action: "Stake half of my ETH in the highest yield pool",
-            icon: LayersIcon,
-          },
-          {
-            title: (
-              <>
-                Bridge{" "}
-                <span className="aui-thread-welcome-suggestion-numeric font-[family-name:var(--font-geist-mono)] tabular-nums">
-                  100
-                </span>{" "}
-                USDC
-              </>
-            ),
-            label: "from Ethereum to Arbitrum",
-            action: "Bridge 100 USDC from Ethereum to Arbitrum",
-            icon: CableIcon,
-          },
-        ].map((suggestedAction, index) => (
-          <m.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 16 }}
-            transition={{ delay: 0.05 * index }}
-            key={`suggested-action-${suggestedAction.action}-${index}`}
-            className="aui-thread-welcome-suggestion-display @md:[&:nth-child(n+3)]:block [&:nth-child(n+3)]:hidden"
+    <div className="aui-thread-welcome-suggestions @md:grid-cols-2 grid w-full gap-2 px-1 pb-4">
+      {[
+        {
+          title: "Show my wallet balances",
+          label: "and positions",
+          action: "Show my wallet balances and positions",
+          icon: WalletIcon,
+        },
+        {
+          title: (
+            <>
+              Swap{" "}
+              <span className="aui-thread-welcome-suggestion-numeric font-[family-name:var(--font-geist-mono)] tabular-nums">
+                1
+              </span>{" "}
+              ETH to USDC
+            </>
+          ),
+          label: "with the best price",
+          action: "Swap 1 ETH to USDC with the best price",
+          icon: ArrowLeftRightIcon,
+        },
+        {
+          title: "Stake half of my ETH",
+          label: "in the highest yield pool",
+          action: "Stake half of my ETH in the highest yield pool",
+          icon: LayersIcon,
+        },
+        {
+          title: (
+            <>
+              Bridge{" "}
+              <span className="aui-thread-welcome-suggestion-numeric font-[family-name:var(--font-geist-mono)] tabular-nums">
+                100
+              </span>{" "}
+              USDC
+            </>
+          ),
+          label: "from Ethereum to Arbitrum",
+          action: "Bridge 100 USDC from Ethereum to Arbitrum",
+          icon: CableIcon,
+        },
+      ].map((suggestedAction, index) => (
+        <m.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 12 }}
+          transition={{ delay: 0.04 * index }}
+          key={`suggested-action-${suggestedAction.action}-${index}`}
+          className="aui-thread-welcome-suggestion-display @md:[&:nth-child(n+3)]:block [&:nth-child(n+3)]:hidden"
+        >
+          <ThreadPrimitive.Suggestion
+            prompt={suggestedAction.action}
+            send
+            asChild
           >
-            <ThreadPrimitive.Suggestion
-              prompt={suggestedAction.action}
-              send
-              asChild
+            <Button
+              variant="ghost"
+              className="aui-thread-welcome-suggestion group/suggestion @md:flex-col dark:hover:bg-accent/50 h-auto w-full min-w-0 flex-col items-start justify-start gap-0.5 overflow-hidden whitespace-normal rounded-xl border border-border/55 bg-transparent px-3.5 py-3 text-left text-sm font-normal shadow-none transition-colors hover:bg-accent/40"
+              aria-label={suggestedAction.action}
             >
-              <Button
-                variant="ghost"
-                className="aui-thread-welcome-suggestion group/suggestion @md:flex-col dark:hover:bg-accent/50 h-auto w-full min-w-0 flex-col items-start justify-start gap-1 overflow-hidden whitespace-normal rounded-xl border border-border/60 bg-card/40 px-3.5 py-3 text-left text-sm font-normal shadow-none transition-colors hover:bg-accent/40"
-                style={{
-                  borderLeftWidth: 2,
-                  borderLeftColor: SUGGESTION_ACCENTS[index],
-                }}
-                aria-label={suggestedAction.action}
-              >
-                <span className="aui-thread-welcome-suggestion-text-1 text-foreground flex min-w-0 items-start gap-2 break-words leading-snug font-medium">
-                  <suggestedAction.icon className="text-muted-foreground/50 group-hover/suggestion:text-foreground size-3.5 shrink-0 transition-colors" />
-                  <span className="min-w-0 break-words">
-                    {suggestedAction.title}
-                  </span>
+              <span className="aui-thread-welcome-suggestion-text-1 text-foreground flex min-w-0 items-start gap-2 break-words leading-snug">
+                <suggestedAction.icon className="text-muted-foreground/45 group-hover/suggestion:text-foreground size-3.5 shrink-0 transition-colors" />
+                <span className="min-w-0 break-words">
+                  {suggestedAction.title}
                 </span>
-                <span className="aui-thread-welcome-suggestion-text-2 text-muted-foreground/70 ml-[22px] min-w-0 break-words text-xs leading-tight">
-                  {suggestedAction.label}
-                </span>
-              </Button>
-            </ThreadPrimitive.Suggestion>
-          </m.div>
-        ))}
-      </div>
+              </span>
+              <span className="aui-thread-welcome-suggestion-text-2 text-muted-foreground/65 ml-[22px] min-w-0 break-words text-xs leading-tight">
+                {suggestedAction.label}
+              </span>
+            </Button>
+          </ThreadPrimitive.Suggestion>
+        </m.div>
+      ))}
     </div>
   );
 };
@@ -271,7 +238,7 @@ const Composer: FC = () => {
   return (
     <div className="aui-composer-wrapper bg-background mx-auto flex w-full max-w-[var(--thread-max-width)] shrink-0 flex-col gap-3 overflow-visible px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:pb-5">
       <ThreadScrollToBottom />
-      <ComposerPrimitive.Root className="aui-composer-root rounded-2xl bg-muted/30 text-card-foreground border-border/55 dark:bg-muted/20 relative flex w-full flex-col border px-1 pt-1.5 shadow-[inset_0_1px_0_0_color-mix(in_oklch,var(--foreground)_4%,transparent)]">
+      <ComposerPrimitive.Root className="aui-composer-root rounded-2xl bg-muted/30 text-card-foreground border-border/55 dark:bg-muted/20 relative flex w-full flex-col border px-1 pt-1.5">
         <ComposerPrimitive.Input
           placeholder="Send a message..."
           className="aui-composer-input text-foreground placeholder:text-muted-foreground/65 dark:text-foreground dark:placeholder:text-muted-foreground/75 ml-2.5 mt-0.5 max-h-32 min-h-12 w-full resize-none bg-transparent px-3 pb-1.5 pt-1.5 text-sm outline-none"

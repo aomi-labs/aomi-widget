@@ -8,20 +8,21 @@ suggestion prompts) — match the *feel*, not NeuralForge brand/content.
 
 ## Chat empty-state match (this pass)
 
-Previous pass left `thread.tsx` alone. This pass restyles the **real** Aomi
-empty chat so it reads like NeuralForge ops chrome:
+Restyle the **real** Aomi empty chat toward NeuralForge density — without
+pasting fake ops chrome onto a chat product:
 
 | Surface | Approach |
 | --- | --- |
-| Welcome | Eyebrow micro-label + tighter title hierarchy (bold primary, muted secondary) — not soft giant greeting |
-| Suggestion cards | Hairline bento cards, left status-accent bars (amber/green/cyan/info), muted meta line, mono on amounts (`1`, `100`) |
-| Composer | Denser charcoal surface, hairline border, slightly sharper radius, tighter control row |
-| Thread rail | Discussion-rail density: tighter rows, hairline separator, muted New Chat |
+| Welcome | Sentence-case title + muted secondary line. **No** fake `WORKSPACE` eyebrow |
+| Suggestion cards | Hairline bordered prompts, muted meta line, tabular mono on amounts (`1`, `100`). **No** rainbow left status bars, **no** `SUGGESTIONS` section stamp |
+| Composer | Denser charcoal surface, hairline border, sharper radius, tighter control row |
+| Thread rail | Tighter rows, hairline separator, muted New Chat. **No** fake `THREADS` rail label |
 | Portal frame | Header/side chrome denser charcoal; portal CSS overrides + shared widget class tweaks |
 
-**Do not** invent Billing/NeuralForge fake product data or a third fake column of
-ops widgets. Aomi’s layout stays thread-rail + chat + composer; density and
-surface language carry the 3-col ops *feel*.
+**Do not** invent Billing/NeuralForge fake product data, fake section stamps
+(`Workspace` / `Suggestions` / `Threads`), or decorative status accent bars on
+prompt cards. Aomi’s layout stays thread-rail + chat + composer; density and
+surface language carry the ops *feel*.
 
 ### Shared package
 
@@ -34,10 +35,12 @@ token/font overrides in `apps/portal` only.
 | Surface | Case | Example |
 | --- | --- | --- |
 | Titles, nav items, settings rows | Sentence or Title case | `Account Settings`, `Credits this month` |
-| Micro-labels (section heads, column heads, IDs, tab chips) | ALL CAPS + wide tracking | `FROM`, `ASSETS`, `WORKSPACE`, `AVAILABLE` |
+| Micro-labels (real section heads only: settings rails, column heads, IDs, tab chips) | ALL CAPS + wide tracking | `FROM`, `ASSETS`, `AVAILABLE` |
 | Units / secondary copy | Lowercase or sentence | `credits`, `tokens`, descriptions |
 
-Use `.aomi-eyebrow` for ALL CAPS micro-labels. Do not uppercase full sentences
+Use `.aomi-eyebrow` only for **true** micro-labels on structured surfaces
+(settings, tables, deploy chrome). Do **not** stamp eyebrows onto chat empty
+state or the thread rail just to look “ops.” Do not uppercase full sentences
 or primary row labels.
 
 ## Typography
@@ -67,9 +70,11 @@ Geist Mono continues to load from `next/font/google` in
 ## Surface
 
 - Hairline borders (`border-border` at ~50–70% opacity)
-- Bento / rounded cards via `.aomi-card` / suggestion card chrome
-- Restrained fills; status color (amber / green / cyan) for signal only
+- Restrained fills; status color (amber / green / cyan) only for **real**
+  status signals — not decorative bars on suggestion cards
 - Dark charcoal chrome in dark mode; cool zinc in light mode (inherited tokens)
+- Avoid purple glow, inset highlight tricks, and invented density chrome that
+  does not map to Aomi product structure
 
 ## Icons
 

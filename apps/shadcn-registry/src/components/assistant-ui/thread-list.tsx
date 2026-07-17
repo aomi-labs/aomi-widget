@@ -22,9 +22,6 @@ export const ThreadList: FC = () => {
     <ThreadListPrimitive.Root className="aui-root aui-thread-list-root flex flex-1 list-none flex-col items-stretch gap-0.5 pl-1.5">
       <ThreadListNew />
       <div className="aui-thread-list-separator border-border/40 mx-3 my-1.5 border-t" />
-      <div className="aui-thread-list-rail-label text-muted-foreground px-3 pb-1 text-[10.5px] font-medium tracking-[0.09em] uppercase">
-        Threads
-      </div>
       <ThreadListItems />
     </ThreadListPrimitive.Root>
   );

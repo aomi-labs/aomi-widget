@@ -2,6 +2,10 @@
 
 ## Last Updated
 
+2026-07-17 — Portal chat empty-state de-slop on `feat/chat-portal-visual-theme`:
+  removed fake WORKSPACE / SUGGESTIONS / THREADS stamps + rainbow left accent
+  bars; kept hairline cards, denser composer/rail, tabular mono amounts;
+  bump `@aomi-labs/widget-lib` to 1.4.4;
 2026-07-17 — Portal chat NeuralForge match on `feat/chat-portal-visual-theme`:
   restyle ThreadWelcome / suggestion bento cards / denser composer + thread
   rail; portal chrome density; ABC Diatype stack + Geist Mono (Diatype files
