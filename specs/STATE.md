@@ -2,25 +2,26 @@
 
 ## Last Updated
 
+2026-07-17 — Portal shipping fonts locked to **Geist Sans + Geist Mono** on
+  `feat/chat-portal-visual-theme` (dropped Inter-as-primary / unloaded
+  Diatype-first stack); ABC Diatype remains optional drop-in only when
+  licensed files appear; see `specs/PORTAL-VISUAL-THEME.md`;
 2026-07-17 — ABC Diatype portal wiring on `feat/chat-portal-visual-theme`:
   machine/repo search found **no** licensed Diatype binaries; added drop dir
   `apps/portal/public/assets/fonts/diatype/` + README (expected filenames);
-  commented `@font-face` + `next/font/local` instructions; CSS stack already
-  `"ABC Diatype", Inter…`; mono stays Geist Mono (no Diatype Mono files);
-  portal-only (no widget-lib bump); see `specs/PORTAL-VISUAL-THEME.md`;
+  commented `@font-face` + `next/font/local` instructions; mono stays Geist
+  Mono (no Diatype Mono files); portal-only (no widget-lib bump);
 2026-07-17 — Portal chat empty-state de-slop on `feat/chat-portal-visual-theme`:
   removed fake WORKSPACE / SUGGESTIONS / THREADS stamps + rainbow left accent
   bars; kept hairline cards, denser composer/rail, tabular mono amounts;
   bump `@aomi-labs/widget-lib` to 1.4.4;
 2026-07-17 — Portal chat NeuralForge match on `feat/chat-portal-visual-theme`:
   restyle ThreadWelcome / suggestion bento cards / denser composer + thread
-  rail; portal chrome density; ABC Diatype stack + Geist Mono (Diatype files
-  still missing → Inter fallback); bump `@aomi-labs/widget-lib` to 1.4.3;
+  rail; portal chrome density; bump `@aomi-labs/widget-lib` to 1.4.3;
 2026-07-17 — Portal visual theme revamp on `feat/chat-portal-visual-theme`
-  (forked from settings): ABC Diatype UI stack (files missing → Inter
-  fallback) + Geist Mono numerics; portal-scoped eyebrow/numeric/card
-  utilities; caps/type/surface pass across settings, chat chrome,
-  launch/deploy; see `specs/PORTAL-VISUAL-THEME.md`;
+  (forked from settings): portal-scoped eyebrow/numeric/card utilities;
+  caps/type/surface pass across settings, chat chrome, launch/deploy;
+  see `specs/PORTAL-VISUAL-THEME.md`;
 2026-07-17 — Portal settings 10/10 craft: shared account cache, usage meter,
   menu credits glance, dialog focus trap + tests, remove legacy sidebar/deploy
   chrome; PR #365 (`feat/chat-portal-settings-revamp` only);

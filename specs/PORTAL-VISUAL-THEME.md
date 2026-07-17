@@ -45,59 +45,54 @@ or primary row labels.
 
 ## Typography
 
-- **Sans (UI / body / titles):** ABC Diatype — portal override of
-  `--font-geist-sans` and `body` to
-  `"ABC Diatype", var(--font-inter), Inter, system-ui, sans-serif`
-- **Mono (code / numerics):** Geist Mono — loaded via `next/font/google` as
-  `--font-geist-mono`; amounts, credits, tokens, IDs, commits via
-  `.aomi-numeric`. Prefer **ABC Diatype Mono** if licensed
-  `ABCDiatypeMono-*` files are dropped; otherwise keep Geist Mono.
+Shipping fonts (always loaded via `next/font/google` in
+`apps/portal/src/app/layout.tsx`):
+
+- **Sans (UI / body / titles):** Geist Sans — `--font-geist-sans` on
+  `body` / `font-sans`. Stack:
+  `var(--font-geist-sans), "Geist", system-ui, sans-serif`
+- **Mono (code / numerics):** Geist Mono — `--font-geist-mono`; amounts,
+  credits, tokens, IDs, commits via `.aomi-numeric`
 - Hierarchy: bold titles → medium row labels → muted metadata
 - Eyebrow: ~10.5px, `letter-spacing: 0.09em`, muted foreground
 
-### How Diatype is loaded (portal-only)
+### Optional ABC Diatype (licensed drop-in only)
 
-| Step | Where | Status |
+Diatype is **not** the shipping default. Do not put unloaded commercial
+family names first in the CSS stack — that makes the UI wait on a missing
+font. When licensed files are dropped under
+`apps/portal/public/assets/fonts/diatype/`:
+
+1. Uncomment the `@font-face` block in `apps/portal/src/app/globals.css`
+2. Prepend `"ABC Diatype"` to the body sans stack (Geist remains fallback)
+3. Optionally wire `next/font/local` in `layout.tsx` (commented snippet)
+4. If `ABCDiatypeMono-*` exists: add mono `@font-face` and point
+   `.aomi-numeric` at `"ABC Diatype Mono"`; otherwise keep Geist Mono
+
+| Step | Where | Shipping status |
 | --- | --- | --- |
-| Family stack | `apps/portal/src/app/globals.css` (`body`, `--font-geist-sans`) | Ready now |
-| `@font-face` | Same file — commented block pointing at `/assets/fonts/diatype/ABCDiatype-{Regular,Medium,Bold}.woff2` | Uncomment after drop |
-| Optional preload | `apps/portal/src/app/layout.tsx` — `next/font/local` snippet in comments | Enable after drop |
-| Fallbacks | Inter via `next/font/google` (`--font-inter`); system-ui | Active while files missing |
-| Mono | Geist Mono via `next/font/google`; optional `"ABC Diatype Mono"` faces in comments | Geist Mono active |
+| Sans | Geist via `next/font/google` (`--font-geist-sans`) | Active |
+| Mono | Geist Mono via `next/font/google` (`--font-geist-mono`) | Active |
+| `@font-face` Diatype | Commented block in `globals.css` | Optional later |
+| Optional preload | `layout.tsx` — `next/font/local` snippet in comments | Optional later |
 
-**Scope:** portal CSS only. Do **not** put Diatype into
+**Scope:** portal CSS / layout only. Do **not** put Diatype into
 `apps/shadcn-registry` default theme / widget-lib (that would force all
-consumers). Portal overrides `--font-geist-sans` so shared widget chrome
-inherits Diatype inside the portal shell without a package bump for fonts.
+consumers).
 
-### Font files status (2026-07-17 search)
+### Font files status (2026-07-17)
 
 **ABC Diatype binaries were not found** on this machine or in the repo.
-
-Searched (no matches for real font files; only unrelated `*MediaType*`
-false positives under `node_modules`):
-
-- Repo: `apps/portal/public`, design packages, full tree `*Diatype*` /
-  `*ABCDiatype*`
-- Host: `~/Downloads`, `~/Desktop`, `~/Documents`, `~/Library/Fonts`,
-  `/Library/Fonts`, `~/Library/CloudStorage`, sibling `aomi-labs/*` trees,
-  macOS Spotlight (`mdfind`)
-
 Existing portal fonts under `public/assets/fonts/` remain Bauhaus Chez
-Display + iA Writer Mono only.
-
-**Drop licensed files here:**
+Display + iA Writer Mono only. Drop licensed files here:
 
 ```
 apps/portal/public/assets/fonts/diatype/
 ```
 
-See `apps/portal/public/assets/fonts/diatype/README.md` for exact filenames.
-Do not vendor commercial font binaries without a license. Until files are
-present, browsers fall through to Inter / system-ui.
-
-Geist Mono continues to load from `next/font/google` in
-`apps/portal/src/app/layout.tsx`.
+See `apps/portal/public/assets/fonts/diatype/README.md`. Do not vendor
+commercial font binaries without a license. Until then, Geist Sans + Geist
+Mono are the active portal fonts.
 
 ## Surface
 

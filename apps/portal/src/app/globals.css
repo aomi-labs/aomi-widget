@@ -60,9 +60,10 @@
 }
 
 /*
- * ABC Diatype — portal-only. Files live under
- * public/assets/fonts/diatype/ (see README there). Uncomment after dropping
- * licensed .woff2/.otf files. Until then the stack below falls through to Inter.
+ * Optional ABC Diatype — portal-only future override. Shipping fonts are
+ * Geist Sans + Geist Mono (next/font/google). Uncomment after dropping
+ * licensed .woff2/.otf under public/assets/fonts/diatype/, then prepend
+ * "ABC Diatype" to the body / sans stack below.
  *
  * @font-face {
  *   font-family: "ABC Diatype";
@@ -89,7 +90,7 @@
  *   font-display: swap;
  * }
  *
- * Optional mono (only if ABCDiatypeMono-* files are present; else Geist Mono):
+ * Optional mono (only if ABCDiatypeMono-* files are present; else keep Geist Mono):
  * @font-face {
  *   font-family: "ABC Diatype Mono";
  *   src: url("/assets/fonts/diatype/ABCDiatypeMono-Regular.woff2") format("woff2");
@@ -111,8 +112,8 @@
 
   body {
     @apply antialiased;
-    /* UI sans: ABC Diatype when files are present; else Inter (see PORTAL-VISUAL-THEME.md). */
-    font-family: "ABC Diatype", var(--font-inter), Inter, system-ui, sans-serif;
+    /* Shipping: Geist Sans. Optional later: "ABC Diatype", var(--font-geist-sans), … */
+    font-family: var(--font-geist-sans), "Geist", system-ui, sans-serif;
   }
 
   /* WebKit (Chrome, Safari, Edge): fully-custom scrollbar with a transparent
@@ -209,13 +210,11 @@
 
 :root {
   /*
-   * Portal UI sans override (does not edit widget-lib / shadcn-registry).
-   * Drop licensed files in public/assets/fonts/diatype/, uncomment @font-face
-   * above, optionally wire next/font/local in layout.tsx. Until then Inter
-   * (`--font-inter`) is the practical fallback.
+   * --font-geist-sans / --font-geist-mono come from next/font in layout.tsx
+   * (Geist + Geist Mono). Do not override them with unloaded commercial
+   * family names. Optional Diatype: uncomment @font-face above, then set
+   * body font-family to "ABC Diatype", var(--font-geist-sans), …
    */
-  --font-geist-sans: "ABC Diatype", var(--font-inter), Inter, system-ui,
-    sans-serif;
   --portal-status-success: oklch(0.62 0.14 155);
   --portal-status-warning: oklch(0.75 0.14 75);
   --portal-status-info: oklch(0.68 0.12 230);

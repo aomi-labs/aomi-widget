@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist_Mono, Inter } from "next/font/google";
+import { Geist, Geist_Mono } from "next/font/google";
 import { cookies } from "next/headers";
 import "./globals.css";
 import { CookieConsent } from "@portal/components/analytics/cookie-consent";
@@ -12,10 +12,11 @@ import {
 } from "@portal/server/e2e-wallet";
 
 /**
- * UI sans prefers ABC Diatype (CSS stack + optional @font-face in globals.css).
- * Licensed files are not in-repo yet — drop them under
- * `public/assets/fonts/diatype/` (see README there), then either uncomment
- * `@font-face` or switch to `next/font/local`, e.g.:
+ * Shipping fonts: Geist Sans (UI) + Geist Mono (code / numerics).
+ *
+ * Optional future override: licensed ABC Diatype under
+ * `public/assets/fonts/diatype/` — uncomment `@font-face` in globals.css and
+ * prepend `"ABC Diatype"` to the sans stack (see PORTAL-VISUAL-THEME.md), or:
  *
  *   import localFont from "next/font/local";
  *   const diatype = localFont({
@@ -27,14 +28,11 @@ import {
  *     variable: "--font-diatype",
  *     display: "swap",
  *   });
- *   // then set --font-geist-sans / body to use var(--font-diatype).
- *
- * Until then Inter is the practical fallback. Mono/numerics use Geist Mono
- * unless ABCDiatypeMono-* files are added (prefer those over Geist Mono).
+ *   // then body / --font-geist-sans stack: "ABC Diatype", var(--font-diatype), …
  */
-const inter = Inter({
+const geistSans = Geist({
   subsets: ["latin"],
-  variable: "--font-inter",
+  variable: "--font-geist-sans",
 });
 
 const geistMono = Geist_Mono({
@@ -65,7 +63,7 @@ export default async function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${inter.variable} ${geistMono.variable} font-sans antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}
       >
         <GoogleAnalytics />
         <WalletProviders
