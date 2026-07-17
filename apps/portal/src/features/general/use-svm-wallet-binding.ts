@@ -37,6 +37,9 @@ export function useSvmWalletBinding() {
   const capabilities =
     adapter.identity.svmCapabilities ?? adapter.identity.solanaCapabilities;
   const signSolanaMessage = adapter.signSolanaMessage;
+  const usesLegacyBinding =
+    (adapter.identity.svmTransport ?? adapter.identity.solanaTransport) ===
+    "embedded";
   const [state, setState] = useState<SvmBindingState>({ status: "no-wallet" });
   const [binding, setBinding] = useState(false);
 
@@ -73,7 +76,7 @@ export function useSvmWalletBinding() {
   }, [refresh]);
 
   const bind = useCallback(async (): Promise<boolean> => {
-    if (!svmAddress || !signSolanaMessage) return false;
+    if (!usesLegacyBinding || !svmAddress || !signSolanaMessage) return false;
     setBinding(true);
     try {
       await ensureSvmWalletBoundVia(post, svmAddress, async (message) => {
@@ -95,13 +98,17 @@ export function useSvmWalletBinding() {
     } finally {
       setBinding(false);
     }
-  }, [cluster, refresh, signSolanaMessage, svmAddress]);
+  }, [cluster, refresh, signSolanaMessage, svmAddress, usesLegacyBinding]);
 
   return {
     state,
     binding,
+    usesLegacyBinding,
     canBind: Boolean(
-      svmAddress && signSolanaMessage && (capabilities?.canSignMessage ?? true),
+      usesLegacyBinding &&
+      svmAddress &&
+      signSolanaMessage &&
+      (capabilities?.canSignMessage ?? true),
     ),
     bind,
     refresh,

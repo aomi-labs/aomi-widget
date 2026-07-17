@@ -1,4 +1,5 @@
 import type { AomiAccountCredential } from "../types";
+import type { SvmCluster } from "../types";
 import type { AccountRuntime, AccountWallet } from "./types";
 
 export type AomiBackendAccountResponse = {
@@ -40,6 +41,8 @@ export type AomiBackendAccountEndpointConfig = Partial<{
   identityPath: (identityId: string) => string;
   siweNoncePath: string;
   siweVerifyPath: string;
+  siwsNoncePath: string;
+  siwsVerifyPath: string;
 }>;
 
 const DEFAULT_ENDPOINTS = {
@@ -54,6 +57,8 @@ const DEFAULT_ENDPOINTS = {
     `/api/aomi/identities/${encodeURIComponent(identityId)}`,
   siweNoncePath: "/api/auth/siwe/nonce",
   siweVerifyPath: "/api/auth/siwe/verify",
+  siwsNoncePath: "/api/auth/siws/nonce",
+  siwsVerifyPath: "/api/auth/siws/verify",
 } satisfies Required<AomiBackendAccountEndpointConfig>;
 
 export function createAomiBackendAccountClient(input: {
@@ -150,6 +155,29 @@ export function createAomiBackendAccountClient(input: {
       chainId: number;
     }) =>
       request(endpoints.siweVerifyPath, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }),
+    createSiwsNonce: (body: {
+      walletAddress: string;
+      chainId: SvmCluster;
+      intent: "sign-in" | "link";
+    }) =>
+      request<AomiBackendNonceResponse>(endpoints.siwsNoncePath, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }),
+    verifySiws: (body: {
+      message: string;
+      signature: string;
+      walletAddress: string;
+      chainId: SvmCluster;
+      intent: "sign-in" | "link";
+      label?: string;
+    }) =>
+      request(endpoints.siwsVerifyPath, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),

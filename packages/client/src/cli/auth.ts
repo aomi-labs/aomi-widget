@@ -1,4 +1,5 @@
 import { privateKeyToAccount } from "viem/accounts";
+import { buildSiwsMessage } from "../siws";
 import type { GetAccountBearer } from "../types";
 import { parseSolanaKeypairSecret, signSolanaMessage } from "./solana-signer";
 import type { CliAuthSession, CliSessionState } from "./state";
@@ -438,32 +439,6 @@ Version: 1
 Chain ID: ${input.chainId}
 Nonce: ${input.nonce}
 Issued At: ${new Date().toISOString()}`;
-}
-
-export function buildSiwsMessage(input: {
-  address: string;
-  chainId: CliSvmCluster;
-  nonce: string;
-  intent: "sign-in" | "link";
-  domain: string;
-  uri: string;
-  issuedAt?: Date;
-}): string {
-  const action = input.intent === "link" ? "link" : "sign in with";
-  const statement =
-    input.intent === "link"
-      ? "Only sign this message if you want this Solana wallet attached to the current Aomi account."
-      : "Sign in to Aomi.";
-  return `${input.domain} wants you to ${action} your Solana account:
-${input.address}
-
-${statement}
-
-URI: ${input.uri}
-Version: 1
-Chain ID: ${input.chainId}
-Nonce: ${input.nonce}
-Issued At: ${(input.issuedAt ?? new Date()).toISOString()}`;
 }
 
 export function normalizeBaseUrl(baseUrl: string): string {

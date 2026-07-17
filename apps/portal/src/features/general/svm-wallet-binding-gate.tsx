@@ -17,12 +17,14 @@ function eventText(payload: unknown): string {
 
 export function SvmWalletBindingGate() {
   const { subscribe, sendMessage } = useAomiRuntime();
-  const { bind, binding, canBind } = useSvmWalletBinding();
+  const { bind, binding, canBind, usesLegacyBinding } = useSvmWalletBinding();
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
     const detect = (event: { payload?: unknown }) => {
-      if (isUnboundWalletError(eventText(event.payload))) setVisible(true);
+      if (usesLegacyBinding && isUnboundWalletError(eventText(event.payload))) {
+        setVisible(true);
+      }
     };
     const unsubscribeError = subscribe("system_error", detect);
     const unsubscribeTool = subscribe("tool_complete", detect);
@@ -30,9 +32,13 @@ export function SvmWalletBindingGate() {
       unsubscribeError();
       unsubscribeTool();
     };
-  }, [subscribe]);
+  }, [subscribe, usesLegacyBinding]);
 
-  if (!visible) return null;
+  useEffect(() => {
+    if (!usesLegacyBinding) setVisible(false);
+  }, [usesLegacyBinding]);
+
+  if (!usesLegacyBinding || !visible) return null;
 
   return (
     <aside className="bg-background border-border absolute bottom-24 right-4 z-50 w-[min(24rem,calc(100%-2rem))] rounded-xl border p-4 shadow-xl">

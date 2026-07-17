@@ -33,6 +33,15 @@ const SIWS_ADDRESS = z.string().refine(validSolanaAddress, {
 });
 const SIWS_CLUSTER = z.enum(SIWS_CLUSTERS);
 const SIWS_INTENT = z.enum(["sign-in", "link"]);
+const SIWS_LABEL = z
+  .string()
+  .transform((value) =>
+    value
+      .replace(/[\u0000-\u001f\u007f]/g, "")
+      .trim()
+      .slice(0, 80),
+  )
+  .refine(Boolean, { message: "Wallet label cannot be empty" });
 
 const nonceBody = z.object({
   walletAddress: SIWS_ADDRESS,
@@ -46,6 +55,7 @@ const verifyBody = z.object({
   walletAddress: SIWS_ADDRESS,
   chainId: SIWS_CLUSTER.optional().default(SIWS_DEFAULT_CLUSTER),
   intent: SIWS_INTENT.optional().default("sign-in"),
+  label: SIWS_LABEL.optional(),
 });
 
 export type ParsedSiwsMessage = {
@@ -115,7 +125,7 @@ export function aomiSiwsPlugin(options: AomiSiwsOptions) {
           requireRequest: true,
         },
         async (ctx) => {
-          const { message, signature, walletAddress, chainId, intent } =
+          const { message, signature, walletAddress, chainId, intent, label } =
             ctx.body;
           const currentSession =
             intent === "link" ? await getSessionFromCtx(ctx) : null;
@@ -214,6 +224,7 @@ export function aomiSiwsPlugin(options: AomiSiwsOptions) {
             await syncSiwsWalletsForUser({
               aomiUserId: aomiUser.id,
               betterAuthUserId,
+              label,
             });
             return ctx.json({
               success: true,
@@ -263,6 +274,7 @@ export function aomiSiwsPlugin(options: AomiSiwsOptions) {
           await syncSiwsWalletsForUser({
             aomiUserId: aomiUser.id,
             betterAuthUserId: user.id,
+            label,
           });
 
           const session = await ctx.context.internalAdapter.createSession(

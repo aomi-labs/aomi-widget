@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   buildSiweMessage,
@@ -17,9 +17,17 @@ const mockState = vi.hoisted(() => ({
     exchangeProviderCredential: ReturnType<typeof vi.fn>;
     createSiweNonce: ReturnType<typeof vi.fn>;
     verifySiwe: ReturnType<typeof vi.fn>;
+    createSiwsNonce: ReturnType<typeof vi.fn>;
+    verifySiws: ReturnType<typeof vi.fn>;
+    getWalletLinkNonce: ReturnType<typeof vi.fn>;
+    linkWallet: ReturnType<typeof vi.fn>;
     signOut: ReturnType<typeof vi.fn>;
     deleteAccount: ReturnType<typeof vi.fn>;
     updateAccount: ReturnType<typeof vi.fn>;
+    updateWallet: ReturnType<typeof vi.fn>;
+    updateAuthIdentity: ReturnType<typeof vi.fn>;
+    unlinkWallet: ReturnType<typeof vi.fn>;
+    unlinkAuthIdentity: ReturnType<typeof vi.fn>;
   },
 }));
 
@@ -38,9 +46,17 @@ beforeEach(() => {
     exchangeProviderCredential: vi.fn(() => new Promise(() => undefined)),
     createSiweNonce: vi.fn(),
     verifySiwe: vi.fn(),
+    createSiwsNonce: vi.fn(),
+    verifySiws: vi.fn(),
+    getWalletLinkNonce: vi.fn(),
+    linkWallet: vi.fn(),
     signOut: vi.fn(),
     deleteAccount: vi.fn(),
     updateAccount: vi.fn(),
+    updateWallet: vi.fn(),
+    updateAuthIdentity: vi.fn(),
+    unlinkWallet: vi.fn(),
+    unlinkAuthIdentity: vi.fn(),
   };
 });
 
@@ -63,7 +79,7 @@ describe("useAomiBackendAccountRuntime", () => {
           provider: "para",
           subject: "para-user",
           getCredential,
-        },
+        } as never,
         evm: {
           activeEvmConnection: {
             address: "0x1111111111111111111111111111111111111111",
@@ -72,7 +88,7 @@ describe("useAomiBackendAccountRuntime", () => {
           activeAccount: undefined,
           accounts: () => [],
           signMessageAsync,
-        },
+        } as never,
       }),
     );
 
@@ -84,6 +100,219 @@ describe("useAomiBackendAccountRuntime", () => {
 
     expect(mockState.accountClient?.createSiweNonce).not.toHaveBeenCalled();
     expect(signMessageAsync).not.toHaveBeenCalled();
+  });
+
+  it("creates a Solana-only account through BetterAuth SIWS", async () => {
+    const address = "45q4DRCin6RkWkUFbTm5L9ZwuA7QgVdHewgQxQcExgdq";
+    const signed = vi.fn().mockResolvedValue({ signature: "c2lnbmF0dXJl" });
+    mockState
+      .accountClient!.getAccount.mockResolvedValueOnce({
+        user: null,
+        linkedAccounts: [],
+        wallets: [],
+        session: null,
+      })
+      .mockResolvedValue({
+        user: { id: "aomi-user" },
+        linkedAccounts: [],
+        wallets: [
+          {
+            id: "svm-wallet",
+            family: "svm",
+            address,
+            linkedVia: "siws",
+          },
+        ],
+        session: { betterAuthUserId: "ba-user" },
+      });
+    mockState.accountClient!.createSiwsNonce.mockResolvedValue({
+      nonce: "siws-nonce",
+      domain: "localhost:3000",
+      uri: "http://localhost:3000",
+    });
+    mockState.accountClient!.verifySiws.mockResolvedValue({ success: true });
+
+    renderHook(() =>
+      useAomiBackendAccountRuntime({
+        enabled: true,
+        baseUrl: "http://localhost:3000",
+        auth: { status: "unauthenticated", provider: "para" } as never,
+        evm: {
+          activeEvmConnection: undefined,
+          activeAccount: undefined,
+          accounts: () => [],
+          signMessageAsync: undefined,
+        } as never,
+        svm: {
+          activeAccount: {
+            id: "Phantom",
+            family: "svm",
+            address,
+            walletName: "Phantom",
+            active: true,
+          },
+          identity: () => ({
+            address,
+            cluster: "solana:devnet",
+            walletName: "Phantom",
+            walletSource: "injected",
+            transport: "extension",
+          }),
+          selectedNetwork: {
+            id: "solana-devnet",
+            label: "Solana Devnet",
+            cluster: "solana:devnet",
+            rpcHttpUrl: "https://api.devnet.solana.com",
+          },
+          execution: { signSolanaMessage: signed },
+          accounts: () => [],
+        } as never,
+      }),
+    );
+
+    await waitFor(() => {
+      expect(mockState.accountClient?.verifySiws).toHaveBeenCalledOnce();
+    });
+    expect(mockState.accountClient?.createSiwsNonce).toHaveBeenCalledWith({
+      walletAddress: address,
+      chainId: "solana:devnet",
+      intent: "sign-in",
+    });
+    const signedMessage = Buffer.from(
+      signed.mock.calls[0]![0].message,
+      "base64",
+    ).toString("utf8");
+    expect(signedMessage).toContain(
+      "localhost:3000 wants you to sign in with your Solana account:",
+    );
+    expect(signedMessage).toContain("Chain ID: solana:devnet");
+    expect(mockState.accountClient?.verifySiws).toHaveBeenCalledWith(
+      expect.objectContaining({
+        walletAddress: address,
+        chainId: "solana:devnet",
+        intent: "sign-in",
+        label: "Phantom 1",
+        signature: "c2lnbmF0dXJl",
+      }),
+    );
+  });
+
+  it("links an external Solana wallet to the current account through SIWS", async () => {
+    const address = "2qbUnCMuAC8egMU2jzsVHUXA2MoJn1v52JNPT3gKqTTB";
+    const signed = vi.fn().mockResolvedValue({ signature: "bGlua3NpZw==" });
+    mockState.accountClient!.getAccount.mockResolvedValue({
+      user: { id: "aomi-user" },
+      linkedAccounts: [],
+      wallets: [
+        {
+          id: "evm-wallet",
+          family: "evm",
+          address: "0x1111111111111111111111111111111111111111",
+          linkedVia: "siwe",
+        },
+      ],
+      session: { betterAuthUserId: "ba-user" },
+    });
+    mockState.accountClient!.createSiwsNonce.mockResolvedValue({
+      nonce: "link-nonce",
+      domain: "localhost:3000",
+      uri: "http://localhost:3000",
+    });
+    mockState.accountClient!.verifySiws.mockResolvedValue({ status: "linked" });
+
+    const { result } = renderHook(() =>
+      useAomiBackendAccountRuntime({
+        enabled: true,
+        baseUrl: "http://localhost:3000",
+        auth: { status: "unauthenticated", provider: "para" } as never,
+        evm: { accounts: () => [], signMessageAsync: undefined } as never,
+        svm: {
+          activeAccount: {
+            id: "Phantom",
+            family: "svm",
+            address,
+            walletName: "Phantom",
+            active: true,
+          },
+          identity: () => ({
+            address,
+            cluster: "solana:mainnet",
+            walletName: "Phantom",
+            walletSource: "injected",
+            transport: "extension",
+          }),
+          selectedNetwork: {
+            id: "solana-mainnet",
+            label: "Solana Mainnet",
+            cluster: "solana:mainnet",
+            rpcHttpUrl: "https://api.mainnet-beta.solana.com",
+          },
+          execution: { signSolanaMessage: signed },
+          accounts: () => [],
+        } as never,
+      }),
+    );
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+
+    await act(async () => {
+      await result.current.linkWallet?.({
+        accountId: "Phantom",
+        family: "svm",
+        address,
+      });
+    });
+
+    expect(mockState.accountClient?.createSiwsNonce).toHaveBeenCalledWith({
+      walletAddress: address,
+      chainId: "solana:mainnet",
+      intent: "link",
+    });
+    expect(mockState.accountClient?.verifySiws).toHaveBeenCalledWith(
+      expect.objectContaining({
+        walletAddress: address,
+        chainId: "solana:mainnet",
+        intent: "link",
+        label: "Phantom 1",
+        signature: "bGlua3NpZw==",
+      }),
+    );
+  });
+
+  it("leaves embedded Solana wallets on their provider credential path", async () => {
+    const signed = vi.fn();
+    renderHook(() =>
+      useAomiBackendAccountRuntime({
+        enabled: true,
+        baseUrl: "http://localhost:3000",
+        auth: { status: "unauthenticated", provider: "para" } as never,
+        evm: { accounts: () => [], signMessageAsync: undefined } as never,
+        svm: {
+          activeAccount: {
+            id: "para-solana",
+            family: "svm",
+            address: "ParaSvmAddress",
+            walletName: "Para",
+            walletKind: "embedded",
+            active: true,
+          },
+          identity: () => ({
+            address: "ParaSvmAddress",
+            cluster: "solana:mainnet",
+            walletName: "Para",
+            walletSource: "embedded",
+            transport: "embedded",
+          }),
+          execution: { signSolanaMessage: signed },
+          accounts: () => [],
+        } as never,
+      }),
+    );
+
+    await waitFor(() =>
+      expect(mockState.accountClient?.getAccount).toHaveBeenCalled(),
+    );
+    expect(mockState.accountClient?.createSiwsNonce).not.toHaveBeenCalled();
+    expect(signed).not.toHaveBeenCalled();
   });
 });
 

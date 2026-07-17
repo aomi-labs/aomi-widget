@@ -1964,6 +1964,23 @@ function decodeBase64Url(value) {
   throw new Error("No base64 decoder is available");
 }
 
+// src/siws.ts
+function buildSiwsMessage(input) {
+  var _a;
+  const action = input.intent === "link" ? "link" : "sign in with";
+  const statement = input.intent === "link" ? "Only sign this message if you want this Solana wallet attached to the current Aomi account." : "Sign in to Aomi.";
+  return `${input.domain} wants you to ${action} your Solana account:
+${input.address}
+
+${statement}
+
+URI: ${input.uri}
+Version: 1
+Chain ID: ${input.chainId}
+Nonce: ${input.nonce}
+Issued At: ${((_a = input.issuedAt) != null ? _a : /* @__PURE__ */ new Date()).toISOString()}`;
+}
+
 // src/types.ts
 function isInlineCall(event) {
   return "InlineCall" in event;
@@ -5068,6 +5085,7 @@ export {
   authorizationCommit,
   buildAAExecutionPlan,
   buildFeeAAWalletCall,
+  buildSiwsMessage,
   createAAProviderState,
   createAccountBearerProvider,
   createAlchemyAAProvider,

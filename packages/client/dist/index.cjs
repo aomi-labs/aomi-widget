@@ -82,6 +82,7 @@ __export(index_exports, {
   authorizationCommit: () => authorizationCommit,
   buildAAExecutionPlan: () => buildAAExecutionPlan,
   buildFeeAAWalletCall: () => buildFeeAAWalletCall,
+  buildSiwsMessage: () => buildSiwsMessage,
   createAAProviderState: () => createAAProviderState,
   createAccountBearerProvider: () => createAccountBearerProvider,
   createAlchemyAAProvider: () => createAlchemyAAProvider,
@@ -2051,6 +2052,23 @@ function decodeBase64Url(value) {
     return BufferCtor.from(normalized, "base64").toString("utf8");
   }
   throw new Error("No base64 decoder is available");
+}
+
+// src/siws.ts
+function buildSiwsMessage(input) {
+  var _a;
+  const action = input.intent === "link" ? "link" : "sign in with";
+  const statement = input.intent === "link" ? "Only sign this message if you want this Solana wallet attached to the current Aomi account." : "Sign in to Aomi.";
+  return `${input.domain} wants you to ${action} your Solana account:
+${input.address}
+
+${statement}
+
+URI: ${input.uri}
+Version: 1
+Chain ID: ${input.chainId}
+Nonce: ${input.nonce}
+Issued At: ${((_a = input.issuedAt) != null ? _a : /* @__PURE__ */ new Date()).toISOString()}`;
 }
 
 // src/types.ts
@@ -5147,6 +5165,7 @@ async function createAAProviderState(options) {
   authorizationCommit,
   buildAAExecutionPlan,
   buildFeeAAWalletCall,
+  buildSiwsMessage,
   createAAProviderState,
   createAccountBearerProvider,
   createAlchemyAAProvider,

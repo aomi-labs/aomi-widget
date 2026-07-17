@@ -251,10 +251,17 @@ export function WalletPicker() {
     }
     const target = connectedAccounts.find(
       (account) =>
-        account.family === "evm" && !account.linked && Boolean(account.address),
+        !account.linked &&
+        Boolean(account.address) &&
+        (account.family === "evm" ||
+          (account.family === "svm" &&
+            account.walletKind !== "embedded" &&
+            account.walletKind !== "smart_account")),
     );
     if (!target?.address) return;
-    const key = `${target.family}:${target.id}:${target.address.toLowerCase()}`;
+    const key = `${target.family}:${target.id}:${
+      target.family === "evm" ? target.address.toLowerCase() : target.address
+    }`;
     if (autoLinkAttempted.current.has(key)) return;
     autoLinkAttempted.current.add(key);
     void runAction(`link:${target.id}`, () =>
@@ -499,7 +506,10 @@ export function WalletPicker() {
     account.actions.filter((action) => {
       if (action.kind === "manage") return canManageAccounts;
       if (action.kind === "link") {
-        return Boolean(adapter.linkWallet && account.family === "evm");
+        return Boolean(
+          adapter.linkWallet &&
+          (account.family === "evm" || account.family === "svm"),
+        );
       }
       if (action.kind === "disconnect" || action.kind === "signout") {
         return Boolean(adapter.disconnect || adapter.signOutAccount);
@@ -1409,6 +1419,7 @@ function isVisibleLinkedAccount(account: LinkedAccountRow): boolean {
   return (
     account.provider !== "better_auth" &&
     account.provider !== "siwe" &&
+    account.provider !== "siws" &&
     account.provider !== "email"
   );
 }

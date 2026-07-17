@@ -151,7 +151,12 @@ function defaultLiveWalletActions({
   canLinkWallet: boolean;
 }): WalletRowAction[] {
   const actions: WalletRowAction[] = [];
-  if (canLinkWallet && !linked && account.family === "evm") {
+  const canLinkFamily =
+    account.family === "evm" ||
+    (account.family === "svm" &&
+      account.walletKind !== "embedded" &&
+      account.walletKind !== "smart_account");
+  if (canLinkWallet && !linked && canLinkFamily) {
     actions.push({ kind: "link", label: "Link" });
   }
   actions.push(

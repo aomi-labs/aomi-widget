@@ -5,11 +5,12 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const subscribers = new Map<string, (event: { payload?: unknown }) => void>();
 const sendMessage = vi.fn(async () => undefined);
 const bind = vi.fn(async () => true);
+let usesLegacyBinding = true;
 
 vi.mock("@aomi-labs/react", () => ({
   useAomiRuntime: () => ({
@@ -29,12 +30,24 @@ vi.mock("@aomi-labs/widget-lib", () => ({
 }));
 
 vi.mock("./use-svm-wallet-binding", () => ({
-  useSvmWalletBinding: () => ({ bind, binding: false, canBind: true }),
+  useSvmWalletBinding: () => ({
+    bind,
+    binding: false,
+    canBind: usesLegacyBinding,
+    usesLegacyBinding,
+  }),
 }));
 
 import { SvmWalletBindingGate } from "./svm-wallet-binding-gate";
 
 describe("SvmWalletBindingGate", () => {
+  beforeEach(() => {
+    subscribers.clear();
+    bind.mockClear();
+    sendMessage.mockClear();
+    usesLegacyBinding = true;
+  });
+
   it("offers binding on the kernel error and retries after success", async () => {
     render(<SvmWalletBindingGate />);
     act(() => {
@@ -49,5 +62,18 @@ describe("SvmWalletBindingGate", () => {
     expect(sendMessage).toHaveBeenCalledWith(
       "Retry the previous Solana transaction now that the wallet is bound.",
     );
+  });
+
+  it("does not offer the legacy bind ceremony to external Solana wallets", () => {
+    usesLegacyBinding = false;
+    render(<SvmWalletBindingGate />);
+    act(() => {
+      subscribers.get("tool_complete")?.({
+        payload: { error: { type: "signing_unbound_wallet" } },
+      });
+    });
+    expect(
+      screen.queryByRole("button", { name: "Bind wallet and retry" }),
+    ).toBeNull();
   });
 });

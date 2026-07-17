@@ -22,6 +22,8 @@ export {
   AccountCredentialUnavailableError,
   createAccountBearerProvider,
 } from "./account-session";
+export { buildSiwsMessage } from "./siws";
+export type { SiwsChainId, SiwsIntent } from "./siws";
 export type {
   AccountBearerProviderOptions,
   AccountBearerProvider,

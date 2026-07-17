@@ -4573,6 +4573,28 @@ var init_state2 = __esm({
   }
 });
 
+// src/siws.ts
+function buildSiwsMessage(input2) {
+  var _a3;
+  const action = input2.intent === "link" ? "link" : "sign in with";
+  const statement = input2.intent === "link" ? "Only sign this message if you want this Solana wallet attached to the current Aomi account." : "Sign in to Aomi.";
+  return `${input2.domain} wants you to ${action} your Solana account:
+${input2.address}
+
+${statement}
+
+URI: ${input2.uri}
+Version: 1
+Chain ID: ${input2.chainId}
+Nonce: ${input2.nonce}
+Issued At: ${((_a3 = input2.issuedAt) != null ? _a3 : /* @__PURE__ */ new Date()).toISOString()}`;
+}
+var init_siws = __esm({
+  "src/siws.ts"() {
+    "use strict";
+  }
+});
+
 // src/cli/auth.ts
 import { privateKeyToAccount as privateKeyToAccount2 } from "viem/accounts";
 function createCliAuthTokenProvider(readState2, now = Date.now) {
@@ -4854,21 +4876,6 @@ Chain ID: ${input2.chainId}
 Nonce: ${input2.nonce}
 Issued At: ${(/* @__PURE__ */ new Date()).toISOString()}`;
 }
-function buildSiwsMessage(input2) {
-  var _a3;
-  const action = input2.intent === "link" ? "link" : "sign in with";
-  const statement = input2.intent === "link" ? "Only sign this message if you want this Solana wallet attached to the current Aomi account." : "Sign in to Aomi.";
-  return `${input2.domain} wants you to ${action} your Solana account:
-${input2.address}
-
-${statement}
-
-URI: ${input2.uri}
-Version: 1
-Chain ID: ${input2.chainId}
-Nonce: ${input2.nonce}
-Issued At: ${((_a3 = input2.issuedAt) != null ? _a3 : /* @__PURE__ */ new Date()).toISOString()}`;
-}
 function normalizeBaseUrl(baseUrl) {
   const trimmed = baseUrl.trim().replace(/\/+$/, "");
   if (!trimmed) throw new Error("Portal URL is required");
@@ -4964,6 +4971,7 @@ var DEFAULT_CHAIN_ID, DEFAULT_SVM_CLUSTER, DEFAULT_SESSION_TTL_MS, AUTH_REFRESH_
 var init_auth = __esm({
   "src/cli/auth.ts"() {
     "use strict";
+    init_siws();
     init_solana_signer();
     DEFAULT_CHAIN_ID = 1;
     DEFAULT_SVM_CLUSTER = "solana:mainnet";
@@ -11507,7 +11515,7 @@ init_shared();
 // package.json
 var package_default = {
   name: "@aomi-labs/client",
-  version: "0.3.3",
+  version: "0.3.4",
   description: "Platform-agnostic TypeScript client for the Aomi backend API",
   type: "module",
   main: "./dist/index.cjs",

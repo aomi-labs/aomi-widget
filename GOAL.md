@@ -44,6 +44,12 @@ Progress:
   Verified focused theme tests, Aomi Build lint/typecheck/production build,
   and live `/build` rendering plus reload persistence in both themes.
 
+- 2026-07-17 external Solana GUI parity: browser-connected SVM wallets now use
+  BetterAuth SIWS for account creation and optional linking, matching the CLI
+  and external EVM flow. Legacy backend binding remains limited to embedded
+  wallets, and SIWS proof identities stay hidden from account management while
+  the linked Solana wallet remains visible.
+
 - 2026-07-17 BetterAuth Solana CLI parity: added SIWS nonce/verify endpoints to
   BetterAuth, synchronized verified external Solana wallets into canonical
   `public_keys`, and added Solana-only login plus authenticated wallet linking
