@@ -281,6 +281,65 @@ describe("tool interpreter", () => {
     expect(step.chips[1].icon).toBeTypeOf("object");
   });
 
+  it("shows the visible SPL amount and known token symbol", () => {
+    const step = interpretToolStep({
+      toolName: "Get SPL token holdings",
+      result: {
+        cluster: "mainnet-beta",
+        owner: "HZpj6CD9R4asaSM98mkWzfgowfQnCGA5Hu6zcwoPvRpW",
+        program_id: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+        accounts: [
+          {
+            pubkey: "6cSHGy5AjHEeqwema69qBVz1mMmk5MKUyztLJqqPQmPd",
+            account: {
+              data: {
+                program: "spl-token",
+                parsed: {
+                  info: {
+                    mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+                    tokenAmount: {
+                      amount: "148008",
+                      decimals: 6,
+                      uiAmount: 0.148008,
+                      uiAmountString: "0.148008",
+                    },
+                  },
+                },
+              },
+            },
+          },
+        ],
+      },
+    });
+
+    expect(step.title).toBe("Get SPL token holdings");
+    expect(labelsFor(step.chips)).toEqual(["0.148008 USDC"]);
+    expect(step.chips[0].icon).toBeTypeOf("object");
+    expect(step.confidence).toBe("high");
+  });
+
+  it("shows the visible SPL amount without inventing an unknown symbol", () => {
+    const step = interpretToolStep({
+      toolName: "Get SPL token holdings",
+      result: {
+        cluster: "mainnet-beta",
+        owner: "HZpj6CD9R4asaSM98mkWzfgowfQnCGA5Hu6zcwoPvRpW",
+        holdings: [
+          {
+            mint: "UnknownMint111111111111111111111111111111111",
+            amount: "123456",
+            decimals: 6,
+            ui_amount_string: "0.123456",
+          },
+        ],
+        accounts: [],
+      },
+    });
+
+    expect(labelsFor(step.chips)).toEqual(["0.123456"]);
+    expect(step.chips[0].icon).toBeTypeOf("object");
+  });
+
   it("shows Jupiter input, output, and token direction like LI.FI", () => {
     const step = interpretToolStep({
       toolName: "Prepare 0.001 SOL to USDC Jupiter swap",

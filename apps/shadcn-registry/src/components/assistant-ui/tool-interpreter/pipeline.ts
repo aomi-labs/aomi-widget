@@ -25,7 +25,7 @@ import {
   matchLifiSwapPrep,
 } from "./families/lifi";
 import { matchJupiterSwapPrep } from "./families/jupiter";
-import { matchSvmContext } from "./families/svm";
+import { matchSvmContext, matchSvmTokenHoldings } from "./families/svm";
 import { matchSvmPendingApproval, matchSvmSimulation } from "./families/svm-tx";
 import { matchEvmCall } from "./families/evm-call";
 import { presentOperation } from "./present";
@@ -40,6 +40,7 @@ const matchers: ToolMatcher[] = [
   matchWebSearch,
   matchSkillActivation,
   matchSvmContext,
+  matchSvmTokenHoldings,
   matchChainContext,
   matchNativeBalance,
   matchTokenLookup,

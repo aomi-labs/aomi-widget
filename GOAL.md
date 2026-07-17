@@ -44,6 +44,16 @@ Progress:
   Verified focused theme tests, Aomi Build lint/typecheck/production build,
   and live `/build` rendering plus reload persistence in both themes.
 
+- 2026-07-17 Solana full-balance swap and holdings polish: taught the Jupiter
+  fast path to accept `amount: "all"` for SPL inputs so the backend resolves the
+  connected wallet balance and transparently falls back from flaky mint-filter
+  RPC reads to token-program scans. The standalone holdings tool now defaults
+  its owner from SVM wallet context and returns compact aggregated display
+  amounts. Added a dedicated holdings trace presenter that shows `0.148008
+  USDC` for the canonical mainnet mint, or just the visible UI amount with the
+  generic token icon when the symbol is unknown. Patch-bumped
+  `@aomi-labs/widget-lib` to 1.4.6 and regenerated registry artifacts.
+
 - 2026-07-17 Solana working-trace polish: split SVM network context from the
   EVM interpreter so Solana traces show the chain family and current slot,
   and added a Jupiter preparation presenter that surfaces input amount,

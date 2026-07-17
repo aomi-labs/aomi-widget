@@ -207,6 +207,11 @@ const descriptorById: Record<string, Descriptor> = {
     icon: SHAPE_ICONS.chainContext,
     chipPlan: [{ kind: "cluster" }, { kind: "slot" }],
   },
+  "svm.account.token_holdings": {
+    title: "label",
+    icon: SHAPE_ICONS.nativeBalance,
+    chipPlan: [{ kind: "amount", role: "primary", repeat: true }],
+  },
   "svm.tx.pending_approval": {
     title: "fixed",
     fixedTitle: "Await wallet approval",
