@@ -12,23 +12,11 @@ import {
 } from "@portal/server/e2e-wallet";
 
 /**
- * Shipping fonts: Geist Sans (UI) + Geist Mono (code / numerics).
+ * Branch experiment (`feat/chat-portal-visual-theme`):
+ * Geist Mono is the primary UI font (chrome, labels, rail, empty state).
+ * Geist Sans stays loaded as secondary for long prose via `font-sans` / `.aomi-prose`.
  *
- * Optional future override: licensed ABC Diatype under
- * `public/assets/fonts/diatype/` — uncomment `@font-face` in globals.css and
- * prepend `"ABC Diatype"` to the sans stack (see PORTAL-VISUAL-THEME.md), or:
- *
- *   import localFont from "next/font/local";
- *   const diatype = localFont({
- *     src: [
- *       { path: "../../public/assets/fonts/diatype/ABCDiatype-Regular.woff2", weight: "400" },
- *       { path: "../../public/assets/fonts/diatype/ABCDiatype-Medium.woff2", weight: "500" },
- *       { path: "../../public/assets/fonts/diatype/ABCDiatype-Bold.woff2", weight: "700" },
- *     ],
- *     variable: "--font-diatype",
- *     display: "swap",
- *   });
- *   // then body / --font-geist-sans stack: "ABC Diatype", var(--font-diatype), …
+ * See specs/PORTAL-VISUAL-THEME.md.
  */
 const geistSans = Geist({
   subsets: ["latin"],
@@ -63,7 +51,7 @@ export default async function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} font-mono antialiased`}
       >
         <GoogleAnalytics />
         <WalletProviders

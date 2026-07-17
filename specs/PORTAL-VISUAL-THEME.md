@@ -2,14 +2,45 @@
 
 Branch: `feat/chat-portal-visual-theme` (forked from `feat/chat-portal-settings-revamp`).
 
-Portal visual language inspired by NeuralForge (dev-tool chrome) and fintech
-swap-modal density. Keep Aomi product identity (logo, Connect wallet, real
-suggestion prompts) — match the *feel*, not NeuralForge brand/content.
+Portal visual language: monospace-heavy **terminal / dev-tool** dark UI — deep
+charcoal near-black, hairline borders, ALL CAPS tracked micro-labels, tabular
+numbers, and a single restrained accent. Keep Aomi product identity (logo,
+Connect wallet, real suggestion prompts) — match the *feel*, not reference
+brand/content.
 
-## Chat empty-state match (this pass)
+## Always-start localhost (this work)
 
-Restyle the **real** Aomi empty chat toward NeuralForge density — without
-pasting fake ops chrome onto a chat product:
+Must be on **`feat/chat-portal-visual-theme`** to see this visual experiment.
+
+From repo root:
+
+```bash
+pnpm --filter portal exec next dev -p 3000
+```
+
+Or from `apps/portal`:
+
+```bash
+pnpm exec next dev -p 3000
+```
+
+Then open [http://localhost:3000](http://localhost:3000).
+
+## Direction (mono-first terminal)
+
+| Token | Choice |
+| --- | --- |
+| Primary UI font | **Geist Mono** — chrome, labels, empty state, settings labels, rail, numerics |
+| Secondary font | **Geist Sans** — only when needed for long prose (`font-sans` / `.aomi-prose`) |
+| Background | Deeper charcoal near-black (`oklch(~0.09)`) |
+| Borders | Hairline (`oklch(1 0 0 / 8%)`) |
+| Secondary text | Muted mid-gray |
+| Accent | Single restrained status green (`--portal-accent` → `--portal-status-success`); no rainbow |
+
+## Chat empty-state match
+
+Restyle the **real** Aomi empty chat toward denser ops chrome — without
+pasting fake product data onto a chat surface:
 
 | Surface | Approach |
 | --- | --- |
@@ -17,9 +48,9 @@ pasting fake ops chrome onto a chat product:
 | Suggestion cards | Hairline bordered prompts, muted meta line, tabular mono on amounts (`1`, `100`). **No** rainbow left status bars, **no** `SUGGESTIONS` section stamp |
 | Composer | Denser charcoal surface, hairline border, sharper radius, tighter control row |
 | Thread rail | Tighter rows, hairline separator, muted New Chat. **No** fake `THREADS` rail label |
-| Portal frame | Header/side chrome denser charcoal; portal CSS overrides + shared widget class tweaks |
+| Portal frame | Header/side chrome denser charcoal; portal CSS overrides |
 
-**Do not** invent Billing/NeuralForge fake product data, fake section stamps
+**Do not** invent Billing/fake ops metrics, fake section stamps
 (`Workspace` / `Suggestions` / `Threads`), or decorative status accent bars on
 prompt cards. Aomi’s layout stays thread-rail + chat + composer; density and
 surface language carry the ops *feel*.
@@ -28,7 +59,8 @@ surface language carry the ops *feel*.
 
 Editing `apps/shadcn-registry` empty-state / rail chrome **requires** a
 `@aomi-labs/widget-lib` patch bump (AGENTS.md). Portal keeps additional
-token/font overrides in `apps/portal` only.
+token/font overrides in `apps/portal` only — this mono-first pass is
+**portal-scoped** (no widget-lib bump).
 
 ## Case rules
 
@@ -48,33 +80,28 @@ or primary row labels.
 Shipping fonts (always loaded via `next/font/google` in
 `apps/portal/src/app/layout.tsx`):
 
-- **Sans (UI / body / titles):** Geist Sans — `--font-geist-sans` on
-  `body` / `font-sans`. Stack:
-  `var(--font-geist-sans), "Geist", system-ui, sans-serif`
-- **Mono (code / numerics):** Geist Mono — `--font-geist-mono`; amounts,
-  credits, tokens, IDs, commits via `.aomi-numeric`
-- Hierarchy: bold titles → medium row labels → muted metadata
-- Eyebrow: ~10.5px, `letter-spacing: 0.09em`, muted foreground
+- **Mono (primary UI):** Geist Mono — `--font-geist-mono` on `body` /
+  `font-mono`. Stack:
+  `var(--font-geist-mono), "Geist Mono", ui-monospace, …`
+- **Sans (secondary / long prose):** Geist Sans — `--font-geist-sans`; use
+  `font-sans` or `.aomi-prose` when mono hurts readability
+- Numerics: tabular via body `font-variant-numeric` + `.aomi-numeric`
+- Eyebrow: ~10.5px, `letter-spacing: 0.09em`, muted foreground, mono
 
 ### Optional ABC Diatype (licensed drop-in only)
 
-Diatype is **not** the shipping default. Do not put unloaded commercial
-family names first in the CSS stack — that makes the UI wait on a missing
-font. When licensed files are dropped under
+Diatype is **not** the shipping default. When licensed files are dropped under
 `apps/portal/public/assets/fonts/diatype/`:
 
 1. Uncomment the `@font-face` block in `apps/portal/src/app/globals.css`
-2. Prepend `"ABC Diatype"` to the body sans stack (Geist remains fallback)
-3. Optionally wire `next/font/local` in `layout.tsx` (commented snippet)
-4. If `ABCDiatypeMono-*` exists: add mono `@font-face` and point
-   `.aomi-numeric` at `"ABC Diatype Mono"`; otherwise keep Geist Mono
+2. Decide whether Diatype replaces Sans secondary or Mono primary
+3. Optionally wire `next/font/local` in `layout.tsx`
 
 | Step | Where | Shipping status |
 | --- | --- | --- |
-| Sans | Geist via `next/font/google` (`--font-geist-sans`) | Active |
-| Mono | Geist Mono via `next/font/google` (`--font-geist-mono`) | Active |
+| Mono (primary UI) | Geist Mono via `next/font/google` (`--font-geist-mono`) | Active |
+| Sans (secondary) | Geist via `next/font/google` (`--font-geist-sans`) | Active |
 | `@font-face` Diatype | Commented block in `globals.css` | Optional later |
-| Optional preload | `layout.tsx` — `next/font/local` snippet in comments | Optional later |
 
 **Scope:** portal CSS / layout only. Do **not** put Diatype into
 `apps/shadcn-registry` default theme / widget-lib (that would force all
@@ -91,15 +118,15 @@ apps/portal/public/assets/fonts/diatype/
 ```
 
 See `apps/portal/public/assets/fonts/diatype/README.md`. Do not vendor
-commercial font binaries without a license. Until then, Geist Sans + Geist
-Mono are the active portal fonts.
+commercial font binaries without a license. Until then, Geist Mono (primary)
++ Geist Sans (secondary) are the active portal fonts.
 
 ## Surface
 
-- Hairline borders (`border-border` at ~50–70% opacity)
-- Restrained fills; status color (amber / green / cyan) only for **real**
-  status signals — not decorative bars on suggestion cards
-- Dark charcoal chrome in dark mode; cool zinc in light mode (inherited tokens)
+- Hairline borders (`border-border` / `oklch(1 0 0 / 8%)` in dark)
+- Restrained fills; `--portal-accent` (status green) only for **real**
+  status / sparse emphasis — not decorative bars on suggestion cards
+- Deep charcoal chrome in dark mode; cool zinc in light mode (inherited tokens)
 - Avoid purple glow, inset highlight tricks, and invented density chrome that
   does not map to Aomi product structure
 
@@ -111,12 +138,14 @@ Mono are the active portal fonts.
 
 ## Utility classes (portal `globals.css`)
 
-- `.aomi-eyebrow` — uppercase micro-label
+- `.aomi-eyebrow` — uppercase micro-label (mono)
 - `.aomi-numeric` — Geist Mono + tabular nums
+- `.aomi-prose` / `font-sans` — Geist Sans secondary for long prose
 - `.aomi-card` — hairline bordered surface card
 
 ## Out of scope
 
-- Cloning NeuralForge brand name, Billing panels, or fake ops metrics
+- Cloning reference brand names, Billing panels, or fake ops metrics
 - Aomi Build / Telegram visual forks beyond shared widget consumers of bumped package
 - Pirating or committing unlicensed commercial font binaries
+- Merging this branch into `main` / prod without explicit review of the mono experiment

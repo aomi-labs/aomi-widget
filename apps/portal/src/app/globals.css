@@ -60,40 +60,14 @@
 }
 
 /*
- * Optional ABC Diatype — portal-only future override. Shipping fonts are
- * Geist Sans + Geist Mono (next/font/google). Uncomment after dropping
- * licensed .woff2/.otf under public/assets/fonts/diatype/, then prepend
- * "ABC Diatype" to the body / sans stack below.
+ * Optional ABC Diatype — portal-only future override. This branch experiments
+ * with Geist Mono as the primary UI font. Uncomment after dropping licensed
+ * .woff2/.otf under public/assets/fonts/diatype/ if needed later.
  *
  * @font-face {
  *   font-family: "ABC Diatype";
  *   src: url("/assets/fonts/diatype/ABCDiatype-Regular.woff2") format("woff2"),
  *     url("/assets/fonts/diatype/ABCDiatype-Regular.otf") format("opentype");
- *   font-weight: 400;
- *   font-style: normal;
- *   font-display: swap;
- * }
- * @font-face {
- *   font-family: "ABC Diatype";
- *   src: url("/assets/fonts/diatype/ABCDiatype-Medium.woff2") format("woff2"),
- *     url("/assets/fonts/diatype/ABCDiatype-Medium.otf") format("opentype");
- *   font-weight: 500;
- *   font-style: normal;
- *   font-display: swap;
- * }
- * @font-face {
- *   font-family: "ABC Diatype";
- *   src: url("/assets/fonts/diatype/ABCDiatype-Bold.woff2") format("woff2"),
- *     url("/assets/fonts/diatype/ABCDiatype-Bold.otf") format("opentype");
- *   font-weight: 700;
- *   font-style: normal;
- *   font-display: swap;
- * }
- *
- * Optional mono (only if ABCDiatypeMono-* files are present; else keep Geist Mono):
- * @font-face {
- *   font-family: "ABC Diatype Mono";
- *   src: url("/assets/fonts/diatype/ABCDiatypeMono-Regular.woff2") format("woff2");
  *   font-weight: 400;
  *   font-style: normal;
  *   font-display: swap;
@@ -112,8 +86,10 @@
 
   body {
     @apply antialiased;
-    /* Shipping: Geist Sans. Optional later: "ABC Diatype", var(--font-geist-sans), … */
-    font-family: var(--font-geist-sans), "Geist", system-ui, sans-serif;
+    /* Branch experiment: Geist Mono primary UI (terminal / dev-tool feel). */
+    font-family: var(--font-geist-mono), "Geist Mono", ui-monospace, SFMono-Regular,
+      Menlo, Consolas, monospace;
+    font-variant-numeric: tabular-nums;
   }
 
   /* WebKit (Chrome, Safari, Edge): fully-custom scrollbar with a transparent
@@ -171,6 +147,8 @@
 /* Portal visual theme utilities — portal-scoped only (see specs/PORTAL-VISUAL-THEME.md).
    Do not move these into @aomi-labs/widget-lib without a deliberate package bump. */
 .aomi-eyebrow {
+  font-family: var(--font-geist-mono), "Geist Mono", ui-monospace, SFMono-Regular,
+    Menlo, Consolas, monospace;
   font-size: 10.5px;
   font-weight: 500;
   letter-spacing: 0.09em;
@@ -185,16 +163,24 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Secondary escape hatch: long prose readability (Geist Sans). */
+.aomi-prose,
+.font-sans {
+  font-family: var(--font-geist-sans), "Geist", system-ui, sans-serif;
+  font-variant-numeric: normal;
+}
+
 .aomi-card {
   border: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
-  border-radius: calc(var(--radius) + 4px);
+  border-radius: calc(var(--radius) + 2px);
   background: color-mix(in oklch, var(--card) 92%, transparent);
 }
 
-/* NeuralForge-density chrome for portal chat shell (portal-owned overrides). */
+/* Terminal/dev-tool chrome for portal chat shell (portal-owned overrides). */
 .dark [data-slot="sidebar"],
 .dark .bg-sidebar {
-  background: color-mix(in oklch, var(--sidebar) 92%, black);
+  background: var(--sidebar);
+  border-color: color-mix(in oklch, var(--border) 80%, transparent);
 }
 
 .aui-thread-welcome-suggestion-numeric {
@@ -204,20 +190,20 @@
 }
 
 .dark .aui-composer-root {
-  background: color-mix(in oklch, var(--muted) 55%, transparent);
-  border-color: color-mix(in oklch, var(--border) 70%, transparent);
+  background: color-mix(in oklch, var(--muted) 70%, transparent);
+  border-color: color-mix(in oklch, var(--border) 85%, transparent);
 }
 
 :root {
   /*
-   * --font-geist-sans / --font-geist-mono come from next/font in layout.tsx
-   * (Geist + Geist Mono). Do not override them with unloaded commercial
-   * family names. Optional Diatype: uncomment @font-face above, then set
-   * body font-family to "ABC Diatype", var(--font-geist-sans), …
+   * --font-geist-sans / --font-geist-mono come from next/font in layout.tsx.
+   * This branch: Mono is primary UI; Sans is secondary (font-sans / .aomi-prose).
    */
   --portal-status-success: oklch(0.62 0.14 155);
   --portal-status-warning: oklch(0.75 0.14 75);
   --portal-status-info: oklch(0.68 0.12 230);
+  /* Single restrained accent — Aomi status green (not rainbow). */
+  --portal-accent: var(--portal-status-success);
   --apkt-tokens-theme-textInverted: var(--background) !important;
   --apkt-tokens-core-backgroundAccentPrimary: var(--foreground) !important;
   --apkt-tokens-core-backgroundAccentSecondary: var(--background) !important;
@@ -228,10 +214,42 @@
   --apkt-color-background: var(--background) !important;
 }
 
+/*
+ * Portal dark: deeper charcoal near-black, hairline borders, muted gray
+ * secondary text — mono-first terminal/dev-tool direction (branch experiment).
+ */
 .dark {
+  --background: oklch(0.09 0.003 286);
+  --foreground: oklch(0.93 0.002 286);
+  --card: oklch(0.125 0.004 286);
+  --card-foreground: oklch(0.93 0.002 286);
+  --popover: oklch(0.125 0.004 286);
+  --popover-foreground: oklch(0.93 0.002 286);
+  --primary: oklch(0.93 0.002 286);
+  --primary-foreground: oklch(0.12 0.003 286);
+  --secondary: oklch(0.16 0.004 286);
+  --secondary-foreground: oklch(0.93 0.002 286);
+  --muted: oklch(0.155 0.004 286);
+  --muted-foreground: oklch(0.58 0.012 286);
+  --accent: oklch(0.16 0.004 286);
+  --accent-foreground: oklch(0.93 0.002 286);
+  --border: oklch(1 0 0 / 8%);
+  --input: oklch(1 0 0 / 10%);
+  --ring: oklch(0.55 0.01 286);
+  --sidebar: oklch(0.1 0.003 286);
+  --sidebar-foreground: oklch(0.93 0.002 286);
+  --sidebar-primary: var(--portal-accent);
+  --sidebar-primary-foreground: oklch(0.12 0.003 286);
+  --sidebar-accent: oklch(0.155 0.004 286);
+  --sidebar-accent-foreground: oklch(0.93 0.002 286);
+  --sidebar-border: oklch(1 0 0 / 8%);
+  --sidebar-ring: oklch(0.55 0.01 286);
+  --aomi-welcome-title: oklch(0.9 0.002 286);
+  --aomi-welcome-subtitle: oklch(0.58 0.012 286);
   --portal-status-success: oklch(0.72 0.15 155);
   --portal-status-warning: oklch(0.8 0.14 80);
   --portal-status-info: oklch(0.75 0.12 230);
+  --portal-accent: var(--portal-status-success);
   --apkt-tokens-core-backgroundAccentPrimary: var(--muted) !important;
   --apkt-tokens-core-backgroundAccentSecondary: var(--accent) !important;
   --apkt-tokens-core-foregroundPrimary: var(--foreground) !important;
