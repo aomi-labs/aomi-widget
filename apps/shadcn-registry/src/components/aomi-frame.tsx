@@ -132,7 +132,7 @@ const Root: FC<RootProps> = ({
       <SidebarProvider className="min-h-0! h-full">
         <div
           className={cn(
-            "rounded-4xl flex h-full w-full overflow-hidden bg-white shadow-2xl dark:bg-neutral-950",
+            "rounded-4xl flex h-full w-full overflow-hidden bg-white shadow-2xl dark:bg-neutral-950 dark:shadow-none",
             className,
           )}
           style={frameStyle}
@@ -173,7 +173,7 @@ const Header: FC<HeaderProps> = ({
     <>
       <header
         className={cn(
-          "mt-1 flex h-14 shrink-0 items-center gap-2 px-3",
+          "border-border/40 mt-0 flex h-12 shrink-0 items-center gap-2 border-b px-3",
           className,
         )}
       >
@@ -197,7 +197,7 @@ const Header: FC<HeaderProps> = ({
           {children}
         </div>
       </header>
-      <div className="pointer-events-none -mb-4 h-4 shrink-0" />
+      <div className="pointer-events-none -mb-2 h-2 shrink-0" />
     </>
   );
 };

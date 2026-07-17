@@ -150,6 +150,23 @@
   background: color-mix(in oklch, var(--card) 92%, transparent);
 }
 
+/* NeuralForge-density chrome for portal chat shell (portal-owned overrides). */
+.dark [data-slot="sidebar"],
+.dark .bg-sidebar {
+  background: color-mix(in oklch, var(--sidebar) 92%, black);
+}
+
+.aui-thread-welcome-suggestion-numeric {
+  font-family: var(--font-geist-mono), "Geist Mono", ui-monospace, SFMono-Regular,
+    Menlo, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.dark .aui-composer-root {
+  background: color-mix(in oklch, var(--muted) 55%, transparent);
+  border-color: color-mix(in oklch, var(--border) 70%, transparent);
+}
+
 :root {
   /*
    * Portal UI sans override (does not edit widget-lib / shadcn-registry).

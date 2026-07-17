@@ -421,7 +421,7 @@ export function PortalAomiFrame() {
             <button
               type="button"
               onClick={() => openSettings("general")}
-              className="text-muted-foreground hover:bg-accent hover:text-foreground inline-flex size-8 items-center justify-center rounded-full transition-colors"
+              className="text-muted-foreground hover:bg-accent hover:text-foreground inline-flex size-8 items-center justify-center rounded-lg transition-colors"
               aria-label="Open settings"
             >
               <Settings className="size-3.5" />

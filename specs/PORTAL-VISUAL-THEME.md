@@ -2,9 +2,32 @@
 
 Branch: `feat/chat-portal-visual-theme` (forked from `feat/chat-portal-settings-revamp`).
 
-Portal-scoped visual language inspired by NeuralForge (dev-tool chrome) and
-fintech swap-modal density. Shared `@aomi-labs/widget-lib` tokens stay
-untouched — overrides live in `apps/portal` only.
+Portal visual language inspired by NeuralForge (dev-tool chrome) and fintech
+swap-modal density. Keep Aomi product identity (logo, Connect wallet, real
+suggestion prompts) — match the *feel*, not NeuralForge brand/content.
+
+## Chat empty-state match (this pass)
+
+Previous pass left `thread.tsx` alone. This pass restyles the **real** Aomi
+empty chat so it reads like NeuralForge ops chrome:
+
+| Surface | Approach |
+| --- | --- |
+| Welcome | Eyebrow micro-label + tighter title hierarchy (bold primary, muted secondary) — not soft giant greeting |
+| Suggestion cards | Hairline bento cards, left status-accent bars (amber/green/cyan/info), muted meta line, mono on amounts (`1`, `100`) |
+| Composer | Denser charcoal surface, hairline border, slightly sharper radius, tighter control row |
+| Thread rail | Discussion-rail density: tighter rows, hairline separator, muted New Chat |
+| Portal frame | Header/side chrome denser charcoal; portal CSS overrides + shared widget class tweaks |
+
+**Do not** invent Billing/NeuralForge fake product data or a third fake column of
+ops widgets. Aomi’s layout stays thread-rail + chat + composer; density and
+surface language carry the 3-col ops *feel*.
+
+### Shared package
+
+Editing `apps/shadcn-registry` empty-state / rail chrome **requires** a
+`@aomi-labs/widget-lib` patch bump (AGENTS.md). Portal keeps additional
+token/font overrides in `apps/portal` only.
 
 ## Case rules
 
@@ -44,7 +67,7 @@ Geist Mono continues to load from `next/font/google` in
 ## Surface
 
 - Hairline borders (`border-border` at ~50–70% opacity)
-- Bento / rounded cards via `.aomi-card`
+- Bento / rounded cards via `.aomi-card` / suggestion card chrome
 - Restrained fills; status color (amber / green / cyan) for signal only
 - Dark charcoal chrome in dark mode; cool zinc in light mode (inherited tokens)
 
@@ -62,6 +85,6 @@ Geist Mono continues to load from `next/font/google` in
 
 ## Out of scope
 
-- Editing `apps/shadcn-registry/src/themes/default.css`
-- Aomi Build / Telegram / embeddable widget themes
+- Cloning NeuralForge brand name, Billing panels, or fake ops metrics
+- Aomi Build / Telegram visual forks beyond shared widget consumers of bumped package
 - Pirating or committing unlicensed commercial font binaries

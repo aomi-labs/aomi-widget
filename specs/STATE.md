@@ -2,6 +2,10 @@
 
 ## Last Updated
 
+2026-07-17 — Portal chat NeuralForge match on `feat/chat-portal-visual-theme`:
+  restyle ThreadWelcome / suggestion bento cards / denser composer + thread
+  rail; portal chrome density; ABC Diatype stack + Geist Mono (Diatype files
+  still missing → Inter fallback); bump `@aomi-labs/widget-lib` to 1.4.3;
 2026-07-17 — Portal visual theme revamp on `feat/chat-portal-visual-theme`
   (forked from settings): ABC Diatype UI stack (files missing → Inter
   fallback) + Geist Mono numerics; portal-scoped eyebrow/numeric/card

@@ -19,9 +19,12 @@ import {
 
 export const ThreadList: FC = () => {
   return (
-    <ThreadListPrimitive.Root className="aui-root aui-thread-list-root flex flex-1 list-none flex-col items-stretch gap-1 pl-2">
+    <ThreadListPrimitive.Root className="aui-root aui-thread-list-root flex flex-1 list-none flex-col items-stretch gap-0.5 pl-1.5">
       <ThreadListNew />
-      <div className="aui-thread-list-separator border-border/30 mx-4 my-2 border-t" />
+      <div className="aui-thread-list-separator border-border/40 mx-3 my-1.5 border-t" />
+      <div className="aui-thread-list-rail-label text-muted-foreground px-3 pb-1 text-[10.5px] font-medium tracking-[0.09em] uppercase">
+        Threads
+      </div>
       <ThreadListItems />
     </ThreadListPrimitive.Root>
   );
@@ -31,10 +34,10 @@ const ThreadListNew: FC = () => {
   return (
     <ThreadListPrimitive.New asChild>
       <Button
-        className="aui-thread-list-new hover:bg-accent data-active:bg-accent flex items-center justify-start gap-2 rounded-2xl px-4 py-2 text-start text-sm"
+        className="aui-thread-list-new hover:bg-accent data-active:bg-accent text-foreground/90 flex items-center justify-start gap-2 rounded-lg px-3 py-1.5 text-start text-sm font-medium"
         variant="ghost"
       >
-        <PlusIcon className="size-4" />
+        <PlusIcon className="text-muted-foreground size-3.5" />
         New Chat
       </Button>
     </ThreadListPrimitive.New>
@@ -117,11 +120,11 @@ const ThreadListItem: FC = () => {
 
   return (
     <ThreadListItemPrimitive.Root
-      className="aui-thread-list-item group/thread hover:bg-accent focus-visible:bg-accent data-active:bg-accent flex w-full min-w-0 items-center rounded-2xl pr-2 transition-all focus-visible:outline-none"
+      className="aui-thread-list-item group/thread hover:bg-accent focus-visible:bg-accent data-active:bg-accent data-active:border-border/50 flex w-full min-w-0 items-center rounded-lg border border-transparent pr-1.5 transition-all focus-visible:outline-none"
       onMouseEnter={cancelClose}
       onMouseLeave={scheduleClose}
     >
-      <ThreadListItemPrimitive.Trigger className="aui-thread-list-item-trigger min-w-0 flex-1 py-2 pl-4 pr-1 text-start">
+      <ThreadListItemPrimitive.Trigger className="aui-thread-list-item-trigger min-w-0 flex-1 py-1.5 pl-3 pr-1 text-start">
         <ThreadListItemTitle />
       </ThreadListItemPrimitive.Trigger>
       <ThreadListItemMenu
