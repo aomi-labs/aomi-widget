@@ -14,6 +14,7 @@ import {
   deploymentRecords,
   deploymentDeactivate,
   deploymentUpgradeSdk,
+  deploymentSdkUpgradeStatus,
   launchPreflight,
   launchDeploy,
   launchStatus,
@@ -376,6 +377,13 @@ export function useProjectDetail(sourceId: number) {
     [sourceId],
   );
 
+  // Cheap merge-poll counterpart to upgradeSdk: one GitHub-backed read, no
+  // repo tarball or branch refresh, safe to call on the 45s recheck loop.
+  const checkSdkUpgradeStatus = useCallback(
+    () => deploymentSdkUpgradeStatus({ appSourceId: sourceId }),
+    [sourceId],
+  );
+
   return {
     source,
     loading,
@@ -404,6 +412,7 @@ export function useProjectDetail(sourceId: number) {
     deactivate,
     redeploySource,
     upgradeSdk,
+    checkSdkUpgradeStatus,
     reload: () => void reload(),
   };
 }

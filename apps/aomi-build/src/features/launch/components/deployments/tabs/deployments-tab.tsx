@@ -55,6 +55,7 @@ export function DeploymentsTab({
   const upgrade = useSdkUpgrade({
     sourceId: source?.id ?? null,
     upgrade: detail.upgradeSdk,
+    checkStatus: detail.checkSdkUpgradeStatus,
     // Repo already satisfies the required SDK: no PR to wait on, ship it.
     onAlreadyCurrent: () => void detail.redeploySource(),
   });

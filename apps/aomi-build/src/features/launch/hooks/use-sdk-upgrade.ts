@@ -1,7 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { SourceSdkUpgradeResult } from "@aomi-labs/deploy";
+import type {
+  SourceSdkUpgradeResult,
+  SourceSdkUpgradeStatusResult,
+} from "@aomi-labs/deploy";
 
 /**
  * Lifecycle of one SDK upgrade, from the builder's side:
@@ -71,11 +74,18 @@ export function skipUpgradeConfirm(): boolean {
 export function useSdkUpgrade({
   sourceId,
   upgrade,
+  checkStatus,
   onAlreadyCurrent,
 }: {
   sourceId: number | null;
-  /** The BFF call (idempotent server-side). */
+  /** The BFF call that opens/reuses the upgrade PR (idempotent server-side). */
   upgrade: () => Promise<SourceSdkUpgradeResult>;
+  /**
+   * The cheap merge poll: one GitHub-backed read of the upgrade PR's state,
+   * no repo tarball or branch refresh. Used by the recheck loop in place of
+   * re-calling {@link upgrade}.
+   */
+  checkStatus: () => Promise<SourceSdkUpgradeStatusResult>;
   /**
    * First-click shortcut: the repo already satisfies the required SDK, so
    * there is no PR to wait on — the caller kicks the redeploy directly.
@@ -169,7 +179,12 @@ export function useSdkUpgrade({
 
   const cancel = useCallback(() => setState({ phase: "idle" }), []);
 
-  /** Re-ask the backend; `current` now means the upgrade PR was merged. */
+  /**
+   * Poll the upgrade PR's merge state via the cheap status read. `merged` is
+   * terminal (the repo head now satisfies the requirement); `open` keeps the
+   * rail waiting; `closed`/`none` means the PR is gone, so reconcile through
+   * the idempotent {@link upgrade} call, which reopens/recreates it.
+   */
   const recheck = useCallback(async () => {
     if (inFlight.current) return;
     inFlight.current = true;
@@ -177,7 +192,17 @@ export function useSdkUpgrade({
       prev.phase === "pr-open" ? { ...prev, checking: true } : prev,
     );
     try {
-      applyResult(await upgrade(), "recheck");
+      const status = await checkStatus();
+      if (status.status === "merged") {
+        writeStoredPr(sourceId, null);
+        setState({ phase: "merged", alreadyCurrent: false });
+      } else if (status.status === "open") {
+        setState((prev) =>
+          prev.phase === "pr-open" ? { ...prev, checking: false } : prev,
+        );
+      } else {
+        applyResult(await upgrade(), "recheck");
+      }
     } catch {
       // Transient failure — keep waiting on the PR; the next tick retries.
       setState((prev) =>
@@ -186,7 +211,7 @@ export function useSdkUpgrade({
     } finally {
       inFlight.current = false;
     }
-  }, [applyResult, upgrade]);
+  }, [applyResult, checkStatus, upgrade, sourceId]);
 
   const dismiss = useCallback(() => {
     writeStoredPr(sourceId, null);

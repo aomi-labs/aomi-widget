@@ -31,6 +31,7 @@ function makeDetail(
     sdkVersion?: string;
     requiredSdk?: string;
     upgradeSdk?: ReturnType<typeof vi.fn>;
+    checkSdkUpgradeStatus?: ReturnType<typeof vi.fn>;
   } = {},
 ) {
   const sdkVersion = overrides.sdkVersion ?? "3.0.1";
@@ -66,6 +67,19 @@ function makeDetail(
         status: "current",
         requiredSdkVersion: "3.0.1",
         sourceRef: "abc1234",
+      })),
+    checkSdkUpgradeStatus:
+      overrides.checkSdkUpgradeStatus ??
+      vi.fn(async () => ({
+        status: "open",
+        requiredSdkVersion: "3.0.1",
+        branch: "aomi/sdk-3.0.1",
+        pullRequest: {
+          number: 7,
+          url: "https://github.com/alice/bot/pull/7",
+          state: "open",
+          merged: false,
+        },
       })),
     deployFlow: { phase: "idle" },
     recordsByApp: {
@@ -221,7 +235,9 @@ describe("DeploymentsTab", () => {
     renderTab(<DeploymentsTab detail={outdated} />);
 
     expect(screen.getByText("Outdated")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /upgrade to 3\.0\.3/i }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /upgrade to 3\.0\.3/i }),
+    );
     // Nothing happens until the builder confirms the plan.
     expect(upgradeSdk).not.toHaveBeenCalled();
     const dialog = screen.getByRole("dialog", {
@@ -257,7 +273,9 @@ describe("DeploymentsTab", () => {
     });
     renderTab(<DeploymentsTab detail={outdated} />);
 
-    fireEvent.click(screen.getByRole("button", { name: /upgrade to 3\.0\.3/i }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /upgrade to 3\.0\.3/i }),
+    );
     const dialog = screen.getByRole("dialog", {
       name: /open an upgrade pull request/i,
     });
@@ -278,28 +296,39 @@ describe("DeploymentsTab", () => {
     });
     renderTab(<DeploymentsTab detail={outdated} />);
 
-    fireEvent.click(screen.getByRole("button", { name: /upgrade to 3\.0\.3/i }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /upgrade to 3\.0\.3/i }),
+    );
     await screen.findAllByRole("link", { name: /review pr #7/i });
     expect(upgradeSdk).toHaveBeenCalledOnce();
   });
 
   it("detects the merge on re-check and unlocks redeploy", async () => {
-    const upgradeSdk = vi
-      .fn()
-      .mockResolvedValueOnce(pullRequestResult)
-      .mockResolvedValueOnce({
-        status: "current" as const,
-        requiredSdkVersion: "3.0.3",
-        sourceRef: "abc1234",
-      });
+    // openPr uses the heavy upgrade call; the re-check uses the cheap status
+    // poll, which reports the PR merged.
+    const upgradeSdk = vi.fn(async () => pullRequestResult);
+    const checkSdkUpgradeStatus = vi.fn(async () => ({
+      status: "merged" as const,
+      requiredSdkVersion: "3.0.3",
+      branch: "aomi/sdk-3.0.3",
+      pullRequest: {
+        number: 7,
+        url: "https://github.com/alice/bot/pull/7",
+        state: "closed",
+        merged: true,
+      },
+    }));
     const outdated = makeDetail({
       sdkVersion: "3.0.2",
       requiredSdk: "3.0.3",
       upgradeSdk,
+      checkSdkUpgradeStatus,
     });
     renderTab(<DeploymentsTab detail={outdated} />);
 
-    fireEvent.click(screen.getByRole("button", { name: /upgrade to 3\.0\.3/i }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /upgrade to 3\.0\.3/i }),
+    );
     fireEvent.click(
       within(
         screen.getByRole("dialog", { name: /open an upgrade pull request/i }),
@@ -330,7 +359,9 @@ describe("DeploymentsTab", () => {
     });
     renderTab(<DeploymentsTab detail={outdated} />);
 
-    fireEvent.click(screen.getByRole("button", { name: /upgrade to 3\.0\.3/i }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /upgrade to 3\.0\.3/i }),
+    );
     fireEvent.click(
       within(
         screen.getByRole("dialog", { name: /open an upgrade pull request/i }),
