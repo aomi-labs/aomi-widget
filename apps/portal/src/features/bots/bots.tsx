@@ -7,6 +7,7 @@ import {
   SettingsEmpty,
   SettingsPanel,
   SettingsPill,
+  SettingsPromoCard,
   SettingsRow,
   SettingsSelect,
   SettingsSkeletonRows,
@@ -204,9 +205,13 @@ export function Bots() {
       ) : null}
 
       {error ? (
-        <SettingsStatus tone="error">
-          Failed to load bots: {error}
-        </SettingsStatus>
+        <SettingsPromoCard
+          title="Account offline"
+          description={error}
+          action={
+            <SettingsPill onClick={() => void loadBots()}>Retry</SettingsPill>
+          }
+        />
       ) : null}
 
       <SettingsRow label="Label" description="Optional">
@@ -304,7 +309,7 @@ export function Bots() {
 
       {loading ? <SettingsSkeletonRows count={3} /> : null}
 
-      {!loading && bots.length === 0 ? (
+      {!loading && !error && bots.length === 0 ? (
         <SettingsEmpty
           title="No bots yet"
           description="Paste a BotFather token above to register one."

@@ -117,7 +117,7 @@ export function AppsSettings() {
 
       {!loading && error ? (
         <SettingsPromoCard
-          title="Could not load usage"
+          title="Account offline"
           description={error}
           action={
             <SettingsPill onClick={() => void fetchOverview()}>

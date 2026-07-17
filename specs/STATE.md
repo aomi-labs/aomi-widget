@@ -2,6 +2,8 @@
 
 ## Last Updated
 
+2026-07-17 — Portal settings craft polish: ungate Usage/App Keys/Bots, account
+  summary (no fake Free), mobile account strip; PR #365;
 2026-07-16 — Portal settings craft pass (PR #365): account menu, ungate General,
   dark-first modal, active-tab fix, preview badge, inline confirms, account header;
 2026-07-16 — Portal settings revamp (preview branch): settings modal over chat;

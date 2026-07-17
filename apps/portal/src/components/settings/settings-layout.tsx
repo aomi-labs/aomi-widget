@@ -1,7 +1,6 @@
 "use client";
 
 import { X } from "lucide-react";
-import { useAomiAuthAdapter, useAomiWalletKit } from "@aomi-labs/widget-lib";
 import { ErrorBoundary } from "@portal/components/shell/error-boundary";
 import { GeneralSettings } from "@portal/features/general";
 import { AppsSettings } from "@portal/features/apps";
@@ -9,134 +8,63 @@ import { AppKeys } from "@portal/features/app-keys";
 import { Bots } from "@portal/features/bots";
 import { Secrets } from "@portal/features/secrets";
 import { Byok } from "@portal/features/byok";
-import {
-  useAomiSession,
-  type AomiSessionStatus,
-} from "@portal/components/providers/aomi-session-bridge";
 import { useSettingsController } from "./settings-controller";
 import {
-  SettingsPanel,
   SettingsPill,
   SettingsPreviewBadge,
-  SettingsPromoCard,
-  SettingsSkeletonRows,
 } from "./settings-primitives";
 import { SettingsRail } from "./settings-rail";
+import { useAccountSummary } from "./use-account-summary";
 import type { SettingsCategory } from "./settings-types";
+import { cn } from "@portal/lib/utils";
 
-/** Tabs that still need a ready account session. General always renders. */
-const ACCOUNT_SCOPED_TABS: ReadonlySet<SettingsCategory> = new Set([
-  "apps",
-  "app-keys",
-  "bots",
-]);
-
-function shortenAddress(address?: string | null): string {
-  if (!address) return "Not connected";
-  if (address.length < 12) return address;
-  return `${address.slice(0, 6)}…${address.slice(-4)}`;
-}
-
-function SettingsAccountHeader() {
-  const adapter = useAomiWalletKit();
-  const identity = adapter.identity;
-  const connected = identity.isConnected;
-  const label = connected
-    ? shortenAddress(identity.address)
-    : "Not connected";
+function SettingsAccountHeader({
+  compact = false,
+}: {
+  compact?: boolean;
+}) {
+  const summary = useAccountSummary();
 
   return (
-    <div className="bg-muted/50 mx-2 mb-1 rounded-xl px-2.5 py-2.5">
+    <div
+      className={cn(
+        "bg-muted/50 rounded-xl px-2.5 py-2.5",
+        compact ? "mx-2 mb-2" : "mx-2 mb-1",
+      )}
+    >
       <div className="flex items-center gap-2.5">
         <div
           className="bg-foreground/15 text-foreground flex size-8 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold tracking-wide"
           aria-hidden
         >
-          {connected && identity.address
-            ? identity.address.slice(2, 4).toUpperCase()
+          {summary.connected && summary.address
+            ? summary.address.slice(2, 4).toUpperCase()
             : "?"}
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-foreground truncate text-[12.5px] font-medium">
-            {label}
+            {summary.identityLabel}
           </p>
-          <p className="text-muted-foreground truncate text-[11px]">
-            {connected ? "Connected · Free" : "Not connected"}
+          <p className="text-muted-foreground truncate text-[11px] capitalize">
+            {summary.statusLabel}
           </p>
         </div>
+        {summary.accountUnavailable && summary.connected ? (
+          <SettingsPill className="shrink-0" onClick={summary.retry}>
+            Retry
+          </SettingsPill>
+        ) : null}
       </div>
-      {!connected && adapter.canConnect ? (
+      {!summary.connected && summary.canConnect ? (
         <SettingsPill
           tone="primary"
           className="mt-2 w-full"
-          onClick={() => void adapter.connect()}
+          onClick={summary.connect}
         >
           Connect
         </SettingsPill>
       ) : null}
     </div>
-  );
-}
-
-function SessionGate({
-  status,
-  onRetry,
-  onConnect,
-}: {
-  status: Exclude<AomiSessionStatus, "ready">;
-  onRetry: () => void;
-  onConnect?: () => void;
-}) {
-  if (status === "establishing") {
-    return (
-      <SettingsPanel
-        title="Account"
-        description="Connecting…"
-        badge={<SettingsPreviewBadge />}
-      >
-        <SettingsSkeletonRows count={4} />
-      </SettingsPanel>
-    );
-  }
-
-  if (status === "error") {
-    return (
-      <SettingsPanel
-        title="Account"
-        description="Could not load this tab."
-        badge={<SettingsPreviewBadge />}
-      >
-        <SettingsPromoCard
-          title="Account offline"
-          description="Retry, or use General meanwhile."
-          action={
-            <SettingsPill type="button" onClick={onRetry}>
-              Retry
-            </SettingsPill>
-          }
-        />
-      </SettingsPanel>
-    );
-  }
-
-  return (
-    <SettingsPanel
-      title="Account"
-      description="Connect to open this tab."
-      badge={<SettingsPreviewBadge />}
-    >
-      <SettingsPromoCard
-        title="Not connected"
-        description="Usage, keys, and bots need a connected account."
-        action={
-          onConnect ? (
-            <SettingsPill type="button" tone="primary" onClick={onConnect}>
-              Connect
-            </SettingsPill>
-          ) : undefined
-        }
-      />
-    </SettingsPanel>
   );
 }
 
@@ -161,8 +89,6 @@ function SettingsBody({ category }: { category: SettingsCategory }) {
 
 export function SettingsLayout({ onClose }: { onClose?: () => void }) {
   const { category, setCategory } = useSettingsController();
-  const { status, retry } = useAomiSession();
-  const adapter = useAomiAuthAdapter();
 
   return (
     <div className="bg-background text-foreground border-border/70 flex h-full min-h-0 w-full flex-col overflow-hidden rounded-t-2xl border shadow-2xl sm:flex-row sm:rounded-2xl">
@@ -186,6 +112,12 @@ export function SettingsLayout({ onClose }: { onClose?: () => void }) {
           </div>
           <span className="size-8 sm:hidden" />
         </div>
+
+        {/* Mobile: compact account strip above tab chips */}
+        <div className="sm:hidden">
+          <SettingsAccountHeader compact />
+        </div>
+
         <div className="hidden px-1 pt-1 sm:block">
           <div className="mb-2 flex items-center justify-between px-2">
             <p className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">
@@ -205,21 +137,7 @@ export function SettingsLayout({ onClose }: { onClose?: () => void }) {
       </aside>
       <div className="bg-background flex min-h-0 min-w-0 flex-1 flex-col">
         <ErrorBoundary>
-          {ACCOUNT_SCOPED_TABS.has(category) && status !== "ready" ? (
-            <SessionGate
-              status={status}
-              onRetry={retry}
-              onConnect={
-                adapter.openAccountUI
-                  ? () => {
-                      void adapter.openAccountUI?.();
-                    }
-                  : undefined
-              }
-            />
-          ) : (
-            <SettingsBody category={category} />
-          )}
+          <SettingsBody category={category} />
         </ErrorBoundary>
       </div>
     </div>

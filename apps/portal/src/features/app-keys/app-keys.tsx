@@ -8,6 +8,7 @@ import {
   SettingsEmpty,
   SettingsPanel,
   SettingsPill,
+  SettingsPromoCard,
   SettingsRow,
   SettingsSkeletonRows,
   SettingsStatus,
@@ -71,6 +72,7 @@ export function AppKeys() {
     text: string;
   } | null>(null);
   const [createdAppKey, setCreatedAppKey] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const ensureBoundSession = useCallback(async () => {
     await settingsApiFetch<{ thread_id: string; title?: string | null }>(
@@ -81,6 +83,7 @@ export function AppKeys() {
 
   const loadAppKeys = useCallback(async () => {
     setLoadingKeys(true);
+    setLoadError(null);
     setStatus(null);
     try {
       await ensureBoundSession();
@@ -89,11 +92,10 @@ export function AppKeys() {
       );
       setAppKeys(data.app_keys ?? []);
     } catch (error) {
-      setStatus({
-        type: "error",
-        text:
-          error instanceof Error ? error.message : "Failed to load app keys",
-      });
+      setAppKeys([]);
+      setLoadError(
+        error instanceof Error ? error.message : "Failed to load app keys",
+      );
     } finally {
       setLoadingKeys(false);
     }
@@ -219,6 +221,16 @@ export function AppKeys() {
         <SettingsStatus tone={status.type}>{status.text}</SettingsStatus>
       ) : null}
 
+      {!loadingKeys && loadError ? (
+        <SettingsPromoCard
+          title="Account offline"
+          description={loadError}
+          action={
+            <SettingsPill onClick={() => void loadAppKeys()}>Retry</SettingsPill>
+          }
+        />
+      ) : null}
+
       <SettingsRow label="Label" description="Optional">
         <Input
           type="text"
@@ -307,7 +319,7 @@ export function AppKeys() {
 
       {loadingKeys ? <SettingsSkeletonRows count={4} /> : null}
 
-      {!loadingKeys && appKeys.length === 0 ? (
+      {!loadingKeys && !loadError && appKeys.length === 0 ? (
         <SettingsEmpty
           title="No app keys yet"
           description="Create a key above to call the API."

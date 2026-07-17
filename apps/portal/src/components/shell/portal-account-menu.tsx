@@ -11,21 +11,15 @@ import {
 } from "lucide-react";
 import { useAomiWalletKit } from "@aomi-labs/widget-lib";
 import { useSettingsController } from "@portal/components/settings/settings-controller";
+import { useAccountSummary } from "@portal/components/settings/use-account-summary";
 import { cn } from "@portal/lib/utils";
-
-function shortenAddress(address?: string | null): string {
-  if (!address) return "Not connected";
-  if (address.length < 12) return address;
-  return `${address.slice(0, 6)}…${address.slice(-4)}`;
-}
 
 export function PortalAccountMenu() {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const { openSettings } = useSettingsController();
   const adapter = useAomiWalletKit();
-  const identity = adapter.identity;
-  const connected = identity.isConnected;
+  const summary = useAccountSummary();
 
   useEffect(() => {
     if (!open) return;
@@ -61,9 +55,9 @@ export function PortalAccountMenu() {
           open && "bg-accent text-foreground",
         )}
       >
-        {connected && identity.address ? (
+        {summary.connected && summary.address ? (
           <span className="bg-foreground/10 text-foreground flex size-6 items-center justify-center rounded-full text-[10px] font-semibold">
-            {identity.address.slice(2, 4).toUpperCase()}
+            {summary.address.slice(2, 4).toUpperCase()}
           </span>
         ) : (
           <CircleUserRound className="size-4" />
@@ -77,16 +71,16 @@ export function PortalAccountMenu() {
         >
           <div className="flex items-center gap-2.5 px-3 py-2.5">
             <div className="bg-muted text-foreground flex size-8 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold">
-              {connected && identity.address
-                ? identity.address.slice(2, 4).toUpperCase()
+              {summary.connected && summary.address
+                ? summary.address.slice(2, 4).toUpperCase()
                 : "?"}
             </div>
             <div className="min-w-0">
               <p className="truncate text-[13px] font-medium">
-                {shortenAddress(identity.address)}
+                {summary.identityLabel}
               </p>
-              <p className="text-muted-foreground truncate text-[11px]">
-                {connected ? "Connected · Free" : "Not connected"}
+              <p className="text-muted-foreground truncate text-[11px] capitalize">
+                {summary.statusLabel}
               </p>
             </div>
           </div>
@@ -127,7 +121,7 @@ export function PortalAccountMenu() {
           </div>
           <div className="bg-border h-px" />
           <div className="p-1">
-            {connected ? (
+            {summary.connected ? (
               <button
                 type="button"
                 role="menuitem"
@@ -145,14 +139,14 @@ export function PortalAccountMenu() {
                 type="button"
                 role="menuitem"
                 className={itemClass}
-                disabled={!adapter.canConnect}
+                disabled={!summary.canConnect}
                 onClick={() => {
                   setOpen(false);
-                  void adapter.connect();
+                  summary.connect();
                 }}
               >
                 <CircleUserRound className="size-3.5 opacity-70" />
-                Connect wallet
+                Connect
               </button>
             )}
           </div>
