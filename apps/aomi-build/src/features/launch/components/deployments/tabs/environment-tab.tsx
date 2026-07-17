@@ -11,10 +11,24 @@ import { LoadingPanel } from "../ui/state-panels";
 type Detail = ReturnType<typeof useProjectDetail>;
 type Row = { key: string; value: string };
 
+/** One entry in the unified variables list: a slot the app declares in its
+ * manifest and/or a key already configured in the vault. */
+type VariableRow = {
+  key: string;
+  /** Vault handle when the key is configured (used as a stable list key). */
+  handle: string | null;
+  configured: boolean;
+  /** Declared in the release manifest (has description + required flag). */
+  declared: boolean;
+  required: boolean;
+  description: string;
+};
+
 export function EnvironmentTab({ detail }: { detail: Detail }) {
   const { toast } = useToast();
   useEffect(() => {
     detail.loadSecrets();
+    detail.loadRequiredSecrets();
   }, [detail]);
 
   const appNames = useMemo(
@@ -44,6 +58,39 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
   const currentKeys = (app ? (detail.secretsByApp?.[app] ?? []) : []).map(
     (handle) => ({ handle, key: handle.split("::").pop() ?? handle }),
   );
+
+  const required = app ? detail.requiredSecrets?.[app] : undefined;
+  const missingCount = required?.missing.length ?? 0;
+
+  // One unified list: declared slots (manifest) merged with configured keys
+  // (vault). Missing required slots sort first so the warning reads next to
+  // its cause; custom configured keys follow the declared ones.
+  const configuredByKey = new Map(currentKeys.map((k) => [k.key, k.handle]));
+  const declaredNames = new Set((required?.slots ?? []).map((s) => s.name));
+  const declaredRows: VariableRow[] = (required?.slots ?? []).map((slot) => ({
+    key: slot.name,
+    handle: configuredByKey.get(slot.name) ?? null,
+    configured: configuredByKey.has(slot.name),
+    declared: true,
+    required: slot.required,
+    description: slot.description,
+  }));
+  declaredRows.sort(
+    (a, b) =>
+      Number(b.required && !b.configured) - Number(a.required && !a.configured),
+  );
+  const customRows: VariableRow[] = currentKeys
+    .filter(({ key }) => !declaredNames.has(key))
+    .map(({ handle, key }) => ({
+      key,
+      handle,
+      configured: true,
+      declared: false,
+      required: false,
+      description: "",
+    }));
+  const variableRows = [...declaredRows, ...customRows];
+  const hasRequired = declaredRows.some((row) => row.required);
 
   const save = async () => {
     const values: Record<string, string> = {};
@@ -166,6 +213,136 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
         )}
       </div>
 
+      {variableRows.length > 0 ? (
+        <div className="px-4 py-3">
+          <div className="text-xs font-medium uppercase tracking-wide text-dim">
+            Variables
+          </div>
+          {missingCount > 0 && (
+            <div className="mt-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning">
+              {missingCount} required secret{missingCount === 1 ? "" : "s"}{" "}
+              missing. This app cannot be activated until every required value
+              is set.
+            </div>
+          )}
+          <ul className="mt-2 space-y-2">
+            {variableRows.map((row) => (
+              <li
+                key={row.handle ?? row.key}
+                className="flex flex-wrap items-start justify-between gap-2 py-0.5"
+              >
+                <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                  <span className="flex flex-wrap items-center gap-2">
+                    <span className="truncate font-mono text-xs text-foreground">
+                      {row.key}
+                      {row.required && (
+                        <span
+                          className="text-warning"
+                          title="Required"
+                          aria-label="Required"
+                        >
+                          {" *"}
+                        </span>
+                      )}
+                    </span>
+                    {row.configured ? (
+                      <>
+                        <span className="rounded-sm border border-warning/40 bg-warning/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-warning">
+                          Builder secret
+                        </span>
+                        <span className="rounded-sm border border-border bg-surface-2 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-dim">
+                          Runtime
+                        </span>
+                        <span
+                          className="font-mono text-xs tracking-widest text-dim"
+                          title="Value is write-only and cannot be revealed"
+                          aria-label="Value hidden"
+                        >
+                          ••••
+                        </span>
+                      </>
+                    ) : (
+                      <span
+                        className={`rounded-sm border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide ${
+                          row.required
+                            ? "border-warning/40 bg-warning/10 text-warning"
+                            : "border-border bg-surface-2 text-dim"
+                        }`}
+                      >
+                        Not set
+                      </span>
+                    )}
+                  </span>
+                  {row.description && (
+                    <span className="text-xs leading-5 text-dim">
+                      {row.description}
+                    </span>
+                  )}
+                </span>
+                <span className="flex shrink-0 items-center gap-2">
+                  {row.configured ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => void copyKey(row.key)}
+                        className="inline-flex items-center gap-1 text-xs text-dim hover:text-foreground"
+                        title={`Copy ${row.key}`}
+                      >
+                        <Copy className="size-3.5" aria-hidden />
+                        {copiedKey === row.key ? "Copied" : "Copy key"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => overwrite(row.key)}
+                        className="text-xs text-dim hover:text-foreground"
+                        title={`Overwrite ${row.key}`}
+                      >
+                        Overwrite
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void remove(row.key)}
+                        className="inline-flex items-center gap-1 text-xs text-dim hover:text-destructive"
+                        title={`Delete ${row.key}`}
+                      >
+                        <Trash2 className="size-3.5" aria-hidden />
+                        Delete
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => overwrite(row.key)}
+                      className="rounded-md border border-border bg-surface-1 px-2 py-1 text-xs font-medium hover:bg-accent-hover"
+                      title={`Set ${row.key}`}
+                    >
+                      Set value
+                    </button>
+                  )}
+                </span>
+              </li>
+            ))}
+          </ul>
+          {hasRequired && (
+            <p className="mt-2 text-xs text-dim">
+              <span className="text-warning">*</span> Required — the app cannot
+              be activated without it.
+            </p>
+          )}
+        </div>
+      ) : (
+        appNames.length > 0 && (
+          <div className="px-4 py-4 text-sm text-dim">
+            <p className="font-medium text-foreground">No variables yet</p>
+            <p className="mt-1 text-xs leading-5">
+              Add keys your agent needs (for example{" "}
+              <span className="font-mono">BINANCE_API_KEY</span>). Chat users
+              never paste API keys.
+            </p>
+          </div>
+        )
+      )}
+
       <div className="px-4 py-3">
         <div className="mb-2 text-xs font-medium uppercase tracking-wide text-dim">
           Add or overwrite
@@ -232,80 +409,6 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
           )}
         </div>
       </div>
-
-      {currentKeys.length > 0 ? (
-        <div className="px-4 py-3">
-          <div className="text-xs font-medium uppercase tracking-wide text-dim">
-            Configured
-          </div>
-          <ul className="mt-2 space-y-2">
-            {currentKeys.map(({ handle, key }) => (
-              <li
-                key={handle}
-                className="flex flex-wrap items-center justify-between gap-2 py-0.5"
-              >
-                <span className="flex min-w-0 flex-wrap items-center gap-2">
-                  <span className="truncate font-mono text-xs text-foreground">
-                    {key}
-                  </span>
-                  <span className="rounded-sm border border-warning/40 bg-warning/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-warning">
-                    Builder secret
-                  </span>
-                  <span className="rounded-sm border border-border bg-surface-2 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-dim">
-                    Runtime
-                  </span>
-                  <span
-                    className="font-mono text-xs tracking-widest text-dim"
-                    title="Value is write-only and cannot be revealed"
-                    aria-label="Value hidden"
-                  >
-                    ••••
-                  </span>
-                </span>
-                <span className="flex shrink-0 items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => void copyKey(key)}
-                    className="inline-flex items-center gap-1 text-xs text-dim hover:text-foreground"
-                    title={`Copy ${key}`}
-                  >
-                    <Copy className="size-3.5" aria-hidden />
-                    {copiedKey === key ? "Copied" : "Copy key"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => overwrite(key)}
-                    className="text-xs text-dim hover:text-foreground"
-                    title={`Overwrite ${key}`}
-                  >
-                    Overwrite
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void remove(key)}
-                    className="inline-flex items-center gap-1 text-xs text-dim hover:text-destructive"
-                    title={`Delete ${key}`}
-                  >
-                    <Trash2 className="size-3.5" aria-hidden />
-                    Delete
-                  </button>
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : (
-        appNames.length > 0 && (
-          <div className="px-4 py-4 text-sm text-dim">
-            <p className="font-medium text-foreground">No variables yet</p>
-            <p className="mt-1 text-xs leading-5">
-              Add keys your agent needs (for example{" "}
-              <span className="font-mono">BINANCE_API_KEY</span>). Chat users
-              never paste API keys.
-            </p>
-          </div>
-        )
-      )}
     </div>
   );
 }

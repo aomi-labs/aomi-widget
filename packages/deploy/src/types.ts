@@ -39,11 +39,14 @@ export interface AuditEvent {
     | "list_user_sources"
     | "list_user_deployments"
     | "list_user_source_deployments"
-    | "list_user_source_agents"
+    | "list_user_source_bots"
+    | "create_user_source_bot"
+    | "delete_user_source_bot"
     | "list_user_source_transactions"
     | "get_user_source_usage"
     | "list_user_source_logs"
     | "get_user_source_observability"
+    | "upgrade_user_source_sdk"
     | "list_deployment_records"
     | "get_user_source_latest_deployment"
     | "deactivate"
@@ -590,6 +593,32 @@ export interface OwnedOperateSourceInput extends BearerOverride {
   appSourceId: number;
 }
 
+export type SourceSdkUpgradeResult =
+  | {
+      status: "current";
+      requiredSdkVersion: string;
+      sourceRef: string;
+    }
+  | {
+      status: "pull_request";
+      requiredSdkVersion: string;
+      sourceRef: string;
+      branch: string;
+      files: string[];
+      pullRequest: {
+        number: number;
+        url: string;
+        created: boolean;
+      };
+    }
+  | {
+      status: "manual";
+      requiredSdkVersion: string;
+      sourceRef: string;
+      reason: string;
+      command: string;
+    };
+
 export interface ListUserSourceTransactionsInput extends OwnedOperateSourceInput {
   cursor?: OperateTransactionCursor | string | null;
   limit?: number;
@@ -618,10 +647,33 @@ export interface OperateLogCursor {
   id: string;
 }
 
-export interface OperateAgentsResult {
-  source: AppSource;
+export interface BotRegistration {
+  id: string;
   platform: string;
-  agents: PlatformApp[];
+  status: string;
+  label: string | null;
+  defaultApp: string;
+  platformBotId: string;
+  platformUsername: string | null;
+  webhookUrl: string | null;
+  threadMode: string;
+  createdAt: number;
+}
+
+export interface CreateUserSourceBotInput extends OwnedOperateSourceInput {
+  applicationId: number;
+  /** The bot's platform (e.g. "telegram") — distinct from `platform`, which
+   *  is the deploy platform (e.g. "community"). Maps to the request body's
+   *  `platform` field. */
+  botPlatform: string;
+  /** Passed through to the backend; never stored, logged, or returned. */
+  credential: string;
+  label?: string;
+  threadMode?: string;
+}
+
+export interface DeleteUserSourceBotInput extends OwnedOperateSourceInput {
+  botId: string;
 }
 
 export interface OperateTransaction {
@@ -783,6 +835,28 @@ export interface PromoteResult {
     sdkStatus?: SdkVersionStatus | null;
     activation?: ActivateResult["activation"];
   };
+}
+
+/** A secret an app declares via the SDK's `Secret::new(name, description, required)`. */
+export interface SecretSlot {
+  name: string;
+  description: string;
+  required: boolean;
+}
+
+export interface ReleaseManifestPlugin {
+  file: string;
+  sha256: string;
+  secrets?: SecretSlot[];
+}
+
+/** The `manifest.json` asset published with every plugin release. */
+export interface ReleaseManifest {
+  app_release_tag: string;
+  sdk_version: string;
+  target: string;
+  commit: string;
+  plugins: Record<string, ReleaseManifestPlugin>;
 }
 
 export interface RerunDeploymentInput {

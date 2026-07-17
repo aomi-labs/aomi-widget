@@ -3,12 +3,14 @@ import "server-only";
 import { randomBytes } from "crypto";
 import { NextResponse } from "next/server";
 import { deploymentClient } from "@portal/server/bff/backend";
+import { configuredBackendUrl } from "@portal/server/backend-url";
 import { launchErrorResponse } from "./errors";
 import { launchConfig } from "./config";
 import { appNamesFromDeployment, releaseTagsFromDeployment } from "./mappers";
 import { checkRateLimit, getClientIp } from "@portal/lib/rate-limit";
 import { validateOrigin } from "@portal/lib/csrf";
 import { getGitHubSession } from "@portal/server/cookies/github";
+import { missingSecretsForActivation } from "@aomi-labs/deploy/bff";
 import {
   isValidDeploymentId,
   isValidInstallationId,
@@ -104,6 +106,37 @@ async function sourceDeploymentIds(
     }),
   );
   return ids;
+}
+
+/** The (app, releaseTag) pairs for `deploymentId`, derived from the SAME DB
+ *  promotion records used for ownership (`sourceDeploymentIds`) rather than
+ *  the size-limited `listUserSourceDeployments` listing — so the secret gate
+ *  can never see an emptier set than the authorization check just proved. */
+async function sourceDeploymentPairs(
+  client: DeploymentClientInstance,
+  platform: string,
+  source: OwnedSource,
+  deploymentId: string,
+  appsFilter: string[] | undefined,
+): Promise<{ app: string; releaseTag: string }[]> {
+  const pairs: { app: string; releaseTag: string }[] = [];
+  await Promise.all(
+    source.apps.map(async (app) => {
+      if (appsFilter && !appsFilter.includes(app.name)) return;
+      const { records } = await client
+        .listDeploymentRecords({
+          platform,
+          app: app.name,
+          appSourceId: source.id,
+        })
+        .catch(() => ({ records: [] as { deploymentId: string; releaseTag: string }[] }));
+      const record = records.find((r) => r.deploymentId === deploymentId);
+      if (record?.releaseTag) {
+        pairs.push({ app: app.name, releaseTag: record.releaseTag });
+      }
+    }),
+  );
+  return pairs;
 }
 
 type ActivationPair = { app: string; releaseTag: string };
@@ -505,6 +538,19 @@ export async function activateLaunchRoute(req: Request) {
         { status: 404 },
       );
     }
+    const missingByApp = await missingSecretsForActivation({
+      client,
+      githubUserId: session.githubUserId,
+      platform: config.platform,
+      source,
+      pairs,
+    });
+    if (Object.keys(missingByApp).length > 0) {
+      return NextResponse.json(
+        { error: "missing required secrets", missing: missingByApp },
+        { status: 409 },
+      );
+    }
     const result = await client.activate({
       platform: config.platform,
       target: { kind: "release_tags", value: releaseTags },
@@ -590,7 +636,7 @@ export async function launchSdkStatusRoute(req: Request) {
         requiredVersion,
         status: requiredVersion ? "unknown" : "missing",
         fixCommand: requiredVersion
-          ? `aomi-build sdk fix --backend ${new URL(req.url).origin}`
+          ? `aomi-build sdk fix --backend ${configuredBackendUrl()}`
           : null,
       },
     });
@@ -921,6 +967,33 @@ export async function deploymentPromoteRoute(req: Request) {
       return NextResponse.json(
         { error: "deployment does not belong to this source" },
         { status: 404 },
+      );
+    }
+
+    // Gate promotion on required secrets, exactly as activate does — promote
+    // runs the same backend activation machinery. The gate reads the TARGET
+    // deployment's release tag from the DB promotion records (the same
+    // records used for ownership above), which may differ from the
+    // current-release manifest the UI / requiredSecretsRoute reads — this
+    // backend gate is authoritative for what's about to go live.
+    const pairs = await sourceDeploymentPairs(
+      client,
+      config.platform,
+      source,
+      deploymentId,
+      apps,
+    );
+    const missingByApp = await missingSecretsForActivation({
+      client,
+      githubUserId: session.githubUserId,
+      platform: config.platform,
+      source,
+      pairs,
+    });
+    if (Object.keys(missingByApp).length > 0) {
+      return NextResponse.json(
+        { error: "missing required secrets", missing: missingByApp },
+        { status: 409 },
       );
     }
 

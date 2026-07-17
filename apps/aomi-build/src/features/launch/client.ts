@@ -1,5 +1,6 @@
 "use client";
 
+import type { SourceSdkUpgradeResult } from "@aomi-labs/deploy";
 import { API_PATHS } from "@build/lib/api-paths";
 import { sessionScopedFetch } from "@build/lib/settings-api";
 import {
@@ -19,6 +20,7 @@ import {
   type LaunchSdkStatus,
   type LaunchStatus,
 } from "./contracts";
+import type { RequiredSecretsByApp } from "./required-secrets";
 import { normalizeRepo } from "./state";
 
 export type GithubAppOAuthStartResponse = {
@@ -51,6 +53,18 @@ export async function githubAppInstallUrl(args: {
 
 // Every launch BFF route returns the payload on success or `{ error }` on
 // failure. Centralize that contract so each call site stays a one-liner.
+export class LaunchRequestError extends Error {
+  readonly status: number;
+  readonly body: unknown;
+
+  constructor(message: string, status: number, body: unknown) {
+    super(message);
+    this.name = "LaunchRequestError";
+    this.status = status;
+    this.body = body;
+  }
+}
+
 async function launchFetch<T>(
   path: string,
   label: string,
@@ -59,7 +73,11 @@ async function launchFetch<T>(
   const res = await fetch(path, init);
   const json = (await res.json().catch(() => ({}))) as T & { error?: string };
   if (!res.ok) {
-    throw new Error(json.error || `${label} failed (${res.status})`);
+    throw new LaunchRequestError(
+      json.error || `${label} failed (${res.status})`,
+      res.status,
+      json,
+    );
   }
   return json;
 }
@@ -112,6 +130,16 @@ export function deploymentSources(): Promise<DeploymentSourcesResult> {
   return launchFetch(API_PATHS.bff.deployments.sources, "deployment sources");
 }
 
+export function deploymentUpgradeSdk(input: {
+  appSourceId: number;
+}): Promise<SourceSdkUpgradeResult> {
+  return postJson(
+    API_PATHS.bff.deployments.sdkUpgrade,
+    "source SDK upgrade",
+    input,
+  );
+}
+
 export function deploymentSdkStatus(): Promise<LaunchSdkStatus> {
   return launchFetch(
     API_PATHS.bff.deployments.sdkStatus,
@@ -146,6 +174,19 @@ export function deploymentSecrets(input: {
   return launchFetch(
     API_PATHS.bff.deployments.secrets(input.appSourceId),
     "deployment secrets",
+  );
+}
+
+export type RequiredSecretsResult = {
+  byApp: RequiredSecretsByApp;
+};
+
+export function deploymentRequiredSecrets(input: {
+  appSourceId: number;
+}): Promise<RequiredSecretsResult> {
+  return launchFetch(
+    API_PATHS.bff.deployments.requiredSecrets(input.appSourceId),
+    "required secrets",
   );
 }
 

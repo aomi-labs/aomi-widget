@@ -65,14 +65,17 @@ export const API_PATHS = {
         `${BFF}/deployments/status?deploymentId=${encodeURIComponent(deploymentId)}`,
       secrets: (appSourceId: number) =>
         `${BFF}/deployments/secrets?appSourceId=${appSourceId}`,
+      requiredSecrets: (appSourceId: number) =>
+        `${BFF}/deployments/required-secrets?appSourceId=${appSourceId}`,
       records: (app: string, appSourceId?: number) =>
         `${BFF}/deployments/records?app=${encodeURIComponent(app)}${
           appSourceId != null ? `&appSourceId=${appSourceId}` : ""
         }`,
       deactivate: `${BFF}/deployments/deactivate`,
+      sdkUpgrade: `${BFF}/deployments/sdk-upgrade`,
     },
     operate: {
-      agents: `${BFF}/operate/agents`,
+      bots: `${BFF}/operate/bots`,
       transactions: `${BFF}/operate/transactions`,
       usage: `${BFF}/operate/usage`,
       logs: `${BFF}/operate/logs`,

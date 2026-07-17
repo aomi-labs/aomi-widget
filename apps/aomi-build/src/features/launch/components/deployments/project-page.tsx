@@ -41,13 +41,20 @@ export function ProjectPage({
   const active: TabId = TABS.some((t) => t.id === raw)
     ? (raw as TabId)
     : "home";
+  const openEnvironment = () =>
+    router.push(
+      tabHref?.("environment") ??
+        (tabBaseHref
+          ? `${tabBaseHref}?tab=environment`
+          : `/operate/deployments?project=${sourceId}&tab=environment`),
+    );
 
   useEffect(() => {
     setLastProjectId(sourceId);
   }, [sourceId]);
 
   return (
-    <main className="min-h-screen bg-background text-foreground">
+    <main className="bg-background text-foreground min-h-screen">
       <ProjectHeader
         source={detail.source}
         latest={detail.source?.latestDeployment ?? null}
@@ -58,7 +65,7 @@ export function ProjectPage({
       <div className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6">
         <div
           role="tablist"
-          className="mb-4 flex w-fit items-center gap-1 rounded-md bg-surface-2 p-1 text-sm"
+          className="bg-surface-2 mb-4 flex w-fit items-center gap-1 rounded-md p-1 text-sm"
         >
           {TABS.map((tab) => (
             <button
@@ -85,7 +92,7 @@ export function ProjectPage({
             </button>
           ))}
         </div>
-        <div className="overflow-hidden rounded-lg border border-border bg-surface-1">
+        <div className="border-border bg-surface-1 overflow-hidden rounded-lg border">
           {detail.loading && detail.source === null && !detail.error ? (
             <LoadingPanel label="Loading project…" />
           ) : detail.error ? (
@@ -93,7 +100,10 @@ export function ProjectPage({
           ) : active === "home" ? (
             <HomeTab detail={detail} tabBaseHref={tabBaseHref} />
           ) : active === "deployments" ? (
-            <DeploymentsTab detail={detail} />
+            <DeploymentsTab
+              detail={detail}
+              onOpenEnvironment={openEnvironment}
+            />
           ) : active === "chat" ? (
             <ChatTab detail={detail} />
           ) : active === "environment" ? (

@@ -45,10 +45,7 @@ export {
 
 export { launchErrorResponse } from "./errors";
 
-export {
-  releaseTagsFromDeployment,
-  appNamesFromDeployment,
-} from "./mappers";
+export { releaseTagsFromDeployment, appNamesFromDeployment } from "./mappers";
 
 export {
   isValidInstallationId,
@@ -58,8 +55,11 @@ export {
   isValidAppSourceId,
 } from "./validate";
 
+export { readCookie, serializeCookie, appendSetCookie } from "./cookies";
+
 export {
-  readCookie,
-  serializeCookie,
-  appendSetCookie,
-} from "./cookies";
+  fetchReleaseSecretSlots,
+  missingSecretsForActivation,
+  RequiredSecretsCheckError,
+  REQUIRED_SECRETS_CHECK_UNAVAILABLE,
+} from "./release-manifest";

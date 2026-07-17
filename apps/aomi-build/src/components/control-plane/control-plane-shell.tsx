@@ -4,6 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Activity,
+  BookOpen,
+  Bot,
   CircleUserRound,
   Github,
   FolderKanban,
@@ -27,6 +29,7 @@ import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { AomiLogo } from "@build/components/brand/aomi-logo";
+import { ColorThemeToggle } from "@build/components/control-plane/color-theme-toggle";
 import {
   CommandPalette,
   openCommandPalette,
@@ -74,7 +77,7 @@ const navGroups: NavGroup[] = [
   {
     title: "Build",
     items: [
-      { label: "Build", href: "/build", icon: Hammer, enabled: false },
+      { label: "Build", href: "/build", icon: Hammer, enabled: true },
     ],
   },
   {
@@ -105,6 +108,13 @@ const navGroups: NavGroup[] = [
         label: "Usage",
         href: "/operate/usage",
         icon: Gauge,
+        enabled: true,
+        requiresGitHub: true,
+      },
+      {
+        label: "Bots",
+        href: "/operate/bots",
+        icon: Bot,
         enabled: true,
         requiresGitHub: true,
       },
@@ -149,7 +159,7 @@ function IconButton({
       onClick={onClick}
       aria-label={label}
       className={cn(
-        "text-dim hover:bg-accent-hover hover:text-foreground focus-visible:ring-ring inline-flex h-8 w-8 items-center justify-center rounded-md transition focus-visible:ring-1",
+        "icon-button focus-visible:ring-ring inline-flex h-8 w-8 items-center justify-center rounded-md transition focus-visible:ring-1",
         className,
       )}
     >
@@ -292,7 +302,7 @@ function NavItemLink({
   if (!enabled) {
     return (
       <div
-        className="nav-link cursor-not-allowed opacity-45"
+        className="nav-link cursor-not-allowed opacity-65"
         title={
           !expanded
             ? item.requiresGitHub
@@ -336,7 +346,7 @@ function NavGroupList({
   return (
     <div className="mb-1">
       {expanded ? (
-        <div className="text-dim px-2.5 py-1.5 text-[11px] font-medium">
+        <div className="text-subtle px-2.5 py-1.5 text-[11px] font-medium tracking-wide uppercase">
           {group.title}
         </div>
       ) : null}
@@ -417,7 +427,7 @@ function TopBarMenu({
         onClick={() => setOpen((value) => !value)}
         aria-label={label}
         aria-expanded={open}
-        className="text-dim hover:bg-accent-hover hover:text-foreground focus-visible:ring-ring relative inline-flex h-8 w-8 items-center justify-center rounded-full transition focus-visible:ring-1"
+        className="icon-button focus-visible:ring-ring relative inline-flex h-8 w-8 items-center justify-center rounded-full transition focus-visible:ring-1"
       >
         {trigger}
       </button>
@@ -508,6 +518,25 @@ function AccountMenu({
           Settings
         </Link>
         <div className="bg-border -mx-1 my-1 h-px" />
+        <a
+          href="https://aomi.dev/docs"
+          target="_blank"
+          rel="noreferrer"
+          className="hover:bg-accent-hover hover:text-foreground flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs transition"
+        >
+          <BookOpen className="size-3.5" />
+          Docs
+        </a>
+        <a
+          href="https://aomi.dev"
+          target="_blank"
+          rel="noreferrer"
+          className="hover:bg-accent-hover hover:text-foreground flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs transition"
+        >
+          <Home className="size-3.5" />
+          Home page
+        </a>
+        <div className="bg-border -mx-1 my-1 h-px" />
         <button
           type="button"
           onClick={handleSignOut}
@@ -553,11 +582,16 @@ function ControlPlaneShellContent({ children }: { children: React.ReactNode }) {
           expanded ? "w-56" : "w-14",
         )}
       >
-        <div className="border-border relative border-b">
+        <div
+          className={cn(
+            "border-border relative shrink-0 border-b",
+            expanded && "h-11",
+          )}
+        >
           <div
             className={cn(
-              "flex h-11 items-center gap-2 px-3",
-              expanded ? "justify-between" : "justify-center px-2",
+              "flex items-center gap-2 px-3",
+              expanded ? "h-full justify-between" : "h-11 justify-center px-2",
             )}
           >
             <AomiLogo
@@ -597,7 +631,7 @@ function ControlPlaneShellContent({ children }: { children: React.ReactNode }) {
           <button
             type="button"
             onClick={() => setMobileOpen(false)}
-            className="h-full flex-1 bg-black/50"
+            className="h-full flex-1 bg-[var(--aomi-overlay)]"
             aria-label="Close sidebar"
           />
           <aside className="border-border bg-sidebar flex h-full w-72 flex-col border-l">
@@ -639,7 +673,7 @@ function ControlPlaneShellContent({ children }: { children: React.ReactNode }) {
             <button
               type="button"
               onClick={() => openCommandPalette()}
-              className="text-dim hover:bg-accent-hover hover:text-foreground border-border inline-flex h-8 items-center gap-2 rounded-md border px-2 text-xs"
+              className="icon-button border-border inline-flex h-8 items-center gap-2 rounded-md border px-2 text-xs"
               aria-label="Open command palette (⌘K)"
               title="Search (⌘K)"
             >
@@ -649,6 +683,7 @@ function ControlPlaneShellContent({ children }: { children: React.ReactNode }) {
                 ⌘K
               </kbd>
             </button>
+            <ColorThemeToggle />
             <AccountMenu
               account={account}
               onSignedOut={() => {

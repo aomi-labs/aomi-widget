@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { COLOR_THEME_INIT_SCRIPT } from "@build/lib/color-theme";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -25,10 +26,16 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`dark h-full ${geistSans.variable} ${geistMono.variable}`}
+      className={`h-full ${geistSans.variable} ${geistMono.variable}`}
       suppressHydrationWarning
     >
-      <body className="min-h-full font-sans antialiased" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: COLOR_THEME_INIT_SCRIPT }} />
+      </head>
+      <body
+        className="min-h-full font-sans antialiased"
+        suppressHydrationWarning
+      >
         {children}
       </body>
     </html>

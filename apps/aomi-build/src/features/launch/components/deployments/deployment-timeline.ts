@@ -69,6 +69,16 @@ export function buildDeploymentList(
   return [...byId.values()].sort((a, b) => b.createdAt - a.createdAt);
 }
 
+/** Current first, then newest. Used after runtime remaps `current`. */
+export function sortDeploymentsForTimeline(
+  deployments: TimelineDeployment[],
+): TimelineDeployment[] {
+  return [...deployments].sort((a, b) => {
+    if (a.current !== b.current) return a.current ? -1 : 1;
+    return b.createdAt - a.createdAt;
+  });
+}
+
 export function buildActivityList(
   recordsByApp: Record<string, DeploymentRecord[]> | null,
 ): TimelineActivity[] {

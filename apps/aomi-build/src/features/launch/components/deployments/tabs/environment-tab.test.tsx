@@ -16,10 +16,13 @@ const detail = {
     latestDeployment: null,
   },
   loadSecrets: vi.fn(),
+  loadRequiredSecrets: vi.fn(),
   setEnvVars,
   deleteEnvVar,
   secretsByApp: { demo: ["$SECRET:APP:demo::EXISTING_KEY"] },
   secretsError: null,
+  requiredSecrets: null,
+  requiredSecretsError: null,
 } as unknown as ReturnType<
   typeof import("@build/features/launch/hooks/use-project-detail").useProjectDetail
 >;
@@ -48,6 +51,7 @@ describe("EnvironmentTab", () => {
   it("loads secrets on mount and lists configured keys (names only)", () => {
     renderTab();
     expect(detail.loadSecrets).toHaveBeenCalled();
+    expect(detail.loadRequiredSecrets).toHaveBeenCalled();
     expect(screen.getByText("EXISTING_KEY")).toBeInTheDocument();
     expect(screen.getByText("Builder secret")).toBeInTheDocument();
     expect(screen.getByText("Runtime")).toBeInTheDocument();
@@ -129,5 +133,67 @@ describe("EnvironmentTab", () => {
     expect(
       screen.getByText(/Add keys your agent needs/i),
     ).toBeInTheDocument();
+  });
+
+  it("lists missing required slots in the unified view (no inline inputs)", () => {
+    const requiredDetail = {
+      ...detail,
+      requiredSecrets: {
+        demo: {
+          slots: [
+            {
+              name: "DEMO_API_KEY",
+              description: "Key from the demo provider.",
+              required: true,
+            },
+          ],
+          missing: ["DEMO_API_KEY"],
+        },
+      },
+    } as typeof detail;
+    renderTab({ detail: requiredDetail });
+    expect(screen.getByText("Key from the demo provider.")).toBeInTheDocument();
+    expect(screen.getByText(/1 required secret missing/i)).toBeInTheDocument();
+    // Missing slots are list rows, not editor inputs.
+    expect(screen.queryByLabelText("DEMO_API_KEY value")).toBeNull();
+    expect(screen.getByText("Not set")).toBeInTheDocument();
+    expect(screen.getByLabelText("Required")).toBeInTheDocument();
+    // Configured key sits in the same list as the missing slot.
+    expect(screen.getByText("EXISTING_KEY")).toBeInTheDocument();
+    // Set value prefills the editor with the slot's key.
+    fireEvent.click(screen.getByTitle("Set DEMO_API_KEY"));
+    expect(screen.getByLabelText("Environment key")).toHaveValue(
+      "DEMO_API_KEY",
+    );
+  });
+
+  it("marks required vs optional slots with an asterisk", () => {
+    const requiredDetail = {
+      ...detail,
+      secretsByApp: { demo: [] },
+      requiredSecrets: {
+        demo: {
+          slots: [
+            {
+              name: "DEMO_API_KEY",
+              description: "Key from the demo provider.",
+              required: true,
+            },
+            {
+              name: "DEMO_BASE_URL",
+              description: "Optional override.",
+              required: false,
+            },
+          ],
+          missing: ["DEMO_API_KEY"],
+        },
+      },
+    } as typeof detail;
+    renderTab({ detail: requiredDetail });
+    // Both slots render as rows; only the required one carries the asterisk.
+    expect(screen.getByText("DEMO_BASE_URL")).toBeInTheDocument();
+    expect(screen.getAllByLabelText("Required")).toHaveLength(1);
+    expect(screen.getAllByText("Not set")).toHaveLength(2);
+    expect(screen.getByText(/cannot be activated without it/i)).toBeInTheDocument();
   });
 });

@@ -9,14 +9,20 @@ import { projectDeploymentStatus } from "../project-deployment-status";
 import { TimelineDeploymentRow } from "../ui/timeline-deployment-row";
 import { ConfirmDialog } from "../ui/confirm-dialog";
 import { LoadingPanel, EmptyPanel } from "../ui/state-panels";
-import { buildActivityList, buildDeploymentList } from "../deployment-timeline";
+import {
+  buildActivityList,
+  buildDeploymentList,
+  sortDeploymentsForTimeline,
+} from "../deployment-timeline";
+import { formatRelativeTime } from "../format-relative-time";
 
 type Detail = ReturnType<typeof useProjectDetail>;
 type OpState = {
-  kind: "promote" | "deactivate";
+  kind: "promote" | "deactivate" | "upgrade";
   deploymentId: string;
   status: "running" | "done" | "error";
   message: string;
+  url?: string;
 };
 type Pending =
   | { kind: "promote"; deploymentId: string }
@@ -24,14 +30,22 @@ type Pending =
   | null;
 type View = "deployments" | "activity";
 
-export function DeploymentsTab({ detail }: { detail: Detail }) {
+export function DeploymentsTab({
+  detail,
+  onOpenEnvironment,
+}: {
+  detail: Detail;
+  onOpenEnvironment?: () => void;
+}) {
   const { toast } = useToast();
   const [op, setOp] = useState<OpState | null>(null);
   const [pending, setPending] = useState<Pending>(null);
   const [view, setView] = useState<View>("deployments");
+  const [retryingSecrets, setRetryingSecrets] = useState(false);
 
   useEffect(() => {
     detail.loadRecords();
+    detail.loadRequiredSecrets();
   }, [detail]);
 
   const source = detail.source;
@@ -73,14 +87,16 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
   );
   const deployments = useMemo(
     () =>
-      recordDeployments.map((deployment) => ({
-        ...deployment,
-        current: optimisticallyPromotedId
-          ? deployment.deploymentId === optimisticallyPromotedId
-          : runtimeCanResolveLive
-            ? deployment.releaseTags.some((tag) => liveReleaseTags.has(tag))
-            : deployment.current,
-      })),
+      sortDeploymentsForTimeline(
+        recordDeployments.map((deployment) => ({
+          ...deployment,
+          current: optimisticallyPromotedId
+            ? deployment.deploymentId === optimisticallyPromotedId
+            : runtimeCanResolveLive
+              ? deployment.releaseTags.some((tag) => liveReleaseTags.has(tag))
+              : deployment.current,
+        })),
+      ),
     [
       recordDeployments,
       optimisticallyPromotedId,
@@ -90,6 +106,7 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
   );
   const currentDeployment =
     deployments.find((deployment) => deployment.current) ?? null;
+  const requiredSdk = detail.sdk?.sdkStatus.requiredVersion ?? null;
   const deactivated =
     runtimeCanResolveLive &&
     deployments.length > 0 &&
@@ -106,6 +123,48 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
     () => new Map(source?.apps.map((app) => [app.name, app]) ?? []),
     [source],
   );
+  const missingRequiredApps = useMemo(
+    () =>
+      source?.apps
+        .map((app) => app.name)
+        .filter((app) => detail.hasMissingSecrets(app)) ?? [],
+    [detail, source],
+  );
+  const secretsCheckPending = Boolean(
+    source &&
+    source.apps.length > 0 &&
+    detail.requiredSecrets === null &&
+    !detail.requiredSecretsError,
+  );
+  const secretsCheckFailed = Boolean(
+    source && source.apps.length > 0 && detail.requiredSecretsError,
+  );
+  const secretsGateBlocked = Boolean(
+    source &&
+    source.apps.length > 0 &&
+    (secretsCheckPending ||
+      secretsCheckFailed ||
+      missingRequiredApps.length > 0),
+  );
+  const missingRequiredCount =
+    missingRequiredApps.reduce(
+      (count, app) =>
+        count + (detail.requiredSecrets?.[app]?.missing.length ?? 0),
+      0,
+    ) || missingRequiredApps.length;
+
+  const retryRequiredSecrets = async () => {
+    if (!detail.refreshRequiredSecrets) return;
+    setRetryingSecrets(true);
+    try {
+      await detail.refreshRequiredSecrets();
+    } catch {
+      // The hook keeps the verification error visible and the gate remains
+      // closed. The user can retry again without refreshing the page.
+    } finally {
+      setRetryingSecrets(false);
+    }
+  };
 
   if (!source) {
     return detail.loading ? (
@@ -183,20 +242,86 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
     }
   };
 
+  const runUpgrade = async (deploymentId: string) => {
+    setOp({
+      kind: "upgrade",
+      deploymentId,
+      status: "running",
+      message: "Preparing SDK upgrade…",
+    });
+    try {
+      const result = await detail.upgradeSdk();
+      if (result.status === "current") {
+        setOp({
+          kind: "upgrade",
+          deploymentId,
+          status: "done",
+          message: `Linked repository already uses SDK ${result.requiredSdkVersion}. Redeploying it now…`,
+        });
+        await detail.redeploySource();
+        return;
+      }
+      if (result.status === "manual") {
+        setOp({
+          kind: "upgrade",
+          deploymentId,
+          status: "error",
+          message: `${result.reason} Run: ${result.command}`,
+        });
+        toast({ title: "Manual upgrade required", tone: "error" });
+        return;
+      }
+      setOp({
+        kind: "upgrade",
+        deploymentId,
+        status: "done",
+        message: result.pullRequest.created
+          ? "SDK upgrade PR created. Merge it, then redeploy from the linked repository."
+          : "SDK upgrade PR is ready. Merge it, then redeploy from the linked repository.",
+        url: result.pullRequest.url,
+      });
+      toast({ title: "Upgrade PR ready", tone: "success" });
+    } catch (error) {
+      setOp({
+        kind: "upgrade",
+        deploymentId,
+        status: "error",
+        message: error instanceof Error ? error.message : "SDK upgrade failed",
+      });
+      toast({ title: "Failed. Retry", tone: "error" });
+    }
+  };
+
+  const historyCountLabel =
+    deployments.length === 1
+      ? "1 deployment in history"
+      : `${deployments.length} deployments in history`;
+  const summaryLabel = status?.isLive
+    ? currentDeployment
+      ? `Live · ${currentDeployment.apps.join(", ") || "app"} · ${historyCountLabel}`
+      : `Live · ${historyCountLabel}`
+    : deactivated
+      ? `Deactivated · ${historyCountLabel}`
+      : deployments.length > 0
+        ? historyCountLabel
+        : (status?.label ?? "No deployment");
+
   return (
     <div>
-      <div className="border-b border-border px-4 py-2 text-xs text-dim">
-        Deployment history for this project.
+      <div className="border-border text-dim border-b px-4 py-2 text-xs">
+        <span className="text-foreground font-medium">{summaryLabel}</span>
+        <span className="text-dim"> · </span>
+        Newest and current first. Promote an older release to make it live.
       </div>
-      <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+      <div className="border-border flex items-center justify-between gap-3 border-b px-4 py-3">
         <div
           role="tablist"
           aria-label="Deployment views"
-          className="inline-flex rounded-md border border-border bg-surface-1 p-0.5"
+          className="border-border bg-surface-1 inline-grid h-9 grid-cols-2 rounded-md border p-0.5"
         >
           {[
-            ["deployments", "Deployments"],
-            ["activity", "Activity"],
+            ["deployments", "History"],
+            ["activity", "Promotions"],
           ].map(([id, label]) => (
             <button
               key={id}
@@ -204,7 +329,7 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
               role="tab"
               aria-selected={view === id}
               onClick={() => setView(id as View)}
-              className={`h-7 rounded px-2.5 text-xs font-medium ${
+              className={`h-full w-24 rounded px-2.5 text-xs font-medium ${
                 view === id
                   ? "bg-primary text-primary-foreground"
                   : "text-dim hover:bg-accent-hover"
@@ -228,7 +353,7 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
                     })
                   : undefined
               }
-              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border bg-surface-1 px-2.5 text-xs font-medium text-foreground hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
+              className="border-border bg-surface-1 text-foreground hover:bg-accent-hover inline-flex h-9 items-center justify-center gap-1.5 rounded-md border px-2.5 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-50"
               title={
                 deactivated
                   ? "No deployment is live"
@@ -241,23 +366,23 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
           )}
           <button
             type="button"
-            disabled={deploying}
+            disabled={deploying || secretsGateBlocked}
             onClick={() => {
               setOp(null);
-              void detail.deployNewVersion();
+              void detail.redeploySource();
             }}
-            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+            className="bg-primary text-primary-foreground inline-flex h-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-3 text-xs font-medium hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
             title="Deploy the source repo's latest commit and activate it"
           >
             <Rocket className="size-3.5" aria-hidden />
-            {deploying ? "Deploying…" : "Deploy new version"}
+            {deploying ? "Deploying…" : "Redeploy from Linked Repository"}
           </button>
         </div>
       </div>
 
       {detail.deployFlow.phase !== "idle" && (
         <div
-          className={`border-b border-border px-4 py-2 text-xs ${
+          className={`border-border border-b px-4 py-2 text-xs ${
             detail.deployFlow.phase === "error"
               ? "text-destructive"
               : "text-dim"
@@ -267,9 +392,23 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
         </div>
       )}
 
+      {op?.url && (
+        <div className="border-warning/30 bg-warning/10 text-warning flex items-center justify-between gap-3 border-b px-4 py-2 text-xs">
+          <span>{op.message}</span>
+          <a
+            href={op.url}
+            target="_blank"
+            rel="noreferrer"
+            className="shrink-0 font-medium underline underline-offset-2"
+          >
+            Review upgrade PR
+          </a>
+        </div>
+      )}
+
       {deactivated && (
-        <div className="flex items-center gap-2 border-b border-destructive/30 bg-destructive/10 px-4 py-2 text-xs text-destructive">
-          <span className="rounded-full bg-destructive/20 px-2 py-0.5 font-medium">
+        <div className="border-destructive/30 bg-destructive/10 text-destructive flex items-center gap-2 border-b px-4 py-2 text-xs">
+          <span className="bg-destructive/20 rounded-full px-2 py-0.5 font-medium">
             Deactivated
           </span>
           <span>
@@ -280,8 +419,44 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
       )}
 
       {detail.recordsError && (
-        <div className="border-b border-destructive/30 bg-destructive/10 px-4 py-2 text-xs text-destructive">
+        <div className="border-destructive/30 bg-destructive/10 text-destructive border-b px-4 py-2 text-xs">
           {detail.recordsError}
+        </div>
+      )}
+
+      {secretsGateBlocked && (
+        <div
+          className="border-warning/40 bg-warning/10 text-warning flex items-center justify-between gap-3 border-b px-4 py-3 text-xs"
+          role="alert"
+        >
+          <span>
+            {secretsCheckPending
+              ? "Checking required secrets before deployment…"
+              : detail.requiredSecretsError
+                ? "Required secrets could not be verified. Refresh before deploying."
+                : `${missingRequiredCount} required secret${missingRequiredCount === 1 ? "" : "s"} missing for ${missingRequiredApps.join(", ")}.`}
+          </span>
+          {secretsCheckFailed ? (
+            <button
+              type="button"
+              onClick={() => void retryRequiredSecrets()}
+              disabled={retryingSecrets}
+              className="shrink-0 font-medium underline underline-offset-2 disabled:opacity-60"
+            >
+              {retryingSecrets ? "Retrying…" : "Retry required secrets"}
+            </button>
+          ) : (
+            onOpenEnvironment &&
+            !secretsCheckPending && (
+              <button
+                type="button"
+                onClick={onOpenEnvironment}
+                className="shrink-0 font-medium underline underline-offset-2"
+              >
+                Set required secrets
+              </button>
+            )
+          )}
         </div>
       )}
 
@@ -290,17 +465,23 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
       !detail.recordsError ? (
         <EmptyState
           title={
-            status?.isLive
-              ? "No deployment history yet"
-              : "No deployments yet"
+            status?.isLive ? "No deployment history yet" : "No deployments yet"
           }
           description={
             status?.isLive
               ? "This project is live, but no deployment records are available yet. Deploy a new version to start a history."
-              : "Use Deploy new version to publish this project."
+              : "Deploy the current version from the linked repository."
           }
-          onAction={() => void detail.deployNewVersion()}
-          actionLabel="Deploy new version"
+          onAction={() =>
+            secretsGateBlocked
+              ? onOpenEnvironment?.()
+              : void detail.redeploySource()
+          }
+          actionLabel={
+            secretsGateBlocked
+              ? "Set required secrets"
+              : "Deploy from Linked Repository"
+          }
         />
       ) : view === "deployments" && deployments.length > 0 ? (
         deployments.map((deployment) => {
@@ -320,6 +501,9 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
                 deployment.releaseTags.includes(app.appReleaseTag)
               );
             });
+          const secretsBlocked = deployment.apps.some((app) =>
+            detail.hasMissingSecrets(app),
+          );
           return (
             <TimelineDeploymentRow
               key={deployment.deploymentId}
@@ -327,19 +511,24 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
               busy={running}
               message={message}
               runtimeState={hasUnloadedCurrentApp ? "not-loaded" : "loaded"}
+              requiredSdk={requiredSdk}
+              secretsBlocked={secretsBlocked}
               onPromote={() =>
                 setPending({
                   kind: "promote",
                   deploymentId: deployment.deploymentId,
                 })
               }
+              onUpgrade={() => void runUpgrade(deployment.deploymentId)}
             />
           );
         })
       ) : null}
 
       {view === "activity" && activity.length === 0 && !detail.recordsError && (
-        <EmptyPanel>No promotion activity for this project.</EmptyPanel>
+        <EmptyPanel>
+          No promotions recorded yet. Promote a deployment to see it here.
+        </EmptyPanel>
       )}
 
       {view === "activity" && activity.length > 0 && (
@@ -347,16 +536,20 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
           {activity.map((row) => (
             <div
               key={`${row.app}-${row.deploymentId}-${row.releaseTag}-${row.createdAt}`}
-              className="flex min-h-10 items-center justify-between gap-4 border-b border-border px-4 py-2 text-xs text-dim last:border-b-0"
+              className="border-border text-dim flex min-h-10 items-center justify-between gap-4 border-b px-4 py-2 text-xs last:border-b-0"
             >
-              <span className="min-w-0 truncate font-mono">
-                promoted · {row.deploymentId}
+              <span className="min-w-0 truncate">
+                <span className="text-foreground font-medium">{row.app}</span>
+                <span className="text-dim"> · promoted · </span>
+                <span className="font-mono">{row.deploymentId}</span>
               </span>
-              <span className="shrink-0 text-right">
-                {row.app}
-                {row.current ? " · current" : ""}
-                {row.actor ? ` · ${row.actor}` : ""} ·{" "}
-                {new Date(row.createdAt * 1000).toLocaleString()}
+              <span
+                className="shrink-0 text-right"
+                title={new Date(row.createdAt * 1000).toLocaleString()}
+              >
+                {row.current ? "current · " : ""}
+                {row.actor ? `${row.actor} · ` : ""}
+                {formatRelativeTime(row.createdAt)}
               </span>
             </div>
           ))}

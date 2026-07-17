@@ -11,6 +11,8 @@ export {
   ACTIVATION_REQUEST_EMBED_COLOR,
 } from "./activation-request";
 
+export { missingRequiredSecrets } from "./secrets";
+
 export {
   DeployError,
   BrowserEnvironmentError,
@@ -69,7 +71,10 @@ export type {
   ListUserSourceLogsInput,
   GetUserSourceUsageInput,
   OwnedOperateSourceInput,
-  OperateAgentsResult,
+  BotRegistration,
+  CreateUserSourceBotInput,
+  DeleteUserSourceBotInput,
+  SourceSdkUpgradeResult,
   OperateTransaction,
   OperateTransactionCursor,
   OperateTransactionsResult,
@@ -109,3 +114,9 @@ export type {
   ActivationRequestPayload,
   DiscordWebhookBody,
 } from "./activation-request";
+
+export type {
+  SecretSlot,
+  ReleaseManifest,
+  ReleaseManifestPlugin,
+} from "./types";

@@ -115,6 +115,8 @@ export type SessionOptions = {
   clientType?: AomiClientType;
   /** Stable client ID used for secret-vault association. */
   clientId?: string;
+  /** Optional backend payment method override for chat turns. */
+  paymentMethod?: string | null;
   /**
    * When true (default), synthesize pending transaction wallet requests from
    * `user_state.pending_txs` during state sync. Web UI should disable this and

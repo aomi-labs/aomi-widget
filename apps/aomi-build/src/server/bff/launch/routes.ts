@@ -3,12 +3,19 @@ import "server-only";
 import { randomBytes } from "crypto";
 import { NextResponse } from "next/server";
 import { deploymentClient } from "@build/server/bff/backend";
+import { configuredBackendUrl } from "@build/server/backend-url";
 import { launchErrorResponse } from "./errors";
 import { launchConfig } from "./config";
 import { appNamesFromDeployment, releaseTagsFromDeployment } from "./mappers";
 import { checkRateLimit, getClientIp } from "@build/lib/rate-limit";
 import { validateOrigin } from "@build/lib/csrf";
 import { getGitHubSession } from "@build/server/cookies/github";
+import {
+  fetchReleaseSecretSlots,
+  missingSecretsForActivation,
+  RequiredSecretsCheckError,
+} from "@aomi-labs/deploy/bff";
+import { missingRequiredSecrets, type SecretSlot } from "@aomi-labs/deploy";
 import {
   isValidDeploymentId,
   isValidInstallationId,
@@ -104,6 +111,39 @@ async function sourceDeploymentIds(
     }),
   );
   return ids;
+}
+
+/** The (app, releaseTag) pairs for `deploymentId`, derived from the SAME DB
+ *  promotion records used for ownership (`sourceDeploymentIds`) rather than
+ *  the size-limited `listUserSourceDeployments` listing — so the secret gate
+ *  can never see an emptier set than the authorization check just proved. */
+async function sourceDeploymentPairs(
+  client: DeploymentClientInstance,
+  platform: string,
+  source: OwnedSource,
+  deploymentId: string,
+  appsFilter: string[] | undefined,
+): Promise<{ app: string; releaseTag: string }[]> {
+  const pairs: { app: string; releaseTag: string }[] = [];
+  await Promise.all(
+    source.apps.map(async (app) => {
+      if (appsFilter && !appsFilter.includes(app.name)) return;
+      const { records } = await client
+        .listDeploymentRecords({
+          platform,
+          app: app.name,
+          appSourceId: source.id,
+        })
+        .catch(() => ({
+          records: [] as { deploymentId: string; releaseTag: string }[],
+        }));
+      const record = records.find((r) => r.deploymentId === deploymentId);
+      if (record?.releaseTag) {
+        pairs.push({ app: app.name, releaseTag: record.releaseTag });
+      }
+    }),
+  );
+  return pairs;
 }
 
 type ActivationPair = { app: string; releaseTag: string };
@@ -505,6 +545,19 @@ export async function activateLaunchRoute(req: Request) {
         { status: 404 },
       );
     }
+    const missingByApp = await missingSecretsForActivation({
+      client,
+      githubUserId: session.githubUserId,
+      platform: config.platform,
+      source,
+      pairs,
+    });
+    if (Object.keys(missingByApp).length > 0) {
+      return NextResponse.json(
+        { error: "missing required secrets", missing: missingByApp },
+        { status: 409 },
+      );
+    }
     const result = await client.activate({
       platform: config.platform,
       target: { kind: "release_tags", value: releaseTags },
@@ -590,7 +643,7 @@ export async function launchSdkStatusRoute(req: Request) {
         requiredVersion,
         status: requiredVersion ? "unknown" : "missing",
         fixCommand: requiredVersion
-          ? `aomi-build sdk fix --backend ${new URL(req.url).origin}`
+          ? `aomi-build sdk fix --backend ${configuredBackendUrl()}`
           : null,
       },
     });
@@ -981,6 +1034,33 @@ export async function deploymentPromoteRoute(req: Request) {
       );
     }
 
+    // Gate promotion on required secrets, exactly as activate does — promote
+    // runs the same backend activation machinery. The gate reads the TARGET
+    // deployment's release tag from the DB promotion records (the same
+    // records used for ownership above), which may differ from the
+    // current-release manifest the UI / requiredSecretsRoute reads — this
+    // backend gate is authoritative for what's about to go live.
+    const pairs = await sourceDeploymentPairs(
+      client,
+      config.platform,
+      source,
+      deploymentId,
+      apps,
+    );
+    const missingByApp = await missingSecretsForActivation({
+      client,
+      githubUserId: session.githubUserId,
+      platform: config.platform,
+      source,
+      pairs,
+    });
+    if (Object.keys(missingByApp).length > 0) {
+      return NextResponse.json(
+        { error: "missing required secrets", missing: missingByApp },
+        { status: 409 },
+      );
+    }
+
     // Default the promotion actor to the signed-in GitHub user so Aomi Build
     // promotions are attributable without the client threading it.
     const actor =
@@ -1145,6 +1225,103 @@ export async function userSourcesRoute(req: Request) {
       platform: config.platform,
     });
     return NextResponse.json({ sources, githubLogin: session.githubLogin });
+  } catch (err) {
+    return launchErrorResponse(err);
+  }
+}
+
+// GET /api/bff/deployments/required-secrets?appSourceId=<n> — the declared
+// secret slots per app (from the release manifest) plus which required slots
+// are still unfilled in the vault. Read-only twin of the 409 backstop on
+// activate: lets the UI disable Activate and explain why before the user
+// clicks it, instead of only rejecting after the fact. Never returns secret
+// VALUES — only key names, descriptions, and the `required` flag.
+export async function requiredSecretsRoute(req: Request) {
+  const blocked = checkRead(req);
+  if (blocked) return blocked;
+
+  const auth = await requireSession();
+  if ("response" in auth) return auth.response;
+  const { session } = auth;
+
+  const appSourceId = Number(new URL(req.url).searchParams.get("appSourceId"));
+  if (!isValidAppSourceId(appSourceId)) {
+    return NextResponse.json(
+      { error: "missing or invalid `appSourceId`" },
+      { status: 400 },
+    );
+  }
+
+  try {
+    const config = launchConfig();
+    const client = await deploymentClient();
+    const source = await findOwnedSource(
+      client,
+      session.githubUserId,
+      config.platform,
+      appSourceId,
+    );
+    if (!source) {
+      return NextResponse.json(
+        { error: "app source not found for this user" },
+        { status: 404 },
+      );
+    }
+
+    // Required-secret metadata must be verified before the UI can show an
+    // activation path. An empty slot list is only valid when GitHub confirms
+    // that the release predates manifest secret declarations.
+    // `source` comes from `findOwnedSource` -> `listUserSources`, and the
+    // backend deliberately returns `latest_deployment: null` there (it's lazy
+    // for the list); resolve the real value from the per-source
+    // latest-deployment detail endpoint instead, same as the redeploy route.
+    const githubToken = process.env.GITHUB_TOKEN?.trim();
+    if (!githubToken) throw new RequiredSecretsCheckError();
+    let platformRepo = source.latestDeployment?.platformRepo ?? undefined;
+    if (!platformRepo) {
+      try {
+        const latest = await client.getUserSourceLatestDeployment({
+          githubUserId: session.githubUserId,
+          platform: config.platform,
+          appSourceId: source.id,
+        });
+        platformRepo = latest?.platformRepo ?? undefined;
+      } catch {
+        throw new RequiredSecretsCheckError();
+      }
+    }
+    if (!platformRepo) throw new RequiredSecretsCheckError();
+    const configured = await client.listAppSecrets({
+      githubUserId: session.githubUserId,
+      sourceId: String(source.id),
+    });
+
+    const byApp: Record<string, { slots: SecretSlot[]; missing: string[] }> =
+      {};
+    for (const app of source.apps) {
+      const releaseTag = app.appReleaseTag;
+      const slots =
+        githubToken && platformRepo && releaseTag
+          ? ((
+              await fetchReleaseSecretSlots({
+                platformRepo,
+                releaseTag,
+                githubToken,
+              })
+            )[app.name] ?? [])
+          : [];
+      const configuredKeys = (configured.byApp[app.name] ?? []).map(
+        (handle) => handle.split("::").pop() ?? handle,
+      );
+      byApp[app.name] = {
+        slots,
+        missing: missingRequiredSecrets(slots, configuredKeys).map(
+          (slot) => slot.name,
+        ),
+      };
+    }
+
+    return NextResponse.json({ byApp });
   } catch (err) {
     return launchErrorResponse(err);
   }

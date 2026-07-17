@@ -3,7 +3,7 @@
 import { API_PATHS } from "@build/lib/api-paths";
 
 export type OperateKind =
-  | "agents"
+  | "bots"
   | "transactions"
   | "usage"
   | "logs"

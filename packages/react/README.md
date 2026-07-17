@@ -110,7 +110,22 @@ Returns an `AomiRuntimeApi` object with:
 |----------|-------------|
 | `subscribe(type, cb)` | Subscribe to backend events |
 | `sendSystemCommand(event)` | Send a system command |
+| `recordUiInteraction(payload)` | Record transient UI context for the next model turn |
 | `sseStatus` | SSE connection status |
+
+`recordUiInteraction` uses the active thread and waits for the backend
+acknowledgement. When the same UI action immediately sends chat, await the
+interaction first so the next turn receives the context:
+
+```ts
+await aomi.recordUiInteraction({
+  event: "deposit_review_opened",
+  asset: "USDC",
+  amount: "100",
+  chain_id: 8453,
+});
+await aomi.sendMessage("Does this look right?");
+```
 
 ### Other Hooks
 

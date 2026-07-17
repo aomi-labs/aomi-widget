@@ -8,6 +8,7 @@ import {
   activateLaunchRoute,
   launchAppRoute,
   launchDeployRoute,
+  launchSdkStatusRoute,
   launchStatusRoute,
   redeployLaunchRoute,
 } from "./routes";
@@ -76,6 +77,26 @@ function appRecords(...deploymentIds: string[]) {
   });
 }
 
+/** Same shape as `appRecords`, but with an explicit release tag — used to
+ *  derive the promote secret-gate's (app, releaseTag) pairs from the DB
+ *  promotion records (the `sourceDeploymentPairs` call). */
+function appRecordsWithTag(deploymentId: string, releaseTag: string) {
+  return Response.json({
+    app: "my-bot",
+    current_release_tag: null,
+    records: [
+      {
+        deployment_id: deploymentId,
+        release_tag: releaseTag,
+        actor: null,
+        created_at: 0,
+        sdk_version: "3.0.1",
+        current: false,
+      },
+    ],
+  });
+}
+
 function activationSource(id = 99) {
   return Response.json({
     sources: [
@@ -102,6 +123,39 @@ function sourceDeployments() {
         apps: [{ name: "my-bot", release_tag: "apps-555-r1-my-bot-abc" }],
       },
     ],
+  });
+}
+
+/** Like `activationSource`, but shaped like the real `listUserSources`
+ *  response: `latest_deployment` is always null there (the backend is lazy
+ *  for the list). Pair with `latestDeploymentResponse(platformRepo)` to stub
+ *  the per-source detail endpoint the required-secrets check now reads. */
+function activationSourceWithRepo(_platformRepo: string, id = 99) {
+  return Response.json({
+    sources: [
+      {
+        id,
+        installation_id: 555,
+        apps: [
+          {
+            name: "my-bot",
+            app_release_tag: "apps-555-r1-my-bot-abc",
+          },
+        ],
+        latest_deployment: null,
+      },
+    ],
+  });
+}
+
+/** The `getUserSourceLatestDeployment` detail-endpoint response —
+ *  the real source of `platformRepo` in production. */
+function latestDeploymentResponse(platformRepo: string) {
+  return Response.json({
+    latest_deployment: {
+      platform_repo: platformRepo,
+      apps: [{ name: "my-bot", release_tag: "apps-555-r1-my-bot-abc" }],
+    },
   });
 }
 
@@ -433,6 +487,37 @@ describe("launchDeployRoute", () => {
   });
 });
 
+describe("launchSdkStatusRoute", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+
+  it("prints the configured backend URL in the local SDK repair command", async () => {
+    vi.stubEnv("BACKEND_URL", "");
+    vi.stubEnv("NEXT_PUBLIC_BACKEND_URL", "https://api.example.test/");
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      Response.json({ server_tags: ["staging"], sdk_version: "3.0.2" }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await launchSdkStatusRoute(
+      new Request("https://build.example.test/api/bff/launch/sdk-status"),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.sdkStatus.fixCommand).toBe(
+      "aomi-build sdk fix --backend https://api.example.test",
+    );
+    expect(body.sdkStatus.fixCommand).not.toContain("build.example.test");
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(String(fetchMock.mock.calls[0][0])).toBe(
+      "https://api.example.test/api/platforms/server-tags",
+    );
+  });
+});
+
 describe("deploymentPromoteRoute", () => {
   const DEPLOYMENT = "dep_555_r0123abcdef_a5a81b6b8be1";
 
@@ -455,6 +540,7 @@ describe("deploymentPromoteRoute", () => {
   });
 
   afterEach(() => {
+    vi.unstubAllEnvs();
     vi.restoreAllMocks();
     getGitHubSession.mockReset();
   });
@@ -526,6 +612,12 @@ describe("deploymentPromoteRoute", () => {
       .fn()
       .mockResolvedValueOnce(ownedSources(99))
       .mockResolvedValueOnce(appRecords(DEPLOYMENT))
+      // sourceDeploymentPairs re-reads the same DB records to derive the
+      // secret-gate pairs.
+      .mockResolvedValueOnce(appRecords(DEPLOYMENT))
+      // No GITHUB_TOKEN is stubbed for this test, so
+      // missingSecretsForActivation fails open (token-first check) before
+      // ever fetching deployment state — no 4th call is made here.
       .mockResolvedValueOnce(
         Response.json({
           ok: true,
@@ -545,9 +637,170 @@ describe("deploymentPromoteRoute", () => {
     expect(res.status).toBe(202);
     expect(body.ok).toBe(true);
     expect(body.promote.deploymentId).toBe(DEPLOYMENT);
-    const [promoteUrl, promoteInit] = fetchMock.mock.calls[2];
+    const [promoteUrl, promoteInit] = fetchMock.mock.calls[3];
     expect(String(promoteUrl)).toContain(`/deployments/${DEPLOYMENT}/promote`);
     expect(String(promoteInit?.body)).toContain('"actor":"alice"');
+  });
+
+  it("409s a promote when a required secret is unfilled", async () => {
+    vi.stubEnv("GITHUB_TOKEN", "gh-token");
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        activationSourceWithRepo("aomi-labs/my-bot-app", 99),
+      )
+      .mockResolvedValueOnce(appRecords(DEPLOYMENT))
+      .mockResolvedValueOnce(
+        appRecordsWithTag(DEPLOYMENT, "apps-555-r1-my-bot-abc"),
+      )
+      // missingSecretsForActivation resolves platformRepo via the per-source
+      // detail endpoint since latestDeployment is null on the list response.
+      .mockResolvedValueOnce(latestDeploymentResponse("aomi-labs/my-bot-app"))
+      .mockResolvedValueOnce(
+        Response.json({
+          by_app: { "my-bot": ["$SECRET:APP:my-bot::MY_BOT_API_KEY"] },
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          assets: [
+            { name: "manifest.json", url: "https://api.github.com/asset/1" },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          plugins: {
+            "my-bot": {
+              file: "libmybot.dylib",
+              sha256: "x",
+              secrets: [
+                { name: "MY_BOT_API_KEY", description: "d", required: true },
+                {
+                  name: "MY_BOT_SECRET_KEY",
+                  description: "d",
+                  required: true,
+                },
+              ],
+            },
+          },
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await deploymentPromoteRoute(
+      promoteReq({ deploymentId: DEPLOYMENT, appSourceId: 99 }),
+    );
+
+    expect(res.status).toBe(409);
+    await expect(res.json()).resolves.toEqual({
+      error: "missing required secrets",
+      missing: { "my-bot": ["MY_BOT_SECRET_KEY"] },
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(7);
+  });
+
+  it("promotes when required secrets are filled", async () => {
+    vi.stubEnv("GITHUB_TOKEN", "gh-token");
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        activationSourceWithRepo("aomi-labs/my-bot-app", 99),
+      )
+      .mockResolvedValueOnce(appRecords(DEPLOYMENT))
+      .mockResolvedValueOnce(
+        appRecordsWithTag(DEPLOYMENT, "apps-555-r1-my-bot-abc"),
+      )
+      .mockResolvedValueOnce(latestDeploymentResponse("aomi-labs/my-bot-app"))
+      .mockResolvedValueOnce(
+        Response.json({
+          by_app: {
+            "my-bot": [
+              "$SECRET:APP:my-bot::MY_BOT_API_KEY",
+              "$SECRET:APP:my-bot::MY_BOT_SECRET_KEY",
+            ],
+          },
+        }),
+      )
+      .mockResolvedValueOnce(Response.json({ assets: [] }))
+      .mockResolvedValueOnce(
+        Response.json({
+          ok: true,
+          activation: { status: "activating", apps: [] },
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await deploymentPromoteRoute(
+      promoteReq({ deploymentId: DEPLOYMENT, appSourceId: 99 }),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(202);
+    expect(body.ok).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(7);
+  });
+
+  it("gates promote by the authorized DB records, not a size-limited deployments listing (regression)", async () => {
+    // Regression for the bypass where the secret gate derived its pairs from
+    // listUserSourceDeployments (limit: 100) — a different, size-limited
+    // source than the ownership check (listDeploymentRecords, no limit). A
+    // deployment authorized via the records but absent from that limited
+    // listing yielded empty pairs and silently skipped the 409. This
+    // deployment IS authorized (present in the records used for ownership,
+    // same as `known`), so it must now fail closed on its unfilled required
+    // secret — and promote must never be called. Note there is no
+    // listUserSourceDeployments stub anywhere here: the fixed route never
+    // calls it for promote.
+    vi.stubEnv("GITHUB_TOKEN", "gh-token");
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        activationSourceWithRepo("aomi-labs/my-bot-app", 99),
+      )
+      .mockResolvedValueOnce(
+        appRecordsWithTag(DEPLOYMENT, "apps-555-r1-my-bot-abc"),
+      )
+      .mockResolvedValueOnce(
+        appRecordsWithTag(DEPLOYMENT, "apps-555-r1-my-bot-abc"),
+      )
+      .mockResolvedValueOnce(latestDeploymentResponse("aomi-labs/my-bot-app"))
+      .mockResolvedValueOnce(Response.json({ by_app: {} }))
+      .mockResolvedValueOnce(
+        Response.json({
+          assets: [
+            { name: "manifest.json", url: "https://api.github.com/asset/1" },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          plugins: {
+            "my-bot": {
+              file: "libmybot.dylib",
+              sha256: "x",
+              secrets: [
+                { name: "MY_BOT_API_KEY", description: "d", required: true },
+              ],
+            },
+          },
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await deploymentPromoteRoute(
+      promoteReq({ deploymentId: DEPLOYMENT, appSourceId: 99 }),
+    );
+
+    expect(res.status).toBe(409);
+    await expect(res.json()).resolves.toEqual({
+      error: "missing required secrets",
+      missing: { "my-bot": ["MY_BOT_API_KEY"] },
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(7);
+    expect(
+      fetchMock.mock.calls.some(([url]) => String(url).includes("/promote")),
+    ).toBe(false);
   });
 });
 
@@ -765,6 +1018,7 @@ describe("activateLaunchRoute", () => {
     });
   });
   afterEach(() => {
+    vi.unstubAllEnvs();
     vi.restoreAllMocks();
     getGitHubSession.mockReset();
   });
@@ -782,6 +1036,88 @@ describe("activateLaunchRoute", () => {
     );
     expect(res.status).toBe(401);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("409s when a required secret is unfilled", async () => {
+    vi.stubEnv("GITHUB_TOKEN", "gh-token");
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(activationSourceWithRepo("aomi-labs/my-bot-app"))
+      .mockResolvedValueOnce(sourceDeployments())
+      .mockResolvedValueOnce(latestDeploymentResponse("aomi-labs/my-bot-app"))
+      .mockResolvedValueOnce(
+        Response.json({
+          by_app: { "my-bot": ["$SECRET:APP:my-bot::MY_BOT_API_KEY"] },
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          assets: [
+            { name: "manifest.json", url: "https://api.github.com/asset/1" },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          plugins: {
+            "my-bot": {
+              file: "libmybot.dylib",
+              sha256: "x",
+              secrets: [
+                { name: "MY_BOT_API_KEY", description: "d", required: true },
+                {
+                  name: "MY_BOT_SECRET_KEY",
+                  description: "d",
+                  required: true,
+                },
+              ],
+            },
+          },
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await activateLaunchRoute(
+      activateReq({
+        appSourceId: 99,
+        apps: ["my-bot"],
+        releaseTags: ["apps-555-r1-my-bot-abc"],
+      }),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(409);
+    expect(body).toEqual({
+      error: "missing required secrets",
+      missing: { "my-bot": ["MY_BOT_SECRET_KEY"] },
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(6);
+  });
+
+  it("activates when the release manifest declares no secrets for the app", async () => {
+    vi.stubEnv("GITHUB_TOKEN", "gh-token");
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(activationSourceWithRepo("aomi-labs/my-bot-app"))
+      .mockResolvedValueOnce(sourceDeployments())
+      .mockResolvedValueOnce(latestDeploymentResponse("aomi-labs/my-bot-app"))
+      .mockResolvedValueOnce(Response.json({ by_app: {} }))
+      .mockResolvedValueOnce(Response.json({ assets: [] }))
+      .mockResolvedValueOnce(
+        Response.json({ ok: true, activation: { apps: [] } }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await activateLaunchRoute(
+      activateReq({
+        appSourceId: 99,
+        apps: ["my-bot"],
+        releaseTags: ["apps-555-r1-my-bot-abc"],
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledTimes(6);
   });
 
   it("requires appSourceId and app/tag pairs", async () => {
@@ -865,6 +1201,9 @@ describe("activateLaunchRoute", () => {
       .fn()
       .mockResolvedValueOnce(activationSource())
       .mockResolvedValueOnce(sourceDeployments())
+      // No GITHUB_TOKEN is stubbed for this test, so
+      // missingSecretsForActivation fails open (token-first check) before
+      // ever fetching deployment state.
       .mockResolvedValueOnce(
         Response.json({ ok: true, activation: { apps: [] } }),
       );

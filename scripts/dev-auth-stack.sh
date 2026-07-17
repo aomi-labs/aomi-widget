@@ -138,8 +138,8 @@ ensure_backend_schema() {
 
   echo "Converging local backend schema from $migrations_dir"
 
-  if ! psql "$LOCAL_DB_URL" -tAc "select to_regclass('public.bff_cli_sessions')" | grep -q bff_cli_sessions; then
-    apply_migration 20260624010000_bff_cli_sessions.sql
+  if psql "$LOCAL_DB_URL" -tAc "select to_regclass('public.bff_cli_device_sessions') is not null or to_regclass('public.bff_cli_sessions') is not null" | grep -q t; then
+    apply_migration 20260713000000_drop_legacy_bff_cli_sessions.sql
   fi
 
   if ! psql "$LOCAL_DB_URL" -tAc "select to_regclass('public.threads')" | grep -q threads; then

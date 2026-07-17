@@ -14,6 +14,8 @@ import {
 import { useGlobalDeploymentRecords } from "@build/features/launch/components/deployments/use-global-deployment-records";
 import { operateFetch } from "@build/features/operate/client";
 import { BUILD_GLOSSARY } from "@build/lib/glossary";
+import { lastUsageHref, projectHref } from "@build/lib/deep-links";
+import { getLastProjectId } from "@build/lib/last-project";
 
 type UsagePayload = {
   daily?: Array<Record<string, any>>;
@@ -201,7 +203,7 @@ export function OverviewDashboard() {
               {deployments.slice(0, 5).map((deployment) => (
                 <Link
                   key={`${deployment.sourceId}-${deployment.deploymentId}`}
-                  href={`/operate/deployments?project=${deployment.sourceId}&deployment=${encodeURIComponent(deployment.deploymentId)}`}
+                  href={projectHref(deployment.sourceId, "deployments")}
                   className="hover:bg-accent-hover flex items-center justify-between gap-3 px-4 py-3 text-sm"
                 >
                   <div className="min-w-0">
@@ -260,7 +262,7 @@ export function OverviewDashboard() {
             </div>
           </Link>
           <Link
-            href="/operate/usage"
+            href={lastUsageHref()}
             className="border-border bg-surface-1 hover:bg-accent-hover rounded-md border p-4"
           >
             <Gauge className="text-dim size-4" aria-hidden />
@@ -270,9 +272,11 @@ export function OverviewDashboard() {
             <div className="text-dim mt-1 text-xs">
               {usageError
                 ? `Usage unavailable: ${usageError}`
-                : latestDeployment
-                  ? "Credits by app"
-                  : "Appears after app traffic"}
+                : getLastProjectId()
+                  ? "Credits for last project"
+                  : latestDeployment
+                    ? "Credits by app"
+                    : "Appears after app traffic"}
             </div>
           </Link>
         </div>

@@ -93,6 +93,10 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  // aomi-smither and its smithers-orchestrator runtime ship Bun-flavored
+  // sources; the Node loader hooks in src/instrumentation.ts load them at
+  // runtime, so keep them out of the server bundle entirely.
+  serverExternalPackages: ["@aomi-labs/smither", "smithers-orchestrator"],
   transpilePackages: [
     "@aomi-labs/account",
     "@aomi-labs/client",

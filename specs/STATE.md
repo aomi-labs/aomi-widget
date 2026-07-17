@@ -2,7 +2,31 @@
 
 ## Last Updated
 
-2026-07-13 — Research post: auth-across-two-worlds (landing, article + 14 SVG figures);
+2026-07-16 — Bots page 404 root-caused to product-mono edge routing;
+2026-07-16 — Environment tab: unified Variables list (declared slots + configured, `*` = required);
+2026-07-16 — PR #358 (+): env-aware default chat host (prod → chat.aomi.dev,
+  preview/dev → chat-staging.aomi.dev; NEXT_PUBLIC_CHAT_URL still overrides);
+2026-07-14 — Account menu: Docs (aomi.dev/docs) + Home page links (Vercel-style);
+2026-07-14 — Build P2 deep-link polish (⌘K / Billing / Overview → right tab);
+2026-07-14 — Create stack #343–#349 merged to main (left #340);
+2026-07-14 — Create Recent rail UX: one Create-header toggle (no double collapse);
+2026-07-14 — Create Recent rail: user open/collapse + localStorage (⌘B);
+2026-07-14 — Create composer: UI-only model picker mock (Aomi + Soon);
+2026-07-14 — Create templates: Browse all opens a sheet;
+2026-07-14 — Create mobile: hide Plan steps when Progress is in-thread;
+2026-07-14 — Create Recent titles: derive + dedupe (hello → unique);
+2026-07-14 — Create craft polish tranche (rail/empty/chat/stage/composer);
+2026-07-14 — Create craft review: jargon migrate + canvas;
+2026-07-14 — Create UI: builder language (no eng keywords in chat/sidebar);
+2026-07-14 — AI Builder P3 (#344): nodes + compile/aomi-run (review local first);
+2026-07-14 — AI Builder P0–P2 (#343): Create craft on /build;
+2026-07-14 — AI Builder P1 craft port: mock layout feel in ControlPlaneShell
+  (composer, stream, files, ship→Projects, in-page history; local mock timers);
+2026-07-14 — AI Builder P1: intent composer + templates + local session;
+2026-07-14 — AI-BUILDER-EXPERIENCE.md (Create / chat-mock port plan);
+2026-07-14 — Build AI Builder: enable sidebar Build + `/build` scaffold;
+2026-07-13 — Build P2 usage peek (Home meter → Operate Usage);
+2026-07-13 — Build P2 Deployments timeline (history that reads as history);
 2026-07-13 — Build Live status consistency (one story across list/Home/Deployments);
 2026-07-13 — Build P2 Project home (live / keys / Open Chat / usage glance);
 2026-07-13 — Build P1 control plane: ⌘K, toasts, Projects landing, glossary;
@@ -11,31 +35,207 @@
 2026-07-13 — Billing option A: methods live on Chat (no fake Build fetch);
 2026-07-13 — BILLING-EXPERIENCE.md: backend ↔ UI map (code-checked)
 
-## Research post: auth-across-two-worlds (2026-07-13)
+2026-07-13 — Fixed required-secrets gate fail-open (P1, external review)
 
-New landing research article rewritten from the auth draft, styled after
-`aomibench-v0-1`:
+## Bots page `list_user_source_bots failed (404)` fix (2026-07-16)
 
-- `apps/landing/content/research/auth-across-two-worlds.md` — 13-section design
-  study: opens with the general counting/limits/linking problem, then a
-  four-proofs framework, six stack-agnostic patterns each with a "how we built
-  it" Aomi tilt, token taxonomy, threats, "why this particular stack",
-  tradeoffs. Figures referenced by absolute `/research/auth-across-two-worlds/…`
-  paths (the shared renderer's `figures/` rewrite is hardcoded to aomibench).
-- `apps/landing/public/research/auth-across-two-worlds/figures/` — 14 hand
-  authored SVGs in the aomibench house style: f00–f10 diagrams (f00 counting
-  problem, f09 credential pipeline, f10 unattended execution) + code1–code3
-  syntax-highlighted code cards (no fenced code blocks remain in the md).
-- Sybil-resistance / tiered-limits / Better Auth Sentinel paragraph in §3;
-  §8 "execution that outlives the session" (cron runs sign via policy axis
-  `signing_mode=auto` set by wallet-signed permit + capability axis delegated
-  approval, fail-closed — facts verified against product-mono sign/runtime
-  crates); signing-mode permit added to token taxonomy.
-- `apps/landing/lib/research.ts` — post registered first in `researchPosts`.
+- Cause was NOT in this repo: the dev edge proxy (product-mono
+  `scripts/dev-edge-proxy.mjs`, which imports `isManagerPath` from
+  `infra/cloudflare/worker/src/index.js`) had no `bots` entry in
+  `MANAGER_ROUTE_PATTERNS`, so `/api/integrations/github-app/user/sources/:id/bots`
+  fell through to the backend (:8080) instead of the manager (:8081) → 404.
+- Fixed in product-mono (branch `feat/builder-owned-github-bots`, commit
+  20c220b41): added
+  `/^\/api\/integrations\/github-app\/user\/sources\/[^/]+\/bots(\/[^/]+)?$/`
+  and restarted the dev proxy. Verified bots/agents/sources all reach the manager.
+- Pending: redeploy the Cloudflare worker before staging/prod use the bots tab,
+  or the same 404 recurs there.
+
+## Required-secrets gate fail-open fix (2026-07-13)
+
+Branch `feat/required-secrets-gating`, commit `5b5dea59`. External code review
+found the required-secret activation/promotion gate ALWAYS failed open in
+production: `missingSecretsForActivation`
+(`packages/deploy/src/bff/release-manifest.ts`) read
+`input.source.latestDeployment?.platformRepo`, but `source` comes from
+`listUserSources`, and the backend deliberately returns
+`latest_deployment: null` on that list endpoint (lazy for the list). So
+`platformRepo` was always undefined and the gate silently returned `{}` —
+activate, promote, and `requiredSecretsRoute` all saw zero required secret
+slots regardless of what was actually missing. The existing tests hid this by
+stubbing a populated `latestDeployment`, a shape that never occurs in
+production.
+
+- **Fix**: `missingSecretsForActivation` now resolves `platformRepo` via
+  `client.getUserSourceLatestDeployment(...)` (the per-source detail endpoint
+  that does populate it, same pattern as the redeploy route) when the cheap
+  `source.latestDeployment?.platformRepo` path is empty. Fail-open is
+  preserved only for the genuinely-unknown case (no GitHub token, or a source
+  with no deployment at all). Fixes aomi-build + portal activate/promote
+  (shared helper) plus aomi-build's `requiredSecretsRoute` (same pattern,
+  fixed separately since it doesn't go through the shared helper).
+- **Tests**: rewrote fixtures across
+  `packages/deploy/test/release-manifest.test.ts`,
+  `apps/aomi-build/src/server/bff/launch/routes.test.ts`,
+  `apps/portal/src/server/bff/launch/routes.test.ts`, and
+  `packages/deploy/test/launch-routes.test.ts` to use the real
+  `latestDeployment: null` shape with a `getUserSourceLatestDeployment` stub,
+  so they exercise the real production path instead of masking the bug.
+  Proved the regression: reverted only `release-manifest.ts`, confirmed the
+  corrected test fails against the old code (`{}` instead of the expected
+  missing-secret map), then restored and confirmed it passes.
+- **Verified**: all four vitest suites green (107 tests total across the
+  four files), `@aomi-labs/deploy` build clean, `aomi-build` + `portal`
+  type-check clean.
+- Full writeup: `.superpowers/sdd/fix-p1-failopen-report.md`.
+
+## Environment tab unified Variables view (2026-07-16)
+
+`apps/aomi-build/src/features/launch/components/deployments/tabs/environment-tab.tsx`:
+
+- Merged the split "missing required inputs inside Add or overwrite" +
+  "Configured" sections into one **Variables** list: declared manifest slots
+  (required + optional) and configured vault keys in a single view.
+- Missing slots render as solid list rows (`Not set` chip, warning-tinted when
+  required) with a **Set value** action that prefills the Add-or-overwrite
+  editor — no more read-only key inputs injected into the editor.
+- Required slots marked with `*` (+ legend "Required — the app cannot be
+  activated without it"); optional declared slots now visible too.
+- Missing-required rows sort first, directly under the "N required secrets
+  missing" banner; custom configured keys follow declared slots.
+- Removed the `requiredValues` state path from save(). Tests updated/added in
+  `environment-tab.test.tsx` (8 pass; full launch suite 129 pass; lint clean;
+  tsc failure is pre-existing stale `.next/types/validator.ts` on main).
+
+## Build P2 deep-link polish (2026-07-14)
+
+Branch `feat/build-p2-deep-links`:
+
+- Shared `deep-links.ts` for project tabs, last-project Home, Environment, Usage.
+- ⌘K Last project / Environment / Usage prefer last project when set.
+- Overview recent deploys → project Deployments tab; Usage card / Billing links
+  use last-project scoped Usage / Environment when available.
+
+## Create Recent sidebar toggle (2026-07-14)
+
+Branch `feat/build-recent-sidebar-toggle` (stack on #344 / p3):
+
+- Single mental model: Recent open OR closed.
+- Primary control: Create header panel icon (always visible); ⌘/Ctrl+B same state.
+- Closed = no left rail (header toggle reopens); removed in-Recent collapse + narrow History rail.
+- Preference persisted in localStorage; first visit defaults open on xl+ (after mount; SSR-safe).
+- Shell nav remains click-only.
+
+## Create composer model picker mock (2026-07-14)
+
+Branch `feat/build-model-picker-mock` (stack on #344):
+
+- Cursor-like model control on Create composer (`ComposerModelPicker`).
+- Current selection: **Aomi** only; Auto / Custom rows disabled with Soon.
+- Hardcoded mock — no Han API, no fake live model list fetch.
+- Keeps quiet **Preview** honesty chip beside the picker (no Aomi branding spam).
+- Product language only (no Smithers / eng jargon in UI).
+
+## Create template Browse all sheet (2026-07-14)
+
+- Empty Create keeps 3 featured templates; “Browse all” opens a right sheet
+  with the full template grid (Esc / overlay / X to dismiss).
+
+## Create mobile Progress/Plan dedupe (2026-07-14)
+
+- On `<lg`, Plan-steps cards stay hidden during generate so they do not compete
+  with the in-thread Progress timeline (rail Progress is lg+ only).
+
+## Create Recent title dedupe (2026-07-14)
+
+- `deriveSessionTitle` strips greeting fluff + soft-truncates; `uniqueSessionTitle`
+  avoids colliding sidebar labels; list remasters persisted dupes for display.
+
+## Create craft polish tranche (2026-07-14)
+
+Shipped the review next-tranche on Create (`/build`):
+
+- Right rail: single Progress timeline + Files (removed duplicate Build plan).
+- Empty Create: top-anchored hero, 3 featured templates + Browse all.
+- Chat density: tighter message/banner spacing; less mid-thread void.
+- Stage strip: `resolveDisplayJourneyStage` + verify-gate stream honesty
+  (Compile & test stays active until smoke test; Ship only when shipReady).
+- Composer: Preview chip only (no stacked Aomi / model chip) — superseded by
+  model picker mock above for the picker PR.
+
+## Create craft review + jargon migrate (2026-07-14)
+
+Screenshot review of empty Create + active session:
+
+- Stale localStorage still showed Local mock / Smithers / aomi-run after the
+  product-language pass — added `sanitize-session-copy` on load/save +
+  display guards; dropped redundant empty-state `aomi` chip and dual rail titles.
+- Craft canvas: `canvases/aomi-build-create-craft-review.canvas.tsx`
+- Follow-up tranche shipped (see above): rail / empty / chat / stage / composer.
+
+## Create product-language polish (2026-07-14)
+
+Branch `feat/build-p3-smithers-nodes`:
+
+- UI copy uses builder language only: Plan / Generator / Smoke test / Aomi /
+  Ready / Preview. Eng names (Smithers, aomi-run, Local mock, Han, etc.) stay
+  in types/comments, not rendered labels.
+- Chat: You (right) / Aomi (assistant) / quiet system; seed model = Aomi.
+- Sidebar sessions: Ready / In progress / Failed + journey stage titles.
+- Ship banner: Ready to ship + Download / Open Projects; GitHub init · soon.
+- Composer chip: Preview; blocked hint says smoke test (not aomi-run).
+
+## AI Builder P1 craft port (2026-07-14)
+
+Branch `feat/build-enable-route`:
+
+- Ported mock portal craft into `features/build/` inside ControlPlaneShell
+  (no BuildLayout, no Customize marketplace, no `/deploy/[id]`).
+- Empty: centered composer + templates; active: thread + stream, lg context
+  (files/stream), sticky compact composer, xl session list.
+- LocalStorage mock pipeline plan→generate→validate→ready mapped to journey
+  stages; ship banner → `/projects`; honest “Local mock” copy.
+
+## AI Builder P1 intent empty state (2026-07-14)
+
+Branch `feat/build-enable-route`:
+
+- Working intent composer + 8 templates (seed prompts).
+- Submit creates a local Create session + journey chrome.
+- Superseded visually by craft port (stream/files landed).
+
+## AI Builder experience plan (2026-07-14)
+
+- Added `apps/aomi-build/AI-BUILDER-EXPERIENCE.md`: Cecilia decode, platform
+  map, mock-vs-target, import policy, P0–P5 implementation phases.
+- Direction: adapt mock craft into live `features/build/` (not wholesale port).
+
+## Build AI Builder route (2026-07-14)
+
+Branch `feat/build-enable-route`:
+
+- Sidebar Build `enabled: true` (no Soon).
+- Real `/build` page scaffold: journey map + disabled “Start” (no Smithers
+  network yet). Manage path still Projects / Operate.
+
+## Build P2 usage peek (2026-07-13)
+
+Branch `feat/build-p2-usage-peek` (PR #335):
+
+- Home Usage card: credits + tokens + day spark; Environment ≠ Billing copy.
+- Deep link `/operate/usage?project=<id>`; Operate honors `?project=`.
+
+## Build P2 Deployments timeline (2026-07-13)
+
+Branch `feat/build-p2-deployments-timeline` (PR #334):
+
+- Deployments tab summary uses the same Live story + history count.
+- Rows lead with app names + Current; deployment id is secondary.
+- Current sorts first; relative timestamps; History / Promotions labels.
 
 ## Build Live status consistency (2026-07-13)
 
-Branch `fix/build-live-status-consistency`:
+Branch `fix/build-live-status-consistency` (PR #331):
 
 - Shared `projectDeploymentStatus()` wraps `deploymentLifecycleFromSource`
   so Projects list, Home, and Deployments tell the same Live story.
@@ -291,7 +491,6 @@ or handed off, per Cecilia's direction (no direct backend/DB mutation):
   (pre-flight checks + RESTRICT drops, no CASCADE) for review; also fixed the
   last stale `aomi_wallets` comment in
   `apps/shadcn-registry/src/lib/wallet-kit/account/aomi-backend-runtime.ts`.
-
 ## Aomi Build owned operate + pre-prod fixes (2026-07-08)
 
 - Hardened launch/operate-adjacent BFF reads and writes around the signed-in
@@ -1974,6 +2173,11 @@ Controls disabled while isProcessing === true
 
 ## Pending
 
+- /build engine mode: render approvals/clarifies in the UI (decision route
+  exists; runs default to autoApprove until then)
+- /build engine mode: real fileTree from run outputs (left empty for now)
+- Vercel prod shape for the engine: SMITHER_DATABASE_URL (shared Postgres) +
+  @smithers-orchestrator/vercel sandbox provider for compute phases (v2)
 - End-to-end testing of wallet tx request flow
 - SSE event handling verification (SystemNotice, AsyncCallback)
 - E2E verification of control flow: apiKey → namespaces → model selection

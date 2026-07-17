@@ -28,6 +28,7 @@ import { fatal } from "./errors";
 import { parseSolanaKeypairSecret } from "./solana-signer";
 import { createCliAuthTokenProvider } from "./auth";
 import { DEFAULT_CLI_BASE_URL } from "./client-factory";
+import { createCliPaymentFetch, type CliPaymentListener } from "./payment";
 
 export class CliSession {
   private state: CliSessionState;
@@ -93,6 +94,8 @@ export class CliSession {
       // Keys supplied via --solana-private-key/env stay transient.
       svmPrivateKey: seed?.svmPrivateKey,
       chainId: config.chain ?? seed?.chainId,
+      aaProvider: config.aaProvider ?? seed?.aaProvider,
+      aaMode: config.aaMode ?? seed?.aaMode,
       secretHandles: seed?.secretHandles,
       auth: seed?.auth,
     };
@@ -237,6 +240,17 @@ export class CliSession {
     }
     if (config.chain !== undefined && config.chain !== this.state.chainId) {
       this.state.chainId = config.chain;
+      changed = true;
+    }
+    if (
+      config.aaProvider !== undefined &&
+      config.aaProvider !== this.state.aaProvider
+    ) {
+      this.state.aaProvider = config.aaProvider;
+      changed = true;
+    }
+    if (config.aaMode !== undefined && config.aaMode !== this.state.aaMode) {
+      this.state.aaMode = config.aaMode;
       changed = true;
     }
     if (!this.state.clientId) {
@@ -473,23 +487,31 @@ export class CliSession {
   // ---------------------------------------------------------------------------
 
   /** Build a ClientSession from the current state. */
-  createClientSession(_config?: Partial<CliConfig>): ClientSession {
+  createClientSession(
+    config?: Partial<CliConfig>,
+    options?: { onPayment?: CliPaymentListener },
+  ): ClientSession {
+    const paymentFetch = createCliPaymentFetch(config, options?.onPayment);
     const session = new ClientSession(
       {
         baseUrl: this.state.baseUrl,
         apiKey: this.state.apiKey,
+        fetch: paymentFetch,
         getAccountBearer: createCliAuthTokenProvider(() => this.state),
       },
       {
         sessionId: this.state.sessionId,
         clientId: this.state.clientId,
         app: this.state.app,
+        applicationId: config?.applicationId,
         apiKey: this.state.apiKey,
+        paymentMethod: config?.paymentMethod,
       },
     );
     session.resolveUserState(
       buildCliUserState(this.state.publicKey, this.state.chainId, {
         app: this.state.app,
+        aaProvider: this.state.aaProvider ?? config?.aaProvider ?? null,
         aaMode: this.state.aaMode ?? null,
         smartAccount: this.state.smartAccount ?? null,
         svmAddress: this.state.svmPublicKey,
