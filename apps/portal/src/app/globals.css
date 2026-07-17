@@ -60,14 +60,40 @@
 }
 
 /*
- * Optional ABC Diatype — portal-only future override. This branch experiments
- * with Geist Mono as the primary UI font. Uncomment after dropping licensed
- * .woff2/.otf under public/assets/fonts/diatype/ if needed later.
+ * Optional ABC Diatype — portal-only future override. Shipping fonts are
+ * Geist Sans + Geist Mono (next/font/google). Uncomment after dropping
+ * licensed .woff2/.otf under public/assets/fonts/diatype/, then prepend
+ * "ABC Diatype" to the body / sans stack below.
  *
  * @font-face {
  *   font-family: "ABC Diatype";
  *   src: url("/assets/fonts/diatype/ABCDiatype-Regular.woff2") format("woff2"),
  *     url("/assets/fonts/diatype/ABCDiatype-Regular.otf") format("opentype");
+ *   font-weight: 400;
+ *   font-style: normal;
+ *   font-display: swap;
+ * }
+ * @font-face {
+ *   font-family: "ABC Diatype";
+ *   src: url("/assets/fonts/diatype/ABCDiatype-Medium.woff2") format("woff2"),
+ *     url("/assets/fonts/diatype/ABCDiatype-Medium.otf") format("opentype");
+ *   font-weight: 500;
+ *   font-style: normal;
+ *   font-display: swap;
+ * }
+ * @font-face {
+ *   font-family: "ABC Diatype";
+ *   src: url("/assets/fonts/diatype/ABCDiatype-Bold.woff2") format("woff2"),
+ *     url("/assets/fonts/diatype/ABCDiatype-Bold.otf") format("opentype");
+ *   font-weight: 700;
+ *   font-style: normal;
+ *   font-display: swap;
+ * }
+ *
+ * Optional mono (only if ABCDiatypeMono-* files are present; else keep Geist Mono):
+ * @font-face {
+ *   font-family: "ABC Diatype Mono";
+ *   src: url("/assets/fonts/diatype/ABCDiatypeMono-Regular.woff2") format("woff2");
  *   font-weight: 400;
  *   font-style: normal;
  *   font-display: swap;
@@ -86,10 +112,8 @@
 
   body {
     @apply antialiased;
-    /* Branch experiment: Geist Mono primary UI (terminal / dev-tool feel). */
-    font-family: var(--font-geist-mono), "Geist Mono", ui-monospace, SFMono-Regular,
-      Menlo, Consolas, monospace;
-    font-variant-numeric: tabular-nums;
+    /* Shipping: Geist Sans. Optional later: "ABC Diatype", var(--font-geist-sans), … */
+    font-family: var(--font-geist-sans), "Geist", system-ui, sans-serif;
   }
 
   /* WebKit (Chrome, Safari, Edge): fully-custom scrollbar with a transparent
@@ -147,8 +171,6 @@
 /* Portal visual theme utilities — portal-scoped only (see specs/PORTAL-VISUAL-THEME.md).
    Do not move these into @aomi-labs/widget-lib without a deliberate package bump. */
 .aomi-eyebrow {
-  font-family: var(--font-geist-mono), "Geist Mono", ui-monospace, SFMono-Regular,
-    Menlo, Consolas, monospace;
   font-size: 10.5px;
   font-weight: 500;
   letter-spacing: 0.09em;
@@ -163,20 +185,13 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Secondary escape hatch: long prose readability (Geist Sans). */
-.aomi-prose,
-.font-sans {
-  font-family: var(--font-geist-sans), "Geist", system-ui, sans-serif;
-  font-variant-numeric: normal;
-}
-
 .aomi-card {
   border: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
   border-radius: calc(var(--radius) + 2px);
   background: color-mix(in oklch, var(--card) 92%, transparent);
 }
 
-/* Terminal/dev-tool chrome for portal chat shell (portal-owned overrides). */
+/* Dense charcoal chrome for portal chat shell (portal-owned overrides). */
 .dark [data-slot="sidebar"],
 .dark .bg-sidebar {
   background: var(--sidebar);
@@ -196,8 +211,10 @@
 
 :root {
   /*
-   * --font-geist-sans / --font-geist-mono come from next/font in layout.tsx.
-   * This branch: Mono is primary UI; Sans is secondary (font-sans / .aomi-prose).
+   * --font-geist-sans / --font-geist-mono come from next/font in layout.tsx
+   * (Geist + Geist Mono). Do not override them with unloaded commercial
+   * family names. Optional Diatype: uncomment @font-face above, then set
+   * body font-family to "ABC Diatype", var(--font-geist-sans), …
    */
   --portal-status-success: oklch(0.62 0.14 155);
   --portal-status-warning: oklch(0.75 0.14 75);
@@ -216,7 +233,7 @@
 
 /*
  * Portal dark: deeper charcoal near-black, hairline borders, muted gray
- * secondary text — mono-first terminal/dev-tool direction (branch experiment).
+ * secondary text. Kept from the terminal-density pass; body UI is Geist Sans.
  */
 .dark {
   --background: oklch(0.09 0.003 286);

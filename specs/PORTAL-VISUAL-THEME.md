@@ -2,11 +2,15 @@
 
 Branch: `feat/chat-portal-visual-theme` (forked from `feat/chat-portal-settings-revamp`).
 
-Portal visual language: monospace-heavy **terminal / dev-tool** dark UI — deep
-charcoal near-black, hairline borders, ALL CAPS tracked micro-labels, tabular
+Portal visual language: dense **ops / fintech** dark UI — deep charcoal
+near-black, hairline borders, ALL CAPS tracked micro-labels, tabular mono
 numbers, and a single restrained accent. Keep Aomi product identity (logo,
 Connect wallet, real suggestion prompts) — match the *feel*, not reference
 brand/content.
+
+**Shipping typography:** Geist Sans (UI) + Geist Mono (numbers / code / IDs).
+A short mono-everywhere (body = Mono) experiment on this branch was reverted;
+do not treat mono-first as the shipping default.
 
 ## Always-start localhost (this work)
 
@@ -26,12 +30,12 @@ pnpm exec next dev -p 3000
 
 Then open [http://localhost:3000](http://localhost:3000).
 
-## Direction (mono-first terminal)
+## Direction (Sans + Mono)
 
 | Token | Choice |
 | --- | --- |
-| Primary UI font | **Geist Mono** — chrome, labels, empty state, settings labels, rail, numerics |
-| Secondary font | **Geist Sans** — only when needed for long prose (`font-sans` / `.aomi-prose`) |
+| Primary UI font | **Geist Sans** — body, chrome, labels, empty state, settings, rail |
+| Mono (scoped) | **Geist Mono** — `.aomi-numeric`, `font-mono`, code, IDs, amounts, commits |
 | Background | Deeper charcoal near-black (`oklch(~0.09)`) |
 | Borders | Hairline (`oklch(1 0 0 / 8%)`) |
 | Secondary text | Muted mid-gray |
@@ -59,8 +63,9 @@ surface language carry the ops *feel*.
 
 Editing `apps/shadcn-registry` empty-state / rail chrome **requires** a
 `@aomi-labs/widget-lib` patch bump (AGENTS.md). Portal keeps additional
-token/font overrides in `apps/portal` only — this mono-first pass is
-**portal-scoped** (no widget-lib bump).
+token/font overrides in `apps/portal` only — charcoal + typography polish on
+this branch is **portal-scoped** when possible (no widget-lib bump unless
+shared empty-state chrome changes).
 
 ## Case rules
 
@@ -80,28 +85,33 @@ or primary row labels.
 Shipping fonts (always loaded via `next/font/google` in
 `apps/portal/src/app/layout.tsx`):
 
-- **Mono (primary UI):** Geist Mono — `--font-geist-mono` on `body` /
-  `font-mono`. Stack:
-  `var(--font-geist-mono), "Geist Mono", ui-monospace, …`
-- **Sans (secondary / long prose):** Geist Sans — `--font-geist-sans`; use
-  `font-sans` or `.aomi-prose` when mono hurts readability
-- Numerics: tabular via body `font-variant-numeric` + `.aomi-numeric`
-- Eyebrow: ~10.5px, `letter-spacing: 0.09em`, muted foreground, mono
+- **Sans (UI / body / titles):** Geist Sans — `--font-geist-sans` on
+  `body` / `font-sans`. Stack:
+  `var(--font-geist-sans), "Geist", system-ui, sans-serif`
+- **Mono (code / numerics):** Geist Mono — `--font-geist-mono`; amounts,
+  credits, tokens, IDs, commits via `.aomi-numeric` or `font-mono`
+- Hierarchy: bold titles → medium row labels → muted metadata
+- Eyebrow: ~10.5px, `letter-spacing: 0.09em`, muted foreground (inherits sans)
 
 ### Optional ABC Diatype (licensed drop-in only)
 
-Diatype is **not** the shipping default. When licensed files are dropped under
+Diatype is **not** the shipping default. Do not put unloaded commercial
+family names first in the CSS stack — that makes the UI wait on a missing
+font. When licensed files are dropped under
 `apps/portal/public/assets/fonts/diatype/`:
 
 1. Uncomment the `@font-face` block in `apps/portal/src/app/globals.css`
-2. Decide whether Diatype replaces Sans secondary or Mono primary
-3. Optionally wire `next/font/local` in `layout.tsx`
+2. Prepend `"ABC Diatype"` to the body sans stack (Geist remains fallback)
+3. Optionally wire `next/font/local` in `layout.tsx` (commented snippet)
+4. If `ABCDiatypeMono-*` exists: add mono `@font-face` and point
+   `.aomi-numeric` at `"ABC Diatype Mono"`; otherwise keep Geist Mono
 
 | Step | Where | Shipping status |
 | --- | --- | --- |
-| Mono (primary UI) | Geist Mono via `next/font/google` (`--font-geist-mono`) | Active |
-| Sans (secondary) | Geist via `next/font/google` (`--font-geist-sans`) | Active |
+| Sans (primary UI) | Geist via `next/font/google` (`--font-geist-sans`) | Active |
+| Mono (numerics / code) | Geist Mono via `next/font/google` (`--font-geist-mono`) | Active |
 | `@font-face` Diatype | Commented block in `globals.css` | Optional later |
+| Optional preload | `layout.tsx` — `next/font/local` snippet in comments | Optional later |
 
 **Scope:** portal CSS / layout only. Do **not** put Diatype into
 `apps/shadcn-registry` default theme / widget-lib (that would force all
@@ -118,8 +128,8 @@ apps/portal/public/assets/fonts/diatype/
 ```
 
 See `apps/portal/public/assets/fonts/diatype/README.md`. Do not vendor
-commercial font binaries without a license. Until then, Geist Mono (primary)
-+ Geist Sans (secondary) are the active portal fonts.
+commercial font binaries without a license. Until then, Geist Sans + Geist
+Mono are the active portal fonts.
 
 ## Surface
 
@@ -138,14 +148,15 @@ commercial font binaries without a license. Until then, Geist Mono (primary)
 
 ## Utility classes (portal `globals.css`)
 
-- `.aomi-eyebrow` — uppercase micro-label (mono)
+- `.aomi-eyebrow` — uppercase micro-label
 - `.aomi-numeric` — Geist Mono + tabular nums
-- `.aomi-prose` / `font-sans` — Geist Sans secondary for long prose
 - `.aomi-card` — hairline bordered surface card
 
 ## Out of scope
 
 - Cloning reference brand names, Billing panels, or fake ops metrics
+- Reintroducing fake AI chrome (section stamps, rainbow accent bars)
+- Mono-everywhere body font (reverted experiment)
 - Aomi Build / Telegram visual forks beyond shared widget consumers of bumped package
 - Pirating or committing unlicensed commercial font binaries
-- Merging this branch into `main` / prod without explicit review of the mono experiment
+- Merging this branch into `main` / prod without explicit review

@@ -2,13 +2,11 @@
 
 ## Last Updated
 
-2026-07-17 — Portal mono-first terminal theme on `feat/chat-portal-visual-theme`:
-  Geist Mono as primary UI font (chrome/labels/rail/empty/settings); Geist Sans
-  secondary via `font-sans` / `.aomi-prose`; deeper charcoal dark tokens,
-  hairline borders, muted gray secondary, single `--portal-accent` (status
-  green); start command documented in `specs/PORTAL-VISUAL-THEME.md`
-  (`pnpm --filter portal exec next dev -p 3000`); portal-scoped only (no
-  widget-lib bump);
+2026-07-17 — Portal typography shipping combo on `feat/chat-portal-visual-theme`:
+  **Geist Sans (UI/body)** + **Geist Mono** (`.aomi-numeric` / `font-mono` /
+  code/IDs/amounts); undid mono-everywhere body experiment (~98257f5d); kept
+  deeper charcoal dark tokens + hairline borders + `--portal-accent`; see
+  `specs/PORTAL-VISUAL-THEME.md`; portal-scoped only (no widget-lib bump);
 2026-07-17 — Portal shipping fonts locked to **Geist Sans + Geist Mono** on
   `feat/chat-portal-visual-theme` (dropped Inter-as-primary / unloaded
   Diatype-first stack); ABC Diatype remains optional drop-in only when
