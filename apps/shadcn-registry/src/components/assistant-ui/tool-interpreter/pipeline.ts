@@ -15,8 +15,8 @@ import {
   matchWebSearch,
 } from "./families/simple";
 import {
-  matchPendingApproval,
-  matchSimulation,
+  matchEvmPendingApproval,
+  matchEvmSimulation,
   matchStagedTx,
 } from "./families/evm-tx";
 import {
@@ -24,6 +24,9 @@ import {
   matchLifiQuote,
   matchLifiSwapPrep,
 } from "./families/lifi";
+import { matchJupiterSwapPrep } from "./families/jupiter";
+import { matchSvmContext } from "./families/svm";
+import { matchSvmPendingApproval, matchSvmSimulation } from "./families/svm-tx";
 import { matchEvmCall } from "./families/evm-call";
 import { presentOperation } from "./present";
 import type {
@@ -36,15 +39,19 @@ import type {
 const matchers: ToolMatcher[] = [
   matchWebSearch,
   matchSkillActivation,
+  matchSvmContext,
   matchChainContext,
   matchNativeBalance,
   matchTokenLookup,
+  matchJupiterSwapPrep,
   matchLifiSwapPrep,
   matchLifiQuote,
   matchLifiApproval,
+  matchSvmSimulation,
+  matchSvmPendingApproval,
   matchStagedTx,
-  matchSimulation,
-  matchPendingApproval,
+  matchEvmSimulation,
+  matchEvmPendingApproval,
   matchEvmCall,
   matchError,
 ];

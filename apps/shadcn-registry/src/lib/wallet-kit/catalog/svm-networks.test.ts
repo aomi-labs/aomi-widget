@@ -17,7 +17,7 @@ describe("SVM network resolution", () => {
         },
         {
           id: "solana-mainnet",
-          label: "Solana Mainnet",
+          label: "Solana",
           cluster: "solana:mainnet",
           rpcHttpUrl: "https://mainnet.example",
         },
@@ -29,5 +29,6 @@ describe("SVM network resolution", () => {
     expect(activeNetwork.cluster).toBe("solana:mainnet");
     expect(activeNetwork.rpcHttpUrl).toBe("https://mainnet.example");
     expect(activeNetwork.id).toBe("solana-mainnet");
+    expect(activeNetwork.label).toBe("Solana");
   });
 });

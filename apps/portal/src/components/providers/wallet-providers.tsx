@@ -64,7 +64,7 @@ const solanaNetworks = [
   },
   {
     id: "solana-mainnet",
-    label: "Solana Mainnet",
+    label: "Solana",
     cluster: "solana:mainnet",
     rpcHttpUrl:
       process.env.NEXT_PUBLIC_SOLANA_MAINNET_RPC_URL ??

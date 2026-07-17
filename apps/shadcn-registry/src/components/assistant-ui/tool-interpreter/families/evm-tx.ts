@@ -34,6 +34,9 @@ export const matchStagedTx: ToolMatcher = ({ rawLabel, resultRecord }) => {
     return null;
   }
 
+  const chain = chainFactFromRecord(resultRecord);
+  if (!chain) return null;
+
   const data = asString(resultRecord.data);
   const selector = data ? selectorFact(data) : null;
   const selectorMeta = selector ? EVM_SELECTOR_REGISTRY[selector.value] : null;
@@ -42,7 +45,7 @@ export const matchStagedTx: ToolMatcher = ({ rawLabel, resultRecord }) => {
   const pendingTxId = asNumber(resultRecord.pending_tx_id);
 
   return op(`evm.tx.stage.${stagedActionId(action ?? "custom")}`, rawLabel, [
-    chainFact(resultRecord.chain_id),
+    chain,
     action
       ? {
           kind: "action",
@@ -63,13 +66,17 @@ export const matchStagedTx: ToolMatcher = ({ rawLabel, resultRecord }) => {
   ]);
 };
 
-export const matchSimulation: ToolMatcher = ({ rawLabel, resultRecord }) => {
+export const matchEvmSimulation: ToolMatcher = ({ rawLabel, resultRecord }) => {
   if (!resultRecord) return null;
   const sim =
     typeof resultRecord.simulation === "object" && resultRecord.simulation
       ? (resultRecord.simulation as Record<string, unknown>)
       : null;
   if (!(sim || "batch_success" in resultRecord)) return null;
+
+  const chain =
+    chainFactFromRecord(resultRecord) ?? chainFact(undefined, sim?.network);
+  if (!chain) return null;
 
   const explicitBatchSuccess = sim?.batch_success ?? resultRecord.batch_success;
   const simulationStatus =
@@ -81,12 +88,12 @@ export const matchSimulation: ToolMatcher = ({ rawLabel, resultRecord }) => {
   const gas = asNumber(sim?.total_gas) ?? asNumber(resultRecord.total_gas);
   const steps = Array.isArray(sim?.steps)
     ? sim.steps.length
-    : Array.isArray(resultRecord.ix_ids)
-      ? resultRecord.ix_ids.length
+    : Array.isArray(resultRecord.tx_ids)
+      ? resultRecord.tx_ids.length
       : undefined;
 
   return op("evm.tx.simulate_batch", rawLabel, [
-    chainFactFromRecord(resultRecord) ?? chainFact(undefined, sim?.network),
+    chain,
     steps != null
       ? {
           kind: "count",
@@ -106,26 +113,23 @@ export const matchSimulation: ToolMatcher = ({ rawLabel, resultRecord }) => {
   ]);
 };
 
-export const matchPendingApproval: ToolMatcher = ({
+export const matchEvmPendingApproval: ToolMatcher = ({
   rawLabel,
   resultRecord,
 }) => {
-  if (
-    !resultRecord ||
-    !(
-      resultRecord.status === "pending_approval" ||
-      Array.isArray(resultRecord.tx_ids)
-    )
-  ) {
+  if (!resultRecord || resultRecord.status !== "pending_approval") {
     return null;
   }
+
+  const chain = chainFactFromRecord(resultRecord);
+  if (!chain) return null;
 
   const txCount = Array.isArray(resultRecord.tx_ids)
     ? resultRecord.tx_ids.length
     : undefined;
 
-  return op("wallet.tx.pending_approval", rawLabel, [
-    chainFactFromRecord(resultRecord),
+  return op("evm.tx.pending_approval", rawLabel, [
+    chain,
     txCount != null
       ? {
           kind: "count",

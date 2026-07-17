@@ -44,6 +44,17 @@ Progress:
   Verified focused theme tests, Aomi Build lint/typecheck/production build,
   and live `/build` rendering plus reload persistence in both themes.
 
+- 2026-07-17 Solana working-trace polish: split SVM network context from the
+  EVM interpreter so Solana traces show the chain family and current slot,
+  and added a Jupiter preparation presenter that surfaces input amount,
+  expected output, and token direction like the LI.FI swap trace while keeping
+  raw tool data available in the expandable detail. Simplified the default
+  mainnet picker row and compact trigger to `Solana`. Compact SVM network
+  traces now show the formatted slot number without redundant text, and wallet
+  approval traces include the staged SVM transaction count. SVM simulation and
+  approval matching now live in a dedicated `svm-tx` family with routing tests
+  that prevent Solana results from falling through to the EVM interpreter.
+
 - 2026-07-17 browser Solana approval recovery: traced the missing Phantom
   prompt to the portal's zero-config mainnet RPC fallback. Solana's official
   public endpoint returns HTTP 403 to JSON-RPC requests carrying a localhost

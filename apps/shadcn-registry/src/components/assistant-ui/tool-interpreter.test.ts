@@ -260,6 +260,68 @@ describe("tool interpreter", () => {
     expect(step.chips[1].icon).toBeTypeOf("object");
   });
 
+  it("shows Solana cluster and slot separately from EVM context", () => {
+    const step = interpretToolStep({
+      toolName: "Check Solana network",
+      result: {
+        cluster: "mainnet-beta",
+        rpc_endpoint: "https://api.mainnet-beta.solana.com",
+        supported_clusters: ["devnet", "localnet", "mainnet-beta", "testnet"],
+        current_slot: 433493809,
+        latest_blockhash: "3SJGv7ovUNSNLB83ZceNiyJBMRVttk7YxcojzYLBTEErg",
+        address: "HZpj6CD9R4asaSM98mkWzfgowfQnCGA5Hu6zcwoPvRpW",
+        lamports: 29425461,
+      },
+    });
+
+    expect(step.title).toBe("Check network");
+    expect(labelsFor(step.chips)).toEqual(["Solana", "433,493,809"]);
+    expect(step.confidence).toBe("high");
+    expect(step.chips[0].icon).toBeTypeOf("function");
+    expect(step.chips[1].icon).toBeTypeOf("object");
+  });
+
+  it("shows Jupiter input, output, and token direction like LI.FI", () => {
+    const step = interpretToolStep({
+      toolName: "Prepare 0.001 SOL to USDC Jupiter swap",
+      result: {
+        ix_ids: [7, 8, 9],
+        version: "v0",
+        address_lookup_tables: ["ALT111111111111111111111111111111111111111"],
+        quote: {
+          input_token: {
+            symbol: "SOL",
+            name: "Wrapped SOL",
+            mint: "So11111111111111111111111111111111111111112",
+            decimals: 9,
+            verified: true,
+          },
+          output_token: {
+            symbol: "USDC",
+            name: "USD Coin",
+            mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+            decimals: 6,
+            verified: true,
+          },
+          input: { raw: "1000000", display: "0.001 SOL" },
+          expected_output: { raw: "73903", display: "0.073903 USDC" },
+          minimum_output: { raw: "73534", display: "0.073534 USDC" },
+          slippage_bps: 50,
+          context_slot: 433493809,
+        },
+      },
+    });
+
+    expect(step.title).toBe("Prepare 0.001 SOL to USDC Jupiter swap");
+    expect(labelsFor(step.chips)).toEqual([
+      "Solana",
+      "0.001 SOL",
+      "0.073903 USDC",
+      "SOL → USDC",
+    ]);
+    expect(step.confidence).toBe("high");
+  });
+
   it("recognizes native balances", () => {
     const step = interpretToolStep({
       toolName: "Check connected wallet balance on Base",
@@ -594,5 +656,21 @@ describe("tool interpreter", () => {
     expect(step.chips[1].icon).toBeTypeOf("object");
     expect(step.chips[2].icon).toBeTypeOf("object");
     expect(step.chips[2].dot).toBeUndefined();
+  });
+
+  it("shows the Solana transaction count while awaiting wallet approval", () => {
+    const step = interpretToolStep({
+      toolName: "Commit Jupiter swap",
+      result: {
+        status: "pending_approval",
+        chain_kind: "svm",
+        svm_ix_ids: [1, 2, 3, 4, 5, 6],
+        unsigned_tx: "AQAAAAAAAA",
+        cluster: "mainnet-beta",
+      },
+    });
+
+    expect(step.title).toBe("Await wallet approval");
+    expect(labelsFor(step.chips)).toEqual(["6 txs", "Pending approval"]);
   });
 });

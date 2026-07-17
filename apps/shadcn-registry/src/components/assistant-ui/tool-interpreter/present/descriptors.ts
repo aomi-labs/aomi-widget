@@ -145,6 +145,16 @@ const descriptorById: Record<string, Descriptor> = {
       { kind: "status" },
     ],
   },
+  "evm.tx.pending_approval": {
+    title: "fixed",
+    fixedTitle: "Await wallet approval",
+    icon: SHAPE_ICONS.commit,
+    chipPlan: [
+      { kind: "chain" },
+      { kind: "count", role: "tx" },
+      { kind: "status" },
+    ],
+  },
   "lifi.approval": {
     title: "label",
     icon: EVM_SELECTOR_REGISTRY["0x095ea7b3"].icon,
@@ -175,26 +185,44 @@ const descriptorById: Record<string, Descriptor> = {
       { kind: "token", role: "primary" },
     ],
   },
+  "jupiter.swap.prepare": {
+    title: "label",
+    icon: SHAPE_ICONS.swap,
+    chipPlan: [
+      { kind: "cluster" },
+      { kind: "amount", role: "primary" },
+      { kind: "amount", role: "secondary" },
+      { kind: "token", role: "primary" },
+    ],
+  },
   "skill.activate": {
     title: "fixed",
     fixedTitle: "Activate skill",
     icon: SHAPE_ICONS.skillActivation,
     chipPlan: [{ kind: "skill", repeat: true }],
   },
+  "svm.context": {
+    title: "fixed",
+    fixedTitle: "Check network",
+    icon: SHAPE_ICONS.chainContext,
+    chipPlan: [{ kind: "cluster" }, { kind: "slot" }],
+  },
+  "svm.tx.pending_approval": {
+    title: "fixed",
+    fixedTitle: "Await wallet approval",
+    icon: SHAPE_ICONS.commit,
+    chipPlan: [{ kind: "count", role: "tx" }, { kind: "status" }],
+  },
+  "svm.tx.simulate_batch": {
+    title: "fixed",
+    fixedTitle: "Simulate batch",
+    icon: SHAPE_ICONS.simulation,
+    chipPlan: [{ kind: "count", role: "tx" }, { kind: "status" }],
+  },
   "tool.error": {
     title: "label",
     icon: "fallback",
     chipPlan: [{ kind: "status" }],
-  },
-  "wallet.tx.pending_approval": {
-    title: "fixed",
-    fixedTitle: "Await wallet approval",
-    icon: SHAPE_ICONS.commit,
-    chipPlan: [
-      { kind: "chain" },
-      { kind: "count", role: "tx" },
-      { kind: "status" },
-    ],
   },
   "web.search": {
     title: "fixed",
