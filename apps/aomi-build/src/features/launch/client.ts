@@ -1,6 +1,9 @@
 "use client";
 
-import type { SourceSdkUpgradeResult } from "@aomi-labs/deploy";
+import type {
+  SourceSdkUpgradeResult,
+  SourceSdkUpgradeStatusResult,
+} from "@aomi-labs/deploy";
 import { API_PATHS } from "@build/lib/api-paths";
 import { sessionScopedFetch } from "@build/lib/settings-api";
 import {
@@ -144,6 +147,15 @@ export function deploymentSdkStatus(): Promise<LaunchSdkStatus> {
   return launchFetch(
     API_PATHS.bff.deployments.sdkStatus,
     "deployment SDK status",
+  );
+}
+
+export function deploymentSdkUpgradeStatus(input: {
+  appSourceId: number;
+}): Promise<SourceSdkUpgradeStatusResult> {
+  return launchFetch(
+    API_PATHS.bff.deployments.sdkUpgradeStatus(input.appSourceId),
+    "source SDK upgrade status",
   );
 }
 

@@ -2173,6 +2173,9 @@ Controls disabled while isProcessing === true
 
 ## Pending
 
+- Aomi Build SDK-upgrade UX rebuilt (2026-07-16, PR aomi-labs/aomi#366): `use-sdk-upgrade` hook (confirm → open PR → poll-for-merge via the idempotent sdk-upgrade endpoint → merged → redeploy), `upgrade-rail.tsx` (5-step stepper with PLATFORM/YOU/YOU/GITHUB owners, hover hints on every step, build checklist driven by deployFlow), `deployment-detail.tsx` (per-row expansion: source repo / commit / SDK / deployed platform / platform branch / apps / build artifacts — all GitHub-linked; platform-side fields lazy-load from `deploymentHistory`), `hint-bubble.tsx`; `deployments-tab.tsx` wires the CTA swap (Upgrade → Review PR #N), redeploy gating while the PR is open, and the upgrade confirm dialog with don't-ask-again; rail state persists in localStorage per source. 218 tests + typecheck + lint green. Backend path verified against staging (sdk-upgrade for 1586 now returns `current`). Not yet verified against a live signed-in browser session — needs a preview deploy.
+- SDK upgrade 502 masking: FIXED. `SourceRepo::repo_route("")` trailing-slash 404 fixed in product-mono#815 (merged, staging-deployed); the remaining manager 502→500 conversions (OAuth exchange, GitHubAppError::Upstream, ActivationError gateway variants) are in product-mono#826 (open). Cloudflare replaces origin-502 bodies with branded HTML, so handler errors must never use 502/503.
+- Follow-up work spun off (background sessions 2026-07-16): lightweight manager PR-state endpoint to replace the 45s tarball-download merge poll; investigation of stale `app_source` installation bindings (duplicate 141779906/142228159 branches for playground-6).
 - /build engine mode: render approvals/clarifies in the UI (decision route
   exists; runs default to autoApprove until then)
 - /build engine mode: real fileTree from run outputs (left empty for now)

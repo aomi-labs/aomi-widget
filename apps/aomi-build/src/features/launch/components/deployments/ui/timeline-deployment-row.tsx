@@ -1,7 +1,8 @@
-import { CircleArrowUp, GitCommitHorizontal, RotateCcw } from "lucide-react";
+import { CircleArrowUp, ExternalLink, GitCommitHorizontal, RotateCcw } from "lucide-react";
 import type { TimelineDeployment } from "../deployment-timeline";
 import { formatRelativeTime } from "../format-relative-time";
 import { sdkCompatibility } from "../sdk-compatibility";
+import { HintBubble } from "./hint-bubble";
 
 /** Deployment row from DB promotion records. Lead with apps + status; id is secondary. */
 export function TimelineDeploymentRow({
@@ -13,6 +14,8 @@ export function TimelineDeploymentRow({
   secretsBlocked,
   onPromote,
   onUpgrade,
+  upgradePr,
+  upgradeBusy,
 }: {
   deployment: TimelineDeployment;
   busy: boolean;
@@ -22,6 +25,10 @@ export function TimelineDeploymentRow({
   secretsBlocked?: boolean;
   onPromote: () => void;
   onUpgrade?: () => void;
+  /** Open upgrade PR: replaces the Upgrade button with a review link. */
+  upgradePr?: { url: string; number: number } | null;
+  /** True while the upgrade PR is being opened. */
+  upgradeBusy?: boolean;
 }) {
   const { deploymentId, commit, apps, current, actor, sdkVersion, createdAt } =
     deployment;
@@ -81,17 +88,37 @@ export function TimelineDeploymentRow({
       </div>
 
       <div className="flex items-center gap-2">
-        {outdated && onUpgrade && (
-          <button
-            type="button"
-            disabled={busy}
-            onClick={onUpgrade}
-            className="border-warning/40 bg-warning/10 text-warning hover:bg-warning/15 inline-flex h-8 items-center justify-center gap-1.5 rounded-md border px-2.5 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-50"
+        {outdated && upgradePr ? (
+          <a
+            href={upgradePr.url}
+            target="_blank"
+            rel="noreferrer"
+            className="border-border bg-surface-1 text-foreground hover:bg-accent-hover inline-flex h-8 items-center justify-center gap-1.5 rounded-md border px-2.5 text-xs font-medium"
           >
-            <CircleArrowUp className="size-3.5" aria-hidden />
-            Upgrade to {requiredSdk}
-          </button>
-        )}
+            Review PR #{upgradePr.number}
+            <ExternalLink className="size-3" aria-hidden />
+          </a>
+        ) : outdated && onUpgrade ? (
+          <div className="flex flex-col items-end gap-1">
+            <button
+              type="button"
+              disabled={busy || upgradeBusy}
+              onClick={onUpgrade}
+              className="border-warning/40 bg-warning/10 text-warning hover:bg-warning/15 inline-flex h-8 items-center justify-center gap-1.5 rounded-md border px-2.5 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <CircleArrowUp className="size-3.5" aria-hidden />
+              {upgradeBusy ? "Opening PR…" : `Upgrade to ${requiredSdk}`}
+            </button>
+            <span className="text-dim inline-flex items-center gap-1 text-[10px]">
+              via pull request
+              <HintBubble label="Why a pull request">
+                Aomi never pushes to your default branch. Upgrades arrive as a
+                pull request in your repository — you review the one-line
+                Cargo.toml change and merge when ready.
+              </HintBubble>
+            </span>
+          </div>
+        ) : null}
         {!current && (
           <button
             type="button"

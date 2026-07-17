@@ -73,6 +73,8 @@ export const API_PATHS = {
         }`,
       deactivate: `${BFF}/deployments/deactivate`,
       sdkUpgrade: `${BFF}/deployments/sdk-upgrade`,
+      sdkUpgradeStatus: (appSourceId: number) =>
+        `${BFF}/deployments/sdk-upgrade-status?appSourceId=${appSourceId}`,
     },
     operate: {
       bots: `${BFF}/operate/bots`,
