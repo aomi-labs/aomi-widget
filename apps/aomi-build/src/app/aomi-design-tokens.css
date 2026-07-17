@@ -1,6 +1,6 @@
 /*
  * Vendored from aomi-design/src/tokens/tokens.css.
- * Source commit: 01f0bd7293de6f84da0709a72a996193a2114f5b.
+ * Source commit: 20554e0 (blue-forward: sky accent, lilac retired).
  * Keep this file byte-for-byte aligned with the design repository below this
  * header until @aomi-labs/design is published and can be consumed directly.
  */
@@ -10,9 +10,10 @@
  * and by raw CSS. Every value is exposed as a CSS custom property so it can
  * be themed at runtime (light / dark) and overridden per surface.
  *
- * Brand: ink #09090B (primary) · lilac #D3C2D8 (accent) · cool/pure-white
- *   surface. Pink (rosy #DF5D90) and sky #5288C2 are decorative accent ramps;
- *   the warm paper ramp below is legacy (charts / back-compat).
+ * Brand: ink #09090B (primary) · sky #5288C2 (accent) · cool/pure-white
+ *   surface. Pink (rosy #DF5D90) is the decorative brand pop (charts, badges,
+ *   marketing tiles); the lilac ramp is retired and the warm paper ramp below
+ *   is legacy (charts / back-compat).
  * Fonts: PT Serif (display) · Geist (body) · Geist Mono (code)
  */
 
@@ -32,7 +33,7 @@
     --aomi-pink-900: #642e41;
     --aomi-pink-950: #45202e;
 
-    /* ---- Lilac ramp (landing accent — soft mauve cards/badges) ---------- */
+    /* ---- Lilac ramp (RETIRED — kept for back-compat only; use sky) ------ */
     --aomi-lilac-50: #f6f3f7;
     --aomi-lilac-100: #efe9f1;
     --aomi-lilac-200: #e3d8e6; /* signature card fill on aomi.dev */
@@ -40,8 +41,8 @@
     --aomi-lilac-400: #b9a3c1;
     --aomi-lilac-500: #9c83a8;
 
-    /* ---- Variant accent ramps (brand explorations) --------------------- */
-    /* Sky — light-blue gradient end + tinted card fill. */
+    /* ---- Accent ramp ---------------------------------------------------- */
+    /* Sky — the brand accent: interactive states, selected fills, tints. */
     --aomi-sky-50: #f1f7fc;
     --aomi-sky-100: #e2eef8;
     --aomi-sky-200: #cfe1f3;
