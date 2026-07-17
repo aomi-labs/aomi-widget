@@ -518,6 +518,70 @@ describe("DeploymentClient source SDK upgrade", () => {
       },
     });
   });
+
+  it("GETs the cheap upgrade-status poll and normalizes a merged PR", async () => {
+    const fetchMock = vi.fn(async () =>
+      Response.json({
+        status: "merged",
+        required_sdk_version: "3.0.3",
+        branch: "aomi/sdk-3.0.3",
+        pull_request: {
+          number: 7,
+          url: "https://github.com/alice/demo/pull/7",
+          state: "closed",
+          merged: true,
+        },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await client().sdkUpgradeStatus({
+      githubUserId: "4738254",
+      platform: "community",
+      appSourceId: 42,
+    });
+
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      "https://staging-api.example.com/api/integrations/github-app/user/sources/42/sdk-upgrade-status?github_user_id=4738254&platform=community",
+    );
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({ method: "GET" });
+    expect(result).toEqual({
+      status: "merged",
+      requiredSdkVersion: "3.0.3",
+      branch: "aomi/sdk-3.0.3",
+      pullRequest: {
+        number: 7,
+        url: "https://github.com/alice/demo/pull/7",
+        state: "closed",
+        merged: true,
+      },
+    });
+  });
+
+  it("normalizes a null pull_request to status none", async () => {
+    const fetchMock = vi.fn(async () =>
+      Response.json({
+        status: "none",
+        required_sdk_version: "3.0.3",
+        branch: "aomi/sdk-3.0.3",
+        pull_request: null,
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await client().sdkUpgradeStatus({
+      githubUserId: "4738254",
+      platform: "community",
+      appSourceId: 42,
+    });
+
+    expect(result).toEqual({
+      status: "none",
+      requiredSdkVersion: "3.0.3",
+      branch: "aomi/sdk-3.0.3",
+      pullRequest: null,
+    });
+  });
 });
 
 describe("server-only guard", () => {

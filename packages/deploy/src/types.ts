@@ -47,6 +47,7 @@ export interface AuditEvent {
     | "list_user_source_logs"
     | "get_user_source_observability"
     | "upgrade_user_source_sdk"
+    | "get_source_sdk_upgrade_status"
     | "list_deployment_records"
     | "get_user_source_latest_deployment"
     | "deactivate"
@@ -618,6 +619,24 @@ export type SourceSdkUpgradeResult =
       reason: string;
       command: string;
     };
+
+/**
+ * Cheap read-only merge poll for the upgrade PR opened by an earlier
+ * `upgradeUserSourceSdk` call. `merged` is terminal (redeploy from the merged
+ * default branch); `open` means keep polling; `closed`/`none` mean the PR is
+ * gone, so re-run the upgrade to recreate it.
+ */
+export type SourceSdkUpgradeStatusResult = {
+  status: "merged" | "open" | "closed" | "none";
+  requiredSdkVersion: string;
+  branch: string;
+  pullRequest: {
+    number: number;
+    url: string;
+    state: string;
+    merged: boolean;
+  } | null;
+};
 
 export interface ListUserSourceTransactionsInput extends OwnedOperateSourceInput {
   cursor?: OperateTransactionCursor | string | null;

@@ -75,6 +75,7 @@ export type {
   CreateUserSourceBotInput,
   DeleteUserSourceBotInput,
   SourceSdkUpgradeResult,
+  SourceSdkUpgradeStatusResult,
   OperateTransaction,
   OperateTransactionCursor,
   OperateTransactionsResult,
