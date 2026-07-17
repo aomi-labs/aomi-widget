@@ -3,12 +3,17 @@
 // =============================================================================
 
 export { AomiClient } from "./client";
-export { createAccountAccessTokenProvider } from "./account-session";
+export {
+  AccountCredentialUnavailableError,
+  createAccountBearerProvider,
+} from "./account-session";
 export type {
-  AccountAccessTokenProviderOptions,
-  AccountAccessTokenProvider,
+  AccountBearerProviderOptions,
+  AccountBearerProvider,
   AccountCredentialProvider,
   AccountSessionExchangeResponse,
+  BetterAuthAccountTokenSourceOptions,
+  BetterAuthTokenResponse,
 } from "./account-session";
 
 // =============================================================================
@@ -17,13 +22,25 @@ export type {
 
 export type {
   AomiAppDescriptor,
+  AomiPlatformFilter,
+  AomiRequestOptions,
+  AomiRequestQueryValue,
   AomiClientOptions,
-  GetAccountAccessToken,
+  AomiHttpMethod,
+  AomiAccessApproval,
+  AomiAccountProfile,
+  AomiAuthIdentity,
+  AomiCreateApprovalRequest,
+  AomiIdentityWallet,
+  AomiUsageStats,
+  AomiUser,
+  GetAccountBearer,
   AomiMessage,
   AomiWalletFamily,
   AomiChatResponse,
   AomiClearSecretsResponse,
   AomiCreateThreadResponse,
+  AomiAccountResponse,
   AomiDeleteSecretResponse,
   AomiIngestSecretsResponse,
   AomiInterruptResponse,
@@ -39,6 +56,7 @@ export type {
   AomiThread,
   Logger,
 } from "./types";
+export { normalizeAppDescriptor, appIdentityKey } from "./app-descriptor";
 export type {
   AomiClientType,
   UserStateAAMode,

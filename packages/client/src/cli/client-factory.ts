@@ -1,39 +1,39 @@
-import { createAccountAccessTokenProvider } from "../account-session";
 import { AomiClient } from "../client";
-import type { GetAccountAccessToken } from "../types";
+import type { GetAccountBearer } from "../types";
 import type { CliConfig } from "./types";
 
-const DEFAULT_BACKEND_URL = "https://api.aomi.dev";
+export const DEFAULT_CLI_BASE_URL = "https://chat.aomi.dev";
 
 type CliClientOverrides = {
   apiKey?: string;
   baseUrl?: string;
 };
 
-export function resolveCliBaseUrl(
-  config: Pick<CliConfig, "baseUrl">,
-): string {
-  return config.baseUrl ?? DEFAULT_BACKEND_URL;
+export function resolveCliBaseUrl(config: Pick<CliConfig, "baseUrl">): string {
+  return config.baseUrl ?? DEFAULT_CLI_BASE_URL;
 }
 
-export function createCliGetAccountAccessToken(
+export function createCliGetAccountBearer(
   config: CliConfig,
-): GetAccountAccessToken | undefined {
-  if (config.accountAccessToken) {
-    return async () => config.accountAccessToken;
+): GetAccountBearer | undefined {
+  // A static `--account-bearer` is the explicit escape hatch (CI / power users)
+  // and wins when set.
+  if (config.accountBearer) {
+    const bearer = config.accountBearer;
+    return async () => bearer;
   }
 
-  if (!config.accountProvider || !config.accountProviderToken) {
-    return undefined;
+  // The normal path: present the SIWE-established BFF session as the credential.
+  // The CLI points at a BFF, so it sends the session as `Authorization: Bearer
+  // <BetterAuth session>` (matching BetterAuth's bearer plugin) and the proxy mints the
+  // short-lived backend bearer from it per request — no client-side `/token`
+  // round-trip or refresh needed (the proxy re-mints on every call).
+  if (config.sessionCookie) {
+    const sessionCookie = config.sessionCookie;
+    return async () => sessionCookie;
   }
 
-  return createAccountAccessTokenProvider({
-    baseUrl: resolveCliBaseUrl(config),
-    getProviderCredential: async () => ({
-      provider: config.accountProvider!,
-      providerToken: config.accountProviderToken!,
-    }),
-  });
+  return undefined;
 }
 
 export function createCliClient(
@@ -49,6 +49,6 @@ export function createCliClient(
   return new AomiClient({
     baseUrl: resolveCliBaseUrl(mergedConfig),
     apiKey: mergedConfig.apiKey,
-    getAccountAccessToken: createCliGetAccountAccessToken(mergedConfig),
+    getAccountBearer: createCliGetAccountBearer(mergedConfig),
   });
 }

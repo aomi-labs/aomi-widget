@@ -1,94 +1,135 @@
-import { NextRequest, NextResponse } from "next/server";
+import { createBackendProxy, type AllowedRoute } from "@aomi-labs/account";
 
-const HOP_BY_HOP_HEADERS = new Set([
-  "connection",
-  "content-length",
-  "host",
-  "origin",
-  "referer",
-  "transfer-encoding",
-]);
+/**
+ * Landing's same-origin backend proxy. The transport machinery (header
+ * filtering, optional bearer minting, SSE, forwarding)
+ * lives in `@aomi-labs/account`'s `createBackendProxy`, shared with portal +
+ * base. Landing is unauthenticated in this cleanup, so it passes an anonymous
+ * resolver and forwards only the widget routes below.
+ */
+const ALLOWED_ROUTES: AllowedRoute[] = [
+  {
+    pattern: /^\/api\/account(\/.*)?$/,
+    methods: new Set(["GET", "POST", "PATCH", "PUT", "DELETE"]),
+  },
+  {
+    pattern: /^\/api\/thread\/state$/,
+    methods: new Set(["GET"]),
+    auth: "optional",
+  },
+  {
+    pattern: /^\/api\/thread\/chat$/,
+    methods: new Set(["POST"]),
+    auth: "optional",
+  },
+  { pattern: /^\/api\/system$/, methods: new Set(["POST"]), auth: "optional" },
+  {
+    pattern: /^\/api\/thread\/interrupt$/,
+    methods: new Set(["POST"]),
+    auth: "optional",
+  },
+  { pattern: /^\/api\/secrets$/, methods: new Set(["GET", "POST", "DELETE"]) },
+  { pattern: /^\/api\/secrets\/[^/]+$/, methods: new Set(["DELETE"]) },
+  {
+    pattern: /^\/api\/thread\/updates$/,
+    methods: new Set(["GET"]),
+    auth: "optional",
+  },
+  {
+    pattern: /^\/api\/threads$/,
+    methods: new Set(["GET", "POST"]),
+    auth: "optional",
+  },
+  {
+    pattern: /^\/api\/threads\/[^/]+$/,
+    methods: new Set(["GET", "PATCH", "DELETE"]),
+    auth: "optional",
+  },
+  {
+    pattern: /^\/api\/sessions$/,
+    methods: new Set(["GET", "POST"]),
+    auth: "optional",
+  },
+  {
+    pattern: /^\/api\/sessions\/[^/]+$/,
+    methods: new Set(["GET", "PATCH", "DELETE"]),
+    auth: "optional",
+  },
+  {
+    pattern: /^\/api\/thread\/events$/,
+    methods: new Set(["GET"]),
+    auth: "optional",
+  },
+  {
+    pattern: /^\/api\/thread\/apps$/,
+    methods: new Set(["GET"]),
+    auth: "optional",
+  },
+  {
+    pattern: /^\/api\/thread\/models$/,
+    methods: new Set(["GET"]),
+    auth: "optional",
+  },
+  {
+    pattern: /^\/api\/thread\/model$/,
+    methods: new Set(["POST"]),
+    auth: "optional",
+  },
+  {
+    pattern: /^\/api\/session\/apps$/,
+    methods: new Set(["GET"]),
+    auth: "optional",
+  },
+  {
+    pattern: /^\/api\/session\/models$/,
+    methods: new Set(["GET"]),
+    auth: "optional",
+  },
+  {
+    pattern: /^\/api\/session\/model$/,
+    methods: new Set(["POST"]),
+    auth: "optional",
+  },
+  {
+    pattern: /^\/api\/exec\/simulate$/,
+    methods: new Set(["POST"]),
+    auth: "optional",
+  },
+];
 
-const UPSTREAM_BASE_URL =
-  process.env.AOMI_PROXY_BACKEND_URL ??
-  process.env.NEXT_PUBLIC_BACKEND_URL ??
-  "https://api.aomi.dev";
-
-function buildUpstreamUrl(req: NextRequest, slug: string[] | undefined): URL {
-  const target = new URL(`/api/${(slug ?? []).join("/")}`, UPSTREAM_BASE_URL);
-  target.search = req.nextUrl.search;
-  return target;
-}
-
-function copyRequestHeaders(req: NextRequest): Headers {
-  const headers = new Headers();
-  req.headers.forEach((value, key) => {
-    if (!HOP_BY_HOP_HEADERS.has(key.toLowerCase())) {
-      headers.set(key, value);
-    }
-  });
-  return headers;
-}
-
-function copyResponseHeaders(upstream: Response): Headers {
-  const headers = new Headers();
-  const contentType = upstream.headers.get("content-type");
-  const cacheControl = upstream.headers.get("cache-control");
-
-  if (contentType) {
-    headers.set("content-type", contentType);
+function rewriteLegacyThreadPath(upstreamUrl: URL): void {
+  if (upstreamUrl.pathname === "/api/sessions") {
+    upstreamUrl.pathname = "/api/threads";
+    return;
   }
 
-  if (contentType?.includes("text/event-stream")) {
-    headers.set("cache-control", "no-cache, no-transform");
-  } else if (cacheControl) {
-    headers.set("cache-control", cacheControl);
+  if (upstreamUrl.pathname.startsWith("/api/sessions/")) {
+    upstreamUrl.pathname = `/api/threads/${upstreamUrl.pathname.slice(
+      "/api/sessions/".length,
+    )}`;
+    return;
   }
 
-  return headers;
-}
+  if (upstreamUrl.pathname === "/api/session/apps") {
+    upstreamUrl.pathname = "/api/thread/apps";
+    return;
+  }
 
-async function handle(
-  req: NextRequest,
-  context: { params: Promise<{ slug?: string[] }> },
-): Promise<NextResponse> {
-  const { slug } = await context.params;
-  const upstreamUrl = buildUpstreamUrl(req, slug);
+  if (upstreamUrl.pathname === "/api/session/models") {
+    upstreamUrl.pathname = "/api/thread/models";
+    return;
+  }
 
-  try {
-    const upstream = await fetch(upstreamUrl, {
-      method: req.method,
-      headers: copyRequestHeaders(req),
-      body:
-        req.method === "GET" || req.method === "HEAD"
-          ? undefined
-          : await req.text(),
-      redirect: "manual",
-    });
-
-    return new NextResponse(upstream.body, {
-      status: upstream.status,
-      statusText: upstream.statusText,
-      headers: copyResponseHeaders(upstream),
-    });
-  } catch (error) {
-    return NextResponse.json(
-      {
-        error: "Upstream request failed",
-        detail: String(error),
-        upstream: upstreamUrl.toString(),
-      },
-      { status: 502 },
-    );
+  if (upstreamUrl.pathname === "/api/session/model") {
+    upstreamUrl.pathname = "/api/thread/model";
   }
 }
+
+export const { GET, POST, PUT, PATCH, DELETE } = createBackendProxy({
+  allowedRoutes: ALLOWED_ROUTES,
+  resolveCanonicalUserId: async () => null,
+  applyDefaults: rewriteLegacyThreadPath,
+});
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-
-export const GET = handle;
-export const POST = handle;
-export const PUT = handle;
-export const PATCH = handle;
-export const DELETE = handle;
-

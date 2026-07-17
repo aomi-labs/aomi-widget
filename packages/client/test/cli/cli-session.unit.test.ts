@@ -1,4 +1,10 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -52,6 +58,7 @@ describe("CLI session lifecycle", () => {
 
   it("supports newSessionCommand as an explicit fresh-session command", async () => {
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const { CliSession } = await import("../../src/cli/cli-session");
     const { newSessionCommand } =
       await import("../../src/cli/commands/sessions");
     const { readState } = await import("../../src/cli/state");
@@ -63,9 +70,31 @@ describe("CLI session lifecycle", () => {
       secrets: {},
     };
 
+    const existing = CliSession.loadOrCreate({
+      ...config,
+      chain: 11155111,
+    });
+    existing.setWallet(
+      "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "0xFCAd0B19bB29D4674531d6f115237E16AfCE377c",
+    );
+    existing.setAuthSession({
+      sessionToken: "bff-session-token",
+      expiresAt: Date.now() + 60_000,
+      walletAddress: "0xFCAd0B19bB29D4674531d6f115237E16AfCE377c",
+      chainId: 11155111,
+    });
+
     newSessionCommand(config);
 
-    expect(readState()?.sessionId).toBeDefined();
+    const state = readState();
+    expect(state?.sessionId).toBeDefined();
+    expect(state?.sessionId).not.toBe(existing.sessionId);
+    expect(state?.auth?.sessionToken).toBe("bff-session-token");
+    expect(state?.privateKey).toBe(
+      "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    );
+    expect(state?.chainId).toBe(11155111);
     expect(logSpy).toHaveBeenCalledWith(
       expect.stringContaining("Active session set to"),
     );
@@ -77,7 +106,7 @@ describe("CLI session lifecycle", () => {
     const { readState } = await import("../../src/cli/state");
 
     setWalletCommand(
-      "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
     );
     setChainCommand("1");
     setBackendCommand("http://127.0.0.1:18765");
@@ -93,6 +122,30 @@ describe("CLI session lifecycle", () => {
     );
   });
 
+  it("writes state directories and session files with private permissions", async () => {
+    const { CliSession } = await import("../../src/cli/cli-session");
+    const { STATE_ROOT_DIR, SESSIONS_DIR, getActiveStateFilePath } =
+      await import("../../src/cli/state");
+
+    CliSession.loadOrCreate({
+      baseUrl: "https://api.aomi.dev",
+      app: "default",
+      privateKey:
+        "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      execution: "eoa" as const,
+      secrets: {},
+    });
+
+    const activePath = getActiveStateFilePath();
+    expect(activePath).toBeTruthy();
+    expect(statSync(STATE_ROOT_DIR).mode & 0o777).toBe(0o700);
+    expect(statSync(SESSIONS_DIR).mode & 0o777).toBe(0o700);
+    expect(statSync(activePath!).mode & 0o777).toBe(0o600);
+    expect(statSync(join(stateDir, "active-session.txt")).mode & 0o777).toBe(
+      0o600,
+    );
+  });
+
   it("preserves saved wallet, chain, and backend settings across fresh sessions", async () => {
     const { CliSession } = await import("../../src/cli/cli-session");
 
@@ -101,11 +154,13 @@ describe("CLI session lifecycle", () => {
       app: "default",
       chain: 1,
       publicKey: "0xabc",
-      privateKey:
-        "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
       execution: "eoa" as const,
       secrets: {},
     });
+    initial.setWallet(
+      "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "0xabc",
+    );
 
     const fresh = CliSession.loadOrCreate({
       baseUrl: "https://api.aomi.dev",
@@ -122,6 +177,28 @@ describe("CLI session lifecycle", () => {
     );
     expect(fresh.chainId).toBe(1);
     expect(fresh.baseUrl).toBe("https://api.aomi.dev");
+  });
+
+  it("does not persist private keys supplied as one-shot config", async () => {
+    const { CliSession } = await import("../../src/cli/cli-session");
+    const { readState } = await import("../../src/cli/state");
+
+    CliSession.loadOrCreate({
+      baseUrl: "https://api.aomi.dev",
+      app: "default",
+      privateKey:
+        "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      solanaPrivateKey: JSON.stringify(Array(64).fill(1)),
+      execution: "eoa" as const,
+      secrets: {},
+    });
+
+    expect(readState()).toEqual(
+      expect.objectContaining({
+        privateKey: undefined,
+        svmPrivateKey: undefined,
+      }),
+    );
   });
 
   it("keeps distinct backend-staged transactions even when calldata matches", async () => {
@@ -396,13 +473,13 @@ describe("CLI session lifecycle", () => {
       app: "default",
       execution: "eoa" as const,
       secrets: {},
-      accountAccessToken: "bearer-1",
+      accountBearer: "bearer-1",
     });
 
-    expect(readState()?.accountAccessToken).toBe("bearer-1");
+    expect(readState()?.accountBearer).toBe("bearer-1");
   });
 
-  it("persists the account provider exchange credential on the active session", async () => {
+  it("persists legacy account provider credential fields on the active session", async () => {
     const { CliSession } = await import("../../src/cli/cli-session");
     const { readState } = await import("../../src/cli/state");
 
@@ -411,16 +488,16 @@ describe("CLI session lifecycle", () => {
       app: "default",
       execution: "eoa" as const,
       secrets: {},
-      accountProvider: "privy" as const,
-      accountProviderToken: "privy-provider-token",
+      embeddedProvider: "privy" as const,
+      embeddedProviderToken: "privy-provider-token",
     });
 
     const state = readState();
-    expect(state?.accountProvider).toBe("privy");
-    expect(state?.accountProviderToken).toBe("privy-provider-token");
+    expect(state?.embeddedProvider).toBe("privy");
+    expect(state?.embeddedProviderToken).toBe("privy-provider-token");
   });
 
-  it("clears a persisted bearer when switching the active session to provider exchange auth", async () => {
+  it("clears a persisted bearer when switching the active session to legacy provider auth", async () => {
     const { CliSession } = await import("../../src/cli/cli-session");
     const { readState } = await import("../../src/cli/state");
 
@@ -429,7 +506,7 @@ describe("CLI session lifecycle", () => {
       app: "default",
       execution: "eoa" as const,
       secrets: {},
-      accountAccessToken: "bearer-1",
+      accountBearer: "bearer-1",
     });
 
     CliSession.loadOrCreate({
@@ -437,14 +514,14 @@ describe("CLI session lifecycle", () => {
       app: "default",
       execution: "eoa" as const,
       secrets: {},
-      accountProvider: "privy" as const,
-      accountProviderToken: "privy-provider-token",
+      embeddedProvider: "privy" as const,
+      embeddedProviderToken: "privy-provider-token",
     });
 
     const state = readState();
-    expect(state?.accountAccessToken).toBeUndefined();
-    expect(state?.accountProvider).toBe("privy");
-    expect(state?.accountProviderToken).toBe("privy-provider-token");
+    expect(state?.accountBearer).toBeUndefined();
+    expect(state?.embeddedProvider).toBe("privy");
+    expect(state?.embeddedProviderToken).toBe("privy-provider-token");
   });
 
   it("reuses the persisted account bearer when building a client without re-supplying it", async () => {
@@ -456,7 +533,7 @@ describe("CLI session lifecycle", () => {
       app: "default",
       execution: "eoa" as const,
       secrets: {},
-      accountAccessToken: "bearer-1",
+      accountBearer: "bearer-1",
     });
 
     // Later invocation: the bearer is NOT passed again on the command line.
@@ -486,7 +563,7 @@ describe("CLI session lifecycle", () => {
     }
   });
 
-  it("prefers a persisted provider exchange credential over a stale legacy bearer", async () => {
+  it("does not exchange provider credentials or replace a persisted bearer", async () => {
     const { CliSession } = await import("../../src/cli/cli-session");
 
     CliSession.loadOrCreate({
@@ -494,52 +571,33 @@ describe("CLI session lifecycle", () => {
       app: "default",
       execution: "eoa" as const,
       secrets: {},
-      accountAccessToken: "legacy-bearer",
+      accountBearer: "legacy-bearer",
     });
 
     const cli = CliSession.load();
     expect(cli).not.toBeNull();
 
-    const exchangeResponse = {
-      ok: true,
-      status: 200,
-      statusText: "OK",
-      json: vi.fn(async () => ({
-        access_token: "fresh-exchanged-bearer",
-        token_type: "Bearer",
-        expires_at: Math.floor(Date.now() / 1000) + 600,
-        user_id: "user-1",
-      })),
-    } as unknown as Response;
     const stateResponse = {
       ok: true,
       status: 200,
       statusText: "OK",
       json: vi.fn(async () => ({ is_processing: false, messages: [] })),
     } as unknown as Response;
-    const nativeFetch = vi.fn(async (input: RequestInfo | URL) => {
-      const url = String(input);
-      if (url.endsWith("/api/account/sessions/exchange")) {
-        return exchangeResponse;
-      }
-      return stateResponse;
-    });
+    const nativeFetch = vi.fn(async () => stateResponse);
     const originalFetch = globalThis.fetch;
     vi.stubGlobal("fetch", nativeFetch);
 
     try {
       const session = cli!.createClientSession({
-        accountProvider: "privy",
-        accountProviderToken: "privy-provider-token",
+        embeddedProvider: "privy",
+        embeddedProviderToken: "privy-provider-token",
       });
       await session.client.fetchState(cli!.sessionId);
 
       const headers = new Headers(
-        (nativeFetch.mock.calls[1]?.[1] as RequestInit).headers,
+        (nativeFetch.mock.calls[0]?.[1] as RequestInit).headers,
       );
-      expect(headers.get("Authorization")).toBe(
-        "Bearer fresh-exchanged-bearer",
-      );
+      expect(headers.get("Authorization")).toBe("Bearer legacy-bearer");
     } finally {
       vi.stubGlobal("fetch", originalFetch);
     }

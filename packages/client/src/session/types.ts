@@ -1,7 +1,4 @@
-import type {
-  AomiMessage,
-  AomiSSEEvent,
-} from "../types";
+import type { AomiMessage, AomiSSEEvent } from "../types";
 import type {
   AomiClientType,
   UserState as UserStateShape,
@@ -108,8 +105,8 @@ export type SessionOptions = {
   sessionId?: string;
   /** App for chat messages. Default: "default" */
   app?: string;
-  /** User public key (wallet address). */
-  publicKey?: string;
+  /** Optional concrete application row to route chat/model calls to. */
+  applicationId?: number | string | null;
   /** API key override. */
   apiKey?: string;
   /** User state to send with requests (wallet connection info, etc). */
@@ -118,6 +115,8 @@ export type SessionOptions = {
   clientType?: AomiClientType;
   /** Stable client ID used for secret-vault association. */
   clientId?: string;
+  /** Optional backend payment method override for chat turns. */
+  paymentMethod?: string | null;
   /**
    * When true (default), synthesize pending transaction wallet requests from
    * `user_state.pending_txs` during state sync. Web UI should disable this and
@@ -132,7 +131,7 @@ export type SessionOptions = {
 
 export type SessionRuntimeOptions = {
   app: string;
-  publicKey?: string;
+  applicationId?: number | string | null;
   apiKey?: string;
   clientId?: string;
   userState?: UserStateShape;

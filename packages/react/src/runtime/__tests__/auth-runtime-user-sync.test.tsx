@@ -3,8 +3,8 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { useUser, ExtUserProvider } from "@aomi-labs/react";
-import { AomiAuthAdapterProvider } from "../../../../../apps/registry/src/lib/aomi-auth-adapter/context";
-import type { AomiAuthAdapter } from "../../../../../apps/registry/src/lib/aomi-auth-adapter/types";
+import { AomiWalletKitContextProvider } from "../../../../../apps/shadcn-registry/src/lib/wallet-kit/context";
+import type { AomiWalletKit } from "../../../../../apps/shadcn-registry/src/lib/wallet-kit/types";
 
 afterEach(() => {
   cleanup();
@@ -16,8 +16,8 @@ function UserStateProbe() {
 }
 
 function connectedAdapter(
-  overrides: Partial<AomiAuthAdapter["identity"]> = {},
-): AomiAuthAdapter {
+  overrides: Partial<AomiWalletKit["identity"]> = {},
+): AomiWalletKit {
   return {
     identity: {
       status: "connected",
@@ -37,17 +37,17 @@ function connectedAdapter(
   };
 }
 
-function renderWithAdapter(adapter: AomiAuthAdapter) {
+function renderWithAdapter(adapter: AomiWalletKit) {
   return render(
     <ExtUserProvider>
-      <AomiAuthAdapterProvider value={adapter}>
+      <AomiWalletKitContextProvider value={adapter}>
         <UserStateProbe />
-      </AomiAuthAdapterProvider>
+      </AomiWalletKitContextProvider>
     </ExtUserProvider>,
   );
 }
 
-describe("AomiAuthAdapterProvider user sync", () => {
+describe("AomiWalletKitContextProvider user sync", () => {
   it("publishes wallet provider and sponsorship as first-class UserState fields", async () => {
     renderWithAdapter(
       connectedAdapter({
@@ -107,9 +107,9 @@ describe("AomiAuthAdapterProvider user sync", () => {
 
     rerender(
       <ExtUserProvider>
-        <AomiAuthAdapterProvider value={connectedAdapter()}>
+        <AomiWalletKitContextProvider value={connectedAdapter()}>
           <UserStateProbe />
-        </AomiAuthAdapterProvider>
+        </AomiWalletKitContextProvider>
       </ExtUserProvider>,
     );
 
@@ -149,6 +149,15 @@ describe("AomiAuthAdapterProvider user sync", () => {
           },
         },
       });
+    });
+  });
+
+  it("publishes empty SVM capabilities instead of null for EVM-only identity", async () => {
+    renderWithAdapter(connectedAdapter());
+
+    await waitFor(() => {
+      const state = JSON.parse(screen.getByTestId("user-state").textContent!);
+      expect(state.svm.capabilities).toEqual([]);
     });
   });
 });

@@ -5,11 +5,13 @@ import { render } from "@testing-library/react";
 import type {
   AomiThread,
   AomiCreateThreadResponse,
+  AomiAppDescriptor,
   AomiStateResponse,
   AomiChatResponse,
   AomiInterruptResponse,
   AomiSystemEvent,
   AomiSSEEvent,
+  AomiPlatformFilter,
 } from "@aomi-labs/client";
 
 // =============================================================================
@@ -19,7 +21,7 @@ import type {
 export type AomiClientConfig = {
   // New names (match AomiClient API)
   ensureAccount?: (sessionId: string, publicKey: string) => Promise<void>;
-  listThreads?: (sessionId: string, publicKey: string) => Promise<AomiThread[]>;
+  listThreads?: (sessionId: string) => Promise<AomiThread[]>;
   fetchState?: (
     sessionId: string,
     userState?: Record<string, unknown>,
@@ -33,9 +35,11 @@ export type AomiClientConfig = {
     message: string,
     options?: {
       app?: string;
-      publicKey?: string;
+      applicationId?: number | string | null;
       apiKey?: string;
+      clientId?: string;
       userState?: Record<string, unknown>;
+      clientId?: string;
     },
   ) => Promise<AomiChatResponse>;
   sendSystemMessage?: (
@@ -43,6 +47,7 @@ export type AomiClientConfig = {
     message: string,
     options?: {
       app?: string;
+      applicationId?: number | string | null;
     },
   ) => Promise<{ res?: unknown }>;
   interrupt?: (sessionId: string) => Promise<AomiInterruptResponse>;
@@ -53,25 +58,30 @@ export type AomiClientConfig = {
   // Control API
   getApps?: (
     sessionId: string,
-    options?: { publicKey?: string; apiKey?: string },
-  ) => Promise<string[]>;
+    options?: { apiKey?: string; platforms?: AomiPlatformFilter },
+  ) => Promise<AomiAppDescriptor[]>;
   getModels?: (sessionId: string) => Promise<string[]>;
   setModel?: (
     sessionId: string,
     rig: string,
-    options?: { app?: string; apiKey?: string },
+    options?: {
+      app?: string;
+      applicationId?: number | string | null;
+      apiKey?: string;
+    },
   ) => Promise<{ rig: string; app?: string }>;
 
   // Legacy aliases (so existing tests keep working without changes)
-  fetchThreads?: (publicKey: string) => Promise<AomiThread[]>;
+  fetchThreads?: (publicKey?: string) => Promise<AomiThread[]>;
   postChatMessage?: (
     sessionId: string,
     message: string,
     options?: {
       app?: string;
-      publicKey?: string;
+      applicationId?: number | string | null;
       apiKey?: string;
       userState?: Record<string, unknown>;
+      clientId?: string;
     },
   ) => Promise<AomiChatResponse>;
   postSystemMessage?: (
@@ -79,6 +89,7 @@ export type AomiClientConfig = {
     message: string,
     options?: {
       app?: string;
+      applicationId?: number | string | null;
     },
   ) => Promise<{ res?: unknown }>;
   postInterrupt?: (sessionId: string) => Promise<AomiInterruptResponse>;
@@ -139,22 +150,6 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
     ) => boolean | undefined;
   };
 
-  const legacySessionPublicKey = (
-    userState?: Record<string, unknown>,
-  ): string | undefined => {
-    const address = UserState.address(userState);
-    if (!address?.startsWith("0x")) {
-      return undefined;
-    }
-    if (
-      UserState.chainId(userState) === undefined &&
-      !(userState?.evm as { address?: unknown } | undefined)?.address
-    ) {
-      return undefined;
-    }
-    return address;
-  };
-
   // Mock class defined inside the factory
   class MockAomiClient {
     private sseHandler: ((event: AomiSSEEvent) => void) | null = null;
@@ -165,13 +160,13 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
       }
     });
 
-    listThreads = vi.fn(async (sessionId: string, publicKey: string) => {
+    listThreads = vi.fn(async (sessionId: string) => {
       const fn = mockState.config.listThreads;
       if (fn) {
-        return await fn(sessionId, publicKey);
+        return await fn(sessionId);
       }
       return mockState.config.fetchThreads
-        ? await mockState.config.fetchThreads(publicKey)
+        ? await mockState.config.fetchThreads()
         : [];
     });
 
@@ -183,9 +178,9 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
       },
     );
 
-    createThread = vi.fn(async (threadId: string, publicKey?: string) => {
+    createThread = vi.fn(async (threadId: string) => {
       return mockState.config.createThread
-        ? await mockState.config.createThread(threadId, publicKey)
+        ? await mockState.config.createThread(threadId)
         : { session_id: threadId };
     });
 
@@ -195,9 +190,11 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
         message: string,
         options?: {
           app?: string;
-          publicKey?: string;
+          applicationId?: number | string | null;
           apiKey?: string;
+          clientId?: string;
           userState?: Record<string, unknown>;
+          clientId?: string;
         },
       ) => {
         const fn =
@@ -214,14 +211,15 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
         message: string,
         options?: {
           app?: string;
+          applicationId?: number | string | null;
         },
       ) => {
-      const fn =
-        mockState.config.sendSystemMessage ??
-        mockState.config.postSystemMessage;
-      return fn
-        ? await fn(sessionId, message, options)
-        : { res: { sender: "system", content: message } };
+        const fn =
+          mockState.config.sendSystemMessage ??
+          mockState.config.postSystemMessage;
+        return fn
+          ? await fn(sessionId, message, options)
+          : { res: { sender: "system", content: message } };
       },
     );
 
@@ -258,7 +256,7 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
     getApps = vi.fn(
       async (
         sessionId: string,
-        options?: { publicKey?: string; apiKey?: string },
+        options?: { apiKey?: string; platforms?: AomiPlatformFilter },
       ) => {
         return mockState.config.getApps
           ? await mockState.config.getApps(sessionId, options)
@@ -276,7 +274,11 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
       async (
         sessionId: string,
         rig: string,
-        options?: { app?: string; apiKey?: string },
+        options?: {
+          app?: string;
+          applicationId?: number | string | null;
+          apiKey?: string;
+        },
       ) => {
         return mockState.config.setModel
           ? await mockState.config.setModel(sessionId, rig, options)
@@ -318,7 +320,7 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
     private _isSSEActive = false;
 
     private _app?: string;
-    private _publicKey?: string;
+    private _applicationId?: number | string | null;
     private _apiKey?: string;
     private _userState?: Record<string, unknown>;
     private _clientId?: string;
@@ -334,7 +336,7 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
       opts?: {
         sessionId?: string;
         app?: string;
-        publicKey?: string;
+        applicationId?: number | string | null;
         apiKey?: string;
         clientId?: string;
         userState?: Record<string, unknown>;
@@ -355,7 +357,7 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
       }
       this.sessionId = opts?.sessionId ?? "mock-session";
       this._app = opts?.app;
-      this._publicKey = opts?.publicKey;
+      this._applicationId = opts?.applicationId;
       this._apiKey = opts?.apiKey;
       this._clientId = opts?.clientId;
       this.resolveUserState(opts?.userState);
@@ -379,7 +381,7 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
     async sendAsync(message: string) {
       const response = await this.client.sendMessage(this.sessionId, message, {
         app: this._app,
-        publicKey: this._publicKey ?? legacySessionPublicKey(this._userState),
+        applicationId: this._applicationId,
         apiKey: this._apiKey,
         userState: this._userState,
         clientId: this._clientId,
@@ -420,21 +422,17 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
       if (!normalized) return;
 
       this._userState = normalized;
-      this._publicKey =
-        UserState.isConnected(normalized) === false
-          ? undefined
-          : legacySessionPublicKey(normalized);
       this.syncWalletRequests();
     }
     syncRuntimeOptions(options: {
       app: string;
-      publicKey?: string;
+      applicationId?: number | string | null;
       apiKey?: string;
       clientId?: string;
       userState?: Record<string, unknown>;
     }) {
       this._app = options.app;
-      this._publicKey = options.publicKey;
+      this._applicationId = options.applicationId;
       this._apiKey = options.apiKey;
       this._clientId = options.clientId ?? this._clientId;
       if (options.userState) {
@@ -610,6 +608,10 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
 // =============================================================================
 
 import { AomiRuntimeProvider } from "../aomi-runtime";
+import {
+  useAssistantRuntime,
+  type AssistantRuntime,
+} from "@assistant-ui/react";
 import { useAomiRuntime, type AomiRuntimeApi } from "../../interface";
 import {
   useControl,
@@ -623,19 +625,26 @@ import { useThreadContext } from "../../contexts/thread-context";
 
 export type RuntimeHarnessHandle = {
   api: AomiRuntimeApi;
+  assistantRuntime: AssistantRuntime;
   control: ControlContextApi;
   threadCount: number;
 };
 
 const RuntimeHarness = forwardRef<RuntimeHarnessHandle>((_, ref) => {
   const api = useAomiRuntime();
+  const assistantRuntime = useAssistantRuntime();
   const control = useControl();
   const threadContext = useThreadContext();
 
   useImperativeHandle(
     ref,
-    () => ({ api, control, threadCount: threadContext.threadCnt }),
-    [api, control, threadContext.threadCnt],
+    () => ({
+      api,
+      assistantRuntime,
+      control,
+      threadCount: threadContext.threadCnt,
+    }),
+    [api, assistantRuntime, control, threadContext.threadCnt],
   );
 
   return null;
@@ -649,10 +658,17 @@ RuntimeHarness.displayName = "RuntimeHarness";
 
 export type RenderRuntimeOptions = {
   backendUrl?: string;
+  applicationId?: number | string | null;
+  appPlatforms?: string | readonly string[] | null;
+  initialThreadId?: string;
+  persistThread?: boolean;
+  threadPersistenceKey?: string;
+  threadPersistenceScope?: string | null;
 };
 
 export type RenderRuntimeResult = {
   api: AomiRuntimeApi;
+  assistantRuntime: AssistantRuntime;
   control: ControlContextApi;
   getThreadCount: () => number;
   getApi: () => AomiRuntimeApi;
@@ -663,11 +679,25 @@ export type RenderRuntimeResult = {
 
 export const renderRuntime = ({
   backendUrl = "http://test-backend",
+  applicationId,
+  appPlatforms,
+  initialThreadId,
+  persistThread,
+  threadPersistenceKey,
+  threadPersistenceScope,
 }: RenderRuntimeOptions = {}): RenderRuntimeResult => {
   const ref = React.createRef<RuntimeHarnessHandle>();
 
   const { unmount, rerender } = render(
-    <AomiRuntimeProvider backendUrl={backendUrl}>
+    <AomiRuntimeProvider
+      backendUrl={backendUrl}
+      applicationId={applicationId}
+      appPlatforms={appPlatforms}
+      initialThreadId={initialThreadId}
+      persistThread={persistThread}
+      threadPersistenceKey={threadPersistenceKey}
+      threadPersistenceScope={threadPersistenceScope}
+    >
       <RuntimeHarness ref={ref} />
     </AomiRuntimeProvider>,
   );
@@ -678,6 +708,7 @@ export const renderRuntime = ({
 
   return {
     api: ref.current.api,
+    assistantRuntime: ref.current.assistantRuntime,
     control: ref.current.control,
     getThreadCount: () => ref.current!.threadCount,
     getApi: () => ref.current!.api,

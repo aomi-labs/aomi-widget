@@ -1,24 +1,31 @@
 import type { ArgsDef } from "citty";
 import { privateKeyToAccount } from "viem/accounts";
 import type {
-  CliAccountProvider,
+  CliEmbeddedProvider,
   CliConfig,
   CliExecutionMode,
 } from "../../types";
 import { fatal } from "../../errors";
-import { parseChainId, normalizePrivateKey, parseAAProvider, parseAAMode } from "../../validation";
+import {
+  parseChainId,
+  normalizePrivateKey,
+  parseAAProvider,
+  parseAAMode,
+  validateSolanaPrivateKey,
+  parsePaymentMethod,
+} from "../../validation";
 
 type SvmCluster = NonNullable<CliConfig["svmCluster"]>;
 
-function parseAccountProvider(
+function parseEmbeddedProvider(
   raw: string | undefined,
-): CliAccountProvider | undefined {
+): CliEmbeddedProvider | undefined {
   if (!raw) return undefined;
   const normalized = raw.trim().toLowerCase();
   if (normalized === "para" || normalized === "privy") {
     return normalized;
   }
-  fatal(`Unknown --account-provider value "${raw}". Use "para" or "privy".`);
+  fatal(`Unknown --embedded-provider value "${raw}". Use "para" or "privy".`);
 }
 
 /**
@@ -41,7 +48,9 @@ function parseSvmCluster(raw: string | undefined): SvmCluster | undefined {
     case "solana:testnet":
       return "solana:testnet";
     default:
-      fatal(`Unknown --cluster value "${raw}". Use "mainnet-beta", "devnet", or "testnet".`);
+      fatal(
+        `Unknown --cluster value "${raw}". Use "mainnet-beta", "devnet", or "testnet".`,
+      );
   }
 }
 
@@ -52,30 +61,40 @@ function parseSvmCluster(raw: string | undefined): SvmCluster | undefined {
 export const globalArgs = {
   "backend-url": {
     type: "string",
-    description: "Backend URL (default: https://api.aomi.dev)",
+    description: "Aomi API/BFF URL (default: https://chat.aomi.dev)",
   },
   "api-key": {
     type: "string",
     description: "API key for non-default apps",
   },
+  json: {
+    type: "boolean",
+    description: "Print machine-readable JSON where supported",
+  },
+  verbose: {
+    type: "boolean",
+    description: "Show extra diagnostics such as local state file paths",
+  },
   "account-bearer": {
     type: "string",
-    description:
-      "Aomi account bearer for authenticated REST/SSE requests",
+    description: "Aomi account bearer for authenticated REST/SSE requests",
   },
-  "account-provider": {
+  "embedded-provider": {
     type: "string",
     description:
-      'Upstream account provider for bearer exchange ("para" or "privy")',
+      'Deprecated legacy provider exchange config ("para" or "privy")',
   },
-  "account-provider-token": {
+  "embedded-provider-token": {
     type: "string",
-    description:
-      "Provider-issued token exchanged for an Aomi account bearer",
+    description: "Deprecated legacy provider token; use --account-bearer",
   },
   app: {
     type: "string",
     description: 'App (default: "default")',
+  },
+  "application-id": {
+    type: "string",
+    description: "Concrete backend application id for dynamic apps",
   },
   model: {
     type: "string",
@@ -112,6 +131,10 @@ export const globalArgs = {
     type: "string",
     description: "RPC URL for transaction submission",
   },
+  "payment-method": {
+    type: "string",
+    description: 'Payment method for paid chat turns, e.g. "coinbase"',
+  },
 } satisfies ArgsDef;
 
 // ---------------------------------------------------------------------------
@@ -122,24 +145,32 @@ function str(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value : undefined;
 }
 
-function derivePublicKeyFromPrivateKey(privateKey: string | undefined): string | undefined {
+function derivePublicKeyFromPrivateKey(
+  privateKey: string | undefined,
+): string | undefined {
   if (!privateKey) return undefined;
 
   try {
     return privateKeyToAccount(privateKey as `0x${string}`).address;
   } catch {
-    fatal("Invalid private key. Pass a 32-byte hex key via `--private-key` or `PRIVATE_KEY`.");
+    fatal("Invalid private key. Expected a 0x-prefixed 32-byte hex string.");
   }
 }
 
-function resolveExecution(args: Record<string, unknown>): CliExecutionMode | undefined {
+function resolveExecution(
+  args: Record<string, unknown>,
+): CliExecutionMode | undefined {
   const flagAA = args.aa === true;
   const flagEoa = args.eoa === true;
   if (flagAA && flagEoa) {
     fatal("Choose only one of `--aa` or `--eoa`.");
   }
   if (flagEoa) return "eoa";
-  if (flagAA || str(args["aa-provider"]) !== undefined || str(args["aa-mode"]) !== undefined) {
+  if (
+    flagAA ||
+    str(args["aa-provider"]) !== undefined ||
+    str(args["aa-mode"]) !== undefined
+  ) {
     return "aa";
   }
   return undefined;
@@ -161,88 +192,85 @@ export function buildCliConfig(args: Record<string, unknown>): CliConfig {
     str(args["private-key"]) ?? process.env.PRIVATE_KEY,
   );
   const configuredPublicKey =
-    str(args["public-key"]) ??
-    process.env.AOMI_PUBLIC_KEY;
+    str(args["public-key"]) ?? process.env.AOMI_PUBLIC_KEY;
   const derivedPublicKey = derivePublicKeyFromPrivateKey(privateKey);
-  const accountAccessToken =
+  const accountBearer =
     str(args["account-bearer"]) ?? process.env.AOMI_ACCOUNT_BEARER;
-  const accountProvider = parseAccountProvider(
-    str(args["account-provider"]) ?? process.env.AOMI_ACCOUNT_PROVIDER,
+  const embeddedProvider = parseEmbeddedProvider(
+    str(args["embedded-provider"]) ?? process.env.AOMI_EMBEDDED_PROVIDER,
   );
-  const accountProviderToken =
-    str(args["account-provider-token"]) ??
-    process.env.AOMI_ACCOUNT_PROVIDER_TOKEN;
+  const embeddedProviderToken =
+    str(args["embedded-provider-token"]) ??
+    process.env.AOMI_EMBEDDED_PROVIDER_TOKEN;
 
   if (
     configuredPublicKey &&
     derivedPublicKey &&
     configuredPublicKey.toLowerCase() !== derivedPublicKey.toLowerCase()
   ) {
-    fatal("`--public-key` does not match the address derived from `--private-key`.");
+    fatal(
+      "`--public-key` does not match the address derived from `--private-key`.",
+    );
   }
 
   const aaProvider = parseAAProvider(
     str(args["aa-provider"]) ?? process.env.AOMI_AA_PROVIDER,
   );
-  const aaMode = parseAAMode(
-    str(args["aa-mode"]) ?? process.env.AOMI_AA_MODE,
-  );
+  const aaMode = parseAAMode(str(args["aa-mode"]) ?? process.env.AOMI_AA_MODE);
 
   if (execution === "eoa" && (aaProvider || aaMode)) {
     fatal("`--aa-provider` and `--aa-mode` cannot be used with `--eoa`.");
   }
-  if (accountAccessToken && (accountProvider || accountProviderToken)) {
+  if (accountBearer && (embeddedProvider || embeddedProviderToken)) {
     fatal(
-      "Choose either `--account-bearer` or the `--account-provider` + `--account-provider-token` pair.",
+      "Choose either `--account-bearer` or the `--embedded-provider` + `--embedded-provider-token` pair.",
     );
   }
-  if (accountProvider && !accountProviderToken) {
+  if (embeddedProvider && !embeddedProviderToken) {
     fatal(
-      "`--account-provider-token` is required when `--account-provider` is set.",
+      "`--embedded-provider-token` is required when `--embedded-provider` is set.",
     );
   }
-  if (accountProviderToken && !accountProvider) {
+  if (embeddedProviderToken && !embeddedProvider) {
     fatal(
-      "`--account-provider` is required when `--account-provider-token` is set.",
+      "`--embedded-provider` is required when `--embedded-provider-token` is set.",
     );
   }
 
-  const solanaPrivateKey =
-    str(args["solana-private-key"]) ?? process.env.SOLANA_PRIVATE_KEY;
+  const solanaPrivateKey = validateSolanaPrivateKey(
+    str(args["solana-private-key"]) ?? process.env.SOLANA_PRIVATE_KEY,
+  );
 
   const svmCluster = parseSvmCluster(
     str(args.cluster) ?? process.env.AOMI_SOLANA_CLUSTER,
   );
 
   return {
-    baseUrl:
-      str(args["backend-url"]) ??
-      process.env.AOMI_BACKEND_URL,
-    apiKey:
-      str(args["api-key"]) ??
-      process.env.AOMI_API_KEY,
-    accountAccessToken,
-    accountProvider,
-    accountProviderToken,
-    app:
-      str(args.app) ??
-      process.env.AOMI_APP,
-    model:
-      str(args.model) ??
-      process.env.AOMI_MODEL,
+    baseUrl: str(args["backend-url"]) ?? process.env.AOMI_BACKEND_URL,
+    apiKey: str(args["api-key"]) ?? process.env.AOMI_API_KEY,
+    json: args.json === true,
+    verbose: args.verbose === true,
+    accountBearer,
+    embeddedProvider,
+    embeddedProviderToken,
+    app: str(args.app) ?? process.env.AOMI_APP,
+    applicationId:
+      str(args["application-id"]) ?? process.env.AOMI_APPLICATION_ID,
+    model: str(args.model) ?? process.env.AOMI_MODEL,
     freshSession: args["new-session"] === true,
     publicKey: configuredPublicKey ?? derivedPublicKey,
     privateKey,
     solanaPrivateKey,
     svmCluster,
-    chainRpcUrl:
-      str(args["rpc-url"]) ??
-      process.env.CHAIN_RPC_URL,
+    chainRpcUrl: str(args["rpc-url"]) ?? process.env.CHAIN_RPC_URL,
     chain: parseChainId(str(args.chain) ?? process.env.AOMI_CHAIN_ID),
     secrets: {},
     execution,
     aaProvider,
     aaMode,
+    paymentMethod: parsePaymentMethod(
+      str(args["payment-method"]) ?? process.env.AOMI_PAYMENT_METHOD,
+    ),
   };
 }
 
@@ -259,5 +287,7 @@ export function getPositionals(args: Record<string, unknown>): string[] {
   if (!Array.isArray(positionals)) {
     return [];
   }
-  return positionals.filter((value): value is string => typeof value === "string");
+  return positionals.filter(
+    (value): value is string => typeof value === "string",
+  );
 }

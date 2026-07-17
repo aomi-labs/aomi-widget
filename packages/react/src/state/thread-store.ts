@@ -28,6 +28,7 @@ const logThreadMetadataChange = (
 
 export type ThreadStatus = "regular" | "archived";
 export type ModelSelectionMode = "auto" | "manual";
+export type ThreadTurnPhase = "idle" | "submitting" | "working";
 
 export type ThreadControlState = {
   /** Selected model for this thread (human-readable label) */
@@ -36,10 +37,16 @@ export type ThreadControlState = {
   modelMode?: ModelSelectionMode;
   /** Selected app for this thread */
   app: string | null;
+  /** Concrete backend application row for hosted/platform apps */
+  applicationId: number | string | null;
   /** Whether control state has changed but chat hasn't started yet */
   controlDirty: boolean;
   /** Whether this thread is currently processing (assistant generating) */
   isProcessing: boolean;
+  /** Fine-grained turn phase for rendering pending/working assistant states */
+  turnPhase: ThreadTurnPhase;
+  /** Epoch ms when the latest assistant turn completed in this thread. */
+  lastCompletedAt?: number;
 };
 
 export type ThreadMetadata = {
@@ -56,8 +63,10 @@ export function initThreadControl(): ThreadControlState {
     model: null,
     modelMode: "auto",
     app: null,
+    applicationId: null,
     controlDirty: false,
     isProcessing: false,
+    turnPhase: "idle",
   };
 }
 

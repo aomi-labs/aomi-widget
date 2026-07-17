@@ -4,6 +4,7 @@
 **/node_modules
 .pnpm-store/
 /.pnp
+.playwright-cli/
 .pnp.*
 .yarn/*
 !.yarn/patches
@@ -35,6 +36,8 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+tmp*.md
+specs/FINAL-REVIEW-CHECKLIST.md
 
 # env files (can opt-in for committing if needed)
 .env*
@@ -45,7 +48,12 @@ yarn-error.log*
 
 # generated registry build output
 apps/landing/public/r/dist
-apps/registry/dist
+apps/shadcn-registry/dist
+
+# generated package JavaScript bundles
+packages/*/dist/*.js
+packages/*/dist/*.cjs
+packages/*/dist/*.map
 
 # typescript
 *.tsbuildinfo
@@ -53,3 +61,10 @@ next-env.d.ts
 
 **/.specstory/*
 .env*.local
+.kiro/
+
+# Guard against accidentally re-adding a nested checkout as a gitlink
+/bff-unification
+
+# aomi-smither durable run state (sqlite/pglite dirs)
+**/.smithers/

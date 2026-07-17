@@ -1,7 +1,13 @@
 import type { Chain, Hex, LocalAccount, WalletClient } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
-import type { AAState, SmartAccount, AAMode, AAWalletCall } from "../types";
+import type {
+  AAState,
+  AAResolvedConfig,
+  SmartAccount,
+  AAMode,
+  AAWalletCall,
+} from "../types";
 import {
   DEFAULT_AA_CONFIG,
   getAAChainConfig,
@@ -58,11 +64,11 @@ export async function createPimlicoAAState(
     throw new Error("Pimlico AA requires PIMLICO_API_KEY.");
   }
 
-  const execution = {
+  const execution: AAResolvedConfig = {
     ...plan,
     mode: effectiveMode,
     sponsorship: resolveAASponsorship(effectiveMode, plan.sponsorship),
-  } as AAState["resolved"];
+  };
 
   const ownerParams = getOwnerParams(owner);
   if (ownerParams.kind === "missing") {
@@ -72,8 +78,8 @@ export async function createPimlicoAAState(
     return getUnsupportedAdapterState(execution, ownerParams.adapter);
   }
 
-  const localSessionSigner =
-    owner.kind === "session"
+  const permissionlessSigner =
+    owner.kind === "session" || owner.kind === "external-wallet"
       ? resolvePimlicoSessionSigner(ownerParams.ownerParams)
       : null;
 
@@ -81,15 +87,16 @@ export async function createPimlicoAAState(
     const signer =
       owner.kind === "direct"
         ? privateKeyToAccount(owner.privateKey)
-        : localSessionSigner;
+        : permissionlessSigner;
 
     if (signer) {
       return await createPimlicoPermissionlessState({
-        resolved: execution!,
+        resolved: execution,
         chain,
         signer,
         externalSigner:
-          owner.kind === "session" && "signer" in ownerParams.ownerParams
+          (owner.kind === "session" || owner.kind === "external-wallet") &&
+          "signer" in ownerParams.ownerParams
             ? ownerParams.ownerParams.signer
             : undefined,
         rpcUrl: options.rpcUrl,
@@ -104,8 +111,8 @@ export async function createPimlicoAAState(
       apiKey,
       chain,
       rpcUrl: options.rpcUrl,
-      mode: execution!.mode,
-    });
+      mode: execution.mode,
+    } as never);
 
     if (!smartAccount) {
       return {
@@ -116,9 +123,10 @@ export async function createPimlicoAAState(
       };
     }
 
-    const ownerAddress = "address" in ownerParams.ownerParams
-      ? (ownerParams.ownerParams.address as Hex | undefined)
-      : undefined;
+    const ownerAddress =
+      "address" in ownerParams.ownerParams
+        ? (ownerParams.ownerParams.address as Hex | undefined)
+        : undefined;
     if (!ownerAddress) {
       return {
         resolved: execution,
@@ -156,7 +164,12 @@ function buildPimlicoRpcUrl(chain: Chain, apiKey: string): string {
 }
 
 function isExternalWalletSigner(signer: unknown): signer is WalletClient {
-  return !!signer && typeof signer === "object" && "transport" in signer && "account" in signer;
+  return (
+    !!signer &&
+    typeof signer === "object" &&
+    "transport" in signer &&
+    "account" in signer
+  );
 }
 
 function resolvePimlicoSessionSigner(
@@ -254,7 +267,9 @@ function adaptPimlicoSdkAccount(
 ): SmartAccount {
   const lowered = account.provider.toLowerCase();
   if (lowered !== "alchemy" && lowered !== "pimlico") {
-    throw new Error(`Unsupported AA provider from Pimlico SDK: ${account.provider}`);
+    throw new Error(
+      `Unsupported AA provider from Pimlico SDK: ${account.provider}`,
+    );
   }
   const provider = lowered;
 
@@ -265,7 +280,8 @@ function adaptPimlicoSdkAccount(
       address,
       SmartAccount4337: account.smartAccountAddress,
       sendTransaction: async (call) => account.sendTransaction(call),
-      sendBatchTransaction: async (calls) => account.sendBatchTransaction(calls),
+      sendBatchTransaction: async (calls) =>
+        account.sendBatchTransaction(calls),
     };
   }
   return {
@@ -290,10 +306,10 @@ async function createPimlicoPermissionlessState(params: {
   mode: AAMode;
 }): Promise<AAState> {
   const { createSmartAccountClient } = await import("permissionless");
-  const { toSimpleSmartAccount, to7702SimpleSmartAccount } = await import(
-    "permissionless/accounts"
-  );
-  const { createPimlicoClient } = await import("permissionless/clients/pimlico");
+  const { toSimpleSmartAccount, to7702SimpleSmartAccount } =
+    await import("permissionless/accounts");
+  const { createPimlicoClient } =
+    await import("permissionless/clients/pimlico");
   const { createPublicClient, http } = await import("viem");
   const { entryPoint07Address, entryPoint08Address, prepareUserOperation } =
     await import("viem/account-abstraction");
@@ -343,7 +359,8 @@ async function createPimlicoPermissionlessState(params: {
         });
 
   if (params.mode === "7702") {
-    (smartAccount as { isDeployed?: () => Promise<boolean> }).isDeployed = async () => false;
+    (smartAccount as { isDeployed?: () => Promise<boolean> }).isDeployed =
+      async () => false;
   }
   const accountAddress = smartAccount.address as Hex;
   pimDebug(`${params.mode}:account-created`, {
@@ -356,9 +373,11 @@ async function createPimlicoPermissionlessState(params: {
       ? {
           estimateFeesPerGas: async () => {
             const gasPrice = await paymasterClient.getUserOperationGasPrice();
-            return (gasPrice as {
-              fast: { maxFeePerGas: bigint; maxPriorityFeePerGas: bigint };
-            }).fast;
+            return (
+              gasPrice as {
+                fast: { maxFeePerGas: bigint; maxPriorityFeePerGas: bigint };
+              }
+            ).fast;
           },
         }
       : {}),

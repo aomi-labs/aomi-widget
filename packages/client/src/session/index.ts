@@ -41,28 +41,16 @@ export type {
   WalletRequestResult,
 } from "./types";
 
-function legacySessionPublicKey(
-  userState?: UserStateShape,
-): string | undefined {
-  const address = UserState.address(userState);
-  if (!address?.startsWith("0x")) {
-    return undefined;
-  }
-  if (UserState.chainId(userState) === undefined && !userState?.evm?.address) {
-    return undefined;
-  }
-  return address;
-}
-
 export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   readonly client: AomiClient;
   readonly sessionId: string;
 
   private app: string;
-  private publicKey?: string;
+  private applicationId?: number | string | null;
   private apiKey?: string;
   private userState?: UserStateShape;
   private clientId: string;
+  private paymentMethod?: string | null;
   private syncPendingTxRequestsFromUserState: boolean;
   private pollIntervalMs: number;
   private logger?: { debug: (...args: unknown[]) => void };
@@ -92,8 +80,9 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
 
     this.sessionId = sessionOptions?.sessionId ?? crypto.randomUUID();
     this.app = sessionOptions?.app ?? "default";
-    this.publicKey = sessionOptions?.publicKey;
+    this.applicationId = sessionOptions?.applicationId;
     this.apiKey = sessionOptions?.apiKey;
+    this.paymentMethod = sessionOptions?.paymentMethod;
     const initialUserState = UserState.reconcile(
       undefined,
       sessionOptions?.userState,
@@ -137,10 +126,11 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
 
     const response = await this.client.sendMessage(this.sessionId, message, {
       app: this.app,
-      publicKey: this.publicKey,
+      applicationId: this.applicationId,
       apiKey: this.apiKey,
       userState: this.userState,
       clientId: this.clientId,
+      paymentMethod: this.paymentMethod,
     });
 
     this.assertUserStateAligned(response.user_state);
@@ -168,10 +158,11 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
 
     const response = await this.client.sendMessage(this.sessionId, message, {
       app: this.app,
-      publicKey: this.publicKey,
+      applicationId: this.applicationId,
       apiKey: this.apiKey,
       userState: this.userState,
       clientId: this.clientId,
+      paymentMethod: this.paymentMethod,
     });
 
     this.assertUserStateAligned(response.user_state);
@@ -299,7 +290,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
 
   syncRuntimeOptions(options: SessionRuntimeOptions): void {
     this.app = options.app;
-    this.publicKey = options.publicKey;
+    this.applicationId = options.applicationId;
     this.apiKey = options.apiKey;
     this.clientId = options.clientId ?? this.clientId;
 
@@ -315,16 +306,6 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     const previousSerialized = stableUserStateString(this.userState);
     this.userState = UserState.reconcile(this.userState, userState);
     const nextSerialized = stableUserStateString(this.userState);
-
-    // `public_key` is a legacy EVM session-history key. SVM identity travels in
-    // user_state/context so base58 addresses keep their original case.
-    const publicKey = legacySessionPublicKey(this.userState);
-    const isConnected = UserState.isConnected(this.userState);
-    if (publicKey && isConnected !== false) {
-      this.publicKey = publicKey;
-    } else {
-      this.publicKey = undefined;
-    }
 
     this.walletController.sync();
 
@@ -376,6 +357,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       this.sessionId,
       this.userState,
       this.clientId,
+      { app: this.app, applicationId: this.applicationId },
     );
     this.assertUserStateAligned(state.user_state);
     this.applyState(state);
@@ -402,6 +384,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       this.sessionId,
       this.userState,
       this.clientId,
+      { app: this.app, applicationId: this.applicationId },
     );
 
     this.assertUserStateAligned(state.user_state);
@@ -447,6 +430,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
         this.sessionId,
         this.userState,
         this.clientId,
+        { app: this.app, applicationId: this.applicationId },
       );
 
       // Guard: polling may have been stopped while awaiting fetch
@@ -491,6 +475,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       setMessages: (messages) => {
         this._messages = messages;
       },
+      getMessages: () => this.getMessages(),
       setTitle: (title) => {
         this._title = title;
       },
@@ -522,6 +507,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     const message = JSON.stringify({ type, payload });
     await this.client.sendSystemMessage(this.sessionId, message, {
       app: this.app,
+      applicationId: this.applicationId,
     });
   }
 

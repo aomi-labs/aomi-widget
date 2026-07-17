@@ -1,5 +1,4 @@
 import { CliSession } from "../cli-session";
-import type { AomiMessage } from "../../types";
 import {
   CYAN,
   DIM,

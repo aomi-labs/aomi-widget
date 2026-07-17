@@ -15,9 +15,11 @@
     "lint": "eslint ."
   },
   "dependencies": {
+    "@aomi-labs/account": "workspace:*",
     "@aomi-labs/client": "workspace:*",
     "@aomi-labs/react": "workspace:*",
     "@aomi-labs/widget-lib": "workspace:*",
+    "@assistant-ui/react": "^0.14.0",
     "@tanstack/react-query": "^5.90.10",
     "next": "16.1.0",
     "react": "^19.2.0",

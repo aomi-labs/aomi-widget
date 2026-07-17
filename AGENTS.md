@@ -1,5 +1,8 @@
 # Repository Guidelines
 
+> Persistent goal: see `GOAL.md` in the repo root. Every session should
+> read it first and update it as work progresses.
+
 ## Project Structure & Module Organization
 
 `src/` holds the publishable widget library: `components/assistant-ui/` for the Aomi frame and chat surfaces, `components/ui/` for shadcn-style primitives, `hooks/` for reusable state, `lib/` for runtime/context helpers, `utils/` for wallet helpers, and `themes/` for CSS token packs that feed the `styles.css` entry point. The demo Next.js app now lives in `apps/landing/` and consumes the built package from `dist/`; use it to validate UI flows before publishing. Static assets shared by the example go in `apps/landing/public/`, while high-level product briefs sit in `specs/`—update both when you introduce new flows.
@@ -25,6 +28,8 @@ There is no dedicated automated test suite yet, so treat `pnpm run build:lib` an
 ## Commit & Pull Request Guidelines
 
 Commits follow short, imperative summaries (`Fix linting ci`, `Update packages for …`). Keep bodies optional but include rationale when touching build or security-sensitive files. For pull requests, add: 1) a concise description of the change and linked issue, 2) a checklist of commands you ran (lint, build, demo), and 3) screenshots or short clips for UI-impacting work. Make sure the PR mentions any `specs/` updates so reviewers can cross-check behavior changes.
+
+Before merging, audit every touched workspace against the npm publish workflow. If shipped files from a publishable npm package changed, bump that package's version in the same change (use a patch bump unless the release scope requires otherwise), refresh any affected lockfile or generated artifacts, and verify the package is publishable. Do not defer required npm version bumps until after merge.
 
 ## Security & Configuration Tips
 

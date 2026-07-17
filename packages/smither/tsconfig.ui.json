@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "declaration": false,
+    "declarationMap": false,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "allowImportingTsExtensions": true
+  },
+  "include": ["src/ui/**/*.ts", "src/ui/**/*.tsx", "src/console-model.ts"],
+  "exclude": ["node_modules", "dist"]
+}

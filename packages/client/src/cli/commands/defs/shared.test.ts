@@ -13,8 +13,8 @@ describe("buildCliConfig", () => {
     delete process.env.AOMI_BACKEND_URL;
     delete process.env.AOMI_APP;
     delete process.env.AOMI_ACCOUNT_BEARER;
-    delete process.env.AOMI_ACCOUNT_PROVIDER;
-    delete process.env.AOMI_ACCOUNT_PROVIDER_TOKEN;
+    delete process.env.AOMI_EMBEDDED_PROVIDER;
+    delete process.env.AOMI_EMBEDDED_PROVIDER_TOKEN;
   });
 
   afterEach(() => {
@@ -23,8 +23,8 @@ describe("buildCliConfig", () => {
     delete process.env.AOMI_BACKEND_URL;
     delete process.env.AOMI_APP;
     delete process.env.AOMI_ACCOUNT_BEARER;
-    delete process.env.AOMI_ACCOUNT_PROVIDER;
-    delete process.env.AOMI_ACCOUNT_PROVIDER_TOKEN;
+    delete process.env.AOMI_EMBEDDED_PROVIDER;
+    delete process.env.AOMI_EMBEDDED_PROVIDER_TOKEN;
     vi.restoreAllMocks();
   });
 
@@ -38,7 +38,9 @@ describe("buildCliConfig", () => {
   });
 
   it("fails when the provided public key mismatches the derived signer address", () => {
-    const stderr = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const stderr = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
 
     expect(() =>
       buildCliConfig({
@@ -72,42 +74,46 @@ describe("buildCliConfig", () => {
       "account-bearer": "bearer-123",
     });
 
-    expect(config.accountAccessToken).toBe("bearer-123");
-    expect(config.accountProvider).toBeUndefined();
-    expect(config.accountProviderToken).toBeUndefined();
+    expect(config.accountBearer).toBe("bearer-123");
+    expect(config.embeddedProvider).toBeUndefined();
+    expect(config.embeddedProviderToken).toBeUndefined();
   });
 
-  it("reads account provider exchange config from environment", () => {
-    process.env.AOMI_ACCOUNT_PROVIDER = "privy";
-    process.env.AOMI_ACCOUNT_PROVIDER_TOKEN = "privy-token";
+  it("reads legacy account provider config from environment", () => {
+    process.env.AOMI_EMBEDDED_PROVIDER = "privy";
+    process.env.AOMI_EMBEDDED_PROVIDER_TOKEN = "privy-token";
 
     const config = buildCliConfig({});
 
-    expect(config.accountProvider).toBe("privy");
-    expect(config.accountProviderToken).toBe("privy-token");
-    expect(config.accountAccessToken).toBeUndefined();
+    expect(config.embeddedProvider).toBe("privy");
+    expect(config.embeddedProviderToken).toBe("privy-token");
+    expect(config.accountBearer).toBeUndefined();
   });
 
   it("rejects partial account provider config", () => {
-    const stderr = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const stderr = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
 
     expect(() =>
       buildCliConfig({
-        "account-provider": "privy",
+        "embedded-provider": "privy",
       }),
     ).toThrow(CliExit);
 
     expect(stderr).toHaveBeenCalled();
   });
 
-  it("rejects mixing account bearer and provider exchange config", () => {
-    const stderr = vi.spyOn(console, "error").mockImplementation(() => undefined);
+  it("rejects mixing account bearer and legacy provider config", () => {
+    const stderr = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
 
     expect(() =>
       buildCliConfig({
         "account-bearer": "bearer-123",
-        "account-provider": "privy",
-        "account-provider-token": "privy-token",
+        "embedded-provider": "privy",
+        "embedded-provider-token": "privy-token",
       }),
     ).toThrow(CliExit);
 

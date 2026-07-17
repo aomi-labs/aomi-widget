@@ -1,153 +1,120 @@
-import { NextRequest, NextResponse } from "next/server";
+import { createBackendProxy, type AllowedRoute } from "@aomi-labs/account";
+import { type NextRequest, NextResponse } from "next/server";
 
-const HOP_BY_HOP_HEADERS = new Set([
-  "authorization",
-  "connection",
-  "content-length",
-  "cookie",
-  "host",
-  "origin",
-  "referer",
-  "transfer-encoding",
-]);
+const LOCAL_BACKEND_URL = "http://127.0.0.1:8080";
 
-const ALLOWED_REQUEST_HEADERS = new Set([
-  "accept",
-  "content-type",
-  "aomi-app-key",
-  "x-session-id",
-]);
-
-const ALLOWED_ROUTES: Array<{
-  pattern: RegExp;
-  methods: ReadonlySet<string>;
-}> = [
-  { pattern: /^\/api\/state$/, methods: new Set(["GET"]) },
-  { pattern: /^\/api\/chat$/, methods: new Set(["POST"]) },
-  { pattern: /^\/api\/system$/, methods: new Set(["POST"]) },
-  { pattern: /^\/api\/interrupt$/, methods: new Set(["POST"]) },
-  { pattern: /^\/api\/secrets$/, methods: new Set(["POST", "DELETE"]) },
-  { pattern: /^\/api\/secrets\/[^/]+$/, methods: new Set(["DELETE"]) },
-  { pattern: /^\/api\/updates$/, methods: new Set(["GET"]) },
-  { pattern: /^\/api\/sessions$/, methods: new Set(["GET", "POST"]) },
+const ALLOWED_ROUTES: AllowedRoute[] = [
+  { pattern: /^\/api\/thread\/state$/, methods: new Set(["GET"]), auth: "optional" },
+  { pattern: /^\/api\/thread\/chat$/, methods: new Set(["POST"]), auth: "optional" },
+  { pattern: /^\/api\/system$/, methods: new Set(["POST"]), auth: "optional" },
   {
-    pattern: /^\/api\/sessions\/[^/]+$/,
-    methods: new Set(["GET", "PATCH", "DELETE"]),
+    pattern: /^\/api\/thread\/interrupt$/,
+    methods: new Set(["POST"]),
+    auth: "optional",
   },
-  { pattern: /^\/api\/events$/, methods: new Set(["GET"]) },
-  { pattern: /^\/api\/settings\/account$/, methods: new Set(["GET"]) },
-  { pattern: /^\/api\/control\/apps$/, methods: new Set(["GET"]) },
-  { pattern: /^\/api\/control\/models$/, methods: new Set(["GET"]) },
-  { pattern: /^\/api\/control\/model$/, methods: new Set(["POST"]) },
+  { pattern: /^\/api\/thread\/updates$/, methods: new Set(["GET"]), auth: "optional" },
+  { pattern: /^\/api\/thread\/events$/, methods: new Set(["GET"]), auth: "optional" },
+  { pattern: /^\/api\/threads$/, methods: new Set(["POST"]), auth: "optional" },
   {
-    pattern: /^\/api\/control\/provider-keys$/,
-    methods: new Set(["GET", "POST"]),
+    pattern: /^\/api\/exec\/simulate$/,
+    methods: new Set(["POST"]),
+    auth: "optional",
   },
-  {
-    pattern: /^\/api\/control\/provider-keys\/[^/]+$/,
-    methods: new Set(["DELETE"]),
-  },
-  { pattern: /^\/api\/simulate$/, methods: new Set(["POST"]) },
 ];
 
-const UPSTREAM_BASE_URL =
-  process.env.AOMI_PROXY_BACKEND_URL ??
-  process.env.NEXT_PUBLIC_BACKEND_URL ??
-  "https://api.aomi.dev";
+function explicitBackendUrl(): string | null {
+  const configured = process.env.AOMI_PROXY_BACKEND_URL?.trim();
+  if (!configured) return null;
 
-function buildUpstreamUrl(req: NextRequest, slug: string[] | undefined): URL {
-  const target = new URL(`/api/${(slug ?? []).join("/")}`, UPSTREAM_BASE_URL);
-  target.search = req.nextUrl.search;
-  return target;
-}
-
-function isAllowedProxyRequest(pathname: string, method: string): boolean {
-  return ALLOWED_ROUTES.some(
-    (route) => route.pattern.test(pathname) && route.methods.has(method),
-  );
-}
-
-function copyRequestHeaders(req: NextRequest): Headers {
-  const headers = new Headers();
-  req.headers.forEach((value, key) => {
-    const lowerKey = key.toLowerCase();
-    if (
-      ALLOWED_REQUEST_HEADERS.has(lowerKey) &&
-      !HOP_BY_HOP_HEADERS.has(lowerKey)
-    ) {
-      headers.set(key, value);
+  try {
+    const parsed = new URL(configured);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return null;
     }
-  });
-  return headers;
+    return parsed.toString().replace(/\/+$/, "");
+  } catch {
+    return null;
+  }
 }
 
-function copyResponseHeaders(upstream: Response): Headers {
-  const headers = new Headers();
-  const contentType = upstream.headers.get("content-type");
-  const cacheControl = upstream.headers.get("cache-control");
-
-  if (contentType) {
-    headers.set("content-type", contentType);
-  }
-
-  if (contentType?.includes("text/event-stream")) {
-    headers.set("cache-control", "no-cache, no-transform");
-  } else if (cacheControl) {
-    headers.set("cache-control", cacheControl);
-  }
-
-  return headers;
+function isDeployedRuntime(): boolean {
+  return Boolean(process.env.VERCEL || process.env.VERCEL_ENV);
 }
 
-async function handle(
+function proxyConfigurationError(): string | null {
+  const configured = process.env.AOMI_PROXY_BACKEND_URL?.trim();
+  if (configured && !explicitBackendUrl()) {
+    return "AOMI_PROXY_BACKEND_URL must be an absolute http(s) URL.";
+  }
+
+  if (!configured && isDeployedRuntime()) {
+    return "AOMI_PROXY_BACKEND_URL is required for deployed Base app proxies.";
+  }
+
+  return null;
+}
+
+function upstreamBaseUrl(): string {
+  return explicitBackendUrl() ?? LOCAL_BACKEND_URL;
+}
+
+function rewriteLegacySessionPath(upstreamUrl: URL): void {
+  if (upstreamUrl.pathname === "/api/sessions") {
+    upstreamUrl.pathname = "/api/threads";
+  }
+}
+
+const proxy = createBackendProxy({
+  allowedRoutes: ALLOWED_ROUTES,
+  upstreamBaseUrl: upstreamBaseUrl(),
+  resolveCanonicalUserId: async () => null,
+  applyDefaults: rewriteLegacySessionPath,
+});
+
+async function requireConfiguredProxy(
+  handler: (
+    req: NextRequest,
+    context: { params: Promise<{ slug?: string[] }> },
+  ) => Promise<NextResponse>,
   req: NextRequest,
   context: { params: Promise<{ slug?: string[] }> },
 ): Promise<NextResponse> {
-  const { slug } = await context.params;
-  const upstreamUrl = buildUpstreamUrl(req, slug);
-
-  if (!isAllowedProxyRequest(upstreamUrl.pathname, req.method)) {
+  const error = proxyConfigurationError();
+  if (error) {
+    console.error("Aomi Base proxy is not configured", { error });
     return NextResponse.json(
-      { error: "Unsupported API route" },
-      { status: 404 },
+      { error: "Backend proxy is not configured" },
+      { status: 503 },
     );
   }
 
-  try {
-    const upstream = await fetch(upstreamUrl, {
-      method: req.method,
-      headers: copyRequestHeaders(req),
-      body:
-        req.method === "GET" || req.method === "HEAD"
-          ? undefined
-          : await req.text(),
-      redirect: "manual",
-    });
-
-    return new NextResponse(upstream.body, {
-      status: upstream.status,
-      statusText: upstream.statusText,
-      headers: copyResponseHeaders(upstream),
-    });
-  } catch (error) {
-    console.error("Aomi upstream request failed", {
-      message: error instanceof Error ? error.message : String(error),
-    });
-
-    return NextResponse.json(
-      {
-        error: "Upstream request failed",
-      },
-      { status: 502 },
-    );
-  }
+  return handler(req, context);
 }
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-export const GET = handle;
-export const POST = handle;
-export const PUT = handle;
-export const PATCH = handle;
-export const DELETE = handle;
+export const GET = (
+  req: NextRequest,
+  context: { params: Promise<{ slug?: string[] }> },
+) => requireConfiguredProxy(proxy.GET, req, context);
+
+export const POST = (
+  req: NextRequest,
+  context: { params: Promise<{ slug?: string[] }> },
+) => requireConfiguredProxy(proxy.POST, req, context);
+
+export const PUT = (
+  req: NextRequest,
+  context: { params: Promise<{ slug?: string[] }> },
+) => requireConfiguredProxy(proxy.PUT, req, context);
+
+export const PATCH = (
+  req: NextRequest,
+  context: { params: Promise<{ slug?: string[] }> },
+) => requireConfiguredProxy(proxy.PATCH, req, context);
+
+export const DELETE = (
+  req: NextRequest,
+  context: { params: Promise<{ slug?: string[] }> },
+) => requireConfiguredProxy(proxy.DELETE, req, context);

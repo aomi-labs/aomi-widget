@@ -17,6 +17,18 @@ var __spreadValues = (a, b) => {
   return a;
 };
 var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
+var __objRest = (source, exclude) => {
+  var target = {};
+  for (var prop in source)
+    if (__hasOwnProp.call(source, prop) && exclude.indexOf(prop) < 0)
+      target[prop] = source[prop];
+  if (source != null && __getOwnPropSymbols)
+    for (var prop of __getOwnPropSymbols(source)) {
+      if (exclude.indexOf(prop) < 0 && __propIsEnum.call(source, prop))
+        target[prop] = source[prop];
+    }
+  return target;
+};
 
 // src/user-state/normalize.ts
 function asObject(value) {
@@ -24,6 +36,9 @@ function asObject(value) {
     return void 0;
   }
   return value;
+}
+function asEvmObject(value) {
+  return Array.isArray(value) ? asObject(value[0]) : asObject(value);
 }
 function pick(record, ...keys) {
   if (!record) {
@@ -87,7 +102,6 @@ function buildConnection(src, flat) {
   const c = __spreadValues({}, src != null ? src : {});
   renameKey(c, "isConnected", "is_connected");
   renameKey(c, "providerLabel", "provider_label");
-  renameKey(c, "primaryFamily", "primary_family");
   renameKey(c, "walletProviderSubject", "wallet_provider_subject");
   renameKey(c, "authMethod", "auth_method");
   renameKey(c, "authValue", "auth_value");
@@ -218,7 +232,7 @@ function parseChainId(value) {
 }
 function address(state) {
   var _a;
-  const value = (_a = asObject(state == null ? void 0 : state.evm)) == null ? void 0 : _a.address;
+  const value = (_a = asEvmObject(state == null ? void 0 : state.evm)) == null ? void 0 : _a.address;
   return typeof value === "string" && value.length > 0 ? value : void 0;
 }
 function svmAddress(state) {
@@ -228,7 +242,7 @@ function svmAddress(state) {
 }
 function chainId(state) {
   var _a;
-  return parseChainId((_a = asObject(state == null ? void 0 : state.evm)) == null ? void 0 : _a.chain_id);
+  return parseChainId((_a = asEvmObject(state == null ? void 0 : state.evm)) == null ? void 0 : _a.chain_id);
 }
 function isConnected(state) {
   var _a;
@@ -248,7 +262,7 @@ function normalizeUserState(userState) {
   const out = {};
   const connection = buildConnection(asObject(pick(src, "connection")), src);
   if (connection) out.connection = connection;
-  const evm = buildEvm(asObject(pick(src, "evm")), src);
+  const evm = buildEvm(asEvmObject(pick(src, "evm")), src);
   if (evm) out.evm = evm;
   const svm = buildSvm(asObject(pick(src, "svm", "solana")), src);
   if (svm) out.svm = svm;
@@ -392,10 +406,6 @@ function svmAddress2(userState) {
   const value = (_a = svmBlock(userState)) == null ? void 0 : _a.address;
   return typeof value === "string" && value.length > 0 ? value : void 0;
 }
-function preferredPublicKey(userState) {
-  var _a;
-  return (_a = address2(userState)) != null ? _a : svmAddress2(userState);
-}
 function chainId2(userState) {
   var _a;
   return parseChainId2((_a = evmBlock(userState)) == null ? void 0 : _a.chain_id);
@@ -491,7 +501,6 @@ var UserState;
   UserState2.address = address2;
   UserState2.evmAddress = evmAddress;
   UserState2.svmAddress = svmAddress2;
-  UserState2.preferredPublicKey = preferredPublicKey;
   UserState2.chainId = chainId2;
   UserState2.ensName = ensName;
   UserState2.aaMode = aaMode;
@@ -629,7 +638,7 @@ function createSseSubscriber({
         if (subscription.lastEventId) {
           headers.set("Last-Event-ID", subscription.lastEventId);
         }
-        const response = await fetchImpl(`${backendUrl}/api/updates`, {
+        const response = await fetchImpl(`${backendUrl}/api/thread/updates`, {
           headers,
           signal: controller.signal
         });
@@ -720,9 +729,72 @@ function createSseSubscriber({
   return { subscribe, reconnect };
 }
 
+// src/app-descriptor.ts
+function normalizeAppDescriptor(item) {
+  var _a, _b;
+  if (typeof item === "string") {
+    const name2 = item.trim();
+    return name2 ? { name: name2 } : null;
+  }
+  if (!item || typeof item !== "object") return null;
+  const raw = item;
+  const name = typeof raw.name === "string" ? raw.name.trim() : "";
+  if (!name) return null;
+  const descriptor = __spreadProps(__spreadValues({}, raw), {
+    name
+  });
+  const applicationId = (_b = (_a = raw.applicationId) != null ? _a : raw.application_id) != null ? _b : raw.id;
+  if (typeof applicationId === "number" || typeof applicationId === "string") {
+    descriptor.applicationId = applicationId;
+  }
+  if (typeof raw.platform === "string") descriptor.platform = raw.platform;
+  if (typeof raw.label === "string") descriptor.label = raw.label;
+  if (typeof raw.appReleaseTag === "string") {
+    descriptor.appReleaseTag = raw.appReleaseTag;
+  } else if (typeof raw.app_release_tag === "string") {
+    descriptor.appReleaseTag = raw.app_release_tag;
+  }
+  if (typeof raw.isActive === "boolean") {
+    descriptor.isActive = raw.isActive;
+  } else if (typeof raw.is_active === "boolean") {
+    descriptor.isActive = raw.is_active;
+  }
+  if (typeof raw.isPublic === "boolean") {
+    descriptor.isPublic = raw.isPublic;
+  } else if (typeof raw.is_public === "boolean") {
+    descriptor.isPublic = raw.is_public;
+  }
+  if (typeof raw.artifactReady === "boolean") {
+    descriptor.artifactReady = raw.artifactReady;
+  } else if (typeof raw.artifact_ready === "boolean") {
+    descriptor.artifactReady = raw.artifact_ready;
+  }
+  descriptor.secrets = Array.isArray(raw.secrets) ? raw.secrets : [];
+  for (const key of [
+    "id",
+    "application_id",
+    "app_release_tag",
+    "is_active",
+    "is_public",
+    "artifact_ready"
+  ]) {
+    delete descriptor[key];
+  }
+  return descriptor;
+}
+function appIdentityKey(descriptor) {
+  var _a, _b;
+  const applicationId = (_a = descriptor.applicationId) == null ? void 0 : _a.toString().trim();
+  if (applicationId) return `application:${applicationId}`;
+  const platform = (_b = descriptor.platform) == null ? void 0 : _b.trim();
+  if (platform) return `platform:${platform}:${descriptor.name}`;
+  return `name:${descriptor.name}`;
+}
+
 // src/client.ts
 var SESSION_ID_HEADER = "X-Session-Id";
-var APP_KEY_HEADER = "AOMI-APP-KEY";
+var THREAD_ID_HEADER = "X-Thread-Id";
+var APP_KEY_HEADER = "Aomi-App-Key";
 function previewText(value, max = 80) {
   const singleLine = value.replace(/\s+/g, " ").trim();
   if (singleLine.length <= max) return singleLine;
@@ -792,14 +864,53 @@ function buildApiUrl(baseUrl, path, query) {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(query)) {
     if (value === void 0) continue;
-    params.set(key, value);
+    if (typeof value === "string") {
+      params.set(key, value);
+    } else {
+      for (const item of value) {
+        params.append(key, item);
+      }
+    }
   }
   const queryString = params.toString();
   return queryString ? `${url}?${queryString}` : url;
 }
+function normalizeQuery(query) {
+  if (!query) return void 0;
+  const normalized = {};
+  for (const [key, value] of Object.entries(query)) {
+    if (Array.isArray(value)) {
+      normalized[key] = value.map((item) => String(item));
+      continue;
+    }
+    normalized[key] = value === null || value === void 0 ? void 0 : String(value);
+  }
+  return normalized;
+}
+function normalizePlatformFilter(platforms) {
+  const rawValues = Array.isArray(platforms) ? platforms : platforms === null || platforms === void 0 ? [] : [platforms];
+  return Array.from(
+    new Set(
+      rawValues.flatMap((value) => value.split(",")).map((value) => value.trim()).filter(Boolean)
+    )
+  );
+}
+function encodeJsonBody(body) {
+  return body === void 0 ? void 0 : JSON.stringify(body);
+}
+function normalizeThreadWire(wire) {
+  var _b;
+  const _a = wire, { thread_id, session_id, last_active_at } = _a, rest = __objRest(_a, ["thread_id", "session_id", "last_active_at"]);
+  const normalizedLastActiveAt = typeof last_active_at === "number" ? last_active_at : typeof last_active_at === "string" ? Number(last_active_at) : void 0;
+  return __spreadProps(__spreadValues({}, rest), {
+    session_id: (_b = session_id != null ? session_id : thread_id) != null ? _b : "",
+    last_active_at: normalizedLastActiveAt === void 0 || Number.isNaN(normalizedLastActiveAt) ? void 0 : normalizedLastActiveAt
+  });
+}
 function withSessionHeader(sessionId, init) {
   const headers = new Headers(init);
   headers.set(SESSION_ID_HEADER, sessionId);
+  headers.set(THREAD_ID_HEADER, sessionId);
   return headers;
 }
 async function fetchStateResponse(fetchImpl, url, sessionId) {
@@ -807,8 +918,8 @@ async function fetchStateResponse(fetchImpl, url, sessionId) {
     headers: withSessionHeader(sessionId)
   });
 }
-function wrapFetchWithAccountBearer(fetchImpl, getAccountAccessToken) {
-  if (!getAccountAccessToken) return fetchImpl;
+function wrapFetchWithAccountBearer(fetchImpl, getAccountBearer) {
+  if (!getAccountBearer) return fetchImpl;
   return async (input, init) => {
     var _a;
     const baseHeaders = new Headers(
@@ -816,14 +927,14 @@ function wrapFetchWithAccountBearer(fetchImpl, getAccountAccessToken) {
     );
     const fetchWithBearer = async (forceRefresh) => {
       const headers = new Headers(baseHeaders);
-      let accessToken;
+      let bearer;
       try {
-        accessToken = await getAccountAccessToken({ forceRefresh });
+        bearer = await getAccountBearer({ forceRefresh });
       } catch (e) {
-        accessToken = void 0;
+        bearer = void 0;
       }
-      if (accessToken) {
-        headers.set("Authorization", `Bearer ${accessToken}`);
+      if (bearer) {
+        headers.set("Authorization", `Bearer ${bearer}`);
       }
       return fetchImpl(input, __spreadProps(__spreadValues({}, init), { headers }));
     };
@@ -836,10 +947,13 @@ function supportsTokenRefreshSubscription(provider) {
   return typeof (provider == null ? void 0 : provider.subscribe) === "function";
 }
 async function postState(baseUrl, path, payload, sessionId, fetchImpl, apiKey, logger) {
-  const url = `${baseUrl}${path}`;
-  const body = JSON.stringify(payload);
+  const query = {};
+  for (const [key, value] of Object.entries(payload)) {
+    if (value === void 0 || value === null) continue;
+    query[key] = typeof value === "string" ? value : String(value);
+  }
+  const url = buildApiUrl(baseUrl, path, query);
   const headers = new Headers(withSessionHeader(sessionId));
-  headers.set("Content-Type", "application/json");
   if (apiKey) {
     headers.set(APP_KEY_HEADER, apiKey);
   }
@@ -847,7 +961,7 @@ async function postState(baseUrl, path, payload, sessionId, fetchImpl, apiKey, l
     path,
     sessionId,
     hasApiKey: Boolean(apiKey),
-    bodyLength: body.length
+    queryKeys: Object.keys(query)
   });
   let pendingWarning;
   if (typeof setTimeout === "function") {
@@ -855,7 +969,7 @@ async function postState(baseUrl, path, payload, sessionId, fetchImpl, apiKey, l
       logger == null ? void 0 : logger.debug("[aomi][client] POST still pending", {
         path,
         sessionId,
-        bodyLength: body.length
+        queryKeys: Object.keys(query)
       });
     }, 5e3);
   }
@@ -863,8 +977,7 @@ async function postState(baseUrl, path, payload, sessionId, fetchImpl, apiKey, l
   try {
     response = await fetchImpl(url, {
       method: "POST",
-      headers,
-      body
+      headers
     });
   } finally {
     if (pendingWarning) {
@@ -891,11 +1004,11 @@ var AomiClient = class {
     const rawFetchImpl = typeof globalThis.fetch === "function" ? globalThis.fetch.bind(globalThis) : fetchImpl;
     this.fetchImpl = wrapFetchWithAccountBearer(
       fetchImpl,
-      options.getAccountAccessToken
+      options.getAccountBearer
     );
     this.rawFetchImpl = wrapFetchWithAccountBearer(
       rawFetchImpl,
-      options.getAccountAccessToken
+      options.getAccountBearer
     );
     this.logger = options.logger;
     this.sseSubscriber = createSseSubscriber({
@@ -906,8 +1019,8 @@ var AomiClient = class {
       fetchImpl: this.rawFetchImpl,
       logger: this.logger
     });
-    if (supportsTokenRefreshSubscription(options.getAccountAccessToken)) {
-      options.getAccountAccessToken.subscribe(() => {
+    if (supportsTokenRefreshSubscription(options.getAccountBearer)) {
+      options.getAccountBearer.subscribe(() => {
         this.sseSubscriber.reconnect("account-token-refreshed");
       });
     }
@@ -916,21 +1029,75 @@ var AomiClient = class {
   // Chat & State
   // ===========================================================================
   /**
+   * Low-level request escape hatch for the full backend route manifest.
+   * Prefer the typed helpers below for common chat/session/account flows.
+   */
+  async request(method, path, options) {
+    var _a, _b;
+    const url = buildApiUrl(this.baseUrl, path, normalizeQuery(options == null ? void 0 : options.query));
+    const headers = new Headers(options == null ? void 0 : options.headers);
+    if (options == null ? void 0 : options.sessionId) {
+      headers.set(SESSION_ID_HEADER, options.sessionId);
+      headers.set(THREAD_ID_HEADER, options.sessionId);
+    }
+    const apiKey = (_a = options == null ? void 0 : options.apiKey) != null ? _a : this.apiKey;
+    if (apiKey) {
+      headers.set(APP_KEY_HEADER, apiKey);
+    }
+    if ((options == null ? void 0 : options.body) !== void 0 && !headers.has("Content-Type")) {
+      headers.set("Content-Type", "application/json");
+    }
+    const response = await ((options == null ? void 0 : options.raw) ? this.rawFetchImpl : this.fetchImpl)(
+      url,
+      {
+        method,
+        headers,
+        body: encodeJsonBody(options == null ? void 0 : options.body)
+      }
+    );
+    if (!response.ok) {
+      const body = await response.text().catch(() => "");
+      throw new Error(
+        `HTTP ${response.status}: ${response.statusText}${body ? `
+${body}` : ""}`
+      );
+    }
+    if (response.status === 204) {
+      return void 0;
+    }
+    const contentType = (_b = response.headers.get("content-type")) != null ? _b : "";
+    if (contentType.includes("application/json")) {
+      return await response.json();
+    }
+    return await response.text();
+  }
+  /**
    * Fetch current session state (messages, processing status, title).
    */
-  async fetchState(sessionId, userState, clientId) {
-    var _a, _b, _c;
+  async fetchState(sessionId, userState, clientId, options) {
+    var _a, _b, _c, _d;
     const normalizedUserState = stripBulkyPendingFields(
       UserState.normalize(userState)
     );
-    const urlWithSyncParams = buildApiUrl(this.baseUrl, "/api/state", {
+    const applicationId = (_a = options == null ? void 0 : options.applicationId) == null ? void 0 : _a.toString().trim();
+    const stateContext = {
+      app: options == null ? void 0 : options.app,
+      application_id: applicationId || void 0
+    };
+    const urlWithSyncParams = buildApiUrl(this.baseUrl, "/api/thread/state", __spreadProps(__spreadValues({}, stateContext), {
       user_state: normalizedUserState ? JSON.stringify(normalizedUserState) : void 0,
       client_id: clientId
-    });
-    const bareUrl = buildApiUrl(this.baseUrl, "/api/state");
+    }));
+    const bareUrl = buildApiUrl(
+      this.baseUrl,
+      "/api/thread/state",
+      stateContext
+    );
     const shouldRetryWithoutSyncParams = Boolean(normalizedUserState) || Boolean(clientId);
-    (_a = this.logger) == null ? void 0 : _a.debug("[aomi][client] GET /api/state start", {
+    (_b = this.logger) == null ? void 0 : _b.debug("[aomi][client] GET /api/thread/state start", {
       sessionId,
+      app: options == null ? void 0 : options.app,
+      applicationId,
       clientId,
       hasUserState: Boolean(normalizedUserState)
     });
@@ -940,8 +1107,8 @@ var AomiClient = class {
       sessionId
     );
     if (!response.ok && shouldRetryWithoutSyncParams && (response.status === 400 || response.status === 414)) {
-      (_b = this.logger) == null ? void 0 : _b.debug(
-        "[aomi][client] GET /api/state retrying without sync params",
+      (_c = this.logger) == null ? void 0 : _c.debug(
+        "[aomi][client] GET /api/thread/state retrying without sync params",
         {
           sessionId,
           initialStatus: response.status,
@@ -955,7 +1122,7 @@ var AomiClient = class {
         sessionId
       );
     }
-    (_c = this.logger) == null ? void 0 : _c.debug("[aomi][client] GET /api/state response", {
+    (_d = this.logger) == null ? void 0 : _d.debug("[aomi][client] GET /api/thread/state response", {
       sessionId,
       status: response.status,
       ok: response.ok
@@ -969,37 +1136,54 @@ var AomiClient = class {
    * Send a chat message and return updated session state.
    */
   async sendMessage(sessionId, message, options) {
-    var _a, _b, _c;
+    var _a, _b, _c, _d, _e, _f, _g;
     const app = (_a = options == null ? void 0 : options.app) != null ? _a : "default";
     const apiKey = (_b = options == null ? void 0 : options.apiKey) != null ? _b : this.apiKey;
-    const normalizedUserState = UserState.normalize(options == null ? void 0 : options.userState);
-    const payload = { message, app };
-    if (options == null ? void 0 : options.publicKey) {
-      payload.public_key = options.publicKey;
-    }
-    if (normalizedUserState) {
-      payload.user_state = JSON.stringify(normalizedUserState);
-    }
-    if (options == null ? void 0 : options.clientId) {
-      payload.client_id = options.clientId;
-    }
-    (_c = this.logger) == null ? void 0 : _c.debug("[aomi][client] POST /api/chat prepared", {
+    const normalizedUserState = stripBulkyPendingFields(
+      UserState.normalize(options == null ? void 0 : options.userState)
+    );
+    const applicationId = (_c = options == null ? void 0 : options.applicationId) == null ? void 0 : _c.toString().trim();
+    const url = buildApiUrl(this.baseUrl, "/api/thread/chat", {
+      app,
+      application_id: applicationId || void 0,
+      message,
+      user_state: normalizedUserState ? JSON.stringify(normalizedUserState) : void 0,
+      client_id: options == null ? void 0 : options.clientId,
+      payment_method: (_d = options == null ? void 0 : options.paymentMethod) != null ? _d : void 0
+    });
+    (_e = this.logger) == null ? void 0 : _e.debug("[aomi][client] POST /api/thread/chat prepared", {
       sessionId,
       app,
-      publicKey: options == null ? void 0 : options.publicKey,
+      applicationId,
       clientId: options == null ? void 0 : options.clientId,
+      paymentMethod: options == null ? void 0 : options.paymentMethod,
       hasUserState: Boolean(normalizedUserState),
       messagePreview: previewText(message)
     });
-    return postState(
-      this.baseUrl,
-      "/api/chat",
-      payload,
+    const headers = new Headers(withSessionHeader(sessionId));
+    if (apiKey) {
+      headers.set(APP_KEY_HEADER, apiKey);
+    }
+    (_f = this.logger) == null ? void 0 : _f.debug("[aomi][client] POST start", {
+      path: "/api/thread/chat",
       sessionId,
-      this.fetchImpl,
-      apiKey,
-      this.logger
-    );
+      hasApiKey: Boolean(apiKey),
+      url
+    });
+    const response = await this.fetchImpl(url, {
+      method: "POST",
+      headers
+    });
+    (_g = this.logger) == null ? void 0 : _g.debug("[aomi][client] POST response", {
+      path: "/api/thread/chat",
+      sessionId,
+      status: response.status,
+      ok: response.ok
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    return await response.json();
   }
   /**
    * Send a system-level message (e.g. wallet state changes, context switches).
@@ -1012,9 +1196,13 @@ var AomiClient = class {
     if (options == null ? void 0 : options.app) {
       payload.app = options.app;
     }
+    if (options == null ? void 0 : options.applicationId) {
+      payload.application_id = options.applicationId;
+    }
     (_a = this.logger) == null ? void 0 : _a.debug("[aomi][client] POST /api/system prepared", {
       sessionId,
       app: options == null ? void 0 : options.app,
+      applicationId: options == null ? void 0 : options.applicationId,
       messagePreview: previewText(message)
     });
     return postState(
@@ -1032,12 +1220,12 @@ var AomiClient = class {
    */
   async interrupt(sessionId) {
     var _a;
-    (_a = this.logger) == null ? void 0 : _a.debug("[aomi][client] POST /api/interrupt prepared", {
+    (_a = this.logger) == null ? void 0 : _a.debug("[aomi][client] POST /api/thread/interrupt prepared", {
       sessionId
     });
     return postState(
       this.baseUrl,
-      "/api/interrupt",
+      "/api/thread/interrupt",
       {},
       sessionId,
       this.fetchImpl,
@@ -1125,8 +1313,8 @@ var AomiClient = class {
    * backend never returns raw values; the settings page uses this as the
    * source of truth instead of trusting localStorage.
    */
-  async listSecrets(sessionId) {
-    const url = joinApiPath(this.baseUrl, "/api/secrets");
+  async listSecrets(sessionId, clientId) {
+    const url = clientId && clientId.trim().length > 0 ? buildApiUrl(this.baseUrl, "/api/secrets", { client_id: clientId }) : joinApiPath(this.baseUrl, "/api/secrets");
     const response = await this.fetchImpl(url, {
       method: "GET",
       headers: withSessionHeader(sessionId)
@@ -1152,26 +1340,25 @@ var AomiClient = class {
   // ===========================================================================
   /**
    * @deprecated Account bootstrap is handled by session create/chat requests and
-   * the account-token exchange. `/api/settings/account` is now an authenticated
+   * the account-token exchange. `/api/account` is now an authenticated
    * profile endpoint, so this legacy helper intentionally does nothing.
    */
   async ensureAccount(_sessionId, _publicKey) {
     return void 0;
   }
   /**
-   * List all threads for a wallet address.
+   * List all threads for the authenticated account.
    */
-  async listThreads(sessionId, publicKey) {
-    const url = buildApiUrl(this.baseUrl, "/api/sessions", {
-      public_key: publicKey
-    });
+  async listThreads(sessionId) {
+    const url = buildApiUrl(this.baseUrl, "/api/threads");
     const response = await this.fetchImpl(url, {
       headers: withSessionHeader(sessionId)
     });
     if (!response.ok) {
       throw new Error(`Failed to fetch threads: HTTP ${response.status}`);
     }
-    return await response.json();
+    const threads = await response.json();
+    return threads.map(normalizeThreadWire);
   }
   /**
    * Get a single thread by ID.
@@ -1179,7 +1366,7 @@ var AomiClient = class {
   async getThread(sessionId) {
     const url = buildApiUrl(
       this.baseUrl,
-      `/api/sessions/${encodeURIComponent(sessionId)}`
+      `/api/threads/${encodeURIComponent(sessionId)}`
     );
     const response = await this.fetchImpl(url, {
       headers: withSessionHeader(sessionId)
@@ -1187,26 +1374,21 @@ var AomiClient = class {
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
-    return await response.json();
+    return normalizeThreadWire(await response.json());
   }
   /**
    * Create a new thread. The client generates the session ID.
    */
-  async createThread(threadId, publicKey) {
-    const body = {};
-    if (publicKey) body.public_key = publicKey;
-    const url = buildApiUrl(this.baseUrl, "/api/sessions");
+  async createThread(threadId) {
+    const url = buildApiUrl(this.baseUrl, "/api/threads");
     const response = await this.fetchImpl(url, {
       method: "POST",
-      headers: withSessionHeader(threadId, {
-        "Content-Type": "application/json"
-      }),
-      body: JSON.stringify(body)
+      headers: withSessionHeader(threadId)
     });
     if (!response.ok) {
       throw new Error(`Failed to create thread: HTTP ${response.status}`);
     }
-    return await response.json();
+    return normalizeThreadWire(await response.json());
   }
   /**
    * Delete a thread by ID.
@@ -1214,7 +1396,7 @@ var AomiClient = class {
   async deleteThread(sessionId) {
     const url = buildApiUrl(
       this.baseUrl,
-      `/api/sessions/${encodeURIComponent(sessionId)}`
+      `/api/threads/${encodeURIComponent(sessionId)}`
     );
     const response = await this.fetchImpl(url, {
       method: "DELETE",
@@ -1230,7 +1412,7 @@ var AomiClient = class {
   async renameThread(sessionId, newTitle) {
     const url = buildApiUrl(
       this.baseUrl,
-      `/api/sessions/${encodeURIComponent(sessionId)}`
+      `/api/threads/${encodeURIComponent(sessionId)}`
     );
     const response = await this.fetchImpl(url, {
       method: "PATCH",
@@ -1248,7 +1430,7 @@ var AomiClient = class {
    */
   async archiveThread(sessionId) {
     throw new Error(
-      "Failed to archive thread: current backend does not expose /api/sessions/:id/archive"
+      "Failed to archive thread: current backend does not expose /api/threads/:id/archive"
     );
   }
   /**
@@ -1256,7 +1438,7 @@ var AomiClient = class {
    */
   async unarchiveThread(sessionId) {
     throw new Error(
-      "Failed to unarchive thread: current backend does not expose /api/sessions/:id/unarchive"
+      "Failed to unarchive thread: current backend does not expose /api/threads/:id/unarchive"
     );
   }
   // ===========================================================================
@@ -1266,7 +1448,7 @@ var AomiClient = class {
    * Get system events for a session.
    */
   async getSystemEvents(sessionId, count) {
-    const url = buildApiUrl(this.baseUrl, "/api/events", {
+    const url = buildApiUrl(this.baseUrl, "/api/thread/events", {
       count: count !== void 0 ? String(count) : void 0
     });
     const response = await this.fetchImpl(url, {
@@ -1288,8 +1470,9 @@ var AomiClient = class {
    */
   async getApps(sessionId, options) {
     var _a;
-    const url = buildApiUrl(this.baseUrl, "/api/session/apps", {
-      public_key: options == null ? void 0 : options.publicKey
+    const platforms = normalizePlatformFilter(options == null ? void 0 : options.platforms);
+    const url = buildApiUrl(this.baseUrl, "/api/thread/apps", {
+      platform: platforms.length > 0 ? platforms : void 0
     });
     const apiKey = (_a = options == null ? void 0 : options.apiKey) != null ? _a : this.apiKey;
     const headers = new Headers(withSessionHeader(sessionId));
@@ -1302,28 +1485,17 @@ var AomiClient = class {
     }
     const data = await response.json();
     if (!Array.isArray(data)) return [];
-    return data.map((item) => {
-      if (typeof item === "string") {
-        return { name: item };
-      }
-      if (item && typeof item === "object" && "name" in item) {
-        const name = item.name;
-        if (typeof name === "string" && name.trim().length > 0) {
-          return item;
-        }
-      }
-      return null;
-    }).filter((item) => item !== null);
+    return data.map((item) => normalizeAppDescriptor(item)).filter((item) => item !== null);
   }
   /**
    * Fetch the account bound to the authenticated request (resolved from the
    * account bearer). Returns `null` when the session is not bound to a real
-   * user — the backend answers `/api/settings/account` with HTTP 400 for
+   * user — the backend answers `/api/account` with HTTP 400 for
    * anonymous sessions, which is the normal "no bearer / not logged in" case
    * rather than an error.
    */
   async fetchAccountProfile(sessionId) {
-    const url = buildApiUrl(this.baseUrl, "/api/settings/account");
+    const url = buildApiUrl(this.baseUrl, "/api/account");
     const response = await this.rawFetchImpl(url, {
       headers: withSessionHeader(sessionId)
     });
@@ -1336,6 +1508,27 @@ var AomiClient = class {
       );
     }
     return await response.json();
+  }
+  /**
+   * Fetch the full account for the authenticated request. Throws on any
+   * non-OK response; use `fetchAccountProfile` for the null-on-anonymous
+   * variant.
+   */
+  async getAccount(sessionId) {
+    const url = buildApiUrl(this.baseUrl, "/api/account");
+    const response = await this.fetchImpl(url, {
+      headers: withSessionHeader(sessionId)
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to fetch account: HTTP ${response.status}`);
+    }
+    return await response.json();
+  }
+  async createAccountApproval(request) {
+    return this.request("POST", "/api/account/approvals", {
+      body: request,
+      raw: true
+    });
   }
   /**
    * Mint a Privy browser auth URL bound to the current backend session.
@@ -1362,7 +1555,7 @@ var AomiClient = class {
    */
   async getModels(sessionId, options) {
     var _a;
-    const url = buildApiUrl(this.baseUrl, "/api/session/models");
+    const url = buildApiUrl(this.baseUrl, "/api/thread/models");
     const apiKey = (_a = options == null ? void 0 : options.apiKey) != null ? _a : this.apiKey;
     const headers = new Headers(withSessionHeader(sessionId));
     if (apiKey) {
@@ -1380,30 +1573,34 @@ var AomiClient = class {
    * Set the model for a session.
    */
   async setModel(sessionId, rig, options) {
-    var _a;
+    var _a, _b;
     const apiKey = (_a = options == null ? void 0 : options.apiKey) != null ? _a : this.apiKey;
-    const payload = { rig };
-    if (options == null ? void 0 : options.app) {
-      payload.app = options.app;
+    const applicationId = (_b = options == null ? void 0 : options.applicationId) == null ? void 0 : _b.toString().trim();
+    const url = buildApiUrl(this.baseUrl, "/api/thread/model", {
+      rig,
+      app: options == null ? void 0 : options.app,
+      application_id: applicationId || void 0,
+      client_id: options == null ? void 0 : options.clientId
+    });
+    const headers = new Headers(withSessionHeader(sessionId));
+    if (apiKey) {
+      headers.set(APP_KEY_HEADER, apiKey);
     }
-    if (options == null ? void 0 : options.clientId) {
-      payload.client_id = options.clientId;
+    const response = await this.fetchImpl(url, {
+      method: "POST",
+      headers
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to set model: HTTP ${response.status}`);
     }
-    return postState(
-      this.baseUrl,
-      "/api/session/model",
-      payload,
-      sessionId,
-      this.fetchImpl,
-      apiKey
-    );
+    return await response.json();
   }
   /**
-   * List BYOK keys (one per LLM provider) bound to the current session's client.
+   * List BYOK keys (one per LLM provider) bound to the current account.
    */
   async listByokKeys(sessionId) {
     var _a;
-    const url = buildApiUrl(this.baseUrl, "/api/control/provider-keys");
+    const url = buildApiUrl(this.baseUrl, "/api/account/payment");
     const response = await this.fetchImpl(url, {
       headers: withSessionHeader(sessionId)
     });
@@ -1411,13 +1608,13 @@ var AomiClient = class {
       throw new Error(`Failed to get BYOK keys: HTTP ${response.status}`);
     }
     const data = await response.json();
-    return (_a = data.byok_keys) != null ? _a : [];
+    return (_a = data.byok) != null ? _a : [];
   }
   /**
-   * Save or replace a BYOK key for the client bound to this session.
+   * Save or replace a BYOK key for the current account.
    */
   async saveByokKey(sessionId, provider, byokKey, label) {
-    const url = joinApiPath(this.baseUrl, "/api/control/provider-keys");
+    const url = joinApiPath(this.baseUrl, "/api/account/payment/byok");
     const response = await this.fetchImpl(url, {
       method: "POST",
       headers: withSessionHeader(sessionId, {
@@ -1436,12 +1633,12 @@ var AomiClient = class {
     return data.key;
   }
   /**
-   * Delete a BYOK key for the client bound to this session.
+   * Delete a BYOK key for the current account.
    */
   async deleteByokKey(sessionId, provider) {
     const url = buildApiUrl(
       this.baseUrl,
-      `/api/control/provider-keys/${encodeURIComponent(provider)}`
+      `/api/account/payment/byok/${encodeURIComponent(provider)}`
     );
     const response = await this.fetchImpl(url, {
       method: "DELETE",
@@ -1462,7 +1659,7 @@ var AomiClient = class {
    * Sends full tx payloads — the backend does not look up by ID.
    */
   async simulateBatch(sessionId, transactions, options) {
-    const url = joinApiPath(this.baseUrl, "/api/simulate");
+    const url = joinApiPath(this.baseUrl, "/api/exec/simulate");
     const headers = new Headers(
       withSessionHeader(sessionId, { "Content-Type": "application/json" })
     );
@@ -1501,11 +1698,22 @@ ${body}` : ""}`
 };
 
 // src/account-session.ts
+var AccountCredentialUnavailableError = class extends Error {
+  constructor(message = "Account credential is not available yet") {
+    super(message);
+    this.name = "AccountCredentialUnavailableError";
+  }
+};
 var DEFAULT_REFRESH_BEFORE_EXPIRY_MS = 2 * 60 * 1e3;
 var FAILURE_COOLDOWN_MS = 30 * 1e3;
-function createAccountAccessTokenProvider({
+var CREDENTIAL_UNAVAILABLE_RETRY_DELAYS_MS = [250, 1e3, 3e3];
+var EXPIRES_AT_MILLISECONDS_THRESHOLD = 1e11;
+var DEFAULT_BETTER_AUTH_TOKEN_PATH = "/api/aomi/account-bearer";
+var DEFAULT_BETTER_AUTH_PROVIDER_EXCHANGE_PATH = "/api/auth/aomi/provider/exchange";
+function createAccountBearerProvider({
   baseUrl,
   getProviderCredential,
+  betterAuthToken,
   fetch: fetchImpl = fetch,
   now = Date.now,
   refreshBeforeExpiryMs = DEFAULT_REFRESH_BEFORE_EXPIRY_MS
@@ -1514,40 +1722,70 @@ function createAccountAccessTokenProvider({
   let pending = null;
   let refreshTimer = null;
   let failedAt = null;
+  let credentialUnavailableRetryAfter = 0;
+  let credentialUnavailableRetryCount = 0;
   const listeners = /* @__PURE__ */ new Set();
   const scheduleRefresh = (session) => {
     if (refreshTimer) clearTimeout(refreshTimer);
     const refreshAt = session.expires_at * 1e3 - refreshBeforeExpiryMs;
     refreshTimer = setTimeout(
       () => {
-        void getAccountAccessToken({ forceRefresh: true }).catch(
+        void getAccountBearer({ forceRefresh: true }).catch(
           () => void 0
         );
       },
       Math.max(refreshAt - now(), 1e3)
     );
   };
-  const exchange = async () => {
-    const credential = await getProviderCredential();
+  const fetchBetterAuthToken = async () => {
+    var _a;
     const response = await fetchImpl(
-      `${baseUrl.replace(/\/+$/, "")}/api/account/sessions/exchange`,
+      joinUrl(
+        (_a = betterAuthToken == null ? void 0 : betterAuthToken.baseUrl) != null ? _a : baseUrl,
+        DEFAULT_BETTER_AUTH_TOKEN_PATH
+      ),
       {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          provider: credential.provider,
-          provider_token: credential.providerToken
-        })
+        method: "GET",
+        credentials: "include",
+        headers: { Accept: "application/json" }
       }
     );
-    if (!response.ok) {
-      throw new Error(
-        `Failed to exchange account credential: HTTP ${response.status}`
-      );
-    }
-    return await response.json();
+    if (!response.ok) return null;
+    const body = await response.json();
+    return normalizeBetterAuthTokenResponse(body);
   };
-  const getAccountAccessToken = async ({
+  const exchangeBetterAuthProviderCredential = async () => {
+    var _a;
+    if ((betterAuthToken == null ? void 0 : betterAuthToken.providerExchange) === false || !getProviderCredential) {
+      return null;
+    }
+    const credential = await getProviderCredential();
+    const response = await fetchImpl(
+      joinUrl(
+        (_a = betterAuthToken == null ? void 0 : betterAuthToken.baseUrl) != null ? _a : baseUrl,
+        DEFAULT_BETTER_AUTH_PROVIDER_EXCHANGE_PATH
+      ),
+      {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(credential)
+      }
+    );
+    if (!response.ok) return null;
+    return fetchBetterAuthToken();
+  };
+  const exchange = async () => {
+    const betterAuthJwt = await fetchBetterAuthToken();
+    if (betterAuthJwt) return betterAuthJwt;
+    const exchangedBetterAuthJwt = await exchangeBetterAuthProviderCredential();
+    if (exchangedBetterAuthJwt) return exchangedBetterAuthJwt;
+    throw new Error("Failed to exchange Better Auth provider credential");
+  };
+  const getAccountBearer = async ({
     forceRefresh = false
   } = {}) => {
     var _a;
@@ -1555,12 +1793,17 @@ function createAccountAccessTokenProvider({
     if (!forceRefresh && cached && now() < refreshAt) {
       return cached.access_token;
     }
-    if (!forceRefresh && failedAt !== null && now() - failedAt < FAILURE_COOLDOWN_MS) {
+    if (failedAt !== null && now() - failedAt < FAILURE_COOLDOWN_MS && !forceRefresh) {
+      return void 0;
+    }
+    if (!forceRefresh && now() < credentialUnavailableRetryAfter) {
       return void 0;
     }
     if (!pending) {
       pending = exchange().then((next) => {
         failedAt = null;
+        credentialUnavailableRetryAfter = 0;
+        credentialUnavailableRetryCount = 0;
         const previous = cached;
         cached = next;
         scheduleRefresh(next);
@@ -1568,8 +1811,21 @@ function createAccountAccessTokenProvider({
           for (const listener of listeners) listener();
         }
         return next;
-      }).catch(() => {
-        failedAt = now();
+      }).catch((error) => {
+        if (error instanceof AccountCredentialUnavailableError) {
+          const retryDelay = CREDENTIAL_UNAVAILABLE_RETRY_DELAYS_MS[credentialUnavailableRetryCount];
+          if (retryDelay === void 0) {
+            failedAt = now();
+            credentialUnavailableRetryAfter = 0;
+          } else {
+            credentialUnavailableRetryCount += 1;
+            credentialUnavailableRetryAfter = now() + retryDelay;
+          }
+        } else {
+          failedAt = now();
+          credentialUnavailableRetryAfter = 0;
+          credentialUnavailableRetryCount = 0;
+        }
         return null;
       }).finally(() => {
         pending = null;
@@ -1577,16 +1833,73 @@ function createAccountAccessTokenProvider({
     }
     return (_a = await pending) == null ? void 0 : _a.access_token;
   };
-  getAccountAccessToken.subscribe = (listener) => {
+  getAccountBearer.subscribe = (listener) => {
     listeners.add(listener);
     return () => listeners.delete(listener);
   };
-  getAccountAccessToken.dispose = () => {
+  getAccountBearer.dispose = () => {
     if (refreshTimer) clearTimeout(refreshTimer);
     refreshTimer = null;
     listeners.clear();
   };
-  return getAccountAccessToken;
+  return getAccountBearer;
+}
+function joinUrl(baseUrl, path) {
+  return `${baseUrl.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`;
+}
+function normalizeBetterAuthTokenResponse(response) {
+  var _a, _b;
+  const token = typeof response.bearer === "string" && response.bearer ? response.bearer : "";
+  if (!token) {
+    throw new Error("Better Auth token response is missing token");
+  }
+  let payload = null;
+  const getPayload = () => {
+    payload != null ? payload : payload = decodeJwtPayload(token);
+    return payload;
+  };
+  const expiresAt = Number(
+    (_b = (_a = response.expires_at) != null ? _a : response.expiresAt) != null ? _b : getPayload().exp
+  );
+  if (!Number.isFinite(expiresAt) || expiresAt <= 0) {
+    throw new Error("Better Auth token is missing a valid exp claim");
+  }
+  if (expiresAt > EXPIRES_AT_MILLISECONDS_THRESHOLD) {
+    throw new Error("Better Auth token expires_at must be seconds, not ms");
+  }
+  const getPayloadUserId = () => {
+    const claims = getPayload();
+    if (typeof claims.aomi_user_id === "string" && claims.aomi_user_id) {
+      return claims.aomi_user_id;
+    }
+    return typeof claims.sub === "string" ? claims.sub : "";
+  };
+  const userId = typeof response.user_id === "string" && response.user_id ? response.user_id : typeof response.userId === "string" && response.userId ? response.userId : getPayloadUserId();
+  if (!userId) {
+    throw new Error("Better Auth token is missing a user id claim");
+  }
+  return {
+    access_token: token,
+    token_type: "Bearer",
+    expires_at: expiresAt,
+    user_id: userId
+  };
+}
+function decodeJwtPayload(token) {
+  const [, payload] = token.split(".");
+  if (!payload) throw new Error("Better Auth token is not a JWT");
+  return JSON.parse(decodeBase64Url(payload));
+}
+function decodeBase64Url(value) {
+  const normalized = value.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(value.length / 4) * 4, "=");
+  if (typeof globalThis.atob === "function") {
+    return globalThis.atob(normalized);
+  }
+  const BufferCtor = globalThis.Buffer;
+  if (BufferCtor) {
+    return BufferCtor.from(normalized, "base64").toString("utf8");
+  }
+  throw new Error("No base64 decoder is available");
 }
 
 // src/types.ts
@@ -2060,14 +2373,34 @@ function toViemSignMessageArgs(payload) {
 }
 
 // src/session/events.ts
+function aomiMessagesEqual(a, b) {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    const x = a[i];
+    const y = b[i];
+    if (x.sender !== y.sender || x.content !== y.content || x.timestamp !== y.timestamp || x.is_streaming !== y.is_streaming) {
+      return false;
+    }
+    const xt = x.tool_result;
+    const yt = y.tool_result;
+    if (xt !== yt) {
+      if (!xt || !yt) return false;
+      if (xt[0] !== yt[0] || xt[1] !== yt[1]) return false;
+    }
+  }
+  return true;
+}
 function applySessionState(state, deps) {
   var _a;
   if (state.user_state) {
     deps.resolveUserState(state.user_state);
   }
   if (state.messages) {
-    deps.setMessages(state.messages);
-    deps.emit("messages", state.messages);
+    if (!aomiMessagesEqual(state.messages, deps.getMessages())) {
+      deps.setMessages(state.messages);
+      deps.emit("messages", state.messages);
+    }
   }
   if (state.title) {
     deps.setTitle(state.title);
@@ -2613,17 +2946,6 @@ var SessionWalletController = class {
 };
 
 // src/session/index.ts
-function legacySessionPublicKey(userState) {
-  var _a;
-  const address3 = UserState.address(userState);
-  if (!(address3 == null ? void 0 : address3.startsWith("0x"))) {
-    return void 0;
-  }
-  if (UserState.chainId(userState) === void 0 && !((_a = userState == null ? void 0 : userState.evm) == null ? void 0 : _a.address)) {
-    return void 0;
-  }
-  return address3;
-}
 var ClientSession = class extends TypedEventEmitter {
   constructor(clientOrOptions, sessionOptions) {
     var _a, _b, _c, _d, _e;
@@ -2639,8 +2961,9 @@ var ClientSession = class extends TypedEventEmitter {
     this.client = clientOrOptions instanceof AomiClient ? clientOrOptions : new AomiClient(clientOrOptions);
     this.sessionId = (_a = sessionOptions == null ? void 0 : sessionOptions.sessionId) != null ? _a : crypto.randomUUID();
     this.app = (_b = sessionOptions == null ? void 0 : sessionOptions.app) != null ? _b : "default";
-    this.publicKey = sessionOptions == null ? void 0 : sessionOptions.publicKey;
+    this.applicationId = sessionOptions == null ? void 0 : sessionOptions.applicationId;
     this.apiKey = sessionOptions == null ? void 0 : sessionOptions.apiKey;
+    this.paymentMethod = sessionOptions == null ? void 0 : sessionOptions.paymentMethod;
     const initialUserState = UserState.reconcile(
       void 0,
       sessionOptions == null ? void 0 : sessionOptions.userState
@@ -2677,10 +3000,11 @@ var ClientSession = class extends TypedEventEmitter {
     this.assertOpen();
     const response = await this.client.sendMessage(this.sessionId, message, {
       app: this.app,
-      publicKey: this.publicKey,
+      applicationId: this.applicationId,
       apiKey: this.apiKey,
       userState: this.userState,
-      clientId: this.clientId
+      clientId: this.clientId,
+      paymentMethod: this.paymentMethod
     });
     this.assertUserStateAligned(response.user_state);
     this.applyState(response);
@@ -2702,10 +3026,11 @@ var ClientSession = class extends TypedEventEmitter {
     this.assertOpen();
     const response = await this.client.sendMessage(this.sessionId, message, {
       app: this.app,
-      publicKey: this.publicKey,
+      applicationId: this.applicationId,
       apiKey: this.apiKey,
       userState: this.userState,
-      clientId: this.clientId
+      clientId: this.clientId,
+      paymentMethod: this.paymentMethod
     });
     this.assertUserStateAligned(response.user_state);
     this.applyState(response);
@@ -2818,7 +3143,7 @@ var ClientSession = class extends TypedEventEmitter {
   syncRuntimeOptions(options) {
     var _a;
     this.app = options.app;
-    this.publicKey = options.publicKey;
+    this.applicationId = options.applicationId;
     this.apiKey = options.apiKey;
     this.clientId = (_a = options.clientId) != null ? _a : this.clientId;
     if (options.userState) {
@@ -2829,13 +3154,6 @@ var ClientSession = class extends TypedEventEmitter {
     const previousSerialized = stableUserStateString(this.userState);
     this.userState = UserState.reconcile(this.userState, userState);
     const nextSerialized = stableUserStateString(this.userState);
-    const publicKey = legacySessionPublicKey(this.userState);
-    const isConnected3 = UserState.isConnected(this.userState);
-    if (publicKey && isConnected3 !== false) {
-      this.publicKey = publicKey;
-    } else {
-      this.publicKey = void 0;
-    }
     this.walletController.sync();
     if (!(opts == null ? void 0 : opts.skipEmit) && this.userState && previousSerialized !== nextSerialized) {
       this.emit("user_state_updated", this.userState);
@@ -2866,7 +3184,8 @@ var ClientSession = class extends TypedEventEmitter {
     const state = await this.client.fetchState(
       this.sessionId,
       this.userState,
-      this.clientId
+      this.clientId,
+      { app: this.app, applicationId: this.applicationId }
     );
     this.assertUserStateAligned(state.user_state);
     this.applyState(state);
@@ -2888,7 +3207,8 @@ var ClientSession = class extends TypedEventEmitter {
     const state = await this.client.fetchState(
       this.sessionId,
       this.userState,
-      this.clientId
+      this.clientId,
+      { app: this.app, applicationId: this.applicationId }
     );
     this.assertUserStateAligned(state.user_state);
     this.applyState(state);
@@ -2929,7 +3249,8 @@ var ClientSession = class extends TypedEventEmitter {
       const state = await this.client.fetchState(
         this.sessionId,
         this.userState,
-        this.clientId
+        this.clientId,
+        { app: this.app, applicationId: this.applicationId }
       );
       if (!this.pollTimer) return;
       this.assertUserStateAligned(state.user_state);
@@ -2959,6 +3280,7 @@ var ClientSession = class extends TypedEventEmitter {
       setMessages: (messages) => {
         this._messages = messages;
       },
+      getMessages: () => this.getMessages(),
       setTitle: (title) => {
         this._title = title;
       },
@@ -2983,7 +3305,8 @@ var ClientSession = class extends TypedEventEmitter {
   async sendSystemEvent(type, payload) {
     const message = JSON.stringify({ type, payload });
     await this.client.sendSystemMessage(this.sessionId, message, {
-      app: this.app
+      app: this.app,
+      applicationId: this.applicationId
     });
   }
   resolvePending() {
@@ -3011,6 +3334,7 @@ import {
   arbitrum,
   optimism,
   base,
+  baseSepolia,
   sepolia,
   linea,
   lineaSepolia,
@@ -3062,6 +3386,7 @@ var SUPPORTED_CHAINS = [
   { id: 137, name: "Polygon", ticker: "MATIC" },
   { id: 42161, name: "Arbitrum", ticker: "ARB" },
   { id: 8453, name: "Base", ticker: "BASE" },
+  { id: 84532, name: "Base Sepolia", ticker: "ETH" },
   { id: 10, name: "Optimism", ticker: "OP" },
   { id: 11155111, name: "Sepolia", ticker: "SEP" },
   { id: 59144, name: "Linea Mainnet", ticker: "LINEA" },
@@ -3079,6 +3404,7 @@ var ALCHEMY_CHAIN_SLUGS = {
   137: "polygon-mainnet",
   42161: "arb-mainnet",
   8453: "base-mainnet",
+  84532: "base-sepolia",
   10: "opt-mainnet",
   11155111: "eth-sepolia",
   59144: "linea-mainnet",
@@ -3090,6 +3416,7 @@ var CHAINS_BY_ID = {
   42161: arbitrum,
   10: optimism,
   8453: base,
+  84532: baseSepolia,
   11155111: sepolia,
   59144: linea,
   59141: lineaSepolia,
@@ -3844,6 +4171,16 @@ function getSessionOwnerParams(owner) {
       return { kind: "unsupported_adapter", adapter: owner.adapter };
   }
 }
+function getExternalWalletOwnerParams(owner) {
+  return {
+    kind: "ready",
+    ownerParams: {
+      para: void 0,
+      signer: owner.signer,
+      address: owner.address
+    }
+  };
+}
 function getOwnerParams(owner) {
   if (!owner) {
     return { kind: "missing" };
@@ -3853,6 +4190,8 @@ function getOwnerParams(owner) {
       return getDirectOwnerParams(owner);
     case "session":
       return getSessionOwnerParams(owner);
+    case "external-wallet":
+      return getExternalWalletOwnerParams(owner);
   }
 }
 function getMissingOwnerState(resolved, provider) {
@@ -3871,6 +4210,16 @@ function getUnsupportedAdapterState(resolved, adapter) {
     account: null,
     pending: false,
     error: new Error(`Session adapter "${adapter}" is not implemented.`)
+  };
+}
+function getUnsupportedOwnerState(resolved, provider, ownerKind, message) {
+  return {
+    resolved,
+    account: null,
+    pending: false,
+    error: new Error(
+      message != null ? message : `${provider} AA does not support ${ownerKind} owners in this build.`
+    )
   };
 }
 
@@ -3993,6 +4342,14 @@ async function createAlchemyAAState(options) {
       };
     }
   }
+  if (owner.kind === "external-wallet") {
+    return getUnsupportedOwnerState(
+      execution,
+      "alchemy",
+      owner.kind,
+      "Alchemy AA external-wallet owners are not implemented yet. Use Pimlico for sessionless external-wallet 4337 execution."
+    );
+  }
   if (!apiKey) {
     return {
       resolved: execution,
@@ -4080,7 +4437,9 @@ async function createAlchemyWalletApisState(params) {
       const result = await alchemyClient.sendCalls(__spreadProps(__spreadValues({}, params.resolved.mode === "4337" ? { account: accountAddress } : {}), {
         calls
       }));
-      aaDebug(`${params.resolved.mode}:sendCalls:submitted`, { callId: result.id });
+      aaDebug(`${params.resolved.mode}:sendCalls:submitted`, {
+        callId: result.id
+      });
       const status = await alchemyClient.waitForCallsStatus({ id: result.id });
       const transactionHash = (_b = (_a = status.receipts) == null ? void 0 : _a[0]) == null ? void 0 : _b.transactionHash;
       aaDebug(`${params.resolved.mode}:sendCalls:receipt`, {
@@ -4089,7 +4448,9 @@ async function createAlchemyWalletApisState(params) {
         receipts: (_d = (_c = status.receipts) == null ? void 0 : _c.length) != null ? _d : 0
       });
       if (!transactionHash) {
-        throw new Error("Alchemy Wallets API did not return a transaction hash.");
+        throw new Error(
+          "Alchemy Wallets API did not return a transaction hash."
+        );
       }
       return { transactionHash };
     } catch (error) {
@@ -4251,15 +4612,15 @@ async function createPimlicoAAState(options) {
   if (ownerParams.kind === "unsupported_adapter") {
     return getUnsupportedAdapterState(execution, ownerParams.adapter);
   }
-  const localSessionSigner = owner.kind === "session" ? resolvePimlicoSessionSigner(ownerParams.ownerParams) : null;
+  const permissionlessSigner = owner.kind === "session" || owner.kind === "external-wallet" ? resolvePimlicoSessionSigner(ownerParams.ownerParams) : null;
   try {
-    const signer = owner.kind === "direct" ? privateKeyToAccount4(owner.privateKey) : localSessionSigner;
+    const signer = owner.kind === "direct" ? privateKeyToAccount4(owner.privateKey) : permissionlessSigner;
     if (signer) {
       return await createPimlicoPermissionlessState({
         resolved: execution,
         chain,
         signer,
-        externalSigner: owner.kind === "session" && "signer" in ownerParams.ownerParams ? ownerParams.ownerParams.signer : void 0,
+        externalSigner: (owner.kind === "session" || owner.kind === "external-wallet") && "signer" in ownerParams.ownerParams ? ownerParams.ownerParams.signer : void 0,
         rpcUrl: options.rpcUrl,
         apiKey,
         mode: effectiveMode
@@ -4372,7 +4733,9 @@ function rejectExternalWallet7702(signer) {
 function adaptPimlicoSdkAccount(account, address3) {
   const lowered = account.provider.toLowerCase();
   if (lowered !== "alchemy" && lowered !== "pimlico") {
-    throw new Error(`Unsupported AA provider from Pimlico SDK: ${account.provider}`);
+    throw new Error(
+      `Unsupported AA provider from Pimlico SDK: ${account.provider}`
+    );
   }
   const provider = lowered;
   if (account.mode === "4337") {
@@ -4543,6 +4906,7 @@ async function createAAProviderState(options) {
 }
 export {
   ALCHEMY_CHAIN_SLUGS,
+  AccountCredentialUnavailableError,
   AomiClient,
   CHAINS_BY_ID,
   CHAIN_NAMES,
@@ -4558,11 +4922,12 @@ export {
   UserState,
   aaModeFromExecutionKind,
   adaptSmartAccount,
+  appIdentityKey,
   appendFeeCallToPayload,
   buildAAExecutionPlan,
   buildFeeAAWalletCall,
   createAAProviderState,
-  createAccountAccessTokenProvider,
+  createAccountBearerProvider,
   createAlchemyAAProvider,
   createPimlicoAAProvider,
   executeWalletCalls,
@@ -4576,6 +4941,7 @@ export {
   isSystemNotice,
   monad,
   monadTestnet,
+  normalizeAppDescriptor,
   normalizeEip712Payload,
   normalizeSimulatedFee,
   normalizeSolanaSignMessagePayload,

@@ -178,7 +178,7 @@ export function createSseSubscriber({
         if (subscription.lastEventId) {
           headers.set("Last-Event-ID", subscription.lastEventId);
         }
-        const response = await fetchImpl(`${backendUrl}/api/updates`, {
+        const response = await fetchImpl(`${backendUrl}/api/thread/updates`, {
           headers,
           signal: controller.signal,
         });

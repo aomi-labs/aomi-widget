@@ -1,7 +1,7 @@
 // =============================================================================
-// CLI UserState — end-to-end shape per tmp.md table
+// CLI UserState — end-to-end shape per docs/generated/userstate-shape-reference.md table
 // =============================================================================
-// Replicates the rows of `tmp.md` for the CLI paths only. Drives the
+// Replicates the rows of `docs/generated/userstate-shape-reference.md` for the CLI paths only. Drives the
 // real `ClientSession` + `buildCliUserState` + `session.resolveWallet`
 // pipeline (no network — the SSE subscribe is the only client method
 // invoked). Each test asserts the exact UserState shape the table claims.
@@ -30,8 +30,9 @@ function fakeClient(): AomiClient {
   // the network at all. Real instance + stubbed subscribe satisfies the
   // type guard without leaking any HTTP from these tests.
   const client = new AomiClient({ baseUrl: "http://test.invalid" });
-  (client as unknown as { subscribeSSE: AomiClient["subscribeSSE"] }).subscribeSSE =
-    () => () => {};
+  (
+    client as unknown as { subscribeSSE: AomiClient["subscribeSSE"] }
+  ).subscribeSSE = () => () => {};
   return client;
 }
 
@@ -57,7 +58,7 @@ describe("CLI UserState — Table A connect-time", () => {
 
     expect(state).toEqual({
       evm: { address: EOA, chain_id: CHAIN_ID },
-      connection: { is_connected: true, primary_family: "evm" },
+      connection: { is_connected: true },
       ext: { client_type: "ts_cli" },
     });
     // Per Table A: no AA block at all (walletKind derives to eoa).

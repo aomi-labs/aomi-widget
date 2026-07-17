@@ -43,8 +43,16 @@ var __export = (target, all) => {
 var errors_exports = {};
 __export(errors_exports, {
   CliExit: () => CliExit,
-  fatal: () => fatal
+  DeployCliError: () => DeployCliError,
+  fatal: () => fatal,
+  mapDeployHttpError: () => mapDeployHttpError
 });
+function mapDeployHttpError(status, message) {
+  if (status === 401 || status === 403) {
+    return new DeployCliError("AUTH_FAILED", message);
+  }
+  return new DeployCliError("BACKEND_ERROR", message);
+}
 function fatal(message) {
   const RED = "\x1B[31m";
   const DIM2 = "\x1B[2m";
@@ -59,9 +67,12 @@ function fatal(message) {
     }
     console.error(`${DIM2}${detail}${RESET2}`);
   }
-  throw new CliExit(1);
+  if (process.env.AOMI_CLI_STRICT_EXIT === "1") {
+    throw new CliExit(1);
+  }
+  process.exit(1);
 }
-var CliExit;
+var CliExit, DeployCliError;
 var init_errors = __esm({
   "src/cli/errors.ts"() {
     "use strict";
@@ -69,6 +80,13 @@ var init_errors = __esm({
       constructor(code) {
         super();
         this.code = code;
+      }
+    };
+    DeployCliError = class extends Error {
+      constructor(errorCode, message) {
+        super(message);
+        this.name = "DeployCliError";
+        this.errorCode = errorCode;
       }
     };
   }
@@ -82,6 +100,7 @@ import {
   arbitrum,
   optimism,
   base,
+  baseSepolia,
   sepolia,
   linea,
   lineaSepolia,
@@ -137,6 +156,7 @@ var init_chains = __esm({
       { id: 137, name: "Polygon", ticker: "MATIC" },
       { id: 42161, name: "Arbitrum", ticker: "ARB" },
       { id: 8453, name: "Base", ticker: "BASE" },
+      { id: 84532, name: "Base Sepolia", ticker: "ETH" },
       { id: 10, name: "Optimism", ticker: "OP" },
       { id: 11155111, name: "Sepolia", ticker: "SEP" },
       { id: 59144, name: "Linea Mainnet", ticker: "LINEA" },
@@ -154,6 +174,7 @@ var init_chains = __esm({
       137: "polygon-mainnet",
       42161: "arb-mainnet",
       8453: "base-mainnet",
+      84532: "base-sepolia",
       10: "opt-mainnet",
       11155111: "eth-sepolia",
       59144: "linea-mainnet",
@@ -165,6 +186,7 @@ var init_chains = __esm({
       42161: arbitrum,
       10: optimism,
       8453: base,
+      84532: baseSepolia,
       11155111: sepolia,
       59144: linea,
       59141: lineaSepolia,
@@ -172,6 +194,96 @@ var init_chains = __esm({
       10143: monadTestnet,
       31337: foundry
     };
+  }
+});
+
+// src/cli/solana-signer.ts
+import {
+  Keypair,
+  Transaction,
+  VersionedTransaction
+} from "@solana/web3.js";
+import bs58 from "bs58";
+function parseSolanaKeypairSecret(input2) {
+  const trimmed = input2.trim();
+  if (!trimmed) {
+    throw new Error("Solana keypair secret is empty.");
+  }
+  let bytes;
+  if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+    const parsed = JSON.parse(trimmed);
+    if (!Array.isArray(parsed) || parsed.some((value) => typeof value !== "number")) {
+      throw new Error(
+        "Solana keypair JSON must be an array of byte values (e.g. `[1,2,...,64]`)."
+      );
+    }
+    bytes = Uint8Array.from(parsed);
+  } else {
+    try {
+      bytes = bs58.decode(trimmed);
+    } catch (err) {
+      throw new Error(
+        `Failed to decode Solana keypair as base58: ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
+  }
+  if (bytes.length !== 64) {
+    throw new Error(
+      `Solana keypair secret must be 64 bytes (got ${bytes.length}). Use the full secret key, not just the seed.`
+    );
+  }
+  return Keypair.fromSecretKey(bytes);
+}
+function decodeBase64(value) {
+  if (typeof Buffer !== "undefined") {
+    return new Uint8Array(Buffer.from(value, "base64"));
+  }
+  const binary = atob(value);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+function encodeBase64(bytes) {
+  if (typeof Buffer !== "undefined") {
+    return Buffer.from(bytes).toString("base64");
+  }
+  let binary = "";
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+function signSolanaTransaction(unsignedTxBase64, keypair) {
+  const bytes = decodeBase64(unsignedTxBase64);
+  try {
+    const versioned = VersionedTransaction.deserialize(bytes);
+    versioned.sign([keypair]);
+    return {
+      signer: keypair.publicKey.toBase58(),
+      signedTxBase64: encodeBase64(versioned.serialize())
+    };
+  } catch (versionedErr) {
+    try {
+      const legacy = Transaction.from(bytes);
+      legacy.partialSign(keypair);
+      return {
+        signer: keypair.publicKey.toBase58(),
+        signedTxBase64: encodeBase64(legacy.serialize())
+      };
+    } catch (legacyErr) {
+      const versionedMsg = versionedErr instanceof Error ? versionedErr.message : String(versionedErr);
+      const legacyMsg = legacyErr instanceof Error ? legacyErr.message : String(legacyErr);
+      throw new Error(
+        `Failed to deserialize Solana transaction (versioned: ${versionedMsg}; legacy: ${legacyMsg}).`
+      );
+    }
+  }
+}
+var init_solana_signer = __esm({
+  "src/cli/solana-signer.ts"() {
+    "use strict";
   }
 });
 
@@ -194,7 +306,23 @@ function normalizePrivateKey(value) {
   if (value === void 0) return void 0;
   const trimmed = value.trim();
   if (!trimmed) return void 0;
-  return trimmed.startsWith("0x") ? trimmed : `0x${trimmed}`;
+  if (!EVM_PRIVATE_KEY_PATTERN.test(trimmed)) {
+    fatal("Invalid private key. Expected a 0x-prefixed 32-byte hex string.");
+  }
+  return trimmed;
+}
+function validateSolanaPrivateKey(value) {
+  if (value === void 0) return void 0;
+  const trimmed = value.trim();
+  if (!trimmed) return void 0;
+  try {
+    parseSolanaKeypairSecret(trimmed);
+  } catch (err) {
+    fatal(
+      `Invalid Solana private key: ${err instanceof Error ? err.message : String(err)}`
+    );
+  }
+  return trimmed;
 }
 function parseAAProvider(value) {
   if (value === void 0 || value.trim() === "") return void 0;
@@ -210,23 +338,34 @@ function parseAAMode(value) {
   }
   fatal("Unsupported AA mode. Use `4337` or `7702`.");
 }
+function parsePaymentMethod(value) {
+  if (value === void 0 || value.trim() === "") return void 0;
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "coinbase") {
+    return normalized;
+  }
+  fatal("Unsupported payment method. Use `coinbase`.");
+}
+var EVM_PRIVATE_KEY_PATTERN;
 var init_validation = __esm({
   "src/cli/validation.ts"() {
     "use strict";
     init_chains();
     init_errors();
+    init_solana_signer();
+    EVM_PRIVATE_KEY_PATTERN = /^0x[0-9a-fA-F]{64}$/;
   }
 });
 
 // src/cli/commands/defs/shared.ts
 import { privateKeyToAccount } from "viem/accounts";
-function parseAccountProvider(raw) {
+function parseEmbeddedProvider(raw) {
   if (!raw) return void 0;
   const normalized = raw.trim().toLowerCase();
   if (normalized === "para" || normalized === "privy") {
     return normalized;
   }
-  fatal(`Unknown --account-provider value "${raw}". Use "para" or "privy".`);
+  fatal(`Unknown --embedded-provider value "${raw}". Use "para" or "privy".`);
 }
 function parseSvmCluster(raw) {
   if (!raw) return void 0;
@@ -243,7 +382,9 @@ function parseSvmCluster(raw) {
     case "solana:testnet":
       return "solana:testnet";
     default:
-      fatal(`Unknown --cluster value "${raw}". Use "mainnet-beta", "devnet", or "testnet".`);
+      fatal(
+        `Unknown --cluster value "${raw}". Use "mainnet-beta", "devnet", or "testnet".`
+      );
   }
 }
 function str(value) {
@@ -254,7 +395,7 @@ function derivePublicKeyFromPrivateKey(privateKey) {
   try {
     return privateKeyToAccount(privateKey).address;
   } catch (e) {
-    fatal("Invalid private key. Pass a 32-byte hex key via `--private-key` or `PRIVATE_KEY`.");
+    fatal("Invalid private key. Expected a 0x-prefixed 32-byte hex string.");
   }
 }
 function resolveExecution(args) {
@@ -270,68 +411,76 @@ function resolveExecution(args) {
   return void 0;
 }
 function buildCliConfig(args) {
-  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o;
+  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q;
   const execution = resolveExecution(args);
   const privateKey = normalizePrivateKey(
     (_a3 = str(args["private-key"])) != null ? _a3 : process.env.PRIVATE_KEY
   );
   const configuredPublicKey = (_b = str(args["public-key"])) != null ? _b : process.env.AOMI_PUBLIC_KEY;
   const derivedPublicKey = derivePublicKeyFromPrivateKey(privateKey);
-  const accountAccessToken = (_c = str(args["account-bearer"])) != null ? _c : process.env.AOMI_ACCOUNT_BEARER;
-  const accountProvider = parseAccountProvider(
-    (_d = str(args["account-provider"])) != null ? _d : process.env.AOMI_ACCOUNT_PROVIDER
+  const accountBearer = (_c = str(args["account-bearer"])) != null ? _c : process.env.AOMI_ACCOUNT_BEARER;
+  const embeddedProvider = parseEmbeddedProvider(
+    (_d = str(args["embedded-provider"])) != null ? _d : process.env.AOMI_EMBEDDED_PROVIDER
   );
-  const accountProviderToken = (_e = str(args["account-provider-token"])) != null ? _e : process.env.AOMI_ACCOUNT_PROVIDER_TOKEN;
+  const embeddedProviderToken = (_e = str(args["embedded-provider-token"])) != null ? _e : process.env.AOMI_EMBEDDED_PROVIDER_TOKEN;
   if (configuredPublicKey && derivedPublicKey && configuredPublicKey.toLowerCase() !== derivedPublicKey.toLowerCase()) {
-    fatal("`--public-key` does not match the address derived from `--private-key`.");
+    fatal(
+      "`--public-key` does not match the address derived from `--private-key`."
+    );
   }
   const aaProvider = parseAAProvider(
     (_f = str(args["aa-provider"])) != null ? _f : process.env.AOMI_AA_PROVIDER
   );
-  const aaMode2 = parseAAMode(
-    (_g = str(args["aa-mode"])) != null ? _g : process.env.AOMI_AA_MODE
-  );
+  const aaMode2 = parseAAMode((_g = str(args["aa-mode"])) != null ? _g : process.env.AOMI_AA_MODE);
   if (execution === "eoa" && (aaProvider || aaMode2)) {
     fatal("`--aa-provider` and `--aa-mode` cannot be used with `--eoa`.");
   }
-  if (accountAccessToken && (accountProvider || accountProviderToken)) {
+  if (accountBearer && (embeddedProvider || embeddedProviderToken)) {
     fatal(
-      "Choose either `--account-bearer` or the `--account-provider` + `--account-provider-token` pair."
+      "Choose either `--account-bearer` or the `--embedded-provider` + `--embedded-provider-token` pair."
     );
   }
-  if (accountProvider && !accountProviderToken) {
+  if (embeddedProvider && !embeddedProviderToken) {
     fatal(
-      "`--account-provider-token` is required when `--account-provider` is set."
+      "`--embedded-provider-token` is required when `--embedded-provider` is set."
     );
   }
-  if (accountProviderToken && !accountProvider) {
+  if (embeddedProviderToken && !embeddedProvider) {
     fatal(
-      "`--account-provider` is required when `--account-provider-token` is set."
+      "`--embedded-provider` is required when `--embedded-provider-token` is set."
     );
   }
-  const solanaPrivateKey = (_h = str(args["solana-private-key"])) != null ? _h : process.env.SOLANA_PRIVATE_KEY;
+  const solanaPrivateKey = validateSolanaPrivateKey(
+    (_h = str(args["solana-private-key"])) != null ? _h : process.env.SOLANA_PRIVATE_KEY
+  );
   const svmCluster = parseSvmCluster(
     (_i = str(args.cluster)) != null ? _i : process.env.AOMI_SOLANA_CLUSTER
   );
   return {
     baseUrl: (_j = str(args["backend-url"])) != null ? _j : process.env.AOMI_BACKEND_URL,
     apiKey: (_k = str(args["api-key"])) != null ? _k : process.env.AOMI_API_KEY,
-    accountAccessToken,
-    accountProvider,
-    accountProviderToken,
+    json: args.json === true,
+    verbose: args.verbose === true,
+    accountBearer,
+    embeddedProvider,
+    embeddedProviderToken,
     app: (_l = str(args.app)) != null ? _l : process.env.AOMI_APP,
-    model: (_m = str(args.model)) != null ? _m : process.env.AOMI_MODEL,
+    applicationId: (_m = str(args["application-id"])) != null ? _m : process.env.AOMI_APPLICATION_ID,
+    model: (_n = str(args.model)) != null ? _n : process.env.AOMI_MODEL,
     freshSession: args["new-session"] === true,
     publicKey: configuredPublicKey != null ? configuredPublicKey : derivedPublicKey,
     privateKey,
     solanaPrivateKey,
     svmCluster,
-    chainRpcUrl: (_n = str(args["rpc-url"])) != null ? _n : process.env.CHAIN_RPC_URL,
-    chain: parseChainId((_o = str(args.chain)) != null ? _o : process.env.AOMI_CHAIN_ID),
+    chainRpcUrl: (_o = str(args["rpc-url"])) != null ? _o : process.env.CHAIN_RPC_URL,
+    chain: parseChainId((_p = str(args.chain)) != null ? _p : process.env.AOMI_CHAIN_ID),
     secrets: {},
     execution,
     aaProvider,
-    aaMode: aaMode2
+    aaMode: aaMode2,
+    paymentMethod: parsePaymentMethod(
+      (_q = str(args["payment-method"])) != null ? _q : process.env.AOMI_PAYMENT_METHOD
+    )
   };
 }
 function getPositionals(args) {
@@ -339,7 +488,9 @@ function getPositionals(args) {
   if (!Array.isArray(positionals)) {
     return [];
   }
-  return positionals.filter((value) => typeof value === "string");
+  return positionals.filter(
+    (value) => typeof value === "string"
+  );
 }
 var globalArgs;
 var init_shared = __esm({
@@ -350,27 +501,39 @@ var init_shared = __esm({
     globalArgs = {
       "backend-url": {
         type: "string",
-        description: "Backend URL (default: https://api.aomi.dev)"
+        description: "Aomi API/BFF URL (default: https://chat.aomi.dev)"
       },
       "api-key": {
         type: "string",
         description: "API key for non-default apps"
       },
+      json: {
+        type: "boolean",
+        description: "Print machine-readable JSON where supported"
+      },
+      verbose: {
+        type: "boolean",
+        description: "Show extra diagnostics such as local state file paths"
+      },
       "account-bearer": {
         type: "string",
         description: "Aomi account bearer for authenticated REST/SSE requests"
       },
-      "account-provider": {
+      "embedded-provider": {
         type: "string",
-        description: 'Upstream account provider for bearer exchange ("para" or "privy")'
+        description: 'Deprecated legacy provider exchange config ("para" or "privy")'
       },
-      "account-provider-token": {
+      "embedded-provider-token": {
         type: "string",
-        description: "Provider-issued token exchanged for an Aomi account bearer"
+        description: "Deprecated legacy provider token; use --account-bearer"
       },
       app: {
         type: "string",
         description: 'App (default: "default")'
+      },
+      "application-id": {
+        type: "string",
+        description: "Concrete backend application id for dynamic apps"
       },
       model: {
         type: "string",
@@ -403,6 +566,10 @@ var init_shared = __esm({
       "rpc-url": {
         type: "string",
         description: "RPC URL for transaction submission"
+      },
+      "payment-method": {
+        type: "string",
+        description: 'Payment method for paid chat turns, e.g. "coinbase"'
       }
     };
   }
@@ -414,6 +581,9 @@ function asObject(value) {
     return void 0;
   }
   return value;
+}
+function asEvmObject(value) {
+  return Array.isArray(value) ? asObject(value[0]) : asObject(value);
 }
 function pick(record, ...keys) {
   if (!record) {
@@ -476,7 +646,6 @@ function buildConnection(src, flat) {
   const c = __spreadValues({}, src != null ? src : {});
   renameKey(c, "isConnected", "is_connected");
   renameKey(c, "providerLabel", "provider_label");
-  renameKey(c, "primaryFamily", "primary_family");
   renameKey(c, "walletProviderSubject", "wallet_provider_subject");
   renameKey(c, "authMethod", "auth_method");
   renameKey(c, "authValue", "auth_value");
@@ -607,7 +776,7 @@ function parseChainId2(value) {
 }
 function address(state) {
   var _a3;
-  const value = (_a3 = asObject(state == null ? void 0 : state.evm)) == null ? void 0 : _a3.address;
+  const value = (_a3 = asEvmObject(state == null ? void 0 : state.evm)) == null ? void 0 : _a3.address;
   return typeof value === "string" && value.length > 0 ? value : void 0;
 }
 function svmAddress(state) {
@@ -617,7 +786,7 @@ function svmAddress(state) {
 }
 function chainId(state) {
   var _a3;
-  return parseChainId2((_a3 = asObject(state == null ? void 0 : state.evm)) == null ? void 0 : _a3.chain_id);
+  return parseChainId2((_a3 = asEvmObject(state == null ? void 0 : state.evm)) == null ? void 0 : _a3.chain_id);
 }
 function isConnected(state) {
   var _a3;
@@ -637,7 +806,7 @@ function normalizeUserState(userState) {
   const out = {};
   const connection = buildConnection(asObject(pick(src, "connection")), src);
   if (connection) out.connection = connection;
-  const evm = buildEvm(asObject(pick(src, "evm")), src);
+  const evm = buildEvm(asEvmObject(pick(src, "evm")), src);
   if (evm) out.evm = evm;
   const svm = buildSvm(asObject(pick(src, "svm", "solana")), src);
   if (svm) out.svm = svm;
@@ -774,10 +943,6 @@ function svmAddress2(userState) {
   const value = (_a3 = svmBlock(userState)) == null ? void 0 : _a3.address;
   return typeof value === "string" && value.length > 0 ? value : void 0;
 }
-function preferredPublicKey(userState) {
-  var _a3;
-  return (_a3 = address2(userState)) != null ? _a3 : svmAddress2(userState);
-}
 function chainId2(userState) {
   var _a3;
   return parseChainId3((_a3 = evmBlock(userState)) == null ? void 0 : _a3.chain_id);
@@ -898,7 +1063,6 @@ var init_user_state = __esm({
       UserState2.address = address2;
       UserState2.evmAddress = evmAddress;
       UserState2.svmAddress = svmAddress2;
-      UserState2.preferredPublicKey = preferredPublicKey;
       UserState2.chainId = chainId2;
       UserState2.ensName = ensName;
       UserState2.aaMode = aaMode;
@@ -916,14 +1080,6 @@ var init_user_state = __esm({
       UserState2.sponsorAccount = sponsorAccount;
       UserState2.withExt = withExt;
     })(UserState || (UserState = {}));
-  }
-});
-
-// src/user-state.ts
-var init_user_state2 = __esm({
-  "src/user-state.ts"() {
-    "use strict";
-    init_user_state();
   }
 });
 
@@ -1045,7 +1201,7 @@ function createSseSubscriber({
         if (subscription.lastEventId) {
           headers.set("Last-Event-ID", subscription.lastEventId);
         }
-        const response = await fetchImpl(`${backendUrl}/api/updates`, {
+        const response = await fetchImpl(`${backendUrl}/api/thread/updates`, {
           headers,
           signal: controller.signal
         });
@@ -1143,6 +1299,65 @@ var init_sse = __esm({
   }
 });
 
+// src/app-descriptor.ts
+function normalizeAppDescriptor(item) {
+  var _a3, _b;
+  if (typeof item === "string") {
+    const name2 = item.trim();
+    return name2 ? { name: name2 } : null;
+  }
+  if (!item || typeof item !== "object") return null;
+  const raw = item;
+  const name = typeof raw.name === "string" ? raw.name.trim() : "";
+  if (!name) return null;
+  const descriptor = __spreadProps(__spreadValues({}, raw), {
+    name
+  });
+  const applicationId = (_b = (_a3 = raw.applicationId) != null ? _a3 : raw.application_id) != null ? _b : raw.id;
+  if (typeof applicationId === "number" || typeof applicationId === "string") {
+    descriptor.applicationId = applicationId;
+  }
+  if (typeof raw.platform === "string") descriptor.platform = raw.platform;
+  if (typeof raw.label === "string") descriptor.label = raw.label;
+  if (typeof raw.appReleaseTag === "string") {
+    descriptor.appReleaseTag = raw.appReleaseTag;
+  } else if (typeof raw.app_release_tag === "string") {
+    descriptor.appReleaseTag = raw.app_release_tag;
+  }
+  if (typeof raw.isActive === "boolean") {
+    descriptor.isActive = raw.isActive;
+  } else if (typeof raw.is_active === "boolean") {
+    descriptor.isActive = raw.is_active;
+  }
+  if (typeof raw.isPublic === "boolean") {
+    descriptor.isPublic = raw.isPublic;
+  } else if (typeof raw.is_public === "boolean") {
+    descriptor.isPublic = raw.is_public;
+  }
+  if (typeof raw.artifactReady === "boolean") {
+    descriptor.artifactReady = raw.artifactReady;
+  } else if (typeof raw.artifact_ready === "boolean") {
+    descriptor.artifactReady = raw.artifact_ready;
+  }
+  descriptor.secrets = Array.isArray(raw.secrets) ? raw.secrets : [];
+  for (const key of [
+    "id",
+    "application_id",
+    "app_release_tag",
+    "is_active",
+    "is_public",
+    "artifact_ready"
+  ]) {
+    delete descriptor[key];
+  }
+  return descriptor;
+}
+var init_app_descriptor = __esm({
+  "src/app-descriptor.ts"() {
+    "use strict";
+  }
+});
+
 // src/client.ts
 function previewText(value, max = 80) {
   const singleLine = value.replace(/\s+/g, " ").trim();
@@ -1198,14 +1413,53 @@ function buildApiUrl(baseUrl, path, query) {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(query)) {
     if (value === void 0) continue;
-    params.set(key, value);
+    if (typeof value === "string") {
+      params.set(key, value);
+    } else {
+      for (const item of value) {
+        params.append(key, item);
+      }
+    }
   }
   const queryString = params.toString();
   return queryString ? `${url}?${queryString}` : url;
 }
+function normalizeQuery(query) {
+  if (!query) return void 0;
+  const normalized = {};
+  for (const [key, value] of Object.entries(query)) {
+    if (Array.isArray(value)) {
+      normalized[key] = value.map((item) => String(item));
+      continue;
+    }
+    normalized[key] = value === null || value === void 0 ? void 0 : String(value);
+  }
+  return normalized;
+}
+function normalizePlatformFilter(platforms) {
+  const rawValues = Array.isArray(platforms) ? platforms : platforms === null || platforms === void 0 ? [] : [platforms];
+  return Array.from(
+    new Set(
+      rawValues.flatMap((value) => value.split(",")).map((value) => value.trim()).filter(Boolean)
+    )
+  );
+}
+function encodeJsonBody(body) {
+  return body === void 0 ? void 0 : JSON.stringify(body);
+}
+function normalizeThreadWire(wire) {
+  var _b;
+  const _a3 = wire, { thread_id, session_id, last_active_at } = _a3, rest = __objRest(_a3, ["thread_id", "session_id", "last_active_at"]);
+  const normalizedLastActiveAt = typeof last_active_at === "number" ? last_active_at : typeof last_active_at === "string" ? Number(last_active_at) : void 0;
+  return __spreadProps(__spreadValues({}, rest), {
+    session_id: (_b = session_id != null ? session_id : thread_id) != null ? _b : "",
+    last_active_at: normalizedLastActiveAt === void 0 || Number.isNaN(normalizedLastActiveAt) ? void 0 : normalizedLastActiveAt
+  });
+}
 function withSessionHeader(sessionId, init) {
   const headers = new Headers(init);
   headers.set(SESSION_ID_HEADER, sessionId);
+  headers.set(THREAD_ID_HEADER, sessionId);
   return headers;
 }
 async function fetchStateResponse(fetchImpl, url, sessionId) {
@@ -1213,8 +1467,8 @@ async function fetchStateResponse(fetchImpl, url, sessionId) {
     headers: withSessionHeader(sessionId)
   });
 }
-function wrapFetchWithAccountBearer(fetchImpl, getAccountAccessToken) {
-  if (!getAccountAccessToken) return fetchImpl;
+function wrapFetchWithAccountBearer(fetchImpl, getAccountBearer) {
+  if (!getAccountBearer) return fetchImpl;
   return async (input2, init) => {
     var _a3;
     const baseHeaders = new Headers(
@@ -1222,14 +1476,14 @@ function wrapFetchWithAccountBearer(fetchImpl, getAccountAccessToken) {
     );
     const fetchWithBearer = async (forceRefresh) => {
       const headers = new Headers(baseHeaders);
-      let accessToken;
+      let bearer;
       try {
-        accessToken = await getAccountAccessToken({ forceRefresh });
+        bearer = await getAccountBearer({ forceRefresh });
       } catch (e) {
-        accessToken = void 0;
+        bearer = void 0;
       }
-      if (accessToken) {
-        headers.set("Authorization", `Bearer ${accessToken}`);
+      if (bearer) {
+        headers.set("Authorization", `Bearer ${bearer}`);
       }
       return fetchImpl(input2, __spreadProps(__spreadValues({}, init), { headers }));
     };
@@ -1242,10 +1496,13 @@ function supportsTokenRefreshSubscription(provider) {
   return typeof (provider == null ? void 0 : provider.subscribe) === "function";
 }
 async function postState(baseUrl, path, payload, sessionId, fetchImpl, apiKey, logger) {
-  const url = `${baseUrl}${path}`;
-  const body = JSON.stringify(payload);
+  const query = {};
+  for (const [key, value] of Object.entries(payload)) {
+    if (value === void 0 || value === null) continue;
+    query[key] = typeof value === "string" ? value : String(value);
+  }
+  const url = buildApiUrl(baseUrl, path, query);
   const headers = new Headers(withSessionHeader(sessionId));
-  headers.set("Content-Type", "application/json");
   if (apiKey) {
     headers.set(APP_KEY_HEADER, apiKey);
   }
@@ -1253,7 +1510,7 @@ async function postState(baseUrl, path, payload, sessionId, fetchImpl, apiKey, l
     path,
     sessionId,
     hasApiKey: Boolean(apiKey),
-    bodyLength: body.length
+    queryKeys: Object.keys(query)
   });
   let pendingWarning;
   if (typeof setTimeout === "function") {
@@ -1261,7 +1518,7 @@ async function postState(baseUrl, path, payload, sessionId, fetchImpl, apiKey, l
       logger == null ? void 0 : logger.debug("[aomi][client] POST still pending", {
         path,
         sessionId,
-        bodyLength: body.length
+        queryKeys: Object.keys(query)
       });
     }, 5e3);
   }
@@ -1269,8 +1526,7 @@ async function postState(baseUrl, path, payload, sessionId, fetchImpl, apiKey, l
   try {
     response = await fetchImpl(url, {
       method: "POST",
-      headers,
-      body
+      headers
     });
   } finally {
     if (pendingWarning) {
@@ -1288,14 +1544,16 @@ async function postState(baseUrl, path, payload, sessionId, fetchImpl, apiKey, l
   }
   return await response.json();
 }
-var SESSION_ID_HEADER, APP_KEY_HEADER, BULKY_PENDING_FIELDS, AomiClient;
+var SESSION_ID_HEADER, THREAD_ID_HEADER, APP_KEY_HEADER, BULKY_PENDING_FIELDS, AomiClient;
 var init_client = __esm({
   "src/client.ts"() {
     "use strict";
-    init_user_state2();
+    init_user_state();
     init_sse();
+    init_app_descriptor();
     SESSION_ID_HEADER = "X-Session-Id";
-    APP_KEY_HEADER = "AOMI-APP-KEY";
+    THREAD_ID_HEADER = "X-Thread-Id";
+    APP_KEY_HEADER = "Aomi-App-Key";
     BULKY_PENDING_FIELDS = /* @__PURE__ */ new Set([
       "messageBase64",
       "message_base64",
@@ -1320,11 +1578,11 @@ var init_client = __esm({
         const rawFetchImpl = typeof globalThis.fetch === "function" ? globalThis.fetch.bind(globalThis) : fetchImpl;
         this.fetchImpl = wrapFetchWithAccountBearer(
           fetchImpl,
-          options.getAccountAccessToken
+          options.getAccountBearer
         );
         this.rawFetchImpl = wrapFetchWithAccountBearer(
           rawFetchImpl,
-          options.getAccountAccessToken
+          options.getAccountBearer
         );
         this.logger = options.logger;
         this.sseSubscriber = createSseSubscriber({
@@ -1335,8 +1593,8 @@ var init_client = __esm({
           fetchImpl: this.rawFetchImpl,
           logger: this.logger
         });
-        if (supportsTokenRefreshSubscription(options.getAccountAccessToken)) {
-          options.getAccountAccessToken.subscribe(() => {
+        if (supportsTokenRefreshSubscription(options.getAccountBearer)) {
+          options.getAccountBearer.subscribe(() => {
             this.sseSubscriber.reconnect("account-token-refreshed");
           });
         }
@@ -1345,21 +1603,75 @@ var init_client = __esm({
       // Chat & State
       // ===========================================================================
       /**
+       * Low-level request escape hatch for the full backend route manifest.
+       * Prefer the typed helpers below for common chat/session/account flows.
+       */
+      async request(method, path, options) {
+        var _a3, _b;
+        const url = buildApiUrl(this.baseUrl, path, normalizeQuery(options == null ? void 0 : options.query));
+        const headers = new Headers(options == null ? void 0 : options.headers);
+        if (options == null ? void 0 : options.sessionId) {
+          headers.set(SESSION_ID_HEADER, options.sessionId);
+          headers.set(THREAD_ID_HEADER, options.sessionId);
+        }
+        const apiKey = (_a3 = options == null ? void 0 : options.apiKey) != null ? _a3 : this.apiKey;
+        if (apiKey) {
+          headers.set(APP_KEY_HEADER, apiKey);
+        }
+        if ((options == null ? void 0 : options.body) !== void 0 && !headers.has("Content-Type")) {
+          headers.set("Content-Type", "application/json");
+        }
+        const response = await ((options == null ? void 0 : options.raw) ? this.rawFetchImpl : this.fetchImpl)(
+          url,
+          {
+            method,
+            headers,
+            body: encodeJsonBody(options == null ? void 0 : options.body)
+          }
+        );
+        if (!response.ok) {
+          const body = await response.text().catch(() => "");
+          throw new Error(
+            `HTTP ${response.status}: ${response.statusText}${body ? `
+${body}` : ""}`
+          );
+        }
+        if (response.status === 204) {
+          return void 0;
+        }
+        const contentType = (_b = response.headers.get("content-type")) != null ? _b : "";
+        if (contentType.includes("application/json")) {
+          return await response.json();
+        }
+        return await response.text();
+      }
+      /**
        * Fetch current session state (messages, processing status, title).
        */
-      async fetchState(sessionId, userState, clientId) {
-        var _a3, _b, _c;
+      async fetchState(sessionId, userState, clientId, options) {
+        var _a3, _b, _c, _d;
         const normalizedUserState = stripBulkyPendingFields(
           UserState.normalize(userState)
         );
-        const urlWithSyncParams = buildApiUrl(this.baseUrl, "/api/state", {
+        const applicationId = (_a3 = options == null ? void 0 : options.applicationId) == null ? void 0 : _a3.toString().trim();
+        const stateContext = {
+          app: options == null ? void 0 : options.app,
+          application_id: applicationId || void 0
+        };
+        const urlWithSyncParams = buildApiUrl(this.baseUrl, "/api/thread/state", __spreadProps(__spreadValues({}, stateContext), {
           user_state: normalizedUserState ? JSON.stringify(normalizedUserState) : void 0,
           client_id: clientId
-        });
-        const bareUrl = buildApiUrl(this.baseUrl, "/api/state");
+        }));
+        const bareUrl = buildApiUrl(
+          this.baseUrl,
+          "/api/thread/state",
+          stateContext
+        );
         const shouldRetryWithoutSyncParams = Boolean(normalizedUserState) || Boolean(clientId);
-        (_a3 = this.logger) == null ? void 0 : _a3.debug("[aomi][client] GET /api/state start", {
+        (_b = this.logger) == null ? void 0 : _b.debug("[aomi][client] GET /api/thread/state start", {
           sessionId,
+          app: options == null ? void 0 : options.app,
+          applicationId,
           clientId,
           hasUserState: Boolean(normalizedUserState)
         });
@@ -1369,8 +1681,8 @@ var init_client = __esm({
           sessionId
         );
         if (!response.ok && shouldRetryWithoutSyncParams && (response.status === 400 || response.status === 414)) {
-          (_b = this.logger) == null ? void 0 : _b.debug(
-            "[aomi][client] GET /api/state retrying without sync params",
+          (_c = this.logger) == null ? void 0 : _c.debug(
+            "[aomi][client] GET /api/thread/state retrying without sync params",
             {
               sessionId,
               initialStatus: response.status,
@@ -1384,7 +1696,7 @@ var init_client = __esm({
             sessionId
           );
         }
-        (_c = this.logger) == null ? void 0 : _c.debug("[aomi][client] GET /api/state response", {
+        (_d = this.logger) == null ? void 0 : _d.debug("[aomi][client] GET /api/thread/state response", {
           sessionId,
           status: response.status,
           ok: response.ok
@@ -1398,37 +1710,54 @@ var init_client = __esm({
        * Send a chat message and return updated session state.
        */
       async sendMessage(sessionId, message, options) {
-        var _a3, _b, _c;
+        var _a3, _b, _c, _d, _e, _f, _g;
         const app = (_a3 = options == null ? void 0 : options.app) != null ? _a3 : "default";
         const apiKey = (_b = options == null ? void 0 : options.apiKey) != null ? _b : this.apiKey;
-        const normalizedUserState = UserState.normalize(options == null ? void 0 : options.userState);
-        const payload = { message, app };
-        if (options == null ? void 0 : options.publicKey) {
-          payload.public_key = options.publicKey;
-        }
-        if (normalizedUserState) {
-          payload.user_state = JSON.stringify(normalizedUserState);
-        }
-        if (options == null ? void 0 : options.clientId) {
-          payload.client_id = options.clientId;
-        }
-        (_c = this.logger) == null ? void 0 : _c.debug("[aomi][client] POST /api/chat prepared", {
+        const normalizedUserState = stripBulkyPendingFields(
+          UserState.normalize(options == null ? void 0 : options.userState)
+        );
+        const applicationId = (_c = options == null ? void 0 : options.applicationId) == null ? void 0 : _c.toString().trim();
+        const url = buildApiUrl(this.baseUrl, "/api/thread/chat", {
+          app,
+          application_id: applicationId || void 0,
+          message,
+          user_state: normalizedUserState ? JSON.stringify(normalizedUserState) : void 0,
+          client_id: options == null ? void 0 : options.clientId,
+          payment_method: (_d = options == null ? void 0 : options.paymentMethod) != null ? _d : void 0
+        });
+        (_e = this.logger) == null ? void 0 : _e.debug("[aomi][client] POST /api/thread/chat prepared", {
           sessionId,
           app,
-          publicKey: options == null ? void 0 : options.publicKey,
+          applicationId,
           clientId: options == null ? void 0 : options.clientId,
+          paymentMethod: options == null ? void 0 : options.paymentMethod,
           hasUserState: Boolean(normalizedUserState),
           messagePreview: previewText(message)
         });
-        return postState(
-          this.baseUrl,
-          "/api/chat",
-          payload,
+        const headers = new Headers(withSessionHeader(sessionId));
+        if (apiKey) {
+          headers.set(APP_KEY_HEADER, apiKey);
+        }
+        (_f = this.logger) == null ? void 0 : _f.debug("[aomi][client] POST start", {
+          path: "/api/thread/chat",
           sessionId,
-          this.fetchImpl,
-          apiKey,
-          this.logger
-        );
+          hasApiKey: Boolean(apiKey),
+          url
+        });
+        const response = await this.fetchImpl(url, {
+          method: "POST",
+          headers
+        });
+        (_g = this.logger) == null ? void 0 : _g.debug("[aomi][client] POST response", {
+          path: "/api/thread/chat",
+          sessionId,
+          status: response.status,
+          ok: response.ok
+        });
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        return await response.json();
       }
       /**
        * Send a system-level message (e.g. wallet state changes, context switches).
@@ -1441,9 +1770,13 @@ var init_client = __esm({
         if (options == null ? void 0 : options.app) {
           payload.app = options.app;
         }
+        if (options == null ? void 0 : options.applicationId) {
+          payload.application_id = options.applicationId;
+        }
         (_a3 = this.logger) == null ? void 0 : _a3.debug("[aomi][client] POST /api/system prepared", {
           sessionId,
           app: options == null ? void 0 : options.app,
+          applicationId: options == null ? void 0 : options.applicationId,
           messagePreview: previewText(message)
         });
         return postState(
@@ -1461,12 +1794,12 @@ var init_client = __esm({
        */
       async interrupt(sessionId) {
         var _a3;
-        (_a3 = this.logger) == null ? void 0 : _a3.debug("[aomi][client] POST /api/interrupt prepared", {
+        (_a3 = this.logger) == null ? void 0 : _a3.debug("[aomi][client] POST /api/thread/interrupt prepared", {
           sessionId
         });
         return postState(
           this.baseUrl,
-          "/api/interrupt",
+          "/api/thread/interrupt",
           {},
           sessionId,
           this.fetchImpl,
@@ -1554,8 +1887,8 @@ var init_client = __esm({
        * backend never returns raw values; the settings page uses this as the
        * source of truth instead of trusting localStorage.
        */
-      async listSecrets(sessionId) {
-        const url = joinApiPath(this.baseUrl, "/api/secrets");
+      async listSecrets(sessionId, clientId) {
+        const url = clientId && clientId.trim().length > 0 ? buildApiUrl(this.baseUrl, "/api/secrets", { client_id: clientId }) : joinApiPath(this.baseUrl, "/api/secrets");
         const response = await this.fetchImpl(url, {
           method: "GET",
           headers: withSessionHeader(sessionId)
@@ -1581,26 +1914,25 @@ var init_client = __esm({
       // ===========================================================================
       /**
        * @deprecated Account bootstrap is handled by session create/chat requests and
-       * the account-token exchange. `/api/settings/account` is now an authenticated
+       * the account-token exchange. `/api/account` is now an authenticated
        * profile endpoint, so this legacy helper intentionally does nothing.
        */
       async ensureAccount(_sessionId, _publicKey) {
         return void 0;
       }
       /**
-       * List all threads for a wallet address.
+       * List all threads for the authenticated account.
        */
-      async listThreads(sessionId, publicKey) {
-        const url = buildApiUrl(this.baseUrl, "/api/sessions", {
-          public_key: publicKey
-        });
+      async listThreads(sessionId) {
+        const url = buildApiUrl(this.baseUrl, "/api/threads");
         const response = await this.fetchImpl(url, {
           headers: withSessionHeader(sessionId)
         });
         if (!response.ok) {
           throw new Error(`Failed to fetch threads: HTTP ${response.status}`);
         }
-        return await response.json();
+        const threads = await response.json();
+        return threads.map(normalizeThreadWire);
       }
       /**
        * Get a single thread by ID.
@@ -1608,7 +1940,7 @@ var init_client = __esm({
       async getThread(sessionId) {
         const url = buildApiUrl(
           this.baseUrl,
-          `/api/sessions/${encodeURIComponent(sessionId)}`
+          `/api/threads/${encodeURIComponent(sessionId)}`
         );
         const response = await this.fetchImpl(url, {
           headers: withSessionHeader(sessionId)
@@ -1616,26 +1948,21 @@ var init_client = __esm({
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
-        return await response.json();
+        return normalizeThreadWire(await response.json());
       }
       /**
        * Create a new thread. The client generates the session ID.
        */
-      async createThread(threadId, publicKey) {
-        const body = {};
-        if (publicKey) body.public_key = publicKey;
-        const url = buildApiUrl(this.baseUrl, "/api/sessions");
+      async createThread(threadId) {
+        const url = buildApiUrl(this.baseUrl, "/api/threads");
         const response = await this.fetchImpl(url, {
           method: "POST",
-          headers: withSessionHeader(threadId, {
-            "Content-Type": "application/json"
-          }),
-          body: JSON.stringify(body)
+          headers: withSessionHeader(threadId)
         });
         if (!response.ok) {
           throw new Error(`Failed to create thread: HTTP ${response.status}`);
         }
-        return await response.json();
+        return normalizeThreadWire(await response.json());
       }
       /**
        * Delete a thread by ID.
@@ -1643,7 +1970,7 @@ var init_client = __esm({
       async deleteThread(sessionId) {
         const url = buildApiUrl(
           this.baseUrl,
-          `/api/sessions/${encodeURIComponent(sessionId)}`
+          `/api/threads/${encodeURIComponent(sessionId)}`
         );
         const response = await this.fetchImpl(url, {
           method: "DELETE",
@@ -1659,7 +1986,7 @@ var init_client = __esm({
       async renameThread(sessionId, newTitle) {
         const url = buildApiUrl(
           this.baseUrl,
-          `/api/sessions/${encodeURIComponent(sessionId)}`
+          `/api/threads/${encodeURIComponent(sessionId)}`
         );
         const response = await this.fetchImpl(url, {
           method: "PATCH",
@@ -1677,7 +2004,7 @@ var init_client = __esm({
        */
       async archiveThread(sessionId) {
         throw new Error(
-          "Failed to archive thread: current backend does not expose /api/sessions/:id/archive"
+          "Failed to archive thread: current backend does not expose /api/threads/:id/archive"
         );
       }
       /**
@@ -1685,7 +2012,7 @@ var init_client = __esm({
        */
       async unarchiveThread(sessionId) {
         throw new Error(
-          "Failed to unarchive thread: current backend does not expose /api/sessions/:id/unarchive"
+          "Failed to unarchive thread: current backend does not expose /api/threads/:id/unarchive"
         );
       }
       // ===========================================================================
@@ -1695,7 +2022,7 @@ var init_client = __esm({
        * Get system events for a session.
        */
       async getSystemEvents(sessionId, count) {
-        const url = buildApiUrl(this.baseUrl, "/api/events", {
+        const url = buildApiUrl(this.baseUrl, "/api/thread/events", {
           count: count !== void 0 ? String(count) : void 0
         });
         const response = await this.fetchImpl(url, {
@@ -1717,8 +2044,9 @@ var init_client = __esm({
        */
       async getApps(sessionId, options) {
         var _a3;
-        const url = buildApiUrl(this.baseUrl, "/api/session/apps", {
-          public_key: options == null ? void 0 : options.publicKey
+        const platforms = normalizePlatformFilter(options == null ? void 0 : options.platforms);
+        const url = buildApiUrl(this.baseUrl, "/api/thread/apps", {
+          platform: platforms.length > 0 ? platforms : void 0
         });
         const apiKey = (_a3 = options == null ? void 0 : options.apiKey) != null ? _a3 : this.apiKey;
         const headers = new Headers(withSessionHeader(sessionId));
@@ -1731,28 +2059,17 @@ var init_client = __esm({
         }
         const data = await response.json();
         if (!Array.isArray(data)) return [];
-        return data.map((item) => {
-          if (typeof item === "string") {
-            return { name: item };
-          }
-          if (item && typeof item === "object" && "name" in item) {
-            const name = item.name;
-            if (typeof name === "string" && name.trim().length > 0) {
-              return item;
-            }
-          }
-          return null;
-        }).filter((item) => item !== null);
+        return data.map((item) => normalizeAppDescriptor(item)).filter((item) => item !== null);
       }
       /**
        * Fetch the account bound to the authenticated request (resolved from the
        * account bearer). Returns `null` when the session is not bound to a real
-       * user — the backend answers `/api/settings/account` with HTTP 400 for
+       * user — the backend answers `/api/account` with HTTP 400 for
        * anonymous sessions, which is the normal "no bearer / not logged in" case
        * rather than an error.
        */
       async fetchAccountProfile(sessionId) {
-        const url = buildApiUrl(this.baseUrl, "/api/settings/account");
+        const url = buildApiUrl(this.baseUrl, "/api/account");
         const response = await this.rawFetchImpl(url, {
           headers: withSessionHeader(sessionId)
         });
@@ -1765,6 +2082,27 @@ var init_client = __esm({
           );
         }
         return await response.json();
+      }
+      /**
+       * Fetch the full account for the authenticated request. Throws on any
+       * non-OK response; use `fetchAccountProfile` for the null-on-anonymous
+       * variant.
+       */
+      async getAccount(sessionId) {
+        const url = buildApiUrl(this.baseUrl, "/api/account");
+        const response = await this.fetchImpl(url, {
+          headers: withSessionHeader(sessionId)
+        });
+        if (!response.ok) {
+          throw new Error(`Failed to fetch account: HTTP ${response.status}`);
+        }
+        return await response.json();
+      }
+      async createAccountApproval(request) {
+        return this.request("POST", "/api/account/approvals", {
+          body: request,
+          raw: true
+        });
       }
       /**
        * Mint a Privy browser auth URL bound to the current backend session.
@@ -1791,7 +2129,7 @@ var init_client = __esm({
        */
       async getModels(sessionId, options) {
         var _a3;
-        const url = buildApiUrl(this.baseUrl, "/api/session/models");
+        const url = buildApiUrl(this.baseUrl, "/api/thread/models");
         const apiKey = (_a3 = options == null ? void 0 : options.apiKey) != null ? _a3 : this.apiKey;
         const headers = new Headers(withSessionHeader(sessionId));
         if (apiKey) {
@@ -1809,30 +2147,34 @@ var init_client = __esm({
        * Set the model for a session.
        */
       async setModel(sessionId, rig, options) {
-        var _a3;
+        var _a3, _b;
         const apiKey = (_a3 = options == null ? void 0 : options.apiKey) != null ? _a3 : this.apiKey;
-        const payload = { rig };
-        if (options == null ? void 0 : options.app) {
-          payload.app = options.app;
+        const applicationId = (_b = options == null ? void 0 : options.applicationId) == null ? void 0 : _b.toString().trim();
+        const url = buildApiUrl(this.baseUrl, "/api/thread/model", {
+          rig,
+          app: options == null ? void 0 : options.app,
+          application_id: applicationId || void 0,
+          client_id: options == null ? void 0 : options.clientId
+        });
+        const headers = new Headers(withSessionHeader(sessionId));
+        if (apiKey) {
+          headers.set(APP_KEY_HEADER, apiKey);
         }
-        if (options == null ? void 0 : options.clientId) {
-          payload.client_id = options.clientId;
+        const response = await this.fetchImpl(url, {
+          method: "POST",
+          headers
+        });
+        if (!response.ok) {
+          throw new Error(`Failed to set model: HTTP ${response.status}`);
         }
-        return postState(
-          this.baseUrl,
-          "/api/session/model",
-          payload,
-          sessionId,
-          this.fetchImpl,
-          apiKey
-        );
+        return await response.json();
       }
       /**
-       * List BYOK keys (one per LLM provider) bound to the current session's client.
+       * List BYOK keys (one per LLM provider) bound to the current account.
        */
       async listByokKeys(sessionId) {
         var _a3;
-        const url = buildApiUrl(this.baseUrl, "/api/control/provider-keys");
+        const url = buildApiUrl(this.baseUrl, "/api/account/payment");
         const response = await this.fetchImpl(url, {
           headers: withSessionHeader(sessionId)
         });
@@ -1840,13 +2182,13 @@ var init_client = __esm({
           throw new Error(`Failed to get BYOK keys: HTTP ${response.status}`);
         }
         const data = await response.json();
-        return (_a3 = data.byok_keys) != null ? _a3 : [];
+        return (_a3 = data.byok) != null ? _a3 : [];
       }
       /**
-       * Save or replace a BYOK key for the client bound to this session.
+       * Save or replace a BYOK key for the current account.
        */
       async saveByokKey(sessionId, provider, byokKey, label) {
-        const url = joinApiPath(this.baseUrl, "/api/control/provider-keys");
+        const url = joinApiPath(this.baseUrl, "/api/account/payment/byok");
         const response = await this.fetchImpl(url, {
           method: "POST",
           headers: withSessionHeader(sessionId, {
@@ -1865,12 +2207,12 @@ var init_client = __esm({
         return data.key;
       }
       /**
-       * Delete a BYOK key for the client bound to this session.
+       * Delete a BYOK key for the current account.
        */
       async deleteByokKey(sessionId, provider) {
         const url = buildApiUrl(
           this.baseUrl,
-          `/api/control/provider-keys/${encodeURIComponent(provider)}`
+          `/api/account/payment/byok/${encodeURIComponent(provider)}`
         );
         const response = await this.fetchImpl(url, {
           method: "DELETE",
@@ -1891,7 +2233,7 @@ var init_client = __esm({
        * Sends full tx payloads — the backend does not look up by ID.
        */
       async simulateBatch(sessionId, transactions, options) {
-        const url = joinApiPath(this.baseUrl, "/api/simulate");
+        const url = joinApiPath(this.baseUrl, "/api/exec/simulate");
         const headers = new Headers(
           withSessionHeader(sessionId, { "Content-Type": "application/json" })
         );
@@ -1947,8 +2289,8 @@ function isAsyncCallback(event) {
 var init_types = __esm({
   "src/types.ts"() {
     "use strict";
-    init_user_state2();
-    init_user_state2();
+    init_user_state();
+    init_user_state();
   }
 });
 
@@ -2422,19 +2764,39 @@ function toViemSignMessageArgs(payload) {
 var init_wallet_utils = __esm({
   "src/wallet-utils.ts"() {
     "use strict";
-    init_user_state2();
+    init_user_state();
   }
 });
 
 // src/session/events.ts
+function aomiMessagesEqual(a, b) {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    const x = a[i];
+    const y = b[i];
+    if (x.sender !== y.sender || x.content !== y.content || x.timestamp !== y.timestamp || x.is_streaming !== y.is_streaming) {
+      return false;
+    }
+    const xt = x.tool_result;
+    const yt = y.tool_result;
+    if (xt !== yt) {
+      if (!xt || !yt) return false;
+      if (xt[0] !== yt[0] || xt[1] !== yt[1]) return false;
+    }
+  }
+  return true;
+}
 function applySessionState(state, deps) {
   var _a3;
   if (state.user_state) {
     deps.resolveUserState(state.user_state);
   }
   if (state.messages) {
-    deps.setMessages(state.messages);
-    deps.emit("messages", state.messages);
+    if (!aomiMessagesEqual(state.messages, deps.getMessages())) {
+      deps.setMessages(state.messages);
+      deps.emit("messages", state.messages);
+    }
   }
   if (state.title) {
     deps.setTitle(state.title);
@@ -2623,7 +2985,7 @@ function warnIfUserStateMisaligned(expected, actual) {
 var init_state = __esm({
   "src/session/state.ts"() {
     "use strict";
-    init_user_state2();
+    init_user_state();
     init_json();
   }
 });
@@ -3007,23 +3369,12 @@ var init_wallet = __esm({
 });
 
 // src/session/index.ts
-function legacySessionPublicKey(userState) {
-  var _a3;
-  const address3 = UserState.address(userState);
-  if (!(address3 == null ? void 0 : address3.startsWith("0x"))) {
-    return void 0;
-  }
-  if (UserState.chainId(userState) === void 0 && !((_a3 = userState == null ? void 0 : userState.evm) == null ? void 0 : _a3.address)) {
-    return void 0;
-  }
-  return address3;
-}
 var ClientSession;
 var init_session = __esm({
   "src/session/index.ts"() {
     "use strict";
     init_client();
-    init_user_state2();
+    init_user_state();
     init_event();
     init_json();
     init_events();
@@ -3045,8 +3396,9 @@ var init_session = __esm({
         this.client = clientOrOptions instanceof AomiClient ? clientOrOptions : new AomiClient(clientOrOptions);
         this.sessionId = (_a3 = sessionOptions == null ? void 0 : sessionOptions.sessionId) != null ? _a3 : crypto.randomUUID();
         this.app = (_b = sessionOptions == null ? void 0 : sessionOptions.app) != null ? _b : "default";
-        this.publicKey = sessionOptions == null ? void 0 : sessionOptions.publicKey;
+        this.applicationId = sessionOptions == null ? void 0 : sessionOptions.applicationId;
         this.apiKey = sessionOptions == null ? void 0 : sessionOptions.apiKey;
+        this.paymentMethod = sessionOptions == null ? void 0 : sessionOptions.paymentMethod;
         const initialUserState = UserState.reconcile(
           void 0,
           sessionOptions == null ? void 0 : sessionOptions.userState
@@ -3083,10 +3435,11 @@ var init_session = __esm({
         this.assertOpen();
         const response = await this.client.sendMessage(this.sessionId, message, {
           app: this.app,
-          publicKey: this.publicKey,
+          applicationId: this.applicationId,
           apiKey: this.apiKey,
           userState: this.userState,
-          clientId: this.clientId
+          clientId: this.clientId,
+          paymentMethod: this.paymentMethod
         });
         this.assertUserStateAligned(response.user_state);
         this.applyState(response);
@@ -3108,10 +3461,11 @@ var init_session = __esm({
         this.assertOpen();
         const response = await this.client.sendMessage(this.sessionId, message, {
           app: this.app,
-          publicKey: this.publicKey,
+          applicationId: this.applicationId,
           apiKey: this.apiKey,
           userState: this.userState,
-          clientId: this.clientId
+          clientId: this.clientId,
+          paymentMethod: this.paymentMethod
         });
         this.assertUserStateAligned(response.user_state);
         this.applyState(response);
@@ -3224,7 +3578,7 @@ var init_session = __esm({
       syncRuntimeOptions(options) {
         var _a3;
         this.app = options.app;
-        this.publicKey = options.publicKey;
+        this.applicationId = options.applicationId;
         this.apiKey = options.apiKey;
         this.clientId = (_a3 = options.clientId) != null ? _a3 : this.clientId;
         if (options.userState) {
@@ -3235,13 +3589,6 @@ var init_session = __esm({
         const previousSerialized = stableUserStateString(this.userState);
         this.userState = UserState.reconcile(this.userState, userState);
         const nextSerialized = stableUserStateString(this.userState);
-        const publicKey = legacySessionPublicKey(this.userState);
-        const isConnected3 = UserState.isConnected(this.userState);
-        if (publicKey && isConnected3 !== false) {
-          this.publicKey = publicKey;
-        } else {
-          this.publicKey = void 0;
-        }
         this.walletController.sync();
         if (!(opts == null ? void 0 : opts.skipEmit) && this.userState && previousSerialized !== nextSerialized) {
           this.emit("user_state_updated", this.userState);
@@ -3272,7 +3619,8 @@ var init_session = __esm({
         const state = await this.client.fetchState(
           this.sessionId,
           this.userState,
-          this.clientId
+          this.clientId,
+          { app: this.app, applicationId: this.applicationId }
         );
         this.assertUserStateAligned(state.user_state);
         this.applyState(state);
@@ -3294,7 +3642,8 @@ var init_session = __esm({
         const state = await this.client.fetchState(
           this.sessionId,
           this.userState,
-          this.clientId
+          this.clientId,
+          { app: this.app, applicationId: this.applicationId }
         );
         this.assertUserStateAligned(state.user_state);
         this.applyState(state);
@@ -3335,7 +3684,8 @@ var init_session = __esm({
           const state = await this.client.fetchState(
             this.sessionId,
             this.userState,
-            this.clientId
+            this.clientId,
+            { app: this.app, applicationId: this.applicationId }
           );
           if (!this.pollTimer) return;
           this.assertUserStateAligned(state.user_state);
@@ -3365,6 +3715,7 @@ var init_session = __esm({
           setMessages: (messages) => {
             this._messages = messages;
           },
+          getMessages: () => this.getMessages(),
           setTitle: (title) => {
             this._title = title;
           },
@@ -3389,7 +3740,8 @@ var init_session = __esm({
       async sendSystemEvent(type, payload) {
         const message = JSON.stringify({ type, payload });
         await this.client.sendSystemMessage(this.sessionId, message, {
-          app: this.app
+          app: this.app,
+          applicationId: this.applicationId
         });
       }
       resolvePending() {
@@ -3416,143 +3768,6 @@ var init_session2 = __esm({
   "src/session.ts"() {
     "use strict";
     init_session();
-  }
-});
-
-// src/account-session.ts
-function createAccountAccessTokenProvider({
-  baseUrl,
-  getProviderCredential,
-  fetch: fetchImpl = fetch,
-  now = Date.now,
-  refreshBeforeExpiryMs = DEFAULT_REFRESH_BEFORE_EXPIRY_MS
-}) {
-  let cached = null;
-  let pending = null;
-  let refreshTimer = null;
-  let failedAt = null;
-  const listeners = /* @__PURE__ */ new Set();
-  const scheduleRefresh = (session) => {
-    if (refreshTimer) clearTimeout(refreshTimer);
-    const refreshAt = session.expires_at * 1e3 - refreshBeforeExpiryMs;
-    refreshTimer = setTimeout(
-      () => {
-        void getAccountAccessToken({ forceRefresh: true }).catch(
-          () => void 0
-        );
-      },
-      Math.max(refreshAt - now(), 1e3)
-    );
-  };
-  const exchange = async () => {
-    const credential = await getProviderCredential();
-    const response = await fetchImpl(
-      `${baseUrl.replace(/\/+$/, "")}/api/account/sessions/exchange`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          provider: credential.provider,
-          provider_token: credential.providerToken
-        })
-      }
-    );
-    if (!response.ok) {
-      throw new Error(
-        `Failed to exchange account credential: HTTP ${response.status}`
-      );
-    }
-    return await response.json();
-  };
-  const getAccountAccessToken = async ({
-    forceRefresh = false
-  } = {}) => {
-    var _a3;
-    const refreshAt = cached ? cached.expires_at * 1e3 - refreshBeforeExpiryMs : 0;
-    if (!forceRefresh && cached && now() < refreshAt) {
-      return cached.access_token;
-    }
-    if (!forceRefresh && failedAt !== null && now() - failedAt < FAILURE_COOLDOWN_MS) {
-      return void 0;
-    }
-    if (!pending) {
-      pending = exchange().then((next) => {
-        failedAt = null;
-        const previous = cached;
-        cached = next;
-        scheduleRefresh(next);
-        if (previous && (previous.access_token !== next.access_token || previous.expires_at !== next.expires_at)) {
-          for (const listener of listeners) listener();
-        }
-        return next;
-      }).catch(() => {
-        failedAt = now();
-        return null;
-      }).finally(() => {
-        pending = null;
-      });
-    }
-    return (_a3 = await pending) == null ? void 0 : _a3.access_token;
-  };
-  getAccountAccessToken.subscribe = (listener) => {
-    listeners.add(listener);
-    return () => listeners.delete(listener);
-  };
-  getAccountAccessToken.dispose = () => {
-    if (refreshTimer) clearTimeout(refreshTimer);
-    refreshTimer = null;
-    listeners.clear();
-  };
-  return getAccountAccessToken;
-}
-var DEFAULT_REFRESH_BEFORE_EXPIRY_MS, FAILURE_COOLDOWN_MS;
-var init_account_session = __esm({
-  "src/account-session.ts"() {
-    "use strict";
-    DEFAULT_REFRESH_BEFORE_EXPIRY_MS = 2 * 60 * 1e3;
-    FAILURE_COOLDOWN_MS = 30 * 1e3;
-  }
-});
-
-// src/cli/client-factory.ts
-function resolveCliBaseUrl(config) {
-  var _a3;
-  return (_a3 = config.baseUrl) != null ? _a3 : DEFAULT_BACKEND_URL;
-}
-function createCliGetAccountAccessToken(config) {
-  if (config.accountAccessToken) {
-    return async () => config.accountAccessToken;
-  }
-  if (!config.accountProvider || !config.accountProviderToken) {
-    return void 0;
-  }
-  return createAccountAccessTokenProvider({
-    baseUrl: resolveCliBaseUrl(config),
-    getProviderCredential: async () => ({
-      provider: config.accountProvider,
-      providerToken: config.accountProviderToken
-    })
-  });
-}
-function createCliClient(config, overrides = {}) {
-  var _a3, _b;
-  const mergedConfig = __spreadProps(__spreadValues({}, config), {
-    baseUrl: (_a3 = overrides.baseUrl) != null ? _a3 : config.baseUrl,
-    apiKey: (_b = overrides.apiKey) != null ? _b : config.apiKey
-  });
-  return new AomiClient({
-    baseUrl: resolveCliBaseUrl(mergedConfig),
-    apiKey: mergedConfig.apiKey,
-    getAccountAccessToken: createCliGetAccountAccessToken(mergedConfig)
-  });
-}
-var DEFAULT_BACKEND_URL;
-var init_client_factory = __esm({
-  "src/cli/client-factory.ts"() {
-    "use strict";
-    init_account_session();
-    init_client();
-    DEFAULT_BACKEND_URL = "https://api.aomi.dev";
   }
 });
 
@@ -3623,6 +3838,9 @@ function buildCliUserState(publicKey, chainId3, options) {
   if (hasEvm) {
     if ((options == null ? void 0 : options.aaMode) === "4337" || (options == null ? void 0 : options.aaMode) === "7702") {
       const aaState = { mode: options.aaMode };
+      if (options.aaProvider != null) {
+        aaState.provider = options.aaProvider;
+      }
       if (options.smartAccount != null) {
         aaState.smart_account = options.smartAccount;
       }
@@ -3645,8 +3863,7 @@ function buildCliUserState(publicKey, chainId3, options) {
   );
   if (anyConnected) {
     userState.connection = {
-      is_connected: true,
-      primary_family: hasBoth ? "dual" : hasSvm ? "svm" : "evm"
+      is_connected: true
     };
   }
   return UserState.withExt(userState, "client_type", CLIENT_TYPE_TS_CLI);
@@ -3825,16 +4042,17 @@ function walletSnapshotFromUserState(userState) {
     smartAccount
   };
 }
-var init_user_state3 = __esm({
+var init_user_state2 = __esm({
   "src/cli/user-state.ts"() {
     "use strict";
-    init_user_state2();
+    init_user_state();
     init_wallet_utils();
   }
 });
 
 // src/cli/state.ts
 import {
+  chmodSync,
   existsSync,
   mkdirSync,
   readFileSync,
@@ -3853,7 +4071,12 @@ function hasSameBackendPendingId(existing, next) {
   return existing.kind === next.kind && existingBackendId !== void 0 && nextBackendId !== void 0 && existingBackendId === nextBackendId;
 }
 function ensureStorageDirs() {
-  mkdirSync(SESSIONS_DIR, { recursive: true });
+  mkdirSync(SESSIONS_DIR, { recursive: true, mode: STATE_DIR_MODE });
+  try {
+    chmodSync(STATE_ROOT_DIR, STATE_DIR_MODE);
+    chmodSync(SESSIONS_DIR, STATE_DIR_MODE);
+  } catch (e) {
+  }
 }
 function parseSessionFileLocalId(filename) {
   const match = filename.match(/^session-(\d+)\.json$/);
@@ -3862,7 +4085,10 @@ function parseSessionFileLocalId(filename) {
   return Number.isNaN(localId) ? null : localId;
 }
 function toSessionFilePath(localId) {
-  return join(SESSIONS_DIR, `${SESSION_FILE_PREFIX}${localId}${SESSION_FILE_SUFFIX}`);
+  return join(
+    SESSIONS_DIR,
+    `${SESSION_FILE_PREFIX}${localId}${SESSION_FILE_SUFFIX}`
+  );
 }
 function toCliSessionState(stored) {
   return {
@@ -3873,21 +4099,24 @@ function toCliSessionState(stored) {
     model: stored.model,
     modelSynced: stored.modelSynced,
     apiKey: stored.apiKey,
-    accountAccessToken: stored.accountAccessToken,
-    accountProvider: stored.accountProvider,
-    accountProviderToken: stored.accountProviderToken,
+    accountBearer: stored.accountBearer,
+    sessionCookie: stored.sessionCookie,
+    embeddedProvider: stored.embeddedProvider,
+    embeddedProviderToken: stored.embeddedProviderToken,
     publicKey: stored.publicKey,
     privateKey: stored.privateKey,
     svmPublicKey: stored.svmPublicKey,
     svmPrivateKey: stored.svmPrivateKey,
     chainId: stored.chainId,
+    aaProvider: stored.aaProvider,
     aaMode: stored.aaMode,
     smartAccount: stored.smartAccount,
     pendingTxs: stored.pendingTxs,
     pendingSolTxs: stored.pendingSolTxs,
     signedTxs: stored.signedTxs,
     signedSolTxs: stored.signedSolTxs,
-    secretHandles: stored.secretHandles
+    secretHandles: stored.secretHandles,
+    auth: stored.auth
   };
 }
 function normalizeSignedTx(tx) {
@@ -3916,14 +4145,16 @@ function readStoredSession(path) {
       app: parsed.app,
       model: parsed.model,
       apiKey: parsed.apiKey,
-      accountAccessToken: parsed.accountAccessToken,
-      accountProvider: parsed.accountProvider,
-      accountProviderToken: parsed.accountProviderToken,
+      accountBearer: parsed.accountBearer,
+      sessionCookie: parsed.sessionCookie,
+      embeddedProvider: parsed.embeddedProvider,
+      embeddedProviderToken: parsed.embeddedProviderToken,
       publicKey: parsed.publicKey,
       privateKey: parsed.privateKey,
       svmPublicKey: parsed.svmPublicKey,
       svmPrivateKey: parsed.svmPrivateKey,
       chainId: parsed.chainId,
+      aaProvider: parsed.aaProvider,
       aaMode: parsed.aaMode,
       smartAccount: parsed.smartAccount,
       pendingTxs: parsed.pendingTxs,
@@ -3931,6 +4162,7 @@ function readStoredSession(path) {
       signedTxs: normalizeSignedTxs(parsed.signedTxs),
       signedSolTxs: parsed.signedSolTxs,
       secretHandles: parsed.secretHandles,
+      auth: normalizeAuthSession(parsed.auth),
       localId: typeof parsed.localId === "number" && parsed.localId > 0 ? parsed.localId : fallbackLocalId,
       createdAt: typeof parsed.createdAt === "number" && parsed.createdAt > 0 ? parsed.createdAt : Date.now(),
       updatedAt: typeof parsed.updatedAt === "number" && parsed.updatedAt > 0 ? parsed.updatedAt : Date.now()
@@ -3938,6 +4170,20 @@ function readStoredSession(path) {
   } catch (e) {
     return null;
   }
+}
+function normalizeAuthSession(value) {
+  if (!value || typeof value !== "object") return void 0;
+  const auth = value;
+  if (typeof auth.sessionToken !== "string" || !auth.sessionToken || typeof auth.expiresAt !== "number" || !Number.isFinite(auth.expiresAt)) {
+    return void 0;
+  }
+  return {
+    sessionToken: auth.sessionToken,
+    expiresAt: auth.expiresAt,
+    walletAddress: auth.walletAddress,
+    chainId: auth.chainId,
+    betterAuthUserId: auth.betterAuthUserId
+  };
 }
 function readActiveLocalId() {
   try {
@@ -3959,7 +4205,13 @@ function writeActiveLocalId(localId) {
       return;
     }
     ensureStorageDirs();
-    writeFileSync(ACTIVE_SESSION_FILE, String(localId));
+    writeFileSync(ACTIVE_SESSION_FILE, String(localId), {
+      mode: STATE_FILE_MODE
+    });
+    try {
+      chmodSync(ACTIVE_SESSION_FILE, STATE_FILE_MODE);
+    } catch (e) {
+    }
   } catch (e) {
   }
 }
@@ -4004,13 +4256,22 @@ function migrateLegacyStateIfNeeded() {
     }
     const now = Date.now();
     const migrated = __spreadProps(__spreadValues({}, legacy), {
+      sessionId: legacy.sessionId,
+      baseUrl: legacy.baseUrl,
       signedTxs: normalizeSignedTxs(legacy.signedTxs),
       localId: 1,
       createdAt: now,
       updatedAt: now
     });
     ensureStorageDirs();
-    writeFileSync(toSessionFilePath(1), JSON.stringify(migrated, null, 2));
+    const migratedPath = toSessionFilePath(1);
+    writeFileSync(migratedPath, JSON.stringify(migrated, null, 2), {
+      mode: STATE_FILE_MODE
+    });
+    try {
+      chmodSync(migratedPath, STATE_FILE_MODE);
+    } catch (e) {
+    }
     writeActiveLocalId(1);
     rmSync(LEGACY_STATE_FILE);
   } catch (e) {
@@ -4075,7 +4336,9 @@ function deleteStoredSession(selector) {
   }
   const activeLocalId = readActiveLocalId();
   if (activeLocalId === target.localId) {
-    const remaining = readAllStoredSessions().sort((a, b) => b.updatedAt - a.updatedAt);
+    const remaining = readAllStoredSessions().sort(
+      (a, b) => b.updatedAt - a.updatedAt
+    );
     writeActiveLocalId((_b = (_a3 = remaining[0]) == null ? void 0 : _a3.localId) != null ? _b : null);
   }
   return toStoredSessionRecord(target);
@@ -4115,7 +4378,14 @@ function writeState(state) {
     createdAt,
     updatedAt: now
   });
-  writeFileSync(toSessionFilePath(localId), JSON.stringify(payload, null, 2));
+  const stateFilePath = toSessionFilePath(localId);
+  writeFileSync(stateFilePath, JSON.stringify(payload, null, 2), {
+    mode: STATE_FILE_MODE
+  });
+  try {
+    chmodSync(stateFilePath, STATE_FILE_MODE);
+  } catch (e) {
+  }
   writeActiveLocalId(localId);
 }
 function clearState() {
@@ -4164,14 +4434,16 @@ function syncPendingTxsFromUserState(state, userState) {
     pendingSolTxs: state.pendingSolTxs
   };
 }
-var SESSION_FILE_PREFIX, SESSION_FILE_SUFFIX, _a, LEGACY_STATE_FILE, _a2, STATE_ROOT_DIR, SESSIONS_DIR, ACTIVE_SESSION_FILE, _migrationDone;
+var SESSION_FILE_PREFIX, SESSION_FILE_SUFFIX, STATE_DIR_MODE, STATE_FILE_MODE, _a, LEGACY_STATE_FILE, _a2, STATE_ROOT_DIR, SESSIONS_DIR, ACTIVE_SESSION_FILE, _migrationDone;
 var init_state2 = __esm({
   "src/cli/state.ts"() {
     "use strict";
+    init_user_state();
     init_user_state2();
-    init_user_state3();
     SESSION_FILE_PREFIX = "session-";
     SESSION_FILE_SUFFIX = ".json";
+    STATE_DIR_MODE = 448;
+    STATE_FILE_MODE = 384;
     LEGACY_STATE_FILE = join(
       (_a = process.env.XDG_RUNTIME_DIR) != null ? _a : tmpdir(),
       "aomi-session.json"
@@ -4183,143 +4455,419 @@ var init_state2 = __esm({
   }
 });
 
-// src/cli/solana-signer.ts
-import {
-  Keypair,
-  Transaction,
-  VersionedTransaction
-} from "@solana/web3.js";
-import bs58 from "bs58";
-function parseSolanaKeypairSecret(input2) {
-  const trimmed = input2.trim();
-  if (!trimmed) {
-    throw new Error("Solana keypair secret is empty.");
-  }
-  let bytes;
-  if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
-    const parsed = JSON.parse(trimmed);
-    if (!Array.isArray(parsed) || parsed.some((value) => typeof value !== "number")) {
-      throw new Error(
-        "Solana keypair JSON must be an array of byte values (e.g. `[1,2,...,64]`)."
-      );
+// src/cli/auth.ts
+import { privateKeyToAccount as privateKeyToAccount2 } from "viem/accounts";
+function createCliAuthTokenProvider(readState2, now = Date.now) {
+  return async () => {
+    var _a3;
+    const state = readState2();
+    const auth = state.auth;
+    if ((auth == null ? void 0 : auth.sessionToken) && auth.expiresAt > now() + AUTH_REFRESH_SKEW_MS) {
+      return auth.sessionToken;
     }
-    bytes = Uint8Array.from(parsed);
-  } else {
-    try {
-      bytes = bs58.decode(trimmed);
-    } catch (err) {
-      throw new Error(
-        `Failed to decode Solana keypair as base58: ${err instanceof Error ? err.message : String(err)}`
-      );
+    return (_a3 = state.accountBearer) != null ? _a3 : state.sessionCookie;
+  };
+}
+async function signInWithCliSiwe({
+  baseUrl,
+  privateKey,
+  chainId: chainId3 = DEFAULT_CHAIN_ID,
+  fetch: fetchImpl = fetch,
+  now = Date.now
+}) {
+  var _a3, _b, _c, _d, _e, _f, _g, _h, _i;
+  const portalUrl = normalizeBaseUrl(baseUrl);
+  const account = privateKeyToAccount2(privateKey);
+  const address3 = account.address;
+  const nonceHttpResponse = await fetchImpl(
+    joinUrl(portalUrl, "/api/auth/siwe/nonce"),
+    {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json"
+      },
+      credentials: "include",
+      body: JSON.stringify({ walletAddress: address3, chainId: chainId3 })
     }
-  }
-  if (bytes.length !== 64) {
+  );
+  if (!nonceHttpResponse.ok) {
     throw new Error(
-      `Solana keypair secret must be 64 bytes (got ${bytes.length}). Use the full secret key, not just the seed.`
+      `SIWE nonce failed: HTTP ${nonceHttpResponse.status} ${await safeResponseText(
+        nonceHttpResponse
+      )}`
     );
   }
-  return Keypair.fromSecretKey(bytes);
-}
-function decodeBase64(value) {
-  if (typeof Buffer !== "undefined") {
-    return new Uint8Array(Buffer.from(value, "base64"));
+  const nonceResponse = await nonceHttpResponse.json();
+  const nonce = typeof nonceResponse.nonce === "string" ? nonceResponse.nonce : "";
+  if (!nonce) {
+    throw new Error("SIWE nonce response is missing nonce");
   }
-  const binary = atob(value);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-  return bytes;
-}
-function encodeBase64(bytes) {
-  if (typeof Buffer !== "undefined") {
-    return Buffer.from(bytes).toString("base64");
-  }
-  let binary = "";
-  for (let i = 0; i < bytes.byteLength; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return btoa(binary);
-}
-function signSolanaTransaction(unsignedTxBase64, keypair) {
-  const bytes = decodeBase64(unsignedTxBase64);
-  try {
-    const versioned = VersionedTransaction.deserialize(bytes);
-    versioned.sign([keypair]);
-    return {
-      signer: keypair.publicKey.toBase58(),
-      signedTxBase64: encodeBase64(versioned.serialize())
-    };
-  } catch (versionedErr) {
-    try {
-      const legacy = Transaction.from(bytes);
-      legacy.partialSign(keypair);
-      return {
-        signer: keypair.publicKey.toBase58(),
-        signedTxBase64: encodeBase64(legacy.serialize())
-      };
-    } catch (legacyErr) {
-      const versionedMsg = versionedErr instanceof Error ? versionedErr.message : String(versionedErr);
-      const legacyMsg = legacyErr instanceof Error ? legacyErr.message : String(legacyErr);
-      throw new Error(
-        `Failed to deserialize Solana transaction (versioned: ${versionedMsg}; legacy: ${legacyMsg}).`
-      );
+  const message = buildSiweMessage({
+    address: address3,
+    chainId: chainId3,
+    nonce,
+    domain: (_a3 = normalizeDomain(nonceResponse.domain)) != null ? _a3 : domainFromBaseUrl(portalUrl),
+    uri: (_b = normalizeUri(nonceResponse.uri)) != null ? _b : portalUrl
+  });
+  const signature = await account.signMessage({ message });
+  const verifyHeaders = new Headers({
+    Accept: "application/json",
+    "Content-Type": "application/json"
+  });
+  const verifyResponse = await fetchImpl(
+    joinUrl(portalUrl, "/api/auth/siwe/verify"),
+    {
+      method: "POST",
+      headers: verifyHeaders,
+      credentials: "include",
+      body: JSON.stringify({
+        message,
+        signature,
+        walletAddress: address3,
+        chainId: chainId3
+      })
     }
+  );
+  if (!verifyResponse.ok) {
+    throw new Error(
+      `SIWE verify failed: HTTP ${verifyResponse.status} ${await safeResponseText(
+        verifyResponse
+      )}`
+    );
+  }
+  const verifyBody = await verifyResponse.json().catch(() => ({}));
+  const sessionToken = (_c = getSessionTokenHeader(verifyResponse.headers)) != null ? _c : typeof verifyBody.token === "string" ? verifyBody.token : "";
+  if (!sessionToken) {
+    throw new Error(
+      "SIWE verify response is missing BetterAuth session token"
+    );
+  }
+  const accountInfo = await fetchPortalAccount(
+    fetchImpl,
+    portalUrl,
+    sessionToken
+  );
+  const expiresAt = (_e = parseExpiresAt((_d = accountInfo == null ? void 0 : accountInfo.session) == null ? void 0 : _d.expiresAt)) != null ? _e : now() + DEFAULT_SESSION_TTL_MS;
+  return {
+    address: address3,
+    auth: {
+      sessionToken,
+      expiresAt,
+      walletAddress: typeof ((_f = verifyBody.user) == null ? void 0 : _f.walletAddress) === "string" ? verifyBody.user.walletAddress : address3,
+      chainId: typeof ((_g = verifyBody.user) == null ? void 0 : _g.chainId) === "number" ? verifyBody.user.chainId : chainId3,
+      betterAuthUserId: typeof ((_h = accountInfo == null ? void 0 : accountInfo.session) == null ? void 0 : _h.betterAuthUserId) === "string" ? accountInfo.session.betterAuthUserId : typeof verifyBody.user_id === "string" ? verifyBody.user_id : typeof ((_i = verifyBody.user) == null ? void 0 : _i.id) === "string" ? verifyBody.user.id : void 0
+    }
+  };
+}
+async function signOutCliSession(input2) {
+  var _a3;
+  if (!input2.sessionToken) return;
+  const response = await ((_a3 = input2.fetch) != null ? _a3 : fetch)(
+    joinUrl(normalizeBaseUrl(input2.baseUrl), "/api/auth/sign-out"),
+    {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${input2.sessionToken}`,
+        "Content-Type": "application/json"
+      },
+      credentials: "include",
+      body: JSON.stringify({})
+    }
+  );
+  if (!response.ok && response.status !== 401) {
+    throw new Error(
+      `Sign-out failed: HTTP ${response.status} ${await safeResponseText(
+        response
+      )}`
+    );
   }
 }
-var init_solana_signer = __esm({
-  "src/cli/solana-signer.ts"() {
+function buildSiweMessage(input2) {
+  return `${input2.domain} wants you to sign in with your Ethereum account:
+${input2.address}
+
+Sign in to Aomi.
+
+URI: ${input2.uri}
+Version: 1
+Chain ID: ${input2.chainId}
+Nonce: ${input2.nonce}
+Issued At: ${(/* @__PURE__ */ new Date()).toISOString()}`;
+}
+function normalizeBaseUrl(baseUrl) {
+  const trimmed = baseUrl.trim().replace(/\/+$/, "");
+  if (!trimmed) throw new Error("Portal URL is required");
+  return trimmed;
+}
+function joinUrl(baseUrl, path) {
+  return `${baseUrl.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`;
+}
+function domainFromBaseUrl(baseUrl) {
+  try {
+    const url = new URL(baseUrl);
+    if (url.hostname === "127.0.0.1") {
+      return url.port ? `localhost:${url.port}` : "localhost";
+    }
+    return url.host;
+  } catch (e) {
+    return baseUrl.replace(/^[a-z][a-z0-9+.-]*:\/\//i, "").replace(/\/.*$/, "");
+  }
+}
+function normalizeDomain(value) {
+  if (typeof value !== "string") return void 0;
+  const trimmed = value.trim();
+  if (!trimmed) return void 0;
+  try {
+    return new URL(trimmed).host || void 0;
+  } catch (e) {
+    return trimmed.replace(/^[a-z][a-z0-9+.-]*:\/\//i, "").replace(/\/.*$/, "").trim();
+  }
+}
+function normalizeUri(value) {
+  if (typeof value !== "string") return void 0;
+  const trimmed = value.trim().replace(/\/+$/, "");
+  if (!trimmed) return void 0;
+  try {
+    const url = new URL(trimmed);
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      return void 0;
+    }
+    return url.toString().replace(/\/+$/, "");
+  } catch (e) {
+    return void 0;
+  }
+}
+function getSessionTokenHeader(headers) {
+  for (const header of SESSION_TOKEN_HEADERS) {
+    const value = headers.get(header);
+    if (value) return value;
+  }
+  return null;
+}
+async function fetchPortalAccount(fetchImpl, baseUrl, sessionToken) {
+  const response = await fetchImpl(joinUrl(baseUrl, "/api/aomi/account"), {
+    method: "GET",
+    credentials: "include",
+    headers: {
+      Accept: "application/json",
+      Authorization: `Bearer ${sessionToken}`
+    }
+  });
+  if (!response.ok) return null;
+  return await response.json().catch(() => null);
+}
+async function requestJson(fetchImpl, url, init, label) {
+  var _a3;
+  const response = await fetchImpl(url, __spreadValues({
+    headers: __spreadValues({ Accept: "application/json" }, (_a3 = init.headers) != null ? _a3 : {})
+  }, init));
+  if (!response.ok) {
+    throw new Error(
+      `${label} failed: HTTP ${response.status} ${await safeResponseText(
+        response
+      )}`
+    );
+  }
+  return await response.json();
+}
+function parseExpiresAt(value) {
+  if (value instanceof Date) return value.getTime();
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value > 1e12 ? value : value * 1e3;
+  }
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Date.parse(value);
+    return Number.isNaN(parsed) ? null : parsed;
+  }
+  return null;
+}
+async function safeResponseText(response) {
+  const text = await response.text().catch(() => "");
+  return text ? `- ${text}` : "";
+}
+var DEFAULT_CHAIN_ID, DEFAULT_SESSION_TTL_MS, AUTH_REFRESH_SKEW_MS, SESSION_TOKEN_HEADERS;
+var init_auth = __esm({
+  "src/cli/auth.ts"() {
     "use strict";
+    DEFAULT_CHAIN_ID = 1;
+    DEFAULT_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1e3;
+    AUTH_REFRESH_SKEW_MS = 30 * 1e3;
+    SESSION_TOKEN_HEADERS = ["set-auth-token", "x-auth-token", "auth-token"];
+  }
+});
+
+// src/cli/client-factory.ts
+function resolveCliBaseUrl(config) {
+  var _a3;
+  return (_a3 = config.baseUrl) != null ? _a3 : DEFAULT_CLI_BASE_URL;
+}
+function createCliGetAccountBearer(config) {
+  if (config.accountBearer) {
+    const bearer = config.accountBearer;
+    return async () => bearer;
+  }
+  if (config.sessionCookie) {
+    const sessionCookie = config.sessionCookie;
+    return async () => sessionCookie;
+  }
+  return void 0;
+}
+function createCliClient(config, overrides = {}) {
+  var _a3, _b;
+  const mergedConfig = __spreadProps(__spreadValues({}, config), {
+    baseUrl: (_a3 = overrides.baseUrl) != null ? _a3 : config.baseUrl,
+    apiKey: (_b = overrides.apiKey) != null ? _b : config.apiKey
+  });
+  return new AomiClient({
+    baseUrl: resolveCliBaseUrl(mergedConfig),
+    apiKey: mergedConfig.apiKey,
+    getAccountBearer: createCliGetAccountBearer(mergedConfig)
+  });
+}
+var DEFAULT_CLI_BASE_URL;
+var init_client_factory = __esm({
+  "src/cli/client-factory.ts"() {
+    "use strict";
+    init_client();
+    DEFAULT_CLI_BASE_URL = "https://chat.aomi.dev";
+  }
+});
+
+// src/cli/payment.ts
+import { x402Client } from "@x402/core/client";
+import { ExactEvmScheme } from "@x402/evm/exact/client";
+import { wrapFetchWithPayment } from "@x402/fetch";
+import { privateKeyToAccount as privateKeyToAccount3 } from "viem/accounts";
+function stringValue(value) {
+  return typeof value === "string" && value.length > 0 ? value : void 0;
+}
+function parseBase64Json(value) {
+  try {
+    const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized.padEnd(
+      normalized.length + (4 - normalized.length % 4) % 4,
+      "="
+    );
+    return JSON.parse(atob(padded));
+  } catch (e) {
+    return void 0;
+  }
+}
+async function paymentRequirementFrom(response) {
+  var _a3;
+  const fromHeader = response.headers.get("Payment-Required");
+  const payload = fromHeader ? parseBase64Json(fromHeader) : await response.clone().json().catch(() => void 0);
+  const accepted = (_a3 = payload == null ? void 0 : payload.accepts) == null ? void 0 : _a3[0];
+  if (!accepted) return void 0;
+  return {
+    amount: stringValue(accepted.amount),
+    asset: stringValue(accepted.asset),
+    network: stringValue(accepted.network),
+    payTo: stringValue(accepted.payTo),
+    error: stringValue(payload == null ? void 0 : payload.error)
+  };
+}
+function receiptIdFrom(response) {
+  var _a3;
+  const header = paymentResponseHeader(response);
+  const settlement = header ? parseBase64Json(header) : void 0;
+  return (_a3 = stringValue(settlement == null ? void 0 : settlement.transaction)) != null ? _a3 : stringValue(settlement == null ? void 0 : settlement.network);
+}
+function paymentResponseHeader(response) {
+  var _a3;
+  return (_a3 = response.headers.get("Payment-Response")) != null ? _a3 : response.headers.get("X-Payment-Response");
+}
+function hasPaymentSignature(request) {
+  return request.headers.has("Payment-Signature") || request.headers.has("X-Payment");
+}
+function createTracedFetch(onPayment) {
+  return async (input2, init) => {
+    var _a3;
+    const request = new Request(input2, init);
+    const isPaymentRetry = hasPaymentSignature(request);
+    if (isPaymentRetry) {
+      onPayment == null ? void 0 : onPayment({ type: "submitting", url: request.url });
+    }
+    const response = await globalThis.fetch(request);
+    if (!onPayment) return response;
+    if (isPaymentRetry) {
+      const settled = response.ok || paymentResponseHeader(response) !== null;
+      onPayment(
+        settled ? {
+          type: "settled",
+          url: request.url,
+          status: response.status,
+          receiptId: receiptIdFrom(response)
+        } : {
+          type: "rejected",
+          url: request.url,
+          status: response.status,
+          reason: (_a3 = await paymentRequirementFrom(response)) == null ? void 0 : _a3.error
+        }
+      );
+    } else if (response.status === 402) {
+      onPayment({
+        type: "required",
+        url: request.url,
+        requirement: await paymentRequirementFrom(response)
+      });
+    }
+    return response;
+  };
+}
+function followSettledPaymentChallenges(paymentFetch) {
+  return async (input2, init) => {
+    const original = new Request(input2, init);
+    let response = await paymentFetch(original.clone());
+    for (let challenge = 1; challenge < MAX_SEQUENTIAL_PAYMENT_CHALLENGES && response.status === 402 && paymentResponseHeader(response) !== null; challenge += 1) {
+      response = await paymentFetch(original.clone());
+    }
+    return response;
+  };
+}
+function createCliPaymentFetch(config, onPayment) {
+  if (!(config == null ? void 0 : config.paymentMethod)) {
+    return void 0;
+  }
+  if (config.paymentMethod !== "coinbase") {
+    fatal("Unsupported payment method. Use `coinbase`.");
+  }
+  if (!config.privateKey) {
+    fatal(
+      "`--payment-method coinbase` requires an EVM private key. Pass `--private-key` or set `PRIVATE_KEY`."
+    );
+  }
+  const account = privateKeyToAccount3(config.privateKey);
+  const paymentClient = new x402Client();
+  paymentClient.register("eip155:*", new ExactEvmScheme(account));
+  return followSettledPaymentChallenges(
+    wrapFetchWithPayment(createTracedFetch(onPayment), paymentClient)
+  );
+}
+var MAX_SEQUENTIAL_PAYMENT_CHALLENGES;
+var init_payment = __esm({
+  "src/cli/payment.ts"() {
+    "use strict";
+    init_errors();
+    MAX_SEQUENTIAL_PAYMENT_CHALLENGES = 4;
   }
 });
 
 // src/cli/cli-session.ts
-function applyAccountCredentialConfig(state, config) {
-  let changed = false;
-  const selectsBearer = config.accountAccessToken !== void 0;
-  const selectsProviderExchange = config.accountProvider !== void 0 || config.accountProviderToken !== void 0;
-  if (selectsBearer) {
-    if (state.accountAccessToken !== config.accountAccessToken) {
-      state.accountAccessToken = config.accountAccessToken;
-      changed = true;
-    }
-    if (state.accountProvider !== void 0) {
-      state.accountProvider = void 0;
-      changed = true;
-    }
-    if (state.accountProviderToken !== void 0) {
-      state.accountProviderToken = void 0;
-      changed = true;
-    }
-    return changed;
-  }
-  if (!selectsProviderExchange) {
-    return changed;
-  }
-  if (state.accountAccessToken !== void 0) {
-    state.accountAccessToken = void 0;
-    changed = true;
-  }
-  if (config.accountProvider !== void 0 && state.accountProvider !== config.accountProvider) {
-    state.accountProvider = config.accountProvider;
-    changed = true;
-  }
-  if (config.accountProviderToken !== void 0 && state.accountProviderToken !== config.accountProviderToken) {
-    state.accountProviderToken = config.accountProviderToken;
-    changed = true;
-  }
-  return changed;
-}
 var CliSession;
 var init_cli_session = __esm({
   "src/cli/cli-session.ts"() {
     "use strict";
     init_session2();
-    init_client_factory();
     init_state2();
-    init_user_state3();
+    init_user_state2();
     init_errors();
     init_solana_signer();
+    init_auth();
+    init_client_factory();
+    init_payment();
     CliSession = class _CliSession {
       constructor(state) {
         this.state = state;
@@ -4347,7 +4895,7 @@ var init_cli_session = __esm({
       }
       /** Create a fresh session and persist it. */
       static create(config, seed) {
-        var _a3, _b, _c, _d, _e, _f, _g, _h, _i;
+        var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m;
         let svmPublicKey;
         if (config.solanaPrivateKey) {
           try {
@@ -4360,24 +4908,26 @@ var init_cli_session = __esm({
         const state = {
           sessionId: crypto.randomUUID(),
           clientId: crypto.randomUUID(),
-          baseUrl: (_b = (_a3 = config.baseUrl) != null ? _a3 : seed == null ? void 0 : seed.baseUrl) != null ? _b : "https://api.aomi.dev",
+          baseUrl: (_b = (_a3 = config.baseUrl) != null ? _a3 : seed == null ? void 0 : seed.baseUrl) != null ? _b : DEFAULT_CLI_BASE_URL,
           app: (_c = config.app) != null ? _c : seed == null ? void 0 : seed.app,
           model: (_d = config.model) != null ? _d : seed == null ? void 0 : seed.model,
           apiKey: (_e = config.apiKey) != null ? _e : seed == null ? void 0 : seed.apiKey,
-          accountAccessToken: seed == null ? void 0 : seed.accountAccessToken,
-          accountProvider: seed == null ? void 0 : seed.accountProvider,
-          accountProviderToken: seed == null ? void 0 : seed.accountProviderToken,
-          publicKey: (_f = config.publicKey) != null ? _f : seed == null ? void 0 : seed.publicKey,
-          privateKey: (_g = config.privateKey) != null ? _g : seed == null ? void 0 : seed.privateKey,
+          accountBearer: (_f = config.accountBearer) != null ? _f : seed == null ? void 0 : seed.accountBearer,
+          sessionCookie: (_g = config.sessionCookie) != null ? _g : seed == null ? void 0 : seed.sessionCookie,
+          embeddedProvider: (_h = config.embeddedProvider) != null ? _h : seed == null ? void 0 : seed.embeddedProvider,
+          embeddedProviderToken: (_i = config.embeddedProviderToken) != null ? _i : seed == null ? void 0 : seed.embeddedProviderToken,
+          publicKey: (_j = config.publicKey) != null ? _j : seed == null ? void 0 : seed.publicKey,
+          privateKey: seed == null ? void 0 : seed.privateKey,
           svmPublicKey: svmPublicKey != null ? svmPublicKey : seed == null ? void 0 : seed.svmPublicKey,
-          // Carry forward the persisted Solana private key so `wallet set --solana`
-          // survives `--new-session` — signing key is a user preference, not a
-          // per-session artifact.
-          svmPrivateKey: (_h = config.solanaPrivateKey) != null ? _h : seed == null ? void 0 : seed.svmPrivateKey,
-          chainId: (_i = config.chain) != null ? _i : seed == null ? void 0 : seed.chainId,
-          secretHandles: seed == null ? void 0 : seed.secretHandles
+          // Carry forward only persisted Solana keys from `wallet set --solana`.
+          // Keys supplied via --solana-private-key/env stay transient.
+          svmPrivateKey: seed == null ? void 0 : seed.svmPrivateKey,
+          chainId: (_k = config.chain) != null ? _k : seed == null ? void 0 : seed.chainId,
+          aaProvider: (_l = config.aaProvider) != null ? _l : seed == null ? void 0 : seed.aaProvider,
+          aaMode: (_m = config.aaMode) != null ? _m : seed == null ? void 0 : seed.aaMode,
+          secretHandles: seed == null ? void 0 : seed.secretHandles,
+          auth: seed == null ? void 0 : seed.auth
         };
-        applyAccountCredentialConfig(state, config);
         const cli = new _CliSession(state);
         cli.save();
         return cli;
@@ -4438,6 +4988,9 @@ var init_cli_session = __esm({
         var _a3;
         return (_a3 = this.state.secretHandles) != null ? _a3 : {};
       }
+      get auth() {
+        return this.state.auth;
+      }
       // ---------------------------------------------------------------------------
       // Mutators (auto-persist)
       // ---------------------------------------------------------------------------
@@ -4461,7 +5014,26 @@ var init_cli_session = __esm({
           this.state.apiKey = config.apiKey;
           changed = true;
         }
-        changed = applyAccountCredentialConfig(this.state, config) || changed;
+        if (config.accountBearer !== void 0 && config.accountBearer !== this.state.accountBearer) {
+          this.state.accountBearer = config.accountBearer;
+          delete this.state.embeddedProvider;
+          delete this.state.embeddedProviderToken;
+          changed = true;
+        }
+        if (config.sessionCookie !== void 0 && config.sessionCookie !== this.state.sessionCookie) {
+          this.state.sessionCookie = config.sessionCookie;
+          changed = true;
+        }
+        if (config.embeddedProvider !== void 0 && config.embeddedProvider !== this.state.embeddedProvider) {
+          this.state.embeddedProvider = config.embeddedProvider;
+          delete this.state.accountBearer;
+          changed = true;
+        }
+        if (config.embeddedProviderToken !== void 0 && config.embeddedProviderToken !== this.state.embeddedProviderToken) {
+          this.state.embeddedProviderToken = config.embeddedProviderToken;
+          delete this.state.accountBearer;
+          changed = true;
+        }
         if (config.publicKey !== void 0 && config.publicKey !== this.state.publicKey) {
           this.state.publicKey = config.publicKey;
           changed = true;
@@ -4480,6 +5052,14 @@ var init_cli_session = __esm({
         }
         if (config.chain !== void 0 && config.chain !== this.state.chainId) {
           this.state.chainId = config.chain;
+          changed = true;
+        }
+        if (config.aaProvider !== void 0 && config.aaProvider !== this.state.aaProvider) {
+          this.state.aaProvider = config.aaProvider;
+          changed = true;
+        }
+        if (config.aaMode !== void 0 && config.aaMode !== this.state.aaMode) {
+          this.state.aaMode = config.aaMode;
           changed = true;
         }
         if (!this.state.clientId) {
@@ -4533,6 +5113,27 @@ var init_cli_session = __esm({
       clearSecretHandles() {
         this.state.secretHandles = {};
         this.save();
+      }
+      setAuthSession(auth) {
+        this.state.auth = auth;
+        this.save();
+      }
+      clearAuthSession() {
+        if (!this.state.auth) return;
+        delete this.state.auth;
+        this.save();
+      }
+      clearSigningKeys() {
+        let changed = false;
+        if (this.state.privateKey !== void 0) {
+          delete this.state.privateKey;
+          changed = true;
+        }
+        if (this.state.svmPrivateKey !== void 0) {
+          delete this.state.svmPrivateKey;
+          changed = true;
+        }
+        if (changed) this.save();
       }
       /** Ensure clientId exists, generate if absent. Returns the clientId. */
       ensureClientId() {
@@ -4657,43 +5258,31 @@ Available: ${available}`);
       // Bridge to ClientSession
       // ---------------------------------------------------------------------------
       /** Build a ClientSession from the current state. */
-      createClientSession(config = {}) {
-        var _a3, _b, _c, _d, _e;
-        const effectiveAccountProvider = config.accountAccessToken !== void 0 ? void 0 : (_a3 = config.accountProvider) != null ? _a3 : this.state.accountProvider;
-        const effectiveAccountProviderToken = config.accountAccessToken !== void 0 ? void 0 : (_b = config.accountProviderToken) != null ? _b : this.state.accountProviderToken;
-        const shouldUseProviderExchange = Boolean(
-          effectiveAccountProvider && effectiveAccountProviderToken
-        );
+      createClientSession(config, options) {
+        var _a3, _b, _c, _d;
+        const paymentFetch = createCliPaymentFetch(config, options == null ? void 0 : options.onPayment);
         const session = new ClientSession(
-          createCliClient(
-            __spreadProps(__spreadValues({}, config), {
-              baseUrl: this.state.baseUrl,
-              apiKey: this.state.apiKey,
-              // Prefer an explicit or persisted provider exchange config over any
-              // stale bearer so switching auth modes does not get stuck on old
-              // session state.
-              accountAccessToken: shouldUseProviderExchange ? void 0 : (_c = config.accountAccessToken) != null ? _c : this.state.accountAccessToken,
-              accountProvider: effectiveAccountProvider,
-              accountProviderToken: effectiveAccountProviderToken
-            }),
-            {
-              baseUrl: this.state.baseUrl,
-              apiKey: this.state.apiKey
-            }
-          ),
+          {
+            baseUrl: this.state.baseUrl,
+            apiKey: this.state.apiKey,
+            fetch: paymentFetch,
+            getAccountBearer: createCliAuthTokenProvider(() => this.state)
+          },
           {
             sessionId: this.state.sessionId,
             clientId: this.state.clientId,
             app: this.state.app,
+            applicationId: config == null ? void 0 : config.applicationId,
             apiKey: this.state.apiKey,
-            publicKey: this.state.publicKey
+            paymentMethod: config == null ? void 0 : config.paymentMethod
           }
         );
         session.resolveUserState(
           buildCliUserState(this.state.publicKey, this.state.chainId, {
             app: this.state.app,
-            aaMode: (_d = this.state.aaMode) != null ? _d : null,
-            smartAccount: (_e = this.state.smartAccount) != null ? _e : null,
+            aaProvider: (_b = (_a3 = this.state.aaProvider) != null ? _a3 : config == null ? void 0 : config.aaProvider) != null ? _b : null,
+            aaMode: (_c = this.state.aaMode) != null ? _c : null,
+            smartAccount: (_d = this.state.smartAccount) != null ? _d : null,
             svmAddress: this.state.svmPublicKey
           })
         );
@@ -4738,13 +5327,19 @@ Available: ${available}`);
 });
 
 // src/cli/output.ts
-function printDataFileLocation() {
+function printDataFileLocation(options) {
+  if ((options == null ? void 0 : options.verbose) !== true) {
+    return;
+  }
   const activeFile = getActiveStateFilePath();
   if (activeFile) {
     console.log(`Data stored at ${activeFile} \u{1F4DD}`);
     return;
   }
   console.log(`Data stored under ${STATE_ROOT_DIR} \u{1F4DD}`);
+}
+function printJson(value) {
+  console.log(JSON.stringify(value, null, 2));
 }
 function printToolUpdate(event) {
   var _a3;
@@ -4760,6 +5355,34 @@ function printToolComplete(event) {
 }
 function printToolResultLine(name, result) {
   console.log(formatToolResultLine(name, result));
+}
+function printPaymentEvent(event) {
+  switch (event.type) {
+    case "required": {
+      const requirement = event.requirement;
+      const details = [
+        (requirement == null ? void 0 : requirement.amount) ? `amount ${requirement.amount}` : void 0,
+        requirement == null ? void 0 : requirement.network,
+        (requirement == null ? void 0 : requirement.payTo) ? `beneficiary ${requirement.payTo}` : void 0
+      ].filter(Boolean).join(" \xB7 ");
+      console.log(
+        `${YELLOW}\u{1F4B3} x402 payment required${details ? `: ${details}` : ""}${RESET}`
+      );
+      return;
+    }
+    case "submitting":
+      console.log(`${DIM}\u270D\uFE0F Signing and submitting x402 payment\u2026${RESET}`);
+      return;
+    case "settled":
+      console.log(
+        `${GREEN}\u2714 x402 payment settled${event.receiptId ? `: ${event.receiptId}` : ""}${RESET}`
+      );
+      return;
+    case "rejected":
+      console.log(
+        `\x1B[31m\u2716 x402 payment rejected (HTTP ${event.status})${event.reason ? `: ${event.reason}` : ""}${RESET}`
+      );
+  }
 }
 function getToolNameFromEvent(event) {
   var _a3, _b;
@@ -4848,7 +5471,15 @@ var init_output = __esm({
 
 // src/cli/context.ts
 function createControlClient(config) {
-  return createCliClient(config);
+  var _a3;
+  return new AomiClient({
+    baseUrl: (_a3 = config.baseUrl) != null ? _a3 : DEFAULT_CLI_BASE_URL,
+    apiKey: config.apiKey,
+    getAccountBearer: createCliAuthTokenProvider(() => {
+      var _a4;
+      return (_a4 = readState()) != null ? _a4 : {};
+    })
+  });
 }
 async function ingestSecretsForSession(config, cli, client) {
   const secrets = config.secrets;
@@ -4873,6 +5504,7 @@ async function applyRequestedModelIfPresent(config, cli, session) {
   }
   await session.client.setModel(cli.sessionId, requestedModel, {
     app: cli.app,
+    applicationId: config.applicationId,
     apiKey: cli.apiKey
   });
   cli.setModel(requestedModel);
@@ -4880,7 +5512,10 @@ async function applyRequestedModelIfPresent(config, cli, session) {
 var init_context = __esm({
   "src/cli/context.ts"() {
     "use strict";
+    init_client();
+    init_auth();
     init_client_factory();
+    init_state2();
   }
 });
 
@@ -4900,6 +5535,22 @@ function extractMentionedTxIds(content) {
   const matches = (_a3 = content.match(/\btx-\d+\b/gi)) != null ? _a3 : [];
   return Array.from(new Set(matches.map((id) => id.toLowerCase()))).sort();
 }
+function hasAccountCredential(cli) {
+  var _a3;
+  const state = cli.toState();
+  return Boolean(
+    ((_a3 = state.auth) == null ? void 0 : _a3.sessionToken) || state.accountBearer || state.sessionCookie
+  );
+}
+async function ensureAccountBoundThread(cli, session) {
+  if (!hasAccountCredential(cli)) return;
+  try {
+    await session.client.createThread(cli.sessionId);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    fatal(`Failed to create account-bound backend thread: ${detail}`);
+  }
+}
 function deriveSvmAddress(solanaPrivateKey) {
   if (!solanaPrivateKey) return void 0;
   try {
@@ -4916,33 +5567,37 @@ function shouldBroadcastWalletStateChange(config, previous, next) {
   if (!next.publicKey || next.chainId === void 0) {
     return false;
   }
-  return normalizeAddress2(previous == null ? void 0 : previous.publicKey) !== normalizeAddress2(next.publicKey) || (previous == null ? void 0 : previous.chainId) !== next.chainId || (previous == null ? void 0 : previous.aaMode) !== next.aaMode || normalizeAddress2((_a3 = previous == null ? void 0 : previous.smartAccount) != null ? _a3 : void 0) !== normalizeAddress2((_b = next.smartAccount) != null ? _b : void 0);
+  return normalizeAddress2(previous == null ? void 0 : previous.publicKey) !== normalizeAddress2(next.publicKey) || (previous == null ? void 0 : previous.chainId) !== next.chainId || (previous == null ? void 0 : previous.aaProvider) !== next.aaProvider || (previous == null ? void 0 : previous.aaMode) !== next.aaMode || normalizeAddress2((_a3 = previous == null ? void 0 : previous.smartAccount) != null ? _a3 : void 0) !== normalizeAddress2((_b = next.smartAccount) != null ? _b : void 0);
 }
 async function syncWalletStateForChat(config, previous, next, cli, session) {
-  var _a3, _b;
+  var _a3, _b, _c, _d;
   if (!shouldBroadcastWalletStateChange(config, previous, next) || !next.publicKey) {
     return;
   }
   const userState = buildCliUserState(next.publicKey, next.chainId, {
     app: config.app,
-    aaMode: (_a3 = next.aaMode) != null ? _a3 : null,
-    smartAccount: (_b = next.smartAccount) != null ? _b : null,
+    aaProvider: (_b = (_a3 = next.aaProvider) != null ? _a3 : config.aaProvider) != null ? _b : null,
+    aaMode: (_c = next.aaMode) != null ? _c : null,
+    smartAccount: (_d = next.smartAccount) != null ? _d : null,
     svmAddress: next.svmAddress,
     svmCluster: config.svmCluster
   });
   session.resolveUserState(userState);
   await session.syncUserState();
+  if (!hasAccountCredential(cli)) {
+    return;
+  }
   await session.client.sendSystemMessage(
     cli.sessionId,
     JSON.stringify({
       type: "wallet:state_changed",
       payload: userState
     }),
-    { app: config.app }
+    { app: config.app, applicationId: config.applicationId }
   );
 }
 async function chatCommand(config, message, verbose) {
-  var _a3, _b, _c, _d, _e;
+  var _a3, _b, _c, _d, _e, _f, _g, _h;
   if (!message) {
     fatal("Usage: aomi chat <message>");
   }
@@ -4950,16 +5605,20 @@ async function chatCommand(config, message, verbose) {
   const previousWallet = previousCli ? {
     publicKey: previousCli.publicKey,
     chainId: previousCli.chainId,
-    aaMode: (_a3 = previousCli.toState().aaMode) != null ? _a3 : null,
-    smartAccount: (_b = previousCli.toState().smartAccount) != null ? _b : null,
+    aaProvider: (_a3 = previousCli.toState().aaProvider) != null ? _a3 : null,
+    aaMode: (_b = previousCli.toState().aaMode) != null ? _b : null,
+    smartAccount: (_c = previousCli.toState().smartAccount) != null ? _c : null,
     svmAddress: void 0
     // force re-sync of SVM state on every chat
   } : null;
   const cli = CliSession.loadOrCreate(config);
-  const session = cli.createClientSession(config);
+  const session = cli.createClientSession(config, {
+    onPayment: printPaymentEvent
+  });
   const resolvedSolanaKey = cli.resolvedSvmPrivateKey(config.solanaPrivateKey);
-  const svmAddress3 = (_c = deriveSvmAddress(resolvedSolanaKey)) != null ? _c : cli.svmPublicKey;
+  const svmAddress3 = (_d = deriveSvmAddress(resolvedSolanaKey)) != null ? _d : cli.svmPublicKey;
   try {
+    await ensureAccountBoundThread(cli, session);
     await ingestSecretsForSession(config, cli, session.client);
     await applyRequestedModelIfPresent(config, cli, session);
     await syncWalletStateForChat(
@@ -4968,8 +5627,9 @@ async function chatCommand(config, message, verbose) {
       {
         publicKey: cli.publicKey,
         chainId: cli.chainId,
-        aaMode: (_d = cli.toState().aaMode) != null ? _d : null,
-        smartAccount: (_e = cli.toState().smartAccount) != null ? _e : null,
+        aaProvider: (_f = (_e = cli.toState().aaProvider) != null ? _e : config.aaProvider) != null ? _f : null,
+        aaMode: (_g = cli.toState().aaMode) != null ? _g : null,
+        smartAccount: (_h = cli.toState().smartAccount) != null ? _h : null,
         svmAddress: svmAddress3
       },
       cli,
@@ -4994,7 +5654,7 @@ async function chatCommand(config, message, verbose) {
     });
     if (verbose) {
       session.on("processing_start", () => {
-        console.log(`${DIM}\u23F3 Processing\u2026${RESET}`);
+        console.log(`${DIM}\u23F3 Thinking\u2026${RESET}`);
       });
       session.on("system_notice", ({ message: msg }) => {
         console.log(`${YELLOW}\u{1F4E2} ${msg}${RESET}`);
@@ -5069,7 +5729,7 @@ async function chatCommand(config, message, verbose) {
         console.log(`   to:    ${payload.to}`);
         if (payload.value) console.log(`   value: ${payload.value}`);
         if (payload.chainId) console.log(`   chain: ${payload.chainId}`);
-      } else if (pending.kind === "eip712_sign") {
+      } else if ("kind" in pending && pending.kind === "eip712_sign") {
         const payload = pending.payload;
         if (payload.description) {
           console.log(`   desc:  ${payload.description}`);
@@ -5088,6 +5748,7 @@ async function chatCommand(config, message, verbose) {
         console.log(last.content);
       } else if (newPendingTxs.length === 0) {
         console.log("(no response)");
+        fatal("Backend returned an empty agent message.");
       }
       if (newPendingTxs.length === 0) {
         const mentionedTxIds = extractMentionedTxIds(last == null ? void 0 : last.content);
@@ -5116,7 +5777,7 @@ var init_chat = __esm({
     init_output();
     init_context();
     init_errors();
-    init_user_state3();
+    init_user_state2();
     init_solana_signer();
   }
 });
@@ -5219,7 +5880,7 @@ var init_types2 = __esm({
 
 // src/aa/execute.ts
 import { createPublicClient, createWalletClient, http } from "viem";
-import { privateKeyToAccount as privateKeyToAccount2 } from "viem/accounts";
+import { privateKeyToAccount as privateKeyToAccount4 } from "viem/accounts";
 function normalizeRpcCallData(data) {
   return data === "0x" ? void 0 : data;
 }
@@ -5398,7 +6059,7 @@ async function executeViaEoa({
       if (!rpcUrl) {
         throw new Error(`No RPC for chain ${call.chainId}`);
       }
-      const account = privateKeyToAccount2(localPrivateKey);
+      const account = privateKeyToAccount4(localPrivateKey);
       const walletClient = createWalletClient({
         account,
         chain,
@@ -5761,13 +6422,13 @@ var init_adapt = __esm({
 });
 
 // src/aa/owner.ts
-import { privateKeyToAccount as privateKeyToAccount3 } from "viem/accounts";
+import { privateKeyToAccount as privateKeyToAccount5 } from "viem/accounts";
 function getDirectOwnerParams(owner) {
   return {
     kind: "ready",
     ownerParams: {
       para: void 0,
-      signer: privateKeyToAccount3(owner.privateKey)
+      signer: privateKeyToAccount5(owner.privateKey)
     }
   };
 }
@@ -5796,6 +6457,16 @@ function getSessionOwnerParams(owner) {
       return { kind: "unsupported_adapter", adapter: owner.adapter };
   }
 }
+function getExternalWalletOwnerParams(owner) {
+  return {
+    kind: "ready",
+    ownerParams: {
+      para: void 0,
+      signer: owner.signer,
+      address: owner.address
+    }
+  };
+}
 function getOwnerParams(owner) {
   if (!owner) {
     return { kind: "missing" };
@@ -5805,6 +6476,8 @@ function getOwnerParams(owner) {
       return getDirectOwnerParams(owner);
     case "session":
       return getSessionOwnerParams(owner);
+    case "external-wallet":
+      return getExternalWalletOwnerParams(owner);
   }
 }
 function getMissingOwnerState(resolved, provider) {
@@ -5825,6 +6498,16 @@ function getUnsupportedAdapterState(resolved, adapter) {
     error: new Error(`Session adapter "${adapter}" is not implemented.`)
   };
 }
+function getUnsupportedOwnerState(resolved, provider, ownerKind, message) {
+  return {
+    resolved,
+    account: null,
+    pending: false,
+    error: new Error(
+      message != null ? message : `${provider} AA does not support ${ownerKind} owners in this build.`
+    )
+  };
+}
 var init_owner = __esm({
   "src/aa/owner.ts"() {
     "use strict";
@@ -5832,7 +6515,7 @@ var init_owner = __esm({
 });
 
 // src/aa/alchemy/create.ts
-import { privateKeyToAccount as privateKeyToAccount4 } from "viem/accounts";
+import { privateKeyToAccount as privateKeyToAccount6 } from "viem/accounts";
 function extractExistingAccountAddress(error) {
   var _a3;
   const message = error instanceof Error ? error.message : String(error);
@@ -5949,6 +6632,14 @@ async function createAlchemyAAState(options) {
       };
     }
   }
+  if (owner.kind === "external-wallet") {
+    return getUnsupportedOwnerState(
+      execution,
+      "alchemy",
+      owner.kind,
+      "Alchemy AA external-wallet owners are not implemented yet. Use Pimlico for sessionless external-wallet 4337 execution."
+    );
+  }
   if (!apiKey) {
     return {
       resolved: execution,
@@ -5981,7 +6672,7 @@ async function createAlchemyAAState(options) {
 async function createAlchemyWalletApisState(params) {
   const { createSmartWalletClient, alchemyWalletTransport } = await import("@alchemy/wallet-apis");
   const transport = params.proxyBaseUrl ? alchemyWalletTransport({ url: params.proxyBaseUrl }) : alchemyWalletTransport({ apiKey: params.apiKey });
-  const signer = privateKeyToAccount4(params.privateKey);
+  const signer = privateKeyToAccount6(params.privateKey);
   const alchemyClient = createSmartWalletClient(__spreadValues({
     transport,
     chain: params.chain,
@@ -6036,7 +6727,9 @@ async function createAlchemyWalletApisState(params) {
       const result = await alchemyClient.sendCalls(__spreadProps(__spreadValues({}, params.resolved.mode === "4337" ? { account: accountAddress } : {}), {
         calls
       }));
-      aaDebug(`${params.resolved.mode}:sendCalls:submitted`, { callId: result.id });
+      aaDebug(`${params.resolved.mode}:sendCalls:submitted`, {
+        callId: result.id
+      });
       const status = await alchemyClient.waitForCallsStatus({ id: result.id });
       const transactionHash = (_b = (_a3 = status.receipts) == null ? void 0 : _a3[0]) == null ? void 0 : _b.transactionHash;
       aaDebug(`${params.resolved.mode}:sendCalls:receipt`, {
@@ -6045,7 +6738,9 @@ async function createAlchemyWalletApisState(params) {
         receipts: (_d = (_c = status.receipts) == null ? void 0 : _c.length) != null ? _d : 0
       });
       if (!transactionHash) {
-        throw new Error("Alchemy Wallets API did not return a transaction hash.");
+        throw new Error(
+          "Alchemy Wallets API did not return a transaction hash."
+        );
       }
       return { transactionHash };
     } catch (error) {
@@ -6114,7 +6809,7 @@ var init_provider2 = __esm({
 });
 
 // src/aa/pimlico/create.ts
-import { privateKeyToAccount as privateKeyToAccount5 } from "viem/accounts";
+import { privateKeyToAccount as privateKeyToAccount7 } from "viem/accounts";
 function pimDebug(message, fields) {
   if (!AA_DEBUG_ENABLED2) return;
   if (fields) {
@@ -6152,15 +6847,15 @@ async function createPimlicoAAState(options) {
   if (ownerParams.kind === "unsupported_adapter") {
     return getUnsupportedAdapterState(execution, ownerParams.adapter);
   }
-  const localSessionSigner = owner.kind === "session" ? resolvePimlicoSessionSigner(ownerParams.ownerParams) : null;
+  const permissionlessSigner = owner.kind === "session" || owner.kind === "external-wallet" ? resolvePimlicoSessionSigner(ownerParams.ownerParams) : null;
   try {
-    const signer = owner.kind === "direct" ? privateKeyToAccount5(owner.privateKey) : localSessionSigner;
+    const signer = owner.kind === "direct" ? privateKeyToAccount7(owner.privateKey) : permissionlessSigner;
     if (signer) {
       return await createPimlicoPermissionlessState({
         resolved: execution,
         chain,
         signer,
-        externalSigner: owner.kind === "session" && "signer" in ownerParams.ownerParams ? ownerParams.ownerParams.signer : void 0,
+        externalSigner: (owner.kind === "session" || owner.kind === "external-wallet") && "signer" in ownerParams.ownerParams ? ownerParams.ownerParams.signer : void 0,
         rpcUrl: options.rpcUrl,
         apiKey,
         mode: effectiveMode
@@ -6273,7 +6968,9 @@ function rejectExternalWallet7702(signer) {
 function adaptPimlicoSdkAccount(account, address3) {
   const lowered = account.provider.toLowerCase();
   if (lowered !== "alchemy" && lowered !== "pimlico") {
-    throw new Error(`Unsupported AA provider from Pimlico SDK: ${account.provider}`);
+    throw new Error(
+      `Unsupported AA provider from Pimlico SDK: ${account.provider}`
+    );
   }
   const provider = lowered;
   if (account.mode === "4337") {
@@ -6693,6 +7390,153 @@ var init_transactions = __esm({
   }
 });
 
+// src/cli/tables.ts
+function truncateCell(value, maxWidth) {
+  if (value.length <= maxWidth) return value;
+  return `${value.slice(0, maxWidth - 1)}\u2026`;
+}
+function padRight(value, width) {
+  return value.padEnd(width, " ");
+}
+function estimateTokenCount(messages) {
+  var _a3;
+  let totalChars = 0;
+  for (const message of messages) {
+    const content = formatLogContent(message.content);
+    if (content) {
+      totalChars += content.length + 1;
+    }
+    if ((_a3 = message.tool_result) == null ? void 0 : _a3[1]) {
+      totalChars += message.tool_result[1].length;
+    }
+  }
+  return Math.round(totalChars / 4);
+}
+function toIsoTimestamp(timestamp2) {
+  if (typeof timestamp2 !== "number" || !Number.isFinite(timestamp2)) {
+    return null;
+  }
+  try {
+    return new Date(timestamp2).toISOString();
+  } catch (e) {
+    return null;
+  }
+}
+function toPendingTxMetadata(tx) {
+  var _a3, _b, _c, _d, _e, _f;
+  return {
+    id: tx.id,
+    kind: tx.kind,
+    txId: (_a3 = tx.txId) != null ? _a3 : null,
+    eip712Id: (_b = tx.eip712Id) != null ? _b : null,
+    to: (_c = tx.to) != null ? _c : null,
+    value: (_d = tx.value) != null ? _d : null,
+    chainId: (_e = tx.chainId) != null ? _e : null,
+    description: (_f = tx.description) != null ? _f : null,
+    timestamp: toIsoTimestamp(tx.timestamp)
+  };
+}
+function toSignedTxMetadata(tx) {
+  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o;
+  return {
+    id: tx.id,
+    kind: tx.kind,
+    txHash: (_a3 = tx.txHash) != null ? _a3 : null,
+    txHashes: (_b = tx.txHashes) != null ? _b : null,
+    executionKind: (_c = tx.executionKind) != null ? _c : null,
+    aaProvider: (_d = tx.aaProvider) != null ? _d : null,
+    aaMode: (_e = tx.aaMode) != null ? _e : null,
+    batched: (_f = tx.batched) != null ? _f : null,
+    sponsored: (_g = tx.sponsored) != null ? _g : null,
+    smartAccount4337: (_h = tx.smartAccount4337) != null ? _h : null,
+    Delegation7702: (_i = tx.Delegation7702) != null ? _i : null,
+    signature: (_j = tx.signature) != null ? _j : null,
+    from: (_k = tx.from) != null ? _k : null,
+    to: (_l = tx.to) != null ? _l : null,
+    value: (_m = tx.value) != null ? _m : null,
+    chainId: (_n = tx.chainId) != null ? _n : null,
+    description: (_o = tx.description) != null ? _o : null,
+    timestamp: toIsoTimestamp(tx.timestamp)
+  };
+}
+function printKeyValueTable(rows, color = CYAN) {
+  const labels = rows.map(([label]) => label);
+  const values = rows.map(
+    ([, value]) => truncateCell(value, MAX_TABLE_VALUE_WIDTH)
+  );
+  const keyWidth = Math.max("field".length, ...labels.map((label) => label.length));
+  const valueWidth = Math.max("value".length, ...values.map((value) => value.length));
+  const border = `+${"-".repeat(keyWidth + 2)}+${"-".repeat(valueWidth + 2)}+`;
+  console.log(`${color}${border}${RESET}`);
+  console.log(
+    `${color}| ${padRight("field", keyWidth)} | ${padRight("value", valueWidth)} |${RESET}`
+  );
+  console.log(`${color}${border}${RESET}`);
+  for (let i = 0; i < rows.length; i++) {
+    console.log(
+      `${color}| ${padRight(labels[i], keyWidth)} | ${padRight(values[i], valueWidth)} |${RESET}`
+    );
+    console.log(`${color}${border}${RESET}`);
+  }
+}
+function printTransactionTable(pendingTxs, signedTxs, color = GREEN) {
+  const safePendingTxs = pendingTxs.filter(
+    (tx) => typeof tx === "object" && tx !== null
+  );
+  const safeSignedTxs = signedTxs.filter(
+    (tx) => typeof tx === "object" && tx !== null
+  );
+  const rows = [
+    ...safePendingTxs.map((tx) => ({
+      status: "pending",
+      metadata: toPendingTxMetadata(tx)
+    })),
+    ...safeSignedTxs.map((tx) => ({
+      status: "signed",
+      metadata: toSignedTxMetadata(tx)
+    }))
+  ];
+  if (rows.length === 0) {
+    console.log(`${YELLOW}No transactions in local CLI state.${RESET}`);
+    return;
+  }
+  const visibleRows = rows.slice(0, MAX_TX_ROWS);
+  const statusWidth = Math.max(
+    "status".length,
+    ...visibleRows.map((row) => row.status.length)
+  );
+  const jsonCells = visibleRows.map(
+    (row) => truncateCell(JSON.stringify(row.metadata), MAX_TX_JSON_WIDTH)
+  );
+  const jsonWidth = Math.max("metadata_json".length, ...jsonCells.map((v) => v.length));
+  const border = `+${"-".repeat(statusWidth + 2)}+${"-".repeat(jsonWidth + 2)}+`;
+  console.log(`${color}${border}${RESET}`);
+  console.log(
+    `${color}| ${padRight("status", statusWidth)} | ${padRight("metadata_json", jsonWidth)} |${RESET}`
+  );
+  console.log(`${color}${border}${RESET}`);
+  for (let i = 0; i < visibleRows.length; i++) {
+    console.log(
+      `${color}| ${padRight(visibleRows[i].status, statusWidth)} | ${padRight(jsonCells[i], jsonWidth)} |${RESET}`
+    );
+    console.log(`${color}${border}${RESET}`);
+  }
+  if (rows.length > MAX_TX_ROWS) {
+    const omitted = rows.length - MAX_TX_ROWS;
+    console.log(`${DIM}${omitted} transaction rows omitted${RESET}`);
+  }
+}
+var MAX_TABLE_VALUE_WIDTH, MAX_TX_JSON_WIDTH, MAX_TX_ROWS;
+var init_tables = __esm({
+  "src/cli/tables.ts"() {
+    "use strict";
+    init_output();
+    MAX_TABLE_VALUE_WIDTH = 72;
+    MAX_TX_JSON_WIDTH = 96;
+    MAX_TX_ROWS = 8;
+  }
+});
+
 // src/cli/commands/wallet.ts
 var wallet_exports = {};
 __export(wallet_exports, {
@@ -6700,13 +7544,17 @@ __export(wallet_exports, {
   txCommand: () => txCommand
 });
 import { createWalletClient as createWalletClient2, http as http2 } from "viem";
-import { privateKeyToAccount as privateKeyToAccount6 } from "viem/accounts";
+import { privateKeyToAccount as privateKeyToAccount8 } from "viem/accounts";
 import * as viemChains from "viem/chains";
 async function txCommand(config) {
   const cli = CliSession.load();
   if (!cli) {
+    if (config.json) {
+      printJson({ active: false, pending: [], signed: [] });
+      return;
+    }
     console.log("No active session");
-    printDataFileLocation();
+    printDataFileLocation({ verbose: config.verbose });
     return;
   }
   const session = cli.createClientSession(config);
@@ -6727,9 +7575,45 @@ async function txCommand(config) {
   const signedSol = [...cli.signedSolTxs];
   const totalPending = pending.length + pendingSol.length;
   const totalSigned = signed.length + signedSol.length;
+  if (config.json) {
+    printJson({
+      active: true,
+      pending: [
+        ...pending.map((tx) => toPendingTxMetadata(tx)),
+        ...pendingSol.map((tx) => {
+          var _a3, _b, _c;
+          return {
+            id: tx.id,
+            kind: tx.kind,
+            solanaId: tx.solanaId,
+            signer: (_a3 = tx.signer) != null ? _a3 : null,
+            cluster: (_b = tx.cluster) != null ? _b : null,
+            description: (_c = tx.description) != null ? _c : null,
+            timestamp: new Date(tx.timestamp).toISOString()
+          };
+        })
+      ],
+      signed: [
+        ...signed.map((tx) => toSignedTxMetadata(tx)),
+        ...signedSol.map((tx) => {
+          var _a3, _b, _c, _d;
+          return {
+            id: tx.id,
+            kind: "solana_sign",
+            signedTx: (_a3 = tx.signedTx) != null ? _a3 : null,
+            signer: (_b = tx.signer) != null ? _b : null,
+            cluster: (_c = tx.cluster) != null ? _c : null,
+            description: (_d = tx.description) != null ? _d : null,
+            timestamp: new Date(tx.timestamp).toISOString()
+          };
+        })
+      ]
+    });
+    return;
+  }
   if (totalPending === 0 && totalSigned === 0) {
     console.log("No transactions.");
-    printDataFileLocation();
+    printDataFileLocation({ verbose: config.verbose });
     return;
   }
   if (totalPending > 0) {
@@ -6751,7 +7635,7 @@ async function txCommand(config) {
       console.log(formatSignedSolTxLine(tx, "  \u2705"));
     }
   }
-  printDataFileLocation();
+  printDataFileLocation({ verbose: config.verbose });
 }
 function resolveChain(targetChainId, rpcUrl) {
   const knownChain = Object.values(viemChains).find((candidate) => {
@@ -6984,7 +7868,7 @@ Available: ${available}`
         ].join("\n")
       );
     }
-    const account = privateKeyToAccount6(privateKey);
+    const account = privateKeyToAccount8(privateKey);
     if (cli.publicKey && account.address.toLowerCase() !== cli.publicKey.toLowerCase()) {
       console.log(
         `\u26A0\uFE0F  Signer ${account.address} differs from session public key ${cli.publicKey}`
@@ -7243,7 +8127,9 @@ Available: ${available}`
             }));
           }
         } catch (err) {
-          console.warn(`[aomi tx sign] failed to fetch typed_data from backend: ${err}`);
+          console.warn(
+            `[aomi tx sign] failed to fetch typed_data from backend: ${err}`
+          );
         }
       }
       if (signArgs && messageArgs) {
@@ -7328,6 +8214,7 @@ var init_wallet2 = __esm({
     init_transactions();
     init_chains();
     init_defaults();
+    init_tables();
   }
 });
 
@@ -7435,153 +8322,6 @@ var init_simulate = __esm({
   }
 });
 
-// src/cli/tables.ts
-function truncateCell(value, maxWidth) {
-  if (value.length <= maxWidth) return value;
-  return `${value.slice(0, maxWidth - 1)}\u2026`;
-}
-function padRight(value, width) {
-  return value.padEnd(width, " ");
-}
-function estimateTokenCount(messages) {
-  var _a3;
-  let totalChars = 0;
-  for (const message of messages) {
-    const content = formatLogContent(message.content);
-    if (content) {
-      totalChars += content.length + 1;
-    }
-    if ((_a3 = message.tool_result) == null ? void 0 : _a3[1]) {
-      totalChars += message.tool_result[1].length;
-    }
-  }
-  return Math.round(totalChars / 4);
-}
-function toIsoTimestamp(timestamp2) {
-  if (typeof timestamp2 !== "number" || !Number.isFinite(timestamp2)) {
-    return null;
-  }
-  try {
-    return new Date(timestamp2).toISOString();
-  } catch (e) {
-    return null;
-  }
-}
-function toPendingTxMetadata(tx) {
-  var _a3, _b, _c, _d, _e, _f;
-  return {
-    id: tx.id,
-    kind: tx.kind,
-    txId: (_a3 = tx.txId) != null ? _a3 : null,
-    eip712Id: (_b = tx.eip712Id) != null ? _b : null,
-    to: (_c = tx.to) != null ? _c : null,
-    value: (_d = tx.value) != null ? _d : null,
-    chainId: (_e = tx.chainId) != null ? _e : null,
-    description: (_f = tx.description) != null ? _f : null,
-    timestamp: toIsoTimestamp(tx.timestamp)
-  };
-}
-function toSignedTxMetadata(tx) {
-  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o;
-  return {
-    id: tx.id,
-    kind: tx.kind,
-    txHash: (_a3 = tx.txHash) != null ? _a3 : null,
-    txHashes: (_b = tx.txHashes) != null ? _b : null,
-    executionKind: (_c = tx.executionKind) != null ? _c : null,
-    aaProvider: (_d = tx.aaProvider) != null ? _d : null,
-    aaMode: (_e = tx.aaMode) != null ? _e : null,
-    batched: (_f = tx.batched) != null ? _f : null,
-    sponsored: (_g = tx.sponsored) != null ? _g : null,
-    smartAccount4337: (_h = tx.smartAccount4337) != null ? _h : null,
-    Delegation7702: (_i = tx.Delegation7702) != null ? _i : null,
-    signature: (_j = tx.signature) != null ? _j : null,
-    from: (_k = tx.from) != null ? _k : null,
-    to: (_l = tx.to) != null ? _l : null,
-    value: (_m = tx.value) != null ? _m : null,
-    chainId: (_n = tx.chainId) != null ? _n : null,
-    description: (_o = tx.description) != null ? _o : null,
-    timestamp: toIsoTimestamp(tx.timestamp)
-  };
-}
-function printKeyValueTable(rows, color = CYAN) {
-  const labels = rows.map(([label]) => label);
-  const values = rows.map(
-    ([, value]) => truncateCell(value, MAX_TABLE_VALUE_WIDTH)
-  );
-  const keyWidth = Math.max("field".length, ...labels.map((label) => label.length));
-  const valueWidth = Math.max("value".length, ...values.map((value) => value.length));
-  const border = `+${"-".repeat(keyWidth + 2)}+${"-".repeat(valueWidth + 2)}+`;
-  console.log(`${color}${border}${RESET}`);
-  console.log(
-    `${color}| ${padRight("field", keyWidth)} | ${padRight("value", valueWidth)} |${RESET}`
-  );
-  console.log(`${color}${border}${RESET}`);
-  for (let i = 0; i < rows.length; i++) {
-    console.log(
-      `${color}| ${padRight(labels[i], keyWidth)} | ${padRight(values[i], valueWidth)} |${RESET}`
-    );
-    console.log(`${color}${border}${RESET}`);
-  }
-}
-function printTransactionTable(pendingTxs, signedTxs, color = GREEN) {
-  const safePendingTxs = pendingTxs.filter(
-    (tx) => typeof tx === "object" && tx !== null
-  );
-  const safeSignedTxs = signedTxs.filter(
-    (tx) => typeof tx === "object" && tx !== null
-  );
-  const rows = [
-    ...safePendingTxs.map((tx) => ({
-      status: "pending",
-      metadata: toPendingTxMetadata(tx)
-    })),
-    ...safeSignedTxs.map((tx) => ({
-      status: "signed",
-      metadata: toSignedTxMetadata(tx)
-    }))
-  ];
-  if (rows.length === 0) {
-    console.log(`${YELLOW}No transactions in local CLI state.${RESET}`);
-    return;
-  }
-  const visibleRows = rows.slice(0, MAX_TX_ROWS);
-  const statusWidth = Math.max(
-    "status".length,
-    ...visibleRows.map((row) => row.status.length)
-  );
-  const jsonCells = visibleRows.map(
-    (row) => truncateCell(JSON.stringify(row.metadata), MAX_TX_JSON_WIDTH)
-  );
-  const jsonWidth = Math.max("metadata_json".length, ...jsonCells.map((v) => v.length));
-  const border = `+${"-".repeat(statusWidth + 2)}+${"-".repeat(jsonWidth + 2)}+`;
-  console.log(`${color}${border}${RESET}`);
-  console.log(
-    `${color}| ${padRight("status", statusWidth)} | ${padRight("metadata_json", jsonWidth)} |${RESET}`
-  );
-  console.log(`${color}${border}${RESET}`);
-  for (let i = 0; i < visibleRows.length; i++) {
-    console.log(
-      `${color}| ${padRight(visibleRows[i].status, statusWidth)} | ${padRight(jsonCells[i], jsonWidth)} |${RESET}`
-    );
-    console.log(`${color}${border}${RESET}`);
-  }
-  if (rows.length > MAX_TX_ROWS) {
-    const omitted = rows.length - MAX_TX_ROWS;
-    console.log(`${DIM}${omitted} transaction rows omitted${RESET}`);
-  }
-}
-var MAX_TABLE_VALUE_WIDTH, MAX_TX_JSON_WIDTH, MAX_TX_ROWS;
-var init_tables = __esm({
-  "src/cli/tables.ts"() {
-    "use strict";
-    init_output();
-    MAX_TABLE_VALUE_WIDTH = 72;
-    MAX_TX_JSON_WIDTH = 96;
-    MAX_TX_ROWS = 8;
-  }
-});
-
 // src/cli/commands/sessions.ts
 var sessions_exports = {};
 __export(sessions_exports, {
@@ -7590,14 +8330,19 @@ __export(sessions_exports, {
   resumeSessionCommand: () => resumeSessionCommand,
   sessionsCommand: () => sessionsCommand
 });
-async function fetchRemoteSessionStats(record, config) {
+async function fetchRemoteSessionStats(record) {
   var _a3, _b, _c;
-  const client = createCliClient(config, {
+  const client = new AomiClient({
     baseUrl: record.state.baseUrl,
-    apiKey: record.state.apiKey
+    apiKey: record.state.apiKey,
+    getAccountBearer: createCliAuthTokenProvider(() => record.state)
   });
   try {
-    const apiState = await client.fetchState(record.sessionId, void 0, record.state.clientId);
+    const apiState = await client.fetchState(
+      record.sessionId,
+      void 0,
+      record.state.clientId
+    );
     const messages = (_a3 = apiState.messages) != null ? _a3 : [];
     return {
       topic: (_b = apiState.title) != null ? _b : "Untitled Session",
@@ -7636,9 +8381,11 @@ function printSessionSummary(record, stats, isActive) {
   console.log(`${YELLOW}\u{1F4BE} Transactions metadata (JSON):${RESET}`);
   printTransactionTable(pendingTxs, signedTxs);
 }
-async function sessionsCommand(config) {
+async function sessionsCommand(_config) {
   var _a3;
-  const sessions = listStoredSessions().sort((a, b) => b.updatedAt - a.updatedAt);
+  const sessions = listStoredSessions().sort(
+    (a, b) => b.updatedAt - a.updatedAt
+  );
   if (sessions.length === 0) {
     console.log("No local sessions.");
     printDataFileLocation();
@@ -7646,7 +8393,7 @@ async function sessionsCommand(config) {
   }
   const activeSessionId = (_a3 = CliSession.load()) == null ? void 0 : _a3.sessionId;
   const statsResults = await Promise.all(
-    sessions.map((record) => fetchRemoteSessionStats(record, config))
+    sessions.map((record) => fetchRemoteSessionStats(record))
   );
   for (let i = 0; i < sessions.length; i++) {
     printSessionSummary(
@@ -7661,7 +8408,8 @@ async function sessionsCommand(config) {
   printDataFileLocation();
 }
 function newSessionCommand(config) {
-  const cli = CliSession.create(config);
+  const existing = CliSession.load();
+  const cli = CliSession.create(config, existing == null ? void 0 : existing.toState());
   console.log(`Active session set to ${cli.sessionId} (new).`);
   printDataFileLocation();
 }
@@ -7670,7 +8418,9 @@ function resumeSessionCommand(selector) {
   if (!resumed) {
     fatal(`No local session found for selector "${selector}".`);
   }
-  console.log(`Active session set to ${resumed.sessionId} (session-${resumed.localId}).`);
+  console.log(
+    `Active session set to ${resumed.sessionId} (session-${resumed.localId}).`
+  );
   printDataFileLocation();
 }
 function deleteSessionCommand(selector) {
@@ -7678,7 +8428,9 @@ function deleteSessionCommand(selector) {
   if (!deleted) {
     fatal(`No local session found for selector "${selector}".`);
   }
-  console.log(`Deleted local session ${deleted.sessionId} (session-${deleted.localId}).`);
+  console.log(
+    `Deleted local session ${deleted.sessionId} (session-${deleted.localId}).`
+  );
   const active = CliSession.load();
   if (active) {
     console.log(`Active session: ${active.sessionId}`);
@@ -7690,12 +8442,13 @@ function deleteSessionCommand(selector) {
 var init_sessions = __esm({
   "src/cli/commands/sessions.ts"() {
     "use strict";
+    init_client();
     init_cli_session();
-    init_client_factory();
     init_errors();
     init_output();
     init_state2();
-    init_user_state3();
+    init_auth();
+    init_user_state2();
     init_tables();
   }
 });
@@ -7720,14 +8473,22 @@ async function statusCommand(config) {
   var _a3, _b, _c, _d, _e, _f;
   const cli = CliSession.load();
   if (!cli) {
+    if (config.json) {
+      printJson({ active: false });
+      return;
+    }
     console.log("No active session");
-    printDataFileLocation();
+    printDataFileLocation({ verbose: config.verbose });
     return;
   }
   cli.mergeConfig(config);
   const session = cli.createClientSession(config);
   try {
-    const apiState = await session.client.fetchState(cli.sessionId, void 0, cli.clientId);
+    const apiState = await session.client.fetchState(
+      cli.sessionId,
+      void 0,
+      cli.clientId
+    );
     console.log(
       JSON.stringify(
         {
@@ -7746,7 +8507,7 @@ async function statusCommand(config) {
         2
       )
     );
-    printDataFileLocation();
+    printDataFileLocation({ verbose: config.verbose });
   } finally {
     session.close();
   }
@@ -7767,23 +8528,34 @@ async function eventsCommand(config) {
   }
 }
 async function appsCommand(config) {
-  var _a3, _b, _c, _d, _e;
+  var _a3, _b, _c, _d;
   const client = createControlClient(config);
   const cli = CliSession.load();
   const sessionId = (_a3 = cli == null ? void 0 : cli.sessionId) != null ? _a3 : crypto.randomUUID();
   const apps = await client.getApps(sessionId, {
-    publicKey: (_b = config.publicKey) != null ? _b : cli == null ? void 0 : cli.publicKey,
-    apiKey: (_c = config.apiKey) != null ? _c : cli == null ? void 0 : cli.apiKey
+    apiKey: (_b = config.apiKey) != null ? _b : cli == null ? void 0 : cli.apiKey
   });
   if (apps.length === 0) {
+    if (config.json) {
+      printJson([]);
+      return;
+    }
     console.log("No apps available.");
     return;
   }
-  const currentApp = (_d = cli == null ? void 0 : cli.app) != null ? _d : config.app;
+  const currentApp = (_c = cli == null ? void 0 : cli.app) != null ? _c : config.app;
+  if (config.json) {
+    printJson(
+      apps.map((descriptor) => __spreadProps(__spreadValues({}, descriptor), {
+        current: currentApp === descriptor.name
+      }))
+    );
+    return;
+  }
   for (const descriptor of apps) {
     const name = descriptor.name;
     const marker = currentApp === name ? "  (current)" : "";
-    const required = ((_e = descriptor.secrets) != null ? _e : []).filter((s) => s.required).map((s) => s.name);
+    const required = ((_d = descriptor.secrets) != null ? _d : []).filter((s) => s.required).map((s) => s.name);
     const requiredSuffix = required.length > 0 ? `  [requires: ${required.join(", ")}]` : "";
     console.log(`${name}${marker}${requiredSuffix}`);
   }
@@ -7805,22 +8577,39 @@ async function modelsCommand(config) {
     console.log(`${model}${marker}`);
   }
 }
-function currentAppCommand() {
+function currentAppCommand(config = { secrets: {} }) {
+  var _a3, _b;
+  const cli = CliSession.load();
+  if (!cli) {
+    if (config.json) {
+      printJson({ active: false, app: null });
+      return;
+    }
+    console.log("No active session");
+    printDataFileLocation({ verbose: config.verbose });
+    return;
+  }
+  if (config.json) {
+    printJson({ active: true, app: (_a3 = cli.app) != null ? _a3 : "default" });
+    return;
+  }
+  console.log((_b = cli.app) != null ? _b : "(default)");
+  printDataFileLocation({ verbose: config.verbose });
+}
+function currentChainCommand(config = { secrets: {} }) {
   var _a3;
   const cli = CliSession.load();
   if (!cli) {
+    if (config.json) {
+      printJson({ active: false, chainId: null });
+      return;
+    }
     console.log("No active session");
-    printDataFileLocation();
+    printDataFileLocation({ verbose: config.verbose });
     return;
   }
-  console.log((_a3 = cli.app) != null ? _a3 : "(default)");
-  printDataFileLocation();
-}
-function currentChainCommand() {
-  const cli = CliSession.load();
-  if (!cli) {
-    console.log("No active session");
-    printDataFileLocation();
+  if (config.json) {
+    printJson({ active: true, chainId: (_a3 = cli.chainId) != null ? _a3 : null });
     return;
   }
   if (cli.chainId === void 0) {
@@ -7828,7 +8617,7 @@ function currentChainCommand() {
   } else {
     console.log(String(cli.chainId));
   }
-  printDataFileLocation();
+  printDataFileLocation({ verbose: config.verbose });
 }
 function currentBackendCommand() {
   const cli = CliSession.load();
@@ -7840,18 +8629,41 @@ function currentBackendCommand() {
   console.log(cli.baseUrl);
   printDataFileLocation();
 }
-function currentWalletCommand() {
+function currentWalletCommand(config = { secrets: {} }) {
+  var _a3, _b;
   const cli = CliSession.load();
   if (!cli) {
+    if (config.json) {
+      printJson({ active: false, wallets: [] });
+      return;
+    }
     console.log("No active session");
-    printDataFileLocation();
+    printDataFileLocation({ verbose: config.verbose });
     return;
   }
   const state = cli.toState();
+  const wallets = [
+    cli.publicKey ? {
+      family: "evm",
+      address: cli.publicKey,
+      chainId: (_a3 = cli.chainId) != null ? _a3 : null,
+      hasSavedSigner: Boolean(cli.privateKey)
+    } : null,
+    state.svmPublicKey ? {
+      family: "solana",
+      address: state.svmPublicKey,
+      cluster: (_b = state.svmCluster) != null ? _b : null,
+      hasSavedSigner: Boolean(state.svmPrivateKey)
+    } : null
+  ].filter((wallet) => wallet !== null);
+  if (config.json) {
+    printJson({ active: true, wallets });
+    return;
+  }
   const hasAny = cli.publicKey || state.svmPublicKey;
   if (!hasAny) {
     console.log("No wallet configured");
-    printDataFileLocation();
+    printDataFileLocation({ verbose: config.verbose });
     return;
   }
   if (cli.publicKey) {
@@ -7862,7 +8674,7 @@ function currentWalletCommand() {
     const signerStatus = state.svmPrivateKey ? "saved signer" : "address only";
     console.log(`Solana: ${state.svmPublicKey} (${signerStatus})`);
   }
-  printDataFileLocation();
+  printDataFileLocation({ verbose: config.verbose });
 }
 function currentModelCommand() {
   var _a3;
@@ -7897,23 +8709,42 @@ async function setModelCommand(config, model, options) {
   try {
     await session.client.setModel(cli.sessionId, model, {
       app: cli.app,
+      applicationId: config.applicationId,
       apiKey: cli.apiKey
     });
     cli.setModel(model);
     console.log(`Model set to ${model}`);
     if ((options == null ? void 0 : options.printLocation) !== false) {
-      printDataFileLocation();
+      printDataFileLocation({ verbose: config.verbose });
     }
   } finally {
     session.close();
   }
 }
-function chainsCommand() {
-  var _a3;
+function chainsCommand(config = { secrets: {} }) {
   const cli = CliSession.load();
   const currentChainId = cli == null ? void 0 : cli.chainId;
-  for (const id of SUPPORTED_CHAIN_IDS) {
-    const name = (_a3 = CHAIN_NAMES[id]) != null ? _a3 : `Chain ${id}`;
+  const chains = SUPPORTED_CHAIN_IDS.map((id) => {
+    var _a3;
+    const aaChain = DEFAULT_AA_CONFIG.chains.find((c) => c.chainId === id);
+    return {
+      id,
+      name: (_a3 = CHAIN_NAMES[id]) != null ? _a3 : `Chain ${id}`,
+      aa: (aaChain == null ? void 0 : aaChain.enabled) ? {
+        enabled: true,
+        defaultMode: aaChain.defaultMode,
+        supportedModes: aaChain.supportedModes
+      } : { enabled: false },
+      current: currentChainId === id
+    };
+  });
+  if (config.json) {
+    printJson(chains);
+    return;
+  }
+  for (const chain of chains) {
+    const id = chain.id;
+    const name = chain.name;
     const aaChain = DEFAULT_AA_CONFIG.chains.find((c) => c.chainId === id);
     const aaInfo = (aaChain == null ? void 0 : aaChain.enabled) ? `  AA: ${aaChain.defaultMode} (${aaChain.supportedModes.join(", ")})` : "";
     const marker = currentChainId === id ? "  (current)" : "";
@@ -8045,12 +8876,12 @@ __export(preferences_exports, {
   setSvmWalletCommand: () => setSvmWalletCommand,
   setWalletCommand: () => setWalletCommand
 });
-import { privateKeyToAccount as privateKeyToAccount7 } from "viem/accounts";
+import { privateKeyToAccount as privateKeyToAccount9 } from "viem/accounts";
 function loadOrCreateForSettings() {
   const existing = CliSession.load();
   if (existing) return existing;
   return CliSession.loadOrCreate({
-    baseUrl: "https://api.aomi.dev",
+    baseUrl: DEFAULT_CLI_BASE_URL,
     app: "default",
     secrets: {}
   });
@@ -8060,7 +8891,7 @@ function setWalletCommand(privateKeyInput) {
   if (!privateKey) {
     fatal("Usage: aomi wallet set <private-key>  (EVM hex key)");
   }
-  const account = privateKeyToAccount7(privateKey);
+  const account = privateKeyToAccount9(privateKey);
   const cli = loadOrCreateForSettings();
   cli.setWallet(privateKey, account.address);
   console.log(`EVM wallet set to ${account.address}`);
@@ -8106,6 +8937,7 @@ var init_preferences = __esm({
   "src/cli/commands/preferences.ts"() {
     "use strict";
     init_cli_session();
+    init_client_factory();
     init_output();
     init_validation();
     init_errors();
@@ -8113,85 +8945,642 @@ var init_preferences = __esm({
   }
 });
 
+// src/cli/device-auth.ts
+import { spawn } from "child_process";
+import { createHash, randomBytes } from "crypto";
+import { createServer } from "http";
+async function signInWithDeviceProvider({
+  baseUrl,
+  provider,
+  fetch: fetchImpl = fetch,
+  now = Date.now,
+  timeoutMs = DEFAULT_TIMEOUT_MS,
+  openBrowser = openUrlInBrowser,
+  randomBytes: randomBytesImpl = randomBytes
+}) {
+  var _a3, _b, _c, _d;
+  const portalUrl = normalizeBaseUrl(baseUrl);
+  const state = base64Url(randomBytesImpl(32));
+  const verifier = base64Url(randomBytesImpl(32));
+  const codeChallenge = sha256Base64Url(verifier);
+  const { server, redirectUri, callback } = await createLoopbackCallback({
+    state,
+    timeoutMs
+  });
+  try {
+    const authUrl = buildDeviceAuthUrl({
+      portalUrl,
+      state,
+      codeChallenge,
+      redirectUri,
+      provider
+    });
+    console.log(`Opening browser for Aomi account login: ${authUrl}`);
+    await openBrowser(authUrl);
+    console.log("Waiting for browser authentication...");
+    const { code } = await callback;
+    const exchange = await requestJson(
+      fetchImpl,
+      joinUrl(portalUrl, "/api/aomi/device-auth/exchange"),
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code,
+          state,
+          codeVerifier: verifier,
+          redirectUri
+        })
+      },
+      "Device auth exchange"
+    );
+    const sessionToken = typeof exchange.sessionToken === "string" ? exchange.sessionToken : "";
+    if (!sessionToken) {
+      throw new Error("Device auth exchange is missing session token");
+    }
+    const accountInfo = await fetchPortalAccount(
+      fetchImpl,
+      portalUrl,
+      sessionToken
+    );
+    return {
+      provider: exchange.provider === "privy" || exchange.provider === "para" ? exchange.provider : provider,
+      auth: {
+        sessionToken,
+        expiresAt: (_c = (_b = parseExpiresAt(exchange.expiresAt)) != null ? _b : parseExpiresAt((_a3 = accountInfo == null ? void 0 : accountInfo.session) == null ? void 0 : _a3.expiresAt)) != null ? _c : now() + DEFAULT_SESSION_TTL_MS,
+        betterAuthUserId: typeof ((_d = accountInfo == null ? void 0 : accountInfo.session) == null ? void 0 : _d.betterAuthUserId) === "string" ? accountInfo.session.betterAuthUserId : typeof exchange.betterAuthUserId === "string" ? exchange.betterAuthUserId : void 0
+      }
+    };
+  } finally {
+    await closeServer(server);
+  }
+}
+async function getDeviceProviderCredential({
+  baseUrl,
+  provider,
+  sessionToken,
+  fetch: fetchImpl = fetch,
+  timeoutMs = DEFAULT_TIMEOUT_MS,
+  openBrowser = openUrlInBrowser,
+  randomBytes: randomBytesImpl = randomBytes
+}) {
+  if (!sessionToken) {
+    throw new Error("Device auth provider linking requires an account session");
+  }
+  const portalUrl = normalizeBaseUrl(baseUrl);
+  const state = base64Url(randomBytesImpl(32));
+  const verifier = base64Url(randomBytesImpl(32));
+  const codeChallenge = sha256Base64Url(verifier);
+  const { server, redirectUri, callback } = await createLoopbackCallback({
+    state,
+    timeoutMs
+  });
+  try {
+    const intent = await requestJson(
+      fetchImpl,
+      joinUrl(portalUrl, "/api/aomi/device-auth/link-intent"),
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${sessionToken}`
+        },
+        body: JSON.stringify({
+          state,
+          codeChallenge,
+          redirectUri,
+          provider
+        })
+      },
+      "Device auth link intent"
+    );
+    if (typeof intent.linkIntent !== "string" || intent.state !== state || intent.redirectUri !== redirectUri) {
+      throw new Error("Device auth link intent response is invalid");
+    }
+    const authUrl = buildDeviceAuthUrl({
+      portalUrl,
+      state,
+      codeChallenge,
+      redirectUri,
+      provider,
+      mode: "link",
+      linkIntent: intent.linkIntent
+    });
+    console.log(
+      `Opening browser to link ${provider != null ? provider : "provider"}: ${authUrl}`
+    );
+    await openBrowser(authUrl);
+    console.log("Waiting for browser authentication...");
+    const { code } = await callback;
+    const exchange = await requestJson(
+      fetchImpl,
+      joinUrl(portalUrl, "/api/aomi/device-auth/exchange"),
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code,
+          state,
+          codeVerifier: verifier,
+          redirectUri
+        })
+      },
+      "Device auth link exchange"
+    );
+    return __spreadProps(__spreadValues({}, exchange), {
+      provider: exchange.provider === "privy" || exchange.provider === "para" ? exchange.provider : provider
+    });
+  } finally {
+    await closeServer(server);
+  }
+}
+function buildDeviceAuthUrl(input2) {
+  const url = new URL(joinUrl(input2.portalUrl, "/device-auth"));
+  url.searchParams.set("state", input2.state);
+  url.searchParams.set("code_challenge", input2.codeChallenge);
+  url.searchParams.set("redirect_uri", input2.redirectUri);
+  if (input2.provider) url.searchParams.set("provider", input2.provider);
+  if (input2.mode && input2.mode !== "login") {
+    url.searchParams.set("mode", input2.mode);
+  }
+  if (input2.linkIntent) url.searchParams.set("link_intent", input2.linkIntent);
+  return url.toString();
+}
+async function createLoopbackCallback(input2) {
+  let settle;
+  let fail;
+  const callback = new Promise((resolve, reject) => {
+    settle = resolve;
+    fail = reject;
+  });
+  let settled = false;
+  const timer = setTimeout(() => {
+    if (!settled) {
+      settled = true;
+      fail(new Error("Timed out waiting for browser authentication"));
+    }
+  }, input2.timeoutMs);
+  const server = createServer((req, res) => {
+    var _a3, _b, _c, _d;
+    try {
+      const host = (_a3 = req.headers.host) != null ? _a3 : "127.0.0.1";
+      const url = new URL((_b = req.url) != null ? _b : "/", `http://${host}`);
+      if (url.pathname !== "/callback") {
+        res.writeHead(404).end("Not found");
+        return;
+      }
+      const code = (_c = url.searchParams.get("code")) != null ? _c : "";
+      const state = (_d = url.searchParams.get("state")) != null ? _d : "";
+      const error = url.searchParams.get("error");
+      if (error) {
+        throw new Error(error);
+      }
+      if (state !== input2.state) {
+        throw new Error("Invalid browser auth state");
+      }
+      if (!code) {
+        throw new Error("Missing browser auth code");
+      }
+      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }).end(
+        "<!doctype html><title>Aomi CLI login complete</title><body>Authentication complete. You can close this window.</body>"
+      );
+      if (!settled) {
+        settled = true;
+        clearTimeout(timer);
+        settle({ code });
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Auth failed";
+      res.writeHead(400, { "Content-Type": "text/plain; charset=utf-8" }).end(message);
+      if (!settled) {
+        settled = true;
+        clearTimeout(timer);
+        fail(error);
+      }
+    }
+  });
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      server.off("error", reject);
+      resolve();
+    });
+  });
+  const address3 = server.address();
+  return {
+    server,
+    redirectUri: `http://127.0.0.1:${address3.port}/callback`,
+    callback
+  };
+}
+function closeServer(server) {
+  return new Promise((resolve) => {
+    server.close(() => resolve());
+  });
+}
+function openUrlInBrowser(url) {
+  const platform = process.platform;
+  const command = platform === "darwin" ? "open" : platform === "win32" ? "cmd" : "xdg-open";
+  const args = platform === "win32" ? ["/c", "start", "", url] : [url];
+  const child = spawn(command, args, {
+    detached: true,
+    stdio: "ignore"
+  });
+  child.unref();
+}
+function sha256Base64Url(value) {
+  return createHash("sha256").update(value).digest("base64url");
+}
+function base64Url(value) {
+  return value.toString("base64url");
+}
+var DEFAULT_TIMEOUT_MS;
+var init_device_auth = __esm({
+  "src/cli/device-auth.ts"() {
+    "use strict";
+    init_auth();
+    DEFAULT_TIMEOUT_MS = 5 * 60 * 1e3;
+  }
+});
+
+// src/cli/account-graph.ts
+import { privateKeyToAccount as privateKeyToAccount10 } from "viem/accounts";
+function requireAccountGraphClient(cli) {
+  var _a3;
+  const sessionToken = (_a3 = cli.auth) == null ? void 0 : _a3.sessionToken;
+  if (!sessionToken) {
+    fatal("No account session. Run `aomi account login` first.");
+  }
+  return new AccountGraphClient({
+    baseUrl: cli.baseUrl,
+    sessionToken
+  });
+}
+function resolveAccountPrivateKey(cli, config) {
+  var _a3;
+  const privateKey = (_a3 = config.privateKey) != null ? _a3 : cli.privateKey;
+  if (!privateKey) {
+    fatal(
+      "No EVM private key configured.\nRun `aomi wallet set <evm-private-key>` or pass `--private-key`."
+    );
+  }
+  return privateKey;
+}
+function buildWalletLinkMessage(input2) {
+  var _a3, _b, _c;
+  const baseUrl = normalizeBaseUrl(input2.baseUrl);
+  const domain = (_a3 = input2.domain) != null ? _a3 : new URL(baseUrl).host;
+  const uri = (_b = input2.uri) != null ? _b : baseUrl;
+  return `${domain} wants to link this wallet to your Aomi account:
+${input2.address}
+
+Sign in to Aomi.
+
+URI: ${uri}
+Version: 1
+Chain ID: ${input2.chainId}
+Nonce: ${input2.nonce}
+Issued At: ${((_c = input2.issuedAt) != null ? _c : /* @__PURE__ */ new Date()).toISOString()}`;
+}
+async function buildSignedWalletLink(input2) {
+  var _a3, _b, _c;
+  const client = requireAccountGraphClient(input2.cli);
+  const privateKey = resolveAccountPrivateKey(input2.cli, input2.config);
+  const account = privateKeyToAccount10(privateKey);
+  const chainId3 = (_b = (_a3 = input2.config.chain) != null ? _a3 : input2.cli.chainId) != null ? _b : 1;
+  const nonce = await client.getWalletLinkNonce({
+    address: account.address,
+    chainId: chainId3
+  });
+  const message = buildWalletLinkMessage({
+    address: account.address,
+    chainId: chainId3,
+    nonce: nonce.nonce,
+    domain: nonce.domain,
+    uri: nonce.uri,
+    baseUrl: input2.cli.baseUrl
+  });
+  const signature = await account.signMessage({ message });
+  return {
+    family: "evm",
+    address: account.address,
+    chainId: chainId3,
+    nonce: nonce.nonce,
+    message,
+    signature,
+    label: (_c = input2.label) != null ? _c : null
+  };
+}
+function resolveAccountLink(account, selector) {
+  if (!account.user) return null;
+  const raw = selector.trim();
+  const separator = raw.indexOf(":");
+  const [kindPrefix, idFromPrefix] = separator >= 0 ? [raw.slice(0, separator), raw.slice(separator + 1)] : ["", ""];
+  const wantedKind = kindPrefix === "identity" || kindPrefix === "wallet" ? kindPrefix : void 0;
+  const id = wantedKind ? idFromPrefix : raw;
+  if (!id) return null;
+  const identity = account.linkedAccounts.find((link) => link.id === id);
+  const wallet = account.wallets.find((link) => link.id === id);
+  if (wantedKind === "identity") {
+    return identity ? { kind: "identity", id, link: identity } : null;
+  }
+  if (wantedKind === "wallet") {
+    return wallet ? { kind: "wallet", id, link: wallet } : null;
+  }
+  if (identity && wallet) {
+    fatal(
+      `Link id "${id}" is ambiguous. Use "identity:${id}" or "wallet:${id}".`
+    );
+  }
+  if (identity) return { kind: "identity", id, link: identity };
+  if (wallet) return { kind: "wallet", id, link: wallet };
+  return null;
+}
+function formatAccountGraphError(status, body, fallback) {
+  var _a3;
+  const code = extractErrorCode(body);
+  if (status === 401) {
+    return "Session expired; run `aomi account login`";
+  }
+  if (status === 409 && code === "cannot_unlink_last_login_factor") {
+    return "Cannot unlink the last login method. Link another account method first.";
+  }
+  if (status === 409 && code === "already_linked_to_another_account") {
+    return "This login method is already linked to another Aomi account.";
+  }
+  if (status === 403 && code === "protected_identity") {
+    return "This login identity is protected and cannot be edited directly.";
+  }
+  return (_a3 = code != null ? code : fallback) != null ? _a3 : `Request failed: HTTP ${status}`;
+}
+function extractErrorCode(body) {
+  if (!body || typeof body !== "object") return null;
+  const record = body;
+  if (typeof record.error === "string") return record.error;
+  if (typeof record.message === "string") return record.message;
+  if (record.error && typeof record.error === "object" && typeof record.error.message === "string") {
+    return record.error.message;
+  }
+  return null;
+}
+var AccountGraphClient;
+var init_account_graph = __esm({
+  "src/cli/account-graph.ts"() {
+    "use strict";
+    init_auth();
+    init_errors();
+    AccountGraphClient = class {
+      constructor(input2) {
+        var _a3;
+        this.baseUrl = normalizeBaseUrl(input2.baseUrl);
+        this.sessionToken = input2.sessionToken;
+        this.fetchImpl = (_a3 = input2.fetch) != null ? _a3 : fetch;
+      }
+      getAccount() {
+        return this.request("/api/aomi/account", {
+          method: "GET"
+        });
+      }
+      updateAccount(body) {
+        return this.request("/api/aomi/account", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body)
+        });
+      }
+      deleteAccount() {
+        return this.request("/api/aomi/account", {
+          method: "DELETE"
+        });
+      }
+      signOut() {
+        return this.request("/api/aomi/sign-out", { method: "POST" });
+      }
+      async getWalletLinkNonce(input2) {
+        const params = new URLSearchParams({
+          address: input2.address,
+          chainId: String(input2.chainId)
+        });
+        return this.request(`/api/aomi/wallets/link?${params.toString()}`, {
+          method: "GET"
+        });
+      }
+      linkWallet(body) {
+        return this.request(
+          "/api/aomi/wallets/link",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body)
+          }
+        );
+      }
+      exchangeProviderCredential(credential) {
+        return this.request(
+          "/api/aomi/provider/exchange",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(credential)
+          }
+        );
+      }
+      updateIdentity(identityId, body) {
+        return this.request(
+          `/api/aomi/identities/${encodeURIComponent(identityId)}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body)
+          }
+        );
+      }
+      unlinkIdentity(identityId) {
+        return this.request(
+          `/api/aomi/identities/${encodeURIComponent(identityId)}`,
+          {
+            method: "DELETE"
+          }
+        );
+      }
+      updateWallet(walletId, body) {
+        return this.request(
+          `/api/aomi/wallets/${encodeURIComponent(walletId)}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body)
+          }
+        );
+      }
+      unlinkWallet(walletId) {
+        return this.request(`/api/aomi/wallets/${encodeURIComponent(walletId)}`, {
+          method: "DELETE"
+        });
+      }
+      async request(path, init) {
+        var _a3;
+        const response = await this.fetchImpl(joinUrl(this.baseUrl, path), __spreadProps(__spreadValues({}, init), {
+          credentials: "include",
+          headers: __spreadValues({
+            Accept: "application/json",
+            Authorization: `Bearer ${this.sessionToken}`
+          }, (_a3 = init.headers) != null ? _a3 : {})
+        }));
+        if (!response.ok) {
+          throw new Error(
+            formatAccountGraphError(
+              response.status,
+              await response.json().catch(() => null),
+              await safeResponseText(response).catch(() => "")
+            )
+          );
+        }
+        return await response.json().catch(() => ({}));
+      }
+    };
+  }
+});
+
 // src/cli/commands/account.ts
 var account_exports = {};
 __export(account_exports, {
-  loginCommand: () => loginCommand,
+  accountDeleteCommand: () => accountDeleteCommand,
+  accountLinkCommand: () => accountLinkCommand,
+  accountLinksCommand: () => accountLinksCommand,
+  accountLoginCommand: () => accountLoginCommand,
+  accountRenameCommand: () => accountRenameCommand,
+  accountSessionsCommand: () => accountSessionsCommand,
+  accountSwitchCommand: () => accountSwitchCommand,
+  accountUnlinkCommand: () => accountUnlinkCommand,
+  accountUpdateCommand: () => accountUpdateCommand,
+  accountWhoamiCommand: () => accountWhoamiCommand,
+  logoutCommand: () => logoutCommand,
   whoamiCommand: () => whoamiCommand
 });
-async function loginCommand(config, options) {
+async function accountLoginCommand(config, options = {}) {
+  var _a3;
   const cli = CliSession.loadOrCreate(config);
-  cli.mergeConfig(config);
-  const session = cli.createClientSession(config);
-  try {
-    const begin = await session.client.beginPrivyAuth(cli.sessionId, {
-      application: cli.app,
-      walletFamily: options == null ? void 0 : options.walletFamily
-    });
-    console.log("Open this URL to authenticate with Privy:");
-    console.log(begin.auth_url);
-    console.log("After the browser flow completes, run `aomi wallet whoami`.");
-    printDataFileLocation();
-  } finally {
-    session.close();
+  let rewroteLegacyBackend = false;
+  if (!config.baseUrl && cli.baseUrl === LEGACY_RAW_BACKEND_URL) {
+    cli.setBaseUrl(DEFAULT_CLI_BASE_URL);
+    rewroteLegacyBackend = true;
   }
+  if (rewroteLegacyBackend && !config.json) {
+    console.log(`Backend updated to ${DEFAULT_CLI_BASE_URL}`);
+  }
+  if (options.wallet || options.noBrowser || config.privateKey) {
+    await accountLoginWithSiwe(cli, config);
+    return;
+  }
+  if (options.provider && options.provider !== "privy" && options.provider !== "para") {
+    fatal('Unknown --provider value. Use "privy" or "para".');
+  }
+  const provider = options.provider;
+  const result = await signInWithDeviceProvider({
+    baseUrl: cli.baseUrl,
+    provider
+  });
+  cli.setAuthSession(result.auth);
+  if (config.json) {
+    printJson({
+      status: "signed_in",
+      provider: (_a3 = result.provider) != null ? _a3 : null,
+      baseUrl: cli.baseUrl,
+      migratedLegacyBackend: rewroteLegacyBackend,
+      expiresAt: new Date(result.auth.expiresAt).toISOString()
+    });
+    return;
+  }
+  console.log(
+    `Signed in${result.provider ? ` with ${formatProvider(result.provider)}` : ""}`
+  );
+  console.log(
+    `Session expires at ${new Date(result.auth.expiresAt).toISOString()}`
+  );
+  printDataFileLocation({ verbose: config.verbose });
 }
-async function whoamiCommand(config) {
+async function accountLoginWithSiwe(cli, config) {
+  var _a3, _b, _c;
+  const privateKey = (_a3 = config.privateKey) != null ? _a3 : cli.privateKey;
+  if (!privateKey) {
+    fatal(
+      "No EVM private key configured.\nRun `aomi wallet set <evm-private-key>` or pass `--private-key`."
+    );
+  }
+  const chainId3 = (_c = (_b = config.chain) != null ? _b : cli.chainId) != null ? _c : DEFAULT_CHAIN_ID2;
+  const result = await signInWithCliSiwe({
+    baseUrl: cli.baseUrl,
+    privateKey,
+    chainId: chainId3
+  });
+  cli.setWallet(privateKey, result.address);
+  if (cli.chainId !== chainId3) {
+    cli.setChainId(chainId3);
+  }
+  cli.setAuthSession(result.auth);
+  if (config.json) {
+    printJson({
+      status: "signed_in",
+      provider: "siwe",
+      address: result.address,
+      chainId: chainId3,
+      baseUrl: cli.baseUrl,
+      expiresAt: new Date(result.auth.expiresAt).toISOString()
+    });
+    return;
+  }
+  console.log(`Signed in with ${result.address}`);
+  console.log(
+    `Session expires at ${new Date(result.auth.expiresAt).toISOString()}`
+  );
+  printDataFileLocation({ verbose: config.verbose });
+}
+function formatProvider(provider) {
+  return provider === "privy" ? "Privy" : "Para";
+}
+async function accountWhoamiCommand(config) {
   var _a3, _b;
   const cli = CliSession.load();
   if (!cli) {
+    if (config.json) {
+      printJson({ active: false });
+      return;
+    }
     console.log("No active session");
-    printDataFileLocation();
+    printDataFileLocation({ verbose: config.verbose });
     return;
   }
   cli.mergeConfig(config);
-  const state = cli.toState();
-  const accountTokenProvider = createCliGetAccountAccessToken({
-    baseUrl: state.baseUrl,
-    apiKey: state.apiKey,
-    accountAccessToken: state.accountAccessToken,
-    accountProvider: state.accountProvider,
-    accountProviderToken: state.accountProviderToken,
-    app: state.app,
-    execution: config.execution,
-    secrets: {}
-  });
-  const hasCredential = Boolean(
-    (_a3 = state.accountAccessToken) != null ? _a3 : state.accountProvider && state.accountProviderToken
-  );
-  const session = cli.createClientSession(config);
-  try {
-    const profile = await session.client.fetchAccountProfile(cli.sessionId);
-    if (!profile) {
-      const resolvedAccessToken = await (accountTokenProvider == null ? void 0 : accountTokenProvider({
-        forceRefresh: true
-      }));
-      console.log("Not bound to an account (anonymous session).");
-      if (!hasCredential) {
-        console.log(
-          "No account credential configured. Pass --account-bearer, or --account-provider + --account-provider-token."
-        );
-      } else if (state.accountProvider && state.accountProviderToken && !resolvedAccessToken) {
-        console.log(
-          "Configured provider credential could not be exchanged for an Aomi account bearer."
-        );
-      } else {
-        console.log(
-          "An account credential was sent, but the backend did not bind or accept this session."
-        );
+  if ((_a3 = cli.auth) == null ? void 0 : _a3.sessionToken) {
+    try {
+      const account = await requireAccountGraphClient(cli).getAccount();
+      if (config.json) {
+        printJson(account);
+        return;
       }
-      printDataFileLocation();
+      printAccountSummary(account);
+      printDataFileLocation({ verbose: config.verbose });
+      return;
+    } catch (e) {
+    }
+  }
+  const session = cli.createClientSession();
+  try {
+    const account = await session.client.getAccount(cli.sessionId);
+    if (config.json) {
+      printJson(account);
       return;
     }
-    const account = profile.account;
-    console.log(`Account:  ${account.user_id}`);
-    if (account.username) console.log(`Username: ${account.username}`);
-    if (account.verified_email) {
-      console.log(`Email:    ${account.verified_email}`);
+    const user = account.user;
+    console.log(`Account:  ${user.user_id}`);
+    if (user.username) console.log(`Username: ${user.username}`);
+    if (user.verified_email) {
+      console.log(`Email:    ${user.verified_email}`);
     }
-    if (account.tier) console.log(`Tier:     ${account.tier}`);
-    if (account.status) console.log(`Status:   ${account.status}`);
-    const wallets = (_b = profile.wallets) != null ? _b : [];
+    if (user.tier) console.log(`Tier:     ${user.tier}`);
+    if (user.status) console.log(`Status:   ${user.status}`);
+    const wallets = (_b = account.identity_wallets) != null ? _b : [];
     console.log(`Wallets:  ${wallets.length}`);
     for (const wallet of wallets) {
       const walletId = wallet.wallet_id ? ` (${wallet.wallet_id})` : "";
@@ -8199,10 +9588,175 @@ async function whoamiCommand(config) {
         `- ${formatWalletChainType(wallet.chain_type)} [${wallet.wallet_provider}]: ${wallet.address}${walletId}`
       );
     }
-    printDataFileLocation();
+    printDataFileLocation({ verbose: config.verbose });
+  } catch (e) {
+    if (config.json) {
+      printJson({
+        active: true,
+        bound: false,
+        hasCredential: hasAccountCredential2(cli.toState())
+      });
+      return;
+    }
+    console.log("Not bound to an account (anonymous session).");
+    if (!hasAccountCredential2(cli.toState())) {
+      console.log(
+        "No account credential configured. Run `aomi account login` or pass --account-bearer."
+      );
+    } else {
+      console.log(
+        "An account credential was sent, but the backend did not bind or accept this session."
+      );
+    }
+    printDataFileLocation({ verbose: config.verbose });
   } finally {
     session.close();
   }
+}
+async function accountLinksCommand(config) {
+  const cli = loadMergedCli(config);
+  const client = requireAccountGraphClient(cli);
+  const account = await client.getAccount();
+  if (config.json) {
+    printJson(account);
+    return;
+  }
+  printAccountLinks(account);
+  printDataFileLocation({ verbose: config.verbose });
+}
+async function accountLinkCommand(config, options = {}) {
+  var _a3, _b;
+  const cli = loadMergedCli(config);
+  const client = requireAccountGraphClient(cli);
+  const provider = normalizeProviderOption(options.provider);
+  const wantsWallet = options.wallet || !provider;
+  if (provider && options.wallet) {
+    fatal("Choose either `--provider` or `--wallet`.");
+  }
+  if (provider) {
+    const result = await getDeviceProviderCredential({
+      baseUrl: cli.baseUrl,
+      provider,
+      sessionToken: (_b = (_a3 = cli.auth) == null ? void 0 : _a3.sessionToken) != null ? _b : ""
+    });
+    if (result.status === "conflict") {
+      fatal("This login method is already linked to another Aomi account.");
+    }
+    if (config.json) {
+      printJson(result);
+      return;
+    }
+    console.log(`Linked ${formatProvider(provider)} login method`);
+    if (result.status === "linked" && result.account) {
+      printAccountLinks(result.account);
+    }
+    printDataFileLocation({ verbose: config.verbose });
+    return;
+  }
+  if (wantsWallet) {
+    const body = await buildSignedWalletLink({
+      cli,
+      config,
+      label: options.label
+    });
+    const result = await client.linkWallet(body);
+    if (config.json) {
+      printJson(result);
+      return;
+    }
+    console.log(
+      result.status === "noop" ? `Login method already linked for ${body.address}` : `Linked wallet login method ${body.address}`
+    );
+    if (result.account) {
+      printAccountLinks(result.account);
+    }
+    printDataFileLocation({ verbose: config.verbose });
+  }
+}
+async function accountUnlinkCommand(config, selector, options = {}) {
+  requireConfirmed(options.yes, "unlink an account login method");
+  const cli = loadMergedCli(config);
+  const client = requireAccountGraphClient(cli);
+  const account = await client.getAccount();
+  const link = requireResolvedLink(account, selector);
+  if (link.kind === "identity") {
+    await client.unlinkIdentity(link.id);
+  } else {
+    await client.unlinkWallet(link.id);
+  }
+  if (config.json) {
+    printJson({ status: "unlinked", link: serializeResolvedLink(link) });
+    return;
+  }
+  console.log(`Unlinked ${formatResolvedLink(link)}`);
+  printDataFileLocation({ verbose: config.verbose });
+}
+async function accountRenameCommand(config, selector, options = {}) {
+  if (options.label === void 0) {
+    fatal("Pass `--label <name>`.");
+  }
+  const cli = loadMergedCli(config);
+  const client = requireAccountGraphClient(cli);
+  const account = await client.getAccount();
+  const link = requireResolvedLink(account, selector);
+  if (link.kind === "identity") {
+    await client.updateIdentity(link.id, { displayLabel: options.label });
+  } else {
+    await client.updateWallet(link.id, { label: options.label });
+  }
+  if (config.json) {
+    printJson({
+      status: "renamed",
+      label: options.label,
+      link: serializeResolvedLink(link)
+    });
+    return;
+  }
+  console.log(`Renamed ${formatResolvedLink(link)}`);
+  printDataFileLocation({ verbose: config.verbose });
+}
+async function accountUpdateCommand(config, input2) {
+  if (input2.displayName === void 0 && input2.avatarUrl === void 0) {
+    fatal("Pass `--display-name` or `--avatar-url`.");
+  }
+  const cli = loadMergedCli(config);
+  const client = requireAccountGraphClient(cli);
+  const account = await client.updateAccount({
+    displayName: input2.displayName,
+    avatarUrl: input2.avatarUrl
+  });
+  if (config.json) {
+    printJson(account);
+    return;
+  }
+  console.log("Updated account profile");
+  printAccountSummary(account);
+  printDataFileLocation({ verbose: config.verbose });
+}
+async function accountDeleteCommand(config, options = {}) {
+  requireConfirmed(options.yes, "delete this Aomi account");
+  const cli = loadMergedCli(config);
+  const client = requireAccountGraphClient(cli);
+  const result = await client.deleteAccount();
+  cli.clearAuthSession();
+  if (config.json) {
+    printJson(result);
+    return;
+  }
+  console.log(
+    `Deleted account (${result.revokedIdentities} login methods, ${result.revokedWallets} wallets revoked)`
+  );
+  printDataFileLocation({ verbose: config.verbose });
+}
+async function accountSessionsCommand(config) {
+  await sessionsCommand(config);
+}
+function accountSwitchCommand(selector) {
+  resumeSessionCommand(selector);
+}
+function hasAccountCredential2(state) {
+  var _a3;
+  return Boolean(((_a3 = state.auth) == null ? void 0 : _a3.sessionToken) || state.accountBearer);
 }
 function formatWalletChainType(chainType) {
   const normalized = chainType.trim().toLowerCase();
@@ -8214,12 +9768,174 @@ function formatWalletChainType(chainType) {
   }
   return chainType;
 }
+async function logoutCommand(config) {
+  var _a3;
+  const cli = CliSession.load();
+  if (!cli) {
+    if (config.json) {
+      printJson({ active: false });
+      return;
+    }
+    console.log("No active session");
+    printDataFileLocation({ verbose: config.verbose });
+    return;
+  }
+  cli.mergeConfig(config);
+  const token = (_a3 = cli.auth) == null ? void 0 : _a3.sessionToken;
+  try {
+    await signOutCliSession({
+      baseUrl: cli.baseUrl,
+      sessionToken: token
+    });
+  } finally {
+    cli.clearAuthSession();
+    cli.clearSigningKeys();
+  }
+  if (config.json) {
+    printJson({ status: "signed_out" });
+    return;
+  }
+  console.log("Signed out");
+  printDataFileLocation({ verbose: config.verbose });
+}
+function loadMergedCli(config) {
+  const cli = CliSession.load();
+  if (!cli) {
+    fatal("No active session. Run `aomi account login` first.");
+  }
+  cli.mergeConfig(config);
+  return cli;
+}
+function normalizeProviderOption(provider) {
+  if (!provider) return void 0;
+  const normalized = provider.trim().toLowerCase();
+  if (normalized === "privy" || normalized === "para") return normalized;
+  fatal('Unknown --provider value. Use "privy" or "para".');
+}
+function printAccountSummary(account) {
+  var _a3;
+  if (!account.user) {
+    console.log("No active account");
+    return;
+  }
+  console.log(`Account:  ${account.user.id}`);
+  if (account.user.displayName) {
+    console.log(`Name:     ${account.user.displayName}`);
+  }
+  if (account.user.email) {
+    console.log(`Email:    ${account.user.email}`);
+  }
+  if ((_a3 = account.session) == null ? void 0 : _a3.expiresAt) {
+    console.log(
+      `Session:  expires ${new Date(account.session.expiresAt).toISOString()}`
+    );
+  }
+  console.log(`Login methods: ${account.linkedAccounts.length}`);
+  console.log(`Wallets:       ${account.wallets.length}`);
+}
+function printAccountLinks(account) {
+  var _a3, _b;
+  if (!account.user) {
+    console.log("No active account");
+    return;
+  }
+  console.log(`Account:  ${account.user.id}`);
+  if (account.user.displayName) {
+    console.log(`Name:     ${account.user.displayName}`);
+  }
+  if (account.user.email) {
+    console.log(`Email:    ${account.user.email}`);
+  }
+  if ((_a3 = account.session) == null ? void 0 : _a3.expiresAt) {
+    console.log(
+      `Session:  expires ${new Date(account.session.expiresAt).toISOString()}`
+    );
+  }
+  const identities = (_b = account.linkedAccounts) != null ? _b : [];
+  console.log(`Login methods: ${identities.length}`);
+  for (const identity of identities) {
+    console.log(formatIdentityLine(identity));
+    const childWallets = account.wallets.filter(
+      (wallet) => walletBelongsToIdentity(wallet, identity)
+    );
+    for (const wallet of childWallets) {
+      console.log(`  ${formatWalletLine(wallet)}`);
+    }
+  }
+  const attachedWalletIds = new Set(
+    identities.flatMap(
+      (identity) => account.wallets.filter((wallet) => walletBelongsToIdentity(wallet, identity)).map((wallet) => wallet.id)
+    )
+  );
+  const otherWallets = account.wallets.filter(
+    (wallet) => !attachedWalletIds.has(wallet.id)
+  );
+  if (otherWallets.length > 0) {
+    console.log(`Wallets:  ${otherWallets.length}`);
+    for (const wallet of otherWallets) {
+      console.log(formatWalletLine(wallet));
+    }
+  }
+}
+function serializeResolvedLink(link) {
+  return {
+    kind: link.kind,
+    id: link.id,
+    provider: link.kind === "identity" ? link.link.provider : link.link.provider,
+    family: link.kind === "wallet" ? link.link.family : void 0
+  };
+}
+function formatIdentityLine(identity) {
+  const label = identity.displayLabel ? ` "${identity.displayLabel}"` : "";
+  const email = identity.email ? ` <${identity.email}>` : "";
+  return `- identity:${identity.id} ${identity.provider}${label}${email}`;
+}
+function formatWalletLine(wallet) {
+  const label = wallet.label ? ` "${wallet.label}"` : "";
+  const chain = wallet.chainId ? ` chain:${wallet.chainId}` : "";
+  const provider = wallet.provider ? ` [${wallet.provider}]` : "";
+  return `- wallet:${wallet.id} ${wallet.family}${provider}: ${wallet.address}${chain}${label}`;
+}
+function walletBelongsToIdentity(wallet, identity) {
+  if (wallet.provider && wallet.provider === identity.provider) return true;
+  if (wallet.linkedVia === identity.provider) return true;
+  return identity.provider === "siwe" && wallet.linkedVia === "siwe";
+}
+function requireResolvedLink(account, selector) {
+  const link = resolveAccountLink(account, selector);
+  if (!link) {
+    fatal(
+      `No account link found for "${selector}". Run \`aomi account links\`.`
+    );
+  }
+  return link;
+}
+function formatResolvedLink(link) {
+  if (link.kind === "identity") {
+    return `${link.link.provider} login method identity:${link.id}`;
+  }
+  return `${link.link.family} wallet login method wallet:${link.id}`;
+}
+function requireConfirmed(confirmed, action) {
+  if (!confirmed) {
+    fatal(`Refusing to ${action} without --yes.`);
+  }
+}
+var DEFAULT_CHAIN_ID2, LEGACY_RAW_BACKEND_URL, whoamiCommand;
 var init_account = __esm({
   "src/cli/commands/account.ts"() {
     "use strict";
     init_cli_session();
-    init_client_factory();
+    init_errors();
     init_output();
+    init_auth();
+    init_device_auth();
+    init_client_factory();
+    init_account_graph();
+    init_sessions();
+    DEFAULT_CHAIN_ID2 = 1;
+    LEGACY_RAW_BACKEND_URL = "https://api.aomi.dev";
+    whoamiCommand = accountWhoamiCommand;
   }
 });
 
@@ -8532,7 +10248,7 @@ var init_repl = __esm({
 });
 
 // src/cli/main.ts
-import { runMain } from "citty";
+import { runCommand, runMain } from "citty";
 
 // src/cli/root.ts
 import { defineCommand as defineCommand11 } from "citty";
@@ -8775,10 +10491,10 @@ var appListDef = defineCommand5({
 });
 var appCurrentDef = defineCommand5({
   meta: { name: "current", description: "Show the current app" },
-  args: {},
-  async run() {
+  args: __spreadValues({}, globalArgs),
+  async run({ args }) {
     const { currentAppCommand: currentAppCommand2 } = await Promise.resolve().then(() => (init_control(), control_exports));
-    currentAppCommand2();
+    currentAppCommand2(buildCliConfig(args));
   }
 });
 var appDef = defineCommand5({
@@ -8790,13 +10506,14 @@ var appDef = defineCommand5({
 });
 
 // src/cli/commands/defs/chain.ts
+init_shared();
 import { defineCommand as defineCommand6 } from "citty";
 var chainListDef = defineCommand6({
   meta: { name: "list", description: "List supported chains" },
-  args: {},
-  async run() {
+  args: __spreadValues({}, globalArgs),
+  async run({ args }) {
     const { chainsCommand: chainsCommand2 } = await Promise.resolve().then(() => (init_control(), control_exports));
-    chainsCommand2();
+    chainsCommand2(buildCliConfig(args));
   }
 });
 var chainSetDef = defineCommand6({
@@ -8815,10 +10532,10 @@ var chainSetDef = defineCommand6({
 });
 var chainCurrentDef = defineCommand6({
   meta: { name: "current", description: "Show the active chain ID" },
-  args: {},
-  async run() {
+  args: __spreadValues({}, globalArgs),
+  async run({ args }) {
     const { currentChainCommand: currentChainCommand2 } = await Promise.resolve().then(() => (init_control(), control_exports));
-    currentChainCommand2();
+    currentChainCommand2(buildCliConfig(args));
   }
 });
 var chainDef = defineCommand6({
@@ -8876,47 +10593,21 @@ var walletSetDef = defineCommand7({
 });
 var walletCurrentDef = defineCommand7({
   meta: { name: "current", description: "Show the configured wallet address" },
-  args: {},
-  async run() {
-    const { currentWalletCommand: currentWalletCommand2 } = await Promise.resolve().then(() => (init_control(), control_exports));
-    currentWalletCommand2();
-  }
-});
-var walletLoginDef = defineCommand7({
-  meta: {
-    name: "login",
-    description: "Mint a Privy browser auth URL for the active session. Defaults to EVM; pass --solana to require a Solana wallet."
-  },
-  args: __spreadProps(__spreadValues({}, globalArgs), {
-    evm: {
-      type: "boolean",
-      description: "Request the default EVM embedded-wallet flow explicitly"
-    },
-    solana: {
-      type: "boolean",
-      description: "Request a Solana embedded-wallet login flow"
-    }
-  }),
+  args: __spreadValues({}, globalArgs),
   async run({ args }) {
-    if (args.evm === true && args.solana === true) {
-      const { fatal: fatal2 } = await Promise.resolve().then(() => (init_errors(), errors_exports));
-      fatal2("Choose only one of `--evm` or `--solana`.");
-    }
-    const { loginCommand: loginCommand2 } = await Promise.resolve().then(() => (init_account(), account_exports));
-    await loginCommand2(buildCliConfig(args), {
-      walletFamily: args.solana === true ? "solana" : "evm"
-    });
+    const { currentWalletCommand: currentWalletCommand2 } = await Promise.resolve().then(() => (init_control(), control_exports));
+    currentWalletCommand2(buildCliConfig(args));
   }
 });
 var walletWhoamiDef = defineCommand7({
   meta: {
     name: "whoami",
-    description: "Show the bound account and every linked wallet on the backend"
+    description: "Show the authenticated backend account"
   },
   args: __spreadValues({}, globalArgs),
   async run({ args }) {
-    const { whoamiCommand: whoamiCommand2 } = await Promise.resolve().then(() => (init_account(), account_exports));
-    await whoamiCommand2(buildCliConfig(args));
+    const { accountWhoamiCommand: accountWhoamiCommand2 } = await Promise.resolve().then(() => (init_account(), account_exports));
+    await accountWhoamiCommand2(buildCliConfig(args));
   }
 });
 var walletDef = defineCommand7({
@@ -8924,14 +10615,238 @@ var walletDef = defineCommand7({
   subCommands: {
     set: walletSetDef,
     current: walletCurrentDef,
-    login: walletLoginDef,
     whoami: walletWhoamiDef
   }
 });
 
-// src/cli/commands/defs/config.ts
+// src/cli/commands/defs/account.ts
+init_shared();
 import { defineCommand as defineCommand8 } from "citty";
-var configSetBackendDef = defineCommand8({
+var accountLoginDef = defineCommand8({
+  meta: {
+    name: "login",
+    description: "Sign in to an Aomi account"
+  },
+  args: __spreadProps(__spreadValues({}, globalArgs), {
+    provider: {
+      type: "string",
+      description: 'Browser auth provider ("privy" or "para")'
+    },
+    wallet: {
+      type: "boolean",
+      description: "Use native CLI SIWE with the configured EVM wallet"
+    },
+    "no-browser": {
+      type: "boolean",
+      description: "Do not open provider auth; use native CLI SIWE"
+    }
+  }),
+  async run({ args }) {
+    const { accountLoginCommand: accountLoginCommand2 } = await Promise.resolve().then(() => (init_account(), account_exports));
+    await accountLoginCommand2(buildCliConfig(args), {
+      provider: typeof args.provider === "string" ? args.provider : void 0,
+      wallet: args.wallet === true,
+      noBrowser: args["no-browser"] === true
+    });
+  }
+});
+var accountWhoamiDef = defineCommand8({
+  meta: {
+    name: "whoami",
+    description: "Show the authenticated backend account"
+  },
+  args: __spreadValues({}, globalArgs),
+  async run({ args }) {
+    const { accountWhoamiCommand: accountWhoamiCommand2 } = await Promise.resolve().then(() => (init_account(), account_exports));
+    await accountWhoamiCommand2(buildCliConfig(args));
+  }
+});
+var accountLogoutDef = defineCommand8({
+  meta: {
+    name: "logout",
+    description: "Sign out and clear the CLI auth session"
+  },
+  args: __spreadValues({}, globalArgs),
+  async run({ args }) {
+    const { logoutCommand: logoutCommand2 } = await Promise.resolve().then(() => (init_account(), account_exports));
+    await logoutCommand2(buildCliConfig(args));
+  }
+});
+var accountLinksDef = defineCommand8({
+  meta: {
+    name: "links",
+    description: "List account login methods and linked wallets"
+  },
+  args: __spreadValues({}, globalArgs),
+  async run({ args }) {
+    const { accountLinksCommand: accountLinksCommand2 } = await Promise.resolve().then(() => (init_account(), account_exports));
+    await accountLinksCommand2(buildCliConfig(args));
+  }
+});
+var accountLinkDef = defineCommand8({
+  meta: {
+    name: "link",
+    description: "Link a wallet or provider login method to the account"
+  },
+  args: __spreadProps(__spreadValues({}, globalArgs), {
+    provider: {
+      type: "string",
+      description: 'Provider login method to link ("privy" or "para")'
+    },
+    wallet: {
+      type: "boolean",
+      description: "Link an EVM wallet with SIWE (default)"
+    },
+    label: {
+      type: "string",
+      description: "Optional display label for the linked wallet"
+    }
+  }),
+  async run({ args }) {
+    const { accountLinkCommand: accountLinkCommand2 } = await Promise.resolve().then(() => (init_account(), account_exports));
+    await accountLinkCommand2(buildCliConfig(args), {
+      provider: typeof args.provider === "string" ? args.provider : void 0,
+      wallet: args.wallet === true,
+      label: typeof args.label === "string" ? args.label : void 0
+    });
+  }
+});
+var accountUnlinkDef = defineCommand8({
+  meta: {
+    name: "unlink",
+    description: "Unlink an account login method or linked wallet"
+  },
+  args: __spreadProps(__spreadValues({}, globalArgs), {
+    id: {
+      type: "positional",
+      description: "Link id, identity:<id>, or wallet:<id>",
+      required: true
+    },
+    yes: {
+      type: "boolean",
+      description: "Confirm unlinking"
+    }
+  }),
+  async run({ args }) {
+    const { accountUnlinkCommand: accountUnlinkCommand2 } = await Promise.resolve().then(() => (init_account(), account_exports));
+    await accountUnlinkCommand2(buildCliConfig(args), args.id, {
+      yes: args.yes === true
+    });
+  }
+});
+var accountRenameDef = defineCommand8({
+  meta: {
+    name: "rename",
+    description: "Rename an account login method or linked wallet"
+  },
+  args: __spreadProps(__spreadValues({}, globalArgs), {
+    id: {
+      type: "positional",
+      description: "Link id, identity:<id>, or wallet:<id>",
+      required: true
+    },
+    label: {
+      type: "string",
+      description: "Display label",
+      required: true
+    }
+  }),
+  async run({ args }) {
+    const { accountRenameCommand: accountRenameCommand2 } = await Promise.resolve().then(() => (init_account(), account_exports));
+    await accountRenameCommand2(buildCliConfig(args), args.id, {
+      label: typeof args.label === "string" ? args.label : void 0
+    });
+  }
+});
+var accountUpdateDef = defineCommand8({
+  meta: {
+    name: "update",
+    description: "Update the account profile"
+  },
+  args: __spreadProps(__spreadValues({}, globalArgs), {
+    "display-name": {
+      type: "string",
+      description: "Display name"
+    },
+    "avatar-url": {
+      type: "string",
+      description: "Avatar URL"
+    }
+  }),
+  async run({ args }) {
+    const { accountUpdateCommand: accountUpdateCommand2 } = await Promise.resolve().then(() => (init_account(), account_exports));
+    await accountUpdateCommand2(buildCliConfig(args), {
+      displayName: typeof args["display-name"] === "string" ? args["display-name"] : void 0,
+      avatarUrl: typeof args["avatar-url"] === "string" ? args["avatar-url"] : void 0
+    });
+  }
+});
+var accountDeleteDef = defineCommand8({
+  meta: {
+    name: "delete",
+    description: "Delete the Aomi account"
+  },
+  args: __spreadProps(__spreadValues({}, globalArgs), {
+    yes: {
+      type: "boolean",
+      description: "Confirm account deletion"
+    }
+  }),
+  async run({ args }) {
+    const { accountDeleteCommand: accountDeleteCommand2 } = await Promise.resolve().then(() => (init_account(), account_exports));
+    await accountDeleteCommand2(buildCliConfig(args), {
+      yes: args.yes === true
+    });
+  }
+});
+var accountSessionsDef = defineCommand8({
+  meta: {
+    name: "sessions",
+    description: "List local CLI sessions for account switching"
+  },
+  args: __spreadValues({}, globalArgs),
+  async run({ args }) {
+    const { accountSessionsCommand: accountSessionsCommand2 } = await Promise.resolve().then(() => (init_account(), account_exports));
+    await accountSessionsCommand2(buildCliConfig(args));
+  }
+});
+var accountSwitchDef = defineCommand8({
+  meta: {
+    name: "switch",
+    description: "Switch the active local CLI session"
+  },
+  args: {
+    id: {
+      type: "positional",
+      description: "Session ID or session-N",
+      required: true
+    }
+  },
+  async run({ args }) {
+    const { accountSwitchCommand: accountSwitchCommand2 } = await Promise.resolve().then(() => (init_account(), account_exports));
+    accountSwitchCommand2(args.id);
+  }
+});
+var accountDef = defineCommand8({
+  meta: { name: "account", description: "Account authentication" },
+  subCommands: {
+    login: accountLoginDef,
+    whoami: accountWhoamiDef,
+    logout: accountLogoutDef,
+    links: accountLinksDef,
+    link: accountLinkDef,
+    unlink: accountUnlinkDef,
+    rename: accountRenameDef,
+    update: accountUpdateDef,
+    delete: accountDeleteDef,
+    sessions: accountSessionsDef,
+    switch: accountSwitchDef
+  }
+});
+
+// src/cli/commands/defs/config.ts
+import { defineCommand as defineCommand9 } from "citty";
+var configSetBackendDef = defineCommand9({
   meta: { name: "set-backend", description: "Persist the backend base URL" },
   args: {
     url: {
@@ -8945,7 +10860,7 @@ var configSetBackendDef = defineCommand8({
     setBackendCommand2(args.url);
   }
 });
-var configCurrentDef = defineCommand8({
+var configCurrentDef = defineCommand9({
   meta: { name: "current", description: "Show the configured backend URL" },
   args: {},
   async run() {
@@ -8953,7 +10868,7 @@ var configCurrentDef = defineCommand8({
     currentBackendCommand2();
   }
 });
-var configDef = defineCommand8({
+var configDef = defineCommand9({
   meta: { name: "config", description: "CLI configuration" },
   subCommands: {
     "set-backend": configSetBackendDef,
@@ -8964,8 +10879,8 @@ var configDef = defineCommand8({
 // src/cli/commands/defs/secret.ts
 init_errors();
 init_shared();
-import { defineCommand as defineCommand9 } from "citty";
-var secretListDef = defineCommand9({
+import { defineCommand as defineCommand10 } from "citty";
+var secretListDef = defineCommand10({
   meta: { name: "list", description: "List configured secrets for the active session" },
   args: {},
   async run() {
@@ -8973,7 +10888,7 @@ var secretListDef = defineCommand9({
     listSecretsCommand2();
   }
 });
-var secretClearDef = defineCommand9({
+var secretClearDef = defineCommand10({
   meta: { name: "clear", description: "Clear all secrets for the active session" },
   args: __spreadValues({}, globalArgs),
   async run({ args }) {
@@ -8981,7 +10896,7 @@ var secretClearDef = defineCommand9({
     await clearSecretsCommand2(buildCliConfig(args));
   }
 });
-var secretAddDef = defineCommand9({
+var secretAddDef = defineCommand10({
   meta: { name: "add", description: "Add one or more secrets (NAME=value)" },
   args: __spreadProps(__spreadValues({}, globalArgs), {
     secret: {
@@ -9010,60 +10925,12 @@ Usage: aomi secret add NAME=value [NAME=value ...]`
     await ingestSecretsCommand2(config);
   }
 });
-var secretDef = defineCommand9({
+var secretDef = defineCommand10({
   meta: { name: "secret", description: "Secret management" },
   subCommands: {
     list: secretListDef,
     clear: secretClearDef,
     add: secretAddDef
-  }
-});
-
-// src/cli/commands/defs/account.ts
-init_shared();
-import { defineCommand as defineCommand10 } from "citty";
-var accountLoginDef = defineCommand10({
-  meta: {
-    name: "login",
-    description: "Alias for `aomi wallet login`. Defaults to EVM; pass --solana to require a Solana wallet."
-  },
-  args: __spreadProps(__spreadValues({}, globalArgs), {
-    evm: {
-      type: "boolean",
-      description: "Request the default EVM embedded-wallet flow explicitly"
-    },
-    solana: {
-      type: "boolean",
-      description: "Request a Solana embedded-wallet login flow"
-    }
-  }),
-  async run({ args }) {
-    if (args.evm === true && args.solana === true) {
-      const { fatal: fatal2 } = await Promise.resolve().then(() => (init_errors(), errors_exports));
-      fatal2("Choose only one of `--evm` or `--solana`.");
-    }
-    const { loginCommand: loginCommand2 } = await Promise.resolve().then(() => (init_account(), account_exports));
-    await loginCommand2(buildCliConfig(args), {
-      walletFamily: args.solana === true ? "solana" : "evm"
-    });
-  }
-});
-var accountWhoamiDef = defineCommand10({
-  meta: {
-    name: "whoami",
-    description: "Alias for `aomi wallet whoami`"
-  },
-  args: __spreadValues({}, globalArgs),
-  async run({ args }) {
-    const { whoamiCommand: whoamiCommand2 } = await Promise.resolve().then(() => (init_account(), account_exports));
-    await whoamiCommand2(buildCliConfig(args));
-  }
-});
-var accountDef = defineCommand10({
-  meta: { name: "account", description: "Account identity" },
-  subCommands: {
-    login: accountLoginDef,
-    whoami: accountWhoamiDef
   }
 });
 
@@ -9073,7 +10940,7 @@ init_shared();
 // package.json
 var package_default = {
   name: "@aomi-labs/client",
-  version: "0.1.41",
+  version: "0.3.1",
   description: "Platform-agnostic TypeScript client for the Aomi backend API",
   type: "module",
   main: "./dist/index.cjs",
@@ -9103,11 +10970,17 @@ var package_default = {
     build: "tsup",
     "clean:dist": "rm -rf dist"
   },
+  devDependencies: {
+    "fast-check": "^4.8.0"
+  },
   dependencies: {
     "@alchemy/wallet-apis": "5.0.0-beta.22",
     "@getpara/aa-alchemy": "2.21.0",
     "@getpara/aa-pimlico": "2.21.0",
     "@solana/web3.js": "^1.98.4",
+    "@x402/core": "^2.10.0",
+    "@x402/evm": "^2.10.0",
+    "@x402/fetch": "^2.10.0",
     bs58: "^6.0.0",
     citty: "^0.2.2",
     permissionless: "^0.3.5",
@@ -9124,10 +10997,22 @@ var SUBCOMMAND_NAMES = /* @__PURE__ */ new Set([
   "app",
   "chain",
   "wallet",
+  "account",
+  "logout",
   "config",
-  "secret",
-  "account"
+  "secret"
 ]);
+var logoutDef = defineCommand11({
+  meta: {
+    name: "logout",
+    description: "Sign out and clear the CLI auth session"
+  },
+  args: __spreadValues({}, globalArgs),
+  async run({ args }) {
+    const { logoutCommand: logoutCommand2 } = await Promise.resolve().then(() => (init_account(), account_exports));
+    await logoutCommand2(buildCliConfig(args));
+  }
+});
 var root = defineCommand11({
   meta: {
     name: "aomi",
@@ -9165,9 +11050,10 @@ var root = defineCommand11({
     app: appDef,
     chain: chainDef,
     wallet: walletDef,
+    account: accountDef,
+    logout: logoutDef,
     config: configDef,
-    secret: secretDef,
-    account: accountDef
+    secret: secretDef
   }
 });
 
@@ -9181,9 +11067,11 @@ var ROOT_SUBCOMMANDS = /* @__PURE__ */ new Set([
   "app",
   "chain",
   "wallet",
+  "account",
+  "logout",
   "config",
   "secret",
-  "account"
+  "deploy"
 ]);
 function isPnpmExecWrapper() {
   var _a3, _b;
@@ -9231,13 +11119,11 @@ function printRootHelp() {
     "  --account-bearer <token>     Aomi account bearer for authenticated requests"
   );
   console.log(
-    "  --account-provider <name>    Upstream auth provider (para | privy)"
+    "  --json                       Print machine-readable JSON where supported"
   );
-  console.log("  --account-provider-token <t>");
-  console.log(
-    "                               Provider token exchanged for an Aomi bearer"
-  );
+  console.log("  --verbose                    Show extra diagnostics");
   console.log("  --app <name>                 Active app");
+  console.log("  --application-id <id>        Dynamic app row id");
   console.log("  --model <rig>                Active model");
   console.log("  --new-session                Create a fresh active session");
   console.log(
@@ -9245,6 +11131,9 @@ function printRootHelp() {
   );
   console.log("  --public-key <address>       Wallet address for chat context");
   console.log("  --private-key <hex>          Signing key for EVM tx sign");
+  console.log(
+    "  --payment-method <method>    Paid chat rail, e.g. coinbase/x402"
+  );
   console.log(
     "  --solana-private-key <key>   Solana keypair (base58 or JSON byte array)"
   );
@@ -9267,13 +11156,23 @@ function printRootHelp() {
   console.log("  app                          App management");
   console.log("  chain                        Chain information");
   console.log("  wallet                       Wallet configuration");
+  console.log(
+    "  account                      Account login and link management"
+  );
+  console.log(
+    "  logout                       Sign out and clear the CLI auth session"
+  );
   console.log("  config                       CLI configuration");
   console.log("  secret                       Secret management");
   console.log(
-    "  account                      Account identity (login, whoami)"
+    "  deploy                       Deploy your app (requires --activation-token)"
   );
   console.log("");
   console.log("Use aomi <command> --help for command-specific details.");
+  console.log("");
+  console.log(
+    "Deprecated compatibility flags: --embedded-provider, --embedded-provider-token"
+  );
 }
 async function runCli(argv = process.argv) {
   const strictExit = process.env.AOMI_CLI_STRICT_EXIT === "1";
@@ -9283,7 +11182,15 @@ async function runCli(argv = process.argv) {
       printRootHelp();
       return;
     }
-    await runMain(root, { rawArgs });
+    if (rawArgs.includes("--help") || rawArgs.includes("-h")) {
+      await runMain(root, { rawArgs });
+      return;
+    }
+    if (rawArgs.length === 1 && (rawArgs[0] === "--version" || rawArgs[0] === "-v")) {
+      await runMain(root, { rawArgs });
+      return;
+    }
+    await runCommand(root, { rawArgs });
   } catch (err) {
     if (err instanceof CliExit) {
       if (!strictExit && isPnpmExecWrapper()) {
@@ -9294,6 +11201,11 @@ async function runCli(argv = process.argv) {
     }
     const RED = "\x1B[31m";
     const RESET2 = "\x1B[0m";
+    if (err instanceof DeployCliError) {
+      console.error(`${RED}\u274C [${err.errorCode}] ${err.message}${RESET2}`);
+      process.exit(1);
+      return;
+    }
     const message = err instanceof Error ? err.message : String(err);
     console.error(`${RED}\u274C ${message}${RESET2}`);
     process.exit(1);

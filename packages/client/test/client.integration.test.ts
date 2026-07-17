@@ -30,7 +30,7 @@ function freshSessionId(): string {
 }
 
 /**
- * Poll /api/state until is_processing becomes false or timeout.
+ * Poll /api/thread/state until is_processing becomes false or timeout.
  */
 async function pollUntilDone(
   sessionId: string,

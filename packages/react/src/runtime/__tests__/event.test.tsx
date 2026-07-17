@@ -61,6 +61,34 @@ describe("Event API", () => {
     });
   });
 
+  describe("recordUiInteraction", () => {
+    it("records UI context on the active thread", async () => {
+      const postSystemMessage = vi.fn(async () => ({ res: null }));
+      setAomiClientConfig({ postSystemMessage });
+
+      const { api } = renderRuntime();
+
+      await act(async () => {
+        await api.recordUiInteraction({
+          event: "deposit_review_opened",
+          asset: "USDC",
+        });
+      });
+
+      expect(postSystemMessage).toHaveBeenCalledWith(
+        api.currentThreadId,
+        JSON.stringify({
+          type: "ui_interaction",
+          payload: {
+            event: "deposit_review_opened",
+            asset: "USDC",
+          },
+        }),
+        expect.any(Object),
+      );
+    });
+  });
+
   describe("sseStatus", () => {
     it("has initial status", () => {
       const { api } = renderRuntime();

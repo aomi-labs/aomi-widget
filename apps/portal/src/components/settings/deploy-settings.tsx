@@ -2,8 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CheckCircle2, XCircle, Loader2, Circle } from "lucide-react";
-import { Button, Input, useAomiAuthAdapter } from "@aomi-labs/widget-lib";
-import type { DeployResult } from "@aomi-labs/deploy";
+import { Button, Input, useAomiWalletKit } from "@aomi-labs/widget-lib";
 import {
   settingsBodyTextClass,
   settingsCardStackClass,
@@ -14,34 +13,34 @@ import {
   settingsPageClass,
   settingsPrimaryButtonClass,
   settingsTitleClass,
-} from "./settings-styles";
+} from "@portal/lib/settings-styles";
 
-const EXAMPLE_REPO_URL = "https://github.com/CeciliaZ030/my-aomi-bots";
-
-type Deployment = DeployResult["deployment"];
-type AppRecord = Deployment["platform"]["apps"][number];
+const EXAMPLE_REPO_URL = "https://github.com/aomi-labs/aomi-app-example";
 
 type DryRun = {
   slug: string;
+  releaseTag: string;
+  appPath: string;
   targetRepo: string;
   files: { path: string; bytes: number }[];
-  deployment: Deployment;
+  manifest: Record<string, unknown>;
+};
+
+type DeployResult = {
+  releaseTag: string;
+  sourceCommit: string;
+  publishCommitSha: string;
+  appPath: string;
+  ciUrl: string;
 };
 
 type Status = {
-  ci: "pending" | "running" | "passed" | "failed" | "unknown" | null;
-  release: "building" | "ready";
+  ci: "pending" | "running" | "success" | "failure" | "unknown";
+  release: "absent" | "building" | "ready";
   releaseTag: string | null;
-  message?: string;
 };
 
-type Phase =
-  | "idle"
-  | "deploying"
-  | "building"
-  | "activating"
-  | "live"
-  | "error";
+type Phase = "idle" | "deploying" | "building" | "activating" | "live" | "error";
 type CheckState = "pending" | "running" | "done" | "failed";
 type FailedStep = "push" | "ci" | "activate" | null;
 
@@ -55,36 +54,8 @@ function toSlug(name: string): string {
     .slice(0, 40);
 }
 
-function firstAppRecord(
-  deployment: Deployment | null | undefined,
-): AppRecord | undefined {
-  return deployment?.platform.apps[0];
-}
-
-function deployResultAppRecord(
-  result: DeployResult | null | undefined,
-): AppRecord | undefined {
-  return firstAppRecord(result?.deployment);
-}
-
-function deployResultAppRecordReleaseTag(
-  result: DeployResult | null | undefined,
-): string {
-  return deployResultAppRecord(result)?.releaseTag ?? "";
-}
-
-function deployResultAppRecordPath(result: DeployResult | null | undefined): string {
-  return deployResultAppRecord(result)?.path ?? "";
-}
-
-function deployResultCiUrl(
-  result: DeployResult | null | undefined,
-): string | undefined {
-  return result?.deployment.platform.ciUrl ?? undefined;
-}
-
 export function DeploySettings() {
-  const adapter = useAomiAuthAdapter();
+  const adapter = useAomiWalletKit();
   const actor = adapter.identity.address ?? undefined;
 
   const [appName, setAppName] = useState("");
@@ -103,10 +74,7 @@ export function DeploySettings() {
   const [github, setGithub] = useState("");
   const [email, setEmail] = useState("");
   const [requesting, setRequesting] = useState(false);
-  const [requestStatus, setRequestStatus] = useState<{
-    ok: boolean;
-    msg: string;
-  } | null>(null);
+  const [requestStatus, setRequestStatus] = useState<{ ok: boolean; msg: string } | null>(null);
 
   const post = useCallback(async (path: string, body?: unknown) => {
     const res = await fetch(path, {
@@ -115,8 +83,7 @@ export function DeploySettings() {
       body: JSON.stringify(body ?? {}),
     });
     const json = await res.json().catch(() => ({}));
-    if (!res.ok)
-      throw new Error(json.error || `request failed (${res.status})`);
+    if (!res.ok) throw new Error(json.error || `request failed (${res.status})`);
     return json;
   }, []);
 
@@ -133,63 +100,50 @@ export function DeploySettings() {
     }
   }, [appName, post]);
 
+  // ----- 3. Deploy ------------------------------------------------------------
+  const activate = useCallback(
+    async (result: DeployResult, appSlug: string) => {
+      setPhase("activating");
+      try {
+        await post("/api/deploy/activate", {
+          slug: appSlug,
+          releaseTag: result.releaseTag,
+          sourceCommit: result.sourceCommit,
+          actor,
+        });
+        setPhase("live");
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+        setFailedStep("activate");
+        setPhase("error");
+      }
+    },
+    [actor, post],
+  );
+
   useEffect(() => {
     if (phase !== "building" || !deployResult || !dryRun) return;
-    const releaseTag = deployResultAppRecordReleaseTag(deployResult);
-    if (!releaseTag) {
-      setError("deploy returned no app release tag");
-      setFailedStep("push");
-      setPhase("error");
-      return;
-    }
     let cancelled = false;
     const tick = async () => {
       try {
-        const response = await fetch(
-          `/api/deploy/status?slug=${encodeURIComponent(
-            dryRun.slug,
-          )}&releaseTag=${encodeURIComponent(releaseTag)}`,
-        );
-        const s = (await response.json().catch(() => ({}))) as
-          | Status
-          | { error?: string };
-        if (!response.ok) {
-          throw new Error(
-            "error" in s && s.error
-              ? s.error
-              : `status check failed (${response.status})`,
-          );
-        }
-        const status = s as Status;
+        const s: Status = await (
+          await fetch(`/api/deploy/status?slug=${encodeURIComponent(dryRun.slug)}`)
+        ).json();
         if (cancelled) return;
-        setStatus(status);
-        if (status.release === "ready" && status.releaseTag === releaseTag) {
-          setPhase("live");
+        setStatus(s);
+        if (s.release === "ready" && s.releaseTag === deployResult.releaseTag) {
+          void activate(deployResult, dryRun.slug);
           return;
         }
-        if (status.ci === "failed") {
+        if (s.ci === "failure") {
           setError("CI build failed — check the workflow run.");
           setFailedStep("ci");
           setPhase("error");
           return;
         }
         pollRef.current = setTimeout(tick, 4000);
-      } catch (e) {
-        if (cancelled) return;
-        const message = e instanceof Error ? e.message : String(e);
-        if (message.includes("target tags")) {
-          setError(message);
-          setFailedStep("activate");
-          setPhase("error");
-          return;
-        }
-        setStatus({
-          ci: null,
-          release: "building",
-          releaseTag,
-          message,
-        });
-        pollRef.current = setTimeout(tick, 6000);
+      } catch {
+        if (!cancelled) pollRef.current = setTimeout(tick, 6000);
       }
     };
     pollRef.current = setTimeout(tick, 3000);
@@ -197,7 +151,7 @@ export function DeploySettings() {
       cancelled = true;
       if (pollRef.current) clearTimeout(pollRef.current);
     };
-  }, [phase, deployResult, dryRun]);
+  }, [phase, deployResult, dryRun, activate]);
 
   const handleDeploy = useCallback(async () => {
     setError(null);
@@ -206,13 +160,9 @@ export function DeploySettings() {
     setDeployResult(null);
     setPhase("deploying");
     try {
-      const plan =
-        dryRun ?? (await post("/api/deploy/dry-run", { name: appName }));
+      const plan = dryRun ?? (await post("/api/deploy/dry-run", { name: appName }));
       if (!dryRun) setDryRun(plan);
-      const result: DeployResult = await post("/api/deploy", {
-        name: appName,
-        actor,
-      });
+      const result: DeployResult = await post("/api/deploy", { name: appName, actor });
       setDeployResult(result);
       setPhase("building");
     } catch (e) {
@@ -227,10 +177,7 @@ export function DeploySettings() {
     setRequesting(true);
     setRequestStatus(null);
     try {
-      await post("/api/deploy/request-activation", {
-        githubAccount: github,
-        email,
-      });
+      await post("/api/deploy/request-activation", { githubAccount: github, email });
       setRequestStatus({
         ok: true,
         msg: `Request sent. Ops will invite ${github} to the platform repo and email your activation code to ${email}.`,
@@ -238,36 +185,25 @@ export function DeploySettings() {
       setGithub("");
       setEmail("");
     } catch (e) {
-      setRequestStatus({
-        ok: false,
-        msg: e instanceof Error ? e.message : String(e),
-      });
+      setRequestStatus({ ok: false, msg: e instanceof Error ? e.message : String(e) });
     } finally {
       setRequesting(false);
     }
   }, [github, email, post]);
 
-  const deploying =
-    phase === "deploying" || phase === "building" || phase === "activating";
-  const displaySlug = dryRun?.slug ?? deployResultAppRecord(deployResult)?.name;
+  const deploying = phase === "deploying" || phase === "building" || phase === "activating";
+  const nameValid = slug.length > 0;
 
   return (
     <div className={settingsPageClass}>
       <header className={settingsHeaderClass}>
         <h1 className={settingsTitleClass}>Deploy</h1>
         <p className={settingsDescriptionClass}>
-          Deploy the configured app source from{" "}
-          <a
-            href={EXAMPLE_REPO_URL}
-            target="_blank"
-            rel="noreferrer"
-            className="underline"
-          >
-            github.com/CeciliaZ030/my-aomi-bots
+          Spin up your own app from the starter at{" "}
+          <a href={EXAMPLE_REPO_URL} target="_blank" rel="noreferrer" className="underline">
+            github.com/aomi-labs/aomi-app-example
           </a>
-          . The portal server calls the backend with the configured app source,
-          source ref, and platform; deploy and activation credentials stay
-          server-side.
+          . Name it, and we publish, build, and activate it for you — no code, no CLI, no tokens.
         </p>
       </header>
 
@@ -275,27 +211,26 @@ export function DeploySettings() {
       <section className={settingsCardStackClass}>
         <h2 className={settingsCardTitleClass}>Preview</h2>
         <p className={settingsBodyTextClass}>
-          Run a backend dry-run to see the deploy plan before anything is
-          pushed.
+          Name your app, then see exactly what would be published before anything is pushed.
         </p>
         <div className="max-w-md">
-          <label className={settingsLabelClass}>Run label</label>
+          <label className={settingsLabelClass}>App name</label>
           <Input
             value={appName}
             onChange={(e) => setAppName(e.target.value)}
-            placeholder="e2e"
+            placeholder="alice-app-123"
             disabled={deploying || phase === "live"}
           />
           {appName.trim() && (
             <p className="text-muted-foreground mt-1 pl-1 text-xs">
-              audit actor <code className="text-foreground">{slug || "—"}</code>
+              deploys as <code className="text-foreground">{slug || "—"}</code>
             </p>
           )}
         </div>
         <div>
           <Button
             onClick={handleDryRun}
-            disabled={dryRunning}
+            disabled={dryRunning || !nameValid}
             className={settingsPrimaryButtonClass}
           >
             {dryRunning ? "Running…" : "Dry run"}
@@ -308,25 +243,19 @@ export function DeploySettings() {
                 app <code className="text-foreground">{dryRun.slug}</code>
               </span>
               <span>
-                release{" "}
-                <code className="text-foreground">
-                  {firstAppRecord(dryRun.deployment)?.releaseTag ?? "pending"}
-                </code>
+                release <code className="text-foreground">{dryRun.releaseTag}</code>
               </span>
               <span>
-                {dryRun.files.length} file{dryRun.files.length === 1 ? "" : "s"}{" "}
-                →{" "}
-                <code className="text-foreground">
-                  {firstAppRecord(dryRun.deployment)?.path ?? "apps"}/
-                </code>
+                {dryRun.files.length} file{dryRun.files.length === 1 ? "" : "s"} →{" "}
+                <code className="text-foreground">{dryRun.appPath}/</code>
               </span>
             </div>
             <details open className="bg-muted/40 rounded-2xl p-4">
               <summary className="text-foreground cursor-pointer text-sm font-medium">
-                Deploy response
+                .aomi/deployment.json
               </summary>
               <pre className="text-muted-foreground mt-3 overflow-x-auto text-xs leading-relaxed">
-                {JSON.stringify(dryRun.deployment, null, 2)}
+                {JSON.stringify(dryRun.manifest, null, 2)}
               </pre>
             </details>
           </div>
@@ -337,26 +266,17 @@ export function DeploySettings() {
       <section className={settingsCardStackClass}>
         <h2 className={settingsCardTitleClass}>Publish your own app</h2>
         <p className={settingsBodyTextClass}>
-          Ready to ship a real app from your own machine? Request contributor
-          access and ops will invite your GitHub account and email you a per-app
-          activation code.
+          Ready to ship a real app from your own machine? Request contributor access and ops will
+          invite your GitHub account and email you a per-app activation code.
         </p>
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
             <label className={settingsLabelClass}>Your GitHub</label>
-            <Input
-              value={github}
-              onChange={(e) => setGithub(e.target.value)}
-              placeholder="your-github-user"
-            />
+            <Input value={github} onChange={(e) => setGithub(e.target.value)} placeholder="your-github-user" />
           </div>
           <div>
             <label className={settingsLabelClass}>Your email</label>
-            <Input
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
-            />
+            <Input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" />
           </div>
         </div>
         <div>
@@ -371,9 +291,7 @@ export function DeploySettings() {
         {requestStatus && (
           <div
             className={`flex items-start gap-2 rounded-2xl border p-3 text-sm ${
-              requestStatus.ok
-                ? "border-green-500/40 bg-green-500/10"
-                : "border-red-500/40 bg-red-500/10"
+              requestStatus.ok ? "border-green-500/40 bg-green-500/10" : "border-red-500/40 bg-red-500/10"
             }`}
           >
             {requestStatus.ok ? (
@@ -390,19 +308,11 @@ export function DeploySettings() {
       <section className={settingsCardStackClass}>
         <h2 className={settingsCardTitleClass}>Deploy</h2>
         <p className={settingsBodyTextClass}>
-          Publishes{" "}
-          <code className="text-foreground">
-            {displaySlug ?? "the configured app"}
-          </code>
-          , waits for the release to become loadable, then activates it
-          automatically.
+          Publishes <code className="text-foreground">{slug || "your app"}</code>, waits for CI to
+          build the release, then activates it automatically.
         </p>
         <div>
-          <Button
-            onClick={handleDeploy}
-            disabled={deploying}
-            className={settingsPrimaryButtonClass}
-          >
+          <Button onClick={handleDeploy} disabled={deploying || !nameValid} className={settingsPrimaryButtonClass}>
             {phase === "idle" || phase === "error" ? "Deploy" : "Deploying…"}
           </Button>
         </div>
@@ -418,10 +328,7 @@ export function DeploySettings() {
         )}
 
         {phase === "live" && (
-          <NextSteps
-            slug={displaySlug ?? slug}
-            ciUrl={deployResultCiUrl(deployResult)}
-          />
+          <NextSteps slug={dryRun?.slug ?? slug} ciUrl={deployResult?.ciUrl} />
         )}
       </section>
     </div>
@@ -438,19 +345,12 @@ function NextSteps({ slug, ciUrl }: { slug: string; ciUrl?: string }) {
       <div className="text-foreground font-medium">
         🎉 <code>{slug}</code> is live on staging.{" "}
         {ciUrl && (
-          <a
-            href={ciUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="underline"
-          >
+          <a href={ciUrl} target="_blank" rel="noreferrer" className="underline">
             View build
           </a>
         )}
       </div>
-      <div className="text-muted-foreground">
-        Make it yours — clone the starter, edit, redeploy:
-      </div>
+      <div className="text-muted-foreground">Make it yours — clone the starter, edit, redeploy:</div>
       <pre className="bg-background/60 overflow-x-auto rounded-xl p-3 text-xs leading-relaxed">
         {`# 1. clone the starter
 git clone ${EXAMPLE_REPO_URL}.git ${slug}
@@ -485,27 +385,14 @@ function DeployChecks({
   error: string | null;
   failedStep: FailedStep;
 }) {
-  const reachedActivate =
-    phase === "activating" || phase === "live" || failedStep === "activate";
+  const reachedActivate = phase === "activating" || phase === "live" || failedStep === "activate";
   const pushDone = !!deployResult || phase === "building" || reachedActivate;
   const ciDone = reachedActivate;
 
   const pushState: CheckState =
-    failedStep === "push"
-      ? "failed"
-      : pushDone
-        ? "done"
-        : phase === "deploying"
-          ? "running"
-          : "pending";
+    failedStep === "push" ? "failed" : pushDone ? "done" : phase === "deploying" ? "running" : "pending";
   const ciState: CheckState =
-    failedStep === "ci"
-      ? "failed"
-      : ciDone
-        ? "done"
-        : phase === "building"
-          ? "running"
-          : "pending";
+    failedStep === "ci" ? "failed" : ciDone ? "done" : phase === "building" ? "running" : "pending";
   const activateState: CheckState =
     failedStep === "activate"
       ? "failed"
@@ -519,9 +406,7 @@ function DeployChecks({
   const rows = [
     {
       title: "Push to publish",
-      desc: deployResult
-        ? `Committed ${deployResultAppRecordPath(deployResult)}/ → publish`
-        : "Commit the app to the publish branch",
+      desc: deployResult ? `Committed ${deployResult.appPath}/ → publish` : "Commit the app to the publish branch",
       state: pushState,
     },
     {
@@ -535,7 +420,7 @@ function DeployChecks({
               ? "Build failed"
               : "Waiting for CI",
       state: ciState,
-      href: deployResultCiUrl(deployResult),
+      href: deployResult?.ciUrl,
     },
     {
       title: "Activate",
@@ -549,11 +434,7 @@ function DeployChecks({
               : "Waiting for release",
       state: activateState,
     },
-    {
-      title: "Live on staging",
-      desc: "App loaded and serving",
-      state: liveState,
-    },
+    { title: "Live on staging", desc: "App loaded and serving", state: liveState },
   ];
 
   const failed = phase === "error";
@@ -562,21 +443,14 @@ function DeployChecks({
   return (
     <div className="overflow-hidden rounded-2xl border">
       <div className="bg-muted/40 flex items-center gap-3 border-b px-4 py-3">
-        <StatusIcon
-          state={live ? "done" : failed ? "failed" : "running"}
-          large
-        />
+        <StatusIcon state={live ? "done" : failed ? "failed" : "running"} large />
         <div>
           <div className="text-foreground text-sm font-semibold">
-            {live
-              ? "App is live on staging"
-              : failed
-                ? "Deploy blocked"
-                : "Deploy in progress"}
+            {live ? "App is live on staging" : failed ? "Deploy blocked" : "Deploy in progress"}
           </div>
           <div className="text-muted-foreground text-xs">
             {live
-              ? `Release ${deployResultAppRecordReleaseTag(deployResult)}`
+              ? `Release ${deployResult?.releaseTag}`
               : failed
                 ? (error ?? "A step failed")
                 : "Publishing → building → activating"}
@@ -591,21 +465,14 @@ function DeployChecks({
             <div className="min-w-0 flex-1">
               <div className="text-foreground text-sm font-medium">
                 {r.href ? (
-                  <a
-                    href={r.href}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="hover:underline"
-                  >
+                  <a href={r.href} target="_blank" rel="noreferrer" className="hover:underline">
                     {r.title}
                   </a>
                 ) : (
                   r.title
                 )}
               </div>
-              <div className="text-muted-foreground truncate text-xs">
-                {r.desc}
-              </div>
+              <div className="text-muted-foreground truncate text-xs">{r.desc}</div>
             </div>
             <StateBadge state={r.state} />
           </li>
@@ -617,12 +484,9 @@ function DeployChecks({
 
 function StatusIcon({ state, large }: { state: CheckState; large?: boolean }) {
   const cls = large ? "h-5 w-5" : "h-4 w-4";
-  if (state === "done")
-    return <CheckCircle2 className={`${cls} shrink-0 text-green-500`} />;
-  if (state === "failed")
-    return <XCircle className={`${cls} shrink-0 text-red-500`} />;
-  if (state === "running")
-    return <Loader2 className={`${cls} shrink-0 animate-spin text-blue-500`} />;
+  if (state === "done") return <CheckCircle2 className={`${cls} shrink-0 text-green-500`} />;
+  if (state === "failed") return <XCircle className={`${cls} shrink-0 text-red-500`} />;
+  if (state === "running") return <Loader2 className={`${cls} shrink-0 animate-spin text-blue-500`} />;
   return <Circle className={`${cls} text-muted-foreground/40 shrink-0`} />;
 }
 
@@ -634,9 +498,5 @@ function StateBadge({ state }: { state: CheckState }) {
     pending: { label: "queued", cls: "text-muted-foreground border-border" },
   };
   const { label, cls } = map[state];
-  return (
-    <span className={`shrink-0 rounded-full border px-2 py-0.5 text-xs ${cls}`}>
-      {label}
-    </span>
-  );
+  return <span className={`shrink-0 rounded-full border px-2 py-0.5 text-xs ${cls}`}>{label}</span>;
 }

@@ -5,7 +5,7 @@
 // =============================================================================
 //
 // Easiest verification: skips backend + AomiRuntimeProvider entirely. Just
-// exercises the `AomiAuthAdapter.signSolanaTransaction` contract end to end.
+// exercises the `AomiWalletKit.signSolanaTransaction` contract end to end.
 //
 // What this proves:
 //   - The discriminated `WalletSolanaSignPayload` type is shaped correctly
@@ -22,7 +22,7 @@
 
 import { useEffect, useState } from "react";
 import type { WalletSolanaSignPayload } from "@aomi-labs/react";
-import type { AomiAuthAdapter } from "../../../../registry/src/lib/aomi-auth-adapter";
+import type { AomiWalletKit } from "../../../../shadcn-registry/src/lib/wallet-kit";
 
 // -----------------------------------------------------------------------------
 // Two adapter modes
@@ -30,7 +30,7 @@ import type { AomiAuthAdapter } from "../../../../registry/src/lib/aomi-auth-ada
 
 type Mode = "mock" | "phantom";
 
-type SignFn = NonNullable<AomiAuthAdapter["signSolanaTransaction"]>;
+type SignFn = NonNullable<AomiWalletKit["signSolanaTransaction"]>;
 
 /**
  * Mock signer — no Phantom needed. Returns a deterministic
@@ -205,7 +205,7 @@ export default function SolanaSmokePage() {
         <header>
           <h1 className="text-2xl font-semibold">Solana sign smoke</h1>
           <p className="text-sm text-stone-400 mt-1">
-            Ladder 1: exercises <code>AomiAuthAdapter.signSolanaTransaction</code>{" "}
+            Ladder 1: exercises <code>AomiWalletKit.signSolanaTransaction</code>{" "}
             without a backend or the SDK queue. Logs what{" "}
             <code>Session.resolve</code> would have posted.
           </p>

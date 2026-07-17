@@ -8,7 +8,7 @@ import {
   type AppendMessage,
 } from "@assistant-ui/react";
 
-import { UserState, type AomiClient } from "@aomi-labs/client";
+import type { AomiClient } from "@aomi-labs/client";
 import { useControl } from "../contexts/control-context";
 import { useEventContext } from "../contexts/event-context";
 import { useUser } from "../contexts/ext-user-context";
@@ -22,6 +22,11 @@ import {
   RuntimeUserStateProvider,
   useRuntimeUserStateEffects,
 } from "./user-state-provider";
+import { getHttpStatus } from "./http-status";
+import {
+  clearPersistedThreadId,
+  writePersistedThreadId,
+} from "./thread-persistence";
 
 // =============================================================================
 // Core Props
@@ -30,28 +35,9 @@ import {
 export type AomiRuntimeCoreProps = {
   children: ReactNode;
   aomiClient: AomiClient;
-};
-
-function getLegacySessionPublicKey(
-  userState: ReturnType<typeof UserState.normalize>,
-) {
-  const address = UserState.address(userState);
-  if (!address?.startsWith("0x")) {
-    return undefined;
-  }
-  if (UserState.chainId(userState) === undefined && !userState?.evm?.address) {
-    return undefined;
-  }
-  return address;
-}
-
-const getHttpStatus = (error: unknown): number | undefined => {
-  const status = (error as { status?: unknown })?.status;
-  if (typeof status === "number") return status;
-
-  const message = error instanceof Error ? error.message : String(error);
-  const match = /\bHTTP\s+(\d{3})\b/i.exec(message);
-  return match ? Number(match[1]) : undefined;
+  applicationId?: number | string | null;
+  restoredThreadId?: string;
+  threadPersistenceKey?: string | null;
 };
 
 // =============================================================================
@@ -61,6 +47,9 @@ const getHttpStatus = (error: unknown): number | undefined => {
 export function AomiRuntimeCore({
   children,
   aomiClient,
+  applicationId,
+  restoredThreadId,
+  threadPersistenceKey,
 }: Readonly<AomiRuntimeCoreProps>) {
   const threadContext = useThreadContext();
   const eventContext = useEventContext();
@@ -68,6 +57,7 @@ export function AomiRuntimeCore({
   const { getUserState } = useUser();
   const {
     getControlState,
+    getCurrentThreadApplicationId,
     getCurrentThreadApp,
     getPreferredThreadControl,
     syncCurrentThreadControl,
@@ -95,31 +85,32 @@ export function AomiRuntimeCore({
     setIsRunning,
     ensureInitialState,
     sendMessage: orchestratorSendMessage,
+    regenerateMessage: orchestratorRegenerateMessage,
     cancelGeneration: orchestratorCancel,
     closeSession,
     closeIdleSessionsExcept,
     closeAllSessions,
     aomiClientRef,
   } = useRuntimeOrchestrator(aomiClient, {
-    getPublicKey: () =>
-      UserState.isConnected(getUserState())
-        ? getLegacySessionPublicKey(getUserState())
-        : undefined,
     getUserState,
     getApp: getCurrentThreadApp,
+    getApplicationId: () => getCurrentThreadApplicationId() ?? applicationId,
     getApiKey: () => getControlState().apiKey,
     getClientId: () => getControlState().clientId ?? undefined,
     prepareThreadForSend: async (threadId) => {
-      await syncCurrentThreadControl();
       const wasCreated = await ensureBackendThread(threadId);
       if (wasCreated) {
         threadsMaterializedForSendRef.current.add(threadId);
       }
+      await syncCurrentThreadControl({ ignoreProcessing: true });
     },
     onSendSuccess: (threadId) => {
       const wasRemote = remoteThreadIdsRef.current.has(threadId);
       remoteThreadIdsRef.current.add(threadId);
       warmedThreadIdsRef.current.add(threadId);
+      if (threadPersistenceKey) {
+        writePersistedThreadId(threadPersistenceKey, threadId);
+      }
       threadsMaterializedForSendRef.current.delete(threadId);
       if (!wasRemote && threadContextRef.current.currentThreadId === threadId) {
         void syncCurrentThreadControl().catch((error) => {
@@ -134,7 +125,7 @@ export function AomiRuntimeCore({
       const httpStatus = getHttpStatus(error);
 
       if (httpStatus === 402) {
-        // The `payment_required` modal (apps/registry payment-required-gate)
+        // The `payment_required` modal (apps/shadcn-registry payment-required-gate)
         // owns its own copy; only `kind` is consumed for routing. `message`
         // would be dead config — leave it off so there's one source of truth.
         notificationContext.showNotification({
@@ -188,11 +179,7 @@ export function AomiRuntimeCore({
       }
 
       const warmPromise = (async () => {
-        const userState = getUserState();
-        const publicKey = UserState.isConnected(userState)
-          ? getLegacySessionPublicKey(userState)
-          : undefined;
-        await aomiClientRef.current.createThread(threadId, publicKey);
+        await aomiClientRef.current.createThread(threadId);
         warmedThreadIdsRef.current.add(threadId);
       })();
 
@@ -204,7 +191,7 @@ export function AomiRuntimeCore({
         warmPromisesRef.current.delete(threadId);
       }
     },
-    [aomiClientRef, getUserState],
+    [aomiClientRef],
   );
 
   // ---------------------------------------------------------------------------
@@ -214,16 +201,12 @@ export function AomiRuntimeCore({
     async (threadId: string) => {
       if (remoteThreadIdsRef.current.has(threadId)) return false;
 
-      const userState = getUserState();
-      const publicKey = UserState.isConnected(userState)
-        ? getLegacySessionPublicKey(userState)
-        : undefined;
-      await aomiClientRef.current.createThread(threadId, publicKey);
+      await aomiClientRef.current.createThread(threadId);
       remoteThreadIdsRef.current.add(threadId);
       warmedThreadIdsRef.current.add(threadId);
       return true;
     },
-    [aomiClientRef, getUserState],
+    [aomiClientRef],
   );
 
   const getRuntimeSession = useCallback(
@@ -232,7 +215,19 @@ export function AomiRuntimeCore({
     [getSession],
   );
 
-  const { isThreadListLoading } = useRuntimeUserStateEffects({
+  const threadPersistence = useMemo(
+    () => ({
+      restoredThreadId,
+      onInvalidRestoredThread: () => {
+        if (threadPersistenceKey) {
+          clearPersistedThreadId(threadPersistenceKey);
+        }
+      },
+    }),
+    [restoredThreadId, threadPersistenceKey],
+  );
+
+  const { isThreadListLoading, threadListError } = useRuntimeUserStateEffects({
     sessions: {
       aomiClientRef,
       sessionManager,
@@ -247,6 +242,7 @@ export function AomiRuntimeCore({
       warmedThreadIdsRef,
       warmThread,
     },
+    threadPersistence,
   });
 
   // ---------------------------------------------------------------------------
@@ -291,11 +287,19 @@ export function AomiRuntimeCore({
   useEffect(() => {
     const threadId = threadContext.currentThreadId;
     const currentMeta = threadContext.getThreadMetadata(threadId);
-    if (currentMeta && currentMeta.control.isProcessing !== isRunning) {
+    const nextTurnPhase = isRunning
+      ? (currentMeta?.control.turnPhase ?? "working")
+      : "idle";
+    if (
+      currentMeta &&
+      (currentMeta.control.isProcessing !== isRunning ||
+        currentMeta.control.turnPhase !== nextTurnPhase)
+    ) {
       threadContext.updateThreadMetadata(threadId, {
         control: {
           ...currentMeta.control,
           isProcessing: isRunning,
+          turnPhase: nextTurnPhase,
         },
       });
     }
@@ -304,6 +308,19 @@ export function AomiRuntimeCore({
   const currentMessages = threadContext.getThreadMessages(
     threadContext.currentThreadId,
   );
+
+  useEffect(() => {
+    if (!threadPersistenceKey) return;
+    const threadId = threadContext.currentThreadId;
+    if (!remoteThreadIdsRef.current.has(threadId)) {
+      return;
+    }
+    writePersistedThreadId(threadPersistenceKey, threadId);
+  }, [
+    threadContext.allThreadsMetadata,
+    threadContext.currentThreadId,
+    threadPersistenceKey,
+  ]);
 
   // ---------------------------------------------------------------------------
   // Thread list adapter
@@ -336,56 +353,10 @@ export function AomiRuntimeCore({
     ],
   );
 
-  // ---------------------------------------------------------------------------
-  // Show notifications for tool updates/completions
-  // ---------------------------------------------------------------------------
-  useEffect(() => {
-    const showToolNotification =
-      (eventType: "tool_update" | "tool_complete") =>
-      (event: { payload?: unknown }) => {
-        const payload = event.payload as Record<string, unknown> | undefined;
-        const toolName =
-          typeof payload?.tool_name === "string"
-            ? payload.tool_name
-            : undefined;
-
-        if (eventType === "tool_complete" && toolName === "commit_txs") {
-          return;
-        }
-
-        const title = toolName
-          ? `${eventType === "tool_update" ? "Tool update" : "Tool complete"}: ${toolName}`
-          : eventType === "tool_update"
-            ? "Tool update"
-            : "Tool complete";
-        const message =
-          typeof payload?.message === "string"
-            ? payload.message
-            : typeof payload?.result === "string"
-              ? payload.result
-              : undefined;
-
-        notificationContext.showNotification({
-          type: "notice",
-          title,
-          message,
-        });
-      };
-
-    const unsubscribeUpdate = eventContext.subscribe(
-      "tool_update",
-      showToolNotification("tool_update"),
-    );
-    const unsubscribeComplete = eventContext.subscribe(
-      "tool_complete",
-      showToolNotification("tool_complete"),
-    );
-
-    return () => {
-      unsubscribeUpdate();
-      unsubscribeComplete();
-    };
-  }, [eventContext, notificationContext]);
+  // Tool update/complete SSE events intentionally raise NO toasts: the Working
+  // trace renders tool activity inline, so raw "Tool complete: <tool>" toasts
+  // were just noise (notably on tx signing, e.g. `evm_commit_txs`). The events
+  // are still emitted on the bus for any other consumer.
 
   // ---------------------------------------------------------------------------
   // Show notifications for system notices
@@ -421,6 +392,34 @@ export function AomiRuntimeCore({
         } catch (error) {
           console.error("Failed to send message:", error);
         }
+      }
+    },
+    onEdit: async (message: AppendMessage) => {
+      const text = message.content
+        .filter(
+          (part): part is Extract<typeof part, { type: "text" }> =>
+            part.type === "text",
+        )
+        .map((part) => part.text)
+        .join("\n");
+      try {
+        await orchestratorRegenerateMessage(
+          threadContext.currentThreadId,
+          message.sourceId ?? message.parentId,
+          text,
+        );
+      } catch (error) {
+        console.error("Failed to edit message:", error);
+      }
+    },
+    onReload: async (parentId) => {
+      try {
+        await orchestratorRegenerateMessage(
+          threadContext.currentThreadId,
+          parentId,
+        );
+      } catch (error) {
+        console.error("Failed to reload message:", error);
       }
     },
     onCancel: async () => {
@@ -472,8 +471,19 @@ export function AomiRuntimeCore({
     async (threadId: string) => {
       closeSession(threadId);
       await threadListAdapter.onDelete(threadId);
+      remoteThreadIdsRef.current.delete(threadId);
+      warmedThreadIdsRef.current.delete(threadId);
+      warmPromisesRef.current.delete(threadId);
+
+      const nextThreadId = threadContextRef.current.currentThreadId;
+      if (
+        !remoteThreadIdsRef.current.has(nextThreadId) &&
+        threadPersistenceKey
+      ) {
+        clearPersistedThreadId(threadPersistenceKey);
+      }
     },
-    [closeSession, threadListAdapter],
+    [closeSession, threadListAdapter, threadPersistenceKey],
   );
 
   const renameThread = useCallback(
@@ -536,6 +546,7 @@ export function AomiRuntimeCore({
       currentThreadId: threadContext.currentThreadId,
       threadViewKey: threadContext.threadViewKey,
       threadMetadata: threadContext.allThreadsMetadata,
+      threadListError,
       getThreadMetadata: threadContext.getThreadMetadata,
       createThread,
       deleteThread,
@@ -566,6 +577,12 @@ export function AomiRuntimeCore({
       // Event API
       subscribe: eventContext.subscribe,
       sendSystemCommand: eventContext.sendOutboundSystem,
+      recordUiInteraction: (payload) =>
+        eventContext.sendOutboundSystem({
+          type: "ui_interaction",
+          sessionId: threadContext.currentThreadId,
+          payload,
+        }),
       sseStatus: eventContext.sseStatus,
     }),
     [
@@ -574,6 +591,7 @@ export function AomiRuntimeCore({
       threadContext.threadViewKey,
       threadContext.allThreadsMetadata,
       threadContext.getThreadMetadata,
+      threadListError,
       createThread,
       deleteThread,
       renameThread,

@@ -1,9 +1,18 @@
-import type { GetAccountAccessToken } from "./types";
+import type { GetAccountBearer } from "./types";
 
 export type AccountCredentialProvider = () => Promise<{
-  provider: "para" | "privy";
+  provider: "para" | "privy" | (string & {});
+  tokenKind?: string;
   providerToken: string;
+  keyId?: string;
 }>;
+
+export class AccountCredentialUnavailableError extends Error {
+  constructor(message = "Account credential is not available yet") {
+    super(message);
+    this.name = "AccountCredentialUnavailableError";
+  }
+}
 
 export type AccountSessionExchangeResponse = {
   access_token: string;
@@ -12,34 +21,63 @@ export type AccountSessionExchangeResponse = {
   user_id: string;
 };
 
-export type AccountAccessTokenProviderOptions = {
+export type BetterAuthTokenResponse = {
+  /** Aomi AccountBearer shape from /api/aomi/account-bearer. */
+  bearer?: string;
+  expires_at?: number;
+  expiresAt?: number;
+  user_id?: string;
+  userId?: string;
+};
+
+export type BetterAuthAccountTokenSourceOptions = {
+  /** Portal/auth origin. Defaults to `baseUrl` when omitted. */
+  baseUrl?: string;
+  /**
+   * When enabled, a missing Better Auth cookie can be created by exchanging the
+   * connected wallet provider credential. Disable this when another account
+   * runtime already owns provider exchange to avoid duplicate wallet prompts.
+   */
+  providerExchange?: boolean;
+};
+
+export type AccountBearerProviderOptions = {
   baseUrl: string;
-  getProviderCredential: AccountCredentialProvider;
+  getProviderCredential?: AccountCredentialProvider;
+  betterAuthToken?: BetterAuthAccountTokenSourceOptions;
   fetch?: typeof fetch;
   now?: () => number;
   refreshBeforeExpiryMs?: number;
 };
 
-export type AccountAccessTokenProvider = GetAccountAccessToken & {
+export type AccountBearerProvider = GetAccountBearer & {
   subscribe: (listener: () => void) => () => void;
   dispose: () => void;
 };
 
 const DEFAULT_REFRESH_BEFORE_EXPIRY_MS = 2 * 60 * 1000;
 const FAILURE_COOLDOWN_MS = 30 * 1000;
+const CREDENTIAL_UNAVAILABLE_RETRY_DELAYS_MS = [250, 1_000, 3_000] as const;
+const EXPIRES_AT_MILLISECONDS_THRESHOLD = 100_000_000_000;
+const DEFAULT_BETTER_AUTH_TOKEN_PATH = "/api/aomi/account-bearer";
+const DEFAULT_BETTER_AUTH_PROVIDER_EXCHANGE_PATH =
+  "/api/auth/aomi/provider/exchange";
 
-/** Cache and refresh the short-lived Aomi bearer minted from Para or Privy. */
-export function createAccountAccessTokenProvider({
+/** Cache and refresh the short-lived Aomi bearer used for backend requests. */
+export function createAccountBearerProvider({
   baseUrl,
   getProviderCredential,
+  betterAuthToken,
   fetch: fetchImpl = fetch,
   now = Date.now,
   refreshBeforeExpiryMs = DEFAULT_REFRESH_BEFORE_EXPIRY_MS,
-}: AccountAccessTokenProviderOptions): AccountAccessTokenProvider {
+}: AccountBearerProviderOptions): AccountBearerProvider {
   let cached: AccountSessionExchangeResponse | null = null;
   let pending: Promise<AccountSessionExchangeResponse | null> | null = null;
   let refreshTimer: ReturnType<typeof setTimeout> | null = null;
   let failedAt: number | null = null;
+  let credentialUnavailableRetryAfter = 0;
+  let credentialUnavailableRetryCount = 0;
   const listeners = new Set<() => void>();
 
   const scheduleRefresh = (session: AccountSessionExchangeResponse) => {
@@ -47,7 +85,7 @@ export function createAccountAccessTokenProvider({
     const refreshAt = session.expires_at * 1000 - refreshBeforeExpiryMs;
     refreshTimer = setTimeout(
       () => {
-        void getAccountAccessToken({ forceRefresh: true }).catch(
+        void getAccountBearer({ forceRefresh: true }).catch(
           () => undefined,
         );
       },
@@ -55,28 +93,61 @@ export function createAccountAccessTokenProvider({
     );
   };
 
-  const exchange = async (): Promise<AccountSessionExchangeResponse> => {
-    const credential = await getProviderCredential();
-    const response = await fetchImpl(
-      `${baseUrl.replace(/\/+$/, "")}/api/account/sessions/exchange`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          provider: credential.provider,
-          provider_token: credential.providerToken,
-        }),
-      },
-    );
-    if (!response.ok) {
-      throw new Error(
-        `Failed to exchange account credential: HTTP ${response.status}`,
+  const fetchBetterAuthToken =
+    async (): Promise<AccountSessionExchangeResponse | null> => {
+      const response = await fetchImpl(
+        joinUrl(
+          betterAuthToken?.baseUrl ?? baseUrl,
+          DEFAULT_BETTER_AUTH_TOKEN_PATH,
+        ),
+        {
+          method: "GET",
+          credentials: "include",
+          headers: { Accept: "application/json" },
+        },
       );
-    }
-    return (await response.json()) as AccountSessionExchangeResponse;
+      if (!response.ok) return null;
+      const body = (await response.json()) as BetterAuthTokenResponse;
+      return normalizeBetterAuthTokenResponse(body);
+    };
+
+  const exchangeBetterAuthProviderCredential =
+    async (): Promise<AccountSessionExchangeResponse | null> => {
+      if (
+        betterAuthToken?.providerExchange === false ||
+        !getProviderCredential
+      ) {
+        return null;
+      }
+      const credential = await getProviderCredential();
+      const response = await fetchImpl(
+        joinUrl(
+          betterAuthToken?.baseUrl ?? baseUrl,
+          DEFAULT_BETTER_AUTH_PROVIDER_EXCHANGE_PATH,
+        ),
+        {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(credential),
+        },
+      );
+      if (!response.ok) return null;
+      return fetchBetterAuthToken();
+    };
+
+  const exchange = async (): Promise<AccountSessionExchangeResponse> => {
+    const betterAuthJwt = await fetchBetterAuthToken();
+    if (betterAuthJwt) return betterAuthJwt;
+    const exchangedBetterAuthJwt = await exchangeBetterAuthProviderCredential();
+    if (exchangedBetterAuthJwt) return exchangedBetterAuthJwt;
+    throw new Error("Failed to exchange Better Auth provider credential");
   };
 
-  const getAccountAccessToken: AccountAccessTokenProvider = async ({
+  const getAccountBearer: AccountBearerProvider = async ({
     forceRefresh = false,
   } = {}) => {
     const refreshAt = cached
@@ -90,18 +161,23 @@ export function createAccountAccessTokenProvider({
     // verification 403s on issueJwt) or the exchange fails, resolve to no token
     // so the caller's request proceeds unauthenticated instead of erroring.
     // A short cooldown prevents every backend poll from re-triggering a failing
-    // exchange; an explicit forceRefresh (the 401 retry path) bypasses it.
+    // exchange. Callers may still force-refresh after a 401.
     if (
-      !forceRefresh &&
       failedAt !== null &&
-      now() - failedAt < FAILURE_COOLDOWN_MS
+      now() - failedAt < FAILURE_COOLDOWN_MS &&
+      !forceRefresh
     ) {
+      return undefined;
+    }
+    if (!forceRefresh && now() < credentialUnavailableRetryAfter) {
       return undefined;
     }
     if (!pending) {
       pending = exchange()
         .then((next) => {
           failedAt = null;
+          credentialUnavailableRetryAfter = 0;
+          credentialUnavailableRetryCount = 0;
           const previous = cached;
           cached = next;
           scheduleRefresh(next);
@@ -114,8 +190,24 @@ export function createAccountAccessTokenProvider({
           }
           return next;
         })
-        .catch(() => {
-          failedAt = now();
+        .catch((error) => {
+          if (error instanceof AccountCredentialUnavailableError) {
+            const retryDelay =
+              CREDENTIAL_UNAVAILABLE_RETRY_DELAYS_MS[
+                credentialUnavailableRetryCount
+              ];
+            if (retryDelay === undefined) {
+              failedAt = now();
+              credentialUnavailableRetryAfter = 0;
+            } else {
+              credentialUnavailableRetryCount += 1;
+              credentialUnavailableRetryAfter = now() + retryDelay;
+            }
+          } else {
+            failedAt = now();
+            credentialUnavailableRetryAfter = 0;
+            credentialUnavailableRetryCount = 0;
+          }
           return null;
         })
         .finally(() => {
@@ -125,14 +217,96 @@ export function createAccountAccessTokenProvider({
     return (await pending)?.access_token;
   };
 
-  getAccountAccessToken.subscribe = (listener) => {
+  getAccountBearer.subscribe = (listener) => {
     listeners.add(listener);
     return () => listeners.delete(listener);
   };
-  getAccountAccessToken.dispose = () => {
+  getAccountBearer.dispose = () => {
     if (refreshTimer) clearTimeout(refreshTimer);
     refreshTimer = null;
     listeners.clear();
   };
-  return getAccountAccessToken;
+  return getAccountBearer;
+}
+
+function joinUrl(baseUrl: string, path: string): string {
+  return `${baseUrl.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`;
+}
+
+function normalizeBetterAuthTokenResponse(
+  response: BetterAuthTokenResponse,
+): AccountSessionExchangeResponse {
+  const token =
+    typeof response.bearer === "string" && response.bearer
+      ? response.bearer
+      : "";
+  if (!token) {
+    throw new Error("Better Auth token response is missing token");
+  }
+  let payload: Record<string, unknown> | null = null;
+  const getPayload = () => {
+    payload ??= decodeJwtPayload(token);
+    return payload;
+  };
+  const expiresAt = Number(
+    response.expires_at ?? response.expiresAt ?? getPayload().exp,
+  );
+  if (!Number.isFinite(expiresAt) || expiresAt <= 0) {
+    throw new Error("Better Auth token is missing a valid exp claim");
+  }
+  if (expiresAt > EXPIRES_AT_MILLISECONDS_THRESHOLD) {
+    throw new Error("Better Auth token expires_at must be seconds, not ms");
+  }
+  const getPayloadUserId = () => {
+    const claims = getPayload();
+    if (typeof claims.aomi_user_id === "string" && claims.aomi_user_id) {
+      return claims.aomi_user_id;
+    }
+    return typeof claims.sub === "string" ? claims.sub : "";
+  };
+  const userId =
+    typeof response.user_id === "string" && response.user_id
+      ? response.user_id
+      : typeof response.userId === "string" && response.userId
+        ? response.userId
+        : getPayloadUserId();
+  if (!userId) {
+    throw new Error("Better Auth token is missing a user id claim");
+  }
+  return {
+    access_token: token,
+    token_type: "Bearer",
+    expires_at: expiresAt,
+    user_id: userId,
+  };
+}
+
+function decodeJwtPayload(token: string): Record<string, unknown> {
+  const [, payload] = token.split(".");
+  if (!payload) throw new Error("Better Auth token is not a JWT");
+  return JSON.parse(decodeBase64Url(payload)) as Record<string, unknown>;
+}
+
+function decodeBase64Url(value: string): string {
+  const normalized = value
+    .replace(/-/g, "+")
+    .replace(/_/g, "/")
+    .padEnd(Math.ceil(value.length / 4) * 4, "=");
+  if (typeof globalThis.atob === "function") {
+    return globalThis.atob(normalized);
+  }
+  type BufferLike = {
+    from(
+      input: string,
+      encoding: "base64",
+    ): {
+      toString(encoding: "utf8"): string;
+    };
+  };
+  const BufferCtor = (globalThis as typeof globalThis & { Buffer?: BufferLike })
+    .Buffer;
+  if (BufferCtor) {
+    return BufferCtor.from(normalized, "base64").toString("utf8");
+  }
+  throw new Error("No base64 decoder is available");
 }

@@ -1,13 +1,18 @@
 "use client";
 
 import { useState, useMemo, useCallback, useEffect, type FC } from "react";
-import { AomiFrame } from "@aomi-labs/widget-lib";
+import dynamic from "next/dynamic";
 import { CopyButton } from "./CopyButton";
 import {
   ThemeCustomizer,
   useThemeCustomizer,
 } from "./ThemeCustomizer";
 import { ChevronDown, ChevronUp } from "lucide-react";
+
+const AomiFramePreview = dynamic(
+  () => import("./AomiFramePreview").then((mod) => mod.AomiFramePreview),
+  { ssr: false },
+);
 
 // =============================================================================
 // Types
@@ -345,30 +350,15 @@ export function PlaygroundConfigurator({ forceEmbed }: { forceEmbed?: boolean })
             }`}
             style={theme.output.styleObject}
           >
-            <AomiFrame.Root
-              height={`${embedHeight}px`}
-              walletPosition={walletPropValue ?? null}
-              showSidebar={state.sidebarShown}
+            <AomiFramePreview
               backendUrl={backendUrl}
-            >
-              {hasAnyControl && state.controlPlacement === "header" ? (
-                <AomiFrame.Header
-                  showSidebarTrigger={state.sidebarShown}
-                  withControl
-                  controlBarProps={controlBarProps}
-                />
-              ) : (
-                <AomiFrame.Header showSidebarTrigger={state.sidebarShown} />
-              )}
-              {hasAnyControl && state.controlPlacement === "composer" ? (
-                <AomiFrame.Composer
-                  withControl
-                  controlBarProps={controlBarProps}
-                />
-              ) : (
-                <AomiFrame.Composer />
-              )}
-            </AomiFrame.Root>
+              controlBarProps={controlBarProps}
+              controlPlacement={state.controlPlacement}
+              embedHeight={embedHeight}
+              hasAnyControl={hasAnyControl}
+              showSidebar={state.sidebarShown}
+              walletPosition={walletPropValue}
+            />
           </div>
         </div>
 

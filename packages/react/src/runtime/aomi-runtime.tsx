@@ -5,8 +5,8 @@ import type { ReactNode } from "react";
 
 import {
   AomiClient,
-  UserState,
   type AomiClientOptions,
+  type AomiPlatformFilter,
 } from "@aomi-labs/client";
 import { ControlContextProvider } from "../contexts/control-context";
 import { EventContextProvider } from "../contexts/event-context";
@@ -15,8 +15,12 @@ import {
   ThreadContextProvider,
   useThreadContext,
 } from "../contexts/thread-context";
-import { ExtUserProvider, useUser } from "../contexts/ext-user-context";
+import { ExtUserProvider } from "../contexts/ext-user-context";
 import { AomiRuntimeCore } from "./core";
+import {
+  buildThreadPersistenceKey,
+  readPersistedThreadId,
+} from "./thread-persistence";
 
 // =============================================================================
 // Props
@@ -25,7 +29,17 @@ import { AomiRuntimeCore } from "./core";
 export type AomiRuntimeProviderProps = {
   children: ReactNode;
   backendUrl?: string;
+  applicationId?: number | string | null;
+  appPlatforms?: AomiPlatformFilter;
   clientOptions?: Omit<AomiClientOptions, "baseUrl">;
+  /** Optional explicit initial thread. Takes precedence over stored state. */
+  initialThreadId?: string;
+  /** Persist the active materialized thread in localStorage. Defaults to true. */
+  persistThread?: boolean;
+  /** Full localStorage key override for vendors that need exact isolation. */
+  threadPersistenceKey?: string;
+  /** Extra key segment for tenant/user/app scoping without owning the full key. */
+  threadPersistenceScope?: string | null;
 };
 
 function normalizeBackendUrl(url: string): string {
@@ -41,11 +55,6 @@ function normalizeBackendUrl(url: string): string {
   return url;
 }
 
-function legacySessionPublicKey(user: ReturnType<typeof UserState.normalize>) {
-  const address = UserState.address(user);
-  return address?.startsWith("0x") ? address : undefined;
-}
-
 // =============================================================================
 // Provider Shell
 // =============================================================================
@@ -53,8 +62,39 @@ function legacySessionPublicKey(user: ReturnType<typeof UserState.normalize>) {
 export function AomiRuntimeProvider({
   children,
   backendUrl = "http://127.0.0.1:8080",
+  applicationId,
+  appPlatforms,
   clientOptions,
+  initialThreadId,
+  persistThread = true,
+  threadPersistenceKey,
+  threadPersistenceScope,
 }: Readonly<AomiRuntimeProviderProps>) {
+  const normalizedBackendUrl = normalizeBackendUrl(backendUrl);
+  const resolvedThreadPersistenceKey = useMemo(() => {
+    if (!persistThread) return null;
+    return (
+      threadPersistenceKey ??
+      buildThreadPersistenceKey({
+        backendUrl: normalizedBackendUrl,
+        applicationId,
+        scope: threadPersistenceScope,
+      })
+    );
+  }, [
+    applicationId,
+    normalizedBackendUrl,
+    persistThread,
+    threadPersistenceKey,
+    threadPersistenceScope,
+  ]);
+
+  const restoredThreadId = useMemo(() => {
+    if (initialThreadId) return initialThreadId;
+    if (!resolvedThreadPersistenceKey) return undefined;
+    return readPersistedThreadId(resolvedThreadPersistenceKey) ?? undefined;
+  }, [initialThreadId, resolvedThreadPersistenceKey]);
+
   const resolvedClientOptions = useMemo(
     () => ({
       logger: {
@@ -68,17 +108,23 @@ export function AomiRuntimeProvider({
   const aomiClient = useMemo(
     () =>
       new AomiClient({
-        baseUrl: normalizeBackendUrl(backendUrl),
+        baseUrl: normalizedBackendUrl,
         ...resolvedClientOptions,
       }),
-    [backendUrl, resolvedClientOptions],
+    [normalizedBackendUrl, resolvedClientOptions],
   );
 
   return (
-    <ThreadContextProvider>
+    <ThreadContextProvider initialThreadId={restoredThreadId}>
       <NotificationContextProvider>
         <ExtUserProvider>
-          <AomiRuntimeInner aomiClient={aomiClient}>
+          <AomiRuntimeInner
+            aomiClient={aomiClient}
+            applicationId={applicationId}
+            appPlatforms={appPlatforms}
+            restoredThreadId={restoredThreadId}
+            threadPersistenceKey={resolvedThreadPersistenceKey}
+          >
             {children}
           </AomiRuntimeInner>
         </ExtUserProvider>
@@ -94,30 +140,42 @@ export function AomiRuntimeProvider({
 type AomiRuntimeInnerProps = {
   children: ReactNode;
   aomiClient: AomiClient;
+  applicationId?: number | string | null;
+  appPlatforms?: AomiPlatformFilter;
+  restoredThreadId?: string;
+  threadPersistenceKey?: string | null;
 };
 
 function AomiRuntimeInner({
   children,
   aomiClient,
+  applicationId,
+  appPlatforms,
+  restoredThreadId,
+  threadPersistenceKey,
 }: Readonly<AomiRuntimeInnerProps>) {
   const threadContext = useThreadContext();
-  const { user } = useUser();
 
   return (
     <ControlContextProvider
       aomiClient={aomiClient}
       sessionId={threadContext.currentThreadId}
-      publicKey={
-        UserState.isConnected(user) ? legacySessionPublicKey(user) : undefined
-      }
       getThreadMetadata={threadContext.getThreadMetadata}
       updateThreadMetadata={threadContext.updateThreadMetadata}
+      appPlatforms={appPlatforms}
     >
       <EventContextProvider
         aomiClient={aomiClient}
         sessionId={threadContext.currentThreadId}
       >
-        <AomiRuntimeCore aomiClient={aomiClient}>{children}</AomiRuntimeCore>
+        <AomiRuntimeCore
+          aomiClient={aomiClient}
+          applicationId={applicationId}
+          restoredThreadId={restoredThreadId}
+          threadPersistenceKey={threadPersistenceKey}
+        >
+          {children}
+        </AomiRuntimeCore>
       </EventContextProvider>
     </ControlContextProvider>
   );

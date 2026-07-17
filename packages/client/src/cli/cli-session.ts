@@ -10,13 +10,13 @@
 
 import { ClientSession } from "../session";
 import type { CliConfig } from "./types";
-import { createCliClient } from "./client-factory";
 import {
   readState,
   hasSameBackendPendingId,
   hasSameSolanaPendingId,
   syncPendingTxsFromUserState,
   writeState,
+  type CliAuthSession,
   type CliSessionState,
   type PendingSolTx,
   type PendingTx,
@@ -26,60 +26,9 @@ import {
 import { buildCliUserState } from "./user-state";
 import { fatal } from "./errors";
 import { parseSolanaKeypairSecret } from "./solana-signer";
-
-function applyAccountCredentialConfig(
-  state: CliSessionState,
-  config: Pick<
-    Partial<CliConfig>,
-    "accountAccessToken" | "accountProvider" | "accountProviderToken"
-  >,
-): boolean {
-  let changed = false;
-  const selectsBearer = config.accountAccessToken !== undefined;
-  const selectsProviderExchange =
-    config.accountProvider !== undefined ||
-    config.accountProviderToken !== undefined;
-
-  if (selectsBearer) {
-    if (state.accountAccessToken !== config.accountAccessToken) {
-      state.accountAccessToken = config.accountAccessToken;
-      changed = true;
-    }
-    if (state.accountProvider !== undefined) {
-      state.accountProvider = undefined;
-      changed = true;
-    }
-    if (state.accountProviderToken !== undefined) {
-      state.accountProviderToken = undefined;
-      changed = true;
-    }
-    return changed;
-  }
-
-  if (!selectsProviderExchange) {
-    return changed;
-  }
-
-  if (state.accountAccessToken !== undefined) {
-    state.accountAccessToken = undefined;
-    changed = true;
-  }
-  if (
-    config.accountProvider !== undefined &&
-    state.accountProvider !== config.accountProvider
-  ) {
-    state.accountProvider = config.accountProvider;
-    changed = true;
-  }
-  if (
-    config.accountProviderToken !== undefined &&
-    state.accountProviderToken !== config.accountProviderToken
-  ) {
-    state.accountProviderToken = config.accountProviderToken;
-    changed = true;
-  }
-  return changed;
-}
+import { createCliAuthTokenProvider } from "./auth";
+import { DEFAULT_CLI_BASE_URL } from "./client-factory";
+import { createCliPaymentFetch, type CliPaymentListener } from "./payment";
 
 export class CliSession {
   private state: CliSessionState;
@@ -129,24 +78,27 @@ export class CliSession {
     const state: CliSessionState = {
       sessionId: crypto.randomUUID(),
       clientId: crypto.randomUUID(),
-      baseUrl: config.baseUrl ?? seed?.baseUrl ?? "https://api.aomi.dev",
+      baseUrl: config.baseUrl ?? seed?.baseUrl ?? DEFAULT_CLI_BASE_URL,
       app: config.app ?? seed?.app,
       model: config.model ?? seed?.model,
       apiKey: config.apiKey ?? seed?.apiKey,
-      accountAccessToken: seed?.accountAccessToken,
-      accountProvider: seed?.accountProvider,
-      accountProviderToken: seed?.accountProviderToken,
+      accountBearer: config.accountBearer ?? seed?.accountBearer,
+      sessionCookie: config.sessionCookie ?? seed?.sessionCookie,
+      embeddedProvider: config.embeddedProvider ?? seed?.embeddedProvider,
+      embeddedProviderToken:
+        config.embeddedProviderToken ?? seed?.embeddedProviderToken,
       publicKey: config.publicKey ?? seed?.publicKey,
-      privateKey: config.privateKey ?? seed?.privateKey,
+      privateKey: seed?.privateKey,
       svmPublicKey: svmPublicKey ?? seed?.svmPublicKey,
-      // Carry forward the persisted Solana private key so `wallet set --solana`
-      // survives `--new-session` — signing key is a user preference, not a
-      // per-session artifact.
-      svmPrivateKey: config.solanaPrivateKey ?? seed?.svmPrivateKey,
+      // Carry forward only persisted Solana keys from `wallet set --solana`.
+      // Keys supplied via --solana-private-key/env stay transient.
+      svmPrivateKey: seed?.svmPrivateKey,
       chainId: config.chain ?? seed?.chainId,
+      aaProvider: config.aaProvider ?? seed?.aaProvider,
+      aaMode: config.aaMode ?? seed?.aaMode,
       secretHandles: seed?.secretHandles,
+      auth: seed?.auth,
     };
-    applyAccountCredentialConfig(state, config);
     const cli = new CliSession(state);
     cli.save();
     return cli;
@@ -204,6 +156,9 @@ export class CliSession {
   get secretHandles(): Readonly<Record<string, string>> {
     return this.state.secretHandles ?? {};
   }
+  get auth(): CliAuthSession | undefined {
+    return this.state.auth;
+  }
 
   // ---------------------------------------------------------------------------
   // Mutators (auto-persist)
@@ -230,7 +185,38 @@ export class CliSession {
       this.state.apiKey = config.apiKey;
       changed = true;
     }
-    changed = applyAccountCredentialConfig(this.state, config) || changed;
+    if (
+      config.accountBearer !== undefined &&
+      config.accountBearer !== this.state.accountBearer
+    ) {
+      this.state.accountBearer = config.accountBearer;
+      delete this.state.embeddedProvider;
+      delete this.state.embeddedProviderToken;
+      changed = true;
+    }
+    if (
+      config.sessionCookie !== undefined &&
+      config.sessionCookie !== this.state.sessionCookie
+    ) {
+      this.state.sessionCookie = config.sessionCookie;
+      changed = true;
+    }
+    if (
+      config.embeddedProvider !== undefined &&
+      config.embeddedProvider !== this.state.embeddedProvider
+    ) {
+      this.state.embeddedProvider = config.embeddedProvider;
+      delete this.state.accountBearer;
+      changed = true;
+    }
+    if (
+      config.embeddedProviderToken !== undefined &&
+      config.embeddedProviderToken !== this.state.embeddedProviderToken
+    ) {
+      this.state.embeddedProviderToken = config.embeddedProviderToken;
+      delete this.state.accountBearer;
+      changed = true;
+    }
     if (
       config.publicKey !== undefined &&
       config.publicKey !== this.state.publicKey
@@ -254,6 +240,17 @@ export class CliSession {
     }
     if (config.chain !== undefined && config.chain !== this.state.chainId) {
       this.state.chainId = config.chain;
+      changed = true;
+    }
+    if (
+      config.aaProvider !== undefined &&
+      config.aaProvider !== this.state.aaProvider
+    ) {
+      this.state.aaProvider = config.aaProvider;
+      changed = true;
+    }
+    if (config.aaMode !== undefined && config.aaMode !== this.state.aaMode) {
+      this.state.aaMode = config.aaMode;
       changed = true;
     }
     if (!this.state.clientId) {
@@ -320,6 +317,30 @@ export class CliSession {
   clearSecretHandles(): void {
     this.state.secretHandles = {};
     this.save();
+  }
+
+  setAuthSession(auth: CliAuthSession): void {
+    this.state.auth = auth;
+    this.save();
+  }
+
+  clearAuthSession(): void {
+    if (!this.state.auth) return;
+    delete this.state.auth;
+    this.save();
+  }
+
+  clearSigningKeys(): void {
+    let changed = false;
+    if (this.state.privateKey !== undefined) {
+      delete this.state.privateKey;
+      changed = true;
+    }
+    if (this.state.svmPrivateKey !== undefined) {
+      delete this.state.svmPrivateKey;
+      changed = true;
+    }
+    if (changed) this.save();
   }
 
   /** Ensure clientId exists, generate if absent. Returns the clientId. */
@@ -466,50 +487,31 @@ export class CliSession {
   // ---------------------------------------------------------------------------
 
   /** Build a ClientSession from the current state. */
-  createClientSession(config: Partial<CliConfig> = {}): ClientSession {
-    const effectiveAccountProvider =
-      config.accountAccessToken !== undefined
-        ? undefined
-        : (config.accountProvider ?? this.state.accountProvider);
-    const effectiveAccountProviderToken =
-      config.accountAccessToken !== undefined
-        ? undefined
-        : (config.accountProviderToken ?? this.state.accountProviderToken);
-    const shouldUseProviderExchange = Boolean(
-      effectiveAccountProvider && effectiveAccountProviderToken,
-    );
-
+  createClientSession(
+    config?: Partial<CliConfig>,
+    options?: { onPayment?: CliPaymentListener },
+  ): ClientSession {
+    const paymentFetch = createCliPaymentFetch(config, options?.onPayment);
     const session = new ClientSession(
-      createCliClient(
-        {
-          ...config,
-          baseUrl: this.state.baseUrl,
-          apiKey: this.state.apiKey,
-          // Prefer an explicit or persisted provider exchange config over any
-          // stale bearer so switching auth modes does not get stuck on old
-          // session state.
-          accountAccessToken: shouldUseProviderExchange
-            ? undefined
-            : (config.accountAccessToken ?? this.state.accountAccessToken),
-          accountProvider: effectiveAccountProvider,
-          accountProviderToken: effectiveAccountProviderToken,
-        },
-        {
-          baseUrl: this.state.baseUrl,
-          apiKey: this.state.apiKey,
-        },
-      ),
+      {
+        baseUrl: this.state.baseUrl,
+        apiKey: this.state.apiKey,
+        fetch: paymentFetch,
+        getAccountBearer: createCliAuthTokenProvider(() => this.state),
+      },
       {
         sessionId: this.state.sessionId,
         clientId: this.state.clientId,
         app: this.state.app,
+        applicationId: config?.applicationId,
         apiKey: this.state.apiKey,
-        publicKey: this.state.publicKey,
+        paymentMethod: config?.paymentMethod,
       },
     );
     session.resolveUserState(
       buildCliUserState(this.state.publicKey, this.state.chainId, {
         app: this.state.app,
+        aaProvider: this.state.aaProvider ?? config?.aaProvider ?? null,
         aaMode: this.state.aaMode ?? null,
         smartAccount: this.state.smartAccount ?? null,
         svmAddress: this.state.svmPublicKey,

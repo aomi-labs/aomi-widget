@@ -73,9 +73,10 @@ export function buildCliUserState(
   chainId?: number,
   options?: {
     app?: string;
+    aaProvider?: string | null;
     aaMode?: UserStateAAMode | null;
     smartAccount?: string | null;
-    /** Solana public key (base58). When present, sets solana.address and primary_family=solana. */
+    /** Solana public key (base58). When present, sets svm.address. */
     svmAddress?: string;
     /** Solana cluster. Defaults to "solana:mainnet" when svmAddress is present. */
     svmCluster?: "solana:mainnet" | "solana:devnet" | "solana:testnet";
@@ -114,6 +115,9 @@ export function buildCliUserState(
   if (hasEvm) {
     if (options?.aaMode === "4337" || options?.aaMode === "7702") {
       const aaState: UserStateEvmAa = { mode: options.aaMode };
+      if (options.aaProvider != null) {
+        aaState.provider = options.aaProvider;
+      }
       if (options.smartAccount != null) {
         aaState.smart_account = options.smartAccount;
       }
@@ -142,7 +146,6 @@ export function buildCliUserState(
   if (anyConnected) {
     userState.connection = {
       is_connected: true,
-      primary_family: hasBoth ? "dual" : hasSvm ? "svm" : "evm",
     };
   }
   return UserState.withExt(userState, "client_type", CLIENT_TYPE_TS_CLI);

@@ -1,5 +1,6 @@
 "use client";
 
+import "@aomi-labs/widget-lib/providers/privy";
 import type { ReactNode } from "react";
 import type { Chain } from "viem";
 import {
@@ -12,7 +13,7 @@ import {
   polygon,
   sepolia,
 } from "wagmi/chains";
-import { AomiWalletProvider } from "../../../registry/src";
+import { AomiWalletKitProvider } from "@aomi-labs/widget-lib";
 
 const privyAppId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
 const walletConnectProjectId =
@@ -40,6 +41,7 @@ const solanaNetworks = [
       "https://api.devnet.solana.com",
     rpcWsUrl: process.env.NEXT_PUBLIC_SOLANA_DEVNET_RPC_WS_URL ??
       process.env.NEXT_PUBLIC_SOLANA_RPC_WS_URL,
+    isDefault: true,
   },
   {
     id: "solana-mainnet",
@@ -49,7 +51,6 @@ const solanaNetworks = [
       process.env.NEXT_PUBLIC_SOLANA_MAINNET_RPC_URL ??
       "https://api.mainnet-beta.solana.com",
     rpcWsUrl: process.env.NEXT_PUBLIC_SOLANA_MAINNET_RPC_WS_URL,
-    isDefault: true,
   },
   {
     id: "solana-testnet",
@@ -64,19 +65,28 @@ const solanaNetworks = [
 
 export function LandingPrivyProvider({ children }: { children: ReactNode }) {
   return (
-    <AomiWalletProvider
-      provider="privy"
-      appId={privyAppId}
-      appName="Aomi Labs"
-      networks={networks}
-      loginMethods={["email", "google", "wallet"]}
-      walletConnectProjectId={walletConnectProjectId}
-      solana={{
-        networks: solanaNetworks,
-        preferDirectSend: true,
+    <AomiWalletKitProvider
+      preset="privy"
+      auth={{ provider: "privy", methods: ["email", "google", "wallet"] }}
+      providers={{
+        privy: {
+          appId: privyAppId,
+          appName: "Aomi Labs",
+        },
+      }}
+      wallets={{
+        evm: {
+          chains: networks,
+          walletConnectProjectId,
+          appName: "Aomi Labs",
+        },
+        solana: {
+          networks: solanaNetworks,
+          preferDirectSend: true,
+        },
       }}
     >
       {children}
-    </AomiWalletProvider>
+    </AomiWalletKitProvider>
   );
 }

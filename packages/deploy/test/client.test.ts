@@ -19,7 +19,7 @@ function client(onAudit?: (event: AuditEvent) => void) {
   });
 }
 
-describe("DeploymentClient.deploy", () => {
+describe("DeploymentClient deploy/preflight", () => {
   let fetchMock: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
@@ -28,13 +28,13 @@ describe("DeploymentClient.deploy", () => {
         ok: true,
         deployment: {
           id: "dep_123_abc1234",
-          status: "dry_run",
+          status: "preflight",
           source: {
             installation_id: 123,
             repository_id: 987,
             repository_link: "https://github.com/alice/demo.git",
             owner_repo_name: "alice/demo",
-            ref: { kind: "branch", value: "main" },
+            ref: "abc1234def5678",
             commit_hash: "abc1234def5678",
             aomi_toml_paths: ["aomi.toml"],
           },
@@ -55,6 +55,13 @@ describe("DeploymentClient.deploy", () => {
                 aomi_toml_path: "aomi.toml",
                 release_tag: "apps-123-demo-abc1234def56",
                 target: "x86_64-unknown-linux-gnu",
+                files: [
+                  {
+                    path: "apps/123/demo/aomi.toml",
+                    sha256: "00aa",
+                    bytes: 512,
+                  },
+                ],
               },
             ],
           },
@@ -66,14 +73,13 @@ describe("DeploymentClient.deploy", () => {
 
   afterEach(() => vi.unstubAllGlobals());
 
-  it("POSTs the repo-scoped deploy request and maps the response to camelCase", async () => {
+  it("POSTs a preflight request and maps the deployment.json response to camelCase", async () => {
     const audits: AuditEvent[] = [];
-    const result = await client((event) => audits.push(event)).deploy({
+    const result = await client((event) => audits.push(event)).preflight({
       platform: "community",
       appSourceId: 42,
-      sourceRef: { kind: "branch", value: "main" },
+      sourceRef: "ABC1234DEF5678",
       aomiTomlPaths: ["aomi.toml"],
-      dryRun: true,
       actor: "alice",
     });
 
@@ -88,20 +94,22 @@ describe("DeploymentClient.deploy", () => {
     });
     expect(JSON.parse((init as RequestInit).body as string)).toEqual({
       app_source_id: 42,
-      source_ref: { kind: "branch", value: "main" },
+      source_ref: "abc1234def5678",
       aomi_toml_paths: ["aomi.toml"],
-      dry_run: true,
+      preflight: true,
     });
 
     expect(result.deployment.source.installationId).toBe(123);
+    expect(result.deployment.source.ref).toBe("abc1234def5678");
     expect(result.deployment.platform.apps[0]).toMatchObject({
       aomiTomlPath: "aomi.toml",
       releaseTag: "apps-123-demo-abc1234def56",
       target: "x86_64-unknown-linux-gnu",
+      files: [{ path: "apps/123/demo/aomi.toml", sha256: "00aa", bytes: 512 }],
     });
     expect(audits).toEqual([
       expect.objectContaining({
-        action: "deploy",
+        action: "preflight",
         platform: "community",
         appSourceId: 42,
         actor: "alice",
@@ -109,15 +117,43 @@ describe("DeploymentClient.deploy", () => {
     ]);
   });
 
+  it("POSTs an apply deploy request without the preflight flag", async () => {
+    const result = await client().deploy({
+      platform: "community",
+      appSourceId: 42,
+      sourceRef: "abc1234def5678",
+    });
+
+    expect(result.deployment.id).toBe("dep_123_abc1234");
+    const [, init] = fetchMock.mock.calls[0];
+    expect(JSON.parse((init as RequestInit).body as string)).toEqual({
+      app_source_id: 42,
+      source_ref: "abc1234def5678",
+      aomi_toml_paths: [],
+    });
+  });
+
   it("rejects invalid deploy input before calling the backend", async () => {
     await expect(
       client().deploy({
         platform: "community",
         appSourceId: 0,
-        sourceRef: { kind: "commit", value: "abc1234" },
+        sourceRef: "abc1234",
         aomiTomlPaths: ["aomi.toml"],
       }),
     ).rejects.toBeInstanceOf(DeployError);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects branch-like source refs before calling the backend", async () => {
+    await expect(
+      client().deploy({
+        platform: "community",
+        appSourceId: 42,
+        sourceRef: "main",
+        aomiTomlPaths: ["aomi.toml"],
+      }),
+    ).rejects.toThrow(/git commit SHA/);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
@@ -172,7 +208,7 @@ describe("DeploymentClient.activate", () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it("POSTs one release-tags activation request and maps partial failures", async () => {
-    const result = await client().activate({
+    const promise = client().activate({
       platform: "community",
       target: {
         kind: "release_tags",
@@ -180,6 +216,12 @@ describe("DeploymentClient.activate", () => {
       },
       apps: ["demo", "broken"],
       targetTags: ["staging"],
+    });
+
+    await expect(promise).rejects.toThrow(DeployError);
+    await expect(promise).rejects.toMatchObject({
+      code: "ACTIVATION",
+      reason: [{ app: "broken", error: "release artifact not found" }],
     });
 
     const [url, init] = fetchMock.mock.calls[0];
@@ -193,17 +235,6 @@ describe("DeploymentClient.activate", () => {
       },
       apps: ["demo", "broken"],
       target_tags: ["staging"],
-    });
-    expect(result.ok).toBe(false);
-    expect(result.activation.target.platformRepo).toBe(
-      "aomi-labs/community-apps",
-    );
-    expect(result.activation.target.promoted).toEqual([]);
-    expect(result.activation.apps[1]).toMatchObject({
-      name: "broken",
-      isActive: false,
-      loaded: false,
-      error: "release artifact not found",
     });
   });
 
@@ -260,7 +291,7 @@ describe("DeploymentClient.activate", () => {
                 name: "demo",
                 release_tag: "apps-123-demo-abc1234def56",
                 source_branch: "alice/demo/123/abc1234def56",
-                platform_commit_hash: "ff00aa",
+                activated_commit_hash: "ff00aa",
                 live_commit_hash: "ff00bb",
                 ci_status: "passed",
                 ci_url:
@@ -280,6 +311,10 @@ describe("DeploymentClient.activate", () => {
               release_tag: "apps-123-demo-abc1234def56",
               is_active: true,
               loaded: true,
+              activation_pr: {
+                html_url: "https://github.com/aomi-labs/community-apps/pull/10",
+              },
+              activation_pr_close_error: null,
             },
           ],
         },
@@ -314,6 +349,12 @@ describe("DeploymentClient.activate", () => {
         "aomi-release.json",
       ],
     });
+    expect(result.activation.apps[0]).toMatchObject({
+      activationPr: {
+        html_url: "https://github.com/aomi-labs/community-apps/pull/10",
+      },
+      activationPrCloseError: null,
+    });
   });
 
   it("throws BackendError on non-2xx responses", async () => {
@@ -333,6 +374,148 @@ describe("DeploymentClient.activate", () => {
       name: "ActivationError",
       status: 409,
       body: "ci not passed",
+    });
+  });
+});
+
+describe("DeploymentClient operate observability", () => {
+  let fetchMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    fetchMock = vi.fn(async () =>
+      Response.json({
+        source: {
+          id: 42,
+          installation_id: 123,
+          repository_id: 987,
+          repository_link: "https://github.com/alice/demo.git",
+          github_account: "alice",
+        },
+        platform: "community",
+        scope: "owned_applications",
+        monitoring: {
+          provider: "grafana_prometheus",
+          status: "ok",
+          window_seconds: 300,
+        },
+        apps: [
+          {
+            application_id: 77,
+            application: "demo",
+            active: true,
+            loaded: true,
+            release_tag: "apps-123-demo-abc1234def56",
+            sdk_version: "3.0.2",
+            status: "healthy",
+            metrics: {
+              provider: "grafana_prometheus",
+              window_seconds: 300,
+              available: true,
+              requests_per_minute: 42,
+              error_rate: 0.025,
+              p95_latency_ms: 1234,
+              inflight_requests: 3,
+            },
+          },
+        ],
+        dashboard_links: [
+          {
+            label: "Operate dashboard",
+            url: "https://grafana.example.com/d/app",
+            scope: "owned_applications",
+          },
+        ],
+        platform_metrics: [
+          {
+            label: "DB pool waiting",
+            value: 0,
+            unit: "connections",
+            scope: "platform",
+            description: "Shared DB pressure.",
+          },
+        ],
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+  });
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("maps snake_case Grafana metrics into app observability fields", async () => {
+    const result = await client().getUserSourceObservability({
+      githubUserId: "4738254",
+      platform: "community",
+      appSourceId: 42,
+    });
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      "https://staging-api.example.com/api/integrations/github-app/user/sources/42/observability?github_user_id=4738254&platform=community",
+    );
+    expect(result.monitoring).toEqual({
+      provider: "grafana_prometheus",
+      status: "ok",
+      windowSeconds: 300,
+    });
+    expect(result.apps[0].metrics).toEqual({
+      provider: "grafana_prometheus",
+      windowSeconds: 300,
+      available: true,
+      requestsPerMinute: 42,
+      errorRate: 0.025,
+      p95LatencyMs: 1234,
+      inflightRequests: 3,
+    });
+    expect(result.platformMetrics[0]).toEqual({
+      label: "DB pool waiting",
+      value: 0,
+      unit: "connections",
+      scope: "platform",
+      description: "Shared DB pressure.",
+    });
+  });
+});
+
+describe("DeploymentClient source SDK upgrade", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("POSTs the owned source request and normalizes the upgrade PR", async () => {
+    const fetchMock = vi.fn(async () =>
+      Response.json({
+        status: "pull_request",
+        required_sdk_version: "3.0.3",
+        source_ref: "abc1234",
+        branch: "aomi/sdk-3.0.3",
+        files: ["Cargo.toml"],
+        pull_request: {
+          number: 7,
+          url: "https://github.com/alice/demo/pull/7",
+          created: true,
+        },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await client().upgradeUserSourceSdk({
+      githubUserId: "4738254",
+      platform: "community",
+      appSourceId: 42,
+    });
+
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      "https://staging-api.example.com/api/integrations/github-app/user/sources/42/sdk-upgrade?github_user_id=4738254&platform=community",
+    );
+    expect(result).toEqual({
+      status: "pull_request",
+      requiredSdkVersion: "3.0.3",
+      sourceRef: "abc1234",
+      branch: "aomi/sdk-3.0.3",
+      files: ["Cargo.toml"],
+      pullRequest: {
+        number: 7,
+        url: "https://github.com/alice/demo/pull/7",
+        created: true,
+      },
     });
   });
 });

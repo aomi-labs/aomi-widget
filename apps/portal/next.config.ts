@@ -6,7 +6,8 @@ const appRoot = path.dirname(fileURLToPath(import.meta.url));
 const workspaceRoot = path.resolve(appRoot, "../..");
 const appNodeModules = path.join(appRoot, "node_modules");
 const portalSrc = path.join(appRoot, "src");
-const widgetSrc = path.join(workspaceRoot, "apps/registry/src");
+const accountSrc = path.join(workspaceRoot, "packages/account/src");
+const widgetSrc = path.join(workspaceRoot, "apps/shadcn-registry/src");
 
 const emptyModulePath = path.join(appRoot, "empty-module.js");
 const nobleHashesAssertCompatPath = path.join(
@@ -18,10 +19,12 @@ const nobleHashesAssertCompatPath = path.join(
 // These `@/components|hooks|lib` aliases exist only so registry source imported
 // through `@aomi-labs/widget-lib` can resolve its own internal paths.
 const widgetTurbopackAliases = {
-  "@/components": "../../apps/registry/src/components",
-  "@/hooks": "../../apps/registry/src/hooks",
-  "@/lib": "../../apps/registry/src/lib",
-  "@aomi-labs/widget-lib": "../../apps/registry/src/index.ts",
+  "@/components": "../../apps/shadcn-registry/src/components",
+  "@/hooks": "../../apps/shadcn-registry/src/hooks",
+  "@/lib": "../../apps/shadcn-registry/src/lib",
+  "@aomi-labs/widget-lib/providers/para":
+    "../../apps/shadcn-registry/src/lib/wallet-kit/providers/para/index.ts",
+  "@aomi-labs/widget-lib": "../../apps/shadcn-registry/src/index.ts",
 } as const;
 
 // Keep these in sync with the corresponding `paths` entries in
@@ -30,6 +33,10 @@ const widgetWebpackAliases = {
   "@/components": path.join(widgetSrc, "components"),
   "@/hooks": path.join(widgetSrc, "hooks"),
   "@/lib": path.join(widgetSrc, "lib"),
+  "@aomi-labs/widget-lib/providers/para": path.join(
+    widgetSrc,
+    "lib/wallet-kit/providers/para/index.ts",
+  ),
   "@aomi-labs/widget-lib": path.join(widgetSrc, "index.ts"),
 } as const;
 
@@ -55,26 +62,12 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: true,
   },
-  async rewrites() {
-    const backendProxyTarget = process.env.AOMI_BACKEND_PROXY_TARGET;
-    if (!backendProxyTarget) {
-      return [];
-    }
-
-    return [
-      {
-        source: "/api/:path*",
-        destination: `${backendProxyTarget}/api/:path*`,
-      },
-    ];
-  },
   typescript: {
     ignoreBuildErrors: true,
   },
   transpilePackages: [
-    "@aomi-labs/auth",
+    "@aomi-labs/account",
     "@aomi-labs/client",
-    "@aomi-labs/mcp-core",
     "@aomi-labs/react",
     "@aomi-labs/widget-lib",
     "@getpara/react-sdk",
@@ -83,8 +76,12 @@ const nextConfig: NextConfig = {
     resolveAlias: {
       "@portal": "./src",
       ...widgetTurbopackAliases,
-      "@aomi-labs/auth": "../../packages/auth/src/index.ts",
-      "@aomi-labs/mcp-core": "../../packages/mcp-core/src/index.ts",
+      "@aomi-labs/account/account": "../../packages/account/src/account.ts",
+      "@aomi-labs/account/better-auth":
+        "../../packages/account/src/better-auth/index.ts",
+      "@aomi-labs/account/providers":
+        "../../packages/account/src/providers/index.ts",
+      "@aomi-labs/account": "../../packages/account/src/index.ts",
       "@aomi-labs/client": "../../packages/client/src/index.ts",
       "@aomi-labs/react": "../../packages/react/src/index.ts",
       "@assistant-ui/react": "./node_modules/@assistant-ui/react",
@@ -106,19 +103,24 @@ const nextConfig: NextConfig = {
       ...(config.resolve.alias ?? {}),
       "@portal": portalSrc,
       ...widgetWebpackAliases,
-      "@aomi-labs/auth": path.join(
-        workspaceRoot,
-        "packages/auth/src/index.ts",
+      "@aomi-labs/account/account": path.join(accountSrc, "account.ts"),
+      "@aomi-labs/account/better-auth": path.join(
+        accountSrc,
+        "better-auth/index.ts",
       ),
-      "@aomi-labs/mcp-core": path.join(
-        workspaceRoot,
-        "packages/mcp-core/src/index.ts",
+      "@aomi-labs/account/providers": path.join(
+        accountSrc,
+        "providers/index.ts",
       ),
+      "@aomi-labs/account": path.join(accountSrc, "index.ts"),
       "@aomi-labs/client": path.join(
         workspaceRoot,
         "packages/client/src/index.ts",
       ),
-      "@aomi-labs/react": path.join(workspaceRoot, "packages/react/src/index.ts"),
+      "@aomi-labs/react": path.join(
+        workspaceRoot,
+        "packages/react/src/index.ts",
+      ),
       "@assistant-ui/react": path.join(appNodeModules, "@assistant-ui/react"),
       "@noble/hashes/_assert": nobleHashesAssertCompatPath,
       "@tanstack/react-query": path.join(

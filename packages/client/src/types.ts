@@ -9,7 +9,6 @@ export type {
   UserStateEvmAa,
   UserStateEvmSponsorship,
   UserStatePending,
-  UserStatePrimaryFamily,
   UserStateSponsorProvider,
   UserStateSvm,
   UserStateWalletKind,
@@ -41,15 +40,42 @@ export type AomiClientOptions = {
   /** Default API key for non-default apps */
   apiKey?: string;
   /** Supplies a short-lived Aomi account bearer for REST and SSE requests. */
-  getAccountAccessToken?: GetAccountAccessToken;
+  getAccountBearer?: GetAccountBearer;
   /** Optional logger for debug output (default: silent) */
   logger?: Logger;
 };
 
-export type GetAccountAccessToken = (options?: {
-  /** Re-exchange the upstream Para/Privy credential after an API 401. */
+export type GetAccountBearer = (options?: {
+  /** Force a refresh after an API 401. */
   forceRefresh?: boolean;
 }) => Promise<string | null | undefined>;
+
+export type AomiRequestQueryValue =
+  | string
+  | number
+  | boolean
+  | readonly (string | number | boolean)[]
+  | null
+  | undefined;
+
+export type AomiPlatformFilter = string | readonly string[] | null | undefined;
+
+export type AomiHttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+
+export interface AomiRequestOptions {
+  /** Thread id for thread-scoped routes. Kept as sessionId for SDK compatibility. */
+  sessionId?: string;
+  /** App key for app-key checked routes; defaults to the client's apiKey. */
+  apiKey?: string;
+  /** Query params appended to the request URL. */
+  query?: Record<string, AomiRequestQueryValue>;
+  /** JSON request payload. */
+  body?: unknown;
+  /** Extra request headers. */
+  headers?: HeadersInit;
+  /** Use the native fetch path instead of a custom payment-aware fetch wrapper. */
+  raw?: boolean;
+}
 
 // =============================================================================
 // Base Types
@@ -68,7 +94,7 @@ export interface AomiMessage {
 // =============================================================================
 
 /**
- * GET /api/state
+ * GET /api/thread/state
  * Fetches current session state including messages and processing status
  */
 export interface AomiStateResponse {
@@ -80,7 +106,7 @@ export interface AomiStateResponse {
 }
 
 /**
- * POST /api/chat
+ * POST /api/thread/chat
  * Sends a chat message and returns updated session state
  */
 export interface AomiChatResponse {
@@ -100,7 +126,7 @@ export interface AomiSystemResponse {
 }
 
 /**
- * POST /api/simulate
+ * POST /api/exec/simulate
  * Batch-simulate pending transactions atomically (snapshot → sequential send → revert).
  */
 export interface AomiSimulateFee {
@@ -133,37 +159,42 @@ export interface AomiSimulateResponse {
 }
 
 /**
- * POST /api/interrupt
+ * POST /api/thread/interrupt
  * Interrupts current processing and returns updated session state
  */
 export type AomiInterruptResponse = AomiChatResponse;
 
 /**
- * GET /api/sessions
+ * GET /api/threads
  * Returns array of AomiThread
  */
 export interface AomiThread {
+  thread_id?: string;
   session_id: string;
-  title: string;
+  title: string | null;
   is_archived?: boolean;
+  last_active_at?: number;
 }
 
+export type AomiAccountResponse = AomiAccountProfile;
+
 /**
- * POST /api/sessions
+ * POST /api/threads
  * Creates a new thread/session
  */
 export interface AomiCreateThreadResponse {
+  thread_id?: string;
   session_id: string;
-  title?: string;
+  title?: string | null;
 }
 
 /**
- * GET /api/settings/account
+ * GET /api/account
  * The account bound to the authenticated request (resolved from the account
  * bearer). Returned only when the session is bound to a real user; an
  * anonymous session yields HTTP 400.
  */
-export interface AomiAccount {
+export interface AomiUser {
   user_id: string;
   username?: string | null;
   apps?: string[];
@@ -175,17 +206,64 @@ export interface AomiAccount {
   updated_at?: number;
 }
 
-export interface AomiAccountWallet {
+export interface AomiAuthIdentity {
+  id: number;
+  application?: string | null;
+  wallet_provider: string;
+  auth_method: string;
+  auth_verified_at?: number | null;
+  is_primary: boolean;
+  created_at: number;
+}
+
+export interface AomiIdentityWallet {
   wallet_id?: string | null;
   address: string;
   chain_type: string;
   wallet_provider: string;
 }
 
+export interface AomiUsageStats {
+  period_utc_month?: string;
+  input_tokens: number;
+  output_tokens: number;
+  credit_used: number;
+  credit_paid: number;
+}
+
 export interface AomiAccountProfile {
-  account: AomiAccount;
-  wallets?: AomiAccountWallet[];
-  usage?: unknown;
+  user: AomiUser;
+  auth_identities?: AomiAuthIdentity[];
+  identity_wallets?: AomiIdentityWallet[];
+  usage?: AomiUsageStats;
+}
+
+export interface AomiCreateApprovalRequest {
+  auth_identity_id: number;
+  grant_kind: string;
+  secret_handle: string;
+  external_subject?: string | null;
+  display_label?: string | null;
+  scopes?: string[];
+  expires_at?: number | null;
+  metadata?: unknown;
+}
+
+export interface AomiAccessApproval {
+  id: number;
+  user_id: string;
+  auth_identity_id: number;
+  external_subject?: string | null;
+  display_label?: string | null;
+  grant_kind: string;
+  scopes: string[];
+  secret_handle: string;
+  expires_at?: number | null;
+  granted_at: number;
+  revoked_at?: number | null;
+  metadata: unknown;
+  created_at: number;
+  updated_at: number;
 }
 
 export interface AomiBeginAccountAuthResponse {
@@ -198,8 +276,8 @@ export type AomiWalletFamily = "evm" | "svm";
 export type AomiAuthWalletFamily = "evm" | "solana";
 
 /**
- * GET/POST /api/control/provider-keys
- * Lists or saves BYOK keys (one per LLM provider) for the bound client.
+ * GET/POST/DELETE /api/account/payment/byok
+ * Lists or saves BYOK keys (one per LLM provider) for the account.
  */
 export interface AomiByokKeyEntry {
   provider: string;
@@ -209,7 +287,7 @@ export interface AomiByokKeyEntry {
 }
 
 export interface AomiListByokKeysResponse {
-  byok_keys: AomiByokKeyEntry[];
+  byok: AomiByokKeyEntry[];
 }
 
 export interface AomiSaveByokKeyResponse {
@@ -221,11 +299,12 @@ export interface AomiDeleteByokKeyResponse {
 }
 
 // =============================================================================
-// SSE Event Types (/api/updates)
+// SSE Event Types (/api/thread/updates)
 // =============================================================================
 
 /**
- * Base SSE event - all events have session_id and type
+ * Base SSE event. Newer backends may include `thread_id`; `session_id` stays
+ * optional for SDK compatibility with existing consumers.
  */
 export type AomiSSEEvent = {
   type:
@@ -234,7 +313,8 @@ export type AomiSSEEvent = {
     | "tool_complete"
     | "system_notice"
     | string;
-  session_id: string;
+  session_id?: string;
+  thread_id?: string;
   new_title?: string;
   [key: string]: unknown;
 };
@@ -284,12 +364,19 @@ export interface AomiSecretSlot {
 }
 
 /**
- * GET /api/session/apps
+ * GET /api/thread/apps
  * One entry per app the user can use. `secrets` is empty for apps that
  * declare no slots.
  */
 export interface AomiAppDescriptor {
   name: string;
+  applicationId?: number | string | null;
+  platform?: string | null;
+  label?: string | null;
+  appReleaseTag?: string | null;
+  isActive?: boolean | null;
+  isPublic?: boolean | null;
+  artifactReady?: boolean | null;
   secrets?: AomiSecretSlot[];
 }
 
@@ -300,7 +387,7 @@ export type AomiSSEEventType =
   | "system_notice";
 
 // =============================================================================
-// System Events (/api/events)
+// System Events (/api/thread/events)
 // =============================================================================
 
 /**

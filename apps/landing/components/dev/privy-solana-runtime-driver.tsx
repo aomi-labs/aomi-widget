@@ -23,11 +23,11 @@ import {
   type WalletRequestResult,
 } from "@aomi-labs/react";
 import { LandingPrivyProvider } from "../../app/components/landing-privy-provider";
-import { RuntimeTxHandler } from "../../../registry/src/components/runtime-tx-handler";
+import { RuntimeTxHandler } from "../../../shadcn-registry/src/components/runtime-tx-handler";
 import {
-  useAomiAuthAdapter,
-  type AomiAuthAdapter,
-} from "../../../registry/src/lib/aomi-auth-adapter";
+  useAomiWalletKit,
+  type AomiWalletKit,
+} from "../../../shadcn-registry/src/lib/wallet-kit";
 
 type DriverMode =
   | "sign"
@@ -46,6 +46,7 @@ type DriverReportStatus = "idle" | "running" | "completed" | "failed";
 const DRIVER_SESSION_ID = "privy-solana-runtime-driver";
 const DRIVER_CLUSTER = "solana:devnet" as const;
 const DRIVER_RPC_URL =
+  process.env.NEXT_PUBLIC_SOLANA_DEVNET_RPC_URL?.trim() ||
   process.env.NEXT_PUBLIC_SOLANA_RPC_URL?.trim() ||
   "https://api.devnet.solana.com";
 const PRIVY_APP_ID = process.env.NEXT_PUBLIC_PRIVY_APP_ID?.trim();
@@ -106,7 +107,7 @@ function getRequestKindForMode(mode: DriverMode): Extract<
   }
 }
 
-function identityToUserState(adapter: AomiAuthAdapter): UserStateShape {
+function identityToUserState(adapter: AomiWalletKit): UserStateShape {
   const identity = adapter.identity;
   return {
     connection: {
@@ -156,7 +157,7 @@ function identityToUserState(adapter: AomiAuthAdapter): UserStateShape {
 
 function PrivySolanaRuntimeDriverInner() {
   const searchParams = useSearchParams();
-  const adapter = useAomiAuthAdapter();
+  const adapter = useAomiWalletKit();
   const connection = useMemo(
     () => new Connection(DRIVER_RPC_URL, "confirmed"),
     [],
@@ -220,6 +221,7 @@ function PrivySolanaRuntimeDriverInner() {
       onUserStateChange: () => () => undefined,
       currentThreadId: DRIVER_SESSION_ID,
       threadViewKey: 0,
+      threadListError: false,
       threadMetadata: new Map(),
       getThreadMetadata: () => undefined,
       createThread: async () => DRIVER_SESSION_ID,
@@ -247,6 +249,7 @@ function PrivySolanaRuntimeDriverInner() {
       },
       subscribe: () => () => undefined,
       sendSystemCommand: async () => undefined,
+      recordUiInteraction: async () => undefined,
       sseStatus: "connected",
     }),
     [

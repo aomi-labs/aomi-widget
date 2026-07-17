@@ -1,24 +1,15 @@
 "use client";
 
+import "client-only";
+
 const SETTINGS_SESSION_KEY = "aomi_settings_session_id";
 const SECRET_STORAGE_KEY = "aomi_secret_key";
-const DEFAULT_BACKEND_URL = "http://127.0.0.1:8080";
-
-function normalizeBackendUrl(url: string): string {
-  try {
-    const parsed = new URL(url);
-    if (parsed.hostname === "localhost") {
-      parsed.hostname = "127.0.0.1";
-      return parsed.toString().replace(/\/$/, "");
-    }
-  } catch {
-    // Fall through and return the raw string below.
-  }
-  return url;
-}
 
 function generateSessionId(): string {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+  if (
+    typeof crypto !== "undefined" &&
+    typeof crypto.randomUUID === "function"
+  ) {
     return crypto.randomUUID();
   }
   return `settings-${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -40,9 +31,20 @@ export function getSettingsSessionId(): string {
 }
 
 export function getBackendUrl(): string {
-  return normalizeBackendUrl(
-    process.env.NEXT_PUBLIC_BACKEND_URL ?? DEFAULT_BACKEND_URL,
-  );
+  // Always same-origin: the browser calls `/api/*` on the portal, and the
+  // catch-all proxy (apps/portal/src/app/api/[...slug]/route.ts) injects the
+  // AccountBearer from the httpOnly session cookie and forwards to the backend.
+  // An empty base makes the client build same-origin relative URLs. The proxy
+  // ships with the portal, so this is always available; the upstream backend is
+  // configured server-side in the proxy, not here. (httpOnly session cookies are
+  // same-origin only, so direct cross-origin calls could never carry auth.)
+  return "";
+}
+
+function joinApiPath(baseUrl: string, path: string): string {
+  const normalizedBase = baseUrl === "/" ? "" : baseUrl.replace(/\/+$/, "");
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  return `${normalizedBase}${normalizedPath}` || normalizedPath;
 }
 
 export function getSettingsSecret(): string | null {
@@ -59,30 +61,19 @@ export function getSettingsSecret(): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
-export function setSettingsSecret(secret: string | null): void {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  const value = secret?.trim();
-  if (value) {
-    window.localStorage.setItem(SECRET_STORAGE_KEY, value);
-  } else {
-    window.localStorage.removeItem(SECRET_STORAGE_KEY);
-  }
-}
-
-export async function settingsApiFetch<T>(
+export async function sessionScopedFetch<T>(
   path: string,
   options?: RequestInit & { secret?: string | null },
 ): Promise<T> {
   const { secret, ...requestInit } = options ?? {};
-  const url = `${getBackendUrl()}${path}`;
+  const url = joinApiPath(getBackendUrl(), path);
   const headers = new Headers(requestInit.headers ?? {});
   headers.set("X-Session-Id", getSettingsSessionId());
-  const resolvedSecret = secret === undefined ? getSettingsSecret() : secret?.trim() || null;
+  headers.set("X-Thread-Id", getSettingsSessionId());
+  const resolvedSecret =
+    secret === undefined ? getSettingsSecret() : secret?.trim() || null;
   if (resolvedSecret) {
-    headers.set("AOMI-APP-KEY", resolvedSecret);
+    headers.set("Aomi-App-Key", resolvedSecret);
   }
   if (!headers.has("Content-Type") && requestInit.body) {
     headers.set("Content-Type", "application/json");
@@ -99,5 +90,30 @@ export async function settingsApiFetch<T>(
     throw new Error(text || `Request failed: ${response.status}`);
   }
 
+  return (await response.json()) as T;
+}
+
+export const settingsApiFetch = sessionScopedFetch;
+
+export async function accountScopedFetch<T>(
+  path: string,
+  options?: RequestInit,
+): Promise<T> {
+  // Same-origin `/api/account/*` through the portal proxy, which injects the
+  // AccountBearer from the BetterAuth session. The browser carries no bearer
+  // itself.
+  const response = await fetch(`${getBackendUrl()}${path}`, {
+    ...options,
+    headers: {
+      "content-type": "application/json",
+      ...(options?.headers ?? {}),
+    },
+    credentials: "include",
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || `Request failed: ${response.status}`);
+  }
   return (await response.json()) as T;
 }

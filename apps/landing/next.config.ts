@@ -6,10 +6,11 @@ const withMDX = createMDX();
 
 // Absolute paths for webpack aliases
 const landingNodeModules = path.resolve(__dirname, "node_modules");
+const clientPkgSrc = path.resolve(__dirname, "../../packages/client/src");
 const reactPkgSrc = path.resolve(__dirname, "../../packages/react/src");
 const docsSrc = path.resolve(__dirname);
 const landingSrc = path.resolve(__dirname, "src");
-const registryComponents = path.resolve(__dirname, "../registry/src/components");
+const registryComponents = path.resolve(__dirname, "../shadcn-registry/src/components");
 const contentDir = path.resolve(__dirname, "content");
 const contentExamplesComponents = path.join(
   contentDir,
@@ -27,11 +28,14 @@ const turbopackAliases: Record<string, string> = {
   // Docs-only examples (API consoles, etc.) — must be listed before `@/components`.
   "@/components/examples": "./content/components/examples",
   // Widget + shadcn UI live in the registry package (docs MDX imports @/components/...).
-  "@/components": "../registry/src/components",
+  "@/components": "../shadcn-registry/src/components",
   // Docs-only interactive components (playground, API consoles) live under content/.
   "@/content": "./content",
   "@/hooks": "./src/hooks",
+  "@aomi-labs/client": "../../packages/client/src/index.ts",
   "@aomi-labs/react": "../../packages/react/src/index.ts",
+  "@assistant-ui/react": "./node_modules/@assistant-ui/react",
+  "@assistant-ui/react-markdown": "./node_modules/@assistant-ui/react-markdown",
   "@getpara/react-sdk": "./node_modules/@getpara/react-sdk",
   "@tanstack/react-query": "./node_modules/@tanstack/react-query",
   // Force a single Zustand version so Para's SDK packages share the same store
@@ -60,6 +64,7 @@ const nextConfig: NextConfig = {
     ];
   },
   transpilePackages: [
+    "@aomi-labs/client",
     "@aomi-labs/react",
     "@aomi-labs/widget-lib",
     "@getpara/react-sdk",
@@ -88,7 +93,16 @@ const nextConfig: NextConfig = {
       "@/components": registryComponents,
       "@/content": contentDir,
       "@/hooks": path.join(landingSrc, "hooks"),
+      "@aomi-labs/client": path.join(clientPkgSrc, "index.ts"),
       "@aomi-labs/react": path.join(reactPkgSrc, "index.ts"),
+      "@assistant-ui/react": path.join(
+        landingNodeModules,
+        "@assistant-ui/react",
+      ),
+      "@assistant-ui/react-markdown": path.join(
+        landingNodeModules,
+        "@assistant-ui/react-markdown",
+      ),
       "@getpara/react-sdk": path.join(
         landingNodeModules,
         "@getpara/react-sdk",

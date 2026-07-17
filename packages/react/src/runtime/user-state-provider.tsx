@@ -8,7 +8,7 @@ import {
   type MutableRefObject,
   type ReactNode,
 } from "react";
-import type { AomiClient, UserState } from "@aomi-labs/client";
+import type { AomiClient, AomiThread, UserState } from "@aomi-labs/client";
 import { UserState as UserStateHelpers } from "@aomi-labs/client";
 
 import { useControl, type ControlState } from "../contexts/control-context";
@@ -16,13 +16,27 @@ import { useEventContext } from "../contexts/event-context";
 import type { ThreadContext } from "../contexts/thread-context";
 import { useThreadContext } from "../contexts/thread-context";
 import { useUser } from "../contexts/ext-user-context";
-import { initThreadControl } from "../state/thread-store";
+import { initThreadControl, type ThreadMetadata } from "../state/thread-store";
 import { getControlSessionId } from "../utils/client-session";
 import { isPlaceholderTitle } from "./utils";
 import { SessionManager } from "./session-manager";
+import { getHttpStatus } from "./http-status";
 
 const THREAD_PREFETCH_LIMIT = 5;
 const PREFETCH_IDLE_TIMEOUT_MS = 1500;
+// On a fresh login the wallet reports "connected" (isConnected -> true) before
+// the SIWE / provider sign-in has written the Better Auth session cookie.
+// Until that cookie exists the same-origin BFF proxy forwards the thread-list
+// request anonymously and the backend answers 401. Signing (wallet popup +
+// round-trip) routinely takes longer than a couple of seconds, so we retry 401s
+// with capped exponential backoff for a generous-but-bounded budget instead of
+// giving up after a fixed handful of attempts and stranding the list until a
+// manual refresh. Backoff is capped low so threads appear within ~2s of the
+// cookie landing; the budget bounds noise if sign-in is declined entirely.
+const THREAD_LIST_AUTH_RETRY_BUDGET_MS = 30_000;
+const THREAD_LIST_AUTH_RETRY_BASE_DELAY_MS = 300;
+const THREAD_LIST_AUTH_RETRY_MAX_DELAY_MS = 2_000;
+const THREAD_LIST_AUTH_RETRY_BACKOFF_FACTOR = 1.7;
 
 type GlobalWithIdleCallback = typeof globalThis & {
   requestIdleCallback?: (
@@ -44,6 +58,12 @@ function scheduleBackgroundTask(task: () => void): () => void {
 
   const timeoutId = runtimeGlobal.setTimeout(task, 0);
   return () => runtimeGlobal.clearTimeout(timeoutId);
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    globalThis.setTimeout(resolve, ms);
+  });
 }
 
 type RuntimeUserStateProviderProps = {
@@ -73,6 +93,10 @@ type RemoteThreadRegistry = {
 type RuntimeUserStateEffectsOptions = {
   sessions: RuntimeSessionBridge;
   remoteThreads: RemoteThreadRegistry;
+  threadPersistence?: {
+    restoredThreadId?: string;
+    onInvalidRestoredThread?: () => void;
+  };
 };
 
 type RuntimeUserStateContext = {
@@ -89,43 +113,27 @@ function stableStateString(state: UserState): string {
 }
 
 function normalizeWalletId(value: string | undefined): string | undefined {
-  if (!value) {
-    return undefined;
-  }
+  if (!value) return undefined;
   return value.startsWith("0x") ? value.toLowerCase() : value;
-}
-
-function getConnectedWalletId(userState: UserState): string | undefined {
-  return (
-    UserStateHelpers.address(userState) ??
-    UserStateHelpers.svmAddress(userState)
-  );
-}
-
-function getLegacySessionPublicKey(userState: UserState): string | undefined {
-  const address = UserStateHelpers.address(userState);
-  if (!address?.startsWith("0x")) {
-    return undefined;
-  }
-  if (
-    UserStateHelpers.chainId(userState) === undefined &&
-    !userState.evm?.address
-  ) {
-    return undefined;
-  }
-  return address;
 }
 
 function useWalletStateSync(
   context: Pick<
     RuntimeUserStateContext,
-    "getCurrentThreadApp" | "getUserState" | "onUserStateChange" | "threadContextRef"
+    | "getCurrentThreadApp"
+    | "getUserState"
+    | "onUserStateChange"
+    | "threadContextRef"
   >,
   sessions: Pick<RuntimeSessionBridge, "aomiClientRef">,
   remoteThreads: Pick<RemoteThreadRegistry, "remoteThreadIdsRef">,
 ) {
-  const { getCurrentThreadApp, getUserState, onUserStateChange, threadContextRef } =
-    context;
+  const {
+    getCurrentThreadApp,
+    getUserState,
+    onUserStateChange,
+    threadContextRef,
+  } = context;
   const { aomiClientRef } = sessions;
   const { remoteThreadIdsRef } = remoteThreads;
 
@@ -257,10 +265,12 @@ function useRemoteThreadListSync(
   context: RuntimeUserStateContext,
   sessions: RuntimeSessionBridge,
   remoteThreads: RemoteThreadRegistry,
-): { isThreadListLoading: boolean } {
+  threadPersistence?: RuntimeUserStateEffectsOptions["threadPersistence"],
+): { isThreadListLoading: boolean; threadListError: boolean } {
   const [isThreadListLoading, setIsThreadListLoading] = useState(true);
+  const [threadListError, setThreadListError] = useState(false);
   const prefetchCancelRef = useRef<(() => void) | null>(null);
-  const lastConnectedAddressRef = useRef<string | undefined>(undefined);
+  const wasConnectedRef = useRef(false);
   const { getControlState, threadContextRef, user } = context;
   const {
     aomiClientRef,
@@ -275,9 +285,40 @@ function useRemoteThreadListSync(
     warmedThreadIdsRef,
     warmThread,
   } = remoteThreads;
-  const connectedAddress = UserStateHelpers.isConnected(user)
-    ? getLegacySessionPublicKey(user)
-    : undefined;
+  const isConnected = UserStateHelpers.isConnected(user) === true;
+  const restoredThreadId = threadPersistence?.restoredThreadId;
+
+  const listThreadsWithAuthRetry = useCallback(
+    async (sessionId: string, isCancelled: () => boolean) => {
+      let nextDelay = THREAD_LIST_AUTH_RETRY_BASE_DELAY_MS;
+      let waitedMs = 0;
+
+      for (;;) {
+        try {
+          return await aomiClientRef.current.listThreads(sessionId);
+        } catch (error) {
+          // Only 401s are treated as transient (the sign-in cookie not being
+          // ready yet). Anything else, a cancelled effect, or an exhausted
+          // budget surfaces the error to the caller.
+          if (
+            isCancelled() ||
+            getHttpStatus(error) !== 401 ||
+            waitedMs >= THREAD_LIST_AUTH_RETRY_BUDGET_MS
+          ) {
+            throw error;
+          }
+
+          await delay(nextDelay);
+          waitedMs += nextDelay;
+          nextDelay = Math.min(
+            Math.round(nextDelay * THREAD_LIST_AUTH_RETRY_BACKOFF_FACTOR),
+            THREAD_LIST_AUTH_RETRY_MAX_DELAY_MS,
+          );
+        }
+      }
+    },
+    [aomiClientRef],
+  );
 
   const scheduleThreadPrefetch = useCallback(
     (threadIds: string[]) => {
@@ -325,32 +366,9 @@ function useRemoteThreadListSync(
   );
 
   useEffect(() => {
-    const userAddress = connectedAddress;
-    const normalizedUserAddress = normalizeWalletId(userAddress);
-    const previousAddress = lastConnectedAddressRef.current;
-    const isConnected = UserStateHelpers.isConnected(user) === true;
-    const walletChanged =
-      previousAddress !== undefined &&
-      normalizedUserAddress !== undefined &&
-      previousAddress !== normalizedUserAddress;
-
-    if (!userAddress) {
-      // Solana-only or family-focused states do not have a legacy EVM
-      // `public_key`. Keep the active chat/session visible; SVM wallet
-      // context is carried through user_state and the wallet-context API.
-      if (isConnected) {
-        lastConnectedAddressRef.current = undefined;
-        setIsThreadListLoading(false);
-        return;
-      }
-
-      // Only tear down sessions when the user actually disconnected every
-      // wallet. Para/wagmi can emit transient identity changes with no EVM
-      // address while a Solana wallet remains connected; those must not reset
-      // the active thread.
-      const wasPreviouslyConnected =
-        lastConnectedAddressRef.current !== undefined;
-      lastConnectedAddressRef.current = undefined;
+    if (!isConnected) {
+      const wasPreviouslyConnected = wasConnectedRef.current;
+      wasConnectedRef.current = false;
       setIsThreadListLoading(false);
       prefetchCancelRef.current?.();
       prefetchCancelRef.current = null;
@@ -364,23 +382,17 @@ function useRemoteThreadListSync(
         closeAllSessions();
         if (hadRemoteThreads || hadSessions) {
           threadContextRef.current.resetToDefault();
+          threadPersistence?.onInvalidRestoredThread?.();
         }
       }
       return;
     }
 
-    lastConnectedAddressRef.current = normalizedUserAddress;
-
-    if (walletChanged) {
-      prefetchCancelRef.current?.();
-      prefetchCancelRef.current = null;
-      remoteThreadIdsRef.current.clear();
-      warmedThreadIdsRef.current.clear();
-      warmPromisesRef.current.clear();
-    }
+    wasConnectedRef.current = true;
 
     let cancelled = false;
     setIsThreadListLoading(true);
+    setThreadListError(false);
 
     const fetchThreadList = async () => {
       try {
@@ -390,14 +402,15 @@ function useRemoteThreadListSync(
           getControlState().clientId,
           currentContext.currentThreadId,
         );
-        const threadList = await aomiClientRef.current.listThreads(
+        const threadList: AomiThread[] = await listThreadsWithAuthRetry(
           controlSessionId,
-          userAddress,
+          () => cancelled,
         );
         if (cancelled) return;
 
         const remoteThreadIds = new Set<string>();
-        const newMetadata = new Map(currentContext.allThreadsMetadata);
+        const previousMetadata = currentContext.allThreadsMetadata;
+        const newMetadata = new Map<string, ThreadMetadata>();
         const baseThreadCount = currentContext.threadCnt;
         let maxChatNum = baseThreadCount;
 
@@ -405,10 +418,16 @@ function useRemoteThreadListSync(
           remoteThreadIds.add(thread.session_id);
           const rawTitle = thread.title ?? "";
           const title = isPlaceholderTitle(rawTitle) ? "" : rawTitle;
+          const serverLastActiveAt = (
+            thread as AomiThread & { last_active_at?: number }
+          ).last_active_at;
           const lastActive =
-            newMetadata.get(thread.session_id)?.lastActiveAt ||
+            (serverLastActiveAt ??
+              previousMetadata.get(thread.session_id)?.lastActiveAt) ||
             new Date().toISOString();
-          const existingControl = newMetadata.get(thread.session_id)?.control;
+          const existingControl = previousMetadata.get(
+            thread.session_id,
+          )?.control;
           newMetadata.set(thread.session_id, {
             title,
             status: thread.is_archived ? "archived" : "regular",
@@ -422,6 +441,12 @@ function useRemoteThreadListSync(
             if (num > maxChatNum) {
               maxChatNum = num;
             }
+          }
+        }
+
+        for (const [threadId, metadata] of previousMetadata.entries()) {
+          if (!newMetadata.has(threadId)) {
+            newMetadata.set(threadId, metadata);
           }
         }
 
@@ -445,12 +470,57 @@ function useRemoteThreadListSync(
         scheduleThreadPrefetch(threadList.map((thread) => thread.session_id));
 
         const activeThreadId = threadContextRef.current.currentThreadId;
-        if (remoteThreadIds.has(activeThreadId)) {
+        let threadIdToLoad = activeThreadId;
+        const activeMessages = currentContext.getThreadMessages(activeThreadId);
+        const activeHasUserMessage = activeMessages.some(
+          (message) => message.role === "user",
+        );
+
+        if (
+          restoredThreadId &&
+          activeThreadId === restoredThreadId &&
+          !remoteThreadIds.has(activeThreadId) &&
+          !activeHasUserMessage
+        ) {
+          threadPersistence?.onInvalidRestoredThread?.();
+          currentContext.setThreadMetadata((prev) => {
+            const next = new Map(prev);
+            next.delete(activeThreadId);
+            return next;
+          });
+          currentContext.setThreads((prev) => {
+            const next = new Map(prev);
+            next.delete(activeThreadId);
+            return next;
+          });
+
+          const fallbackThread = threadList
+            .filter((thread) => !thread.is_archived)
+            .sort((a, b) => {
+              const aLastActive =
+                (a as AomiThread & { last_active_at?: number })
+                  .last_active_at ?? 0;
+              const bLastActive =
+                (b as AomiThread & { last_active_at?: number })
+                  .last_active_at ?? 0;
+              return bLastActive - aLastActive;
+            })[0];
+
+          if (fallbackThread) {
+            threadIdToLoad = fallbackThread.session_id;
+            currentContext.setCurrentThreadId(fallbackThread.session_id);
+            currentContext.bumpThreadViewKey();
+          } else {
+            threadIdToLoad = currentContext.resetToDefault();
+          }
+        }
+
+        if (remoteThreadIds.has(threadIdToLoad)) {
           setIsThreadLoading(true);
           try {
-            await warmThread(activeThreadId);
+            await warmThread(threadIdToLoad);
             if (!cancelled) {
-              await ensureInitialState(activeThreadId);
+              await ensureInitialState(threadIdToLoad);
             }
           } finally {
             if (!cancelled) {
@@ -460,6 +530,9 @@ function useRemoteThreadListSync(
         }
       } catch (error) {
         console.error("Failed to fetch thread list:", error);
+        if (!cancelled) {
+          setThreadListError(true);
+        }
       } finally {
         if (!cancelled) {
           setIsThreadListLoading(false);
@@ -475,22 +548,24 @@ function useRemoteThreadListSync(
       prefetchCancelRef.current = null;
     };
   }, [
-    aomiClientRef,
     closeAllSessions,
     ensureInitialState,
     getControlState,
+    listThreadsWithAuthRetry,
     remoteThreadIdsRef,
     scheduleThreadPrefetch,
     sessionManager,
     setIsThreadLoading,
     threadContextRef,
-    connectedAddress,
+    restoredThreadId,
+    threadPersistence,
+    isConnected,
     warmPromisesRef,
     warmedThreadIdsRef,
     warmThread,
   ]);
 
-  return { isThreadListLoading };
+  return { isThreadListLoading, threadListError };
 }
 
 export function useRuntimeUserStateEffects({
@@ -503,7 +578,11 @@ export function useRuntimeUserStateEffects({
     setIsThreadLoading,
   },
   remoteThreads,
-}: RuntimeUserStateEffectsOptions): { isThreadListLoading: boolean } {
+  threadPersistence,
+}: RuntimeUserStateEffectsOptions): {
+  isThreadListLoading: boolean;
+  threadListError: boolean;
+} {
   const threadContext = useThreadContext();
   const { user, getUserState, onUserStateChange } = useUser();
   const { getControlState, getCurrentThreadApp } = useControl();
@@ -529,7 +608,12 @@ export function useRuntimeUserStateEffects({
 
   useWalletStateSync(context, sessions, remoteThreads);
   useUserStateRequestResponder(context, sessions);
-  return useRemoteThreadListSync(context, sessions, remoteThreads);
+  return useRemoteThreadListSync(
+    context,
+    sessions,
+    remoteThreads,
+    threadPersistence,
+  );
 }
 
 export function RuntimeUserStateProvider({
@@ -552,7 +636,7 @@ export function RuntimeUserStateProvider({
   //                    smart_account_4337, etc.) via its own resolveUserState,
   //                    it emits `user_state_updated`. We forward those changes
   //                    to React via setUser so consumers reading `useUser()`
-  //                    (e.g. auth-adapter providers) reflect the resolved AA
+  //                    (e.g. wallet-kit providers) reflect the resolved AA
   //                    context after a tx.
   useEffect(() => {
     const applyToSessions = (next: UserState) => {
