@@ -131,7 +131,7 @@ export function RequiredSecretsGate() {
             <div key={slot.name} className="space-y-3">
               <label
                 htmlFor={`gate-${currentApp}-${slot.name}`}
-                className="text-foreground block font-mono text-sm font-medium"
+                className="text-foreground aomi-numeric block text-sm font-medium"
               >
                 {slot.name}
               </label>

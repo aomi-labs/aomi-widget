@@ -1,5 +1,6 @@
 import type { UserSource, UserSourceLatestDeployment } from "@aomi-labs/deploy";
 import { Github } from "lucide-react";
+import Link from "next/link";
 import { StatusPill } from "./ui/status-pill";
 
 export function ProjectHeader({
@@ -17,11 +18,11 @@ export function ProjectHeader({
       : `https://github.com/${source.repositoryLink}`
     : null;
   return (
-    <header className="flex min-h-14 flex-wrap items-center justify-between gap-3 border-b border-zinc-200 px-4 py-3 sm:px-6">
+    <header className="border-border/60 flex min-h-14 flex-wrap items-center justify-between gap-3 border-b px-4 py-3 sm:px-6">
       <div className="flex min-w-0 items-center gap-2 text-sm">
-        <a href="/deployments" className="text-zinc-500 hover:text-zinc-900">
+        <Link href="/deployments" className="text-zinc-500 hover:text-zinc-900">
           Deployments
-        </a>
+        </Link>
         <span className="text-zinc-300">/</span>
         <span className="truncate font-semibold">
           {source?.repositoryLink ?? "Project"}

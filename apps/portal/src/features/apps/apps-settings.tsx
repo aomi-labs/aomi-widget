@@ -108,12 +108,12 @@ export function AppsSettings() {
             limit={overview.overall.credit_paid}
           />
           <SettingsRow label="Tokens in">
-            <span className="text-muted-foreground text-[12.5px]">
+            <span className="text-muted-foreground aomi-numeric text-[12.5px]">
               {formatNumber(overview.overall.input_tokens)}
             </span>
           </SettingsRow>
           <SettingsRow label="Tokens out">
-            <span className="text-muted-foreground text-[12.5px]">
+            <span className="text-muted-foreground aomi-numeric text-[12.5px]">
               {formatNumber(overview.overall.output_tokens)}
             </span>
           </SettingsRow>
@@ -130,14 +130,14 @@ export function AppsSettings() {
                   <td className="text-muted-foreground px-3 py-2.5">
                     {row.source}
                   </td>
-                  <td className="text-muted-foreground px-3 py-2.5">
+                  <td className="text-muted-foreground aomi-numeric px-3 py-2.5">
                     {formatNumber(row.credits_used)} /{" "}
                     {formatNumber(row.credit_paid)}
                   </td>
-                  <td className="text-muted-foreground px-3 py-2.5">
+                  <td className="text-muted-foreground aomi-numeric px-3 py-2.5">
                     {formatNumber(row.input_tokens)}
                   </td>
-                  <td className="text-muted-foreground px-3 py-2.5">
+                  <td className="text-muted-foreground aomi-numeric px-3 py-2.5">
                     {formatNumber(row.output_tokens)}
                   </td>
                 </tr>

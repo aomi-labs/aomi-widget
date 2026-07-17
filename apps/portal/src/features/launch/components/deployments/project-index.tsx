@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useProjects } from "@portal/features/launch/hooks/use-projects";
 import { ProjectRow } from "./project-row";
 import { SdkBadge } from "./ui/sdk-badge";
@@ -41,26 +42,26 @@ export function ProjectIndex() {
             >
               Refresh
             </button>
-            <a
+            <Link
               href="/deployments/new"
               className="inline-flex h-8 items-center justify-center rounded-md bg-zinc-900 px-3 text-sm font-medium text-white hover:bg-zinc-800"
             >
               New app
-            </a>
+            </Link>
           </div>
         </div>
 
         {requiredSdk && (
-          <div className="flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm">
+          <div className="aomi-card flex items-center gap-2 px-3 py-2 text-sm">
             <span className="text-zinc-500">Backend requires aomi-sdk</span>
             <SdkBadge stamped={requiredSdk} required={requiredSdk} />
           </div>
         )}
 
-        <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white">
-          <div className="flex h-12 items-center justify-between border-b border-zinc-200 px-4">
-            <div className="text-sm font-medium">Projects</div>
-            <div className="text-xs text-zinc-500">
+        <div className="aomi-card overflow-hidden bg-white">
+          <div className="border-border/60 flex h-12 items-center justify-between border-b px-4">
+            <div className="aomi-eyebrow">Projects</div>
+            <div className="aomi-numeric text-xs text-zinc-500">
               {state.status === "ready" ? state.sources.length : 0}
             </div>
           </div>

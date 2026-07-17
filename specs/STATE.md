@@ -2,6 +2,11 @@
 
 ## Last Updated
 
+2026-07-17 — Portal visual theme revamp on `feat/chat-portal-visual-theme`
+  (forked from settings): ABC Diatype UI stack (files missing → Inter
+  fallback) + Geist Mono numerics; portal-scoped eyebrow/numeric/card
+  utilities; caps/type/surface pass across settings, chat chrome,
+  launch/deploy; see `specs/PORTAL-VISUAL-THEME.md`;
 2026-07-17 — Portal settings 10/10 craft: shared account cache, usage meter,
   menu credits glance, dialog focus trap + tests, remove legacy sidebar/deploy
   chrome; PR #365 (`feat/chat-portal-settings-revamp` only);

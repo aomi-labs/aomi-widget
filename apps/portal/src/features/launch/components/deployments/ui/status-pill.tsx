@@ -7,7 +7,7 @@ export function StatusPill({ value }: { value: string }) {
         : "border-zinc-200 bg-zinc-50 text-zinc-700";
   return (
     <span
-      className={`inline-flex h-6 items-center rounded-full border px-2 text-xs font-medium ${tone}`}
+      className={`aomi-eyebrow inline-flex h-6 items-center rounded-full border px-2 ${tone}`}
     >
       {value}
     </span>

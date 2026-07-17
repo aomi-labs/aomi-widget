@@ -24,10 +24,12 @@ export function TimelineDeploymentRow({
     <div className="grid min-h-[76px] grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-b border-zinc-100 px-4 py-3 last:border-b-0">
       <div className="min-w-0">
         <div className="flex min-w-0 items-center gap-2">
-          <div className="truncate text-sm font-medium">{deploymentId}</div>
+          <div className="aomi-numeric truncate text-sm font-medium">
+            {deploymentId}
+          </div>
           {current && (
             <span
-              className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${
+              className={`aomi-eyebrow shrink-0 rounded-full px-2 py-0.5 ${
                 runtimeState === "not-loaded"
                   ? "bg-amber-50 text-amber-700"
                   : "bg-emerald-50 text-emerald-700"
@@ -40,12 +42,14 @@ export function TimelineDeploymentRow({
           )}
         </div>
         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-500">
-          <span className="inline-flex items-center gap-1 font-mono">
+          <span className="aomi-numeric inline-flex items-center gap-1">
             <GitCommitHorizontal className="size-3.5" aria-hidden />
             {commit ?? "unknown"}
           </span>
           <span>{apps.join(", ") || "no apps"}</span>
-          {sdkVersion && <span>sdk {sdkVersion}</span>}
+          {sdkVersion && (
+            <span className="aomi-numeric">sdk {sdkVersion}</span>
+          )}
           <span>
             {actor ? `${actor} · ` : ""}
             {new Date(createdAt * 1000).toLocaleString()}

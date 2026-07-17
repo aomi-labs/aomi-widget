@@ -25,7 +25,7 @@ function SettingsAccountHeader({
   return (
     <div
       className={cn(
-        "bg-muted/50 rounded-xl px-2.5 py-2.5",
+        "aomi-card bg-muted/40 px-2.5 py-2.5",
         compact ? "mx-2 mb-2" : "mx-2 mb-1",
       )}
     >
@@ -46,9 +46,10 @@ function SettingsAccountHeader({
             {summary.statusLabel}
           </p>
           {summary.creditUsed !== null && summary.creditPaid !== null ? (
-            <p className="text-muted-foreground mt-0.5 truncate text-[10.5px]">
+            <p className="text-muted-foreground aomi-numeric mt-0.5 truncate text-[10.5px]">
               {new Intl.NumberFormat().format(summary.creditUsed)} /{" "}
-              {new Intl.NumberFormat().format(summary.creditPaid)} credits
+              {new Intl.NumberFormat().format(summary.creditPaid)}{" "}
+              <span className="font-sans">credits</span>
             </p>
           ) : null}
         </div>
@@ -122,9 +123,7 @@ export function SettingsLayout({ onClose }: { onClose?: () => void }) {
 
         <div className="hidden px-1 pt-1 sm:block">
           <div className="mb-2 flex items-center justify-between px-2">
-            <p className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">
-              Settings
-            </p>
+            <p className="aomi-eyebrow">Settings</p>
           </div>
           <SettingsAccountHeader />
         </div>

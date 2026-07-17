@@ -320,7 +320,7 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
               key={`${row.app}-${row.deploymentId}-${row.releaseTag}-${row.createdAt}`}
               className="flex min-h-10 items-center justify-between gap-4 border-b border-zinc-100 px-4 py-2 text-xs text-zinc-600 last:border-b-0"
             >
-              <span className="min-w-0 truncate font-mono">
+              <span className="aomi-numeric min-w-0 truncate">
                 promoted · {row.deploymentId}
               </span>
               <span className="shrink-0 text-right">

@@ -67,7 +67,7 @@ export function PortalAccountMenu() {
       {open ? (
         <div
           role="menu"
-          className="border-border bg-popover text-popover-foreground absolute top-full right-0 z-[90] mt-2 w-56 overflow-hidden rounded-xl border shadow-xl"
+          className="aomi-card bg-popover text-popover-foreground absolute top-full right-0 z-[90] mt-2 w-56 overflow-hidden shadow-xl"
         >
           <div className="flex items-center gap-2.5 px-3 py-2.5">
             <div className="bg-muted text-foreground flex size-8 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold">
@@ -94,8 +94,8 @@ export function PortalAccountMenu() {
                 openSettings("apps");
               }}
             >
-              <span className="text-muted-foreground">Credits this month</span>
-              <span className="font-medium">
+              <span className="aomi-eyebrow">Credits</span>
+              <span className="aomi-numeric font-medium">
                 {new Intl.NumberFormat().format(summary.creditUsed)} /{" "}
                 {new Intl.NumberFormat().format(summary.creditPaid)}
               </span>

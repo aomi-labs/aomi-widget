@@ -105,7 +105,7 @@ export function GeneralSettings() {
         label="Identity"
         description={`${identityType}${networkTicker ? ` · ${networkTicker}` : ""}`}
       >
-        <span className="text-muted-foreground mr-1 hidden text-[12.5px] sm:inline">
+        <span className="text-muted-foreground aomi-numeric mr-1 hidden text-[12.5px] sm:inline">
           {shortenAddress(identity.address)}
         </span>
         <SettingsPill
@@ -148,11 +148,25 @@ export function GeneralSettings() {
               Credits this month
             </p>
             <p className="text-muted-foreground mt-0.5 text-[12.5px]">
-              {loading
-                ? "Loading…"
-                : account?.usage
-                  ? `${account.usage.period_utc_month} · ${formatNumber(account.usage.input_tokens + account.usage.output_tokens)} tokens`
-                  : "Current UTC month"}
+              {loading ? (
+                "Loading…"
+              ) : account?.usage ? (
+                <>
+                  <span className="aomi-numeric">
+                    {account.usage.period_utc_month}
+                  </span>{" "}
+                  ·{" "}
+                  <span className="aomi-numeric">
+                    {formatNumber(
+                      account.usage.input_tokens +
+                        account.usage.output_tokens,
+                    )}
+                  </span>{" "}
+                  tokens
+                </>
+              ) : (
+                "Current UTC month"
+              )}
             </p>
           </div>
           <button
@@ -224,13 +238,20 @@ export function GeneralSettings() {
       <SettingsRow
         label="Member since"
         description={
-          account ? `User ${account.user.user_id.slice(0, 8)}…` : undefined
+          account ? (
+            <>
+              User{" "}
+              <span className="aomi-numeric">
+                {account.user.user_id.slice(0, 8)}…
+              </span>
+            </>
+          ) : undefined
         }
       >
         {loading ? (
           <RowSkeleton />
         ) : (
-          <span className="text-muted-foreground text-[12.5px]">
+          <span className="text-muted-foreground aomi-numeric text-[12.5px]">
             {formatMemberSince(account?.user.created_at)}
           </span>
         )}

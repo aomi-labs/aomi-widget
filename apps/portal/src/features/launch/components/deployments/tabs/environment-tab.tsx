@@ -93,7 +93,7 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
         <div className="flex items-center justify-between gap-3">
           <div className="text-sm font-medium">Environment variables</div>
           {appNames.length === 1 && (
-            <span className="rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1 font-mono text-xs text-zinc-600">
+            <span className="aomi-numeric rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1 text-xs text-zinc-600">
               {appNames[0]}
             </span>
           )}
@@ -111,7 +111,7 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
                 role="tab"
                 aria-selected={app === name}
                 onClick={() => setApp(name)}
-                className={`h-7 rounded px-2.5 font-mono text-xs font-medium ${
+                className={`aomi-numeric h-7 rounded px-2.5 text-xs font-medium ${
                   app === name
                     ? "bg-white text-zinc-950 shadow-sm"
                     : "text-zinc-500 hover:text-zinc-800"
@@ -129,7 +129,7 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
         )}
         <p className="mt-3 text-xs text-zinc-500">
           Set environment values for{" "}
-          <span className="font-mono">{app || "this app"}</span>. Secrets are
+          <span className="aomi-numeric">{app || "this app"}</span>. Secrets are
           masked while editing and all saved values are injected into the
           running app.
         </p>
@@ -183,9 +183,7 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
 
       {currentKeys.length > 0 && (
         <div className="px-4 py-3">
-          <div className="text-xs font-medium uppercase tracking-wide text-zinc-400">
-            Configured
-          </div>
+          <div className="aomi-eyebrow text-zinc-400">Configured</div>
           <ul className="mt-2 space-y-1">
             {currentKeys.map(({ handle, key }) => (
               <li
@@ -193,10 +191,10 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
                 className="flex items-center justify-between gap-3 py-0.5"
               >
                 <span className="flex min-w-0 items-center gap-2">
-                  <span className="rounded-sm border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-700">
+                  <span className="aomi-eyebrow rounded-sm border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-amber-700">
                     Secret
                   </span>
-                  <span className="truncate font-mono text-xs text-zinc-600">
+                  <span className="aomi-numeric truncate text-xs text-zinc-600">
                     {key}
                   </span>
                 </span>
@@ -236,11 +234,9 @@ function ValueEditor({
   return (
     <div>
       <div className="mb-2 flex items-center gap-2">
-        <div className="text-xs font-medium uppercase tracking-wide text-zinc-400">
-          {title}
-        </div>
+        <div className="aomi-eyebrow text-zinc-400">{title}</div>
         <span
-          className={`rounded-sm border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide ${
+          className={`aomi-eyebrow rounded-sm border px-1.5 py-0.5 ${
             badge === "Env"
               ? "border-blue-200 bg-blue-50 text-blue-700"
               : "border-amber-200 bg-amber-50 text-amber-700"
@@ -263,7 +259,7 @@ function ValueEditor({
               }
               placeholder="KEY"
               aria-label={`${title} key`}
-              className="h-8 w-40 rounded-md border border-zinc-300 px-2 font-mono text-xs"
+              className="aomi-numeric h-8 w-40 rounded-md border border-zinc-300 px-2 text-xs"
             />
             <input
               value={row.value}

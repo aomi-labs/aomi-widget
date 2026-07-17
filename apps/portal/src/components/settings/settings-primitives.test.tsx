@@ -27,6 +27,11 @@ describe("SettingsUsageMeter", () => {
       "aria-valuetext",
       "25 of 100 credits used",
     );
-    expect(screen.getByText("75 remaining")).toBeInTheDocument();
+    expect(
+      screen.getByText((_content, element) => {
+        return element?.textContent === "75 remaining";
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("25 / 100")).toBeInTheDocument();
   });
 });

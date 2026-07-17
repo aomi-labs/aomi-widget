@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist_Mono, Inter } from "next/font/google";
 import { cookies } from "next/headers";
 import "./globals.css";
 import { CookieConsent } from "@portal/components/analytics/cookie-consent";
@@ -11,9 +11,14 @@ import {
   verifyE2EWalletCookie,
 } from "@portal/server/e2e-wallet";
 
-const geistSans = Geist({
+/**
+ * UI sans prefers ABC Diatype (CSS stack in globals.css). Licensed Diatype
+ * files are not in-repo, so Inter is loaded as the practical fallback.
+ * Mono/numeric surfaces (`.aomi-numeric`, code) use Geist Mono.
+ */
+const inter = Inter({
   subsets: ["latin"],
-  variable: "--font-geist-sans",
+  variable: "--font-inter",
 });
 
 const geistMono = Geist_Mono({
@@ -44,7 +49,7 @@ export default async function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}
+        className={`${inter.variable} ${geistMono.variable} font-sans antialiased`}
       >
         <GoogleAnalytics />
         <WalletProviders

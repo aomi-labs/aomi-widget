@@ -92,11 +92,7 @@ export function StepCard({
 }) {
   const dim = state === "pending";
   return (
-    <div
-      className={`border-input rounded-md border p-4 ${
-        dim ? "opacity-50" : ""
-      }`}
-    >
+    <div className={`aomi-card p-4 ${dim ? "opacity-50" : ""}`}>
       <div className="flex items-center gap-2">
         <StepBadge index={index} state={state} />
         <span className="text-foreground text-sm font-medium">{title}</span>
@@ -118,7 +114,7 @@ function StepBadge({ index, state }: { index: number; state: StepStatus }) {
       </span>
     );
   return (
-    <span className="border-border text-muted-foreground flex h-4 w-4 shrink-0 items-center justify-center rounded-full border text-[10px]">
+    <span className="border-border text-muted-foreground aomi-numeric flex h-4 w-4 shrink-0 items-center justify-center rounded-full border text-[10px]">
       {index}
     </span>
   );

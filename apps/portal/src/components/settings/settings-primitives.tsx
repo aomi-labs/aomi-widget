@@ -53,7 +53,7 @@ export function SettingsRow({
   className,
 }: {
   label: string;
-  description?: string;
+  description?: ReactNode;
   children?: ReactNode;
   className?: string;
 }) {
@@ -95,7 +95,7 @@ export function SettingsPromoCard({
   return (
     <div
       className={cn(
-        "bg-muted/50 mx-3 my-3 flex items-start justify-between gap-3 rounded-xl px-3.5 py-3",
+        "aomi-card mx-3 my-3 flex items-start justify-between gap-3 px-3.5 py-3",
         className,
       )}
     >
@@ -240,21 +240,28 @@ export function SettingsUsageMeter({
   return (
     <div
       className={cn(
-        "bg-muted/45 rounded-xl",
+        "aomi-card bg-muted/45",
         compact ? "min-w-52 px-3 py-2.5" : "mx-3 my-3 px-3.5 py-3",
         className,
       )}
     >
       <div className="flex items-baseline justify-between gap-3">
         <div>
-          <p className="text-foreground text-[13.5px] font-medium">
-            {format(used)} / {format(limit)} credits
+          <p className="text-foreground aomi-numeric text-[13.5px] font-medium">
+            {format(used)} / {format(limit)}{" "}
+            <span className="font-sans text-[12px] font-normal">credits</span>
           </p>
           <p className="text-muted-foreground mt-0.5 text-[11.5px]">
-            {limit > 0 ? `${format(remaining)} remaining` : "No credit limit"}
+            {limit > 0 ? (
+              <>
+                <span className="aomi-numeric">{format(remaining)}</span> remaining
+              </>
+            ) : (
+              "No credit limit"
+            )}
           </p>
         </div>
-        <span className="text-muted-foreground text-[12px] font-medium">
+        <span className="text-muted-foreground aomi-numeric text-[12px] font-medium">
           {percent}%
         </span>
       </div>
@@ -342,12 +349,12 @@ export function SettingsTable({
   children: ReactNode;
 }) {
   return (
-    <div className="border-border/60 mx-3 my-3 overflow-x-auto rounded-xl border">
+    <div className="aomi-card mx-3 my-3 overflow-x-auto">
       <table className="min-w-full text-left text-[12.5px]">
         <thead>
-          <tr className="border-border/60 text-muted-foreground border-b">
+          <tr className="border-border/60 border-b">
             {headers.map((header) => (
-              <th key={header} className="px-3 py-2.5 font-medium">
+              <th key={header} className="aomi-eyebrow px-3 py-2.5">
                 {header}
               </th>
             ))}

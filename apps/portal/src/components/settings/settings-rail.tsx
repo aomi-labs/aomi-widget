@@ -40,9 +40,7 @@ function RailGroup({
 }) {
   return (
     <div className="space-y-0.5">
-      <p className="text-muted-foreground px-2.5 pb-1 text-[10px] font-medium tracking-wide uppercase">
-        {label}
-      </p>
+      <p className="aomi-eyebrow px-2.5 pb-1">{label}</p>
       {items.map((item) => {
         const Icon = item.icon;
         const active = activeCategory === item.id;

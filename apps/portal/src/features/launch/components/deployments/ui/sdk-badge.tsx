@@ -22,7 +22,7 @@ export function SdkBadge({
     <span
       data-testid="sdk-badge"
       data-state={state}
-      className={`inline-flex h-6 items-center rounded-full border px-2 text-xs font-medium ${tone}`}
+      className={`aomi-numeric inline-flex h-6 items-center rounded-full border px-2 text-xs font-medium ${tone}`}
     >
       {stamped ?? "no SDK"}
     </span>

@@ -701,7 +701,7 @@ function DeploymentSummary({
   }, 0);
 
   return (
-    <div className="border-input bg-muted/20 space-y-3 rounded-xl border p-3">
+    <div className="aomi-card bg-muted/20 space-y-3 p-3">
       <div className="grid gap-3 sm:grid-cols-3">
         <SummaryTile
           label="Source"
@@ -855,10 +855,8 @@ function SummaryTile({
         : "text-foreground";
   return (
     <div className="min-w-0">
-      <div className="text-muted-foreground text-[11px] uppercase tracking-wide">
-        {label}
-      </div>
-      <div className={`${toneClass} truncate text-sm font-medium`}>
+      <div className="aomi-eyebrow">{label}</div>
+      <div className={`${toneClass} aomi-numeric truncate text-sm font-medium`}>
         {value || "Pending"}
       </div>
       {detail && (
