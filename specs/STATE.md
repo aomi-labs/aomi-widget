@@ -2,6 +2,12 @@
 
 ## Last Updated
 
+2026-07-17 — ABC Diatype portal wiring on `feat/chat-portal-visual-theme`:
+  machine/repo search found **no** licensed Diatype binaries; added drop dir
+  `apps/portal/public/assets/fonts/diatype/` + README (expected filenames);
+  commented `@font-face` + `next/font/local` instructions; CSS stack already
+  `"ABC Diatype", Inter…`; mono stays Geist Mono (no Diatype Mono files);
+  portal-only (no widget-lib bump); see `specs/PORTAL-VISUAL-THEME.md`;
 2026-07-17 — Portal chat empty-state de-slop on `feat/chat-portal-visual-theme`:
   removed fake WORKSPACE / SUGGESTIONS / THREADS stamps + rainbow left accent
   bars; kept hairline cards, denser composer/rail, tabular mono amounts;

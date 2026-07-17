@@ -48,21 +48,53 @@ or primary row labels.
 - **Sans (UI / body / titles):** ABC Diatype — portal override of
   `--font-geist-sans` and `body` to
   `"ABC Diatype", var(--font-inter), Inter, system-ui, sans-serif`
-- **Mono (code / numerics):** Geist Mono — loaded via `next/font` as
+- **Mono (code / numerics):** Geist Mono — loaded via `next/font/google` as
   `--font-geist-mono`; amounts, credits, tokens, IDs, commits via
-  `.aomi-numeric`
+  `.aomi-numeric`. Prefer **ABC Diatype Mono** if licensed
+  `ABCDiatypeMono-*` files are dropped; otherwise keep Geist Mono.
 - Hierarchy: bold titles → medium row labels → muted metadata
 - Eyebrow: ~10.5px, `letter-spacing: 0.09em`, muted foreground
 
-### Font files status
+### How Diatype is loaded (portal-only)
 
-**ABC Diatype font files are not in this repository.** Searched
-`apps/portal/public/assets/fonts` and the wider repo — no `*Diatype*` /
-`*ABCDiatype*` webfonts (only Bauhaus Chez Display + iA Writer Mono are
-present under `public/assets/fonts`). Until licensed `.woff2` / `.otf`
-files are added and wired with `@font-face`, browsers fall through to
-Inter (loaded via `next/font/google` as `--font-inter`) / system-ui.
-Do not vendor commercial font binaries without a license.
+| Step | Where | Status |
+| --- | --- | --- |
+| Family stack | `apps/portal/src/app/globals.css` (`body`, `--font-geist-sans`) | Ready now |
+| `@font-face` | Same file — commented block pointing at `/assets/fonts/diatype/ABCDiatype-{Regular,Medium,Bold}.woff2` | Uncomment after drop |
+| Optional preload | `apps/portal/src/app/layout.tsx` — `next/font/local` snippet in comments | Enable after drop |
+| Fallbacks | Inter via `next/font/google` (`--font-inter`); system-ui | Active while files missing |
+| Mono | Geist Mono via `next/font/google`; optional `"ABC Diatype Mono"` faces in comments | Geist Mono active |
+
+**Scope:** portal CSS only. Do **not** put Diatype into
+`apps/shadcn-registry` default theme / widget-lib (that would force all
+consumers). Portal overrides `--font-geist-sans` so shared widget chrome
+inherits Diatype inside the portal shell without a package bump for fonts.
+
+### Font files status (2026-07-17 search)
+
+**ABC Diatype binaries were not found** on this machine or in the repo.
+
+Searched (no matches for real font files; only unrelated `*MediaType*`
+false positives under `node_modules`):
+
+- Repo: `apps/portal/public`, design packages, full tree `*Diatype*` /
+  `*ABCDiatype*`
+- Host: `~/Downloads`, `~/Desktop`, `~/Documents`, `~/Library/Fonts`,
+  `/Library/Fonts`, `~/Library/CloudStorage`, sibling `aomi-labs/*` trees,
+  macOS Spotlight (`mdfind`)
+
+Existing portal fonts under `public/assets/fonts/` remain Bauhaus Chez
+Display + iA Writer Mono only.
+
+**Drop licensed files here:**
+
+```
+apps/portal/public/assets/fonts/diatype/
+```
+
+See `apps/portal/public/assets/fonts/diatype/README.md` for exact filenames.
+Do not vendor commercial font binaries without a license. Until files are
+present, browsers fall through to Inter / system-ui.
 
 Geist Mono continues to load from `next/font/google` in
 `apps/portal/src/app/layout.tsx`.

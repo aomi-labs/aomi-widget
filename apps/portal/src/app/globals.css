@@ -59,6 +59,46 @@
   font-display: swap;
 }
 
+/*
+ * ABC Diatype — portal-only. Files live under
+ * public/assets/fonts/diatype/ (see README there). Uncomment after dropping
+ * licensed .woff2/.otf files. Until then the stack below falls through to Inter.
+ *
+ * @font-face {
+ *   font-family: "ABC Diatype";
+ *   src: url("/assets/fonts/diatype/ABCDiatype-Regular.woff2") format("woff2"),
+ *     url("/assets/fonts/diatype/ABCDiatype-Regular.otf") format("opentype");
+ *   font-weight: 400;
+ *   font-style: normal;
+ *   font-display: swap;
+ * }
+ * @font-face {
+ *   font-family: "ABC Diatype";
+ *   src: url("/assets/fonts/diatype/ABCDiatype-Medium.woff2") format("woff2"),
+ *     url("/assets/fonts/diatype/ABCDiatype-Medium.otf") format("opentype");
+ *   font-weight: 500;
+ *   font-style: normal;
+ *   font-display: swap;
+ * }
+ * @font-face {
+ *   font-family: "ABC Diatype";
+ *   src: url("/assets/fonts/diatype/ABCDiatype-Bold.woff2") format("woff2"),
+ *     url("/assets/fonts/diatype/ABCDiatype-Bold.otf") format("opentype");
+ *   font-weight: 700;
+ *   font-style: normal;
+ *   font-display: swap;
+ * }
+ *
+ * Optional mono (only if ABCDiatypeMono-* files are present; else Geist Mono):
+ * @font-face {
+ *   font-family: "ABC Diatype Mono";
+ *   src: url("/assets/fonts/diatype/ABCDiatypeMono-Regular.woff2") format("woff2");
+ *   font-weight: 400;
+ *   font-style: normal;
+ *   font-display: swap;
+ * }
+ */
+
 @layer base {
   html,
   body {
@@ -71,7 +111,7 @@
 
   body {
     @apply antialiased;
-    /* UI sans: ABC Diatype preferred; font files are not in-repo (see PORTAL-VISUAL-THEME.md). */
+    /* UI sans: ABC Diatype when files are present; else Inter (see PORTAL-VISUAL-THEME.md). */
     font-family: "ABC Diatype", var(--font-inter), Inter, system-ui, sans-serif;
   }
 
@@ -170,10 +210,9 @@
 :root {
   /*
    * Portal UI sans override (does not edit widget-lib / shadcn-registry).
-   * ABC Diatype .woff2/.otf files were NOT found under apps/portal/public or
-   * the repo — Inter is loaded via next/font (`--font-inter`) as the
-   * practical fallback until licensed files are added
-   * (e.g. public/assets/fonts/ABCDiatype-*.woff2).
+   * Drop licensed files in public/assets/fonts/diatype/, uncomment @font-face
+   * above, optionally wire next/font/local in layout.tsx. Until then Inter
+   * (`--font-inter`) is the practical fallback.
    */
   --font-geist-sans: "ABC Diatype", var(--font-inter), Inter, system-ui,
     sans-serif;

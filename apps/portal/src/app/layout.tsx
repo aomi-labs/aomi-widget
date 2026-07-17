@@ -12,9 +12,25 @@ import {
 } from "@portal/server/e2e-wallet";
 
 /**
- * UI sans prefers ABC Diatype (CSS stack in globals.css). Licensed Diatype
- * files are not in-repo, so Inter is loaded as the practical fallback.
- * Mono/numeric surfaces (`.aomi-numeric`, code) use Geist Mono.
+ * UI sans prefers ABC Diatype (CSS stack + optional @font-face in globals.css).
+ * Licensed files are not in-repo yet — drop them under
+ * `public/assets/fonts/diatype/` (see README there), then either uncomment
+ * `@font-face` or switch to `next/font/local`, e.g.:
+ *
+ *   import localFont from "next/font/local";
+ *   const diatype = localFont({
+ *     src: [
+ *       { path: "../../public/assets/fonts/diatype/ABCDiatype-Regular.woff2", weight: "400" },
+ *       { path: "../../public/assets/fonts/diatype/ABCDiatype-Medium.woff2", weight: "500" },
+ *       { path: "../../public/assets/fonts/diatype/ABCDiatype-Bold.woff2", weight: "700" },
+ *     ],
+ *     variable: "--font-diatype",
+ *     display: "swap",
+ *   });
+ *   // then set --font-geist-sans / body to use var(--font-diatype).
+ *
+ * Until then Inter is the practical fallback. Mono/numerics use Geist Mono
+ * unless ABCDiatypeMono-* files are added (prefer those over Geist Mono).
  */
 const inter = Inter({
   subsets: ["latin"],
