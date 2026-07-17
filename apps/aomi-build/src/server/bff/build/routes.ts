@@ -1,5 +1,9 @@
 import "server-only";
 
+import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
+import path from "node:path";
+import { Readable } from "node:stream";
 import { NextResponse } from "next/server";
 import { validateOrigin } from "@build/lib/csrf";
 import { checkRateLimit, getClientIp } from "@build/lib/rate-limit";
@@ -109,6 +113,50 @@ export async function buildRunStatusRoute(req: Request): Promise<NextResponse> {
     return NextResponse.json({ error: "unknown run" }, { status: 404 });
   }
   return NextResponse.json(snapshotBuildRun(handle));
+}
+
+/** Stream the generated crate (apps/<app>) as a tarball. */
+export async function buildRunDownloadRoute(
+  req: Request,
+): Promise<NextResponse | Response> {
+  const limited = rateLimited(req);
+  if (limited) return limited;
+  const denied = await requireSession();
+  if (denied) return denied;
+
+  const runId = new URL(req.url).searchParams.get("id");
+  if (!runId) {
+    return NextResponse.json({ error: "missing id" }, { status: 400 });
+  }
+  const handle = getBuildRun(runId);
+  if (!handle) {
+    return NextResponse.json({ error: "unknown run" }, { status: 404 });
+  }
+  const appsDir = path.join(handle.plan.sdkRoot, "apps");
+  if (!existsSync(path.join(appsDir, handle.app))) {
+    return NextResponse.json(
+      { error: "no generated crate yet — run the build first" },
+      { status: 409 },
+    );
+  }
+  // Stream `tar` directly; the crate is small (target/ excluded).
+  const tar = spawn("tar", [
+    "-cz",
+    "--exclude",
+    "target",
+    "--exclude",
+    "Cargo.lock",
+    "-C",
+    appsDir,
+    handle.app,
+  ]);
+  tar.on("error", (error) => console.error("crate tar failed:", error));
+  return new Response(Readable.toWeb(tar.stdout) as ReadableStream, {
+    headers: {
+      "Content-Type": "application/gzip",
+      "Content-Disposition": `attachment; filename="${handle.app}.tar.gz"`,
+    },
+  });
 }
 
 export async function buildRunDecisionRoute(

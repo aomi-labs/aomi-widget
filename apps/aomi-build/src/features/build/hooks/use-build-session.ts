@@ -40,6 +40,10 @@ import {
  *  the local mock pipeline. */
 const ENGINE_MODE = process.env.NEXT_PUBLIC_BUILD_ENGINE === "smither";
 
+/** Whether the page is driving the real engine (exported for view wiring,
+ *  e.g. the download button targets the crate tarball route). */
+export const BUILD_ENGINE_ACTIVE = ENGINE_MODE;
+
 const RUN_POLL_MS = 2000;
 
 function nowTime() {
@@ -69,6 +73,7 @@ export function useBuildSession() {
     () => emptySessions,
   );
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [engineRunId, setEngineRunId] = useState<string | null>(null);
   const [stageId, setStageId] = useState<JourneyStageId>("describe");
   const [messages, setMessages] = useState<BuildMessage[]>([]);
   const [streamEvents, setStreamEvents] = useState<BuildStreamEvent[]>([]);
@@ -139,6 +144,7 @@ export function useBuildSession() {
         });
       }
       setActiveSessionId(sessionId);
+      setEngineRunId(null);
       setStageId(healthy ? "ship" : needsVerify ? "compile_test" : clean.stageId);
       setMessages(clean.messages);
       setStreamEvents(streamEvents);
@@ -168,6 +174,7 @@ export function useBuildSession() {
     clearTimers();
     sessionDraftRef.current = null;
     setActiveSessionId(null);
+    setEngineRunId(null);
     setStageId("describe");
     setMessages([]);
     setStreamEvents([]);
@@ -238,6 +245,7 @@ export function useBuildSession() {
       };
 
       setActiveSessionId(sessionId);
+      setEngineRunId(null);
       setStageId("plan");
       setMessages([userMsg]);
       setIsGenerating(true);
@@ -278,8 +286,10 @@ export function useBuildSession() {
         const nodes = nodesFromSnapshot(snapshot);
         const streamEvents = streamEventsFromSnapshot(snapshot);
         const flags = flagsFromSnapshot(snapshot);
+        const fileTree = snapshot.fileTree as BuildFileNode[];
         setNodes(nodes);
         setStreamEvents(streamEvents);
+        setFileTree(fileTree);
         setCompileDone(flags.compileDone);
         setTestDone(flags.testDone);
         const active = streamEvents.find((e) => e.status === "active");
@@ -287,6 +297,7 @@ export function useBuildSession() {
         if (draft) {
           draft.nodes = nodes;
           draft.streamEvents = streamEvents;
+          draft.fileTree = fileTree;
         }
 
         const settled =
@@ -322,7 +333,7 @@ export function useBuildSession() {
           stageId: flags.shipReady ? "ship" : "generate",
           messages: [...(draft?.messages ?? [userMsg])],
           streamEvents,
-          fileTree: [],
+          fileTree,
           nodes,
         });
       };
@@ -342,6 +353,7 @@ export function useBuildSession() {
             return;
           }
           const created = (await res.json()) as { runId: string };
+          setEngineRunId(created.runId);
           const poll = async () => {
             const statusRes = await fetch(
               `/api/bff/build/runs?id=${encodeURIComponent(created.runId)}`,
@@ -651,6 +663,7 @@ export function useBuildSession() {
 
   return {
     activeSessionId,
+    engineRunId,
     stageId,
     messages,
     streamEvents,

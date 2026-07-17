@@ -2,6 +2,17 @@
 
 ## Last Updated
 
+2026-07-16 — /build P0 honest artifacts (gap map: specs/BUILD-PAGE-WIRING-GAP.md):
+  engine snapshot now carries the real crate file tree (walk of
+  sdkRoot/apps/<app>, target/ excluded), the curate agent's structured
+  report (loadRunOutputs reads curation/result rows — covers replayed
+  resumes), and per-stage transition times; completion message = curation
+  summary + followUps verbatim; download = crate tarball route
+  (GET /api/bff/build/runs/download) wired to the Ship banner button;
+  mock artifacts swapped to the real Rust crate shape (Cargo.toml,
+  openapi.yaml, src/{lib.rs,client/,tool.rs}, test.json) — flow unchanged.
+  Verified E2E in-browser against the resumed geckoterminal run.
+
 2026-07-16 — /build E2E verified in-browser against a REAL smither run
   (geckoterminal: binaries → codegen → curate via live Claude agent →
   validate-loop cargo → result; resume replay lands the page on Ship). Fixes
@@ -2122,7 +2133,6 @@ Controls disabled while isProcessing === true
 
 - /build engine mode: render approvals/clarifies in the UI (decision route
   exists; runs default to autoApprove until then)
-- /build engine mode: real fileTree from run outputs (left empty for now)
 - Vercel prod shape for the engine: SMITHER_DATABASE_URL (shared Postgres) +
   @smithers-orchestrator/vercel sandbox provider for compute phases (v2)
 - End-to-end testing of wallet tx request flow

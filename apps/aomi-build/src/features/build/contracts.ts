@@ -189,18 +189,32 @@ export const defaultStreamTemplate: BuildStreamEvent[] = [
   },
 ];
 
+/** Mock tree mirrors a real generated crate: apps/<name>/{Cargo.toml,
+ *  openapi.yaml, src/{lib.rs, client/, tool.rs}} → plugins/<name>.dylib. */
 export const generatedFileTree: BuildFileNode[] = [
   {
     path: "aomi-agent",
     type: "folder",
     children: [
-      { path: "aomi-agent/src/index.ts", type: "file" },
-      { path: "aomi-agent/src/agent.ts", type: "file" },
-      { path: "aomi-agent/src/config.ts", type: "file" },
-      { path: "aomi-agent/src/handlers.ts", type: "file" },
-      { path: "aomi-agent/tests/agent.test.ts", type: "file" },
-      { path: "aomi-agent/aomi.toml", type: "file" },
-      { path: "aomi-agent/package.json", type: "file" },
+      {
+        path: "aomi-agent/src",
+        type: "folder",
+        children: [
+          {
+            path: "aomi-agent/src/client",
+            type: "folder",
+            children: [
+              { path: "aomi-agent/src/client/client.rs", type: "file" },
+              { path: "aomi-agent/src/client/mod.rs", type: "file" },
+            ],
+          },
+          { path: "aomi-agent/src/lib.rs", type: "file" },
+          { path: "aomi-agent/src/tool.rs", type: "file" },
+        ],
+      },
+      { path: "aomi-agent/Cargo.toml", type: "file" },
+      { path: "aomi-agent/openapi.yaml", type: "file" },
+      { path: "aomi-agent/test.json", type: "file" },
     ],
   },
 ];
@@ -215,16 +229,16 @@ export function deriveGeneratedFileTree(prompt: string): BuildFileNode[] {
 
   if (!isArb) return generatedFileTree;
 
-  const exchanges: BuildFileNode[] = [];
+  const venues: BuildFileNode[] = [];
   if (lower.includes("hyperliquid") || lower.includes("hype") || !lower.includes("binance")) {
-    exchanges.push({
-      path: "arb-bot/src/exchanges/hyperliquid.ts",
+    venues.push({
+      path: "arb-bot/src/client/hyperliquid.rs",
       type: "file",
     });
   }
   if (lower.includes("binance") || !lower.includes("hyperliquid")) {
-    exchanges.push({
-      path: "arb-bot/src/exchanges/binance.ts",
+    venues.push({
+      path: "arb-bot/src/client/binance.rs",
       type: "file",
     });
   }
@@ -234,16 +248,24 @@ export function deriveGeneratedFileTree(prompt: string): BuildFileNode[] {
       path: "arb-bot",
       type: "folder",
       children: [
-        { path: "arb-bot/src/agent.ts", type: "file" },
-        { path: "arb-bot/src/config.ts", type: "file" },
         {
-          path: "arb-bot/src/exchanges",
+          path: "arb-bot/src",
           type: "folder",
-          children: exchanges,
+          children: [
+            {
+              path: "arb-bot/src/client",
+              type: "folder",
+              children: [
+                ...venues,
+                { path: "arb-bot/src/client/mod.rs", type: "file" },
+              ],
+            },
+            { path: "arb-bot/src/lib.rs", type: "file" },
+            { path: "arb-bot/src/tool.rs", type: "file" },
+          ],
         },
-        { path: "arb-bot/src/risk/limits.ts", type: "file" },
-        { path: "arb-bot/tests/agent.test.ts", type: "file" },
-        { path: "arb-bot/aomi.toml", type: "file" },
+        { path: "arb-bot/Cargo.toml", type: "file" },
+        { path: "arb-bot/test.json", type: "file" },
       ],
     },
   ];
@@ -251,10 +273,10 @@ export function deriveGeneratedFileTree(prompt: string): BuildFileNode[] {
 
 export const mockBuildResponse = `Tool layer is ready. Here's what was generated:
 
-- \`src/agent.ts\` — Main agent loop with retry logic
-- \`src/config.ts\` — Configuration
-- \`src/handlers.ts\` — Event handlers
-- \`tests/agent.test.ts\` — Unit tests
+- \`src/tool.rs\` — Curated agent tools with typed args
+- \`src/client/\` — Typed API client from the spec
+- \`src/lib.rs\` — App manifest and preamble
+- \`test.json\` — Seed scenario for the smoke test
 
 Next: **Compile**, then run a **smoke test**, then ship to Projects.`;
 
@@ -337,11 +359,11 @@ export const seedBuildSessions: BuildSession[] = [
         role: "assistant",
         content: `Done. Here's what I built:
 
-- \`src/agent.ts\` — Main strategy loop with retry logic
-- \`src/exchanges/hyperliquid.ts\` — Hyperliquid client
-- \`src/exchanges/binance.ts\` — Binance client
-- \`src/risk/limits.ts\` — Position and exposure limits
-- \`tests/agent.test.ts\` — Unit tests
+- \`src/tool.rs\` — Curated cross-venue tools: quotes, spreads, staged orders
+- \`src/client/hyperliquid.rs\` — Hyperliquid client
+- \`src/client/binance.rs\` — Binance client
+- \`src/lib.rs\` — App manifest and preamble with risk guardrails
+- \`test.json\` — Seed scenario for the smoke test
 
 All checks passed. Ready to ship toward Projects.`,
         timestamp: "12:03",
@@ -379,19 +401,25 @@ All checks passed. Ready to ship toward Projects.`,
         path: "arb-bot",
         type: "folder",
         children: [
-          { path: "arb-bot/src/agent.ts", type: "file" },
-          { path: "arb-bot/src/config.ts", type: "file" },
           {
-            path: "arb-bot/src/exchanges",
+            path: "arb-bot/src",
             type: "folder",
             children: [
-              { path: "arb-bot/src/exchanges/hyperliquid.ts", type: "file" },
-              { path: "arb-bot/src/exchanges/binance.ts", type: "file" },
+              {
+                path: "arb-bot/src/client",
+                type: "folder",
+                children: [
+                  { path: "arb-bot/src/client/hyperliquid.rs", type: "file" },
+                  { path: "arb-bot/src/client/binance.rs", type: "file" },
+                  { path: "arb-bot/src/client/mod.rs", type: "file" },
+                ],
+              },
+              { path: "arb-bot/src/lib.rs", type: "file" },
+              { path: "arb-bot/src/tool.rs", type: "file" },
             ],
           },
-          { path: "arb-bot/src/risk/limits.ts", type: "file" },
-          { path: "arb-bot/tests/agent.test.ts", type: "file" },
-          { path: "arb-bot/aomi.toml", type: "file" },
+          { path: "arb-bot/Cargo.toml", type: "file" },
+          { path: "arb-bot/test.json", type: "file" },
         ],
       },
     ],

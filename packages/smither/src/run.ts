@@ -163,6 +163,21 @@ export async function executeRunUntilSettled(
 }
 
 /**
+ * All persisted output rows for a run, keyed by table name ("curation",
+ * "result", …). Lets surfaces outside the workflow render (the web BFF, the
+ * console) read what a run produced — including replayed resumes that emit no
+ * live node events.
+ */
+export async function loadRunOutputs(
+  api: AomiSmitherApi,
+  runId: string,
+): Promise<Record<string, ReadonlyArray<Record<string, unknown>>>> {
+  const { loadOutputs } = await import("smithers-orchestrator");
+  const outputs = await loadOutputs(api.db as never, api.tables as never, runId);
+  return outputs as Record<string, ReadonlyArray<Record<string, unknown>>>;
+}
+
+/**
  * Deliver an external signal that resolves a `wait-external` pause (a Smithers
  * `<Signal>` node keyed by the phase's node id). The durable write is picked up
  * by the next resume; call from the CLI `signal` subcommand, the console

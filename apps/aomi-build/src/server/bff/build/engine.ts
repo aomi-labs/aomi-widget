@@ -1,12 +1,13 @@
 import "server-only";
 
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import path from "node:path";
 import {
   decideApproval,
   defaultSdkRoot,
   executeRunUntilSettled,
   finalizePlan,
+  loadRunOutputs,
   prepareRun,
   resolveRunBackend,
   stageKeyForNode,
@@ -16,6 +17,7 @@ import {
 } from "@aomi-labs/smither";
 import type {
   BuildRunApproval,
+  BuildRunFileNode,
   BuildRunSnapshot,
   BuildRunStage,
   BuildRunStageStatus,
@@ -55,8 +57,11 @@ type RunHandle = {
   prepared: PreparedRun;
   status: BuildRunStatus;
   stageStatus: Record<string, BuildRunStageStatus>;
+  /** HH:MM:SS of each stage's latest live transition. */
+  stageTimes: Record<string, string>;
   approvals: BuildRunApproval[];
   lines: string[];
+  curation?: { summary: string; changedFiles: string; followUps: string };
   result?: { status: string; summary: string };
   error?: string;
   createdAt: string;
@@ -122,6 +127,75 @@ function pushLine(handle: RunHandle, line: string) {
   handle.updatedAt = new Date().toISOString();
 }
 
+function nowStamp(): string {
+  return new Date().toTimeString().slice(0, 8);
+}
+
+const TREE_SKIP = new Set(["target", "node_modules", ".git", "Cargo.lock"]);
+
+/** The generated crate as the page's file-tree shape. Paths are prefixed with
+ *  the app name, matching the mock's convention ("<app>/src/tool.rs"). */
+function crateFileTree(appDir: string, app: string): BuildRunFileNode[] {
+  const walk = (dir: string, rel: string, depth: number): BuildRunFileNode[] => {
+    if (depth > 4) return [];
+    let entries;
+    try {
+      entries = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return [];
+    }
+    return entries
+      .filter((e) => !TREE_SKIP.has(e.name) && !e.name.startsWith("."))
+      .sort((a, b) =>
+        a.isDirectory() === b.isDirectory()
+          ? a.name.localeCompare(b.name)
+          : a.isDirectory()
+            ? -1
+            : 1,
+      )
+      .map((e) => {
+        const childRel = `${rel}/${e.name}`;
+        return e.isDirectory()
+          ? {
+              path: childRel,
+              type: "folder" as const,
+              children: walk(path.join(dir, e.name), childRel, depth + 1),
+            }
+          : { path: childRel, type: "file" as const };
+      });
+  };
+  if (!existsSync(appDir)) return [];
+  return [{ path: app, type: "folder", children: walk(appDir, app, 0) }];
+}
+
+/** Pull curation/result rows from the durable store — the only source that
+ *  also covers replayed resumes, which emit no live node events. */
+async function hydrateFromOutputs(handle: RunHandle): Promise<void> {
+  try {
+    const outputs = await loadRunOutputs(handle.prepared.api, handle.runId);
+    const curation = outputs.curation?.[0];
+    if (curation && typeof curation.summary === "string") {
+      handle.curation = {
+        summary: curation.summary,
+        changedFiles: String(curation.changedFiles ?? ""),
+        followUps: String(curation.followUps ?? ""),
+      };
+    }
+    const result = outputs.result?.[0];
+    if (!handle.result && result && typeof result.summary === "string") {
+      handle.result = {
+        status: String(result.status ?? "complete"),
+        summary: result.summary,
+      };
+    }
+  } catch (error) {
+    pushLine(
+      handle,
+      `could not read run outputs: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+}
+
 /** Same folding as the TUI's reduceEvent: node events light plan stages,
  *  approval events maintain the pending-approval list. */
 function reduceEvent(handle: RunHandle, event: EngineEvent) {
@@ -130,6 +204,7 @@ function reduceEvent(handle: RunHandle, event: EngineEvent) {
     // Never let a later loop iteration mark a finished stage pending again.
     if (handle.stageStatus[key] === "complete" && status === "running") return;
     handle.stageStatus[key] = status;
+    handle.stageTimes[key] = nowStamp();
   };
   switch (event.type) {
     case "NodeStarted":
@@ -199,7 +274,7 @@ function execute(handle: RunHandle) {
   void executeRunUntilSettled(handle.prepared, {
     onEvent: (event) => reduceEvent(handle, event as EngineEvent),
   })
-    .then((result) => {
+    .then(async (result) => {
       const status = String(result.status);
       handle.status =
         status === "finished" || status === "continued"
@@ -232,6 +307,9 @@ function execute(handle: RunHandle) {
           handle.stageStatus[stage.id] ??= "complete";
         }
       }
+      // Curation summary + result live in the durable rows — the only source
+      // that also covers replayed resumes.
+      await hydrateFromOutputs(handle);
       pushLine(
         handle,
         `run settled: ${status}${handle.error ? ` — ${handle.error.slice(0, 400)}` : ""}`,
@@ -297,6 +375,7 @@ export async function startBuildRun(options: {
     prepared,
     status: "running",
     stageStatus: {},
+    stageTimes: {},
     approvals: [],
     lines: [
       `${prepared.resume ? "resuming" : "starting"} run ${prepared.runId} (state: ${prepared.stateLocation})`,
@@ -344,9 +423,17 @@ export function snapshotBuildRun(handle: RunHandle): BuildRunSnapshot {
     label: stage.label,
     kind: stage.kind,
     status: handle.stageStatus[stage.id] ?? "pending",
+    ...(handle.stageTimes[stage.id] ? { time: handle.stageTimes[stage.id] } : {}),
     ...(stage.branchOf ? { branchOf: stage.branchOf } : {}),
     ...(stage.clarify ? { clarify: stage.clarify } : {}),
   }));
+  // The crate appears once codegen ran; a completed replay has it too.
+  const codegenDone =
+    handle.stageStatus[`${handle.app}:codegen`] === "complete" ||
+    handle.status === "completed";
+  const fileTree = codegenDone
+    ? crateFileTree(path.join(handle.plan.sdkRoot, "apps", handle.app), handle.app)
+    : [];
   return {
     runId: handle.runId,
     app: handle.app,
@@ -354,6 +441,8 @@ export function snapshotBuildRun(handle: RunHandle): BuildRunSnapshot {
     stages,
     approvals: handle.approvals,
     lines: handle.lines.slice(-40),
+    fileTree,
+    ...(handle.curation ? { curation: handle.curation } : {}),
     ...(handle.result ? { result: handle.result } : {}),
     ...(handle.error ? { error: handle.error } : {}),
     createdAt: handle.createdAt,

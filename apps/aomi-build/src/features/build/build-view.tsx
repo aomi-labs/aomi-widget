@@ -31,7 +31,10 @@ import {
   resolveDisplayJourneyStage,
   type BuildFileNode,
 } from "@build/features/build/contracts";
-import { useBuildSession } from "@build/features/build/hooks/use-build-session";
+import {
+  BUILD_ENGINE_ACTIVE,
+  useBuildSession,
+} from "@build/features/build/hooks/use-build-session";
 import { useStreamingText } from "@build/features/build/hooks/use-streaming-text";
 import {
   getInitialRecentRailOpen,
@@ -125,6 +128,7 @@ export function BuildView() {
 
   const {
     activeSessionId,
+    engineRunId,
     stageId,
     messages,
     streamEvents,
@@ -254,6 +258,18 @@ export function BuildView() {
   }, []);
 
   const handleDownload = useCallback(() => {
+    // Real runs download the generated crate as a tarball.
+    if (BUILD_ENGINE_ACTIVE && engineRunId) {
+      window.location.assign(
+        `/api/bff/build/runs/download?id=${encodeURIComponent(engineRunId)}`,
+      );
+      toast({
+        title: "Downloading crate",
+        description: "Generated app source as .tar.gz.",
+        tone: "success",
+      });
+      return;
+    }
     const paths = flattenPaths(fileTree);
     const blob = new Blob(
       [
@@ -276,7 +292,7 @@ export function BuildView() {
       description: `${paths.length} paths listed — archive download comes later.`,
       tone: "success",
     });
-  }, [activeSessionId, fileTree, toast]);
+  }, [activeSessionId, engineRunId, fileTree, toast]);
 
   const handleTemplateSelect = useCallback(
     (template: (typeof BUILD_TEMPLATES)[0]) => {
