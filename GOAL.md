@@ -77,6 +77,15 @@ Progress:
   through the CLI and portal, including finalized on-chain signatures, backend
   pending-state cleanup, and interpreted Solana trace steps.
 
+- 2026-07-16 staging thread-load diagnosis: reproduced `GET /api/threads`
+  returning 401 and `GET /api/account` returning 403 for the connected wallet.
+  Both statuses map to the backend's verified-bearer/missing-canonical-user
+  paths, so the leading cause is Portal/backend staging database identity drift
+  after the July 14 `DATABASE_URL` rotation, not thread rendering or wallet
+  provider collisions. Direct Vercel/server environment comparison remains
+  blocked by missing `chat-portal` team access and the unavailable staging VPN;
+  a targeted backend-log request is prepared for the internal cloud agent.
+
 - 2026-07-14 hosted SDK compatibility: Aomi Build now marks incompatible
   deployments as outdated, blocks their broken chat iframe, links users to the
   Deployments tab, and requests a source-owned SDK upgrade pull request before
