@@ -84,6 +84,23 @@ export function PortalAccountMenu() {
               </p>
             </div>
           </div>
+          {summary.creditUsed !== null && summary.creditPaid !== null ? (
+            <button
+              type="button"
+              role="menuitem"
+              className="hover:bg-accent mx-1 mb-1 flex w-[calc(100%-0.5rem)] items-center justify-between rounded-md px-2 py-1.5 text-[11.5px] transition-colors"
+              onClick={() => {
+                setOpen(false);
+                openSettings("apps");
+              }}
+            >
+              <span className="text-muted-foreground">Credits this month</span>
+              <span className="font-medium">
+                {new Intl.NumberFormat().format(summary.creditUsed)} /{" "}
+                {new Intl.NumberFormat().format(summary.creditPaid)}
+              </span>
+            </button>
+          ) : null}
           <div className="bg-border h-px" />
           <div className="p-1">
             <button

@@ -12,6 +12,7 @@ import {
   SettingsRow,
   SettingsSkeletonRows,
   SettingsTable,
+  SettingsUsageMeter,
 } from "@portal/components/settings/settings-primitives";
 
 type AppRow = {
@@ -84,35 +85,8 @@ export function AppsSettings() {
   return (
     <SettingsPanel
       title="Usage"
-      description="Credits and tokens by app and date range."
+      description="Credits and tokens already spent."
     >
-      <SettingsRow label="From" description="UTC start date">
-        <Input
-          type="date"
-          value={fromDate}
-          max={toDate}
-          onChange={(e) => {
-            const next = e.target.value;
-            setFromDate(next);
-            if (next > toDate) setToDate(next);
-          }}
-          className="border-border h-8 w-auto rounded-full border px-3 text-[12.5px] shadow-none"
-        />
-      </SettingsRow>
-      <SettingsRow label="To" description="UTC end date">
-        <Input
-          type="date"
-          value={toDate}
-          min={fromDate}
-          onChange={(e) => {
-            const next = e.target.value;
-            setToDate(next);
-            if (next < fromDate) setFromDate(next);
-          }}
-          className="border-border h-8 w-auto rounded-full border px-3 text-[12.5px] shadow-none"
-        />
-      </SettingsRow>
-
       {loading ? <SettingsSkeletonRows count={4} /> : null}
 
       {!loading && error ? (
@@ -129,15 +103,10 @@ export function AppsSettings() {
 
       {!loading && !error && overview ? (
         <>
-          <SettingsRow
-            label="Credits"
-            description={`${overview.period_utc_from} → ${overview.period_utc_to}`}
-          >
-            <span className="text-foreground text-[12.5px] font-medium">
-              {formatNumber(overview.overall.credit_used)} /{" "}
-              {formatNumber(overview.overall.credit_paid)}
-            </span>
-          </SettingsRow>
+          <SettingsUsageMeter
+            used={overview.overall.credit_used}
+            limit={overview.overall.credit_paid}
+          />
           <SettingsRow label="Tokens in">
             <span className="text-muted-foreground text-[12.5px]">
               {formatNumber(overview.overall.input_tokens)}
@@ -182,6 +151,35 @@ export function AppsSettings() {
           )}
         </>
       ) : null}
+
+      <div className="border-border/40 mt-1 border-t">
+        <SettingsRow label="From" description="UTC start date">
+          <Input
+            type="date"
+            value={fromDate}
+            max={toDate}
+            onChange={(e) => {
+              const next = e.target.value;
+              setFromDate(next);
+              if (next > toDate) setToDate(next);
+            }}
+            className="border-border h-8 w-auto rounded-full border px-3 text-[12.5px] shadow-none"
+          />
+        </SettingsRow>
+        <SettingsRow label="To" description="UTC end date">
+          <Input
+            type="date"
+            value={toDate}
+            min={fromDate}
+            onChange={(e) => {
+              const next = e.target.value;
+              setToDate(next);
+              if (next < fromDate) setFromDate(next);
+            }}
+            className="border-border h-8 w-auto rounded-full border px-3 text-[12.5px] shadow-none"
+          />
+        </SettingsRow>
+      </div>
     </SettingsPanel>
   );
 }

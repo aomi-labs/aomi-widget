@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { getChainInfo } from "@aomi-labs/react";
@@ -8,43 +8,17 @@ import {
   formatAuthMethod,
   useAomiWalletKit,
 } from "@aomi-labs/widget-lib";
-import { settingsApiFetch } from "@portal/lib/settings-api";
 import { useSettings, type ColorMode } from "@portal/lib/use-settings";
 import { useSettingsController } from "@portal/components/settings/settings-controller";
+import { useAccountOverview } from "@portal/components/settings/use-account-summary";
 import {
   SettingsPanel,
   SettingsPill,
-  SettingsPreviewBadge,
   SettingsPromoCard,
   SettingsRow,
   SettingsSelect,
+  SettingsUsageMeter,
 } from "@portal/components/settings/settings-primitives";
-
-type AccountProfile = {
-  user_id: string;
-  public_key: string;
-  username?: string | null;
-  apps: string[];
-  tier: string;
-  verified_email?: string | null;
-  status: string;
-  created_at: number;
-  updated_at: number;
-  last_seen_at?: number | null;
-};
-
-type AccountUsage = {
-  period_utc_month: string;
-  input_tokens: number;
-  output_tokens: number;
-  credit_used: number;
-  credit_paid: number;
-};
-
-type AccountOverview = {
-  user: AccountProfile;
-  usage?: AccountUsage | null;
-};
 
 function formatNumber(n?: number): string {
   if (typeof n !== "number") return "0";
@@ -77,9 +51,12 @@ export function GeneralSettings() {
   const identity = adapter.identity;
   const { setCategory } = useSettingsController();
   const { settings, updateSetting } = useSettings();
-  const [account, setAccount] = useState<AccountOverview | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const {
+    overview: account,
+    loading,
+    error,
+    retry: retryAccount,
+  } = useAccountOverview();
 
   const networkTicker = identity.chainId
     ? getChainInfo(identity.chainId)?.ticker
@@ -90,64 +67,10 @@ export function GeneralSettings() {
     return formatAuthMethod(identity.authMethod) ?? "Wallet";
   }, [identity.authMethod, identity.status]);
 
-  useEffect(() => {
-    const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), 12_000);
-
-    const run = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const data = await settingsApiFetch<AccountOverview>("/api/account");
-        if (!controller.signal.aborted) {
-          setAccount(data);
-          setError(null);
-        }
-      } catch (err) {
-        if (controller.signal.aborted) {
-          setError("Account overview timed out.");
-        } else {
-          setError(
-            err instanceof Error ? err.message : "Failed to load account",
-          );
-        }
-        setAccount(null);
-      } finally {
-        if (!controller.signal.aborted) setLoading(false);
-      }
-    };
-
-    void run();
-    return () => {
-      controller.abort();
-      window.clearTimeout(timeout);
-    };
-  }, []);
-
-  const retryAccount = () => {
-    setLoading(true);
-    setError(null);
-    void settingsApiFetch<AccountOverview>("/api/account")
-      .then((data) => {
-        setAccount(data);
-        setError(null);
-      })
-      .catch((err) => {
-        setAccount(null);
-        setError(
-          err instanceof Error ? err.message : "Failed to load account",
-        );
-      })
-      .finally(() => setLoading(false));
-  };
   const accountUnavailable = !loading && Boolean(error);
 
   return (
-    <SettingsPanel
-      title="General"
-      description="Account and preferences."
-      badge={<SettingsPreviewBadge />}
-    >
+    <SettingsPanel title="General" description="Account and preferences.">
       {!identity.isConnected ? (
         <SettingsPromoCard
           title="Connect wallet"
@@ -218,33 +141,44 @@ export function GeneralSettings() {
         )}
       </SettingsRow>
 
-      <SettingsRow
-        label="Credits this month"
-        description={
-          loading
-            ? "Loading…"
-            : account?.usage
-              ? `${account.usage.period_utc_month} · ${formatNumber(account.usage.input_tokens + account.usage.output_tokens)} tokens`
-              : "Current UTC month"
-        }
-      >
-        {loading ? (
-          <RowSkeleton />
-        ) : (
+      <div className="border-border/40 border-b px-3 py-3.5">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-foreground text-[13.5px] font-medium">
+              Credits this month
+            </p>
+            <p className="text-muted-foreground mt-0.5 text-[12.5px]">
+              {loading
+                ? "Loading…"
+                : account?.usage
+                  ? `${account.usage.period_utc_month} · ${formatNumber(account.usage.input_tokens + account.usage.output_tokens)} tokens`
+                  : "Current UTC month"}
+            </p>
+          </div>
           <button
             type="button"
             onClick={() => setCategory("apps")}
             className="text-foreground hover:bg-accent/60 inline-flex items-center gap-1 rounded-full px-2 py-1 text-[12.5px] font-medium"
           >
-            {account?.usage
-              ? `${formatNumber(account.usage.credit_used)} / ${formatNumber(account.usage.credit_paid)}`
-              : accountUnavailable
-                ? "Unavailable"
-                : "View"}
+            View usage
             <ChevronRight className="size-3.5 opacity-60" />
           </button>
+        </div>
+        {loading ? (
+          <div className="bg-muted mt-3 h-14 animate-pulse rounded-xl" />
+        ) : account?.usage ? (
+          <SettingsUsageMeter
+            used={account.usage.credit_used ?? 0}
+            limit={account.usage.credit_paid ?? 0}
+            compact
+            className="mt-3 min-w-0"
+          />
+        ) : (
+          <p className="text-muted-foreground mt-3 text-[12.5px]">
+            {accountUnavailable ? "Usage unavailable" : "No usage yet"}
+          </p>
         )}
-      </SettingsRow>
+      </div>
 
       <SettingsRow
         label="Email"

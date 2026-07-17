@@ -217,6 +217,65 @@ export function SettingsSelect({
   );
 }
 
+export function creditMeterPercent(used: number, limit: number): number {
+  if (!Number.isFinite(used) || !Number.isFinite(limit) || limit <= 0) return 0;
+  return Math.min(100, Math.max(0, Math.round((used / limit) * 100)));
+}
+
+export function SettingsUsageMeter({
+  used,
+  limit,
+  compact = false,
+  className,
+}: {
+  used: number;
+  limit: number;
+  compact?: boolean;
+  className?: string;
+}) {
+  const percent = creditMeterPercent(used, limit);
+  const remaining = Math.max(0, limit - used);
+  const format = (value: number) => new Intl.NumberFormat().format(value);
+
+  return (
+    <div
+      className={cn(
+        "bg-muted/45 rounded-xl",
+        compact ? "min-w-52 px-3 py-2.5" : "mx-3 my-3 px-3.5 py-3",
+        className,
+      )}
+    >
+      <div className="flex items-baseline justify-between gap-3">
+        <div>
+          <p className="text-foreground text-[13.5px] font-medium">
+            {format(used)} / {format(limit)} credits
+          </p>
+          <p className="text-muted-foreground mt-0.5 text-[11.5px]">
+            {limit > 0 ? `${format(remaining)} remaining` : "No credit limit"}
+          </p>
+        </div>
+        <span className="text-muted-foreground text-[12px] font-medium">
+          {percent}%
+        </span>
+      </div>
+      <div
+        role="progressbar"
+        aria-label="Credits used"
+        aria-valuemin={0}
+        aria-valuemax={Math.max(0, limit)}
+        aria-valuenow={Math.max(0, Math.min(used, limit))}
+        aria-valuetext={`${format(used)} of ${format(limit)} credits used`}
+        className="bg-foreground/10 mt-2 h-1.5 overflow-hidden rounded-full"
+      >
+        <div
+          className="bg-foreground h-full rounded-full transition-[width] duration-300"
+          style={{ width: `${percent}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
 export function SettingsSkeletonRows({ count = 5 }: { count?: number }) {
   return (
     <div className="px-3 py-2">
@@ -297,16 +356,5 @@ export function SettingsTable({
         <tbody>{children}</tbody>
       </table>
     </div>
-  );
-}
-
-export function SettingsPreviewBadge() {
-  return (
-    <span
-      title="Settings revamp preview"
-      className="bg-muted text-muted-foreground shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase"
-    >
-      Preview
-    </span>
   );
 }

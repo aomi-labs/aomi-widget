@@ -4,12 +4,15 @@ import { Suspense, type ReactNode } from "react";
 
 import { SettingsControllerProvider } from "./settings-controller";
 import { SettingsModal } from "./settings-modal";
+import { AccountOverviewProvider } from "./use-account-summary";
 
 function SettingsShellInner({ children }: { children: ReactNode }) {
   return (
     <SettingsControllerProvider>
-      {children}
-      <SettingsModal />
+      <AccountOverviewProvider>
+        {children}
+        <SettingsModal />
+      </AccountOverviewProvider>
     </SettingsControllerProvider>
   );
 }

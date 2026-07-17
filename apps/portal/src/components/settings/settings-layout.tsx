@@ -9,10 +9,7 @@ import { Bots } from "@portal/features/bots";
 import { Secrets } from "@portal/features/secrets";
 import { Byok } from "@portal/features/byok";
 import { useSettingsController } from "./settings-controller";
-import {
-  SettingsPill,
-  SettingsPreviewBadge,
-} from "./settings-primitives";
+import { SettingsPill } from "./settings-primitives";
 import { SettingsRail } from "./settings-rail";
 import { useAccountSummary } from "./use-account-summary";
 import type { SettingsCategory } from "./settings-types";
@@ -48,6 +45,12 @@ function SettingsAccountHeader({
           <p className="text-muted-foreground truncate text-[11px] capitalize">
             {summary.statusLabel}
           </p>
+          {summary.creditUsed !== null && summary.creditPaid !== null ? (
+            <p className="text-muted-foreground mt-0.5 truncate text-[10.5px]">
+              {new Intl.NumberFormat().format(summary.creditUsed)} /{" "}
+              {new Intl.NumberFormat().format(summary.creditPaid)} credits
+            </p>
+          ) : null}
         </div>
         {summary.accountUnavailable && summary.connected ? (
           <SettingsPill className="shrink-0" onClick={summary.retry}>
@@ -108,7 +111,6 @@ export function SettingsLayout({ onClose }: { onClose?: () => void }) {
           )}
           <div className="flex items-center gap-2 pr-1 sm:hidden">
             <p className="text-foreground text-[13px] font-medium">Settings</p>
-            <SettingsPreviewBadge />
           </div>
           <span className="size-8 sm:hidden" />
         </div>
@@ -123,7 +125,6 @@ export function SettingsLayout({ onClose }: { onClose?: () => void }) {
             <p className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">
               Settings
             </p>
-            <SettingsPreviewBadge />
           </div>
           <SettingsAccountHeader />
         </div>

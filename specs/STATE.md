@@ -2,6 +2,9 @@
 
 ## Last Updated
 
+2026-07-17 — Portal settings 10/10 craft: shared account cache, usage meter,
+  menu credits glance, dialog focus trap + tests, remove legacy sidebar/deploy
+  chrome; PR #365 (`feat/chat-portal-settings-revamp` only);
 2026-07-17 — Portal settings craft polish: ungate Usage/App Keys/Bots, account
   summary (no fake Free), mobile account strip; PR #365;
 2026-07-16 — Portal settings craft pass (PR #365): account menu, ungate General,
