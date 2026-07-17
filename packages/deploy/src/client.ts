@@ -59,6 +59,7 @@ import type {
   ScaffoldInput,
   StatusInput,
   SourceSdkUpgradeResult,
+  SourceSdkUpgradeStatusResult,
   SyncSourceInput,
   TokenRecord,
   WatchDeploymentOptions,
@@ -1032,6 +1033,61 @@ export class DeploymentClient {
       "BACKEND",
       "backend returned an unknown source SDK upgrade status",
     );
+  }
+
+  /**
+   * Read the merge state of the `aomi/sdk-<required>` upgrade PR with one
+   * GitHub-backed call — the cheap counterpart to {@link upgradeUserSourceSdk},
+   * safe to poll. No repo tarball, no branch mutation.
+   */
+  async sdkUpgradeStatus(
+    input: OwnedOperateSourceInput,
+  ): Promise<SourceSdkUpgradeStatusResult> {
+    const { appSourceId, params, platform, bearer } =
+      this.ownedOperateRequest(input);
+    const raw = await this.get<Record<string, unknown>>(
+      `/api/integrations/github-app/user/sources/${encodeURIComponent(
+        String(appSourceId),
+      )}/sdk-upgrade-status?${params.toString()}`,
+      "get_source_sdk_upgrade_status",
+      bearer,
+    );
+    await this.audit({
+      action: "get_source_sdk_upgrade_status",
+      platform,
+      appSourceId,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    const status = raw.status;
+    if (
+      status !== "merged" &&
+      status !== "open" &&
+      status !== "closed" &&
+      status !== "none"
+    ) {
+      throw new DeployError(
+        "BACKEND",
+        "backend returned an unknown source SDK upgrade status",
+      );
+    }
+    const pr =
+      raw.pull_request && typeof raw.pull_request === "object"
+        ? (raw.pull_request as Record<string, unknown>)
+        : null;
+    return {
+      status,
+      requiredSdkVersion: String(raw.required_sdk_version ?? ""),
+      branch: String(raw.branch ?? ""),
+      pullRequest: pr
+        ? {
+            number: Number(pr.number),
+            url: String(pr.url ?? ""),
+            state: String(pr.state ?? ""),
+            merged: Boolean(pr.merged),
+          }
+        : null,
+    };
   }
 
   async listDeploymentRecords(
