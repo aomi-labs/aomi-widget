@@ -1,4 +1,5 @@
 import { mkdir } from "node:fs/promises";
+import path from "node:path";
 import { Effect } from "effect";
 import type { RunResult, SmithersEvent } from "smithers-orchestrator";
 import type { BuildPlan } from "./plan";
@@ -14,16 +15,48 @@ import {
 import {
   buildAppWorkflow,
   createAomiSmither,
+  describeBackend,
   type AomiSmitherApi,
+  type SmitherBackend,
   type WorkflowDeps,
 } from "./workflow";
 
+export function isBunRuntime(): boolean {
+  // Check Bun.version rather than the bare global: Node hosts (the aomi-build
+  // BFF) polyfill a minimal `Bun` for the engine's unguarded Bun.sleep calls,
+  // and that polyfill deliberately omits `version`.
+  const bun = (globalThis as { Bun?: { version?: unknown } }).Bun;
+  return typeof bun?.version === "string";
+}
+
+/** Bun-only surfaces (the gateway console bundles its UI with Bun.build). */
 export function assertBunRuntime(): void {
-  if (typeof (globalThis as { Bun?: unknown }).Bun === "undefined") {
+  if (!isBunRuntime()) {
     throw new Error(
-      "aomi-smither runs its Smithers workflows on Bun's durable SQLite runtime. Install Bun (https://bun.sh) and re-run — the aomi-smither bin already prefers it via its shebang.",
+      "This aomi-smither surface needs Bun (https://bun.sh) — the gateway console bundles with Bun.build. Workflow runs themselves also work on Node via the pglite/postgres backends.",
     );
   }
+}
+
+/**
+ * Pick where run state lives. An explicit SMITHER_DATABASE_URL wins on any
+ * runtime (shared/durable Postgres); otherwise Bun keeps the classic
+ * bun:sqlite file and Node falls back to an embedded PGlite dir beside it.
+ */
+export function resolveRunBackend(
+  app: string,
+  options: { runsRoot?: string; env?: NodeJS.ProcessEnv } = {},
+): SmitherBackend {
+  const env = options.env ?? process.env;
+  const runsRoot = options.runsRoot ?? defaultRunsRoot;
+  const connectionString = env.SMITHER_DATABASE_URL;
+  if (connectionString) {
+    return { kind: "postgres", connectionString };
+  }
+  if (isBunRuntime()) {
+    return { kind: "sqlite", dbPath: smitherDbPath(app, runsRoot) };
+  }
+  return { kind: "pglite", dataDir: path.join(runDir(app, runsRoot), "pglite") };
 }
 
 export type PreparedRun = {
@@ -33,7 +66,9 @@ export type PreparedRun = {
   runId: string;
   /** True when a prior run exists for this app and we're continuing it. */
   resume: boolean;
-  dbPath: string;
+  backend: SmitherBackend;
+  /** Human-readable state location (sqlite path, pglite dir, or "postgres"). */
+  stateLocation: string;
 };
 
 export async function prepareRun(options: {
@@ -41,8 +76,8 @@ export async function prepareRun(options: {
   deps?: WorkflowDeps;
   runsRoot?: string;
   overwrite?: boolean;
+  backend?: SmitherBackend;
 }): Promise<PreparedRun> {
-  assertBunRuntime();
   const runsRoot = options.runsRoot ?? defaultRunsRoot;
   const app = options.plan.app;
   if (options.overwrite) {
@@ -52,8 +87,8 @@ export async function prepareRun(options: {
   await savePlan(options.plan, runsRoot);
   const existing = await loadRunState(app, runsRoot);
   const state = existing ?? (await createRunState(app, runsRoot));
-  const dbPath = smitherDbPath(app, runsRoot);
-  const api = await createAomiSmither(dbPath);
+  const backend = options.backend ?? resolveRunBackend(app, { runsRoot });
+  const api = await createAomiSmither(backend);
   const workflow = await buildAppWorkflow(api, options.plan, options.deps);
   return {
     api,
@@ -61,7 +96,8 @@ export async function prepareRun(options: {
     plan: options.plan,
     runId: state.runId,
     resume: existing !== null,
-    dbPath,
+    backend,
+    stateLocation: describeBackend(backend),
   };
 }
 
@@ -83,6 +119,11 @@ export async function executeRun(
       maxConcurrency: options.maxConcurrency,
       onProgress: options.onEvent,
       signal: options.signal,
+      // The composed graph mounts phase N only after phase N-1's output row is
+      // visible to a re-render. On async backends (pglite/postgres) the run
+      // must not settle between a task finishing and that re-render, or it
+      // ends "finished" with unmounted phases still ahead.
+      requireRerenderOnOutputChange: true,
     }),
   );
 }

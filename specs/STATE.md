@@ -2173,6 +2173,11 @@ Controls disabled while isProcessing === true
 
 ## Pending
 
+- /build engine mode: render approvals/clarifies in the UI (decision route
+  exists; runs default to autoApprove until then)
+- /build engine mode: real fileTree from run outputs (left empty for now)
+- Vercel prod shape for the engine: SMITHER_DATABASE_URL (shared Postgres) +
+  @smithers-orchestrator/vercel sandbox provider for compute phases (v2)
 - End-to-end testing of wallet tx request flow
 - SSE event handling verification (SystemNotice, AsyncCallback)
 - E2E verification of control flow: apiKey → namespaces → model selection

@@ -24,6 +24,13 @@ tables; fresh databases also finish replay with that drop.
 
 Progress:
 
+- 2026-07-15 Aomi Build theming: replaced the app's hard-coded Cursor palette
+  with the canonical light/dark tokens from `aomi-design`, added a persisted
+  system-aware theme toggle without hydration flash, and aligned semantic
+  colors, typography families, radii, shadows, and focus/scrollbar surfaces.
+  Verified focused theme tests, Aomi Build lint/typecheck/production build,
+  and live `/build` rendering plus reload persistence in both themes.
+
 - 2026-07-14 hosted SDK compatibility: Aomi Build now marks incompatible
   deployments as outdated, blocks their broken chat iframe, links users to the
   Deployments tab, and requests a source-owned SDK upgrade pull request before
