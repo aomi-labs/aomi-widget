@@ -50,6 +50,13 @@ Progress:
   wallets, and SIWS proof identities stay hidden from account management while
   the linked Solana wallet remains visible.
 
+- 2026-07-17 wallet naming and thread archive follow-up: unlabeled BetterAuth
+  SIWE wallet rows now inherit the connected EVM provider brand (for example,
+  `Rabby 1`) without overwriting user labels. Restored durable archive and
+  unarchive endpoints backed by `thread_archives`, exposed archive state in
+  thread summaries, synchronized the client/OpenAPI contract, and verified the
+  full live archive round trip plus canonical Rabby account response locally.
+
 - 2026-07-17 BetterAuth Solana CLI parity: added SIWS nonce/verify endpoints to
   BetterAuth, synchronized verified external Solana wallets into canonical
   `public_keys`, and added Solana-only login plus authenticated wallet linking

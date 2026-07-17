@@ -314,6 +314,76 @@ describe("useAomiBackendAccountRuntime", () => {
     expect(mockState.accountClient?.createSiwsNonce).not.toHaveBeenCalled();
     expect(signed).not.toHaveBeenCalled();
   });
+
+  it("labels an unlabeled SIWE wallet from its connected wallet brand", async () => {
+    const address = "0x28581d8065da7e25710f25f9dd30f9d361757a7d";
+    mockState
+      .accountClient!.getAccount.mockResolvedValueOnce({
+        user: { id: "aomi-user" },
+        linkedAccounts: [],
+        wallets: [
+          {
+            id: "evm-wallet",
+            family: "evm",
+            address,
+            linkedVia: "siwe",
+          },
+        ],
+        session: { betterAuthUserId: "ba-user" },
+      })
+      .mockResolvedValue({
+        user: { id: "aomi-user" },
+        linkedAccounts: [],
+        wallets: [
+          {
+            id: "evm-wallet",
+            family: "evm",
+            address,
+            linkedVia: "siwe",
+            label: "Rabby 1",
+          },
+        ],
+        session: { betterAuthUserId: "ba-user" },
+      });
+    mockState.accountClient!.updateWallet.mockResolvedValue({ success: true });
+
+    renderHook(() =>
+      useAomiBackendAccountRuntime({
+        enabled: true,
+        baseUrl: "http://localhost:3000",
+        auth: { status: "unauthenticated", provider: "para" } as never,
+        evm: {
+          activeEvmConnection: { address, chainId: 8453, walletName: "Rabby" },
+          activeAccount: {
+            id: "rabby",
+            family: "evm",
+            address,
+            chainId: 8453,
+            walletName: "Rabby",
+            active: true,
+          },
+          accounts: () => [
+            {
+              id: "rabby",
+              family: "evm",
+              address,
+              chainId: 8453,
+              walletName: "Rabby",
+              active: true,
+            },
+          ],
+          signMessageAsync: vi.fn(),
+        } as never,
+      }),
+    );
+
+    await waitFor(() => {
+      expect(mockState.accountClient?.updateWallet).toHaveBeenCalledWith(
+        "evm-wallet",
+        { label: "Rabby 1" },
+      );
+    });
+  });
 });
 
 describe("resolveLinkedWalletName", () => {

@@ -2034,17 +2034,33 @@ ${body}` : ""}`
        * Archive a thread.
        */
       async archiveThread(sessionId) {
-        throw new Error(
-          "Failed to archive thread: current backend does not expose /api/threads/:id/archive"
+        const url = buildApiUrl(
+          this.baseUrl,
+          `/api/threads/${encodeURIComponent(sessionId)}/archive`
         );
+        const response = await this.fetchImpl(url, {
+          method: "POST",
+          headers: withSessionHeader(sessionId)
+        });
+        if (!response.ok) {
+          throw new Error(`Failed to archive thread: HTTP ${response.status}`);
+        }
       }
       /**
        * Unarchive a thread.
        */
       async unarchiveThread(sessionId) {
-        throw new Error(
-          "Failed to unarchive thread: current backend does not expose /api/threads/:id/unarchive"
+        const url = buildApiUrl(
+          this.baseUrl,
+          `/api/threads/${encodeURIComponent(sessionId)}/unarchive`
         );
+        const response = await this.fetchImpl(url, {
+          method: "POST",
+          headers: withSessionHeader(sessionId)
+        });
+        if (!response.ok) {
+          throw new Error(`Failed to unarchive thread: HTTP ${response.status}`);
+        }
       }
       // ===========================================================================
       // System Events
@@ -11515,7 +11531,7 @@ init_shared();
 // package.json
 var package_default = {
   name: "@aomi-labs/client",
-  version: "0.3.4",
+  version: "0.3.5",
   description: "Platform-agnostic TypeScript client for the Aomi backend API",
   type: "module",
   main: "./dist/index.cjs",

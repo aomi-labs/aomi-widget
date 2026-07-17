@@ -53,6 +53,7 @@ export function useAomiBackendAccountRuntime(input: {
   const [errorVersion, setErrorVersion] = useState(0);
   const siweInFlight = useRef<string | null>(null);
   const siwsInFlight = useRef<string | null>(null);
+  const walletLabelSyncInFlight = useRef<string | null>(null);
   const accountCreateInFlight = useRef<string | null>(null);
   const signedOutEvmKey = useRef<string | null>(null);
   const signedOutSvmKey = useRef<string | null>(null);
@@ -96,6 +97,16 @@ export function useAomiBackendAccountRuntime(input: {
     input.evm.activeEvmConnection?.address ?? input.evm.activeAccount?.address;
   const activeEvmChainId =
     input.evm.activeEvmConnection?.chainId ?? input.evm.activeAccount?.chainId;
+  const activeEvmWalletName = activeEvmAddress
+    ? resolveLinkedWalletName({
+        accounts: input.evm.accounts(Date.now()),
+        accountId: input.evm.activeAccount?.id,
+        address: activeEvmAddress,
+        fallbackWalletName:
+          input.evm.activeAccount?.walletName ??
+          input.evm.activeEvmConnection?.walletName,
+      })
+    : undefined;
   const activeSvmIdentity = input.svm?.identity(Date.now());
   const activeSvmAccount = input.svm?.activeAccount;
   const activeSvmAddress =
@@ -114,6 +125,36 @@ export function useAomiBackendAccountRuntime(input: {
     activeSvmIdentity?.walletSource !== "embedded",
   );
   const signSolanaMessage = input.svm?.execution.signSolanaMessage;
+
+  useEffect(() => {
+    if (!account?.user || !activeEvmAddress) return;
+    const brand = brandDisplayName(activeEvmWalletName);
+    if (brand === "Wallet") return;
+    const wallet = account.wallets.find(
+      (candidate) =>
+        candidate.family === "evm" &&
+        candidate.address.toLowerCase() === activeEvmAddress.toLowerCase() &&
+        !candidate.label?.trim(),
+    );
+    if (!wallet) return;
+    const label = buildDefaultWalletLabel({
+      walletName: brand,
+      existingWallets: account.wallets,
+      family: "evm",
+    });
+    const key = `${wallet.id}:${label}`;
+    if (walletLabelSyncInFlight.current === key) return;
+    walletLabelSyncInFlight.current = key;
+    accountClient
+      .updateWallet(wallet.id, { label })
+      .then(refresh)
+      .catch(() => setErrorVersion((version) => version + 1))
+      .finally(() => {
+        if (walletLabelSyncInFlight.current === key) {
+          walletLabelSyncInFlight.current = null;
+        }
+      });
+  }, [account, accountClient, activeEvmAddress, activeEvmWalletName, refresh]);
 
   useEffect(() => {
     if (

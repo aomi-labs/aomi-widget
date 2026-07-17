@@ -1429,17 +1429,33 @@ ${body}` : ""}`
    * Archive a thread.
    */
   async archiveThread(sessionId) {
-    throw new Error(
-      "Failed to archive thread: current backend does not expose /api/threads/:id/archive"
+    const url = buildApiUrl(
+      this.baseUrl,
+      `/api/threads/${encodeURIComponent(sessionId)}/archive`
     );
+    const response = await this.fetchImpl(url, {
+      method: "POST",
+      headers: withSessionHeader(sessionId)
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to archive thread: HTTP ${response.status}`);
+    }
   }
   /**
    * Unarchive a thread.
    */
   async unarchiveThread(sessionId) {
-    throw new Error(
-      "Failed to unarchive thread: current backend does not expose /api/threads/:id/unarchive"
+    const url = buildApiUrl(
+      this.baseUrl,
+      `/api/threads/${encodeURIComponent(sessionId)}/unarchive`
     );
+    const response = await this.fetchImpl(url, {
+      method: "POST",
+      headers: withSessionHeader(sessionId)
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to unarchive thread: HTTP ${response.status}`);
+    }
   }
   // ===========================================================================
   // System Events
