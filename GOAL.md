@@ -44,6 +44,15 @@ Progress:
   Verified focused theme tests, Aomi Build lint/typecheck/production build,
   and live `/build` rendering plus reload persistence in both themes.
 
+- 2026-07-17 browser Solana approval recovery: traced the missing Phantom
+  prompt to the portal's zero-config mainnet RPC fallback. Solana's official
+  public endpoint returns HTTP 403 to JSON-RPC requests carrying a localhost
+  browser Origin, so the runtime failed while refreshing the blockhash before
+  invoking the wallet. Switched the portal fallback to PublicNode's
+  browser-compatible Solana endpoint, restarted the portal, and verified a
+  localhost-origin `getLatestBlockhash` call, portal health, targeted ESLint,
+  portal typecheck, and the portal test command.
+
 - 2026-07-17 external Solana GUI parity: browser-connected SVM wallets now use
   BetterAuth SIWS for account creation and optional linking, matching the CLI
   and external EVM flow. Legacy backend binding remains limited to embedded
