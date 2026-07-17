@@ -28,6 +28,19 @@ import {
   deriveSessionTitle,
   uniqueSessionTitle,
 } from "@build/features/build/storage/session-title";
+import type { BuildRunSnapshot } from "@build/features/build/run-contracts";
+import {
+  completionMessage,
+  flagsFromSnapshot,
+  nodesFromSnapshot,
+  streamEventsFromSnapshot,
+} from "@build/features/build/smither-run-mapper";
+
+/** When set, Create runs a real aomi-smither build through the BFF instead of
+ *  the local mock pipeline. */
+const ENGINE_MODE = process.env.NEXT_PUBLIC_BUILD_ENGINE === "smither";
+
+const RUN_POLL_MS = 2000;
 
 function nowTime() {
   const d = new Date();
@@ -72,6 +85,7 @@ export function useBuildSession() {
   const [shipReady, setShipReady] = useState(false);
   const [showStreamInThread, setShowStreamInThread] = useState(false);
   const timersRef = useRef<number[]>([]);
+  const pollRef = useRef<number | null>(null);
   const sessionDraftRef = useRef<{
     id: string;
     title: string;
@@ -86,6 +100,10 @@ export function useBuildSession() {
   const clearTimers = useCallback(() => {
     timersRef.current.forEach((id) => window.clearTimeout(id));
     timersRef.current = [];
+    if (pollRef.current !== null) {
+      window.clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
   }, []);
 
   const loadSession = useCallback(
@@ -198,8 +216,155 @@ export function useBuildSession() {
     }
   }, [clearTimers, fileTree.length]);
 
+  /**
+   * Real-engine driver: create a run through the BFF and poll its snapshot
+   * into the same view state the mock pipeline writes. Compile/smoke run
+   * inside the workflow, so the manual verify gates stay closed here.
+   */
+  const runEnginePipeline = useCallback(
+    (userText: string, onAssistantReady: (msg: BuildMessage) => void) => {
+      clearTimers();
+      const sessionId = `run_${Date.now()}`;
+      const title =
+        uniqueSessionTitle(
+          deriveSessionTitle(userText),
+          recentSessions.map((s) => s.title),
+        ) || "New build";
+      const userMsg: BuildMessage = {
+        id: `u_${Date.now()}`,
+        role: "user",
+        content: userText,
+        timestamp: nowTime(),
+      };
+
+      setActiveSessionId(sessionId);
+      setStageId("plan");
+      setMessages([userMsg]);
+      setIsGenerating(true);
+      setShowStreamInThread(true);
+      setShipReady(false);
+      setAwaitingVerify(false);
+      setCompileDone(false);
+      setTestDone(false);
+      setVerifyBusy(null);
+      setNodes([]);
+      setFileTree([]);
+      const initial = defaultStreamTemplate.map((e) => ({ ...e }));
+      setStreamEvents(initial);
+      sessionDraftRef.current = {
+        id: sessionId,
+        title,
+        messages: [userMsg],
+        streamEvents: initial,
+        fileTree: [],
+        nodes: [],
+      };
+
+      const fail = (detail: string) => {
+        setIsGenerating(false);
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `sys_fail_${Date.now()}`,
+            role: "system",
+            content: `Could not run the build: ${detail}`,
+            timestamp: nowTime(),
+          },
+        ]);
+      };
+
+      const applySnapshot = (snapshot: BuildRunSnapshot) => {
+        const draft = sessionDraftRef.current;
+        const nodes = nodesFromSnapshot(snapshot);
+        const streamEvents = streamEventsFromSnapshot(snapshot);
+        const flags = flagsFromSnapshot(snapshot);
+        setNodes(nodes);
+        setStreamEvents(streamEvents);
+        setCompileDone(flags.compileDone);
+        setTestDone(flags.testDone);
+        const active = streamEvents.find((e) => e.status === "active");
+        if (active) setStageId(STREAM_TO_JOURNEY[active.stage]);
+        if (draft) {
+          draft.nodes = nodes;
+          draft.streamEvents = streamEvents;
+        }
+
+        const settled =
+          snapshot.status === "completed" || snapshot.status === "failed";
+        if (!settled) return;
+        if (pollRef.current !== null) {
+          window.clearInterval(pollRef.current);
+          pollRef.current = null;
+        }
+        setIsGenerating(false);
+        setShipReady(flags.shipReady);
+        if (flags.shipReady) setStageId("ship");
+        const assistantMsg: BuildMessage = {
+          id: `a_${Date.now()}`,
+          role: "assistant",
+          content: completionMessage(snapshot),
+          timestamp: nowTime(),
+          model: "Aomi",
+        };
+        setMessages((prev) => {
+          const next = [...prev, assistantMsg];
+          if (draft) draft.messages = next;
+          return next;
+        });
+        onAssistantReady(assistantMsg);
+        savePersistedSession({
+          id: sessionId,
+          title,
+          status: flags.failed ? "failed" : "healthy",
+          model: "Aomi",
+          updatedAt: "just now",
+          runtime: snapshot.app,
+          stageId: flags.shipReady ? "ship" : "generate",
+          messages: [...(draft?.messages ?? [userMsg])],
+          streamEvents,
+          fileTree: [],
+          nodes,
+        });
+      };
+
+      void (async () => {
+        try {
+          const res = await fetch("/api/bff/build/runs", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ prompt: userText }),
+          });
+          if (!res.ok) {
+            const body = (await res.json().catch(() => ({}))) as {
+              error?: string;
+            };
+            fail(body.error ?? `request failed (${res.status})`);
+            return;
+          }
+          const created = (await res.json()) as { runId: string };
+          const poll = async () => {
+            const statusRes = await fetch(
+              `/api/bff/build/runs?id=${encodeURIComponent(created.runId)}`,
+            );
+            if (!statusRes.ok) return;
+            applySnapshot((await statusRes.json()) as BuildRunSnapshot);
+          };
+          await poll();
+          pollRef.current = window.setInterval(() => void poll(), RUN_POLL_MS);
+        } catch (error) {
+          fail(error instanceof Error ? error.message : String(error));
+        }
+      })();
+    },
+    [clearTimers, recentSessions],
+  );
+
   const runBuildPipeline = useCallback(
     (userText: string, onAssistantReady: (msg: BuildMessage) => void) => {
+      if (ENGINE_MODE) {
+        runEnginePipeline(userText, onAssistantReady);
+        return;
+      }
       clearTimers();
       const sessionId = `run_${Date.now()}`;
       const title = uniqueSessionTitle(
@@ -371,7 +536,7 @@ export function useBuildSession() {
         timersRef.current.push(timerId);
       });
     },
-    [clearTimers, recentSessions],
+    [clearTimers, recentSessions, runEnginePipeline],
   );
 
   const handleStreamComplete = useCallback(() => {
@@ -381,7 +546,8 @@ export function useBuildSession() {
   }, []);
 
   const runCompile = useCallback(() => {
-    if (compileDone || verifyBusy) return;
+    // Real runs compile inside the workflow; the manual gate is mock-only.
+    if (ENGINE_MODE || compileDone || verifyBusy) return;
     setVerifyBusy("compile");
     setStageId("compile_test");
     const id = window.setTimeout(() => {
@@ -423,7 +589,7 @@ export function useBuildSession() {
   }, [compileDone, verifyBusy]);
 
   const runTest = useCallback(() => {
-    if (!compileDone || testDone || verifyBusy) return;
+    if (ENGINE_MODE || !compileDone || testDone || verifyBusy) return;
     setVerifyBusy("test");
     setStageId("compile_test");
     setNodes((prev) =>

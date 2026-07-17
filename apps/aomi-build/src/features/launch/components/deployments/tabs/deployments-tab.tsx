@@ -44,6 +44,7 @@ export function DeploymentsTab({
   const [pending, setPending] = useState<Pending>(null);
   const [view, setView] = useState<View>("deployments");
   const [expandedDetail, setExpandedDetail] = useState<string | null>(null);
+  const [retryingSecrets, setRetryingSecrets] = useState(false);
 
   useEffect(() => {
     detail.loadRecords();
@@ -181,6 +182,19 @@ export function DeploymentsTab({
         count + (detail.requiredSecrets?.[app]?.missing.length ?? 0),
       0,
     ) || missingRequiredApps.length;
+
+  const retryRequiredSecrets = async () => {
+    if (!detail.refreshRequiredSecrets) return;
+    setRetryingSecrets(true);
+    try {
+      await detail.refreshRequiredSecrets();
+    } catch {
+      // The hook keeps the verification error visible and the gate remains
+      // closed. The user can retry again without refreshing the page.
+    } finally {
+      setRetryingSecrets(false);
+    }
+  };
 
   if (!source) {
     return detail.loading ? (
@@ -409,14 +423,26 @@ export function DeploymentsTab({
                 ? "Required secrets could not be verified. Refresh before deploying."
                 : `${missingRequiredCount} required secret${missingRequiredCount === 1 ? "" : "s"} missing for ${missingRequiredApps.join(", ")}.`}
           </span>
-          {onOpenEnvironment && !secretsCheckPending && !secretsCheckFailed && (
+          {secretsCheckFailed ? (
             <button
               type="button"
-              onClick={onOpenEnvironment}
-              className="shrink-0 font-medium underline underline-offset-2"
+              onClick={() => void retryRequiredSecrets()}
+              disabled={retryingSecrets}
+              className="shrink-0 font-medium underline underline-offset-2 disabled:opacity-60"
             >
-              Set required secrets
+              {retryingSecrets ? "Retrying…" : "Retry required secrets"}
             </button>
+          ) : (
+            onOpenEnvironment &&
+            !secretsCheckPending && (
+              <button
+                type="button"
+                onClick={onOpenEnvironment}
+                className="shrink-0 font-medium underline underline-offset-2"
+              >
+                Set required secrets
+              </button>
+            )
           )}
         </div>
       )}

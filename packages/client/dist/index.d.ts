@@ -479,7 +479,10 @@ declare class AomiClient {
     /**
      * Fetch current session state (messages, processing status, title).
      */
-    fetchState(sessionId: string, userState?: UserState, clientId?: string): Promise<AomiStateResponse>;
+    fetchState(sessionId: string, userState?: UserState, clientId?: string, options?: {
+        app?: string;
+        applicationId?: number | string | null;
+    }): Promise<AomiStateResponse>;
     /**
      * Send a chat message and return updated session state.
      */
@@ -489,6 +492,7 @@ declare class AomiClient {
         apiKey?: string;
         userState?: UserState;
         clientId?: string;
+        paymentMethod?: string | null;
     }): Promise<AomiChatResponse>;
     /**
      * Send a system-level message (e.g. wallet state changes, context switches).
@@ -1123,6 +1127,8 @@ type SessionOptions = {
     clientType?: AomiClientType;
     /** Stable client ID used for secret-vault association. */
     clientId?: string;
+    /** Optional backend payment method override for chat turns. */
+    paymentMethod?: string | null;
     /**
      * When true (default), synthesize pending transaction wallet requests from
      * `user_state.pending_txs` during state sync. Web UI should disable this and
@@ -1187,6 +1193,7 @@ declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
     private apiKey?;
     private userState?;
     private clientId;
+    private paymentMethod?;
     private syncPendingTxRequestsFromUserState;
     private pollIntervalMs;
     private logger?;
@@ -1402,6 +1409,10 @@ declare const SUPPORTED_CHAINS: readonly [{
     readonly name: "Base";
     readonly ticker: "BASE";
 }, {
+    readonly id: 84532;
+    readonly name: "Base Sepolia";
+    readonly ticker: "ETH";
+}, {
     readonly id: 10;
     readonly name: "Optimism";
     readonly ticker: "OP";
@@ -1430,7 +1441,7 @@ declare const SUPPORTED_CHAINS: readonly [{
     readonly name: "Anvil (local)";
     readonly ticker: "ETH";
 }];
-declare const SUPPORTED_CHAIN_IDS: (1 | 10 | 137 | 42161 | 8453 | 143 | 10143 | 11155111 | 59144 | 59141 | 31337)[];
+declare const SUPPORTED_CHAIN_IDS: (1 | 10 | 137 | 42161 | 8453 | 143 | 10143 | 84532 | 11155111 | 59144 | 59141 | 31337)[];
 declare const CHAIN_NAMES: Record<number, string>;
 /** Alchemy network slugs for proxy URL construction. */
 declare const ALCHEMY_CHAIN_SLUGS: Record<number, string>;

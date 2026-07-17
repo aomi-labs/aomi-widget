@@ -75,7 +75,7 @@ export const API_PATHS = {
       sdkUpgrade: `${BFF}/deployments/sdk-upgrade`,
     },
     operate: {
-      agents: `${BFF}/operate/agents`,
+      bots: `${BFF}/operate/bots`,
       transactions: `${BFF}/operate/transactions`,
       usage: `${BFF}/operate/usage`,
       logs: `${BFF}/operate/logs`,

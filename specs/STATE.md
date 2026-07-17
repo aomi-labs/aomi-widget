@@ -2,6 +2,10 @@
 
 ## Last Updated
 
+2026-07-16 — Bots page 404 root-caused to product-mono edge routing;
+2026-07-16 — Environment tab: unified Variables list (declared slots + configured, `*` = required);
+2026-07-16 — PR #358 (+): env-aware default chat host (prod → chat.aomi.dev,
+  preview/dev → chat-staging.aomi.dev; NEXT_PUBLIC_CHAT_URL still overrides);
 2026-07-14 — Account menu: Docs (aomi.dev/docs) + Home page links (Vercel-style);
 2026-07-14 — Build P2 deep-link polish (⌘K / Billing / Overview → right tab);
 2026-07-14 — Create stack #343–#349 merged to main (left #340);
@@ -30,6 +34,78 @@
 2026-07-13 — Build UI copy polish (em dashes / hedging essays);
 2026-07-13 — Billing option A: methods live on Chat (no fake Build fetch);
 2026-07-13 — BILLING-EXPERIENCE.md: backend ↔ UI map (code-checked)
+
+2026-07-13 — Fixed required-secrets gate fail-open (P1, external review)
+
+## Bots page `list_user_source_bots failed (404)` fix (2026-07-16)
+
+- Cause was NOT in this repo: the dev edge proxy (product-mono
+  `scripts/dev-edge-proxy.mjs`, which imports `isManagerPath` from
+  `infra/cloudflare/worker/src/index.js`) had no `bots` entry in
+  `MANAGER_ROUTE_PATTERNS`, so `/api/integrations/github-app/user/sources/:id/bots`
+  fell through to the backend (:8080) instead of the manager (:8081) → 404.
+- Fixed in product-mono (branch `feat/builder-owned-github-bots`, commit
+  20c220b41): added
+  `/^\/api\/integrations\/github-app\/user\/sources\/[^/]+\/bots(\/[^/]+)?$/`
+  and restarted the dev proxy. Verified bots/agents/sources all reach the manager.
+- Pending: redeploy the Cloudflare worker before staging/prod use the bots tab,
+  or the same 404 recurs there.
+
+## Required-secrets gate fail-open fix (2026-07-13)
+
+Branch `feat/required-secrets-gating`, commit `5b5dea59`. External code review
+found the required-secret activation/promotion gate ALWAYS failed open in
+production: `missingSecretsForActivation`
+(`packages/deploy/src/bff/release-manifest.ts`) read
+`input.source.latestDeployment?.platformRepo`, but `source` comes from
+`listUserSources`, and the backend deliberately returns
+`latest_deployment: null` on that list endpoint (lazy for the list). So
+`platformRepo` was always undefined and the gate silently returned `{}` —
+activate, promote, and `requiredSecretsRoute` all saw zero required secret
+slots regardless of what was actually missing. The existing tests hid this by
+stubbing a populated `latestDeployment`, a shape that never occurs in
+production.
+
+- **Fix**: `missingSecretsForActivation` now resolves `platformRepo` via
+  `client.getUserSourceLatestDeployment(...)` (the per-source detail endpoint
+  that does populate it, same pattern as the redeploy route) when the cheap
+  `source.latestDeployment?.platformRepo` path is empty. Fail-open is
+  preserved only for the genuinely-unknown case (no GitHub token, or a source
+  with no deployment at all). Fixes aomi-build + portal activate/promote
+  (shared helper) plus aomi-build's `requiredSecretsRoute` (same pattern,
+  fixed separately since it doesn't go through the shared helper).
+- **Tests**: rewrote fixtures across
+  `packages/deploy/test/release-manifest.test.ts`,
+  `apps/aomi-build/src/server/bff/launch/routes.test.ts`,
+  `apps/portal/src/server/bff/launch/routes.test.ts`, and
+  `packages/deploy/test/launch-routes.test.ts` to use the real
+  `latestDeployment: null` shape with a `getUserSourceLatestDeployment` stub,
+  so they exercise the real production path instead of masking the bug.
+  Proved the regression: reverted only `release-manifest.ts`, confirmed the
+  corrected test fails against the old code (`{}` instead of the expected
+  missing-secret map), then restored and confirmed it passes.
+- **Verified**: all four vitest suites green (107 tests total across the
+  four files), `@aomi-labs/deploy` build clean, `aomi-build` + `portal`
+  type-check clean.
+- Full writeup: `.superpowers/sdd/fix-p1-failopen-report.md`.
+
+## Environment tab unified Variables view (2026-07-16)
+
+`apps/aomi-build/src/features/launch/components/deployments/tabs/environment-tab.tsx`:
+
+- Merged the split "missing required inputs inside Add or overwrite" +
+  "Configured" sections into one **Variables** list: declared manifest slots
+  (required + optional) and configured vault keys in a single view.
+- Missing slots render as solid list rows (`Not set` chip, warning-tinted when
+  required) with a **Set value** action that prefills the Add-or-overwrite
+  editor — no more read-only key inputs injected into the editor.
+- Required slots marked with `*` (+ legend "Required — the app cannot be
+  activated without it"); optional declared slots now visible too.
+- Missing-required rows sort first, directly under the "N required secrets
+  missing" banner; custom configured keys follow declared slots.
+- Removed the `requiredValues` state path from save(). Tests updated/added in
+  `environment-tab.test.tsx` (8 pass; full launch suite 129 pass; lint clean;
+  tsc failure is pre-existing stale `.next/types/validator.ts` on main).
 
 ## Build P2 deep-link polish (2026-07-14)
 
@@ -415,7 +491,6 @@ or handed off, per Cecilia's direction (no direct backend/DB mutation):
   (pre-flight checks + RESTRICT drops, no CASCADE) for review; also fixed the
   last stale `aomi_wallets` comment in
   `apps/shadcn-registry/src/lib/wallet-kit/account/aomi-backend-runtime.ts`.
-
 ## Aomi Build owned operate + pre-prod fixes (2026-07-08)
 
 - Hardened launch/operate-adjacent BFF reads and writes around the signed-in
@@ -2098,8 +2173,14 @@ Controls disabled while isProcessing === true
 
 ## Pending
 
-- Aomi Build SDK-upgrade UX rebuilt (2026-07-16, working tree, uncommitted): new `use-sdk-upgrade` hook (confirm → open PR → poll-for-merge via the idempotent sdk-upgrade endpoint → merged → redeploy), `upgrade-rail.tsx` (5-step stepper with PLATFORM/YOU/YOU/GITHUB owners, hover hints on every step, build checklist driven by deployFlow), `deployment-detail.tsx` (per-row expansion: source repo / commit / SDK / deployed platform / platform branch / apps / build artifacts — all GitHub-linked; platform-side fields lazy-load from `deploymentHistory`), `hint-bubble.tsx`; `deployments-tab.tsx` wires the CTA swap (Upgrade → Review PR #N), redeploy gating while the PR is open, and the upgrade confirm dialog with don't-ask-again; rail state persists in localStorage per source. 218 tests + typecheck + lint green. Not yet verified against a live signed-in session — needs a preview deploy or a local run with GitHub auth.
-- Aomi Build deployments tab `upgrade_user_source_sdk failed (502)` (2026-07-15, projects 1586/1494) — ROOT CAUSE FOUND, fix pending in product-mono: `SourceRepo::repo_route("")` builds `/repos/{owner}/{repo}/` with a trailing slash, which GitHub 404s; `default_head()` (new in PR #806) is the only empty-path caller, so every SDK upgrade fails. The handler maps the error to HTTP 502, and Cloudflare replaces origin-502 bodies with its branded HTML page, which is why the UI showed the generic fallback instead of the real message. Fix: make `repo_route` return `/repos/{owner}/{repo}` for empty paths (verified locally — created real PR CeciliaZ030/playground-6#1). Follow-ups: use a non-502 status (e.g. 500) for manager handler errors so JSON bodies survive Cloudflare; add CatchPanicLayer to bin/manager (backend has it, manager doesn't); add a unit test for `repo_route("")`.
+- Aomi Build SDK-upgrade UX rebuilt (2026-07-16, PR aomi-labs/aomi#366): `use-sdk-upgrade` hook (confirm → open PR → poll-for-merge via the idempotent sdk-upgrade endpoint → merged → redeploy), `upgrade-rail.tsx` (5-step stepper with PLATFORM/YOU/YOU/GITHUB owners, hover hints on every step, build checklist driven by deployFlow), `deployment-detail.tsx` (per-row expansion: source repo / commit / SDK / deployed platform / platform branch / apps / build artifacts — all GitHub-linked; platform-side fields lazy-load from `deploymentHistory`), `hint-bubble.tsx`; `deployments-tab.tsx` wires the CTA swap (Upgrade → Review PR #N), redeploy gating while the PR is open, and the upgrade confirm dialog with don't-ask-again; rail state persists in localStorage per source. 218 tests + typecheck + lint green. Backend path verified against staging (sdk-upgrade for 1586 now returns `current`). Not yet verified against a live signed-in browser session — needs a preview deploy.
+- SDK upgrade 502 masking: FIXED. `SourceRepo::repo_route("")` trailing-slash 404 fixed in product-mono#815 (merged, staging-deployed); the remaining manager 502→500 conversions (OAuth exchange, GitHubAppError::Upstream, ActivationError gateway variants) are in product-mono#826 (open). Cloudflare replaces origin-502 bodies with branded HTML, so handler errors must never use 502/503.
+- Follow-up work spun off (background sessions 2026-07-16): lightweight manager PR-state endpoint to replace the 45s tarball-download merge poll; investigation of stale `app_source` installation bindings (duplicate 141779906/142228159 branches for playground-6).
+- /build engine mode: render approvals/clarifies in the UI (decision route
+  exists; runs default to autoApprove until then)
+- /build engine mode: real fileTree from run outputs (left empty for now)
+- Vercel prod shape for the engine: SMITHER_DATABASE_URL (shared Postgres) +
+  @smithers-orchestrator/vercel sandbox provider for compute phases (v2)
 - End-to-end testing of wallet tx request flow
 - SSE event handling verification (SystemNotice, AsyncCallback)
 - E2E verification of control flow: apiKey → namespaces → model selection

@@ -77,7 +77,10 @@ describe("CLI chat wallet sync", () => {
       createConfig({ privateKey: "0xabc" }),
       { publicKey: "0xold", chainId: 1 },
       { publicKey: "0xnew", chainId: 8453 },
-      { sessionId: "session-1" } as never,
+      {
+        sessionId: "session-1",
+        toState: () => ({ accountBearer: "token" }),
+      } as never,
       {
         resolveUserState,
         syncUserState,
@@ -122,6 +125,31 @@ describe("CLI chat wallet sync", () => {
       },
     });
     expect(sendSystemMessage.mock.calls[0]?.[2]).toEqual({ app: "default" });
+  });
+
+  it("does not emit wallet:state_changed through /api/system without account credentials", async () => {
+    const resolveUserState = vi.fn();
+    const syncUserState = vi.fn().mockResolvedValue(undefined);
+    const sendSystemMessage = vi.fn().mockResolvedValue(undefined);
+
+    await syncWalletStateForChat(
+      createConfig({ privateKey: "0xabc" }),
+      { publicKey: "0xold", chainId: 1 },
+      { publicKey: "0xnew", chainId: 8453 },
+      {
+        sessionId: "session-1",
+        toState: () => ({}),
+      } as never,
+      {
+        resolveUserState,
+        syncUserState,
+        client: { sendSystemMessage },
+      },
+    );
+
+    expect(resolveUserState).toHaveBeenCalledTimes(1);
+    expect(syncUserState).toHaveBeenCalledTimes(1);
+    expect(sendSystemMessage).not.toHaveBeenCalled();
   });
 
   it("does not sync or emit wallet:state_changed when chainId is missing", async () => {

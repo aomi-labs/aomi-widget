@@ -47,14 +47,46 @@ import type { CommandRunner, ResolvedBinaries } from "./types";
 export type AomiSmitherApi = CreateSmithersApi<SmitherSchemas>;
 export type AomiWorkflow = ReturnType<AomiSmitherApi["smithers"]>;
 
-export async function createAomiSmither(dbPath: string): Promise<AomiSmitherApi> {
-  const { createSmithers } = await import("smithers-orchestrator");
-  return createSmithers(smitherSchemas, {
-    readableName: "Aomi Smither",
-    description:
-      "Composes a Smithers workflow from user intent: deterministic Rust codegen, multi-agent curation, clarify pauses, validate/repair loops, local smoke, and gated deploy.",
-    dbPath,
-  });
+/** Where the durable run state lives. `sqlite` is Bun-only (bun:sqlite);
+ *  `pglite`/`postgres` run on Node — the web (`aomi-build` BFF) path. */
+export type SmitherBackend =
+  | { kind: "sqlite"; dbPath: string }
+  | { kind: "pglite"; dataDir: string }
+  | { kind: "postgres"; connectionString: string };
+
+export function describeBackend(backend: SmitherBackend): string {
+  switch (backend.kind) {
+    case "sqlite":
+      return backend.dbPath;
+    case "pglite":
+      return `pglite:${backend.dataDir}`;
+    case "postgres":
+      return "postgres";
+  }
+}
+
+const SMITHER_META = {
+  readableName: "Aomi Smither",
+  description:
+    "Composes a Smithers workflow from user intent: deterministic Rust codegen, multi-agent curation, clarify pauses, validate/repair loops, local smoke, and gated deploy.",
+};
+
+export async function createAomiSmither(
+  backend: string | SmitherBackend,
+): Promise<AomiSmitherApi> {
+  const resolved: SmitherBackend =
+    typeof backend === "string" ? { kind: "sqlite", dbPath: backend } : backend;
+  if (resolved.kind === "sqlite") {
+    const { createSmithers } = await import("smithers-orchestrator");
+    return createSmithers(smitherSchemas, { ...SMITHER_META, dbPath: resolved.dbPath });
+  }
+  const { createSmithersPostgres } = await import("smithers-orchestrator");
+  return createSmithersPostgres(
+    smitherSchemas,
+    resolved.kind === "pglite"
+      ? { ...SMITHER_META, provider: "pglite", dataDir: resolved.dataDir }
+      : { ...SMITHER_META, provider: "postgres", connectionString: resolved.connectionString },
+  );
 }
 
 export type WorkflowDeps = {
@@ -196,6 +228,12 @@ export async function buildAppWorkflow(
       return loop.onMax === "return-last" && loopIteration(loop.id) >= loop.maxRounds - 1;
     };
 
+    // Boolean columns round-trip through the store as 0/1 (SQLite storage
+    // model, mirrored on Postgres), so ok/green/approved checks must be
+    // truthiness, never `=== true`.
+    const okRow = (r: Record<string, unknown> | undefined): boolean =>
+      !!r && Boolean((r as { ok?: unknown }).ok);
+
     // Whether every leaf of a parallel phase has produced its row.
     const leafDone = (p: InnerPhase): boolean => {
       switch (p.kind) {
@@ -203,7 +241,7 @@ export async function buildAppWorkflow(
           return (
             !!row(outputKeyFor(p), p.id) &&
             (p.op === "codegen" || p.op === "smoke"
-              ? (row(outputKeyFor(p), p.id) as { ok?: boolean }).ok === true
+              ? okRow(row(outputKeyFor(p), p.id))
               : true)
           );
         case "agent":
@@ -254,9 +292,7 @@ export async function buildAppWorkflow(
           const r = row(outputKeyFor(phase), phase.id);
           done =
             !!r &&
-            (phase.op === "codegen" || phase.op === "smoke"
-              ? (r as { ok?: boolean }).ok === true
-              : true);
+            (phase.op === "codegen" || phase.op === "smoke" ? okRow(r) : true);
           break;
         }
         case "agent":
@@ -302,6 +338,7 @@ export async function buildAppWorkflow(
         .slice(0, index)
         .every((prev) => (isResult ? prev.settled : prev.done));
     };
+
 
     // --- render one phase ----------------------------------------------------
     const smokePhase = findCompute("smoke");

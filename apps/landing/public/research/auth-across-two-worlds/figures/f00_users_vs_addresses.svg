@@ -1,0 +1,79 @@
+<svg width="1140" height="660" viewBox="0 0 1140 660" xmlns="http://www.w3.org/2000/svg" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" role="img" aria-label="The counting problem: one person spans many addresses, and the mapping drifts">
+<defs>
+<style>
+text{font-family:ui-monospace, SFMono-Regular, Menlo, monospace;}
+.h{font-size:13px;font-weight:700}
+.b{font-size:12px;fill:#1f2937}
+.s{font-size:11.5px;fill:#6b7280}
+.edge{stroke:#9CA3AF;stroke-width:1.4;fill:none}
+</style>
+</defs>
+
+<text x="40" y="36" class="h" fill="#1f2937">PEOPLE</text>
+<text x="116" y="36" class="s">what your product thinks in</text>
+<text x="760" y="36" class="h" fill="#0F6E56">ADDRESSES</text>
+<text x="856" y="36" class="s">what the chain gives you</text>
+
+<!-- people -->
+<rect x="40" y="90" width="260" height="70" rx="10" fill="#fafafa" stroke="#9CA3AF" stroke-width="1.3"/>
+<text x="60" y="118" class="b" font-weight="700">Alice</text>
+<text x="60" y="140" class="s">one person · three wallets</text>
+
+<rect x="40" y="252" width="260" height="70" rx="10" fill="#fafafa" stroke="#9CA3AF" stroke-width="1.3"/>
+<text x="60" y="280" class="b" font-weight="700">Bob</text>
+<text x="60" y="302" class="s">one person · one wallet</text>
+
+<rect x="40" y="392" width="260" height="70" rx="10" fill="#fafafa" stroke="#9CA3AF" stroke-width="1.3"/>
+<text x="60" y="420" class="b" font-weight="700">Carol</text>
+<text x="60" y="442" class="s">same person · rotated wallets</text>
+
+<!-- addresses -->
+<rect x="760" y="56" width="340" height="56" rx="9" fill="#f6fcf9" stroke="#1D9E75" stroke-width="1.3"/>
+<text x="778" y="80" class="b">0xA11c…e9F3</text>
+<text x="778" y="99" class="s">MetaMask EOA</text>
+
+<rect x="760" y="132" width="340" height="56" rx="9" fill="#f6fcf9" stroke="#1D9E75" stroke-width="1.3"/>
+<text x="778" y="156" class="b">0x9bE2…D441</text>
+<text x="778" y="175" class="s">embedded wallet · provider-managed</text>
+
+<rect x="760" y="208" width="340" height="56" rx="9" fill="#f6fcf9" stroke="#1D9E75" stroke-width="1.3"/>
+<text x="778" y="232" class="b">0x4337…0AA0</text>
+<text x="778" y="251" class="s">smart account · owner: 0xA11c…</text>
+
+<rect x="760" y="284" width="340" height="56" rx="9" fill="#f6fcf9" stroke="#1D9E75" stroke-width="1.3"/>
+<text x="778" y="308" class="b">0xB0B1…C77e</text>
+<text x="778" y="327" class="s">MetaMask EOA</text>
+
+<rect x="760" y="360" width="340" height="56" rx="9" fill="#f6fcf9" stroke="#9CA3AF" stroke-width="1.3" stroke-dasharray="5 4"/>
+<text x="778" y="384" class="b" fill="#6b7280">0xC4a0…011D</text>
+<text x="778" y="403" class="s">old EOA · abandoned</text>
+
+<rect x="760" y="436" width="340" height="56" rx="9" fill="#f6fcf9" stroke="#1D9E75" stroke-width="1.3"/>
+<text x="778" y="460" class="b">0xC4a1…F9E2</text>
+<text x="778" y="479" class="s">new EOA · replaced the old one</text>
+
+<!-- edges: Alice -> 3 -->
+<path class="edge" d="M300,110 C480,98 600,90 756,84"/>
+<path class="edge" d="M300,123 C480,130 600,150 756,160"/>
+<path class="edge" d="M300,136 C500,170 600,210 756,236"/>
+<!-- Bob -> 1 -->
+<path class="edge" d="M300,287 C480,296 600,306 756,312"/>
+<!-- Carol -> old (dashed) + new -->
+<path class="edge" d="M300,417 C480,406 600,396 756,388" stroke-dasharray="5 4"/>
+<path class="edge" d="M300,434 C480,442 600,456 756,464"/>
+
+<!-- annotations -->
+<text x="528" y="60" class="s" fill="#B0710F" text-anchor="middle">one person → many addresses</text>
+<text x="528" y="510" class="s" fill="#B0710F" text-anchor="middle">…and the mapping drifts: wallets get created, imported, rotated, abandoned</text>
+
+<!-- question chips -->
+<rect x="60" y="536" width="315" height="46" rx="9" fill="#fffaf0" stroke="#EF9F27" stroke-width="1.3"/>
+<text x="217" y="564" class="h" fill="#B0710F" text-anchor="middle">how many users?</text>
+<rect x="412" y="536" width="315" height="46" rx="9" fill="#fffaf0" stroke="#EF9F27" stroke-width="1.3"/>
+<text x="569" y="564" class="h" fill="#B0710F" text-anchor="middle">whose rate limit is this?</text>
+<rect x="764" y="536" width="315" height="46" rx="9" fill="#fffaf0" stroke="#EF9F27" stroke-width="1.3"/>
+<text x="921" y="564" class="h" fill="#B0710F" text-anchor="middle">which history is theirs?</text>
+
+<rect x="40" y="606" width="1060" height="34" rx="8" fill="#f3f4f6" stroke="#d1d5db"/>
+<text x="570" y="628" font-size="12px" fill="#374151" text-anchor="middle">An address is not a person. Without an application-owned account, every per-user question is unanswerable.</text>
+</svg>

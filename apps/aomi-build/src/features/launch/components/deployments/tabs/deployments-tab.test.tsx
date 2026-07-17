@@ -56,6 +56,7 @@ function makeDetail(
     loadHistory: vi.fn(),
     history: null,
     historyError: null,
+    refreshRequiredSecrets: vi.fn(async () => ({})),
     hasMissingSecrets: overrides.hasMissingSecrets ?? (() => false),
     refreshRecords: vi.fn(),
     redeploySource: vi.fn(),
@@ -386,6 +387,21 @@ describe("DeploymentsTab", () => {
       screen.getByRole("button", { name: "Set required secrets" }),
     );
     expect(openEnvironment).toHaveBeenCalledOnce();
+  });
+
+  it("retries a failed required-secret check without refreshing the page", async () => {
+    const refreshRequiredSecrets = vi.fn(async () => ({}));
+    const failedDetail = {
+      ...makeDetail(),
+      requiredSecretsError: "Unable to verify required secrets. Try again.",
+      refreshRequiredSecrets,
+    } as typeof detail;
+    renderTab(<DeploymentsTab detail={failedDetail} />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Retry required secrets" }),
+    );
+    await waitFor(() => expect(refreshRequiredSecrets).toHaveBeenCalledOnce());
   });
 
   it("is honest when live but deployment history is empty", () => {
