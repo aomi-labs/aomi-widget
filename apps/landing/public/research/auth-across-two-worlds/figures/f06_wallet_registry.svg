@@ -1,0 +1,78 @@
+<svg width="1140" height="700" viewBox="0 0 1140 700" xmlns="http://www.w3.org/2000/svg" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" role="img" aria-label="The multi-wallet registry: many known wallets, one active wallet per chain family, live and stored states kept distinct">
+<defs>
+<marker id="a" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#6b7280"/></marker>
+<style>
+text{font-family:ui-monospace, SFMono-Regular, Menlo, monospace;}
+.h{font-size:13.5px;font-weight:700}
+.b{font-size:12px;fill:#1f2937}
+.s{font-size:11.5px;fill:#6b7280}
+.arw{stroke:#6b7280;stroke-width:1.5;fill:none}
+.tag{font-size:10.5px;font-weight:700}
+</style>
+</defs>
+
+<!-- canonical account -->
+<rect x="40" y="212" width="220" height="70" rx="12" fill="#1f2937"/>
+<text x="150" y="242" font-size="13.5px" font-weight="700" fill="#ffffff" text-anchor="middle">CANONICAL ACCOUNT</text>
+<text x="150" y="264" font-size="11px" fill="#c7cdd6" text-anchor="middle">one user · many wallets</text>
+
+<path class="arw" d="M260,236 C300,200 300,180 336,160" marker-end="url(#a)"/>
+<path class="arw" d="M260,258 C300,300 700,120 756,150" marker-end="url(#a)"/>
+
+<!-- EVM family -->
+<rect x="340" y="46" width="380" height="404" rx="10" fill="#f6fcf9" stroke="#1D9E75" stroke-width="1.4"/>
+<text x="360" y="76" class="h" fill="#0F6E56">EVM FAMILY</text>
+<text x="490" y="76" class="s">exactly one active</text>
+
+<rect x="360" y="94" width="340" height="98" rx="9" fill="#ffffff" stroke="#1D9E75" stroke-width="1.2"/>
+<text x="378" y="120" class="b" font-weight="700">MetaMask</text>
+<text x="378" y="141" class="s">external EOA · linked via SIWE</text>
+<rect x="378" y="154" width="52" height="19" rx="9.5" fill="none" stroke="#1D9E75" stroke-width="1.2"/>
+<text x="404" y="168" class="tag" fill="#0F6E56" text-anchor="middle">LIVE</text>
+<rect x="440" y="154" width="72" height="19" rx="9.5" fill="#1D9E75"/>
+<text x="476" y="168" class="tag" fill="#ffffff" text-anchor="middle">● ACTIVE</text>
+
+<rect x="360" y="208" width="340" height="98" rx="9" fill="#ffffff" stroke="#1D9E75" stroke-width="1.2"/>
+<text x="378" y="234" class="b" font-weight="700">Privy embedded</text>
+<text x="378" y="255" class="s">embedded EVM · provider-attested</text>
+<rect x="378" y="268" width="52" height="19" rx="9.5" fill="none" stroke="#1D9E75" stroke-width="1.2"/>
+<text x="404" y="282" class="tag" fill="#0F6E56" text-anchor="middle">LIVE</text>
+
+<rect x="360" y="322" width="340" height="98" rx="9" fill="#ffffff" stroke="#9CA3AF" stroke-width="1.2"/>
+<text x="378" y="348" class="b" font-weight="700">Smart account</text>
+<text x="378" y="369" class="s">4337 · owner: the MetaMask EOA</text>
+<rect x="378" y="382" width="66" height="19" rx="9.5" fill="none" stroke="#9CA3AF" stroke-width="1.2"/>
+<text x="411" y="396" class="tag" fill="#6b7280" text-anchor="middle">STORED</text>
+
+<!-- SVM family -->
+<rect x="760" y="46" width="340" height="404" rx="10" fill="#faf9ff" stroke="#7F77DD" stroke-width="1.4"/>
+<text x="780" y="76" class="h" fill="#534AB7">SVM FAMILY</text>
+<text x="908" y="76" class="s">exactly one active</text>
+
+<rect x="780" y="94" width="300" height="98" rx="9" fill="#ffffff" stroke="#7F77DD" stroke-width="1.2"/>
+<text x="798" y="120" class="b" font-weight="700">Phantom</text>
+<text x="798" y="141" class="s">external · case-sensitive base58</text>
+<rect x="798" y="154" width="52" height="19" rx="9.5" fill="none" stroke="#7F77DD" stroke-width="1.2"/>
+<text x="824" y="168" class="tag" fill="#534AB7" text-anchor="middle">LIVE</text>
+<rect x="860" y="154" width="72" height="19" rx="9.5" fill="#7F77DD"/>
+<text x="896" y="168" class="tag" fill="#ffffff" text-anchor="middle">● ACTIVE</text>
+
+<rect x="780" y="208" width="300" height="98" rx="9" fill="#ffffff" stroke="#9CA3AF" stroke-width="1.2"/>
+<text x="798" y="234" class="b" font-weight="700">Para embedded</text>
+<text x="798" y="255" class="s">embedded SVM · provider-attested</text>
+<rect x="798" y="268" width="66" height="19" rx="9.5" fill="none" stroke="#9CA3AF" stroke-width="1.2"/>
+<text x="831" y="282" class="tag" fill="#6b7280" text-anchor="middle">STORED</text>
+
+<text x="780" y="368" class="s">selecting here never touches</text>
+<text x="780" y="388" class="s">the active EVM wallet →</text>
+
+<!-- capability strip -->
+<rect x="40" y="490" width="1060" height="120" rx="10" fill="#fafafa" stroke="#9CA3AF" stroke-width="1.3"/>
+<text x="66" y="520" class="h" fill="#374151">EVERY ROW CARRIES STATE, NOT A LABEL</text>
+<text x="66" y="550" class="b">family (evm / svm) · provenance (siwe / attested / derived) · provider · capability (read / sign / send / display)</text>
+<text x="66" y="574" class="b">status (live / stored / revoked / stale) · linked-by evidence · provider wallet id</text>
+<text x="66" y="596" class="s">policy derives from provenance and capability — never from a display label like "Privy wallet"</text>
+
+<rect x="40" y="642" width="1060" height="34" rx="8" fill="#f3f4f6" stroke="#d1d5db"/>
+<text x="570" y="664" font-size="12px" fill="#374151" text-anchor="middle">Active is a session-level execution choice, never an identity fact — changing it does not change the authenticated user.</text>
+</svg>

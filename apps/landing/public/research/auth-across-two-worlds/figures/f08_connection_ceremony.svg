@@ -1,0 +1,77 @@
+<svg width="1140" height="880" viewBox="0 0 1140 880" xmlns="http://www.w3.org/2000/svg" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" role="img" aria-label="The provider connection ceremony: signed state protects the redirect round-trip before any approval is persisted">
+<defs>
+<marker id="a" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#6b7280"/></marker>
+<marker id="ar" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#D85A30"/></marker>
+<style>
+text{font-family:ui-monospace, SFMono-Regular, Menlo, monospace;}
+.h{font-size:13px;font-weight:700}
+.b{font-size:12px;fill:#1f2937}
+.s{font-size:11.5px;fill:#6b7280}
+.r{font-size:11.5px;fill:#9e3f17}
+.arw{stroke:#6b7280;stroke-width:1.5;fill:none}
+.rej{stroke:#D85A30;stroke-width:1.3;fill:none}
+</style>
+</defs>
+
+<!-- begin -->
+<rect x="410" y="36" width="320" height="48" rx="24" fill="#1f2937"/>
+<text x="570" y="66" font-size="13.5px" font-weight="700" fill="#ffffff" text-anchor="middle">BEGIN CONNECTION</text>
+<path class="arw" d="M570,84 V112" marker-end="url(#a)"/>
+
+<!-- sign state -->
+<rect x="290" y="116" width="560" height="92" rx="10" fill="#fffaf0" stroke="#EF9F27" stroke-width="1.4"/>
+<text x="314" y="144" class="h" fill="#B0710F">① SIGN STATE</text>
+<text x="314" y="168" class="b">state = { provider, user, thread, app, exp }</text>
+<text x="314" y="190" class="s">short-lived — and the provider name lives inside the signature</text>
+
+<path class="arw" d="M570,208 C570,232 380,246 372,280" marker-end="url(#a)"/>
+
+<!-- outside the application -->
+<rect x="180" y="244" width="780" height="140" rx="12" fill="none" stroke="#9CA3AF" stroke-width="1.2" stroke-dasharray="6 5"/>
+<text x="204" y="270" class="s" font-weight="700">OUTSIDE THE APPLICATION</text>
+
+<rect x="220" y="286" width="300" height="72" rx="9" fill="#faf9ff" stroke="#7F77DD" stroke-width="1.3"/>
+<text x="240" y="314" class="h" fill="#534AB7">② REDIRECT TO PROVIDER</text>
+<text x="240" y="336" class="s">login / consent on their surface</text>
+
+<path class="arw" d="M524,322 H636" marker-end="url(#a)"/>
+
+<rect x="640" y="286" width="300" height="72" rx="9" fill="#faf9ff" stroke="#7F77DD" stroke-width="1.3"/>
+<text x="660" y="314" class="h" fill="#534AB7">③ CALLBACK RETURNS</text>
+<text x="660" y="336" class="s">provider payload + state token</text>
+
+<path class="arw" d="M790,358 C790,392 570,388 570,416" marker-end="url(#a)"/>
+
+<!-- gate 1 -->
+<rect x="290" y="420" width="560" height="68" rx="9" fill="#fafafa" stroke="#9CA3AF" stroke-width="1.3"/>
+<text x="314" y="446" class="h" fill="#1f2937">④ VERIFY STATE — before anything else</text>
+<text x="314" y="468" class="s">binds the callback to its initiating user, thread, app, expiry</text>
+<path class="rej" d="M850,454 H886" marker-end="url(#ar)"/>
+<text x="898" y="458" class="r">✕ tampered / expired state</text>
+<path class="arw" d="M570,488 V512" marker-end="url(#a)"/>
+
+<!-- gate 2 -->
+<rect x="290" y="516" width="560" height="68" rx="9" fill="#fafafa" stroke="#9CA3AF" stroke-width="1.3"/>
+<text x="314" y="542" class="h" fill="#1f2937">⑤ SELECT PROVIDER ADAPTER</text>
+<text x="314" y="564" class="s">from the verified state — never from the request</text>
+<path class="rej" d="M850,550 H886" marker-end="url(#ar)"/>
+<text x="898" y="554" class="r">✕ no adapter switch via query params</text>
+<path class="arw" d="M570,584 V608" marker-end="url(#a)"/>
+
+<!-- gate 3 -->
+<rect x="290" y="612" width="560" height="68" rx="9" fill="#fafafa" stroke="#9CA3AF" stroke-width="1.3"/>
+<text x="314" y="638" class="h" fill="#1f2937">⑥ VERIFY PROVIDER PAYLOAD</text>
+<text x="314" y="660" class="s">that provider's own cryptographic contract</text>
+<path class="rej" d="M850,646 H886" marker-end="url(#ar)"/>
+<text x="898" y="650" class="r">✕ invalid payload</text>
+<path class="arw" d="M570,680 V704" marker-end="url(#a)"/>
+
+<!-- persist -->
+<rect x="290" y="708" width="560" height="92" rx="10" fill="#f6fcf9" stroke="#1D9E75" stroke-width="1.4"/>
+<text x="314" y="736" class="h" fill="#0F6E56">⑦ NORMALIZE + PERSIST APPROVAL</text>
+<text x="314" y="760" class="b">subject · verified wallets · secret handles · lifetime</text>
+<text x="314" y="782" class="s">a revocable execution grant — resolved later for one exact address</text>
+
+<rect x="40" y="830" width="1060" height="34" rx="8" fill="#f3f4f6" stroke="#d1d5db"/>
+<text x="570" y="852" font-size="12px" fill="#374151" text-anchor="middle">The state token is a seatbelt for one redirect — it is not a session, and it is not a signing grant.</text>
+</svg>
