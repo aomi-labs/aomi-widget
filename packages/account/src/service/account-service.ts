@@ -7,6 +7,7 @@ import {
   createAomiUserForBetterAuth,
   deactivateAomiUser,
   deleteBetterAuthSiweWallet,
+  deleteBetterAuthSiwsWallet,
   findAuthIdentityById,
   findAomiUserById,
   findAomiUserByBetterAuthId,
@@ -14,6 +15,7 @@ import {
   findSignalOwner,
   findWalletById,
   listBetterAuthSiweWallets,
+  listBetterAuthSiwsWallets,
   listWalletsForUser,
   logAccountEvent,
   revokeAllAuthIdentitiesForUser,
@@ -99,9 +101,12 @@ export async function getOrCreateAomiUserForBetterAuthSession(input: {
       return existing;
     }
 
-    const siweSignals = await betterAuthSiweSignals(input.betterAuthUserId, db);
+    const walletSignals = await betterAuthWalletSignals(
+      input.betterAuthUserId,
+      db,
+    );
     const signalOwner = await findFirstSignalOwner(
-      [...(input.accessSignals ?? []), ...siweSignals],
+      [...(input.accessSignals ?? []), ...walletSignals],
       db,
     );
     if (signalOwner) {
@@ -130,7 +135,7 @@ export async function getOrCreateAomiUserForBetterAuthSession(input: {
     }
 
     const legacyWalletOwnerId = await findFirstLegacyWalletOwner(
-      siweSignals,
+      walletSignals,
       db,
     );
     const user = await createAomiUserForBetterAuth({
@@ -167,7 +172,7 @@ async function findFirstLegacyWalletOwner(
   db: Parameters<typeof findLegacyBackendUserIdByWallet>[1],
 ): Promise<AomiUserId | null> {
   for (const signal of signals) {
-    if (signal.type !== "wallet") continue;
+    if (signal.type !== "wallet" || signal.family !== "evm") continue;
     const ownerId = await findLegacyBackendUserIdByWallet(
       signal.normalizedAddress,
       db,
@@ -201,17 +206,28 @@ async function findFirstSignalOwner(
   return null;
 }
 
-async function betterAuthSiweSignals(
+async function betterAuthWalletSignals(
   betterAuthUserId: string,
   db: Parameters<typeof listBetterAuthSiweWallets>[1],
 ): Promise<SignalRef[]> {
-  const wallets = await listBetterAuthSiweWallets(betterAuthUserId, db);
-  return wallets.map((wallet) => ({
-    type: "wallet" as const,
-    family: "evm" as const,
-    normalizedAddress: normalizeWalletAddress("evm", wallet.address),
-    chainScope: null,
-  }));
+  const [evmWallets, svmWallets] = await Promise.all([
+    listBetterAuthSiweWallets(betterAuthUserId, db),
+    listBetterAuthSiwsWallets(betterAuthUserId, db),
+  ]);
+  return [
+    ...evmWallets.map((wallet) => ({
+      type: "wallet" as const,
+      family: "evm" as const,
+      normalizedAddress: normalizeWalletAddress("evm", wallet.address),
+      chainScope: null,
+    })),
+    ...svmWallets.map((wallet) => ({
+      type: "wallet" as const,
+      family: "svm" as const,
+      normalizedAddress: normalizeWalletAddress("svm", wallet.address),
+      chainScope: null,
+    })),
+  ];
 }
 
 export async function getAccountResponseForBetterAuthSession(input: {
@@ -224,7 +240,7 @@ export async function getAccountResponseForBetterAuthSession(input: {
   fresh?: boolean;
 }): Promise<AomiAccountResponse> {
   const user = await getOrCreateAomiUserForBetterAuthSession(input);
-  await syncSiweWalletsForUser({
+  await syncBetterAuthWalletsForUser({
     aomiUserId: user.id,
     betterAuthUserId: input.betterAuthUserId,
   });
@@ -254,6 +270,39 @@ export async function syncSiweWalletsForUser(input: {
       linkedVia: "siwe",
     });
   }
+}
+
+export async function syncSiwsWalletsForUser(input: {
+  aomiUserId: AomiUserId;
+  betterAuthUserId: string;
+}): Promise<void> {
+  await ensureAccountSchema();
+  const wallets = await listBetterAuthSiwsWallets(input.betterAuthUserId);
+  for (const wallet of wallets) {
+    const resolution = await upsertVerifiedWallet({
+      userId: input.aomiUserId,
+      family: "svm",
+      address: wallet.address,
+      chainScope: null,
+      kind: "external",
+      provider: "siws",
+      providerSubject: siwsIdentitySubject(wallet.address),
+      linkedVia: "siws",
+    });
+    if (resolution.status === "conflict") {
+      throw new Error("wallet_already_linked_to_another_account");
+    }
+  }
+}
+
+export async function syncBetterAuthWalletsForUser(input: {
+  aomiUserId: AomiUserId;
+  betterAuthUserId: string;
+}): Promise<void> {
+  await Promise.all([
+    syncSiweWalletsForUser(input),
+    syncSiwsWalletsForUser(input),
+  ]);
 }
 
 export async function resolveSignal(input: {
@@ -288,6 +337,7 @@ export async function upsertVerifiedWallet(input: {
   chainScope?: string | null;
   kind: WalletKind;
   provider?: string | null;
+  providerSubject?: string | null;
   providerWalletId?: string | null;
   linkedVia: LinkedVia;
   label?: string | null;
@@ -303,14 +353,14 @@ export async function upsertVerifiedWallet(input: {
     signal,
   });
   if (resolution.status === "conflict") return resolution;
-  const siweSubject = siweIdentitySubject(input);
-  const identityResolution = siweSubject
+  const walletSubject = walletIdentitySubject(input);
+  const identityResolution = walletSubject
     ? await resolveSignal({
         currentUserId: input.userId,
         signal: {
           type: "identity",
-          provider: "siwe",
-          subject: siweSubject,
+          provider: walletSubject.provider,
+          subject: walletSubject.subject,
         },
       })
     : null;
@@ -335,17 +385,20 @@ export async function upsertVerifiedWallet(input: {
       },
     });
   }
-  if (siweSubject) {
+  if (walletSubject) {
     await upsertAuthIdentity({
       userId: input.userId,
-      provider: "siwe",
-      subject: siweSubject,
+      provider: walletSubject.provider,
+      subject: walletSubject.subject,
     });
     if (identityResolution?.status !== "noop") {
       await logAccountEvent({
         userId: input.userId,
         eventType: "identity.linked",
-        data: { provider: "siwe", subject: siweSubject },
+        data: {
+          provider: walletSubject.provider,
+          subject: walletSubject.subject,
+        },
       });
     }
   }
@@ -640,6 +693,7 @@ export async function unlinkAuthIdentity(input: {
   if (
     identity.provider === "better_auth" ||
     identity.provider === "siwe" ||
+    identity.provider === "siws" ||
     identity.provider === "email"
   ) {
     return "protected";
@@ -670,6 +724,7 @@ export async function renameAuthIdentity(input: {
   if (
     identity.provider === "better_auth" ||
     identity.provider === "siwe" ||
+    identity.provider === "siws" ||
     identity.provider === "email"
   ) {
     return "protected";
@@ -720,18 +775,21 @@ export async function unlinkWallet(input: {
   if (factorCount <= 1 && wallet.kind !== "embedded") return "last_factor";
   const revoked = await revokeWallet(input);
   if (!revoked) return "not_found";
-  const siweSubject = siweIdentitySubject(wallet);
-  if (siweSubject) {
+  const walletSubject = walletIdentitySubject(wallet);
+  if (walletSubject) {
     await revokeAuthIdentity({
       userId: input.userId,
-      provider: "siwe",
-      subject: siweSubject,
+      provider: walletSubject.provider,
+      subject: walletSubject.subject,
     });
-    const detached = await deleteBetterAuthSiweWallet({
-      address: wallet.address,
-      chainId: Number(wallet.chainScope) || undefined,
-      syntheticEmails: siweSyntheticEmails(wallet.address),
-    });
+    const detached =
+      walletSubject.provider === "siwe"
+        ? await deleteBetterAuthSiweWallet({
+            address: wallet.address,
+            chainId: Number(wallet.chainScope) || undefined,
+            syntheticEmails: siweSyntheticEmails(wallet.address),
+          })
+        : await deleteBetterAuthSiwsWallet({ address: wallet.address });
     for (const betterAuthUserId of detached.betterAuthUserIds) {
       await revokeAuthIdentity({
         userId: input.userId,
@@ -830,13 +888,28 @@ function signalEventType(signal: SignalRef, suffix: string): string {
   return `identity.${suffix}`;
 }
 
-function siweIdentitySubject(input: {
+function walletIdentitySubject(input: {
   family: WalletFamily;
   address: string;
   linkedVia: LinkedVia;
-}): string | null {
-  if (input.family !== "evm" || input.linkedVia !== "siwe") return null;
-  return `eip155:*:${normalizeWalletAddress("evm", input.address)}`;
+}): { provider: "siwe" | "siws"; subject: string } | null {
+  if (input.family === "evm" && input.linkedVia === "siwe") {
+    return {
+      provider: "siwe",
+      subject: `eip155:*:${normalizeWalletAddress("evm", input.address)}`,
+    };
+  }
+  if (input.family === "svm" && input.linkedVia === "siws") {
+    return {
+      provider: "siws",
+      subject: siwsIdentitySubject(input.address),
+    };
+  }
+  return null;
+}
+
+function siwsIdentitySubject(address: string): string {
+  return `solana:*:${normalizeWalletAddress("svm", address)}`;
 }
 
 function siweSyntheticEmails(address: string): string[] {

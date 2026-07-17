@@ -1,8 +1,6 @@
 export { createDefaultWalletAttesters } from "./providers/default-wallet-attesters";
 
-export {
-  validWalletAddress,
-} from "./providers/wallet-attestation";
+export { validWalletAddress } from "./providers/wallet-attestation";
 
 export {
   ensureAccountSchema,
@@ -16,7 +14,9 @@ export {
   resolveSignal,
   syncProviderAttestedWallets,
   syncProviderWallets,
+  syncBetterAuthWalletsForUser,
   syncSiweWalletsForUser,
+  syncSiwsWalletsForUser,
   unlinkAuthIdentity,
   unlinkWallet,
   updateAccountProfile,

@@ -19,7 +19,7 @@ import {
   pendingSolTxsFromBackendUserState,
   walletSnapshotFromUserState,
 } from "./user-state";
-import type { CliEmbeddedProvider } from "./types";
+import type { CliAAProvider, CliEmbeddedProvider } from "./types";
 
 export type PendingTx = {
   id: string;
@@ -102,8 +102,10 @@ export type SignedSolTx = {
 export type CliAuthSession = {
   sessionToken: string;
   expiresAt: number;
+  walletFamily?: "evm" | "svm";
   walletAddress?: string;
   chainId?: number;
+  chainScope?: string;
   betterAuthUserId?: string;
 };
 
@@ -137,6 +139,7 @@ export type CliSessionState = {
    * command. Never printed in output. */
   svmPrivateKey?: string;
   chainId?: number;
+  aaProvider?: CliAAProvider;
   aaMode?: UserStateAAMode | null;
   smartAccount?: string | null;
   pendingTxs?: PendingTx[];
@@ -346,8 +349,10 @@ function normalizeAuthSession(value: unknown): CliAuthSession | undefined {
   return {
     sessionToken: auth.sessionToken,
     expiresAt: auth.expiresAt,
+    walletFamily: auth.walletFamily,
     walletAddress: auth.walletAddress,
     chainId: auth.chainId,
+    chainScope: auth.chainScope,
     betterAuthUserId: auth.betterAuthUserId,
   };
 }

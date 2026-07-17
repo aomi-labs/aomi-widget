@@ -9,6 +9,7 @@ const queryMocks = vi.hoisted(() => ({
   createAomiUserForBetterAuth: vi.fn(),
   deactivateAomiUser: vi.fn(),
   deleteBetterAuthSiweWallet: vi.fn(),
+  deleteBetterAuthSiwsWallet: vi.fn(),
   findAuthIdentityById: vi.fn(),
   findAomiUserById: vi.fn(),
   findAomiUserByBetterAuthId: vi.fn(),
@@ -16,6 +17,7 @@ const queryMocks = vi.hoisted(() => ({
   findSignalOwner: vi.fn(),
   findWalletById: vi.fn(),
   listBetterAuthSiweWallets: vi.fn(),
+  listBetterAuthSiwsWallets: vi.fn(),
   listWalletsForUser: vi.fn(),
   logAccountEvent: vi.fn(),
   revokeAllAuthIdentitiesForUser: vi.fn(),
@@ -56,15 +58,15 @@ describe("getOrCreateAomiUserForBetterAuthSession adoption", () => {
         createdAt: new Date(),
       },
     ]);
+    queryMocks.listBetterAuthSiwsWallets.mockResolvedValue([]);
     queryMocks.findSignalOwner.mockResolvedValue(null);
     queryMocks.findLegacyBackendUserIdByWallet.mockResolvedValue(legacyUserId);
     queryMocks.createAomiUserForBetterAuth.mockResolvedValue({
       id: legacyUserId,
     });
 
-    const { getOrCreateAomiUserForBetterAuthSession } = await import(
-      "../src/service/account-service"
-    );
+    const { getOrCreateAomiUserForBetterAuthSession } =
+      await import("../src/service/account-service");
 
     const user = await getOrCreateAomiUserForBetterAuthSession({
       betterAuthUserId: "ba-user-1",
@@ -91,6 +93,50 @@ describe("getOrCreateAomiUserForBetterAuthSession adoption", () => {
         provider: "better_auth",
         subject: "ba-user-1",
         db,
+      }),
+    );
+  });
+
+  it("adopts an existing canonical user on first BetterAuth SIWS login", async () => {
+    const canonicalUser = {
+      id: "1f2d9690-10aa-49f2-9f20-067aa8cc9a99",
+    };
+    const db = { tag: "transaction-client" };
+    queryMocks.runAomiAuthSchema.mockResolvedValue(undefined);
+    queryMocks.withTransaction.mockImplementation(async (fn) => fn(db));
+    queryMocks.findAomiUserByBetterAuthId.mockResolvedValue(null);
+    queryMocks.listBetterAuthSiweWallets.mockResolvedValue([]);
+    queryMocks.listBetterAuthSiwsWallets.mockResolvedValue([
+      {
+        betterAuthUserId: "ba-solana-user",
+        address: "CB3XMCCSTp9U9vnQerN8yoqazSt8MPgGvoS1gunYXL8v",
+        createdAt: new Date(),
+      },
+    ]);
+    queryMocks.findSignalOwner.mockResolvedValue(canonicalUser.id);
+    queryMocks.findAomiUserById.mockResolvedValue(canonicalUser);
+
+    const { getOrCreateAomiUserForBetterAuthSession } =
+      await import("../src/service/account-service");
+    const user = await getOrCreateAomiUserForBetterAuthSession({
+      betterAuthUserId: "ba-solana-user",
+    });
+
+    expect(user.id).toBe(canonicalUser.id);
+    expect(queryMocks.findSignalOwner).toHaveBeenCalledWith(
+      {
+        type: "wallet",
+        family: "svm",
+        normalizedAddress: "CB3XMCCSTp9U9vnQerN8yoqazSt8MPgGvoS1gunYXL8v",
+        chainScope: null,
+      },
+      db,
+    );
+    expect(queryMocks.upsertAuthIdentity).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: canonicalUser.id,
+        provider: "better_auth",
+        subject: "ba-solana-user",
       }),
     );
   });

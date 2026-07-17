@@ -317,6 +317,11 @@ export class CliSession {
     this.save();
   }
 
+  setSvmCluster(cluster: NonNullable<CliSessionState["svmCluster"]>): void {
+    this.state.svmCluster = cluster;
+    this.save();
+  }
+
   addSecretHandles(handles: Record<string, string>): void {
     this.state.secretHandles = {
       ...(this.state.secretHandles ?? {}),

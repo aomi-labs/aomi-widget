@@ -44,6 +44,17 @@ Progress:
   Verified focused theme tests, Aomi Build lint/typecheck/production build,
   and live `/build` rendering plus reload persistence in both themes.
 
+- 2026-07-17 BetterAuth Solana CLI parity: added SIWS nonce/verify endpoints to
+  BetterAuth, synchronized verified external Solana wallets into canonical
+  `public_keys`, and added Solana-only login plus authenticated wallet linking
+  to the TypeScript CLI without the legacy backend bind ceremony. Live dev
+  stack E2E covered Solana-only account creation and relogin, EVM-to-Solana
+  linking, login through either wallet into the same canonical user, ownership
+  conflict and last-factor protection, and an authenticated SVM commit followed
+  by local Ed25519 signing and backend completion. Patch-bumped
+  `@aomi-labs/account` to 0.1.1 and `@aomi-labs/client` to 0.3.3. GUI work is
+  intentionally not started yet.
+
 - 2026-07-16 Solana transaction parity: completed the shared HTTP client and
   CLI paths for SVM approval normalization, signing, broadcast, and terminal
   callbacks; added portal wallet binding and a loopback-only injected Solana

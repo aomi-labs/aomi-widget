@@ -5,6 +5,7 @@ import { bearer, mcp, siwe } from "better-auth/plugins";
 import { getPool } from "../db/pool";
 import { readAccountAuthEnv } from "./env";
 import { verifySiweMessage } from "./siwe";
+import { aomiSiwsPlugin } from "./siws";
 import { aomiProviderAuthPlugin } from "./provider-plugin";
 
 const env = readAccountAuthEnv();
@@ -146,6 +147,11 @@ export const auth = betterAuth({
         verifyMessage: verifySiweMessage,
       }),
     ),
+    aomiSiwsPlugin({
+      domain: env.siweDomain,
+      baseUrl: env.betterAuthUrl,
+      getNonce: async () => generateRandomString(32, "a-z", "A-Z", "0-9"),
+    }),
     bearer(),
     // OAuth provider for MCP clients (Claude, Codex): dynamic client
     // registration + PKCE + access tokens. `withMcpAuth` on the /api/mcp

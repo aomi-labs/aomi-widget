@@ -4296,8 +4296,10 @@ function normalizeAuthSession(value) {
   return {
     sessionToken: auth.sessionToken,
     expiresAt: auth.expiresAt,
+    walletFamily: auth.walletFamily,
     walletAddress: auth.walletAddress,
     chainId: auth.chainId,
+    chainScope: auth.chainScope,
     betterAuthUserId: auth.betterAuthUserId
   };
 }
@@ -4655,9 +4657,7 @@ async function signInWithCliSiwe({
   const verifyBody = await verifyResponse.json().catch(() => ({}));
   const sessionToken = (_c = getSessionTokenHeader(verifyResponse.headers)) != null ? _c : typeof verifyBody.token === "string" ? verifyBody.token : "";
   if (!sessionToken) {
-    throw new Error(
-      "SIWE verify response is missing BetterAuth session token"
-    );
+    throw new Error("SIWE verify response is missing BetterAuth session token");
   }
   const accountInfo = await fetchPortalAccount(
     fetchImpl,
@@ -4670,10 +4670,152 @@ async function signInWithCliSiwe({
     auth: {
       sessionToken,
       expiresAt,
+      walletFamily: "evm",
       walletAddress: typeof ((_f = verifyBody.user) == null ? void 0 : _f.walletAddress) === "string" ? verifyBody.user.walletAddress : address3,
       chainId: typeof ((_g = verifyBody.user) == null ? void 0 : _g.chainId) === "number" ? verifyBody.user.chainId : chainId3,
       betterAuthUserId: typeof ((_h = accountInfo == null ? void 0 : accountInfo.session) == null ? void 0 : _h.betterAuthUserId) === "string" ? accountInfo.session.betterAuthUserId : typeof verifyBody.user_id === "string" ? verifyBody.user_id : typeof ((_i = verifyBody.user) == null ? void 0 : _i.id) === "string" ? verifyBody.user.id : void 0
     }
+  };
+}
+async function signInWithCliSiws({
+  baseUrl,
+  privateKey,
+  chainId: chainId3 = DEFAULT_SVM_CLUSTER,
+  fetch: fetchImpl = fetch,
+  now = Date.now
+}) {
+  var _a3, _b, _c;
+  const keypair = parseSolanaKeypairSecret(privateKey);
+  const address3 = keypair.publicKey.toBase58();
+  const result = await performCliSiws({
+    baseUrl,
+    address: address3,
+    chainId: chainId3,
+    intent: "sign-in",
+    signMessage: (message) => signSolanaMessage(
+      Buffer.from(message, "utf8").toString("base64"),
+      keypair
+    ).signatureBase64,
+    fetch: fetchImpl,
+    now
+  });
+  if (!result.sessionToken) {
+    throw new Error("SIWS verify response is missing BetterAuth session token");
+  }
+  const accountInfo = await fetchPortalAccount(
+    fetchImpl,
+    normalizeBaseUrl(baseUrl),
+    result.sessionToken
+  );
+  const expiresAt = (_b = parseExpiresAt((_a3 = accountInfo == null ? void 0 : accountInfo.session) == null ? void 0 : _a3.expiresAt)) != null ? _b : now() + DEFAULT_SESSION_TTL_MS;
+  return {
+    address: address3,
+    chainId: chainId3,
+    auth: {
+      sessionToken: result.sessionToken,
+      expiresAt,
+      walletFamily: "svm",
+      walletAddress: address3,
+      chainScope: chainId3,
+      betterAuthUserId: typeof ((_c = accountInfo == null ? void 0 : accountInfo.session) == null ? void 0 : _c.betterAuthUserId) === "string" ? accountInfo.session.betterAuthUserId : result.betterAuthUserId
+    }
+  };
+}
+async function linkCliSiwsWallet(input2) {
+  var _a3, _b, _c;
+  const keypair = parseSolanaKeypairSecret(input2.privateKey);
+  const address3 = keypair.publicKey.toBase58();
+  const chainId3 = (_a3 = input2.chainId) != null ? _a3 : DEFAULT_SVM_CLUSTER;
+  const result = await performCliSiws({
+    baseUrl: input2.baseUrl,
+    address: address3,
+    chainId: chainId3,
+    intent: "link",
+    sessionToken: input2.sessionToken,
+    signMessage: (message) => signSolanaMessage(
+      Buffer.from(message, "utf8").toString("base64"),
+      keypair
+    ).signatureBase64,
+    fetch: (_b = input2.fetch) != null ? _b : fetch,
+    now: (_c = input2.now) != null ? _c : Date.now
+  });
+  return {
+    status: result.status === "noop" ? "noop" : "linked",
+    address: address3,
+    chainId: chainId3
+  };
+}
+async function performCliSiws(input2) {
+  var _a3, _b, _c, _d;
+  const portalUrl = normalizeBaseUrl(input2.baseUrl);
+  const headers = new Headers({
+    Accept: "application/json",
+    "Content-Type": "application/json"
+  });
+  if (input2.sessionToken) {
+    headers.set("Authorization", `Bearer ${input2.sessionToken}`);
+  }
+  const nonceHttpResponse = await input2.fetch(
+    joinUrl(portalUrl, "/api/auth/siws/nonce"),
+    {
+      method: "POST",
+      headers,
+      credentials: "include",
+      body: JSON.stringify({
+        walletAddress: input2.address,
+        chainId: input2.chainId,
+        intent: input2.intent
+      })
+    }
+  );
+  if (!nonceHttpResponse.ok) {
+    throw new Error(
+      `SIWS nonce failed: HTTP ${nonceHttpResponse.status} ${await safeResponseText(
+        nonceHttpResponse
+      )}`
+    );
+  }
+  const nonceResponse = await nonceHttpResponse.json();
+  const nonce = typeof nonceResponse.nonce === "string" ? nonceResponse.nonce : "";
+  if (!nonce) throw new Error("SIWS nonce response is missing nonce");
+  const message = buildSiwsMessage({
+    address: input2.address,
+    chainId: input2.chainId,
+    nonce,
+    intent: input2.intent,
+    domain: (_a3 = normalizeDomain(nonceResponse.domain)) != null ? _a3 : domainFromBaseUrl(portalUrl),
+    uri: (_b = normalizeUri(nonceResponse.uri)) != null ? _b : portalUrl,
+    issuedAt: new Date(input2.now())
+  });
+  const signature = input2.signMessage(message);
+  const verifyResponse = await input2.fetch(
+    joinUrl(portalUrl, "/api/auth/siws/verify"),
+    {
+      method: "POST",
+      headers,
+      credentials: "include",
+      body: JSON.stringify({
+        message,
+        signature,
+        walletAddress: input2.address,
+        chainId: input2.chainId,
+        intent: input2.intent
+      })
+    }
+  );
+  if (!verifyResponse.ok) {
+    throw new Error(
+      `SIWS verify failed: HTTP ${verifyResponse.status} ${await safeResponseText(
+        verifyResponse
+      )}`
+    );
+  }
+  const body = await verifyResponse.json().catch(() => ({}));
+  const status = body.status === "noop" ? "noop" : "linked";
+  return {
+    sessionToken: (_c = getSessionTokenHeader(verifyResponse.headers)) != null ? _c : typeof body.token === "string" ? body.token : void 0,
+    betterAuthUserId: typeof ((_d = body.user) == null ? void 0 : _d.id) === "string" ? body.user.id : void 0,
+    status
   };
 }
 async function signOutCliSession(input2) {
@@ -4711,6 +4853,21 @@ Version: 1
 Chain ID: ${input2.chainId}
 Nonce: ${input2.nonce}
 Issued At: ${(/* @__PURE__ */ new Date()).toISOString()}`;
+}
+function buildSiwsMessage(input2) {
+  var _a3;
+  const action = input2.intent === "link" ? "link" : "sign in with";
+  const statement = input2.intent === "link" ? "Only sign this message if you want this Solana wallet attached to the current Aomi account." : "Sign in to Aomi.";
+  return `${input2.domain} wants you to ${action} your Solana account:
+${input2.address}
+
+${statement}
+
+URI: ${input2.uri}
+Version: 1
+Chain ID: ${input2.chainId}
+Nonce: ${input2.nonce}
+Issued At: ${((_a3 = input2.issuedAt) != null ? _a3 : /* @__PURE__ */ new Date()).toISOString()}`;
 }
 function normalizeBaseUrl(baseUrl) {
   const trimmed = baseUrl.trim().replace(/\/+$/, "");
@@ -4803,11 +4960,13 @@ async function safeResponseText(response) {
   const text = await response.text().catch(() => "");
   return text ? `- ${text}` : "";
 }
-var DEFAULT_CHAIN_ID, DEFAULT_SESSION_TTL_MS, AUTH_REFRESH_SKEW_MS, SESSION_TOKEN_HEADERS;
+var DEFAULT_CHAIN_ID, DEFAULT_SVM_CLUSTER, DEFAULT_SESSION_TTL_MS, AUTH_REFRESH_SKEW_MS, SESSION_TOKEN_HEADERS;
 var init_auth = __esm({
   "src/cli/auth.ts"() {
     "use strict";
+    init_solana_signer();
     DEFAULT_CHAIN_ID = 1;
+    DEFAULT_SVM_CLUSTER = "solana:mainnet";
     DEFAULT_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1e3;
     AUTH_REFRESH_SKEW_MS = 30 * 1e3;
     SESSION_TOKEN_HEADERS = ["set-auth-token", "x-auth-token", "auth-token"];
@@ -5227,6 +5386,10 @@ var init_cli_session = __esm({
       }
       setChainId(id) {
         this.state.chainId = id;
+        this.save();
+      }
+      setSvmCluster(cluster) {
+        this.state.svmCluster = cluster;
         this.save();
       }
       addSecretHandles(handles) {
@@ -9790,6 +9953,13 @@ async function accountLoginCommand(config, options = {}) {
   if (rewroteLegacyBackend && !config.json) {
     console.log(`Backend updated to ${DEFAULT_CLI_BASE_URL}`);
   }
+  if (options.solana && (options.wallet || options.provider)) {
+    fatal("Choose only one of `--solana`, `--wallet`, or `--provider`.");
+  }
+  if (options.solana) {
+    await accountLoginWithSiws(cli, config);
+    return;
+  }
   if (options.wallet || options.noBrowser || config.privateKey) {
     await accountLoginWithSiwe(cli, config);
     return;
@@ -9816,6 +9986,40 @@ async function accountLoginCommand(config, options = {}) {
   console.log(
     `Signed in${result.provider ? ` with ${formatProvider(result.provider)}` : ""}`
   );
+  console.log(
+    `Session expires at ${new Date(result.auth.expiresAt).toISOString()}`
+  );
+  printDataFileLocation({ verbose: config.verbose });
+}
+async function accountLoginWithSiws(cli, config) {
+  var _a3, _b, _c;
+  const privateKey = (_a3 = cli.resolvedSvmPrivateKey(config.solanaPrivateKey)) != null ? _a3 : process.env.SOLANA_PRIVATE_KEY;
+  if (!privateKey) {
+    fatal(
+      "No Solana private key configured.\nRun `aomi wallet set --solana <solana-private-key>` or pass `--solana-private-key`."
+    );
+  }
+  const chainId3 = (_c = (_b = config.svmCluster) != null ? _b : cli.svmCluster) != null ? _c : "solana:mainnet";
+  const result = await signInWithCliSiws({
+    baseUrl: cli.baseUrl,
+    privateKey,
+    chainId: chainId3
+  });
+  cli.setSvmWallet(privateKey, result.address);
+  cli.setSvmCluster(chainId3);
+  cli.setAuthSession(result.auth);
+  if (config.json) {
+    printJson({
+      status: "signed_in",
+      provider: "siws",
+      address: result.address,
+      chainId: chainId3,
+      baseUrl: cli.baseUrl,
+      expiresAt: new Date(result.auth.expiresAt).toISOString()
+    });
+    return;
+  }
+  console.log(`Signed in with Solana wallet ${result.address}`);
   console.log(
     `Session expires at ${new Date(result.auth.expiresAt).toISOString()}`
   );
@@ -9946,19 +10150,51 @@ async function accountLinksCommand(config) {
   printDataFileLocation({ verbose: config.verbose });
 }
 async function accountLinkCommand(config, options = {}) {
-  var _a3, _b;
+  var _a3, _b, _c, _d, _e;
   const cli = loadMergedCli(config);
   const client = requireAccountGraphClient(cli);
   const provider = normalizeProviderOption(options.provider);
-  const wantsWallet = options.wallet || !provider;
-  if (provider && options.wallet) {
-    fatal("Choose either `--provider` or `--wallet`.");
+  const wantsWallet = options.wallet || !provider && !options.solana;
+  if ([
+    Boolean(provider),
+    Boolean(options.wallet),
+    Boolean(options.solana)
+  ].filter(Boolean).length > 1) {
+    fatal("Choose only one of `--provider`, `--wallet`, or `--solana`.");
+  }
+  if (options.solana) {
+    const privateKey = (_a3 = cli.resolvedSvmPrivateKey(config.solanaPrivateKey)) != null ? _a3 : process.env.SOLANA_PRIVATE_KEY;
+    if (!privateKey) {
+      fatal(
+        "No Solana private key configured.\nRun `aomi wallet set --solana <solana-private-key>` or pass `--solana-private-key`."
+      );
+    }
+    const chainId3 = (_c = (_b = config.svmCluster) != null ? _b : cli.svmCluster) != null ? _c : "solana:mainnet";
+    const result = await linkCliSiwsWallet({
+      baseUrl: cli.baseUrl,
+      sessionToken: cli.auth.sessionToken,
+      privateKey,
+      chainId: chainId3
+    });
+    cli.setSvmWallet(privateKey, result.address);
+    cli.setSvmCluster(chainId3);
+    const account = await client.getAccount();
+    if (config.json) {
+      printJson(__spreadProps(__spreadValues({}, result), { account }));
+      return;
+    }
+    console.log(
+      result.status === "noop" ? `Solana login method already linked for ${result.address}` : `Linked Solana wallet login method ${result.address}`
+    );
+    printAccountLinks(account);
+    printDataFileLocation({ verbose: config.verbose });
+    return;
   }
   if (provider) {
     const result = await getDeviceProviderCredential({
       baseUrl: cli.baseUrl,
       provider,
-      sessionToken: (_b = (_a3 = cli.auth) == null ? void 0 : _a3.sessionToken) != null ? _b : ""
+      sessionToken: (_e = (_d = cli.auth) == null ? void 0 : _d.sessionToken) != null ? _e : ""
     });
     if (result.status === "conflict") {
       fatal("This login method is already linked to another Aomi account.");
@@ -10957,6 +11193,10 @@ var accountLoginDef = defineCommand8({
       type: "boolean",
       description: "Use native CLI SIWE with the configured EVM wallet"
     },
+    solana: {
+      type: "boolean",
+      description: "Use native CLI SIWS with the configured Solana wallet"
+    },
     "no-browser": {
       type: "boolean",
       description: "Do not open provider auth; use native CLI SIWE"
@@ -10967,6 +11207,7 @@ var accountLoginDef = defineCommand8({
     await accountLoginCommand2(buildCliConfig(args), {
       provider: typeof args.provider === "string" ? args.provider : void 0,
       wallet: args.wallet === true,
+      solana: args.solana === true,
       noBrowser: args["no-browser"] === true
     });
   }
@@ -11018,6 +11259,10 @@ var accountLinkDef = defineCommand8({
       type: "boolean",
       description: "Link an EVM wallet with SIWE (default)"
     },
+    solana: {
+      type: "boolean",
+      description: "Link a Solana wallet with SIWS"
+    },
     label: {
       type: "string",
       description: "Optional display label for the linked wallet"
@@ -11028,6 +11273,7 @@ var accountLinkDef = defineCommand8({
     await accountLinkCommand2(buildCliConfig(args), {
       provider: typeof args.provider === "string" ? args.provider : void 0,
       wallet: args.wallet === true,
+      solana: args.solana === true,
       label: typeof args.label === "string" ? args.label : void 0
     });
   }
@@ -11261,7 +11507,7 @@ init_shared();
 // package.json
 var package_default = {
   name: "@aomi-labs/client",
-  version: "0.3.2",
+  version: "0.3.3",
   description: "Platform-agnostic TypeScript client for the Aomi backend API",
   type: "module",
   main: "./dist/index.cjs",
