@@ -10,7 +10,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { CheckCircle2, Loader2 } from "lucide-react";
+import { Icons, PortalIcon } from "@portal/components/icons";
 import { useSearchParams } from "next/navigation";
 import { AomiWalletKitProvider, useAomiWalletKit } from "@aomi-labs/widget-lib";
 
@@ -288,9 +288,9 @@ function DeviceAuthProviderPanel({
           type="button"
         >
           {complete ? (
-            <CheckCircle2 className="h-4 w-4" />
+            <PortalIcon icon={Icons.CheckCircle2} size={16} className="h-4 w-4" />
           ) : pending ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <PortalIcon icon={Icons.Loader2} size={16} className="h-4 w-4 animate-spin" />
           ) : null}
           Continue with {providerLabels[provider]}
         </button>
@@ -309,7 +309,7 @@ function DeviceAuthLayout({
   return (
     <main className="bg-background text-foreground flex min-h-screen items-center justify-center p-6">
       <section className="w-full max-w-sm">
-        <h1 className="text-2xl font-semibold tracking-tight">
+        <h1 className="text-2xl font-medium tracking-tight">
           Sign in to Aomi CLI
         </h1>
         <p className="text-muted-foreground mt-3 min-h-10 text-sm">{status}</p>

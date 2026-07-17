@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { CheckCircle2 } from "lucide-react";
+import { Icons, PortalIcon } from "@portal/components/icons";
 import { useAomiAuthAdapter } from "@aomi-labs/widget-lib";
 import {
   githubAppInstallUrl,
@@ -263,7 +263,7 @@ export function Onboarding({
 function InstallSuccessBanner() {
   return (
     <div className="mb-4 rounded-2xl border border-green-500/40 bg-green-500/10 p-3 text-sm text-green-600">
-      <CheckCircle2 className="-mt-0.5 mr-1.5 inline-block h-4 w-4 align-middle" />
+      <PortalIcon icon={Icons.CheckCircle2} size={16} className="-mt-0.5 mr-1.5 inline-block h-4 w-4 align-middle" />
       GitHub App installed successfully
     </div>
   );

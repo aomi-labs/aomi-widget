@@ -1,17 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  AlertTriangle,
-  CheckCircle2,
-  ChevronDown,
-  ChevronRight,
-  Copy,
-  ExternalLink,
-  Loader2,
-  Play,
-  RotateCcw,
-} from "lucide-react";
+import { Icons, PortalIcon } from "@portal/components/icons";
 import { Button } from "@aomi-labs/widget-lib";
 import {
   launchActivate,
@@ -502,7 +492,7 @@ export function DeployStep({
     return (
       <div className="space-y-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
         <div className="text-foreground flex items-start gap-2">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+          <PortalIcon icon={Icons.AlertTriangle} size={16} className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
           <div>
             <div className="font-medium">Deployment needs attention</div>
             <div className="text-muted-foreground mt-0.5 break-words text-xs">
@@ -515,14 +505,14 @@ export function DeployStep({
             onClick={reset}
             className="h-8 rounded-full px-3 text-xs font-medium"
           >
-            <RotateCcw className="mr-1 h-3.5 w-3.5" /> Retry
+            <PortalIcon icon={Icons.RotateCcw} size={16} className="mr-1 h-3.5 w-3.5" /> Retry
           </Button>
           {repo && onReconnectInstall && (
             <Button
               onClick={onReconnectInstall}
               className="h-8 rounded-full px-3 text-xs font-medium"
             >
-              <RotateCcw className="mr-1 h-3.5 w-3.5" />
+              <PortalIcon icon={Icons.RotateCcw} size={16} className="mr-1 h-3.5 w-3.5" />
               Verify existing install
             </Button>
           )}
@@ -553,9 +543,9 @@ export function DeployStep({
           className="h-9 rounded-full px-3 text-sm font-medium"
         >
           {phase === "preflight_running" ? (
-            <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+            <PortalIcon icon={Icons.Loader2} size={16} className="mr-1 h-4 w-4 animate-spin" />
           ) : (
-            <Play className="mr-1 h-4 w-4" />
+            <PortalIcon icon={Icons.Play} size={16} className="mr-1 h-4 w-4" />
           )}
           Preflight
         </Button>
@@ -572,9 +562,9 @@ export function DeployStep({
           className="h-9 rounded-full px-3 text-sm font-medium"
         >
           {phase === "deploying" ? (
-            <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+            <PortalIcon icon={Icons.Loader2} size={16} className="mr-1 h-4 w-4 animate-spin" />
           ) : (
-            <Play className="mr-1 h-4 w-4" />
+            <PortalIcon icon={Icons.Play} size={16} className="mr-1 h-4 w-4" />
           )}
           Deploy
         </Button>
@@ -584,9 +574,9 @@ export function DeployStep({
           className="h-9 rounded-full px-3 text-sm font-medium"
         >
           {phase === "activating" || phase === "verifying" ? (
-            <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+            <PortalIcon icon={Icons.Loader2} size={16} className="mr-1 h-4 w-4 animate-spin" />
           ) : (
-            <CheckCircle2 className="mr-1 h-4 w-4" />
+            <PortalIcon icon={Icons.CheckCircle2} size={16} className="mr-1 h-4 w-4" />
           )}
           Activate
         </Button>
@@ -595,7 +585,7 @@ export function DeployStep({
             onClick={reset}
             className="h-9 rounded-full px-3 text-sm font-medium"
           >
-            <RotateCcw className="mr-1 h-3.5 w-3.5" /> Start Over
+            <PortalIcon icon={Icons.RotateCcw} size={16} className="mr-1 h-3.5 w-3.5" /> Start Over
           </Button>
         )}
       </div>
@@ -613,7 +603,7 @@ export function DeployStep({
           "activating",
           "verifying",
         ].includes(phase) && (
-          <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+          <PortalIcon icon={Icons.Loader2} size={16} className="h-4 w-4 animate-spin text-blue-500" />
         )}
         {phase === "idle" &&
           "Run a preflight to preview the deployment manifest."}
@@ -650,7 +640,7 @@ export function DeployStep({
             className="hover:text-foreground inline-flex items-center gap-0.5"
             title="Copy deployment ID"
           >
-            <Copy className="h-3 w-3" />
+            <PortalIcon icon={Icons.Copy} size={16} className="h-3 w-3" />
             {copied && (
               <span className="text-[10px] text-green-500">copied</span>
             )}
@@ -751,7 +741,7 @@ function DeploymentSummary({
               rel="noreferrer"
               className="text-foreground inline-flex items-center gap-1 underline"
             >
-              Open CI <ExternalLink className="h-3.5 w-3.5" />
+              Open CI <PortalIcon icon={Icons.ExternalLink} size={16} className="h-3.5 w-3.5" />
             </a>
           )}
           {prUrl && (
@@ -762,7 +752,7 @@ function DeploymentSummary({
               className="text-foreground inline-flex items-center gap-1 underline"
             >
               Open PR{prNumber ? ` #${prNumber}` : ""}{" "}
-              <ExternalLink className="h-3.5 w-3.5" />
+              <PortalIcon icon={Icons.ExternalLink} size={16} className="h-3.5 w-3.5" />
             </a>
           )}
         </div>
@@ -784,9 +774,9 @@ function DeploymentSummary({
         className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-xs"
       >
         {showManifest ? (
-          <ChevronDown className="h-3.5 w-3.5" />
+          <PortalIcon icon={Icons.ChevronDown} size={16} className="h-3.5 w-3.5" />
         ) : (
-          <ChevronRight className="h-3.5 w-3.5" />
+          <PortalIcon icon={Icons.ChevronRight} size={16} className="h-3.5 w-3.5" />
         )}
         deployment.json
       </button>
@@ -821,9 +811,9 @@ function StepTrack({ phase }: { phase: Phase }) {
           >
             <span className="flex size-4 items-center justify-center">
               {status === "active" ? (
-                <Loader2 className="size-3.5 animate-spin text-blue-500" />
+                <PortalIcon icon={Icons.Loader2} size={14} className="animate-spin text-blue-500" />
               ) : status === "done" ? (
-                <CheckCircle2 className="size-3.5 text-green-500" />
+                <PortalIcon icon={Icons.CheckCircle2} size={14} className="text-green-500" />
               ) : (
                 <span className="bg-muted-foreground/40 size-2 rounded-full" />
               )}

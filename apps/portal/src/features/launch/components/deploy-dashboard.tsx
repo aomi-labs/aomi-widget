@@ -1,21 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  AlertTriangle,
-  CheckCircle2,
-  Clock3,
-  Info,
-  ExternalLink,
-  Github,
-  Loader2,
-  LogOut,
-  Play,
-  Plus,
-  RefreshCw,
-  RotateCcw,
-  XCircle,
-} from "lucide-react";
+import { Icons, PortalIcon } from "@portal/components/icons";
 import { Button } from "@aomi-labs/widget-lib";
 import {
   fetchGitHubSession,
@@ -108,7 +94,7 @@ function SignInGate() {
   return (
     <div className="space-y-6">
       <header className="space-y-2">
-        <h1 className="text-foreground text-2xl font-semibold tracking-tight">
+        <h1 className="text-foreground text-2xl font-medium tracking-tight">
           Deploy an example agent
         </h1>
         <p className="text-muted-foreground text-sm">
@@ -120,7 +106,7 @@ function SignInGate() {
         href={GITHUB_SIGNIN_URL}
         className="bg-foreground text-background inline-flex h-11 items-center gap-2 rounded-full px-5 text-sm font-medium"
       >
-        <Github className="h-4 w-4" /> Sign in with GitHub
+        <PortalIcon icon={Icons.Github} size={16} className="h-4 w-4" /> Sign in with GitHub
       </a>
 
       <div className="pointer-events-none opacity-50">
@@ -280,7 +266,7 @@ function SignedInDashboard({
           onClick={() => setShowInstall(true)}
           className="h-9 rounded-full px-3 text-sm font-medium"
         >
-          <Plus className="mr-1 h-4 w-4" /> Deploy another
+          <PortalIcon icon={Icons.Plus} size={16} className="mr-1 h-4 w-4" /> Deploy another
         </Button>
       </div>
       <div className="space-y-4">
@@ -302,7 +288,7 @@ function SdkStatusPanel({
   if (error) {
     return (
       <div className="border-destructive/30 bg-destructive/10 flex items-start gap-2 rounded-lg border p-3">
-        <AlertTriangle className="text-destructive mt-0.5 h-4 w-4 shrink-0" />
+        <PortalIcon icon={Icons.AlertTriangle} size={16} className="text-destructive mt-0.5 h-4 w-4 shrink-0" />
         <div>
           <div className="text-foreground text-sm font-medium">
             SDK status unavailable
@@ -315,7 +301,7 @@ function SdkStatusPanel({
   if (!status) {
     return (
       <div className="border-input flex items-center gap-2 rounded-lg border p-3">
-        <Loader2 className="text-muted-foreground h-4 w-4 animate-spin" />
+        <PortalIcon icon={Icons.Loader2} size={16} className="text-muted-foreground h-4 w-4 animate-spin" />
         <span className="text-muted-foreground text-sm">
           Checking backend SDK version…
         </span>
@@ -326,7 +312,7 @@ function SdkStatusPanel({
   return (
     <div className="border-input flex flex-col gap-2 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex items-start gap-2">
-        <Info className="text-muted-foreground mt-0.5 h-4 w-4 shrink-0" />
+        <PortalIcon icon={Icons.Info} size={16} className="text-muted-foreground mt-0.5 h-4 w-4 shrink-0" />
         <div>
           <div className="text-foreground text-sm font-medium">
             Backend requires aomi-sdk {required || "unknown"}
@@ -357,7 +343,7 @@ function DashboardHeader({
   return (
     <header className="flex items-center justify-between gap-2">
       <div className="flex items-center gap-2">
-        <Github className="text-muted-foreground h-4 w-4" />
+        <PortalIcon icon={Icons.Github} size={16} className="text-muted-foreground h-4 w-4" />
         <span className="text-foreground text-sm font-medium">
           {login ? `@${login}` : "Signed in with GitHub"}
         </span>
@@ -369,14 +355,14 @@ function DashboardHeader({
           title="Refresh"
           className="text-muted-foreground hover:text-foreground inline-flex h-8 w-8 items-center justify-center rounded-full"
         >
-          <RefreshCw className="h-4 w-4" />
+          <PortalIcon icon={Icons.RefreshCw} size={16} className="h-4 w-4" />
         </button>
         <button
           type="button"
           onClick={onSignOut}
           className="text-muted-foreground hover:text-foreground inline-flex h-8 items-center gap-1 rounded-full px-2 text-xs"
         >
-          <LogOut className="h-3.5 w-3.5" /> Sign out
+          <PortalIcon icon={Icons.LogOut} size={16} className="h-3.5 w-3.5" /> Sign out
         </button>
       </div>
     </header>
@@ -397,7 +383,7 @@ function LaunchContextMismatch({
   return (
     <div className="space-y-4 rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4">
       <div className="flex items-start gap-2">
-        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+        <PortalIcon icon={Icons.AlertTriangle} size={16} className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
         <div className="space-y-2">
           <h2 className="text-foreground text-sm font-medium">
             This deploy link does not match the signed-in GitHub account.
@@ -435,13 +421,13 @@ function LaunchContextMismatch({
           onClick={onSignOut}
           className="h-9 rounded-full px-3 text-sm font-medium"
         >
-          <LogOut className="mr-1 h-4 w-4" /> Sign out
+          <PortalIcon icon={Icons.LogOut} size={16} className="mr-1 h-4 w-4" /> Sign out
         </Button>
         <Button
           onClick={onRefresh}
           className="h-9 rounded-full px-3 text-sm font-medium"
         >
-          <RefreshCw className="mr-1 h-4 w-4" /> Refresh
+          <PortalIcon icon={Icons.RefreshCw} size={16} className="mr-1 h-4 w-4" /> Refresh
         </Button>
       </div>
     </div>
@@ -582,17 +568,17 @@ function LifecycleBadge({ lifecycle }: { lifecycle: DeploymentLifecycle }) {
         : lifecycle.statusTone === "warning"
           ? "bg-amber-500/10 text-amber-500"
           : "bg-muted text-muted-foreground";
-  const Icon =
+  const icon =
     lifecycle.statusTone === "good"
-      ? CheckCircle2
+      ? Icons.CheckCircle2
       : lifecycle.statusTone === "bad"
-        ? XCircle
-        : Clock3;
+        ? Icons.XCircle
+        : Icons.Clock3;
   return (
     <span
       className={`${toneClass} inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium`}
     >
-      <Icon className="h-3.5 w-3.5" />
+      <PortalIcon icon={icon} size={14} />
       {lifecycle.statusLabel}
     </span>
   );
@@ -686,7 +672,7 @@ function LifecyclePanel({
     <div className="space-y-4 text-sm">
       <div className="text-muted-foreground flex items-center gap-2 text-xs">
         {lifecycle.kind === "building" && (
-          <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+          <PortalIcon icon={Icons.Loader2} size={16} className="h-4 w-4 animate-spin text-blue-500" />
         )}
         {lifecycle.message}
       </div>
@@ -711,9 +697,9 @@ function LifecyclePanel({
             className="h-9 rounded-full px-3 text-sm font-medium"
           >
             {action === "activating" ? (
-              <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+              <PortalIcon icon={Icons.Loader2} size={16} className="mr-1 h-4 w-4 animate-spin" />
             ) : (
-              <CheckCircle2 className="mr-1 h-4 w-4" />
+              <PortalIcon icon={Icons.CheckCircle2} size={16} className="mr-1 h-4 w-4" />
             )}
             Activate
           </Button>
@@ -725,9 +711,9 @@ function LifecyclePanel({
             className="h-9 rounded-full px-3 text-sm font-medium"
           >
             {action === "redeploying" ? (
-              <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+              <PortalIcon icon={Icons.Loader2} size={16} className="mr-1 h-4 w-4 animate-spin" />
             ) : (
-              <RotateCcw className="mr-1 h-4 w-4" />
+              <PortalIcon icon={Icons.RotateCcw} size={16} className="mr-1 h-4 w-4" />
             )}
             Redeploy
           </Button>
@@ -737,7 +723,7 @@ function LifecyclePanel({
             disabled
             className="h-9 rounded-full px-3 text-sm font-medium"
           >
-            <Play className="mr-1 h-4 w-4" />
+            <PortalIcon icon={Icons.Play} size={16} className="mr-1 h-4 w-4" />
             Deploying
           </Button>
         )}
@@ -845,7 +831,7 @@ function LifecycleLinks({ lifecycle }: { lifecycle: DeploymentLifecycle }) {
           rel="noreferrer"
           className="text-foreground inline-flex items-center gap-1 underline"
         >
-          Open branch <ExternalLink className="h-3.5 w-3.5" />
+          Open branch <PortalIcon icon={Icons.ExternalLink} size={16} className="h-3.5 w-3.5" />
         </a>
       )}
       {lifecycle.ciUrl && (
@@ -855,7 +841,7 @@ function LifecycleLinks({ lifecycle }: { lifecycle: DeploymentLifecycle }) {
           rel="noreferrer"
           className="text-foreground inline-flex items-center gap-1 underline"
         >
-          Open CI <ExternalLink className="h-3.5 w-3.5" />
+          Open CI <PortalIcon icon={Icons.ExternalLink} size={16} className="h-3.5 w-3.5" />
         </a>
       )}
     </div>
@@ -918,7 +904,7 @@ function ChatEmbed({
 function CenteredSpinner({ label }: { label: string }) {
   return (
     <div className="text-muted-foreground flex items-center gap-2 p-6 text-sm">
-      <Loader2 className="h-4 w-4 animate-spin" /> {label}
+      <PortalIcon icon={Icons.Loader2} size={16} className="h-4 w-4 animate-spin" /> {label}
     </div>
   );
 }
@@ -926,7 +912,7 @@ function CenteredSpinner({ label }: { label: string }) {
 function ErrorBanner({ message }: { message: string }) {
   return (
     <div className="flex items-start gap-2 rounded-2xl border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-600">
-      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+      <PortalIcon icon={Icons.AlertTriangle} size={16} className="mt-0.5 h-4 w-4 shrink-0" />
       <span className="break-words">{message}</span>
     </div>
   );

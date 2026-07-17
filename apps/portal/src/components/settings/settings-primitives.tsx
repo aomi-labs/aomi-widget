@@ -27,7 +27,7 @@ export function SettingsPanel({
       <div className="border-border/50 shrink-0 border-b px-5 py-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h2 className="text-foreground text-[17px] font-semibold tracking-tight">
+            <h2 className="text-foreground text-[17px] font-medium tracking-tight">
               {title}
             </h2>
             {description ? (

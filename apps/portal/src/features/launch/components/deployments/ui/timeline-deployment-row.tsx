@@ -1,4 +1,4 @@
-import { GitCommitHorizontal, RotateCcw } from "lucide-react";
+import { Icons, PortalIcon } from "@portal/components/icons";
 import type { TimelineDeployment } from "../deployment-timeline";
 
 /** Deployment row rendered purely from the DB promotion records (no GitHub
@@ -43,7 +43,7 @@ export function TimelineDeploymentRow({
         </div>
         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-500">
           <span className="aomi-numeric inline-flex items-center gap-1">
-            <GitCommitHorizontal className="size-3.5" aria-hidden />
+            <PortalIcon icon={Icons.GitCommitHorizontal} size={14} aria-hidden />
             {commit ?? "unknown"}
           </span>
           <span>{apps.join(", ") || "no apps"}</span>
@@ -67,7 +67,7 @@ export function TimelineDeploymentRow({
             className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-2.5 text-xs font-medium text-zinc-800 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
             title="Promote this deployment to live"
           >
-            <RotateCcw className="size-3.5" aria-hidden />
+            <PortalIcon icon={Icons.RotateCcw} size={14} aria-hidden />
             Promote
           </button>
         )}

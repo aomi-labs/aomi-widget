@@ -1,7 +1,7 @@
 "use client";
 
 import { Component, type ErrorInfo, type ReactNode } from "react";
-import { AlertTriangle, RotateCcw } from "lucide-react";
+import { Icons, PortalIcon } from "@portal/components/icons";
 
 interface Props {
   children: ReactNode;
@@ -32,7 +32,7 @@ export class ErrorBoundary extends Component<Props, State> {
         this.props.fallback ?? (
           <div className="space-y-3 rounded-lg border border-red-500/40 bg-red-500/10 p-4 text-sm">
             <div className="text-foreground flex items-start gap-2">
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
+              <PortalIcon icon={Icons.AlertTriangle} size={16} className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
               <div>
                 <div className="font-medium">Something went wrong</div>
                 <div className="text-muted-foreground mt-0.5 break-words text-xs">
@@ -45,7 +45,7 @@ export class ErrorBoundary extends Component<Props, State> {
               onClick={() => this.setState({ error: null })}
               className="inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-xs font-medium"
             >
-              <RotateCcw className="h-3.5 w-3.5" /> Try again
+              <PortalIcon icon={Icons.RotateCcw} size={16} className="h-3.5 w-3.5" /> Try again
             </button>
           </div>
         )

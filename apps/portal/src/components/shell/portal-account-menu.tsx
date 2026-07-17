@@ -2,13 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import {
-  BookOpen,
-  CircleUserRound,
-  LogOut,
-  Rocket,
-  Settings,
-} from "lucide-react";
+import { Icons, PortalIcon } from "@portal/components/icons";
 import { useAomiWalletKit } from "@aomi-labs/widget-lib";
 import { useSettingsController } from "@portal/components/settings/settings-controller";
 import { useAccountSummary } from "@portal/components/settings/use-account-summary";
@@ -56,11 +50,11 @@ export function PortalAccountMenu() {
         )}
       >
         {summary.connected && summary.address ? (
-          <span className="bg-foreground/10 text-foreground flex size-6 items-center justify-center rounded-full text-[10px] font-semibold">
+          <span className="bg-foreground/10 text-foreground flex size-6 items-center justify-center rounded-full text-[10px] font-medium">
             {summary.address.slice(2, 4).toUpperCase()}
           </span>
         ) : (
-          <CircleUserRound className="size-4" />
+          <PortalIcon icon={Icons.CircleUserRound} size={16} />
         )}
       </button>
 
@@ -70,7 +64,7 @@ export function PortalAccountMenu() {
           className="aomi-card bg-popover text-popover-foreground absolute top-full right-0 z-[90] mt-2 w-56 overflow-hidden shadow-xl"
         >
           <div className="flex items-center gap-2.5 px-3 py-2.5">
-            <div className="bg-muted text-foreground flex size-8 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold">
+            <div className="bg-muted text-foreground flex size-8 shrink-0 items-center justify-center rounded-full text-[11px] font-medium">
               {summary.connected && summary.address
                 ? summary.address.slice(2, 4).toUpperCase()
                 : "?"}
@@ -112,7 +106,7 @@ export function PortalAccountMenu() {
                 openSettings("general");
               }}
             >
-              <Settings className="size-3.5 opacity-70" />
+              <PortalIcon icon={Icons.Settings} size={14} className="opacity-70" />
               Settings
             </button>
             <a
@@ -123,7 +117,7 @@ export function PortalAccountMenu() {
               className={itemClass}
               onClick={() => setOpen(false)}
             >
-              <BookOpen className="size-3.5 opacity-70" />
+              <PortalIcon icon={Icons.BookOpen} size={14} className="opacity-70" />
               Docs
             </a>
             <Link
@@ -132,7 +126,7 @@ export function PortalAccountMenu() {
               className={itemClass}
               onClick={() => setOpen(false)}
             >
-              <Rocket className="size-3.5 opacity-70" />
+              <PortalIcon icon={Icons.Rocket} size={14} className="opacity-70" />
               Deployments
             </Link>
           </div>
@@ -148,7 +142,7 @@ export function PortalAccountMenu() {
                   void adapter.disconnect?.({ family: "all" });
                 }}
               >
-                <LogOut className="size-3.5 opacity-70" />
+                <PortalIcon icon={Icons.LogOut} size={14} className="opacity-70" />
                 Disconnect
               </button>
             ) : (
@@ -162,7 +156,11 @@ export function PortalAccountMenu() {
                   summary.connect();
                 }}
               >
-                <CircleUserRound className="size-3.5 opacity-70" />
+                <PortalIcon
+                  icon={Icons.CircleUserRound}
+                  size={14}
+                  className="opacity-70"
+                />
                 Connect
               </button>
             )}

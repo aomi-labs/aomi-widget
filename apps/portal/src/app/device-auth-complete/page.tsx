@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2 } from "lucide-react";
+import { Icons, PortalIcon } from "@portal/components/icons";
 import { useSearchParams } from "next/navigation";
 
 export default function DeviceAuthComplete() {
@@ -10,8 +10,8 @@ export default function DeviceAuthComplete() {
   return (
     <div className="bg-background flex min-h-screen items-center justify-center p-6">
       <div className="max-w-md text-center">
-        <CheckCircle2 className="mx-auto mb-6 h-16 w-16 text-green-500" />
-        <h1 className="mb-3 text-2xl font-semibold tracking-tight">
+        <PortalIcon icon={Icons.CheckCircle2} size={16} className="mx-auto mb-6 h-16 w-16 text-green-500" />
+        <h1 className="mb-3 text-2xl font-medium tracking-tight">
           Authentication successful
         </h1>
         {githubLogin && (

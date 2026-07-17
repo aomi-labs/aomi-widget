@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import Link from "next/link";
-import { ChevronRight } from "lucide-react";
+import { Icons, PortalIcon } from "@portal/components/icons";
 import { getChainInfo } from "@aomi-labs/react";
 import {
   formatAuthMethod,
@@ -175,7 +175,7 @@ export function GeneralSettings() {
             className="text-foreground hover:bg-accent/60 inline-flex items-center gap-1 rounded-full px-2 py-1 text-[12.5px] font-medium"
           >
             View usage
-            <ChevronRight className="size-3.5 opacity-60" />
+            <PortalIcon icon={Icons.ChevronRight} size={14} className="opacity-60" />
           </button>
         </div>
         {loading ? (
@@ -231,7 +231,7 @@ export function GeneralSettings() {
           className="bg-muted text-foreground hover:bg-accent inline-flex h-8 items-center justify-center gap-0.5 rounded-full px-3 text-[12.5px] font-medium transition-colors"
         >
           Open
-          <ChevronRight className="size-3.5 opacity-60" />
+          <PortalIcon icon={Icons.ChevronRight} size={14} className="opacity-60" />
         </Link>
       </SettingsRow>
 

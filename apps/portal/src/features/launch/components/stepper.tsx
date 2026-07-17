@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { CheckCircle2, Loader2, Circle, XCircle } from "lucide-react";
+import { Icons, PortalIcon } from "@portal/components/icons";
 
 export type StepStatus = "done" | "active" | "pending" | "failed";
 
@@ -64,18 +64,18 @@ export function Stepper({
 
 function Dot({ status, busy = false }: { status: StepStatus; busy?: boolean }) {
   if (status === "done")
-    return <CheckCircle2 className="h-5 w-5 text-green-500" />;
-  if (status === "failed") return <XCircle className="h-5 w-5 text-red-500" />;
+    return <PortalIcon icon={Icons.CheckCircle2} size={16} className="h-5 w-5 text-green-500" />;
+  if (status === "failed") return <PortalIcon icon={Icons.XCircle} size={16} className="h-5 w-5 text-red-500" />;
   if (status === "active") {
     return busy ? (
-      <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
+      <PortalIcon icon={Icons.Loader2} size={16} className="h-5 w-5 animate-spin text-blue-500" />
     ) : (
       <span className="flex h-5 w-5 items-center justify-center rounded-full border border-blue-500">
         <span className="h-2 w-2 rounded-full bg-blue-500" />
       </span>
     );
   }
-  return <Circle className="text-muted-foreground/40 h-5 w-5" />;
+  return <PortalIcon icon={Icons.Circle} size={16} className="text-muted-foreground/40 h-5 w-5" />;
 }
 
 /** A bordered step block, dimmed until it's the active step (or done). */
@@ -104,9 +104,9 @@ export function StepCard({
 
 function StepBadge({ index, state }: { index: number; state: StepStatus }) {
   if (state === "done")
-    return <CheckCircle2 className="h-4 w-4 shrink-0 text-green-500" />;
+    return <PortalIcon icon={Icons.CheckCircle2} size={16} className="h-4 w-4 shrink-0 text-green-500" />;
   if (state === "failed")
-    return <XCircle className="h-4 w-4 shrink-0 text-red-500" />;
+    return <PortalIcon icon={Icons.XCircle} size={16} className="h-4 w-4 shrink-0 text-red-500" />;
   if (state === "active")
     return (
       <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-blue-500">

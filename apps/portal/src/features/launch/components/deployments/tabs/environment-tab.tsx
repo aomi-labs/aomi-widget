@@ -7,7 +7,7 @@ import {
   type Dispatch,
   type SetStateAction,
 } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { Icons, PortalIcon } from "@portal/components/icons";
 import { useProjectDetail } from "@portal/features/launch/hooks/use-project-detail";
 import { LoadingPanel } from "../ui/state-panels";
 
@@ -204,7 +204,7 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
                   className="inline-flex items-center gap-1 text-xs text-zinc-400 hover:text-red-600"
                   title={`Remove ${key}`}
                 >
-                  <Trash2 className="size-3.5" aria-hidden />
+                  <PortalIcon icon={Icons.Trash2} size={14} aria-hidden />
                   Remove
                 </button>
               </li>
@@ -282,7 +282,7 @@ function ValueEditor({
           onClick={() => setRows((rs) => [...rs, { key: "", value: "" }])}
           className="inline-flex h-7 items-center gap-1 rounded-md border border-zinc-300 bg-white px-2 text-xs font-medium hover:bg-zinc-50"
         >
-          <Plus className="size-3.5" aria-hidden />
+          <PortalIcon icon={Icons.Plus} size={14} aria-hidden />
           {addLabel}
         </button>
       </div>

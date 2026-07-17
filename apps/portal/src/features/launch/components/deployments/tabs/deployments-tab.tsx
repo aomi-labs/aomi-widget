@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { PowerOff, Rocket } from "lucide-react";
+import { Icons, PortalIcon } from "@portal/components/icons";
 import { useProjectDetail } from "@portal/features/launch/hooks/use-project-detail";
 import { TimelineDeploymentRow } from "../ui/timeline-deployment-row";
 import { ConfirmDialog } from "../ui/confirm-dialog";
@@ -217,7 +217,7 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
                   : "Deactivate: unload the binary and clear the live pointer"
               }
             >
-              <PowerOff className="size-3.5" aria-hidden />
+              <PortalIcon icon={Icons.PowerOff} size={14} aria-hidden />
               Deactivate
             </button>
           )}
@@ -231,7 +231,7 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
             className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md bg-zinc-900 px-3 text-xs font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
             title="Deploy the source repo's latest commit and activate it"
           >
-            <Rocket className="size-3.5" aria-hidden />
+            <PortalIcon icon={Icons.Rocket} size={14} aria-hidden />
             {deploying ? "Deploying…" : "Deploy new version"}
           </button>
         </div>

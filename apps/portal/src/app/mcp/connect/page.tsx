@@ -32,7 +32,7 @@ export default async function McpConnectPage({
       fallback={
         <main className="bg-background text-foreground flex min-h-screen items-center justify-center p-6">
           <section className="w-full max-w-sm">
-            <h1 className="text-2xl font-semibold tracking-tight">
+            <h1 className="text-2xl font-medium tracking-tight">
               Connect to Aomi
             </h1>
             <p className="text-muted-foreground mt-3 text-sm">Loading...</p>

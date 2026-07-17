@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ArrowLeft } from "lucide-react";
+import { Icons, PortalIcon } from "@portal/components/icons";
 import { Onboarding } from "@portal/features/launch/components/onboarding";
 import {
   fetchGitHubSession,
@@ -30,10 +30,10 @@ export function NewProject() {
             href="/deployments"
             className="text-dim hover:text-foreground inline-flex items-center gap-1 text-sm"
           >
-            <ArrowLeft className="size-4" aria-hidden />
+            <PortalIcon icon={Icons.ArrowLeft} size={16} aria-hidden />
             Deployments
           </Link>
-          <h1 className="mt-2 text-2xl font-semibold tracking-normal">
+          <h1 className="mt-2 text-2xl font-medium tracking-normal">
             New app
           </h1>
           <p className="text-dim mt-1 text-sm">

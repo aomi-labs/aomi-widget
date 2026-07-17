@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ExternalLink, Loader2, Plus, RotateCcw } from "lucide-react";
+import { Icons, PortalIcon } from "@portal/components/icons";
 import { Button } from "@aomi-labs/widget-lib";
 import {
   installationStatusLabel,
@@ -153,7 +153,7 @@ export function OneshotWizard({
                 className="h-9 rounded-md px-3 text-sm font-medium"
               >
                 {installing ? "Waiting for GitHub..." : "Install on GitHub"}
-                <ExternalLink className="ml-1 h-4 w-4" />
+                <PortalIcon icon={Icons.ExternalLink} size={16} className="ml-1 h-4 w-4" />
               </Button>
             </div>
           </div>
@@ -197,9 +197,9 @@ export function OneshotWizard({
               className="h-9 rounded-md px-3 text-sm font-medium"
             >
               {creating ? (
-                <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                <PortalIcon icon={Icons.Loader2} size={16} className="mr-1 h-4 w-4 animate-spin" />
               ) : (
-                <Plus className="mr-1 h-4 w-4" />
+                <PortalIcon icon={Icons.Plus} size={16} className="mr-1 h-4 w-4" />
               )}
               Create repo
             </Button>
@@ -277,7 +277,7 @@ function WizardHeader({
   return (
     <header className="space-y-2">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-foreground text-2xl font-semibold tracking-tight">
+        <h1 className="text-foreground text-2xl font-medium tracking-tight">
           {title}
         </h1>
         {actionLabel && onAction && (
@@ -285,7 +285,7 @@ function WizardHeader({
             onClick={onAction}
             className="h-9 max-w-full rounded-md px-3 text-sm font-medium"
           >
-            <RotateCcw className="mr-1 h-4 w-4 shrink-0" />
+            <PortalIcon icon={Icons.RotateCcw} size={16} className="mr-1 h-4 w-4 shrink-0" />
             {actionLabel}
           </Button>
         )}

@@ -187,7 +187,8 @@
 
 .aomi-card {
   border: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
-  border-radius: calc(var(--radius) + 2px);
+  /* Rico: stay within 8–12px (base 10px + 2px = 12px). */
+  border-radius: min(0.75rem, calc(var(--radius) + 2px));
   background: color-mix(in oklch, var(--card) 92%, transparent);
 }
 
@@ -215,7 +216,11 @@
    * (Geist + Geist Mono). Do not override them with unloaded commercial
    * family names. Optional Diatype: uncomment @font-face above, then set
    * body font-family to "ABC Diatype", var(--font-geist-sans), …
+   *
+   * Rico radius clamp: 8–12px. Base 10px; .aomi-card uses +2px → 12px max.
+   * See specs/PORTAL-VISUAL-THEME.md.
    */
+  --radius: 0.625rem;
   --portal-status-success: oklch(0.62 0.14 155);
   --portal-status-warning: oklch(0.75 0.14 75);
   --portal-status-info: oklch(0.68 0.12 230);

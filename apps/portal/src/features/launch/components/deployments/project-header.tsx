@@ -1,5 +1,5 @@
 import type { UserSource, UserSourceLatestDeployment } from "@aomi-labs/deploy";
-import { Github } from "lucide-react";
+import { Icons, PortalIcon } from "@portal/components/icons";
 import Link from "next/link";
 import { StatusPill } from "./ui/status-pill";
 
@@ -24,7 +24,7 @@ export function ProjectHeader({
           Deployments
         </Link>
         <span className="text-zinc-300">/</span>
-        <span className="truncate font-semibold">
+        <span className="truncate font-medium">
           {source?.repositoryLink ?? "Project"}
         </span>
         {latest?.state && <StatusPill value={latest.state} />}
@@ -37,7 +37,7 @@ export function ProjectHeader({
             rel="noreferrer"
             className="inline-flex h-8 items-center gap-1.5 rounded-md border border-zinc-300 px-2.5 text-xs font-medium hover:bg-zinc-50"
           >
-            <Github className="size-3.5" aria-hidden />
+            <PortalIcon icon={Icons.Github} size={14} aria-hidden />
             GitHub
           </a>
         )}

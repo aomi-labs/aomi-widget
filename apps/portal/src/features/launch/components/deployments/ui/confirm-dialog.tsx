@@ -21,7 +21,7 @@ export function ConfirmDialog({
         aria-label={title}
         className="w-full max-w-sm rounded-lg border border-zinc-200 bg-white p-4 shadow-lg"
       >
-        <div className="text-sm font-semibold">{title}</div>
+        <div className="text-sm font-medium">{title}</div>
         <p className="mt-2 text-sm text-zinc-600">{body}</p>
         <div className="mt-4 flex justify-end gap-2">
           <button

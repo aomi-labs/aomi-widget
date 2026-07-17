@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Github } from "lucide-react";
+import { Icons, PortalIcon } from "@portal/components/icons";
 import { GITHUB_SIGNIN_URL } from "@portal/features/launch/dashboard";
 
 export function LoadingPanel({ label }: { label: string }) {
@@ -41,10 +41,10 @@ export function GitHubSignInPanel({ error }: { error?: string | null }) {
   return (
     <div className="flex min-h-[320px] flex-col items-center justify-center gap-4 px-4 py-10 text-center">
       <div className="flex size-10 items-center justify-center rounded-full border border-zinc-200">
-        <Github className="size-5" aria-hidden />
+        <PortalIcon icon={Icons.Github} size={20} aria-hidden />
       </div>
       <div>
-        <div className="text-base font-semibold">Sign in with GitHub</div>
+        <div className="text-base font-medium">Sign in with GitHub</div>
         <div className="mt-1 max-w-md text-sm leading-6 text-zinc-500">
           Deployment history is scoped to repositories connected to your GitHub
           account.

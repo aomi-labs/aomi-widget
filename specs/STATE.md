@@ -2,6 +2,19 @@
 
 ## Last Updated
 
+2026-07-17 — Rico design rules + Hugeicons foundation on
+  `feat/chat-portal-visual-theme`: locked weights 400/500, radius 8–12px,
+  Tailwind neutral mapping, Hugeicons (not Lucide) for new portal work in
+  `specs/PORTAL-VISUAL-THEME.md`; installed `@hugeicons/react` +
+  `@hugeicons/core-free-icons` (free = Stroke Rounded; Solid needs Pro);
+  portal icon adapter + migrated all portal-owned lucide imports (settings,
+  shell, launch/deploy, device-auth, mcp); widget-lib/shared thread still
+  Lucide (separate bump); `--radius: 0.625rem`; softened easy font-semibold;
+2026-07-17 — Premium ref design review on `feat/chat-portal-visual-theme`:
+  4 Acme-style dark SaaS/fintech screenshots reviewed; TAKE/AVOID + P0–P2
+  plan + token deltas appended to `specs/PORTAL-VISUAL-THEME.md`; **no UI
+  implement yet** — awaiting approval; Geist Sans+Mono confirmed; soft glass
+  overlays-only; no purple glow / wallpaper / fake Inbox features;
 2026-07-17 — Portal typography shipping combo on `feat/chat-portal-visual-theme`:
   **Geist Sans (UI/body)** + **Geist Mono** (`.aomi-numeric` / `font-mono` /
   code/IDs/amounts); undid mono-everywhere body experiment (~98257f5d); kept

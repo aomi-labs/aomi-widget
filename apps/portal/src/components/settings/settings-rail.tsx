@@ -1,30 +1,22 @@
 "use client";
 
-import {
-  Bot,
-  KeyRound,
-  Layers,
-  Lock,
-  Settings,
-  Unplug,
-  type LucideIcon,
-} from "lucide-react";
-
+import type { IconSvgElement } from "@hugeicons/react";
+import { Icons, PortalIcon } from "@portal/components/icons";
 import { cn } from "@portal/lib/utils";
 import type { SettingsCategory } from "./settings-types";
 
 const ALL_ITEMS: Array<{
   id: SettingsCategory;
   label: string;
-  icon: LucideIcon;
+  icon: IconSvgElement;
   group: "Account" | "Access";
 }> = [
-  { id: "general", label: "General", icon: Settings, group: "Account" },
-  { id: "apps", label: "Usage", icon: Layers, group: "Account" },
-  { id: "app-keys", label: "App Keys", icon: KeyRound, group: "Access" },
-  { id: "bots", label: "Bots", icon: Bot, group: "Access" },
-  { id: "secrets", label: "Secrets", icon: Lock, group: "Access" },
-  { id: "byok", label: "BYOK", icon: Unplug, group: "Access" },
+  { id: "general", label: "General", icon: Icons.Settings, group: "Account" },
+  { id: "apps", label: "Usage", icon: Icons.Layers, group: "Account" },
+  { id: "app-keys", label: "App Keys", icon: Icons.KeyRound, group: "Access" },
+  { id: "bots", label: "Bots", icon: Icons.Bot, group: "Access" },
+  { id: "secrets", label: "Secrets", icon: Icons.Lock, group: "Access" },
+  { id: "byok", label: "BYOK", icon: Icons.Unplug, group: "Access" },
 ];
 
 function RailGroup({
@@ -42,7 +34,6 @@ function RailGroup({
     <div className="space-y-0.5">
       <p className="aomi-eyebrow px-2.5 pb-1">{label}</p>
       {items.map((item) => {
-        const Icon = item.icon;
         const active = activeCategory === item.id;
         return (
           <button
@@ -58,11 +49,10 @@ function RailGroup({
                 : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
             )}
           >
-            <Icon
-              className={cn(
-                "size-3.5 shrink-0",
-                active ? "opacity-100" : "opacity-70",
-              )}
+            <PortalIcon
+              icon={item.icon}
+              size={14}
+              className={cn(active ? "opacity-100" : "opacity-70")}
             />
             <span>{item.label}</span>
           </button>
@@ -89,7 +79,6 @@ export function SettingsRail({
       {orientation === "responsive" ? (
         <nav className="flex gap-1.5 overflow-x-auto px-2 pb-2 sm:hidden">
           {ALL_ITEMS.map((item) => {
-            const Icon = item.icon;
             const active = activeCategory === item.id;
             return (
               <button
@@ -105,7 +94,7 @@ export function SettingsRail({
                     : "bg-muted text-muted-foreground hover:bg-accent hover:text-foreground",
                 )}
               >
-                <Icon className="size-3 opacity-80" />
+                <PortalIcon icon={item.icon} size={12} className="opacity-80" />
                 {item.label}
               </button>
             );

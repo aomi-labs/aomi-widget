@@ -1,6 +1,6 @@
 "use client";
 
-import { X } from "lucide-react";
+import { Icons, PortalIcon } from "@portal/components/icons";
 import { ErrorBoundary } from "@portal/components/shell/error-boundary";
 import { GeneralSettings } from "@portal/features/general";
 import { AppsSettings } from "@portal/features/apps";
@@ -31,7 +31,7 @@ function SettingsAccountHeader({
     >
       <div className="flex items-center gap-2.5">
         <div
-          className="bg-foreground/15 text-foreground flex size-8 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold tracking-wide"
+          className="bg-foreground/15 text-foreground flex size-8 shrink-0 items-center justify-center rounded-full text-[11px] font-medium tracking-wide"
           aria-hidden
         >
           {summary.connected && summary.address
@@ -105,7 +105,7 @@ export function SettingsLayout({ onClose }: { onClose?: () => void }) {
               onClick={onClose}
               aria-label="Close settings"
             >
-              <X className="size-4" />
+              <PortalIcon icon={Icons.X} size={16} />
             </button>
           ) : (
             <span className="size-8" />

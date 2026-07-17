@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Settings } from "lucide-react";
+import { Icons, PortalIcon } from "@portal/components/icons";
 import { PortalAccountMenu } from "@portal/components/shell/portal-account-menu";
 import { AomiFrame, useAomiWalletKit } from "@aomi-labs/widget-lib";
 import {
@@ -424,7 +424,7 @@ export function PortalAomiFrame() {
               className="text-muted-foreground hover:bg-accent hover:text-foreground inline-flex size-8 items-center justify-center rounded-lg transition-colors"
               aria-label="Open settings"
             >
-              <Settings className="size-3.5" />
+              <PortalIcon icon={Icons.Settings} size={14} />
             </button>
             <PortalAccountMenu />
           </div>

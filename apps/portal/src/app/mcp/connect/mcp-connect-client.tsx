@@ -4,7 +4,7 @@ import "@aomi-labs/widget-lib/providers/para";
 import "@aomi-labs/widget-lib/providers/privy";
 
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { CheckCircle2, Loader2, ShieldCheck } from "lucide-react";
+import { Icons, PortalIcon } from "@portal/components/icons";
 import { useSearchParams } from "next/navigation";
 import { AomiWalletKitProvider, useAomiWalletKit } from "@aomi-labs/widget-lib";
 import { authClient } from "@aomi-labs/account/better-auth/client";
@@ -254,9 +254,9 @@ function ProviderSignIn({
           type="button"
         >
           {complete ? (
-            <CheckCircle2 className="h-4 w-4" />
+            <PortalIcon icon={Icons.CheckCircle2} size={16} className="h-4 w-4" />
           ) : pending ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <PortalIcon icon={Icons.Loader2} size={16} className="h-4 w-4 animate-spin" />
           ) : null}
           Continue with {providerLabels[provider]}
         </button>
@@ -321,7 +321,7 @@ function ConsentPanel({
             className="text-muted-foreground flex items-center gap-2 text-sm"
             key={scope}
           >
-            <ShieldCheck className="text-foreground h-4 w-4 shrink-0" />
+            <PortalIcon icon={Icons.ShieldCheck} size={16} className="text-foreground h-4 w-4 shrink-0" />
             {SCOPE_DESCRIPTIONS[scope] ?? scope}
           </li>
         ))}
@@ -336,7 +336,7 @@ function ConsentPanel({
           onClick={() => void decide(true)}
           type="button"
         >
-          {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+          {pending ? <PortalIcon icon={Icons.Loader2} size={16} className="h-4 w-4 animate-spin" /> : null}
           Authorize
         </button>
         <button
@@ -358,7 +358,7 @@ function Shell({ children, title }: { children?: ReactNode; title: string }) {
   return (
     <main className="bg-background text-foreground flex min-h-screen items-center justify-center p-6">
       <section className="w-full max-w-sm">
-        <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+        <h1 className="text-2xl font-medium tracking-tight">{title}</h1>
         {children}
       </section>
     </main>

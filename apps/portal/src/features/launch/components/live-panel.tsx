@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, ExternalLink } from "lucide-react";
+import { Icons, PortalIcon } from "@portal/components/icons";
 import { TEMPLATE_REPO, TEMPLATE_REPO_URL } from "@portal/features/launch";
 
 /** Shared success state. `repo` is owner/name when known; falls back to the
@@ -23,7 +23,7 @@ export function LivePanel({
     <div className="space-y-4">
       <div className="space-y-4 rounded-3xl border border-green-500/40 bg-green-500/10 p-6">
         <div className="text-foreground flex items-center gap-2 font-medium">
-          <CheckCircle2 className="h-5 w-5 text-green-500" />
+          <PortalIcon icon={Icons.CheckCircle2} size={16} className="h-5 w-5 text-green-500" />
           {repo ? (
             <span>
               <code>{repo}</code> is live in your chat session.
@@ -52,7 +52,7 @@ aomi-build deploy      # redeploy your changes`}
             rel="noreferrer"
             className="text-foreground inline-flex items-center gap-1 underline"
           >
-            Open repo <ExternalLink className="h-3.5 w-3.5" />
+            Open repo <PortalIcon icon={Icons.ExternalLink} size={16} className="h-3.5 w-3.5" />
           </a>
           {chatUrl && (
             <a
@@ -61,7 +61,7 @@ aomi-build deploy      # redeploy your changes`}
               rel="noreferrer"
               className="text-foreground inline-flex items-center gap-1 underline"
             >
-              Open in chat <ExternalLink className="h-3.5 w-3.5" />
+              Open in chat <PortalIcon icon={Icons.ExternalLink} size={16} className="h-3.5 w-3.5" />
             </a>
           )}
         </div>

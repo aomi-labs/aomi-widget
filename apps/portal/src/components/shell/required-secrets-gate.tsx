@@ -116,7 +116,7 @@ export function RequiredSecretsGate() {
     <div className="bg-background/70 absolute inset-0 z-50 flex items-center justify-center backdrop-blur-sm">
       <div className="bg-background border-input mx-4 w-full max-w-md space-y-5 rounded-3xl border p-8 shadow-xl">
         <div className="space-y-2">
-          <h2 className="text-foreground text-lg font-semibold">
+          <h2 className="text-foreground text-lg font-medium">
             {currentApp} requires API key
           </h2>
           <p className="text-muted-foreground text-sm">
