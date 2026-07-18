@@ -77,6 +77,9 @@ export async function prepareRun(options: {
   runsRoot?: string;
   overwrite?: boolean;
   backend?: SmitherBackend;
+  /** Reuse an already-open store handle (one per backend per process — the
+   *  embedded PGlite backend cannot be opened twice on one dataDir). */
+  api?: AomiSmitherApi;
 }): Promise<PreparedRun> {
   const runsRoot = options.runsRoot ?? defaultRunsRoot;
   const app = options.plan.app;
@@ -88,7 +91,7 @@ export async function prepareRun(options: {
   const existing = await loadRunState(app, runsRoot);
   const state = existing ?? (await createRunState(app, runsRoot));
   const backend = options.backend ?? resolveRunBackend(app, { runsRoot });
-  const api = await createAomiSmither(backend);
+  const api = options.api ?? (await createAomiSmither(backend));
   const workflow = await buildAppWorkflow(api, options.plan, options.deps);
   return {
     api,
@@ -175,6 +178,69 @@ export async function loadRunOutputs(
   const { loadOutputs } = await import("smithers-orchestrator");
   const outputs = await loadOutputs(api.db as never, api.tables as never, runId);
   return outputs as Record<string, ReadonlyArray<Record<string, unknown>>>;
+}
+
+export type RunNodeView = {
+  nodeId: string;
+  /** Scheduler task state: pending/running/finished/failed/skipped/waiting-*. */
+  state: string;
+  iteration: number;
+  updatedAtMs: number;
+};
+
+export type RunView = {
+  /** Run status from the store, or null when the run id is unknown. */
+  status: string | null;
+  error?: string;
+  /** Latest state per node id (highest iteration wins). */
+  nodes: RunNodeView[];
+  outputs: Record<string, ReadonlyArray<Record<string, unknown>>>;
+};
+
+/**
+ * Reconstruct a run's observable state purely from the durable store — no
+ * live event stream, no render ctx. This is what makes any process (another
+ * web instance, an observer console) able to serve a run it never executed.
+ */
+export async function readRunView(
+  api: AomiSmitherApi,
+  runId: string,
+): Promise<RunView> {
+  const { SmithersDb } = await import("smithers-orchestrator");
+  const adapter = new SmithersDb(api.db as never);
+  // Adapter reads are RunnableEffects — PromiseLike, so await works directly.
+  const [run, nodeRows, outputs] = await Promise.all([
+    adapter.getRun(runId),
+    adapter.listNodes(runId),
+    loadRunOutputs(api, runId),
+  ]);
+  const latest = new Map<string, RunNodeView>();
+  for (const row of nodeRows ?? []) {
+    const prev = latest.get(row.nodeId);
+    if (!prev || row.iteration >= prev.iteration) {
+      latest.set(row.nodeId, {
+        nodeId: row.nodeId,
+        state: row.state,
+        iteration: row.iteration,
+        updatedAtMs: row.updatedAtMs,
+      });
+    }
+  }
+  let error: string | undefined;
+  if (run?.errorJson) {
+    try {
+      const parsed = JSON.parse(run.errorJson) as { message?: string };
+      error = parsed.message ?? run.errorJson;
+    } catch {
+      error = run.errorJson;
+    }
+  }
+  return {
+    status: run?.status ?? null,
+    ...(error ? { error } : {}),
+    nodes: [...latest.values()],
+    outputs,
+  };
 }
 
 /**

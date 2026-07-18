@@ -56,6 +56,9 @@ const nextConfig: NextConfig = {
     NEXT_PUBLIC_SUPPORTED_CHAIN_IDS:
       process.env.NEXT_PUBLIC_SUPPORTED_CHAIN_IDS || "",
   },
+  // Lets a second local instance run from the same checkout (multi-instance
+  // testing of the stateless BFF); default .next otherwise.
+  distDir: process.env.NEXT_DIST_DIR || undefined,
   output: process.env.VERCEL === "1" ? undefined : "standalone",
   outputFileTracingRoot: workspaceRoot,
   // The service-topology TOML is read at runtime via a dynamic path, so

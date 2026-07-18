@@ -3,18 +3,28 @@ import "server-only";
 import { existsSync, readdirSync } from "node:fs";
 import path from "node:path";
 import {
+  createAomiSmither,
   decideApproval,
   defaultSdkRoot,
   executeRunUntilSettled,
   finalizePlan,
-  loadRunOutputs,
   prepareRun,
+  readRunView,
   resolveRunBackend,
+  sanitizeAppName,
   stageKeyForNode,
   stagesFor,
+  type AomiSmitherApi,
   type BuildPlan,
   type PreparedRun,
+  type RunView,
 } from "@aomi-labs/smither";
+import {
+  curationFromOutputs,
+  resultFromOutputs,
+  runStatusFromView,
+  stageStatusesFromView,
+} from "./run-view";
 import type {
   BuildRunApproval,
   BuildRunFileNode,
@@ -54,15 +64,16 @@ type RunHandle = {
   runId: string;
   app: string;
   plan: BuildPlan;
-  prepared: PreparedRun;
+  api: AomiSmitherApi;
+  /** Present on handles this process executes; absent on observer handles
+   *  reconstructed for runs another process (or a past life) started. */
+  prepared?: PreparedRun;
   status: BuildRunStatus;
   stageStatus: Record<string, BuildRunStageStatus>;
   /** HH:MM:SS of each stage's latest live transition. */
   stageTimes: Record<string, string>;
   approvals: BuildRunApproval[];
   lines: string[];
-  curation?: { summary: string; changedFiles: string; followUps: string };
-  result?: { status: string; summary: string };
   error?: string;
   createdAt: string;
   updatedAt: string;
@@ -71,14 +82,32 @@ type RunHandle = {
 type Registry = {
   byRunId: Map<string, RunHandle>;
   byApp: Map<string, RunHandle>;
+  /** One open store handle per app — the embedded PGlite backend cannot be
+   *  opened twice on one dataDir in a process. */
+  apis: Map<string, Promise<AomiSmitherApi>>;
 };
 
 const REGISTRY_KEY = Symbol.for("aomi-build.smither-engine");
 
 function registry(): Registry {
   const holder = globalThis as { [REGISTRY_KEY]?: Registry };
-  holder[REGISTRY_KEY] ??= { byRunId: new Map(), byApp: new Map() };
+  holder[REGISTRY_KEY] ??= {
+    byRunId: new Map(),
+    byApp: new Map(),
+    apis: new Map(),
+  };
   return holder[REGISTRY_KEY];
+}
+
+function apiFor(app: string): Promise<AomiSmitherApi> {
+  const { apis } = registry();
+  let api = apis.get(app);
+  if (!api) {
+    api = createAomiSmither(resolveRunBackend(app, { runsRoot: runsRoot() }));
+    api.catch(() => apis.delete(app));
+    apis.set(app, api);
+  }
+  return api;
 }
 
 export class BuildEngineError extends Error {
@@ -168,34 +197,6 @@ function crateFileTree(appDir: string, app: string): BuildRunFileNode[] {
   return [{ path: app, type: "folder", children: walk(appDir, app, 0) }];
 }
 
-/** Pull curation/result rows from the durable store — the only source that
- *  also covers replayed resumes, which emit no live node events. */
-async function hydrateFromOutputs(handle: RunHandle): Promise<void> {
-  try {
-    const outputs = await loadRunOutputs(handle.prepared.api, handle.runId);
-    const curation = outputs.curation?.[0];
-    if (curation && typeof curation.summary === "string") {
-      handle.curation = {
-        summary: curation.summary,
-        changedFiles: String(curation.changedFiles ?? ""),
-        followUps: String(curation.followUps ?? ""),
-      };
-    }
-    const result = outputs.result?.[0];
-    if (!handle.result && result && typeof result.summary === "string") {
-      handle.result = {
-        status: String(result.status ?? "complete"),
-        summary: result.summary,
-      };
-    }
-  } catch (error) {
-    pushLine(
-      handle,
-      `could not read run outputs: ${error instanceof Error ? error.message : String(error)}`,
-    );
-  }
-}
-
 /** Same folding as the TUI's reduceEvent: node events light plan stages,
  *  approval events maintain the pending-approval list. */
 function reduceEvent(handle: RunHandle, event: EngineEvent) {
@@ -270,11 +271,13 @@ function reduceEvent(handle: RunHandle, event: EngineEvent) {
   }
 }
 
-function execute(handle: RunHandle) {
-  void executeRunUntilSettled(handle.prepared, {
+function execute(handle: RunHandle, prepared: PreparedRun) {
+  void executeRunUntilSettled(prepared, {
     onEvent: (event) => reduceEvent(handle, event as EngineEvent),
   })
-    .then(async (result) => {
+    .then((result) => {
+      // Snapshot reads derive statuses/outputs from the durable store; here
+      // we only keep the in-memory garnish coherent.
       const status = String(result.status);
       handle.status =
         status === "finished" || status === "continued"
@@ -290,26 +293,6 @@ function execute(handle: RunHandle) {
               ? result.error
               : JSON.stringify(result.error);
       }
-      const output = (
-        result as { output?: { status?: string; summary?: string } }
-      ).output;
-      if (output?.summary) {
-        handle.result = {
-          status: output.status ?? status,
-          summary: output.summary,
-        };
-      }
-      if (handle.status === "completed") {
-        // A resumed run replays cached tasks without live node events; a
-        // finished run means the composition settled, so backfill stages the
-        // reducer never saw (leave live-set failed/waiting keys alone).
-        for (const stage of stagesFor(handle.plan)) {
-          handle.stageStatus[stage.id] ??= "complete";
-        }
-      }
-      // Curation summary + result live in the durable rows — the only source
-      // that also covers replayed resumes.
-      await hydrateFromOutputs(handle);
       pushLine(
         handle,
         `run settled: ${status}${handle.error ? ` — ${handle.error.slice(0, 400)}` : ""}`,
@@ -320,6 +303,32 @@ function execute(handle: RunHandle) {
       handle.error = error instanceof Error ? error.message : String(error);
       pushLine(handle, `run failed: ${handle.error}`);
     });
+}
+
+/** The BuildPlan for an app — deterministic given (app, story), so observer
+ *  processes can recompose the identical stage shape without the original
+ *  request (the story only flavors agent prompts). */
+function composePlan(app: string, userStory: string, autoApprove = true): BuildPlan {
+  const root = sdkRoot();
+  // An app that already carries a discovered/curated spec resumes idempotently
+  // (gen-* keeps curated sources); a fresh app goes through spec discovery.
+  const hasSpec = existsSync(path.join(root, "apps", app, "openapi.yaml"));
+  const { plan, issues } = finalizePlan({
+    app,
+    sdkRoot: root,
+    source: hasSpec ? "existing" : "discover",
+    userStory,
+    // No web surface answers gates yet — run unattended by default. The
+    // decision route exists, so callers can opt back in per run.
+    autoApprove,
+    // Dev knob: accept a dirty/behind SDK checkout and reuse its prebuilt
+    // release binaries instead of failing the binaries phase.
+    allowStaleSdk: process.env.AOMI_ALLOW_STALE_SDK === "1",
+  });
+  if (!plan) {
+    throw new BuildEngineError(`invalid build plan: ${issues.join("; ")}`, 400);
+  }
+  return plan;
 }
 
 export async function startBuildRun(options: {
@@ -339,32 +348,12 @@ export async function startBuildRun(options: {
     return existing;
   }
 
-  const root = sdkRoot();
-  // An app that already carries a discovered/curated spec resumes idempotently
-  // (gen-* keeps curated sources); a fresh app goes through spec discovery.
-  const hasSpec = existsSync(path.join(root, "apps", app, "openapi.yaml"));
-  const { plan, issues } = finalizePlan({
-    app,
-    sdkRoot: root,
-    source: hasSpec ? "existing" : "discover",
-    userStory: options.prompt,
-    // No web surface answers gates yet — run unattended by default. The
-    // decision route exists, so callers can opt back in per run.
-    autoApprove: options.autoApprove ?? true,
-    // Dev knob: accept a dirty/behind SDK checkout and reuse its prebuilt
-    // release binaries instead of failing the binaries phase.
-    allowStaleSdk: process.env.AOMI_ALLOW_STALE_SDK === "1",
-  });
-  if (!plan) {
-    throw new BuildEngineError(`invalid build plan: ${issues.join("; ")}`, 400);
-  }
-
-  const stateRoot = runsRoot();
+  const plan = composePlan(app, options.prompt, options.autoApprove ?? true);
   const prepared = await prepareRun({
     plan,
     deps: { env: process.env },
-    runsRoot: stateRoot,
-    backend: resolveRunBackend(app, { runsRoot: stateRoot }),
+    runsRoot: runsRoot(),
+    api: await apiFor(app),
   });
 
   const now = new Date().toISOString();
@@ -372,6 +361,7 @@ export async function startBuildRun(options: {
     runId: prepared.runId,
     app,
     plan,
+    api: prepared.api,
     prepared,
     status: "running",
     stageStatus: {},
@@ -385,12 +375,55 @@ export async function startBuildRun(options: {
   };
   registry().byRunId.set(handle.runId, handle);
   registry().byApp.set(app, handle);
-  execute(handle);
+  execute(handle, prepared);
   return handle;
 }
 
 export function getBuildRun(runId: string): RunHandle | undefined {
   return registry().byRunId.get(runId);
+}
+
+const RUN_ID = /^smither-(.+)-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+/**
+ * Serve a run this process never executed (another instance started it, or a
+ * restart dropped the registry): recompose the plan from the app name and
+ * read everything else from the durable store. The handle observes; it does
+ * not execute.
+ */
+export async function reconstructBuildRun(
+  runId: string,
+): Promise<RunHandle | undefined> {
+  const app = RUN_ID.exec(runId)?.[1];
+  if (!app || sanitizeAppName(app) !== app) return undefined;
+  let handle: RunHandle;
+  try {
+    const api = await apiFor(app);
+    const view = await readRunView(api, runId);
+    if (view.status === null) return undefined;
+    const now = new Date().toISOString();
+    handle = {
+      runId,
+      app,
+      plan: composePlan(app, "observed run"),
+      api,
+      status: runStatusFromView(view.status) ?? "running",
+      stageStatus: {},
+      stageTimes: {},
+      approvals: [],
+      lines: [`observing run ${runId}`],
+      createdAt: now,
+      updatedAt: now,
+    };
+  } catch (error) {
+    console.warn(
+      `could not reconstruct run ${runId}:`,
+      error instanceof Error ? error.message : error,
+    );
+    return undefined;
+  }
+  registry().byRunId.set(runId, handle);
+  return handle;
 }
 
 export async function decideBuildRun(options: {
@@ -406,7 +439,7 @@ export async function decideBuildRun(options: {
     throw new BuildEngineError(`unknown run: ${options.runId}`, 404);
   }
   await decideApproval({
-    api: handle.prepared.api,
+    api: handle.api,
     runId: handle.runId,
     nodeId: options.nodeId,
     iteration: options.iteration,
@@ -417,34 +450,62 @@ export async function decideBuildRun(options: {
   });
 }
 
-export function snapshotBuildRun(handle: RunHandle): BuildRunSnapshot {
+export async function snapshotBuildRun(
+  handle: RunHandle,
+): Promise<BuildRunSnapshot> {
+  // The durable store is the source of truth; the live reducer maps only
+  // garnish (sub-poll latency, activity lines, timestamps).
+  let view: RunView | undefined;
+  try {
+    view = await readRunView(handle.api, handle.runId);
+  } catch (error) {
+    pushLine(
+      handle,
+      `store read failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+  const status =
+    (view && runStatusFromView(view.status)) ??
+    (handle.status as BuildRunStatus);
+  const stageStatus = view
+    ? stageStatusesFromView(
+        view,
+        (nodeId) => stageKeyForNode(handle.plan, nodeId),
+        handle.stageStatus,
+      )
+    : handle.stageStatus;
+  const outputs = view?.outputs ?? {};
+  const curation = curationFromOutputs(outputs);
+  const result = resultFromOutputs(outputs);
+  const error = view?.error ?? handle.error;
+
   const stages: BuildRunStage[] = stagesFor(handle.plan).map((stage) => ({
     id: stage.id,
     label: stage.label,
     kind: stage.kind,
-    status: handle.stageStatus[stage.id] ?? "pending",
+    status: stageStatus[stage.id] ?? "pending",
     ...(handle.stageTimes[stage.id] ? { time: handle.stageTimes[stage.id] } : {}),
     ...(stage.branchOf ? { branchOf: stage.branchOf } : {}),
     ...(stage.clarify ? { clarify: stage.clarify } : {}),
   }));
   // The crate appears once codegen ran; a completed replay has it too.
   const codegenDone =
-    handle.stageStatus[`${handle.app}:codegen`] === "complete" ||
-    handle.status === "completed";
+    stageStatus[`${handle.app}:codegen`] === "complete" ||
+    status === "completed";
   const fileTree = codegenDone
     ? crateFileTree(path.join(handle.plan.sdkRoot, "apps", handle.app), handle.app)
     : [];
   return {
     runId: handle.runId,
     app: handle.app,
-    status: handle.status,
+    status,
     stages,
     approvals: handle.approvals,
     lines: handle.lines.slice(-40),
     fileTree,
-    ...(handle.curation ? { curation: handle.curation } : {}),
-    ...(handle.result ? { result: handle.result } : {}),
-    ...(handle.error ? { error: handle.error } : {}),
+    ...(curation ? { curation } : {}),
+    ...(result ? { result } : {}),
+    ...(error ? { error } : {}),
     createdAt: handle.createdAt,
     updatedAt: handle.updatedAt,
   };

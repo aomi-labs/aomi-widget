@@ -16,6 +16,7 @@ import {
   BuildEngineError,
   decideBuildRun,
   getBuildRun,
+  reconstructBuildRun,
   snapshotBuildRun,
   startBuildRun,
 } from "./engine";
@@ -36,8 +37,15 @@ function checkWrite(req: Request): NextResponse | null {
 }
 
 /** Build runs execute agents and shell commands server-side; a signed-in
- *  session is required, same as the deploy routes. */
+ *  session is required, same as the deploy routes. AOMI_BUILD_ALLOW_ANON=1
+ *  waives it for local testing — dev builds only, never production. */
 async function requireSession(): Promise<NextResponse | null> {
+  if (
+    process.env.AOMI_BUILD_ALLOW_ANON === "1" &&
+    process.env.NODE_ENV !== "production"
+  ) {
+    return null;
+  }
   if (await getGitHubSession()) return null;
   return NextResponse.json(
     { error: "not signed in with GitHub" },
@@ -87,7 +95,7 @@ export async function createBuildRunRoute(req: Request): Promise<NextResponse> {
       app: body.app,
       autoApprove: body.autoApprove,
     });
-    const snapshot = snapshotBuildRun(handle);
+    const snapshot = await snapshotBuildRun(handle);
     return NextResponse.json({
       runId: snapshot.runId,
       app: snapshot.app,
@@ -108,11 +116,13 @@ export async function buildRunStatusRoute(req: Request): Promise<NextResponse> {
   if (!runId) {
     return NextResponse.json({ error: "missing id" }, { status: 400 });
   }
-  const handle = getBuildRun(runId);
+  // Registry miss ≠ unknown run: another instance (or a past process life)
+  // may own it — reconstruct an observer handle from the durable store.
+  const handle = getBuildRun(runId) ?? (await reconstructBuildRun(runId));
   if (!handle) {
     return NextResponse.json({ error: "unknown run" }, { status: 404 });
   }
-  return NextResponse.json(snapshotBuildRun(handle));
+  return NextResponse.json(await snapshotBuildRun(handle));
 }
 
 /** Stream the generated crate (apps/<app>) as a tarball. */
@@ -128,7 +138,7 @@ export async function buildRunDownloadRoute(
   if (!runId) {
     return NextResponse.json({ error: "missing id" }, { status: 400 });
   }
-  const handle = getBuildRun(runId);
+  const handle = getBuildRun(runId) ?? (await reconstructBuildRun(runId));
   if (!handle) {
     return NextResponse.json({ error: "unknown run" }, { status: 404 });
   }

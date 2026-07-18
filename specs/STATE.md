@@ -2,6 +2,22 @@
 
 ## Last Updated
 
+2026-07-16 — /build ship Phase 1 (specs/BUILD-SHIP-E2E-PLAN.md): stateless
+  BFF over the durable store. packages/smither gains readRunView (run status
+  + per-node states from _smithers_runs/_smithers_nodes + outputs) and
+  prepareRun accepts a shared api handle; the BFF snapshot now derives
+  status/stages/curation/result from the store every poll (live reducer is
+  garnish), one store handle per app (PGlite can't double-open), and a
+  registry miss reconstructs an observer handle from the store
+  (reconstructBuildRun — recomposed plan, no filesystem). Pure derivation in
+  server/bff/build/run-view.ts (+6 tests). Acceptance verified: two dev
+  instances over one shared Postgres (PGlite socket stand-in on :15432) —
+  create on A, poll on B mid-run and at settle; B served stages, curation,
+  result, fileTree for a run it never executed. next.config distDir is
+  NEXT_DIST_DIR-overridable for multi-instance local testing.
+  Pending decision: build_runs registry table home (dedicated PG vs backend
+  Supabase) — needed for Phase 2 runner bookkeeping.
+
 2026-07-16 — /build P0 honest artifacts (gap map: specs/BUILD-PAGE-WIRING-GAP.md):
   engine snapshot now carries the real crate file tree (walk of
   sdkRoot/apps/<app>, target/ excluded), the curate agent's structured
