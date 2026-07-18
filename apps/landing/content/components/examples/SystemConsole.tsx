@@ -9,16 +9,16 @@ const SESSION_HEADER = {
   required: true,
 };
 
-const API_KEY_HEADER = {
-  key: "X-API-Key",
-  placeholder: "your-api-key (optional)",
+const APP_KEY_HEADER = {
+  key: "Aomi-App-Key",
+  placeholder: "your-app-key (optional)",
 };
 
 const ENDPOINTS: EndpointDef[] = [
   {
     label: "Get State",
     method: "GET",
-    path: "/api/state",
+    path: "/api/thread/state",
     description:
       "Fetch the current session state: messages, system events, title, and processing status.",
     params: [
@@ -32,7 +32,7 @@ const ENDPOINTS: EndpointDef[] = [
   {
     label: "Chat",
     method: "POST",
-    path: "/api/chat",
+    path: "/api/thread/chat",
     description:
       "Send a chat message. Returns updated messages and processing status.",
     params: [
@@ -40,7 +40,7 @@ const ENDPOINTS: EndpointDef[] = [
       { key: "app", placeholder: "default", required: true },
       { key: "public_key", placeholder: "0x…" },
     ],
-    headers: [SESSION_HEADER, API_KEY_HEADER],
+    headers: [SESSION_HEADER, APP_KEY_HEADER],
   },
   {
     label: "System Message",
@@ -60,7 +60,7 @@ const ENDPOINTS: EndpointDef[] = [
   {
     label: "Interrupt",
     method: "POST",
-    path: "/api/interrupt",
+    path: "/api/thread/interrupt",
     description:
       "Interrupt the current agent processing and return the latest session state.",
     headers: [SESSION_HEADER],
@@ -68,7 +68,7 @@ const ENDPOINTS: EndpointDef[] = [
   {
     label: "System Events",
     method: "GET",
-    path: "/api/events",
+    path: "/api/thread/events",
     description:
       "Fetch recent system events (InlineCall, SystemNotice, SystemError).",
     params: [
@@ -82,31 +82,31 @@ const ENDPOINTS: EndpointDef[] = [
   {
     label: "Get Apps",
     method: "GET",
-    path: "/api/control/apps",
+    path: "/api/session/apps",
     description: "List available apps (agents) for the current context.",
     params: [
       { key: "public_key", placeholder: "0x…" },
     ],
-    headers: [SESSION_HEADER, API_KEY_HEADER],
+    headers: [SESSION_HEADER, APP_KEY_HEADER],
   },
   {
     label: "Get Models",
     method: "GET",
-    path: "/api/control/models",
+    path: "/api/session/models",
     description: "List available LLM models.",
     headers: [SESSION_HEADER],
   },
   {
     label: "Set Model",
     method: "POST",
-    path: "/api/control/model",
+    path: "/api/session/model",
     description:
       "Set the model for a session. Returns { success, rig, baml, created }.",
     params: [
       { key: "rig", placeholder: "gpt-4o", required: true },
       { key: "app", placeholder: "default" },
     ],
-    headers: [SESSION_HEADER, API_KEY_HEADER],
+    headers: [SESSION_HEADER, APP_KEY_HEADER],
   },
 ];
 

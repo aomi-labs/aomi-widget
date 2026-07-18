@@ -1,0 +1,5 @@
+[eval] FAIL transfer_usdc_to_bob 1 turn(s) 7 tool call(s) 1.35979 cr, 45471 in / 1457 out tok, 43509 cached / 0 reasoning tok 0 warning(s) duration 28s
+errors:
+  tool no matching tool arguments for stage_tx:$.to
+report full json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/transfer_usdc_to_bob/claude-haiku-4.5/pass-002/20260531T185239.988300000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/transfer_usdc_to_bob/claude-haiku-4.5/pass-002/20260531T185239.988300000Z.compact.json

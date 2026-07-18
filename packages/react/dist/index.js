@@ -31,7 +31,7 @@ var __objRest = (source, exclude) => {
   return target;
 };
 
-// packages/react/src/index.ts
+// src/index.ts
 import { AomiClient as AomiClient2 } from "@aomi-labs/client";
 import {
   toViemSignTypedDataArgs,
@@ -45,24 +45,385 @@ import {
   executeWalletCalls,
   DISABLED_PROVIDER_STATE,
   parseChainId,
-  aaModeFromExecutionKind
+  aaModeFromExecutionKind,
+  toViemSignMessageArgs,
+  normalizeAppDescriptor,
+  appIdentityKey
 } from "@aomi-labs/client";
 
-// packages/react/src/runtime/aomi-runtime.tsx
+// src/runtime/aomi-runtime.tsx
 import { useMemo as useMemo3 } from "react";
-import { AomiClient, UserState as UserState4 } from "@aomi-labs/client";
+import {
+  AomiClient
+} from "@aomi-labs/client";
 
-// packages/react/src/contexts/control-context.tsx
+// src/contexts/control-context.tsx
 import {
   createContext,
-  useCallback,
+  useCallback as useCallback5,
   useContext,
-  useRef,
-  useState,
-  useEffect
+  useEffect as useEffect5,
+  useRef
 } from "react";
 
-// packages/react/src/utils/uuid.ts
+// src/utils/client-session.ts
+var CLIENT_ID_STORAGE_KEY = "aomi_client_id";
+var CONTROL_SESSION_PREFIX = "control:";
+function getOrCreateClientId() {
+  var _a, _b, _c, _d, _e;
+  try {
+    const storedClientId = (_a = globalThis.localStorage) == null ? void 0 : _a.getItem(
+      CLIENT_ID_STORAGE_KEY
+    );
+    if (storedClientId && storedClientId.trim().length > 0) {
+      return storedClientId;
+    }
+  } catch (e) {
+  }
+  const clientId = (_d = (_c = (_b = globalThis.crypto) == null ? void 0 : _b.randomUUID) == null ? void 0 : _c.call(_b)) != null ? _d : `client-${Date.now()}`;
+  try {
+    (_e = globalThis.localStorage) == null ? void 0 : _e.setItem(CLIENT_ID_STORAGE_KEY, clientId);
+  } catch (e) {
+  }
+  return clientId;
+}
+function getControlSessionId(clientId, fallbackSessionId) {
+  const trimmedClientId = clientId == null ? void 0 : clientId.trim();
+  return trimmedClientId ? `${CONTROL_SESSION_PREFIX}${trimmedClientId}` : fallbackSessionId;
+}
+
+// src/control/api-key.ts
+import { useCallback, useEffect, useState } from "react";
+var API_KEY_STORAGE_KEY = "aomi_secret_key";
+function useApiKeyImpl() {
+  const [apiKey, setApiKeyInternal] = useState(null);
+  useEffect(() => {
+    var _a;
+    try {
+      const stored = (_a = globalThis.localStorage) == null ? void 0 : _a.getItem(API_KEY_STORAGE_KEY);
+      if (stored) setApiKeyInternal(stored);
+    } catch (e) {
+    }
+  }, []);
+  useEffect(() => {
+    var _a, _b;
+    try {
+      if (apiKey) {
+        (_a = globalThis.localStorage) == null ? void 0 : _a.setItem(API_KEY_STORAGE_KEY, apiKey);
+      } else {
+        (_b = globalThis.localStorage) == null ? void 0 : _b.removeItem(API_KEY_STORAGE_KEY);
+      }
+    } catch (e) {
+    }
+  }, [apiKey]);
+  const setApiKey = useCallback((next) => {
+    setApiKeyInternal(next === "" ? null : next);
+  }, []);
+  return {
+    state: { apiKey },
+    actions: { setApiKey }
+  };
+}
+
+// src/control/byok.ts
+import { useCallback as useCallback2, useEffect as useEffect2, useState as useState2 } from "react";
+var BYOK_KEYS_STORAGE_KEY = "aomi_byok_keys";
+var BYOK_SECRET_PREFIX = "PROVIDER_KEY:";
+function useByokImpl({
+  aomiClientRef,
+  clientIdRef,
+  getControlSessionId: getControlSessionId2
+}) {
+  const [byokKeys, setByokKeys] = useState2({});
+  useEffect2(() => {
+    var _a;
+    try {
+      const raw = (_a = globalThis.localStorage) == null ? void 0 : _a.getItem(BYOK_KEYS_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        setByokKeys(parsed);
+      }
+    } catch (e) {
+    }
+  }, []);
+  useEffect2(() => {
+    var _a, _b;
+    try {
+      if (Object.keys(byokKeys).length > 0) {
+        (_a = globalThis.localStorage) == null ? void 0 : _a.setItem(
+          BYOK_KEYS_STORAGE_KEY,
+          JSON.stringify(byokKeys)
+        );
+      } else {
+        (_b = globalThis.localStorage) == null ? void 0 : _b.removeItem(BYOK_KEYS_STORAGE_KEY);
+      }
+    } catch (e) {
+    }
+  }, [byokKeys]);
+  useEffect2(() => {
+    const clientId = clientIdRef.current;
+    if (!clientId) return;
+    if (Object.keys(byokKeys).length === 0) return;
+    const secrets = {};
+    for (const [provider, entry] of Object.entries(byokKeys)) {
+      secrets[`${BYOK_SECRET_PREFIX}${provider}`] = entry.apiKey;
+    }
+    void aomiClientRef.current.ingestSecrets(getControlSessionId2(), clientId, secrets).catch((err) => {
+      console.error("Failed to auto-ingest BYOK keys:", err);
+    });
+  }, [aomiClientRef, byokKeys, getControlSessionId2]);
+  const ingestSecrets = useCallback2(
+    async (secrets, app) => {
+      const clientId = clientIdRef.current;
+      if (!clientId) throw new Error("clientId not initialized");
+      const { handles } = await aomiClientRef.current.ingestSecrets(
+        getControlSessionId2(),
+        clientId,
+        secrets,
+        app
+      );
+      return handles;
+    },
+    [aomiClientRef, clientIdRef, getControlSessionId2]
+  );
+  const clearSecrets = useCallback2(
+    async (app) => {
+      var _a, _b;
+      const clientId = clientIdRef.current;
+      if (!clientId) return;
+      await ((_b = (_a = aomiClientRef.current).clearSecrets) == null ? void 0 : _b.call(
+        _a,
+        getControlSessionId2(),
+        clientId,
+        app
+      ));
+    },
+    [aomiClientRef, clientIdRef, getControlSessionId2]
+  );
+  const deleteSecret = useCallback2(
+    async (name, app) => {
+      const clientId = clientIdRef.current;
+      if (!clientId) return;
+      await aomiClientRef.current.deleteSecret(
+        getControlSessionId2(),
+        clientId,
+        name,
+        app
+      );
+    },
+    [aomiClientRef, clientIdRef, getControlSessionId2]
+  );
+  const listSecrets = useCallback2(async () => {
+    var _a;
+    const { by_app } = await aomiClientRef.current.listSecrets(
+      getControlSessionId2(),
+      (_a = clientIdRef.current) != null ? _a : void 0
+    );
+    return by_app;
+  }, [aomiClientRef, clientIdRef, getControlSessionId2]);
+  const setByok = useCallback2(
+    async (provider, apiKey, label) => {
+      const trimmed = apiKey.trim();
+      if (!trimmed) return;
+      const entry = {
+        apiKey: trimmed,
+        keyPrefix: trimmed.slice(0, 7),
+        label
+      };
+      setByokKeys((prev) => __spreadProps(__spreadValues({}, prev), { [provider]: entry }));
+      const clientId = clientIdRef.current;
+      if (clientId) {
+        try {
+          await aomiClientRef.current.ingestSecrets(
+            getControlSessionId2(),
+            clientId,
+            { [`${BYOK_SECRET_PREFIX}${provider}`]: trimmed }
+          );
+        } catch (err) {
+          console.error("Failed to ingest BYOK key:", err);
+        }
+      }
+    },
+    [aomiClientRef, clientIdRef, getControlSessionId2]
+  );
+  const removeByok = useCallback2(
+    async (provider) => {
+      const clientId = clientIdRef.current;
+      if (clientId) {
+        await aomiClientRef.current.deleteSecret(
+          getControlSessionId2(),
+          clientId,
+          `${BYOK_SECRET_PREFIX}${provider}`
+        );
+      }
+      setByokKeys((prev) => {
+        const _a = prev, { [provider]: _ } = _a, rest = __objRest(_a, [__restKey(provider)]);
+        return rest;
+      });
+    },
+    [aomiClientRef, clientIdRef, getControlSessionId2]
+  );
+  const getByokKeys = useCallback2(
+    () => byokKeys,
+    [byokKeys]
+  );
+  const hasByok = useCallback2(
+    (provider) => {
+      if (provider) return provider in byokKeys;
+      return Object.keys(byokKeys).length > 0;
+    },
+    [byokKeys]
+  );
+  return {
+    state: { byokKeys },
+    actions: {
+      setByok,
+      removeByok,
+      getByokKeys,
+      hasByok,
+      ingestSecrets,
+      clearSecrets,
+      deleteSecret,
+      listSecrets
+    }
+  };
+}
+
+// src/control/auth-endpoints.ts
+import { useCallback as useCallback3, useEffect as useEffect3, useState as useState3 } from "react";
+
+// src/utils/model-selection.ts
+var PREFERRED_DEFAULT_MODEL_PATTERNS = [
+  /^claude.*opus.*4[.-]?8/i,
+  /^claude.*4[.-]?8.*opus/i,
+  /^claude.*opus.*4[.-]?6/i,
+  /^claude.*4[.-]?6.*opus/i,
+  /^claude-4\.5-haiku/i,
+  /^claude.*haiku/i,
+  /^gpt-4o-mini/i,
+  /^gemini.*flash/i
+];
+function resolveAutoModel(models) {
+  var _a;
+  if (models.length === 0) return null;
+  for (const pattern of PREFERRED_DEFAULT_MODEL_PATTERNS) {
+    const match = models.find((model) => pattern.test(model));
+    if (match) return match;
+  }
+  return (_a = models[0]) != null ? _a : null;
+}
+
+// src/control/auth-endpoints.ts
+function getDefaultApp(apps) {
+  var _a;
+  return apps.includes("default") ? "default" : (_a = apps[0]) != null ? _a : null;
+}
+function namesFromDescriptors(apps) {
+  return apps.map((a) => a.name);
+}
+function useAuthEndpointsImpl({
+  aomiClientRef,
+  apiKeyRef,
+  getControlSessionId: getControlSessionId2,
+  apiKey,
+  appPlatforms
+}) {
+  const appPlatformsKey = Array.isArray(appPlatforms) ? appPlatforms.join("\0") : appPlatforms != null ? appPlatforms : "";
+  const [availableModels, setAvailableModels] = useState3([]);
+  const [defaultModel, setDefaultModel] = useState3(null);
+  const [authorizedApps, setAuthorizedApps] = useState3([]);
+  const [appDescriptors, setAppDescriptors] = useState3([]);
+  const [defaultApp, setDefaultApp] = useState3(null);
+  useEffect3(() => {
+    const fetchApps = async () => {
+      var _a;
+      try {
+        const descriptors = await aomiClientRef.current.getApps(
+          getControlSessionId2(),
+          {
+            apiKey: (_a = apiKeyRef.current) != null ? _a : void 0,
+            platforms: appPlatforms
+          }
+        );
+        const names = namesFromDescriptors(descriptors);
+        setAuthorizedApps(names);
+        setAppDescriptors(descriptors);
+        setDefaultApp(getDefaultApp(names));
+      } catch (error) {
+        console.error("Failed to fetch apps:", error);
+        setAuthorizedApps(["default"]);
+        setAppDescriptors([{ name: "default" }]);
+        setDefaultApp("default");
+      }
+    };
+    void fetchApps();
+  }, [aomiClientRef, getControlSessionId2, apiKey, appPlatformsKey]);
+  useEffect3(() => {
+    const fetchModels = async () => {
+      try {
+        const models = await aomiClientRef.current.getModels(
+          getControlSessionId2()
+        );
+        setAvailableModels(models);
+        setDefaultModel(resolveAutoModel(models));
+      } catch (error) {
+        console.error("Failed to fetch models:", error);
+      }
+    };
+    void fetchModels();
+  }, [aomiClientRef, getControlSessionId2]);
+  const getAvailableModels = useCallback3(async () => {
+    try {
+      const models = await aomiClientRef.current.getModels(
+        getControlSessionId2()
+      );
+      setAvailableModels(models);
+      setDefaultModel(resolveAutoModel(models));
+      return models;
+    } catch (error) {
+      console.error("Failed to fetch models:", error);
+      return [];
+    }
+  }, [aomiClientRef, getControlSessionId2]);
+  const getAuthorizedApps = useCallback3(async () => {
+    var _a;
+    try {
+      const descriptors = await aomiClientRef.current.getApps(
+        getControlSessionId2(),
+        {
+          apiKey: (_a = apiKeyRef.current) != null ? _a : void 0,
+          platforms: appPlatforms
+        }
+      );
+      const names = namesFromDescriptors(descriptors);
+      setAuthorizedApps(names);
+      setAppDescriptors(descriptors);
+      setDefaultApp(getDefaultApp(names));
+      return names;
+    } catch (error) {
+      console.error("Failed to fetch apps:", error);
+      setAuthorizedApps(["default"]);
+      setAppDescriptors([{ name: "default" }]);
+      setDefaultApp("default");
+      return ["default"];
+    }
+  }, [aomiClientRef, apiKeyRef, getControlSessionId2, appPlatformsKey]);
+  return {
+    state: {
+      availableModels,
+      defaultModel,
+      authorizedApps,
+      appDescriptors,
+      defaultApp
+    },
+    actions: { getAvailableModels, getAuthorizedApps }
+  };
+}
+
+// src/control/per-thread-control.ts
+import { useCallback as useCallback4, useEffect as useEffect4 } from "react";
+
+// src/utils/uuid.ts
 function generateUUID() {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return crypto.randomUUID();
@@ -74,7 +435,7 @@ function generateUUID() {
   });
 }
 
-// packages/react/src/state/thread-store.ts
+// src/state/thread-store.ts
 var shouldLogThreadUpdates = process.env.NODE_ENV !== "production";
 var logThreadMetadataChange = (source, threadId, prev, next) => {
   if (!shouldLogThreadUpdates) return;
@@ -90,9 +451,12 @@ var logThreadMetadataChange = (source, threadId, prev, next) => {
 function initThreadControl() {
   return {
     model: null,
+    modelMode: "auto",
     app: null,
+    applicationId: null,
     controlDirty: false,
-    isProcessing: false
+    isProcessing: false,
+    turnPhase: "idle"
   };
 }
 var ThreadStore = class {
@@ -150,6 +514,30 @@ var ThreadStore = class {
     };
     this.getThreadMetadata = (threadId) => {
       return this.state.threadMetadata.get(threadId);
+    };
+    /** Reset store to a single empty "New Chat" thread (e.g. on wallet disconnect). */
+    this.resetToDefault = () => {
+      const threadId = generateUUID();
+      this.state = {
+        currentThreadId: threadId,
+        threadViewKey: this.state.threadViewKey + 1,
+        threadCnt: 1,
+        threads: /* @__PURE__ */ new Map([[threadId, []]]),
+        threadMetadata: /* @__PURE__ */ new Map([
+          [
+            threadId,
+            {
+              title: "New Chat",
+              status: "regular",
+              lastActiveAt: (/* @__PURE__ */ new Date()).toISOString(),
+              control: initThreadControl()
+            }
+          ]
+        ])
+      };
+      this.snapshot = this.buildSnapshot();
+      this.emit();
+      return threadId;
     };
     this.updateThreadMetadata = (threadId, updates) => {
       const existing = this.state.threadMetadata.get(threadId);
@@ -228,43 +616,353 @@ var ThreadStore = class {
       getThreadMessages: this.getThreadMessages,
       setThreadMessages: this.setThreadMessages,
       getThreadMetadata: this.getThreadMetadata,
-      updateThreadMetadata: this.updateThreadMetadata
+      updateThreadMetadata: this.updateThreadMetadata,
+      resetToDefault: this.resetToDefault
     };
   }
 };
 
-// packages/react/src/contexts/control-context.tsx
-import { jsx } from "react/jsx-runtime";
-var API_KEY_STORAGE_KEY = "aomi_api_key";
-var CLIENT_ID_STORAGE_KEY = "aomi_client_id";
-var PROVIDER_KEYS_STORAGE_KEY = "aomi_provider_keys";
-var PROVIDER_KEY_SECRET_PREFIX = "PROVIDER_KEY:";
-function getOrCreateClientId() {
-  var _a, _b, _c, _d, _e;
-  try {
-    const storedClientId = (_a = globalThis.localStorage) == null ? void 0 : _a.getItem(CLIENT_ID_STORAGE_KEY);
-    if (storedClientId && storedClientId.trim().length > 0) {
-      return storedClientId;
-    }
-  } catch (e) {
-  }
-  const clientId = (_d = (_c = (_b = globalThis.crypto) == null ? void 0 : _b.randomUUID) == null ? void 0 : _c.call(_b)) != null ? _d : `client-${Date.now()}`;
-  try {
-    (_e = globalThis.localStorage) == null ? void 0 : _e.setItem(CLIENT_ID_STORAGE_KEY, clientId);
-  } catch (e) {
-  }
-  return clientId;
-}
-function getDefaultApp(apps) {
+// src/control/per-thread-control.ts
+var MODEL_SELECTION_STORAGE_KEY = "aomi_model_selection";
+function readStoredModelPreference() {
   var _a;
-  return apps.includes("default") ? "default" : (_a = apps[0]) != null ? _a : null;
-}
-function resolveAuthorizedApp(app, authorizedApps, defaultApp) {
-  if (app && authorizedApps.includes(app)) {
-    return app;
+  try {
+    const raw = (_a = globalThis.localStorage) == null ? void 0 : _a.getItem(MODEL_SELECTION_STORAGE_KEY);
+    if (!raw) return { mode: "auto", model: null };
+    const parsed = JSON.parse(raw);
+    return {
+      mode: parsed.mode === "manual" ? "manual" : "auto",
+      model: typeof parsed.model === "string" ? parsed.model : null
+    };
+  } catch (e) {
+    return { mode: "auto", model: null };
   }
-  return defaultApp;
 }
+function writeStoredModelPreference(preference) {
+  var _a;
+  try {
+    (_a = globalThis.localStorage) == null ? void 0 : _a.setItem(
+      MODEL_SELECTION_STORAGE_KEY,
+      JSON.stringify(preference)
+    );
+  } catch (e) {
+  }
+}
+function resolvePreferredModelSelection(preference, models, defaultModel) {
+  var _a;
+  if (preference.mode === "manual" && preference.model && models.includes(preference.model)) {
+    return preference;
+  }
+  if (preference.mode === "auto") {
+    return {
+      mode: "auto",
+      model: (_a = resolveAutoModel(models)) != null ? _a : defaultModel
+    };
+  }
+  return {
+    mode: "auto",
+    model: defaultModel != null ? defaultModel : resolveAutoModel(models)
+  };
+}
+function getFallbackModel(models, defaultModel) {
+  return defaultModel != null ? defaultModel : resolveAutoModel(models);
+}
+function normalizeApplicationId(value) {
+  if (typeof value === "number")
+    return Number.isSafeInteger(value) ? value : null;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed ? trimmed : null;
+  }
+  return null;
+}
+function sameApplicationId(left, right) {
+  var _a, _b;
+  return ((_a = normalizeApplicationId(left)) == null ? void 0 : _a.toString()) === ((_b = normalizeApplicationId(right)) == null ? void 0 : _b.toString());
+}
+function findAuthorizedDescriptor(app, applicationId, descriptors) {
+  var _a, _b;
+  const scopedId = normalizeApplicationId(applicationId);
+  if (scopedId !== null) {
+    return (_a = descriptors.find(
+      (descriptor) => descriptor.name === app && sameApplicationId(descriptor.applicationId, scopedId)
+    )) != null ? _a : null;
+  }
+  return (_b = descriptors.find(
+    (descriptor) => descriptor.name === app && normalizeApplicationId(descriptor.applicationId) === null
+  )) != null ? _b : null;
+}
+function resolveAuthorizedApp(app, applicationId, authorizedApps, appDescriptors, defaultApp) {
+  var _a;
+  if (app) {
+    const scopedId = normalizeApplicationId(applicationId);
+    const exact = findAuthorizedDescriptor(app, applicationId, appDescriptors);
+    if (exact) return exact;
+    const nameRequiresApplicationId = appDescriptors.some(
+      (descriptor) => descriptor.name === app && normalizeApplicationId(descriptor.applicationId) !== null
+    );
+    if (scopedId === null && !nameRequiresApplicationId && authorizedApps.includes(app)) {
+      return { name: app, applicationId: null };
+    }
+  }
+  if (!defaultApp) return null;
+  return (_a = findAuthorizedDescriptor(defaultApp, null, appDescriptors)) != null ? _a : {
+    name: defaultApp
+  };
+}
+function usePerThreadControlImpl({
+  aomiClientRef,
+  sessionIdRef,
+  apiKeyRef,
+  clientIdRef,
+  getThreadMetadataRef,
+  updateThreadMetadataRef,
+  availableModels,
+  defaultModel,
+  availableModelsRef,
+  defaultModelRef,
+  authorizedAppsRef,
+  appDescriptorsRef,
+  defaultAppRef,
+  sessionId
+}) {
+  var _a, _b;
+  const currentMeta = getThreadMetadataRef.current(sessionId);
+  const isProcessing = (_b = (_a = currentMeta == null ? void 0 : currentMeta.control) == null ? void 0 : _a.isProcessing) != null ? _b : false;
+  const getCurrentThreadControl = useCallback4(() => {
+    var _a2;
+    const metadata = getThreadMetadataRef.current(sessionIdRef.current);
+    return (_a2 = metadata == null ? void 0 : metadata.control) != null ? _a2 : initThreadControl();
+  }, []);
+  const getPreferredThreadControl = useCallback4(() => {
+    const preference = readStoredModelPreference();
+    const selection = resolvePreferredModelSelection(
+      preference,
+      availableModelsRef.current,
+      defaultModelRef.current
+    );
+    return __spreadProps(__spreadValues({}, initThreadControl()), {
+      model: selection.model,
+      modelMode: selection.mode,
+      controlDirty: selection.model !== null
+    });
+  }, []);
+  const getCurrentThreadApp = useCallback4(() => {
+    var _a2, _b2, _c, _d;
+    const currentControl = (_b2 = (_a2 = getThreadMetadataRef.current(sessionIdRef.current)) == null ? void 0 : _a2.control) != null ? _b2 : initThreadControl();
+    return (_d = (_c = resolveAuthorizedApp(
+      currentControl.app,
+      currentControl.applicationId,
+      authorizedAppsRef.current,
+      appDescriptorsRef.current,
+      defaultAppRef.current
+    )) == null ? void 0 : _c.name) != null ? _d : "default";
+  }, []);
+  const getCurrentThreadApplicationId = useCallback4(() => {
+    var _a2, _b2, _c, _d;
+    const currentControl = (_b2 = (_a2 = getThreadMetadataRef.current(sessionIdRef.current)) == null ? void 0 : _a2.control) != null ? _b2 : initThreadControl();
+    return (_d = (_c = resolveAuthorizedApp(
+      currentControl.app,
+      currentControl.applicationId,
+      authorizedAppsRef.current,
+      appDescriptorsRef.current,
+      defaultAppRef.current
+    )) == null ? void 0 : _c.applicationId) != null ? _d : null;
+  }, []);
+  const onModelSelect = useCallback4(
+    async (model, options) => {
+      var _a2, _b2, _c, _d, _e, _f, _g, _h;
+      const threadId = sessionIdRef.current;
+      const currentControl = (_b2 = (_a2 = getThreadMetadataRef.current(threadId)) == null ? void 0 : _a2.control) != null ? _b2 : initThreadControl();
+      if (currentControl.isProcessing) {
+        console.warn(
+          "[per-thread-control] Cannot switch model while processing"
+        );
+        return;
+      }
+      const modelMode = (_c = options == null ? void 0 : options.mode) != null ? _c : "manual";
+      const selectedApp = (_d = resolveAuthorizedApp(
+        currentControl.app,
+        currentControl.applicationId,
+        authorizedAppsRef.current,
+        appDescriptorsRef.current,
+        defaultAppRef.current
+      )) != null ? _d : { name: "default" };
+      updateThreadMetadataRef.current(threadId, {
+        control: __spreadProps(__spreadValues({}, currentControl), {
+          model,
+          modelMode,
+          app: selectedApp.name,
+          applicationId: normalizeApplicationId(selectedApp.applicationId),
+          controlDirty: true
+        })
+      });
+      try {
+        await aomiClientRef.current.setModel(threadId, model, {
+          app: selectedApp.name,
+          applicationId: normalizeApplicationId(selectedApp.applicationId),
+          apiKey: (_e = apiKeyRef.current) != null ? _e : void 0,
+          clientId: (_f = clientIdRef.current) != null ? _f : void 0
+        });
+        writeStoredModelPreference({
+          mode: modelMode,
+          model: modelMode === "manual" ? model : null
+        });
+        const latestControl = (_h = (_g = getThreadMetadataRef.current(threadId)) == null ? void 0 : _g.control) != null ? _h : currentControl;
+        if (latestControl.model === model && latestControl.app === selectedApp.name && sameApplicationId(
+          latestControl.applicationId,
+          selectedApp.applicationId
+        )) {
+          updateThreadMetadataRef.current(threadId, {
+            control: __spreadProps(__spreadValues({}, latestControl), {
+              modelMode,
+              controlDirty: false
+            })
+          });
+        }
+      } catch (err) {
+        console.error("[per-thread-control] setModel failed:", err);
+        throw err;
+      }
+    },
+    []
+  );
+  const onAppSelect = useCallback4(
+    (app, options) => {
+      var _a2, _b2, _c, _d, _e, _f;
+      const threadId = sessionIdRef.current;
+      const currentControl = (_b2 = (_a2 = getThreadMetadataRef.current(threadId)) == null ? void 0 : _a2.control) != null ? _b2 : initThreadControl();
+      if (currentControl.isProcessing) {
+        console.warn("[per-thread-control] Cannot switch app while processing");
+        return;
+      }
+      const descriptor = resolveAuthorizedApp(
+        app,
+        (_c = options == null ? void 0 : options.applicationId) != null ? _c : null,
+        authorizedAppsRef.current,
+        appDescriptorsRef.current,
+        null
+      );
+      const hasAuthData = authorizedAppsRef.current.length > 0 || appDescriptorsRef.current.length > 0;
+      if (hasAuthData && !descriptor) {
+        console.warn("[per-thread-control] Cannot select unauthorized app", {
+          app
+        });
+        return;
+      }
+      updateThreadMetadataRef.current(threadId, {
+        control: __spreadProps(__spreadValues({}, currentControl), {
+          app: (_d = descriptor == null ? void 0 : descriptor.name) != null ? _d : app,
+          applicationId: normalizeApplicationId(
+            (_f = (_e = options == null ? void 0 : options.applicationId) != null ? _e : descriptor == null ? void 0 : descriptor.applicationId) != null ? _f : null
+          ),
+          controlDirty: true
+        })
+      });
+    },
+    []
+  );
+  const markControlSynced = useCallback4(() => {
+    var _a2, _b2;
+    const threadId = sessionIdRef.current;
+    const currentControl = (_b2 = (_a2 = getThreadMetadataRef.current(threadId)) == null ? void 0 : _a2.control) != null ? _b2 : initThreadControl();
+    if (currentControl.controlDirty) {
+      updateThreadMetadataRef.current(threadId, {
+        control: __spreadProps(__spreadValues({}, currentControl), { controlDirty: false })
+      });
+    }
+  }, []);
+  const syncCurrentThreadControl = useCallback4(async (options) => {
+    var _a2, _b2, _c, _d, _e, _f, _g;
+    const threadId = sessionIdRef.current;
+    const currentControl = (_b2 = (_a2 = getThreadMetadataRef.current(threadId)) == null ? void 0 : _a2.control) != null ? _b2 : initThreadControl();
+    if (!currentControl.controlDirty || !(options == null ? void 0 : options.ignoreProcessing) && currentControl.isProcessing || !currentControl.model) {
+      return;
+    }
+    const selectedApp = (_c = resolveAuthorizedApp(
+      currentControl.app,
+      currentControl.applicationId,
+      authorizedAppsRef.current,
+      appDescriptorsRef.current,
+      defaultAppRef.current
+    )) != null ? _c : { name: "default" };
+    await aomiClientRef.current.setModel(threadId, currentControl.model, {
+      app: selectedApp.name,
+      applicationId: normalizeApplicationId(selectedApp.applicationId),
+      apiKey: (_d = apiKeyRef.current) != null ? _d : void 0,
+      clientId: (_e = clientIdRef.current) != null ? _e : void 0
+    });
+    const latestControl = (_g = (_f = getThreadMetadataRef.current(threadId)) == null ? void 0 : _f.control) != null ? _g : currentControl;
+    if (latestControl.model === currentControl.model && latestControl.app === currentControl.app && sameApplicationId(
+      latestControl.applicationId,
+      currentControl.applicationId
+    )) {
+      updateThreadMetadataRef.current(threadId, {
+        control: __spreadProps(__spreadValues({}, latestControl), {
+          app: selectedApp.name,
+          applicationId: normalizeApplicationId(selectedApp.applicationId),
+          controlDirty: false
+        })
+      });
+    }
+  }, []);
+  useEffect4(() => {
+    var _a2;
+    const threadId = sessionIdRef.current;
+    const metadata = getThreadMetadataRef.current(threadId);
+    if (!metadata || metadata.control.isProcessing) return;
+    const currentControl = metadata.control;
+    let nextControl = null;
+    if (currentControl.model === null) {
+      const preferred = getPreferredThreadControl();
+      if (!preferred.model) return;
+      nextControl = __spreadProps(__spreadValues({}, currentControl), {
+        model: preferred.model,
+        modelMode: preferred.modelMode,
+        controlDirty: true
+      });
+    } else if (availableModels.length > 0) {
+      const currentMode = (_a2 = currentControl.modelMode) != null ? _a2 : "manual";
+      if (currentMode === "auto") {
+        const autoModel = getFallbackModel(availableModels, defaultModel);
+        if (autoModel && currentControl.model !== autoModel) {
+          nextControl = __spreadProps(__spreadValues({}, currentControl), {
+            model: autoModel,
+            modelMode: "auto",
+            controlDirty: true
+          });
+        }
+      } else if (!availableModels.includes(currentControl.model)) {
+        const fallbackModel = getFallbackModel(availableModels, defaultModel);
+        if (fallbackModel) {
+          nextControl = __spreadProps(__spreadValues({}, currentControl), {
+            model: fallbackModel,
+            modelMode: "auto",
+            controlDirty: true
+          });
+        }
+      }
+    }
+    if (!nextControl) return;
+    updateThreadMetadataRef.current(threadId, { control: nextControl });
+  }, [getPreferredThreadControl, sessionId, availableModels, defaultModel]);
+  return {
+    actions: {
+      getCurrentThreadControl,
+      getCurrentThreadApp,
+      getCurrentThreadApplicationId,
+      getPreferredThreadControl,
+      onModelSelect,
+      onAppSelect,
+      markControlSynced,
+      syncCurrentThreadControl
+    },
+    isProcessing
+  };
+}
+
+// src/contexts/control-context.tsx
+import { jsx } from "react/jsx-runtime";
 var ControlContext = createContext(null);
 function useControl() {
   const ctx = useContext(ControlContext);
@@ -273,447 +971,163 @@ function useControl() {
   }
   return ctx;
 }
+function useApiKey() {
+  const ctx = useControl();
+  return {
+    state: { apiKey: ctx.state.apiKey, clientId: ctx.state.clientId },
+    actions: { setApiKey: ctx.setApiKey }
+  };
+}
+function useByok() {
+  const ctx = useControl();
+  return {
+    state: { byokKeys: ctx.state.byokKeys },
+    actions: {
+      setByok: ctx.setByok,
+      removeByok: ctx.removeByok,
+      getByokKeys: ctx.getByokKeys,
+      hasByok: ctx.hasByok,
+      ingestSecrets: ctx.ingestSecrets,
+      clearSecrets: ctx.clearSecrets,
+      deleteSecret: ctx.deleteSecret,
+      listSecrets: ctx.listSecrets
+    }
+  };
+}
+function useAuthEndpoints() {
+  const ctx = useControl();
+  return {
+    state: {
+      availableModels: ctx.state.availableModels,
+      defaultModel: ctx.state.defaultModel,
+      authorizedApps: ctx.state.authorizedApps,
+      appDescriptors: ctx.state.appDescriptors,
+      defaultApp: ctx.state.defaultApp
+    },
+    actions: {
+      getAvailableModels: ctx.getAvailableModels,
+      getAuthorizedApps: ctx.getAuthorizedApps
+    }
+  };
+}
+function usePerThreadControl() {
+  const ctx = useControl();
+  return {
+    isProcessing: ctx.isProcessing,
+    actions: {
+      getCurrentThreadControl: ctx.getCurrentThreadControl,
+      getCurrentThreadApp: ctx.getCurrentThreadApp,
+      getCurrentThreadApplicationId: ctx.getCurrentThreadApplicationId,
+      getPreferredThreadControl: ctx.getPreferredThreadControl,
+      onModelSelect: ctx.onModelSelect,
+      onAppSelect: ctx.onAppSelect,
+      markControlSynced: ctx.markControlSynced,
+      syncCurrentThreadControl: ctx.syncCurrentThreadControl
+    }
+  };
+}
 function ControlContextProvider({
   children,
   aomiClient,
   sessionId,
-  publicKey,
   getThreadMetadata,
-  updateThreadMetadata
+  updateThreadMetadata,
+  appPlatforms
 }) {
-  var _a, _b;
-  const [state, setStateInternal] = useState(() => ({
-    apiKey: null,
-    clientId: getOrCreateClientId(),
-    availableModels: [],
-    authorizedApps: [],
-    defaultModel: null,
-    defaultApp: null,
-    providerKeys: {}
-  }));
-  const stateRef = useRef(state);
-  stateRef.current = state;
   const aomiClientRef = useRef(aomiClient);
   aomiClientRef.current = aomiClient;
   const sessionIdRef = useRef(sessionId);
   sessionIdRef.current = sessionId;
-  const publicKeyRef = useRef(publicKey);
-  publicKeyRef.current = publicKey;
   const getThreadMetadataRef = useRef(getThreadMetadata);
   getThreadMetadataRef.current = getThreadMetadata;
   const updateThreadMetadataRef = useRef(updateThreadMetadata);
   updateThreadMetadataRef.current = updateThreadMetadata;
-  const callbacks = useRef(/* @__PURE__ */ new Set());
-  const currentThreadMetadata = getThreadMetadata(sessionId);
-  const isProcessing = (_b = (_a = currentThreadMetadata == null ? void 0 : currentThreadMetadata.control) == null ? void 0 : _a.isProcessing) != null ? _b : false;
-  useEffect(() => {
-    var _a2;
+  const clientIdRef = useRef(null);
+  if (clientIdRef.current === null) {
+    clientIdRef.current = getOrCreateClientId();
+  }
+  useEffect5(() => {
+    var _a;
     try {
-      if (state.clientId) {
-        (_a2 = globalThis.localStorage) == null ? void 0 : _a2.setItem(CLIENT_ID_STORAGE_KEY, state.clientId);
-      }
-    } catch (e) {
-    }
-  }, [state.clientId]);
-  useEffect(() => {
-    var _a2, _b2;
-    try {
-      const storedApiKey = (_b2 = (_a2 = globalThis.localStorage) == null ? void 0 : _a2.getItem(API_KEY_STORAGE_KEY)) != null ? _b2 : null;
-      if (storedApiKey) {
-        setStateInternal((prev) => __spreadProps(__spreadValues({}, prev), { apiKey: storedApiKey }));
-      }
-    } catch (e) {
-    }
-  }, []);
-  useEffect(() => {
-    var _a2;
-    try {
-      const raw = (_a2 = globalThis.localStorage) == null ? void 0 : _a2.getItem(PROVIDER_KEYS_STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        setStateInternal((prev) => __spreadProps(__spreadValues({}, prev), { providerKeys: parsed }));
-      }
-    } catch (e) {
-    }
-  }, []);
-  useEffect(() => {
-    var _a2, _b2;
-    try {
-      if (state.apiKey) {
-        (_a2 = globalThis.localStorage) == null ? void 0 : _a2.setItem(API_KEY_STORAGE_KEY, state.apiKey);
-      } else {
-        (_b2 = globalThis.localStorage) == null ? void 0 : _b2.removeItem(API_KEY_STORAGE_KEY);
-      }
-    } catch (e) {
-    }
-  }, [state.apiKey]);
-  useEffect(() => {
-    var _a2, _b2;
-    try {
-      const keys = state.providerKeys;
-      if (Object.keys(keys).length > 0) {
-        (_a2 = globalThis.localStorage) == null ? void 0 : _a2.setItem(
-          PROVIDER_KEYS_STORAGE_KEY,
-          JSON.stringify(keys)
-        );
-      } else {
-        (_b2 = globalThis.localStorage) == null ? void 0 : _b2.removeItem(PROVIDER_KEYS_STORAGE_KEY);
-      }
-    } catch (e) {
-    }
-  }, [state.providerKeys]);
-  useEffect(() => {
-    if (!state.clientId) return;
-    const keys = stateRef.current.providerKeys;
-    if (Object.keys(keys).length === 0) return;
-    const secrets = {};
-    for (const [provider, entry] of Object.entries(keys)) {
-      secrets[`${PROVIDER_KEY_SECRET_PREFIX}${provider}`] = entry.apiKey;
-    }
-    void aomiClientRef.current.ingestSecrets(state.clientId, secrets).catch((err) => {
-      console.error("Failed to auto-ingest provider keys:", err);
-    });
-  }, [state.clientId, state.providerKeys]);
-  useEffect(() => {
-    const fetchApps = async () => {
-      var _a2;
-      try {
-        const apps = await aomiClientRef.current.getApps(
-          sessionIdRef.current,
-          {
-            publicKey: publicKeyRef.current,
-            apiKey: (_a2 = stateRef.current.apiKey) != null ? _a2 : void 0
-          }
-        );
-        const defaultApp = getDefaultApp(apps);
-        setStateInternal((prev) => __spreadProps(__spreadValues({}, prev), {
-          authorizedApps: apps,
-          defaultApp
-        }));
-      } catch (error) {
-        console.error("Failed to fetch apps:", error);
-        setStateInternal((prev) => __spreadProps(__spreadValues({}, prev), {
-          authorizedApps: ["default"],
-          defaultApp: "default"
-        }));
-      }
-    };
-    void fetchApps();
-  }, [state.apiKey, publicKey, sessionId]);
-  useEffect(() => {
-    const fetchModels = async () => {
-      try {
-        const models = await aomiClientRef.current.getModels(
-          sessionIdRef.current
-        );
-        setStateInternal((prev) => {
-          var _a2;
-          return __spreadProps(__spreadValues({}, prev), {
-            availableModels: models,
-            defaultModel: (_a2 = models[0]) != null ? _a2 : null
-          });
-        });
-      } catch (error) {
-        console.error("Failed to fetch models:", error);
-      }
-    };
-    void fetchModels();
-  }, []);
-  const setApiKey = useCallback((apiKey) => {
-    setStateInternal((prev) => {
-      const next = __spreadProps(__spreadValues({}, prev), { apiKey: apiKey === "" ? null : apiKey });
-      callbacks.current.forEach((cb) => cb(next));
-      return next;
-    });
-  }, []);
-  const ingestSecrets = useCallback(
-    async (secrets) => {
-      const clientId = stateRef.current.clientId;
-      if (!clientId) throw new Error("clientId not initialized");
-      const { handles } = await aomiClientRef.current.ingestSecrets(
-        clientId,
-        secrets
-      );
-      return handles;
-    },
-    []
-  );
-  const clearSecrets = useCallback(async () => {
-    var _a2, _b2;
-    const clientId = stateRef.current.clientId;
-    if (!clientId) return;
-    await ((_b2 = (_a2 = aomiClientRef.current).clearSecrets) == null ? void 0 : _b2.call(_a2, clientId));
-  }, []);
-  const setProviderKey = useCallback(
-    async (provider, apiKey, label) => {
-      const trimmed = apiKey.trim();
-      if (!trimmed) return;
-      const entry = {
-        apiKey: trimmed,
-        keyPrefix: trimmed.slice(0, 7),
-        label
-      };
-      setStateInternal((prev) => {
-        const next = __spreadProps(__spreadValues({}, prev), {
-          providerKeys: __spreadProps(__spreadValues({}, prev.providerKeys), { [provider]: entry })
-        });
-        callbacks.current.forEach((cb) => cb(next));
-        return next;
-      });
-      const clientId = stateRef.current.clientId;
-      if (clientId) {
-        try {
-          await aomiClientRef.current.ingestSecrets(clientId, {
-            [`${PROVIDER_KEY_SECRET_PREFIX}${provider}`]: trimmed
-          });
-        } catch (err) {
-          console.error("Failed to ingest provider key:", err);
-        }
-      }
-    },
-    []
-  );
-  const removeProviderKey = useCallback(
-    async (provider) => {
-      const clientId = stateRef.current.clientId;
-      if (clientId) {
-        await aomiClientRef.current.deleteSecret(
-          clientId,
-          `${PROVIDER_KEY_SECRET_PREFIX}${provider}`
+      if (clientIdRef.current) {
+        (_a = globalThis.localStorage) == null ? void 0 : _a.setItem(
+          CLIENT_ID_STORAGE_KEY,
+          clientIdRef.current
         );
       }
-      setStateInternal((prev) => {
-        const _a2 = prev.providerKeys, { [provider]: _ } = _a2, rest = __objRest(_a2, [__restKey(provider)]);
-        const next = __spreadProps(__spreadValues({}, prev), { providerKeys: rest });
-        callbacks.current.forEach((cb) => cb(next));
-        return next;
-      });
-    },
+    } catch (e) {
+    }
+  }, []);
+  const apiKey = useApiKeyImpl();
+  const apiKeyRef = useRef(apiKey.state.apiKey);
+  apiKeyRef.current = apiKey.state.apiKey;
+  const getCurrentControlSessionId = useCallback5(
+    () => getControlSessionId(clientIdRef.current, sessionIdRef.current),
     []
   );
-  const getProviderKeys = useCallback(
-    () => stateRef.current.providerKeys,
-    []
-  );
-  const hasProviderKey = useCallback(
-    (provider) => {
-      const keys = stateRef.current.providerKeys;
-      if (provider) return provider in keys;
-      return Object.keys(keys).length > 0;
-    },
-    []
-  );
-  const getAvailableModels = useCallback(async () => {
-    try {
-      const models = await aomiClientRef.current.getModels(
-        sessionIdRef.current
-      );
-      setStateInternal((prev) => {
-        var _a2, _b2;
-        return __spreadProps(__spreadValues({}, prev), {
-          availableModels: models,
-          defaultModel: (_b2 = (_a2 = prev.defaultModel) != null ? _a2 : models[0]) != null ? _b2 : null
-        });
-      });
-      return models;
-    } catch (error) {
-      console.error("Failed to fetch models:", error);
-      return [];
-    }
-  }, []);
-  const getAuthorizedApps = useCallback(async () => {
-    var _a2;
-    try {
-      const apps = await aomiClientRef.current.getApps(
-        sessionIdRef.current,
-        {
-          publicKey: publicKeyRef.current,
-          apiKey: (_a2 = stateRef.current.apiKey) != null ? _a2 : void 0
-        }
-      );
-      const defaultApp = getDefaultApp(apps);
-      setStateInternal((prev) => __spreadProps(__spreadValues({}, prev), {
-        authorizedApps: apps,
-        defaultApp
-      }));
-      return apps;
-    } catch (error) {
-      console.error("Failed to fetch apps:", error);
-      setStateInternal((prev) => __spreadProps(__spreadValues({}, prev), {
-        authorizedApps: ["default"],
-        defaultApp: "default"
-      }));
-      return ["default"];
-    }
-  }, []);
-  const getCurrentThreadControl = useCallback(() => {
-    var _a2;
-    const metadata = getThreadMetadataRef.current(sessionIdRef.current);
-    return (_a2 = metadata == null ? void 0 : metadata.control) != null ? _a2 : initThreadControl();
-  }, []);
-  const getCurrentThreadApp = useCallback(() => {
-    var _a2, _b2, _c;
-    const currentControl = (_b2 = (_a2 = getThreadMetadataRef.current(sessionIdRef.current)) == null ? void 0 : _a2.control) != null ? _b2 : initThreadControl();
-    return (_c = resolveAuthorizedApp(
-      currentControl.app,
-      stateRef.current.authorizedApps,
-      stateRef.current.defaultApp
-    )) != null ? _c : "default";
-  }, []);
-  const onModelSelect = useCallback(async (model) => {
-    var _a2, _b2, _c, _d, _e;
-    const threadId = sessionIdRef.current;
-    const currentControl = (_b2 = (_a2 = getThreadMetadataRef.current(threadId)) == null ? void 0 : _a2.control) != null ? _b2 : initThreadControl();
-    const isProcessing2 = currentControl.isProcessing;
-    console.log("[control-context] onModelSelect called", {
-      model,
-      isProcessing: isProcessing2,
-      threadId
-    });
-    if (isProcessing2) {
-      console.warn("[control-context] Cannot switch model while processing");
-      return;
-    }
-    const app = (_c = resolveAuthorizedApp(
-      currentControl.app,
-      stateRef.current.authorizedApps,
-      stateRef.current.defaultApp
-    )) != null ? _c : "default";
-    console.log("[control-context] onModelSelect updating metadata", {
-      threadId,
-      model,
-      app,
-      currentControl
-    });
-    updateThreadMetadataRef.current(threadId, {
-      control: __spreadProps(__spreadValues({}, currentControl), {
-        model,
-        app,
-        controlDirty: true
-      })
-    });
-    console.log("[control-context] onModelSelect calling backend setModel", {
-      threadId,
-      model,
-      app,
-      backendUrl: aomiClientRef.current
-    });
-    try {
-      const result = await aomiClientRef.current.setModel(
-        threadId,
-        model,
-        {
-          app,
-          apiKey: (_d = stateRef.current.apiKey) != null ? _d : void 0,
-          clientId: (_e = stateRef.current.clientId) != null ? _e : void 0
-        }
-      );
-      console.log("[control-context] onModelSelect backend result", result);
-    } catch (err) {
-      console.error("[control-context] setModel failed:", err);
-      throw err;
-    }
-  }, []);
-  const onAppSelect = useCallback((app) => {
-    var _a2, _b2;
-    const threadId = sessionIdRef.current;
-    const currentControl = (_b2 = (_a2 = getThreadMetadataRef.current(threadId)) == null ? void 0 : _a2.control) != null ? _b2 : initThreadControl();
-    const isProcessing2 = currentControl.isProcessing;
-    console.log("[control-context] onAppSelect called", {
-      app,
-      isProcessing: isProcessing2,
-      threadId
-    });
-    if (isProcessing2) {
-      console.warn(
-        "[control-context] Cannot switch app while processing"
-      );
-      return;
-    }
-    if (stateRef.current.authorizedApps.length > 0 && !stateRef.current.authorizedApps.includes(app)) {
-      console.warn("[control-context] Cannot select unauthorized app", { app });
-      return;
-    }
-    console.log("[control-context] onAppSelect updating metadata", {
-      threadId,
-      app,
-      currentControl
-    });
-    updateThreadMetadataRef.current(threadId, {
-      control: __spreadProps(__spreadValues({}, currentControl), {
-        app,
-        controlDirty: true
-      })
-    });
-    console.log("[control-context] onAppSelect metadata updated");
-  }, []);
-  const markControlSynced = useCallback(() => {
-    var _a2, _b2;
-    const threadId = sessionIdRef.current;
-    const currentControl = (_b2 = (_a2 = getThreadMetadataRef.current(threadId)) == null ? void 0 : _a2.control) != null ? _b2 : initThreadControl();
-    if (currentControl.controlDirty) {
-      updateThreadMetadataRef.current(threadId, {
-        control: __spreadProps(__spreadValues({}, currentControl), {
-          controlDirty: false
-        })
-      });
-    }
-  }, []);
-  const getControlState = useCallback(() => stateRef.current, []);
-  const onControlStateChange = useCallback(
-    (callback) => {
-      callbacks.current.add(callback);
-      return () => {
-        callbacks.current.delete(callback);
-      };
-    },
-    []
-  );
-  const setState = useCallback(
-    (updates) => {
-      var _a2;
-      if ("apiKey" in updates) {
-        setApiKey((_a2 = updates.apiKey) != null ? _a2 : null);
-      }
-      if ("app" in updates && updates.app !== void 0 && updates.app !== null) {
-        onAppSelect(updates.app);
-      }
-    },
-    [setApiKey, onAppSelect]
-  );
-  return /* @__PURE__ */ jsx(
-    ControlContext.Provider,
-    {
-      value: {
-        state,
-        setApiKey,
-        ingestSecrets,
-        clearSecrets,
-        setProviderKey,
-        removeProviderKey,
-        getProviderKeys,
-        hasProviderKey,
-        getAvailableModels,
-        getAuthorizedApps,
-        getCurrentThreadControl,
-        getCurrentThreadApp,
-        onModelSelect,
-        onAppSelect,
-        isProcessing,
-        markControlSynced,
-        getControlState,
-        onControlStateChange,
-        setState
-      },
-      children
-    }
-  );
+  const byok = useByokImpl({
+    aomiClientRef,
+    clientIdRef,
+    getControlSessionId: getCurrentControlSessionId
+  });
+  const authEndpoints = useAuthEndpointsImpl({
+    aomiClientRef,
+    apiKeyRef,
+    getControlSessionId: getCurrentControlSessionId,
+    apiKey: apiKey.state.apiKey,
+    appPlatforms
+  });
+  const availableModelsRef = useRef(authEndpoints.state.availableModels);
+  availableModelsRef.current = authEndpoints.state.availableModels;
+  const defaultModelRef = useRef(authEndpoints.state.defaultModel);
+  defaultModelRef.current = authEndpoints.state.defaultModel;
+  const authorizedAppsRef = useRef(authEndpoints.state.authorizedApps);
+  authorizedAppsRef.current = authEndpoints.state.authorizedApps;
+  const appDescriptorsRef = useRef(authEndpoints.state.appDescriptors);
+  appDescriptorsRef.current = authEndpoints.state.appDescriptors;
+  const defaultAppRef = useRef(authEndpoints.state.defaultApp);
+  defaultAppRef.current = authEndpoints.state.defaultApp;
+  const perThread = usePerThreadControlImpl({
+    aomiClientRef,
+    sessionIdRef,
+    apiKeyRef,
+    clientIdRef,
+    getThreadMetadataRef,
+    updateThreadMetadataRef,
+    availableModels: authEndpoints.state.availableModels,
+    defaultModel: authEndpoints.state.defaultModel,
+    availableModelsRef,
+    defaultModelRef,
+    authorizedAppsRef,
+    appDescriptorsRef,
+    defaultAppRef,
+    sessionId
+  });
+  const aggregateState = {
+    apiKey: apiKey.state.apiKey,
+    clientId: clientIdRef.current,
+    byokKeys: byok.state.byokKeys,
+    availableModels: authEndpoints.state.availableModels,
+    defaultModel: authEndpoints.state.defaultModel,
+    authorizedApps: authEndpoints.state.authorizedApps,
+    appDescriptors: authEndpoints.state.appDescriptors,
+    defaultApp: authEndpoints.state.defaultApp
+  };
+  const aggregateStateRef = useRef(aggregateState);
+  aggregateStateRef.current = aggregateState;
+  const getControlState = useCallback5(() => aggregateStateRef.current, []);
+  const api = __spreadValues(__spreadValues(__spreadValues(__spreadValues({
+    state: aggregateState,
+    isProcessing: perThread.isProcessing,
+    getControlState
+  }, apiKey.actions), byok.actions), authEndpoints.actions), perThread.actions);
+  return /* @__PURE__ */ jsx(ControlContext.Provider, { value: api, children });
 }
 
-// packages/react/src/contexts/event-context.tsx
+// src/contexts/event-context.tsx
 import {
   createContext as createContext2,
-  useCallback as useCallback2,
+  useCallback as useCallback6,
   useContext as useContext2,
   useRef as useRef2
 } from "react";
@@ -733,8 +1147,9 @@ function EventContextProvider({
   aomiClient,
   sessionId
 }) {
+  const { getCurrentThreadApp } = useControl();
   const subscribersRef = useRef2(/* @__PURE__ */ new Map());
-  const subscribe = useCallback2(
+  const subscribe = useCallback6(
     (type, callback) => {
       const subs = subscribersRef.current;
       if (!subs.has(type)) {
@@ -748,7 +1163,7 @@ function EventContextProvider({
     },
     []
   );
-  const dispatchEvent = useCallback2((event) => {
+  const dispatchEvent = useCallback6((event) => {
     const subs = subscribersRef.current;
     const typeSubs = subs.get(event.type);
     if (typeSubs) {
@@ -759,19 +1174,21 @@ function EventContextProvider({
       for (const cb of wildcardSubs) cb(event);
     }
   }, []);
-  const sendOutbound = useCallback2(
+  const sendOutbound = useCallback6(
     async (event) => {
       try {
         const message = JSON.stringify({
           type: event.type,
           payload: event.payload
         });
-        await aomiClient.sendSystemMessage(event.sessionId, message);
+        await aomiClient.sendSystemMessage(event.sessionId, message, {
+          app: getCurrentThreadApp()
+        });
       } catch (error) {
         console.error("Failed to send outbound event:", error);
       }
     },
-    [aomiClient]
+    [aomiClient, getCurrentThreadApp]
   );
   const contextValue = {
     subscribe,
@@ -785,12 +1202,13 @@ function EventContextProvider({
   return /* @__PURE__ */ jsx2(EventContextState.Provider, { value: contextValue, children });
 }
 
-// packages/react/src/contexts/notification-context.tsx
+// src/contexts/notification-context.tsx
 import {
   createContext as createContext3,
-  useCallback as useCallback3,
+  useCallback as useCallback7,
   useContext as useContext3,
-  useState as useState2
+  useRef as useRef3,
+  useState as useState4
 } from "react";
 import { jsx as jsx3 } from "react/jsx-runtime";
 var NotificationContext = createContext3(null);
@@ -810,20 +1228,31 @@ function generateId() {
 function NotificationContextProvider({
   children
 }) {
-  const [notifications, setNotifications] = useState2([]);
-  const showNotification = useCallback3((params) => {
+  const [notifications, setNotifications] = useState4([]);
+  const paymentRequiredIdRef = useRef3(null);
+  const showNotification = useCallback7((params) => {
+    if (params.kind === "payment_required" && paymentRequiredIdRef.current) {
+      return paymentRequiredIdRef.current;
+    }
     const id = generateId();
     const notification = __spreadProps(__spreadValues({}, params), {
       id,
       timestamp: Date.now()
     });
+    if (params.kind === "payment_required") {
+      paymentRequiredIdRef.current = id;
+    }
     setNotifications((prev) => [notification, ...prev]);
     return id;
   }, []);
-  const dismissNotification = useCallback3((id) => {
+  const dismissNotification = useCallback7((id) => {
+    if (paymentRequiredIdRef.current === id) {
+      paymentRequiredIdRef.current = null;
+    }
     setNotifications((prev) => prev.filter((n) => n.id !== id));
   }, []);
-  const clearAll = useCallback3(() => {
+  const clearAll = useCallback7(() => {
+    paymentRequiredIdRef.current = null;
     setNotifications([]);
   }, []);
   const value = {
@@ -835,12 +1264,12 @@ function NotificationContextProvider({
   return /* @__PURE__ */ jsx3(NotificationContext.Provider, { value, children });
 }
 
-// packages/react/src/contexts/thread-context.tsx
+// src/contexts/thread-context.tsx
 import {
   createContext as createContext4,
   useContext as useContext4,
   useMemo,
-  useRef as useRef3,
+  useRef as useRef4,
   useSyncExternalStore
 } from "react";
 import { jsx as jsx4 } from "react/jsx-runtime";
@@ -858,7 +1287,7 @@ function ThreadContextProvider({
   children,
   initialThreadId
 }) {
-  const storeRef = useRef3(null);
+  const storeRef = useRef4(null);
   if (!storeRef.current) {
     storeRef.current = new ThreadStore({ initialThreadId });
   }
@@ -885,22 +1314,70 @@ function useCurrentThreadMetadata() {
   );
 }
 
-// packages/react/src/contexts/user-context.tsx
+// src/contexts/ext-user-context.tsx
 import {
   createContext as createContext5,
-  useCallback as useCallback4,
+  useCallback as useCallback8,
   useContext as useContext5,
-  useRef as useRef4,
-  useState as useState3
+  useRef as useRef5,
+  useState as useState5
 } from "react";
 import { UserState } from "@aomi-labs/client";
 import { UserState as UserState2 } from "@aomi-labs/client";
-import { jsx as jsx5 } from "react/jsx-runtime";
+import { Fragment, jsx as jsx5 } from "react/jsx-runtime";
+function asRecord(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return void 0;
+  }
+  return value;
+}
+function mergeRecords(previous, incoming) {
+  const next = __spreadValues({}, previous);
+  for (const [key, value] of Object.entries(incoming)) {
+    const prevRecord = asRecord(next[key]);
+    const incomingRecord = asRecord(value);
+    if (prevRecord && incomingRecord) {
+      next[key] = mergeRecords(prevRecord, incomingRecord);
+    } else if (value !== void 0) {
+      next[key] = value;
+    }
+  }
+  return next;
+}
+function dropWalletBlocks(state) {
+  var _a;
+  return (_a = UserState.normalize({
+    connection: { is_connected: false },
+    pending: state.pending,
+    ext: state.ext,
+    preferences: state.preferences
+  })) != null ? _a : { connection: { is_connected: false } };
+}
+function dropAddressScopedState(state) {
+  var _a;
+  const evm = asRecord(state.evm);
+  const nextEvm = evm ? __spreadValues({}, evm) : void 0;
+  if (nextEvm) {
+    delete nextEvm.aa;
+    delete nextEvm.ens_name;
+  }
+  const next = __spreadValues({}, state);
+  if (nextEvm && Object.keys(nextEvm).length > 0) {
+    next.evm = nextEvm;
+  } else {
+    delete next.evm;
+  }
+  return (_a = UserState.normalize(next)) != null ? _a : {};
+}
+function stableStateString(state) {
+  var _a;
+  return JSON.stringify((_a = UserState.normalize(state)) != null ? _a : {});
+}
 var UserContext = createContext5(void 0);
 function useUser() {
   const context = useContext5(UserContext);
   if (!context) {
-    throw new Error("useUser must be used within UserContextProvider");
+    throw new Error("useUser must be used within ExtUserProvider");
   }
   return {
     user: context.user,
@@ -911,76 +1388,88 @@ function useUser() {
     onUserStateChange: context.onUserStateChange
   };
 }
-function UserContextProvider({ children }) {
-  const [user, setUserState] = useState3({
-    address: void 0,
-    chain_id: void 0,
-    is_connected: false,
-    ens_name: void 0,
-    ext: void 0
+function ExtUserProvider({ children }) {
+  const parent = useContext5(UserContext);
+  if (parent) {
+    return /* @__PURE__ */ jsx5(Fragment, { children });
+  }
+  return /* @__PURE__ */ jsx5(ExtUserProviderImpl, { children });
+}
+function ExtUserProviderImpl({ children }) {
+  const [user, setUserState] = useState5({
+    connection: { is_connected: false }
   });
-  const userRef = useRef4(user);
+  const userRef = useRef5(user);
   userRef.current = user;
-  const StateChangeCallbacks = useRef4(
+  const StateChangeCallbacks = useRef5(
     /* @__PURE__ */ new Set()
   );
-  const notifyStateChange = useCallback4((next) => {
+  const notifyStateChange = useCallback8((next) => {
     queueMicrotask(() => {
       StateChangeCallbacks.current.forEach((callback) => {
         callback(next);
       });
     });
   }, []);
-  const pruneUndefined = useCallback4((state) => {
-    return Object.fromEntries(
-      Object.entries(state).filter(([, value]) => value !== void 0)
-    );
-  }, []);
-  const setUser = useCallback4((data) => {
-    setUserState((prev) => {
-      var _a, _b, _c;
-      const normalizedData = pruneUndefined((_a = UserState.normalize(data)) != null ? _a : {});
-      const nextPartial = __spreadValues({}, normalizedData);
-      if (nextPartial.is_connected === true && nextPartial.chain_id === void 0) {
-        if (prev.chain_id !== void 0) {
-          nextPartial.chain_id = prev.chain_id;
+  const setUser = useCallback8(
+    (data) => {
+      setUserState((prev) => {
+        var _a, _b, _c;
+        const normalizedData = (_a = UserState.normalize(data)) != null ? _a : {};
+        const merged = (_c = UserState.normalize(
+          mergeRecords(
+            (_b = UserState.normalize(prev)) != null ? _b : {},
+            normalizedData
+          )
+        )) != null ? _c : prev;
+        let next;
+        if (UserState.isConnected(normalizedData) === false) {
+          next = dropWalletBlocks(merged);
         } else {
-          delete nextPartial.is_connected;
+          const prevAddress = UserState.address(prev);
+          const nextAddress = UserState.address(merged);
+          const addressChanged = prevAddress !== void 0 && nextAddress !== void 0 && prevAddress.toLowerCase() !== nextAddress.toLowerCase();
+          next = addressChanged ? dropAddressScopedState(merged) : merged;
         }
-      }
-      const next = nextPartial.is_connected === false ? __spreadProps(__spreadValues({}, (_b = UserState.normalize(__spreadValues(__spreadValues({}, prev), nextPartial))) != null ? _b : prev), {
-        address: void 0,
-        chain_id: void 0,
-        ens_name: void 0
-      }) : (_c = UserState.normalize(__spreadValues(__spreadValues({}, prev), nextPartial))) != null ? _c : prev;
-      notifyStateChange(next);
-      return next;
-    });
-  }, [notifyStateChange, pruneUndefined]);
-  const addExtValue = useCallback4((key, value) => {
-    setUserState((prev) => {
-      const next = UserState.withExt(prev, key, value);
-      notifyStateChange(next);
-      return next;
-    });
-  }, [notifyStateChange]);
-  const removeExtValue = useCallback4((key) => {
-    setUserState((prev) => {
-      const ext = prev.ext;
-      if (typeof ext !== "object" || ext === null || Array.isArray(ext) || !(key in ext)) {
-        return prev;
-      }
-      const nextExt = __spreadValues({}, ext);
-      delete nextExt[key];
-      const next = __spreadProps(__spreadValues({}, prev), {
-        ext: Object.keys(nextExt).length > 0 ? nextExt : void 0
+        if (stableStateString(prev) === stableStateString(next)) {
+          return prev;
+        }
+        notifyStateChange(next);
+        return next;
       });
-      notifyStateChange(next);
-      return next;
-    });
-  }, [notifyStateChange]);
-  const getUserState = useCallback4(() => userRef.current, []);
-  const onUserStateChange = useCallback4(
+    },
+    [notifyStateChange]
+  );
+  const addExtValue = useCallback8(
+    (key, value) => {
+      setUserState((prev) => {
+        const next = UserState.withExt(prev, key, value);
+        notifyStateChange(next);
+        return next;
+      });
+    },
+    [notifyStateChange]
+  );
+  const removeExtValue = useCallback8(
+    (key) => {
+      setUserState((prev) => {
+        const ext = prev.ext;
+        if (typeof ext !== "object" || ext === null || Array.isArray(ext) || !(key in ext)) {
+          return prev;
+        }
+        const nextExt = __spreadValues({}, ext);
+        delete nextExt[key];
+        const next = __spreadProps(__spreadValues({}, prev), {
+          ext: Object.keys(nextExt).length > 0 ? nextExt : void 0
+        });
+        notifyStateChange(next);
+        return next;
+      });
+    },
+    [notifyStateChange]
+  );
+  const getUserState = useCallback8(() => userRef.current, []);
+  const onUserStateChange = useCallback8(
     (callback) => {
       StateChangeCallbacks.current.add(callback);
       return () => {
@@ -1005,20 +1494,21 @@ function UserContextProvider({ children }) {
   );
 }
 
-// packages/react/src/runtime/core.tsx
-import { useCallback as useCallback7, useEffect as useEffect4, useMemo as useMemo2, useRef as useRef8 } from "react";
+// src/runtime/core.tsx
+import { useCallback as useCallback12, useEffect as useEffect8, useMemo as useMemo2, useRef as useRef9, useState as useState9 } from "react";
 import {
   AssistantRuntimeProvider,
   useExternalStoreRuntime
 } from "@assistant-ui/react";
-import { UserState as UserState3 } from "@aomi-labs/client";
 
-// packages/react/src/runtime/orchestrator.ts
-import { useCallback as useCallback5, useEffect as useEffect2, useRef as useRef5, useState as useState4 } from "react";
+// src/runtime/orchestrator.ts
+import { useCallback as useCallback9, useEffect as useEffect6, useRef as useRef6, useState as useState6 } from "react";
 import { CLIENT_TYPE_WEB_UI } from "@aomi-labs/client";
 
-// packages/react/src/runtime/session-manager.ts
-import { Session as ClientSession } from "@aomi-labs/client";
+// src/runtime/session-manager.ts
+import {
+  Session as ClientSession
+} from "@aomi-labs/client";
 var SessionManager = class {
   constructor(clientFactory) {
     this.clientFactory = clientFactory;
@@ -1036,6 +1526,9 @@ var SessionManager = class {
   get(threadId) {
     return this.sessions.get(threadId);
   }
+  get size() {
+    return this.sessions.size;
+  }
   forEach(callback) {
     for (const [threadId, session] of this.sessions) {
       callback(session, threadId);
@@ -1048,6 +1541,21 @@ var SessionManager = class {
       this.sessions.delete(threadId);
     }
   }
+  closeIdleExcept(activeThreadId, onBeforeClose) {
+    const closedThreadIds = [];
+    for (const [threadId, session] of this.sessions) {
+      if (threadId === activeThreadId) continue;
+      if (session.getIsProcessing()) continue;
+      if (session.getIsPolling()) continue;
+      if (session.getPendingRequests().length > 0) continue;
+      closedThreadIds.push(threadId);
+    }
+    for (const threadId of closedThreadIds) {
+      onBeforeClose == null ? void 0 : onBeforeClose(threadId);
+      this.close(threadId);
+    }
+    return closedThreadIds;
+  }
   closeAll() {
     for (const [threadId, session] of this.sessions) {
       session.close();
@@ -1056,7 +1564,10 @@ var SessionManager = class {
   }
 };
 
-// packages/react/src/runtime/utils.ts
+// src/runtime/utils.ts
+import {
+  SUPPORTED_CHAINS as CLIENT_SUPPORTED_CHAINS
+} from "@aomi-labs/client";
 import { clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 function cn(...inputs) {
@@ -1084,10 +1595,10 @@ function toInboundMessage(msg) {
   if (msg.sender === "system") return null;
   const content = [];
   const role = msg.sender === "user" ? "user" : "assistant";
-  if (msg.content) {
+  if (msg.content && msg.content.trim().length > 0) {
     content.push({ type: "text", text: msg.content });
   }
-  const [topic, toolContent] = (_a = parseToolPayload(msg)) != null ? _a : [];
+  const [topic, toolContent] = (_a = parseToolResult(msg.tool_result)) != null ? _a : [];
   if (topic && toolContent) {
     content.push({
       type: "tool-call",
@@ -1103,14 +1614,14 @@ function toInboundMessage(msg) {
       })()
     });
   }
+  if (content.length === 0 && role === "assistant" && !msg.is_streaming) {
+    return null;
+  }
   const threadMessage = __spreadValues({
     role,
-    content: content.length > 0 ? content : [{ type: "text", text: "" }]
+    content
   }, msg.timestamp && { createdAt: new Date(msg.timestamp) });
   return threadMessage;
-}
-function parseToolPayload(msg) {
-  return parseToolResult(msg.tool_result);
 }
 function parseToolResult(toolResult) {
   if (!toolResult) return null;
@@ -1136,10 +1647,14 @@ var getNetworkName = (chainId) => {
       return "optimism";
     case 11155111:
       return "sepolia";
+    case 143:
+      return "monad";
+    case 10143:
+      return "monad-testnet";
     case 1337:
     case 31337:
       return "testnet";
-    case 59140:
+    case 59141:
       return "linea-sepolia";
     case 59144:
       return "linea";
@@ -1148,72 +1663,411 @@ var getNetworkName = (chainId) => {
   }
 };
 var formatAddress = (addr) => addr ? `${addr.slice(0, 6)}...${addr.slice(-4)}` : "Connect Wallet";
-var SUPPORTED_CHAINS = [
-  { id: 1, name: "Ethereum", ticker: "ETH" },
-  { id: 137, name: "Polygon", ticker: "MATIC" },
-  { id: 42161, name: "Arbitrum", ticker: "ARB" },
-  { id: 8453, name: "Base", ticker: "BASE" },
-  { id: 10, name: "Optimism", ticker: "OP" },
-  { id: 11155111, name: "Sepolia", ticker: "SEP" }
-];
+var SUPPORTED_CHAINS = [...CLIENT_SUPPORTED_CHAINS];
 var getChainInfo = (chainId) => chainId === void 0 ? void 0 : SUPPORTED_CHAINS.find((c) => c.id === chainId);
 
-// packages/react/src/runtime/orchestrator.ts
+// src/runtime/merge-turns.ts
+var hasNoticeKind = (message) => {
+  var _a, _b;
+  return Boolean(
+    (_b = (_a = message.metadata) == null ? void 0 : _a.custom) == null ? void 0 : _b.aomiNoticeKind
+  );
+};
+var isMergeableAssistant = (message) => message.role === "assistant" && !hasNoticeKind(message);
+var toContentParts = (content) => {
+  if (typeof content === "string") {
+    return content.length > 0 ? [{ type: "text", text: content }] : [];
+  }
+  return [...content];
+};
+var hasToolCallPart = (message) => toContentParts(message.content).some(
+  (part) => part.type === "tool-call"
+);
+var isTextPart = (part) => part.type === "text" && typeof part.text === "string";
+var collapseExactlyRepeatedText = (text) => {
+  const trimmed = text.trim();
+  for (let len = Math.floor(trimmed.length / 2); len >= 20; len--) {
+    const prefix = trimmed.slice(0, len);
+    const suffix = trimmed.slice(trimmed.length - len);
+    const middle = trimmed.slice(len, trimmed.length - len);
+    if (prefix === suffix && middle.trim().length === 0) {
+      return collapseExactlyRepeatedText(suffix);
+    }
+  }
+  return trimmed;
+};
+var normalizeTextOnlyMessage = (message) => {
+  const parts = toContentParts(message.content);
+  if (parts.length === 0 || parts.some((part) => !isTextPart(part))) {
+    return message;
+  }
+  return __spreadProps(__spreadValues({}, message), {
+    content: [
+      {
+        type: "text",
+        text: collapseExactlyRepeatedText(
+          parts.filter(isTextPart).map((part) => part.text).join("\n\n")
+        )
+      }
+    ]
+  });
+};
+var reindexToolCallIds = (message, messageIndex) => {
+  if (typeof message.content === "string") return message;
+  let changed = false;
+  const content = message.content.map((part, i) => {
+    if (part.type === "tool-call") {
+      changed = true;
+      return __spreadProps(__spreadValues({}, part), { toolCallId: `aomi-tc-${messageIndex}-${i}` });
+    }
+    return part;
+  });
+  return changed ? __spreadProps(__spreadValues({}, message), { content }) : message;
+};
+function mergeAssistantTurns(messages) {
+  const out = [];
+  let run = [];
+  const flush = () => {
+    if (run.length === 0) return;
+    if (run.length === 1) {
+      out.push(normalizeTextOnlyMessage(run[0]));
+    } else if (!run.some(hasToolCallPart)) {
+      out.push(normalizeTextOnlyMessage(run[run.length - 1]));
+    } else {
+      const first = run[0];
+      const mergedContent = [];
+      for (const message of run) {
+        mergedContent.push(...toContentParts(message.content));
+      }
+      out.push(__spreadProps(__spreadValues({}, first), {
+        content: mergedContent
+      }));
+    }
+    run = [];
+  };
+  for (const message of messages) {
+    if (isMergeableAssistant(message)) {
+      run.push(message);
+    } else {
+      flush();
+      out.push(message);
+    }
+  }
+  flush();
+  return out.map((message, index) => reindexToolCallIds(message, index));
+}
+
+// src/runtime/orchestrator.ts
+var MESSAGE_PROJECTION_STORAGE_PREFIX = "aomi:message-projection:v1:";
+var getMessageProjectionStorageKey = (threadId) => `${MESSAGE_PROJECTION_STORAGE_PREFIX}${threadId}`;
+var readMessageProjection = (threadId) => {
+  if (typeof window === "undefined") return null;
+  const key = getMessageProjectionStorageKey(threadId);
+  const raw = window.localStorage.getItem(key);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed.ranges) || parsed.ranges.some(
+      (range) => !Number.isSafeInteger(range.start) || range.start < 0 || range.end !== null && (!Number.isSafeInteger(range.end) || range.end < range.start)
+    )) {
+      throw new Error("Invalid message projection");
+    }
+    return parsed;
+  } catch (e) {
+    window.localStorage.removeItem(key);
+    return null;
+  }
+};
+var writeMessageProjection = (threadId, projection) => {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(
+    getMessageProjectionStorageKey(threadId),
+    JSON.stringify(projection)
+  );
+};
+var clearMessageProjection = (threadId) => {
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem(getMessageProjectionStorageKey(threadId));
+};
+var selectProjectedMessageEntries = (messages, projection) => {
+  if (!projection) {
+    return messages.map((message, rawIndex) => ({ message, rawIndex }));
+  }
+  return projection.ranges.flatMap((range) => {
+    var _a;
+    const end = Math.min((_a = range.end) != null ? _a : messages.length, messages.length);
+    const entries = [];
+    for (let rawIndex = range.start; rawIndex < end; rawIndex += 1) {
+      const message = messages[rawIndex];
+      if (message) entries.push({ message, rawIndex });
+    }
+    return entries;
+  });
+};
+var projectInboundMessages = (messages, projection) => {
+  const projectedMessages = [];
+  for (const { message } of selectProjectedMessageEntries(
+    messages,
+    projection
+  )) {
+    const converted = toInboundMessage(message);
+    if (converted) projectedMessages.push(converted);
+  }
+  return mergeAssistantTurns(projectedMessages);
+};
+var truncateProjectionBefore = (projection, rawIndex) => {
+  var _a, _b;
+  const sourceRanges = (_a = projection == null ? void 0 : projection.ranges) != null ? _a : [
+    { start: 0, end: null }
+  ];
+  const prefix = [];
+  for (const range of sourceRanges) {
+    const rangeEnd = (_b = range.end) != null ? _b : Number.POSITIVE_INFINITY;
+    if (rawIndex >= rangeEnd) {
+      prefix.push(range);
+      continue;
+    }
+    if (rawIndex > range.start) {
+      prefix.push({ start: range.start, end: rawIndex });
+    }
+    break;
+  }
+  return prefix;
+};
+var SUBMITTING_TO_WORKING_GRACE_MS = 300;
+var toErrorMessage = (error) => error instanceof Error ? error.message : "Message failed to send";
+var getHttpStatus = (error) => {
+  const status = error == null ? void 0 : error.status;
+  if (typeof status === "number") return status;
+  const message = toErrorMessage(error);
+  const match = /\bHTTP\s+(\d{3})\b/i.exec(message);
+  return match ? Number(match[1]) : void 0;
+};
+var isPaymentRequiredError = (error) => getHttpStatus(error) === 402;
+var PAYMENT_REQUIRED_MESSAGE = "You're out of funds, please set up a payment method.";
+var buildPaymentRequiredMessage = () => ({
+  id: `aomi-payment-required-${Date.now()}`,
+  role: "assistant",
+  content: [
+    {
+      type: "text",
+      text: PAYMENT_REQUIRED_MESSAGE
+    }
+  ],
+  createdAt: /* @__PURE__ */ new Date(),
+  metadata: {
+    custom: {
+      aomiNoticeKind: "payment_required",
+      aomiNoticeTitle: "Credits needed"
+    }
+  }
+});
+var previewText = (value, max = 80) => {
+  const singleLine = value.replace(/\s+/g, " ").trim();
+  if (singleLine.length <= max) return singleLine;
+  return `${singleLine.slice(0, max - 1)}\u2026`;
+};
+var getOptimisticStatus = (message) => {
+  var _a, _b;
+  const status = (_b = (_a = message.metadata) == null ? void 0 : _a.custom) == null ? void 0 : _b.aomiSendStatus;
+  return status === "sending" || status === "sent" || status === "failed" ? status : void 0;
+};
+var hasUnhydratedOptimisticMessage = (messages) => messages.some((message) => {
+  const status = getOptimisticStatus(message);
+  return status === "sending" || status === "sent";
+});
+var withOptimisticStatus = (message, status, error) => {
+  var _a, _b;
+  const custom = __spreadProps(__spreadValues({}, (_b = (_a = message.metadata) == null ? void 0 : _a.custom) != null ? _b : {}), {
+    aomiSendStatus: status
+  });
+  if (error) {
+    custom.aomiSendError = toErrorMessage(error);
+  } else {
+    delete custom.aomiSendError;
+  }
+  return __spreadProps(__spreadValues({}, message), {
+    metadata: __spreadProps(__spreadValues({}, message.metadata), {
+      custom
+    })
+  });
+};
+var updateOptimisticMessage = (threadContext, threadId, messageId, status, error) => {
+  const messages = threadContext.getThreadMessages(threadId);
+  let changed = false;
+  const nextMessages = messages.map((message) => {
+    if (message.id !== messageId) return message;
+    changed = true;
+    return withOptimisticStatus(message, status, error);
+  });
+  if (changed) {
+    threadContext.setThreadMessages(threadId, nextMessages);
+  }
+};
+var updateTurnPhase = (threadContext, threadId, turnPhase, options) => {
+  const metadata = threadContext.getThreadMetadata(threadId);
+  if (!metadata || metadata.control.turnPhase === turnPhase && !(options == null ? void 0 : options.completed)) {
+    return;
+  }
+  threadContext.updateThreadMetadata(threadId, {
+    control: __spreadValues(__spreadProps(__spreadValues({}, metadata.control), {
+      turnPhase
+    }), (options == null ? void 0 : options.completed) ? { lastCompletedAt: Date.now() } : null)
+  });
+};
+var appendPaymentRequiredMessage = (threadContext, threadId) => {
+  var _a, _b;
+  const messages = threadContext.getThreadMessages(threadId);
+  let hasPaymentNotice = false;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const message = messages[i];
+    if (message.role !== "assistant") continue;
+    hasPaymentNotice = ((_b = (_a = message.metadata) == null ? void 0 : _a.custom) == null ? void 0 : _b.aomiNoticeKind) === "payment_required";
+    break;
+  }
+  if (hasPaymentNotice) return;
+  threadContext.setThreadMessages(threadId, [
+    ...messages,
+    buildPaymentRequiredMessage()
+  ]);
+};
 function useRuntimeOrchestrator(aomiClient, options) {
   const threadContext = useThreadContext();
-  const threadContextRef = useRef5(threadContext);
+  const threadContextRef = useRef6(threadContext);
   threadContextRef.current = threadContext;
-  const aomiClientRef = useRef5(aomiClient);
+  const aomiClientRef = useRef6(aomiClient);
   aomiClientRef.current = aomiClient;
-  const [isRunning, setIsRunning] = useState4(false);
-  const sessionManagerRef = useRef5(null);
+  const optionsRef = useRef6(options);
+  optionsRef.current = options;
+  const [isRunning, setIsRunning] = useState6(false);
+  const sessionManagerRef = useRef6(null);
   if (!sessionManagerRef.current) {
     sessionManagerRef.current = new SessionManager(() => aomiClientRef.current);
   }
-  const pendingFetches = useRef5(/* @__PURE__ */ new Set());
-  const listenerCleanups = useRef5(/* @__PURE__ */ new Map());
-  const getSession = useCallback5(
+  const pendingFetches = useRef6(/* @__PURE__ */ new Set());
+  const initialStatePromises = useRef6(/* @__PURE__ */ new Map());
+  const hydratedThreadIds = useRef6(/* @__PURE__ */ new Set());
+  const messageProjections = useRef6(/* @__PURE__ */ new Map());
+  const loadedMessageProjectionIds = useRef6(/* @__PURE__ */ new Set());
+  const listenerCleanups = useRef6(/* @__PURE__ */ new Map());
+  const getMessageProjection = useCallback9((threadId) => {
+    var _a;
+    if (!loadedMessageProjectionIds.current.has(threadId)) {
+      loadedMessageProjectionIds.current.add(threadId);
+      const stored = readMessageProjection(threadId);
+      if (stored) messageProjections.current.set(threadId, stored);
+    }
+    return (_a = messageProjections.current.get(threadId)) != null ? _a : null;
+  }, []);
+  const setMessageProjection = useCallback9(
+    (threadId, projection) => {
+      loadedMessageProjectionIds.current.add(threadId);
+      messageProjections.current.set(threadId, projection);
+      writeMessageProjection(threadId, projection);
+    },
+    []
+  );
+  const deleteMessageProjection = useCallback9((threadId) => {
+    loadedMessageProjectionIds.current.delete(threadId);
+    messageProjections.current.delete(threadId);
+    clearMessageProjection(threadId);
+  }, []);
+  const cleanupSessionListeners = useCallback9((threadId) => {
+    var _a;
+    (_a = listenerCleanups.current.get(threadId)) == null ? void 0 : _a();
+    listenerCleanups.current.delete(threadId);
+  }, []);
+  const closeSession = useCallback9(
+    (threadId) => {
+      var _a;
+      cleanupSessionListeners(threadId);
+      pendingFetches.current.delete(threadId);
+      initialStatePromises.current.delete(threadId);
+      hydratedThreadIds.current.delete(threadId);
+      deleteMessageProjection(threadId);
+      (_a = sessionManagerRef.current) == null ? void 0 : _a.close(threadId);
+    },
+    [cleanupSessionListeners, deleteMessageProjection]
+  );
+  const closeIdleSessionsExcept = useCallback9(
+    (activeThreadId) => {
+      var _a, _b;
+      const closedThreadIds = (_b = (_a = sessionManagerRef.current) == null ? void 0 : _a.closeIdleExcept(
+        activeThreadId,
+        cleanupSessionListeners
+      )) != null ? _b : [];
+      for (const threadId of closedThreadIds) {
+        pendingFetches.current.delete(threadId);
+        initialStatePromises.current.delete(threadId);
+        hydratedThreadIds.current.delete(threadId);
+      }
+      return closedThreadIds;
+    },
+    [cleanupSessionListeners]
+  );
+  const closeAllSessions = useCallback9(() => {
+    var _a;
+    pendingFetches.current.clear();
+    initialStatePromises.current.clear();
+    hydratedThreadIds.current.clear();
+    messageProjections.current.clear();
+    loadedMessageProjectionIds.current.clear();
+    for (const threadId of Array.from(listenerCleanups.current.keys())) {
+      cleanupSessionListeners(threadId);
+    }
+    (_a = sessionManagerRef.current) == null ? void 0 : _a.closeAll();
+  }, [cleanupSessionListeners]);
+  const getSession = useCallback9(
     (threadId) => {
       var _a, _b, _c, _d, _e;
       const manager = sessionManagerRef.current;
-      const nextApp = options.getApp();
-      const nextPublicKey = (_a = options.getPublicKey) == null ? void 0 : _a.call(options);
-      const nextApiKey = (_c = (_b = options.getApiKey) == null ? void 0 : _b.call(options)) != null ? _c : void 0;
-      const nextClientId = (_d = options.getClientId) == null ? void 0 : _d.call(options);
-      const nextUserState = (_e = options.getUserState) == null ? void 0 : _e.call(options);
+      const nextOptions = optionsRef.current;
+      const nextApp = nextOptions.getApp();
+      const nextApplicationId = (_a = nextOptions.getApplicationId) == null ? void 0 : _a.call(nextOptions);
+      const nextApiKey = (_c = (_b = nextOptions.getApiKey) == null ? void 0 : _b.call(nextOptions)) != null ? _c : void 0;
+      const nextClientId = (_d = nextOptions.getClientId) == null ? void 0 : _d.call(nextOptions);
+      const nextUserState = (_e = nextOptions.getUserState) == null ? void 0 : _e.call(nextOptions);
       const existing = manager.get(threadId);
       if (existing) {
         existing.syncRuntimeOptions({
           app: nextApp,
-          publicKey: nextPublicKey,
+          applicationId: nextApplicationId,
           apiKey: nextApiKey,
           clientId: nextClientId,
           userState: nextUserState
         });
+        existing.setSSEActive(
+          threadContextRef.current.currentThreadId === threadId
+        );
         return existing;
       }
       const session = manager.getOrCreate(threadId, {
         app: nextApp,
-        publicKey: nextPublicKey,
+        applicationId: nextApplicationId,
         apiKey: nextApiKey,
         clientId: nextClientId,
         clientType: CLIENT_TYPE_WEB_UI,
         syncPendingTxRequestsFromUserState: false,
         userState: nextUserState
       });
+      session.setSSEActive(
+        threadContextRef.current.currentThreadId === threadId
+      );
       const cleanups = [];
       cleanups.push(
         session.on("messages", (msgs) => {
-          const threadMessages = [];
-          for (const msg of msgs) {
-            const converted = toInboundMessage(msg);
-            if (converted) threadMessages.push(converted);
+          const projection = getMessageProjection(threadId);
+          const threadMessages = projectInboundMessages(msgs, projection);
+          const existingMessages = threadContextRef.current.getThreadMessages(threadId);
+          if (threadMessages.length === 0 && hasUnhydratedOptimisticMessage(existingMessages)) {
+            return;
           }
           threadContextRef.current.setThreadMessages(threadId, threadMessages);
         })
       );
       cleanups.push(
         session.on("processing_start", () => {
+          updateTurnPhase(threadContextRef.current, threadId, "working");
           if (threadContextRef.current.currentThreadId === threadId) {
             setIsRunning(true);
           }
@@ -1221,6 +2075,9 @@ function useRuntimeOrchestrator(aomiClient, options) {
       );
       cleanups.push(
         session.on("processing_end", () => {
+          updateTurnPhase(threadContextRef.current, threadId, "idle", {
+            completed: true
+          });
           if (threadContextRef.current.currentThreadId === threadId) {
             setIsRunning(false);
           }
@@ -1230,8 +2087,8 @@ function useRuntimeOrchestrator(aomiClient, options) {
         session.on(
           "wallet_requests_changed",
           (requests) => {
-            var _a2;
-            return (_a2 = options.onPendingRequestsChange) == null ? void 0 : _a2.call(options, requests);
+            var _a2, _b2;
+            return (_b2 = (_a2 = optionsRef.current).onPendingRequestsChange) == null ? void 0 : _b2.call(_a2, requests);
           }
         )
       );
@@ -1240,55 +2097,99 @@ function useRuntimeOrchestrator(aomiClient, options) {
           threadContextRef.current.updateThreadMetadata(threadId, { title });
         })
       );
-      const forwardEvent = (type) => session.on(type, (payload) => {
-        var _a2;
-        (_a2 = options.onEvent) == null ? void 0 : _a2.call(options, { type, payload, sessionId: threadId });
-      });
+      const forwardEvent = (type) => session.on(
+        type,
+        (payload) => {
+          var _a2, _b2;
+          (_b2 = (_a2 = optionsRef.current).onEvent) == null ? void 0 : _b2.call(_a2, {
+            type,
+            payload,
+            sessionId: threadId
+          });
+        }
+      );
       cleanups.push(forwardEvent("tool_update"));
       cleanups.push(forwardEvent("tool_complete"));
       cleanups.push(forwardEvent("system_notice"));
       cleanups.push(forwardEvent("system_error"));
       cleanups.push(forwardEvent("async_callback"));
+      cleanups.push(forwardEvent("user_state_request"));
       listenerCleanups.current.set(threadId, () => {
         for (const cleanup of cleanups) cleanup();
       });
       return session;
     },
     // Stable deps — option getters are refs
-    []
+    [getMessageProjection]
   );
-  const ensureInitialState = useCallback5(
+  const ensureInitialState = useCallback9(
     async (threadId) => {
-      var _a;
-      if (pendingFetches.current.has(threadId)) return;
-      pendingFetches.current.add(threadId);
-      try {
-        const session = getSession(threadId);
-        await session.fetchCurrentState();
-        (_a = options.onPendingRequestsChange) == null ? void 0 : _a.call(options, session.getPendingRequests());
-        if (threadContextRef.current.currentThreadId === threadId) {
-          setIsRunning(session.getIsProcessing());
-        }
-      } catch (error) {
-        console.error("Failed to fetch initial state:", error);
-        if (threadContextRef.current.currentThreadId === threadId) {
-          setIsRunning(false);
-        }
-      } finally {
-        pendingFetches.current.delete(threadId);
+      var _a, _b, _c;
+      const existingPromise = initialStatePromises.current.get(threadId);
+      if (existingPromise) {
+        return existingPromise;
       }
+      const cachedMessages = threadContextRef.current.getThreadMessages(threadId);
+      const existingSession = (_a = sessionManagerRef.current) == null ? void 0 : _a.get(threadId);
+      if (existingSession && (hydratedThreadIds.current.has(threadId) || cachedMessages.length > 0)) {
+        (_c = (_b = optionsRef.current).onPendingRequestsChange) == null ? void 0 : _c.call(
+          _b,
+          existingSession.getPendingRequests()
+        );
+        if (threadContextRef.current.currentThreadId === threadId) {
+          setIsRunning(existingSession.getIsProcessing());
+        }
+        return;
+      }
+      const fetchPromise = (async () => {
+        var _a2, _b2;
+        pendingFetches.current.add(threadId);
+        try {
+          const session = getSession(threadId);
+          await session.fetchCurrentState();
+          hydratedThreadIds.current.add(threadId);
+          (_b2 = (_a2 = optionsRef.current).onPendingRequestsChange) == null ? void 0 : _b2.call(
+            _a2,
+            session.getPendingRequests()
+          );
+          if (threadContextRef.current.currentThreadId === threadId) {
+            setIsRunning(session.getIsProcessing());
+          }
+        } catch (error) {
+          console.error("Failed to fetch initial state:", error);
+          if (threadContextRef.current.currentThreadId === threadId) {
+            setIsRunning(false);
+          }
+        } finally {
+          pendingFetches.current.delete(threadId);
+          initialStatePromises.current.delete(threadId);
+        }
+      })();
+      initialStatePromises.current.set(threadId, fetchPromise);
+      return fetchPromise;
     },
     [getSession]
   );
-  const sendMessage = useCallback5(
+  const sendMessage = useCallback9(
     async (text, threadId) => {
-      var _a;
-      const session = getSession(threadId);
+      var _a, _b, _c, _d, _e, _f, _g, _h;
+      console.debug("[aomi][runtime] sendMessage start", {
+        threadId,
+        messagePreview: previewText(text)
+      });
       const existingMessages = threadContextRef.current.getThreadMessages(threadId);
+      const optimisticMessageId = String(existingMessages.length);
       const userMessage = {
+        id: optimisticMessageId,
         role: "user",
         content: [{ type: "text", text }],
-        createdAt: /* @__PURE__ */ new Date()
+        createdAt: /* @__PURE__ */ new Date(),
+        metadata: {
+          custom: {
+            aomiOriginalText: text,
+            aomiSendStatus: "sending"
+          }
+        }
       };
       threadContextRef.current.setThreadMessages(threadId, [
         ...existingMessages,
@@ -1297,31 +2198,154 @@ function useRuntimeOrchestrator(aomiClient, options) {
       threadContextRef.current.updateThreadMetadata(threadId, {
         lastActiveAt: (/* @__PURE__ */ new Date()).toISOString()
       });
-      await session.sendAsync(text);
-      (_a = options.onPendingRequestsChange) == null ? void 0 : _a.call(options, session.getPendingRequests());
+      updateTurnPhase(threadContextRef.current, threadId, "submitting");
+      const submittingFallbackTimer = setTimeout(() => {
+        const metadata = threadContextRef.current.getThreadMetadata(threadId);
+        if ((metadata == null ? void 0 : metadata.control.turnPhase) !== "submitting") return;
+        updateTurnPhase(threadContextRef.current, threadId, "working");
+      }, SUBMITTING_TO_WORKING_GRACE_MS);
+      if (threadContextRef.current.currentThreadId === threadId) {
+        setIsRunning(true);
+      }
+      try {
+        console.debug("[aomi][runtime] sendMessage preparing thread", {
+          threadId
+        });
+        await ((_b = (_a = optionsRef.current).prepareThreadForSend) == null ? void 0 : _b.call(_a, threadId));
+        console.debug("[aomi][runtime] sendMessage prepare complete", {
+          threadId
+        });
+        const session = getSession(threadId);
+        console.debug("[aomi][runtime] sendMessage session ready", {
+          threadId,
+          sessionId: session.sessionId
+        });
+        await session.sendAsync(text);
+        clearTimeout(submittingFallbackTimer);
+        console.debug("[aomi][runtime] sendMessage sendAsync complete", {
+          threadId,
+          sessionId: session.sessionId,
+          isProcessing: session.getIsProcessing(),
+          pendingRequestCount: session.getPendingRequests().length
+        });
+        (_d = (_c = optionsRef.current).onSendSuccess) == null ? void 0 : _d.call(_c, threadId);
+        if (!session.getIsProcessing()) {
+          updateTurnPhase(threadContextRef.current, threadId, "idle", {
+            completed: true
+          });
+        }
+        if (threadContextRef.current.currentThreadId === threadId) {
+          setIsRunning(session.getIsProcessing());
+        }
+        updateOptimisticMessage(
+          threadContextRef.current,
+          threadId,
+          optimisticMessageId,
+          "sent"
+        );
+        (_f = (_e = optionsRef.current).onPendingRequestsChange) == null ? void 0 : _f.call(
+          _e,
+          session.getPendingRequests()
+        );
+      } catch (error) {
+        clearTimeout(submittingFallbackTimer);
+        console.error("[aomi][runtime] sendMessage failed", {
+          threadId,
+          messagePreview: previewText(text),
+          error
+        });
+        if (threadContextRef.current.currentThreadId === threadId) {
+          setIsRunning(false);
+        }
+        updateTurnPhase(threadContextRef.current, threadId, "idle");
+        updateOptimisticMessage(
+          threadContextRef.current,
+          threadId,
+          optimisticMessageId,
+          "failed",
+          error
+        );
+        if (isPaymentRequiredError(error)) {
+          appendPaymentRequiredMessage(threadContextRef.current, threadId);
+        }
+        await ((_h = (_g = optionsRef.current).onSendError) == null ? void 0 : _h.call(_g, threadId, error));
+        throw error;
+      }
     },
     [getSession]
   );
-  const cancelGeneration = useCallback5(
-    async (threadId) => {
+  const regenerateMessage = useCallback9(
+    async (threadId, messageId, replacementText) => {
       var _a;
-      const session = (_a = sessionManagerRef.current) == null ? void 0 : _a.get(threadId);
-      if (session) {
-        await session.interrupt();
+      const visibleMessages = threadContextRef.current.getThreadMessages(threadId);
+      const explicitIndex = visibleMessages.findIndex(
+        (message) => message.id === messageId
+      );
+      const numericIndex = explicitIndex === -1 && messageId !== null && /^\d+$/.test(messageId) ? Number(messageId) : -1;
+      let userMessageIndex = explicitIndex !== -1 ? explicitIndex : numericIndex;
+      if (userMessageIndex < 0 || userMessageIndex >= visibleMessages.length) {
+        throw new Error("Message to regenerate was not found.");
       }
+      while (userMessageIndex >= 0 && ((_a = visibleMessages[userMessageIndex]) == null ? void 0 : _a.role) !== "user") {
+        userMessageIndex -= 1;
+      }
+      const userMessage = visibleMessages[userMessageIndex];
+      if (!userMessage || userMessage.role !== "user") {
+        throw new Error("Regeneration requires a user message.");
+      }
+      const originalText = typeof userMessage.content === "string" ? userMessage.content.trim() : userMessage.content.filter(
+        (part) => part.type === "text"
+      ).map((part) => part.text).join("\n").trim();
+      const nextText = (replacementText == null ? void 0 : replacementText.trim()) || originalText;
+      if (!nextText) {
+        throw new Error("Regeneration requires message text.");
+      }
+      const session = getSession(threadId);
+      const rawMessages = session.getMessages();
+      const currentProjection = getMessageProjection(threadId);
+      const userOrdinal = visibleMessages.slice(0, userMessageIndex + 1).filter((message) => message.role === "user").length;
+      const targetEntry = selectProjectedMessageEntries(
+        rawMessages,
+        currentProjection
+      ).filter(({ message }) => message.sender === "user")[userOrdinal - 1];
+      if (!targetEntry) {
+        throw new Error("Backend message to regenerate was not found.");
+      }
+      const nextProjection = {
+        ranges: [
+          ...truncateProjectionBefore(currentProjection, targetEntry.rawIndex),
+          { start: rawMessages.length, end: null }
+        ]
+      };
+      setMessageProjection(threadId, nextProjection);
+      threadContextRef.current.setThreadMessages(
+        threadId,
+        projectInboundMessages(rawMessages, nextProjection)
+      );
+      await sendMessage(nextText, threadId);
     },
-    []
+    [getMessageProjection, getSession, sendMessage, setMessageProjection]
   );
-  useEffect2(() => {
-    return () => {
-      var _a;
-      (_a = sessionManagerRef.current) == null ? void 0 : _a.closeAll();
-      for (const cleanup of listenerCleanups.current.values()) {
-        cleanup();
-      }
-      listenerCleanups.current.clear();
-    };
+  const cancelGeneration = useCallback9(async (threadId) => {
+    var _a;
+    const session = (_a = sessionManagerRef.current) == null ? void 0 : _a.get(threadId);
+    if (session) {
+      await session.interrupt();
+    } else {
+      updateTurnPhase(threadContextRef.current, threadId, "idle");
+    }
   }, []);
+  useEffect6(() => {
+    var _a;
+    (_a = sessionManagerRef.current) == null ? void 0 : _a.forEach((session, threadId) => {
+      session.setSSEActive(threadId === threadContext.currentThreadId);
+    });
+  }, [threadContext.currentThreadId]);
+  useEffect6(() => {
+    return () => {
+      closeAllSessions();
+    };
+  }, [closeAllSessions]);
   return {
     sessionManager: sessionManagerRef.current,
     getSession,
@@ -1329,20 +2353,24 @@ function useRuntimeOrchestrator(aomiClient, options) {
     setIsRunning,
     ensureInitialState,
     sendMessage,
+    regenerateMessage,
     cancelGeneration,
+    closeSession,
+    closeAllSessions,
+    closeIdleSessionsExcept,
     aomiClientRef
   };
 }
 
-// packages/react/src/runtime/threadlist-adapter.ts
+// src/runtime/threadlist-adapter.ts
 var sortByLastActiveDesc = ([, metaA], [, metaB]) => {
   const tsA = parseTimestamp(metaA.lastActiveAt);
   const tsB = parseTimestamp(metaB.lastActiveAt);
   return tsB - tsA;
 };
-function buildThreadLists(threadMetadata) {
+function buildThreadLists(threadMetadata, shouldShowThread) {
   const entries = Array.from(threadMetadata.entries()).filter(
-    ([, meta]) => !isPlaceholderTitle(meta.title)
+    ([threadId, meta]) => !isPlaceholderTitle(meta.title) && shouldShowThread(threadId)
   );
   const regularThreads = entries.filter(([, meta]) => meta.status !== "archived").sort(sortByLastActiveDesc).map(
     ([id, meta]) => ({
@@ -1363,23 +2391,53 @@ function buildThreadLists(threadMetadata) {
 function buildThreadListAdapter({
   aomiClientRef,
   threadContext,
-  setIsRunning
+  setIsRunning,
+  isLoading = false,
+  getInitialControl = initThreadControl,
+  isRemoteThread = () => true
 }) {
+  const shouldShowThread = (threadId) => {
+    if (isRemoteThread(threadId)) return true;
+    return threadContext.getThreadMessages(threadId).some((message) => message.role === "user");
+  };
   const { regularThreads, archivedThreads } = buildThreadLists(
-    threadContext.allThreadsMetadata
+    threadContext.allThreadsMetadata,
+    shouldShowThread
   );
+  const cleanupEmptyLocalThread = () => {
+    const prevId = threadContext.currentThreadId;
+    if (isRemoteThread(prevId)) return;
+    const msgs = threadContext.getThreadMessages(prevId);
+    if (msgs.length > 0) return;
+    threadContext.setThreadMetadata((prev) => {
+      const next = new Map(prev);
+      next.delete(prevId);
+      return next;
+    });
+    threadContext.setThreads((prev) => {
+      const next = new Map(prev);
+      next.delete(prevId);
+      return next;
+    });
+  };
   return {
     threadId: threadContext.currentThreadId,
+    isLoading,
     threads: regularThreads,
     archivedThreads,
     onSwitchToNewThread: () => {
+      const currentThreadId = threadContext.currentThreadId;
+      if (!isRemoteThread(currentThreadId) && threadContext.getThreadMessages(currentThreadId).length === 0) {
+        return;
+      }
+      cleanupEmptyLocalThread();
       const threadId = generateUUID();
       threadContext.setThreadMetadata(
         (prev) => new Map(prev).set(threadId, {
           title: "New Chat",
           status: "regular",
           lastActiveAt: (/* @__PURE__ */ new Date()).toISOString(),
-          control: initThreadControl()
+          control: getInitialControl()
         })
       );
       threadContext.setThreadMessages(threadId, []);
@@ -1388,6 +2446,7 @@ function buildThreadListAdapter({
       threadContext.bumpThreadViewKey();
     },
     onSwitchToThread: (threadId) => {
+      cleanupEmptyLocalThread();
       threadContext.setCurrentThreadId(threadId);
       threadContext.bumpThreadViewKey();
     },
@@ -1451,7 +2510,7 @@ function buildThreadListAdapter({
                 title: "New Chat",
                 status: "regular",
                 lastActiveAt: (/* @__PURE__ */ new Date()).toISOString(),
-                control: initThreadControl()
+                control: getInitialControl()
               })
             );
             threadContext.setThreadMessages(defaultId, []);
@@ -1466,7 +2525,7 @@ function buildThreadListAdapter({
   };
 }
 
-// packages/react/src/interface.tsx
+// src/interface.tsx
 import { createContext as createContext6, useContext as useContext6 } from "react";
 var AomiRuntimeContext = createContext6(null);
 var AomiRuntimeApiProvider = AomiRuntimeContext.Provider;
@@ -1479,49 +2538,64 @@ function useAomiRuntime() {
   }
   return context;
 }
+function useOptionalAomiRuntime() {
+  return useContext6(AomiRuntimeContext);
+}
 
-// packages/react/src/handlers/wallet-handler.ts
-import { useCallback as useCallback6, useRef as useRef6, useState as useState5 } from "react";
+// src/handlers/wallet-handler.ts
+import { useCallback as useCallback10, useRef as useRef7, useState as useState7 } from "react";
 function useWalletHandler({
   getSession
 }) {
-  const [pendingRequests, setPendingRequests] = useState5([]);
-  const requestsRef = useRef6(pendingRequests);
-  const inFlightRequestSetRef = useRef6(/* @__PURE__ */ new Set());
-  const suppressedRequestSetRef = useRef6(/* @__PURE__ */ new Set());
-  const syncVisibleRequests = useCallback6(() => {
+  const [pendingRequests, setPendingRequests] = useState7([]);
+  const [hasBlockingWalletRequests, setHasBlockingWalletRequests] = useState7(false);
+  const requestsRef = useRef7(pendingRequests);
+  const inFlightRequestSetRef = useRef7(/* @__PURE__ */ new Set());
+  const suppressedRequestSetRef = useRef7(/* @__PURE__ */ new Set());
+  const syncVisibleRequests = useCallback10(() => {
     setPendingRequests(
       requestsRef.current.filter(
         (request) => !suppressedRequestSetRef.current.has(request.id)
       )
     );
-  }, []);
-  const setRequests = useCallback6((requests) => {
-    const incomingIds = new Set(requests.map((request) => request.id));
-    for (const id of suppressedRequestSetRef.current) {
-      if (!incomingIds.has(id) && !inFlightRequestSetRef.current.has(id)) {
-        suppressedRequestSetRef.current.delete(id);
-      }
-    }
-    const preservedInFlight = requestsRef.current.filter(
-      (request) => inFlightRequestSetRef.current.has(request.id) && !incomingIds.has(request.id)
+    setHasBlockingWalletRequests(
+      requestsRef.current.length > 0 || inFlightRequestSetRef.current.size > 0
     );
-    requestsRef.current = [...requests, ...preservedInFlight];
-    syncVisibleRequests();
-  }, [syncVisibleRequests]);
-  const startRequest = useCallback6((id) => {
-    if (!requestsRef.current.some((request) => request.id === id)) {
-      return;
-    }
-    inFlightRequestSetRef.current.add(id);
-    suppressedRequestSetRef.current.add(id);
-    syncVisibleRequests();
-  }, [syncVisibleRequests]);
-  const resolveRequest = useCallback6(
+  }, []);
+  const setRequests = useCallback10(
+    (requests) => {
+      const incomingIds = new Set(requests.map((request) => request.id));
+      for (const id of suppressedRequestSetRef.current) {
+        if (!incomingIds.has(id) && !inFlightRequestSetRef.current.has(id)) {
+          suppressedRequestSetRef.current.delete(id);
+        }
+      }
+      const preservedInFlight = requestsRef.current.filter(
+        (request) => inFlightRequestSetRef.current.has(request.id) && !incomingIds.has(request.id)
+      );
+      requestsRef.current = [...requests, ...preservedInFlight];
+      syncVisibleRequests();
+    },
+    [syncVisibleRequests]
+  );
+  const startRequest = useCallback10(
+    (id) => {
+      if (!requestsRef.current.some((request) => request.id === id)) {
+        return;
+      }
+      inFlightRequestSetRef.current.add(id);
+      suppressedRequestSetRef.current.add(id);
+      syncVisibleRequests();
+    },
+    [syncVisibleRequests]
+  );
+  const resolveRequest = useCallback10(
     async (id, result) => {
       const session = getSession();
       if (!session) {
-        console.error("[wallet-handler] No session available to resolve request");
+        console.error(
+          "[wallet-handler] No session available to resolve request"
+        );
         return;
       }
       startRequest(id);
@@ -1539,11 +2613,13 @@ function useWalletHandler({
     },
     [getSession, startRequest, syncVisibleRequests]
   );
-  const rejectRequest = useCallback6(
+  const rejectRequest = useCallback10(
     async (id, error) => {
       const session = getSession();
       if (!session) {
-        console.error("[wallet-handler] No session available to reject request");
+        console.error(
+          "[wallet-handler] No session available to reject request"
+        );
         return;
       }
       startRequest(id);
@@ -1563,6 +2639,7 @@ function useWalletHandler({
   );
   return {
     pendingRequests,
+    hasBlockingWalletRequests,
     setRequests,
     startRequest,
     resolveRequest,
@@ -1570,197 +2647,297 @@ function useWalletHandler({
   };
 }
 
-// packages/react/src/runtime/user-state-provider.tsx
-import { useEffect as useEffect3, useRef as useRef7 } from "react";
-import { Fragment, jsx as jsx6 } from "react/jsx-runtime";
-function stableStateString(state) {
-  return JSON.stringify(state != null ? state : {});
-}
-function RuntimeUserStateProvider({
-  children,
-  sessionManager,
-  getUserState,
-  onUserStateChange
-}) {
-  const lastSerializedStateRef = useRef7("");
-  useEffect3(() => {
-    const applyToSessions = (next) => {
-      const serialized = stableStateString(next);
-      if (serialized === lastSerializedStateRef.current) {
-        return;
-      }
-      lastSerializedStateRef.current = serialized;
-      sessionManager.forEach((session) => {
-        session.resolveUserState(next);
-      });
-    };
-    applyToSessions(getUserState());
-    const unsubscribe = onUserStateChange((next) => {
-      applyToSessions(next);
-    });
-    return unsubscribe;
-  }, [getUserState, onUserStateChange, sessionManager]);
-  return /* @__PURE__ */ jsx6(Fragment, { children });
+// src/runtime/user-state-provider.tsx
+import {
+  useCallback as useCallback11,
+  useEffect as useEffect7,
+  useRef as useRef8,
+  useState as useState8
+} from "react";
+import { UserState as UserStateHelpers } from "@aomi-labs/client";
+
+// src/runtime/http-status.ts
+function getHttpStatus2(error) {
+  const status = error == null ? void 0 : error.status;
+  if (typeof status === "number") return status;
+  const message = error instanceof Error ? error.message : String(error);
+  const match = /\bHTTP\s+(\d{3})\b/i.exec(message);
+  return match ? Number(match[1]) : void 0;
 }
 
-// packages/react/src/runtime/core.tsx
-import { jsx as jsx7 } from "react/jsx-runtime";
-function AomiRuntimeCore({
-  children,
-  aomiClient
-}) {
-  const threadContext = useThreadContext();
-  const eventContext = useEventContext();
-  const notificationContext = useNotification();
-  const { user, onUserStateChange, getUserState } = useUser();
-  const { getControlState, getCurrentThreadApp } = useControl();
-  const sessionManagerRef = useRef8(null);
-  const walletHandler = useWalletHandler({
-    getSession: () => {
+// src/runtime/user-state-provider.tsx
+import { Fragment as Fragment2, jsx as jsx6 } from "react/jsx-runtime";
+var THREAD_PREFETCH_LIMIT = 5;
+var PREFETCH_IDLE_TIMEOUT_MS = 1500;
+var THREAD_LIST_AUTH_RETRY_BUDGET_MS = 3e4;
+var THREAD_LIST_AUTH_RETRY_BASE_DELAY_MS = 300;
+var THREAD_LIST_AUTH_RETRY_MAX_DELAY_MS = 2e3;
+var THREAD_LIST_AUTH_RETRY_BACKOFF_FACTOR = 1.7;
+function scheduleBackgroundTask(task) {
+  const runtimeGlobal = globalThis;
+  if (typeof runtimeGlobal.requestIdleCallback === "function") {
+    const idleId = runtimeGlobal.requestIdleCallback(task, {
+      timeout: PREFETCH_IDLE_TIMEOUT_MS
+    });
+    return () => {
       var _a;
-      return (_a = sessionManagerRef.current) == null ? void 0 : _a.get(threadContext.currentThreadId);
-    }
+      return (_a = runtimeGlobal.cancelIdleCallback) == null ? void 0 : _a.call(runtimeGlobal, idleId);
+    };
+  }
+  const timeoutId = runtimeGlobal.setTimeout(task, 0);
+  return () => runtimeGlobal.clearTimeout(timeoutId);
+}
+function delay(ms) {
+  return new Promise((resolve) => {
+    globalThis.setTimeout(resolve, ms);
   });
+}
+function stableStateString2(state) {
+  return JSON.stringify(state != null ? state : {});
+}
+function normalizeWalletId(value) {
+  if (!value) return void 0;
+  return value.startsWith("0x") ? value.toLowerCase() : value;
+}
+function useWalletStateSync(context, sessions, remoteThreads) {
   const {
-    sessionManager,
-    getSession,
-    isRunning,
-    setIsRunning,
-    ensureInitialState,
-    sendMessage: orchestratorSendMessage,
-    cancelGeneration: orchestratorCancel,
-    aomiClientRef
-  } = useRuntimeOrchestrator(aomiClient, {
-    getPublicKey: () => UserState3.isConnected(getUserState()) ? UserState3.address(getUserState()) : void 0,
+    getCurrentThreadApp,
     getUserState,
-    getApp: getCurrentThreadApp,
-    getApiKey: () => getControlState().apiKey,
-    getClientId: () => {
-      var _a;
-      return (_a = getControlState().clientId) != null ? _a : void 0;
-    },
-    onPendingRequestsChange: walletHandler.setRequests,
-    onEvent: (event) => eventContext.dispatch(event)
-  });
-  sessionManagerRef.current = sessionManager;
-  const walletSnapshot = useCallback7(
+    onUserStateChange,
+    threadContextRef
+  } = context;
+  const { aomiClientRef } = sessions;
+  const { remoteThreadIdsRef } = remoteThreads;
+  const walletSnapshot = useCallback11(
     (nextUser) => {
-      var _a;
+      var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r;
       return {
-        address: UserState3.address(nextUser),
-        chain_id: UserState3.chainId(nextUser),
-        is_connected: (_a = UserState3.isConnected(nextUser)) != null ? _a : false,
-        ens_name: typeof nextUser.ens_name === "string" ? nextUser.ens_name : void 0
+        connection: {
+          is_connected: (_a = UserStateHelpers.isConnected(nextUser)) != null ? _a : false,
+          primary_family: (_b = nextUser.connection) == null ? void 0 : _b.primary_family,
+          provider: (_c = UserStateHelpers.walletProvider(nextUser)) != null ? _c : void 0,
+          wallet_provider_subject: (_d = UserStateHelpers.walletProviderSubject(nextUser)) != null ? _d : void 0,
+          auth_method: (_e = UserStateHelpers.authMethod(nextUser)) != null ? _e : void 0,
+          auth_value: (_f = UserStateHelpers.authValue(nextUser)) != null ? _f : void 0,
+          auth_verified_at: (_g = UserStateHelpers.authVerifiedAt(nextUser)) != null ? _g : void 0
+        },
+        evm: {
+          address: UserStateHelpers.address(nextUser),
+          chain_id: UserStateHelpers.chainId(nextUser),
+          ens_name: typeof ((_h = nextUser.evm) == null ? void 0 : _h.ens_name) === "string" ? nextUser.evm.ens_name : void 0,
+          aa: {
+            mode: (_i = UserStateHelpers.aaMode(nextUser)) != null ? _i : void 0,
+            smart_account: (_j = UserStateHelpers.SmartAccount4337(nextUser)) != null ? _j : void 0,
+            delegation_7702: (_k = UserStateHelpers.Delegation7702(nextUser)) != null ? _k : void 0
+          },
+          sponsorship: {
+            sponsored: (_l = UserStateHelpers.sponsored(nextUser)) != null ? _l : void 0,
+            sponsor_provider: (_m = UserStateHelpers.sponsorProvider(nextUser)) != null ? _m : void 0,
+            sponsor_account: (_n = UserStateHelpers.sponsorAccount(nextUser)) != null ? _n : void 0
+          }
+        },
+        svm: {
+          address: UserStateHelpers.svmAddress(nextUser),
+          cluster: (_o = nextUser.svm) == null ? void 0 : _o.cluster,
+          wallet_name: (_p = nextUser.svm) == null ? void 0 : _p.wallet_name,
+          transport: (_q = nextUser.svm) == null ? void 0 : _q.transport,
+          capabilities: (_r = nextUser.svm) == null ? void 0 : _r.capabilities
+        }
       };
     },
     [getUserState]
   );
   const lastWalletStateRef = useRef8(walletSnapshot(getUserState()));
-  useEffect4(() => {
+  useEffect7(() => {
     lastWalletStateRef.current = walletSnapshot(getUserState());
     const unsubscribe = onUserStateChange(async (newUser) => {
+      var _a, _b;
       const nextWalletState = walletSnapshot(newUser);
       const prevWalletState = lastWalletStateRef.current;
-      if (prevWalletState.address === nextWalletState.address && prevWalletState.chain_id === nextWalletState.chain_id && prevWalletState.is_connected === nextWalletState.is_connected && prevWalletState.ens_name === nextWalletState.ens_name) {
+      const previousAddress = normalizeWalletId((_a = prevWalletState.evm) == null ? void 0 : _a.address);
+      const nextAddress = normalizeWalletId((_b = nextWalletState.evm) == null ? void 0 : _b.address);
+      if (stableStateString2(prevWalletState) === stableStateString2(nextWalletState)) {
         return;
       }
       lastWalletStateRef.current = nextWalletState;
-      const sessionId = threadContext.currentThreadId;
+      if (previousAddress !== void 0 && nextAddress !== void 0 && previousAddress !== nextAddress) {
+        return;
+      }
+      const sessionId = threadContextRef.current.currentThreadId;
+      if (!remoteThreadIdsRef.current.has(sessionId)) {
+        return;
+      }
       const message = JSON.stringify({
         type: "wallet:state_changed",
         payload: nextWalletState
       });
-      await aomiClientRef.current.sendSystemMessage(sessionId, message);
+      await aomiClientRef.current.sendSystemMessage(sessionId, message, {
+        app: getCurrentThreadApp()
+      });
     });
     return unsubscribe;
   }, [
-    onUserStateChange,
     aomiClientRef,
-    threadContext.currentThreadId,
+    getCurrentThreadApp,
     getUserState,
+    onUserStateChange,
+    remoteThreadIdsRef,
+    threadContextRef,
     walletSnapshot
   ]);
-  const threadContextRef = useRef8(threadContext);
-  threadContextRef.current = threadContext;
-  const remoteThreadIdsRef = useRef8(/* @__PURE__ */ new Set());
-  const warmedThreadIdsRef = useRef8(/* @__PURE__ */ new Set());
-  const warmThread = useCallback7(
-    async (threadId) => {
-      if (!remoteThreadIdsRef.current.has(threadId) || warmedThreadIdsRef.current.has(threadId)) {
+}
+function useUserStateRequestResponder(context, sessions) {
+  const eventContext = useEventContext();
+  const { getUserState, threadContextRef } = context;
+  const { getSession } = sessions;
+  useEffect7(() => {
+    const unsubscribe = eventContext.subscribe("user_state_request", () => {
+      var _a, _b;
+      const sessionId = threadContextRef.current.currentThreadId;
+      const session = getSession(sessionId);
+      const payload = (_b = (_a = UserStateHelpers.reconcile(session.getUserState(), getUserState())) != null ? _a : session.getUserState()) != null ? _b : getUserState();
+      eventContext.sendOutboundSystem({
+        type: "user_state_response",
+        sessionId,
+        payload
+      });
+    });
+    return unsubscribe;
+  }, [eventContext, getSession, getUserState, threadContextRef]);
+}
+function useRemoteThreadListSync(context, sessions, remoteThreads, threadPersistence) {
+  const [isThreadListLoading, setIsThreadListLoading] = useState8(true);
+  const [threadListError, setThreadListError] = useState8(false);
+  const prefetchCancelRef = useRef8(null);
+  const wasConnectedRef = useRef8(false);
+  const { getControlState, threadContextRef, user } = context;
+  const {
+    aomiClientRef,
+    closeAllSessions,
+    ensureInitialState,
+    sessionManager,
+    setIsThreadLoading
+  } = sessions;
+  const {
+    remoteThreadIdsRef,
+    warmPromisesRef,
+    warmedThreadIdsRef,
+    warmThread
+  } = remoteThreads;
+  const isConnected = UserStateHelpers.isConnected(user) === true;
+  const restoredThreadId = threadPersistence == null ? void 0 : threadPersistence.restoredThreadId;
+  const listThreadsWithAuthRetry = useCallback11(
+    async (sessionId, isCancelled) => {
+      let nextDelay = THREAD_LIST_AUTH_RETRY_BASE_DELAY_MS;
+      let waitedMs = 0;
+      for (; ; ) {
+        try {
+          return await aomiClientRef.current.listThreads(sessionId);
+        } catch (error) {
+          if (isCancelled() || getHttpStatus2(error) !== 401 || waitedMs >= THREAD_LIST_AUTH_RETRY_BUDGET_MS) {
+            throw error;
+          }
+          await delay(nextDelay);
+          waitedMs += nextDelay;
+          nextDelay = Math.min(
+            Math.round(nextDelay * THREAD_LIST_AUTH_RETRY_BACKOFF_FACTOR),
+            THREAD_LIST_AUTH_RETRY_MAX_DELAY_MS
+          );
+        }
+      }
+    },
+    [aomiClientRef]
+  );
+  const scheduleThreadPrefetch = useCallback11(
+    (threadIds) => {
+      var _a;
+      (_a = prefetchCancelRef.current) == null ? void 0 : _a.call(prefetchCancelRef);
+      const prefetchThreadIds = Array.from(new Set(threadIds)).filter((threadId) => remoteThreadIdsRef.current.has(threadId)).slice(0, THREAD_PREFETCH_LIMIT);
+      if (prefetchThreadIds.length === 0) {
+        prefetchCancelRef.current = null;
         return;
       }
-      const userState = getUserState();
-      await aomiClientRef.current.createThread(
-        threadId,
-        UserState3.isConnected(userState) ? UserState3.address(userState) : void 0
-      );
-      warmedThreadIdsRef.current.add(threadId);
-    },
-    [aomiClientRef, getUserState]
-  );
-  useEffect4(() => {
-    const unsubscribe = eventContext.subscribe(
-      "user_state_request",
-      () => {
-        var _a, _b, _c;
-        const session = (_b = (_a = sessionManagerRef.current) == null ? void 0 : _a.get(threadContext.currentThreadId)) != null ? _b : getSession(threadContext.currentThreadId);
-        eventContext.sendOutboundSystem({
-          type: "user_state_response",
-          sessionId: threadContext.currentThreadId,
-          payload: (_c = session.getUserState()) != null ? _c : getUserState()
-        });
-      }
-    );
-    return unsubscribe;
-  }, [eventContext, threadContext.currentThreadId, getSession, getUserState]);
-  useEffect4(() => {
-    const threadId = threadContext.currentThreadId;
-    let cancelled = false;
-    void (async () => {
-      await warmThread(threadId);
-      if (!cancelled) {
-        await ensureInitialState(threadId);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [ensureInitialState, threadContext.currentThreadId, warmThread]);
-  useEffect4(() => {
-    const threadId = threadContext.currentThreadId;
-    const currentMeta = threadContext.getThreadMetadata(threadId);
-    if (currentMeta && currentMeta.control.isProcessing !== isRunning) {
-      threadContext.updateThreadMetadata(threadId, {
-        control: __spreadProps(__spreadValues({}, currentMeta.control), {
-          isProcessing: isRunning
-        })
+      let cancelled = false;
+      const cancelScheduledTask = scheduleBackgroundTask(() => {
+        void Promise.all(
+          prefetchThreadIds.map(async (threadId) => {
+            if (cancelled || !remoteThreadIdsRef.current.has(threadId)) return;
+            if (threadContextRef.current.getThreadMessages(threadId).length > 0) {
+              return;
+            }
+            try {
+              await warmThread(threadId);
+              if (cancelled || !remoteThreadIdsRef.current.has(threadId)) {
+                return;
+              }
+              await ensureInitialState(threadId);
+            } catch (error) {
+              console.debug("Failed to prefetch thread:", threadId, error);
+            }
+          })
+        );
       });
-    }
-  }, [isRunning, threadContext]);
-  const currentMessages = threadContext.getThreadMessages(
-    threadContext.currentThreadId
+      prefetchCancelRef.current = () => {
+        cancelled = true;
+        cancelScheduledTask();
+      };
+    },
+    [ensureInitialState, remoteThreadIdsRef, threadContextRef, warmThread]
   );
-  useEffect4(() => {
-    const userAddress = UserState3.isConnected(user) ? UserState3.address(user) : void 0;
-    if (!userAddress) {
-      remoteThreadIdsRef.current.clear();
-      warmedThreadIdsRef.current.clear();
+  useEffect7(() => {
+    var _a, _b;
+    if (!isConnected) {
+      const wasPreviouslyConnected = wasConnectedRef.current;
+      wasConnectedRef.current = false;
+      setIsThreadListLoading(false);
+      (_a = prefetchCancelRef.current) == null ? void 0 : _a.call(prefetchCancelRef);
+      prefetchCancelRef.current = null;
+      if (wasPreviouslyConnected) {
+        const hadRemoteThreads = remoteThreadIdsRef.current.size > 0;
+        const hadSessions = sessionManager.size > 0;
+        remoteThreadIdsRef.current.clear();
+        warmedThreadIdsRef.current.clear();
+        warmPromisesRef.current.clear();
+        closeAllSessions();
+        if (hadRemoteThreads || hadSessions) {
+          threadContextRef.current.resetToDefault();
+          (_b = threadPersistence == null ? void 0 : threadPersistence.onInvalidRestoredThread) == null ? void 0 : _b.call(threadPersistence);
+        }
+      }
       return;
     }
+    wasConnectedRef.current = true;
+    let cancelled = false;
+    setIsThreadListLoading(true);
+    setThreadListError(false);
     const fetchThreadList = async () => {
-      var _a, _b, _c;
+      var _a2, _b2, _c, _d;
       try {
-        const threadList = await aomiClientRef.current.listThreads(userAddress);
+        const remoteThreadIdsAtFetchStart = new Set(remoteThreadIdsRef.current);
         const currentContext = threadContextRef.current;
+        const controlSessionId = getControlSessionId(
+          getControlState().clientId,
+          currentContext.currentThreadId
+        );
+        const threadList = await listThreadsWithAuthRetry(
+          controlSessionId,
+          () => cancelled
+        );
+        if (cancelled) return;
         const remoteThreadIds = /* @__PURE__ */ new Set();
-        const newMetadata = new Map(currentContext.allThreadsMetadata);
-        let maxChatNum = currentContext.threadCnt;
+        const previousMetadata = currentContext.allThreadsMetadata;
+        const newMetadata = /* @__PURE__ */ new Map();
+        const baseThreadCount = currentContext.threadCnt;
+        let maxChatNum = baseThreadCount;
         for (const thread of threadList) {
           remoteThreadIds.add(thread.session_id);
-          const rawTitle = (_a = thread.title) != null ? _a : "";
+          const rawTitle = (_a2 = thread.title) != null ? _a2 : "";
           const title = isPlaceholderTitle(rawTitle) ? "" : rawTitle;
-          const lastActive = ((_b = newMetadata.get(thread.session_id)) == null ? void 0 : _b.lastActiveAt) || (/* @__PURE__ */ new Date()).toISOString();
-          const existingControl = (_c = newMetadata.get(thread.session_id)) == null ? void 0 : _c.control;
+          const serverLastActiveAt = thread.last_active_at;
+          const lastActive = (serverLastActiveAt != null ? serverLastActiveAt : (_b2 = previousMetadata.get(thread.session_id)) == null ? void 0 : _b2.lastActiveAt) || (/* @__PURE__ */ new Date()).toISOString();
+          const existingControl = (_c = previousMetadata.get(
+            thread.session_id
+          )) == null ? void 0 : _c.control;
           newMetadata.set(thread.session_id, {
             title,
             status: thread.is_archived ? "archived" : "regular",
@@ -1775,6 +2952,16 @@ function AomiRuntimeCore({
             }
           }
         }
+        for (const [threadId, metadata] of previousMetadata.entries()) {
+          if (!newMetadata.has(threadId)) {
+            newMetadata.set(threadId, metadata);
+          }
+        }
+        for (const threadId of remoteThreadIdsRef.current) {
+          if (!remoteThreadIdsAtFetchStart.has(threadId)) {
+            remoteThreadIds.add(threadId);
+          }
+        }
         remoteThreadIdsRef.current = remoteThreadIds;
         warmedThreadIdsRef.current = new Set(
           Array.from(warmedThreadIdsRef.current).filter(
@@ -1782,65 +2969,482 @@ function AomiRuntimeCore({
           )
         );
         currentContext.setThreadMetadata(newMetadata);
-        if (maxChatNum > currentContext.threadCnt) {
+        if (maxChatNum > baseThreadCount) {
           currentContext.setThreadCnt(maxChatNum);
         }
-        if (remoteThreadIds.has(currentContext.currentThreadId)) {
-          await warmThread(currentContext.currentThreadId);
-          await ensureInitialState(currentContext.currentThreadId);
+        scheduleThreadPrefetch(threadList.map((thread) => thread.session_id));
+        const activeThreadId = threadContextRef.current.currentThreadId;
+        let threadIdToLoad = activeThreadId;
+        const activeMessages = currentContext.getThreadMessages(activeThreadId);
+        const activeHasUserMessage = activeMessages.some(
+          (message) => message.role === "user"
+        );
+        if (restoredThreadId && activeThreadId === restoredThreadId && !remoteThreadIds.has(activeThreadId) && !activeHasUserMessage) {
+          (_d = threadPersistence == null ? void 0 : threadPersistence.onInvalidRestoredThread) == null ? void 0 : _d.call(threadPersistence);
+          currentContext.setThreadMetadata((prev) => {
+            const next = new Map(prev);
+            next.delete(activeThreadId);
+            return next;
+          });
+          currentContext.setThreads((prev) => {
+            const next = new Map(prev);
+            next.delete(activeThreadId);
+            return next;
+          });
+          const fallbackThread = threadList.filter((thread) => !thread.is_archived).sort((a, b) => {
+            var _a3, _b3;
+            const aLastActive = (_a3 = a.last_active_at) != null ? _a3 : 0;
+            const bLastActive = (_b3 = b.last_active_at) != null ? _b3 : 0;
+            return bLastActive - aLastActive;
+          })[0];
+          if (fallbackThread) {
+            threadIdToLoad = fallbackThread.session_id;
+            currentContext.setCurrentThreadId(fallbackThread.session_id);
+            currentContext.bumpThreadViewKey();
+          } else {
+            threadIdToLoad = currentContext.resetToDefault();
+          }
+        }
+        if (remoteThreadIds.has(threadIdToLoad)) {
+          setIsThreadLoading(true);
+          try {
+            await warmThread(threadIdToLoad);
+            if (!cancelled) {
+              await ensureInitialState(threadIdToLoad);
+            }
+          } finally {
+            if (!cancelled) {
+              setIsThreadLoading(false);
+            }
+          }
         }
       } catch (error) {
         console.error("Failed to fetch thread list:", error);
+        if (!cancelled) {
+          setThreadListError(true);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsThreadListLoading(false);
+        }
       }
     };
     void fetchThreadList();
-  }, [user, aomiClientRef, ensureInitialState, warmThread]);
+    return () => {
+      var _a2;
+      cancelled = true;
+      (_a2 = prefetchCancelRef.current) == null ? void 0 : _a2.call(prefetchCancelRef);
+      prefetchCancelRef.current = null;
+    };
+  }, [
+    closeAllSessions,
+    ensureInitialState,
+    getControlState,
+    listThreadsWithAuthRetry,
+    remoteThreadIdsRef,
+    scheduleThreadPrefetch,
+    sessionManager,
+    setIsThreadLoading,
+    threadContextRef,
+    restoredThreadId,
+    threadPersistence,
+    isConnected,
+    warmPromisesRef,
+    warmedThreadIdsRef,
+    warmThread
+  ]);
+  return { isThreadListLoading, threadListError };
+}
+function useRuntimeUserStateEffects({
+  sessions: {
+    aomiClientRef,
+    sessionManager,
+    getSession,
+    closeAllSessions,
+    ensureInitialState,
+    setIsThreadLoading
+  },
+  remoteThreads,
+  threadPersistence
+}) {
+  const threadContext = useThreadContext();
+  const { user, getUserState, onUserStateChange } = useUser();
+  const { getControlState, getCurrentThreadApp } = useControl();
+  const threadContextRef = useRef8(threadContext);
+  threadContextRef.current = threadContext;
+  const context = {
+    getControlState,
+    getCurrentThreadApp,
+    getUserState,
+    onUserStateChange,
+    threadContextRef,
+    user
+  };
+  const sessions = {
+    aomiClientRef,
+    sessionManager,
+    getSession,
+    closeAllSessions,
+    ensureInitialState,
+    setIsThreadLoading
+  };
+  useWalletStateSync(context, sessions, remoteThreads);
+  useUserStateRequestResponder(context, sessions);
+  return useRemoteThreadListSync(
+    context,
+    sessions,
+    remoteThreads,
+    threadPersistence
+  );
+}
+function RuntimeUserStateProvider({
+  children,
+  sessionManager,
+  getUserState,
+  setUser,
+  onUserStateChange
+}) {
+  const lastSerializedStateRef = useRef8("");
+  useEffect7(() => {
+    const applyToSessions = (next) => {
+      const serialized = stableStateString2(next);
+      if (serialized === lastSerializedStateRef.current) {
+        return;
+      }
+      lastSerializedStateRef.current = serialized;
+      sessionManager.forEach((session) => {
+        session.resolveUserState(next, { skipEmit: true });
+      });
+    };
+    const sessionListeners = [];
+    sessionManager.forEach((session) => {
+      const handler = (next) => {
+        setUser(next);
+      };
+      session.on("user_state_updated", handler);
+      sessionListeners.push(() => session.off("user_state_updated", handler));
+    });
+    applyToSessions(getUserState());
+    const unsubscribe = onUserStateChange((next) => {
+      applyToSessions(next);
+    });
+    return () => {
+      unsubscribe();
+      sessionListeners.forEach((off) => off());
+    };
+  }, [getUserState, onUserStateChange, sessionManager, setUser]);
+  return /* @__PURE__ */ jsx6(Fragment2, { children });
+}
+
+// src/runtime/thread-persistence.ts
+var THREAD_PERSISTENCE_KEY_PREFIX = "aomi:lastThread";
+var DEFAULT_SCOPE = "default";
+var normalizeKeyPart = (value) => {
+  if (value === null || value === void 0) return DEFAULT_SCOPE;
+  const text = String(value).trim();
+  return text.length > 0 ? text : DEFAULT_SCOPE;
+};
+function buildThreadPersistenceKey({
+  backendUrl,
+  applicationId,
+  scope
+}) {
+  return [
+    THREAD_PERSISTENCE_KEY_PREFIX,
+    normalizeKeyPart(backendUrl),
+    normalizeKeyPart(applicationId),
+    normalizeKeyPart(scope)
+  ].join(":");
+}
+function readPersistedThreadId(storageKey) {
+  var _a, _b;
+  try {
+    const threadId = (_b = (_a = globalThis.localStorage) == null ? void 0 : _a.getItem(storageKey)) == null ? void 0 : _b.trim();
+    return threadId && threadId.length > 0 ? threadId : null;
+  } catch (e) {
+    return null;
+  }
+}
+function writePersistedThreadId(storageKey, threadId) {
+  var _a;
+  try {
+    (_a = globalThis.localStorage) == null ? void 0 : _a.setItem(storageKey, threadId);
+  } catch (e) {
+  }
+}
+function clearPersistedThreadId(storageKey) {
+  var _a;
+  try {
+    (_a = globalThis.localStorage) == null ? void 0 : _a.removeItem(storageKey);
+  } catch (e) {
+  }
+}
+
+// src/runtime/core.tsx
+import { jsx as jsx7 } from "react/jsx-runtime";
+function AomiRuntimeCore({
+  children,
+  aomiClient,
+  applicationId,
+  restoredThreadId,
+  threadPersistenceKey
+}) {
+  const threadContext = useThreadContext();
+  const eventContext = useEventContext();
+  const notificationContext = useNotification();
+  const { getUserState } = useUser();
+  const {
+    getControlState,
+    getCurrentThreadApplicationId,
+    getCurrentThreadApp,
+    getPreferredThreadControl,
+    syncCurrentThreadControl
+  } = useControl();
+  const sessionManagerRef = useRef9(null);
+  const walletHandler = useWalletHandler({
+    getSession: () => {
+      var _a;
+      return (_a = sessionManagerRef.current) == null ? void 0 : _a.get(threadContext.currentThreadId);
+    }
+  });
+  const {
+    sessionManager,
+    getSession,
+    isRunning,
+    setIsRunning,
+    ensureInitialState,
+    sendMessage: orchestratorSendMessage,
+    regenerateMessage: orchestratorRegenerateMessage,
+    cancelGeneration: orchestratorCancel,
+    closeSession,
+    closeIdleSessionsExcept,
+    closeAllSessions,
+    aomiClientRef
+  } = useRuntimeOrchestrator(aomiClient, {
+    getUserState,
+    getApp: getCurrentThreadApp,
+    getApplicationId: () => {
+      var _a;
+      return (_a = getCurrentThreadApplicationId()) != null ? _a : applicationId;
+    },
+    getApiKey: () => getControlState().apiKey,
+    getClientId: () => {
+      var _a;
+      return (_a = getControlState().clientId) != null ? _a : void 0;
+    },
+    prepareThreadForSend: async (threadId) => {
+      const wasCreated = await ensureBackendThread(threadId);
+      if (wasCreated) {
+        threadsMaterializedForSendRef.current.add(threadId);
+      }
+      await syncCurrentThreadControl({ ignoreProcessing: true });
+    },
+    onSendSuccess: (threadId) => {
+      const wasRemote = remoteThreadIdsRef.current.has(threadId);
+      remoteThreadIdsRef.current.add(threadId);
+      warmedThreadIdsRef.current.add(threadId);
+      if (threadPersistenceKey) {
+        writePersistedThreadId(threadPersistenceKey, threadId);
+      }
+      threadsMaterializedForSendRef.current.delete(threadId);
+      if (!wasRemote && threadContextRef.current.currentThreadId === threadId) {
+        void syncCurrentThreadControl().catch((error) => {
+          console.error("Failed to sync thread controls:", error);
+        });
+      }
+    },
+    onSendError: async (threadId, error) => {
+      const wasMaterializedForSend = threadsMaterializedForSendRef.current.has(threadId);
+      threadsMaterializedForSendRef.current.delete(threadId);
+      const httpStatus = getHttpStatus2(error);
+      if (httpStatus === 402) {
+        notificationContext.showNotification({
+          type: "error",
+          kind: "payment_required",
+          title: "You're out of funds"
+        });
+      }
+      if (httpStatus !== 402 || !wasMaterializedForSend) {
+        return;
+      }
+      try {
+        await aomiClientRef.current.deleteThread(threadId);
+        remoteThreadIdsRef.current.delete(threadId);
+        warmedThreadIdsRef.current.delete(threadId);
+      } catch (deleteError) {
+        console.error("Failed to delete quota-blocked thread:", deleteError);
+      }
+    },
+    onPendingRequestsChange: walletHandler.setRequests,
+    onEvent: (event) => eventContext.dispatch(event)
+  });
+  sessionManagerRef.current = sessionManager;
+  const threadContextRef = useRef9(threadContext);
+  threadContextRef.current = threadContext;
+  const remoteThreadIdsRef = useRef9(/* @__PURE__ */ new Set());
+  const warmedThreadIdsRef = useRef9(/* @__PURE__ */ new Set());
+  const warmPromisesRef = useRef9(/* @__PURE__ */ new Map());
+  const threadsMaterializedForSendRef = useRef9(/* @__PURE__ */ new Set());
+  const [isThreadLoading, setIsThreadLoading] = useState9(false);
+  const warmThread = useCallback12(
+    async (threadId) => {
+      if (!remoteThreadIdsRef.current.has(threadId) || warmedThreadIdsRef.current.has(threadId)) {
+        return;
+      }
+      const existingPromise = warmPromisesRef.current.get(threadId);
+      if (existingPromise) {
+        return existingPromise;
+      }
+      const warmPromise = (async () => {
+        await aomiClientRef.current.createThread(threadId);
+        warmedThreadIdsRef.current.add(threadId);
+      })();
+      warmPromisesRef.current.set(threadId, warmPromise);
+      try {
+        await warmPromise;
+      } finally {
+        warmPromisesRef.current.delete(threadId);
+      }
+    },
+    [aomiClientRef]
+  );
+  const ensureBackendThread = useCallback12(
+    async (threadId) => {
+      if (remoteThreadIdsRef.current.has(threadId)) return false;
+      await aomiClientRef.current.createThread(threadId);
+      remoteThreadIdsRef.current.add(threadId);
+      warmedThreadIdsRef.current.add(threadId);
+      return true;
+    },
+    [aomiClientRef]
+  );
+  const getRuntimeSession = useCallback12(
+    (threadId) => {
+      var _a, _b;
+      return (_b = (_a = sessionManagerRef.current) == null ? void 0 : _a.get(threadId)) != null ? _b : getSession(threadId);
+    },
+    [getSession]
+  );
+  const threadPersistence = useMemo2(
+    () => ({
+      restoredThreadId,
+      onInvalidRestoredThread: () => {
+        if (threadPersistenceKey) {
+          clearPersistedThreadId(threadPersistenceKey);
+        }
+      }
+    }),
+    [restoredThreadId, threadPersistenceKey]
+  );
+  const { isThreadListLoading, threadListError } = useRuntimeUserStateEffects({
+    sessions: {
+      aomiClientRef,
+      sessionManager,
+      getSession: getRuntimeSession,
+      closeAllSessions,
+      ensureInitialState,
+      setIsThreadLoading
+    },
+    remoteThreads: {
+      remoteThreadIdsRef,
+      warmPromisesRef,
+      warmedThreadIdsRef,
+      warmThread
+    },
+    threadPersistence
+  });
+  useEffect8(() => {
+    const threadId = threadContext.currentThreadId;
+    closeIdleSessionsExcept(threadId);
+    if (!remoteThreadIdsRef.current.has(threadId)) {
+      setIsThreadLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setIsThreadLoading(true);
+    void (async () => {
+      try {
+        await warmThread(threadId);
+        if (!cancelled) {
+          await ensureInitialState(threadId);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsThreadLoading(false);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    closeIdleSessionsExcept,
+    ensureInitialState,
+    threadContext.currentThreadId,
+    warmThread
+  ]);
+  useEffect8(() => {
+    var _a;
+    const threadId = threadContext.currentThreadId;
+    const currentMeta = threadContext.getThreadMetadata(threadId);
+    const nextTurnPhase = isRunning ? (_a = currentMeta == null ? void 0 : currentMeta.control.turnPhase) != null ? _a : "working" : "idle";
+    if (currentMeta && (currentMeta.control.isProcessing !== isRunning || currentMeta.control.turnPhase !== nextTurnPhase)) {
+      threadContext.updateThreadMetadata(threadId, {
+        control: __spreadProps(__spreadValues({}, currentMeta.control), {
+          isProcessing: isRunning,
+          turnPhase: nextTurnPhase
+        })
+      });
+    }
+  }, [isRunning, threadContext]);
+  const currentMessages = threadContext.getThreadMessages(
+    threadContext.currentThreadId
+  );
+  useEffect8(() => {
+    if (!threadPersistenceKey) return;
+    const threadId = threadContext.currentThreadId;
+    if (!remoteThreadIdsRef.current.has(threadId)) {
+      return;
+    }
+    writePersistedThreadId(threadPersistenceKey, threadId);
+  }, [
+    threadContext.allThreadsMetadata,
+    threadContext.currentThreadId,
+    threadPersistenceKey
+  ]);
+  const isRemoteThread = useCallback12(
+    (threadId) => remoteThreadIdsRef.current.has(threadId),
+    []
+  );
   const threadListAdapter = useMemo2(
     () => buildThreadListAdapter({
       aomiClientRef,
       threadContext,
-      setIsRunning
+      setIsRunning,
+      isLoading: isThreadListLoading,
+      getInitialControl: getPreferredThreadControl,
+      isRemoteThread
     }),
     [
       aomiClientRef,
+      getPreferredThreadControl,
+      isRemoteThread,
+      isThreadListLoading,
       setIsRunning,
       threadContext,
       threadContext.currentThreadId,
-      threadContext.allThreadsMetadata
+      threadContext.allThreadsMetadata,
+      currentMessages
     ]
   );
-  useEffect4(() => {
-    const showToolNotification = (eventType) => (event) => {
-      const payload = event.payload;
-      const toolName = typeof (payload == null ? void 0 : payload.tool_name) === "string" ? payload.tool_name : void 0;
-      const title = toolName ? `${eventType === "tool_update" ? "Tool update" : "Tool complete"}: ${toolName}` : eventType === "tool_update" ? "Tool update" : "Tool complete";
-      const message = typeof (payload == null ? void 0 : payload.message) === "string" ? payload.message : typeof (payload == null ? void 0 : payload.result) === "string" ? payload.result : void 0;
-      notificationContext.showNotification({
-        type: "notice",
-        title,
-        message
-      });
-    };
-    const unsubscribeUpdate = eventContext.subscribe(
-      "tool_update",
-      showToolNotification("tool_update")
-    );
-    const unsubscribeComplete = eventContext.subscribe(
-      "tool_complete",
-      showToolNotification("tool_complete")
-    );
-    return () => {
-      unsubscribeUpdate();
-      unsubscribeComplete();
-    };
-  }, [eventContext, notificationContext]);
-  useEffect4(() => {
+  useEffect8(() => {
     const unsubscribe = eventContext.subscribe("system_notice", (_event) => {
     });
     return unsubscribe;
   }, [eventContext, notificationContext]);
   const runtime = useExternalStoreRuntime({
     messages: currentMessages,
+    isLoading: isThreadLoading,
     setMessages: (msgs) => threadContext.setThreadMessages(threadContext.currentThreadId, [...msgs]),
     isRunning,
     onNew: async (message) => {
@@ -1848,7 +3452,36 @@ function AomiRuntimeCore({
         (part) => part.type === "text"
       ).map((part) => part.text).join("\n");
       if (text) {
-        await orchestratorSendMessage(text, threadContext.currentThreadId);
+        try {
+          await orchestratorSendMessage(text, threadContext.currentThreadId);
+        } catch (error) {
+          console.error("Failed to send message:", error);
+        }
+      }
+    },
+    onEdit: async (message) => {
+      var _a;
+      const text = message.content.filter(
+        (part) => part.type === "text"
+      ).map((part) => part.text).join("\n");
+      try {
+        await orchestratorRegenerateMessage(
+          threadContext.currentThreadId,
+          (_a = message.sourceId) != null ? _a : message.parentId,
+          text
+        );
+      } catch (error) {
+        console.error("Failed to edit message:", error);
+      }
+    },
+    onReload: async (parentId) => {
+      try {
+        await orchestratorRegenerateMessage(
+          threadContext.currentThreadId,
+          parentId
+        );
+      } catch (error) {
+        console.error("Failed to reload message:", error);
       }
     },
     onCancel: async () => {
@@ -1857,52 +3490,59 @@ function AomiRuntimeCore({
     convertMessage: (msg) => msg,
     adapters: { threadList: threadListAdapter }
   });
-  useEffect4(() => {
+  useEffect8(() => {
     return () => {
-      sessionManager.closeAll();
+      closeAllSessions();
     };
-  }, [sessionManager]);
+  }, [closeAllSessions]);
   const userContext = useUser();
-  const sendMessage = useCallback7(
+  const sendMessage = useCallback12(
     async (text) => {
       await orchestratorSendMessage(text, threadContext.currentThreadId);
     },
     [orchestratorSendMessage, threadContext.currentThreadId]
   );
-  const cancelGeneration = useCallback7(() => {
+  const cancelGeneration = useCallback12(() => {
     void orchestratorCancel(threadContext.currentThreadId);
   }, [orchestratorCancel, threadContext.currentThreadId]);
-  const getMessages = useCallback7(
+  const getMessages = useCallback12(
     (threadId) => {
       const id = threadId != null ? threadId : threadContext.currentThreadId;
       return threadContext.getThreadMessages(id);
     },
     [threadContext]
   );
-  const createThread = useCallback7(async () => {
+  const createThread = useCallback12(async () => {
     await threadListAdapter.onSwitchToNewThread();
     return threadContextRef.current.currentThreadId;
   }, [threadListAdapter]);
-  const deleteThread = useCallback7(
+  const deleteThread = useCallback12(
     async (threadId) => {
-      sessionManager.close(threadId);
+      closeSession(threadId);
       await threadListAdapter.onDelete(threadId);
+      remoteThreadIdsRef.current.delete(threadId);
+      warmedThreadIdsRef.current.delete(threadId);
+      warmPromisesRef.current.delete(threadId);
+      const nextThreadId = threadContextRef.current.currentThreadId;
+      if (!remoteThreadIdsRef.current.has(nextThreadId) && threadPersistenceKey) {
+        clearPersistedThreadId(threadPersistenceKey);
+      }
     },
-    [threadListAdapter, sessionManager]
+    [closeSession, threadListAdapter, threadPersistenceKey]
   );
-  const renameThread = useCallback7(
+  const renameThread = useCallback12(
     async (threadId, title) => {
       await threadListAdapter.onRename(threadId, title);
     },
     [threadListAdapter]
   );
-  const archiveThread = useCallback7(
+  const archiveThread = useCallback12(
     async (threadId) => {
       await threadListAdapter.onArchive(threadId);
     },
     [threadListAdapter]
   );
-  const selectThread = useCallback7(
+  const selectThread = useCallback12(
     (threadId) => {
       if (threadContext.allThreadsMetadata.has(threadId)) {
         threadListAdapter.onSwitchToThread(threadId);
@@ -1912,7 +3552,7 @@ function AomiRuntimeCore({
     },
     [threadContext.allThreadsMetadata, threadListAdapter]
   );
-  const simulateBatchTransactions = useCallback7(
+  const simulateBatchTransactions = useCallback12(
     async (transactions, options) => {
       var _a, _b;
       const session = (_b = (_a = sessionManagerRef.current) == null ? void 0 : _a.get(threadContext.currentThreadId)) != null ? _b : getSession(threadContext.currentThreadId);
@@ -1941,6 +3581,7 @@ function AomiRuntimeCore({
       currentThreadId: threadContext.currentThreadId,
       threadViewKey: threadContext.threadViewKey,
       threadMetadata: threadContext.allThreadsMetadata,
+      threadListError,
       getThreadMetadata: threadContext.getThreadMetadata,
       createThread,
       deleteThread,
@@ -1959,6 +3600,7 @@ function AomiRuntimeCore({
       clearAllNotifications: notificationContext.clearAll,
       // Wallet API
       pendingWalletRequests: walletHandler.pendingRequests,
+      hasBlockingWalletRequests: walletHandler.hasBlockingWalletRequests,
       startWalletRequest: walletHandler.startRequest,
       resolveWalletRequest: walletHandler.resolveRequest,
       rejectWalletRequest: walletHandler.rejectRequest,
@@ -1966,6 +3608,11 @@ function AomiRuntimeCore({
       // Event API
       subscribe: eventContext.subscribe,
       sendSystemCommand: eventContext.sendOutboundSystem,
+      recordUiInteraction: (payload) => eventContext.sendOutboundSystem({
+        type: "ui_interaction",
+        sessionId: threadContext.currentThreadId,
+        payload
+      }),
       sseStatus: eventContext.sseStatus
     }),
     [
@@ -1974,6 +3621,7 @@ function AomiRuntimeCore({
       threadContext.threadViewKey,
       threadContext.allThreadsMetadata,
       threadContext.getThreadMetadata,
+      threadListError,
       createThread,
       deleteThread,
       renameThread,
@@ -1994,50 +3642,124 @@ function AomiRuntimeCore({
     {
       sessionManager,
       getUserState: userContext.getUserState,
+      setUser: userContext.setUser,
       onUserStateChange: userContext.onUserStateChange,
       children: /* @__PURE__ */ jsx7(AssistantRuntimeProvider, { runtime, children })
     }
   ) });
 }
 
-// packages/react/src/runtime/aomi-runtime.tsx
+// src/runtime/aomi-runtime.tsx
 import { jsx as jsx8 } from "react/jsx-runtime";
+function normalizeBackendUrl(url) {
+  try {
+    const parsed = new URL(url);
+    if (parsed.hostname === "localhost") {
+      parsed.hostname = "127.0.0.1";
+      return parsed.toString().replace(/\/$/, "");
+    }
+  } catch (e) {
+  }
+  return url;
+}
 function AomiRuntimeProvider({
   children,
-  backendUrl = "http://localhost:8080"
+  backendUrl = "http://127.0.0.1:8080",
+  applicationId,
+  appPlatforms,
+  clientOptions,
+  initialThreadId,
+  persistThread = true,
+  threadPersistenceKey,
+  threadPersistenceScope
 }) {
-  const aomiClient = useMemo3(() => new AomiClient({ baseUrl: backendUrl }), [backendUrl]);
-  return /* @__PURE__ */ jsx8(ThreadContextProvider, { children: /* @__PURE__ */ jsx8(NotificationContextProvider, { children: /* @__PURE__ */ jsx8(UserContextProvider, { children: /* @__PURE__ */ jsx8(AomiRuntimeInner, { aomiClient, children }) }) }) });
+  const normalizedBackendUrl = normalizeBackendUrl(backendUrl);
+  const resolvedThreadPersistenceKey = useMemo3(() => {
+    if (!persistThread) return null;
+    return threadPersistenceKey != null ? threadPersistenceKey : buildThreadPersistenceKey({
+      backendUrl: normalizedBackendUrl,
+      applicationId,
+      scope: threadPersistenceScope
+    });
+  }, [
+    applicationId,
+    normalizedBackendUrl,
+    persistThread,
+    threadPersistenceKey,
+    threadPersistenceScope
+  ]);
+  const restoredThreadId = useMemo3(() => {
+    var _a;
+    if (initialThreadId) return initialThreadId;
+    if (!resolvedThreadPersistenceKey) return void 0;
+    return (_a = readPersistedThreadId(resolvedThreadPersistenceKey)) != null ? _a : void 0;
+  }, [initialThreadId, resolvedThreadPersistenceKey]);
+  const resolvedClientOptions = useMemo3(
+    () => __spreadValues({
+      logger: {
+        debug: (...args) => console.debug(...args)
+      }
+    }, clientOptions),
+    [clientOptions]
+  );
+  const aomiClient = useMemo3(
+    () => new AomiClient(__spreadValues({
+      baseUrl: normalizedBackendUrl
+    }, resolvedClientOptions)),
+    [normalizedBackendUrl, resolvedClientOptions]
+  );
+  return /* @__PURE__ */ jsx8(ThreadContextProvider, { initialThreadId: restoredThreadId, children: /* @__PURE__ */ jsx8(NotificationContextProvider, { children: /* @__PURE__ */ jsx8(ExtUserProvider, { children: /* @__PURE__ */ jsx8(
+    AomiRuntimeInner,
+    {
+      aomiClient,
+      applicationId,
+      appPlatforms,
+      restoredThreadId,
+      threadPersistenceKey: resolvedThreadPersistenceKey,
+      children
+    }
+  ) }) }) });
 }
 function AomiRuntimeInner({
   children,
-  aomiClient
+  aomiClient,
+  applicationId,
+  appPlatforms,
+  restoredThreadId,
+  threadPersistenceKey
 }) {
-  var _a;
   const threadContext = useThreadContext();
-  const { user } = useUser();
   return /* @__PURE__ */ jsx8(
     ControlContextProvider,
     {
       aomiClient,
       sessionId: threadContext.currentThreadId,
-      publicKey: UserState4.isConnected(user) ? (_a = UserState4.address(user)) != null ? _a : void 0 : void 0,
       getThreadMetadata: threadContext.getThreadMetadata,
       updateThreadMetadata: threadContext.updateThreadMetadata,
+      appPlatforms,
       children: /* @__PURE__ */ jsx8(
         EventContextProvider,
         {
           aomiClient,
           sessionId: threadContext.currentThreadId,
-          children: /* @__PURE__ */ jsx8(AomiRuntimeCore, { aomiClient, children })
+          children: /* @__PURE__ */ jsx8(
+            AomiRuntimeCore,
+            {
+              aomiClient,
+              applicationId,
+              restoredThreadId,
+              threadPersistenceKey,
+              children
+            }
+          )
         }
       )
     }
   );
 }
 
-// packages/react/src/handlers/notification-handler.ts
-import { useCallback as useCallback8, useEffect as useEffect5, useState as useState6 } from "react";
+// src/handlers/notification-handler.ts
+import { useCallback as useCallback13, useEffect as useEffect9, useState as useState10 } from "react";
 var notificationIdCounter2 = 0;
 function generateNotificationId() {
   return `notif-${Date.now()}-${++notificationIdCounter2}`;
@@ -2046,8 +3768,8 @@ function useNotificationHandler({
   onNotification
 } = {}) {
   const { subscribe } = useEventContext();
-  const [notifications, setNotifications] = useState6([]);
-  useEffect5(() => {
+  const [notifications, setNotifications] = useState10([]);
+  useEffect9(() => {
     const unsubscribe = subscribe("notification", (event) => {
       var _a, _b;
       const payload = event.payload;
@@ -2066,7 +3788,7 @@ function useNotificationHandler({
     return unsubscribe;
   }, [subscribe, onNotification]);
   const unhandledCount = notifications.filter((n) => !n.handled).length;
-  const markHandled = useCallback8((id) => {
+  const markHandled = useCallback13((id) => {
     setNotifications(
       (prev) => prev.map((n) => n.id === id ? __spreadProps(__spreadValues({}, n), { handled: true }) : n)
     );
@@ -2079,17 +3801,20 @@ function useNotificationHandler({
 }
 export {
   AomiClient2 as AomiClient,
+  AomiRuntimeApiProvider,
   AomiRuntimeProvider,
   ControlContextProvider,
   DISABLED_PROVIDER_STATE,
   EventContextProvider,
+  ExtUserProvider,
   MAX_AUTO_FEE_WEI,
   NotificationContextProvider,
   RuntimeUserStateProvider,
   SUPPORTED_CHAINS,
   ThreadContextProvider,
-  UserContextProvider,
+  UserState2 as UserState,
   aaModeFromExecutionKind,
+  appIdentityKey,
   appendFeeCallToPayload,
   buildFeeAAWalletCall,
   cn,
@@ -2099,18 +3824,26 @@ export {
   getNetworkName,
   hydrateTxPayloadFromUserState,
   initThreadControl,
+  normalizeAppDescriptor,
   normalizeSimulatedFee,
   parseChainId,
+  resolveAutoModel,
   toAAWalletCall,
   toAAWalletCalls,
+  toViemSignMessageArgs,
   toViemSignTypedDataArgs,
   useAomiRuntime,
+  useApiKey,
+  useAuthEndpoints,
+  useByok,
   useControl,
   useCurrentThreadMessages,
   useCurrentThreadMetadata,
   useEventContext,
   useNotification,
   useNotificationHandler,
+  useOptionalAomiRuntime,
+  usePerThreadControl,
   useThreadContext,
   useUser,
   useWalletHandler

@@ -1,0 +1,3 @@
+[eval] PASS check_eth_perp_before_open 1 turn(s) 7 tool call(s) 0.95168 cr, 25965 in / 1102 out tok, 24398 cached / 0 reasoning tok 0 warning(s) duration 22s
+report full json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/check_eth_perp_before_open/claude-haiku-4.5/pass-002/20260531T124204.807764000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/check_eth_perp_before_open/claude-haiku-4.5/pass-002/20260531T124204.807764000Z.compact.json

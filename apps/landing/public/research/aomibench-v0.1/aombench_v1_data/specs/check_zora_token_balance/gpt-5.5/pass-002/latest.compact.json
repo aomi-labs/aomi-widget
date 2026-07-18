@@ -1,0 +1,210 @@
+{
+  "run_id": "20260530T221420.211501000Z",
+  "mode": "spec",
+  "started_at": "2026-05-30T22:14:15.945426+00:00",
+  "finished_at": "2026-05-30T22:14:20.211393+00:00",
+  "spec_path": "bin/eval/specs/zora/check_zora_token_balance.json",
+  "passed": false,
+  "git_commit": "5b02660942391bc7ae86c5cbb05e33f4c549266f",
+  "git_dirty": true,
+  "story": {
+    "run_id": "20260530T221420.211501000Z",
+    "story_id": "check_zora_token_balance",
+    "user_story": "Check Alice's ZORA token balance on Base.",
+    "passed": false,
+    "warnings": [],
+    "model": "gpt-5.5",
+    "chain_id": 8453,
+    "git_commit": "5b02660942391bc7ae86c5cbb05e33f4c549266f",
+    "git_dirty": true,
+    "total_turns": 1,
+    "total_tool_calls": 1,
+    "total_responses": 2,
+    "activated_skills": [
+      "zora"
+    ],
+    "failed_assertions": [
+      {
+        "label": "tool",
+        "severity": "required",
+        "detail": "sequence broke before expected tool 'encode_and_call'; no matching tool arguments for encode_and_call:$.to; no matching tool arguments for encode_and_call:$.function_signature",
+        "observed": {
+          "kind": "tool_assertion",
+          "expected_tools": [
+            "activate_skills",
+            "encode_and_call"
+          ],
+          "observed_tools": [
+            "activate_skills"
+          ],
+          "missing_tools": [
+            "encode_and_call"
+          ],
+          "order": "sequential",
+          "turn": null,
+          "param_predicates": [
+            {
+              "tool": "encode_and_call",
+              "path": "$.to",
+              "exists": null,
+              "equals": "0x1111111111166b7fe7bd91427724b487980afc69",
+              "contains": null,
+              "numeric_equals": null,
+              "tolerance": null
+            },
+            {
+              "tool": "encode_and_call",
+              "path": "$.function_signature",
+              "exists": null,
+              "equals": "balanceOf(address)",
+              "contains": null,
+              "numeric_equals": null,
+              "tolerance": null
+            }
+          ],
+          "missing_param_predicates": [
+            "encode_and_call:$.to",
+            "encode_and_call:$.function_signature"
+          ],
+          "sequence_broke_before": "encode_and_call",
+          "tool_calls": [
+            {
+              "turn": 0,
+              "tool": "activate_skills",
+              "topic": "activate_skills",
+              "arguments": {
+                "skill_ids": [
+                  "zora"
+                ]
+              }
+            }
+          ]
+        }
+      }
+    ],
+    "budget_summary": {
+      "total": 1,
+      "exceeded": 0,
+      "required_failures": 0,
+      "warning_failures": 0
+    },
+    "usage": {
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "total_tokens": 0,
+      "cached_input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "visible_output_tokens": 0,
+      "reasoning_output_tokens": 0,
+      "tool_call_count": 1,
+      "actual_events": 0,
+      "diagnostic_events": 1,
+      "aomi_cost_credits": 0.0,
+      "user_charged_credits": 0.0,
+      "credits": 0.0
+    },
+    "transcript_previews": [
+      {
+        "sender": "user",
+        "content": "Can you check Alice's ZORA token balance on Base?",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "I’ll check Base context and the ZORA token contract balance for Alice.",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "activate_skills",
+        "tool_topic": "activate_skills",
+        "tool_result_preview": "{\n  \"activated\": [\n    \"zora\"\n  ],\n  \"rejected\": [],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
+      }
+    ],
+    "tool_previews": [
+      {
+        "turn": 0,
+        "tool": "activate_skills",
+        "topic": "activate_skills",
+        "arguments": {
+          "skill_ids": [
+            "zora"
+          ]
+        },
+        "result_preview": "{\n  \"activated\": [\n    \"zora\"\n  ],\n  \"rejected\": [],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
+      }
+    ],
+    "failure_category": "tool_error",
+    "app": {
+      "source": "default",
+      "path": null,
+      "loaded_name": "default"
+    },
+    "skills": {
+      "mode": "restricted",
+      "allowed": [
+        "zora"
+      ],
+      "activated_skills": [
+        "zora"
+      ],
+      "bundle_path": "../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/check_zora_token_balance/gpt-5.5/pass-002/spec-skills/check_zora_token_balance-skills.json",
+      "bundle_revision": "fnv1a64:207bf8ad29dce92d"
+    },
+    "environment": {
+      "chain_id": 8453,
+      "network": "base",
+      "providers_path": "/Users/aronmegyeri/.aomi/test-env/providers.toml",
+      "endpoint_name": "sim-base",
+      "funding_ledger": [
+        {
+          "chain_id": 1,
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "balances": {
+            "ETH": "100",
+            "USDC": "10000"
+          }
+        },
+        {
+          "chain_id": 1,
+          "address": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+          "balances": {
+            "ETH": "100",
+            "USDC": "10000"
+          }
+        },
+        {
+          "chain_id": 10143,
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "balances": {}
+        },
+        {
+          "chain_id": 10143,
+          "address": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+          "balances": {}
+        },
+        {
+          "chain_id": 8453,
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "balances": {
+            "ETH": "100",
+            "USDC": "10000"
+          }
+        },
+        {
+          "chain_id": 8453,
+          "address": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+          "balances": {
+            "ETH": "100",
+            "USDC": "10000"
+          }
+        }
+      ]
+    }
+  }
+}

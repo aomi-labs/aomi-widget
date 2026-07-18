@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   hydrateTxPayloadFromUserState,
   normalizeEip712Payload,
+  normalizeSolanaWalletRequest,
   normalizeTxPayload,
+  toViemSignMessageArgs,
 } from "../src/index";
 
 describe("wallet payload normalization", () => {
@@ -34,11 +36,13 @@ describe("wallet payload normalization", () => {
       normalizeTxPayload({
         tx_ids: ["17"],
         aa_preference: "eip4337",
+        aa_strict: true,
       }),
     ).toEqual({
       txIds: [17],
       txId: 17,
       aaPreference: "eip4337",
+      aaStrict: true,
       requestId: undefined,
       to: undefined,
       value: undefined,
@@ -47,11 +51,49 @@ describe("wallet payload normalization", () => {
     });
   });
 
+  it("rejects malformed and unsafe chain IDs", () => {
+    expect(
+      normalizeTxPayload({ tx_ids: [1], chain_id: "8453abc" })?.chainId,
+    ).toBeUndefined();
+    expect(
+      normalizeTxPayload({ tx_ids: [1], chain_id: "0x2105zz" })?.chainId,
+    ).toBeUndefined();
+    expect(
+      normalizeTxPayload({ tx_ids: [1], chain_id: "9007199254740993" })
+        ?.chainId,
+    ).toBeUndefined();
+    expect(
+      normalizeTxPayload({
+        tx_ids: [1],
+        chain_id: Number.MAX_SAFE_INTEGER + 1,
+      })?.chainId,
+    ).toBeUndefined();
+    expect(
+      normalizeTxPayload({ tx_ids: [1], chain_id: 1.5 })?.chainId,
+    ).toBeUndefined();
+    expect(
+      normalizeTxPayload({ tx_ids: [1], chain_id: 0 })?.chainId,
+    ).toBeUndefined();
+    expect(
+      normalizeTxPayload({ tx_ids: [1], chain_id: -1 })?.chainId,
+    ).toBeUndefined();
+    expect(normalizeTxPayload({ tx_ids: [1], chain_id: "8453" })?.chainId).toBe(
+      8453,
+    );
+    expect(
+      normalizeTxPayload({ tx_ids: [1], chain_id: "0x2105" })?.chainId,
+    ).toBe(8453);
+    expect(normalizeTxPayload({ tx_ids: [1], chain_id: 8453 })?.chainId).toBe(
+      8453,
+    );
+  });
+
   it("retains mixed wallet transaction payloads (raw call + tx_ids)", () => {
     expect(
       normalizeTxPayload({
         tx_ids: [22],
         aa_preference: "eip7702",
+        aaStrict: true,
         to: "0x742d35Cc6634C0532925a3b844Bc9e7595f33749",
         value: "1000",
         data: "0x1234",
@@ -60,6 +102,7 @@ describe("wallet payload normalization", () => {
       txIds: [22],
       txId: 22,
       aaPreference: "eip7702",
+      aaStrict: true,
       requestId: undefined,
       to: "0x742D35cc6634C0532925a3b844bC9e7595f33749",
       value: "1000",
@@ -120,6 +163,89 @@ describe("wallet payload normalization", () => {
     });
   });
 
+  it("hydrates id-only tx payloads from nested user_state.pending.evm_txs", () => {
+    const hydrated = hydrateTxPayloadFromUserState(
+      {
+        txId: 10,
+        txIds: [10],
+        aaPreference: "auto",
+      },
+      {
+        pending: {
+          evmTxs: {
+            10: {
+              to: "0x742d35Cc6634C0532925a3b844Bc9e7595f33749",
+              value: "7",
+              data: "0x",
+              chainId: "8453",
+            },
+          },
+        },
+      },
+      { strict: true },
+    );
+
+    expect(hydrated).toMatchObject({
+      txId: 10,
+      txIds: [10],
+      to: "0x742D35cc6634C0532925a3b844bC9e7595f33749",
+      value: "7",
+      data: "0x",
+      chainId: 8453,
+      calls: [
+        expect.objectContaining({
+          txId: 10,
+          value: "7",
+          chainId: 8453,
+        }),
+      ],
+    });
+  });
+
+  it("strips stray calldata from hydrated native transfers", () => {
+    const hydrated = hydrateTxPayloadFromUserState(
+      {
+        txId: 9,
+        txIds: [9],
+        aaPreference: "auto",
+      },
+      {
+        pending_txs: {
+          9: {
+            to: "0x742d35Cc6634C0532925a3b844Bc9e7595f33749",
+            value: "0",
+            data: "0x8a4068dd",
+            kind: "native_transfer",
+            chain_id: 1,
+          },
+        },
+      },
+      { strict: true },
+    );
+
+    expect(hydrated).toEqual({
+      txId: 9,
+      txIds: [9],
+      aaPreference: "auto",
+      to: "0x742D35cc6634C0532925a3b844bC9e7595f33749",
+      value: "0",
+      data: undefined,
+      chainId: 1,
+      calls: [
+        {
+          txId: 9,
+          to: "0x742D35cc6634C0532925a3b844bC9e7595f33749",
+          value: "0",
+          data: undefined,
+          chainId: 1,
+          from: undefined,
+          gas: undefined,
+          description: undefined,
+        },
+      ],
+    });
+  });
+
   it("throws pending_tx_not_found when strict hydration misses tx id", () => {
     expect(() =>
       hydrateTxPayloadFromUserState(
@@ -161,6 +287,85 @@ describe("wallet payload normalization", () => {
         message: { owner: "0x123" },
       },
       description: "Permit2 signature",
+    });
+  });
+
+  it("normalizes backend svm wallet_tx_request payloads into a Solana send request", () => {
+    expect(
+      normalizeSolanaWalletRequest({
+        chain_kind: "svm",
+        svm_tx_ids: [12],
+        request_kind: "send_transaction",
+        unsigned_tx: "U0VORE1F",
+        cluster: "solana:devnet",
+        description: "send 0.01 SOL",
+        pending_solana_id: 12,
+      }),
+    ).toEqual({
+      kind: "solana_send",
+      payload: {
+        unsignedTx: "U0VORE1F",
+        description: "send 0.01 SOL",
+        cluster: "solana:devnet",
+        pendingSolanaId: 12,
+      },
+    });
+  });
+
+  it("normalizes backend svm message_sign payloads into a Solana message-sign request", () => {
+    expect(
+      normalizeSolanaWalletRequest({
+        chain_kind: "svm",
+        request_kind: "message_sign",
+        kind: "solana_sign_message",
+        message_base64: "TWVtbw==",
+        cluster: "solana:devnet",
+        description: "sign login proof",
+        pending_solana_id: 17,
+      }),
+    ).toEqual({
+      kind: "solana_sign_message",
+      payload: {
+        message: "TWVtbw==",
+        description: "sign login proof",
+        cluster: "solana:devnet",
+        pendingSolanaId: 17,
+      },
+    });
+  });
+
+  it("retains ERC-191 non-typed signature payloads", () => {
+    expect(
+      normalizeEip712Payload({
+        pending_eip712_id: "12",
+        non_typed_data: "Sign in with Ethereum",
+        description: "Login signature",
+      }),
+    ).toEqual({
+      eip712Id: 12,
+      typed_data: undefined,
+      non_typed_data: "Sign in with Ethereum",
+      description: "Login signature",
+    });
+  });
+
+  it("converts ERC-191 hex strings into raw byte signMessage args", () => {
+    expect(
+      toViemSignMessageArgs({
+        non_typed_data: "0x5369676e20696e",
+      }),
+    ).toEqual({
+      message: { raw: "0x5369676e20696e" },
+    });
+  });
+
+  it("converts ERC-191 text strings into text signMessage args", () => {
+    expect(
+      toViemSignMessageArgs({
+        non_typed_data: "Sign in with Ethereum",
+      }),
+    ).toEqual({
+      message: "Sign in with Ethereum",
     });
   });
 });

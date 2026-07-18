@@ -61,6 +61,34 @@ describe("Event API", () => {
     });
   });
 
+  describe("recordUiInteraction", () => {
+    it("records UI context on the active thread", async () => {
+      const postSystemMessage = vi.fn(async () => ({ res: null }));
+      setAomiClientConfig({ postSystemMessage });
+
+      const { api } = renderRuntime();
+
+      await act(async () => {
+        await api.recordUiInteraction({
+          event: "deposit_review_opened",
+          asset: "USDC",
+        });
+      });
+
+      expect(postSystemMessage).toHaveBeenCalledWith(
+        api.currentThreadId,
+        JSON.stringify({
+          type: "ui_interaction",
+          payload: {
+            event: "deposit_review_opened",
+            asset: "USDC",
+          },
+        }),
+        expect.any(Object),
+      );
+    });
+  });
+
   describe("sseStatus", () => {
     it("has initial status", () => {
       const { api } = renderRuntime();
@@ -90,6 +118,39 @@ describe("Event API", () => {
 
       expect(getApi().notifications).toHaveLength(1);
       expect(getApi().notifications[0].title).toBe("Test");
+    });
+
+    it("dedupes payment_required notifications", async () => {
+      const { api, getApi } = renderRuntime();
+      let firstId: string;
+      let secondId: string;
+
+      await act(async () => {
+        firstId = api.showNotification({
+          type: "error",
+          kind: "payment_required",
+          title: "You're out of funds",
+        });
+      });
+      await act(async () => {
+        secondId = api.showNotification({
+          type: "error",
+          kind: "payment_required",
+          title: "You're out of funds again",
+        });
+      });
+
+      // Only one entry — second call returns the existing id so the caller
+      // and the modal's `dismissNotification(paymentNotification.id)` agree.
+      expect(
+        getApi().notifications.filter((n) => n.kind === "payment_required"),
+      ).toHaveLength(1);
+      expect(secondId!).toBe(firstId!);
+      // First-write-wins: the original title sticks, follow-up writes are dropped.
+      expect(
+        getApi().notifications.find((n) => n.kind === "payment_required")
+          ?.title,
+      ).toBe("You're out of funds");
     });
 
     it("can dismiss notification", async () => {

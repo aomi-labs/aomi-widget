@@ -1,4 +1,4 @@
 {
   "title": "Reference",
-  "pages": ["simulation", "account-abstraction", "runtime"]
+  "pages": ["sdk", "simulation", "account-abstraction", "runtime"]
 }

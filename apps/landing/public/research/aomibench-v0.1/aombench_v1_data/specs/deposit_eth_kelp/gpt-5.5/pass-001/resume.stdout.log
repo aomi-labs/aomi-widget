@@ -1,0 +1,3 @@
+[eval] PASS deposit_eth_kelp 1 turn(s) 7 tool call(s) 6.5885 cr, 53293 in / 610 out tok, 48640 cached / 31 reasoning tok 0 warning(s) duration 27s
+report full json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/deposit_eth_kelp/gpt-5.5/pass-001/20260530T230659.874921000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/deposit_eth_kelp/gpt-5.5/pass-001/20260530T230659.874921000Z.compact.json

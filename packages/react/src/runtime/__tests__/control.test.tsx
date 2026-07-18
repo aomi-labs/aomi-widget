@@ -18,22 +18,28 @@ afterEach(() => {
 });
 
 describe("Control context", () => {
-  it("refetches authorized apps when the wallet address changes", async () => {
-    const getApps = vi.fn(async () => ["default"]);
+  it("does not refetch authorized apps when the wallet address changes", async () => {
+    // Refetching on every wallet/network switch caused the app picker to
+    // visually reset (e.g. when toggling between EVM and Solana wallets,
+    // the new app list might omit the user's previous selection). Apps are
+    // scoped to the api key / auth context, not to the connected wallet.
+    const getApps = vi.fn(async () => [{ name: "default" }]);
     setAomiClientConfig({
       getApps,
       getModels: async () => [],
     });
 
-    const { api } = renderRuntime();
+    const { api } = renderRuntime({
+      appPlatforms: ["somm.finance", "community"],
+    });
 
     await waitFor(() => {
       expect(getApps).toHaveBeenCalledTimes(1);
     });
 
     expect(getApps.mock.calls[0]?.[1]).toMatchObject({
-      publicKey: undefined,
       apiKey: undefined,
+      platforms: ["somm.finance", "community"],
     });
 
     await act(async () => {
@@ -45,27 +51,47 @@ describe("Control context", () => {
       await flushPromises();
     });
 
-    await waitFor(() => {
-      expect(getApps).toHaveBeenCalledTimes(2);
-    });
-
-    expect(getApps.mock.calls[1]?.[1]).toMatchObject({
-      publicKey: "0xabc",
-      apiKey: undefined,
-    });
+    expect(getApps).toHaveBeenCalledTimes(1);
   });
 
-  it("falls back to the default app when a previous selection is no longer authorized", async () => {
+  it("does not refetch authorized apps on thread changes", async () => {
+    const getApps = vi.fn(async () => [
+      { name: "default" },
+      { name: "special", applicationId: 2936606, platform: "somm.finance" },
+    ]);
+    setAomiClientConfig({
+      getApps,
+      getModels: async () => [],
+    });
+
+    const { api } = renderRuntime();
+
+    await waitFor(() => {
+      expect(getApps).toHaveBeenCalledTimes(1);
+    });
+
+    await act(async () => {
+      await api.createThread();
+      await flushPromises();
+    });
+
+    expect(getApps).toHaveBeenCalledTimes(1);
+  });
+
+  it("preserves the selected app across wallet connection changes", async () => {
+    // Wallet connect/disconnect no longer triggers an app refetch, so the
+    // user's previously chosen app stays selected when they switch networks
+    // or families.
     const sendMessage = vi.fn(
       async (): Promise<AomiChatResponse> => ({
         is_processing: false,
         messages: [],
       }),
     );
-    const getApps = vi.fn(
-      async (_sessionId: string, options?: { publicKey?: string }) =>
-        options?.publicKey ? ["default"] : ["default", "special"],
-    );
+    const getApps = vi.fn(async () => [
+      { name: "default" },
+      { name: "special", applicationId: 2936606, platform: "somm.finance" },
+    ]);
 
     setAomiClientConfig({
       getApps,
@@ -80,10 +106,11 @@ describe("Control context", () => {
     });
 
     act(() => {
-      getControl().onAppSelect("special");
+      getControl().onAppSelect("special", { applicationId: 2936606 });
     });
 
     expect(getControl().getCurrentThreadApp()).toBe("special");
+    expect(getControl().getCurrentThreadApplicationId()).toBe(2936606);
 
     await act(async () => {
       api.setUser({
@@ -94,11 +121,8 @@ describe("Control context", () => {
       await flushPromises();
     });
 
-    await waitFor(() => {
-      expect(getControl().state.authorizedApps).toEqual(["default"]);
-    });
-
-    expect(getControl().getCurrentThreadApp()).toBe("default");
+    expect(getApps).toHaveBeenCalledTimes(1);
+    expect(getControl().getCurrentThreadApp()).toBe("special");
 
     await act(async () => {
       await getApi().sendMessage("hello");
@@ -109,53 +133,99 @@ describe("Control context", () => {
     });
 
     expect(sendMessage.mock.calls[0]?.[2]).toMatchObject({
-      app: "default",
-      publicKey: "0xabc",
+      app: "special",
+      applicationId: 2936606,
+      userState: expect.objectContaining({
+        evm: expect.objectContaining({ address: "0xabc" }),
+      }),
     });
   });
 
-  it("drops public key app scoping after disconnect", async () => {
-    const getApps = vi.fn(async () => ["default"]);
+  it("selects duplicate hosted app names by application id", async () => {
+    const sendMessage = vi.fn(
+      async (): Promise<AomiChatResponse> => ({
+        is_processing: false,
+        messages: [],
+      }),
+    );
+    const setModel = vi.fn(async () => ({ rig: "auto-model" }));
+
     setAomiClientConfig({
-      getApps,
+      getApps: async () => [
+        { name: "default" },
+        { name: "analytics", applicationId: 41, platform: "community" },
+        { name: "analytics", applicationId: 42, platform: "somm.finance" },
+      ],
+      getModels: async () => ["auto-model"],
+      sendMessage,
+      setModel,
+    });
+
+    const { getApi, getControl } = renderRuntime();
+
+    await waitFor(() => {
+      expect(getControl().state.authorizedApps).toEqual([
+        "default",
+        "analytics",
+        "analytics",
+      ]);
+    });
+
+    act(() => {
+      getControl().onAppSelect("analytics", { applicationId: 42 });
+    });
+
+    expect(getControl().getCurrentThreadApp()).toBe("analytics");
+    expect(getControl().getCurrentThreadApplicationId()).toBe(42);
+
+    await act(async () => {
+      await getControl().onModelSelect("auto-model");
+    });
+
+    expect(setModel).toHaveBeenCalledWith(
+      expect.any(String),
+      "auto-model",
+      expect.objectContaining({
+        app: "analytics",
+        applicationId: 42,
+      }),
+    );
+
+    await act(async () => {
+      await getApi().sendMessage("hello duplicate app");
+    });
+
+    expect(sendMessage).toHaveBeenCalledWith(
+      expect.any(String),
+      "hello duplicate app",
+      expect.objectContaining({
+        app: "analytics",
+        applicationId: 42,
+      }),
+    );
+  });
+
+  it("does not select a hosted app by bare name when an application id is required", async () => {
+    setAomiClientConfig({
+      getApps: async () => [
+        { name: "default" },
+        { name: "special", applicationId: 2936606, platform: "somm.finance" },
+      ],
       getModels: async () => [],
     });
 
-    const { api } = renderRuntime();
+    const { getControl } = renderRuntime();
 
     await waitFor(() => {
-      expect(getApps).toHaveBeenCalledTimes(1);
+      expect(getControl().state.authorizedApps).toEqual(["default", "special"]);
     });
 
-    await act(async () => {
-      api.setUser({
-        address: "0xabc",
-        chainId: 1,
-        isConnected: true,
-      });
-      await flushPromises();
+    act(() => {
+      getControl().onAppSelect("special");
     });
 
-    await waitFor(() => {
-      expect(getApps).toHaveBeenCalledTimes(2);
-    });
-
-    expect(getApps.mock.calls[1]?.[1]).toMatchObject({
-      publicKey: "0xabc",
-    });
-
-    await act(async () => {
-      api.setUser({ isConnected: false });
-      await flushPromises();
-    });
-
-    await waitFor(() => {
-      expect(getApps).toHaveBeenCalledTimes(3);
-    });
-
-    expect(getApps.mock.calls[2]?.[1]).toMatchObject({
-      publicKey: undefined,
-    });
+    expect(getControl().getCurrentThreadApp()).toBe("default");
+    expect(getControl().getCurrentThreadApplicationId()).toBeNull();
   });
 
   it("resends with the updated app on an existing thread session", async () => {
@@ -167,7 +237,10 @@ describe("Control context", () => {
     );
 
     setAomiClientConfig({
-      getApps: async () => ["default", "special"],
+      getApps: async () => [
+        { name: "default" },
+        { name: "special", applicationId: 2936606, platform: "somm.finance" },
+      ],
       getModels: async () => [],
       sendMessage,
     });
@@ -183,7 +256,7 @@ describe("Control context", () => {
     });
 
     act(() => {
-      getControl().onAppSelect("special");
+      getControl().onAppSelect("special", { applicationId: 2936606 });
     });
 
     await act(async () => {
@@ -199,6 +272,7 @@ describe("Control context", () => {
     });
     expect(sendMessage.mock.calls[1]?.[2]).toMatchObject({
       app: "special",
+      applicationId: 2936606,
     });
   });
 });

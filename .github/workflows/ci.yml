@@ -4,13 +4,13 @@ on:
   push:
     branches:
       - main
-      - master
-      - develop
+      - prod
   pull_request:
 
 jobs:
   build-and-lint:
     runs-on: ubuntu-latest
+    environment: ${{ github.ref == 'refs/heads/prod' && 'Production' || 'Preview' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -33,8 +33,20 @@ jobs:
       - name: Build library bundle
         run: pnpm run build:lib
 
+      - name: Build @aomi-labs/deploy
+        run: pnpm run build:deploy
+
       - name: Run library tests
         run: pnpm run test
+
+      - name: Check live backend OpenAPI contract
+        if: vars.NEXT_PUBLIC_BACKEND_URL != ''
+        run: pnpm run test:openapi:live
+        env:
+          NEXT_PUBLIC_BACKEND_URL: ${{ vars.NEXT_PUBLIC_BACKEND_URL }}
+
+      - name: Run registry tests
+        run: pnpm --dir apps/shadcn-registry exec vitest run
 
       - name: Build registry
         run: pnpm run build:registry
@@ -75,8 +87,16 @@ jobs:
       - name: Build @aomi-labs/widget-lib (shadcn registry)
         run: pnpm run build:registry
 
+      - name: Build @aomi-labs/deploy
+        run: pnpm run build:deploy
+
       - name: Publish @aomi-labs/client
         run: pnpm --filter @aomi-labs/client publish --access public --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish @aomi-labs/deploy
+        run: pnpm --filter @aomi-labs/deploy publish --access public --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 

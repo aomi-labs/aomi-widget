@@ -16,7 +16,7 @@ graph TB
         TCP[ThreadContextProvider]
         ARP[AomiRuntimeProvider shell]
         NCP[NotificationContextProvider]
-        UCP[UserContextProvider]
+        UCP[ExtUserProvider]
         ECP[EventContextProvider]
         RAP[RuntimeActionsProvider]
         ARC[AomiRuntimeCore]
@@ -168,16 +168,20 @@ sequenceDiagram
 
     loop Every 500ms while processing
         PC->>API: fetchState(backendId)
-        API->>BE: GET /state
+        API->>BE: GET /api/state
         BE-->>API: {messages, is_processing}
         API-->>PC: SessionResponsePayload
 
-        alt is_processing = true
+        Note over PC: applySessionState compares incoming<br/>messages to session._messages
+        alt Messages unchanged from last tick
+            Note over PC,UI: Skip setMessages + emit("messages").<br/>No React re-render this tick.
+        else Messages changed
             PC->>MC: applyMessages(threadId, messages)
             MC->>TC: setThreadMessages(threadId, converted)
             TC->>UI: Re-render with new messages
-        else is_processing = false
-            PC->>MC: applyMessages(threadId, messages)
+        end
+
+        alt is_processing = false
             PC->>PC: stop(threadId)
             PC->>BS: setThreadRunning(false)
             Note over UI: Assistant response complete
@@ -236,35 +240,47 @@ sequenceDiagram
     participant UI as User Interface
     participant TLA as ThreadListAdapter
     participant TC as ThreadContext
+    participant ARC as AomiRuntimeCore
+    participant SM as SessionManager
     participant RO as RuntimeOrchestrator
-    participant BS as BackendState
     participant API as AomiClient
-    participant PC as PollingController
 
     UI->>TLA: onSwitchToThread(threadId)
     TLA->>TC: setCurrentThreadId(threadId)
 
-    Note over RO: useEffect triggers
-    RO->>RO: ensureInitialState(threadId)
+    Note over ARC: useEffect on currentThreadId
+    ARC->>SM: closeIdleSessionsExcept(threadId)
+    Note right of SM: Closes idle non-active sessions.<br/>Sessions still processing / polling /<br/>with pending wallet requests are kept warm.
 
-    alt Should skip initial fetch
-        RO->>BS: clearSkipInitialFetch()
-        RO->>RO: setIsRunning(false)
-    else Thread not ready (temp ID)
-        RO->>RO: setIsRunning(false)
-    else Thread ready
-        RO->>API: fetchState(backendId)
-        API-->>RO: {messages, is_processing}
-        RO->>TC: Apply messages via inbound()
-
-        alt is_processing = true
-            RO->>RO: setIsRunning(true)
-            RO->>PC: start(threadId)
-        else is_processing = false
+    alt Local-only thread (not in remoteThreadIds)
+        ARC->>ARC: setIsThreadLoading(false)
+        Note over ARC: Nothing to fetch, no skeleton.
+    else Cached revisit (messages already in ThreadContext)
+        Note over ARC: Skeleton stays off — cached messages render instantly.
+        ARC->>RO: ensureInitialState(threadId)
+        RO->>SM: get(threadId)
+        alt Session survived (still processing / polling)
+            RO->>RO: sync isRunning + pending requests from session
+        else No session (was idle, closed)
+            Note over RO: Skip recreate — would reopen SSE for no reason.<br/>Session lazily recreates on next sendMessage.
             RO->>RO: setIsRunning(false)
         end
+    else Cold remote thread
+        ARC->>ARC: setIsThreadLoading(true) — skeleton on
+        par Run in parallel
+            ARC->>API: warmThread → POST /api/sessions (no-op if already warmed)
+        and
+            ARC->>RO: ensureInitialState(threadId)
+            RO->>SM: getSession(threadId) — opens SSE for active thread
+            RO->>API: GET /api/state
+            API-->>RO: {messages, is_processing}
+            RO->>TC: setThreadMessages(threadId, converted)
+        end
+        ARC->>ARC: setIsThreadLoading(false) — skeleton off
     end
 ```
+
+See [Performance Optimizations](#performance-optimizations) for the rationale behind the cached-revisit branch and the parallel cold path.
 
 ---
 
@@ -661,6 +677,38 @@ graph LR
 ```
 
 The `resolveThreadId()` function always checks `tempToBackendId` first, allowing the UI to work with stable IDs while the backend uses its own IDs.
+
+---
+
+## Performance Optimizations
+
+The runtime applies several optimizations to avoid wasted BE round-trips and React re-renders on common interactions. Each item below names the file and observable network/render effect.
+
+### Thread switch — cached revisit (zero BE work)
+
+When the user switches back to a thread whose messages are already in `ThreadContext`, the runtime:
+
+1. Suppresses the loading skeleton — cached messages render instantly. ([core.tsx](packages/react/src/runtime/core.tsx) — `setIsThreadLoading(true)` is gated on `hasCachedMessages === false`.)
+2. Skips the `/api/state` fetch in `ensureInitialState`. ([orchestrator.ts](packages/react/src/runtime/orchestrator.ts) — cache-hit branch when `cachedMessages.length > 0 || hydratedThreadIds.has(threadId)`.)
+3. Does not recreate the `ClientSession` if `closeIdleSessionsExcept` tore it down. That would reopen a fresh `/api/updates` SSE connection for no reason. The session lazily recreates inside `sendMessage` when the user actually does something.
+
+Observable effect on revisit clicks to idle threads: **no `/api/state`, no `/api/updates`, no skeleton flash, no React commit.**
+
+### Thread switch — cold path (parallel warm + fetch)
+
+`warmThread` (idempotent `POST /api/sessions`) and `ensureInitialState` (`GET /api/state`) run concurrently via `Promise.all`. The skeleton-off transition is gated on whichever finishes last; in practice `/api/state` dominates and warm completes inside its window. ([core.tsx](packages/react/src/runtime/core.tsx))
+
+### Polling — unchanged-state short-circuit
+
+`applySessionState` shallow-compares incoming `state.messages` against the session's current `_messages` (per-field check on `sender`, `content`, `timestamp`, `is_streaming`, `tool_result`). When the BE poll returns identical state — common while waiting for the LLM to start producing tokens — the runtime skips both `setMessages` and the `"messages"` emit, avoiding a 2 Hz full-thread re-render. ([session/events.ts](packages/client/src/session/events.ts) — `aomiMessagesEqual`.)
+
+### Session keep-warm
+
+`closeIdleSessionsExcept` only closes sessions that are **not** processing, **not** polling, and have **no** pending wallet requests. A thread that's mid-generation when the user navigates away keeps its `ClientSession` (and its SSE connection) alive; on revisit, the existing session is reused — no SSE reopen, no state refetch. ([session-manager.ts](packages/react/src/runtime/session-manager.ts))
+
+### Auth-scoped fetches (mount-only)
+
+`fetchApps` (`GET /api/session/apps`) and `fetchModels` (`GET /api/session/models`) in `ControlContextProvider` are scoped to mount + `state.apiKey` changes — **not** to thread switches. The effect deps use `getCurrentControlSessionId`, a stable `useCallback(() => …, [])` that reads from refs. Without this discipline, switching threads would trigger `/api/session/apps` (~3 s BE cost on production) on every click. ([control-context.tsx](packages/react/src/contexts/control-context.tsx))
 
 ---
 

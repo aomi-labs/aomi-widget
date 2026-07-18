@@ -1,0 +1,3 @@
+[eval] PASS add_eth_usdc_lp_after_half_swap 1 turn(s) 13 tool call(s) 17.7708 cr, 104802 in / 2895 out tok, 96256 cached / 858 reasoning tok 0 warning(s) duration 74s
+report full json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/add_eth_usdc_lp_after_half_swap/gpt-5.5/pass-002/20260531T193615.446698000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/add_eth_usdc_lp_after_half_swap/gpt-5.5/pass-002/20260531T193615.446698000Z.compact.json

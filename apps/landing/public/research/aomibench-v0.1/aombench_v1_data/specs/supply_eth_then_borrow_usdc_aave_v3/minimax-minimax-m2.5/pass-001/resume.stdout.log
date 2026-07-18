@@ -1,0 +1,8 @@
+[eval] FAIL supply_eth_then_borrow_usdc_aave_v3 1 turn(s) 28 tool call(s) 7.6292 cr, 502917 in / 743 out tok 1 warning(s) duration 160s
+errors:
+  Alice borrows about 100 USDC from Aave V3 Alice borrows about 100 USDC from Aave V3 (before: 10000 USDC, after: 10000 USDC, delta: +0 USDC, expected: +100 USDC ± 5 USDC)
+  USDC Transfer from Aave borrow USDC Transfer from Aave borrow observed 0 log(s), expected at least 1 from block 25217433 through 25217437
+warnings:
+  max_tool_calls observed 28 tool call(s), max 26
+report full json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/supply_eth_then_borrow_usdc_aave_v3/minimax-m2.5/pass-001/20260531T192841.681168000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/supply_eth_then_borrow_usdc_aave_v3/minimax-m2.5/pass-001/20260531T192841.681168000Z.compact.json

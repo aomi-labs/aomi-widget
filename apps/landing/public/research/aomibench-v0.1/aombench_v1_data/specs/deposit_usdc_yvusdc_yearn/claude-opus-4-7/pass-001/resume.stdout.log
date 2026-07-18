@@ -1,0 +1,3 @@
+[eval] PASS deposit_usdc_yvusdc_yearn 2 turn(s) 9 tool call(s) 6.81185 cr, 57547 in / 852 out tok, 53537 cached / 0 reasoning tok 0 warning(s) duration 43s
+report full json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/deposit_usdc_yvusdc_yearn/claude-opus-4.7/pass-001/20260531T121054.019635000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/deposit_usdc_yvusdc_yearn/claude-opus-4.7/pass-001/20260531T121054.019635000Z.compact.json

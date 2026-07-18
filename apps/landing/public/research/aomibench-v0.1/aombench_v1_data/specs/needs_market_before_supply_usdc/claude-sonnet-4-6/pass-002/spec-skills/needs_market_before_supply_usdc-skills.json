@@ -1,0 +1,56 @@
+[
+  {
+    "id": "morpho",
+    "name": "morpho",
+    "description": "Use when users want to supply, borrow, repay, withdraw, or manage collateral on Morpho Blue permissionless markets on Ethereum.",
+    "tags": [
+      "lend",
+      "morpho",
+      "blue",
+      "supply",
+      "borrow",
+      "repay",
+      "withdraw",
+      "vault",
+      "lending",
+      "defi"
+    ],
+    "tool_names": [
+      "get_time_and_onchain_context",
+      "brave_search",
+      "encode_and_call",
+      "get_account_info",
+      "get_contract",
+      "sync_chain",
+      "simulate_batch",
+      "stage_tx",
+      "commit_eip712",
+      "commit_txs"
+    ],
+    "injected_tools": [],
+    "source": "aomi_builtin",
+    "est_tokens": 1593,
+    "activation_tokens": 1597,
+    "instruction_md": "## Morpho Blue: Morpho Blue Ethereum\n- note: Morpho Blue is permissionless — markets are identified by MarketParams tuple: (loanToken, collateralToken, oracle, irm, lltv)\n- note: MarketParams must be provided as a tuple argument to every core function\n- note: supply(MarketParams,uint256 assets,uint256 shares,address onBehalfOf,bytes data) — pass assets OR shares (set the other to 0); onBehalfOf must be user wallet\n- note: borrow(MarketParams,uint256 assets,uint256 shares,address onBehalfOf,address receiver) — onBehalfOf and receiver must be user wallet\n- note: repay(MarketParams,uint256 assets,uint256 shares,address onBehalfOf,bytes data) — onBehalfOf must be user wallet\n- note: withdraw(MarketParams,uint256 assets,uint256 shares,address onBehalfOf,address receiver) — onBehalfOf and receiver must be user wallet\n- note: supplyCollateral(MarketParams,uint256 assets,address onBehalfOf,bytes data) — onBehalfOf must be user wallet\n- note: For supply/repay, pass either assets or shares (set the other to 0). To repay max, pass 0 for assets and type(uint256).max for shares\n- note: MetaMorpho vaults are ERC-4626: deposit(uint256 assets, address receiver), withdraw(uint256 assets, address receiver, address owner) — receiver/owner must be user wallet\n- note: Approve MorphoBlue (or the vault) before supply/repay/supplyCollateral\n- note: The Bundler at 0x4095F064B8d3c3548A3bebfd0Bbfd04750E30077 enables multi-call batching for complex flows\n\n\n## Morpho Blue: Token Registry\n- Morpho Blue: 0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb (chain 1)\n- MetaMorpho Vault (ERC-4626): 0x4095F064B8d3c3548A3bebfd0Bbfd04750E30077 (chain 1)\n\n## Morpho Blue: ABI Signatures (reference only)\nMorpho Blue [morpho_blue]:\n- borrow((address,address,address,address,uint256),uint256,uint256,address,address) → uint256,uint256\n- repay((address,address,address,address,uint256),uint256,uint256,address,bytes) → uint256,uint256\n- supply((address,address,address,address,uint256),uint256,uint256,address,bytes) → uint256,uint256\n- supplyCollateral((address,address,address,address,uint256),uint256,address,bytes) → \n- withdraw((address,address,address,address,uint256),uint256,uint256,address,address) → uint256,uint256\n- withdrawCollateral((address,address,address,address,uint256),uint256,address,address) → \nMetaMorpho Vault (ERC-4626) [morpho_metamorpho]:\n- MORPHO() → address\n- ST_ETH() → address\n- WRAPPED_NATIVE() → address\n- WST_ETH() → address\n- approve2(((address,uint160,uint48,uint48),address,uint256),bytes,bool) → \n- erc20Transfer(address,address,uint256) → \n- erc20TransferFrom(address,uint256) → \n- erc20WrapperDepositFor(address,uint256) → \n- erc20WrapperWithdrawTo(address,address,uint256) → \n- erc4626Deposit(address,uint256,uint256,address) → \n- erc4626Mint(address,uint256,uint256,address) → \n- erc4626Redeem(address,uint256,uint256,address,address) → \n- erc4626Withdraw(address,uint256,uint256,address,address) → \n- initiator() → address\n- morphoBorrow((address,address,address,address,uint256),uint256,uint256,uint256,address) → \n- morphoFlashLoan(address,uint256,bytes) → \n- morphoRepay((address,address,address,address,uint256),uint256,uint256,uint256,address,bytes) → \n- morphoSetAuthorizationWithSig((address,address,bool,uint256,uint256),(uint8,bytes32,bytes32),bool) → \n- morphoSupply((address,address,address,address,uint256),uint256,uint256,uint256,address,bytes) → \n- morphoSupplyCollateral((address,address,address,address,uint256),uint256,address,bytes) → \n- morphoWithdraw((address,address,address,address,uint256),uint256,uint256,uint256,address) → \n- morphoWithdrawCollateral((address,address,address,address,uint256),uint256,address) → \n- multicall(bytes[]) → \n- nativeTransfer(address,uint256) → \n- onMorphoFlashLoan(uint256,bytes) → \n- onMorphoRepay(uint256,bytes) → \n- onMorphoSupply(uint256,bytes) → \n- onMorphoSupplyCollateral(uint256,bytes) → \n- permit(address,uint256,uint256,uint8,bytes32,bytes32,bool) → \n- permitDai(uint256,uint256,bool,uint8,bytes32,bytes32,bool) → \n- reallocateTo(address,address,uint256,((address,address,address,address,uint256),uint128)[],(address,address,address,address,uint256)) → \n- stakeEth(uint256,uint256,address) → \n- transferFrom2(address,uint256) → \n- unwrapNative(uint256) → \n- unwrapStEth(uint256) → \n- urdClaim(address,address,address,uint256,bytes32[],bool) → \n- wrapNative(uint256) → \n- wrapStEth(uint256) → \n\n## Morpho Blue: Procedure\n1. Call `get_time_and_onchain_context` to confirm wallet, chain, and block context.\n2. Identify the target market by its MarketParams or the MetaMorpho vault address.\n3. Read position with `encode_and_call`: call `position(marketId, user)` on MorphoBlue for supply/borrow shares.\n4. Check token balance and allowance with `encode_and_call` (`balanceOf`, `allowance` on the loan/collateral token).\n5. If allowance insufficient, build and simulate an `approve` transaction to MorphoBlue (or the vault).\n6. Build the lending transaction and simulate with `encode_and_call`.\n7. Inspect result and `morpho_guard_*` fields — if `morpho_guard_blocked`, do NOT proceed.\n8. Only after user confirmation, send via `commit_txs`.\n## Morpho Blue: Critical Rules\n- `onBehalfOf` MUST be the user's wallet address — never a third-party address.\n- `receiver` MUST be the user's wallet address — never a third-party address.\n- `owner` MUST be the user's wallet address — never a third-party address.\n- `data` callback parameter MUST be `0x` (empty bytes) for standard operations — a non-empty `data` field triggers an arbitrary callback, which is a security risk.\n- Morpho Blue markets are permissionless: anyone can create a market with a potentially malicious oracle or IRM. Warn the user when interacting with markets that use unrecognized or unaudited oracle/IRM contracts. Prefer well-known curated markets.\n- Markets are identified by a MarketParams tuple: (loanToken, collateralToken, oracle, irm, lltv).\n- For supply/repay, pass either `assets` or `shares` (set the other to 0). Never pass both non-zero.\n- Check `morpho_guard_blocked` in simulation result — if true, do NOT proceed with `commit_txs`.\n- Approve MorphoBlue before calling `supply`, `repay`, or `supplyCollateral`.\n- For MetaMorpho vaults (ERC-4626), approve the vault address and use `deposit`/`withdraw`. Receiver must be user wallet.\n- To repay max debt, pass `assets = 0` and `shares = type(uint256).max`.",
+    "tool_hooks": [
+      {
+        "tool": "simulate_batch",
+        "pre_call": [],
+        "post_call": [
+          "morpho-known-addrs"
+        ]
+      },
+      {
+        "tool": "stage_tx",
+        "pre_call": [],
+        "post_call": [
+          "morpho-known-addrs"
+        ]
+      }
+    ],
+    "tools_namespace": "evm-core",
+    "chain_ids": [
+      1
+    ]
+  }
+]

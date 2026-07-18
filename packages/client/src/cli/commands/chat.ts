@@ -9,6 +9,7 @@ import {
   getToolResultFromEvent,
   isAlwaysVisibleTool,
   printNewAgentMessages,
+  printPaymentEvent,
   printToolComplete,
   printToolResultLine,
   printToolUpdate,
@@ -21,10 +22,16 @@ import {
 import { fatal } from "../errors";
 import type { CliConfig } from "../types";
 import { buildCliUserState } from "../user-state";
+import type { UserStateAAMode } from "../../user-state";
+import { parseSolanaKeypairSecret } from "../solana-signer";
 
 type WalletSnapshot = {
   publicKey?: string;
   chainId?: number;
+  aaProvider?: string | null;
+  aaMode?: UserStateAAMode | null;
+  smartAccount?: string | null;
+  svmAddress?: string;
 };
 
 function normalizeAddress(address: string | undefined): string | undefined {
@@ -37,18 +44,68 @@ function extractMentionedTxIds(content: string | undefined): string[] {
   return Array.from(new Set(matches.map((id) => id.toLowerCase()))).sort();
 }
 
+function hasAccountCredential(cli: CliSession): boolean {
+  const state = cli.toState();
+  return Boolean(
+    state.auth?.sessionToken || state.accountBearer || state.sessionCookie,
+  );
+}
+
+async function ensureAccountBoundThread(
+  cli: CliSession,
+  session: ReturnType<CliSession["createClientSession"]>,
+): Promise<void> {
+  if (!hasAccountCredential(cli)) return;
+  try {
+    await session.client.createThread(cli.sessionId);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    fatal(`Failed to create account-bound backend thread: ${detail}`);
+  }
+}
+
+/**
+ * Derive the Solana public key from a keypair secret string if provided.
+ * Returns undefined on any parse failure (non-fatal — just omits svm.address).
+ */
+function deriveSvmAddress(
+  solanaPrivateKey: string | undefined,
+): string | undefined {
+  if (!solanaPrivateKey) return undefined;
+  try {
+    return parseSolanaKeypairSecret(solanaPrivateKey).publicKey.toBase58();
+  } catch {
+    return undefined;
+  }
+}
+
 export function shouldBroadcastWalletStateChange(
   config: CliConfig,
   previous: WalletSnapshot | null,
   next: WalletSnapshot,
 ): boolean {
-  if (!config.privateKey || !next.publicKey || next.chainId === undefined) {
+  // SVM: always sync when a Solana address is present (previous is forced to
+  // undefined so this always fires for Solana-keyed sessions).
+  if (next.svmAddress) {
+    return previous?.svmAddress !== next.svmAddress;
+  }
+
+  // EVM: sync when publicKey and chainId are known. Don't require privateKey —
+  // wallet state needs to be broadcast even for read-only sessions so the
+  // backend's tools (commit_message etc.) can see the connected wallet.
+  // The privateKey is only needed at sign time (via `aomi tx sign`).
+  if (!next.publicKey || next.chainId === undefined) {
     return false;
   }
 
   return (
-    normalizeAddress(previous?.publicKey) !== normalizeAddress(next.publicKey) ||
-    previous?.chainId !== next.chainId
+    normalizeAddress(previous?.publicKey) !==
+      normalizeAddress(next.publicKey) ||
+    previous?.chainId !== next.chainId ||
+    previous?.aaProvider !== next.aaProvider ||
+    previous?.aaMode !== next.aaMode ||
+    normalizeAddress(previous?.smartAccount ?? undefined) !==
+      normalizeAddress(next.smartAccount ?? undefined)
   );
 }
 
@@ -60,32 +117,57 @@ export async function syncWalletStateForChat(
   session: {
     resolveUserState: (userState: ReturnType<typeof buildCliUserState>) => void;
     syncUserState: () => Promise<unknown>;
-    client: { sendSystemMessage: (sessionId: string, message: string) => Promise<unknown> };
+    client: {
+      sendSystemMessage: (
+        sessionId: string,
+        message: string,
+        options?: { app?: string; applicationId?: string },
+      ) => Promise<unknown>;
+    };
   },
 ): Promise<void> {
-  if (!shouldBroadcastWalletStateChange(config, previous, next) || !next.publicKey) {
+  if (
+    !shouldBroadcastWalletStateChange(config, previous, next) ||
+    !next.publicKey
+  ) {
     return;
   }
 
-  session.resolveUserState(buildCliUserState(next.publicKey, next.chainId));
+  // Build the canonical nested UserState payload — this is the structure the
+  // Rust backend's UserStateWire deserializer understands.  The flat format
+  // ({ address, isConnected, chainId }) is NOT parsed by the backend and
+  // would silently overwrite the correctly-set user state with an empty one.
+  const userState = buildCliUserState(next.publicKey, next.chainId, {
+    app: config.app,
+    aaProvider: next.aaProvider ?? config.aaProvider ?? null,
+    aaMode: next.aaMode ?? null,
+    smartAccount: next.smartAccount ?? null,
+    svmAddress: next.svmAddress,
+    svmCluster: config.svmCluster,
+  });
+
+  session.resolveUserState(userState);
   await session.syncUserState();
 
-  const payload: Record<string, unknown> = {
-    address: next.publicKey,
-    chainId: next.chainId,
-    isConnected: true,
-  };
+  if (!hasAccountCredential(cli)) {
+    return;
+  }
 
   await session.client.sendSystemMessage(
     cli.sessionId,
     JSON.stringify({
       type: "wallet:state_changed",
-      payload,
+      payload: userState,
     }),
+    { app: config.app, applicationId: config.applicationId },
   );
 }
 
-export async function chatCommand(config: CliConfig, message: string, verbose: boolean): Promise<void> {
+export async function chatCommand(
+  config: CliConfig,
+  message: string,
+  verbose: boolean,
+): Promise<void> {
   if (!message) {
     fatal("Usage: aomi chat <message>");
   }
@@ -95,12 +177,25 @@ export async function chatCommand(config: CliConfig, message: string, verbose: b
     ? {
         publicKey: previousCli.publicKey,
         chainId: previousCli.chainId,
+        aaProvider: previousCli.toState().aaProvider ?? null,
+        aaMode: previousCli.toState().aaMode ?? null,
+        smartAccount: previousCli.toState().smartAccount ?? null,
+        svmAddress: undefined, // force re-sync of SVM state on every chat
       }
     : null;
   const cli = CliSession.loadOrCreate(config);
-  const session = cli.createClientSession();
+  const session = cli.createClientSession(config, {
+    onPayment: printPaymentEvent,
+  });
+
+  // Resolve Solana address after session is created/loaded so we pick up the
+  // key persisted by `wallet set --solana` even for `--new-session` flows
+  // (the key is seeded from the previous session into the new one in create()).
+  const resolvedSolanaKey = cli.resolvedSvmPrivateKey(config.solanaPrivateKey);
+  const svmAddress = deriveSvmAddress(resolvedSolanaKey) ?? cli.svmPublicKey;
 
   try {
+    await ensureAccountBoundThread(cli, session);
     await ingestSecretsForSession(config, cli, session.client);
     await applyRequestedModelIfPresent(config, cli, session);
     await syncWalletStateForChat(
@@ -109,6 +204,10 @@ export async function chatCommand(config: CliConfig, message: string, verbose: b
       {
         publicKey: cli.publicKey,
         chainId: cli.chainId,
+        aaProvider: cli.toState().aaProvider ?? config.aaProvider ?? null,
+        aaMode: cli.toState().aaMode ?? null,
+        smartAccount: cli.toState().smartAccount ?? null,
+        svmAddress,
       },
       cli,
       session,
@@ -137,7 +236,7 @@ export async function chatCommand(config: CliConfig, message: string, verbose: b
 
     if (verbose) {
       session.on("processing_start", () => {
-        console.log(`${DIM}⏳ Processing…${RESET}`);
+        console.log(`${DIM}⏳ Thinking…${RESET}`);
       });
       session.on("system_notice", ({ message: msg }) => {
         console.log(`${YELLOW}📢 ${msg}${RESET}`);
@@ -158,15 +257,14 @@ export async function chatCommand(config: CliConfig, message: string, verbose: b
       }
     }
 
-    printedAgentCount = allMessages.slice(0, seedIdx).filter(
-      (entry) => entry.sender === "agent" || entry.sender === "assistant",
-    ).length;
+    printedAgentCount = allMessages
+      .slice(0, seedIdx)
+      .filter(
+        (entry) => entry.sender === "agent" || entry.sender === "assistant",
+      ).length;
 
     if (verbose) {
-      printedAgentCount = printNewAgentMessages(
-        allMessages,
-        printedAgentCount,
-      );
+      printedAgentCount = printNewAgentMessages(allMessages, printedAgentCount);
       session.on("messages", (messages) => {
         printedAgentCount = printNewAgentMessages(messages, printedAgentCount);
       });
@@ -218,38 +316,43 @@ export async function chatCommand(config: CliConfig, message: string, verbose: b
       console.log(`${DIM}✅ Done${RESET}`);
     }
 
-    const authoritativePendingTxs = cli.syncPendingFromUserState(
-      session.getUserState(),
-    );
-    const newPendingTxs = authoritativePendingTxs.filter(
-      (tx) => !previousPendingIds.has(tx.id),
-    );
+    const syncedPending = cli.syncPendingFromUserState(session.getUserState());
+    const newPendingTxs = [
+      ...syncedPending.pendingTxs,
+      ...syncedPending.pendingSolTxs,
+    ].filter((tx) => !previousPendingIds.has(tx.id));
 
     for (const pending of newPendingTxs) {
       console.log(`⚡ Wallet request queued: ${pending.id}`);
-      if (pending.kind === "transaction") {
+      if ("kind" in pending && pending.kind === "transaction") {
         const payload = pending.payload as WalletTxPayload;
         console.log(`   to:    ${payload.to}`);
         if (payload.value) console.log(`   value: ${payload.value}`);
         if (payload.chainId) console.log(`   chain: ${payload.chainId}`);
-      } else {
+      } else if ("kind" in pending && pending.kind === "eip712_sign") {
         const payload = pending.payload as WalletEip712Payload;
         if (payload.description) {
           console.log(`   desc:  ${payload.description}`);
+        }
+        if (payload.non_typed_data) {
+          console.log("   type:  erc191");
         }
       }
     }
 
     if (!verbose) {
-      const agentMessages = session.getMessages().filter(
-        (entry) => entry.sender === "agent" || entry.sender === "assistant",
-      );
+      const agentMessages = session
+        .getMessages()
+        .filter(
+          (entry) => entry.sender === "agent" || entry.sender === "assistant",
+        );
       const last = agentMessages[agentMessages.length - 1];
 
       if (last?.content) {
         console.log(last.content);
       } else if (newPendingTxs.length === 0) {
         console.log("(no response)");
+        fatal("Backend returned an empty agent message.");
       }
 
       if (newPendingTxs.length === 0) {

@@ -5,10 +5,13 @@ import { render } from "@testing-library/react";
 import type {
   AomiThread,
   AomiCreateThreadResponse,
+  AomiAppDescriptor,
   AomiStateResponse,
   AomiChatResponse,
   AomiInterruptResponse,
+  AomiSystemEvent,
   AomiSSEEvent,
+  AomiPlatformFilter,
 } from "@aomi-labs/client";
 
 // =============================================================================
@@ -17,7 +20,8 @@ import type {
 
 export type AomiClientConfig = {
   // New names (match AomiClient API)
-  listThreads?: (publicKey: string) => Promise<AomiThread[]>;
+  ensureAccount?: (sessionId: string, publicKey: string) => Promise<void>;
+  listThreads?: (sessionId: string) => Promise<AomiThread[]>;
   fetchState?: (
     sessionId: string,
     userState?: Record<string, unknown>,
@@ -31,14 +35,20 @@ export type AomiClientConfig = {
     message: string,
     options?: {
       app?: string;
-      publicKey?: string;
+      applicationId?: number | string | null;
       apiKey?: string;
+      clientId?: string;
       userState?: Record<string, unknown>;
+      clientId?: string;
     },
   ) => Promise<AomiChatResponse>;
   sendSystemMessage?: (
     sessionId: string,
     message: string,
+    options?: {
+      app?: string;
+      applicationId?: number | string | null;
+    },
   ) => Promise<{ res?: unknown }>;
   interrupt?: (sessionId: string) => Promise<AomiInterruptResponse>;
   renameThread?: (sessionId: string, title: string) => Promise<void>;
@@ -48,30 +58,39 @@ export type AomiClientConfig = {
   // Control API
   getApps?: (
     sessionId: string,
-    options?: { publicKey?: string; apiKey?: string },
-  ) => Promise<string[]>;
+    options?: { apiKey?: string; platforms?: AomiPlatformFilter },
+  ) => Promise<AomiAppDescriptor[]>;
   getModels?: (sessionId: string) => Promise<string[]>;
   setModel?: (
     sessionId: string,
     rig: string,
-    options?: { app?: string; apiKey?: string },
+    options?: {
+      app?: string;
+      applicationId?: number | string | null;
+      apiKey?: string;
+    },
   ) => Promise<{ rig: string; app?: string }>;
 
   // Legacy aliases (so existing tests keep working without changes)
-  fetchThreads?: (publicKey: string) => Promise<AomiThread[]>;
+  fetchThreads?: (publicKey?: string) => Promise<AomiThread[]>;
   postChatMessage?: (
     sessionId: string,
     message: string,
     options?: {
       app?: string;
-      publicKey?: string;
+      applicationId?: number | string | null;
       apiKey?: string;
       userState?: Record<string, unknown>;
+      clientId?: string;
     },
   ) => Promise<AomiChatResponse>;
   postSystemMessage?: (
     sessionId: string,
     message: string,
+    options?: {
+      app?: string;
+      applicationId?: number | string | null;
+    },
   ) => Promise<{ res?: unknown }>;
   postInterrupt?: (sessionId: string) => Promise<AomiInterruptResponse>;
 };
@@ -84,6 +103,7 @@ const mockState = {
 
 export type MockAomiClientInstance = {
   emitSSEEvent: (event: AomiSSEEvent) => void;
+  ensureAccount: ReturnType<typeof vi.fn>;
   listThreads: ReturnType<typeof vi.fn>;
   fetchState: ReturnType<typeof vi.fn>;
   createThread: ReturnType<typeof vi.fn>;
@@ -124,16 +144,30 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
       userState?: Record<string, unknown> | null,
     ) => Record<string, unknown> | undefined;
     address: (userState?: Record<string, unknown> | null) => string | undefined;
-    isConnected: (userState?: Record<string, unknown> | null) => boolean | undefined;
+    chainId: (userState?: Record<string, unknown> | null) => number | undefined;
+    isConnected: (
+      userState?: Record<string, unknown> | null,
+    ) => boolean | undefined;
   };
 
   // Mock class defined inside the factory
   class MockAomiClient {
     private sseHandler: ((event: AomiSSEEvent) => void) | null = null;
 
-    listThreads = vi.fn(async (publicKey: string) => {
-      const fn = mockState.config.listThreads ?? mockState.config.fetchThreads;
-      return fn ? await fn(publicKey) : [];
+    ensureAccount = vi.fn(async (sessionId: string, publicKey: string) => {
+      if (mockState.config.ensureAccount) {
+        await mockState.config.ensureAccount(sessionId, publicKey);
+      }
+    });
+
+    listThreads = vi.fn(async (sessionId: string) => {
+      const fn = mockState.config.listThreads;
+      if (fn) {
+        return await fn(sessionId);
+      }
+      return mockState.config.fetchThreads
+        ? await mockState.config.fetchThreads()
+        : [];
     });
 
     fetchState = vi.fn(
@@ -144,9 +178,9 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
       },
     );
 
-    createThread = vi.fn(async (threadId: string, publicKey?: string) => {
+    createThread = vi.fn(async (threadId: string) => {
       return mockState.config.createThread
-        ? await mockState.config.createThread(threadId, publicKey)
+        ? await mockState.config.createThread(threadId)
         : { session_id: threadId };
     });
 
@@ -156,31 +190,42 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
         message: string,
         options?: {
           app?: string;
-          publicKey?: string;
+          applicationId?: number | string | null;
           apiKey?: string;
+          clientId?: string;
           userState?: Record<string, unknown>;
+          clientId?: string;
         },
       ) => {
-        const fn = mockState.config.sendMessage ?? mockState.config.postChatMessage;
+        const fn =
+          mockState.config.sendMessage ?? mockState.config.postChatMessage;
         return fn
           ? await fn(sessionId, message, options)
           : { is_processing: true, messages: [] };
       },
     );
 
-    sendSystemMessage = vi.fn(async (sessionId: string, message: string) => {
-      const fn =
-        mockState.config.sendSystemMessage ?? mockState.config.postSystemMessage;
-      return fn
-        ? await fn(sessionId, message)
-        : { res: { sender: "system", content: message } };
-    });
+    sendSystemMessage = vi.fn(
+      async (
+        sessionId: string,
+        message: string,
+        options?: {
+          app?: string;
+          applicationId?: number | string | null;
+        },
+      ) => {
+        const fn =
+          mockState.config.sendSystemMessage ??
+          mockState.config.postSystemMessage;
+        return fn
+          ? await fn(sessionId, message, options)
+          : { res: { sender: "system", content: message } };
+      },
+    );
 
     interrupt = vi.fn(async (sessionId: string) => {
       const fn = mockState.config.interrupt ?? mockState.config.postInterrupt;
-      return fn
-        ? await fn(sessionId)
-        : { is_processing: false, messages: [] };
+      return fn ? await fn(sessionId) : { is_processing: false, messages: [] };
     });
 
     renameThread = vi.fn(async (sessionId: string, title: string) => {
@@ -211,7 +256,7 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
     getApps = vi.fn(
       async (
         sessionId: string,
-        options?: { publicKey?: string; apiKey?: string },
+        options?: { apiKey?: string; platforms?: AomiPlatformFilter },
       ) => {
         return mockState.config.getApps
           ? await mockState.config.getApps(sessionId, options)
@@ -229,7 +274,11 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
       async (
         sessionId: string,
         rig: string,
-        options?: { app?: string; apiKey?: string },
+        options?: {
+          app?: string;
+          applicationId?: number | string | null;
+          apiKey?: string;
+        },
       ) => {
         return mockState.config.setModel
           ? await mockState.config.setModel(sessionId, rig, options)
@@ -267,9 +316,11 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
     private _title?: string;
     private listeners = new Map<string, Set<(...args: unknown[]) => void>>();
     private _pollTimer: ReturnType<typeof setInterval> | null = null;
+    private _unsubscribeSSE: (() => void) | null = null;
+    private _isSSEActive = false;
 
     private _app?: string;
-    private _publicKey?: string;
+    private _applicationId?: number | string | null;
     private _apiKey?: string;
     private _userState?: Record<string, unknown>;
     private _clientId?: string;
@@ -282,31 +333,42 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
 
     constructor(
       clientOrOptions: unknown,
-      opts?: { sessionId?: string; app?: string; publicKey?: string; apiKey?: string; clientId?: string; userState?: Record<string, unknown>; [key: string]: unknown },
+      opts?: {
+        sessionId?: string;
+        app?: string;
+        applicationId?: number | string | null;
+        apiKey?: string;
+        clientId?: string;
+        userState?: Record<string, unknown>;
+        [key: string]: unknown;
+      },
     ) {
       // If passed a MockAomiClient, use it directly
-      if (clientOrOptions && typeof (clientOrOptions as Record<string, unknown>).sendMessage === "function") {
+      if (
+        clientOrOptions &&
+        typeof (clientOrOptions as Record<string, unknown>).sendMessage ===
+          "function"
+      ) {
         this.client = clientOrOptions as InstanceType<typeof MockAomiClient>;
       } else {
-        this.client = new MockAomiClient(clientOrOptions as { baseUrl: string });
+        this.client = new MockAomiClient(
+          clientOrOptions as { baseUrl: string },
+        );
       }
       this.sessionId = opts?.sessionId ?? "mock-session";
       this._app = opts?.app;
-      this._publicKey = opts?.publicKey;
+      this._applicationId = opts?.applicationId;
       this._apiKey = opts?.apiKey;
       this._clientId = opts?.clientId;
       this.resolveUserState(opts?.userState);
-
-      // SSE subscription
-      this.client.subscribeSSE(this.sessionId, (event: AomiSSEEvent) => {
-        this.emit(event.type, event);
-      });
     }
 
     on(type: string, handler: (...args: unknown[]) => void) {
       if (!this.listeners.has(type)) this.listeners.set(type, new Set());
       this.listeners.get(type)!.add(handler);
-      return () => { this.listeners.get(type)?.delete(handler); };
+      return () => {
+        this.listeners.get(type)?.delete(handler);
+      };
     }
 
     private emit(type: string, ...args: unknown[]) {
@@ -319,7 +381,7 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
     async sendAsync(message: string) {
       const response = await this.client.sendMessage(this.sessionId, message, {
         app: this._app,
-        publicKey: this._publicKey ?? (this._userState?.address as string | undefined),
+        applicationId: this._applicationId,
         apiKey: this._apiKey,
         userState: this._userState,
         clientId: this._clientId,
@@ -341,7 +403,11 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
     }
 
     async fetchCurrentState() {
-      const state = await this.client.fetchState(this.sessionId, this._userState, this._clientId);
+      const state = await this.client.fetchState(
+        this.sessionId,
+        this._userState,
+        this._clientId,
+      );
       this.applyState(state);
       this._isProcessing = !!state?.is_processing;
     }
@@ -356,23 +422,17 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
       if (!normalized) return;
 
       this._userState = normalized;
-      this._publicKey =
-        UserState.isConnected(normalized) === false
-          ? undefined
-          : UserState.address(normalized);
       this.syncWalletRequests();
     }
-    syncRuntimeOptions(
-      options: {
-        app: string;
-        publicKey?: string;
-        apiKey?: string;
-        clientId?: string;
-        userState?: Record<string, unknown>;
-      },
-    ) {
+    syncRuntimeOptions(options: {
+      app: string;
+      applicationId?: number | string | null;
+      apiKey?: string;
+      clientId?: string;
+      userState?: Record<string, unknown>;
+    }) {
       this._app = options.app;
-      this._publicKey = options.publicKey;
+      this._applicationId = options.applicationId;
       this._apiKey = options.apiKey;
       this._clientId = options.clientId ?? this._clientId;
       if (options.userState) {
@@ -384,7 +444,11 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
       if (this._pollTimer) return;
       this._pollTimer = setInterval(async () => {
         try {
-          const state = await this.client.fetchState(this.sessionId, this._userState, this._clientId);
+          const state = await this.client.fetchState(
+            this.sessionId,
+            this._userState,
+            this._clientId,
+          );
           this.applyState(state);
           if (!state?.is_processing) {
             this.stopPolling();
@@ -402,17 +466,61 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
         this._pollTimer = null;
       }
     }
-    getIsProcessing() { return this._isProcessing; }
-    getIsPolling() { return this._pollTimer !== null; }
-    getMessages() { return this._messages; }
-    getTitle() { return this._title; }
-    getPendingRequests() { return [...this._walletRequests]; }
-    getUserState() { return this._userState ? { ...this._userState } : undefined; }
-    close() { this.stopPolling(); this.listeners.clear(); }
-    removeAllListeners() { this.listeners.clear(); }
+    getIsSSEActive() {
+      return this._isSSEActive;
+    }
+    setSSEActive(active: boolean) {
+      if (active === this._isSSEActive) return;
+      this._isSSEActive = active;
+      if (active) {
+        this._unsubscribeSSE = this.client.subscribeSSE(
+          this.sessionId,
+          (event: AomiSSEEvent) => {
+            this.emit(event.type, event);
+          },
+        );
+        return;
+      }
+      this._unsubscribeSSE?.();
+      this._unsubscribeSSE = null;
+    }
+    getIsProcessing() {
+      return this._isProcessing;
+    }
+    getIsPolling() {
+      return this._pollTimer !== null;
+    }
+    getMessages() {
+      return this._messages;
+    }
+    getTitle() {
+      return this._title;
+    }
+    getPendingRequests() {
+      return [...this._walletRequests];
+    }
+    getUserState() {
+      return this._userState ? { ...this._userState } : undefined;
+    }
+    close() {
+      this.stopPolling();
+      this._unsubscribeSSE?.();
+      this._unsubscribeSSE = null;
+      this._isSSEActive = false;
+      this.listeners.clear();
+    }
+    removeAllListeners() {
+      this.listeners.clear();
+    }
 
     private applyState(
-      state?: AomiStateResponse | AomiChatResponse | { user_state?: Record<string, unknown> | null },
+      state?:
+        | AomiStateResponse
+        | AomiChatResponse
+        | {
+            system_events?: AomiSystemEvent[];
+            user_state?: Record<string, unknown> | null;
+          },
     ) {
       if (state?.user_state) {
         this.resolveUserState(state.user_state);
@@ -421,20 +529,39 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
         this._messages = state.messages;
         this.emit("messages", state.messages);
       }
+      if (state?.system_events) {
+        for (const event of state.system_events) {
+          if ("InlineCall" in event) {
+            this.emit(event.InlineCall.type, event.InlineCall.payload ?? {});
+          } else if ("SystemNotice" in event) {
+            this.emit("system_notice", { message: event.SystemNotice });
+          } else if ("SystemError" in event) {
+            this.emit("system_error", { message: event.SystemError });
+          } else if ("AsyncCallback" in event) {
+            this.emit("async_callback", event.AsyncCallback);
+          }
+        }
+      }
     }
 
     private syncWalletRequests() {
       const pendingTxs =
-        this._userState?.pending_txs &&
-        typeof this._userState.pending_txs === "object" &&
-        !Array.isArray(this._userState.pending_txs)
-          ? (this._userState.pending_txs as Record<string, Record<string, unknown>>)
+        this._userState?.pending?.evm_txs &&
+        typeof this._userState.pending.evm_txs === "object" &&
+        !Array.isArray(this._userState.pending.evm_txs)
+          ? (this._userState.pending.evm_txs as Record<
+              string,
+              Record<string, unknown>
+            >)
           : {};
       const pendingEip712s =
-        this._userState?.pending_eip712s &&
-        typeof this._userState.pending_eip712s === "object" &&
-        !Array.isArray(this._userState.pending_eip712s)
-          ? (this._userState.pending_eip712s as Record<string, Record<string, unknown>>)
+        this._userState?.pending?.evm_sigs &&
+        typeof this._userState.pending.evm_sigs === "object" &&
+        !Array.isArray(this._userState.pending.evm_sigs)
+          ? (this._userState.pending.evm_sigs as Record<
+              string,
+              Record<string, unknown>
+            >)
           : {};
 
       this._walletRequests = [
@@ -481,8 +608,16 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
 // =============================================================================
 
 import { AomiRuntimeProvider } from "../aomi-runtime";
+import {
+  useAssistantRuntime,
+  type AssistantRuntime,
+} from "@assistant-ui/react";
 import { useAomiRuntime, type AomiRuntimeApi } from "../../interface";
-import { useControl, type ControlContextApi } from "../../contexts/control-context";
+import {
+  useControl,
+  type ControlContextApi,
+} from "../../contexts/control-context";
+import { useThreadContext } from "../../contexts/thread-context";
 
 // =============================================================================
 // Test Harness Component
@@ -490,14 +625,27 @@ import { useControl, type ControlContextApi } from "../../contexts/control-conte
 
 export type RuntimeHarnessHandle = {
   api: AomiRuntimeApi;
+  assistantRuntime: AssistantRuntime;
   control: ControlContextApi;
+  threadCount: number;
 };
 
 const RuntimeHarness = forwardRef<RuntimeHarnessHandle>((_, ref) => {
   const api = useAomiRuntime();
+  const assistantRuntime = useAssistantRuntime();
   const control = useControl();
+  const threadContext = useThreadContext();
 
-  useImperativeHandle(ref, () => ({ api, control }), [api, control]);
+  useImperativeHandle(
+    ref,
+    () => ({
+      api,
+      assistantRuntime,
+      control,
+      threadCount: threadContext.threadCnt,
+    }),
+    [api, assistantRuntime, control, threadContext.threadCnt],
+  );
 
   return null;
 });
@@ -510,11 +658,19 @@ RuntimeHarness.displayName = "RuntimeHarness";
 
 export type RenderRuntimeOptions = {
   backendUrl?: string;
+  applicationId?: number | string | null;
+  appPlatforms?: string | readonly string[] | null;
+  initialThreadId?: string;
+  persistThread?: boolean;
+  threadPersistenceKey?: string;
+  threadPersistenceScope?: string | null;
 };
 
 export type RenderRuntimeResult = {
   api: AomiRuntimeApi;
+  assistantRuntime: AssistantRuntime;
   control: ControlContextApi;
+  getThreadCount: () => number;
   getApi: () => AomiRuntimeApi;
   getControl: () => ControlContextApi;
   unmount: () => void;
@@ -523,11 +679,25 @@ export type RenderRuntimeResult = {
 
 export const renderRuntime = ({
   backendUrl = "http://test-backend",
+  applicationId,
+  appPlatforms,
+  initialThreadId,
+  persistThread,
+  threadPersistenceKey,
+  threadPersistenceScope,
 }: RenderRuntimeOptions = {}): RenderRuntimeResult => {
   const ref = React.createRef<RuntimeHarnessHandle>();
 
   const { unmount, rerender } = render(
-    <AomiRuntimeProvider backendUrl={backendUrl}>
+    <AomiRuntimeProvider
+      backendUrl={backendUrl}
+      applicationId={applicationId}
+      appPlatforms={appPlatforms}
+      initialThreadId={initialThreadId}
+      persistThread={persistThread}
+      threadPersistenceKey={threadPersistenceKey}
+      threadPersistenceScope={threadPersistenceScope}
+    >
       <RuntimeHarness ref={ref} />
     </AomiRuntimeProvider>,
   );
@@ -538,7 +708,9 @@ export const renderRuntime = ({
 
   return {
     api: ref.current.api,
+    assistantRuntime: ref.current.assistantRuntime,
     control: ref.current.control,
+    getThreadCount: () => ref.current!.threadCount,
     getApi: () => ref.current!.api,
     getControl: () => ref.current!.control,
     unmount,

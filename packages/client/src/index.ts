@@ -3,21 +3,49 @@
 // =============================================================================
 
 export { AomiClient } from "./client";
+export {
+  AccountCredentialUnavailableError,
+  createAccountBearerProvider,
+} from "./account-session";
+export type {
+  AccountBearerProviderOptions,
+  AccountBearerProvider,
+  AccountCredentialProvider,
+  AccountSessionExchangeResponse,
+  BetterAuthAccountTokenSourceOptions,
+  BetterAuthTokenResponse,
+} from "./account-session";
 
 // =============================================================================
 // Types
 // =============================================================================
 
 export type {
-  AomiClientType,
+  AomiAppDescriptor,
+  AomiPlatformFilter,
+  AomiRequestOptions,
+  AomiRequestQueryValue,
   AomiClientOptions,
+  AomiHttpMethod,
+  AomiAccessApproval,
+  AomiAccountProfile,
+  AomiAuthIdentity,
+  AomiCreateApprovalRequest,
+  AomiIdentityWallet,
+  AomiUsageStats,
+  AomiUser,
+  GetAccountBearer,
   AomiMessage,
+  AomiWalletFamily,
   AomiChatResponse,
   AomiClearSecretsResponse,
   AomiCreateThreadResponse,
+  AomiAccountResponse,
   AomiDeleteSecretResponse,
   AomiIngestSecretsResponse,
   AomiInterruptResponse,
+  AomiListSecretsResponse,
+  AomiSecretSlot,
   AomiSimulateFee,
   AomiSimulateResponse,
   AomiSSEEvent,
@@ -28,6 +56,15 @@ export type {
   AomiThread,
   Logger,
 } from "./types";
+export { normalizeAppDescriptor, appIdentityKey } from "./app-descriptor";
+export type {
+  AomiClientType,
+  UserStateAAMode,
+  UserStateAuthMethod,
+  UserStateWalletKind,
+  UserStateWalletProvider,
+  UserStateSponsorProvider,
+} from "./user-state";
 
 // =============================================================================
 // Type Guards
@@ -35,9 +72,10 @@ export type {
 
 export {
   UserState,
-  addUserStateExt,
   CLIENT_TYPE_TS_CLI,
   CLIENT_TYPE_WEB_UI,
+} from "./user-state";
+export {
   isAsyncCallback,
   isInlineCall,
   isSystemError,
@@ -74,6 +112,10 @@ export {
   normalizeTxPayload,
   hydrateTxPayloadFromUserState,
   normalizeEip712Payload,
+  normalizeSolanaSignPayload,
+  normalizeSolanaSignMessagePayload,
+  normalizeSolanaWalletRequest,
+  toViemSignMessageArgs,
   toViemSignTypedDataArgs,
   toAAWalletCalls,
   toAAWalletCall,
@@ -85,8 +127,27 @@ export type {
   WalletTxCallPayload,
   WalletTxAaPreference,
   WalletEip712Payload,
+  NormalizedSolanaWalletRequest,
+  WalletSolanaSignPayload,
+  WalletSolanaSignMessagePayload,
+  ViemSignMessageArgs,
   ViemSignTypedDataArgs,
 } from "./wallet-utils";
+
+// =============================================================================
+// Chains
+// =============================================================================
+
+export {
+  ALCHEMY_CHAIN_SLUGS,
+  CHAIN_NAMES,
+  CHAINS_BY_ID,
+  SUPPORTED_CHAINS,
+  SUPPORTED_CHAIN_IDS,
+  monad,
+  monadTestnet,
+} from "./chains";
+export type { ChainInfo } from "./chains";
 
 // =============================================================================
 // Account Abstraction
@@ -120,7 +181,11 @@ export type {
   AAChainConfig,
   AAConfig,
   AAResolvedConfig,
+  WalletCapabilities,
   WalletAtomicCapability,
+  NativeWalletExecutionPolicy,
+  NativeWalletSponsorship,
+  SponsorshipPaymasterServiceContext,
   SmartAccount,
   AAState,
   ExecutionResult,

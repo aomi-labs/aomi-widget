@@ -5,6 +5,7 @@ import type { ExternalStoreThreadData } from "@assistant-ui/react";
 import type { AomiClient } from "@aomi-labs/client";
 import type { ThreadContext } from "../contexts/thread-context";
 import { initThreadControl, type ThreadMetadata } from "../state/thread-store";
+import type { ThreadControlState } from "../state/thread-store";
 import { isPlaceholderTitle, parseTimestamp } from "./utils";
 
 // =============================================================================
@@ -20,9 +21,13 @@ const sortByLastActiveDesc = (
   return tsB - tsA;
 };
 
-function buildThreadLists(threadMetadata: Map<string, ThreadMetadata>) {
+function buildThreadLists(
+  threadMetadata: Map<string, ThreadMetadata>,
+  shouldShowThread: (threadId: string) => boolean,
+) {
   const entries = Array.from(threadMetadata.entries()).filter(
-    ([, meta]) => !isPlaceholderTitle(meta.title),
+    ([threadId, meta]) =>
+      !isPlaceholderTitle(meta.title) && shouldShowThread(threadId),
   );
 
   const regularThreads = entries
@@ -58,30 +63,72 @@ export type ThreadListAdapterConfig = {
   aomiClientRef: MutableRefObject<AomiClient>;
   threadContext: ThreadContext;
   setIsRunning: (running: boolean) => void;
+  isLoading?: boolean;
+  getInitialControl?: () => ThreadControlState;
+  isRemoteThread?: (threadId: string) => boolean;
 };
 
 export function buildThreadListAdapter({
   aomiClientRef,
   threadContext,
   setIsRunning,
+  isLoading = false,
+  getInitialControl = initThreadControl,
+  isRemoteThread = () => true,
 }: ThreadListAdapterConfig) {
+  const shouldShowThread = (threadId: string) => {
+    if (isRemoteThread(threadId)) return true;
+
+    return threadContext
+      .getThreadMessages(threadId)
+      .some((message) => message.role === "user");
+  };
   const { regularThreads, archivedThreads } = buildThreadLists(
     threadContext.allThreadsMetadata,
+    shouldShowThread,
   );
+
+  /** Remove previous thread if it's local-only and has no messages. */
+  const cleanupEmptyLocalThread = () => {
+    const prevId = threadContext.currentThreadId;
+    if (isRemoteThread(prevId)) return;
+    const msgs = threadContext.getThreadMessages(prevId);
+    if (msgs.length > 0) return;
+    threadContext.setThreadMetadata((prev) => {
+      const next = new Map(prev);
+      next.delete(prevId);
+      return next;
+    });
+    threadContext.setThreads((prev) => {
+      const next = new Map(prev);
+      next.delete(prevId);
+      return next;
+    });
+  };
 
   return {
     threadId: threadContext.currentThreadId,
+    isLoading,
     threads: regularThreads,
     archivedThreads,
 
     onSwitchToNewThread: () => {
+      const currentThreadId = threadContext.currentThreadId;
+      if (
+        !isRemoteThread(currentThreadId) &&
+        threadContext.getThreadMessages(currentThreadId).length === 0
+      ) {
+        return;
+      }
+
+      cleanupEmptyLocalThread();
       const threadId = generateUUID();
       threadContext.setThreadMetadata((prev) =>
         new Map(prev).set(threadId, {
           title: "New Chat",
           status: "regular",
           lastActiveAt: new Date().toISOString(),
-          control: initThreadControl(),
+          control: getInitialControl(),
         }),
       );
       threadContext.setThreadMessages(threadId, []);
@@ -91,6 +138,7 @@ export function buildThreadListAdapter({
     },
 
     onSwitchToThread: (threadId: string) => {
+      cleanupEmptyLocalThread();
       threadContext.setCurrentThreadId(threadId);
       threadContext.bumpThreadViewKey();
     },
@@ -164,7 +212,7 @@ export function buildThreadListAdapter({
                 title: "New Chat",
                 status: "regular",
                 lastActiveAt: new Date().toISOString(),
-                control: initThreadControl(),
+                control: getInitialControl(),
               }),
             );
             threadContext.setThreadMessages(defaultId, []);

@@ -1,17 +1,87 @@
 import type { Chain } from "viem";
-import { mainnet, polygon, arbitrum, optimism, base, sepolia, foundry } from "viem/chains";
+import { defineChain } from "viem";
+import {
+  mainnet,
+  polygon,
+  arbitrum,
+  optimism,
+  base,
+  baseSepolia,
+  sepolia,
+  linea,
+  lineaSepolia,
+  foundry,
+} from "viem/chains";
 
-export const SUPPORTED_CHAIN_IDS = [1, 137, 42161, 8453, 10, 11155111, 31337] as const;
-
-export const CHAIN_NAMES: Record<number, string> = {
-  1: "Ethereum",
-  137: "Polygon",
-  42161: "Arbitrum One",
-  8453: "Base",
-  10: "Optimism",
-  11155111: "Sepolia",
-  31337: "Anvil (local)",
+export type ChainInfo = {
+  id: number;
+  name: string;
+  ticker: string;
 };
+
+export const monad = defineChain({
+  id: 143,
+  name: "Monad",
+  nativeCurrency: {
+    decimals: 18,
+    name: "Monad",
+    symbol: "MON",
+  },
+  rpcUrls: {
+    default: {
+      http: ["https://rpc.monad.xyz"],
+    },
+  },
+  blockExplorers: {
+    default: {
+      name: "Monad Explorer",
+      url: "https://monadexplorer.com",
+    },
+  },
+});
+
+export const monadTestnet = defineChain({
+  id: 10143,
+  name: "Monad Testnet",
+  nativeCurrency: {
+    decimals: 18,
+    name: "Monad",
+    symbol: "MON",
+  },
+  rpcUrls: {
+    default: {
+      http: ["https://testnet-rpc.monad.xyz"],
+    },
+  },
+  blockExplorers: {
+    default: {
+      name: "Monad Testnet Explorer",
+      url: "https://testnet.monadexplorer.com",
+    },
+  },
+  testnet: true,
+});
+
+export const SUPPORTED_CHAINS = [
+  { id: 1, name: "Ethereum", ticker: "ETH" },
+  { id: 137, name: "Polygon", ticker: "MATIC" },
+  { id: 42161, name: "Arbitrum", ticker: "ARB" },
+  { id: 8453, name: "Base", ticker: "BASE" },
+  { id: 84532, name: "Base Sepolia", ticker: "ETH" },
+  { id: 10, name: "Optimism", ticker: "OP" },
+  { id: 11155111, name: "Sepolia", ticker: "SEP" },
+  { id: 59144, name: "Linea Mainnet", ticker: "LINEA" },
+  { id: 59141, name: "Linea Sepolia Testnet", ticker: "LINEA" },
+  { id: 143, name: "Monad", ticker: "MON" },
+  { id: 10143, name: "Monad Testnet", ticker: "MON" },
+  { id: 31337, name: "Anvil (local)", ticker: "ETH" },
+] as const satisfies readonly ChainInfo[];
+
+export const SUPPORTED_CHAIN_IDS = SUPPORTED_CHAINS.map((chain) => chain.id);
+
+export const CHAIN_NAMES: Record<number, string> = Object.fromEntries(
+  SUPPORTED_CHAINS.map((chain) => [chain.id, chain.name]),
+);
 
 /** Alchemy network slugs for proxy URL construction. */
 export const ALCHEMY_CHAIN_SLUGS: Record<number, string> = {
@@ -19,8 +89,11 @@ export const ALCHEMY_CHAIN_SLUGS: Record<number, string> = {
   137: "polygon-mainnet",
   42161: "arb-mainnet",
   8453: "base-mainnet",
+  84532: "base-sepolia",
   10: "opt-mainnet",
   11155111: "eth-sepolia",
+  59144: "linea-mainnet",
+  59141: "linea-sepolia",
 };
 
 export const CHAINS_BY_ID: Record<number, Chain> = {
@@ -29,6 +102,11 @@ export const CHAINS_BY_ID: Record<number, Chain> = {
   42161: arbitrum,
   10: optimism,
   8453: base,
+  84532: baseSepolia,
   11155111: sepolia,
+  59144: linea,
+  59141: lineaSepolia,
+  143: monad,
+  10143: monadTestnet,
   31337: foundry,
 };

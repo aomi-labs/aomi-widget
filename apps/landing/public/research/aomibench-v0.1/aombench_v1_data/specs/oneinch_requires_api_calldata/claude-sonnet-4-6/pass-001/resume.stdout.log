@@ -1,0 +1,3 @@
+[eval] PASS oneinch_requires_api_calldata 1 turn(s) 2 tool call(s) 1.82457 cr, 14570 in / 536 out tok, 12409 cached / 0 reasoning tok 0 warning(s) duration 13s
+report full json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/oneinch_requires_api_calldata/claude-sonnet-4.6/pass-001/20260530T235803.109810000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/oneinch_requires_api_calldata/claude-sonnet-4.6/pass-001/20260530T235803.109810000Z.compact.json

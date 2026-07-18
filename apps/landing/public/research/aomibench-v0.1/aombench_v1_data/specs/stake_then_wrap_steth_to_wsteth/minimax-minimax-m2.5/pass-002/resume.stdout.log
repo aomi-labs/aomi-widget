@@ -1,0 +1,5 @@
+[eval] PASS stake_then_wrap_steth_to_wsteth 1 turn(s) 21 tool call(s) 4.660625 cr, 309267 in / 188 out tok 1 warning(s) duration 118s
+warnings:
+  no_tool_errors tool error envelope(s) observed for: activate_skills, Stake 0.1 ETH with Lido
+report full json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/stake_then_wrap_steth_to_wsteth/minimax-m2.5/pass-002/20260531T205607.214462000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/stake_then_wrap_steth_to_wsteth/minimax-m2.5/pass-002/20260531T205607.214462000Z.compact.json

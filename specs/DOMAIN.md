@@ -4,26 +4,29 @@
 
 **Single Sources of Truth:**
 
-- User/wallet state → `contexts/user-context.tsx` via `useUser()` hook
-- Thread state → `contexts/thread-context.tsx` via `useThreadContext()`
-- Event dispatching → `contexts/event-context.tsx` via `useEventContext()`
-- Control state (model/namespace/apiKey) → `contexts/control-context.tsx` via `useControl()`
-- Backend API calls → `backend/client.ts` (AomiClient class)
-- Message conversion → `runtime/utils.ts`
+- User/wallet state -> `packages/react/src/contexts/ext-user-context.tsx` plus `UserState` from `@aomi-labs/client`
+- Thread state -> `packages/react/src/contexts/thread-context.tsx`
+- Backend transport -> `packages/client/src/client.ts` (`AomiClient`)
+- Per-thread runtime state -> `packages/client/src/session/index.ts` (`ClientSession`, exported as `Session`)
+- React session orchestration -> `packages/react/src/runtime/orchestrator.ts` and `session-manager.ts`
+- Event dispatching -> `ClientSession` events bridged into `packages/react/src/contexts/event-context.tsx`
+- Control state (model/app/api key) -> `packages/react/src/contexts/control-context.tsx`
+- Message conversion -> `packages/react/src/runtime/utils.ts`
 
 **Provider Hierarchy:**
 
 ```
-ThreadContextProvider (external - must wrap AomiRuntimeProvider)
-└── AomiRuntimeProvider (shell)
+AomiRuntimeProvider
+└── ThreadContextProvider
     └── NotificationContextProvider
-        └── UserContextProvider
-            └── EventContextProvider
-                └── RuntimeActionsProvider
+        └── ExtUserProvider
+            └── ControlContextProvider
+                └── EventContextProvider
                     └── AomiRuntimeCore
-                        └── ControlContextProvider
-                            └── AssistantRuntimeProvider
-                                └── {children}
+                        └── RuntimeUserStateProvider
+                            └── AomiRuntimeApiProvider
+                                └── AssistantRuntimeProvider
+                                    └── {children}
 ```
 
 **Component Hierarchy:**
@@ -32,137 +35,135 @@ ThreadContextProvider (external - must wrap AomiRuntimeProvider)
 AomiFrame (apps/registry)
 ├── ThreadListSidebar (navigation)
 ├── Thread (message view)
-├── ControlBar (model/namespace selection)
-│   ├── ModelSelect
-│   ├── NamespaceSelect
-│   └── ApiKeyInput
-└── WalletFooter slot (via render prop)
+├── ControlBar (model/app/API-key selection)
+└── Wallet kit providers (Para, Privy, Base Account, or host-provided)
 ```
 
 ## Do / Don't
 
-| Do                                        | Don't                               |
-| ----------------------------------------- | ----------------------------------- |
-| Use `useUser()` for wallet state          | Local wallet state in components    |
-| Use `useThreadContext()` for thread state | Local state for thread data         |
-| Use `useWalletHandler()` for tx requests  | Manual event subscription           |
-| Let runtime auto-sync wallet changes      | Manual `sendSystemMessage()` calls  |
-| Optimistic UI updates + backend confirm   | Wait for backend before updating UI |
+| Do | Don't |
+| --- | --- |
+| Use `AomiClient` from `@aomi-labs/client` for backend calls | Recreate HTTP helpers inside `@aomi-labs/react` |
+| Use `ClientSession`/`Session` for per-thread polling, SSE, and wallet requests | Reintroduce React-side polling/message controllers |
+| Use `useUser()`/`UserState` for wallet state | Keep local wallet state in frame components |
+| Let the wallet kit sync identity into `UserState` | Manually post wallet state from UI controls |
+| Let the same-origin BFF proxy mint backend bearers from Better Auth | Send browser cookies or user-provided `Authorization` upstream |
 
 ## File Conventions
 
-| Location         | Purpose                                                        |
-| ---------------- | -------------------------------------------------------------- |
-| `backend/*.ts`   | AomiClient HTTP client + API types                             |
-| `contexts/*.tsx` | React contexts (User, Event, Thread, Notification, Control)    |
-| `handlers/*.ts`  | Event handler hooks (useWalletHandler, useNotificationHandler) |
-| `runtime/*.tsx`  | Runtime orchestration (providers, controllers)                 |
-| `state/*.ts`     | State stores (backend-state, thread-store, event-buffer)       |
+| Location | Purpose |
+| --- | --- |
+| `packages/client/src/client.ts` | `AomiClient` HTTP/SSE transport |
+| `packages/client/src/session/` | `ClientSession` runtime state machine and wallet-request controller |
+| `packages/client/src/account-session.ts` | Optional client-side BFF bearer provider for cross-origin calls |
+| `packages/react/src/contexts/*.tsx` | React state providers (user, thread, event, notification, control) |
+| `packages/react/src/runtime/*.tsx` | React integration around `AomiClient`/`ClientSession` |
+| `packages/react/src/handlers/*.ts` | Wallet and notification handler hooks |
+| `apps/registry/src/lib/wallet-kit/` | Host wallet/provider adapters and runtime user sync |
+| `packages/account/src/proxy.ts` | Same-origin BFF proxy that strips browser auth and injects trusted backend bearer |
+| `packages/auth/src/` | Better Auth setup, provider exchange, account graph, wallet linking |
 
 ## Key Types
 
-| Type                                | Source                         |
-| ----------------------------------- | ------------------------------ |
-| `ThreadMessageLike`                 | `@assistant-ui/react`          |
-| `AomiMessage`, `ApiStateResponse`   | `backend/types.ts`             |
-| `UserState`                         | `contexts/user-context.tsx`    |
-| `ControlState`, `ControlContextApi` | `contexts/control-context.tsx` |
-| `InboundEvent`, `OutboundEvent`     | `state/event-buffer.ts`        |
-| `WalletTxRequest`                   | `handlers/wallet-handler.ts`   |
+| Type | Source |
+| --- | --- |
+| `AomiClient`, `AomiClientOptions` | `@aomi-labs/client` (`packages/client/src/client.ts`) |
+| `Session` / `ClientSession`, `SessionOptions` | `@aomi-labs/client` (`packages/client/src/session/`) |
+| `UserState`, `WalletRequest`, `WalletRequestResult` | `@aomi-labs/client` |
+| `AomiRuntimeProvider`, `AomiRuntimeApi` | `@aomi-labs/react` |
+| `ControlState`, `ControlContextApi` | `packages/react/src/contexts/control-context.tsx` |
+| `AomiWalletKit`, provider adapters | `apps/registry/src/lib/wallet-kit/` |
 
 ## Data Flows
 
 **User message:**
 
 ```
-Composer → onNew() → MessageController.outbound()
-  → AomiClient.postChatMessage() → PollingController.start()
-  → poll /api/state → MessageController.inbound() → re-render
+Composer -> AomiRuntimeCore -> useRuntimeOrchestrator
+  -> ClientSession.send()/sendAsync()
+  -> AomiClient.sendMessage() -> POST /api/chat
+  -> ClientSession polls GET /api/state and listens to GET /api/updates
+  -> React thread store updates
 ```
 
 **Thread switch:**
 
 ```
-Click → threadListAdapter.onSwitchToThread()
-  → setCurrentThreadId() → ensureInitialState()
-  → fetchState() → apply messages
+Thread list click -> threadContext.setCurrentThreadId()
+  -> ensureInitialState()
+  -> ClientSession.fetchState() / AomiClient.fetchState()
+  -> messages, title, processing state applied to thread store
 ```
 
 **Wallet state change:**
 
 ```
-External wallet lib → setUser() → onUserStateChange callback
-  → postSystemMessage("wallet:state_changed") → backend
+Wallet provider adapter -> AomiWalletKitSync
+  -> useUser().setUser(UserState)
+  -> ClientSession sends normalized user_state on chat/state requests
 ```
 
-**Inbound system event (e.g., wallet_tx_request):**
+**Inbound wallet request:**
 
 ```
-Backend → /api/state response → system_events[]
-  → PollingController.handleState() → dispatchInboundSystem()
-  → EventBuffer → dispatch() → useWalletHandler subscription
-  → onTxRequest callback
+Backend -> /api/state or /api/updates system event
+  -> ClientSession wallet controller
+  -> orchestrator event bridge
+  -> useWalletHandler callback
+  -> ClientSession.resolve()/reject()
 ```
 
-**Namespace fetch (on mount or apiKey change):**
+**Same-origin backend auth:**
 
 ```
-ControlContextProvider mounts (or apiKey changes)
-  → useEffect() → aomiClient.getNamespaces(sessionId, publicKey, apiKey)
-  → GET /api/control/apps → string[]
-  → setStateInternal({ authorizedNamespaces, namespace })
+Browser -> /api/* same-origin request with Better Auth cookie
+  -> packages/account proxy resolves better-auth.session_token
+  -> proxy mints short-lived AccountBearer with sub = canonical Aomi user id
+  -> backend receives Authorization: Bearer <AccountBearer>
 ```
 
-**Model selection:**
+**Cross-origin backend auth:**
 
 ```
-User selects model in ModelSelect
-  → onModelSelect(model) → aomiClient.setModel(sessionId, rig, namespace)
-  → POST /api/control/model → { success, rig, baml, created }
+createAccountAccessTokenProvider()
+  -> GET /api/aomi/account-bearer using Better Auth cookie
+  -> optional provider exchange through /api/auth/aomi/provider/exchange
+  -> AomiClient attaches Authorization when talking directly to backend
 ```
 
 ## Backend Endpoints
 
-| Endpoint                           | Purpose        | Response                  |
-| ---------------------------------- | -------------- | ------------------------- |
-| `POST /api/chat`                   | Send message   | `ApiChatResponse`         |
-| `GET /api/state`                   | Poll session   | `ApiStateResponse`        |
-| `POST /api/interrupt`              | Cancel         | `ApiInterruptResponse`    |
-| `POST /api/system`                 | System message | `ApiSystemResponse`       |
-| `GET /api/updates`                 | SSE stream     | `ApiSSEEvent`             |
-| `POST /api/sessions`               | Create thread  | `ApiCreateThreadResponse` |
-| `GET /api/sessions`                | List threads   | `ApiThread[]`             |
-| `PATCH /api/sessions/:id`          | Rename         | -                         |
-| `DELETE /api/sessions/:id`         | Delete         | 204                       |
-| `POST /api/sessions/:id/archive`   | Archive        | 200                       |
-| `POST /api/sessions/:id/unarchive` | Unarchive      | 200                       |
-| `GET /api/control/apps`      | Get namespaces | `string[]`                |
-| `GET /api/control/models`          | Get models     | `string[]`                |
-| `POST /api/control/model`          | Set model      | `{ success, rig, baml }`  |
+| Endpoint | Purpose | Client surface |
+| --- | --- | --- |
+| `POST /api/chat` | Send message | `AomiClient.sendMessage` |
+| `GET /api/state` | Fetch session state | `AomiClient.fetchState`, `ClientSession` |
+| `POST /api/interrupt` | Cancel generation | `AomiClient.interrupt` |
+| `POST /api/system` | Send system event | `AomiClient.sendSystemMessage` |
+| `GET /api/updates` | SSE stream | `AomiClient.subscribeSSE`, `ClientSession` |
+| `POST /api/sessions` | Create thread/session | `AomiClient.createThread` |
+| `GET /api/sessions` | List threads | `AomiClient.listThreads` |
+| `GET /api/sessions/:id` | Get thread | `AomiClient.getThread` |
+| `PATCH /api/sessions/:id` | Rename thread | `AomiClient.renameThread` |
+| `DELETE /api/sessions/:id` | Delete thread | `AomiClient.deleteThread` |
+| `GET /api/session/apps` | List app descriptors | `AomiClient.getApps` |
+| `GET /api/session/models` | List models | `AomiClient.getModels` |
+| `POST /api/session/model` | Set model/app for session | `AomiClient.setModel` |
+| `GET /api/account` | Current account profile | `AomiClient.getAccount` |
+| `GET /api/aomi/account-bearer` | Mint AccountBearer from Better Auth session | `createAccountAccessTokenProvider` |
+| `POST /api/auth/aomi/provider/exchange` | Create Better Auth session from provider token | Better Auth Aomi provider plugin |
+| `POST /api/aomi/provider/exchange` | Link provider token into existing Better Auth session | Portal route + `@aomi-labs/auth` |
 
-**ApiStateResponse:** `{ messages?, system_events?, is_processing?, title?, session_exists? }`
-
-## Architecture Layers
-
-```
-UI Components (apps/registry - AomiFrame, Thread, etc.)
-    ↓ uses hooks from lib
-Contexts & Handlers (packages/react/contexts, handlers)
-    ↓ uses
-Runtime (packages/react/runtime - orchestrator, controllers)
-    ↓ uses
-AomiClient (packages/react/backend)
-    ↓ HTTP/SSE
-Backend Server
-```
+Archive/unarchive helpers still exist on `AomiClient` for API compatibility, but the current backend does not expose `/api/sessions/:id/archive` or `/api/sessions/:id/unarchive`.
 
 ## Invariants
 
-1. `ThreadContextProvider` must wrap `AomiRuntimeProvider`
-2. All components with browser APIs have `"use client"`
-3. Wallet state synced automatically via `onUserStateChange` subscription
-4. Polling stops when `is_processing=false`
-5. System events dispatched to EventBuffer for handler subscription
-6. Control state (apiKey) persisted to localStorage automatically
-7. Namespaces auto-fetched when apiKey changes
-8. Model selection is backend-only (not stored in ControlState)
+1. `AomiRuntimeProvider` constructs exactly one `AomiClient` per backend/options identity.
+2. `ClientSession` owns polling, SSE subscription, message state, processing state, and wallet requests for one thread.
+3. `@aomi-labs/react` re-exports client types but does not own the transport implementation.
+4. The real browser/device cookie is `better-auth.session_token`.
+5. The backend never receives browser cookies; the BFF proxy strips `cookie` and incoming `Authorization`.
+6. Backend `AccountBearer.sub` is the canonical Aomi user id.
+7. Provider-attested embedded wallets are synced only after server-side provider verification; the deferred schema/provenance FK work remains separate.
+8. Active wallet per family is owned by `apps/registry/src/lib/wallet-kit/registry/store.ts`.
+9. Model selection is backend-session state, not global React-only state.
+10. All browser API consumers must remain client components.

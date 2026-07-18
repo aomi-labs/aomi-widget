@@ -1,0 +1,53 @@
+[
+  {
+    "id": "eigenlayer",
+    "name": "eigenlayer",
+    "description": "Use when users want to restake LSTs or ETH via EigenLayer — deposit into strategies, delegate to operators, queue or complete withdrawals on Ethereum.",
+    "tags": [
+      "restaking",
+      "eigenlayer",
+      "avs",
+      "delegate",
+      "deposit",
+      "withdraw",
+      "defi"
+    ],
+    "tool_names": [
+      "get_time_and_onchain_context",
+      "brave_search",
+      "encode_and_call",
+      "get_account_info",
+      "get_contract",
+      "sync_chain",
+      "simulate_batch",
+      "stage_tx",
+      "commit_eip712",
+      "commit_txs"
+    ],
+    "injected_tools": [],
+    "source": "aomi_builtin",
+    "est_tokens": 867,
+    "activation_tokens": 873,
+    "instruction_md": "## EigenLayer: eigenlayer_deposit\n- contract: 0x858646372CC42E1A627fcE94aa7A7033e7CF075A (chain 1)\n- gotcha: depositIntoStrategy requires token approval to StrategyManager. The strategy address is specific to each LST.\n\n## EigenLayer: eigenlayer_delegate\n- contract: 0x39053D51B77DC0d36036Fc1fCc8Cb819df8Ef37A (chain 1)\n- gotcha: delegateTo requires an operator address. approverSignatureAndExpiry can use empty signature with expiry 0 for non-restricted operators. approverSalt can be bytes32(0).\n\n## EigenLayer: eigenlayer_withdraw\n- contract: 0x39053D51B77DC0d36036Fc1fCc8Cb819df8Ef37A (chain 1)\n- gotcha: Withdrawals have a mandatory 7-day escrow period. queueWithdrawals returns withdrawal roots needed for completeQueuedWithdrawals.\n\n\n## EigenLayer: Supported LSTs\n- stETH: 0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84 (chain 1)\n- rETH: 0xae78736Cd615f374D3085123A210448E74Fc6393 (chain 1)\n- cbETH: 0xBe9895146f7AF43049ca1c1AE358B0541Ea49704 (chain 1)\n\n## EigenLayer: ABI Signatures (reference only)\nEigenLayer StrategyManager [eigenlayer_strategy_manager]:\n- depositIntoStrategy(address,address,uint256) → uint256\nEigenLayer DelegationManager [eigenlayer_delegation_manager]:\n- undelegate(address) → bytes32[]\nERC20 [erc20]:\n- approve(address,uint256) → bool\n\n## EigenLayer: Strategies (common)\n- stETH Strategy: 0x93c4b944D05dfe6df7645A86cd2206016c51564D\n- rETH Strategy: 0x1BeE69b7dFFfA4E2d53C2a2Df135C388AD25dCD2\n- cbETH Strategy: 0x54945180dB7943c0ed0FEE7EdaB2Bd24620256bc\n\n## EigenLayer: Procedure\n1. Call `get_time_and_onchain_context` to confirm wallet, chain, and block context.\n2. Check LST balance, allowance, and current delegation with `encode_and_call`.\n3. If allowance insufficient, build and simulate an `approve` to StrategyManager.\n4. For deposit: build `depositIntoStrategy(strategy, token, amount)` with `encode_and_call`.\n5. For delegate: build `delegateTo(operator, signatureWithExpiry, salt)`.\n6. For undelegate: build `undelegate(staker)` where staker is the user's wallet address.\n7. For withdrawal: build `queueWithdrawals` — warn user about the 7-day lock period before proceeding.\n8. For completing withdrawal: only after 7+ days, build `completeQueuedWithdrawals` with the original withdrawal struct.\n9. Inspect `eigenlayer_guard_*` fields — if `eigenlayer_guard_blocked`, do NOT proceed.\n10. Only after user confirmation, send via `commit_txs`.\n## EigenLayer: Critical Rules\n- Approve the LST token to StrategyManager before depositIntoStrategy.\n- For delegateTo with unrestricted operators: use empty signature (0x), expiry 0, and approverSalt bytes32(0).\n- **Withdrawals have a mandatory 7-day delay.** Always warn the user that after calling `queueWithdrawals`, they must wait at least 7 days before `completeQueuedWithdrawals` can be called. Funds are locked during this period.\n- The `staker` field in `queueWithdrawals` MUST be the user's wallet address. The `withdrawer` MUST also be the user's wallet.\n- The `staker` parameter in `undelegate(address staker)` MUST be the user's wallet address. The guard validates this and will block if it does not match.\n- `completeQueuedWithdrawals` is a complex multi-step process: it requires the exact Withdrawal struct from the queue event, the token list, middleware timestamps index, and a boolean for whether to receive as tokens. Get withdrawal details from the original queueWithdrawals event logs.\n- Check `eigenlayer_guard_blocked` in simulation result — if true, do NOT proceed.",
+    "tool_hooks": [
+      {
+        "tool": "simulate_batch",
+        "pre_call": [],
+        "post_call": [
+          "eigenlayer-known-addrs"
+        ]
+      },
+      {
+        "tool": "stage_tx",
+        "pre_call": [],
+        "post_call": [
+          "eigenlayer-known-addrs"
+        ]
+      }
+    ],
+    "tools_namespace": "evm-core",
+    "chain_ids": [
+      1
+    ]
+  }
+]

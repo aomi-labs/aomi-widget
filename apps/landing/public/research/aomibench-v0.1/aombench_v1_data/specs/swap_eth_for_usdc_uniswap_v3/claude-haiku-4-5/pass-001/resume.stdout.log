@@ -1,0 +1,10 @@
+[eval] FAIL swap_eth_for_usdc_uniswap_v3 1 turn(s) 16 tool call(s) 5.63311 cr, 151586 in / 5863 out tok, 138411 cached / 0 reasoning tok 1 warning(s) duration 98s
+errors:
+  tool sequence broke before expected tool 'commit_txs'
+  callback_observed no matching callback_observed; observed 0 value(s)
+  Alice spends about 0.05 ETH on the Uniswap swap Alice spends about 0.05 ETH on the Uniswap swap (before: 100 ETH, after: 100 ETH, delta: +0 ETH, expected: -0.05 ETH ± 0.01 ETH)
+  USDC Transfer log from Uniswap swap USDC Transfer log from Uniswap swap observed 0 log(s), expected at least 1 from block 25215036 through 25215035
+warnings:
+  no_tool_errors tool error envelope(s) observed for: Quote 0.05 ETH to USDC on Uniswap V3
+report full json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/swap_eth_for_usdc_uniswap_v3/claude-haiku-4.5/pass-001/20260531T112636.493005000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/swap_eth_for_usdc_uniswap_v3/claude-haiku-4.5/pass-001/20260531T112636.493005000Z.compact.json

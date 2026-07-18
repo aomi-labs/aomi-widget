@@ -12,6 +12,7 @@
 
 import { type Hex, getAddress } from "viem";
 import type { AAWalletCall } from "./aa/types";
+import { UserState } from "./user-state";
 
 export type WalletTxAaPreference = "auto" | "eip4337" | "eip7702" | "none";
 
@@ -50,8 +51,49 @@ export type WalletEip712Payload = {
     primaryType?: string;
     message?: Record<string, unknown>;
   };
+  non_typed_data?: string;
   description?: string;
   eip712Id?: number;
+};
+
+/**
+ * Wire payload for `wallet::solana_sign_request`. Mirrors `WalletEip712Payload`
+ * in shape — singular sign-only — but carries a base64-encoded serialized
+ * Solana transaction instead of EIP-712 typed data.
+ *
+ * `unsignedTx` is base64 of `VersionedTransaction.serialize()` (legacy
+ * `Transaction.serialize()` also accepted by adapters). The host doesn't
+ * decode it; the wallet adapter handles deserialization.
+ */
+export type WalletSolanaSignPayload = {
+  /** Base64 of the unsigned Solana transaction. */
+  unsignedTx?: string;
+  /** Human-readable summary shown alongside the wallet's decoded preview. */
+  description?: string;
+  /** CAIP-2 cluster string (`"solana:mainnet"` / `"solana:devnet"`). */
+  cluster?: string;
+  /** Server-side correlation id for the staged sign request. */
+  pendingSolanaId?: number;
+};
+
+export type WalletSolanaSignMessagePayload = {
+  /** Base64 of the raw message bytes to sign. */
+  message?: string;
+  /** Human-readable summary shown alongside the wallet's decoded preview. */
+  description?: string;
+  /** CAIP-2 cluster string (`"solana:mainnet"` / `"solana:devnet"`). */
+  cluster?: string;
+  /** Server-side correlation id for the staged sign request. */
+  pendingSolanaId?: number;
+};
+
+export type NormalizedSolanaWalletRequest = {
+  kind:
+    | "solana_sign"
+    | "solana_sign_message"
+    | "solana_send"
+    | "solana_sign_and_send";
+  payload: WalletSolanaSignPayload | WalletSolanaSignMessagePayload;
 };
 
 export type ViemSignTypedDataArgs = {
@@ -59,6 +101,10 @@ export type ViemSignTypedDataArgs = {
   types: Record<string, Array<{ name: string; type: string }>>;
   primaryType: string;
   message?: Record<string, unknown>;
+};
+
+export type ViemSignMessageArgs = {
+  message: string | { raw: Hex };
 };
 
 // =============================================================================
@@ -73,26 +119,74 @@ function asRecord(value: unknown): UnknownRecord | undefined {
   return value as UnknownRecord;
 }
 
+function pendingTxsFromUserState(userState: unknown): UnknownRecord | undefined {
+  const normalized = UserState.normalize(userState as UserState);
+  const pending = asRecord(normalized?.pending);
+  return asRecord(pending?.evm_txs) ?? asRecord(asRecord(userState)?.pending_txs);
+}
+
 function getToolArgs(payload: unknown): UnknownRecord {
   const root = asRecord(payload);
   const nestedArgs = asRecord(root?.args);
   return nestedArgs ?? root ?? {};
 }
 
+function parseChainKind(value: unknown): "evm" | "svm" | undefined {
+  return value === "evm" || value === "svm" ? value : undefined;
+}
+
+export function inferSolanaRequestKind(
+  payload: Record<string, unknown>,
+): NormalizedSolanaWalletRequest["kind"] {
+  const rawKind =
+    typeof payload.kind === "string"
+      ? payload.kind
+      : typeof payload.request_kind === "string"
+        ? payload.request_kind
+        : typeof payload.requestKind === "string"
+          ? payload.requestKind
+          : undefined;
+
+  switch (rawKind) {
+    case "solana_sign_message":
+    case "message_sign":
+      return "solana_sign_message";
+    case "solana_send":
+    case "send_transaction":
+      return "solana_send";
+    case "solana_sign_and_send":
+    case "sign_and_send_transaction":
+      return "solana_sign_and_send";
+    default:
+      return "solana_sign";
+  }
+}
+
 export function parseChainId(value: unknown): number | undefined {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "number") {
+    return Number.isSafeInteger(value) && value > 0 ? value : undefined;
+  }
   if (typeof value !== "string") return undefined;
 
   const trimmed = value.trim();
   if (!trimmed) return undefined;
 
-  if (trimmed.startsWith("0x")) {
-    const parsedHex = Number.parseInt(trimmed.slice(2), 16);
-    return Number.isFinite(parsedHex) ? parsedHex : undefined;
-  }
+  const parsed = trimmed.startsWith("0x")
+    ? parseCanonicalInteger(trimmed.slice(2), 16)
+    : parseCanonicalInteger(trimmed, 10);
+  return parsed !== undefined && parsed > 0 ? parsed : undefined;
+}
 
-  const parsed = Number.parseInt(trimmed, 10);
-  return Number.isFinite(parsed) ? parsed : undefined;
+function parseCanonicalInteger(
+  value: string,
+  radix: 10 | 16,
+): number | undefined {
+  if (value === "") return undefined;
+  const pattern = radix === 16 ? /^[0-9a-fA-F]+$/ : /^[0-9]+$/;
+  if (!pattern.test(value)) return undefined;
+
+  const parsed = Number.parseInt(value, radix);
+  return Number.isSafeInteger(parsed) ? parsed : undefined;
 }
 
 function parseTxIds(value: unknown): number[] {
@@ -126,7 +220,27 @@ function parseValue(value: unknown): string | undefined {
   return undefined;
 }
 
-function normalizeAaPreference(value: unknown): WalletTxAaPreference | undefined {
+function parseBoolean(value: unknown): boolean | undefined {
+  if (typeof value === "boolean") return value;
+  if (typeof value !== "string") return undefined;
+
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "true" || normalized === "1") return true;
+  if (normalized === "false" || normalized === "0") return false;
+  return undefined;
+}
+
+function parseString(value: unknown): string | undefined {
+  return typeof value === "string" ? value : undefined;
+}
+
+function isHexBytes(value: string): value is Hex {
+  return /^0x(?:[0-9a-fA-F]{2})*$/.test(value);
+}
+
+function normalizeAaPreference(
+  value: unknown,
+): WalletTxAaPreference | undefined {
   if (typeof value !== "string") return undefined;
   const normalized = value.trim().toLowerCase();
   if (
@@ -153,6 +267,27 @@ function normalizeAddress(value: unknown): string | undefined {
     }
     return undefined;
   }
+}
+
+export function normalizePendingTxData(
+  pendingEntry: UnknownRecord,
+): string | undefined {
+  const data =
+    typeof pendingEntry.data === "string" ? pendingEntry.data : undefined;
+  if (!data) {
+    return undefined;
+  }
+
+  const kind =
+    typeof pendingEntry.kind === "string"
+      ? pendingEntry.kind.toLowerCase()
+      : undefined;
+
+  if (kind === "native_transfer") {
+    return undefined;
+  }
+
+  return data;
 }
 
 // =============================================================================
@@ -186,9 +321,20 @@ export function normalizeTxPayload(payload: unknown): WalletTxPayload | null {
         : undefined;
   const aaPreference =
     normalizeAaPreference(args.aa_preference ?? args.aaPreference) ?? "auto";
+  const aaStrict = parseBoolean(args.aa_strict ?? args.aaStrict);
   const txId = txIds.length === 1 ? txIds[0] : undefined;
 
-  return { to, value, data, chainId, txId, txIds, aaPreference, requestId };
+  return {
+    to,
+    value,
+    data,
+    chainId,
+    txId,
+    txIds,
+    aaPreference,
+    aaStrict,
+    requestId,
+  };
 }
 
 export function hydrateTxPayloadFromUserState(
@@ -210,8 +356,7 @@ export function hydrateTxPayloadFromUserState(
     return payload;
   }
 
-  const normalizedUserState = asRecord(userState);
-  const pendingTxsRaw = asRecord(normalizedUserState?.pending_txs);
+  const pendingTxsRaw = pendingTxsFromUserState(userState);
   if (!pendingTxsRaw) {
     if (strict) {
       throw new Error("pending_tx_not_found");
@@ -241,12 +386,13 @@ export function hydrateTxPayloadFromUserState(
       txId,
       to,
       value: parseValue(pendingEntry.value),
-      data: typeof pendingEntry.data === "string" ? pendingEntry.data : undefined,
+      data: normalizePendingTxData(pendingEntry),
       chainId:
         parseChainId(pendingEntry.chain_id) ??
         parseChainId(pendingEntry.chainId) ??
         parseChainId(payload.chainId),
-      from: typeof pendingEntry.from === "string" ? pendingEntry.from : undefined,
+      from:
+        typeof pendingEntry.from === "string" ? pendingEntry.from : undefined,
       gas: typeof pendingEntry.gas === "string" ? pendingEntry.gas : undefined,
       description:
         typeof pendingEntry.label === "string"
@@ -277,14 +423,94 @@ export function hydrateTxPayloadFromUserState(
 }
 
 /**
+ * Normalize a `wallet::solana_sign_request` payload into a consistent shape.
+ *
+ * Accepts the various nesting levels the backend can ship: top-level args,
+ * `{ args: { ... } }`, snake_case (`unsigned_tx`, `pending_solana_id`) or
+ * camelCase (`unsignedTx`, `pendingSolanaId`). Single source of truth for
+ * the SDK's view of the request — both the dispatch path and the
+ * `syncWalletRequests` reconstruction loop go through here.
+ */
+export function normalizeSolanaSignPayload(
+  payload: unknown,
+): WalletSolanaSignPayload {
+  const args = getToolArgs(payload);
+
+  const unsignedTxRaw = args.unsigned_tx ?? args.unsignedTx;
+  const unsignedTx =
+    typeof unsignedTxRaw === "string" ? unsignedTxRaw : undefined;
+
+  const description =
+    typeof args.description === "string" ? args.description : undefined;
+
+  const clusterRaw = args.cluster;
+  const cluster = typeof clusterRaw === "string" ? clusterRaw : undefined;
+
+  const pendingSolanaId =
+    parsePendingId(args.pendingSolanaId) ??
+    parsePendingId(args.pending_solana_id) ??
+    parsePendingId(args.pendingSvmSigId) ??
+    parsePendingId(args.pending_svm_sig_id);
+
+  return { unsignedTx, description, cluster, pendingSolanaId };
+}
+
+export function normalizeSolanaSignMessagePayload(
+  payload: unknown,
+): WalletSolanaSignMessagePayload {
+  const args = getToolArgs(payload);
+
+  const messageRaw = args.message_base64 ?? args.messageBase64 ?? args.message;
+  const message = typeof messageRaw === "string" ? messageRaw : undefined;
+
+  const description =
+    typeof args.description === "string" ? args.description : undefined;
+
+  const clusterRaw = args.cluster;
+  const cluster = typeof clusterRaw === "string" ? clusterRaw : undefined;
+
+  const pendingSolanaId =
+    parsePendingId(args.pendingSolanaId) ??
+    parsePendingId(args.pending_solana_id) ??
+    parsePendingId(args.pendingSvmSigId) ??
+    parsePendingId(args.pending_svm_sig_id);
+
+  return { message, description, cluster, pendingSolanaId };
+}
+
+export function normalizeSolanaWalletRequest(
+  payload: unknown,
+): NormalizedSolanaWalletRequest | null {
+  const root = asRecord(payload);
+  const args = getToolArgs(payload);
+  const solanaRequest = {
+    ...(root ?? {}),
+    ...args,
+  };
+  const chainKind =
+    parseChainKind(args.chain_kind) ?? parseChainKind(root?.chain_kind);
+  if (chainKind !== "svm") {
+    return null;
+  }
+
+  const kind = inferSolanaRequestKind(solanaRequest);
+  if (kind === "solana_sign_message") {
+    const normalized = normalizeSolanaSignMessagePayload(payload);
+    return normalized.message ? { kind, payload: normalized } : null;
+  }
+
+  const normalized = normalizeSolanaSignPayload(payload);
+  return normalized.unsignedTx ? { kind, payload: normalized } : null;
+}
+
+/**
  * Normalize an EIP-712 signing request payload.
  */
-export function normalizeEip712Payload(
-  payload: unknown,
-): WalletEip712Payload {
+export function normalizeEip712Payload(payload: unknown): WalletEip712Payload {
   const args = getToolArgs(payload);
   const typedDataRaw =
     args.typed_data ?? args["712_typed_data"] ?? args.typedData;
+  const nonTypedData = parseString(args.non_typed_data ?? args.nonTypedData);
   let typedData: WalletEip712Payload["typed_data"] | undefined;
 
   if (typeof typedDataRaw === "string") {
@@ -311,7 +537,12 @@ export function normalizeEip712Payload(
     parsePendingId(args.pending_eip712_id) ??
     parsePendingId(args.pendingEip712Id);
 
-  return { typed_data: typedData, description, eip712Id };
+  return {
+    typed_data: typedData,
+    non_typed_data: nonTypedData,
+    description,
+    eip712Id,
+  };
 }
 
 /**
@@ -380,5 +611,22 @@ export function toViemSignTypedDataArgs(
     ) as ViemSignTypedDataArgs["types"],
     primaryType,
     message: asRecord(typedData.message),
+  };
+}
+
+/**
+ * Convert normalized ERC-191/personal_sign payloads into viem signMessage args.
+ * Hex strings are opaque bytes; all other strings are signed as UTF-8 text.
+ */
+export function toViemSignMessageArgs(
+  payload: WalletEip712Payload,
+): ViemSignMessageArgs | null {
+  const nonTypedData = payload.non_typed_data;
+  if (typeof nonTypedData !== "string" || nonTypedData.length === 0) {
+    return null;
+  }
+
+  return {
+    message: isHexBytes(nonTypedData) ? { raw: nonTypedData } : nonTypedData,
   };
 }

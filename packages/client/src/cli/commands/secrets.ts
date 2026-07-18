@@ -11,7 +11,7 @@ export async function ingestSecretsCommand(config: CliConfig): Promise<void> {
   }
 
   const cli = CliSession.loadOrCreate(config);
-  const session = cli.createClientSession();
+  const session = cli.createClientSession(config);
 
   try {
     const handles = await ingestSecretsForSession(config, cli, session.client);
@@ -59,9 +59,9 @@ export async function clearSecretsCommand(config: CliConfig): Promise<void> {
     return;
   }
 
-  const session = cli.createClientSession();
+  const session = cli.createClientSession(config);
   try {
-    await session.client.clearSecrets(clientId);
+    await session.client.clearSecrets(cli.sessionId, clientId);
     cli.clearSecretHandles();
     console.log("Cleared all secrets for the active session.");
     printDataFileLocation();

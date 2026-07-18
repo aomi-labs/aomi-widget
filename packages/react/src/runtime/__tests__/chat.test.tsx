@@ -7,18 +7,32 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, waitFor } from "@testing-library/react";
 
-import { renderRuntime, resetAomiClientMocks, setAomiClientConfig } from "./test-harness";
+import {
+  renderRuntime,
+  resetAomiClientMocks,
+  setAomiClientConfig,
+} from "./test-harness";
 import type { AomiChatResponse } from "@aomi-labs/client";
 
 beforeEach(() => {
   resetAomiClientMocks();
+  window.localStorage.clear();
 });
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
 });
 
 describe("Chat API", () => {
+  const message = (sender: "user" | "agent", content: string) => ({
+    sender,
+    content,
+    tool_result: null,
+    timestamp: new Date().toISOString(),
+    is_streaming: false,
+  });
+
   describe("sendMessage", () => {
     it("sends message to backend", async () => {
       const postChatMessage = vi.fn(
@@ -42,9 +56,429 @@ describe("Chat API", () => {
       const call = postChatMessage.mock.calls[0] as unknown as [
         string,
         string,
-        { userState?: Record<string, unknown> } | undefined,
+        (
+          | {
+              applicationId?: number | string | null;
+              userState?: Record<string, unknown>;
+            }
+          | undefined
+        ),
       ];
       expect(call[1]).toBe("Hello world");
+    });
+
+    it("forwards a locked application id to chat sends", async () => {
+      const postChatMessage = vi.fn(
+        async (): Promise<AomiChatResponse> => ({
+          is_processing: false,
+          messages: [],
+        }),
+      );
+      setAomiClientConfig({ postChatMessage });
+
+      const { api } = renderRuntime({ applicationId: 77 });
+
+      await act(async () => {
+        await api.sendMessage("Hello app");
+      });
+
+      expect(postChatMessage).toHaveBeenCalledWith(
+        expect.any(String),
+        "Hello app",
+        expect.objectContaining({ applicationId: 77 }),
+      );
+    });
+
+    it("shows an optimistic sending message before the backend send finishes", async () => {
+      let resolveChat: ((value: AomiChatResponse) => void) | undefined;
+      const createThread = vi.fn();
+      const postChatMessage = vi.fn(
+        () =>
+          new Promise<AomiChatResponse>((resolve) => {
+            resolveChat = resolve;
+          }),
+      );
+      setAomiClientConfig({ createThread, postChatMessage });
+
+      const { api } = renderRuntime();
+      let sendPromise: Promise<void>;
+
+      await act(async () => {
+        sendPromise = api.sendMessage("Slow send");
+      });
+
+      const messages = api.getMessages();
+      expect(messages).toHaveLength(1);
+      expect(messages[0]).toMatchObject({
+        role: "user",
+        metadata: {
+          custom: {
+            aomiOriginalText: "Slow send",
+            aomiSendStatus: "sending",
+          },
+        },
+      });
+      expect(
+        api.getThreadMetadata(api.currentThreadId)?.control.turnPhase,
+      ).toBe("submitting");
+      expect(createThread).toHaveBeenCalledWith(api.currentThreadId);
+      expect(postChatMessage).toHaveBeenCalled();
+
+      await act(async () => {
+        resolveChat?.({ is_processing: false, messages: [] });
+        await sendPromise!;
+      });
+
+      expect(
+        api.getThreadMetadata(api.currentThreadId)?.control.turnPhase,
+      ).toBe("idle");
+    });
+
+    it("marks the turn as working after the backend accepts async processing", async () => {
+      let resolveChat: ((value: AomiChatResponse) => void) | undefined;
+      const postChatMessage = vi.fn(
+        () =>
+          new Promise<AomiChatResponse>((resolve) => {
+            resolveChat = resolve;
+          }),
+      );
+      setAomiClientConfig({ postChatMessage });
+
+      const { api } = renderRuntime();
+      let sendPromise: Promise<void>;
+
+      await act(async () => {
+        sendPromise = api.sendMessage("Check ETH price");
+      });
+
+      expect(
+        api.getThreadMetadata(api.currentThreadId)?.control.turnPhase,
+      ).toBe("submitting");
+
+      await act(async () => {
+        resolveChat?.({ is_processing: true, messages: [] });
+        await sendPromise!;
+      });
+
+      expect(
+        api.getThreadMetadata(api.currentThreadId)?.control.turnPhase,
+      ).toBe("working");
+    });
+
+    it("promotes slow backend acknowledgements to working on the frontend", async () => {
+      vi.useFakeTimers();
+      let resolveChat: ((value: AomiChatResponse) => void) | undefined;
+      const postChatMessage = vi.fn(
+        () =>
+          new Promise<AomiChatResponse>((resolve) => {
+            resolveChat = resolve;
+          }),
+      );
+      setAomiClientConfig({ postChatMessage });
+
+      const { api } = renderRuntime();
+      let sendPromise: Promise<void>;
+
+      await act(async () => {
+        sendPromise = api.sendMessage("Slow backend acknowledgement");
+      });
+
+      expect(
+        api.getThreadMetadata(api.currentThreadId)?.control.turnPhase,
+      ).toBe("submitting");
+
+      await act(async () => {
+        vi.advanceTimersByTime(299);
+      });
+
+      expect(
+        api.getThreadMetadata(api.currentThreadId)?.control.turnPhase,
+      ).toBe("submitting");
+
+      await act(async () => {
+        vi.advanceTimersByTime(1);
+      });
+
+      expect(
+        api.getThreadMetadata(api.currentThreadId)?.control.turnPhase,
+      ).toBe("working");
+
+      await act(async () => {
+        resolveChat?.({ is_processing: false, messages: [] });
+        await sendPromise!;
+      });
+
+      expect(
+        api.getThreadMetadata(api.currentThreadId)?.control.turnPhase,
+      ).toBe("idle");
+    });
+
+    it("marks the optimistic message as failed when sending fails", async () => {
+      setAomiClientConfig({
+        postChatMessage: vi.fn(async () => {
+          throw new Error("network down");
+        }),
+      });
+
+      const { api } = renderRuntime();
+
+      await act(async () => {
+        await expect(api.sendMessage("Retry me")).rejects.toThrow(
+          "network down",
+        );
+      });
+
+      expect(api.getMessages()).toHaveLength(1);
+      expect(api.getMessages()[0]).toMatchObject({
+        role: "user",
+        metadata: {
+          custom: {
+            aomiOriginalText: "Retry me",
+            aomiSendError: "network down",
+            aomiSendStatus: "failed",
+          },
+        },
+      });
+    });
+
+    it("adds an inline x402 credits notice when the backend returns 402", async () => {
+      const createThread = vi.fn();
+      const deleteThread = vi.fn(async () => undefined);
+      const setModel = vi.fn(async () => ({ rig: "auto-model" }));
+      const postChatMessage = vi.fn(async () => {
+        throw new Error("HTTP 402: Payment Required");
+      });
+      setAomiClientConfig({
+        createThread,
+        deleteThread,
+        getModels: vi.fn(async () => ["auto-model"]),
+        setModel,
+        postChatMessage,
+      });
+
+      const { api, control } = renderRuntime();
+
+      await act(async () => {
+        await control.getAvailableModels();
+      });
+
+      await waitFor(() => {
+        expect(
+          api.getThreadMetadata(api.currentThreadId)?.control.controlDirty,
+        ).toBe(true);
+      });
+
+      await act(async () => {
+        await expect(api.sendMessage("Need quota")).rejects.toThrow("HTTP 402");
+      });
+
+      const messages = api.getMessages();
+      expect(messages).toHaveLength(2);
+      expect(messages[0]).toMatchObject({
+        role: "user",
+        metadata: {
+          custom: {
+            aomiOriginalText: "Need quota",
+            aomiSendStatus: "failed",
+          },
+        },
+      });
+      expect(messages[1]).toMatchObject({
+        role: "assistant",
+        metadata: {
+          custom: {
+            aomiNoticeKind: "payment_required",
+            aomiNoticeTitle: "Credits needed",
+          },
+        },
+      });
+      expect(messages[1].content).toEqual([
+        {
+          type: "text",
+          text: "You're out of funds, please set up a payment method.",
+        },
+      ]);
+      expect(createThread).toHaveBeenCalledWith(api.currentThreadId);
+      expect(setModel).toHaveBeenCalledWith(
+        api.currentThreadId,
+        "auto-model",
+        expect.objectContaining({ app: "default" }),
+      );
+      expect(createThread.mock.invocationCallOrder[0]).toBeLessThan(
+        setModel.mock.invocationCallOrder[0],
+      );
+      expect(setModel.mock.invocationCallOrder[0]).toBeLessThan(
+        postChatMessage.mock.invocationCallOrder[0],
+      );
+      expect(deleteThread).toHaveBeenCalledWith(api.currentThreadId);
+    });
+
+    it("syncs dirty control state before the first message on a new thread", async () => {
+      const createThread = vi.fn(async (threadId: string) => ({
+        session_id: threadId,
+      }));
+      const setModel = vi.fn(async () => ({ rig: "auto-model" }));
+      const postChatMessage = vi.fn(
+        async (): Promise<AomiChatResponse> => ({
+          is_processing: false,
+          messages: [],
+        }),
+      );
+      setAomiClientConfig({
+        createThread,
+        getModels: vi.fn(async () => ["auto-model"]),
+        setModel,
+        postChatMessage,
+      });
+
+      const { api, control } = renderRuntime();
+
+      await act(async () => {
+        await control.getAvailableModels();
+      });
+
+      await waitFor(() => {
+        expect(
+          api.getThreadMetadata(api.currentThreadId)?.control.controlDirty,
+        ).toBe(true);
+      });
+
+      await act(async () => {
+        await api.sendMessage("Use selected model");
+      });
+
+      expect(setModel).toHaveBeenCalledWith(
+        api.currentThreadId,
+        "auto-model",
+        expect.objectContaining({ app: "default" }),
+      );
+      expect(postChatMessage).toHaveBeenCalled();
+      expect(createThread.mock.invocationCallOrder[0]).toBeLessThan(
+        setModel.mock.invocationCallOrder[0],
+      );
+      expect(setModel.mock.invocationCallOrder[0]).toBeLessThan(
+        postChatMessage.mock.invocationCallOrder[0],
+      );
+    });
+
+    it("creates a connected EVM thread without calling stale account ensure", async () => {
+      const ensureAccount = vi.fn(async () => undefined);
+      const createThread = vi.fn(async (threadId: string) => ({
+        session_id: threadId,
+      }));
+      const postChatMessage = vi.fn(
+        async (): Promise<AomiChatResponse> => ({
+          is_processing: false,
+          messages: [],
+        }),
+      );
+      setAomiClientConfig({ ensureAccount, createThread, postChatMessage });
+
+      const { api } = renderRuntime();
+
+      await act(async () => {
+        api.setUser({
+          address: "0xabc",
+          chainId: 8453,
+          isConnected: true,
+        });
+      });
+
+      await act(async () => {
+        await api.sendMessage("Persist this wallet thread");
+      });
+
+      expect(ensureAccount).not.toHaveBeenCalled();
+      expect(createThread).toHaveBeenCalledWith(api.currentThreadId);
+      expect(createThread.mock.invocationCallOrder[0]).toBeLessThan(
+        postChatMessage.mock.invocationCallOrder[0],
+      );
+    });
+
+    it("sends a Solana-only chat without legacy public_key bootstrap", async () => {
+      const ensureAccount = vi.fn(async () => undefined);
+      const createThread = vi.fn(async (threadId: string) => ({
+        session_id: threadId,
+      }));
+      const postChatMessage = vi.fn(
+        async (): Promise<AomiChatResponse> => ({
+          is_processing: false,
+          messages: [],
+        }),
+      );
+      setAomiClientConfig({ ensureAccount, createThread, postChatMessage });
+
+      const { api } = renderRuntime();
+
+      await act(async () => {
+        api.setUser({
+          connection: { is_connected: true, primary_family: "svm" },
+          svm: {
+            address: "So1anaCaseSensitiveSigner",
+            cluster: "solana:mainnet",
+          },
+        });
+      });
+
+      await act(async () => {
+        await api.sendMessage("Use my Solana wallet");
+      });
+
+      expect(ensureAccount).not.toHaveBeenCalled();
+      expect(createThread).toHaveBeenCalledWith(api.currentThreadId);
+      expect(postChatMessage).toHaveBeenCalledWith(
+        api.currentThreadId,
+        "Use my Solana wallet",
+        expect.objectContaining({
+          userState: expect.objectContaining({
+            svm: expect.objectContaining({
+              address: "So1anaCaseSensitiveSigner",
+            }),
+          }),
+        }),
+      );
+    });
+
+    it("replaces the optimistic message with backend messages on success", async () => {
+      setAomiClientConfig({
+        postChatMessage: vi.fn(
+          async (): Promise<AomiChatResponse> =>
+            ({
+              is_processing: false,
+              messages: [
+                {
+                  sender: "user",
+                  content: "No duplicates",
+                  timestamp: new Date().toISOString(),
+                },
+                {
+                  sender: "assistant",
+                  content: "Done",
+                  timestamp: new Date().toISOString(),
+                },
+              ],
+            }) as AomiChatResponse,
+        ),
+      });
+
+      const { api } = renderRuntime();
+
+      await act(async () => {
+        await api.sendMessage("No duplicates");
+      });
+
+      const messages = api.getMessages();
+      expect(messages).toHaveLength(2);
+      expect(messages.map((message) => message.role)).toEqual([
+        "user",
+        "assistant",
+      ]);
+      expect(
+        messages.filter(
+          (message) =>
+            message.metadata?.custom?.aomiOriginalText === "No duplicates",
+        ),
+      ).toHaveLength(0);
     });
 
     it("sends ext values via userState in message options", async () => {
@@ -70,11 +504,8 @@ describe("Chat API", () => {
         string,
         { userState?: Record<string, unknown> } | undefined,
       ];
-      expect(call[2]?.userState).toEqual({
-        address: undefined,
-        chain_id: undefined,
-        is_connected: false,
-        ens_name: undefined,
+      expect(call[2]?.userState).toMatchObject({
+        connection: { is_connected: false },
         ext: {
           SIMMER_API_KEY: "sk_react_test",
         },
@@ -145,22 +576,22 @@ describe("Chat API", () => {
       const call = postChatMessage.mock.calls[0] as unknown as [
         string,
         string,
-        {
-          publicKey?: string;
-          userState?: Record<string, unknown>;
-        } | undefined,
+        { userState?: Record<string, unknown> } | undefined,
       ];
 
-      expect(call[2]?.publicKey).toBeUndefined();
       expect(call[2]?.userState).toMatchObject({
-        address: undefined,
-        chain_id: undefined,
-        is_connected: false,
+        connection: { is_connected: false },
       });
     });
 
     it("hydrates pending wallet requests from backend user_state", async () => {
       setAomiClientConfig({
+        fetchThreads: async () => [
+          {
+            session_id: "thread-with-wallet-request",
+            title: "Wallet request",
+          },
+        ],
         fetchState: async () => ({
           is_processing: false,
           messages: [],
@@ -185,7 +616,25 @@ describe("Chat API", () => {
         }),
       });
 
-      const { getApi } = renderRuntime();
+      const { api, getApi } = renderRuntime();
+
+      await act(async () => {
+        api.setUser({
+          address: "0xabc",
+          chainId: 8453,
+          isConnected: true,
+        });
+      });
+
+      await waitFor(() => {
+        expect(
+          getApi().getThreadMetadata("thread-with-wallet-request"),
+        ).toBeDefined();
+      });
+
+      await act(async () => {
+        getApi().selectThread("thread-with-wallet-request");
+      });
 
       await waitFor(() => {
         expect(getApi().pendingWalletRequests).toEqual([
@@ -227,6 +676,150 @@ describe("Chat API", () => {
     it("is a function", () => {
       const { api } = renderRuntime();
       expect(api.cancelGeneration).toBeInstanceOf(Function);
+    });
+  });
+
+  describe("message regeneration", () => {
+    it("edits a user message and replaces the visible turn", async () => {
+      const postChatMessage = vi
+        .fn()
+        .mockResolvedValueOnce({
+          is_processing: false,
+          messages: [message("user", "Original"), message("agent", "First")],
+        })
+        .mockResolvedValueOnce({
+          is_processing: false,
+          messages: [
+            message("user", "Original"),
+            message("agent", "First"),
+            message("user", "Edited"),
+            message("agent", "Second"),
+          ],
+        });
+      setAomiClientConfig({ postChatMessage });
+
+      const { api, assistantRuntime } = renderRuntime();
+      await act(async () => {
+        await api.sendMessage("Original");
+      });
+
+      expect(assistantRuntime.thread.getState().capabilities.edit).toBe(true);
+      const composer = assistantRuntime.thread.getMessageByIndex(0).composer;
+
+      await act(async () => {
+        composer.beginEdit();
+        composer.setText("Edited");
+        composer.send();
+      });
+
+      await waitFor(() => expect(postChatMessage).toHaveBeenCalledTimes(2));
+      await waitFor(() => {
+        expect(api.getMessages().map((item) => item.content)).toEqual([
+          [{ type: "text", text: "Edited" }],
+          [{ type: "text", text: "Second" }],
+        ]);
+      });
+    });
+
+    it("reruns an assistant response from its user message", async () => {
+      const postChatMessage = vi
+        .fn()
+        .mockResolvedValueOnce({
+          is_processing: false,
+          messages: [message("user", "Original"), message("agent", "First")],
+        })
+        .mockResolvedValueOnce({
+          is_processing: false,
+          messages: [
+            message("user", "Original"),
+            message("agent", "First"),
+            message("user", "Original"),
+            message("agent", "Regenerated"),
+          ],
+        });
+      setAomiClientConfig({ postChatMessage });
+
+      const { api, assistantRuntime } = renderRuntime();
+      await act(async () => {
+        await api.sendMessage("Original");
+      });
+
+      expect(assistantRuntime.thread.getState().capabilities.reload).toBe(true);
+      await act(async () => {
+        assistantRuntime.thread.getMessageByIndex(1).reload();
+      });
+
+      await waitFor(() => expect(postChatMessage).toHaveBeenCalledTimes(2));
+      await waitFor(() => {
+        expect(api.getMessages().map((item) => item.content)).toEqual([
+          [{ type: "text", text: "Original" }],
+          [{ type: "text", text: "Regenerated" }],
+        ]);
+      });
+    });
+
+    it("restores the selected edited branch after remounting", async () => {
+      const rawHistory = [
+        message("user", "Original"),
+        message("agent", "First"),
+        message("user", "Edited"),
+        message("agent", "Second"),
+      ];
+      const postChatMessage = vi
+        .fn()
+        .mockResolvedValueOnce({
+          is_processing: false,
+          messages: rawHistory.slice(0, 2),
+        })
+        .mockResolvedValueOnce({
+          is_processing: false,
+          messages: rawHistory,
+        });
+      setAomiClientConfig({ postChatMessage });
+
+      const firstRender = renderRuntime({ persistThread: false });
+      await act(async () => {
+        await firstRender.api.sendMessage("Original");
+      });
+      const threadId = firstRender.api.currentThreadId;
+      const composer =
+        firstRender.assistantRuntime.thread.getMessageByIndex(0).composer;
+      await act(async () => {
+        composer.beginEdit();
+        composer.setText("Edited");
+        composer.send();
+      });
+      await waitFor(() => expect(postChatMessage).toHaveBeenCalledTimes(2));
+      firstRender.unmount();
+
+      setAomiClientConfig({
+        listThreads: async () => [
+          { session_id: threadId, title: "Edited thread" },
+        ],
+        fetchState: async () => ({
+          is_processing: false,
+          messages: rawHistory,
+        }),
+      });
+      const restored = renderRuntime({
+        initialThreadId: threadId,
+        persistThread: false,
+      });
+
+      await act(async () => {
+        restored.api.setUser({
+          address: "0xabc",
+          chainId: 8453,
+          isConnected: true,
+        });
+      });
+
+      await waitFor(() => {
+        expect(restored.getApi().getMessages()).toMatchObject([
+          { role: "user", content: [{ type: "text", text: "Edited" }] },
+          { role: "assistant", content: [{ type: "text", text: "Second" }] },
+        ]);
+      });
     });
   });
 });

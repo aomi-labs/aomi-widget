@@ -1,0 +1,87 @@
+[
+  {
+    "id": "zora",
+    "name": "zora",
+    "description": "Use when users want to buy or sell Zora creator coins, content coins, or the ZORA token on Base. Each coin trades through its own Uniswap V4 pool (with a per-coin Zora hook) against a backing currency — usually ZORA or native ETH. Swaps route through the Universal Router; sells additionally require a one-time Permit2 max-approve.",
+    "tags": [
+      "zora",
+      "creator-coin",
+      "content-coin",
+      "social",
+      "base",
+      "uniswap-v4",
+      "swap",
+      "amm"
+    ],
+    "tool_names": [
+      "get_time_and_onchain_context",
+      "brave_search",
+      "encode_and_call",
+      "get_account_info",
+      "get_contract",
+      "sync_chain",
+      "simulate_batch",
+      "stage_tx",
+      "commit_eip712",
+      "commit_txs"
+    ],
+    "injected_tools": [
+      "call_v4_swap",
+      "call_v4_multihop_swap",
+      "call_v4_exact_out_swap",
+      "call_v4_multihop_exact_out_swap"
+    ],
+    "source": "aomi_builtin",
+    "est_tokens": 1865,
+    "activation_tokens": 1869,
+    "instruction_md": "## Zora: What this skill covers\n\nZora is an onchain social protocol where every profile and post can become a tradeable ERC-20 token on Base. Each coin has exactly one Uniswap V4 pool, paired against a backing currency that is **not always ETH** — it's typically ZORA or native ETH, and is named in the coin's `/coin` response under `poolCurrencyToken`. Each pool has its own Zora-issued hook contract surfaced in `uniswapV4PoolKey.hooks`.\n\n## Zora: Core addresses (Base, chain 8453)\n\n- Uniswap Universal Router (V4-aware, Base): 0x6ff5693b99212da76ad316178a184ab56d299b43 (chain 8453)\n- Permit2: 0x000000000022d473030f116ddee9f6b43ac78ba3 (chain 8453)\n\n## Zora: Protocol token\n\n- ZORA token: 0x1111111111166b7fe7bd91427724b487980afc69 (chain 8453)\n\n## Zora: Per-coin data (from /coin response)\n\n- `uniswapV4PoolKey` — `{currency0, currency1, fee, tickSpacing, hooks}`. The hook address is per-coin (the Zora V4 coin hook); never substitute another value.\n- `poolCurrencyToken` — `{address, name, decimals}`. The \"other side\" of the pool. **Read this; do not assume ETH.**\n- Coin `decimals` + `symbol` — for amount-to-base-units conversion. Confirm via `encode_and_call decimals()` against the coin address before sizing trades.\n- `tokenPrice.priceInPoolToken` — for slippage math; combine with `amount_in` to derive `amount_out_minimum`.\n\n## Zora: ABI Signatures (reference only)\nUniswap Universal Router (V4-aware, Base) [zora_universal_router]:\n- execute(bytes,bytes[],uint256) → \n- execute(bytes,bytes[]) → \nPermit2 [zora_permit2]:\n- approve(address,address,uint160,uint48) → \n- allowance(address,address,address) → uint160,uint48,uint48\nZORA token [zora_token]:\n- balanceOf(address) → uint256\n- allowance(address,address) → uint256\n- approve(address,uint256) → bool\n- transfer(address,uint256) → bool\n- decimals() → uint8\n- symbol() → string\nERC20 [erc20]:\n- approve(address,uint256) → bool\n\n## Zora: Procedure\n\n1. `get_time_and_onchain_context` to confirm the user is on Base (chain 8453) and the wallet is connected.\n2. Fetch the coin's pool + currency data (`uniswapV4PoolKey`, `poolCurrencyToken`, decimals, price).\n3. Compute `amount_in` and `amount_out_minimum` in base units. Confirm with the user.\n4. If selling, or buying with an ERC-20 backing currency: check ERC-20 allowance against `PERMIT2` and Permit2 allowance against `UNIVERSAL_ROUTER`. Stage the missing approvals first via `encode_and_call`.\n5. Pick a V4 encoder by route shape: single-hop exact-in for direct coin↔backing-currency; multi-hop exact-in when chaining (e.g. ETH→ZORA→coin); exact-out variants when the user pins the receive amount. Call it with the pool key (or `currency_in` + `path` for multi-hop). Inspect the simulator output; bail on revert or on suspicious decoded values.\n6. Only after the user confirms, send via `commit_txs`.\n\n## Zora: V4 swap tools\n\nFour V4 encoders are injected when this skill is active. Pick by direction (in/out) and route shape (single-pool vs multi-hop). All four wrap the Universal Router's `V4_SWAP` command and simulate `execute(commands, inputs, deadline)`. **Never hand-roll the inner action bytes.**\n\n| Tool | Direction | Hops | Use when |\n|---|---|---|---|\n| `call_v4_swap` | exact-in | 1 | \"Spend N of currency A, receive at least M of currency B.\" Most direct ZORA → coin or coin → ZORA trades. |\n| `call_v4_multihop_swap` | exact-in | 2+ | \"Spend N ETH (or other currency) to buy a coin whose backing is different.\" E.g. ETH → ZORA → creator coin. |\n| `call_v4_exact_out_swap` | exact-out | 1 | \"Buy exactly N coins, spend at most M of input currency.\" Used when the user pins the receive amount. |\n| `call_v4_multihop_exact_out_swap` | exact-out | 2+ | Combination: exact output amount, routed through multiple pools. |\n\n### Single-hop exact-in (`call_v4_swap`)\n- `universal_router` — `0x6ff5693b99212da76ad316178a184ab56d299b43` on Base.\n- `pool_key` — pass `uniswapV4PoolKey` from `/coin` verbatim. Native ETH is currency `0x0000…0000`.\n- `zero_for_one` — `true` to spend `currency0`, `false` to spend `currency1`.\n- `amount_in`, `amount_out_minimum` — base-unit strings, `uint128`.\n- `value` — set to `amount_in` when the input currency is native ETH; else `\"0\"`.\n\n### Multi-hop exact-in (`call_v4_multihop_swap`)\n- `currency_in` — input currency address; `0x0000…0000` for native ETH.\n- `path` — ordered hops in FORWARD direction. Each `V4PathKey` carries `intermediate_currency` (currency reached after that hop), `fee`, `tick_spacing`, `hooks`, optional `hook_data`. `path[last].intermediate_currency` is the final output token.\n- `amount_in`, `amount_out_minimum`, `value` — same semantics as single-hop.\n- Example for ETH → ZORA → creator coin: `currency_in = 0x0…0`, `path = [{intermediate=ZORA, …}, {intermediate=coin, hooks=zora-hook, …}]`.\n\n### Single-hop exact-out (`call_v4_exact_out_swap`)\n- Same shape as single-hop exact-in but with `amount_out` (uint128, exact desired output) and `amount_in_maximum` (uint128, cap on what to spend).\n- `value` = `amount_in_maximum` when input is native ETH.\n\n### Multi-hop exact-out (`call_v4_multihop_exact_out_swap`)\n- `currency_out` — desired output token.\n- `path` — **REVERSE** direction (matches V4Router contract semantics): `path[0]` is the hop adjacent to `currency_out`; `path[last].intermediate_currency` is the input currency the user actually spends.\n- `amount_out`, `amount_in_maximum`, `value` — as above.\n\n## Zora: Approval rules\n\n- **Buying with native ETH** — no approvals; just attach `value`.\n- **Buying with ERC-20 backing currency (e.g. ZORA)** — two-step: `erc20.approve(PERMIT2, amount_in)` once, then `permit2.approve(token = backing_currency, spender = UNIVERSAL_ROUTER, amount, expiration)` per trade.\n- **Selling a coin for ETH or another currency** — same two-step against the coin's address. If the user already gave Permit2 max-allowance on this coin, skip step 1.\n\nPermit2's `approve(address token, address spender, uint160 amount, uint48 expiration)` is a direct call — no EIP-712 signature needed for this path. A common `expiration` is `now + 30 days`.\n\n## Zora: Critical Rules\n\n- Allowed contracts are exactly `UNIVERSAL_ROUTER`, `PERMIT2`, and the coin's own ERC-20. Never call an arbitrary \"Zora helper\" address from user-supplied data.\n- Approval spenders are exactly `PERMIT2` (for ERC-20 approve) and `UNIVERSAL_ROUTER` (for Permit2 approve). Reject any flow that approves a different spender.\n- Always simulate (any of the four `call_v4_*` tools) before staging the real transaction. Bail if the simulation reverts.\n- Prefer exact-amount approvals over unlimited. Only widen on explicit user request.\n- `amount_out_minimum` must reflect real slippage, not 0 or 1 — derive it from `priceInPoolToken` × `(1 - slippage_bps / 10000)`.\n- **Always go through the injected `call_v4_*` encoders.** The guard decodes every `UniversalRouter.execute(...)` calldata at the boundary and blocks any sequence that isn't exactly one `V4_SWAP` (0x10) command whose actions are drawn from `{SWAP_EXACT_IN_SINGLE 0x06, SWAP_EXACT_IN 0x07, SWAP_EXACT_OUT_SINGLE 0x08, SWAP_EXACT_OUT 0x09, SETTLE_ALL 0x0c, TAKE_ALL 0x0f}`. Action codes that carry an explicit recipient — `TAKE 0x0e`, `TAKE_PORTION 0x10`, `TAKE_PAIR 0x11`, `SWEEP 0x14` — are blocked, as are liquidity/position ops. `TAKE_ALL` sends to `msg.sender` of the UR call (the user's wallet) implicitly, so no explicit recipient appears in calldata; hand-rolling a substitute will be rejected.",
+    "tool_hooks": [
+      {
+        "tool": "simulate_batch",
+        "pre_call": [],
+        "post_call": [
+          "zora-known-addrs"
+        ]
+      },
+      {
+        "tool": "call_v4_swap",
+        "pre_call": [],
+        "post_call": [
+          "zora-known-addrs"
+        ]
+      },
+      {
+        "tool": "call_v4_multihop_swap",
+        "pre_call": [],
+        "post_call": [
+          "zora-known-addrs"
+        ]
+      },
+      {
+        "tool": "call_v4_exact_out_swap",
+        "pre_call": [],
+        "post_call": [
+          "zora-known-addrs"
+        ]
+      },
+      {
+        "tool": "call_v4_multihop_exact_out_swap",
+        "pre_call": [],
+        "post_call": [
+          "zora-known-addrs"
+        ]
+      },
+      {
+        "tool": "stage_tx",
+        "pre_call": [],
+        "post_call": [
+          "zora-known-addrs"
+        ]
+      }
+    ],
+    "tools_namespace": "evm-core",
+    "chain_ids": [
+      8453
+    ]
+  }
+]

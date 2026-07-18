@@ -9,9 +9,9 @@ const SESSION_HEADER = {
   required: true,
 };
 
-const API_KEY_HEADER = {
-  key: "X-API-Key",
-  placeholder: "your-api-key (optional)",
+const APP_KEY_HEADER = {
+  key: "Aomi-App-Key",
+  placeholder: "your-app-key (optional)",
 };
 
 const ENDPOINTS: EndpointDef[] = [
@@ -78,34 +78,6 @@ const ENDPOINTS: EndpointDef[] = [
     method: "DELETE",
     path: "/api/sessions/:sessionId",
     description: "Permanently delete a session.",
-    params: [
-      {
-        key: "sessionId",
-        placeholder: "session-uuid",
-        required: true,
-      },
-    ],
-    headers: [SESSION_HEADER],
-  },
-  {
-    label: "Archive Session",
-    method: "POST",
-    path: "/api/sessions/:sessionId/archive",
-    description: "Archive a session (soft-delete).",
-    params: [
-      {
-        key: "sessionId",
-        placeholder: "session-uuid",
-        required: true,
-      },
-    ],
-    headers: [SESSION_HEADER],
-  },
-  {
-    label: "Unarchive Session",
-    method: "POST",
-    path: "/api/sessions/:sessionId/unarchive",
-    description: "Restore an archived session.",
     params: [
       {
         key: "sessionId",

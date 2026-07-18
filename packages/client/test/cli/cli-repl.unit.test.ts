@@ -5,17 +5,17 @@ const {
   modelsCommandMock,
   setAppCommandMock,
   setModelCommandMock,
-  saveProviderKeyCommandMock,
-  showProviderKeysCommandMock,
-  clearProviderKeysCommandMock,
+  saveByokKeyCommandMock,
+  showByokKeysCommandMock,
+  clearByokKeysCommandMock,
 } = vi.hoisted(() => ({
   chatCommandMock: vi.fn().mockResolvedValue(undefined),
   modelsCommandMock: vi.fn().mockResolvedValue(undefined),
   setAppCommandMock: vi.fn(),
   setModelCommandMock: vi.fn().mockResolvedValue(undefined),
-  saveProviderKeyCommandMock: vi.fn().mockResolvedValue(undefined),
-  showProviderKeysCommandMock: vi.fn().mockResolvedValue(undefined),
-  clearProviderKeysCommandMock: vi.fn().mockResolvedValue(undefined),
+  saveByokKeyCommandMock: vi.fn().mockResolvedValue(undefined),
+  showByokKeysCommandMock: vi.fn().mockResolvedValue(undefined),
+  clearByokKeysCommandMock: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("../../src/cli/commands/chat", () => ({
@@ -28,10 +28,10 @@ vi.mock("../../src/cli/commands/control", () => ({
   setModelCommand: setModelCommandMock,
 }));
 
-vi.mock("../../src/cli/commands/provider-keys", () => ({
-  saveProviderKeyCommand: saveProviderKeyCommandMock,
-  showProviderKeysCommand: showProviderKeysCommandMock,
-  clearProviderKeysCommand: clearProviderKeysCommandMock,
+vi.mock("../../src/cli/commands/byok", () => ({
+  saveByokKeyCommand: saveByokKeyCommandMock,
+  showByokKeysCommand: showByokKeysCommandMock,
+  clearByokKeysCommand: clearByokKeysCommandMock,
 }));
 
 vi.mock("../../src/cli/cli-session", () => ({
@@ -95,7 +95,7 @@ describe("CLI REPL command routing", () => {
     expect(config.model).toBe("gpt-5");
   });
 
-  it("routes /key commands to provider-key handlers", async () => {
+  it("routes /key commands to BYOK-key handlers", async () => {
     const { handleReplLine } = await import("../../src/cli/repl");
     const config = {
       baseUrl: "https://api.aomi.dev",
@@ -104,20 +104,20 @@ describe("CLI REPL command routing", () => {
     };
 
     await handleReplLine(config, "/key anthropic:sk-ant", false);
-    expect(saveProviderKeyCommandMock).toHaveBeenCalledWith(
+    expect(saveByokKeyCommandMock).toHaveBeenCalledWith(
       config,
       "anthropic:sk-ant",
       { printLocation: false },
     );
 
     await handleReplLine(config, "/key show", false);
-    expect(showProviderKeysCommandMock).toHaveBeenCalledWith(
+    expect(showByokKeysCommandMock).toHaveBeenCalledWith(
       config,
       { printLocation: false },
     );
 
     await handleReplLine(config, "/key clear", false);
-    expect(clearProviderKeysCommandMock).toHaveBeenCalledWith(
+    expect(clearByokKeysCommandMock).toHaveBeenCalledWith(
       config,
       { printLocation: false },
     );

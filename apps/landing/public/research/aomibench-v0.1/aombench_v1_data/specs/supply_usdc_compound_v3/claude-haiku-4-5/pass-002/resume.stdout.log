@@ -1,0 +1,8 @@
+[eval] FAIL supply_usdc_compound_v3 1 turn(s) 5 tool call(s) 0.79539 cr, 22748 in / 965 out tok, 21799 cached / 0 reasoning tok 0 warning(s) duration 15s
+errors:
+  tool sequence broke before expected tool 'stage_tx'; no matching tool arguments for stage_tx:$.to
+  callback_observed no matching callback_observed; observed 0 value(s)
+  Alice supplies about 100 USDC to Compound Alice supplies about 100 USDC to Compound (before: 10000 USDC, after: 10000 USDC, delta: +0 USDC, expected: -100 USDC ± 5 USDC)
+  USDC Transfer log into Compound USDC Transfer log into Compound observed 0 log(s), expected at least 1 from block 25215084 through 25215083
+report full json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/supply_usdc_compound_v3/claude-haiku-4.5/pass-002/20260531T113443.674740000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/supply_usdc_compound_v3/claude-haiku-4.5/pass-002/20260531T113443.674740000Z.compact.json

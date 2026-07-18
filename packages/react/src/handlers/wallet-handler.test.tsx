@@ -48,17 +48,21 @@ describe("useWalletHandler", () => {
     });
 
     expect(result.current.pendingRequests).toEqual([request]);
+    expect(result.current.hasBlockingWalletRequests).toBe(true);
 
     let resolvePromise!: Promise<void>;
     act(() => {
       result.current.startRequest(request.id);
       resolvePromise = result.current.resolveRequest(request.id, {
+        kind: "transaction",
         txHash: "0xabc",
       });
     });
 
     expect(result.current.pendingRequests).toEqual([]);
+    expect(result.current.hasBlockingWalletRequests).toBe(true);
     expect(session.resolve).toHaveBeenCalledWith(request.id, {
+      kind: "transaction",
       txHash: "0xabc",
     });
 
@@ -67,6 +71,7 @@ describe("useWalletHandler", () => {
     });
 
     expect(result.current.pendingRequests).toEqual([]);
+    expect(result.current.hasBlockingWalletRequests).toBe(true);
 
     await act(async () => {
       resolveDeferred.resolve();
@@ -74,6 +79,7 @@ describe("useWalletHandler", () => {
     });
 
     expect(result.current.pendingRequests).toEqual([]);
+    expect(result.current.hasBlockingWalletRequests).toBe(false);
   });
 
   it("removes a request even when backend acknowledgement fails", async () => {
@@ -107,6 +113,7 @@ describe("useWalletHandler", () => {
     let resolvePromise!: Promise<void>;
     act(() => {
       resolvePromise = result.current.resolveRequest(request.id, {
+        kind: "transaction",
         txHash: "0xdef",
       });
     });

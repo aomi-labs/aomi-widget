@@ -3,11 +3,15 @@ import type { AomiIngestSecretsResponse } from "../types";
 import type { ClientSession } from "../session";
 import type { CliConfig } from "./types";
 import type { CliSession } from "./cli-session";
+import { createCliAuthTokenProvider } from "./auth";
+import { DEFAULT_CLI_BASE_URL } from "./client-factory";
+import { readState } from "./state";
 
 export function createControlClient(config: CliConfig): AomiClient {
   return new AomiClient({
-    baseUrl: config.baseUrl ?? "https://api.aomi.dev",
+    baseUrl: config.baseUrl ?? DEFAULT_CLI_BASE_URL,
     apiKey: config.apiKey,
+    getAccountBearer: createCliAuthTokenProvider(() => readState() ?? {}),
   });
 }
 
@@ -22,6 +26,7 @@ export async function ingestSecretsForSession(
   const clientId = cli.ensureClientId();
 
   const response: AomiIngestSecretsResponse = await client.ingestSecrets(
+    cli.sessionId,
     clientId,
     secrets,
   );
@@ -36,12 +41,22 @@ export async function applyRequestedModelIfPresent(
   session: ClientSession,
 ): Promise<void> {
   const requestedModel = config.model;
-  if (!requestedModel || requestedModel === cli.model) {
+  if (!requestedModel) {
+    return;
+  }
+
+  // Push the model to the backend unless it's already been synced this session.
+  // cli.modelSynced tracks whether we've actually called setModel on the current
+  // backend session. For a brand-new session the backend starts with the app's
+  // default model, so we must push even if cli.model already matches locally.
+  const alreadySynced = cli.modelSynced && requestedModel === cli.model;
+  if (alreadySynced) {
     return;
   }
 
   await session.client.setModel(cli.sessionId, requestedModel, {
     app: cli.app,
+    applicationId: config.applicationId,
     apiKey: cli.apiKey,
   });
   cli.setModel(requestedModel);

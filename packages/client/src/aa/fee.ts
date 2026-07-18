@@ -54,7 +54,7 @@ export function normalizeSimulatedFee(
   }
 
   return {
-    recipient: getAddress(fee.recipient),
+    recipient: getAddress(fee.recipient) as Hex,
     amountWei,
   };
 }
@@ -90,7 +90,7 @@ export function appendFeeCallToPayload(
   }
 
   const calls = toPayloadCalls(payload, defaultChainId);
-  const forceAaPreference = options?.forceAaPreference ?? "eip4337";
+  const forceAaPreference = options?.forceAaPreference ?? "eip7702";
   const strictAa = options?.strictAa ?? true;
 
   return {

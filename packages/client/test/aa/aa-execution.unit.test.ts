@@ -15,23 +15,33 @@ function makeProviderState(params: {
       mode: params.mode,
       batchingEnabled: true,
       sponsorship: "optional",
-      fallbackToEoa: false,
     },
-    account: {
-      provider: "ALCHEMY",
-      mode: params.mode,
-      AAAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-      delegationAddress:
-        params.mode === "7702"
-          ? "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-          : undefined,
-      sendTransaction:
-        params.sendTransaction ??
-        vi.fn().mockResolvedValue({ transactionHash: "0xsingle" }),
-      sendBatchTransaction:
-        params.sendBatchTransaction ??
-        vi.fn().mockResolvedValue({ transactionHash: "0xbatch" }),
-    },
+    account:
+      params.mode === "4337"
+        ? {
+            provider: "alchemy",
+            mode: "4337",
+            address: "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            SmartAccount4337: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            sendTransaction:
+              params.sendTransaction ??
+              vi.fn().mockResolvedValue({ transactionHash: "0xsingle" }),
+            sendBatchTransaction:
+              params.sendBatchTransaction ??
+              vi.fn().mockResolvedValue({ transactionHash: "0xbatch" }),
+          }
+        : {
+            provider: "alchemy",
+            mode: "7702",
+            address: "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            Delegation7702: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            sendTransaction:
+              params.sendTransaction ??
+              vi.fn().mockResolvedValue({ transactionHash: "0xsingle" }),
+            sendBatchTransaction:
+              params.sendBatchTransaction ??
+              vi.fn().mockResolvedValue({ transactionHash: "0xbatch" }),
+          },
     pending: false,
     error: null,
   };
@@ -79,12 +89,12 @@ describe("executeWalletCalls via AA", () => {
       {
         to: "0x0000000000000000000000000000000000000000",
         value: 0n,
-        data: "0x",
+        data: undefined,
       },
       {
         to: "0x0000000000000000000000000000000000000000",
         value: 0n,
-        data: "0x",
+        data: undefined,
       },
     ]);
     expect(result).toEqual({
@@ -93,8 +103,7 @@ describe("executeWalletCalls via AA", () => {
       executionKind: "alchemy_7702",
       batched: true,
       sponsored: true,
-      AAAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-      delegationAddress: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      Delegation7702: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
     });
   });
 
@@ -142,8 +151,7 @@ describe("executeWalletCalls via AA", () => {
       executionKind: "alchemy_4337",
       batched: false,
       sponsored: true,
-      AAAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-      delegationAddress: undefined,
+      SmartAccount4337: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     });
   });
 });

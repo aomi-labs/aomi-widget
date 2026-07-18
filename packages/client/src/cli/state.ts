@@ -1,4 +1,5 @@
 import {
+  chmodSync,
   existsSync,
   mkdirSync,
   readFileSync,
@@ -10,12 +11,15 @@ import { basename, join } from "node:path";
 import { homedir, tmpdir } from "node:os";
 import {
   UserState as UserStateHelpers,
+  type UserStateAAMode,
   type UserState,
-} from "../types";
+} from "../user-state";
 import {
   pendingTxsFromBackendUserState,
+  pendingSolTxsFromBackendUserState,
   walletSnapshotFromUserState,
 } from "./user-state";
+import type { CliEmbeddedProvider } from "./types";
 
 export type PendingTx = {
   id: string;
@@ -41,8 +45,8 @@ export type SignedTx = {
   aaMode?: string;
   batched?: boolean;
   sponsored?: boolean;
-  AAAddress?: string;
-  delegationAddress?: string;
+  smartAccount4337?: string;
+  Delegation7702?: string;
   signature?: string;
   from?: string;
   to?: string;
@@ -52,22 +56,92 @@ export type SignedTx = {
   timestamp: number;
 };
 
+/**
+ * Solana sign-only request waiting for the local CLI signer. Mirrors
+ * [`PendingTx`] but kept as its own type — the host treats Solana as a
+ * separate domain (no batching, no chain id, no `to`/`value`) so a flat
+ * non-union record is cleaner than co-mingling Solana-only fields onto
+ * [`PendingTx`].
+ */
+export type PendingSolTx = {
+  id: string;
+  /** Backend-assigned id for the staged Solana sign request. */
+  solanaId: number;
+  /** Base64 of the unsigned Solana transaction (host never decodes). */
+  unsignedTx: string;
+  /** CAIP-2 cluster, e.g. "solana:mainnet" / "solana:devnet". */
+  cluster?: string;
+  /** Base58 pubkey the host expects to sign (informational; CLI signs
+   *  with whatever local keypair the user provides). */
+  signer?: string;
+  description?: string;
+  timestamp: number;
+  payload: Record<string, unknown>;
+};
+
+/**
+ * Signed Solana record persisted locally for `aomi tx list`. The bound
+ * artifact is `signedTx` (base64 of the full signed bytes, ready to
+ * splice into a `submit_*` continuation).
+ */
+export type SignedSolTx = {
+  id: string;
+  signedTx: string;
+  signer: string;
+  cluster?: string;
+  description?: string;
+  timestamp: number;
+};
+
+export type CliAuthSession = {
+  sessionToken: string;
+  expiresAt: number;
+  walletAddress?: string;
+  chainId?: number;
+  betterAuthUserId?: string;
+};
+
 export type CliSessionState = {
   sessionId: string;
   clientId?: string;
   baseUrl: string;
   app?: string;
   model?: string;
+  /** Whether the active model has been pushed to the backend session. */
+  modelSynced?: boolean;
   apiKey?: string;
+  /** Aomi account bearer for authenticated requests. Persisted so a bearer
+   * supplied once (via `--account-bearer`) survives across CLI invocations. */
+  accountBearer?: string;
+  /** Legacy persisted session token slot. New logins write BetterAuth bearer
+   * sessions to `auth`; this remains for older local state migration. */
+  sessionCookie?: string;
+  /** Deprecated legacy provider-exchange config. */
+  embeddedProvider?: CliEmbeddedProvider;
+  /** Deprecated legacy provider-exchange config. */
+  embeddedProviderToken?: string;
   publicKey?: string;
   privateKey?: string;
+  /** Solana public key (base58), derived from the Solana keypair when provided. */
+  svmPublicKey?: string;
+  /** Solana private key (base58), persisted by `wallet set --solana`. Used as
+   * the signing key fallback when `--solana-private-key` is not passed on a
+   * command. Never printed in output. */
+  svmPrivateKey?: string;
   chainId?: number;
+  aaMode?: UserStateAAMode | null;
+  smartAccount?: string | null;
   pendingTxs?: PendingTx[];
+  pendingSolTxs?: PendingSolTx[];
   signedTxs?: SignedTx[];
+  signedSolTxs?: SignedSolTx[];
   secretHandles?: Record<string, string>;
+  auth?: CliAuthSession;
 };
 
-function getBackendPendingId(tx: Omit<PendingTx, "id"> | PendingTx): number | undefined {
+function getBackendPendingId(
+  tx: Omit<PendingTx, "id"> | PendingTx,
+): number | undefined {
   return tx.kind === "transaction" ? tx.txId : tx.eip712Id;
 }
 
@@ -92,6 +166,14 @@ type StoredSessionState = CliSessionState & {
   updatedAt: number;
 };
 
+type LegacySignedTx = SignedTx & {
+  AAAddress?: string;
+};
+
+type LegacyStoredSessionState = Omit<StoredSessionState, "signedTxs"> & {
+  signedTxs?: LegacySignedTx[];
+};
+
 export type StoredSessionRecord = {
   localId: number;
   sessionId: string;
@@ -103,6 +185,8 @@ export type StoredSessionRecord = {
 
 const SESSION_FILE_PREFIX = "session-";
 const SESSION_FILE_SUFFIX = ".json";
+const STATE_DIR_MODE = 0o700;
+const STATE_FILE_MODE = 0o600;
 
 const LEGACY_STATE_FILE = join(
   process.env.XDG_RUNTIME_DIR ?? tmpdir(),
@@ -115,7 +199,13 @@ export const SESSIONS_DIR = join(STATE_ROOT_DIR, "sessions");
 const ACTIVE_SESSION_FILE = join(STATE_ROOT_DIR, "active-session.txt");
 
 function ensureStorageDirs(): void {
-  mkdirSync(SESSIONS_DIR, { recursive: true });
+  mkdirSync(SESSIONS_DIR, { recursive: true, mode: STATE_DIR_MODE });
+  try {
+    chmodSync(STATE_ROOT_DIR, STATE_DIR_MODE);
+    chmodSync(SESSIONS_DIR, STATE_DIR_MODE);
+  } catch {
+    // Best effort only; writes still proceed so the CLI remains usable.
+  }
 }
 
 function parseSessionFileLocalId(filename: string): number | null {
@@ -126,7 +216,10 @@ function parseSessionFileLocalId(filename: string): number | null {
 }
 
 function toSessionFilePath(localId: number): string {
-  return join(SESSIONS_DIR, `${SESSION_FILE_PREFIX}${localId}${SESSION_FILE_SUFFIX}`);
+  return join(
+    SESSIONS_DIR,
+    `${SESSION_FILE_PREFIX}${localId}${SESSION_FILE_SUFFIX}`,
+  );
 }
 
 function toCliSessionState(stored: StoredSessionState): CliSessionState {
@@ -136,22 +229,52 @@ function toCliSessionState(stored: StoredSessionState): CliSessionState {
     baseUrl: stored.baseUrl,
     app: stored.app,
     model: stored.model,
+    modelSynced: stored.modelSynced,
     apiKey: stored.apiKey,
+    accountBearer: stored.accountBearer,
+    sessionCookie: stored.sessionCookie,
+    embeddedProvider: stored.embeddedProvider,
+    embeddedProviderToken: stored.embeddedProviderToken,
     publicKey: stored.publicKey,
     privateKey: stored.privateKey,
+    svmPublicKey: stored.svmPublicKey,
+    svmPrivateKey: stored.svmPrivateKey,
     chainId: stored.chainId,
+    aaProvider: stored.aaProvider,
+    aaMode: stored.aaMode,
+    smartAccount: stored.smartAccount,
     pendingTxs: stored.pendingTxs,
+    pendingSolTxs: stored.pendingSolTxs,
     signedTxs: stored.signedTxs,
+    signedSolTxs: stored.signedSolTxs,
     secretHandles: stored.secretHandles,
+    auth: stored.auth,
   };
+}
+
+function normalizeSignedTx(tx: LegacySignedTx): SignedTx {
+  const { AAAddress: _legacyAAAddress, ...rest } = tx;
+  return {
+    ...rest,
+    smartAccount4337: tx.smartAccount4337 ?? tx.AAAddress,
+  };
+}
+
+function normalizeSignedTxs(
+  signedTxs: LegacyStoredSessionState["signedTxs"],
+): SignedTx[] | undefined {
+  return signedTxs?.map(normalizeSignedTx);
 }
 
 function readStoredSession(path: string): StoredSessionState | null {
   try {
     const raw = readFileSync(path, "utf-8");
-    const parsed = JSON.parse(raw) as Partial<StoredSessionState>;
+    const parsed = JSON.parse(raw) as Partial<LegacyStoredSessionState>;
 
-    if (typeof parsed.sessionId !== "string" || typeof parsed.baseUrl !== "string") {
+    if (
+      typeof parsed.sessionId !== "string" ||
+      typeof parsed.baseUrl !== "string"
+    ) {
       return null;
     }
 
@@ -163,12 +286,24 @@ function readStoredSession(path: string): StoredSessionState | null {
       app: parsed.app,
       model: parsed.model,
       apiKey: parsed.apiKey,
+      accountBearer: parsed.accountBearer,
+      sessionCookie: parsed.sessionCookie,
+      embeddedProvider: parsed.embeddedProvider,
+      embeddedProviderToken: parsed.embeddedProviderToken,
       publicKey: parsed.publicKey,
       privateKey: parsed.privateKey,
+      svmPublicKey: parsed.svmPublicKey,
+      svmPrivateKey: parsed.svmPrivateKey,
       chainId: parsed.chainId,
+      aaProvider: parsed.aaProvider,
+      aaMode: parsed.aaMode,
+      smartAccount: parsed.smartAccount,
       pendingTxs: parsed.pendingTxs,
-      signedTxs: parsed.signedTxs,
+      pendingSolTxs: parsed.pendingSolTxs,
+      signedTxs: normalizeSignedTxs(parsed.signedTxs),
+      signedSolTxs: parsed.signedSolTxs,
       secretHandles: parsed.secretHandles,
+      auth: normalizeAuthSession(parsed.auth),
       localId:
         typeof parsed.localId === "number" && parsed.localId > 0
           ? parsed.localId
@@ -185,6 +320,26 @@ function readStoredSession(path: string): StoredSessionState | null {
   } catch {
     return null;
   }
+}
+
+function normalizeAuthSession(value: unknown): CliAuthSession | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const auth = value as Partial<CliAuthSession>;
+  if (
+    typeof auth.sessionToken !== "string" ||
+    !auth.sessionToken ||
+    typeof auth.expiresAt !== "number" ||
+    !Number.isFinite(auth.expiresAt)
+  ) {
+    return undefined;
+  }
+  return {
+    sessionToken: auth.sessionToken,
+    expiresAt: auth.expiresAt,
+    walletAddress: auth.walletAddress,
+    chainId: auth.chainId,
+    betterAuthUserId: auth.betterAuthUserId,
+  };
 }
 
 function readActiveLocalId(): number | null {
@@ -208,7 +363,14 @@ function writeActiveLocalId(localId: number | null): void {
       return;
     }
     ensureStorageDirs();
-    writeFileSync(ACTIVE_SESSION_FILE, String(localId));
+    writeFileSync(ACTIVE_SESSION_FILE, String(localId), {
+      mode: STATE_FILE_MODE,
+    });
+    try {
+      chmodSync(ACTIVE_SESSION_FILE, STATE_FILE_MODE);
+    } catch {
+      // Best-effort hardening only.
+    }
   } catch {
     // Ignore active pointer write failures.
   }
@@ -219,8 +381,9 @@ function readAllStoredSessions(): StoredSessionState[] {
     ensureStorageDirs();
     const filenames = readdirSync(SESSIONS_DIR)
       .map((name) => ({ name, localId: parseSessionFileLocalId(name) }))
-      .filter((entry): entry is { name: string; localId: number } =>
-        entry.localId !== null,
+      .filter(
+        (entry): entry is { name: string; localId: number } =>
+          entry.localId !== null,
       )
       .sort((a, b) => a.localId - b.localId);
 
@@ -262,7 +425,9 @@ function migrateLegacyStateIfNeeded(): void {
 
   try {
     const raw = readFileSync(LEGACY_STATE_FILE, "utf-8");
-    const legacy = JSON.parse(raw) as CliSessionState;
+    const legacy = JSON.parse(raw) as Partial<
+      Omit<CliSessionState, "signedTxs"> & { signedTxs?: LegacySignedTx[] }
+    >;
     if (!legacy.sessionId || !legacy.baseUrl) {
       return;
     }
@@ -270,13 +435,24 @@ function migrateLegacyStateIfNeeded(): void {
     const now = Date.now();
     const migrated: StoredSessionState = {
       ...legacy,
+      sessionId: legacy.sessionId,
+      baseUrl: legacy.baseUrl,
+      signedTxs: normalizeSignedTxs(legacy.signedTxs),
       localId: 1,
       createdAt: now,
       updatedAt: now,
     };
 
     ensureStorageDirs();
-    writeFileSync(toSessionFilePath(1), JSON.stringify(migrated, null, 2));
+    const migratedPath = toSessionFilePath(1);
+    writeFileSync(migratedPath, JSON.stringify(migrated, null, 2), {
+      mode: STATE_FILE_MODE,
+    });
+    try {
+      chmodSync(migratedPath, STATE_FILE_MODE);
+    } catch {
+      // Best-effort hardening only.
+    }
     writeActiveLocalId(1);
     rmSync(LEGACY_STATE_FILE);
   } catch {
@@ -302,7 +478,9 @@ function resolveStoredSession(
   return sessions.find((session) => session.sessionId === trimmed) ?? null;
 }
 
-function toStoredSessionRecord(stored: StoredSessionState): StoredSessionRecord {
+function toStoredSessionRecord(
+  stored: StoredSessionState,
+): StoredSessionRecord {
   return {
     localId: stored.localId,
     sessionId: stored.sessionId,
@@ -336,7 +514,9 @@ export function setActiveSession(selector: string): StoredSessionRecord | null {
   return toStoredSessionRecord(target);
 }
 
-export function deleteStoredSession(selector: string): StoredSessionRecord | null {
+export function deleteStoredSession(
+  selector: string,
+): StoredSessionRecord | null {
   migrateLegacyStateIfNeeded();
   const sessions = readAllStoredSessions();
   const target = resolveStoredSession(selector, sessions);
@@ -353,7 +533,9 @@ export function deleteStoredSession(selector: string): StoredSessionRecord | nul
 
   const activeLocalId = readActiveLocalId();
   if (activeLocalId === target.localId) {
-    const remaining = readAllStoredSessions().sort((a, b) => b.updatedAt - a.updatedAt);
+    const remaining = readAllStoredSessions().sort(
+      (a, b) => b.updatedAt - a.updatedAt,
+    );
     writeActiveLocalId(remaining[0]?.localId ?? null);
   }
 
@@ -408,7 +590,15 @@ export function writeState(state: CliSessionState): void {
     updatedAt: now,
   };
 
-  writeFileSync(toSessionFilePath(localId), JSON.stringify(payload, null, 2));
+  const stateFilePath = toSessionFilePath(localId);
+  writeFileSync(stateFilePath, JSON.stringify(payload, null, 2), {
+    mode: STATE_FILE_MODE,
+  });
+  try {
+    chmodSync(stateFilePath, STATE_FILE_MODE);
+  } catch {
+    // Best-effort hardening only.
+  }
   writeActiveLocalId(localId);
 }
 
@@ -418,7 +608,12 @@ export function clearState(): void {
 }
 
 function getNextTxId(state: CliSessionState): string {
-  const allIds = [...(state.pendingTxs ?? []), ...(state.signedTxs ?? [])].map((tx) => {
+  const allIds = [
+    ...(state.pendingTxs ?? []),
+    ...(state.pendingSolTxs ?? []),
+    ...(state.signedTxs ?? []),
+    ...(state.signedSolTxs ?? []),
+  ].map((tx) => {
     const match = tx.id.match(/^tx-(\d+)$/);
     return match ? parseInt(match[1], 10) : 0;
   });
@@ -466,19 +661,68 @@ export function removePendingTx(
   return removed;
 }
 
-export function addSignedTx(
-  state: CliSessionState,
-  tx: SignedTx,
-): void {
+export function addSignedTx(state: CliSessionState, tx: SignedTx): void {
   if (!state.signedTxs) state.signedTxs = [];
   state.signedTxs.push(tx);
   writeState(state);
 }
 
+export function hasSameSolanaPendingId(
+  existing: PendingSolTx,
+  next: Omit<PendingSolTx, "id">,
+): boolean {
+  return existing.solanaId === next.solanaId;
+}
+
+export function addPendingSolTx(
+  state: CliSessionState,
+  tx: Omit<PendingSolTx, "id">,
+): PendingSolTx | null {
+  if (!state.pendingSolTxs) state.pendingSolTxs = [];
+
+  const isDuplicate = state.pendingSolTxs.some((existing) =>
+    hasSameSolanaPendingId(existing, tx),
+  );
+  if (isDuplicate) {
+    return null;
+  }
+
+  const pending: PendingSolTx = {
+    ...tx,
+    id: `tx-${tx.solanaId}`,
+  };
+  state.pendingSolTxs.push(pending);
+  writeState(state);
+  return pending;
+}
+
+export function removePendingSolTx(
+  state: CliSessionState,
+  id: string,
+): PendingSolTx | null {
+  if (!state.pendingSolTxs) return null;
+  const idx = state.pendingSolTxs.findIndex((tx) => tx.id === id);
+  if (idx === -1) return null;
+  const [removed] = state.pendingSolTxs.splice(idx, 1);
+  writeState(state);
+  return removed;
+}
+
+export function addSignedSolTx(state: CliSessionState, tx: SignedSolTx): void {
+  if (!state.signedSolTxs) state.signedSolTxs = [];
+  state.signedSolTxs.push(tx);
+  writeState(state);
+}
+
+export type SyncPendingTxsResult = {
+  pendingTxs: PendingTx[];
+  pendingSolTxs: PendingSolTx[];
+};
+
 export function syncPendingTxsFromUserState(
   state: CliSessionState,
   userState: UserState | null | undefined,
-): PendingTx[] {
+): SyncPendingTxsResult {
   const normalizedUserState = UserStateHelpers.normalize(userState);
   const walletSnapshot = walletSnapshotFromUserState(normalizedUserState);
   const isConnected = UserStateHelpers.isConnected(normalizedUserState);
@@ -495,10 +739,29 @@ export function syncPendingTxsFromUserState(
     state.chainId = undefined;
   }
 
+  if (walletSnapshot.aaMode !== undefined) {
+    state.aaMode = walletSnapshot.aaMode;
+  } else if (isConnected === false) {
+    state.aaMode = null;
+  }
+
+  if (walletSnapshot.smartAccount !== undefined) {
+    state.smartAccount = walletSnapshot.smartAccount;
+  } else if (isConnected === false) {
+    state.smartAccount = null;
+  }
+
   state.pendingTxs = pendingTxsFromBackendUserState(
     normalizedUserState,
     state.pendingTxs ?? [],
   );
+  state.pendingSolTxs = pendingSolTxsFromBackendUserState(
+    normalizedUserState,
+    state.pendingSolTxs ?? [],
+  );
   writeState(state);
-  return state.pendingTxs;
+  return {
+    pendingTxs: state.pendingTxs,
+    pendingSolTxs: state.pendingSolTxs,
+  };
 }

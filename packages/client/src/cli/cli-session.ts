@@ -13,14 +13,22 @@ import type { CliConfig } from "./types";
 import {
   readState,
   hasSameBackendPendingId,
+  hasSameSolanaPendingId,
   syncPendingTxsFromUserState,
   writeState,
+  type CliAuthSession,
   type CliSessionState,
+  type PendingSolTx,
   type PendingTx,
+  type SignedSolTx,
   type SignedTx,
 } from "./state";
 import { buildCliUserState } from "./user-state";
 import { fatal } from "./errors";
+import { parseSolanaKeypairSecret } from "./solana-signer";
+import { createCliAuthTokenProvider } from "./auth";
+import { DEFAULT_CLI_BASE_URL } from "./client-factory";
+import { createCliPaymentFetch, type CliPaymentListener } from "./payment";
 
 export class CliSession {
   private state: CliSessionState;
@@ -55,17 +63,41 @@ export class CliSession {
 
   /** Create a fresh session and persist it. */
   static create(config: CliConfig, seed?: CliSessionState): CliSession {
+    // Derive Solana public key from private key when provided.
+    let svmPublicKey: string | undefined;
+    if (config.solanaPrivateKey) {
+      try {
+        svmPublicKey = parseSolanaKeypairSecret(
+          config.solanaPrivateKey,
+        ).publicKey.toBase58();
+      } catch {
+        // Ignore — signing will produce a clearer error at sign time.
+      }
+    }
+
     const state: CliSessionState = {
       sessionId: crypto.randomUUID(),
       clientId: crypto.randomUUID(),
-      baseUrl: config.baseUrl ?? seed?.baseUrl ?? "https://api.aomi.dev",
+      baseUrl: config.baseUrl ?? seed?.baseUrl ?? DEFAULT_CLI_BASE_URL,
       app: config.app ?? seed?.app,
       model: config.model ?? seed?.model,
       apiKey: config.apiKey ?? seed?.apiKey,
+      accountBearer: config.accountBearer ?? seed?.accountBearer,
+      sessionCookie: config.sessionCookie ?? seed?.sessionCookie,
+      embeddedProvider: config.embeddedProvider ?? seed?.embeddedProvider,
+      embeddedProviderToken:
+        config.embeddedProviderToken ?? seed?.embeddedProviderToken,
       publicKey: config.publicKey ?? seed?.publicKey,
-      privateKey: config.privateKey ?? seed?.privateKey,
+      privateKey: seed?.privateKey,
+      svmPublicKey: svmPublicKey ?? seed?.svmPublicKey,
+      // Carry forward only persisted Solana keys from `wallet set --solana`.
+      // Keys supplied via --solana-private-key/env stay transient.
+      svmPrivateKey: seed?.svmPrivateKey,
       chainId: config.chain ?? seed?.chainId,
+      aaProvider: config.aaProvider ?? seed?.aaProvider,
+      aaMode: config.aaMode ?? seed?.aaMode,
       secretHandles: seed?.secretHandles,
+      auth: seed?.auth,
     };
     const cli = new CliSession(state);
     cli.save();
@@ -88,6 +120,9 @@ export class CliSession {
   get model(): string | undefined {
     return this.state.model;
   }
+  get modelSynced(): boolean {
+    return this.state.modelSynced === true;
+  }
   get apiKey(): string | undefined {
     return this.state.apiKey;
   }
@@ -96,6 +131,9 @@ export class CliSession {
   }
   get privateKey(): string | undefined {
     return this.state.privateKey;
+  }
+  get svmPublicKey(): string | undefined {
+    return this.state.svmPublicKey;
   }
   get chainId(): number | undefined {
     return this.state.chainId;
@@ -106,11 +144,20 @@ export class CliSession {
   get pendingTxs(): readonly PendingTx[] {
     return this.state.pendingTxs ?? [];
   }
+  get pendingSolTxs(): readonly PendingSolTx[] {
+    return this.state.pendingSolTxs ?? [];
+  }
+  get signedSolTxs(): readonly SignedSolTx[] {
+    return this.state.signedSolTxs ?? [];
+  }
   get signedTxs(): readonly SignedTx[] {
     return this.state.signedTxs ?? [];
   }
   get secretHandles(): Readonly<Record<string, string>> {
     return this.state.secretHandles ?? {};
+  }
+  get auth(): CliAuthSession | undefined {
+    return this.state.auth;
   }
 
   // ---------------------------------------------------------------------------
@@ -138,12 +185,72 @@ export class CliSession {
       this.state.apiKey = config.apiKey;
       changed = true;
     }
-    if (config.publicKey !== undefined && config.publicKey !== this.state.publicKey) {
+    if (
+      config.accountBearer !== undefined &&
+      config.accountBearer !== this.state.accountBearer
+    ) {
+      this.state.accountBearer = config.accountBearer;
+      delete this.state.embeddedProvider;
+      delete this.state.embeddedProviderToken;
+      changed = true;
+    }
+    if (
+      config.sessionCookie !== undefined &&
+      config.sessionCookie !== this.state.sessionCookie
+    ) {
+      this.state.sessionCookie = config.sessionCookie;
+      changed = true;
+    }
+    if (
+      config.embeddedProvider !== undefined &&
+      config.embeddedProvider !== this.state.embeddedProvider
+    ) {
+      this.state.embeddedProvider = config.embeddedProvider;
+      delete this.state.accountBearer;
+      changed = true;
+    }
+    if (
+      config.embeddedProviderToken !== undefined &&
+      config.embeddedProviderToken !== this.state.embeddedProviderToken
+    ) {
+      this.state.embeddedProviderToken = config.embeddedProviderToken;
+      delete this.state.accountBearer;
+      changed = true;
+    }
+    if (
+      config.publicKey !== undefined &&
+      config.publicKey !== this.state.publicKey
+    ) {
       this.state.publicKey = config.publicKey;
       changed = true;
     }
+    // Derive and persist the Solana public key when a keypair secret is provided.
+    if (config.solanaPrivateKey !== undefined) {
+      try {
+        const svmPub = parseSolanaKeypairSecret(
+          config.solanaPrivateKey,
+        ).publicKey.toBase58();
+        if (svmPub !== this.state.svmPublicKey) {
+          this.state.svmPublicKey = svmPub;
+          changed = true;
+        }
+      } catch {
+        // Ignore parse failures — signing will produce a clearer error at sign time.
+      }
+    }
     if (config.chain !== undefined && config.chain !== this.state.chainId) {
       this.state.chainId = config.chain;
+      changed = true;
+    }
+    if (
+      config.aaProvider !== undefined &&
+      config.aaProvider !== this.state.aaProvider
+    ) {
+      this.state.aaProvider = config.aaProvider;
+      changed = true;
+    }
+    if (config.aaMode !== undefined && config.aaMode !== this.state.aaMode) {
+      this.state.aaMode = config.aaMode;
       changed = true;
     }
     if (!this.state.clientId) {
@@ -156,6 +263,7 @@ export class CliSession {
 
   setModel(model: string): void {
     this.state.model = model;
+    this.state.modelSynced = true;
     this.save();
   }
 
@@ -180,19 +288,59 @@ export class CliSession {
     this.save();
   }
 
+  setSvmWallet(privateKey: string, publicKey: string): void {
+    this.state.svmPrivateKey = privateKey;
+    this.state.svmPublicKey = publicKey;
+    this.save();
+  }
+
+  /** The Solana private key to use for signing. Prefers the transiently-
+   * supplied `solanaPrivateKey` from `CliConfig` (i.e. `--solana-private-key`)
+   * and falls back to the key persisted by `wallet set --solana`. */
+  resolvedSvmPrivateKey(fromConfig?: string): string | undefined {
+    return fromConfig ?? this.state.svmPrivateKey;
+  }
+
   setChainId(id: number): void {
     this.state.chainId = id;
     this.save();
   }
 
   addSecretHandles(handles: Record<string, string>): void {
-    this.state.secretHandles = { ...(this.state.secretHandles ?? {}), ...handles };
+    this.state.secretHandles = {
+      ...(this.state.secretHandles ?? {}),
+      ...handles,
+    };
     this.save();
   }
 
   clearSecretHandles(): void {
     this.state.secretHandles = {};
     this.save();
+  }
+
+  setAuthSession(auth: CliAuthSession): void {
+    this.state.auth = auth;
+    this.save();
+  }
+
+  clearAuthSession(): void {
+    if (!this.state.auth) return;
+    delete this.state.auth;
+    this.save();
+  }
+
+  clearSigningKeys(): void {
+    let changed = false;
+    if (this.state.privateKey !== undefined) {
+      delete this.state.privateKey;
+      changed = true;
+    }
+    if (this.state.svmPrivateKey !== undefined) {
+      delete this.state.svmPrivateKey;
+      changed = true;
+    }
+    if (changed) this.save();
   }
 
   /** Ensure clientId exists, generate if absent. Returns the clientId. */
@@ -241,10 +389,58 @@ export class CliSession {
     this.save();
   }
 
-  syncPendingFromUserState(userState: Parameters<typeof syncPendingTxsFromUserState>[1]): PendingTx[] {
-    const pendingTxs = syncPendingTxsFromUserState(this.state, userState);
+  /** Add a pending Solana tx with dedup on `solanaId`. */
+  addPendingSolTx(tx: Omit<PendingSolTx, "id">): PendingSolTx | null {
+    if (!this.state.pendingSolTxs) this.state.pendingSolTxs = [];
+
+    const isDuplicate = this.state.pendingSolTxs.some((existing) =>
+      hasSameSolanaPendingId(existing, tx),
+    );
+    if (isDuplicate) return null;
+
+    const pending: PendingSolTx = {
+      ...tx,
+      id: `tx-${tx.solanaId}`,
+    };
+    this.state.pendingSolTxs.push(pending);
+    this.save();
+    return pending;
+  }
+
+  removePendingSolTx(id: string): PendingSolTx | null {
+    if (!this.state.pendingSolTxs) return null;
+    const idx = this.state.pendingSolTxs.findIndex((tx) => tx.id === id);
+    if (idx === -1) return null;
+    const [removed] = this.state.pendingSolTxs.splice(idx, 1);
+    this.save();
+    return removed;
+  }
+
+  addSignedSolTx(tx: SignedSolTx): void {
+    if (!this.state.signedSolTxs) this.state.signedSolTxs = [];
+    this.state.signedSolTxs.push(tx);
+    this.save();
+  }
+
+  syncPendingFromUserState(
+    userState: Parameters<typeof syncPendingTxsFromUserState>[1],
+  ): {
+    pendingTxs: readonly PendingTx[];
+    pendingSolTxs: readonly PendingSolTx[];
+  } {
+    const result = syncPendingTxsFromUserState(this.state, userState);
     this.reload();
-    return pendingTxs;
+    return result;
+  }
+
+  /** Find a pending Solana tx by display id, or undefined if unknown. */
+  findPendingSolTx(txId: string): PendingSolTx | undefined {
+    return (this.state.pendingSolTxs ?? []).find((tx) => tx.id === txId);
+  }
+
+  /** Find a pending EVM/EIP-712 tx by display id, or undefined. */
+  findPendingTx(txId: string): PendingTx | undefined {
+    return (this.state.pendingTxs ?? []).find((tx) => tx.id === txId);
   }
 
   /** Get a pending tx by ID, or fatal() if not found. */
@@ -252,7 +448,7 @@ export class CliSession {
     const pending = this.state.pendingTxs ?? [];
     const tx = pending.find((t) => t.id === txId);
     if (!tx) {
-      const available = pending.map((t) => t.id).join(", ") || "(none)";
+      const available = this.allDisplayIds().join(", ") || "(none)";
       fatal(`Transaction "${txId}" not found.\nAvailable: ${available}`);
     }
     return tx;
@@ -262,9 +458,28 @@ export class CliSession {
   requirePendingTxs(txIds: string[]): PendingTx[] {
     const uniqueIds = Array.from(new Set(txIds));
     if (uniqueIds.length !== txIds.length) {
-      fatal("Duplicate transaction IDs are not allowed in a single `aomi tx sign` call.");
+      fatal(
+        "Duplicate transaction IDs are not allowed in a single `aomi tx sign` call.",
+      );
     }
     return uniqueIds.map((txId) => this.requirePendingTx(txId));
+  }
+
+  /** Get a pending Solana tx by ID, or fatal() if not found. */
+  requirePendingSolTx(txId: string): PendingSolTx {
+    const tx = this.findPendingSolTx(txId);
+    if (!tx) {
+      const available = this.allDisplayIds().join(", ") || "(none)";
+      fatal(`Solana transaction "${txId}" not found.\nAvailable: ${available}`);
+    }
+    return tx;
+  }
+
+  private allDisplayIds(): string[] {
+    return [
+      ...(this.state.pendingTxs ?? []).map((tx) => tx.id),
+      ...(this.state.pendingSolTxs ?? []).map((tx) => tx.id),
+    ];
   }
 
   // ---------------------------------------------------------------------------
@@ -272,18 +487,36 @@ export class CliSession {
   // ---------------------------------------------------------------------------
 
   /** Build a ClientSession from the current state. */
-  createClientSession(): ClientSession {
+  createClientSession(
+    config?: Partial<CliConfig>,
+    options?: { onPayment?: CliPaymentListener },
+  ): ClientSession {
+    const paymentFetch = createCliPaymentFetch(config, options?.onPayment);
     const session = new ClientSession(
-      { baseUrl: this.state.baseUrl, apiKey: this.state.apiKey },
+      {
+        baseUrl: this.state.baseUrl,
+        apiKey: this.state.apiKey,
+        fetch: paymentFetch,
+        getAccountBearer: createCliAuthTokenProvider(() => this.state),
+      },
       {
         sessionId: this.state.sessionId,
         clientId: this.state.clientId,
         app: this.state.app,
+        applicationId: config?.applicationId,
         apiKey: this.state.apiKey,
-        publicKey: this.state.publicKey,
+        paymentMethod: config?.paymentMethod,
       },
     );
-    session.resolveUserState(buildCliUserState(this.state.publicKey, this.state.chainId));
+    session.resolveUserState(
+      buildCliUserState(this.state.publicKey, this.state.chainId, {
+        app: this.state.app,
+        aaProvider: this.state.aaProvider ?? config?.aaProvider ?? null,
+        aaMode: this.state.aaMode ?? null,
+        smartAccount: this.state.smartAccount ?? null,
+        svmAddress: this.state.svmPublicKey,
+      }),
+    );
     return session;
   }
 

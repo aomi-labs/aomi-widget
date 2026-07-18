@@ -1,0 +1,3 @@
+[eval] PASS needs_market_before_supply_usdc 1 turn(s) 6 tool call(s) 6.15402 cr, 45481 in / 2290 out tok, 40464 cached / 0 reasoning tok 0 warning(s) duration 51s
+report full json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/needs_market_before_supply_usdc/claude-sonnet-4.6/pass-001/20260530T225342.416928000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/needs_market_before_supply_usdc/claude-sonnet-4.6/pass-001/20260530T225342.416928000Z.compact.json

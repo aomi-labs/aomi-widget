@@ -21,7 +21,9 @@ const {
     createSmartWalletClientMock: vi.fn(() => ({
       sendCalls: sendCallsMock,
       waitForCallsStatus: waitForCallsStatusMock,
-      requestAccount: vi.fn().mockResolvedValue({ address: "0xaaaa" }),
+      requestAccount: vi.fn().mockResolvedValue({
+        address: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      }),
     })),
     alchemyWalletTransportMock: vi.fn(() => "mock-transport"),
     sendCallsMock,
@@ -47,12 +49,16 @@ vi.mock("viem", async (importOriginal) => {
   return {
     ...actual,
     createWalletClient: vi.fn(() => ({
-      signAuthorization: vi.fn().mockResolvedValue({ r: "0x1", s: "0x2", v: 27n }),
+      signAuthorization: vi
+        .fn()
+        .mockResolvedValue({ r: "0x1", s: "0x2", v: 27n }),
       sendTransaction: vi.fn().mockResolvedValue("0xmock7702hash"),
     })),
     createPublicClient: vi.fn(() => ({
       estimateGas: vi.fn().mockResolvedValue(50000n),
-      waitForTransactionReceipt: vi.fn().mockResolvedValue({ status: "success", gasUsed: 47000n }),
+      waitForTransactionReceipt: vi
+        .fn()
+        .mockResolvedValue({ status: "success", gasUsed: 47000n }),
       getCode: vi.fn().mockResolvedValue("0x"),
     })),
   };
@@ -62,7 +68,10 @@ vi.mock("viem/experimental/erc7821", () => ({
   encodeExecuteData: vi.fn(() => "0xmockexecutedata"),
 }));
 
-import { buildCliConfig, getPositionals } from "../../src/cli/commands/defs/shared";
+import {
+  buildCliConfig,
+  getPositionals,
+} from "../../src/cli/commands/defs/shared";
 import {
   createCliProviderState,
   describeExecutionDecision,
@@ -121,13 +130,15 @@ describe("CLI execution controls", () => {
     createSmartWalletClientMock.mockReturnValue({
       sendCalls: sendCallsMock,
       waitForCallsStatus: waitForCallsStatusMock,
-      requestAccount: vi.fn().mockResolvedValue({ address: "0xaaaa" }),
+      requestAccount: vi.fn().mockResolvedValue({
+        address: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      }),
     });
     createAlchemySmartAccountMock.mockResolvedValue({
       provider: "ALCHEMY",
       mode: "7702",
-      smartAccountAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-      delegationAddress: "0x69007702764179f14F51cdce752f4f775d74E139",
+      SmartAccount4337: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      Delegation7702: "0x69007702764179f14F51cdce752f4f775d74E139",
       sendTransaction: vi.fn(),
       sendBatchTransaction: vi.fn(),
     });
@@ -157,10 +168,19 @@ describe("CLI execution controls", () => {
     expect(config.freshSession).toBe(true);
   });
 
-  it("normalizes bare private keys by adding the 0x prefix", () => {
+  it("rejects private keys without the 0x prefix", () => {
+    expect(() =>
+      buildCliConfig({
+        "private-key":
+          "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      }),
+    ).toThrow(CliExit);
+  });
+
+  it("accepts 0x-prefixed 32-byte private keys", () => {
     const config = buildCliConfig({
       "private-key":
-        "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
     });
     expect(config.privateKey).toBe(
       "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
@@ -171,6 +191,16 @@ describe("CLI execution controls", () => {
     process.env.AOMI_CHAIN_ID = "137";
     const config = buildCliConfig({});
     expect(config.chain).toBe(137);
+  });
+
+  it("parses coinbase as the chat payment method", () => {
+    const config = buildCliConfig({ "payment-method": "coinbase" });
+    expect(config.paymentMethod).toBe("coinbase");
+  });
+
+  it("parses application id for dynamic app chat", () => {
+    const config = buildCliConfig({ "application-id": "31" });
+    expect(config.applicationId).toBe("31");
   });
 
   it("accepts --eoa as an explicit override", () => {
@@ -225,15 +255,21 @@ describe("CLI execution controls", () => {
   // resolveCliExecutionDecision — default Alchemy key
   // -------------------------------------------------------------------------
 
-  it("defaults to direct EOA for single-call auto mode", () => {
+  it("defaults to 7702 AA for single-call auto mode", () => {
     const decision = resolveCliExecutionDecision({
       config: { baseUrl: "https://api.aomi.dev", app: "default" },
       chain: mainnet,
       callList: [...CALL_LIST],
     });
 
-    expect(decision).toEqual({ execution: "eoa" });
-    expect(describeExecutionDecision(decision)).toBe("eoa");
+    expect(decision).toEqual({
+      execution: "aa",
+      provider: "alchemy",
+      aaMode: "7702",
+      modeExplicit: false,
+      apiKey: "72eIUle_3rfixX00QJVwk",
+    });
+    expect(describeExecutionDecision(decision)).toBe("aa (alchemy, 7702)");
   });
 
   it("defaults to Alchemy direct AA for multi-call batches when no env vars are set", () => {
@@ -247,11 +283,10 @@ describe("CLI execution controls", () => {
       execution: "aa",
       provider: "alchemy",
       aaMode: "7702",
+      modeExplicit: false,
       apiKey: "72eIUle_3rfixX00QJVwk",
     });
-    expect(describeExecutionDecision(decision)).toBe(
-      "aa (alchemy, 7702)",
-    );
+    expect(describeExecutionDecision(decision)).toBe("aa (alchemy, 7702)");
   });
 
   // -------------------------------------------------------------------------
@@ -271,20 +306,29 @@ describe("CLI execution controls", () => {
       execution: "aa",
       provider: "alchemy",
       aaMode: "7702",
+      modeExplicit: false,
       apiKey: "alchemy-key",
     });
     expect(describeExecutionDecision(decision)).toBe("aa (alchemy, 7702)");
   });
 
-  it("prefers 7702 for multi-call batches when chain default mode is 4337", () => {
+  it("uses 7702 for multi-call batches on Polygon (all chains default to 7702)", () => {
     process.env.ALCHEMY_API_KEY = "alchemy-key";
 
     const decision = resolveCliExecutionDecision({
       config: { baseUrl: "https://api.aomi.dev", app: "default" },
       chain: polygon,
       callList: [
-        { ...ERC20_TRANSFER_CALL_LIST[0], data: "0x", to: "0x1111111111111111111111111111111111111111" },
-        { ...ERC20_TRANSFER_CALL_LIST[0], data: "0x", to: "0x2222222222222222222222222222222222222222" },
+        {
+          ...ERC20_TRANSFER_CALL_LIST[0],
+          data: "0x",
+          to: "0x1111111111111111111111111111111111111111",
+        },
+        {
+          ...ERC20_TRANSFER_CALL_LIST[0],
+          data: "0x",
+          to: "0x2222222222222222222222222222222222222222",
+        },
       ],
     });
 
@@ -292,6 +336,7 @@ describe("CLI execution controls", () => {
       execution: "aa",
       provider: "alchemy",
       aaMode: "7702",
+      modeExplicit: false,
       apiKey: "alchemy-key",
     });
   });
@@ -315,6 +360,7 @@ describe("CLI execution controls", () => {
       execution: "aa",
       provider: "pimlico",
       aaMode: "4337",
+      modeExplicit: true,
       apiKey: "pimlico-key",
     });
   });
@@ -343,9 +389,8 @@ describe("CLI execution controls", () => {
   // ERC-20 auto-switch
   // -------------------------------------------------------------------------
 
-  it("auto-switches default 4337 ERC-20 calls to 7702 when supported", () => {
+  it("uses 7702 for ERC-20 calls in auto AA mode (7702 is the chain default)", () => {
     process.env.ALCHEMY_API_KEY = "alchemy-key";
-    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 
     const decision = resolveCliExecutionDecision({
       config: {
@@ -363,13 +408,9 @@ describe("CLI execution controls", () => {
       provider: "alchemy",
       aaMode: "7702",
     });
-    expect(logSpy).toHaveBeenCalledWith(
-      expect.stringContaining("Switching to 7702"),
-    );
-    logSpy.mockRestore();
   });
 
-  it("warns but preserves explicit 4337 mode for ERC-20 calls", () => {
+  it("warns and preserves explicit 4337 mode for ERC-20 calls", () => {
     process.env.ALCHEMY_API_KEY = "alchemy-key";
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 
@@ -415,7 +456,7 @@ describe("CLI execution controls", () => {
     expect(providerState.error).toBeNull();
   });
 
-  it("creates Alchemy AA 7702 provider state via SDK when API key is set", async () => {
+  it("creates Alchemy AA 7702 provider state via Wallets API when API key is set", async () => {
     const providerState = await createCliProviderState({
       decision: {
         execution: "aa",
@@ -430,20 +471,11 @@ describe("CLI execution controls", () => {
       baseUrl: "https://api.aomi.dev",
     });
 
-    // 7702 bypasses wallet-apis in BYOK mode.
-    expect(createSmartWalletClientMock).not.toHaveBeenCalled();
-    expect(createAlchemySmartAccountMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        apiKey: "alchemy-key",
-        chain: mainnet,
-        rpcUrl: "https://example-rpc.invalid",
-        mode: "7702",
-      }),
-    );
+    expect(createSmartWalletClientMock).toHaveBeenCalledTimes(1);
+    expect(createAlchemySmartAccountMock).not.toHaveBeenCalled();
     expect(providerState.resolved).toMatchObject({
       provider: "alchemy",
       mode: "7702",
-      fallbackToEoa: false,
     });
     expect(providerState.account).toBeTruthy();
     expect(providerState.error).toBeNull();
@@ -464,8 +496,7 @@ describe("CLI execution controls", () => {
       baseUrl: "https://api.aomi.dev",
     });
 
-    // 7702 bypasses wallet-apis, uses raw viem
-    expect(alchemyWalletTransportMock).not.toHaveBeenCalled();
+    expect(alchemyWalletTransportMock).toHaveBeenCalledTimes(1);
     expect(providerState.resolved).toMatchObject({
       provider: "alchemy",
       mode: "7702",
@@ -474,7 +505,7 @@ describe("CLI execution controls", () => {
     expect(providerState.error).toBeNull();
   });
 
-  it("creates Alchemy AA provider state for 4337 mode", async () => {
+  it("creates Alchemy AA provider state for 4337 mode with gas sponsorship", async () => {
     process.env.ALCHEMY_GAS_POLICY_ID = "policy-1";
 
     const providerState = await createCliProviderState({
@@ -491,10 +522,18 @@ describe("CLI execution controls", () => {
       baseUrl: "https://api.aomi.dev",
     });
 
-    expect(createSmartWalletClientMock).toHaveBeenCalled();
+    // 4337 smart account has zero balance — paymaster must be attached
+    expect(createSmartWalletClientMock).toHaveBeenCalledWith(
+      expect.objectContaining({ paymaster: { policyId: "policy-1" } }),
+    );
     expect(providerState.resolved).toMatchObject({
       provider: "alchemy",
       mode: "4337",
+      sponsorship: "optional",
+    });
+    expect(providerState.account).toMatchObject({
+      address: "0xFCAd0B19bB29D4674531d6f115237E16AfCE377c",
+      SmartAccount4337: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     });
   });
 
@@ -537,4 +576,14 @@ describe("CLI execution controls", () => {
     expect(getAlternativeAAMode({ execution: "eoa" })).toBeNull();
   });
 
+  it("getAlternativeAAMode returns null when the AA mode was explicitly requested", () => {
+    expect(
+      getAlternativeAAMode({
+        execution: "aa",
+        provider: "alchemy",
+        aaMode: "7702",
+        modeExplicit: true,
+      }),
+    ).toBeNull();
+  });
 });

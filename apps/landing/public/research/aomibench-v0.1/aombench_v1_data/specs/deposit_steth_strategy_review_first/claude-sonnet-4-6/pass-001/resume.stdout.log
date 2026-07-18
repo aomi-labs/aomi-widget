@@ -1,0 +1,3 @@
+[eval] PASS deposit_steth_strategy_review_first 1 turn(s) 7 tool call(s) 4.85565 cr, 41242 in / 1808 out tok, 37885 cached / 0 reasoning tok 0 warning(s) duration 50s
+report full json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/deposit_steth_strategy_review_first/claude-sonnet-4.6/pass-001/20260530T230147.938213000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/deposit_steth_strategy_review_first/claude-sonnet-4.6/pass-001/20260530T230147.938213000Z.compact.json

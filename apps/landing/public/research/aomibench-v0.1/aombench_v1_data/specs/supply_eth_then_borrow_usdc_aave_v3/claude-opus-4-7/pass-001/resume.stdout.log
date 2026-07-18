@@ -1,0 +1,5 @@
+[eval] PASS supply_eth_then_borrow_usdc_aave_v3 1 turn(s) 10 tool call(s) 9.42895 cr, 60985 in / 749 out tok, 50969 cached / 0 reasoning tok 1 warning(s) duration 51s
+warnings:
+  no_tool_errors tool error envelope(s) observed for: Stage Aave deposit 1 ETH, Stage Aave borrow 100 USDC
+report full json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/supply_eth_then_borrow_usdc_aave_v3/claude-opus-4.7/pass-001/20260531T192152.020993000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/supply_eth_then_borrow_usdc_aave_v3/claude-opus-4.7/pass-001/20260531T192152.020993000Z.compact.json

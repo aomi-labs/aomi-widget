@@ -4,15 +4,22 @@
 export { AomiClient } from "@aomi-labs/client";
 export type { AomiClientOptions } from "@aomi-labs/client";
 export type {
+  AomiAppDescriptor,
+  AomiPlatformFilter,
   AomiMessage,
   AomiChatResponse,
   AomiCreateThreadResponse,
   AomiInterruptResponse,
+  AomiSecretSlot,
   AomiSSEEvent,
   AomiStateResponse,
   AomiSystemEvent,
   AomiSystemResponse,
   AomiThread,
+  NativeWalletExecutionPolicy,
+  NativeWalletSponsorship,
+  SponsorshipPaymasterServiceContext,
+  WalletCapabilities,
 } from "@aomi-labs/client";
 export {
   toViemSignTypedDataArgs,
@@ -27,6 +34,9 @@ export {
   DISABLED_PROVIDER_STATE,
   parseChainId,
   aaModeFromExecutionKind,
+  toViemSignMessageArgs,
+  normalizeAppDescriptor,
+  appIdentityKey,
 } from "@aomi-labs/client";
 
 // =============================================================================
@@ -39,7 +49,11 @@ export { RuntimeUserStateProvider } from "./runtime/user-state-provider";
 // =============================================================================
 // Unified Runtime API
 // =============================================================================
-export { useAomiRuntime } from "./interface";
+export {
+  AomiRuntimeApiProvider,
+  useAomiRuntime,
+  useOptionalAomiRuntime,
+} from "./interface";
 export type { AomiRuntimeApi } from "./interface";
 
 // =============================================================================
@@ -69,11 +83,14 @@ export type {
   WalletRequest,
   WalletTxPayload,
   WalletEip712Payload,
+  WalletSolanaSignMessagePayload,
+  WalletSolanaSignPayload,
   WalletRequestKind,
   WalletRequestStatus,
   WalletRequestResult,
   WalletHandlerConfig,
   WalletHandlerApi,
+  ViemSignMessageArgs,
 } from "./handlers/wallet-handler";
 export type {
   NotificationHandlerConfig,
@@ -85,9 +102,9 @@ export type {
 // =============================================================================
 export {
   useUser,
-  UserContextProvider,
-} from "./contexts/user-context";
-export type { UserState } from "@aomi-labs/client";
+  ExtUserProvider,
+  UserState,
+} from "./contexts/ext-user-context";
 
 // User config type (for render prop pattern)
 export type { UserConfig } from "./runtime/utils";
@@ -102,7 +119,12 @@ export {
   ThreadContextProvider,
 } from "./contexts/thread-context";
 export type { ThreadContext } from "./contexts/thread-context";
-export type { ThreadMetadata, ThreadControlState } from "./state/thread-store";
+export type {
+  ModelSelectionMode,
+  ThreadMetadata,
+  ThreadControlState,
+  ThreadTurnPhase,
+} from "./state/thread-store";
 export { initThreadControl } from "./state/thread-store";
 
 // =============================================================================
@@ -116,6 +138,7 @@ export {
   SUPPORTED_CHAINS,
   type ChainInfo,
 } from "./runtime/utils";
+export { resolveAutoModel } from "./utils/model-selection";
 
 // =============================================================================
 // Notification Context (for toast UI)
@@ -135,9 +158,13 @@ export {
 // =============================================================================
 export {
   useControl,
+  useApiKey,
+  useByok,
+  useAuthEndpoints,
+  usePerThreadControl,
   ControlContextProvider,
   type ControlState,
   type ControlContextApi,
   type ControlContextProviderProps,
-  type StoredProviderKey,
+  type StoredByokKey,
 } from "./contexts/control-context";

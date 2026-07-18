@@ -27,16 +27,26 @@ const logThreadMetadataChange = (
 };
 
 export type ThreadStatus = "regular" | "archived";
+export type ModelSelectionMode = "auto" | "manual";
+export type ThreadTurnPhase = "idle" | "submitting" | "working";
 
 export type ThreadControlState = {
   /** Selected model for this thread (human-readable label) */
   model: string | null;
+  /** Whether the selected model should be displayed as auto or explicit */
+  modelMode?: ModelSelectionMode;
   /** Selected app for this thread */
   app: string | null;
+  /** Concrete backend application row for hosted/platform apps */
+  applicationId: number | string | null;
   /** Whether control state has changed but chat hasn't started yet */
   controlDirty: boolean;
   /** Whether this thread is currently processing (assistant generating) */
   isProcessing: boolean;
+  /** Fine-grained turn phase for rendering pending/working assistant states */
+  turnPhase: ThreadTurnPhase;
+  /** Epoch ms when the latest assistant turn completed in this thread. */
+  lastCompletedAt?: number;
 };
 
 export type ThreadMetadata = {
@@ -51,9 +61,12 @@ export type ThreadMetadata = {
 export function initThreadControl(): ThreadControlState {
   return {
     model: null,
+    modelMode: "auto",
     app: null,
+    applicationId: null,
     controlDirty: false,
     isProcessing: false,
+    turnPhase: "idle",
   };
 }
 
@@ -159,6 +172,7 @@ export class ThreadStore {
       setThreadMessages: this.setThreadMessages,
       getThreadMetadata: this.getThreadMetadata,
       updateThreadMetadata: this.updateThreadMetadata,
+      resetToDefault: this.resetToDefault,
     };
   }
 
@@ -215,6 +229,31 @@ export class ThreadStore {
 
   getThreadMetadata = (threadId: string): ThreadMetadata | undefined => {
     return this.state.threadMetadata.get(threadId);
+  };
+
+  /** Reset store to a single empty "New Chat" thread (e.g. on wallet disconnect). */
+  resetToDefault = () => {
+    const threadId = generateUUID();
+    this.state = {
+      currentThreadId: threadId,
+      threadViewKey: this.state.threadViewKey + 1,
+      threadCnt: 1,
+      threads: new Map([[threadId, []]]),
+      threadMetadata: new Map([
+        [
+          threadId,
+          {
+            title: "New Chat",
+            status: "regular",
+            lastActiveAt: new Date().toISOString(),
+            control: initThreadControl(),
+          },
+        ],
+      ]),
+    };
+    this.snapshot = this.buildSnapshot();
+    this.emit();
+    return threadId;
   };
 
   updateThreadMetadata = (

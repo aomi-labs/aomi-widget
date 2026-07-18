@@ -15,13 +15,13 @@ Aomi is an AI-assistant framework for on-chain apps. It gives you an agent that 
 
 You pick how you integrate:
 
-| Entry point | Package | Use when you want… |
-| --- | --- | --- |
-| React widget | `@aomi-labs/widget-lib` | A prebuilt chat UI inside a web app |
-| Headless runtime | `@aomi-labs/react` | Your own UI on top of Aomi's thread + wallet runtime |
-| TypeScript client | `@aomi-labs/client` | Node or browser programmatic access, no React |
-| CLI | `@aomi-labs/client` (`aomi` bin) | Chat + sign transactions from a terminal |
-| Agent skill | `skills/aomi-transact` | Let an AI agent use Aomi as a tool |
+| Entry point       | Package                          | Use when you want…                                   |
+| ----------------- | -------------------------------- | ---------------------------------------------------- |
+| React widget      | `@aomi-labs/widget-lib`          | A prebuilt chat UI inside a web app                  |
+| Headless runtime  | `@aomi-labs/react`               | Your own UI on top of Aomi's thread + wallet runtime |
+| TypeScript client | `@aomi-labs/client`              | Node or browser programmatic access, no React        |
+| CLI               | `@aomi-labs/client` (`aomi` bin) | Chat + sign transactions from a terminal             |
+| Agent skill       | `skills/aomi-transact`           | Let an AI agent use Aomi as a tool                   |
 
 All entry points share a common backend API, so a conversation started in the widget can be continued from the CLI and vice versa.
 
@@ -31,6 +31,7 @@ All entry points share a common backend API, so a conversation started in the wi
 - **Drop-in React widget** — one `<AomiFrame />` tag renders the full chat, sidebar, and composer.
 - **Headless runtime for custom UIs** — concurrent thread management, per-thread model/namespace state, backend polling/SSE, event bus, and wallet request handler, exposed as React hooks.
 - **Terminal-first CLI** — `aomi chat`, `aomi tx list`, `aomi tx simulate`, `aomi tx sign`, session management, secret ingestion.
+- **Account auth in CLI** — `aomi account login` opens a backend-minted Privy auth URL, and `aomi account whoami` confirms the backend session is bound to an Aomi account.
 - **Account Abstraction built in** — EIP-4337 and EIP-7702 signing via Alchemy or Pimlico, with automatic mode fallback.
 - **Batch simulation** — dry-run multi-step flows (approve → swap) on a forked chain before signing.
 - **Agent-ready** — install `aomi-transact` as a Claude/Codex skill and your agent can transact on-chain autonomously.
@@ -77,31 +78,97 @@ export function Assistant() {
 
 ### With wallet providers
 
-Wrap the frame in Para + React Query to enable wallet connection and transaction requests:
+Wrap the frame in `AomiWalletKitProvider` to enable wallet connection and transaction requests. External wallets such as MetaMask, Rabby, Rainbow, Coinbase Wallet, and WalletConnect are configured through the generic EVM wallet catalog; Para/Privy are only needed when you want their auth session or embedded-wallet features.
 
 ```tsx
-import "@getpara/react-sdk/styles.css";
-import { Environment, ParaProvider } from "@getpara/react-sdk";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { AomiFrame } from "@aomi-labs/widget-lib";
-
-const queryClient = new QueryClient();
+import { AomiFrame, AomiWalletKitProvider } from "@aomi-labs/widget-lib";
 
 export function Assistant() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <ParaProvider
-        paraClientConfig={{
-          apiKey: process.env.NEXT_PUBLIC_PARA_API_KEY!,
-          env: Environment.BETA,
-        }}
-      >
-        <AomiFrame height="640px" width="100%" />
-      </ParaProvider>
-    </QueryClientProvider>
+    <AomiWalletKitProvider
+      wallets={{
+        evm: {
+          wallets: ["metamask", "rabby", "walletconnect", "coinbase"],
+          walletConnectProjectId:
+            process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID,
+        },
+      }}
+      execution={{
+        aa: "optional",
+        provider: "pimlico",
+        modes: ["4337"],
+        owner: "external-wallet",
+      }}
+    >
+      <AomiFrame height="640px" width="100%" />
+    </AomiWalletKitProvider>
   );
 }
 ```
+
+To add Para auth or embedded wallets, keep the same external-wallet config and add a Para auth provider:
+
+```tsx
+import "@aomi-labs/widget-lib/providers/para";
+import { AomiFrame, AomiWalletKitProvider } from "@aomi-labs/widget-lib";
+
+export function Assistant() {
+  return (
+    <AomiWalletKitProvider
+      auth={{ provider: "para", methods: ["google", "email", "wallet"] }}
+      providers={{
+        para: {
+          apiKey: process.env.NEXT_PUBLIC_PARA_API_KEY,
+          environment: "BETA",
+        },
+      }}
+      wallets={{
+        evm: {
+          wallets: ["metamask", "rabby", "walletconnect"],
+          walletConnectProjectId:
+            process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID,
+        },
+      }}
+    >
+      <AomiFrame height="640px" width="100%" />
+    </AomiWalletKitProvider>
+  );
+}
+```
+
+Base Account is also a generic wallet entry now:
+
+```tsx
+import { AomiFrame, AomiWalletKitProvider } from "@aomi-labs/widget-lib";
+import { base } from "wagmi/chains";
+
+export function Assistant() {
+  return (
+    <AomiWalletKitProvider
+      wallets={{
+        evm: {
+          chains: [base],
+          wallets: ["baseAccount"],
+          coinbase: false,
+          appName: "Aomi",
+        },
+        solana: false,
+      }}
+      execution={{
+        aa: "optional",
+        sponsorship: {
+          mode: "optional",
+          paymasterServiceUrl: "/api/paymaster",
+        },
+      }}
+    >
+      <AomiFrame height="640px" width="100%" />
+    </AomiWalletKitProvider>
+  );
+}
+```
+
+`AomiBaseAccountProvider` remains as a deprecated compatibility wrapper, but new integrations should use `AomiWalletKitProvider`.
 
 ### AomiFrame props
 
@@ -166,10 +233,7 @@ It manages:
 ### Mount the runtime
 
 ```tsx
-import {
-  ThreadContextProvider,
-  AomiRuntimeProvider,
-} from "@aomi-labs/react";
+import { ThreadContextProvider, AomiRuntimeProvider } from "@aomi-labs/react";
 
 export function App({ children }) {
   return (
@@ -310,13 +374,13 @@ aomi tx sign tx-1    # auto-detects AA, tries 7702 then 4337, errors if both fai
 
 ### AA execution model
 
-| AA configured? | Flag | Result |
-| --- | --- | --- |
-| Yes | (none) | AA automatically (preferred mode → alternative mode fallback) |
-| Yes | `--aa-provider` / `--aa-mode` | AA with explicit settings |
-| Yes | `--eoa` | EOA, skip AA |
-| No | (none) | EOA |
-| No | `--aa-provider` | Error: AA requires provider credentials |
+| AA configured? | Flag                          | Result                                                        |
+| -------------- | ----------------------------- | ------------------------------------------------------------- |
+| Yes            | (none)                        | AA automatically (preferred mode → alternative mode fallback) |
+| Yes            | `--aa-provider` / `--aa-mode` | AA with explicit settings                                     |
+| Yes            | `--eoa`                       | EOA, skip AA                                                  |
+| No             | (none)                        | EOA                                                           |
+| No             | `--aa-provider`               | Error: AA requires provider credentials                       |
 
 There is **no silent EOA fallback** — if AA is selected and both modes fail, the CLI returns a hard error suggesting `--eoa`. Supported providers: **Alchemy** (4337 sponsored + 7702) and **Pimlico** (4337 sponsored).
 
@@ -324,7 +388,7 @@ There is **no silent EOA fallback** — if AA is selected and both modes fail, t
 
 `aomi tx simulate` runs pending transactions sequentially on a forked chain so state-dependent flows (approve → swap) are validated as a batch. Returns per-step success, revert reasons, and gas usage without modifying on-chain state.
 
-See [`packages/client/skills/aomi-transact/SKILL.md`](packages/client/skills/aomi-transact/SKILL.md) for the complete CLI reference.
+See [`aomi-labs/skills/aomi-transact/SKILL.md`](https://github.com/aomi-labs/skills/blob/main/aomi-transact/SKILL.md) for the complete CLI reference.
 
 ---
 
@@ -338,7 +402,7 @@ Install via the skills registry:
 npx skills add aomi-labs/skills
 ```
 
-The skill file lives at [`packages/client/skills/aomi-transact/SKILL.md`](packages/client/skills/aomi-transact/SKILL.md) and includes:
+The skill file lives at [`aomi-labs/skills/aomi-transact/SKILL.md`](https://github.com/aomi-labs/skills/blob/main/aomi-transact/SKILL.md) and includes:
 
 - Hard rules for handling private keys and API keys safely.
 - The default chat → review → simulate → sign workflow.

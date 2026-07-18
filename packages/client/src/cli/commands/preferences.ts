@@ -1,8 +1,10 @@
 import { privateKeyToAccount } from "viem/accounts";
 import { CliSession } from "../cli-session";
+import { DEFAULT_CLI_BASE_URL } from "../client-factory";
 import { printDataFileLocation } from "../output";
 import { normalizePrivateKey, parseChainId } from "../validation";
 import { fatal } from "../errors";
+import { parseSolanaKeypairSecret } from "../solana-signer";
 
 function loadOrCreateForSettings(): CliSession {
   // Settings commands (`wallet set`, `chain set`, `config set-backend`) only
@@ -13,7 +15,7 @@ function loadOrCreateForSettings(): CliSession {
   const existing = CliSession.load();
   if (existing) return existing;
   return CliSession.loadOrCreate({
-    baseUrl: "https://api.aomi.dev",
+    baseUrl: DEFAULT_CLI_BASE_URL,
     app: "default",
     secrets: {},
   });
@@ -22,13 +24,31 @@ function loadOrCreateForSettings(): CliSession {
 export function setWalletCommand(privateKeyInput: string): void {
   const privateKey = normalizePrivateKey(privateKeyInput);
   if (!privateKey) {
-    fatal("Usage: aomi wallet set <private-key>");
+    fatal("Usage: aomi wallet set <private-key>  (EVM hex key)");
   }
 
   const account = privateKeyToAccount(privateKey as `0x${string}`);
   const cli = loadOrCreateForSettings();
   cli.setWallet(privateKey, account.address);
-  console.log(`Wallet set to ${account.address}`);
+  console.log(`EVM wallet set to ${account.address}`);
+  printDataFileLocation();
+}
+
+export function setSvmWalletCommand(keyInput: string): void {
+  let keypair: ReturnType<typeof parseSolanaKeypairSecret>;
+  try {
+    keypair = parseSolanaKeypairSecret(keyInput.trim());
+  } catch (err) {
+    fatal(
+      `Invalid Solana private key: ${err instanceof Error ? err.message : err}\n` +
+        "Usage: aomi wallet set --solana <base58-secret-key>",
+    );
+  }
+
+  const publicKey = keypair!.publicKey.toBase58();
+  const cli = loadOrCreateForSettings();
+  cli.setSvmWallet(keyInput.trim(), publicKey);
+  console.log(`Solana wallet set to ${publicKey}`);
   printDataFileLocation();
 }
 

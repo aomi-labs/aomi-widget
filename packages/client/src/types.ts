@@ -1,206 +1,21 @@
-// =============================================================================
-// User State
-// =============================================================================
+import type { UserState } from "./user-state";
 
-/**
- * Client-side user state synced with the backend.
- * Typically wallet connection info, but can be any key-value data.
- */
-export interface UserState extends Record<string, unknown> {}
-
-/**
- * Known client surfaces that may want backend-specific UX strategies.
- * Additional string values are allowed for forward compatibility.
- */
-export type AomiClientType = "ts_cli" | "web_ui" | (string & {});
-
-export const CLIENT_TYPE_TS_CLI: AomiClientType = "ts_cli";
-export const CLIENT_TYPE_WEB_UI: AomiClientType = "web_ui";
-
-const USER_STATE_KEY_ALIASES: Record<string, string> = {
-  chainId: "chain_id",
-  isConnected: "is_connected",
-  ensName: "ens_name",
-  pendingTxs: "pending_txs",
-  pendingEip712s: "pending_eip712s",
-  nextId: "next_id",
-};
-
-function parseUserStateChainId(value: unknown): number | undefined {
-  if (typeof value === "number" && Number.isInteger(value) && value > 0) {
-    return value;
-  }
-  if (typeof value !== "string") {
-    return undefined;
-  }
-
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return undefined;
-  }
-
-  if (trimmed.startsWith("0x")) {
-    const parsedHex = Number.parseInt(trimmed.slice(2), 16);
-    return Number.isInteger(parsedHex) && parsedHex > 0 ? parsedHex : undefined;
-  }
-
-  const parsed = Number.parseInt(trimmed, 10);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
-}
-
-function normalizeAddressForComparison(value: string | undefined): string | undefined {
-  return typeof value === "string" ? value.toLowerCase() : undefined;
-}
-
-export namespace UserState {
-  /**
-   * Canonicalize client-side user state to the backend's snake_case `UserState`.
-   * Existing snake_case keys win when both forms are present.
-   */
-  export function normalize(userState?: UserState | null): UserState | undefined {
-    if (!userState) {
-      return undefined;
-    }
-
-    const normalized: UserState = {};
-    for (const [key, value] of Object.entries(userState)) {
-      const normalizedKey = USER_STATE_KEY_ALIASES[key] ?? key;
-      if (normalizedKey in normalized) {
-        continue;
-      }
-      normalized[normalizedKey] = value;
-    }
-
-    return normalized;
-  }
-
-  /**
-   * Reconcile a partial incoming snapshot against the previous canonical state.
-   * Preserves wallet context when backend/client snapshots omit address/chain_id.
-   */
-  export function reconcile(
-    previousUserState?: UserState | null,
-    incomingUserState?: UserState | null,
-  ): UserState | undefined {
-    const incoming = normalize(incomingUserState);
-    if (!incoming) {
-      return undefined;
-    }
-
-    const previous = normalize(previousUserState);
-    const reconciled: UserState = { ...incoming };
-
-    const previousAddress = address(previous);
-    const incomingAddress = address(incoming);
-    const incomingConnected = isConnected(incoming);
-    const incomingChainId = chainId(incoming);
-
-    const canPreserveConnectedWalletContext = incomingConnected !== false;
-    const sameAddress =
-      normalizeAddressForComparison(previousAddress) !== undefined &&
-      normalizeAddressForComparison(previousAddress) ===
-        normalizeAddressForComparison(incomingAddress);
-
-    if (!incomingAddress && canPreserveConnectedWalletContext && previousAddress) {
-      reconciled.address = previousAddress;
-    }
-
-    if (
-      incomingChainId === undefined &&
-      canPreserveConnectedWalletContext &&
-      previous &&
-      chainId(previous) !== undefined
-    ) {
-      const canPreserveChain =
-        sameAddress || (!incomingAddress && !!previousAddress);
-      if (canPreserveChain) {
-        reconciled.chain_id = chainId(previous);
-      }
-    }
-
-    // Never keep `is_connected: true` without a valid chain id.
-    if (isConnected(reconciled) === true && chainId(reconciled) === undefined) {
-      delete reconciled.is_connected;
-    }
-
-    return reconciled;
-  }
-
-  export function address(userState?: UserState | null): string | undefined {
-    const normalized = normalize(userState);
-    const address = normalized?.address;
-    return typeof address === "string" && address.length > 0 ? address : undefined;
-  }
-
-  export function chainId(userState?: UserState | null): number | undefined {
-    const normalized = normalize(userState);
-    return parseUserStateChainId(normalized?.chain_id);
-  }
-
-  export function isConnected(userState?: UserState | null): boolean | undefined {
-    const normalized = normalize(userState);
-    const isConnected = normalized?.is_connected;
-    return typeof isConnected === "boolean" ? isConnected : undefined;
-  }
-
-  /**
-   * Adds/updates an entry on `userState.ext` while keeping `ext` intentionally untyped.
-   */
-  export function withExt(
-    userState: UserState,
-    key: string,
-    value: unknown,
-  ): UserState {
-    const normalizedUserState = normalize(userState) ?? {};
-    const currentExt = normalizedUserState["ext"];
-    const extRecord =
-      typeof currentExt === "object" &&
-      currentExt !== null &&
-      !Array.isArray(currentExt)
-        ? (currentExt as Record<string, unknown>)
-        : {};
-
-    return {
-      ...normalizedUserState,
-      ext: {
-        ...extRecord,
-        [key]: value,
-      },
-    };
-  }
-}
-
-export function normalizeUserState(
-  userState?: UserState | null,
-): UserState | undefined {
-  return UserState.normalize(userState);
-}
-
-export function getUserStateAddress(
-  userState?: UserState | null,
-): string | undefined {
-  return UserState.address(userState);
-}
-
-export function getUserStateChainId(
-  userState?: UserState | null,
-): number | undefined {
-  return UserState.chainId(userState);
-}
-
-export function getUserStateIsConnected(
-  userState?: UserState | null,
-): boolean | undefined {
-  return UserState.isConnected(userState);
-}
-
-export function addUserStateExt(
-  userState: UserState,
-  key: string,
-  value: unknown,
-): UserState {
-  return UserState.withExt(userState, key, value);
-}
+export { UserState } from "./user-state";
+export type {
+  UserStateAAMode,
+  UserStateAuthMethod,
+  UserStateConnection,
+  UserStateEvm,
+  UserStateEvmAa,
+  UserStateEvmSponsorship,
+  UserStatePending,
+  UserStateSponsorProvider,
+  UserStateSvm,
+  UserStateWalletKind,
+  UserStateWalletProvider,
+  AomiClientType,
+} from "./user-state";
+export { CLIENT_TYPE_TS_CLI, CLIENT_TYPE_WEB_UI } from "./user-state";
 
 // =============================================================================
 // Logger
@@ -220,11 +35,47 @@ export type Logger = {
 export type AomiClientOptions = {
   /** Base URL of the Aomi backend (e.g. "https://api.aomi.dev" or "/" for same-origin proxying) */
   baseUrl: string;
+  /** Optional fetch implementation for payment-aware browser transports and tests. */
+  fetch?: typeof fetch;
   /** Default API key for non-default apps */
   apiKey?: string;
+  /** Supplies a short-lived Aomi account bearer for REST and SSE requests. */
+  getAccountBearer?: GetAccountBearer;
   /** Optional logger for debug output (default: silent) */
   logger?: Logger;
 };
+
+export type GetAccountBearer = (options?: {
+  /** Force a refresh after an API 401. */
+  forceRefresh?: boolean;
+}) => Promise<string | null | undefined>;
+
+export type AomiRequestQueryValue =
+  | string
+  | number
+  | boolean
+  | readonly (string | number | boolean)[]
+  | null
+  | undefined;
+
+export type AomiPlatformFilter = string | readonly string[] | null | undefined;
+
+export type AomiHttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+
+export interface AomiRequestOptions {
+  /** Thread id for thread-scoped routes. Kept as sessionId for SDK compatibility. */
+  sessionId?: string;
+  /** App key for app-key checked routes; defaults to the client's apiKey. */
+  apiKey?: string;
+  /** Query params appended to the request URL. */
+  query?: Record<string, AomiRequestQueryValue>;
+  /** JSON request payload. */
+  body?: unknown;
+  /** Extra request headers. */
+  headers?: HeadersInit;
+  /** Use the native fetch path instead of a custom payment-aware fetch wrapper. */
+  raw?: boolean;
+}
 
 // =============================================================================
 // Base Types
@@ -243,7 +94,7 @@ export interface AomiMessage {
 // =============================================================================
 
 /**
- * GET /api/state
+ * GET /api/thread/state
  * Fetches current session state including messages and processing status
  */
 export interface AomiStateResponse {
@@ -255,7 +106,7 @@ export interface AomiStateResponse {
 }
 
 /**
- * POST /api/chat
+ * POST /api/thread/chat
  * Sends a chat message and returns updated session state
  */
 export interface AomiChatResponse {
@@ -275,7 +126,7 @@ export interface AomiSystemResponse {
 }
 
 /**
- * POST /api/simulate
+ * POST /api/exec/simulate
  * Batch-simulate pending transactions atomically (snapshot → sequential send → revert).
  */
 export interface AomiSimulateFee {
@@ -308,59 +159,152 @@ export interface AomiSimulateResponse {
 }
 
 /**
- * POST /api/interrupt
+ * POST /api/thread/interrupt
  * Interrupts current processing and returns updated session state
  */
 export type AomiInterruptResponse = AomiChatResponse;
 
 /**
- * GET /api/sessions
+ * GET /api/threads
  * Returns array of AomiThread
  */
 export interface AomiThread {
+  thread_id?: string;
   session_id: string;
-  title: string;
+  title: string | null;
   is_archived?: boolean;
+  last_active_at?: number;
 }
 
+export type AomiAccountResponse = AomiAccountProfile;
+
 /**
- * POST /api/sessions
+ * POST /api/threads
  * Creates a new thread/session
  */
 export interface AomiCreateThreadResponse {
+  thread_id?: string;
   session_id: string;
-  title?: string;
+  title?: string | null;
 }
 
 /**
- * GET/POST /api/control/provider-keys
- * Lists or saves BYOK provider keys for the bound client.
+ * GET /api/account
+ * The account bound to the authenticated request (resolved from the account
+ * bearer). Returned only when the session is bound to a real user; an
+ * anonymous session yields HTTP 400.
  */
-export interface AomiProviderKeyEntry {
+export interface AomiUser {
+  user_id: string;
+  username?: string | null;
+  apps?: string[];
+  tier?: string;
+  verified_email?: string | null;
+  status?: string;
+  last_seen_at?: number | null;
+  created_at?: number;
+  updated_at?: number;
+}
+
+export interface AomiAuthIdentity {
+  id: number;
+  application?: string | null;
+  wallet_provider: string;
+  auth_method: string;
+  auth_verified_at?: number | null;
+  is_primary: boolean;
+  created_at: number;
+}
+
+export interface AomiIdentityWallet {
+  wallet_id?: string | null;
+  address: string;
+  chain_type: string;
+  wallet_provider: string;
+}
+
+export interface AomiUsageStats {
+  period_utc_month?: string;
+  input_tokens: number;
+  output_tokens: number;
+  credit_used: number;
+  credit_paid: number;
+}
+
+export interface AomiAccountProfile {
+  user: AomiUser;
+  auth_identities?: AomiAuthIdentity[];
+  identity_wallets?: AomiIdentityWallet[];
+  usage?: AomiUsageStats;
+}
+
+export interface AomiCreateApprovalRequest {
+  auth_identity_id: number;
+  grant_kind: string;
+  secret_handle: string;
+  external_subject?: string | null;
+  display_label?: string | null;
+  scopes?: string[];
+  expires_at?: number | null;
+  metadata?: unknown;
+}
+
+export interface AomiAccessApproval {
+  id: number;
+  user_id: string;
+  auth_identity_id: number;
+  external_subject?: string | null;
+  display_label?: string | null;
+  grant_kind: string;
+  scopes: string[];
+  secret_handle: string;
+  expires_at?: number | null;
+  granted_at: number;
+  revoked_at?: number | null;
+  metadata: unknown;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface AomiBeginAccountAuthResponse {
+  state_token: string;
+  auth_url: string;
+  expires_at: number;
+}
+
+export type AomiWalletFamily = "evm" | "svm";
+export type AomiAuthWalletFamily = "evm" | "solana";
+
+/**
+ * GET/POST/DELETE /api/account/payment/byok
+ * Lists or saves BYOK keys (one per LLM provider) for the account.
+ */
+export interface AomiByokKeyEntry {
   provider: string;
   key_prefix: string;
   label?: string | null;
   is_active: boolean;
 }
 
-export interface AomiListProviderKeysResponse {
-  provider_keys: AomiProviderKeyEntry[];
+export interface AomiListByokKeysResponse {
+  byok: AomiByokKeyEntry[];
 }
 
-export interface AomiSaveProviderKeyResponse {
-  key: AomiProviderKeyEntry;
+export interface AomiSaveByokKeyResponse {
+  key: AomiByokKeyEntry;
 }
 
-export interface AomiDeleteProviderKeyResponse {
+export interface AomiDeleteByokKeyResponse {
   deleted: boolean;
 }
 
 // =============================================================================
-// SSE Event Types (/api/updates)
+// SSE Event Types (/api/thread/updates)
 // =============================================================================
 
 /**
- * Base SSE event - all events have session_id and type
+ * Base SSE event. Newer backends may include `thread_id`; `session_id` stays
+ * optional for SDK compatibility with existing consumers.
  */
 export type AomiSSEEvent = {
   type:
@@ -369,7 +313,8 @@ export type AomiSSEEvent = {
     | "tool_complete"
     | "system_notice"
     | string;
-  session_id: string;
+  session_id?: string;
+  thread_id?: string;
   new_title?: string;
   [key: string]: unknown;
 };
@@ -398,6 +343,43 @@ export interface AomiDeleteSecretResponse {
   deleted: boolean;
 }
 
+/**
+ * GET /api/secrets
+ * Per-app slot names currently filled for the session's client. The
+ * backend never returns raw values; only the names.
+ */
+export interface AomiListSecretsResponse {
+  by_app: Record<string, string[]>;
+}
+
+/**
+ * One per-app secret slot declared by a plugin manifest. Surfaced via
+ * `AomiAppDescriptor.secrets` so the frontend can render input rows and
+ * gate app load on `required` slots being filled.
+ */
+export interface AomiSecretSlot {
+  name: string;
+  description: string;
+  required: boolean;
+}
+
+/**
+ * GET /api/thread/apps
+ * One entry per app the user can use. `secrets` is empty for apps that
+ * declare no slots.
+ */
+export interface AomiAppDescriptor {
+  name: string;
+  applicationId?: number | string | null;
+  platform?: string | null;
+  label?: string | null;
+  appReleaseTag?: string | null;
+  isActive?: boolean | null;
+  isPublic?: boolean | null;
+  artifactReady?: boolean | null;
+  secrets?: AomiSecretSlot[];
+}
+
 export type AomiSSEEventType =
   | "title_changed"
   | "tool_update"
@@ -405,7 +387,7 @@ export type AomiSSEEventType =
   | "system_notice";
 
 // =============================================================================
-// System Events (/api/events)
+// System Events (/api/thread/events)
 // =============================================================================
 
 /**

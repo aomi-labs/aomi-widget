@@ -1,0 +1,6 @@
+[eval] PASS pendle_requires_approx_params 1 turn(s) 10 tool call(s) 15.1682 cr, 75781 in / 3555 out tok, 70244 cached / 0 reasoning tok 2 warning(s) duration 103s
+warnings:
+  no_tool_errors tool error envelope(s) observed for: Find active Pendle PT market addresses on Ethereum
+  max_tool_calls observed 10 tool call(s), max 8
+report full json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/pendle_requires_approx_params/claude-opus-4.6/pass-001/20260531T123701.198411000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/pendle_requires_approx_params/claude-opus-4.6/pass-001/20260531T123701.198411000Z.compact.json

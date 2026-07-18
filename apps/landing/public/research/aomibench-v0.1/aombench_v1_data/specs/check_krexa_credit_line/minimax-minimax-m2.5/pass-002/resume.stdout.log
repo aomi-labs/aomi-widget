@@ -1,0 +1,5 @@
+[eval] PASS check_krexa_credit_line 1 turn(s) 10 tool call(s) 1.005695 cr, 65743 in / 170 out tok 1 warning(s) duration 35s
+warnings:
+  no_tool_errors tool error envelope(s) observed for: Get MockUSDC balance for Alice, Get AgentRegistry for credit check
+report full json: ../output/eval/model-bench-public-skills-minimax-m25-kiro-20260531/specs/check_krexa_credit_line/minimax-m2.5/pass-002/20260531T090440.214887000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-minimax-m25-kiro-20260531/specs/check_krexa_credit_line/minimax-m2.5/pass-002/20260531T090440.214887000Z.compact.json

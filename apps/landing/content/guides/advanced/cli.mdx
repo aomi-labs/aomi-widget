@@ -56,6 +56,17 @@ aomi session list
 aomi session resume session-2
 aomi session delete session-2
 
+aomi account login
+aomi account whoami
+aomi account links
+aomi account link --wallet --private-key 0x... --chain 8453 --label "Base wallet"
+aomi account link --provider privy
+aomi account link --provider para
+aomi account rename identity:<id> --label "Work login"
+aomi account unlink wallet:<id> --yes
+aomi account delete --yes
+aomi account logout
+
 aomi log
 aomi tx
 aomi sign tx-1 --private-key 0x...
@@ -70,6 +81,7 @@ flowchart TD
     MODE -->|"chat"| CHAT["aomi chat \"...\""]
     MODE -->|"inspect"| INSPECT["aomi tx / log / status / events"]
     MODE -->|"session"| SESSION["aomi session list/resume/delete"]
+    MODE -->|"account"| ACCOUNT["aomi account links/link/unlink"]
     MODE -->|"secrets"| SECRET["aomi --secret ... / aomi secret list|clear"]
     MODE -->|"sign"| SIGN["aomi sign tx-N"]
 
@@ -153,19 +165,19 @@ You can further constrain AA execution with:
 
 These flags match the current CLI help output:
 
-| Flag                    | Env               | Description                                              |
-| ----------------------- | ----------------- | -------------------------------------------------------- |
-| `--backend-url`         | `AOMI_BACKEND_URL`   | Backend URL                                              |
-| `--api-key`             | `AOMI_API_KEY`    | API key for non-default apps                             |
-| `--app`                 | `AOMI_APP`        | App name                                                 |
-| `--model`               | `AOMI_MODEL`      | Model rig to apply before chat                           |
-| `--secret <NAME=value>` | —                 | Ingest secret values for the active session              |
-| `--public-key`          | `AOMI_PUBLIC_KEY` | Wallet address shared with the agent                     |
-| `--private-key`         | `PRIVATE_KEY`     | Hex private key for `aomi sign`                          |
-| `--rpc-url`             | `CHAIN_RPC_URL`   | RPC URL for transaction submission                       |
-| `--chain`               | `AOMI_CHAIN_ID`   | Chain ID (`1`, `137`, `42161`, `8453`, `10`, `11155111`) |
-| `--verbose`, `-v`       | —                 | Stream tool calls and agent responses live               |
-| `--version`, `-V`       | —                 | Print the installed CLI version                          |
+| Flag                    | Env                | Description                                              |
+| ----------------------- | ------------------ | -------------------------------------------------------- |
+| `--backend-url`         | `AOMI_BACKEND_URL` | Backend URL                                              |
+| `--api-key`             | `AOMI_API_KEY`     | API key for non-default apps                             |
+| `--app`                 | `AOMI_APP`         | App name                                                 |
+| `--model`               | `AOMI_MODEL`       | Model rig to apply before chat                           |
+| `--secret <NAME=value>` | —                  | Ingest secret values for the active session              |
+| `--public-key`          | `AOMI_PUBLIC_KEY`  | Wallet address shared with the agent                     |
+| `--private-key`         | `PRIVATE_KEY`      | Hex private key for `aomi sign`                          |
+| `--rpc-url`             | `CHAIN_RPC_URL`    | RPC URL for transaction submission                       |
+| `--chain`               | `AOMI_CHAIN_ID`    | Chain ID (`1`, `137`, `42161`, `8453`, `10`, `11155111`) |
+| `--verbose`, `-v`       | —                  | Stream tool calls and agent responses live               |
+| `--version`, `-V`       | —                  | Print the installed CLI version                          |
 
 ## Session State
 

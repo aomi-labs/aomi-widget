@@ -1,4 +1,10 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -52,7 +58,9 @@ describe("CLI session lifecycle", () => {
 
   it("supports newSessionCommand as an explicit fresh-session command", async () => {
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-    const { newSessionCommand } = await import("../../src/cli/commands/sessions");
+    const { CliSession } = await import("../../src/cli/cli-session");
+    const { newSessionCommand } =
+      await import("../../src/cli/commands/sessions");
     const { readState } = await import("../../src/cli/state");
 
     const config = {
@@ -62,22 +70,43 @@ describe("CLI session lifecycle", () => {
       secrets: {},
     };
 
+    const existing = CliSession.loadOrCreate({
+      ...config,
+      chain: 11155111,
+    });
+    existing.setWallet(
+      "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "0xFCAd0B19bB29D4674531d6f115237E16AfCE377c",
+    );
+    existing.setAuthSession({
+      sessionToken: "bff-session-token",
+      expiresAt: Date.now() + 60_000,
+      walletAddress: "0xFCAd0B19bB29D4674531d6f115237E16AfCE377c",
+      chainId: 11155111,
+    });
+
     newSessionCommand(config);
 
-    expect(readState()?.sessionId).toBeDefined();
+    const state = readState();
+    expect(state?.sessionId).toBeDefined();
+    expect(state?.sessionId).not.toBe(existing.sessionId);
+    expect(state?.auth?.sessionToken).toBe("bff-session-token");
+    expect(state?.privateKey).toBe(
+      "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    );
+    expect(state?.chainId).toBe(11155111);
     expect(logSpy).toHaveBeenCalledWith(
       expect.stringContaining("Active session set to"),
     );
   });
 
   it("persists explicit wallet, chain, and backend settings on the active session", async () => {
-    const { setWalletCommand, setChainCommand, setBackendCommand } = await import(
-      "../../src/cli/commands/preferences"
-    );
+    const { setWalletCommand, setChainCommand, setBackendCommand } =
+      await import("../../src/cli/commands/preferences");
     const { readState } = await import("../../src/cli/state");
 
     setWalletCommand(
-      "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
     );
     setChainCommand("1");
     setBackendCommand("http://127.0.0.1:18765");
@@ -93,6 +122,30 @@ describe("CLI session lifecycle", () => {
     );
   });
 
+  it("writes state directories and session files with private permissions", async () => {
+    const { CliSession } = await import("../../src/cli/cli-session");
+    const { STATE_ROOT_DIR, SESSIONS_DIR, getActiveStateFilePath } =
+      await import("../../src/cli/state");
+
+    CliSession.loadOrCreate({
+      baseUrl: "https://api.aomi.dev",
+      app: "default",
+      privateKey:
+        "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      execution: "eoa" as const,
+      secrets: {},
+    });
+
+    const activePath = getActiveStateFilePath();
+    expect(activePath).toBeTruthy();
+    expect(statSync(STATE_ROOT_DIR).mode & 0o777).toBe(0o700);
+    expect(statSync(SESSIONS_DIR).mode & 0o777).toBe(0o700);
+    expect(statSync(activePath!).mode & 0o777).toBe(0o600);
+    expect(statSync(join(stateDir, "active-session.txt")).mode & 0o777).toBe(
+      0o600,
+    );
+  });
+
   it("preserves saved wallet, chain, and backend settings across fresh sessions", async () => {
     const { CliSession } = await import("../../src/cli/cli-session");
 
@@ -101,11 +154,13 @@ describe("CLI session lifecycle", () => {
       app: "default",
       chain: 1,
       publicKey: "0xabc",
-      privateKey:
-        "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
       execution: "eoa" as const,
       secrets: {},
     });
+    initial.setWallet(
+      "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "0xabc",
+    );
 
     const fresh = CliSession.loadOrCreate({
       baseUrl: "https://api.aomi.dev",
@@ -122,6 +177,28 @@ describe("CLI session lifecycle", () => {
     );
     expect(fresh.chainId).toBe(1);
     expect(fresh.baseUrl).toBe("https://api.aomi.dev");
+  });
+
+  it("does not persist private keys supplied as one-shot config", async () => {
+    const { CliSession } = await import("../../src/cli/cli-session");
+    const { readState } = await import("../../src/cli/state");
+
+    CliSession.loadOrCreate({
+      baseUrl: "https://api.aomi.dev",
+      app: "default",
+      privateKey:
+        "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      solanaPrivateKey: JSON.stringify(Array(64).fill(1)),
+      execution: "eoa" as const,
+      secrets: {},
+    });
+
+    expect(readState()).toEqual(
+      expect.objectContaining({
+        privateKey: undefined,
+        svmPrivateKey: undefined,
+      }),
+    );
   });
 
   it("keeps distinct backend-staged transactions even when calldata matches", async () => {
@@ -159,6 +236,48 @@ describe("CLI session lifecycle", () => {
     expect(second?.id).toBe("tx-8");
     expect(cli.pendingTxs).toHaveLength(2);
     expect(cli.pendingTxs.map((tx) => tx.txId)).toEqual([7, 8]);
+  });
+
+  it("normalizes legacy signedTx AAAddress fields on load", async () => {
+    const { SESSIONS_DIR, readState } = await import("../../src/cli/state");
+
+    mkdirSync(SESSIONS_DIR, { recursive: true });
+    writeFileSync(
+      join(SESSIONS_DIR, "session-1.json"),
+      JSON.stringify(
+        {
+          sessionId: "session-1",
+          baseUrl: "https://api.aomi.dev",
+          signedTxs: [
+            {
+              id: "tx-1",
+              kind: "transaction",
+              txHash: "0xhash",
+              AAAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              timestamp: 1,
+            },
+          ],
+          localId: 1,
+          createdAt: 1,
+          updatedAt: 1,
+        },
+        null,
+        2,
+      ),
+    );
+    writeFileSync(join(stateDir, "active-session.txt"), "1");
+
+    const state = readState();
+
+    expect(state?.signedTxs).toEqual([
+      expect.objectContaining({
+        id: "tx-1",
+        kind: "transaction",
+        txHash: "0xhash",
+        smartAccount4337: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      }),
+    ]);
+    expect(state?.signedTxs?.[0]).not.toHaveProperty("AAAddress");
   });
 
   it("dedupes replayed backend-staged requests by backend id", async () => {
@@ -318,13 +437,170 @@ describe("CLI session lifecycle", () => {
             message: { owner: "0xabc" },
           },
         },
+        "9": {
+          chain_id: 1,
+          signer: "0xabc",
+          description: "SIWE login",
+          non_typed_data: "Sign in with Ethereum",
+        },
       },
     });
 
     expect(cli.publicKey).toBe("0xabc");
     expect(cli.chainId).toBe(8453);
-    expect(synced.map((tx) => tx.id)).toEqual(["tx-7", "tx-8"]);
-    expect(synced.map((tx) => tx.kind)).toEqual(["transaction", "eip712_sign"]);
+    expect(synced.pendingTxs.map((tx) => tx.id)).toEqual([
+      "tx-7",
+      "tx-8",
+      "tx-9",
+    ]);
+    expect(synced.pendingTxs.map((tx) => tx.kind)).toEqual([
+      "transaction",
+      "eip712_sign",
+      "eip712_sign",
+    ]);
+    expect(synced.pendingTxs[2]?.payload).toMatchObject({
+      non_typed_data: "Sign in with Ethereum",
+    });
+    expect(synced.pendingSolTxs).toEqual([]);
+  });
+
+  it("persists the account bearer on the active session", async () => {
+    const { CliSession } = await import("../../src/cli/cli-session");
+    const { readState } = await import("../../src/cli/state");
+
+    CliSession.loadOrCreate({
+      baseUrl: "https://api.aomi.dev",
+      app: "default",
+      execution: "eoa" as const,
+      secrets: {},
+      accountBearer: "bearer-1",
+    });
+
+    expect(readState()?.accountBearer).toBe("bearer-1");
+  });
+
+  it("persists legacy account provider credential fields on the active session", async () => {
+    const { CliSession } = await import("../../src/cli/cli-session");
+    const { readState } = await import("../../src/cli/state");
+
+    CliSession.loadOrCreate({
+      baseUrl: "https://api.aomi.dev",
+      app: "default",
+      execution: "eoa" as const,
+      secrets: {},
+      embeddedProvider: "privy" as const,
+      embeddedProviderToken: "privy-provider-token",
+    });
+
+    const state = readState();
+    expect(state?.embeddedProvider).toBe("privy");
+    expect(state?.embeddedProviderToken).toBe("privy-provider-token");
+  });
+
+  it("clears a persisted bearer when switching the active session to legacy provider auth", async () => {
+    const { CliSession } = await import("../../src/cli/cli-session");
+    const { readState } = await import("../../src/cli/state");
+
+    CliSession.loadOrCreate({
+      baseUrl: "https://api.aomi.dev",
+      app: "default",
+      execution: "eoa" as const,
+      secrets: {},
+      accountBearer: "bearer-1",
+    });
+
+    CliSession.loadOrCreate({
+      baseUrl: "https://api.aomi.dev",
+      app: "default",
+      execution: "eoa" as const,
+      secrets: {},
+      embeddedProvider: "privy" as const,
+      embeddedProviderToken: "privy-provider-token",
+    });
+
+    const state = readState();
+    expect(state?.accountBearer).toBeUndefined();
+    expect(state?.embeddedProvider).toBe("privy");
+    expect(state?.embeddedProviderToken).toBe("privy-provider-token");
+  });
+
+  it("reuses the persisted account bearer when building a client without re-supplying it", async () => {
+    const { CliSession } = await import("../../src/cli/cli-session");
+
+    // First invocation supplies the bearer (e.g. `aomi --account-bearer ...`).
+    CliSession.loadOrCreate({
+      baseUrl: "http://unit.test",
+      app: "default",
+      execution: "eoa" as const,
+      secrets: {},
+      accountBearer: "bearer-1",
+    });
+
+    // Later invocation: the bearer is NOT passed again on the command line.
+    const reused = CliSession.load();
+    expect(reused).not.toBeNull();
+
+    const stateResponse = {
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      json: vi.fn(async () => ({ is_processing: false, messages: [] })),
+    } as unknown as Response;
+    const nativeFetch = vi.fn(async () => stateResponse);
+    const originalFetch = globalThis.fetch;
+    vi.stubGlobal("fetch", nativeFetch);
+
+    try {
+      const session = reused!.createClientSession();
+      await session.client.fetchState(reused!.sessionId);
+
+      const headers = new Headers(
+        (nativeFetch.mock.calls[0]?.[1] as RequestInit).headers,
+      );
+      expect(headers.get("Authorization")).toBe("Bearer bearer-1");
+    } finally {
+      vi.stubGlobal("fetch", originalFetch);
+    }
+  });
+
+  it("does not exchange provider credentials or replace a persisted bearer", async () => {
+    const { CliSession } = await import("../../src/cli/cli-session");
+
+    CliSession.loadOrCreate({
+      baseUrl: "http://unit.test",
+      app: "default",
+      execution: "eoa" as const,
+      secrets: {},
+      accountBearer: "legacy-bearer",
+    });
+
+    const cli = CliSession.load();
+    expect(cli).not.toBeNull();
+
+    const stateResponse = {
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      json: vi.fn(async () => ({ is_processing: false, messages: [] })),
+    } as unknown as Response;
+    const nativeFetch = vi.fn(async () => stateResponse);
+    const originalFetch = globalThis.fetch;
+    vi.stubGlobal("fetch", nativeFetch);
+
+    try {
+      const session = cli!.createClientSession({
+        embeddedProvider: "privy",
+        embeddedProviderToken: "privy-provider-token",
+      });
+      await session.client.fetchState(cli!.sessionId);
+
+      const headers = new Headers(
+        (nativeFetch.mock.calls[0]?.[1] as RequestInit).headers,
+      );
+      expect(headers.get("Authorization")).toBe("Bearer legacy-bearer");
+    } finally {
+      vi.stubGlobal("fetch", originalFetch);
+    }
   });
 
   it("does not wipe local chain when backend user_state omits chain_id", async () => {

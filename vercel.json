@@ -1,5 +1,40 @@
 {
-  "installCommand": "pnpm install --frozen-lockfile",
-  "buildCommand": "pnpm run vercel-build",
-  "outputDirectory": "apps/landing/.next"
+  "rewrites": [
+    {
+      "source": "/_mintlify/:path*",
+      "destination": "https://aomilabs.mintlify.dev/_mintlify/:path*"
+    },
+    {
+      "source": "/api/request",
+      "destination": "https://aomilabs.mintlify.dev/_mintlify/api/request"
+    },
+    {
+      "source": "/docs",
+      "destination": "https://aomilabs.mintlify.dev/docs"
+    },
+    {
+      "source": "/docs/llms.txt",
+      "destination": "https://aomilabs.mintlify.dev/llms.txt"
+    },
+    {
+      "source": "/docs/llms-full.txt",
+      "destination": "https://aomilabs.mintlify.dev/llms-full.txt"
+    },
+    {
+      "source": "/docs/sitemap.xml",
+      "destination": "https://aomilabs.mintlify.dev/sitemap.xml"
+    },
+    {
+      "source": "/docs/robots.txt",
+      "destination": "https://aomilabs.mintlify.dev/robots.txt"
+    },
+    {
+      "source": "/docs/:path*",
+      "destination": "https://aomilabs.mintlify.dev/docs/:path*"
+    },
+    {
+      "source": "/mintlify-assets/:path+",
+      "destination": "https://aomilabs.mintlify.dev/mintlify-assets/:path+"
+    }
+  ]
 }

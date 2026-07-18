@@ -36,7 +36,7 @@ export default function App() {
 AomiRuntimeProvider
 ├── ThreadContextProvider      ← Thread state (messages, metadata, switching)
 │   └── NotificationContextProvider  ← Toast notifications
-│       └── UserContextProvider      ← Wallet/user state
+│       └── ExtUserProvider      ← Wallet/user state
 │           └── ControlContextProvider  ← Model/app/API key
 │               └── EventContextProvider  ← SSE + system events
 │                   └── AomiRuntimeCore  ← Orchestration + unified API

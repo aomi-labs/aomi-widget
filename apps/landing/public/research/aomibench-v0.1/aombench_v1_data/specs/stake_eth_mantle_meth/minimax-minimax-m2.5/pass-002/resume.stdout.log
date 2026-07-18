@@ -1,0 +1,3 @@
+[eval] PASS stake_eth_mantle_meth 1 turn(s) 10 tool call(s) 5.51993 cr, 364691 in / 431 out tok 0 warning(s) duration 88s
+report full json: ../output/eval/model-bench-public-skills-minimax-m25-kiro-20260531/specs/stake_eth_mantle_meth/minimax-m2.5/pass-002/20260531T091154.662571000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-minimax-m25-kiro-20260531/specs/stake_eth_mantle_meth/minimax-m2.5/pass-002/20260531T091154.662571000Z.compact.json

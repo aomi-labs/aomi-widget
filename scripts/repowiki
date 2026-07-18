@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+NEIGHBOR_ROOT="${REPOMONO_ROOT:-$ROOT/../product-mono}"
+RUST_WORKSPACE="$NEIGHBOR_ROOT/aomi"
+LOCAL_AOMI_LINK="$ROOT/aomi"
+
+if [[ ! -f "$ROOT/repowiki.toml" ]]; then
+  echo "[repowiki-wrapper] missing $ROOT/repowiki.toml" >&2
+  exit 1
+fi
+
+if [[ ! -d "$NEIGHBOR_ROOT" ]]; then
+  echo "[repowiki-wrapper] expected neighboring repo at $NEIGHBOR_ROOT" >&2
+  exit 1
+fi
+
+if [[ ! -d "$RUST_WORKSPACE" ]]; then
+  echo "[repowiki-wrapper] expected Rust workspace at $RUST_WORKSPACE" >&2
+  exit 1
+fi
+
+if [[ ! -f "$NEIGHBOR_ROOT/aomi/bin/repowiki/Cargo.toml" ]]; then
+  echo "[repowiki-wrapper] repowiki binary not found under $NEIGHBOR_ROOT/aomi/bin/repowiki" >&2
+  exit 1
+fi
+
+if [[ ! -e "$LOCAL_AOMI_LINK" ]]; then
+  ln -s "$RUST_WORKSPACE" "$LOCAL_AOMI_LINK"
+fi
+
+if [[ ! -f "$LOCAL_AOMI_LINK/Cargo.toml" ]]; then
+  echo "[repowiki-wrapper] expected $LOCAL_AOMI_LINK to expose Cargo.toml" >&2
+  exit 1
+fi
+
+export FASTEMBED_CACHE_DIR="${FASTEMBED_CACHE_DIR:-$ROOT/.fastembed_cache}"
+
+cd "$RUST_WORKSPACE"
+cargo run -p repowiki -- --root "$ROOT" "$@"

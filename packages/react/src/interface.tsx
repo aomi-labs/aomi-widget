@@ -5,10 +5,7 @@ import type { ThreadMessageLike } from "@assistant-ui/react";
 
 import type { AomiSimulateResponse, UserState } from "@aomi-labs/client";
 import type { ThreadMetadata } from "./state/thread-store";
-import type {
-  EventSubscriber,
-  SSEStatus,
-} from "./contexts/event-context";
+import type { EventSubscriber, SSEStatus } from "./contexts/event-context";
 import type {
   Notification,
   NotificationData,
@@ -46,6 +43,8 @@ export type AomiRuntimeApi = {
   threadViewKey: number;
   /** Metadata for all threads (title, status, lastActiveAt) */
   threadMetadata: Map<string, ThreadMetadata>;
+  /** True when the authenticated thread list failed to load. */
+  threadListError: boolean;
   /** Get metadata for a specific thread */
   getThreadMetadata: (threadId: string) => ThreadMetadata | undefined;
   /** Create a new thread and return its ID */
@@ -88,6 +87,8 @@ export type AomiRuntimeApi = {
   // -------------------------------------------------------------------------
   /** All queued wallet requests (tx + eip712 signing) */
   pendingWalletRequests: WalletRequest[];
+  /** True while switching wallets or networks could lose an unresolved request. */
+  hasBlockingWalletRequests: boolean;
   /** Mark a wallet request as in-flight — suppresses it from the pending list until acked */
   startWalletRequest: (id: string) => void;
   /** Complete a wallet request after the backend acknowledges the response */
@@ -116,7 +117,13 @@ export type AomiRuntimeApi = {
   /** Subscribe to inbound events by type. Returns unsubscribe function. */
   subscribe: (type: string, callback: EventSubscriber) => () => void;
   /** Send a system command to the backend */
-  sendSystemCommand: (event: { type: string; sessionId: string; payload: unknown }) => Promise<void>;
+  sendSystemCommand: (event: {
+    type: string;
+    sessionId: string;
+    payload: unknown;
+  }) => Promise<void>;
+  /** Record ephemeral UI context for the next model turn on the active thread. */
+  recordUiInteraction: (payload: unknown) => Promise<void>;
   /** Current SSE connection status */
   sseStatus: SSEStatus;
 };
@@ -157,7 +164,7 @@ export const AomiRuntimeApiProvider = AomiRuntimeContext.Provider;
  *   const { showNotification } = aomi;
  *
  *   // Event API
- *   const { subscribe, sendSystemCommand } = aomi;
+ *   const { subscribe, sendSystemCommand, recordUiInteraction } = aomi;
  * }
  * ```
  */
@@ -170,4 +177,9 @@ export function useAomiRuntime(): AomiRuntimeApi {
     );
   }
   return context;
+}
+
+/** Returns the runtime when mounted, allowing standalone registry previews. */
+export function useOptionalAomiRuntime(): AomiRuntimeApi | null {
+  return useContext(AomiRuntimeContext);
 }

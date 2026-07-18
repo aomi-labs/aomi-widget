@@ -3,10 +3,10 @@
 @import "tw-animate-css";
 @import "fumadocs-ui/css/shadcn.css";
 @import "fumadocs-ui/css/preset.css";
-@import "../../registry/src/themes/default.css";
+@import "../../shadcn-registry/src/themes/default.css";
 
 /* Scan the npm package dist so Tailwind picks up component classes */
-@source "../../registry/src";
+@source "../../shadcn-registry/src";
 
 /* ============================================
    Custom Font Faces - Bauhaus
@@ -82,44 +82,44 @@
     @apply bg-background text-foreground;
   }
 
-  /* Custom scrollbar styling - thin, transparent, muted */
-  * {
+  /* Landing page scrollbar styling - scoped to the page viewport. */
+  html {
     scrollbar-width: thin;
     scrollbar-color: transparent transparent;
   }
 
-  *:hover,
-  *:focus-within {
+  html:hover,
+  html:focus-within {
     scrollbar-color: hsl(var(--muted-foreground) / 0.2) transparent;
   }
 
-  ::-webkit-scrollbar {
+  html::-webkit-scrollbar {
     width: 3px;
     height: 3px;
     background: transparent;
   }
 
-  ::-webkit-scrollbar-track {
+  html::-webkit-scrollbar-track {
     background: transparent;
     border: none;
     margin: 0;
   }
 
-  ::-webkit-scrollbar-thumb {
+  html::-webkit-scrollbar-thumb {
     background: transparent;
     border-radius: 3px;
   }
 
-  *:hover::-webkit-scrollbar-thumb,
-  *:focus-within::-webkit-scrollbar-thumb {
+  html:hover::-webkit-scrollbar-thumb,
+  html:focus-within::-webkit-scrollbar-thumb {
     background: hsl(var(--muted-foreground) / 0.2);
   }
 
-  ::-webkit-scrollbar-thumb:hover {
+  html::-webkit-scrollbar-thumb:hover {
     background: hsl(var(--muted-foreground) / 0.4);
   }
 
-  ::-webkit-scrollbar-corner {
+  html::-webkit-scrollbar-corner {
     background: transparent;
   }
 
@@ -132,34 +132,6 @@
   [data-sidebar="content"]::-webkit-scrollbar {
     width: 0;
     display: none;
-  }
-
-  /* Thread viewport scrollbar - thin, muted, only on hover */
-  .aui-thread-viewport {
-    scrollbar-width: thin;
-    scrollbar-color: transparent transparent;
-  }
-
-  .aui-thread-viewport:hover {
-    scrollbar-color: hsl(var(--muted-foreground) / 0.15) transparent;
-  }
-
-  .aui-thread-viewport::-webkit-scrollbar {
-    width: 3px;
-    background: transparent;
-  }
-
-  .aui-thread-viewport::-webkit-scrollbar-track {
-    background: transparent;
-  }
-
-  .aui-thread-viewport::-webkit-scrollbar-thumb {
-    background: transparent;
-    border-radius: 3px;
-  }
-
-  .aui-thread-viewport:hover::-webkit-scrollbar-thumb {
-    background: hsl(var(--muted-foreground) / 0.15);
   }
 }
 
@@ -400,20 +372,6 @@ html {
   font-family:
     ui-monospace, SFMono-Regular, SFMono, Menlo, Monaco, Consolas,
     "Liberation Mono", "Courier New", monospace;
-}
-
-/* ============================================
-   Composer Input Text Color Fix
-   ============================================ */
-
-/* Force dark text color for composer input */
-.aui-composer-input,
-.aui-composer-input::placeholder {
-  color: #292524 !important; /* stone-800 */
-}
-
-.aui-composer-input::placeholder {
-  color: #78716c !important; /* stone-500 for placeholder */
 }
 
 /* ============================================
