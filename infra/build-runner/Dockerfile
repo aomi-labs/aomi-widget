@@ -71,13 +71,18 @@ RUN --mount=type=secret,id=gh_token \
     && rmdir /tmp/bin-keep
 
 # The aomi repo for @aomi-labs/smither (run-plan lives in its dist).
+# Same 500 MB layer cap as the cargo step: a root `pnpm install` drags in
+# node_modules for the entire monorepo (~1 GB layer). Install only the
+# smither subtree, then drop the pnpm store, git history, and caches
+# inside this RUN so only what run-plan needs ships.
 RUN --mount=type=secret,id=gh_token \
     GH_TOKEN=$(cat /run/secrets/gh_token 2>/dev/null || true); \
     git clone "https://${GH_TOKEN:+${GH_TOKEN}@}github.com/aomi-labs/aomi.git" aomi \
     && git -C aomi checkout "${AOMI_REF}" \
     && cd aomi \
-    && pnpm install --frozen-lockfile \
-    && pnpm --filter "@aomi-labs/smither..." build
+    && pnpm install --frozen-lockfile --filter "@aomi-labs/smither..." \
+    && pnpm --filter "@aomi-labs/smither..." build \
+    && rm -rf "$(pnpm store path)" /root/.cache /root/.npm .git
 
 # Sanity: the bundle loads under Bun (top-level help exits 0), actually
 # ships the run-plan subcommand (grep the bundle — `run-plan --help` is NOT
