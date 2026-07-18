@@ -67,8 +67,12 @@ RUN --mount=type=secret,id=gh_token \
     && pnpm install --frozen-lockfile \
     && pnpm --filter "@aomi-labs/smither..." build
 
-# Sanity: the runner entry parses and the binaries exist.
+# Sanity: the runner entry parses, actually ships the run-plan subcommand
+# (the CLI exits 0 on unknown subcommands, so grep the bundle — an image
+# built from a ref without run-plan must fail here, not at dispatch), and
+# the binaries exist.
 RUN bun /workspace/aomi/packages/smither/dist/cli.js run-plan --help >/dev/null \
+    && grep -q "run-plan" /workspace/aomi/packages/smither/dist/cli.js \
     && test -x /workspace/aomi-sdk/target/release/aomi-build \
     && test -x /workspace/aomi-sdk/target/release/aomi-run
 
