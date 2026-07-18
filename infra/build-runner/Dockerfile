@@ -51,12 +51,24 @@ WORKDIR /workspace
 
 # Pinned aomi-sdk checkout with prebuilt release binaries + warm caches.
 # The gh_token secret is only needed while the repos are private.
+# VCR rejects compressed layers over 500 MB, so the full target dir can't
+# ship: keep only the two release binaries (at their expected
+# target/release paths) plus the crate download cache, and drop the rest
+# of the build artifacts inside this same RUN so the layer stays small.
+# In-sandbox app compiles start colder for it — revisit if validate gets
+# slow enough to matter.
 RUN --mount=type=secret,id=gh_token \
     GH_TOKEN=$(cat /run/secrets/gh_token 2>/dev/null || true); \
     git clone "https://${GH_TOKEN:+${GH_TOKEN}@}github.com/aomi-labs/aomi-sdk.git" aomi-sdk \
     && git -C aomi-sdk checkout "${AOMI_SDK_REF}" \
     && cargo build --release --manifest-path aomi-sdk/Cargo.toml \
-         -p aomi-sdk --features cli,dev-runtime --bin aomi-build --bin aomi-run
+         -p aomi-sdk --features cli,dev-runtime --bin aomi-build --bin aomi-run \
+    && mkdir -p /tmp/bin-keep \
+    && cp aomi-sdk/target/release/aomi-build aomi-sdk/target/release/aomi-run /tmp/bin-keep/ \
+    && rm -rf aomi-sdk/target /root/.cargo/registry/src /root/.cargo/git \
+    && mkdir -p aomi-sdk/target/release \
+    && mv /tmp/bin-keep/aomi-build /tmp/bin-keep/aomi-run aomi-sdk/target/release/ \
+    && rmdir /tmp/bin-keep
 
 # The aomi repo for @aomi-labs/smither (run-plan lives in its dist).
 RUN --mount=type=secret,id=gh_token \
