@@ -82,7 +82,12 @@ RUN --mount=type=secret,id=gh_token \
     && cd aomi \
     && pnpm install --frozen-lockfile --filter "@aomi-labs/smither..." \
     && pnpm --filter "@aomi-labs/smither..." build \
-    && rm -rf "$(pnpm store path)" /root/.cache /root/.npm .git
+    && CI=true pnpm install --frozen-lockfile --filter "@aomi-labs/smither..." --prod \
+    # Explicit store path — `$(pnpm store path)` expanded empty here and the
+    # 1.5 GB store silently shipped in the layer. Also drop the run state
+    # that's (erroneously) committed to the repo.
+    && rm -rf /root/.local/share/pnpm /root/.cache /root/.npm .git \
+         packages/smither/.smithers
 
 # Sanity: the bundle loads under Bun (top-level help exits 0), actually
 # ships the run-plan subcommand (grep the bundle — `run-plan --help` is NOT
