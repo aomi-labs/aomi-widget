@@ -55,7 +55,8 @@ RUN --mount=type=secret,id=gh_token \
     GH_TOKEN=$(cat /run/secrets/gh_token 2>/dev/null || true); \
     git clone "https://${GH_TOKEN:+${GH_TOKEN}@}github.com/aomi-labs/aomi-sdk.git" aomi-sdk \
     && git -C aomi-sdk checkout "${AOMI_SDK_REF}" \
-    && cargo build --release --manifest-path aomi-sdk/Cargo.toml -p aomi-build -p aomi-run
+    && cargo build --release --manifest-path aomi-sdk/Cargo.toml \
+         -p aomi-sdk --features cli,dev-runtime --bin aomi-build --bin aomi-run
 
 # The aomi repo for @aomi-labs/smither (run-plan lives in its dist).
 RUN --mount=type=secret,id=gh_token \

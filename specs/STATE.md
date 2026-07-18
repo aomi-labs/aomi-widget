@@ -2,6 +2,37 @@
 
 ## Last Updated
 
+2026-07-17 (night) — smithers-orchestrator 0.27.0 → 0.28.0 upgrade (in tree,
+  unverified tail): packages/smither now `^0.28.0` + effect pinned 3.21.4;
+  bun-compat drops the `Bun.which: () => null` polyfill (0.28's resolveBinary
+  trusts a function-typed `which` with no PATH fallback — the stub broke
+  git/claude resolution; `Bun.sleep` kept as cheap insurance); raw-TS loader
+  hooks STILL required on 0.28.0 (plain-JS packaging lands only in releases
+  after it). Verified: smither build + 73/73, aomi-build type-check + 229/229
+  + lint, and on the two-instance Postgres E2E the compute stages
+  (binaries/codegen) complete under Node with cross-instance observation
+  intact. Found+fixed a 0.28 delta: engine settles quota-hit runs as new
+  status `waiting-quota` (retries preserved, later create resumes) — wire
+  mapping moved it running→failed (run-view.ts) so pages don't show an
+  eternal spinner; in-memory engine.ts mapping already agreed. PARKED_STATUSES
+  comment notes 0.28's `paused` (we never pass pauseSignal).
+  Preserved-retry resume CONFIRMED after the quota window reset (~01:21am):
+  re-creating the same app minted no new run id, resumed straight into
+  `curate` (not a redo of binaries/codegen), and made a genuine retry
+  attempt — smithers 0.28's "retries are preserved" holds. That attempt
+  immediately hit a *fresh* 5-hour quota wall (resets ~2026-07-18 06:20
+  local), because this session's own research work billed against the same
+  Claude subscription the curate agent uses — not a code issue.
+  REMAINING to verify: an agent step actually completing (either wait out
+  the new window, or set SMITHER_ANTHROPIC_API_KEY so headless runs bill an API
+  key instead of sharing the interactive subscription quota — recommended
+  before the next verification pass), the Bun TUI/console surfaces, and a
+  golden-image rebuild + sandbox-mode dispatch on 0.28.
+  Upgrade audit report (API-surface diff, per-step risk):
+  scratchpad smither-on-vercel-report.md + subagent findings; fallback = pin
+  back to 0.27.0, store schema read-compatible both ways.
+
+
 2026-07-17 (evening) — /build ship verification pass over the uncommitted
   Phase 1–3 work + golden-image base swap. (1) Fixed a statelessness bug the
   cross-instance E2E caught on a REAL fresh Postgres (14 on :5455, not the
@@ -50,7 +81,7 @@
   prepareRun runId option) — smoked on Bun (resume replay, exit 0; custom
   run-id lands in run.json); `requestRunCancel` (durable
   cancel_requested_at_ms write the engine polls — cancel works from any
-  process); makeWorkAgent takes apiKey, wired from AOMI_BUILDER_API_KEY so
+  process); makeWorkAgent takes apiKey, wired from SMITHER_ANTHROPIC_API_KEY so
   headless runners bill an API key instead of a CLI login. BFF: Runner seam
   (AOMI_BUILD_RUNNER, LocalRunner today, SandboxRunner = phase 3 slot),
   cancelBuildRun + POST /api/bff/build/runs/cancel, Esc on the page cancels

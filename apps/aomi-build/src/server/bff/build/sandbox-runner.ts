@@ -78,7 +78,7 @@ export function sandboxRunnerConfig(
     databaseUrl,
     sdkRoot: env.AOMI_SANDBOX_SDK_ROOT ?? "/workspace/aomi-sdk",
     smitherDir: env.AOMI_SANDBOX_SMITHER_DIR ?? "/workspace/aomi/packages/smither",
-    builderApiKey: env.AOMI_BUILDER_API_KEY,
+    builderApiKey: env.SMITHER_ANTHROPIC_API_KEY,
   };
 }
 
@@ -115,7 +115,7 @@ export async function dispatchSandboxRun(options: {
       SMITHER_DATABASE_URL: config.databaseUrl,
       AOMI_ALLOW_STALE_SDK: "1",
       ...(config.builderApiKey
-        ? { AOMI_BUILDER_API_KEY: config.builderApiKey }
+        ? { SMITHER_ANTHROPIC_API_KEY: config.builderApiKey }
         : {}),
     },
     tags: { app: options.app.slice(0, 64) },

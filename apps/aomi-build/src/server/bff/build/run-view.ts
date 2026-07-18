@@ -24,13 +24,16 @@ export function runStatusFromView(status: string | null): BuildRunStatus | null 
       return "completed";
     case "failed":
     case "cancelled":
+    // Parked-until-quota-resets (smithers 0.28): execution has returned and
+    // nothing advances until a later create resumes it (retries preserved),
+    // so the wire says failed — the snapshot's error carries the quota detail.
+    case "waiting-quota":
       return "failed";
     case "waiting-approval":
     case "waiting-event":
       return status;
     case "running":
     case "waiting-timer":
-    case "waiting-quota":
       return "running";
     default:
       return null;

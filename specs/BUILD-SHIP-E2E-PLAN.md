@@ -67,7 +67,7 @@ Estimate: 2–3 days.
     extends timeout on heartbeat, destroys on settle.
   Selected by env `AOMI_BUILD_RUNNER=local|vercel-sandbox`.
 - Agent auth: plumb `apiKey` into `makeWorkAgent` (ClaudeCodeAgent supports
-  it) from `AOMI_BUILDER_API_KEY` — sandbox runs bill an API key, not a
+  it) from `SMITHER_ANTHROPIC_API_KEY` — sandbox runs bill an API key, not a
   personal subscription.
 - Cancel: abort signal in LocalRunner; `sandbox.stop()` in SandboxRunner;
   POST /runs/cancel route; Esc wired on the page.
@@ -104,7 +104,7 @@ Estimate: 4–5 days (image plumbing is most of it).
   by per-user app namespacing in `build_runs` (slug + owner).
 - **Vercel env (staging first)**: `NEXT_PUBLIC_BUILD_ENGINE=smither`,
   `AOMI_BUILD_RUNNER=vercel-sandbox`, `SMITHER_DATABASE_URL`,
-  `AOMI_BUILDER_API_KEY`, image ref. Prod after staging soak.
+  `SMITHER_ANTHROPIC_API_KEY`, image ref. Prod after staging soak.
 - Observability: runs list surface (Operate or a simple admin view) reading
   `build_runs`; sandbox logs retained via `vercel sandbox` CLI during soak.
 

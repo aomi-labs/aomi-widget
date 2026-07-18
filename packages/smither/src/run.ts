@@ -155,7 +155,10 @@ export async function executeRun(
 
 /** Statuses where the run is parked on something external and re-executing
  *  with resume is the way forward once that thing arrives: a durable approval
- *  decision (`waiting-approval`) or an external signal (`waiting-event`). */
+ *  decision (`waiting-approval`) or an external signal (`waiting-event`).
+ *  smithers 0.28 adds `paused` (graceful pause via RunOptions.pauseSignal) —
+ *  deliberately not parked here: we never pass pauseSignal, and a paused run
+ *  should settle back to its caller, not spin this loop. */
 const PARKED_STATUSES = new Set(["waiting-approval", "waiting-event"]);
 
 /**

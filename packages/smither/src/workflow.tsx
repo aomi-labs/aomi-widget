@@ -174,7 +174,7 @@ export async function buildAppWorkflow(
 
   // One CLI agent instance per distinct (agent, repo) used anywhere in the
   // composition — cross-repo agents run in another codebase entirely.
-  // AOMI_BUILDER_API_KEY switches claude agents to API billing (headless
+  // SMITHER_ANTHROPIC_API_KEY switches claude agents to API billing (headless
   // runners have no CLI login).
   const agents = new Map<string, Awaited<ReturnType<typeof makeWorkAgent>>>();
   for (const spec of agentSpecsFor(plan)) {
@@ -183,7 +183,7 @@ export async function buildAppWorkflow(
       await makeWorkAgent(spec.name, {
         cwd: spec.cwd,
         env: deps.env,
-        apiKey: deps.env?.AOMI_BUILDER_API_KEY,
+        apiKey: deps.env?.SMITHER_ANTHROPIC_API_KEY,
       }),
     );
   }

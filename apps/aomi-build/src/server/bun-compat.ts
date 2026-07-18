@@ -64,13 +64,14 @@ export async function registerBunCompatHooks(): Promise<void> {
   if (holder[REGISTERED_KEY]) return;
   holder[REGISTERED_KEY] = true;
 
-  // The smithers engine calls `Bun.sleep` unguarded (and `Bun.which` behind a
-  // `typeof Bun` check) on its hot paths. Polyfill just those two — and NOT
+  // Polyfill only `Bun.sleep` (0.27 called it unguarded; gone from the 0.28
+  // engine/driver/db but kept as cheap insurance) — and NOT `Bun.which`: the
+  // 0.28 engine trusts a function-typed `which` with no PATH fallback, so an
+  // always-null stub breaks git/claude/codex resolution. Also NOT
   // `Bun.version`, which stays the honest "really running on Bun" signal
   // (packages/smither isBunRuntime keys on it).
   holder.Bun ??= {
     sleep: (ms: number) => new Promise((resolve) => setTimeout(resolve, ms)),
-    which: () => null,
   };
 
   const { registerHooks, stripTypeScriptTypes } = await import("node:module");

@@ -76,7 +76,7 @@ describe("dispatchSandboxRun", () => {
       env: {
         SMITHER_DATABASE_URL: "postgresql://x",
         AOMI_ALLOW_STALE_SDK: "1",
-        AOMI_BUILDER_API_KEY: "sk-test",
+        SMITHER_ANTHROPIC_API_KEY: "sk-test",
       },
     });
     const cmd = calls.runCommand[0] as {
