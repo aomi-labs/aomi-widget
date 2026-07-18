@@ -80,6 +80,10 @@ export async function prepareRun(options: {
   /** Reuse an already-open store handle (one per backend per process — the
    *  embedded PGlite backend cannot be opened twice on one dataDir). */
   api?: AomiSmitherApi;
+  /** Use a caller-allocated run id when creating fresh state (a control
+   *  plane that pre-registers the run before dispatching a runner). An
+   *  existing run for the app still resumes under its own id. */
+  runId?: string;
 }): Promise<PreparedRun> {
   const runsRoot = options.runsRoot ?? defaultRunsRoot;
   const app = options.plan.app;
@@ -89,19 +93,37 @@ export async function prepareRun(options: {
   await mkdir(runDir(app, runsRoot), { recursive: true });
   await savePlan(options.plan, runsRoot);
   const existing = await loadRunState(app, runsRoot);
-  const state = existing ?? (await createRunState(app, runsRoot));
   const backend = options.backend ?? resolveRunBackend(app, { runsRoot });
   const api = options.api ?? (await createAomiSmither(backend));
+  // run.json is only a local pointer; the run itself lives in the backend.
+  // A pointer whose run the store doesn't know (fresh/shared Postgres, wiped
+  // sqlite, another instance's leftover) must start fresh, not resume — the
+  // engine hard-fails resuming a run id that has no rows.
+  const resumable =
+    existing !== null && (await storeHasRun(api, existing.runId));
+  const state = resumable
+    ? existing
+    : await createRunState(app, runsRoot, options.runId);
   const workflow = await buildAppWorkflow(api, options.plan, options.deps);
   return {
     api,
     workflow,
     plan: options.plan,
     runId: state.runId,
-    resume: existing !== null,
+    resume: resumable,
     backend,
     stateLocation: describeBackend(backend),
   };
+}
+
+/** Whether the durable store has any rows for this run id. */
+async function storeHasRun(
+  api: AomiSmitherApi,
+  runId: string,
+): Promise<boolean> {
+  const { SmithersDb } = await import("smithers-orchestrator");
+  const adapter = new SmithersDb(api.db as never);
+  return (await adapter.getRun(runId)) != null;
 }
 
 export async function executeRun(
@@ -241,6 +263,21 @@ export async function readRunView(
     nodes: [...latest.values()],
     outputs,
   };
+}
+
+/**
+ * Ask the engine to cancel a run via the durable store. The executing process
+ * (this one or another — the engine polls `cancel_requested_at_ms`) winds the
+ * run down to a `cancelled` terminal status. Safe to call from any surface
+ * with store access.
+ */
+export async function requestRunCancel(
+  api: AomiSmitherApi,
+  runId: string,
+): Promise<void> {
+  const { SmithersDb } = await import("smithers-orchestrator");
+  const adapter = new SmithersDb(api.db as never);
+  await adapter.requestRunCancel(runId, Date.now());
 }
 
 /**

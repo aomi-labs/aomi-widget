@@ -192,6 +192,15 @@ export function useBuildSession() {
 
   const cancelPipeline = useCallback(() => {
     clearTimers();
+    // Real runs: ask the engine to wind the run down (durable store write);
+    // polling has already stopped via clearTimers.
+    if (ENGINE_MODE && engineRunId) {
+      void fetch("/api/bff/build/runs/cancel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ runId: engineRunId }),
+      }).catch(() => {});
+    }
     setIsGenerating(false);
     setStreamingMessageId(null);
     setVerifyBusy(null);
@@ -221,7 +230,7 @@ export function useBuildSession() {
       setAwaitingVerify(true);
       setStageId("compile_test");
     }
-  }, [clearTimers, fileTree.length]);
+  }, [clearTimers, engineRunId, fileTree.length]);
 
   /**
    * Real-engine driver: create a run through the BFF and poll its snapshot

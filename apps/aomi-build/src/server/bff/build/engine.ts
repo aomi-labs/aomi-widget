@@ -10,6 +10,7 @@ import {
   finalizePlan,
   prepareRun,
   readRunView,
+  requestRunCancel,
   resolveRunBackend,
   sanitizeAppName,
   stageKeyForNode,
@@ -25,6 +26,13 @@ import {
   runStatusFromView,
   stageStatusesFromView,
 } from "./run-view";
+import {
+  dispatchSandboxRun,
+  maybeExtendSandbox,
+  sandboxRunnerConfig,
+  stopSandbox,
+  type SandboxDispatch,
+} from "./sandbox-runner";
 import type {
   BuildRunApproval,
   BuildRunFileNode,
@@ -68,6 +76,8 @@ type RunHandle = {
   /** Present on handles this process executes; absent on observer handles
    *  reconstructed for runs another process (or a past life) started. */
   prepared?: PreparedRun;
+  /** Present when this run executes in a Vercel Sandbox this process booted. */
+  dispatch?: SandboxDispatch;
   status: BuildRunStatus;
   stageStatus: Record<string, BuildRunStageStatus>;
   /** HH:MM:SS of each stage's latest live transition. */
@@ -271,6 +281,21 @@ function reduceEvent(handle: RunHandle, event: EngineEvent) {
   }
 }
 
+/**
+ * Execution seam, selected via AOMI_BUILD_RUNNER: "local" runs the workflow
+ * in this process (dev, single host); "vercel-sandbox" dispatches
+ * `aomi-smither run-plan` into a sandbox booted from the golden image
+ * (infra/build-runner). Snapshots never care — they read the shared store
+ * either way (Phase 1).
+ */
+function runnerKind(): "local" | "vercel-sandbox" {
+  const kind = process.env.AOMI_BUILD_RUNNER ?? "local";
+  if (kind !== "local" && kind !== "vercel-sandbox") {
+    throw new BuildEngineError(`unknown AOMI_BUILD_RUNNER "${kind}"`, 503);
+  }
+  return kind;
+}
+
 function execute(handle: RunHandle, prepared: PreparedRun) {
   void executeRunUntilSettled(prepared, {
     onEvent: (event) => reduceEvent(handle, event as EngineEvent),
@@ -307,12 +332,21 @@ function execute(handle: RunHandle, prepared: PreparedRun) {
 
 /** The BuildPlan for an app — deterministic given (app, story), so observer
  *  processes can recompose the identical stage shape without the original
- *  request (the story only flavors agent prompts). */
-function composePlan(app: string, userStory: string, autoApprove = true): BuildPlan {
-  const root = sdkRoot();
+ *  request (the story only flavors agent prompts). `sdkRootOverride` targets
+ *  a filesystem this process can't see (the sandbox image); spec detection
+ *  is skipped there, so remote runs always go through discovery for now. */
+function composePlan(
+  app: string,
+  userStory: string,
+  autoApprove = true,
+  sdkRootOverride?: string,
+): BuildPlan {
+  const root = sdkRootOverride ?? sdkRoot();
   // An app that already carries a discovered/curated spec resumes idempotently
   // (gen-* keeps curated sources); a fresh app goes through spec discovery.
-  const hasSpec = existsSync(path.join(root, "apps", app, "openapi.yaml"));
+  const hasSpec = sdkRootOverride
+    ? false
+    : existsSync(path.join(root, "apps", app, "openapi.yaml"));
   const { plan, issues } = finalizePlan({
     app,
     sdkRoot: root,
@@ -348,35 +382,85 @@ export async function startBuildRun(options: {
     return existing;
   }
 
-  const plan = composePlan(app, options.prompt, options.autoApprove ?? true);
-  const prepared = await prepareRun({
-    plan,
-    deps: { env: process.env },
-    runsRoot: runsRoot(),
-    api: await apiFor(app),
-  });
-
   const now = new Date().toISOString();
-  const handle: RunHandle = {
-    runId: prepared.runId,
-    app,
-    plan,
-    api: prepared.api,
-    prepared,
-    status: "running",
-    stageStatus: {},
-    stageTimes: {},
-    approvals: [],
-    lines: [
-      `${prepared.resume ? "resuming" : "starting"} run ${prepared.runId} (state: ${prepared.stateLocation})`,
-    ],
-    createdAt: now,
-    updatedAt: now,
-  };
+  let handle: RunHandle;
+
+  if (runnerKind() === "vercel-sandbox") {
+    // The BFF composes and registers; the sandbox executes. Re-creating a
+    // settled app reuses its run id so run-plan resumes from store state.
+    const config = sandboxRunnerConfig();
+    const plan = composePlan(
+      app,
+      options.prompt,
+      options.autoApprove ?? true,
+      config.sdkRoot,
+    );
+    const runId =
+      existing?.runId ??
+      `smither-${sanitizeAppName(app)}-${crypto.randomUUID()}`;
+    const dispatch = await dispatchSandboxRun({
+      planJson: JSON.stringify(plan),
+      app,
+      runId,
+      config,
+    });
+    handle = {
+      runId,
+      app,
+      plan,
+      api: await apiFor(app),
+      dispatch,
+      status: "running",
+      stageStatus: {},
+      stageTimes: {},
+      approvals: [],
+      lines: [`dispatched run ${runId} to sandbox ${dispatch.sandbox.sandboxId}`],
+      createdAt: now,
+      updatedAt: now,
+    };
+  } else {
+    const plan = composePlan(app, options.prompt, options.autoApprove ?? true);
+    const prepared = await prepareRun({
+      plan,
+      deps: { env: process.env },
+      runsRoot: runsRoot(),
+      api: await apiFor(app),
+    });
+    handle = {
+      runId: prepared.runId,
+      app,
+      plan,
+      api: prepared.api,
+      prepared,
+      status: "running",
+      stageStatus: {},
+      stageTimes: {},
+      approvals: [],
+      lines: [
+        `${prepared.resume ? "resuming" : "starting"} run ${prepared.runId} (state: ${prepared.stateLocation})`,
+      ],
+      createdAt: now,
+      updatedAt: now,
+    };
+    execute(handle, prepared);
+  }
+
   registry().byRunId.set(handle.runId, handle);
   registry().byApp.set(app, handle);
-  execute(handle, prepared);
   return handle;
+}
+
+/** Request cancellation of a run. Works from any instance — the cancel is a
+ *  durable store write the executing engine polls (local or in-sandbox);
+ *  stopping a sandbox we booted is best-effort cleanup on top. */
+export async function cancelBuildRun(runId: string): Promise<void> {
+  const handle = getBuildRun(runId) ?? (await reconstructBuildRun(runId));
+  if (!handle) {
+    throw new BuildEngineError(`unknown run: ${runId}`, 404);
+  }
+  await requestRunCancel(handle.api, handle.runId);
+  pushLine(handle, "cancel requested");
+  if (handle.dispatch) await stopSandbox(handle.dispatch);
 }
 
 export function getBuildRun(runId: string): RunHandle | undefined {
@@ -467,6 +551,12 @@ export async function snapshotBuildRun(
   const status =
     (view && runStatusFromView(view.status)) ??
     (handle.status as BuildRunStatus);
+  // Serverless-shaped sandbox keepalive: each poll of a live sandbox run
+  // lazily extends its timeout; an unpolled run lets the sandbox lapse (the
+  // next create resumes it from store state).
+  if (handle.dispatch && (status === "running" || status === "waiting-approval")) {
+    void maybeExtendSandbox(handle.dispatch);
+  }
   const stageStatus = view
     ? stageStatusesFromView(
         view,

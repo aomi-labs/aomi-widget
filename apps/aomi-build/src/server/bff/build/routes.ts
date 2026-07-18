@@ -14,6 +14,7 @@ import type {
 } from "@build/features/build/run-contracts";
 import {
   BuildEngineError,
+  cancelBuildRun,
   decideBuildRun,
   getBuildRun,
   reconstructBuildRun,
@@ -123,6 +124,31 @@ export async function buildRunStatusRoute(req: Request): Promise<NextResponse> {
     return NextResponse.json({ error: "unknown run" }, { status: 404 });
   }
   return NextResponse.json(await snapshotBuildRun(handle));
+}
+
+/** Request cancellation — a durable store write the executing engine polls,
+ *  so it works from any instance (and, later, for sandbox runners). */
+export async function buildRunCancelRoute(req: Request): Promise<NextResponse> {
+  const blocked = checkWrite(req);
+  if (blocked) return blocked;
+  const denied = await requireSession();
+  if (denied) return denied;
+
+  let body: { runId?: unknown };
+  try {
+    body = (await req.json()) as { runId?: unknown };
+  } catch {
+    return NextResponse.json({ error: "invalid JSON body" }, { status: 400 });
+  }
+  if (typeof body.runId !== "string") {
+    return NextResponse.json({ error: "runId is required" }, { status: 400 });
+  }
+  try {
+    await cancelBuildRun(body.runId);
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    return errorResponse(error);
+  }
 }
 
 /** Stream the generated crate (apps/<app>) as a tarball. */

@@ -2,6 +2,62 @@
 
 ## Last Updated
 
+2026-07-17 (evening) — /build ship verification pass over the uncommitted
+  Phase 1–3 work + golden-image base swap. (1) Fixed a statelessness bug the
+  cross-instance E2E caught on a REAL fresh Postgres (14 on :5455, not the
+  PGlite socket stand-in): prepareRun trusted the local run.json pointer and
+  resumed a run id the shared store never had → smithers RUN_NOT_FOUND crash;
+  prepareRun now checks the store (storeHasRun via SmithersDb.getRun) and a
+  stale pointer falls back to a fresh run + rewritten run.json
+  (packages/smither/src/run.ts). (2) E2E re-verified end-to-end: create on
+  instance A (:3210), instance B (:3211, NEXT_DIST_DIR=.next-b) served
+  status/stages mid-run and, at settle, curation, result, fileTree AND the
+  crate tarball download (200, 50 KB) for a run it never executed; cancel
+  route from B returns ok (run had already completed — cancel-mid-run was
+  proven in the Phase 2 pass). (3) Golden image: Vercel Sandbox custom-image
+  docs confirm images are plain OCI from VCR with NO base-OS constraint
+  (only linux/amd64 manifest; ENTRYPOINT/CMD ignored; WORKDIR honored) — the
+  AL2023 assumption was wrong, base swapped to debian:bookworm-slim
+  (dnf→apt) and README push flow corrected to
+  `docker buildx build --platform linux/amd64` + zstd (a plain build on an
+  ARM Mac lands as `Unoptimized` in VCR and Sandbox rejects it; wait for
+  `Ready`, else image_not_ready). Full sweep green after the fix: smither
+  build + 73/73 tests, aomi-build type-check + 229/229 tests + lint.
+
+2026-07-17 — /build ship Phase 3 (review-ready; real provisioning blocked on
+  Vercel/API-key decisions): SandboxRunner. BFF dispatches
+  `aomi-smither run-plan --plan-b64 … --run-id …` into a Vercel Sandbox
+  booted from the golden image (infra/build-runner/{Dockerfile,README.md}:
+  AL2023 + Rust + Bun + Node + claude CLI + pinned aomi-sdk with prebuilt
+  release binaries + built smither package). AOMI_BUILD_RUNNER=vercel-sandbox
+  branch in the engine (composePlan sdkRoot override, pre-allocated run id,
+  settled-app re-create reuses the run id so run-plan resumes from store
+  state); serverless keepalive = lazy extendTimeout from the poll path;
+  cancel = durable store write + best-effort sandbox stop. @vercel/sandbox
+  behind an injectable SandboxClientLike seam (sandbox-runner.ts, 4 tests
+  with a fake client; SDK v2.7 API verified from the published types).
+  run-plan now resumes when the shared store already knows the run id even
+  with no local run.json (fresh-sandbox continuation). Local runner
+  regression E2E green after the refactor (5/5 stages, curation present).
+  Sandbox-mode known gaps (Phase 4): Files panel/download read local fs —
+  empty for sandbox runs; cross-instance sandbox extend/stop and quotas need
+  the build_runs registry decision; sandbox-mode plans always use discover
+  (server can't stat the image's apps/).
+
+2026-07-17 — /build ship Phase 2 (specs/BUILD-SHIP-E2E-PLAN.md): runner seam.
+  packages/smither: `aomi-smither run-plan` headless subcommand (--plan/
+  --plan-b64 JSON, optional pre-allocated --run-id via createRunState/
+  prepareRun runId option) — smoked on Bun (resume replay, exit 0; custom
+  run-id lands in run.json); `requestRunCancel` (durable
+  cancel_requested_at_ms write the engine polls — cancel works from any
+  process); makeWorkAgent takes apiKey, wired from AOMI_BUILDER_API_KEY so
+  headless runners bill an API key instead of a CLI login. BFF: Runner seam
+  (AOMI_BUILD_RUNNER, LocalRunner today, SandboxRunner = phase 3 slot),
+  cancelBuildRun + POST /api/bff/build/runs/cancel, Esc on the page cancels
+  the real run. Cancel E2E verified against shared Postgres: store status
+  `cancelled`, codegen node cancelled mid-flight. Note: wire status maps
+  cancelled→failed (no distinct wire state yet — P1 polish).
+
 2026-07-16 — /build ship Phase 1 (specs/BUILD-SHIP-E2E-PLAN.md): stateless
   BFF over the durable store. packages/smither gains readRunView (run status
   + per-node states from _smithers_runs/_smithers_nodes + outputs) and

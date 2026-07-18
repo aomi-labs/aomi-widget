@@ -18,7 +18,14 @@ function cleanEnv(env: NodeJS.ProcessEnv | undefined): Record<string, string> | 
  */
 export async function makeWorkAgent(
   kind: AgentKind,
-  options: { cwd: string; env?: NodeJS.ProcessEnv; timeoutMs?: number },
+  options: {
+    cwd: string;
+    env?: NodeJS.ProcessEnv;
+    timeoutMs?: number;
+    /** Bill an API key instead of the local CLI login — required on headless
+     *  runners (sandboxes, CI) where no personal subscription is signed in. */
+    apiKey?: string;
+  },
 ): Promise<AgentLike> {
   const { ClaudeCodeAgent, CodexAgent } = await import("smithers-orchestrator");
   const env = cleanEnv(options.env);
@@ -36,5 +43,6 @@ export async function makeWorkAgent(
     env,
     permissionMode: "acceptEdits",
     timeoutMs: options.timeoutMs,
+    ...(options.apiKey ? { apiKey: options.apiKey } : {}),
   });
 }

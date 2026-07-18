@@ -212,6 +212,14 @@ OPTIONS
                               of the aomi-branded UI
 
 SUBCOMMANDS
+  run-plan                    Execute a caller-composed plan JSON headlessly
+                              (for control planes / remote runners)
+    --plan <path>             Plan JSON file (finalizePlan-validated)
+    --plan-b64 <b64>          Plan JSON inline as base64 (instead of --plan)
+    --run-id <id>             Pre-allocated run id for fresh state
+    --state-root <path>       Run state root (default: packages/smither/.smithers/runs)
+    --activation-token <tok>  Runtime deploy token; not persisted
+
   console                     Observe an app's run from a browser (works while
                               a run executes in another terminal)
     --app <name>              App whose run state to watch (required)
@@ -1051,6 +1059,70 @@ async function runConsoleCommand(argv: string[]): Promise<void> {
 /** `aomi-smither signal --app <app> --node <phaseId>` — deliver the external
  *  signal that resolves a wait-external pause. Run from another terminal (or an
  *  external system) once the outside work the run is parked on is done. */
+/**
+ * Headless runner for a control plane: execute a caller-composed plan JSON
+ * without any interactive surface. Used by remote runners (sandboxes) whose
+ * plan was composed elsewhere (the web BFF) and whose run id was
+ * pre-allocated so the caller can watch the durable store from outside.
+ */
+async function runPlanCommand(argv: string[]): Promise<void> {
+  const values = parseFlagMap(argv);
+  const planArg = stringValue(values, "plan");
+  const planB64 = stringValue(values, "plan-b64");
+  if (values.get("help") || values.get("h") || (!planArg && !planB64)) {
+    if (!planArg && !planB64) {
+      console.error("run-plan requires --plan <path> or --plan-b64 <base64 JSON>");
+    }
+    printHelp();
+    process.exitCode = planArg || planB64 ? 0 : 1;
+    return;
+  }
+  try {
+    const raw = planB64
+      ? Buffer.from(planB64, "base64").toString("utf8")
+      : await (await import("node:fs/promises")).readFile(planArg as string, "utf8");
+    const { plan, issues } = finalizePlan(JSON.parse(raw) as Partial<BuildPlan>);
+    if (!plan) {
+      console.error(`invalid plan: ${issues.join("; ")}`);
+      process.exitCode = 1;
+      return;
+    }
+    const { prepareRun, executeRunUntilSettled, readRunView } = await import("./run");
+    let prepared = await prepareRun({
+      plan,
+      deps: { env: process.env, activationToken: stringValue(values, "activation-token") },
+      runsRoot: stringValue(values, "state-root") ?? defaultRunsRoot,
+      runId: stringValue(values, "run-id"),
+    });
+    // A fresh runner (new sandbox, no local run.json) continuing a run the
+    // shared store already knows must execute with resume, or the engine
+    // treats the pre-existing run id as a conflict instead of a replay.
+    if (!prepared.resume) {
+      const view = await readRunView(prepared.api, prepared.runId);
+      if (view.status !== null) prepared = { ...prepared, resume: true };
+    }
+    console.error(
+      `${prepared.resume ? "resuming" : "starting"} run ${prepared.runId} (state: ${prepared.stateLocation})`,
+    );
+    const result = await executeRunUntilSettled(prepared, {
+      onEvent: (event) => {
+        if (event.type === "NodeStarted") console.error(`▸ ${event.nodeId}`);
+        if (event.type === "NodeFinished") console.error(`✓ ${event.nodeId}`);
+        if (event.type === "NodeFailed") {
+          const message =
+            event.error instanceof Error ? event.error.message : String(event.error);
+          console.error(`✗ ${event.nodeId}: ${message.slice(0, 400)}`);
+        }
+      },
+    });
+    console.error(`run settled: ${result.status}`);
+    process.exitCode = result.status === "finished" || result.status === "continued" ? 0 : 1;
+  } catch (error) {
+    console.error(`Failed: ${error instanceof Error ? error.message : String(error)}`);
+    process.exitCode = 1;
+  }
+}
+
 async function runSignalCommand(argv: string[]): Promise<void> {
   const values = parseFlagMap(argv);
   const app = stringValue(values, "app") ?? "";
@@ -1097,6 +1169,8 @@ if (subcommand === "console") {
   await runConsoleCommand(restArgv);
 } else if (subcommand === "signal") {
   await runSignalCommand(restArgv);
+} else if (subcommand === "run-plan") {
+  await runPlanCommand(restArgv);
 } else if (subcommand === "rollback") {
   const rollbackArgs = parseRollbackArgs(restArgv);
   if (rollbackArgs.help) {
