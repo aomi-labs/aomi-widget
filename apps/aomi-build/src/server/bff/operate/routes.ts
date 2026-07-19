@@ -6,12 +6,19 @@ import type {
   OperateLogCursor,
   OperateLogsResult,
   OperateObservabilityResult,
+  OperateStatementResult,
   OperateTransactionCursor,
   OperateTransactionsResult,
   OperateUsageResult,
   UserSource,
 } from "@aomi-labs/deploy";
 import { checkRateLimit, getClientIp } from "@build/lib/rate-limit";
+import {
+  EXAMPLE_SOURCE,
+  exampleAppCards,
+  exampleStatement,
+  withExampleTrends,
+} from "@build/features/operate/fixtures/wire";
 import { deploymentClient } from "@build/server/bff/backend";
 import { getGitHubSession } from "@build/server/cookies/github";
 import { launchConfig } from "@build/server/bff/launch/config";
@@ -373,17 +380,34 @@ export async function operateUsageRoute(req: Request) {
     const owned = await ownedSources(req);
     if ("response" in owned) return owned.response;
     const params = new URL(req.url).searchParams;
-    const results: OperateUsageResult[] = await settleBySource(
-      owned.sources,
-      (source) =>
+    const dates = {
+      fromDate: params.get("fromDate") ?? undefined,
+      toDate: params.get("toDate") ?? undefined,
+    };
+    // The statement lives on its own manager endpoint. A backend without it
+    // (or with `available: false` — statement_entries not migrated) drops out
+    // of `statements`; until BE parity lands we serve the example statement
+    // instead (flagged `example: true`) so the design ships visible.
+    const [results, statements] = await Promise.all([
+      settleBySource<OperateUsageResult>(owned.sources, (source) =>
         owned.client.getUserSourceUsage({
           githubUserId: owned.githubUserId,
           platform: owned.platform,
           appSourceId: source.id,
-          fromDate: params.get("fromDate") ?? undefined,
-          toDate: params.get("toDate") ?? undefined,
+          ...dates,
         }),
-    );
+      ),
+      settleBySource<OperateStatementResult>(owned.sources, (source) =>
+        owned.client.getUserSourceStatement({
+          githubUserId: owned.githubUserId,
+          platform: owned.platform,
+          appSourceId: source.id,
+          ...dates,
+        }),
+      ).then((rows) => rows.filter((statement) => statement.available)),
+    ]);
+    const sum = (pick: (s: OperateStatementResult) => number) =>
+      statements.reduce((total, statement) => total + pick(statement), 0);
     return NextResponse.json({
       sources: results.map((result) => result.source),
       range: results[0]?.range ?? null,
@@ -401,6 +425,42 @@ export async function operateUsageRoute(req: Request) {
           platform: result.platform,
         })),
       ),
+      example: statements.length ? undefined : true,
+      statement: statements.length
+        ? {
+            range: statements[0].range,
+            summary: {
+              grossRevenue: sum((s) => s.summary.grossRevenue),
+              platformFees: sum((s) => s.summary.platformFees),
+              serviceCharges: sum((s) => s.summary.serviceCharges),
+              net: sum((s) => s.summary.net),
+            },
+            revenue: statements.flatMap((statement) =>
+              statement.revenue.map((row) => ({
+                ...row,
+                source: statement.source,
+              })),
+            ),
+            charges: statements.flatMap((statement) =>
+              statement.charges.map((row) => ({
+                ...row,
+                source: statement.source,
+              })),
+            ),
+            entries: statements
+              .flatMap((statement) =>
+                statement.entries.map((row) => ({
+                  ...row,
+                  source: statement.source,
+                })),
+              )
+              .sort(
+                (a, b) =>
+                  b.day.localeCompare(a.day) ||
+                  a.application.localeCompare(b.application),
+              ),
+          }
+        : exampleStatement(owned.sources[0] ?? EXAMPLE_SOURCE),
     });
   } catch (err) {
     return launchErrorResponse(err);
@@ -473,25 +533,37 @@ export async function operateObservabilityRoute(req: Request) {
           appSourceId: source.id,
         }),
     );
+    // Until the manager emits the 24h trend fields, fill them from the
+    // example fixtures: live cards keep every metric the backend reported
+    // (real values win per field), and an account with no apps at all gets
+    // the full example cards. Either fill flags the payload `example: true`.
+    const live = results.flatMap((result) =>
+      result.apps.map((app) => ({
+        ...app,
+        source: result.source,
+        platform: result.platform,
+      })),
+    );
+    const { apps, filled } = withExampleTrends(live);
+    const noLiveApps = apps.length === 0;
     return NextResponse.json({
       sources: results.map((result) => result.source),
       scope: "owned_applications",
-      monitoring: {
-        provider: "grafana_prometheus",
-        status: results.some((result) => result.monitoring?.status === "ok")
-          ? results.some((result) => result.monitoring?.status !== "ok")
-            ? "partial"
-            : "ok"
-          : (results[0]?.monitoring?.status ?? "unconfigured"),
-        windowSeconds: results[0]?.monitoring?.windowSeconds ?? 0,
-      },
-      apps: results.flatMap((result) =>
-        result.apps.map((app) => ({
-          ...app,
-          source: result.source,
-          platform: result.platform,
-        })),
-      ),
+      example: filled || noLiveApps ? true : undefined,
+      monitoring: noLiveApps
+        ? { provider: "grafana_prometheus", status: "example", windowSeconds: 900 }
+        : {
+            provider: "grafana_prometheus",
+            status: results.some((result) => result.monitoring?.status === "ok")
+              ? results.some((result) => result.monitoring?.status !== "ok")
+                ? "partial"
+                : "ok"
+              : (results[0]?.monitoring?.status ?? "unconfigured"),
+            windowSeconds: results[0]?.monitoring?.windowSeconds ?? 0,
+          },
+      apps: noLiveApps
+        ? exampleAppCards(owned.sources[0] ?? EXAMPLE_SOURCE)
+        : apps,
       dashboardLinks: results.flatMap((result) => result.dashboardLinks),
       platformMetrics: results[0]?.platformMetrics ?? [],
     });

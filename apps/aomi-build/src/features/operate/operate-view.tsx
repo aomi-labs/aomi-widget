@@ -21,19 +21,35 @@ import {
   LoadingPanel,
 } from "@build/features/launch/components/deployments/ui/state-panels";
 import { operateFetch, type OperateKind } from "./client";
+import {
+  bytesLabel,
+  countLabel,
+  numberLabel,
+  percentLabel,
+  truncateAddress,
+  unitLabel,
+} from "./format";
+import { TransactionRows } from "./tx-rows";
+import { EMPTY_LOGS_PAGE_FILTER, LogRows, type LogsPageFilter } from "./log-rows";
+import { UsageRows } from "./usage-rows";
+
+export { truncateAddress };
 
 // OperateView renders every operate surface except Bots, which has its own
 // dedicated BotsView (register form + table) instead of the generic
 // kind-indexed rows below.
-type ViewKind = Exclude<OperateKind, "bots">;
+export type ViewKind = Exclude<OperateKind, "bots">;
 
 type Sourceish = AppSource & { apps?: unknown[] };
 
 type OperatePayload = {
+  /** True when the BFF filled gaps with example fixture data (BE not live yet). */
+  example?: boolean;
   sources?: Sourceish[];
   transactions?: Array<Record<string, any>>;
   daily?: Array<Record<string, any>>;
   breakdown?: Array<Record<string, any>>;
+  statement?: Record<string, any> | null;
   logs?: Array<Record<string, any>>;
   apps?: Array<Record<string, any>>;
   dashboardLinks?: Array<Record<string, any>>;
@@ -53,40 +69,15 @@ function sourceLabel(source: Sourceish) {
   return source.repositoryLink || source.githubAccount || `Source ${source.id}`;
 }
 
-function secondsLabel(value: unknown) {
-  const n = Number(value ?? 0);
-  return n > 0 ? new Date(n * 1000).toLocaleString() : "";
-}
-
-/** Truncate 0x addresses for dense table cells; leave short/empty values alone. */
-export function truncateAddress(value: unknown, chars = 4): string {
-  const raw = String(value ?? "").trim();
-  if (!raw) return "";
-  if (raw.length <= chars * 2 + 2) return raw;
-  return `${raw.slice(0, chars + 2)}…${raw.slice(-chars)}`;
-}
-
-function valueLabel(value: unknown): string {
-  const raw = String(value ?? "").trim();
-  if (!raw || raw === "0") return "—";
-  return raw;
-}
-
-function numberLabel(value: unknown, digits = 1) {
-  if (value === null || value === undefined || value === "") return "No data";
-  const n = Number(value);
-  return Number.isFinite(n) ? n.toFixed(digits) : "No data";
-}
-
-function percentLabel(value: unknown) {
-  if (value === null || value === undefined || value === "") return "No data";
-  const n = Number(value);
-  return Number.isFinite(n) ? `${(n * 100).toFixed(1)}%` : "No data";
-}
-
-function unitLabel(value: unknown, unit: string, digits = 1) {
-  const label = numberLabel(value, digits);
-  return label === "No data" ? label : `${label} ${unit}`;
+/** Keep shareable filters in the URL without triggering a navigation. */
+function syncQuery(patch: Record<string, string | null>) {
+  if (typeof window === "undefined") return;
+  const url = new URL(window.location.href);
+  for (const [key, value] of Object.entries(patch)) {
+    if (value == null || value === "") url.searchParams.delete(key);
+    else url.searchParams.set(key, value);
+  }
+  window.history.replaceState(null, "", url);
 }
 
 function EmptyState({
@@ -118,12 +109,79 @@ function EmptyState({
   );
 }
 
+const STATUS_DOT: Record<string, string> = {
+  healthy: "bg-emerald-500",
+  not_loaded: "bg-amber-500",
+  inactive: "bg-zinc-400",
+};
+
+function Sparkline({ points }: { points: number[] }) {
+  const max = Math.max(...points, 1);
+  const step = points.length > 1 ? 100 / (points.length - 1) : 100;
+  const path = points
+    .map(
+      (p, i) =>
+        `${(i * step).toFixed(1)},${(23 - (p / max) * 20).toFixed(1)}`,
+    )
+    .join(" ");
+  return (
+    <svg
+      viewBox="0 0 100 24"
+      preserveAspectRatio="none"
+      className="text-dim h-6 w-full"
+      aria-hidden
+    >
+      <polyline
+        points={path}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        vectorEffect="non-scaling-stroke"
+      />
+    </svg>
+  );
+}
+
+/** 24h count tile with an hourly sparkline; renders nothing without data. */
+function TrendTile({
+  label,
+  count,
+  series,
+}: {
+  label: string;
+  count: unknown;
+  series?: number[] | null;
+}) {
+  return (
+    <div className="min-w-0">
+      <div className="text-dim">{label}</div>
+      <div className="text-foreground text-base font-semibold">
+        {countLabel(count)}
+      </div>
+      {series?.length ? <Sparkline points={series} /> : null}
+    </div>
+  );
+}
+
+type ViewState = {
+  txAppFilter: string | null;
+  setTxAppFilter: (app: string | null) => void;
+  txOpen: string | null;
+  setTxOpen: (id: string | null) => void;
+  logsFilter: LogsPageFilter;
+  setLogsFilter: (filter: LogsPageFilter) => void;
+  logOpen: string | null;
+  setLogOpen: (id: string | null) => void;
+};
+
 function Rows({
   kind,
   payload,
+  view,
 }: {
   kind: ViewKind;
   payload: OperatePayload;
+  view: ViewState;
 }) {
   if (kind === "transactions") {
     const rows = payload.transactions ?? [];
@@ -136,70 +194,29 @@ function Rows({
           actionLabel="Open Projects"
         />
       );
+    const apps = [...new Set(rows.map((tx) => String(tx.application)))];
     return (
-      <div className="border-border overflow-x-auto rounded-md border">
-        <table className="divide-border min-w-full divide-y text-sm">
-          <thead className="bg-surface-subtle text-dim text-left text-xs uppercase">
-            <tr>
-              <th className="px-3 py-2">Time</th>
-              <th className="px-3 py-2">App</th>
-              <th className="px-3 py-2">Status</th>
-              <th className="px-3 py-2">Chain</th>
-              <th className="px-3 py-2">From</th>
-              <th className="px-3 py-2">To</th>
-              <th className="px-3 py-2">Value</th>
-              <th className="px-3 py-2">Description</th>
-              <th className="px-3 py-2">Hash</th>
-            </tr>
-          </thead>
-          <tbody className="divide-border bg-surface divide-y">
-            {rows.map((tx) => (
-              <tr key={tx.id}>
-                <td className="text-dim whitespace-nowrap px-3 py-2">
-                  {secondsLabel(tx.createdAt)}
-                </td>
-                <td className="px-3 py-2">{tx.application}</td>
-                <td className="px-3 py-2">{tx.status}</td>
-                <td className="px-3 py-2">{tx.chainId}</td>
-                <td
-                  className="max-w-36 truncate px-3 py-2 font-mono text-xs"
-                  title={String(tx.fromAddress ?? "")}
-                >
-                  {truncateAddress(tx.fromAddress)}
-                </td>
-                <td
-                  className="max-w-36 truncate px-3 py-2 font-mono text-xs"
-                  title={String(tx.toAddress ?? "")}
-                >
-                  {truncateAddress(tx.toAddress)}
-                </td>
-                <td className="whitespace-nowrap px-3 py-2 font-mono text-xs">
-                  {valueLabel(tx.value)}
-                </td>
-                <td
-                  className="max-w-56 truncate px-3 py-2 text-xs"
-                  title={String(tx.description ?? "")}
-                >
-                  {tx.description ? String(tx.description) : "—"}
-                </td>
-                <td
-                  className="max-w-36 truncate px-3 py-2 font-mono text-xs"
-                  title={String(tx.txHash ?? "")}
-                >
-                  {truncateAddress(tx.txHash)}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <TransactionRows
+        rows={rows}
+        apps={apps}
+        appFilter={view.txAppFilter}
+        onAppFilterChange={(app) => {
+          view.setTxAppFilter(app);
+          syncQuery({ app });
+        }}
+        openId={view.txOpen}
+        onToggle={(id) => {
+          view.setTxOpen(id);
+          syncQuery({ tx: id });
+        }}
+      />
     );
   }
 
   if (kind === "usage") {
     const daily = payload.daily ?? [];
     const breakdown = payload.breakdown ?? [];
-    if (!daily.length && !breakdown.length)
+    if (!daily.length && !breakdown.length && !payload.statement)
       return (
         <EmptyState
           title="Usage"
@@ -208,89 +225,37 @@ function Rows({
           actionLabel="Open Projects"
         />
       );
-    return (
-      <div className="space-y-3">
-        <p className="text-dim text-xs leading-5">
-          Model and token credits by app and day.{" "}
-          <Link href="/settings/billing" className="text-foreground hover:underline">
-            Account → Billing
-          </Link>{" "}
-          covers payment setup in Chat.
-        </p>
-        <div className="grid gap-4 xl:grid-cols-[1fr_380px]">
-        <div className="border-border overflow-x-auto rounded-md border">
-          <table className="divide-border min-w-full divide-y text-sm">
-            <thead className="bg-surface-subtle text-dim text-left text-xs uppercase">
-              <tr>
-                <th className="px-3 py-2">Day</th>
-                <th className="px-3 py-2">App</th>
-                <th className="px-3 py-2">Input</th>
-                <th className="px-3 py-2">Output</th>
-                <th className="px-3 py-2">Credits</th>
-              </tr>
-            </thead>
-            <tbody className="divide-border bg-surface divide-y">
-              {daily.map((row, index) => (
-                <tr
-                  key={`${row.source?.id}-${row.periodUtcDay}-${row.application}-${index}`}
-                >
-                  <td className="px-3 py-2">{row.periodUtcDay}</td>
-                  <td className="px-3 py-2">{row.application}</td>
-                  <td className="px-3 py-2">{row.inputTokens}</td>
-                  <td className="px-3 py-2">{row.outputTokens}</td>
-                  <td className="px-3 py-2">
-                    {Number(row.creditsUsed ?? 0).toFixed(4)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <div className="border-border bg-surface rounded-md border p-3">
-          <div className="text-dim mb-2 text-xs uppercase">Breakdown</div>
-          <div className="space-y-2">
-            {breakdown.map((row, index) => (
-              <div
-                key={`${row.source?.id}-${row.provider}-${row.model}-${index}`}
-                className="flex items-center justify-between gap-3 text-sm"
-              >
-                <span className="min-w-0 truncate">
-                  {row.provider}/{row.model}
-                </span>
-                <span className="text-dim">
-                  {Number(row.creditsUsed ?? 0).toFixed(4)}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-      </div>
-    );
+    return <UsageRows payload={payload} />;
   }
 
   if (kind === "logs") {
     const rows = payload.logs ?? [];
     if (!rows.length) return <EmptyState title="Logs" />;
+    const apps = [...new Set(rows.map((row) => String(row.application)))];
+    const tools = [
+      ...new Set(
+        rows
+          .filter((row) => row.tool != null)
+          .map((row) => String(row.tool)),
+      ),
+    ];
     return (
-      <div className="space-y-2">
-        {rows.map((entry) => (
-          <div
-            key={`${entry.eventType}-${entry.id}`}
-            className="border-border bg-surface rounded-md border px-3 py-2"
-          >
-            <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-              <span>{entry.summary}</span>
-              <span className="text-dim text-xs">
-                {secondsLabel(entry.occurredAt)}
-              </span>
-            </div>
-            <div className="text-dim mt-1 text-xs">
-              {entry.eventType} · {entry.application}
-            </div>
-          </div>
-        ))}
-      </div>
+      <LogRows
+        rows={rows}
+        apps={apps}
+        tools={tools}
+        filter={view.logsFilter}
+        onFilterChange={(filter) => {
+          view.setLogsFilter(filter);
+          syncQuery({
+            app: filter.app,
+            tool: filter.tool,
+            errors: filter.errorsOnly ? "1" : null,
+          });
+        }}
+        openId={view.logOpen}
+        onToggle={view.setLogOpen}
+      />
     );
   }
 
@@ -334,6 +299,19 @@ function Rows({
       <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
         {apps.map((app) => {
           const metrics = app.metrics ?? {};
+          const hasTrend =
+            metrics.chats24h != null ||
+            metrics.toolCalls24h != null ||
+            metrics.transactions24h != null;
+          const hasErrorSplit =
+            metrics.toolErrorRate != null || metrics.txErrorRate != null;
+          const lifecycle = [
+            app.sdkVersion ? `SDK ${app.sdkVersion}` : null,
+            metrics.coldStartMs != null
+              ? `cold start ${unitLabel(metrics.coldStartMs, "ms", 0)}`
+              : null,
+            bytesLabel(metrics.dylibBytes),
+          ].filter(Boolean);
           return (
             <div
               key={`${app.source?.id}-${app.applicationId}`}
@@ -348,21 +326,65 @@ function Rows({
                     {app.releaseTag ?? "No release"}
                   </div>
                 </div>
-                <span className="text-dim text-xs">{app.status}</span>
+                <span className="text-dim flex items-center gap-1.5 text-xs">
+                  <span
+                    className={`size-2 rounded-full ${STATUS_DOT[String(app.status)] ?? "bg-zinc-400"}`}
+                  />
+                  {app.status}
+                </span>
               </div>
-              <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
-                <div>
-                  <div className="text-dim">Requests/min</div>
-                  <div className="text-foreground font-medium">
-                    {numberLabel(metrics.requestsPerMinute)}
-                  </div>
+              {hasTrend ? (
+                <div className="mt-3 grid grid-cols-3 gap-x-3 text-xs">
+                  <TrendTile
+                    label="Chats 24h"
+                    count={metrics.chats24h}
+                    series={metrics.chatsHourly}
+                  />
+                  <TrendTile
+                    label="Tool calls 24h"
+                    count={metrics.toolCalls24h}
+                    series={metrics.toolCallsHourly}
+                  />
+                  <TrendTile
+                    label="Tx 24h"
+                    count={metrics.transactions24h}
+                    series={metrics.transactionsHourly}
+                  />
                 </div>
+              ) : null}
+              <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
+                {hasTrend ? null : (
+                  <div>
+                    <div className="text-dim">Requests/min</div>
+                    <div className="text-foreground font-medium">
+                      {numberLabel(metrics.requestsPerMinute)}
+                    </div>
+                  </div>
+                )}
                 <div>
-                  <div className="text-dim">Error rate</div>
+                  <div className="text-dim">
+                    {hasErrorSplit ? "Chat errors" : "Error rate"}
+                  </div>
                   <div className="text-foreground font-medium">
                     {percentLabel(metrics.errorRate)}
                   </div>
                 </div>
+                {hasErrorSplit ? (
+                  <>
+                    <div>
+                      <div className="text-dim">Tool errors</div>
+                      <div className="text-foreground font-medium">
+                        {percentLabel(metrics.toolErrorRate)}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-dim">Tx failures</div>
+                      <div className="text-foreground font-medium">
+                        {percentLabel(metrics.txErrorRate)}
+                      </div>
+                    </div>
+                  </>
+                ) : null}
                 <div>
                   <div className="text-dim">P95 latency</div>
                   <div className="text-foreground font-medium">
@@ -376,6 +398,11 @@ function Rows({
                   </div>
                 </div>
               </div>
+              {lifecycle.length ? (
+                <div className="border-border text-dim mt-3 border-t pt-2 text-xs">
+                  {lifecycle.join(" · ")}
+                </div>
+              ) : null}
             </div>
           );
         })}
@@ -444,8 +471,21 @@ export function OperateView({ kind }: { kind: ViewKind }) {
   const { account } = useGitHubSession();
   const searchParams = useSearchParams();
   const projectFromUrl = projectIdFromSearch(searchParams.get("project"));
+  const appFromUrl = searchParams.get("app");
+  const toolFromUrl = searchParams.get("tool");
+  const errorsFromUrl = searchParams.get("errors") === "1";
+  const txFromUrl = searchParams.get("tx");
   const accountCacheKey = operateAccountCacheKey(account);
   const [sourceId, setSourceId] = useState<number | null>(projectFromUrl);
+  const [txAppFilter, setTxAppFilter] = useState<string | null>(appFromUrl);
+  const [txOpen, setTxOpen] = useState<string | null>(txFromUrl);
+  const [logsFilter, setLogsFilter] = useState<LogsPageFilter>({
+    ...EMPTY_LOGS_PAGE_FILTER,
+    app: appFromUrl,
+    tool: toolFromUrl,
+    errorsOnly: errorsFromUrl,
+  });
+  const [logOpen, setLogOpen] = useState<string | null>(null);
   const initialCacheKey = accountCacheKey
     ? operateCacheKey(accountCacheKey, kind, sourceId)
     : null;
@@ -465,6 +505,23 @@ export function OperateView({ kind }: { kind: ViewKind }) {
   useEffect(() => {
     if (projectFromUrl != null) setSourceId(projectFromUrl);
   }, [projectFromUrl]);
+
+  // Deep links (?app=&tool=&errors=&tx=) win over local filter state so a
+  // pasted investigation URL always lands on what it pointed at.
+  useEffect(() => {
+    if (appFromUrl != null) {
+      setTxAppFilter(appFromUrl);
+      setLogsFilter((current) => ({ ...current, app: appFromUrl }));
+    }
+  }, [appFromUrl]);
+  useEffect(() => {
+    if (toolFromUrl != null) {
+      setLogsFilter((current) => ({ ...current, tool: toolFromUrl }));
+    }
+  }, [toolFromUrl]);
+  useEffect(() => {
+    if (txFromUrl != null) setTxOpen(txFromUrl);
+  }, [txFromUrl]);
 
   useEffect(() => {
     if (account.loading) {
@@ -576,12 +633,31 @@ export function OperateView({ kind }: { kind: ViewKind }) {
     }
   }
 
+  const view: ViewState = {
+    txAppFilter,
+    setTxAppFilter,
+    txOpen,
+    setTxOpen,
+    logsFilter,
+    setLogsFilter,
+    logOpen,
+    setLogOpen,
+  };
+
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-6 sm:px-6 lg:px-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <Icon className="text-dim size-5" />
           <h1 className="text-xl font-semibold">{meta[kind].title}</h1>
+          {payload?.example ? (
+            <span
+              title="Live data for this view isn't connected yet — showing example data."
+              className="border-border bg-surface-subtle text-dim rounded-full border px-2 py-0.5 text-xs"
+            >
+              Example data
+            </span>
+          ) : null}
         </div>
         <label className="text-dim flex items-center gap-2 text-sm">
           <ListFilter className="size-4" />
@@ -613,7 +689,7 @@ export function OperateView({ kind }: { kind: ViewKind }) {
         </div>
       ) : payload ? (
         <>
-          <Rows kind={kind} payload={payload} />
+          <Rows kind={kind} payload={payload} view={view} />
           {nextCursor ? (
             <div className="flex justify-center">
               <button

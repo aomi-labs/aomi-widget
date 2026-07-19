@@ -6,6 +6,8 @@ import {
   operateBotsRoute,
   operateBotsCreateRoute,
   operateBotsDeleteRoute,
+  operateObservabilityRoute,
+  operateUsageRoute,
 } from "./routes";
 
 const client = {
@@ -13,6 +15,9 @@ const client = {
   listUserSourceBots: vi.fn(),
   createUserSourceBot: vi.fn(),
   deleteUserSourceBot: vi.fn(),
+  getUserSourceUsage: vi.fn(),
+  getUserSourceStatement: vi.fn(),
+  getUserSourceObservability: vi.fn(),
 };
 
 vi.mock("@build/server/bff/backend", () => ({
@@ -62,6 +67,9 @@ beforeEach(() => {
   client.listUserSourceBots.mockReset();
   client.createUserSourceBot.mockReset();
   client.deleteUserSourceBot.mockReset();
+  client.getUserSourceUsage.mockReset();
+  client.getUserSourceStatement.mockReset();
+  client.getUserSourceObservability.mockReset();
   getGitHubSession.mockReset();
 });
 
@@ -239,5 +247,165 @@ describe("operateBotsDeleteRoute", () => {
         botId: "b1",
       }),
     );
+  });
+});
+
+function usageReq() {
+  return new Request("http://localhost:3000/api/bff/operate/usage");
+}
+function observabilityReq() {
+  return new Request("http://localhost:3000/api/bff/operate/observability");
+}
+
+const oneSource = () =>
+  client.listUserSources.mockResolvedValue([
+    { id: 900, repositoryLink: "o/r", apps: [] },
+  ]);
+
+// The route consumes the deploy client's already-camelCased results.
+const emptyUsage = {
+  source: { id: 900 },
+  platform: "community",
+  range: { fromDate: "2026-07-01", toDate: "2026-07-15", maxDays: 31 },
+  daily: [],
+  breakdown: [],
+};
+
+describe("operateUsageRoute statement fallback", () => {
+  it("serves the example statement (example: true) when the manager has none", async () => {
+    setSession({ githubUserId: "gh-1" });
+    oneSource();
+    client.getUserSourceUsage.mockResolvedValue(emptyUsage);
+    // No statement endpoint yet → the client throws → source drops out.
+    client.getUserSourceStatement.mockRejectedValue(new Error("404"));
+
+    const res = await operateUsageRoute(usageReq());
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.example).toBe(true);
+    // The folded example summary — the same numbers the harness renders.
+    expect(body.statement.summary.grossRevenue).toBeCloseTo(183.25, 2);
+    expect(body.statement.summary.net).toBeCloseTo(113.02, 2);
+    expect(body.statement.entries.length).toBeGreaterThan(0);
+  });
+
+  it("drops a statement the backend reports as unavailable", async () => {
+    setSession({ githubUserId: "gh-1" });
+    oneSource();
+    client.getUserSourceUsage.mockResolvedValue(emptyUsage);
+    client.getUserSourceStatement.mockResolvedValue({
+      source: { id: 900 },
+      platform: "community",
+      range: { fromDate: "2026-07-01", toDate: "2026-07-15" },
+      available: false,
+      summary: { grossRevenue: 0, platformFees: 0, serviceCharges: 0, net: 0 },
+      revenue: [],
+      charges: [],
+      entries: [],
+    });
+
+    const res = await operateUsageRoute(usageReq());
+    const body = await res.json();
+    expect(body.example).toBe(true); // fell back to example
+  });
+
+  it("uses the real statement (no example flag) when the manager returns one", async () => {
+    setSession({ githubUserId: "gh-1" });
+    oneSource();
+    client.getUserSourceUsage.mockResolvedValue(emptyUsage);
+    client.getUserSourceStatement.mockResolvedValue({
+      source: { id: 900 },
+      platform: "community",
+      range: { fromDate: "2026-07-01", toDate: "2026-07-15" },
+      available: true,
+      summary: { grossRevenue: 9, platformFees: 0.9, serviceCharges: 2, net: 6.1 },
+      revenue: [
+        {
+          subject: "tool_invocation",
+          application: "real-bot",
+          applicationId: 1,
+          events: 3,
+          gross: 9,
+          platformFee: 0.9,
+          net: 8.1,
+        },
+      ],
+      charges: [],
+      entries: [],
+    });
+
+    const res = await operateUsageRoute(usageReq());
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.example).toBeUndefined();
+    expect(body.statement.summary.net).toBeCloseTo(6.1, 2);
+    expect(body.statement.revenue[0].application).toBe("real-bot");
+  });
+});
+
+describe("operateObservabilityRoute trend fallback", () => {
+  it("grafts example 24h trends onto a live card; real metrics win", async () => {
+    setSession({ githubUserId: "gh-1" });
+    oneSource();
+    client.getUserSourceObservability.mockResolvedValue({
+      source: { id: 900 },
+      platform: "community",
+      scope: "owned_applications",
+      monitoring: { provider: "grafana_prometheus", status: "ok", windowSeconds: 900 },
+      apps: [
+        {
+          applicationId: 1,
+          application: "real-bot",
+          active: true,
+          loaded: true,
+          status: "healthy",
+          // Live window metrics, but NO 24h trend fields.
+          metrics: {
+            provider: "grafana_prometheus",
+            windowSeconds: 900,
+            available: true,
+            errorRate: 0.5,
+            p95LatencyMs: 1234,
+          },
+        },
+      ],
+      dashboardLinks: [],
+      platformMetrics: [],
+    });
+
+    const res = await operateObservabilityRoute(observabilityReq());
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.example).toBe(true);
+    const card = body.apps.find((a: { application: string }) => a.application === "real-bot");
+    expect(card.metrics.errorRate).toBe(0.5); // real value preserved
+    expect(card.metrics.p95LatencyMs).toBe(1234); // real value preserved
+    expect(card.metrics.chats24h).toBeGreaterThan(0); // example filled
+    expect(card.metrics.chatsHourly.length).toBe(24); // example filled
+  });
+
+  it("serves full example cards when the account has no live apps", async () => {
+    setSession({ githubUserId: "gh-1" });
+    oneSource();
+    client.getUserSourceObservability.mockResolvedValue({
+      source: { id: 900 },
+      platform: "community",
+      scope: "owned_applications",
+      monitoring: null,
+      apps: [],
+      dashboardLinks: [],
+      platformMetrics: [],
+    });
+
+    const res = await operateObservabilityRoute(observabilityReq());
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.example).toBe(true);
+    expect(body.apps.length).toBeGreaterThanOrEqual(3);
+    expect(body.monitoring.status).toBe("example");
   });
 });

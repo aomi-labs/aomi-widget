@@ -2,6 +2,8 @@
 
 ## Last Updated
 
+2026-07-19 — Operate: BE statement vocabulary + example-data fallback (designs
+  visible pre-BE; fixtures moved to features/operate/fixtures);
 2026-07-16 — Bots page 404 root-caused to product-mono edge routing;
 2026-07-16 — Environment tab: unified Variables list (declared slots + configured, `*` = required);
 2026-07-16 — PR #358 (+): env-aware default chat host (prod → chat.aomi.dev,
@@ -33,9 +35,35 @@
 2026-07-13 — Build P0 trust: Soon labels, gate Integrations Save, human errors;
 2026-07-13 — Build UI copy polish (em dashes / hedging essays);
 2026-07-13 — Billing option A: methods live on Chat (no fake Build fetch);
+2026-07-13 — Fixed required-secrets gate fail-open (P1, external review);
 2026-07-13 — BILLING-EXPERIENCE.md: backend ↔ UI map (code-checked)
 
-2026-07-13 — Fixed required-secrets gate fail-open (P1, external review)
+## Operate statement + example-data fallback (2026-07-19)
+
+Branch `feat/operate-console-mocks` (uncommitted working tree):
+
+- Usage statement contract renamed to the manager's vocabulary: subjects
+  (`tool_invocation`/`outcome` earn; `model`/`hosting` charge), signed
+  `entries`, raw USD floats formatted at render time (`format.ts`).
+- Deploy client: `getUserSourceStatement()` → `/user/sources/:id/statement`
+  (BFF fetches it in parallel with usage; `available:false` → drop source).
+- Fixtures moved `app/dev-operate-preview/fixtures/` →
+  `features/operate/fixtures/` (per-app: card/detail/transactions/logs/
+  statement). New `fixtures/wire.ts` builds BFF-wire example payloads,
+  shared by the dev harness and the BFF fallback.
+- BFF fallback (until BE parity): usage serves the example statement when
+  the manager has none; observability grafts example 24h trends onto live
+  cards (real fields win per-field) and serves full example cards when the
+  account has no apps. Filled payloads carry `example: true`; the page
+  header shows an "Example data" badge. Delete the fallback branches in
+  `server/bff/operate/routes.ts` once BE ships.
+
+Pending (backend, in progress by Cecilia):
+
+- Manager `/user/sources/:id/statement` + `statement_entries` migration
+  (exists only on the unmerged `aa-c2-sign-handoff` BE worktree).
+- Observability 24h trend fields (`chats_24h`, `*_hourly`, tool/tx error
+  split, cold start, dylib size) from grouped query_range reads.
 
 ## Bots page `list_user_source_bots failed (404)` fix (2026-07-16)
 

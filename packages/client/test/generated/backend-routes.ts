@@ -255,6 +255,16 @@ export const AOMI_BACKEND_ENDPOINTS = [
   },
   {
     method: "GET",
+    path: "/api/resource/skills",
+    auth: ["account"],
+  },
+  {
+    method: "GET",
+    path: "/api/resource/skills/:skill_id",
+    auth: ["account"],
+  },
+  {
+    method: "GET",
     path: "/api/resource/tools",
     auth: ["account"],
   },
