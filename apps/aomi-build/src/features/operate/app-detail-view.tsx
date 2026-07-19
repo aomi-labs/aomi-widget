@@ -1,8 +1,8 @@
 "use client";
 
-// TEMPORARY design mock: the per-app drill-down dashboard, hydrated from an
-// AppFixture (Prometheus trends, Postgres ledger, registry lifecycle — as if
-// real). Rows deep-link out: tools → Logs, transactions → Transactions.
+// Per-app drill-down dashboard. While observability is using example metrics,
+// this renders the matching fixture detail; rows deep-link to the real Logs
+// and Transactions surfaces.
 
 import { ArrowLeft, ExternalLink } from "lucide-react";
 import type { AppFixture, TxRecord } from "@build/features/operate/fixtures";
@@ -20,7 +20,13 @@ function BarChart({
   const n = Math.max(...series.map((s) => s.values.length), 1);
   const band = 100 / n;
   return (
-    <svg viewBox={`0 0 100 ${height}`} preserveAspectRatio="none" className="w-full" style={{ height }} aria-hidden>
+    <svg
+      viewBox={`0 0 100 ${height}`}
+      preserveAspectRatio="none"
+      className="w-full"
+      style={{ height }}
+      aria-hidden
+    >
       {series.map((s, si) => {
         const w = (band * 0.7) / series.length;
         return s.values.map((v, i) => {
@@ -42,19 +48,50 @@ function BarChart({
   );
 }
 
-function LineChart({ values, height = 96 }: { values: number[]; height?: number }) {
+function LineChart({
+  values,
+  height = 96,
+}: {
+  values: number[];
+  height?: number;
+}) {
   const max = Math.max(...values, 1);
   const pts = values
-    .map((v, i) => `${(i / (values.length - 1)) * 100},${height - 6 - (v / max) * (height - 14)}`)
+    .map(
+      (v, i) =>
+        `${(i / (values.length - 1)) * 100},${height - 6 - (v / max) * (height - 14)}`,
+    )
     .join(" ");
   return (
-    <svg viewBox={`0 0 100 ${height}`} preserveAspectRatio="none" className="text-dim w-full" style={{ height }} aria-hidden>
-      <polyline points={pts} fill="none" stroke="currentColor" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+    <svg
+      viewBox={`0 0 100 ${height}`}
+      preserveAspectRatio="none"
+      className="text-dim w-full"
+      style={{ height }}
+      aria-hidden
+    >
+      <polyline
+        points={pts}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        vectorEffect="non-scaling-stroke"
+      />
     </svg>
   );
 }
 
-function Tile({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: "bad" | "warn" }) {
+function Tile({
+  label,
+  value,
+  sub,
+  tone,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  tone?: "bad" | "warn";
+}) {
   return (
     <div className="border-border bg-surface rounded-md border px-3 py-2.5">
       <div className="text-dim text-xs">{label}</div>
@@ -68,7 +105,15 @@ function Tile({ label, value, sub, tone }: { label: string; value: string; sub?:
   );
 }
 
-function Panel({ title, right, children }: { title: string; right?: React.ReactNode; children: React.ReactNode }) {
+function Panel({
+  title,
+  right,
+  children,
+}: {
+  title: string;
+  right?: React.ReactNode;
+  children: React.ReactNode;
+}) {
   return (
     <div className="border-border bg-surface rounded-md border">
       <div className="border-border flex items-center justify-between border-b px-3 py-2">
@@ -98,33 +143,59 @@ function clockOf(tx: TxRecord): string {
   return clock.replace(/(\d+:\d+):\d+ (AM|PM)/, "$1 $2");
 }
 
-export function AppDetailMock({
+export function AppDetailView({
   app,
+  displayName,
+  example = false,
+  dashboardHref,
   onBack,
   onOpenTrace,
   onOpenTx,
 }: {
   app: AppFixture;
+  displayName?: string;
+  example?: boolean;
+  dashboardHref?: string | null;
   onBack: () => void;
   onOpenTrace: (tool: string) => void;
   onOpenTx: (txId: string) => void;
 }) {
   const { meta, detail } = app;
   const recentTx = app.transactions.slice(0, 4);
-  const recentEvents = app.logs.filter((log) => log.kind === "event").slice(0, 4);
+  const recentEvents = app.logs
+    .filter((log) => log.kind === "event")
+    .slice(0, 4);
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-6 sm:px-6 lg:px-8">
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <button type="button" onClick={onBack} className="border-border bg-surface hover:bg-accent-hover rounded-md border p-2">
+          <button
+            type="button"
+            aria-label="Back to observability"
+            onClick={onBack}
+            className="border-border bg-surface hover:bg-accent-hover rounded-md border p-2"
+          >
             <ArrowLeft className="size-4" />
           </button>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-xl font-semibold">{meta.name}</h1>
+              <h1 className="text-xl font-semibold">
+                {displayName ?? meta.name}
+              </h1>
+              {example ? (
+                <span
+                  title="Live data for this view isn't connected yet — showing example data."
+                  className="border-border bg-surface-subtle text-dim rounded-full border px-2 py-0.5 text-xs"
+                >
+                  Example data
+                </span>
+              ) : null}
               <span className="flex items-center gap-1.5 text-xs">
-                <span className={`size-2 rounded-full ${STATUS_DOT[meta.status] ?? "bg-zinc-400"}`} /> {meta.status}
+                <span
+                  className={`size-2 rounded-full ${STATUS_DOT[meta.status] ?? "bg-zinc-400"}`}
+                />{" "}
+                {meta.status}
               </span>
               {meta.families.map((family) => (
                 <span
@@ -136,7 +207,8 @@ export function AppDetailMock({
               ))}
             </div>
             <div className="text-dim text-xs">
-              {meta.releaseTag ?? "No release"} · SDK {meta.sdkVersion ?? "—"} · {meta.repo}
+              {meta.releaseTag ?? "No release"} · SDK {meta.sdkVersion ?? "—"} ·{" "}
+              {meta.repo}
             </div>
           </div>
         </div>
@@ -152,9 +224,16 @@ export function AppDetailMock({
               </button>
             ))}
           </div>
-          <a href="https://grafana.example.com/d/app" target="_blank" rel="noreferrer" className="border-border bg-surface hover:bg-accent-hover flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs">
-            Grafana <ExternalLink className="size-3" />
-          </a>
+          {dashboardHref ? (
+            <a
+              href={dashboardHref}
+              target="_blank"
+              rel="noreferrer"
+              className="border-border bg-surface hover:bg-accent-hover flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs"
+            >
+              Grafana <ExternalLink className="size-3" />
+            </a>
+          ) : null}
         </div>
       </div>
 
@@ -190,7 +269,13 @@ export function AppDetailMock({
       {/* KPI tiles */}
       <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-8">
         {detail.kpis.map((kpi) => (
-          <Tile key={kpi.label} label={kpi.label} value={kpi.value} sub={kpi.sub} tone={kpi.tone} />
+          <Tile
+            key={kpi.label}
+            label={kpi.label}
+            value={kpi.value}
+            sub={kpi.sub}
+            tone={kpi.tone}
+          />
         ))}
       </div>
 
@@ -200,14 +285,22 @@ export function AppDetailMock({
           title="Activity by hour"
           right={
             <span className="text-dim flex items-center gap-3 text-xs">
-              <span className="flex items-center gap-1"><span className="size-2 rounded-sm bg-emerald-500/80" /> chats</span>
-              <span className="flex items-center gap-1"><span className="bg-foreground/30 size-2 rounded-sm" /> tool calls</span>
+              <span className="flex items-center gap-1">
+                <span className="size-2 rounded-sm bg-emerald-500/80" /> chats
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="bg-foreground/30 size-2 rounded-sm" /> tool
+                calls
+              </span>
             </span>
           }
         >
           <BarChart
             series={[
-              { values: detail.toolCallsHourly, className: "fill-foreground/25" },
+              {
+                values: detail.toolCallsHourly,
+                className: "fill-foreground/25",
+              },
               { values: detail.chatsHourly, className: "fill-emerald-500/80" },
             ]}
           />
@@ -217,7 +310,10 @@ export function AppDetailMock({
             ))}
           </div>
         </Panel>
-        <Panel title="P95 turn latency" right={<span className="text-dim text-xs">seconds</span>}>
+        <Panel
+          title="P95 turn latency"
+          right={<span className="text-dim text-xs">seconds</span>}
+        >
           <LineChart values={detail.p95Hourly} />
           <div className="text-dim mt-1 flex justify-between text-[10px]">
             <span>00:00</span>
@@ -225,19 +321,39 @@ export function AppDetailMock({
             <span>23:00</span>
           </div>
         </Panel>
-        <Panel title="Credits per day" right={<span className="text-dim text-xs">7d · from usage ledger</span>}>
-          <BarChart series={[{ values: detail.creditsDaily.values, className: "fill-amber-500/70" }]} />
+        <Panel
+          title="Credits per day"
+          right={
+            <span className="text-dim text-xs">7d · from usage ledger</span>
+          }
+        >
+          <BarChart
+            series={[
+              {
+                values: detail.creditsDaily.values,
+                className: "fill-amber-500/70",
+              },
+            ]}
+          />
           <div className="text-dim mt-1 flex justify-between text-[10px]">
             <span>{detail.creditsDaily.days[0]}</span>
             <span>
-              {detail.creditsDaily.days.at(-1)} · {detail.creditsDaily.values.at(-1)}
+              {detail.creditsDaily.days.at(-1)} ·{" "}
+              {detail.creditsDaily.values.at(-1)}
             </span>
           </div>
         </Panel>
       </div>
 
       {/* Tools table → click a row to open its trace in Logs */}
-      <Panel title="Tools · 24h" right={<span className="text-dim text-xs">{detail.toolsSummary} · click a row to open its trace in Logs</span>}>
+      <Panel
+        title="Tools · 24h"
+        right={
+          <span className="text-dim text-xs">
+            {detail.toolsSummary} · click a row to open its trace in Logs
+          </span>
+        }
+      >
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead className="text-dim text-left text-xs uppercase">
@@ -260,7 +376,11 @@ export function AppDetailMock({
                   <td className="py-2 pr-3 font-mono text-xs">{row.tool}</td>
                   <td className="py-2 pr-3">{row.calls}</td>
                   <td className="py-2 pr-3">{row.errors}</td>
-                  <td className={`py-2 pr-3 font-medium ${row.bad ? "text-red-500" : ""}`}>{row.errorRate}</td>
+                  <td
+                    className={`py-2 pr-3 font-medium ${row.bad ? "text-red-500" : ""}`}
+                  >
+                    {row.errorRate}
+                  </td>
                   <td className="py-2 pr-3">{row.p95}</td>
                   <td className="text-dim py-2 text-xs">{row.last}</td>
                 </tr>
@@ -274,7 +394,11 @@ export function AppDetailMock({
       <div className="grid gap-2 lg:grid-cols-[1fr_340px]">
         <Panel
           title="Recent transactions"
-          right={<span className="text-dim text-xs">{detail.fees24h} · click a row to open it in Transactions</span>}
+          right={
+            <span className="text-dim text-xs">
+              {detail.fees24h} · click a row to open it in Transactions
+            </span>
+          }
         >
           {recentTx.length ? (
             <div className="overflow-x-auto">
@@ -296,14 +420,26 @@ export function AppDetailMock({
                       onClick={() => onOpenTx(tx.id)}
                       className="hover:bg-surface-subtle cursor-pointer"
                     >
-                      <td className="text-dim py-2 pr-3 text-xs">{clockOf(tx)}</td>
-                      <td className="max-w-64 truncate py-2 pr-3">{tx.description}</td>
+                      <td className="text-dim py-2 pr-3 text-xs">
+                        {clockOf(tx)}
+                      </td>
+                      <td className="max-w-64 truncate py-2 pr-3">
+                        {tx.description}
+                      </td>
                       <td className="py-2 pr-3">{tx.chain}</td>
                       <td className="py-2 pr-3">
-                        <span className={`rounded-full border px-2 py-0.5 text-xs ${STATUS_CHIP[tx.status]}`}>{tx.status}</span>
+                        <span
+                          className={`rounded-full border px-2 py-0.5 text-xs ${STATUS_CHIP[tx.status]}`}
+                        >
+                          {tx.status}
+                        </span>
                       </td>
-                      <td className="py-2 pr-3 font-mono text-xs">{tx.txFee ?? "—"}</td>
-                      <td className="py-2 font-mono text-xs">{tx.platformFee ?? "—"}</td>
+                      <td className="py-2 pr-3 font-mono text-xs">
+                        {tx.txFee ?? "—"}
+                      </td>
+                      <td className="py-2 font-mono text-xs">
+                        {tx.platformFee ?? "—"}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -330,11 +466,18 @@ export function AppDetailMock({
           <Panel title="Releases">
             <div className="space-y-2 text-sm">
               {detail.releases.map((release) => (
-                <div key={release.tag} className="flex items-center justify-between gap-2">
-                  <span className="min-w-0 truncate font-mono text-xs">{release.tag}</span>
+                <div
+                  key={release.tag}
+                  className="flex items-center justify-between gap-2"
+                >
+                  <span className="min-w-0 truncate font-mono text-xs">
+                    {release.tag}
+                  </span>
                   <span className="text-dim text-xs">{release.when}</span>
                   {release.current ? (
-                    <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-xs text-emerald-500">current</span>
+                    <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-xs text-emerald-500">
+                      current
+                    </span>
                   ) : (
                     <span className="text-dim text-xs">{release.note}</span>
                   )}
@@ -346,19 +489,35 @@ export function AppDetailMock({
       </div>
 
       {/* Events */}
-      <Panel title="Recent events" right={<span className="text-dim text-xs">app-filtered · full stream in Logs</span>}>
+      <Panel
+        title="Recent events"
+        right={
+          <span className="text-dim text-xs">
+            app-filtered · full stream in Logs
+          </span>
+        }
+      >
         <div className="space-y-2">
           {recentEvents.length ? (
             recentEvents.map((entry) => (
-              <div key={`${entry.at}-${entry.eventType}`} className="flex items-baseline justify-between gap-3 text-sm">
-                <span className={`min-w-0 truncate ${entry.status === "error" ? "text-red-500" : ""}`}>{entry.summary}</span>
+              <div
+                key={`${entry.at}-${entry.eventType}`}
+                className="flex items-baseline justify-between gap-3 text-sm"
+              >
+                <span
+                  className={`min-w-0 truncate ${entry.status === "error" ? "text-red-500" : ""}`}
+                >
+                  {entry.summary}
+                </span>
                 <span className="text-dim shrink-0 text-xs">
                   {entry.eventType} · {entry.at}
                 </span>
               </div>
             ))
           ) : (
-            <div className="text-dim py-4 text-center text-sm">No recent events.</div>
+            <div className="text-dim py-4 text-center text-sm">
+              No recent events.
+            </div>
           )}
         </div>
       </Panel>

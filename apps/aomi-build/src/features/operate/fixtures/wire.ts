@@ -29,7 +29,12 @@ const CHARGE_SUBJECTS = new Set(["model", "hosting"]);
  * everything.
  */
 export function exampleStatement(source: object) {
-  const summary = { grossRevenue: 0, platformFees: 0, serviceCharges: 0, net: 0 };
+  const summary = {
+    grossRevenue: 0,
+    platformFees: 0,
+    serviceCharges: 0,
+    net: 0,
+  };
   for (const fixture of FIXTURES) {
     for (const row of fixture.statement.entries) {
       summary.net += row.net;
@@ -41,7 +46,7 @@ export function exampleStatement(source: object) {
       }
     }
   }
-  const withApp = <T,>(rows: T[], fixture: (typeof FIXTURES)[number]) =>
+  const withApp = <T>(rows: T[], fixture: (typeof FIXTURES)[number]) =>
     rows.map((row) => ({
       ...row,
       application: fixture.meta.name,
@@ -55,14 +60,26 @@ export function exampleStatement(source: object) {
     charges: FIXTURES.flatMap((f) => withApp(f.statement.charges, f)),
     entries: FIXTURES.flatMap((f) => withApp(f.statement.entries, f)).sort(
       (a, b) =>
-        b.day.localeCompare(a.day) || a.application.localeCompare(b.application),
+        b.day.localeCompare(a.day) ||
+        a.application.localeCompare(b.application),
     ),
   };
 }
 
-/** Full metrics block (live tiles + 24h trend) for the fixture at `index`. */
-export function exampleAppMetrics(index: number): Record<string, any> {
-  const fixture = FIXTURES[index % FIXTURES.length];
+function exampleFixture(application: unknown, index: number) {
+  const name = typeof application === "string" ? application : "";
+  return (
+    FIXTURES.find((fixture) => fixture.meta.name === name) ??
+    FIXTURES[index % FIXTURES.length]
+  );
+}
+
+/** Full metrics block (live tiles + 24h trend) for the matching fixture. */
+export function exampleAppMetrics(
+  index: number,
+  application?: unknown,
+): Record<string, any> {
+  const fixture = exampleFixture(application, index);
   return {
     provider: "grafana_prometheus",
     windowSeconds: 900,
@@ -83,7 +100,8 @@ export function exampleAppCards(source: object) {
     sdkVersion: fixture.meta.sdkVersion,
     status: fixture.meta.status,
     source,
-    metrics: exampleAppMetrics(index),
+    exampleFixture: fixture.meta.name,
+    metrics: exampleAppMetrics(index, fixture.meta.name),
   }));
 }
 
@@ -92,9 +110,14 @@ export function exampleAppCards(source: object) {
  * the backend actually reported wins; only null/missing fields are filled.
  * `filled` reports whether any card needed example data.
  */
-export function withExampleTrends<T extends { metrics?: Record<string, any> | null }>(
+export function withExampleTrends<
+  T extends {
+    application?: unknown;
+    metrics?: Record<string, any> | null;
+  },
+>(
   apps: T[],
-): { apps: T[]; filled: boolean } {
+): { apps: Array<T & { exampleFixture?: string }>; filled: boolean } {
   let filled = false;
   const out = apps.map((app, index) => {
     const metrics = app.metrics ?? {};
@@ -104,10 +127,15 @@ export function withExampleTrends<T extends { metrics?: Record<string, any> | nu
       metrics.transactions24h != null;
     if (hasTrend) return app;
     filled = true;
+    const fixture = exampleFixture(app.application, index);
     const real = Object.fromEntries(
       Object.entries(metrics).filter(([, value]) => value != null),
     );
-    return { ...app, metrics: { ...exampleAppMetrics(index), ...real } };
+    return {
+      ...app,
+      exampleFixture: fixture.meta.name,
+      metrics: { ...exampleAppMetrics(index, app.application), ...real },
+    };
   });
   return { apps: out, filled };
 }

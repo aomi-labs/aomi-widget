@@ -49,7 +49,8 @@ describe("OperateView transactions", () => {
           toAddress: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
           value: "1000000000000000000",
           description: "Swap USDC",
-          txHash: "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          txHash:
+            "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
           createdAt: 1_700_000_000,
         },
       ],
@@ -84,10 +85,9 @@ describe("OperateView transactions", () => {
     await waitFor(() => {
       expect(screen.getByText(/no transactions yet/i)).toBeInTheDocument();
     });
-    expect(screen.getByRole("link", { name: /open projects/i })).toHaveAttribute(
-      "href",
-      "/projects",
-    );
+    expect(
+      screen.getByRole("link", { name: /open projects/i }),
+    ).toHaveAttribute("href", "/projects");
   });
 
   it("renders 24h trend tiles and error split when the manager emits them", async () => {
@@ -140,7 +140,40 @@ describe("OperateView transactions", () => {
     expect(screen.getByText("12.0%")).toBeInTheDocument();
     expect(screen.getByText("Tx failures")).toBeInTheDocument();
     // Lifecycle footer.
-    expect(screen.getByText(/SDK 3\.0\.2 · cold start 1250 ms · 4\.5 MB/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/SDK 3\.0\.2 · cold start 1250 ms · 4\.5 MB/),
+    ).toBeInTheDocument();
+  });
+
+  it("links an example-filled app card to its fixture detail", async () => {
+    operateFetch.mockResolvedValue({
+      sources: [],
+      example: true,
+      monitoring: { status: "unconfigured", windowSeconds: 300 },
+      apps: [
+        {
+          applicationId: 2_937_099,
+          application: "playground-example",
+          exampleFixture: "goal-digger",
+          source: { id: 1586 },
+          status: "healthy",
+          metrics: { chats24h: 47 },
+        },
+      ],
+      dashboardLinks: [],
+      platformMetrics: [],
+    });
+
+    render(<OperateView kind="observability" />);
+
+    expect(
+      await screen.findByRole("link", {
+        name: "Open playground-example observability details",
+      }),
+    ).toHaveAttribute(
+      "href",
+      "/operate/observability/playground-example?fixture=goal-digger&project=1586",
+    );
   });
 
   it("falls back to the legacy live tiles when trend data is absent", async () => {
@@ -197,7 +230,8 @@ describe("OperateView transactions", () => {
           txFee: "0.000012 SOL",
           computeUnits: "41,022",
           computeLimit: "200,000",
-          revertReason: "custom program error 0x1771 — SlippageToleranceExceeded",
+          revertReason:
+            "custom program error 0x1771 — SlippageToleranceExceeded",
           createdAt: 1_700_000_000,
         },
       ],
@@ -254,7 +288,9 @@ describe("OperateView transactions", () => {
       expect(screen.getAllByText("swap_quote").length).toBeGreaterThan(0);
     });
     expect(screen.getByText("1840ms")).toBeInTheDocument();
-    expect(screen.getByText("Activated release r1dac12ad71")).toBeInTheDocument();
+    expect(
+      screen.getByText("Activated release r1dac12ad71"),
+    ).toBeInTheDocument();
     // Expand the invocation record.
     fireEvent.click(screen.getByText("SOL → USDC 2.5 · out 412.34"));
     expect(screen.getByText(/token_in/)).toBeInTheDocument();
@@ -331,7 +367,13 @@ describe("OperateView transactions", () => {
     operateFetch.mockResolvedValue({
       sources: [],
       daily: [
-        { periodUtcDay: "2026-07-15", application: "demo", inputTokens: 412000, outputTokens: 58400, creditsUsed: 3.4182 },
+        {
+          periodUtcDay: "2026-07-15",
+          application: "demo",
+          inputTokens: 412000,
+          outputTokens: 58400,
+          creditsUsed: 3.4182,
+        },
       ],
       breakdown: [],
       statement: null,
