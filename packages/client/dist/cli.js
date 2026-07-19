@@ -2472,16 +2472,21 @@ function inferSolanaRequestKind(payload) {
   }
 }
 function parseChainId4(value) {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "number") {
+    return Number.isSafeInteger(value) && value > 0 ? value : void 0;
+  }
   if (typeof value !== "string") return void 0;
   const trimmed = value.trim();
   if (!trimmed) return void 0;
-  if (trimmed.startsWith("0x")) {
-    const parsedHex = Number.parseInt(trimmed.slice(2), 16);
-    return Number.isFinite(parsedHex) ? parsedHex : void 0;
-  }
-  const parsed = Number.parseInt(trimmed, 10);
-  return Number.isFinite(parsed) ? parsed : void 0;
+  const parsed = trimmed.startsWith("0x") ? parseCanonicalInteger(trimmed.slice(2), 16) : parseCanonicalInteger(trimmed, 10);
+  return parsed !== void 0 && parsed > 0 ? parsed : void 0;
+}
+function parseCanonicalInteger(value, radix) {
+  if (value === "") return void 0;
+  const pattern = radix === 16 ? /^[0-9a-fA-F]+$/ : /^[0-9]+$/;
+  if (!pattern.test(value)) return void 0;
+  const parsed = Number.parseInt(value, radix);
+  return Number.isSafeInteger(parsed) ? parsed : void 0;
 }
 function parseTxIds(value) {
   if (!Array.isArray(value)) return [];

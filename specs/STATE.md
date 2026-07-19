@@ -190,6 +190,7 @@
   + src/server/bun-compat.ts; serverExternalPackages in next.config.ts);
   use-build-session drives the real engine when NEXT_PUBLIC_BUILD_ENGINE=
   smither (poll → smither-run-mapper.ts, mock pipeline unchanged by default);
+2026-07-16 — Bots page 404 root-caused to product-mono edge routing;
 2026-07-16 — Environment tab: unified Variables list (declared slots + configured, `*` = required);
 2026-07-16 — PR #358 (+): env-aware default chat host (prod → chat.aomi.dev,
   preview/dev → chat-staging.aomi.dev; NEXT_PUBLIC_CHAT_URL still overrides);
@@ -223,6 +224,20 @@
 2026-07-13 — BILLING-EXPERIENCE.md: backend ↔ UI map (code-checked)
 
 2026-07-13 — Fixed required-secrets gate fail-open (P1, external review)
+
+## Bots page `list_user_source_bots failed (404)` fix (2026-07-16)
+
+- Cause was NOT in this repo: the dev edge proxy (product-mono
+  `scripts/dev-edge-proxy.mjs`, which imports `isManagerPath` from
+  `infra/cloudflare/worker/src/index.js`) had no `bots` entry in
+  `MANAGER_ROUTE_PATTERNS`, so `/api/integrations/github-app/user/sources/:id/bots`
+  fell through to the backend (:8080) instead of the manager (:8081) → 404.
+- Fixed in product-mono (branch `feat/builder-owned-github-bots`, commit
+  20c220b41): added
+  `/^\/api\/integrations\/github-app\/user\/sources\/[^/]+\/bots(\/[^/]+)?$/`
+  and restarted the dev proxy. Verified bots/agents/sources all reach the manager.
+- Pending: redeploy the Cloudflare worker before staging/prod use the bots tab,
+  or the same 404 recurs there.
 
 ## Required-secrets gate fail-open fix (2026-07-13)
 
@@ -664,7 +679,6 @@ or handed off, per Cecilia's direction (no direct backend/DB mutation):
   (pre-flight checks + RESTRICT drops, no CASCADE) for review; also fixed the
   last stale `aomi_wallets` comment in
   `apps/shadcn-registry/src/lib/wallet-kit/account/aomi-backend-runtime.ts`.
-
 ## Aomi Build owned operate + pre-prod fixes (2026-07-08)
 
 - Hardened launch/operate-adjacent BFF reads and writes around the signed-in
@@ -2347,6 +2361,9 @@ Controls disabled while isProcessing === true
 
 ## Pending
 
+- Aomi Build SDK-upgrade UX rebuilt (2026-07-16, PR aomi-labs/aomi#366): `use-sdk-upgrade` hook (confirm → open PR → poll-for-merge via the idempotent sdk-upgrade endpoint → merged → redeploy), `upgrade-rail.tsx` (5-step stepper with PLATFORM/YOU/YOU/GITHUB owners, hover hints on every step, build checklist driven by deployFlow), `deployment-detail.tsx` (per-row expansion: source repo / commit / SDK / deployed platform / platform branch / apps / build artifacts — all GitHub-linked; platform-side fields lazy-load from `deploymentHistory`), `hint-bubble.tsx`; `deployments-tab.tsx` wires the CTA swap (Upgrade → Review PR #N), redeploy gating while the PR is open, and the upgrade confirm dialog with don't-ask-again; rail state persists in localStorage per source. 218 tests + typecheck + lint green. Backend path verified against staging (sdk-upgrade for 1586 now returns `current`). Not yet verified against a live signed-in browser session — needs a preview deploy.
+- SDK upgrade 502 masking: FIXED. `SourceRepo::repo_route("")` trailing-slash 404 fixed in product-mono#815 (merged, staging-deployed); the remaining manager 502→500 conversions (OAuth exchange, GitHubAppError::Upstream, ActivationError gateway variants) are in product-mono#826 (open). Cloudflare replaces origin-502 bodies with branded HTML, so handler errors must never use 502/503.
+- Follow-up work spun off (background sessions 2026-07-16): lightweight manager PR-state endpoint to replace the 45s tarball-download merge poll; investigation of stale `app_source` installation bindings (duplicate 141779906/142228159 branches for playground-6).
 - /build engine mode: render approvals/clarifies in the UI (decision route
   exists; runs default to autoApprove until then)
 - Vercel prod shape for the engine: SMITHER_DATABASE_URL (shared Postgres) +

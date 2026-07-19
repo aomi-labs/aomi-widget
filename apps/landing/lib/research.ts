@@ -14,6 +14,17 @@ export type ResearchPost = {
 
 export const researchPosts: ResearchPost[] = [
   {
+    slug: "auth-across-two-worlds",
+    title:
+      "One User, Many Wallets: Authentication Across the Onchain–Offchain Boundary",
+    date: "July 13, 2026",
+    isoDate: "2026-07-13",
+    tag: "engineering",
+    subtitle:
+      "A design study in hybrid crypto authentication: why counting users is hard onchain, the four proofs to keep separate, and the patterns — and stack — that hold them apart.",
+    fileName: "auth-across-two-worlds.md",
+  },
+  {
     slug: "aomibench-v0-1",
     title: "AomiBench: Benchmarking Frontier Models on Onchain Execution",
     date: "June 4, 2026",
