@@ -35,10 +35,14 @@ RUN apt-get update \
       curl ca-certificates tar gzip unzip \
     && rm -rf /var/lib/apt/lists/*
 
-# Node (claude CLI host) + Bun (run-plan runtime).
-RUN curl -fsSL "https://deb.nodesource.com/setup_${NODE_VERSION}.x" | bash - \
-    && apt-get install -y --no-install-recommends nodejs \
-    && rm -rf /var/lib/apt/lists/* \
+# Node (claude CLI host) + Bun (run-plan runtime). Official tarball, not
+# nodesource — their setup script stopped shipping npm with nodejs, which
+# broke this layer on a cache-evicted rebuild.
+RUN NODE_TAR=$(curl -fsSL "https://nodejs.org/dist/latest-v${NODE_VERSION}.x/" \
+        | grep -o "node-v${NODE_VERSION}[0-9.]*-linux-x64.tar.xz" | head -1) \
+    && curl -fsSL "https://nodejs.org/dist/latest-v${NODE_VERSION}.x/${NODE_TAR}" \
+        | tar -xJ -C /usr/local --strip-components=1 \
+    && node --version && npm --version \
     && npm install -g pnpm @anthropic-ai/claude-code \
     && curl -fsSL https://bun.sh/install | BUN_INSTALL=/usr/local bash -s "bun-v${BUN_VERSION}"
 
