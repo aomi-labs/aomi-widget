@@ -53,6 +53,14 @@ export function resolveWalletState(
     aa?.aaMode ?? (aa?.smartAccount === address ? "4337" : "none");
   const aaBlock: Record<string, unknown> = { mode: resolvedAAMode };
 
+  // Browser AA runs on Alchemy (mirrors the CLI's default provider). The
+  // backend AA lane only engages when user_state declares this — without it a
+  // browser auto-sign session fails the backend's `aa_provider == "alchemy"`
+  // filter and falls back to the plain-EOA path.
+  if (resolvedAAMode === "4337" || resolvedAAMode === "7702") {
+    aaBlock.provider = "alchemy";
+  }
+
   if (aa?.smartAccount4337 !== undefined || aa?.delegation7702 !== undefined) {
     aaBlock.smart_account =
       resolvedAAMode === "4337" ? aa?.smartAccount4337 ?? null : null;

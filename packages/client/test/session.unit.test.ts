@@ -763,6 +763,7 @@ describe("ClientSession ext helpers", () => {
       evm: {
         aa: {
           mode: "7702",
+          provider: "alchemy",
         },
       },
       pending: {

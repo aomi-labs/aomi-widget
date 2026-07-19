@@ -328,6 +328,11 @@ export class SessionWalletController {
         aa: {
           ...prevAa,
           mode: resolvedMode,
+          // Keep the Alchemy provider set so the backend AA lane stays engaged
+          // across post-tx state updates (mirrors resolveWalletState).
+          ...(resolvedMode === "4337" || resolvedMode === "7702"
+            ? { provider: "alchemy" }
+            : {}),
           smart_account:
             resolvedMode === "4337" ? result.SmartAccount4337 ?? null : null,
           delegation_7702:
