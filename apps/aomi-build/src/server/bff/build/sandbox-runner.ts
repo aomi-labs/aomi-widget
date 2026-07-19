@@ -114,6 +114,10 @@ export async function dispatchSandboxRun(options: {
     env: {
       SMITHER_DATABASE_URL: config.databaseUrl,
       AOMI_ALLOW_STALE_SDK: "1",
+      // The image runs as root and the claude CLI refuses its
+      // skip-permissions flags under root unless it knows it's inside a
+      // sandbox. The microVM is exactly that.
+      IS_SANDBOX: "1",
       ...(config.builderApiKey
         ? { SMITHER_ANTHROPIC_API_KEY: config.builderApiKey }
         : {}),
