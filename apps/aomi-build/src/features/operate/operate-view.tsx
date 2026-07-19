@@ -38,6 +38,8 @@ export { truncateAddress };
 type Sourceish = AppSource & { apps?: unknown[] };
 
 type OperatePayload = {
+  /** True when the BFF filled gaps with example fixture data (BE not live yet). */
+  example?: boolean;
   sources?: Sourceish[];
   agents?: Array<Record<string, any>>;
   transactions?: Array<Record<string, any>>;
@@ -672,6 +674,14 @@ export function OperateView({ kind }: { kind: OperateKind }) {
         <div className="flex items-center gap-2">
           <Icon className="text-dim size-5" />
           <h1 className="text-xl font-semibold">{meta[kind].title}</h1>
+          {payload?.example ? (
+            <span
+              title="Live data for this view isn't connected yet — showing example data."
+              className="border-border bg-surface-subtle text-dim rounded-full border px-2 py-0.5 text-xs"
+            >
+              Example data
+            </span>
+          ) : null}
         </div>
         <label className="text-dim flex items-center gap-2 text-sm">
           <ListFilter className="size-4" />

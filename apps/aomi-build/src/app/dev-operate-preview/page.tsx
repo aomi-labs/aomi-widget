@@ -15,11 +15,14 @@ import {
   ALL_LOGS,
   ALL_TRANSACTIONS,
   APP_NAMES,
-  FIXTURES,
   appFixture,
   type LogRecord,
   type TxRecord,
-} from "./fixtures";
+} from "@build/features/operate/fixtures";
+import {
+  exampleAppCards,
+  exampleStatement,
+} from "@build/features/operate/fixtures/wire";
 
 const SOURCE = { id: 141779906, repositoryLink: "aomi-labs/apps", apps: [] };
 
@@ -97,23 +100,7 @@ const OBSERVABILITY = {
     { label: "Open dashboard", url: "https://grafana.example.com/d/app", scope: "owned_applications" },
   ],
   platformMetrics: [],
-  apps: FIXTURES.map((fixture) => ({
-    applicationId: fixture.meta.applicationId,
-    application: fixture.meta.name,
-    active: fixture.meta.status !== "inactive",
-    loaded: fixture.meta.status === "healthy",
-    releaseTag: fixture.meta.releaseTag,
-    sdkVersion: fixture.meta.sdkVersion,
-    status: fixture.meta.status,
-    source: SOURCE,
-    metrics: {
-      provider: "grafana_prometheus",
-      windowSeconds: 900,
-      available: true,
-      trendWindowSeconds: 86400,
-      ...fixture.card,
-    },
-  })),
+  apps: exampleAppCards(SOURCE),
 };
 
 const TRANSACTIONS = {
@@ -136,48 +123,7 @@ const USAGE = {
     { provider: "anthropic", model: "claude-opus-4-8", paymentMethod: "quota", inputTokens: 1_100_000, outputTokens: 152_000, creditsUsed: 9.1204, events: 152, source: SOURCE },
     { provider: "anthropic", model: "claude-haiku-4-5", paymentMethod: "quota", inputTokens: 206_000, outputTokens: 30_300, creditsUsed: 1.6233, events: 88, source: SOURCE },
   ],
-  statement: {
-    summary: {
-      gross: "$183.25",
-      platformFees: "−$28.33",
-      serviceCharges: "−$31.90",
-      net: "+$123.02",
-      period: "Jul 1 – Jul 15",
-    },
-    revenue: FIXTURES.flatMap((fixture) =>
-      fixture.usage.revenue.map((row) => ({
-        stream: row.stream,
-        pricing: row.how,
-        application: fixture.meta.name,
-        activity: row.events,
-        gross: row.gross,
-        platformFee: row.take,
-        net: row.net,
-        unpriced: Boolean(row.dim),
-      })),
-    ),
-    charges: FIXTURES.flatMap((fixture) =>
-      fixture.usage.charges.map((row) => ({
-        item: row.item,
-        application: fixture.meta.name,
-        description: row.detail,
-        amount: row.amount,
-        keySource: row.badge === "BYOK" ? "byok" : row.badge ? "managed" : null,
-      })),
-    ),
-    ledger: FIXTURES.flatMap((fixture) =>
-      fixture.usage.ledger.map((row) => ({
-        occurredAt: row.ts,
-        day: row.day,
-        application: fixture.meta.name,
-        entry: row.entry,
-        gross: row.gross,
-        platformFee: row.fee,
-        modelCost: row.model,
-        net: row.net,
-      })),
-    ).sort((a, b) => b.occurredAt - a.occurredAt),
-  },
+  statement: exampleStatement(SOURCE),
 };
 
 const SESSION = {

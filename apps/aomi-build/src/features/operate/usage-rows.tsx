@@ -5,7 +5,13 @@
 // legacy token/credits meter until then. End-user spend stays in Chat billing.
 
 import Link from "next/link";
-import { tokensLabel } from "./format";
+import {
+  signedUsdLabel,
+  statementPeriodLabel,
+  subjectLabel,
+  tokensLabel,
+  usdLabel,
+} from "./format";
 
 type Row = Record<string, any>;
 
@@ -28,11 +34,12 @@ function Statement({ statement, breakdown }: { statement: Row; breakdown: Row[] 
   const summary = statement.summary;
   const revenue: Row[] = statement.revenue ?? [];
   const charges: Row[] = statement.charges ?? [];
-  const ledger: Row[] = statement.ledger ?? [];
+  const entries: Row[] = statement.entries ?? [];
+  const period = statementPeriodLabel(statement.range);
   return (
     <div className="space-y-4">
       <p className="text-dim text-xs leading-5">
-        Revenue, platform fees, and charges for your apps in this billing period.
+        Revenue, platform fees, and charges for your apps in this statement period.
         End-user spend is reported separately under{" "}
         <Link href="/settings/billing" className="text-foreground hover:underline">
           Account → Billing
@@ -43,10 +50,10 @@ function Statement({ statement, breakdown }: { statement: Row; breakdown: Row[] 
       {summary ? (
         <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
           {[
-            { label: "Gross revenue", value: summary.gross, sub: "collected from end users" },
-            { label: "Platform fees", value: summary.platformFees, sub: "revenue share" },
-            { label: "Service charges", value: summary.serviceCharges, sub: "model usage & hosting" },
-            { label: "Net revenue", value: summary.net, sub: summary.period, net: true },
+            { label: "Gross revenue", value: usdLabel(summary.grossRevenue), sub: "collected from end users" },
+            { label: "Platform fees", value: usdLabel(-Math.abs(summary.platformFees)), sub: "revenue share" },
+            { label: "Service charges", value: usdLabel(-Math.abs(summary.serviceCharges)), sub: "model usage & hosting" },
+            { label: "Net", value: signedUsdLabel(summary.net), sub: period, net: true },
           ].map((tile) => (
             <div key={tile.label} className="border-border bg-surface rounded-md border px-3 py-2.5">
               <div className="text-dim text-xs">{tile.label}</div>
@@ -59,14 +66,14 @@ function Statement({ statement, breakdown }: { statement: Row; breakdown: Row[] 
         </div>
       ) : null}
 
-      <Card title="Revenue" right={summary?.period ? <span className="text-dim text-xs">{summary.period}</span> : null}>
+      <Card title="Revenue" right={period ? <span className="text-dim text-xs">{period}</span> : null}>
         <div className="overflow-x-auto">
           <table className="divide-border min-w-full divide-y text-sm">
             <thead className="bg-surface-subtle">
               <tr>
-                <th className={TH}>Stream</th>
+                <th className={TH}>Subject</th>
                 <th className={TH}>App</th>
-                <th className={TH}>Activity</th>
+                <th className={TH}>Events</th>
                 <th className={TH}>Gross</th>
                 <th className={TH}>Platform fee</th>
                 <th className={TH}>Net</th>
@@ -74,16 +81,13 @@ function Statement({ statement, breakdown }: { statement: Row; breakdown: Row[] 
             </thead>
             <tbody className="divide-border divide-y">
               {revenue.map((row, i) => (
-                <tr key={i} className={row.unpriced ? "text-dim" : ""}>
-                  <td className={TD}>
-                    <div className="font-medium">{row.stream}</div>
-                    <div className="text-dim text-xs">{row.pricing}</div>
-                  </td>
+                <tr key={i} className={row.gross === 0 ? "text-dim" : ""}>
+                  <td className={`${TD} font-medium`}>{subjectLabel(row.subject)}</td>
                   <td className={TD}>{row.application}</td>
-                  <td className={`${TD} text-xs`}>{row.activity}</td>
-                  <td className={`${TD} font-mono text-xs`}>{row.gross}</td>
-                  <td className={`${TD} font-mono text-xs`}>{row.platformFee}</td>
-                  <td className={`${TD} font-mono text-xs font-semibold`}>{row.net}</td>
+                  <td className={`${TD} text-xs`}>{row.events}</td>
+                  <td className={`${TD} font-mono text-xs`}>{usdLabel(row.gross)}</td>
+                  <td className={`${TD} font-mono text-xs`}>{usdLabel(row.platformFee)}</td>
+                  <td className={`${TD} font-mono text-xs font-semibold`}>{usdLabel(row.net)}</td>
                 </tr>
               ))}
             </tbody>
@@ -99,30 +103,17 @@ function Statement({ statement, breakdown }: { statement: Row; breakdown: Row[] 
                 <tr>
                   <th className={TH}>Item</th>
                   <th className={TH}>App</th>
-                  <th className={TH}>Description</th>
+                  <th className={TH}>Events</th>
                   <th className={TH}>Amount</th>
                 </tr>
               </thead>
               <tbody className="divide-border divide-y">
                 {charges.map((row, i) => (
                   <tr key={i}>
-                    <td className={TD}>{row.item}</td>
-                    <td className={TD}>
-                      {row.application}
-                      {row.keySource ? (
-                        <span
-                          className={`ml-2 rounded-full border px-1.5 py-0.5 text-[10px] ${
-                            row.keySource === "byok"
-                              ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-500"
-                              : "border-border bg-surface-subtle text-dim"
-                          }`}
-                        >
-                          {row.keySource === "byok" ? "BYOK" : "managed"}
-                        </span>
-                      ) : null}
-                    </td>
-                    <td className={`${TD} text-dim text-xs`}>{row.description}</td>
-                    <td className={`${TD} font-mono text-xs`}>{row.amount}</td>
+                    <td className={TD}>{subjectLabel(row.item)}</td>
+                    <td className={TD}>{row.application}</td>
+                    <td className={`${TD} text-dim text-xs`}>{row.events}</td>
+                    <td className={`${TD} font-mono text-xs`}>{usdLabel(row.amount)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -150,30 +141,30 @@ function Statement({ statement, breakdown }: { statement: Row; breakdown: Row[] 
         </Card>
       </div>
 
-      <Card title="Billing activity">
+      <Card title="Entries">
         <div className="overflow-x-auto">
           <table className="divide-border min-w-full divide-y text-sm">
             <thead className="bg-surface-subtle">
               <tr>
                 <th className={TH}>Day</th>
                 <th className={TH}>App</th>
-                <th className={TH}>Description</th>
+                <th className={TH}>Subject</th>
+                <th className={TH}>Events</th>
                 <th className={TH}>Gross</th>
                 <th className={TH}>Platform fee</th>
-                <th className={TH}>Model</th>
                 <th className={TH}>Net</th>
               </tr>
             </thead>
             <tbody className="divide-border divide-y">
-              {ledger.map((row, i) => (
+              {entries.map((row, i) => (
                 <tr key={i}>
                   <td className={`${TD} text-dim whitespace-nowrap`}>{row.day}</td>
                   <td className={TD}>{row.application}</td>
-                  <td className={`${TD} text-xs`}>{row.entry}</td>
-                  <td className={`${TD} font-mono text-xs`}>{row.gross}</td>
-                  <td className={`${TD} font-mono text-xs`}>{row.platformFee}</td>
-                  <td className={`${TD} font-mono text-xs`}>{row.modelCost}</td>
-                  <td className={`${TD} font-mono text-xs font-semibold`}>{row.net}</td>
+                  <td className={`${TD} text-xs`}>{subjectLabel(row.subject)}</td>
+                  <td className={`${TD} text-xs`}>{row.events}</td>
+                  <td className={`${TD} font-mono text-xs`}>{usdLabel(row.gross)}</td>
+                  <td className={`${TD} font-mono text-xs`}>{usdLabel(row.platformFee)}</td>
+                  <td className={`${TD} font-mono text-xs font-semibold`}>{signedUsdLabel(row.net)}</td>
                 </tr>
               ))}
             </tbody>

@@ -5,7 +5,7 @@
 // real). Rows deep-link out: tools → Logs, transactions → Transactions.
 
 import { ArrowLeft, ExternalLink } from "lucide-react";
-import type { AppFixture, TxRecord } from "./fixtures";
+import type { AppFixture, TxRecord } from "@build/features/operate/fixtures";
 
 const HOUR_LABELS = ["00:00", "06:00", "12:00", "18:00", "23:00"];
 

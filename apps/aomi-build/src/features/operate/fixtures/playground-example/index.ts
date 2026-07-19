@@ -1,7 +1,7 @@
 import type { AppFixture } from "../types";
 import { transactions } from "./transactions";
 import { logs } from "./logs";
-import { usage } from "./usage";
+import { statement } from "./statement";
 
 // playground-example — dual-VM app (SVM + EVM). Medium activity across
 // Base, Ethereum, and Solana; one cross-family bridge tool that errors.
@@ -79,5 +79,5 @@ export const playgroundExample: AppFixture = {
   },
   transactions,
   logs,
-  usage,
+  statement,
 };

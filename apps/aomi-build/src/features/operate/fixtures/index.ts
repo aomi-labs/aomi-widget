@@ -35,18 +35,3 @@ export const ALL_LOGS: LogRecord[] = FIXTURES.flatMap((f) => f.logs).sort(
 export const ALL_TOOLS: string[] = [
   ...new Set(FIXTURES.flatMap((f) => f.detail.tools.map((t) => t.tool))),
 ];
-
-// ---------------------------------------------------------------------------
-// Platform-level usage statement (across all apps of this builder)
-
-export const USAGE_SUMMARY = [
-  { label: "Gross revenue", value: "$183.25", sub: "collected from end users" },
-  { label: "Platform fees", value: "−$28.33", sub: "revenue share", tone: "fee" as const },
-  { label: "Service charges", value: "−$31.90", sub: "model usage & hosting", tone: "fee" as const },
-  { label: "Net revenue", value: "+$123.02", sub: "Jul 1 – Jul 15", tone: "net" as const },
-];
-
-export const MODEL_DETAIL = [
-  { model: "anthropic/claude-opus-4-8", base: "$8.21", upcharge: "$0.82", billed: "$9.03" },
-  { model: "anthropic/claude-haiku-4-5", base: "$2.61", upcharge: "$0.26", billed: "$2.87" },
-];

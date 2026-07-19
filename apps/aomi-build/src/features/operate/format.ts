@@ -61,6 +61,51 @@ export function tokensLabel(value: unknown) {
   return Number.isFinite(n) ? n.toLocaleString() : String(value ?? "");
 }
 
+/** "$12.34" / "−$12.34" for the statement's raw USD floats. */
+export function usdLabel(value: unknown): string {
+  const n = Number(value ?? 0);
+  if (!Number.isFinite(n)) return "—";
+  const abs = Math.abs(n).toFixed(2);
+  return n < 0 ? `−$${abs}` : `$${abs}`;
+}
+
+/** Signed variant for net amounts: "+$12.34" / "−$12.34". */
+export function signedUsdLabel(value: unknown): string {
+  const label = usdLabel(value);
+  return label.startsWith("−") || label === "—" ? label : `+${label}`;
+}
+
+// Statement subjects are DB slugs; the page speaks billing vocabulary.
+const SUBJECT_LABELS: Record<string, string> = {
+  tool_invocation: "Tool invocations",
+  outcome: "Outcome fees",
+  model: "Model usage",
+  hosting: "App hosting",
+};
+
+export function subjectLabel(subject: unknown): string {
+  const raw = String(subject ?? "");
+  return SUBJECT_LABELS[raw] ?? raw;
+}
+
+/** "Jul 1 – Jul 15" from the statement's UTC calendar-day range. */
+export function statementPeriodLabel(range: {
+  fromDate?: string;
+  toDate?: string;
+} | null | undefined): string {
+  const day = (value: string | undefined): string => {
+    const parsed = Date.parse(`${value ?? ""}T00:00:00Z`);
+    if (!Number.isFinite(parsed)) return value ?? "";
+    return new Date(parsed).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      timeZone: "UTC",
+    });
+  };
+  if (!range?.fromDate && !range?.toDate) return "";
+  return `${day(range?.fromDate)} – ${day(range?.toDate)}`;
+}
+
 export function bytesLabel(value: unknown): string | null {
   const n = Number(value);
   if (!Number.isFinite(n) || n <= 0) return null;

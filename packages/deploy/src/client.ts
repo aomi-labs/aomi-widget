@@ -32,6 +32,7 @@ import type {
   ListUserSourcesInput,
   OperateAgentsResult,
   OperateLogCursor,
+  OperateStatementResult,
   OperateLogsResult,
   OperateObservabilityResult,
   OperateTransactionCursor,
@@ -871,6 +872,30 @@ export class DeploymentClient {
       ts: Date.now(),
     });
     return camelOperateUsage(raw, platform);
+  }
+
+  async getUserSourceStatement(
+    input: GetUserSourceUsageInput,
+  ): Promise<OperateStatementResult> {
+    const { appSourceId, params, platform, bearer } =
+      this.ownedOperateRequest(input);
+    if (input.fromDate?.trim()) params.set("from_date", input.fromDate.trim());
+    if (input.toDate?.trim()) params.set("to_date", input.toDate.trim());
+    const raw = await this.get<Record<string, unknown>>(
+      `/api/integrations/github-app/user/sources/${encodeURIComponent(
+        String(appSourceId),
+      )}/statement?${params.toString()}`,
+      "get_user_source_statement",
+      bearer,
+    );
+    await this.audit({
+      action: "get_user_source_statement",
+      platform,
+      appSourceId,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return camelOperateStatement(raw, platform);
   }
 
   async listUserSourceLogs(
@@ -1782,50 +1807,55 @@ function camelOperateUsage(
       creditsUsed: Number(row.credits_used ?? row.creditsUsed ?? 0),
       events: Number(row.events ?? 0),
     })),
-    statement: camelUsageStatement(raw.statement),
   };
 }
 
-function camelUsageStatement(raw: unknown) {
-  if (!raw || typeof raw !== "object") return null;
-  const statement = raw as Record<string, any>;
-  const summary = statement.summary as Record<string, any> | null | undefined;
+function camelOperateStatement(
+  raw: Record<string, unknown>,
+  fallbackPlatform: string,
+): OperateStatementResult {
+  const range = (raw.range ?? {}) as Record<string, any>;
+  const summary = (raw.summary ?? {}) as Record<string, any>;
   return {
-    summary: summary
-      ? {
-          gross: String(summary.gross ?? ""),
-          platformFees: String(summary.platform_fees ?? summary.platformFees ?? ""),
-          serviceCharges: String(summary.service_charges ?? summary.serviceCharges ?? ""),
-          net: String(summary.net ?? ""),
-          period: String(summary.period ?? ""),
-        }
-      : null,
-    revenue: ((statement.revenue ?? []) as Record<string, any>[]).map((row) => ({
-      stream: String(row.stream ?? ""),
-      pricing: String(row.pricing ?? ""),
+    source: camelAppSource(raw.source),
+    platform: String(raw.platform ?? fallbackPlatform),
+    range: {
+      fromDate: String(range.from_date ?? range.fromDate ?? ""),
+      toDate: String(range.to_date ?? range.toDate ?? ""),
+    },
+    available: Boolean(raw.available),
+    summary: {
+      grossRevenue: Number(summary.gross_revenue ?? summary.grossRevenue ?? 0),
+      platformFees: Number(summary.platform_fees ?? summary.platformFees ?? 0),
+      serviceCharges: Number(
+        summary.service_charges ?? summary.serviceCharges ?? 0,
+      ),
+      net: Number(summary.net ?? 0),
+    },
+    revenue: ((raw.revenue ?? []) as Record<string, any>[]).map((row) => ({
+      subject: String(row.subject ?? ""),
       application: String(row.application ?? ""),
-      activity: String(row.activity ?? ""),
-      gross: String(row.gross ?? ""),
-      platformFee: String(row.platform_fee ?? row.platformFee ?? ""),
-      net: String(row.net ?? ""),
-      unpriced: Boolean(row.unpriced),
+      applicationId: row.application_id ?? row.applicationId ?? null,
+      events: Number(row.events ?? 0),
+      gross: Number(row.gross ?? 0),
+      platformFee: Number(row.platform_fee ?? row.platformFee ?? 0),
+      net: Number(row.net ?? 0),
     })),
-    charges: ((statement.charges ?? []) as Record<string, any>[]).map((row) => ({
+    charges: ((raw.charges ?? []) as Record<string, any>[]).map((row) => ({
       item: String(row.item ?? ""),
       application: String(row.application ?? ""),
-      description: String(row.description ?? ""),
-      amount: String(row.amount ?? ""),
-      keySource: (row.key_source ?? row.keySource ?? null) as "managed" | "byok" | null,
+      applicationId: row.application_id ?? row.applicationId ?? null,
+      events: Number(row.events ?? 0),
+      amount: Number(row.amount ?? 0),
     })),
-    ledger: ((statement.ledger ?? []) as Record<string, any>[]).map((row) => ({
-      occurredAt: timestampSeconds(row.occurred_at ?? row.occurredAt),
+    entries: ((raw.entries ?? []) as Record<string, any>[]).map((row) => ({
       day: String(row.day ?? ""),
       application: String(row.application ?? ""),
-      entry: String(row.entry ?? ""),
-      gross: String(row.gross ?? ""),
-      platformFee: String(row.platform_fee ?? row.platformFee ?? ""),
-      modelCost: String(row.model_cost ?? row.modelCost ?? ""),
-      net: String(row.net ?? ""),
+      subject: String(row.subject ?? ""),
+      events: Number(row.events ?? 0),
+      gross: Number(row.gross ?? 0),
+      platformFee: Number(row.platform_fee ?? row.platformFee ?? 0),
+      net: Number(row.net ?? 0),
     })),
   };
 }

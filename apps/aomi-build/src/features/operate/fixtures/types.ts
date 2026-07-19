@@ -112,31 +112,27 @@ export type AppDetail = {
   releases: Array<{ tag: string; when: string; current: boolean; note: string }>;
 };
 
-export type UsageRows = {
+/** Mirrors the manager's statement wire (subjects, raw USD floats). */
+export type StatementRows = {
   revenue: Array<{
-    stream: string;
-    how: string;
-    events: string;
-    gross: string;
-    take: string;
-    net: string;
-    dim?: boolean;
+    subject: string;
+    events: number;
+    gross: number;
+    platformFee: number;
+    net: number;
   }>;
   charges: Array<{
     item: string;
-    detail: string;
-    amount: string;
-    badge?: "managed" | "BYOK";
-    dim?: boolean;
+    events: number;
+    amount: number;
   }>;
-  ledger: Array<{
-    ts: number;
+  entries: Array<{
     day: string;
-    entry: string;
-    gross: string;
-    fee: string;
-    model: string;
-    net: string;
+    subject: string;
+    events: number;
+    gross: number;
+    platformFee: number;
+    net: number;
   }>;
 };
 
@@ -154,5 +150,5 @@ export type AppFixture = {
   detail: AppDetail;
   transactions: TxRecord[];
   logs: LogRecord[];
-  usage: UsageRows;
+  statement: StatementRows;
 };

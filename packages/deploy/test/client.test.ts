@@ -587,6 +587,139 @@ describe("DeploymentClient source SDK upgrade", () => {
   });
 });
 
+describe("DeploymentClient operate statement", () => {
+  let fetchMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    fetchMock = vi.fn(async () =>
+      Response.json({
+        source: {
+          id: 42,
+          installation_id: 123,
+          repository_id: 987,
+          repository_link: "https://github.com/alice/demo.git",
+          github_account: "alice",
+        },
+        platform: "community",
+        range: { from_date: "2026-07-01", to_date: "2026-07-15" },
+        available: true,
+        summary: {
+          gross_revenue: 20.0,
+          platform_fees: 4.0,
+          service_charges: 13.3,
+          net: 2.7,
+        },
+        revenue: [
+          {
+            subject: "tool_invocation",
+            application: "alpha",
+            application_id: 7,
+            events: 4,
+            gross: 8.0,
+            platform_fee: 0.8,
+            net: 7.2,
+          },
+        ],
+        charges: [
+          {
+            item: "hosting",
+            application: "beta",
+            application_id: 9,
+            events: 1,
+            amount: 10.0,
+          },
+        ],
+        entries: [
+          {
+            day: "2026-07-02",
+            application: "alpha",
+            subject: "model",
+            events: 3,
+            gross: 3.3,
+            platform_fee: 0.3,
+            net: -3.3,
+          },
+        ],
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+  });
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("maps the statement wire (subjects, entries, USD floats) to camelCase", async () => {
+    const result = await client().getUserSourceStatement({
+      githubUserId: "4738254",
+      platform: "community",
+      appSourceId: 42,
+      fromDate: "2026-07-01",
+      toDate: "2026-07-15",
+    });
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      "https://staging-api.example.com/api/integrations/github-app/user/sources/42/statement?github_user_id=4738254&platform=community&from_date=2026-07-01&to_date=2026-07-15",
+    );
+    expect(result.range).toEqual({ fromDate: "2026-07-01", toDate: "2026-07-15" });
+    expect(result.available).toBe(true);
+    expect(result.summary).toEqual({
+      grossRevenue: 20.0,
+      platformFees: 4.0,
+      serviceCharges: 13.3,
+      net: 2.7,
+    });
+    expect(result.revenue).toEqual([
+      {
+        subject: "tool_invocation",
+        application: "alpha",
+        applicationId: 7,
+        events: 4,
+        gross: 8.0,
+        platformFee: 0.8,
+        net: 7.2,
+      },
+    ]);
+    expect(result.charges).toEqual([
+      { item: "hosting", application: "beta", applicationId: 9, events: 1, amount: 10.0 },
+    ]);
+    expect(result.entries).toEqual([
+      {
+        day: "2026-07-02",
+        application: "alpha",
+        subject: "model",
+        events: 3,
+        gross: 3.3,
+        platformFee: 0.3,
+        net: -3.3,
+      },
+    ]);
+  });
+
+  it("degrades to an unavailable zeroed statement when the table is missing", async () => {
+    fetchMock.mockResolvedValueOnce(
+      Response.json({
+        source: { id: 42, installation_id: 123, repository_id: 987, repository_link: "x" },
+        platform: "community",
+        range: { from_date: "2026-07-01", to_date: "2026-07-15" },
+        available: false,
+        summary: { gross_revenue: 0.0, platform_fees: 0.0, service_charges: 0.0, net: 0.0 },
+        revenue: [],
+        charges: [],
+        entries: [],
+      }),
+    );
+
+    const result = await client().getUserSourceStatement({
+      githubUserId: "4738254",
+      platform: "community",
+      appSourceId: 42,
+    });
+    expect(result.available).toBe(false);
+    expect(result.summary.net).toBe(0);
+    expect(result.revenue).toEqual([]);
+  });
+});
+
 describe("server-only guard", () => {
   it("throws in a browser-like environment", () => {
     const g = globalThis as Record<string, unknown>;

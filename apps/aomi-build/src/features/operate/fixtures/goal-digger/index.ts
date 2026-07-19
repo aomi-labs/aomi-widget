@@ -1,7 +1,7 @@
 import type { AppFixture } from "../types";
 import { transactions } from "./transactions";
 import { logs } from "./logs";
-import { usage } from "./usage";
+import { statement } from "./statement";
 
 // goal-digger — SVM (Solana) app. High activity, one hot tool error, tx
 // funnel converting. The "flagship" fixture.
@@ -81,5 +81,5 @@ export const goalDigger: AppFixture = {
   },
   transactions,
   logs,
-  usage,
+  statement,
 };

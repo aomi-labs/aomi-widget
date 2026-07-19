@@ -42,6 +42,7 @@ export interface AuditEvent {
     | "list_user_source_agents"
     | "list_user_source_transactions"
     | "get_user_source_usage"
+    | "get_user_source_statement"
     | "list_user_source_logs"
     | "get_user_source_observability"
     | "upgrade_user_source_sdk"
@@ -719,60 +720,64 @@ export interface OperateUsageBreakdownRow {
   events: number;
 }
 
-// Billing-statement contract: the Usage page is a revenue-share statement
-// (gross / platform fee / net + charges), not a token meter. Rows are
-// preformatted amounts — the ledger is the source of truth, not the UI.
-export interface OperateUsageRevenueRow {
-  stream: string;
-  pricing: string;
-  application: string;
-  activity: string;
-  gross: string;
-  platformFee: string;
-  net: string;
-  unpriced: boolean;
-}
-
-export interface OperateUsageChargeRow {
-  item: string;
-  application: string;
-  description: string;
-  amount: string;
-  keySource: "managed" | "byok" | null;
-}
-
-export interface OperateUsageLedgerRow {
-  occurredAt: number;
-  day: string;
-  application: string;
-  entry: string;
-  gross: string;
-  platformFee: string;
-  modelCost: string;
-  net: string;
-}
-
-export interface OperateUsageStatement {
-  summary: {
-    gross: string;
-    platformFees: string;
-    serviceCharges: string;
-    net: string;
-    period: string;
-  } | null;
-  revenue: OperateUsageRevenueRow[];
-  charges: OperateUsageChargeRow[];
-  ledger: OperateUsageLedgerRow[];
-}
-
 export interface OperateUsageResult {
   source: AppSource;
   platform: string;
   range: { fromDate: string; toDate: string; maxDays: number };
   daily: OperateUsageDailyRow[];
   breakdown: OperateUsageBreakdownRow[];
-  /** Null until statement billing ships; the page falls back to the meter. */
-  statement: OperateUsageStatement | null;
+}
+
+// Statement contract — mirrors the manager's `/user/sources/:id/statement`
+// endpoint (bank-statement model: Aomi's statement to the builder, one
+// document, entries of both signs). Charges (`model`, `hosting` subjects)
+// carry negative net; earnings (`tool_invocation`, `outcome`) positive.
+// Amounts are raw USD floats off the wire; the UI formats at render time.
+export interface OperateStatementSummary {
+  grossRevenue: number;
+  platformFees: number;
+  serviceCharges: number;
+  net: number;
+}
+
+export interface OperateStatementRevenueRow {
+  subject: string;
+  application: string;
+  applicationId: number | null;
+  events: number;
+  gross: number;
+  platformFee: number;
+  net: number;
+}
+
+export interface OperateStatementChargeRow {
+  item: string;
+  application: string;
+  applicationId: number | null;
+  events: number;
+  amount: number;
+}
+
+export interface OperateStatementEntry {
+  day: string;
+  application: string;
+  subject: string;
+  events: number;
+  gross: number;
+  platformFee: number;
+  net: number;
+}
+
+export interface OperateStatementResult {
+  source: AppSource;
+  platform: string;
+  range: { fromDate: string; toDate: string };
+  /** False when statement_entries isn't migrated yet — fall back to the meter. */
+  available: boolean;
+  summary: OperateStatementSummary;
+  revenue: OperateStatementRevenueRow[];
+  charges: OperateStatementChargeRow[];
+  entries: OperateStatementEntry[];
 }
 
 export interface OperateLogEntry {

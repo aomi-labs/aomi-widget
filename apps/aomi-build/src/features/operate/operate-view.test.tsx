@@ -261,41 +261,53 @@ describe("OperateView transactions", () => {
     expect(screen.getByText(/amount_out/)).toBeInTheDocument();
   });
 
-  it("renders the billing statement when present, meter otherwise", async () => {
+  it("renders the statement when present, meter otherwise", async () => {
     operateFetch.mockResolvedValue({
       sources: [],
       daily: [],
       breakdown: [],
+      // BFF filled the statement from example fixtures (BE not live yet).
+      example: true,
+      // BE statement vocabulary: subjects, entries, raw USD floats.
       statement: {
+        range: { fromDate: "2026-07-01", toDate: "2026-07-15" },
         summary: {
-          gross: "$183.25",
-          platformFees: "−$28.33",
-          serviceCharges: "−$31.90",
-          net: "+$123.02",
-          period: "Jul 1 – Jul 15",
+          grossRevenue: 183.25,
+          platformFees: 28.33,
+          serviceCharges: 41.9,
+          net: 113.02,
         },
         revenue: [
           {
-            stream: "Tool invocations",
-            pricing: "x402 · $1.00 per call",
+            subject: "tool_invocation",
             application: "goal-digger",
-            activity: "128 paid calls",
-            gross: "$128.00",
-            platformFee: "$12.80 (10%)",
-            net: "$115.20",
-            unpriced: false,
+            applicationId: 77,
+            events: 128,
+            gross: 128.0,
+            platformFee: 12.8,
+            net: 115.2,
           },
         ],
         charges: [
           {
-            item: "App hosting",
+            item: "hosting",
             application: "goal-digger",
-            description: "Standard plan · $10.00 per app / month",
-            amount: "$10.00",
-            keySource: null,
+            applicationId: 77,
+            events: 1,
+            amount: 10.0,
           },
         ],
-        ledger: [],
+        entries: [
+          {
+            day: "2026-07-15",
+            application: "goal-digger",
+            subject: "model",
+            events: 68,
+            gross: 4.1,
+            platformFee: 0.37,
+            net: -4.1,
+          },
+        ],
       },
     });
 
@@ -303,9 +315,16 @@ describe("OperateView transactions", () => {
     await waitFor(() => {
       expect(screen.getByText("Gross revenue")).toBeInTheDocument();
     });
-    expect(screen.getByText("+$123.02")).toBeInTheDocument();
+    // Floats format at render time; the period comes from the range.
+    expect(screen.getByText("+$113.02")).toBeInTheDocument();
     expect(screen.getByText("Tool invocations")).toBeInTheDocument();
     expect(screen.getByText("$115.20")).toBeInTheDocument();
+    expect(screen.getByText("App hosting")).toBeInTheDocument();
+    expect(screen.getByText("Model usage")).toBeInTheDocument();
+    expect(screen.getByText("−$4.10")).toBeInTheDocument();
+    expect(screen.getAllByText("Jul 1 – Jul 15").length).toBeGreaterThan(0);
+    // example: true → the header labels the page as example data.
+    expect(screen.getByText("Example data")).toBeInTheDocument();
   });
 
   it("falls back to the token meter without a statement", async () => {

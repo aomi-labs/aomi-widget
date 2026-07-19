@@ -1,7 +1,7 @@
 import type { AppFixture } from "../types";
 import { transactions } from "./transactions";
 import { logs } from "./logs";
-import { usage } from "./usage";
+import { statement } from "./statement";
 
 // geckoterminal — EVM market-data app, read-only archetype: healthy tool
 // traffic, zero transactions, BYOK model keys, unpriced tools.
@@ -78,5 +78,5 @@ export const geckoterminal: AppFixture = {
   },
   transactions,
   logs,
-  usage,
+  statement,
 };
