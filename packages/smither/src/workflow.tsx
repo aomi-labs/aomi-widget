@@ -615,10 +615,18 @@ async function codegenStep(
   binaries: ResolvedBinaries,
   runner: CommandRunner,
 ): Promise<CodegenRow> {
+  // The composing BFF may not share a filesystem with the executor (sandbox
+  // plans always compose as "discover" because the server can't stat the
+  // image's apps/) — re-derive the source where the filesystem actually is:
+  // an app whose curated sources exist behaves as "existing".
+  const toolPath = path.join(plan.sdkRoot, "apps", plan.app, "src", "tool.rs");
+  const source =
+    plan.source !== "existing" && existsSync(toolPath)
+      ? "existing"
+      : plan.source;
   // Idempotence: a re-run (e.g. a deploy-only pass) must not clobber sources
   // an agent already curated. gen-* only runs when the app has no sources yet.
-  if (plan.source === "existing" && !plan.force) {
-    const toolPath = path.join(plan.sdkRoot, "apps", plan.app, "src", "tool.rs");
+  if (source === "existing" && !plan.force) {
     if (existsSync(toolPath)) {
       return {
         ok: true,
@@ -627,7 +635,7 @@ async function codegenStep(
     }
   }
   const results =
-    plan.source === "existing"
+    source === "existing"
       ? [
           await runAomiBuild(
             binaries,
