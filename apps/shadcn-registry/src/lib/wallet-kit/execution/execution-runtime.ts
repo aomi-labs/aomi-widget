@@ -15,8 +15,8 @@ import {
  * Map a shared `EvmWalletRuntime` into the composer's `EvmExecutionRuntime`
  * shape. Every provider lane (Para, Privy, wallets-only) passes the same dozen
  * wagmi passthrough fields; the only differences are provider-specific
- * `overrides` (AA owner resolution, smart-wallet send/sign), so they spread on
- * top. Keeps the signing surface in one place instead of three copies.
+ * `overrides` (smart-wallet send/sign), so they spread on top. Keeps the
+ * signing surface in one place instead of three copies.
  */
 export function buildEvmExecutionRuntime(
   evm: EvmWalletRuntime,
@@ -37,12 +37,6 @@ export function buildEvmExecutionRuntime(
     walletClient: evm.walletClient,
     ...overrides,
   };
-  const shouldUseExternalSignerForAA =
-    runtime.aaOwner === "provider-session"
-      ? false
-      : runtime.aaOwner === "external-wallet"
-        ? true
-        : runtime.shouldUseExternalSigner;
 
   return {
     ...runtime,
@@ -78,24 +72,6 @@ export function buildEvmExecutionRuntime(
                 chainsById: runtime.chainsById,
                 getPreferredRpcUrl,
               },
-              shouldUseExternalSigner: shouldUseExternalSignerForAA,
-              resolveAAProviderState: runtime.resolveAAProviderState
-                ? async (params) =>
-                    runtime.resolveAAProviderState!(params, {
-                      address: evm.identity(Date.now()).address,
-                      walletClient: shouldUseExternalSignerForAA
-                        ? await runtime.getWalletClientFor({
-                            connector: runtime.activeConnector,
-                            chainId: params.callList[0]?.chainId,
-                          })
-                        : runtime.walletClient,
-                    })
-                : undefined,
-              forceAA: runtime.aaPolicy !== "off",
-              preferAAForSingleCall: runtime.aaPolicy !== "off",
-              aaPolicy: runtime.aaPolicy,
-              aaModes: runtime.aaModes,
-              aaProvider: runtime.aaProvider,
             })
         : undefined),
     signTypedData:

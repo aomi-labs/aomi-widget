@@ -13,7 +13,6 @@ import { toViemSignTypedDataArgs } from "@aomi-labs/react";
 import { AomiWalletKitComposer } from "../../composer/AomiWalletKitComposer";
 import type { AuthRuntime, ExecutionRuntime } from "../../composer/types";
 import { useResolvedAccountRuntime } from "../../account/use-resolved-account-runtime";
-import { resolveAAProviderState } from "../../execution/aa-provider-state";
 import { buildEvmExecutionRuntime } from "../../execution/execution-runtime";
 import { useAomiWalletNetworkPreferences } from "../../network-preferences";
 import { useEvmWalletRuntime } from "../../runtime/evm/wallet-runtime";
@@ -233,17 +232,6 @@ export function AomiPrivyPluginProvider({
     () => ({
       sponsorship: {},
       evm: buildEvmExecutionRuntime(evmRuntime, {
-        aaModes: execution?.modes,
-        aaOwner: execution?.owner ?? "auto",
-        aaPolicy: execution?.aa ?? "optional",
-        aaProvider: execution?.provider ?? "auto",
-        resolveAAProviderState: async (params, context) =>
-          resolveAAProviderState({
-            ...params,
-            ownerStrategy: { kind: "external-wallet" },
-            walletClient: context.walletClient,
-            address: context.address,
-          }),
         sendTransaction:
           execution?.aa === "off"
             ? undefined

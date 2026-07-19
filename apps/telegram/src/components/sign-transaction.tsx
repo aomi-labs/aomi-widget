@@ -82,7 +82,7 @@ function SignContent({ restoreDone }: { restoreDone: boolean }) {
     connectionSettled,
     isConnected,
   } = state;
-  const { executorReady, providerState, execute } = useTxExecutor({
+  const { executorReady, execute } = useTxExecutor({
     calls,
     currentChainId,
     capabilities: capabilitiesQuery.data as Record<string, { atomic?: { status?: string } }> | undefined,
@@ -139,51 +139,29 @@ function SignContent({ restoreDone }: { restoreDone: boolean }) {
     try {
       await handlers.reportAwaitingWallet(bundleId);
       const result = await execute(callList);
-      const aaRequestedMode =
-        providerState.AA?.mode === '4337' || providerState.AA?.mode === '7702'
-          ? providerState.AA.mode
-          : 'none';
-      const aaResolvedMode = aaResolvedModeFromExecutionKind(result.executionKind) ?? aaRequestedMode;
-      const aaFallbackReason =
-        aaRequestedMode !== 'none' && aaResolvedMode !== aaRequestedMode
-          ? `requested_${aaRequestedMode}_fallback_${aaResolvedMode}`
-          : undefined;
+      const aaResolvedMode =
+        aaResolvedModeFromExecutionKind(result.executionKind) ?? 'none';
       await handlers.reportSuccess(bundleId, result.txHash, {
         ...pendingTxCallbackFields(callList),
-        aa_requested_mode: aaRequestedMode,
+        aa_requested_mode: 'none',
         aa_resolved_mode: aaResolvedMode,
-        aa_fallback_reason: aaFallbackReason,
+        aa_fallback_reason: undefined,
         tx_hashes: result.txHashes,
         execution_kind: result.executionKind,
         call_count: callList.length,
         batched: result.batched,
         sponsored: result.sponsored,
-        smart_account_4337: result.SmartAccount4337,
-        delegation_7702: result.Delegation7702,
       });
     } catch (err) {
-      const executionKind = providerState.AA
-        ? `${providerState.AA.provider.toLowerCase()}_${providerState.AA.mode}`
-        : undefined;
-      const aaRequestedMode =
-        providerState.AA?.mode === '4337' || providerState.AA?.mode === '7702'
-          ? providerState.AA.mode
-          : 'none';
-      const aaResolvedMode = aaResolvedModeFromExecutionKind(executionKind) ?? aaRequestedMode;
       await handlers.reportFailure(bundleId, err, {
         ...pendingTxCallbackFields(callList),
-        aa_requested_mode: aaRequestedMode,
-        aa_resolved_mode: aaResolvedMode,
+        aa_requested_mode: 'none',
+        aa_resolved_mode: 'none',
         aa_fallback_reason: undefined,
-        execution_kind: executionKind,
+        execution_kind: undefined,
         call_count: callList.length,
         batched: callList.length > 1,
-        sponsored: providerState.plan
-          ? providerState.plan.sponsorship !== 'disabled'
-          : undefined,
-        smart_account_4337: providerState.AA?.SmartAccount4337,
-        delegation_7702:
-          providerState.AA?.mode === '7702' ? providerState.AA.Delegation7702 : undefined,
+        sponsored: undefined,
       });
     }
   }

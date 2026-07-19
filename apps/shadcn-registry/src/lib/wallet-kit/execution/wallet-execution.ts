@@ -7,7 +7,6 @@ import type {
   WalletTxPayload,
 } from "@aomi-labs/react";
 import {
-  DISABLED_PROVIDER_STATE,
   aaModeFromExecutionKind,
   executeWalletCalls,
   toAAWalletCalls,
@@ -15,11 +14,6 @@ import {
 import type { AomiTxResult } from "../types";
 
 export type RequestedAAMode = "none" | "4337" | "7702";
-export type WalletKitAAPolicy = "off" | "optional" | "required";
-export type WalletKitAAProviderPreference = "auto" | "alchemy" | "pimlico";
-export type WalletProviderState = Parameters<
-  typeof executeWalletCalls
->[0]["providerState"];
 export type WalletExecutionCallList = Parameters<
   typeof executeWalletCalls
 >[0]["callList"];
@@ -63,31 +57,22 @@ export type NativeWalletExecutionPolicy = Omit<
       };
 };
 
-export type ResolveAAProviderState = (params: {
-  callList: WalletExecutionCallList;
-  chainsById: Record<number, Chain>;
-  requestedMode: Exclude<RequestedAAMode, "none">;
-  shouldUseExternalSigner: boolean;
-  sponsored?: boolean;
-  provider?: WalletKitAAProviderPreference;
-}) => Promise<{
-  providerState: WalletProviderState;
-  resolvedMode: RequestedAAMode;
-  fallbackReason?: string;
-}>;
-
 export function getPreferredRpcUrl(chain: Chain): string {
   return chain.rpcUrls.default.http[0] ?? chain.rpcUrls.public?.http[0] ?? "";
 }
 
+/**
+ * The AA mode the payload asked for — reporting only. Client-side smart
+ * accounts were removed; account abstraction for staged calls happens
+ * server-side. The connected wallet may still execute atomically/sponsored
+ * via EIP-5792 `sendCalls`, reported through `executionKind`.
+ */
 export function resolveRequestedAAMode(
   payload: WalletTxPayload,
   isBatch: boolean,
-  preferAAForSingleCall = false,
-  forceAA = false,
 ): RequestedAAMode {
-  if (!forceAA && !isBatch && !preferAAForSingleCall) return "none";
-  if (!forceAA && payload.aaPreference === "none" && isBatch) return "none";
+  if (payload.aaPreference === "none") return "none";
+  if (!isBatch && !payload.aaStrict) return "none";
   if (payload.aaPreference === "eip4337") return "4337";
   return "7702";
 }
@@ -121,42 +106,6 @@ export function normalizeAtomicCapabilities(
   }
 
   return normalized as Parameters<typeof executeWalletCalls>[0]["capabilities"];
-}
-
-function buildAaAttempts(
-  aaRequestedMode: RequestedAAMode,
-  shouldUseExternalSigner: boolean,
-  allowedModes?: readonly Exclude<RequestedAAMode, "none">[],
-): Array<{
-  requestedMode: Exclude<RequestedAAMode, "none">;
-  sponsored?: boolean;
-}> {
-  const allowed = allowedModes?.length ? new Set(allowedModes) : null;
-  const filterAllowed = (
-    attempts: Array<{
-      requestedMode: Exclude<RequestedAAMode, "none">;
-      sponsored?: boolean;
-    }>,
-  ) =>
-    allowed
-      ? attempts.filter((attempt) => allowed.has(attempt.requestedMode))
-      : attempts;
-
-  if (aaRequestedMode === "7702") {
-    if (shouldUseExternalSigner) {
-      return filterAllowed([{ requestedMode: "4337", sponsored: true }]);
-    }
-    return filterAllowed([
-      { requestedMode: "7702" },
-      { requestedMode: "4337", sponsored: true },
-    ]);
-  }
-
-  if (aaRequestedMode === "4337") {
-    return filterAllowed([{ requestedMode: "4337", sponsored: true }]);
-  }
-
-  return [];
 }
 
 function resolveNativeWalletExecutionPolicy({
@@ -194,32 +143,12 @@ function resolveNativeWalletExecutionPolicy({
   };
 }
 
-function hasResolvedAAProviderState(
-  providerState: WalletProviderState,
-): boolean {
-  return Boolean(providerState.resolved);
-}
-
 export async function executeWalletKitTransaction({
   payload,
   state,
-  shouldUseExternalSigner = false,
-  resolveAAProviderState,
-  preferAAForSingleCall = false,
-  forceAA = false,
-  aaPolicy = "optional",
-  aaModes,
-  aaProvider = "auto",
 }: {
   payload: WalletTxPayload;
   state: WalletExecutionKitState;
-  shouldUseExternalSigner?: boolean;
-  resolveAAProviderState?: ResolveAAProviderState;
-  preferAAForSingleCall?: boolean;
-  forceAA?: boolean;
-  aaPolicy?: WalletKitAAPolicy;
-  aaModes?: readonly Exclude<RequestedAAMode, "none">[];
-  aaProvider?: WalletKitAAProviderPreference;
 }): Promise<AomiTxResult> {
   if (!payload.to && (!payload.calls || payload.calls.length === 0)) {
     throw new Error("pending_transaction_missing_call_data");
@@ -235,20 +164,10 @@ export async function executeWalletKitTransaction({
     payload.chainId ?? state.currentChainId ?? 1,
   );
   const isBatch = callList.length > 1;
-  const aaRequestedMode = resolveRequestedAAMode(
-    payload,
-    isBatch,
-    preferAAForSingleCall,
-    forceAA,
-  );
-  const requiresSponsoredExecution =
-    state.nativeWalletExecution?.sponsorship?.mode === "required";
-  // Atomic-required is a payload-level intent (`aaStrict === true`),
-  // independent of the provider's sponsorship mode. Conflating them
-  // (commit 1d406d2) forces every sponsored batch into atomic+no-fallback
-  // and breaks fee-injected 2-call batches when the wallet/bundler errors
-  // after sign. `requiresSponsoredExecution` still drives fail-closed
-  // semantics in the AA-failure exit path below.
+  const aaRequestedMode = resolveRequestedAAMode(payload, isBatch);
+  // Atomic-required is a payload-level intent (`aaStrict === true`): a
+  // fee-injected or dependent batch must not be silently split into
+  // sequential sends.
   const requiresAtomicForBatch = isBatch && payload.aaStrict === true;
   const nativeWalletExecution = resolveNativeWalletExecutionPolicy({
     policy: state.nativeWalletExecution,
@@ -256,112 +175,32 @@ export async function executeWalletKitTransaction({
     requiresAtomicForBatch,
   });
 
-  const executeWithProviderState = async (providerState: WalletProviderState) =>
-    executeWalletCalls({
-      callList,
-      currentChainId: state.currentChainId ?? callList[0]?.chainId ?? 1,
-      capabilities: state.capabilities,
-      localPrivateKey: null,
-      nativeWalletExecution,
-      providerState,
-      sendCallsSyncAsync: state.sendCallsSyncAsync
-        ? async (args) => {
-            return state.sendCallsSyncAsync?.({
-              ...args,
-            });
-          }
-        : async () => {
-            throw new Error("wallet_send_calls_not_supported");
-          },
-      sendTransactionAsync,
-      switchChainAsync: state.switchChainAsync
-        ? async ({ chainId }) => {
-            return state.switchChainAsync?.({ chainId });
-          }
-        : async () => {
-            throw new Error("wallet_switch_chain_not_supported");
-          },
-      chainsById: state.chainsById,
-      getPreferredRpcUrl: state.getPreferredRpcUrl ?? getPreferredRpcUrl,
-    });
-
-  let execution: Awaited<ReturnType<typeof executeWalletCalls>> | null = null;
-  let finalFallbackReason: string | undefined;
-  let lastAAError: unknown;
-  let sawUnresolvedAAProviderState = false;
-  const aaStateResolver = resolveAAProviderState;
-  const aaAttempts =
-    aaPolicy !== "off" && aaStateResolver
-      ? buildAaAttempts(aaRequestedMode, shouldUseExternalSigner, aaModes)
-      : [];
-
-  if (aaAttempts.length === 0) {
-    if (aaPolicy === "required" && aaRequestedMode !== "none") {
-      throw new Error("aa_required_execution_failed");
-    }
-    execution = await executeWithProviderState(DISABLED_PROVIDER_STATE);
-  } else {
-    if (!aaStateResolver) {
-      throw new Error("aa_provider_state_resolver_missing");
-    }
-    for (const attempt of aaAttempts) {
-      const attemptState = await aaStateResolver({
-        callList,
-        chainsById: state.chainsById,
-        requestedMode: attempt.requestedMode,
-        shouldUseExternalSigner,
-        sponsored: attempt.sponsored,
-        provider: aaProvider,
-      });
-
-      if (attemptState.fallbackReason && !finalFallbackReason) {
-        finalFallbackReason = attemptState.fallbackReason;
-      }
-
-      if (!hasResolvedAAProviderState(attemptState.providerState)) {
-        sawUnresolvedAAProviderState = true;
-        continue;
-      }
-
-      try {
-        execution = await executeWithProviderState(attemptState.providerState);
-        if (
-          aaRequestedMode === "7702" &&
-          attempt.requestedMode === "4337" &&
-          !finalFallbackReason
-        ) {
-          finalFallbackReason = "requested_7702_fallback_4337";
+  const execution = await executeWalletCalls({
+    callList,
+    currentChainId: state.currentChainId ?? callList[0]?.chainId ?? 1,
+    capabilities: state.capabilities,
+    localPrivateKey: null,
+    nativeWalletExecution,
+    sendCallsSyncAsync: state.sendCallsSyncAsync
+      ? async (args) => {
+          return state.sendCallsSyncAsync?.({
+            ...args,
+          });
         }
-        break;
-      } catch (error) {
-        lastAAError = error;
-        console.warn("[aomi-wallet-kit] AA attempt failed", {
-          requestedMode: attempt.requestedMode,
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
-    }
-
-    if (!execution) {
-      if (aaPolicy === "required" || requiresSponsoredExecution) {
-        throw new Error(finalFallbackReason ?? "aa_required_execution_failed");
-      }
-      if (payload.aaStrict && lastAAError && !sawUnresolvedAAProviderState) {
-        throw new Error(finalFallbackReason ?? "aa_required_execution_failed");
-      }
-      console.warn(
-        "[aomi-wallet-kit] All AA attempts failed; falling back to native wallet",
-        {
-          error:
-            lastAAError instanceof Error
-              ? lastAAError.message
-              : String(lastAAError ?? "unknown"),
+      : async () => {
+          throw new Error("wallet_send_calls_not_supported");
         },
-      );
-      execution = await executeWithProviderState(DISABLED_PROVIDER_STATE);
-      finalFallbackReason = finalFallbackReason ?? "aa_failed_fallback_eoa";
-    }
-  }
+    sendTransactionAsync,
+    switchChainAsync: state.switchChainAsync
+      ? async ({ chainId }) => {
+          return state.switchChainAsync?.({ chainId });
+        }
+      : async () => {
+          throw new Error("wallet_switch_chain_not_supported");
+        },
+    chainsById: state.chainsById,
+    getPreferredRpcUrl: state.getPreferredRpcUrl ?? getPreferredRpcUrl,
+  });
 
   if (!execution.txHash) {
     throw new Error("wallet_execution_missing_transaction_hash");
@@ -376,17 +215,12 @@ export async function executeWalletKitTransaction({
     aaRequestedMode,
     aaResolvedMode,
     aaFallbackReason:
-      finalFallbackReason ??
-      (aaRequestedMode === "7702" && aaResolvedMode === "4337"
-        ? "requested_7702_fallback_4337"
-        : aaRequestedMode !== "none" && aaResolvedMode === "none"
-          ? "aa_unavailable_fallback_eoa"
-          : undefined),
+      aaRequestedMode !== "none" && aaResolvedMode === "none"
+        ? "aa_unavailable_fallback_eoa"
+        : undefined,
     executionKind: execution.executionKind,
     batched: execution.batched,
     callCount: callList.length,
     sponsored: execution.sponsored,
-    SmartAccount4337: execution.SmartAccount4337,
-    Delegation7702: execution.Delegation7702,
   };
 }

@@ -92,8 +92,6 @@ export function toSignedTransactionRecord(
   from: string,
   chainId: number,
   timestamp: number,
-  aaProvider?: string,
-  aaMode?: string,
 ): SignedTx {
   return {
     id: tx.id,
@@ -101,12 +99,8 @@ export function toSignedTransactionRecord(
     txHash: execution.txHash,
     txHashes: execution.txHashes,
     executionKind: execution.executionKind,
-    aaProvider,
-    aaMode,
     batched: execution.batched,
     sponsored: execution.sponsored,
-    smartAccount4337: execution.SmartAccount4337,
-    Delegation7702: execution.Delegation7702,
     from,
     to: tx.to,
     value: tx.value,

@@ -150,56 +150,29 @@ export {
 export type { ChainInfo } from "./chains";
 
 // =============================================================================
-// Account Abstraction
+// Wallet Execution (native wallet only — AA executes server-side)
 // =============================================================================
 
 export {
-  DEFAULT_AA_CONFIG,
-  DISABLED_PROVIDER_STATE,
-  getAAChainConfig,
-  buildAAExecutionPlan,
-  getWalletExecutorReady,
   executeWalletCalls,
   MAX_AUTO_FEE_WEI,
   normalizeSimulatedFee,
   buildFeeAAWalletCall,
   appendFeeCallToPayload,
-  createAlchemyAAProvider,
-  createPimlicoAAProvider,
-  adaptSmartAccount,
-  isAlchemySponsorshipLimitError,
-  resolvePimlicoConfig,
-  createAAProviderState,
 } from "./aa";
 
 export type {
-  AAProvider,
   AAMode,
   AASponsorship,
   AAWalletCall,
   AACallPayload,
-  AAChainConfig,
-  AAConfig,
-  AAResolvedConfig,
   WalletCapabilities,
   WalletAtomicCapability,
   NativeWalletExecutionPolicy,
   NativeWalletSponsorship,
   SponsorshipPaymasterServiceContext,
-  SmartAccount,
-  AAState,
   ExecutionResult,
   AtomicBatchArgs,
   ExecuteWalletCallsParams,
-  AlchemyHookParams,
-  UseAlchemyAAHook,
-  CreateAlchemyAAProviderOptions,
-  PimlicoHookParams,
-  UsePimlicoAAHook,
-  CreatePimlicoAAProviderOptions,
-  PimlicoResolveOptions,
-  PimlicoResolvedConfig,
-  AAOwner,
-  CreateAAStateOptions,
   NormalizedSimulatedFee,
 } from "./aa";
