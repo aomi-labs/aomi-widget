@@ -5,7 +5,7 @@
 // (goal-digger: SVM, playground-example: SVM+EVM, geckoterminal: EVM) in the
 // exact BFF wire shape. Only the app drill-down remains a design mock.
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useRouter } from "next/navigation";
 import { GitHubSessionProvider } from "@build/components/control-plane/github-session-context";
 import { OperateView, type ViewKind } from "@build/features/operate/operate-view";
@@ -210,7 +210,9 @@ export default function DevOperatePreview() {
           if (name) setDetailApp(name);
         }}
       >
-        <OperateView key={kind} kind={kind} />
+        <Suspense fallback={null}>
+          <OperateView key={kind} kind={kind} />
+        </Suspense>
       </div>
     </GitHubSessionProvider>
   );
