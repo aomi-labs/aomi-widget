@@ -49,6 +49,18 @@ describe("withExampleTrends", () => {
     expect(apps[0].metrics?.p95LatencyMs).toBe(1200); // real value kept
     expect(apps[0].metrics?.chats24h).toBeGreaterThan(0); // example filled
     expect(apps[0].metrics?.chatsHourly).toHaveLength(24); // example filled
+    expect(apps[0].exampleFixture).toBe("goal-digger");
+  });
+
+  it("matches a known live app to its own fixture instead of array order", () => {
+    const { apps } = withExampleTrends([
+      { application: "playground-example", metrics: null },
+      { application: "goal-digger", metrics: null },
+    ]);
+    expect(apps[0].exampleFixture).toBe("playground-example");
+    expect(apps[0].metrics?.chats24h).toBe(9);
+    expect(apps[1].exampleFixture).toBe("goal-digger");
+    expect(apps[1].metrics?.chats24h).toBe(47);
   });
 
   it("leaves cards that already report live trend data untouched", () => {
@@ -59,10 +71,7 @@ describe("withExampleTrends", () => {
   });
 
   it("cycles fixture metric sets per card index", () => {
-    const { apps } = withExampleTrends([
-      { metrics: null },
-      { metrics: null },
-    ]);
+    const { apps } = withExampleTrends([{ metrics: null }, { metrics: null }]);
     expect(apps[0].metrics?.chats24h).not.toBe(apps[1].metrics?.chats24h);
   });
 });
@@ -73,6 +82,7 @@ describe("exampleAppCards", () => {
     expect(cards.length).toBeGreaterThanOrEqual(3);
     for (const card of cards) {
       expect(card.application).toBeTruthy();
+      expect(card.exampleFixture).toBe(card.application);
       expect(card.source).toBe(EXAMPLE_SOURCE);
       expect(card.metrics.chats24h).not.toBeNull();
       expect(card.metrics.trendWindowSeconds).toBe(86_400);

@@ -8,8 +8,11 @@
 import { Suspense, useState } from "react";
 import { useRouter } from "next/navigation";
 import { GitHubSessionProvider } from "@build/components/control-plane/github-session-context";
-import { OperateView, type ViewKind } from "@build/features/operate/operate-view";
-import { AppDetailMock } from "./detail-mock";
+import {
+  OperateView,
+  type ViewKind,
+} from "@build/features/operate/operate-view";
+import { AppDetailView } from "@build/features/operate/app-detail-view";
 import {
   ALL_LOGS,
   ALL_TRANSACTIONS,
@@ -94,9 +97,17 @@ function logWire(log: LogRecord, index: number) {
 const OBSERVABILITY = {
   sources: [SOURCE],
   scope: "owned_applications",
-  monitoring: { provider: "grafana_prometheus", status: "ok", windowSeconds: 900 },
+  monitoring: {
+    provider: "grafana_prometheus",
+    status: "ok",
+    windowSeconds: 900,
+  },
   dashboardLinks: [
-    { label: "Open dashboard", url: "https://grafana.example.com/d/app", scope: "owned_applications" },
+    {
+      label: "Open dashboard",
+      url: "https://grafana.example.com/d/app",
+      scope: "owned_applications",
+    },
   ],
   platformMetrics: [],
   apps: exampleAppCards(SOURCE),
@@ -119,8 +130,26 @@ const USAGE = {
   range: { fromDate: "2026-07-01", toDate: "2026-07-15", maxDays: 31 },
   daily: [],
   breakdown: [
-    { provider: "anthropic", model: "claude-opus-4-8", paymentMethod: "quota", inputTokens: 1_100_000, outputTokens: 152_000, creditsUsed: 9.1204, events: 152, source: SOURCE },
-    { provider: "anthropic", model: "claude-haiku-4-5", paymentMethod: "quota", inputTokens: 206_000, outputTokens: 30_300, creditsUsed: 1.6233, events: 88, source: SOURCE },
+    {
+      provider: "anthropic",
+      model: "claude-opus-4-8",
+      paymentMethod: "quota",
+      inputTokens: 1_100_000,
+      outputTokens: 152_000,
+      creditsUsed: 9.1204,
+      events: 152,
+      source: SOURCE,
+    },
+    {
+      provider: "anthropic",
+      model: "claude-haiku-4-5",
+      paymentMethod: "quota",
+      inputTokens: 206_000,
+      outputTokens: 30_300,
+      creditsUsed: 1.6233,
+      events: 88,
+      source: SOURCE,
+    },
   ],
   statement: exampleStatement(SOURCE),
 };
@@ -136,10 +165,18 @@ function stubFetch() {
   if (typeof window === "undefined") return;
   const real = window.fetch.bind(window);
   window.fetch = async (input, init) => {
-    const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-    if (url.includes("/api/bff/auth/github/status")) return Response.json(SESSION);
-    if (url.includes("/api/bff/operate/observability")) return Response.json(OBSERVABILITY);
-    if (url.includes("/api/bff/operate/transactions")) return Response.json(TRANSACTIONS);
+    const url =
+      typeof input === "string"
+        ? input
+        : input instanceof URL
+          ? input.href
+          : input.url;
+    if (url.includes("/api/bff/auth/github/status"))
+      return Response.json(SESSION);
+    if (url.includes("/api/bff/operate/observability"))
+      return Response.json(OBSERVABILITY);
+    if (url.includes("/api/bff/operate/transactions"))
+      return Response.json(TRANSACTIONS);
     if (url.includes("/api/bff/operate/logs")) return Response.json(LOGS);
     if (url.includes("/api/bff/operate/usage")) return Response.json(USAGE);
     return real(input, init);
@@ -161,8 +198,10 @@ export default function DevOperatePreview() {
   const detail = detailApp ? appFixture(detailApp) : undefined;
   if (detail) {
     return (
-      <AppDetailMock
+      <AppDetailView
         app={detail}
+        example
+        dashboardHref="https://grafana.example.com/d/app"
         onBack={() => setDetailApp(null)}
         onOpenTrace={(tool) => {
           // Deep link through real URL params — the same links the product uses.
@@ -194,7 +233,9 @@ export default function DevOperatePreview() {
             type="button"
             onClick={() => setKind(k)}
             className={`rounded-t-md px-3 py-1.5 text-sm capitalize ${
-              k === kind ? "bg-surface text-foreground border-border border border-b-0" : "text-dim"
+              k === kind
+                ? "bg-surface text-foreground border-border border border-b-0"
+                : "text-dim"
             }`}
           >
             {k}
@@ -205,8 +246,12 @@ export default function DevOperatePreview() {
       <div
         onClickCapture={(event) => {
           if (kind !== "observability") return;
-          const card = (event.target as HTMLElement).closest("div.rounded-md.border");
-          const name = APP_NAMES.find((appName) => card?.textContent?.includes(appName));
+          const card = (event.target as HTMLElement).closest(
+            "div.rounded-md.border",
+          );
+          const name = APP_NAMES.find((appName) =>
+            card?.textContent?.includes(appName),
+          );
           if (name) setDetailApp(name);
         }}
       >

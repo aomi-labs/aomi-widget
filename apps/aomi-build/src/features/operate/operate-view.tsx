@@ -30,7 +30,11 @@ import {
   unitLabel,
 } from "./format";
 import { TransactionRows } from "./tx-rows";
-import { EMPTY_LOGS_PAGE_FILTER, LogRows, type LogsPageFilter } from "./log-rows";
+import {
+  EMPTY_LOGS_PAGE_FILTER,
+  LogRows,
+  type LogsPageFilter,
+} from "./log-rows";
 import { UsageRows } from "./usage-rows";
 
 export { truncateAddress };
@@ -93,7 +97,9 @@ function EmptyState({
 }) {
   return (
     <div className="border-border bg-surface-subtle text-dim rounded-md border px-4 py-10 text-center text-sm">
-      <p className="text-foreground font-medium">No {title.toLowerCase()} yet</p>
+      <p className="text-foreground font-medium">
+        No {title.toLowerCase()} yet
+      </p>
       {description ? (
         <p className="mt-2 text-xs leading-5">{description}</p>
       ) : null}
@@ -109,6 +115,20 @@ function EmptyState({
   );
 }
 
+function mockedAppDetailHref(app: Record<string, any>): string | null {
+  const fixture =
+    typeof app.exampleFixture === "string" ? app.exampleFixture.trim() : "";
+  const application =
+    typeof app.application === "string" ? app.application.trim() : "";
+  if (!fixture || !application) return null;
+  const params = new URLSearchParams({ fixture });
+  const sourceId = Number(app.source?.id);
+  if (Number.isSafeInteger(sourceId) && sourceId > 0) {
+    params.set("project", String(sourceId));
+  }
+  return `/operate/observability/${encodeURIComponent(application)}?${params}`;
+}
+
 const STATUS_DOT: Record<string, string> = {
   healthy: "bg-emerald-500",
   not_loaded: "bg-amber-500",
@@ -120,8 +140,7 @@ function Sparkline({ points }: { points: number[] }) {
   const step = points.length > 1 ? 100 / (points.length - 1) : 100;
   const path = points
     .map(
-      (p, i) =>
-        `${(i * step).toFixed(1)},${(23 - (p / max) * 20).toFixed(1)}`,
+      (p, i) => `${(i * step).toFixed(1)},${(23 - (p / max) * 20).toFixed(1)}`,
     )
     .join(" ");
   return (
@@ -234,9 +253,7 @@ function Rows({
     const apps = [...new Set(rows.map((row) => String(row.application)))];
     const tools = [
       ...new Set(
-        rows
-          .filter((row) => row.tool != null)
-          .map((row) => String(row.tool)),
+        rows.filter((row) => row.tool != null).map((row) => String(row.tool)),
       ),
     ];
     return (
@@ -312,11 +329,9 @@ function Rows({
               : null,
             bytesLabel(metrics.dylibBytes),
           ].filter(Boolean);
-          return (
-            <div
-              key={`${app.source?.id}-${app.applicationId}`}
-              className="border-border bg-surface rounded-md border px-3 py-3"
-            >
+          const detailHref = mockedAppDetailHref(app);
+          const card = (
+            <>
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <div className="truncate text-sm font-medium">
@@ -403,6 +418,23 @@ function Rows({
                   {lifecycle.join(" · ")}
                 </div>
               ) : null}
+            </>
+          );
+          const key = `${app.source?.id}-${app.applicationId}`;
+          const className =
+            "border-border bg-surface rounded-md border px-3 py-3";
+          return detailHref ? (
+            <Link
+              key={key}
+              href={detailHref}
+              aria-label={`Open ${app.application} observability details`}
+              className={`${className} hover:bg-accent-hover focus-visible:ring-ring transition focus-visible:outline-none focus-visible:ring-1`}
+            >
+              {card}
+            </Link>
+          ) : (
+            <div key={key} className={className}>
+              {card}
             </div>
           );
         })}
@@ -493,8 +525,8 @@ export function OperateView({ kind }: { kind: ViewKind }) {
     () => (initialCacheKey ? operateCache.get(initialCacheKey) : null) ?? null,
   );
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(
-    () => (initialCacheKey ? !operateCache.has(initialCacheKey) : true),
+  const [loading, setLoading] = useState(() =>
+    initialCacheKey ? !operateCache.has(initialCacheKey) : true,
   );
   const [loadingMore, setLoadingMore] = useState(false);
   const Icon = meta[kind].icon;
