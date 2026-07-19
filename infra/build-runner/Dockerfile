@@ -25,7 +25,8 @@ FROM debian:bookworm-slim
 
 ARG AOMI_SDK_REF=main
 ARG AOMI_REF=main
-ARG RUST_VERSION=1.88.0
+# aomi-sdk's workspace pins rust-version 1.91; validate runs fmt+clippy.
+ARG RUST_VERSION=1.92.0
 ARG NODE_VERSION=24
 ARG BUN_VERSION=1.3.5
 
@@ -47,8 +48,12 @@ RUN NODE_TAR=$(curl -fsSL "https://nodejs.org/dist/latest-v${NODE_VERSION}.x/" \
     && curl -fsSL https://bun.sh/install | BUN_INSTALL=/usr/local bash -s "bun-v${BUN_VERSION}"
 
 # Rust toolchain.
+# minimal profile + the two components validate actually runs — a bare
+# minimal toolchain sent the repair agent on a 3-round quest installing
+# rustfmt and clippy by hand until the loop capped.
 RUN curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs \
-      | sh -s -- -y --default-toolchain "${RUST_VERSION}" --profile minimal
+      | sh -s -- -y --default-toolchain "${RUST_VERSION}" --profile minimal \
+           --component rustfmt --component clippy
 ENV PATH="/root/.cargo/bin:${PATH}"
 
 WORKDIR /workspace

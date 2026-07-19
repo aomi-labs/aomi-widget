@@ -2,6 +2,40 @@
 
 ## Last Updated
 
+2026-07-19 — /build ship: FIRST real Vercel sandbox-mode dispatch, chain
+  verified end-to-end on actual Vercel infra (PR #370 carries it all).
+  Golden image (debian:bookworm-slim, linux/amd64+zstd) pushed to VCR
+  (`build-runner:e2e-test`, ~1 GB, Ready) → `Sandbox.create({image})` boots a
+  real microVM → `run-plan` on Bun → binaries ✓ codegen ✓ claude curate
+  agent ✓ validate ✓, run state flowing to Postgres with the BFF observing.
+  Fix chain to get there (each its own commit): deterministic run-plan
+  sanity probe; VCR's 500 MB compressed-layer cap (slimmed cargo layer;
+  filtered `pnpm install --filter "@aomi-labs/smither..."`; CI=true prod
+  re-install; explicit pnpm-store rm — `$(pnpm store path)` expanded empty
+  and silently shipped 1.5 GB); Node from official tarball (nodesource
+  stopped shipping npm); codegenStep re-derives plan source at execution
+  time (sandbox plans compose as "discover", so committed apps hit remote
+  gen-specs and failed); IS_SANDBOX=1 in dispatch env (claude CLI refuses
+  skip-permissions as root). Final run settled "failed: validate-loop
+  reached maxIterations 3" — forensics show the IMAGE was the defect, not
+  the crate: minimal rustup profile lacked rustfmt (round 0) and clippy
+  (round 1), and rustc 1.88 < aomi-sdk's rust-version 1.91 (round 2); the
+  repair agent spent all rounds fixing the toolchain by hand. Dockerfile
+  now: rust 1.92.0 + rustfmt/clippy components (rebuild + green-run rerun
+  pending). Resilience findings REPORTED, not yet fixed (Cecilia to route:
+  this PR vs follow-ups): (1) engine pg client never reconnects after a
+  connection blip (ngrok hiccup bricked BFF reads until restart, twice);
+  (2) sandbox run-id reuse is process-local registry — BFF restart mints
+  new run ids instead of resuming (same disease as the fixed run.json bug;
+  store should be the lookup); (3) cancel of a dead-sandbox run wedges the
+  app on that instance (stopSandbox kills the engine before it settles the
+  store status). Session housekeeping: 41 MB of .smithers run state is
+  committed on MAIN (separate cleanup task spun off; image just rm's it);
+  vercel CLI 54→56.3.2 (for `vercel vcr login docker`); headless agent
+  billing = SMITHER_ANTHROPIC_API_KEY (renamed from AOMI_BUILDER_API_KEY)
+  so sandbox runs never share the interactive Claude subscription quota.
+
+
 2026-07-17 (night) — smithers-orchestrator 0.27.0 → 0.28.0 upgrade (in tree,
   unverified tail): packages/smither now `^0.28.0` + effect pinned 3.21.4;
   bun-compat drops the `Bun.which: () => null` polyfill (0.28's resolveBinary
