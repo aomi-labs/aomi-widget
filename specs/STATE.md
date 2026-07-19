@@ -104,7 +104,7 @@ production.
   fixed separately since it doesn't go through the shared helper).
 - **Tests**: rewrote fixtures across
   `packages/deploy/test/release-manifest.test.ts`,
-  `apps/aomi-build/src/server/bff/launch/routes.test.ts`,
+  `apps/build/src/server/bff/launch/routes.test.ts`,
   `apps/portal/src/server/bff/launch/routes.test.ts`, and
   `packages/deploy/test/launch-routes.test.ts` to use the real
   `latestDeployment: null` shape with a `getUserSourceLatestDeployment` stub,
@@ -119,7 +119,7 @@ production.
 
 ## Environment tab unified Variables view (2026-07-16)
 
-`apps/aomi-build/src/features/launch/components/deployments/tabs/environment-tab.tsx`:
+`apps/build/src/features/launch/components/deployments/tabs/environment-tab.tsx`:
 
 - Merged the split "missing required inputs inside Add or overwrite" +
   "Configured" sections into one **Variables** list: declared manifest slots
@@ -234,7 +234,7 @@ Branch `feat/build-enable-route`:
 
 ## AI Builder experience plan (2026-07-14)
 
-- Added `apps/aomi-build/AI-BUILDER-EXPERIENCE.md`: Cecilia decode, platform
+- Added `apps/build/AI-BUILDER-EXPERIENCE.md`: Cecilia decode, platform
   map, mock-vs-target, import policy, P0–P5 implementation phases.
 - Direction: adapt mock craft into live `features/build/` (not wholesale port).
 
@@ -322,7 +322,7 @@ Branch `feat/billing-payment-methods-status`:
 
 ## Billing experience — backend/UI map in plan doc (2026-07-13)
 
-- Expanded `apps/aomi-build/BILLING-EXPERIENCE.md` with control/data plane
+- Expanded `apps/build/BILLING-EXPERIENCE.md` with control/data plane
   mermaid, HTTP-vs-internal table, and Build UI now/should map (Cursor-style).
 
 ## Account → Secrets stay-on-settings (2026-07-13)
@@ -345,7 +345,7 @@ Branch `feat/builders-billing-experience-phase-a` (PR #319):
 
 ## Billing experience plan rename (2026-07-12)
 
-- Renamed `apps/aomi-build/BILLING-CLARITY.md` → `BILLING-EXPERIENCE.md`
+- Renamed `apps/build/BILLING-CLARITY.md` → `BILLING-EXPERIENCE.md`
   (matches `BUILDERS-EXPERIENCE.md` naming). Content uses "Billing Experience";
   A→D phases and mental model unchanged.
 - Local branch renamed to `feat/builders-billing-experience-phase-a`

@@ -18,6 +18,7 @@ import type {
   DeploymentAppStatus,
   ExchangeGitHubCodeInput,
   GetAppInput,
+  GetUserSourceAppDetailInput,
   GetUserSourceLatestDeploymentInput,
   GitHubIdentity,
   ListAppsInput,
@@ -34,6 +35,7 @@ import type {
   CreateUserSourceBotInput,
   DeleteUserSourceBotInput,
   OperateLogCursor,
+  OperateAppDetailResult,
   OperateStatementResult,
   OperateLogsResult,
   OperateObservabilityResult,
@@ -1004,6 +1006,32 @@ export class DeploymentClient {
     return camelOperateObservability(raw, platform);
   }
 
+  async getUserSourceAppDetail(
+    input: GetUserSourceAppDetailInput,
+  ): Promise<OperateAppDetailResult> {
+    const { appSourceId, params, platform, bearer } =
+      this.ownedOperateRequest(input);
+    const applicationId = required(
+      String(input.applicationId),
+      "applicationId",
+    );
+    const raw = await this.get<Record<string, unknown>>(
+      `/api/integrations/github-app/user/sources/${encodeURIComponent(
+        String(appSourceId),
+      )}/apps/${encodeURIComponent(applicationId)}/detail?${params.toString()}`,
+      "get_user_source_app_detail",
+      bearer,
+    );
+    await this.audit({
+      action: "get_user_source_app_detail",
+      platform,
+      appSourceId,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return camelOperateAppDetail(raw, platform);
+  }
+
   async upgradeUserSourceSdk(
     input: OwnedOperateSourceInput,
   ): Promise<SourceSdkUpgradeResult> {
@@ -1840,7 +1868,6 @@ function camelLogCursor(raw: unknown): OperateLogCursor | null {
   return occurredAt && eventType && id ? { occurredAt, eventType, id } : null;
 }
 
-
 function optString(value: unknown): string | null {
   return value === null || value === undefined ? null : String(value);
 }
@@ -1895,7 +1922,9 @@ function camelOperateTransactions(
         platformFee: optString(row.platform_fee ?? row.platformFee),
         nonce: optNumber(row.nonce),
         method: optString(row.method),
-        transfers: Array.isArray(row.transfers) ? row.transfers.map(String) : null,
+        transfers: Array.isArray(row.transfers)
+          ? row.transfers.map(String)
+          : null,
         revertReason: optString(row.revert_reason ?? row.revertReason),
         explorerUrl: optString(row.explorer_url ?? row.explorerUrl),
       }),
@@ -2067,6 +2096,95 @@ function camelOperateObservability(
       description:
         typeof metric.description === "string" ? metric.description : undefined,
     })),
+  };
+}
+
+function camelOperateAppDetail(
+  raw: Record<string, unknown>,
+  fallbackPlatform: string,
+): OperateAppDetailResult {
+  const app = (raw.app ?? {}) as Record<string, any>;
+  const funnel = (raw.funnel ?? {}) as Record<string, any>;
+  const credits = (raw.credits ?? {}) as Record<string, any>;
+  const lifecycle = (raw.lifecycle ?? {}) as Record<string, any>;
+  const hourly = (raw.hourly ?? {}) as Record<string, any>;
+  const series = (value: unknown): number[] | null =>
+    Array.isArray(value) ? value.map(Number) : null;
+  return {
+    source: camelAppSource(raw.source),
+    platform: String(raw.platform ?? fallbackPlatform),
+    windowSeconds: Number(raw.window_seconds ?? raw.windowSeconds ?? 0),
+    app: {
+      applicationId: Number(app.application_id ?? app.applicationId ?? 0),
+      name: String(app.name ?? ""),
+      releaseTag: optString(app.release_tag ?? app.releaseTag),
+      sdkVersion: optString(app.sdk_version ?? app.sdkVersion),
+      active: Boolean(app.active),
+      loaded: Boolean(app.loaded),
+      status: String(app.status ?? ""),
+    },
+    funnel: {
+      chats24h: optNumber(funnel.chats_24h ?? funnel.chats24h),
+      toolCalls24h: optNumber(funnel.tool_calls_24h ?? funnel.toolCalls24h),
+      txProposed24h: optNumber(funnel.tx_proposed_24h ?? funnel.txProposed24h),
+      txSubmitted24h: optNumber(
+        funnel.tx_submitted_24h ?? funnel.txSubmitted24h,
+      ),
+      txConfirmed24h: optNumber(
+        funnel.tx_confirmed_24h ?? funnel.txConfirmed24h,
+      ),
+      txReverted24h: optNumber(funnel.tx_reverted_24h ?? funnel.txReverted24h),
+    },
+    activeUsers24h: optNumber(raw.active_users_24h ?? raw.activeUsers24h),
+    credits: {
+      credits24h: optNumber(credits.credits_24h ?? credits.credits24h),
+      creditsPerTurn24h: optNumber(
+        credits.credits_per_turn_24h ?? credits.creditsPerTurn24h,
+      ),
+      creditsDaily: (
+        (credits.credits_daily ?? credits.creditsDaily ?? []) as Record<
+          string,
+          any
+        >[]
+      ).map((row) => ({
+        day: String(row.day ?? ""),
+        credits: Number(row.credits ?? 0),
+      })),
+    },
+    tools: ((raw.tools ?? []) as Record<string, any>[]).map((row) => {
+      const lastError = (row.last_error ?? row.lastError) as
+        | Record<string, any>
+        | null
+        | undefined;
+      return {
+        tool: String(row.tool ?? ""),
+        calls: optNumber(row.calls),
+        errors: optNumber(row.errors),
+        errorRate: optNumber(row.error_rate ?? row.errorRate),
+        p95Ms: optNumber(row.p95_ms ?? row.p95Ms),
+        lastError: lastError
+          ? {
+              message: optString(lastError.message),
+              occurredAt: Number(
+                lastError.occurred_at ?? lastError.occurredAt ?? 0,
+              ),
+            }
+          : null,
+      };
+    }),
+    lifecycle: {
+      coldStartMs: optNumber(lifecycle.cold_start_ms ?? lifecycle.coldStartMs),
+      dylibBytes: optNumber(lifecycle.dylib_bytes ?? lifecycle.dylibBytes),
+      loads24h: optNumber(lifecycle.loads_24h ?? lifecycle.loads24h),
+      evictions24h: optNumber(
+        lifecycle.evictions_24h ?? lifecycle.evictions24h,
+      ),
+    },
+    hourly: {
+      chats: series(hourly.chats),
+      toolCalls: series(hourly.tool_calls ?? hourly.toolCalls),
+      transactions: series(hourly.transactions),
+    },
   };
 }
 

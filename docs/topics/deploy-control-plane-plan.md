@@ -2,7 +2,7 @@
 
 Status: Phases 0–2 IMPLEMENTED in working trees (2026-07-10, unreviewed,
 uncommitted). Phase 3–4 blocked — see "Execution status" at the bottom.
-Scope: `apps/aomi-build`, `packages/deploy`, `aomi/bin/backend`, edge worker config.
+Scope: `apps/build`, `packages/deploy`, `aomi/bin/backend`, edge worker config.
 Origin: 2026-07-10 design session; grounded against the code paths cited inline.
 
 ## 1. Problem
@@ -10,7 +10,7 @@ Origin: 2026-07-10 design session; grounded against the code paths cited inline.
 Four defects, one root cause:
 
 1. **FE talks to GitHub directly** in two places
-   (`apps/aomi-build/src/server/bff/launch/routes.ts` — `enrichPendingCiStatus`
+   (`apps/build/src/server/bff/launch/routes.ts` — `enrichPendingCiStatus`
    ~L459 and the redeploy rerun call ~L1178; duplicated in
    `packages/deploy/src/bff/launch-routes.ts` L219/L676, which is the published
    partner SDK, not dead code). Unauthenticated = 60 req/hr per Vercel egress
@@ -39,7 +39,7 @@ implementationally in the four places above.
 
 Layering (see session diagrams):
 
-- **Our FE page (`apps/aomi-build`)** — shell only: routing, branding,
+- **Our FE page (`apps/build`)** — shell only: routing, branding,
   session UI. Structurally "the first partner" of the package.
 - **Package (`@aomi-labs/deploy`)** — the deployment feature, GitHub-free.
   Ships the BFF route factory (each consumer mounts their own BFF in their
@@ -119,7 +119,7 @@ Backend (`aomi/bin/backend`):
 
 FE/package:
 - Delete `enrichPendingCiStatus` + `githubToken` option from **both**
-  `apps/aomi-build/.../launch/routes.ts` and
+  `apps/build/.../launch/routes.ts` and
   `packages/deploy/src/bff/launch-routes.ts`.
 - Repoint the BFF redeploy route at the new BE endpoint.
 - Remove `GITHUB_TOKEN` from Vercel env.
@@ -127,7 +127,7 @@ FE/package:
 Also in this phase (auth hardening from the BFF review): partner-scoped
 service credentials — a partner's BFF bearer must only act on its own
 platform's sources, instead of the shared `role: "service"` mint
-(`apps/aomi-build/src/server/bff/backend.ts`).
+(`apps/build/src/server/bff/backend.ts`).
 
 Exit: no GitHub credential exists outside the BE; partner package needs zero
 GitHub config.
