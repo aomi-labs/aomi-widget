@@ -85,7 +85,7 @@ export function ComposerModelPicker({
         onClick={() => setOpen((value) => !value)}
         className={cn(
           "context-chip gap-1 pr-1.5",
-          open && "bg-accent-selected text-foreground",
+          open && "context-chip--open",
           disabled && "pointer-events-none opacity-50",
         )}
         title="Model for Create (Preview)"
@@ -130,7 +130,7 @@ export function ComposerModelPicker({
                       option.available
                         ? "text-foreground hover:bg-accent-hover"
                         : "text-dim cursor-not-allowed opacity-70",
-                      selected && "bg-accent-selected",
+                      selected && "menu-item--selected",
                     )}
                   >
                     <span className="flex size-4 shrink-0 items-center justify-center">

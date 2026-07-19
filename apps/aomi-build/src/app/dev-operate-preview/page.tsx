@@ -8,8 +8,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { GitHubSessionProvider } from "@build/components/control-plane/github-session-context";
-import { OperateView } from "@build/features/operate/operate-view";
-import type { OperateKind } from "@build/features/operate/client";
+import { OperateView, type ViewKind } from "@build/features/operate/operate-view";
 import { AppDetailMock } from "./detail-mock";
 import {
   ALL_LOGS,
@@ -147,7 +146,7 @@ function stubFetch() {
   };
 }
 
-const KINDS: OperateKind[] = ["observability", "transactions", "usage", "logs"];
+const KINDS: ViewKind[] = ["observability", "transactions", "usage", "logs"];
 
 export default function DevOperatePreview() {
   const [ready] = useState(() => {
@@ -155,7 +154,7 @@ export default function DevOperatePreview() {
     return true;
   });
   const router = useRouter();
-  const [kind, setKind] = useState<OperateKind>("observability");
+  const [kind, setKind] = useState<ViewKind>("observability");
   const [detailApp, setDetailApp] = useState<string | null>(null);
   if (!ready) return null;
 

@@ -209,7 +209,7 @@ export function CommandPalette() {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-start justify-center bg-black/40 px-4 pt-[12vh]">
+    <div className="fixed inset-0 z-[70] flex items-start justify-center bg-[var(--aomi-overlay)] px-4 pt-[12vh]">
       <button
         type="button"
         className="absolute inset-0 cursor-default"

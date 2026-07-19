@@ -193,6 +193,16 @@ describe("CLI execution controls", () => {
     expect(config.chain).toBe(137);
   });
 
+  it("parses coinbase as the chat payment method", () => {
+    const config = buildCliConfig({ "payment-method": "coinbase" });
+    expect(config.paymentMethod).toBe("coinbase");
+  });
+
+  it("parses application id for dynamic app chat", () => {
+    const config = buildCliConfig({ "application-id": "31" });
+    expect(config.applicationId).toBe("31");
+  });
+
   it("accepts --eoa as an explicit override", () => {
     const config = buildCliConfig({ eoa: true });
     expect(config.execution).toBe("eoa");

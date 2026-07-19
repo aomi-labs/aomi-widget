@@ -39,13 +39,16 @@ export interface AuditEvent {
     | "list_user_sources"
     | "list_user_deployments"
     | "list_user_source_deployments"
-    | "list_user_source_agents"
+    | "list_user_source_bots"
+    | "create_user_source_bot"
+    | "delete_user_source_bot"
     | "list_user_source_transactions"
     | "get_user_source_usage"
     | "get_user_source_statement"
     | "list_user_source_logs"
     | "get_user_source_observability"
     | "upgrade_user_source_sdk"
+    | "get_source_sdk_upgrade_status"
     | "list_deployment_records"
     | "get_user_source_latest_deployment"
     | "deactivate"
@@ -618,6 +621,24 @@ export type SourceSdkUpgradeResult =
       command: string;
     };
 
+/**
+ * Cheap read-only merge poll for the upgrade PR opened by an earlier
+ * `upgradeUserSourceSdk` call. `merged` is terminal (redeploy from the merged
+ * default branch); `open` means keep polling; `closed`/`none` mean the PR is
+ * gone, so re-run the upgrade to recreate it.
+ */
+export type SourceSdkUpgradeStatusResult = {
+  status: "merged" | "open" | "closed" | "none";
+  requiredSdkVersion: string;
+  branch: string;
+  pullRequest: {
+    number: number;
+    url: string;
+    state: string;
+    merged: boolean;
+  } | null;
+};
+
 export interface ListUserSourceTransactionsInput extends OwnedOperateSourceInput {
   cursor?: OperateTransactionCursor | string | null;
   limit?: number;
@@ -646,10 +667,33 @@ export interface OperateLogCursor {
   id: string;
 }
 
-export interface OperateAgentsResult {
-  source: AppSource;
+export interface BotRegistration {
+  id: string;
   platform: string;
-  agents: PlatformApp[];
+  status: string;
+  label: string | null;
+  defaultApp: string;
+  platformBotId: string;
+  platformUsername: string | null;
+  webhookUrl: string | null;
+  threadMode: string;
+  createdAt: number;
+}
+
+export interface CreateUserSourceBotInput extends OwnedOperateSourceInput {
+  applicationId: number;
+  /** The bot's platform (e.g. "telegram") — distinct from `platform`, which
+   *  is the deploy platform (e.g. "community"). Maps to the request body's
+   *  `platform` field. */
+  botPlatform: string;
+  /** Passed through to the backend; never stored, logged, or returned. */
+  credential: string;
+  label?: string;
+  threadMode?: string;
+}
+
+export interface DeleteUserSourceBotInput extends OwnedOperateSourceInput {
+  botId: string;
 }
 
 export interface OperateTransaction {

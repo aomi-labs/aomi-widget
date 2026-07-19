@@ -1,0 +1,66 @@
+<svg width="1140" height="740" viewBox="0 0 1140 740" xmlns="http://www.w3.org/2000/svg" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" role="img" aria-label="Unattended execution: a scheduled run signs only when the policy axis and the capability axis both hold">
+<defs>
+<marker id="a" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#6b7280"/></marker>
+<marker id="ag" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#1D9E75"/></marker>
+<marker id="ar" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#D85A30"/></marker>
+<style>
+text{font-family:ui-monospace, SFMono-Regular, Menlo, monospace;}
+.h{font-size:13px;font-weight:700}
+.b{font-size:12px;fill:#1f2937}
+.s{font-size:11.5px;fill:#6b7280}
+.arw{stroke:#6b7280;stroke-width:1.5;fill:none}
+</style>
+</defs>
+
+<!-- trigger -->
+<rect x="380" y="28" width="380" height="52" rx="26" fill="#1f2937"/>
+<text x="570" y="60" font-size="13.5px" font-weight="700" fill="#ffffff" text-anchor="middle">SCHEDULED TASK FIRES</text>
+<text x="570" y="106" class="s" text-anchor="middle">cron · no user in session · agent spawned with its saved wallet context</text>
+
+<path class="arw" d="M420,66 C340,84 316,104 306,134" marker-end="url(#a)"/>
+<path class="arw" d="M720,66 C800,84 824,104 834,134" marker-end="url(#a)"/>
+
+<!-- policy axis -->
+<rect x="60" y="140" width="490" height="160" rx="10" fill="#fffaf0" stroke="#EF9F27" stroke-width="1.4"/>
+<text x="84" y="170" class="h" fill="#B0710F">POLICY — signing mode = auto</text>
+<text x="84" y="198" class="b">set by a user-present permit, signed</text>
+<text x="84" y="220" class="b">by the wallet itself (EIP-712 / signed message)</text>
+<text x="84" y="248" class="s">short-lived · replay-protected · not agent-grantable</text>
+<text x="84" y="268" class="s">offered only when an active delegated grant already exists</text>
+
+<!-- capability axis -->
+<rect x="590" y="140" width="490" height="160" rx="10" fill="#f6fcf9" stroke="#1D9E75" stroke-width="1.4"/>
+<text x="614" y="170" class="h" fill="#0F6E56">CAPABILITY — active delegated approval</text>
+<text x="614" y="198" class="b">granted in the connection ceremony</text>
+<text x="614" y="220" class="b">expiry · revocable · one active per identity</text>
+<text x="614" y="248" class="s">secrets live in a vault — resolved</text>
+<text x="614" y="268" class="s">only at the moment of signing</text>
+
+<!-- converge -->
+<path class="arw" d="M305,300 C305,340 480,338 532,368" marker-end="url(#a)"/>
+<path class="arw" d="M835,300 C835,340 660,338 608,368" marker-end="url(#a)"/>
+<text x="570" y="340" font-size="12px" font-weight="700" fill="#B0710F" text-anchor="middle">both must hold</text>
+
+<!-- resolution -->
+<rect x="290" y="372" width="560" height="92" rx="10" fill="#fafafa" stroke="#9CA3AF" stroke-width="1.3"/>
+<text x="314" y="400" class="h" fill="#1f2937">SIGN-TIME RESOLUTION</text>
+<text x="314" y="424" class="b">user · provider · chain family · exact address → active grant</text>
+<text x="314" y="446" class="s">the same resolver as an interactive run — no special path for automation</text>
+
+<path class="arw" d="M450,464 C400,500 340,506 300,540" marker-end="url(#ag)" stroke="#1D9E75"/>
+<path class="arw" d="M690,464 C740,500 800,506 840,540" marker-end="url(#ar)" stroke="#D85A30"/>
+
+<!-- outcomes -->
+<rect x="60" y="544" width="470" height="100" rx="10" fill="#f6fcf9" stroke="#1D9E75" stroke-width="1.4"/>
+<text x="84" y="572" class="h" fill="#0F6E56">PROVIDER SIGNS SERVER-SIDE</text>
+<text x="84" y="596" class="b">quorum-key authorization · tx broadcast</text>
+<text x="84" y="618" class="s">bounded by the grant, not by trust in the scheduler</text>
+
+<rect x="610" y="544" width="470" height="100" rx="10" fill="#fdeee7" stroke="#D85A30" stroke-width="1.4"/>
+<text x="634" y="572" class="h" fill="#9e3f17">FAIL CLOSED</text>
+<text x="634" y="596" class="b">human-in-the-loop wallet or no grant → no signature</text>
+<text x="634" y="618" class="s">the run stalls and retries — never a weaker fallback</text>
+
+<rect x="40" y="684" width="1060" height="34" rx="8" fill="#f3f4f6" stroke="#d1d5db"/>
+<text x="570" y="706" font-size="12px" fill="#374151" text-anchor="middle">Unattended authority is the user's own standing grant — the scheduler has no signing power of its own to escalate.</text>
+</svg>

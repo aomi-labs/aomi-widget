@@ -8,6 +8,7 @@ import {
   describePlan,
   finalizePlan,
   mergePlanDraft,
+  stageKeyForNode,
   stagesFor,
   type BuildPlan,
   type PlanStage,
@@ -236,16 +237,6 @@ Requires Bun (https://bun.sh) — Smithers persists runs in bun:sqlite.
 // ---------------------------------------------------------------------------
 
 type StageStatus = "pending" | "running" | "complete" | "failed" | "waiting";
-
-/** Map engine node events onto the plan's stage checklist. Loop children
- *  (validate/fix) report into the loop stage. */
-function stageKeyForNode(plan: BuildPlan, nodeIdValue: string): string {
-  const loopChildren = new Set([`${plan.app}:validate`, `${plan.app}:fix`]);
-  if (loopChildren.has(nodeIdValue)) {
-    return `${plan.app}:validate-loop`;
-  }
-  return nodeIdValue;
-}
 
 type RunViewState = {
   stageStatus: Record<string, StageStatus>;
@@ -778,7 +769,7 @@ async function runHeadless(args: CliArgs): Promise<void> {
       overwrite: args.overwrite,
     });
     console.log(
-      `${prepared.resume ? "resuming" : "starting"} run ${prepared.runId} (state: ${prepared.dbPath})`,
+      `${prepared.resume ? "resuming" : "starting"} run ${prepared.runId} (state: ${prepared.stateLocation})`,
     );
     if (args.console === true) {
       try {

@@ -5,9 +5,12 @@ import { PowerOff, Rocket } from "lucide-react";
 import { EmptyState } from "@build/components/control-plane/empty-state";
 import { useToast } from "@build/components/control-plane/toast";
 import { useProjectDetail } from "@build/features/launch/hooks/use-project-detail";
+import { useSdkUpgrade } from "@build/features/launch/hooks/use-sdk-upgrade";
 import { projectDeploymentStatus } from "../project-deployment-status";
 import { TimelineDeploymentRow } from "../ui/timeline-deployment-row";
 import { ConfirmDialog } from "../ui/confirm-dialog";
+import { DeploymentDetail } from "../ui/deployment-detail";
+import { UpgradeConfirmDialog, UpgradeRail } from "../ui/upgrade-rail";
 import { LoadingPanel, EmptyPanel } from "../ui/state-panels";
 import {
   buildActivityList,
@@ -18,11 +21,10 @@ import { formatRelativeTime } from "../format-relative-time";
 
 type Detail = ReturnType<typeof useProjectDetail>;
 type OpState = {
-  kind: "promote" | "deactivate" | "upgrade";
+  kind: "promote" | "deactivate";
   deploymentId: string;
   status: "running" | "done" | "error";
   message: string;
-  url?: string;
 };
 type Pending =
   | { kind: "promote"; deploymentId: string }
@@ -41,6 +43,8 @@ export function DeploymentsTab({
   const [op, setOp] = useState<OpState | null>(null);
   const [pending, setPending] = useState<Pending>(null);
   const [view, setView] = useState<View>("deployments");
+  const [expandedDetail, setExpandedDetail] = useState<string | null>(null);
+  const [retryingSecrets, setRetryingSecrets] = useState(false);
 
   useEffect(() => {
     detail.loadRecords();
@@ -48,6 +52,31 @@ export function DeploymentsTab({
   }, [detail]);
 
   const source = detail.source;
+  const upgrade = useSdkUpgrade({
+    sourceId: source?.id ?? null,
+    upgrade: detail.upgradeSdk,
+    checkStatus: detail.checkSdkUpgradeStatus,
+    // Repo already satisfies the required SDK: no PR to wait on, ship it.
+    onAlreadyCurrent: () => void detail.redeploySource(),
+  });
+  // Platform-side context for the detail panels, resolved lazily from history.
+  const history = detail.history;
+  const entryById = useMemo(
+    () =>
+      new Map(
+        (history ?? [])
+          .filter((entry) => entry.deploymentId != null)
+          .map((entry) => [entry.deploymentId as string, entry]),
+      ),
+    [history],
+  );
+  const platformRepo = useMemo(
+    () =>
+      history?.find((entry) => entry.platformRepo)?.platformRepo ??
+      detail.source?.latestDeployment?.platformRepo ??
+      null,
+    [history, detail.source],
+  );
   const status = useMemo(
     () => (source ? projectDeploymentStatus(source) : null),
     [source],
@@ -114,6 +143,9 @@ export function DeploymentsTab({
     detail.deployFlow.phase !== "idle" &&
     detail.deployFlow.phase !== "done" &&
     detail.deployFlow.phase !== "error";
+  // Redeploy is pointless mid-upgrade: it would ship the old SDK again.
+  const upgradeGate =
+    upgrade.state.phase === "pr-open" || upgrade.state.phase === "opening";
   const deactivatingCurrent =
     currentDeployment != null &&
     op?.deploymentId === currentDeployment.deploymentId &&
@@ -151,6 +183,19 @@ export function DeploymentsTab({
         count + (detail.requiredSecrets?.[app]?.missing.length ?? 0),
       0,
     ) || missingRequiredApps.length;
+
+  const retryRequiredSecrets = async () => {
+    if (!detail.refreshRequiredSecrets) return;
+    setRetryingSecrets(true);
+    try {
+      await detail.refreshRequiredSecrets();
+    } catch {
+      // The hook keeps the verification error visible and the gate remains
+      // closed. The user can retry again without refreshing the page.
+    } finally {
+      setRetryingSecrets(false);
+    }
+  };
 
   if (!source) {
     return detail.loading ? (
@@ -228,56 +273,6 @@ export function DeploymentsTab({
     }
   };
 
-  const runUpgrade = async (deploymentId: string) => {
-    setOp({
-      kind: "upgrade",
-      deploymentId,
-      status: "running",
-      message: "Preparing SDK upgrade…",
-    });
-    try {
-      const result = await detail.upgradeSdk();
-      if (result.status === "current") {
-        setOp({
-          kind: "upgrade",
-          deploymentId,
-          status: "done",
-          message: `Linked repository already uses SDK ${result.requiredSdkVersion}. Redeploying it now…`,
-        });
-        await detail.redeploySource();
-        return;
-      }
-      if (result.status === "manual") {
-        setOp({
-          kind: "upgrade",
-          deploymentId,
-          status: "error",
-          message: `${result.reason} Run: ${result.command}`,
-        });
-        toast({ title: "Manual upgrade required", tone: "error" });
-        return;
-      }
-      setOp({
-        kind: "upgrade",
-        deploymentId,
-        status: "done",
-        message: result.pullRequest.created
-          ? "SDK upgrade PR created. Merge it, then redeploy from the linked repository."
-          : "SDK upgrade PR is ready. Merge it, then redeploy from the linked repository.",
-        url: result.pullRequest.url,
-      });
-      toast({ title: "Upgrade PR ready", tone: "success" });
-    } catch (error) {
-      setOp({
-        kind: "upgrade",
-        deploymentId,
-        status: "error",
-        message: error instanceof Error ? error.message : "SDK upgrade failed",
-      });
-      toast({ title: "Failed. Retry", tone: "error" });
-    }
-  };
-
   const historyCountLabel =
     deployments.length === 1
       ? "1 deployment in history"
@@ -350,21 +345,42 @@ export function DeploymentsTab({
               Deactivate
             </button>
           )}
-          <button
-            type="button"
-            disabled={deploying || secretsGateBlocked}
-            onClick={() => {
-              setOp(null);
-              void detail.redeploySource();
-            }}
-            className="bg-primary text-primary-foreground inline-flex h-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-3 text-xs font-medium hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-            title="Deploy the source repo's latest commit and activate it"
-          >
-            <Rocket className="size-3.5" aria-hidden />
-            {deploying ? "Deploying…" : "Redeploy from Linked Repository"}
-          </button>
+          <div className="flex flex-col items-end gap-0.5">
+            <button
+              type="button"
+              disabled={deploying || secretsGateBlocked || upgradeGate}
+              onClick={() => {
+                setOp(null);
+                void detail.redeploySource();
+              }}
+              className="bg-primary text-primary-foreground inline-flex h-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-3 text-xs font-medium hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+              title={
+                upgradeGate
+                  ? "Unlocks when the SDK upgrade PR merges"
+                  : "Deploy the source repo's latest commit and activate it"
+              }
+            >
+              <Rocket className="size-3.5" aria-hidden />
+              {deploying ? "Deploying…" : "Redeploy from Linked Repository"}
+            </button>
+            {upgradeGate && (
+              <span className="text-dim text-[10px]">
+                unlocks when the upgrade PR merges
+              </span>
+            )}
+          </div>
         </div>
       </div>
+
+      <UpgradeRail
+        state={upgrade.state}
+        deployFlow={detail.deployFlow}
+        requiredSdk={requiredSdk}
+        repo={source.repositoryLink}
+        ciUrl={source.latestDeployment?.ciUrl ?? null}
+        onRecheck={() => void upgrade.recheck()}
+        onDismiss={upgrade.dismiss}
+      />
 
       {detail.deployFlow.phase !== "idle" && (
         <div
@@ -375,20 +391,6 @@ export function DeploymentsTab({
           }`}
         >
           {detail.deployFlow.message}
-        </div>
-      )}
-
-      {op?.url && (
-        <div className="border-warning/30 bg-warning/10 text-warning flex items-center justify-between gap-3 border-b px-4 py-2 text-xs">
-          <span>{op.message}</span>
-          <a
-            href={op.url}
-            target="_blank"
-            rel="noreferrer"
-            className="shrink-0 font-medium underline underline-offset-2"
-          >
-            Review upgrade PR
-          </a>
         </div>
       )}
 
@@ -422,14 +424,26 @@ export function DeploymentsTab({
                 ? "Required secrets could not be verified. Refresh before deploying."
                 : `${missingRequiredCount} required secret${missingRequiredCount === 1 ? "" : "s"} missing for ${missingRequiredApps.join(", ")}.`}
           </span>
-          {onOpenEnvironment && !secretsCheckPending && !secretsCheckFailed && (
+          {secretsCheckFailed ? (
             <button
               type="button"
-              onClick={onOpenEnvironment}
-              className="shrink-0 font-medium underline underline-offset-2"
+              onClick={() => void retryRequiredSecrets()}
+              disabled={retryingSecrets}
+              className="shrink-0 font-medium underline underline-offset-2 disabled:opacity-60"
             >
-              Set required secrets
+              {retryingSecrets ? "Retrying…" : "Retry required secrets"}
             </button>
+          ) : (
+            onOpenEnvironment &&
+            !secretsCheckPending && (
+              <button
+                type="button"
+                onClick={onOpenEnvironment}
+                className="shrink-0 font-medium underline underline-offset-2"
+              >
+                Set required secrets
+              </button>
+            )
           )}
         </div>
       )}
@@ -479,22 +493,49 @@ export function DeploymentsTab({
             detail.hasMissingSecrets(app),
           );
           return (
-            <TimelineDeploymentRow
-              key={deployment.deploymentId}
-              deployment={deployment}
-              busy={running}
-              message={message}
-              runtimeState={hasUnloadedCurrentApp ? "not-loaded" : "loaded"}
-              requiredSdk={requiredSdk}
-              secretsBlocked={secretsBlocked}
-              onPromote={() =>
-                setPending({
-                  kind: "promote",
-                  deploymentId: deployment.deploymentId,
-                })
-              }
-              onUpgrade={() => void runUpgrade(deployment.deploymentId)}
-            />
+            <div key={deployment.deploymentId}>
+              <TimelineDeploymentRow
+                deployment={deployment}
+                busy={running}
+                message={message}
+                runtimeState={hasUnloadedCurrentApp ? "not-loaded" : "loaded"}
+                requiredSdk={requiredSdk}
+                secretsBlocked={secretsBlocked}
+                onPromote={() =>
+                  setPending({
+                    kind: "promote",
+                    deploymentId: deployment.deploymentId,
+                  })
+                }
+                onUpgrade={upgrade.requestUpgrade}
+                upgradePr={
+                  upgrade.state.phase === "pr-open"
+                    ? {
+                        url: upgrade.state.prUrl,
+                        number: upgrade.state.prNumber,
+                      }
+                    : null
+                }
+                upgradeBusy={upgrade.state.phase === "opening"}
+              />
+              <DeploymentDetail
+                deployment={deployment}
+                source={source}
+                requiredSdk={requiredSdk}
+                entry={entryById.get(deployment.deploymentId) ?? null}
+                platformRepo={platformRepo}
+                historyPending={history === null && !detail.historyError}
+                expanded={expandedDetail === deployment.deploymentId}
+                onToggle={() => {
+                  setExpandedDetail((prev) =>
+                    prev === deployment.deploymentId
+                      ? null
+                      : deployment.deploymentId,
+                  );
+                  detail.loadHistory();
+                }}
+              />
+            </div>
           );
         })
       ) : null}
@@ -529,6 +570,14 @@ export function DeploymentsTab({
           ))}
         </div>
       )}
+
+      <UpgradeConfirmDialog
+        open={upgrade.state.phase === "confirm"}
+        repo={source.repositoryLink}
+        requiredSdk={requiredSdk}
+        onConfirm={(skipNextTime) => upgrade.confirm(skipNextTime)}
+        onCancel={upgrade.cancel}
+      />
 
       <ConfirmDialog
         open={pending !== null}

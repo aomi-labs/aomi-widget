@@ -74,7 +74,7 @@ export function SessionHistory({
             className={cn(
               "panel-row w-full text-left",
               activeSessionId === session.id &&
-                "border-border-hover bg-accent-selected",
+                "border-border-hover bg-accent",
             )}
           >
             <div className="flex items-center justify-between gap-2">

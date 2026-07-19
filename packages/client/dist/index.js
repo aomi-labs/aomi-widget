@@ -1074,19 +1074,30 @@ ${body}` : ""}`
   /**
    * Fetch current session state (messages, processing status, title).
    */
-  async fetchState(sessionId, userState, clientId) {
-    var _a, _b, _c;
+  async fetchState(sessionId, userState, clientId, options) {
+    var _a, _b, _c, _d;
     const normalizedUserState = stripBulkyPendingFields(
       UserState.normalize(userState)
     );
-    const urlWithSyncParams = buildApiUrl(this.baseUrl, "/api/thread/state", {
+    const applicationId = (_a = options == null ? void 0 : options.applicationId) == null ? void 0 : _a.toString().trim();
+    const stateContext = {
+      app: options == null ? void 0 : options.app,
+      application_id: applicationId || void 0
+    };
+    const urlWithSyncParams = buildApiUrl(this.baseUrl, "/api/thread/state", __spreadProps(__spreadValues({}, stateContext), {
       user_state: normalizedUserState ? JSON.stringify(normalizedUserState) : void 0,
       client_id: clientId
-    });
-    const bareUrl = buildApiUrl(this.baseUrl, "/api/thread/state");
+    }));
+    const bareUrl = buildApiUrl(
+      this.baseUrl,
+      "/api/thread/state",
+      stateContext
+    );
     const shouldRetryWithoutSyncParams = Boolean(normalizedUserState) || Boolean(clientId);
-    (_a = this.logger) == null ? void 0 : _a.debug("[aomi][client] GET /api/thread/state start", {
+    (_b = this.logger) == null ? void 0 : _b.debug("[aomi][client] GET /api/thread/state start", {
       sessionId,
+      app: options == null ? void 0 : options.app,
+      applicationId,
       clientId,
       hasUserState: Boolean(normalizedUserState)
     });
@@ -1096,7 +1107,7 @@ ${body}` : ""}`
       sessionId
     );
     if (!response.ok && shouldRetryWithoutSyncParams && (response.status === 400 || response.status === 414)) {
-      (_b = this.logger) == null ? void 0 : _b.debug(
+      (_c = this.logger) == null ? void 0 : _c.debug(
         "[aomi][client] GET /api/thread/state retrying without sync params",
         {
           sessionId,
@@ -1111,7 +1122,7 @@ ${body}` : ""}`
         sessionId
       );
     }
-    (_c = this.logger) == null ? void 0 : _c.debug("[aomi][client] GET /api/thread/state response", {
+    (_d = this.logger) == null ? void 0 : _d.debug("[aomi][client] GET /api/thread/state response", {
       sessionId,
       status: response.status,
       ok: response.ok
@@ -1125,7 +1136,7 @@ ${body}` : ""}`
    * Send a chat message and return updated session state.
    */
   async sendMessage(sessionId, message, options) {
-    var _a, _b, _c, _d, _e, _f;
+    var _a, _b, _c, _d, _e, _f, _g;
     const app = (_a = options == null ? void 0 : options.app) != null ? _a : "default";
     const apiKey = (_b = options == null ? void 0 : options.apiKey) != null ? _b : this.apiKey;
     const normalizedUserState = stripBulkyPendingFields(
@@ -1137,13 +1148,15 @@ ${body}` : ""}`
       application_id: applicationId || void 0,
       message,
       user_state: normalizedUserState ? JSON.stringify(normalizedUserState) : void 0,
-      client_id: options == null ? void 0 : options.clientId
+      client_id: options == null ? void 0 : options.clientId,
+      payment_method: (_d = options == null ? void 0 : options.paymentMethod) != null ? _d : void 0
     });
-    (_d = this.logger) == null ? void 0 : _d.debug("[aomi][client] POST /api/thread/chat prepared", {
+    (_e = this.logger) == null ? void 0 : _e.debug("[aomi][client] POST /api/thread/chat prepared", {
       sessionId,
       app,
       applicationId,
       clientId: options == null ? void 0 : options.clientId,
+      paymentMethod: options == null ? void 0 : options.paymentMethod,
       hasUserState: Boolean(normalizedUserState),
       messagePreview: previewText(message)
     });
@@ -1151,7 +1164,7 @@ ${body}` : ""}`
     if (apiKey) {
       headers.set(APP_KEY_HEADER, apiKey);
     }
-    (_e = this.logger) == null ? void 0 : _e.debug("[aomi][client] POST start", {
+    (_f = this.logger) == null ? void 0 : _f.debug("[aomi][client] POST start", {
       path: "/api/thread/chat",
       sessionId,
       hasApiKey: Boolean(apiKey),
@@ -1161,7 +1174,7 @@ ${body}` : ""}`
       method: "POST",
       headers
     });
-    (_f = this.logger) == null ? void 0 : _f.debug("[aomi][client] POST response", {
+    (_g = this.logger) == null ? void 0 : _g.debug("[aomi][client] POST response", {
       path: "/api/thread/chat",
       sessionId,
       status: response.status,
@@ -2069,16 +2082,21 @@ function inferSolanaRequestKind(payload) {
   }
 }
 function parseChainId3(value) {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "number") {
+    return Number.isSafeInteger(value) && value > 0 ? value : void 0;
+  }
   if (typeof value !== "string") return void 0;
   const trimmed = value.trim();
   if (!trimmed) return void 0;
-  if (trimmed.startsWith("0x")) {
-    const parsedHex = Number.parseInt(trimmed.slice(2), 16);
-    return Number.isFinite(parsedHex) ? parsedHex : void 0;
-  }
-  const parsed = Number.parseInt(trimmed, 10);
-  return Number.isFinite(parsed) ? parsed : void 0;
+  const parsed = trimmed.startsWith("0x") ? parseCanonicalInteger(trimmed.slice(2), 16) : parseCanonicalInteger(trimmed, 10);
+  return parsed !== void 0 && parsed > 0 ? parsed : void 0;
+}
+function parseCanonicalInteger(value, radix) {
+  if (value === "") return void 0;
+  const pattern = radix === 16 ? /^[0-9a-fA-F]+$/ : /^[0-9]+$/;
+  if (!pattern.test(value)) return void 0;
+  const parsed = Number.parseInt(value, radix);
+  return Number.isSafeInteger(parsed) ? parsed : void 0;
 }
 function parseTxIds(value) {
   if (!Array.isArray(value)) return [];
@@ -2950,6 +2968,7 @@ var ClientSession = class extends TypedEventEmitter {
     this.app = (_b = sessionOptions == null ? void 0 : sessionOptions.app) != null ? _b : "default";
     this.applicationId = sessionOptions == null ? void 0 : sessionOptions.applicationId;
     this.apiKey = sessionOptions == null ? void 0 : sessionOptions.apiKey;
+    this.paymentMethod = sessionOptions == null ? void 0 : sessionOptions.paymentMethod;
     const initialUserState = UserState.reconcile(
       void 0,
       sessionOptions == null ? void 0 : sessionOptions.userState
@@ -2989,7 +3008,8 @@ var ClientSession = class extends TypedEventEmitter {
       applicationId: this.applicationId,
       apiKey: this.apiKey,
       userState: this.userState,
-      clientId: this.clientId
+      clientId: this.clientId,
+      paymentMethod: this.paymentMethod
     });
     this.assertUserStateAligned(response.user_state);
     this.applyState(response);
@@ -3014,7 +3034,8 @@ var ClientSession = class extends TypedEventEmitter {
       applicationId: this.applicationId,
       apiKey: this.apiKey,
       userState: this.userState,
-      clientId: this.clientId
+      clientId: this.clientId,
+      paymentMethod: this.paymentMethod
     });
     this.assertUserStateAligned(response.user_state);
     this.applyState(response);
@@ -3168,7 +3189,8 @@ var ClientSession = class extends TypedEventEmitter {
     const state = await this.client.fetchState(
       this.sessionId,
       this.userState,
-      this.clientId
+      this.clientId,
+      { app: this.app, applicationId: this.applicationId }
     );
     this.assertUserStateAligned(state.user_state);
     this.applyState(state);
@@ -3190,7 +3212,8 @@ var ClientSession = class extends TypedEventEmitter {
     const state = await this.client.fetchState(
       this.sessionId,
       this.userState,
-      this.clientId
+      this.clientId,
+      { app: this.app, applicationId: this.applicationId }
     );
     this.assertUserStateAligned(state.user_state);
     this.applyState(state);
@@ -3231,7 +3254,8 @@ var ClientSession = class extends TypedEventEmitter {
       const state = await this.client.fetchState(
         this.sessionId,
         this.userState,
-        this.clientId
+        this.clientId,
+        { app: this.app, applicationId: this.applicationId }
       );
       if (!this.pollTimer) return;
       this.assertUserStateAligned(state.user_state);
@@ -3315,6 +3339,7 @@ import {
   arbitrum,
   optimism,
   base,
+  baseSepolia,
   sepolia,
   linea,
   lineaSepolia,
@@ -3366,6 +3391,7 @@ var SUPPORTED_CHAINS = [
   { id: 137, name: "Polygon", ticker: "MATIC" },
   { id: 42161, name: "Arbitrum", ticker: "ARB" },
   { id: 8453, name: "Base", ticker: "BASE" },
+  { id: 84532, name: "Base Sepolia", ticker: "ETH" },
   { id: 10, name: "Optimism", ticker: "OP" },
   { id: 11155111, name: "Sepolia", ticker: "SEP" },
   { id: 59144, name: "Linea Mainnet", ticker: "LINEA" },
@@ -3383,6 +3409,7 @@ var ALCHEMY_CHAIN_SLUGS = {
   137: "polygon-mainnet",
   42161: "arb-mainnet",
   8453: "base-mainnet",
+  84532: "base-sepolia",
   10: "opt-mainnet",
   11155111: "eth-sepolia",
   59144: "linea-mainnet",
@@ -3394,6 +3421,7 @@ var CHAINS_BY_ID = {
   42161: arbitrum,
   10: optimism,
   8453: base,
+  84532: baseSepolia,
   11155111: sepolia,
   59144: linea,
   59141: lineaSepolia,

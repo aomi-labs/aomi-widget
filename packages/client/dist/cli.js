@@ -100,6 +100,7 @@ import {
   arbitrum,
   optimism,
   base,
+  baseSepolia,
   sepolia,
   linea,
   lineaSepolia,
@@ -155,6 +156,7 @@ var init_chains = __esm({
       { id: 137, name: "Polygon", ticker: "MATIC" },
       { id: 42161, name: "Arbitrum", ticker: "ARB" },
       { id: 8453, name: "Base", ticker: "BASE" },
+      { id: 84532, name: "Base Sepolia", ticker: "ETH" },
       { id: 10, name: "Optimism", ticker: "OP" },
       { id: 11155111, name: "Sepolia", ticker: "SEP" },
       { id: 59144, name: "Linea Mainnet", ticker: "LINEA" },
@@ -172,6 +174,7 @@ var init_chains = __esm({
       137: "polygon-mainnet",
       42161: "arb-mainnet",
       8453: "base-mainnet",
+      84532: "base-sepolia",
       10: "opt-mainnet",
       11155111: "eth-sepolia",
       59144: "linea-mainnet",
@@ -183,6 +186,7 @@ var init_chains = __esm({
       42161: arbitrum,
       10: optimism,
       8453: base,
+      84532: baseSepolia,
       11155111: sepolia,
       59144: linea,
       59141: lineaSepolia,
@@ -334,6 +338,14 @@ function parseAAMode(value) {
   }
   fatal("Unsupported AA mode. Use `4337` or `7702`.");
 }
+function parsePaymentMethod(value) {
+  if (value === void 0 || value.trim() === "") return void 0;
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "coinbase") {
+    return normalized;
+  }
+  fatal("Unsupported payment method. Use `coinbase`.");
+}
 var EVM_PRIVATE_KEY_PATTERN;
 var init_validation = __esm({
   "src/cli/validation.ts"() {
@@ -399,7 +411,7 @@ function resolveExecution(args) {
   return void 0;
 }
 function buildCliConfig(args) {
-  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o;
+  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q;
   const execution = resolveExecution(args);
   const privateKey = normalizePrivateKey(
     (_a3 = str(args["private-key"])) != null ? _a3 : process.env.PRIVATE_KEY
@@ -453,18 +465,22 @@ function buildCliConfig(args) {
     embeddedProvider,
     embeddedProviderToken,
     app: (_l = str(args.app)) != null ? _l : process.env.AOMI_APP,
-    model: (_m = str(args.model)) != null ? _m : process.env.AOMI_MODEL,
+    applicationId: (_m = str(args["application-id"])) != null ? _m : process.env.AOMI_APPLICATION_ID,
+    model: (_n = str(args.model)) != null ? _n : process.env.AOMI_MODEL,
     freshSession: args["new-session"] === true,
     publicKey: configuredPublicKey != null ? configuredPublicKey : derivedPublicKey,
     privateKey,
     solanaPrivateKey,
     svmCluster,
-    chainRpcUrl: (_n = str(args["rpc-url"])) != null ? _n : process.env.CHAIN_RPC_URL,
-    chain: parseChainId((_o = str(args.chain)) != null ? _o : process.env.AOMI_CHAIN_ID),
+    chainRpcUrl: (_o = str(args["rpc-url"])) != null ? _o : process.env.CHAIN_RPC_URL,
+    chain: parseChainId((_p = str(args.chain)) != null ? _p : process.env.AOMI_CHAIN_ID),
     secrets: {},
     execution,
     aaProvider,
-    aaMode: aaMode2
+    aaMode: aaMode2,
+    paymentMethod: parsePaymentMethod(
+      (_q = str(args["payment-method"])) != null ? _q : process.env.AOMI_PAYMENT_METHOD
+    )
   };
 }
 function getPositionals(args) {
@@ -515,6 +531,10 @@ var init_shared = __esm({
         type: "string",
         description: 'App (default: "default")'
       },
+      "application-id": {
+        type: "string",
+        description: "Concrete backend application id for dynamic apps"
+      },
       model: {
         type: "string",
         description: "Set the active model for this session"
@@ -546,6 +566,10 @@ var init_shared = __esm({
       "rpc-url": {
         type: "string",
         description: "RPC URL for transaction submission"
+      },
+      "payment-method": {
+        type: "string",
+        description: 'Payment method for paid chat turns, e.g. "coinbase"'
       }
     };
   }
@@ -1624,19 +1648,30 @@ ${body}` : ""}`
       /**
        * Fetch current session state (messages, processing status, title).
        */
-      async fetchState(sessionId, userState, clientId) {
-        var _a3, _b, _c;
+      async fetchState(sessionId, userState, clientId, options) {
+        var _a3, _b, _c, _d;
         const normalizedUserState = stripBulkyPendingFields(
           UserState.normalize(userState)
         );
-        const urlWithSyncParams = buildApiUrl(this.baseUrl, "/api/thread/state", {
+        const applicationId = (_a3 = options == null ? void 0 : options.applicationId) == null ? void 0 : _a3.toString().trim();
+        const stateContext = {
+          app: options == null ? void 0 : options.app,
+          application_id: applicationId || void 0
+        };
+        const urlWithSyncParams = buildApiUrl(this.baseUrl, "/api/thread/state", __spreadProps(__spreadValues({}, stateContext), {
           user_state: normalizedUserState ? JSON.stringify(normalizedUserState) : void 0,
           client_id: clientId
-        });
-        const bareUrl = buildApiUrl(this.baseUrl, "/api/thread/state");
+        }));
+        const bareUrl = buildApiUrl(
+          this.baseUrl,
+          "/api/thread/state",
+          stateContext
+        );
         const shouldRetryWithoutSyncParams = Boolean(normalizedUserState) || Boolean(clientId);
-        (_a3 = this.logger) == null ? void 0 : _a3.debug("[aomi][client] GET /api/thread/state start", {
+        (_b = this.logger) == null ? void 0 : _b.debug("[aomi][client] GET /api/thread/state start", {
           sessionId,
+          app: options == null ? void 0 : options.app,
+          applicationId,
           clientId,
           hasUserState: Boolean(normalizedUserState)
         });
@@ -1646,7 +1681,7 @@ ${body}` : ""}`
           sessionId
         );
         if (!response.ok && shouldRetryWithoutSyncParams && (response.status === 400 || response.status === 414)) {
-          (_b = this.logger) == null ? void 0 : _b.debug(
+          (_c = this.logger) == null ? void 0 : _c.debug(
             "[aomi][client] GET /api/thread/state retrying without sync params",
             {
               sessionId,
@@ -1661,7 +1696,7 @@ ${body}` : ""}`
             sessionId
           );
         }
-        (_c = this.logger) == null ? void 0 : _c.debug("[aomi][client] GET /api/thread/state response", {
+        (_d = this.logger) == null ? void 0 : _d.debug("[aomi][client] GET /api/thread/state response", {
           sessionId,
           status: response.status,
           ok: response.ok
@@ -1675,7 +1710,7 @@ ${body}` : ""}`
        * Send a chat message and return updated session state.
        */
       async sendMessage(sessionId, message, options) {
-        var _a3, _b, _c, _d, _e, _f;
+        var _a3, _b, _c, _d, _e, _f, _g;
         const app = (_a3 = options == null ? void 0 : options.app) != null ? _a3 : "default";
         const apiKey = (_b = options == null ? void 0 : options.apiKey) != null ? _b : this.apiKey;
         const normalizedUserState = stripBulkyPendingFields(
@@ -1687,13 +1722,15 @@ ${body}` : ""}`
           application_id: applicationId || void 0,
           message,
           user_state: normalizedUserState ? JSON.stringify(normalizedUserState) : void 0,
-          client_id: options == null ? void 0 : options.clientId
+          client_id: options == null ? void 0 : options.clientId,
+          payment_method: (_d = options == null ? void 0 : options.paymentMethod) != null ? _d : void 0
         });
-        (_d = this.logger) == null ? void 0 : _d.debug("[aomi][client] POST /api/thread/chat prepared", {
+        (_e = this.logger) == null ? void 0 : _e.debug("[aomi][client] POST /api/thread/chat prepared", {
           sessionId,
           app,
           applicationId,
           clientId: options == null ? void 0 : options.clientId,
+          paymentMethod: options == null ? void 0 : options.paymentMethod,
           hasUserState: Boolean(normalizedUserState),
           messagePreview: previewText(message)
         });
@@ -1701,7 +1738,7 @@ ${body}` : ""}`
         if (apiKey) {
           headers.set(APP_KEY_HEADER, apiKey);
         }
-        (_e = this.logger) == null ? void 0 : _e.debug("[aomi][client] POST start", {
+        (_f = this.logger) == null ? void 0 : _f.debug("[aomi][client] POST start", {
           path: "/api/thread/chat",
           sessionId,
           hasApiKey: Boolean(apiKey),
@@ -1711,7 +1748,7 @@ ${body}` : ""}`
           method: "POST",
           headers
         });
-        (_f = this.logger) == null ? void 0 : _f.debug("[aomi][client] POST response", {
+        (_g = this.logger) == null ? void 0 : _g.debug("[aomi][client] POST response", {
           path: "/api/thread/chat",
           sessionId,
           status: response.status,
@@ -2435,16 +2472,21 @@ function inferSolanaRequestKind(payload) {
   }
 }
 function parseChainId4(value) {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "number") {
+    return Number.isSafeInteger(value) && value > 0 ? value : void 0;
+  }
   if (typeof value !== "string") return void 0;
   const trimmed = value.trim();
   if (!trimmed) return void 0;
-  if (trimmed.startsWith("0x")) {
-    const parsedHex = Number.parseInt(trimmed.slice(2), 16);
-    return Number.isFinite(parsedHex) ? parsedHex : void 0;
-  }
-  const parsed = Number.parseInt(trimmed, 10);
-  return Number.isFinite(parsed) ? parsed : void 0;
+  const parsed = trimmed.startsWith("0x") ? parseCanonicalInteger(trimmed.slice(2), 16) : parseCanonicalInteger(trimmed, 10);
+  return parsed !== void 0 && parsed > 0 ? parsed : void 0;
+}
+function parseCanonicalInteger(value, radix) {
+  if (value === "") return void 0;
+  const pattern = radix === 16 ? /^[0-9a-fA-F]+$/ : /^[0-9]+$/;
+  if (!pattern.test(value)) return void 0;
+  const parsed = Number.parseInt(value, radix);
+  return Number.isSafeInteger(parsed) ? parsed : void 0;
 }
 function parseTxIds(value) {
   if (!Array.isArray(value)) return [];
@@ -3361,6 +3403,7 @@ var init_session = __esm({
         this.app = (_b = sessionOptions == null ? void 0 : sessionOptions.app) != null ? _b : "default";
         this.applicationId = sessionOptions == null ? void 0 : sessionOptions.applicationId;
         this.apiKey = sessionOptions == null ? void 0 : sessionOptions.apiKey;
+        this.paymentMethod = sessionOptions == null ? void 0 : sessionOptions.paymentMethod;
         const initialUserState = UserState.reconcile(
           void 0,
           sessionOptions == null ? void 0 : sessionOptions.userState
@@ -3400,7 +3443,8 @@ var init_session = __esm({
           applicationId: this.applicationId,
           apiKey: this.apiKey,
           userState: this.userState,
-          clientId: this.clientId
+          clientId: this.clientId,
+          paymentMethod: this.paymentMethod
         });
         this.assertUserStateAligned(response.user_state);
         this.applyState(response);
@@ -3425,7 +3469,8 @@ var init_session = __esm({
           applicationId: this.applicationId,
           apiKey: this.apiKey,
           userState: this.userState,
-          clientId: this.clientId
+          clientId: this.clientId,
+          paymentMethod: this.paymentMethod
         });
         this.assertUserStateAligned(response.user_state);
         this.applyState(response);
@@ -3579,7 +3624,8 @@ var init_session = __esm({
         const state = await this.client.fetchState(
           this.sessionId,
           this.userState,
-          this.clientId
+          this.clientId,
+          { app: this.app, applicationId: this.applicationId }
         );
         this.assertUserStateAligned(state.user_state);
         this.applyState(state);
@@ -3601,7 +3647,8 @@ var init_session = __esm({
         const state = await this.client.fetchState(
           this.sessionId,
           this.userState,
-          this.clientId
+          this.clientId,
+          { app: this.app, applicationId: this.applicationId }
         );
         this.assertUserStateAligned(state.user_state);
         this.applyState(state);
@@ -3642,7 +3689,8 @@ var init_session = __esm({
           const state = await this.client.fetchState(
             this.sessionId,
             this.userState,
-            this.clientId
+            this.clientId,
+            { app: this.app, applicationId: this.applicationId }
           );
           if (!this.pollTimer) return;
           this.assertUserStateAligned(state.user_state);
@@ -3795,6 +3843,9 @@ function buildCliUserState(publicKey, chainId3, options) {
   if (hasEvm) {
     if ((options == null ? void 0 : options.aaMode) === "4337" || (options == null ? void 0 : options.aaMode) === "7702") {
       const aaState = { mode: options.aaMode };
+      if (options.aaProvider != null) {
+        aaState.provider = options.aaProvider;
+      }
       if (options.smartAccount != null) {
         aaState.smart_account = options.smartAccount;
       }
@@ -4062,6 +4113,7 @@ function toCliSessionState(stored) {
     svmPublicKey: stored.svmPublicKey,
     svmPrivateKey: stored.svmPrivateKey,
     chainId: stored.chainId,
+    aaProvider: stored.aaProvider,
     aaMode: stored.aaMode,
     smartAccount: stored.smartAccount,
     pendingTxs: stored.pendingTxs,
@@ -4107,6 +4159,7 @@ function readStoredSession(path) {
       svmPublicKey: parsed.svmPublicKey,
       svmPrivateKey: parsed.svmPrivateKey,
       chainId: parsed.chainId,
+      aaProvider: parsed.aaProvider,
       aaMode: parsed.aaMode,
       smartAccount: parsed.smartAccount,
       pendingTxs: parsed.pendingTxs,
@@ -4687,6 +4740,126 @@ var init_client_factory = __esm({
   }
 });
 
+// src/cli/payment.ts
+import { x402Client } from "@x402/core/client";
+import { ExactEvmScheme } from "@x402/evm/exact/client";
+import { wrapFetchWithPayment } from "@x402/fetch";
+import { privateKeyToAccount as privateKeyToAccount3 } from "viem/accounts";
+function stringValue(value) {
+  return typeof value === "string" && value.length > 0 ? value : void 0;
+}
+function parseBase64Json(value) {
+  try {
+    const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized.padEnd(
+      normalized.length + (4 - normalized.length % 4) % 4,
+      "="
+    );
+    return JSON.parse(atob(padded));
+  } catch (e) {
+    return void 0;
+  }
+}
+async function paymentRequirementFrom(response) {
+  var _a3;
+  const fromHeader = response.headers.get("Payment-Required");
+  const payload = fromHeader ? parseBase64Json(fromHeader) : await response.clone().json().catch(() => void 0);
+  const accepted = (_a3 = payload == null ? void 0 : payload.accepts) == null ? void 0 : _a3[0];
+  if (!accepted) return void 0;
+  return {
+    amount: stringValue(accepted.amount),
+    asset: stringValue(accepted.asset),
+    network: stringValue(accepted.network),
+    payTo: stringValue(accepted.payTo),
+    error: stringValue(payload == null ? void 0 : payload.error)
+  };
+}
+function receiptIdFrom(response) {
+  var _a3;
+  const header = paymentResponseHeader(response);
+  const settlement = header ? parseBase64Json(header) : void 0;
+  return (_a3 = stringValue(settlement == null ? void 0 : settlement.transaction)) != null ? _a3 : stringValue(settlement == null ? void 0 : settlement.network);
+}
+function paymentResponseHeader(response) {
+  var _a3;
+  return (_a3 = response.headers.get("Payment-Response")) != null ? _a3 : response.headers.get("X-Payment-Response");
+}
+function hasPaymentSignature(request) {
+  return request.headers.has("Payment-Signature") || request.headers.has("X-Payment");
+}
+function createTracedFetch(onPayment) {
+  return async (input2, init) => {
+    var _a3;
+    const request = new Request(input2, init);
+    const isPaymentRetry = hasPaymentSignature(request);
+    if (isPaymentRetry) {
+      onPayment == null ? void 0 : onPayment({ type: "submitting", url: request.url });
+    }
+    const response = await globalThis.fetch(request);
+    if (!onPayment) return response;
+    if (isPaymentRetry) {
+      const settled = response.ok || paymentResponseHeader(response) !== null;
+      onPayment(
+        settled ? {
+          type: "settled",
+          url: request.url,
+          status: response.status,
+          receiptId: receiptIdFrom(response)
+        } : {
+          type: "rejected",
+          url: request.url,
+          status: response.status,
+          reason: (_a3 = await paymentRequirementFrom(response)) == null ? void 0 : _a3.error
+        }
+      );
+    } else if (response.status === 402) {
+      onPayment({
+        type: "required",
+        url: request.url,
+        requirement: await paymentRequirementFrom(response)
+      });
+    }
+    return response;
+  };
+}
+function followSettledPaymentChallenges(paymentFetch) {
+  return async (input2, init) => {
+    const original = new Request(input2, init);
+    let response = await paymentFetch(original.clone());
+    for (let challenge = 1; challenge < MAX_SEQUENTIAL_PAYMENT_CHALLENGES && response.status === 402 && paymentResponseHeader(response) !== null; challenge += 1) {
+      response = await paymentFetch(original.clone());
+    }
+    return response;
+  };
+}
+function createCliPaymentFetch(config, onPayment) {
+  if (!(config == null ? void 0 : config.paymentMethod)) {
+    return void 0;
+  }
+  if (config.paymentMethod !== "coinbase") {
+    fatal("Unsupported payment method. Use `coinbase`.");
+  }
+  if (!config.privateKey) {
+    fatal(
+      "`--payment-method coinbase` requires an EVM private key. Pass `--private-key` or set `PRIVATE_KEY`."
+    );
+  }
+  const account = privateKeyToAccount3(config.privateKey);
+  const paymentClient = new x402Client();
+  paymentClient.register("eip155:*", new ExactEvmScheme(account));
+  return followSettledPaymentChallenges(
+    wrapFetchWithPayment(createTracedFetch(onPayment), paymentClient)
+  );
+}
+var MAX_SEQUENTIAL_PAYMENT_CHALLENGES;
+var init_payment = __esm({
+  "src/cli/payment.ts"() {
+    "use strict";
+    init_errors();
+    MAX_SEQUENTIAL_PAYMENT_CHALLENGES = 4;
+  }
+});
+
 // src/cli/cli-session.ts
 var CliSession;
 var init_cli_session = __esm({
@@ -4699,6 +4872,7 @@ var init_cli_session = __esm({
     init_solana_signer();
     init_auth();
     init_client_factory();
+    init_payment();
     CliSession = class _CliSession {
       constructor(state) {
         this.state = state;
@@ -4726,7 +4900,7 @@ var init_cli_session = __esm({
       }
       /** Create a fresh session and persist it. */
       static create(config, seed) {
-        var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k;
+        var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m;
         let svmPublicKey;
         if (config.solanaPrivateKey) {
           try {
@@ -4754,6 +4928,8 @@ var init_cli_session = __esm({
           // Keys supplied via --solana-private-key/env stay transient.
           svmPrivateKey: seed == null ? void 0 : seed.svmPrivateKey,
           chainId: (_k = config.chain) != null ? _k : seed == null ? void 0 : seed.chainId,
+          aaProvider: (_l = config.aaProvider) != null ? _l : seed == null ? void 0 : seed.aaProvider,
+          aaMode: (_m = config.aaMode) != null ? _m : seed == null ? void 0 : seed.aaMode,
           secretHandles: seed == null ? void 0 : seed.secretHandles,
           auth: seed == null ? void 0 : seed.auth
         };
@@ -4881,6 +5057,14 @@ var init_cli_session = __esm({
         }
         if (config.chain !== void 0 && config.chain !== this.state.chainId) {
           this.state.chainId = config.chain;
+          changed = true;
+        }
+        if (config.aaProvider !== void 0 && config.aaProvider !== this.state.aaProvider) {
+          this.state.aaProvider = config.aaProvider;
+          changed = true;
+        }
+        if (config.aaMode !== void 0 && config.aaMode !== this.state.aaMode) {
+          this.state.aaMode = config.aaMode;
           changed = true;
         }
         if (!this.state.clientId) {
@@ -5079,26 +5263,31 @@ Available: ${available}`);
       // Bridge to ClientSession
       // ---------------------------------------------------------------------------
       /** Build a ClientSession from the current state. */
-      createClientSession(_config) {
-        var _a3, _b;
+      createClientSession(config, options) {
+        var _a3, _b, _c, _d;
+        const paymentFetch = createCliPaymentFetch(config, options == null ? void 0 : options.onPayment);
         const session = new ClientSession(
           {
             baseUrl: this.state.baseUrl,
             apiKey: this.state.apiKey,
+            fetch: paymentFetch,
             getAccountBearer: createCliAuthTokenProvider(() => this.state)
           },
           {
             sessionId: this.state.sessionId,
             clientId: this.state.clientId,
             app: this.state.app,
-            apiKey: this.state.apiKey
+            applicationId: config == null ? void 0 : config.applicationId,
+            apiKey: this.state.apiKey,
+            paymentMethod: config == null ? void 0 : config.paymentMethod
           }
         );
         session.resolveUserState(
           buildCliUserState(this.state.publicKey, this.state.chainId, {
             app: this.state.app,
-            aaMode: (_a3 = this.state.aaMode) != null ? _a3 : null,
-            smartAccount: (_b = this.state.smartAccount) != null ? _b : null,
+            aaProvider: (_b = (_a3 = this.state.aaProvider) != null ? _a3 : config == null ? void 0 : config.aaProvider) != null ? _b : null,
+            aaMode: (_c = this.state.aaMode) != null ? _c : null,
+            smartAccount: (_d = this.state.smartAccount) != null ? _d : null,
             svmAddress: this.state.svmPublicKey
           })
         );
@@ -5171,6 +5360,34 @@ function printToolComplete(event) {
 }
 function printToolResultLine(name, result) {
   console.log(formatToolResultLine(name, result));
+}
+function printPaymentEvent(event) {
+  switch (event.type) {
+    case "required": {
+      const requirement = event.requirement;
+      const details = [
+        (requirement == null ? void 0 : requirement.amount) ? `amount ${requirement.amount}` : void 0,
+        requirement == null ? void 0 : requirement.network,
+        (requirement == null ? void 0 : requirement.payTo) ? `beneficiary ${requirement.payTo}` : void 0
+      ].filter(Boolean).join(" \xB7 ");
+      console.log(
+        `${YELLOW}\u{1F4B3} x402 payment required${details ? `: ${details}` : ""}${RESET}`
+      );
+      return;
+    }
+    case "submitting":
+      console.log(`${DIM}\u270D\uFE0F Signing and submitting x402 payment\u2026${RESET}`);
+      return;
+    case "settled":
+      console.log(
+        `${GREEN}\u2714 x402 payment settled${event.receiptId ? `: ${event.receiptId}` : ""}${RESET}`
+      );
+      return;
+    case "rejected":
+      console.log(
+        `\x1B[31m\u2716 x402 payment rejected (HTTP ${event.status})${event.reason ? `: ${event.reason}` : ""}${RESET}`
+      );
+  }
 }
 function getToolNameFromEvent(event) {
   var _a3, _b;
@@ -5292,6 +5509,7 @@ async function applyRequestedModelIfPresent(config, cli, session) {
   }
   await session.client.setModel(cli.sessionId, requestedModel, {
     app: cli.app,
+    applicationId: config.applicationId,
     apiKey: cli.apiKey
   });
   cli.setModel(requestedModel);
@@ -5354,33 +5572,37 @@ function shouldBroadcastWalletStateChange(config, previous, next) {
   if (!next.publicKey || next.chainId === void 0) {
     return false;
   }
-  return normalizeAddress2(previous == null ? void 0 : previous.publicKey) !== normalizeAddress2(next.publicKey) || (previous == null ? void 0 : previous.chainId) !== next.chainId || (previous == null ? void 0 : previous.aaMode) !== next.aaMode || normalizeAddress2((_a3 = previous == null ? void 0 : previous.smartAccount) != null ? _a3 : void 0) !== normalizeAddress2((_b = next.smartAccount) != null ? _b : void 0);
+  return normalizeAddress2(previous == null ? void 0 : previous.publicKey) !== normalizeAddress2(next.publicKey) || (previous == null ? void 0 : previous.chainId) !== next.chainId || (previous == null ? void 0 : previous.aaProvider) !== next.aaProvider || (previous == null ? void 0 : previous.aaMode) !== next.aaMode || normalizeAddress2((_a3 = previous == null ? void 0 : previous.smartAccount) != null ? _a3 : void 0) !== normalizeAddress2((_b = next.smartAccount) != null ? _b : void 0);
 }
 async function syncWalletStateForChat(config, previous, next, cli, session) {
-  var _a3, _b;
+  var _a3, _b, _c, _d;
   if (!shouldBroadcastWalletStateChange(config, previous, next) || !next.publicKey) {
     return;
   }
   const userState = buildCliUserState(next.publicKey, next.chainId, {
     app: config.app,
-    aaMode: (_a3 = next.aaMode) != null ? _a3 : null,
-    smartAccount: (_b = next.smartAccount) != null ? _b : null,
+    aaProvider: (_b = (_a3 = next.aaProvider) != null ? _a3 : config.aaProvider) != null ? _b : null,
+    aaMode: (_c = next.aaMode) != null ? _c : null,
+    smartAccount: (_d = next.smartAccount) != null ? _d : null,
     svmAddress: next.svmAddress,
     svmCluster: config.svmCluster
   });
   session.resolveUserState(userState);
   await session.syncUserState();
+  if (!hasAccountCredential(cli)) {
+    return;
+  }
   await session.client.sendSystemMessage(
     cli.sessionId,
     JSON.stringify({
       type: "wallet:state_changed",
       payload: userState
     }),
-    { app: config.app }
+    { app: config.app, applicationId: config.applicationId }
   );
 }
 async function chatCommand(config, message, verbose) {
-  var _a3, _b, _c, _d, _e;
+  var _a3, _b, _c, _d, _e, _f, _g, _h;
   if (!message) {
     fatal("Usage: aomi chat <message>");
   }
@@ -5388,15 +5610,18 @@ async function chatCommand(config, message, verbose) {
   const previousWallet = previousCli ? {
     publicKey: previousCli.publicKey,
     chainId: previousCli.chainId,
-    aaMode: (_a3 = previousCli.toState().aaMode) != null ? _a3 : null,
-    smartAccount: (_b = previousCli.toState().smartAccount) != null ? _b : null,
+    aaProvider: (_a3 = previousCli.toState().aaProvider) != null ? _a3 : null,
+    aaMode: (_b = previousCli.toState().aaMode) != null ? _b : null,
+    smartAccount: (_c = previousCli.toState().smartAccount) != null ? _c : null,
     svmAddress: void 0
     // force re-sync of SVM state on every chat
   } : null;
   const cli = CliSession.loadOrCreate(config);
-  const session = cli.createClientSession(config);
+  const session = cli.createClientSession(config, {
+    onPayment: printPaymentEvent
+  });
   const resolvedSolanaKey = cli.resolvedSvmPrivateKey(config.solanaPrivateKey);
-  const svmAddress3 = (_c = deriveSvmAddress(resolvedSolanaKey)) != null ? _c : cli.svmPublicKey;
+  const svmAddress3 = (_d = deriveSvmAddress(resolvedSolanaKey)) != null ? _d : cli.svmPublicKey;
   try {
     await ensureAccountBoundThread(cli, session);
     await ingestSecretsForSession(config, cli, session.client);
@@ -5407,8 +5632,9 @@ async function chatCommand(config, message, verbose) {
       {
         publicKey: cli.publicKey,
         chainId: cli.chainId,
-        aaMode: (_d = cli.toState().aaMode) != null ? _d : null,
-        smartAccount: (_e = cli.toState().smartAccount) != null ? _e : null,
+        aaProvider: (_f = (_e = cli.toState().aaProvider) != null ? _e : config.aaProvider) != null ? _f : null,
+        aaMode: (_g = cli.toState().aaMode) != null ? _g : null,
+        smartAccount: (_h = cli.toState().smartAccount) != null ? _h : null,
         svmAddress: svmAddress3
       },
       cli,
@@ -5433,7 +5659,7 @@ async function chatCommand(config, message, verbose) {
     });
     if (verbose) {
       session.on("processing_start", () => {
-        console.log(`${DIM}\u23F3 Processing\u2026${RESET}`);
+        console.log(`${DIM}\u23F3 Thinking\u2026${RESET}`);
       });
       session.on("system_notice", ({ message: msg }) => {
         console.log(`${YELLOW}\u{1F4E2} ${msg}${RESET}`);
@@ -5659,7 +5885,7 @@ var init_types2 = __esm({
 
 // src/aa/execute.ts
 import { createPublicClient, createWalletClient, http } from "viem";
-import { privateKeyToAccount as privateKeyToAccount3 } from "viem/accounts";
+import { privateKeyToAccount as privateKeyToAccount4 } from "viem/accounts";
 function normalizeRpcCallData(data) {
   return data === "0x" ? void 0 : data;
 }
@@ -5838,7 +6064,7 @@ async function executeViaEoa({
       if (!rpcUrl) {
         throw new Error(`No RPC for chain ${call.chainId}`);
       }
-      const account = privateKeyToAccount3(localPrivateKey);
+      const account = privateKeyToAccount4(localPrivateKey);
       const walletClient = createWalletClient({
         account,
         chain,
@@ -6201,13 +6427,13 @@ var init_adapt = __esm({
 });
 
 // src/aa/owner.ts
-import { privateKeyToAccount as privateKeyToAccount4 } from "viem/accounts";
+import { privateKeyToAccount as privateKeyToAccount5 } from "viem/accounts";
 function getDirectOwnerParams(owner) {
   return {
     kind: "ready",
     ownerParams: {
       para: void 0,
-      signer: privateKeyToAccount4(owner.privateKey)
+      signer: privateKeyToAccount5(owner.privateKey)
     }
   };
 }
@@ -6294,7 +6520,7 @@ var init_owner = __esm({
 });
 
 // src/aa/alchemy/create.ts
-import { privateKeyToAccount as privateKeyToAccount5 } from "viem/accounts";
+import { privateKeyToAccount as privateKeyToAccount6 } from "viem/accounts";
 function extractExistingAccountAddress(error) {
   var _a3;
   const message = error instanceof Error ? error.message : String(error);
@@ -6451,7 +6677,7 @@ async function createAlchemyAAState(options) {
 async function createAlchemyWalletApisState(params) {
   const { createSmartWalletClient, alchemyWalletTransport } = await import("@alchemy/wallet-apis");
   const transport = params.proxyBaseUrl ? alchemyWalletTransport({ url: params.proxyBaseUrl }) : alchemyWalletTransport({ apiKey: params.apiKey });
-  const signer = privateKeyToAccount5(params.privateKey);
+  const signer = privateKeyToAccount6(params.privateKey);
   const alchemyClient = createSmartWalletClient(__spreadValues({
     transport,
     chain: params.chain,
@@ -6588,7 +6814,7 @@ var init_provider2 = __esm({
 });
 
 // src/aa/pimlico/create.ts
-import { privateKeyToAccount as privateKeyToAccount6 } from "viem/accounts";
+import { privateKeyToAccount as privateKeyToAccount7 } from "viem/accounts";
 function pimDebug(message, fields) {
   if (!AA_DEBUG_ENABLED2) return;
   if (fields) {
@@ -6628,7 +6854,7 @@ async function createPimlicoAAState(options) {
   }
   const permissionlessSigner = owner.kind === "session" || owner.kind === "external-wallet" ? resolvePimlicoSessionSigner(ownerParams.ownerParams) : null;
   try {
-    const signer = owner.kind === "direct" ? privateKeyToAccount6(owner.privateKey) : permissionlessSigner;
+    const signer = owner.kind === "direct" ? privateKeyToAccount7(owner.privateKey) : permissionlessSigner;
     if (signer) {
       return await createPimlicoPermissionlessState({
         resolved: execution,
@@ -7323,7 +7549,7 @@ __export(wallet_exports, {
   txCommand: () => txCommand
 });
 import { createWalletClient as createWalletClient2, http as http2 } from "viem";
-import { privateKeyToAccount as privateKeyToAccount7 } from "viem/accounts";
+import { privateKeyToAccount as privateKeyToAccount8 } from "viem/accounts";
 import * as viemChains from "viem/chains";
 async function txCommand(config) {
   const cli = CliSession.load();
@@ -7647,7 +7873,7 @@ Available: ${available}`
         ].join("\n")
       );
     }
-    const account = privateKeyToAccount7(privateKey);
+    const account = privateKeyToAccount8(privateKey);
     if (cli.publicKey && account.address.toLowerCase() !== cli.publicKey.toLowerCase()) {
       console.log(
         `\u26A0\uFE0F  Signer ${account.address} differs from session public key ${cli.publicKey}`
@@ -8488,6 +8714,7 @@ async function setModelCommand(config, model, options) {
   try {
     await session.client.setModel(cli.sessionId, model, {
       app: cli.app,
+      applicationId: config.applicationId,
       apiKey: cli.apiKey
     });
     cli.setModel(model);
@@ -8654,7 +8881,7 @@ __export(preferences_exports, {
   setSvmWalletCommand: () => setSvmWalletCommand,
   setWalletCommand: () => setWalletCommand
 });
-import { privateKeyToAccount as privateKeyToAccount8 } from "viem/accounts";
+import { privateKeyToAccount as privateKeyToAccount9 } from "viem/accounts";
 function loadOrCreateForSettings() {
   const existing = CliSession.load();
   if (existing) return existing;
@@ -8669,7 +8896,7 @@ function setWalletCommand(privateKeyInput) {
   if (!privateKey) {
     fatal("Usage: aomi wallet set <private-key>  (EVM hex key)");
   }
-  const account = privateKeyToAccount8(privateKey);
+  const account = privateKeyToAccount9(privateKey);
   const cli = loadOrCreateForSettings();
   cli.setWallet(privateKey, account.address);
   console.log(`EVM wallet set to ${account.address}`);
@@ -8982,7 +9209,7 @@ var init_device_auth = __esm({
 });
 
 // src/cli/account-graph.ts
-import { privateKeyToAccount as privateKeyToAccount9 } from "viem/accounts";
+import { privateKeyToAccount as privateKeyToAccount10 } from "viem/accounts";
 function requireAccountGraphClient(cli) {
   var _a3;
   const sessionToken = (_a3 = cli.auth) == null ? void 0 : _a3.sessionToken;
@@ -9024,7 +9251,7 @@ async function buildSignedWalletLink(input2) {
   var _a3, _b, _c;
   const client = requireAccountGraphClient(input2.cli);
   const privateKey = resolveAccountPrivateKey(input2.cli, input2.config);
-  const account = privateKeyToAccount9(privateKey);
+  const account = privateKeyToAccount10(privateKey);
   const chainId3 = (_b = (_a3 = input2.config.chain) != null ? _a3 : input2.cli.chainId) != null ? _b : 1;
   const nonce = await client.getWalletLinkNonce({
     address: account.address,
@@ -10756,6 +10983,9 @@ var package_default = {
     "@getpara/aa-alchemy": "2.21.0",
     "@getpara/aa-pimlico": "2.21.0",
     "@solana/web3.js": "^1.98.4",
+    "@x402/core": "^2.10.0",
+    "@x402/evm": "^2.10.0",
+    "@x402/fetch": "^2.10.0",
     bs58: "^6.0.0",
     citty: "^0.2.2",
     permissionless: "^0.3.5",
@@ -10898,6 +11128,7 @@ function printRootHelp() {
   );
   console.log("  --verbose                    Show extra diagnostics");
   console.log("  --app <name>                 Active app");
+  console.log("  --application-id <id>        Dynamic app row id");
   console.log("  --model <rig>                Active model");
   console.log("  --new-session                Create a fresh active session");
   console.log(
@@ -10905,6 +11136,9 @@ function printRootHelp() {
   );
   console.log("  --public-key <address>       Wallet address for chat context");
   console.log("  --private-key <hex>          Signing key for EVM tx sign");
+  console.log(
+    "  --payment-method <method>    Paid chat rail, e.g. coinbase/x402"
+  );
   console.log(
     "  --solana-private-key <key>   Solana keypair (base58 or JSON byte array)"
   );
