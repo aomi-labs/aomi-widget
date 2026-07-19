@@ -2,6 +2,24 @@
 
 ## Last Updated
 
+2026-07-19 (evening) — /build sandbox-mode: FULLY GREEN CLOUD RUN.
+  `smither-defillama-ea2a9cba…` completed all five stages in a real Vercel
+  Sandbox booted from the rust-1.92 image: binaries ✓ codegen (kept
+  existing sources) ✓ curate (real analysis: caught a dangling
+  `defillama_get_yield_pool_history` tool reference) ✓ validate ✓ result ✓
+  — run status `completed`, curation + result served by the BFF from the
+  shared store. Phase 1–3 acceptance fully demonstrated on real infra.
+  (Empty fileTree / 409 download for sandbox runs remain the known Phase-4
+  gap.) Two more operational facts confirmed on the way: a stale
+  VERCEL_OIDC_TOKEN (12 h life) makes Sandbox.create succeed but the VM
+  die silently before its first store write — refresh with `vercel env
+  pull` before dispatching; and the lazy keepalive is real — a run watched
+  only via direct store reads (bypassing the BFF poll path) lets its
+  sandbox lapse at the 5-minute create ceiling mid-stage, exactly the
+  documented abandoned-run behavior. Test rig torn down (BFF :3210, ngrok
+  tunnel, throwaway Postgres :5455).
+
+
 2026-07-19 — /build ship: FIRST real Vercel sandbox-mode dispatch, chain
   verified end-to-end on actual Vercel infra (PR #370 carries it all).
   Golden image (debian:bookworm-slim, linux/amd64+zstd) pushed to VCR
