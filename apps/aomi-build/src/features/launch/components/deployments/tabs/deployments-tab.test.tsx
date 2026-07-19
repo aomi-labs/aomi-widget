@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   render,
   screen,
@@ -31,6 +31,7 @@ function makeDetail(
     sdkVersion?: string;
     requiredSdk?: string;
     upgradeSdk?: ReturnType<typeof vi.fn>;
+    checkSdkUpgradeStatus?: ReturnType<typeof vi.fn>;
   } = {},
 ) {
   const sdkVersion = overrides.sdkVersion ?? "3.0.1";
@@ -53,6 +54,9 @@ function makeDetail(
     },
     loadRecords: vi.fn(),
     loadRequiredSecrets: vi.fn(),
+    loadHistory: vi.fn(),
+    history: null,
+    historyError: null,
     refreshRequiredSecrets: vi.fn(async () => ({})),
     hasMissingSecrets: overrides.hasMissingSecrets ?? (() => false),
     refreshRecords: vi.fn(),
@@ -63,6 +67,19 @@ function makeDetail(
         status: "current",
         requiredSdkVersion: "3.0.1",
         sourceRef: "abc1234",
+      })),
+    checkSdkUpgradeStatus:
+      overrides.checkSdkUpgradeStatus ??
+      vi.fn(async () => ({
+        status: "open",
+        requiredSdkVersion: "3.0.1",
+        branch: "aomi/sdk-3.0.1",
+        pullRequest: {
+          number: 7,
+          url: "https://github.com/alice/bot/pull/7",
+          state: "open",
+          merged: false,
+        },
       })),
     deployFlow: { phase: "idle" },
     recordsByApp: {
@@ -96,6 +113,12 @@ function makeDetail(
 const detail = makeDetail();
 
 describe("DeploymentsTab", () => {
+  // The upgrade rail persists PR state and the confirm-skip preference in
+  // localStorage; isolate every test from the previous one's flow.
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
   it("renders deployments from the DB timeline, current first", async () => {
     renderTab(<DeploymentsTab detail={detail} />);
     expect(detail.loadRecords).toHaveBeenCalled();
@@ -103,8 +126,12 @@ describe("DeploymentsTab", () => {
       await screen.findByText(/Live · my-bot · 2 deployments/i),
     ).toBeInTheDocument();
     expect(screen.getAllByText("my-bot").length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText("dep_1_ra_currentcmt")).toBeInTheDocument();
-    expect(screen.getByText("dep_1_ra_oldcommit1")).toBeInTheDocument();
+    expect(screen.getAllByText("dep_1_ra_currentcmt").length).toBeGreaterThan(
+      0,
+    );
+    expect(screen.getAllByText("dep_1_ra_oldcommit1").length).toBeGreaterThan(
+      0,
+    );
     expect(screen.getByText("Current")).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /promotions/i })).toHaveAttribute(
       "aria-selected",
@@ -185,19 +212,21 @@ describe("DeploymentsTab", () => {
     expect(detail.redeploySource).toHaveBeenCalled();
   });
 
-  it("marks the current row outdated and creates an SDK upgrade PR", async () => {
-    const upgradeSdk = vi.fn(async () => ({
-      status: "pull_request" as const,
-      requiredSdkVersion: "3.0.3",
-      sourceRef: "abc1234",
-      branch: "aomi/sdk-3.0.3",
-      files: ["Cargo.toml"],
-      pullRequest: {
-        number: 7,
-        url: "https://github.com/alice/bot/pull/7",
-        created: true,
-      },
-    }));
+  const pullRequestResult = {
+    status: "pull_request" as const,
+    requiredSdkVersion: "3.0.3",
+    sourceRef: "abc1234",
+    branch: "aomi/sdk-3.0.3",
+    files: ["Cargo.toml"],
+    pullRequest: {
+      number: 7,
+      url: "https://github.com/alice/bot/pull/7",
+      created: true,
+    },
+  };
+
+  it("confirms, opens an SDK upgrade PR, and gates redeploy on the merge", async () => {
+    const upgradeSdk = vi.fn(async () => pullRequestResult);
     const outdated = makeDetail({
       sdkVersion: "3.0.2",
       requiredSdk: "3.0.3",
@@ -206,11 +235,158 @@ describe("DeploymentsTab", () => {
     renderTab(<DeploymentsTab detail={outdated} />);
 
     expect(screen.getByText("Outdated")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Upgrade to 3.0.3" }));
-    expect(
-      await screen.findByRole("link", { name: "Review upgrade PR" }),
-    ).toHaveAttribute("href", "https://github.com/alice/bot/pull/7");
+    fireEvent.click(
+      screen.getByRole("button", { name: /upgrade to 3\.0\.3/i }),
+    );
+    // Nothing happens until the builder confirms the plan.
+    expect(upgradeSdk).not.toHaveBeenCalled();
+    const dialog = screen.getByRole("dialog", {
+      name: /open an upgrade pull request/i,
+    });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: /open upgrade pr/i }),
+    );
+
+    const links = await screen.findAllByRole("link", {
+      name: /review pr #7/i,
+    });
+    expect(links[0]).toHaveAttribute(
+      "href",
+      "https://github.com/alice/bot/pull/7",
+    );
     expect(upgradeSdk).toHaveBeenCalledOnce();
+    // The Upgrade button is gone (one CTA per intent) and redeploy is gated.
+    expect(
+      screen.queryByRole("button", { name: /upgrade to 3\.0\.3/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /redeploy from linked repository/i }),
+    ).toBeDisabled();
+  });
+
+  it("does nothing when the upgrade confirm is cancelled", () => {
+    const upgradeSdk = vi.fn(async () => pullRequestResult);
+    const outdated = makeDetail({
+      sdkVersion: "3.0.2",
+      requiredSdk: "3.0.3",
+      upgradeSdk,
+    });
+    renderTab(<DeploymentsTab detail={outdated} />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /upgrade to 3\.0\.3/i }),
+    );
+    const dialog = screen.getByRole("dialog", {
+      name: /open an upgrade pull request/i,
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: /cancel/i }));
+    expect(upgradeSdk).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("button", { name: /upgrade to 3\.0\.3/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("skips the confirm when the builder opted out of it", async () => {
+    window.localStorage.setItem("aomi-build:sdk-upgrade-skip-confirm", "1");
+    const upgradeSdk = vi.fn(async () => pullRequestResult);
+    const outdated = makeDetail({
+      sdkVersion: "3.0.2",
+      requiredSdk: "3.0.3",
+      upgradeSdk,
+    });
+    renderTab(<DeploymentsTab detail={outdated} />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /upgrade to 3\.0\.3/i }),
+    );
+    await screen.findAllByRole("link", { name: /review pr #7/i });
+    expect(upgradeSdk).toHaveBeenCalledOnce();
+  });
+
+  it("detects the merge on re-check and unlocks redeploy", async () => {
+    // openPr uses the heavy upgrade call; the re-check uses the cheap status
+    // poll, which reports the PR merged.
+    const upgradeSdk = vi.fn(async () => pullRequestResult);
+    const checkSdkUpgradeStatus = vi.fn(async () => ({
+      status: "merged" as const,
+      requiredSdkVersion: "3.0.3",
+      branch: "aomi/sdk-3.0.3",
+      pullRequest: {
+        number: 7,
+        url: "https://github.com/alice/bot/pull/7",
+        state: "closed",
+        merged: true,
+      },
+    }));
+    const outdated = makeDetail({
+      sdkVersion: "3.0.2",
+      requiredSdk: "3.0.3",
+      upgradeSdk,
+      checkSdkUpgradeStatus,
+    });
+    renderTab(<DeploymentsTab detail={outdated} />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /upgrade to 3\.0\.3/i }),
+    );
+    fireEvent.click(
+      within(
+        screen.getByRole("dialog", { name: /open an upgrade pull request/i }),
+      ).getByRole("button", { name: /open upgrade pr/i }),
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: /i merged it — check now/i }),
+    );
+
+    expect(await screen.findByText(/pr merged/i)).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /redeploy from linked repository/i }),
+    ).toBeEnabled();
+  });
+
+  it("surfaces the manual-upgrade exit with the fix command", async () => {
+    const upgradeSdk = vi.fn(async () => ({
+      status: "manual" as const,
+      requiredSdkVersion: "3.0.3",
+      sourceRef: "abc1234",
+      reason: "Cargo.lock must be regenerated locally;",
+      command: "aomi-build sdk fix --required-version 3.0.3",
+    }));
+    const outdated = makeDetail({
+      sdkVersion: "3.0.2",
+      requiredSdk: "3.0.3",
+      upgradeSdk,
+    });
+    renderTab(<DeploymentsTab detail={outdated} />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /upgrade to 3\.0\.3/i }),
+    );
+    fireEvent.click(
+      within(
+        screen.getByRole("dialog", { name: /open an upgrade pull request/i }),
+      ).getByRole("button", { name: /open upgrade pr/i }),
+    );
+    expect(
+      await screen.findByText(/manual upgrade required/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/aomi-build sdk fix --required-version 3\.0\.3/),
+    ).toBeInTheDocument();
+  });
+
+  it("expands a deployment's detail panel and lazy-loads history", async () => {
+    renderTab(<DeploymentsTab detail={detail} />);
+    const toggles = screen.getAllByRole("button", {
+      name: /deployment detail/i,
+    });
+    fireEvent.click(toggles[0]);
+    expect(detail.loadHistory).toHaveBeenCalled();
+    expect(await screen.findByText("Source repository")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /a\/b/i })).toHaveAttribute(
+      "href",
+      "https://github.com/a/b",
+    );
   });
 
   it("disables Promote for a deployment whose app has a missing required secret", () => {

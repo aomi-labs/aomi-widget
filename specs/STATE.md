@@ -2,176 +2,7 @@
 
 ## Last Updated
 
-2026-07-19 — /build ship: FIRST real Vercel sandbox-mode dispatch, chain
-  verified end-to-end on actual Vercel infra (PR #370 carries it all).
-  Golden image (debian:bookworm-slim, linux/amd64+zstd) pushed to VCR
-  (`build-runner:e2e-test`, ~1 GB, Ready) → `Sandbox.create({image})` boots a
-  real microVM → `run-plan` on Bun → binaries ✓ codegen ✓ claude curate
-  agent ✓ validate ✓, run state flowing to Postgres with the BFF observing.
-  Fix chain to get there (each its own commit): deterministic run-plan
-  sanity probe; VCR's 500 MB compressed-layer cap (slimmed cargo layer;
-  filtered `pnpm install --filter "@aomi-labs/smither..."`; CI=true prod
-  re-install; explicit pnpm-store rm — `$(pnpm store path)` expanded empty
-  and silently shipped 1.5 GB); Node from official tarball (nodesource
-  stopped shipping npm); codegenStep re-derives plan source at execution
-  time (sandbox plans compose as "discover", so committed apps hit remote
-  gen-specs and failed); IS_SANDBOX=1 in dispatch env (claude CLI refuses
-  skip-permissions as root). Final run settled "failed: validate-loop
-  reached maxIterations 3" — forensics show the IMAGE was the defect, not
-  the crate: minimal rustup profile lacked rustfmt (round 0) and clippy
-  (round 1), and rustc 1.88 < aomi-sdk's rust-version 1.91 (round 2); the
-  repair agent spent all rounds fixing the toolchain by hand. Dockerfile
-  now: rust 1.92.0 + rustfmt/clippy components (rebuild + green-run rerun
-  pending). Resilience findings REPORTED, not yet fixed (Cecilia to route:
-  this PR vs follow-ups): (1) engine pg client never reconnects after a
-  connection blip (ngrok hiccup bricked BFF reads until restart, twice);
-  (2) sandbox run-id reuse is process-local registry — BFF restart mints
-  new run ids instead of resuming (same disease as the fixed run.json bug;
-  store should be the lookup); (3) cancel of a dead-sandbox run wedges the
-  app on that instance (stopSandbox kills the engine before it settles the
-  store status). Session housekeeping: 41 MB of .smithers run state is
-  committed on MAIN (separate cleanup task spun off; image just rm's it);
-  vercel CLI 54→56.3.2 (for `vercel vcr login docker`); headless agent
-  billing = SMITHER_ANTHROPIC_API_KEY (renamed from AOMI_BUILDER_API_KEY)
-  so sandbox runs never share the interactive Claude subscription quota.
-
-
-2026-07-17 (night) — smithers-orchestrator 0.27.0 → 0.28.0 upgrade (in tree,
-  unverified tail): packages/smither now `^0.28.0` + effect pinned 3.21.4;
-  bun-compat drops the `Bun.which: () => null` polyfill (0.28's resolveBinary
-  trusts a function-typed `which` with no PATH fallback — the stub broke
-  git/claude resolution; `Bun.sleep` kept as cheap insurance); raw-TS loader
-  hooks STILL required on 0.28.0 (plain-JS packaging lands only in releases
-  after it). Verified: smither build + 73/73, aomi-build type-check + 229/229
-  + lint, and on the two-instance Postgres E2E the compute stages
-  (binaries/codegen) complete under Node with cross-instance observation
-  intact. Found+fixed a 0.28 delta: engine settles quota-hit runs as new
-  status `waiting-quota` (retries preserved, later create resumes) — wire
-  mapping moved it running→failed (run-view.ts) so pages don't show an
-  eternal spinner; in-memory engine.ts mapping already agreed. PARKED_STATUSES
-  comment notes 0.28's `paused` (we never pass pauseSignal).
-  Preserved-retry resume CONFIRMED after the quota window reset (~01:21am):
-  re-creating the same app minted no new run id, resumed straight into
-  `curate` (not a redo of binaries/codegen), and made a genuine retry
-  attempt — smithers 0.28's "retries are preserved" holds. That attempt
-  immediately hit a *fresh* 5-hour quota wall (resets ~2026-07-18 06:20
-  local), because this session's own research work billed against the same
-  Claude subscription the curate agent uses — not a code issue.
-  REMAINING to verify: an agent step actually completing (either wait out
-  the new window, or set SMITHER_ANTHROPIC_API_KEY so headless runs bill an API
-  key instead of sharing the interactive subscription quota — recommended
-  before the next verification pass), the Bun TUI/console surfaces, and a
-  golden-image rebuild + sandbox-mode dispatch on 0.28.
-  Upgrade audit report (API-surface diff, per-step risk):
-  scratchpad smither-on-vercel-report.md + subagent findings; fallback = pin
-  back to 0.27.0, store schema read-compatible both ways.
-
-
-2026-07-17 (evening) — /build ship verification pass over the uncommitted
-  Phase 1–3 work + golden-image base swap. (1) Fixed a statelessness bug the
-  cross-instance E2E caught on a REAL fresh Postgres (14 on :5455, not the
-  PGlite socket stand-in): prepareRun trusted the local run.json pointer and
-  resumed a run id the shared store never had → smithers RUN_NOT_FOUND crash;
-  prepareRun now checks the store (storeHasRun via SmithersDb.getRun) and a
-  stale pointer falls back to a fresh run + rewritten run.json
-  (packages/smither/src/run.ts). (2) E2E re-verified end-to-end: create on
-  instance A (:3210), instance B (:3211, NEXT_DIST_DIR=.next-b) served
-  status/stages mid-run and, at settle, curation, result, fileTree AND the
-  crate tarball download (200, 50 KB) for a run it never executed; cancel
-  route from B returns ok (run had already completed — cancel-mid-run was
-  proven in the Phase 2 pass). (3) Golden image: Vercel Sandbox custom-image
-  docs confirm images are plain OCI from VCR with NO base-OS constraint
-  (only linux/amd64 manifest; ENTRYPOINT/CMD ignored; WORKDIR honored) — the
-  AL2023 assumption was wrong, base swapped to debian:bookworm-slim
-  (dnf→apt) and README push flow corrected to
-  `docker buildx build --platform linux/amd64` + zstd (a plain build on an
-  ARM Mac lands as `Unoptimized` in VCR and Sandbox rejects it; wait for
-  `Ready`, else image_not_ready). Full sweep green after the fix: smither
-  build + 73/73 tests, aomi-build type-check + 229/229 tests + lint.
-
-2026-07-17 — /build ship Phase 3 (review-ready; real provisioning blocked on
-  Vercel/API-key decisions): SandboxRunner. BFF dispatches
-  `aomi-smither run-plan --plan-b64 … --run-id …` into a Vercel Sandbox
-  booted from the golden image (infra/build-runner/{Dockerfile,README.md}:
-  AL2023 + Rust + Bun + Node + claude CLI + pinned aomi-sdk with prebuilt
-  release binaries + built smither package). AOMI_BUILD_RUNNER=vercel-sandbox
-  branch in the engine (composePlan sdkRoot override, pre-allocated run id,
-  settled-app re-create reuses the run id so run-plan resumes from store
-  state); serverless keepalive = lazy extendTimeout from the poll path;
-  cancel = durable store write + best-effort sandbox stop. @vercel/sandbox
-  behind an injectable SandboxClientLike seam (sandbox-runner.ts, 4 tests
-  with a fake client; SDK v2.7 API verified from the published types).
-  run-plan now resumes when the shared store already knows the run id even
-  with no local run.json (fresh-sandbox continuation). Local runner
-  regression E2E green after the refactor (5/5 stages, curation present).
-  Sandbox-mode known gaps (Phase 4): Files panel/download read local fs —
-  empty for sandbox runs; cross-instance sandbox extend/stop and quotas need
-  the build_runs registry decision; sandbox-mode plans always use discover
-  (server can't stat the image's apps/).
-
-2026-07-17 — /build ship Phase 2 (specs/BUILD-SHIP-E2E-PLAN.md): runner seam.
-  packages/smither: `aomi-smither run-plan` headless subcommand (--plan/
-  --plan-b64 JSON, optional pre-allocated --run-id via createRunState/
-  prepareRun runId option) — smoked on Bun (resume replay, exit 0; custom
-  run-id lands in run.json); `requestRunCancel` (durable
-  cancel_requested_at_ms write the engine polls — cancel works from any
-  process); makeWorkAgent takes apiKey, wired from SMITHER_ANTHROPIC_API_KEY so
-  headless runners bill an API key instead of a CLI login. BFF: Runner seam
-  (AOMI_BUILD_RUNNER, LocalRunner today, SandboxRunner = phase 3 slot),
-  cancelBuildRun + POST /api/bff/build/runs/cancel, Esc on the page cancels
-  the real run. Cancel E2E verified against shared Postgres: store status
-  `cancelled`, codegen node cancelled mid-flight. Note: wire status maps
-  cancelled→failed (no distinct wire state yet — P1 polish).
-
-2026-07-16 — /build ship Phase 1 (specs/BUILD-SHIP-E2E-PLAN.md): stateless
-  BFF over the durable store. packages/smither gains readRunView (run status
-  + per-node states from _smithers_runs/_smithers_nodes + outputs) and
-  prepareRun accepts a shared api handle; the BFF snapshot now derives
-  status/stages/curation/result from the store every poll (live reducer is
-  garnish), one store handle per app (PGlite can't double-open), and a
-  registry miss reconstructs an observer handle from the store
-  (reconstructBuildRun — recomposed plan, no filesystem). Pure derivation in
-  server/bff/build/run-view.ts (+6 tests). Acceptance verified: two dev
-  instances over one shared Postgres (PGlite socket stand-in on :15432) —
-  create on A, poll on B mid-run and at settle; B served stages, curation,
-  result, fileTree for a run it never executed. next.config distDir is
-  NEXT_DIST_DIR-overridable for multi-instance local testing.
-  Pending decision: build_runs registry table home (dedicated PG vs backend
-  Supabase) — needed for Phase 2 runner bookkeeping.
-
-2026-07-16 — /build P0 honest artifacts (gap map: specs/BUILD-PAGE-WIRING-GAP.md):
-  engine snapshot now carries the real crate file tree (walk of
-  sdkRoot/apps/<app>, target/ excluded), the curate agent's structured
-  report (loadRunOutputs reads curation/result rows — covers replayed
-  resumes), and per-stage transition times; completion message = curation
-  summary + followUps verbatim; download = crate tarball route
-  (GET /api/bff/build/runs/download) wired to the Ship banner button;
-  mock artifacts swapped to the real Rust crate shape (Cargo.toml,
-  openapi.yaml, src/{lib.rs,client/,tool.rs}, test.json) — flow unchanged.
-  Verified E2E in-browser against the resumed geckoterminal run.
-
-2026-07-16 — /build E2E verified in-browser against a REAL smither run
-  (geckoterminal: binaries → codegen → curate via live Claude agent →
-  validate-loop cargo → result; resume replay lands the page on Ship). Fixes
-  found by the E2E: workflow.tsx ok/green checks must be truthy not `=== true`
-  (booleans round-trip as 0/1 through the store); bun-compat gained a minimal
-  `Bun` global polyfill (sleep/which, no `version` so isBunRuntime stays
-  honest) and a functional node:sqlite-backed bun:sqlite shim (the engine's
-  single-runner opens an in-memory scratch sqlite on every backend); engine
-  maps RunStatus "finished"/"continued" (not "completed"), captures
-  result.error, backfills stage statuses on replayed completed runs, and
-  auto-resumes settled apps on re-POST;
-2026-07-16 — /build wired to real aomi-smither (flagged): smithers-orchestrator
-  0.26.1→0.27.0 (Node ≥22 + pglite/postgres backends via new SmitherBackend
-  seam in packages/smither run.ts/workflow.tsx; SMITHER_DATABASE_URL wins,
-  Bun keeps bun:sqlite, Node falls back to per-app PGlite); aomi-build BFF
-  build engine (src/server/bff/build/engine.ts + routes; POST/GET
-  /api/bff/build/runs, POST /api/bff/build/runs/decision; GitHub session +
-  origin + rate-limit gated; autoApprove default until UI renders approvals);
-  Node loader hooks for Bun-flavored smithers sources (src/instrumentation.ts
-  + src/server/bun-compat.ts; serverExternalPackages in next.config.ts);
-  use-build-session drives the real engine when NEXT_PUBLIC_BUILD_ENGINE=
-  smither (poll → smither-run-mapper.ts, mock pipeline unchanged by default);
+2026-07-16 — Bots page 404 root-caused to product-mono edge routing;
 2026-07-16 — Environment tab: unified Variables list (declared slots + configured, `*` = required);
 2026-07-16 — PR #358 (+): env-aware default chat host (prod → chat.aomi.dev,
   preview/dev → chat-staging.aomi.dev; NEXT_PUBLIC_CHAT_URL still overrides);
@@ -205,6 +36,20 @@
 2026-07-13 — BILLING-EXPERIENCE.md: backend ↔ UI map (code-checked)
 
 2026-07-13 — Fixed required-secrets gate fail-open (P1, external review)
+
+## Bots page `list_user_source_bots failed (404)` fix (2026-07-16)
+
+- Cause was NOT in this repo: the dev edge proxy (product-mono
+  `scripts/dev-edge-proxy.mjs`, which imports `isManagerPath` from
+  `infra/cloudflare/worker/src/index.js`) had no `bots` entry in
+  `MANAGER_ROUTE_PATTERNS`, so `/api/integrations/github-app/user/sources/:id/bots`
+  fell through to the backend (:8080) instead of the manager (:8081) → 404.
+- Fixed in product-mono (branch `feat/builder-owned-github-bots`, commit
+  20c220b41): added
+  `/^\/api\/integrations\/github-app\/user\/sources\/[^/]+\/bots(\/[^/]+)?$/`
+  and restarted the dev proxy. Verified bots/agents/sources all reach the manager.
+- Pending: redeploy the Cloudflare worker before staging/prod use the bots tab,
+  or the same 404 recurs there.
 
 ## Required-secrets gate fail-open fix (2026-07-13)
 
@@ -646,7 +491,6 @@ or handed off, per Cecilia's direction (no direct backend/DB mutation):
   (pre-flight checks + RESTRICT drops, no CASCADE) for review; also fixed the
   last stale `aomi_wallets` comment in
   `apps/shadcn-registry/src/lib/wallet-kit/account/aomi-backend-runtime.ts`.
-
 ## Aomi Build owned operate + pre-prod fixes (2026-07-08)
 
 - Hardened launch/operate-adjacent BFF reads and writes around the signed-in
@@ -2329,6 +2173,9 @@ Controls disabled while isProcessing === true
 
 ## Pending
 
+- Aomi Build SDK-upgrade UX rebuilt (2026-07-16, PR aomi-labs/aomi#366): `use-sdk-upgrade` hook (confirm → open PR → poll-for-merge via the idempotent sdk-upgrade endpoint → merged → redeploy), `upgrade-rail.tsx` (5-step stepper with PLATFORM/YOU/YOU/GITHUB owners, hover hints on every step, build checklist driven by deployFlow), `deployment-detail.tsx` (per-row expansion: source repo / commit / SDK / deployed platform / platform branch / apps / build artifacts — all GitHub-linked; platform-side fields lazy-load from `deploymentHistory`), `hint-bubble.tsx`; `deployments-tab.tsx` wires the CTA swap (Upgrade → Review PR #N), redeploy gating while the PR is open, and the upgrade confirm dialog with don't-ask-again; rail state persists in localStorage per source. 218 tests + typecheck + lint green. Backend path verified against staging (sdk-upgrade for 1586 now returns `current`). Not yet verified against a live signed-in browser session — needs a preview deploy.
+- SDK upgrade 502 masking: FIXED. `SourceRepo::repo_route("")` trailing-slash 404 fixed in product-mono#815 (merged, staging-deployed); the remaining manager 502→500 conversions (OAuth exchange, GitHubAppError::Upstream, ActivationError gateway variants) are in product-mono#826 (open). Cloudflare replaces origin-502 bodies with branded HTML, so handler errors must never use 502/503.
+- Follow-up work spun off (background sessions 2026-07-16): lightweight manager PR-state endpoint to replace the 45s tarball-download merge poll; investigation of stale `app_source` installation bindings (duplicate 141779906/142228159 branches for playground-6).
 - /build engine mode: render approvals/clarifies in the UI (decision route
   exists; runs default to autoApprove until then)
 - Vercel prod shape for the engine: SMITHER_DATABASE_URL (shared Postgres) +
