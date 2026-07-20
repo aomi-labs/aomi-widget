@@ -812,6 +812,40 @@
         ]
       }
     },
+    "/api/resource/skills": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "accountBearer": []
+          }
+        ],
+        "x-aomi-auth": [
+          "account"
+        ]
+      }
+    },
+    "/api/resource/skills/{skill_id}": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "accountBearer": []
+          }
+        ],
+        "x-aomi-auth": [
+          "account"
+        ]
+      }
+    },
     "/api/resource/search/apps": {
       "get": {
         "responses": {

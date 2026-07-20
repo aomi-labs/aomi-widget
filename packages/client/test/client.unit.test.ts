@@ -11,11 +11,15 @@ describe("AomiClient route manifest", () => {
         `${endpoint.method} ${endpoint.path} [${endpoint.auth.join(", ")}]`,
     );
 
-    expect(routeKeys).toHaveLength(105);
+    expect(routeKeys).toHaveLength(107);
     expect(new Set(routeKeys).size).toBe(routeKeys.length);
     expect(routeKeys).toContain("POST /api/exec/run [account, thread]");
     expect(routeKeys).toContain("GET /api/resource/search/apps [account]");
     expect(routeKeys).toContain("GET /api/resource/search/tools [account]");
+    expect(routeKeys).toContain("GET /api/resource/skills [account]");
+    expect(routeKeys).toContain(
+      "GET /api/resource/skills/:skill_id [account]",
+    );
     expect(routeKeys).toContain("GET /api/thread/apps [thread]");
     expect(routeKeys).toContain("GET /api/_internal/secrets [service]");
     expect(routeKeys).toContain("DELETE /api/_internal/secrets [service]");

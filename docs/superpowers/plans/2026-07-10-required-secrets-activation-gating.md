@@ -20,7 +20,7 @@
 - Env-var names are case-sensitive. Do **not** case-fold when matching slot names to configured keys.
 - An app that declares no slots must activate exactly as it does today (no gate, no behaviour change).
 - The `activate` BFF route exists in **three** copies and all three must stay in sync:
-  `apps/aomi-build/src/server/bff/launch/routes.ts`, `apps/portal/src/server/bff/launch/routes.ts`, `packages/deploy/src/bff/launch-routes.ts`.
+  `apps/build/src/server/bff/launch/routes.ts`, `apps/portal/src/server/bff/launch/routes.ts`, `packages/deploy/src/bff/launch-routes.ts`.
 - Commit after every task. Never mark a task done with failing tests.
 
 ---
@@ -41,8 +41,8 @@
 - Create `packages/deploy/src/secrets.ts` — `missingRequiredSecrets` (pure).
 - Create `packages/deploy/src/bff/release-manifest.ts` — fetch + parse the GitHub release asset.
 - Modify the three `launch` route files — 409 backstop.
-- Create `apps/aomi-build/src/app/api/bff/deployments/required-secrets/route.ts` + handler.
-- Modify `apps/aomi-build/.../tabs/environment-tab.tsx`, `deploy-step.tsx`, `deploy-dashboard.tsx` — the gate.
+- Create `apps/build/src/app/api/bff/deployments/required-secrets/route.ts` + handler.
+- Modify `apps/build/.../tabs/environment-tab.tsx`, `deploy-step.tsx`, `deploy-dashboard.tsx` — the gate.
 
 ---
 
@@ -786,7 +786,7 @@ Repeat identically in all three files. The route already resolves `source` via `
 
 **Files:**
 - Modify: `/Users/han/github/aomi-widget/packages/deploy/src/bff/release-manifest.ts` (add the shared helper)
-- Modify: `/Users/han/github/aomi-widget/apps/aomi-build/src/server/bff/launch/routes.ts` (`activateLaunchRoute`)
+- Modify: `/Users/han/github/aomi-widget/apps/build/src/server/bff/launch/routes.ts` (`activateLaunchRoute`)
 - Modify: `/Users/han/github/aomi-widget/apps/portal/src/server/bff/launch/routes.ts` (`activateLaunchRoute`)
 - Modify: `/Users/han/github/aomi-widget/packages/deploy/src/bff/launch-routes.ts` (`activate`)
 - Test: `packages/deploy/test/release-manifest.test.ts`, the matching `routes.test.ts` in each app, and `packages/deploy/test/launch-routes.test.ts`
@@ -804,7 +804,7 @@ Repeat identically in all three files. The route already resolves `source` via `
 
 - [ ] **Step 1: Write the failing test (aomi-build copy)**
 
-Add to `apps/aomi-build/src/server/bff/launch/routes.test.ts`, inside the `activateLaunchRoute` describe block:
+Add to `apps/build/src/server/bff/launch/routes.test.ts`, inside the `activateLaunchRoute` describe block:
 
 ```ts
   it("409s when a required secret is unfilled", async () => {
@@ -1015,7 +1015,7 @@ Expected: all PASS.
 
 ```bash
 cd /Users/han/github/aomi-widget
-git add apps/aomi-build/src/server/bff/launch/routes.ts apps/portal/src/server/bff/launch/routes.ts packages/deploy/src/bff/launch-routes.ts apps/aomi-build/src/server/bff/launch/routes.test.ts apps/portal/src/server/bff/launch/routes.test.ts packages/deploy/test/launch-routes.test.ts
+git add apps/build/src/server/bff/launch/routes.ts apps/portal/src/server/bff/launch/routes.ts packages/deploy/src/bff/launch-routes.ts apps/build/src/server/bff/launch/routes.test.ts apps/portal/src/server/bff/launch/routes.test.ts packages/deploy/test/launch-routes.test.ts
 git commit -m "feat(bff): 409 activate when required secrets are unfilled
 
 Applied to all three copies of the activate route so the portal and the
@@ -1029,11 +1029,11 @@ package BFF inherit the backstop."
 The UI needs the slots + missing set for the project page and wizard.
 
 **Files:**
-- Create: `/Users/han/github/aomi-widget/apps/aomi-build/src/app/api/bff/deployments/required-secrets/route.ts`
-- Modify: `/Users/han/github/aomi-widget/apps/aomi-build/src/server/bff/launch/routes.ts` (add `requiredSecretsRoute`)
-- Modify: `/Users/han/github/aomi-widget/apps/aomi-build/src/lib/api-paths.ts`
-- Modify: `/Users/han/github/aomi-widget/apps/aomi-build/src/features/launch/client.ts`
-- Test: `apps/aomi-build/src/server/bff/launch/routes.test.ts`
+- Create: `/Users/han/github/aomi-widget/apps/build/src/app/api/bff/deployments/required-secrets/route.ts`
+- Modify: `/Users/han/github/aomi-widget/apps/build/src/server/bff/launch/routes.ts` (add `requiredSecretsRoute`)
+- Modify: `/Users/han/github/aomi-widget/apps/build/src/lib/api-paths.ts`
+- Modify: `/Users/han/github/aomi-widget/apps/build/src/features/launch/client.ts`
+- Test: `apps/build/src/server/bff/launch/routes.test.ts`
 
 **Interfaces:**
 - Consumes: `missingSecretsForActivation` internals from Task 6 — reuse `fetchReleaseSecretSlots` + `missingRequiredSecrets`.
@@ -1103,7 +1103,7 @@ Expected: FAIL — `requiredSecretsRoute` is not exported.
 
 - [ ] **Step 3: Write minimal implementation**
 
-Add to `apps/aomi-build/src/server/bff/launch/routes.ts`:
+Add to `apps/build/src/server/bff/launch/routes.ts`:
 
 ```ts
 export async function requiredSecretsRoute(req: Request) {
@@ -1177,7 +1177,7 @@ export async function requiredSecretsRoute(req: Request) {
 }
 ```
 
-Create `apps/aomi-build/src/app/api/bff/deployments/required-secrets/route.ts`:
+Create `apps/build/src/app/api/bff/deployments/required-secrets/route.ts`:
 
 ```ts
 import { requiredSecretsRoute } from "@build/server/bff/launch/routes";
@@ -1185,14 +1185,14 @@ import { requiredSecretsRoute } from "@build/server/bff/launch/routes";
 export const GET = requiredSecretsRoute;
 ```
 
-Add to `apps/aomi-build/src/lib/api-paths.ts` under `bff.deployments`:
+Add to `apps/build/src/lib/api-paths.ts` under `bff.deployments`:
 
 ```ts
       requiredSecrets: (appSourceId: number) =>
         `${BFF}/deployments/required-secrets?appSourceId=${appSourceId}`,
 ```
 
-Add to `apps/aomi-build/src/features/launch/client.ts`:
+Add to `apps/build/src/features/launch/client.ts`:
 
 ```ts
 export type RequiredSecretsResult = {
@@ -1218,7 +1218,7 @@ Expected: PASS.
 
 ```bash
 cd /Users/han/github/aomi-widget
-git add apps/aomi-build/src/app/api/bff/deployments/required-secrets apps/aomi-build/src/server/bff/launch/routes.ts apps/aomi-build/src/lib/api-paths.ts apps/aomi-build/src/features/launch/client.ts apps/aomi-build/src/server/bff/launch/routes.test.ts
+git add apps/build/src/app/api/bff/deployments/required-secrets apps/build/src/server/bff/launch/routes.ts apps/build/src/lib/api-paths.ts apps/build/src/features/launch/client.ts apps/build/src/server/bff/launch/routes.test.ts
 git commit -m "feat(aomi-build): required-secrets BFF route"
 ```
 
@@ -1227,8 +1227,8 @@ git commit -m "feat(aomi-build): required-secrets BFF route"
 ## Task 8: Load required secrets into `useProjectDetail`
 
 **Files:**
-- Modify: `/Users/han/github/aomi-widget/apps/aomi-build/src/features/launch/hooks/use-project-detail.ts`
-- Test: `/Users/han/github/aomi-widget/apps/aomi-build/src/features/launch/hooks/use-project-detail.test.ts`
+- Modify: `/Users/han/github/aomi-widget/apps/build/src/features/launch/hooks/use-project-detail.ts`
+- Test: `/Users/han/github/aomi-widget/apps/build/src/features/launch/hooks/use-project-detail.test.ts`
 
 **Interfaces:**
 - Consumes: `deploymentRequiredSecrets` (Task 7).
@@ -1314,7 +1314,7 @@ Expected: PASS.
 
 ```bash
 cd /Users/han/github/aomi-widget
-git add apps/aomi-build/src/features/launch/hooks/use-project-detail.ts apps/aomi-build/src/features/launch/hooks/use-project-detail.test.ts
+git add apps/build/src/features/launch/hooks/use-project-detail.ts apps/build/src/features/launch/hooks/use-project-detail.test.ts
 git commit -m "feat(aomi-build): expose required-secret state from useProjectDetail"
 ```
 
@@ -1323,7 +1323,7 @@ git commit -m "feat(aomi-build): expose required-secret state from useProjectDet
 ## Task 9: Prefilled required-secret rows in the Environment tab
 
 **Files:**
-- Modify: `/Users/han/github/aomi-widget/apps/aomi-build/src/features/launch/components/deployments/tabs/environment-tab.tsx`
+- Modify: `/Users/han/github/aomi-widget/apps/build/src/features/launch/components/deployments/tabs/environment-tab.tsx`
 - Test: `.../tabs/environment-tab.test.tsx`
 
 **Interfaces:**
@@ -1425,7 +1425,7 @@ Expected: PASS.
 
 ```bash
 cd /Users/han/github/aomi-widget
-git add apps/aomi-build/src/features/launch/components/deployments/tabs/environment-tab.tsx apps/aomi-build/src/features/launch/components/deployments/tabs/environment-tab.test.tsx
+git add apps/build/src/features/launch/components/deployments/tabs/environment-tab.tsx apps/build/src/features/launch/components/deployments/tabs/environment-tab.test.tsx
 git commit -m "feat(aomi-build): prefill required secret slots in the Environment tab"
 ```
 
@@ -1434,8 +1434,8 @@ git commit -m "feat(aomi-build): prefill required secret slots in the Environmen
 ## Task 10: Gate the Activate button in both call sites
 
 **Files:**
-- Modify: `/Users/han/github/aomi-widget/apps/aomi-build/src/features/launch/components/deploy-dashboard.tsx` (`LifecyclePanel`)
-- Modify: `/Users/han/github/aomi-widget/apps/aomi-build/src/features/launch/components/deploy-step.tsx` (`DeployStep`)
+- Modify: `/Users/han/github/aomi-widget/apps/build/src/features/launch/components/deploy-dashboard.tsx` (`LifecyclePanel`)
+- Modify: `/Users/han/github/aomi-widget/apps/build/src/features/launch/components/deploy-step.tsx` (`DeployStep`)
 - Test: `.../deploy-dashboard.test.tsx`, `.../deploy-step.test.tsx`
 
 **Interfaces:**
@@ -1540,7 +1540,7 @@ Expected: all green, 0 lint errors.
 
 ```bash
 cd /Users/han/github/aomi-widget
-git add apps/aomi-build/src/features/launch/components/
+git add apps/build/src/features/launch/components/
 git commit -m "feat(aomi-build): gate Activate on required secrets being filled
 
 Disables Activate in both call sites while any required slot is unfilled and
@@ -1577,9 +1577,9 @@ renders the 409 missing-secret map when the server rejects an activation."
 **Why:** The project console (`ProjectPage` → `DeploymentsTab`) makes an app live via **`promote`** (`deploymentPromoteRoute` → `/api/platforms/:id/deployments/:id/promote`), NOT `activate`. The backend `promote_target` runs the same `prepare_activation_releases` machinery as activate, so promote is equally secret-sensitive — yet Tasks 6/10 only covered `activate`, leaving the primary live path with no 409 and no UI gate. Additionally the wizard's `DeployStep` gate is inert because `oneshot-wizard.tsx` never passes it a `detail`. This task closes all three.
 
 **Files:**
-- Modify (409 backstop, all three copies): `apps/aomi-build/src/server/bff/launch/routes.ts`, `apps/portal/src/server/bff/launch/routes.ts`, `packages/deploy/src/bff/launch-routes.ts` — the promote handler.
-- Modify (UI gate): `apps/aomi-build/src/features/launch/components/deployments/tabs/deployments-tab.tsx`
-- Modify (wizard wiring): `apps/aomi-build/src/features/launch/components/oneshot-wizard.tsx`
+- Modify (409 backstop, all three copies): `apps/build/src/server/bff/launch/routes.ts`, `apps/portal/src/server/bff/launch/routes.ts`, `packages/deploy/src/bff/launch-routes.ts` — the promote handler.
+- Modify (UI gate): `apps/build/src/features/launch/components/deployments/tabs/deployments-tab.tsx`
+- Modify (wizard wiring): `apps/build/src/features/launch/components/oneshot-wizard.tsx`
 - Test: the three `routes.test.ts` / `launch-routes.test.ts`, and `deployments-tab.test.tsx`
 
 **Interfaces:**
@@ -1591,7 +1591,7 @@ renders the 409 missing-secret map when the server rejects an activation."
 
 - [ ] **Step 1: Write the failing test (aomi-build copy)**
 
-Add to `apps/aomi-build/src/server/bff/launch/routes.test.ts`, `deploymentPromoteRoute` block, following the existing global-`fetch`-stub pattern used by the Task 6 activate tests:
+Add to `apps/build/src/server/bff/launch/routes.test.ts`, `deploymentPromoteRoute` block, following the existing global-`fetch`-stub pattern used by the Task 6 activate tests:
 
 ```ts
 it("409s a promote when a required secret is unfilled", async () => {
@@ -1718,7 +1718,7 @@ All green, 0 lint errors.
 - [ ] **Step 10: Commit**
 
 ```bash
-git add apps/aomi-build/src/server/bff/launch/routes.ts apps/portal/src/server/bff/launch/routes.ts packages/deploy/src/bff/launch-routes.ts apps/aomi-build/src/features/launch/components/deployments/tabs/deployments-tab.tsx apps/aomi-build/src/features/launch/components/oneshot-wizard.tsx apps/aomi-build/src/server/bff/launch/routes.test.ts apps/portal/src/server/bff/launch/routes.test.ts packages/deploy/test/launch-routes.test.ts apps/aomi-build/src/features/launch/components/deployments/tabs/deployments-tab.test.tsx
+git add apps/build/src/server/bff/launch/routes.ts apps/portal/src/server/bff/launch/routes.ts packages/deploy/src/bff/launch-routes.ts apps/build/src/features/launch/components/deployments/tabs/deployments-tab.tsx apps/build/src/features/launch/components/oneshot-wizard.tsx apps/build/src/server/bff/launch/routes.test.ts apps/portal/src/server/bff/launch/routes.test.ts packages/deploy/test/launch-routes.test.ts apps/build/src/features/launch/components/deployments/tabs/deployments-tab.test.tsx
 git commit -m "feat(aomi-build): gate promote on required secrets (the live console path)"
 ```
 
