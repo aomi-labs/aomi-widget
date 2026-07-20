@@ -38,6 +38,18 @@ const evmChainsMulti = [
   },
 ] as const;
 
+const evmChainsWithRobinhood = [
+  ...evmChains,
+  {
+    id: 4663,
+    name: "Robinhood Chain",
+    nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+    rpcUrls: {
+      default: { http: ["https://rpc.mainnet.chain.robinhood.com"] },
+    },
+  },
+] as const;
+
 const evmChainsWithTestnet = [
   ...evmChains,
   {
@@ -158,6 +170,38 @@ function Harness({
 }
 
 describe("NetworkSelect", () => {
+  it("selects Robinhood Chain through the EVM wallet runtime", async () => {
+    const selectNetwork = vi.fn();
+    render(
+      <ExtUserProvider>
+        <AomiWalletNetworkPreferencesProvider
+          evmChains={evmChainsWithRobinhood}
+          solanaNetworks={[]}
+        >
+          <Harness
+            adapter={createHarnessAdapter({
+              connected: true,
+              address: "0xda6f0000000000000000000000000000000000f0",
+              evmChains: evmChainsWithRobinhood,
+              solanaNetworks: [],
+              onSelectNetwork: selectNetwork,
+            })}
+          />
+        </AomiWalletNetworkPreferencesProvider>
+      </ExtUserProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("combobox"));
+    fireEvent.click(screen.getByRole("option", { name: /Robinhood Chain/i }));
+
+    await waitFor(() => {
+      expect(selectNetwork).toHaveBeenCalledWith({
+        family: "evm",
+        chainId: 4663,
+      });
+    });
+  });
+
   it("selects a Solana network from the unified list when both families are connected", async () => {
     const selectNetwork = vi.fn();
     render(

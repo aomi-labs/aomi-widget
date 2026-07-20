@@ -24,6 +24,8 @@ tables; fresh databases also finish replay with that drop.
 
 Progress:
 
+- 2026-07-20 Robinhood Chain support: added chain `4663` to the client and wallet-kit defaults, including Alchemy metadata, network selection coverage, a monochrome chain icon, generated registries, and explicit portal/landing/docs network lists. Patch-bumped `@aomi-labs/client` to `0.3.2` and `@aomi-labs/widget-lib` to `1.4.3`; focused tests, root/portal/landing typechecks, client and registry builds, lint, formatting, and the read-only client `chain list` CLI passed.
+
 - 2026-07-19 Operate observability detail: replaced the #374 fixture route
   contract with owned source/application IDs and a live manager aggregate
   relayed through `@aomi-labs/deploy` and the Build BFF. Real detail, health,

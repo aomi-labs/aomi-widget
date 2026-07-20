@@ -9,6 +9,7 @@ import {
   isFullTestnet,
   monad,
   monadTestnet,
+  robinhood,
 } from "@aomi-labs/widget-lib";
 import {
   arbitrum,
@@ -63,6 +64,7 @@ const defaultNetworks = [
   lineaSepolia,
   monad,
   monadTestnet,
+  robinhood,
 ] as const;
 
 const networks = (

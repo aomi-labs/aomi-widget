@@ -106,7 +106,7 @@ import {
   lineaSepolia,
   foundry
 } from "viem/chains";
-var monad, monadTestnet, SUPPORTED_CHAINS, SUPPORTED_CHAIN_IDS, CHAIN_NAMES, ALCHEMY_CHAIN_SLUGS, CHAINS_BY_ID;
+var monad, monadTestnet, robinhood, SUPPORTED_CHAINS, SUPPORTED_CHAIN_IDS, CHAIN_NAMES, ALCHEMY_CHAIN_SLUGS, CHAINS_BY_ID;
 var init_chains = __esm({
   "src/chains.ts"() {
     "use strict";
@@ -151,6 +151,26 @@ var init_chains = __esm({
       },
       testnet: true
     });
+    robinhood = defineChain({
+      id: 4663,
+      name: "Robinhood Chain",
+      nativeCurrency: {
+        name: "Ether",
+        symbol: "ETH",
+        decimals: 18
+      },
+      rpcUrls: {
+        default: {
+          http: ["https://rpc.mainnet.chain.robinhood.com"]
+        }
+      },
+      blockExplorers: {
+        default: {
+          name: "Robinhood Chain Explorer",
+          url: "https://robinhoodchain.blockscout.com"
+        }
+      }
+    });
     SUPPORTED_CHAINS = [
       { id: 1, name: "Ethereum", ticker: "ETH" },
       { id: 137, name: "Polygon", ticker: "MATIC" },
@@ -163,6 +183,7 @@ var init_chains = __esm({
       { id: 59141, name: "Linea Sepolia Testnet", ticker: "LINEA" },
       { id: 143, name: "Monad", ticker: "MON" },
       { id: 10143, name: "Monad Testnet", ticker: "MON" },
+      { id: 4663, name: "Robinhood Chain", ticker: "ETH" },
       { id: 31337, name: "Anvil (local)", ticker: "ETH" }
     ];
     SUPPORTED_CHAIN_IDS = SUPPORTED_CHAINS.map((chain) => chain.id);
@@ -178,7 +199,8 @@ var init_chains = __esm({
       10: "opt-mainnet",
       11155111: "eth-sepolia",
       59144: "linea-mainnet",
-      59141: "linea-sepolia"
+      59141: "linea-sepolia",
+      4663: "robinhood-mainnet"
     };
     CHAINS_BY_ID = {
       1: mainnet,
@@ -192,6 +214,7 @@ var init_chains = __esm({
       59141: lineaSepolia,
       143: monad,
       10143: monadTestnet,
+      4663: robinhood,
       31337: foundry
     };
   }
@@ -10945,7 +10968,7 @@ init_shared();
 // package.json
 var package_default = {
   name: "@aomi-labs/client",
-  version: "0.3.1",
+  version: "0.3.2",
   description: "Platform-agnostic TypeScript client for the Aomi backend API",
   type: "module",
   main: "./dist/index.cjs",
