@@ -238,6 +238,66 @@ function openAddWallets() {
 }
 
 describe("WalletPicker", () => {
+  it("quietly handles a rejected or unfinished wallet connection", async () => {
+    const connectEvmWallet = vi.fn(async () => {
+      throw Object.assign(
+        new Error(
+          "User rejected the request. Details: Connection request reset. Please try again.",
+        ),
+        { code: 4001 },
+      );
+    });
+    renderPicker(
+      makeAdapter({
+        identity: {
+          status: "disconnected",
+          isConnected: false,
+          walletProvider: "para",
+        },
+        accounts: [],
+        connectEvmWallet,
+      }),
+    );
+
+    const walletConnect = screen.getByRole("button", {
+      name: "Connect WalletConnect",
+    });
+    fireEvent.click(walletConnect);
+
+    await waitFor(() => expect(connectEvmWallet).toHaveBeenCalledOnce());
+    await waitFor(() =>
+      expect(walletConnect.hasAttribute("disabled")).toBe(false),
+    );
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("still surfaces actionable wallet connection failures", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const connectEvmWallet = vi.fn(async () => {
+      throw new Error("Wallet relay unavailable");
+    });
+    renderPicker(
+      makeAdapter({
+        identity: {
+          status: "disconnected",
+          isConnected: false,
+          walletProvider: "para",
+        },
+        accounts: [],
+        connectEvmWallet,
+      }),
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Connect WalletConnect" }),
+    );
+
+    expect((await screen.findByRole("alert")).textContent).toContain(
+      "Wallet relay unavailable",
+    );
+    expect(warn).toHaveBeenCalledOnce();
+  });
+
   it("renders connected accounts with family tags and a collapsible add-wallet list", () => {
     renderPicker(makeAdapter());
     expect(screen.getByText("Manage wallets")).toBeTruthy();

@@ -44,6 +44,13 @@ Progress:
   Verified focused theme tests, Aomi Build lint/typecheck/production build,
   and live `/build` rendering plus reload persistence in both themes.
 
+- 2026-07-20 wallet connection cancellation polish: the shared wallet picker
+  now treats explicit provider rejection, WalletConnect reset/expiry, and
+  EIP-1193 code 4001 as normal dismissal paths instead of rendering a red error
+  banner. Genuine provider and relay failures remain visible. Added regression
+  coverage, patch-bumped `@aomi-labs/widget-lib` to 1.4.7, and regenerated the
+  registry artifacts.
+
 - 2026-07-17 Solana full-balance swap and holdings polish: taught the Jupiter
   fast path to accept `amount: "all"` for SPL inputs so the backend resolves the
   connected wallet balance and transparently falls back from flaky mint-filter
