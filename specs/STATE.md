@@ -2,6 +2,327 @@
 
 ## Last Updated
 
+2026-07-20 — LIVE SANDBOX VERIFICATION GREEN (branch claude/build-fe-artifacts
+  pushed as c0449506; image build-runner:live-1 in VCR under the aomi-build
+  Vercel project, e2e-test untouched; AOMI_REF=c0449506,
+  AOMI_SDK_REF=b3c0c8b). Full chain proven on real infra with app "dune":
+  dispatch → registry row (run id, vercel-sandbox, sandbox name, sidecar
+  url) → sidecar /healthz ok + 403 on missing/bogus bearers → BFF file
+  route served dune/Cargo.toml FROM THE LIVE VM via a per-request
+  portalService() EdDSA bearer → supervise tick "extend" visibly bumped
+  the VM timeout 5→14 min → all five stages completed in ~6.5 min with
+  Kimi curate inside the VM (only SMITHER_OPENROUTER_API_KEY present, so
+  OpenRouter billing is conclusively the path) → supervise "release-
+  completed", registry completed, sandbox stopped → file route fell back
+  to the store tarball after VM death → download served the real 5.4 KB
+  crate tar.gz (Cargo.toml, src/lib.rs, src/tool.rs, test.json).
+  BUG FOUND+FIXED during verification (UNCOMMITTED, needs follow-up
+  commit): @vercel/sandbox identifies sandboxes by `name` — the Sandbox
+  class has NO sandboxId/id getter and Sandbox.get takes {name} — so
+  dispatch stored undefined (NOT NULL violation in the registry, one
+  orphan VM, stopped) and the supervisor/cancel by-id path could never
+  have worked. Fix: adaptSdkSandbox maps name→SandboxLike.sandboxId;
+  Sandbox.get({name, resume:false}) so managing a dead VM never
+  resurrects it; registry INSERT coerces NOT NULL columns. Two orphan
+  runs in the store from the broken first dispatch (smither-dune-a839ce90,
+  status running, dead heartbeat, no registry row — invisible to the
+  supervisor, harmless cruft). Live rig: worktree
+  .claude/worktrees/build-live-verify (detached at c0449506) on :3220 via
+  scratchpad run-build-dev.sh (launch.json entry aomi-build-live-sandbox);
+  staging topology + portal .env.local signing key so sidecar bearers
+  verify.
+
+2026-07-20 — /build multi-user + lifecycle fixes (branch
+  claude/build-fe-artifacts, staged, uncommitted). Four design fixes from
+  the FE-gap discussion, all live-verified against the Supabase store:
+  (1) sessions persist runId/app — reloads reattach to live runs and
+  Download survives; localStorage v2. (2) aomi_build_runs registry keyed
+  (owner_login, app) in the run store (registry.ts; created idempotently
+  via new smither storeQuery raw-SQL seam): Alice/arb-bot ≠ Bob/arb-bot,
+  BFF restarts look runs up instead of minting ids (resilience finding #2
+  fixed), plan_json persisted so observers/sandbox runs stop recomposing
+  plans; owner = GitHub login ("dev" when AOMI_BUILD_ALLOW_ANON).
+  (3) system-owned sandbox lifetime: supervisor.ts joins registry rows to
+  the engine heartbeat in _smithers_runs — extends live work, reaps
+  silent-death VMs after 2min grace (the 18:06/$4 zombie class, finding
+  #1) and stale-heartbeat runs (finding #3), releases on settle; ticks via
+  GET /api/bff/build/supervise (BUILD_RUN_CHECKER_CRON_SECRET-guarded — cron wiring
+  is Phase-4) + in-process interval on long-lived servers; cancel now
+  flips the registry + stops the sandbox by id even after restarts.
+  (4) live files: infra/build-runner/sidecar.ts (Bun, bearer-auth,
+  path-jailed /tree + /file on exposed port 8722) baked into the image;
+  dispatch launches it; BFF GET /api/bff/build/runs/file serves file
+  contents from local disk → live sidecar → store tarball (minimal ustar
+  reader tar.ts — file contents readable even after the sandbox dies);
+  Files panel is now a click-to-view source browser (dialog in
+  build-view). NOTE: WebSocket ruled out (Vercel Functions can't host WS;
+  SSE relay is the later polish); sidecar needs the next image rebuild to
+  exist in VMs. 83 smither + 286 app tests green; typecheck/lint clean.
+  Live-verified: registry row (dev|geckoterminal|completed|local),
+  resume-not-remint, file route serving real lib.rs, supervise route
+  responding.
+
+  Addendum (Cecilia review): sidecar auth now rides the OFFICIAL
+  service-bearer path instead of a homegrown random-UUID token. The BFF
+  mints a fresh 5-min EdDSA JWT per proxied request via portalService()
+  (PORTAL_SERVICE_PRIVATE_KEY + committed topology; new module
+  apps/aomi-build/src/server/bff/build/sidecar-auth.ts), audience
+  "aomi-sidecar" (added to aomi-bff's audiences in packages/account
+  topology-data.ts and the three aomi-build service.portal*.toml — a
+  leaked bearer is useless at the backend), subject = run id. The sidecar
+  verifies the JWT with WebCrypto Ed25519 against aomi-bff's committed
+  PUBLIC key (AOMI_SIDECAR_PUBKEY env — no secret in the VM), pins
+  iss/aud/sub/exp, fails closed. sidecar_token is gone from the registry
+  (no stored secret anywhere; the Supabase column's DEFAULT '' absorbs
+  omitted inserts). Round-trip + tamper tests in sidecar-auth.test.ts;
+  live-verified: real PORTAL_SERVICE_PRIVATE_KEY (portal .env.local,
+  staging topology) → portalService().mint → sidecar verifyBearer OK,
+  wrong run id rejected. NOTE: apps/portal's service.portal*.toml were
+  NOT touched (portal never mints the sidecar audience) — flag if
+  topology views should stay byte-identical.
+
+2026-07-19 (night, 2nd session) — /build agent billing: OpenRouter is now the
+  DEFAULT, Anthropic the env-only backup (uncommitted, stacked on the
+  build-fe-artifacts working tree). Motivation: first-party Anthropic is too
+  expensive for builder runs. `resolveAgentBilling` (packages/smither/src/
+  agents.ts): SMITHER_OPENROUTER_API_KEY > SMITHER_ANTHROPIC_API_KEY > local
+  CLI login; not user-selectable, pure deployment config. OpenRouter path
+  drives the same claude CLI via OpenRouter's Anthropic-compatible endpoint
+  (https://openrouter.ai/api): ANTHROPIC_BASE_URL + ANTHROPIC_AUTH_TOKEN +
+  ANTHROPIC_API_KEY pinned "" (never fall back to first-party auth) +
+  ANTHROPIC_MODEL/ANTHROPIC_SMALL_FAST_MODEL both set. Default model
+  moonshotai/kimi-k2.7-code ($0.72/$3.50 per M) — deliberately NOT kimi-k3
+  (July 16 release, but Sonnet-priced $3/$15, defeats the point); override
+  via SMITHER_OPENROUTER_MODEL. dispatchSandboxRun passes both new vars into
+  the microVM; BFF local runner + run-plan CLI already forward process.env.
+  Caveat (OpenRouter's own docs): claude CLI is only *guaranteed* against the
+  Anthropic first-party provider — third-party-model tool-calling fidelity is
+  the risk, and regressions surface as validate-loop maxIterations failures.
+  Cloud verification of a Kimi-billed run still pending (needs the env set on
+  a dispatch). Phase-4 decisions recorded from Cecilia: 5 build chats/apps per
+  user; build tokens NEVER hit the cost dashboard (chat+project only); quotas
+  + sessions live in the separate aomi-build-smither Supabase DB; GitHub login
+  required + invite allowlist; image-SDK sync via GitHub Action (design in
+  convo: images tagged build-runner:sdk-<ver>, repository_dispatch from
+  aomi-sdk release, green-canary gate before activation). SECURITY: an
+  OpenRouter key was pasted into chat — must be rotated before any env setup
+  uses it. Verified: smither build + 83/83, aomi-build type-check + 284/284,
+  lint clean (3 pre-existing warnings).
+
+2026-07-19 (night) — /build FE gap: store-served crate artifacts, hosted
+  store provisioned (branch claude/build-fe-artifacts, uncommitted).
+  Supabase project "aomi-build-smither" (ref ijhknhtjabljnqwmimrv,
+  us-east-1, org aomi) is the hosted smithers store; engine bootstrapped
+  all 25 _smithers_* tables + synced new columns on first connect; URL in
+  apps/aomi-build/.env.smither.local (gitignored; session pooler :5432 —
+  NOT the :6543 transaction pooler). New artifact pipeline: the result
+  phase packages the crate (packages/smither/src/artifacts.ts — file-tree
+  JSON + base64 tar.gz ≤2.5MB, warning on skip; executeRun raises
+  maxOutputBytes to 4MB) into the durable result row; BFF serves Files
+  and Download from the store when the crate isn't on local disk
+  (run-view artifactFromOutputs, engine storedCrateTarball, download
+  route fallback) — sandbox runs get real artifacts. Also: builder
+  passthrough on POST /runs (claude|codex|none; "none" = deterministic
+  pipeline, no LLM), mapper trusts run-level status over stale failed
+  stage rows (cross-attempt resumes), localStorage sessions bumped to v2
+  (v1 TS-mock fiction purged on load). Verified E2E on Supabase:
+  builder:none run green (binaries/codegen/validate/result), artifact row
+  669B tree + 67KB tar, then a fresh observer instance with an EMPTY SDK
+  root served the tree + a decodable 50KB tarball purely from the store —
+  the deployed-Vercel shape. Quota lesson re-confirmed: local claude CLI
+  keychain subscription outranks SMITHER_ANTHROPIC_API_KEY (a geckoterminal
+  run sits waiting-quota in the store; resumable). Cloud sandbox proof of
+  the artifact path needs an image rebuild from a pushed sha — Cecilia's
+  go. 77 smither + 284 app tests green; typecheck/lint clean.
+
+2026-07-19 (evening) — /build sandbox-mode: FULLY GREEN CLOUD RUN.
+  `smither-defillama-ea2a9cba…` completed all five stages in a real Vercel
+  Sandbox booted from the rust-1.92 image: binaries ✓ codegen (kept
+  existing sources) ✓ curate (real analysis: caught a dangling
+  `defillama_get_yield_pool_history` tool reference) ✓ validate ✓ result ✓
+  — run status `completed`, curation + result served by the BFF from the
+  shared store. Phase 1–3 acceptance fully demonstrated on real infra.
+  (Empty fileTree / 409 download for sandbox runs remain the known Phase-4
+  gap.) Two more operational facts confirmed on the way: a stale
+  VERCEL_OIDC_TOKEN (12 h life) makes Sandbox.create succeed but the VM
+  die silently before its first store write — refresh with `vercel env
+  pull` before dispatching; and the lazy keepalive is real — a run watched
+  only via direct store reads (bypassing the BFF poll path) lets its
+  sandbox lapse at the 5-minute create ceiling mid-stage, exactly the
+  documented abandoned-run behavior. Test rig torn down (BFF :3210, ngrok
+  tunnel, throwaway Postgres :5455).
+
+
+2026-07-19 — /build ship: FIRST real Vercel sandbox-mode dispatch, chain
+  verified end-to-end on actual Vercel infra (PR #370 carries it all).
+  Golden image (debian:bookworm-slim, linux/amd64+zstd) pushed to VCR
+  (`build-runner:e2e-test`, ~1 GB, Ready) → `Sandbox.create({image})` boots a
+  real microVM → `run-plan` on Bun → binaries ✓ codegen ✓ claude curate
+  agent ✓ validate ✓, run state flowing to Postgres with the BFF observing.
+  Fix chain to get there (each its own commit): deterministic run-plan
+  sanity probe; VCR's 500 MB compressed-layer cap (slimmed cargo layer;
+  filtered `pnpm install --filter "@aomi-labs/smither..."`; CI=true prod
+  re-install; explicit pnpm-store rm — `$(pnpm store path)` expanded empty
+  and silently shipped 1.5 GB); Node from official tarball (nodesource
+  stopped shipping npm); codegenStep re-derives plan source at execution
+  time (sandbox plans compose as "discover", so committed apps hit remote
+  gen-specs and failed); IS_SANDBOX=1 in dispatch env (claude CLI refuses
+  skip-permissions as root). Final run settled "failed: validate-loop
+  reached maxIterations 3" — forensics show the IMAGE was the defect, not
+  the crate: minimal rustup profile lacked rustfmt (round 0) and clippy
+  (round 1), and rustc 1.88 < aomi-sdk's rust-version 1.91 (round 2); the
+  repair agent spent all rounds fixing the toolchain by hand. Dockerfile
+  now: rust 1.92.0 + rustfmt/clippy components (rebuild + green-run rerun
+  pending). Resilience findings REPORTED, not yet fixed (Cecilia to route:
+  this PR vs follow-ups): (1) engine pg client never reconnects after a
+  connection blip (ngrok hiccup bricked BFF reads until restart, twice);
+  (2) sandbox run-id reuse is process-local registry — BFF restart mints
+  new run ids instead of resuming (same disease as the fixed run.json bug;
+  store should be the lookup); (3) cancel of a dead-sandbox run wedges the
+  app on that instance (stopSandbox kills the engine before it settles the
+  store status). Session housekeeping: 41 MB of .smithers run state is
+  committed on MAIN (separate cleanup task spun off; image just rm's it);
+  vercel CLI 54→56.3.2 (for `vercel vcr login docker`); headless agent
+  billing = SMITHER_ANTHROPIC_API_KEY (renamed from AOMI_BUILDER_API_KEY)
+  so sandbox runs never share the interactive Claude subscription quota.
+
+
+2026-07-17 (night) — smithers-orchestrator 0.27.0 → 0.28.0 upgrade (in tree,
+  unverified tail): packages/smither now `^0.28.0` + effect pinned 3.21.4;
+  bun-compat drops the `Bun.which: () => null` polyfill (0.28's resolveBinary
+  trusts a function-typed `which` with no PATH fallback — the stub broke
+  git/claude resolution; `Bun.sleep` kept as cheap insurance); raw-TS loader
+  hooks STILL required on 0.28.0 (plain-JS packaging lands only in releases
+  after it). Verified: smither build + 73/73, aomi-build type-check + 229/229
+  + lint, and on the two-instance Postgres E2E the compute stages
+  (binaries/codegen) complete under Node with cross-instance observation
+  intact. Found+fixed a 0.28 delta: engine settles quota-hit runs as new
+  status `waiting-quota` (retries preserved, later create resumes) — wire
+  mapping moved it running→failed (run-view.ts) so pages don't show an
+  eternal spinner; in-memory engine.ts mapping already agreed. PARKED_STATUSES
+  comment notes 0.28's `paused` (we never pass pauseSignal).
+  Preserved-retry resume CONFIRMED after the quota window reset (~01:21am):
+  re-creating the same app minted no new run id, resumed straight into
+  `curate` (not a redo of binaries/codegen), and made a genuine retry
+  attempt — smithers 0.28's "retries are preserved" holds. That attempt
+  immediately hit a *fresh* 5-hour quota wall (resets ~2026-07-18 06:20
+  local), because this session's own research work billed against the same
+  Claude subscription the curate agent uses — not a code issue.
+  REMAINING to verify: an agent step actually completing (either wait out
+  the new window, or set SMITHER_ANTHROPIC_API_KEY so headless runs bill an API
+  key instead of sharing the interactive subscription quota — recommended
+  before the next verification pass), the Bun TUI/console surfaces, and a
+  golden-image rebuild + sandbox-mode dispatch on 0.28.
+  Upgrade audit report (API-surface diff, per-step risk):
+  scratchpad smither-on-vercel-report.md + subagent findings; fallback = pin
+  back to 0.27.0, store schema read-compatible both ways.
+
+
+2026-07-17 (evening) — /build ship verification pass over the uncommitted
+  Phase 1–3 work + golden-image base swap. (1) Fixed a statelessness bug the
+  cross-instance E2E caught on a REAL fresh Postgres (14 on :5455, not the
+  PGlite socket stand-in): prepareRun trusted the local run.json pointer and
+  resumed a run id the shared store never had → smithers RUN_NOT_FOUND crash;
+  prepareRun now checks the store (storeHasRun via SmithersDb.getRun) and a
+  stale pointer falls back to a fresh run + rewritten run.json
+  (packages/smither/src/run.ts). (2) E2E re-verified end-to-end: create on
+  instance A (:3210), instance B (:3211, NEXT_DIST_DIR=.next-b) served
+  status/stages mid-run and, at settle, curation, result, fileTree AND the
+  crate tarball download (200, 50 KB) for a run it never executed; cancel
+  route from B returns ok (run had already completed — cancel-mid-run was
+  proven in the Phase 2 pass). (3) Golden image: Vercel Sandbox custom-image
+  docs confirm images are plain OCI from VCR with NO base-OS constraint
+  (only linux/amd64 manifest; ENTRYPOINT/CMD ignored; WORKDIR honored) — the
+  AL2023 assumption was wrong, base swapped to debian:bookworm-slim
+  (dnf→apt) and README push flow corrected to
+  `docker buildx build --platform linux/amd64` + zstd (a plain build on an
+  ARM Mac lands as `Unoptimized` in VCR and Sandbox rejects it; wait for
+  `Ready`, else image_not_ready). Full sweep green after the fix: smither
+  build + 73/73 tests, aomi-build type-check + 229/229 tests + lint.
+
+2026-07-17 — /build ship Phase 3 (review-ready; real provisioning blocked on
+  Vercel/API-key decisions): SandboxRunner. BFF dispatches
+  `aomi-smither run-plan --plan-b64 … --run-id …` into a Vercel Sandbox
+  booted from the golden image (infra/build-runner/{Dockerfile,README.md}:
+  AL2023 + Rust + Bun + Node + claude CLI + pinned aomi-sdk with prebuilt
+  release binaries + built smither package). AOMI_BUILD_RUNNER=vercel-sandbox
+  branch in the engine (composePlan sdkRoot override, pre-allocated run id,
+  settled-app re-create reuses the run id so run-plan resumes from store
+  state); serverless keepalive = lazy extendTimeout from the poll path;
+  cancel = durable store write + best-effort sandbox stop. @vercel/sandbox
+  behind an injectable SandboxClientLike seam (sandbox-runner.ts, 4 tests
+  with a fake client; SDK v2.7 API verified from the published types).
+  run-plan now resumes when the shared store already knows the run id even
+  with no local run.json (fresh-sandbox continuation). Local runner
+  regression E2E green after the refactor (5/5 stages, curation present).
+  Sandbox-mode known gaps (Phase 4): Files panel/download read local fs —
+  empty for sandbox runs; cross-instance sandbox extend/stop and quotas need
+  the build_runs registry decision; sandbox-mode plans always use discover
+  (server can't stat the image's apps/).
+
+2026-07-17 — /build ship Phase 2 (specs/BUILD-SHIP-E2E-PLAN.md): runner seam.
+  packages/smither: `aomi-smither run-plan` headless subcommand (--plan/
+  --plan-b64 JSON, optional pre-allocated --run-id via createRunState/
+  prepareRun runId option) — smoked on Bun (resume replay, exit 0; custom
+  run-id lands in run.json); `requestRunCancel` (durable
+  cancel_requested_at_ms write the engine polls — cancel works from any
+  process); makeWorkAgent takes apiKey, wired from SMITHER_ANTHROPIC_API_KEY so
+  headless runners bill an API key instead of a CLI login. BFF: Runner seam
+  (AOMI_BUILD_RUNNER, LocalRunner today, SandboxRunner = phase 3 slot),
+  cancelBuildRun + POST /api/bff/build/runs/cancel, Esc on the page cancels
+  the real run. Cancel E2E verified against shared Postgres: store status
+  `cancelled`, codegen node cancelled mid-flight. Note: wire status maps
+  cancelled→failed (no distinct wire state yet — P1 polish).
+
+2026-07-16 — /build ship Phase 1 (specs/BUILD-SHIP-E2E-PLAN.md): stateless
+  BFF over the durable store. packages/smither gains readRunView (run status
+  + per-node states from _smithers_runs/_smithers_nodes + outputs) and
+  prepareRun accepts a shared api handle; the BFF snapshot now derives
+  status/stages/curation/result from the store every poll (live reducer is
+  garnish), one store handle per app (PGlite can't double-open), and a
+  registry miss reconstructs an observer handle from the store
+  (reconstructBuildRun — recomposed plan, no filesystem). Pure derivation in
+  server/bff/build/run-view.ts (+6 tests). Acceptance verified: two dev
+  instances over one shared Postgres (PGlite socket stand-in on :15432) —
+  create on A, poll on B mid-run and at settle; B served stages, curation,
+  result, fileTree for a run it never executed. next.config distDir is
+  NEXT_DIST_DIR-overridable for multi-instance local testing.
+  Pending decision: build_runs registry table home (dedicated PG vs backend
+  Supabase) — needed for Phase 2 runner bookkeeping.
+
+2026-07-16 — /build P0 honest artifacts (gap map: specs/BUILD-PAGE-WIRING-GAP.md):
+  engine snapshot now carries the real crate file tree (walk of
+  sdkRoot/apps/<app>, target/ excluded), the curate agent's structured
+  report (loadRunOutputs reads curation/result rows — covers replayed
+  resumes), and per-stage transition times; completion message = curation
+  summary + followUps verbatim; download = crate tarball route
+  (GET /api/bff/build/runs/download) wired to the Ship banner button;
+  mock artifacts swapped to the real Rust crate shape (Cargo.toml,
+  openapi.yaml, src/{lib.rs,client/,tool.rs}, test.json) — flow unchanged.
+  Verified E2E in-browser against the resumed geckoterminal run.
+
+2026-07-16 — /build E2E verified in-browser against a REAL smither run
+  (geckoterminal: binaries → codegen → curate via live Claude agent →
+  validate-loop cargo → result; resume replay lands the page on Ship). Fixes
+  found by the E2E: workflow.tsx ok/green checks must be truthy not `=== true`
+  (booleans round-trip as 0/1 through the store); bun-compat gained a minimal
+  `Bun` global polyfill (sleep/which, no `version` so isBunRuntime stays
+  honest) and a functional node:sqlite-backed bun:sqlite shim (the engine's
+  single-runner opens an in-memory scratch sqlite on every backend); engine
+  maps RunStatus "finished"/"continued" (not "completed"), captures
+  result.error, backfills stage statuses on replayed completed runs, and
+  auto-resumes settled apps on re-POST;
+2026-07-16 — /build wired to real aomi-smither (flagged): smithers-orchestrator
+  0.26.1→0.27.0 (Node ≥22 + pglite/postgres backends via new SmitherBackend
+  seam in packages/smither run.ts/workflow.tsx; SMITHER_DATABASE_URL wins,
+  Bun keeps bun:sqlite, Node falls back to per-app PGlite); aomi-build BFF
+  build engine (src/server/bff/build/engine.ts + routes; POST/GET
+  /api/bff/build/runs, POST /api/bff/build/runs/decision; GitHub session +
+  origin + rate-limit gated; autoApprove default until UI renders approvals);
+  Node loader hooks for Bun-flavored smithers sources (src/instrumentation.ts
+  + src/server/bun-compat.ts; serverExternalPackages in next.config.ts);
+  use-build-session drives the real engine when NEXT_PUBLIC_BUILD_ENGINE=
+  smither (poll → smither-run-mapper.ts, mock pipeline unchanged by default);
 2026-07-19 — Operate: BE statement vocabulary + example-data fallback (designs
   visible pre-BE; fixtures moved to features/operate/fixtures);
 2026-07-16 — Bots page 404 root-caused to product-mono edge routing;
@@ -2201,12 +2522,30 @@ Controls disabled while isProcessing === true
 
 ## Pending
 
+- /build admin visibility page: an admin-only surface into the sandbox +
+  whole build system — live/settled runs across all users (from the
+  aomi-build-smither store + build_sessions), per-run sandbox id/status/
+  extend history, stage timeline + validate-loop iterations, agent billing
+  path + model + token spend per run, quota consumption per user, and
+  cancel/stop controls. (Cecilia, 2026-07-19; gates the staging soak.)
+- /build SDK-sync GitHub Action: build golden images tagged
+  build-runner:sdk-<version> on aomi-sdk release (repository_dispatch →
+  workflow in this repo), push to VCR, wait Ready, dispatch one canary
+  run-plan and require green before the tag goes active; build-staging /
+  build.aomi.dev resolve the image from their backend's SDK version, env
+  pin as override. (Approach approved 2026-07-19.)
+- /build quota + allowlist tables in aomi-build-smither DB: build_sessions
+  (github_login, app slug, run id, status) capped at 5 active per user;
+  invite allowlist table + env bootstrap; global concurrent-sandbox cap.
+  Build tokens stay OUT of the cost dashboard (experimental feature).
+- /build OpenRouter billing: verify one cloud sandbox run billed via
+  SMITHER_OPENROUTER_API_KEY (kimi-k2.7-code) before staging; rotate the
+  chat-pasted OpenRouter key first.
 - Aomi Build SDK-upgrade UX rebuilt (2026-07-16, PR aomi-labs/aomi#366): `use-sdk-upgrade` hook (confirm → open PR → poll-for-merge via the idempotent sdk-upgrade endpoint → merged → redeploy), `upgrade-rail.tsx` (5-step stepper with PLATFORM/YOU/YOU/GITHUB owners, hover hints on every step, build checklist driven by deployFlow), `deployment-detail.tsx` (per-row expansion: source repo / commit / SDK / deployed platform / platform branch / apps / build artifacts — all GitHub-linked; platform-side fields lazy-load from `deploymentHistory`), `hint-bubble.tsx`; `deployments-tab.tsx` wires the CTA swap (Upgrade → Review PR #N), redeploy gating while the PR is open, and the upgrade confirm dialog with don't-ask-again; rail state persists in localStorage per source. 218 tests + typecheck + lint green. Backend path verified against staging (sdk-upgrade for 1586 now returns `current`). Not yet verified against a live signed-in browser session — needs a preview deploy.
 - SDK upgrade 502 masking: FIXED. `SourceRepo::repo_route("")` trailing-slash 404 fixed in product-mono#815 (merged, staging-deployed); the remaining manager 502→500 conversions (OAuth exchange, GitHubAppError::Upstream, ActivationError gateway variants) are in product-mono#826 (open). Cloudflare replaces origin-502 bodies with branded HTML, so handler errors must never use 502/503.
 - Follow-up work spun off (background sessions 2026-07-16): lightweight manager PR-state endpoint to replace the 45s tarball-download merge poll; investigation of stale `app_source` installation bindings (duplicate 141779906/142228159 branches for playground-6).
 - /build engine mode: render approvals/clarifies in the UI (decision route
   exists; runs default to autoApprove until then)
-- /build engine mode: real fileTree from run outputs (left empty for now)
 - Vercel prod shape for the engine: SMITHER_DATABASE_URL (shared Postgres) +
   @smithers-orchestrator/vercel sandbox provider for compute phases (v2)
 - End-to-end testing of wallet tx request flow

@@ -3,19 +3,54 @@ import "server-only";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import {
+  crateFileTree,
+  createAomiSmither,
   decideApproval,
   defaultSdkRoot,
   executeRunUntilSettled,
   finalizePlan,
   prepareRun,
+  readRunView,
+  requestRunCancel,
   resolveRunBackend,
+  sanitizeAppName,
   stageKeyForNode,
   stagesFor,
+  type AomiSmitherApi,
   type BuildPlan,
   type PreparedRun,
+  type RunView,
 } from "@aomi-labs/smither";
+import {
+  artifactFromOutputs,
+  curationFromOutputs,
+  resultFromOutputs,
+  runStatusFromView,
+  stageStatusesFromView,
+} from "./run-view";
+import {
+  findRunById,
+  findRunByOwnerApp,
+  registerRun,
+  updateRun,
+  type BuildRunRecord,
+} from "./registry";
+import { ensureSupervisorInterval } from "./supervisor";
+import {
+  mintSidecarBearer,
+  sidecarVerifierPublicKeyPem,
+} from "./sidecar-auth";
+import {
+  dispatchSandboxRun,
+  maybeExtendSandbox,
+  sandboxRunnerConfig,
+  stopSandbox,
+  stopSandboxById,
+  type SandboxDispatch,
+} from "./sandbox-runner";
 import type {
   BuildRunApproval,
+  BuildRunFileNode,
   BuildRunSnapshot,
   BuildRunStage,
   BuildRunStageStatus,
@@ -51,13 +86,21 @@ type EngineEvent = {
 type RunHandle = {
   runId: string;
   app: string;
+  /** GitHub login that owns this run ("dev" in anonymous local mode). */
+  owner: string;
   plan: BuildPlan;
-  prepared: PreparedRun;
+  api: AomiSmitherApi;
+  /** Present on handles this process executes; absent on observer handles
+   *  reconstructed for runs another process (or a past life) started. */
+  prepared?: PreparedRun;
+  /** Present when this run executes in a Vercel Sandbox this process booted. */
+  dispatch?: SandboxDispatch;
   status: BuildRunStatus;
   stageStatus: Record<string, BuildRunStageStatus>;
+  /** HH:MM:SS of each stage's latest live transition. */
+  stageTimes: Record<string, string>;
   approvals: BuildRunApproval[];
   lines: string[];
-  result?: { status: string; summary: string };
   error?: string;
   createdAt: string;
   updatedAt: string;
@@ -66,14 +109,32 @@ type RunHandle = {
 type Registry = {
   byRunId: Map<string, RunHandle>;
   byApp: Map<string, RunHandle>;
+  /** One open store handle per app — the embedded PGlite backend cannot be
+   *  opened twice on one dataDir in a process. */
+  apis: Map<string, Promise<AomiSmitherApi>>;
 };
 
 const REGISTRY_KEY = Symbol.for("aomi-build.smither-engine");
 
 function registry(): Registry {
   const holder = globalThis as { [REGISTRY_KEY]?: Registry };
-  holder[REGISTRY_KEY] ??= { byRunId: new Map(), byApp: new Map() };
+  holder[REGISTRY_KEY] ??= {
+    byRunId: new Map(),
+    byApp: new Map(),
+    apis: new Map(),
+  };
   return holder[REGISTRY_KEY];
+}
+
+function apiFor(app: string): Promise<AomiSmitherApi> {
+  const { apis } = registry();
+  let api = apis.get(app);
+  if (!api) {
+    api = createAomiSmither(resolveRunBackend(app, { runsRoot: runsRoot() }));
+    api.catch(() => apis.delete(app));
+    apis.set(app, api);
+  }
+  return api;
 }
 
 export class BuildEngineError extends Error {
@@ -122,6 +183,10 @@ function pushLine(handle: RunHandle, line: string) {
   handle.updatedAt = new Date().toISOString();
 }
 
+function nowStamp(): string {
+  return new Date().toTimeString().slice(0, 8);
+}
+
 /** Same folding as the TUI's reduceEvent: node events light plan stages,
  *  approval events maintain the pending-approval list. */
 function reduceEvent(handle: RunHandle, event: EngineEvent) {
@@ -130,6 +195,7 @@ function reduceEvent(handle: RunHandle, event: EngineEvent) {
     // Never let a later loop iteration mark a finished stage pending again.
     if (handle.stageStatus[key] === "complete" && status === "running") return;
     handle.stageStatus[key] = status;
+    handle.stageTimes[key] = nowStamp();
   };
   switch (event.type) {
     case "NodeStarted":
@@ -195,11 +261,28 @@ function reduceEvent(handle: RunHandle, event: EngineEvent) {
   }
 }
 
-function execute(handle: RunHandle) {
-  void executeRunUntilSettled(handle.prepared, {
+/**
+ * Execution seam, selected via AOMI_BUILD_RUNNER: "local" runs the workflow
+ * in this process (dev, single host); "vercel-sandbox" dispatches
+ * `aomi-smither run-plan` into a sandbox booted from the golden image
+ * (infra/build-runner). Snapshots never care — they read the shared store
+ * either way (Phase 1).
+ */
+function runnerKind(): "local" | "vercel-sandbox" {
+  const kind = process.env.AOMI_BUILD_RUNNER ?? "local";
+  if (kind !== "local" && kind !== "vercel-sandbox") {
+    throw new BuildEngineError(`unknown AOMI_BUILD_RUNNER "${kind}"`, 503);
+  }
+  return kind;
+}
+
+function execute(handle: RunHandle, prepared: PreparedRun) {
+  void executeRunUntilSettled(prepared, {
     onEvent: (event) => reduceEvent(handle, event as EngineEvent),
   })
-    .then((result) => {
+    .then(async (result) => {
+      // Snapshot reads derive statuses/outputs from the durable store; here
+      // we only keep the in-memory garnish coherent.
       const status = String(result.status);
       handle.status =
         status === "finished" || status === "continued"
@@ -215,64 +298,53 @@ function execute(handle: RunHandle) {
               ? result.error
               : JSON.stringify(result.error);
       }
-      const output = (
-        result as { output?: { status?: string; summary?: string } }
-      ).output;
-      if (output?.summary) {
-        handle.result = {
-          status: output.status ?? status,
-          summary: output.summary,
-        };
-      }
-      if (handle.status === "completed") {
-        // A resumed run replays cached tasks without live node events; a
-        // finished run means the composition settled, so backfill stages the
-        // reducer never saw (leave live-set failed/waiting keys alone).
-        for (const stage of stagesFor(handle.plan)) {
-          handle.stageStatus[stage.id] ??= "complete";
-        }
-      }
       pushLine(
         handle,
         `run settled: ${status}${handle.error ? ` — ${handle.error.slice(0, 400)}` : ""}`,
       );
+      if (handle.status === "completed" || handle.status === "failed") {
+        await updateRun(handle.api, handle.runId, {
+          status: handle.status,
+        }).catch(() => {});
+      }
     })
-    .catch((error: unknown) => {
+    .catch(async (error: unknown) => {
       handle.status = "failed";
       handle.error = error instanceof Error ? error.message : String(error);
       pushLine(handle, `run failed: ${handle.error}`);
+      await updateRun(handle.api, handle.runId, { status: "failed" }).catch(
+        () => {},
+      );
     });
 }
 
-export async function startBuildRun(options: {
-  prompt: string;
-  app?: string;
-  autoApprove?: boolean;
-}): Promise<RunHandle> {
-  const app = options.app ?? appSlugFromPrompt(options.prompt);
-  const existing = registry().byApp.get(app);
-  // Reuse a live handle; a settled one gets a fresh execution (the durable
-  // backend replays completed work, so this is a resume, not a redo).
-  if (
-    existing &&
-    existing.status !== "completed" &&
-    existing.status !== "failed"
-  ) {
-    return existing;
-  }
-
-  const root = sdkRoot();
+/** The BuildPlan for an app — deterministic given (app, story), so observer
+ *  processes can recompose the identical stage shape without the original
+ *  request (the story only flavors agent prompts). `sdkRootOverride` targets
+ *  a filesystem this process can't see (the sandbox image); spec detection
+ *  is skipped there, so remote runs always go through discovery for now. */
+function composePlan(
+  app: string,
+  userStory: string,
+  autoApprove = true,
+  sdkRootOverride?: string,
+  builder: "claude" | "codex" | "none" = "claude",
+): BuildPlan {
+  const root = sdkRootOverride ?? sdkRoot();
   // An app that already carries a discovered/curated spec resumes idempotently
   // (gen-* keeps curated sources); a fresh app goes through spec discovery.
-  const hasSpec = existsSync(path.join(root, "apps", app, "openapi.yaml"));
+  const hasSpec = sdkRootOverride
+    ? false
+    : existsSync(path.join(root, "apps", app, "openapi.yaml"));
   const { plan, issues } = finalizePlan({
     app,
     sdkRoot: root,
     source: hasSpec ? "existing" : "discover",
-    userStory: options.prompt,
+    userStory,
+    builder,
     // No web surface answers gates yet — run unattended by default. The
     // decision route exists, so callers can opt back in per run.
-    autoApprove: options.autoApprove ?? true,
+    autoApprove,
     // Dev knob: accept a dirty/behind SDK checkout and reuse its prebuilt
     // release binaries instead of failing the binaries phase.
     allowStaleSdk: process.env.AOMI_ALLOW_STALE_SDK === "1",
@@ -280,38 +352,321 @@ export async function startBuildRun(options: {
   if (!plan) {
     throw new BuildEngineError(`invalid build plan: ${issues.join("; ")}`, 400);
   }
+  return plan;
+}
 
-  const stateRoot = runsRoot();
-  const prepared = await prepareRun({
-    plan,
-    deps: { env: process.env },
-    runsRoot: stateRoot,
-    backend: resolveRunBackend(app, { runsRoot: stateRoot }),
-  });
+export async function startBuildRun(options: {
+  prompt: string;
+  owner: string;
+  app?: string;
+  autoApprove?: boolean;
+  builder?: "claude" | "codex" | "none";
+}): Promise<RunHandle> {
+  const app = options.app ?? appSlugFromPrompt(options.prompt);
+  const api = await apiFor(app);
+  // Identity lives in the registry: (owner, app) → run. Alice's arb-bot and
+  // Bob's arb-bot are distinct rows, distinct runs, distinct sandboxes.
+  const record = await findRunByOwnerApp(api, options.owner, app);
+
+  const inMemory = record && registry().byRunId.get(record.runId);
+  if (
+    inMemory &&
+    inMemory.status !== "completed" &&
+    inMemory.status !== "failed"
+  ) {
+    return inMemory;
+  }
+  if (record?.status === "running") {
+    // Another instance (or a past life of this one) is executing. Trust the
+    // store: still live → observe, don't double-dispatch; dead → resume.
+    const view = await readRunView(api, record.runId).catch(() => undefined);
+    const live = view && runStatusFromView(view.status) === "running";
+    if (live) {
+      const observer = await observerHandle(record, api);
+      if (observer) return observer;
+    }
+  }
 
   const now = new Date().toISOString();
-  const handle: RunHandle = {
-    runId: prepared.runId,
-    app,
-    plan,
-    prepared,
-    status: "running",
-    stageStatus: {},
-    approvals: [],
-    lines: [
-      `${prepared.resume ? "resuming" : "starting"} run ${prepared.runId} (state: ${prepared.stateLocation})`,
-    ],
-    createdAt: now,
-    updatedAt: now,
-  };
+  let handle: RunHandle;
+
+  if (runnerKind() === "vercel-sandbox") {
+    // The BFF composes and registers; the sandbox executes. Re-creating a
+    // settled app reuses its run id so run-plan resumes from store state.
+    const config = sandboxRunnerConfig();
+    const plan = composePlan(
+      app,
+      options.prompt,
+      options.autoApprove ?? true,
+      config.sdkRoot,
+      options.builder,
+    );
+    const runId =
+      record?.runId ?? `smither-${sanitizeAppName(app)}-${crypto.randomUUID()}`;
+    const dispatch = await dispatchSandboxRun({
+      planJson: JSON.stringify(plan),
+      app,
+      runId,
+      config,
+      sidecarPublicKeyPem: sidecarVerifierPublicKeyPem(),
+    });
+    handle = {
+      runId,
+      app,
+      owner: options.owner,
+      plan,
+      api,
+      dispatch,
+      status: "running",
+      stageStatus: {},
+      stageTimes: {},
+      approvals: [],
+      lines: [`dispatched run ${runId} to sandbox ${dispatch.sandbox.sandboxId}`],
+      createdAt: now,
+      updatedAt: now,
+    };
+    await registerRun(api, {
+      runId,
+      ownerLogin: options.owner,
+      app,
+      runner: "vercel-sandbox",
+      status: "running",
+      sandboxId: dispatch.sandbox.sandboxId,
+      sidecarUrl: dispatch.sidecarUrl ?? "",
+      planJson: JSON.stringify(plan),
+    });
+    // The system, not the page, owns sandbox lifetime from here.
+    ensureSupervisorInterval();
+  } else {
+    const plan = composePlan(
+      app,
+      options.prompt,
+      options.autoApprove ?? true,
+      undefined,
+      options.builder,
+    );
+    const prepared = await prepareRun({
+      plan,
+      deps: { env: process.env },
+      runsRoot: runsRoot(),
+      api,
+    });
+    handle = {
+      runId: prepared.runId,
+      app,
+      owner: options.owner,
+      plan,
+      api: prepared.api,
+      prepared,
+      status: "running",
+      stageStatus: {},
+      stageTimes: {},
+      approvals: [],
+      lines: [
+        `${prepared.resume ? "resuming" : "starting"} run ${prepared.runId} (state: ${prepared.stateLocation})`,
+      ],
+      createdAt: now,
+      updatedAt: now,
+    };
+    await registerRun(api, {
+      runId: prepared.runId,
+      ownerLogin: options.owner,
+      app,
+      runner: "local",
+      status: "running",
+      sandboxId: "",
+      sidecarUrl: "",
+      planJson: JSON.stringify(plan),
+    });
+    execute(handle, prepared);
+  }
+
   registry().byRunId.set(handle.runId, handle);
   registry().byApp.set(app, handle);
-  execute(handle);
   return handle;
+}
+
+/** Request cancellation of a run. Works from any instance — the cancel is a
+ *  durable store write the executing engine polls (local or in-sandbox);
+ *  stopping a sandbox we booted is best-effort cleanup on top. */
+export async function cancelBuildRun(runId: string): Promise<void> {
+  const handle = getBuildRun(runId) ?? (await reconstructBuildRun(runId));
+  if (!handle) {
+    throw new BuildEngineError(`unknown run: ${runId}`, 404);
+  }
+  await requestRunCancel(handle.api, handle.runId);
+  pushLine(handle, "cancel requested");
+  // Registry status flips regardless of whether the engine ever observes the
+  // cancel (a dead sandbox can't), so the run never wedges as "running".
+  await updateRun(handle.api, handle.runId, { status: "cancelled" }).catch(
+    () => {},
+  );
+  if (handle.dispatch) {
+    await stopSandbox(handle.dispatch);
+  } else {
+    const record = await findRunById(handle.api, handle.runId).catch(
+      () => undefined,
+    );
+    if (record?.sandboxId) await stopSandboxById(record.sandboxId);
+  }
+  handle.status = "failed";
 }
 
 export function getBuildRun(runId: string): RunHandle | undefined {
   return registry().byRunId.get(runId);
+}
+
+/** The crate tarball persisted by the result phase, for runs whose crate
+ *  directory this process cannot see (sandbox runs). Null when the run has
+ *  no embedded artifact (not settled yet, packaging failed, or over-cap). */
+export async function storedCrateTarball(
+  handle: RunHandle,
+): Promise<Buffer | null> {
+  const view = await readRunView(handle.api, handle.runId);
+  const artifact = artifactFromOutputs(view.outputs ?? {});
+  if (!artifact || artifact.crateTarB64.length === 0) return null;
+  return Buffer.from(artifact.crateTarB64, "base64");
+}
+
+const MAX_SERVED_FILE_BYTES = 256 * 1024;
+
+/**
+ * One file of the generated crate, from the freshest available source:
+ * local disk (local runner) → live sidecar (sandbox mid-run) → the store's
+ * embedded tarball (after the sandbox is gone). Paths use the display shape
+ * ("<app>/src/tool.rs"). Null = not found anywhere.
+ */
+export async function readRunFile(
+  handle: RunHandle,
+  relPath: string,
+): Promise<Buffer | null> {
+  const prefix = `${handle.app}/`;
+  if (!relPath.startsWith(prefix)) return null;
+  // Local disk, path-jailed.
+  const appDir = path.join(handle.plan.sdkRoot, "apps", handle.app);
+  const resolved = path.resolve(appDir, relPath.slice(prefix.length));
+  if (
+    (resolved === appDir || resolved.startsWith(appDir + path.sep)) &&
+    existsSync(resolved)
+  ) {
+    const { readFileSync, statSync } = await import("node:fs");
+    const stats = statSync(resolved);
+    if (stats.isFile() && stats.size <= MAX_SERVED_FILE_BYTES) {
+      return readFileSync(resolved);
+    }
+  }
+  // Live sidecar.
+  const record = await findRunById(handle.api, handle.runId).catch(
+    () => undefined,
+  );
+  if (record?.sidecarUrl && record.status === "running") {
+    try {
+      // Official service-bearer path: fresh short-lived EdDSA bearer per
+      // request (sidecar-auth.ts) — no stored sidecar secret anywhere.
+      const bearer = await mintSidecarBearer(handle.runId);
+      const res = await fetch(
+        `https://${record.sidecarUrl.replace(/^https?:\/\//, "")}/file?path=${encodeURIComponent(relPath)}`,
+        {
+          headers: { authorization: `Bearer ${bearer}` },
+          signal: AbortSignal.timeout(4000),
+        },
+      );
+      if (res.ok) return Buffer.from(await res.arrayBuffer());
+    } catch {
+      // Sidecar unreachable — fall through to the store.
+    }
+  }
+  // Store artifact.
+  const tarball = await storedCrateTarball(handle).catch(() => null);
+  if (!tarball) return null;
+  const { extractFileFromTarGz } = await import("./tar");
+  return extractFileFromTarGz(tarball, relPath);
+}
+
+const RUN_ID = /^smither-(.+)-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+/** Exact plan from a registry row, falling back to recomposition for rows
+ *  written before plan_json existed. */
+function planFromRecord(record: BuildRunRecord): BuildPlan {
+  try {
+    const { plan } = finalizePlan(JSON.parse(record.planJson));
+    if (plan) return plan;
+  } catch {
+    // Fall through to recomposition.
+  }
+  return composePlan(record.app, "observed run");
+}
+
+/** Handle that observes a run without executing it (used for runs another
+ *  instance — or a past life of this one — is executing). */
+async function observerHandle(
+  record: BuildRunRecord,
+  api: AomiSmitherApi,
+): Promise<RunHandle | undefined> {
+  const view = await readRunView(api, record.runId).catch(() => undefined);
+  if (!view || view.status === null) return undefined;
+  const now = new Date().toISOString();
+  const handle: RunHandle = {
+    runId: record.runId,
+    app: record.app,
+    owner: record.ownerLogin,
+    plan: planFromRecord(record),
+    api,
+    status: runStatusFromView(view.status) ?? "running",
+    stageStatus: {},
+    stageTimes: {},
+    approvals: [],
+    lines: [`observing run ${record.runId}`],
+    createdAt: now,
+    updatedAt: now,
+  };
+  registry().byRunId.set(record.runId, handle);
+  return handle;
+}
+
+/**
+ * Serve a run this process never executed (another instance started it, or a
+ * restart dropped the in-memory maps): registry row first (exact plan and
+ * owner); the legacy run-id parse covers pre-registry runs. The handle
+ * observes; it does not execute.
+ */
+export async function reconstructBuildRun(
+  runId: string,
+): Promise<RunHandle | undefined> {
+  // Registry rows are keyed by run id but the api connection is keyed by
+  // app, which we don't know yet — parse the id for the app either way.
+  const app = RUN_ID.exec(runId)?.[1];
+  if (!app || sanitizeAppName(app) !== app) return undefined;
+  try {
+    const api = await apiFor(app);
+    const record = await findRunById(api, runId);
+    if (record) return observerHandle(record, api);
+    const view = await readRunView(api, runId);
+    if (view.status === null) return undefined;
+    const now = new Date().toISOString();
+    const handle: RunHandle = {
+      runId,
+      app,
+      owner: "unknown",
+      plan: composePlan(app, "observed run"),
+      api,
+      status: runStatusFromView(view.status) ?? "running",
+      stageStatus: {},
+      stageTimes: {},
+      approvals: [],
+      lines: [`observing run ${runId}`],
+      createdAt: now,
+      updatedAt: now,
+    };
+    registry().byRunId.set(runId, handle);
+    return handle;
+  } catch (error) {
+    console.warn(
+      `could not reconstruct run ${runId}:`,
+      error instanceof Error ? error.message : error,
+    );
+    return undefined;
+  }
 }
 
 export async function decideBuildRun(options: {
@@ -327,7 +682,7 @@ export async function decideBuildRun(options: {
     throw new BuildEngineError(`unknown run: ${options.runId}`, 404);
   }
   await decideApproval({
-    api: handle.prepared.api,
+    api: handle.api,
     runId: handle.runId,
     nodeId: options.nodeId,
     iteration: options.iteration,
@@ -338,24 +693,73 @@ export async function decideBuildRun(options: {
   });
 }
 
-export function snapshotBuildRun(handle: RunHandle): BuildRunSnapshot {
+export async function snapshotBuildRun(
+  handle: RunHandle,
+): Promise<BuildRunSnapshot> {
+  // The durable store is the source of truth; the live reducer maps only
+  // garnish (sub-poll latency, activity lines, timestamps).
+  let view: RunView | undefined;
+  try {
+    view = await readRunView(handle.api, handle.runId);
+  } catch (error) {
+    pushLine(
+      handle,
+      `store read failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+  const status =
+    (view && runStatusFromView(view.status)) ??
+    (handle.status as BuildRunStatus);
+  // Serverless-shaped sandbox keepalive: each poll of a live sandbox run
+  // lazily extends its timeout; an unpolled run lets the sandbox lapse (the
+  // next create resumes it from store state).
+  if (handle.dispatch && (status === "running" || status === "waiting-approval")) {
+    void maybeExtendSandbox(handle.dispatch);
+  }
+  const stageStatus = view
+    ? stageStatusesFromView(
+        view,
+        (nodeId) => stageKeyForNode(handle.plan, nodeId),
+        handle.stageStatus,
+      )
+    : handle.stageStatus;
+  const outputs = view?.outputs ?? {};
+  const curation = curationFromOutputs(outputs);
+  const result = resultFromOutputs(outputs);
+  const error = view?.error ?? handle.error;
+
   const stages: BuildRunStage[] = stagesFor(handle.plan).map((stage) => ({
     id: stage.id,
     label: stage.label,
     kind: stage.kind,
-    status: handle.stageStatus[stage.id] ?? "pending",
+    status: stageStatus[stage.id] ?? "pending",
+    ...(handle.stageTimes[stage.id] ? { time: handle.stageTimes[stage.id] } : {}),
     ...(stage.branchOf ? { branchOf: stage.branchOf } : {}),
     ...(stage.clarify ? { clarify: stage.clarify } : {}),
   }));
+  // Files: prefer a live local walk (fresh mid-run on local runners); fall
+  // back to the artifact persisted by the result phase — the only source for
+  // sandbox runs, whose filesystem this process never sees.
+  const codegenDone =
+    stageStatus[`${handle.app}:codegen`] === "complete" ||
+    status === "completed";
+  let fileTree = codegenDone
+    ? crateFileTree(path.join(handle.plan.sdkRoot, "apps", handle.app), handle.app)
+    : [];
+  if (fileTree.length === 0) {
+    fileTree = artifactFromOutputs(outputs)?.fileTree ?? [];
+  }
   return {
     runId: handle.runId,
     app: handle.app,
-    status: handle.status,
+    status,
     stages,
     approvals: handle.approvals,
     lines: handle.lines.slice(-40),
-    ...(handle.result ? { result: handle.result } : {}),
-    ...(handle.error ? { error: handle.error } : {}),
+    fileTree,
+    ...(curation ? { curation } : {}),
+    ...(result ? { result } : {}),
+    ...(error ? { error } : {}),
     createdAt: handle.createdAt,
     updatedAt: handle.updatedAt,
   };

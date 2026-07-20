@@ -101,14 +101,17 @@ export function streamEventsFromSnapshot(
   snapshot: BuildRunSnapshot,
 ): BuildStreamEvent[] {
   const byLane = new Map<BuildStreamStage, BuildRunStageStatus[]>();
+  const laneTimes = new Map<BuildStreamStage, string>();
   for (const stage of snapshot.stages) {
     // Parallel header rows aggregate their branches; count leaves only.
     if (stage.kind === "parallel") continue;
     const lane = laneFor(stage);
     byLane.set(lane, [...(byLane.get(lane) ?? []), stage.status]);
+    // Stage rows arrive in composition order; keep the latest transition.
+    if (stage.time) laneTimes.set(lane, stage.time);
   }
   return LANES.map((lane) => ({
-    time: "",
+    time: laneTimes.get(lane) ?? "",
     stage: lane,
     message: LANE_MESSAGES[lane],
     status: laneStatus(byLane.get(lane) ?? []),
@@ -124,10 +127,11 @@ export type RunViewFlags = {
 };
 
 export function flagsFromSnapshot(snapshot: BuildRunSnapshot): RunViewFlags {
-  const failed =
-    snapshot.status === "failed" ||
-    snapshot.stages.some((s) => s.status === "failed");
-  const done = snapshot.status === "completed" && !failed;
+  // The run-level status is authoritative: a stage row can stay "failed" from
+  // an earlier attempt (quota retry, repaired fix round, a resume that
+  // recomposed the plan) while the run itself settled green.
+  const failed = snapshot.status === "failed";
+  const done = snapshot.status === "completed";
   const validateStages = snapshot.stages.filter(
     (s) => laneFor(s) === "validate" && s.kind !== "parallel",
   );
@@ -145,7 +149,8 @@ export function flagsFromSnapshot(snapshot: BuildRunSnapshot): RunViewFlags {
   };
 }
 
-/** Assistant chat message for a settled run. */
+/** Assistant chat message for a settled run. Prefers the curate agent's own
+ *  structured report over anything synthesized. */
 export function completionMessage(snapshot: BuildRunSnapshot): string {
   if (snapshot.error) {
     return `The build hit an error: ${snapshot.error}`;
@@ -153,6 +158,14 @@ export function completionMessage(snapshot: BuildRunSnapshot): string {
   if (snapshot.status === "failed") {
     const failedStage = snapshot.stages.find((s) => s.status === "failed");
     return `The build failed${failedStage ? ` at **${failedStage.label}**` : ""}. Check the activity log, adjust your prompt, and run again.`;
+  }
+  if (snapshot.curation?.summary) {
+    const followUps = snapshot.curation.followUps.trim();
+    return [
+      snapshot.curation.summary,
+      ...(followUps ? [`**Suggested follow-ups:** ${followUps}`] : []),
+      "Next: ship to Projects or download the files.",
+    ].join("\n\n");
   }
   const summary = snapshot.result?.summary ?? `\`${snapshot.app}\` built and validated.`;
   return `${summary}\n\nNext: ship to Projects or download the files.`;

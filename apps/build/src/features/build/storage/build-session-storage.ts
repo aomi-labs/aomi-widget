@@ -7,7 +7,10 @@ import {
   sessionsNeedSanitize,
 } from "@build/features/build/storage/sanitize-session-copy";
 
-const STORAGE_KEY = "aomi-build-sessions-v1";
+// v2: artifacts became Rust-crate shaped (P0) — v1 sessions carry the old
+// TypeScript-mock trees/copy and would resurface stale fiction on load.
+const STORAGE_KEY = "aomi-build-sessions-v2";
+const LEGACY_STORAGE_KEYS = ["aomi-build-sessions-v1"];
 const sessionListeners = new Set<() => void>();
 let didRewriteSanitized = false;
 
@@ -39,6 +42,13 @@ let sessionsCache: { raw: string | null; value: BuildSession[] } | null = null;
 
 export function loadPersistedSessions(): BuildSession[] {
   if (typeof window === "undefined") return emptySessions;
+  for (const key of LEGACY_STORAGE_KEYS) {
+    try {
+      localStorage.removeItem(key);
+    } catch {
+      // Best-effort cleanup; a blocked removal just leaves dead data behind.
+    }
+  }
   const raw = localStorage.getItem(STORAGE_KEY);
   if (sessionsCache && sessionsCache.raw === raw) return sessionsCache.value;
 

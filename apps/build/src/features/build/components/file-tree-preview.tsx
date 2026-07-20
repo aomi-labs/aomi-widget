@@ -9,23 +9,28 @@ import { cn } from "@build/lib/utils";
 function FileTreeNode({
   node,
   depth = 0,
+  onFileSelect,
 }: {
   node: BuildFileNode;
   depth?: number;
+  onFileSelect?: (path: string) => void;
 }) {
   const isFolder = node.type === "folder";
   const [open, setOpen] = useState(depth < 2);
   const name = node.path.split("/").pop() ?? node.path;
+  const clickable = isFolder || onFileSelect !== undefined;
 
   return (
     <div>
       <button
         type="button"
-        disabled={!isFolder}
-        onClick={() => isFolder && setOpen((v) => !v)}
+        disabled={!clickable}
+        onClick={() =>
+          isFolder ? setOpen((v) => !v) : onFileSelect?.(node.path)
+        }
         className={cn(
           "flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left text-[12px] transition-colors",
-          isFolder ? "hover:bg-accent/40 cursor-pointer" : "cursor-default",
+          clickable ? "hover:bg-accent/40 cursor-pointer" : "cursor-default",
         )}
         style={{ paddingLeft: depth * 12 + 6 }}
         title={node.path}
@@ -55,7 +60,12 @@ function FileTreeNode({
       </button>
       {isFolder && open
         ? node.children?.map((child) => (
-            <FileTreeNode key={child.path} node={child} depth={depth + 1} />
+            <FileTreeNode
+              key={child.path}
+              node={child}
+              depth={depth + 1}
+              onFileSelect={onFileSelect}
+            />
           ))
         : null}
     </div>
@@ -65,9 +75,15 @@ function FileTreeNode({
 type FileTreePreviewProps = {
   tree: BuildFileNode[];
   className?: string;
+  /** When set, files become clickable (source viewer). */
+  onFileSelect?: (path: string) => void;
 };
 
-export function FileTreePreview({ tree, className }: FileTreePreviewProps) {
+export function FileTreePreview({
+  tree,
+  className,
+  onFileSelect,
+}: FileTreePreviewProps) {
   if (!tree.length) {
     return (
       <div className={cn("panel-inset p-4 text-center", className)}>
@@ -84,7 +100,7 @@ export function FileTreePreview({ tree, className }: FileTreePreviewProps) {
         Generated files
       </p>
       {tree.map((node) => (
-        <FileTreeNode key={node.path} node={node} />
+        <FileTreeNode key={node.path} node={node} onFileSelect={onFileSelect} />
       ))}
     </div>
   );

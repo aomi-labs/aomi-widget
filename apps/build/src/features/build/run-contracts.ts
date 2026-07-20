@@ -25,6 +25,8 @@ export type BuildRunStage = {
     | "parallel"
     | "wait-external";
   status: BuildRunStageStatus;
+  /** Wall-clock HH:MM:SS of the stage's latest transition, when observed live. */
+  time?: string;
   /** Set on rows that are one branch of a parallel fan-out. */
   branchOf?: string;
   clarify?: {
@@ -47,6 +49,13 @@ export type BuildRunStatus =
   | "completed"
   | "failed";
 
+/** Mirrors the page's BuildFileNode shape (features/build/contracts). */
+export type BuildRunFileNode = {
+  path: string;
+  type: "file" | "folder";
+  children?: BuildRunFileNode[];
+};
+
 export type BuildRunSnapshot = {
   runId: string;
   app: string;
@@ -55,6 +64,10 @@ export type BuildRunSnapshot = {
   approvals: BuildRunApproval[];
   /** Rolling tail of engine activity lines (already human-readable). */
   lines: string[];
+  /** The generated crate on disk (apps/<app>), present once codegen ran. */
+  fileTree: BuildRunFileNode[];
+  /** Curate agent's structured report, read from the run's curation row. */
+  curation?: { summary: string; changedFiles: string; followUps: string };
   /** Final summary once the run settles. */
   result?: { status: string; summary: string };
   error?: string;
@@ -68,6 +81,9 @@ export type CreateBuildRunRequest = {
   app?: string;
   /** Skip approval gates (defaults to true until the UI renders approvals). */
   autoApprove?: boolean;
+  /** Curation/repair agent; "none" runs the deterministic pipeline only
+   *  (codegen + cargo validate — no LLM). Defaults to "claude". */
+  builder?: "claude" | "codex" | "none";
 };
 
 export type CreateBuildRunResponse = {
