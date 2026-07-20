@@ -62,6 +62,27 @@ export const monadTestnet = defineChain({
   testnet: true,
 });
 
+export const robinhood = defineChain({
+  id: 4663,
+  name: "Robinhood Chain",
+  nativeCurrency: {
+    name: "Ether",
+    symbol: "ETH",
+    decimals: 18,
+  },
+  rpcUrls: {
+    default: {
+      http: ["https://rpc.mainnet.chain.robinhood.com"],
+    },
+  },
+  blockExplorers: {
+    default: {
+      name: "Robinhood Chain Explorer",
+      url: "https://robinhoodchain.blockscout.com",
+    },
+  },
+});
+
 export const SUPPORTED_CHAINS = [
   { id: 1, name: "Ethereum", ticker: "ETH" },
   { id: 137, name: "Polygon", ticker: "MATIC" },
@@ -74,6 +95,7 @@ export const SUPPORTED_CHAINS = [
   { id: 59141, name: "Linea Sepolia Testnet", ticker: "LINEA" },
   { id: 143, name: "Monad", ticker: "MON" },
   { id: 10143, name: "Monad Testnet", ticker: "MON" },
+  { id: 4663, name: "Robinhood Chain", ticker: "ETH" },
   { id: 31337, name: "Anvil (local)", ticker: "ETH" },
 ] as const satisfies readonly ChainInfo[];
 
@@ -94,6 +116,7 @@ export const ALCHEMY_CHAIN_SLUGS: Record<number, string> = {
   11155111: "eth-sepolia",
   59144: "linea-mainnet",
   59141: "linea-sepolia",
+  4663: "robinhood-mainnet",
 };
 
 export const CHAINS_BY_ID: Record<number, Chain> = {
@@ -108,5 +131,6 @@ export const CHAINS_BY_ID: Record<number, Chain> = {
   59141: lineaSepolia,
   143: monad,
   10143: monadTestnet,
+  4663: robinhood,
   31337: foundry,
 };

@@ -20,6 +20,7 @@ import {
   sepolia,
 } from "wagmi/chains";
 import { ExtUserProvider } from "@aomi-labs/react";
+import { robinhood } from "@aomi-labs/client";
 import { createAomiEvmConfig } from "../../catalog/evm-connector-catalog";
 import {
   AomiWalletNetworkPreferencesProvider,
@@ -40,6 +41,7 @@ const defaultNetworks = [
   sepolia,
   linea,
   lineaSepolia,
+  robinhood,
 ] as const;
 
 export type AomiPrivyProviderProps = {

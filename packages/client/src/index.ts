@@ -146,6 +146,7 @@ export {
   SUPPORTED_CHAIN_IDS,
   monad,
   monadTestnet,
+  robinhood,
 } from "./chains";
 export type { ChainInfo } from "./chains";
 

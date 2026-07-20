@@ -3386,6 +3386,26 @@ var monadTestnet = defineChain({
   },
   testnet: true
 });
+var robinhood = defineChain({
+  id: 4663,
+  name: "Robinhood Chain",
+  nativeCurrency: {
+    name: "Ether",
+    symbol: "ETH",
+    decimals: 18
+  },
+  rpcUrls: {
+    default: {
+      http: ["https://rpc.mainnet.chain.robinhood.com"]
+    }
+  },
+  blockExplorers: {
+    default: {
+      name: "Robinhood Chain Explorer",
+      url: "https://robinhoodchain.blockscout.com"
+    }
+  }
+});
 var SUPPORTED_CHAINS = [
   { id: 1, name: "Ethereum", ticker: "ETH" },
   { id: 137, name: "Polygon", ticker: "MATIC" },
@@ -3398,6 +3418,7 @@ var SUPPORTED_CHAINS = [
   { id: 59141, name: "Linea Sepolia Testnet", ticker: "LINEA" },
   { id: 143, name: "Monad", ticker: "MON" },
   { id: 10143, name: "Monad Testnet", ticker: "MON" },
+  { id: 4663, name: "Robinhood Chain", ticker: "ETH" },
   { id: 31337, name: "Anvil (local)", ticker: "ETH" }
 ];
 var SUPPORTED_CHAIN_IDS = SUPPORTED_CHAINS.map((chain) => chain.id);
@@ -3413,7 +3434,8 @@ var ALCHEMY_CHAIN_SLUGS = {
   10: "opt-mainnet",
   11155111: "eth-sepolia",
   59144: "linea-mainnet",
-  59141: "linea-sepolia"
+  59141: "linea-sepolia",
+  4663: "robinhood-mainnet"
 };
 var CHAINS_BY_ID = {
   1: mainnet,
@@ -3427,6 +3449,7 @@ var CHAINS_BY_ID = {
   59141: lineaSepolia,
   143: monad,
   10143: monadTestnet,
+  4663: robinhood,
   31337: foundry
 };
 
@@ -4955,6 +4978,7 @@ export {
   normalizeTxPayload,
   parseChainId3 as parseChainId,
   resolvePimlicoConfig,
+  robinhood,
   toAAWalletCall,
   toAAWalletCalls,
   toViemSignMessageArgs,

@@ -17,6 +17,7 @@ import {
   AomiWalletKitProvider,
   monad,
   monadTestnet,
+  robinhood,
 } from "@aomi-labs/widget-lib";
 import {
   E2EWalletProvider,
@@ -43,6 +44,7 @@ const defaultNetworks = [
   lineaSepolia,
   monad,
   monadTestnet,
+  robinhood,
 ] as const;
 
 export const networks = [...defaultNetworks] as readonly [Chain, ...Chain[]];
