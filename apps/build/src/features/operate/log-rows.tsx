@@ -2,9 +2,9 @@
 
 // Dense log viewer: one line per record, click to expand. Handles both
 // record kinds — invocation traces (tool, args, result, duration) and
-// control-plane events. Today's backend emits only events; invocation
-// records appear when trace logging ships. Privacy: user intents never
-// reach this surface; args/results are operational payloads.
+// control-plane events. The backend combines both record types on this
+// surface. Privacy: user intents never reach it; args/results are operational
+// payloads.
 
 import { Lock, X } from "lucide-react";
 import { clockLabel, dayLabel } from "./format";
