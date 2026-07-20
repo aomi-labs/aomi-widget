@@ -25,6 +25,35 @@ type ResolvedBinaries = {
     warning?: string;
 };
 
+/**
+ * Crate artifact packaging for the result phase. The generated app's file
+ * tree and a small tarball ride the durable result row, so surfaces that
+ * cannot see the run's filesystem (the web BFF observing a sandbox run)
+ * still serve real Files and Download.
+ */
+type CrateFileNode = {
+    path: string;
+    type: "file" | "folder";
+    children?: CrateFileNode[];
+};
+/** The generated crate as a display tree. Paths are prefixed with the app
+ *  name ("<app>/src/tool.rs") — the shape the /build page renders. */
+declare function crateFileTree(appDir: string, app: string): CrateFileNode[];
+type CrateArtifact = {
+    /** JSON-encoded CrateFileNode[]; "" when the crate directory is absent. */
+    fileTreeJson: string;
+    /** Base64 .tar.gz of apps/<app> (target/ and Cargo.lock excluded); "" when
+     *  packaging failed or the crate exceeds the embed cap. */
+    crateTarB64: string;
+    /** Human-readable reason whenever crateTarB64 is empty. */
+    warning: string;
+};
+declare function packageCrate(options: {
+    sdkRoot: string;
+    app: string;
+    runner?: CommandRunner;
+}): Promise<CrateArtifact>;
+
 declare const defaultRunner: CommandRunner;
 declare function defaultSdkRoot(cwd?: string): string;
 declare function targetBinaryPaths(sdkRoot: string): Pick<ResolvedBinaries, "aomiBuild" | "aomiRun">;
@@ -1325,6 +1354,9 @@ declare const smitherSchemas: {
             blocked: "blocked";
         }>;
         summary: z.ZodString;
+        fileTreeJson: z.ZodDefault<z.ZodString>;
+        crateTarB64: z.ZodDefault<z.ZodString>;
+        artifactWarning: z.ZodDefault<z.ZodString>;
     }, z.core.$strip>;
 };
 type SmitherSchemas = typeof smitherSchemas;
@@ -1526,6 +1558,40 @@ declare function savePlan(plan: BuildPlan, root?: string): Promise<void>;
 declare function loadPlan(app: string, root?: string): Promise<BuildPlan | null>;
 
 type AgentKind = "claude" | "codex";
+/** OpenRouter's Anthropic-compatible endpoint ("Anthropic Skin") — the claude
+ *  CLI speaks its native Messages protocol straight to it. */
+declare const OPENROUTER_BASE_URL = "https://openrouter.ai/api";
+/** Latest cheap coding Kimi. Deliberately NOT kimi-k3 (Sonnet-priced, no
+ *  savings); k2.7-code is ~$0.72/$3.50 per M tokens. Ops override via
+ *  SMITHER_OPENROUTER_MODEL. */
+declare const DEFAULT_OPENROUTER_MODEL = "moonshotai/kimi-k2.7-code";
+type AgentBilling = {
+    kind: "openrouter";
+    apiKey: string;
+    model: string;
+} | {
+    kind: "anthropic";
+    apiKey: string;
+} | {
+    kind: "none";
+};
+/**
+ * Pick who pays for claude work agents. OpenRouter is the default whenever its
+ * key is present (build runs are expensive on first-party Anthropic); the
+ * Anthropic key is the backup path, kept for a quick rollback via env alone.
+ * Not user-selectable — pure deployment config.
+ */
+declare function resolveAgentBilling(env: NodeJS.ProcessEnv | undefined): AgentBilling;
+/**
+ * Env overrides that point the claude CLI at OpenRouter. ANTHROPIC_API_KEY is
+ * pinned to "" (not merely unset) so the CLI can never fall back to Anthropic
+ * first-party auth; both model slots route to the same slug so background/fast
+ * tasks don't silently bill a Claude model.
+ */
+declare function openrouterAgentEnv(billing: {
+    apiKey: string;
+    model: string;
+}): Record<string, string>;
 /**
  * CLI work agent for curation/review/repair tasks. Runs inside the SDK
  * checkout in non-interactive mode with edits allowed — Smithers owns the
@@ -1536,9 +1602,10 @@ declare function makeWorkAgent(kind: AgentKind, options: {
     cwd: string;
     env?: NodeJS.ProcessEnv;
     timeoutMs?: number;
-    /** Bill an API key instead of the local CLI login — required on headless
-     *  runners (sandboxes, CI) where no personal subscription is signed in. */
-    apiKey?: string;
+    /** Who pays. Headless runners (sandboxes, CI) have no CLI login, so
+     *  "none" only works where a personal subscription is signed in. Codex
+     *  agents ignore this — they bill their own auth. */
+    billing?: AgentBilling;
 }): Promise<AgentLike>;
 
 type AomiSmitherApi = CreateSmithersApi<SmitherSchemas>;
@@ -1693,6 +1760,14 @@ declare function executeRunUntilSettled(prepared: PreparedRun, options?: {
     approvalPollMs?: number;
 }): Promise<RunResult>;
 /**
+ * Narrow raw-SQL door into the run store, for host-app tables that must live
+ * on the same connection (the embedded PGlite backend cannot be opened twice
+ * in one process). Statements use `?` placeholders on every backend — the
+ * storage layer translates for Postgres. Rows come back with on-disk column
+ * names (no snake→camel transform).
+ */
+declare function storeQuery(api: AomiSmitherApi, sql: string, params?: unknown[]): Promise<Array<Record<string, unknown>>>;
+/**
  * All persisted output rows for a run, keyed by table name ("curation",
  * "result", …). Lets surfaces outside the workflow render (the web BFF, the
  * console) read what a run produced — including replayed resumes that emit no
@@ -1759,4 +1834,4 @@ declare function decideApproval(options: {
     };
 }): Promise<void>;
 
-export { type ActivationCredential, type AgentKind, type AgentPhase, type AgentRole, type AomiBuildCommand, type AomiSmitherApi, type AomiWorkflow, type BinariesRow, type BuildPlan, type ClarifyOption, type ClarifyRow, type CodegenRow, type CommandResult, type CommandRunner, type ComputeOp, type ConsoleHandle, type ConsoleOptions, DEFAULT_CONSOLE_PORT, type DeploymentRow, type EvalPhase, type EvaluationRow, type GateRow, type InnerPhase, type IntakePhase, type IntakeServerHandle, type IntakeState, type IntentAgent, type IntentDraft, type IntentTurn, type Phase, type PlanStage, type PreparedRun, type PromptContext, type ResolvedBinaries, type ResultRow, type RollbackClient, type RollbackPlanSummary, type RollbackTarget, type RunNodeView, type RunState, type RunView, type SdkFreshness, type SmitherBackend, type SmitherSchemas, type SmokeRow, type ValidationRow, WORKFLOW_NAME, type WorkflowDeps, activationConfigPath, agentPhaseSchema, agentRoleSchema, agentSpecsFor, assertBunRuntime, boundedLog, buildAppWorkflow, buildPlanSchema, clarifyOptionSchema, clarifyPhaseSchema, classicComposition, compositionIssues, computeOpSchema, computePhaseSchema, createAomiSmither, createRunState, curatePrompt, decideApproval, defaultRunner, defaultRunsRoot, defaultSdkRoot, describeBackend, describePlan, designPrompt, distillIntent, draftSpecPrompt, ensureFreshSdkCheckout, evalJudge, evalPhaseSchema, executeRollback, executeRun, executeRunUntilSettled, extractJsonObject, finalizePlan, fixPrompt, gatePhaseSchema, innerPhaseSchema, innerPhasesOf, intentDraftSchema, intentPlanFields, intentPrompt, isBunRuntime, judgePrompt, loadPlan, loadRunOutputs, loadRunState, loopPhaseSchema, makeWorkAgent, mergePlanDraft, newAppArgs, nodeId, packageRoot, parallelPhaseSchema, phaseAgent, phaseSchema, planPath, planRollback, pluginLibraryFileName, prepareRun, readRunView, requestRunCancel, researchPrompt, resetRunState, resolveActivationCredential, resolveAgentCwd, resolveAomiBinaries, resolveComposition, resolveFreshAomiBinaries, resolveRunBackend, reviewPrompt, rolePrompt, rollbackClientFromEnv, runAomiBuild, runAomiRun, runAppCargoChecks, runDir, runEvalStep, runStatePath, sanitizeAppName, savePlan, sendSignal, smitherDbPath, smitherSchemas, stageKeyForNode, stagesFor, startConsole, startConsoleForApp, startIntakeServer, synthesizePrompt, targetBinaryPaths, waitExternalPhaseSchema };
+export { type ActivationCredential, type AgentBilling, type AgentKind, type AgentPhase, type AgentRole, type AomiBuildCommand, type AomiSmitherApi, type AomiWorkflow, type BinariesRow, type BuildPlan, type ClarifyOption, type ClarifyRow, type CodegenRow, type CommandResult, type CommandRunner, type ComputeOp, type ConsoleHandle, type ConsoleOptions, type CrateArtifact, type CrateFileNode, DEFAULT_CONSOLE_PORT, DEFAULT_OPENROUTER_MODEL, type DeploymentRow, type EvalPhase, type EvaluationRow, type GateRow, type InnerPhase, type IntakePhase, type IntakeServerHandle, type IntakeState, type IntentAgent, type IntentDraft, type IntentTurn, OPENROUTER_BASE_URL, type Phase, type PlanStage, type PreparedRun, type PromptContext, type ResolvedBinaries, type ResultRow, type RollbackClient, type RollbackPlanSummary, type RollbackTarget, type RunNodeView, type RunState, type RunView, type SdkFreshness, type SmitherBackend, type SmitherSchemas, type SmokeRow, type ValidationRow, WORKFLOW_NAME, type WorkflowDeps, activationConfigPath, agentPhaseSchema, agentRoleSchema, agentSpecsFor, assertBunRuntime, boundedLog, buildAppWorkflow, buildPlanSchema, clarifyOptionSchema, clarifyPhaseSchema, classicComposition, compositionIssues, computeOpSchema, computePhaseSchema, crateFileTree, createAomiSmither, createRunState, curatePrompt, decideApproval, defaultRunner, defaultRunsRoot, defaultSdkRoot, describeBackend, describePlan, designPrompt, distillIntent, draftSpecPrompt, ensureFreshSdkCheckout, evalJudge, evalPhaseSchema, executeRollback, executeRun, executeRunUntilSettled, extractJsonObject, finalizePlan, fixPrompt, gatePhaseSchema, innerPhaseSchema, innerPhasesOf, intentDraftSchema, intentPlanFields, intentPrompt, isBunRuntime, judgePrompt, loadPlan, loadRunOutputs, loadRunState, loopPhaseSchema, makeWorkAgent, mergePlanDraft, newAppArgs, nodeId, openrouterAgentEnv, packageCrate, packageRoot, parallelPhaseSchema, phaseAgent, phaseSchema, planPath, planRollback, pluginLibraryFileName, prepareRun, readRunView, requestRunCancel, researchPrompt, resetRunState, resolveActivationCredential, resolveAgentBilling, resolveAgentCwd, resolveAomiBinaries, resolveComposition, resolveFreshAomiBinaries, resolveRunBackend, reviewPrompt, rolePrompt, rollbackClientFromEnv, runAomiBuild, runAomiRun, runAppCargoChecks, runDir, runEvalStep, runStatePath, sanitizeAppName, savePlan, sendSignal, smitherDbPath, smitherSchemas, stageKeyForNode, stagesFor, startConsole, startConsoleForApp, startIntakeServer, storeQuery, synthesizePrompt, targetBinaryPaths, waitExternalPhaseSchema };

@@ -30,6 +30,7 @@ import {
   type SmokeRow,
   type ValidationRow,
 } from "./schemas";
+import { packageCrate } from "./artifacts";
 import { defaultRunner, resolveFreshAomiBinaries } from "./binaries";
 import {
   newAppArgs,
@@ -39,7 +40,7 @@ import {
   runAomiRun,
   runAppCargoChecks,
 } from "./commands";
-import { makeWorkAgent } from "./agents";
+import { makeWorkAgent, resolveAgentBilling } from "./agents";
 import { runEvalStep } from "./evals";
 import { rolePrompt, type PromptContext } from "./prompts";
 import type { CommandRunner, ResolvedBinaries } from "./types";
@@ -174,8 +175,10 @@ export async function buildAppWorkflow(
 
   // One CLI agent instance per distinct (agent, repo) used anywhere in the
   // composition — cross-repo agents run in another codebase entirely.
-  // SMITHER_ANTHROPIC_API_KEY switches claude agents to API billing (headless
-  // runners have no CLI login).
+  // Billing: SMITHER_OPENROUTER_API_KEY (default, cheap Kimi via OpenRouter's
+  // Anthropic-compatible endpoint) > SMITHER_ANTHROPIC_API_KEY (backup) >
+  // local CLI login.
+  const billing = resolveAgentBilling(deps.env);
   const agents = new Map<string, Awaited<ReturnType<typeof makeWorkAgent>>>();
   for (const spec of agentSpecsFor(plan)) {
     agents.set(
@@ -183,7 +186,7 @@ export async function buildAppWorkflow(
       await makeWorkAgent(spec.name, {
         cwd: spec.cwd,
         env: deps.env,
-        apiKey: deps.env?.SMITHER_ANTHROPIC_API_KEY,
+        billing,
       }),
     );
   }
@@ -508,7 +511,7 @@ export async function buildAppWorkflow(
         case "result":
           return (
             <Task id={id(phase.id)} label={label ?? "Summarize run"} output={outputs.result} noRetry>
-              {() => resultStep(plan, { gateDenied, deployment, smoke })}
+              {() => resultStep(plan, { gateDenied, deployment, smoke }, runner)}
             </Task>
           );
       }
@@ -756,23 +759,38 @@ async function deployStep(
   return { ok: true, log: boundedLog(deploy.stdout) };
 }
 
-function resultStep(
+async function resultStep(
   plan: BuildPlan,
   state: {
     gateDenied: boolean;
     deployment: DeploymentRow | undefined;
     smoke: SmokeRow | undefined;
   },
-): ResultRow {
+  runner: CommandRunner,
+): Promise<ResultRow> {
+  // Package the crate into the row either way — a deploy-denied run still
+  // produced reviewable sources.
+  const artifact = await packageCrate({
+    sdkRoot: plan.sdkRoot,
+    app: plan.app,
+    runner,
+  });
+  const artifactFields = {
+    fileTreeJson: artifact.fileTreeJson,
+    crateTarB64: artifact.crateTarB64,
+    artifactWarning: artifact.warning,
+  };
   if (state.gateDenied) {
     return {
       status: "deploy-denied",
       summary: `${plan.app} validated${plan.smoke ? " and smoked" : ""}; deploy was denied at the gate.`,
+      ...artifactFields,
     };
   }
   const shipped = plan.deploy && state.deployment?.ok;
   return {
     status: "complete",
     summary: `${plan.app} ${shipped ? "built, validated, and deployed" : "built and validated"}${plan.smoke && state.smoke?.ok ? " (smoke passed)" : ""}.`,
+    ...artifactFields,
   };
 }

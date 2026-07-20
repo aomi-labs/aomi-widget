@@ -35,7 +35,10 @@ const CONFIG = {
   databaseUrl: "postgresql://x",
   sdkRoot: "/workspace/aomi-sdk",
   smitherDir: "/workspace/aomi/packages/smither",
+  sidecarPath: "/workspace/sidecar.ts",
   builderApiKey: "sk-test",
+  openrouterApiKey: "sk-or-test",
+  openrouterModel: "moonshotai/kimi-k2.7-code",
 };
 
 describe("sandboxRunnerConfig", () => {
@@ -68,6 +71,7 @@ describe("dispatchSandboxRun", () => {
       runId: "smither-my-app-0000",
       config: CONFIG,
       client,
+      sidecarPublicKeyPem: "-----BEGIN PUBLIC KEY-----\nAAAA\n-----END PUBLIC KEY-----",
     });
 
     expect(created[0]).toMatchObject({
@@ -77,9 +81,24 @@ describe("dispatchSandboxRun", () => {
         SMITHER_DATABASE_URL: "postgresql://x",
         AOMI_ALLOW_STALE_SDK: "1",
         SMITHER_ANTHROPIC_API_KEY: "sk-test",
+        SMITHER_OPENROUTER_API_KEY: "sk-or-test",
+        SMITHER_OPENROUTER_MODEL: "moonshotai/kimi-k2.7-code",
       },
     });
-    const cmd = calls.runCommand[0] as {
+    // The sidecar's verification anchor rides the env — public key + run id,
+    // never a secret; bearers are minted per request by the BFF.
+    const createdEnv = (created[0] as { env: Record<string, string> }).env;
+    expect(createdEnv.AOMI_SIDECAR_PUBKEY).toContain("BEGIN PUBLIC KEY");
+    expect(createdEnv.AOMI_SIDECAR_RUN_ID).toBe("smither-my-app-0000");
+    expect(createdEnv.AOMI_SIDECAR_TOKEN).toBeUndefined();
+    expect(createdEnv.AOMI_SIDECAR_APP).toBe("my-app");
+    expect((created[0] as { ports?: number[] }).ports).toEqual([8722]);
+
+    // First command boots the live-files sidecar, second the runner.
+    const sidecar = calls.runCommand[0] as { cmd: string; args: string[] };
+    expect(sidecar.cmd).toBe("bun");
+    expect(sidecar.args[0]).toContain("sidecar");
+    const cmd = calls.runCommand[1] as {
       cmd: string;
       args: string[];
       cwd: string;

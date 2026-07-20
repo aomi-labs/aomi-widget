@@ -33,6 +33,8 @@ export type SandboxLike = {
   }): Promise<unknown>;
   extendTimeout(durationMs: number): Promise<unknown>;
   stop(): Promise<unknown>;
+  /** Public URL for an exposed port (SDK: sandbox.domain(port)). */
+  domain?(port: number): string;
 };
 
 export type SandboxClientLike = {
@@ -40,6 +42,7 @@ export type SandboxClientLike = {
     image: string;
     timeout: number;
     resources: { vcpus: number };
+    ports?: number[];
     env: Record<string, string>;
     tags: Record<string, string>;
   }): Promise<SandboxLike>;
@@ -53,11 +56,18 @@ export type SandboxRunnerConfig = {
   sdkRoot: string;
   /** packages/smither dir inside the image (where dist/cli.js lives). */
   smitherDir: string;
+  /** Live-files sidecar script inside the image. */
+  sidecarPath: string;
   builderApiKey?: string;
+  openrouterApiKey?: string;
+  openrouterModel?: string;
 };
 
 /** Create-time ceiling per Vercel; extensions carry the sandbox beyond it. */
 const CREATE_TIMEOUT_MS = 5 * 60_000;
+
+/** Exposed port for the live-files sidecar inside the runner image. */
+const SIDECAR_PORT = 8722;
 const EXTEND_STEP_MS = 10 * 60_000;
 const EXTEND_MIN_INTERVAL_MS = 2 * 60_000;
 
@@ -78,7 +88,10 @@ export function sandboxRunnerConfig(
     databaseUrl,
     sdkRoot: env.AOMI_SANDBOX_SDK_ROOT ?? "/workspace/aomi-sdk",
     smitherDir: env.AOMI_SANDBOX_SMITHER_DIR ?? "/workspace/aomi/packages/smither",
+    sidecarPath: env.AOMI_SANDBOX_SIDECAR ?? "/workspace/sidecar.ts",
     builderApiKey: env.SMITHER_ANTHROPIC_API_KEY,
+    openrouterApiKey: env.SMITHER_OPENROUTER_API_KEY,
+    openrouterModel: env.SMITHER_OPENROUTER_MODEL,
   };
 }
 
@@ -95,6 +108,7 @@ async function defaultClient(): Promise<SandboxClientLike> {
 export type SandboxDispatch = {
   sandbox: SandboxLike;
   lastExtendMs: number;
+  sidecarUrl?: string;
 };
 
 /** Boot a sandbox and launch the headless runner for (plan, runId). */
@@ -104,6 +118,10 @@ export async function dispatchSandboxRun(options: {
   runId: string;
   config: SandboxRunnerConfig;
   client?: SandboxClientLike;
+  /** aomi-bff's SPKI public key: the sidecar's bearer-verification anchor
+   *  (official service-bearer path — see sidecar-auth.ts). Public material,
+   *  so safe in the VM env; empty = the sidecar fails closed. */
+  sidecarPublicKeyPem?: string;
 }): Promise<SandboxDispatch> {
   const { config } = options;
   const client = options.client ?? (await defaultClient());
@@ -111,9 +129,17 @@ export async function dispatchSandboxRun(options: {
     image: config.image,
     timeout: CREATE_TIMEOUT_MS,
     resources: { vcpus: config.vcpus },
+    ports: [SIDECAR_PORT],
     env: {
       SMITHER_DATABASE_URL: config.databaseUrl,
       AOMI_ALLOW_STALE_SDK: "1",
+      // The exposed sidecar port is public; requests carry service bearers
+      // the BFF mints per request (PORTAL_SERVICE_PRIVATE_KEY), which the
+      // sidecar verifies against this public key + run id.
+      AOMI_SIDECAR_PUBKEY: options.sidecarPublicKeyPem ?? "",
+      AOMI_SIDECAR_RUN_ID: options.runId,
+      AOMI_SIDECAR_PORT: String(SIDECAR_PORT),
+      AOMI_SIDECAR_APP: options.app,
       // The image runs as root and the claude CLI refuses its
       // skip-permissions flags under root unless it knows it's inside a
       // sandbox. The microVM is exactly that.
@@ -121,8 +147,24 @@ export async function dispatchSandboxRun(options: {
       ...(config.builderApiKey
         ? { SMITHER_ANTHROPIC_API_KEY: config.builderApiKey }
         : {}),
+      // OpenRouter wins inside the workflow when present (resolveAgentBilling);
+      // the Anthropic key rides along as the env-only rollback path.
+      ...(config.openrouterApiKey
+        ? { SMITHER_OPENROUTER_API_KEY: config.openrouterApiKey }
+        : {}),
+      ...(config.openrouterModel
+        ? { SMITHER_OPENROUTER_MODEL: config.openrouterModel }
+        : {}),
     },
     tags: { app: options.app.slice(0, 64) },
+  });
+  // Live-files sidecar first (serves apps/<app> while the run works), then
+  // the runner. Older images without the sidecar script just log an error
+  // for the first command; the run itself is unaffected.
+  await sandbox.runCommand({
+    cmd: "bun",
+    args: [config.sidecarPath, config.sdkRoot],
+    detached: true,
   });
   await sandbox.runCommand({
     cmd: "bun",
@@ -137,7 +179,13 @@ export async function dispatchSandboxRun(options: {
     cwd: config.smitherDir,
     detached: true,
   });
-  return { sandbox, lastExtendMs: Date.now() };
+  let sidecarUrl = "";
+  try {
+    sidecarUrl = sandbox.domain?.(SIDECAR_PORT) ?? "";
+  } catch {
+    sidecarUrl = "";
+  }
+  return { sandbox, lastExtendMs: Date.now(), sidecarUrl };
 }
 
 /** Lazily extend the sandbox from the poll path while the run is live. */
@@ -161,5 +209,44 @@ export async function stopSandbox(dispatch: SandboxDispatch): Promise<void> {
     await dispatch.sandbox.stop();
   } catch {
     // Best-effort: durable cancel already reached the store.
+  }
+}
+
+/** By-id sandbox handle for processes that never held the dispatch (the
+ *  supervisor, cancel-after-restart). */
+async function getSandboxById(sandboxId: string): Promise<SandboxLike | null> {
+  try {
+    const { Sandbox } = await import("@vercel/sandbox");
+    const get = (
+      Sandbox as unknown as {
+        get(params: { sandboxId: string }): Promise<SandboxLike>;
+      }
+    ).get;
+    return await get.call(Sandbox, { sandboxId });
+  } catch {
+    return null;
+  }
+}
+
+export async function stopSandboxById(sandboxId: string): Promise<void> {
+  const sandbox = await getSandboxById(sandboxId);
+  if (!sandbox) return;
+  try {
+    await sandbox.stop();
+  } catch {
+    // Already stopped/expired — the goal state.
+  }
+}
+
+/** Supervisor-side keepalive: extend a running sandbox by id. Returns false
+ *  when the sandbox is unreachable (stopped, expired, or never healthy). */
+export async function extendSandboxById(sandboxId: string): Promise<boolean> {
+  const sandbox = await getSandboxById(sandboxId);
+  if (!sandbox) return false;
+  try {
+    await sandbox.extendTimeout(EXTEND_STEP_MS);
+    return true;
+  } catch {
+    return false;
   }
 }

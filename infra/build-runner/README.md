@@ -38,7 +38,9 @@ releases are the freshness mechanism; runs execute with
 | `AOMI_BUILD_RUNNER` | `vercel-sandbox` |
 | `AOMI_RUNNER_IMAGE` | `build-runner:v1` (or fully-qualified VCR URL) |
 | `SMITHER_DATABASE_URL` | shared Postgres for run state |
-| `SMITHER_ANTHROPIC_API_KEY` | Anthropic key billed for curate/repair agents |
+| `SMITHER_OPENROUTER_API_KEY` | OpenRouter key billed for curate/repair agents (default path — cheap Kimi via OpenRouter's Anthropic-compatible endpoint) |
+| `SMITHER_OPENROUTER_MODEL` | optional, default `moonshotai/kimi-k2.7-code` |
+| `SMITHER_ANTHROPIC_API_KEY` | Anthropic key — backup billing path, used only when the OpenRouter key is absent |
 | `AOMI_SANDBOX_VCPUS` | optional, default 4 |
 | `AOMI_SANDBOX_SDK_ROOT` | optional, default `/workspace/aomi-sdk` |
 | `AOMI_SANDBOX_SMITHER_DIR` | optional, default `/workspace/aomi/packages/smither` |

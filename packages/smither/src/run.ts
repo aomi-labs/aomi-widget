@@ -149,6 +149,9 @@ export async function executeRun(
       // must not settle between a task finishing and that re-render, or it
       // ends "finished" with unmounted phases still ahead.
       requireRerenderOnOutputChange: true,
+      // The result row embeds the crate artifact (artifacts.ts); the engine's
+      // 200 KB default would reject it for any non-trivial app.
+      maxOutputBytes: 4_000_000,
     }),
   );
 }
@@ -188,6 +191,30 @@ export async function executeRunUntilSettled(
     attempt = { ...attempt, resume: true };
     await new Promise((wake) => setTimeout(wake, options.approvalPollMs ?? 2500));
   }
+}
+
+/**
+ * Narrow raw-SQL door into the run store, for host-app tables that must live
+ * on the same connection (the embedded PGlite backend cannot be opened twice
+ * in one process). Statements use `?` placeholders on every backend — the
+ * storage layer translates for Postgres. Rows come back with on-disk column
+ * names (no snake→camel transform).
+ */
+export async function storeQuery(
+  api: AomiSmitherApi,
+  sql: string,
+  params: unknown[] = [],
+): Promise<Array<Record<string, unknown>>> {
+  const { SmithersDb } = await import("smithers-orchestrator");
+  const adapter = new SmithersDb(api.db as never) as unknown as {
+    internalStorage: {
+      queryAllRaw(
+        sql: string,
+        params?: unknown[],
+      ): Promise<Array<Record<string, unknown>>>;
+    };
+  };
+  return adapter.internalStorage.queryAllRaw(sql, params);
 }
 
 /**

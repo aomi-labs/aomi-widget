@@ -119,6 +119,19 @@ describe("flagsFromSnapshot", () => {
       flagsFromSnapshot(snapshot([stage("codegen", "failed")], "failed")),
     ).toMatchObject({ shipReady: false, failed: true, isGenerating: false });
   });
+
+  it("trusts the run status over stale failed stage rows", () => {
+    // A quota-retried or recomposed run can settle green while an old
+    // attempt's stage row still reads failed.
+    const flags = flagsFromSnapshot(
+      snapshot(
+        [stage("curate", "failed", "agent"), stage("result", "complete")],
+        "completed",
+      ),
+    );
+    expect(flags.failed).toBe(false);
+    expect(flags.shipReady).toBe(true);
+  });
 });
 
 describe("streamEventsFromSnapshot times", () => {

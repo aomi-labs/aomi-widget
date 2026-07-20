@@ -111,6 +111,95 @@ export function useBuildSession() {
     }
   }, []);
 
+  /** Fold a run snapshot into view state + the session draft. Stops the poll
+   *  loop and persists the session once the run settles. */
+  const applyRunSnapshot = useCallback(
+    (
+      snapshot: BuildRunSnapshot,
+      onAssistantReady?: (msg: BuildMessage) => void,
+    ) => {
+      const draft = sessionDraftRef.current;
+      if (!draft) return;
+      const nodes = nodesFromSnapshot(snapshot);
+      const streamEvents = streamEventsFromSnapshot(snapshot);
+      const flags = flagsFromSnapshot(snapshot);
+      const fileTree = snapshot.fileTree as BuildFileNode[];
+      setNodes(nodes);
+      setStreamEvents(streamEvents);
+      setFileTree(fileTree);
+      setCompileDone(flags.compileDone);
+      setTestDone(flags.testDone);
+      const active = streamEvents.find((e) => e.status === "active");
+      if (active) setStageId(STREAM_TO_JOURNEY[active.stage]);
+      draft.nodes = nodes;
+      draft.streamEvents = streamEvents;
+      draft.fileTree = fileTree;
+
+      const settled =
+        snapshot.status === "completed" || snapshot.status === "failed";
+      if (!settled) return;
+      if (pollRef.current !== null) {
+        window.clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
+      setIsGenerating(false);
+      setShipReady(flags.shipReady);
+      if (flags.shipReady) setStageId("ship");
+      const assistantMsg: BuildMessage = {
+        id: `a_${Date.now()}`,
+        role: "assistant",
+        content: completionMessage(snapshot),
+        timestamp: nowTime(),
+        model: "Aomi",
+      };
+      setMessages((prev) => {
+        const next = [...prev, assistantMsg];
+        draft.messages = next;
+        return next;
+      });
+      onAssistantReady?.(assistantMsg);
+      savePersistedSession({
+        id: draft.id,
+        title: draft.title,
+        status: flags.failed ? "failed" : "healthy",
+        model: "Aomi",
+        updatedAt: "just now",
+        runtime: snapshot.app,
+        runId: snapshot.runId,
+        app: snapshot.app,
+        stageId: flags.shipReady ? "ship" : "generate",
+        messages: [...draft.messages],
+        streamEvents,
+        fileTree,
+        nodes,
+      });
+    },
+    [],
+  );
+
+  /** Start (or restart) the poll loop for a run; it stops itself on settle. */
+  const beginRunPolling = useCallback(
+    (runId: string, onAssistantReady?: (msg: BuildMessage) => void) => {
+      if (pollRef.current !== null) {
+        window.clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
+      const poll = async () => {
+        const res = await fetch(
+          `/api/bff/build/runs?id=${encodeURIComponent(runId)}`,
+        );
+        if (!res.ok) return;
+        applyRunSnapshot(
+          (await res.json()) as BuildRunSnapshot,
+          onAssistantReady,
+        );
+      };
+      void poll();
+      pollRef.current = window.setInterval(() => void poll(), RUN_POLL_MS);
+    },
+    [applyRunSnapshot],
+  );
+
   const loadSession = useCallback(
     (sessionId: string) => {
       clearTimers();
@@ -144,7 +233,7 @@ export function useBuildSession() {
         });
       }
       setActiveSessionId(sessionId);
-      setEngineRunId(null);
+      setEngineRunId(clean.runId ?? null);
       setStageId(healthy ? "ship" : needsVerify ? "compile_test" : clean.stageId);
       setMessages(clean.messages);
       setStreamEvents(streamEvents);
@@ -166,8 +255,16 @@ export function useBuildSession() {
         fileTree: clean.fileTree,
         nodes: clean.nodes ?? [],
       };
+      // A reload mid-build reattaches to the live run instead of freezing on
+      // the last persisted frame.
+      if (ENGINE_MODE && clean.runId && clean.status === "running") {
+        setIsGenerating(true);
+        setShowStreamInThread(true);
+        setAwaitingVerify(false);
+        beginRunPolling(clean.runId);
+      }
     },
-    [clearTimers, persistedSessions],
+    [beginRunPolling, clearTimers, persistedSessions],
   );
 
   const startNewSession = useCallback(() => {
@@ -290,63 +387,6 @@ export function useBuildSession() {
         ]);
       };
 
-      const applySnapshot = (snapshot: BuildRunSnapshot) => {
-        const draft = sessionDraftRef.current;
-        const nodes = nodesFromSnapshot(snapshot);
-        const streamEvents = streamEventsFromSnapshot(snapshot);
-        const flags = flagsFromSnapshot(snapshot);
-        const fileTree = snapshot.fileTree as BuildFileNode[];
-        setNodes(nodes);
-        setStreamEvents(streamEvents);
-        setFileTree(fileTree);
-        setCompileDone(flags.compileDone);
-        setTestDone(flags.testDone);
-        const active = streamEvents.find((e) => e.status === "active");
-        if (active) setStageId(STREAM_TO_JOURNEY[active.stage]);
-        if (draft) {
-          draft.nodes = nodes;
-          draft.streamEvents = streamEvents;
-          draft.fileTree = fileTree;
-        }
-
-        const settled =
-          snapshot.status === "completed" || snapshot.status === "failed";
-        if (!settled) return;
-        if (pollRef.current !== null) {
-          window.clearInterval(pollRef.current);
-          pollRef.current = null;
-        }
-        setIsGenerating(false);
-        setShipReady(flags.shipReady);
-        if (flags.shipReady) setStageId("ship");
-        const assistantMsg: BuildMessage = {
-          id: `a_${Date.now()}`,
-          role: "assistant",
-          content: completionMessage(snapshot),
-          timestamp: nowTime(),
-          model: "Aomi",
-        };
-        setMessages((prev) => {
-          const next = [...prev, assistantMsg];
-          if (draft) draft.messages = next;
-          return next;
-        });
-        onAssistantReady(assistantMsg);
-        savePersistedSession({
-          id: sessionId,
-          title,
-          status: flags.failed ? "failed" : "healthy",
-          model: "Aomi",
-          updatedAt: "just now",
-          runtime: snapshot.app,
-          stageId: flags.shipReady ? "ship" : "generate",
-          messages: [...(draft?.messages ?? [userMsg])],
-          streamEvents,
-          fileTree,
-          nodes,
-        });
-      };
-
       void (async () => {
         try {
           const res = await fetch("/api/bff/build/runs", {
@@ -361,23 +401,31 @@ export function useBuildSession() {
             fail(body.error ?? `request failed (${res.status})`);
             return;
           }
-          const created = (await res.json()) as { runId: string };
+          const created = (await res.json()) as { runId: string; app: string };
           setEngineRunId(created.runId);
-          const poll = async () => {
-            const statusRes = await fetch(
-              `/api/bff/build/runs?id=${encodeURIComponent(created.runId)}`,
-            );
-            if (!statusRes.ok) return;
-            applySnapshot((await statusRes.json()) as BuildRunSnapshot);
-          };
-          await poll();
-          pollRef.current = window.setInterval(() => void poll(), RUN_POLL_MS);
+          // Persist immediately so a reload mid-build can reattach.
+          savePersistedSession({
+            id: sessionId,
+            title,
+            status: "running",
+            model: "Aomi",
+            updatedAt: "just now",
+            runtime: created.app,
+            runId: created.runId,
+            app: created.app,
+            stageId: "plan",
+            messages: [userMsg],
+            streamEvents: initial,
+            fileTree: [],
+            nodes: [],
+          });
+          beginRunPolling(created.runId, onAssistantReady);
         } catch (error) {
           fail(error instanceof Error ? error.message : String(error));
         }
       })();
     },
-    [clearTimers, recentSessions],
+    [beginRunPolling, clearTimers, recentSessions],
   );
 
   const runBuildPipeline = useCallback(

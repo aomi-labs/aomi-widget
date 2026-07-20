@@ -69,6 +69,10 @@ export type BuildSession = {
   id: string;
   title: string;
   status: BuildSessionStatus;
+  /** Engine-mode linkage: the durable run behind this session. Lets a reload
+   *  reattach to a live run and keep Download working after settle. */
+  runId?: string;
+  app?: string;
   model: string;
   updatedAt: string;
   runtime: string;

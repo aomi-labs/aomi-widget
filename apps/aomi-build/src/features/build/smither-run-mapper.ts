@@ -127,10 +127,11 @@ export type RunViewFlags = {
 };
 
 export function flagsFromSnapshot(snapshot: BuildRunSnapshot): RunViewFlags {
-  const failed =
-    snapshot.status === "failed" ||
-    snapshot.stages.some((s) => s.status === "failed");
-  const done = snapshot.status === "completed" && !failed;
+  // The run-level status is authoritative: a stage row can stay "failed" from
+  // an earlier attempt (quota retry, repaired fix round, a resume that
+  // recomposed the plan) while the run itself settled green.
+  const failed = snapshot.status === "failed";
+  const done = snapshot.status === "completed";
   const validateStages = snapshot.stages.filter(
     (s) => laneFor(s) === "validate" && s.kind !== "parallel",
   );
