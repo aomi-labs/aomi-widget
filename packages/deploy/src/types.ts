@@ -47,6 +47,7 @@ export interface AuditEvent {
     | "get_user_source_statement"
     | "list_user_source_logs"
     | "get_user_source_observability"
+    | "get_user_source_app_detail"
     | "upgrade_user_source_sdk"
     | "get_source_sdk_upgrade_status"
     | "list_deployment_records"
@@ -595,6 +596,10 @@ export interface OwnedOperateSourceInput extends BearerOverride {
   appSourceId: number;
 }
 
+export interface GetUserSourceAppDetailInput extends OwnedOperateSourceInput {
+  applicationId: number;
+}
+
 export type SourceSdkUpgradeResult =
   | {
       status: "current";
@@ -915,6 +920,59 @@ export interface OperateObservabilityResult {
   apps: OperateAppHealth[];
   dashboardLinks: OperateDashboardLink[];
   platformMetrics: OperatePlatformMetric[];
+}
+
+export interface OperateAppDetailTool {
+  tool: string;
+  calls: number | null;
+  errors: number | null;
+  errorRate: number | null;
+  p95Ms: number | null;
+  lastError: {
+    message: string | null;
+    occurredAt: number;
+  } | null;
+}
+
+export interface OperateAppDetailResult {
+  source: AppSource;
+  platform: string;
+  windowSeconds: number;
+  app: {
+    applicationId: number;
+    name: string;
+    releaseTag: string | null;
+    sdkVersion: string | null;
+    active: boolean;
+    loaded: boolean;
+    status: string;
+  };
+  funnel: {
+    chats24h: number | null;
+    toolCalls24h: number | null;
+    txProposed24h: number | null;
+    txSubmitted24h: number | null;
+    txConfirmed24h: number | null;
+    txReverted24h: number | null;
+  };
+  activeUsers24h: number | null;
+  credits: {
+    credits24h: number | null;
+    creditsPerTurn24h: number | null;
+    creditsDaily: Array<{ day: string; credits: number }>;
+  };
+  tools: OperateAppDetailTool[];
+  lifecycle: {
+    coldStartMs: number | null;
+    dylibBytes: number | null;
+    loads24h: number | null;
+    evictions24h: number | null;
+  };
+  hourly: {
+    chats: number[] | null;
+    toolCalls: number[] | null;
+    transactions: number[] | null;
+  };
 }
 
 // =============================================================================

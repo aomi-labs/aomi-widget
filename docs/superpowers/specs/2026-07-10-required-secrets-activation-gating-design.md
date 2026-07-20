@@ -4,7 +4,7 @@ Date: 2026-07-10
 Status: **BLOCKED — original approach invalidated by backend verification (2026-07-10).**
 See "Verified backend finding" below. The UI/BFF design (sections 2-4) still
 holds; the data source (section 1) does not.
-Scope: `packages/deploy`, `apps/aomi-build`, `apps/portal`, and — newly — `aomi-sdk` CI
+Scope: `packages/deploy`, `apps/build`, `apps/portal`, and — newly — `aomi-sdk` CI
 
 ## Problem
 
@@ -123,7 +123,7 @@ Returns the required slots whose `name` is not present in `configuredKeys`.
 Optional slots never gate. Exact-match on name (no case folding — env var
 names are case-sensitive).
 
-### 3. UI — `apps/aomi-build`
+### 3. UI — `apps/build`
 
 Two call sites invoke `launchActivate`, and **both** gate:
 
@@ -173,7 +173,7 @@ existing session + source-ownership + `(app, releaseTag)` pair validation and
 Applied to all **three** copies of the route, so portal and the package BFF
 inherit it:
 
-- `apps/aomi-build/src/server/bff/launch/routes.ts`
+- `apps/build/src/server/bff/launch/routes.ts`
 - `apps/portal/src/server/bff/launch/routes.ts`
 - `packages/deploy/src/bff/launch-routes.ts`
 
@@ -219,7 +219,7 @@ GET /api/bff/deployments/secrets  -> listAppSecrets   -> { byApp: string[] }
 - **Route** (all three copies): activate returns 409 + `missing` when a required
   slot is unfilled; activates normally when filled; unchanged when the app
   declares no slots.
-- **Component** (`apps/aomi-build`): Activate disabled with an unfilled required
+- **Component** (`apps/build`): Activate disabled with an unfilled required
   slot; enabled after saving it; missing slots render with name + description
   and a masked input.
 
