@@ -119,6 +119,18 @@ function logRow(row: OperateLogEntry, app: string): LogRecord {
   };
 }
 
+function toolsSummaryLabel(
+  tools: Array<{ calls: number | null; errors: number | null }>,
+): string {
+  const calls = tools.every((row) => row.calls !== null)
+    ? tools.reduce((sum, row) => sum + (row.calls ?? 0), 0)
+    : null;
+  const errors = tools.every((row) => row.errors !== null)
+    ? tools.reduce((sum, row) => sum + (row.errors ?? 0), 0)
+    : null;
+  return `${calls ?? "—"} calls · ${errors ?? "—"} ${errors === 1 ? "error" : "errors"}`;
+}
+
 function releases(
   payload: LiveAppDetailPayload,
 ): AppFixture["detail"]["releases"] {
@@ -151,7 +163,7 @@ export function liveAppDetailView(
   payload: LiveAppDetailPayload,
 ): LiveAppDetailView {
   const detail = payload.detail;
-  const fallback = appFixture(detail.app.name) ?? FIXTURES[0]!;
+  const fallback = appFixture(detail.app.name) ?? FIXTURES[0];
   const example = new Set<string>();
   const fallbackNumber = (
     value: number | null,
@@ -223,6 +235,8 @@ export function liveAppDetailView(
   const realReleases = releases(payload);
   if (!realReleases.length) example.add("Release history");
 
+  // The backend has no per-hour p95 series yet, so that chart is always
+  // fixture data (`p95Hourly: fallback...` below).
   example.add("P95 latency history");
   const chatsHourly = detail.hourly.chats ?? fallback.detail.chatsHourly;
   const toolCallsHourly =
@@ -254,7 +268,6 @@ export function liveAppDetailView(
       repo: detail.source.repositoryLink ?? fallback.meta.repo,
     },
     card: {
-      ...fallback.card,
       requestsPerMinute: health?.requestsPerMinute ?? null,
       errorRate: health?.errorRate ?? null,
       p95LatencyMs: health?.p95LatencyMs ?? null,
@@ -319,15 +332,7 @@ export function liveAppDetailView(
       creditsDaily,
       tools: realTools.length ? realTools : fallback.detail.tools,
       toolsSummary: realTools.length
-        ? (() => {
-            const calls = realTools.every((row) => row.calls !== null)
-              ? realTools.reduce((sum, row) => sum + (row.calls ?? 0), 0)
-              : null;
-            const errors = realTools.every((row) => row.errors !== null)
-              ? realTools.reduce((sum, row) => sum + (row.errors ?? 0), 0)
-              : null;
-            return `${calls ?? "—"} calls · ${errors ?? "—"} ${errors === 1 ? "error" : "errors"}`;
-          })()
+        ? toolsSummaryLabel(realTools)
         : fallback.detail.toolsSummary,
       fees24h: "receipt fees shown per transaction",
       lifecycle: [
