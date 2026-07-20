@@ -3,7 +3,7 @@
 Date: 2026-07-10
 Status: **decisions locked, blocked on backend.** Not a full design; no
 implementation plan until the backend endpoint exists.
-Scope: `apps/aomi-build` (replaces the Operate → Agents tab)
+Scope: `apps/build` (replaces the Operate → Agents tab)
 
 ## Why this document
 

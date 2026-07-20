@@ -24,6 +24,17 @@ tables; fresh databases also finish replay with that drop.
 
 Progress:
 
+- 2026-07-19 Operate observability detail: replaced the #374 fixture route
+  contract with owned source/application IDs and a live manager aggregate
+  relayed through `@aomi-labs/deploy` and the Build BFF. Real detail, health,
+  transaction, log, and deployment values stay authoritative; backend-missing
+  chart/release slices retain explicitly labeled fixture fallbacks. Renamed the
+  frontend workspace from `apps/aomi-build` to `apps/build`, patch-bumped the
+  deploy package to 0.2.2, and moved the Vercel output directory with it. Full
+  app tests, typecheck, lint, production build, package build/pack, GitHub CI,
+  and the corrected Vercel preview passed. Staging E2E still depends on the
+  backend release-build unblock in product-mono PR #841 reaching `main`.
+
 - 2026-07-15 Aomi Build theming: replaced the app's hard-coded Cursor palette
   with the canonical light/dark tokens from `aomi-design`, added a persisted
   system-aware theme toggle without hydration flash, and aligned semantic

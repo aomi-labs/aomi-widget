@@ -44,8 +44,10 @@ export interface AuditEvent {
     | "delete_user_source_bot"
     | "list_user_source_transactions"
     | "get_user_source_usage"
+    | "get_user_source_statement"
     | "list_user_source_logs"
     | "get_user_source_observability"
+    | "get_user_source_app_detail"
     | "upgrade_user_source_sdk"
     | "get_source_sdk_upgrade_status"
     | "list_deployment_records"
@@ -594,6 +596,10 @@ export interface OwnedOperateSourceInput extends BearerOverride {
   appSourceId: number;
 }
 
+export interface GetUserSourceAppDetailInput extends OwnedOperateSourceInput {
+  applicationId: number;
+}
+
 export type SourceSdkUpgradeResult =
   | {
       status: "current";
@@ -701,6 +707,7 @@ export interface OperateTransaction {
   application: string;
   applicationId: number | null;
   status: string;
+  /** EVM tx hash or SVM signature */
   txHash: string | null;
   chainId: number;
   fromAddress: string;
@@ -712,6 +719,28 @@ export interface OperateTransaction {
   createdAt: number;
   updatedAt: number;
   submittedAt: number | null;
+  // Receipt contract — null until the confirmation watcher lands.
+  family: "evm" | "svm" | null;
+  chainName: string | null;
+  fromLabel: string | null;
+  toLabel: string | null;
+  valueUsd: string | null;
+  block: string | null;
+  slot: string | null;
+  confirmations: number | null;
+  gasUsed: string | null;
+  gasLimit: string | null;
+  effGasPrice: string | null;
+  computeUnits: string | null;
+  computeLimit: string | null;
+  priorityFee: string | null;
+  txFee: string | null;
+  platformFee: string | null;
+  nonce: number | null;
+  method: string | null;
+  transfers: string[] | null;
+  revertReason: string | null;
+  explorerUrl: string | null;
 }
 
 export interface OperateTransactionsResult {
@@ -748,6 +777,58 @@ export interface OperateUsageResult {
   breakdown: OperateUsageBreakdownRow[];
 }
 
+// Statement contract — mirrors the manager's `/user/sources/:id/statement`
+// endpoint (bank-statement model: Aomi's statement to the builder, one
+// document, entries of both signs). Charges (`model`, `hosting` subjects)
+// carry negative net; earnings (`tool_invocation`, `outcome`) positive.
+// Amounts are raw USD floats off the wire; the UI formats at render time.
+export interface OperateStatementSummary {
+  grossRevenue: number;
+  platformFees: number;
+  serviceCharges: number;
+  net: number;
+}
+
+export interface OperateStatementRevenueRow {
+  subject: string;
+  application: string;
+  applicationId: number | null;
+  events: number;
+  gross: number;
+  platformFee: number;
+  net: number;
+}
+
+export interface OperateStatementChargeRow {
+  item: string;
+  application: string;
+  applicationId: number | null;
+  events: number;
+  amount: number;
+}
+
+export interface OperateStatementEntry {
+  day: string;
+  application: string;
+  subject: string;
+  events: number;
+  gross: number;
+  platformFee: number;
+  net: number;
+}
+
+export interface OperateStatementResult {
+  source: AppSource;
+  platform: string;
+  range: { fromDate: string; toDate: string };
+  /** False when statement_entries isn't migrated yet — fall back to the meter. */
+  available: boolean;
+  summary: OperateStatementSummary;
+  revenue: OperateStatementRevenueRow[];
+  charges: OperateStatementChargeRow[];
+  entries: OperateStatementEntry[];
+}
+
 export interface OperateLogEntry {
   occurredAt: number;
   eventType: string;
@@ -756,6 +837,16 @@ export interface OperateLogEntry {
   applicationId: number | null;
   summary: string;
   details: Record<string, unknown>;
+  // Invocation-trace contract — null/absent for plain control-plane events.
+  // Privacy: args/results are operational payloads; user intents never ship.
+  kind: "invocation" | "event" | null;
+  status: "ok" | "error" | "info" | null;
+  tool: string | null;
+  durationMs: number | null;
+  retries: number | null;
+  threadId: string | null;
+  args: string | null;
+  result: string | null;
 }
 
 export interface OperateLogsResult {
@@ -781,9 +872,24 @@ export interface OperateAppMetrics {
   windowSeconds: number;
   available: boolean;
   requestsPerMinute: number | null;
+  /** Chat-request error rate; tool/tx failures are separate domains below. */
   errorRate: number | null;
   p95LatencyMs: number | null;
   inflightRequests: number | null;
+  // 24h trend contract. Null until the manager emits grouped
+  // query_range reads; the card falls back to the live tiles.
+  trendWindowSeconds: number | null;
+  chats24h: number | null;
+  toolCalls24h: number | null;
+  transactions24h: number | null;
+  /** Hourly counts over the trend window, oldest bucket first. */
+  chatsHourly: number[] | null;
+  toolCallsHourly: number[] | null;
+  transactionsHourly: number[] | null;
+  toolErrorRate: number | null;
+  txErrorRate: number | null;
+  coldStartMs: number | null;
+  dylibBytes: number | null;
 }
 
 export interface OperateDashboardLink {
@@ -814,6 +920,59 @@ export interface OperateObservabilityResult {
   apps: OperateAppHealth[];
   dashboardLinks: OperateDashboardLink[];
   platformMetrics: OperatePlatformMetric[];
+}
+
+export interface OperateAppDetailTool {
+  tool: string;
+  calls: number | null;
+  errors: number | null;
+  errorRate: number | null;
+  p95Ms: number | null;
+  lastError: {
+    message: string | null;
+    occurredAt: number;
+  } | null;
+}
+
+export interface OperateAppDetailResult {
+  source: AppSource;
+  platform: string;
+  windowSeconds: number;
+  app: {
+    applicationId: number;
+    name: string;
+    releaseTag: string | null;
+    sdkVersion: string | null;
+    active: boolean;
+    loaded: boolean;
+    status: string;
+  };
+  funnel: {
+    chats24h: number | null;
+    toolCalls24h: number | null;
+    txProposed24h: number | null;
+    txSubmitted24h: number | null;
+    txConfirmed24h: number | null;
+    txReverted24h: number | null;
+  };
+  activeUsers24h: number | null;
+  credits: {
+    credits24h: number | null;
+    creditsPerTurn24h: number | null;
+    creditsDaily: Array<{ day: string; credits: number }>;
+  };
+  tools: OperateAppDetailTool[];
+  lifecycle: {
+    coldStartMs: number | null;
+    dylibBytes: number | null;
+    loads24h: number | null;
+    evictions24h: number | null;
+  };
+  hourly: {
+    chats: number[] | null;
+    toolCalls: number[] | null;
+    transactions: number[] | null;
+  };
 }
 
 // =============================================================================

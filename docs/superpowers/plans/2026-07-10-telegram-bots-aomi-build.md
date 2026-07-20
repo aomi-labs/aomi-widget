@@ -33,12 +33,12 @@
 **`aomi-widget`:**
 - Modify: `packages/deploy/src/types.ts` — `BotRegistration`, inputs.
 - Modify: `packages/deploy/src/client.ts` — three methods; delete `listUserSourceAgents`.
-- Modify: `apps/aomi-build/src/server/bff/operate/routes.ts` — bots routes; delete `operateAgentsRoute`.
-- Create: `apps/aomi-build/src/app/api/bff/operate/bots/route.ts`.
-- Create: `apps/aomi-build/src/features/operate/bots-view.tsx`.
-- Delete: `apps/aomi-build/src/app/(control-plane)/operate/agents/`.
-- Create: `apps/aomi-build/src/app/(control-plane)/operate/bots/page.tsx`.
-- Modify: `apps/aomi-build/src/components/control-plane/control-plane-shell.tsx` — nav entry.
+- Modify: `apps/build/src/server/bff/operate/routes.ts` — bots routes; delete `operateAgentsRoute`.
+- Create: `apps/build/src/app/api/bff/operate/bots/route.ts`.
+- Create: `apps/build/src/features/operate/bots-view.tsx`.
+- Delete: `apps/build/src/app/(control-plane)/operate/agents/`.
+- Create: `apps/build/src/app/(control-plane)/operate/bots/page.tsx`.
+- Modify: `apps/build/src/components/control-plane/control-plane-shell.tsx` — nav entry.
 
 ---
 
@@ -741,10 +741,10 @@ git commit -m "feat(deploy): bot registration client methods; drop listUserSourc
 ## Task 5: Bots BFF routes (aomi-build)
 
 **Files:**
-- Modify: `/Users/han/github/aomi-widget/apps/aomi-build/src/server/bff/operate/routes.ts`
-- Create: `/Users/han/github/aomi-widget/apps/aomi-build/src/app/api/bff/operate/bots/route.ts`
-- Delete: `/Users/han/github/aomi-widget/apps/aomi-build/src/app/api/bff/operate/agents/route.ts`
-- Test: `apps/aomi-build/src/server/bff/operate/routes.test.ts`
+- Modify: `/Users/han/github/aomi-widget/apps/build/src/server/bff/operate/routes.ts`
+- Create: `/Users/han/github/aomi-widget/apps/build/src/app/api/bff/operate/bots/route.ts`
+- Delete: `/Users/han/github/aomi-widget/apps/build/src/app/api/bff/operate/agents/route.ts`
+- Test: `apps/build/src/server/bff/operate/routes.test.ts`
 
 **Interfaces:**
 - Consumes: `ownedSources(req)` (existing, `routes.ts:98`), Task 4's client methods.
@@ -865,7 +865,7 @@ export async function operateBotsCreateRoute(req: Request) {
 
 `operateBotsDeleteRoute` mirrors the same ownership check, then calls `deleteUserSourceBot`.
 
-Create `apps/aomi-build/src/app/api/bff/operate/bots/route.ts`:
+Create `apps/build/src/app/api/bff/operate/bots/route.ts`:
 
 ```ts
 import {
@@ -879,7 +879,7 @@ export const POST = operateBotsCreateRoute;
 export const DELETE = operateBotsDeleteRoute;
 ```
 
-Delete `operateAgentsRoute` and `apps/aomi-build/src/app/api/bff/operate/agents/route.ts`.
+Delete `operateAgentsRoute` and `apps/build/src/app/api/bff/operate/agents/route.ts`.
 
 - [ ] **Step 4: Run test to verify it passes**
 
@@ -890,7 +890,7 @@ Expected: PASS.
 
 ```bash
 cd /Users/han/github/aomi-widget
-git add apps/aomi-build/src/server/bff/operate/routes.ts apps/aomi-build/src/app/api/bff/operate/ apps/aomi-build/src/server/bff/operate/routes.test.ts
+git add apps/build/src/server/bff/operate/routes.ts apps/build/src/app/api/bff/operate/ apps/build/src/server/bff/operate/routes.test.ts
 git commit -m "feat(aomi-build): bots BFF routes; remove agents route"
 ```
 
@@ -899,12 +899,12 @@ git commit -m "feat(aomi-build): bots BFF routes; remove agents route"
 ## Task 6: Bots view + nav (aomi-build)
 
 **Files:**
-- Create: `/Users/han/github/aomi-widget/apps/aomi-build/src/features/operate/bots-view.tsx`
-- Create: `/Users/han/github/aomi-widget/apps/aomi-build/src/app/(control-plane)/operate/bots/page.tsx`
-- Delete: `/Users/han/github/aomi-widget/apps/aomi-build/src/app/(control-plane)/operate/agents/`
-- Modify: `/Users/han/github/aomi-widget/apps/aomi-build/src/components/control-plane/control-plane-shell.tsx`
-- Modify: `/Users/han/github/aomi-widget/apps/aomi-build/src/features/operate/client.ts` (drop `"agents"` from `OperateKind`)
-- Test: `apps/aomi-build/src/features/operate/bots-view.test.tsx`
+- Create: `/Users/han/github/aomi-widget/apps/build/src/features/operate/bots-view.tsx`
+- Create: `/Users/han/github/aomi-widget/apps/build/src/app/(control-plane)/operate/bots/page.tsx`
+- Delete: `/Users/han/github/aomi-widget/apps/build/src/app/(control-plane)/operate/agents/`
+- Modify: `/Users/han/github/aomi-widget/apps/build/src/components/control-plane/control-plane-shell.tsx`
+- Modify: `/Users/han/github/aomi-widget/apps/build/src/features/operate/client.ts` (drop `"agents"` from `OperateKind`)
+- Test: `apps/build/src/features/operate/bots-view.test.tsx`
 
 **Interfaces:**
 - Consumes: the BFF routes (Task 5), `useGitHubSession()` (existing).
@@ -1011,7 +1011,7 @@ Expected: all green; the grep prints "no agents references remain".
 
 ```bash
 cd /Users/han/github/aomi-widget
-git add apps/aomi-build/src/features/operate/ apps/aomi-build/src/app/\(control-plane\)/operate/ apps/aomi-build/src/components/control-plane/control-plane-shell.tsx
+git add apps/build/src/features/operate/ apps/build/src/app/\(control-plane\)/operate/ apps/build/src/components/control-plane/control-plane-shell.tsx
 git commit -m "feat(aomi-build): replace Operate Agents tab with Bots
 
 Builders can register a Telegram bot against a deployed app. Reuses the

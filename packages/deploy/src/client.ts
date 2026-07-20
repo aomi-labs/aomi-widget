@@ -18,6 +18,7 @@ import type {
   DeploymentAppStatus,
   ExchangeGitHubCodeInput,
   GetAppInput,
+  GetUserSourceAppDetailInput,
   GetUserSourceLatestDeploymentInput,
   GitHubIdentity,
   ListAppsInput,
@@ -34,6 +35,8 @@ import type {
   CreateUserSourceBotInput,
   DeleteUserSourceBotInput,
   OperateLogCursor,
+  OperateAppDetailResult,
+  OperateStatementResult,
   OperateLogsResult,
   OperateObservabilityResult,
   OperateTransactionCursor,
@@ -929,6 +932,30 @@ export class DeploymentClient {
     return camelOperateUsage(raw, platform);
   }
 
+  async getUserSourceStatement(
+    input: GetUserSourceUsageInput,
+  ): Promise<OperateStatementResult> {
+    const { appSourceId, params, platform, bearer } =
+      this.ownedOperateRequest(input);
+    if (input.fromDate?.trim()) params.set("from_date", input.fromDate.trim());
+    if (input.toDate?.trim()) params.set("to_date", input.toDate.trim());
+    const raw = await this.get<Record<string, unknown>>(
+      `/api/integrations/github-app/user/sources/${encodeURIComponent(
+        String(appSourceId),
+      )}/statement?${params.toString()}`,
+      "get_user_source_statement",
+      bearer,
+    );
+    await this.audit({
+      action: "get_user_source_statement",
+      platform,
+      appSourceId,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return camelOperateStatement(raw, platform);
+  }
+
   async listUserSourceLogs(
     input: ListUserSourceLogsInput,
   ): Promise<OperateLogsResult> {
@@ -977,6 +1004,32 @@ export class DeploymentClient {
       ts: Date.now(),
     });
     return camelOperateObservability(raw, platform);
+  }
+
+  async getUserSourceAppDetail(
+    input: GetUserSourceAppDetailInput,
+  ): Promise<OperateAppDetailResult> {
+    const { appSourceId, params, platform, bearer } =
+      this.ownedOperateRequest(input);
+    const applicationId = required(
+      String(input.applicationId),
+      "applicationId",
+    );
+    const raw = await this.get<Record<string, unknown>>(
+      `/api/integrations/github-app/user/sources/${encodeURIComponent(
+        String(appSourceId),
+      )}/apps/${encodeURIComponent(applicationId)}/detail?${params.toString()}`,
+      "get_user_source_app_detail",
+      bearer,
+    );
+    await this.audit({
+      action: "get_user_source_app_detail",
+      platform,
+      appSourceId,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return camelOperateAppDetail(raw, platform);
   }
 
   async upgradeUserSourceSdk(
@@ -1815,6 +1868,14 @@ function camelLogCursor(raw: unknown): OperateLogCursor | null {
   return occurredAt && eventType && id ? { occurredAt, eventType, id } : null;
 }
 
+function optString(value: unknown): string | null {
+  return value === null || value === undefined ? null : String(value);
+}
+
+function optNumber(value: unknown): number | null {
+  return value === null || value === undefined ? null : Number(value);
+}
+
 function camelOperateTransactions(
   raw: Record<string, unknown>,
   fallbackPlatform: string,
@@ -1843,6 +1904,29 @@ function camelOperateTransactions(
           row.submitted_at == null && row.submittedAt == null
             ? null
             : timestampSeconds(row.submitted_at ?? row.submittedAt),
+        family: (row.family ?? null) as "evm" | "svm" | null,
+        chainName: optString(row.chain_name ?? row.chainName),
+        fromLabel: optString(row.from_label ?? row.fromLabel),
+        toLabel: optString(row.to_label ?? row.toLabel),
+        valueUsd: optString(row.value_usd ?? row.valueUsd),
+        block: optString(row.block),
+        slot: optString(row.slot),
+        confirmations: optNumber(row.confirmations),
+        gasUsed: optString(row.gas_used ?? row.gasUsed),
+        gasLimit: optString(row.gas_limit ?? row.gasLimit),
+        effGasPrice: optString(row.eff_gas_price ?? row.effGasPrice),
+        computeUnits: optString(row.compute_units ?? row.computeUnits),
+        computeLimit: optString(row.compute_limit ?? row.computeLimit),
+        priorityFee: optString(row.priority_fee ?? row.priorityFee),
+        txFee: optString(row.tx_fee ?? row.txFee),
+        platformFee: optString(row.platform_fee ?? row.platformFee),
+        nonce: optNumber(row.nonce),
+        method: optString(row.method),
+        transfers: Array.isArray(row.transfers)
+          ? row.transfers.map(String)
+          : null,
+        revertReason: optString(row.revert_reason ?? row.revertReason),
+        explorerUrl: optString(row.explorer_url ?? row.explorerUrl),
       }),
     ),
     nextCursor: camelTransactionCursor(raw.next_cursor ?? raw.nextCursor),
@@ -1882,6 +1966,56 @@ function camelOperateUsage(
   };
 }
 
+function camelOperateStatement(
+  raw: Record<string, unknown>,
+  fallbackPlatform: string,
+): OperateStatementResult {
+  const range = (raw.range ?? {}) as Record<string, any>;
+  const summary = (raw.summary ?? {}) as Record<string, any>;
+  return {
+    source: camelAppSource(raw.source),
+    platform: String(raw.platform ?? fallbackPlatform),
+    range: {
+      fromDate: String(range.from_date ?? range.fromDate ?? ""),
+      toDate: String(range.to_date ?? range.toDate ?? ""),
+    },
+    available: Boolean(raw.available),
+    summary: {
+      grossRevenue: Number(summary.gross_revenue ?? summary.grossRevenue ?? 0),
+      platformFees: Number(summary.platform_fees ?? summary.platformFees ?? 0),
+      serviceCharges: Number(
+        summary.service_charges ?? summary.serviceCharges ?? 0,
+      ),
+      net: Number(summary.net ?? 0),
+    },
+    revenue: ((raw.revenue ?? []) as Record<string, any>[]).map((row) => ({
+      subject: String(row.subject ?? ""),
+      application: String(row.application ?? ""),
+      applicationId: row.application_id ?? row.applicationId ?? null,
+      events: Number(row.events ?? 0),
+      gross: Number(row.gross ?? 0),
+      platformFee: Number(row.platform_fee ?? row.platformFee ?? 0),
+      net: Number(row.net ?? 0),
+    })),
+    charges: ((raw.charges ?? []) as Record<string, any>[]).map((row) => ({
+      item: String(row.item ?? ""),
+      application: String(row.application ?? ""),
+      applicationId: row.application_id ?? row.applicationId ?? null,
+      events: Number(row.events ?? 0),
+      amount: Number(row.amount ?? 0),
+    })),
+    entries: ((raw.entries ?? []) as Record<string, any>[]).map((row) => ({
+      day: String(row.day ?? ""),
+      application: String(row.application ?? ""),
+      subject: String(row.subject ?? ""),
+      events: Number(row.events ?? 0),
+      gross: Number(row.gross ?? 0),
+      platformFee: Number(row.platform_fee ?? row.platformFee ?? 0),
+      net: Number(row.net ?? 0),
+    })),
+  };
+}
+
 function camelOperateLogs(
   raw: Record<string, unknown>,
   fallbackPlatform: string,
@@ -1897,6 +2031,14 @@ function camelOperateLogs(
       applicationId: row.application_id ?? row.applicationId ?? null,
       summary: String(row.summary ?? ""),
       details: (row.details ?? {}) as Record<string, unknown>,
+      kind: (row.kind ?? null) as "invocation" | "event" | null,
+      status: (row.status ?? null) as "ok" | "error" | "info" | null,
+      tool: optString(row.tool),
+      durationMs: optNumber(row.duration_ms ?? row.durationMs),
+      retries: optNumber(row.retries),
+      threadId: optString(row.thread_id ?? row.threadId),
+      args: optString(row.args),
+      result: optString(row.result),
     })),
     nextCursor: camelLogCursor(raw.next_cursor ?? raw.nextCursor),
   };
@@ -1957,12 +2099,105 @@ function camelOperateObservability(
   };
 }
 
+function camelOperateAppDetail(
+  raw: Record<string, unknown>,
+  fallbackPlatform: string,
+): OperateAppDetailResult {
+  const app = (raw.app ?? {}) as Record<string, any>;
+  const funnel = (raw.funnel ?? {}) as Record<string, any>;
+  const credits = (raw.credits ?? {}) as Record<string, any>;
+  const lifecycle = (raw.lifecycle ?? {}) as Record<string, any>;
+  const hourly = (raw.hourly ?? {}) as Record<string, any>;
+  const series = (value: unknown): number[] | null =>
+    Array.isArray(value) ? value.map(Number) : null;
+  return {
+    source: camelAppSource(raw.source),
+    platform: String(raw.platform ?? fallbackPlatform),
+    windowSeconds: Number(raw.window_seconds ?? raw.windowSeconds ?? 0),
+    app: {
+      applicationId: Number(app.application_id ?? app.applicationId ?? 0),
+      name: String(app.name ?? ""),
+      releaseTag: optString(app.release_tag ?? app.releaseTag),
+      sdkVersion: optString(app.sdk_version ?? app.sdkVersion),
+      active: Boolean(app.active),
+      loaded: Boolean(app.loaded),
+      status: String(app.status ?? ""),
+    },
+    funnel: {
+      chats24h: optNumber(funnel.chats_24h ?? funnel.chats24h),
+      toolCalls24h: optNumber(funnel.tool_calls_24h ?? funnel.toolCalls24h),
+      txProposed24h: optNumber(funnel.tx_proposed_24h ?? funnel.txProposed24h),
+      txSubmitted24h: optNumber(
+        funnel.tx_submitted_24h ?? funnel.txSubmitted24h,
+      ),
+      txConfirmed24h: optNumber(
+        funnel.tx_confirmed_24h ?? funnel.txConfirmed24h,
+      ),
+      txReverted24h: optNumber(funnel.tx_reverted_24h ?? funnel.txReverted24h),
+    },
+    activeUsers24h: optNumber(raw.active_users_24h ?? raw.activeUsers24h),
+    credits: {
+      credits24h: optNumber(credits.credits_24h ?? credits.credits24h),
+      creditsPerTurn24h: optNumber(
+        credits.credits_per_turn_24h ?? credits.creditsPerTurn24h,
+      ),
+      creditsDaily: (
+        (credits.credits_daily ?? credits.creditsDaily ?? []) as Record<
+          string,
+          any
+        >[]
+      ).map((row) => ({
+        day: String(row.day ?? ""),
+        credits: Number(row.credits ?? 0),
+      })),
+    },
+    tools: ((raw.tools ?? []) as Record<string, any>[]).map((row) => {
+      const lastError = (row.last_error ?? row.lastError) as
+        | Record<string, any>
+        | null
+        | undefined;
+      return {
+        tool: String(row.tool ?? ""),
+        calls: optNumber(row.calls),
+        errors: optNumber(row.errors),
+        errorRate: optNumber(row.error_rate ?? row.errorRate),
+        p95Ms: optNumber(row.p95_ms ?? row.p95Ms),
+        lastError: lastError
+          ? {
+              message: optString(lastError.message),
+              occurredAt: Number(
+                lastError.occurred_at ?? lastError.occurredAt ?? 0,
+              ),
+            }
+          : null,
+      };
+    }),
+    lifecycle: {
+      coldStartMs: optNumber(lifecycle.cold_start_ms ?? lifecycle.coldStartMs),
+      dylibBytes: optNumber(lifecycle.dylib_bytes ?? lifecycle.dylibBytes),
+      loads24h: optNumber(lifecycle.loads_24h ?? lifecycle.loads24h),
+      evictions24h: optNumber(
+        lifecycle.evictions_24h ?? lifecycle.evictions24h,
+      ),
+    },
+    hourly: {
+      chats: series(hourly.chats),
+      toolCalls: series(hourly.tool_calls ?? hourly.toolCalls),
+      transactions: series(hourly.transactions),
+    },
+  };
+}
+
 function camelOperateAppMetrics(raw: unknown) {
   if (!raw || typeof raw !== "object") return null;
   const metrics = raw as Record<string, any>;
   const metricNumber = (snake: string, camel: string): number | null => {
     const value = metrics[snake] ?? metrics[camel];
     return value === null || value === undefined ? null : Number(value);
+  };
+  const metricSeries = (snake: string, camel: string): number[] | null => {
+    const value = metrics[snake] ?? metrics[camel];
+    return Array.isArray(value) ? value.map(Number) : null;
   };
   return {
     provider: String(metrics.provider ?? ""),
@@ -1972,5 +2207,22 @@ function camelOperateAppMetrics(raw: unknown) {
     errorRate: metricNumber("error_rate", "errorRate"),
     p95LatencyMs: metricNumber("p95_latency_ms", "p95LatencyMs"),
     inflightRequests: metricNumber("inflight_requests", "inflightRequests"),
+    trendWindowSeconds: metricNumber(
+      "trend_window_seconds",
+      "trendWindowSeconds",
+    ),
+    chats24h: metricNumber("chats_24h", "chats24h"),
+    toolCalls24h: metricNumber("tool_calls_24h", "toolCalls24h"),
+    transactions24h: metricNumber("transactions_24h", "transactions24h"),
+    chatsHourly: metricSeries("chats_hourly", "chatsHourly"),
+    toolCallsHourly: metricSeries("tool_calls_hourly", "toolCallsHourly"),
+    transactionsHourly: metricSeries(
+      "transactions_hourly",
+      "transactionsHourly",
+    ),
+    toolErrorRate: metricNumber("tool_error_rate", "toolErrorRate"),
+    txErrorRate: metricNumber("tx_error_rate", "txErrorRate"),
+    coldStartMs: metricNumber("cold_start_ms", "coldStartMs"),
+    dylibBytes: metricNumber("dylib_bytes", "dylibBytes"),
   };
 }
