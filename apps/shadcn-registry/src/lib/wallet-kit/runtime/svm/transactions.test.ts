@@ -1,4 +1,11 @@
+// @vitest-environment node
+
 import { describe, expect, it, vi } from "vitest";
+import {
+  Keypair,
+  TransactionMessage,
+  VersionedTransaction,
+} from "@solana/web3.js";
 import type { SafeSvmWalletState } from "./wallet-runtime";
 import { buildSvmTransactionMethods } from "./transactions";
 
@@ -32,5 +39,32 @@ describe("buildSvmTransactionMethods", () => {
 
     expect(execution.signAndSendSolanaTransaction).toBeUndefined();
     expect(execution.sendSolanaTransaction).toBeTypeOf("function");
+  });
+
+  it("sends the exact approved transaction without refreshing its blockhash", async () => {
+    const payer = Keypair.generate();
+    const approvedBlockhash = Keypair.generate().publicKey.toBase58();
+    const approved = new VersionedTransaction(
+      new TransactionMessage({
+        payerKey: payer.publicKey,
+        recentBlockhash: approvedBlockhash,
+        instructions: [],
+      }).compileToV0Message(),
+    );
+    const sendTransaction = vi.fn(async () => "signature");
+    const execution = buildSvmTransactionMethods(wallet({ sendTransaction }), {
+      preferDirectSend: false,
+      rpcHttpUrl: "https://solana.example",
+    });
+
+    await execution.sendSolanaTransaction?.({
+      unsignedTx: Buffer.from(approved.serialize()).toString("base64"),
+    });
+
+    const submitted = sendTransaction.mock.calls[0]?.[0];
+    expect(submitted).toBeInstanceOf(VersionedTransaction);
+    expect((submitted as VersionedTransaction).message.recentBlockhash).toBe(
+      approvedBlockhash,
+    );
   });
 });

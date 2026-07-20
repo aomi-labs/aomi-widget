@@ -46,6 +46,11 @@ const ALLOWED_ROUTES: AllowedRoute[] = [
     auth: "optional",
   },
   {
+    pattern: /^\/api\/threads\/[^/]+\/(archive|unarchive)$/,
+    methods: new Set(["POST"]),
+    auth: "optional",
+  },
+  {
     pattern: /^\/api\/thread\/events$/,
     methods: new Set(["GET"]),
     auth: "optional",

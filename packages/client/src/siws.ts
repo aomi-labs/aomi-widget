@@ -11,12 +11,11 @@ export function buildSiwsMessage(input: {
   uri: string;
   issuedAt?: Date;
 }): string {
-  const action = input.intent === "link" ? "link" : "sign in with";
   const statement =
     input.intent === "link"
       ? "Only sign this message if you want this Solana wallet attached to the current Aomi account."
       : "Sign in to Aomi.";
-  return `${input.domain} wants you to ${action} your Solana account:
+  return `${input.domain} wants you to sign in with your Solana account:
 ${input.address}
 
 ${statement}

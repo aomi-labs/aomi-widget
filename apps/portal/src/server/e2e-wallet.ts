@@ -86,7 +86,10 @@ function signingSecret(): string | null {
 
 export function isE2EWalletEnabled(): boolean {
   return (
-    process.env.AOMI_ENABLE_E2E_WALLET === "true" && signingSecret() !== null
+    process.env.NODE_ENV !== "production" &&
+    !process.env.VERCEL_ENV &&
+    process.env.AOMI_ENABLE_E2E_WALLET === "true" &&
+    signingSecret() !== null
   );
 }
 

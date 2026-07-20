@@ -59,7 +59,7 @@ const verifyBody = z.object({
 });
 
 export type ParsedSiwsMessage = {
-  intent: SiwsIntent;
+  statement: string;
   domain: string;
   address: string;
   uri: string;
@@ -225,6 +225,7 @@ export function aomiSiwsPlugin(options: AomiSiwsOptions) {
               aomiUserId: aomiUser.id,
               betterAuthUserId,
               label,
+              labelAddress: walletAddress,
             });
             return ctx.json({
               success: true,
@@ -275,6 +276,7 @@ export function aomiSiwsPlugin(options: AomiSiwsOptions) {
             aomiUserId: aomiUser.id,
             betterAuthUserId: user.id,
             label,
+            labelAddress: walletAddress,
           });
 
           const session = await ctx.context.internalAdapter.createSession(
@@ -305,7 +307,7 @@ export function aomiSiwsPlugin(options: AomiSiwsOptions) {
 export function parseSiwsMessage(message: string): ParsedSiwsMessage | null {
   const lines = message.split(/\r?\n/);
   const header = lines[0]?.match(
-    /^(.+) wants you to (sign in with|link) your Solana account:$/,
+    /^(.+) wants you to sign in with your Solana account:$/,
   );
   if (!header || !validSolanaAddress(lines[1] ?? "")) return null;
   const fields = {
@@ -327,7 +329,7 @@ export function parseSiwsMessage(message: string): ParsedSiwsMessage | null {
     return null;
   }
   return {
-    intent: header[2] === "link" ? "link" : "sign-in",
+    statement: lines[3] ?? "",
     domain: header[1],
     address: lines[1],
     uri: fields.uri,
@@ -352,8 +354,12 @@ export function verifySiwsMessage(input: {
   if (!parsed) return false;
   const issuedAt = Date.parse(parsed.issuedAt);
   const now = input.now ?? Date.now();
+  const expectedStatement =
+    input.intent === "link"
+      ? "Only sign this message if you want this Solana wallet attached to the current Aomi account."
+      : "Sign in to Aomi.";
   if (
-    parsed.intent !== input.intent ||
+    parsed.statement !== expectedStatement ||
     parsed.address !== input.walletAddress ||
     parsed.chainId !== input.chainId ||
     parsed.nonce !== input.nonce ||

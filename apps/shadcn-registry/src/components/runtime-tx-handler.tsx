@@ -87,37 +87,25 @@ export function RuntimeTxHandler() {
       processingRef.current = false;
     });
 
-    /**
-     * Best-effort: switch the active Solana cluster to match the request's
-     * CAIP-2 cluster string before signing. Mirrors how the EVM signTypedData
-     * branch calls `adapter.switchChain` when `domain.chainId` differs.
-     *
-     * - No-op when the request didn't specify a cluster.
-     * - No-op when the adapter doesn't expose `selectNetwork` (single-network
-     *   builds).
-     * - No-op when the active Solana network already matches the request.
-     * - If a switch is needed but the adapter says
-     *   `solanaNetworkSwitchRequiresReconnect`, we don't tear the wallet down
-     *   from under the user — fall through and let the wallet either accept
-     *   the tx as-is (matching cluster) or reject it (mismatched cluster
-     *   surfaces as a normal wallet error).
-     */
+    /** Match the requested cluster exactly or fail before asking the wallet. */
     async function maybeSwitchSolanaCluster(
       requestedCluster: string | undefined,
     ): Promise<void> {
       if (!requestedCluster) return;
-      if (!adapter.selectNetwork || !adapter.supportedNetworks?.solana) return;
-      const target = adapter.supportedNetworks.solana.find(
+      const target = adapter.supportedNetworks?.solana?.find(
         (n) => n.cluster === requestedCluster,
       );
-      if (!target) return;
-      // `selectNetwork` self-dedups (no-op when already on `target`), so we
-      // don't need to compare against a current "active network" here.
+      if (!target) {
+        throw new Error(`Unsupported Solana cluster: ${requestedCluster}`);
+      }
+      if (adapter.selectedSolanaNetwork?.id === target.id) return;
+      if (!adapter.selectNetwork) {
+        throw new Error(`Cannot switch the wallet to ${requestedCluster}`);
+      }
       if (adapter.solanaNetworkSwitchRequiresReconnect) {
-        // The wallet currently has a session against a different cluster.
-        // Don't silently disconnect the user — they'll see the wallet's
-        // own cluster-mismatch UI on the sign prompt instead.
-        return;
+        throw new Error(
+          `Reconnect the Solana wallet on ${requestedCluster} before signing`,
+        );
       }
       try {
         await adapter.selectNetwork({
@@ -125,9 +113,9 @@ export function RuntimeTxHandler() {
           networkId: target.id,
         });
       } catch (error) {
-        console.warn(
-          "[RuntimeTxHandler] Solana cluster auto-switch failed",
-          error,
+        throw new Error(
+          `Failed to switch the Solana wallet to ${requestedCluster}`,
+          { cause: error },
         );
       }
     }

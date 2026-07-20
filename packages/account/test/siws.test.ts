@@ -27,7 +27,7 @@ describe("Better Auth SIWS protocol", () => {
     ).toString("base64");
 
     expect(parseSiwsMessage(message)).toEqual({
-      intent: "sign-in",
+      statement: "Sign in to Aomi.",
       domain: "chat.aomi.dev",
       address,
       uri: "https://chat.aomi.dev",

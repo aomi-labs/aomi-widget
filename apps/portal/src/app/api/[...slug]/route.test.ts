@@ -2,7 +2,7 @@
 import { NextRequest } from "next/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { GET } from "./route";
+import { GET, POST } from "./route";
 
 const listApps = vi.fn();
 const launchConfigMock = vi.hoisted(() => ({
@@ -43,13 +43,16 @@ vi.mock("@portal/server/bff/launch/config", () => ({
   }),
 }));
 
-function apiRequest(path: string) {
+function apiRequest(path: string, method = "GET") {
   const url = new URL(`https://chat-staging.aomi.dev${path}`);
   const slug = url.pathname
     .replace(/^\/api\/?/, "")
     .split("/")
     .filter(Boolean);
-  return [new NextRequest(url), { params: Promise.resolve({ slug }) }] as const;
+  return [
+    new NextRequest(url, { method }),
+    { params: Promise.resolve({ slug }) },
+  ] as const;
 }
 
 function proxiedUrl(call: unknown[] | undefined): URL {
@@ -160,4 +163,21 @@ describe("portal API proxy", () => {
     expect(body).toEqual({ error: "Unsupported API route" });
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  it.each(["archive", "unarchive"])(
+    "forwards thread %s requests",
+    async (action) => {
+      const fetchMock = vi.fn(async () => Response.json({ ok: true }));
+      vi.stubGlobal("fetch", fetchMock);
+
+      const res = await POST(
+        ...apiRequest(`/api/threads/thread-123/${action}`, "POST"),
+      );
+
+      expect(res.status).toBe(200);
+      const url = proxiedUrl(fetchMock.mock.calls[0]);
+      expect(url.pathname).toBe(`/api/threads/thread-123/${action}`);
+      expect(fetchMock.mock.calls[0]?.[1]?.method).toBe("POST");
+    },
+  );
 });

@@ -11,6 +11,7 @@ import {
 } from "@solana/web3.js";
 import {
   executeE2ESolanaTransaction,
+  isE2EWalletEnabled,
   mintE2EWalletCookie,
   signE2ESolanaMessage,
   verifyE2EWalletCookie,
@@ -43,6 +44,16 @@ describe("Solana E2E wallet boundary", () => {
       svmAddress: signer.publicKey.toBase58(),
       svmCluster: "solana:devnet",
     });
+  });
+
+  it("cannot be enabled in production or a Vercel deployment", () => {
+    enableSolanaWallet(Keypair.generate());
+    vi.stubEnv("NODE_ENV", "production");
+    expect(isE2EWalletEnabled()).toBe(false);
+
+    vi.stubEnv("NODE_ENV", "test");
+    vi.stubEnv("VERCEL_ENV", "preview");
+    expect(isE2EWalletEnabled()).toBe(false);
   });
 
   it("signs binding messages with the seeded Ed25519 key", async () => {

@@ -1455,6 +1455,46 @@ describe("ClientSession ext helpers", () => {
     session.close();
   });
 
+  it("keeps a Solana request queued when the completion callback fails", async () => {
+    const { client, sendMessage, sendSystemMessage } = createMockClient();
+    const session = new Session(client, {
+      sessionId: "session-solana-callback-failure",
+    });
+    sendMessage.mockResolvedValueOnce({
+      is_processing: false,
+      messages: [],
+      system_events: [
+        {
+          InlineCall: {
+            type: "wallet::solana_sign_request",
+            payload: {
+              unsigned_tx: "AQAA",
+              pending_solana_id: 9,
+            },
+          },
+        },
+      ],
+    } satisfies AomiChatResponse);
+    const requestPromise = new Promise<{ id: string }>((resolve) => {
+      session.once("wallet_solana_sign_request", resolve as never);
+    });
+    await session.sendAsync("sign solana");
+    const request = await requestPromise;
+    sendSystemMessage.mockRejectedValueOnce(new Error("callback unavailable"));
+
+    await expect(
+      session.resolve(request.id, {
+        kind: "solana_sign",
+        signedTx: "SIGNED:AQAA",
+      }),
+    ).rejects.toThrow("callback unavailable");
+
+    expect(session.getPendingRequests()).toEqual([
+      expect.objectContaining({ id: request.id, kind: "solana_sign" }),
+    ]);
+    session.close();
+  });
+
   it("posts wallet::solana_sign_complete rejected on reject", async () => {
     const { client, sendMessage, sendSystemMessage } = createMockClient();
     const session = new Session(client, { sessionId: "session-solana-3" });
@@ -1617,8 +1657,8 @@ describe("ClientSession ext helpers", () => {
     session.close();
   });
 
-  it("emits wallet_solana_send_request from a backend wallet_tx_request svm payload", async () => {
-    const { client, sendMessage } = createMockClient();
+  it("returns every pending SVM id for a multi-instruction send", async () => {
+    const { client, sendMessage, sendSystemMessage } = createMockClient();
     const session = new Session(client, { sessionId: "session-solana-send-4" });
 
     sendMessage.mockResolvedValueOnce({
@@ -1630,7 +1670,7 @@ describe("ClientSession ext helpers", () => {
             type: "wallet_tx_request",
             payload: {
               chain_kind: "svm",
-              svm_tx_ids: [14],
+              svm_tx_ids: [14, 15],
               request_kind: "send_transaction",
               unsigned_tx: "U0VORE1F",
               description: "transfer SOL",
@@ -1655,6 +1695,7 @@ describe("ClientSession ext helpers", () => {
         description?: string;
         cluster?: string;
         pendingSolanaId?: number;
+        pendingSolanaIds?: number[];
       };
     };
 
@@ -1662,6 +1703,29 @@ describe("ClientSession ext helpers", () => {
     expect(request.kind).toBe("solana_send");
     expect(request.payload.unsignedTx).toBe("U0VORE1F");
     expect(request.payload.pendingSolanaId).toBe(14);
+    expect(request.payload.pendingSolanaIds).toEqual([14, 15]);
+
+    await session.resolve(request.id, {
+      kind: "solana_send",
+      signature: "multi-signature",
+      signedTx: "SIGNED:U0VORE1F",
+    });
+    expect(sendSystemMessage).toHaveBeenCalledWith(
+      "session-solana-send-4",
+      JSON.stringify({
+        type: "wallet::solana_send_complete",
+        payload: {
+          status: "submitted",
+          signature: "multi-signature",
+          signed_tx: "SIGNED:U0VORE1F",
+          unsigned_tx: "U0VORE1F",
+          description: "transfer SOL",
+          pending_solana_id: 14,
+          pending_svm_tx_ids: [14, 15],
+        },
+      }),
+      { app: "default" },
+    );
 
     session.close();
   });

@@ -276,6 +276,7 @@ export async function syncSiwsWalletsForUser(input: {
   aomiUserId: AomiUserId;
   betterAuthUserId: string;
   label?: string;
+  labelAddress?: string;
 }): Promise<void> {
   await ensureAccountSchema();
   const wallets = await listBetterAuthSiwsWallets(input.betterAuthUserId);
@@ -289,7 +290,7 @@ export async function syncSiwsWalletsForUser(input: {
       provider: "siws",
       providerSubject: siwsIdentitySubject(wallet.address),
       linkedVia: "siws",
-      label: input.label,
+      label: wallet.address === input.labelAddress ? input.label : undefined,
     });
     if (resolution.status === "conflict") {
       throw new Error("wallet_already_linked_to_another_account");

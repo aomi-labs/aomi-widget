@@ -215,7 +215,10 @@ describe("aomi account link management", () => {
           const body = JSON.parse(String(init?.body));
           expect(body.intent).toBe("link");
           expect(body.message).toContain(
-            "portal.test wants you to link your Solana account",
+            "portal.test wants you to sign in with your Solana account",
+          );
+          expect(body.message).toContain(
+            "Only sign this message if you want this Solana wallet attached to the current Aomi account.",
           );
           expect(body.message).toContain("Nonce: siws-link-nonce");
           expect(Buffer.from(body.signature, "base64")).toHaveLength(64);
