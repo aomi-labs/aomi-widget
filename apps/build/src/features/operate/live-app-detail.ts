@@ -55,9 +55,24 @@ function txStatus(status: string): TxStatus {
   if (["confirmed", "landed", "success"].includes(status)) return "confirmed";
   if (["submitted", "broadcast", "inflight"].includes(status))
     return "submitted";
-  if (["failed", "reverted", "expired"].includes(status)) return "failed";
+  if (["failed", "rejected", "reverted", "expired"].includes(status))
+    return "failed";
   return "created";
 }
+
+// The fixture KPI labels differ slightly from the live view's ("P95 turn"
+// vs "P95 latency"; the fixtures have no per-turn credits KPI at all), so a
+// fallback value must be looked up by its matching label — never by index —
+// or degraded cards render fixture values under the wrong labels.
+const FIXTURE_KPI_LABEL: Record<string, string> = {
+  "Active users": "Active users",
+  Credits: "Credits",
+  "P95 latency": "P95 turn",
+  Inflight: "Inflight",
+  "Chat errors": "Chat errors",
+  "Tool errors": "Tool errors",
+  "Tx failures": "Tx failures",
+};
 
 function transactionRow(tx: OperateTransaction, app: string): TxRecord {
   const family: ChainFamily =
@@ -174,10 +189,16 @@ export function liveAppDetailView(
     example.add(section);
     return replacement;
   };
-  const fallbackKpi = (index: number, value: string, section: string) => {
+  const fallbackKpi = (label: string, value: string, section: string) => {
     if (value !== "—") return value;
+    const fixtureLabel = FIXTURE_KPI_LABEL[label];
+    const fixtureValue = fixtureLabel
+      ? fallback.detail.kpis.find((kpi) => kpi.label === fixtureLabel)?.value
+      : undefined;
+    // No matching fixture KPI: an honest dash, not somebody else's number.
+    if (fixtureValue === undefined) return "—";
     example.add(section);
-    return fallback.detail.kpis[index]?.value ?? "—";
+    return fixtureValue;
   };
 
   const funnelValues = [
@@ -292,38 +313,38 @@ export function liveAppDetailView(
       kpis: [
         {
           label: "Active users",
-          value: fallbackKpi(0, activeUsers, "User activity"),
+          value: fallbackKpi("Active users", activeUsers, "User activity"),
           sub: "24h",
         },
         {
           label: "Credits",
-          value: fallbackKpi(1, credits24h, "Credit KPIs"),
+          value: fallbackKpi("Credits", credits24h, "Credit KPIs"),
           sub: "24h",
         },
         {
           label: "Credits / turn",
-          value: fallbackKpi(2, creditsPerTurn, "Credit KPIs"),
+          value: fallbackKpi("Credits / turn", creditsPerTurn, "Credit KPIs"),
           sub: "24h",
         },
         {
           label: "P95 latency",
-          value: fallbackKpi(3, p95, "Latency KPI"),
+          value: fallbackKpi("P95 latency", p95, "Latency KPI"),
         },
         {
           label: "Inflight",
-          value: fallbackKpi(4, inflight, "Inflight KPI"),
+          value: fallbackKpi("Inflight", inflight, "Inflight KPI"),
         },
         {
           label: "Chat errors",
-          value: fallbackKpi(5, chatErrors, "Error KPIs"),
+          value: fallbackKpi("Chat errors", chatErrors, "Error KPIs"),
         },
         {
           label: "Tool errors",
-          value: fallbackKpi(6, toolErrors, "Error KPIs"),
+          value: fallbackKpi("Tool errors", toolErrors, "Error KPIs"),
         },
         {
           label: "Tx failures",
-          value: fallbackKpi(7, txFailures, "Error KPIs"),
+          value: fallbackKpi("Tx failures", txFailures, "Error KPIs"),
         },
       ],
       chatsHourly,

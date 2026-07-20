@@ -75,7 +75,25 @@ const payload = {
       txErrorRate: 0.1,
     },
   },
-  transactions: [],
+  transactions: [
+    {
+      id: "tx-1",
+      externalTxId: "ext-1",
+      application: "goal-digger",
+      applicationId: 77,
+      status: "rejected",
+      txHash: "0xabc",
+      chainId: 1,
+      chainName: "Ethereum",
+      family: "evm",
+      fromAddress: "0xfrom",
+      toAddress: "0xto",
+      value: "1",
+      description: "Rejected transfer",
+      txFee: "0.00021 ETH",
+      createdAt: 1_752_966_000,
+    },
+  ],
   logs: [],
   deployments: [],
 };
@@ -97,6 +115,10 @@ describe("AppDetailPage", () => {
     expect(screen.getByText("Partial example data")).toBeInTheDocument();
     expect(screen.getByText("Conversion funnel · 24h")).toBeInTheDocument();
     expect(screen.getByText(/20 calls · 1 error/)).toBeInTheDocument();
+    // Live rows: rejected renders as a failed chip, ISO time as a short clock.
+    expect(screen.getByText("Rejected transfer")).toBeInTheDocument();
+    expect(screen.getByText("failed")).toBeInTheDocument();
+    expect(screen.getByText(/^\d{2}:\d{2} UTC$/)).toBeInTheDocument();
 
     fireEvent.click(
       screen.getByRole("button", { name: "Back to observability" }),

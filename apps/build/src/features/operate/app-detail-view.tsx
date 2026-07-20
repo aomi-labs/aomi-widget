@@ -139,6 +139,9 @@ const STATUS_DOT: Record<string, string> = {
 };
 
 function clockOf(tx: TxRecord): string {
+  // Live rows carry ISO timestamps; fixture rows carry locale strings
+  // ("7/15/2026, 5:47:58 PM"). Render a short clock for both.
+  if (tx.time.includes("T")) return `${tx.time.slice(11, 16)} UTC`;
   const clock = tx.time.split(", ")[1] ?? tx.time;
   return clock.replace(/(\d+:\d+):\d+ (AM|PM)/, "$1 $2");
 }

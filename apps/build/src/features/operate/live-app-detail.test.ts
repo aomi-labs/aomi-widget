@@ -221,6 +221,22 @@ describe("liveAppDetailView", () => {
         "Error KPIs",
       ]),
     );
+    // Fallback KPI values must belong to their labels (fixture order differs
+    // from the live KPI order, so an index lookup would scramble them).
+    expect(
+      Object.fromEntries(
+        view.app.detail.kpis.map((kpi) => [kpi.label, kpi.value]),
+      ),
+    ).toMatchObject({
+      "Active users": "9",
+      Credits: "3.42",
+      "Credits / turn": "—",
+      "P95 latency": "8.4 s",
+      Inflight: "2",
+      "Chat errors": "2.5%",
+      "Tool errors": "12.0%",
+      "Tx failures": "8.3%",
+    });
     expect(view.app.transactions).toEqual([]);
     expect(view.app.logs).toEqual([]);
   });
