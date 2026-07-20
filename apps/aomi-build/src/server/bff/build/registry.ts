@@ -144,9 +144,11 @@ export async function registerRun(
       record.app,
       record.runner,
       record.status,
-      record.sandboxId,
-      record.sidecarUrl,
-      record.planJson,
+      // NOT NULL columns: coerce runtime undefined (e.g. an SDK field
+      // going missing) to '' instead of failing the whole dispatch.
+      record.sandboxId ?? "",
+      record.sidecarUrl ?? "",
+      record.planJson ?? "",
       now,
       now,
     ],

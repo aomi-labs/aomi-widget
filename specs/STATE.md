@@ -2,6 +2,36 @@
 
 ## Last Updated
 
+2026-07-20 — LIVE SANDBOX VERIFICATION GREEN (branch claude/build-fe-artifacts
+  pushed as c0449506; image build-runner:live-1 in VCR under the aomi-build
+  Vercel project, e2e-test untouched; AOMI_REF=c0449506,
+  AOMI_SDK_REF=b3c0c8b). Full chain proven on real infra with app "dune":
+  dispatch → registry row (run id, vercel-sandbox, sandbox name, sidecar
+  url) → sidecar /healthz ok + 403 on missing/bogus bearers → BFF file
+  route served dune/Cargo.toml FROM THE LIVE VM via a per-request
+  portalService() EdDSA bearer → supervise tick "extend" visibly bumped
+  the VM timeout 5→14 min → all five stages completed in ~6.5 min with
+  Kimi curate inside the VM (only SMITHER_OPENROUTER_API_KEY present, so
+  OpenRouter billing is conclusively the path) → supervise "release-
+  completed", registry completed, sandbox stopped → file route fell back
+  to the store tarball after VM death → download served the real 5.4 KB
+  crate tar.gz (Cargo.toml, src/lib.rs, src/tool.rs, test.json).
+  BUG FOUND+FIXED during verification (UNCOMMITTED, needs follow-up
+  commit): @vercel/sandbox identifies sandboxes by `name` — the Sandbox
+  class has NO sandboxId/id getter and Sandbox.get takes {name} — so
+  dispatch stored undefined (NOT NULL violation in the registry, one
+  orphan VM, stopped) and the supervisor/cancel by-id path could never
+  have worked. Fix: adaptSdkSandbox maps name→SandboxLike.sandboxId;
+  Sandbox.get({name, resume:false}) so managing a dead VM never
+  resurrects it; registry INSERT coerces NOT NULL columns. Two orphan
+  runs in the store from the broken first dispatch (smither-dune-a839ce90,
+  status running, dead heartbeat, no registry row — invisible to the
+  supervisor, harmless cruft). Live rig: worktree
+  .claude/worktrees/build-live-verify (detached at c0449506) on :3220 via
+  scratchpad run-build-dev.sh (launch.json entry aomi-build-live-sandbox);
+  staging topology + portal .env.local signing key so sidecar bearers
+  verify.
+
 2026-07-20 — /build multi-user + lifecycle fixes (branch
   claude/build-fe-artifacts, staged, uncommitted). Four design fixes from
   the FE-gap discussion, all live-verified against the Supabase store:
