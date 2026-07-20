@@ -11,7 +11,7 @@ describe("AomiClient route manifest", () => {
         `${endpoint.method} ${endpoint.path} [${endpoint.auth.join(", ")}]`,
     );
 
-    expect(routeKeys).toHaveLength(107);
+    expect(routeKeys).toHaveLength(109);
     expect(new Set(routeKeys).size).toBe(routeKeys.length);
     expect(routeKeys).toContain("POST /api/exec/run [account, thread]");
     expect(routeKeys).toContain(
