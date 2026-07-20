@@ -46,7 +46,7 @@
   the engine heartbeat in _smithers_runs — extends live work, reaps
   silent-death VMs after 2min grace (the 18:06/$4 zombie class, finding
   #1) and stale-heartbeat runs (finding #3), releases on settle; ticks via
-  GET /api/bff/build/supervise (CRON_SECRET-guarded — Vercel Cron wiring
+  GET /api/bff/build/supervise (BUILD_RUN_CHECKER_CRON_SECRET-guarded — cron wiring
   is Phase-4) + in-process interval on long-lived servers; cancel now
   flips the registry + stops the sandbox by id even after restarts.
   (4) live files: infra/build-runner/sidecar.ts (Bun, bearer-auth,
