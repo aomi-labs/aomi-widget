@@ -5,6 +5,7 @@
  */
 
 import type {
+  BuildRunFileNode,
   BuildRunStageStatus,
   BuildRunStatus,
 } from "@build/features/build/run-contracts";
@@ -118,4 +119,30 @@ export function resultFromOutputs(
   const row = outputs.result?.[0];
   if (!row || typeof row.summary !== "string") return undefined;
   return { status: String(row.status ?? "complete"), summary: row.summary };
+}
+
+/** Crate artifact persisted by the result phase — the Files/Download source
+ *  for runs whose filesystem this process cannot see (sandbox runs). */
+export function artifactFromOutputs(
+  outputs: Record<string, ReadonlyArray<Record<string, unknown>>>,
+): { fileTree: BuildRunFileNode[]; crateTarB64: string; warning: string } | undefined {
+  const row = outputs.result?.[0];
+  if (!row) return undefined;
+  let fileTree: BuildRunFileNode[] = [];
+  if (typeof row.fileTreeJson === "string" && row.fileTreeJson.length > 0) {
+    try {
+      const parsed = JSON.parse(row.fileTreeJson);
+      if (Array.isArray(parsed)) fileTree = parsed as BuildRunFileNode[];
+    } catch {
+      // Malformed tree JSON degrades to an empty Files panel, not an error.
+    }
+  }
+  const crateTarB64 =
+    typeof row.crateTarB64 === "string" ? row.crateTarB64 : "";
+  if (fileTree.length === 0 && crateTarB64.length === 0) return undefined;
+  return {
+    fileTree,
+    crateTarB64,
+    warning: String(row.artifactWarning ?? ""),
+  };
 }

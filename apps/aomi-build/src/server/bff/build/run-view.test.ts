@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  artifactFromOutputs,
   curationFromOutputs,
   runStatusFromView,
   stageStatusesFromView,
@@ -89,5 +90,34 @@ describe("curationFromOutputs", () => {
       }),
     ).toEqual({ summary: "did things", changedFiles: "", followUps: "next" });
     expect(curationFromOutputs({})).toBeUndefined();
+  });
+});
+
+describe("artifactFromOutputs", () => {
+  const tree = [{ path: "app", type: "folder", children: [] }];
+
+  it("parses the embedded tree and tarball", () => {
+    expect(
+      artifactFromOutputs({
+        result: [
+          {
+            summary: "done",
+            fileTreeJson: JSON.stringify(tree),
+            crateTarB64: "dGFy",
+            artifactWarning: "",
+          },
+        ],
+      }),
+    ).toEqual({ fileTree: tree, crateTarB64: "dGFy", warning: "" });
+  });
+
+  it("degrades malformed tree JSON to empty and absent artifacts to undefined", () => {
+    expect(
+      artifactFromOutputs({
+        result: [{ summary: "done", fileTreeJson: "{oops", crateTarB64: "dGFy" }],
+      }),
+    ).toEqual({ fileTree: [], crateTarB64: "dGFy", warning: "" });
+    expect(artifactFromOutputs({ result: [{ summary: "done" }] })).toBeUndefined();
+    expect(artifactFromOutputs({})).toBeUndefined();
   });
 });

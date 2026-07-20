@@ -108,5 +108,9 @@ RUN bun /workspace/aomi/packages/smither/dist/cli.js --help >/dev/null \
     && test -x /workspace/aomi-sdk/target/release/aomi-build \
     && test -x /workspace/aomi-sdk/target/release/aomi-run
 
+# Live-files sidecar: serves apps/<app> on the exposed sandbox port so the
+# BFF can show Files/file contents mid-run (dispatch launches it detached).
+COPY sidecar.ts /workspace/sidecar.ts
+
 ENV AOMI_SDK_ROOT=/workspace/aomi-sdk
 WORKDIR /workspace/aomi/packages/smither

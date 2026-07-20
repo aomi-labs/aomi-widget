@@ -2,6 +2,139 @@
 
 ## Last Updated
 
+2026-07-20 — LIVE SANDBOX VERIFICATION GREEN (branch claude/build-fe-artifacts
+  pushed as c0449506; image build-runner:live-1 in VCR under the aomi-build
+  Vercel project, e2e-test untouched; AOMI_REF=c0449506,
+  AOMI_SDK_REF=b3c0c8b). Full chain proven on real infra with app "dune":
+  dispatch → registry row (run id, vercel-sandbox, sandbox name, sidecar
+  url) → sidecar /healthz ok + 403 on missing/bogus bearers → BFF file
+  route served dune/Cargo.toml FROM THE LIVE VM via a per-request
+  portalService() EdDSA bearer → supervise tick "extend" visibly bumped
+  the VM timeout 5→14 min → all five stages completed in ~6.5 min with
+  Kimi curate inside the VM (only SMITHER_OPENROUTER_API_KEY present, so
+  OpenRouter billing is conclusively the path) → supervise "release-
+  completed", registry completed, sandbox stopped → file route fell back
+  to the store tarball after VM death → download served the real 5.4 KB
+  crate tar.gz (Cargo.toml, src/lib.rs, src/tool.rs, test.json).
+  BUG FOUND+FIXED during verification (UNCOMMITTED, needs follow-up
+  commit): @vercel/sandbox identifies sandboxes by `name` — the Sandbox
+  class has NO sandboxId/id getter and Sandbox.get takes {name} — so
+  dispatch stored undefined (NOT NULL violation in the registry, one
+  orphan VM, stopped) and the supervisor/cancel by-id path could never
+  have worked. Fix: adaptSdkSandbox maps name→SandboxLike.sandboxId;
+  Sandbox.get({name, resume:false}) so managing a dead VM never
+  resurrects it; registry INSERT coerces NOT NULL columns. Two orphan
+  runs in the store from the broken first dispatch (smither-dune-a839ce90,
+  status running, dead heartbeat, no registry row — invisible to the
+  supervisor, harmless cruft). Live rig: worktree
+  .claude/worktrees/build-live-verify (detached at c0449506) on :3220 via
+  scratchpad run-build-dev.sh (launch.json entry aomi-build-live-sandbox);
+  staging topology + portal .env.local signing key so sidecar bearers
+  verify.
+
+2026-07-20 — /build multi-user + lifecycle fixes (branch
+  claude/build-fe-artifacts, staged, uncommitted). Four design fixes from
+  the FE-gap discussion, all live-verified against the Supabase store:
+  (1) sessions persist runId/app — reloads reattach to live runs and
+  Download survives; localStorage v2. (2) aomi_build_runs registry keyed
+  (owner_login, app) in the run store (registry.ts; created idempotently
+  via new smither storeQuery raw-SQL seam): Alice/arb-bot ≠ Bob/arb-bot,
+  BFF restarts look runs up instead of minting ids (resilience finding #2
+  fixed), plan_json persisted so observers/sandbox runs stop recomposing
+  plans; owner = GitHub login ("dev" when AOMI_BUILD_ALLOW_ANON).
+  (3) system-owned sandbox lifetime: supervisor.ts joins registry rows to
+  the engine heartbeat in _smithers_runs — extends live work, reaps
+  silent-death VMs after 2min grace (the 18:06/$4 zombie class, finding
+  #1) and stale-heartbeat runs (finding #3), releases on settle; ticks via
+  GET /api/bff/build/supervise (CRON_SECRET-guarded — Vercel Cron wiring
+  is Phase-4) + in-process interval on long-lived servers; cancel now
+  flips the registry + stops the sandbox by id even after restarts.
+  (4) live files: infra/build-runner/sidecar.ts (Bun, bearer-auth,
+  path-jailed /tree + /file on exposed port 8722) baked into the image;
+  dispatch launches it; BFF GET /api/bff/build/runs/file serves file
+  contents from local disk → live sidecar → store tarball (minimal ustar
+  reader tar.ts — file contents readable even after the sandbox dies);
+  Files panel is now a click-to-view source browser (dialog in
+  build-view). NOTE: WebSocket ruled out (Vercel Functions can't host WS;
+  SSE relay is the later polish); sidecar needs the next image rebuild to
+  exist in VMs. 83 smither + 286 app tests green; typecheck/lint clean.
+  Live-verified: registry row (dev|geckoterminal|completed|local),
+  resume-not-remint, file route serving real lib.rs, supervise route
+  responding.
+
+  Addendum (Cecilia review): sidecar auth now rides the OFFICIAL
+  service-bearer path instead of a homegrown random-UUID token. The BFF
+  mints a fresh 5-min EdDSA JWT per proxied request via portalService()
+  (PORTAL_SERVICE_PRIVATE_KEY + committed topology; new module
+  apps/aomi-build/src/server/bff/build/sidecar-auth.ts), audience
+  "aomi-sidecar" (added to aomi-bff's audiences in packages/account
+  topology-data.ts and the three aomi-build service.portal*.toml — a
+  leaked bearer is useless at the backend), subject = run id. The sidecar
+  verifies the JWT with WebCrypto Ed25519 against aomi-bff's committed
+  PUBLIC key (AOMI_SIDECAR_PUBKEY env — no secret in the VM), pins
+  iss/aud/sub/exp, fails closed. sidecar_token is gone from the registry
+  (no stored secret anywhere; the Supabase column's DEFAULT '' absorbs
+  omitted inserts). Round-trip + tamper tests in sidecar-auth.test.ts;
+  live-verified: real PORTAL_SERVICE_PRIVATE_KEY (portal .env.local,
+  staging topology) → portalService().mint → sidecar verifyBearer OK,
+  wrong run id rejected. NOTE: apps/portal's service.portal*.toml were
+  NOT touched (portal never mints the sidecar audience) — flag if
+  topology views should stay byte-identical.
+
+2026-07-19 (night, 2nd session) — /build agent billing: OpenRouter is now the
+  DEFAULT, Anthropic the env-only backup (uncommitted, stacked on the
+  build-fe-artifacts working tree). Motivation: first-party Anthropic is too
+  expensive for builder runs. `resolveAgentBilling` (packages/smither/src/
+  agents.ts): SMITHER_OPENROUTER_API_KEY > SMITHER_ANTHROPIC_API_KEY > local
+  CLI login; not user-selectable, pure deployment config. OpenRouter path
+  drives the same claude CLI via OpenRouter's Anthropic-compatible endpoint
+  (https://openrouter.ai/api): ANTHROPIC_BASE_URL + ANTHROPIC_AUTH_TOKEN +
+  ANTHROPIC_API_KEY pinned "" (never fall back to first-party auth) +
+  ANTHROPIC_MODEL/ANTHROPIC_SMALL_FAST_MODEL both set. Default model
+  moonshotai/kimi-k2.7-code ($0.72/$3.50 per M) — deliberately NOT kimi-k3
+  (July 16 release, but Sonnet-priced $3/$15, defeats the point); override
+  via SMITHER_OPENROUTER_MODEL. dispatchSandboxRun passes both new vars into
+  the microVM; BFF local runner + run-plan CLI already forward process.env.
+  Caveat (OpenRouter's own docs): claude CLI is only *guaranteed* against the
+  Anthropic first-party provider — third-party-model tool-calling fidelity is
+  the risk, and regressions surface as validate-loop maxIterations failures.
+  Cloud verification of a Kimi-billed run still pending (needs the env set on
+  a dispatch). Phase-4 decisions recorded from Cecilia: 5 build chats/apps per
+  user; build tokens NEVER hit the cost dashboard (chat+project only); quotas
+  + sessions live in the separate aomi-build-smither Supabase DB; GitHub login
+  required + invite allowlist; image-SDK sync via GitHub Action (design in
+  convo: images tagged build-runner:sdk-<ver>, repository_dispatch from
+  aomi-sdk release, green-canary gate before activation). SECURITY: an
+  OpenRouter key was pasted into chat — must be rotated before any env setup
+  uses it. Verified: smither build + 83/83, aomi-build type-check + 284/284,
+  lint clean (3 pre-existing warnings).
+
+2026-07-19 (night) — /build FE gap: store-served crate artifacts, hosted
+  store provisioned (branch claude/build-fe-artifacts, uncommitted).
+  Supabase project "aomi-build-smither" (ref ijhknhtjabljnqwmimrv,
+  us-east-1, org aomi) is the hosted smithers store; engine bootstrapped
+  all 25 _smithers_* tables + synced new columns on first connect; URL in
+  apps/aomi-build/.env.smither.local (gitignored; session pooler :5432 —
+  NOT the :6543 transaction pooler). New artifact pipeline: the result
+  phase packages the crate (packages/smither/src/artifacts.ts — file-tree
+  JSON + base64 tar.gz ≤2.5MB, warning on skip; executeRun raises
+  maxOutputBytes to 4MB) into the durable result row; BFF serves Files
+  and Download from the store when the crate isn't on local disk
+  (run-view artifactFromOutputs, engine storedCrateTarball, download
+  route fallback) — sandbox runs get real artifacts. Also: builder
+  passthrough on POST /runs (claude|codex|none; "none" = deterministic
+  pipeline, no LLM), mapper trusts run-level status over stale failed
+  stage rows (cross-attempt resumes), localStorage sessions bumped to v2
+  (v1 TS-mock fiction purged on load). Verified E2E on Supabase:
+  builder:none run green (binaries/codegen/validate/result), artifact row
+  669B tree + 67KB tar, then a fresh observer instance with an EMPTY SDK
+  root served the tree + a decodable 50KB tarball purely from the store —
+  the deployed-Vercel shape. Quota lesson re-confirmed: local claude CLI
+  keychain subscription outranks SMITHER_ANTHROPIC_API_KEY (a geckoterminal
+  run sits waiting-quota in the store; resumable). Cloud sandbox proof of
+  the artifact path needs an image rebuild from a pushed sha — Cecilia's
+  go. 77 smither + 284 app tests green; typecheck/lint clean.
+
 2026-07-19 (evening) — /build sandbox-mode: FULLY GREEN CLOUD RUN.
   `smither-defillama-ea2a9cba…` completed all five stages in a real Vercel
   Sandbox booted from the rust-1.92 image: binaries ✓ codegen (kept
@@ -2361,6 +2494,25 @@ Controls disabled while isProcessing === true
 
 ## Pending
 
+- /build admin visibility page: an admin-only surface into the sandbox +
+  whole build system — live/settled runs across all users (from the
+  aomi-build-smither store + build_sessions), per-run sandbox id/status/
+  extend history, stage timeline + validate-loop iterations, agent billing
+  path + model + token spend per run, quota consumption per user, and
+  cancel/stop controls. (Cecilia, 2026-07-19; gates the staging soak.)
+- /build SDK-sync GitHub Action: build golden images tagged
+  build-runner:sdk-<version> on aomi-sdk release (repository_dispatch →
+  workflow in this repo), push to VCR, wait Ready, dispatch one canary
+  run-plan and require green before the tag goes active; build-staging /
+  build.aomi.dev resolve the image from their backend's SDK version, env
+  pin as override. (Approach approved 2026-07-19.)
+- /build quota + allowlist tables in aomi-build-smither DB: build_sessions
+  (github_login, app slug, run id, status) capped at 5 active per user;
+  invite allowlist table + env bootstrap; global concurrent-sandbox cap.
+  Build tokens stay OUT of the cost dashboard (experimental feature).
+- /build OpenRouter billing: verify one cloud sandbox run billed via
+  SMITHER_OPENROUTER_API_KEY (kimi-k2.7-code) before staging; rotate the
+  chat-pasted OpenRouter key first.
 - Aomi Build SDK-upgrade UX rebuilt (2026-07-16, PR aomi-labs/aomi#366): `use-sdk-upgrade` hook (confirm → open PR → poll-for-merge via the idempotent sdk-upgrade endpoint → merged → redeploy), `upgrade-rail.tsx` (5-step stepper with PLATFORM/YOU/YOU/GITHUB owners, hover hints on every step, build checklist driven by deployFlow), `deployment-detail.tsx` (per-row expansion: source repo / commit / SDK / deployed platform / platform branch / apps / build artifacts — all GitHub-linked; platform-side fields lazy-load from `deploymentHistory`), `hint-bubble.tsx`; `deployments-tab.tsx` wires the CTA swap (Upgrade → Review PR #N), redeploy gating while the PR is open, and the upgrade confirm dialog with don't-ask-again; rail state persists in localStorage per source. 218 tests + typecheck + lint green. Backend path verified against staging (sdk-upgrade for 1586 now returns `current`). Not yet verified against a live signed-in browser session — needs a preview deploy.
 - SDK upgrade 502 masking: FIXED. `SourceRepo::repo_route("")` trailing-slash 404 fixed in product-mono#815 (merged, staging-deployed); the remaining manager 502→500 conversions (OAuth exchange, GitHubAppError::Upstream, ActivationError gateway variants) are in product-mono#826 (open). Cloudflare replaces origin-502 bodies with branded HTML, so handler errors must never use 502/503.
 - Follow-up work spun off (background sessions 2026-07-16): lightweight manager PR-state endpoint to replace the 45s tarball-download merge poll; investigation of stale `app_source` installation bindings (duplicate 141779906/142228159 branches for playground-6).

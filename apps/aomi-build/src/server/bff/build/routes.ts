@@ -17,9 +17,11 @@ import {
   cancelBuildRun,
   decideBuildRun,
   getBuildRun,
+  readRunFile,
   reconstructBuildRun,
   snapshotBuildRun,
   startBuildRun,
+  storedCrateTarball,
 } from "./engine";
 
 function rateLimited(req: Request): NextResponse | null {
@@ -52,6 +54,13 @@ async function requireSession(): Promise<NextResponse | null> {
     { error: "not signed in with GitHub" },
     { status: 401 },
   );
+}
+
+/** Run owner for registry namespacing — the GitHub login, or "dev" in the
+ *  anonymous local-testing mode. */
+async function sessionOwner(): Promise<string> {
+  const session = await getGitHubSession();
+  return session?.githubLogin || "dev";
 }
 
 function errorResponse(error: unknown): NextResponse {
@@ -89,12 +98,23 @@ export async function createBuildRunRoute(req: Request): Promise<NextResponse> {
       { status: 400 },
     );
   }
+  if (
+    body.builder !== undefined &&
+    !["claude", "codex", "none"].includes(body.builder)
+  ) {
+    return NextResponse.json(
+      { error: "builder must be claude, codex, or none" },
+      { status: 400 },
+    );
+  }
 
   try {
     const handle = await startBuildRun({
       prompt,
+      owner: await sessionOwner(),
       app: body.app,
       autoApprove: body.autoApprove,
+      builder: body.builder,
     });
     const snapshot = await snapshotBuildRun(handle);
     return NextResponse.json({
@@ -170,6 +190,21 @@ export async function buildRunDownloadRoute(
   }
   const appsDir = path.join(handle.plan.sdkRoot, "apps");
   if (!existsSync(path.join(appsDir, handle.app))) {
+    // No local crate (sandbox runs — the crate lives in the sandbox's
+    // filesystem): serve the artifact the result phase embedded in the store.
+    try {
+      const stored = await storedCrateTarball(handle);
+      if (stored) {
+        return new Response(new Uint8Array(stored), {
+          headers: {
+            "Content-Type": "application/gzip",
+            "Content-Disposition": `attachment; filename="${handle.app}.tar.gz"`,
+          },
+        });
+      }
+    } catch (error) {
+      console.error("stored crate read failed:", error);
+    }
     return NextResponse.json(
       { error: "no generated crate yet — run the build first" },
       { status: 409 },
@@ -193,6 +228,39 @@ export async function buildRunDownloadRoute(
       "Content-Disposition": `attachment; filename="${handle.app}.tar.gz"`,
     },
   });
+}
+
+/** One generated-crate file (display path "<app>/src/tool.rs") — live disk,
+ *  live sidecar, or the store's embedded tarball, whichever is freshest. */
+export async function buildRunFileRoute(
+  req: Request,
+): Promise<NextResponse | Response> {
+  const limited = rateLimited(req);
+  if (limited) return limited;
+  const denied = await requireSession();
+  if (denied) return denied;
+
+  const url = new URL(req.url);
+  const runId = url.searchParams.get("id");
+  const filePath = url.searchParams.get("path");
+  if (!runId || !filePath) {
+    return NextResponse.json({ error: "missing id or path" }, { status: 400 });
+  }
+  const handle = getBuildRun(runId) ?? (await reconstructBuildRun(runId));
+  if (!handle) {
+    return NextResponse.json({ error: "unknown run" }, { status: 404 });
+  }
+  try {
+    const body = await readRunFile(handle, filePath);
+    if (!body) {
+      return NextResponse.json({ error: "file not found" }, { status: 404 });
+    }
+    return new Response(new Uint8Array(body), {
+      headers: { "Content-Type": "text/plain; charset=utf-8" },
+    });
+  } catch (error) {
+    return errorResponse(error);
+  }
 }
 
 export async function buildRunDecisionRoute(

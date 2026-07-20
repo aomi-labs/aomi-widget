@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import * as FileDialog from "@radix-ui/react-dialog";
 import {
   Files,
   ListChecks,
@@ -108,6 +109,10 @@ function ContextPanelSection({
  */
 export function BuildView() {
   const [input, setInput] = useState("");
+  const [fileView, setFileView] = useState<{
+    path: string;
+    content: string;
+  } | null>(null);
   // SSR-safe false; restore preference after mount to avoid hydration mismatch.
   const [recentOpen, setRecentOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -293,6 +298,39 @@ export function BuildView() {
       tone: "success",
     });
   }, [activeSessionId, engineRunId, fileTree, toast]);
+
+  /** Source viewer — engine runs only (mock files have no contents). */
+  const handleFileSelect = useCallback(
+    (path: string) => {
+      if (!engineRunId) return;
+      void (async () => {
+        try {
+          const res = await fetch(
+            `/api/bff/build/runs/file?id=${encodeURIComponent(engineRunId)}&path=${encodeURIComponent(path)}`,
+          );
+          if (!res.ok) {
+            const body = (await res.json().catch(() => ({}))) as {
+              error?: string;
+            };
+            toast({
+              title: "Could not open file",
+              description: body.error ?? `request failed (${res.status})`,
+              tone: "error",
+            });
+            return;
+          }
+          setFileView({ path, content: await res.text() });
+        } catch (error) {
+          toast({
+            title: "Could not open file",
+            description: error instanceof Error ? error.message : String(error),
+            tone: "error",
+          });
+        }
+      })();
+    },
+    [engineRunId, toast],
+  );
 
   const handleTemplateSelect = useCallback(
     (template: (typeof BUILD_TEMPLATES)[0]) => {
@@ -542,12 +580,37 @@ export function BuildView() {
               </ContextPanelSection>
 
               <ContextPanelSection title="Files" icon={Files}>
-                <FileTreePreview tree={fileTree} />
+                <FileTreePreview
+                  tree={fileTree}
+                  onFileSelect={
+                    BUILD_ENGINE_ACTIVE && engineRunId
+                      ? handleFileSelect
+                      : undefined
+                  }
+                />
               </ContextPanelSection>
             </aside>
           ) : null}
         </div>
       </section>
+      <FileDialog.Root
+        open={fileView !== null}
+        onOpenChange={(open) => {
+          if (!open) setFileView(null);
+        }}
+      >
+        <FileDialog.Portal>
+          <FileDialog.Overlay className="fixed inset-0 z-50 bg-black/50" />
+          <FileDialog.Content className="border-border bg-background fixed top-1/2 left-1/2 z-50 max-h-[80vh] w-[min(760px,92vw)] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-lg border shadow-lg">
+            <FileDialog.Title className="text-subtle border-border border-b px-4 py-2 font-mono text-[12px]">
+              {fileView?.path}
+            </FileDialog.Title>
+            <pre className="max-h-[70vh] overflow-auto px-4 py-3 text-[12px] leading-relaxed whitespace-pre">
+              {fileView?.content}
+            </pre>
+          </FileDialog.Content>
+        </FileDialog.Portal>
+      </FileDialog.Root>
     </div>
   );
 }

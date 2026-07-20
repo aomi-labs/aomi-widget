@@ -81,6 +81,9 @@ export type CreateBuildRunRequest = {
   app?: string;
   /** Skip approval gates (defaults to true until the UI renders approvals). */
   autoApprove?: boolean;
+  /** Curation/repair agent; "none" runs the deterministic pipeline only
+   *  (codegen + cargo validate — no LLM). Defaults to "claude". */
+  builder?: "claude" | "codex" | "none";
 };
 
 export type CreateBuildRunResponse = {
