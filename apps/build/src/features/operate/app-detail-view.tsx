@@ -383,8 +383,8 @@ export function AppDetailView({
                   className="hover:bg-surface-subtle cursor-pointer"
                 >
                   <td className="py-2 pr-3 font-mono text-xs">{row.tool}</td>
-                  <td className="py-2 pr-3">{row.calls}</td>
-                  <td className="py-2 pr-3">{row.errors}</td>
+                  <td className="py-2 pr-3">{row.calls ?? "—"}</td>
+                  <td className="py-2 pr-3">{row.errors ?? "—"}</td>
                   <td
                     className={`py-2 pr-3 font-medium ${row.bad ? "text-red-500" : ""}`}
                   >

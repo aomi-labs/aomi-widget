@@ -71,8 +71,8 @@ export type LogRecord = {
 
 export type ToolStat = {
   tool: string;
-  calls: number;
-  errors: number;
+  calls: number | null;
+  errors: number | null;
   errorRate: string;
   p95: string;
   last: string;

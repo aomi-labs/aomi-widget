@@ -224,4 +224,18 @@ describe("liveAppDetailView", () => {
     expect(view.app.transactions).toEqual([]);
     expect(view.app.logs).toEqual([]);
   });
+
+  it("preserves unknown per-tool counts instead of reporting zero", () => {
+    const payload = livePayload();
+    payload.detail.tools[0].calls = null;
+    payload.detail.tools[0].errors = null;
+
+    const view = liveAppDetailView(payload);
+
+    expect(view.app.detail.tools[0]).toMatchObject({
+      calls: null,
+      errors: null,
+    });
+    expect(view.app.detail.toolsSummary).toBe("— calls · — errors");
+  });
 });

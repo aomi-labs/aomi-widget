@@ -209,8 +209,8 @@ export function liveAppDetailView(
 
   const realTools = detail.tools.map((tool) => ({
     tool: tool.tool,
-    calls: tool.calls ?? 0,
-    errors: tool.errors ?? 0,
+    calls: tool.calls,
+    errors: tool.errors,
     errorRate: percentLabel(tool.errorRate),
     p95: durationLabel(tool.p95Ms),
     last: tool.lastError
@@ -320,9 +320,13 @@ export function liveAppDetailView(
       tools: realTools.length ? realTools : fallback.detail.tools,
       toolsSummary: realTools.length
         ? (() => {
-            const calls = realTools.reduce((sum, row) => sum + row.calls, 0);
-            const errors = realTools.reduce((sum, row) => sum + row.errors, 0);
-            return `${calls} calls · ${errors} ${errors === 1 ? "error" : "errors"}`;
+            const calls = realTools.every((row) => row.calls !== null)
+              ? realTools.reduce((sum, row) => sum + (row.calls ?? 0), 0)
+              : null;
+            const errors = realTools.every((row) => row.errors !== null)
+              ? realTools.reduce((sum, row) => sum + (row.errors ?? 0), 0)
+              : null;
+            return `${calls ?? "—"} calls · ${errors ?? "—"} ${errors === 1 ? "error" : "errors"}`;
           })()
         : fallback.detail.toolsSummary,
       fees24h: "receipt fees shown per transaction",
