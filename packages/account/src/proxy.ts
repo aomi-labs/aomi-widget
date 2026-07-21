@@ -32,6 +32,7 @@ const ALLOWED_REQUEST_HEADERS = new Set([
   "accept",
   "content-type",
   "aomi-app-key",
+  "payment-signature",
   "x-session-id",
   "x-thread-id",
 ]);
@@ -214,7 +215,11 @@ function copyResponseHeaders(upstream: Response): Headers {
   const headers = new Headers();
   const contentType = upstream.headers.get("content-type");
   const cacheControl = upstream.headers.get("cache-control");
+  const paymentRequired = upstream.headers.get("payment-required");
+  const paymentResponse = upstream.headers.get("payment-response");
   if (contentType) headers.set("content-type", contentType);
+  if (paymentRequired) headers.set("payment-required", paymentRequired);
+  if (paymentResponse) headers.set("payment-response", paymentResponse);
   if (contentType?.includes("text/event-stream")) {
     headers.set("cache-control", "no-cache, no-transform");
   } else if (cacheControl) {

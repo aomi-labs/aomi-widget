@@ -62,6 +62,14 @@ Progress:
   round-trip tests passed, and focused client/widget tests, targeted ESLint,
   portal typecheck, and the portal test command passed.
 
+- 2026-07-21 x402 BFF bridge: allowed the Coinbase x402 v2
+  `Payment-Signature` request proof through the shared account proxy and
+  returned `Payment-Required` challenges plus `Payment-Response` settlement
+  receipts without broadening browser credential forwarding. Added coverage
+  for chained partner/platform headers, patch-bumped `@aomi-labs/account` to
+  0.1.4, and verified the focused tests, account/portal/base/landing
+  typechecks, formatting, and packed package contents.
+
 - 2026-07-20 Robinhood Chain support: added chain `4663` to the client and wallet-kit defaults, including Alchemy metadata, network selection coverage, a monochrome chain icon, generated registries, and explicit portal/landing/docs network lists. Patch-bumped `@aomi-labs/client` to `0.3.2` and `@aomi-labs/widget-lib` to `1.4.3`; focused tests, root/portal/landing typechecks, client and registry builds, lint, formatting, and the read-only client `chain list` CLI passed.
 
 - 2026-07-19 Operate observability detail: replaced the #374 fixture route

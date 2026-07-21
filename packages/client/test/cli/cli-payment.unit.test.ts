@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import { printPaymentEvent } from "../../src/cli/output";
-import { followSettledPaymentChallenges } from "../../src/cli/payment";
 
 describe("CLI payment output", () => {
   it("prints the requested x402 amount, network, and recipient", () => {
@@ -68,51 +67,5 @@ describe("CLI payment output", () => {
     }
 
     expect(lines[0]).toContain("submitted payment requirements did not match");
-  });
-
-  it("starts a new payment cycle after a settled retry receives another 402", async () => {
-    const requests: Array<{ body: string; hasPaymentSignature: boolean }> = [];
-    const responses = [
-      new Response(null, {
-        status: 402,
-        headers: { "Payment-Response": "partner-settlement" },
-      }),
-      new Response("ok", { status: 200 }),
-    ];
-    const fetchWithPayment: typeof fetch = async (input, init) => {
-      const request = new Request(input, init);
-      requests.push({
-        body: await request.text(),
-        hasPaymentSignature: request.headers.has("Payment-Signature"),
-      });
-      return responses.shift() ?? new Response(null, { status: 500 });
-    };
-
-    const fetch = followSettledPaymentChallenges(fetchWithPayment);
-    const response = await fetch("http://unit.test/paid", {
-      method: "POST",
-      body: "original request",
-    });
-
-    expect(response.status).toBe(200);
-    expect(requests).toEqual([
-      { body: "original request", hasPaymentSignature: false },
-      { body: "original request", hasPaymentSignature: false },
-    ]);
-  });
-
-  it("does not retry a 402 that lacks a settlement receipt", async () => {
-    let calls = 0;
-    const fetchWithPayment: typeof fetch = async () => {
-      calls += 1;
-      return new Response(null, { status: 402 });
-    };
-
-    const response = await followSettledPaymentChallenges(fetchWithPayment)(
-      "http://unit.test/paid",
-    );
-
-    expect(response.status).toBe(402);
-    expect(calls).toBe(1);
   });
 });

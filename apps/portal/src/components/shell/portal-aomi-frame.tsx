@@ -11,12 +11,15 @@ import {
 } from "@aomi-labs/react";
 import { RequiredSecretsGate } from "@portal/components/shell/required-secrets-gate";
 import { createPortalAccountBearerProvider } from "@portal/lib/account-bearer";
+import {
+  createPortalPaymentFetch,
+  x402EvmChainId,
+} from "@portal/lib/payment-fetch";
 import { x402Client } from "@x402/core/client";
 import { ExactEvmScheme } from "@x402/evm/exact/client";
-import { wrapFetchWithPayment } from "@x402/fetch";
 import { Mppx, tempo } from "mppx/client";
 import { useConfig, useWalletClient } from "wagmi";
-import { getConnectorClient } from "wagmi/actions";
+import { getConnectorClient, switchChain } from "wagmi/actions";
 import { getBackendUrl } from "@portal/lib/settings-api";
 import { SvmWalletBindingGate } from "@portal/features/general/svm-wallet-binding-gate";
 
@@ -104,7 +107,7 @@ function usePortalClientOptions(
     [accountAccessTokenProvider],
   );
 
-  const mppClientOptions = useMemo(() => {
+  const mppFetch = useMemo(() => {
     if (!wagmiConfig) {
       return undefined;
     }
@@ -122,7 +125,7 @@ function usePortalClientOptions(
       ],
     });
 
-    return { fetch: mppx.fetch };
+    return mppx.fetch;
   }, [wagmiConfig]);
 
   return useMemo(() => {
@@ -244,52 +247,32 @@ function usePortalClientOptions(
       return new Request(url, input);
     };
 
-    const isChatPost = (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = parseUrl(input);
-      if (!url) return false;
-      const method = (
-        init?.method ?? (input instanceof Request ? input.method : "GET")
-      ).toUpperCase();
-      return method === "POST" && url.pathname === "/api/thread/chat";
-    };
-
     const rawFetch = withDebugLogging("native.fetch", nativeFetch);
-    const baseFetch = mppClientOptions?.fetch;
     const connectorClient = walletClient?.data;
-    const paymentFetch = (() => {
-      if (!baseFetch) {
-        return null;
-      }
-      if (!connectorClient) {
-        return withDebugLogging("mppx.fetch", baseFetch);
-      }
-
+    const paymentClient = (() => {
+      if (!connectorClient || !wagmiConfig) return undefined;
       const paymentClient = new x402Client();
       paymentClient.register(
         "eip155:*",
         new ExactEvmScheme(connectorClient as never),
       );
-
-      return withDebugLogging(
-        "wrapFetchWithPayment",
-        wrapFetchWithPayment(baseFetch, paymentClient),
+      paymentClient.onBeforePaymentCreation(
+        async ({ selectedRequirements }) => {
+          const chainId = x402EvmChainId(selectedRequirements.network);
+          if (wagmiConfig.state.chainId !== chainId) {
+            await switchChain(wagmiConfig, { chainId });
+          }
+        },
       );
+      return paymentClient;
     })();
 
-    const routedFetch: typeof fetch = async (input, init) => {
-      const routedInput = withLockedAppScope(input);
-      if (!isChatPost(routedInput, init)) {
-        return rawFetch(routedInput, init);
-      }
-
-      const firstResponse = await rawFetch(routedInput, init);
-      if (firstResponse.status !== 402 || !paymentFetch) {
-        return firstResponse;
-      }
-
-      console.debug(
-        "[aomi][portal-fetch] retrying /api/thread/chat with payment transport after 402",
-      );
+    const paymentFetch = createPortalPaymentFetch({
+      fetch: rawFetch,
+      mppFetch: mppFetch ? withDebugLogging("mppx.fetch", mppFetch) : undefined,
+      x402: paymentClient,
+    });
+    const routedFetch: typeof fetch = (input, init) => {
       return paymentFetch(withLockedAppScope(input), init);
     };
 
@@ -301,8 +284,9 @@ function usePortalClientOptions(
     accountAccessTokenProvider,
     lockedApp,
     lockedApplicationId,
-    mppClientOptions,
+    mppFetch,
     nativeFetch,
+    wagmiConfig,
     walletClient?.data,
   ]);
 }

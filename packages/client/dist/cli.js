@@ -5088,10 +5088,61 @@ var init_client_factory = __esm({
   }
 });
 
+// src/payment.ts
+import { wrapFetchWithPayment } from "@x402/fetch";
+function paymentResponseHeader(response) {
+  var _a3;
+  return (_a3 = response.headers.get("payment-response")) != null ? _a3 : response.headers.get("x-payment-response");
+}
+function withInitialResponse(initialResponse, fetchImpl) {
+  let pendingResponse = initialResponse;
+  return (input2, init) => {
+    if (pendingResponse) {
+      const response = pendingResponse;
+      pendingResponse = void 0;
+      return Promise.resolve(response);
+    }
+    return fetchImpl(input2, init);
+  };
+}
+async function handlePaymentChallenges(request, initialResponse, fetchImpl, client) {
+  let response = initialResponse;
+  let attempts = 0;
+  while (response.status === 402) {
+    if (attempts > 0 && paymentResponseHeader(response) === null) {
+      return response;
+    }
+    if (attempts === MAX_PAYMENT_CHALLENGES) {
+      throw new Error(
+        `Exceeded ${MAX_PAYMENT_CHALLENGES} sequential x402 payment challenges`
+      );
+    }
+    response = await wrapFetchWithPayment(
+      withInitialResponse(response, fetchImpl),
+      client
+    )(request.clone());
+    attempts += 1;
+  }
+  return response;
+}
+function wrapFetchWithPaymentChallenges(fetchImpl, client) {
+  return async (input2, init) => {
+    const request = new Request(input2, init);
+    const response = await fetchImpl(request.clone());
+    return handlePaymentChallenges(request, response, fetchImpl, client);
+  };
+}
+var MAX_PAYMENT_CHALLENGES;
+var init_payment = __esm({
+  "src/payment.ts"() {
+    "use strict";
+    MAX_PAYMENT_CHALLENGES = 4;
+  }
+});
+
 // src/cli/payment.ts
 import { x402Client } from "@x402/core/client";
 import { ExactEvmScheme } from "@x402/evm/exact/client";
-import { wrapFetchWithPayment } from "@x402/fetch";
 import { privateKeyToAccount as privateKeyToAccount3 } from "viem/accounts";
 function stringValue(value) {
   return typeof value === "string" && value.length > 0 ? value : void 0;
@@ -5124,11 +5175,11 @@ async function paymentRequirementFrom(response) {
 }
 function receiptIdFrom(response) {
   var _a3;
-  const header = paymentResponseHeader(response);
+  const header = paymentResponseHeader2(response);
   const settlement = header ? parseBase64Json(header) : void 0;
   return (_a3 = stringValue(settlement == null ? void 0 : settlement.transaction)) != null ? _a3 : stringValue(settlement == null ? void 0 : settlement.network);
 }
-function paymentResponseHeader(response) {
+function paymentResponseHeader2(response) {
   var _a3;
   return (_a3 = response.headers.get("Payment-Response")) != null ? _a3 : response.headers.get("X-Payment-Response");
 }
@@ -5146,7 +5197,7 @@ function createTracedFetch(onPayment) {
     const response = await globalThis.fetch(request);
     if (!onPayment) return response;
     if (isPaymentRetry) {
-      const settled = response.ok || paymentResponseHeader(response) !== null;
+      const settled = response.ok || paymentResponseHeader2(response) !== null;
       onPayment(
         settled ? {
           type: "settled",
@@ -5170,16 +5221,6 @@ function createTracedFetch(onPayment) {
     return response;
   };
 }
-function followSettledPaymentChallenges(paymentFetch) {
-  return async (input2, init) => {
-    const original = new Request(input2, init);
-    let response = await paymentFetch(original.clone());
-    for (let challenge = 1; challenge < MAX_SEQUENTIAL_PAYMENT_CHALLENGES && response.status === 402 && paymentResponseHeader(response) !== null; challenge += 1) {
-      response = await paymentFetch(original.clone());
-    }
-    return response;
-  };
-}
 function createCliPaymentFetch(config, onPayment) {
   if (!(config == null ? void 0 : config.paymentMethod)) {
     return void 0;
@@ -5195,16 +5236,16 @@ function createCliPaymentFetch(config, onPayment) {
   const account = privateKeyToAccount3(config.privateKey);
   const paymentClient = new x402Client();
   paymentClient.register("eip155:*", new ExactEvmScheme(account));
-  return followSettledPaymentChallenges(
-    wrapFetchWithPayment(createTracedFetch(onPayment), paymentClient)
+  return wrapFetchWithPaymentChallenges(
+    createTracedFetch(onPayment),
+    paymentClient
   );
 }
-var MAX_SEQUENTIAL_PAYMENT_CHALLENGES;
-var init_payment = __esm({
+var init_payment2 = __esm({
   "src/cli/payment.ts"() {
     "use strict";
+    init_payment();
     init_errors();
-    MAX_SEQUENTIAL_PAYMENT_CHALLENGES = 4;
   }
 });
 
@@ -5220,7 +5261,7 @@ var init_cli_session = __esm({
     init_solana_signer();
     init_auth();
     init_client_factory();
-    init_payment();
+    init_payment2();
     CliSession = class _CliSession {
       constructor(state) {
         this.state = state;
