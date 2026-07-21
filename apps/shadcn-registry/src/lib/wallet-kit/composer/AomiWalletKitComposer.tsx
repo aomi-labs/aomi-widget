@@ -200,6 +200,7 @@ export function AomiWalletKitComposer({
         evm: supportedChains,
         solana: svm?.supportedNetworks ?? [],
       },
+      selectedSolanaNetwork: svm?.selectedNetwork,
       solanaNetworkSwitchRequiresReconnect: Boolean(svmIdentity?.address),
       connect: actions.connect,
       disconnect: actions.disconnect,

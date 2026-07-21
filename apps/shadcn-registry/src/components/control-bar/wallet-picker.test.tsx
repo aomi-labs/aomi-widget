@@ -238,6 +238,66 @@ function openAddWallets() {
 }
 
 describe("WalletPicker", () => {
+  it("quietly handles a rejected or unfinished wallet connection", async () => {
+    const connectEvmWallet = vi.fn(async () => {
+      throw Object.assign(
+        new Error(
+          "User rejected the request. Details: Connection request reset. Please try again.",
+        ),
+        { code: 4001 },
+      );
+    });
+    renderPicker(
+      makeAdapter({
+        identity: {
+          status: "disconnected",
+          isConnected: false,
+          walletProvider: "para",
+        },
+        accounts: [],
+        connectEvmWallet,
+      }),
+    );
+
+    const walletConnect = screen.getByRole("button", {
+      name: "Connect WalletConnect",
+    });
+    fireEvent.click(walletConnect);
+
+    await waitFor(() => expect(connectEvmWallet).toHaveBeenCalledOnce());
+    await waitFor(() =>
+      expect(walletConnect.hasAttribute("disabled")).toBe(false),
+    );
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("still surfaces actionable wallet connection failures", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const connectEvmWallet = vi.fn(async () => {
+      throw new Error("Wallet relay unavailable");
+    });
+    renderPicker(
+      makeAdapter({
+        identity: {
+          status: "disconnected",
+          isConnected: false,
+          walletProvider: "para",
+        },
+        accounts: [],
+        connectEvmWallet,
+      }),
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Connect WalletConnect" }),
+    );
+
+    expect((await screen.findByRole("alert")).textContent).toContain(
+      "Wallet relay unavailable",
+    );
+    expect(warn).toHaveBeenCalledOnce();
+  });
+
   it("renders connected accounts with family tags and a collapsible add-wallet list", () => {
     renderPicker(makeAdapter());
     expect(screen.getByText("Manage wallets")).toBeTruthy();
@@ -727,6 +787,42 @@ describe("WalletPicker", () => {
       family: "evm",
       address: "0xAAAAAAAA",
       chainId: 1,
+    });
+  });
+
+  it("auto-links a connected external Solana wallet for an empty account", async () => {
+    const linkWallet = vi.fn(async () => undefined);
+    renderPicker(
+      makeAdapter({
+        identity: {
+          status: "connected",
+          isConnected: true,
+          svmAddress: "9xQpubKey",
+          svmCluster: "solana:mainnet",
+          svmWalletName: "Phantom",
+          svmTransport: "extension",
+        },
+        accounts: [
+          {
+            id: "phantom",
+            family: "svm",
+            address: "9xQpubKey",
+            walletName: "Phantom",
+            active: true,
+          },
+        ],
+        accountUser: { id: "user-1", displayName: "Ada Account" },
+        accountWallets: [],
+        linkWallet,
+      }),
+    );
+
+    await waitFor(() => expect(linkWallet).toHaveBeenCalledTimes(1));
+    expect(linkWallet).toHaveBeenCalledWith({
+      accountId: "phantom",
+      family: "svm",
+      address: "9xQpubKey",
+      chainId: undefined,
     });
   });
 
@@ -1259,6 +1355,43 @@ describe("WalletPicker", () => {
     expect(screen.getByText("MetaMask")).toBeTruthy();
     expect(screen.queryByText("siwe")).toBeNull();
     expect(screen.getByText("EVM")).toBeTruthy();
+  });
+
+  it("hides SIWS auth identities while keeping the linked Solana wallet", async () => {
+    renderPicker(
+      makeAdapter({
+        accountUser: { id: "user-1", displayName: "Wallet Account" },
+        accountLinkedAccounts: [
+          {
+            id: "siws-identity",
+            provider: "siws",
+            subject: "solana:*:CB3XMCCSTp9U9vnQerN8yoqazSt8MPgGvoS1gunYXL8v",
+          },
+        ],
+        accountWallets: [
+          {
+            id: "phantom-wallet",
+            family: "svm",
+            address: "CB3XMCCSTp9U9vnQerN8yoqazSt8MPgGvoS1gunYXL8v",
+            kind: "external",
+            provider: "siws",
+            linkedVia: "siws",
+            label: "Phantom 1",
+            capability: "write",
+          },
+        ],
+      }),
+    );
+
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole("button", { name: "Manage your account" }),
+      );
+    });
+
+    expect(screen.queryByText("siws")).toBeNull();
+    expect(screen.getAllByText("Phantom 1").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("SVM").length).toBeGreaterThan(0);
   });
 
   it("shows the account button for a loaded wallet-only account without a provider UI", () => {

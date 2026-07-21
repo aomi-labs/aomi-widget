@@ -2,7 +2,6 @@
 
 import {
   Connection as SolanaConnection,
-  MessageV0,
   Transaction as SolanaTransaction,
   VersionedTransaction,
 } from "@solana/web3.js";
@@ -39,26 +38,6 @@ function deserializeSolanaTransaction(
   } catch {
     return SolanaTransaction.from(bytes);
   }
-}
-
-async function refreshBlockhash(
-  tx: VersionedTransaction | SolanaTransaction,
-  connection: SolanaConnection,
-): Promise<VersionedTransaction | SolanaTransaction> {
-  const { blockhash } = await connection.getLatestBlockhash("confirmed");
-  if (tx instanceof VersionedTransaction) {
-    const msg = tx.message;
-    const refreshedMessage = new MessageV0({
-      header: msg.header,
-      staticAccountKeys: msg.staticAccountKeys,
-      recentBlockhash: blockhash,
-      compiledInstructions: msg.compiledInstructions,
-      addressTableLookups: msg.addressTableLookups,
-    });
-    return new VersionedTransaction(refreshedMessage);
-  }
-  tx.recentBlockhash = blockhash;
-  return tx;
 }
 
 export function buildSvmTransactionMethods(
@@ -119,9 +98,8 @@ export function buildSvmTransactionMethods(
             config.rpcHttpUrl,
             "confirmed",
           );
-          const tx = await refreshBlockhash(
-            deserializeSolanaTransaction(decodeBase64(payload.unsignedTx)),
-            connection,
+          const tx = deserializeSolanaTransaction(
+            decodeBase64(payload.unsignedTx),
           );
           const signature = await sendTransaction(tx, connection);
           return { signature };
@@ -137,9 +115,8 @@ export function buildSvmTransactionMethods(
               config.rpcHttpUrl,
               "confirmed",
             );
-            const tx = await refreshBlockhash(
-              deserializeSolanaTransaction(decodeBase64(payload.unsignedTx)),
-              connection,
+            const tx = deserializeSolanaTransaction(
+              decodeBase64(payload.unsignedTx),
             );
             const signature = await sendTransaction(tx, connection);
             return { signature };

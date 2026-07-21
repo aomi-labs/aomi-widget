@@ -12,6 +12,7 @@ import {
   Transaction,
 } from "@solana/web3.js";
 import bs58 from "bs58";
+import nacl from "tweetnacl";
 
 // Real keypair + real legacy transaction — round-trip exercises the actual
 // `@solana/web3.js` deserialize / sign / serialize path. The CLI mocks
@@ -216,6 +217,86 @@ describe("CLI wallet sign — solana_sign branch", () => {
     expect(signedRecord.signer).toBe(SIGNER_PUBKEY);
     expect(typeof signedRecord.signedTx).toBe("string");
     expect(signedRecord.signedTx.length).toBeGreaterThan(0);
+  });
+
+  it("signs an SVM message and posts the backend-compatible Ed25519 callback", async () => {
+    const message = Buffer.from("aomi auth nonce").toString("base64");
+    mocks.readState.mockReturnValue({
+      sessionId: "session-solana-cli",
+      baseUrl: "http://127.0.0.1:8080",
+      app: "default",
+      pendingTxs: [],
+      pendingSolTxs: [
+        {
+          id: "tx-8",
+          solanaId: 8,
+          requestKind: "solana_sign_message",
+          message,
+          signer: SIGNER_PUBKEY,
+          timestamp: Date.now(),
+          payload: {},
+        },
+      ],
+      signedTxs: [],
+      signedSolTxs: [],
+    });
+
+    await signCommand(
+      {
+        baseUrl: "http://127.0.0.1:8080",
+        app: "default",
+        solanaPrivateKey: SIGNER_SECRET_BS58,
+        secrets: {},
+      },
+      ["tx-8"],
+    );
+
+    const event = JSON.parse(mocks.sendSystemMessage.mock.calls[0][1]) as {
+      type: string;
+      payload: {
+        signature: string;
+        signed_message_base64: string;
+        signature_type: string;
+        pending_svm_sig_id: number;
+      };
+    };
+    expect(event.type).toBe("wallet::solana_sign_complete");
+    expect(event.payload.signature_type).toBe("ed25519");
+    expect(event.payload.pending_svm_sig_id).toBe(8);
+    expect(
+      nacl.sign.detached.verify(
+        Buffer.from(event.payload.signed_message_base64, "base64"),
+        Buffer.from(event.payload.signature, "base64"),
+        SIGNER_KP.publicKey.toBytes(),
+      ),
+    ).toBe(true);
+  });
+
+  it("processes multiple SVM sign requests sequentially", async () => {
+    const state = mocks.readState();
+    mocks.readState.mockReturnValue({
+      ...state,
+      pendingSolTxs: [
+        ...(state.pendingSolTxs ?? []),
+        {
+          ...(state.pendingSolTxs?.[0] ?? {}),
+          id: "tx-6",
+          solanaId: 6,
+        },
+      ],
+    });
+
+    await signCommand(
+      {
+        baseUrl: "http://127.0.0.1:8080",
+        app: "default",
+        solanaPrivateKey: SIGNER_SECRET_BS58,
+        secrets: {},
+      },
+      ["tx-5", "tx-6"],
+    );
+
+    expect(mocks.sendSystemMessage).toHaveBeenCalledTimes(2);
   });
 
   it("reads SOLANA_PRIVATE_KEY from env when no flag is passed", async () => {

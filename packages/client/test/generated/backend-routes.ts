@@ -529,6 +529,16 @@ export const AOMI_BACKEND_ENDPOINTS = [
     auth: ["thread"],
   },
   {
+    method: "POST",
+    path: "/api/threads/:thread_id/archive",
+    auth: ["account","thread"],
+  },
+  {
+    method: "POST",
+    path: "/api/threads/:thread_id/unarchive",
+    auth: ["account","thread"],
+  },
+  {
     method: "PUT",
     path: "/api/admin/apps/public",
     auth: ["admin"],

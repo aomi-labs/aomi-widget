@@ -17,7 +17,7 @@ export const DEFAULT_SVM_RPC_HTTP_URLS: Record<SvmCluster, string> = {
 export function getDefaultSvmNetworkLabel(cluster: SvmCluster): string {
   switch (cluster) {
     case "solana:mainnet":
-      return "Solana Mainnet";
+      return "Solana";
     case "solana:testnet":
       return "Solana Testnet";
     case "solana:devnet":
@@ -83,7 +83,7 @@ export function buildDefaultSvmNetworkOptions(options?: {
   return [
     {
       id: "solana-mainnet",
-      label: "Solana Mainnet",
+      label: "Solana",
       cluster: "solana:mainnet",
       rpcHttpUrl:
         options?.mainnetRpcHttpUrl ??

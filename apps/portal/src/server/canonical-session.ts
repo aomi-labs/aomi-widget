@@ -1,4 +1,5 @@
 import { requireAomiSession } from "@portal/lib/aomi-account/session";
+import { resolveE2ECanonicalUserId } from "@portal/server/e2e-wallet";
 
 /**
  * Resolve the canonical backend user id for the current BetterAuth session.
@@ -11,6 +12,8 @@ import { requireAomiSession } from "@portal/lib/aomi-account/session";
 export async function resolveBetterAuthCanonicalUserId(
   req: Request,
 ): Promise<string | null> {
+  const e2eUserId = resolveE2ECanonicalUserId(req);
+  if (e2eUserId) return e2eUserId;
   const result = await requireAomiSession(req);
   return result?.user.id ?? null;
 }

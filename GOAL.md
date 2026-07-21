@@ -44,6 +44,85 @@ Progress:
   Verified focused theme tests, Aomi Build lint/typecheck/production build,
   and live `/build` rendering plus reload persistence in both themes.
 
+- 2026-07-20 wallet connection cancellation polish: the shared wallet picker
+  now treats explicit provider rejection, WalletConnect reset/expiry, and
+  EIP-1193 code 4001 as normal dismissal paths instead of rendering a red error
+  banner. Genuine provider and relay failures remain visible. Added regression
+  coverage, patch-bumped `@aomi-labs/widget-lib` to 1.4.7, and regenerated the
+  registry artifacts.
+
+- 2026-07-17 Solana full-balance swap and holdings polish: taught the Jupiter
+  fast path to accept `amount: "all"` for SPL inputs so the backend resolves the
+  connected wallet balance and transparently falls back from flaky mint-filter
+  RPC reads to token-program scans. The standalone holdings tool now defaults
+  its owner from SVM wallet context and returns compact aggregated display
+  amounts. Added a dedicated holdings trace presenter that shows `0.148008
+  USDC` for the canonical mainnet mint, or just the visible UI amount with the
+  generic token icon when the symbol is unknown. Patch-bumped
+  `@aomi-labs/widget-lib` to 1.4.6 and regenerated registry artifacts.
+
+- 2026-07-17 Solana working-trace polish: split SVM network context from the
+  EVM interpreter so Solana traces show the chain family and current slot,
+  and added a Jupiter preparation presenter that surfaces input amount,
+  expected output, and token direction like the LI.FI swap trace while keeping
+  raw tool data available in the expandable detail. Simplified the default
+  mainnet picker row and compact trigger to `Solana`. Compact SVM network
+  traces now show the formatted slot number without redundant text, and wallet
+  approval traces include the staged SVM transaction count. SVM simulation and
+  approval matching now live in a dedicated `svm-tx` family with routing tests
+  that prevent Solana results from falling through to the EVM interpreter.
+
+- 2026-07-17 browser Solana approval recovery: traced the missing Phantom
+  prompt to the portal's zero-config mainnet RPC fallback. Solana's official
+  public endpoint returns HTTP 403 to JSON-RPC requests carrying a localhost
+  browser Origin, so the runtime failed while refreshing the blockhash before
+  invoking the wallet. Switched the portal fallback to PublicNode's
+  browser-compatible Solana endpoint, restarted the portal, and verified a
+  localhost-origin `getLatestBlockhash` call, portal health, targeted ESLint,
+  portal typecheck, and the portal test command.
+
+- 2026-07-17 external Solana GUI parity: browser-connected SVM wallets now use
+  BetterAuth SIWS for account creation and optional linking, matching the CLI
+  and external EVM flow. Legacy backend binding remains limited to embedded
+  wallets, and SIWS proof identities stay hidden from account management while
+  the linked Solana wallet remains visible.
+
+- 2026-07-17 wallet naming and thread archive follow-up: unlabeled BetterAuth
+  SIWE wallet rows now inherit the connected EVM provider brand (for example,
+  `Rabby 1`) without overwriting user labels. Restored durable archive and
+  unarchive endpoints backed by `thread_archives`, exposed archive state in
+  thread summaries, synchronized the client/OpenAPI contract, and verified the
+  full live archive round trip plus canonical Rabby account response locally.
+
+- 2026-07-17 BetterAuth Solana CLI parity: added SIWS nonce/verify endpoints to
+  BetterAuth, synchronized verified external Solana wallets into canonical
+  `public_keys`, and added Solana-only login plus authenticated wallet linking
+  to the TypeScript CLI without the legacy backend bind ceremony. Live dev
+  stack E2E covered Solana-only account creation and relogin, EVM-to-Solana
+  linking, login through either wallet into the same canonical user, ownership
+  conflict and last-factor protection, and an authenticated SVM commit followed
+  by local Ed25519 signing and backend completion. Patch-bumped
+  `@aomi-labs/account` to 0.1.1 and `@aomi-labs/client` to 0.3.3. GUI work is
+  intentionally not started yet.
+
+- 2026-07-16 Solana transaction parity: completed the shared HTTP client and
+  CLI paths for SVM approval normalization, signing, broadcast, and terminal
+  callbacks; added portal wallet binding and a loopback-only injected Solana
+  signer for browser E2E; and made the default runtime preserve both EVM and
+  SVM wallet/network state. Patch-bumped `@aomi-labs/client` to 0.3.2 and
+  regenerated its publishable artifacts. Verified a Gemini 3 Flash transfer
+  through the CLI and portal, including finalized on-chain signatures, backend
+  pending-state cleanup, and interpreted Solana trace steps.
+
+- 2026-07-16 staging thread-load diagnosis: reproduced `GET /api/threads`
+  returning 401 and `GET /api/account` returning 403 for the connected wallet.
+  Both statuses map to the backend's verified-bearer/missing-canonical-user
+  paths, so the leading cause is Portal/backend staging database identity drift
+  after the July 14 `DATABASE_URL` rotation, not thread rendering or wallet
+  provider collisions. Direct Vercel/server environment comparison remains
+  blocked by missing `chat-portal` team access and the unavailable staging VPN;
+  a targeted backend-log request is prepared for the internal cloud agent.
+
 - 2026-07-14 hosted SDK compatibility: Aomi Build now marks incompatible
   deployments as outdated, blocks their broken chat iframe, links users to the
   Deployments tab, and requests a source-owned SDK upgrade pull request before

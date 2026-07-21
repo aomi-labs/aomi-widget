@@ -481,6 +481,18 @@
         },
         {
           "type": "registry:component",
+          "path": "components/assistant-ui/tool-interpreter/families/svm.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/assistant-ui/tool-interpreter/families/svm-tx.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/assistant-ui/tool-interpreter/families/jupiter.ts"
+        },
+        {
+          "type": "registry:component",
           "path": "components/assistant-ui/tool-interpreter/families/lifi.ts"
         },
         {

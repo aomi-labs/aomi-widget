@@ -18,6 +18,7 @@ import { Mppx, tempo } from "mppx/client";
 import { useConfig, useWalletClient } from "wagmi";
 import { getConnectorClient } from "wagmi/actions";
 import { getBackendUrl } from "@portal/lib/settings-api";
+import { SvmWalletBindingGate } from "@portal/features/general/svm-wallet-binding-gate";
 
 type RequestedAppConfig = {
   app: string | null;
@@ -226,9 +227,7 @@ function usePortalClientOptions(
           "/api/system",
           "/api/thread/model",
           "/api/session/model",
-        ].includes(
-          url.pathname,
-        )
+        ].includes(url.pathname)
       ) {
         return input;
       }
@@ -431,6 +430,7 @@ export function PortalAomiFrame() {
           }}
         />
         <RequiredSecretsGate />
+        <SvmWalletBindingGate />
       </AomiFrame.Root>
     </main>
   );

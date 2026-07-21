@@ -298,6 +298,7 @@ export type AomiWalletKit = {
     evm: readonly Chain[];
     solana: readonly SvmNetworkOption[];
   };
+  selectedSolanaNetwork?: SvmNetworkOption;
   solanaNetworkSwitchRequiresReconnect?: boolean;
 
   /** All wallet accounts known to the adapter, tagged by family. */

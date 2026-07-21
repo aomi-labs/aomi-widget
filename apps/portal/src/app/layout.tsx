@@ -23,7 +23,8 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Aomi Labs",
-  description: "A research and engineering group focused on building agentic software for blockchain automation",
+  description:
+    "A research and engineering group focused on building agentic software for blockchain automation",
   icons: {
     icon: "/assets/images/a.svg",
     shortcut: "/assets/images/a.svg",
@@ -53,12 +54,16 @@ export default async function RootLayout({
               ? {
                   address: e2eWallet.address,
                   chainId: e2eWallet.chainId,
+                  svmAddress: e2eWallet.svmAddress,
+                  svmCluster: e2eWallet.svmCluster,
                 }
               : null
           }
         >
           <SettingsInitializer>
-            <div className="relative h-screen w-full overflow-hidden">{children}</div>
+            <div className="relative h-screen w-full overflow-hidden">
+              {children}
+            </div>
           </SettingsInitializer>
         </WalletProviders>
         <CookieConsent />

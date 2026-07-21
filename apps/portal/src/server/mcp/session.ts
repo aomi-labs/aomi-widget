@@ -2,7 +2,7 @@ import "server-only";
 
 import {
   getOrCreateAomiUserForBetterAuthSession,
-  syncSiweWalletsForUser,
+  syncBetterAuthWalletsForUser,
 } from "@aomi-labs/account/account";
 import type { DbAomiUser } from "@aomi-labs/account";
 
@@ -19,7 +19,7 @@ export async function resolveMcpCanonicalUser(
   input: McpBetterAuthUserSeed,
 ): Promise<DbAomiUser> {
   const user = await getOrCreateAomiUserForBetterAuthSession(input);
-  await syncSiweWalletsForUser({
+  await syncBetterAuthWalletsForUser({
     aomiUserId: user.id,
     betterAuthUserId: input.betterAuthUserId,
   });

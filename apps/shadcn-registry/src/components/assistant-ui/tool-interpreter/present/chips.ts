@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 
 import { getChainIcon } from "@/components/icons/chain-map";
+import { SolanaIcon } from "@/components/icons/chains";
 import {
   SHAPE_ICONS,
   STAGED_ACTION_ICON_REGISTRY,
@@ -114,6 +115,8 @@ export const chipForFact = (fact: ToolFact): ToolChip | null => {
         icon: Number.isFinite(chainId) ? getChainIcon(chainId) : undefined,
       };
     }
+    case "cluster":
+      return { label: fact.label ?? humanize(fact.value), icon: SolanaIcon };
     case "code":
       return { label: fact.label ?? fact.value };
     case "count":
@@ -146,6 +149,11 @@ export const chipForFact = (fact: ToolFact): ToolChip | null => {
       return { label: fact.label ?? fact.value };
     case "status":
       return statusChip(fact.value);
+    case "slot":
+      return {
+        label: fact.label ?? formatInteger(fact.value),
+        icon: BlocksIcon,
+      };
     case "token":
       return { label: fact.label ?? fact.value, icon: CoinsIcon };
     case "txId":

@@ -64,11 +64,14 @@ const solanaNetworks = [
   },
   {
     id: "solana-mainnet",
-    label: "Solana Mainnet",
+    label: "Solana",
     cluster: "solana:mainnet",
     rpcHttpUrl:
       process.env.NEXT_PUBLIC_SOLANA_MAINNET_RPC_URL ??
-      "https://api.mainnet-beta.solana.com",
+      // The official public endpoint rejects localhost browser origins with
+      // HTTP 403. Keep the zero-config portal fallback browser-compatible so
+      // wallet approval can refresh and broadcast the signed transaction.
+      "https://solana-rpc.publicnode.com",
     rpcWsUrl: process.env.NEXT_PUBLIC_SOLANA_MAINNET_RPC_WS_URL,
     isDefault: true,
   },
@@ -129,7 +132,11 @@ export function WalletProviders({ children, e2eWallet }: Props) {
 
   if (e2eWallet) {
     return (
-      <E2EWalletProvider seed={e2eWallet} networks={networks}>
+      <E2EWalletProvider
+        seed={e2eWallet}
+        networks={networks}
+        solanaNetworks={solanaNetworks}
+      >
         {children}
       </E2EWalletProvider>
     );

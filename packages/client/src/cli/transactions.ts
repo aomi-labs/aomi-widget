@@ -2,6 +2,7 @@ import type { ExecutionResult, AAWalletCall } from "../aa";
 import type { WalletRequest } from "../session";
 import type {
   WalletEip712Payload,
+  WalletSolanaSignMessagePayload,
   WalletSolanaSignPayload,
   WalletTxPayload,
 } from "../wallet-utils";
@@ -50,7 +51,29 @@ export function walletRequestToPendingTx(
 export function walletRequestToPendingSolTx(
   request: WalletRequest,
 ): Omit<PendingSolTx, "id"> | null {
-  if (request.kind !== "solana_sign") {
+  if (request.kind === "solana_sign_message") {
+    const payload = request.payload as WalletSolanaSignMessagePayload;
+    if (
+      payload.pendingSolanaId === undefined ||
+      payload.message === undefined
+    ) {
+      return null;
+    }
+    return {
+      solanaId: payload.pendingSolanaId,
+      requestKind: request.kind,
+      message: payload.message,
+      cluster: payload.cluster,
+      description: payload.description,
+      timestamp: request.timestamp,
+      payload: request.payload as unknown as Record<string, unknown>,
+    };
+  }
+  if (
+    request.kind !== "solana_sign" &&
+    request.kind !== "solana_send" &&
+    request.kind !== "solana_sign_and_send"
+  ) {
     return null;
   }
   const payload = request.payload as WalletSolanaSignPayload;
@@ -63,6 +86,8 @@ export function walletRequestToPendingSolTx(
 
   return {
     solanaId: payload.pendingSolanaId,
+    solanaIds: payload.pendingSolanaIds,
+    requestKind: request.kind,
     unsignedTx: payload.unsignedTx,
     cluster: payload.cluster,
     description: payload.description,
@@ -160,19 +185,21 @@ export function formatPendingSolTxLine(
   tx: PendingSolTx,
   prefix: string,
 ): string {
-  const parts = [`${prefix} ${tx.id}`, "solana"];
+  const parts = [`${prefix} ${tx.id}`, tx.requestKind ?? "solana_sign"];
   if (tx.cluster) parts.push(`cluster: ${tx.cluster}`);
   if (tx.description) parts.push(tx.description);
   if (tx.signer) parts.push(`signer: ${tx.signer}`);
   if (tx.unsignedTx) parts.push(`tx: ${tx.unsignedTx.slice(0, 20)}...`);
+  if (tx.message) parts.push(`message: ${tx.message.slice(0, 20)}...`);
   parts.push(`(${new Date(tx.timestamp).toLocaleTimeString()})`);
   return parts.join("  ");
 }
 
 /** Render a locally-persisted signed Solana tx record. */
 export function formatSignedSolTxLine(tx: SignedSolTx, prefix: string): string {
-  const parts = [`${prefix} ${tx.id}`, "solana"];
+  const parts = [`${prefix} ${tx.id}`, tx.requestKind ?? "solana_sign"];
   if (tx.signedTx) parts.push(`signed: ${tx.signedTx.slice(0, 20)}...`);
+  if (tx.signature) parts.push(`sig: ${tx.signature.slice(0, 20)}...`);
   if (tx.cluster) parts.push(`cluster: ${tx.cluster}`);
   if (tx.signer) parts.push(`signer: ${tx.signer}`);
   if (tx.description) parts.push(tx.description);

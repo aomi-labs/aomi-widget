@@ -11,9 +11,15 @@ describe("AomiClient route manifest", () => {
         `${endpoint.method} ${endpoint.path} [${endpoint.auth.join(", ")}]`,
     );
 
-    expect(routeKeys).toHaveLength(107);
+    expect(routeKeys).toHaveLength(109);
     expect(new Set(routeKeys).size).toBe(routeKeys.length);
     expect(routeKeys).toContain("POST /api/exec/run [account, thread]");
+    expect(routeKeys).toContain(
+      "POST /api/threads/:thread_id/archive [account, thread]",
+    );
+    expect(routeKeys).toContain(
+      "POST /api/threads/:thread_id/unarchive [account, thread]",
+    );
     expect(routeKeys).toContain("GET /api/resource/search/apps [account]");
     expect(routeKeys).toContain("GET /api/resource/search/tools [account]");
     expect(routeKeys).toContain("GET /api/resource/skills [account]");
@@ -742,6 +748,28 @@ describe("AomiClient transport selection", () => {
       (fetch.mock.calls[0]?.[1] as RequestInit | undefined)?.headers,
     );
     expect(headers.get("X-Thread-Id")).toBe("thread-1");
+  });
+
+  it("archives and unarchives through the current thread endpoints", async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>(async () =>
+      Response.json({ success: true }),
+    );
+    const client = new AomiClient({ baseUrl: "http://unit.test", fetch });
+
+    await client.archiveThread("thread/1");
+    await client.unarchiveThread("thread/1");
+
+    expect(String(fetch.mock.calls[0]?.[0])).toBe(
+      "http://unit.test/api/threads/thread%2F1/archive",
+    );
+    expect(String(fetch.mock.calls[1]?.[0])).toBe(
+      "http://unit.test/api/threads/thread%2F1/unarchive",
+    );
+    for (const call of fetch.mock.calls) {
+      const init = call[1] as RequestInit;
+      expect(init.method).toBe("POST");
+      expect(new Headers(init.headers).get("X-Thread-Id")).toBe("thread/1");
+    }
   });
 
   it("uses native fetch for SSE subscriptions even when a custom fetch is provided", async () => {

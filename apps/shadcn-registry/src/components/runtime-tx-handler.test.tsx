@@ -17,7 +17,10 @@ const authState = vi.hoisted(() => ({
   },
   isReady: true,
   activeFamily: "solana",
-  activeNetwork: { family: "solana", networkId: "solana-devnet" },
+  selectedSolanaNetwork: {
+    id: "solana-devnet",
+    cluster: "solana:devnet",
+  },
   supportedNetworks: {
     solana: [
       { id: "solana-devnet", cluster: "solana:devnet" },
@@ -25,6 +28,7 @@ const authState = vi.hoisted(() => ({
     ],
   },
   selectNetwork: vi.fn(),
+  solanaNetworkSwitchRequiresReconnect: false,
   signSolanaTransaction: vi.fn(),
   signSolanaMessage: vi.fn(),
 }));
@@ -56,7 +60,11 @@ describe("RuntimeTxHandler", () => {
     authState.selectNetwork.mockReset();
     authState.signSolanaTransaction.mockReset();
     authState.signSolanaMessage.mockReset();
-    authState.activeNetwork = { family: "solana", networkId: "solana-devnet" };
+    authState.selectedSolanaNetwork = {
+      id: "solana-devnet",
+      cluster: "solana:devnet",
+    };
+    authState.solanaNetworkSwitchRequiresReconnect = false;
   });
 
   afterEach(() => {
@@ -64,7 +72,9 @@ describe("RuntimeTxHandler", () => {
   });
 
   it("dispatches solana_sign requests through signSolanaTransaction", async () => {
-    authState.signSolanaTransaction.mockResolvedValue({ signedTx: "SIGNED_TX" });
+    authState.signSolanaTransaction.mockResolvedValue({
+      signedTx: "SIGNED_TX",
+    });
     runtimeState.pendingWalletRequests = [
       {
         id: "solana_sign-7",
@@ -127,5 +137,31 @@ describe("RuntimeTxHandler", () => {
       { kind: "solana_sign_message", signature: "SIG_BASE64" },
     );
     expect(runtimeState.rejectWalletRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects signing when the requested cluster requires reconnecting", async () => {
+    authState.solanaNetworkSwitchRequiresReconnect = true;
+    runtimeState.pendingWalletRequests = [
+      {
+        id: "solana_sign-10",
+        kind: "solana_sign",
+        payload: {
+          unsignedTx: "AQID",
+          cluster: "solana:mainnet",
+          pendingSolanaId: 10,
+        },
+        timestamp: Date.now(),
+      },
+    ];
+
+    render(<RuntimeTxHandler />);
+
+    await waitFor(() => {
+      expect(runtimeState.rejectWalletRequest).toHaveBeenCalledWith(
+        "solana_sign-10",
+        expect.stringContaining("Reconnect"),
+      );
+    });
+    expect(authState.signSolanaTransaction).not.toHaveBeenCalled();
   });
 });

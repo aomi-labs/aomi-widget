@@ -1,5 +1,5 @@
 import { createBearerTokenRoute } from "@aomi-labs/account";
-import { resolveBetterAuthCanonicalUserId } from "@portal/lib/aomi-account/canonical-session";
+import { resolveBetterAuthCanonicalUserId } from "@portal/server/canonical-session";
 
 export const GET = createBearerTokenRoute({
   resolveCanonicalUserId: resolveBetterAuthCanonicalUserId,

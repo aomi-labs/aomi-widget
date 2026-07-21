@@ -1,5 +1,5 @@
 import { createBackendProxy, type AllowedRoute } from "@aomi-labs/account";
-import { resolveBetterAuthCanonicalUserId } from "@portal/lib/aomi-account/canonical-session";
+import { resolveBetterAuthCanonicalUserId } from "@portal/server/canonical-session";
 import { launchConfig } from "@portal/server/bff/launch/config";
 
 const ALLOWED_ROUTES: AllowedRoute[] = [
@@ -12,8 +12,16 @@ const ALLOWED_ROUTES: AllowedRoute[] = [
     methods: new Set(["GET"]),
     auth: "optional",
   },
-  { pattern: /^\/api\/thread\/state$/, methods: new Set(["GET"]), auth: "optional" },
-  { pattern: /^\/api\/thread\/chat$/, methods: new Set(["POST"]), auth: "optional" },
+  {
+    pattern: /^\/api\/thread\/state$/,
+    methods: new Set(["GET"]),
+    auth: "optional",
+  },
+  {
+    pattern: /^\/api\/thread\/chat$/,
+    methods: new Set(["POST"]),
+    auth: "optional",
+  },
   { pattern: /^\/api\/system$/, methods: new Set(["POST"]), auth: "optional" },
   {
     pattern: /^\/api\/thread\/interrupt$/,
@@ -22,7 +30,11 @@ const ALLOWED_ROUTES: AllowedRoute[] = [
   },
   { pattern: /^\/api\/secrets$/, methods: new Set(["GET", "POST", "DELETE"]) },
   { pattern: /^\/api\/secrets\/[^/]+$/, methods: new Set(["DELETE"]) },
-  { pattern: /^\/api\/thread\/updates$/, methods: new Set(["GET"]), auth: "optional" },
+  {
+    pattern: /^\/api\/thread\/updates$/,
+    methods: new Set(["GET"]),
+    auth: "optional",
+  },
   {
     pattern: /^\/api\/threads$/,
     methods: new Set(["GET", "POST"]),
@@ -33,7 +45,16 @@ const ALLOWED_ROUTES: AllowedRoute[] = [
     methods: new Set(["GET", "PATCH", "DELETE"]),
     auth: "optional",
   },
-  { pattern: /^\/api\/thread\/events$/, methods: new Set(["GET"]), auth: "optional" },
+  {
+    pattern: /^\/api\/threads\/[^/]+\/(archive|unarchive)$/,
+    methods: new Set(["POST"]),
+    auth: "optional",
+  },
+  {
+    pattern: /^\/api\/thread\/events$/,
+    methods: new Set(["GET"]),
+    auth: "optional",
+  },
   {
     pattern: /^\/api\/thread\/apps$/,
     methods: new Set(["GET"]),

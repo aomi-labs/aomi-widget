@@ -62,6 +62,7 @@ export const API_PATHS = {
     },
     e2e: {
       execute: `${BFF}/e2e/execute`,
+      solana: `${BFF}/e2e/solana`,
       wallet: `${BFF}/e2e/wallet`,
     },
   },

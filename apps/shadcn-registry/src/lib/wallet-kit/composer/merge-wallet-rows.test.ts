@@ -90,6 +90,46 @@ describe("account wallet row merging", () => {
     ]);
   });
 
+  it("offers SIWS linking for a live external Solana wallet", () => {
+    const rows = mergeWalletRows({
+      accounts: [
+        {
+          id: "Phantom",
+          family: "svm",
+          address: "PhantomPubkey",
+          walletName: "Phantom",
+          active: true,
+        },
+      ],
+      canLinkWallet: true,
+    });
+
+    expect(rows[0]?.actions).toEqual([
+      { kind: "link", label: "Link" },
+      { kind: "disconnect", label: "Disconnect" },
+    ]);
+  });
+
+  it("does not route embedded Solana wallets through SIWS linking", () => {
+    const rows = mergeWalletRows({
+      accounts: [
+        {
+          id: "para-solana",
+          family: "svm",
+          address: "ParaPubkey",
+          walletName: "Para",
+          walletKind: "embedded",
+          active: true,
+        },
+      ],
+      canLinkWallet: true,
+    });
+
+    expect(rows[0]?.actions).toEqual([
+      { kind: "disconnect", label: "Disconnect" },
+    ]);
+  });
+
   it("renders stored external wallets with connect action", () => {
     const storedWallet: AccountWallet = {
       id: "stored-external",

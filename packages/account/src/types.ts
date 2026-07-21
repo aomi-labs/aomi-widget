@@ -14,6 +14,7 @@ export type LinkedVia = KnownLinkedVia | (string & {});
 export type KnownAuthIdentityProvider =
   | "better_auth"
   | "siwe"
+  | "siws"
   | "privy"
   | "para"
   | "email";

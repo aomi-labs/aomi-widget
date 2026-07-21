@@ -1,11 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { buildSiwsMessage } from "@aomi-labs/client";
 import type { AuthRuntime, SvmWalletRuntime } from "../composer/types";
 import type { EvmWalletRuntime } from "../runtime/evm/wallet-runtime";
 import { brandDisplayName } from "../runtime/evm/brands";
 import type { AccountRuntime, AccountWallet } from "./types";
-import type { AomiAccount, WalletFamily } from "../types";
+import type { AomiAccount, SvmCluster, WalletFamily } from "../types";
 import {
   createAomiBackendAccountClient,
   type AomiBackendAccountResponse,
@@ -51,8 +52,11 @@ export function useAomiBackendAccountRuntime(input: {
   );
   const [errorVersion, setErrorVersion] = useState(0);
   const siweInFlight = useRef<string | null>(null);
+  const siwsInFlight = useRef<string | null>(null);
+  const walletLabelSyncInFlight = useRef<string | null>(null);
   const accountCreateInFlight = useRef<string | null>(null);
   const signedOutEvmKey = useRef<string | null>(null);
+  const signedOutSvmKey = useRef<string | null>(null);
   const signedOutCredentialKey = useRef<string | null>(null);
   const credentialInFlight = useRef<string | null>(null);
   const credentialExchanged = useRef<string | null>(null);
@@ -93,6 +97,64 @@ export function useAomiBackendAccountRuntime(input: {
     input.evm.activeEvmConnection?.address ?? input.evm.activeAccount?.address;
   const activeEvmChainId =
     input.evm.activeEvmConnection?.chainId ?? input.evm.activeAccount?.chainId;
+  const activeEvmWalletName = activeEvmAddress
+    ? resolveLinkedWalletName({
+        accounts: input.evm.accounts(Date.now()),
+        accountId: input.evm.activeAccount?.id,
+        address: activeEvmAddress,
+        fallbackWalletName:
+          input.evm.activeAccount?.walletName ??
+          input.evm.activeEvmConnection?.walletName,
+      })
+    : undefined;
+  const activeSvmIdentity = input.svm?.identity(Date.now());
+  const activeSvmAccount = input.svm?.activeAccount;
+  const activeSvmAddress =
+    activeSvmAccount?.address ?? activeSvmIdentity?.address;
+  const activeSvmCluster =
+    input.svm?.selectedNetwork?.cluster ??
+    activeSvmIdentity?.cluster ??
+    "solana:mainnet";
+  const activeSvmWalletName =
+    activeSvmAccount?.walletName ?? activeSvmIdentity?.walletName;
+  const activeSvmIsExternal = Boolean(
+    activeSvmAddress &&
+    activeSvmAccount?.walletKind !== "embedded" &&
+    activeSvmAccount?.walletKind !== "smart_account" &&
+    activeSvmIdentity?.transport !== "embedded" &&
+    activeSvmIdentity?.walletSource !== "embedded",
+  );
+  const signSolanaMessage = input.svm?.execution.signSolanaMessage;
+
+  useEffect(() => {
+    if (!account?.user || !activeEvmAddress) return;
+    const brand = brandDisplayName(activeEvmWalletName);
+    if (brand === "Wallet") return;
+    const wallet = account.wallets.find(
+      (candidate) =>
+        candidate.family === "evm" &&
+        candidate.address.toLowerCase() === activeEvmAddress.toLowerCase() &&
+        !candidate.label?.trim(),
+    );
+    if (!wallet) return;
+    const label = buildDefaultWalletLabel({
+      walletName: brand,
+      existingWallets: account.wallets,
+      family: "evm",
+    });
+    const key = `${wallet.id}:${label}`;
+    if (walletLabelSyncInFlight.current === key) return;
+    walletLabelSyncInFlight.current = key;
+    accountClient
+      .updateWallet(wallet.id, { label })
+      .then(refresh)
+      .catch(() => setErrorVersion((version) => version + 1))
+      .finally(() => {
+        if (walletLabelSyncInFlight.current === key) {
+          walletLabelSyncInFlight.current = null;
+        }
+      });
+  }, [account, accountClient, activeEvmAddress, activeEvmWalletName, refresh]);
 
   useEffect(() => {
     if (
@@ -154,6 +216,77 @@ export function useAomiBackendAccountRuntime(input: {
     input.enabled,
     input.evm.signMessageAsync,
     refresh,
+    status,
+  ]);
+
+  useEffect(() => {
+    if (
+      !input.enabled ||
+      status === "error" ||
+      account === null ||
+      account.user ||
+      !hasAuthMessageConfig(authMessageConfig)
+    ) {
+      return;
+    }
+    if (!activeSvmAddress || !activeSvmIsExternal || !signSolanaMessage) {
+      signedOutSvmKey.current = null;
+      return;
+    }
+    const key = `${activeSvmAddress}:${activeSvmCluster}`;
+    const authKey = authSessionKey(input.auth);
+    if (
+      input.auth.status === "authenticated" &&
+      input.auth.getCredential &&
+      providerSessionAttempted.current !== authKey
+    ) {
+      return;
+    }
+    if (signedOutSvmKey.current === key) return;
+    if (siwsInFlight.current === key) return;
+    if (accountCreateInFlight.current) return;
+    siwsInFlight.current = key;
+    accountCreateInFlight.current = `siws:${key}`;
+    authenticateSvmWallet({
+      accountClient,
+      address: activeSvmAddress,
+      chainId: activeSvmCluster,
+      intent: "sign-in",
+      label: buildDefaultWalletLabel({
+        walletName: activeSvmWalletName,
+        existingWallets: [],
+        family: "svm",
+      }),
+      messageConfig: authMessageConfig,
+      signMessage: (message) =>
+        signMessageWithActiveSvm(signSolanaMessage, message, activeSvmCluster),
+    })
+      .then(refresh)
+      .catch(() => {
+        // Match auto-SIWE: one rejected prompt should not loop until the wallet
+        // disconnects or the user explicitly chooses Link again.
+        signedOutSvmKey.current = key;
+        setStatus("ready");
+        setErrorVersion((version) => version + 1);
+      })
+      .finally(() => {
+        siwsInFlight.current = null;
+        if (accountCreateInFlight.current === `siws:${key}`) {
+          accountCreateInFlight.current = null;
+        }
+      });
+  }, [
+    account,
+    accountClient,
+    activeSvmAddress,
+    activeSvmCluster,
+    activeSvmIsExternal,
+    activeSvmWalletName,
+    authMessageConfig,
+    input.auth,
+    input.enabled,
+    refresh,
+    signSolanaMessage,
     status,
   ]);
 
@@ -273,6 +406,9 @@ export function useAomiBackendAccountRuntime(input: {
       if (activeEvmAddress && activeEvmChainId) {
         signedOutEvmKey.current = `${activeEvmAddress}:${activeEvmChainId}`;
       }
+      if (activeSvmAddress && activeSvmIsExternal) {
+        signedOutSvmKey.current = `${activeSvmAddress}:${activeSvmCluster}`;
+      }
       if (input.auth.status === "authenticated" && input.auth.getCredential) {
         const credential = await input.auth.getCredential().catch(() => null);
         if (credential) {
@@ -298,6 +434,9 @@ export function useAomiBackendAccountRuntime(input: {
     deleteAccount: async () => {
       if (activeEvmAddress && activeEvmChainId) {
         signedOutEvmKey.current = `${activeEvmAddress}:${activeEvmChainId}`;
+      }
+      if (activeSvmAddress && activeSvmIsExternal) {
+        signedOutSvmKey.current = `${activeSvmAddress}:${activeSvmCluster}`;
       }
       if (input.auth.status === "authenticated" && input.auth.getCredential) {
         const credential = await input.auth.getCredential().catch(() => null);
@@ -326,10 +465,40 @@ export function useAomiBackendAccountRuntime(input: {
       await refresh();
     },
     linkWallet: async (wallet) => {
-      if (
-        wallet.family !== "evm" ||
-        (!input.evm.signMessageForAccount && !input.evm.signMessageAsync)
-      ) {
+      if (wallet.family === "svm") {
+        if (
+          !activeSvmAddress ||
+          wallet.address !== activeSvmAddress ||
+          !activeSvmIsExternal ||
+          !signSolanaMessage
+        ) {
+          throw new Error(
+            "Wallet linking requires the active external Solana signer",
+          );
+        }
+        const label = buildDefaultWalletLabel({
+          walletName: activeSvmWalletName,
+          existingWallets: account?.wallets ?? [],
+          family: "svm",
+        });
+        await authenticateSvmWallet({
+          accountClient,
+          address: wallet.address,
+          chainId: activeSvmCluster,
+          intent: account?.user ? "link" : "sign-in",
+          label,
+          messageConfig: authMessageConfig,
+          signMessage: (message) =>
+            signMessageWithActiveSvm(
+              signSolanaMessage,
+              message,
+              activeSvmCluster,
+            ),
+        });
+        await refresh();
+        return;
+      }
+      if (!input.evm.signMessageForAccount && !input.evm.signMessageAsync) {
         throw new Error("Wallet linking requires an active EVM signer");
       }
       const chainId = wallet.chainId ?? activeEvmChainId;
@@ -591,6 +760,58 @@ async function signInWithEvmWallet(input: {
     walletAddress: input.address,
     chainId: input.chainId,
   });
+}
+
+async function signMessageWithActiveSvm(
+  signMessage: NonNullable<SvmWalletRuntime["execution"]["signSolanaMessage"]>,
+  message: string,
+  chainId: SvmCluster,
+): Promise<string> {
+  const result = await signMessage({
+    message: utf8ToBase64(message),
+    cluster: chainId,
+    description: "Authorize this Solana wallet for your Aomi account.",
+  });
+  return result.signature;
+}
+
+async function authenticateSvmWallet(input: {
+  accountClient: ReturnType<typeof createAomiBackendAccountClient>;
+  address: string;
+  chainId: SvmCluster;
+  intent: "sign-in" | "link";
+  label?: string;
+  signMessage: (message: string) => Promise<string>;
+  messageConfig: AuthMessageConfig;
+}): Promise<void> {
+  const nonceResult = await input.accountClient.createSiwsNonce({
+    walletAddress: input.address,
+    chainId: input.chainId,
+    intent: input.intent,
+  });
+  const message = buildSiwsMessage({
+    address: input.address,
+    chainId: input.chainId,
+    nonce: nonceResult.nonce,
+    intent: input.intent,
+    ...messageConfigFromNonce(nonceResult, input.messageConfig),
+  });
+  const signature = await input.signMessage(message);
+  await input.accountClient.verifySiws({
+    message,
+    signature,
+    walletAddress: input.address,
+    chainId: input.chainId,
+    intent: input.intent,
+    label: input.label,
+  });
+}
+
+function utf8ToBase64(value: string): string {
+  const bytes = new TextEncoder().encode(value);
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary);
 }
 
 export type AuthMessageConfig = {

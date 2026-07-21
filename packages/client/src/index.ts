@@ -4,9 +4,26 @@
 
 export { AomiClient } from "./client";
 export {
+  authorizationChallenge,
+  authorizationCommit,
+  ensureSvmWalletBound,
+  ensureSvmWalletBoundVia,
+  isUnboundWalletError,
+  posterFromClient,
+} from "./authorization";
+export type {
+  AomiAuthorizationChallenge,
+  AomiAuthorizationPermit,
+  AomiAuthorizationState,
+  AomiEnsureBoundResult,
+  AuthorizationPoster,
+} from "./authorization";
+export {
   AccountCredentialUnavailableError,
   createAccountBearerProvider,
 } from "./account-session";
+export { buildSiwsMessage } from "./siws";
+export type { SiwsChainId, SiwsIntent } from "./siws";
 export type {
   AccountBearerProviderOptions,
   AccountBearerProvider,

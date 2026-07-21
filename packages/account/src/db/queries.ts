@@ -131,6 +131,37 @@ export async function findLegacyBackendUserIdByWallet(
   return (provider.rows[0]?.user_id as string | undefined) ?? null;
 }
 
+export async function listBetterAuthSiwsWallets(
+  betterAuthUserId: string,
+  db: Db = getPool(),
+): Promise<
+  Array<{
+    betterAuthUserId: string;
+    address: string;
+    createdAt: Date;
+  }>
+> {
+  try {
+    const result = await db.query(
+      `select user_id as better_auth_user_id,
+              account_id as address,
+              created_at
+         from ba_accounts
+        where user_id = $1
+          and provider_id = 'siws'`,
+      [betterAuthUserId],
+    );
+    return result.rows.map((row) => ({
+      betterAuthUserId: String(row.better_auth_user_id),
+      address: String(row.address),
+      createdAt: new Date(row.created_at as string | Date),
+    }));
+  } catch (error) {
+    if (!isMissingRelation(error)) throw error;
+    return [];
+  }
+}
+
 export async function touchAomiUser(
   userId: AomiUserId,
   db: Db = getPool(),
@@ -208,7 +239,7 @@ export async function countLoginFactors(
        +
        (select count(*)::int from auth_providers
          where user_id = $1
-           and provider not in ('betterauth', 'better_auth', 'email', 'siwe', 'wallet')) as count`,
+           and provider not in ('betterauth', 'better_auth', 'email', 'siwe', 'siws', 'wallet')) as count`,
     [userId],
   );
   return Number(result.rows[0]?.count ?? 0);
@@ -709,6 +740,31 @@ export async function deleteBetterAuthSiweWallet(input: {
   };
 }
 
+export async function deleteBetterAuthSiwsWallet(input: {
+  address: string;
+  db?: Db;
+}): Promise<{ deleted: boolean; betterAuthUserIds: string[] }> {
+  const db = input.db ?? getPool();
+  try {
+    const result = await db.query(
+      `delete from ba_accounts
+        where provider_id = 'siws'
+          and account_id = $1
+        returning user_id as better_auth_user_id`,
+      [input.address],
+    );
+    return {
+      deleted: (result.rowCount ?? 0) > 0,
+      betterAuthUserIds: result.rows.map((row) =>
+        String(row.better_auth_user_id),
+      ),
+    };
+  } catch (error) {
+    if (!isMissingRelation(error)) throw error;
+    return { deleted: false, betterAuthUserIds: [] };
+  }
+}
+
 async function resolveWalletAuthProvider(
   input: {
     userId: AomiUserId;
@@ -729,7 +785,9 @@ async function resolveWalletAuthProvider(
     input.providerSubject ??
     (provider === "siwe" && input.family === "evm"
       ? siweSubject(input.address)
-      : null);
+      : provider === "siws" && input.family === "svm"
+        ? siwsSubject(input.address)
+        : null);
   if (subject) {
     const identity = await upsertAuthIdentity({
       userId: input.userId,
@@ -797,7 +855,10 @@ function mapWallet(row: Row, provider: string | null): DbAomiWallet {
     normalizedAddress: normalizeWalletAddress(family, address),
     caip10: null,
     chainScope: null,
-    kind: provider && provider !== "siwe" ? "embedded" : "external",
+    kind:
+      provider && provider !== "siwe" && provider !== "siws"
+        ? "embedded"
+        : "external",
     provider: provider ? publicProvider(provider) : null,
     providerWalletId: null,
     linkedVia: provider ? publicProvider(provider) : "import",
@@ -842,7 +903,6 @@ function toAccountWallet(wallet: DbAomiWallet): AccountWallet {
 function canonicalProvider(provider: string): string {
   const normalized = provider.trim();
   if (normalized === "better_auth") return BETTER_AUTH_PROVIDER;
-  if (normalized === "siws") return "siwe";
   return normalized;
 }
 
@@ -866,6 +926,10 @@ function canonicalAddress(family: WalletFamily, address: string): string {
 
 function siweSubject(address: string): string {
   return `eip155:*:${normalizeWalletAddress("evm", address)}`;
+}
+
+function siwsSubject(address: string): string {
+  return `solana:*:${normalizeWalletAddress("svm", address)}`;
 }
 
 function deriveDisplayName(email?: string | null): string | null {

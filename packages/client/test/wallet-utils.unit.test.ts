@@ -293,7 +293,7 @@ describe("wallet payload normalization", () => {
   it("normalizes backend svm wallet_tx_request payloads into a Solana send request", () => {
     expect(
       normalizeSolanaWalletRequest({
-        chain_kind: "svm",
+        chain_family: "svm",
         svm_tx_ids: [12],
         request_kind: "send_transaction",
         unsigned_tx: "U0VORE1F",
@@ -308,6 +308,7 @@ describe("wallet payload normalization", () => {
         description: "send 0.01 SOL",
         cluster: "solana:devnet",
         pendingSolanaId: 12,
+        pendingSolanaIds: [12],
       },
     });
   });
