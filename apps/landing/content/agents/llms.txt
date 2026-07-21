@@ -74,3 +74,7 @@ Background context for understanding how end-users actually reach Aomi.
 - Skills: https://github.com/aomi-labs/skills
 - Widget + landing: https://github.com/aomi-labs/aomi-widget
 - npm package: https://www.npmjs.com/package/@aomi-labs/client
+
+## Brand & positioning
+
+- [Brand & positioning brief](https://aomi.dev/brand.md): Who Aomi is, canonical positioning and messaging per audience, voice rules, and the design system (tokens, fonts, palette) — generated live from Aomi's canonical brand sources, always current.
