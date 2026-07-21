@@ -13,13 +13,11 @@ import { RequiredSecretsGate } from "@portal/components/shell/required-secrets-g
 import { createPortalAccountBearerProvider } from "@portal/lib/account-bearer";
 import {
   createPortalPaymentFetch,
-  x402EvmChainId,
+  createPortalX402Client,
 } from "@portal/lib/payment-fetch";
-import { x402Client } from "@x402/core/client";
-import { ExactEvmScheme } from "@x402/evm/exact/client";
 import { Mppx, tempo } from "mppx/client";
-import { useConfig, useWalletClient } from "wagmi";
-import { getConnectorClient, switchChain } from "wagmi/actions";
+import { useConfig } from "wagmi";
+import { getConnectorClient } from "wagmi/actions";
 import { getBackendUrl } from "@portal/lib/settings-api";
 import { SvmWalletBindingGate } from "@portal/features/general/svm-wallet-binding-gate";
 
@@ -77,22 +75,18 @@ function useOptionalWagmiConfig(): ReturnType<typeof useConfig> | undefined {
   }
 }
 
-function useOptionalWalletClient(): ReturnType<typeof useWalletClient> {
-  try {
-    return useWalletClient();
-  } catch {
-    return { data: undefined } as ReturnType<typeof useWalletClient>;
-  }
-}
-
 function usePortalClientOptions(
   lockedApp: string | null,
   lockedApplicationId: string | null,
 ): Omit<AomiClientOptions, "baseUrl"> | undefined {
   const wagmiConfig = useOptionalWagmiConfig();
-  const walletClient = useOptionalWalletClient();
   const nativeFetch = useMemo(() => globalThis.fetch.bind(globalThis), []);
-  const { getAccountCredential } = useAomiWalletKit();
+  const {
+    getAccountCredential,
+    identity,
+    signTypedData,
+    switchChain: switchWalletChain,
+  } = useAomiWalletKit();
 
   const accountAccessTokenProvider = useMemo(() => {
     return createPortalAccountBearerProvider(getAccountCredential, {
@@ -127,6 +121,16 @@ function usePortalClientOptions(
 
     return mppx.fetch;
   }, [wagmiConfig]);
+
+  const paymentClient = useMemo(
+    () =>
+      createPortalX402Client({
+        identity,
+        signTypedData,
+        switchChain: switchWalletChain,
+      }),
+    [identity, signTypedData, switchWalletChain],
+  );
 
   return useMemo(() => {
     const withDebugLogging = (
@@ -248,25 +252,6 @@ function usePortalClientOptions(
     };
 
     const rawFetch = withDebugLogging("native.fetch", nativeFetch);
-    const connectorClient = walletClient?.data;
-    const paymentClient = (() => {
-      if (!connectorClient || !wagmiConfig) return undefined;
-      const paymentClient = new x402Client();
-      paymentClient.register(
-        "eip155:*",
-        new ExactEvmScheme(connectorClient as never),
-      );
-      paymentClient.onBeforePaymentCreation(
-        async ({ selectedRequirements }) => {
-          const chainId = x402EvmChainId(selectedRequirements.network);
-          if (wagmiConfig.state.chainId !== chainId) {
-            await switchChain(wagmiConfig, { chainId });
-          }
-        },
-      );
-      return paymentClient;
-    })();
-
     const paymentFetch = createPortalPaymentFetch({
       fetch: rawFetch,
       mppFetch: mppFetch ? withDebugLogging("mppx.fetch", mppFetch) : undefined,
@@ -286,8 +271,7 @@ function usePortalClientOptions(
     lockedApplicationId,
     mppFetch,
     nativeFetch,
-    wagmiConfig,
-    walletClient?.data,
+    paymentClient,
   ]);
 }
 
