@@ -24,6 +24,16 @@ tables; fresh databases also finish replay with that drop.
 
 Progress:
 
+- 2026-07-22 Vercel PR-preview auth recovery: found that the repaired staging
+  `DATABASE_URL` was still scoped only to `Preview (main)`, so ordinary PR
+  previews inherited the stale global Preview database and returned 401/403 at
+  the backend account boundary. Promoted the already-verified encrypted staging
+  value to global Preview scope without exposing the credential, redeployed PR
+  #381, and passed disposable SIWS, canonical account, AccountBearer, wallet,
+  thread list/create, cleanup, and session-revocation checks with HTTP 200. The
+  replacement deployment recorded no 401 or 500 responses during verification;
+  Production was not changed.
+
 - 2026-07-22 Solana Phantom approval recovery: reproduced the reported
   10,000-lamport mainnet self-transfer in signed-in Chrome and traced the
   missing popup to the frontend rejecting the backend's legacy
