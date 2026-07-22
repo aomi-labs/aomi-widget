@@ -33,7 +33,7 @@ function createTestProxy(options: {
   });
 }
 
-describe("createBackendProxy auth handling", () => {
+describe("createBackendProxy", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
@@ -117,5 +117,86 @@ describe("createBackendProxy auth handling", () => {
       error: "Authentication required",
     });
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("forwards x402 payment proofs without forwarding browser credentials", async () => {
+    const fetchMock = vi.fn(async (_input: URL, _init?: RequestInit) =>
+      Response.json(
+        { ok: true },
+        { headers: { "payment-response": "settlement-receipt" } },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const { POST } = createTestProxy({
+      allowedRoutes: [
+        {
+          pattern: /^\/api\/chat$/,
+          methods: new Set(["POST"]),
+          auth: "optional",
+        },
+      ],
+      resolveCanonicalUserId: async () => null,
+    });
+
+    const response = await POST(
+      ...proxyRequest("/api/chat", {
+        method: "POST",
+        headers: {
+          authorization: "Bearer user-supplied",
+          cookie: "better-auth.session_token=session",
+          "payment-signature": "signed-payment",
+          "x-unsupported": "drop-me",
+        },
+        body: "{}",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("payment-response")).toBe("settlement-receipt");
+    const init = fetchMock.mock.calls[0]?.[1];
+    if (!init) throw new Error("Expected upstream fetch init");
+    const headers = new Headers(init.headers);
+    expect(headers.get("payment-signature")).toBe("signed-payment");
+    expect(headers.has("authorization")).toBe(false);
+    expect(headers.has("cookie")).toBe(false);
+    expect(headers.has("x-unsupported")).toBe(false);
+  });
+
+  it("returns chained x402 settlement and challenge headers", async () => {
+    const fetchMock = vi.fn(
+      async (_input: URL, _init?: RequestInit) =>
+        new Response(null, {
+          status: 402,
+          headers: {
+            "payment-required": "platform-challenge",
+            "payment-response": "partner-settlement-receipt",
+            "www-authenticate": 'Payment realm="mpp"',
+            "x-upstream-internal": "drop-me",
+          },
+        }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const { POST } = createTestProxy({
+      allowedRoutes: [
+        {
+          pattern: /^\/api\/chat$/,
+          methods: new Set(["POST"]),
+          auth: "optional",
+        },
+      ],
+      resolveCanonicalUserId: async () => null,
+    });
+
+    const response = await POST(
+      ...proxyRequest("/api/chat", { method: "POST", body: "{}" }),
+    );
+
+    expect(response.status).toBe(402);
+    expect(response.headers.get("payment-required")).toBe("platform-challenge");
+    expect(response.headers.get("payment-response")).toBe(
+      "partner-settlement-receipt",
+    );
+    expect(response.headers.has("www-authenticate")).toBe(false);
+    expect(response.headers.has("x-upstream-internal")).toBe(false);
   });
 });

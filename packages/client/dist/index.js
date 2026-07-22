@@ -1996,6 +1996,52 @@ Nonce: ${input.nonce}
 Issued At: ${((_a = input.issuedAt) != null ? _a : /* @__PURE__ */ new Date()).toISOString()}`;
 }
 
+// src/payment.ts
+import { wrapFetchWithPayment } from "@x402/fetch";
+var MAX_PAYMENT_CHALLENGES = 4;
+function paymentResponseHeader(response) {
+  var _a;
+  return (_a = response.headers.get("payment-response")) != null ? _a : response.headers.get("x-payment-response");
+}
+function withInitialResponse(initialResponse, fetchImpl) {
+  let pendingResponse = initialResponse;
+  return (input, init) => {
+    if (pendingResponse) {
+      const response = pendingResponse;
+      pendingResponse = void 0;
+      return Promise.resolve(response);
+    }
+    return fetchImpl(input, init);
+  };
+}
+async function handlePaymentChallenges(request, initialResponse, fetchImpl, client) {
+  let response = initialResponse;
+  let attempts = 0;
+  while (response.status === 402) {
+    if (attempts > 0 && paymentResponseHeader(response) === null) {
+      return response;
+    }
+    if (attempts === MAX_PAYMENT_CHALLENGES) {
+      throw new Error(
+        `Exceeded ${MAX_PAYMENT_CHALLENGES} sequential x402 payment challenges`
+      );
+    }
+    response = await wrapFetchWithPayment(
+      withInitialResponse(response, fetchImpl),
+      client
+    )(request.clone());
+    attempts += 1;
+  }
+  return response;
+}
+function wrapFetchWithPaymentChallenges(fetchImpl, client) {
+  return async (input, init) => {
+    const request = new Request(input, init);
+    const response = await fetchImpl(request.clone());
+    return handlePaymentChallenges(request, response, fetchImpl, client);
+  };
+}
+
 // src/types.ts
 function isInlineCall(event) {
   return "InlineCall" in event;
@@ -5165,6 +5211,7 @@ export {
   executeWalletCalls,
   getAAChainConfig,
   getWalletExecutorReady,
+  handlePaymentChallenges,
   hydrateTxPayloadFromUserState,
   isAlchemySponsorshipLimitError,
   isAsyncCallback,
@@ -5190,6 +5237,7 @@ export {
   toAAWalletCalls,
   toViemSignMessageArgs,
   toViemSignTypedDataArgs,
-  unwrapSystemEvent
+  unwrapSystemEvent,
+  wrapFetchWithPaymentChallenges
 };
 //# sourceMappingURL=index.js.map

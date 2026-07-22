@@ -1,8 +1,8 @@
 import { x402Client } from "@x402/core/client";
 import { ExactEvmScheme } from "@x402/evm/exact/client";
-import { wrapFetchWithPayment } from "@x402/fetch";
 import { privateKeyToAccount } from "viem/accounts";
 
+import { wrapFetchWithPaymentChallenges } from "../payment";
 import type { CliConfig } from "./types";
 import { fatal } from "./errors";
 
@@ -50,8 +50,6 @@ type PaymentResponseWire = {
   transaction?: unknown;
   network?: unknown;
 };
-
-const MAX_SEQUENTIAL_PAYMENT_CHALLENGES = 4;
 
 function stringValue(value: unknown): string | undefined {
   return typeof value === "string" && value.length > 0 ? value : undefined;
@@ -155,32 +153,6 @@ function createTracedFetch(onPayment?: CliPaymentListener): typeof fetch {
   };
 }
 
-/**
- * The x402 SDK performs one challenge-payment-retry cycle. Aomi can settle a
- * partner bucket on that retry and then challenge the same request for Aomi
- * model debt. Replaying the original unsigned request starts a fresh cycle.
- */
-export function followSettledPaymentChallenges(
-  paymentFetch: typeof fetch,
-): typeof fetch {
-  return async (input, init) => {
-    const original = new Request(input, init);
-    let response = await paymentFetch(original.clone());
-
-    for (
-      let challenge = 1;
-      challenge < MAX_SEQUENTIAL_PAYMENT_CHALLENGES &&
-      response.status === 402 &&
-      paymentResponseHeader(response) !== null;
-      challenge += 1
-    ) {
-      response = await paymentFetch(original.clone());
-    }
-
-    return response;
-  };
-}
-
 export function createCliPaymentFetch(
   config?: Partial<CliConfig>,
   onPayment?: CliPaymentListener,
@@ -203,7 +175,8 @@ export function createCliPaymentFetch(
   const paymentClient = new x402Client();
   paymentClient.register("eip155:*", new ExactEvmScheme(account as never));
 
-  return followSettledPaymentChallenges(
-    wrapFetchWithPayment(createTracedFetch(onPayment), paymentClient),
+  return wrapFetchWithPaymentChallenges(
+    createTracedFetch(onPayment),
+    paymentClient,
   );
 }

@@ -62,6 +62,24 @@ Progress:
   round-trip tests passed, and focused client/widget tests, targeted ESLint,
   portal typecheck, and the portal test command passed.
 
+- 2026-07-21 portal x402 E2E: moved Coinbase x402 signing from the portal's
+  Wagmi-only client to the shared wallet-kit adapter, so Para, Privy, injected,
+  and other connected EVM wallets use the same `signTypedData`/chain-switch
+  boundary. Verified the flow with a real MetaMask provider: SIWE created the
+  canonical account, x402 switched the wallet from Base to Base Sepolia,
+  MetaMask signed the USDC authorization, and the paid retry returned the
+  rendered portal response. Removed the temporary local EVM signing harness
+  after this proof.
+
+- 2026-07-21 x402 BFF bridge: allowed the Coinbase x402 v2
+  `Payment-Signature` request proof through the shared account proxy and
+  returned `Payment-Required` challenges plus `Payment-Response` settlement
+  receipts without broadening browser credential forwarding. Added coverage
+  for chained partner/platform headers, patch-bumped `@aomi-labs/account` to
+  0.1.5 and `@aomi-labs/client` to 0.3.8 after syncing current `main`, and
+  verified the focused tests, account/portal/base/landing typechecks,
+  formatting, and packed package contents.
+
 - 2026-07-20 Robinhood Chain support: added chain `4663` to the client and wallet-kit defaults, including Alchemy metadata, network selection coverage, a monochrome chain icon, generated registries, and explicit portal/landing/docs network lists. Patch-bumped `@aomi-labs/client` to `0.3.2` and `@aomi-labs/widget-lib` to `1.4.3`; focused tests, root/portal/landing typechecks, client and registry builds, lint, formatting, and the read-only client `chain list` CLI passed.
 
 - 2026-07-19 Operate observability detail: replaced the #374 fixture route
@@ -95,7 +113,7 @@ Progress:
   RPC reads to token-program scans. The standalone holdings tool now defaults
   its owner from SVM wallet context and returns compact aggregated display
   amounts. Added a dedicated holdings trace presenter that shows `0.148008
-  USDC` for the canonical mainnet mint, or just the visible UI amount with the
+USDC` for the canonical mainnet mint, or just the visible UI amount with the
   generic token icon when the symbol is unknown. Patch-bumped
   `@aomi-labs/widget-lib` to 1.4.6 and regenerated registry artifacts.
 

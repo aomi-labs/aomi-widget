@@ -24,6 +24,10 @@ export {
 } from "./account-session";
 export { buildSiwsMessage } from "./siws";
 export type { SiwsChainId, SiwsIntent } from "./siws";
+export {
+  handlePaymentChallenges,
+  wrapFetchWithPaymentChallenges,
+} from "./payment";
 export type {
   AccountBearerProviderOptions,
   AccountBearerProvider,
