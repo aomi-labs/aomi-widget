@@ -76,8 +76,9 @@ Progress:
   returned `Payment-Required` challenges plus `Payment-Response` settlement
   receipts without broadening browser credential forwarding. Added coverage
   for chained partner/platform headers, patch-bumped `@aomi-labs/account` to
-  0.1.4, and verified the focused tests, account/portal/base/landing
-  typechecks, formatting, and packed package contents.
+  0.1.5 and `@aomi-labs/client` to 0.3.8 after syncing current `main`, and
+  verified the focused tests, account/portal/base/landing typechecks,
+  formatting, and packed package contents.
 
 - 2026-07-20 Robinhood Chain support: added chain `4663` to the client and wallet-kit defaults, including Alchemy metadata, network selection coverage, a monochrome chain icon, generated registries, and explicit portal/landing/docs network lists. Patch-bumped `@aomi-labs/client` to `0.3.2` and `@aomi-labs/widget-lib` to `1.4.3`; focused tests, root/portal/landing typechecks, client and registry builds, lint, formatting, and the read-only client `chain list` CLI passed.
 
