@@ -24,6 +24,12 @@ tables; fresh databases also finish replay with that drop.
 
 Progress:
 
+- 2026-07-22 wallet account-access deduplication: hid the legacy `wallet`
+  authentication identity from account management, matching the existing
+  SIWE/SIWS proof-identity behavior while preserving the branded linked EVM or
+  Solana wallet row. Added the reported Rabby regression case and patch-bumped
+  `@aomi-labs/widget-lib` to 1.4.10.
+
 - 2026-07-22 Vercel Preview account-state recovery: reproduced the missing
   account badge and connected-only Phantom row while chat history remained
   visible, then traced the repeated 500s to Supabase session-pool exhaustion

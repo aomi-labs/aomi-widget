@@ -1394,6 +1394,61 @@ describe("WalletPicker", () => {
     expect(screen.getAllByText("SVM").length).toBeGreaterThan(0);
   });
 
+  it("hides legacy wallet auth identities while keeping the linked EVM wallet", async () => {
+    const address = "0xda65d415cc9d5ddc2a08bdffc996750755fc3cf0";
+    renderPicker(
+      makeAdapter({
+        identity: {
+          status: "connected",
+          isConnected: true,
+          address,
+          chainId: 1,
+          primaryLabel: "0xda6..f0",
+        },
+        accounts: [
+          {
+            id: "rabby",
+            family: "evm",
+            address,
+            walletName: "Rabby",
+            chainId: 1,
+            active: true,
+          },
+        ],
+        accountUser: { id: "user-1", displayName: address },
+        accountLinkedAccounts: [
+          {
+            id: "legacy-wallet-identity",
+            provider: "wallet",
+            subject: address,
+          },
+        ],
+        accountWallets: [
+          {
+            id: "rabby-wallet",
+            family: "evm",
+            address,
+            kind: "external",
+            provider: "siwe",
+            linkedVia: "siwe",
+            label: "Rabby 1",
+            capability: "write",
+          },
+        ],
+      }),
+    );
+
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole("button", { name: "Manage your account" }),
+      );
+    });
+
+    expect(screen.queryByText(/^wallet$/i)).toBeNull();
+    expect(screen.queryByText(address)).toBeNull();
+    expect(screen.getAllByText("Rabby 1").length).toBeGreaterThan(0);
+  });
+
   it("shows the account button for a loaded wallet-only account without a provider UI", () => {
     renderPicker(
       makeAdapter({
