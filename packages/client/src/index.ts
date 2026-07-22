@@ -132,6 +132,7 @@ export {
   normalizeSolanaSignPayload,
   normalizeSolanaSignMessagePayload,
   normalizeSolanaWalletRequest,
+  normalizeSolanaCluster,
   toViemSignMessageArgs,
   toViemSignTypedDataArgs,
   toAAWalletCalls,

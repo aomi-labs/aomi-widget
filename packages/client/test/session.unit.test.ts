@@ -1585,7 +1585,7 @@ describe("ClientSession ext helpers", () => {
     expect(request.kind).toBe("solana_send");
     expect(request.payload.unsignedTx).toBe("QkFTRTY0U0VORFRY");
     expect(request.payload.description).toBe("send 0.01 SOL");
-    expect(request.payload.cluster).toBe("devnet");
+    expect(request.payload.cluster).toBe("solana:devnet");
     expect(request.payload.pendingSolanaId).toBe(11);
 
     session.close();

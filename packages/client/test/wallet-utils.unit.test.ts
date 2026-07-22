@@ -313,6 +313,28 @@ describe("wallet payload normalization", () => {
     });
   });
 
+  it("canonicalizes legacy Solana cluster labels before wallet dispatch", () => {
+    expect(
+      normalizeSolanaWalletRequest({
+        chain_kind: "svm",
+        svm_ix_ids: [1],
+        request_kind: "send_transaction",
+        unsigned_tx: "U0VORE1F",
+        cluster: "mainnet-beta",
+        payer: "HZpj6CD9R4asaSM98mkWzfgowfQnCGA5Hu6zcwoPvRpW",
+      }),
+    ).toEqual({
+      kind: "solana_send",
+      payload: {
+        unsignedTx: "U0VORE1F",
+        description: undefined,
+        cluster: "solana:mainnet",
+        pendingSolanaId: 1,
+        pendingSolanaIds: [1],
+      },
+    });
+  });
+
   it("normalizes backend svm message_sign payloads into a Solana message-sign request", () => {
     expect(
       normalizeSolanaWalletRequest({

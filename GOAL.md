@@ -24,6 +24,18 @@ tables; fresh databases also finish replay with that drop.
 
 Progress:
 
+- 2026-07-22 Solana Phantom approval recovery: reproduced the reported
+  10,000-lamport mainnet self-transfer in signed-in Chrome and traced the
+  missing popup to the frontend rejecting the backend's legacy
+  `mainnet-beta` cluster label before invoking Phantom. Canonicalized legacy
+  Solana cluster aliases at the client request boundary and defensively in the
+  runtime handler, added send-request regression coverage, patch-bumped
+  `@aomi-labs/client` to 0.3.7 and `@aomi-labs/widget-lib` to 1.4.9, and
+  regenerated their publishable artifacts. The CLI decoded the supplied
+  unsigned transaction as the expected self-transfer, its real Solana signing
+  round-trip tests passed, and focused client/widget tests, targeted ESLint,
+  portal typecheck, and the portal test command passed.
+
 - 2026-07-20 Robinhood Chain support: added chain `4663` to the client and wallet-kit defaults, including Alchemy metadata, network selection coverage, a monochrome chain icon, generated registries, and explicit portal/landing/docs network lists. Patch-bumped `@aomi-labs/client` to `0.3.2` and `@aomi-labs/widget-lib` to `1.4.3`; focused tests, root/portal/landing typechecks, client and registry builds, lint, formatting, and the read-only client `chain list` CLI passed.
 
 - 2026-07-19 Operate observability detail: replaced the #374 fixture route

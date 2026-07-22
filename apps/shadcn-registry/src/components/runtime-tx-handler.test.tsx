@@ -31,6 +31,7 @@ const authState = vi.hoisted(() => ({
   solanaNetworkSwitchRequiresReconnect: false,
   signSolanaTransaction: vi.fn(),
   signSolanaMessage: vi.fn(),
+  sendSolanaTransaction: vi.fn(),
 }));
 
 vi.mock("@aomi-labs/react", () => ({
@@ -60,6 +61,7 @@ describe("RuntimeTxHandler", () => {
     authState.selectNetwork.mockReset();
     authState.signSolanaTransaction.mockReset();
     authState.signSolanaMessage.mockReset();
+    authState.sendSolanaTransaction.mockReset();
     authState.selectedSolanaNetwork = {
       id: "solana-devnet",
       cluster: "solana:devnet",
@@ -135,6 +137,46 @@ describe("RuntimeTxHandler", () => {
     expect(runtimeState.resolveWalletRequest).toHaveBeenCalledWith(
       "solana_sign_message-9",
       { kind: "solana_sign_message", signature: "SIG_BASE64" },
+    );
+    expect(runtimeState.rejectWalletRequest).not.toHaveBeenCalled();
+  });
+
+  it("accepts mainnet-beta send requests and invokes the Solana wallet", async () => {
+    authState.selectedSolanaNetwork = {
+      id: "solana-mainnet",
+      cluster: "solana:mainnet",
+    };
+    authState.sendSolanaTransaction.mockResolvedValue({
+      signature: "SOLANA_SIGNATURE",
+    });
+    runtimeState.pendingWalletRequests = [
+      {
+        id: "solana_send-1",
+        kind: "solana_send",
+        payload: {
+          unsignedTx: "AQID",
+          cluster: "mainnet-beta",
+          pendingSolanaId: 1,
+          pendingSolanaIds: [1],
+        },
+        timestamp: Date.now(),
+      },
+    ];
+
+    render(<RuntimeTxHandler />);
+
+    await waitFor(() => {
+      expect(authState.sendSolanaTransaction).toHaveBeenCalledWith({
+        unsignedTx: "AQID",
+        cluster: "mainnet-beta",
+        pendingSolanaId: 1,
+        pendingSolanaIds: [1],
+      });
+    });
+    expect(authState.selectNetwork).not.toHaveBeenCalled();
+    expect(runtimeState.resolveWalletRequest).toHaveBeenCalledWith(
+      "solana_send-1",
+      { kind: "solana_send", signature: "SOLANA_SIGNATURE" },
     );
     expect(runtimeState.rejectWalletRequest).not.toHaveBeenCalled();
   });

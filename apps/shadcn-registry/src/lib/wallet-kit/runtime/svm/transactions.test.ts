@@ -2,7 +2,9 @@
 
 import { describe, expect, it, vi } from "vitest";
 import {
+  Connection,
   Keypair,
+  Transaction,
   TransactionMessage,
   VersionedTransaction,
 } from "@solana/web3.js";
@@ -51,7 +53,12 @@ describe("buildSvmTransactionMethods", () => {
         instructions: [],
       }).compileToV0Message(),
     );
-    const sendTransaction = vi.fn(async () => "signature");
+    const sendTransaction = vi.fn(
+      async (
+        _tx: VersionedTransaction | Transaction,
+        _connection: Connection,
+      ) => "signature",
+    );
     const execution = buildSvmTransactionMethods(wallet({ sendTransaction }), {
       preferDirectSend: false,
       rpcHttpUrl: "https://solana.example",
