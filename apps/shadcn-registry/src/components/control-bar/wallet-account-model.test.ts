@@ -71,7 +71,61 @@ describe("buildAccountAccessEntries", () => {
       ],
     );
 
+    expect(result.providerAccounts).toEqual([]);
     expect(result.standaloneAccounts).toHaveLength(1);
+    expect(result.standaloneWallets).toEqual([]);
+  });
+
+  it("merges tenant-scoped provider identities with their EVM and SVM wallets", () => {
+    const result = buildAccountAccessEntries(
+      [
+        {
+          id: "identity-para-portal",
+          provider: "para",
+          subject: "para:user/123",
+          issuerEnvironment: "beta",
+          tenantId: "portal",
+        },
+        {
+          id: "identity-para-widget",
+          provider: "para",
+          subject: "para:user/123",
+          issuerEnvironment: "beta",
+          tenantId: "widget",
+        },
+      ],
+      [
+        {
+          id: "wallet-evm",
+          family: "evm",
+          address: "0x1111111111111111111111111111111111111111",
+          kind: "embedded",
+          provider: "para",
+          linkedVia: "para",
+        },
+        {
+          id: "wallet-svm",
+          family: "svm",
+          address: "53GfExampleSolanaAddress",
+          kind: "embedded",
+          provider: "para",
+          linkedVia: "para",
+        },
+      ],
+    );
+
+    expect(result.providerAccounts).toHaveLength(1);
+    expect(result.providerAccounts[0]).toMatchObject({
+      key: "provider:para",
+      provider: "para",
+    });
+    expect(
+      result.providerAccounts[0]?.accounts.map((account) => account.id),
+    ).toEqual(["identity-para-portal", "identity-para-widget"]);
+    expect(
+      result.providerAccounts[0]?.wallets.map((wallet) => wallet.family),
+    ).toEqual(["evm", "svm"]);
+    expect(result.standaloneAccounts).toEqual([]);
     expect(result.standaloneWallets).toEqual([]);
   });
 });

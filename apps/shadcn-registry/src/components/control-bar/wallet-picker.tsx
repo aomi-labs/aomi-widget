@@ -46,14 +46,28 @@ import {
   buildConnectedEntries,
   connectedLinkState,
   familyLabel,
+  familyRank,
+  isProviderAuthProvider,
   providerBackedAccountProvider,
   providerBackedWalletTitle,
   sameWalletAddress,
   type ConnectedEntry,
   type LinkedAccountRow,
   type LinkedWalletRow,
+  type ProviderAccountAccessGroup,
   type WalletModalRow,
 } from "./wallet-account-model";
+
+type ProviderAccountRenameInput = {
+  provider: string;
+  identityIds: readonly string[];
+  displayLabel: string | null;
+};
+
+type ProviderAccountUnlinkInput = {
+  provider: string;
+  identityIds: readonly string[];
+};
 
 type SupportedEvmChain = { id: number; name: string };
 type ConnectedActionRef = {
@@ -944,6 +958,24 @@ export function WalletPicker() {
                       )
                   : undefined
               }
+              onRenameProviderAccounts={
+                adapter.updateLinkedAccount
+                  ? (input) =>
+                      runAction(
+                        `provider-account:rename:${input.provider}`,
+                        async () => {
+                          await Promise.all(
+                            input.identityIds.map((identityId) =>
+                              adapter.updateLinkedAccount!({
+                                identityId,
+                                displayLabel: input.displayLabel,
+                              }),
+                            ),
+                          );
+                        },
+                      )
+                  : undefined
+              }
               onUnlinkWallet={
                 adapter.unlinkLinkedWallet
                   ? (walletId) =>
@@ -957,6 +989,21 @@ export function WalletPicker() {
                   ? (identityId) =>
                       runAction(`identity:unlink:${identityId}`, () =>
                         adapter.unlinkLinkedAccount!(identityId),
+                      )
+                  : undefined
+              }
+              onUnlinkProviderAccounts={
+                adapter.unlinkLinkedAccount
+                  ? (input) =>
+                      runAction(
+                        `provider-account:unlink:${input.provider}`,
+                        async () => {
+                          await Promise.all(
+                            input.identityIds.map((identityId) =>
+                              adapter.unlinkLinkedAccount!(identityId),
+                            ),
+                          );
+                        },
                       )
                   : undefined
               }
@@ -1049,6 +1096,7 @@ function ChainTag({
     <span
       className="text-muted-foreground/70 inline-flex min-w-0 shrink-0 items-center gap-1 text-[10px] font-semibold uppercase tracking-wide"
       title={isSolana ? "Solana (SVM)" : "Ethereum-compatible wallet"}
+      data-wallet-access={capability === "read" ? "stored" : "connected"}
     >
       <span className={cn("size-1.5 rounded-full", dotColor)} />
       <span className="max-w-20 truncate">{isSolana ? "SVM" : "EVM"}</span>
@@ -1118,9 +1166,11 @@ function AccountManagerPanel({
   onClose,
   onRenameAccount,
   onRenameLinkedAccount,
+  onRenameProviderAccounts,
   onRenameWallet,
   onUnlinkWallet,
   onUnlinkAccount,
+  onUnlinkProviderAccounts,
   onSignOut,
   onDeleteAccount,
   onOpenProviderUI,
@@ -1143,9 +1193,15 @@ function AccountManagerPanel({
   onClose: () => void;
   onRenameAccount?: NonNullable<AomiWalletKit["updateAccount"]>;
   onRenameLinkedAccount?: NonNullable<AomiWalletKit["updateLinkedAccount"]>;
+  onRenameProviderAccounts?: (
+    input: ProviderAccountRenameInput,
+  ) => Promise<void>;
   onRenameWallet?: NonNullable<AomiWalletKit["updateLinkedWallet"]>;
   onUnlinkWallet?: NonNullable<AomiWalletKit["unlinkLinkedWallet"]>;
   onUnlinkAccount?: NonNullable<AomiWalletKit["unlinkLinkedAccount"]>;
+  onUnlinkProviderAccounts?: (
+    input: ProviderAccountUnlinkInput,
+  ) => Promise<void>;
   onSignOut: () => void;
   onDeleteAccount: () => void;
   onOpenProviderUI: () => void;
@@ -1154,8 +1210,12 @@ function AccountManagerPanel({
   const [editingLinkedAccountId, setEditingLinkedAccountId] = useState<
     string | null
   >(null);
+  const [editingProviderKey, setEditingProviderKey] = useState<string | null>(
+    null,
+  );
   const [draftLabel, setDraftLabel] = useState("");
   const [draftLinkedAccountLabel, setDraftLinkedAccountLabel] = useState("");
+  const [draftProviderLabel, setDraftProviderLabel] = useState("");
   const [editingAccountName, setEditingAccountName] = useState(false);
   const [draftAccountName, setDraftAccountName] = useState("");
   const walletSummary = `${connectedCount} wallet${
@@ -1175,12 +1235,12 @@ function AccountManagerPanel({
         : (subtitle ?? walletSummary);
   const visibleLinkedAccounts = linkedAccounts.filter(isVisibleLinkedAccount);
   const connectedEntries = buildConnectedEntries(connectedAccounts, wallets);
-  const { standaloneAccounts, standaloneWallets } = buildAccountAccessEntries(
-    visibleLinkedAccounts,
-    wallets,
-  );
+  const { providerAccounts, standaloneAccounts, standaloneWallets } =
+    buildAccountAccessEntries(visibleLinkedAccounts, wallets);
   const hasAccountAccess =
-    standaloneAccounts.length > 0 || standaloneWallets.length > 0;
+    providerAccounts.length > 0 ||
+    standaloneAccounts.length > 0 ||
+    standaloneWallets.length > 0;
   const headerBrandLabel = user ? undefined : brandLabel;
 
   const startRenaming = (wallet: LinkedWalletRow) => {
@@ -1191,6 +1251,11 @@ function AccountManagerPanel({
   const startRenamingLinkedAccount = (account: LinkedAccountRow) => {
     setEditingLinkedAccountId(account.id);
     setDraftLinkedAccountLabel(linkedAccountTitle(account));
+  };
+
+  const startRenamingProviderAccount = (group: ProviderAccountAccessGroup) => {
+    setEditingProviderKey(group.key);
+    setDraftProviderLabel(providerAccountTitle(group));
   };
 
   const startRenamingAccount = () => {
@@ -1220,6 +1285,18 @@ function AccountManagerPanel({
       displayLabel: draftLinkedAccountLabel.trim() || null,
     });
     setEditingLinkedAccountId(null);
+  };
+
+  const submitProviderAccountRename = async (
+    group: ProviderAccountAccessGroup,
+  ) => {
+    if (!onRenameProviderAccounts) return;
+    await onRenameProviderAccounts({
+      provider: group.provider,
+      identityIds: group.accounts.map((account) => account.id),
+      displayLabel: draftProviderLabel.trim() || null,
+    });
+    setEditingProviderKey(null);
   };
 
   return (
@@ -1330,6 +1407,35 @@ function AccountManagerPanel({
         {hasAccountAccess ? (
           <section className="flex flex-col gap-1.5">
             <SectionLabel>Account access</SectionLabel>
+            {providerAccounts.map((group) => (
+              <ProviderAccountAccessRow
+                key={group.key}
+                group={group}
+                connectedAccounts={connectedAccounts}
+                editing={editingProviderKey === group.key}
+                draftLabel={draftProviderLabel}
+                pending={pending}
+                onDraftLabelChange={setDraftProviderLabel}
+                onStartRename={
+                  onRenameProviderAccounts && group.accounts.length > 0
+                    ? () => startRenamingProviderAccount(group)
+                    : undefined
+                }
+                onCancelRename={() => setEditingProviderKey(null)}
+                onSubmitRename={() => void submitProviderAccountRename(group)}
+                onUnlink={
+                  onUnlinkProviderAccounts && group.accounts.length > 0
+                    ? () =>
+                        void onUnlinkProviderAccounts({
+                          provider: group.provider,
+                          identityIds: group.accounts.map(
+                            (account) => account.id,
+                          ),
+                        })
+                    : undefined
+                }
+              />
+            ))}
             {standaloneAccounts.map((account) => (
               <LinkedAuthAccountRow
                 key={account.id}
@@ -1515,6 +1621,173 @@ function chainIdFromScope(chainScope?: string): number | undefined {
   return Number.isInteger(chainId) && chainId > 0 ? chainId : undefined;
 }
 
+type ProviderFamilyAccess = {
+  family: WalletFamily;
+  address?: string;
+  capability: "read" | "write";
+};
+
+function providerAccountTitle(group: ProviderAccountAccessGroup): string {
+  const account = group.accounts[0];
+  return account
+    ? linkedAccountTitle(account)
+    : (formatWalletProvider(group.provider) ?? group.provider);
+}
+
+function providerFamilyAccess(
+  group: ProviderAccountAccessGroup,
+  connectedAccounts: readonly WalletModalRow[],
+): ProviderFamilyAccess[] {
+  const accessByFamily = new Map<WalletFamily, ProviderFamilyAccess>();
+
+  for (const wallet of group.wallets) {
+    accessByFamily.set(wallet.family, {
+      family: wallet.family,
+      address: wallet.address,
+      capability: "read",
+    });
+  }
+
+  for (const account of connectedAccounts) {
+    const provider = providerBackedAccountProvider(account)?.toLowerCase();
+    if (provider !== group.provider) continue;
+    accessByFamily.set(account.family, {
+      family: account.family,
+      address: account.address ?? accessByFamily.get(account.family)?.address,
+      capability: "write",
+    });
+  }
+
+  return [...accessByFamily.values()].sort(
+    (left, right) => familyRank(left.family) - familyRank(right.family),
+  );
+}
+
+function ProviderAccountAccessRow({
+  group,
+  connectedAccounts,
+  editing,
+  draftLabel,
+  pending,
+  onDraftLabelChange,
+  onStartRename,
+  onCancelRename,
+  onSubmitRename,
+  onUnlink,
+}: {
+  group: ProviderAccountAccessGroup;
+  connectedAccounts: readonly WalletModalRow[];
+  editing: boolean;
+  draftLabel: string;
+  pending: string | null;
+  onDraftLabelChange: (value: string) => void;
+  onStartRename?: () => void;
+  onCancelRename: () => void;
+  onSubmitRename: () => void;
+  onUnlink?: () => void;
+}) {
+  const title = providerAccountTitle(group);
+  const providerLabel = formatWalletProvider(group.provider) ?? group.provider;
+  const familyAccess = providerFamilyAccess(group, connectedAccounts);
+  const subtitle =
+    familyAccess.length > 0
+      ? familyAccess
+          .map((access) => {
+            const family = access.family === "svm" ? "SVM" : "EVM";
+            const address = formatWalletAddress(access.address);
+            return address ? `${family} ${address}` : family;
+          })
+          .join(" · ")
+      : "Provider sign-in";
+  const renameKey = `provider-account:rename:${group.provider}`;
+  const unlinkKey = `provider-account:unlink:${group.provider}`;
+  const busy = pending === renameKey || pending === unlinkKey;
+
+  return (
+    <div
+      role="group"
+      aria-label={`${providerLabel} account access`}
+      className="border-border/70 bg-card flex items-center gap-3 rounded-2xl border px-3 py-2.5"
+    >
+      <WalletIconSlot
+        id={group.provider}
+        label={providerLabel}
+        provider={group.provider}
+      />
+      <span className="min-w-0 flex-1">
+        {editing ? (
+          <input
+            value={draftLabel}
+            onChange={(event) => onDraftLabelChange(event.target.value)}
+            disabled={busy}
+            aria-label={`Sign-in label for ${title}`}
+            className="border-input bg-background text-foreground focus:border-primary h-8 w-full rounded-lg border px-2 text-sm outline-none"
+          />
+        ) : (
+          <>
+            <span className="flex min-w-0 items-center gap-1.5">
+              <span className="text-foreground truncate text-sm font-medium">
+                {title}
+              </span>
+              {familyAccess.map((access) => (
+                <ChainTag
+                  key={access.family}
+                  family={access.family}
+                  capability={access.capability}
+                />
+              ))}
+            </span>
+            <span className="text-muted-foreground block truncate text-[11px]">
+              {subtitle}
+            </span>
+          </>
+        )}
+      </span>
+      <div className="flex shrink-0 items-center gap-1">
+        {editing ? (
+          <>
+            <RowIconButton
+              icon={CheckIcon}
+              ariaLabel={`Save label for ${title}`}
+              disabled={busy}
+              loading={pending === renameKey}
+              onClick={onSubmitRename}
+            />
+            <RowIconButton
+              icon={XIcon}
+              ariaLabel={`Cancel renaming ${title}`}
+              disabled={busy}
+              onClick={onCancelRename}
+            />
+          </>
+        ) : (
+          <>
+            {onStartRename ? (
+              <RowIconButton
+                icon={PencilIcon}
+                ariaLabel={`Rename ${title}`}
+                disabled={busy}
+                onClick={onStartRename}
+              />
+            ) : null}
+            {onUnlink ? (
+              <RowIconButton
+                icon={Trash2Icon}
+                ariaLabel={`Unlink ${title}`}
+                disabled={busy}
+                loading={pending === unlinkKey}
+                onClick={onUnlink}
+              />
+            ) : (
+              <CheckCircle2Icon className="text-primary size-4 shrink-0" />
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function LinkedAuthAccountRow({
   account,
   editing,
@@ -1650,7 +1923,7 @@ function linkedAccountTitle(account: LinkedAccountRow): string {
 }
 
 function isProviderAuthAccount(provider: string): boolean {
-  return provider === "para" || provider === "privy";
+  return isProviderAuthProvider(provider);
 }
 
 function ConnectedWalletSummaryRow({

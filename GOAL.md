@@ -89,6 +89,18 @@ Progress:
   verified the focused tests, account/portal/base/landing typechecks,
   formatting, and packed package contents.
 
+- 2026-07-22 provider account-access polish: merged tenant-scoped Para and
+  Privy identities into one provider card, attached the provider-owned EVM and
+  Solana addresses to that card, and distinguished live/write access (green)
+  from linked/read-only access (yellow). The Portal now renders one Para row
+  with both live families, while a consumer session that exposes only EVM still
+  shows its linked Solana address as stored access. Grouped rename and unlink
+  operations update every backing provider identity. Patch-bumped
+  `@aomi-labs/widget-lib` to 1.4.10, refreshed the registry artifact, visually
+  verified the live Portal modal, and passed all 267 registry tests, root lint,
+  the registry build, Portal typecheck, and the widget-consumer production
+  build.
+
 - 2026-07-22 widget authentication integration: implemented the v1 code and
   automated acceptance coverage in `specs/WIDGET-AUTH-INTEGRATION-PLAN.md`. Added the
   audited tenant-scope migration and Rust schema/entity mirror; provider-neutral

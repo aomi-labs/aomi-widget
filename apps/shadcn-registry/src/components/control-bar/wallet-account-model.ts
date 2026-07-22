@@ -25,8 +25,16 @@ export type ConnectedEntry = {
 };
 
 export type AccountAccessEntries = {
+  providerAccounts: ProviderAccountAccessGroup[];
   standaloneAccounts: LinkedAccountRow[];
   standaloneWallets: LinkedWalletRow[];
+};
+
+export type ProviderAccountAccessGroup = {
+  key: string;
+  provider: string;
+  accounts: LinkedAccountRow[];
+  wallets: LinkedWalletRow[];
 };
 
 const FAMILY_ORDER: Record<string, number> = { evm: 0, svm: 1 };
@@ -65,6 +73,11 @@ export function providerBackedAccountProvider(input: {
   }
   if (input.source === "live" && walletKind == null) return input.provider;
   return input.source === "embedded" ? input.provider : null;
+}
+
+export function isProviderAuthProvider(provider?: string): boolean {
+  const normalizedProvider = provider?.trim().toLowerCase();
+  return normalizedProvider === "para" || normalizedProvider === "privy";
 }
 
 export function providerBackedWalletTitle(input: {
@@ -120,10 +133,60 @@ export function buildAccountAccessEntries(
   linkedAccounts: readonly LinkedAccountRow[],
   wallets: readonly LinkedWalletRow[],
 ): AccountAccessEntries {
+  const providerAccounts = new Map<string, ProviderAccountAccessGroup>();
+  const standaloneAccounts: LinkedAccountRow[] = [];
+
+  for (const account of linkedAccounts) {
+    const provider = account.provider.trim().toLowerCase();
+    if (!isProviderAuthProvider(provider)) {
+      standaloneAccounts.push(account);
+      continue;
+    }
+    const group = providerAccounts.get(provider) ?? {
+      key: `provider:${provider}`,
+      provider,
+      accounts: [],
+      wallets: [],
+    };
+    group.accounts.push(account);
+    providerAccounts.set(provider, group);
+  }
+
+  const standaloneWallets: LinkedWalletRow[] = [];
+  for (const wallet of wallets) {
+    const provider = providerBackedAccountProvider(wallet)
+      ?.trim()
+      .toLowerCase();
+    if (provider === undefined || provider === null) {
+      standaloneWallets.push(wallet);
+      continue;
+    }
+    if (!isProviderAuthProvider(provider)) continue;
+
+    const group = providerAccounts.get(provider) ?? {
+      key: `provider:${provider}`,
+      provider,
+      accounts: [],
+      wallets: [],
+    };
+    const walletKey = `${wallet.family}:${
+      wallet.family === "evm" ? wallet.address.toLowerCase() : wallet.address
+    }`;
+    const alreadyIncluded = group.wallets.some((candidate) => {
+      const candidateKey = `${candidate.family}:${
+        candidate.family === "evm"
+          ? candidate.address.toLowerCase()
+          : candidate.address
+      }`;
+      return candidateKey === walletKey;
+    });
+    if (!alreadyIncluded) group.wallets.push(wallet);
+    providerAccounts.set(provider, group);
+  }
+
   return {
-    standaloneAccounts: [...linkedAccounts],
-    standaloneWallets: wallets.filter(
-      (wallet) => providerBackedAccountProvider(wallet) === null,
-    ),
+    providerAccounts: [...providerAccounts.values()],
+    standaloneAccounts,
+    standaloneWallets,
   };
 }

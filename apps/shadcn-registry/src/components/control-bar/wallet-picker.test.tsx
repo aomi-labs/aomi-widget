@@ -1210,6 +1210,127 @@ describe("WalletPicker", () => {
     expect(screen.getByRole("button", { name: "Rename Privy" })).toBeTruthy();
   });
 
+  it("groups tenant-scoped Para access and shows stored Solana access", async () => {
+    const updateLinkedAccount = vi.fn(async () => undefined);
+    const unlinkLinkedAccount = vi.fn(async () => undefined);
+    renderPicker(
+      makeAdapter({
+        accountStatus: "ready",
+        accountUser: { id: "user-1", displayName: "Para user" },
+        identity: {
+          status: "connected",
+          isConnected: true,
+          walletProvider: "para",
+          sessionProvider: "para",
+          walletProviderSubject: "para:user/123",
+        },
+        walletModalRows: [
+          {
+            id: "para-evm",
+            family: "evm",
+            address: "0xE7700000000000000000000000000000000000A6",
+            chainId: 1,
+            label: "0xe77..a6",
+            walletName: "Para",
+            source: "live",
+            status: "active",
+            provider: "para",
+            linked: true,
+            actions: [],
+          },
+        ],
+        accountLinkedAccounts: [
+          {
+            id: "identity-para-portal",
+            provider: "para",
+            subject: "para:user/123",
+            issuerEnvironment: "beta",
+            tenantId: "portal",
+            displayLabel: "Para",
+          },
+          {
+            id: "identity-para-widget",
+            provider: "para",
+            subject: "para:user/123",
+            issuerEnvironment: "beta",
+            tenantId: "widget",
+            displayLabel: "Para",
+          },
+        ],
+        accountWallets: [
+          {
+            id: "para-wallet-evm",
+            family: "evm",
+            address: "0xE7700000000000000000000000000000000000A6",
+            kind: "embedded",
+            provider: "para",
+            linkedVia: "para",
+            capability: "write",
+          },
+          {
+            id: "para-wallet-svm",
+            family: "svm",
+            address: "53GfExampleSolanaAddress",
+            kind: "embedded",
+            provider: "para",
+            linkedVia: "para",
+            capability: "write",
+          },
+        ],
+        updateLinkedAccount,
+        unlinkLinkedAccount,
+      }),
+    );
+
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole("button", { name: "Manage your account" }),
+      );
+    });
+
+    const accessGroup = screen.getByRole("group", {
+      name: "Para account access",
+    });
+    expect(within(accessGroup).getAllByText("Para")).toHaveLength(1);
+    expect(within(accessGroup).getByText("EVM")).toBeTruthy();
+    expect(within(accessGroup).getByText("SVM")).toBeTruthy();
+    expect(
+      accessGroup.querySelector('[data-wallet-access="connected"]'),
+    ).toBeTruthy();
+    expect(
+      accessGroup.querySelector('[data-wallet-access="stored"]'),
+    ).toBeTruthy();
+    expect(within(accessGroup).getByText(/EVM 0xE77.*A6/)).toBeTruthy();
+    expect(within(accessGroup).getByText(/SVM 53GfE\.\.ss/)).toBeTruthy();
+    expect(screen.getAllByRole("button", { name: "Rename Para" })).toHaveLength(
+      1,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Rename Para" }));
+    fireEvent.change(screen.getByLabelText("Sign-in label for Para"), {
+      target: { value: "My Para" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Save label for Para" }),
+    );
+
+    await waitFor(() => expect(updateLinkedAccount).toHaveBeenCalledTimes(2));
+    expect(updateLinkedAccount).toHaveBeenCalledWith({
+      identityId: "identity-para-portal",
+      displayLabel: "My Para",
+    });
+    expect(updateLinkedAccount).toHaveBeenCalledWith({
+      identityId: "identity-para-widget",
+      displayLabel: "My Para",
+    });
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Unlink Para" })).toBeEnabled(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Unlink Para" }));
+    await waitFor(() => expect(unlinkLinkedAccount).toHaveBeenCalledTimes(2));
+  });
+
   it("renders provider wallets as separate EVM and SVM rows in Manage wallets", () => {
     renderPicker(
       makeAdapter({
@@ -1322,9 +1443,15 @@ describe("WalletPicker", () => {
 
     expect(screen.getByText("Manage account")).toBeTruthy();
     expect(screen.getAllByText("Rabby").length).toBeGreaterThan(0);
-    expect(screen.queryByText(/0xCC8\.\.8f/)).toBeNull();
-    expect(screen.queryByText("AG6eZ..8E")).toBeNull();
     expect(screen.getByText("Account access")).toBeTruthy();
+    const accessGroup = screen.getByRole("group", {
+      name: "Privy account access",
+    });
+    expect(within(accessGroup).getByText(/EVM 0xCC8\.\.8f/)).toBeTruthy();
+    expect(within(accessGroup).getByText(/SVM AG6eZ\.\.8E/)).toBeTruthy();
+    expect(
+      accessGroup.querySelectorAll('[data-wallet-access="stored"]'),
+    ).toHaveLength(2);
   });
 
   it("keeps a SIWE-verified external wallet's own brand, not 'siwe'", () => {

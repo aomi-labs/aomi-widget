@@ -68,7 +68,6 @@ const AttachmentPreview: FC<AttachmentPreviewProps> = ({ src }) => {
   return (
     // The publishable widget is framework-agnostic, so this must not depend on
     // Next's image runtime.
-    // eslint-disable-next-line @next/next/no-img-element
     <img
       src={src}
       alt="Image Preview"
