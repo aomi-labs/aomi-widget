@@ -301,6 +301,7 @@ export const registry: RegistryComponent[] = [
       "lib/wallet-kit/providers/para/para-brand.ts",
       "lib/wallet-kit/providers/para/para-plugin.tsx",
       "lib/wallet-kit/providers/para/ParaPluginProvider.tsx",
+      "lib/wallet-kit/providers/para/para-message-signing.ts",
       "lib/wallet-kit/providers/para/para-auth.ts",
       "lib/wallet-kit/providers/para/para-embedded-wallet.ts",
       "lib/wallet-kit/providers/para/widget-auth.ts",

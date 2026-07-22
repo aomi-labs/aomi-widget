@@ -17,6 +17,25 @@
       "registryDependencies": []
     },
     {
+      "name": "aomi-widget",
+      "type": "registry:component",
+      "description": "Embeddable Aomi widget with tenant-scoped provider or wallet authentication.",
+      "files": [
+        {
+          "type": "registry:component",
+          "path": "components/aomi-widget.tsx"
+        }
+      ],
+      "dependencies": [
+        "@aomi-labs/client",
+        "@aomi-labs/react"
+      ],
+      "registryDependencies": [
+        "https://aomi.dev/r/aomi-frame.json",
+        "https://aomi.dev/r/aomi-wallet-kit.json"
+      ]
+    },
+    {
       "name": "aomi-frame",
       "type": "registry:component",
       "description": "Full assistant shell with thread list and runtime wiring.",
@@ -102,6 +121,10 @@
         {
           "type": "registry:component",
           "path": "lib/wallet-kit/config/index.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/wallet-kit/config/provider-auth.ts"
         },
         {
           "type": "registry:component",
@@ -695,11 +718,19 @@
         },
         {
           "type": "registry:component",
+          "path": "lib/wallet-kit/providers/para/para-message-signing.ts"
+        },
+        {
+          "type": "registry:component",
           "path": "lib/wallet-kit/providers/para/para-auth.ts"
         },
         {
           "type": "registry:component",
           "path": "lib/wallet-kit/providers/para/para-embedded-wallet.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/wallet-kit/providers/para/widget-auth.ts"
         },
         {
           "type": "registry:component",
@@ -824,6 +855,10 @@
         {
           "type": "registry:component",
           "path": "lib/wallet-kit/providers/privy/privy.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/wallet-kit/providers/privy/widget-auth.ts"
         },
         {
           "type": "registry:component",

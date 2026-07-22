@@ -718,6 +718,10 @@
         },
         {
           "type": "registry:component",
+          "path": "lib/wallet-kit/providers/para/para-message-signing.ts"
+        },
+        {
+          "type": "registry:component",
           "path": "lib/wallet-kit/providers/para/para-auth.ts"
         },
         {
