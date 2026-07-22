@@ -15,6 +15,28 @@ import { Pool } from "pg";
  */
 let cachedPool: Pool | undefined;
 
+export type AccountPoolOptions = {
+  max: number;
+  idleTimeoutMillis: number;
+  connectionTimeoutMillis: number;
+};
+
+/**
+ * Vercel can keep a separate warm function instance for each API route. A
+ * four-connection pool per instance quickly exhausts Supabase's session-mode
+ * client cap, so serverless instances must keep a single, short-lived client.
+ */
+export function resolveAccountPoolOptions(
+  env: NodeJS.ProcessEnv = process.env,
+): AccountPoolOptions {
+  const isVercel = Boolean(env.VERCEL);
+  return {
+    max: isVercel ? 1 : 4,
+    idleTimeoutMillis: isVercel ? 5_000 : 30_000,
+    connectionTimeoutMillis: 10_000,
+  };
+}
+
 export function getPool(): Pool {
   if (cachedPool) return cachedPool;
   const connectionString = process.env.DATABASE_URL?.trim();
@@ -27,9 +49,7 @@ export function getPool(): Pool {
     connectionString,
     // The portal is one of several DB clients; keep its footprint small so it
     // never starves the backend on the shared Supabase pooler.
-    max: 4,
-    idleTimeoutMillis: 30_000,
-    connectionTimeoutMillis: 10_000,
+    ...resolveAccountPoolOptions(),
   });
   return cachedPool;
 }

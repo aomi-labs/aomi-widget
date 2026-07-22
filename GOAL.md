@@ -24,6 +24,16 @@ tables; fresh databases also finish replay with that drop.
 
 Progress:
 
+- 2026-07-22 Vercel Preview account-state recovery: reproduced the missing
+  account badge and connected-only Phantom row while chat history remained
+  visible, then traced the repeated 500s to Supabase session-pool exhaustion
+  (`EMAXCONNSESSION`, 15-client cap) across separate Vercel API functions. The
+  account package now limits Vercel instances to one short-lived Postgres
+  client instead of four 30-second clients, with regression coverage and a
+  patch bump to 0.1.4. The non-fatal session warning remains diagnostic: it
+  compares a queued pending transaction snapshot with the later terminal
+  simulation state and does not indicate a signing or broadcast failure.
+
 - 2026-07-22 Vercel PR-preview auth recovery: found that the repaired staging
   `DATABASE_URL` was still scoped only to `Preview (main)`, so ordinary PR
   previews inherited the stale global Preview database and returned 401/403 at
