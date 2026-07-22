@@ -121,10 +121,14 @@ function asRecord(value: unknown): UnknownRecord | undefined {
   return value as UnknownRecord;
 }
 
-function pendingTxsFromUserState(userState: unknown): UnknownRecord | undefined {
+function pendingTxsFromUserState(
+  userState: unknown,
+): UnknownRecord | undefined {
   const normalized = UserState.normalize(userState as UserState);
   const pending = asRecord(normalized?.pending);
-  return asRecord(pending?.evm_txs) ?? asRecord(asRecord(userState)?.pending_txs);
+  return (
+    asRecord(pending?.evm_txs) ?? asRecord(asRecord(userState)?.pending_txs)
+  );
 }
 
 function getToolArgs(payload: unknown): UnknownRecord {
@@ -135,6 +139,33 @@ function getToolArgs(payload: unknown): UnknownRecord {
 
 function parseChainKind(value: unknown): "evm" | "svm" | undefined {
   return value === "evm" || value === "svm" ? value : undefined;
+}
+
+/**
+ * Normalize Solana's legacy cluster labels to the CAIP-style identifiers used
+ * by the wallet runtime. Preserve unknown labels so callers can surface a
+ * useful unsupported-cluster error instead of silently changing networks.
+ */
+export function normalizeSolanaCluster(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+
+  switch (trimmed.toLowerCase()) {
+    case "mainnet":
+    case "mainnet-beta":
+    case "solana:mainnet":
+    case "solana:mainnet-beta":
+      return "solana:mainnet";
+    case "devnet":
+    case "solana:devnet":
+      return "solana:devnet";
+    case "testnet":
+    case "solana:testnet":
+      return "solana:testnet";
+    default:
+      return trimmed;
+  }
 }
 
 export function inferSolanaRequestKind(
@@ -445,8 +476,7 @@ export function normalizeSolanaSignPayload(
   const description =
     typeof args.description === "string" ? args.description : undefined;
 
-  const clusterRaw = args.cluster;
-  const cluster = typeof clusterRaw === "string" ? clusterRaw : undefined;
+  const cluster = normalizeSolanaCluster(args.cluster);
 
   const rawPendingIds = args.svm_tx_ids ?? args.svm_ix_ids;
   const pendingSolanaIds = Array.isArray(rawPendingIds)
@@ -481,8 +511,7 @@ export function normalizeSolanaSignMessagePayload(
   const description =
     typeof args.description === "string" ? args.description : undefined;
 
-  const clusterRaw = args.cluster;
-  const cluster = typeof clusterRaw === "string" ? clusterRaw : undefined;
+  const cluster = normalizeSolanaCluster(args.cluster);
 
   const pendingSolanaId =
     parsePendingId(args.pendingSolanaId) ??

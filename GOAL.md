@@ -24,6 +24,44 @@ tables; fresh databases also finish replay with that drop.
 
 Progress:
 
+- 2026-07-22 wallet account-access deduplication: hid the legacy `wallet`
+  authentication identity from account management, matching the existing
+  SIWE/SIWS proof-identity behavior while preserving the branded linked EVM or
+  Solana wallet row. Added the reported Rabby regression case and patch-bumped
+  `@aomi-labs/widget-lib` to 1.4.10.
+
+- 2026-07-22 Vercel Preview account-state recovery: reproduced the missing
+  account badge and connected-only Phantom row while chat history remained
+  visible, then traced the repeated 500s to Supabase session-pool exhaustion
+  (`EMAXCONNSESSION`, 15-client cap) across separate Vercel API functions. The
+  account package now limits Vercel instances to one short-lived Postgres
+  client instead of four 30-second clients, with regression coverage and a
+  patch bump to 0.1.4. The non-fatal session warning remains diagnostic: it
+  compares a queued pending transaction snapshot with the later terminal
+  simulation state and does not indicate a signing or broadcast failure.
+
+- 2026-07-22 Vercel PR-preview auth recovery: found that the repaired staging
+  `DATABASE_URL` was still scoped only to `Preview (main)`, so ordinary PR
+  previews inherited the stale global Preview database and returned 401/403 at
+  the backend account boundary. Promoted the already-verified encrypted staging
+  value to global Preview scope without exposing the credential, redeployed PR
+  #381, and passed disposable SIWS, canonical account, AccountBearer, wallet,
+  thread list/create, cleanup, and session-revocation checks with HTTP 200. The
+  replacement deployment recorded no 401 or 500 responses during verification;
+  Production was not changed.
+
+- 2026-07-22 Solana Phantom approval recovery: reproduced the reported
+  10,000-lamport mainnet self-transfer in signed-in Chrome and traced the
+  missing popup to the frontend rejecting the backend's legacy
+  `mainnet-beta` cluster label before invoking Phantom. Canonicalized legacy
+  Solana cluster aliases at the client request boundary and defensively in the
+  runtime handler, added send-request regression coverage, patch-bumped
+  `@aomi-labs/client` to 0.3.7 and `@aomi-labs/widget-lib` to 1.4.9, and
+  regenerated their publishable artifacts. The CLI decoded the supplied
+  unsigned transaction as the expected self-transfer, its real Solana signing
+  round-trip tests passed, and focused client/widget tests, targeted ESLint,
+  portal typecheck, and the portal test command passed.
+
 - 2026-07-20 Robinhood Chain support: added chain `4663` to the client and wallet-kit defaults, including Alchemy metadata, network selection coverage, a monochrome chain icon, generated registries, and explicit portal/landing/docs network lists. Patch-bumped `@aomi-labs/client` to `0.3.2` and `@aomi-labs/widget-lib` to `1.4.3`; focused tests, root/portal/landing typechecks, client and registry builds, lint, formatting, and the read-only client `chain list` CLI passed.
 
 - 2026-07-19 Operate observability detail: replaced the #374 fixture route

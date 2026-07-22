@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { Connection as SolanaConnection } from "@solana/web3.js";
+import { normalizeSolanaCluster } from "@aomi-labs/client";
 import {
   UserState,
   appendFeeCallToPayload,
@@ -87,24 +88,25 @@ export function RuntimeTxHandler() {
       processingRef.current = false;
     });
 
-    /** Match the requested cluster exactly or fail before asking the wallet. */
+    /** Canonicalize cluster aliases and match before asking the wallet. */
     async function maybeSwitchSolanaCluster(
       requestedCluster: string | undefined,
     ): Promise<void> {
-      if (!requestedCluster) return;
+      const normalizedCluster = normalizeSolanaCluster(requestedCluster);
+      if (!normalizedCluster) return;
       const target = adapter.supportedNetworks?.solana?.find(
-        (n) => n.cluster === requestedCluster,
+        (n) => n.cluster === normalizedCluster,
       );
       if (!target) {
-        throw new Error(`Unsupported Solana cluster: ${requestedCluster}`);
+        throw new Error(`Unsupported Solana cluster: ${normalizedCluster}`);
       }
       if (adapter.selectedSolanaNetwork?.id === target.id) return;
       if (!adapter.selectNetwork) {
-        throw new Error(`Cannot switch the wallet to ${requestedCluster}`);
+        throw new Error(`Cannot switch the wallet to ${normalizedCluster}`);
       }
       if (adapter.solanaNetworkSwitchRequiresReconnect) {
         throw new Error(
-          `Reconnect the Solana wallet on ${requestedCluster} before signing`,
+          `Reconnect the Solana wallet on ${normalizedCluster} before signing`,
         );
       }
       try {
@@ -114,7 +116,7 @@ export function RuntimeTxHandler() {
         });
       } catch (error) {
         throw new Error(
-          `Failed to switch the Solana wallet to ${requestedCluster}`,
+          `Failed to switch the Solana wallet to ${normalizedCluster}`,
           { cause: error },
         );
       }

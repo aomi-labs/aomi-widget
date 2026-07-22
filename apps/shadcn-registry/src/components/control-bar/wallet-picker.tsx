@@ -1475,6 +1475,7 @@ function AccountManagerPanel({
 function isVisibleLinkedAccount(account: LinkedAccountRow): boolean {
   return (
     account.provider !== "better_auth" &&
+    account.provider !== "wallet" &&
     account.provider !== "siwe" &&
     account.provider !== "siws" &&
     account.provider !== "email"
