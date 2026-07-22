@@ -1,7 +1,7 @@
 import type { GetAccountBearer } from "./types";
 
 export type AccountCredentialProvider = () => Promise<{
-  provider: "para" | "privy" | (string & {});
+  provider: string;
   tokenKind?: string;
   providerToken: string;
   keyId?: string;
@@ -85,9 +85,7 @@ export function createAccountBearerProvider({
     const refreshAt = session.expires_at * 1000 - refreshBeforeExpiryMs;
     refreshTimer = setTimeout(
       () => {
-        void getAccountBearer({ forceRefresh: true }).catch(
-          () => undefined,
-        );
+        void getAccountBearer({ forceRefresh: true }).catch(() => undefined);
       },
       Math.max(refreshAt - now(), 1000),
     );

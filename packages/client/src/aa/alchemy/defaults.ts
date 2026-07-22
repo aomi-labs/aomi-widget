@@ -14,11 +14,17 @@ export function resolveAlchemyApiKey(options?: {
   if (explicit) return explicit;
 
   if (!options?.publicOnly) {
-    const privateEnv = trimToUndefined(process.env.ALCHEMY_API_KEY);
+    const privateEnv = trimToUndefined(
+      typeof process !== "undefined" ? process.env.ALCHEMY_API_KEY : undefined,
+    );
     if (privateEnv) return privateEnv;
   }
 
-  const publicEnv = trimToUndefined(process.env.NEXT_PUBLIC_ALCHEMY_API_KEY);
+  const publicEnv = trimToUndefined(
+    typeof process !== "undefined"
+      ? process.env.NEXT_PUBLIC_ALCHEMY_API_KEY
+      : undefined,
+  );
   if (publicEnv) return publicEnv;
 
   return DEFAULT_ALCHEMY_API_KEY;
@@ -32,13 +38,20 @@ export function resolveAlchemyGasPolicyId(options?: {
   if (explicit) return explicit;
 
   if (!options?.publicOnly) {
-    const privateEnv = trimToUndefined(process.env.ALCHEMY_GAS_POLICY_ID);
+    const privateEnv = trimToUndefined(
+      typeof process !== "undefined"
+        ? process.env.ALCHEMY_GAS_POLICY_ID
+        : undefined,
+    );
     if (privateEnv) return privateEnv;
   }
 
-  const publicEnv = trimToUndefined(process.env.NEXT_PUBLIC_ALCHEMY_GAS_POLICY_ID);
+  const publicEnv = trimToUndefined(
+    typeof process !== "undefined"
+      ? process.env.NEXT_PUBLIC_ALCHEMY_GAS_POLICY_ID
+      : undefined,
+  );
   if (publicEnv) return publicEnv;
 
   return DEFAULT_ALCHEMY_GAS_POLICY_ID;
 }
-

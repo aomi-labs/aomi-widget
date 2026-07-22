@@ -7,6 +7,9 @@ export {
   deactivateAomiAccount,
   fetchAttestedProviderWallets,
   getAccountResponseForBetterAuthSession,
+  getAccountResponseForWidgetSession,
+  getOrCreateAomiUserForSiwe,
+  getOrCreateAomiUserForSiws,
   getOrCreateAomiUserForBetterAuthSession,
   linkProviderIdentity,
   renameAuthIdentity,
@@ -32,6 +35,12 @@ export {
   verifyProviderCredential,
   type ProviderExchangeResult,
 } from "./service/provider-exchange";
+export {
+  attachVerifiedProviderIdentityToUser,
+  IdentityConflictError,
+  resolveVerifiedProviderIdentity,
+  type IdentityResolutionResult,
+} from "./service/identity-resolution";
 export type {
   ProviderCredentialVerifier,
   ProviderCredentialVerifierRegistry,

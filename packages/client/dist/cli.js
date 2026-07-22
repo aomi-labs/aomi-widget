@@ -1510,7 +1510,10 @@ function wrapFetchWithAccountBearer(fetchImpl, getAccountBearer) {
       let bearer;
       try {
         bearer = await getAccountBearer({ forceRefresh });
-      } catch (e) {
+      } catch (error) {
+        if (getAccountBearer.required) {
+          throw error;
+        }
         bearer = void 0;
       }
       if (bearer) {
@@ -6925,10 +6928,14 @@ function resolveAlchemyApiKey(options) {
   const explicit = trimToUndefined(options == null ? void 0 : options.apiKey);
   if (explicit) return explicit;
   if (!(options == null ? void 0 : options.publicOnly)) {
-    const privateEnv = trimToUndefined(process.env.ALCHEMY_API_KEY);
+    const privateEnv = trimToUndefined(
+      typeof process !== "undefined" ? process.env.ALCHEMY_API_KEY : void 0
+    );
     if (privateEnv) return privateEnv;
   }
-  const publicEnv = trimToUndefined(process.env.NEXT_PUBLIC_ALCHEMY_API_KEY);
+  const publicEnv = trimToUndefined(
+    typeof process !== "undefined" ? process.env.NEXT_PUBLIC_ALCHEMY_API_KEY : void 0
+  );
   if (publicEnv) return publicEnv;
   return DEFAULT_ALCHEMY_API_KEY;
 }
@@ -6936,10 +6943,14 @@ function resolveAlchemyGasPolicyId(options) {
   const explicit = trimToUndefined(options == null ? void 0 : options.gasPolicyId);
   if (explicit) return explicit;
   if (!(options == null ? void 0 : options.publicOnly)) {
-    const privateEnv = trimToUndefined(process.env.ALCHEMY_GAS_POLICY_ID);
+    const privateEnv = trimToUndefined(
+      typeof process !== "undefined" ? process.env.ALCHEMY_GAS_POLICY_ID : void 0
+    );
     if (privateEnv) return privateEnv;
   }
-  const publicEnv = trimToUndefined(process.env.NEXT_PUBLIC_ALCHEMY_GAS_POLICY_ID);
+  const publicEnv = trimToUndefined(
+    typeof process !== "undefined" ? process.env.NEXT_PUBLIC_ALCHEMY_GAS_POLICY_ID : void 0
+  );
   if (publicEnv) return publicEnv;
   return DEFAULT_ALCHEMY_GAS_POLICY_ID;
 }
@@ -7365,7 +7376,7 @@ var init_create = __esm({
     init_owner();
     init_defaults();
     ALCHEMY_7702_DELEGATION_ADDRESS = "0x69007702764179f14F51cdce752f4f775d74E139";
-    AA_DEBUG_ENABLED = process.env.AOMI_AA_DEBUG === "1";
+    AA_DEBUG_ENABLED = typeof process !== "undefined" && process.env.AOMI_AA_DEBUG === "1";
   }
 });
 
@@ -7419,7 +7430,7 @@ async function createPimlicoAAState(options) {
     __spreadProps(__spreadValues({}, DEFAULT_AA_CONFIG), { provider: "pimlico" }),
     __spreadProps(__spreadValues({}, chainConfig), { defaultMode: effectiveMode })
   );
-  const apiKey = (_b = options.apiKey) != null ? _b : (_a3 = process.env.PIMLICO_API_KEY) == null ? void 0 : _a3.trim();
+  const apiKey = (_b = options.apiKey) != null ? _b : typeof process !== "undefined" ? (_a3 = process.env.PIMLICO_API_KEY) == null ? void 0 : _a3.trim() : void 0;
   if (!apiKey) {
     throw new Error("Pimlico AA requires PIMLICO_API_KEY.");
   }
@@ -7708,7 +7719,7 @@ var init_create2 = __esm({
     init_types2();
     init_policy();
     init_owner();
-    AA_DEBUG_ENABLED2 = process.env.AOMI_AA_DEBUG === "1";
+    AA_DEBUG_ENABLED2 = typeof process !== "undefined" && process.env.AOMI_AA_DEBUG === "1";
   }
 });
 
@@ -11626,7 +11637,11 @@ init_shared();
 // package.json
 var package_default = {
   name: "@aomi-labs/client",
+<<<<<<< HEAD
   version: "0.3.8",
+=======
+  version: "0.3.7",
+>>>>>>> 2b42d79e (Implement cross-origin widget authentication)
   description: "Platform-agnostic TypeScript client for the Aomi backend API",
   type: "module",
   main: "./dist/index.cjs",

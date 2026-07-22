@@ -26,7 +26,8 @@ import { resolveAlchemyApiKey, resolveAlchemyGasPolicyId } from "./defaults";
 
 const ALCHEMY_7702_DELEGATION_ADDRESS =
   "0x69007702764179f14F51cdce752f4f775d74E139" as Hex;
-const AA_DEBUG_ENABLED = process.env.AOMI_AA_DEBUG === "1";
+const AA_DEBUG_ENABLED =
+  typeof process !== "undefined" && process.env.AOMI_AA_DEBUG === "1";
 
 function extractExistingAccountAddress(error: unknown): Hex | null {
   const message = error instanceof Error ? error.message : String(error);

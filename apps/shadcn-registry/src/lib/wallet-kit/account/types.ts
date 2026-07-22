@@ -14,6 +14,8 @@ export type AomiUserRef = {
 export type LinkedAuthAccount = {
   id: string;
   provider: string;
+  issuerEnvironment?: string;
+  tenantId?: string;
   subject: string;
   email?: string;
   displayLabel?: string;
@@ -82,4 +84,5 @@ export type AccountRuntime = {
   updateWallet?: (input: UpdateWalletInput) => Promise<void>;
   unlinkWallet?: (walletId: string) => Promise<void>;
   unlinkAuthIdentity?: (identityId: string) => Promise<void>;
+  getAccountBearer?: import("@aomi-labs/client").GetAccountBearer;
 };

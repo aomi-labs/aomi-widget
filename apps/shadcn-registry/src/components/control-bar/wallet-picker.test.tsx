@@ -1522,8 +1522,13 @@ describe("WalletPicker", () => {
   });
 
   it("runs a full account sign-out even when a provider wallet is connected", async () => {
-    const signOutAccount = vi.fn(async () => undefined);
-    const disconnect = vi.fn(async () => undefined);
+    const callOrder: string[] = [];
+    const signOutAccount = vi.fn(async () => {
+      callOrder.push("sign-out");
+    });
+    const disconnect = vi.fn(async () => {
+      callOrder.push("disconnect");
+    });
     renderPicker(
       makeAdapter({
         accountUser: { id: "user-1", displayName: "Ada Account" },
@@ -1564,6 +1569,7 @@ describe("WalletPicker", () => {
 
     expect(signOutAccount).toHaveBeenCalledTimes(1);
     expect(disconnect).toHaveBeenCalledWith({ family: "all" });
+    expect(callOrder).toEqual(["sign-out", "disconnect"]);
     expect(screen.getByRole("dialog")).toBeTruthy();
   });
 

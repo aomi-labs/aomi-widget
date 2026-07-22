@@ -87,6 +87,17 @@ export async function createAomiUserForBetterAuth(input: {
   displayName?: string | null;
   db?: Db;
 }): Promise<DbAomiUser> {
+  return createAomiUser(input);
+}
+
+export async function createAomiUser(input: {
+  userId?: AomiUserId;
+  email?: string | null;
+  name?: string | null;
+  avatarUrl?: string | null;
+  displayName?: string | null;
+  db?: Db;
+}): Promise<DbAomiUser> {
   const db = input.db ?? getPool();
   const userId = input.userId ?? randomUUID();
   const now = nowSeconds();
@@ -104,6 +115,17 @@ export async function createAomiUserForBetterAuth(input: {
     ],
   );
   return mapUser(result.rows[0]);
+}
+
+export async function lockIdentityResolutionKeys(
+  keys: readonly string[],
+  db: Db,
+): Promise<void> {
+  for (const key of [...new Set(keys)].sort()) {
+    await db.query(`select pg_advisory_xact_lock(hashtextextended($1, 0))`, [
+      key,
+    ]);
+  }
 }
 
 export async function findLegacyBackendUserIdByWallet(
@@ -208,10 +230,17 @@ export async function findSignalOwner(
          from auth_providers ap
          join users u on u.id = ap.user_id
         where ap.provider = $1
-          and ap.subject = $2
+          and ap.issuer_environment = $2
+          and ap.tenant_id = $3
+          and ap.subject = $4
           and coalesce(u.status, '') <> 'deactivated'
         limit 1`,
-      [canonicalProvider(signal.provider), signal.subject],
+      [
+        canonicalProvider(signal.provider),
+        signal.issuerEnvironment,
+        signal.tenantId,
+        signal.subject,
+      ],
     );
     return (result.rows[0]?.user_id as string | undefined) ?? null;
   }
@@ -227,6 +256,26 @@ export async function findSignalOwner(
     [signal.email],
   );
   return (result.rows[0]?.user_id as string | undefined) ?? null;
+}
+
+export async function findProviderSubjectOwners(
+  provider: AuthIdentityProvider,
+  issuerEnvironment: string,
+  subject: string,
+  db: Db = getPool(),
+): Promise<AomiUserId[]> {
+  const result = await db.query(
+    `select distinct ap.user_id
+       from auth_providers ap
+       join users u on u.id = ap.user_id
+      where ap.provider = $1
+        and ap.issuer_environment = $2
+        and ap.subject = $3
+        and coalesce(u.status, '') <> 'deactivated'
+      order by ap.user_id`,
+    [canonicalProvider(provider), issuerEnvironment, subject],
+  );
+  return result.rows.map((row) => String(row.user_id));
 }
 
 export async function countLoginFactors(
@@ -248,6 +297,8 @@ export async function countLoginFactors(
 export async function upsertAuthIdentity(input: {
   userId: AomiUserId;
   provider: AuthIdentityProvider;
+  issuerEnvironment: string;
+  tenantId: string;
   subject: string;
   email?: string | null;
   displayLabel?: string | null;
@@ -267,10 +318,11 @@ export async function upsertAuthIdentity(input: {
     provider === "email" ? (input.email ?? input.subject) : input.subject;
   const result = await db.query(
     `insert into auth_providers
-       (user_id, provider, subject, method, value, verified_at, is_primary,
-        provider_metadata, created_at, updated_at)
-     values ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $9)
-     on conflict (provider, subject) where subject is not null
+       (user_id, provider, issuer_environment, tenant_id, subject, method,
+        value, verified_at, is_primary, provider_metadata, created_at, updated_at)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11, $11)
+     on conflict (provider, issuer_environment, tenant_id, subject)
+       where subject is not null
      do update set
        value = excluded.value,
        verified_at = coalesce(auth_providers.verified_at, excluded.verified_at),
@@ -282,6 +334,8 @@ export async function upsertAuthIdentity(input: {
     [
       input.userId,
       provider,
+      input.issuerEnvironment,
+      input.tenantId,
       input.subject,
       method,
       value.trim(),
@@ -305,6 +359,8 @@ export async function upsertEmailIdentity(input: {
   return upsertAuthIdentity({
     userId: input.userId,
     provider: "email",
+    issuerEnvironment: "aomi",
+    tenantId: "global",
     subject: input.email.toLowerCase(),
     email: input.email,
     db: input.db,
@@ -314,15 +370,24 @@ export async function upsertEmailIdentity(input: {
 export async function revokeAuthIdentity(input: {
   userId: AomiUserId;
   provider: AuthIdentityProvider;
+  issuerEnvironment: string;
+  tenantId: string;
   subject: string;
   db?: Db;
 }): Promise<boolean> {
   const db = input.db ?? getPool();
   const identity = await db.query(
     `select id from auth_providers
-      where user_id = $1 and provider = $2 and subject = $3
+      where user_id = $1 and provider = $2
+        and issuer_environment = $3 and tenant_id = $4 and subject = $5
       limit 1`,
-    [input.userId, canonicalProvider(input.provider), input.subject],
+    [
+      input.userId,
+      canonicalProvider(input.provider),
+      input.issuerEnvironment,
+      input.tenantId,
+      input.subject,
+    ],
   );
   const identityId = identity.rows[0]?.id;
   if (identityId != null) {
@@ -332,8 +397,15 @@ export async function revokeAuthIdentity(input: {
   }
   const result = await db.query(
     `delete from auth_providers
-      where user_id = $1 and provider = $2 and subject = $3`,
-    [input.userId, canonicalProvider(input.provider), input.subject],
+      where user_id = $1 and provider = $2
+        and issuer_environment = $3 and tenant_id = $4 and subject = $5`,
+    [
+      input.userId,
+      canonicalProvider(input.provider),
+      input.issuerEnvironment,
+      input.tenantId,
+      input.subject,
+    ],
   );
   return (result.rowCount ?? 0) > 0;
 }
@@ -368,6 +440,8 @@ export async function upsertWallet(input: {
   kind: WalletKind;
   provider?: string | null;
   providerSubject?: string | null;
+  providerIssuerEnvironment?: string | null;
+  providerTenantId?: string | null;
   providerWalletId?: string | null;
   linkedVia: LinkedVia;
   label?: string | null;
@@ -629,9 +703,18 @@ export async function findWalletById(
 
 export async function buildAccountResponse(input: {
   user: DbAomiUser;
-  betterAuthUserId: string;
-  sessionExpiresAt?: Date | string | number | null;
-  sessionFresh?: boolean;
+  session:
+    | {
+        carrier: "better_auth";
+        betterAuthUserId: string;
+        expiresAt?: Date | string | number | null;
+        fresh?: boolean;
+      }
+    | {
+        carrier: "widget";
+        expiresAt: Date | string | number;
+        authMethod: string;
+      };
   db?: Db;
 }): Promise<AomiAccountResponse> {
   const [identities, wallets] = await Promise.all([
@@ -647,11 +730,19 @@ export async function buildAccountResponse(input: {
     },
     linkedAccounts: identities.map(toLinkedAccount),
     wallets: wallets.map(toAccountWallet),
-    session: {
-      betterAuthUserId: input.betterAuthUserId,
-      expiresAt: toMillis(input.sessionExpiresAt),
-      fresh: input.sessionFresh,
-    },
+    session:
+      input.session.carrier === "better_auth"
+        ? {
+            carrier: "better_auth",
+            betterAuthUserId: input.session.betterAuthUserId,
+            expiresAt: toMillis(input.session.expiresAt),
+            fresh: input.session.fresh,
+          }
+        : {
+            carrier: "widget",
+            expiresAt: toMillis(input.session.expiresAt) ?? 0,
+            authMethod: input.session.authMethod,
+          },
   };
 }
 
@@ -772,6 +863,8 @@ async function resolveWalletAuthProvider(
     address: string;
     provider?: string | null;
     providerSubject?: string | null;
+    providerIssuerEnvironment?: string | null;
+    providerTenantId?: string | null;
     label?: string | null;
     linkedVia: LinkedVia;
   },
@@ -789,9 +882,23 @@ async function resolveWalletAuthProvider(
         ? siwsSubject(input.address)
         : null);
   if (subject) {
+    const staticScope =
+      provider === "siwe"
+        ? { issuerEnvironment: "eip155", tenantId: "global" }
+        : provider === "siws"
+          ? { issuerEnvironment: "solana", tenantId: "global" }
+          : null;
+    const issuerEnvironment =
+      input.providerIssuerEnvironment ?? staticScope?.issuerEnvironment;
+    const tenantId = input.providerTenantId ?? staticScope?.tenantId;
+    if (!issuerEnvironment || !tenantId) {
+      throw new Error(`Provider identity scope is required for ${provider}`);
+    }
     const identity = await upsertAuthIdentity({
       userId: input.userId,
       provider,
+      issuerEnvironment,
+      tenantId,
       subject,
       db,
     });
@@ -832,6 +939,8 @@ function mapIdentity(row: Row): DbAomiAuthIdentity {
     id: String(row.id),
     userId: String(row.user_id),
     provider,
+    issuerEnvironment: String(row.issuer_environment),
+    tenantId: String(row.tenant_id),
     subject: String(row.subject ?? row.value ?? ""),
     email: optionalString(metadata.email),
     displayLabel: optionalString(metadata.display_label),
@@ -876,6 +985,8 @@ function toLinkedAccount(identity: DbAomiAuthIdentity): LinkedAuthAccount {
   return {
     id: identity.id,
     provider: identity.provider,
+    issuerEnvironment: identity.issuerEnvironment,
+    tenantId: identity.tenantId,
     subject: identity.subject,
     email: identity.email ?? undefined,
     displayLabel: identity.displayLabel ?? undefined,
@@ -944,7 +1055,9 @@ function nowSeconds(): number {
 function toMillis(value?: Date | string | number | null): number | undefined {
   if (value == null) return undefined;
   if (value instanceof Date) return value.getTime();
-  if (typeof value === "number") return value;
+  if (typeof value === "number") {
+    return value < 100_000_000_000 ? value * 1000 : value;
+  }
   const parsed = Date.parse(value);
   return Number.isNaN(parsed) ? undefined : parsed;
 }

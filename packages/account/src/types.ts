@@ -36,6 +36,8 @@ export type DbAomiAuthIdentity = {
   id: string;
   userId: AomiUserId;
   provider: AuthIdentityProvider;
+  issuerEnvironment: string;
+  tenantId: string;
   subject: string;
   email: string | null;
   displayLabel: string | null;
@@ -74,6 +76,8 @@ export type AomiUserRef = {
 export type LinkedAuthAccount = {
   id: string;
   provider: string;
+  issuerEnvironment: string;
+  tenantId: string;
   subject: string;
   email?: string;
   displayLabel?: string;
@@ -101,11 +105,18 @@ export type AomiAccountResponse =
       user: AomiUserRef;
       linkedAccounts: LinkedAuthAccount[];
       wallets: AccountWallet[];
-      session: {
-        betterAuthUserId: string;
-        expiresAt?: number;
-        fresh?: boolean;
-      };
+      session:
+        | {
+            carrier: "better_auth";
+            betterAuthUserId: string;
+            expiresAt?: number;
+            fresh?: boolean;
+          }
+        | {
+            carrier: "widget";
+            expiresAt: number;
+            authMethod: string;
+          };
     }
   | {
       user: null;
@@ -114,20 +125,14 @@ export type AomiAccountResponse =
       session: null;
     };
 
-export type AccountCredentialProvider = "privy" | "para";
+export type AccountCredentialProvider = string;
 
-export type AomiAccountCredential =
-  | {
-      provider: "privy";
-      tokenKind?: "identity_token" | "access_token";
-      providerToken: string;
-    }
-  | {
-      provider: "para";
-      tokenKind?: "session_jwt";
-      providerToken: string;
-      keyId?: string;
-    };
+export type AomiAccountCredential = {
+  provider: string;
+  tokenKind?: string;
+  providerToken: string;
+  keyId?: string;
+};
 
 export type VerifiedPrivyToken = {
   subject: string;
@@ -164,6 +169,8 @@ export type SignalRef =
   | {
       type: "identity";
       provider: AuthIdentityProvider;
+      issuerEnvironment: string;
+      tenantId: string;
       subject: string;
     }
   | { type: "email"; email: string };

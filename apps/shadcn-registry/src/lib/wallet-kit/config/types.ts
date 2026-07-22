@@ -37,6 +37,7 @@ export type ProvidersConfig = {
         appName?: string;
         appDescription?: string;
         appUrl?: string;
+        disableWorkers?: boolean;
       }
     | false;
   privy?:
@@ -61,6 +62,15 @@ export type AuthConfig =
       methods?: readonly AuthMethodId[];
     }
   | false;
+
+export type AomiWidgetAuthConfig =
+  | false
+  | {
+      provider: AuthProviderId;
+      environment: string;
+      methods?: readonly AuthMethodId[];
+      providers?: ProvidersConfig;
+    };
 
 export type EvmWalletsConfig = {
   chains?: readonly [Chain, ...Chain[]];
@@ -129,6 +139,9 @@ export type AccountConfig =
       baseUrl?: string;
       authDomain?: string;
       authUri?: string;
+      widgetAuth?:
+        | { mode: "provider"; provider: string; environment: string }
+        | { mode: "wallet" };
     };
 
 export type AomiWalletKitProviderProps = {
@@ -151,6 +164,7 @@ export type AomiWalletKitProviderInput =
         methods?: readonly AuthMethodId[];
         appName?: string;
         appDescription?: string;
+        disableWorkers?: boolean;
       };
       children: ReactNode;
     }

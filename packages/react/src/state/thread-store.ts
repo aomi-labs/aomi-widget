@@ -3,7 +3,8 @@ import type { SetStateAction } from "react";
 import type { ThreadMessageLike } from "@assistant-ui/react";
 import { ThreadContext } from "../contexts/thread-context";
 
-const shouldLogThreadUpdates = process.env.NODE_ENV !== "production";
+const shouldLogThreadUpdates =
+  typeof process === "undefined" || process.env.NODE_ENV !== "production";
 
 const logThreadMetadataChange = (
   source: string,

@@ -1,8 +1,4 @@
-import {
-  accountResponseFromSession,
-  json,
-  requireAomiSession,
-} from "@portal/lib/aomi-account/session";
+import { json } from "@portal/lib/aomi-account/session";
 import {
   createWalletLinkNonce,
   upsertVerifiedWallet,
@@ -13,37 +9,51 @@ import {
 import type { WalletFamily } from "@aomi-labs/account";
 import { readAccountAuthEnv } from "@aomi-labs/account/better-auth";
 import { recoverMessageAddress } from "viem";
+import { accountResponseForPrincipal } from "@portal/lib/widget-auth/principal";
+import { portalRoutePrincipal } from "@portal/lib/widget-auth/response";
+import {
+  applyWidgetCors,
+  widgetCorsPreflight,
+} from "@portal/lib/widget-auth/cors";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request): Promise<Response> {
-  const current = await requireAomiSession(req);
-  if (!current) return json(401, { error: "unauthenticated" });
+  const auth = await portalRoutePrincipal(req);
+  if ("response" in auth) return auth.response;
+  const current = auth.principal;
   const url = new URL(req.url);
   const address = url.searchParams.get("address");
   const rawChainId = url.searchParams.get("chainId");
   const chainId = Number(rawChainId);
   if (!address || !rawChainId || !Number.isInteger(chainId) || chainId <= 0) {
-    return json(400, { error: "address_and_chain_id_required" });
+    return applyWidgetCors(
+      req,
+      json(400, { error: "address_and_chain_id_required" }),
+    );
   }
   const env = readAccountAuthEnv();
-  return Response.json({
-    nonce: createWalletLinkNonce({
-      userId: current.user.id,
-      address,
-      chainId,
+  return applyWidgetCors(
+    req,
+    Response.json({
+      nonce: createWalletLinkNonce({
+        userId: current.userId,
+        address,
+        chainId,
+        domain: env.siweDomain,
+        secret: env.betterAuthSecret,
+      }),
       domain: env.siweDomain,
-      secret: env.betterAuthSecret,
+      uri: env.betterAuthUrl,
     }),
-    domain: env.siweDomain,
-    uri: env.betterAuthUrl,
-  });
+  );
 }
 
 export async function POST(req: Request): Promise<Response> {
-  const current = await requireAomiSession(req);
-  if (!current) return json(401, { error: "unauthenticated" });
+  const auth = await portalRoutePrincipal(req);
+  if ("response" in auth) return auth.response;
+  const current = auth.principal;
   const body = (await req.json().catch(() => null)) as {
     family?: WalletFamily;
     address?: string;
@@ -54,27 +64,39 @@ export async function POST(req: Request): Promise<Response> {
     label?: string | null;
   } | null;
   if (!body?.family || !body.address) {
-    return json(400, { error: "family_and_address_required" });
+    return applyWidgetCors(
+      req,
+      json(400, { error: "family_and_address_required" }),
+    );
   }
   if (body.family !== "evm") {
-    return json(400, { error: "unsupported_wallet_family" });
+    return applyWidgetCors(
+      req,
+      json(400, { error: "unsupported_wallet_family" }),
+    );
   }
   if (!body.message || !body.signature || !body.chainId) {
-    return json(400, { error: "wallet_signature_required" });
+    return applyWidgetCors(
+      req,
+      json(400, { error: "wallet_signature_required" }),
+    );
   }
   const env = readAccountAuthEnv();
   if (
     !body.nonce ||
     !verifyWalletLinkNonce({
       nonce: body.nonce,
-      userId: current.user.id,
+      userId: current.userId,
       address: body.address,
       chainId: body.chainId,
       domain: env.siweDomain,
       secret: env.betterAuthSecret,
     })
   ) {
-    return json(401, { error: "invalid_wallet_link_nonce" });
+    return applyWidgetCors(
+      req,
+      json(401, { error: "invalid_wallet_link_nonce" }),
+    );
   }
   const signatureOk = await verifyWalletLinkSignature({
     address: body.address,
@@ -110,11 +132,14 @@ export async function POST(req: Request): Promise<Response> {
         domain: env.siweDomain,
       }),
     });
-    return json(401, { error: "invalid_wallet_signature" });
+    return applyWidgetCors(
+      req,
+      json(401, { error: "invalid_wallet_signature" }),
+    );
   }
 
   const resolution = await upsertVerifiedWallet({
-    userId: current.user.id,
+    userId: current.userId,
     family: body.family,
     address: body.address,
     chainId: body.chainId,
@@ -125,15 +150,25 @@ export async function POST(req: Request): Promise<Response> {
     label: body.label ?? null,
   });
   if (resolution.status === "conflict") {
-    return json(409, {
-      ...resolution,
-      error: "already_linked_to_another_account",
-    });
+    return applyWidgetCors(
+      req,
+      json(409, {
+        ...resolution,
+        error: "already_linked_to_another_account",
+      }),
+    );
   }
-  return Response.json({
-    status: resolution.status,
-    account: await accountResponseFromSession(req),
-  });
+  return applyWidgetCors(
+    req,
+    Response.json({
+      status: resolution.status,
+      account: await accountResponseForPrincipal(req, current),
+    }),
+  );
+}
+
+export function OPTIONS(req: Request): Response {
+  return widgetCorsPreflight(req, ["GET", "POST", "OPTIONS"]);
 }
 
 async function recoverWalletLinkSigner(input: {

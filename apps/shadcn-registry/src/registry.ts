@@ -23,6 +23,14 @@ export const registry: RegistryComponent[] = [
       "Shadcn-compatible theme variables (light + dark) for Aomi components.",
   },
   {
+    name: "aomi-widget",
+    file: "components/aomi-widget.tsx",
+    dependencies: ["@aomi-labs/client", "@aomi-labs/react"],
+    registryDependencies: [aomi("aomi-frame"), aomi("aomi-wallet-kit")],
+    description:
+      "Embeddable Aomi widget with tenant-scoped provider or wallet authentication.",
+  },
+  {
     name: "aomi-frame",
     file: "components/aomi-frame.tsx",
     dependencies: ["@aomi-labs/react"],
@@ -60,6 +68,7 @@ export const registry: RegistryComponent[] = [
       "lib/wallet-kit/config/AomiWalletKitProvider.tsx",
       "lib/wallet-kit/config/execution.ts",
       "lib/wallet-kit/config/index.ts",
+      "lib/wallet-kit/config/provider-auth.ts",
       "lib/wallet-kit/config/types.ts",
       "lib/wallet-kit/providers/plugin-registry.ts",
       "lib/wallet-kit/execution/aa-owner.ts",
@@ -294,6 +303,7 @@ export const registry: RegistryComponent[] = [
       "lib/wallet-kit/providers/para/ParaPluginProvider.tsx",
       "lib/wallet-kit/providers/para/para-auth.ts",
       "lib/wallet-kit/providers/para/para-embedded-wallet.ts",
+      "lib/wallet-kit/providers/para/widget-auth.ts",
       "lib/wallet-kit/registry/use-wallet-registry.ts",
       "lib/wallet-kit/runtime/evm/registry-source.ts",
       "lib/wallet-kit/runtime/evm/provider.tsx",
@@ -338,6 +348,7 @@ export const registry: RegistryComponent[] = [
       "lib/wallet-kit/providers/privy/privy-plugin.tsx",
       "lib/wallet-kit/providers/privy/privy-svm.ts",
       "lib/wallet-kit/providers/privy/privy.tsx",
+      "lib/wallet-kit/providers/privy/widget-auth.ts",
       "lib/wallet-kit/providers/sources/embedded-session-source.ts",
       "lib/wallet-kit/catalog/evm-connector-catalog.ts",
       "lib/wallet-kit/catalog/wallet-ids.ts",

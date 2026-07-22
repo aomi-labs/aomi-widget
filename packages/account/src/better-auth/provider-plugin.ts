@@ -4,9 +4,11 @@ import type { BetterAuthPlugin } from "better-auth";
 import { decodeJwt, decodeProtectedHeader } from "jose";
 import { z } from "zod";
 import {
+  nativeProviderResolutionPolicy,
   providerSessionUserSeed,
+  toVerifiedProviderIdentity,
   verifyProviderCredential,
-} from "../providers/account-credentials";
+} from "../providers";
 import {
   getOrCreateAomiUserForBetterAuthSession,
   isIdentityAlreadyLinkedError,
@@ -14,6 +16,7 @@ import {
 import { linkVerifiedProviderCredentialForUser } from "../service/provider-exchange";
 import { buildAccountResponse } from "../db/queries";
 import type { AomiAccountCredential } from "../types";
+import { resolveVerifiedProviderIdentity } from "../service/identity-resolution";
 
 /** aud/iss/exp of a rejected provider token, for the server log. Never the token. */
 function decodeClaimsForLog(token: string): Record<string, unknown> {
@@ -26,19 +29,12 @@ function decodeClaimsForLog(token: string): Record<string, unknown> {
   }
 }
 
-const bodySchema = z.discriminatedUnion("provider", [
-  z.object({
-    provider: z.literal("privy"),
-    tokenKind: z.enum(["identity_token", "access_token"]).optional(),
-    providerToken: z.string().min(1),
-  }),
-  z.object({
-    provider: z.literal("para"),
-    tokenKind: z.literal("session_jwt").optional(),
-    providerToken: z.string().min(1),
-    keyId: z.string().optional(),
-  }),
-]);
+const bodySchema = z.object({
+  provider: z.string().trim().min(1),
+  tokenKind: z.string().trim().min(1).optional(),
+  providerToken: z.string().min(1),
+  keyId: z.string().trim().min(1).optional(),
+});
 
 export function aomiProviderAuthPlugin(): BetterAuthPlugin {
   return {
@@ -73,6 +69,11 @@ export function aomiProviderAuthPlugin(): BetterAuthPlugin {
             });
           }
           const seed = providerSessionUserSeed(verified);
+          const providerResolution = await resolveVerifiedProviderIdentity({
+            identity: toVerifiedProviderIdentity(verified),
+            policy: nativeProviderResolutionPolicy(verified.provider),
+            displayName: seed.name,
+          });
           const existing = seed.email
             ? await ctx.context.internalAdapter.findUserByEmail(seed.email, {
                 includeAccounts: false,
@@ -98,6 +99,8 @@ export function aomiProviderAuthPlugin(): BetterAuthPlugin {
                 {
                   type: "identity",
                   provider: verified.provider,
+                  issuerEnvironment: verified.issuerEnvironment,
+                  tenantId: verified.tenantId,
                   subject: verified.token.subject,
                 },
               ],
@@ -115,6 +118,9 @@ export function aomiProviderAuthPlugin(): BetterAuthPlugin {
               });
             }
             throw error;
+          }
+          if (aomiUser.id !== providerResolution.user.id) {
+            throw new APIError("CONFLICT", { message: "identity_conflict" });
           }
           const resolution = await linkVerifiedProviderCredentialForUser({
             userId: aomiUser.id,
@@ -143,8 +149,11 @@ export function aomiProviderAuthPlugin(): BetterAuthPlugin {
             status: "linked",
             account: await buildAccountResponse({
               user: resolution.user ?? aomiUser,
-              betterAuthUserId: betterAuthUser.id,
-              sessionExpiresAt: session.expiresAt,
+              session: {
+                carrier: "better_auth",
+                betterAuthUserId: betterAuthUser.id,
+                expiresAt: session.expiresAt,
+              },
             }),
           });
         },

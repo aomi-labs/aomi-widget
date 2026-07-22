@@ -4,9 +4,12 @@ import { useMemo } from "react";
 import type { Chain } from "viem";
 
 const FULL_TESTNET_ENABLED =
+  typeof process !== "undefined" &&
   process.env.NEXT_PUBLIC_USE_FULL_TESTNET === "true";
 const FULL_TESTNET_RPC_MAP_RAW =
-  process.env.NEXT_PUBLIC_FULL_TESTNET_RPC_MAP?.trim() ?? "";
+  (typeof process !== "undefined"
+    ? process.env.NEXT_PUBLIC_FULL_TESTNET_RPC_MAP?.trim()
+    : undefined) ?? "";
 
 export function parseRpcOverrides(raw: string): Record<number, string> {
   const trimmed = raw.trim();

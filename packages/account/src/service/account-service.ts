@@ -52,6 +52,8 @@ import type {
   WalletKind,
 } from "../types";
 import { normalizeWalletAddress } from "./wallet-normalization";
+import { resolveVerifiedProviderIdentity } from "./identity-resolution";
+import { deleteWidgetSessionsForProviderIdentity } from "../widget-auth/store";
 
 // Historically this applied the portal-owned `aomi_*` schema. AUTH-001 moves
 // durable account state to the shared backend canonical tables, so the hook now
@@ -77,109 +79,41 @@ export async function getOrCreateAomiUserForBetterAuthSession(input: {
   accessSignals?: SignalRef[];
 }): Promise<DbAomiUser> {
   await ensureAccountSchema();
-  return withTransaction(async (db) => {
-    const existing = await findAomiUserByBetterAuthId(
-      input.betterAuthUserId,
-      db,
-    );
-    if (existing) {
-      await touchAomiUser(existing.id, db);
-      await upsertAuthIdentity({
-        userId: existing.id,
-        provider: "better_auth",
-        subject: input.betterAuthUserId,
-        email: input.email,
-        db,
-      });
-      if (input.email && input.emailVerified) {
-        await upsertEmailIdentity({
-          userId: existing.id,
-          email: input.email,
-          db,
-        });
-      }
-      return existing;
-    }
-
-    const walletSignals = await betterAuthWalletSignals(
-      input.betterAuthUserId,
-      db,
-    );
-    const signalOwner = await findFirstSignalOwner(
-      [...(input.accessSignals ?? []), ...walletSignals],
-      db,
-    );
-    if (signalOwner) {
-      await touchAomiUser(signalOwner.id, db);
-      await upsertAuthIdentity({
-        userId: signalOwner.id,
-        provider: "better_auth",
-        subject: input.betterAuthUserId,
-        email: input.email,
-        db,
-      });
-      if (input.email && input.emailVerified) {
-        await upsertEmailIdentity({
-          userId: signalOwner.id,
-          email: input.email,
-          db,
-        });
-      }
-      await logAccountEvent({
-        userId: signalOwner.id,
-        eventType: "session.attached",
-        data: { betterAuthUserId: input.betterAuthUserId },
-        db,
-      });
-      return signalOwner;
-    }
-
-    const legacyWalletOwnerId = await findFirstLegacyWalletOwner(
-      walletSignals,
-      db,
-    );
-    const user = await createAomiUserForBetterAuth({
-      ...input,
-      userId: legacyWalletOwnerId ?? undefined,
-      db,
-    });
-    await upsertAuthIdentity({
-      userId: user.id,
+  const walletSignals = await betterAuthWalletSignals(input.betterAuthUserId);
+  const resolution = await resolveVerifiedProviderIdentity({
+    identity: {
       provider: "better_auth",
+      issuerEnvironment: "aomi",
+      tenantId: "portal",
       subject: input.betterAuthUserId,
-      email: input.email,
-      db,
-    });
-    if (input.email && input.emailVerified) {
-      await upsertEmailIdentity({
-        userId: user.id,
-        email: input.email,
-        db,
-      });
-    }
-    await logAccountEvent({
-      userId: user.id,
-      eventType: "user.created",
-      data: { betterAuthUserId: input.betterAuthUserId },
-      db,
-    });
-    return user;
+      expiresAt: Number.MAX_SAFE_INTEGER,
+      email: input.email
+        ? { value: input.email, verified: Boolean(input.emailVerified) }
+        : undefined,
+      walletAttestations: [],
+      metadata: { source: "betterauth_session" },
+    },
+    policy: {
+      subjectIsEnvironmentGlobal: false,
+      walletClaimTrust: "none",
+      widgetEnabled: false,
+    },
+    recoverySignals: [...(input.accessSignals ?? []), ...walletSignals],
+    displayName: input.name ?? input.email,
+    avatarUrl: input.avatarUrl,
   });
-}
-
-async function findFirstLegacyWalletOwner(
-  signals: SignalRef[],
-  db: Parameters<typeof findLegacyBackendUserIdByWallet>[1],
-): Promise<AomiUserId | null> {
-  for (const signal of signals) {
-    if (signal.type !== "wallet" || signal.family !== "evm") continue;
-    const ownerId = await findLegacyBackendUserIdByWallet(
-      signal.normalizedAddress,
-      db,
-    );
-    if (ownerId) return ownerId;
+  if (input.email && input.emailVerified) {
+    await upsertEmailIdentity({
+      userId: resolution.user.id,
+      email: input.email,
+    });
   }
-  return null;
+  await logAccountEvent({
+    userId: resolution.user.id,
+    eventType: resolution.created ? "user.created" : "session.attached",
+    data: { betterAuthUserId: input.betterAuthUserId },
+  });
+  return resolution.user;
 }
 
 export function isIdentityAlreadyLinkedError(error: unknown): boolean {
@@ -189,26 +123,9 @@ export function isIdentityAlreadyLinkedError(error: unknown): boolean {
   );
 }
 
-async function findFirstSignalOwner(
-  signals: SignalRef[],
-  db: Parameters<typeof findSignalOwner>[1],
-): Promise<DbAomiUser | null> {
-  const seen = new Set<string>();
-  for (const signal of signals) {
-    const key = JSON.stringify(signal);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    const ownerId = await findSignalOwner(signal, db);
-    if (!ownerId) continue;
-    const owner = await findAomiUserById(ownerId, db);
-    if (owner) return owner;
-  }
-  return null;
-}
-
 async function betterAuthWalletSignals(
   betterAuthUserId: string,
-  db: Parameters<typeof listBetterAuthSiweWallets>[1],
+  db?: Parameters<typeof listBetterAuthSiweWallets>[1],
 ): Promise<SignalRef[]> {
   const [evmWallets, svmWallets] = await Promise.all([
     listBetterAuthSiweWallets(betterAuthUserId, db),
@@ -246,9 +163,31 @@ export async function getAccountResponseForBetterAuthSession(input: {
   });
   return buildAccountResponse({
     user,
-    betterAuthUserId: input.betterAuthUserId,
-    sessionExpiresAt: input.expiresAt,
-    sessionFresh: input.fresh,
+    session: {
+      carrier: "better_auth",
+      betterAuthUserId: input.betterAuthUserId,
+      expiresAt: input.expiresAt,
+      fresh: input.fresh,
+    },
+  });
+}
+
+export async function getAccountResponseForWidgetSession(input: {
+  userId: string;
+  expiresAt: Date | string | number;
+  authMethod: string;
+}): Promise<AomiAccountResponse> {
+  const user = await findAomiUserById(input.userId);
+  if (!user) {
+    return { user: null, linkedAccounts: [], wallets: [], session: null };
+  }
+  return buildAccountResponse({
+    user,
+    session: {
+      carrier: "widget",
+      expiresAt: input.expiresAt,
+      authMethod: input.authMethod,
+    },
   });
 }
 
@@ -344,7 +283,12 @@ export async function upsertVerifiedWallet(input: {
   providerWalletId?: string | null;
   linkedVia: LinkedVia;
   label?: string | null;
+  db?: import("pg").Pool | import("pg").PoolClient;
 }): Promise<SignalResolution> {
+  await ensureAccountSchema();
+  if (!input.db) {
+    return withTransaction((db) => upsertVerifiedWallet({ ...input, db }));
+  }
   const signal = {
     type: "wallet" as const,
     family: input.family,
@@ -354,6 +298,7 @@ export async function upsertVerifiedWallet(input: {
   const resolution = await resolveSignal({
     currentUserId: input.userId,
     signal,
+    db: input.db,
   });
   if (resolution.status === "conflict") return resolution;
   const walletSubject = walletIdentitySubject(input);
@@ -363,8 +308,12 @@ export async function upsertVerifiedWallet(input: {
         signal: {
           type: "identity",
           provider: walletSubject.provider,
+          issuerEnvironment:
+            walletSubject.provider === "siwe" ? "eip155" : "solana",
+          tenantId: "global",
           subject: walletSubject.subject,
         },
+        db: input.db,
       })
     : null;
   if (identityResolution?.status === "conflict") {
@@ -386,13 +335,18 @@ export async function upsertVerifiedWallet(input: {
         address: input.address,
         linkedVia: input.linkedVia,
       },
+      db: input.db,
     });
   }
   if (walletSubject) {
     await upsertAuthIdentity({
       userId: input.userId,
       provider: walletSubject.provider,
+      issuerEnvironment:
+        walletSubject.provider === "siwe" ? "eip155" : "solana",
+      tenantId: "global",
       subject: walletSubject.subject,
+      db: input.db,
     });
     if (identityResolution?.status !== "noop") {
       await logAccountEvent({
@@ -402,6 +356,7 @@ export async function upsertVerifiedWallet(input: {
           provider: walletSubject.provider,
           subject: walletSubject.subject,
         },
+        db: input.db,
       });
     }
   }
@@ -411,9 +366,102 @@ export async function upsertVerifiedWallet(input: {
     : { status: "noop" };
 }
 
+export async function getOrCreateAomiUserForSiwe(input: {
+  address: string;
+  chainId: number;
+}): Promise<DbAomiUser> {
+  const normalizedAddress = normalizeWalletAddress("evm", input.address);
+  const resolution = await resolveVerifiedProviderIdentity({
+    identity: {
+      provider: "siwe",
+      issuerEnvironment: "eip155",
+      tenantId: "global",
+      subject: `eip155:*:${normalizedAddress}`,
+      expiresAt: Number.MAX_SAFE_INTEGER,
+      walletAttestations: [],
+      metadata: { chainId: input.chainId },
+    },
+    policy: {
+      subjectIsEnvironmentGlobal: false,
+      walletClaimTrust: "none",
+      widgetEnabled: true,
+    },
+    recoverySignals: [
+      {
+        type: "wallet",
+        family: "evm",
+        normalizedAddress,
+        chainScope: null,
+      },
+    ],
+    displayName: `${input.address.slice(0, 6)}...${input.address.slice(-4)}`,
+  });
+  const wallet = await upsertVerifiedWallet({
+    userId: resolution.user.id,
+    family: "evm",
+    address: input.address,
+    chainId: input.chainId,
+    chainScope: null,
+    kind: "external",
+    provider: "siwe",
+    linkedVia: "siwe",
+  });
+  if (wallet.status === "conflict") {
+    throw new Error("conflicting_identity_owners");
+  }
+  return resolution.user;
+}
+
+export async function getOrCreateAomiUserForSiws(input: {
+  address: string;
+  chainId: string;
+}): Promise<DbAomiUser> {
+  const normalizedAddress = normalizeWalletAddress("svm", input.address);
+  const resolution = await resolveVerifiedProviderIdentity({
+    identity: {
+      provider: "siws",
+      issuerEnvironment: "solana",
+      tenantId: "global",
+      subject: `solana:*:${normalizedAddress}`,
+      expiresAt: Number.MAX_SAFE_INTEGER,
+      walletAttestations: [],
+      metadata: { chainId: input.chainId },
+    },
+    policy: {
+      subjectIsEnvironmentGlobal: false,
+      walletClaimTrust: "none",
+      widgetEnabled: true,
+    },
+    recoverySignals: [
+      {
+        type: "wallet",
+        family: "svm",
+        normalizedAddress,
+        chainScope: null,
+      },
+    ],
+    displayName: `${input.address.slice(0, 6)}...${input.address.slice(-4)}`,
+  });
+  const wallet = await upsertVerifiedWallet({
+    userId: resolution.user.id,
+    family: "svm",
+    address: input.address,
+    chainScope: null,
+    kind: "external",
+    provider: "siws",
+    linkedVia: "siws",
+  });
+  if (wallet.status === "conflict") {
+    throw new Error("conflicting_identity_owners");
+  }
+  return resolution.user;
+}
+
 export async function linkProviderIdentity(input: {
   userId: AomiUserId;
   provider: AuthIdentityProvider;
+  issuerEnvironment: string;
+  tenantId: string;
   subject: string;
   email?: string | null;
   emailVerified?: boolean;
@@ -424,6 +472,8 @@ export async function linkProviderIdentity(input: {
   const identitySignal = {
     type: "identity" as const,
     provider: input.provider,
+    issuerEnvironment: input.issuerEnvironment,
+    tenantId: input.tenantId,
     subject: input.subject,
   };
   const identityResolution = await resolveSignal({
@@ -452,14 +502,10 @@ export async function linkProviderIdentity(input: {
   }
 
   await upsertAuthIdentity(input);
-  if (input.email && input.emailVerified) {
-    await updateAomiUserProfile({
-      userId: input.userId,
-      displayName: input.email,
-      primaryEmail: input.email,
-      db: input.db,
-    });
-  }
+  // A verified provider email is an authentication identity, not permission
+  // to overwrite the canonical display name. Profile changes are explicit and
+  // go through updateAccountProfile; keeping them out of login also prevents a
+  // historical users.username collision from aborting provider exchange.
   if (identityResolution.status !== "noop") {
     await logAccountEvent({
       userId: input.userId,
@@ -490,6 +536,8 @@ export async function linkProviderIdentity(input: {
 export async function syncProviderWallets(input: {
   userId: AomiUserId;
   provider: AttestedWalletProvider;
+  issuerEnvironment: string;
+  tenantId: string;
   subject?: string | null;
   attested: AttestedWallet[];
   db?: import("pg").Pool | import("pg").PoolClient;
@@ -540,6 +588,8 @@ export async function syncProviderWallets(input: {
         kind: "embedded",
         provider: input.provider,
         providerSubject: input.subject,
+        providerIssuerEnvironment: input.issuerEnvironment,
+        providerTenantId: input.tenantId,
         providerWalletId: wallet.providerWalletId,
         linkedVia: input.provider,
         db: input.db,
@@ -640,6 +690,8 @@ export async function fetchAttestedProviderWallets(input: {
 export async function syncProviderAttestedWallets(input: {
   userId: AomiUserId;
   provider: AttestedWalletProvider;
+  issuerEnvironment: string;
+  tenantId: string;
   subject: string;
   email?: string | null;
   db?: import("pg").Pool | import("pg").PoolClient;
@@ -662,6 +714,8 @@ export async function syncProviderAttestedWallets(input: {
   return syncProviderWallets({
     userId: input.userId,
     provider: input.provider,
+    issuerEnvironment: input.issuerEnvironment,
+    tenantId: input.tenantId,
     subject: input.subject,
     attested: wallets,
     db: input.db,
@@ -706,9 +760,14 @@ export async function unlinkAuthIdentity(input: {
   const revoked = await revokeAuthIdentity({
     userId: input.userId,
     provider: identity.provider,
+    issuerEnvironment: identity.issuerEnvironment,
+    tenantId: identity.tenantId,
     subject: identity.subject,
   });
   if (!revoked) return "not_found";
+  await deleteWidgetSessionsForProviderIdentity({
+    providerIdentityId: identity.id,
+  });
   await logAccountEvent({
     userId: input.userId,
     eventType: "identity.revoked",
@@ -775,7 +834,7 @@ export async function unlinkWallet(input: {
   const wallet = await findWalletById(input.walletId);
   if (!wallet || wallet.userId !== input.userId) return "not_found";
   const factorCount = await countLoginFactors(input.userId);
-  if (factorCount <= 1 && wallet.kind !== "embedded") return "last_factor";
+  if (factorCount <= 1) return "last_factor";
   const revoked = await revokeWallet(input);
   if (!revoked) return "not_found";
   const walletSubject = walletIdentitySubject(wallet);
@@ -783,6 +842,9 @@ export async function unlinkWallet(input: {
     await revokeAuthIdentity({
       userId: input.userId,
       provider: walletSubject.provider,
+      issuerEnvironment:
+        walletSubject.provider === "siwe" ? "eip155" : "solana",
+      tenantId: "global",
       subject: walletSubject.subject,
     });
     const detached =
@@ -797,6 +859,8 @@ export async function unlinkWallet(input: {
       await revokeAuthIdentity({
         userId: input.userId,
         provider: "better_auth",
+        issuerEnvironment: "aomi",
+        tenantId: "portal",
         subject: betterAuthUserId,
       });
     }
@@ -842,7 +906,8 @@ export type DeactivateAomiAccountResult =
       revokedIdentities: number;
       revokedWallets: number;
     }
-  | { status: "not_found" };
+  | { status: "not_found" }
+  | { status: "last_factor" };
 
 export async function deactivateAomiAccount(input: {
   userId: AomiUserId;
@@ -851,6 +916,9 @@ export async function deactivateAomiAccount(input: {
   return withTransaction(async (db) => {
     const user = await findAomiUserById(input.userId, db);
     if (!user) return { status: "not_found" };
+    if ((await countLoginFactors(input.userId, db)) <= 1) {
+      return { status: "last_factor" };
+    }
 
     const revokedIdentities = await revokeAllAuthIdentitiesForUser({
       userId: input.userId,

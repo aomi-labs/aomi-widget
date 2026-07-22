@@ -33,7 +33,11 @@ function PrivyAuthLayer({
 }) {
   const enabled = isPrivyAuth(auth);
   const privy = providers?.privy === false ? undefined : providers?.privy;
-  const appId = privy?.appId ?? process.env.NEXT_PUBLIC_PRIVY_APP_ID;
+  const appId =
+    privy?.appId ??
+    (typeof process !== "undefined"
+      ? process.env.NEXT_PUBLIC_PRIVY_APP_ID
+      : undefined);
   const config = useMemo(
     () =>
       buildPrivyClientConfig({
@@ -62,7 +66,11 @@ export const privyPlugin: WalletProviderPlugin = {
     const enabled = isPrivyAuth(auth);
     const privy = providers?.privy === false ? undefined : providers?.privy;
     return Boolean(
-      enabled && (privy?.appId ?? process.env.NEXT_PUBLIC_PRIVY_APP_ID),
+      enabled &&
+      (privy?.appId ??
+        (typeof process !== "undefined"
+          ? process.env.NEXT_PUBLIC_PRIVY_APP_ID
+          : undefined)),
     );
   },
   wrap: (props) => <PrivyAuthLayer {...props} />,

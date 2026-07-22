@@ -13,9 +13,11 @@
 - Kept backend endpoint contracts unchanged; the new global feed belongs to
   manager and the Aomi Build BFF relays it.
 
-Current session goal: pair product-mono PR #790 with a minimal published React
-runtime API for recording ephemeral UI interaction context on the active
-thread, without extending the serialized frontend `UserState` shape.
+Current session goal: **IMPLEMENTED; LIVE E2E IN PROGRESS 2026-07-22** — implement and verify
+`specs/WIDGET-AUTH-INTEGRATION-PLAN.md` across `aomi`, `db-master`, and
+`product-mono`, including tenant-scoped provider identities, the atomic
+canonical-user resolver, origin-bound widget sessions, generic Portal/account
+routes, the published `AomiWidget` API, and the separate-origin consumer.
 
 2026-07-13 follow-up: staging and production now use separate Supabase
 databases. Local schema convergence applies the backend's forward drop instead
@@ -86,6 +88,27 @@ Progress:
   0.1.5 and `@aomi-labs/client` to 0.3.8 after syncing current `main`, and
   verified the focused tests, account/portal/base/landing typechecks,
   formatting, and packed package contents.
+
+- 2026-07-22 widget authentication integration: implemented the v1 code and
+  automated acceptance coverage in `specs/WIDGET-AUTH-INTEGRATION-PLAN.md`. Added the
+  audited tenant-scope migration and Rust schema/entity mirror; provider-neutral
+  identity resolution; strict Para and disabled Privy widget descriptors;
+  provider/SIWE/SIWS WST exchange with hashed storage, origin binding,
+  revocation, and public credentialless CORS; generic account/BFF principals;
+  and the published `AomiWidget`, `paraAuth`, `privyAuth`, and standalone Vite
+  consumer. Portal retains its existing Para project while Landing and the
+  consumer use the requested separate Beta key in ignored local env files.
+  Portal is live on port 3000 and the consumer on port 3001. The consumer now
+  renders the full widget plus an actionable Retry/origin banner when Para
+  startup fails. The Landing project now accepts `http://localhost:3001` and
+  the Google popup reaches Para's wallet-selection screen after restoring the
+  SDK's OAuth encryption worker. The final live consumer
+  login/thread/harmless-signing gate remains unchecked until the user completes
+  the wallet selection and the post-login checks run.
+  Patch-bumped account/client/widget-lib, refreshed artifacts and lockfile, and
+  passed isolated Postgres replay, Rust fmt/clippy, frontend lint/typechecks,
+  package/consumer builds and pack verification, 769 root tests, 252 registry
+  tests, and the portal test command.
 
 - 2026-07-20 Robinhood Chain support: added chain `4663` to the client and wallet-kit defaults, including Alchemy metadata, network selection coverage, a monochrome chain icon, generated registries, and explicit portal/landing/docs network lists. Patch-bumped `@aomi-labs/client` to `0.3.2` and `@aomi-labs/widget-lib` to `1.4.3`; focused tests, root/portal/landing typechecks, client and registry builds, lint, formatting, and the read-only client `chain list` CLI passed.
 

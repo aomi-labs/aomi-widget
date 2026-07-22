@@ -2,6 +2,72 @@
 
 ## Last Updated
 
+2026-07-22 (widget auth complete) — Implemented
+  WIDGET-AUTH-INTEGRATION-PLAN.md across aomi, db-master, and product-mono.
+  Provider identities are tenant-scoped at storage and resolved atomically
+  under provider policy; Para widget credentials use pinned environment JWKS
+  and arbitrary signed audiences; Portal now issues origin-bound,
+  hashed-at-rest, memory-only WSTs for provider, SIWE, and SIWS authentication
+  and accepts them through the same account and backend routes as native
+  BetterAuth sessions. Added the public AomiWidget/paraAuth package surface,
+  isolated provider entrypoints, and a separate-origin Vite consumer. Portal
+  keeps its existing local Para project; Landing and the ignored consumer use
+  the requested separate BETA browser key. Patch-bumped account 0.1.4, client
+  0.3.7, and widget-lib 1.4.9. Isolated migration replay, Rust fmt/clippy,
+  lint, typechecks, package/consumer builds and pack verification, 769 root
+  tests, 252 registry tests, and the portal test command passed. Phase 8's
+  optional pre-creation link-proof flow remains an explicit v1 non-goal.
+
+2026-07-22 (later) — PHASE 0 PASSED (user-confirmed): logout/relogin repeat,
+  second-user test, and guest/pregen collision check all succeeded — Para
+  cross-tenant global-sub matching is UNBLOCKED (subjectIsEnvironmentGlobal:
+  true unconditional for Para, same environment only, never BETA↔PROD). Plan
+  updated in place. Two non-gating follow-ups remain in Phase 0: Para written
+  sub-immutability confirmation (belt-and-braces) and sanitized token fixtures
+  for packages/account/test (needed by Phase-3 verifier tests anyway). The
+  data.wallets claimed-vs-pregen classification stays open — walletClaimTrust
+  remains "none". Next: start Phase 1 (tenant-aware schema).
+
+2026-07-22 — Widget-auth plan Rev 2: generalized + file-mapped (still uncommitted,
+  specs/WIDGET-AUTH-INTEGRATION-PLAN.md). Full codebase mapping (3 parallel
+  explorations) folded into the plan. Headline change: a provider-agnostic
+  contract — backend `WidgetProviderDescriptor` (credentialSchema,
+  verifyWidgetCredential, policy { subjectIsEnvironmentGlobal, walletClaimTrust,
+  widgetEnabled }) producing `VerifiedProviderIdentity`; shared code (resolver,
+  exchange route, WST, principal, routes, client transport) never names a
+  provider. Para = first registry entry (subject global per env, JWKS env-global);
+  Privy descriptor ships `widgetEnabled: false` (tenant-scoped keys + app-scoped
+  DIDs → cross-tenant matching OFF). Key mapping facts now in the plan: the
+  native verifier registry already exists (verifyProviderCredential,
+  account-credentials.ts) and is dual-provider; the closed unions blocking a 3rd
+  provider are types.ts:117-130, wallet-kit types.ts:274-285, provider-plugin.ts
+  zod body, ProvidersConfig; the frontend transport seam is
+  clientOptions.getAccountBearer → wrapFetchWithAccountBearer (WST rides it with
+  zero runtime changes); wallet-kit lives at src/lib/wallet-kit (NOT components/),
+  shadcn-registry has NO tsup (build-registry.js); Phase-1 backfill must include
+  privy rows (Rev 1 omitted them); api/widget/auth/{exchange,session,siwe,siws}
+  exist as EMPTY untracked scaffold dirs. Locked in Rev 2: unlinking a provider
+  identity revokes its WSTs (fail closed). Pending: commit the plan; start
+  Phase 1; remaining Phase-0 Para checks gate prod cross-tenant matching only.
+
+2026-07-21 — Widget-auth integration plan written + code-verified (branch
+  codex/widget-auth-single-tenant, which is a fresh placeholder == origin/main).
+  New specs/WIDGET-AUTH-INTEGRATION-PLAN.md: checklistable Phases 0–9 merging
+  PR #339 (AomiWidget/paraAuth UX, tip 2487a5b9) with PR #355 (WST/origin-bound
+  transport, tip a586b016) plus net-new tenant-aware identities
+  (provider, issuer_environment, tenant_id, subject), an atomic canonical-user
+  resolver, a multi-tenant Para verifier, and SIWE/SIWS link-at-first-login.
+  Verification corrections folded in (do not re-derive): findConsistentSignalOwner
+  does NOT exist (only first-match findFirstSignalOwner — resolver is net-new);
+  identity code lives in packages/account (packages/auth is an empty stub);
+  schema truth is db-master/migrations (product-mono mirrors schema.rs); the
+  2026-07-01 consolidation dropped the per-app `application` column — tenant_id
+  deliberately re-scopes the unique index; #339 is mostly already on main (only
+  aomi-widget.tsx, paraAuth/privyAuth, widget-consumer, package-dist subpaths
+  left to port); #355 verified clean but its principal.ts import must move to
+  apps/portal/src/server/canonical-session.ts. Pending: commit the plan doc;
+  Phase 0 Para two-project sub-stability experiment gates cross-tenant matching.
+
 2026-07-20 — LIVE SANDBOX VERIFICATION GREEN (branch claude/build-fe-artifacts
   pushed as c0449506; image build-runner:live-1 in VCR under the aomi-build
   Vercel project, e2e-test untouched; AOMI_REF=c0449506,

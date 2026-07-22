@@ -1,6 +1,12 @@
 "use client";
 
-import { useMemo, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   Environment,
   ParaProvider,
@@ -18,6 +24,19 @@ import {
 } from "../plugin-registry";
 import { AomiParaPluginProvider } from "./ParaPluginProvider";
 import { defaultOAuthMethods } from "./para-auth";
+
+const PARA_STARTUP_TIMEOUT_MS = 4_000;
+
+function ParaReadyChildren({
+  children,
+  onReady,
+}: {
+  children: ReactNode;
+  onReady: () => void;
+}) {
+  useEffect(onReady, [onReady]);
+  return <>{children}</>;
+}
 
 function toParaEnvironment(value?: "PROD" | "BETA") {
   if (!value) return Environment.BETA;
@@ -56,17 +75,25 @@ function ParaAuthLayer({
   providers?: ProvidersConfig;
 }) {
   const enabled = isParaAuth(auth);
+  const [startupAttempt, setStartupAttempt] = useState(0);
+  const [startupTimedOut, setStartupTimedOut] = useState(false);
+  const [providerReady, setProviderReady] = useState(false);
   const para = providers?.para === false ? undefined : providers?.para;
-  const apiKey = para?.apiKey ?? process.env.NEXT_PUBLIC_PARA_API_KEY;
+  const apiKey =
+    para?.apiKey ??
+    (typeof process !== "undefined"
+      ? process.env.NEXT_PUBLIC_PARA_API_KEY
+      : undefined);
   const paraClientConfig = useMemo(
     () =>
       apiKey
         ? {
             apiKey,
             env: toParaEnvironment(para?.environment),
+            opts: para?.disableWorkers ? { disableWorkers: true } : undefined,
           }
         : null,
-    [apiKey, para?.environment],
+    [apiKey, para?.disableWorkers, para?.environment],
   );
   const paraConfig = useMemo(
     () => ({
@@ -99,19 +126,80 @@ function ParaAuthLayer({
     }),
     [para?.appDescription, para?.appUrl],
   );
+  const markProviderReady = useCallback(() => {
+    setProviderReady(true);
+    setStartupTimedOut(false);
+  }, []);
+  useEffect(() => {
+    if (!enabled || !paraClientConfig) return;
+    setProviderReady(false);
+    setStartupTimedOut(false);
+    const timeout = window.setTimeout(
+      () => setStartupTimedOut(true),
+      PARA_STARTUP_TIMEOUT_MS,
+    );
+    return () => window.clearTimeout(timeout);
+  }, [enabled, paraClientConfig, startupAttempt]);
 
   if (!enabled || !paraClientConfig) {
     return <>{children}</>;
   }
 
+  if (startupTimedOut && !providerReady) {
+    return (
+      <>
+        <div
+          role="alert"
+          style={{
+            alignItems: "center",
+            background: "#2a1818",
+            border: "1px solid #713838",
+            borderRadius: 8,
+            color: "#ffd5d5",
+            display: "flex",
+            fontFamily: "ui-sans-serif, system-ui, sans-serif",
+            fontSize: 14,
+            gap: 12,
+            justifyContent: "space-between",
+            marginBottom: 12,
+            padding: "10px 12px",
+          }}
+        >
+          <span>
+            Para authentication could not start. Check the API key environment
+            and allowed browser origin.
+          </span>
+          <button
+            type="button"
+            onClick={() => setStartupAttempt((attempt) => attempt + 1)}
+            style={{
+              background: "transparent",
+              border: "1px solid currentColor",
+              borderRadius: 6,
+              color: "inherit",
+              cursor: "pointer",
+              padding: "6px 10px",
+            }}
+          >
+            Retry
+          </button>
+        </div>
+        {children}
+      </>
+    );
+  }
+
   return (
     <ParaProvider
+      key={startupAttempt}
       paraClientConfig={paraClientConfig}
       config={paraConfig}
       paraModalConfig={paraModalConfig}
       externalWalletConfig={externalWalletConfig}
     >
-      {children}
+      <ParaReadyChildren onReady={markProviderReady}>
+        {children}
+      </ParaReadyChildren>
     </ParaProvider>
   );
 }
@@ -123,7 +211,11 @@ export const paraPlugin: WalletProviderPlugin = {
     const enabled = isParaAuth(auth);
     const para = providers?.para === false ? undefined : providers?.para;
     return Boolean(
-      enabled && (para?.apiKey ?? process.env.NEXT_PUBLIC_PARA_API_KEY),
+      enabled &&
+      (para?.apiKey ??
+        (typeof process !== "undefined"
+          ? process.env.NEXT_PUBLIC_PARA_API_KEY
+          : undefined)),
     );
   },
   wrap: (props) => <ParaAuthLayer {...props} />,
@@ -167,6 +259,7 @@ export const paraPlugin: WalletProviderPlugin = {
             environment: input.auth.environment,
             appName: input.auth.appName,
             appDescription: input.auth.appDescription,
+            disableWorkers: input.auth.disableWorkers,
           },
         },
         auth: { provider: "para", methods: input.auth.methods },

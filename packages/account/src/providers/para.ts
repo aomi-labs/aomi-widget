@@ -1,11 +1,17 @@
 import { createRemoteJWKSet, jwtVerify } from "jose";
+import { z } from "zod";
 import type { VerifiedParaJwt, WalletFamily } from "../types";
+import type {
+  VerifiedProviderIdentity,
+  WidgetProviderDescriptor,
+} from "./descriptor";
 import { validWalletAddress, type AttestedWallet } from "./wallet-attestation";
 
 type ParaClaims = {
   sub?: string;
   aud?: string | string[];
   exp?: number;
+  iat?: number;
   email?: string;
   email_verified?: boolean;
   wallets?: unknown[];
@@ -13,6 +19,8 @@ type ParaClaims = {
   connected_wallets?: unknown[];
   data?: {
     email?: unknown;
+    emailVerified?: unknown;
+    email_verified?: unknown;
     identifier?: unknown;
     authType?: unknown;
     oAuthMethod?: unknown;
@@ -24,6 +32,18 @@ type ParaClaims = {
 };
 
 const jwksCache = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
+
+export const PARA_WIDGET_JWKS_URLS = {
+  BETA: "https://api.beta.getpara.com/.well-known/jwks.json",
+  PROD: "https://api.getpara.com/.well-known/jwks.json",
+} as const;
+
+const paraWidgetCredentialSchema = z.object({
+  provider: z.literal("para"),
+  environment: z.enum(["BETA", "PROD"]),
+  provider_token: z.string().min(1),
+  key_id: z.string().trim().min(1).optional(),
+});
 
 const PARA_WALLETS_URL =
   process.env.PARA_API_BASE_URL ?? "https://api.beta.getpara.com/v1/wallets";
@@ -69,6 +89,98 @@ export async function verifyParaJwt(input: {
     wallets,
     connectedWallets,
     rawClaims: { ...payload },
+  };
+}
+
+export function createParaWidgetDescriptor(
+  jwksUrls: Readonly<Record<"BETA" | "PROD", string>> = PARA_WIDGET_JWKS_URLS,
+): WidgetProviderDescriptor {
+  return {
+    id: "para",
+    credentialSchema: paraWidgetCredentialSchema,
+    policy: {
+      subjectIsEnvironmentGlobal: true,
+      walletClaimTrust: "none",
+      widgetEnabled: true,
+    },
+    verifyWidgetCredential: async (input) =>
+      verifyParaWidgetCredential({ ...input, jwksUrls }),
+  };
+}
+
+export const paraWidgetDescriptor = createParaWidgetDescriptor();
+
+export async function verifyParaWidgetCredential(input: {
+  environment: string;
+  providerToken: string;
+  keyId?: string;
+  jwksUrls?: Readonly<Record<"BETA" | "PROD", string>>;
+  now?: Date;
+}): Promise<VerifiedProviderIdentity> {
+  const environment = input.environment.trim().toUpperCase();
+  if (environment !== "BETA" && environment !== "PROD") {
+    throw new Error("invalid_provider_environment");
+  }
+  const jwksUrl = (input.jwksUrls ?? PARA_WIDGET_JWKS_URLS)[environment];
+  const { payload, protectedHeader } = await jwtVerify<ParaClaims>(
+    input.providerToken,
+    getJwks(jwksUrl),
+    { algorithms: ["RS256"] },
+  );
+  if (protectedHeader.alg !== "RS256" || !protectedHeader.kid) {
+    throw new Error("invalid_provider_token_header");
+  }
+  if (input.keyId && protectedHeader.kid !== input.keyId) {
+    throw new Error("provider_token_kid_mismatch");
+  }
+  const nowSeconds = Math.floor((input.now ?? new Date()).getTime() / 1000);
+  const subject = requiredString(payload.sub, "sub");
+  const audience = singleAudience(payload.aud);
+  if (typeof payload.iat !== "number" || !Number.isInteger(payload.iat)) {
+    throw new Error("provider_token_missing_iat");
+  }
+  if (typeof payload.exp !== "number" || !Number.isInteger(payload.exp)) {
+    throw new Error("provider_token_missing_exp");
+  }
+  const issuedAt = payload.iat;
+  const expiresAt = payload.exp;
+  if (issuedAt > nowSeconds + 60) {
+    throw new Error("provider_token_iat_in_future");
+  }
+  if (expiresAt <= issuedAt) {
+    throw new Error("provider_token_invalid_lifetime");
+  }
+  if (expiresAt <= nowSeconds) {
+    throw new Error("provider_token_expired");
+  }
+
+  const nested = objectClaim(payload.data, "data");
+  const email = stringClaim(nested?.email) ?? stringClaim(payload.email);
+  const nestedVerified = nested?.emailVerified ?? nested?.email_verified;
+  const emailVerified =
+    payload.email_verified === true || nestedVerified === true;
+  const wallets = walletClaims(nested?.wallets ?? payload.wallets, "wallets");
+  walletClaims(
+    nested?.connectedWallets ??
+      nested?.connected_wallets ??
+      payload.connectedWallets ??
+      payload.connected_wallets,
+    "connectedWallets",
+  );
+
+  return {
+    provider: "para",
+    issuerEnvironment: `para:${environment.toLowerCase()}`,
+    tenantId: audience,
+    subject,
+    expiresAt,
+    email: email ? { value: email, verified: emailVerified } : undefined,
+    walletAttestations: paraWidgetWalletAttestations(wallets),
+    metadata: {
+      audience,
+      expiresAt,
+      displayLabel: email ?? stringClaim(nested?.identifier),
+    },
   };
 }
 
@@ -181,4 +293,73 @@ function stringClaim(value: unknown): string | undefined {
 
 function arrayClaim(value: unknown): unknown[] | undefined {
   return Array.isArray(value) ? value : undefined;
+}
+
+function requiredString(value: unknown, claim: string): string {
+  const result = stringClaim(value);
+  if (!result) throw new Error(`provider_token_missing_${claim}`);
+  return result;
+}
+
+function singleAudience(value: unknown): string {
+  if (typeof value !== "string" || !value.trim()) {
+    throw new Error("provider_token_invalid_aud");
+  }
+  const audience = value.trim();
+  if (audience.length > 512 || /\s/.test(audience)) {
+    throw new Error("provider_token_invalid_aud");
+  }
+  return audience;
+}
+
+function objectClaim(
+  value: unknown,
+  claim: string,
+): Record<string, unknown> | undefined {
+  if (value == null) return undefined;
+  if (typeof value !== "object" || Array.isArray(value)) {
+    throw new Error(`provider_token_invalid_${claim}`);
+  }
+  return value as Record<string, unknown>;
+}
+
+function walletClaims(value: unknown, claim: string): unknown[] {
+  if (value == null) return [];
+  if (!Array.isArray(value)) {
+    throw new Error(`provider_token_invalid_${claim}`);
+  }
+  for (const row of value) {
+    if (!row || typeof row !== "object" || Array.isArray(row)) {
+      throw new Error(`provider_token_invalid_${claim}`);
+    }
+    const record = row as Record<string, unknown>;
+    for (const key of ["id", "type", "address"] as const) {
+      if (record[key] != null && typeof record[key] !== "string") {
+        throw new Error(`provider_token_invalid_${claim}`);
+      }
+    }
+  }
+  return value;
+}
+
+function paraWidgetWalletAttestations(
+  rows: readonly unknown[],
+): AttestedWallet[] {
+  const wallets: AttestedWallet[] = [];
+  for (const row of rows) {
+    const record = row as Record<string, unknown>;
+    const family = paraWalletFamily(stringClaim(record.type));
+    const address = stringClaim(record.address);
+    const providerWalletId = stringClaim(record.id);
+    if (!family || !address || !providerWalletId) continue;
+    if (!validWalletAddress(family, address)) continue;
+    wallets.push({
+      provider: "para",
+      providerWalletId,
+      family,
+      address,
+      chainScope: null,
+    });
+  }
+  return wallets;
 }

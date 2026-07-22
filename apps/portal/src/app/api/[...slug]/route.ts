@@ -1,6 +1,10 @@
 import { createBackendProxy, type AllowedRoute } from "@aomi-labs/account";
-import { resolveBetterAuthCanonicalUserId } from "@portal/server/canonical-session";
+import { resolvePortalCanonicalUserId } from "@portal/lib/widget-auth/principal";
 import { launchConfig } from "@portal/server/bff/launch/config";
+import {
+  applyWidgetCors,
+  widgetCorsPreflight,
+} from "@portal/lib/widget-auth/cors";
 
 const ALLOWED_ROUTES: AllowedRoute[] = [
   {
@@ -120,9 +124,9 @@ function rewriteLegacyThreadPath(upstreamUrl: URL): void {
   }
 }
 
-export const { GET, POST, PUT, PATCH, DELETE } = createBackendProxy({
+const proxy = createBackendProxy({
   allowedRoutes: ALLOWED_ROUTES,
-  resolveCanonicalUserId: resolveBetterAuthCanonicalUserId,
+  resolveCanonicalUserId: resolvePortalCanonicalUserId,
   applyDefaults: (upstreamUrl) => {
     rewriteLegacyThreadPath(upstreamUrl);
     if (
@@ -136,6 +140,42 @@ export const { GET, POST, PUT, PATCH, DELETE } = createBackendProxy({
     }
   },
 });
+
+type ProxyHandler = typeof proxy.GET;
+
+async function handleWithCors(
+  handler: ProxyHandler,
+  ...args: Parameters<ProxyHandler>
+): Promise<Response> {
+  return applyWidgetCors(args[0], await handler(...args));
+}
+
+export function GET(...args: Parameters<ProxyHandler>): Promise<Response> {
+  return handleWithCors(proxy.GET, ...args);
+}
+export function POST(...args: Parameters<ProxyHandler>): Promise<Response> {
+  return handleWithCors(proxy.POST, ...args);
+}
+export function PUT(...args: Parameters<ProxyHandler>): Promise<Response> {
+  return handleWithCors(proxy.PUT, ...args);
+}
+export function PATCH(...args: Parameters<ProxyHandler>): Promise<Response> {
+  return handleWithCors(proxy.PATCH, ...args);
+}
+export function DELETE(...args: Parameters<ProxyHandler>): Promise<Response> {
+  return handleWithCors(proxy.DELETE, ...args);
+}
+
+export function OPTIONS(request: Request): Response {
+  return widgetCorsPreflight(request, [
+    "GET",
+    "POST",
+    "PUT",
+    "PATCH",
+    "DELETE",
+    "OPTIONS",
+  ]);
+}
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";

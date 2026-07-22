@@ -526,8 +526,14 @@ export function WalletPicker() {
   }, [hasAccountManagement, view]);
 
   const signOutAccount = useCallback(async () => {
-    await adapter.disconnect?.({ family: "all" });
-    await adapter.signOutAccount?.();
+    // Revoke cookie/WST-backed account state while the authenticated carrier
+    // is still available. Disconnecting the provider first destroys the
+    // in-memory WST and turns sign-out into an unauthorised request.
+    try {
+      await adapter.signOutAccount?.();
+    } finally {
+      await adapter.disconnect?.({ family: "all" });
+    }
   }, [adapter]);
 
   const deleteAccount = useCallback(async () => {
@@ -535,8 +541,8 @@ export function WalletPicker() {
       "Delete this Aomi account? Linked wallets and sign-ins will be freed for a new account.",
     );
     if (!confirmed) return;
-    await adapter.disconnect?.({ family: "all" });
     await adapter.deleteAccount?.();
+    await adapter.disconnect?.({ family: "all" });
   }, [adapter]);
 
   const quickSignInSection = socialOptionsToShow.length ? (

@@ -65,7 +65,9 @@ export type AomiPrivyProviderProps = {
 
 function AomiPrivyProviderInner({
   children,
-  appId = process.env.NEXT_PUBLIC_PRIVY_APP_ID,
+  appId = typeof process !== "undefined"
+    ? process.env.NEXT_PUBLIC_PRIVY_APP_ID
+    : undefined,
   appName = "Aomi",
   appLogoUrl,
   networks = defaultNetworks,
@@ -73,7 +75,9 @@ function AomiPrivyProviderInner({
   loginMethods,
   execution,
   solana,
-  walletConnectProjectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID,
+  walletConnectProjectId = typeof process !== "undefined"
+    ? process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID
+    : undefined,
 }: AomiPrivyProviderProps) {
   const [queryClient] = useState(() => new QueryClient());
   const { selectedEvmChainId } = useAomiWalletNetworkPreferences();

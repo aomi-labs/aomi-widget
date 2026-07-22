@@ -10,6 +10,7 @@ import {
   type AttestedWallet,
   type AttestedWalletProvider,
 } from "./wallet-attestation";
+import type { VerifiedProviderIdentity } from "./descriptor";
 
 export type VerifiedProviderToken = {
   subject: string;
@@ -23,6 +24,8 @@ export type VerifiedProviderToken = {
 
 export type VerifiedProviderTokenCredential = {
   provider: AccountCredentialProvider;
+  issuerEnvironment: string;
+  tenantId: string;
   token: VerifiedProviderToken;
   walletAttestationProvider: AttestedWalletProvider;
 };
@@ -76,7 +79,7 @@ export async function verifyProviderCredential(
     provider: parsed.provider,
     tokenKind: parsed.tokenKind,
     providerToken: parsed.providerToken,
-    keyId: parsed.keyId,
+    ...(parsed.keyId ? { keyId: parsed.keyId } : {}),
   });
 }
 
@@ -84,6 +87,26 @@ export function isVerifiedProviderTokenCredential(
   verified: VerifiedProviderCredential,
 ): verified is VerifiedProviderTokenCredential {
   return "token" in verified;
+}
+
+export function toVerifiedProviderIdentity(
+  verified: VerifiedProviderTokenCredential,
+): VerifiedProviderIdentity {
+  return {
+    provider: verified.provider,
+    issuerEnvironment: verified.issuerEnvironment,
+    tenantId: verified.tenantId,
+    subject: verified.token.subject,
+    expiresAt: verified.token.expiresAt,
+    email: verified.token.email
+      ? {
+          value: verified.token.email,
+          verified: Boolean(verified.token.emailVerified),
+        }
+      : undefined,
+    walletAttestations: verified.token.walletAttestations ?? [],
+    metadata: verified.token.providerMetadata,
+  };
 }
 
 export function createDefaultProviderCredentialVerifiers(
@@ -113,6 +136,8 @@ function createPrivyCredentialVerifier(
     });
     return {
       provider: "privy",
+      issuerEnvironment: "privy:prod",
+      tenantId: token.audience,
       walletAttestationProvider: "privy",
       token: {
         subject: token.subject,
@@ -148,6 +173,10 @@ function createParaCredentialVerifier(
     });
     return {
       provider: "para",
+      issuerEnvironment: env.paraJwksUrl.includes("api.beta.getpara.com")
+        ? "para:beta"
+        : "para:prod",
+      tenantId: token.audience,
       walletAttestationProvider: "para",
       token: {
         subject: token.subject,
@@ -302,27 +331,18 @@ function providerSubjectEmail(
 function normalizeCredential(
   credential: AomiAccountCredential,
 ): NormalizedProviderCredential {
-  if (credential.provider === "privy") {
-    return {
-      kind: "provider",
-      provider: "privy",
-      tokenKind: credential.tokenKind ?? "identity_token",
-      providerToken: credential.providerToken,
-    };
+  const provider = credential.provider.trim().toLowerCase();
+  if (!provider) throw new Error("Account credential provider is required");
+  if (!credential.providerToken) {
+    throw new Error("Account provider credential is required");
   }
-  if (credential.provider === "para") {
-    return {
-      kind: "provider",
-      provider: "para",
-      tokenKind: "session_jwt",
-      providerToken: credential.providerToken,
-      keyId: credential.keyId,
-    };
-  }
-  const unsupportedProvider = (credential as { provider?: unknown }).provider;
-  throw new Error(
-    `Unsupported account credential provider: ${String(unsupportedProvider)}`,
-  );
+  return {
+    kind: "provider",
+    provider,
+    tokenKind: credential.tokenKind,
+    providerToken: credential.providerToken,
+    keyId: credential.keyId,
+  };
 }
 
 function normalizeVerifyOptions(

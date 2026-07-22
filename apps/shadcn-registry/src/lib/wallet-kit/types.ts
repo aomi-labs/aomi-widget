@@ -271,18 +271,12 @@ export type AomiTxResult = {
   Delegation7702?: string;
 };
 
-export type AomiAccountCredential =
-  | {
-      provider: "privy";
-      tokenKind?: "identity_token" | "access_token";
-      providerToken: string;
-    }
-  | {
-      provider: "para";
-      tokenKind?: "session_jwt";
-      providerToken: string;
-      keyId?: string;
-    };
+export type AomiAccountCredential = {
+  provider: string;
+  tokenKind?: string;
+  providerToken: string;
+  keyId?: string;
+};
 
 export type AomiWalletKit = {
   identity: AomiSessionIdentity;
@@ -413,6 +407,7 @@ export type AomiWalletKit = {
    * for a short-lived Aomi bearer.
    */
   getAccountCredential?: () => Promise<AomiAccountCredential | null>;
+  getAccountBearer?: import("@aomi-labs/client").GetAccountBearer;
   solanaRpcHttpUrl?: string;
   solanaRpcWsUrl?: string;
 };

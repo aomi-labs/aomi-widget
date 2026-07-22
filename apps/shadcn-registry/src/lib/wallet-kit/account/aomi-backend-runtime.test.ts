@@ -61,6 +61,70 @@ beforeEach(() => {
 });
 
 describe("useAomiBackendAccountRuntime", () => {
+  it("keeps a provider-authenticated widget idle until the host signs in", async () => {
+    const getCredential = vi.fn();
+
+    const { result } = renderHook(() =>
+      useAomiBackendAccountRuntime({
+        enabled: true,
+        baseUrl: "http://localhost:3002",
+        widgetAuth: {
+          mode: "provider",
+          provider: "para",
+          environment: "BETA",
+        },
+        auth: {
+          status: "unauthenticated",
+          provider: "para",
+          getCredential,
+        } as never,
+        evm: { accounts: () => [] } as never,
+      }),
+    );
+
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+    expect(mockState.accountClient?.getAccount).not.toHaveBeenCalled();
+    expect(getCredential).not.toHaveBeenCalled();
+    expect(result.current.user).toBeUndefined();
+  });
+
+  it("revokes a widget account before provider logout without issuing a fresh credential", async () => {
+    const callOrder: string[] = [];
+    const getCredential = vi.fn();
+    const logout = vi.fn(async () => {
+      callOrder.push("provider-logout");
+    });
+    mockState.accountClient!.signOut.mockImplementation(async () => {
+      callOrder.push("account-sign-out");
+    });
+
+    const { result } = renderHook(() =>
+      useAomiBackendAccountRuntime({
+        enabled: true,
+        baseUrl: "http://localhost:3002",
+        widgetAuth: {
+          mode: "provider",
+          provider: "para",
+          environment: "BETA",
+        },
+        auth: {
+          status: "authenticated",
+          provider: "para",
+          subject: "para-user",
+          getCredential,
+          logout,
+        } as never,
+        evm: { accounts: () => [] } as never,
+      }),
+    );
+
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+    await act(async () => result.current.signOut?.());
+
+    expect(getCredential).not.toHaveBeenCalled();
+    expect(callOrder).toEqual(["account-sign-out", "provider-logout"]);
+  });
+
   it("lets provider-credential session exchange create the account before auto-SIWE", async () => {
     const credential: AomiAccountCredential = {
       provider: "para",

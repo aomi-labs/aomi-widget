@@ -3,7 +3,6 @@
 import {
   useAccount as useParaAccount,
   useClient as useParaClient,
-  useIssueJwt,
   useLogout,
   useModal,
   type TOAuthMethod,
@@ -14,7 +13,10 @@ import type { AomiAccountCredential, AomiLoginMethod } from "../../types";
 export type ParaAccountShape = {
   isLoading: boolean;
   isConnected: boolean;
+  /** Kept for Para SDK versions that still expose the deprecated top-level id. */
+  userId?: string;
   embedded: {
+    userId?: string;
     email?: string;
     farcasterUsername?: string;
     telegramUserId?: string;
@@ -53,6 +55,23 @@ const ISSUE_JWT_FAILURE_COOLDOWN_MS = 30_000;
 let issueJwtUnavailableUntil = 0;
 let issueJwtInFlight: Promise<AomiAccountCredential | null> | null = null;
 
+type ParaJwtClient = {
+  userId?: string;
+  issueJwt: (args?: { keyIndex?: number }) => Promise<{
+    token?: string;
+    keyId?: string;
+  }>;
+};
+
+export function resolveParaSubject(
+  account: ParaAccountShape,
+  paraClient: Pick<ParaJwtClient, "userId"> | null,
+): string | undefined {
+  const value =
+    account.embedded.userId ?? account.userId ?? paraClient?.userId ?? "";
+  return value.trim() || undefined;
+}
+
 export function useSafeParaAccount(): ParaAccountShape {
   try {
     return useParaAccount() as ParaAccountShape;
@@ -79,48 +98,43 @@ export function useSafeParaClient(): ParaWeb | null {
   }
 }
 
-export function useSafeIssueJwt():
-  | (() => Promise<AomiAccountCredential | null>)
-  | null {
-  try {
-    const { issueJwtAsync } = useIssueJwt();
-    return async () => {
-      const now = Date.now();
-      if (now < issueJwtUnavailableUntil) {
-        return null;
-      }
-      if (issueJwtInFlight) {
-        return issueJwtInFlight;
-      }
-      issueJwtInFlight = (async () => {
-        let result: { token?: string; keyId?: string } | null | undefined;
-        try {
-          result = await issueJwtAsync({});
-        } catch (error) {
-          if (isParaJwtUnavailableError(error)) {
-            issueJwtUnavailableUntil =
-              Date.now() + ISSUE_JWT_FAILURE_COOLDOWN_MS;
-            return null;
-          }
-          throw error;
-        } finally {
-          issueJwtInFlight = null;
-        }
-        const token = result?.token?.trim();
-        return token
-          ? {
-              provider: "para",
-              tokenKind: "session_jwt",
-              providerToken: token,
-              keyId: result?.keyId,
-            }
-          : null;
-      })();
+export function createParaCredentialGetter(
+  paraClient: ParaJwtClient | null,
+): (() => Promise<AomiAccountCredential | null>) | null {
+  if (!paraClient || typeof paraClient.issueJwt !== "function") return null;
+  return async () => {
+    const now = Date.now();
+    if (now < issueJwtUnavailableUntil) {
+      return null;
+    }
+    if (issueJwtInFlight) {
       return issueJwtInFlight;
-    };
-  } catch {
-    return null;
-  }
+    }
+    issueJwtInFlight = (async () => {
+      let result: { token?: string; keyId?: string } | null | undefined;
+      try {
+        result = await paraClient.issueJwt({});
+      } catch (error) {
+        if (isParaJwtUnavailableError(error)) {
+          issueJwtUnavailableUntil = Date.now() + ISSUE_JWT_FAILURE_COOLDOWN_MS;
+          return null;
+        }
+        throw error;
+      } finally {
+        issueJwtInFlight = null;
+      }
+      const token = result?.token?.trim();
+      return token
+        ? {
+            provider: "para",
+            tokenKind: "session_jwt",
+            providerToken: token,
+            keyId: result?.keyId,
+          }
+        : null;
+    })();
+    return issueJwtInFlight;
+  };
 }
 
 function isParaJwtUnavailableError(error: unknown): boolean {

@@ -212,6 +212,7 @@ export function AomiWalletKitComposer({
       signMessage: execution.evm.signMessage,
       getAccountCredential:
         auth.status === "authenticated" ? auth.getCredential : undefined,
+      getAccountBearer: account.getAccountBearer,
       signSolanaTransaction: svm?.execution.signSolanaTransaction,
       signSolanaMessage: svm?.execution.signSolanaMessage,
       sendSolanaTransaction: svm?.execution.sendSolanaTransaction,
@@ -232,6 +233,7 @@ export function AomiWalletKitComposer({
     account.unlinkAuthIdentity,
     account.updateWallet,
     account.user,
+    account.getAccountBearer,
     additionalEvmWalletOptions,
     canManageAccount,
     evm,

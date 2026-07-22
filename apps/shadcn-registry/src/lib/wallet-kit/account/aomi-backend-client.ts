@@ -6,8 +6,26 @@ export type AomiBackendAccountResponse = {
   user: AccountRuntime["user"] | null;
   linkedAccounts: AccountRuntime["linkedAccounts"];
   wallets: AccountWallet[];
-  session: { betterAuthUserId: string; expiresAt?: number } | null;
+  session:
+    | {
+        carrier: "better_auth";
+        betterAuthUserId: string;
+        expiresAt?: number;
+      }
+    | {
+        carrier: "widget";
+        expiresAt: number;
+        authMethod: string;
+      }
+    | null;
 };
+
+export type AomiBackendAccountAuth =
+  | { credentials?: "include" }
+  | {
+      credentials: "omit";
+      getAuthorization: import("@aomi-labs/client").GetAccountBearer;
+    };
 
 export type AomiBackendProviderExchangeResponse = {
   status: "linked" | "noop";
@@ -65,14 +83,16 @@ export function createAomiBackendAccountClient(input: {
   baseUrl?: string;
   endpoints?: AomiBackendAccountEndpointConfig;
   fetch?: typeof fetch;
+  auth?: AomiBackendAccountAuth;
 }) {
   const baseUrl = normalizeBaseUrl(input.baseUrl);
   const fetchImpl = input.fetch ?? fetch;
   const endpoints = { ...DEFAULT_ENDPOINTS, ...(input.endpoints ?? {}) };
+  const auth = input.auth ?? { credentials: "include" as const };
 
   const urlFor = (path: string) => `${baseUrl}${path}`;
   const request = <T>(path: string, init: RequestInit) =>
-    fetchJson<T>(fetchImpl, urlFor(path), init);
+    fetchJson<T>(fetchImpl, urlFor(path), init, auth);
 
   return {
     getAccount: () =>
@@ -189,21 +209,40 @@ async function fetchJson<T>(
   fetchImpl: typeof fetch,
   url: string,
   init: RequestInit,
+  auth: AomiBackendAccountAuth,
 ): Promise<T> {
-  const response = await fetchImpl(url, {
-    credentials: "include",
-    ...init,
-    headers: {
-      Accept: "application/json",
-      ...(init.headers ?? {}),
-    },
-  });
+  const execute = async (forceRefresh: boolean) => {
+    const headers = new Headers(init.headers);
+    headers.set("Accept", "application/json");
+    if (auth.credentials === "omit") {
+      const authorization = await auth.getAuthorization({ forceRefresh });
+      if (!authorization)
+        throw new Error("Widget authorization is unavailable");
+      headers.set("Authorization", `Bearer ${authorization}`);
+    }
+    return fetchImpl(url, {
+      ...init,
+      credentials: auth.credentials ?? "include",
+      headers,
+    });
+  };
+  let response = await execute(false);
+  if (response.status === 401 && auth.credentials === "omit") {
+    response = await execute(true);
+  }
   if (!response.ok) {
     const error = await response.json().catch(() => null);
     const code = extractErrorCode(error);
     throw new Error(formatAccountRequestError(response.status, code));
   }
-  return (await response.json()) as T;
+  if (response.status === 204 || response.status === 205) {
+    return undefined as T;
+  }
+  const body = await response.text();
+  if (!body.trim()) {
+    return undefined as T;
+  }
+  return JSON.parse(body) as T;
 }
 
 function extractErrorCode(error: unknown): string | null {

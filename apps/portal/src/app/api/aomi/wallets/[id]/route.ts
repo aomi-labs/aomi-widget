@@ -1,9 +1,11 @@
 import { renameWallet, unlinkWallet } from "@aomi-labs/account/account";
+import { json } from "@portal/lib/aomi-account/session";
+import { accountResponseForPrincipal } from "@portal/lib/widget-auth/principal";
+import { portalRoutePrincipal } from "@portal/lib/widget-auth/response";
 import {
-  accountResponseFromSession,
-  json,
-  requireAomiSession,
-} from "@portal/lib/aomi-account/session";
+  applyWidgetCors,
+  widgetCorsPreflight,
+} from "@portal/lib/widget-auth/cors";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,38 +14,53 @@ export async function PATCH(
   req: Request,
   ctx: { params: Promise<{ id: string }> },
 ): Promise<Response> {
-  const current = await requireAomiSession(req);
-  if (!current) return json(401, { error: "unauthenticated" });
+  const auth = await portalRoutePrincipal(req);
+  if ("response" in auth) return auth.response;
+  const current = auth.principal;
   const { id } = await ctx.params;
   const body = (await req.json().catch(() => null)) as {
     label?: string | null;
   } | null;
   if (!body || !("label" in body))
-    return json(400, { error: "label_required" });
+    return applyWidgetCors(req, json(400, { error: "label_required" }));
   const ok = await renameWallet({
-    userId: current.user.id,
+    userId: current.userId,
     walletId: id,
     label: body.label ?? null,
   });
-  if (!ok) return json(404, { error: "wallet_not_found" });
-  return Response.json(await accountResponseFromSession(req));
+  if (!ok)
+    return applyWidgetCors(req, json(404, { error: "wallet_not_found" }));
+  return applyWidgetCors(
+    req,
+    Response.json(await accountResponseForPrincipal(req, current)),
+  );
 }
 
 export async function DELETE(
   req: Request,
   ctx: { params: Promise<{ id: string }> },
 ): Promise<Response> {
-  const current = await requireAomiSession(req);
-  if (!current) return json(401, { error: "unauthenticated" });
+  const auth = await portalRoutePrincipal(req);
+  if ("response" in auth) return auth.response;
+  const current = auth.principal;
   const { id } = await ctx.params;
   const result = await unlinkWallet({
-    userId: current.user.id,
+    userId: current.userId,
     walletId: id,
-    betterAuthUserId: current.session?.user?.id,
+    betterAuthUserId:
+      current.kind === "better_auth" ? current.betterAuthUserId : null,
   });
-  if (result === "not_found") return json(404, { error: "wallet_not_found" });
+  if (result === "not_found")
+    return applyWidgetCors(req, json(404, { error: "wallet_not_found" }));
   if (result === "last_factor") {
-    return json(409, { error: "cannot_unlink_last_login_factor" });
+    return applyWidgetCors(
+      req,
+      json(409, { error: "cannot_unlink_last_login_factor" }),
+    );
   }
-  return Response.json({ status: "revoked" });
+  return applyWidgetCors(req, Response.json({ status: "revoked" }));
+}
+
+export function OPTIONS(req: Request): Response {
+  return widgetCorsPreflight(req, ["PATCH", "DELETE", "OPTIONS"]);
 }
