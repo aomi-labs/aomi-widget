@@ -25,6 +25,17 @@ export type ResolveIdentityInput = {
   recoverySignals?: readonly SignalRef[];
   displayName?: string | null;
   avatarUrl?: string | null;
+  /** Runs inside the same advisory-locked transaction as the resolution, after
+   * the canonical user and its primary identity are persisted. Use it for
+   * dependent rows (e.g. a verified-email identity) that must commit atomically
+   * with a freshly created user: throwing here rolls the whole transaction back
+   * so a failed dependent write can never orphan a just-created user. Errors are
+   * re-thrown unchanged, so a non-recoverable conflict propagates instead of
+   * being retried. */
+  onResolved?: (
+    result: IdentityResolutionResult,
+    db: PoolClient,
+  ) => Promise<void>;
 };
 
 export class IdentityConflictError extends Error {
@@ -59,7 +70,9 @@ export async function resolveVerifiedProviderIdentity(
           ],
           db,
         );
-        return resolveLocked(input, db);
+        const result = await resolveLocked(input, db);
+        if (input.onResolved) await input.onResolved(result, db);
+        return result;
       });
     } catch (error) {
       if (attempt === 2 || !isRecoverableRace(error)) throw error;

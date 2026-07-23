@@ -123,10 +123,7 @@ function createPrivyCredentialVerifier(
 ): ProviderCredentialVerifier {
   return async (credential) => {
     if (!env.privyAppId) throw new Error("Privy app id is not configured");
-    const tokenKind =
-      credential.tokenKind === "access_token"
-        ? "access_token"
-        : "identity_token";
+    const tokenKind = resolvePrivyTokenKind(credential.tokenKind);
     const token = await verifyPrivyToken({
       token: credential.providerToken,
       tokenKind,
@@ -136,6 +133,11 @@ function createPrivyCredentialVerifier(
     });
     return {
       provider: "privy",
+      // KNOWN/DOCUMENTED: the Privy issuer environment is hardcoded to
+      // "privy:prod". Privy does not expose a beta/staging issuer distinct from
+      // prod for these tokens, so there is a single environment today. Revisit
+      // only if Privy introduces a separate non-prod issuer; do not redesign
+      // the environment plumbing for this alone.
       issuerEnvironment: "privy:prod",
       tenantId: token.audience,
       walletAttestationProvider: "privy",
@@ -324,6 +326,19 @@ function providerSubjectEmail(
 ): string {
   const subject = verified.token.subject.replace(/[^a-zA-Z0-9_-]/g, "_");
   return `${verified.provider}-${subject}@auth.aomi.local`;
+}
+
+/** Resolve the Privy token kind, rejecting unrecognized values instead of
+ * silently degrading them to `identity_token`. An absent value keeps the
+ * historical default (identity token). */
+function resolvePrivyTokenKind(
+  value: string | undefined,
+): "identity_token" | "access_token" {
+  if (value === undefined || value === "identity_token") {
+    return "identity_token";
+  }
+  if (value === "access_token") return "access_token";
+  throw new Error("invalid_provider_token_kind");
 }
 
 function normalizeCredential(

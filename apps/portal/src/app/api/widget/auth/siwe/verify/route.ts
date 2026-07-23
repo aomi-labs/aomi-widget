@@ -1,4 +1,5 @@
 import { verifyWidgetSiweProof } from "@aomi-labs/account/widget-auth";
+import { widgetAuthRateLimit } from "@portal/lib/widget-auth/rate-limit";
 import {
   widgetPreflight,
   widgetRoute,
@@ -14,6 +15,8 @@ const requestSchema = z.object({
 });
 
 export const POST = widgetRoute(async (request: Request) => {
+  const limited = widgetAuthRateLimit(request);
+  if (limited) return limited;
   const parsed = requestSchema.parse(await request.json().catch(() => null));
   const session = await verifyWidgetSiweProof({
     request,

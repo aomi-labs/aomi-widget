@@ -2,6 +2,39 @@
 
 ## Last Updated
 
+2026-07-23 (latest) — Review-checklist fix pass on
+  `codex/widget-auth-single-tenant`: all §1–§4 items and the actionable §5
+  items of the (untracked) REVIEW-CHECKLIST.md closed via six parallel
+  agents + consolidation. Highlights: provider-plugin no longer eagerly
+  creates canonical users (orphan-brick fixed; email upsert now inside the
+  advisory-locked transaction via a new `onResolved` hook;
+  IdentityConflictError → 409 in the plugin path); deterministic username
+  fallback on collision; account deletion no longer blocked by `last_factor`
+  (guard stays on unlink; dead 409 branch pruned from the portal DELETE
+  route); per-IP rate limiting on all unauthenticated widget-auth routes
+  (new `lib/widget-auth/rate-limit.ts`); ba_verifications sweep +
+  jsonb-cast-safe session deletion; proxy-aware `isFirstPartyRequest`;
+  RS256 pin + `nbf` on Para paths, lazy `PARA_API_BASE_URL`, SIWS strict
+  parser reuse, empty untrusted attestations, strict Privy `tokenKind`;
+  client widget-session sign-out/fingerprint races fixed (epoch +
+  fingerprint guards, 6 new tests), enumerable `required`, sec-vs-ms
+  `expires_at` guard, dispose() throws, teardown notifies subscribers;
+  wallet-mode widget now boots idle (shared `widgetCredentialsReady`
+  predicate), deleteAccount revokes the widget session in try/finally,
+  duplicate mount GET /account coalesced, sequential bulk rename/unlink;
+  Para startup banner fixed both directions (`useParaStatus().isReady` is
+  the readiness signal; 4 new component tests) and JWT cooldown scoped
+  per-instance; dead `WidgetAuthAdapter.kind` removed; `safeEnv` collapsed
+  to client export; root vitest now includes the portal widget-auth suites;
+  `/dev/para-cross-project` spike deleted; `apps/shadcn-registry/dist`
+  untracked (staged only); `prepublishOnly` guard on widget-lib. Verified:
+  root vitest 816 pass, registry 277 pass, lint + all typechecks clean;
+  client/react dists rebuilt, 4 registry JSONs regenerated in
+  `apps/landing/public/r/`. NOTE: viem `getAddress` returns plain `string`
+  here (abitype register) — the `as \`0x${string}\`` casts are load-bearing.
+  Nothing committed. Pending: §6 deploy gates (db-master migration first,
+  product-mono PR #855 backend mirror), separate STATE.md ops-detail scrub.
+
 2026-07-23 (current) — Para/Privy Account access subtitles now show only their
   shortened provider-managed wallet values, in EVM/SVM family order and joined
   by a middle dot (for example, `0xda6..f0 · 53GfE..oL`). The chain tags above

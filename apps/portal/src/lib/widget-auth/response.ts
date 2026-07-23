@@ -1,6 +1,7 @@
 import { IdentityConflictError } from "@aomi-labs/account/account";
 import {
   WidgetAuthError,
+  type WidgetChallenge,
   type WidgetSession,
 } from "@aomi-labs/account/widget-auth";
 import { ZodError } from "zod";
@@ -105,14 +106,6 @@ export function widgetSessionResponse(session: WidgetSession): Response {
     user: { id: session.userId },
   });
 }
-
-type WidgetChallenge = {
-  nonce: string;
-  domain: string;
-  uri: string;
-  issuedAt: string;
-  expirationTime: string;
-};
 
 /** The snake_case challenge envelope returned by the SIWE/SIWS nonce routes. */
 export function widgetChallengeResponse(challenge: WidgetChallenge): Response {

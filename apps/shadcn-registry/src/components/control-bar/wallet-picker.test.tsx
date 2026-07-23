@@ -1,4 +1,7 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+// Type-side registration of the jest-dom matchers the root vitest.setup.ts
+// installs at runtime; the app tsconfig doesn't load the augmentation globally.
+import "@testing-library/jest-dom/vitest";
 import { useEffect } from "react";
 import {
   act,
@@ -13,10 +16,19 @@ import { AomiRuntimeApiProvider, ExtUserProvider } from "@aomi-labs/react";
 import type { AomiWalletKit } from "@/lib/wallet-kit";
 import { AomiWalletKitContextProvider } from "@/lib/wallet-kit";
 import { AomiWalletNetworkPreferencesProvider } from "@/lib/wallet-kit/network-preferences";
+import { registerWalletProvider } from "@/lib/wallet-kit/providers/plugin-registry";
 import { WalletPickerProvider, useWalletPicker } from "./wallet-picker-context";
 import { WalletPicker } from "./wallet-picker";
 
 afterEach(cleanup);
+
+// The account-access model derives the provider-auth set from the plugin
+// registry (a plugin with an `authMode`). Register minimal stand-ins so these
+// tests classify "para"/"privy" accounts without importing the full providers.
+beforeAll(() => {
+  registerWalletProvider({ id: "para", authMode: "additive" });
+  registerWalletProvider({ id: "privy", authMode: "additive" });
+});
 
 const evmChains = [
   {

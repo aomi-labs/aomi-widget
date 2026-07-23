@@ -58,6 +58,11 @@ import { deleteWidgetSessionsForProviderIdentity } from "../widget-auth/store";
 // only preserves the existing startup/error behavior around schema readiness.
 let accountSchemaReady: Promise<void> | null = null;
 
+// Internal identities (BetterAuth sessions, first-party wallet claims) carry no
+// provider-token expiry; this sentinel marks them non-expiring for the
+// resolver's freshness checks.
+const NON_EXPIRING_IDENTITY_EXPIRES_AT = Number.MAX_SAFE_INTEGER;
+
 export async function ensureAccountSchema(): Promise<void> {
   if (!accountSchemaReady) {
     accountSchemaReady = runAomiAuthSchema(getPool()).catch((error) => {
@@ -78,12 +83,14 @@ export async function getOrCreateAomiUserForBetterAuthSession(input: {
 }): Promise<DbAomiUser> {
   await ensureAccountSchema();
   const walletSignals = await betterAuthWalletSignals(input.betterAuthUserId);
+  const verifiedEmail =
+    input.email && input.emailVerified ? input.email : null;
   const resolution = await resolveVerifiedProviderIdentity({
     identity: {
       provider: "better_auth",
       ...IDENTITY_SCOPES.betterAuth,
       subject: input.betterAuthUserId,
-      expiresAt: Number.MAX_SAFE_INTEGER,
+      expiresAt: NON_EXPIRING_IDENTITY_EXPIRES_AT,
       email: input.email
         ? { value: input.email, verified: Boolean(input.emailVerified) }
         : undefined,
@@ -94,13 +101,22 @@ export async function getOrCreateAomiUserForBetterAuthSession(input: {
     recoverySignals: [...(input.accessSignals ?? []), ...walletSignals],
     displayName: input.name ?? input.email,
     avatarUrl: input.avatarUrl,
+    // Persist the verified-email login factor in the same advisory-locked
+    // transaction that creates/attaches the user. If that email already belongs
+    // to another canonical user the upsert throws
+    // `identity_already_linked_to_another_account`; because that is a
+    // non-recoverable error the whole transaction rolls back, so a failed email
+    // link can never leave a freshly created user orphaned.
+    onResolved: verifiedEmail
+      ? async (result, db) => {
+          await upsertEmailIdentity({
+            userId: result.user.id,
+            email: verifiedEmail,
+            db,
+          });
+        }
+      : undefined,
   });
-  if (input.email && input.emailVerified) {
-    await upsertEmailIdentity({
-      userId: resolution.user.id,
-      email: input.email,
-    });
-  }
   await logAccountEvent({
     userId: resolution.user.id,
     eventType: resolution.created ? "user.created" : "session.attached",
@@ -386,7 +402,7 @@ async function getOrCreateAomiUserForWalletSignIn(
       provider: config.provider,
       ...scope,
       subject: `${scope.issuerEnvironment}:*:${normalizedAddress}`,
-      expiresAt: Number.MAX_SAFE_INTEGER,
+      expiresAt: NON_EXPIRING_IDENTITY_EXPIRES_AT,
       walletAttestations: [],
       metadata: { chainId: input.chainId },
     },
@@ -878,8 +894,7 @@ export type DeactivateAomiAccountResult =
       revokedIdentities: number;
       revokedWallets: number;
     }
-  | { status: "not_found" }
-  | { status: "last_factor" };
+  | { status: "not_found" };
 
 export async function deactivateAomiAccount(input: {
   userId: AomiUserId;
@@ -888,9 +903,10 @@ export async function deactivateAomiAccount(input: {
   return withTransaction(async (db) => {
     const user = await findAomiUserById(input.userId, db);
     if (!user) return { status: "not_found" };
-    if ((await countLoginFactors(input.userId, db)) <= 1) {
-      return { status: "last_factor" };
-    }
+    // Last-factor protection guards *unlinking* an individual identity/wallet
+    // (see `unlinkAuthIdentity`/`unlinkWallet`), not full account deletion.
+    // Deleting an account is meant to revoke every remaining factor, so a
+    // Para-only/SIWE-only single-factor user must still be able to delete.
 
     const revokedIdentities = await revokeAllAuthIdentitiesForUser({
       userId: input.userId,

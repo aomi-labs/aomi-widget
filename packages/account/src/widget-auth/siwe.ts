@@ -85,6 +85,13 @@ export async function verifyWidgetSiweProof(input: {
       time: now,
     });
   if (!matches) throw new WidgetAuthError("siwe_message_mismatch", 401);
+  // LIMITATION: the widget SIWE path verifies EOA signatures only. Unlike the
+  // first-party Better Auth SIWE flow (`verifySiweMessage`), it does NOT fall
+  // back to on-chain EIP-1271 / ERC-6492 verification, so smart-contract
+  // wallets (Coinbase Smart Wallet, Safe, Base Account, etc.) cannot sign in
+  // through the widget today. Contract-wallet support is intentionally deferred
+  // (it needs a per-chain public client + counterfactual deploy call); do not
+  // silently widen this to `verifySiweMessage` without that plumbing.
   if (
     !(await verifyEoaSiweMessage({
       message: input.message,

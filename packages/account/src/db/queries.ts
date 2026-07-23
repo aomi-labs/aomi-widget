@@ -7,7 +7,6 @@ import {
   type AomiAccountResponse,
   type AomiUserId,
   type AuthIdentityProvider,
-  type BetterAuthUserId,
   type DbAomiAuthIdentity,
   type DbAomiUser,
   type DbAomiWallet,
@@ -48,24 +47,6 @@ export async function withTransaction<T>(
   }
 }
 
-export async function findAomiUserByBetterAuthId(
-  betterAuthUserId: BetterAuthUserId,
-  db: Db = getPool(),
-): Promise<DbAomiUser | null> {
-  const result = await db.query(
-    `select u.*
-       from auth_providers ap
-       join users u on u.id = ap.user_id
-      where ap.provider = any($1::text[])
-        and ap.subject = $2
-        and coalesce(u.status, '') <> 'deactivated'
-      order by ap.is_primary desc, ap.created_at asc
-      limit 1`,
-    [[BETTER_AUTH_PROVIDER, "better_auth"], betterAuthUserId],
-  );
-  return result.rows[0] ? mapUser(result.rows[0]) : null;
-}
-
 export async function findAomiUserById(
   userId: AomiUserId,
   db: Db = getPool(),
@@ -90,6 +71,11 @@ export async function createAomiUser(input: {
   const db = input.db ?? getPool();
   const userId = input.userId ?? randomUUID();
   const now = nowSeconds();
+  const username = await resolveAvailableUsername(
+    db,
+    input.displayName ?? input.name ?? deriveDisplayName(input.email),
+    userId,
+  );
   const result = await db.query(
     `insert into users (id, username, created_at, updated_at)
      values ($1, $2, $3, $3)
@@ -97,13 +83,41 @@ export async function createAomiUser(input: {
        username = coalesce(users.username, excluded.username),
        updated_at = excluded.updated_at
      returning *`,
-    [
-      userId,
-      input.displayName ?? input.name ?? deriveDisplayName(input.email),
-      now,
-    ],
+    [userId, username, now],
   );
   return mapUser(result.rows[0]);
+}
+
+// `users.username` is a unique column, and the handle we derive from a
+// provider's claimed name/email can already be held by another canonical user
+// — including a handle a third party seeded first to grief a login. A bare
+// insert would then raise 23505 and burn the identity-resolution retry loop
+// into a login 500. Pick the first free handle deterministically (the base,
+// then `base-<stable suffix>` variants derived from the new user id) so account
+// creation never fails on username contention. A rare check-then-insert race
+// still surfaces as 23505, which the caller's transaction retry re-runs; the
+// re-run sees the handle taken and advances to a suffixed variant.
+async function resolveAvailableUsername(
+  db: Db,
+  base: string | null,
+  userId: string,
+): Promise<string | null> {
+  if (!base) return null;
+  if (!(await usernameExists(db, base))) return base;
+  const seed = userId.replace(/-/g, "");
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const candidate = `${base}-${seed.slice(0, 6 + attempt)}`;
+    if (!(await usernameExists(db, candidate))) return candidate;
+  }
+  return `${base}-${randomUUID().replace(/-/g, "").slice(0, 12)}`;
+}
+
+async function usernameExists(db: Db, username: string): Promise<boolean> {
+  const result = await db.query(
+    `select 1 from users where username = $1 limit 1`,
+    [username],
+  );
+  return (result.rowCount ?? result.rows.length) > 0;
 }
 
 export async function lockIdentityResolutionKeys(
@@ -115,31 +129,6 @@ export async function lockIdentityResolutionKeys(
       key,
     ]);
   }
-}
-
-export async function findLegacyBackendUserIdByWallet(
-  normalizedAddress: string,
-  db: Db = getPool(),
-): Promise<AomiUserId | null> {
-  const publicKey = await db.query(
-    `select user_id from public_keys
-      where chain_type = 'evm'
-        and lower(address) = $1
-      limit 1`,
-    [normalizedAddress],
-  );
-  const publicKeyOwner =
-    (publicKey.rows[0]?.user_id as string | undefined) ?? null;
-  if (publicKeyOwner) return publicKeyOwner;
-
-  const provider = await db.query(
-    `select user_id from auth_providers
-      where provider in ('wallet', 'siwe')
-        and (lower(coalesce(subject, '')) = $1 or (method = 'wallet' and lower(value) = $1))
-      limit 1`,
-    [normalizedAddress],
-  );
-  return (provider.rows[0]?.user_id as string | undefined) ?? null;
 }
 
 export async function listBetterAuthSiwsWallets(

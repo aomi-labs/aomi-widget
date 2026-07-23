@@ -436,13 +436,7 @@ function generateUUID() {
 }
 
 // src/utils/env.ts
-function safeEnv(read) {
-  try {
-    return read();
-  } catch (e) {
-    return void 0;
-  }
-}
+import { safeEnv } from "@aomi-labs/client";
 
 // src/state/thread-store.ts
 var threadLogEnv = safeEnv(() => process.env.NODE_ENV);

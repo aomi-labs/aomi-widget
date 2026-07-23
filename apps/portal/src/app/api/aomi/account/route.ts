@@ -45,9 +45,6 @@ export const DELETE = widgetRoute(async (req: Request) => {
   if (result.status === "not_found") {
     return json(404, { error: "account_not_found" });
   }
-  if (result.status === "last_factor") {
-    return json(409, { error: "cannot_delete_last_login_factor" });
-  }
   if (principal.kind === "widget") {
     await revokeWidgetSession({ request: req });
     return Response.json(result);

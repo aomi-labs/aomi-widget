@@ -1,4 +1,5 @@
 import { formatWalletProvider } from "../../lib/wallet-kit";
+import { getWalletProvider } from "../../lib/wallet-kit/providers/plugin-registry";
 import type { AomiWalletKit, WalletFamily } from "../../lib/wallet-kit/types";
 
 export type WalletModalRow = NonNullable<
@@ -75,9 +76,16 @@ export function providerBackedAccountProvider(input: {
   return input.source === "embedded" ? input.provider : null;
 }
 
+/**
+ * A provider id is a "provider auth" provider (embedded-wallet/social account,
+ * e.g. Para or Privy) when its registered plugin declares an `authMode`. Derive
+ * this from the plugin registry rather than hardcoding provider literals, so
+ * shared UI stays descriptor-agnostic and new providers work without edits.
+ */
 export function isProviderAuthProvider(provider?: string): boolean {
   const normalizedProvider = provider?.trim().toLowerCase();
-  return normalizedProvider === "para" || normalizedProvider === "privy";
+  if (!normalizedProvider) return false;
+  return Boolean(getWalletProvider(normalizedProvider)?.authMode);
 }
 
 export function providerBackedWalletTitle(input: {
@@ -154,10 +162,12 @@ export function buildAccountAccessEntries(
 
   const standaloneWallets: LinkedWalletRow[] = [];
   for (const wallet of wallets) {
+    // `providerBackedAccountProvider` returns `string | null`, so the optional
+    // chain yields `string | undefined` — a `null` check here is unreachable.
     const provider = providerBackedAccountProvider(wallet)
       ?.trim()
       .toLowerCase();
-    if (provider === undefined || provider === null) {
+    if (provider === undefined) {
       standaloneWallets.push(wallet);
       continue;
     }

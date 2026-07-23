@@ -540,9 +540,10 @@ export function WalletPicker() {
   }, [hasAccountManagement, view]);
 
   const signOutAccount = useCallback(async () => {
-    // Revoke cookie/WST-backed account state while the authenticated carrier
-    // is still available. Disconnecting the provider first destroys the
-    // in-memory WST and turns sign-out into an unauthorised request.
+    // The runtime owns account-vs-widget teardown ordering (it revokes the
+    // backend account before the widget session). Here we only ensure the
+    // wallet connectors are disconnected afterwards even if that teardown
+    // throws, so no provider connection is left dangling.
     try {
       await adapter.signOutAccount?.();
     } finally {
@@ -555,8 +556,11 @@ export function WalletPicker() {
       "Delete this Aomi account? Linked wallets and sign-ins will be freed for a new account.",
     );
     if (!confirmed) return;
-    await adapter.deleteAccount?.();
-    await adapter.disconnect?.({ family: "all" });
+    try {
+      await adapter.deleteAccount?.();
+    } finally {
+      await adapter.disconnect?.({ family: "all" });
+    }
   }, [adapter]);
 
   const quickSignInSection = socialOptionsToShow.length ? (
@@ -963,16 +967,16 @@ export function WalletPicker() {
                   ? (input) =>
                       runAction(
                         `provider-account:rename:${input.provider}`,
-                        async () => {
-                          await Promise.all(
-                            input.identityIds.map((identityId) =>
+                        () =>
+                          runSequential(
+                            input.identityIds,
+                            (identityId) =>
                               adapter.updateLinkedAccount!({
                                 identityId,
                                 displayLabel: input.displayLabel,
                               }),
-                            ),
-                          );
-                        },
+                            "rename",
+                          ),
                       )
                   : undefined
               }
@@ -997,13 +1001,13 @@ export function WalletPicker() {
                   ? (input) =>
                       runAction(
                         `provider-account:unlink:${input.provider}`,
-                        async () => {
-                          await Promise.all(
-                            input.identityIds.map((identityId) =>
+                        () =>
+                          runSequential(
+                            input.identityIds,
+                            (identityId) =>
                               adapter.unlinkLinkedAccount!(identityId),
-                            ),
-                          );
-                        },
+                            "unlink",
+                          ),
                       )
                   : undefined
               }
@@ -1032,6 +1036,40 @@ function SectionLabel({ children }: { children: string }) {
     <span className="text-muted-foreground/90 px-1 text-[11px] font-semibold uppercase tracking-wide">
       {children}
     </span>
+  );
+}
+
+/**
+ * Run a bulk provider-account operation one item at a time, collecting
+ * per-item failures instead of racing them with `Promise.all`. A partial
+ * failure no longer aborts the remaining items mid-flight, and the summarized
+ * throw lets the picker surface exactly how many succeeded.
+ */
+async function runSequential<T>(
+  items: readonly T[],
+  op: (item: T) => Promise<unknown>,
+  verb: string,
+): Promise<void> {
+  const failures: unknown[] = [];
+  let succeeded = 0;
+  for (const item of items) {
+    try {
+      await op(item);
+      succeeded += 1;
+    } catch (error) {
+      failures.push(error);
+    }
+  }
+  if (failures.length === 0) return;
+  const total = items.length;
+  const firstMessage =
+    failures[0] instanceof Error && failures[0].message
+      ? `: ${failures[0].message}`
+      : "";
+  throw new Error(
+    `Could not ${verb} ${failures.length} of ${total} account${
+      total === 1 ? "" : "s"
+    } (${succeeded} succeeded)${firstMessage}`,
   );
 }
 

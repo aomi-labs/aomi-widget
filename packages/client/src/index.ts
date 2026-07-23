@@ -85,11 +85,13 @@ export {
   type ProviderCredential,
   type SiwsWidgetSessionSigner,
   type WidgetAuthAdapter,
+  type WidgetAuthSession,
   type WidgetSession,
   type WidgetSessionProvider,
   type WidgetSessionSigner,
 } from "./widget-session";
 export { normalizeAppDescriptor, appIdentityKey } from "./app-descriptor";
+export { safeEnv } from "./internal/env";
 export type {
   AomiClientType,
   UserStateAAMode,

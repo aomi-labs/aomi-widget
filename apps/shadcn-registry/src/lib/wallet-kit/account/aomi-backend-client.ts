@@ -91,8 +91,13 @@ export function createAomiBackendAccountClient(input: {
   const auth = input.auth ?? { credentials: "include" as const };
 
   const urlFor = (path: string) => `${baseUrl}${path}`;
+  // `request` is for endpoints that always return a JSON body; `requestVoid` is
+  // for no-content mutations. Keeping them separate lets each return an honest
+  // type instead of casting an empty response to `T`.
   const request = <T>(path: string, init: RequestInit) =>
     fetchJson<T>(fetchImpl, urlFor(path), init, auth);
+  const requestVoid = (path: string, init: RequestInit) =>
+    fetchVoid(fetchImpl, urlFor(path), init, auth);
 
   return {
     getAccount: () =>
@@ -112,7 +117,7 @@ export function createAomiBackendAccountClient(input: {
       request<AomiBackendDeleteAccountResponse>(endpoints.accountPath, {
         method: "DELETE",
       }),
-    signOut: () => request(endpoints.signOutPath, { method: "POST" }),
+    signOut: () => requestVoid(endpoints.signOutPath, { method: "POST" }),
     exchangeProviderCredential: (
       credential: AomiAccountCredential,
       options: { hasAccount: boolean },
@@ -144,7 +149,7 @@ export function createAomiBackendAccountClient(input: {
         body: JSON.stringify(body),
       }),
     updateWallet: (walletId: string, body: { label?: string | null }) =>
-      request(endpoints.walletPath(walletId), {
+      requestVoid(endpoints.walletPath(walletId), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -153,15 +158,15 @@ export function createAomiBackendAccountClient(input: {
       identityId: string,
       body: { displayLabel?: string | null },
     ) =>
-      request(endpoints.identityPath(identityId), {
+      requestVoid(endpoints.identityPath(identityId), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       }),
     unlinkWallet: (walletId: string) =>
-      request(endpoints.walletPath(walletId), { method: "DELETE" }),
+      requestVoid(endpoints.walletPath(walletId), { method: "DELETE" }),
     unlinkAuthIdentity: (identityId: string) =>
-      request(endpoints.identityPath(identityId), { method: "DELETE" }),
+      requestVoid(endpoints.identityPath(identityId), { method: "DELETE" }),
     createSiweNonce: (body: { walletAddress: string; chainId: number }) =>
       request<AomiBackendNonceResponse>(endpoints.siweNoncePath, {
         method: "POST",
@@ -174,7 +179,7 @@ export function createAomiBackendAccountClient(input: {
       walletAddress: string;
       chainId: number;
     }) =>
-      request(endpoints.siweVerifyPath, {
+      requestVoid(endpoints.siweVerifyPath, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -197,7 +202,7 @@ export function createAomiBackendAccountClient(input: {
       intent: "sign-in" | "link";
       label?: string;
     }) =>
-      request(endpoints.siwsVerifyPath, {
+      requestVoid(endpoints.siwsVerifyPath, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -205,12 +210,12 @@ export function createAomiBackendAccountClient(input: {
   };
 }
 
-async function fetchJson<T>(
+async function sendAccountRequest(
   fetchImpl: typeof fetch,
   url: string,
   init: RequestInit,
   auth: AomiBackendAccountAuth,
-): Promise<T> {
+): Promise<Response> {
   const execute = async (forceRefresh: boolean) => {
     const headers = new Headers(init.headers);
     headers.set("Accept", "application/json");
@@ -235,14 +240,35 @@ async function fetchJson<T>(
     const code = extractErrorCode(error);
     throw new Error(formatAccountRequestError(response.status, code));
   }
+  return response;
+}
+
+async function fetchJson<T>(
+  fetchImpl: typeof fetch,
+  url: string,
+  init: RequestInit,
+  auth: AomiBackendAccountAuth,
+): Promise<T> {
+  const response = await sendAccountRequest(fetchImpl, url, init, auth);
+  // These endpoints always return a JSON body on success; an empty response is
+  // a contract violation, so surface it instead of casting `undefined` to `T`.
   if (response.status === 204 || response.status === 205) {
-    return undefined as T;
+    throw new Error("Account request returned no content");
   }
   const body = await response.text();
   if (!body.trim()) {
-    return undefined as T;
+    throw new Error("Account request returned an empty body");
   }
   return JSON.parse(body) as T;
+}
+
+async function fetchVoid(
+  fetchImpl: typeof fetch,
+  url: string,
+  init: RequestInit,
+  auth: AomiBackendAccountAuth,
+): Promise<void> {
+  await sendAccountRequest(fetchImpl, url, init, auth);
 }
 
 function extractErrorCode(error: unknown): string | null {

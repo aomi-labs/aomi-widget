@@ -17,13 +17,14 @@ afterEach(() => {
 
 describe("verifyParaJwt", () => {
   it("extracts email and wallets from the nested Para session data claim", async () => {
-    const { privateKey, publicKey } = await generateKeyPair("ES256");
+    // Para production tokens are RS256; verifyParaJwt now pins that algorithm.
+    const { privateKey, publicKey } = await generateKeyPair("RS256");
     const jwk = await exportJWK(publicKey);
     const jwksUrl = "https://para.example/.well-known/jwks-test.json";
     vi.stubGlobal(
       "fetch",
       vi.fn(async () =>
-        Response.json({ keys: [{ ...jwk, kid: "para-kid", alg: "ES256" }] }),
+        Response.json({ keys: [{ ...jwk, kid: "para-kid", alg: "RS256" }] }),
       ),
     );
     const token = await new SignJWT({
@@ -36,7 +37,7 @@ describe("verifyParaJwt", () => {
         connectedWallets: [{ id: "svm-wallet", type: "SOLANA" }],
       },
     })
-      .setProtectedHeader({ alg: "ES256", kid: "para-kid" })
+      .setProtectedHeader({ alg: "RS256", kid: "para-kid" })
       .setSubject("para-user-1")
       .setAudience("para-app")
       .setExpirationTime("5m")

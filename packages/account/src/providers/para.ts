@@ -12,6 +12,7 @@ type ParaClaims = {
   aud?: string | string[];
   exp?: number;
   iat?: number;
+  nbf?: number;
   email?: string;
   email_verified?: boolean;
   wallets?: unknown[];
@@ -57,8 +58,16 @@ const paraWidgetCredentialSchema = z.object({
   key_id: z.string().trim().min(1).optional(),
 });
 
-const PARA_WALLETS_URL =
-  process.env.PARA_API_BASE_URL ?? "https://api.beta.getpara.com/v1/wallets";
+// Resolved lazily (per call) rather than at module load so that
+// `PARA_API_BASE_URL` set in the runtime environment — notably prod, which
+// points at the non-beta host — is honored even when this module was imported
+// before env was populated. The default deliberately targets the BETA host:
+// prod deployments are expected to set `PARA_API_BASE_URL` explicitly.
+function paraWalletsUrl(): string {
+  return (
+    process.env.PARA_API_BASE_URL ?? "https://api.beta.getpara.com/v1/wallets"
+  );
+}
 
 export async function verifyParaJwt(input: {
   token: string;
@@ -70,7 +79,7 @@ export async function verifyParaJwt(input: {
   const { payload, protectedHeader } = await jwtVerify<ParaClaims>(
     input.token,
     jwks,
-    { audience: input.expectedAudience },
+    { audience: input.expectedAudience, algorithms: ["RS256"] },
   );
   if (
     input.keyId &&
@@ -155,6 +164,14 @@ export async function verifyParaWidgetCredential(input: {
   }
   const issuedAt = payload.iat;
   const expiresAt = payload.exp;
+  if (payload.nbf != null) {
+    if (typeof payload.nbf !== "number" || !Number.isInteger(payload.nbf)) {
+      throw new Error("provider_token_invalid_nbf");
+    }
+    if (payload.nbf > nowSeconds + 60) {
+      throw new Error("provider_token_not_yet_valid");
+    }
+  }
   if (issuedAt > nowSeconds + 60) {
     throw new Error("provider_token_iat_in_future");
   }
@@ -170,7 +187,13 @@ export async function verifyParaWidgetCredential(input: {
   const nestedVerified = nested?.emailVerified ?? nested?.email_verified;
   const emailVerified =
     payload.email_verified === true || nestedVerified === true;
-  const wallets = walletClaims(nested?.wallets ?? payload.wallets, "wallets");
+  // Validate the wallet-claim shape (reject malformed tokens) but do NOT
+  // surface these as trusted attestations: the wallet arrays embedded in the
+  // Para session JWT are self-asserted claims whose trust level is "none".
+  // Only wallets fetched from Para's authenticated API
+  // (`listParaWalletsForUser`) are trusted for linking, so the widget path
+  // returns no attestations here.
+  walletClaims(nested?.wallets ?? payload.wallets, "wallets");
   walletClaims(
     nested?.connectedWallets ??
       nested?.connected_wallets ??
@@ -186,7 +209,7 @@ export async function verifyParaWidgetCredential(input: {
     subject,
     expiresAt,
     email: email ? { value: email, verified: emailVerified } : undefined,
-    walletAttestations: paraWidgetWalletAttestations(wallets),
+    walletAttestations: [],
     metadata: {
       audience,
       expiresAt,
@@ -211,7 +234,7 @@ export async function listParaWalletsForUser(input: {
   const out: AttestedWallet[] = [];
   let cursor: string | undefined;
   for (let page = 0; page < 50; page++) {
-    const url = new URL(PARA_WALLETS_URL);
+    const url = new URL(paraWalletsUrl());
     url.searchParams.set("userIdentifier", input.userIdentifier);
     url.searchParams.set("userIdentifierType", identifierType);
     if (cursor) url.searchParams.set("cursor", cursor);
@@ -313,10 +336,20 @@ function requiredString(value: unknown, claim: string): string {
 }
 
 function singleAudience(value: unknown): string {
-  if (typeof value !== "string" || !value.trim()) {
+  // Align with the native provider path (jose's `audience` option), which
+  // accepts an array `aud`. A single-element array carries the same single
+  // tenant as the string form, so unwrap it; arrays with zero or multiple
+  // entries are genuinely ambiguous for a tenant boundary and stay rejected.
+  const raw =
+    typeof value === "string"
+      ? value
+      : Array.isArray(value) && value.length === 1
+        ? value[0]
+        : undefined;
+  if (typeof raw !== "string" || !raw.trim()) {
     throw new Error("provider_token_invalid_aud");
   }
-  const audience = value.trim();
+  const audience = raw.trim();
   if (audience.length > 512 || /\s/.test(audience)) {
     throw new Error("provider_token_invalid_aud");
   }
@@ -351,26 +384,4 @@ function walletClaims(value: unknown, claim: string): unknown[] {
     }
   }
   return value;
-}
-
-function paraWidgetWalletAttestations(
-  rows: readonly unknown[],
-): AttestedWallet[] {
-  const wallets: AttestedWallet[] = [];
-  for (const row of rows) {
-    const record = row as Record<string, unknown>;
-    const family = paraWalletFamily(stringClaim(record.type));
-    const address = stringClaim(record.address);
-    const providerWalletId = stringClaim(record.id);
-    if (!family || !address || !providerWalletId) continue;
-    if (!validWalletAddress(family, address)) continue;
-    wallets.push({
-      provider: "para",
-      providerWalletId,
-      family,
-      address,
-      chainScope: null,
-    });
-  }
-  return wallets;
 }

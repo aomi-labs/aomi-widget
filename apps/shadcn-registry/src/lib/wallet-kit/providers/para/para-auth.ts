@@ -52,8 +52,6 @@ export const DISCONNECTED_PARA_ACCOUNT: ParaAccountShape = {
 
 export const defaultOAuthMethods: TOAuthMethod[] = ["GOOGLE"];
 const ISSUE_JWT_FAILURE_COOLDOWN_MS = 30_000;
-let issueJwtUnavailableUntil = 0;
-let issueJwtInFlight: Promise<AomiAccountCredential | null> | null = null;
 
 type ParaJwtClient = {
   userId?: string;
@@ -63,6 +61,20 @@ type ParaJwtClient = {
   }>;
 };
 
+/**
+ * Resolve the stable Para subject used as the widget-session cache-partition
+ * key (`${provider}:${subject}`).
+ *
+ * Tradeoff: when this returns `undefined` (the SDK reports a connected session
+ * but has not yet surfaced a stable user id), the widget-session provider in
+ * `@aomi-labs/client` falls back to the coarse `${provider}:authenticated-session`
+ * fingerprint. On a shared browser that coarse key can briefly collide across
+ * users if a previous SDK session expires without an explicit `signOut`. That
+ * window is bounded — the Portal re-verifies the provider credential before
+ * issuing any widget session, so a stale fingerprint never grants access — but
+ * we prefer a real subject whenever the SDK exposes one. `embedded.userId` is
+ * the current SDK field; `account.userId`/`paraClient.userId` cover older SDKs.
+ */
 export function resolveParaSubject(
   account: ParaAccountShape,
   paraClient: Pick<ParaJwtClient, "userId"> | null,
@@ -102,6 +114,12 @@ export function createParaCredentialGetter(
   paraClient: ParaJwtClient | null,
 ): (() => Promise<AomiAccountCredential | null>) | null {
   if (!paraClient || typeof paraClient.issueJwt !== "function") return null;
+  // Cooldown/in-flight state is scoped to this getter (one per plugin/adapter
+  // instance) instead of module-level, so several widget instances mounted on
+  // the same page each keep their own JWT-issuance backoff and never share or
+  // clobber one another's cooldown window.
+  let issueJwtUnavailableUntil = 0;
+  let issueJwtInFlight: Promise<AomiAccountCredential | null> | null = null;
   return async () => {
     const now = Date.now();
     if (now < issueJwtUnavailableUntil) {
@@ -137,6 +155,15 @@ export function createParaCredentialGetter(
   };
 }
 
+/**
+ * Single discriminator for "Para could not issue a JWT right now, back off"
+ * (auth not established / transient transport failure) versus a real error that
+ * should propagate. Prefer robust signals first — an HTTP 401/403 status or the
+ * SDK's `ParaApiError` class name. The message-substring matching below is a
+ * deliberate last resort: the Para SDK surfaces some transport failures as a
+ * bare `Error` with only a message string and no status/code, so this is the
+ * only available signal for those. Keep all such sniffing isolated here.
+ */
 function isParaJwtUnavailableError(error: unknown): boolean {
   const candidate = error as
     | {
@@ -148,9 +175,9 @@ function isParaJwtUnavailableError(error: unknown): boolean {
     | undefined;
   const status = candidate?.status ?? candidate?.response?.status;
   if (status === 401 || status === 403) return true;
+  if (candidate?.name === "ParaApiError") return true;
   const message = String(candidate?.message ?? "").toLowerCase();
   return (
-    candidate?.name === "ParaApiError" ||
     message.includes("unknown error") ||
     message.includes("network error") ||
     message.includes("failed to fetch") ||

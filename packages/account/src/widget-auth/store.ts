@@ -8,6 +8,16 @@ import { getPool } from "../db/pool";
  * reuses it so the prefix is never hardcoded in two places. */
 export const WIDGET_SESSION_NAMESPACE = "aomi:widget:session:";
 
+/** Shared prefix for every widget-auth identifier (challenges + sessions). Used
+ * to scope the opportunistic expired-row sweep so it never touches non-widget
+ * Better Auth verification rows that share the `ba_verifications` table. */
+const WIDGET_IDENTIFIER_PREFIX = "aomi:widget:";
+
+/** Probability that a write also sweeps expired widget rows. Nonce/session
+ * writes are frequent, so a ~1-in-50 amortized sweep keeps the table from
+ * bloating under nonce spam without a dedicated janitor or a per-write scan. */
+const EXPIRED_SWEEP_PROBABILITY = 0.02;
+
 const challengeBase = {
   origin: z.string().url(),
   address: z.string().min(1),
@@ -67,7 +77,8 @@ export async function writeWidgetAuthTicket(input: {
   expiresAt: Date;
   db?: Db;
 }): Promise<void> {
-  await (input.db ?? getPool()).query(
+  const db = input.db ?? getPool();
+  await db.query(
     `insert into ba_verifications
        (id, identifier, value, expires_at, created_at, updated_at)
      values ($1, $2, $3, $4, now(), now())`,
@@ -78,6 +89,24 @@ export async function writeWidgetAuthTicket(input: {
       input.expiresAt,
     ],
   );
+  await sweepExpiredWidgetTickets(db);
+}
+
+/** Best-effort, probabilistic purge of expired widget challenge/session rows.
+ * Scoped to the widget identifier prefix so it never deletes other Better Auth
+ * verification rows, and swallowed on error so a sweep failure never fails the
+ * write it piggybacks on. */
+async function sweepExpiredWidgetTickets(db: Db): Promise<void> {
+  if (Math.random() >= EXPIRED_SWEEP_PROBABILITY) return;
+  try {
+    await db.query(
+      `delete from ba_verifications
+        where identifier like $1 and expires_at <= now()`,
+      [`${WIDGET_IDENTIFIER_PREFIX}%`],
+    );
+  } catch {
+    // Hygiene only — never surface a sweep failure to the caller.
+  }
 }
 
 export async function readWidgetAuthTicket(input: {
@@ -123,9 +152,15 @@ export async function deleteWidgetSessionsForProviderIdentity(input: {
   db?: Db;
 }): Promise<number> {
   const result = await (input.db ?? getPool()).query(
+    // Narrow the scan to widget-session rows by identifier prefix, then guard
+    // the jsonb cast with a CASE so it only runs on rows whose value is a JSON
+    // object. CASE short-circuits, so a stray non-JSON row scanned under the
+    // prefix can never make `value::jsonb` throw and abort the delete.
     `delete from ba_verifications
       where identifier like $1
-        and value::jsonb ->> 'providerIdentityId' = $2`,
+        and (case when value ~ '^\\s*\\{'
+                  then value::jsonb ->> 'providerIdentityId'
+             end) = $2`,
     [`${WIDGET_SESSION_NAMESPACE}%`, input.providerIdentityId],
   );
   return result.rowCount ?? 0;

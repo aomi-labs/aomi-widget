@@ -3,19 +3,33 @@ import { createSiweMessage } from "viem/siwe";
 import type { GetAccountBearer } from "./types";
 import { joinUrl } from "./internal/url";
 import { decodeJwtSubject } from "./internal/encoding";
+import { buildSiwsMessage, type SiwsChainId } from "./siws";
 
-export type WidgetSession = {
+/**
+ * A widget `expires_at` above this bound is a millisecond timestamp, not the
+ * seconds value the refresh math assumes. Mirrors account-session.ts.
+ */
+const EXPIRES_AT_MILLISECONDS_THRESHOLD = 100_000_000_000;
+
+export type WidgetAuthSession = {
   accessToken: string;
   expiresAt: number;
 };
 
+/**
+ * @deprecated Ambiguous with the `WidgetSession` type exported by
+ * `@aomi-labs/account`, which describes a different (BFF-side) shape. Prefer
+ * {@link WidgetAuthSession}. Retained as an alias for backward compatibility
+ * with the published `@aomi-labs/client` API.
+ */
+export type WidgetSession = WidgetAuthSession;
+
 export type WidgetAuthAdapter = {
-  kind: string;
   getFingerprint(): string | null | Promise<string | null>;
   exchange(input: {
     baseUrl: string;
     fetch: typeof fetch;
-  }): Promise<WidgetSession>;
+  }): Promise<WidgetAuthSession>;
   signOut?(): Promise<void>;
 };
 
@@ -35,7 +49,7 @@ export type WidgetSessionSigner = {
 
 export type SiwsWidgetSessionSigner = {
   address: string;
-  chainId: string;
+  chainId: SiwsChainId;
   signMessage(message: string): Promise<string>;
 };
 
@@ -57,7 +71,6 @@ export function createProviderCredentialAdapter(input: {
   let stagedCredential: ProviderCredential | null = null;
 
   return {
-    kind: input.provider,
     getFingerprint: async () => {
       const subject = input.getSubject();
       if (subject) return `${input.provider}:${subject}`;
@@ -72,6 +85,15 @@ export function createProviderCredentialAdapter(input: {
       if (!credential || credential.provider !== input.provider) return null;
       stagedCredential = credential;
       const tokenSubject = decodeJwtSubject(credential.providerToken);
+      // Tradeoff: when the provider token carries no `sub`, this falls back to a
+      // subject-less, provider-wide partition key. On a shared browser where the
+      // SDK session silently expires (no explicit signOut to bump the provider
+      // generation), the next user under the same provider can momentarily reuse
+      // the previous user's cached widget session until the fingerprint resolves
+      // to a real subject or the token exchange re-runs. This is an in-memory
+      // cache-partition hint only — the Portal still verifies every credential
+      // server-side before issuing a widget session, so it cannot escalate
+      // privileges; it can only briefly mis-partition the local cache.
       inferredFingerprint = tokenSubject
         ? `${input.provider}:${tokenSubject}`
         : `${input.provider}:authenticated-session`;
@@ -116,7 +138,6 @@ function createSignedChallengeAdapter<
     signMessage(message: string): Promise<string>;
   },
 >(config: {
-  kind: string;
   noncePath: string;
   verifyPath: string;
   getSigner(): Promise<S>;
@@ -125,7 +146,6 @@ function createSignedChallengeAdapter<
   buildMessage(input: { signer: N; challenge: Challenge }): string;
 }): WidgetAuthAdapter {
   return {
-    kind: config.kind,
     getFingerprint: async () =>
       config.getFingerprint(config.normalizeSigner(await config.getSigner())),
     exchange: async ({ baseUrl, fetch: fetchImpl }) => {
@@ -151,7 +171,6 @@ export function createSiweWidgetAuthAdapter(input: {
   getSigner(): Promise<WidgetSessionSigner>;
 }): WidgetAuthAdapter {
   return createSignedChallengeAdapter({
-    kind: "siwe",
     noncePath: "/api/widget/auth/siwe/nonce",
     verifyPath: "/api/widget/auth/siwe/verify",
     getSigner: input.getSigner,
@@ -168,7 +187,10 @@ export function createSiweWidgetAuthAdapter(input: {
         nonce: challenge.nonce,
         issuedAt: new Date(challenge.issuedAt),
         expirationTime: new Date(challenge.expirationTime),
-        statement: "Sign in to Aomi from this site.",
+        // Kept identical to the SIWS statement (buildSiwsMessage). The SIWS
+        // server verifier requires exactly "Sign in to Aomi."; the SIWE
+        // verifier does not check statement text, so aligning is safe.
+        statement: "Sign in to Aomi.",
       }),
   });
 }
@@ -177,25 +199,21 @@ export function createSiwsWidgetAuthAdapter(input: {
   getSigner(): Promise<SiwsWidgetSessionSigner>;
 }): WidgetAuthAdapter {
   return createSignedChallengeAdapter({
-    kind: "siws",
     noncePath: "/api/widget/auth/siws/nonce",
     verifyPath: "/api/widget/auth/siws/verify",
     getSigner: input.getSigner,
     normalizeSigner: (signer) => signer,
     getFingerprint: (signer) => `${signer.chainId}:${signer.address}`,
     buildMessage: ({ signer, challenge }) =>
-      [
-        `${challenge.domain} wants you to sign in with your Solana account:`,
-        signer.address,
-        "",
-        "Sign in to Aomi.",
-        "",
-        `URI: ${challenge.uri}`,
-        "Version: 1",
-        `Chain ID: ${signer.chainId}`,
-        `Nonce: ${challenge.nonce}`,
-        `Issued At: ${challenge.issuedAt}`,
-      ].join("\n"),
+      buildSiwsMessage({
+        address: signer.address,
+        chainId: signer.chainId,
+        nonce: challenge.nonce,
+        intent: "sign-in",
+        domain: challenge.domain,
+        uri: challenge.uri,
+        issuedAt: new Date(challenge.issuedAt),
+      }),
   });
 }
 
@@ -210,13 +228,31 @@ export function createWidgetSessionProvider(input: {
   const fetchImpl = input.fetch ?? fetch;
   const now = input.now ?? Date.now;
   const refreshBeforeExpiryMs = input.refreshBeforeExpiryMs ?? 60_000;
-  let cached: (WidgetSession & { fingerprint: string }) | null = null;
-  let pending: { fingerprint: string; promise: Promise<WidgetSession> } | null =
-    null;
+  let cached: (WidgetAuthSession & { fingerprint: string }) | null = null;
+  let pending: {
+    fingerprint: string;
+    promise: Promise<WidgetAuthSession>;
+  } | null = null;
   let disposed = false;
+  // Bumped on every teardown (revoke/signOut/dispose). An exchange captures the
+  // epoch when it starts; a resolution whose epoch no longer matches belongs to
+  // a session the caller has already torn down and must not re-cache a token.
+  let epoch = 0;
+  // Tracks the most recently requested identity. A resolution for a superseded
+  // fingerprint (a fast wallet switch queued a newer exchange) must not
+  // overwrite `cached` with the wrong-identity session.
+  let latestFingerprint: string | null = null;
+  let nextFingerprintRequestId = 0;
+  let latestResolvedFingerprint:
+    | { requestId: number; fingerprint: string }
+    | null = null;
   const listeners = new Set<() => void>();
 
-  const revokeSession = async (session: WidgetSession): Promise<void> => {
+  const notify = () => {
+    for (const listener of listeners) listener();
+  };
+
+  const revokeSession = async (session: WidgetAuthSession): Promise<void> => {
     await fetchImpl(joinUrl(input.baseUrl, "/api/widget/auth/session"), {
       method: "DELETE",
       credentials: "omit",
@@ -224,10 +260,36 @@ export function createWidgetSessionProvider(input: {
     }).catch(() => undefined);
   };
 
-  const provider = (async ({ forceRefresh = false } = {}) => {
-    if (disposed) return undefined;
+  const base = async ({ forceRefresh = false } = {}) => {
+    if (disposed) {
+      throw new Error("Widget session provider has been disposed");
+    }
+    // Capture the generation up-front so a teardown that happens while the
+    // identity resolves (or the exchange is in flight) discards this result.
+    const startEpoch = epoch;
+    const fingerprintRequestId = ++nextFingerprintRequestId;
     const fingerprint = await adapter.getFingerprint();
     if (!fingerprint) throw new Error("Widget auth identity is unavailable");
+    if (disposed || epoch !== startEpoch) {
+      throw new Error("Widget session request was superseded");
+    }
+    if (
+      latestResolvedFingerprint &&
+      latestResolvedFingerprint.requestId > fingerprintRequestId &&
+      latestResolvedFingerprint.fingerprint !== fingerprint
+    ) {
+      throw new Error("Widget session request was superseded");
+    }
+    if (
+      !latestResolvedFingerprint ||
+      fingerprintRequestId > latestResolvedFingerprint.requestId
+    ) {
+      latestResolvedFingerprint = {
+        requestId: fingerprintRequestId,
+        fingerprint,
+      };
+    }
+    latestFingerprint = fingerprint;
     const refreshAt = cached
       ? cached.expiresAt * 1000 - refreshBeforeExpiryMs
       : 0;
@@ -246,11 +308,21 @@ export function createWidgetSessionProvider(input: {
     if (!pending || pending.fingerprint !== fingerprint) {
       const promise = adapter
         .exchange({ baseUrl: input.baseUrl, fetch: fetchImpl })
-        .then((session) => {
-          if (!disposed) {
-            cached = { ...session, fingerprint };
-            for (const listener of listeners) listener();
+        .then(async (session) => {
+          // A late exchange is not merely excluded from the cache: revoke its
+          // server-side token and reject the waiting request. Returning it would
+          // let an API call continue after explicit sign-out or execute as the
+          // wallet that was active before a fast account switch.
+          const isCurrent =
+            !disposed &&
+            epoch === startEpoch &&
+            fingerprint === latestFingerprint;
+          if (!isCurrent) {
+            await revokeSession(session);
+            throw new Error("Widget session exchange was superseded");
           }
+          cached = { ...session, fingerprint };
+          notify();
           return session;
         });
       pending = { fingerprint, promise };
@@ -261,28 +333,44 @@ export function createWidgetSessionProvider(input: {
       }
     }
     return (await pending.promise).accessToken;
-  }) as WidgetSessionProvider;
+  };
 
-  Object.defineProperty(provider, "required", { value: true });
-  provider.revoke = async () => {
+  // Invalidate the current session generation: drop the cached token and any
+  // in-flight exchange, and notify subscribers so live streams tear down
+  // immediately instead of waiting for the next reconnect.
+  const revoke = async () => {
     const session = cached;
-    cached = null;
-    if (session) await revokeSession(session);
-  };
-  provider.signOut = async () => {
-    await provider.revoke();
-    await adapter.signOut?.();
-  };
-  provider.dispose = () => {
-    disposed = true;
+    epoch += 1;
     cached = null;
     pending = null;
-    listeners.clear();
+    latestResolvedFingerprint = null;
+    notify();
+    if (session) await revokeSession(session);
   };
-  provider.subscribe = (listener) => {
-    listeners.add(listener);
-    return () => listeners.delete(listener);
-  };
+
+  const provider: WidgetSessionProvider = Object.assign(base, {
+    required: true as const,
+    revoke,
+    signOut: async () => {
+      await revoke();
+      await adapter.signOut?.();
+    },
+    dispose: () => {
+      disposed = true;
+      epoch += 1;
+      cached = null;
+      pending = null;
+      latestResolvedFingerprint = null;
+      notify();
+      listeners.clear();
+    },
+    subscribe: (listener: () => void) => {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+  });
   return provider;
 }
 
@@ -326,7 +414,7 @@ async function exchangeJson(
   fetchImpl: typeof fetch,
   url: string,
   body: unknown,
-): Promise<WidgetSession> {
+): Promise<WidgetAuthSession> {
   const response = await fetchImpl(url, requestInit(body));
   if (!response.ok)
     throw new Error(`Widget auth exchange failed: ${response.status}`);
@@ -336,6 +424,12 @@ async function exchangeJson(
     typeof value.expires_at !== "number"
   ) {
     throw new Error("Widget session response is invalid");
+  }
+  // `expiresAt` is treated as seconds throughout (multiplied by 1000 when
+  // computing the refresh window). Mirror account-session.ts's guard so a
+  // millisecond value can never masquerade as a far-future expiry.
+  if (value.expires_at > EXPIRES_AT_MILLISECONDS_THRESHOLD) {
+    throw new Error("Widget session expires_at must be seconds, not ms");
   }
   return { accessToken: value.access_token, expiresAt: value.expires_at };
 }
@@ -355,5 +449,7 @@ function normalizeSiweSigner(
   if (!Number.isInteger(signer.chainId) || signer.chainId <= 0) {
     throw new Error("Widget SIWE signer has no valid chain id");
   }
+  // NOTE: cast is load-bearing — this repo's abitype register resolves viem's
+  // `Address` to plain `string`, so `getAddress` does not narrow to `0x${string}`.
   return { ...signer, address: getAddress(signer.address) as `0x${string}` };
 }

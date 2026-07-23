@@ -33,6 +33,18 @@ Progress:
   stripping browser credentials, added proxy regression coverage, and
   patch-bumped `@aomi-labs/account` to 0.1.6.
 
+- 2026-07-23 review-blocker closure: default wallet-mode widgets now withhold
+  their required AccountBearer source until an EVM/SVM signer is actually
+  available; superseded widget-session exchanges after sign-out or a wallet
+  switch revoke their late WST and reject the waiting request instead of
+  returning a stale principal; and account refreshes are keyed to the active
+  auth/client context so an old provider response cannot overwrite a newly
+  selected user's state. Added focused regressions for all three paths,
+  removed the stale test-only adapter `kind` fields, rebuilt client/widget
+  artifacts, and refreshed the Landing registry mirror. Verified 816 root
+  tests, 278 widget tests, lint, root/account/Portal typechecks, client and
+  widget builds, and the widget-consumer production build.
+
 - 2026-07-23 widget-auth PR main sync: rebased frontend PR #382 and backend PR
   #855 onto current `main`, preserving the newer x402 and Solana approval work
   alongside tenant-scoped widget authentication. Reconciled the Portal x402

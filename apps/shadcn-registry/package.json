@@ -41,7 +41,8 @@
     "build": "pnpm run build:registry && pnpm run build:package",
     "build:registry": "tsx scripts/build-registry.js",
     "build:package": "tsup && node scripts/build-package-css.mjs",
-    "clean:dist": "rm -rf dist"
+    "clean:dist": "rm -rf dist",
+    "prepublishOnly": "pnpm run build"
   },
   "dependencies": {
     "@aomi-labs/client": "workspace:*",

@@ -11,11 +11,41 @@ import {
 } from "@aomi-labs/client";
 import type { AuthRuntime, SvmWalletRuntime } from "../composer/types";
 import type { EvmWalletRuntime } from "../runtime/evm/wallet-runtime";
+import type { WidgetAuthConfig } from "../config/types";
 import { utf8ToBase64 } from "./encoding";
 
-export type WidgetAuthConfig =
-  | { mode: "provider"; provider: string; environment: string }
-  | { mode: "wallet" };
+export type { WidgetAuthConfig };
+
+/**
+ * Single predicate both layers consult to decide whether the widget currently
+ * has a usable credential source to mint its own backend session. Keeping the
+ * provider-build guard (`useWidgetSessionProvider`) and the signed-out gate
+ * (`useAomiBackendAccountRuntime`) on the same rule stops them from disagreeing
+ * — e.g. an authenticated-but-credential-less provider state that would
+ * otherwise fall back to cross-origin cookie mode and 401.
+ *
+ * - `provider` mode is ready once the host is authenticated AND exposes an
+ *   exchangeable credential.
+ * - `wallet` mode is ready once a connected external wallet can sign (EVM SIWE
+ *   or SVM SIWS); before that it is idle, not an error.
+ */
+export function widgetCredentialsReady(input: {
+  widgetAuth: WidgetAuthConfig;
+  authStatus: AuthRuntime["status"];
+  hasAuthCredential: boolean;
+  evm: EvmWalletRuntime;
+  svm?: SvmWalletRuntime;
+}): boolean {
+  if (input.widgetAuth.mode === "provider") {
+    return input.authStatus === "authenticated" && input.hasAuthCredential;
+  }
+  const connection = input.evm.activeEvmConnection;
+  if (connection?.address && connection.chainId && input.evm.signMessageAsync) {
+    return true;
+  }
+  const identity = input.svm?.identity(Date.now());
+  return Boolean(identity?.address && input.svm?.execution.signSolanaMessage);
+}
 
 /**
  * Build (and dispose) the cross-origin widget session provider for the account
@@ -39,6 +69,15 @@ export function useWidgetSessionProvider(input: {
     widgetAuth?.mode === "provider" ? widgetAuth.provider : undefined;
   const environment =
     widgetAuth?.mode === "provider" ? widgetAuth.environment : undefined;
+  const credentialsReady = widgetAuth
+    ? widgetCredentialsReady({
+        widgetAuth,
+        authStatus,
+        hasAuthCredential,
+        evm,
+        svm,
+      })
+    : false;
 
   const authRef = useRef(auth);
   const evmRef = useRef(evm);
@@ -49,15 +88,19 @@ export function useWidgetSessionProvider(input: {
 
   const widgetSessionProvider = useMemo(() => {
     if (!widgetAuth || !baseUrl) return undefined;
+    // Do not publish a required bearer source until the configured auth mode
+    // can actually mint one. This applies equally to provider and wallet mode:
+    // the main Aomi client consumes this provider for threads, REST, and SSE,
+    // not only the account runtime, so returning a throwing wallet adapter here
+    // would still turn the default signed-out widget boot into an auth error.
+    if (!credentialsReady) return undefined;
     let adapter: WidgetAuthAdapter;
     if (widgetAuth.mode === "provider") {
       // Provider SDKs briefly report a connected account before their
       // exchangeable credential is ready. Do not expose a required bearer
       // source during that gap: catalog loaders would consume it immediately
       // and turn normal auth boot into "Widget auth identity is unavailable".
-      if (authStatus !== "authenticated" || !hasAuthCredential) {
-        return undefined;
-      }
+      // Same readiness rule the runtime's signed-out gate uses.
       const config = widgetAuth;
       adapter = createProviderCredentialAdapter({
         provider: config.provider,
@@ -67,40 +110,45 @@ export function useWidgetSessionProvider(input: {
         signOut: async () => authRef.current.logout?.(),
       });
     } else {
+      // SIWE/SIWS wallet mode has no silent refresh: the widget session
+      // provider re-runs the adapter's getFingerprint/exchange to renew, which
+      // re-prompts the wallet to sign roughly every 29 min (the WST lifetime
+      // minus the refresh window). The fingerprint also includes chainId, so
+      // switching chains changes the identity and forces a fresh re-sign. Both
+      // are currently intended: wallet mode has no offline key to refresh with.
       const currentWalletAdapter = (): WidgetAuthAdapter => {
         const evmRuntime = evmRef.current;
         const connection = evmRuntime.activeEvmConnection;
-        if (
-          connection?.address &&
-          connection.chainId &&
-          evmRuntime.signMessageAsync
-        ) {
+        const evmAddress = connection?.address;
+        const evmChainId = connection?.chainId;
+        const evmSignMessage = evmRuntime.signMessageAsync;
+        if (evmAddress && evmChainId && evmSignMessage) {
           return createSiweWidgetAuthAdapter({
             getSigner: async () => ({
-              address: connection.address,
-              chainId: connection.chainId!,
-              signMessage: async (message) =>
-                evmRuntime.signMessageAsync!({ message }),
+              address: evmAddress,
+              chainId: evmChainId,
+              signMessage: async (message) => evmSignMessage({ message }),
             }),
           });
         }
         const svmRuntime = svmRef.current;
         const identity = svmRuntime?.identity(Date.now());
+        const svmAddress = identity?.address;
         const signMessage = svmRuntime?.execution.signSolanaMessage;
-        if (identity?.address && signMessage) {
+        if (svmAddress && signMessage) {
           return createSiwsWidgetAuthAdapter({
             getSigner: async () => ({
-              address: identity.address!,
+              address: svmAddress,
               chainId:
                 svmRuntime?.selectedNetwork?.cluster ??
-                identity.cluster ??
+                identity?.cluster ??
                 "solana:mainnet",
               signMessage: async (message) =>
                 (
                   await signMessage({
                     message: utf8ToBase64(message),
                     cluster:
-                      svmRuntime?.selectedNetwork?.cluster ?? identity.cluster,
+                      svmRuntime?.selectedNetwork?.cluster ?? identity?.cluster,
                   })
                 ).signature,
             }),
@@ -111,7 +159,6 @@ export function useWidgetSessionProvider(input: {
         );
       };
       adapter = {
-        kind: "wallet",
         getFingerprint: () => currentWalletAdapter().getFingerprint(),
         exchange: (options) => currentWalletAdapter().exchange(options),
       };
@@ -127,6 +174,7 @@ export function useWidgetSessionProvider(input: {
     mode,
     environment,
     provider,
+    credentialsReady,
   ]);
 
   useEffect(

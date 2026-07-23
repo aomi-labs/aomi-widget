@@ -135,6 +135,9 @@ export type AomiAccountResponse =
       session: null;
     };
 
+// Deliberately open (not a closed union of provider names): shared account
+// code must stay provider-agnostic per the descriptor boundary; concrete
+// providers are validated at runtime against the registered descriptors.
 export type AccountCredentialProvider = string;
 
 export type AomiAccountCredential = {

@@ -1,4 +1,5 @@
 import {
+  parseSiwsMessage,
   SIWS_CLUSTERS,
   validSolanaAddress,
   verifySiwsMessage,
@@ -61,8 +62,12 @@ export async function verifyWidgetSiwsProof(input: {
   const address = requireSolanaAddress(input.walletAddress);
   const chainId = requireSiwsCluster(input.chainId);
   const now = input.now ?? new Date();
-  const nonce = readField(input.message, "Nonce");
-  if (!nonce) throw new WidgetAuthError("invalid_siws_message", 400);
+  // Use the strict SIWS parser (same one `verifySiwsMessage` relies on) rather
+  // than hand-scanning individual fields, so the nonce/issued-at we bind
+  // against come from a fully-validated message shape.
+  const parsed = parseSiwsMessage(input.message);
+  if (!parsed) throw new WidgetAuthError("invalid_siws_message", 400);
+  const nonce = parsed.nonce;
   const store = input.store ?? widgetAuthStore;
   const ticket = await store.read({
     identifier: challengeIdentifier(SIWS_CHALLENGE_NAMESPACE, nonce),
@@ -75,7 +80,10 @@ export async function verifyWidgetSiwsProof(input: {
     ticket.origin === origin &&
     ticket.address === address &&
     ticket.chainId === chainId &&
-    readField(input.message, "Issued At") === ticket.issuedAt &&
+    parsed.address === address &&
+    parsed.chainId === chainId &&
+    parsed.uri === origin &&
+    parsed.issuedAt === ticket.issuedAt &&
     verifySiwsMessage({
       message: input.message,
       signature: input.signature,
@@ -117,14 +125,4 @@ function requireSiwsCluster(value: string): SiwsCluster {
     throw new WidgetAuthError("invalid_chain_id", 400);
   }
   return value as SiwsCluster;
-}
-
-function readField(message: string, field: string): string | null {
-  const prefix = `${field}: `;
-  return (
-    message
-      .split(/\r?\n/)
-      .find((line) => line.startsWith(prefix))
-      ?.slice(prefix.length) ?? null
-  );
 }

@@ -2060,11 +2060,11 @@ function wrapFetchWithPaymentChallenges(fetchImpl, client) {
 // src/widget-session.ts
 import { getAddress } from "viem";
 import { createSiweMessage } from "viem/siwe";
+var EXPIRES_AT_MILLISECONDS_THRESHOLD2 = 1e11;
 function createProviderCredentialAdapter(input) {
   let inferredFingerprint = null;
   let stagedCredential = null;
   return {
-    kind: input.provider,
     getFingerprint: async () => {
       const subject = input.getSubject();
       if (subject) return `${input.provider}:${subject}`;
@@ -2103,7 +2103,6 @@ function createProviderCredentialAdapter(input) {
 }
 function createSignedChallengeAdapter(config) {
   return {
-    kind: config.kind,
     getFingerprint: async () => config.getFingerprint(config.normalizeSigner(await config.getSigner())),
     exchange: async ({ baseUrl, fetch: fetchImpl }) => {
       const signer = config.normalizeSigner(await config.getSigner());
@@ -2125,7 +2124,6 @@ function createSignedChallengeAdapter(config) {
 }
 function createSiweWidgetAuthAdapter(input) {
   return createSignedChallengeAdapter({
-    kind: "siwe",
     noncePath: "/api/widget/auth/siwe/nonce",
     verifyPath: "/api/widget/auth/siwe/verify",
     getSigner: input.getSigner,
@@ -2140,30 +2138,29 @@ function createSiweWidgetAuthAdapter(input) {
       nonce: challenge.nonce,
       issuedAt: new Date(challenge.issuedAt),
       expirationTime: new Date(challenge.expirationTime),
-      statement: "Sign in to Aomi from this site."
+      // Kept identical to the SIWS statement (buildSiwsMessage). The SIWS
+      // server verifier requires exactly "Sign in to Aomi."; the SIWE
+      // verifier does not check statement text, so aligning is safe.
+      statement: "Sign in to Aomi."
     })
   });
 }
 function createSiwsWidgetAuthAdapter(input) {
   return createSignedChallengeAdapter({
-    kind: "siws",
     noncePath: "/api/widget/auth/siws/nonce",
     verifyPath: "/api/widget/auth/siws/verify",
     getSigner: input.getSigner,
     normalizeSigner: (signer) => signer,
     getFingerprint: (signer) => `${signer.chainId}:${signer.address}`,
-    buildMessage: ({ signer, challenge }) => [
-      `${challenge.domain} wants you to sign in with your Solana account:`,
-      signer.address,
-      "",
-      "Sign in to Aomi.",
-      "",
-      `URI: ${challenge.uri}`,
-      "Version: 1",
-      `Chain ID: ${signer.chainId}`,
-      `Nonce: ${challenge.nonce}`,
-      `Issued At: ${challenge.issuedAt}`
-    ].join("\n")
+    buildMessage: ({ signer, challenge }) => buildSiwsMessage({
+      address: signer.address,
+      chainId: signer.chainId,
+      nonce: challenge.nonce,
+      intent: "sign-in",
+      domain: challenge.domain,
+      uri: challenge.uri,
+      issuedAt: new Date(challenge.issuedAt)
+    })
   });
 }
 function createWidgetSessionProvider(input) {
@@ -2175,7 +2172,14 @@ function createWidgetSessionProvider(input) {
   let cached = null;
   let pending = null;
   let disposed = false;
+  let epoch = 0;
+  let latestFingerprint = null;
+  let nextFingerprintRequestId = 0;
+  let latestResolvedFingerprint = null;
   const listeners = /* @__PURE__ */ new Set();
+  const notify = () => {
+    for (const listener of listeners) listener();
+  };
   const revokeSession = async (session) => {
     await fetchImpl(joinUrl(input.baseUrl, "/api/widget/auth/session"), {
       method: "DELETE",
@@ -2183,10 +2187,27 @@ function createWidgetSessionProvider(input) {
       headers: { Authorization: `Bearer ${session.accessToken}` }
     }).catch(() => void 0);
   };
-  const provider = (async ({ forceRefresh = false } = {}) => {
-    if (disposed) return void 0;
+  const base2 = async ({ forceRefresh = false } = {}) => {
+    if (disposed) {
+      throw new Error("Widget session provider has been disposed");
+    }
+    const startEpoch = epoch;
+    const fingerprintRequestId = ++nextFingerprintRequestId;
     const fingerprint = await adapter.getFingerprint();
     if (!fingerprint) throw new Error("Widget auth identity is unavailable");
+    if (disposed || epoch !== startEpoch) {
+      throw new Error("Widget session request was superseded");
+    }
+    if (latestResolvedFingerprint && latestResolvedFingerprint.requestId > fingerprintRequestId && latestResolvedFingerprint.fingerprint !== fingerprint) {
+      throw new Error("Widget session request was superseded");
+    }
+    if (!latestResolvedFingerprint || fingerprintRequestId > latestResolvedFingerprint.requestId) {
+      latestResolvedFingerprint = {
+        requestId: fingerprintRequestId,
+        fingerprint
+      };
+    }
+    latestFingerprint = fingerprint;
     const refreshAt = cached ? cached.expiresAt * 1e3 - refreshBeforeExpiryMs : 0;
     if (!forceRefresh && (cached == null ? void 0 : cached.fingerprint) === fingerprint && now() < refreshAt) {
       return cached.accessToken;
@@ -2201,39 +2222,54 @@ function createWidgetSessionProvider(input) {
         if ((pending == null ? void 0 : pending.promise) === promise) pending = null;
       };
       var clearPending = clearPending2;
-      const promise = adapter.exchange({ baseUrl: input.baseUrl, fetch: fetchImpl }).then((session) => {
-        if (!disposed) {
-          cached = __spreadProps(__spreadValues({}, session), { fingerprint });
-          for (const listener of listeners) listener();
+      const promise = adapter.exchange({ baseUrl: input.baseUrl, fetch: fetchImpl }).then(async (session) => {
+        const isCurrent = !disposed && epoch === startEpoch && fingerprint === latestFingerprint;
+        if (!isCurrent) {
+          await revokeSession(session);
+          throw new Error("Widget session exchange was superseded");
         }
+        cached = __spreadProps(__spreadValues({}, session), { fingerprint });
+        notify();
         return session;
       });
       pending = { fingerprint, promise };
       void promise.then(clearPending2, clearPending2);
     }
     return (await pending.promise).accessToken;
-  });
-  Object.defineProperty(provider, "required", { value: true });
-  provider.revoke = async () => {
+  };
+  const revoke = async () => {
     const session = cached;
-    cached = null;
-    if (session) await revokeSession(session);
-  };
-  provider.signOut = async () => {
-    var _a2;
-    await provider.revoke();
-    await ((_a2 = adapter.signOut) == null ? void 0 : _a2.call(adapter));
-  };
-  provider.dispose = () => {
-    disposed = true;
+    epoch += 1;
     cached = null;
     pending = null;
-    listeners.clear();
+    latestResolvedFingerprint = null;
+    notify();
+    if (session) await revokeSession(session);
   };
-  provider.subscribe = (listener) => {
-    listeners.add(listener);
-    return () => listeners.delete(listener);
-  };
+  const provider = Object.assign(base2, {
+    required: true,
+    revoke,
+    signOut: async () => {
+      var _a2;
+      await revoke();
+      await ((_a2 = adapter.signOut) == null ? void 0 : _a2.call(adapter));
+    },
+    dispose: () => {
+      disposed = true;
+      epoch += 1;
+      cached = null;
+      pending = null;
+      latestResolvedFingerprint = null;
+      notify();
+      listeners.clear();
+    },
+    subscribe: (listener) => {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    }
+  });
   return provider;
 }
 async function challengeJson(fetchImpl, url, body) {
@@ -2267,6 +2303,9 @@ async function exchangeJson(fetchImpl, url, body) {
   if (typeof value.access_token !== "string" || typeof value.expires_at !== "number") {
     throw new Error("Widget session response is invalid");
   }
+  if (value.expires_at > EXPIRES_AT_MILLISECONDS_THRESHOLD2) {
+    throw new Error("Widget session expires_at must be seconds, not ms");
+  }
   return { accessToken: value.access_token, expiresAt: value.expires_at };
 }
 function requestInit(body) {
@@ -2282,6 +2321,15 @@ function normalizeSiweSigner(signer) {
     throw new Error("Widget SIWE signer has no valid chain id");
   }
   return __spreadProps(__spreadValues({}, signer), { address: getAddress(signer.address) });
+}
+
+// src/internal/env.ts
+function safeEnv(read) {
+  try {
+    return read();
+  } catch (e) {
+    return void 0;
+  }
 }
 
 // src/types.ts
@@ -4515,15 +4563,6 @@ function appendFeeCallToPayload(payload, fee, defaultChainId, options) {
   });
 }
 
-// src/internal/env.ts
-function safeEnv(read) {
-  try {
-    return read();
-  } catch (e) {
-    return void 0;
-  }
-}
-
 // src/aa/alchemy/defaults.ts
 var DEFAULT_ALCHEMY_API_KEY = "72eIUle_3rfixX00QJVwk";
 var DEFAULT_ALCHEMY_GAS_POLICY_ID = "fb17d7d7-9a32-479d-937a-52d72b849c40";
@@ -5494,6 +5533,7 @@ export {
   posterFromClient,
   resolvePimlicoConfig,
   robinhood,
+  safeEnv,
   toAAWalletCall,
   toAAWalletCalls,
   toViemSignMessageArgs,

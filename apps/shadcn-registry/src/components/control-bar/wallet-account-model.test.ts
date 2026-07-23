@@ -1,8 +1,34 @@
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
+import { registerWalletProvider } from "../../lib/wallet-kit/providers/plugin-registry";
 import {
   buildAccountAccessEntries,
+  isProviderAuthProvider,
   providerBackedAccountProvider,
 } from "./wallet-account-model";
+
+// `isProviderAuthProvider` derives the provider-auth set from the plugin
+// registry (a plugin with an `authMode`) rather than hardcoding names. Register
+// minimal stand-ins so these unit tests exercise that path without importing
+// the full provider modules.
+beforeAll(() => {
+  registerWalletProvider({ id: "para", authMode: "additive" });
+  registerWalletProvider({ id: "privy", authMode: "additive" });
+});
+
+describe("isProviderAuthProvider", () => {
+  it("recognizes providers whose registered plugin declares an authMode", () => {
+    expect(isProviderAuthProvider("para")).toBe(true);
+    expect(isProviderAuthProvider("PARA")).toBe(true);
+    expect(isProviderAuthProvider("privy")).toBe(true);
+  });
+
+  it("returns false for unregistered / non-auth providers and empties", () => {
+    expect(isProviderAuthProvider("custom")).toBe(false);
+    expect(isProviderAuthProvider("siwe")).toBe(false);
+    expect(isProviderAuthProvider(undefined)).toBe(false);
+    expect(isProviderAuthProvider("")).toBe(false);
+  });
+});
 
 describe("providerBackedAccountProvider", () => {
   it("treats custom embedded and smart-account wallets as provider-backed", () => {

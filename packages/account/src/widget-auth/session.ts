@@ -90,14 +90,26 @@ export async function revokeWidgetSession(input: {
   request: Request;
   now?: Date;
   store?: WidgetAuthStore;
+  // Accepted for call-site symmetry with resolveWidgetSession but intentionally
+  // ignored: revocation must succeed even for a deactivated user's token so the
+  // row is always cleaned up rather than left dangling.
   isUserActive?: (userId: string) => Promise<boolean>;
 }): Promise<boolean> {
   const token = widgetBearerToken(input.request);
-  const session = await resolveWidgetSession(input);
-  if (!token || !session) return false;
-  return (input.store ?? widgetAuthStore).delete({
-    identifier: sessionIdentifier(token),
+  const origin = observedWidgetOrigin(input.request);
+  if (!token || !origin) return false;
+  const store = input.store ?? widgetAuthStore;
+  const identifier = sessionIdentifier(token);
+  const ticket = await store.read({
+    identifier,
+    now: input.now ?? new Date(),
   });
+  // Only the token's own origin may revoke it, but the owning user's active
+  // state is deliberately not consulted (see the `isUserActive` note above).
+  if (ticket?.kind !== "widget_session" || ticket.origin !== origin) {
+    return false;
+  }
+  return store.delete({ identifier });
 }
 
 export function hasWidgetSessionBearer(request: Request): boolean {

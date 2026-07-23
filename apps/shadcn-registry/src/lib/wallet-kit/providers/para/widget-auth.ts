@@ -25,6 +25,10 @@ export function paraAuth({
   if (!resolvedApiKey) {
     throw new Error("Para widget auth requires an apiKey");
   }
+  // The plugin module self-registers on import, but consumers reach it only
+  // through this helper. Re-registering here gives the bundler a live reference
+  // to the plugin module so tree-shaking cannot drop its side-effect
+  // registration when the widget imports `paraAuth` alone.
   registerAomiParaWalletProvider();
   return providerAuth({
     provider: "para",

@@ -104,6 +104,59 @@ export async function accountResponseForPrincipal(
 
 function isFirstPartyRequest(request: Request): boolean {
   const origin = observedWidgetOrigin(request);
+  // No cross-origin `Origin` header => same-origin navigation/POST => first party.
   if (!origin) return true;
-  return origin === new URL(request.url).origin;
+  return firstPartyOrigins(request).has(origin);
+}
+
+/**
+ * The set of origins that count as "first party" for this request.
+ *
+ * `new URL(request.url).origin` is correct on Vercel, but behind proxies/CDNs
+ * that terminate TLS and forward `http://` (reconstructing the request URL on
+ * the internal hop), it would report the wrong scheme/host and misclassify a
+ * genuine first-party cookie POST as the widget (cross-origin) path. To harden
+ * that we also honor the proxy's `x-forwarded-proto`/`x-forwarded-host` and a
+ * configured canonical portal origin, when present. All of these only *add*
+ * accepted first-party origins; the request's own reconstructed origin is
+ * always included, so same-origin behavior is preserved. This cannot be abused
+ * to escalate: being treated as first party only switches to cookie-session
+ * auth, which still fails closed without a valid Better Auth session cookie.
+ */
+function firstPartyOrigins(request: Request): Set<string> {
+  const origins = new Set<string>([new URL(request.url).origin]);
+  const configured = canonicalPortalOrigin();
+  if (configured) origins.add(configured);
+  const forwarded = forwardedOrigin(request);
+  if (forwarded) origins.add(forwarded);
+  return origins;
+}
+
+function canonicalPortalOrigin(): string | null {
+  return (
+    normalizeOrigin(process.env.AOMI_PORTAL_BASE_URL) ??
+    normalizeOrigin(process.env.BETTER_AUTH_URL)
+  );
+}
+
+function forwardedOrigin(request: Request): string | null {
+  const host = request.headers
+    .get("x-forwarded-host")
+    ?.split(",")[0]
+    ?.trim();
+  if (!host) return null;
+  const proto =
+    request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim() ||
+    new URL(request.url).protocol.replace(/:$/, "");
+  return normalizeOrigin(`${proto}://${host}`);
+}
+
+function normalizeOrigin(value: string | null | undefined): string | null {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+  try {
+    return new URL(trimmed).origin;
+  } catch {
+    return null;
+  }
 }

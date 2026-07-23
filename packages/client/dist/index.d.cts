@@ -707,17 +707,35 @@ declare function ensureSvmWalletBoundVia(post: AuthorizationPoster, wallet: stri
 declare function ensureSvmWalletBound(client: AomiClient, wallet: string, signMessage: (message: Uint8Array) => Promise<Uint8Array>): Promise<AomiEnsureBoundResult>;
 declare function isUnboundWalletError(error: unknown): boolean;
 
-type WidgetSession = {
+type SiwsChainId = "solana:mainnet" | "solana:devnet" | "solana:testnet";
+type SiwsIntent = "sign-in" | "link";
+declare function buildSiwsMessage(input: {
+    address: string;
+    chainId: SiwsChainId;
+    nonce: string;
+    intent: SiwsIntent;
+    domain: string;
+    uri: string;
+    issuedAt?: Date;
+}): string;
+
+type WidgetAuthSession = {
     accessToken: string;
     expiresAt: number;
 };
+/**
+ * @deprecated Ambiguous with the `WidgetSession` type exported by
+ * `@aomi-labs/account`, which describes a different (BFF-side) shape. Prefer
+ * {@link WidgetAuthSession}. Retained as an alias for backward compatibility
+ * with the published `@aomi-labs/client` API.
+ */
+type WidgetSession = WidgetAuthSession;
 type WidgetAuthAdapter = {
-    kind: string;
     getFingerprint(): string | null | Promise<string | null>;
     exchange(input: {
         baseUrl: string;
         fetch: typeof fetch;
-    }): Promise<WidgetSession>;
+    }): Promise<WidgetAuthSession>;
     signOut?(): Promise<void>;
 };
 type WidgetSessionProvider = GetAccountBearer & {
@@ -734,7 +752,7 @@ type WidgetSessionSigner = {
 };
 type SiwsWidgetSessionSigner = {
     address: string;
-    chainId: string;
+    chainId: SiwsChainId;
     signMessage(message: string): Promise<string>;
 };
 type ProviderCredential = {
@@ -811,18 +829,6 @@ type AccountBearerProvider = GetAccountBearer & {
 /** Cache and refresh the short-lived Aomi bearer used for backend requests. */
 declare function createAccountBearerProvider({ baseUrl, getProviderCredential, betterAuthToken, fetch: fetchImpl, now, refreshBeforeExpiryMs, }: AccountBearerProviderOptions): AccountBearerProvider;
 
-type SiwsChainId = "solana:mainnet" | "solana:devnet" | "solana:testnet";
-type SiwsIntent = "sign-in" | "link";
-declare function buildSiwsMessage(input: {
-    address: string;
-    chainId: SiwsChainId;
-    nonce: string;
-    intent: SiwsIntent;
-    domain: string;
-    uri: string;
-    issuedAt?: Date;
-}): string;
-
 /**
  * Pays an x402 challenge and follows a new challenge only when the preceding
  * signed response includes a settlement receipt.
@@ -850,6 +856,16 @@ declare function normalizeAppDescriptor(item: unknown): AomiAppDescriptor | null
  * Server-side dedup and client-side selection must agree, so both call this.
  */
 declare function appIdentityKey(descriptor: AomiAppDescriptor): string;
+
+/**
+ * Read an environment variable defensively.
+ *
+ * The value is supplied through a thunk so the literal `process.env.X`
+ * reference stays in the source — bundlers (Next.js, Vite `define`) still
+ * inline it at build time — while the try/catch tolerates `process` being
+ * undefined in pure-browser builds instead of throwing a ReferenceError.
+ */
+declare function safeEnv(read: () => string | undefined): string | undefined;
 
 type Listener<T = unknown> = (payload: T) => void;
 /**
@@ -1771,4 +1787,4 @@ interface CreateAAStateOptions {
  */
 declare function createAAProviderState(options: CreateAAStateOptions): Promise<AAState>;
 
-export { type AACallPayload, type AAChainConfig, type AAConfig, type AAMode, type AAOwner, type AAProvider, type AAResolvedConfig, type AASponsorship, type AAState, type AAWalletCall, ALCHEMY_CHAIN_SLUGS, type AccountBearerProvider, type AccountBearerProviderOptions, type AccountCredentialProvider, AccountCredentialUnavailableError, type AccountSessionExchangeResponse, type AlchemyHookParams, type AomiAccessApproval, type AomiAccountProfile, type AomiAccountResponse, type AomiAppDescriptor, type AomiAuthIdentity, type AomiAuthorizationChallenge, type AomiAuthorizationPermit, type AomiAuthorizationState, type AomiChatResponse, type AomiClearSecretsResponse, AomiClient, type AomiClientOptions, type AomiClientType, type AomiCreateApprovalRequest, type AomiCreateThreadResponse, type AomiDeleteSecretResponse, type AomiEnsureBoundResult, type AomiHttpMethod, type AomiIdentityWallet, type AomiIngestSecretsResponse, type AomiInterruptResponse, type AomiListSecretsResponse, type AomiMessage, type AomiPlatformFilter, type AomiRequestOptions, type AomiRequestQueryValue, type AomiSSEEvent, type AomiSSEEventType, type AomiSecretSlot, type AomiSimulateFee, type AomiSimulateResponse, type AomiStateResponse, type AomiSystemEvent, type AomiSystemResponse, type AomiThread, type AomiUsageStats, type AomiUser, type AomiWalletFamily, type AtomicBatchArgs, type AuthorizationPoster, type BetterAuthAccountTokenSourceOptions, type BetterAuthTokenResponse, CHAINS_BY_ID, CHAIN_NAMES, CLIENT_TYPE_TS_CLI, CLIENT_TYPE_WEB_UI, type ChainInfo, type CreateAAStateOptions, type CreateAlchemyAAProviderOptions, type CreatePimlicoAAProviderOptions, DEFAULT_AA_CONFIG, DISABLED_PROVIDER_STATE, type ExecuteWalletCallsParams, type ExecutionResult, type GetAccountBearer, type Logger, MAX_AUTO_FEE_WEI, type NativeWalletExecutionPolicy, type NativeWalletSponsorship, type NormalizedSimulatedFee, type NormalizedSolanaWalletRequest, type PimlicoHookParams, type PimlicoResolveOptions, type PimlicoResolvedConfig, type ProviderCredential, SUPPORTED_CHAINS, SUPPORTED_CHAIN_IDS, type SendResult, ClientSession as Session, type SessionEventMap, type SessionOptions, type SiwsChainId, type SiwsIntent, type SiwsWidgetSessionSigner, type SmartAccount, type SponsorshipPaymasterServiceContext, TypedEventEmitter, type UnwrappedEvent, type UseAlchemyAAHook, type UsePimlicoAAHook, UserState, type UserStateAAMode, type UserStateAuthMethod, type UserStateSponsorProvider, type UserStateWalletKind, type UserStateWalletProvider, type ViemSignMessageArgs, type ViemSignTypedDataArgs, type WalletAtomicCapability, type WalletCapabilities, type WalletEip712Payload, type WalletRequest, type WalletRequestKind, type WalletRequestResult, type WalletSolanaSignMessagePayload, type WalletSolanaSignPayload, type WalletTxAaPreference, type WalletTxCallPayload, type WalletTxPayload, type WidgetAuthAdapter, type WidgetSession, type WidgetSessionProvider, type WidgetSessionSigner, aaModeFromExecutionKind, adaptSmartAccount, appIdentityKey, appendFeeCallToPayload, authorizationChallenge, authorizationCommit, buildAAExecutionPlan, buildFeeAAWalletCall, buildSiwsMessage, createAAProviderState, createAccountBearerProvider, createAlchemyAAProvider, createPimlicoAAProvider, createProviderCredentialAdapter, createSiweWidgetAuthAdapter, createSiwsWidgetAuthAdapter, createWidgetSessionProvider, ensureSvmWalletBound, ensureSvmWalletBoundVia, executeWalletCalls, getAAChainConfig, getWalletExecutorReady, handlePaymentChallenges, hydrateTxPayloadFromUserState, isAlchemySponsorshipLimitError, isAsyncCallback, isInlineCall, isSystemError, isSystemNotice, isUnboundWalletError, monad, monadTestnet, normalizeAppDescriptor, normalizeEip712Payload, normalizeSimulatedFee, normalizeSolanaCluster, normalizeSolanaSignMessagePayload, normalizeSolanaSignPayload, normalizeSolanaWalletRequest, normalizeTxPayload, parseChainId, posterFromClient, resolvePimlicoConfig, robinhood, toAAWalletCall, toAAWalletCalls, toViemSignMessageArgs, toViemSignTypedDataArgs, unwrapSystemEvent, wrapFetchWithPaymentChallenges };
+export { type AACallPayload, type AAChainConfig, type AAConfig, type AAMode, type AAOwner, type AAProvider, type AAResolvedConfig, type AASponsorship, type AAState, type AAWalletCall, ALCHEMY_CHAIN_SLUGS, type AccountBearerProvider, type AccountBearerProviderOptions, type AccountCredentialProvider, AccountCredentialUnavailableError, type AccountSessionExchangeResponse, type AlchemyHookParams, type AomiAccessApproval, type AomiAccountProfile, type AomiAccountResponse, type AomiAppDescriptor, type AomiAuthIdentity, type AomiAuthorizationChallenge, type AomiAuthorizationPermit, type AomiAuthorizationState, type AomiChatResponse, type AomiClearSecretsResponse, AomiClient, type AomiClientOptions, type AomiClientType, type AomiCreateApprovalRequest, type AomiCreateThreadResponse, type AomiDeleteSecretResponse, type AomiEnsureBoundResult, type AomiHttpMethod, type AomiIdentityWallet, type AomiIngestSecretsResponse, type AomiInterruptResponse, type AomiListSecretsResponse, type AomiMessage, type AomiPlatformFilter, type AomiRequestOptions, type AomiRequestQueryValue, type AomiSSEEvent, type AomiSSEEventType, type AomiSecretSlot, type AomiSimulateFee, type AomiSimulateResponse, type AomiStateResponse, type AomiSystemEvent, type AomiSystemResponse, type AomiThread, type AomiUsageStats, type AomiUser, type AomiWalletFamily, type AtomicBatchArgs, type AuthorizationPoster, type BetterAuthAccountTokenSourceOptions, type BetterAuthTokenResponse, CHAINS_BY_ID, CHAIN_NAMES, CLIENT_TYPE_TS_CLI, CLIENT_TYPE_WEB_UI, type ChainInfo, type CreateAAStateOptions, type CreateAlchemyAAProviderOptions, type CreatePimlicoAAProviderOptions, DEFAULT_AA_CONFIG, DISABLED_PROVIDER_STATE, type ExecuteWalletCallsParams, type ExecutionResult, type GetAccountBearer, type Logger, MAX_AUTO_FEE_WEI, type NativeWalletExecutionPolicy, type NativeWalletSponsorship, type NormalizedSimulatedFee, type NormalizedSolanaWalletRequest, type PimlicoHookParams, type PimlicoResolveOptions, type PimlicoResolvedConfig, type ProviderCredential, SUPPORTED_CHAINS, SUPPORTED_CHAIN_IDS, type SendResult, ClientSession as Session, type SessionEventMap, type SessionOptions, type SiwsChainId, type SiwsIntent, type SiwsWidgetSessionSigner, type SmartAccount, type SponsorshipPaymasterServiceContext, TypedEventEmitter, type UnwrappedEvent, type UseAlchemyAAHook, type UsePimlicoAAHook, UserState, type UserStateAAMode, type UserStateAuthMethod, type UserStateSponsorProvider, type UserStateWalletKind, type UserStateWalletProvider, type ViemSignMessageArgs, type ViemSignTypedDataArgs, type WalletAtomicCapability, type WalletCapabilities, type WalletEip712Payload, type WalletRequest, type WalletRequestKind, type WalletRequestResult, type WalletSolanaSignMessagePayload, type WalletSolanaSignPayload, type WalletTxAaPreference, type WalletTxCallPayload, type WalletTxPayload, type WidgetAuthAdapter, type WidgetAuthSession, type WidgetSession, type WidgetSessionProvider, type WidgetSessionSigner, aaModeFromExecutionKind, adaptSmartAccount, appIdentityKey, appendFeeCallToPayload, authorizationChallenge, authorizationCommit, buildAAExecutionPlan, buildFeeAAWalletCall, buildSiwsMessage, createAAProviderState, createAccountBearerProvider, createAlchemyAAProvider, createPimlicoAAProvider, createProviderCredentialAdapter, createSiweWidgetAuthAdapter, createSiwsWidgetAuthAdapter, createWidgetSessionProvider, ensureSvmWalletBound, ensureSvmWalletBoundVia, executeWalletCalls, getAAChainConfig, getWalletExecutorReady, handlePaymentChallenges, hydrateTxPayloadFromUserState, isAlchemySponsorshipLimitError, isAsyncCallback, isInlineCall, isSystemError, isSystemNotice, isUnboundWalletError, monad, monadTestnet, normalizeAppDescriptor, normalizeEip712Payload, normalizeSimulatedFee, normalizeSolanaCluster, normalizeSolanaSignMessagePayload, normalizeSolanaSignPayload, normalizeSolanaWalletRequest, normalizeTxPayload, parseChainId, posterFromClient, resolvePimlicoConfig, robinhood, safeEnv, toAAWalletCall, toAAWalletCalls, toViemSignMessageArgs, toViemSignTypedDataArgs, unwrapSystemEvent, wrapFetchWithPaymentChallenges };

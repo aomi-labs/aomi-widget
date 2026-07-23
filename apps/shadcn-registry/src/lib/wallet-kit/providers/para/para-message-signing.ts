@@ -1,4 +1,5 @@
 import { hashMessage, parseSignature, serializeSignature } from "viem";
+import { hexToBase64 } from "../../account/encoding";
 
 type ParaSigningWallet = {
   id?: string;
@@ -20,17 +21,6 @@ export type ParaSigningClient = {
   >;
   wallets?: Record<string, ParaSigningWallet>;
 };
-
-function hexToBase64(hex: string): string {
-  const normalized = hex.startsWith("0x") ? hex.slice(2) : hex;
-  let binary = "";
-  for (let index = 0; index < normalized.length; index += 2) {
-    binary += String.fromCharCode(
-      parseInt(normalized.slice(index, index + 2), 16),
-    );
-  }
-  return btoa(binary);
-}
 
 function normalizeParaSignature(signature: string): `0x${string}` {
   const normalized = signature.startsWith("0x") ? signature : `0x${signature}`;

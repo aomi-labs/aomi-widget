@@ -1,16 +1,9 @@
 /**
  * Read an environment variable defensively.
  *
- * The value is supplied through a thunk so the literal `process.env.X`
- * reference stays in the source — bundlers (Next.js, Vite `define`) still
- * inline it at build time — while the try/catch tolerates `process` being
- * undefined in pure-browser builds instead of throwing a ReferenceError.
- * Returns `undefined` when `process` is unavailable.
+ * Re-exported from `@aomi-labs/client` so there is a single implementation
+ * across the two packages. See `packages/client/src/internal/env.ts` for the
+ * rationale (bundlers inline `process.env.X`; the thunk tolerates a missing
+ * `process` in pure-browser builds).
  */
-export function safeEnv(read: () => string | undefined): string | undefined {
-  try {
-    return read();
-  } catch {
-    return undefined;
-  }
-}
+export { safeEnv } from "@aomi-labs/client";

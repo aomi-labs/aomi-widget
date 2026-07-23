@@ -10,7 +10,10 @@ export type PrivyAuthOptions = {
   appLogoUrl?: string;
 };
 
-/** The backend descriptor is registered but disabled for external widgets in v1. */
+/**
+ * Build the widget auth config for the Privy provider. Calling this is the
+ * supported entry point for Privy-backed widgets.
+ */
 export function privyAuth({
   appId,
   environment = "PROD",
@@ -22,6 +25,10 @@ export function privyAuth({
   if (!resolvedAppId) {
     throw new Error("Privy widget auth requires an appId");
   }
+  // The plugin module self-registers on import, but consumers reach it only
+  // through this helper. Re-registering here gives the bundler a live reference
+  // to the plugin module so tree-shaking cannot drop its side-effect
+  // registration when the widget imports `privyAuth` alone.
   registerAomiPrivyWalletProvider();
   return providerAuth({
     provider: "privy",

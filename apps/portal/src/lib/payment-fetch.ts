@@ -42,6 +42,10 @@ export function createPortalX402Client(
   client.register(
     "eip155:*",
     new ExactEvmScheme({
+      // NOTE: the cast is load-bearing here, not redundant: in this repo's
+      // resolved viem/abitype types, `getAddress` returns `Address`, which
+      // widens to `string` (abitype's `AddressType` register), so without the
+      // assertion `ExactEvmScheme`'s `0x${string}` field rejects it (TS2322).
       address: getAddress(address) as `0x${string}`,
       signTypedData: async (typedData) => {
         const result = await signTypedData({

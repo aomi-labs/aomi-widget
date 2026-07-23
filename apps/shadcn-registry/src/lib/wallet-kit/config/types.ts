@@ -131,6 +131,15 @@ export type ExecutionConfig = {
       };
 };
 
+/**
+ * Single source of truth for how the widget mints its own backend session.
+ * `provider` mode exchanges a host provider credential; `wallet` mode signs a
+ * SIWE/SIWS challenge with the connected external wallet.
+ */
+export type WidgetAuthConfig =
+  | { mode: "provider"; provider: string; environment: string }
+  | { mode: "wallet" };
+
 export type AccountConfig =
   | false
   | { mode: "disabled" }
@@ -139,9 +148,7 @@ export type AccountConfig =
       baseUrl?: string;
       authDomain?: string;
       authUri?: string;
-      widgetAuth?:
-        | { mode: "provider"; provider: string; environment: string }
-        | { mode: "wallet" };
+      widgetAuth?: WidgetAuthConfig;
     };
 
 export type AomiWalletKitProviderProps = {
