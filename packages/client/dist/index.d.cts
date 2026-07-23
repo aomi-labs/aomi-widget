@@ -514,7 +514,10 @@ declare class AomiClient {
     /**
      * Interrupt the AI's current response.
      */
-    interrupt(sessionId: string): Promise<AomiInterruptResponse>;
+    interrupt(sessionId: string, options?: {
+        app?: string;
+        applicationId?: number | string | null;
+    }): Promise<AomiInterruptResponse>;
     /**
      * Ingest secrets for a client. Returns opaque `$SECRET:<name>` handles.
      *
@@ -546,7 +549,9 @@ declare class AomiClient {
      * Automatically reconnects with exponential backoff on disconnects.
      * Returns an unsubscribe function.
      */
-    subscribeSSE(sessionId: string, onUpdate: (event: AomiSSEEvent) => void, onError?: (error: unknown) => void): () => void;
+    subscribeSSE(sessionId: string, onUpdate: (event: AomiSSEEvent) => void, onError?: (error: unknown) => void, options?: {
+        applicationId?: number | string | null;
+    }): () => void;
     /**
      * @deprecated Account bootstrap is handled by session create/chat requests and
      * the account-token exchange. `/api/account` is now an authenticated
@@ -1406,6 +1411,7 @@ declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
     getIsSSEActive(): boolean;
     setSSEActive(active: boolean): void;
     syncRuntimeOptions(options: SessionRuntimeOptions): void;
+    private startSSE;
     resolveUserState(userState: UserState, opts?: {
         skipEmit?: boolean;
     }): void;

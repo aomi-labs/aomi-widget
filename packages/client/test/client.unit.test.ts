@@ -23,9 +23,7 @@ describe("AomiClient route manifest", () => {
     expect(routeKeys).toContain("GET /api/resource/search/apps [account]");
     expect(routeKeys).toContain("GET /api/resource/search/tools [account]");
     expect(routeKeys).toContain("GET /api/resource/skills [account]");
-    expect(routeKeys).toContain(
-      "GET /api/resource/skills/:skill_id [account]",
-    );
+    expect(routeKeys).toContain("GET /api/resource/skills/:skill_id [account]");
     expect(routeKeys).toContain("GET /api/thread/apps [thread]");
     expect(routeKeys).toContain("GET /api/_internal/secrets [service]");
     expect(routeKeys).toContain("DELETE /api/_internal/secrets [service]");
@@ -794,7 +792,14 @@ describe("AomiClient transport selection", () => {
       });
 
       const onUpdate = vi.fn();
-      const unsubscribe = client.subscribeSSE("session-2", onUpdate);
+      const unsubscribe = client.subscribeSSE(
+        "session-2",
+        onUpdate,
+        undefined,
+        {
+          applicationId: 2937098,
+        },
+      );
       connection?.emit(
         'data: {"type":"tool_update","session_id":"session-2"}\n\n',
       );
@@ -809,6 +814,9 @@ describe("AomiClient transport selection", () => {
       unsubscribe();
       expect(nativeFetch).toHaveBeenCalledTimes(1);
       expect(customFetch).not.toHaveBeenCalled();
+      expect(nativeFetch.mock.calls[0]?.[0]).toBe(
+        "http://unit.test/api/thread/updates?application_id=2937098",
+      );
     } finally {
       vi.stubGlobal("fetch", originalFetch);
     }

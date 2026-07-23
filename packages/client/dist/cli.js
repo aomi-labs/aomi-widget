@@ -1157,7 +1157,8 @@ function createSseSubscriber({
   logger
 }) {
   const subscriptions = /* @__PURE__ */ new Map();
-  const subscribe = (sessionId, onUpdate, onError) => {
+  const subscribe = (sessionId, onUpdate, onError, options) => {
+    var _a3;
     const existing = subscriptions.get(sessionId);
     const listener = { onUpdate, onError };
     if (existing) {
@@ -1181,6 +1182,7 @@ function createSseSubscriber({
       };
     }
     const subscription = {
+      applicationId: ((_a3 = options == null ? void 0 : options.applicationId) == null ? void 0 : _a3.toString().trim()) || void 0,
       abortController: null,
       lastEventId: null,
       seenEventIds: /* @__PURE__ */ new Set(),
@@ -1189,13 +1191,13 @@ function createSseSubscriber({
       stopped: false,
       listeners: /* @__PURE__ */ new Set([listener]),
       stop: (reason) => {
-        var _a3;
+        var _a4;
         subscription.stopped = true;
         if (subscription.retryTimer) {
           clearTimeout(subscription.retryTimer);
           subscription.retryTimer = null;
         }
-        (_a3 = subscription.abortController) == null ? void 0 : _a3.abort();
+        (_a4 = subscription.abortController) == null ? void 0 : _a4.abort();
         subscription.abortController = null;
         logger == null ? void 0 : logger.debug("[aomi][sse] stop", {
           sessionId,
@@ -1218,7 +1220,7 @@ function createSseSubscriber({
       }, delayMs);
     };
     const open = async () => {
-      var _a3;
+      var _a4;
       if (subscription.stopped) return;
       if (subscription.retryTimer) {
         clearTimeout(subscription.retryTimer);
@@ -1232,7 +1234,14 @@ function createSseSubscriber({
         if (subscription.lastEventId) {
           headers.set("Last-Event-ID", subscription.lastEventId);
         }
-        const response = await fetchImpl(`${backendUrl}/api/thread/updates`, {
+        const updatesUrl = new URL(`${backendUrl}/api/thread/updates`);
+        if (subscription.applicationId) {
+          updatesUrl.searchParams.set(
+            "application_id",
+            subscription.applicationId
+          );
+        }
+        const response = await fetchImpl(updatesUrl.toString(), {
           headers,
           signal: controller.signal
         });
@@ -1249,7 +1258,7 @@ function createSseSubscriber({
           response.body,
           controller.signal,
           ({ data, id }) => {
-            var _a4, _b;
+            var _a5, _b;
             if (id && subscription.seenEventIds.has(id)) {
               return;
             }
@@ -1266,7 +1275,7 @@ function createSseSubscriber({
               parsed = JSON.parse(data);
             } catch (error) {
               for (const item of subscription.listeners) {
-                (_a4 = item.onError) == null ? void 0 : _a4.call(item, error);
+                (_a5 = item.onError) == null ? void 0 : _a5.call(item, error);
               }
               return;
             }
@@ -1288,7 +1297,7 @@ function createSseSubscriber({
       } catch (error) {
         if (!controller.signal.aborted && !subscription.stopped) {
           for (const item of subscription.listeners) {
-            (_a3 = item.onError) == null ? void 0 : _a3.call(item, error);
+            (_a4 = item.onError) == null ? void 0 : _a4.call(item, error);
           }
         }
       }
@@ -1826,15 +1835,20 @@ ${body}` : ""}`
       /**
        * Interrupt the AI's current response.
        */
-      async interrupt(sessionId) {
+      async interrupt(sessionId, options) {
         var _a3;
         (_a3 = this.logger) == null ? void 0 : _a3.debug("[aomi][client] POST /api/thread/interrupt prepared", {
-          sessionId
+          sessionId,
+          app: options == null ? void 0 : options.app,
+          applicationId: options == null ? void 0 : options.applicationId
         });
         return postState(
           this.baseUrl,
           "/api/thread/interrupt",
-          {},
+          {
+            app: options == null ? void 0 : options.app,
+            application_id: options == null ? void 0 : options.applicationId
+          },
           sessionId,
           this.fetchImpl,
           void 0,
@@ -1940,8 +1954,8 @@ ${body}` : ""}`
        * Automatically reconnects with exponential backoff on disconnects.
        * Returns an unsubscribe function.
        */
-      subscribeSSE(sessionId, onUpdate, onError) {
-        return this.sseSubscriber.subscribe(sessionId, onUpdate, onError);
+      subscribeSSE(sessionId, onUpdate, onError, options) {
+        return this.sseSubscriber.subscribe(sessionId, onUpdate, onError, options);
       }
       // ===========================================================================
       // Thread / Session Management
@@ -3663,7 +3677,10 @@ var init_session = __esm({
        */
       async interrupt() {
         this.stopPolling();
-        const response = await this.client.interrupt(this.sessionId);
+        const response = await this.client.interrupt(this.sessionId, {
+          app: this.app,
+          applicationId: this.applicationId
+        });
         this.applyState(response);
         this._isProcessing = false;
         this.emit("processing_end", void 0);
@@ -3718,25 +3735,34 @@ var init_session = __esm({
         }
         this.isSSEActive = active;
         if (active) {
-          this.unsubscribeSSE = this.client.subscribeSSE(
-            this.sessionId,
-            (event) => this.handleSSEEvent(event),
-            (error) => this.emit("error", { error })
-          );
+          this.startSSE();
           return;
         }
         (_a3 = this.unsubscribeSSE) == null ? void 0 : _a3.call(this);
         this.unsubscribeSSE = null;
       }
       syncRuntimeOptions(options) {
-        var _a3;
+        var _a3, _b, _c, _d;
+        const previousApplicationId = (_a3 = this.applicationId) == null ? void 0 : _a3.toString();
         this.app = options.app;
         this.applicationId = options.applicationId;
         this.apiKey = options.apiKey;
-        this.clientId = (_a3 = options.clientId) != null ? _a3 : this.clientId;
+        this.clientId = (_b = options.clientId) != null ? _b : this.clientId;
         if (options.userState) {
           this.resolveUserState(options.userState);
         }
+        if (this.isSSEActive && previousApplicationId !== ((_c = this.applicationId) == null ? void 0 : _c.toString())) {
+          (_d = this.unsubscribeSSE) == null ? void 0 : _d.call(this);
+          this.startSSE();
+        }
+      }
+      startSSE() {
+        this.unsubscribeSSE = this.client.subscribeSSE(
+          this.sessionId,
+          (event) => this.handleSSEEvent(event),
+          (error) => this.emit("error", { error }),
+          { applicationId: this.applicationId }
+        );
       }
       resolveUserState(userState, opts) {
         const previousSerialized = stableUserStateString(this.userState);

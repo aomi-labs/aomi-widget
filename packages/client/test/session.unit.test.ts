@@ -47,6 +47,12 @@ describe("ClientSession SSE lifecycle", () => {
     session.setSSEActive(true);
     expect(session.getIsSSEActive()).toBe(true);
     expect(subscribeSSE).toHaveBeenCalledTimes(1);
+    expect(subscribeSSE).toHaveBeenLastCalledWith(
+      "session-sse-1",
+      expect.any(Function),
+      expect.any(Function),
+      { applicationId: undefined },
+    );
 
     session.setSSEActive(false);
     expect(session.getIsSSEActive()).toBe(false);
@@ -61,6 +67,32 @@ describe("ClientSession SSE lifecycle", () => {
 
     session.close();
     expect(unsubscribeB).toHaveBeenCalledTimes(1);
+  });
+
+  it("reopens an active SSE stream when application_id changes", () => {
+    const client = new AomiClient({ baseUrl: "http://unit.test" });
+    const firstUnsubscribe = vi.fn();
+    const secondUnsubscribe = vi.fn();
+    const subscribeSSE = vi
+      .spyOn(client, "subscribeSSE")
+      .mockReturnValueOnce(firstUnsubscribe)
+      .mockReturnValueOnce(secondUnsubscribe);
+    const session = new Session(client, {
+      sessionId: "session-sse-app",
+      applicationId: 10,
+    });
+
+    session.setSSEActive(true);
+    session.syncRuntimeOptions({ app: "hosted", applicationId: 20 });
+
+    expect(firstUnsubscribe).toHaveBeenCalledTimes(1);
+    expect(subscribeSSE).toHaveBeenCalledTimes(2);
+    expect(subscribeSSE).toHaveBeenLastCalledWith(
+      "session-sse-app",
+      expect.any(Function),
+      expect.any(Function),
+      { applicationId: 20 },
+    );
   });
 });
 
