@@ -44,9 +44,10 @@ export type AllowedRoute = {
    * `required` (default) means the proxy must inject a trusted AccountBearer
    * before forwarding. `optional` is for explicitly public backend routes that
    * may be reached anonymously, while still receiving a bearer when a valid
-   * session is present.
+   * session is present. `none` is for bearer-independent public routes that
+   * must not touch the account database at all.
    */
-  auth?: "required" | "optional";
+  auth?: "required" | "optional" | "none";
 };
 
 export type ResolveCanonicalUserId = (
@@ -268,10 +269,10 @@ export function createBackendProxy(config: ProxyConfig) {
     }
 
     const headers = copyRequestHeaders(req);
-    const authState = await resolveProxyAuthState(
-      req,
-      config.resolveCanonicalUserId,
-    );
+    const authState =
+      allowedRoute.auth === "none"
+        ? ({ kind: "anonymous" } as const)
+        : await resolveProxyAuthState(req, config.resolveCanonicalUserId);
     const authResponse = applyProxyAuthState(allowedRoute, authState, headers);
     if (authResponse) return authResponse;
 

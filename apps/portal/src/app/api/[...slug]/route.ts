@@ -63,7 +63,7 @@ const ALLOWED_ROUTES: AllowedRoute[] = [
   {
     pattern: /^\/api\/thread\/models$/,
     methods: new Set(["GET"]),
-    auth: "optional",
+    auth: "none",
   },
   {
     pattern: /^\/api\/thread\/model$/,
