@@ -11653,11 +11653,7 @@ init_shared();
 // package.json
 var package_default = {
   name: "@aomi-labs/client",
-<<<<<<< HEAD
-  version: "0.3.8",
-=======
-  version: "0.3.7",
->>>>>>> 2b42d79e (Implement cross-origin widget authentication)
+  version: "0.3.9",
   description: "Platform-agnostic TypeScript client for the Aomi backend API",
   type: "module",
   main: "./dist/index.cjs",

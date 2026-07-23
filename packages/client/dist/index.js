@@ -2011,6 +2011,52 @@ Nonce: ${input.nonce}
 Issued At: ${((_a = input.issuedAt) != null ? _a : /* @__PURE__ */ new Date()).toISOString()}`;
 }
 
+// src/payment.ts
+import { wrapFetchWithPayment } from "@x402/fetch";
+var MAX_PAYMENT_CHALLENGES = 4;
+function paymentResponseHeader(response) {
+  var _a;
+  return (_a = response.headers.get("payment-response")) != null ? _a : response.headers.get("x-payment-response");
+}
+function withInitialResponse(initialResponse, fetchImpl) {
+  let pendingResponse = initialResponse;
+  return (input, init) => {
+    if (pendingResponse) {
+      const response = pendingResponse;
+      pendingResponse = void 0;
+      return Promise.resolve(response);
+    }
+    return fetchImpl(input, init);
+  };
+}
+async function handlePaymentChallenges(request, initialResponse, fetchImpl, client) {
+  let response = initialResponse;
+  let attempts = 0;
+  while (response.status === 402) {
+    if (attempts > 0 && paymentResponseHeader(response) === null) {
+      return response;
+    }
+    if (attempts === MAX_PAYMENT_CHALLENGES) {
+      throw new Error(
+        `Exceeded ${MAX_PAYMENT_CHALLENGES} sequential x402 payment challenges`
+      );
+    }
+    response = await wrapFetchWithPayment(
+      withInitialResponse(response, fetchImpl),
+      client
+    )(request.clone());
+    attempts += 1;
+  }
+  return response;
+}
+function wrapFetchWithPaymentChallenges(fetchImpl, client) {
+  return async (input, init) => {
+    const request = new Request(input, init);
+    const response = await fetchImpl(request.clone());
+    return handlePaymentChallenges(request, response, fetchImpl, client);
+  };
+}
+
 // src/widget-session.ts
 import { getAddress } from "viem";
 import { createSiweMessage } from "viem/siwe";
@@ -2401,6 +2447,26 @@ function getToolArgs(payload) {
 function parseChainKind(value) {
   return value === "evm" || value === "svm" ? value : void 0;
 }
+function normalizeSolanaCluster(value) {
+  if (typeof value !== "string") return void 0;
+  const trimmed = value.trim();
+  if (!trimmed) return void 0;
+  switch (trimmed.toLowerCase()) {
+    case "mainnet":
+    case "mainnet-beta":
+    case "solana:mainnet":
+    case "solana:mainnet-beta":
+      return "solana:mainnet";
+    case "devnet":
+    case "solana:devnet":
+      return "solana:devnet";
+    case "testnet":
+    case "solana:testnet":
+      return "solana:testnet";
+    default:
+      return trimmed;
+  }
+}
 function inferSolanaRequestKind(payload) {
   const rawKind = typeof payload.kind === "string" ? payload.kind : typeof payload.request_kind === "string" ? payload.request_kind : typeof payload.requestKind === "string" ? payload.requestKind : void 0;
   switch (rawKind) {
@@ -2598,8 +2664,7 @@ function normalizeSolanaSignPayload(payload) {
   const unsignedTxRaw = (_a = args.unsigned_tx) != null ? _a : args.unsignedTx;
   const unsignedTx = typeof unsignedTxRaw === "string" ? unsignedTxRaw : void 0;
   const description = typeof args.description === "string" ? args.description : void 0;
-  const clusterRaw = args.cluster;
-  const cluster = typeof clusterRaw === "string" ? clusterRaw : void 0;
+  const cluster = normalizeSolanaCluster(args.cluster);
   const rawPendingIds = (_b = args.svm_tx_ids) != null ? _b : args.svm_ix_ids;
   const pendingSolanaIds = Array.isArray(rawPendingIds) ? rawPendingIds.map(parsePendingId).filter((id) => id !== void 0) : void 0;
   const pendingSolanaId = (_f = (_e = (_d = (_c = parsePendingId(args.pendingSolanaId)) != null ? _c : parsePendingId(args.pending_solana_id)) != null ? _d : parsePendingId(args.pendingSvmSigId)) != null ? _e : parsePendingId(args.pending_svm_sig_id)) != null ? _f : pendingSolanaIds == null ? void 0 : pendingSolanaIds[0];
@@ -2617,8 +2682,7 @@ function normalizeSolanaSignMessagePayload(payload) {
   const messageRaw = (_b = (_a = args.message_base64) != null ? _a : args.messageBase64) != null ? _b : args.message;
   const message = typeof messageRaw === "string" ? messageRaw : void 0;
   const description = typeof args.description === "string" ? args.description : void 0;
-  const clusterRaw = args.cluster;
-  const cluster = typeof clusterRaw === "string" ? clusterRaw : void 0;
+  const cluster = normalizeSolanaCluster(args.cluster);
   const pendingSolanaId = (_e = (_d = (_c = parsePendingId(args.pendingSolanaId)) != null ? _c : parsePendingId(args.pending_solana_id)) != null ? _d : parsePendingId(args.pendingSvmSigId)) != null ? _e : parsePendingId(args.pending_svm_sig_id);
   return { message, description, cluster, pendingSolanaId };
 }
@@ -5408,6 +5472,7 @@ export {
   executeWalletCalls,
   getAAChainConfig,
   getWalletExecutorReady,
+  handlePaymentChallenges,
   hydrateTxPayloadFromUserState,
   isAlchemySponsorshipLimitError,
   isAsyncCallback,
@@ -5420,6 +5485,7 @@ export {
   normalizeAppDescriptor,
   normalizeEip712Payload,
   normalizeSimulatedFee,
+  normalizeSolanaCluster,
   normalizeSolanaSignMessagePayload,
   normalizeSolanaSignPayload,
   normalizeSolanaWalletRequest,
@@ -5432,6 +5498,7 @@ export {
   toAAWalletCalls,
   toViemSignMessageArgs,
   toViemSignTypedDataArgs,
-  unwrapSystemEvent
+  unwrapSystemEvent,
+  wrapFetchWithPaymentChallenges
 };
 //# sourceMappingURL=index.js.map

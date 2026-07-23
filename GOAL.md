@@ -33,6 +33,18 @@ Progress:
   stripping browser credentials, added proxy regression coverage, and
   patch-bumped `@aomi-labs/account` to 0.1.6.
 
+- 2026-07-23 widget-auth PR main sync: rebased frontend PR #382 and backend PR
+  #855 onto current `main`, preserving the newer x402 and Solana approval work
+  alongside tenant-scoped widget authentication. Reconciled the Portal x402
+  signer address type, regenerated client/React/widget registry artifacts and
+  the Landing registry mirror, and patch-bumped `@aomi-labs/account` to 0.1.6
+  and `@aomi-labs/client` to 0.3.9 after the versions already on `main`.
+  Verified frozen install, lint, root/account/Portal typechecks, 782 root tests,
+  269 widget tests, the Portal test command and production build, the client,
+  React, and widget builds, and the widget-consumer production build. Backend
+  fmt, database clippy with warnings denied, and the focused plain-message
+  signing pipeline test also passed before its rebased branch was pushed.
+
 - 2026-07-22 wallet account-access deduplication: hid the legacy `wallet`
   authentication identity from account management, matching the existing
   SIWE/SIWS proof-identity behavior while preserving the branded linked EVM or
