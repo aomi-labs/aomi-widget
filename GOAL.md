@@ -24,6 +24,12 @@ tables; fresh databases also finish replay with that drop.
 
 Progress:
 
+- 2026-07-23 fleet-safe Telegram bot mappings: Build now creates and edits
+  builder-wide many-to-many bot/app mappings with a required primary app,
+  source-qualified display labels, and write-only credentials. The BFF validates
+  every selected app against the signed-in builder's sources before calling the
+  manager-wide bot API.
+
 - 2026-07-22 wallet account-access deduplication: hid the legacy `wallet`
   authentication identity from account management, matching the existing
   SIWE/SIWS proof-identity behavior while preserving the branded linked EVM or
