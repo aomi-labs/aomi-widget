@@ -98,9 +98,14 @@ export type AppCard = {
 };
 
 export type AppDetail = {
-  funnel: Array<{ label: string; value: number }>;
+  funnel: Array<{ label: string; value: number | null }>;
   funnelNote: string[];
-  kpis: Array<{ label: string; value: string; sub?: string; tone?: "bad" | "warn" }>;
+  kpis: Array<{
+    label: string;
+    value: string;
+    sub?: string;
+    tone?: "bad" | "warn";
+  }>;
   chatsHourly: number[];
   toolCallsHourly: number[];
   p95Hourly: number[];
@@ -109,7 +114,12 @@ export type AppDetail = {
   toolsSummary: string;
   fees24h: string;
   lifecycle: Array<[string, string]>;
-  releases: Array<{ tag: string; when: string; current: boolean; note: string }>;
+  releases: Array<{
+    tag: string;
+    when: string;
+    current: boolean;
+    note: string;
+  }>;
 };
 
 /** Mirrors the manager's statement wire (subjects, raw USD floats). */
