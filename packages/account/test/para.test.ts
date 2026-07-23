@@ -139,7 +139,6 @@ describe("Para widget credentials", () => {
     ).rejects.toThrow("provider_token_kid_mismatch");
     expect(descriptor.policy).toEqual({
       subjectIsEnvironmentGlobal: true,
-      walletClaimTrust: "none",
       widgetEnabled: true,
     });
     expect(getWidgetProvider("missing-provider")).toBeNull();

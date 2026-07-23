@@ -14,7 +14,6 @@ export type VerifiedProviderIdentity = {
 
 export type WidgetProviderPolicy = {
   subjectIsEnvironmentGlobal: boolean;
-  walletClaimTrust: "none" | "embedded-attested";
   widgetEnabled: boolean;
 };
 
@@ -42,7 +41,7 @@ const widgetProviders = new Map<string, WidgetProviderDescriptor>();
 
 export function registerWidgetProvider(
   descriptor: WidgetProviderDescriptor,
-): () => void {
+): void {
   const id = descriptor.id.trim().toLowerCase();
   if (!id) throw new Error("Widget provider id is required");
   const existing = widgetProviders.get(id);
@@ -50,15 +49,8 @@ export function registerWidgetProvider(
     throw new Error(`Widget provider already registered: ${id}`);
   }
   widgetProviders.set(id, descriptor);
-  return () => {
-    if (widgetProviders.get(id) === descriptor) widgetProviders.delete(id);
-  };
 }
 
 export function getWidgetProvider(id: string): WidgetProviderDescriptor | null {
   return widgetProviders.get(id.trim().toLowerCase()) ?? null;
-}
-
-export function listWidgetProviders(): readonly WidgetProviderDescriptor[] {
-  return [...widgetProviders.values()];
 }

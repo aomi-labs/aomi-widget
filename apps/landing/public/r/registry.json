@@ -84,6 +84,10 @@
         },
         {
           "type": "registry:component",
+          "path": "lib/wallet-kit/env.ts"
+        },
+        {
+          "type": "registry:component",
           "path": "lib/wallet-kit/identity.ts"
         },
         {
@@ -181,6 +185,14 @@
         {
           "type": "registry:component",
           "path": "lib/wallet-kit/account/aomi-backend-runtime.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/wallet-kit/account/encoding.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/wallet-kit/account/use-widget-session-provider.ts"
         },
         {
           "type": "registry:component",

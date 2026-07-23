@@ -1,22 +1,14 @@
 import { revokeWidgetSession } from "@aomi-labs/account/widget-auth";
-import {
-  applyWidgetCors,
-  widgetCorsPreflight,
-} from "@portal/lib/widget-auth/cors";
+import { widgetPreflight, widgetRoute } from "@portal/lib/widget-auth/response";
 
-export async function DELETE(request: Request): Promise<Response> {
+export const DELETE = widgetRoute(async (request: Request) => {
   const revoked = await revokeWidgetSession({ request });
-  return applyWidgetCors(
-    request,
-    revoked
-      ? new Response(null, { status: 204 })
-      : Response.json({ error: "invalid_widget_session" }, { status: 401 }),
-  );
-}
+  return revoked
+    ? new Response(null, { status: 204 })
+    : Response.json({ error: "invalid_widget_session" }, { status: 401 });
+}, "widget session revoke");
 
-export function OPTIONS(request: Request): Response {
-  return widgetCorsPreflight(request, ["DELETE", "OPTIONS"]);
-}
+export const OPTIONS = widgetPreflight(["DELETE", "OPTIONS"]);
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

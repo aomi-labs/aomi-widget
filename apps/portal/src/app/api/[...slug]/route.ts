@@ -1,10 +1,7 @@
 import { createBackendProxy, type AllowedRoute } from "@aomi-labs/account";
-import { resolvePortalCanonicalUserId } from "@portal/lib/widget-auth/principal";
+import { resolveCanonicalUserId } from "@portal/server/canonical-session";
 import { launchConfig } from "@portal/server/bff/launch/config";
-import {
-  applyWidgetCors,
-  widgetCorsPreflight,
-} from "@portal/lib/widget-auth/cors";
+import { widgetPreflight, widgetRoute } from "@portal/lib/widget-auth/response";
 
 const ALLOWED_ROUTES: AllowedRoute[] = [
   {
@@ -126,7 +123,7 @@ function rewriteLegacyThreadPath(upstreamUrl: URL): void {
 
 const proxy = createBackendProxy({
   allowedRoutes: ALLOWED_ROUTES,
-  resolveCanonicalUserId: resolvePortalCanonicalUserId,
+  resolveCanonicalUserId,
   applyDefaults: (upstreamUrl) => {
     rewriteLegacyThreadPath(upstreamUrl);
     if (
@@ -141,41 +138,20 @@ const proxy = createBackendProxy({
   },
 });
 
-type ProxyHandler = typeof proxy.GET;
+export const GET = widgetRoute(proxy.GET, "proxy GET");
+export const POST = widgetRoute(proxy.POST, "proxy POST");
+export const PUT = widgetRoute(proxy.PUT, "proxy PUT");
+export const PATCH = widgetRoute(proxy.PATCH, "proxy PATCH");
+export const DELETE = widgetRoute(proxy.DELETE, "proxy DELETE");
 
-async function handleWithCors(
-  handler: ProxyHandler,
-  ...args: Parameters<ProxyHandler>
-): Promise<Response> {
-  return applyWidgetCors(args[0], await handler(...args));
-}
-
-export function GET(...args: Parameters<ProxyHandler>): Promise<Response> {
-  return handleWithCors(proxy.GET, ...args);
-}
-export function POST(...args: Parameters<ProxyHandler>): Promise<Response> {
-  return handleWithCors(proxy.POST, ...args);
-}
-export function PUT(...args: Parameters<ProxyHandler>): Promise<Response> {
-  return handleWithCors(proxy.PUT, ...args);
-}
-export function PATCH(...args: Parameters<ProxyHandler>): Promise<Response> {
-  return handleWithCors(proxy.PATCH, ...args);
-}
-export function DELETE(...args: Parameters<ProxyHandler>): Promise<Response> {
-  return handleWithCors(proxy.DELETE, ...args);
-}
-
-export function OPTIONS(request: Request): Response {
-  return widgetCorsPreflight(request, [
-    "GET",
-    "POST",
-    "PUT",
-    "PATCH",
-    "DELETE",
-    "OPTIONS",
-  ]);
-}
+export const OPTIONS = widgetPreflight([
+  "GET",
+  "POST",
+  "PUT",
+  "PATCH",
+  "DELETE",
+  "OPTIONS",
+]);
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";

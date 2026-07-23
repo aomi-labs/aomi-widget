@@ -154,10 +154,17 @@ type AomiClientOptions = {
     /** Optional logger for debug output (default: silent) */
     logger?: Logger;
 };
-type GetAccountBearer = (options?: {
+type GetAccountBearer = ((options?: {
     /** Force a refresh after an API 401. */
     forceRefresh?: boolean;
-}) => Promise<string | null | undefined>;
+}) => Promise<string | null | undefined>) & {
+    /**
+     * When true, a throwing bearer source is fatal: the wrapped fetch rethrows
+     * instead of proceeding unauthenticated. Providers that mint a required
+     * (widget) session set this; additive account bearers leave it unset.
+     */
+    required?: boolean;
+};
 type AomiRequestQueryValue = string | number | boolean | readonly (string | number | boolean)[] | null | undefined;
 type AomiPlatformFilter = string | readonly string[] | null | undefined;
 type AomiHttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
@@ -700,12 +707,68 @@ declare function ensureSvmWalletBoundVia(post: AuthorizationPoster, wallet: stri
 declare function ensureSvmWalletBound(client: AomiClient, wallet: string, signMessage: (message: Uint8Array) => Promise<Uint8Array>): Promise<AomiEnsureBoundResult>;
 declare function isUnboundWalletError(error: unknown): boolean;
 
-type AccountCredentialProvider = () => Promise<{
+type WidgetSession = {
+    accessToken: string;
+    expiresAt: number;
+};
+type WidgetAuthAdapter = {
+    kind: string;
+    getFingerprint(): string | null | Promise<string | null>;
+    exchange(input: {
+        baseUrl: string;
+        fetch: typeof fetch;
+    }): Promise<WidgetSession>;
+    signOut?(): Promise<void>;
+};
+type WidgetSessionProvider = GetAccountBearer & {
+    readonly required: true;
+    revoke(): Promise<void>;
+    signOut(): Promise<void>;
+    dispose(): void;
+    subscribe(listener: () => void): () => void;
+};
+type WidgetSessionSigner = {
+    address: string;
+    chainId: number;
+    signMessage(message: string): Promise<string>;
+};
+type SiwsWidgetSessionSigner = {
+    address: string;
+    chainId: string;
+    signMessage(message: string): Promise<string>;
+};
+type ProviderCredential = {
     provider: string;
     tokenKind?: string;
     providerToken: string;
     keyId?: string;
-}>;
+};
+declare function createProviderCredentialAdapter(input: {
+    provider: string;
+    environment: string;
+    getCredential(): Promise<ProviderCredential | null>;
+    getSubject(): string | null;
+    signOut?: () => Promise<void>;
+}): WidgetAuthAdapter;
+declare function createSiweWidgetAuthAdapter(input: {
+    getSigner(): Promise<WidgetSessionSigner>;
+}): WidgetAuthAdapter;
+declare function createSiwsWidgetAuthAdapter(input: {
+    getSigner(): Promise<SiwsWidgetSessionSigner>;
+}): WidgetAuthAdapter;
+declare function createWidgetSessionProvider(input: {
+    baseUrl: string;
+    adapter: WidgetAuthAdapter;
+    fetch?: typeof fetch;
+    now?: () => number;
+    refreshBeforeExpiryMs?: number;
+}): WidgetSessionProvider;
+
+/**
+ * Structurally identical to {@link ProviderCredential}; aliased so the widget
+ * and account credential shapes cannot drift within `@aomi-labs/client`.
+ */
+type AccountCredentialProvider = () => Promise<ProviderCredential>;
 declare class AccountCredentialUnavailableError extends Error {
     constructor(message?: string);
 }
@@ -759,64 +822,6 @@ declare function buildSiwsMessage(input: {
     uri: string;
     issuedAt?: Date;
 }): string;
-
-type WidgetSession = {
-    accessToken: string;
-    expiresAt: number;
-};
-type WidgetAuthAdapter = {
-    kind: string;
-    getFingerprint(): string | null | Promise<string | null>;
-    exchange(input: {
-        baseUrl: string;
-        fetch: typeof fetch;
-    }): Promise<WidgetSession>;
-    signOut?(): Promise<void>;
-};
-type WidgetSessionProvider = GetAccountBearer & {
-    readonly required: true;
-    revoke(): Promise<void>;
-    signOut(): Promise<void>;
-    dispose(): void;
-    subscribe(listener: () => void): () => void;
-};
-type WidgetSessionSigner = {
-    address: string;
-    chainId: number;
-    signMessage(message: string): Promise<string>;
-};
-type SiwsWidgetSessionSigner = {
-    address: string;
-    chainId: string;
-    signMessage(message: string): Promise<string>;
-};
-type ProviderCredential = {
-    provider: string;
-    tokenKind?: string;
-    providerToken: string;
-    keyId?: string;
-};
-declare function createProviderCredentialAdapter(input: {
-    provider: string;
-    environment: string;
-    getCredential(): Promise<ProviderCredential | null>;
-    getSubject(): string | null;
-    signOut?: () => Promise<void>;
-}): WidgetAuthAdapter;
-declare function createSiweWidgetAuthAdapter(input: {
-    getSigner(): Promise<WidgetSessionSigner>;
-}): WidgetAuthAdapter;
-declare function createSiwsWidgetAuthAdapter(input: {
-    getSigner(): Promise<SiwsWidgetSessionSigner>;
-}): WidgetAuthAdapter;
-declare function createWidgetSessionProvider(input: {
-    baseUrl: string;
-    adapter?: WidgetAuthAdapter;
-    getSigner?: () => Promise<WidgetSessionSigner>;
-    fetch?: typeof fetch;
-    now?: () => number;
-    refreshBeforeExpiryMs?: number;
-}): WidgetSessionProvider;
 
 /**
  * Pays an x402 challenge and follows a new challenge only when the preceding

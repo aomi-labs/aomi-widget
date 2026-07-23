@@ -3,6 +3,11 @@ import type { Pool, PoolClient, QueryResultRow } from "pg";
 import { z } from "zod";
 import { getPool } from "../db/pool";
 
+/** Single owner of the widget-session identifier namespace. `session.ts`
+ * imports it to build per-token identifiers; the reconciliation delete below
+ * reuses it so the prefix is never hardcoded in two places. */
+export const WIDGET_SESSION_NAMESPACE = "aomi:widget:session:";
+
 const challengeBase = {
   origin: z.string().url(),
   address: z.string().min(1),
@@ -24,7 +29,6 @@ const siwsChallengeSchema = z.object({
 
 const widgetSessionSchema = z.object({
   kind: z.literal("widget_session"),
-  sessionId: z.string().uuid(),
   origin: z.string().url(),
   userId: z.string().min(1),
   authMethod: z.string().min(1),
@@ -39,7 +43,6 @@ const ticketSchema = z.discriminatedUnion("kind", [
   widgetSessionSchema,
 ]);
 
-export type WidgetSessionTicket = z.infer<typeof widgetSessionSchema>;
 export type WidgetAuthTicket = z.infer<typeof ticketSchema>;
 type Db = Pool | PoolClient;
 type TicketRow = QueryResultRow & { value: string };
@@ -121,9 +124,9 @@ export async function deleteWidgetSessionsForProviderIdentity(input: {
 }): Promise<number> {
   const result = await (input.db ?? getPool()).query(
     `delete from ba_verifications
-      where identifier like 'aomi:widget:session:%'
-        and value::jsonb ->> 'providerIdentityId' = $1`,
-    [input.providerIdentityId],
+      where identifier like $1
+        and value::jsonb ->> 'providerIdentityId' = $2`,
+    [`${WIDGET_SESSION_NAMESPACE}%`, input.providerIdentityId],
   );
   return result.rowCount ?? 0;
 }

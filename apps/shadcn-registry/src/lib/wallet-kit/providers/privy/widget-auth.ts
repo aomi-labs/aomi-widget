@@ -3,7 +3,7 @@ import type { AomiWidgetAuthConfig, AuthMethodId } from "../../config/types";
 import { registerAomiPrivyWalletProvider } from "./privy-plugin";
 
 export type PrivyAuthOptions = {
-  appId?: string;
+  appId: string;
   environment?: string;
   methods?: readonly AuthMethodId[];
   appName?: string;

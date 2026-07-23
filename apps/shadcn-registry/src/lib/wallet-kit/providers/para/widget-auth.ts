@@ -3,7 +3,7 @@ import type { AomiWidgetAuthConfig, AuthMethodId } from "../../config/types";
 import { registerAomiParaWalletProvider } from "./para-plugin";
 
 export type ParaAuthOptions = {
-  apiKey?: string;
+  apiKey: string;
   environment?: "PROD" | "BETA";
   methods?: readonly AuthMethodId[];
   appName?: string;

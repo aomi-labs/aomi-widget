@@ -3,7 +3,7 @@ import type {
   AomiAccountCredential,
   AccountCredentialProvider,
 } from "../types";
-import { verifyParaJwt } from "./para";
+import { paraIssuerEnvironmentForJwksUrl, verifyParaJwt } from "./para";
 import { verifyPrivyToken } from "./privy";
 import {
   validWalletAddress,
@@ -173,9 +173,7 @@ function createParaCredentialVerifier(
     });
     return {
       provider: "para",
-      issuerEnvironment: env.paraJwksUrl.includes("api.beta.getpara.com")
-        ? "para:beta"
-        : "para:prod",
+      issuerEnvironment: paraIssuerEnvironmentForJwksUrl(env.paraJwksUrl),
       tenantId: token.audience,
       walletAttestationProvider: "para",
       token: {

@@ -15,7 +15,6 @@ export {
 
 export {
   getWidgetProvider,
-  listWidgetProviders,
   registerWidgetProvider,
   widgetCredentialWireSchema,
   type VerifiedProviderIdentity,
@@ -37,7 +36,6 @@ export function nativeProviderResolutionPolicy(
   return {
     subjectIsEnvironmentGlobal:
       getWidgetProvider(provider)?.policy.subjectIsEnvironmentGlobal ?? false,
-    walletClaimTrust: "embedded-attested",
     widgetEnabled: false,
   };
 }
@@ -57,7 +55,6 @@ export {
   createParaWidgetDescriptor,
   listParaWalletsForUser,
   paraWidgetDescriptor,
-  PARA_WIDGET_JWKS_URLS,
   verifyParaJwt,
   verifyParaWidgetCredential,
 } from "./para";

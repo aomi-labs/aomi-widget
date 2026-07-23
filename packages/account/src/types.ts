@@ -20,6 +20,16 @@ export type KnownAuthIdentityProvider =
   | "email";
 export type AuthIdentityProvider = KnownAuthIdentityProvider | (string & {});
 
+/** Canonical `(issuerEnvironment, tenantId)` scope for every provider whose
+ * scope is fixed by the identity graph rather than a runtime credential. One
+ * owner for the tuples that were previously re-derived at each call site. */
+export const IDENTITY_SCOPES = {
+  betterAuth: { issuerEnvironment: "aomi", tenantId: "portal" },
+  email: { issuerEnvironment: "aomi", tenantId: "global" },
+  siwe: { issuerEnvironment: "eip155", tenantId: "global" },
+  siws: { issuerEnvironment: "solana", tenantId: "global" },
+} as const;
+
 export type DbAomiUser = {
   id: AomiUserId;
   betterAuthUserId: BetterAuthUserId | null;

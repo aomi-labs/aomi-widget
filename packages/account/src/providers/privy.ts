@@ -29,7 +29,6 @@ export const privyWidgetDescriptor: WidgetProviderDescriptor = {
   }),
   policy: {
     subjectIsEnvironmentGlobal: false,
-    walletClaimTrust: "none",
     widgetEnabled: false,
   },
   verifyWidgetCredential: async () => {

@@ -1,6 +1,8 @@
 import { getAddress } from "viem";
 import { createSiweMessage } from "viem/siwe";
 import type { GetAccountBearer } from "./types";
+import { joinUrl } from "./internal/url";
+import { decodeJwtSubject } from "./internal/encoding";
 
 export type WidgetSession = {
   accessToken: string;
@@ -100,43 +102,64 @@ export function createProviderCredentialAdapter(input: {
   };
 }
 
-function decodeJwtSubject(token: string): string | null {
-  const payload = token.split(".")[1];
-  if (!payload) return null;
-  try {
-    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
-    const padded = normalized.padEnd(
-      normalized.length + ((4 - (normalized.length % 4)) % 4),
-      "=",
-    );
-    if (typeof atob !== "function") return null;
-    const decoded = atob(padded);
-    const subject = (JSON.parse(decoded) as { sub?: unknown }).sub;
-    return typeof subject === "string" && subject.trim()
-      ? subject.trim()
-      : null;
-  } catch {
-    return null;
-  }
+/**
+ * Shared implementation for the sign-a-server-challenge adapters (SIWE, SIWS).
+ * Both fetch a nonce, build a provider-specific message, sign it, and POST the
+ * signature back for verification. The per-family bits — how to normalize the
+ * signer, derive its fingerprint, and format the message — are injected.
+ */
+function createSignedChallengeAdapter<
+  S extends WidgetSessionSigner | SiwsWidgetSessionSigner,
+  N extends {
+    address: string;
+    chainId: number | string;
+    signMessage(message: string): Promise<string>;
+  },
+>(config: {
+  kind: string;
+  noncePath: string;
+  verifyPath: string;
+  getSigner(): Promise<S>;
+  normalizeSigner(signer: S): N;
+  getFingerprint(signer: N): string;
+  buildMessage(input: { signer: N; challenge: Challenge }): string;
+}): WidgetAuthAdapter {
+  return {
+    kind: config.kind,
+    getFingerprint: async () =>
+      config.getFingerprint(config.normalizeSigner(await config.getSigner())),
+    exchange: async ({ baseUrl, fetch: fetchImpl }) => {
+      const signer = config.normalizeSigner(await config.getSigner());
+      const challenge = await challengeJson(
+        fetchImpl,
+        joinUrl(baseUrl, config.noncePath),
+        { wallet_address: signer.address, chain_id: signer.chainId },
+      );
+      const message = config.buildMessage({ signer, challenge });
+      const signature = await signer.signMessage(message);
+      return exchangeJson(fetchImpl, joinUrl(baseUrl, config.verifyPath), {
+        message,
+        signature,
+        wallet_address: signer.address,
+        chain_id: signer.chainId,
+      });
+    },
+  };
 }
 
 export function createSiweWidgetAuthAdapter(input: {
   getSigner(): Promise<WidgetSessionSigner>;
 }): WidgetAuthAdapter {
-  return {
+  return createSignedChallengeAdapter({
     kind: "siwe",
-    getFingerprint: async () => {
-      const signer = normalizeSiweSigner(await input.getSigner());
-      return `${signer.chainId}:${signer.address.toLowerCase()}`;
-    },
-    exchange: async ({ baseUrl, fetch: fetchImpl }) => {
-      const signer = normalizeSiweSigner(await input.getSigner());
-      const challenge = await challengeJson(
-        fetchImpl,
-        joinUrl(baseUrl, "/api/widget/auth/siwe/nonce"),
-        { wallet_address: signer.address, chain_id: signer.chainId },
-      );
-      const message = createSiweMessage({
+    noncePath: "/api/widget/auth/siwe/nonce",
+    verifyPath: "/api/widget/auth/siwe/verify",
+    getSigner: input.getSigner,
+    normalizeSigner: normalizeSiweSigner,
+    getFingerprint: (signer) =>
+      `${signer.chainId}:${signer.address.toLowerCase()}`,
+    buildMessage: ({ signer, challenge }) =>
+      createSiweMessage({
         address: signer.address,
         chainId: signer.chainId,
         domain: challenge.domain,
@@ -146,39 +169,22 @@ export function createSiweWidgetAuthAdapter(input: {
         issuedAt: new Date(challenge.issuedAt),
         expirationTime: new Date(challenge.expirationTime),
         statement: "Sign in to Aomi from this site.",
-      });
-      const signature = await signer.signMessage(message);
-      return exchangeJson(
-        fetchImpl,
-        joinUrl(baseUrl, "/api/widget/auth/siwe/verify"),
-        {
-          message,
-          signature,
-          wallet_address: signer.address,
-          chain_id: signer.chainId,
-        },
-      );
-    },
-  };
+      }),
+  });
 }
 
 export function createSiwsWidgetAuthAdapter(input: {
   getSigner(): Promise<SiwsWidgetSessionSigner>;
 }): WidgetAuthAdapter {
-  return {
+  return createSignedChallengeAdapter({
     kind: "siws",
-    getFingerprint: async () => {
-      const signer = await input.getSigner();
-      return `${signer.chainId}:${signer.address}`;
-    },
-    exchange: async ({ baseUrl, fetch: fetchImpl }) => {
-      const signer = await input.getSigner();
-      const challenge = await challengeJson(
-        fetchImpl,
-        joinUrl(baseUrl, "/api/widget/auth/siws/nonce"),
-        { wallet_address: signer.address, chain_id: signer.chainId },
-      );
-      const message = [
+    noncePath: "/api/widget/auth/siws/nonce",
+    verifyPath: "/api/widget/auth/siws/verify",
+    getSigner: input.getSigner,
+    normalizeSigner: (signer) => signer,
+    getFingerprint: (signer) => `${signer.chainId}:${signer.address}`,
+    buildMessage: ({ signer, challenge }) =>
+      [
         `${challenge.domain} wants you to sign in with your Solana account:`,
         signer.address,
         "",
@@ -189,36 +195,18 @@ export function createSiwsWidgetAuthAdapter(input: {
         `Chain ID: ${signer.chainId}`,
         `Nonce: ${challenge.nonce}`,
         `Issued At: ${challenge.issuedAt}`,
-      ].join("\n");
-      const signature = await signer.signMessage(message);
-      return exchangeJson(
-        fetchImpl,
-        joinUrl(baseUrl, "/api/widget/auth/siws/verify"),
-        {
-          message,
-          signature,
-          wallet_address: signer.address,
-          chain_id: signer.chainId,
-        },
-      );
-    },
-  };
+      ].join("\n"),
+  });
 }
 
 export function createWidgetSessionProvider(input: {
   baseUrl: string;
-  adapter?: WidgetAuthAdapter;
-  getSigner?: () => Promise<WidgetSessionSigner>;
+  adapter: WidgetAuthAdapter;
   fetch?: typeof fetch;
   now?: () => number;
   refreshBeforeExpiryMs?: number;
 }): WidgetSessionProvider {
-  const adapter =
-    input.adapter ??
-    (input.getSigner
-      ? createSiweWidgetAuthAdapter({ getSigner: input.getSigner })
-      : null);
-  if (!adapter) throw new Error("Widget auth adapter is required");
+  const { adapter } = input;
   const fetchImpl = input.fetch ?? fetch;
   const now = input.now ?? Date.now;
   const refreshBeforeExpiryMs = input.refreshBeforeExpiryMs ?? 60_000;
@@ -368,8 +356,4 @@ function normalizeSiweSigner(
     throw new Error("Widget SIWE signer has no valid chain id");
   }
   return { ...signer, address: getAddress(signer.address) as `0x${string}` };
-}
-
-function joinUrl(baseUrl: string, path: string): string {
-  return `${baseUrl.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`;
 }

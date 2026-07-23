@@ -15,23 +15,18 @@ import {
   type WalletProviderState,
 } from "./wallet-execution";
 import type { EvmWalletRuntime } from "../runtime/evm/wallet-runtime";
+import { safeEnv } from "../env";
 
 const ALCHEMY_API_KEY =
-  (typeof process !== "undefined"
-    ? process.env.NEXT_PUBLIC_ALCHEMY_API_KEY?.trim()
-    : undefined) ?? "";
-const ALCHEMY_GAS_POLICY_ID =
-  typeof process !== "undefined"
-    ? process.env.NEXT_PUBLIC_ALCHEMY_GAS_POLICY_ID?.trim()
-    : undefined;
+  safeEnv(() => process.env.NEXT_PUBLIC_ALCHEMY_API_KEY)?.trim() ?? "";
+const ALCHEMY_GAS_POLICY_ID = safeEnv(
+  () => process.env.NEXT_PUBLIC_ALCHEMY_GAS_POLICY_ID,
+)?.trim();
 const PIMLICO_API_KEY =
-  (typeof process !== "undefined"
-    ? process.env.NEXT_PUBLIC_PIMLICO_API_KEY?.trim()
-    : undefined) ?? "";
-const AA_PROVIDER_OVERRIDE =
-  typeof process !== "undefined"
-    ? process.env.NEXT_PUBLIC_AA_PROVIDER?.trim().toLowerCase()
-    : undefined;
+  safeEnv(() => process.env.NEXT_PUBLIC_PIMLICO_API_KEY)?.trim() ?? "";
+const AA_PROVIDER_OVERRIDE = safeEnv(() => process.env.NEXT_PUBLIC_AA_PROVIDER)
+  ?.trim()
+  .toLowerCase();
 
 function resolveAAProvider(
   preference: WalletKitAAProviderPreference = "auto",

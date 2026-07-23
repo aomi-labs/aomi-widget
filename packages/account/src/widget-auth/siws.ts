@@ -1,4 +1,3 @@
-import { createHash, randomBytes } from "node:crypto";
 import {
   SIWS_CLUSTERS,
   validSolanaAddress,
@@ -6,23 +5,25 @@ import {
   type SiwsCluster,
 } from "../better-auth/siws";
 import { getOrCreateAomiUserForSiws } from "../service/account-service";
-import { widgetOriginDomain } from "./origin";
+import {
+  challengeIdentifier,
+  createWidgetChallenge,
+  type WidgetChallenge,
+} from "./challenge";
+import {
+  requireWidgetOrigin,
+  WidgetAuthError,
+  widgetOriginDomain,
+} from "./origin";
 import { issueWidgetSession, type WidgetSession } from "./session";
-import { requireWidgetOrigin, WidgetAuthError } from "./siwe";
 import { widgetAuthStore, type WidgetAuthStore } from "./store";
 
 const SIWS_CHALLENGE_NAMESPACE = "aomi:widget:siws:";
 export const WIDGET_SIWS_NONCE_TTL_SECONDS = 5 * 60;
 
-export type WidgetSiwsChallenge = {
-  nonce: string;
-  domain: string;
-  uri: string;
-  issuedAt: string;
-  expirationTime: string;
-};
+export type WidgetSiwsChallenge = WidgetChallenge;
 
-export async function createWidgetSiwsChallenge(input: {
+export function createWidgetSiwsChallenge(input: {
   request: Request;
   walletAddress: string;
   chainId: string;
@@ -30,33 +31,21 @@ export async function createWidgetSiwsChallenge(input: {
   ttlSeconds?: number;
   store?: WidgetAuthStore;
 }): Promise<WidgetSiwsChallenge> {
-  const origin = requireWidgetOrigin(input.request);
-  const address = requireSolanaAddress(input.walletAddress);
-  const chainId = requireSiwsCluster(input.chainId);
-  const now = input.now ?? new Date();
-  const expiresAt = new Date(
-    now.getTime() + (input.ttlSeconds ?? WIDGET_SIWS_NONCE_TTL_SECONDS) * 1000,
-  );
-  const nonce = randomBytes(32).toString("hex");
-  await (input.store ?? widgetAuthStore).write({
-    identifier: challengeIdentifier(nonce),
-    expiresAt,
-    ticket: {
+  return createWidgetChallenge({
+    request: input.request,
+    namespace: SIWS_CHALLENGE_NAMESPACE,
+    ttlSeconds: input.ttlSeconds ?? WIDGET_SIWS_NONCE_TTL_SECONDS,
+    now: input.now,
+    store: input.store,
+    buildTicket: ({ origin, issuedAt, expiresAt }) => ({
       kind: "siws_challenge",
       origin,
-      address,
-      chainId,
-      issuedAt: now.toISOString(),
-      expiresAt: expiresAt.toISOString(),
-    },
+      address: requireSolanaAddress(input.walletAddress),
+      chainId: requireSiwsCluster(input.chainId),
+      issuedAt,
+      expiresAt,
+    }),
   });
-  return {
-    nonce,
-    domain: widgetOriginDomain(origin),
-    uri: origin,
-    issuedAt: now.toISOString(),
-    expirationTime: expiresAt.toISOString(),
-  };
 }
 
 export async function verifyWidgetSiwsProof(input: {
@@ -76,7 +65,7 @@ export async function verifyWidgetSiwsProof(input: {
   if (!nonce) throw new WidgetAuthError("invalid_siws_message", 400);
   const store = input.store ?? widgetAuthStore;
   const ticket = await store.read({
-    identifier: challengeIdentifier(nonce),
+    identifier: challengeIdentifier(SIWS_CHALLENGE_NAMESPACE, nonce),
     now,
   });
   if (ticket?.kind !== "siws_challenge") {
@@ -100,7 +89,7 @@ export async function verifyWidgetSiwsProof(input: {
     });
   if (!valid) throw new WidgetAuthError("invalid_siws_signature", 401);
   const consumed = await store.consume({
-    identifier: challengeIdentifier(nonce),
+    identifier: challengeIdentifier(SIWS_CHALLENGE_NAMESPACE, nonce),
     now,
   });
   if (consumed?.kind !== "siws_challenge") {
@@ -128,10 +117,6 @@ function requireSiwsCluster(value: string): SiwsCluster {
     throw new WidgetAuthError("invalid_chain_id", 400);
   }
   return value as SiwsCluster;
-}
-
-function challengeIdentifier(nonce: string): string {
-  return `${SIWS_CHALLENGE_NAMESPACE}${createHash("sha256").update(nonce).digest("hex")}`;
 }
 
 function readField(message: string, field: string): string | null {

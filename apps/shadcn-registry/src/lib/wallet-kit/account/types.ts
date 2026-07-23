@@ -14,8 +14,6 @@ export type AomiUserRef = {
 export type LinkedAuthAccount = {
   id: string;
   provider: string;
-  issuerEnvironment?: string;
-  tenantId?: string;
   subject: string;
   email?: string;
   displayLabel?: string;

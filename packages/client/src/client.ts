@@ -252,10 +252,7 @@ function wrapFetchWithAccountBearer(
       try {
         bearer = await getAccountBearer({ forceRefresh });
       } catch (error) {
-        if (
-          (getAccountBearer as GetAccountBearer & { required?: boolean })
-            .required
-        ) {
+        if (getAccountBearer.required) {
           throw error;
         }
         bearer = undefined;

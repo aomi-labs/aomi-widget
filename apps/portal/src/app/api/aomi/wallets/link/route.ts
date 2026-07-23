@@ -9,51 +9,40 @@ import {
 import type { WalletFamily } from "@aomi-labs/account";
 import { readAccountAuthEnv } from "@aomi-labs/account/better-auth";
 import { recoverMessageAddress } from "viem";
-import { accountResponseForPrincipal } from "@portal/lib/widget-auth/principal";
-import { portalRoutePrincipal } from "@portal/lib/widget-auth/response";
 import {
-  applyWidgetCors,
-  widgetCorsPreflight,
-} from "@portal/lib/widget-auth/cors";
+  accountResponseForPrincipal,
+  requirePortalPrincipal,
+} from "@portal/lib/widget-auth/principal";
+import { widgetPreflight, widgetRoute } from "@portal/lib/widget-auth/response";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET(req: Request): Promise<Response> {
-  const auth = await portalRoutePrincipal(req);
-  if ("response" in auth) return auth.response;
-  const current = auth.principal;
+export const GET = widgetRoute(async (req: Request) => {
+  const current = await requirePortalPrincipal(req);
   const url = new URL(req.url);
   const address = url.searchParams.get("address");
   const rawChainId = url.searchParams.get("chainId");
   const chainId = Number(rawChainId);
   if (!address || !rawChainId || !Number.isInteger(chainId) || chainId <= 0) {
-    return applyWidgetCors(
-      req,
-      json(400, { error: "address_and_chain_id_required" }),
-    );
+    return json(400, { error: "address_and_chain_id_required" });
   }
   const env = readAccountAuthEnv();
-  return applyWidgetCors(
-    req,
-    Response.json({
-      nonce: createWalletLinkNonce({
-        userId: current.userId,
-        address,
-        chainId,
-        domain: env.siweDomain,
-        secret: env.betterAuthSecret,
-      }),
+  return Response.json({
+    nonce: createWalletLinkNonce({
+      userId: current.userId,
+      address,
+      chainId,
       domain: env.siweDomain,
-      uri: env.betterAuthUrl,
+      secret: env.betterAuthSecret,
     }),
-  );
-}
+    domain: env.siweDomain,
+    uri: env.betterAuthUrl,
+  });
+}, "wallet link nonce");
 
-export async function POST(req: Request): Promise<Response> {
-  const auth = await portalRoutePrincipal(req);
-  if ("response" in auth) return auth.response;
-  const current = auth.principal;
+export const POST = widgetRoute(async (req: Request) => {
+  const current = await requirePortalPrincipal(req);
   const body = (await req.json().catch(() => null)) as {
     family?: WalletFamily;
     address?: string;
@@ -64,22 +53,13 @@ export async function POST(req: Request): Promise<Response> {
     label?: string | null;
   } | null;
   if (!body?.family || !body.address) {
-    return applyWidgetCors(
-      req,
-      json(400, { error: "family_and_address_required" }),
-    );
+    return json(400, { error: "family_and_address_required" });
   }
   if (body.family !== "evm") {
-    return applyWidgetCors(
-      req,
-      json(400, { error: "unsupported_wallet_family" }),
-    );
+    return json(400, { error: "unsupported_wallet_family" });
   }
   if (!body.message || !body.signature || !body.chainId) {
-    return applyWidgetCors(
-      req,
-      json(400, { error: "wallet_signature_required" }),
-    );
+    return json(400, { error: "wallet_signature_required" });
   }
   const env = readAccountAuthEnv();
   if (
@@ -93,10 +73,7 @@ export async function POST(req: Request): Promise<Response> {
       secret: env.betterAuthSecret,
     })
   ) {
-    return applyWidgetCors(
-      req,
-      json(401, { error: "invalid_wallet_link_nonce" }),
-    );
+    return json(401, { error: "invalid_wallet_link_nonce" });
   }
   const signatureOk = await verifyWalletLinkSignature({
     address: body.address,
@@ -132,10 +109,7 @@ export async function POST(req: Request): Promise<Response> {
         domain: env.siweDomain,
       }),
     });
-    return applyWidgetCors(
-      req,
-      json(401, { error: "invalid_wallet_signature" }),
-    );
+    return json(401, { error: "invalid_wallet_signature" });
   }
 
   const resolution = await upsertVerifiedWallet({
@@ -150,26 +124,18 @@ export async function POST(req: Request): Promise<Response> {
     label: body.label ?? null,
   });
   if (resolution.status === "conflict") {
-    return applyWidgetCors(
-      req,
-      json(409, {
-        ...resolution,
-        error: "already_linked_to_another_account",
-      }),
-    );
+    return json(409, {
+      ...resolution,
+      error: "already_linked_to_another_account",
+    });
   }
-  return applyWidgetCors(
-    req,
-    Response.json({
-      status: resolution.status,
-      account: await accountResponseForPrincipal(req, current),
-    }),
-  );
-}
+  return Response.json({
+    status: resolution.status,
+    account: await accountResponseForPrincipal(req, current),
+  });
+}, "wallet link");
 
-export function OPTIONS(req: Request): Response {
-  return widgetCorsPreflight(req, ["GET", "POST", "OPTIONS"]);
-}
+export const OPTIONS = widgetPreflight(["GET", "POST", "OPTIONS"]);
 
 async function recoverWalletLinkSigner(input: {
   message: string;

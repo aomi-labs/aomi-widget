@@ -271,12 +271,13 @@ export type AomiTxResult = {
   Delegation7702?: string;
 };
 
-export type AomiAccountCredential = {
-  provider: string;
-  tokenKind?: string;
-  providerToken: string;
-  keyId?: string;
-};
+/**
+ * Upstream wallet-provider credential the portal exchanges for an Aomi bearer.
+ * Aliased to the client type (the same inline `@aomi-labs/client` edge already
+ * used for `GetAccountBearer` below) so the shape cannot drift.
+ */
+export type AomiAccountCredential =
+  import("@aomi-labs/client").ProviderCredential;
 
 export type AomiWalletKit = {
   identity: AomiSessionIdentity;

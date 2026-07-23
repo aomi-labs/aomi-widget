@@ -1,11 +1,14 @@
-import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { findAomiUserById } from "../db/queries";
 import { observedWidgetOrigin } from "./origin";
-import { widgetAuthStore, type WidgetAuthStore } from "./store";
+import {
+  widgetAuthStore,
+  WIDGET_SESSION_NAMESPACE,
+  type WidgetAuthStore,
+} from "./store";
 
 export const WIDGET_SESSION_TTL_SECONDS = 30 * 60;
 const WIDGET_TOKEN_PREFIX = "aomi_wst_";
-const WIDGET_SESSION_NAMESPACE = "aomi:widget:session:";
 
 export type WidgetSession = {
   token: string;
@@ -33,7 +36,6 @@ export async function issueWidgetSession(input: {
     expiresAt,
     ticket: {
       kind: "widget_session",
-      sessionId: randomUUID(),
       userId: input.userId,
       origin: input.origin,
       authMethod: input.authMethod,

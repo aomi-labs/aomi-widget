@@ -12,6 +12,7 @@ import type {
 } from "../../composer/types";
 import type { AccountConfig, ExecutionConfig } from "../../config/types";
 import { useAomiWalletNetworkPreferences } from "../../network-preferences";
+import { safeEnv } from "../../env";
 import { inferAuthMethod } from "../../identity";
 import {
   useEvmWalletRuntime,
@@ -141,15 +142,11 @@ export function AomiParaPluginProvider({
       cluster: svmConfig?.cluster ?? DEFAULT_SVM_CLUSTER,
       rpcHttpUrl:
         svmConfig?.rpcHttpUrl ??
-        (typeof process !== "undefined"
-          ? process.env.NEXT_PUBLIC_SOLANA_RPC_URL
-          : undefined) ??
+        safeEnv(() => process.env.NEXT_PUBLIC_SOLANA_RPC_URL) ??
         DEFAULT_SVM_ENDPOINT,
       rpcWsUrl:
         svmConfig?.rpcWsUrl ??
-        (typeof process !== "undefined"
-          ? process.env.NEXT_PUBLIC_SOLANA_RPC_WS_URL
-          : undefined) ??
+        safeEnv(() => process.env.NEXT_PUBLIC_SOLANA_RPC_WS_URL) ??
         undefined,
       preferDirectSend: svmConfig?.preferDirectSend ?? true,
     }),

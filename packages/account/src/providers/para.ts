@@ -38,6 +38,18 @@ export const PARA_WIDGET_JWKS_URLS = {
   PROD: "https://api.getpara.com/.well-known/jwks.json",
 } as const;
 
+// Single owner of the Para environment ↔ host mapping. Sourced from the known
+// JWKS URLs above so callers do not re-sniff Para hosts independently. A custom
+// (non-standard) JWKS URL that does not carry the beta host falls back to prod,
+// matching the historical substring behavior.
+const PARA_BETA_JWKS_HOST = new URL(PARA_WIDGET_JWKS_URLS.BETA).host;
+
+export function paraIssuerEnvironmentForJwksUrl(
+  jwksUrl: string,
+): "para:beta" | "para:prod" {
+  return jwksUrl.includes(PARA_BETA_JWKS_HOST) ? "para:beta" : "para:prod";
+}
+
 const paraWidgetCredentialSchema = z.object({
   provider: z.literal("para"),
   environment: z.enum(["BETA", "PROD"]),
@@ -100,7 +112,6 @@ export function createParaWidgetDescriptor(
     credentialSchema: paraWidgetCredentialSchema,
     policy: {
       subjectIsEnvironmentGlobal: true,
-      walletClaimTrust: "none",
       widgetEnabled: true,
     },
     verifyWidgetCredential: async (input) =>

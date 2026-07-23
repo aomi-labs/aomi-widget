@@ -24,8 +24,6 @@ import {
 
 const globalPolicy = {
   subjectIsEnvironmentGlobal: true,
-  walletClaimTrust: "none" as const,
-  widgetEnabled: true,
 };
 
 function identity(tenantId: string): VerifiedProviderIdentity {

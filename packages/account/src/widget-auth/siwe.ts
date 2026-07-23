@@ -1,34 +1,26 @@
-import { createHash, randomBytes } from "node:crypto";
 import { getAddress } from "viem";
 import { parseSiweMessage, validateSiweMessage } from "viem/siwe";
 import { verifyEoaSiweMessage } from "../better-auth/siwe";
 import { getOrCreateAomiUserForSiwe } from "../service/account-service";
-import { observedWidgetOrigin, widgetOriginDomain } from "./origin";
+import {
+  challengeIdentifier,
+  createWidgetChallenge,
+  type WidgetChallenge,
+} from "./challenge";
+import {
+  requireWidgetOrigin,
+  WidgetAuthError,
+  widgetOriginDomain,
+} from "./origin";
 import { issueWidgetSession, type WidgetSession } from "./session";
 import { widgetAuthStore, type WidgetAuthStore } from "./store";
 
 export const WIDGET_SIWE_NONCE_TTL_SECONDS = 5 * 60;
 const SIWE_CHALLENGE_NAMESPACE = "aomi:widget:siwe:";
 
-export class WidgetAuthError extends Error {
-  constructor(
-    readonly code: string,
-    readonly status: number,
-  ) {
-    super(code);
-    this.name = "WidgetAuthError";
-  }
-}
+export type WidgetSiweChallenge = WidgetChallenge;
 
-export type WidgetSiweChallenge = {
-  nonce: string;
-  domain: string;
-  uri: string;
-  issuedAt: string;
-  expirationTime: string;
-};
-
-export async function createWidgetSiweChallenge(input: {
+export function createWidgetSiweChallenge(input: {
   request: Request;
   walletAddress: string;
   chainId: number;
@@ -36,33 +28,21 @@ export async function createWidgetSiweChallenge(input: {
   ttlSeconds?: number;
   store?: WidgetAuthStore;
 }): Promise<WidgetSiweChallenge> {
-  const origin = requireWidgetOrigin(input.request);
-  const address = requireAddress(input.walletAddress);
-  const chainId = requireChainId(input.chainId);
-  const now = input.now ?? new Date();
-  const expiresAt = new Date(
-    now.getTime() + (input.ttlSeconds ?? WIDGET_SIWE_NONCE_TTL_SECONDS) * 1000,
-  );
-  const nonce = randomBytes(32).toString("hex");
-  await (input.store ?? widgetAuthStore).write({
-    identifier: challengeIdentifier(nonce),
-    expiresAt,
-    ticket: {
+  return createWidgetChallenge({
+    request: input.request,
+    namespace: SIWE_CHALLENGE_NAMESPACE,
+    ttlSeconds: input.ttlSeconds ?? WIDGET_SIWE_NONCE_TTL_SECONDS,
+    now: input.now,
+    store: input.store,
+    buildTicket: ({ origin, issuedAt, expiresAt }) => ({
       kind: "siwe_challenge",
       origin,
-      address,
-      chainId,
-      issuedAt: now.toISOString(),
-      expiresAt: expiresAt.toISOString(),
-    },
+      address: requireAddress(input.walletAddress),
+      chainId: requireChainId(input.chainId),
+      issuedAt,
+      expiresAt,
+    }),
   });
-  return {
-    nonce,
-    domain: widgetOriginDomain(origin),
-    uri: origin,
-    issuedAt: now.toISOString(),
-    expirationTime: expiresAt.toISOString(),
-  };
 }
 
 export async function verifyWidgetSiweProof(input: {
@@ -83,7 +63,7 @@ export async function verifyWidgetSiweProof(input: {
   if (!nonce) throw new WidgetAuthError("invalid_siwe_message", 400);
   const store = input.store ?? widgetAuthStore;
   const ticket = await store.read({
-    identifier: challengeIdentifier(nonce),
+    identifier: challengeIdentifier(SIWE_CHALLENGE_NAMESPACE, nonce),
     now,
   });
   if (ticket?.kind !== "siwe_challenge") {
@@ -115,7 +95,7 @@ export async function verifyWidgetSiweProof(input: {
     throw new WidgetAuthError("invalid_siwe_signature", 401);
   }
   const consumed = await store.consume({
-    identifier: challengeIdentifier(nonce),
+    identifier: challengeIdentifier(SIWE_CHALLENGE_NAMESPACE, nonce),
     now,
   });
   if (consumed?.kind !== "siwe_challenge") {
@@ -131,12 +111,6 @@ export async function verifyWidgetSiweProof(input: {
   });
 }
 
-export function requireWidgetOrigin(request: Request): string {
-  const origin = observedWidgetOrigin(request);
-  if (!origin) throw new WidgetAuthError("invalid_widget_origin", 403);
-  return origin;
-}
-
 function requireAddress(address: string): `0x${string}` {
   try {
     return getAddress(address) as `0x${string}`;
@@ -150,8 +124,4 @@ function requireChainId(chainId: number): number {
     throw new WidgetAuthError("invalid_chain_id", 400);
   }
   return chainId;
-}
-
-function challengeIdentifier(nonce: string): string {
-  return `${SIWE_CHALLENGE_NAMESPACE}${createHash("sha256").update(nonce).digest("hex")}`;
 }

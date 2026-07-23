@@ -71,11 +71,43 @@ export function AomiWidget(props: AomiWidgetProps) {
       }
       account={account}
     >
-      <WidgetFrame {...props} apiUrl={resolvedApiUrl} />
+      <WidgetFrame
+        apiUrl={resolvedApiUrl}
+        width={props.width}
+        height={props.height}
+        className={props.className}
+        style={props.style}
+        walletPosition={props.walletPosition}
+        walletFamilies={props.walletFamilies}
+        showSidebar={props.showSidebar}
+        showHeader={props.showHeader}
+        controlBarProps={props.controlBarProps}
+        clientOptions={props.clientOptions}
+        persistThread={props.persistThread}
+        threadPersistenceKey={props.threadPersistenceKey}
+        threadPersistenceScope={props.threadPersistenceScope}
+      />
       {props.children}
     </AomiWalletKitProvider>
   );
 }
+
+type WidgetFrameProps = Pick<
+  AomiWidgetProps,
+  | "width"
+  | "height"
+  | "className"
+  | "style"
+  | "walletPosition"
+  | "walletFamilies"
+  | "showSidebar"
+  | "showHeader"
+  | "controlBarProps"
+  | "clientOptions"
+  | "persistThread"
+  | "threadPersistenceKey"
+  | "threadPersistenceScope"
+> & { apiUrl: string };
 
 function WidgetFrame({
   apiUrl,
@@ -92,7 +124,7 @@ function WidgetFrame({
   persistThread,
   threadPersistenceKey,
   threadPersistenceScope,
-}: AomiWidgetProps) {
+}: WidgetFrameProps) {
   const walletKit = useAomiWalletKit();
   return (
     <AomiFrame.Root

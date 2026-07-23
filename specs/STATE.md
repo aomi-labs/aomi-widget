@@ -2,6 +2,90 @@
 
 ## Last Updated
 
+2026-07-23 (later) — Widget-consumer Para Solana parity: attempted an
+  auto-provisioning fix (useCreateWallet({type:"SOLANA"}) after session-up in
+  ParaPluginProvider) — user reported it did not help; REVERTED fully. Root
+  cause analysis stands: Para wallets are per-project, so the consumer
+  project's session holds no SVM wallet even though the Aomi account has one
+  linked; "Connected now" is built from the live session
+  (para-session-source svm/changed), "Account access" from the backend.
+  OPEN: the consumer-side Solana connection gap and the broader
+  account-management UI redesign both still need a solution.
+
+2026-07-23 (craft-cleanup pass, uncommitted) — Executed the quality-review
+  cleanup of 2b42d79e across three parallel workstreams; net −353 lines
+  (1437+/1790−, 83 files), all verified green: root vitest 772 passed/28
+  skipped, widget-lib 267/267, account 70/70, portal route tests 23/23,
+  client 328, react 125; root + portal typechecks clean; client/react/
+  registry dists + landing public/r mirrors regenerated.
+  Highlights:
+  - Portal: new widgetRoute()/widgetPreflight() wrapper centralizes CORS +
+    error mapping (~40 applyWidgetCors call sites and all hand-written
+    OPTIONS removed); shared widgetSessionResponse/widgetChallengeResponse;
+    shared exchange pipeline lib/widget-auth/exchange.ts; ZodError→400 and
+    provider_token_*→401 (was 500); sign-out 500 code unified to
+    widget_auth_failed. RESTORED the E2E canonical-user override that
+    2b42d79e silently dropped (canonical-session.ts now composes
+    resolveE2ECanonicalUserId → resolvePortalCanonicalUserId). Fixed a
+    latent split type/value import that made WidgetAuthError undefined
+    under Vite SSR.
+  - Account: deleted walletClaimTrust, write-only sessionId,
+    listWidgetProviders, createAomiUserForBetterAuth, dead imports; merged
+    SIWE/SIWS challenge creators (widget-auth/challenge.ts) and wallet
+    sign-in near-clones; IDENTITY_SCOPES constants; toMillis reverted to
+    millis-only (normalized at widget call site); collectIdentityOwners
+    shared; policy param narrowed to { subjectIsEnvironmentGlobal }.
+    widgetEnabled KEPT (portal reads it). Public import paths unchanged.
+  - Client/widget-lib: safeEnv() helper replaced ~25 typeof-process
+    ternaries; thread-store logging now fails CLOSED in no-process prod
+    builds; SIWE/SIWS client adapters merged; joinUrl/base64url decode
+    deduped into packages/client/src/internal/*; dead getSigner option
+    removed (adapter required); useWidgetSessionProvider extracted from
+    aomi-backend-runtime; Para banner themed via tokens; paraAuth/privyAuth
+    keys required at type level; GetAccountBearer.required typed;
+    AomiAccountCredential aliased to client ProviderCredential; unused
+    LinkedAuthAccount fields dropped; registry.ts gained the 3 new files.
+  - Periphery: GOAL.md indent fix; NEXT_PUBLIC_PARA_SECONDARY_API_KEY
+    documented in landing/.env.example.
+  Known remaining (unchanged from review): portal test files not matched by
+  root vitest include globs (CI gap); pre-existing no-restricted-imports
+  lint errors in apps/portal/src/lib/widget-auth (cors.ts et al., +2 from
+  new exchange.ts following the same pattern); pre-existing toBeEnabled
+  type error in wallet-picker.test.tsx:1324; sign-out race /
+  wallet-unlink-revocation / SIWE silent-refresh correctness items still
+  open from the earlier review entry.
+
+2026-07-22 (post-push review of 2b42d79e) — Three-agent deep review of the
+  widget-auth commit (portal routes/CORS, packages/account, client/widget).
+  Verdict: architecture sound; locked decisions (no origin allowlist, no
+  audience allowlist, Para env-global subject matching) verified implemented
+  as designed; provider-agnostic boundary held (no para/privy literals in
+  shared code); client dist matches src. Actionable findings, none
+  design-blocking:
+  - FIX BEFORE RELEASE: shadcn registry `aomi-para-provider` file list is
+    missing `providers/para/para-message-signing.ts` (imported by
+    ParaPluginProvider.tsx) → CLI installs of that component break
+    (apps/shadcn-registry/src/registry.ts:298-325; dist/registry.json).
+  - Sign-out race: `signOut()`/`revoke()` don't cancel the in-flight
+    `pending` exchange; a refresh completing after sign-out re-caches a
+    fresh WST (packages/client/src/widget-session.ts:258-287).
+  - SIWE/SIWS-minted WSTs carry no providerIdentityId, so wallet unlink
+    doesn't revoke them (TTL-bounded, ≤30 min).
+  - Wallet-mode has no silent refresh → SIWE re-sign prompt ~every 29 min.
+  - Provider-token verify errors and ZodError in aomi/provider/exchange
+    surface as 500 instead of 4xx (response.ts doesn't map plain Errors).
+  - Expired ba_verifications rows never purged; unindexed LIKE scan in
+    deleteWidgetSessionsForProviderIdentity.
+  - Widget SIWE is EOA-only (no ERC-1271/6492) — scoped out, but silently
+    diverges from first-party SIWE.
+  - Privy native issuerEnvironment hardcoded "privy:prod"
+    (account-credentials.ts:139); dead imports in account-service.ts.
+  - Para startup-failure banner (para-plugin.tsx:128-177) can't fire for
+    async init failures; provider SDKs are hard deps of widget-lib.
+  Deploy dependency confirmed: db-master tenant-column migration must land
+  before this serves traffic. Team explainer artifact published
+  ("Widget Auth: How It Works").
+
 2026-07-22 (widget auth complete) — Implemented
   WIDGET-AUTH-INTEGRATION-PLAN.md across aomi, db-master, and product-mono.
   Provider identities are tenant-scoped at storage and resolved atomically

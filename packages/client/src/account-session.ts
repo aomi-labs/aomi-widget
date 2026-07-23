@@ -1,11 +1,13 @@
 import type { GetAccountBearer } from "./types";
+import type { ProviderCredential } from "./widget-session";
+import { joinUrl } from "./internal/url";
+import { decodeBase64Url } from "./internal/encoding";
 
-export type AccountCredentialProvider = () => Promise<{
-  provider: string;
-  tokenKind?: string;
-  providerToken: string;
-  keyId?: string;
-}>;
+/**
+ * Structurally identical to {@link ProviderCredential}; aliased so the widget
+ * and account credential shapes cannot drift within `@aomi-labs/client`.
+ */
+export type AccountCredentialProvider = () => Promise<ProviderCredential>;
 
 export class AccountCredentialUnavailableError extends Error {
   constructor(message = "Account credential is not available yet") {
@@ -227,10 +229,6 @@ export function createAccountBearerProvider({
   return getAccountBearer;
 }
 
-function joinUrl(baseUrl: string, path: string): string {
-  return `${baseUrl.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`;
-}
-
 function normalizeBetterAuthTokenResponse(
   response: BetterAuthTokenResponse,
 ): AccountSessionExchangeResponse {
@@ -283,28 +281,4 @@ function decodeJwtPayload(token: string): Record<string, unknown> {
   const [, payload] = token.split(".");
   if (!payload) throw new Error("Better Auth token is not a JWT");
   return JSON.parse(decodeBase64Url(payload)) as Record<string, unknown>;
-}
-
-function decodeBase64Url(value: string): string {
-  const normalized = value
-    .replace(/-/g, "+")
-    .replace(/_/g, "/")
-    .padEnd(Math.ceil(value.length / 4) * 4, "=");
-  if (typeof globalThis.atob === "function") {
-    return globalThis.atob(normalized);
-  }
-  type BufferLike = {
-    from(
-      input: string,
-      encoding: "base64",
-    ): {
-      toString(encoding: "utf8"): string;
-    };
-  };
-  const BufferCtor = (globalThis as typeof globalThis & { Buffer?: BufferLike })
-    .Buffer;
-  if (BufferCtor) {
-    return BufferCtor.from(normalized, "base64").toString("utf8");
-  }
-  throw new Error("No base64 decoder is available");
 }

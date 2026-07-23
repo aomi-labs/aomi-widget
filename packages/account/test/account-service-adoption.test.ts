@@ -7,7 +7,6 @@ const queryMocks = vi.hoisted(() => ({
   clearAomiBetterAuthUserIds: vi.fn(),
   countLoginFactors: vi.fn(),
   createAomiUser: vi.fn(),
-  createAomiUserForBetterAuth: vi.fn(),
   deactivateAomiUser: vi.fn(),
   deleteBetterAuthSiweWallet: vi.fn(),
   deleteBetterAuthSiwsWallet: vi.fn(),

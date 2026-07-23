@@ -1,6 +1,4 @@
-import { parseSignature, serializeSignature } from "viem";
-
-import { hashMessage } from "viem";
+import { hashMessage, parseSignature, serializeSignature } from "viem";
 
 type ParaSigningWallet = {
   id?: string;

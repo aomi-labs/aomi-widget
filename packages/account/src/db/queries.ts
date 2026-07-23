@@ -1,20 +1,21 @@
 import { randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import { getPool } from "./pool";
-import type {
-  AccountWallet,
-  AomiAccountResponse,
-  AomiUserId,
-  AuthIdentityProvider,
-  BetterAuthUserId,
-  DbAomiAuthIdentity,
-  DbAomiUser,
-  DbAomiWallet,
-  LinkedAuthAccount,
-  LinkedVia,
-  SignalRef,
-  WalletFamily,
-  WalletKind,
+import {
+  IDENTITY_SCOPES,
+  type AccountWallet,
+  type AomiAccountResponse,
+  type AomiUserId,
+  type AuthIdentityProvider,
+  type BetterAuthUserId,
+  type DbAomiAuthIdentity,
+  type DbAomiUser,
+  type DbAomiWallet,
+  type LinkedAuthAccount,
+  type LinkedVia,
+  type SignalRef,
+  type WalletFamily,
+  type WalletKind,
 } from "../types";
 import { normalizeWalletAddress } from "../service/wallet-normalization";
 
@@ -76,18 +77,6 @@ export async function findAomiUserById(
     [userId],
   );
   return result.rows[0] ? mapUser(result.rows[0]) : null;
-}
-
-export async function createAomiUserForBetterAuth(input: {
-  userId?: AomiUserId;
-  betterAuthUserId: BetterAuthUserId;
-  email?: string | null;
-  name?: string | null;
-  avatarUrl?: string | null;
-  displayName?: string | null;
-  db?: Db;
-}): Promise<DbAomiUser> {
-  return createAomiUser(input);
 }
 
 export async function createAomiUser(input: {
@@ -359,8 +348,7 @@ export async function upsertEmailIdentity(input: {
   return upsertAuthIdentity({
     userId: input.userId,
     provider: "email",
-    issuerEnvironment: "aomi",
-    tenantId: "global",
+    ...IDENTITY_SCOPES.email,
     subject: input.email.toLowerCase(),
     email: input.email,
     db: input.db,
@@ -884,9 +872,9 @@ async function resolveWalletAuthProvider(
   if (subject) {
     const staticScope =
       provider === "siwe"
-        ? { issuerEnvironment: "eip155", tenantId: "global" }
+        ? IDENTITY_SCOPES.siwe
         : provider === "siws"
-          ? { issuerEnvironment: "solana", tenantId: "global" }
+          ? IDENTITY_SCOPES.siws
           : null;
     const issuerEnvironment =
       input.providerIssuerEnvironment ?? staticScope?.issuerEnvironment;
@@ -1055,9 +1043,7 @@ function nowSeconds(): number {
 function toMillis(value?: Date | string | number | null): number | undefined {
   if (value == null) return undefined;
   if (value instanceof Date) return value.getTime();
-  if (typeof value === "number") {
-    return value < 100_000_000_000 ? value * 1000 : value;
-  }
+  if (typeof value === "number") return value;
   const parsed = Date.parse(value);
   return Number.isNaN(parsed) ? undefined : parsed;
 }

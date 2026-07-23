@@ -1,10 +1,15 @@
 import { generateUUID } from "../utils/uuid";
+import { safeEnv } from "../utils/env";
 import type { SetStateAction } from "react";
 import type { ThreadMessageLike } from "@assistant-ui/react";
 import { ThreadContext } from "../contexts/thread-context";
 
+// Fail closed: only log when `process` exists (safeEnv returns a string) and
+// NODE_ENV is not production. Pure-browser production builds — where `process`
+// is undefined — get `undefined` here and stay silent.
+const threadLogEnv = safeEnv(() => process.env.NODE_ENV);
 const shouldLogThreadUpdates =
-  typeof process === "undefined" || process.env.NODE_ENV !== "production";
+  threadLogEnv !== undefined && threadLogEnv !== "production";
 
 const logThreadMetadataChange = (
   source: string,

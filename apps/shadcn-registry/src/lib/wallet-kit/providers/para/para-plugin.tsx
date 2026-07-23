@@ -24,6 +24,7 @@ import {
 } from "../plugin-registry";
 import { AomiParaPluginProvider } from "./ParaPluginProvider";
 import { defaultOAuthMethods } from "./para-auth";
+import { safeEnv } from "../../env";
 
 const PARA_STARTUP_TIMEOUT_MS = 4_000;
 
@@ -34,7 +35,9 @@ function ParaReadyChildren({
   children: ReactNode;
   onReady: () => void;
 }) {
-  useEffect(onReady, [onReady]);
+  useEffect(() => {
+    onReady();
+  }, [onReady]);
   return <>{children}</>;
 }
 
@@ -80,10 +83,7 @@ function ParaAuthLayer({
   const [providerReady, setProviderReady] = useState(false);
   const para = providers?.para === false ? undefined : providers?.para;
   const apiKey =
-    para?.apiKey ??
-    (typeof process !== "undefined"
-      ? process.env.NEXT_PUBLIC_PARA_API_KEY
-      : undefined);
+    para?.apiKey ?? safeEnv(() => process.env.NEXT_PUBLIC_PARA_API_KEY);
   const paraClientConfig = useMemo(
     () =>
       apiKey
@@ -150,20 +150,7 @@ function ParaAuthLayer({
       <>
         <div
           role="alert"
-          style={{
-            alignItems: "center",
-            background: "#2a1818",
-            border: "1px solid #713838",
-            borderRadius: 8,
-            color: "#ffd5d5",
-            display: "flex",
-            fontFamily: "ui-sans-serif, system-ui, sans-serif",
-            fontSize: 14,
-            gap: 12,
-            justifyContent: "space-between",
-            marginBottom: 12,
-            padding: "10px 12px",
-          }}
+          className="border-destructive/25 bg-destructive/10 text-destructive mb-3 flex items-center justify-between gap-3 rounded-lg border px-3 py-2.5 text-sm"
         >
           <span>
             Para authentication could not start. Check the API key environment
@@ -172,14 +159,7 @@ function ParaAuthLayer({
           <button
             type="button"
             onClick={() => setStartupAttempt((attempt) => attempt + 1)}
-            style={{
-              background: "transparent",
-              border: "1px solid currentColor",
-              borderRadius: 6,
-              color: "inherit",
-              cursor: "pointer",
-              padding: "6px 10px",
-            }}
+            className="cursor-pointer rounded-md border border-current px-2.5 py-1.5 text-inherit"
           >
             Retry
           </button>
@@ -212,10 +192,7 @@ export const paraPlugin: WalletProviderPlugin = {
     const para = providers?.para === false ? undefined : providers?.para;
     return Boolean(
       enabled &&
-      (para?.apiKey ??
-        (typeof process !== "undefined"
-          ? process.env.NEXT_PUBLIC_PARA_API_KEY
-          : undefined)),
+      (para?.apiKey ?? safeEnv(() => process.env.NEXT_PUBLIC_PARA_API_KEY)),
     );
   },
   wrap: (props) => <ParaAuthLayer {...props} />,

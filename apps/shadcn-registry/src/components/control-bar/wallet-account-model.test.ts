@@ -83,15 +83,11 @@ describe("buildAccountAccessEntries", () => {
           id: "identity-para-portal",
           provider: "para",
           subject: "para:user/123",
-          issuerEnvironment: "beta",
-          tenantId: "portal",
         },
         {
           id: "identity-para-widget",
           provider: "para",
           subject: "para:user/123",
-          issuerEnvironment: "beta",
-          tenantId: "widget",
         },
       ],
       [

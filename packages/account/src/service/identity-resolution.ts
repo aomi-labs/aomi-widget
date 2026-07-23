@@ -9,11 +9,23 @@ import {
   upsertAuthIdentity,
   withTransaction,
 } from "../db/queries";
-import type {
-  VerifiedProviderIdentity,
-  WidgetProviderPolicy,
-} from "../providers/descriptor";
+import type { VerifiedProviderIdentity } from "../providers/descriptor";
 import type { DbAomiAuthIdentity, DbAomiUser, SignalRef } from "../types";
+
+/** Identity resolution only needs to know whether a provider's subject is
+ * globally unique across its environments; the rest of a provider descriptor's
+ * policy is irrelevant here. */
+export type IdentityResolutionPolicy = {
+  subjectIsEnvironmentGlobal: boolean;
+};
+
+export type ResolveIdentityInput = {
+  identity: VerifiedProviderIdentity;
+  policy: IdentityResolutionPolicy;
+  recoverySignals?: readonly SignalRef[];
+  displayName?: string | null;
+  avatarUrl?: string | null;
+};
 
 export class IdentityConflictError extends Error {
   readonly code = "identity_conflict";
@@ -30,13 +42,9 @@ export type IdentityResolutionResult = {
   created: boolean;
 };
 
-export async function resolveVerifiedProviderIdentity(input: {
-  identity: VerifiedProviderIdentity;
-  policy: WidgetProviderPolicy;
-  recoverySignals?: readonly SignalRef[];
-  displayName?: string | null;
-  avatarUrl?: string | null;
-}): Promise<IdentityResolutionResult> {
+export async function resolveVerifiedProviderIdentity(
+  input: ResolveIdentityInput,
+): Promise<IdentityResolutionResult> {
   const exactKey = credentialKey(input.identity);
   const globalKey = subjectKey(input.identity);
 
@@ -63,7 +71,7 @@ export async function resolveVerifiedProviderIdentity(input: {
 export async function attachVerifiedProviderIdentityToUser(input: {
   userId: string;
   identity: VerifiedProviderIdentity;
-  policy: WidgetProviderPolicy;
+  policy: IdentityResolutionPolicy;
 }): Promise<DbAomiAuthIdentity> {
   return withTransaction(async (db) => {
     await lockIdentityResolutionKeys(
@@ -72,27 +80,7 @@ export async function attachVerifiedProviderIdentityToUser(input: {
         : [credentialKey(input.identity)],
       db,
     );
-    const exactOwner = await findSignalOwner(
-      {
-        type: "identity",
-        provider: input.identity.provider,
-        issuerEnvironment: input.identity.issuerEnvironment,
-        tenantId: input.identity.tenantId,
-        subject: input.identity.subject,
-      },
-      db,
-    );
-    const owners = new Set(exactOwner ? [exactOwner] : []);
-    if (input.policy.subjectIsEnvironmentGlobal) {
-      for (const owner of await findProviderSubjectOwners(
-        input.identity.provider,
-        input.identity.issuerEnvironment,
-        input.identity.subject,
-        db,
-      )) {
-        owners.add(owner);
-      }
-    }
+    const owners = await collectIdentityOwners(input.identity, input.policy, db);
     if ([...owners].some((owner) => owner !== input.userId)) {
       throw new IdentityConflictError([...owners].sort());
     }
@@ -110,31 +98,48 @@ export async function attachVerifiedProviderIdentityToUser(input: {
   });
 }
 
-async function resolveLocked(
-  input: Parameters<typeof resolveVerifiedProviderIdentity>[0],
+/** Gather every canonical user that already owns this provider identity: the
+ * exact `(provider, issuerEnvironment, tenantId, subject)` credential, plus —
+ * when the provider's subject is environment-global — every user keyed by the
+ * same `(provider, issuerEnvironment, subject)` across tenants. Shared by the
+ * anonymous resolve path and the authenticated attach path so the two cannot
+ * drift. */
+async function collectIdentityOwners(
+  identity: VerifiedProviderIdentity,
+  policy: IdentityResolutionPolicy,
   db: PoolClient,
-): Promise<IdentityResolutionResult> {
-  const exactSignal: SignalRef = {
-    type: "identity",
-    provider: input.identity.provider,
-    issuerEnvironment: input.identity.issuerEnvironment,
-    tenantId: input.identity.tenantId,
-    subject: input.identity.subject,
-  };
+): Promise<Set<string>> {
   const owners = new Set<string>();
-  const exactOwner = await findSignalOwner(exactSignal, db);
+  const exactOwner = await findSignalOwner(
+    {
+      type: "identity",
+      provider: identity.provider,
+      issuerEnvironment: identity.issuerEnvironment,
+      tenantId: identity.tenantId,
+      subject: identity.subject,
+    },
+    db,
+  );
   if (exactOwner) owners.add(exactOwner);
 
-  if (input.policy.subjectIsEnvironmentGlobal) {
+  if (policy.subjectIsEnvironmentGlobal) {
     for (const owner of await findProviderSubjectOwners(
-      input.identity.provider,
-      input.identity.issuerEnvironment,
-      input.identity.subject,
+      identity.provider,
+      identity.issuerEnvironment,
+      identity.subject,
       db,
     )) {
       owners.add(owner);
     }
   }
+  return owners;
+}
+
+async function resolveLocked(
+  input: ResolveIdentityInput,
+  db: PoolClient,
+): Promise<IdentityResolutionResult> {
+  const owners = await collectIdentityOwners(input.identity, input.policy, db);
 
   for (const signal of dedupeSignals(input.recoverySignals ?? [])) {
     const owner = await findSignalOwner(signal, db);

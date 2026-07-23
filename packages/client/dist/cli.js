@@ -6919,6 +6919,20 @@ var init_fee = __esm({
   }
 });
 
+// src/internal/env.ts
+function safeEnv(read) {
+  try {
+    return read();
+  } catch (e) {
+    return void 0;
+  }
+}
+var init_env = __esm({
+  "src/internal/env.ts"() {
+    "use strict";
+  }
+});
+
 // src/aa/alchemy/defaults.ts
 function trimToUndefined(value) {
   const trimmed = value == null ? void 0 : value.trim();
@@ -6928,13 +6942,11 @@ function resolveAlchemyApiKey(options) {
   const explicit = trimToUndefined(options == null ? void 0 : options.apiKey);
   if (explicit) return explicit;
   if (!(options == null ? void 0 : options.publicOnly)) {
-    const privateEnv = trimToUndefined(
-      typeof process !== "undefined" ? process.env.ALCHEMY_API_KEY : void 0
-    );
+    const privateEnv = trimToUndefined(safeEnv(() => process.env.ALCHEMY_API_KEY));
     if (privateEnv) return privateEnv;
   }
   const publicEnv = trimToUndefined(
-    typeof process !== "undefined" ? process.env.NEXT_PUBLIC_ALCHEMY_API_KEY : void 0
+    safeEnv(() => process.env.NEXT_PUBLIC_ALCHEMY_API_KEY)
   );
   if (publicEnv) return publicEnv;
   return DEFAULT_ALCHEMY_API_KEY;
@@ -6944,12 +6956,12 @@ function resolveAlchemyGasPolicyId(options) {
   if (explicit) return explicit;
   if (!(options == null ? void 0 : options.publicOnly)) {
     const privateEnv = trimToUndefined(
-      typeof process !== "undefined" ? process.env.ALCHEMY_GAS_POLICY_ID : void 0
+      safeEnv(() => process.env.ALCHEMY_GAS_POLICY_ID)
     );
     if (privateEnv) return privateEnv;
   }
   const publicEnv = trimToUndefined(
-    typeof process !== "undefined" ? process.env.NEXT_PUBLIC_ALCHEMY_GAS_POLICY_ID : void 0
+    safeEnv(() => process.env.NEXT_PUBLIC_ALCHEMY_GAS_POLICY_ID)
   );
   if (publicEnv) return publicEnv;
   return DEFAULT_ALCHEMY_GAS_POLICY_ID;
@@ -6958,6 +6970,7 @@ var DEFAULT_ALCHEMY_API_KEY, DEFAULT_ALCHEMY_GAS_POLICY_ID;
 var init_defaults = __esm({
   "src/aa/alchemy/defaults.ts"() {
     "use strict";
+    init_env();
     DEFAULT_ALCHEMY_API_KEY = "72eIUle_3rfixX00QJVwk";
     DEFAULT_ALCHEMY_GAS_POLICY_ID = "fb17d7d7-9a32-479d-937a-52d72b849c40";
   }
@@ -7375,8 +7388,9 @@ var init_create = __esm({
     init_policy();
     init_owner();
     init_defaults();
+    init_env();
     ALCHEMY_7702_DELEGATION_ADDRESS = "0x69007702764179f14F51cdce752f4f775d74E139";
-    AA_DEBUG_ENABLED = typeof process !== "undefined" && process.env.AOMI_AA_DEBUG === "1";
+    AA_DEBUG_ENABLED = safeEnv(() => process.env.AOMI_AA_DEBUG) === "1";
   }
 });
 
@@ -7394,6 +7408,7 @@ var init_resolve = __esm({
   "src/aa/pimlico/resolve.ts"() {
     "use strict";
     init_types2();
+    init_env();
   }
 });
 
@@ -7430,7 +7445,7 @@ async function createPimlicoAAState(options) {
     __spreadProps(__spreadValues({}, DEFAULT_AA_CONFIG), { provider: "pimlico" }),
     __spreadProps(__spreadValues({}, chainConfig), { defaultMode: effectiveMode })
   );
-  const apiKey = (_b = options.apiKey) != null ? _b : typeof process !== "undefined" ? (_a3 = process.env.PIMLICO_API_KEY) == null ? void 0 : _a3.trim() : void 0;
+  const apiKey = (_b = options.apiKey) != null ? _b : (_a3 = safeEnv(() => process.env.PIMLICO_API_KEY)) == null ? void 0 : _a3.trim();
   if (!apiKey) {
     throw new Error("Pimlico AA requires PIMLICO_API_KEY.");
   }
@@ -7719,7 +7734,8 @@ var init_create2 = __esm({
     init_types2();
     init_policy();
     init_owner();
-    AA_DEBUG_ENABLED2 = typeof process !== "undefined" && process.env.AOMI_AA_DEBUG === "1";
+    init_env();
+    AA_DEBUG_ENABLED2 = safeEnv(() => process.env.AOMI_AA_DEBUG) === "1";
   }
 });
 

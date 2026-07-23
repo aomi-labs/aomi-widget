@@ -155,7 +155,7 @@ Progress:
   RPC reads to token-program scans. The standalone holdings tool now defaults
   its owner from SVM wallet context and returns compact aggregated display
   amounts. Added a dedicated holdings trace presenter that shows `0.148008
-USDC` for the canonical mainnet mint, or just the visible UI amount with the
+  USDC` for the canonical mainnet mint, or just the visible UI amount with the
   generic token icon when the symbol is unknown. Patch-bumped
   `@aomi-labs/widget-lib` to 1.4.6 and regenerated registry artifacts.
 
