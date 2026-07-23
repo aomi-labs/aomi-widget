@@ -43,7 +43,13 @@ Progress:
   269 widget tests, the Portal test command and production build, the client,
   React, and widget builds, and the widget-consumer production build. Backend
   fmt, database clippy with warnings denied, and the focused plain-message
-  signing pipeline test also passed before its rebased branch was pushed.
+  signing pipeline test also passed before its rebased branch was pushed. The
+  first clean frontend CI run exposed generated-state assumptions that local
+  builds had masked: registry boundary tests ran before the package build, and
+  Landing could not resolve a widget source import through its narrower
+  `@/lib` alias. CI now builds the registry before its tests, the shared import
+  is package-relative, and the exact registry-build/test plus Landing production
+  build sequence passes locally.
 
 - 2026-07-22 wallet account-access deduplication: hid the legacy `wallet`
   authentication identity from account management, matching the existing
