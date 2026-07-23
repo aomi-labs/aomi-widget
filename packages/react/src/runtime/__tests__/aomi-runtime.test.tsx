@@ -13,6 +13,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { cleanup } from "@testing-library/react";
 
 import {
+  getLatestAomiClient,
   renderRuntime,
   resetAomiClientMocks,
   setAomiClientConfig,
@@ -107,5 +108,11 @@ describe("AomiRuntimeProvider", () => {
 
     const { api } = renderRuntime({ backendUrl: "http://custom-backend:9000" });
     expect(api).toBeDefined();
+  });
+
+  it("preserves the caller's localhost host for auth and API origin parity", () => {
+    renderRuntime({ backendUrl: "http://localhost:3000" });
+
+    expect(getLatestAomiClient()?.baseUrl).toBe("http://localhost:3000");
   });
 });

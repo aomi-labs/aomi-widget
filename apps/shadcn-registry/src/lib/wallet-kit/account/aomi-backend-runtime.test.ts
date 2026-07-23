@@ -85,6 +85,7 @@ describe("useAomiBackendAccountRuntime", () => {
     await waitFor(() => expect(result.current.status).toBe("ready"));
     expect(mockState.accountClient?.getAccount).not.toHaveBeenCalled();
     expect(getCredential).not.toHaveBeenCalled();
+    expect(result.current.getAccountBearer).toBeUndefined();
     expect(result.current.user).toBeUndefined();
   });
 

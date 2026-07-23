@@ -1689,16 +1689,11 @@ function ProviderAccountAccessRow({
   const title = providerAccountTitle(group);
   const providerLabel = formatWalletProvider(group.provider) ?? group.provider;
   const familyAccess = providerFamilyAccess(group, connectedAccounts);
-  const subtitle =
-    familyAccess.length > 0
-      ? familyAccess
-          .map((access) => {
-            const family = access.family === "svm" ? "SVM" : "EVM";
-            const address = formatWalletAddress(access.address);
-            return address ? `${family} ${address}` : family;
-          })
-          .join(" · ")
-      : "Provider sign-in";
+  const addressSubtitle = familyAccess
+    .map((access) => formatWalletAddress(access.address))
+    .filter(Boolean)
+    .join(" · ");
+  const subtitle = addressSubtitle || "Provider sign-in";
   const renameKey = `provider-account:rename:${group.provider}`;
   const unlinkKey = `provider-account:unlink:${group.provider}`;
   const busy = pending === renameKey || pending === unlinkKey;
@@ -1937,7 +1932,7 @@ function ConnectedWalletSummaryRow({
   const networkName =
     entry.family === "evm"
       ? networkNameForChain(entry.chainId, supportedEvmChains)
-      : null;
+      : "Solana";
   const linkState = connectedLinkState(entry);
   return (
     <div className="border-border/70 bg-card flex items-center gap-3 rounded-2xl border px-3 py-2.5">

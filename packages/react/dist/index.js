@@ -3661,17 +3661,6 @@ function AomiRuntimeCore({
 
 // src/runtime/aomi-runtime.tsx
 import { jsx as jsx8 } from "react/jsx-runtime";
-function normalizeBackendUrl(url) {
-  try {
-    const parsed = new URL(url);
-    if (parsed.hostname === "localhost") {
-      parsed.hostname = "127.0.0.1";
-      return parsed.toString().replace(/\/$/, "");
-    }
-  } catch (e) {
-  }
-  return url;
-}
 function AomiRuntimeProvider({
   children,
   backendUrl = "http://127.0.0.1:8080",
@@ -3683,17 +3672,16 @@ function AomiRuntimeProvider({
   threadPersistenceKey,
   threadPersistenceScope
 }) {
-  const normalizedBackendUrl = normalizeBackendUrl(backendUrl);
   const resolvedThreadPersistenceKey = useMemo3(() => {
     if (!persistThread) return null;
     return threadPersistenceKey != null ? threadPersistenceKey : buildThreadPersistenceKey({
-      backendUrl: normalizedBackendUrl,
+      backendUrl,
       applicationId,
       scope: threadPersistenceScope
     });
   }, [
     applicationId,
-    normalizedBackendUrl,
+    backendUrl,
     persistThread,
     threadPersistenceKey,
     threadPersistenceScope
@@ -3714,9 +3702,9 @@ function AomiRuntimeProvider({
   );
   const aomiClient = useMemo3(
     () => new AomiClient(__spreadValues({
-      baseUrl: normalizedBackendUrl
+      baseUrl: backendUrl
     }, resolvedClientOptions)),
-    [normalizedBackendUrl, resolvedClientOptions]
+    [backendUrl, resolvedClientOptions]
   );
   return /* @__PURE__ */ jsx8(ThreadContextProvider, { initialThreadId: restoredThreadId, children: /* @__PURE__ */ jsx8(NotificationContextProvider, { children: /* @__PURE__ */ jsx8(ExtUserProvider, { children: /* @__PURE__ */ jsx8(
     AomiRuntimeInner,

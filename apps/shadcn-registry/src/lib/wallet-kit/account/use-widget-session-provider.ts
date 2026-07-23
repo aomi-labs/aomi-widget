@@ -33,8 +33,10 @@ export function useWidgetSessionProvider(input: {
   const { baseUrl, widgetAuth, auth, evm, svm } = input;
   const authStatus = auth.status;
   const authSubject = auth.subject;
+  const hasAuthCredential = Boolean(auth.getCredential);
   const mode = widgetAuth?.mode;
-  const provider = widgetAuth?.mode === "provider" ? widgetAuth.provider : undefined;
+  const provider =
+    widgetAuth?.mode === "provider" ? widgetAuth.provider : undefined;
   const environment =
     widgetAuth?.mode === "provider" ? widgetAuth.environment : undefined;
 
@@ -49,6 +51,13 @@ export function useWidgetSessionProvider(input: {
     if (!widgetAuth || !baseUrl) return undefined;
     let adapter: WidgetAuthAdapter;
     if (widgetAuth.mode === "provider") {
+      // Provider SDKs briefly report a connected account before their
+      // exchangeable credential is ready. Do not expose a required bearer
+      // source during that gap: catalog loaders would consume it immediately
+      // and turn normal auth boot into "Widget auth identity is unavailable".
+      if (authStatus !== "authenticated" || !hasAuthCredential) {
+        return undefined;
+      }
       const config = widgetAuth;
       adapter = createProviderCredentialAdapter({
         provider: config.provider,
@@ -110,7 +119,15 @@ export function useWidgetSessionProvider(input: {
     return createWidgetSessionProvider({ baseUrl, adapter });
     // Refs supply live auth/evm/svm; the provider is only rebuilt when a flat
     // identity/config primitive below changes.
-  }, [baseUrl, authStatus, authSubject, mode, environment, provider]);
+  }, [
+    baseUrl,
+    authStatus,
+    authSubject,
+    hasAuthCredential,
+    mode,
+    environment,
+    provider,
+  ]);
 
   useEffect(
     () => () => widgetSessionProvider?.dispose(),

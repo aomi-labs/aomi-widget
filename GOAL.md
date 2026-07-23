@@ -89,6 +89,29 @@ Progress:
   verified the focused tests, account/portal/base/landing typechecks,
   formatting, and packed package contents.
 
+- 2026-07-23 provider address-label polish: provider-managed Para and Privy
+  rows under Account access now show only their shortened addresses in family
+  order, separated by a middle dot (for example,
+  `0xda6..f0 · 53GfE..oL`), without repeating `EVM` and `SVM` labels in the
+  subtitle. Connected SVM rows now include `Solana` after the address, matching
+  the network-name position already used by Ethereum and EVM L2 rows.
+
+- 2026-07-23 thread-auth recovery: traced Portal and widget-consumer 401s to
+  the live Rust backend using the remote database while BetterAuth/account
+  resolution used `aomi_local`. Restarted the supported auth stack so both
+  share the local database; AccountBearer and origin-bound widget-session
+  probes now both list 43 threads with HTTP 200. The React runtime also keeps
+  the caller's `localhost` backend host instead of rewriting it to
+  `127.0.0.1`, and provider widgets withhold their required bearer source until
+  the provider credential is ready.
+
+- 2026-07-23 widget-consumer Solana diagnosis: confirmed from Para's live BETA
+  partner metadata that Portal requires EVM + Solana wallets while the
+  consumer/Landing Para project supports EVM only. The canonical Aomi account
+  is shared correctly; only the provider project's live signer set differs.
+  The Para developer dashboard is open at sign-in so Solana can be enabled for
+  the consumer project before a logout/relogin provisioning check.
+
 - 2026-07-22 provider account-access polish: merged tenant-scoped Para and
   Privy identities into one provider card, attached the provider-owned EVM and
   Solana addresses to that card, and distinguished live/write access (green)

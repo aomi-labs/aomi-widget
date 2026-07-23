@@ -1202,6 +1202,11 @@ describe("WalletPicker", () => {
     expect(screen.getAllByText("Privy").length).toBeGreaterThanOrEqual(3);
     expect(screen.getAllByText(/0xCC8\.\.8f/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/AG6eZ\.\.8E/).length).toBeGreaterThan(0);
+    expect(screen.getByText("AG6eZ..8E · Solana · Linked")).toBeTruthy();
+    const accessGroup = screen.getByRole("group", {
+      name: "Privy account access",
+    });
+    expect(within(accessGroup).getByText("0xCC8..8f · AG6eZ..8E")).toBeTruthy();
     expect(screen.queryByText("Privy Smart Wallet")).toBeNull();
     expect(screen.queryByText("Privy Solana")).toBeNull();
     // Provider-owned embedded wallets stay represented by the provider
@@ -1296,8 +1301,7 @@ describe("WalletPicker", () => {
     expect(
       accessGroup.querySelector('[data-wallet-access="stored"]'),
     ).toBeTruthy();
-    expect(within(accessGroup).getByText(/EVM 0xE77.*A6/)).toBeTruthy();
-    expect(within(accessGroup).getByText(/SVM 53GfE\.\.ss/)).toBeTruthy();
+    expect(within(accessGroup).getByText("0xE77..A6 · 53GfE..ss")).toBeTruthy();
     expect(screen.getAllByRole("button", { name: "Rename Para" })).toHaveLength(
       1,
     );
@@ -1443,8 +1447,7 @@ describe("WalletPicker", () => {
     const accessGroup = screen.getByRole("group", {
       name: "Privy account access",
     });
-    expect(within(accessGroup).getByText(/EVM 0xCC8\.\.8f/)).toBeTruthy();
-    expect(within(accessGroup).getByText(/SVM AG6eZ\.\.8E/)).toBeTruthy();
+    expect(within(accessGroup).getByText("0xCC8..8f · AG6eZ..8E")).toBeTruthy();
     expect(
       accessGroup.querySelectorAll('[data-wallet-access="stored"]'),
     ).toHaveLength(2);

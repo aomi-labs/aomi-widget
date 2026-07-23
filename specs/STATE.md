@@ -2,6 +2,38 @@
 
 ## Last Updated
 
+2026-07-23 (current) — Para/Privy Account access subtitles now show only their
+  shortened provider-managed wallet values, in EVM/SVM family order and joined
+  by a middle dot (for example, `0xda6..f0 · 53GfE..oL`). The chain tags above
+  retain the family and access-capability context. Connected SVM wallet
+  subtitles now identify the network as `Solana`, parallel to `Ethereum`,
+  `Base`, and other resolved EVM network names.
+
+2026-07-23 (current) — Portal/widget thread authentication restored. The live
+  BetterAuth/account process was connected to
+  `127.0.0.1:54322/aomi_local`, but the manually started Rust backend was
+  connected to the remote Supabase database. Account resolution therefore
+  succeeded in the Portal while the backend could not find the AccountBearer
+  subject and returned 401 only on account-required routes such as
+  `GET /api/threads`. Restarting through `scripts/dev-auth-stack.sh` aligned
+  both services to `aomi_local`; verified AccountBearer and origin-bound widget
+  session requests both return the same 43-thread list with HTTP 200. The React
+  runtime now preserves a caller-supplied `localhost` host, and provider widgets
+  do not expose a required bearer function until their provider credential is
+  ready, removing the transient pre-auth identity errors.
+
+2026-07-23 (current) — Widget-consumer Para Solana root cause confirmed
+  against Para's live BETA partner configuration. The Portal project declares
+  required `EVM` and `SOLANA` wallet types; the separate consumer/Landing
+  project declares required `EVM` only. This is why the canonical Aomi account
+  exposes the Portal-created SVM address under Account access while the
+  consumer cannot expose an SVM signer under Connected now. A client-side
+  auto-create or display-only promotion cannot override the provider project's
+  supported wallet families. The Para developer dashboard is open in Chrome
+  at sign-in; next step is to enable Solana for the consumer project, then
+  logout/relogin in the consumer so Para provisions and exposes its
+  project-local SVM wallet.
+
 2026-07-23 (later) — Widget-consumer Para Solana parity: attempted an
   auto-provisioning fix (useCreateWallet({type:"SOLANA"}) after session-up in
   ParaPluginProvider) — user reported it did not help; REVERTED fully. Root
