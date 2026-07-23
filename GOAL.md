@@ -24,6 +24,13 @@ tables; fresh databases also finish replay with that drop.
 
 Progress:
 
+- 2026-07-22 model catalog availability: traced the staging picker's permanent
+  `Loading...` state to Better Auth session-pool exhaustion on the otherwise
+  public `/api/thread/models` proxy route. Marked that catalog route as
+  bearer-independent so it bypasses account database resolution while still
+  stripping browser credentials, added proxy regression coverage, and
+  patch-bumped `@aomi-labs/account` to 0.1.6.
+
 - 2026-07-22 wallet account-access deduplication: hid the legacy `wallet`
   authentication identity from account management, matching the existing
   SIWE/SIWS proof-identity behavior while preserving the branded linked EVM or
