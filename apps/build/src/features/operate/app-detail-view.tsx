@@ -82,9 +82,9 @@ function LineChart({
   const point = (value: number, index: number) => {
     const x = values.length > 1 ? (index / (values.length - 1)) * 100 : 50;
     const y = height - 6 - (value / max) * (height - 14);
-    return `${x},${y}`;
+    return { x, y };
   };
-  const segments = values.reduce<string[][]>(
+  const segments = values.reduce<Array<Array<{ x: number; y: number }>>>(
     (all, value, index) => {
       if (value === null || !Number.isFinite(value)) {
         all.push([]);
@@ -107,19 +107,22 @@ function LineChart({
         segment.length > 1 ? (
           <polyline
             key={index}
-            points={segment.join(" ")}
+            points={segment.map(({ x, y }) => `${x},${y}`).join(" ")}
             fill="none"
             stroke="currentColor"
             strokeWidth="1.5"
             vectorEffect="non-scaling-stroke"
           />
         ) : segment.length === 1 ? (
-          <circle
+          <line
             key={index}
-            cx={segment[0]?.split(",")[0]}
-            cy={segment[0]?.split(",")[1]}
-            r="1.5"
-            fill="currentColor"
+            x1={segment[0]?.x}
+            y1={segment[0]?.y}
+            x2={segment[0]?.x}
+            y2={segment[0]?.y}
+            stroke="currentColor"
+            strokeWidth="3"
+            strokeLinecap="round"
             vectorEffect="non-scaling-stroke"
           />
         ) : null,
