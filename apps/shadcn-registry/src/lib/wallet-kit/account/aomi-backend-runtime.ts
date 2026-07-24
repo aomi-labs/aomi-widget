@@ -8,6 +8,7 @@ import { brandDisplayName } from "../runtime/evm/brands";
 import type { AccountRuntime, AccountWallet } from "./types";
 import type { AomiAccount, SvmCluster, WalletFamily } from "../types";
 import {
+  AomiAccountRequestError,
   createAomiBackendAccountClient,
   type AomiBackendAccountResponse,
   type AomiBackendNonceResponse,
@@ -85,6 +86,7 @@ export function useAomiBackendAccountRuntime(input: {
     input.enabled ? (widgetSignedOut ? "ready" : "loading") : "disabled",
   );
   const [errorVersion, setErrorVersion] = useState(0);
+  const [accountError, setAccountError] = useState<string | undefined>();
   const refreshContextKey = JSON.stringify([
     input.enabled,
     input.widgetAuth?.mode ?? "native",
@@ -181,12 +183,7 @@ export function useAomiBackendAccountRuntime(input: {
     entry.promise = run;
     refreshInFlight.current = entry;
     return run;
-  }, [
-    accountClient,
-    input.enabled,
-    refreshContextKey,
-    widgetSignedOut,
-  ]);
+  }, [accountClient, input.enabled, refreshContextKey, widgetSignedOut]);
 
   useEffect(() => {
     void refresh();
@@ -199,6 +196,7 @@ export function useAomiBackendAccountRuntime(input: {
       credentialExchanged.current = null;
       providerSessionAttempted.current = null;
       credentialFailed.current = null;
+      setAccountError(undefined);
     }
   }, [input.auth.status, input.auth.subject]);
 
@@ -454,6 +452,7 @@ export function useAomiBackendAccountRuntime(input: {
       credentialInFlight.current = attemptKey;
       if (!hasAccount) accountCreateInFlight.current = attemptKey;
       try {
+        setAccountError(undefined);
         const result = await accountClient.exchangeProviderCredential(
           credential,
           { hasAccount },
@@ -461,8 +460,15 @@ export function useAomiBackendAccountRuntime(input: {
         credentialExchanged.current = attemptKey;
         if (result.account) setAccount(result.account);
         await refresh();
-      } catch {
+      } catch (error) {
         credentialFailed.current = { attemptKey, failedAt: Date.now() };
+        if (
+          error instanceof AomiAccountRequestError &&
+          error.status === 409 &&
+          error.code === "already_linked_to_another_account"
+        ) {
+          setAccountError(error.message);
+        }
         setStatus("ready");
         setErrorVersion((version) => version + 1);
       } finally {
@@ -521,6 +527,7 @@ export function useAomiBackendAccountRuntime(input: {
 
   return {
     status: input.enabled ? status : "disabled",
+    error: accountError,
     user: account?.user ?? undefined,
     linkedAccounts: account?.linkedAccounts ?? [],
     wallets,
@@ -550,6 +557,7 @@ export function useAomiBackendAccountRuntime(input: {
       credentialExchanged.current = null;
       providerSessionAttempted.current = null;
       credentialFailed.current = null;
+      setAccountError(undefined);
       // Revoke the backend account first (while the WST carrier is still
       // valid), but always tear down the widget session / provider SDK even if
       // that first step throws, so a stale WST can't be replayed and the
@@ -591,6 +599,7 @@ export function useAomiBackendAccountRuntime(input: {
       credentialExchanged.current = null;
       providerSessionAttempted.current = null;
       credentialFailed.current = null;
+      setAccountError(undefined);
       // Mirror signOut: revoke the widget session too so the just-deleted
       // account's cached WST can't be replayed or silently re-minted on a
       // force-refresh. Always run the widget teardown even if delete throws.

@@ -41,7 +41,10 @@ export type ResolveIdentityInput = {
 export class IdentityConflictError extends Error {
   readonly code = "identity_conflict";
 
-  constructor(readonly owners: readonly string[]) {
+  constructor(
+    readonly owners: readonly string[],
+    readonly signalType: SignalRef["type"] = "identity",
+  ) {
     super("identity_conflict");
     this.name = "IdentityConflictError";
   }
@@ -85,19 +88,36 @@ export async function attachVerifiedProviderIdentityToUser(input: {
   userId: string;
   identity: VerifiedProviderIdentity;
   policy: IdentityResolutionPolicy;
+  recoverySignals?: readonly SignalRef[];
+  onAttached?: (identity: DbAomiAuthIdentity, db: PoolClient) => Promise<void>;
 }): Promise<DbAomiAuthIdentity> {
   return withTransaction(async (db) => {
     await lockIdentityResolutionKeys(
-      input.policy.subjectIsEnvironmentGlobal
-        ? [credentialKey(input.identity), subjectKey(input.identity)]
-        : [credentialKey(input.identity)],
+      [
+        credentialKey(input.identity),
+        ...(input.policy.subjectIsEnvironmentGlobal
+          ? [subjectKey(input.identity)]
+          : []),
+        ...(input.recoverySignals ?? []).map(signalKey),
+      ],
       db,
     );
-    const owners = await collectIdentityOwners(input.identity, input.policy, db);
-    if ([...owners].some((owner) => owner !== input.userId)) {
-      throw new IdentityConflictError([...owners].sort());
+    const owners = await collectIdentityOwners(
+      input.identity,
+      input.policy,
+      db,
+    );
+    let conflictType: SignalRef["type"] = "identity";
+    for (const signal of dedupeSignals(input.recoverySignals ?? [])) {
+      const owner = await findSignalOwner(signal, db);
+      if (!owner) continue;
+      if (owner !== input.userId) conflictType = signal.type;
+      owners.add(owner);
     }
-    return upsertAuthIdentity({
+    if ([...owners].some((owner) => owner !== input.userId)) {
+      throw new IdentityConflictError([...owners].sort(), conflictType);
+    }
+    const identity = await upsertAuthIdentity({
       userId: input.userId,
       provider: input.identity.provider,
       issuerEnvironment: input.identity.issuerEnvironment,
@@ -108,6 +128,8 @@ export async function attachVerifiedProviderIdentityToUser(input: {
       providerMetadata: input.identity.metadata,
       db,
     });
+    if (input.onAttached) await input.onAttached(identity, db);
+    return identity;
   });
 }
 
@@ -153,13 +175,18 @@ async function resolveLocked(
   db: PoolClient,
 ): Promise<IdentityResolutionResult> {
   const owners = await collectIdentityOwners(input.identity, input.policy, db);
+  let conflictType: SignalRef["type"] = "identity";
 
   for (const signal of dedupeSignals(input.recoverySignals ?? [])) {
     const owner = await findSignalOwner(signal, db);
-    if (owner) owners.add(owner);
+    if (!owner) continue;
+    if (owners.size > 0 && !owners.has(owner)) conflictType = signal.type;
+    owners.add(owner);
   }
 
-  if (owners.size > 1) throw new IdentityConflictError([...owners].sort());
+  if (owners.size > 1) {
+    throw new IdentityConflictError([...owners].sort(), conflictType);
+  }
 
   const ownerId = owners.values().next().value as string | undefined;
   const created = !ownerId;
@@ -233,6 +260,13 @@ function signalKey(signal: SignalRef): string {
     ]);
   }
   return lockKey(["aomi-email", signal.email.trim().toLowerCase()]);
+}
+
+export async function lockSignalRefs(
+  signals: readonly SignalRef[],
+  db: PoolClient,
+): Promise<void> {
+  await lockIdentityResolutionKeys(signals.map(signalKey), db);
 }
 
 function lockKey(parts: readonly string[]): string {

@@ -894,12 +894,12 @@ export function WalletPicker() {
             </div>
 
             <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3.5">
-              {actionError ? (
+              {actionError || adapter.accountError ? (
                 <div
                   role="alert"
                   className="border-destructive/25 bg-destructive/10 text-destructive rounded-xl border px-3 py-2 text-xs leading-snug"
                 >
-                  {actionError}
+                  {actionError ?? adapter.accountError}
                 </div>
               ) : null}
               {hasConnectedWallets ? (

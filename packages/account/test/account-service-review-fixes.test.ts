@@ -36,6 +36,9 @@ const queryMocks = vi.hoisted(() => ({
 }));
 
 vi.mock("../src/db/queries", () => queryMocks);
+vi.mock("../src/widget-auth/store", () => ({
+  deleteWidgetSessionsForProviderIdentity: vi.fn(async () => undefined),
+}));
 
 const tx = { tag: "transaction-client" };
 
@@ -61,9 +64,8 @@ describe("getOrCreateAomiUserForBetterAuthSession email atomicity", () => {
     primeResolutionMocks();
     queryMocks.upsertEmailIdentity.mockResolvedValue({ id: "email-row" });
 
-    const { getOrCreateAomiUserForBetterAuthSession } = await import(
-      "../src/service/account-service"
-    );
+    const { getOrCreateAomiUserForBetterAuthSession } =
+      await import("../src/service/account-service");
 
     const user = await getOrCreateAomiUserForBetterAuthSession({
       betterAuthUserId: "ba-user-1",
@@ -86,9 +88,8 @@ describe("getOrCreateAomiUserForBetterAuthSession email atomicity", () => {
   it("does not write an email identity when the email is unverified", async () => {
     primeResolutionMocks();
 
-    const { getOrCreateAomiUserForBetterAuthSession } = await import(
-      "../src/service/account-service"
-    );
+    const { getOrCreateAomiUserForBetterAuthSession } =
+      await import("../src/service/account-service");
 
     await getOrCreateAomiUserForBetterAuthSession({
       betterAuthUserId: "ba-user-1",
@@ -105,9 +106,8 @@ describe("getOrCreateAomiUserForBetterAuthSession email atomicity", () => {
       new Error("identity_already_linked_to_another_account"),
     );
 
-    const { getOrCreateAomiUserForBetterAuthSession } = await import(
-      "../src/service/account-service"
-    );
+    const { getOrCreateAomiUserForBetterAuthSession } =
+      await import("../src/service/account-service");
 
     await expect(
       getOrCreateAomiUserForBetterAuthSession({
@@ -138,9 +138,8 @@ describe("deactivateAomiAccount last-factor handling", () => {
     queryMocks.revokeAllWalletsForUser.mockResolvedValue(0);
     queryMocks.deactivateAomiUser.mockResolvedValue(true);
 
-    const { deactivateAomiAccount } = await import(
-      "../src/service/account-service"
-    );
+    const { deactivateAomiAccount } =
+      await import("../src/service/account-service");
 
     const result = await deactivateAomiAccount({ userId: "solo-user" });
 
@@ -150,5 +149,95 @@ describe("deactivateAomiAccount last-factor handling", () => {
       revokedWallets: 0,
     });
     expect(queryMocks.deactivateAomiUser).toHaveBeenCalled();
+  });
+});
+
+describe("unlinkAuthIdentity last-factor handling", () => {
+  afterEach(() => {
+    vi.resetModules();
+    vi.clearAllMocks();
+  });
+
+  it("does not unlink the user's last usable provider login", async () => {
+    queryMocks.withTransaction.mockImplementation(async (fn) => fn(tx));
+    queryMocks.lockIdentityResolutionKeys.mockResolvedValue(undefined);
+    queryMocks.findAuthIdentityById.mockResolvedValue({
+      id: "para-row",
+      userId: "user-a",
+      provider: "para",
+      issuerEnvironment: "para:beta",
+      tenantId: "project-a",
+      subject: "para-user",
+    });
+    queryMocks.countLoginFactors.mockResolvedValue(1);
+
+    const { unlinkAuthIdentity } =
+      await import("../src/service/account-service");
+
+    await expect(
+      unlinkAuthIdentity({ userId: "user-a", identityId: "para-row" }),
+    ).resolves.toBe("last_factor");
+    expect(queryMocks.revokeAuthIdentity).not.toHaveBeenCalled();
+    expect(queryMocks.lockIdentityResolutionKeys).toHaveBeenCalledWith(
+      ["aomi-login-factors:user-a"],
+      tx,
+    );
+  });
+
+  it("allows unlinking after another usable login method is present", async () => {
+    queryMocks.withTransaction.mockImplementation(async (fn) => fn(tx));
+    queryMocks.lockIdentityResolutionKeys.mockResolvedValue(undefined);
+    queryMocks.findAuthIdentityById.mockResolvedValue({
+      id: "para-row",
+      userId: "user-a",
+      provider: "para",
+      issuerEnvironment: "para:beta",
+      tenantId: "project-a",
+      subject: "para-user",
+    });
+    queryMocks.countLoginFactors.mockResolvedValue(2);
+    queryMocks.revokeAuthIdentity.mockResolvedValue(true);
+
+    const { unlinkAuthIdentity } =
+      await import("../src/service/account-service");
+
+    await expect(
+      unlinkAuthIdentity({ userId: "user-a", identityId: "para-row" }),
+    ).resolves.toBe("revoked");
+    expect(queryMocks.countLoginFactors).toHaveBeenCalledWith("user-a", tx);
+    expect(queryMocks.revokeAuthIdentity).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: "user-a", db: tx }),
+    );
+  });
+});
+
+describe("unlinkWallet last-factor handling", () => {
+  afterEach(() => {
+    vi.resetModules();
+    vi.clearAllMocks();
+  });
+
+  it("does not unlink a wallet when it is the last usable login method", async () => {
+    queryMocks.withTransaction.mockImplementation(async (fn) => fn(tx));
+    queryMocks.lockIdentityResolutionKeys.mockResolvedValue(undefined);
+    queryMocks.findWalletById.mockResolvedValue({
+      id: "wallet-1",
+      userId: "user-a",
+      family: "evm",
+      address: "0x0000000000000000000000000000000000000001",
+      linkedVia: "siwe",
+    });
+    queryMocks.countLoginFactors.mockResolvedValue(1);
+
+    const { unlinkWallet } = await import("../src/service/account-service");
+
+    await expect(
+      unlinkWallet({ userId: "user-a", walletId: "wallet-1" }),
+    ).resolves.toBe("last_factor");
+    expect(queryMocks.revokeWallet).not.toHaveBeenCalled();
+    expect(queryMocks.lockIdentityResolutionKeys).toHaveBeenCalledWith(
+      ["aomi-login-factors:user-a"],
+      tx,
+    );
   });
 });

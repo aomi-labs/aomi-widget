@@ -49,6 +49,16 @@ export type AomiBackendNonceResponse = {
   uri?: string;
 };
 
+export class AomiAccountRequestError extends Error {
+  constructor(
+    readonly status: number,
+    readonly code: string | null,
+  ) {
+    super(formatAccountRequestError(status, code));
+    this.name = "AomiAccountRequestError";
+  }
+}
+
 export type AomiBackendAccountEndpointConfig = Partial<{
   accountPath: string;
   signOutPath: string;
@@ -238,7 +248,7 @@ async function sendAccountRequest(
   if (!response.ok) {
     const error = await response.json().catch(() => null);
     const code = extractErrorCode(error);
-    throw new Error(formatAccountRequestError(response.status, code));
+    throw new AomiAccountRequestError(response.status, code);
   }
   return response;
 }
@@ -283,7 +293,7 @@ function formatAccountRequestError(
   code: string | null,
 ): string {
   if (status === 409 && code === "already_linked_to_another_account") {
-    return "This wallet or sign-in method is already linked to another Aomi account. Sign in to that account to unlink it first.";
+    return "This wallet or sign-in method is already linked to another Aomi account. Sign in to that account, unlink it there, then return here and link it.";
   }
   return code ?? `Request failed: ${status}`;
 }

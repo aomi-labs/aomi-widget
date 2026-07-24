@@ -10,6 +10,7 @@ import {
   useAomiBackendAccountRuntime,
 } from "./aomi-backend-runtime";
 import type { AomiAccountCredential } from "../types";
+import { AomiAccountRequestError } from "./aomi-backend-client";
 
 const mockState = vi.hoisted(() => ({
   accountClient: null as null | {
@@ -32,6 +33,17 @@ const mockState = vi.hoisted(() => ({
 }));
 
 vi.mock("./aomi-backend-client", () => ({
+  AomiAccountRequestError: class AomiAccountRequestError extends Error {
+    constructor(
+      readonly status: number,
+      readonly code: string | null,
+    ) {
+      super(
+        "This wallet or sign-in method is already linked to another Aomi account. Sign in to that account, unlink it there, then return here and link it.",
+      );
+      this.name = "AomiAccountRequestError";
+    }
+  },
   createAomiBackendAccountClient: vi.fn(() => mockState.accountClient),
 }));
 
@@ -282,6 +294,37 @@ describe("useAomiBackendAccountRuntime", () => {
 
     expect(mockState.accountClient?.createSiweNonce).not.toHaveBeenCalled();
     expect(signMessageAsync).not.toHaveBeenCalled();
+  });
+
+  it("exposes an account conflict instead of silently swallowing provider sign-in failure", async () => {
+    const credential: AomiAccountCredential = {
+      provider: "para",
+      providerToken: "provider-session",
+    };
+    mockState.accountClient!.exchangeProviderCredential.mockRejectedValue(
+      new AomiAccountRequestError(409, "already_linked_to_another_account"),
+    );
+
+    const { result } = renderHook(() =>
+      useAomiBackendAccountRuntime({
+        enabled: true,
+        baseUrl: "http://localhost:3000",
+        auth: {
+          status: "authenticated",
+          provider: "para",
+          subject: "para-user",
+          getCredential: vi.fn().mockResolvedValue(credential),
+        } as never,
+        evm: { accounts: () => [] } as never,
+      }),
+    );
+
+    await waitFor(() =>
+      expect(result.current.error).toContain(
+        "already linked to another Aomi account",
+      ),
+    );
+    expect(result.current.user).toBeUndefined();
   });
 
   it("creates a Solana-only account through BetterAuth SIWS", async () => {
