@@ -364,8 +364,8 @@ describe("operateUsageRoute statement fallback", () => {
   });
 });
 
-describe("operateObservabilityRoute trend fallback", () => {
-  it("grafts example 24h trends onto a live card; real metrics win", async () => {
+describe("operateObservabilityRoute live data", () => {
+  it("keeps a partial live card partial instead of grafting example trends", async () => {
     setSession({ githubUserId: "gh-1" });
     oneSource();
     client.getUserSourceObservability.mockResolvedValue({
@@ -384,7 +384,7 @@ describe("operateObservabilityRoute trend fallback", () => {
           active: true,
           loaded: true,
           status: "healthy",
-          // Live window metrics, but NO 24h trend fields.
+          // Live window metrics, but no 24h trend fields yet.
           metrics: {
             provider: "grafana_prometheus",
             windowSeconds: 900,
@@ -402,17 +402,17 @@ describe("operateObservabilityRoute trend fallback", () => {
     const body = await res.json();
 
     expect(res.status).toBe(200);
-    expect(body.example).toBe(true);
+    expect(body.example).toBeUndefined();
     const card = body.apps.find(
       (a: { application: string }) => a.application === "real-bot",
     );
     expect(card.metrics.errorRate).toBe(0.5); // real value preserved
     expect(card.metrics.p95LatencyMs).toBe(1234); // real value preserved
-    expect(card.metrics.chats24h).toBeGreaterThan(0); // example filled
-    expect(card.metrics.chatsHourly.length).toBe(24); // example filled
+    expect(card.metrics.chats24h).toBeUndefined();
+    expect(card.metrics.chatsHourly).toBeUndefined();
   });
 
-  it("serves full example cards when the account has no live apps", async () => {
+  it("returns an empty app list when the account has no live apps", async () => {
     setSession({ githubUserId: "gh-1" });
     oneSource();
     client.getUserSourceObservability.mockResolvedValue({
@@ -429,9 +429,9 @@ describe("operateObservabilityRoute trend fallback", () => {
     const body = await res.json();
 
     expect(res.status).toBe(200);
-    expect(body.example).toBe(true);
-    expect(body.apps.length).toBeGreaterThanOrEqual(3);
-    expect(body.monitoring.status).toBe("example");
+    expect(body.example).toBeUndefined();
+    expect(body.apps).toEqual([]);
+    expect(body.monitoring.status).toBe("unconfigured");
   });
 });
 

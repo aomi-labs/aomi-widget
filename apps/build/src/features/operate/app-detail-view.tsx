@@ -1,8 +1,8 @@
 "use client";
 
 // Per-app drill-down dashboard shared by the live product route and the fixture
-// design harness. The product adapter marks the few fields that still use a
-// fixture fallback while preserving live backend rows and aggregates.
+// design harness. Product data is rendered as received; empty series are an
+// honest no-data state rather than substituted example values.
 
 import { ArrowLeft, ExternalLink } from "lucide-react";
 import type { AppFixture, TxRecord } from "@build/features/operate/fixtures";
@@ -16,6 +16,16 @@ function BarChart({
   series: Array<{ values: number[]; className: string }>;
   height?: number;
 }) {
+  if (!series.some((item) => item.values.length)) {
+    return (
+      <div
+        className="text-dim flex items-center justify-center text-xs"
+        style={{ height }}
+      >
+        No data in this window.
+      </div>
+    );
+  }
   const max = Math.max(...series.flatMap((s) => s.values), 1);
   const n = Math.max(...series.map((s) => s.values.length), 1);
   const band = 100 / n;
@@ -55,6 +65,16 @@ function LineChart({
   values: number[];
   height?: number;
 }) {
+  if (!values.length) {
+    return (
+      <div
+        className="text-dim flex items-center justify-center text-xs"
+        style={{ height }}
+      >
+        No data in this window.
+      </div>
+    );
+  }
   const max = Math.max(...values, 1);
   const pts = values
     .map(
@@ -150,7 +170,6 @@ export function AppDetailView({
   app,
   displayName,
   example = false,
-  exampleSections = [],
   dashboardHref,
   onBack,
   onOpenTrace,
@@ -159,7 +178,6 @@ export function AppDetailView({
   app: AppFixture;
   displayName?: string;
   example?: boolean;
-  exampleSections?: string[];
   dashboardHref?: string | null;
   onBack: () => void;
   onOpenTrace: (tool: string) => void;
@@ -194,13 +212,6 @@ export function AppDetailView({
                   className="border-border bg-surface-subtle text-dim rounded-full border px-2 py-0.5 text-xs"
                 >
                   Example data
-                </span>
-              ) : exampleSections.length ? (
-                <span
-                  title={`Live backend data with fixture fallbacks for: ${exampleSections.join(", ")}.`}
-                  className="border-border bg-surface-subtle text-dim rounded-full border px-2 py-0.5 text-xs"
-                >
-                  Partial example data
                 </span>
               ) : null}
               <span className="flex items-center gap-1.5 text-xs">
@@ -254,7 +265,10 @@ export function AppDetailView({
         <div className="flex flex-wrap items-stretch gap-0">
           {detail.funnel.map((stage, i) => {
             const prev = i > 0 ? detail.funnel[i - 1].value : null;
-            const conv = prev ? Math.round((stage.value / prev) * 100) : null;
+            const conv =
+              prev && stage.value !== null
+                ? Math.round((stage.value / prev) * 100)
+                : null;
             return (
               <div key={stage.label} className="flex items-center">
                 {i > 0 ? (
@@ -264,7 +278,9 @@ export function AppDetailView({
                   </div>
                 ) : null}
                 <div className="border-border bg-surface-subtle min-w-28 rounded-md border px-4 py-3 text-center">
-                  <div className="text-2xl font-semibold">{stage.value}</div>
+                  <div className="text-2xl font-semibold">
+                    {stage.value ?? "—"}
+                  </div>
                   <div className="text-dim text-xs">{stage.label}</div>
                 </div>
               </div>
@@ -329,7 +345,12 @@ export function AppDetailView({
           <LineChart values={detail.p95Hourly} />
           <div className="text-dim mt-1 flex justify-between text-[10px]">
             <span>00:00</span>
-            <span>peak {Math.max(...detail.p95Hourly)} s</span>
+            <span>
+              peak{" "}
+              {detail.p95Hourly.length
+                ? `${Math.max(...detail.p95Hourly).toFixed(1)} s`
+                : "—"}
+            </span>
             <span>23:00</span>
           </div>
         </Panel>
@@ -348,10 +369,10 @@ export function AppDetailView({
             ]}
           />
           <div className="text-dim mt-1 flex justify-between text-[10px]">
-            <span>{detail.creditsDaily.days[0]}</span>
+            <span>{detail.creditsDaily.days[0] ?? "—"}</span>
             <span>
-              {detail.creditsDaily.days.at(-1)} ·{" "}
-              {detail.creditsDaily.values.at(-1)}
+              {detail.creditsDaily.days.at(-1) ?? "—"} ·{" "}
+              {detail.creditsDaily.values.at(-1) ?? "—"}
             </span>
           </div>
         </Panel>
@@ -379,24 +400,32 @@ export function AppDetailView({
               </tr>
             </thead>
             <tbody className="divide-border divide-y">
-              {detail.tools.map((row) => (
-                <tr
-                  key={row.tool}
-                  onClick={() => onOpenTrace(row.tool)}
-                  className="hover:bg-surface-subtle cursor-pointer"
-                >
-                  <td className="py-2 pr-3 font-mono text-xs">{row.tool}</td>
-                  <td className="py-2 pr-3">{row.calls ?? "—"}</td>
-                  <td className="py-2 pr-3">{row.errors ?? "—"}</td>
-                  <td
-                    className={`py-2 pr-3 font-medium ${row.bad ? "text-red-500" : ""}`}
+              {detail.tools.length ? (
+                detail.tools.map((row) => (
+                  <tr
+                    key={row.tool}
+                    onClick={() => onOpenTrace(row.tool)}
+                    className="hover:bg-surface-subtle cursor-pointer"
                   >
-                    {row.errorRate}
+                    <td className="py-2 pr-3 font-mono text-xs">{row.tool}</td>
+                    <td className="py-2 pr-3">{row.calls ?? "—"}</td>
+                    <td className="py-2 pr-3">{row.errors ?? "—"}</td>
+                    <td
+                      className={`py-2 pr-3 font-medium ${row.bad ? "text-red-500" : ""}`}
+                    >
+                      {row.errorRate}
+                    </td>
+                    <td className="py-2 pr-3">{row.p95}</td>
+                    <td className="text-dim py-2 text-xs">{row.last}</td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={6} className="text-dim py-6 text-center text-sm">
+                    No tool calls in this window.
                   </td>
-                  <td className="py-2 pr-3">{row.p95}</td>
-                  <td className="text-dim py-2 text-xs">{row.last}</td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>
@@ -477,24 +506,30 @@ export function AppDetailView({
           </Panel>
           <Panel title="Releases">
             <div className="space-y-2 text-sm">
-              {detail.releases.map((release) => (
-                <div
-                  key={release.tag}
-                  className="flex items-center justify-between gap-2"
-                >
-                  <span className="min-w-0 truncate font-mono text-xs">
-                    {release.tag}
-                  </span>
-                  <span className="text-dim text-xs">{release.when}</span>
-                  {release.current ? (
-                    <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-xs text-emerald-500">
-                      current
+              {detail.releases.length ? (
+                detail.releases.map((release) => (
+                  <div
+                    key={release.tag}
+                    className="flex items-center justify-between gap-2"
+                  >
+                    <span className="min-w-0 truncate font-mono text-xs">
+                      {release.tag}
                     </span>
-                  ) : (
-                    <span className="text-dim text-xs">{release.note}</span>
-                  )}
+                    <span className="text-dim text-xs">{release.when}</span>
+                    {release.current ? (
+                      <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-xs text-emerald-500">
+                        current
+                      </span>
+                    ) : (
+                      <span className="text-dim text-xs">{release.note}</span>
+                    )}
+                  </div>
+                ))
+              ) : (
+                <div className="text-dim py-2 text-center text-sm">
+                  No release history.
                 </div>
-              ))}
+              )}
             </div>
           </Panel>
         </div>

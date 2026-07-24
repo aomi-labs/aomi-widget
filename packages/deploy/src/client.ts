@@ -2183,6 +2183,7 @@ function camelOperateAppDetail(
     hourly: {
       chats: series(hourly.chats),
       toolCalls: series(hourly.tool_calls ?? hourly.toolCalls),
+      p95LatencyMs: series(hourly.p95_latency_ms ?? hourly.p95LatencyMs),
       transactions: series(hourly.transactions),
     },
   };

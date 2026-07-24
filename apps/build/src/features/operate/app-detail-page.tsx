@@ -82,7 +82,6 @@ export function AppDetailPage({
   return (
     <AppDetailView
       app={view.app}
-      exampleSections={view.exampleSections}
       onBack={() =>
         router.push(
           operateHref("/operate/observability", { project: projectValue }),

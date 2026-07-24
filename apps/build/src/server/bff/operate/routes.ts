@@ -15,9 +15,7 @@ import type {
 import { checkRateLimit, getClientIp } from "@build/lib/rate-limit";
 import {
   EXAMPLE_SOURCE,
-  exampleAppCards,
   exampleStatement,
-  withExampleTrends,
 } from "@build/features/operate/fixtures/wire";
 import { deploymentClient } from "@build/server/bff/backend";
 import { getGitHubSession } from "@build/server/cookies/github";
@@ -536,41 +534,26 @@ export async function operateObservabilityRoute(req: Request) {
           appSourceId: source.id,
         }),
     );
-    // Until the manager emits the 24h trend fields, fill them from the
-    // example fixtures: live cards keep every metric the backend reported
-    // (real values win per field), and an account with no apps at all gets
-    // the full example cards. Either fill flags the payload `example: true`.
-    const live = results.flatMap((result) =>
+    const apps = results.flatMap((result) =>
       result.apps.map((app) => ({
         ...app,
         source: result.source,
         platform: result.platform,
       })),
     );
-    const { apps, filled } = withExampleTrends(live);
-    const noLiveApps = apps.length === 0;
     return NextResponse.json({
       sources: results.map((result) => result.source),
       scope: "owned_applications",
-      example: filled || noLiveApps ? true : undefined,
-      monitoring: noLiveApps
-        ? {
-            provider: "grafana_prometheus",
-            status: "example",
-            windowSeconds: 900,
-          }
-        : {
-            provider: "grafana_prometheus",
-            status: results.some((result) => result.monitoring?.status === "ok")
-              ? results.some((result) => result.monitoring?.status !== "ok")
-                ? "partial"
-                : "ok"
-              : (results[0]?.monitoring?.status ?? "unconfigured"),
-            windowSeconds: results[0]?.monitoring?.windowSeconds ?? 0,
-          },
-      apps: noLiveApps
-        ? exampleAppCards(owned.sources[0] ?? EXAMPLE_SOURCE)
-        : apps,
+      monitoring: {
+        provider: "grafana_prometheus",
+        status: results.some((result) => result.monitoring?.status === "ok")
+          ? results.some((result) => result.monitoring?.status !== "ok")
+            ? "partial"
+            : "ok"
+          : (results[0]?.monitoring?.status ?? "unconfigured"),
+        windowSeconds: results[0]?.monitoring?.windowSeconds ?? 0,
+      },
+      apps,
       dashboardLinks: results.flatMap((result) => result.dashboardLinks),
       platformMetrics: results[0]?.platformMetrics ?? [],
     });

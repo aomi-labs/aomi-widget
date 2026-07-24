@@ -601,6 +601,7 @@ describe("DeploymentClient operate app detail", () => {
         hourly: {
           chats: [0, 2, 3],
           tool_calls: [1, 4, 5],
+          p95_latency_ms: [800, 1200, 950],
           transactions: [0, 1, 1],
         },
       }),
@@ -624,7 +625,11 @@ describe("DeploymentClient operate app detail", () => {
       activeUsers24h: 5,
       credits: { credits24h: 8.5, creditsPerTurn24h: 0.71 },
       lifecycle: { coldStartMs: 1250, loads24h: 2 },
-      hourly: { chats: [0, 2, 3], toolCalls: [1, 4, 5] },
+      hourly: {
+        chats: [0, 2, 3],
+        toolCalls: [1, 4, 5],
+        p95LatencyMs: [800, 1200, 950],
+      },
     });
     expect(result.tools[0]).toEqual({
       tool: "get_price",
