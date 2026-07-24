@@ -115,13 +115,33 @@ export function buildEvmExecutionRuntime(
         : undefined),
     signMessage:
       runtime.signMessage ??
-      (runtime.signMessageAsync
+      (evm.signMessageForAccount || runtime.signMessageAsync
         ? async (payload) => {
             const messageArgs = toViemSignMessageArgs(payload);
             if (!messageArgs) {
               throw new Error("Missing non_typed_data payload");
             }
-            const signature = await runtime.signMessageAsync!({
+            const activeAccountId = evm.activeAccount?.id;
+            if (
+              activeAccountId &&
+              evm.signMessageForAccount &&
+              typeof messageArgs.message === "string"
+            ) {
+              return {
+                signature: await evm.signMessageForAccount({
+                  accountId: activeAccountId,
+                  message: messageArgs.message,
+                  chainId: runtime.currentChainId,
+                }),
+              };
+            }
+            // The outer guard admits this branch when only
+            // `signMessageForAccount` exists but its preconditions above are not
+            // met; fail loudly instead of dereferencing an undefined signer.
+            if (!runtime.signMessageAsync) {
+              throw new Error("No EVM signer available to sign message");
+            }
+            const signature = await runtime.signMessageAsync({
               ...(messageArgs as Record<string, unknown>),
               connector: runtime.activeConnector,
             } as never);

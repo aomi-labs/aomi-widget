@@ -27,10 +27,6 @@ vi.mock("@portal/server/backend-url", () => ({
   configuredBackendUrl: () => "https://api-staging.aomi.dev",
 }));
 
-vi.mock("@portal/server/canonical-session", () => ({
-  resolveBetterAuthCanonicalUserId: vi.fn(async () => null),
-}));
-
 vi.mock("@portal/server/bff/backend", () => ({
   deploymentClient: vi.fn(async () => ({ listApps })),
 }));

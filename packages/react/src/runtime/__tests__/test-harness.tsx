@@ -102,6 +102,7 @@ const mockState = {
 };
 
 export type MockAomiClientInstance = {
+  baseUrl: string;
   emitSSEEvent: (event: AomiSSEEvent) => void;
   ensureAccount: ReturnType<typeof vi.fn>;
   listThreads: ReturnType<typeof vi.fn>;
@@ -152,6 +153,7 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
 
   // Mock class defined inside the factory
   class MockAomiClient {
+    readonly baseUrl: string;
     private sseHandler: ((event: AomiSSEEvent) => void) | null = null;
 
     ensureAccount = vi.fn(async (sessionId: string, publicKey: string) => {
@@ -302,7 +304,8 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
       this.sseHandler?.(event);
     };
 
-    constructor(_options: { baseUrl: string }) {
+    constructor(options: { baseUrl: string }) {
+      this.baseUrl = options.baseUrl;
       mockState.instances.push(this as unknown as MockAomiClientInstance);
     }
   }

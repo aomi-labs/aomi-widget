@@ -2,6 +2,22 @@ import { describe, expect, it, vi } from "vitest";
 import { createAomiBackendAccountClient } from "./aomi-backend-client";
 
 describe("createAomiBackendAccountClient", () => {
+  it("accepts an empty successful sign-out response", async () => {
+    const fetchImpl = vi.fn(async () => new Response(null, { status: 204 }));
+    const client = createAomiBackendAccountClient({ fetch: fetchImpl });
+
+    await expect(client.signOut()).resolves.toBeUndefined();
+  });
+
+  it("accepts an empty 200 sign-out response", async () => {
+    const fetchImpl = vi.fn(
+      async () => new Response("", { status: 200 }),
+    );
+    const client = createAomiBackendAccountClient({ fetch: fetchImpl });
+
+    await expect(client.signOut()).resolves.toBeUndefined();
+  });
+
   it("maps Better Auth APIError messages to account-friendly errors", async () => {
     const fetchImpl = vi.fn(async () => ({
       ok: false,
@@ -27,11 +43,13 @@ describe("createAomiBackendAccountClient", () => {
   });
 
   it("uses BetterAuth SIWS endpoints for browser sign-in and linking", async () => {
-    const fetchImpl = vi.fn(async () => ({
-      ok: true,
-      status: 200,
-      json: async () => ({ nonce: "nonce" }),
-    }));
+    const fetchImpl = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ nonce: "nonce" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+    );
     const client = createAomiBackendAccountClient({
       fetch: fetchImpl as unknown as typeof fetch,
     });
@@ -79,5 +97,48 @@ describe("createAomiBackendAccountClient", () => {
         }),
       }),
     );
+  });
+
+  it("omits cookies, sends the WST, and retries once with a refreshed token", async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        json: async () => ({ error: "invalid_widget_session" }),
+      })
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ user: { id: "user-1" } }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+    const getAuthorization = vi.fn(async ({ forceRefresh = false } = {}) =>
+      forceRefresh ? "fresh-wst" : "stale-wst",
+    );
+    const client = createAomiBackendAccountClient({
+      fetch: fetchImpl as unknown as typeof fetch,
+      auth: { credentials: "omit", getAuthorization },
+    });
+
+    await expect(client.getAccount()).resolves.toEqual({
+      user: { id: "user-1" },
+    });
+    expect(getAuthorization).toHaveBeenNthCalledWith(1, {
+      forceRefresh: false,
+    });
+    expect(getAuthorization).toHaveBeenNthCalledWith(2, {
+      forceRefresh: true,
+    });
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    for (const [, init] of fetchImpl.mock.calls) {
+      expect(init).toMatchObject({ credentials: "omit" });
+    }
+    expect(
+      new Headers(fetchImpl.mock.calls[0]?.[1]?.headers).get("Authorization"),
+    ).toBe("Bearer stale-wst");
+    expect(
+      new Headers(fetchImpl.mock.calls[1]?.[1]?.headers).get("Authorization"),
+    ).toBe("Bearer fresh-wst");
   });
 });

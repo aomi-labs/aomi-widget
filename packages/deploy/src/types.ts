@@ -917,8 +917,7 @@ export interface OperateAppMetrics {
   errorRate: number | null;
   p95LatencyMs: number | null;
   inflightRequests: number | null;
-  // 24h trend contract. Null until the manager emits grouped
-  // query_range reads; the card falls back to the live tiles.
+  /** 24h trend contract, oldest bucket first. */
   trendWindowSeconds: number | null;
   chats24h: number | null;
   toolCalls24h: number | null;
@@ -1012,6 +1011,8 @@ export interface OperateAppDetailResult {
   hourly: {
     chats: number[] | null;
     toolCalls: number[] | null;
+    /** Per-hour chat request P95, in milliseconds. */
+    p95LatencyMs: number[] | null;
     transactions: number[] | null;
   };
 }

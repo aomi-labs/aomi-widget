@@ -58,6 +58,7 @@ const livePayload = (): LiveAppDetailPayload => ({
     hourly: {
       chats: [0, 2, 3],
       toolCalls: [1, 4, 5],
+      p95LatencyMs: [800, 1_200, 950],
       transactions: [0, 1, 1],
     },
   },
@@ -178,13 +179,10 @@ describe("liveAppDetailView", () => {
         thread: "thread-real",
       }),
     ]);
-    expect(view.exampleSections).toEqual([
-      "Release history",
-      "P95 latency history",
-    ]);
+    expect(view.app.detail.p95Hourly).toEqual([0.8, 1.2, 0.95]);
   });
 
-  it("labels every fixture-backed section when the backend has no value", () => {
+  it("renders missing backend values as empty or unavailable, never fixtures", () => {
     const payload = livePayload();
     payload.detail.funnel.chats24h = null;
     payload.detail.activeUsers24h = null;
@@ -197,6 +195,7 @@ describe("liveAppDetailView", () => {
     payload.detail.hourly = {
       chats: null,
       toolCalls: null,
+      p95LatencyMs: null,
       transactions: null,
     };
     payload.health = null;
@@ -205,37 +204,23 @@ describe("liveAppDetailView", () => {
 
     const view = liveAppDetailView(payload);
 
-    expect(view.exampleSections).toEqual(
-      expect.arrayContaining([
-        "Conversion funnel",
-        "Chain families",
-        "Tool health",
-        "Release history",
-        "P95 latency history",
-        "Activity history",
-        "Credit history",
-        "User activity",
-        "Credit KPIs",
-        "Latency KPI",
-        "Inflight KPI",
-        "Error KPIs",
-      ]),
-    );
-    // Fallback KPI values must belong to their labels (fixture order differs
-    // from the live KPI order, so an index lookup would scramble them).
+    expect(view.app.detail.funnel[0]?.value).toBeNull();
+    expect(view.app.meta.families).toEqual([]);
+    expect(view.app.detail.tools).toEqual([]);
+    expect(view.app.detail.p95Hourly).toEqual([]);
     expect(
       Object.fromEntries(
         view.app.detail.kpis.map((kpi) => [kpi.label, kpi.value]),
       ),
     ).toMatchObject({
-      "Active users": "9",
-      Credits: "3.42",
+      "Active users": "—",
+      Credits: "—",
       "Credits / turn": "—",
-      "P95 latency": "8.4 s",
-      Inflight: "2",
-      "Chat errors": "2.5%",
-      "Tool errors": "12.0%",
-      "Tx failures": "8.3%",
+      "P95 latency": "—",
+      Inflight: "—",
+      "Chat errors": "—",
+      "Tool errors": "—",
+      "Tx failures": "—",
     });
     expect(view.app.transactions).toEqual([]);
     expect(view.app.logs).toEqual([]);

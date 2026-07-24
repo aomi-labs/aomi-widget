@@ -22,6 +22,7 @@ export function useResolvedAccountRuntime(input: {
     baseUrl: accountConfig?.baseUrl,
     authDomain: accountConfig?.authDomain,
     authUri: accountConfig?.authUri,
+    widgetAuth: accountConfig?.widgetAuth,
     auth: input.auth,
     evm: input.evm,
     svm: input.svm,

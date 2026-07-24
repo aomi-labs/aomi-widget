@@ -13,9 +13,11 @@
 - Kept backend endpoint contracts unchanged; the new global feed belongs to
   manager and the Aomi Build BFF relays it.
 
-Current session goal: pair product-mono PR #790 with a minimal published React
-runtime API for recording ephemeral UI interaction context on the active
-thread, without extending the serialized frontend `UserState` shape.
+Current session goal: **IMPLEMENTED; LIVE E2E IN PROGRESS 2026-07-22** — implement and verify
+`specs/WIDGET-AUTH-INTEGRATION-PLAN.md` across `aomi`, `db-master`, and
+`product-mono`, including tenant-scoped provider identities, the atomic
+canonical-user resolver, origin-bound widget sessions, generic Portal/account
+routes, the published `AomiWidget` API, and the separate-origin consumer.
 
 2026-07-13 follow-up: staging and production now use separate Supabase
 databases. Local schema convergence applies the backend's forward drop instead
@@ -24,6 +26,56 @@ tables; fresh databases also finish replay with that drop.
 
 Progress:
 
+- 2026-07-24 idempotent npm publishing: changed the post-merge publish job to
+  skip exact package versions that are already live, publish only missing
+  versions, and fail closed on registry errors other than a definitive 404.
+  This makes reruns safe after partial publication or transient npm outages.
+
+- 2026-07-24 atomic account ownership: split provider sign-in from authenticated
+  linking and preflight every verified provider, email, BetterAuth, EVM, and
+  Solana signal under one transaction before creating or attaching canonical
+  ownership. Conflicts now produce no canonical writes or session, surface a
+  non-identifying recovery message, and last-factor unlink checks serialize per
+  account. Added sign-in, linking, conflict, retry, and unlink regressions and
+  patch-bumped `@aomi-labs/account` to 0.1.8 and `@aomi-labs/widget-lib` to
+  1.4.12.
+
+- 2026-07-22 model catalog availability: traced the staging picker's permanent
+  `Loading...` state to Better Auth session-pool exhaustion on the otherwise
+  public `/api/thread/models` proxy route. Marked that catalog route as
+  bearer-independent so it bypasses account database resolution while still
+  stripping browser credentials, added proxy regression coverage, and
+  patch-bumped `@aomi-labs/account` to 0.1.6.
+
+- 2026-07-23 review-blocker closure: default wallet-mode widgets now withhold
+  their required AccountBearer source until an EVM/SVM signer is actually
+  available; superseded widget-session exchanges after sign-out or a wallet
+  switch revoke their late WST and reject the waiting request instead of
+  returning a stale principal; and account refreshes are keyed to the active
+  auth/client context so an old provider response cannot overwrite a newly
+  selected user's state. Added focused regressions for all three paths,
+  removed the stale test-only adapter `kind` fields, rebuilt client/widget
+  artifacts, and refreshed the Landing registry mirror. Verified 816 root
+  tests, 278 widget tests, lint, root/account/Portal typechecks, client and
+  widget builds, and the widget-consumer production build.
+
+- 2026-07-23 widget-auth PR main sync: rebased frontend PR #382 and backend PR
+  #855 onto current `main`, preserving the newer x402 and Solana approval work
+  alongside tenant-scoped widget authentication. Reconciled the Portal x402
+  signer address type, regenerated client/React/widget registry artifacts and
+  the Landing registry mirror, and patch-bumped `@aomi-labs/account` to 0.1.7
+  and `@aomi-labs/client` to 0.3.9 after the versions already on `main`.
+  Verified frozen install, lint, root/account/Portal typechecks, 782 root tests,
+  269 widget tests, the Portal test command and production build, the client,
+  React, and widget builds, and the widget-consumer production build. Backend
+  fmt, database clippy with warnings denied, and the focused plain-message
+  signing pipeline test also passed before its rebased branch was pushed. The
+  first clean frontend CI run exposed generated-state assumptions that local
+  builds had masked: registry boundary tests ran before the package build, and
+  Landing could not resolve a widget source import through its narrower
+  `@/lib` alias. CI now builds the registry before its tests, the shared import
+  is package-relative, and the exact registry-build/test plus Landing production
+  build sequence passes locally.
 - 2026-07-23 fleet-safe Telegram bot mappings: Build now creates and edits
   builder-wide many-to-many bot/app mappings with a required primary app,
   source-qualified display labels, and write-only credentials. The BFF validates
@@ -86,6 +138,62 @@ Progress:
   verified the focused tests, account/portal/base/landing typechecks,
   formatting, and packed package contents.
 
+- 2026-07-23 provider address-label polish: provider-managed Para and Privy
+  rows under Account access now show only their shortened addresses in family
+  order, separated by a middle dot (for example,
+  `0xda6..f0 · 53GfE..oL`), without repeating `EVM` and `SVM` labels in the
+  subtitle. Connected SVM rows now include `Solana` after the address, matching
+  the network-name position already used by Ethereum and EVM L2 rows.
+
+- 2026-07-23 thread-auth recovery: traced Portal and widget-consumer 401s to
+  the live Rust backend using the remote database while BetterAuth/account
+  resolution used `aomi_local`. Restarted the supported auth stack so both
+  share the local database; AccountBearer and origin-bound widget-session
+  probes now both list 43 threads with HTTP 200. The React runtime also keeps
+  the caller's `localhost` backend host instead of rewriting it to
+  `127.0.0.1`, and provider widgets withhold their required bearer source until
+  the provider credential is ready.
+
+- 2026-07-23 widget-consumer Solana diagnosis: confirmed from Para's live BETA
+  partner metadata that Portal requires EVM + Solana wallets while the
+  consumer/Landing Para project supports EVM only. The canonical Aomi account
+  is shared correctly; only the provider project's live signer set differs.
+  The Para developer dashboard is open at sign-in so Solana can be enabled for
+  the consumer project before a logout/relogin provisioning check.
+
+- 2026-07-22 provider account-access polish: merged tenant-scoped Para and
+  Privy identities into one provider card, attached the provider-owned EVM and
+  Solana addresses to that card, and distinguished live/write access (green)
+  from linked/read-only access (yellow). The Portal now renders one Para row
+  with both live families, while a consumer session that exposes only EVM still
+  shows its linked Solana address as stored access. Grouped rename and unlink
+  operations update every backing provider identity. Patch-bumped
+  `@aomi-labs/widget-lib` to 1.4.10, refreshed the registry artifact, visually
+  verified the live Portal modal, and passed all 267 registry tests, root lint,
+  the registry build, Portal typecheck, and the widget-consumer production
+  build.
+
+- 2026-07-22 widget authentication integration: implemented the v1 code and
+  automated acceptance coverage in `specs/WIDGET-AUTH-INTEGRATION-PLAN.md`. Added the
+  audited tenant-scope migration and Rust schema/entity mirror; provider-neutral
+  identity resolution; strict Para and disabled Privy widget descriptors;
+  provider/SIWE/SIWS WST exchange with hashed storage, origin binding,
+  revocation, and public credentialless CORS; generic account/BFF principals;
+  and the published `AomiWidget`, `paraAuth`, `privyAuth`, and standalone Vite
+  consumer. Portal retains its existing Para project while Landing and the
+  consumer use the requested separate Beta key in ignored local env files.
+  Portal is live on port 3000 and the consumer on port 3001. The consumer now
+  renders the full widget plus an actionable Retry/origin banner when Para
+  startup fails. The Landing project now accepts `http://localhost:3001` and
+  the Google popup reaches Para's wallet-selection screen after restoring the
+  SDK's OAuth encryption worker. The final live consumer
+  login/thread/harmless-signing gate remains unchecked until the user completes
+  the wallet selection and the post-login checks run.
+  Patch-bumped account/client/widget-lib, refreshed artifacts and lockfile, and
+  passed isolated Postgres replay, Rust fmt/clippy, frontend lint/typechecks,
+  package/consumer builds and pack verification, 769 root tests, 252 registry
+  tests, and the portal test command.
+
 - 2026-07-20 Robinhood Chain support: added chain `4663` to the client and wallet-kit defaults, including Alchemy metadata, network selection coverage, a monochrome chain icon, generated registries, and explicit portal/landing/docs network lists. Patch-bumped `@aomi-labs/client` to `0.3.2` and `@aomi-labs/widget-lib` to `1.4.3`; focused tests, root/portal/landing typechecks, client and registry builds, lint, formatting, and the read-only client `chain list` CLI passed.
 
 - 2026-07-19 Operate observability detail: replaced the #374 fixture route
@@ -119,7 +227,7 @@ Progress:
   RPC reads to token-program scans. The standalone holdings tool now defaults
   its owner from SVM wallet context and returns compact aggregated display
   amounts. Added a dedicated holdings trace presenter that shows `0.148008
-USDC` for the canonical mainnet mint, or just the visible UI amount with the
+  USDC` for the canonical mainnet mint, or just the visible UI amount with the
   generic token icon when the symbol is unknown. Patch-bumped
   `@aomi-labs/widget-lib` to 1.4.6 and regenerated registry artifacts.
 

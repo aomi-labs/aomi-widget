@@ -53,7 +53,9 @@ describe("buildSvmTransactionMethods", () => {
         instructions: [],
       }).compileToV0Message(),
     );
-    const sendTransaction = vi.fn(
+    const sendTransaction = vi.fn<
+      NonNullable<SafeSvmWalletState["sendTransaction"]>
+    >(
       async (
         _tx: VersionedTransaction | Transaction,
         _connection: Connection,

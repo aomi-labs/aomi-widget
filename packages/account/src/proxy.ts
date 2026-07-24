@@ -44,9 +44,10 @@ export type AllowedRoute = {
    * `required` (default) means the proxy must inject a trusted AccountBearer
    * before forwarding. `optional` is for explicitly public backend routes that
    * may be reached anonymously, while still receiving a bearer when a valid
-   * session is present.
+   * session is present. `none` is for bearer-independent public routes that
+   * must not touch the account database at all.
    */
-  auth?: "required" | "optional";
+  auth?: "required" | "optional" | "none";
 };
 
 export type ResolveCanonicalUserId = (
@@ -56,6 +57,7 @@ export type ResolveCanonicalUserId = (
 type ProxyAuthState =
   | { kind: "anonymous" }
   | { kind: "authenticated"; bearer: string }
+  | { kind: "invalid_credentials" }
   | { kind: "mint_failed"; error: unknown };
 
 export type ProxyConfig = {
@@ -161,7 +163,20 @@ async function resolveProxyAuthState(
   req: NextRequest,
   resolveCanonicalUserId: ResolveCanonicalUserId,
 ): Promise<ProxyAuthState> {
-  const canonicalId = await resolveCanonicalUserId(req);
+  let canonicalId: string | null;
+  try {
+    canonicalId = await resolveCanonicalUserId(req);
+  } catch (error) {
+    if (
+      error &&
+      typeof error === "object" &&
+      "status" in error &&
+      Number(error.status) === 401
+    ) {
+      return { kind: "invalid_credentials" };
+    }
+    throw error;
+  }
   if (!canonicalId) return { kind: "anonymous" };
 
   try {
@@ -184,6 +199,10 @@ function applyProxyAuthState(
 
   if (authState.kind === "mint_failed") {
     return bearerMintFailureResponse(authState.error);
+  }
+
+  if (authState.kind === "invalid_credentials") {
+    return authenticationRequiredResponse();
   }
 
   if (routeRequiresAuth(route)) {
@@ -268,10 +287,10 @@ export function createBackendProxy(config: ProxyConfig) {
     }
 
     const headers = copyRequestHeaders(req);
-    const authState = await resolveProxyAuthState(
-      req,
-      config.resolveCanonicalUserId,
-    );
+    const authState =
+      allowedRoute.auth === "none"
+        ? ({ kind: "anonymous" } as const)
+        : await resolveProxyAuthState(req, config.resolveCanonicalUserId);
     const authResponse = applyProxyAuthState(allowedRoute, authState, headers);
     if (authResponse) return authResponse;
 

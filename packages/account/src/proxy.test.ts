@@ -97,6 +97,43 @@ describe("createBackendProxy", () => {
     expect(headers.has("cookie")).toBe(false);
   });
 
+  it("does not resolve a session for bearer-independent public routes", async () => {
+    const fetchMock = vi.fn(async (_input: URL, _init?: RequestInit) =>
+      Response.json(["Gemini 3 Flash"]),
+    );
+    const resolveCanonicalUserId = vi.fn(async () => "user-123");
+    vi.stubGlobal("fetch", fetchMock);
+    const { GET } = createTestProxy({
+      allowedRoutes: [
+        {
+          pattern: /^\/api\/thread\/models$/,
+          methods: new Set(["GET"]),
+          auth: "none",
+        },
+      ],
+      resolveCanonicalUserId,
+    });
+
+    const response = await GET(
+      ...proxyRequest("/api/thread/models", {
+        headers: {
+          authorization: "Bearer user-supplied",
+          cookie: "better-auth.session_token=session",
+        },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual(["Gemini 3 Flash"]);
+    expect(resolveCanonicalUserId).not.toHaveBeenCalled();
+    expect(mintMock).not.toHaveBeenCalled();
+    const init = fetchMock.mock.calls[0]?.[1];
+    if (!init) throw new Error("Expected upstream fetch init");
+    const headers = new Headers(init.headers);
+    expect(headers.has("authorization")).toBe(false);
+    expect(headers.has("cookie")).toBe(false);
+  });
+
   it("rejects protected routes instead of forwarding without Authorization", async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);

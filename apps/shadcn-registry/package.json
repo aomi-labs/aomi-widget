@@ -1,11 +1,19 @@
 {
   "name": "@aomi-labs/widget-lib",
-  "version": "1.4.10",
+  "version": "1.4.12",
   "description": "Shadcn registry for the Aomi widget.",
   "type": "module",
-  "main": "./src/index.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./src/index.ts",
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./aomi-widget": {
+      "types": "./dist/aomi-widget.d.ts",
+      "import": "./dist/aomi-widget.js"
+    },
     "./aomi-frame": "./src/components/aomi-frame.tsx",
     "./aomi-frame-collapsible": "./src/components/aomi-frame-collapsible.tsx",
     "./control-bar": "./src/components/control-bar/index.tsx",
@@ -14,9 +22,15 @@
     "./components/control-bar/*": "./src/components/control-bar/*.tsx",
     "./hooks/*": "./src/hooks/*.ts",
     "./providers/base-account": "./src/lib/wallet-kit/providers/base-account.tsx",
-    "./providers/para": "./src/lib/wallet-kit/providers/para/index.ts",
-    "./providers/privy": "./src/lib/wallet-kit/providers/privy/index.ts",
-    "./styles.css": "./src/themes/default.css",
+    "./providers/para": {
+      "types": "./dist/providers/para.d.ts",
+      "import": "./dist/providers/para.js"
+    },
+    "./providers/privy": {
+      "types": "./dist/providers/privy.d.ts",
+      "import": "./dist/providers/privy.js"
+    },
+    "./styles.css": "./dist/styles.css",
     "./themes/*.css": "./src/themes/*.css"
   },
   "files": [
@@ -24,8 +38,11 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsx scripts/build-registry.js",
-    "clean:dist": "rm -rf dist"
+    "build": "pnpm run build:registry && pnpm run build:package",
+    "build:registry": "tsx scripts/build-registry.js",
+    "build:package": "tsup && node scripts/build-package-css.mjs",
+    "clean:dist": "rm -rf dist",
+    "prepublishOnly": "pnpm run build"
   },
   "dependencies": {
     "@aomi-labs/client": "workspace:*",
@@ -65,6 +82,8 @@
     "react-dom": "^18.0.0 || ^19.0.0"
   },
   "devDependencies": {
+    "postcss": "^8.5.6",
+    "tsup": "^8.5.1",
     "tsx": "^4.21.0"
   }
 }

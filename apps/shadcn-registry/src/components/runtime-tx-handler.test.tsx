@@ -32,6 +32,10 @@ const authState = vi.hoisted(() => ({
   signSolanaTransaction: vi.fn(),
   signSolanaMessage: vi.fn(),
   sendSolanaTransaction: vi.fn(),
+  signTypedData: undefined as
+    | ((payload: Record<string, unknown>) => Promise<{ signature: string }>)
+    | undefined,
+  signMessage: vi.fn(),
 }));
 
 vi.mock("@aomi-labs/react", () => ({
@@ -42,6 +46,11 @@ vi.mock("@aomi-labs/react", () => ({
   hydrateTxPayloadFromUserState: vi.fn((payload) => payload),
   parseChainId: vi.fn(),
   toViemSignTypedDataArgs: vi.fn(),
+  toViemSignMessageArgs: vi.fn((payload: Record<string, unknown>) =>
+    typeof payload.non_typed_data === "string"
+      ? { message: payload.non_typed_data }
+      : null,
+  ),
   useAomiRuntime: () => runtimeState,
 }));
 
@@ -62,6 +71,8 @@ describe("RuntimeTxHandler", () => {
     authState.signSolanaTransaction.mockReset();
     authState.signSolanaMessage.mockReset();
     authState.sendSolanaTransaction.mockReset();
+    authState.signTypedData = undefined;
+    authState.signMessage.mockReset();
     authState.selectedSolanaNetwork = {
       id: "solana-devnet",
       cluster: "solana:devnet",
@@ -205,5 +216,34 @@ describe("RuntimeTxHandler", () => {
       );
     });
     expect(authState.signSolanaTransaction).not.toHaveBeenCalled();
+  });
+
+  it("signs a plain EVM message when typed-data signing is unavailable", async () => {
+    authState.signMessage.mockResolvedValue({ signature: "0xsignature" });
+    runtimeState.pendingWalletRequests = [
+      {
+        id: "eip712_sign-11",
+        kind: "eip712_sign",
+        payload: {
+          non_typed_data: "AOMI_E2E_SAFE_SIGN",
+          description: "Sign a harmless E2E message",
+        },
+        timestamp: Date.now(),
+      },
+    ];
+
+    render(<RuntimeTxHandler />);
+
+    await waitFor(() => {
+      expect(authState.signMessage).toHaveBeenCalledWith({
+        non_typed_data: "AOMI_E2E_SAFE_SIGN",
+        description: "Sign a harmless E2E message",
+      });
+    });
+    expect(runtimeState.resolveWalletRequest).toHaveBeenCalledWith(
+      "eip712_sign-11",
+      { kind: "eip712_sign", signature: "0xsignature" },
+    );
+    expect(runtimeState.rejectWalletRequest).not.toHaveBeenCalled();
   });
 });

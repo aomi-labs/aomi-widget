@@ -271,18 +271,13 @@ export type AomiTxResult = {
   Delegation7702?: string;
 };
 
+/**
+ * Upstream wallet-provider credential the portal exchanges for an Aomi bearer.
+ * Aliased to the client type (the same inline `@aomi-labs/client` edge already
+ * used for `GetAccountBearer` below) so the shape cannot drift.
+ */
 export type AomiAccountCredential =
-  | {
-      provider: "privy";
-      tokenKind?: "identity_token" | "access_token";
-      providerToken: string;
-    }
-  | {
-      provider: "para";
-      tokenKind?: "session_jwt";
-      providerToken: string;
-      keyId?: string;
-    };
+  import("@aomi-labs/client").ProviderCredential;
 
 export type AomiWalletKit = {
   identity: AomiSessionIdentity;
@@ -306,6 +301,7 @@ export type AomiWalletKit = {
   /** Unified picker rows: live accounts, stored account-runtime rows, and options. */
   walletModalRows?: readonly WalletModalRow[];
   accountStatus?: AccountRuntimeStatus;
+  accountError?: string;
   accountUser?: AomiUserRef;
   accountLinkedAccounts?: readonly LinkedAuthAccount[];
   accountWallets?: readonly AccountWallet[];
@@ -413,6 +409,7 @@ export type AomiWalletKit = {
    * for a short-lived Aomi bearer.
    */
   getAccountCredential?: () => Promise<AomiAccountCredential | null>;
+  getAccountBearer?: import("@aomi-labs/client").GetAccountBearer;
   solanaRpcHttpUrl?: string;
   solanaRpcWsUrl?: string;
 };

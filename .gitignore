@@ -49,6 +49,7 @@ specs/FINAL-REVIEW-CHECKLIST.md
 # generated registry build output
 apps/landing/public/r/dist
 apps/shadcn-registry/dist
+apps/widget-consumer/dist
 
 # generated package JavaScript bundles
 packages/*/dist/*.js

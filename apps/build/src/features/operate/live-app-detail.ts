@@ -5,14 +5,12 @@ import type {
   OperateTransaction,
   UserSourceLatestDeployment,
 } from "@aomi-labs/deploy";
-import {
-  FIXTURES,
-  appFixture,
-  type AppFixture,
-  type ChainFamily,
-  type LogRecord,
-  type TxRecord,
-} from "./fixtures";
+import type {
+  AppFixture,
+  ChainFamily,
+  LogRecord,
+  TxRecord,
+} from "./fixtures/types";
 import type { TxStatus } from "./fixtures/types";
 
 export type LiveAppDetailPayload = {
@@ -25,7 +23,6 @@ export type LiveAppDetailPayload = {
 
 export type LiveAppDetailView = {
   app: AppFixture;
-  exampleSections: string[];
 };
 
 const finite = (value: unknown): value is number =>
@@ -59,20 +56,6 @@ function txStatus(status: string): TxStatus {
     return "failed";
   return "created";
 }
-
-// The fixture KPI labels differ slightly from the live view's ("P95 turn"
-// vs "P95 latency"; the fixtures have no per-turn credits KPI at all), so a
-// fallback value must be looked up by its matching label — never by index —
-// or degraded cards render fixture values under the wrong labels.
-const FIXTURE_KPI_LABEL: Record<string, string> = {
-  "Active users": "Active users",
-  Credits: "Credits",
-  "P95 latency": "P95 turn",
-  Inflight: "Inflight",
-  "Chat errors": "Chat errors",
-  "Tool errors": "Tool errors",
-  "Tx failures": "Tx failures",
-};
 
 function transactionRow(tx: OperateTransaction, app: string): TxRecord {
   const family: ChainFamily =
@@ -178,28 +161,6 @@ export function liveAppDetailView(
   payload: LiveAppDetailPayload,
 ): LiveAppDetailView {
   const detail = payload.detail;
-  const fallback = appFixture(detail.app.name) ?? FIXTURES[0];
-  const example = new Set<string>();
-  const fallbackNumber = (
-    value: number | null,
-    replacement: number,
-    section: string,
-  ) => {
-    if (finite(value)) return value;
-    example.add(section);
-    return replacement;
-  };
-  const fallbackKpi = (label: string, value: string, section: string) => {
-    if (value !== "—") return value;
-    const fixtureLabel = FIXTURE_KPI_LABEL[label];
-    const fixtureValue = fixtureLabel
-      ? fallback.detail.kpis.find((kpi) => kpi.label === fixtureLabel)?.value
-      : undefined;
-    // No matching fixture KPI: an honest dash, not somebody else's number.
-    if (fixtureValue === undefined) return "—";
-    example.add(section);
-    return fixtureValue;
-  };
 
   const funnelValues = [
     detail.funnel.chats24h,
@@ -217,18 +178,13 @@ export function liveAppDetailView(
   ];
   const funnel = funnelLabels.map((label, index) => ({
     label,
-    value: fallbackNumber(
-      funnelValues[index] ?? null,
-      fallback.detail.funnel[index]?.value ?? 0,
-      "Conversion funnel",
-    ),
+    value: funnelValues[index] ?? null,
   }));
 
   const transactions = payload.transactions.map((tx) =>
     transactionRow(tx, detail.app.name),
   );
   const families = [...new Set(transactions.map((tx) => tx.family))];
-  if (!families.length) example.add("Chain families");
 
   const health = payload.health?.metrics;
   const activeUsers = numberLabel(detail.activeUsers24h);
@@ -251,33 +207,21 @@ export function liveAppDetailView(
       : "—",
     bad: finite(tool.errorRate) && tool.errorRate >= 0.1,
   }));
-  if (!realTools.length) example.add("Tool health");
-
   const realReleases = releases(payload);
-  if (!realReleases.length) example.add("Release history");
-
-  // The backend has no per-hour p95 series yet, so that chart is always
-  // fixture data (`p95Hourly: fallback...` below).
-  example.add("P95 latency history");
-  const chatsHourly = detail.hourly.chats ?? fallback.detail.chatsHourly;
-  const toolCallsHourly =
-    detail.hourly.toolCalls ?? fallback.detail.toolCallsHourly;
-  if (!detail.hourly.chats || !detail.hourly.toolCalls) {
-    example.add("Activity history");
-  }
+  const chatsHourly = detail.hourly.chats ?? [];
+  const toolCallsHourly = detail.hourly.toolCalls ?? [];
   const creditsDaily = detail.credits.creditsDaily.length
     ? {
         days: detail.credits.creditsDaily.map((row) => row.day),
         values: detail.credits.creditsDaily.map((row) => row.credits),
       }
-    : fallback.detail.creditsDaily;
-  if (!detail.credits.creditsDaily.length) example.add("Credit history");
+    : { days: [], values: [] };
 
   const app: AppFixture = {
     meta: {
       name: detail.app.name,
       applicationId: detail.app.applicationId,
-      families: families.length ? families : fallback.meta.families,
+      families,
       releaseTag: detail.app.releaseTag,
       sdkVersion: detail.app.sdkVersion,
       status:
@@ -286,7 +230,7 @@ export function liveAppDetailView(
         detail.app.status === "inactive"
           ? detail.app.status
           : "inactive",
-      repo: detail.source.repositoryLink ?? fallback.meta.repo,
+      repo: detail.source.repositoryLink ?? "—",
     },
     card: {
       requestsPerMinute: health?.requestsPerMinute ?? null,
@@ -313,48 +257,48 @@ export function liveAppDetailView(
       kpis: [
         {
           label: "Active users",
-          value: fallbackKpi("Active users", activeUsers, "User activity"),
+          value: activeUsers,
           sub: "24h",
         },
         {
           label: "Credits",
-          value: fallbackKpi("Credits", credits24h, "Credit KPIs"),
+          value: credits24h,
           sub: "24h",
         },
         {
           label: "Credits / turn",
-          value: fallbackKpi("Credits / turn", creditsPerTurn, "Credit KPIs"),
+          value: creditsPerTurn,
           sub: "24h",
         },
         {
           label: "P95 latency",
-          value: fallbackKpi("P95 latency", p95, "Latency KPI"),
+          value: p95,
         },
         {
           label: "Inflight",
-          value: fallbackKpi("Inflight", inflight, "Inflight KPI"),
+          value: inflight,
         },
         {
           label: "Chat errors",
-          value: fallbackKpi("Chat errors", chatErrors, "Error KPIs"),
+          value: chatErrors,
         },
         {
           label: "Tool errors",
-          value: fallbackKpi("Tool errors", toolErrors, "Error KPIs"),
+          value: toolErrors,
         },
         {
           label: "Tx failures",
-          value: fallbackKpi("Tx failures", txFailures, "Error KPIs"),
+          value: txFailures,
         },
       ],
       chatsHourly,
       toolCallsHourly,
-      p95Hourly: fallback.detail.p95Hourly,
+      p95Hourly: (detail.hourly.p95LatencyMs ?? []).map(
+        (value) => value / 1000,
+      ),
       creditsDaily,
-      tools: realTools.length ? realTools : fallback.detail.tools,
-      toolsSummary: realTools.length
-        ? toolsSummaryLabel(realTools)
-        : fallback.detail.toolsSummary,
+      tools: realTools,
+      toolsSummary: toolsSummaryLabel(realTools),
       fees24h: "receipt fees shown per transaction",
       lifecycle: [
         ["Cold start", durationLabel(detail.lifecycle.coldStartMs)],
@@ -362,12 +306,12 @@ export function liveAppDetailView(
         ["Loaded instances", numberLabel(detail.lifecycle.loads24h)],
         ["Evictions", numberLabel(detail.lifecycle.evictions24h)],
       ],
-      releases: realReleases.length ? realReleases : fallback.detail.releases,
+      releases: realReleases,
     },
     transactions,
     logs: payload.logs.map((row) => logRow(row, detail.app.name)),
-    statement: fallback.statement,
+    statement: { revenue: [], charges: [], entries: [] },
   };
 
-  return { app, exampleSections: [...example] };
+  return { app };
 }

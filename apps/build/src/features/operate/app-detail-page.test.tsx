@@ -60,6 +60,7 @@ const payload = {
     hourly: {
       chats: [0, 2, 3],
       toolCalls: [1, 4, 5],
+      p95LatencyMs: [800, 1_200, 950],
       transactions: [0, 1, 1],
     },
   },
@@ -112,7 +113,7 @@ describe("AppDetailPage", () => {
       await screen.findByRole("heading", { name: "goal-digger" }),
     ).toBeInTheDocument();
     expect(operateAppDetailFetch).toHaveBeenCalledWith(1586, 77);
-    expect(screen.getByText("Partial example data")).toBeInTheDocument();
+    expect(screen.queryByText("Partial example data")).not.toBeInTheDocument();
     expect(screen.getByText("Conversion funnel · 24h")).toBeInTheDocument();
     expect(screen.getByText(/20 calls · 1 error/)).toBeInTheDocument();
     // Live rows: rejected renders as a failed chip, ISO time as a short clock.

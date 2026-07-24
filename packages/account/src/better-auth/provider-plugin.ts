@@ -6,12 +6,8 @@ import { z } from "zod";
 import {
   providerSessionUserSeed,
   verifyProviderCredential,
-} from "../providers/account-credentials";
-import {
-  getOrCreateAomiUserForBetterAuthSession,
-  isIdentityAlreadyLinkedError,
-} from "../service/account-service";
-import { linkVerifiedProviderCredentialForUser } from "../service/provider-exchange";
+} from "../providers";
+import { signInWithVerifiedProviderCredential } from "../service/provider-exchange";
 import { buildAccountResponse } from "../db/queries";
 import type { AomiAccountCredential } from "../types";
 
@@ -26,19 +22,12 @@ function decodeClaimsForLog(token: string): Record<string, unknown> {
   }
 }
 
-const bodySchema = z.discriminatedUnion("provider", [
-  z.object({
-    provider: z.literal("privy"),
-    tokenKind: z.enum(["identity_token", "access_token"]).optional(),
-    providerToken: z.string().min(1),
-  }),
-  z.object({
-    provider: z.literal("para"),
-    tokenKind: z.literal("session_jwt").optional(),
-    providerToken: z.string().min(1),
-    keyId: z.string().optional(),
-  }),
-]);
+const bodySchema = z.object({
+  provider: z.string().trim().min(1),
+  tokenKind: z.string().trim().min(1).optional(),
+  providerToken: z.string().min(1),
+  keyId: z.string().trim().min(1).optional(),
+});
 
 export function aomiProviderAuthPlugin(): BetterAuthPlugin {
   return {
@@ -85,52 +74,25 @@ export function aomiProviderAuthPlugin(): BetterAuthPlugin {
               emailVerified: seed.emailVerified,
               name: seed.name,
             }));
-          let aomiUser: Awaited<
-            ReturnType<typeof getOrCreateAomiUserForBetterAuthSession>
-          >;
-          try {
-            aomiUser = await getOrCreateAomiUserForBetterAuthSession({
-              betterAuthUserId: betterAuthUser.id,
-              email: seed.email,
-              emailVerified: seed.emailVerified,
-              name: seed.name,
-              accessSignals: [
-                {
-                  type: "identity",
-                  provider: verified.provider,
-                  subject: verified.token.subject,
-                },
-              ],
-            });
-          } catch (error) {
-            if (isIdentityAlreadyLinkedError(error)) {
-              console.error("provider exchange conflict", {
-                provider: verified.provider,
-                subject: verified.token.subject,
-                betterAuthUserId: betterAuthUser.id,
-                detail: error instanceof Error ? error.message : error,
-              });
-              throw new APIError("CONFLICT", {
-                message: "already_linked_to_another_account",
-              });
-            }
-            throw error;
-          }
-          const resolution = await linkVerifiedProviderCredentialForUser({
-            userId: aomiUser.id,
+          const resolution = await signInWithVerifiedProviderCredential({
+            betterAuthUserId: betterAuthUser.id,
             verified,
+            email: seed.email,
+            name: seed.name,
           });
           if (resolution.status === "conflict") {
             console.error("provider credential link conflict", {
               provider: verified.provider,
               subject: verified.token.subject,
-              resolvedAomiUser: aomiUser.id,
               betterAuthUserId: betterAuthUser.id,
+              signalType: resolution.signalType,
             });
             throw new APIError("CONFLICT", {
               message: "already_linked_to_another_account",
             });
           }
+          const aomiUser = resolution.user;
+          if (!aomiUser) throw new Error("resolved_account_not_found");
 
           const session = await ctx.context.internalAdapter.createSession(
             betterAuthUser.id,
@@ -142,9 +104,12 @@ export function aomiProviderAuthPlugin(): BetterAuthPlugin {
           return ctx.json({
             status: "linked",
             account: await buildAccountResponse({
-              user: resolution.user ?? aomiUser,
-              betterAuthUserId: betterAuthUser.id,
-              sessionExpiresAt: session.expiresAt,
+              user: aomiUser,
+              session: {
+                carrier: "better_auth",
+                betterAuthUserId: betterAuthUser.id,
+                expiresAt: session.expiresAt,
+              },
             }),
           });
         },

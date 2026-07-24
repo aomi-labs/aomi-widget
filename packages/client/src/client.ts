@@ -251,7 +251,10 @@ function wrapFetchWithAccountBearer(
       let bearer: string | null | undefined;
       try {
         bearer = await getAccountBearer({ forceRefresh });
-      } catch {
+      } catch (error) {
+        if (getAccountBearer.required) {
+          throw error;
+        }
         bearer = undefined;
       }
       if (bearer) {

@@ -45,10 +45,17 @@ export type AomiClientOptions = {
   logger?: Logger;
 };
 
-export type GetAccountBearer = (options?: {
+export type GetAccountBearer = ((options?: {
   /** Force a refresh after an API 401. */
   forceRefresh?: boolean;
-}) => Promise<string | null | undefined>;
+}) => Promise<string | null | undefined>) & {
+  /**
+   * When true, a throwing bearer source is fatal: the wrapped fetch rethrows
+   * instead of proceeding unauthenticated. Providers that mint a required
+   * (widget) session set this; additive account bearers leave it unset.
+   */
+  required?: boolean;
+};
 
 export type AomiRequestQueryValue =
   | string
