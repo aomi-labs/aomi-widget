@@ -6,7 +6,7 @@ const queryMocks = vi.hoisted(() => ({
   buildAccountResponse: vi.fn(),
   clearAomiBetterAuthUserIds: vi.fn(),
   countLoginFactors: vi.fn(),
-  createAomiUserForBetterAuth: vi.fn(),
+  createAomiUser: vi.fn(),
   deactivateAomiUser: vi.fn(),
   deleteBetterAuthSiweWallet: vi.fn(),
   deleteBetterAuthSiwsWallet: vi.fn(),
@@ -14,11 +14,13 @@ const queryMocks = vi.hoisted(() => ({
   findAomiUserById: vi.fn(),
   findAomiUserByBetterAuthId: vi.fn(),
   findLegacyBackendUserIdByWallet: vi.fn(),
+  findProviderSubjectOwners: vi.fn(),
   findSignalOwner: vi.fn(),
   findWalletById: vi.fn(),
   listBetterAuthSiweWallets: vi.fn(),
   listBetterAuthSiwsWallets: vi.fn(),
   listWalletsForUser: vi.fn(),
+  lockIdentityResolutionKeys: vi.fn(),
   logAccountEvent: vi.fn(),
   revokeAllAuthIdentitiesForUser: vi.fn(),
   revokeAllWalletsForUser: vi.fn(),
@@ -43,11 +45,42 @@ describe("getOrCreateAomiUserForBetterAuthSession adoption", () => {
     vi.clearAllMocks();
   });
 
+  it("links a verified provider email without overwriting the canonical profile", async () => {
+    const db = { tag: "transaction-client" };
+    queryMocks.runAomiAuthSchema.mockResolvedValue(undefined);
+    queryMocks.findSignalOwner.mockResolvedValue(null);
+    queryMocks.upsertAuthIdentity.mockResolvedValue({ id: "provider-row" });
+    queryMocks.upsertEmailIdentity.mockResolvedValue({ id: "email-row" });
+
+    const { linkProviderIdentity } =
+      await import("../src/service/account-service");
+    await expect(
+      linkProviderIdentity({
+        userId: "canonical-user",
+        provider: "para",
+        issuerEnvironment: "para:beta",
+        tenantId: "project-a",
+        subject: "provider-subject",
+        email: "claimed@example.com",
+        emailVerified: true,
+        db: db as never,
+      }),
+    ).resolves.toMatchObject({ status: "linked" });
+
+    expect(queryMocks.upsertEmailIdentity).toHaveBeenCalledWith({
+      userId: "canonical-user",
+      email: "claimed@example.com",
+      db,
+    });
+    expect(queryMocks.updateAomiUserProfile).not.toHaveBeenCalled();
+  });
+
   it("preserves an existing wallet-keyed canonical UUID on first BetterAuth SIWE login", async () => {
     const legacyUserId = "2f7d9690-10aa-49f2-9f20-067aa8cc9a17";
     const db = { tag: "transaction-client" };
     queryMocks.runAomiAuthSchema.mockResolvedValue(undefined);
     queryMocks.withTransaction.mockImplementation(async (fn) => fn(db));
+    queryMocks.findProviderSubjectOwners.mockResolvedValue([]);
     queryMocks.findAomiUserByBetterAuthId.mockResolvedValue(null);
     queryMocks.listBetterAuthSiweWallets.mockResolvedValue([
       {
@@ -59,11 +92,11 @@ describe("getOrCreateAomiUserForBetterAuthSession adoption", () => {
       },
     ]);
     queryMocks.listBetterAuthSiwsWallets.mockResolvedValue([]);
-    queryMocks.findSignalOwner.mockResolvedValue(null);
-    queryMocks.findLegacyBackendUserIdByWallet.mockResolvedValue(legacyUserId);
-    queryMocks.createAomiUserForBetterAuth.mockResolvedValue({
-      id: legacyUserId,
-    });
+    queryMocks.findSignalOwner.mockImplementation(async (signal) =>
+      signal.type === "wallet" ? legacyUserId : null,
+    );
+    queryMocks.findAomiUserById.mockResolvedValue({ id: legacyUserId });
+    queryMocks.updateAomiUserProfile.mockResolvedValue({ id: legacyUserId });
 
     const { getOrCreateAomiUserForBetterAuthSession } =
       await import("../src/service/account-service");
@@ -76,17 +109,7 @@ describe("getOrCreateAomiUserForBetterAuthSession adoption", () => {
     });
 
     expect(user.id).toBe(legacyUserId);
-    expect(queryMocks.findLegacyBackendUserIdByWallet).toHaveBeenCalledWith(
-      "0xfcad0b19bb29d4674531d6f115237e16afce377c",
-      db,
-    );
-    expect(queryMocks.createAomiUserForBetterAuth).toHaveBeenCalledWith(
-      expect.objectContaining({
-        userId: legacyUserId,
-        betterAuthUserId: "ba-user-1",
-        db,
-      }),
-    );
+    expect(queryMocks.createAomiUser).not.toHaveBeenCalled();
     expect(queryMocks.upsertAuthIdentity).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: legacyUserId,
@@ -104,6 +127,7 @@ describe("getOrCreateAomiUserForBetterAuthSession adoption", () => {
     const db = { tag: "transaction-client" };
     queryMocks.runAomiAuthSchema.mockResolvedValue(undefined);
     queryMocks.withTransaction.mockImplementation(async (fn) => fn(db));
+    queryMocks.findProviderSubjectOwners.mockResolvedValue([]);
     queryMocks.findAomiUserByBetterAuthId.mockResolvedValue(null);
     queryMocks.listBetterAuthSiweWallets.mockResolvedValue([]);
     queryMocks.listBetterAuthSiwsWallets.mockResolvedValue([

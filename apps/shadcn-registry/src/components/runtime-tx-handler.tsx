@@ -312,11 +312,6 @@ export function RuntimeTxHandler() {
         }
 
         // req.kind === "eip712_sign"
-        if (!adapter.signTypedData) {
-          await rejectWalletRequest(req.id, "Wallet provider is not ready");
-          return;
-        }
-
         const signArgs = toViemSignTypedDataArgs(req.payload);
         const messageArgs = toViemSignMessageArgs(req.payload);
         if (signArgs && messageArgs) {

@@ -1,5 +1,7 @@
 import { importSPKI, jwtVerify } from "jose";
+import { z } from "zod";
 import type { VerifiedPrivyToken, WalletFamily } from "../types";
+import type { WidgetProviderDescriptor } from "./descriptor";
 import { validWalletAddress, type AttestedWallet } from "./wallet-attestation";
 
 type PrivyClaims = {
@@ -16,6 +18,23 @@ type PrivyClaims = {
 };
 
 const PRIVY_WALLETS_URL = "https://api.privy.io/v1/wallets";
+
+export const privyWidgetDescriptor: WidgetProviderDescriptor = {
+  id: "privy",
+  credentialSchema: z.object({
+    provider: z.literal("privy"),
+    environment: z.string().trim().min(1),
+    provider_token: z.string().min(1),
+    key_id: z.string().trim().min(1).optional(),
+  }),
+  policy: {
+    subjectIsEnvironmentGlobal: false,
+    widgetEnabled: false,
+  },
+  verifyWidgetCredential: async () => {
+    throw new Error("provider_not_enabled");
+  },
+};
 
 export interface VerifiedPrivyAccessToken {
   userId: string;

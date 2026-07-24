@@ -11,6 +11,7 @@ import {
   buildAAExecutionPlan,
   getAAChainConfig,
 } from "../types";
+import { safeEnv } from "../../internal/env";
 
 export interface PimlicoResolveOptions {
   calls: AAWalletCall[] | null;
@@ -65,7 +66,12 @@ export function resolvePimlicoConfig(
     return null;
   }
 
-  const apiKey = preResolvedApiKey ?? process.env.PIMLICO_API_KEY?.trim() ?? (publicOnly ? process.env.NEXT_PUBLIC_PIMLICO_API_KEY?.trim() : undefined);
+  const apiKey =
+    preResolvedApiKey ??
+    safeEnv(() => process.env.PIMLICO_API_KEY)?.trim() ??
+    (publicOnly
+      ? safeEnv(() => process.env.NEXT_PUBLIC_PIMLICO_API_KEY)?.trim()
+      : undefined);
   if (!apiKey) {
     if (throwOnMissingConfig) {
       throw new Error("Pimlico AA requires PIMLICO_API_KEY.");

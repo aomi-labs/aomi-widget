@@ -82,4 +82,5 @@ export type AccountRuntime = {
   updateWallet?: (input: UpdateWalletInput) => Promise<void>;
   unlinkWallet?: (walletId: string) => Promise<void>;
   unlinkAuthIdentity?: (identityId: string) => Promise<void>;
+  getAccountBearer?: import("@aomi-labs/client").GetAccountBearer;
 };

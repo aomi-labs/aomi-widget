@@ -53,6 +53,8 @@ export async function linkVerifiedProviderCredentialForUser(input: {
       const resolution = await linkProviderIdentity({
         userId: input.userId,
         provider: input.verified.provider,
+        issuerEnvironment: input.verified.issuerEnvironment,
+        tenantId: input.verified.tenantId,
         subject: input.verified.token.subject,
         email: input.verified.token.email,
         emailVerified: input.verified.token.emailVerified,
@@ -66,6 +68,8 @@ export async function linkVerifiedProviderCredentialForUser(input: {
       const walletResolution = await syncProviderAttestedWallets({
         userId: input.userId,
         provider: input.verified.walletAttestationProvider,
+        issuerEnvironment: input.verified.issuerEnvironment,
+        tenantId: input.verified.tenantId,
         subject: input.verified.token.subject,
         email: input.verified.token.email,
         fallbackAttested: input.verified.token.walletAttestations,
@@ -120,7 +124,10 @@ export async function exchangeProviderForExistingSession(input: {
     status: "linked",
     account: await buildAccountResponse({
       user: resolution.user ?? user,
-      betterAuthUserId: input.betterAuthUserId,
+      session: {
+        carrier: "better_auth",
+        betterAuthUserId: input.betterAuthUserId,
+      },
     }),
   };
 }

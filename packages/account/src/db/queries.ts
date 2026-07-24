@@ -1,20 +1,20 @@
 import { randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import { getPool } from "./pool";
-import type {
-  AccountWallet,
-  AomiAccountResponse,
-  AomiUserId,
-  AuthIdentityProvider,
-  BetterAuthUserId,
-  DbAomiAuthIdentity,
-  DbAomiUser,
-  DbAomiWallet,
-  LinkedAuthAccount,
-  LinkedVia,
-  SignalRef,
-  WalletFamily,
-  WalletKind,
+import {
+  IDENTITY_SCOPES,
+  type AccountWallet,
+  type AomiAccountResponse,
+  type AomiUserId,
+  type AuthIdentityProvider,
+  type DbAomiAuthIdentity,
+  type DbAomiUser,
+  type DbAomiWallet,
+  type LinkedAuthAccount,
+  type LinkedVia,
+  type SignalRef,
+  type WalletFamily,
+  type WalletKind,
 } from "../types";
 import { normalizeWalletAddress } from "../service/wallet-normalization";
 
@@ -47,24 +47,6 @@ export async function withTransaction<T>(
   }
 }
 
-export async function findAomiUserByBetterAuthId(
-  betterAuthUserId: BetterAuthUserId,
-  db: Db = getPool(),
-): Promise<DbAomiUser | null> {
-  const result = await db.query(
-    `select u.*
-       from auth_providers ap
-       join users u on u.id = ap.user_id
-      where ap.provider = any($1::text[])
-        and ap.subject = $2
-        and coalesce(u.status, '') <> 'deactivated'
-      order by ap.is_primary desc, ap.created_at asc
-      limit 1`,
-    [[BETTER_AUTH_PROVIDER, "better_auth"], betterAuthUserId],
-  );
-  return result.rows[0] ? mapUser(result.rows[0]) : null;
-}
-
 export async function findAomiUserById(
   userId: AomiUserId,
   db: Db = getPool(),
@@ -78,9 +60,8 @@ export async function findAomiUserById(
   return result.rows[0] ? mapUser(result.rows[0]) : null;
 }
 
-export async function createAomiUserForBetterAuth(input: {
+export async function createAomiUser(input: {
   userId?: AomiUserId;
-  betterAuthUserId: BetterAuthUserId;
   email?: string | null;
   name?: string | null;
   avatarUrl?: string | null;
@@ -90,6 +71,11 @@ export async function createAomiUserForBetterAuth(input: {
   const db = input.db ?? getPool();
   const userId = input.userId ?? randomUUID();
   const now = nowSeconds();
+  const username = await resolveAvailableUsername(
+    db,
+    input.displayName ?? input.name ?? deriveDisplayName(input.email),
+    userId,
+  );
   const result = await db.query(
     `insert into users (id, username, created_at, updated_at)
      values ($1, $2, $3, $3)
@@ -97,38 +83,52 @@ export async function createAomiUserForBetterAuth(input: {
        username = coalesce(users.username, excluded.username),
        updated_at = excluded.updated_at
      returning *`,
-    [
-      userId,
-      input.displayName ?? input.name ?? deriveDisplayName(input.email),
-      now,
-    ],
+    [userId, username, now],
   );
   return mapUser(result.rows[0]);
 }
 
-export async function findLegacyBackendUserIdByWallet(
-  normalizedAddress: string,
-  db: Db = getPool(),
-): Promise<AomiUserId | null> {
-  const publicKey = await db.query(
-    `select user_id from public_keys
-      where chain_type = 'evm'
-        and lower(address) = $1
-      limit 1`,
-    [normalizedAddress],
-  );
-  const publicKeyOwner =
-    (publicKey.rows[0]?.user_id as string | undefined) ?? null;
-  if (publicKeyOwner) return publicKeyOwner;
+// `users.username` is a unique column, and the handle we derive from a
+// provider's claimed name/email can already be held by another canonical user
+// — including a handle a third party seeded first to grief a login. A bare
+// insert would then raise 23505 and burn the identity-resolution retry loop
+// into a login 500. Pick the first free handle deterministically (the base,
+// then `base-<stable suffix>` variants derived from the new user id) so account
+// creation never fails on username contention. A rare check-then-insert race
+// still surfaces as 23505, which the caller's transaction retry re-runs; the
+// re-run sees the handle taken and advances to a suffixed variant.
+async function resolveAvailableUsername(
+  db: Db,
+  base: string | null,
+  userId: string,
+): Promise<string | null> {
+  if (!base) return null;
+  if (!(await usernameExists(db, base))) return base;
+  const seed = userId.replace(/-/g, "");
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const candidate = `${base}-${seed.slice(0, 6 + attempt)}`;
+    if (!(await usernameExists(db, candidate))) return candidate;
+  }
+  return `${base}-${randomUUID().replace(/-/g, "").slice(0, 12)}`;
+}
 
-  const provider = await db.query(
-    `select user_id from auth_providers
-      where provider in ('wallet', 'siwe')
-        and (lower(coalesce(subject, '')) = $1 or (method = 'wallet' and lower(value) = $1))
-      limit 1`,
-    [normalizedAddress],
+async function usernameExists(db: Db, username: string): Promise<boolean> {
+  const result = await db.query(
+    `select 1 from users where username = $1 limit 1`,
+    [username],
   );
-  return (provider.rows[0]?.user_id as string | undefined) ?? null;
+  return (result.rowCount ?? result.rows.length) > 0;
+}
+
+export async function lockIdentityResolutionKeys(
+  keys: readonly string[],
+  db: Db,
+): Promise<void> {
+  for (const key of [...new Set(keys)].sort()) {
+    await db.query(`select pg_advisory_xact_lock(hashtextextended($1, 0))`, [
+      key,
+    ]);
+  }
 }
 
 export async function listBetterAuthSiwsWallets(
@@ -208,10 +208,17 @@ export async function findSignalOwner(
          from auth_providers ap
          join users u on u.id = ap.user_id
         where ap.provider = $1
-          and ap.subject = $2
+          and ap.issuer_environment = $2
+          and ap.tenant_id = $3
+          and ap.subject = $4
           and coalesce(u.status, '') <> 'deactivated'
         limit 1`,
-      [canonicalProvider(signal.provider), signal.subject],
+      [
+        canonicalProvider(signal.provider),
+        signal.issuerEnvironment,
+        signal.tenantId,
+        signal.subject,
+      ],
     );
     return (result.rows[0]?.user_id as string | undefined) ?? null;
   }
@@ -227,6 +234,26 @@ export async function findSignalOwner(
     [signal.email],
   );
   return (result.rows[0]?.user_id as string | undefined) ?? null;
+}
+
+export async function findProviderSubjectOwners(
+  provider: AuthIdentityProvider,
+  issuerEnvironment: string,
+  subject: string,
+  db: Db = getPool(),
+): Promise<AomiUserId[]> {
+  const result = await db.query(
+    `select distinct ap.user_id
+       from auth_providers ap
+       join users u on u.id = ap.user_id
+      where ap.provider = $1
+        and ap.issuer_environment = $2
+        and ap.subject = $3
+        and coalesce(u.status, '') <> 'deactivated'
+      order by ap.user_id`,
+    [canonicalProvider(provider), issuerEnvironment, subject],
+  );
+  return result.rows.map((row) => String(row.user_id));
 }
 
 export async function countLoginFactors(
@@ -248,6 +275,8 @@ export async function countLoginFactors(
 export async function upsertAuthIdentity(input: {
   userId: AomiUserId;
   provider: AuthIdentityProvider;
+  issuerEnvironment: string;
+  tenantId: string;
   subject: string;
   email?: string | null;
   displayLabel?: string | null;
@@ -267,10 +296,11 @@ export async function upsertAuthIdentity(input: {
     provider === "email" ? (input.email ?? input.subject) : input.subject;
   const result = await db.query(
     `insert into auth_providers
-       (user_id, provider, subject, method, value, verified_at, is_primary,
-        provider_metadata, created_at, updated_at)
-     values ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $9)
-     on conflict (provider, subject) where subject is not null
+       (user_id, provider, issuer_environment, tenant_id, subject, method,
+        value, verified_at, is_primary, provider_metadata, created_at, updated_at)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11, $11)
+     on conflict (provider, issuer_environment, tenant_id, subject)
+       where subject is not null
      do update set
        value = excluded.value,
        verified_at = coalesce(auth_providers.verified_at, excluded.verified_at),
@@ -282,6 +312,8 @@ export async function upsertAuthIdentity(input: {
     [
       input.userId,
       provider,
+      input.issuerEnvironment,
+      input.tenantId,
       input.subject,
       method,
       value.trim(),
@@ -305,6 +337,7 @@ export async function upsertEmailIdentity(input: {
   return upsertAuthIdentity({
     userId: input.userId,
     provider: "email",
+    ...IDENTITY_SCOPES.email,
     subject: input.email.toLowerCase(),
     email: input.email,
     db: input.db,
@@ -314,15 +347,24 @@ export async function upsertEmailIdentity(input: {
 export async function revokeAuthIdentity(input: {
   userId: AomiUserId;
   provider: AuthIdentityProvider;
+  issuerEnvironment: string;
+  tenantId: string;
   subject: string;
   db?: Db;
 }): Promise<boolean> {
   const db = input.db ?? getPool();
   const identity = await db.query(
     `select id from auth_providers
-      where user_id = $1 and provider = $2 and subject = $3
+      where user_id = $1 and provider = $2
+        and issuer_environment = $3 and tenant_id = $4 and subject = $5
       limit 1`,
-    [input.userId, canonicalProvider(input.provider), input.subject],
+    [
+      input.userId,
+      canonicalProvider(input.provider),
+      input.issuerEnvironment,
+      input.tenantId,
+      input.subject,
+    ],
   );
   const identityId = identity.rows[0]?.id;
   if (identityId != null) {
@@ -332,8 +374,15 @@ export async function revokeAuthIdentity(input: {
   }
   const result = await db.query(
     `delete from auth_providers
-      where user_id = $1 and provider = $2 and subject = $3`,
-    [input.userId, canonicalProvider(input.provider), input.subject],
+      where user_id = $1 and provider = $2
+        and issuer_environment = $3 and tenant_id = $4 and subject = $5`,
+    [
+      input.userId,
+      canonicalProvider(input.provider),
+      input.issuerEnvironment,
+      input.tenantId,
+      input.subject,
+    ],
   );
   return (result.rowCount ?? 0) > 0;
 }
@@ -368,6 +417,8 @@ export async function upsertWallet(input: {
   kind: WalletKind;
   provider?: string | null;
   providerSubject?: string | null;
+  providerIssuerEnvironment?: string | null;
+  providerTenantId?: string | null;
   providerWalletId?: string | null;
   linkedVia: LinkedVia;
   label?: string | null;
@@ -629,9 +680,18 @@ export async function findWalletById(
 
 export async function buildAccountResponse(input: {
   user: DbAomiUser;
-  betterAuthUserId: string;
-  sessionExpiresAt?: Date | string | number | null;
-  sessionFresh?: boolean;
+  session:
+    | {
+        carrier: "better_auth";
+        betterAuthUserId: string;
+        expiresAt?: Date | string | number | null;
+        fresh?: boolean;
+      }
+    | {
+        carrier: "widget";
+        expiresAt: Date | string | number;
+        authMethod: string;
+      };
   db?: Db;
 }): Promise<AomiAccountResponse> {
   const [identities, wallets] = await Promise.all([
@@ -647,11 +707,19 @@ export async function buildAccountResponse(input: {
     },
     linkedAccounts: identities.map(toLinkedAccount),
     wallets: wallets.map(toAccountWallet),
-    session: {
-      betterAuthUserId: input.betterAuthUserId,
-      expiresAt: toMillis(input.sessionExpiresAt),
-      fresh: input.sessionFresh,
-    },
+    session:
+      input.session.carrier === "better_auth"
+        ? {
+            carrier: "better_auth",
+            betterAuthUserId: input.session.betterAuthUserId,
+            expiresAt: toMillis(input.session.expiresAt),
+            fresh: input.session.fresh,
+          }
+        : {
+            carrier: "widget",
+            expiresAt: toMillis(input.session.expiresAt) ?? 0,
+            authMethod: input.session.authMethod,
+          },
   };
 }
 
@@ -772,6 +840,8 @@ async function resolveWalletAuthProvider(
     address: string;
     provider?: string | null;
     providerSubject?: string | null;
+    providerIssuerEnvironment?: string | null;
+    providerTenantId?: string | null;
     label?: string | null;
     linkedVia: LinkedVia;
   },
@@ -789,9 +859,23 @@ async function resolveWalletAuthProvider(
         ? siwsSubject(input.address)
         : null);
   if (subject) {
+    const staticScope =
+      provider === "siwe"
+        ? IDENTITY_SCOPES.siwe
+        : provider === "siws"
+          ? IDENTITY_SCOPES.siws
+          : null;
+    const issuerEnvironment =
+      input.providerIssuerEnvironment ?? staticScope?.issuerEnvironment;
+    const tenantId = input.providerTenantId ?? staticScope?.tenantId;
+    if (!issuerEnvironment || !tenantId) {
+      throw new Error(`Provider identity scope is required for ${provider}`);
+    }
     const identity = await upsertAuthIdentity({
       userId: input.userId,
       provider,
+      issuerEnvironment,
+      tenantId,
       subject,
       db,
     });
@@ -832,6 +916,8 @@ function mapIdentity(row: Row): DbAomiAuthIdentity {
     id: String(row.id),
     userId: String(row.user_id),
     provider,
+    issuerEnvironment: String(row.issuer_environment),
+    tenantId: String(row.tenant_id),
     subject: String(row.subject ?? row.value ?? ""),
     email: optionalString(metadata.email),
     displayLabel: optionalString(metadata.display_label),
@@ -876,6 +962,8 @@ function toLinkedAccount(identity: DbAomiAuthIdentity): LinkedAuthAccount {
   return {
     id: identity.id,
     provider: identity.provider,
+    issuerEnvironment: identity.issuerEnvironment,
+    tenantId: identity.tenantId,
     subject: identity.subject,
     email: identity.email ?? undefined,
     displayLabel: identity.displayLabel ?? undefined,

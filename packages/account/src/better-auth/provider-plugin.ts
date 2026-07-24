@@ -6,7 +6,7 @@ import { z } from "zod";
 import {
   providerSessionUserSeed,
   verifyProviderCredential,
-} from "../providers/account-credentials";
+} from "../providers";
 import {
   getOrCreateAomiUserForBetterAuthSession,
   isIdentityAlreadyLinkedError,
@@ -14,6 +14,7 @@ import {
 import { linkVerifiedProviderCredentialForUser } from "../service/provider-exchange";
 import { buildAccountResponse } from "../db/queries";
 import type { AomiAccountCredential } from "../types";
+import { IdentityConflictError } from "../service/identity-resolution";
 
 /** aud/iss/exp of a rejected provider token, for the server log. Never the token. */
 function decodeClaimsForLog(token: string): Record<string, unknown> {
@@ -26,19 +27,12 @@ function decodeClaimsForLog(token: string): Record<string, unknown> {
   }
 }
 
-const bodySchema = z.discriminatedUnion("provider", [
-  z.object({
-    provider: z.literal("privy"),
-    tokenKind: z.enum(["identity_token", "access_token"]).optional(),
-    providerToken: z.string().min(1),
-  }),
-  z.object({
-    provider: z.literal("para"),
-    tokenKind: z.literal("session_jwt").optional(),
-    providerToken: z.string().min(1),
-    keyId: z.string().optional(),
-  }),
-]);
+const bodySchema = z.object({
+  provider: z.string().trim().min(1),
+  tokenKind: z.string().trim().min(1).optional(),
+  providerToken: z.string().min(1),
+  keyId: z.string().trim().min(1).optional(),
+});
 
 export function aomiProviderAuthPlugin(): BetterAuthPlugin {
   return {
@@ -85,6 +79,14 @@ export function aomiProviderAuthPlugin(): BetterAuthPlugin {
               emailVerified: seed.emailVerified,
               name: seed.name,
             }));
+          // Resolve the canonical Aomi user for this Better Auth session with
+          // the provider identity supplied as an access signal, so the Better
+          // Auth subject, the provider identity, and any wallet/email signals
+          // unify under one canonical user in a single atomic resolution. No
+          // canonical user is persisted for the provider identity ahead of
+          // this: an earlier eager resolve committed the provider user first,
+          // and when the two resolutions disagreed that orphan permanently
+          // owned the provider credential and bricked every later login.
           let aomiUser: Awaited<
             ReturnType<typeof getOrCreateAomiUserForBetterAuthSession>
           >;
@@ -98,11 +100,22 @@ export function aomiProviderAuthPlugin(): BetterAuthPlugin {
                 {
                   type: "identity",
                   provider: verified.provider,
+                  issuerEnvironment: verified.issuerEnvironment,
+                  tenantId: verified.tenantId,
                   subject: verified.token.subject,
                 },
               ],
             });
           } catch (error) {
+            if (error instanceof IdentityConflictError) {
+              console.error("provider exchange identity conflict", {
+                provider: verified.provider,
+                subject: verified.token.subject,
+                betterAuthUserId: betterAuthUser.id,
+                owners: error.owners,
+              });
+              throw new APIError("CONFLICT", { message: "identity_conflict" });
+            }
             if (isIdentityAlreadyLinkedError(error)) {
               console.error("provider exchange conflict", {
                 provider: verified.provider,
@@ -143,8 +156,11 @@ export function aomiProviderAuthPlugin(): BetterAuthPlugin {
             status: "linked",
             account: await buildAccountResponse({
               user: resolution.user ?? aomiUser,
-              betterAuthUserId: betterAuthUser.id,
-              sessionExpiresAt: session.expiresAt,
+              session: {
+                carrier: "better_auth",
+                betterAuthUserId: betterAuthUser.id,
+                expiresAt: session.expiresAt,
+              },
             }),
           });
         },

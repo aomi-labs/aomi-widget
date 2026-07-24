@@ -1,19 +1,20 @@
-import { requireAomiSession } from "@portal/lib/aomi-account/session";
+import { resolvePortalCanonicalUserId } from "@portal/lib/widget-auth/principal";
 import { resolveE2ECanonicalUserId } from "@portal/server/e2e-wallet";
 
 /**
- * Resolve the canonical backend user id for the current BetterAuth session.
- * `getOrCreateAomiUserForBetterAuthSession` (via `requireAomiSession`) already
- * writes the canonical `users` / `auth_providers` rows the Rust backend reads,
- * so its `user.id` IS the AccountBearer `sub`. An identity already linked to
- * another account throws (`identity_already_linked_to_another_account`)
- * rather than silently rebinding.
+ * Resolve the canonical backend user id for a cross-origin proxy request,
+ * honouring the E2E canonical-user override before falling back to the portal
+ * principal (BetterAuth session or widget session). The override is gated
+ * behind the E2E wallet env + a signed cookie, so it is inert in normal
+ * runtime.
+ *
+ * This lives in `src/server` (rather than inside `principal.ts`) so the
+ * server-only E2E wallet module is never pulled into shared `src/lib` code.
  */
-export async function resolveBetterAuthCanonicalUserId(
-  req: Request,
+export async function resolveCanonicalUserId(
+  request: Request,
 ): Promise<string | null> {
-  const e2eUserId = resolveE2ECanonicalUserId(req);
+  const e2eUserId = resolveE2ECanonicalUserId(request);
   if (e2eUserId) return e2eUserId;
-  const result = await requireAomiSession(req);
-  return result?.user.id ?? null;
+  return resolvePortalCanonicalUserId(request);
 }

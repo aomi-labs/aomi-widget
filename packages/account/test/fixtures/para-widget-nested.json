@@ -1,0 +1,11 @@
+{
+  "sub": "para-subject-shared",
+  "aud": "para-project-beta",
+  "data": {
+    "email": "nested@example.test",
+    "emailVerified": true,
+    "identifier": "nested-user",
+    "wallets": [{ "id": "wallet-untrusted", "type": "SOLANA" }],
+    "connectedWallets": [{ "id": "external-untrusted", "type": "EVM" }]
+  }
+}

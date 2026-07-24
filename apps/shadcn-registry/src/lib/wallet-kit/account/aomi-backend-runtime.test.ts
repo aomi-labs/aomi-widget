@@ -61,6 +61,188 @@ beforeEach(() => {
 });
 
 describe("useAomiBackendAccountRuntime", () => {
+  it("keeps a provider-authenticated widget idle until the host signs in", async () => {
+    const getCredential = vi.fn();
+
+    const { result } = renderHook(() =>
+      useAomiBackendAccountRuntime({
+        enabled: true,
+        baseUrl: "http://localhost:3002",
+        widgetAuth: {
+          mode: "provider",
+          provider: "para",
+          environment: "BETA",
+        },
+        auth: {
+          status: "unauthenticated",
+          provider: "para",
+          getCredential,
+        } as never,
+        evm: { accounts: () => [] } as never,
+      }),
+    );
+
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+    expect(mockState.accountClient?.getAccount).not.toHaveBeenCalled();
+    expect(getCredential).not.toHaveBeenCalled();
+    expect(result.current.getAccountBearer).toBeUndefined();
+    expect(result.current.user).toBeUndefined();
+  });
+
+  it("keeps a wallet-mode widget idle (no error) until a wallet connects", async () => {
+    const { result } = renderHook(() =>
+      useAomiBackendAccountRuntime({
+        enabled: true,
+        baseUrl: "http://localhost:3002",
+        widgetAuth: { mode: "wallet" },
+        auth: {
+          status: "unauthenticated",
+          provider: "wallet",
+        } as never,
+        // No active connection and no signer -> no usable widget credentials.
+        evm: { accounts: () => [], activeEvmConnection: undefined } as never,
+      }),
+    );
+
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+    expect(result.current.status).not.toBe("error");
+    expect(mockState.accountClient?.getAccount).not.toHaveBeenCalled();
+    expect(result.current.getAccountBearer).toBeUndefined();
+    expect(result.current.user).toBeUndefined();
+  });
+
+  it("fires a single GET /account on mount when the widget is ready", async () => {
+    const { result } = renderHook(() =>
+      useAomiBackendAccountRuntime({
+        enabled: true,
+        baseUrl: "http://localhost:3002",
+        widgetAuth: { mode: "wallet" },
+        auth: {
+          status: "unauthenticated",
+          provider: "wallet",
+        } as never,
+        evm: {
+          accounts: () => [],
+          activeAccount: undefined,
+          activeEvmConnection: {
+            address: "0x1111111111111111111111111111111111111111",
+            chainId: 1,
+          },
+          signMessageAsync: vi.fn().mockResolvedValue("0xsig"),
+        } as never,
+      }),
+    );
+
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+    // Both mount effects call refresh; the in-flight guard coalesces them.
+    expect(mockState.accountClient?.getAccount).toHaveBeenCalledTimes(1);
+    expect(result.current.getAccountBearer).toBeDefined();
+  });
+
+  it("ignores an old account response after the provider subject changes", async () => {
+    let resolveOld!: (value: {
+      user: { id: string };
+      linkedAccounts: never[];
+      wallets: never[];
+      session: null;
+    }) => void;
+    const oldResponse = new Promise<{
+      user: { id: string };
+      linkedAccounts: never[];
+      wallets: never[];
+      session: null;
+    }>((resolve) => {
+      resolveOld = resolve;
+    });
+    const oldClient = mockState.accountClient!;
+    oldClient.getAccount.mockReturnValue(oldResponse);
+    const getCredential = vi.fn();
+
+    const { result, rerender } = renderHook(
+      ({ subject }: { subject: string }) =>
+        useAomiBackendAccountRuntime({
+          enabled: true,
+          baseUrl: "http://localhost:3002",
+          widgetAuth: {
+            mode: "provider",
+            provider: "para",
+            environment: "BETA",
+          },
+          auth: {
+            status: "authenticated",
+            provider: "para",
+            subject,
+            getCredential,
+          } as never,
+          evm: { accounts: () => [] } as never,
+        }),
+      { initialProps: { subject: "user-a" } },
+    );
+
+    await waitFor(() => expect(oldClient.getAccount).toHaveBeenCalled());
+
+    const newClient = {
+      ...oldClient,
+      getAccount: vi.fn().mockResolvedValue({
+        user: { id: "user-b" },
+        linkedAccounts: [],
+        wallets: [],
+        session: null,
+      }),
+    };
+    mockState.accountClient = newClient;
+    rerender({ subject: "user-b" });
+
+    await waitFor(() => expect(result.current.user?.id).toBe("user-b"));
+    await act(async () => {
+      resolveOld({
+        user: { id: "user-a" },
+        linkedAccounts: [],
+        wallets: [],
+        session: null,
+      });
+      await oldResponse;
+    });
+    expect(result.current.user?.id).toBe("user-b");
+  });
+
+  it("revokes a widget account before provider logout without issuing a fresh credential", async () => {
+    const callOrder: string[] = [];
+    const getCredential = vi.fn();
+    const logout = vi.fn(async () => {
+      callOrder.push("provider-logout");
+    });
+    mockState.accountClient!.signOut.mockImplementation(async () => {
+      callOrder.push("account-sign-out");
+    });
+
+    const { result } = renderHook(() =>
+      useAomiBackendAccountRuntime({
+        enabled: true,
+        baseUrl: "http://localhost:3002",
+        widgetAuth: {
+          mode: "provider",
+          provider: "para",
+          environment: "BETA",
+        },
+        auth: {
+          status: "authenticated",
+          provider: "para",
+          subject: "para-user",
+          getCredential,
+          logout,
+        } as never,
+        evm: { accounts: () => [] } as never,
+      }),
+    );
+
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+    await act(async () => result.current.signOut?.());
+
+    expect(getCredential).not.toHaveBeenCalled();
+    expect(callOrder).toEqual(["account-sign-out", "provider-logout"]);
+  });
+
   it("lets provider-credential session exchange create the account before auto-SIWE", async () => {
     const credential: AomiAccountCredential = {
       provider: "para",

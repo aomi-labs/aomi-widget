@@ -45,11 +45,11 @@ jobs:
         env:
           NEXT_PUBLIC_BACKEND_URL: ${{ vars.NEXT_PUBLIC_BACKEND_URL }}
 
-      - name: Run registry tests
-        run: pnpm --dir apps/shadcn-registry exec vitest run
-
       - name: Build registry
         run: pnpm run build:registry
+
+      - name: Run registry tests
+        run: pnpm --dir apps/shadcn-registry exec vitest run
 
       - name: Build landing app
         run: pnpm --filter landing build
