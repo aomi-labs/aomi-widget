@@ -26,6 +26,11 @@ tables; fresh databases also finish replay with that drop.
 
 Progress:
 
+- 2026-07-24 idempotent npm publishing: changed the post-merge publish job to
+  skip exact package versions that are already live, publish only missing
+  versions, and fail closed on registry errors other than a definitive 404.
+  This makes reruns safe after partial publication or transient npm outages.
+
 - 2026-07-24 atomic account ownership: split provider sign-in from authenticated
   linking and preflight every verified provider, email, BetterAuth, EVM, and
   Solana signal under one transaction before creating or attaching canonical
