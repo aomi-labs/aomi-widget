@@ -1,5 +1,6 @@
 import { readAccountAuthEnv } from "../better-auth/env";
 import { getPool } from "../db/pool";
+import type { PoolClient } from "pg";
 import {
   buildAccountResponse,
   clearAomiBetterAuthUserIds,
@@ -14,6 +15,7 @@ import {
   listBetterAuthSiweWallets,
   listBetterAuthSiwsWallets,
   listWalletsForUser,
+  lockIdentityResolutionKeys,
   logAccountEvent,
   revokeAllAuthIdentitiesForUser,
   revokeAllWalletsForUser,
@@ -50,7 +52,10 @@ import {
   type WalletKind,
 } from "../types";
 import { normalizeWalletAddress } from "./wallet-normalization";
-import { resolveVerifiedProviderIdentity } from "./identity-resolution";
+import {
+  lockSignalRefs,
+  resolveVerifiedProviderIdentity,
+} from "./identity-resolution";
 import { deleteWidgetSessionsForProviderIdentity } from "../widget-auth/store";
 
 // Historically this applied the portal-owned `aomi_*` schema. AUTH-001 moves
@@ -80,11 +85,11 @@ export async function getOrCreateAomiUserForBetterAuthSession(input: {
   name?: string | null;
   avatarUrl?: string | null;
   accessSignals?: SignalRef[];
+  onResolved?: (user: DbAomiUser, db: PoolClient) => Promise<void>;
 }): Promise<DbAomiUser> {
   await ensureAccountSchema();
   const walletSignals = await betterAuthWalletSignals(input.betterAuthUserId);
-  const verifiedEmail =
-    input.email && input.emailVerified ? input.email : null;
+  const verifiedEmail = input.email && input.emailVerified ? input.email : null;
   const resolution = await resolveVerifiedProviderIdentity({
     identity: {
       provider: "better_auth",
@@ -98,7 +103,13 @@ export async function getOrCreateAomiUserForBetterAuthSession(input: {
       metadata: { source: "betterauth_session" },
     },
     policy: { subjectIsEnvironmentGlobal: false },
-    recoverySignals: [...(input.accessSignals ?? []), ...walletSignals],
+    recoverySignals: [
+      ...(input.accessSignals ?? []),
+      ...walletSignals,
+      ...(verifiedEmail
+        ? [{ type: "email" as const, email: verifiedEmail }]
+        : []),
+    ],
     displayName: input.name ?? input.email,
     avatarUrl: input.avatarUrl,
     // Persist the verified-email login factor in the same advisory-locked
@@ -107,15 +118,19 @@ export async function getOrCreateAomiUserForBetterAuthSession(input: {
     // `identity_already_linked_to_another_account`; because that is a
     // non-recoverable error the whole transaction rolls back, so a failed email
     // link can never leave a freshly created user orphaned.
-    onResolved: verifiedEmail
-      ? async (result, db) => {
-          await upsertEmailIdentity({
-            userId: result.user.id,
-            email: verifiedEmail,
-            db,
-          });
-        }
-      : undefined,
+    onResolved:
+      verifiedEmail || input.onResolved
+        ? async (result, db) => {
+            if (verifiedEmail) {
+              await upsertEmailIdentity({
+                userId: result.user.id,
+                email: verifiedEmail,
+                db,
+              });
+            }
+            await input.onResolved?.(result.user, db);
+          }
+        : undefined,
   });
   await logAccountEvent({
     userId: resolution.user.id,
@@ -132,7 +147,7 @@ export function isIdentityAlreadyLinkedError(error: unknown): boolean {
   );
 }
 
-async function betterAuthWalletSignals(
+export async function betterAuthWalletSignals(
   betterAuthUserId: string,
   db?: Parameters<typeof listBetterAuthSiweWallets>[1],
 ): Promise<SignalRef[]> {
@@ -203,9 +218,7 @@ export async function getAccountResponseForWidgetSession(input: {
 // Widget sessions carry `expiresAt` as epoch seconds (see `issueWidgetSession`).
 // Normalize to the milliseconds the account response emits before it reaches
 // `buildAccountResponse`, which treats numbers as already-millis.
-function widgetSessionExpiresAtMillis(
-  value: Date | string | number,
-): number {
+function widgetSessionExpiresAtMillis(value: Date | string | number): number {
   if (value instanceof Date) return value.getTime();
   if (typeof value === "number") return value * 1000;
   const parsed = Date.parse(value);
@@ -307,15 +320,34 @@ export async function upsertVerifiedWallet(input: {
   db?: import("pg").Pool | import("pg").PoolClient;
 }): Promise<SignalResolution> {
   await ensureAccountSchema();
-  if (!input.db) {
-    return withTransaction((db) => upsertVerifiedWallet({ ...input, db }));
-  }
   const signal = {
     type: "wallet" as const,
     family: input.family,
     normalizedAddress: normalizeWalletAddress(input.family, input.address),
     chainScope: input.chainScope ?? null,
   };
+  if (!input.db) {
+    return withTransaction(async (db) => {
+      const walletSubject = walletIdentitySubject(input);
+      await lockSignalRefs(
+        [
+          signal,
+          ...(walletSubject
+            ? [
+                {
+                  type: "identity" as const,
+                  provider: walletSubject.provider,
+                  ...IDENTITY_SCOPES[walletSubject.provider],
+                  subject: walletSubject.subject,
+                },
+              ]
+            : []),
+        ],
+        db,
+      );
+      return upsertVerifiedWallet({ ...input, db });
+    });
+  }
   const resolution = await resolveSignal({
     currentUserId: input.userId,
     signal,
@@ -396,7 +428,10 @@ async function getOrCreateAomiUserForWalletSignIn(
   input: { address: string; chainId: number | string },
 ): Promise<DbAomiUser> {
   const scope = IDENTITY_SCOPES[config.provider];
-  const normalizedAddress = normalizeWalletAddress(config.family, input.address);
+  const normalizedAddress = normalizeWalletAddress(
+    config.family,
+    input.address,
+  );
   const resolution = await resolveVerifiedProviderIdentity({
     identity: {
       provider: config.provider,
@@ -416,21 +451,24 @@ async function getOrCreateAomiUserForWalletSignIn(
       },
     ],
     displayName: `${input.address.slice(0, 6)}...${input.address.slice(-4)}`,
+    onResolved: async (result, db) => {
+      const wallet = await upsertVerifiedWallet({
+        userId: result.user.id,
+        family: config.family,
+        address: input.address,
+        chainId:
+          config.family === "evm" ? (input.chainId as number) : undefined,
+        chainScope: null,
+        kind: "external",
+        provider: config.provider,
+        linkedVia: config.provider,
+        db,
+      });
+      if (wallet.status === "conflict") {
+        throw new Error("conflicting_identity_owners");
+      }
+    },
   });
-  const wallet = await upsertVerifiedWallet({
-    userId: resolution.user.id,
-    family: config.family,
-    address: input.address,
-    chainId:
-      config.family === "evm" ? (input.chainId as number) : undefined,
-    chainScope: null,
-    kind: "external",
-    provider: config.provider,
-    linkedVia: config.provider,
-  });
-  if (wallet.status === "conflict") {
-    throw new Error("conflicting_identity_owners");
-  }
   return resolution.user;
 }
 
@@ -533,6 +571,36 @@ export async function syncProviderWallets(input: {
   attested: AttestedWallet[];
   db?: import("pg").Pool | import("pg").PoolClient;
 }): Promise<SignalResolution> {
+  if (!input.db) {
+    return withTransaction(async (db) => {
+      await lockSignalRefs(
+        [
+          ...(input.subject
+            ? [
+                {
+                  type: "identity" as const,
+                  provider: input.provider,
+                  issuerEnvironment: input.issuerEnvironment,
+                  tenantId: input.tenantId,
+                  subject: input.subject,
+                },
+              ]
+            : []),
+          ...input.attested.map((wallet) => ({
+            type: "wallet" as const,
+            family: wallet.family,
+            normalizedAddress: normalizeWalletAddress(
+              wallet.family,
+              wallet.address,
+            ),
+            chainScope: wallet.chainScope,
+          })),
+        ],
+        db,
+      );
+      return syncProviderWallets({ ...input, db });
+    });
+  }
   const keepKeys = new Set(
     input.attested.map((w) => walletKeyString(w.family, w.address)),
   );
@@ -736,33 +804,48 @@ export async function unlinkAuthIdentity(input: {
   userId: AomiUserId;
   identityId: string;
 }): Promise<"revoked" | "not_found" | "last_factor" | "protected"> {
-  const identity = await findAuthIdentityById(input.identityId);
-  if (!identity || identity.userId !== input.userId) return "not_found";
-  if (
-    identity.provider === "better_auth" ||
-    identity.provider === "siwe" ||
-    identity.provider === "siws" ||
-    identity.provider === "email"
-  ) {
-    return "protected";
-  }
-  const factorCount = await countLoginFactors(input.userId);
-  if (factorCount <= 1) return "last_factor";
-  const revoked = await revokeAuthIdentity({
-    userId: input.userId,
-    provider: identity.provider,
-    issuerEnvironment: identity.issuerEnvironment,
-    tenantId: identity.tenantId,
-    subject: identity.subject,
+  const result = await withTransaction(async (db) => {
+    await lockIdentityResolutionKeys(
+      [`aomi-login-factors:${input.userId}`],
+      db,
+    );
+    const identity = await findAuthIdentityById(input.identityId, db);
+    if (!identity || identity.userId !== input.userId) {
+      return { status: "not_found" as const };
+    }
+    if (
+      identity.provider === "better_auth" ||
+      identity.provider === "siwe" ||
+      identity.provider === "siws" ||
+      identity.provider === "email"
+    ) {
+      return { status: "protected" as const };
+    }
+    const factorCount = await countLoginFactors(input.userId, db);
+    if (factorCount <= 1) return { status: "last_factor" as const };
+    const revoked = await revokeAuthIdentity({
+      userId: input.userId,
+      provider: identity.provider,
+      issuerEnvironment: identity.issuerEnvironment,
+      tenantId: identity.tenantId,
+      subject: identity.subject,
+      db,
+    });
+    return revoked
+      ? { status: "revoked" as const, identity }
+      : { status: "not_found" as const };
   });
-  if (!revoked) return "not_found";
+  if (result.status !== "revoked") return result.status;
   await deleteWidgetSessionsForProviderIdentity({
-    providerIdentityId: identity.id,
+    providerIdentityId: result.identity.id,
   });
   await logAccountEvent({
     userId: input.userId,
     eventType: "identity.revoked",
-    data: { identityId: input.identityId, provider: identity.provider },
+    data: {
+      identityId: input.identityId,
+      provider: result.identity.provider,
+    },
   });
   return "revoked";
 }
@@ -822,19 +905,26 @@ export async function unlinkWallet(input: {
   walletId: string;
   betterAuthUserId?: string | null;
 }): Promise<"revoked" | "not_found" | "last_factor"> {
-  const wallet = await findWalletById(input.walletId);
-  if (!wallet || wallet.userId !== input.userId) return "not_found";
-  const factorCount = await countLoginFactors(input.userId);
-  if (factorCount <= 1) return "last_factor";
-  const revoked = await revokeWallet(input);
-  if (!revoked) return "not_found";
-  const walletSubject = walletIdentitySubject(wallet);
-  if (walletSubject) {
+  const status = await withTransaction(async (db) => {
+    await lockIdentityResolutionKeys(
+      [`aomi-login-factors:${input.userId}`],
+      db,
+    );
+    const wallet = await findWalletById(input.walletId, db);
+    if (!wallet || wallet.userId !== input.userId) return "not_found" as const;
+    const factorCount = await countLoginFactors(input.userId, db);
+    if (factorCount <= 1) return "last_factor" as const;
+    const revoked = await revokeWallet({ ...input, db });
+    if (!revoked) return "not_found" as const;
+    const walletSubject = walletIdentitySubject(wallet);
+    if (!walletSubject) return "revoked" as const;
+
     await revokeAuthIdentity({
       userId: input.userId,
       provider: walletSubject.provider,
       ...IDENTITY_SCOPES[walletSubject.provider],
       subject: walletSubject.subject,
+      db,
     });
     const detached =
       walletSubject.provider === "siwe"
@@ -842,21 +932,26 @@ export async function unlinkWallet(input: {
             address: wallet.address,
             chainId: Number(wallet.chainScope) || undefined,
             syntheticEmails: siweSyntheticEmails(wallet.address),
+            db,
           })
-        : await deleteBetterAuthSiwsWallet({ address: wallet.address });
+        : await deleteBetterAuthSiwsWallet({ address: wallet.address, db });
     for (const betterAuthUserId of detached.betterAuthUserIds) {
       await revokeAuthIdentity({
         userId: input.userId,
         provider: "better_auth",
         ...IDENTITY_SCOPES.betterAuth,
         subject: betterAuthUserId,
+        db,
       });
     }
     await clearAomiBetterAuthUserIds({
       userId: input.userId,
       betterAuthUserIds: detached.betterAuthUserIds,
+      db,
     });
-  }
+    return "revoked" as const;
+  });
+  if (status !== "revoked") return status;
   await logAccountEvent({
     userId: input.userId,
     eventType: "wallet.revoked",

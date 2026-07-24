@@ -261,12 +261,10 @@ export async function countLoginFactors(
   db: Db = getPool(),
 ): Promise<number> {
   const result = await db.query(
-    `select
-       (select count(*)::int from public_keys where user_id = $1)
-       +
-       (select count(*)::int from auth_providers
-         where user_id = $1
-           and provider not in ('betterauth', 'better_auth', 'email', 'siwe', 'siws', 'wallet')) as count`,
+    `select count(*)::int as count
+       from auth_providers
+      where user_id = $1
+        and provider not in ('betterauth', 'better_auth', 'wallet')`,
     [userId],
   );
   return Number(result.rows[0]?.count ?? 0);

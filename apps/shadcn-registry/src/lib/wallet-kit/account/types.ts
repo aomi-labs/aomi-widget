@@ -70,6 +70,7 @@ export type UpdateAccountInput = {
 
 export type AccountRuntime = {
   status: AccountRuntimeStatus;
+  error?: string;
   user?: AomiUserRef;
   linkedAccounts: LinkedAuthAccount[];
   wallets: AccountWallet[];

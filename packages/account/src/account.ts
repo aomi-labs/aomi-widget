@@ -31,7 +31,11 @@ export {
   exchangeProviderForExistingSession,
   createDefaultProviderCredentialVerifiers,
   isVerifiedProviderTokenCredential,
+  linkVerifiedProviderCredentialForUser,
+  linkVerifiedProviderIdentityForUser,
   providerSessionUserSeed,
+  signInWithVerifiedProviderCredential,
+  signInWithVerifiedProviderIdentity,
   verifyProviderCredential,
   type ProviderExchangeResult,
 } from "./service/provider-exchange";

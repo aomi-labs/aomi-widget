@@ -150,7 +150,9 @@ describe("tenant-scoped identity resolution", () => {
           },
         ],
       }),
-    ).rejects.toEqual(new IdentityConflictError(["user-a", "user-b"]));
+    ).rejects.toEqual(
+      new IdentityConflictError(["user-a", "user-b"], "wallet"),
+    );
     expect(queryMocks.createAomiUser).not.toHaveBeenCalled();
   });
 
@@ -173,6 +175,35 @@ describe("tenant-scoped identity resolution", () => {
         policy: globalPolicy,
       }),
     ).rejects.toBeInstanceOf(IdentityConflictError);
+  });
+
+  it("does not attach any identity when a recovery wallet belongs to another user", async () => {
+    queryMocks.findProviderSubjectOwners.mockResolvedValue(["user-a"]);
+    queryMocks.findSignalOwner.mockImplementation(async (signal) =>
+      signal.type === "wallet" ? "user-b" : null,
+    );
+    const onAttached = vi.fn();
+
+    await expect(
+      attachVerifiedProviderIdentityToUser({
+        userId: "user-a",
+        identity: identity("project-a"),
+        policy: globalPolicy,
+        recoverySignals: [
+          {
+            type: "wallet",
+            family: "evm",
+            normalizedAddress: "0x0000000000000000000000000000000000000001",
+            chainScope: null,
+          },
+        ],
+        onAttached,
+      }),
+    ).rejects.toEqual(
+      new IdentityConflictError(["user-a", "user-b"], "wallet"),
+    );
+    expect(queryMocks.upsertAuthIdentity).not.toHaveBeenCalled();
+    expect(onAttached).not.toHaveBeenCalled();
   });
 
   it("locks exact and global keys before querying and retries a uniqueness race", async () => {

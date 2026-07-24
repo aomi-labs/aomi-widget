@@ -1,6 +1,6 @@
 import {
-  attachVerifiedProviderIdentityToUser,
   exchangeProviderForExistingSession,
+  linkVerifiedProviderIdentityForUser,
 } from "@aomi-labs/account/account";
 import type { AomiAccountCredential } from "@aomi-labs/account";
 import { json } from "@portal/lib/aomi-account/session";
@@ -23,11 +23,17 @@ export const POST = widgetRoute(async (req: Request) => {
   if (!body) return json(400, { error: "invalid_json" });
   if (principal.kind === "widget") {
     const { descriptor, identity } = await verifyWidgetProviderCredential(body);
-    await attachVerifiedProviderIdentityToUser({
+    const result = await linkVerifiedProviderIdentityForUser({
       userId: principal.userId,
       identity,
       policy: descriptor.policy,
     });
+    if (result.status === "conflict") {
+      return json(409, {
+        ...result,
+        error: "already_linked_to_another_account",
+      });
+    }
     return Response.json({
       status: "linked",
       account: await accountResponseForPrincipal(req, principal),
@@ -35,6 +41,7 @@ export const POST = widgetRoute(async (req: Request) => {
   }
   const result = await exchangeProviderForExistingSession({
     betterAuthUserId: principal.betterAuthUserId,
+    currentUserId: principal.userId,
     credential: body as AomiAccountCredential,
   });
   if (result.status === "conflict") {

@@ -26,6 +26,15 @@ tables; fresh databases also finish replay with that drop.
 
 Progress:
 
+- 2026-07-24 atomic account ownership: split provider sign-in from authenticated
+  linking and preflight every verified provider, email, BetterAuth, EVM, and
+  Solana signal under one transaction before creating or attaching canonical
+  ownership. Conflicts now produce no canonical writes or session, surface a
+  non-identifying recovery message, and last-factor unlink checks serialize per
+  account. Added sign-in, linking, conflict, retry, and unlink regressions and
+  patch-bumped `@aomi-labs/account` to 0.1.8 and `@aomi-labs/widget-lib` to
+  1.4.12.
+
 - 2026-07-22 model catalog availability: traced the staging picker's permanent
   `Loading...` state to Better Auth session-pool exhaustion on the otherwise
   public `/api/thread/models` proxy route. Marked that catalog route as

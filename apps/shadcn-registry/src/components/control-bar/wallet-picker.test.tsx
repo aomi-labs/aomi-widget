@@ -739,6 +739,22 @@ describe("WalletPicker", () => {
     expect(connectSocial).toHaveBeenCalledWith("google");
   });
 
+  it("shows the account ownership conflict without identifying the other account", () => {
+    renderPicker(
+      makeAdapter({
+        accountError:
+          "This wallet or sign-in method is already linked to another Aomi account. Sign in to that account, unlink it there, then return here and link it.",
+      }),
+    );
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Sign in to that account, unlink it there, then return here and link it",
+    );
+    expect(screen.getByRole("alert").textContent).not.toMatch(
+      /user-|email|address/i,
+    );
+  });
+
   it("brands the social row as the account provider with the method beneath", () => {
     renderPicker(
       makeAdapter({

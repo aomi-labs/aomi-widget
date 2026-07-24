@@ -301,6 +301,7 @@ export type AomiWalletKit = {
   /** Unified picker rows: live accounts, stored account-runtime rows, and options. */
   walletModalRows?: readonly WalletModalRow[];
   accountStatus?: AccountRuntimeStatus;
+  accountError?: string;
   accountUser?: AomiUserRef;
   accountLinkedAccounts?: readonly LinkedAuthAccount[];
   accountWallets?: readonly AccountWallet[];

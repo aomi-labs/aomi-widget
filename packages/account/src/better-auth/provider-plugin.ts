@@ -7,14 +7,9 @@ import {
   providerSessionUserSeed,
   verifyProviderCredential,
 } from "../providers";
-import {
-  getOrCreateAomiUserForBetterAuthSession,
-  isIdentityAlreadyLinkedError,
-} from "../service/account-service";
-import { linkVerifiedProviderCredentialForUser } from "../service/provider-exchange";
+import { signInWithVerifiedProviderCredential } from "../service/provider-exchange";
 import { buildAccountResponse } from "../db/queries";
 import type { AomiAccountCredential } from "../types";
-import { IdentityConflictError } from "../service/identity-resolution";
 
 /** aud/iss/exp of a rejected provider token, for the server log. Never the token. */
 function decodeClaimsForLog(token: string): Record<string, unknown> {
@@ -79,71 +74,25 @@ export function aomiProviderAuthPlugin(): BetterAuthPlugin {
               emailVerified: seed.emailVerified,
               name: seed.name,
             }));
-          // Resolve the canonical Aomi user for this Better Auth session with
-          // the provider identity supplied as an access signal, so the Better
-          // Auth subject, the provider identity, and any wallet/email signals
-          // unify under one canonical user in a single atomic resolution. No
-          // canonical user is persisted for the provider identity ahead of
-          // this: an earlier eager resolve committed the provider user first,
-          // and when the two resolutions disagreed that orphan permanently
-          // owned the provider credential and bricked every later login.
-          let aomiUser: Awaited<
-            ReturnType<typeof getOrCreateAomiUserForBetterAuthSession>
-          >;
-          try {
-            aomiUser = await getOrCreateAomiUserForBetterAuthSession({
-              betterAuthUserId: betterAuthUser.id,
-              email: seed.email,
-              emailVerified: seed.emailVerified,
-              name: seed.name,
-              accessSignals: [
-                {
-                  type: "identity",
-                  provider: verified.provider,
-                  issuerEnvironment: verified.issuerEnvironment,
-                  tenantId: verified.tenantId,
-                  subject: verified.token.subject,
-                },
-              ],
-            });
-          } catch (error) {
-            if (error instanceof IdentityConflictError) {
-              console.error("provider exchange identity conflict", {
-                provider: verified.provider,
-                subject: verified.token.subject,
-                betterAuthUserId: betterAuthUser.id,
-                owners: error.owners,
-              });
-              throw new APIError("CONFLICT", { message: "identity_conflict" });
-            }
-            if (isIdentityAlreadyLinkedError(error)) {
-              console.error("provider exchange conflict", {
-                provider: verified.provider,
-                subject: verified.token.subject,
-                betterAuthUserId: betterAuthUser.id,
-                detail: error instanceof Error ? error.message : error,
-              });
-              throw new APIError("CONFLICT", {
-                message: "already_linked_to_another_account",
-              });
-            }
-            throw error;
-          }
-          const resolution = await linkVerifiedProviderCredentialForUser({
-            userId: aomiUser.id,
+          const resolution = await signInWithVerifiedProviderCredential({
+            betterAuthUserId: betterAuthUser.id,
             verified,
+            email: seed.email,
+            name: seed.name,
           });
           if (resolution.status === "conflict") {
             console.error("provider credential link conflict", {
               provider: verified.provider,
               subject: verified.token.subject,
-              resolvedAomiUser: aomiUser.id,
               betterAuthUserId: betterAuthUser.id,
+              signalType: resolution.signalType,
             });
             throw new APIError("CONFLICT", {
               message: "already_linked_to_another_account",
             });
           }
+          const aomiUser = resolution.user;
+          if (!aomiUser) throw new Error("resolved_account_not_found");
 
           const session = await ctx.context.internalAdapter.createSession(
             betterAuthUser.id,
@@ -155,7 +104,7 @@ export function aomiProviderAuthPlugin(): BetterAuthPlugin {
           return ctx.json({
             status: "linked",
             account: await buildAccountResponse({
-              user: resolution.user ?? aomiUser,
+              user: aomiUser,
               session: {
                 carrier: "better_auth",
                 betterAuthUserId: betterAuthUser.id,
