@@ -62,10 +62,13 @@ function LineChart({
   values,
   height = 96,
 }: {
-  values: number[];
+  values: Array<number | null>;
   height?: number;
 }) {
-  if (!values.length) {
+  const samples = values.filter(
+    (value): value is number => value !== null && Number.isFinite(value),
+  );
+  if (!samples.length) {
     return (
       <div
         className="text-dim flex items-center justify-center text-xs"
@@ -75,13 +78,23 @@ function LineChart({
       </div>
     );
   }
-  const max = Math.max(...values, 1);
-  const pts = values
-    .map(
-      (v, i) =>
-        `${(i / (values.length - 1)) * 100},${height - 6 - (v / max) * (height - 14)}`,
-    )
-    .join(" ");
+  const max = Math.max(...samples, 1);
+  const point = (value: number, index: number) => {
+    const x = values.length > 1 ? (index / (values.length - 1)) * 100 : 50;
+    const y = height - 6 - (value / max) * (height - 14);
+    return `${x},${y}`;
+  };
+  const segments = values.reduce<string[][]>(
+    (all, value, index) => {
+      if (value === null || !Number.isFinite(value)) {
+        all.push([]);
+      } else {
+        all[all.length - 1]?.push(point(value, index));
+      }
+      return all;
+    },
+    [[]],
+  );
   return (
     <svg
       viewBox={`0 0 100 ${height}`}
@@ -90,13 +103,27 @@ function LineChart({
       style={{ height }}
       aria-hidden
     >
-      <polyline
-        points={pts}
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        vectorEffect="non-scaling-stroke"
-      />
+      {segments.map((segment, index) =>
+        segment.length > 1 ? (
+          <polyline
+            key={index}
+            points={segment.join(" ")}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            vectorEffect="non-scaling-stroke"
+          />
+        ) : segment.length === 1 ? (
+          <circle
+            key={index}
+            cx={segment[0]?.split(",")[0]}
+            cy={segment[0]?.split(",")[1]}
+            r="1.5"
+            fill="currentColor"
+            vectorEffect="non-scaling-stroke"
+          />
+        ) : null,
+      )}
     </svg>
   );
 }
@@ -347,8 +374,15 @@ export function AppDetailView({
             <span>00:00</span>
             <span>
               peak{" "}
-              {detail.p95Hourly.length
-                ? `${Math.max(...detail.p95Hourly).toFixed(1)} s`
+              {detail.p95Hourly.some(
+                (value) => value !== null && Number.isFinite(value),
+              )
+                ? `${Math.max(
+                    ...detail.p95Hourly.filter(
+                      (value): value is number =>
+                        value !== null && Number.isFinite(value),
+                    ),
+                  ).toFixed(1)} s`
                 : "—"}
             </span>
             <span>23:00</span>

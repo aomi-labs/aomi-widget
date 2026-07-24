@@ -58,7 +58,7 @@ const livePayload = (): LiveAppDetailPayload => ({
     hourly: {
       chats: [0, 2, 3],
       toolCalls: [1, 4, 5],
-      p95LatencyMs: [800, 1_200, 950],
+      p95LatencyMs: [800, null, 950],
       transactions: [0, 1, 1],
     },
   },
@@ -179,7 +179,7 @@ describe("liveAppDetailView", () => {
         thread: "thread-real",
       }),
     ]);
-    expect(view.app.detail.p95Hourly).toEqual([0.8, 1.2, 0.95]);
+    expect(view.app.detail.p95Hourly).toEqual([0.8, null, 0.95]);
   });
 
   it("renders missing backend values as empty or unavailable, never fixtures", () => {

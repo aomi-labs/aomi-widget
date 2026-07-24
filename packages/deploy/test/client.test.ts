@@ -601,7 +601,7 @@ describe("DeploymentClient operate app detail", () => {
         hourly: {
           chats: [0, 2, 3],
           tool_calls: [1, 4, 5],
-          p95_latency_ms: [800, 1200, 950],
+          p95_latency_ms: [800, null, 950],
           transactions: [0, 1, 1],
         },
       }),
@@ -628,7 +628,7 @@ describe("DeploymentClient operate app detail", () => {
       hourly: {
         chats: [0, 2, 3],
         toolCalls: [1, 4, 5],
-        p95LatencyMs: [800, 1200, 950],
+        p95LatencyMs: [800, null, 950],
       },
     });
     expect(result.tools[0]).toEqual({

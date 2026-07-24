@@ -970,8 +970,8 @@ export interface OperateAppDetailResult {
   hourly: {
     chats: number[] | null;
     toolCalls: number[] | null;
-    /** Per-hour chat request P95, in milliseconds. */
-    p95LatencyMs: number[] | null;
+    /** Per-hour chat request P95, in milliseconds. `null` means no samples. */
+    p95LatencyMs: Array<number | null> | null;
     transactions: number[] | null;
   };
 }

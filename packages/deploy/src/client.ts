@@ -2110,6 +2110,14 @@ function camelOperateAppDetail(
   const hourly = (raw.hourly ?? {}) as Record<string, any>;
   const series = (value: unknown): number[] | null =>
     Array.isArray(value) ? value.map(Number) : null;
+  const nullableSeries = (value: unknown): Array<number | null> | null =>
+    Array.isArray(value)
+      ? value.map((item) => {
+          if (item === null || item === undefined) return null;
+          const numeric = Number(item);
+          return Number.isFinite(numeric) ? numeric : null;
+        })
+      : null;
   return {
     source: camelAppSource(raw.source),
     platform: String(raw.platform ?? fallbackPlatform),
@@ -2183,7 +2191,9 @@ function camelOperateAppDetail(
     hourly: {
       chats: series(hourly.chats),
       toolCalls: series(hourly.tool_calls ?? hourly.toolCalls),
-      p95LatencyMs: series(hourly.p95_latency_ms ?? hourly.p95LatencyMs),
+      p95LatencyMs: nullableSeries(
+        hourly.p95_latency_ms ?? hourly.p95LatencyMs,
+      ),
       transactions: series(hourly.transactions),
     },
   };
