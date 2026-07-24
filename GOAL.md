@@ -49,7 +49,7 @@ Progress:
   #855 onto current `main`, preserving the newer x402 and Solana approval work
   alongside tenant-scoped widget authentication. Reconciled the Portal x402
   signer address type, regenerated client/React/widget registry artifacts and
-  the Landing registry mirror, and patch-bumped `@aomi-labs/account` to 0.1.6
+  the Landing registry mirror, and patch-bumped `@aomi-labs/account` to 0.1.7
   and `@aomi-labs/client` to 0.3.9 after the versions already on `main`.
   Verified frozen install, lint, root/account/Portal typechecks, 782 root tests,
   269 widget tests, the Portal test command and production build, the client,
