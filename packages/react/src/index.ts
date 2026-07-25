@@ -31,7 +31,6 @@ export {
   normalizeSimulatedFee,
   MAX_AUTO_FEE_WEI,
   executeWalletCalls,
-  DISABLED_PROVIDER_STATE,
   parseChainId,
   aaModeFromExecutionKind,
   toViemSignMessageArgs,

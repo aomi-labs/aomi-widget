@@ -44,9 +44,6 @@ export function AomiBaseAccountProvider({
       }}
       execution={{
         aa: sponsorship?.mode === "required" ? "required" : "optional",
-        modes: ["4337"],
-        owner: "external-wallet",
-        provider: "auto",
         sponsorship,
       }}
     >

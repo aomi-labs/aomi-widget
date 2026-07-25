@@ -15,8 +15,8 @@ import {
  * Map a shared `EvmWalletRuntime` into the composer's `EvmExecutionRuntime`
  * shape. Every provider lane (Para, Privy, wallets-only) passes the same dozen
  * wagmi passthrough fields; the only differences are provider-specific
- * `overrides` (AA owner resolution, smart-wallet send/sign), so they spread on
- * top. Keeps the signing surface in one place instead of three copies.
+ * `overrides` (smart-wallet send/sign), so they spread on top. Keeps the
+ * signing surface in one place instead of three copies.
  */
 export function buildEvmExecutionRuntime(
   evm: EvmWalletRuntime,
@@ -37,18 +37,16 @@ export function buildEvmExecutionRuntime(
     walletClient: evm.walletClient,
     ...overrides,
   };
-  const shouldUseExternalSignerForAA =
-    runtime.aaOwner === "provider-session"
-      ? false
-      : runtime.aaOwner === "external-wallet"
-        ? true
-        : runtime.shouldUseExternalSigner;
+  const sendCallsSyncAsync = runtime.sendCallsSyncAsync;
+  const sendTransactionAsync = runtime.sendTransactionAsync;
+  const signTypedDataAsync = runtime.signTypedDataAsync;
+  const switchChainAsync = runtime.switchChainAsync;
 
   return {
     ...runtime,
     sendTransaction:
       runtime.sendTransaction ??
-      (runtime.sendTransactionAsync
+      (sendTransactionAsync
         ? async (payload) =>
             executeWalletKitTransaction({
               payload,
@@ -56,21 +54,21 @@ export function buildEvmExecutionRuntime(
                 currentChainId: runtime.currentChainId,
                 capabilities: runtime.capabilities,
                 nativeWalletExecution: runtime.nativeWalletExecution,
-                sendCallsSyncAsync: runtime.sendCallsSyncAsync
+                sendCallsSyncAsync: sendCallsSyncAsync
                   ? async (args) =>
-                      runtime.sendCallsSyncAsync!({
+                      sendCallsSyncAsync({
                         ...args,
                         connector: runtime.activeConnector,
                       })
                   : undefined,
                 sendTransactionAsync: async (args) =>
-                  runtime.sendTransactionAsync!({
+                  sendTransactionAsync({
                     ...args,
                     connector: runtime.activeConnector,
                   }),
-                switchChainAsync: runtime.switchChainAsync
+                switchChainAsync: switchChainAsync
                   ? async ({ chainId }) =>
-                      runtime.switchChainAsync!({
+                      switchChainAsync({
                         chainId,
                         connector: runtime.activeConnector,
                       })
@@ -78,35 +76,17 @@ export function buildEvmExecutionRuntime(
                 chainsById: runtime.chainsById,
                 getPreferredRpcUrl,
               },
-              shouldUseExternalSigner: shouldUseExternalSignerForAA,
-              resolveAAProviderState: runtime.resolveAAProviderState
-                ? async (params) =>
-                    runtime.resolveAAProviderState!(params, {
-                      address: evm.identity(Date.now()).address,
-                      walletClient: shouldUseExternalSignerForAA
-                        ? await runtime.getWalletClientFor({
-                            connector: runtime.activeConnector,
-                            chainId: params.callList[0]?.chainId,
-                          })
-                        : runtime.walletClient,
-                    })
-                : undefined,
-              forceAA: runtime.aaPolicy !== "off",
-              preferAAForSingleCall: runtime.aaPolicy !== "off",
-              aaPolicy: runtime.aaPolicy,
-              aaModes: runtime.aaModes,
-              aaProvider: runtime.aaProvider,
             })
         : undefined),
     signTypedData:
       runtime.signTypedData ??
-      (runtime.signTypedDataAsync
+      (signTypedDataAsync
         ? async (payload) => {
             const signArgs = toViemSignTypedDataArgs(payload);
             if (!signArgs) {
               throw new Error("Missing typed_data payload");
             }
-            const signature = await runtime.signTypedDataAsync!({
+            const signature = await signTypedDataAsync({
               ...(signArgs as Record<string, unknown>),
               connector: runtime.activeConnector,
             } as never);
