@@ -57,10 +57,11 @@ export async function loadRunState(
 export async function createRunState(
   app: string,
   root = defaultRunsRoot,
+  runId?: string,
 ): Promise<RunState> {
   const state: RunState = {
     app,
-    runId: `smither-${sanitizeAppName(app)}-${randomUUID()}`,
+    runId: runId ?? `smither-${sanitizeAppName(app)}-${randomUUID()}`,
     createdAt: new Date().toISOString(),
   };
   await mkdir(runDir(app, root), { recursive: true });

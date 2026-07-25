@@ -1,5 +1,7 @@
 import { privateKeyToAccount } from "viem/accounts";
+import { buildSiwsMessage } from "../siws";
 import type { GetAccountBearer } from "../types";
+import { parseSolanaKeypairSecret, signSolanaMessage } from "./solana-signer";
 import type { CliAuthSession, CliSessionState } from "./state";
 
 type SiweNonceResponse = {
@@ -11,6 +13,20 @@ type SiweNonceResponse = {
 type SiweVerifyResponse = {
   token?: unknown;
   success?: unknown;
+  user_id?: unknown;
+  user?: {
+    id?: unknown;
+    walletAddress?: unknown;
+    chainId?: unknown;
+  };
+};
+
+type SiwsNonceResponse = SiweNonceResponse;
+
+type SiwsVerifyResponse = {
+  token?: unknown;
+  success?: unknown;
+  status?: unknown;
   user_id?: unknown;
   user?: {
     id?: unknown;
@@ -39,7 +55,30 @@ export type CliSiweLoginResult = {
   address: `0x${string}`;
 };
 
+export type CliSvmCluster = NonNullable<CliSessionState["svmCluster"]>;
+
+export type CliSiwsLoginOptions = {
+  baseUrl: string;
+  privateKey: string;
+  chainId?: CliSvmCluster;
+  fetch?: typeof fetch;
+  now?: () => number;
+};
+
+export type CliSiwsLoginResult = {
+  auth: CliAuthSession;
+  address: string;
+  chainId: CliSvmCluster;
+};
+
+export type CliSiwsLinkResult = {
+  status: "linked" | "noop";
+  address: string;
+  chainId: CliSvmCluster;
+};
+
 const DEFAULT_CHAIN_ID = 1;
+const DEFAULT_SVM_CLUSTER: CliSvmCluster = "solana:mainnet";
 export const DEFAULT_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const AUTH_REFRESH_SKEW_MS = 30 * 1000;
 const SESSION_TOKEN_HEADERS = ["set-auth-token", "x-auth-token", "auth-token"];
@@ -140,9 +179,7 @@ export async function signInWithCliSiwe({
     getSessionTokenHeader(verifyResponse.headers) ??
     (typeof verifyBody.token === "string" ? verifyBody.token : "");
   if (!sessionToken) {
-    throw new Error(
-      "SIWE verify response is missing BetterAuth session token",
-    );
+    throw new Error("SIWE verify response is missing BetterAuth session token");
   }
 
   const accountInfo = await fetchPortalAccount(
@@ -159,6 +196,7 @@ export async function signInWithCliSiwe({
     auth: {
       sessionToken,
       expiresAt,
+      walletFamily: "evm",
       walletAddress:
         typeof verifyBody.user?.walletAddress === "string"
           ? verifyBody.user.walletAddress
@@ -176,6 +214,183 @@ export async function signInWithCliSiwe({
               ? verifyBody.user.id
               : undefined,
     },
+  };
+}
+
+export async function signInWithCliSiws({
+  baseUrl,
+  privateKey,
+  chainId = DEFAULT_SVM_CLUSTER,
+  fetch: fetchImpl = fetch,
+  now = Date.now,
+}: CliSiwsLoginOptions): Promise<CliSiwsLoginResult> {
+  const keypair = parseSolanaKeypairSecret(privateKey);
+  const address = keypair.publicKey.toBase58();
+  const result = await performCliSiws({
+    baseUrl,
+    address,
+    chainId,
+    intent: "sign-in",
+    signMessage: (message) =>
+      signSolanaMessage(
+        Buffer.from(message, "utf8").toString("base64"),
+        keypair,
+      ).signatureBase64,
+    fetch: fetchImpl,
+    now,
+  });
+  if (!result.sessionToken) {
+    throw new Error("SIWS verify response is missing BetterAuth session token");
+  }
+
+  const accountInfo = await fetchPortalAccount(
+    fetchImpl,
+    normalizeBaseUrl(baseUrl),
+    result.sessionToken,
+  );
+  const expiresAt =
+    parseExpiresAt(accountInfo?.session?.expiresAt) ??
+    now() + DEFAULT_SESSION_TTL_MS;
+  return {
+    address,
+    chainId,
+    auth: {
+      sessionToken: result.sessionToken,
+      expiresAt,
+      walletFamily: "svm",
+      walletAddress: address,
+      chainScope: chainId,
+      betterAuthUserId:
+        typeof accountInfo?.session?.betterAuthUserId === "string"
+          ? accountInfo.session.betterAuthUserId
+          : result.betterAuthUserId,
+    },
+  };
+}
+
+export async function linkCliSiwsWallet(input: {
+  baseUrl: string;
+  sessionToken: string;
+  privateKey: string;
+  chainId?: CliSvmCluster;
+  fetch?: typeof fetch;
+  now?: () => number;
+}): Promise<CliSiwsLinkResult> {
+  const keypair = parseSolanaKeypairSecret(input.privateKey);
+  const address = keypair.publicKey.toBase58();
+  const chainId = input.chainId ?? DEFAULT_SVM_CLUSTER;
+  const result = await performCliSiws({
+    baseUrl: input.baseUrl,
+    address,
+    chainId,
+    intent: "link",
+    sessionToken: input.sessionToken,
+    signMessage: (message) =>
+      signSolanaMessage(
+        Buffer.from(message, "utf8").toString("base64"),
+        keypair,
+      ).signatureBase64,
+    fetch: input.fetch ?? fetch,
+    now: input.now ?? Date.now,
+  });
+  return {
+    status: result.status === "noop" ? "noop" : "linked",
+    address,
+    chainId,
+  };
+}
+
+async function performCliSiws(input: {
+  baseUrl: string;
+  address: string;
+  chainId: CliSvmCluster;
+  intent: "sign-in" | "link";
+  sessionToken?: string;
+  signMessage: (message: string) => string;
+  fetch: typeof fetch;
+  now: () => number;
+}): Promise<{
+  sessionToken?: string;
+  betterAuthUserId?: string;
+  status?: "linked" | "noop";
+}> {
+  const portalUrl = normalizeBaseUrl(input.baseUrl);
+  const headers = new Headers({
+    Accept: "application/json",
+    "Content-Type": "application/json",
+  });
+  if (input.sessionToken) {
+    headers.set("Authorization", `Bearer ${input.sessionToken}`);
+  }
+  const nonceHttpResponse = await input.fetch(
+    joinUrl(portalUrl, "/api/auth/siws/nonce"),
+    {
+      method: "POST",
+      headers,
+      credentials: "include",
+      body: JSON.stringify({
+        walletAddress: input.address,
+        chainId: input.chainId,
+        intent: input.intent,
+      }),
+    },
+  );
+  if (!nonceHttpResponse.ok) {
+    throw new Error(
+      `SIWS nonce failed: HTTP ${nonceHttpResponse.status} ${await safeResponseText(
+        nonceHttpResponse,
+      )}`,
+    );
+  }
+  const nonceResponse = (await nonceHttpResponse.json()) as SiwsNonceResponse;
+  const nonce =
+    typeof nonceResponse.nonce === "string" ? nonceResponse.nonce : "";
+  if (!nonce) throw new Error("SIWS nonce response is missing nonce");
+
+  const message = buildSiwsMessage({
+    address: input.address,
+    chainId: input.chainId,
+    nonce,
+    intent: input.intent,
+    domain:
+      normalizeDomain(nonceResponse.domain) ?? domainFromBaseUrl(portalUrl),
+    uri: normalizeUri(nonceResponse.uri) ?? portalUrl,
+    issuedAt: new Date(input.now()),
+  });
+  const signature = input.signMessage(message);
+  const verifyResponse = await input.fetch(
+    joinUrl(portalUrl, "/api/auth/siws/verify"),
+    {
+      method: "POST",
+      headers,
+      credentials: "include",
+      body: JSON.stringify({
+        message,
+        signature,
+        walletAddress: input.address,
+        chainId: input.chainId,
+        intent: input.intent,
+      }),
+    },
+  );
+  if (!verifyResponse.ok) {
+    throw new Error(
+      `SIWS verify failed: HTTP ${verifyResponse.status} ${await safeResponseText(
+        verifyResponse,
+      )}`,
+    );
+  }
+  const body = (await verifyResponse
+    .json()
+    .catch(() => ({}))) as SiwsVerifyResponse;
+  const status = body.status === "noop" ? "noop" : "linked";
+  return {
+    sessionToken:
+      getSessionTokenHeader(verifyResponse.headers) ??
+      (typeof body.token === "string" ? body.token : undefined),
+    betterAuthUserId:
+      typeof body.user?.id === "string" ? body.user.id : undefined,
+    status,
   };
 }
 

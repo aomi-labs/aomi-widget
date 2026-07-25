@@ -28,6 +28,7 @@ import { fatal } from "./errors";
 import { parseSolanaKeypairSecret } from "./solana-signer";
 import { createCliAuthTokenProvider } from "./auth";
 import { DEFAULT_CLI_BASE_URL } from "./client-factory";
+import { createCliPaymentFetch, type CliPaymentListener } from "./payment";
 
 export class CliSession {
   private state: CliSessionState;
@@ -89,10 +90,13 @@ export class CliSession {
       publicKey: config.publicKey ?? seed?.publicKey,
       privateKey: seed?.privateKey,
       svmPublicKey: svmPublicKey ?? seed?.svmPublicKey,
+      svmCluster: config.svmCluster ?? seed?.svmCluster,
       // Carry forward only persisted Solana keys from `wallet set --solana`.
       // Keys supplied via --solana-private-key/env stay transient.
       svmPrivateKey: seed?.svmPrivateKey,
       chainId: config.chain ?? seed?.chainId,
+      aaProvider: config.aaProvider ?? seed?.aaProvider,
+      aaMode: config.aaMode ?? seed?.aaMode,
       secretHandles: seed?.secretHandles,
       auth: seed?.auth,
     };
@@ -131,6 +135,9 @@ export class CliSession {
   }
   get svmPublicKey(): string | undefined {
     return this.state.svmPublicKey;
+  }
+  get svmCluster(): CliSessionState["svmCluster"] {
+    return this.state.svmCluster;
   }
   get chainId(): number | undefined {
     return this.state.chainId;
@@ -235,8 +242,26 @@ export class CliSession {
         // Ignore parse failures — signing will produce a clearer error at sign time.
       }
     }
+    if (
+      config.svmCluster !== undefined &&
+      config.svmCluster !== this.state.svmCluster
+    ) {
+      this.state.svmCluster = config.svmCluster;
+      changed = true;
+    }
     if (config.chain !== undefined && config.chain !== this.state.chainId) {
       this.state.chainId = config.chain;
+      changed = true;
+    }
+    if (
+      config.aaProvider !== undefined &&
+      config.aaProvider !== this.state.aaProvider
+    ) {
+      this.state.aaProvider = config.aaProvider;
+      changed = true;
+    }
+    if (config.aaMode !== undefined && config.aaMode !== this.state.aaMode) {
+      this.state.aaMode = config.aaMode;
       changed = true;
     }
     if (!this.state.clientId) {
@@ -289,6 +314,11 @@ export class CliSession {
 
   setChainId(id: number): void {
     this.state.chainId = id;
+    this.save();
+  }
+
+  setSvmCluster(cluster: NonNullable<CliSessionState["svmCluster"]>): void {
+    this.state.svmCluster = cluster;
     this.save();
   }
 
@@ -419,20 +449,39 @@ export class CliSession {
     return result;
   }
 
-  /** Find a pending Solana tx by display id, or undefined if unknown. */
+  /** Find a pending Solana request by legacy or chain-qualified display id. */
   findPendingSolTx(txId: string): PendingSolTx | undefined {
-    return (this.state.pendingSolTxs ?? []).find((tx) => tx.id === txId);
+    const id = this.chainSelector(txId, "svm");
+    return id
+      ? (this.state.pendingSolTxs ?? []).find((tx) => tx.id === id)
+      : undefined;
   }
 
-  /** Find a pending EVM/EIP-712 tx by display id, or undefined. */
+  /** Find a pending EVM/EIP-712 request by legacy or qualified display id. */
   findPendingTx(txId: string): PendingTx | undefined {
-    return (this.state.pendingTxs ?? []).find((tx) => tx.id === txId);
+    const id = this.chainSelector(txId, "evm");
+    return id
+      ? (this.state.pendingTxs ?? []).find((tx) => tx.id === id)
+      : undefined;
+  }
+
+  /** Selectors users can pass to `tx sign`; qualify only colliding ids. */
+  pendingSelectors(): string[] {
+    const evmIds = new Set((this.state.pendingTxs ?? []).map((tx) => tx.id));
+    const svmIds = new Set((this.state.pendingSolTxs ?? []).map((tx) => tx.id));
+    return [
+      ...(this.state.pendingTxs ?? []).map((tx) =>
+        svmIds.has(tx.id) ? `evm:${tx.id}` : tx.id,
+      ),
+      ...(this.state.pendingSolTxs ?? []).map((tx) =>
+        evmIds.has(tx.id) ? `svm:${tx.id}` : tx.id,
+      ),
+    ];
   }
 
   /** Get a pending tx by ID, or fatal() if not found. */
   requirePendingTx(txId: string): PendingTx {
-    const pending = this.state.pendingTxs ?? [];
-    const tx = pending.find((t) => t.id === txId);
+    const tx = this.findPendingTx(txId);
     if (!tx) {
       const available = this.allDisplayIds().join(", ") || "(none)";
       fatal(`Transaction "${txId}" not found.\nAvailable: ${available}`);
@@ -462,10 +511,20 @@ export class CliSession {
   }
 
   private allDisplayIds(): string[] {
-    return [
-      ...(this.state.pendingTxs ?? []).map((tx) => tx.id),
-      ...(this.state.pendingSolTxs ?? []).map((tx) => tx.id),
-    ];
+    return this.pendingSelectors();
+  }
+
+  private chainSelector(
+    selector: string,
+    expected: "evm" | "svm",
+  ): string | undefined {
+    const match = selector
+      .trim()
+      .toLowerCase()
+      .match(/^(?:(evm|svm|solana):)?(tx-\d+)$/);
+    if (!match) return selector;
+    const family = match[1] === "solana" ? "svm" : match[1];
+    return family && family !== expected ? undefined : match[2];
   }
 
   // ---------------------------------------------------------------------------
@@ -473,26 +532,35 @@ export class CliSession {
   // ---------------------------------------------------------------------------
 
   /** Build a ClientSession from the current state. */
-  createClientSession(_config?: Partial<CliConfig>): ClientSession {
+  createClientSession(
+    config?: Partial<CliConfig>,
+    options?: { onPayment?: CliPaymentListener },
+  ): ClientSession {
+    const paymentFetch = createCliPaymentFetch(config, options?.onPayment);
     const session = new ClientSession(
       {
         baseUrl: this.state.baseUrl,
         apiKey: this.state.apiKey,
+        fetch: paymentFetch,
         getAccountBearer: createCliAuthTokenProvider(() => this.state),
       },
       {
         sessionId: this.state.sessionId,
         clientId: this.state.clientId,
         app: this.state.app,
+        applicationId: config?.applicationId,
         apiKey: this.state.apiKey,
+        paymentMethod: config?.paymentMethod,
       },
     );
     session.resolveUserState(
       buildCliUserState(this.state.publicKey, this.state.chainId, {
         app: this.state.app,
+        aaProvider: this.state.aaProvider ?? config?.aaProvider ?? null,
         aaMode: this.state.aaMode ?? null,
         smartAccount: this.state.smartAccount ?? null,
         svmAddress: this.state.svmPublicKey,
+        svmCluster: config?.svmCluster ?? this.state.svmCluster,
       }),
     );
     return session;

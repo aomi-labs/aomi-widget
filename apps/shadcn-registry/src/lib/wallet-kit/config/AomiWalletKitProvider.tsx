@@ -8,7 +8,7 @@ import {
 import { useStandardWalletAdapters } from "@solana/wallet-standard-wallet-adapter-react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ExtUserProvider } from "@aomi-labs/react";
-import { monad, monadTestnet } from "@aomi-labs/client";
+import { monad, monadTestnet, robinhood } from "@aomi-labs/client";
 import {
   arbitrum,
   base,
@@ -76,6 +76,7 @@ const defaultNetworks = [
   lineaSepolia,
   monad,
   monadTestnet,
+  robinhood,
 ] as const;
 
 type ResolvedSvmWalletsConfig = ReturnType<typeof resolveAomiSvmConfig>;

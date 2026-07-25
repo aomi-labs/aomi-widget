@@ -109,7 +109,7 @@ function isSolanaMainnet(network: SvmNetworkOption): boolean {
 }
 
 function formatSolanaBadge(network: SvmNetworkOption): string {
-  if (network.cluster === "solana:mainnet") return "Mainnet";
+  if (network.cluster === "solana:mainnet") return "Solana";
   if (network.cluster === "solana:testnet") return "Testnet";
   return "Devnet";
 }
@@ -157,7 +157,11 @@ export const NetworkSelect: FC<NetworkSelectProps> = ({
   const activeEvmChain = evmChains.find(
     (chain) => chain.id === activeEvmChainId,
   );
-  const activeSolanaNetwork = selectedSolanaNetwork;
+  const liveSolanaCluster = identity.svmCluster ?? identity.solanaCluster;
+  const liveSolanaNetwork = solanaConnected
+    ? solanaNetworks.find((network) => network.cluster === liveSolanaCluster)
+    : undefined;
+  const activeSolanaNetwork = liveSolanaNetwork ?? selectedSolanaNetwork;
 
   const sections = useMemo<NetworkSection[]>(() => {
     const result: NetworkSection[] = [];
@@ -209,7 +213,7 @@ export const NetworkSelect: FC<NetworkSelectProps> = ({
   ]);
 
   // Trigger pairs each shown family's brand mark with its live network
-  // (e.g. a dual session reads "Base / Mainnet"); the icon carries the family,
+  // (e.g. a dual session reads "Base / Solana"); the icon carries the family,
   // so the SVM label stays to its cluster.
   const triggerChips = useMemo(() => {
     const chips: { family: WalletFamily; Icon?: GlyphIcon; label: string }[] =

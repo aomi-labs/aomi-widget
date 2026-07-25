@@ -56,6 +56,35 @@ describe("CLI session lifecycle", () => {
     expect(readState()?.clientId).toBe(fresh.clientId);
   });
 
+  it("qualifies colliding EVM and SVM pending ids without breaking legacy selectors", async () => {
+    const { CliSession } = await import("../../src/cli/cli-session");
+    const cli = CliSession.create({
+      baseUrl: "https://api.aomi.dev",
+      app: "default",
+      secrets: {},
+    });
+    cli.addPendingTx({
+      kind: "transaction",
+      txId: 1,
+      to: "0x1111111111111111111111111111111111111111",
+      timestamp: 1,
+      payload: {},
+    });
+    cli.addPendingSolTx({
+      solanaId: 1,
+      requestKind: "solana_sign",
+      unsignedTx: "AQID",
+      timestamp: 1,
+      payload: {},
+    });
+
+    expect(cli.pendingSelectors()).toEqual(["evm:tx-1", "svm:tx-1"]);
+    expect(cli.findPendingTx("evm:tx-1")?.txId).toBe(1);
+    expect(cli.findPendingSolTx("svm:tx-1")?.solanaId).toBe(1);
+    expect(cli.findPendingTx("svm:tx-1")).toBeUndefined();
+    expect(cli.findPendingSolTx("evm:tx-1")).toBeUndefined();
+  });
+
   it("supports newSessionCommand as an explicit fresh-session command", async () => {
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     const { CliSession } = await import("../../src/cli/cli-session");

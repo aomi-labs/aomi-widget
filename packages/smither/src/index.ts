@@ -1,3 +1,4 @@
+export * from "./artifacts";
 export * from "./binaries";
 export * from "./commands";
 export * from "./evals";

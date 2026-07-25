@@ -1,9 +1,18 @@
 import { createBearerTokenRoute } from "@aomi-labs/account";
-import { resolveBetterAuthCanonicalUserId } from "@portal/lib/aomi-account/canonical-session";
+import { resolveCanonicalUserId } from "@portal/server/canonical-session";
+import { widgetPreflight, widgetRoute } from "@portal/lib/widget-auth/response";
+import type { NextRequest } from "next/server";
 
-export const GET = createBearerTokenRoute({
-  resolveCanonicalUserId: resolveBetterAuthCanonicalUserId,
+const getBearer = createBearerTokenRoute({
+  resolveCanonicalUserId,
 });
+
+export const GET = widgetRoute(
+  async (request: NextRequest) => getBearer(request),
+  "account bearer",
+);
+
+export const OPTIONS = widgetPreflight(["GET", "OPTIONS"]);
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

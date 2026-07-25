@@ -535,6 +535,21 @@ function stageFor(plan: BuildPlan, phase: Phase | InnerPhase, branchOf?: string)
  *  and the workflow all derive from this single source. A parallel phase emits
  *  a header row plus one row per branch leaf (each has its own node id and
  *  lights up independently); a loop stays a single row (its body collapses). */
+/** Fold a workflow node id onto the stage row that represents it: inner
+ *  phases of a loop light the loop's single row (`stagesFor` collapses loop
+ *  bodies). Every other node id is its own row. */
+export function stageKeyForNode(plan: BuildPlan, nodeIdValue: string): string {
+  for (const phase of resolveComposition(plan)) {
+    if (phase.kind !== "loop") continue;
+    for (const inner of phase.body) {
+      if (nodeId(plan.app, inner.id) === nodeIdValue) {
+        return nodeId(plan.app, phase.id);
+      }
+    }
+  }
+  return nodeIdValue;
+}
+
 export function stagesFor(plan: BuildPlan): PlanStage[] {
   const stages: PlanStage[] = [];
   for (const phase of resolveComposition(plan)) {

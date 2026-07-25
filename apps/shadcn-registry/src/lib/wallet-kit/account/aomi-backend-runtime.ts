@@ -1,22 +1,31 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { buildSiwsMessage } from "@aomi-labs/client";
 import type { AuthRuntime, SvmWalletRuntime } from "../composer/types";
 import type { EvmWalletRuntime } from "../runtime/evm/wallet-runtime";
 import { brandDisplayName } from "../runtime/evm/brands";
 import type { AccountRuntime, AccountWallet } from "./types";
-import type { AomiAccount, WalletFamily } from "../types";
+import type { AomiAccount, SvmCluster, WalletFamily } from "../types";
 import {
+  AomiAccountRequestError,
   createAomiBackendAccountClient,
   type AomiBackendAccountResponse,
   type AomiBackendNonceResponse,
 } from "./aomi-backend-client";
+import {
+  useWidgetSessionProvider,
+  widgetCredentialsReady,
+  type WidgetAuthConfig,
+} from "./use-widget-session-provider";
+import { utf8ToBase64 } from "./encoding";
 
 export type AomiBackendAccountConfig = {
   mode: "aomi-backend";
   baseUrl?: string;
   authDomain?: string;
   authUri?: string;
+  widgetAuth?: WidgetAuthConfig;
 };
 
 const CREDENTIAL_EXCHANGE_FAILURE_COOLDOWN_MS = 30_000;
@@ -26,13 +35,27 @@ export function useAomiBackendAccountRuntime(input: {
   baseUrl?: string;
   authDomain?: string;
   authUri?: string;
+  widgetAuth?: AomiBackendAccountConfig["widgetAuth"];
   auth: AuthRuntime;
   evm: EvmWalletRuntime;
   svm?: SvmWalletRuntime;
 }): AccountRuntime {
+  const widgetSessionProvider = useWidgetSessionProvider({
+    baseUrl: input.baseUrl,
+    widgetAuth: input.widgetAuth,
+    auth: input.auth,
+    evm: input.evm,
+    svm: input.svm,
+  });
   const accountClient = useMemo(
-    () => createAomiBackendAccountClient({ baseUrl: input.baseUrl }),
-    [input.baseUrl],
+    () =>
+      createAomiBackendAccountClient({
+        baseUrl: input.baseUrl,
+        auth: widgetSessionProvider
+          ? { credentials: "omit", getAuthorization: widgetSessionProvider }
+          : { credentials: "include" },
+      }),
+    [input.baseUrl, widgetSessionProvider],
   );
   const authMessageConfig = useMemo(
     () =>
@@ -43,16 +66,53 @@ export function useAomiBackendAccountRuntime(input: {
       }),
     [input.authDomain, input.authUri, input.baseUrl],
   );
+  // Widget mode is signed-out/idle (not an error) until it has a usable
+  // credential source. Provider mode: authenticated + exchangeable credential.
+  // Wallet mode: a connected external wallet that can sign. Both layers share
+  // `widgetCredentialsReady` so the runtime and the provider builder agree.
+  const widgetSignedOut =
+    Boolean(input.widgetAuth) &&
+    !widgetCredentialsReady({
+      widgetAuth: input.widgetAuth as WidgetAuthConfig,
+      authStatus: input.auth.status,
+      hasAuthCredential: Boolean(input.auth.getCredential),
+      evm: input.evm,
+      svm: input.svm,
+    });
   const [account, setAccount] = useState<AomiBackendAccountResponse | null>(
     null,
   );
   const [status, setStatus] = useState<AccountRuntime["status"]>(
-    input.enabled ? "loading" : "disabled",
+    input.enabled ? (widgetSignedOut ? "ready" : "loading") : "disabled",
   );
   const [errorVersion, setErrorVersion] = useState(0);
+  const [accountError, setAccountError] = useState<string | undefined>();
+  const refreshContextKey = JSON.stringify([
+    input.enabled,
+    input.widgetAuth?.mode ?? "native",
+    input.widgetAuth?.mode === "provider" ? input.widgetAuth.provider : "",
+    input.widgetAuth?.mode === "provider" ? input.widgetAuth.environment : "",
+    input.auth.status,
+    input.auth.provider,
+    input.auth.subject ?? "",
+    input.evm.activeEvmConnection?.address ?? "",
+    input.evm.activeEvmConnection?.chainId ?? "",
+    input.svm?.identity(Date.now())?.address ?? "",
+    input.svm?.selectedNetwork?.cluster ?? "",
+  ]);
+  const latestRefreshContext = useRef({ accountClient, refreshContextKey });
+  latestRefreshContext.current = { accountClient, refreshContextKey };
+  const refreshInFlight = useRef<{
+    accountClient: typeof accountClient;
+    contextKey: string;
+    promise: Promise<void>;
+  } | null>(null);
   const siweInFlight = useRef<string | null>(null);
+  const siwsInFlight = useRef<string | null>(null);
+  const walletLabelSyncInFlight = useRef<string | null>(null);
   const accountCreateInFlight = useRef<string | null>(null);
   const signedOutEvmKey = useRef<string | null>(null);
+  const signedOutSvmKey = useRef<string | null>(null);
   const signedOutCredentialKey = useRef<string | null>(null);
   const credentialInFlight = useRef<string | null>(null);
   const credentialExchanged = useRef<string | null>(null);
@@ -64,16 +124,66 @@ export function useAomiBackendAccountRuntime(input: {
 
   const refresh = useCallback(async () => {
     if (!input.enabled) return;
-    setStatus((current) => (current === "ready" ? current : "loading"));
-    try {
-      const next = await accountClient.getAccount();
-      setAccount(next);
+    // Widget mode cannot mint a WST before it has a usable credential source
+    // (provider: host login; wallet: a connected external signer). Treat that
+    // as the normal signed-out state instead of asking the account client for
+    // authorization and surfacing a boot error.
+    if (widgetSignedOut) {
+      refreshInFlight.current = null;
+      setAccount(null);
       setStatus("ready");
-    } catch {
-      setStatus("error");
-      setErrorVersion((version) => version + 1);
+      return;
     }
-  }, [accountClient, input.enabled]);
+    // Two mount effects both trigger the initial fetch; coalesce concurrent
+    // calls for the same principal/client onto one in-flight promise.
+    const existing = refreshInFlight.current;
+    if (
+      existing?.accountClient === accountClient &&
+      existing.contextKey === refreshContextKey
+    ) {
+      return existing.promise;
+    }
+    const entry: NonNullable<typeof refreshInFlight.current> = {
+      accountClient,
+      contextKey: refreshContextKey,
+      promise: Promise.resolve(),
+    };
+    const run = (async () => {
+      setStatus((current) => (current === "ready" ? current : "loading"));
+      // Let the entry become visible before invoking the client, including if a
+      // test double or future client implementation throws synchronously.
+      await Promise.resolve();
+      try {
+        const next = await accountClient.getAccount();
+        const latest = latestRefreshContext.current;
+        if (
+          latest.accountClient !== accountClient ||
+          latest.refreshContextKey !== refreshContextKey
+        ) {
+          return;
+        }
+        setAccount(next);
+        setStatus("ready");
+      } catch {
+        const latest = latestRefreshContext.current;
+        if (
+          latest.accountClient !== accountClient ||
+          latest.refreshContextKey !== refreshContextKey
+        ) {
+          return;
+        }
+        setStatus("error");
+        setErrorVersion((version) => version + 1);
+      } finally {
+        if (refreshInFlight.current === entry) {
+          refreshInFlight.current = null;
+        }
+      }
+    })();
+    entry.promise = run;
+    refreshInFlight.current = entry;
+    return run;
+  }, [accountClient, input.enabled, refreshContextKey, widgetSignedOut]);
 
   useEffect(() => {
     void refresh();
@@ -86,6 +196,7 @@ export function useAomiBackendAccountRuntime(input: {
       credentialExchanged.current = null;
       providerSessionAttempted.current = null;
       credentialFailed.current = null;
+      setAccountError(undefined);
     }
   }, [input.auth.status, input.auth.subject]);
 
@@ -93,10 +204,80 @@ export function useAomiBackendAccountRuntime(input: {
     input.evm.activeEvmConnection?.address ?? input.evm.activeAccount?.address;
   const activeEvmChainId =
     input.evm.activeEvmConnection?.chainId ?? input.evm.activeAccount?.chainId;
+  const activeEvmWalletName = activeEvmAddress
+    ? resolveLinkedWalletName({
+        accounts: input.evm.accounts(Date.now()),
+        accountId: input.evm.activeAccount?.id,
+        address: activeEvmAddress,
+        fallbackWalletName:
+          input.evm.activeAccount?.walletName ??
+          input.evm.activeEvmConnection?.walletName,
+      })
+    : undefined;
+  const activeSvmIdentity = input.svm?.identity(Date.now());
+  const activeSvmAccount = input.svm?.activeAccount;
+  const activeSvmAddress =
+    activeSvmAccount?.address ?? activeSvmIdentity?.address;
+  const activeSvmCluster =
+    input.svm?.selectedNetwork?.cluster ??
+    activeSvmIdentity?.cluster ??
+    "solana:mainnet";
+  const activeSvmWalletName =
+    activeSvmAccount?.walletName ?? activeSvmIdentity?.walletName;
+  const activeSvmIsExternal = Boolean(
+    activeSvmAddress &&
+    activeSvmAccount?.walletKind !== "embedded" &&
+    activeSvmAccount?.walletKind !== "smart_account" &&
+    activeSvmIdentity?.transport !== "embedded" &&
+    activeSvmIdentity?.walletSource !== "embedded",
+  );
+  const signSolanaMessage = input.svm?.execution.signSolanaMessage;
+
+  useEffect(() => {
+    if (input.widgetAuth) void refresh();
+  }, [
+    activeEvmAddress,
+    activeSvmAddress,
+    input.auth.status,
+    input.auth.subject,
+    input.widgetAuth?.mode,
+    refresh,
+  ]);
+
+  useEffect(() => {
+    if (!account?.user || !activeEvmAddress) return;
+    const brand = brandDisplayName(activeEvmWalletName);
+    if (brand === "Wallet") return;
+    const wallet = account.wallets.find(
+      (candidate) =>
+        candidate.family === "evm" &&
+        candidate.address.toLowerCase() === activeEvmAddress.toLowerCase() &&
+        !candidate.label?.trim(),
+    );
+    if (!wallet) return;
+    const label = buildDefaultWalletLabel({
+      walletName: brand,
+      existingWallets: account.wallets,
+      family: "evm",
+    });
+    const key = `${wallet.id}:${label}`;
+    if (walletLabelSyncInFlight.current === key) return;
+    walletLabelSyncInFlight.current = key;
+    accountClient
+      .updateWallet(wallet.id, { label })
+      .then(refresh)
+      .catch(() => setErrorVersion((version) => version + 1))
+      .finally(() => {
+        if (walletLabelSyncInFlight.current === key) {
+          walletLabelSyncInFlight.current = null;
+        }
+      });
+  }, [account, accountClient, activeEvmAddress, activeEvmWalletName, refresh]);
 
   useEffect(() => {
     if (
       !input.enabled ||
+      Boolean(input.widgetAuth) ||
       status === "error" ||
       account === null ||
       account.user ||
@@ -160,6 +341,79 @@ export function useAomiBackendAccountRuntime(input: {
   useEffect(() => {
     if (
       !input.enabled ||
+      Boolean(input.widgetAuth) ||
+      status === "error" ||
+      account === null ||
+      account.user ||
+      !hasAuthMessageConfig(authMessageConfig)
+    ) {
+      return;
+    }
+    if (!activeSvmAddress || !activeSvmIsExternal || !signSolanaMessage) {
+      signedOutSvmKey.current = null;
+      return;
+    }
+    const key = `${activeSvmAddress}:${activeSvmCluster}`;
+    const authKey = authSessionKey(input.auth);
+    if (
+      input.auth.status === "authenticated" &&
+      input.auth.getCredential &&
+      providerSessionAttempted.current !== authKey
+    ) {
+      return;
+    }
+    if (signedOutSvmKey.current === key) return;
+    if (siwsInFlight.current === key) return;
+    if (accountCreateInFlight.current) return;
+    siwsInFlight.current = key;
+    accountCreateInFlight.current = `siws:${key}`;
+    authenticateSvmWallet({
+      accountClient,
+      address: activeSvmAddress,
+      chainId: activeSvmCluster,
+      intent: "sign-in",
+      label: buildDefaultWalletLabel({
+        walletName: activeSvmWalletName,
+        existingWallets: [],
+        family: "svm",
+      }),
+      messageConfig: authMessageConfig,
+      signMessage: (message) =>
+        signMessageWithActiveSvm(signSolanaMessage, message, activeSvmCluster),
+    })
+      .then(refresh)
+      .catch(() => {
+        // Match auto-SIWE: one rejected prompt should not loop until the wallet
+        // disconnects or the user explicitly chooses Link again.
+        signedOutSvmKey.current = key;
+        setStatus("ready");
+        setErrorVersion((version) => version + 1);
+      })
+      .finally(() => {
+        siwsInFlight.current = null;
+        if (accountCreateInFlight.current === `siws:${key}`) {
+          accountCreateInFlight.current = null;
+        }
+      });
+  }, [
+    account,
+    accountClient,
+    activeSvmAddress,
+    activeSvmCluster,
+    activeSvmIsExternal,
+    activeSvmWalletName,
+    authMessageConfig,
+    input.auth,
+    input.enabled,
+    refresh,
+    signSolanaMessage,
+    status,
+  ]);
+
+  useEffect(() => {
+    if (
+      !input.enabled ||
+      Boolean(input.widgetAuth) ||
       status === "error" ||
       input.auth.status !== "authenticated"
     ) {
@@ -198,6 +452,7 @@ export function useAomiBackendAccountRuntime(input: {
       credentialInFlight.current = attemptKey;
       if (!hasAccount) accountCreateInFlight.current = attemptKey;
       try {
+        setAccountError(undefined);
         const result = await accountClient.exchangeProviderCredential(
           credential,
           { hasAccount },
@@ -205,8 +460,15 @@ export function useAomiBackendAccountRuntime(input: {
         credentialExchanged.current = attemptKey;
         if (result.account) setAccount(result.account);
         await refresh();
-      } catch {
+      } catch (error) {
         credentialFailed.current = { attemptKey, failedAt: Date.now() };
+        if (
+          error instanceof AomiAccountRequestError &&
+          error.status === 409 &&
+          error.code === "already_linked_to_another_account"
+        ) {
+          setAccountError(error.message);
+        }
         setStatus("ready");
         setErrorVersion((version) => version + 1);
       } finally {
@@ -265,15 +527,24 @@ export function useAomiBackendAccountRuntime(input: {
 
   return {
     status: input.enabled ? status : "disabled",
+    error: accountError,
     user: account?.user ?? undefined,
     linkedAccounts: account?.linkedAccounts ?? [],
     wallets,
+    getAccountBearer: widgetSessionProvider,
     refresh,
     signOut: async () => {
       if (activeEvmAddress && activeEvmChainId) {
         signedOutEvmKey.current = `${activeEvmAddress}:${activeEvmChainId}`;
       }
-      if (input.auth.status === "authenticated" && input.auth.getCredential) {
+      if (activeSvmAddress && activeSvmIsExternal) {
+        signedOutSvmKey.current = `${activeSvmAddress}:${activeSvmCluster}`;
+      }
+      if (
+        !input.widgetAuth &&
+        input.auth.status === "authenticated" &&
+        input.auth.getCredential
+      ) {
         const credential = await input.auth.getCredential().catch(() => null);
         if (credential) {
           signedOutCredentialKey.current = authCredentialKey(
@@ -286,7 +557,16 @@ export function useAomiBackendAccountRuntime(input: {
       credentialExchanged.current = null;
       providerSessionAttempted.current = null;
       credentialFailed.current = null;
-      await accountClient.signOut();
+      setAccountError(undefined);
+      // Revoke the backend account first (while the WST carrier is still
+      // valid), but always tear down the widget session / provider SDK even if
+      // that first step throws, so a stale WST can't be replayed and the
+      // provider SDK session isn't stranded.
+      try {
+        await accountClient.signOut();
+      } finally {
+        await widgetSessionProvider?.signOut();
+      }
       setAccount({
         user: null,
         linkedAccounts: [],
@@ -299,7 +579,14 @@ export function useAomiBackendAccountRuntime(input: {
       if (activeEvmAddress && activeEvmChainId) {
         signedOutEvmKey.current = `${activeEvmAddress}:${activeEvmChainId}`;
       }
-      if (input.auth.status === "authenticated" && input.auth.getCredential) {
+      if (activeSvmAddress && activeSvmIsExternal) {
+        signedOutSvmKey.current = `${activeSvmAddress}:${activeSvmCluster}`;
+      }
+      if (
+        !input.widgetAuth &&
+        input.auth.status === "authenticated" &&
+        input.auth.getCredential
+      ) {
         const credential = await input.auth.getCredential().catch(() => null);
         if (credential) {
           signedOutCredentialKey.current = authCredentialKey(
@@ -312,7 +599,15 @@ export function useAomiBackendAccountRuntime(input: {
       credentialExchanged.current = null;
       providerSessionAttempted.current = null;
       credentialFailed.current = null;
-      await accountClient.deleteAccount();
+      setAccountError(undefined);
+      // Mirror signOut: revoke the widget session too so the just-deleted
+      // account's cached WST can't be replayed or silently re-minted on a
+      // force-refresh. Always run the widget teardown even if delete throws.
+      try {
+        await accountClient.deleteAccount();
+      } finally {
+        await widgetSessionProvider?.signOut();
+      }
       setAccount({
         user: null,
         linkedAccounts: [],
@@ -326,10 +621,40 @@ export function useAomiBackendAccountRuntime(input: {
       await refresh();
     },
     linkWallet: async (wallet) => {
-      if (
-        wallet.family !== "evm" ||
-        (!input.evm.signMessageForAccount && !input.evm.signMessageAsync)
-      ) {
+      if (wallet.family === "svm") {
+        if (
+          !activeSvmAddress ||
+          wallet.address !== activeSvmAddress ||
+          !activeSvmIsExternal ||
+          !signSolanaMessage
+        ) {
+          throw new Error(
+            "Wallet linking requires the active external Solana signer",
+          );
+        }
+        const label = buildDefaultWalletLabel({
+          walletName: activeSvmWalletName,
+          existingWallets: account?.wallets ?? [],
+          family: "svm",
+        });
+        await authenticateSvmWallet({
+          accountClient,
+          address: wallet.address,
+          chainId: activeSvmCluster,
+          intent: account?.user ? "link" : "sign-in",
+          label,
+          messageConfig: authMessageConfig,
+          signMessage: (message) =>
+            signMessageWithActiveSvm(
+              signSolanaMessage,
+              message,
+              activeSvmCluster,
+            ),
+        });
+        await refresh();
+        return;
+      }
+      if (!input.evm.signMessageForAccount && !input.evm.signMessageAsync) {
         throw new Error("Wallet linking requires an active EVM signer");
       }
       const chainId = wallet.chainId ?? activeEvmChainId;
@@ -590,6 +915,51 @@ async function signInWithEvmWallet(input: {
     signature,
     walletAddress: input.address,
     chainId: input.chainId,
+  });
+}
+
+async function signMessageWithActiveSvm(
+  signMessage: NonNullable<SvmWalletRuntime["execution"]["signSolanaMessage"]>,
+  message: string,
+  chainId: SvmCluster,
+): Promise<string> {
+  const result = await signMessage({
+    message: utf8ToBase64(message),
+    cluster: chainId,
+    description: "Authorize this Solana wallet for your Aomi account.",
+  });
+  return result.signature;
+}
+
+async function authenticateSvmWallet(input: {
+  accountClient: ReturnType<typeof createAomiBackendAccountClient>;
+  address: string;
+  chainId: SvmCluster;
+  intent: "sign-in" | "link";
+  label?: string;
+  signMessage: (message: string) => Promise<string>;
+  messageConfig: AuthMessageConfig;
+}): Promise<void> {
+  const nonceResult = await input.accountClient.createSiwsNonce({
+    walletAddress: input.address,
+    chainId: input.chainId,
+    intent: input.intent,
+  });
+  const message = buildSiwsMessage({
+    address: input.address,
+    chainId: input.chainId,
+    nonce: nonceResult.nonce,
+    intent: input.intent,
+    ...messageConfigFromNonce(nonceResult, input.messageConfig),
+  });
+  const signature = await input.signMessage(message);
+  await input.accountClient.verifySiws({
+    message,
+    signature,
+    walletAddress: input.address,
+    chainId: input.chainId,
+    intent: input.intent,
+    label: input.label,
   });
 }
 

@@ -255,6 +255,16 @@ export const AOMI_BACKEND_ENDPOINTS = [
   },
   {
     method: "GET",
+    path: "/api/resource/skills",
+    auth: ["account"],
+  },
+  {
+    method: "GET",
+    path: "/api/resource/skills/:skill_id",
+    auth: ["account"],
+  },
+  {
+    method: "GET",
     path: "/api/resource/tools",
     auth: ["account"],
   },
@@ -517,6 +527,16 @@ export const AOMI_BACKEND_ENDPOINTS = [
     method: "POST",
     path: "/api/threads",
     auth: ["thread"],
+  },
+  {
+    method: "POST",
+    path: "/api/threads/:thread_id/archive",
+    auth: ["account","thread"],
+  },
+  {
+    method: "POST",
+    path: "/api/threads/:thread_id/unarchive",
+    auth: ["account","thread"],
   },
   {
     method: "PUT",

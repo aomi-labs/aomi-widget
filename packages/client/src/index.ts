@@ -4,9 +4,30 @@
 
 export { AomiClient } from "./client";
 export {
+  authorizationChallenge,
+  authorizationCommit,
+  ensureSvmWalletBound,
+  ensureSvmWalletBoundVia,
+  isUnboundWalletError,
+  posterFromClient,
+} from "./authorization";
+export type {
+  AomiAuthorizationChallenge,
+  AomiAuthorizationPermit,
+  AomiAuthorizationState,
+  AomiEnsureBoundResult,
+  AuthorizationPoster,
+} from "./authorization";
+export {
   AccountCredentialUnavailableError,
   createAccountBearerProvider,
 } from "./account-session";
+export { buildSiwsMessage } from "./siws";
+export type { SiwsChainId, SiwsIntent } from "./siws";
+export {
+  handlePaymentChallenges,
+  wrapFetchWithPaymentChallenges,
+} from "./payment";
 export type {
   AccountBearerProviderOptions,
   AccountBearerProvider,
@@ -56,7 +77,21 @@ export type {
   AomiThread,
   Logger,
 } from "./types";
+export {
+  createProviderCredentialAdapter,
+  createSiweWidgetAuthAdapter,
+  createSiwsWidgetAuthAdapter,
+  createWidgetSessionProvider,
+  type ProviderCredential,
+  type SiwsWidgetSessionSigner,
+  type WidgetAuthAdapter,
+  type WidgetAuthSession,
+  type WidgetSession,
+  type WidgetSessionProvider,
+  type WidgetSessionSigner,
+} from "./widget-session";
 export { normalizeAppDescriptor, appIdentityKey } from "./app-descriptor";
+export { safeEnv } from "./internal/env";
 export type {
   AomiClientType,
   UserStateAAMode,
@@ -115,6 +150,7 @@ export {
   normalizeSolanaSignPayload,
   normalizeSolanaSignMessagePayload,
   normalizeSolanaWalletRequest,
+  normalizeSolanaCluster,
   toViemSignMessageArgs,
   toViemSignTypedDataArgs,
   toAAWalletCalls,
@@ -146,6 +182,7 @@ export {
   SUPPORTED_CHAIN_IDS,
   monad,
   monadTestnet,
+  robinhood,
 } from "./chains";
 export type { ChainInfo } from "./chains";
 

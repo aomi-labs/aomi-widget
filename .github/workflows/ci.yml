@@ -45,11 +45,11 @@ jobs:
         env:
           NEXT_PUBLIC_BACKEND_URL: ${{ vars.NEXT_PUBLIC_BACKEND_URL }}
 
-      - name: Run registry tests
-        run: pnpm --dir apps/shadcn-registry exec vitest run
-
       - name: Build registry
         run: pnpm run build:registry
+
+      - name: Run registry tests
+        run: pnpm --dir apps/shadcn-registry exec vitest run
 
       - name: Build landing app
         run: pnpm --filter landing build
@@ -61,6 +61,9 @@ jobs:
     needs: build-and-lint
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
+    concurrency:
+      group: npm-publish-${{ github.ref }}
+      cancel-in-progress: false
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -91,21 +94,21 @@ jobs:
         run: pnpm run build:deploy
 
       - name: Publish @aomi-labs/client
-        run: pnpm --filter @aomi-labs/client publish --access public --no-git-checks
+        run: node scripts/publish-package-if-needed.mjs packages/client
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish @aomi-labs/deploy
-        run: pnpm --filter @aomi-labs/deploy publish --access public --no-git-checks
+        run: node scripts/publish-package-if-needed.mjs packages/deploy
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish @aomi-labs/react
-        run: pnpm --filter @aomi-labs/react publish --access public --no-git-checks
+        run: node scripts/publish-package-if-needed.mjs packages/react
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish @aomi-labs/widget-lib
-        run: pnpm --filter @aomi-labs/widget-lib publish --access public --no-git-checks
+        run: node scripts/publish-package-if-needed.mjs apps/shadcn-registry
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

@@ -3,6 +3,7 @@ import "server-only";
 import { randomBytes } from "crypto";
 import { NextResponse } from "next/server";
 import { deploymentClient } from "@portal/server/bff/backend";
+import { configuredBackendUrl } from "@portal/server/backend-url";
 import { launchErrorResponse } from "./errors";
 import { launchConfig } from "./config";
 import { appNamesFromDeployment, releaseTagsFromDeployment } from "./mappers";
@@ -635,7 +636,7 @@ export async function launchSdkStatusRoute(req: Request) {
         requiredVersion,
         status: requiredVersion ? "unknown" : "missing",
         fixCommand: requiredVersion
-          ? `aomi-build sdk fix --backend ${new URL(req.url).origin}`
+          ? `aomi-build sdk fix --backend ${configuredBackendUrl()}`
           : null,
       },
     });

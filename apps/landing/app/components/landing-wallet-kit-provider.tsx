@@ -9,6 +9,7 @@ import {
   isFullTestnet,
   monad,
   monadTestnet,
+  robinhood,
 } from "@aomi-labs/widget-lib";
 import {
   arbitrum,
@@ -63,6 +64,7 @@ const defaultNetworks = [
   lineaSepolia,
   monad,
   monadTestnet,
+  robinhood,
 ] as const;
 
 const networks = (
@@ -90,12 +92,13 @@ const solanaNetworks = [
       process.env.NEXT_PUBLIC_SOLANA_DEVNET_RPC_URL ??
       process.env.NEXT_PUBLIC_SOLANA_RPC_URL ??
       "https://api.devnet.solana.com",
-    rpcWsUrl: process.env.NEXT_PUBLIC_SOLANA_DEVNET_RPC_WS_URL ??
+    rpcWsUrl:
+      process.env.NEXT_PUBLIC_SOLANA_DEVNET_RPC_WS_URL ??
       process.env.NEXT_PUBLIC_SOLANA_RPC_WS_URL,
   },
   {
     id: "solana-mainnet",
-    label: "Solana Mainnet",
+    label: "Solana",
     cluster: "solana:mainnet",
     rpcHttpUrl:
       process.env.NEXT_PUBLIC_SOLANA_MAINNET_RPC_URL ??
@@ -166,7 +169,11 @@ function DevAnvilRpcHook({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
-export function LandingWalletKitProvider({ children }: { children: ReactNode }) {
+export function LandingWalletKitProvider({
+  children,
+}: {
+  children: ReactNode;
+}) {
   // The wallet providers are browser-only: they read `window` and
   // wagmi hooks throw under SSR/prerender (`useConfig must be used within
   // WagmiProvider`). Mount the wallet stack only after hydration so static

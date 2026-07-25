@@ -9,6 +9,7 @@ import {
   getToolResultFromEvent,
   isAlwaysVisibleTool,
   printNewAgentMessages,
+  printPaymentEvent,
   printToolComplete,
   printToolResultLine,
   printToolUpdate,
@@ -23,10 +24,12 @@ import type { CliConfig } from "../types";
 import { buildCliUserState } from "../user-state";
 import type { UserStateAAMode } from "../../user-state";
 import { parseSolanaKeypairSecret } from "../solana-signer";
+import { walletRequestToPendingSolTx } from "../transactions";
 
 type WalletSnapshot = {
   publicKey?: string;
   chainId?: number;
+  aaProvider?: string | null;
   aaMode?: UserStateAAMode | null;
   smartAccount?: string | null;
   svmAddress?: string;
@@ -77,6 +80,30 @@ function deriveSvmAddress(
   }
 }
 
+export function resolveSvmAddressForChat(
+  config: Pick<CliConfig, "app" | "svmCluster">,
+  publicKey: string | undefined,
+  persistedSvmAddress: string | undefined,
+  solanaPrivateKey: string | undefined,
+): string | undefined {
+  const derived = deriveSvmAddress(solanaPrivateKey);
+  if (derived || persistedSvmAddress) {
+    return derived ?? persistedSvmAddress;
+  }
+  const app = config.app?.trim().toLowerCase();
+  const acceptsSvmPublicKey =
+    !app ||
+    app === "default" ||
+    config.svmCluster !== undefined ||
+    app === "sol" ||
+    app === "solana" ||
+    app === "svm" ||
+    app === "byreal";
+  return acceptsSvmPublicKey && publicKey && !publicKey.startsWith("0x")
+    ? publicKey
+    : undefined;
+}
+
 export function shouldBroadcastWalletStateChange(
   config: CliConfig,
   previous: WalletSnapshot | null,
@@ -100,6 +127,7 @@ export function shouldBroadcastWalletStateChange(
     normalizeAddress(previous?.publicKey) !==
       normalizeAddress(next.publicKey) ||
     previous?.chainId !== next.chainId ||
+    previous?.aaProvider !== next.aaProvider ||
     previous?.aaMode !== next.aaMode ||
     normalizeAddress(previous?.smartAccount ?? undefined) !==
       normalizeAddress(next.smartAccount ?? undefined)
@@ -118,7 +146,7 @@ export async function syncWalletStateForChat(
       sendSystemMessage: (
         sessionId: string,
         message: string,
-        options?: { app?: string },
+        options?: { app?: string; applicationId?: string },
       ) => Promise<unknown>;
     };
   },
@@ -136,14 +164,21 @@ export async function syncWalletStateForChat(
   // would silently overwrite the correctly-set user state with an empty one.
   const userState = buildCliUserState(next.publicKey, next.chainId, {
     app: config.app,
+    aaProvider: next.aaProvider ?? config.aaProvider ?? null,
     aaMode: next.aaMode ?? null,
     smartAccount: next.smartAccount ?? null,
     svmAddress: next.svmAddress,
-    svmCluster: config.svmCluster,
+    // An EVM-only command must not silently reset a persisted devnet/testnet
+    // Solana wallet to mainnet in the shared default-runtime context.
+    svmCluster: config.svmCluster ?? cli.svmCluster,
   });
 
   session.resolveUserState(userState);
   await session.syncUserState();
+
+  if (!hasAccountCredential(cli)) {
+    return;
+  }
 
   await session.client.sendSystemMessage(
     cli.sessionId,
@@ -151,7 +186,7 @@ export async function syncWalletStateForChat(
       type: "wallet:state_changed",
       payload: userState,
     }),
-    { app: config.app },
+    { app: config.app, applicationId: config.applicationId },
   );
 }
 
@@ -169,19 +204,27 @@ export async function chatCommand(
     ? {
         publicKey: previousCli.publicKey,
         chainId: previousCli.chainId,
+        aaProvider: previousCli.toState().aaProvider ?? null,
         aaMode: previousCli.toState().aaMode ?? null,
         smartAccount: previousCli.toState().smartAccount ?? null,
         svmAddress: undefined, // force re-sync of SVM state on every chat
       }
     : null;
   const cli = CliSession.loadOrCreate(config);
-  const session = cli.createClientSession(config);
+  const session = cli.createClientSession(config, {
+    onPayment: printPaymentEvent,
+  });
 
   // Resolve Solana address after session is created/loaded so we pick up the
   // key persisted by `wallet set --solana` even for `--new-session` flows
   // (the key is seeded from the previous session into the new one in create()).
   const resolvedSolanaKey = cli.resolvedSvmPrivateKey(config.solanaPrivateKey);
-  const svmAddress = deriveSvmAddress(resolvedSolanaKey) ?? cli.svmPublicKey;
+  const svmAddress = resolveSvmAddressForChat(
+    config,
+    cli.publicKey,
+    cli.svmPublicKey,
+    resolvedSolanaKey,
+  );
 
   try {
     await ensureAccountBoundThread(cli, session);
@@ -193,6 +236,7 @@ export async function chatCommand(
       {
         publicKey: cli.publicKey,
         chainId: cli.chainId,
+        aaProvider: cli.toState().aaProvider ?? config.aaProvider ?? null,
         aaMode: cli.toState().aaMode ?? null,
         smartAccount: cli.toState().smartAccount ?? null,
         svmAddress,
@@ -201,7 +245,10 @@ export async function chatCommand(
       session,
     );
 
-    const previousPendingIds = new Set(cli.pendingTxs.map((tx) => tx.id));
+    const previousPendingIds = new Set([
+      ...cli.pendingTxs.map((tx) => `evm:${tx.id}`),
+      ...cli.pendingSolTxs.map((tx) => `svm:${tx.id}`),
+    ]);
     let printedAgentCount = 0;
     const seenToolResults = new Set<string>();
 
@@ -224,7 +271,7 @@ export async function chatCommand(
 
     if (verbose) {
       session.on("processing_start", () => {
-        console.log(`${DIM}⏳ Processing…${RESET}`);
+        console.log(`${DIM}⏳ Thinking…${RESET}`);
       });
       session.on("system_notice", ({ message: msg }) => {
         console.log(`${YELLOW}📢 ${msg}${RESET}`);
@@ -304,11 +351,18 @@ export async function chatCommand(
       console.log(`${DIM}✅ Done${RESET}`);
     }
 
-    const syncedPending = cli.syncPendingFromUserState(session.getUserState());
+    cli.syncPendingFromUserState(session.getUserState());
+    for (const request of session.getPendingRequests()) {
+      const pending = walletRequestToPendingSolTx(request);
+      if (pending) cli.addPendingSolTx(pending);
+    }
+    cli.reload();
     const newPendingTxs = [
-      ...syncedPending.pendingTxs,
-      ...syncedPending.pendingSolTxs,
-    ].filter((tx) => !previousPendingIds.has(tx.id));
+      ...cli.pendingTxs.filter((tx) => !previousPendingIds.has(`evm:${tx.id}`)),
+      ...cli.pendingSolTxs.filter(
+        (tx) => !previousPendingIds.has(`svm:${tx.id}`),
+      ),
+    ];
 
     for (const pending of newPendingTxs) {
       console.log(`⚡ Wallet request queued: ${pending.id}`);

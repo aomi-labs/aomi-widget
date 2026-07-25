@@ -29,6 +29,7 @@ export type FactKind =
   | "amount"
   | "block"
   | "chain"
+  | "cluster"
   | "code"
   | "count"
   | "decoded"
@@ -37,6 +38,7 @@ export type FactKind =
   | "skill"
   | "sourceHost"
   | "status"
+  | "slot"
   | "token"
   | "txId";
 

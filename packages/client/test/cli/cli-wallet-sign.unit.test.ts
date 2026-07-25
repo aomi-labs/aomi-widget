@@ -293,6 +293,42 @@ describe("CLI wallet sign simulation integration", () => {
     );
   });
 
+  it("reports the requested EOA transaction hash separately from its service fee", async () => {
+    mocks.executeWalletCalls.mockResolvedValue({
+      txHash: "0xfee",
+      txHashes: ["0xaction", "0xfee"],
+      executionKind: "eoa",
+      batched: true,
+      sponsored: false,
+    });
+
+    await signCommand(
+      {
+        privateKey:
+          "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        baseUrl: "http://127.0.0.1:8080",
+        app: "default",
+        apiKey: "test-key",
+        secrets: {},
+      },
+      ["tx-1"],
+    );
+
+    const callback = JSON.parse(
+      mocks.sendSystemMessage.mock.calls[0]?.[1] as string,
+    );
+    expect(callback).toMatchObject({
+      type: "wallet:tx_complete",
+      payload: {
+        txHash: "0xaction",
+        service_fee_tx_hash: "0xfee",
+        pending_tx_ids: [1],
+        batched: false,
+        call_count: 1,
+      },
+    });
+  });
+
   it("ignores a zero-valued fee and still signs the transaction", async () => {
     mocks.simulateBatch.mockResolvedValue({
       result: {

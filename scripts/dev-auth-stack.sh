@@ -182,6 +182,10 @@ ensure_backend_schema() {
   if ! psql "$LOCAL_DB_URL" -tAc "select to_regclass('public.user_transactions_application_created_idx')" | grep -q user_transactions_application_created_idx; then
     apply_migration 20260707010100_owned_operate_attribution_indexes.sql
   fi
+
+  if ! psql "$LOCAL_DB_URL" -tAc "select to_regclass('public.thread_archives')" | grep -q thread_archives; then
+    apply_migration 20260717000000_thread_archives.sql
+  fi
 }
 
 ensure_auth_schema() {

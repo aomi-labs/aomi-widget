@@ -13,9 +13,11 @@
 - Kept backend endpoint contracts unchanged; the new global feed belongs to
   manager and the Aomi Build BFF relays it.
 
-Current session goal: pair product-mono PR #790 with a minimal published React
-runtime API for recording ephemeral UI interaction context on the active
-thread, without extending the serialized frontend `UserState` shape.
+Current session goal: **IMPLEMENTED; LIVE E2E IN PROGRESS 2026-07-22** — implement and verify
+`specs/WIDGET-AUTH-INTEGRATION-PLAN.md` across `aomi`, `db-master`, and
+`product-mono`, including tenant-scoped provider identities, the atomic
+canonical-user resolver, origin-bound widget sessions, generic Portal/account
+routes, the published `AomiWidget` API, and the separate-origin consumer.
 
 2026-07-13 follow-up: staging and production now use separate Supabase
 databases. Local schema convergence applies the backend's forward drop instead
@@ -23,6 +25,268 @@ of recreating the retired `bff_cli_device_sessions` / `bff_cli_sessions`
 tables; fresh databases also finish replay with that drop.
 
 Progress:
+
+- 2026-07-24 idempotent npm publishing: changed the post-merge publish job to
+  skip exact package versions that are already live, publish only missing
+  versions, and fail closed on registry errors other than a definitive 404.
+  This makes reruns safe after partial publication or transient npm outages.
+
+- 2026-07-24 atomic account ownership: split provider sign-in from authenticated
+  linking and preflight every verified provider, email, BetterAuth, EVM, and
+  Solana signal under one transaction before creating or attaching canonical
+  ownership. Conflicts now produce no canonical writes or session, surface a
+  non-identifying recovery message, and last-factor unlink checks serialize per
+  account. Added sign-in, linking, conflict, retry, and unlink regressions and
+  patch-bumped `@aomi-labs/account` to 0.1.8 and `@aomi-labs/widget-lib` to
+  1.4.12.
+
+- 2026-07-22 model catalog availability: traced the staging picker's permanent
+  `Loading...` state to Better Auth session-pool exhaustion on the otherwise
+  public `/api/thread/models` proxy route. Marked that catalog route as
+  bearer-independent so it bypasses account database resolution while still
+  stripping browser credentials, added proxy regression coverage, and
+  patch-bumped `@aomi-labs/account` to 0.1.6.
+
+- 2026-07-23 review-blocker closure: default wallet-mode widgets now withhold
+  their required AccountBearer source until an EVM/SVM signer is actually
+  available; superseded widget-session exchanges after sign-out or a wallet
+  switch revoke their late WST and reject the waiting request instead of
+  returning a stale principal; and account refreshes are keyed to the active
+  auth/client context so an old provider response cannot overwrite a newly
+  selected user's state. Added focused regressions for all three paths,
+  removed the stale test-only adapter `kind` fields, rebuilt client/widget
+  artifacts, and refreshed the Landing registry mirror. Verified 816 root
+  tests, 278 widget tests, lint, root/account/Portal typechecks, client and
+  widget builds, and the widget-consumer production build.
+
+- 2026-07-23 widget-auth PR main sync: rebased frontend PR #382 and backend PR
+  #855 onto current `main`, preserving the newer x402 and Solana approval work
+  alongside tenant-scoped widget authentication. Reconciled the Portal x402
+  signer address type, regenerated client/React/widget registry artifacts and
+  the Landing registry mirror, and patch-bumped `@aomi-labs/account` to 0.1.7
+  and `@aomi-labs/client` to 0.3.9 after the versions already on `main`.
+  Verified frozen install, lint, root/account/Portal typechecks, 782 root tests,
+  269 widget tests, the Portal test command and production build, the client,
+  React, and widget builds, and the widget-consumer production build. Backend
+  fmt, database clippy with warnings denied, and the focused plain-message
+  signing pipeline test also passed before its rebased branch was pushed. The
+  first clean frontend CI run exposed generated-state assumptions that local
+  builds had masked: registry boundary tests ran before the package build, and
+  Landing could not resolve a widget source import through its narrower
+  `@/lib` alias. CI now builds the registry before its tests, the shared import
+  is package-relative, and the exact registry-build/test plus Landing production
+  build sequence passes locally.
+
+- 2026-07-22 wallet account-access deduplication: hid the legacy `wallet`
+  authentication identity from account management, matching the existing
+  SIWE/SIWS proof-identity behavior while preserving the branded linked EVM or
+  Solana wallet row. Added the reported Rabby regression case and patch-bumped
+  `@aomi-labs/widget-lib` to 1.4.10.
+
+- 2026-07-22 Vercel Preview account-state recovery: reproduced the missing
+  account badge and connected-only Phantom row while chat history remained
+  visible, then traced the repeated 500s to Supabase session-pool exhaustion
+  (`EMAXCONNSESSION`, 15-client cap) across separate Vercel API functions. The
+  account package now limits Vercel instances to one short-lived Postgres
+  client instead of four 30-second clients, with regression coverage and a
+  patch bump to 0.1.4. The non-fatal session warning remains diagnostic: it
+  compares a queued pending transaction snapshot with the later terminal
+  simulation state and does not indicate a signing or broadcast failure.
+
+- 2026-07-22 Vercel PR-preview auth recovery: found that the repaired staging
+  `DATABASE_URL` was still scoped only to `Preview (main)`, so ordinary PR
+  previews inherited the stale global Preview database and returned 401/403 at
+  the backend account boundary. Promoted the already-verified encrypted staging
+  value to global Preview scope without exposing the credential, redeployed PR
+  #381, and passed disposable SIWS, canonical account, AccountBearer, wallet,
+  thread list/create, cleanup, and session-revocation checks with HTTP 200. The
+  replacement deployment recorded no 401 or 500 responses during verification;
+  Production was not changed.
+
+- 2026-07-22 Solana Phantom approval recovery: reproduced the reported
+  10,000-lamport mainnet self-transfer in signed-in Chrome and traced the
+  missing popup to the frontend rejecting the backend's legacy
+  `mainnet-beta` cluster label before invoking Phantom. Canonicalized legacy
+  Solana cluster aliases at the client request boundary and defensively in the
+  runtime handler, added send-request regression coverage, patch-bumped
+  `@aomi-labs/client` to 0.3.7 and `@aomi-labs/widget-lib` to 1.4.9, and
+  regenerated their publishable artifacts. The CLI decoded the supplied
+  unsigned transaction as the expected self-transfer, its real Solana signing
+  round-trip tests passed, and focused client/widget tests, targeted ESLint,
+  portal typecheck, and the portal test command passed.
+
+- 2026-07-21 portal x402 E2E: moved Coinbase x402 signing from the portal's
+  Wagmi-only client to the shared wallet-kit adapter, so Para, Privy, injected,
+  and other connected EVM wallets use the same `signTypedData`/chain-switch
+  boundary. Verified the flow with a real MetaMask provider: SIWE created the
+  canonical account, x402 switched the wallet from Base to Base Sepolia,
+  MetaMask signed the USDC authorization, and the paid retry returned the
+  rendered portal response. Removed the temporary local EVM signing harness
+  after this proof.
+
+- 2026-07-21 x402 BFF bridge: allowed the Coinbase x402 v2
+  `Payment-Signature` request proof through the shared account proxy and
+  returned `Payment-Required` challenges plus `Payment-Response` settlement
+  receipts without broadening browser credential forwarding. Added coverage
+  for chained partner/platform headers, patch-bumped `@aomi-labs/account` to
+  0.1.5 and `@aomi-labs/client` to 0.3.8 after syncing current `main`, and
+  verified the focused tests, account/portal/base/landing typechecks,
+  formatting, and packed package contents.
+
+- 2026-07-23 provider address-label polish: provider-managed Para and Privy
+  rows under Account access now show only their shortened addresses in family
+  order, separated by a middle dot (for example,
+  `0xda6..f0 · 53GfE..oL`), without repeating `EVM` and `SVM` labels in the
+  subtitle. Connected SVM rows now include `Solana` after the address, matching
+  the network-name position already used by Ethereum and EVM L2 rows.
+
+- 2026-07-23 thread-auth recovery: traced Portal and widget-consumer 401s to
+  the live Rust backend using the remote database while BetterAuth/account
+  resolution used `aomi_local`. Restarted the supported auth stack so both
+  share the local database; AccountBearer and origin-bound widget-session
+  probes now both list 43 threads with HTTP 200. The React runtime also keeps
+  the caller's `localhost` backend host instead of rewriting it to
+  `127.0.0.1`, and provider widgets withhold their required bearer source until
+  the provider credential is ready.
+
+- 2026-07-23 widget-consumer Solana diagnosis: confirmed from Para's live BETA
+  partner metadata that Portal requires EVM + Solana wallets while the
+  consumer/Landing Para project supports EVM only. The canonical Aomi account
+  is shared correctly; only the provider project's live signer set differs.
+  The Para developer dashboard is open at sign-in so Solana can be enabled for
+  the consumer project before a logout/relogin provisioning check.
+
+- 2026-07-22 provider account-access polish: merged tenant-scoped Para and
+  Privy identities into one provider card, attached the provider-owned EVM and
+  Solana addresses to that card, and distinguished live/write access (green)
+  from linked/read-only access (yellow). The Portal now renders one Para row
+  with both live families, while a consumer session that exposes only EVM still
+  shows its linked Solana address as stored access. Grouped rename and unlink
+  operations update every backing provider identity. Patch-bumped
+  `@aomi-labs/widget-lib` to 1.4.10, refreshed the registry artifact, visually
+  verified the live Portal modal, and passed all 267 registry tests, root lint,
+  the registry build, Portal typecheck, and the widget-consumer production
+  build.
+
+- 2026-07-22 widget authentication integration: implemented the v1 code and
+  automated acceptance coverage in `specs/WIDGET-AUTH-INTEGRATION-PLAN.md`. Added the
+  audited tenant-scope migration and Rust schema/entity mirror; provider-neutral
+  identity resolution; strict Para and disabled Privy widget descriptors;
+  provider/SIWE/SIWS WST exchange with hashed storage, origin binding,
+  revocation, and public credentialless CORS; generic account/BFF principals;
+  and the published `AomiWidget`, `paraAuth`, `privyAuth`, and standalone Vite
+  consumer. Portal retains its existing Para project while Landing and the
+  consumer use the requested separate Beta key in ignored local env files.
+  Portal is live on port 3000 and the consumer on port 3001. The consumer now
+  renders the full widget plus an actionable Retry/origin banner when Para
+  startup fails. The Landing project now accepts `http://localhost:3001` and
+  the Google popup reaches Para's wallet-selection screen after restoring the
+  SDK's OAuth encryption worker. The final live consumer
+  login/thread/harmless-signing gate remains unchecked until the user completes
+  the wallet selection and the post-login checks run.
+  Patch-bumped account/client/widget-lib, refreshed artifacts and lockfile, and
+  passed isolated Postgres replay, Rust fmt/clippy, frontend lint/typechecks,
+  package/consumer builds and pack verification, 769 root tests, 252 registry
+  tests, and the portal test command.
+
+- 2026-07-20 Robinhood Chain support: added chain `4663` to the client and wallet-kit defaults, including Alchemy metadata, network selection coverage, a monochrome chain icon, generated registries, and explicit portal/landing/docs network lists. Patch-bumped `@aomi-labs/client` to `0.3.2` and `@aomi-labs/widget-lib` to `1.4.3`; focused tests, root/portal/landing typechecks, client and registry builds, lint, formatting, and the read-only client `chain list` CLI passed.
+
+- 2026-07-19 Operate observability detail: replaced the #374 fixture route
+  contract with owned source/application IDs and a live manager aggregate
+  relayed through `@aomi-labs/deploy` and the Build BFF. Real detail, health,
+  transaction, log, and deployment values stay authoritative; backend-missing
+  chart/release slices retain explicitly labeled fixture fallbacks. Renamed the
+  frontend workspace from `apps/aomi-build` to `apps/build`, patch-bumped the
+  deploy package to 0.2.2, and moved the Vercel output directory with it. Full
+  app tests, typecheck, lint, production build, package build/pack, GitHub CI,
+  and the corrected Vercel preview passed. Staging E2E still depends on the
+  backend release-build unblock in product-mono PR #841 reaching `main`.
+
+- 2026-07-15 Aomi Build theming: replaced the app's hard-coded Cursor palette
+  with the canonical light/dark tokens from `aomi-design`, added a persisted
+  system-aware theme toggle without hydration flash, and aligned semantic
+  colors, typography families, radii, shadows, and focus/scrollbar surfaces.
+  Verified focused theme tests, Aomi Build lint/typecheck/production build,
+  and live `/build` rendering plus reload persistence in both themes.
+
+- 2026-07-20 wallet connection cancellation polish: the shared wallet picker
+  now treats explicit provider rejection, WalletConnect reset/expiry, and
+  EIP-1193 code 4001 as normal dismissal paths instead of rendering a red error
+  banner. Genuine provider and relay failures remain visible. Added regression
+  coverage, patch-bumped `@aomi-labs/widget-lib` to 1.4.7, and regenerated the
+  registry artifacts.
+
+- 2026-07-17 Solana full-balance swap and holdings polish: taught the Jupiter
+  fast path to accept `amount: "all"` for SPL inputs so the backend resolves the
+  connected wallet balance and transparently falls back from flaky mint-filter
+  RPC reads to token-program scans. The standalone holdings tool now defaults
+  its owner from SVM wallet context and returns compact aggregated display
+  amounts. Added a dedicated holdings trace presenter that shows `0.148008
+  USDC` for the canonical mainnet mint, or just the visible UI amount with the
+  generic token icon when the symbol is unknown. Patch-bumped
+  `@aomi-labs/widget-lib` to 1.4.6 and regenerated registry artifacts.
+
+- 2026-07-17 Solana working-trace polish: split SVM network context from the
+  EVM interpreter so Solana traces show the chain family and current slot,
+  and added a Jupiter preparation presenter that surfaces input amount,
+  expected output, and token direction like the LI.FI swap trace while keeping
+  raw tool data available in the expandable detail. Simplified the default
+  mainnet picker row and compact trigger to `Solana`. Compact SVM network
+  traces now show the formatted slot number without redundant text, and wallet
+  approval traces include the staged SVM transaction count. SVM simulation and
+  approval matching now live in a dedicated `svm-tx` family with routing tests
+  that prevent Solana results from falling through to the EVM interpreter.
+
+- 2026-07-17 browser Solana approval recovery: traced the missing Phantom
+  prompt to the portal's zero-config mainnet RPC fallback. Solana's official
+  public endpoint returns HTTP 403 to JSON-RPC requests carrying a localhost
+  browser Origin, so the runtime failed while refreshing the blockhash before
+  invoking the wallet. Switched the portal fallback to PublicNode's
+  browser-compatible Solana endpoint, restarted the portal, and verified a
+  localhost-origin `getLatestBlockhash` call, portal health, targeted ESLint,
+  portal typecheck, and the portal test command.
+
+- 2026-07-17 external Solana GUI parity: browser-connected SVM wallets now use
+  BetterAuth SIWS for account creation and optional linking, matching the CLI
+  and external EVM flow. Legacy backend binding remains limited to embedded
+  wallets, and SIWS proof identities stay hidden from account management while
+  the linked Solana wallet remains visible.
+
+- 2026-07-17 wallet naming and thread archive follow-up: unlabeled BetterAuth
+  SIWE wallet rows now inherit the connected EVM provider brand (for example,
+  `Rabby 1`) without overwriting user labels. Restored durable archive and
+  unarchive endpoints backed by `thread_archives`, exposed archive state in
+  thread summaries, synchronized the client/OpenAPI contract, and verified the
+  full live archive round trip plus canonical Rabby account response locally.
+
+- 2026-07-17 BetterAuth Solana CLI parity: added SIWS nonce/verify endpoints to
+  BetterAuth, synchronized verified external Solana wallets into canonical
+  `public_keys`, and added Solana-only login plus authenticated wallet linking
+  to the TypeScript CLI without the legacy backend bind ceremony. Live dev
+  stack E2E covered Solana-only account creation and relogin, EVM-to-Solana
+  linking, login through either wallet into the same canonical user, ownership
+  conflict and last-factor protection, and an authenticated SVM commit followed
+  by local Ed25519 signing and backend completion. Patch-bumped
+  `@aomi-labs/account` to 0.1.1 and `@aomi-labs/client` to 0.3.3. GUI work is
+  intentionally not started yet.
+
+- 2026-07-16 Solana transaction parity: completed the shared HTTP client and
+  CLI paths for SVM approval normalization, signing, broadcast, and terminal
+  callbacks; added portal wallet binding and a loopback-only injected Solana
+  signer for browser E2E; and made the default runtime preserve both EVM and
+  SVM wallet/network state. Patch-bumped `@aomi-labs/client` to 0.3.2 and
+  regenerated its publishable artifacts. Verified a Gemini 3 Flash transfer
+  through the CLI and portal, including finalized on-chain signatures, backend
+  pending-state cleanup, and interpreted Solana trace steps.
+
+- 2026-07-16 staging thread-load diagnosis: reproduced `GET /api/threads`
+  returning 401 and `GET /api/account` returning 403 for the connected wallet.
+  Both statuses map to the backend's verified-bearer/missing-canonical-user
+  paths, so the leading cause is Portal/backend staging database identity drift
+  after the July 14 `DATABASE_URL` rotation, not thread rendering or wallet
+  provider collisions. Direct Vercel/server environment comparison remains
+  blocked by missing `chat-portal` team access and the unavailable staging VPN;
+  a targeted backend-log request is prepared for the internal cloud agent.
 
 - 2026-07-14 hosted SDK compatibility: Aomi Build now marks incompatible
   deployments as outdated, blocks their broken chat iframe, links users to the

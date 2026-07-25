@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const accountMocks = vi.hoisted(() => ({
   getOrCreateAomiUserForBetterAuthSession: vi.fn(),
-  syncSiweWalletsForUser: vi.fn(),
+  syncBetterAuthWalletsForUser: vi.fn(),
 }));
 
 vi.mock("@aomi-labs/account/account", () => accountMocks);
@@ -17,7 +17,7 @@ describe("resolveMcpCanonicalUser", () => {
     accountMocks.getOrCreateAomiUserForBetterAuthSession.mockResolvedValue({
       id: "canonical-user-1",
     });
-    accountMocks.syncSiweWalletsForUser.mockResolvedValue(undefined);
+    accountMocks.syncBetterAuthWalletsForUser.mockResolvedValue(undefined);
   });
 
   it("materializes SIWE wallets into public_keys before MCP tools run", async () => {
@@ -30,7 +30,7 @@ describe("resolveMcpCanonicalUser", () => {
     ).toHaveBeenCalledWith({
       betterAuthUserId: "ba-user-1",
     });
-    expect(accountMocks.syncSiweWalletsForUser).toHaveBeenCalledWith({
+    expect(accountMocks.syncBetterAuthWalletsForUser).toHaveBeenCalledWith({
       aomiUserId: "canonical-user-1",
       betterAuthUserId: "ba-user-1",
     });

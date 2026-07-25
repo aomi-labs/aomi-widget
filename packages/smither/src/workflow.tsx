@@ -30,6 +30,7 @@ import {
   type SmokeRow,
   type ValidationRow,
 } from "./schemas";
+import { packageCrate } from "./artifacts";
 import { defaultRunner, resolveFreshAomiBinaries } from "./binaries";
 import {
   newAppArgs,
@@ -39,7 +40,7 @@ import {
   runAomiRun,
   runAppCargoChecks,
 } from "./commands";
-import { makeWorkAgent } from "./agents";
+import { makeWorkAgent, resolveAgentBilling } from "./agents";
 import { runEvalStep } from "./evals";
 import { rolePrompt, type PromptContext } from "./prompts";
 import type { CommandRunner, ResolvedBinaries } from "./types";
@@ -47,14 +48,46 @@ import type { CommandRunner, ResolvedBinaries } from "./types";
 export type AomiSmitherApi = CreateSmithersApi<SmitherSchemas>;
 export type AomiWorkflow = ReturnType<AomiSmitherApi["smithers"]>;
 
-export async function createAomiSmither(dbPath: string): Promise<AomiSmitherApi> {
-  const { createSmithers } = await import("smithers-orchestrator");
-  return createSmithers(smitherSchemas, {
-    readableName: "Aomi Smither",
-    description:
-      "Composes a Smithers workflow from user intent: deterministic Rust codegen, multi-agent curation, clarify pauses, validate/repair loops, local smoke, and gated deploy.",
-    dbPath,
-  });
+/** Where the durable run state lives. `sqlite` is Bun-only (bun:sqlite);
+ *  `pglite`/`postgres` run on Node — the web (`aomi-build` BFF) path. */
+export type SmitherBackend =
+  | { kind: "sqlite"; dbPath: string }
+  | { kind: "pglite"; dataDir: string }
+  | { kind: "postgres"; connectionString: string };
+
+export function describeBackend(backend: SmitherBackend): string {
+  switch (backend.kind) {
+    case "sqlite":
+      return backend.dbPath;
+    case "pglite":
+      return `pglite:${backend.dataDir}`;
+    case "postgres":
+      return "postgres";
+  }
+}
+
+const SMITHER_META = {
+  readableName: "Aomi Smither",
+  description:
+    "Composes a Smithers workflow from user intent: deterministic Rust codegen, multi-agent curation, clarify pauses, validate/repair loops, local smoke, and gated deploy.",
+};
+
+export async function createAomiSmither(
+  backend: string | SmitherBackend,
+): Promise<AomiSmitherApi> {
+  const resolved: SmitherBackend =
+    typeof backend === "string" ? { kind: "sqlite", dbPath: backend } : backend;
+  if (resolved.kind === "sqlite") {
+    const { createSmithers } = await import("smithers-orchestrator");
+    return createSmithers(smitherSchemas, { ...SMITHER_META, dbPath: resolved.dbPath });
+  }
+  const { createSmithersPostgres } = await import("smithers-orchestrator");
+  return createSmithersPostgres(
+    smitherSchemas,
+    resolved.kind === "pglite"
+      ? { ...SMITHER_META, provider: "pglite", dataDir: resolved.dataDir }
+      : { ...SMITHER_META, provider: "postgres", connectionString: resolved.connectionString },
+  );
 }
 
 export type WorkflowDeps = {
@@ -142,9 +175,20 @@ export async function buildAppWorkflow(
 
   // One CLI agent instance per distinct (agent, repo) used anywhere in the
   // composition — cross-repo agents run in another codebase entirely.
+  // Billing: SMITHER_OPENROUTER_API_KEY (default, cheap Kimi via OpenRouter's
+  // Anthropic-compatible endpoint) > SMITHER_ANTHROPIC_API_KEY (backup) >
+  // local CLI login.
+  const billing = resolveAgentBilling(deps.env);
   const agents = new Map<string, Awaited<ReturnType<typeof makeWorkAgent>>>();
   for (const spec of agentSpecsFor(plan)) {
-    agents.set(agentKey(spec.name, spec.cwd), await makeWorkAgent(spec.name, { cwd: spec.cwd, env: deps.env }));
+    agents.set(
+      agentKey(spec.name, spec.cwd),
+      await makeWorkAgent(spec.name, {
+        cwd: spec.cwd,
+        env: deps.env,
+        billing,
+      }),
+    );
   }
 
   return smithers((ctx) => {
@@ -196,6 +240,12 @@ export async function buildAppWorkflow(
       return loop.onMax === "return-last" && loopIteration(loop.id) >= loop.maxRounds - 1;
     };
 
+    // Boolean columns round-trip through the store as 0/1 (SQLite storage
+    // model, mirrored on Postgres), so ok/green/approved checks must be
+    // truthiness, never `=== true`.
+    const okRow = (r: Record<string, unknown> | undefined): boolean =>
+      !!r && Boolean((r as { ok?: unknown }).ok);
+
     // Whether every leaf of a parallel phase has produced its row.
     const leafDone = (p: InnerPhase): boolean => {
       switch (p.kind) {
@@ -203,7 +253,7 @@ export async function buildAppWorkflow(
           return (
             !!row(outputKeyFor(p), p.id) &&
             (p.op === "codegen" || p.op === "smoke"
-              ? (row(outputKeyFor(p), p.id) as { ok?: boolean }).ok === true
+              ? okRow(row(outputKeyFor(p), p.id))
               : true)
           );
         case "agent":
@@ -254,9 +304,7 @@ export async function buildAppWorkflow(
           const r = row(outputKeyFor(phase), phase.id);
           done =
             !!r &&
-            (phase.op === "codegen" || phase.op === "smoke"
-              ? (r as { ok?: boolean }).ok === true
-              : true);
+            (phase.op === "codegen" || phase.op === "smoke" ? okRow(r) : true);
           break;
         }
         case "agent":
@@ -302,6 +350,7 @@ export async function buildAppWorkflow(
         .slice(0, index)
         .every((prev) => (isResult ? prev.settled : prev.done));
     };
+
 
     // --- render one phase ----------------------------------------------------
     const smokePhase = findCompute("smoke");
@@ -462,7 +511,7 @@ export async function buildAppWorkflow(
         case "result":
           return (
             <Task id={id(phase.id)} label={label ?? "Summarize run"} output={outputs.result} noRetry>
-              {() => resultStep(plan, { gateDenied, deployment, smoke })}
+              {() => resultStep(plan, { gateDenied, deployment, smoke }, runner)}
             </Task>
           );
       }
@@ -569,10 +618,18 @@ async function codegenStep(
   binaries: ResolvedBinaries,
   runner: CommandRunner,
 ): Promise<CodegenRow> {
+  // The composing BFF may not share a filesystem with the executor (sandbox
+  // plans always compose as "discover" because the server can't stat the
+  // image's apps/) — re-derive the source where the filesystem actually is:
+  // an app whose curated sources exist behaves as "existing".
+  const toolPath = path.join(plan.sdkRoot, "apps", plan.app, "src", "tool.rs");
+  const source =
+    plan.source !== "existing" && existsSync(toolPath)
+      ? "existing"
+      : plan.source;
   // Idempotence: a re-run (e.g. a deploy-only pass) must not clobber sources
   // an agent already curated. gen-* only runs when the app has no sources yet.
-  if (plan.source === "existing" && !plan.force) {
-    const toolPath = path.join(plan.sdkRoot, "apps", plan.app, "src", "tool.rs");
+  if (source === "existing" && !plan.force) {
     if (existsSync(toolPath)) {
       return {
         ok: true,
@@ -581,7 +638,7 @@ async function codegenStep(
     }
   }
   const results =
-    plan.source === "existing"
+    source === "existing"
       ? [
           await runAomiBuild(
             binaries,
@@ -702,23 +759,38 @@ async function deployStep(
   return { ok: true, log: boundedLog(deploy.stdout) };
 }
 
-function resultStep(
+async function resultStep(
   plan: BuildPlan,
   state: {
     gateDenied: boolean;
     deployment: DeploymentRow | undefined;
     smoke: SmokeRow | undefined;
   },
-): ResultRow {
+  runner: CommandRunner,
+): Promise<ResultRow> {
+  // Package the crate into the row either way — a deploy-denied run still
+  // produced reviewable sources.
+  const artifact = await packageCrate({
+    sdkRoot: plan.sdkRoot,
+    app: plan.app,
+    runner,
+  });
+  const artifactFields = {
+    fileTreeJson: artifact.fileTreeJson,
+    crateTarB64: artifact.crateTarB64,
+    artifactWarning: artifact.warning,
+  };
   if (state.gateDenied) {
     return {
       status: "deploy-denied",
       summary: `${plan.app} validated${plan.smoke ? " and smoked" : ""}; deploy was denied at the gate.`,
+      ...artifactFields,
     };
   }
   const shipped = plan.deploy && state.deployment?.ok;
   return {
     status: "complete",
     summary: `${plan.app} ${shipped ? "built, validated, and deployed" : "built and validated"}${plan.smoke && state.smoke?.ok ? " (smoke passed)" : ""}.`,
+    ...artifactFields,
   };
 }
