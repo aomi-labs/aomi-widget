@@ -22,9 +22,13 @@ describe("CLI user state AA fields", () => {
 
   it("builds Solana user state when the active app is svm", () => {
     expect(
-      buildCliUserState("6ihjJiFMrn8VM1HLX8EMqAt8Ym8JxZCqxBai2bYHviZG", undefined, {
-        app: "svm",
-      }),
+      buildCliUserState(
+        "6ihjJiFMrn8VM1HLX8EMqAt8Ym8JxZCqxBai2bYHviZG",
+        undefined,
+        {
+          app: "svm",
+        },
+      ),
     ).toMatchObject({
       connection: {
         is_connected: true,
@@ -33,6 +37,23 @@ describe("CLI user state AA fields", () => {
         address: "6ihjJiFMrn8VM1HLX8EMqAt8Ym8JxZCqxBai2bYHviZG",
       },
       ext: { client_type: "ts_cli" },
+    });
+  });
+
+  it("builds both wallet contexts for the chain-inclusive default app", () => {
+    expect(
+      buildCliUserState("0xabc", 8453, {
+        app: "default",
+        svmAddress: "6ihjJiFMrn8VM1HLX8EMqAt8Ym8JxZCqxBai2bYHviZG",
+        svmCluster: "solana:devnet",
+      }),
+    ).toMatchObject({
+      connection: { is_connected: true },
+      evm: { address: "0xabc", chain_id: 8453 },
+      svm: {
+        address: "6ihjJiFMrn8VM1HLX8EMqAt8Ym8JxZCqxBai2bYHviZG",
+        cluster: "solana:devnet",
+      },
     });
   });
 
@@ -181,10 +202,62 @@ describe("pendingSolTxsFromBackendUserState", () => {
     expect(result[0]).toMatchObject({
       id: "tx-22",
       solanaId: 22,
+      solanaIds: [22],
+      requestKind: "solana_send",
       unsignedTx: "U1ZN",
       description: "new svm pipeline request",
       cluster: "solana:mainnet",
       signer: "So1aBcCanonicalSigner",
     });
+  });
+
+  it("preserves an event-derived unsigned tx while its staged ix is pending", () => {
+    const existing = {
+      id: "tx-23",
+      solanaId: 23,
+      solanaIds: [23],
+      requestKind: "solana_send" as const,
+      unsignedTx: "RVZFTlQtVU5TSUdORUQ=",
+      cluster: "devnet",
+      timestamp: 1,
+      payload: {},
+    };
+
+    expect(
+      pendingSolTxsFromBackendUserState(
+        { pending: { svm_ixs: { 23: { cluster: "devnet" } } } },
+        [existing],
+      ),
+    ).toEqual([existing]);
+    expect(
+      pendingSolTxsFromBackendUserState({ pending: { svm_ixs: {} } }, [
+        existing,
+      ]),
+    ).toEqual([]);
+  });
+
+  it("rebuilds Solana message-sign requests from pending.svm_sigs", () => {
+    const result = pendingSolTxsFromBackendUserState({
+      pending: {
+        svm_sigs: {
+          24: {
+            kind: "message_sign",
+            message_base64: "YXV0aC1ub25jZQ==",
+            description: "sign authentication nonce",
+            signer: "So1aBcCanonicalSigner",
+          },
+        },
+      },
+    });
+
+    expect(result).toEqual([
+      expect.objectContaining({
+        id: "tx-24",
+        solanaId: 24,
+        requestKind: "solana_sign_message",
+        message: "YXV0aC1ub25jZQ==",
+        signer: "So1aBcCanonicalSigner",
+      }),
+    ]);
   });
 });

@@ -1,8 +1,4 @@
-import {
-  accountResponseFromSession,
-  json,
-  requireAomiSession,
-} from "@portal/lib/aomi-account/session";
+import { json } from "@portal/lib/aomi-account/session";
 import {
   createWalletLinkNonce,
   upsertVerifiedWallet,
@@ -13,13 +9,17 @@ import {
 import type { WalletFamily } from "@aomi-labs/account";
 import { readAccountAuthEnv } from "@aomi-labs/account/better-auth";
 import { recoverMessageAddress } from "viem";
+import {
+  accountResponseForPrincipal,
+  requirePortalPrincipal,
+} from "@portal/lib/widget-auth/principal";
+import { widgetPreflight, widgetRoute } from "@portal/lib/widget-auth/response";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET(req: Request): Promise<Response> {
-  const current = await requireAomiSession(req);
-  if (!current) return json(401, { error: "unauthenticated" });
+export const GET = widgetRoute(async (req: Request) => {
+  const current = await requirePortalPrincipal(req);
   const url = new URL(req.url);
   const address = url.searchParams.get("address");
   const rawChainId = url.searchParams.get("chainId");
@@ -30,7 +30,7 @@ export async function GET(req: Request): Promise<Response> {
   const env = readAccountAuthEnv();
   return Response.json({
     nonce: createWalletLinkNonce({
-      userId: current.user.id,
+      userId: current.userId,
       address,
       chainId,
       domain: env.siweDomain,
@@ -39,11 +39,10 @@ export async function GET(req: Request): Promise<Response> {
     domain: env.siweDomain,
     uri: env.betterAuthUrl,
   });
-}
+}, "wallet link nonce");
 
-export async function POST(req: Request): Promise<Response> {
-  const current = await requireAomiSession(req);
-  if (!current) return json(401, { error: "unauthenticated" });
+export const POST = widgetRoute(async (req: Request) => {
+  const current = await requirePortalPrincipal(req);
   const body = (await req.json().catch(() => null)) as {
     family?: WalletFamily;
     address?: string;
@@ -67,7 +66,7 @@ export async function POST(req: Request): Promise<Response> {
     !body.nonce ||
     !verifyWalletLinkNonce({
       nonce: body.nonce,
-      userId: current.user.id,
+      userId: current.userId,
       address: body.address,
       chainId: body.chainId,
       domain: env.siweDomain,
@@ -114,7 +113,7 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   const resolution = await upsertVerifiedWallet({
-    userId: current.user.id,
+    userId: current.userId,
     family: body.family,
     address: body.address,
     chainId: body.chainId,
@@ -132,9 +131,11 @@ export async function POST(req: Request): Promise<Response> {
   }
   return Response.json({
     status: resolution.status,
-    account: await accountResponseFromSession(req),
+    account: await accountResponseForPrincipal(req, current),
   });
-}
+}, "wallet link");
+
+export const OPTIONS = widgetPreflight(["GET", "POST", "OPTIONS"]);
 
 async function recoverWalletLinkSigner(input: {
   message: string;

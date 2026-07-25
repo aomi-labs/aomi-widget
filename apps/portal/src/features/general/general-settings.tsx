@@ -18,6 +18,7 @@ import {
   settingsSubTitleClass,
   settingsTitleClass,
 } from "@portal/lib/settings-styles";
+import { SvmWalletBinding } from "./svm-wallet-binding";
 
 type AccountProfile = {
   user_id: string;
@@ -110,6 +111,17 @@ export function GeneralSettings() {
                   Wallet: {identity.address}
                 </p>
               )}
+              {identity.svmAddress && (
+                <p className={settingsBodyTextClass}>
+                  Solana wallet: {identity.svmAddress}
+                </p>
+              )}
+              {(identity.svmCluster ?? identity.solanaCluster) && (
+                <p className={settingsBodyTextClass}>
+                  Solana network:{" "}
+                  {identity.svmCluster ?? identity.solanaCluster}
+                </p>
+              )}
               {networkTicker && (
                 <p className={settingsBodyTextClass}>
                   Network: {networkTicker}
@@ -185,6 +197,8 @@ export function GeneralSettings() {
           )}
         </div>
       </div>
+
+      <SvmWalletBinding />
     </div>
   );
 }

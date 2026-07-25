@@ -42,19 +42,6 @@ export type AomiRuntimeProviderProps = {
   threadPersistenceScope?: string | null;
 };
 
-function normalizeBackendUrl(url: string): string {
-  try {
-    const parsed = new URL(url);
-    if (parsed.hostname === "localhost") {
-      parsed.hostname = "127.0.0.1";
-      return parsed.toString().replace(/\/$/, "");
-    }
-  } catch {
-    // Keep caller-provided strings unchanged if URL parsing fails.
-  }
-  return url;
-}
-
 // =============================================================================
 // Provider Shell
 // =============================================================================
@@ -70,20 +57,19 @@ export function AomiRuntimeProvider({
   threadPersistenceKey,
   threadPersistenceScope,
 }: Readonly<AomiRuntimeProviderProps>) {
-  const normalizedBackendUrl = normalizeBackendUrl(backendUrl);
   const resolvedThreadPersistenceKey = useMemo(() => {
     if (!persistThread) return null;
     return (
       threadPersistenceKey ??
       buildThreadPersistenceKey({
-        backendUrl: normalizedBackendUrl,
+        backendUrl,
         applicationId,
         scope: threadPersistenceScope,
       })
     );
   }, [
     applicationId,
-    normalizedBackendUrl,
+    backendUrl,
     persistThread,
     threadPersistenceKey,
     threadPersistenceScope,
@@ -108,10 +94,10 @@ export function AomiRuntimeProvider({
   const aomiClient = useMemo(
     () =>
       new AomiClient({
-        baseUrl: normalizedBackendUrl,
+        baseUrl: backendUrl,
         ...resolvedClientOptions,
       }),
-    [normalizedBackendUrl, resolvedClientOptions],
+    [backendUrl, resolvedClientOptions],
   );
 
   return (

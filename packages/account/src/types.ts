@@ -14,10 +14,21 @@ export type LinkedVia = KnownLinkedVia | (string & {});
 export type KnownAuthIdentityProvider =
   | "better_auth"
   | "siwe"
+  | "siws"
   | "privy"
   | "para"
   | "email";
 export type AuthIdentityProvider = KnownAuthIdentityProvider | (string & {});
+
+/** Canonical `(issuerEnvironment, tenantId)` scope for every provider whose
+ * scope is fixed by the identity graph rather than a runtime credential. One
+ * owner for the tuples that were previously re-derived at each call site. */
+export const IDENTITY_SCOPES = {
+  betterAuth: { issuerEnvironment: "aomi", tenantId: "portal" },
+  email: { issuerEnvironment: "aomi", tenantId: "global" },
+  siwe: { issuerEnvironment: "eip155", tenantId: "global" },
+  siws: { issuerEnvironment: "solana", tenantId: "global" },
+} as const;
 
 export type DbAomiUser = {
   id: AomiUserId;
@@ -35,6 +46,8 @@ export type DbAomiAuthIdentity = {
   id: string;
   userId: AomiUserId;
   provider: AuthIdentityProvider;
+  issuerEnvironment: string;
+  tenantId: string;
   subject: string;
   email: string | null;
   displayLabel: string | null;
@@ -73,6 +86,8 @@ export type AomiUserRef = {
 export type LinkedAuthAccount = {
   id: string;
   provider: string;
+  issuerEnvironment: string;
+  tenantId: string;
   subject: string;
   email?: string;
   displayLabel?: string;
@@ -100,11 +115,18 @@ export type AomiAccountResponse =
       user: AomiUserRef;
       linkedAccounts: LinkedAuthAccount[];
       wallets: AccountWallet[];
-      session: {
-        betterAuthUserId: string;
-        expiresAt?: number;
-        fresh?: boolean;
-      };
+      session:
+        | {
+            carrier: "better_auth";
+            betterAuthUserId: string;
+            expiresAt?: number;
+            fresh?: boolean;
+          }
+        | {
+            carrier: "widget";
+            expiresAt: number;
+            authMethod: string;
+          };
     }
   | {
       user: null;
@@ -113,20 +135,17 @@ export type AomiAccountResponse =
       session: null;
     };
 
-export type AccountCredentialProvider = "privy" | "para";
+// Deliberately open (not a closed union of provider names): shared account
+// code must stay provider-agnostic per the descriptor boundary; concrete
+// providers are validated at runtime against the registered descriptors.
+export type AccountCredentialProvider = string;
 
-export type AomiAccountCredential =
-  | {
-      provider: "privy";
-      tokenKind?: "identity_token" | "access_token";
-      providerToken: string;
-    }
-  | {
-      provider: "para";
-      tokenKind?: "session_jwt";
-      providerToken: string;
-      keyId?: string;
-    };
+export type AomiAccountCredential = {
+  provider: string;
+  tokenKind?: string;
+  providerToken: string;
+  keyId?: string;
+};
 
 export type VerifiedPrivyToken = {
   subject: string;
@@ -163,6 +182,8 @@ export type SignalRef =
   | {
       type: "identity";
       provider: AuthIdentityProvider;
+      issuerEnvironment: string;
+      tenantId: string;
       subject: string;
     }
   | { type: "email"; email: string };

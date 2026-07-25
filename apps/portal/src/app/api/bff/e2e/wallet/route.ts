@@ -5,6 +5,8 @@ import {
   mintE2EWalletCookie,
   parseE2EAddress,
   parseE2EChainId,
+  parseE2ESvmAddress,
+  parseE2ESvmCluster,
   parseE2ETtlSeconds,
   validateE2EWalletToken,
 } from "@portal/server/e2e-wallet";
@@ -36,16 +38,32 @@ export function GET(request: NextRequest) {
     return new NextResponse("Invalid E2E wallet token", { status: 401 });
   }
 
-  const address = parseE2EAddress(request.nextUrl.searchParams.get("address"));
-  if (!address) {
+  const rawAddress = request.nextUrl.searchParams.get("address");
+  const rawSvmAddress = request.nextUrl.searchParams.get("svmAddress");
+  const address = parseE2EAddress(rawAddress);
+  const svmAddress = parseE2ESvmAddress(rawSvmAddress);
+  if ((rawAddress && !address) || (rawSvmAddress && !svmAddress)) {
     return new NextResponse("Invalid E2E wallet address", { status: 400 });
+  }
+  if (!address && !svmAddress) {
+    return new NextResponse("An EVM or Solana address is required", {
+      status: 400,
+    });
   }
 
   const chainId = parseE2EChainId(request.nextUrl.searchParams.get("chainId"));
   const ttlSeconds = parseE2ETtlSeconds(
     request.nextUrl.searchParams.get("ttl"),
   );
-  const cookie = mintE2EWalletCookie({ address, chainId, ttlSeconds });
+  const cookie = mintE2EWalletCookie({
+    address: address ?? undefined,
+    chainId: address ? chainId : undefined,
+    svmAddress: svmAddress ?? undefined,
+    svmCluster: svmAddress
+      ? parseE2ESvmCluster(request.nextUrl.searchParams.get("svmCluster"))
+      : undefined,
+    ttlSeconds,
+  });
   if (!cookie) {
     return new NextResponse("E2E wallet seeding is unavailable", {
       status: 503,

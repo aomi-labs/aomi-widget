@@ -14,7 +14,7 @@ import {
   type TExternalWallet,
 } from "@getpara/react-sdk";
 import { defineChain, http, type Chain, type Transport } from "viem";
-import { monad, monadTestnet } from "../../../shadcn-registry/src";
+import { monad, monadTestnet, robinhood } from "../../../shadcn-registry/src";
 
 export const useAnvilForWallet =
   process.env.NEXT_PUBLIC_ANVIL_FOR_WALLET === "true";
@@ -58,6 +58,7 @@ const defaultNetworks = [
   lineaSepolia,
   monad,
   monadTestnet,
+  robinhood,
 ] as const;
 
 export const networks = (

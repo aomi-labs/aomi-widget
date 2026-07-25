@@ -44,7 +44,7 @@ describe("verifyProviderCredential", () => {
 
     expect(verifier).toHaveBeenCalledWith({
       provider: "privy",
-      tokenKind: "identity_token",
+      tokenKind: undefined,
       providerToken: "privy-token",
     });
     expect(result).toEqual({

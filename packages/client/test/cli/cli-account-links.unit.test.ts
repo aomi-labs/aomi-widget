@@ -2,6 +2,8 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { Keypair } from "@solana/web3.js";
+import bs58 from "bs58";
 
 const ORIGINAL_ENV = { ...process.env };
 const PRIVATE_KEY =
@@ -183,6 +185,68 @@ describe("aomi account link management", () => {
     );
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("links a Solana wallet through BetterAuth SIWS", async () => {
+    const keypair = Keypair.generate();
+    const secret = bs58.encode(keypair.secretKey);
+    const { CliSession } = await import("../../src/cli/cli-session");
+    const { accountLinkCommand } =
+      await import("../../src/cli/commands/account");
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    const fetchMock = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        const headers = new Headers(init?.headers);
+        expect(headers.get("Authorization")).toBe("Bearer session-token");
+        if (url === "https://portal.test/api/auth/siws/nonce") {
+          expect(JSON.parse(String(init?.body))).toEqual({
+            walletAddress: keypair.publicKey.toBase58(),
+            chainId: "solana:devnet",
+            intent: "link",
+          });
+          return Response.json({
+            nonce: "siws-link-nonce",
+            domain: "portal.test",
+            uri: "https://portal.test",
+          });
+        }
+        if (url === "https://portal.test/api/auth/siws/verify") {
+          const body = JSON.parse(String(init?.body));
+          expect(body.intent).toBe("link");
+          expect(body.message).toContain(
+            "portal.test wants you to sign in with your Solana account",
+          );
+          expect(body.message).toContain(
+            "Only sign this message if you want this Solana wallet attached to the current Aomi account.",
+          );
+          expect(body.message).toContain("Nonce: siws-link-nonce");
+          expect(Buffer.from(body.signature, "base64")).toHaveLength(64);
+          return Response.json({ status: "linked", success: true });
+        }
+        if (url === "https://portal.test/api/aomi/account") {
+          return Response.json(accountGraph);
+        }
+        throw new Error(`unexpected URL ${url}`);
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const cli = CliSession.loadOrCreate(baseConfig);
+    cli.setAuthSession({
+      sessionToken: "session-token",
+      expiresAt: Date.now() + 60_000,
+    });
+
+    await accountLinkCommand(
+      {
+        ...baseConfig,
+        solanaPrivateKey: secret,
+        svmCluster: "solana:devnet",
+      },
+      { solana: true },
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
   it("links a provider through the device auth PKCE flow", async () => {

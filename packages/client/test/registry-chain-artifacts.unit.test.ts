@@ -10,7 +10,7 @@ function readRegistryArtifact(path: string): string {
 }
 
 describe("registry chain artifacts", () => {
-  it("publishes Monad in the installable Para provider", () => {
+  it("publishes Monad and Robinhood in the installable wallet kit", () => {
     const kitSource = readRegistryArtifact(
       "apps/landing/public/r/aomi-wallet-kit.json",
     );
@@ -20,6 +20,7 @@ describe("registry chain artifacts", () => {
 
     expect(kitSource).toContain("monad");
     expect(kitSource).toContain("monadTestnet");
+    expect(kitSource).toContain("robinhood");
     expect(providerSource).toContain("supportedChains={supportedChains}");
   });
 });

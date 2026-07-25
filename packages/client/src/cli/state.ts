@@ -19,7 +19,7 @@ import {
   pendingSolTxsFromBackendUserState,
   walletSnapshotFromUserState,
 } from "./user-state";
-import type { CliEmbeddedProvider } from "./types";
+import type { CliAAProvider, CliEmbeddedProvider } from "./types";
 
 export type PendingTx = {
   id: string;
@@ -56,19 +56,23 @@ export type SignedTx = {
   timestamp: number;
 };
 
-/**
- * Solana sign-only request waiting for the local CLI signer. Mirrors
- * [`PendingTx`] but kept as its own type — the host treats Solana as a
- * separate domain (no batching, no chain id, no `to`/`value`) so a flat
- * non-union record is cleaner than co-mingling Solana-only fields onto
- * [`PendingTx`].
- */
+/** Solana wallet request waiting for the local CLI signer. */
 export type PendingSolTx = {
   id: string;
   /** Backend-assigned id for the staged Solana sign request. */
   solanaId: number;
-  /** Base64 of the unsigned Solana transaction (host never decodes). */
-  unsignedTx: string;
+  /** All staged backend ids covered by this transaction. */
+  solanaIds?: number[];
+  /** Wallet operation requested by the backend. */
+  requestKind?:
+    | "solana_sign"
+    | "solana_sign_message"
+    | "solana_send"
+    | "solana_sign_and_send";
+  /** Base64 unsigned transaction for transaction requests. */
+  unsignedTx?: string;
+  /** Base64 message bytes for `solana_sign_message`. */
+  message?: string;
   /** CAIP-2 cluster, e.g. "solana:mainnet" / "solana:devnet". */
   cluster?: string;
   /** Base58 pubkey the host expects to sign (informational; CLI signs
@@ -86,8 +90,10 @@ export type PendingSolTx = {
  */
 export type SignedSolTx = {
   id: string;
-  signedTx: string;
+  requestKind?: PendingSolTx["requestKind"];
+  signedTx?: string;
   signer: string;
+  signature?: string;
   cluster?: string;
   description?: string;
   timestamp: number;
@@ -96,8 +102,10 @@ export type SignedSolTx = {
 export type CliAuthSession = {
   sessionToken: string;
   expiresAt: number;
+  walletFamily?: "evm" | "svm";
   walletAddress?: string;
   chainId?: number;
+  chainScope?: string;
   betterAuthUserId?: string;
 };
 
@@ -124,11 +132,14 @@ export type CliSessionState = {
   privateKey?: string;
   /** Solana public key (base58), derived from the Solana keypair when provided. */
   svmPublicKey?: string;
+  /** Canonical CAIP-2 Solana cluster selected for this session. */
+  svmCluster?: "solana:mainnet" | "solana:devnet" | "solana:testnet";
   /** Solana private key (base58), persisted by `wallet set --solana`. Used as
    * the signing key fallback when `--solana-private-key` is not passed on a
    * command. Never printed in output. */
   svmPrivateKey?: string;
   chainId?: number;
+  aaProvider?: CliAAProvider;
   aaMode?: UserStateAAMode | null;
   smartAccount?: string | null;
   pendingTxs?: PendingTx[];
@@ -238,8 +249,10 @@ function toCliSessionState(stored: StoredSessionState): CliSessionState {
     publicKey: stored.publicKey,
     privateKey: stored.privateKey,
     svmPublicKey: stored.svmPublicKey,
+    svmCluster: stored.svmCluster,
     svmPrivateKey: stored.svmPrivateKey,
     chainId: stored.chainId,
+    aaProvider: stored.aaProvider,
     aaMode: stored.aaMode,
     smartAccount: stored.smartAccount,
     pendingTxs: stored.pendingTxs,
@@ -292,8 +305,10 @@ function readStoredSession(path: string): StoredSessionState | null {
       publicKey: parsed.publicKey,
       privateKey: parsed.privateKey,
       svmPublicKey: parsed.svmPublicKey,
+      svmCluster: parsed.svmCluster,
       svmPrivateKey: parsed.svmPrivateKey,
       chainId: parsed.chainId,
+      aaProvider: parsed.aaProvider,
       aaMode: parsed.aaMode,
       smartAccount: parsed.smartAccount,
       pendingTxs: parsed.pendingTxs,
@@ -334,8 +349,10 @@ function normalizeAuthSession(value: unknown): CliAuthSession | undefined {
   return {
     sessionToken: auth.sessionToken,
     expiresAt: auth.expiresAt,
+    walletFamily: auth.walletFamily,
     walletAddress: auth.walletAddress,
     chainId: auth.chainId,
+    chainScope: auth.chainScope,
     betterAuthUserId: auth.betterAuthUserId,
   };
 }

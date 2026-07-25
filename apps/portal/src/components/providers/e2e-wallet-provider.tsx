@@ -8,20 +8,35 @@ import {
   type AomiAuthAdapter,
   type AomiAuthIdentity,
 } from "@aomi-labs/widget-lib";
-import type { WalletEip712Payload, WalletTxPayload } from "@aomi-labs/react";
+import type {
+  WalletEip712Payload,
+  WalletSolanaSignMessagePayload,
+  WalletSolanaSignPayload,
+  WalletTxPayload,
+} from "@aomi-labs/react";
 import { http, type Chain } from "viem";
 import { createConfig, WagmiProvider } from "wagmi";
 import { API_PATHS } from "@portal/lib/api-paths";
 
 export type E2EWalletSeedClient = {
-  address: `0x${string}`;
-  chainId: number;
+  address?: `0x${string}`;
+  chainId?: number;
+  svmAddress?: string;
+  svmCluster?: "solana:devnet" | "solana:testnet";
 };
 
 type Props = {
   children: ReactNode;
   seed: E2EWalletSeedClient;
   networks: readonly Chain[];
+  solanaNetworks: readonly {
+    id: string;
+    label: string;
+    cluster: "solana:mainnet" | "solana:devnet" | "solana:testnet";
+    rpcHttpUrl: string;
+    rpcWsUrl?: string;
+    isDefault?: boolean;
+  }[];
 };
 
 type E2EExecutionSuccess = {
@@ -37,6 +52,10 @@ type E2EExecutionResponse =
       ok: false;
       error: string;
     };
+
+type E2ESolanaResponse =
+  | { ok: true; signature: string; signedTx?: string }
+  | { ok: false; error: string };
 
 const useRealE2EExecution =
   process.env.NEXT_PUBLIC_AOMI_E2E_EXECUTION_MODE === "real";
@@ -85,7 +104,28 @@ async function executeRealE2ETransaction(
   return result;
 }
 
-export function E2EWalletProvider({ children, seed, networks }: Props) {
+async function executeRealE2ESolana(
+  action: "sign" | "sign-and-send" | "sign-message",
+  payload: WalletSolanaSignPayload | WalletSolanaSignMessagePayload,
+): Promise<Extract<E2ESolanaResponse, { ok: true }>> {
+  const response = await fetch(API_PATHS.bff.e2e.solana, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action, payload }),
+  });
+  const result = (await response.json()) as E2ESolanaResponse;
+  if (!response.ok || !result.ok) {
+    throw new Error(result.ok ? "E2E Solana execution failed" : result.error);
+  }
+  return result;
+}
+
+export function E2EWalletProvider({
+  children,
+  seed,
+  networks,
+  solanaNetworks,
+}: Props) {
   const [queryClient] = useState(() => new QueryClient());
   const wagmiConfig = useMemo(
     () =>
@@ -110,14 +150,31 @@ export function E2EWalletProvider({ children, seed, networks }: Props) {
       walletKind: "eoa",
       aaMode: "none",
       chainId: seed.chainId,
+      svmAddress: seed.svmAddress,
+      svmCluster: seed.svmCluster,
+      solanaCluster: seed.svmCluster,
+      svmWalletName: seed.svmAddress ? "E2E Solana Wallet" : undefined,
+      svmTransport: seed.svmAddress ? "embedded" : undefined,
+      svmCapabilities: seed.svmAddress
+        ? {
+            canSignMessage: true,
+            canSignTransaction: true,
+            canSendTransaction: true,
+            canSignAndSendTransaction: true,
+          }
+        : undefined,
       walletProvider: "para",
-      walletProviderSubject: `e2e:${seed.address.toLowerCase()}`,
+      walletProviderSubject: `e2e:${(
+        seed.address ??
+        seed.svmAddress ??
+        "wallet"
+      ).toLowerCase()}`,
       authMethod: "email",
       authProvider: "email",
       authValue: "e2e@aomi.dev",
       authVerifiedAt: Math.floor(Date.now() / 1000),
-      primaryLabel: "E2E Wallet",
-      secondaryLabel: seed.address,
+      primaryLabel: seed.address ? "E2E Wallet" : "E2E Solana Wallet",
+      secondaryLabel: seed.address ?? seed.svmAddress,
       sponsored: false,
       sponsorProvider: "self",
     };
@@ -131,17 +188,33 @@ export function E2EWalletProvider({ children, seed, networks }: Props) {
       canDisconnect: false,
       supportedNetworks: {
         evm: networks,
-        solana: [],
+        solana: solanaNetworks,
       },
       accounts: [
-        {
-          id: `e2e:${seed.address.toLowerCase()}`,
-          family: "evm",
-          address: seed.address,
-          label: "E2E Wallet",
-          walletName: "E2E Wallet",
-          active: true,
-        },
+        ...(seed.address
+          ? [
+              {
+                id: `e2e:${seed.address.toLowerCase()}`,
+                family: "evm" as const,
+                address: seed.address,
+                label: "E2E Wallet",
+                walletName: "E2E Wallet",
+                active: true,
+              },
+            ]
+          : []),
+        ...(seed.svmAddress
+          ? [
+              {
+                id: `e2e:${seed.svmAddress}`,
+                family: "svm" as const,
+                address: seed.svmAddress,
+                label: "E2E Solana Wallet",
+                walletName: "E2E Solana Wallet",
+                active: true,
+              },
+            ]
+          : []),
       ],
       selectAccount: async () => undefined,
       connect: async () => undefined,
@@ -180,9 +253,33 @@ export function E2EWalletProvider({ children, seed, networks }: Props) {
       signMessage: async (payload) => ({
         signature: fakeSignature(payload),
       }),
+      signSolanaMessage: seed.svmAddress
+        ? async (payload) => {
+            const result = await executeRealE2ESolana("sign-message", payload);
+            return { signature: result.signature };
+          }
+        : undefined,
+      signSolanaTransaction: seed.svmAddress
+        ? async (payload) => {
+            const result = await executeRealE2ESolana("sign", payload);
+            if (!result.signedTx)
+              throw new Error("E2E signer returned no transaction");
+            return { signedTx: result.signedTx };
+          }
+        : undefined,
+      sendSolanaTransaction: seed.svmAddress
+        ? async (payload) => executeRealE2ESolana("sign-and-send", payload)
+        : undefined,
+      signAndSendSolanaTransaction: seed.svmAddress
+        ? async (payload) => executeRealE2ESolana("sign-and-send", payload)
+        : undefined,
+      solanaRpcHttpUrl: seed.svmCluster
+        ? solanaNetworks.find((network) => network.cluster === seed.svmCluster)
+            ?.rpcHttpUrl
+        : undefined,
       getEmbeddedCredential: async () => null,
     };
-  }, [networks, seed.address, seed.chainId]);
+  }, [networks, seed, solanaNetworks]);
 
   return (
     <ExtUserProvider>

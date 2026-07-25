@@ -1,14 +1,15 @@
 export { createDefaultWalletAttesters } from "./providers/default-wallet-attesters";
 
-export {
-  validWalletAddress,
-} from "./providers/wallet-attestation";
+export { validWalletAddress } from "./providers/wallet-attestation";
 
 export {
   ensureAccountSchema,
   deactivateAomiAccount,
   fetchAttestedProviderWallets,
   getAccountResponseForBetterAuthSession,
+  getAccountResponseForWidgetSession,
+  getOrCreateAomiUserForSiwe,
+  getOrCreateAomiUserForSiws,
   getOrCreateAomiUserForBetterAuthSession,
   linkProviderIdentity,
   renameAuthIdentity,
@@ -16,7 +17,9 @@ export {
   resolveSignal,
   syncProviderAttestedWallets,
   syncProviderWallets,
+  syncBetterAuthWalletsForUser,
   syncSiweWalletsForUser,
+  syncSiwsWalletsForUser,
   unlinkAuthIdentity,
   unlinkWallet,
   updateAccountProfile,
@@ -28,10 +31,20 @@ export {
   exchangeProviderForExistingSession,
   createDefaultProviderCredentialVerifiers,
   isVerifiedProviderTokenCredential,
+  linkVerifiedProviderCredentialForUser,
+  linkVerifiedProviderIdentityForUser,
   providerSessionUserSeed,
+  signInWithVerifiedProviderCredential,
+  signInWithVerifiedProviderIdentity,
   verifyProviderCredential,
   type ProviderExchangeResult,
 } from "./service/provider-exchange";
+export {
+  attachVerifiedProviderIdentityToUser,
+  IdentityConflictError,
+  resolveVerifiedProviderIdentity,
+  type IdentityResolutionResult,
+} from "./service/identity-resolution";
 export type {
   ProviderCredentialVerifier,
   ProviderCredentialVerifierRegistry,

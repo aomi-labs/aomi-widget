@@ -12,6 +12,7 @@ import {
   parseAAProvider,
   parseAAMode,
   validateSolanaPrivateKey,
+  parsePaymentMethod,
 } from "../../validation";
 
 type SvmCluster = NonNullable<CliConfig["svmCluster"]>;
@@ -91,6 +92,10 @@ export const globalArgs = {
     type: "string",
     description: 'App (default: "default")',
   },
+  "application-id": {
+    type: "string",
+    description: "Concrete backend application id for dynamic apps",
+  },
   model: {
     type: "string",
     description: "Set the active model for this session",
@@ -125,6 +130,10 @@ export const globalArgs = {
   "rpc-url": {
     type: "string",
     description: "RPC URL for transaction submission",
+  },
+  "payment-method": {
+    type: "string",
+    description: 'Payment method for paid chat turns, e.g. "coinbase"',
   },
 } satisfies ArgsDef;
 
@@ -245,6 +254,8 @@ export function buildCliConfig(args: Record<string, unknown>): CliConfig {
     embeddedProvider,
     embeddedProviderToken,
     app: str(args.app) ?? process.env.AOMI_APP,
+    applicationId:
+      str(args["application-id"]) ?? process.env.AOMI_APPLICATION_ID,
     model: str(args.model) ?? process.env.AOMI_MODEL,
     freshSession: args["new-session"] === true,
     publicKey: configuredPublicKey ?? derivedPublicKey,
@@ -257,6 +268,9 @@ export function buildCliConfig(args: Record<string, unknown>): CliConfig {
     execution,
     aaProvider,
     aaMode,
+    paymentMethod: parsePaymentMethod(
+      str(args["payment-method"]) ?? process.env.AOMI_PAYMENT_METHOD,
+    ),
   };
 }
 

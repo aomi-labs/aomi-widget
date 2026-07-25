@@ -388,7 +388,7 @@ There is **no silent EOA fallback** — if AA is selected and both modes fail, t
 
 `aomi tx simulate` runs pending transactions sequentially on a forked chain so state-dependent flows (approve → swap) are validated as a batch. Returns per-step success, revert reasons, and gas usage without modifying on-chain state.
 
-See [`packages/client/skills/aomi-transact/SKILL.md`](packages/client/skills/aomi-transact/SKILL.md) for the complete CLI reference.
+See [`aomi-labs/skills/aomi-transact/SKILL.md`](https://github.com/aomi-labs/skills/blob/main/aomi-transact/SKILL.md) for the complete CLI reference.
 
 ---
 
@@ -402,7 +402,7 @@ Install via the skills registry:
 npx skills add aomi-labs/skills
 ```
 
-The skill file lives at [`packages/client/skills/aomi-transact/SKILL.md`](packages/client/skills/aomi-transact/SKILL.md) and includes:
+The skill file lives at [`aomi-labs/skills/aomi-transact/SKILL.md`](https://github.com/aomi-labs/skills/blob/main/aomi-transact/SKILL.md) and includes:
 
 - Hard rules for handling private keys and API keys safely.
 - The default chat → review → simulate → sign workflow.

@@ -1,6 +1,7 @@
 import { createBackendProxy, type AllowedRoute } from "@aomi-labs/account";
-import { resolveBetterAuthCanonicalUserId } from "@portal/lib/aomi-account/canonical-session";
+import { resolveCanonicalUserId } from "@portal/server/canonical-session";
 import { launchConfig } from "@portal/server/bff/launch/config";
+import { widgetPreflight, widgetRoute } from "@portal/lib/widget-auth/response";
 
 const ALLOWED_ROUTES: AllowedRoute[] = [
   {
@@ -12,8 +13,16 @@ const ALLOWED_ROUTES: AllowedRoute[] = [
     methods: new Set(["GET"]),
     auth: "optional",
   },
-  { pattern: /^\/api\/thread\/state$/, methods: new Set(["GET"]), auth: "optional" },
-  { pattern: /^\/api\/thread\/chat$/, methods: new Set(["POST"]), auth: "optional" },
+  {
+    pattern: /^\/api\/thread\/state$/,
+    methods: new Set(["GET"]),
+    auth: "optional",
+  },
+  {
+    pattern: /^\/api\/thread\/chat$/,
+    methods: new Set(["POST"]),
+    auth: "optional",
+  },
   { pattern: /^\/api\/system$/, methods: new Set(["POST"]), auth: "optional" },
   {
     pattern: /^\/api\/thread\/interrupt$/,
@@ -22,7 +31,11 @@ const ALLOWED_ROUTES: AllowedRoute[] = [
   },
   { pattern: /^\/api\/secrets$/, methods: new Set(["GET", "POST", "DELETE"]) },
   { pattern: /^\/api\/secrets\/[^/]+$/, methods: new Set(["DELETE"]) },
-  { pattern: /^\/api\/thread\/updates$/, methods: new Set(["GET"]), auth: "optional" },
+  {
+    pattern: /^\/api\/thread\/updates$/,
+    methods: new Set(["GET"]),
+    auth: "optional",
+  },
   {
     pattern: /^\/api\/threads$/,
     methods: new Set(["GET", "POST"]),
@@ -33,7 +46,16 @@ const ALLOWED_ROUTES: AllowedRoute[] = [
     methods: new Set(["GET", "PATCH", "DELETE"]),
     auth: "optional",
   },
-  { pattern: /^\/api\/thread\/events$/, methods: new Set(["GET"]), auth: "optional" },
+  {
+    pattern: /^\/api\/threads\/[^/]+\/(archive|unarchive)$/,
+    methods: new Set(["POST"]),
+    auth: "optional",
+  },
+  {
+    pattern: /^\/api\/thread\/events$/,
+    methods: new Set(["GET"]),
+    auth: "optional",
+  },
   {
     pattern: /^\/api\/thread\/apps$/,
     methods: new Set(["GET"]),
@@ -42,7 +64,7 @@ const ALLOWED_ROUTES: AllowedRoute[] = [
   {
     pattern: /^\/api\/thread\/models$/,
     methods: new Set(["GET"]),
-    auth: "optional",
+    auth: "none",
   },
   {
     pattern: /^\/api\/thread\/model$/,
@@ -99,9 +121,9 @@ function rewriteLegacyThreadPath(upstreamUrl: URL): void {
   }
 }
 
-export const { GET, POST, PUT, PATCH, DELETE } = createBackendProxy({
+const proxy = createBackendProxy({
   allowedRoutes: ALLOWED_ROUTES,
-  resolveCanonicalUserId: resolveBetterAuthCanonicalUserId,
+  resolveCanonicalUserId,
   applyDefaults: (upstreamUrl) => {
     rewriteLegacyThreadPath(upstreamUrl);
     if (
@@ -115,6 +137,21 @@ export const { GET, POST, PUT, PATCH, DELETE } = createBackendProxy({
     }
   },
 });
+
+export const GET = widgetRoute(proxy.GET, "proxy GET");
+export const POST = widgetRoute(proxy.POST, "proxy POST");
+export const PUT = widgetRoute(proxy.PUT, "proxy PUT");
+export const PATCH = widgetRoute(proxy.PATCH, "proxy PATCH");
+export const DELETE = widgetRoute(proxy.DELETE, "proxy DELETE");
+
+export const OPTIONS = widgetPreflight([
+  "GET",
+  "POST",
+  "PUT",
+  "PATCH",
+  "DELETE",
+  "OPTIONS",
+]);
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";

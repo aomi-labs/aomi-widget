@@ -44,7 +44,10 @@ export async function verifySiweMessage(input: {
   }
   const client = publicClientForChain(chainId);
   if (!client) {
-    await logInvalidSiweMessage(input, { eoaError, reason: "unsupported_chain" });
+    await logInvalidSiweMessage(input, {
+      eoaError,
+      reason: "unsupported_chain",
+    });
     return false;
   }
   try {
@@ -62,8 +65,29 @@ export async function verifySiweMessage(input: {
     });
     return false;
   }
-  await logInvalidSiweMessage(input, { eoaError, reason: "signature_mismatch" });
+  await logInvalidSiweMessage(input, {
+    eoaError,
+    reason: "signature_mismatch",
+  });
   return false;
+}
+
+export async function verifyEoaSiweMessage(input: {
+  message: string;
+  signature: string;
+  address: string;
+}): Promise<boolean> {
+  if (!/^0x[0-9a-fA-F]{40}$/.test(input.address)) return false;
+  if (!/^0x[0-9a-fA-F]+$/.test(input.signature)) return false;
+  try {
+    return await verifyEoaMessage({
+      address: input.address as `0x${string}`,
+      message: input.message,
+      signature: input.signature as `0x${string}`,
+    });
+  } catch {
+    return false;
+  }
 }
 
 const VERIFY_CHAINS: readonly Chain[] = [

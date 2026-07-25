@@ -51,6 +51,43 @@ describe("wallet payload normalization", () => {
     });
   });
 
+  it("rejects malformed and unsafe chain IDs", () => {
+    expect(
+      normalizeTxPayload({ tx_ids: [1], chain_id: "8453abc" })?.chainId,
+    ).toBeUndefined();
+    expect(
+      normalizeTxPayload({ tx_ids: [1], chain_id: "0x2105zz" })?.chainId,
+    ).toBeUndefined();
+    expect(
+      normalizeTxPayload({ tx_ids: [1], chain_id: "9007199254740993" })
+        ?.chainId,
+    ).toBeUndefined();
+    expect(
+      normalizeTxPayload({
+        tx_ids: [1],
+        chain_id: Number.MAX_SAFE_INTEGER + 1,
+      })?.chainId,
+    ).toBeUndefined();
+    expect(
+      normalizeTxPayload({ tx_ids: [1], chain_id: 1.5 })?.chainId,
+    ).toBeUndefined();
+    expect(
+      normalizeTxPayload({ tx_ids: [1], chain_id: 0 })?.chainId,
+    ).toBeUndefined();
+    expect(
+      normalizeTxPayload({ tx_ids: [1], chain_id: -1 })?.chainId,
+    ).toBeUndefined();
+    expect(normalizeTxPayload({ tx_ids: [1], chain_id: "8453" })?.chainId).toBe(
+      8453,
+    );
+    expect(
+      normalizeTxPayload({ tx_ids: [1], chain_id: "0x2105" })?.chainId,
+    ).toBe(8453);
+    expect(normalizeTxPayload({ tx_ids: [1], chain_id: 8453 })?.chainId).toBe(
+      8453,
+    );
+  });
+
   it("retains mixed wallet transaction payloads (raw call + tx_ids)", () => {
     expect(
       normalizeTxPayload({
@@ -256,7 +293,7 @@ describe("wallet payload normalization", () => {
   it("normalizes backend svm wallet_tx_request payloads into a Solana send request", () => {
     expect(
       normalizeSolanaWalletRequest({
-        chain_kind: "svm",
+        chain_family: "svm",
         svm_tx_ids: [12],
         request_kind: "send_transaction",
         unsigned_tx: "U0VORE1F",
@@ -271,6 +308,29 @@ describe("wallet payload normalization", () => {
         description: "send 0.01 SOL",
         cluster: "solana:devnet",
         pendingSolanaId: 12,
+        pendingSolanaIds: [12],
+      },
+    });
+  });
+
+  it("canonicalizes legacy Solana cluster labels before wallet dispatch", () => {
+    expect(
+      normalizeSolanaWalletRequest({
+        chain_kind: "svm",
+        svm_ix_ids: [1],
+        request_kind: "send_transaction",
+        unsigned_tx: "U0VORE1F",
+        cluster: "mainnet-beta",
+        payer: "HZpj6CD9R4asaSM98mkWzfgowfQnCGA5Hu6zcwoPvRpW",
+      }),
+    ).toEqual({
+      kind: "solana_send",
+      payload: {
+        unsignedTx: "U0VORE1F",
+        description: undefined,
+        cluster: "solana:mainnet",
+        pendingSolanaId: 1,
+        pendingSolanaIds: [1],
       },
     });
   });

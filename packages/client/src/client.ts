@@ -251,7 +251,10 @@ function wrapFetchWithAccountBearer(
       let bearer: string | null | undefined;
       try {
         bearer = await getAccountBearer({ forceRefresh });
-      } catch {
+      } catch (error) {
+        if (getAccountBearer.required) {
+          throw error;
+        }
         bearer = undefined;
       }
       if (bearer) {
@@ -450,22 +453,35 @@ export class AomiClient {
     sessionId: string,
     userState?: UserStateShape,
     clientId?: string,
+    options?: { app?: string; applicationId?: number | string | null },
   ): Promise<AomiStateResponse> {
     const normalizedUserState = stripBulkyPendingFields(
       UserState.normalize(userState),
     );
+    const applicationId = options?.applicationId?.toString().trim();
+    const stateContext = {
+      app: options?.app,
+      application_id: applicationId || undefined,
+    };
     const urlWithSyncParams = buildApiUrl(this.baseUrl, "/api/thread/state", {
+      ...stateContext,
       user_state: normalizedUserState
         ? JSON.stringify(normalizedUserState)
         : undefined,
       client_id: clientId,
     });
-    const bareUrl = buildApiUrl(this.baseUrl, "/api/thread/state");
+    const bareUrl = buildApiUrl(
+      this.baseUrl,
+      "/api/thread/state",
+      stateContext,
+    );
     const shouldRetryWithoutSyncParams =
       Boolean(normalizedUserState) || Boolean(clientId);
 
     this.logger?.debug("[aomi][client] GET /api/thread/state start", {
       sessionId,
+      app: options?.app,
+      applicationId,
       clientId,
       hasUserState: Boolean(normalizedUserState),
     });
@@ -522,6 +538,7 @@ export class AomiClient {
       apiKey?: string;
       userState?: UserStateShape;
       clientId?: string;
+      paymentMethod?: string | null;
     },
   ): Promise<AomiChatResponse> {
     const app = options?.app ?? "default";
@@ -538,6 +555,7 @@ export class AomiClient {
         ? JSON.stringify(normalizedUserState)
         : undefined,
       client_id: options?.clientId,
+      payment_method: options?.paymentMethod ?? undefined,
     });
 
     this.logger?.debug("[aomi][client] POST /api/thread/chat prepared", {
@@ -545,6 +563,7 @@ export class AomiClient {
       app,
       applicationId,
       clientId: options?.clientId,
+      paymentMethod: options?.paymentMethod,
       hasUserState: Boolean(normalizedUserState),
       messagePreview: previewText(message),
     });
@@ -889,18 +908,36 @@ export class AomiClient {
    * Archive a thread.
    */
   async archiveThread(sessionId: string): Promise<void> {
-    throw new Error(
-      "Failed to archive thread: current backend does not expose /api/threads/:id/archive",
+    const url = buildApiUrl(
+      this.baseUrl,
+      `/api/threads/${encodeURIComponent(sessionId)}/archive`,
     );
+    const response = await this.fetchImpl(url, {
+      method: "POST",
+      headers: withSessionHeader(sessionId),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to archive thread: HTTP ${response.status}`);
+    }
   }
 
   /**
    * Unarchive a thread.
    */
   async unarchiveThread(sessionId: string): Promise<void> {
-    throw new Error(
-      "Failed to unarchive thread: current backend does not expose /api/threads/:id/unarchive",
+    const url = buildApiUrl(
+      this.baseUrl,
+      `/api/threads/${encodeURIComponent(sessionId)}/unarchive`,
     );
+    const response = await this.fetchImpl(url, {
+      method: "POST",
+      headers: withSessionHeader(sessionId),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to unarchive thread: HTTP ${response.status}`);
+    }
   }
 
   // ===========================================================================

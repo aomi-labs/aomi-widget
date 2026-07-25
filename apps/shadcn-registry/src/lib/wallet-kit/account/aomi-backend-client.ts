@@ -1,12 +1,31 @@
 import type { AomiAccountCredential } from "../types";
+import type { SvmCluster } from "../types";
 import type { AccountRuntime, AccountWallet } from "./types";
 
 export type AomiBackendAccountResponse = {
   user: AccountRuntime["user"] | null;
   linkedAccounts: AccountRuntime["linkedAccounts"];
   wallets: AccountWallet[];
-  session: { betterAuthUserId: string; expiresAt?: number } | null;
+  session:
+    | {
+        carrier: "better_auth";
+        betterAuthUserId: string;
+        expiresAt?: number;
+      }
+    | {
+        carrier: "widget";
+        expiresAt: number;
+        authMethod: string;
+      }
+    | null;
 };
+
+export type AomiBackendAccountAuth =
+  | { credentials?: "include" }
+  | {
+      credentials: "omit";
+      getAuthorization: import("@aomi-labs/client").GetAccountBearer;
+    };
 
 export type AomiBackendProviderExchangeResponse = {
   status: "linked" | "noop";
@@ -30,6 +49,16 @@ export type AomiBackendNonceResponse = {
   uri?: string;
 };
 
+export class AomiAccountRequestError extends Error {
+  constructor(
+    readonly status: number,
+    readonly code: string | null,
+  ) {
+    super(formatAccountRequestError(status, code));
+    this.name = "AomiAccountRequestError";
+  }
+}
+
 export type AomiBackendAccountEndpointConfig = Partial<{
   accountPath: string;
   signOutPath: string;
@@ -40,6 +69,8 @@ export type AomiBackendAccountEndpointConfig = Partial<{
   identityPath: (identityId: string) => string;
   siweNoncePath: string;
   siweVerifyPath: string;
+  siwsNoncePath: string;
+  siwsVerifyPath: string;
 }>;
 
 const DEFAULT_ENDPOINTS = {
@@ -54,20 +85,29 @@ const DEFAULT_ENDPOINTS = {
     `/api/aomi/identities/${encodeURIComponent(identityId)}`,
   siweNoncePath: "/api/auth/siwe/nonce",
   siweVerifyPath: "/api/auth/siwe/verify",
+  siwsNoncePath: "/api/auth/siws/nonce",
+  siwsVerifyPath: "/api/auth/siws/verify",
 } satisfies Required<AomiBackendAccountEndpointConfig>;
 
 export function createAomiBackendAccountClient(input: {
   baseUrl?: string;
   endpoints?: AomiBackendAccountEndpointConfig;
   fetch?: typeof fetch;
+  auth?: AomiBackendAccountAuth;
 }) {
   const baseUrl = normalizeBaseUrl(input.baseUrl);
   const fetchImpl = input.fetch ?? fetch;
   const endpoints = { ...DEFAULT_ENDPOINTS, ...(input.endpoints ?? {}) };
+  const auth = input.auth ?? { credentials: "include" as const };
 
   const urlFor = (path: string) => `${baseUrl}${path}`;
+  // `request` is for endpoints that always return a JSON body; `requestVoid` is
+  // for no-content mutations. Keeping them separate lets each return an honest
+  // type instead of casting an empty response to `T`.
   const request = <T>(path: string, init: RequestInit) =>
-    fetchJson<T>(fetchImpl, urlFor(path), init);
+    fetchJson<T>(fetchImpl, urlFor(path), init, auth);
+  const requestVoid = (path: string, init: RequestInit) =>
+    fetchVoid(fetchImpl, urlFor(path), init, auth);
 
   return {
     getAccount: () =>
@@ -87,7 +127,7 @@ export function createAomiBackendAccountClient(input: {
       request<AomiBackendDeleteAccountResponse>(endpoints.accountPath, {
         method: "DELETE",
       }),
-    signOut: () => request(endpoints.signOutPath, { method: "POST" }),
+    signOut: () => requestVoid(endpoints.signOutPath, { method: "POST" }),
     exchangeProviderCredential: (
       credential: AomiAccountCredential,
       options: { hasAccount: boolean },
@@ -119,7 +159,7 @@ export function createAomiBackendAccountClient(input: {
         body: JSON.stringify(body),
       }),
     updateWallet: (walletId: string, body: { label?: string | null }) =>
-      request(endpoints.walletPath(walletId), {
+      requestVoid(endpoints.walletPath(walletId), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -128,15 +168,15 @@ export function createAomiBackendAccountClient(input: {
       identityId: string,
       body: { displayLabel?: string | null },
     ) =>
-      request(endpoints.identityPath(identityId), {
+      requestVoid(endpoints.identityPath(identityId), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       }),
     unlinkWallet: (walletId: string) =>
-      request(endpoints.walletPath(walletId), { method: "DELETE" }),
+      requestVoid(endpoints.walletPath(walletId), { method: "DELETE" }),
     unlinkAuthIdentity: (identityId: string) =>
-      request(endpoints.identityPath(identityId), { method: "DELETE" }),
+      requestVoid(endpoints.identityPath(identityId), { method: "DELETE" }),
     createSiweNonce: (body: { walletAddress: string; chainId: number }) =>
       request<AomiBackendNonceResponse>(endpoints.siweNoncePath, {
         method: "POST",
@@ -149,7 +189,30 @@ export function createAomiBackendAccountClient(input: {
       walletAddress: string;
       chainId: number;
     }) =>
-      request(endpoints.siweVerifyPath, {
+      requestVoid(endpoints.siweVerifyPath, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }),
+    createSiwsNonce: (body: {
+      walletAddress: string;
+      chainId: SvmCluster;
+      intent: "sign-in" | "link";
+    }) =>
+      request<AomiBackendNonceResponse>(endpoints.siwsNoncePath, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }),
+    verifySiws: (body: {
+      message: string;
+      signature: string;
+      walletAddress: string;
+      chainId: SvmCluster;
+      intent: "sign-in" | "link";
+      label?: string;
+    }) =>
+      requestVoid(endpoints.siwsVerifyPath, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -157,25 +220,65 @@ export function createAomiBackendAccountClient(input: {
   };
 }
 
+async function sendAccountRequest(
+  fetchImpl: typeof fetch,
+  url: string,
+  init: RequestInit,
+  auth: AomiBackendAccountAuth,
+): Promise<Response> {
+  const execute = async (forceRefresh: boolean) => {
+    const headers = new Headers(init.headers);
+    headers.set("Accept", "application/json");
+    if (auth.credentials === "omit") {
+      const authorization = await auth.getAuthorization({ forceRefresh });
+      if (!authorization)
+        throw new Error("Widget authorization is unavailable");
+      headers.set("Authorization", `Bearer ${authorization}`);
+    }
+    return fetchImpl(url, {
+      ...init,
+      credentials: auth.credentials ?? "include",
+      headers,
+    });
+  };
+  let response = await execute(false);
+  if (response.status === 401 && auth.credentials === "omit") {
+    response = await execute(true);
+  }
+  if (!response.ok) {
+    const error = await response.json().catch(() => null);
+    const code = extractErrorCode(error);
+    throw new AomiAccountRequestError(response.status, code);
+  }
+  return response;
+}
+
 async function fetchJson<T>(
   fetchImpl: typeof fetch,
   url: string,
   init: RequestInit,
+  auth: AomiBackendAccountAuth,
 ): Promise<T> {
-  const response = await fetchImpl(url, {
-    credentials: "include",
-    ...init,
-    headers: {
-      Accept: "application/json",
-      ...(init.headers ?? {}),
-    },
-  });
-  if (!response.ok) {
-    const error = await response.json().catch(() => null);
-    const code = extractErrorCode(error);
-    throw new Error(formatAccountRequestError(response.status, code));
+  const response = await sendAccountRequest(fetchImpl, url, init, auth);
+  // These endpoints always return a JSON body on success; an empty response is
+  // a contract violation, so surface it instead of casting `undefined` to `T`.
+  if (response.status === 204 || response.status === 205) {
+    throw new Error("Account request returned no content");
   }
-  return (await response.json()) as T;
+  const body = await response.text();
+  if (!body.trim()) {
+    throw new Error("Account request returned an empty body");
+  }
+  return JSON.parse(body) as T;
+}
+
+async function fetchVoid(
+  fetchImpl: typeof fetch,
+  url: string,
+  init: RequestInit,
+  auth: AomiBackendAccountAuth,
+): Promise<void> {
+  await sendAccountRequest(fetchImpl, url, init, auth);
 }
 
 function extractErrorCode(error: unknown): string | null {
@@ -190,7 +293,7 @@ function formatAccountRequestError(
   code: string | null,
 ): string {
   if (status === 409 && code === "already_linked_to_another_account") {
-    return "This wallet or sign-in method is already linked to another Aomi account. Sign in to that account to unlink it first.";
+    return "This wallet or sign-in method is already linked to another Aomi account. Sign in to that account, unlink it there, then return here and link it.";
   }
   return code ?? `Request failed: ${status}`;
 }

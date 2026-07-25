@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
 import {
   Sidebar,
   SidebarContent,
@@ -47,20 +46,22 @@ export function ThreadListSidebar({
     <Sidebar
       collapsible="offcanvas"
       variant="inset"
-      className="relative bg-sidebar border-r border-border/30"
+      className="bg-sidebar border-border/30 relative border-r"
       {...props}
     >
       <SidebarHeader className="aomi-sidebar-header">
         <div className="aomi-sidebar-header-content mb-5 ml-5 mt-5 flex items-center justify-between">
-          <Link
+          <a
             href="https://aomi.dev"
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center justify-center"
           >
             <AomiLogo className="aomi-sidebar-header-icon size-6" />
-          </Link>
-          {walletPosition === "header" && <ConnectButton families={walletFamilies} />}
+          </a>
+          {walletPosition === "header" && (
+            <ConnectButton families={walletFamilies} />
+          )}
         </div>
       </SidebarHeader>
       <SidebarContent className="aomi-sidebar-content">

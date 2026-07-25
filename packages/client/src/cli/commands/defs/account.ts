@@ -16,6 +16,10 @@ const accountLoginDef = defineCommand({
       type: "boolean",
       description: "Use native CLI SIWE with the configured EVM wallet",
     },
+    solana: {
+      type: "boolean",
+      description: "Use native CLI SIWS with the configured Solana wallet",
+    },
     "no-browser": {
       type: "boolean",
       description: "Do not open provider auth; use native CLI SIWE",
@@ -26,6 +30,7 @@ const accountLoginDef = defineCommand({
     await accountLoginCommand(buildCliConfig(args), {
       provider: typeof args.provider === "string" ? args.provider : undefined,
       wallet: args.wallet === true,
+      solana: args.solana === true,
       noBrowser: args["no-browser"] === true,
     });
   },
@@ -82,6 +87,10 @@ const accountLinkDef = defineCommand({
       type: "boolean",
       description: "Link an EVM wallet with SIWE (default)",
     },
+    solana: {
+      type: "boolean",
+      description: "Link a Solana wallet with SIWS",
+    },
     label: {
       type: "string",
       description: "Optional display label for the linked wallet",
@@ -92,6 +101,7 @@ const accountLinkDef = defineCommand({
     await accountLinkCommand(buildCliConfig(args), {
       provider: typeof args.provider === "string" ? args.provider : undefined,
       wallet: args.wallet === true,
+      solana: args.solana === true,
       label: typeof args.label === "string" ? args.label : undefined,
     });
   },

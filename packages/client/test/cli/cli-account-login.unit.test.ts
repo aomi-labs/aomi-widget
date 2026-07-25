@@ -2,6 +2,8 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { Keypair } from "@solana/web3.js";
+import bs58 from "bs58";
 
 const ORIGINAL_ENV = { ...process.env };
 
@@ -201,5 +203,53 @@ describe("aomi account login", () => {
     } finally {
       vi.stubGlobal("fetch", originalFetch);
     }
+  });
+
+  it("establishes an account session through BetterAuth SIWS", async () => {
+    const keypair = Keypair.generate();
+    const secret = bs58.encode(keypair.secretKey);
+    const { accountLoginCommand } =
+      await import("../../src/cli/commands/account");
+    const nativeFetch = vi.fn(async (url: string | URL | Request) => {
+      const target = String(url);
+      if (target.endsWith("/api/auth/siws/nonce")) {
+        return Response.json({
+          nonce: "siws-nonce",
+          domain: "chat.aomi.dev",
+          uri: "https://chat.aomi.dev",
+        });
+      }
+      if (target.endsWith("/api/auth/siws/verify")) {
+        return Response.json(
+          { success: true, user: { id: "ba-svm-user" } },
+          { headers: { "set-auth-token": "svm-session" } },
+        );
+      }
+      if (target.endsWith("/api/aomi/account")) {
+        return Response.json({
+          session: {
+            betterAuthUserId: "ba-svm-user",
+            expiresAt: "2030-01-02T03:04:05.000Z",
+          },
+        });
+      }
+      throw new Error(`unexpected fetch: ${target}`);
+    });
+    vi.stubGlobal("fetch", nativeFetch);
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    await accountLoginCommand(
+      {
+        ...baseConfig,
+        baseUrl: "https://chat.aomi.dev",
+        solanaPrivateKey: secret,
+        svmCluster: "solana:devnet",
+      },
+      { solana: true },
+    );
+
+    expect(logSpy).toHaveBeenCalledWith(
+      `Signed in with Solana wallet ${keypair.publicKey.toBase58()}`,
+    );
   });
 });

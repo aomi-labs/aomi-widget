@@ -1,6 +1,6 @@
 import { SUPPORTED_CHAIN_IDS, CHAIN_NAMES } from "../chains";
 import type { AAMode } from "../aa/types";
-import type { CliAAProvider } from "./types";
+import type { CliAAProvider, CliPaymentMethod } from "./types";
 import { fatal } from "./errors";
 import { parseSolanaKeypairSecret } from "./solana-signer";
 
@@ -63,4 +63,15 @@ export function parseAAMode(value: string | undefined): AAMode | undefined {
     return value;
   }
   fatal("Unsupported AA mode. Use `4337` or `7702`.");
+}
+
+export function parsePaymentMethod(
+  value: string | undefined,
+): CliPaymentMethod | undefined {
+  if (value === undefined || value.trim() === "") return undefined;
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "coinbase") {
+    return normalized;
+  }
+  fatal("Unsupported payment method. Use `coinbase`.");
 }

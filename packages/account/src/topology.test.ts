@@ -33,6 +33,20 @@ describe("account topology", () => {
     expect(portalTopologyName()).toBe("production");
   });
 
+  it("authorizes aomi-bff for the sidecar audience in every topology", async () => {
+    // The aomi-build live-files sidecar verifies bearers minted by aomi-bff
+    // with audience "aomi-sidecar" (never "aomi-backend", so a bearer leaked
+    // from the sandbox is useless at the backend).
+    const { PORTAL_TOPOLOGIES } = await import("./topology-data");
+    const { parseTopology } = await import("@aomi-labs/service");
+    for (const toml of Object.values(PORTAL_TOPOLOGIES)) {
+      const bff = parseTopology(toml).services.find(
+        (node) => node.name === "aomi-bff",
+      );
+      expect(bff?.audiences).toContain("aomi-sidecar");
+    }
+  });
+
   it("constructs the service without app-root topology files", async () => {
     chdir(tempDir);
     const testGlobal = globalThis as typeof globalThis & {

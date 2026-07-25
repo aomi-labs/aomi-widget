@@ -1,6 +1,11 @@
 // Main entry point for @aomi-labs/widget-lib
 // Re-export the main AomiFrame component
 export { AomiFrame } from "./components/aomi-frame";
+export {
+  AomiWidget,
+  type AomiWidgetAuthConfig,
+  type AomiWidgetProps,
+} from "./components/aomi-widget";
 
 // Dual-wallet UI
 export {
@@ -37,7 +42,7 @@ export {
   SUPPORTED_CHAINS,
 } from "@aomi-labs/react";
 export { ExtUserProvider, useUser, UserState } from "@aomi-labs/react";
-export { monad, monadTestnet } from "@aomi-labs/client";
+export { monad, monadTestnet, robinhood } from "@aomi-labs/client";
 export type {
   AomiWalletKit,
   AomiWalletKit as AomiAuthAdapter,

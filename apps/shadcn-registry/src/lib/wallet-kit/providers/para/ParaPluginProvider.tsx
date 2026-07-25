@@ -1,12 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, type ReactNode } from "react";
-import {
-  hashMessage,
-  parseSignature,
-  serializeSignature,
-  type Chain,
-} from "viem";
+import { type Chain } from "viem";
 import type { TOAuthMethod } from "@getpara/react-sdk";
 import { AomiWalletKitComposer } from "../../composer/AomiWalletKitComposer";
 import { useResolvedAccountRuntime } from "../../account/use-resolved-account-runtime";
@@ -17,6 +12,7 @@ import type {
 } from "../../composer/types";
 import type { AccountConfig, ExecutionConfig } from "../../config/types";
 import { useAomiWalletNetworkPreferences } from "../../network-preferences";
+import { safeEnv } from "../../env";
 import { inferAuthMethod } from "../../identity";
 import {
   useEvmWalletRuntime,
@@ -41,10 +37,12 @@ import {
 } from "../../runtime/svm/wallet-runtime";
 import { useParaSessionSource } from "./sources/para-session-source";
 import { isParaEmbeddedAccount } from "./para-embedded-wallet";
+import { signParaMessage } from "./para-message-signing";
 import {
   defaultOAuthMethods,
   resolveParaAuthValue,
-  useSafeIssueJwt,
+  resolveParaSubject,
+  createParaCredentialGetter,
   useSafeLogout,
   useSafeParaAccount,
   useSafeParaClient,
@@ -61,24 +59,6 @@ type PluginSvmRuntimeConfig = Pick<
   "cluster" | "rpcHttpUrl" | "rpcWsUrl" | "preferDirectSend"
 >;
 
-type ParaSigningWallet = {
-  id?: string;
-  address?: string;
-  type?: string;
-};
-
-type ParaSigningClient = {
-  findWalletByAddress?: (
-    address: `0x${string}`,
-    filter?: { type?: readonly string[] },
-  ) => ParaSigningWallet | undefined;
-  signMessage?: (args: {
-    walletId: string;
-    messageBase64: string;
-  }) => Promise<{ signature?: string }>;
-  wallets?: Record<string, ParaSigningWallet>;
-};
-
 export type AomiParaPluginProviderProps = {
   children: ReactNode;
   supportedChains?: readonly Chain[];
@@ -90,65 +70,6 @@ export type AomiParaPluginProviderProps = {
   execution?: ExecutionConfig;
   account?: AccountConfig;
 };
-
-function hexToBase64(hex: string): string {
-  const normalized = hex.startsWith("0x") ? hex.slice(2) : hex;
-  let binary = "";
-  for (let index = 0; index < normalized.length; index += 2) {
-    binary += String.fromCharCode(
-      parseInt(normalized.slice(index, index + 2), 16),
-    );
-  }
-  return btoa(binary);
-}
-
-function normalizeParaSignature(signature: string): `0x${string}` {
-  const normalized = signature.startsWith("0x") ? signature : `0x${signature}`;
-  const parsed = parseSignature(normalized as `0x${string}`);
-  return serializeSignature({
-    r: parsed.r,
-    s: parsed.s,
-    yParity: parsed.yParity,
-  });
-}
-
-function findParaSigningWallet(
-  paraSession: ParaSigningClient,
-  address: `0x${string}`,
-): ParaSigningWallet | undefined {
-  const wallet = paraSession.findWalletByAddress?.(address, { type: ["EVM"] });
-  if (wallet) {
-    return wallet;
-  }
-
-  return Object.entries(paraSession.wallets ?? {}).find(([, candidate]) => {
-    return (
-      candidate.address?.toLowerCase() === address.toLowerCase() &&
-      (!candidate.type || candidate.type === "EVM")
-    );
-  })?.[1];
-}
-
-async function signParaMessage(
-  paraSession: ParaSigningClient,
-  address: `0x${string}`,
-  message: string,
-): Promise<`0x${string}`> {
-  const wallet = findParaSigningWallet(paraSession, address);
-  const walletId = wallet?.id;
-  if (!walletId || typeof paraSession.signMessage !== "function") {
-    throw new Error("Para embedded wallet is not available for signing");
-  }
-
-  const result = await paraSession.signMessage({
-    walletId,
-    messageBase64: hexToBase64(hashMessage(message)),
-  });
-  if (!result.signature) {
-    throw new Error("Para embedded wallet did not return a signature");
-  }
-  return normalizeParaSignature(result.signature);
-}
 
 export function AomiParaPluginProvider({
   children,
@@ -163,7 +84,10 @@ export function AomiParaPluginProvider({
 }: AomiParaPluginProviderProps) {
   const paraAccount = useSafeParaAccount();
   const paraSession = useSafeParaClient();
-  const issueJwt = useSafeIssueJwt();
+  const issueJwt = useMemo(
+    () => createParaCredentialGetter(paraSession),
+    [paraSession],
+  );
   const paraLogout = useSafeLogout();
   const paraModal = useSafeParaModal();
   const svmWallet = useSafeSvmWallet();
@@ -218,11 +142,11 @@ export function AomiParaPluginProvider({
       cluster: svmConfig?.cluster ?? DEFAULT_SVM_CLUSTER,
       rpcHttpUrl:
         svmConfig?.rpcHttpUrl ??
-        process.env.NEXT_PUBLIC_SOLANA_RPC_URL ??
+        safeEnv(() => process.env.NEXT_PUBLIC_SOLANA_RPC_URL) ??
         DEFAULT_SVM_ENDPOINT,
       rpcWsUrl:
         svmConfig?.rpcWsUrl ??
-        process.env.NEXT_PUBLIC_SOLANA_RPC_WS_URL ??
+        safeEnv(() => process.env.NEXT_PUBLIC_SOLANA_RPC_WS_URL) ??
         undefined,
       preferDirectSend: svmConfig?.preferDirectSend ?? true,
     }),
@@ -264,7 +188,7 @@ export function AomiParaPluginProvider({
           return null;
         }
         return signParaMessage(
-          paraSession as ParaSigningClient,
+          paraSession,
           connection.address as `0x${string}`,
           message,
         );
@@ -301,6 +225,9 @@ export function AomiParaPluginProvider({
   const exposeParaSession = Boolean(
     paraAccount.isConnected && !paraSessionLocallyDetached,
   );
+  const paraSubject = exposeParaSession
+    ? resolveParaSubject(paraAccount, paraSession)
+    : undefined;
   const embeddedPrimary = exposeParaSession
     ? (paraAccount.embedded.email ??
       paraAccount.embedded.farcasterUsername ??
@@ -315,6 +242,7 @@ export function AomiParaPluginProvider({
       embeddedProvider: "para",
       legacyWalletProvider: "para",
       providerLabel: "Para",
+      subject: paraSubject,
       status: paraAccount.isLoading
         ? "booting"
         : exposeParaSession
@@ -355,6 +283,7 @@ export function AomiParaPluginProvider({
       paraAccount.isLoading,
       paraAuthMethod,
       paraModal,
+      paraSubject,
       registryStore,
       startParaAuthFlow,
     ],

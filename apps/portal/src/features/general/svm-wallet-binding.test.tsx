@@ -1,0 +1,97 @@
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const SVM_ADDRESS = "BindCardWallet1111111111111111111111111111";
+const MESSAGE = "Aomi Authorization v1\nbind card payload";
+const signature = Uint8Array.from([1, 2, 3, 4]);
+const signSolanaMessage = vi.fn(async (payload: { message?: string }) => {
+  expect(payload.message).toBe(Buffer.from(MESSAGE).toString("base64"));
+  return { signature: Buffer.from(signature).toString("base64") };
+});
+
+vi.mock("@aomi-labs/widget-lib", () => ({
+  useAomiWalletKit: () => ({
+    identity: {
+      svmAddress: SVM_ADDRESS,
+      svmCluster: "solana:devnet",
+      svmCapabilities: { canSignMessage: true },
+    },
+    signSolanaMessage,
+  }),
+  Button: (props: React.ComponentProps<"button">) => <button {...props} />,
+}));
+
+const wallets: Array<{
+  address: string;
+  chain_type: string;
+  signing_mode: string;
+}> = [];
+const posts: Array<{ path: string; body: unknown }> = [];
+
+vi.mock("@portal/lib/settings-api", () => ({
+  accountScopedFetch: async (path: string, options?: RequestInit) => {
+    if (path.endsWith("/wallets")) return { wallets: [...wallets] };
+    const body = options?.body ? JSON.parse(String(options.body)) : undefined;
+    posts.push({ path, body });
+    if (path.endsWith("/challenge")) {
+      return {
+        permit: {
+          account: "acct-1",
+          chain_type: "svm",
+          wallet: SVM_ADDRESS,
+          mode: "bind",
+          version: 0,
+          expiry: 4102444800,
+        },
+        message_base64: Buffer.from(MESSAGE).toString("base64"),
+      };
+    }
+    wallets.push({
+      address: SVM_ADDRESS,
+      chain_type: "svm",
+      signing_mode: "human_sync",
+    });
+    return {
+      address: SVM_ADDRESS,
+      chain_type: "svm",
+      signing_mode: "human_sync",
+      authorization_version: 0,
+    };
+  },
+}));
+
+import { SvmWalletBinding } from "./svm-wallet-binding";
+
+describe("SvmWalletBinding", () => {
+  beforeEach(() => {
+    wallets.length = 0;
+    posts.length = 0;
+    signSolanaMessage.mockClear();
+  });
+
+  it("binds with the exact challenge and reflects human_sync", async () => {
+    render(<SvmWalletBinding />);
+    fireEvent.click(await screen.findByRole("button", { name: "Bind wallet" }));
+    await screen.findByText(/signing mode: human_sync/i);
+    expect(signSolanaMessage).toHaveBeenCalledOnce();
+    expect(
+      posts.find((post) => post.path.endsWith("/commit"))?.body,
+    ).toMatchObject({
+      permit: { wallet: SVM_ADDRESS, mode: "bind" },
+      signature: Buffer.from(signature).toString("base64"),
+    });
+  });
+
+  it("shows an existing binding without an action", async () => {
+    wallets.push({
+      address: SVM_ADDRESS,
+      chain_type: "svm",
+      signing_mode: "human_sync",
+    });
+    render(<SvmWalletBinding />);
+    await waitFor(() =>
+      expect(screen.getByText(/signing mode: human_sync/i)).toBeInTheDocument(),
+    );
+    expect(screen.queryByRole("button", { name: "Bind wallet" })).toBeNull();
+  });
+});

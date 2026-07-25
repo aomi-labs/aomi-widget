@@ -17,7 +17,10 @@ const authState = vi.hoisted(() => ({
   },
   isReady: true,
   activeFamily: "solana",
-  activeNetwork: { family: "solana", networkId: "solana-devnet" },
+  selectedSolanaNetwork: {
+    id: "solana-devnet",
+    cluster: "solana:devnet",
+  },
   supportedNetworks: {
     solana: [
       { id: "solana-devnet", cluster: "solana:devnet" },
@@ -25,8 +28,14 @@ const authState = vi.hoisted(() => ({
     ],
   },
   selectNetwork: vi.fn(),
+  solanaNetworkSwitchRequiresReconnect: false,
   signSolanaTransaction: vi.fn(),
   signSolanaMessage: vi.fn(),
+  sendSolanaTransaction: vi.fn(),
+  signTypedData: undefined as
+    | ((payload: Record<string, unknown>) => Promise<{ signature: string }>)
+    | undefined,
+  signMessage: vi.fn(),
 }));
 
 vi.mock("@aomi-labs/react", () => ({
@@ -37,6 +46,11 @@ vi.mock("@aomi-labs/react", () => ({
   hydrateTxPayloadFromUserState: vi.fn((payload) => payload),
   parseChainId: vi.fn(),
   toViemSignTypedDataArgs: vi.fn(),
+  toViemSignMessageArgs: vi.fn((payload: Record<string, unknown>) =>
+    typeof payload.non_typed_data === "string"
+      ? { message: payload.non_typed_data }
+      : null,
+  ),
   useAomiRuntime: () => runtimeState,
 }));
 
@@ -56,7 +70,14 @@ describe("RuntimeTxHandler", () => {
     authState.selectNetwork.mockReset();
     authState.signSolanaTransaction.mockReset();
     authState.signSolanaMessage.mockReset();
-    authState.activeNetwork = { family: "solana", networkId: "solana-devnet" };
+    authState.sendSolanaTransaction.mockReset();
+    authState.signTypedData = undefined;
+    authState.signMessage.mockReset();
+    authState.selectedSolanaNetwork = {
+      id: "solana-devnet",
+      cluster: "solana:devnet",
+    };
+    authState.solanaNetworkSwitchRequiresReconnect = false;
   });
 
   afterEach(() => {
@@ -64,7 +85,9 @@ describe("RuntimeTxHandler", () => {
   });
 
   it("dispatches solana_sign requests through signSolanaTransaction", async () => {
-    authState.signSolanaTransaction.mockResolvedValue({ signedTx: "SIGNED_TX" });
+    authState.signSolanaTransaction.mockResolvedValue({
+      signedTx: "SIGNED_TX",
+    });
     runtimeState.pendingWalletRequests = [
       {
         id: "solana_sign-7",
@@ -125,6 +148,101 @@ describe("RuntimeTxHandler", () => {
     expect(runtimeState.resolveWalletRequest).toHaveBeenCalledWith(
       "solana_sign_message-9",
       { kind: "solana_sign_message", signature: "SIG_BASE64" },
+    );
+    expect(runtimeState.rejectWalletRequest).not.toHaveBeenCalled();
+  });
+
+  it("accepts mainnet-beta send requests and invokes the Solana wallet", async () => {
+    authState.selectedSolanaNetwork = {
+      id: "solana-mainnet",
+      cluster: "solana:mainnet",
+    };
+    authState.sendSolanaTransaction.mockResolvedValue({
+      signature: "SOLANA_SIGNATURE",
+    });
+    runtimeState.pendingWalletRequests = [
+      {
+        id: "solana_send-1",
+        kind: "solana_send",
+        payload: {
+          unsignedTx: "AQID",
+          cluster: "mainnet-beta",
+          pendingSolanaId: 1,
+          pendingSolanaIds: [1],
+        },
+        timestamp: Date.now(),
+      },
+    ];
+
+    render(<RuntimeTxHandler />);
+
+    await waitFor(() => {
+      expect(authState.sendSolanaTransaction).toHaveBeenCalledWith({
+        unsignedTx: "AQID",
+        cluster: "mainnet-beta",
+        pendingSolanaId: 1,
+        pendingSolanaIds: [1],
+      });
+    });
+    expect(authState.selectNetwork).not.toHaveBeenCalled();
+    expect(runtimeState.resolveWalletRequest).toHaveBeenCalledWith(
+      "solana_send-1",
+      { kind: "solana_send", signature: "SOLANA_SIGNATURE" },
+    );
+    expect(runtimeState.rejectWalletRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects signing when the requested cluster requires reconnecting", async () => {
+    authState.solanaNetworkSwitchRequiresReconnect = true;
+    runtimeState.pendingWalletRequests = [
+      {
+        id: "solana_sign-10",
+        kind: "solana_sign",
+        payload: {
+          unsignedTx: "AQID",
+          cluster: "solana:mainnet",
+          pendingSolanaId: 10,
+        },
+        timestamp: Date.now(),
+      },
+    ];
+
+    render(<RuntimeTxHandler />);
+
+    await waitFor(() => {
+      expect(runtimeState.rejectWalletRequest).toHaveBeenCalledWith(
+        "solana_sign-10",
+        expect.stringContaining("Reconnect"),
+      );
+    });
+    expect(authState.signSolanaTransaction).not.toHaveBeenCalled();
+  });
+
+  it("signs a plain EVM message when typed-data signing is unavailable", async () => {
+    authState.signMessage.mockResolvedValue({ signature: "0xsignature" });
+    runtimeState.pendingWalletRequests = [
+      {
+        id: "eip712_sign-11",
+        kind: "eip712_sign",
+        payload: {
+          non_typed_data: "AOMI_E2E_SAFE_SIGN",
+          description: "Sign a harmless E2E message",
+        },
+        timestamp: Date.now(),
+      },
+    ];
+
+    render(<RuntimeTxHandler />);
+
+    await waitFor(() => {
+      expect(authState.signMessage).toHaveBeenCalledWith({
+        non_typed_data: "AOMI_E2E_SAFE_SIGN",
+        description: "Sign a harmless E2E message",
+      });
+    });
+    expect(runtimeState.resolveWalletRequest).toHaveBeenCalledWith(
+      "eip712_sign-11",
+      { kind: "eip712_sign", signature: "0xsignature" },
     );
     expect(runtimeState.rejectWalletRequest).not.toHaveBeenCalled();
   });

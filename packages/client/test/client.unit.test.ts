@@ -11,11 +11,21 @@ describe("AomiClient route manifest", () => {
         `${endpoint.method} ${endpoint.path} [${endpoint.auth.join(", ")}]`,
     );
 
-    expect(routeKeys).toHaveLength(105);
+    expect(routeKeys).toHaveLength(109);
     expect(new Set(routeKeys).size).toBe(routeKeys.length);
     expect(routeKeys).toContain("POST /api/exec/run [account, thread]");
+    expect(routeKeys).toContain(
+      "POST /api/threads/:thread_id/archive [account, thread]",
+    );
+    expect(routeKeys).toContain(
+      "POST /api/threads/:thread_id/unarchive [account, thread]",
+    );
     expect(routeKeys).toContain("GET /api/resource/search/apps [account]");
     expect(routeKeys).toContain("GET /api/resource/search/tools [account]");
+    expect(routeKeys).toContain("GET /api/resource/skills [account]");
+    expect(routeKeys).toContain(
+      "GET /api/resource/skills/:skill_id [account]",
+    );
     expect(routeKeys).toContain("GET /api/thread/apps [thread]");
     expect(routeKeys).toContain("GET /api/_internal/secrets [service]");
     expect(routeKeys).toContain("DELETE /api/_internal/secrets [service]");
@@ -314,6 +324,35 @@ describe("AomiClient account profile", () => {
       expect(
         new Headers((init as RequestInit).headers).get("X-Session-Id"),
       ).toBe("session-1");
+    } finally {
+      vi.stubGlobal("fetch", originalFetch);
+    }
+  });
+
+  it("passes chat payment method as a query param", async () => {
+    const response = {
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      json: vi.fn(async () => ({ messages: [], is_processing: false })),
+    } as unknown as Response;
+    const nativeFetch = vi.fn(async () => response);
+    const originalFetch = globalThis.fetch;
+    vi.stubGlobal("fetch", nativeFetch);
+
+    try {
+      const client = new AomiClient({ baseUrl: "http://unit.test" });
+
+      await client.sendMessage("session-1", "paid turn", {
+        app: "somm-agent",
+        applicationId: 31,
+        clientId: "client-1",
+        paymentMethod: "coinbase",
+      });
+
+      expect(String(nativeFetch.mock.calls[0]?.[0])).toBe(
+        "http://unit.test/api/thread/chat?app=somm-agent&application_id=31&message=paid+turn&client_id=client-1&payment_method=coinbase",
+      );
     } finally {
       vi.stubGlobal("fetch", originalFetch);
     }
@@ -709,6 +748,28 @@ describe("AomiClient transport selection", () => {
       (fetch.mock.calls[0]?.[1] as RequestInit | undefined)?.headers,
     );
     expect(headers.get("X-Thread-Id")).toBe("thread-1");
+  });
+
+  it("archives and unarchives through the current thread endpoints", async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>(async () =>
+      Response.json({ success: true }),
+    );
+    const client = new AomiClient({ baseUrl: "http://unit.test", fetch });
+
+    await client.archiveThread("thread/1");
+    await client.unarchiveThread("thread/1");
+
+    expect(String(fetch.mock.calls[0]?.[0])).toBe(
+      "http://unit.test/api/threads/thread%2F1/archive",
+    );
+    expect(String(fetch.mock.calls[1]?.[0])).toBe(
+      "http://unit.test/api/threads/thread%2F1/unarchive",
+    );
+    for (const call of fetch.mock.calls) {
+      const init = call[1] as RequestInit;
+      expect(init.method).toBe("POST");
+      expect(new Headers(init.headers).get("X-Thread-Id")).toBe("thread/1");
+    }
   });
 
   it("uses native fetch for SSE subscriptions even when a custom fetch is provided", async () => {

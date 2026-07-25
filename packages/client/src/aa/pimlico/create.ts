@@ -20,8 +20,9 @@ import {
   getUnsupportedAdapterState,
   type AAOwner,
 } from "../owner";
+import { safeEnv } from "../../internal/env";
 
-const AA_DEBUG_ENABLED = process.env.AOMI_AA_DEBUG === "1";
+const AA_DEBUG_ENABLED = safeEnv(() => process.env.AOMI_AA_DEBUG) === "1";
 
 function pimDebug(message: string, fields?: Record<string, unknown>): void {
   if (!AA_DEBUG_ENABLED) return;
@@ -59,7 +60,8 @@ export async function createPimlicoAAState(
     { ...chainConfig, defaultMode: effectiveMode },
   );
 
-  const apiKey = options.apiKey ?? process.env.PIMLICO_API_KEY?.trim();
+  const apiKey =
+    options.apiKey ?? safeEnv(() => process.env.PIMLICO_API_KEY)?.trim();
   if (!apiKey) {
     throw new Error("Pimlico AA requires PIMLICO_API_KEY.");
   }

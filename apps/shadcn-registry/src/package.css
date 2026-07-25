@@ -1,0 +1,5 @@
+@import "tailwindcss";
+@import "./themes/default.css";
+
+/* Generate every utility used by the publishable widget implementation. */
+@source "./**/*.{ts,tsx}";
