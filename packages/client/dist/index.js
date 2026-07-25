@@ -3009,6 +3009,9 @@ function resolveWalletState(userState, address3, chainId3, aa) {
   var _a, _b, _c;
   const resolvedAAMode = (_a = aa == null ? void 0 : aa.aaMode) != null ? _a : (aa == null ? void 0 : aa.smartAccount) === address3 ? "4337" : "none";
   const aaBlock2 = { mode: resolvedAAMode };
+  if (resolvedAAMode === "4337" || resolvedAAMode === "7702") {
+    aaBlock2.provider = "alchemy";
+  }
   if ((aa == null ? void 0 : aa.smartAccount4337) !== void 0 || (aa == null ? void 0 : aa.delegation7702) !== void 0) {
     aaBlock2.smart_account = resolvedAAMode === "4337" ? (_b = aa == null ? void 0 : aa.smartAccount4337) != null ? _b : null : null;
     aaBlock2.delegation_7702 = resolvedAAMode === "7702" ? (_c = aa == null ? void 0 : aa.delegation7702) != null ? _c : null : null;
@@ -3028,7 +3031,10 @@ function resolveWalletState(userState, address3, chainId3, aa) {
 }
 function warnIfUserStateMisaligned(expected, actual) {
   const expectedUserState = UserState.normalize(expected);
-  const normalizedActualUserState = UserState.reconcile(expectedUserState, actual);
+  const normalizedActualUserState = UserState.reconcile(
+    expectedUserState,
+    actual
+  );
   if (!expectedUserState || !normalizedActualUserState) {
     return;
   }
@@ -3283,8 +3289,9 @@ var SessionWalletController = class {
     const prevAa = isRecord2(prevEvm.aa) ? prevEvm.aa : {};
     this.deps.resolveUserState(__spreadProps(__spreadValues({}, userState != null ? userState : {}), {
       evm: __spreadProps(__spreadValues({}, prevEvm), {
-        aa: __spreadProps(__spreadValues({}, prevAa), {
-          mode: resolvedMode,
+        aa: __spreadProps(__spreadValues(__spreadProps(__spreadValues({}, prevAa), {
+          mode: resolvedMode
+        }), resolvedMode === "4337" || resolvedMode === "7702" ? { provider: "alchemy" } : {}), {
           smart_account: resolvedMode === "4337" ? (_d = result.SmartAccount4337) != null ? _d : null : null,
           delegation_7702: resolvedMode === "7702" ? (_e = result.Delegation7702) != null ? _e : null : null
         })
