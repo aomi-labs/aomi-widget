@@ -2,7 +2,72 @@
 
 ## Last Updated
 
-2026-07-23 (latest) — Review-checklist fix pass on
+2026-07-26 — Build Providers page (builder model keys, FE half; branch
+  `feat/build-model-keys-tab`, uncommitted, worktree
+  `.worktrees/model-keys-tab`). The ACCOUNT-nav Providers page (`/providers`,
+  `features/operate/providers-view.tsx`) has one flat card per provider
+  (OpenAI/Anthropic/OpenRouter),
+  accordion key rows, project-assignment editor, and rotate/remove flows; key
+  material is write-only and only the stored prefix renders. Project pages gain
+  a read-mostly Providers tab
+  (`tabs/providers-tab.tsx`, apply/remove grants for this project; Details
+  merged into Home to make room). BFF `/api/bff/operate/model-keys`
+  (GET/POST/PUT/DELETE in `server/bff/operate/routes.ts`) fronts the manager
+  routes `/api/integrations/github-app/user/model-keys[/:id[/grants]]` via
+  five new DeploymentClient methods in `packages/deploy`. The existing
+  dedicated Providers ⌘K entry indexes model-provider terms. Per-key usage
+  (`usage` / `usageByApplication`, all-time funded-turn sums) comes from the
+  manager on each key; the view derives the per-project Tokens/Cost cells from
+  it at 1 credit = $0.01.
+
+  Restyled per Cecilia review against the settings-redesign inventory (artifact
+  5885e89f…, `.claude/worktrees/settings-redesign`). The project picker is a
+  framed PROJECT/SOURCE/FUNDED-BY/TOKENS/COST table with 10px tracked heads,
+  checked-row accent fill, sky checkboxes, reassign warnings, per-project usage,
+  and an all-time Total row. The expanded key panel now opens with a funding
+  summary instead of raw metadata: sponsorship state and project names plus
+  wired Projects funded / Tokens sponsored / Provider spend totals; key prefix,
+  creation, rotation, and the all-time window remain quiet provenance. The
+  assignment section is titled "Add to project" at the same text size as the
+  key title and explains: "Use this key to fund projects when users select
+  models from this provider." Its table is a frameless white ledger with
+  horizontal separators and five evenly sized columns; checkbox state carries
+  selection without a row wash. Closed rows keep the key identity in consistent
+  monospace type (including user labels such as `prod-main`),
+  Active/Unassigned state, and funded-project context. Rotate and the
+  solid-red/white Remove action live together in the funding-summary header,
+  with each action's flow directly below the summary. The full expanded panel
+  uses one wider horizontal inset so its summary, assignment ledger, and flows
+  align uniformly on both sides.
+
+  Normalized the Providers radii to apps/build's token mapping: `rounded-md`
+  cards/tables/panels (12px), `rounded-sm` in-card controls (8px), and
+  `rounded-full` pills. Carried the same recipes into the project-scoped
+  Providers tab and shared `status-pill.tsx` / `sdk-badge.tsx` primitives.
+  Fixed inert `bg-surface` / `bg-surface-subtle` utilities there. Registered
+  the missing `--color-accent-selected-foreground` token so solid-sky Save /
+  Add key controls and checkbox ticks use the correct on-accent ink. Simplified
+  active sidebar navigation to a uniform sky-500 fill, removing the pale
+  two-layer crescent.
+
+  Branch fast-forwarded onto main 9c98c44e (zero overlap). Verified before the
+  latest copy pass: aomi-build type-check, vitest 318/318, root deploy suite
+  130/130, lint (3 pre-existing warnings), production `next build`, and live
+  :3430 light/dark grant save + badge updates with no console errors. After the
+  funding-summary and assignment-copy pass: aomi-build type-check is green,
+  lint remains at the same 3 warnings, and the :3430 preview shows the unassigned
+  state plus the wired active-key totals (2 projects, 1.3M tokens, $9.02).
+
+  Pending BE gap 1: builder keys do not fund dynamic apps yet (they bill
+  `app_key` while platform keys pay). Fix BE-side first, then ship without a
+  flag. Pending BE gap 2: the FE types/renders
+  `ModelKey.usage[applicationId] = {tokens, costUsd}`, but the manager does
+  not emit it, so production usage cells remain "—"; only the dev preview has
+  real values. Add the manager field on `/user/model-keys` and map it in
+  `camelBuilderModelKey`. Deploy order: BE → FE → signed-in smoke (add key →
+  apply → chat shows `app_key`).
+
+2026-07-23 — Review-checklist fix pass on
   `codex/widget-auth-single-tenant`: all §1–§4 items and the actionable §5
   items of the (untracked) REVIEW-CHECKLIST.md closed via six parallel
   agents + consolidation. Highlights: provider-plugin no longer eagerly
