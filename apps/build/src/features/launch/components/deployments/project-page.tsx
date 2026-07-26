@@ -9,15 +9,16 @@ import { ChatTab } from "./tabs/chat-tab";
 import { DeploymentsTab } from "./tabs/deployments-tab";
 import { EnvironmentTab } from "./tabs/environment-tab";
 import { HomeTab } from "./tabs/home-tab";
+import { ProvidersTab } from "./tabs/providers-tab";
 import { SettingsTab } from "./tabs/settings-tab";
 import { LoadingPanel, ErrorPanel } from "./ui/state-panels";
 
 const TABS = [
   { id: "home", label: "Home" },
   { id: "deployments", label: "Deployments" },
-  { id: "chat", label: "Chat" },
+  { id: "providers", label: "Providers" },
   { id: "environment", label: "Environment" },
-  { id: "settings", label: "Details" },
+  { id: "chat", label: "Chat" },
 ] as const;
 type TabId = (typeof TABS)[number]["id"];
 
@@ -98,18 +99,23 @@ export function ProjectPage({
           ) : detail.error ? (
             <ErrorPanel message={detail.error} />
           ) : active === "home" ? (
-            <HomeTab detail={detail} tabBaseHref={tabBaseHref} />
+            // Details is merged into Home: status cards first, repo
+            // metadata (the former Details tab) below.
+            <>
+              <HomeTab detail={detail} tabBaseHref={tabBaseHref} />
+              <SettingsTab detail={detail} />
+            </>
           ) : active === "deployments" ? (
             <DeploymentsTab
               detail={detail}
               onOpenEnvironment={openEnvironment}
             />
-          ) : active === "chat" ? (
-            <ChatTab detail={detail} />
+          ) : active === "providers" ? (
+            <ProvidersTab detail={detail} />
           ) : active === "environment" ? (
             <EnvironmentTab detail={detail} />
           ) : (
-            <SettingsTab detail={detail} />
+            <ChatTab detail={detail} />
           )}
         </div>
       </div>

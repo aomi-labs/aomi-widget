@@ -107,6 +107,14 @@ function buildCommands(): CommandItem[] {
       icon: Settings,
     },
     {
+      id: "providers",
+      label: "Providers",
+      hint: "LLM keys that fund your users",
+      href: "/providers",
+      icon: KeyRound,
+      keywords: "model keys llm openai anthropic openrouter byok",
+    },
+    {
       id: "secrets",
       label: "Environment / Secrets",
       hint: lastId

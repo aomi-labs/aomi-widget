@@ -2,7 +2,45 @@
 
 ## Last Updated
 
-2026-07-23 (latest) — Review-checklist fix pass on
+2026-07-26 — Build Providers page (builder model keys, FE half; branch
+  `feat/build-model-keys-tab`, uncommitted, worktree
+  `.worktrees/model-keys-tab`). Global ACCOUNT-nav "Providers" page
+  (`/providers`, `features/operate/providers-view.tsx`): one flat card per
+  provider (OpenAI/Anthropic/OpenRouter), accordion key rows with metadata,
+  project-assignment checkbox editor (steal warning — one key per provider
+  per project), rotate/remove flows; key material is write-only, only the
+  stored prefix renders. Project pages gain a read-mostly Providers tab
+  (`tabs/providers-tab.tsx`, apply/remove grants for this project; Details
+  tab merged into Home to make room). BFF
+  `/api/bff/operate/model-keys` (GET/POST/PUT/DELETE in
+  `server/bff/operate/routes.ts`) fronts the new manager routes
+  `/api/integrations/github-app/user/model-keys[/:id[/grants]]` via five
+  new DeploymentClient methods (packages/deploy client.ts/types.ts).
+  ⌘K entry + dev harness `/dev-model-keys-preview` (stubbed-fetch sibling
+  of dev-operate-preview, kept deliberately). Restyled per Cecilia review
+  against the settings-redesign component inventory (artifact
+  5885e89f…, `.claude/worktrees/settings-redesign`): project picker is now
+  a framed PROJECT/SOURCE/FUNDED-BY table (uppercase 10px tracked heads,
+  checked rows on the accent-subtle fill, sky checkboxes, steal warning in
+  the Funded-by column), 10px uppercase badges (sky tint = Active, neutral
+  = Unassigned), label-over-value metadata cells, and the button ramp (sky
+  solid commit + sky outline Rotate rounded-lg in flow; solid red pill for
+  the Remove confirm; ghost dismissals). Verified live on :3430
+  (NEXT_DIST_DIR=.next-verify, launch.json `build-model-keys`) in light +
+  dark: grants save round-trip, badge count updates, no console errors.
+  Also fixed apps/build eslint flat config: the ignores entry mixed with
+  `rules` was never global (.next was only ignored by eslint-config-next
+  itself) — added a standalone `{ ignores: [".next*/**"] }` so
+  NEXT_DIST_DIR dist dirs don't get linted. Branch fast-forwarded onto
+  main 9c98c44e (zero overlap). Verified: aomi-build type-check, vitest
+  318/318, root deploy suite 130/130, lint (3 pre-existing warnings),
+  production `next build` green with all three routes in the table.
+  Pending: BE gap — builder keys don't fund dynamic apps yet (would bill
+  `app_key` while platform keys pay); decision recorded to fix that
+  BE-side first, then ship this visible (no flag). Deploy order: BE →
+  FE → signed-in smoke (add key → apply → chat shows `app_key`).
+
+2026-07-23 — Review-checklist fix pass on
   `codex/widget-auth-single-tenant`: all §1–§4 items and the actionable §5
   items of the (untracked) REVIEW-CHECKLIST.md closed via six parallel
   agents + consolidation. Highlights: provider-plugin no longer eagerly

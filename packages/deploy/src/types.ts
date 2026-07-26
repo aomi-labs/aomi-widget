@@ -42,6 +42,10 @@ export interface AuditEvent {
     | "list_user_source_bots"
     | "create_user_source_bot"
     | "delete_user_source_bot"
+    | "list_builder_model_keys"
+    | "save_builder_model_key"
+    | "delete_builder_model_key"
+    | "set_model_key_grants"
     | "list_user_source_transactions"
     | "get_user_source_usage"
     | "get_user_source_statement"
@@ -695,6 +699,44 @@ export interface CreateUserSourceBotInput extends OwnedOperateSourceInput {
   credential: string;
   label?: string;
   threadMode?: string;
+}
+
+/** A builder-owned LLM model key (funder-ladder app rung): provider +
+ *  recognizable prefix + the applications it is granted to. Never carries
+ *  key material. */
+export interface BuilderModelKey {
+  id: number;
+  provider: string;
+  label: string | null;
+  keyPrefix: string;
+  createdAt: number;
+  updatedAt: number;
+  applicationIds: number[];
+}
+
+export interface BuilderModelKeysInput extends BearerOverride {
+  githubUserId: string;
+  platform: string;
+}
+
+/** Create (no keyId) or rotate (keyId set) a builder model key. `key` is the
+ *  raw material; never stored client-side, logged, or returned. */
+export interface SaveBuilderModelKeyInput extends BuilderModelKeysInput {
+  keyId?: number;
+  /** "openai" | "anthropic" | "openrouter". */
+  provider: string;
+  key: string;
+  label?: string;
+}
+
+export interface DeleteBuilderModelKeyInput extends BuilderModelKeysInput {
+  keyId: number;
+}
+
+/** Replace a key's grant set ("apply to projects"). */
+export interface SetModelKeyGrantsInput extends BuilderModelKeysInput {
+  keyId: number;
+  applicationIds: number[];
 }
 
 export interface DeleteUserSourceBotInput extends OwnedOperateSourceInput {

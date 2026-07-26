@@ -383,21 +383,9 @@
   color: var(--text-primary);
 }
 .nav-link[data-active="true"] {
-  position: relative;
-  isolation: isolate;
-  /* Pale base pill shows as a smooth crescent on the left… */
-  background: var(--aomi-sky-200);
+  background: var(--accent-selected);
   color: var(--accent-selected-foreground);
   font-weight: 500;
-}
-/* …under the dark pill, inset on the right so the crescent tapers there. */
-.nav-link[data-active="true"]::before {
-  content: "";
-  position: absolute;
-  inset: 0 5px 0 0;
-  z-index: -1;
-  border-radius: inherit;
-  background: var(--accent-selected);
 }
 .nav-link[data-active="true"] .nav-icon {
   color: var(--accent-selected-foreground);

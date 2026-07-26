@@ -12,6 +12,7 @@ import {
   Gauge,
   Hammer,
   Home,
+  KeyRound,
   LogOut,
   Menu,
   PanelLeftClose,
@@ -130,6 +131,13 @@ const navGroups: NavGroup[] = [
   {
     title: "Account",
     items: [
+      {
+        label: "Providers",
+        href: "/providers",
+        icon: KeyRound,
+        enabled: true,
+        requiresGitHub: true,
+      },
       {
         label: "Integrations",
         href: "/integrations",
