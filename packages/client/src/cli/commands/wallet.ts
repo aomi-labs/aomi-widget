@@ -8,7 +8,6 @@ import {
   executeWalletCalls,
   type ExecutionResult,
 } from "../../aa";
-import { aaModeFromExecutionKind } from "../../aa/policy";
 import {
   toViemSignMessageArgs,
   toViemSignTypedDataArgs,
@@ -22,13 +21,6 @@ import {
   signSolanaMessage,
   signSolanaTransaction,
 } from "../solana-signer";
-import {
-  createCliProviderState,
-  describeExecutionDecision,
-  getAlternativeAAMode,
-  resolveCliExecutionDecision,
-  type CliExecutionDecision,
-} from "../execution";
 import { DIM, RESET, printDataFileLocation, printJson } from "../output";
 import type { PendingSolTx, PendingTx, SignedTx } from "../state";
 import {
@@ -40,8 +32,6 @@ import {
   toSignedTransactionRecord,
 } from "../transactions";
 import type { CliConfig } from "../types";
-import { ALCHEMY_CHAIN_SLUGS } from "../../chains";
-import { resolveAlchemyApiKey } from "../../aa/alchemy/defaults";
 import { toPendingTxMetadata, toSignedTxMetadata } from "../tables";
 
 export async function txCommand(config: CliConfig): Promise<void> {
@@ -180,46 +170,7 @@ function getPreferredRpcUrl(chain: Chain, override?: string): string {
     return override;
   }
 
-  const alchemyApiKey = resolveAlchemyApiKey();
-  const alchemyChainSlug = ALCHEMY_CHAIN_SLUGS[chain.id];
-  if (alchemyApiKey && alchemyChainSlug) {
-    return `https://${alchemyChainSlug}.g.alchemy.com/v2/${alchemyApiKey}`;
-  }
-
   return chain.rpcUrls.default.http[0] ?? chain.rpcUrls.public?.http[0] ?? "";
-}
-
-function buildCliTxCompletionMetadata(params: {
-  requestedDecision: CliExecutionDecision;
-  finalDecision: CliExecutionDecision;
-  execution: ExecutionResult;
-}): {
-  aa_requested_mode: "4337" | "7702" | "none";
-  aa_resolved_mode: "4337" | "7702" | "none";
-  aa_fallback_reason: string | undefined;
-} {
-  const requestedMode =
-    params.requestedDecision.execution === "aa"
-      ? params.requestedDecision.aaMode
-      : "none";
-  const resolvedMode =
-    aaModeFromExecutionKind(params.execution.executionKind) ??
-    (params.finalDecision.execution === "aa"
-      ? params.finalDecision.aaMode
-      : "none");
-
-  let fallbackReason: string | undefined;
-  if (requestedMode === "7702" && resolvedMode === "4337") {
-    fallbackReason = "requested_7702_fallback_4337";
-  } else if (requestedMode !== "none" && resolvedMode === "none") {
-    fallbackReason = "aa_failed_fallback_eoa";
-  }
-
-  return {
-    aa_requested_mode: requestedMode,
-    aa_resolved_mode: resolvedMode,
-    aa_fallback_reason: fallbackReason,
-  };
 }
 
 async function simulatePendingTransactions(params: {
@@ -434,17 +385,9 @@ async function executeCliTransaction(params: {
   currentChainId: number;
   chainsById: Record<number, Chain>;
   rpcUrl?: string;
-  providerState: Awaited<ReturnType<typeof createCliProviderState>>;
   callList: ReturnType<typeof pendingTxToCallList>;
 }): Promise<ExecutionResult> {
-  const {
-    privateKey,
-    currentChainId,
-    chainsById,
-    rpcUrl,
-    providerState,
-    callList,
-  } = params;
+  const { privateKey, currentChainId, chainsById, rpcUrl, callList } = params;
   const unsupportedWalletMethod = async (): Promise<never> => {
     throw new Error("wallet_client_path_unavailable_in_cli_private_key_mode");
   };
@@ -454,7 +397,6 @@ async function executeCliTransaction(params: {
     currentChainId,
     capabilities: undefined,
     localPrivateKey: privateKey,
-    providerState,
     sendCallsSyncAsync: unsupportedWalletMethod,
     sendTransactionAsync: unsupportedWalletMethod,
     switchChainAsync: async () => undefined,
@@ -477,6 +419,15 @@ export async function signCommand(
   if (uniqueIds.length !== txIds.length) {
     fatal(
       "Duplicate transaction IDs are not allowed in a single `aomi tx sign` call.",
+    );
+  }
+
+  // Client-side AA execution was removed — the backend AA lane executes
+  // smart-account transactions. The `--aa*` flags still record the AA
+  // preference in user_state so the backend routes accordingly.
+  if (config.execution === "aa") {
+    fatal(
+      "AA execution now runs in the backend lane (rolling out); use --eoa for local execution.",
     );
   }
 
@@ -600,10 +551,6 @@ export async function signCommand(
       type: string;
       payload: Record<string, unknown>;
     }> = [];
-    let resolvedUserStateAAMode: "4337" | "7702" | null = null;
-    let resolvedUserStateSmartAccount: string | null = null;
-    let resolvedUserStateSmartAccount4337: string | null = null;
-    let resolvedUserStateDelegation7702: string | null = null;
 
     if (pendingTxs.every((tx) => tx.kind === "transaction")) {
       console.log(
@@ -636,34 +583,9 @@ export async function signCommand(
         );
       }
 
-      const simulationDecision = resolveCliExecutionDecision({
-        config,
-        chain,
-        callList: baseCallList,
-      });
-      const simulationProviderState =
-        simulationDecision.execution === "aa"
-          ? await createCliProviderState({
-              decision: simulationDecision,
-              chain,
-              privateKey: privateKey as `0x${string}`,
-              rpcUrl: resolvedRpcUrl,
-              callList: baseCallList,
-              baseUrl: cli.baseUrl,
-            })
-          : undefined;
-      const simulationAAMode =
-        simulationDecision.execution === "aa"
-          ? simulationDecision.aaMode
-          : null;
-      const simulationSmartAccount =
-        simulationAAMode === "4337"
-          ? (simulationProviderState?.account?.SmartAccount4337 ?? null)
-          : null;
-
       session.resolveWallet(account.address, primaryChainId, {
-        aaMode: simulationAAMode,
-        smartAccount: simulationSmartAccount,
+        aaMode: null,
+        smartAccount: null,
       });
       await session.syncUserState();
 
@@ -703,112 +625,31 @@ export async function signCommand(
         autoFeeCall = buildFeeAAWalletCall(simFee, primaryChainId);
       }
 
-      const decisionCallList = autoFeeCall
+      const executionCallList = autoFeeCall
         ? [...baseCallList, autoFeeCall]
         : baseCallList;
 
-      const decision = resolveCliExecutionDecision({
-        config,
-        chain,
-        callList: decisionCallList,
+      console.log("Exec:    eoa");
+
+      const execution = await executeCliTransaction({
+        privateKey: privateKey as `0x${string}`,
+        currentChainId: primaryChainId,
+        chainsById,
+        rpcUrl,
+        callList: executionCallList,
       });
-      console.log(`Exec:    ${describeExecutionDecision(decision)}`);
 
-      // Build ordered list of strategies to attempt.
-      // With --aa: [primary, alt] — fatal if both fail, no EOA.
-      // Auto mode: [primary, alt, eoa] — transparently fall through to EOA.
-      const strategies: CliExecutionDecision[] = [decision];
-      const altDecision = getAlternativeAAMode(decision);
-      if (altDecision) strategies.push(altDecision);
-      if (config.execution !== "aa") strategies.push({ execution: "eoa" });
-
-      const runWithDecision = async (d: CliExecutionDecision) => {
-        const ps = await createCliProviderState({
-          decision: d,
-          chain,
-          privateKey: privateKey as `0x${string}`,
-          rpcUrl: resolvedRpcUrl,
-          callList: decisionCallList,
-          baseUrl: cli.baseUrl,
-        });
-
-        let executionCallList = decisionCallList;
-        if (
-          autoFeeCall &&
-          d.execution === "aa" &&
-          ps.resolved?.sponsorship !== "disabled"
-        ) {
-          console.log(
-            `${DIM}Skipping native fee injection for sponsored AA. The paymaster covers gas only; a native fee transfer would require sender balance.${RESET}`,
-          );
-          executionCallList = baseCallList;
-        }
-
-        return executeCliTransaction({
-          privateKey: privateKey as `0x${string}`,
-          currentChainId: primaryChainId,
-          chainsById,
-          rpcUrl,
-          providerState: ps,
-          callList: executionCallList,
-        });
-      };
-
-      let finalDecision: CliExecutionDecision = decision;
-      let execution!: ExecutionResult;
-      const failures: Array<{
-        decision: CliExecutionDecision;
-        message: string;
-      }> = [];
-
-      for (const strategy of strategies) {
-        if (failures.length > 0) {
-          const prev = strategies[failures.length - 1]!;
-          console.log(
-            `${describeExecutionDecision(prev)} failed: ${failures[failures.length - 1]!.message}`,
-          );
-          console.log(
-            `Retrying with ${describeExecutionDecision(strategy)}...`,
-          );
-        }
-        try {
-          execution = await runWithDecision(strategy);
-          finalDecision = strategy;
-          break;
-        } catch (error) {
-          const message =
-            error instanceof Error ? error.message : String(error);
-          failures.push({ decision: strategy, message });
-          if (strategy === strategies[strategies.length - 1]) {
-            if (config.execution === "aa") {
-              fatal(
-                `❌ AA execution failed with all modes.\n` +
-                  failures
-                    .map(
-                      (f) =>
-                        `  ${describeExecutionDecision(f.decision)}: ${f.message}`,
-                    )
-                    .join("\n") +
-                  "\nUse `--eoa` to sign without account abstraction.",
-              );
-            }
-            throw error;
-          }
-        }
-      }
-
-      // EOA fallback sends calls sequentially. When the backend quoted a
+      // Local EOA execution sends calls sequentially. When the backend quoted a
       // service fee, that fee is appended after the user's calls, so the raw
       // execution's last/primary hash belongs to the fee transfer. Keep the
       // wallet-facing record and callback anchored to the requested action;
-      // the fee hash remains visible separately for auditability. AA execution
-      // stays atomic and therefore has one shared receipt hash.
+      // the fee hash remains visible separately for auditability.
       let reportedExecution = execution;
       let feeTxHash: string | undefined;
       if (
         autoFeeCall &&
         execution.executionKind === "eoa" &&
-        execution.txHashes.length === decisionCallList.length
+        execution.txHashes.length === executionCallList.length
       ) {
         const actionTxHashes = execution.txHashes.slice(0, baseCallList.length);
         feeTxHash = execution.txHashes[baseCallList.length];
@@ -822,40 +663,12 @@ export async function signCommand(
           };
         }
       }
-
       console.log(`✅ Sent! Hash: ${reportedExecution.txHash}`);
       if (reportedExecution.txHashes.length > 1) {
         console.log(`Count:   ${reportedExecution.txHashes.length}`);
       }
       if (feeTxHash) console.log(`Fee tx:  ${feeTxHash}`);
-      if (execution.sponsored) {
-        console.log("Gas:     sponsored");
-      }
-      if (execution.SmartAccount4337) {
-        console.log(`AA:      ${execution.SmartAccount4337}`);
-      }
-      if (execution.Delegation7702) {
-        console.log(`Deleg:   ${execution.Delegation7702}`);
-      }
 
-      const executionUsedAA =
-        finalDecision.execution === "aa" && execution.executionKind !== "eoa";
-      resolvedUserStateAAMode =
-        executionUsedAA && finalDecision.execution === "aa"
-          ? finalDecision.aaMode
-          : null;
-      resolvedUserStateSmartAccount =
-        resolvedUserStateAAMode === "4337"
-          ? (execution.SmartAccount4337 ?? null)
-          : null;
-      resolvedUserStateSmartAccount4337 =
-        resolvedUserStateAAMode === "4337"
-          ? (execution.SmartAccount4337 ?? null)
-          : null;
-      resolvedUserStateDelegation7702 =
-        resolvedUserStateAAMode === "7702"
-          ? (execution.Delegation7702 ?? null)
-          : null;
       signedRecords = pendingTxs.map((tx, index) =>
         toSignedTransactionRecord(
           tx,
@@ -863,33 +676,22 @@ export async function signCommand(
           account.address,
           resolvedChainIds[index],
           Date.now(),
-          executionUsedAA && finalDecision.execution === "aa"
-            ? finalDecision.provider
-            : undefined,
-          executionUsedAA && finalDecision.execution === "aa"
-            ? finalDecision.aaMode
-            : undefined,
         ),
       );
-      const completionMetadata = buildCliTxCompletionMetadata({
-        requestedDecision: decision,
-        finalDecision,
-        execution,
-      });
       backendNotifications = pendingTxs.map((tx) => ({
         type: "wallet:tx_complete",
         payload: {
           txHash: reportedExecution.txHash,
           status: "success",
           pending_tx_ids: tx.txId !== undefined ? [tx.txId] : [],
-          ...completionMetadata,
+          aa_requested_mode: "none",
+          aa_resolved_mode: "none",
+          aa_fallback_reason: undefined,
           execution_kind: execution.executionKind,
           batched: reportedExecution.batched,
           call_count: reportedExecution.txHashes.length,
           ...(feeTxHash ? { service_fee_tx_hash: feeTxHash } : {}),
           sponsored: execution.sponsored,
-          smart_account_4337: execution.SmartAccount4337,
-          delegation_7702: execution.Delegation7702,
         },
       }));
     } else {
@@ -1019,10 +821,10 @@ export async function signCommand(
     // Persist signer state and notify the backend with authoritative staged ids.
     cli.setPublicKey(account.address);
     session.resolveWallet(account.address, primaryChainId, {
-      aaMode: resolvedUserStateAAMode,
-      smartAccount: resolvedUserStateSmartAccount,
-      smartAccount4337: resolvedUserStateSmartAccount4337,
-      delegation7702: resolvedUserStateDelegation7702,
+      aaMode: null,
+      smartAccount: null,
+      smartAccount4337: null,
+      delegation7702: null,
     });
 
     for (const backendNotification of backendNotifications) {

@@ -29,19 +29,15 @@ vi.mock("viem", async () => {
 });
 
 vi.mock("viem/accounts", async () => {
-  const actual = await vi.importActual<typeof import("viem/accounts")>(
-    "viem/accounts",
-  );
+  const actual =
+    await vi.importActual<typeof import("viem/accounts")>("viem/accounts");
   return {
     ...actual,
     privateKeyToAccount: vi.fn(() => ({ address: MOCK_ADDRESS })),
   };
 });
 
-import {
-  DISABLED_PROVIDER_STATE,
-  executeWalletCalls,
-} from "../../src/aa";
+import { executeWalletCalls } from "../../src/aa";
 import { toSignedTxMetadata } from "../../src/cli/tables";
 import type { PendingTx } from "../../src/cli/state";
 import {
@@ -50,7 +46,7 @@ import {
   toSignedTransactionRecord,
 } from "../../src/cli/transactions";
 
-describe("CLI wallet generic AA execution", () => {
+describe("CLI wallet execution", () => {
   beforeEach(() => {
     sendTransactionMock.mockReset();
     waitForReceiptMock.mockReset();
@@ -102,7 +98,6 @@ describe("CLI wallet generic AA execution", () => {
       capabilities: undefined,
       localPrivateKey:
         "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-      providerState: DISABLED_PROVIDER_STATE,
       sendCallsSyncAsync: vi.fn(),
       sendTransactionAsync: vi.fn(),
       switchChainAsync: vi.fn(),
@@ -146,7 +141,6 @@ describe("CLI wallet generic AA execution", () => {
       currentChainId: 1,
       capabilities: undefined,
       localPrivateKey: PRIVATE_KEY,
-      providerState: DISABLED_PROVIDER_STATE,
       sendCallsSyncAsync: vi.fn(),
       sendTransactionAsync: vi.fn(),
       switchChainAsync: vi.fn(),

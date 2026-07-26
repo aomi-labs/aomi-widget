@@ -358,6 +358,10 @@ export class SessionWalletController {
         aa: {
           ...prevAa,
           mode: resolvedMode,
+          // Preserve backend AA routing across post-transaction state updates.
+          ...(resolvedMode === "4337" || resolvedMode === "7702"
+            ? { provider: "alchemy" }
+            : {}),
           smart_account:
             resolvedMode === "4337" ? (result.SmartAccount4337 ?? null) : null,
           delegation_7702:

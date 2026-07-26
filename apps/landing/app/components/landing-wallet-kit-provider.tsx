@@ -203,9 +203,6 @@ export function LandingWalletKitProvider({
       }}
       execution={{
         aa: "optional",
-        provider: "auto",
-        modes: ["4337"],
-        owner: "external-wallet",
       }}
       wallets={{
         evm: {

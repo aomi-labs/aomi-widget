@@ -22,9 +22,6 @@ import type { AccountRuntime } from "../account/types";
 import type { EvmIdentity } from "../registry/selectors";
 import type {
   NativeWalletExecutionPolicy,
-  ResolveAAProviderState,
-  WalletKitAAProviderPreference,
-  WalletKitAAPolicy,
   WalletExecutionKitState,
 } from "../execution/wallet-execution";
 
@@ -87,21 +84,10 @@ export type EvmExecutionRuntime = {
   signTypedData?: (p: WalletEip712Payload) => Promise<{ signature: string }>;
   signMessage?: (p: WalletEip712Payload) => Promise<{ signature: string }>;
   activeConnector?: Connector;
-  aaModes?: readonly ("4337" | "7702")[];
-  aaOwner?: "auto" | "external-wallet" | "provider-session";
-  aaPolicy?: WalletKitAAPolicy;
-  aaProvider?: WalletKitAAProviderPreference;
   capabilities?: WalletExecutionKitState["capabilities"];
   chainsById: Record<number, Chain>;
   currentChainId?: number;
   getWalletClientFor: EvmWalletRuntime["getWalletClientFor"];
-  resolveAAProviderState?: (
-    params: Parameters<ResolveAAProviderState>[0],
-    context: {
-      address?: string;
-      walletClient: EvmWalletRuntime["walletClient"];
-    },
-  ) => ReturnType<ResolveAAProviderState>;
   sendCallsSyncAsync: EvmWalletRuntime["sendCallsSyncAsync"];
   sendTransactionAsync: EvmWalletRuntime["sendTransactionAsync"];
   nativeWalletExecution?: NativeWalletExecutionPolicy;

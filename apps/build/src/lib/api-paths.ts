@@ -78,6 +78,7 @@ export const API_PATHS = {
     },
     operate: {
       bots: `${BFF}/operate/bots`,
+      modelKeys: `${BFF}/operate/model-keys`,
       transactions: `${BFF}/operate/transactions`,
       usage: `${BFF}/operate/usage`,
       logs: `${BFF}/operate/logs`,

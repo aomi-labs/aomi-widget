@@ -328,6 +328,118 @@ export async function operateBotsDeleteRoute(req: Request) {
   }
 }
 
+// ── model keys (funder-ladder app rung, builder-owned) ─────────────────────
+
+/// GET → { sources, keys }: the builder's key inventory with grants, plus
+/// their sources (for the "apply to projects" picker). Never key material.
+export async function operateModelKeysRoute(req: Request) {
+  const owned = await ownedSources(req);
+  if ("response" in owned) return owned.response;
+  try {
+    const keys = await owned.client.listBuilderModelKeys({
+      githubUserId: owned.githubUserId,
+      platform: owned.platform,
+    });
+    return NextResponse.json({ sources: owned.sources, keys });
+  } catch (err) {
+    return launchErrorResponse(err);
+  }
+}
+
+/// POST { provider, key, label? } → create; with `keyId` → rotate in place.
+export async function operateModelKeysSaveRoute(req: Request) {
+  const owned = await ownedSources(req);
+  if ("response" in owned) return owned.response;
+
+  const body = (await req.json().catch(() => ({}))) as {
+    keyId?: unknown;
+    provider?: unknown;
+    key?: unknown;
+    label?: unknown;
+  };
+  if (typeof body.provider !== "string" || !body.provider.trim()) {
+    return NextResponse.json({ error: "missing `provider`" }, { status: 400 });
+  }
+  if (typeof body.key !== "string" || !body.key.trim()) {
+    return NextResponse.json({ error: "missing `key`" }, { status: 400 });
+  }
+  if (body.keyId !== undefined && typeof body.keyId !== "number") {
+    return NextResponse.json({ error: "invalid `keyId`" }, { status: 400 });
+  }
+
+  try {
+    const key = await owned.client.saveBuilderModelKey({
+      githubUserId: owned.githubUserId,
+      platform: owned.platform,
+      keyId: body.keyId as number | undefined,
+      provider: body.provider.trim(),
+      key: body.key.trim(),
+      label: typeof body.label === "string" ? body.label : undefined,
+    });
+    return NextResponse.json({ key }, { status: 201 });
+  } catch (err) {
+    return launchErrorResponse(err);
+  }
+}
+
+/// PUT { keyId, applicationIds } → replace the key's grant set.
+export async function operateModelKeysGrantsRoute(req: Request) {
+  const owned = await ownedSources(req);
+  if ("response" in owned) return owned.response;
+
+  const body = (await req.json().catch(() => ({}))) as {
+    keyId?: unknown;
+    applicationIds?: unknown;
+  };
+  if (
+    typeof body.keyId !== "number" ||
+    !Array.isArray(body.applicationIds) ||
+    body.applicationIds.some((id) => typeof id !== "number")
+  ) {
+    return NextResponse.json(
+      { error: "missing or invalid `keyId` / `applicationIds`" },
+      { status: 400 },
+    );
+  }
+
+  try {
+    const key = await owned.client.setModelKeyGrants({
+      githubUserId: owned.githubUserId,
+      platform: owned.platform,
+      keyId: body.keyId,
+      applicationIds: body.applicationIds as number[],
+    });
+    return NextResponse.json({ key });
+  } catch (err) {
+    return launchErrorResponse(err);
+  }
+}
+
+export async function operateModelKeysDeleteRoute(req: Request) {
+  const owned = await ownedSources(req);
+  if ("response" in owned) return owned.response;
+
+  const params = new URL(req.url).searchParams;
+  const keyId = Number(params.get("keyId"));
+  if (!Number.isFinite(keyId) || keyId <= 0) {
+    return NextResponse.json(
+      { error: "missing or invalid `keyId`" },
+      { status: 400 },
+    );
+  }
+
+  try {
+    await owned.client.deleteBuilderModelKey({
+      githubUserId: owned.githubUserId,
+      platform: owned.platform,
+      keyId,
+    });
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    return launchErrorResponse(err);
+  }
+}
+
 export async function operateTransactionsRoute(req: Request) {
   try {
     const owned = await ownedSources(req);
