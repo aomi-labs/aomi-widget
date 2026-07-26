@@ -1,7 +1,11 @@
 "use client";
 
-import { type ReactNode, useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useAomiAuthAdapter } from "@aomi-labs/widget-lib";
+import {
+  seedAccountOverview,
+  type AccountOverview,
+} from "@portal/lib/account-overview";
 
 const SESSION_RETRY_BUDGET_MS = 30_000;
 const SESSION_RETRY_BASE_DELAY_MS = 300;
@@ -13,10 +17,6 @@ export type AomiSessionStatus =
   | "establishing"
   | "error"
   | "ready";
-
-export function AomiSessionProvider({ children }: { children: ReactNode }) {
-  return <>{children}</>;
-}
 
 export function useAomiSession(): {
   status: AomiSessionStatus;
@@ -54,6 +54,13 @@ export function useAomiSession(): {
           });
           if (cancelled) return;
           if (response.ok) {
+            // The probe already paid for the account payload — share it so
+            // the settings tabs don't refetch /api/account individually.
+            try {
+              seedAccountOverview((await response.json()) as AccountOverview);
+            } catch {
+              // Non-JSON body; consumers fetch on demand instead.
+            }
             setProbeStatus("ready");
             return;
           }
@@ -64,6 +71,7 @@ export function useAomiSession(): {
           ) {
             setProbeStatus("establishing");
           } else if (response.status === 401) {
+            seedAccountOverview(null);
             setProbeStatus("anonymous");
             return;
           } else {

@@ -7,7 +7,12 @@ import {
   type TextMessagePart,
   type ToolCallMessagePart,
 } from "@assistant-ui/react";
-import { ChevronRightIcon, MoreHorizontalIcon } from "lucide-react";
+import {
+  CheckIcon,
+  ChevronDownIcon,
+  ChevronRightIcon,
+  MoreHorizontalIcon,
+} from "lucide-react";
 
 import { cn, useCurrentThreadMetadata } from "@aomi-labs/react";
 import { MarkdownText } from "@/components/assistant-ui/markdown-text";
@@ -135,7 +140,7 @@ const ToolChipView: FC<{ chip: ToolChip; index: number; animate: boolean }> = ({
   return (
     <span
       className={cn(
-        "border-border/60 bg-muted/40 text-foreground/80 inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-md border px-2 py-0.5 text-xs tabular-nums leading-4",
+        "bg-aomi-surface-2 text-aomi-muted inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full px-2.5 py-1 font-mono text-xs tabular-nums leading-4",
         animate &&
           "animate-in fade-in-0 slide-in-from-bottom-1 fill-mode-both duration-300 motion-reduce:animate-none",
       )}
@@ -147,14 +152,21 @@ const ToolChipView: FC<{ chip: ToolChip; index: number; animate: boolean }> = ({
           : undefined
       }
     >
-      {chip.dot && (
+      {chip.dot ? (
         <span
-          className="size-1.5 shrink-0 rounded-full"
+          className="size-[5px] shrink-0 rounded-full"
           style={{ backgroundColor: chip.dot }}
           aria-hidden="true"
         />
+      ) : (
+        !Glyph && (
+          <span
+            className="bg-aomi-accent size-[5px] shrink-0 rounded-full"
+            aria-hidden="true"
+          />
+        )
       )}
-      {Glyph && <Glyph className="text-muted-foreground size-3 shrink-0" />}
+      {Glyph && <Glyph className="text-aomi-muted size-3 shrink-0" />}
       <span className="truncate">{chip.label}</span>
     </span>
   );
@@ -194,31 +206,38 @@ const WorkingStep: FC<{
         type="button"
         disabled={!hasDetail}
         onClick={() => setOpen((o) => !o)}
-        className="aui-working-step-header flex w-full items-center gap-2 py-1 text-left disabled:cursor-default"
+        className="aui-working-step-header group/step flex w-full items-center gap-2.5 py-1 text-left disabled:cursor-default"
       >
-        <span className="bg-background relative flex size-4 shrink-0 items-center justify-center">
-          <Icon className="text-muted-foreground size-3.5" />
+        <span className="relative flex size-4 shrink-0 items-center justify-center">
+          {done && !active ? (
+            <CheckIcon className="text-aomi-success size-3.5" />
+          ) : (
+            <Icon className="text-aomi-muted size-3.5" />
+          )}
         </span>
         <span
           className={cn(
-            "flex-1 truncate",
-            active ? "aui-working-shimmer font-medium" : "text-foreground",
+            "flex-1 truncate font-mono text-[13px]",
+            active ? "aui-working-shimmer font-medium" : "text-aomi-fg",
           )}
         >
           {interpretation.title}
         </span>
+        {/* Detail affordance stays quiet until the row is hovered (or open). */}
         {hasDetail && (
           <ChevronRightIcon
             className={cn(
-              "text-muted-foreground/60 size-3 shrink-0 transition-transform",
-              open && "rotate-90",
+              "text-aomi-muted/60 size-3 shrink-0 transition-[transform,opacity]",
+              open
+                ? "rotate-90 opacity-100"
+                : "opacity-0 group-hover/step:opacity-100",
             )}
           />
         )}
       </button>
 
       {interpretation.chips.length > 0 && (
-        <div className="aui-working-step-chips mb-1 ml-6 flex max-w-full flex-wrap items-center gap-1.5">
+        <div className="aui-working-step-chips mb-1 ml-[26px] flex max-w-full flex-wrap items-center gap-1.5">
           {shownChips.map((chip, i) => (
             <ToolChipView
               key={`${chip.label}-${i}`}
@@ -230,7 +249,7 @@ const WorkingStep: FC<{
           {overflow > 0 && (
             <span
               className={cn(
-                "border-border/60 bg-muted/40 text-muted-foreground inline-flex items-center rounded-md border px-2 py-0.5 text-xs leading-4",
+                "bg-aomi-surface-2 text-aomi-muted inline-flex items-center rounded-full px-2.5 py-1 font-mono text-xs leading-4",
                 animate &&
                   "animate-in fade-in-0 slide-in-from-bottom-1 fill-mode-both duration-300 motion-reduce:animate-none",
               )}
@@ -249,14 +268,14 @@ const WorkingStep: FC<{
       )}
 
       {open && hasDetail && (
-        <div className="aui-working-step-detail mb-1 ml-6 flex flex-col gap-1.5">
+        <div className="aui-working-step-detail mb-1 ml-[26px] flex flex-col gap-1.5">
           {argsText && (
-            <pre className="border-border/60 bg-muted/40 text-muted-foreground overflow-x-auto whitespace-pre-wrap break-words rounded-md border p-2 font-mono text-xs leading-relaxed">
+            <pre className="border-aomi-border bg-aomi-surface text-aomi-muted overflow-x-auto whitespace-pre-wrap break-words rounded-md border p-2 font-mono text-xs leading-relaxed">
               {argsText}
             </pre>
           )}
           {done && (
-            <pre className="border-border/60 bg-muted/40 text-muted-foreground overflow-x-auto whitespace-pre-wrap break-words rounded-md border p-2 font-mono text-xs leading-relaxed">
+            <pre className="border-aomi-border bg-aomi-surface text-aomi-muted overflow-x-auto whitespace-pre-wrap break-words rounded-md border p-2 font-mono text-xs leading-relaxed">
               {toDetailString(tool.result)}
             </pre>
           )}
@@ -288,12 +307,12 @@ const WorkingNote: FC<{ text: string; animate: boolean }> = ({
     )}
   >
     <span
-      className="bg-background relative flex h-5 w-4 shrink-0 items-center justify-center"
+      className="relative flex h-[19px] w-4 shrink-0 items-center justify-center"
       aria-hidden="true"
     >
-      <span className="bg-muted-foreground/70 size-1.5 rounded-full" />
+      <span className="bg-aomi-muted/60 size-1 rounded-full" />
     </span>
-    <div className="text-foreground/75 min-w-0 flex-1 text-sm leading-relaxed [&_p+p]:mt-2 [&_p]:my-0">
+    <div className="text-aomi-muted min-w-0 flex-1 text-[13px] leading-relaxed [&_p+p]:mt-2 [&_p]:my-0">
       <TextMessagePartProvider text={text}>
         <MarkdownText />
       </TextMessagePartProvider>
@@ -450,28 +469,48 @@ const WorkingTrace: FC<{
   // and the trace is open; if the user collapses mid-run, the header shimmers.
   const activeIndex = running ? revealed - 1 : -1;
   const headerClass = !running
-    ? "text-muted-foreground"
+    ? "text-aomi-fg font-medium"
     : open
-      ? "text-muted-foreground font-medium"
+      ? "text-aomi-muted font-medium"
       : "aui-working-shimmer font-medium";
 
   const visibleItems = items.slice(0, revealed);
 
   return (
-    <div className="aui-working-trace mb-3">
+    // Open: a full-width bordered card (header + step rows). Closed: the card
+    // shrinks to a compact inline chip — a finished trace must not sit in the
+    // column as a full-width gray stripe.
+    <div
+      className={cn(
+        "aui-working-trace mb-3",
+        open
+          ? "border-aomi-border flex flex-col overflow-hidden rounded-xl border"
+          : "flex",
+      )}
+    >
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        className="aui-working-trace-header text-muted-foreground flex items-center gap-1.5 text-sm"
+        className={cn(
+          "aui-working-trace-header flex items-center gap-2 text-left text-sm",
+          open
+            ? "bg-aomi-surface w-full px-3.5 py-[11px]"
+            : "border-aomi-border bg-aomi-surface hover:border-aomi-muted/40 rounded-full border px-3 py-[7px] transition-colors",
+        )}
       >
-        <ChevronRightIcon
+        {!running && <CheckIcon className="text-aomi-success size-3.5 shrink-0" />}
+        <span className={cn("text-[13px]", headerClass)}>{label}</span>
+        <span className="text-aomi-muted font-mono text-xs">
+          {revealed} {revealed === 1 ? "step" : "steps"}
+        </span>
+        {open && <span className="flex-1" />}
+        <ChevronDownIcon
           className={cn(
-            "size-3.5 shrink-0 transition-transform",
-            open && "rotate-90",
+            "text-aomi-muted size-3.5 shrink-0 transition-transform",
+            open && "rotate-180",
           )}
         />
-        <span className={headerClass}>{label}</span>
       </button>
 
       {/* Collapse animates the grid row from 1fr→0fr (plus a fade) instead of
@@ -479,11 +518,11 @@ const WorkingTrace: FC<{
       <div
         className={cn(
           "grid transition-[grid-template-rows,opacity] duration-300 ease-out motion-reduce:transition-none",
-          open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
+          open ? "grid-rows-[1fr] opacity-100" : "hidden grid-rows-[0fr] opacity-0",
         )}
       >
         <div className="min-h-0 overflow-hidden">
-          <div className="relative mt-1.5">
+          <div className="border-aomi-border relative border-t">
             {windowed && overflowing && !animating && (
               <>
                 <span
@@ -518,14 +557,8 @@ const WorkingTrace: FC<{
             >
               <div
                 ref={bodyRef}
-                className="aui-working-trace-body relative isolate ml-1 flex flex-col text-sm"
+                className="aui-working-trace-body relative isolate flex flex-col gap-1 px-3.5 pb-3.5 pt-3 text-sm"
               >
-                {/* Timeline rail threading through the icon column; each icon's
-                    opaque background knocks it out, so it reads as connecting them. */}
-                <span
-                  aria-hidden="true"
-                  className="bg-border absolute bottom-[14px] left-[7.5px] top-[14px] w-px"
-                />
                 {visibleItems.map((item, i) =>
                   item.kind === "tool" ? (
                     <WorkingStep
@@ -552,7 +585,7 @@ const WorkingTrace: FC<{
             <button
               type="button"
               onClick={() => setExpanded((e) => !e)}
-              className="aui-working-trace-more text-muted-foreground/80 hover:text-foreground ml-1 mt-1 flex items-center gap-1.5 text-xs"
+              className="aui-working-trace-more text-aomi-muted hover:text-aomi-fg flex items-center gap-1.5 px-3.5 pb-3 text-xs"
             >
               <MoreHorizontalIcon className="size-3.5 shrink-0" />
               {expanded
@@ -567,10 +600,11 @@ const WorkingTrace: FC<{
 };
 
 const MinimalWorkingTrace: FC = () => (
-  <div className="aui-working-trace mb-3">
-    <div className="aui-working-trace-header text-muted-foreground flex items-center gap-1.5 text-sm">
-      <ChevronRightIcon className="size-3.5 shrink-0" />
-      <span className="aui-working-shimmer font-medium">Working</span>
+  <div className="aui-working-trace border-aomi-border mb-3 flex flex-col overflow-hidden rounded-xl border">
+    <div className="aui-working-trace-header bg-aomi-surface flex items-center gap-2.5 px-3.5 py-[11px] text-sm">
+      <span className="aui-working-shimmer text-[13px] font-medium">
+        Working
+      </span>
     </div>
   </div>
 );

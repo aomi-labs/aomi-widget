@@ -2,6 +2,124 @@
 
 ## Last Updated
 
+2026-07-26 — Design-system pass over the redesigned surfaces, driven by a
+  component inventory review (branch `worktree-settings-redesign`). The
+  aomi-* set is now the single vocabulary AND has explicit rules behind it:
+
+  New tokens (all in the shared widget theme, apps/shadcn-registry/src/themes/default.css):
+  - `--aomi-ring` + a `:where(...):focus-visible` rule so no surface falls
+    back to the browser's default outline. Zero specificity, so components
+    can still override.
+  - `--aomi-accent-tint` / `--aomi-accent-outline` / `--aomi-overlay-border`
+    replace 15 ad-hoc `/10` `/40` `/50` `/30` opacities in component code.
+  - `--aomi-danger-strong` + `--aomi-on-danger` for destructive fills
+    (white on plain `danger` is 4.3:1 — fails AA at 13px; strong is 5.6:1),
+    plus a dark-mode lift for `danger`, which had none.
+  - `--aomi-hover` retuned: was `#e4e4e7` (the border value, too heavy on a
+    white menu) and `#27272a` in dark — byte-identical to `--aomi-raised`,
+    so menu hover could never show. Now `#f4f4f5` / `#3f3f46`.
+
+  Rules now encoded across the components:
+  - Selection splits by SIZE, not by component: pill-sized controls take the
+    solid accent fill (segments, filter chips); card/row-sized selection takes
+    `accent-subtle` + accent icon (mode cards, nav rows, menu rows, modal rows).
+    Neutral grey no longer means "chosen" anywhere.
+  - Type ladder: badge 10px, chip/segment/search 12px, composer/button 13px.
+  - Buttons are two shape families: pills at page level (ink commit + neutral
+    dismiss + red destructive), rounded-lg in flow (blue commit + blue repair).
+    All 34px, filled variants carry `border-transparent` so they match the
+    outlined ones. The last accent gradient is gone.
+  - Dismissal: every X is a circle — 32px on `surface-2` closes a surface,
+    20px transparent-until-hover clears a field.
+  - Menus: inset rounded rows (`rounded-lg` inside a 4px-padded panel), 32px
+    tall, 12px, never full-bleed bands.
+  - Modal shell: 50% flat ink scrim (no blur), `bg-aomi-raised` panel at
+    `rounded-2xl`, no shadow/ring, 32px circular close, fixed header/footer
+    with only the body scrolling. Two widths: 420px and 900x600.
+
+  Files touched: portal — settings-modal, packages-modal, header-controls
+  (rebuilt to mirror the mock: 32px rounded-lg icon buttons + sliding theme
+  switch), general-settings, account-signing, statement-view, usage-shared.
+  Registry — wallet-picker shell adopted the modal standard; thread.tsx
+  composer field to 13px; thread-list + threadlist-sidebar finished off
+  shadcn vocabulary. Mock (~/Code/aomi-chat-design) — chat-header theme
+  switch scaled to the 32px baseline, composer scaled down.
+
+  Verification: portal `pnpm run type-check` and registry `tsc` both clean
+  after every step; specimen geometry checked as computed values in the
+  browser rather than by reading class names.
+
+  NOTE: another Claude session was working in this same worktree concurrently
+  (registry conversation restyle). The token promotion below was theirs.
+
+2026-07-25 (night) — Chat-surface restyle to the aomi-chat-design mock +
+  portal glue cleanup (branch `worktree-settings-redesign`). The whole
+  chat column now matches the mock, not just settings:
+  (1) `--aomi-*` tokens PROMOTED into the shared widget theme
+  (apps/shadcn-registry/src/themes/default.css — light + .dark + @theme
+  utilities); the portal globals.css duplicate block deleted (portal keeps
+  only its --font-display mapping). Every widget consumer now resolves
+  the tokens; the shimmer + trace edge-fade CSS prefers aomi vars with
+  shadcn fallback.
+  (2) Conversation restyle in the registry (all behavior kept): thread.tsx —
+  mock empty state (centered AomiMark + "What can I help you onchain?" +
+  hero composer + pill suggestion chips; dock composer "Reply to Aomi…"
+  only when a conversation exists), user bubble = surface-2
+  rounded-2xl/rounded-br-md 15px, assistant rows carry a 26px AomiMark
+  avatar, small muted copy/rerun action bar; working-trace.tsx = bordered
+  card (surface header "Worked for Ns · N steps" + green check, mono step
+  titles, rounded-full surface-2 chips) — reveal cascade, windowing,
+  scroll fades, auto-collapse all unchanged. New shared
+  components/aomi-mark.tsx (threadlist-sidebar now imports it).
+  (3) Chrome: frame header = mock geometry (h-14 border-b, thread title
+  left); portal HeaderControls gained the real NetworkSelect styled as
+  the header pill (composer hides network via hideNetwork; NetworkSelect
+  now exported from widget-lib); sidebar footer DualWalletBar restyled as
+  the mock account chip (avatar + two-line address/network + chevrons).
+  (4) Portal glue cleanup: ONE shared /api/account store
+  (lib/account-overview.ts, seeded by the session probe — was fetched 3×
+  per settings open; copy-pasted AccountProfile types gone; dead
+  AomiSessionProvider removed); portal-aomi-frame.tsx 415→155 lines
+  (fetch middleware stack extracted to lib/portal-client-options.ts);
+  `pnpm --filter portal test` NOW RUNS THE REAL 45-file vitest suite
+  (was a no-op script exiting 0 — scripts/run-tests.mjs deleted, stale
+  usage-range exclude dropped); fixed 3 silently-broken tests (2 launch
+  routes tests stale vs deploy's fail-closed required-secrets policy —
+  ported apps/build's versions; svm-wallet-binding test missing the
+  svmTransport:"embedded" gate); /statement can scroll (h-screen +
+  overflow-y-auto under the overflow-hidden root layout); settings gate
+  on probe ERROR now only blocks General — Account/Usage render their
+  fixtures behind a slim retry banner (anonymous/establishing still gate
+  fully).
+  Verified: portal 45 files/286 tests, registry 39/280 (after
+  widget-lib build), react 12/126, repo lint + root/portal typechecks all
+  green; live at :3400 vs the mock at :3010 in light + dark (empty state,
+  header pill, packages, settings modal, /statement scroll). Conversation
+  visuals (trace card, bubbles) verified by tests; live-chat check needs
+  the local backend. NOTE: gaps doc lives at repo-root
+  docs/SETTINGS-REDESIGN-GAPS.md.
+
+2026-07-25 — Settings redesign port (branch `worktree-settings-redesign`,
+  `apps/portal`): settings surface reduced to three tabs — General /
+  Account / Usage — per the aomi-chat-design mock, styled to the aomi
+  design system (sky accent + pink decorative meters via new `--aomi-*`
+  tokens in globals.css, PT Serif display font, flat/no shadows).
+  New: `features/account` (wallet signing ACL editor — posture grid,
+  custody-grouped wallet cards, Manual/Accept transactions/Auto/Locked
+  modes, delegated-grants panel; wallets/grants are FIXTURES),
+  `features/usage` (three-subject summary + by-app matrix) and a
+  standalone `/statement` route (month picker, By app/Itemized views,
+  app+subject filters; 3-month FIXTURE statement). GeneralSettings
+  reworked (identity card + Manage account → Account tab, Theme wired to
+  useSettings.colorMode, network/wallet rows). Removed: Deploy, App Keys,
+  Bots, Secrets, BYOK tabs (+ features/{apps,app-keys,bots,secrets,byok},
+  deploy-settings.tsx, lib/usage-range*); GitHub-return params still
+  forward to /deployments. Stub boundaries + fill-up list in
+  apps/portal/docs/SETTINGS-REDESIGN-GAPS.md (grants endpoint, permit
+  ceremony wiring, per-app statement endpoint, rdns brand capture, SVM
+  bind re-home). type-check + route-caller test green; verified live on
+  PORT=3400.
+
 2026-07-23 (latest) — Review-checklist fix pass on
   `codex/widget-auth-single-tenant`: all §1–§4 items and the actionable §5
   items of the (untracked) REVIEW-CHECKLIST.md closed via six parallel

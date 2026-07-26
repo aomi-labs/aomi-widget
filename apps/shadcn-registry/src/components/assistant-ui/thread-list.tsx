@@ -19,9 +19,12 @@ import {
 
 export const ThreadList: FC = () => {
   return (
-    <ThreadListPrimitive.Root className="aui-root aui-thread-list-root flex flex-1 list-none flex-col items-stretch gap-1 pl-2">
+    <ThreadListPrimitive.Root className="aui-root aui-thread-list-root flex flex-1 list-none flex-col items-stretch gap-0.5 pl-2">
       <ThreadListNew />
-      <div className="aui-thread-list-separator border-border/30 mx-4 my-2 border-t" />
+      {/* Design mock: a "Recent" section label instead of a hairline */}
+      <span className="aui-thread-list-separator text-aomi-muted px-4 pb-2 pt-5 text-xs font-medium">
+        Recent
+      </span>
       <ThreadListItems />
     </ThreadListPrimitive.Root>
   );
@@ -31,11 +34,11 @@ const ThreadListNew: FC = () => {
   return (
     <ThreadListPrimitive.New asChild>
       <Button
-        className="aui-thread-list-new hover:bg-accent data-active:bg-accent flex items-center justify-start gap-2 rounded-2xl px-4 py-2 text-start text-sm"
+        className="aui-thread-list-new border-aomi-border bg-aomi-surface-2 hover:border-aomi-muted/40 hover:bg-aomi-surface-2 mr-2 flex items-center justify-start gap-2 rounded-lg border px-3 py-[9px] text-start text-sm font-medium"
         variant="ghost"
       >
         <PlusIcon className="size-4" />
-        New Chat
+        New chat
       </Button>
     </ThreadListPrimitive.New>
   );
@@ -117,11 +120,13 @@ const ThreadListItem: FC = () => {
 
   return (
     <ThreadListItemPrimitive.Root
-      className="aui-thread-list-item group/thread hover:bg-accent focus-visible:bg-accent data-active:bg-accent flex w-full min-w-0 items-center rounded-2xl pr-2 transition-all focus-visible:outline-none"
+      className="aui-thread-list-item group/thread hover:bg-aomi-hover focus-visible:bg-aomi-hover data-active:bg-aomi-accent-subtle flex w-full min-w-0 items-center rounded-lg pr-2 transition-all focus-visible:outline-none"
       onMouseEnter={cancelClose}
       onMouseLeave={scheduleClose}
     >
-      <ThreadListItemPrimitive.Trigger className="aui-thread-list-item-trigger min-w-0 flex-1 py-2 pl-4 pr-1 text-start">
+      <ThreadListItemPrimitive.Trigger className="aui-thread-list-item-trigger flex min-w-0 flex-1 items-center gap-2 py-2 pl-3 pr-1 text-start">
+        {/* Sky dot marks the active session, per the design mock */}
+        <span className="bg-aomi-accent-strong size-1.5 shrink-0 rounded-full opacity-0 group-data-active/thread:opacity-100" />
         <ThreadListItemTitle />
       </ThreadListItemPrimitive.Trigger>
       <ThreadListItemMenu
@@ -136,7 +141,7 @@ const ThreadListItem: FC = () => {
 
 const ThreadListItemTitle: FC = () => {
   return (
-    <span className="aui-thread-list-item-title block truncate text-sm">
+    <span className="aui-thread-list-item-title text-aomi-muted group-data-active/thread:text-aomi-fg block truncate text-sm">
       <ThreadListItemPrimitive.Title fallback="New Chat" />
     </span>
   );
@@ -163,7 +168,7 @@ const ThreadListItemMenu: FC<{
       <PopoverTrigger asChild>
         <Button
           className={cn(
-            "aui-thread-list-item-menu-trigger text-muted-foreground hover:text-foreground h-7 shrink-0 overflow-hidden rounded-md transition-all",
+            "aui-thread-list-item-menu-trigger text-aomi-muted hover:text-aomi-fg h-7 shrink-0 overflow-hidden rounded-md transition-all",
             revealClass,
           )}
           variant="ghost"
@@ -183,7 +188,7 @@ const ThreadListItemMenu: FC<{
         side="bottom"
         sideOffset={6}
         alignOffset={0}
-        className="aui-thread-list-item-menu-content border-border/70 bg-popover/95 w-44 rounded-xl border p-1.5 shadow-xl backdrop-blur-sm"
+        className="aui-thread-list-item-menu-content border-aomi-overlay-border bg-aomi-raised w-44 rounded-xl border p-1.5"
         onClick={(event) => event.stopPropagation()}
         onMouseEnter={onContentMouseEnter}
         onMouseLeave={onContentMouseLeave}
@@ -191,13 +196,13 @@ const ThreadListItemMenu: FC<{
         <ThreadListItemPrimitive.Archive asChild>
           <button
             type="button"
-            className="aui-thread-list-item-menu-item text-foreground/90 hover:bg-accent hover:text-foreground focus-visible:bg-accent flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-start text-sm font-medium outline-none transition-colors"
+            className="aui-thread-list-item-menu-item text-aomi-fg hover:bg-aomi-hover focus-visible:bg-aomi-hover flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-start text-sm font-medium outline-none transition-colors"
             onClick={(event) => {
               event.stopPropagation();
               onOpenChange(false);
             }}
           >
-            <ArchiveIcon className="text-muted-foreground size-4" />
+            <ArchiveIcon className="text-aomi-muted size-4" />
             Archive
           </button>
         </ThreadListItemPrimitive.Archive>
