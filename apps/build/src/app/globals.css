@@ -88,6 +88,10 @@
   --color-accent: var(--accent);
   --color-accent-hover: var(--accent-hover);
   --color-accent-selected: var(--accent-selected);
+  /* Text/icon color that sits ON the solid accent fill. Without this the
+     `text-accent-selected-foreground` utility does not exist and labels on
+     accent buttons silently fall back to the body ink. */
+  --color-accent-selected-foreground: var(--accent-selected-foreground);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);

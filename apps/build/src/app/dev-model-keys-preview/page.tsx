@@ -1,9 +1,9 @@
 "use client";
 
-// TEMPORARY visual harness for the Providers page (sibling of
-// dev-operate-preview): renders the REAL ProvidersView with window.fetch
-// stubbed — a fake signed-in GitHub session, one source with three apps,
-// and an in-memory key store so create/rotate/grants/remove all mutate.
+// TEMPORARY visual harness for the Providers page
+// (sibling of dev-operate-preview): renders the REAL ProvidersView with
+// window.fetch stubbed — a fake signed-in GitHub session, one source with three
+// apps, and an in-memory key store so create/rotate/grants/remove all mutate.
 
 import { useState } from "react";
 import { GitHubSessionProvider } from "@build/components/control-plane/github-session-context";
@@ -42,6 +42,12 @@ const KEYS: ModelKey[] = [
     createdAt: 1753300000,
     updatedAt: 1753300000,
     applicationIds: [88, 87],
+    // Stub only — the manager does not report per-key usage yet, so the
+    // Usage column is invisible against a real backend.
+    usage: {
+      88: { tokens: 1_240_000, costUsd: 8.4 },
+      87: { tokens: 96_000, costUsd: 0.62 },
+    },
   },
   {
     id: 2,

@@ -4,41 +4,67 @@
 
 2026-07-26 — Build Providers page (builder model keys, FE half; branch
   `feat/build-model-keys-tab`, uncommitted, worktree
-  `.worktrees/model-keys-tab`). Global ACCOUNT-nav "Providers" page
-  (`/providers`, `features/operate/providers-view.tsx`): one flat card per
-  provider (OpenAI/Anthropic/OpenRouter), accordion key rows with metadata,
-  project-assignment checkbox editor (steal warning — one key per provider
-  per project), rotate/remove flows; key material is write-only, only the
-  stored prefix renders. Project pages gain a read-mostly Providers tab
+  `.worktrees/model-keys-tab`). The ACCOUNT-nav Providers page (`/providers`,
+  `features/operate/providers-view.tsx`) has one flat card per provider
+  (OpenAI/Anthropic/OpenRouter),
+  accordion key rows, project-assignment editor, and rotate/remove flows; key
+  material is write-only and only the stored prefix renders. Project pages gain
+  a read-mostly Providers tab
   (`tabs/providers-tab.tsx`, apply/remove grants for this project; Details
-  tab merged into Home to make room). BFF
-  `/api/bff/operate/model-keys` (GET/POST/PUT/DELETE in
-  `server/bff/operate/routes.ts`) fronts the new manager routes
-  `/api/integrations/github-app/user/model-keys[/:id[/grants]]` via five
-  new DeploymentClient methods (packages/deploy client.ts/types.ts).
-  ⌘K entry + dev harness `/dev-model-keys-preview` (stubbed-fetch sibling
-  of dev-operate-preview, kept deliberately). Restyled per Cecilia review
-  against the settings-redesign component inventory (artifact
-  5885e89f…, `.claude/worktrees/settings-redesign`): project picker is now
-  a framed PROJECT/SOURCE/FUNDED-BY table (uppercase 10px tracked heads,
-  checked rows on the accent-subtle fill, sky checkboxes, steal warning in
-  the Funded-by column), 10px uppercase badges (sky tint = Active, neutral
-  = Unassigned), label-over-value metadata cells, and the button ramp (sky
-  solid commit + sky outline Rotate rounded-lg in flow; solid red pill for
-  the Remove confirm; ghost dismissals). Verified live on :3430
-  (NEXT_DIST_DIR=.next-verify, launch.json `build-model-keys`) in light +
-  dark: grants save round-trip, badge count updates, no console errors.
-  Also fixed apps/build eslint flat config: the ignores entry mixed with
-  `rules` was never global (.next was only ignored by eslint-config-next
-  itself) — added a standalone `{ ignores: [".next*/**"] }` so
-  NEXT_DIST_DIR dist dirs don't get linted. Branch fast-forwarded onto
-  main 9c98c44e (zero overlap). Verified: aomi-build type-check, vitest
-  318/318, root deploy suite 130/130, lint (3 pre-existing warnings),
-  production `next build` green with all three routes in the table.
-  Pending: BE gap — builder keys don't fund dynamic apps yet (would bill
-  `app_key` while platform keys pay); decision recorded to fix that
-  BE-side first, then ship this visible (no flag). Deploy order: BE →
-  FE → signed-in smoke (add key → apply → chat shows `app_key`).
+  merged into Home to make room). BFF `/api/bff/operate/model-keys`
+  (GET/POST/PUT/DELETE in `server/bff/operate/routes.ts`) fronts the manager
+  routes `/api/integrations/github-app/user/model-keys[/:id[/grants]]` via
+  five new DeploymentClient methods in `packages/deploy`. The existing
+  dedicated Providers ⌘K entry indexes model-provider terms, and the
+  stubbed-fetch dev harness `/dev-model-keys-preview` renders the real
+  Providers view for focused visual review.
+
+  Restyled per Cecilia review against the settings-redesign inventory (artifact
+  5885e89f…, `.claude/worktrees/settings-redesign`). The project picker is a
+  framed PROJECT/SOURCE/FUNDED-BY/TOKENS/COST table with 10px tracked heads,
+  checked-row accent fill, sky checkboxes, reassign warnings, per-project usage,
+  and an all-time Total row. The expanded key panel now opens with a funding
+  summary instead of raw metadata: sponsorship state and project names plus
+  wired Projects funded / Tokens sponsored / Provider spend totals; key prefix,
+  creation, rotation, and the all-time window remain quiet provenance. The
+  assignment section is titled "Add to project" at the same text size as the
+  key title and explains: "Use this key to fund projects when users select
+  models from this provider." Its table is a frameless white ledger with
+  horizontal separators and five evenly sized columns; checkbox state carries
+  selection without a row wash. Closed rows keep the key identity in consistent
+  monospace type (including user labels such as `prod-main`),
+  Active/Unassigned state, and funded-project context. Rotate and the
+  solid-red/white Remove action live together in the funding-summary header,
+  with each action's flow directly below the summary. The full expanded panel
+  uses one wider horizontal inset so its summary, assignment ledger, and flows
+  align uniformly on both sides.
+
+  Normalized the Providers radii to apps/build's token mapping: `rounded-md`
+  cards/tables/panels (12px), `rounded-sm` in-card controls (8px), and
+  `rounded-full` pills. Carried the same recipes into the project-scoped
+  Providers tab and shared `status-pill.tsx` / `sdk-badge.tsx` primitives.
+  Fixed inert `bg-surface` / `bg-surface-subtle` utilities there. Registered
+  the missing `--color-accent-selected-foreground` token so solid-sky Save /
+  Add key controls and checkbox ticks use the correct on-accent ink. Simplified
+  active sidebar navigation to a uniform sky-500 fill, removing the pale
+  two-layer crescent.
+
+  Branch fast-forwarded onto main 9c98c44e (zero overlap). Verified before the
+  latest copy pass: aomi-build type-check, vitest 318/318, root deploy suite
+  130/130, lint (3 pre-existing warnings), production `next build`, and live
+  :3430 light/dark grant save + badge updates with no console errors. After the
+  funding-summary and assignment-copy pass: aomi-build type-check is green,
+  lint remains at the same 3 warnings, and the :3430 preview shows the unassigned
+  state plus the wired active-key totals (2 projects, 1.3M tokens, $9.02).
+
+  Pending BE gap 1: builder keys do not fund dynamic apps yet (they bill
+  `app_key` while platform keys pay). Fix BE-side first, then ship without a
+  flag. Pending BE gap 2: the FE types/renders
+  `ModelKey.usage[applicationId] = {tokens, costUsd}`, but the manager does
+  not emit it, so production usage cells remain "—"; only the dev preview has
+  real values. Add the manager field on `/user/model-keys` and map it in
+  `camelBuilderModelKey`. Deploy order: BE → FE → signed-in smoke (add key →
+  apply → chat shows `app_key`).
 
 2026-07-23 — Review-checklist fix pass on
   `codex/widget-auth-single-tenant`: all §1–§4 items and the actionable §5

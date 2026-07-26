@@ -1,14 +1,14 @@
 "use client";
 
-// The global "Providers" page: builder-owned LLM model keys, provider-centric.
+// The global Providers page: builder-owned LLM model keys, provider-centric.
 // One flat card per provider (header + divide-y key rows). Each key row is an
-// accordion: click to expand an inline panel with key metadata, a framed
-// project-assignment table, and rotate/remove flows. Key material is
-// write-only — only the stored prefix is ever shown. (BE naming: model keys;
-// UI naming: Providers.)
+// accordion: click to expand an inline panel with key metadata, project
+// assignment, and rotate/remove flows. Key material is write-only — only the
+// stored prefix is ever shown.
 //
-// Styling follows the settings-redesign inventory: rounded-xl cards/tables,
-// rounded-lg in-card controls, 10px uppercase tracked micro-labels, neutral
+// Styling follows the settings-redesign inventory, mapped onto apps/build's
+// radius scale: rounded-md (12px) cards/tables, rounded-sm (8px) in-card
+// controls, rounded-full pills. 10px uppercase tracked micro-labels, neutral
 // badges for facts and sky-tinted badges for state, mono for key prefixes,
 // and the button ramp (accent commit + accent repair in flow, solid red pill
 // for the destructive commit).
@@ -32,6 +32,12 @@ export const PROVIDER_LABELS: Record<Provider, string> = {
   openrouter: "OpenRouter",
 };
 
+/** What one project has drawn through a key, when the backend reports it. */
+export type ModelKeyUsage = {
+  tokens?: number;
+  costUsd?: number;
+};
+
 export type ModelKey = {
   id: number;
   provider: string;
@@ -40,6 +46,9 @@ export type ModelKey = {
   createdAt: number;
   updatedAt: number;
   applicationIds: number[];
+  /** applicationId -> usage. The manager does not emit this yet, so every
+   *  cell reads "—" in production until it does. */
+  usage?: Record<number, ModelKeyUsage>;
 };
 
 export type KeySource = {
@@ -67,6 +76,33 @@ function formatTs(ts?: number | null): string {
   });
 }
 
+function formatTokens(count: number): string {
+  if (count >= 1_000_000) return `${(count / 1_000_000).toFixed(1)}M`;
+  if (count >= 1_000) return `${Math.round(count / 1_000)}K`;
+  return String(count);
+}
+
+const tokensCell = (count?: number) =>
+  count === undefined ? "—" : formatTokens(count);
+const costCell = (usd?: number) =>
+  usd === undefined ? "—" : `$${usd.toFixed(2)}`;
+
+/** Column total across every project, undefined when nothing is reported. */
+function sumUsage(
+  options: AppOption[],
+  usage: ModelKey["usage"],
+): { tokens?: number; costUsd?: number } {
+  const total: { tokens?: number; costUsd?: number } = {};
+  for (const option of options) {
+    const entry = usage?.[option.applicationId];
+    if (entry?.tokens !== undefined)
+      total.tokens = (total.tokens ?? 0) + entry.tokens;
+    if (entry?.costUsd !== undefined)
+      total.costUsd = (total.costUsd ?? 0) + entry.costUsd;
+  }
+  return total;
+}
+
 /** One project (application) option for the grant editor. */
 type AppOption = { applicationId: number; name: string; sourceLabel: string };
 
@@ -83,29 +119,28 @@ function appOptions(sources: KeySource[]): AppOption[] {
 
 // ── shared bits ─────────────────────────────────────────────────────────────
 
-/** 10px uppercase tracked micro-label — overlines, column heads. */
-const MICRO = "text-[10px] font-semibold uppercase tracking-[0.07em] text-dim";
-
-/** In-flow commit: sky solid, rounded-lg. */
+// In-card controls take rounded-sm (8px) and the destructive commit takes a
+// pill, per the inventory's radius semantics as they map onto apps/build's
+// scale (sm=8px, md=12px). `text-accent-selected-foreground` is the on-accent
+// ink now registered in globals.css.
+/** In-flow commit: sky solid, rounded control. */
 const COMMIT_BTN =
-  "bg-accent-selected text-accent-selected-foreground hover:opacity-90 inline-flex h-8 items-center justify-center rounded-lg px-3.5 text-[13px] font-medium disabled:cursor-not-allowed disabled:opacity-50";
-/** In-flow repair: sky outline, rounded-lg. */
+  "bg-accent-selected text-accent-selected-foreground hover:opacity-90 inline-flex h-8 items-center justify-center rounded-sm px-3.5 text-[13px] font-medium disabled:cursor-not-allowed disabled:opacity-50";
+/** In-flow repair: sky outline, rounded control. */
 const REPAIR_BTN =
-  "border-accent-selected/50 text-accent-selected hover:bg-accent-selected/10 inline-flex h-8 items-center gap-1 rounded-lg border px-3 text-[13px] font-medium disabled:opacity-50";
-/** Quiet in-card action: neutral outline, rounded-lg. */
+  "border-accent-selected/50 text-accent-selected hover:bg-accent-selected/10 inline-flex h-8 items-center gap-1 rounded-sm border px-3 text-[13px] font-medium disabled:opacity-50";
+/** Quiet in-card action: neutral outline. */
 const OUTLINE_BTN =
-  "border-border hover:bg-surface-2 text-foreground inline-flex h-7 items-center rounded-lg border px-2.5 text-xs font-medium disabled:opacity-50";
+  "border-border hover:bg-surface-2 text-foreground inline-flex h-7 items-center rounded-sm border px-2.5 text-xs font-medium disabled:opacity-50";
 /** Text-only dismiss. */
 const GHOST_BTN =
-  "text-dim hover:text-foreground inline-flex h-8 items-center rounded-lg px-2.5 text-[13px]";
-/** Destructive opener: quiet red text until the confirm step. */
-const GHOST_DANGER_BTN =
-  "text-destructive hover:bg-destructive/10 inline-flex h-8 items-center rounded-lg px-2.5 text-[13px] font-medium disabled:opacity-50";
+  "text-dim hover:text-foreground inline-flex h-8 items-center rounded-sm px-2.5 text-[13px]";
 /** Destructive commit: solid red pill, same weight as an ink commit. */
 const DANGER_BTN =
   "bg-destructive text-destructive-foreground hover:opacity-90 inline-flex h-8 items-center rounded-full px-4 text-[13px] font-medium disabled:opacity-50";
 const INPUT =
-  "bg-input text-foreground placeholder:text-dim h-8 rounded-lg border border-border px-2.5 text-[13px]";
+  "bg-input text-foreground placeholder:text-dim h-8 rounded-sm border border-border px-2.5 text-[13px]";
+/** 10px uppercase tracked column head. */
 const TH =
   "px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.07em] text-dim";
 
@@ -136,7 +171,7 @@ function CheckboxGlyph({ checked }: { checked: boolean }) {
       className={cn(
         "flex size-4 shrink-0 items-center justify-center rounded border transition-colors",
         checked
-          ? "border-transparent bg-accent-selected text-accent-selected-foreground"
+          ? "bg-accent-selected text-accent-selected-foreground border-transparent"
           : "border-border-hover bg-transparent",
       )}
     >
@@ -145,13 +180,119 @@ function CheckboxGlyph({ checked }: { checked: boolean }) {
   );
 }
 
-/** Label-over-value metadata cell. */
-function MetaCell({ label, children }: { label: string; children: React.ReactNode }) {
+function FundingSummary({
+  keyRow,
+  options,
+  fundedNames,
+  rotateDisabled,
+  onRotate,
+  removeDisabled,
+  onRemove,
+}: {
+  keyRow: ModelKey;
+  options: AppOption[];
+  fundedNames: string[];
+  rotateDisabled: boolean;
+  onRotate: () => void;
+  removeDisabled: boolean;
+  onRemove: () => void;
+}) {
+  const total = sumUsage(options, keyRow.usage);
+  const projectCount = fundedNames.length;
+  const rotated = keyRow.updatedAt > keyRow.createdAt;
+
   return (
-    <div>
-      <div className={MICRO}>{label}</div>
-      <div className="text-foreground mt-0.5 text-xs">{children}</div>
-    </div>
+    <section className="border-border bg-surface-2/70 overflow-hidden rounded-md border">
+      <div className="px-3.5 py-3">
+        <div className="flex items-start gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <span
+                aria-hidden
+                className={cn(
+                  "size-1.5 shrink-0 rounded-full",
+                  projectCount > 0 ? "bg-positive" : "bg-dim",
+                )}
+              />
+              <h3 className="text-[13px] font-medium">
+                {projectCount > 0
+                  ? `Sponsoring ${projectCount} project${projectCount === 1 ? "" : "s"}`
+                  : "Ready to sponsor model usage"}
+              </h3>
+            </div>
+            <p className="text-dim mt-1 max-w-2xl text-xs leading-relaxed">
+              {projectCount > 0 ? (
+                <>
+                  Provider spend for{" "}
+                  <span className="text-foreground">
+                    {fundedNames.join(", ")}
+                  </span>{" "}
+                  routes through this key, so their users aren&apos;t charged
+                  model cost.
+                </>
+              ) : (
+                <>
+                  Assign a project below to route its provider spend through
+                  this key and waive model cost for its users.
+                </>
+              )}
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              disabled={rotateDisabled}
+              onClick={onRotate}
+              className={cn(REPAIR_BTN, "h-7 px-2.5")}
+            >
+              Rotate
+            </button>
+            <button
+              type="button"
+              disabled={removeDisabled}
+              onClick={onRemove}
+              className={cn(DANGER_BTN, "h-7 rounded-sm px-2.5")}
+            >
+              Remove
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <dl className="border-border grid grid-cols-3 divide-x border-y">
+        <div className="bg-surface-1 px-3 py-2.5">
+          <dt className="text-dim text-[10px] font-semibold uppercase tracking-[0.07em]">
+            Projects funded
+          </dt>
+          <dd className="text-foreground mt-0.5 font-mono text-base font-medium tabular-nums">
+            {projectCount}
+          </dd>
+        </div>
+        <div className="bg-surface-1 px-3 py-2.5">
+          <dt className="text-dim text-[10px] font-semibold uppercase tracking-[0.07em]">
+            Tokens sponsored
+          </dt>
+          <dd className="text-foreground mt-0.5 font-mono text-base font-medium tabular-nums">
+            {tokensCell(total.tokens)}
+          </dd>
+        </div>
+        <div className="bg-surface-1 px-3 py-2.5">
+          <dt className="text-dim text-[10px] font-semibold uppercase tracking-[0.07em]">
+            Provider spend
+          </dt>
+          <dd className="text-foreground mt-0.5 font-mono text-base font-medium tabular-nums">
+            {costCell(total.costUsd)}
+          </dd>
+        </div>
+      </dl>
+
+      <div className="text-dim flex flex-wrap items-center gap-x-3 gap-y-1 px-3.5 py-2 text-[11px]">
+        <span className="font-mono">{keyRow.keyPrefix}…</span>
+        <span>Added {formatTs(keyRow.createdAt)}</span>
+        {rotated ? <span>Rotated {formatTs(keyRow.updatedAt)}</span> : null}
+        <span className="ml-auto">Usage totals · all time</span>
+      </div>
+    </section>
   );
 }
 
@@ -171,14 +312,17 @@ function ProjectsTable({
   checked: Set<number>;
   onToggle: (applicationId: number, isChecked: boolean) => void;
 }) {
+  const total = sumUsage(options, keyRow.usage);
   return (
-    <div className="border-border overflow-x-auto rounded-xl border">
-      <table className="min-w-[480px] w-full text-[13px]">
-        <thead className="bg-surface-2">
+    <div className="bg-surface-1 overflow-x-auto">
+      <table className="w-full min-w-[640px] table-fixed text-[13px]">
+        <thead className="border-border border-b">
           <tr>
             <th className={TH}>Project</th>
             <th className={TH}>Source</th>
             <th className={TH}>Funded by</th>
+            <th className={cn(TH, "text-right")}>Tokens</th>
+            <th className={cn(TH, "text-right")}>Cost</th>
           </tr>
         </thead>
         <tbody className="divide-border divide-y">
@@ -189,10 +333,7 @@ function ProjectsTable({
             return (
               <tr
                 key={option.applicationId}
-                className={cn(
-                  "border-border border-t transition-colors",
-                  isChecked ? "bg-accent" : "hover:bg-surface-2/60",
-                )}
+                className="hover:bg-surface-2/60 transition-colors"
               >
                 <td className="px-3 py-2">
                   <label className="flex cursor-pointer items-center gap-2.5">
@@ -228,10 +369,30 @@ function ProjectsTable({
                     <span className="text-dim">—</span>
                   )}
                 </td>
+                <td className="text-dim whitespace-nowrap px-3 py-2 text-right font-mono text-xs">
+                  {tokensCell(keyRow.usage?.[option.applicationId]?.tokens)}
+                </td>
+                <td className="text-dim whitespace-nowrap px-3 py-2 text-right font-mono text-xs">
+                  {costCell(keyRow.usage?.[option.applicationId]?.costUsd)}
+                </td>
               </tr>
             );
           })}
         </tbody>
+        {/* Footer summary row, per the framed-table component. */}
+        <tfoot className="border-border bg-surface-1 border-t">
+          <tr>
+            <td className="text-foreground px-3 py-2 font-medium">Total</td>
+            <td />
+            <td />
+            <td className="text-foreground px-3 py-2 text-right font-mono text-xs font-medium">
+              {tokensCell(total.tokens)}
+            </td>
+            <td className="text-foreground px-3 py-2 text-right font-mono text-xs font-medium">
+              {costCell(total.costUsd)}
+            </td>
+          </tr>
+        </tfoot>
       </table>
     </div>
   );
@@ -272,7 +433,17 @@ function KeyRow({
     checked.size !== keyRow.applicationIds.length ||
     keyRow.applicationIds.some((id) => !checked.has(id));
   const projectCount = keyRow.applicationIds.length;
-  const rotated = keyRow.updatedAt > keyRow.createdAt;
+  /** Names of the projects this key funds, so the closed row answers
+   *  "which ones?" without being expanded. */
+  const fundedNames = useMemo(
+    () =>
+      options
+        .filter((option) =>
+          keyRow.applicationIds.includes(option.applicationId),
+        )
+        .map((option) => option.name),
+    [options, keyRow.applicationIds],
+  );
 
   return (
     <div>
@@ -289,24 +460,17 @@ function KeyRow({
       >
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <span
-              className={cn(
-                "text-foreground truncate text-[13px] font-medium",
-                !keyRow.label?.trim() && "font-mono",
-              )}
-            >
+            <span className="text-foreground truncate font-mono text-sm font-medium">
               {keyDisplayName(keyRow)}
             </span>
-            <StatusBadge projectCount={projectCount} />
-          </div>
-          <div className="text-dim mt-0.5 text-[11px]">
+            {/* The prefix is identity, so it sits with the name — but only
+                when a label exists, else it would just repeat the name. */}
             {keyRow.label?.trim() ? (
-              <>
-                <span className="font-mono">{keyRow.keyPrefix}…</span>
-                {" · "}
-              </>
+              <span className="text-dim shrink-0 font-mono text-xs">
+                {keyRow.keyPrefix}…
+              </span>
             ) : null}
-            added {formatTs(keyRow.createdAt)}
+            <StatusBadge projectCount={projectCount} />
           </div>
         </div>
         <ChevronDown
@@ -318,23 +482,98 @@ function KeyRow({
       </button>
 
       {open ? (
-        <div className="space-y-4 px-4 pt-1 pb-4">
-          <div className="flex flex-wrap gap-x-10 gap-y-2">
-            <MetaCell label="Key">
-              <span className="font-mono">{keyRow.keyPrefix}…</span>
-            </MetaCell>
-            <MetaCell label="Added">{formatTs(keyRow.createdAt)}</MetaCell>
-            {rotated ? (
-              <MetaCell label="Rotated">{formatTs(keyRow.updatedAt)}</MetaCell>
-            ) : null}
-          </div>
+        <div className="space-y-3.5 px-6 pb-5">
+          <FundingSummary
+            keyRow={keyRow}
+            options={options}
+            fundedNames={fundedNames}
+            rotateDisabled={busy || flow !== null}
+            onRotate={() => {
+              setMaterial("");
+              setFlow("rotate");
+            }}
+            removeDisabled={busy || flow !== null}
+            onRemove={() => setFlow("remove")}
+          />
 
-          <div>
-            <div className={MICRO}>Projects</div>
-            <p className="text-dim mt-0.5 mb-2 text-xs">
-              One key per provider per project — checking a project already
-              funded by another key reassigns it.
-            </p>
+          {flow === "rotate" ? (
+            <div className="border-accent-selected/30 bg-accent rounded-sm border p-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  type="password"
+                  autoFocus
+                  value={material}
+                  onChange={(event) => setMaterial(event.target.value)}
+                  placeholder="Paste the new key — assignments are kept"
+                  className={cn(INPUT, "min-w-[220px] flex-1")}
+                />
+                <button
+                  type="button"
+                  disabled={!material.trim() || busy}
+                  onClick={() =>
+                    void onRotate(keyRow, material.trim()).then(() => {
+                      setMaterial("");
+                      setFlow(null);
+                    })
+                  }
+                  className={COMMIT_BTN}
+                >
+                  {busy ? "Saving…" : "Save"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFlow(null)}
+                  className={GHOST_BTN}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : flow === "remove" ? (
+            <div className="border-destructive/30 bg-destructive/5 rounded-sm border p-3">
+              <div className="flex flex-wrap items-center gap-3">
+                <p className="text-dim min-w-0 flex-1 text-xs leading-snug">
+                  {projectCount > 0 ? (
+                    <>
+                      This key currently funds{" "}
+                      <span className="text-foreground">
+                        {projectCount} project
+                        {projectCount === 1 ? "" : "s"}
+                      </span>
+                      ; they fall back to platform keys. This can&apos;t be
+                      undone.
+                    </>
+                  ) : (
+                    <>This key is unassigned. This can&apos;t be undone.</>
+                  )}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setFlow(null)}
+                  className={GHOST_BTN}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void onRemove(keyRow)}
+                  className={DANGER_BTN}
+                >
+                  {busy ? "Removing…" : "Remove key"}
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          <div className="pt-2">
+            <div className="mb-2">
+              <h4 className="text-sm font-medium">Add to project</h4>
+              <p className="text-dim mt-1.5 text-xs">
+                Use this key to fund projects when users select models from this
+                provider.
+              </p>
+            </div>
             {options.length === 0 ? (
               <p className="text-dim text-xs">
                 No deployed projects available for this account.
@@ -374,95 +613,6 @@ function KeyRow({
                 </button>
               </div>
             ) : null}
-          </div>
-
-          <div className="border-border border-t pt-3">
-            {flow === null ? (
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => {
-                    setMaterial("");
-                    setFlow("rotate");
-                  }}
-                  className={REPAIR_BTN}
-                >
-                  Rotate
-                </button>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => setFlow("remove")}
-                  className={GHOST_DANGER_BTN}
-                >
-                  Remove
-                </button>
-              </div>
-            ) : flow === "rotate" ? (
-              <div className="flex flex-wrap items-center gap-2">
-                <input
-                  type="password"
-                  autoFocus
-                  value={material}
-                  onChange={(event) => setMaterial(event.target.value)}
-                  placeholder="Paste the new key — assignments are kept"
-                  className={cn(INPUT, "min-w-[220px] flex-1")}
-                />
-                <button
-                  type="button"
-                  disabled={!material.trim() || busy}
-                  onClick={() =>
-                    void onRotate(keyRow, material.trim()).then(() => {
-                      setMaterial("");
-                      setFlow(null);
-                    })
-                  }
-                  className={COMMIT_BTN}
-                >
-                  {busy ? "Saving…" : "Save"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFlow(null)}
-                  className={GHOST_BTN}
-                >
-                  Cancel
-                </button>
-              </div>
-            ) : (
-              <div className="flex flex-wrap items-center gap-3">
-                <p className="text-dim min-w-0 flex-1 text-xs leading-snug">
-                  {projectCount > 0 ? (
-                    <>
-                      This key currently funds{" "}
-                      <span className="text-foreground">
-                        {projectCount} project{projectCount === 1 ? "" : "s"}
-                      </span>
-                      ; they fall back to platform keys. This can&apos;t be
-                      undone.
-                    </>
-                  ) : (
-                    <>This key is unassigned. This can&apos;t be undone.</>
-                  )}
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setFlow(null)}
-                  className={GHOST_BTN}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void onRemove(keyRow)}
-                  className={DANGER_BTN}
-                >
-                  {busy ? "Removing…" : "Remove key"}
-                </button>
-              </div>
-            )}
           </div>
         </div>
       ) : null}
@@ -513,7 +663,7 @@ function ProviderSection({
   };
 
   return (
-    <section className="border-border bg-surface-1 rounded-xl border">
+    <section className="border-border bg-surface-1 rounded-md border">
       <div className="flex items-center gap-2.5 px-4 py-3">
         <h2 className="text-[13px] font-medium">{PROVIDER_LABELS[provider]}</h2>
         <span className="text-dim text-[11px]">
@@ -749,17 +899,17 @@ export function ProvidersView() {
       </header>
 
       {formError ? (
-        <div className="border-destructive/30 bg-destructive/5 text-destructive rounded-lg border px-3 py-2 text-[13px]">
+        <div className="border-destructive/30 bg-destructive/5 text-destructive rounded-md border px-3 py-2 text-[13px]">
           {formError}
         </div>
       ) : null}
 
       {loading ? (
-        <div className="border-border bg-surface-1 text-dim rounded-xl border px-4 py-10 text-center text-[13px]">
+        <div className="border-border bg-surface-1 text-dim rounded-md border px-4 py-10 text-center text-[13px]">
           Loading
         </div>
       ) : error ? (
-        <div className="border-destructive/30 bg-destructive/5 text-destructive rounded-lg border px-4 py-3 text-[13px]">
+        <div className="border-destructive/30 bg-destructive/5 text-destructive rounded-md border px-4 py-3 text-[13px]">
           {error}
         </div>
       ) : (

@@ -77,9 +77,7 @@ const navGroups: NavGroup[] = [
   },
   {
     title: "Build",
-    items: [
-      { label: "Build", href: "/build", icon: Hammer, enabled: true },
-    ],
+    items: [{ label: "Build", href: "/build", icon: Hammer, enabled: true }],
   },
   {
     title: "Operate",
@@ -354,7 +352,7 @@ function NavGroupList({
   return (
     <div className="mb-1">
       {expanded ? (
-        <div className="text-subtle px-2.5 py-1.5 text-[11px] font-medium tracking-wide uppercase">
+        <div className="text-subtle px-2.5 py-1.5 text-[11px] font-medium uppercase tracking-wide">
           {group.title}
         </div>
       ) : null}

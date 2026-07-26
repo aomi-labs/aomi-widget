@@ -20,6 +20,20 @@ import {
 
 type Detail = ReturnType<typeof useProjectDetail>;
 
+// Shared recipes from the settings-redesign inventory, mapped onto apps/build's
+// tokens: 10px uppercase tracked column heads (No 02) and badges (No 03) —
+// neutral for facts, sky tint for a funding state.
+const TH =
+  "px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.07em] text-dim";
+const BADGE =
+  "inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.05em] whitespace-nowrap";
+const BADGE_ACCENT =
+  "border-accent-selected/40 bg-accent-selected/10 text-accent-selected";
+const BADGE_NEUTRAL = "border-border bg-surface-2 text-dim";
+/** Quiet in-card row action: neutral outline, rounded-sm. */
+const ROW_BTN =
+  "border-border hover:bg-surface-2 text-foreground inline-flex h-7 items-center rounded-sm border px-2.5 text-xs font-medium disabled:opacity-50";
+
 export function ProvidersTab({ detail }: { detail: Detail }) {
   const [keys, setKeys] = useState<ModelKey[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -108,7 +122,7 @@ export function ProvidersTab({ detail }: { detail: Detail }) {
         <p className="text-dim mt-1 text-sm">
           Providers funding this project&apos;s users — their model cost is
           waived when your key covers their selected model. Manage keys on the{" "}
-          <Link href="/providers" className="text-foreground underline">
+          <Link href="/providers" className="text-link hover:underline">
             Providers page
           </Link>
           . App tool secrets live in Environment, not here.
@@ -122,46 +136,50 @@ export function ProvidersTab({ detail }: { detail: Detail }) {
       ) : null}
 
       {keys === null ? (
-        <div className="border-border bg-surface-subtle text-dim rounded-md border px-4 py-8 text-center text-sm">
+        <div className="border-border bg-surface-2 text-dim rounded-md border px-4 py-8 text-center text-sm">
           Loading
         </div>
       ) : (
-        <div className="border-border overflow-x-auto rounded-md border">
-          <table className="divide-border min-w-full divide-y text-sm">
-            <thead className="bg-surface-subtle text-dim text-left text-xs uppercase">
+        <div className="border-border bg-surface-1 overflow-x-auto rounded-md border">
+          <table className="min-w-full text-sm">
+            <thead className="bg-surface-2">
               <tr>
-                <th className="px-3 py-2">Provider</th>
-                <th className="px-3 py-2">Status</th>
-                <th className="px-3 py-2">Key</th>
-                <th className="px-3 py-2" />
+                <th className={TH}>Provider</th>
+                <th className={TH}>Status</th>
+                <th className={TH}>Key</th>
+                <th className={TH} />
               </tr>
             </thead>
-            <tbody className="divide-border bg-surface divide-y">
+            <tbody className="divide-border divide-y">
               {PROVIDERS.map((provider) => {
                 const funded = fundingKey(provider);
                 const candidate = candidateKey(provider);
                 return (
-                  <tr key={provider}>
-                    <td className="text-foreground px-3 py-2">
+                  <tr key={provider} className="border-border border-t">
+                    <td className="text-foreground px-3 py-2.5">
                       {PROVIDER_LABELS[provider]}
                     </td>
-                    <td className="text-dim px-3 py-2">
-                      {funded ? "Funding this project" : "Not applied"}
+                    <td className="px-3 py-2.5">
+                      <span
+                        className={`${BADGE} ${funded ? BADGE_ACCENT : BADGE_NEUTRAL}`}
+                      >
+                        {funded ? "Funding" : "Not applied"}
+                      </span>
                     </td>
-                    <td className="text-dim px-3 py-2 font-mono text-xs">
+                    <td className="text-dim px-3 py-2.5 font-mono text-xs">
                       {funded
                         ? `${keyDisplayName(funded)} (${funded.keyPrefix}…)`
                         : candidate
                           ? `${keyDisplayName(candidate)} available`
                           : "No key saved"}
                     </td>
-                    <td className="px-3 py-2 text-right">
+                    <td className="px-3 py-2.5 text-right">
                       {funded ? (
                         <button
                           type="button"
                           disabled={busy}
                           onClick={() => void remove(funded)}
-                          className="border-border hover:bg-accent-hover text-dim h-7 rounded-md border px-2 text-xs disabled:opacity-50"
+                          className={ROW_BTN}
                         >
                           Remove from project
                         </button>
@@ -170,14 +188,14 @@ export function ProvidersTab({ detail }: { detail: Detail }) {
                           type="button"
                           disabled={busy || appIds.length === 0}
                           onClick={() => void apply(candidate)}
-                          className="border-border hover:bg-accent-hover text-foreground h-7 rounded-md border px-2 text-xs disabled:opacity-50"
+                          className={ROW_BTN}
                         >
                           Apply to project
                         </button>
                       ) : (
                         <Link
                           href="/providers"
-                          className="text-dim text-xs underline"
+                          className="text-link text-xs hover:underline"
                         >
                           Add a key
                         </Link>
