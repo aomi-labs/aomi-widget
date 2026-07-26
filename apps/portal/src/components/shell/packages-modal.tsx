@@ -13,7 +13,10 @@ import {
   Wallet as WalletIcon,
 } from "lucide-react";
 import type { AomiAppDescriptor } from "@aomi-labs/client";
-import { useAccountOverview } from "@portal/lib/account-overview";
+import {
+  seedAccountOverview,
+  useAccountOverview,
+} from "@portal/lib/account-overview";
 import { fetchAppCatalog, setInstalledApps } from "./packages-api";
 
 type PackageVisibility = "public" | "personal";
@@ -229,11 +232,13 @@ export function PackagesModal({ onClose }: PackagesModalProps) {
   const [catalogError, setCatalogError] = useState<string | null>(null);
   // null until either the PUT response or the account overview seeds it —
   // the PUT response is the fresher truth once any mutation has run.
-  const [installedFromServer, setInstalledFromServer] = useState<string[] | null>(
-    null,
-  );
+  const [installedFromServer, setInstalledFromServer] = useState<{
+    userId: string;
+    apps: string[];
+  } | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const mutationInFlight = useRef(false);
   const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -254,12 +259,18 @@ export function PackagesModal({ onClose }: PackagesModalProps) {
     };
   }, []);
 
+  const accountUserId = account?.user.user_id;
+  const installedBaseline =
+    installedFromServer && installedFromServer.userId === accountUserId
+      ? installedFromServer.apps
+      : (account?.user.apps ?? null);
+  const installedReady = installedBaseline !== null;
   const installedIds = useMemo(() => {
-    const fromAccount = installedFromServer ?? account?.user.apps ?? [];
+    const fromAccount = installedBaseline ?? [];
     const ids = new Set(fromAccount);
     for (const pinned of PINNED_APPS) ids.add(pinned);
     return ids;
-  }, [installedFromServer, account]);
+  }, [installedBaseline]);
 
   /**
    * Replace the installed set on the server. Not optimistic: the button shows
@@ -268,19 +279,34 @@ export function PackagesModal({ onClose }: PackagesModalProps) {
    */
   const mutateInstalled = useCallback(
     async (packageId: string, next: string[]) => {
+      if (
+        !installedReady ||
+        !account ||
+        !accountUserId ||
+        mutationInFlight.current
+      ) {
+        return;
+      }
+      mutationInFlight.current = true;
       setBusyId(packageId);
       setActionError(null);
       try {
-        setInstalledFromServer(await setInstalledApps(next));
+        const apps = await setInstalledApps(next);
+        setInstalledFromServer({ userId: accountUserId, apps });
+        seedAccountOverview({
+          ...account,
+          user: { ...account.user, apps },
+        });
       } catch (cause) {
         setActionError(
           cause instanceof Error ? cause.message : "Couldn't update packages",
         );
       } finally {
+        mutationInFlight.current = false;
         setBusyId(null);
       }
     },
-    [],
+    [account, accountUserId, installedReady],
   );
 
   useEffect(() => {
@@ -294,7 +320,8 @@ export function PackagesModal({ onClose }: PackagesModalProps) {
         event.target instanceof HTMLElement &&
         ["INPUT", "TEXTAREA"].includes(event.target.tagName);
       const wantsSearch =
-        event.key === "/" || (event.key === "k" && (event.metaKey || event.ctrlKey));
+        event.key === "/" ||
+        (event.key === "k" && (event.metaKey || event.ctrlKey));
       if (wantsSearch && !typingElsewhere) {
         event.preventDefault();
         searchRef.current?.focus();
@@ -321,7 +348,9 @@ export function PackagesModal({ onClose }: PackagesModalProps) {
     });
   }, [allPackages, activeView, query, installedOnly, installedIds]);
 
-  const installedPackages = allPackages.filter((app) => installedIds.has(app.id));
+  const installedPackages = allPackages.filter((app) =>
+    installedIds.has(app.id),
+  );
   const categories =
     activeView === "public" ? CATEGORY_ORDER : (["Your packages"] as const);
 
@@ -344,7 +373,7 @@ export function PackagesModal({ onClose }: PackagesModalProps) {
       role="dialog"
       aria-modal="true"
       aria-labelledby="packages-title"
-      className="fixed inset-0 z-50 overflow-y-auto bg-aomi-bg text-aomi-fg"
+      className="bg-aomi-bg text-aomi-fg fixed inset-0 z-50 overflow-y-auto"
     >
       <div className="mx-auto min-h-full w-full max-w-[1120px] px-8 py-10 sm:px-12 sm:py-12">
         <header className="relative">
@@ -352,19 +381,22 @@ export function PackagesModal({ onClose }: PackagesModalProps) {
             type="button"
             onClick={onClose}
             aria-label="Close packages"
-            className="absolute right-0 top-0 flex h-8 w-8 items-center justify-center rounded-full bg-aomi-surface-2 text-aomi-muted transition-colors hover:bg-aomi-hover hover:text-aomi-fg"
+            className="bg-aomi-surface-2 text-aomi-muted hover:bg-aomi-hover hover:text-aomi-fg absolute right-0 top-0 flex h-8 w-8 items-center justify-center rounded-full transition-colors"
           >
             <Close size={16} />
           </button>
-          <h1 id="packages-title" className="text-[32px] font-medium tracking-[-0.025em]">
+          <h1
+            id="packages-title"
+            className="text-[32px] font-medium tracking-[-0.025em]"
+          >
             Packages
           </h1>
-          <p className="mt-2 text-[17px] text-aomi-muted">
+          <p className="text-aomi-muted mt-2 text-[17px]">
             Connect Aomi to the protocols and tools you use every day.
           </p>
 
-          <label className="mt-8 flex h-10 items-center gap-2.5 rounded-full border border-aomi-border bg-aomi-surface px-4 transition-colors focus-within:border-aomi-muted">
-            <Search size={16} className="flex-shrink-0 text-aomi-muted" />
+          <label className="border-aomi-border bg-aomi-surface focus-within:border-aomi-muted mt-8 flex h-10 items-center gap-2.5 rounded-full border px-4 transition-colors">
+            <Search size={16} className="text-aomi-muted flex-shrink-0" />
             <span className="sr-only">Search packages</span>
             <input
               ref={searchRef}
@@ -372,7 +404,7 @@ export function PackagesModal({ onClose }: PackagesModalProps) {
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Search packages"
-              className="min-w-0 flex-1 bg-transparent text-xs outline-none placeholder:text-aomi-muted"
+              className="placeholder:text-aomi-muted min-w-0 flex-1 bg-transparent text-xs outline-none"
             />
             {searching ? (
               <button
@@ -382,12 +414,12 @@ export function PackagesModal({ onClose }: PackagesModalProps) {
                   searchRef.current?.focus();
                 }}
                 aria-label="Clear search"
-                className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-aomi-muted transition-colors hover:bg-aomi-hover hover:text-aomi-fg"
+                className="text-aomi-muted hover:bg-aomi-hover hover:text-aomi-fg flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full transition-colors"
               >
                 <Close size={12} />
               </button>
             ) : (
-              <kbd className="flex-shrink-0 rounded border border-aomi-border px-1.5 py-0.5 font-mono text-[11px] text-aomi-muted">
+              <kbd className="border-aomi-border text-aomi-muted flex-shrink-0 rounded border px-1.5 py-0.5 font-mono text-[11px]">
                 /
               </kbd>
             )}
@@ -395,29 +427,29 @@ export function PackagesModal({ onClose }: PackagesModalProps) {
         </header>
 
         {actionError && (
-          <p className="mt-6 rounded-xl border border-aomi-border bg-aomi-surface px-4 py-3 text-sm text-aomi-danger">
+          <p className="border-aomi-border bg-aomi-surface text-aomi-danger mt-6 rounded-xl border px-4 py-3 text-sm">
             {actionError}
           </p>
         )}
 
         <section className="mt-11" aria-labelledby="installed-packages-title">
-          <div className="flex items-center justify-between border-b border-aomi-border pb-4">
+          <div className="border-aomi-border flex items-center justify-between border-b pb-4">
             <h2 id="installed-packages-title" className="text-lg font-semibold">
               Installed
-              <span className="ml-2 text-sm font-normal text-aomi-muted">
+              <span className="text-aomi-muted ml-2 text-sm font-normal">
                 {installedPackages.length}
               </span>
             </h2>
             <button
               type="button"
               aria-label="Manage installed packages"
-              className="flex h-8 w-8 items-center justify-center rounded-lg text-aomi-muted transition-colors hover:bg-aomi-surface-2 hover:text-aomi-fg"
+              className="text-aomi-muted hover:bg-aomi-surface-2 hover:text-aomi-fg flex h-8 w-8 items-center justify-center rounded-lg transition-colors"
             >
               <Gear size={18} />
             </button>
           </div>
           {installedPackages.length === 0 ? (
-            <p className="py-6 text-sm text-aomi-muted">
+            <p className="text-aomi-muted py-6 text-sm">
               Nothing installed yet — add a package from the catalog below.
             </p>
           ) : (
@@ -427,10 +459,10 @@ export function PackagesModal({ onClose }: PackagesModalProps) {
                   key={app.id}
                   type="button"
                   title={app.description}
-                  className="group flex w-[78px] flex-col items-center gap-1.5 rounded-xl px-1 py-2 transition-colors hover:bg-aomi-surface-2"
+                  className="hover:bg-aomi-surface-2 group flex w-[78px] flex-col items-center gap-1.5 rounded-xl px-1 py-2 transition-colors"
                 >
                   <PackageIcon app={app} size="small" />
-                  <span className="w-full truncate text-center text-[11px] text-aomi-muted transition-colors group-hover:text-aomi-fg">
+                  <span className="text-aomi-muted group-hover:text-aomi-fg w-full truncate text-center text-[11px] transition-colors">
                     {app.name}
                   </span>
                 </button>
@@ -440,7 +472,7 @@ export function PackagesModal({ onClose }: PackagesModalProps) {
         </section>
 
         <div className="mt-6 flex items-center justify-between gap-3">
-          <div className="flex rounded-full border border-aomi-border bg-aomi-surface-2 p-[3px]">
+          <div className="border-aomi-border bg-aomi-surface-2 flex rounded-full border p-[3px]">
             {(["public", "personal"] as PackageVisibility[]).map((view) => (
               <button
                 key={view}
@@ -449,7 +481,7 @@ export function PackagesModal({ onClose }: PackagesModalProps) {
                 aria-pressed={activeView === view}
                 className={`rounded-full px-3.5 py-[5px] text-xs transition-colors ${
                   activeView === view
-                    ? "bg-aomi-accent-strong font-medium text-aomi-on-accent"
+                    ? "bg-aomi-accent-strong text-aomi-on-accent font-medium"
                     : "text-aomi-muted hover:text-aomi-fg"
                 }`}
               >
@@ -463,7 +495,7 @@ export function PackagesModal({ onClose }: PackagesModalProps) {
             aria-pressed={installedOnly}
             className={`flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-sm transition-colors ${
               installedOnly
-                ? "border-transparent bg-aomi-surface-2 font-medium text-aomi-fg"
+                ? "bg-aomi-surface-2 text-aomi-fg border-transparent font-medium"
                 : "border-aomi-border text-aomi-muted hover:text-aomi-fg"
             }`}
           >
@@ -474,21 +506,21 @@ export function PackagesModal({ onClose }: PackagesModalProps) {
 
         <div className="pb-12 pt-7">
           {catalogError ? (
-            <div className="border-t border-aomi-border py-16 text-center">
-              <p className="font-medium text-aomi-danger">{catalogError}</p>
-              <p className="mt-1 text-sm text-aomi-muted">
+            <div className="border-aomi-border border-t py-16 text-center">
+              <p className="text-aomi-danger font-medium">{catalogError}</p>
+              <p className="text-aomi-muted mt-1 text-sm">
                 Sign in and try again — the catalog needs your account.
               </p>
             </div>
           ) : catalog === null ? (
-            <div className="flex items-center justify-center gap-2 border-t border-aomi-border py-16 text-sm text-aomi-muted">
+            <div className="border-aomi-border text-aomi-muted flex items-center justify-center gap-2 border-t py-16 text-sm">
               <Loader2 size={15} className="animate-spin" />
               Loading packages…
             </div>
           ) : visiblePackages.length === 0 ? (
-            <div className="border-t border-aomi-border py-16 text-center">
+            <div className="border-aomi-border border-t py-16 text-center">
               <p className="font-medium">No packages found</p>
-              <p className="mt-1 text-sm text-aomi-muted">
+              <p className="text-aomi-muted mt-1 text-sm">
                 {installedOnly
                   ? "Nothing installed matches — try turning off “Installed only”."
                   : "Try another name or capability."}
@@ -500,7 +532,7 @@ export function PackagesModal({ onClose }: PackagesModalProps) {
                     setQuery("");
                     setInstalledOnly(false);
                   }}
-                  className="mt-4 rounded-xl border border-aomi-border px-3.5 py-2 text-sm font-medium transition-colors hover:bg-aomi-surface-2"
+                  className="border-aomi-border hover:bg-aomi-surface-2 mt-4 rounded-xl border px-3.5 py-2 text-sm font-medium transition-colors"
                 >
                   Clear filters
                 </button>
@@ -509,8 +541,9 @@ export function PackagesModal({ onClose }: PackagesModalProps) {
           ) : searching || installedOnly ? (
             // Flat, counted list — category headers fragment a short result set.
             <section aria-label="Search results">
-              <h2 className="border-b border-aomi-border pb-4 text-lg font-semibold">
-                {visiblePackages.length} {visiblePackages.length === 1 ? "result" : "results"}
+              <h2 className="border-aomi-border border-b pb-4 text-lg font-semibold">
+                {visiblePackages.length}{" "}
+                {visiblePackages.length === 1 ? "result" : "results"}
               </h2>
               <div className="grid md:grid-cols-2 md:gap-x-14">
                 {visiblePackages.map((app) => (
@@ -519,6 +552,7 @@ export function PackagesModal({ onClose }: PackagesModalProps) {
                     app={app}
                     installed={installedIds.has(app.id)}
                     busy={busyId === app.id}
+                    disabled={!installedReady || busyId !== null}
                     onInstall={() => install(app.id)}
                     onUninstall={() => uninstall(app.id)}
                   />
@@ -527,18 +561,24 @@ export function PackagesModal({ onClose }: PackagesModalProps) {
             </section>
           ) : (
             categories.map((category) => {
-              const items = visiblePackages.filter((app) => app.category === category);
+              const items = visiblePackages.filter(
+                (app) => app.category === category,
+              );
               if (items.length === 0) return null;
               const categoryId = `packages-${category.toLowerCase().replaceAll(/[^a-z0-9]+/g, "-")}`;
 
               return (
-                <section key={category} className="mb-10" aria-labelledby={categoryId}>
+                <section
+                  key={category}
+                  className="mb-10"
+                  aria-labelledby={categoryId}
+                >
                   <h2
                     id={categoryId}
-                    className="flex items-baseline gap-2 border-b border-aomi-border pb-4 text-lg font-semibold"
+                    className="border-aomi-border flex items-baseline gap-2 border-b pb-4 text-lg font-semibold"
                   >
                     {category}
-                    <span className="text-sm font-normal text-aomi-muted">
+                    <span className="text-aomi-muted text-sm font-normal">
                       {items.length}
                     </span>
                   </h2>
@@ -549,6 +589,7 @@ export function PackagesModal({ onClose }: PackagesModalProps) {
                         app={app}
                         installed={installedIds.has(app.id)}
                         busy={busyId === app.id}
+                        disabled={!installedReady || busyId !== null}
                         onInstall={() => install(app.id)}
                         onUninstall={() => uninstall(app.id)}
                       />
@@ -568,26 +609,30 @@ function PackageRow({
   app,
   installed,
   busy,
+  disabled,
   onInstall,
   onUninstall,
 }: {
   app: CatalogPackage;
   installed: boolean;
   busy: boolean;
+  disabled: boolean;
   onInstall: () => void;
   onUninstall: () => void;
 }) {
   return (
-    <article className="group flex min-h-[92px] items-center gap-4 border-b border-aomi-border py-4">
+    <article className="border-aomi-border group flex min-h-[92px] items-center gap-4 border-b py-4">
       <PackageIcon app={app} />
       <div className="min-w-0 flex-1">
         <h3 className="truncate text-[15px] font-semibold">{app.name}</h3>
-        <p className="mt-1 truncate text-sm text-aomi-muted">{app.description}</p>
+        <p className="text-aomi-muted mt-1 truncate text-sm">
+          {app.description}
+        </p>
       </div>
       {app.pinned ? (
         // Core apps can't be removed — state the fact without offering the
         // reversal, so the button never lies about what a click would do.
-        <span className="flex w-[92px] flex-shrink-0 items-center justify-center gap-1.5 rounded-xl border border-transparent px-3 py-2 text-sm font-medium text-aomi-muted">
+        <span className="text-aomi-muted flex w-[92px] flex-shrink-0 items-center justify-center gap-1.5 rounded-xl border border-transparent px-3 py-2 text-sm font-medium">
           <Check size={14} />
           Built in
         </span>
@@ -597,10 +642,10 @@ function PackageRow({
         <button
           type="button"
           onClick={onUninstall}
-          disabled={busy}
+          disabled={disabled}
           title={`Remove ${app.name}`}
           aria-label={`Remove ${app.name}`}
-          className="flex w-[92px] flex-shrink-0 items-center justify-center gap-1.5 rounded-xl border border-aomi-border px-3 py-2 text-sm font-medium text-aomi-muted transition-colors hover:border-danger/40 hover:bg-aomi-danger/10 hover:text-aomi-danger disabled:opacity-50"
+          className="border-aomi-border text-aomi-muted hover:border-danger/40 hover:bg-aomi-danger/10 hover:text-aomi-danger flex w-[92px] flex-shrink-0 items-center justify-center gap-1.5 rounded-xl border px-3 py-2 text-sm font-medium transition-colors disabled:opacity-50"
         >
           {busy ? (
             <Loader2 size={14} className="animate-spin" />
@@ -616,8 +661,8 @@ function PackageRow({
         <button
           type="button"
           onClick={onInstall}
-          disabled={busy}
-          className="flex w-[92px] flex-shrink-0 items-center justify-center rounded-xl border border-aomi-border px-3 py-2 text-sm font-medium transition-colors hover:bg-aomi-surface-2 disabled:opacity-50"
+          disabled={disabled}
+          className="border-aomi-border hover:bg-aomi-surface-2 flex w-[92px] flex-shrink-0 items-center justify-center rounded-xl border px-3 py-2 text-sm font-medium transition-colors disabled:opacity-50"
         >
           {busy ? <Loader2 size={14} className="animate-spin" /> : "Install"}
         </button>
@@ -633,7 +678,8 @@ function PackageIcon({
   app: CatalogPackage;
   size?: "small" | "large";
 }) {
-  const sizeClass = size === "small" ? "h-11 w-11 text-xs" : "h-12 w-12 text-sm";
+  const sizeClass =
+    size === "small" ? "h-11 w-11 text-xs" : "h-12 w-12 text-sm";
   const glyphSize = size === "small" ? 21 : 23;
   const Glyph =
     app.glyph === "chart"

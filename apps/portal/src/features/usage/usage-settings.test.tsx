@@ -30,7 +30,13 @@ const STATEMENT = {
     },
   ],
   payment: [
-    { method: "null", credits_used: 80, usd: 0.8, paid_credits: 0, paid_usd: 0 },
+    {
+      method: "null",
+      credits_used: 80,
+      usd: 0.8,
+      paid_credits: 0,
+      paid_usd: 0,
+    },
   ],
   total_credits_used: 80,
   total_usd: 0.8,
@@ -49,9 +55,11 @@ describe("usage settings wiring", () => {
     });
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     vi.unstubAllGlobals();
-    seedAccountOverview(null);
+    await act(async () => {
+      seedAccountOverview(null);
+    });
   });
 
   it("loads the month from the statement route and renders subjects honestly", async () => {
@@ -73,7 +81,9 @@ describe("usage settings wiring", () => {
     });
 
     // One statement fetch, month-ranged.
-    const statementCall = calls.find((c) => c.startsWith("/api/account/statement"));
+    const statementCall = calls.find((c) =>
+      c.startsWith("/api/account/statement"),
+    );
     expect(statementCall).toMatch(/from_date=\d{4}-\d{2}-01/);
 
     // Model spend is real (Models row, Total, and the matrix all carry it);
@@ -83,5 +93,51 @@ describe("usage settings wiring", () => {
     expect(screen.getAllByText(/8 turns/).length).toBeGreaterThanOrEqual(1);
     // Allowance meter fed by the profile's credit position.
     expect(screen.getByText(/Credits 80\/500/)).toBeTruthy();
+  });
+
+  it("recomputes a cached statement when the account allowance arrives later", async () => {
+    seedAccountOverview(null);
+    let finishAccount: ((response: Response) => void) | undefined;
+    const calls: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request) => {
+        const url = new URL(input.toString(), "https://portal.test");
+        calls.push(url.pathname);
+        if (url.pathname === "/api/account/statement") {
+          return Response.json(STATEMENT);
+        }
+        if (url.pathname === "/api/account") {
+          return new Promise<Response>((resolve) => {
+            finishAccount = resolve;
+          });
+        }
+        return new Response("unexpected", { status: 500 });
+      }),
+    );
+
+    await act(async () => {
+      render(<UsageSettings />);
+    });
+    expect(screen.queryByText(/Credits 80\/500/)).toBeNull();
+
+    await act(async () => {
+      finishAccount?.(
+        Response.json({
+          user: { user_id: "acct-1" },
+          usage: {
+            input_tokens: 2000,
+            output_tokens: 400,
+            credit_used: 80,
+            credit_paid: 500,
+          },
+        }),
+      );
+    });
+
+    expect(screen.getByText(/Credits 80\/500/)).toBeTruthy();
+    expect(
+      calls.filter((path) => path === "/api/account/statement"),
+    ).toHaveLength(1);
   });
 });

@@ -36,6 +36,8 @@ export type AccountOverview = {
 
 let current: AccountOverview | null = null;
 let inflight: Promise<void> | null = null;
+let revision = 0;
+let scopedUserId: string | undefined;
 const listeners = new Set<() => void>();
 
 const emit = () => {
@@ -44,15 +46,40 @@ const emit = () => {
 
 /** Seed (or clear, with null) the shared overview — the session probe's job. */
 export function seedAccountOverview(data: AccountOverview | null) {
+  if (data && scopedUserId && data.user.user_id !== scopedUserId) return;
+  scopedUserId = data?.user.user_id;
+  revision += 1;
   current = data;
   inflight = null;
   emit();
 }
 
+/** Drop a snapshot that belongs to a different authenticated account. */
+export function scopeAccountOverviewToUser(userId: string) {
+  if (scopedUserId !== userId && inflight) {
+    revision += 1;
+    inflight = null;
+  }
+  scopedUserId = userId;
+  if (current && current.user.user_id !== userId) {
+    revision += 1;
+    current = null;
+    emit();
+  }
+}
+
 function loadOnce(): Promise<void> {
   if (current) return Promise.resolve();
-  inflight ??= settingsApiFetch<AccountOverview>("/api/account")
+  if (inflight) return inflight;
+
+  const requestRevision = revision;
+  const request = settingsApiFetch<AccountOverview>("/api/account")
     .then((data) => {
+      // An auth transition may have cleared or replaced the store while this
+      // request was in flight. Never let the old account repopulate it.
+      if (revision !== requestRevision) return;
+      if (scopedUserId && data.user.user_id !== scopedUserId) return;
+      scopedUserId = data.user.user_id;
       current = data;
       emit();
     })
@@ -60,9 +87,10 @@ function loadOnce(): Promise<void> {
       // Leave the store empty — consumers fall back to wallet-kit identity.
     })
     .finally(() => {
-      inflight = null;
+      if (inflight === request) inflight = null;
     });
-  return inflight;
+  inflight = request;
+  return request;
 }
 
 const subscribe = (callback: () => void) => {

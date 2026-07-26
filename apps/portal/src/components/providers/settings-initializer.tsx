@@ -1,12 +1,36 @@
 "use client";
 
+import { useLayoutEffect, useRef } from "react";
+import { useAomiAuthAdapter } from "@aomi-labs/widget-lib";
+import {
+  scopeAccountOverviewToUser,
+  seedAccountOverview,
+} from "@portal/lib/account-overview";
 import { useSettings } from "@portal/lib/use-settings";
 
 // Client boundary that runs `useSettings()` at the app root so persisted user
-// settings (theme/colorMode) load and apply. Provides no context — it just
-// initializes the hook inside the server `layout.tsx`. Not to be confused with
-// SettingsRuntimeProvider, which wires the /settings page's AomiClient runtime.
-export function SettingsInitializer({ children }: { children: React.ReactNode }) {
+// settings (theme/colorMode) load and apply. It also owns the lifetime of the
+// shared account overview: changing or signing out the adapter account clears
+// account-backed UI before another user can observe the previous snapshot.
+export function SettingsInitializer({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   useSettings();
+  const adapter = useAomiAuthAdapter();
+  const accountUserId = adapter.accountUser?.id;
+  const previousAccountUserId = useRef(accountUserId);
+
+  useLayoutEffect(() => {
+    const previous = previousAccountUserId.current;
+    if (previous && previous !== accountUserId) {
+      seedAccountOverview(null);
+    } else if (accountUserId) {
+      scopeAccountOverviewToUser(accountUserId);
+    }
+    previousAccountUserId.current = accountUserId;
+  }, [accountUserId]);
+
   return <>{children}</>;
 }

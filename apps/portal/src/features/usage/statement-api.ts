@@ -77,7 +77,9 @@ export function currentMonthKey(now = new Date()): string {
 export function recentMonthKeys(count: number, now = new Date()): string[] {
   const keys: string[] = [];
   for (let i = 0; i < count; i += 1) {
-    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1));
+    const d = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1),
+    );
     keys.push(currentMonthKey(d));
   }
   return keys;
@@ -134,6 +136,8 @@ export function toMonthlyStatement(
     const byok = app.by_model.every((line) => line.payment_method === "byok");
     const byModel: AppModelRow[] = app.by_model.map((line) => ({
       model: line.model,
+      provider: line.provider,
+      paymentMethod: line.payment_method,
       turns: line.turns,
       inputTokens: line.input_tokens,
       outputTokens: line.output_tokens,

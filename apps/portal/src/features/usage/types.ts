@@ -67,12 +67,15 @@ export interface AppSettings {
 /** One model line within an app's Section A group (`apps[].model.byModel[]`). */
 export interface AppModelRow {
   model: string;
+  /** Live statement dimensions; optional only for legacy design fixtures. */
+  provider?: string;
+  paymentMethod?: string;
   turns: number;
   inputTokens: number;
   outputTokens: number;
   baseUsd: number;
   chargedUsd: number;
-  /** Present on BYOK-app model rows: "paid by {app}'s own key". */
+  /** Present on BYOK model rows: "paid by {app}'s own key". */
   note?: string;
 }
 

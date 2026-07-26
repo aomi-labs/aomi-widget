@@ -9,6 +9,7 @@ import {
   fetchModelStatement,
   recentMonthKeys,
   toMonthlyStatement,
+  type WireModelStatement,
 } from "./statement-api";
 
 export type StatementStatus = "loading" | "ready" | "error";
@@ -24,7 +25,9 @@ export function useUsageStatement(monthCount = 6) {
   const account = useAccountOverview();
   const monthKeys = useMemo(() => recentMonthKeys(monthCount), [monthCount]);
   const [selectedKey, setSelectedKey] = useState(() => currentMonthKey());
-  const [months, setMonths] = useState<Record<string, MonthlyStatement>>({});
+  const [wireMonths, setWireMonths] = useState<
+    Record<string, WireModelStatement>
+  >({});
   const [status, setStatus] = useState<StatementStatus>("loading");
   const [error, setError] = useState<string | undefined>();
   const inflight = useRef<Set<string>>(new Set());
@@ -36,37 +39,44 @@ export function useUsageStatement(monthCount = 6) {
     }),
     [account],
   );
-
-  const load = useCallback(
-    async (monthKey: string) => {
-      if (inflight.current.has(monthKey)) return;
-      inflight.current.add(monthKey);
-      setStatus("loading");
-      try {
-        const wire = await fetchModelStatement(monthKey);
-        setMonths((cache) => ({
-          ...cache,
-          [monthKey]: toMonthlyStatement(wire, monthKey, allowance),
-        }));
-        setStatus("ready");
-        setError(undefined);
-      } catch (cause) {
-        setStatus("error");
-        setError(explainAccountError(cause));
-      } finally {
-        inflight.current.delete(monthKey);
-      }
-    },
-    [allowance],
+  const months = useMemo<Record<string, MonthlyStatement>>(
+    () =>
+      Object.fromEntries(
+        Object.entries(wireMonths).map(([monthKey, wire]) => [
+          monthKey,
+          toMonthlyStatement(wire, monthKey, allowance),
+        ]),
+      ),
+    [allowance, wireMonths],
   );
 
+  const load = useCallback(async (monthKey: string) => {
+    if (inflight.current.has(monthKey)) return;
+    inflight.current.add(monthKey);
+    setStatus("loading");
+    try {
+      const wire = await fetchModelStatement(monthKey);
+      setWireMonths((cache) => ({
+        ...cache,
+        [monthKey]: wire,
+      }));
+      setStatus("ready");
+      setError(undefined);
+    } catch (cause) {
+      setStatus("error");
+      setError(explainAccountError(cause));
+    } finally {
+      inflight.current.delete(monthKey);
+    }
+  }, []);
+
   useEffect(() => {
-    if (!months[selectedKey]) {
+    if (!wireMonths[selectedKey]) {
       void load(selectedKey);
     } else {
       setStatus("ready");
     }
-  }, [selectedKey, months, load]);
+  }, [selectedKey, wireMonths, load]);
 
   const selectMonth = useCallback((monthKey: string) => {
     setSelectedKey(monthKey);

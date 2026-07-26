@@ -10,7 +10,12 @@ type FetchCall = { input: string | URL | Request; init?: RequestInit };
 const CATALOG = [
   { name: "default" },
   { name: "uniswap", is_public: true, application_id: 7 },
-  { name: "treasury-ops", is_public: false, application_id: 9, label: "Treasury Ops" },
+  {
+    name: "treasury-ops",
+    is_public: false,
+    application_id: 9,
+    label: "Treasury Ops",
+  },
 ];
 
 function installFetchRecorder() {
@@ -28,7 +33,9 @@ function installFetchRecorder() {
         installed = (JSON.parse(String(init?.body)) as { apps: string[] }).apps;
         return Response.json({ apps: installed });
       }
-      return new Response(`Unexpected ${method} ${url.pathname}`, { status: 500 });
+      return new Response(`Unexpected ${method} ${url.pathname}`, {
+        status: 500,
+      });
     },
   );
   vi.stubGlobal("fetch", fetchMock);
@@ -42,9 +49,11 @@ const paths = (calls: FetchCall[]) =>
   );
 
 async function renderModal() {
+  let view: ReturnType<typeof render> | undefined;
   await act(async () => {
-    render(<PackagesModal onClose={() => undefined} />);
+    view = render(<PackagesModal onClose={() => undefined} />);
   });
+  return view!;
 }
 
 describe("packages modal wiring", () => {
@@ -54,9 +63,11 @@ describe("packages modal wiring", () => {
     });
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     vi.unstubAllGlobals();
-    seedAccountOverview(null);
+    await act(async () => {
+      seedAccountOverview(null);
+    });
   });
 
   it("loads the catalog from the account apps route", async () => {
@@ -77,7 +88,7 @@ describe("packages modal wiring", () => {
   it("uninstalls by PUTting the replaced list", async () => {
     const { calls } = installFetchRecorder();
 
-    await renderModal();
+    const view = await renderModal();
     await act(async () => {
       fireEvent.click(screen.getByLabelText("Remove Uniswap"));
     });
@@ -86,6 +97,10 @@ describe("packages modal wiring", () => {
     expect(put).toBeTruthy();
     expect(JSON.parse(String(put?.init?.body))).toEqual({ apps: ["default"] });
     // The row flips from the PUT response, not optimistically.
+    expect(screen.queryByLabelText("Remove Uniswap")).toBeNull();
+
+    view.unmount();
+    await renderModal();
     expect(screen.queryByLabelText("Remove Uniswap")).toBeNull();
   });
 
@@ -105,5 +120,60 @@ describe("packages modal wiring", () => {
       apps: ["default", "uniswap", "treasury-ops"],
     });
     expect(paths(calls)).toContain("PUT /api/account/apps");
+  });
+
+  it("blocks replacement until the installed-app baseline is available", async () => {
+    seedAccountOverview(null);
+    const { calls } = installFetchRecorder();
+
+    await renderModal();
+
+    const install = screen.getAllByText("Install")[0] as HTMLButtonElement;
+    expect(install.disabled).toBe(true);
+    fireEvent.click(install);
+    expect(paths(calls)).not.toContain("PUT /api/account/apps");
+
+    await act(async () => {
+      seedAccountOverview({
+        user: { user_id: "acct-1", apps: ["default", "uniswap"] },
+      });
+    });
+    expect(
+      (screen.getByLabelText("Remove Uniswap") as HTMLButtonElement).disabled,
+    ).toBe(false);
+  });
+
+  it("serializes full-set replacements", async () => {
+    const calls: FetchCall[] = [];
+    let finishPut: ((response: Response) => void) | undefined;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+        calls.push({ input, init });
+        const url = new URL(input.toString(), "https://portal.test");
+        if (url.pathname === "/api/account/apps" && !init?.method) {
+          return Response.json(CATALOG);
+        }
+        if (url.pathname === "/api/account/apps" && init?.method === "PUT") {
+          return new Promise<Response>((resolve) => {
+            finishPut = resolve;
+          });
+        }
+        return new Response("unexpected", { status: 500 });
+      }),
+    );
+
+    await renderModal();
+    const remove = screen.getByLabelText("Remove Uniswap");
+    fireEvent.click(remove);
+    fireEvent.click(remove);
+
+    expect(
+      paths(calls).filter((path) => path === "PUT /api/account/apps"),
+    ).toHaveLength(1);
+
+    await act(async () => {
+      finishPut?.(Response.json({ apps: ["default"] }));
+    });
   });
 });

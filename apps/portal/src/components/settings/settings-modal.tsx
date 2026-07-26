@@ -130,7 +130,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
     }
     const errorBanner = status === "error" && (
       <div className="border-aomi-border bg-aomi-surface-2 text-aomi-muted mx-[22px] mt-4 flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-[13px]">
-        <span>Couldn’t connect your account — showing example data.</span>
+        <span>Couldn’t refresh your account — some live data may be unavailable.</span>
         <button
           type="button"
           onClick={retry}

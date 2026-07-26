@@ -681,3 +681,12 @@ build`, `CI=true npx -y pnpm@10.28.0 install --frozen-lockfile`, and
   launch UI/type conflicts, fixed the merged usage-summary accumulator typing,
   and verified focused Build tests, deploy package tests, the Aomi Build
   typecheck, and the deploy package build.
+- 2026-07-26 settings redesign frontend correctness: scoped the shared account
+  overview to adapter-account transitions and fenced stale in-flight responses;
+  made package full-set replacements wait for an authoritative account
+  baseline, serialize writes, and refresh the shared account snapshot; derived
+  cached statements from current allowance data; and preserved provider/payment
+  dimensions so mixed BYOK and managed model rows render independently. Added
+  timing and account-switch regression coverage; corrected the live-data error
+  message; and patch-bumped the changed widget package to `1.4.13`. Verified
+  302 Portal tests, Portal type-check, repository lint, and `git diff --check`.

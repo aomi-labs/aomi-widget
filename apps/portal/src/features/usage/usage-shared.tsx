@@ -43,8 +43,18 @@ export function truncateHex(value: string): string {
 }
 
 const MONTHS = [
-  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
 ];
 
 function parseYMD(s: string): { y: number; m: number; d: number } {
@@ -83,7 +93,10 @@ export function findAppEntry(
 ): AppUsageEntry | undefined {
   const norm = key.trim().toLowerCase();
   return month.apps.find(
-    (a) => a.id === key || a.id.toLowerCase() === norm || a.name.toLowerCase() === norm,
+    (a) =>
+      a.id === key ||
+      a.id.toLowerCase() === norm ||
+      a.name.toLowerCase() === norm,
   );
 }
 
@@ -116,13 +129,13 @@ export function MatrixTable({
   return (
     <div
       className={
-        framed ? "overflow-hidden rounded-xl border border-aomi-border" : ""
+        framed ? "border-aomi-border overflow-hidden rounded-xl border" : ""
       }
     >
       <div className="overflow-x-auto">
         <div className="min-w-[540px]">
           <div
-            className={`grid ${MATRIX_COLS} items-center gap-2 border-b border-aomi-border text-[10px] font-medium uppercase tracking-wide text-aomi-muted ${pad} ${
+            className={`grid ${MATRIX_COLS} border-aomi-border text-aomi-muted items-center gap-2 border-b text-[10px] font-medium uppercase tracking-wide ${pad} ${
               framed ? "bg-aomi-surface py-2.5" : "pb-2"
             }`}
           >
@@ -133,7 +146,7 @@ export function MatrixTable({
             <span className="text-right">total</span>
           </div>
 
-          <div className="flex flex-col divide-y divide-aomi-border">
+          <div className="divide-aomi-border flex flex-col divide-y">
             {rows.map((row) => {
               const entry = findAppEntry(month, row.app);
               const txns = entry?.outcome?.txns ?? 0;
@@ -141,7 +154,7 @@ export function MatrixTable({
                 <div
                   key={row.app}
                   className={`grid ${MATRIX_COLS} items-center gap-2 py-3 ${pad} ${
-                    framed ? "transition-colors hover:bg-aomi-surface/70" : ""
+                    framed ? "hover:bg-aomi-surface/70 transition-colors" : ""
                   }`}
                 >
                   <span className="truncate text-[13px]">{row.app}</span>
@@ -152,7 +165,9 @@ export function MatrixTable({
                   />
                   <MatrixCell
                     value={row.toolUsd}
-                    tooltip={entry?.tool ? `${entry.tool.calls} calls` : undefined}
+                    tooltip={
+                      entry?.tool ? `${entry.tool.calls} calls` : undefined
+                    }
                   />
                   <MatrixCell
                     value={row.outcomeUsd}
@@ -172,7 +187,7 @@ export function MatrixTable({
 
           {showTotal && (
             <div
-              className={`grid ${MATRIX_COLS} items-center gap-2 border-t border-aomi-border py-3 ${pad} ${
+              className={`grid ${MATRIX_COLS} border-aomi-border items-center gap-2 border-t py-3 ${pad} ${
                 framed ? "bg-aomi-surface" : ""
               }`}
             >
@@ -207,20 +222,20 @@ function MatrixCell({
   chip?: string;
 }) {
   if (value === null) {
-    return <span className="text-right text-[13px] text-aomi-muted">—</span>;
+    return <span className="text-aomi-muted text-right text-[13px]">—</span>;
   }
   return (
     <div className="group relative flex justify-end">
       <span className="flex items-center gap-1.5 text-right font-mono text-[13px]">
         {usd(value)}
         {chip && (
-          <span className="whitespace-nowrap rounded-full border border-aomi-border bg-aomi-surface-2 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-aomi-muted">
+          <span className="border-aomi-border bg-aomi-surface-2 text-aomi-muted whitespace-nowrap rounded-full border px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide">
             {chip}
           </span>
         )}
       </span>
       {tooltip && (
-        <span className="pointer-events-none absolute bottom-full right-0 z-20 mb-1.5 hidden whitespace-nowrap rounded-lg border border-aomi-overlay-border bg-aomi-surface-2 px-2.5 py-1.5 text-[11px] text-aomi-fg group-hover:block">
+        <span className="border-aomi-overlay-border bg-aomi-surface-2 text-aomi-fg pointer-events-none absolute bottom-full right-0 z-20 mb-1.5 hidden whitespace-nowrap rounded-lg border px-2.5 py-1.5 text-[11px] group-hover:block">
           {tooltip}
         </span>
       )}
@@ -248,11 +263,11 @@ export function StatementSection({
   children: ReactNode;
 }) {
   return (
-    <div className="overflow-hidden rounded-xl border border-aomi-border bg-aomi-bg/40">
-      <div className="flex items-center justify-between border-b border-aomi-border px-4 py-3">
+    <div className="border-aomi-border bg-aomi-bg/40 overflow-hidden rounded-xl border">
+      <div className="border-aomi-border flex items-center justify-between border-b px-4 py-3">
         <div className="flex flex-col gap-0.5">
           <span className="text-[13px] font-semibold">{title}</span>
-          <span className="text-[11px] text-aomi-muted">{subtitle}</span>
+          <span className="text-aomi-muted text-[11px]">{subtitle}</span>
         </div>
         <span className="font-mono text-[13px] font-semibold">{total}</span>
       </div>
@@ -272,18 +287,22 @@ export function AppGroup({
 }) {
   return (
     <div className="flex flex-col">
-      <div className="flex items-center gap-2 bg-aomi-surface-2/40 px-4 py-2">
+      <div className="bg-aomi-surface-2/40 flex items-center gap-2 px-4 py-2">
         <span className="text-[13px] font-semibold">{app.name}</span>
         <SettingsChip app={app} />
       </div>
-      <div className="flex flex-col divide-y divide-aomi-border">
+      <div className="divide-aomi-border flex flex-col divide-y">
         {showModels &&
           app.model.byModel.map((row) => (
-            <ModelRow key={row.model} app={app} row={row} />
+            <ModelRow
+              key={`${row.provider ?? "unknown"}:${row.model}:${row.paymentMethod ?? "legacy"}`}
+              app={app}
+              row={row}
+            />
           ))}
         {showTools && app.tool && (
           <>
-            <div className="bg-aomi-surface-2/20 px-4 py-1.5 text-[10px] font-medium uppercase tracking-wide text-aomi-muted">
+            <div className="bg-aomi-surface-2/20 text-aomi-muted px-4 py-1.5 text-[10px] font-medium uppercase tracking-wide">
               Tool calls
             </div>
             {app.tool.items.map((item) => (
@@ -298,15 +317,31 @@ export function AppGroup({
 
 export function SettingsChip({ app }: { app: AppUsageEntry }) {
   if (app.native) return <Chip>native · base</Chip>;
+  const paymentMethods = new Set(
+    app.model.byModel
+      .map((row) => row.paymentMethod)
+      .filter((method): method is string => Boolean(method)),
+  );
+  if (paymentMethods.has("byok") && paymentMethods.size > 1) {
+    return <Chip>mixed billing</Chip>;
+  }
   if (app.settings.appByok) return <Chip>app key · model free</Chip>;
   return <Chip accent>{`managed · +${app.settings.managedMarkupPct}%`}</Chip>;
 }
 
-export function Chip({ children, accent }: { children: ReactNode; accent?: boolean }) {
+export function Chip({
+  children,
+  accent,
+}: {
+  children: ReactNode;
+  accent?: boolean;
+}) {
   return (
     <span
       className={`rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide ${
-        accent ? "border-aomi-accent-outline bg-aomi-accent-tint text-aomi-accent" : "border-aomi-border bg-aomi-surface-2 text-aomi-muted"
+        accent
+          ? "border-aomi-accent-outline bg-aomi-accent-tint text-aomi-accent"
+          : "border-aomi-border bg-aomi-surface-2 text-aomi-muted"
       }`}
     >
       {children}
@@ -314,34 +349,53 @@ export function Chip({ children, accent }: { children: ReactNode; accent?: boole
   );
 }
 
-export function ModelRow({ app, row }: { app: AppUsageEntry; row: AppModelRow }) {
-  const isByok = app.settings.appByok;
+export function ModelRow({
+  app,
+  row,
+}: {
+  app: AppUsageEntry;
+  row: AppModelRow;
+}) {
+  const isByok =
+    row.paymentMethod === "byok" ||
+    (row.paymentMethod === undefined && app.settings.appByok);
   const hasMarkup = !isByok && row.baseUsd !== row.chargedUsd;
 
   return (
     <>
       <div className={`grid ${MODEL_COLS} items-center gap-2 px-4 py-2.5`}>
         <span className="text-[13px]">{modelName(row.model)}</span>
-        <span className="font-mono text-[11px] text-aomi-muted">
-          in {formatTokens(row.inputTokens)} · out {formatTokens(row.outputTokens)}
+        <span className="text-aomi-muted font-mono text-[11px]">
+          in {formatTokens(row.inputTokens)} · out{" "}
+          {formatTokens(row.outputTokens)}
         </span>
-        <span className="text-right font-mono text-[13px] text-aomi-muted">{row.turns}</span>
-        <span className={`text-right font-mono text-[13px] ${isByok ? "text-aomi-muted" : ""}`}>
+        <span className="text-aomi-muted text-right font-mono text-[13px]">
+          {row.turns}
+        </span>
+        <span
+          className={`text-right font-mono text-[13px] ${isByok ? "text-aomi-muted" : ""}`}
+        >
           {usd(row.baseUsd)}
         </span>
         <span className="flex items-center justify-end gap-1.5">
           {isByok ? (
-            <span className="text-[13px] text-aomi-success">free</span>
+            <span className="text-aomi-success text-[13px]">free</span>
           ) : (
             <>
-              <span className="font-mono text-[13px] font-medium">{usd(row.chargedUsd)}</span>
-              {hasMarkup && <Chip accent>{`+${app.settings.managedMarkupPct}%`}</Chip>}
+              <span className="font-mono text-[13px] font-medium">
+                {usd(row.chargedUsd)}
+              </span>
+              {hasMarkup && (
+                <Chip accent>{`+${app.settings.managedMarkupPct}%`}</Chip>
+              )}
             </>
           )}
         </span>
       </div>
       {isByok && row.note && (
-        <div className="-mt-1.5 px-4 pb-2 text-[11px] text-aomi-muted">{row.note}</div>
+        <div className="text-aomi-muted -mt-1.5 px-4 pb-2 text-[11px]">
+          {row.note}
+        </div>
       )}
     </>
   );
@@ -351,8 +405,12 @@ export function ToolRow({ item }: { item: AppToolItem }) {
   return (
     <div className="grid grid-cols-[1fr_80px_80px_90px] items-center gap-2 px-4 py-2.5">
       <span className="font-mono text-[13px]">{item.tool}</span>
-      <span className="text-right text-[13px] text-aomi-muted">{item.calls} calls</span>
-      <span className="text-right text-[13px] text-aomi-muted">{item.unitCredits} cr</span>
+      <span className="text-aomi-muted text-right text-[13px]">
+        {item.calls} calls
+      </span>
+      <span className="text-aomi-muted text-right text-[13px]">
+        {item.unitCredits} cr
+      </span>
       <span className="text-right font-mono text-[13px]">{usd(item.usd)}</span>
     </div>
   );
@@ -365,9 +423,9 @@ export function OutcomeTable({
 }) {
   return (
     <div className="overflow-x-auto">
-      <div className="min-w-[760px] divide-y divide-aomi-border">
+      <div className="divide-aomi-border min-w-[760px] divide-y">
         <div
-          className={`grid ${OUTCOME_COLS} gap-2 border-b border-aomi-border bg-aomi-surface-2/30 px-4 py-2 text-[10px] font-medium uppercase tracking-wide text-aomi-muted`}
+          className={`grid ${OUTCOME_COLS} border-aomi-border bg-aomi-surface-2/30 text-aomi-muted gap-2 border-b px-4 py-2 text-[10px] font-medium uppercase tracking-wide`}
         >
           <span>Date</span>
           <span>App · action</span>
@@ -382,20 +440,28 @@ export function OutcomeTable({
             key={`${app.id}-${i}`}
             className={`grid ${OUTCOME_COLS} items-center gap-2 px-4 py-2.5`}
           >
-            <span className="text-[13px] text-aomi-muted">{formatShortDate(item.date)}</span>
+            <span className="text-aomi-muted text-[13px]">
+              {formatShortDate(item.date)}
+            </span>
             <span className="truncate text-[13px]">
               {app.name} · {item.action}
             </span>
-            <span className="text-right font-mono text-[13px]">{item.flow}</span>
-            <span className="text-right text-[13px] text-aomi-muted">{item.bps} bps</span>
+            <span className="text-right font-mono text-[13px]">
+              {item.flow}
+            </span>
+            <span className="text-aomi-muted text-right text-[13px]">
+              {item.bps} bps
+            </span>
             <span className="text-right font-mono text-[13px]">
               {item.feeToken}
-              <span className="block text-[11px] text-aomi-muted">{usd(item.usd)}</span>
+              <span className="text-aomi-muted block text-[11px]">
+                {usd(item.usd)}
+              </span>
             </span>
-            <span className="justify-self-end rounded-lg border border-aomi-border bg-aomi-surface-2 px-1.5 py-0.5 text-[10px] font-medium text-aomi-muted">
+            <span className="border-aomi-border bg-aomi-surface-2 text-aomi-muted justify-self-end rounded-lg border px-1.5 py-0.5 text-[10px] font-medium">
               {item.chain}
             </span>
-            <span className="flex items-center justify-end gap-1 font-mono text-[11px] text-aomi-accent">
+            <span className="text-aomi-accent flex items-center justify-end gap-1 font-mono text-[11px]">
               {truncateHex(item.tx)}
               <ExternalLink size={11} />
             </span>
@@ -413,7 +479,7 @@ export function OutcomeTable({
 export function Meter({ pct, over }: { pct: number; over?: boolean }) {
   // Flat fills (aomi reads flat): sky accent normally, pink once over allowance.
   return (
-    <div className="h-1.5 w-full overflow-hidden rounded-full bg-aomi-surface-2">
+    <div className="bg-aomi-surface-2 h-1.5 w-full overflow-hidden rounded-full">
       <div
         className={`h-full rounded-full ${over ? "bg-aomi-pink" : "bg-aomi-accent"}`}
         style={{ width: `${Math.max(pct, 2)}%` }}
