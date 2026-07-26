@@ -1,4 +1,12 @@
 /**
+ * DESIGN REFERENCE — no longer rendered. The Usage tab and /statement read
+ * the live model statement via `statement-api.ts` / `use-usage-statement.ts`;
+ * this fixture is kept because it's the only full three-subject statement
+ * (model + tool + outcome) until the tool/outcome ledger writers exist, which
+ * makes it the design harness for those sections.
+ *
+ * Original note:
+ *
  * STUB DATA — settings redesign (see docs/SETTINGS-REDESIGN-GAPS.md).
  * Three reconciled months of a per-app usage statement. Real source:
  * /api/account/usage covers per-app credits today; the full statement

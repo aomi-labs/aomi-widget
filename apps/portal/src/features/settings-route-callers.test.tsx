@@ -102,10 +102,10 @@ function installFetchRecorder() {
 }
 
 // NOTE (settings redesign): the Apps/Bots/App Keys/Secrets/BYOK tabs were
-// removed with the three-tab settings redesign. The new Account and Usage
-// tabs currently render from local fixtures (see features/*/GAPS in
-// docs/SETTINGS-REDESIGN-GAPS.md) — when they gain real routes
-// (/api/account/wallets, /api/account/usage), add route-caller tests here.
+// removed with the three-tab settings redesign. Account is now wired to real
+// routes and covered by features/account/account-acl.test.tsx; Usage still
+// renders from local fixtures (see docs/SETTINGS-REDESIGN-GAPS.md) — add its
+// route-caller test here when /api/account/usage binds.
 describe("settings route callers", () => {
   beforeEach(() => {
     widgetMock.getAccountCredential.mockClear();

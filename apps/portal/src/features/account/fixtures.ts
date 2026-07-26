@@ -1,8 +1,8 @@
 /**
- * STUB DATA — settings redesign (see docs/SETTINGS-REDESIGN-GAPS.md).
- * Wallet rows: GET /api/account/wallets + /api/account identities.
- * Grants: needs a listing endpoint over `delegated_approval`.
- * Mode changes: permit ceremony via /api/account/authorization/*.
+ * DESIGN REFERENCE — no longer rendered. The Account tab reads live data via
+ * `account-api.ts` / `use-account-acl.ts`; these rows are kept because they
+ * cover every reconciliation state in one place, which is useful when
+ * iterating on `account-signing.tsx` without a backend.
  */
 import type { DelegationGrant, WalletPolicy } from "./types";
 

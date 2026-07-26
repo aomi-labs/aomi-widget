@@ -1,12 +1,19 @@
 "use client";
 
-import { useMemo, useState, type ComponentType, type ReactNode } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type ComponentType,
+  type ReactNode,
+} from "react";
 import type {
   DelegationGrant,
   LinkedVia,
   SignerMode,
   WalletPolicy,
 } from "./types";
+import { shortenAddress } from "./account-api";
 import {
   TriangleAlert as Alert,
   Zap as Bolt,
@@ -14,6 +21,7 @@ import {
   ChevronDown,
   Copy,
   KeyRound as Key,
+  Loader2,
   Lock,
   RefreshCw as Rerun,
   Star,
@@ -25,6 +33,13 @@ interface AccountSigningViewProps {
   email: string;
   wallets: WalletPolicy[];
   grants: DelegationGrant[];
+  /** Run the permit ceremony. Rejects with a user-facing message. */
+  onCommit: (wallet: WalletPolicy, mode: SignerMode) => Promise<void>;
+  onRevokeGrant: (grant: DelegationGrant) => Promise<void>;
+  onStopAllAuto: () => Promise<void>;
+  onRegrant: (wallet: WalletPolicy) => Promise<void>;
+  /** Why a target mode can't be signed right now, or null when it can. */
+  blockedReason?: (wallet: WalletPolicy, mode: SignerMode) => string | null;
 }
 
 type IconType = ComponentType<{ size?: number; className?: string }>;
@@ -78,6 +93,9 @@ const EMBEDDED_PROVIDERS: Partial<Record<LinkedVia, ProviderIdentity>> = {
   para: { name: "Para", color: "#5B8DEF" },
 };
 
+/** Busy/error key for the account-wide "stop all auto-signing" action. */
+const STOP_ALL_KEY = "__stop_all__";
+
 const CUSTODY_GROUPS: { key: Custody; label: string }[] = [
   { key: "self", label: "Self-custody wallets" },
   { key: "embedded", label: "Embedded wallets" },
@@ -97,15 +115,27 @@ function custodyLabel(v: LinkedVia): string {
   return custodyOf(v) === "self" ? "self-custody" : "embedded";
 }
 
-function modeValidFor(v: LinkedVia, mode: SignerMode): boolean {
-  const custody = custodyOf(v);
+/**
+ * Which modes this wallet may hold at all — the structural axis, distinct from
+ * "can you sign the change right now" (that's `blockedReason`). Backend truth
+ * wins where the wire carries it: `providerManaged` keys hold no user key
+ * material, so the client-side modes are meaningless for them, and `canUseAuto`
+ * already folds in provenance *and* a live grant.
+ */
+function modeValidFor(wallet: WalletPolicy, mode: SignerMode): boolean {
+  if (wallet.providerManaged) return mode === "auto" || mode === "denied";
+  const custody = custodyOf(wallet.linkedVia);
   if (mode === "denied" || mode === "manual") return true;
   if (mode === "client_auto") return custody === "self";
-  return custody === "embedded"; // auto
+  // auto — fall back to custody only for rows that predate the capability flag.
+  return wallet.canUseAuto ?? custody === "embedded";
 }
 
 /** Why a mode is greyed out for this wallet — shown under the hint. */
-function unavailableReason(mode: SignerMode): string {
+function unavailableReason(wallet: WalletPolicy, mode: SignerMode): string {
+  if (wallet.providerManaged) {
+    return "This is a provider-managed signer — you hold no key for it.";
+  }
   if (mode === "auto") return "Needs a provider-delegated wallet (Para or Privy).";
   if (mode === "client_auto") return "Only self-custody wallets can sign at the edge.";
   return "Not available for this wallet.";
@@ -141,22 +171,72 @@ function reconcile(wallet: WalletPolicy): Recon {
 export function AccountSigningView({
   accountId,
   email,
-  wallets: seedWallets,
-  grants: seedGrants,
+  wallets,
+  grants,
+  onCommit,
+  onRevokeGrant,
+  onStopAllAuto,
+  onRegrant,
+  blockedReason,
 }: AccountSigningViewProps) {
-  const [wallets, setWallets] = useState(seedWallets);
-  const [grants, setGrants] = useState(seedGrants);
   const [drafts, setDrafts] = useState<Record<string, SignerMode>>({});
   const [sortBy, setSortBy] = useState<SortKey>("custody");
-  // Collapsed by default — a wallet that drifted opens itself so the fix is visible.
-  const [expanded, setExpanded] = useState<Record<string, boolean>>(() => {
-    const init: Record<string, boolean> = {};
-    for (const w of seedWallets) {
-      if (reconcile(w).status === "drifted") init[w.id] = true;
-    }
-    return init;
-  });
+  // Collapsed by default — a wallet that drifted opens itself so the fix is
+  // visible. Wallets arrive asynchronously, so this seeds on each new row
+  // rather than once at mount; an explicit collapse is never re-opened.
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [seeded, setSeeded] = useState<Record<string, true>>({});
   const [flashId, setFlashId] = useState<string | null>(null);
+  /** Per-wallet ceremony state, keyed by wallet id. */
+  const [busy, setBusy] = useState<Record<string, boolean>>({});
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    const fresh = wallets.filter((w) => !seeded[w.id]);
+    if (fresh.length === 0) return;
+    setSeeded((s) => {
+      const next = { ...s };
+      for (const w of fresh) next[w.id] = true;
+      return next;
+    });
+    const drifted = fresh.filter((w) => reconcile(w).status === "drifted");
+    if (drifted.length === 0) return;
+    setExpanded((e) => {
+      const next = { ...e };
+      for (const w of drifted) next[w.id] = true;
+      return next;
+    });
+  }, [wallets, seeded]);
+
+  /**
+   * Run an async action with per-row busy + error reporting. Resolves to
+   * whether it succeeded — a rejected wallet signature is an expected outcome
+   * here, not an exception to propagate.
+   */
+  const run = async (id: string, action: () => Promise<void>): Promise<boolean> => {
+    setBusy((b) => ({ ...b, [id]: true }));
+    setErrors((e) => {
+      const next = { ...e };
+      delete next[id];
+      return next;
+    });
+    try {
+      await action();
+      return true;
+    } catch (cause) {
+      setErrors((e) => ({
+        ...e,
+        [id]: cause instanceof Error ? cause.message : "Something went wrong",
+      }));
+      return false;
+    } finally {
+      setBusy((b) => {
+        const next = { ...b };
+        delete next[id];
+        return next;
+      });
+    }
+  };
 
   const posture = useMemo(() => {
     let attention = 0;
@@ -164,8 +244,12 @@ export function AccountSigningView({
       const r = reconcile(w);
       if (r.status === "drifted") attention += 1;
     }
-    return { attention };
-  }, [wallets]);
+    // The grants list carries history (revoked/expired rows explain *why* an
+    // auto policy stopped reconciling), so the headline count must be the live
+    // ones only — otherwise a revoked grant still reads as capability.
+    const liveGrants = grants.filter((g) => g.status === "active").length;
+    return { attention, liveGrants };
+  }, [wallets, grants]);
 
   const groups = useMemo(() => {
     if (sortBy === "custody") {
@@ -224,51 +308,35 @@ export function AccountSigningView({
       return next;
     });
 
-  /** Commit the signed permit: desired mode lands, version bumps. */
-  const commit = (id: string) => {
-    const mode = drafts[id];
-    if (!mode) return;
-    setWallets((ws) =>
-      ws.map((w) =>
-        w.id === id
-          ? { ...w, desiredMode: mode, authVersion: w.authVersion + 1, lastPermit: "you · just now" }
-          : w,
-      ),
-    );
-    cancelDraft(id);
-  };
-
   const walletById = (id: string) => wallets.find((w) => w.id === id);
 
+  /**
+   * Sign and commit the permit. The row does not move optimistically — the
+   * refreshed `signing_mode` from the backend is the only thing that flips it,
+   * so a rejected or CAS-failed permit can never look applied.
+   */
+  const commit = async (id: string) => {
+    const mode = drafts[id];
+    const wallet = walletById(id);
+    if (!mode || !wallet) return;
+    const ok = await run(id, () => onCommit(wallet, mode));
+    if (ok) cancelDraft(id);
+  };
+
   const regrant = (id: string) => {
-    const address = walletById(id)?.address ?? "";
-    setWallets((ws) =>
-      ws.map((w) =>
-        w.id === id ? { ...w, grantActive: true, grantExpiresLabel: "Aug 22, 2026" } : w,
-      ),
-    );
-    setGrants((gs) =>
-      gs.map((g) =>
-        g.scope.includes(address)
-          ? { ...g, status: "active", expiresLabel: "Aug 22, 2026" }
-          : g,
-      ),
-    );
+    const wallet = walletById(id);
+    if (!wallet) return;
+    void run(id, () => onRegrant(wallet));
   };
 
   const revokeGrant = (grantId: string) => {
     const grant = grants.find((g) => g.id === grantId);
-    setGrants((gs) => gs.map((g) => (g.id === grantId ? { ...g, status: "revoked" } : g)));
-    if (grant) {
-      setWallets((ws) =>
-        ws.map((w) => (grant.scope.includes(w.address) ? { ...w, grantActive: false } : w)),
-      );
-    }
+    if (!grant) return;
+    void run(grantId, () => onRevokeGrant(grant));
   };
 
   const stopAllAuto = () => {
-    setGrants((gs) => gs.map((g) => ({ ...g, status: "revoked" })));
-    setWallets((ws) => ws.map((w) => ({ ...w, grantActive: false })));
+    void run(STOP_ALL_KEY, onStopAllAuto);
   };
 
   return (
@@ -300,9 +368,9 @@ export function AccountSigningView({
               value={wallets.length}
             />
             <PostureStat
-              label={`Delegated ${grants.length === 1 ? "grant" : "grants"}`}
-              value={grants.length}
-              tone="success"
+              label={`Active ${posture.liveGrants === 1 ? "grant" : "grants"}`}
+              value={posture.liveGrants}
+              tone={posture.liveGrants > 0 ? "success" : "muted"}
             />
             {posture.attention > 0 && (
               <PostureStat
@@ -346,9 +414,12 @@ export function AccountSigningView({
                     draft={drafts[wallet.id]}
                     expanded={Boolean(expanded[wallet.id])}
                     flash={flashId === wallet.id}
+                    busy={Boolean(busy[wallet.id])}
+                    error={errors[wallet.id]}
+                    blockedReason={blockedReason}
                     onToggle={() => toggleExpanded(wallet.id)}
                     onDraft={(mode) => setDraft(wallet.id, mode)}
-                    onCommit={() => commit(wallet.id)}
+                    onCommit={() => void commit(wallet.id)}
                     onCancel={() => cancelDraft(wallet.id)}
                     onRegrant={() => regrant(wallet.id)}
                   />
@@ -363,24 +434,45 @@ export function AccountSigningView({
           title="Delegated signing grants"
           desc="These grants are what let an “Aomi auto” policy actually reconcile. Revoke to force those wallets back to manual."
         >
+          {grants.length === 0 && (
+            <p className="rounded-xl border border-dashed border-aomi-border px-4 py-3 text-[13px] text-aomi-muted">
+              No delegated grants — nothing can sign on your behalf right now.
+            </p>
+          )}
           {grants.map((grant) => (
-            <GrantRow key={grant.id} grant={grant} onRevoke={() => revokeGrant(grant.id)} />
+            <GrantRow
+              key={grant.id}
+              grant={grant}
+              busy={Boolean(busy[grant.id])}
+              error={errors[grant.id]}
+              onRevoke={() => revokeGrant(grant.id)}
+            />
           ))}
-          <button
-            onClick={stopAllAuto}
-            className="mt-1 flex items-center gap-3 rounded-xl border border-aomi-accent-outline bg-aomi-accent-tint px-4 py-3 text-left transition-colors hover:bg-aomi-accent-tint"
-          >
-            <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-aomi-accent-tint text-aomi-accent">
-              <Lock size={15} />
-            </span>
-            <span className="flex min-w-0 flex-col">
-              <span className="text-[13px] font-medium text-aomi-accent">Stop all auto-signing</span>
-              <span className="text-xs text-aomi-muted">
-                Revokes every grant. Your ACL stays “auto”, but the runtime drifts to
-                manual until you re-grant.
+          {grants.some((grant) => grant.status === "active") && (
+            <button
+              onClick={stopAllAuto}
+              disabled={Boolean(busy[STOP_ALL_KEY])}
+              className="mt-1 flex items-center gap-3 rounded-xl border border-aomi-accent-outline bg-aomi-accent-tint px-4 py-3 text-left transition-colors hover:bg-aomi-accent-tint disabled:opacity-60"
+            >
+              <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-aomi-accent-tint text-aomi-accent">
+                {busy[STOP_ALL_KEY] ? (
+                  <Loader2 size={15} className="animate-spin" />
+                ) : (
+                  <Lock size={15} />
+                )}
               </span>
-            </span>
-          </button>
+              <span className="flex min-w-0 flex-col">
+                <span className="text-[13px] font-medium text-aomi-accent">Stop all auto-signing</span>
+                <span className="text-xs text-aomi-muted">
+                  Revokes every grant. Your ACL stays “auto”, but the runtime drifts to
+                  manual until you re-grant.
+                </span>
+              </span>
+            </button>
+          )}
+          {errors[STOP_ALL_KEY] && (
+            <p className="text-[13px] text-aomi-danger">{errors[STOP_ALL_KEY]}</p>
+          )}
         </Section>
       </div>
     </div>
@@ -393,6 +485,9 @@ function WalletPolicyCard({
   draft,
   expanded,
   flash,
+  busy,
+  error,
+  blockedReason,
   onToggle,
   onDraft,
   onCommit,
@@ -404,6 +499,9 @@ function WalletPolicyCard({
   draft?: SignerMode;
   expanded: boolean;
   flash: boolean;
+  busy: boolean;
+  error?: string;
+  blockedReason?: (wallet: WalletPolicy, mode: SignerMode) => string | null;
   onToggle: () => void;
   onDraft: (mode: SignerMode) => void;
   onCommit: () => void;
@@ -412,6 +510,8 @@ function WalletPolicyCard({
 }) {
   const selected = draft ?? wallet.desiredMode;
   const pending = draft !== undefined && draft !== wallet.desiredMode;
+  // Signability of the *pending* change: why the connected wallet can't sign it.
+  const blocked = pending ? (blockedReason?.(wallet, selected) ?? null) : null;
   const recon = reconcile(wallet);
   // A ceremony in flight keeps the editor open.
   const open = expanded || pending;
@@ -450,7 +550,9 @@ function WalletPolicyCard({
           {showProviderTag && (
             <ProviderTag linkedVia={wallet.linkedVia} brand={providerIdentity} />
           )}
-          <span className="truncate font-mono text-sm font-medium">{wallet.address}</span>
+          <span className="truncate font-mono text-sm font-medium">
+            {shortenAddress(wallet.address)}
+          </span>
           {showChainTag && <ChainLabel chain={wallet.chain} />}
           {showCustodyLabel && <span className="text-[11px] text-aomi-muted">{custody}</span>}
           {wallet.primary && (
@@ -474,9 +576,14 @@ function WalletPolicyCard({
                 e.stopPropagation();
                 onRegrant();
               }}
-              className="flex items-center gap-1.5 rounded-lg border border-aomi-accent-outline px-3 py-1.5 text-[13px] font-medium text-aomi-accent transition-colors hover:bg-aomi-accent-tint"
+              disabled={busy}
+              className="flex items-center gap-1.5 rounded-lg border border-aomi-accent-outline px-3 py-1.5 text-[13px] font-medium text-aomi-accent transition-colors hover:bg-aomi-accent-tint disabled:opacity-50"
             >
-              <Rerun size={12} />
+              {busy ? (
+                <Loader2 size={12} className="animate-spin" />
+              ) : (
+                <Rerun size={12} />
+              )}
               {recon.action}
             </button>
           )}
@@ -495,7 +602,7 @@ function WalletPolicyCard({
           </span>
           <div className="grid grid-cols-4 gap-1.5">
             {MODES.map((mode) => {
-              const valid = modeValidFor(wallet.linkedVia, mode.id);
+              const valid = modeValidFor(wallet, mode.id);
               const isSelected = selected === mode.id;
               return (
                 <div key={mode.id} className="relative">
@@ -524,7 +631,7 @@ function WalletPolicyCard({
                     {mode.hint}
                     {!valid && (
                       <span className="mt-1 block text-aomi-muted">
-                        {unavailableReason(mode.id)}
+                        {unavailableReason(wallet, mode.id)}
                       </span>
                     )}
                   </span>
@@ -537,20 +644,23 @@ function WalletPolicyCard({
           {pending ? (
             <div className="flex items-center justify-between gap-3 rounded-lg border border-aomi-accent-outline bg-aomi-accent-tint px-3 py-2.5">
               <span className="text-[13px] text-aomi-fg">
-                Authorization change — sign the permit to apply.
+                {blocked ?? "Authorization change — sign the permit to apply."}
               </span>
               <div className="flex flex-shrink-0 items-center gap-2">
                 <button
                   onClick={onCancel}
-                  className="rounded-lg px-2.5 py-1.5 text-[13px] text-aomi-muted transition-colors hover:text-aomi-fg"
+                  disabled={busy}
+                  className="rounded-lg px-2.5 py-1.5 text-[13px] text-aomi-muted transition-colors hover:text-aomi-fg disabled:opacity-50"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={onCommit}
-                  className="rounded-lg border border-transparent bg-aomi-accent-strong px-4 py-2 text-[13px] font-medium text-aomi-on-accent transition-opacity hover:opacity-90"
+                  disabled={busy || Boolean(blocked)}
+                  className="flex items-center gap-1.5 rounded-lg border border-transparent bg-aomi-accent-strong px-4 py-2 text-[13px] font-medium text-aomi-on-accent transition-opacity hover:opacity-90 disabled:opacity-50"
                 >
-                  Sign to authorize
+                  {busy && <Loader2 size={13} className="animate-spin" />}
+                  {busy ? "Waiting for signature…" : "Sign to authorize"}
                 </button>
               </div>
             </div>
@@ -560,14 +670,21 @@ function WalletPolicyCard({
               {recon.status === "drifted" && (
                 <button
                   onClick={onRegrant}
-                  className="flex flex-shrink-0 items-center gap-1.5 rounded-lg border border-aomi-accent-outline px-4 py-2 text-[13px] font-medium text-aomi-accent transition-colors hover:bg-aomi-accent-tint"
+                  disabled={busy}
+                  className="flex flex-shrink-0 items-center gap-1.5 rounded-lg border border-aomi-accent-outline px-4 py-2 text-[13px] font-medium text-aomi-accent transition-colors hover:bg-aomi-accent-tint disabled:opacity-50"
                 >
-                  <Rerun size={13} />
+                  {busy ? (
+                    <Loader2 size={13} className="animate-spin" />
+                  ) : (
+                    <Rerun size={13} />
+                  )}
                   {recon.action}
                 </button>
               )}
             </div>
           )}
+
+          {error && <span className="text-[13px] text-aomi-danger">{error}</span>}
 
           {/* Audit meta */}
           <span className="text-[11px] text-aomi-muted/80">
@@ -581,38 +698,47 @@ function WalletPolicyCard({
 
 function GrantRow({
   grant,
+  busy,
+  error,
   onRevoke,
 }: {
   grant: DelegationGrant;
+  busy: boolean;
+  error?: string;
   onRevoke: () => void;
 }) {
   const live = grant.status === "active";
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-aomi-border bg-aomi-bg/40 px-4 py-3">
-      <ProviderLogo provider={grant.provider} />
-      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className="truncate text-[13px] font-medium">
-          {grant.provider} · {grant.kind}
-        </span>
-        <span className="truncate text-xs text-aomi-muted">{grant.scope}</span>
+    <div className="flex flex-col gap-2 rounded-xl border border-aomi-border bg-aomi-bg/40 px-4 py-3">
+      <div className="flex items-center gap-3">
+        <ProviderLogo provider={grant.provider} />
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span className="truncate text-[13px] font-medium">
+            {grant.provider} · {grant.kind}
+          </span>
+          <span className="truncate text-xs text-aomi-muted">{grant.scope}</span>
+        </div>
+        <div className="flex flex-shrink-0 items-center gap-3">
+          <span className={`text-xs ${live ? "text-aomi-success" : "text-aomi-muted"}`}>
+            {grant.status === "active"
+              ? `valid to ${grant.expiresLabel}`
+              : grant.status === "expired"
+                ? `expired ${grant.expiresLabel}`
+                : "revoked"}
+          </span>
+          {live && (
+            <button
+              onClick={onRevoke}
+              disabled={busy}
+              className="flex items-center gap-1.5 rounded-full border border-transparent bg-aomi-danger-strong px-4 py-2 text-[13px] font-medium text-aomi-on-danger transition-opacity hover:opacity-90 disabled:opacity-50"
+            >
+              {busy && <Loader2 size={13} className="animate-spin" />}
+              Revoke
+            </button>
+          )}
+        </div>
       </div>
-      <div className="flex flex-shrink-0 items-center gap-3">
-        <span className={`text-xs ${live ? "text-aomi-success" : "text-aomi-muted"}`}>
-          {grant.status === "active"
-            ? `valid to ${grant.expiresLabel}`
-            : grant.status === "expired"
-              ? `expired ${grant.expiresLabel}`
-              : "revoked"}
-        </span>
-        {live && (
-          <button
-            onClick={onRevoke}
-            className="rounded-full border border-transparent bg-aomi-danger-strong px-4 py-2 text-[13px] font-medium text-aomi-on-danger transition-opacity hover:opacity-90"
-          >
-            Revoke
-          </button>
-        )}
-      </div>
+      {error && <span className="text-[13px] text-aomi-danger">{error}</span>}
     </div>
   );
 }

@@ -12,6 +12,7 @@ import {
   ChevronDownIcon,
   ChevronRightIcon,
   MoreHorizontalIcon,
+  XIcon,
 } from "lucide-react";
 
 import { cn, useCurrentThreadMetadata } from "@aomi-labs/react";
@@ -47,6 +48,15 @@ const formatDuration = (seconds: number): string => {
 
 const toDetailString = (result: unknown): string =>
   typeof result === "string" ? result : JSON.stringify(result, null, 2);
+
+/**
+ * The expanded args/result box. Capped to ~20 lines (`max-h-[26rem]`) and made
+ * scrollable beyond that, so a long tool payload (e.g. a full transaction dump
+ * of raw calldata) scrolls in place instead of marching the trace — and the
+ * answer below it — far down the page.
+ */
+const DETAIL_BOX_CLASS =
+  "border-aomi-border bg-aomi-surface text-aomi-muted max-h-[26rem] overflow-auto whitespace-pre-wrap break-words rounded-md border p-2 font-mono text-xs leading-relaxed";
 
 const MAX_VISIBLE_CHIPS = 4;
 
@@ -210,7 +220,11 @@ const WorkingStep: FC<{
       >
         <span className="relative flex size-4 shrink-0 items-center justify-center">
           {done && !active ? (
-            <CheckIcon className="text-aomi-success size-3.5" />
+            interpretation.failed ? (
+              <XIcon className="text-aomi-danger size-3.5" />
+            ) : (
+              <CheckIcon className="text-aomi-success size-3.5" />
+            )
           ) : (
             <Icon className="text-aomi-muted size-3.5" />
           )}
@@ -237,7 +251,7 @@ const WorkingStep: FC<{
       </button>
 
       {interpretation.chips.length > 0 && (
-        <div className="aui-working-step-chips mb-1 ml-[26px] flex max-w-full flex-wrap items-center gap-1.5">
+        <div className="aui-working-step-chips mb-1 ml-[26px] mt-2 flex max-w-full flex-wrap items-center gap-1.5">
           {shownChips.map((chip, i) => (
             <ToolChipView
               key={`${chip.label}-${i}`}
@@ -268,16 +282,10 @@ const WorkingStep: FC<{
       )}
 
       {open && hasDetail && (
-        <div className="aui-working-step-detail mb-1 ml-[26px] flex flex-col gap-1.5">
-          {argsText && (
-            <pre className="border-aomi-border bg-aomi-surface text-aomi-muted overflow-x-auto whitespace-pre-wrap break-words rounded-md border p-2 font-mono text-xs leading-relaxed">
-              {argsText}
-            </pre>
-          )}
+        <div className="aui-working-step-detail mb-1.5 ml-[26px] mt-4 flex flex-col gap-1.5">
+          {argsText && <pre className={DETAIL_BOX_CLASS}>{argsText}</pre>}
           {done && (
-            <pre className="border-aomi-border bg-aomi-surface text-aomi-muted overflow-x-auto whitespace-pre-wrap break-words rounded-md border p-2 font-mono text-xs leading-relaxed">
-              {toDetailString(tool.result)}
-            </pre>
+            <pre className={DETAIL_BOX_CLASS}>{toDetailString(tool.result)}</pre>
           )}
         </div>
       )}

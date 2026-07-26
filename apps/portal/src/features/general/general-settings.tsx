@@ -49,22 +49,17 @@ export function GeneralSettings({
       {/* Identity card */}
       <div className="border-aomi-border bg-aomi-bg/40 overflow-hidden rounded-xl border">
         <div className="flex items-start justify-between gap-4 p-4">
-          <div className="flex items-center gap-3">
-            <div className="bg-aomi-surface-2 text-aomi-muted flex h-11 w-11 items-center justify-center rounded-full">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="bg-aomi-surface-2 text-aomi-muted flex h-11 w-11 shrink-0 items-center justify-center rounded-full">
               <UserRound size={20} />
             </div>
-            <div className="flex flex-col gap-1">
-              <div className="flex items-center gap-2">
-                <span className="font-mono text-sm font-medium">
-                  {identity.address ??
-                    account?.user.public_key ??
-                    "Not connected"}
-                </span>
-                <span className="border-aomi-border bg-aomi-surface-2 text-aomi-muted rounded-full border px-2 py-0.5 text-[11px] font-medium">
-                  {identityType}
-                </span>
-              </div>
-              <span className="text-aomi-muted text-[13px]">
+            <div className="flex min-w-0 flex-col gap-1">
+              <span className="truncate font-mono text-sm font-medium">
+                {identity.address ??
+                  account?.user.public_key ??
+                  "Not connected"}
+              </span>
+              <span className="text-aomi-muted truncate text-[13px]">
                 {account?.user.verified_email ??
                   (identity.status === "connected"
                     ? "Primary identity · Connected"

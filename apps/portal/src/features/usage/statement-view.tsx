@@ -3,14 +3,14 @@
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import type { MonthlyStatement } from "./types";
-import { usageFixture } from "./fixture";
-import { ArrowLeft, Check, ChevronDown } from "lucide-react";
+import { useAccountOverview } from "@portal/lib/account-overview";
+import { useUsageStatement } from "./use-usage-statement";
+import { ArrowLeft, Check, ChevronDown, Loader2 } from "lucide-react";
 import {
   AppGroup,
   MatrixTable,
   Meter,
   MODEL_COLS,
-  monthShortLabel,
   formatPeriodRange,
   OutcomeTable,
   StatementSection,
@@ -19,6 +19,16 @@ import {
 
 type View = "byApp" | "itemized";
 type Subject = "all" | "model" | "tool" | "onchain";
+
+/** `"2026-07"` → `"Jul 2026"` for the month picker. */
+function monthKeyShortLabel(key: string): string {
+  const [year, month] = key.split("-").map(Number);
+  const names = [
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+  ];
+  return `${names[month - 1] ?? key} ${year}`;
+}
 
 const SUBJECTS: { id: Subject; label: string }[] = [
   { id: "all", label: "All" },
@@ -29,31 +39,75 @@ const SUBJECTS: { id: Subject; label: string }[] = [
 
 /**
  * /statement — the full usage statement as its own page: month picker,
- * By app / Itemized views, and app + subject filters. All data pre-rolled
- * in `user-fixture.json`; sums here are display-only aggregation of the
- * rows being shown.
+ * By app / Itemized views, and app + subject filters. Data is the live model
+ * statement (`/api/account/statement`), one fetch per selected month; tool
+ * and on-chain sections appear only when the ledger actually carries them.
+ * Sums here are display-only aggregation of the rows being shown.
  */
 export function StatementView() {
-  const { account, months } = usageFixture;
-  const [monthIdx, setMonthIdx] = useState(0);
+  const overview = useAccountOverview();
+  const statement = useUsageStatement();
   const [view, setView] = useState<View>("byApp");
   const [appFilter, setAppFilter] = useState<string>("all");
   const [subject, setSubject] = useState<Subject>("all");
 
-  const month = months[monthIdx];
-  const { period, summary, payment } = month;
+  const month = statement.month;
 
-  const selectMonth = (idx: number) => {
-    setMonthIdx(idx);
+  const selectMonth = (key: string) => {
+    statement.selectMonth(key);
     setAppFilter("all");
     setSubject("all");
   };
 
+  if (!month) {
+    return (
+      <div className="h-screen overflow-y-auto">
+        <div className="min-h-full bg-aomi-bg font-sans text-aomi-fg">
+          <div className="mx-auto flex max-w-4xl flex-col gap-6 px-6 py-8">
+            <Link
+              href="/"
+              className="flex w-fit items-center gap-1.5 text-[13px] text-aomi-muted transition-colors hover:text-aomi-fg"
+            >
+              <ArrowLeft size={14} />
+              Back to chat
+            </Link>
+            {statement.status === "error" ? (
+              <p className="text-[13px] text-aomi-danger">
+                {statement.error ?? "Couldn't load the statement."}{" "}
+                <button
+                  onClick={statement.retry}
+                  className="underline underline-offset-2 hover:text-aomi-fg"
+                >
+                  Retry
+                </button>
+              </p>
+            ) : (
+              <p className="flex items-center gap-2 text-[13px] text-aomi-muted">
+                <Loader2 size={14} className="animate-spin" />
+                Loading statement…
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const { period, summary, payment } = month;
+  const identityLine = overview
+    ? (overview.user.verified_email ?? overview.user.user_id)
+    : "—";
+  const identityKey = overview?.user.public_key;
+
   const over = payment.x402SettledUsd > 0;
-  const creditsPct = Math.min(
-    100,
-    (payment.allowanceCredits.used / payment.allowanceCredits.included) * 100,
-  );
+  const showAllowance =
+    statement.isCurrentMonth && payment.allowanceCredits.included > 0;
+  const creditsPct = showAllowance
+    ? Math.min(
+        100,
+        (payment.allowanceCredits.used / payment.allowanceCredits.included) * 100,
+      )
+    : 0;
 
   return (
     // The root layout pins html/body to the viewport with overflow:hidden, so
@@ -77,51 +131,71 @@ export function StatementView() {
                   Usage statement
                 </h1>
                 <span className="text-[13px] text-aomi-muted">
-                  {account.handle} ·{" "}
-                  <span className="font-mono">
-                    {account.address.slice(0, 6)}…{account.address.slice(-4)}
-                  </span>
+                  {identityLine}
+                  {identityKey && (
+                    <>
+                      {" · "}
+                      <span className="font-mono">
+                        {identityKey.slice(0, 6)}…{identityKey.slice(-4)}
+                      </span>
+                    </>
+                  )}
                 </span>
               </div>
               {/* Month picker */}
               <Dropdown
-                value={String(monthIdx)}
-                options={months.map((m, i) => ({
-                  id: String(i),
-                  label: monthShortLabel(m.period),
+                value={statement.selectedKey}
+                options={statement.monthKeys.map((key) => ({
+                  id: key,
+                  label: monthKeyShortLabel(key),
                 }))}
-                onChange={(id) => selectMonth(Number(id))}
+                onChange={selectMonth}
               />
             </div>
           </header>
 
-          {/* Subject tiles */}
+          {/* Subject tiles — a subject with no ledger rows shows "—" (absent),
+              never $0.00 (a claim). */}
           <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
             <StatTile label="Total" value={usd(summary.totalUsd)} primary />
             <StatTile label="Models" value={usd(summary.modelUsd)} />
-            <StatTile label="Tool calls" value={usd(summary.toolUsd)} />
-            <StatTile label="On-chain fees" value={usd(summary.onchainUsd)} />
+            <StatTile
+              label="Tool calls"
+              value={month.apps.some((a) => a.tool !== null) ? usd(summary.toolUsd) : "—"}
+            />
+            <StatTile
+              label="On-chain fees"
+              value={month.apps.some((a) => a.outcome !== null) ? usd(summary.onchainUsd) : "—"}
+            />
           </div>
 
-          {/* Payment strip */}
+          {/* Payment strip — the credits meter reads the profile's live
+              monthly position, so it only renders for the current month. */}
           <div className="flex flex-col gap-2.5 rounded-xl border border-aomi-border bg-aomi-bg px-4 py-3.5">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="text-[13px] text-aomi-muted">{formatPeriodRange(period)}</span>
-              <span className="text-[13px] text-aomi-muted">
-                Credits {payment.allowanceCredits.used}/{payment.allowanceCredits.included} · paid
-                via {payment.settledVia}
-              </span>
+              {showAllowance && (
+                <span className="text-[13px] text-aomi-muted">
+                  Credits {Math.round(payment.allowanceCredits.used)}/
+                  {Math.round(payment.allowanceCredits.included)} · paid via{" "}
+                  {payment.settledVia}
+                </span>
+              )}
             </div>
-            <Meter pct={creditsPct} over={over} />
-            <span className="text-[11px] text-aomi-muted">
-              {over
-                ? `${usd(payment.x402SettledUsd)} billed via x402 beyond your ${usd(
-                    payment.allowanceAppliedUsd,
-                  )} monthly allowance · on-chain fees ${payment.onchainNote}.`
-                : `Compute fully covered by your monthly allowance (${usd(
-                    payment.allowanceAppliedUsd,
-                  )} applied) · on-chain fees ${payment.onchainNote}.`}
-            </span>
+            {showAllowance && (
+              <>
+                <Meter pct={creditsPct} over={over} />
+                <span className="text-[11px] text-aomi-muted">
+                  {over
+                    ? `${usd(payment.x402SettledUsd)} settled via x402 beyond your monthly allowance (${usd(
+                        payment.allowanceAppliedUsd,
+                      )} applied).`
+                    : `Compute covered by your monthly allowance (${usd(
+                        payment.allowanceAppliedUsd,
+                      )} applied).`}
+                </span>
+              </>
+            )}
           </div>
 
           {/* Controls: view toggle + filters */}

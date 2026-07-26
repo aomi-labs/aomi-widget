@@ -16,10 +16,22 @@ export type AccountProfile = {
   user_id: string;
   public_key?: string;
   verified_email?: string | null;
+  /** The account's installed apps (`users.applications`). */
+  apps?: string[];
+};
+
+/** The profile's monthly credit position (backend `UsageStats`, transparent numbers). */
+export type AccountUsageStats = {
+  period_utc_month?: string;
+  input_tokens: number;
+  output_tokens: number;
+  credit_used: number;
+  credit_paid: number;
 };
 
 export type AccountOverview = {
   user: AccountProfile;
+  usage?: AccountUsageStats;
 };
 
 let current: AccountOverview | null = null;

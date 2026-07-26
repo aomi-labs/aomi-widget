@@ -195,6 +195,25 @@
     --aomi-accent-selected-text: var(--aomi-cool-0);
     /* Interactive accent — focus rings, links, accent CTAs. */
     --aomi-accent-interactive: var(--aomi-sky-500);
+
+    /* ------------------------------------------------------------------
+       Canonical aomi-* names, shared with @aomi-labs/widget-lib so the
+       control plane and the widget speak one vocabulary. Same primitives,
+       just the names the design system documents.
+       ------------------------------------------------------------------ */
+    --aomi-fg: var(--aomi-cool-950);
+    --aomi-muted: var(--aomi-cool-500);
+    --aomi-surface-2: var(--aomi-cool-100);
+    --aomi-raised: var(--aomi-cool-0);
+    --aomi-hover: var(--aomi-cool-100);
+    --aomi-accent-strong: #416cac;
+    --aomi-on-accent: var(--aomi-cool-0);
+    --aomi-danger-strong: #b8394a;
+    --aomi-on-danger: #ffffff;
+    --aomi-ring: var(--aomi-sky-500);
+    --aomi-accent-tint: color-mix(in srgb, var(--aomi-sky-500) 10%, transparent);
+    --aomi-accent-outline: color-mix(in srgb, var(--aomi-sky-500) 45%, transparent);
+    --aomi-overlay-border: color-mix(in srgb, var(--aomi-cool-500) 30%, transparent);
     /* Hover fill for items resting on cool-100 surfaces. */
     --aomi-state-hover: var(--aomi-cool-200);
 
@@ -260,6 +279,17 @@
     --aomi-accent-selected: var(--aomi-sky-500);
     --aomi-accent-selected-text: var(--aomi-cool-0);
     --aomi-accent-interactive: var(--aomi-sky-400);
+
+    /* Canonical aomi-* names — dark. */
+    --aomi-fg: var(--aomi-cool-50);
+    --aomi-muted: var(--aomi-cool-400);
+    --aomi-surface-2: var(--aomi-cool-800);
+    --aomi-raised: var(--aomi-cool-800);
+    --aomi-hover: var(--aomi-cool-700);
+    --aomi-accent-strong: var(--aomi-sky-500);
+    --aomi-on-accent: var(--aomi-cool-950);
+    --aomi-danger-strong: #c34255;
+    --aomi-ring: var(--aomi-sky-400);
     --aomi-state-hover: var(--aomi-cool-800);
 
     --aomi-ring: var(--aomi-cool-500);

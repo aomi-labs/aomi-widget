@@ -6,25 +6,80 @@ aomi design system (sky accent, pink decorative meters, flat/no shadows, PT
 Serif display). Where the backend surface didn't exist yet, the UI renders
 from clearly-marked fixtures. This is the fill-up list.
 
-## Account tab (`src/features/account/`)
+## Account tab (`src/features/account/`) — **wired 2026-07-26**
+
+The tab now renders from live endpoints (`account-api.ts` + `use-account-acl.ts`);
+`fixtures.ts` is no longer referenced and is kept only as the design reference.
+
+| Was | Now |
+|---|---|
+| Wallet rows from `seedWalletPolicies` | `GET /api/account/wallets` — `signing_mode`, `authorization_version`, `last_authorized_at/by`, `can_use_auto`, `provider_managed`. `linkedVia` is *derived*: `wallet_provider` privy/para, else siwe/siws by chain |
+| Grants from `seedGrants` | `GET /api/account/grants` — provider, key scope, derived `active`/`expired`/`revoked` |
+| Mode change simulated in local state | Real permit ceremony: `challenge` → `signTypedData` (EVM) / `signSolanaMessage` (SVM) → `commit`, then a refetch. **Nothing is optimistic** — the row flips only on the committed backend value |
+| Revoke / "stop all" mutated local state | `DELETE /api/account/providers/:provider/grant`, per provider identity (that's the revocation unit — it clears the identity's vault secrets) |
+
+Behavior worth knowing:
+
+- **Direction is pre-checked client-side** (`isLoosening`, matching the kernel's
+  `SigningMode` rank ladder) purely to *explain* the requirement before the
+  wallet prompt: loosening needs the wallet itself, tightening accepts any
+  linked key. The backend re-decides — this is UX, not enforcement.
+- **`provider_managed` keys** offer only `auto`/`denied` (no user key material),
+  matching the backend's Loosen→Tighten relaxation for them.
+- **SVM commits name their signer** (`signer` field) because Ed25519 has no
+  recovery.
+
+Still open here:
 
 | Gap | Today | Real binding |
 |---|---|---|
-| Wallet rows | `fixtures.ts` (`seedWalletPolicies`) | `GET /api/account/wallets` → `{address, chain_type, signing_mode}`; merge identities from `GET /api/account` for provenance (`linkedVia`) and `is_primary` |
-| Delegated grants panel | `fixtures.ts` (`seedGrants`) | **No endpoint.** Needs a listing over backend `delegated_approval` (provider, scope, expiry, revoked) + revoke action |
-| Mode change (the ACL) | local state; "Sign to authorize" is simulated | Permit ceremony: `POST /api/account/authorization/challenge` → wallet signs → `POST /api/account/authorization/commit` (client helpers exist in `@aomi-labs/client` `authorization.ts`; CAS on `authorization_version`) |
-| Activate (read-only → signable) | local state | SIWE/SIWS bind. The old SVM bind card (`features/general/svm-wallet-binding.tsx` + hook) is kept in-tree but unreferenced — re-home it as this action |
-| Wallet brand tags (MetaMask/Phantom) | fixture `rdns` | Capture EIP-6963 `rdns` / wallet-adapter id at connect, persist to wallet `displayMetadata`, return via account API |
+| "Re-grant" on a drifted wallet | `openAccountUI()` then refetch | There is no server-side re-grant — grants are born only from the provider's verified connect flow. A dedicated re-consent route would make this deterministic instead of "send the user back to the provider and hope" |
+| Activate (unbound → signable) | not surfaced | SIWE/SIWS bind (`mode: "bind"`). **Backend is ready** — the permit ceremony already parses `mode: "bind"` (possession-proof `Action::Bind`, `already_bound` → 409); just wire the button. The old SVM bind card (`features/general/use-svm-wallet-binding.ts`) still holds the working template |
+| Provision Para agent wallet (arm Para `auto`) | not surfaced | `POST /api/account/providers/:provider/agent-wallet` (backend live). Para's login wallet keeps its key share on-device, so `auto` signs from a **separate partner-owned** wallet Aomi provisions; the new key lands `manual`+`provider_managed:true` and reaching `auto` still needs the signed permit. Without this UI, Para `auto` is unreachable from the Account tab |
+| Wallet brand tags (MetaMask/Phantom) | never rendered — the wire has no `rdns` | Capture EIP-6963 `rdns` / wallet-adapter id at connect, persist to wallet `displayMetadata`, return via account API. `BRANDS` in `account-signing.tsx` is ready for it |
+| Grant `kind` copy | raw `grant_kind` with underscores swapped | A display map, once the kinds settle |
 
-## Usage tab + `/statement` (`src/features/usage/`)
+## Usage tab + `/statement` (`src/features/usage/`) — **model subject wired 2026-07-26**
 
-| Gap | Today | Real binding |
-|---|---|---|
-| Per-app matrix + summary | `fixture.ts` (mira.eth, 3 months) | Partial: `GET /api/account/usage` already returns per-app credits/tokens. Missing: the three-subject split (model / tool use / outcome), base-vs-charged (+10% managed markup), per-model rows |
-| Monthly history (month dropdown) | fixture months | Needs period parameter / statement history endpoint |
-| Payment strip (allowance vs x402 overage) | fixture | Needs allowance + x402 settlement fields (`allowanceApplied`, `x402Settled`) on the statement |
-| Section B fee legs (flow, bps, feeToken, tx) | fixture | Needs `user_transactions` outcome-fee legs on the statement endpoint |
-| `/statement` identity header | fixture (`mira.eth`) | Wire to `/api/account`; decide gating (page is public today but renders only fixture data) |
+Both surfaces now read `GET /api/account/statement?from_date&to_date` (new
+backend endpoint; `aomi_account::model_statement` over `llm_usage_events` —
+the only table that keeps the model dimension; the daily rollup drops it).
+`statement-api.ts` adapts the wire onto the existing `MonthlyStatement` shape,
+`use-usage-statement.ts` fetches per month key with a session cache.
+`fixture.ts` is unreferenced — kept as the design harness for the sections
+that can't be real yet.
+
+The honesty rule that shaped this: **a subject with no ledger writer renders
+as absent ("—"), never as $0.00.** The types already encoded it
+(`tool: AppToolUsage | null`), the views now respect it.
+
+| Was | Now |
+|---|---|
+| Per-app matrix + per-model rows | Real — per app × model × payment method, turns/tokens/credits/USD (`AomiCredit::to_usd`, no FE pricing constant) |
+| Monthly history | Real — month picker fetches per range; last 6 months offered |
+| Payment strip | Real for the current month — allowance position from the profile's embedded `UsageStats`, x402 settlement from `paid_credits` on stream-method legs. Hidden for past months (the profile's position is only exact for the current one) |
+| BYOK marking | Real — an app whose lines are all `payment_method: "byok"` shows "paid by your own key" and `billed: false` |
+| `/statement` identity header | Real — email/user id + public key from `/api/account` |
+
+Still open here (all blocked on ledger writers, not on FE/endpoint work):
+
+| Gap | Blocker |
+|---|---|
+| Section tool-use (B) | Nothing writes `statement_entries` with `subject: "tool_invocation"` — the x402 client isn't built. `tool_invocations` has real call counts but no price |
+| Section outcome/on-chain (C) | Same — no `subject: "outcome"` writer, no fee legs (flow/bps/feeToken) on `user_transactions` |
+| Base-vs-charged markup split | Not recorded per event; `base` mirrors `charged` until the ledger carries the split |
+| Statement history beyond 6 months | Trivial (raise `monthCount`) once anyone needs it |
+
+## Packages modal — **wired 2026-07-26**
+
+Catalog from `GET /api/account/apps` (real `AppSpec[]`); installed state from
+the profile's `user.apps`; install/remove via the new `PUT /api/account/apps`
+(full-replace of `users.applications`; backend validates names against the
+account's own visible catalog, so a bearer can't self-grant an unseen app).
+Not optimistic — rows flip on the PUT response. `"default"` is pinned ("Built
+in", not removable). Brand decoration (icons/colors/categories/copy) is a
+client-side `DECOR` map keyed by app name until `AppSpec.metadata` carries
+display fields; undecorated apps render a neutral monogram under "More".
 
 ## General tab (`src/features/general/`)
 
@@ -38,7 +93,13 @@ Deploy, App Keys, Bots, Secrets, BYOK tabs; `features/{apps,app-keys,bots,secret
 
 ## Test coverage
 
-`settings-route-callers.test.tsx` now covers only GeneralSettings (`/api/account`). Add route-caller tests for Account (`/api/account/wallets`, authorization challenge/commit) and Usage once they bind to real routes.
+`settings-route-callers.test.tsx` covers GeneralSettings (`/api/account`).
+Account: `features/account/account-acl.test.tsx` (routes + permit ceremony +
+error translation). Usage: `features/usage/statement-api.test.ts` (adapter) +
+`usage-settings.test.tsx` (route caller + absent-subject rendering).
+Packages: `components/shell/packages-modal.test.tsx` (catalog + PUT replace +
+pinned app). Backend: `model_usage_groups_per_model_and_scopes_to_the_user`
+in `aomi/crates/database/tests/entities.rs`.
 
 ## Round 2 — chat-shell adoption (popup settings, packages, theme, sidebar)
 
@@ -110,3 +171,33 @@ REMAINING: the wallet picker's interior rows (wallet-picker.tsx, ~2.3k lines)
 are still shadcn vocabulary — `bg-card`, `border-border/70`, `hover:bg-accent/40`,
 `border-destructive/30`. Only its shell was refitted to the modal standard.
 That file is the next sweep.
+
+
+## 2026-07-26 — build app (apps/build) aligned to the same token vocabulary
+
+The control plane had its own `aomi-*` namespace in
+`apps/build/src/app/aomi-design-tokens.css`, separate from the widget theme.
+Checked first: the primitive ramps are byte-identical to the widget's
+(sky 50-500, cool 0-950), and the build app does NOT import the widget theme
+CSS, so nothing was colliding at runtime.
+
+Done (additive — no existing value repainted):
+- Canonical names added to the build token file, derived from the ramps it
+  already had: `--aomi-fg`, `--aomi-muted`, `--aomi-surface-2`, `--aomi-raised`,
+  `--aomi-hover`, `--aomi-accent-strong`, `--aomi-on-accent`,
+  `--aomi-danger-strong`, `--aomi-on-danger`, `--aomi-ring`,
+  `--aomi-accent-tint`, `--aomi-accent-outline`, `--aomi-overlay-border`
+  (light + dark).
+- `@theme inline` in build's globals.css now maps `--color-aomi-*`, so
+  `bg-aomi-surface-2`, `text-aomi-fg` etc. work there exactly as in the portal.
+
+DIVERGENCE LEFT FOR A HUMAN CALL: `--aomi-surface` means different things.
+Build resolves it to cool-0 (#ffffff); the widget theme resolves it to cool-50
+(#fafafa). Build maps it to `--surface-1`, which is used widely, so changing it
+would repaint panels across the control plane. `--aomi-accent` also differs
+(build sky-300 vs widget sky-500) but is unused in build — the utility above is
+wired to `--aomi-accent-interactive` (sky-500), which matches the widget.
+
+NOT DONE: build components still use their own semantic layer (`--surface-1`,
+`--text-primary`, `--brand`) and shadcn utilities across ~42 files. The tokens
+now line up; converting the class vocabulary is a separate sweep.

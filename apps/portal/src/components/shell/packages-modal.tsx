@@ -1,21 +1,31 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   LineChart as Chart,
   Check,
   X as Close,
   Filter,
   Settings as Gear,
+  Loader2,
   Search,
   Shield,
   Wallet as WalletIcon,
 } from "lucide-react";
+import type { AomiAppDescriptor } from "@aomi-labs/client";
+import { useAccountOverview } from "@portal/lib/account-overview";
+import { fetchAppCatalog, setInstalledApps } from "./packages-api";
 
 type PackageVisibility = "public" | "personal";
-type PublicCategory = "Featured" | "Markets & onchain" | "Productivity";
+type PackageCategory =
+  | "Featured"
+  | "Markets & onchain"
+  | "Productivity"
+  | "More"
+  | "Your packages";
 
 interface CatalogPackage {
+  /** The wire `AppSpec.name` — what install/uninstall is keyed on. */
   id: string;
   name: string;
   description: string;
@@ -25,252 +35,253 @@ interface CatalogPackage {
   background: string;
   foreground: string;
   visibility: PackageVisibility;
-  category: PublicCategory | "Your packages";
-  installed?: boolean;
+  category: PackageCategory;
+  /** Core apps the account depends on — always installed, not removable. */
+  pinned?: boolean;
 }
 
-const PUBLIC_PACKAGES: CatalogPackage[] = [
-  {
-    id: "uniswap",
+/**
+ * Brand decoration keyed by wire app name — colors, icons, category, and copy
+ * the catalog endpoint doesn't carry (AppSpec has no display metadata yet; see
+ * docs/SETTINGS-REDESIGN-GAPS.md). Apps outside this map render a neutral
+ * monogram tile under "More" — real, just undecorated.
+ */
+const DECOR: Record<
+  string,
+  Partial<
+    Pick<
+      CatalogPackage,
+      | "name"
+      | "description"
+      | "iconDomain"
+      | "iconUrl"
+      | "glyph"
+      | "background"
+      | "foreground"
+      | "category"
+    >
+  >
+> = {
+  uniswap: {
     name: "Uniswap",
     description: "Swap tokens and manage liquidity on Ethereum.",
     iconDomain: "uniswap.org",
     background: "#fff1f7",
     foreground: "#ff007a",
-    visibility: "public",
     category: "Featured",
-    installed: true,
   },
-  {
-    id: "jupiter",
+  jupiter: {
     name: "Jupiter",
     description: "Find and execute the best swap routes on Solana.",
     iconDomain: "jup.ag",
     background: "#effff8",
     foreground: "#144d3b",
-    visibility: "public",
-    category: "Featured",
-    installed: true,
-  },
-  {
-    id: "wallet-intelligence",
-    name: "Wallet Intelligence",
-    description: "Review balances, activity, and portfolio risk.",
-    glyph: "wallet",
-    background: "#7c6cf2",
-    foreground: "#ffffff",
-    visibility: "public",
     category: "Featured",
   },
-  {
-    id: "dune",
+  dune: {
     name: "Dune",
     description: "Query, chart, and explain onchain data.",
     iconDomain: "dune.com",
     background: "#fff5ee",
     foreground: "#f26f45",
-    visibility: "public",
     category: "Featured",
-    installed: true,
   },
-  {
-    id: "aave",
+  aave: {
     name: "Aave",
     description: "Lend, borrow, and monitor DeFi positions.",
     iconDomain: "aave.com",
     background: "#f3f0ff",
     foreground: "#7868e6",
-    visibility: "public",
     category: "Featured",
   },
-  {
-    id: "github",
+  github: {
     name: "GitHub",
     description: "Triage PRs, issues, CI, and releases.",
     iconDomain: "github.com",
     background: "#f4f4f4",
     foreground: "#161616",
-    visibility: "public",
     category: "Featured",
-    installed: true,
   },
-  {
-    id: "coingecko",
+  coingecko: {
     name: "CoinGecko",
     description: "Track token prices, markets, and metadata.",
     iconDomain: "coingecko.com",
     background: "#f4ffe6",
     foreground: "#173300",
-    visibility: "public",
     category: "Markets & onchain",
   },
-  {
-    id: "etherscan",
+  etherscan: {
     name: "Etherscan",
     description: "Inspect Ethereum contracts and transactions.",
     iconDomain: "etherscan.io",
     background: "#eef8ff",
     foreground: "#4d96c7",
-    visibility: "public",
     category: "Markets & onchain",
-    installed: true,
   },
-  {
-    id: "birdeye",
+  birdeye: {
     name: "Birdeye",
     description: "Explore Solana tokens, markets, and wallets.",
     iconDomain: "birdeye.so",
     background: "#eef3ff",
     foreground: "#2d63e2",
-    visibility: "public",
     category: "Markets & onchain",
   },
-  {
-    id: "defillama",
+  defillama: {
     name: "DefiLlama",
     description: "Compare protocols, yields, and TVL.",
     iconDomain: "defillama.com",
     background: "#e7f3fb",
     foreground: "#2777a8",
-    visibility: "public",
     category: "Markets & onchain",
   },
-  {
-    id: "hyperliquid",
+  hyperliquid: {
     name: "Hyperliquid",
     description: "Research markets and manage perp positions.",
     iconDomain: "hyperliquid.xyz",
     background: "#b8ffe2",
     foreground: "#12362b",
-    visibility: "public",
     category: "Markets & onchain",
   },
-  {
-    id: "solscan",
+  solscan: {
     name: "Solscan",
     description: "Inspect Solana accounts and transactions.",
     iconDomain: "solscan.io",
     background: "#f1edff",
     foreground: "#7f5af0",
-    visibility: "public",
     category: "Markets & onchain",
   },
-  {
-    id: "notion",
+  notion: {
     name: "Notion",
     description: "Search and organize your team knowledge.",
     iconDomain: "notion.so",
     background: "#f4f4f4",
     foreground: "#151515",
-    visibility: "public",
-    category: "Productivity",
-    installed: true,
-  },
-  {
-    id: "google-calendar",
-    name: "Google Calendar",
-    description: "Plan follow-ups and scheduled actions.",
-    iconUrl: "https://api.iconify.design/logos:google-calendar.svg",
-    background: "#eef5ff",
-    foreground: "#4f8ff7",
-    visibility: "public",
     category: "Productivity",
   },
-  {
-    id: "slack",
+  slack: {
     name: "Slack",
     description: "Turn team conversations into coordinated work.",
     iconDomain: "slack.com",
     background: "#fff3f8",
     foreground: "#e34b86",
-    visibility: "public",
     category: "Productivity",
-    installed: true,
   },
-  {
-    id: "linear",
+  linear: {
     name: "Linear",
     description: "Create and update product work.",
     iconDomain: "linear.app",
     background: "#f1f2ff",
     foreground: "#5e6ad2",
-    visibility: "public",
     category: "Productivity",
   },
-  {
-    id: "dropbox",
-    name: "Dropbox",
-    description: "Find, save, and share project files.",
-    iconDomain: "dropbox.com",
-    background: "#eef5ff",
-    foreground: "#3984ff",
-    visibility: "public",
-    category: "Productivity",
-  },
-  {
-    id: "google-drive",
-    name: "Google Drive",
-    description: "Work with documents and shared files.",
-    iconUrl: "https://api.iconify.design/logos:google-drive.svg",
-    background: "#fffbea",
-    foreground: "#1c3f67",
-    visibility: "public",
-    category: "Productivity",
-  },
-];
-
-const PERSONAL_PACKAGES: CatalogPackage[] = [
-  {
-    id: "treasury-ops",
-    name: "Treasury Ops",
-    description: "Prepare approvals and recurring treasury moves.",
+  default: {
+    name: "Aomi Core",
+    description: "The built-in wallet, chain, and account tools.",
     glyph: "wallet",
-    background: "#ff7a1a",
-    foreground: "#ffffff",
-    visibility: "personal",
-    category: "Your packages",
-  },
-  {
-    id: "partner-reporting",
-    name: "Partner Reporting",
-    description: "Summarize partner activity and account usage.",
-    glyph: "chart",
     background: "#4e7af0",
     foreground: "#ffffff",
-    visibility: "personal",
-    category: "Your packages",
   },
-  {
-    id: "protocol-watch",
-    name: "Protocol Watch",
-    description: "Monitor the contracts and events your team follows.",
-    glyph: "shield",
-    background: "#39b779",
-    foreground: "#ffffff",
-    visibility: "personal",
-    category: "Your packages",
-  },
-];
+};
 
-const ALL_PACKAGES = [...PUBLIC_PACKAGES, ...PERSONAL_PACKAGES];
-const PUBLIC_CATEGORIES: PublicCategory[] = [
+/** Apps the account can't function without — shown installed, not removable. */
+const PINNED_APPS = new Set(["default"]);
+
+const CATEGORY_ORDER: PackageCategory[] = [
   "Featured",
   "Markets & onchain",
   "Productivity",
+  "More",
 ];
+
+/** One wire row + its decoration → a renderable catalog entry. */
+function toCatalogPackage(app: AomiAppDescriptor): CatalogPackage {
+  const decor = DECOR[app.name.toLowerCase()] ?? {};
+  const visibility: PackageVisibility =
+    app.isPublic === false ? "personal" : "public";
+  return {
+    id: app.name,
+    name: decor.name ?? app.label ?? app.name,
+    description:
+      decor.description ??
+      (app.platform ? `From the ${app.platform} platform.` : "Aomi app."),
+    iconDomain: decor.iconDomain,
+    iconUrl: decor.iconUrl,
+    glyph: decor.glyph,
+    background: decor.background ?? "#f4f4f5",
+    foreground: decor.foreground ?? "#3f3f46",
+    visibility,
+    category:
+      visibility === "personal" ? "Your packages" : (decor.category ?? "More"),
+    pinned: PINNED_APPS.has(app.name),
+  };
+}
 
 interface PackagesModalProps {
   onClose: () => void;
 }
 
 export function PackagesModal({ onClose }: PackagesModalProps) {
+  const account = useAccountOverview();
   const [activeView, setActiveView] = useState<PackageVisibility>("public");
   const [query, setQuery] = useState("");
   const [installedOnly, setInstalledOnly] = useState(false);
-  const [installedIds, setInstalledIds] = useState(
-    () => new Set(ALL_PACKAGES.filter((app) => app.installed).map((app) => app.id)),
+  const [catalog, setCatalog] = useState<CatalogPackage[] | null>(null);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
+  // null until either the PUT response or the account overview seeds it —
+  // the PUT response is the fresher truth once any mutation has run.
+  const [installedFromServer, setInstalledFromServer] = useState<string[] | null>(
+    null,
   );
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchAppCatalog()
+      .then((apps) => {
+        if (!cancelled) setCatalog(apps.map(toCatalogPackage));
+      })
+      .catch((cause: unknown) => {
+        if (!cancelled) {
+          setCatalogError(
+            cause instanceof Error ? cause.message : "Couldn't load packages",
+          );
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const installedIds = useMemo(() => {
+    const fromAccount = installedFromServer ?? account?.user.apps ?? [];
+    const ids = new Set(fromAccount);
+    for (const pinned of PINNED_APPS) ids.add(pinned);
+    return ids;
+  }, [installedFromServer, account]);
+
+  /**
+   * Replace the installed set on the server. Not optimistic: the button shows
+   * busy and the row flips only on the PUT response, so a rejected write can't
+   * leave a phantom install.
+   */
+  const mutateInstalled = useCallback(
+    async (packageId: string, next: string[]) => {
+      setBusyId(packageId);
+      setActionError(null);
+      try {
+        setInstalledFromServer(await setInstalledApps(next));
+      } catch (cause) {
+        setActionError(
+          cause instanceof Error ? cause.message : "Couldn't update packages",
+        );
+      } finally {
+        setBusyId(null);
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -295,10 +306,11 @@ export function PackagesModal({ onClose }: PackagesModalProps) {
   }, [onClose]);
 
   const searching = query.trim().length > 0;
+  const allPackages = useMemo(() => catalog ?? [], [catalog]);
 
   const visiblePackages = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
-    const source = activeView === "public" ? PUBLIC_PACKAGES : PERSONAL_PACKAGES;
+    const source = allPackages.filter((app) => app.visibility === activeView);
 
     return source.filter((app) => {
       if (installedOnly && !installedIds.has(app.id)) return false;
@@ -307,22 +319,24 @@ export function PackagesModal({ onClose }: PackagesModalProps) {
         .toLowerCase()
         .includes(normalizedQuery);
     });
-  }, [activeView, query, installedOnly, installedIds]);
+  }, [allPackages, activeView, query, installedOnly, installedIds]);
 
-  const installedPackages = ALL_PACKAGES.filter((app) => installedIds.has(app.id));
+  const installedPackages = allPackages.filter((app) => installedIds.has(app.id));
   const categories =
-    activeView === "public" ? PUBLIC_CATEGORIES : (["Your packages"] as const);
+    activeView === "public" ? CATEGORY_ORDER : (["Your packages"] as const);
 
   const install = (packageId: string) => {
-    setInstalledIds((current) => new Set([...current, packageId]));
+    void mutateInstalled(packageId, [
+      ...[...installedIds].filter((id) => id !== packageId),
+      packageId,
+    ]);
   };
 
   const uninstall = (packageId: string) => {
-    setInstalledIds((current) => {
-      const next = new Set(current);
-      next.delete(packageId);
-      return next;
-    });
+    void mutateInstalled(
+      packageId,
+      [...installedIds].filter((id) => id !== packageId),
+    );
   };
 
   return (
@@ -379,6 +393,12 @@ export function PackagesModal({ onClose }: PackagesModalProps) {
             )}
           </label>
         </header>
+
+        {actionError && (
+          <p className="mt-6 rounded-xl border border-aomi-border bg-aomi-surface px-4 py-3 text-sm text-aomi-danger">
+            {actionError}
+          </p>
+        )}
 
         <section className="mt-11" aria-labelledby="installed-packages-title">
           <div className="flex items-center justify-between border-b border-aomi-border pb-4">
@@ -453,7 +473,19 @@ export function PackagesModal({ onClose }: PackagesModalProps) {
         </div>
 
         <div className="pb-12 pt-7">
-          {visiblePackages.length === 0 ? (
+          {catalogError ? (
+            <div className="border-t border-aomi-border py-16 text-center">
+              <p className="font-medium text-aomi-danger">{catalogError}</p>
+              <p className="mt-1 text-sm text-aomi-muted">
+                Sign in and try again — the catalog needs your account.
+              </p>
+            </div>
+          ) : catalog === null ? (
+            <div className="flex items-center justify-center gap-2 border-t border-aomi-border py-16 text-sm text-aomi-muted">
+              <Loader2 size={15} className="animate-spin" />
+              Loading packages…
+            </div>
+          ) : visiblePackages.length === 0 ? (
             <div className="border-t border-aomi-border py-16 text-center">
               <p className="font-medium">No packages found</p>
               <p className="mt-1 text-sm text-aomi-muted">
@@ -486,6 +518,7 @@ export function PackagesModal({ onClose }: PackagesModalProps) {
                     key={app.id}
                     app={app}
                     installed={installedIds.has(app.id)}
+                    busy={busyId === app.id}
                     onInstall={() => install(app.id)}
                     onUninstall={() => uninstall(app.id)}
                   />
@@ -515,6 +548,7 @@ export function PackagesModal({ onClose }: PackagesModalProps) {
                         key={app.id}
                         app={app}
                         installed={installedIds.has(app.id)}
+                        busy={busyId === app.id}
                         onInstall={() => install(app.id)}
                         onUninstall={() => uninstall(app.id)}
                       />
@@ -533,11 +567,13 @@ export function PackagesModal({ onClose }: PackagesModalProps) {
 function PackageRow({
   app,
   installed,
+  busy,
   onInstall,
   onUninstall,
 }: {
   app: CatalogPackage;
   installed: boolean;
+  busy: boolean;
   onInstall: () => void;
   onUninstall: () => void;
 }) {
@@ -548,27 +584,42 @@ function PackageRow({
         <h3 className="truncate text-[15px] font-semibold">{app.name}</h3>
         <p className="mt-1 truncate text-sm text-aomi-muted">{app.description}</p>
       </div>
-      {installed ? (
+      {app.pinned ? (
+        // Core apps can't be removed — state the fact without offering the
+        // reversal, so the button never lies about what a click would do.
+        <span className="flex w-[92px] flex-shrink-0 items-center justify-center gap-1.5 rounded-xl border border-transparent px-3 py-2 text-sm font-medium text-aomi-muted">
+          <Check size={14} />
+          Built in
+        </span>
+      ) : installed ? (
         // Bordered at rest so it reads as actionable without hover; the label
         // states the fact, hover reveals the reversal.
         <button
           type="button"
           onClick={onUninstall}
+          disabled={busy}
           title={`Remove ${app.name}`}
           aria-label={`Remove ${app.name}`}
-          className="flex w-[92px] flex-shrink-0 items-center justify-center gap-1.5 rounded-xl border border-aomi-border px-3 py-2 text-sm font-medium text-aomi-muted transition-colors hover:border-danger/40 hover:bg-aomi-danger/10 hover:text-aomi-danger"
+          className="flex w-[92px] flex-shrink-0 items-center justify-center gap-1.5 rounded-xl border border-aomi-border px-3 py-2 text-sm font-medium text-aomi-muted transition-colors hover:border-danger/40 hover:bg-aomi-danger/10 hover:text-aomi-danger disabled:opacity-50"
         >
-          <Check size={14} className="group-hover:hidden" />
-          <span className="group-hover:hidden">Installed</span>
-          <span className="hidden group-hover:inline">Remove</span>
+          {busy ? (
+            <Loader2 size={14} className="animate-spin" />
+          ) : (
+            <>
+              <Check size={14} className="group-hover:hidden" />
+              <span className="group-hover:hidden">Installed</span>
+              <span className="hidden group-hover:inline">Remove</span>
+            </>
+          )}
         </button>
       ) : (
         <button
           type="button"
           onClick={onInstall}
-          className="w-[92px] flex-shrink-0 rounded-xl border border-aomi-border px-3 py-2 text-sm font-medium transition-colors hover:bg-aomi-surface-2"
+          disabled={busy}
+          className="flex w-[92px] flex-shrink-0 items-center justify-center rounded-xl border border-aomi-border px-3 py-2 text-sm font-medium transition-colors hover:bg-aomi-surface-2 disabled:opacity-50"
         >
-          Install
+          {busy ? <Loader2 size={14} className="animate-spin" /> : "Install"}
         </button>
       )}
     </article>
@@ -589,7 +640,9 @@ function PackageIcon({
       ? Chart
       : app.glyph === "shield"
         ? Shield
-        : WalletIcon;
+        : app.glyph === "wallet"
+          ? WalletIcon
+          : null;
 
   return (
     <div
@@ -609,8 +662,11 @@ function PackageIcon({
             }")`,
           }}
         />
-      ) : (
+      ) : Glyph ? (
         <Glyph aria-hidden="true" size={glyphSize} />
+      ) : (
+        // No decoration on record — a monogram beats a wrong brand icon.
+        <span aria-hidden="true">{app.name.slice(0, 1).toUpperCase()}</span>
       )}
     </div>
   );

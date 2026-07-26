@@ -45,6 +45,19 @@ export interface WalletPolicy {
   authVersion: number;
   /** Audit label of the last permit that set the mode. */
   lastPermit?: string;
+  /** Raw `auth_providers.provider` — what a grant revoke is keyed on. */
+  provider?: string;
+  /**
+   * Backend truth for whether `auto` is offerable (provenance AND a live
+   * grant). The client must not re-derive this from `linkedVia`: a Para or
+   * Privy wallet with no grant still can't go auto.
+   */
+  canUseAuto?: boolean;
+  /**
+   * A provisioned agent wallet — only the provider holds key material, so the
+   * client-side modes (`manual`, `client_auto`) are meaningless for it.
+   */
+  providerManaged?: boolean;
 }
 
 /**
@@ -53,7 +66,10 @@ export interface WalletPolicy {
  */
 export interface DelegationGrant {
   id: string;
+  /** Display name, e.g. "Privy". */
   provider: string;
+  /** Raw provider key the revoke route is addressed by, e.g. "privy". */
+  providerKey?: string;
   /** What the grant is scoped to, e.g. "Solana · 8xKn…9QpS". */
   scope: string;
   kind: string;

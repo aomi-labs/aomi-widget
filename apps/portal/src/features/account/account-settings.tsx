@@ -2,26 +2,71 @@
 
 import { useAccountOverview } from "@portal/lib/account-overview";
 import { AccountSigningView } from "./account-signing";
-import { seedGrants, seedWalletPolicies } from "./fixtures";
+import { useAccountAcl } from "./use-account-acl";
 
 /**
  * Account tab — the wallet signing policy (ACL) editor.
  *
- * Header identity comes from the shared /api/account overview. The wallet
- * rows and delegated grants render from fixtures for now; the real bindings
- * (/api/account/wallets signing_mode, a grants listing, and the permit
- * ceremony via /api/account/authorization/*) are tracked in
- * docs/SETTINGS-REDESIGN-GAPS.md.
+ * Identity comes from the shared `/api/account` overview; the ACL itself comes
+ * from `useAccountAcl` (`/api/account/wallets` + `/api/account/grants`), and
+ * every mutation runs the backend's challenge → sign → commit permit ceremony.
+ * Nothing here is optimistic: a mode flips on screen only after the backend
+ * returns the committed row.
  */
 export function AccountSettings() {
   const account = useAccountOverview();
+  const acl = useAccountAcl();
+
+  const accountId = account?.user.user_id ?? "—";
+  const email = account?.user.verified_email ?? "wallet-only account";
+
+  if (acl.status === "loading") {
+    return <AccountNotice>Loading your wallets…</AccountNotice>;
+  }
+
+  if (acl.status === "error") {
+    return (
+      <AccountNotice tone="danger">
+        {acl.error ?? "Couldn't load your account."}
+        <button
+          onClick={() => void acl.refresh()}
+          className="ml-2 underline underline-offset-2 hover:text-aomi-fg"
+        >
+          Retry
+        </button>
+      </AccountNotice>
+    );
+  }
 
   return (
     <AccountSigningView
-      accountId={account?.user.user_id ?? "—"}
-      email={account?.user.verified_email ?? "wallet-only account"}
-      wallets={seedWalletPolicies}
-      grants={seedGrants}
+      accountId={accountId}
+      email={email}
+      wallets={acl.wallets}
+      grants={acl.grants}
+      onCommit={acl.commitMode}
+      onRevokeGrant={acl.revokeGrant}
+      onStopAllAuto={acl.stopAllAuto}
+      onRegrant={acl.regrant}
+      blockedReason={acl.blockedReason}
     />
+  );
+}
+
+function AccountNotice({
+  children,
+  tone = "muted",
+}: {
+  children: React.ReactNode;
+  tone?: "muted" | "danger";
+}) {
+  return (
+    <div className="flex-1 overflow-y-auto px-[22px] py-5">
+      <p
+        className={`text-[13px] ${tone === "danger" ? "text-aomi-danger" : "text-aomi-muted"}`}
+      >
+        {children}
+      </p>
+    </div>
   );
 }

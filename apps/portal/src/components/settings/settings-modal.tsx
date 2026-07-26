@@ -25,16 +25,36 @@ const NAV: {
 
 function GateNotice({
   status,
+  walletConnected,
   onRetry,
   onConnect,
 }: {
   status: Exclude<AomiSessionStatus, "ready">;
+  walletConnected?: boolean;
   onRetry: () => void;
   onConnect?: () => void;
 }) {
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
-      {status === "anonymous" && (
+      {status === "anonymous" && walletConnected && (
+        <>
+          <span className="text-aomi-fg text-sm font-medium">
+            Finish signing in
+          </span>
+          <span className="text-aomi-muted max-w-sm text-[13px]">
+            Your wallet is connected, but your account session isn’t set up
+            yet. Sign in to view and manage your settings.
+          </span>
+          <button
+            type="button"
+            onClick={onRetry}
+            className="bg-aomi-fg text-aomi-bg rounded-full px-4 py-2 text-[13px] font-medium transition-opacity hover:opacity-90"
+          >
+            Sign in
+          </button>
+        </>
+      )}
+      {status === "anonymous" && !walletConnected && (
         <>
           <span className="text-aomi-fg text-sm font-medium">
             Connect your account
@@ -96,6 +116,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
       return (
         <GateNotice
           status={status}
+          walletConnected={adapter.identity.isConnected}
           onRetry={retry}
           onConnect={
             adapter.openAccountUI

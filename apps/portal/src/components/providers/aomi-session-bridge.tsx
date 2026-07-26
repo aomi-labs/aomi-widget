@@ -29,12 +29,29 @@ export function useAomiSession(): {
   const [probeStatus, setProbeStatus] =
     useState<AomiSessionStatus>("establishing");
   const [probeAttempt, setProbeAttempt] = useState(0);
+  // A provider whose account exchange never settles (accountStatus stuck on
+  // "loading") must not hold the gate on "Connecting…" forever — after this
+  // deadline we probe /api/account anyway and let its answer decide.
+  const [adapterWaitExpired, setAdapterWaitExpired] = useState(false);
+
+  const adapterSettling =
+    adapterStatus === "booting" ||
+    (adapterStatus === "connected" && accountStatus === "loading");
 
   useEffect(() => {
-    if (
-      adapterStatus === "booting" ||
-      (adapterStatus === "connected" && accountStatus === "loading")
-    ) {
+    if (!adapterSettling) {
+      setAdapterWaitExpired(false);
+      return;
+    }
+    const timer = globalThis.setTimeout(
+      () => setAdapterWaitExpired(true),
+      15_000,
+    );
+    return () => globalThis.clearTimeout(timer);
+  }, [adapterSettling]);
+
+  useEffect(() => {
+    if (adapterSettling && !adapterWaitExpired) {
       setProbeStatus("establishing");
       return;
     }
@@ -99,7 +116,14 @@ export function useAomiSession(): {
     return () => {
       cancelled = true;
     };
-  }, [adapterStatus, accountStatus, accountUserId, probeAttempt]);
+  }, [
+    adapterSettling,
+    adapterStatus,
+    accountStatus,
+    accountUserId,
+    adapterWaitExpired,
+    probeAttempt,
+  ]);
 
   const retry = useCallback(() => {
     setProbeAttempt((attempt) => attempt + 1);
