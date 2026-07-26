@@ -15,9 +15,10 @@
   (GET/POST/PUT/DELETE in `server/bff/operate/routes.ts`) fronts the manager
   routes `/api/integrations/github-app/user/model-keys[/:id[/grants]]` via
   five new DeploymentClient methods in `packages/deploy`. The existing
-  dedicated Providers ⌘K entry indexes model-provider terms, and the
-  stubbed-fetch dev harness `/dev-model-keys-preview` renders the real
-  Providers view for focused visual review.
+  dedicated Providers ⌘K entry indexes model-provider terms. Per-key usage
+  (`usage` / `usageByApplication`, all-time funded-turn sums) comes from the
+  manager on each key; the view derives the per-project Tokens/Cost cells from
+  it at 1 credit = $0.01.
 
   Restyled per Cecilia review against the settings-redesign inventory (artifact
   5885e89f…, `.claude/worktrees/settings-redesign`). The project picker is a

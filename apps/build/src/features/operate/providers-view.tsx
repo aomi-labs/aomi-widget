@@ -38,6 +38,15 @@ export type ModelKeyUsage = {
   costUsd?: number;
 };
 
+/** Per-application rollup as the manager emits it on each key. */
+export type ModelKeyAppUsage = {
+  applicationId: number;
+  inputTokens: number;
+  outputTokens: number;
+  costCredits: number;
+  turns: number;
+};
+
 export type ModelKey = {
   id: number;
   provider: string;
@@ -46,10 +55,27 @@ export type ModelKey = {
   createdAt: number;
   updatedAt: number;
   applicationIds: number[];
-  /** applicationId -> usage. The manager does not emit this yet, so every
-   *  cell reads "—" in production until it does. */
+  /** Wire form from the BFF: all-time funded-turn sums per application. */
+  usageByApplication?: ModelKeyAppUsage[];
+  /** applicationId -> usage, derived from `usageByApplication` on load. */
   usage?: Record<number, ModelKeyUsage>;
 };
+
+const USD_PER_CREDIT = 0.01;
+
+/** Derive the per-application usage record the table cells read. */
+export function withUsage(key: ModelKey): ModelKey {
+  const rows = key.usageByApplication ?? [];
+  if (rows.length === 0) return key;
+  const usage: Record<number, ModelKeyUsage> = {};
+  for (const row of rows) {
+    usage[row.applicationId] = {
+      tokens: row.inputTokens + row.outputTokens,
+      costUsd: row.costCredits * USD_PER_CREDIT,
+    };
+  }
+  return { ...key, usage };
+}
 
 export type KeySource = {
   id: number;
@@ -753,7 +779,7 @@ export function ProvidersView() {
       error?: string;
     };
     if (!res.ok) throw new Error(json.error || `Failed (${res.status})`);
-    setPayload(json);
+    setPayload({ ...json, keys: (json.keys ?? []).map(withUsage) });
   }, []);
 
   useEffect(() => {

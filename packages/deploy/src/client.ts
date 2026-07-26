@@ -34,6 +34,7 @@ import type {
   BotRegistration,
   CreateUserSourceBotInput,
   BuilderModelKey,
+  BuilderModelKeyUsage,
   BuilderModelKeysInput,
   DeleteBuilderModelKeyInput,
   DeleteUserSourceBotInput,
@@ -1865,6 +1866,16 @@ function camelBotRegistration(raw: unknown): BotRegistration {
   };
 }
 
+function camelModelKeyUsage(raw: unknown): BuilderModelKeyUsage {
+  const u = (raw ?? {}) as Record<string, any>;
+  return {
+    inputTokens: Number(u.inputTokens ?? 0),
+    outputTokens: Number(u.outputTokens ?? 0),
+    costCredits: Number(u.costCredits ?? 0),
+    turns: Number(u.turns ?? 0),
+  };
+}
+
 function camelBuilderModelKey(raw: unknown): BuilderModelKey {
   const k = (raw ?? {}) as Record<string, any>;
   return {
@@ -1876,6 +1887,13 @@ function camelBuilderModelKey(raw: unknown): BuilderModelKey {
     updatedAt: Number(k.updatedAt ?? k.updated_at ?? 0),
     applicationIds: Array.isArray(k.applicationIds ?? k.application_ids)
       ? (k.applicationIds ?? k.application_ids).map(Number)
+      : [],
+    usage: camelModelKeyUsage(k.usage),
+    usageByApplication: Array.isArray(k.usageByApplication)
+      ? k.usageByApplication.map((row: unknown) => ({
+          applicationId: Number((row as Record<string, any>)?.applicationId),
+          ...camelModelKeyUsage(row),
+        }))
       : [],
   };
 }

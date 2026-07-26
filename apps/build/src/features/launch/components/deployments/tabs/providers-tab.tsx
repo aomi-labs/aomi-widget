@@ -13,6 +13,7 @@ import {
   keyDisplayName,
   PROVIDER_LABELS,
   PROVIDERS,
+  withUsage,
   type ModelKey,
   type Provider,
   type ProvidersPayload,
@@ -50,7 +51,7 @@ export function ProvidersTab({ detail }: { detail: Detail }) {
       error?: string;
     };
     if (!res.ok) throw new Error(json.error || `Failed (${res.status})`);
-    setKeys(json.keys ?? []);
+    setKeys((json.keys ?? []).map(withUsage));
   }, []);
 
   useEffect(() => {

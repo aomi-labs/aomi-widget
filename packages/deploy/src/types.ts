@@ -701,6 +701,20 @@ export interface CreateUserSourceBotInput extends OwnedOperateSourceInput {
   threadMode?: string;
 }
 
+/** All-time funded-turn rollup the manager reports for a key. `costCredits`
+ *  is the insert-time model cost the platform would have charged (1 credit =
+ *  $0.01) — funded turns record it even though the user was charged 0. */
+export interface BuilderModelKeyUsage {
+  inputTokens: number;
+  outputTokens: number;
+  costCredits: number;
+  turns: number;
+}
+
+export interface BuilderModelKeyAppUsage extends BuilderModelKeyUsage {
+  applicationId: number;
+}
+
 /** A builder-owned LLM model key (funder-ladder app rung): provider +
  *  recognizable prefix + the applications it is granted to. Never carries
  *  key material. */
@@ -712,6 +726,8 @@ export interface BuilderModelKey {
   createdAt: number;
   updatedAt: number;
   applicationIds: number[];
+  usage: BuilderModelKeyUsage;
+  usageByApplication: BuilderModelKeyAppUsage[];
 }
 
 export interface BuilderModelKeysInput extends BearerOverride {
