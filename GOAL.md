@@ -690,7 +690,7 @@ build`, `CI=true npx -y pnpm@10.28.0 install --frozen-lockfile`, and
   timing and account-switch regression coverage; corrected the live-data error
   message; and patch-bumped the changed widget package to `1.4.13`. Verified
   302 Portal tests, Portal type-check, repository lint, and `git diff --check`.
-  After the first refreshed preview exposed undeclared Para runtime imports in
-  the Telegram app, declared its exact `@getpara/core-sdk` and
-  `@getpara/user-management-client` dependencies and reproduced the production
-  Telegram build from a frozen install.
+  After the first refreshed preview exposed undeclared Para runtime imports,
+  made the exact `core-sdk` and `user-management-client` versions available
+  from the workspace root so Para's nested packages resolve them in clean pnpm
+  installs, then reproduced the production Telegram build.

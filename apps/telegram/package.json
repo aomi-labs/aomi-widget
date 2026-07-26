@@ -14,10 +14,8 @@
   },
   "dependencies": {
     "@aomi-labs/client": "workspace:*",
-    "@getpara/core-sdk": "2.24.0",
     "@getpara/evm-wallet-connectors": "2.24.0",
     "@getpara/react-sdk": "2.24.0",
-    "@getpara/user-management-client": "2.24.0",
     "@getpara/web-sdk": "2.24.0",
     "@privy-io/react-auth": "^2.0.0",
     "@privy-io/wagmi": "^1.0.0",
