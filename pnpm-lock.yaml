@@ -824,12 +824,18 @@ importers:
       '@aomi-labs/client':
         specifier: workspace:*
         version: link:../../packages/client
+      '@getpara/core-sdk':
+        specifier: 2.24.0
+        version: 2.24.0
       '@getpara/evm-wallet-connectors':
         specifier: 2.24.0
         version: 2.24.0(2889026a07ab3bd0951d0a456c9b5572)
       '@getpara/react-sdk':
         specifier: 2.24.0
         version: 2.24.0(cbdf521c22335e73bd88724b4fec3088)
+      '@getpara/user-management-client':
+        specifier: 2.24.0
+        version: 2.24.0
       '@getpara/web-sdk':
         specifier: 2.24.0
         version: 2.24.0(@farcaster/miniapp-sdk@0.1.10(bufferutil@4.1.0)(encoding@0.1.13)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.4.3))
