@@ -1,5 +1,4 @@
 import type { WalletTxAaPreference } from "../wallet-utils";
-import type { AAMode, AASponsorship } from "./types";
 
 export function aaRequestedModeFromPreference(
   preference: WalletTxAaPreference | undefined,
@@ -17,11 +16,4 @@ export function aaModeFromExecutionKind(
   if (executionKind.endsWith("_7702")) return "7702";
   if (executionKind === "eoa") return "none";
   return undefined;
-}
-
-export function resolveAASponsorship(
-  mode: AAMode,
-  configuredSponsorship: AASponsorship,
-): AASponsorship {
-  return mode === "7702" ? "disabled" : configuredSponsorship;
 }
