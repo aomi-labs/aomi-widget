@@ -24,12 +24,12 @@ export default async function SettingsSectionPage({
     <div className="flex max-w-3xl flex-col gap-6">
       <div className="space-y-2">
         <div className="flex items-center gap-2">
-          <Icon className="size-5 text-dim" />
-          <h1 className="text-2xl font-semibold text-foreground">
+          <Icon className="text-dim size-5" />
+          <h1 className="font-display text-foreground text-2xl font-normal tracking-tight">
             {section.title}
           </h1>
         </div>
-        <p className="max-w-2xl text-sm text-subtle">{section.description}</p>
+        <p className="text-subtle max-w-2xl text-sm">{section.description}</p>
       </div>
 
       {slug === "secrets" ? (
@@ -37,15 +37,15 @@ export default async function SettingsSectionPage({
       ) : slug === "billing" ? (
         <SettingsBillingPanel />
       ) : (
-        <section className="rounded-lg border border-border bg-surface-1 p-4">
-          <div className="text-sm font-medium text-foreground">
+        <section className="border-border bg-surface-1 rounded-lg border p-4">
+          <div className="text-foreground text-sm font-medium">
             {section.status === "soon" ? "Coming soon" : "Current state"}
           </div>
-          <p className="mt-2 text-[13px] text-dim">{section.detail}</p>
+          <p className="text-dim mt-2 text-[13px]">{section.detail}</p>
           {section.actionHref ? (
             <Link
               href={section.actionHref}
-              className="mt-4 inline-flex h-8 items-center rounded-md bg-primary px-3 text-[12px] font-medium text-primary-foreground transition hover:bg-brand-hover"
+              className="bg-primary text-primary-foreground hover:bg-brand-hover mt-4 inline-flex h-8 items-center rounded-md px-3 text-[12px] font-medium transition"
             >
               {section.actionLabel}
             </Link>

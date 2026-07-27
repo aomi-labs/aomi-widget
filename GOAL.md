@@ -31,6 +31,29 @@ mistaken for another supported environment.
 
 Progress:
 
+- 2026-07-27 Shared chat welcome title: replaced the Portal and Landing
+  one-off catchphrases with the shared “What should happen on-chain?” default
+  and styled it with the same regular PT Serif display face used by Aomi Build
+  page titles.
+
+- 2026-07-27 Aomi Build CLI auth completion: replaced the localhost callback's
+  raw inline HTML with a redirect to a branded Build completion page based on
+  the existing Portal device-auth surface. The hosted page receives only a
+  coarse completion status; OAuth codes and state remain confined to the
+  loopback callback and CLI exchange.
+- 2026-07-27 Build deploy-platform configuration: reduced the BFF deploy
+  admission allowlist to one server-only source, `APP_DEPLOY_PLATFORMS`, and
+  removed the singular and `NEXT_PUBLIC_*` compatibility paths so Vercel
+  configuration cannot silently diverge.
+
+- 2026-07-27 Para ACL mode recovery: confirmed the reported staging Para EVM
+  row is user-controlled (`provider_managed = false`) and that the backend
+  permits `client_auto` without a delegated grant. Removed the frontend's
+  incorrect self-custody-only gate so Para can select “Accept transactions”;
+  `Auto` still correctly requires a live delegation grant and `Locked` remains
+  available. Added a regression covering all three availability states and the
+  complete challenge, Para signature, commit, and refresh path.
+
 - 2026-07-26 usage-log model-key attribution: normalized the manager's safe
   model-key metadata into the deploy client and rendered a compact key
   label/prefix badge beside funded usage events in Aomi Build Logs. Added
@@ -48,7 +71,51 @@ Progress:
   session/account probes with no 5xx or pool-exhaustion logs. Settings now
   translates widget-auth and unknown structured transport failures into calm,
   actionable copy instead of rendering raw JSON.
+- 2026-07-27 TypeScript cleanup and release validation: decomposed the Portal
+  Packages overlay into its catalog data, catalog-loading hook, package row,
+  and modal orchestration so every logic file remains under 500 lines without
+  changing the UI or API boundary. Split the 740-line dev theme audit into a
+  specimen surface and contrast table, removed avoidable assertions, and kept
+  its measured token behavior intact. Verified focused lint/typecheck/tests,
+  all repository CI commands, full Portal tests, and production builds for
+  Portal, Landing, and Aomi Build; the Portal build used mock-safe local auth
+  and database values only.
 
+- 2026-07-27 Light/dark design-token sweep: fixed a dark-mode collision where
+  `--aomi-surface-2`, `--aomi-raised` and `--aomi-border` all resolved to
+  `#27272a`, rendering every divider, table rule, meter track and icon-button
+  fill at 1.00:1 — the same collision existed independently in `apps/build`.
+  Re-laid both dark ramps as six distinct steps, split `--aomi-success` per
+  theme, un-collided light's `--aomi-hover` from `--aomi-surface-2`, removed a
+  duplicate `--aomi-ring` that was overriding the sky focus ring with grey, and
+  made `.dark` re-declare its derived `color-mix()` tokens (they only worked
+  because `.dark` sits on `<html>`) while adding a `.light` scope so either
+  theme can be applied to a subtree. Added a dev-only `/dev/theme-audit` harness
+  that renders every redesigned surface in both themes from static fixtures and
+  measures 21 contrast pairs: 9 hard failures down to 4, all light-mode and
+  intentional. Left as design calls: the light accent is 3.71:1 as text (AA
+  needs 4.5), and `--aomi-warning` is an unreferenced dead token.
+
+- 2026-07-27 Build title typography and Packages spacing: loaded the same PT
+  Serif display face used by Portal's Usage Statement into Aomi Build and
+  applied the shared display treatment to all 15 Build page-level headings,
+  including Deployments, Transactions, and Observability. Increased the Portal
+  Packages title-to-search gap to 25px while preserving the divider rhythm
+  below the search field. Verified Build lint/typecheck, all 15 heading
+  contracts, live computed PT Serif rendering on `/build`, the 7 focused
+  Packages tests, Portal lint/typecheck, and live Packages geometry.
+
+- 2026-07-26 Landing and Portal UI polish: scoped the Landing demo layout
+  independently from Portal, default-collapsed its sidebar, refined the welcome
+  spacing and composer layout, added a slow edge-faded suggestion marquee,
+  improved dark-mode segmented-control contrast, and prevented horizontal
+  scrolling in both welcome and docked composer inputs. Aligned the Portal
+  Packages overlay to the Settings reference frame, header, typography, and
+  close control, and replaced raw proxy HTML failures with a bounded package
+  error. Patch-bumped `@aomi-labs/widget-lib` to 1.4.14, refreshed the affected
+  Landing registry mirrors, and verified the registry build and 277 tests,
+  Landing lint, focused Portal package tests, Portal lint/typecheck, and live
+  equal overlay geometry.
 - 2026-07-24 idempotent npm publishing: changed the post-merge publish job to
   skip exact package versions that are already live, publish only missing
   versions, and fail closed on registry errors other than a definitive 404.

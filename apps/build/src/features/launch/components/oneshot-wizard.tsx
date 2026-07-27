@@ -375,7 +375,7 @@ function WizardHeader({
   return (
     <header className="space-y-2">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-foreground text-2xl font-semibold tracking-tight">
+        <h1 className="font-display text-foreground text-2xl font-normal tracking-tight">
           {title}
         </h1>
         {actionLabel && onAction && (

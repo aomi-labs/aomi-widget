@@ -126,6 +126,14 @@
   font-family: "Bauhaus_Chez_Display_2.0", "Arial Black", sans-serif;
 }
 
+.portal-aomi-frame .aui-composer-wrapper {
+  padding-bottom: 4rem;
+}
+
+.portal-aomi-frame .aui-composer-wrapper .aui-composer-input {
+  min-height: 4.5rem;
+}
+
 :root {
   --apkt-tokens-theme-textInverted: var(--background) !important;
   --apkt-tokens-core-backgroundAccentPrimary: var(--foreground) !important;
