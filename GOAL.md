@@ -794,4 +794,6 @@ build`, `CI=true npx -y pnpm@10.28.0 install --frozen-lockfile`, and
   Observability. Recipient-bucket settlements and outstanding balances are
   explicitly labeled and deduplicated across projects, while configured prices
   remain visible before the first successful paid call. Patch-bumped
-  `@aomi-labs/deploy` to `0.2.5`.
+  `@aomi-labs/deploy` to `0.2.5`. Synced the PR with the July 27 frontend
+  changes and updated the full-suite bootstrap contract to assert the new
+  nullable pricing field.
