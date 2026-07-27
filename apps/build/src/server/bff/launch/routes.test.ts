@@ -27,6 +27,7 @@ vi.mock("@aomi-labs/account", () => ({
 const getGitHubSession = vi.fn();
 vi.mock("@build/server/cookies/github", () => ({
   getGitHubSession: () => getGitHubSession(),
+  getGitHubSessionFromRequest: () => getGitHubSession(),
 }));
 
 function writeReq(body: unknown) {
@@ -387,6 +388,8 @@ describe("launchDeployRoute", () => {
     expect(body).toMatchObject({
       repo: "alice/bot",
       appSourceId: 777,
+      projectUrl:
+        "http://localhost:3000/projects/777?tab=deployments",
     });
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
@@ -395,6 +398,59 @@ describe("launchDeployRoute", () => {
         method: "POST",
         body: expect.stringContaining('"source_ref":"abc1234def5678"'),
       }),
+    );
+  });
+
+  it("deploys to an explicitly configured partner platform", async () => {
+    vi.stubEnv("APP_DEPLOY_PLATFORMS", "community,somm.finance");
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(ownedSources(777))
+      .mockResolvedValueOnce(
+        Response.json({
+          ok: true,
+          deployment: {
+            id: "dep_999_rabc1234_deadbeef",
+            source: {
+              installation_id: 999,
+              repository_link: "alice/bot",
+            },
+            platform: { apps: [] },
+          },
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const POST = launchDeployRoute(false);
+    const res = await POST(
+      new Request("https://build-staging.aomi.dev/api/bff/deployments/deploy", {
+        method: "POST",
+        headers: {
+          authorization: "Bearer cli-session",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          platform: "somm.finance",
+          appSourceId: 777,
+          sourceRef: "abc1234def5678",
+          aomiTomlPaths: ["apps/somm/aomi.toml"],
+        }),
+      }),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(202);
+    expect(body.projectUrl).toBe(
+      "https://build-staging.aomi.dev/projects/777?tab=deployments",
+    );
+    expect(String(fetchMock.mock.calls[0][0])).toContain(
+      "platform=somm.finance",
+    );
+    expect(String(fetchMock.mock.calls[1][0])).toBe(
+      "http://127.0.0.1:8080/api/platforms/somm.finance/deploy",
+    );
+    expect(fetchMock.mock.calls[1][1]?.body).toContain(
+      '"aomi_toml_paths":["apps/somm/aomi.toml"]',
     );
   });
 

@@ -2,24 +2,11 @@ import { randomBytes } from "crypto";
 import { NextResponse } from "next/server";
 
 import { API_PATHS } from "@build/lib/api-paths";
+import { githubOAuthClientId } from "@build/server/github-oauth-config";
 
 export const runtime = "nodejs";
 
 const OAUTH_STATE_COOKIE = "aomi_github_oauth_state";
-// One-shot App OAuth client ids (app index 2). Sign-in runs against the
-// one-shot App so the user token can list one-shot installations for the
-// skip-install check. The callback exchanges against app index 2.
-const STAGING_CLIENT_ID = "Iv23lilgvJz13pJekLSZ";
-const PRODUCTION_CLIENT_ID = "Iv23li4wPpAfoGOJ6v0Q";
-
-function githubOAuthClientId(req: Request): string {
-  const host = new URL(req.url).hostname;
-  if (process.env.VERCEL_ENV === "production" || host === "build.aomi.dev") {
-    return PRODUCTION_CLIENT_ID;
-  }
-  return STAGING_CLIENT_ID;
-}
-
 // GET /api/bff/auth/github/login — kick off "Sign in with GitHub".
 // Redirects to GitHub's user-authorization page; the callback below mints the
 // Aomi Build GitHub session. The client id is public; only the matching client

@@ -8,13 +8,9 @@ import { API_PATHS } from "@build/lib/api-paths";
 import { configuredBackendUrl } from "@build/server/backend-url";
 import { deploymentClient } from "@build/server/bff/backend";
 import { setGitHubSessionCookie } from "@build/server/cookies/github";
+import { GITHUB_LOGIN_APP_INDEX } from "@build/server/github-oauth-config";
 
 const OAUTH_STATE_COOKIE = "aomi_github_oauth_state";
-// Sign-in runs against the one-shot App so the resulting user token can
-// enumerate the user's one-shot installations (skip-install detection). The
-// backend exchange uses the matching client secret. 2 = one-shot App.
-const LOGIN_APP_INDEX = 2;
-
 function deploymentsUrl(req: Request): URL {
   const url = new URL(req.url);
   const deployments = new URL("/operate/deployments", url.origin);
@@ -42,7 +38,7 @@ export async function GET(req: Request) {
     const client = await deploymentClient();
     const identity = await client.exchangeGitHubCode({
       code,
-      app: LOGIN_APP_INDEX,
+      app: GITHUB_LOGIN_APP_INDEX,
       redirectUri: `${url.origin}${API_PATHS.bff.auth.github.callback}`,
     });
     if (!identity.githubUserId) {

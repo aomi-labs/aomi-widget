@@ -20,6 +20,12 @@ export const API_PATHS = {
         devSession: `${BFF}/auth/github/dev-session`,
       },
     },
+    cli: {
+      login: `${BFF}/cli/login`,
+      callback: `${BFF}/cli/callback`,
+      exchange: `${BFF}/cli/exchange`,
+      status: `${BFF}/cli/status`,
+    },
     launch: {
       preflight: `${BFF}/launch/preflight`,
       deploy: `${BFF}/launch/deploy`,

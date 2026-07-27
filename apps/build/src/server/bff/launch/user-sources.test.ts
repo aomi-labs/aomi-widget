@@ -15,6 +15,7 @@ vi.mock("@aomi-labs/account", () => ({
 const getGitHubSession = vi.fn();
 vi.mock("@build/server/cookies/github", () => ({
   getGitHubSession: () => getGitHubSession(),
+  getGitHubSessionFromRequest: () => getGitHubSession(),
 }));
 
 function req() {
