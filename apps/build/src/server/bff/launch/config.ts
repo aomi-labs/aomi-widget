@@ -99,3 +99,13 @@ export function launchConfig(): LaunchConfig {
     targetTags: envList("APP_DEPLOY_TARGET_TAGS"),
   };
 }
+
+export function resolveLaunchPlatform(
+  value: unknown,
+  config = launchConfig(),
+): string | null {
+  if (value === undefined) return config.platform;
+  if (typeof value !== "string") return null;
+  const platform = value.trim();
+  return config.platforms.includes(platform) ? platform : null;
+}

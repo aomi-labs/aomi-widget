@@ -1,8 +1,32 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { readGitHubCliLoginRequest } from "@build/server/cookies/github";
-import { CLI_LOGIN_REQUEST_COOKIE, GET } from "./route";
+import {
+  readGitHubCliExchange,
+  readGitHubOAuthRequest,
+} from "@build/server/cookies/github";
+import { GITHUB_OAUTH_REQUEST_COOKIE } from "@build/server/github-auth";
+import { GET } from "./route";
+
+const { getGitHubSession } = vi.hoisted(() => ({
+  getGitHubSession: vi.fn(),
+}));
+vi.mock("@build/server/cookies/github", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@build/server/cookies/github")>();
+  return {
+    ...actual,
+    getGitHubSession: () => getGitHubSession(),
+  };
+});
+
+function loginUrl() {
+  const url = new URL("https://build-staging.aomi.dev/api/bff/cli/login");
+  url.searchParams.set("redirect_uri", "http://127.0.0.1:43210/callback");
+  url.searchParams.set("state", "s".repeat(43));
+  url.searchParams.set("code_challenge", "c".repeat(43));
+  return url;
+}
 
 describe("CLI browser login", () => {
   beforeEach(() => {
@@ -10,40 +34,53 @@ describe("CLI browser login", () => {
       "PORTAL_ONLY_SESSION_SECRET",
       "test-only-session-secret-that-is-long-enough",
     );
+    getGitHubSession.mockReset();
   });
 
   it("rejects non-loopback callback URLs", async () => {
-    const url = new URL("https://build-staging.aomi.dev/api/bff/cli/login");
+    const url = loginUrl();
     url.searchParams.set("redirect_uri", "https://attacker.example/callback");
-    url.searchParams.set("state", "s".repeat(43));
-    url.searchParams.set("code_challenge", "c".repeat(43));
 
     const response = await GET(new Request(url));
     expect(response.status).toBe(400);
   });
 
-  it("binds the exact loopback callback, state, and PKCE challenge", async () => {
-    const redirectUri = "http://127.0.0.1:43210/callback";
-    const state = "s".repeat(43);
-    const codeChallenge = "c".repeat(43);
-    const url = new URL("https://build-staging.aomi.dev/api/bff/cli/login");
-    url.searchParams.set("redirect_uri", redirectUri);
-    url.searchParams.set("state", state);
-    url.searchParams.set("code_challenge", codeChallenge);
+  it("reuses the existing Build browser session without opening GitHub", async () => {
+    getGitHubSession.mockResolvedValue({
+      githubUserId: "42",
+      githubLogin: "alice",
+    });
 
-    const response = await GET(new Request(url));
-    expect(response.status).toBe(307);
+    const response = await GET(new Request(loginUrl()));
+    const redirect = new URL(response.headers.get("location")!);
+    expect(redirect.origin).toBe("http://127.0.0.1:43210");
+    expect(redirect.searchParams.get("state")).toBe("s".repeat(43));
+    await expect(
+      readGitHubCliExchange(redirect.searchParams.get("code") ?? undefined),
+    ).resolves.toMatchObject({
+      session: { githubUserId: "42", githubLogin: "alice" },
+      codeChallenge: "c".repeat(43),
+    });
+  });
+
+  it("sends signed-out users through the existing GitHub callback", async () => {
+    getGitHubSession.mockResolvedValue(null);
+
+    const response = await GET(new Request(loginUrl()));
     const authorize = new URL(response.headers.get("location")!);
     expect(authorize.origin).toBe("https://github.com");
     expect(authorize.searchParams.get("redirect_uri")).toBe(
-      "https://build-staging.aomi.dev/api/bff/cli/callback",
+      "https://build-staging.aomi.dev/api/bff/auth/github/callback",
     );
 
-    const cookie = response.cookies.get(CLI_LOGIN_REQUEST_COOKIE)?.value;
-    await expect(readGitHubCliLoginRequest(cookie)).resolves.toEqual({
-      redirectUri,
-      state,
-      codeChallenge,
+    const cookie = response.cookies.get(GITHUB_OAUTH_REQUEST_COOKIE)?.value;
+    await expect(readGitHubOAuthRequest(cookie)).resolves.toMatchObject({
+      continuation: {
+        kind: "cli",
+        redirectUri: "http://127.0.0.1:43210/callback",
+        state: "s".repeat(43),
+        codeChallenge: "c".repeat(43),
+      },
     });
   });
 });

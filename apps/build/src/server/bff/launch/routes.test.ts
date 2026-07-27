@@ -6,6 +6,7 @@ import {
   deploymentFeedRoute,
   deploymentRecordsRoute,
   deploymentPromoteRoute,
+  deploymentSecretsWriteRoute,
   activateLaunchRoute,
   launchAppRoute,
   launchDeployRoute,
@@ -27,7 +28,10 @@ vi.mock("@aomi-labs/account", () => ({
 const getGitHubSession = vi.fn();
 vi.mock("@build/server/cookies/github", () => ({
   getGitHubSession: () => getGitHubSession(),
-  getGitHubSessionFromRequest: () => getGitHubSession(),
+  getGitHubCliSessionFromRequest: (request: Request) =>
+    request.headers.get("authorization") === "Bearer cli-session"
+      ? getGitHubSession()
+      : null,
 }));
 
 function writeReq(body: unknown) {
@@ -35,6 +39,17 @@ function writeReq(body: unknown) {
     method: "POST",
     headers: {
       origin: "http://localhost:3000",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+}
+
+function cliWriteReq(path: string, body: unknown) {
+  return new Request(`http://localhost:3000${path}`, {
+    method: "POST",
+    headers: {
+      authorization: "Bearer cli-session",
       "Content-Type": "application/json",
     },
     body: JSON.stringify(body),
@@ -161,6 +176,60 @@ function latestDeploymentResponse(platformRepo: string) {
     },
   });
 }
+
+describe("CLI bearer scope", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    getGitHubSession.mockReset();
+  });
+
+  it("does not authorize browser-only secret or promotion writes", async () => {
+    getGitHubSession.mockResolvedValue({
+      githubUserId: "42",
+      githubLogin: "alice",
+    });
+
+    const secrets = await deploymentSecretsWriteRoute(
+      cliWriteReq("/api/bff/deployments/secrets", {
+        app: "my-bot",
+        appSourceId: 42,
+        secrets: { API_KEY: "secret" },
+      }),
+    );
+    const promote = await deploymentPromoteRoute(
+      cliWriteReq("/api/bff/deployments/promote", {
+        deploymentId: "dep_1",
+        appSourceId: 42,
+      }),
+    );
+
+    expect(secrets.status).toBe(403);
+    expect(promote.status).toBe(403);
+  });
+
+  it("does not let an invalid bearer bypass browser CSRF on CLI routes", async () => {
+    getGitHubSession.mockResolvedValue({
+      githubUserId: "42",
+      githubLogin: "alice",
+    });
+
+    const res = await launchDeployRoute(false)(
+      new Request("http://localhost:3000/api/bff/deployments/deploy", {
+        method: "POST",
+        headers: {
+          authorization: "Bearer invalid",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          appSourceId: 42,
+          sourceRef: "abc1234",
+        }),
+      }),
+    );
+
+    expect(res.status).toBe(403);
+  });
+});
 
 describe("launchDeployRoute", () => {
   beforeEach(() => {
@@ -389,7 +458,7 @@ describe("launchDeployRoute", () => {
       repo: "alice/bot",
       appSourceId: 777,
       projectUrl:
-        "http://localhost:3000/projects/777?tab=deployments",
+        "http://localhost:3000/projects/777?platform=community&tab=deployments",
     });
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
@@ -441,7 +510,7 @@ describe("launchDeployRoute", () => {
 
     expect(res.status).toBe(202);
     expect(body.projectUrl).toBe(
-      "https://build-staging.aomi.dev/projects/777?tab=deployments",
+      "https://build-staging.aomi.dev/projects/777?platform=somm.finance&tab=deployments",
     );
     expect(String(fetchMock.mock.calls[0][0])).toContain(
       "platform=somm.finance",
@@ -554,9 +623,11 @@ describe("launchSdkStatusRoute", () => {
   it("prints the configured backend URL in the local SDK repair command", async () => {
     vi.stubEnv("BACKEND_URL", "");
     vi.stubEnv("NEXT_PUBLIC_BACKEND_URL", "https://api.example.test/");
-    const fetchMock = vi.fn().mockResolvedValueOnce(
-      Response.json({ server_tags: ["staging"], sdk_version: "3.0.2" }),
-    );
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        Response.json({ server_tags: ["staging"], sdk_version: "3.0.2" }),
+      );
     vi.stubGlobal("fetch", fetchMock);
 
     const res = await launchSdkStatusRoute(

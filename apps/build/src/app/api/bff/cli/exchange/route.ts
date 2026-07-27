@@ -1,10 +1,7 @@
 import { createHash } from "crypto";
 import { NextResponse } from "next/server";
 
-import {
-  issueGitHubCliSession,
-  readGitHubCliExchange,
-} from "@build/server/cookies/github";
+import { readGitHubCliExchange } from "@build/server/cookies/github";
 
 export const runtime = "nodejs";
 
@@ -43,7 +40,7 @@ export async function POST(req: Request) {
   }
 
   return NextResponse.json({
-    accessToken: await issueGitHubCliSession(exchange.session),
+    accessToken: exchange.accessToken,
     tokenType: "Bearer",
     expiresIn: 7 * 24 * 60 * 60,
     githubLogin: exchange.session.githubLogin,

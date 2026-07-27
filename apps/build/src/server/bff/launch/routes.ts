@@ -5,13 +5,14 @@ import { NextResponse } from "next/server";
 import { deploymentClient } from "@build/server/bff/backend";
 import { configuredBackendUrl } from "@build/server/backend-url";
 import { launchErrorResponse } from "./errors";
-import { launchConfig } from "./config";
+import { launchConfig, resolveLaunchPlatform } from "./config";
 import { appNamesFromDeployment, releaseTagsFromDeployment } from "./mappers";
 import { checkRateLimit, getClientIp } from "@build/lib/rate-limit";
 import { validateOrigin } from "@build/lib/csrf";
 import {
+  type GitHubCliScope,
+  getGitHubCliSessionFromRequest,
   getGitHubSession,
-  getGitHubSessionFromRequest,
 } from "@build/server/cookies/github";
 import {
   fetchReleaseSecretSlots,
@@ -41,8 +42,7 @@ function checkRead(req: Request): NextResponse | null {
 }
 
 function checkWrite(req: Request): NextResponse | null {
-  const bearer = req.headers.get("authorization")?.startsWith("Bearer ");
-  return checkRead(req) ?? (bearer || validateOrigin(req) ? null : forbidden());
+  return checkRead(req) ?? (validateOrigin(req) ? null : forbidden());
 }
 
 type GitHubSession = NonNullable<Awaited<ReturnType<typeof getGitHubSession>>>;
@@ -50,10 +50,32 @@ type DeploymentClientInstance = Awaited<ReturnType<typeof deploymentClient>>;
 
 /** Require a signed-in GitHub session; the credentials backing these writes
  *  are server-held, so origin+rate-limit alone must not authorize them. */
-async function requireSession(req: Request): Promise<
+async function requireSession(): Promise<
   { session: GitHubSession } | { response: NextResponse }
 > {
-  const session = await getGitHubSessionFromRequest(req);
+  const session = await getGitHubSession();
+  if (!session) {
+    return {
+      response: NextResponse.json(
+        { error: "not signed in with GitHub" },
+        { status: 401 },
+      ),
+    };
+  }
+  return { session };
+}
+
+async function requireCliOrBrowserSession(
+  req: Request,
+  scope: GitHubCliScope,
+  browserWrite = false,
+): Promise<{ session: GitHubSession } | { response: NextResponse }> {
+  const cliSession = await getGitHubCliSessionFromRequest(req, scope);
+  if (cliSession) return { session: cliSession };
+  if (browserWrite && !validateOrigin(req)) {
+    return { response: forbidden() };
+  }
+  const session = await getGitHubSession();
   if (!session) {
     return {
       response: NextResponse.json(
@@ -246,22 +268,29 @@ function sourceRefFromSource(source: {
   return sourceRef(source.sourceRef) ?? sourceRef(source.commitHash);
 }
 
-function requestedPlatform(
-  value: unknown,
+function requestedPlatformFromUrl(
+  req: Request,
   configured: ReturnType<typeof launchConfig>,
 ): string | null {
-  if (value === undefined) return configured.platform;
-  if (typeof value !== "string") return null;
-  const platform = value.trim();
-  return configured.platforms.includes(platform) ? platform : null;
+  return resolveLaunchPlatform(
+    new URL(req.url).searchParams.get("platform") ?? undefined,
+    configured,
+  );
+}
+
+function invalidPlatformResponse(): NextResponse {
+  return NextResponse.json(
+    { error: "unknown or unavailable `platform`" },
+    { status: 400 },
+  );
 }
 
 export function launchDeployRoute(preflight: boolean) {
   return async function POST(req: Request): Promise<NextResponse> {
-    const blocked = checkWrite(req);
+    const blocked = checkRead(req);
     if (blocked) return blocked;
 
-    const auth = await requireSession(req);
+    const auth = await requireCliOrBrowserSession(req, "deploy", true);
     if ("response" in auth) return auth.response;
     const { session } = auth;
 
@@ -298,13 +327,8 @@ export function launchDeployRoute(preflight: boolean) {
 
     try {
       const config = launchConfig();
-      const platform = requestedPlatform(body.platform, config);
-      if (!platform) {
-        return NextResponse.json(
-          { error: "unknown or unavailable `platform`" },
-          { status: 400 },
-        );
-      }
+      const platform = resolveLaunchPlatform(body.platform, config);
+      if (!platform) return invalidPlatformResponse();
       const client = await deploymentClient();
 
       // An explicit source id must belong to the signed-in user; the
@@ -402,6 +426,7 @@ export function launchDeployRoute(preflight: boolean) {
         ? await client.preflight(deployInput)
         : await client.deploy(deployInput);
       const projectUrl = new URL(`/projects/${appSourceId}`, req.url);
+      projectUrl.searchParams.set("platform", platform);
       projectUrl.searchParams.set("tab", "deployments");
       return NextResponse.json(
         {
@@ -431,7 +456,7 @@ export async function createLaunchRepoRoute(req: Request) {
 
   // The created source is owned by the signed-in GitHub user — taken from the
   // server-side session, never trusted from the client body.
-  const session = await getGitHubSessionFromRequest(req);
+  const session = await getGitHubSession();
   if (!session) {
     return NextResponse.json(
       { error: "not signed in with GitHub" },
@@ -484,7 +509,7 @@ export async function launchStatusRoute(req: Request) {
   const blocked = checkRead(req);
   if (blocked) return blocked;
 
-  const auth = await requireSession(req);
+  const auth = await requireCliOrBrowserSession(req, "deployment:read");
   if ("response" in auth) return auth.response;
   const { session } = auth;
 
@@ -498,16 +523,11 @@ export async function launchStatusRoute(req: Request) {
 
   try {
     const config = launchConfig();
-    const platform = requestedPlatform(
+    const platform = resolveLaunchPlatform(
       new URL(req.url).searchParams.get("platform") ?? undefined,
       config,
     );
-    if (!platform) {
-      return NextResponse.json(
-        { error: "unknown or unavailable `platform`" },
-        { status: 400 },
-      );
-    }
+    if (!platform) return invalidPlatformResponse();
     const client = await deploymentClient();
     // The backend resolves CI live per poll (by the deployment's recorded
     // commit, on the App installation token) and deep-links the run URL —
@@ -527,10 +547,10 @@ export async function launchStatusRoute(req: Request) {
 }
 
 export async function activateLaunchRoute(req: Request) {
-  const blocked = checkWrite(req);
+  const blocked = checkRead(req);
   if (blocked) return blocked;
 
-  const auth = await requireSession(req);
+  const auth = await requireCliOrBrowserSession(req, "activate", true);
   if ("response" in auth) return auth.response;
 
   try {
@@ -573,13 +593,8 @@ export async function activateLaunchRoute(req: Request) {
     }
 
     const config = launchConfig();
-    const platform = requestedPlatform(body.platform, config);
-    if (!platform) {
-      return NextResponse.json(
-        { error: "unknown or unavailable `platform`" },
-        { status: 400 },
-      );
-    }
+    const platform = resolveLaunchPlatform(body.platform, config);
+    if (!platform) return invalidPlatformResponse();
     const client = await deploymentClient();
     const { session } = auth;
     const source = await findOwnedSource(
@@ -641,7 +656,7 @@ export async function launchAppRoute(req: Request) {
   const blocked = checkRead(req);
   if (blocked) return blocked;
 
-  const auth = await requireSession(req);
+  const auth = await requireSession();
   if ("response" in auth) return auth.response;
   const { session } = auth;
 
@@ -727,7 +742,7 @@ export async function deploymentHistoryRoute(req: Request) {
   const blocked = checkRead(req);
   if (blocked) return blocked;
 
-  const session = await getGitHubSessionFromRequest(req);
+  const session = await getGitHubSession();
   if (!session) {
     return NextResponse.json(
       { error: "not signed in with GitHub" },
@@ -746,10 +761,12 @@ export async function deploymentHistoryRoute(req: Request) {
 
   try {
     const config = launchConfig();
+    const platform = requestedPlatformFromUrl(req, config);
+    if (!platform) return invalidPlatformResponse();
     const client = await deploymentClient();
     const deployments = await client.listUserSourceDeployments({
       githubUserId: session.githubUserId,
-      platform: config.platform,
+      platform,
       appSourceId,
       limit: Number.isSafeInteger(limit) && limit > 0 ? limit : undefined,
     });
@@ -763,7 +780,7 @@ export async function deploymentFeedRoute(req: Request) {
   const blocked = checkRead(req);
   if (blocked) return blocked;
 
-  const session = await getGitHubSessionFromRequest(req);
+  const session = await getGitHubSession();
   if (!session) {
     return NextResponse.json(
       { error: "not signed in with GitHub" },
@@ -819,7 +836,7 @@ export async function deploymentSecretsRoute(req: Request) {
   const blocked = checkRead(req);
   if (blocked) return blocked;
 
-  const session = await getGitHubSessionFromRequest(req);
+  const session = await getGitHubSession();
   if (!session) {
     return NextResponse.json(
       { error: "not signed in with GitHub" },
@@ -837,11 +854,13 @@ export async function deploymentSecretsRoute(req: Request) {
 
   try {
     const config = launchConfig();
+    const platform = requestedPlatformFromUrl(req, config);
+    if (!platform) return invalidPlatformResponse();
     const client = await deploymentClient();
     const source = await findOwnedSource(
       client,
       session.githubUserId,
-      config.platform,
+      platform,
       appSourceId,
     );
     if (!source) {
@@ -864,13 +883,14 @@ export async function deploymentSecretsWriteRoute(req: Request) {
   const blocked = checkWrite(req);
   if (blocked) return blocked;
 
-  const auth = await requireSession(req);
+  const auth = await requireSession();
   if ("response" in auth) return auth.response;
   const { session } = auth;
 
   const body = (await req.json().catch(() => ({}))) as {
     app?: unknown;
     appSourceId?: unknown;
+    platform?: unknown;
     secrets?: unknown;
   };
   const app = typeof body.app === "string" ? body.app.trim() : "";
@@ -902,12 +922,14 @@ export async function deploymentSecretsWriteRoute(req: Request) {
 
   try {
     const config = launchConfig();
+    const platform = resolveLaunchPlatform(body.platform, config);
+    if (!platform) return invalidPlatformResponse();
     const client = await deploymentClient();
     // The app must belong to a source the signed-in user owns.
     const source = await findOwnedSource(
       client,
       session.githubUserId,
-      config.platform,
+      platform,
       body.appSourceId,
     );
     if (!source || !source.apps.some((a) => a.name === app)) {
@@ -936,7 +958,7 @@ export async function deploymentSecretsDeleteRoute(req: Request) {
   const blocked = checkWrite(req);
   if (blocked) return blocked;
 
-  const auth = await requireSession(req);
+  const auth = await requireSession();
   if ("response" in auth) return auth.response;
   const { session } = auth;
 
@@ -944,6 +966,7 @@ export async function deploymentSecretsDeleteRoute(req: Request) {
     app?: unknown;
     appSourceId?: unknown;
     name?: unknown;
+    platform?: unknown;
   };
   const app = typeof body.app === "string" ? body.app.trim() : "";
   const name = typeof body.name === "string" ? body.name.trim() : "";
@@ -962,11 +985,13 @@ export async function deploymentSecretsDeleteRoute(req: Request) {
 
   try {
     const config = launchConfig();
+    const platform = resolveLaunchPlatform(body.platform, config);
+    if (!platform) return invalidPlatformResponse();
     const client = await deploymentClient();
     const source = await findOwnedSource(
       client,
       session.githubUserId,
-      config.platform,
+      platform,
       body.appSourceId,
     );
     if (!source || !source.apps.some((a) => a.name === app)) {
@@ -991,7 +1016,7 @@ export async function deploymentRecordsRoute(req: Request) {
   const blocked = checkRead(req);
   if (blocked) return blocked;
 
-  const session = await getGitHubSessionFromRequest(req);
+  const session = await getGitHubSession();
   if (!session) {
     return NextResponse.json(
       { error: "not signed in with GitHub" },
@@ -1013,11 +1038,13 @@ export async function deploymentRecordsRoute(req: Request) {
 
   try {
     const config = launchConfig();
+    const platform = requestedPlatformFromUrl(req, config);
+    if (!platform) return invalidPlatformResponse();
     const client = await deploymentClient();
     const source = await findOwnedSource(
       client,
       session.githubUserId,
-      config.platform,
+      platform,
       appSourceId,
     );
     if (!source || !source.apps.some((candidate) => candidate.name === app)) {
@@ -1027,7 +1054,7 @@ export async function deploymentRecordsRoute(req: Request) {
       );
     }
     const result = await client.listDeploymentRecords({
-      platform: config.platform,
+      platform,
       app,
       appSourceId,
     });
@@ -1041,7 +1068,7 @@ export async function deploymentPromoteRoute(req: Request) {
   const blocked = checkWrite(req);
   if (blocked) return blocked;
 
-  const auth = await requireSession(req);
+  const auth = await requireSession();
   if ("response" in auth) return auth.response;
   const { session } = auth;
 
@@ -1050,6 +1077,7 @@ export async function deploymentPromoteRoute(req: Request) {
     appSourceId?: unknown;
     apps?: unknown;
     actor?: string;
+    platform?: unknown;
   };
   if (!isValidDeploymentId(body.deploymentId)) {
     return NextResponse.json(
@@ -1073,6 +1101,8 @@ export async function deploymentPromoteRoute(req: Request) {
 
   try {
     const config = launchConfig();
+    const platform = resolveLaunchPlatform(body.platform, config);
+    if (!platform) return invalidPlatformResponse();
     const client = await deploymentClient();
 
     // Authorize the promote target against the signed-in user: the source
@@ -1083,7 +1113,7 @@ export async function deploymentPromoteRoute(req: Request) {
     const source = await findOwnedSource(
       client,
       session.githubUserId,
-      config.platform,
+      platform,
       appSourceId,
     );
     if (!source) {
@@ -1092,7 +1122,7 @@ export async function deploymentPromoteRoute(req: Request) {
         { status: 404 },
       );
     }
-    const known = await sourceDeploymentIds(client, config.platform, source);
+    const known = await sourceDeploymentIds(client, platform, source);
     if (!known.has(deploymentId)) {
       return NextResponse.json(
         { error: "deployment does not belong to this source" },
@@ -1108,7 +1138,7 @@ export async function deploymentPromoteRoute(req: Request) {
     // backend gate is authoritative for what's about to go live.
     const pairs = await sourceDeploymentPairs(
       client,
-      config.platform,
+      platform,
       source,
       deploymentId,
       apps,
@@ -1116,7 +1146,7 @@ export async function deploymentPromoteRoute(req: Request) {
     const missingByApp = await missingSecretsForActivation({
       client,
       githubUserId: session.githubUserId,
-      platform: config.platform,
+      platform,
       source,
       pairs,
     });
@@ -1134,7 +1164,7 @@ export async function deploymentPromoteRoute(req: Request) {
         ? body.actor
         : session.githubLogin;
     const result = await client.promote({
-      platform: config.platform,
+      platform,
       deploymentId,
       apps,
       targetTags: config.targetTags,
@@ -1150,7 +1180,7 @@ export async function deploymentDeactivateRoute(req: Request) {
   const blocked = checkWrite(req);
   if (blocked) return blocked;
 
-  const auth = await requireSession(req);
+  const auth = await requireSession();
   if ("response" in auth) return auth.response;
   const { session } = auth;
 
@@ -1158,6 +1188,7 @@ export async function deploymentDeactivateRoute(req: Request) {
     appSourceId?: unknown;
     apps?: unknown;
     actor?: string;
+    platform?: unknown;
   };
   if (!isValidAppSourceId(body.appSourceId)) {
     return NextResponse.json(
@@ -1178,12 +1209,14 @@ export async function deploymentDeactivateRoute(req: Request) {
 
   try {
     const config = launchConfig();
+    const platform = resolveLaunchPlatform(body.platform, config);
+    if (!platform) return invalidPlatformResponse();
     const client = await deploymentClient();
     if (
       !(await ownsAppSource(
         client,
         session.githubUserId,
-        config.platform,
+        platform,
         body.appSourceId,
       ))
     ) {
@@ -1198,7 +1231,7 @@ export async function deploymentDeactivateRoute(req: Request) {
         : session.githubLogin;
     for (const app of apps) {
       await client.deactivateApp({
-        platform: config.platform,
+        platform,
         app,
         appSourceId: body.appSourceId,
         actor,
@@ -1214,7 +1247,7 @@ export async function redeployLaunchRoute(req: Request) {
   const blocked = checkWrite(req);
   if (blocked) return blocked;
 
-  const session = await getGitHubSessionFromRequest(req);
+  const session = await getGitHubSession();
   if (!session) {
     return NextResponse.json(
       { error: "not signed in with GitHub" },
@@ -1232,10 +1265,12 @@ export async function redeployLaunchRoute(req: Request) {
 
   try {
     const config = launchConfig();
+    const platform = resolveLaunchPlatform(body.platform, config);
+    if (!platform) return invalidPlatformResponse();
     const client = await deploymentClient();
     const latest = await client.getUserSourceLatestDeployment({
       githubUserId: session.githubUserId,
-      platform: config.platform,
+      platform,
       appSourceId: body.appSourceId,
     });
     const deploymentId = latest?.deploymentId ?? null;
@@ -1252,7 +1287,7 @@ export async function redeployLaunchRoute(req: Request) {
     // The backend re-runs the Actions run behind the deployment's recorded
     // commit on its App installation token; no GitHub token in this layer.
     const rerun = await client.rerunDeployment({
-      platform: config.platform,
+      platform,
       deploymentId,
       githubUserId: session.githubUserId,
     });
@@ -1275,7 +1310,7 @@ export async function userSourcesRoute(req: Request) {
   const blocked = checkRead(req);
   if (blocked) return blocked;
 
-  const session = await getGitHubSessionFromRequest(req);
+  const session = await getGitHubSession();
   if (!session) {
     return NextResponse.json(
       { error: "not signed in with GitHub" },
@@ -1285,10 +1320,12 @@ export async function userSourcesRoute(req: Request) {
 
   try {
     const config = launchConfig();
+    const platform = requestedPlatformFromUrl(req, config);
+    if (!platform) return invalidPlatformResponse();
     const client = await deploymentClient();
     const sources = await client.listUserSources({
       githubUserId: session.githubUserId,
-      platform: config.platform,
+      platform,
     });
     return NextResponse.json({ sources, githubLogin: session.githubLogin });
   } catch (err) {
@@ -1306,7 +1343,7 @@ export async function requiredSecretsRoute(req: Request) {
   const blocked = checkRead(req);
   if (blocked) return blocked;
 
-  const auth = await requireSession(req);
+  const auth = await requireSession();
   if ("response" in auth) return auth.response;
   const { session } = auth;
 
@@ -1320,11 +1357,13 @@ export async function requiredSecretsRoute(req: Request) {
 
   try {
     const config = launchConfig();
+    const platform = requestedPlatformFromUrl(req, config);
+    if (!platform) return invalidPlatformResponse();
     const client = await deploymentClient();
     const source = await findOwnedSource(
       client,
       session.githubUserId,
-      config.platform,
+      platform,
       appSourceId,
     );
     if (!source) {
@@ -1348,7 +1387,7 @@ export async function requiredSecretsRoute(req: Request) {
       try {
         const latest = await client.getUserSourceLatestDeployment({
           githubUserId: session.githubUserId,
-          platform: config.platform,
+          platform,
           appSourceId: source.id,
         });
         platformRepo = latest?.platformRepo ?? undefined;

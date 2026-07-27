@@ -2,14 +2,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
-  getGitHubSessionFromRequest,
+  getGitHubCliSessionFromRequest,
   issueGitHubCliExchange,
-  issueGitHubCliLoginRequest,
   issueGitHubCliSession,
+  issueGitHubOAuthRequest,
   issueGitHubSession,
   readGitHubCliExchange,
-  readGitHubCliLoginRequest,
   readGitHubCliSession,
+  readGitHubOAuthRequest,
 } from "./github";
 
 const session = {
@@ -26,16 +26,18 @@ describe("GitHub CLI sessions", () => {
     );
   });
 
-  it("accepts a CLI bearer and preserves the verified GitHub identity", async () => {
+  it("accepts only the explicitly required CLI scopes", async () => {
     const token = await issueGitHubCliSession(session);
+    const request = new Request(
+      "https://build.example.test/api/bff/cli/status",
+      { headers: { authorization: `Bearer ${token}` } },
+    );
 
-    await expect(readGitHubCliSession(token)).resolves.toEqual(session);
+    await expect(readGitHubCliSession(token, "deploy")).resolves.toEqual(
+      session,
+    );
     await expect(
-      getGitHubSessionFromRequest(
-        new Request("https://build.example.test/api/bff/cli/status", {
-          headers: { authorization: `Bearer ${token}` },
-        }),
-      ),
+      getGitHubCliSessionFromRequest(request, "activate"),
     ).resolves.toEqual(session);
   });
 
@@ -44,20 +46,28 @@ describe("GitHub CLI sessions", () => {
     await expect(readGitHubCliSession(browserToken)).resolves.toBeNull();
   });
 
-  it("round-trips signed PKCE login and exchange state", async () => {
-    const login = {
-      redirectUri: "http://127.0.0.1:43210/callback",
-      state: "s".repeat(43),
-      codeChallenge: "c".repeat(43),
+  it("round-trips the shared OAuth continuation", async () => {
+    const request = {
+      oauthState: "oauth-state",
+      continuation: {
+        kind: "cli" as const,
+        redirectUri: "http://127.0.0.1:43210/callback",
+        state: "s".repeat(43),
+        codeChallenge: "c".repeat(43),
+      },
     };
-    const loginToken = await issueGitHubCliLoginRequest(login);
-    await expect(readGitHubCliLoginRequest(loginToken)).resolves.toEqual(login);
 
-    const exchange = { session, codeChallenge: login.codeChallenge };
-    const exchangeToken = await issueGitHubCliExchange(exchange);
-    await expect(readGitHubCliExchange(exchangeToken)).resolves.toEqual(
-      exchange,
-    );
-    await expect(readGitHubCliSession(exchangeToken)).resolves.toBeNull();
+    const token = await issueGitHubOAuthRequest(request);
+    await expect(readGitHubOAuthRequest(token)).resolves.toEqual(request);
+  });
+
+  it("makes repeated PKCE exchanges idempotent", async () => {
+    const code = await issueGitHubCliExchange(session, "c".repeat(43));
+    const first = await readGitHubCliExchange(code);
+    const second = await readGitHubCliExchange(code);
+
+    expect(first).not.toBeNull();
+    expect(second).toEqual(first);
+    expect(first?.accessToken).toBe(second?.accessToken);
   });
 });

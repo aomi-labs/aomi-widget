@@ -717,3 +717,8 @@ build`, `CI=true npx -y pnpm@10.28.0 install --frozen-lockfile`, and
   made the exact `core-sdk` and `user-management-client` versions available
   from the workspace root so Para's nested packages resolve them in clean pnpm
   installs, then reproduced the production Telegram build.
+- 2026-07-26 Builder CLI authentication cleanup: reused the existing Build
+  GitHub OAuth callback for CLI authorization, limited CLI sessions to deploy,
+  deployment-status, and activate scopes, made exchange retries idempotent,
+  and preserved partner platforms in project links and detail lookups. Verified
+  type-check, lint, all 331 Build tests, and the production Build bundle.
