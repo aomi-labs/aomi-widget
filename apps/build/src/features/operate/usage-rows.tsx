@@ -6,6 +6,7 @@
 
 import Link from "next/link";
 import {
+  chainLabel,
   secondsLabel,
   signedUsdLabel,
   statementPeriodLabel,
@@ -19,6 +20,14 @@ type Row = Record<string, any>;
 
 const TH = "px-3 py-2 text-left text-xs uppercase text-dim font-medium";
 const TD = "px-3 py-2";
+
+function beneficiaryChainLabel(value: unknown): string {
+  const raw = String(value ?? "");
+  const chainId = Number(raw.split(":")[1]);
+  return raw.startsWith("eip155:") && Number.isSafeInteger(chainId)
+    ? chainLabel({ chainId })
+    : raw;
+}
 
 function Card({
   title,
@@ -129,7 +138,10 @@ function PartnerPayments({ payments }: { payments: Row }) {
                         {truncateAddress(resource.recipient)}
                       </div>
                       <div className="text-dim text-xs">
-                        {[resource.beneficiary, resource.chain]
+                        {[
+                          resource.beneficiary,
+                          beneficiaryChainLabel(resource.chain),
+                        ]
                           .filter(Boolean)
                           .join(" · ")}
                       </div>
