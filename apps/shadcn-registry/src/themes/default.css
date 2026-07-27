@@ -64,6 +64,31 @@
   }
   --animate-shimmer: shimmer-sweep var(--shimmer-duration, 1000ms) linear
     infinite both;
+
+  /* Aomi design-system utilities (bg-aomi-surface, text-aomi-muted, …). */
+  --color-aomi-bg: var(--aomi-bg);
+  --color-aomi-surface: var(--aomi-surface);
+  --color-aomi-surface-2: var(--aomi-surface-2);
+  --color-aomi-raised: var(--aomi-raised);
+  --color-aomi-border: var(--aomi-border);
+  --color-aomi-fg: var(--aomi-fg);
+  --color-aomi-muted: var(--aomi-muted);
+  --color-aomi-accent: var(--aomi-accent);
+  --color-aomi-accent-strong: var(--aomi-accent-strong);
+  --color-aomi-accent-subtle: var(--aomi-accent-subtle);
+  --color-aomi-on-accent: var(--aomi-on-accent);
+  --color-aomi-hover: var(--aomi-hover);
+  --color-aomi-pink: var(--aomi-pink);
+  --color-aomi-success: var(--aomi-success);
+  --color-aomi-warning: var(--aomi-warning);
+  --color-aomi-danger: var(--aomi-danger);
+  --color-aomi-danger-strong: var(--aomi-danger-strong);
+  --color-aomi-on-danger: var(--aomi-on-danger);
+  --color-aomi-info: var(--aomi-info);
+  --color-aomi-ring: var(--aomi-ring);
+  --color-aomi-accent-tint: var(--aomi-accent-tint);
+  --color-aomi-accent-outline: var(--aomi-accent-outline);
+  --color-aomi-overlay-border: var(--aomi-overlay-border);
 }
 
 /* ============================================
@@ -109,8 +134,52 @@
   --sidebar-accent-foreground: oklch(0.21 0.006 285.885);
   --sidebar-border: oklch(0.92 0.004 286.32);
   --sidebar-ring: oklch(0.705 0.015 286.067);
-  --aomi-welcome-title: oklch(0.42 0.006 285.823);
-  --aomi-welcome-subtitle: oklch(0.68 0.012 286);
+
+  /* ------------------------------------------------------------------------
+     Aomi design-system tokens (source of truth: aomi-design tokens.css).
+     One complete semantic set under the `aomi-*` namespace — redesigned
+     surfaces are built ONLY from these, never mixed with the shadcn theme
+     vocabulary. Cool, flat, editorial: ink text, sky interactive accent,
+     pink decorative pop, no shadows. Light-first; `.dark` overrides below.
+     ---------------------------------------------------------------------- */
+
+  /* surfaces — cool (zinc) ramp */
+  --aomi-bg: #ffffff; /* cool-0 */
+  --aomi-surface: #fafafa; /* cool-50 */
+  --aomi-surface-2: #f4f4f5; /* cool-100 */
+  --aomi-raised: #ffffff; /* floating panels: menus, tooltips */
+  --aomi-border: #e4e4e7; /* cool-200 */
+
+  /* text */
+  --aomi-fg: #09090b; /* cool-950 — "ink" */
+  --aomi-muted: #71717a; /* cool-500 */
+
+  /* accent — sky, THE interactive accent */
+  --aomi-accent: #5288c2; /* sky-500 */
+  --aomi-accent-strong: #416cac; /* deep sky · active */
+  --aomi-accent-subtle: #e2eef8; /* sky-100 · selected fills */
+  --aomi-on-accent: #ffffff;
+
+  /* state + decorative + status */
+  --aomi-hover: #f4f4f5; /* cool-100 · hover fill — one step off white so it
+                            stays quiet on menus and list rows alike */
+  --aomi-pink: #df5d90; /* pink-500 · decorative meters/pops */
+  --aomi-success: #2e9e6b;
+  --aomi-warning: #d9982b;
+  /* Focus: one ring for the whole system, so no surface falls back to the
+     browser's default outline. */
+  --aomi-ring: var(--aomi-accent);
+
+  /* Alpha tints — the accent/10 + accent/45 pair and the overlay hairline
+     recurred across chips, tinted buttons and menus as ad-hoc opacities. */
+  --aomi-accent-tint: color-mix(in srgb, var(--aomi-accent) 10%, transparent);
+  --aomi-accent-outline: color-mix(in srgb, var(--aomi-accent) 45%, transparent);
+  --aomi-overlay-border: color-mix(in srgb, var(--aomi-muted) 30%, transparent);
+
+  --aomi-danger: #d2495b; /* text + outline */
+  --aomi-danger-strong: #b8394a; /* fills — white on #d2495b is only 4.3:1 */
+  --aomi-on-danger: #ffffff;
+  --aomi-info: #416cac;
 }
 
 /* ============================================
@@ -149,8 +218,27 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.552 0.016 285.938);
-  --aomi-welcome-title: oklch(0.88 0.004 286);
-  --aomi-welcome-subtitle: oklch(0.68 0.012 286);
+
+  /* Aomi design-system tokens — dark overrides. */
+  --aomi-bg: #09090b;
+  --aomi-surface: #18181b; /* cool-900 */
+  --aomi-surface-2: #27272a; /* cool-800 */
+  --aomi-raised: #27272a; /* panels lift, not sink, on dark */
+  --aomi-border: #27272a;
+
+  --aomi-fg: #fafafa;
+  --aomi-muted: #a1a1aa; /* cool-400 */
+
+  --aomi-accent: #7facd6; /* sky-400 on dark */
+  --aomi-accent-strong: #5288c2;
+  --aomi-accent-subtle: #242e3c; /* sky tint over cool-900 */
+  --aomi-on-accent: #09090b;
+
+  --aomi-hover: #3f3f46; /* cool-700 — must out-step surface-2/raised (#27272a),
+                            or hover is invisible on menus */
+  --aomi-pink: #e77ba6; /* pink-400 — lifted for dark */
+  --aomi-danger: #e2687a; /* lifted so it carries on the dark ground */
+  --aomi-danger-strong: #c34255;
 }
 
 /* ============================================
@@ -160,6 +248,14 @@
 @layer base {
   * {
     @apply border-border outline-ring/50;
+  }
+
+  /* One focus ring for every interactive element. Wrapped in :where() so it
+     contributes no specificity — any component that wants its own focus
+     treatment still wins, but nothing falls through to the browser default. */
+  :where(a, button, input, select, textarea, summary, [role="switch"], [tabindex]:not([tabindex="-1"])):focus-visible {
+    outline: 2px solid var(--aomi-ring);
+    outline-offset: 2px;
   }
 
   :root {
@@ -289,11 +385,11 @@
 .aui-working-shimmer {
   background-image: linear-gradient(
     100deg,
-    var(--muted-foreground) 0%,
-    var(--muted-foreground) 20%,
-    var(--foreground) 50%,
-    var(--muted-foreground) 80%,
-    var(--muted-foreground) 100%
+    var(--aomi-muted, var(--muted-foreground)) 0%,
+    var(--aomi-muted, var(--muted-foreground)) 20%,
+    var(--aomi-fg, var(--foreground)) 50%,
+    var(--aomi-muted, var(--muted-foreground)) 80%,
+    var(--aomi-muted, var(--muted-foreground)) 100%
   );
   background-size: 50% 100%;
   background-repeat: repeat;
@@ -333,12 +429,12 @@
 .aui-working-trace-edge-fade-top {
   background: linear-gradient(
     to bottom,
-    var(--background) 0%,
-    color-mix(in oklch, var(--background) 92%, transparent) 14%,
-    color-mix(in oklch, var(--background) 76%, transparent) 32%,
-    color-mix(in oklch, var(--background) 54%, transparent) 52%,
-    color-mix(in oklch, var(--background) 31%, transparent) 70%,
-    color-mix(in oklch, var(--background) 13%, transparent) 86%,
+    var(--aomi-bg, var(--background)) 0%,
+    color-mix(in oklch, var(--aomi-bg, var(--background)) 92%, transparent) 14%,
+    color-mix(in oklch, var(--aomi-bg, var(--background)) 76%, transparent) 32%,
+    color-mix(in oklch, var(--aomi-bg, var(--background)) 54%, transparent) 52%,
+    color-mix(in oklch, var(--aomi-bg, var(--background)) 31%, transparent) 70%,
+    color-mix(in oklch, var(--aomi-bg, var(--background)) 13%, transparent) 86%,
     transparent 100%
   );
 }
@@ -346,12 +442,12 @@
 .aui-working-trace-edge-fade-bottom {
   background: linear-gradient(
     to top,
-    var(--background) 0%,
-    color-mix(in oklch, var(--background) 92%, transparent) 14%,
-    color-mix(in oklch, var(--background) 76%, transparent) 32%,
-    color-mix(in oklch, var(--background) 54%, transparent) 52%,
-    color-mix(in oklch, var(--background) 31%, transparent) 70%,
-    color-mix(in oklch, var(--background) 13%, transparent) 86%,
+    var(--aomi-bg, var(--background)) 0%,
+    color-mix(in oklch, var(--aomi-bg, var(--background)) 92%, transparent) 14%,
+    color-mix(in oklch, var(--aomi-bg, var(--background)) 76%, transparent) 32%,
+    color-mix(in oklch, var(--aomi-bg, var(--background)) 54%, transparent) 52%,
+    color-mix(in oklch, var(--aomi-bg, var(--background)) 31%, transparent) 70%,
+    color-mix(in oklch, var(--aomi-bg, var(--background)) 13%, transparent) 86%,
     transparent 100%
   );
 }

@@ -832,12 +832,12 @@ export function WalletPicker() {
         type="button"
         aria-label="Close"
         onClick={closePicker}
-        className="absolute inset-0 cursor-default bg-slate-950/25 backdrop-blur-sm dark:bg-black/45"
+        className="absolute inset-0 cursor-default bg-black/50"
       />
       <div
         className={cn(
           "relative z-10 flex max-h-[min(720px,92vh)] w-full max-w-[430px] flex-col overflow-hidden",
-          "border-border/80 bg-popover text-popover-foreground rounded-[24px] border text-left shadow-2xl ring-1 ring-black/[0.03]",
+          "border-aomi-border bg-aomi-raised text-aomi-fg rounded-2xl border text-left",
           "animate-in zoom-in-95 fade-in-0 duration-200",
         )}
       >
@@ -886,7 +886,7 @@ export function WalletPicker() {
                   type="button"
                   onClick={closePicker}
                   aria-label="Close"
-                  className="text-muted-foreground hover:bg-muted hover:text-foreground flex size-8 items-center justify-center rounded-full transition-colors"
+                  className="bg-aomi-surface-2 text-aomi-muted hover:bg-aomi-hover hover:text-aomi-fg flex size-8 items-center justify-center rounded-full transition-colors"
                 >
                   <XIcon className="size-4" />
                 </button>
@@ -1350,7 +1350,7 @@ function AccountManagerPanel({
           type="button"
           onClick={onBack}
           aria-label="Back to wallets"
-          className="text-muted-foreground hover:bg-muted hover:text-foreground flex size-8 shrink-0 items-center justify-center rounded-full transition-colors"
+          className="bg-aomi-surface-2 text-aomi-muted hover:bg-aomi-hover hover:text-aomi-fg flex size-8 shrink-0 items-center justify-center rounded-full transition-colors"
         >
           <ChevronLeftIcon className="size-4" />
         </button>
@@ -1366,7 +1366,7 @@ function AccountManagerPanel({
           type="button"
           onClick={onClose}
           aria-label="Close"
-          className="text-muted-foreground hover:bg-muted hover:text-foreground flex size-8 shrink-0 items-center justify-center rounded-full transition-colors"
+          className="bg-aomi-surface-2 text-aomi-muted hover:bg-aomi-hover hover:text-aomi-fg flex size-8 shrink-0 items-center justify-center rounded-full transition-colors"
         >
           <XIcon className="size-4" />
         </button>

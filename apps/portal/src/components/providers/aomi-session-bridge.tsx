@@ -1,7 +1,11 @@
 "use client";
 
-import { type ReactNode, useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useAomiAuthAdapter } from "@aomi-labs/widget-lib";
+import {
+  seedAccountOverview,
+  type AccountOverview,
+} from "@portal/lib/account-overview";
 
 const SESSION_RETRY_BUDGET_MS = 30_000;
 const SESSION_RETRY_BASE_DELAY_MS = 300;
@@ -14,10 +18,6 @@ export type AomiSessionStatus =
   | "error"
   | "ready";
 
-export function AomiSessionProvider({ children }: { children: ReactNode }) {
-  return <>{children}</>;
-}
-
 export function useAomiSession(): {
   status: AomiSessionStatus;
   retry: () => void;
@@ -29,12 +29,29 @@ export function useAomiSession(): {
   const [probeStatus, setProbeStatus] =
     useState<AomiSessionStatus>("establishing");
   const [probeAttempt, setProbeAttempt] = useState(0);
+  // A provider whose account exchange never settles (accountStatus stuck on
+  // "loading") must not hold the gate on "Connecting…" forever — after this
+  // deadline we probe /api/account anyway and let its answer decide.
+  const [adapterWaitExpired, setAdapterWaitExpired] = useState(false);
+
+  const adapterSettling =
+    adapterStatus === "booting" ||
+    (adapterStatus === "connected" && accountStatus === "loading");
 
   useEffect(() => {
-    if (
-      adapterStatus === "booting" ||
-      (adapterStatus === "connected" && accountStatus === "loading")
-    ) {
+    if (!adapterSettling) {
+      setAdapterWaitExpired(false);
+      return;
+    }
+    const timer = globalThis.setTimeout(
+      () => setAdapterWaitExpired(true),
+      15_000,
+    );
+    return () => globalThis.clearTimeout(timer);
+  }, [adapterSettling]);
+
+  useEffect(() => {
+    if (adapterSettling && !adapterWaitExpired) {
       setProbeStatus("establishing");
       return;
     }
@@ -54,6 +71,13 @@ export function useAomiSession(): {
           });
           if (cancelled) return;
           if (response.ok) {
+            // The probe already paid for the account payload — share it so
+            // the settings tabs don't refetch /api/account individually.
+            try {
+              seedAccountOverview((await response.json()) as AccountOverview);
+            } catch {
+              // Non-JSON body; consumers fetch on demand instead.
+            }
             setProbeStatus("ready");
             return;
           }
@@ -64,6 +88,7 @@ export function useAomiSession(): {
           ) {
             setProbeStatus("establishing");
           } else if (response.status === 401) {
+            seedAccountOverview(null);
             setProbeStatus("anonymous");
             return;
           } else {
@@ -91,7 +116,14 @@ export function useAomiSession(): {
     return () => {
       cancelled = true;
     };
-  }, [adapterStatus, accountStatus, accountUserId, probeAttempt]);
+  }, [
+    adapterSettling,
+    adapterStatus,
+    accountStatus,
+    accountUserId,
+    adapterWaitExpired,
+    probeAttempt,
+  ]);
 
   const retry = useCallback(() => {
     setProbeAttempt((attempt) => attempt + 1);

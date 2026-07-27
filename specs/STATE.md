@@ -2,6 +2,221 @@
 
 ## Last Updated
 
+2026-07-26 (later) — Fixtures solved: Packages + Usage wired to live data
+  (branch `worktree-settings-redesign`; backend twin in product-mono worktree
+  `account-acl-be`, uncommitted).
+
+  **Packages** — catalog from `GET /api/account/apps`, installed set from the
+  profile's `user.apps`, install/remove via a NEW backend
+  `PUT /api/account/apps` (full-replace of `users.applications`; names
+  validated against the account's own visible catalog; `default` pinned).
+  FE: `components/shell/packages-api.ts` + rewired `packages-modal.tsx`
+  (brand decoration is now a `DECOR` lookup keyed by app name — real rows,
+  decorated when known, monogram under "More" otherwise). Not optimistic.
+
+  **Usage/statement (model subject)** — NEW backend
+  `GET /api/account/statement?from_date&to_date`:
+  `DbLlmUsageEvent::get_model_usage` (per app × model × payment_method over
+  `llm_usage_events` — the daily rollup drops the model column, so this reads
+  events; attribution mirrors `get_ranged_usage`, partner-fee rows excluded;
+  DB-proven by `model_usage_groups_per_model_and_scopes_to_the_user`) +
+  `aomi_account::model_statement` (statement assembly lives in the shared
+  crate per the account extraction). USD via `AomiCredit::to_usd` — no FE
+  pricing constant.
+  FE: `features/usage/statement-api.ts` (wire→`MonthlyStatement` adapter),
+  `use-usage-statement.ts` (per-month fetch + cache, allowance from the
+  profile's embedded UsageStats), rewired `usage-settings.tsx` and
+  `statement-view.tsx` (real identity header, real month picker).
+  HONESTY RULE: tool/outcome subjects have no ledger writer (statement_entries
+  declares them, x402 client unbuilt) — they render "—"/absent, never $0.00;
+  allowance meter only for the current month. `fixture.ts` unreferenced, kept
+  as the design harness for the unreal sections.
+
+  Verification: portal tsc clean, 295/295 vitest, eslint clean on touched
+  files, `next build` green. Backend: `cargo check -p backend` green, route
+  manifest 10/10, entities 44/44 (DATABASE_URL → local supabase :54322),
+  aomi-account 4/4, fmt applied.
+
+2026-07-26 — Zombie sweep of `apps/portal/src/app` after the FE revamp
+  (branch `worktree-settings-redesign`). Traced reachability of every page
+  (by navigation) and API route (by fetch-path across portal/build/landing/
+  packages/client/shadcn-registry). Deleted, portal type-check green:
+  - `app/device-auth-complete/page.tsx` — orphan success page, zero refs
+    (the device-auth flow redirects back to the CLI loopback, never here).
+  - `app/auth/privy/signer-grants.ts` + its test — `ensureServerSignerAccess`
+    imported only by its own test; emptied `app/auth/` entirely.
+  - `app/blog/{page.tsx,[slug]/page.tsx,content.ts}` + the now-orphaned
+    `BlogEntry` interface in `lib/utils.ts` — nothing linked `/blog`; both
+    entries' CTAs point out to Notion.
+  KEPT (Cecilia's explicit call) — the `/device-auth` + `api/aomi/device-auth/*`
+  + `lib/device-auth-grants.ts` cluster is NOT a zombie: it backs the live
+  `aomi account login` (Privy/Para) and `aomi account link --provider` CLI
+  commands (`packages/client/src/cli/commands/account.ts` →
+  `cli/device-auth.ts`). The old "accidental device-login" note referred to a
+  different, already-removed apps/base RFC-8628 flow. Also verified live and
+  left intact: the MCP cluster (`api/mcp` + `.well-known/oauth-*` +
+  `/mcp/connect`, wired via better-auth's `loginPage`/`consentPage`), the
+  `launch/*`↔`deployments/*` BFF split (both used by `features/launch/client`),
+  `/dev/widget-auth-e2e` (dev-only, `notFound()` in prod), and the `/settings`
+  redirect stub.
+
+2026-07-26 — Account tab wired to the real ACL endpoints (branch
+  `worktree-settings-redesign`). The tab was the last redesign surface running
+  on fixtures; it now reads and writes live state. New files, all under
+  `apps/portal/src/features/account/`:
+
+  - `account-api.ts` — wire types + mappers for `GET /api/account/wallets`
+    (policy axis) and `GET /api/account/grants` (capability axis), plus
+    `DELETE /api/account/providers/:provider/grant`. `linkedVia` is derived,
+    not stored: `wallet_provider` privy/para, else siwe/siws by chain. Legacy
+    `human_sync`/`agent_sync` wire values normalize to the renamed modes.
+  - `use-account-acl.ts` — the permit ceremony. `challenge` → `signTypedData`
+    (EVM) / `signSolanaMessage` (SVM, which also names its `signer` since
+    Ed25519 has no recovery) → `commit` → refetch.
+  - `account-acl.test.tsx` — route-caller + ceremony coverage (4 tests).
+
+  `account-signing.tsx` kept its design verbatim but is now controlled: no
+  local mutation, per-row busy/error, and **nothing optimistic** — a mode flips
+  only on the committed backend value, so a rejected signature or a failed
+  version CAS can never look applied. Mode availability now follows backend
+  truth (`can_use_auto`, `provider_managed`) instead of inferring from custody.
+  Direction (loosen vs tighten) is pre-computed client-side against the
+  kernel's rank ladder purely to explain "connect this wallet itself" before
+  the prompt — the backend still decides. The posture strip counts only
+  *active* grants; the grants list carries revoked/expired history.
+
+  Backend side of this (endpoints, Para Auto, the Privy-revocation fix) lives
+  in product-mono worktree `account-acl-be`, uncommitted.
+
+  Verification: portal type-check clean, 290/290 tests pass, eslint clean.
+  Still open (docs/SETTINGS-REDESIGN-GAPS.md): "Re-grant" routes through
+  `openAccountUI` because no server-side re-grant exists; wallet brand tags
+  need `rdns` captured at connect; Usage tab still on fixtures.
+
+2026-07-26 — Design-system pass over the redesigned surfaces, driven by a
+  component inventory review (branch `worktree-settings-redesign`). The
+  aomi-* set is now the single vocabulary AND has explicit rules behind it:
+
+  New tokens (all in the shared widget theme, apps/shadcn-registry/src/themes/default.css):
+  - `--aomi-ring` + a `:where(...):focus-visible` rule so no surface falls
+    back to the browser's default outline. Zero specificity, so components
+    can still override.
+  - `--aomi-accent-tint` / `--aomi-accent-outline` / `--aomi-overlay-border`
+    replace 15 ad-hoc `/10` `/40` `/50` `/30` opacities in component code.
+  - `--aomi-danger-strong` + `--aomi-on-danger` for destructive fills
+    (white on plain `danger` is 4.3:1 — fails AA at 13px; strong is 5.6:1),
+    plus a dark-mode lift for `danger`, which had none.
+  - `--aomi-hover` retuned: was `#e4e4e7` (the border value, too heavy on a
+    white menu) and `#27272a` in dark — byte-identical to `--aomi-raised`,
+    so menu hover could never show. Now `#f4f4f5` / `#3f3f46`.
+
+  Rules now encoded across the components:
+  - Selection splits by SIZE, not by component: pill-sized controls take the
+    solid accent fill (segments, filter chips); card/row-sized selection takes
+    `accent-subtle` + accent icon (mode cards, nav rows, menu rows, modal rows).
+    Neutral grey no longer means "chosen" anywhere.
+  - Type ladder: badge 10px, chip/segment/search 12px, composer/button 13px.
+  - Buttons are two shape families: pills at page level (ink commit + neutral
+    dismiss + red destructive), rounded-lg in flow (blue commit + blue repair).
+    All 34px, filled variants carry `border-transparent` so they match the
+    outlined ones. The last accent gradient is gone.
+  - Dismissal: every X is a circle — 32px on `surface-2` closes a surface,
+    20px transparent-until-hover clears a field.
+  - Menus: inset rounded rows (`rounded-lg` inside a 4px-padded panel), 32px
+    tall, 12px, never full-bleed bands.
+  - Modal shell: 50% flat ink scrim (no blur), `bg-aomi-raised` panel at
+    `rounded-2xl`, no shadow/ring, 32px circular close, fixed header/footer
+    with only the body scrolling. Two widths: 420px and 900x600.
+
+  Files touched: portal — settings-modal, packages-modal, header-controls
+  (rebuilt to mirror the mock: 32px rounded-lg icon buttons + sliding theme
+  switch), general-settings, account-signing, statement-view, usage-shared.
+  Registry — wallet-picker shell adopted the modal standard; thread.tsx
+  composer field to 13px; thread-list + threadlist-sidebar finished off
+  shadcn vocabulary. Mock (~/Code/aomi-chat-design) — chat-header theme
+  switch scaled to the 32px baseline, composer scaled down.
+
+  Verification: portal `pnpm run type-check` and registry `tsc` both clean
+  after every step; specimen geometry checked as computed values in the
+  browser rather than by reading class names.
+
+  NOTE: another Claude session was working in this same worktree concurrently
+  (registry conversation restyle). The token promotion below was theirs.
+
+  Also this session: the inventory page's own theme control was replaced with
+  the design system's sliding switch (it had been a one-off icon button), and
+  apps/build was aligned onto the canonical `aomi-*` names — see
+  docs/SETTINGS-REDESIGN-GAPS.md for what was additive vs left as an open
+  human call (`--aomi-surface` means cool-0 there, cool-50 in the widget).
+
+2026-07-25 (night) — Chat-surface restyle to the aomi-chat-design mock +
+  portal glue cleanup (branch `worktree-settings-redesign`). The whole
+  chat column now matches the mock, not just settings:
+  (1) `--aomi-*` tokens PROMOTED into the shared widget theme
+  (apps/shadcn-registry/src/themes/default.css — light + .dark + @theme
+  utilities); the portal globals.css duplicate block deleted (portal keeps
+  only its --font-display mapping). Every widget consumer now resolves
+  the tokens; the shimmer + trace edge-fade CSS prefers aomi vars with
+  shadcn fallback.
+  (2) Conversation restyle in the registry (all behavior kept): thread.tsx —
+  mock empty state (centered AomiMark + "What can I help you onchain?" +
+  hero composer + pill suggestion chips; dock composer "Reply to Aomi…"
+  only when a conversation exists), user bubble = surface-2
+  rounded-2xl/rounded-br-md 15px, assistant rows carry a 26px AomiMark
+  avatar, small muted copy/rerun action bar; working-trace.tsx = bordered
+  card (surface header "Worked for Ns · N steps" + green check, mono step
+  titles, rounded-full surface-2 chips) — reveal cascade, windowing,
+  scroll fades, auto-collapse all unchanged. New shared
+  components/aomi-mark.tsx (threadlist-sidebar now imports it).
+  (3) Chrome: frame header = mock geometry (h-14 border-b, thread title
+  left); portal HeaderControls gained the real NetworkSelect styled as
+  the header pill (composer hides network via hideNetwork; NetworkSelect
+  now exported from widget-lib); sidebar footer DualWalletBar restyled as
+  the mock account chip (avatar + two-line address/network + chevrons).
+  (4) Portal glue cleanup: ONE shared /api/account store
+  (lib/account-overview.ts, seeded by the session probe — was fetched 3×
+  per settings open; copy-pasted AccountProfile types gone; dead
+  AomiSessionProvider removed); portal-aomi-frame.tsx 415→155 lines
+  (fetch middleware stack extracted to lib/portal-client-options.ts);
+  `pnpm --filter portal test` NOW RUNS THE REAL 45-file vitest suite
+  (was a no-op script exiting 0 — scripts/run-tests.mjs deleted, stale
+  usage-range exclude dropped); fixed 3 silently-broken tests (2 launch
+  routes tests stale vs deploy's fail-closed required-secrets policy —
+  ported apps/build's versions; svm-wallet-binding test missing the
+  svmTransport:"embedded" gate); /statement can scroll (h-screen +
+  overflow-y-auto under the overflow-hidden root layout); settings gate
+  on probe ERROR now only blocks General — Account/Usage render their
+  fixtures behind a slim retry banner (anonymous/establishing still gate
+  fully).
+  Verified: portal 45 files/286 tests, registry 39/280 (after
+  widget-lib build), react 12/126, repo lint + root/portal typechecks all
+  green; live at :3400 vs the mock at :3010 in light + dark (empty state,
+  header pill, packages, settings modal, /statement scroll). Conversation
+  visuals (trace card, bubbles) verified by tests; live-chat check needs
+  the local backend. NOTE: gaps doc lives at repo-root
+  docs/SETTINGS-REDESIGN-GAPS.md.
+
+2026-07-25 — Settings redesign port (branch `worktree-settings-redesign`,
+  `apps/portal`): settings surface reduced to three tabs — General /
+  Account / Usage — per the aomi-chat-design mock, styled to the aomi
+  design system (sky accent + pink decorative meters via new `--aomi-*`
+  tokens in globals.css, PT Serif display font, flat/no shadows).
+  New: `features/account` (wallet signing ACL editor — posture grid,
+  custody-grouped wallet cards, Manual/Accept transactions/Auto/Locked
+  modes, delegated-grants panel; wallets/grants are FIXTURES),
+  `features/usage` (three-subject summary + by-app matrix) and a
+  standalone `/statement` route (month picker, By app/Itemized views,
+  app+subject filters; 3-month FIXTURE statement). GeneralSettings
+  reworked (identity card + Manage account → Account tab, Theme wired to
+  useSettings.colorMode, network/wallet rows). Removed: Deploy, App Keys,
+  Bots, Secrets, BYOK tabs (+ features/{apps,app-keys,bots,secrets,byok},
+  deploy-settings.tsx, lib/usage-range*); GitHub-return params still
+  forward to /deployments. Stub boundaries + fill-up list in
+  apps/portal/docs/SETTINGS-REDESIGN-GAPS.md (grants endpoint, permit
+  ceremony wiring, per-app statement endpoint, rdns brand capture, SVM
+  bind re-home). type-check + route-caller test green; verified live on
+  PORT=3400.
+
 2026-07-26 — Build Providers page (builder model keys, FE half; branch
   `feat/build-model-keys-tab`, uncommitted, worktree
   `.worktrees/model-keys-tab`). The ACCOUNT-nav Providers page (`/providers`,

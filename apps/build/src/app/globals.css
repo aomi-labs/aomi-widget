@@ -103,6 +103,25 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
+  /* Aomi design-system utilities — same names as the widget theme. */
+  --color-aomi-bg: var(--aomi-bg);
+  --color-aomi-surface: var(--aomi-surface);
+  --color-aomi-surface-2: var(--aomi-surface-2);
+  --color-aomi-raised: var(--aomi-raised);
+  --color-aomi-border: var(--aomi-border);
+  --color-aomi-fg: var(--aomi-fg);
+  --color-aomi-muted: var(--aomi-muted);
+  --color-aomi-accent: var(--aomi-accent-interactive);
+  --color-aomi-accent-strong: var(--aomi-accent-strong);
+  --color-aomi-accent-subtle: var(--aomi-accent-subtle);
+  --color-aomi-on-accent: var(--aomi-on-accent);
+  --color-aomi-hover: var(--aomi-hover);
+  --color-aomi-danger-strong: var(--aomi-danger-strong);
+  --color-aomi-on-danger: var(--aomi-on-danger);
+  --color-aomi-ring: var(--aomi-ring);
+  --color-aomi-accent-tint: var(--aomi-accent-tint);
+  --color-aomi-accent-outline: var(--aomi-accent-outline);
+  --color-aomi-overlay-border: var(--aomi-overlay-border);
   --radius-sm: var(--aomi-radius-sm);
   --radius-md: var(--aomi-radius-md);
   --radius-lg: var(--aomi-radius-lg);

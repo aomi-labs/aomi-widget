@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, type FC } from "react";
-import { ChevronDownIcon } from "lucide-react";
+import { ChevronsUpDownIcon } from "lucide-react";
 import { cn, getChainInfo } from "@aomi-labs/react";
 import { useAomiWalletKit, formatWalletAddress } from "../../lib/wallet-kit";
 import { WalletIconSlot } from "./wallet-icon-slot";
@@ -88,16 +88,16 @@ const DualWalletBarInner: FC<DualWalletBarProps> = ({
         type="button"
         onClick={openPicker}
         className={cn(
-          "@container inline-flex items-center justify-between gap-2 whitespace-nowrap text-sm font-medium",
-          "w-full rounded-3xl px-3.5 py-2 transition-all duration-200",
-          "border-border bg-muted text-foreground hover:bg-muted/70 border",
+          "@container inline-flex items-center justify-between gap-2.5 whitespace-nowrap text-left",
+          "border-aomi-border w-full rounded-xl border p-3 transition-colors",
+          "text-aomi-fg hover:bg-aomi-hover bg-transparent",
           "focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
           className,
         )}
         aria-label="Manage wallets"
       >
         {connected && connectedWallets.length ? (
-          <span className="flex min-w-0 items-center gap-2">
+          <span className="flex min-w-0 items-center gap-2.5">
             <span className="flex shrink-0 items-center">
               {connectedWallets.map((wallet, index) => (
                 <WalletIconSlot
@@ -108,52 +108,53 @@ const DualWalletBarInner: FC<DualWalletBarProps> = ({
                   }
                   size={AVATAR_SIZE}
                   className={cn(
-                    "ring-border bg-muted rounded-full ring-1",
+                    "ring-aomi-border bg-aomi-surface-2 rounded-full ring-1",
                     index > 0 && "-ml-2",
                   )}
                 />
               ))}
             </span>
-            <span className="min-w-0 truncate">
-              {connectedWallets.map((wallet, index) => (
-                <Fragment key={wallet.family}>
-                  {index > 0 ? (
-                    <span className="text-muted-foreground/40">{" / "}</span>
-                  ) : null}
-                  {singleWallet ? (
-                    <>
-                      <span className="@[15rem]:hidden">
-                        {formatWalletAddress(wallet.address)}
-                      </span>
-                      <span className="hidden @[15rem]:inline">
-                        {longAddress(wallet.address)}
-                      </span>
-                    </>
-                  ) : (
-                    <span>{formatWalletAddress(wallet.address)}</span>
-                  )}
-                  {wallet.detail ? (
-                    <span
-                      className={cn(
-                        "text-muted-foreground hidden",
-                        singleWallet ? "@[12rem]:inline" : "@[20rem]:inline",
-                      )}
-                    >
-                      {` · ${wallet.detail}`}
-                    </span>
-                  ) : null}
-                </Fragment>
-              ))}
+            {/* Account-chip column: addresses on top, network detail below. */}
+            <span className="flex min-w-0 flex-col">
+              <span className="min-w-0 truncate text-[13px] font-medium">
+                {connectedWallets.map((wallet, index) => (
+                  <Fragment key={wallet.family}>
+                    {index > 0 ? (
+                      <span className="text-aomi-muted/60">{" / "}</span>
+                    ) : null}
+                    {singleWallet ? (
+                      <>
+                        <span className="@[15rem]:hidden">
+                          {formatWalletAddress(wallet.address)}
+                        </span>
+                        <span className="hidden @[15rem]:inline">
+                          {longAddress(wallet.address)}
+                        </span>
+                      </>
+                    ) : (
+                      <span>{formatWalletAddress(wallet.address)}</span>
+                    )}
+                  </Fragment>
+                ))}
+              </span>
+              {connectedWallets.some((wallet) => wallet.detail) && (
+                <span className="text-aomi-muted min-w-0 truncate text-[11px]">
+                  {connectedWallets
+                    .map((wallet) => wallet.detail)
+                    .filter(Boolean)
+                    .join(" · ")}
+                </span>
+              )}
             </span>
           </span>
         ) : (
           // h-7 matches AVATAR_SIZE so the button keeps the same height (and
           // text colour) whether or not the avatar stack is rendered.
           <span className="flex h-7 min-w-0 items-center">
-            <span className="truncate">Connect wallet</span>
+            <span className="truncate text-sm font-medium">Connect wallet</span>
           </span>
         )}
-        <ChevronDownIcon className="h-3 w-3 shrink-0 opacity-60" />
+        <ChevronsUpDownIcon className="text-aomi-muted size-4 shrink-0" />
       </button>
       <WalletPicker />
     </>
