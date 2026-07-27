@@ -31,6 +31,14 @@ mistaken for another supported environment.
 
 Progress:
 
+- 2026-07-27 Para ACL mode recovery: confirmed the reported staging Para EVM
+  row is user-controlled (`provider_managed = false`) and that the backend
+  permits `client_auto` without a delegated grant. Removed the frontend's
+  incorrect self-custody-only gate so Para can select “Accept transactions”;
+  `Auto` still correctly requires a live delegation grant and `Locked` remains
+  available. Added a regression covering all three availability states and the
+  complete challenge, Para signature, commit, and refresh path.
+
 - 2026-07-26 staging Portal account-auth recovery: traced the Settings
   `widget_auth_failed` response to Vercel Preview using the production Supabase
   session pool, where parallel BetterAuth/account functions exhausted the

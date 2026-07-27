@@ -193,6 +193,49 @@ describe("account ACL wiring", () => {
     ).toHaveLength(2);
   });
 
+  it("allows a user-controlled Para wallet to accept transactions", async () => {
+    const paraWallets = {
+      wallets: [
+        {
+          ...WALLETS.wallets[0],
+          wallet_provider: "para",
+          provider_managed: false,
+          can_use_auto: false,
+        },
+      ],
+    };
+    const { calls } = installFetchRecorder({
+      "/api/account/wallets": () => Response.json(paraWallets),
+      "/api/account/grants": () => Response.json({ grants: [] }),
+    });
+
+    await renderAcl();
+    await click(await screen.findByText("0x71C7…976F"));
+
+    const accept = await screen.findByRole("button", {
+      name: "Accept transactions",
+    });
+    expect(accept).toHaveProperty("disabled", false);
+    expect(
+      screen.getByRole("button", { name: "Auto" }),
+    ).toHaveProperty("disabled", true);
+    expect(
+      screen.getByRole("button", { name: "Locked" }),
+    ).toHaveProperty("disabled", false);
+
+    await click(accept);
+    const authorize = await screen.findByRole("button", {
+      name: "Sign to authorize",
+    });
+    expect(authorize).toHaveProperty("disabled", false);
+
+    await click(authorize);
+    await waitFor(() =>
+      expect(paths(calls)).toContain("/api/account/authorization/commit"),
+    );
+    expect(walletKit.signTypedData).toHaveBeenCalledOnce();
+  });
+
   it("blocks a loosening permit when the wallet itself isn't connected", async () => {
     walletKit.identity = { address: "0xSomeOtherWallet", svmAddress: undefined };
     const { calls } = installFetchRecorder();

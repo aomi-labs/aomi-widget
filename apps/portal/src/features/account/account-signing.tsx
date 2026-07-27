@@ -124,11 +124,13 @@ function custodyLabel(v: LinkedVia): string {
  */
 function modeValidFor(wallet: WalletPolicy, mode: SignerMode): boolean {
   if (wallet.providerManaged) return mode === "auto" || mode === "denied";
-  const custody = custodyOf(wallet.linkedVia);
   if (mode === "denied" || mode === "manual") return true;
-  if (mode === "client_auto") return custody === "self";
+  // client_auto needs a client-side signer, not self-custody provenance.
+  // Embedded login wallets such as Para can still sign locally through their
+  // provider SDK; only provider-managed agent wallets lack user-held material.
+  if (mode === "client_auto") return true;
   // auto — fall back to custody only for rows that predate the capability flag.
-  return wallet.canUseAuto ?? custody === "embedded";
+  return wallet.canUseAuto ?? custodyOf(wallet.linkedVia) === "embedded";
 }
 
 /** Why a mode is greyed out for this wallet — shown under the hint. */
@@ -137,7 +139,6 @@ function unavailableReason(wallet: WalletPolicy, mode: SignerMode): string {
     return "This is a provider-managed signer — you hold no key for it.";
   }
   if (mode === "auto") return "Needs a provider-delegated wallet (Para or Privy).";
-  if (mode === "client_auto") return "Only self-custody wallets can sign at the edge.";
   return "Not available for this wallet.";
 }
 
