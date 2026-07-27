@@ -31,7 +31,9 @@ Progress:
   label/prefix badge beside funded usage events in Aomi Build Logs. Added
   client and UI regressions, patch-bumped `@aomi-labs/deploy` to `0.2.4`, and
   verified focused tests, package build/pack, Build lint/typecheck, and the
-  production Build compile.
+  production Build compile. Refreshed the staging backend route contract after
+  three account endpoints shipped and removed the unreliable external
+  coordination workflow from frontend CI.
 
 - 2026-07-24 idempotent npm publishing: changed the post-merge publish job to
   skip exact package versions that are already live, publish only missing
