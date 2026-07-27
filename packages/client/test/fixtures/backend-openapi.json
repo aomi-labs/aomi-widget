@@ -448,6 +448,38 @@
         "x-aomi-auth": [
           "account"
         ]
+      },
+      "put": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "accountBearer": []
+          }
+        ],
+        "x-aomi-auth": [
+          "account"
+        ]
+      }
+    },
+    "/api/account/statement": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "accountBearer": []
+          }
+        ],
+        "x-aomi-auth": [
+          "account"
+        ]
       }
     },
     "/api/account/usage": {
@@ -519,6 +551,23 @@
       }
     },
     "/api/account/authorization/commit": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "accountBearer": []
+          }
+        ],
+        "x-aomi-auth": [
+          "account"
+        ]
+      }
+    },
+    "/api/account/providers/{provider}/agent-wallet": {
       "post": {
         "responses": {
           "200": {
