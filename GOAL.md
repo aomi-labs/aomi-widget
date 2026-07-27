@@ -31,6 +31,12 @@ mistaken for another supported environment.
 
 Progress:
 
+- 2026-07-27 Aomi Build CLI auth completion: replaced the localhost callback's
+  raw inline HTML with a redirect to a branded Build completion page based on
+  the existing Portal device-auth surface. The hosted page receives only a
+  coarse completion status; OAuth codes and state remain confined to the
+  loopback callback and CLI exchange.
+
 - 2026-07-27 Para ACL mode recovery: confirmed the reported staging Para EVM
   row is user-controlled (`provider_managed = false`) and that the backend
   permits `client_auto` without a delegated grant. Removed the frontend's
