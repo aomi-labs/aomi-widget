@@ -31,6 +31,10 @@ mistaken for another supported environment.
 
 Progress:
 
+- 2026-07-27 Build project membership: the Projects index now treats GitHub
+  source records as internal import/ownership metadata and only surfaces
+  sources that contain at least one Aomi app, removing historical repositories
+  that were bound to a platform but never became Build projects.
 - 2026-07-27 cross-platform project discovery: the Projects index now uses the
   backend's platform-agnostic, GitHub-user-scoped source list instead of
   silently defaulting to `community`, and project links preserve each source's

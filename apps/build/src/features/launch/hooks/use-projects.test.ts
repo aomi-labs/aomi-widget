@@ -10,6 +10,13 @@ vi.mock("@build/features/launch/client", () => ({
         id: 1,
         installationId: 5,
         repositoryLink: "a/b",
+        apps: [{ name: "bot" }],
+        latestDeployment: null,
+      },
+      {
+        id: 2,
+        installationId: 5,
+        repositoryLink: "a/historical-repo",
         apps: [],
         latestDeployment: null,
       },
@@ -51,7 +58,7 @@ function wrapper() {
 describe("useProjects", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("loads sources off the shared session and never fetches history", async () => {
+  it("loads app projects off the shared session and omits empty sources", async () => {
     const { result } = renderHook(() => useProjects(), {
       wrapper: wrapper(),
     });
@@ -62,6 +69,7 @@ describe("useProjects", () => {
     expect(deploymentFeed).not.toHaveBeenCalled();
     if (result.current.state.status === "ready") {
       expect(result.current.state.sources).toHaveLength(1);
+      expect(result.current.state.sources[0]?.repositoryLink).toBe("a/b");
     }
   });
 });
