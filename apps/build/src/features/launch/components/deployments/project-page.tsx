@@ -9,26 +9,29 @@ import { ChatTab } from "./tabs/chat-tab";
 import { DeploymentsTab } from "./tabs/deployments-tab";
 import { EnvironmentTab } from "./tabs/environment-tab";
 import { HomeTab } from "./tabs/home-tab";
+import { ProvidersTab } from "./tabs/providers-tab";
 import { SettingsTab } from "./tabs/settings-tab";
 import { LoadingPanel, ErrorPanel } from "./ui/state-panels";
 
 const TABS = [
   { id: "home", label: "Home" },
   { id: "deployments", label: "Deployments" },
-  { id: "chat", label: "Chat" },
+  { id: "providers", label: "Providers" },
   { id: "environment", label: "Environment" },
-  { id: "settings", label: "Details" },
+  { id: "chat", label: "Chat" },
 ] as const;
 type TabId = (typeof TABS)[number]["id"];
 
 export function ProjectPage({
   sourceId,
+  platform,
   backHref = "/operate/deployments",
   backLabel = "Deployments",
   tabBaseHref,
   tabHref,
 }: {
   sourceId: number;
+  platform?: string;
   backHref?: string;
   backLabel?: string;
   tabBaseHref?: string;
@@ -36,18 +39,20 @@ export function ProjectPage({
 }) {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const detail = useProjectDetail(sourceId);
+  const detail = useProjectDetail(sourceId, platform);
   const raw = searchParams.get("tab");
   const active: TabId = TABS.some((t) => t.id === raw)
     ? (raw as TabId)
     : "home";
-  const openEnvironment = () =>
-    router.push(
-      tabHref?.("environment") ??
-        (tabBaseHref
-          ? `${tabBaseHref}?tab=environment`
-          : `/operate/deployments?project=${sourceId}&tab=environment`),
-    );
+  const projectTabHref = (tab: TabId) => {
+    if (tabHref) return tabHref(tab);
+    const params = new URLSearchParams();
+    if (!tabBaseHref) params.set("project", String(sourceId));
+    if (platform) params.set("platform", platform);
+    params.set("tab", tab);
+    return `${tabBaseHref ?? "/operate/deployments"}?${params}`;
+  };
+  const openEnvironment = () => router.push(projectTabHref("environment"));
 
   useEffect(() => {
     setLastProjectId(sourceId);
@@ -73,15 +78,7 @@ export function ProjectPage({
               role="tab"
               type="button"
               aria-selected={active === tab.id}
-              onClick={() =>
-                router.push(
-                  tabHref?.(tab.id) ??
-                    (tabBaseHref
-                      ? `${tabBaseHref}?tab=${tab.id}`
-                      : undefined) ??
-                    `/operate/deployments?project=${sourceId}&tab=${tab.id}`,
-                )
-              }
+              onClick={() => router.push(projectTabHref(tab.id))}
               className={`h-7 rounded px-2.5 text-xs font-medium ${
                 active === tab.id
                   ? "bg-surface-1 text-foreground shadow-sm"
@@ -98,18 +95,23 @@ export function ProjectPage({
           ) : detail.error ? (
             <ErrorPanel message={detail.error} />
           ) : active === "home" ? (
-            <HomeTab detail={detail} tabBaseHref={tabBaseHref} />
+            // Details is merged into Home: status cards first, repo
+            // metadata (the former Details tab) below.
+            <>
+              <HomeTab detail={detail} tabHref={projectTabHref} />
+              <SettingsTab detail={detail} />
+            </>
           ) : active === "deployments" ? (
             <DeploymentsTab
               detail={detail}
               onOpenEnvironment={openEnvironment}
             />
-          ) : active === "chat" ? (
-            <ChatTab detail={detail} />
+          ) : active === "providers" ? (
+            <ProvidersTab detail={detail} />
           ) : active === "environment" ? (
             <EnvironmentTab detail={detail} />
           ) : (
-            <SettingsTab detail={detail} />
+            <ChatTab detail={detail} />
           )}
         </div>
       </div>

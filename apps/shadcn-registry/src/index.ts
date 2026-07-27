@@ -13,6 +13,12 @@ export {
   type DualWalletBarProps,
 } from "./components/control-bar/dual-wallet-bar";
 
+// Per-thread network picker (used by hosts that lift it into their chrome)
+export {
+  NetworkSelect,
+  type NetworkSelectProps,
+} from "./components/control-bar/network-select";
+
 // Notification UI
 export { NotificationToaster } from "./components/ui/notification";
 

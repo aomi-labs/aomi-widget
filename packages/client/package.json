@@ -34,16 +34,12 @@
     "fast-check": "^4.8.0"
   },
   "dependencies": {
-    "@alchemy/wallet-apis": "5.0.0-beta.22",
-    "@getpara/aa-alchemy": "2.21.0",
-    "@getpara/aa-pimlico": "2.21.0",
     "@solana/web3.js": "^1.98.4",
     "@x402/core": "^2.10.0",
     "@x402/evm": "^2.10.0",
     "@x402/fetch": "^2.10.0",
     "bs58": "^6.0.0",
     "citty": "^0.2.2",
-    "permissionless": "^0.3.5",
     "tweetnacl": "^1.0.3",
     "viem": "^2.47.11"
   }

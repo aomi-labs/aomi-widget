@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, PT_Serif } from "next/font/google";
 import { cookies } from "next/headers";
 import "./globals.css";
 import { CookieConsent } from "@portal/components/analytics/cookie-consent";
@@ -19,6 +19,13 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   subsets: ["latin"],
   variable: "--font-geist-mono",
+});
+
+// PT Serif — the aomi display face (statement page headings).
+const ptSerif = PT_Serif({
+  subsets: ["latin"],
+  weight: ["400", "700"],
+  variable: "--font-pt-serif",
 });
 
 export const metadata: Metadata = {
@@ -45,7 +52,7 @@ export default async function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} ${ptSerif.variable} font-sans antialiased`}
       >
         <GoogleAnalytics />
         <WalletProviders

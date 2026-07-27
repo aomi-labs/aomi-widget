@@ -1,69 +1,28 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { getChainInfo } from "@aomi-labs/react";
-import {
-  Button,
-  formatAuthMethod,
-  useAomiWalletKit,
-} from "@aomi-labs/widget-lib";
-import { settingsApiFetch } from "@portal/lib/settings-api";
-import {
-  settingsBodyTextClass,
-  settingsCardClass,
-  settingsCardStackClass,
-  settingsCardTitleClass,
-  settingsPageClass,
-  settingsPrimaryButtonClass,
-  settingsSubTitleClass,
-  settingsTitleClass,
-} from "@portal/lib/settings-styles";
-import { SvmWalletBinding } from "./svm-wallet-binding";
+import { formatAuthMethod, useAomiWalletKit } from "@aomi-labs/widget-lib";
+import { UserRound } from "lucide-react";
+import { useAccountOverview } from "@portal/lib/account-overview";
+import { useSettings, type ColorMode } from "@portal/lib/use-settings";
 
-type AccountProfile = {
-  user_id: string;
-  public_key: string;
-  username?: string | null;
-  apps: string[];
-  tier: string;
-  verified_email?: string | null;
-  status: string;
-  created_at: number;
-  updated_at: number;
-  last_seen_at?: number | null;
-};
-
-type AccountUsage = {
-  period_utc_month: string;
-  input_tokens: number;
-  output_tokens: number;
-  credit_used: number;
-  credit_paid: number;
-};
-
-type AccountOverview = {
-  user: AccountProfile;
-  auth_identities?: unknown[];
-  identity_wallets?: unknown[];
-  usage?: AccountUsage | null;
-};
-
-function formatTs(ts?: number | null): string {
-  if (!ts) return "-";
-  return new Date(ts * 1000).toLocaleString();
-}
-
-function formatNumber(n?: number): string {
-  if (typeof n !== "number") return "0";
-  return new Intl.NumberFormat().format(n);
-}
-
-export function GeneralSettings() {
+/**
+ * Settings › General — the design mock's General tab, built on the `aomi-*`
+ * tokens and wired to real state: identity from the wallet kit + the shared
+ * /api/account overview, theme via useSettings.colorMode, network from the
+ * connected chain. Renders inside the settings popup (the modal owns the tab
+ * title).
+ */
+export function GeneralSettings({
+  onManageAccount,
+}: {
+  onManageAccount?: () => void;
+}) {
   const adapter = useAomiWalletKit();
   const identity = adapter.identity;
-  const [account, setAccount] = useState<AccountOverview | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { settings, updateSetting } = useSettings();
+  const account = useAccountOverview();
 
   const networkTicker = identity.chainId
     ? getChainInfo(identity.chainId)?.ticker
@@ -74,131 +33,155 @@ export function GeneralSettings() {
     return formatAuthMethod(identity.authMethod) ?? "Wallet";
   }, [identity.authMethod, identity.status]);
 
-  useEffect(() => {
-    const run = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const data = await settingsApiFetch<AccountOverview>("/api/account");
-        setAccount(data);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load account");
-      } finally {
-        setLoading(false);
-      }
-    };
+  const disconnect = (
+    adapter as { disconnect?: () => void | Promise<void> }
+  ).disconnect;
 
-    void run();
-  }, []);
+  // Design's Dark / Light / System ↔ stored colorMode dark / light / auto.
+  const themeChoices: { mode: ColorMode; label: string }[] = [
+    { mode: "dark", label: "Dark" },
+    { mode: "light", label: "Light" },
+    { mode: "auto", label: "System" },
+  ];
 
   return (
-    <div className={settingsPageClass}>
-      <div>
-        <h1 className={`${settingsTitleClass} mb-4`}>Account</h1>
-        <div className={settingsCardClass}>
-          <div className="flex items-start justify-between gap-4">
-            <div className="space-y-1">
-              <p className={settingsCardTitleClass}>Identity</p>
-              <p className={settingsBodyTextClass}>Type: {identityType}</p>
-              <p className={settingsBodyTextClass}>
-                Primary:{" "}
-                {identity.status === "disconnected"
-                  ? "Not connected"
-                  : (identity.address ?? "Connected")}
-              </p>
-              {identity.address && (
-                <p className={settingsBodyTextClass}>
-                  Wallet: {identity.address}
-                </p>
-              )}
-              {identity.svmAddress && (
-                <p className={settingsBodyTextClass}>
-                  Solana wallet: {identity.svmAddress}
-                </p>
-              )}
-              {(identity.svmCluster ?? identity.solanaCluster) && (
-                <p className={settingsBodyTextClass}>
-                  Solana network:{" "}
-                  {identity.svmCluster ?? identity.solanaCluster}
-                </p>
-              )}
-              {networkTicker && (
-                <p className={settingsBodyTextClass}>
-                  Network: {networkTicker}
-                </p>
-              )}
+    <div className="flex flex-col gap-[18px]">
+      {/* Identity card */}
+      <div className="border-aomi-border bg-aomi-bg/40 overflow-hidden rounded-xl border">
+        <div className="flex items-start justify-between gap-4 p-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="bg-aomi-surface-2 text-aomi-muted flex h-11 w-11 shrink-0 items-center justify-center rounded-full">
+              <UserRound size={20} />
             </div>
-            <Button
-              type="button"
-              onClick={() => {
-                if (identity.isConnected && adapter.openAccountUI) {
-                  void adapter.openAccountUI();
-                  return;
-                }
-                void adapter.connect();
-              }}
-              disabled={!adapter.canOpenAccountUI && !adapter.canConnect}
-              className={settingsPrimaryButtonClass}
-            >
-              {identity.isConnected ? "Manage account" : "Connect account"}
-            </Button>
+            <div className="flex min-w-0 flex-col gap-1">
+              <span className="truncate font-mono text-sm font-medium">
+                {identity.address ??
+                  account?.user.public_key ??
+                  "Not connected"}
+              </span>
+              <span className="text-aomi-muted truncate text-[13px]">
+                {account?.user.verified_email ??
+                  (identity.status === "connected"
+                    ? "Primary identity · Connected"
+                    : "Primary identity · Not connected")}
+              </span>
+            </div>
           </div>
+          <button
+            onClick={onManageAccount}
+            className="bg-aomi-fg text-aomi-bg flex-shrink-0 rounded-full border border-transparent px-4 py-2 text-[13px] font-medium transition-opacity hover:opacity-90"
+          >
+            Manage account
+          </button>
+        </div>
+        <div className="border-aomi-border bg-aomi-border grid grid-cols-2 gap-px border-t">
+          <MetaCell label="Type">{identityType}</MetaCell>
+          <MetaCell label="Network">
+            <span className="flex items-center gap-1.5">
+              <span className="bg-aomi-success h-[7px] w-[7px] rounded-full" />
+              {networkTicker ?? "—"}
+            </span>
+          </MetaCell>
         </div>
       </div>
 
-      <div>
-        <h2 className={`${settingsSubTitleClass} mb-4`}>
-          Subscription and Usage
-        </h2>
-        <div className={`${settingsCardStackClass} space-y-3`}>
-          {loading && (
-            <p className={settingsBodyTextClass}>Loading account overview...</p>
-          )}
-          {!loading && error && (
-            <p className="text-destructive text-sm">
-              Failed to load account overview: {error}
-            </p>
-          )}
-          {!loading && !error && !account && (
-            <p className={settingsBodyTextClass}>
-              Sign in or connect a wallet to load account details.
-            </p>
-          )}
-          {!loading && !error && account && (
-            <>
-              <p className={settingsBodyTextClass}>
-                User ID: {account.user.user_id}
-              </p>
-              <p className={settingsBodyTextClass}>Tier: {account.user.tier}</p>
-              <p className={settingsBodyTextClass}>
-                Verified email: {account.user.verified_email ?? "-"}
-              </p>
-              <p className={settingsBodyTextClass}>
-                Status: {account.user.status}
-              </p>
-              <p className={settingsBodyTextClass}>
-                Month: {account.usage?.period_utc_month ?? "-"}
-              </p>
-              <p className={settingsBodyTextClass}>
-                Credits: {formatNumber(account.usage?.credit_used)} /{" "}
-                {formatNumber(account.usage?.credit_paid)}
-              </p>
-              <p className={settingsBodyTextClass}>
-                Tokens: in {formatNumber(account.usage?.input_tokens)} | out{" "}
-                {formatNumber(account.usage?.output_tokens)}
-              </p>
-              <p className={settingsBodyTextClass}>
-                Created at: {formatTs(account.user.created_at)}
-              </p>
-              <p className={settingsBodyTextClass}>
-                Last seen: {formatTs(account.user.last_seen_at)}
-              </p>
-            </>
-          )}
-        </div>
-      </div>
+      <Divider />
 
-      <SvmWalletBinding />
+      <SettingRow title="Theme" desc="Match system, light, or dark">
+        <div className="border-aomi-border bg-aomi-surface flex rounded-full border p-[3px]">
+          {themeChoices.map(({ mode, label }) => (
+            <button
+              key={mode}
+              onClick={() => updateSetting("colorMode", mode)}
+              className={`rounded-full px-3.5 py-[5px] text-xs transition-colors ${
+                settings.colorMode === mode
+                  ? "bg-aomi-accent-strong text-aomi-on-accent font-medium"
+                  : "text-aomi-muted hover:text-aomi-fg"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </SettingRow>
+
+      <Divider />
+
+      <SettingRow title="Default network" desc="Used for new chats">
+        <div className="border-aomi-border flex items-center gap-[7px] rounded-lg border px-3 py-[7px]">
+          <span className="bg-aomi-success h-[7px] w-[7px] rounded-full" />
+          <span className="text-[13px]">{networkTicker ?? "Ethereum"}</span>
+        </div>
+      </SettingRow>
+
+      <Divider />
+
+      <SettingRow
+        title="Connected wallet"
+        desc={identity.address ?? "Not connected"}
+        descMono
+      >
+        {disconnect ? (
+          <button
+            onClick={() => void disconnect()}
+            className="border-aomi-border text-aomi-muted hover:text-aomi-fg rounded-full border px-4 py-2 text-[13px] font-medium transition-colors"
+          >
+            Disconnect
+          </button>
+        ) : (
+          <button
+            onClick={() => void adapter.openAccountUI?.()}
+            className="border-aomi-border text-aomi-muted hover:text-aomi-fg rounded-full border px-4 py-2 text-[13px] font-medium transition-colors"
+          >
+            Manage wallet
+          </button>
+        )}
+      </SettingRow>
     </div>
   );
+}
+
+function MetaCell({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="bg-aomi-bg/40 flex flex-col gap-0.5 px-4 py-3">
+      <span className="text-aomi-muted text-xs">{label}</span>
+      <span className="text-[13px]">{children}</span>
+    </div>
+  );
+}
+
+function SettingRow({
+  title,
+  desc,
+  descMono,
+  children,
+}: {
+  title: string;
+  desc: string;
+  descMono?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-col gap-0.5">
+        <span className="text-sm font-medium">{title}</span>
+        <span
+          className={`text-aomi-muted text-[13px] ${descMono ? "font-mono" : ""}`}
+        >
+          {desc}
+        </span>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function Divider() {
+  return <div className="bg-aomi-border h-px" />;
 }

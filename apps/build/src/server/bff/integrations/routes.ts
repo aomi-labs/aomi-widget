@@ -1,29 +1,15 @@
 import "server-only";
 
 import { NextResponse } from "next/server";
-import { getGitHubSession } from "@build/server/cookies/github";
-import { checkRateLimit, getClientIp } from "@build/lib/rate-limit";
-import { validateOrigin } from "@build/lib/csrf";
+import { authorize } from "@build/server/bff/auth";
 import {
   INTEGRATION_PROVIDERS,
   getIntegrationProvider,
 } from "@build/features/integrations/providers";
 
-function tooManyRequests() {
-  return NextResponse.json({ error: "Too many requests" }, { status: 429 });
-}
-
-function unauthorized() {
-  return NextResponse.json(
-    { error: "not signed in with GitHub" },
-    { status: 401 },
-  );
-}
-
 export async function integrationsStatusRoute(req: Request) {
-  if (!checkRateLimit(getClientIp(req)).allowed) return tooManyRequests();
-  const session = await getGitHubSession();
-  if (!session) return unauthorized();
+  const auth = await authorize(req);
+  if ("response" in auth) return auth.response;
 
   // TODO(integrations): report real connection status once a backend credential
   // store exists. Until then every provider reports disconnected.
@@ -36,12 +22,8 @@ export async function integrationsStatusRoute(req: Request) {
 }
 
 export async function integrationsConnectRoute(req: Request) {
-  if (!checkRateLimit(getClientIp(req)).allowed) return tooManyRequests();
-  if (!validateOrigin(req)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
-  const session = await getGitHubSession();
-  if (!session) return unauthorized();
+  const auth = await authorize(req, { write: true });
+  if ("response" in auth) return auth.response;
 
   const body = (await req.json().catch(() => ({}))) as {
     provider?: unknown;

@@ -35,10 +35,6 @@ export default defineConfig({
         inline: ["server-only", "client-only"],
       },
     },
-    exclude: [
-      "src/lib/usage-range.test.ts",
-    ],
-    // usage-range uses node:test (tsx --test), not vitest.
     // launch feature tests run as part of the suite.
     restoreMocks: true,
   },

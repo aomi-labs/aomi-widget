@@ -24,7 +24,7 @@ export function SdkBadge({
     <span
       data-testid="sdk-badge"
       data-state={state}
-      className={`inline-flex h-6 items-center rounded-full border px-2 text-xs font-medium ${tone}`}
+      className={`inline-flex h-6 items-center rounded-full border px-2 text-[10px] font-medium uppercase tracking-[0.05em] whitespace-nowrap ${tone}`}
     >
       {stamped ?? "SDK unknown"}
     </span>

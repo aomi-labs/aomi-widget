@@ -48,8 +48,6 @@ type MessageContentPart =
     : never;
 
 export function toInboundMessage(msg: AomiMessage): ThreadMessageLike | null {
-  if (msg.sender === "system") return null;
-
   const content: MessageContentPart[] = [];
   const role: ThreadMessageLike["role"] =
     msg.sender === "user" ? "user" : "assistant";
@@ -83,9 +81,25 @@ export function toInboundMessage(msg: AomiMessage): ThreadMessageLike | null {
     role,
     content: content as ThreadMessageLike["content"],
     ...(msg.timestamp && { createdAt: new Date(msg.timestamp) }),
+    ...(msg.sender === "system" && {
+      metadata: {
+        custom: {
+          aomiNoticeKind: isCreditNotice(msg.content)
+            ? "payment_required"
+            : "system_notice",
+          aomiNoticeTitle: isCreditNotice(msg.content)
+            ? "Credits needed"
+            : "System notice",
+        },
+      },
+    }),
   } satisfies ThreadMessageLike;
 
   return threadMessage;
+}
+
+function isCreditNotice(content: string | undefined): boolean {
+  return /\b(?:credit|quota|payment)\b/i.test(content ?? "");
 }
 
 function parseToolResult(
