@@ -245,7 +245,7 @@ Progress:
   RPC reads to token-program scans. The standalone holdings tool now defaults
   its owner from SVM wallet context and returns compact aggregated display
   amounts. Added a dedicated holdings trace presenter that shows `0.148008
-  USDC` for the canonical mainnet mint, or just the visible UI amount with the
+USDC` for the canonical mainnet mint, or just the visible UI amount with the
   generic token icon when the symbol is unknown. Patch-bumped
   `@aomi-labs/widget-lib` to 1.4.6 and regenerated registry artifacts.
 
@@ -722,3 +722,9 @@ build`, `CI=true npx -y pnpm@10.28.0 install --frozen-lockfile`, and
   deployment-status, and activate scopes, made exchange retries idempotent,
   and preserved partner platforms in project links and detail lookups. Verified
   type-check, lint, all 331 Build tests, and the production Build bundle.
+- 2026-07-27 partner-payment visibility: exposed validated app pricing and the
+  durable partner ledger in Project Home, Usage, Logs, Transactions, and
+  Observability. Recipient-bucket settlements and outstanding balances are
+  explicitly labeled and deduplicated across projects, while configured prices
+  remain visible before the first successful paid call. Patch-bumped
+  `@aomi-labs/deploy` to `0.2.5`.

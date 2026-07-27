@@ -48,6 +48,7 @@ describe("HomeTab", () => {
     loadSecrets.mockClear();
     operateFetch.mockReset();
     operateFetch.mockResolvedValue({ daily: [] });
+    (detail.source as { apps: unknown[] }).apps = [];
   });
 
   it("shows status cards and a deploy next action when not live", async () => {
@@ -90,5 +91,42 @@ describe("HomeTab", () => {
     );
     expect(await screen.findByText("1.50 credits")).toBeInTheDocument();
     expect(screen.getByText(/1\.3k tokens/i)).toBeInTheDocument();
+  });
+
+  it("shows configured monetization before the first paid call", async () => {
+    (detail.source as { apps: unknown[] }).apps = [
+      {
+        name: "somm-agent",
+        pricing: {
+          config: {
+            resources: {
+              get_idle_assets: {
+                pricing: { flat: 100 },
+                beneficiary: "banana_evm",
+              },
+            },
+            beneficiaries: [
+              {
+                name: "banana_evm",
+                chain: "eip155:84532",
+                value: "0x5D907BEa404e6F821d467314a9cA07663CF64c9B",
+              },
+            ],
+          },
+        },
+      },
+    ];
+
+    render(
+      <HomeTab detail={detail} tabHref={(tab) => `/projects/1?tab=${tab}`} />,
+    );
+
+    expect(screen.getByText("Monetization")).toBeInTheDocument();
+    expect(screen.getByText("1 priced tool")).toBeInTheDocument();
+    expect(
+      screen.getByText(/100\.00 credits \(\$1\.00\) per successful call/),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Base Sepolia/)).toBeInTheDocument();
+    expect(await screen.findByText("No traffic yet")).toBeInTheDocument();
   });
 });

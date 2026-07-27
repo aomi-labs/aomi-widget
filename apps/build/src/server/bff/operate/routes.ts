@@ -6,6 +6,7 @@ import type {
   OperateLogCursor,
   OperateLogsResult,
   OperateObservabilityResult,
+  OperatePartnerPayments,
   OperateStatementResult,
   OperateTransactionCursor,
   OperateTransactionsResult,
@@ -95,6 +96,85 @@ function logCursorFor(row: {
     eventType: row.eventType,
     id: row.id,
   };
+}
+
+function mergedPartnerPayments(
+  rows: Array<{ source: UserSource; payments: OperatePartnerPayments }>,
+) {
+  const sum = (pick: (summary: OperatePartnerPayments["summary"]) => number) =>
+    rows.reduce((total, row) => total + pick(row.payments.summary), 0);
+  const events = [
+    ...new Map(
+      rows.flatMap((row) =>
+        row.payments.events.map((event) => [
+          `${event.kind}:${event.id}`,
+          { ...event, source: row.source },
+        ]),
+      ),
+    ).values(),
+  ].sort((a, b) => b.occurredAt - a.occurredAt || b.id.localeCompare(a.id));
+  const buckets = [
+    ...new Map(
+      rows.flatMap((row) =>
+        row.payments.buckets.map((bucket) => [bucket.id, bucket]),
+      ),
+    ).values(),
+  ];
+  const settlementEvents = events.filter(
+    (event) => event.kind === "settlement_confirmed",
+  );
+  const outstandingCredits = buckets.reduce(
+    (total, bucket) => total + bucket.outstandingCredits,
+    0,
+  );
+  return {
+    available: rows.some((row) => row.payments.available),
+    scope: "recipient_bucket",
+    summary: {
+      accruedCredits: sum((summary) => summary.accruedCredits),
+      accruedUsd: sum((summary) => summary.accruedUsd),
+      settledCredits: settlementEvents.reduce(
+        (total, event) => total + event.credits,
+        0,
+      ),
+      settledUsd: settlementEvents.reduce(
+        (total, event) => total + event.usd,
+        0,
+      ),
+      outstandingCredits,
+      outstandingUsd: outstandingCredits / 100,
+      pricedCalls: sum((summary) => summary.pricedCalls),
+      settlements: settlementEvents.length,
+    },
+    resources: rows.flatMap((row) =>
+      row.payments.resources.map((resource) => ({
+        ...resource,
+        source: row.source,
+      })),
+    ),
+    buckets,
+    events,
+  };
+}
+
+function chainId(chain: string | null): number {
+  const value = Number(chain?.split(":")[1] ?? 0);
+  return Number.isSafeInteger(value) ? value : 0;
+}
+
+function chainName(chain: string | null): string | null {
+  switch (chain) {
+    case "eip155:1":
+      return "Ethereum";
+    case "eip155:8453":
+      return "Base";
+    case "eip155:84532":
+      return "Base Sepolia";
+    case "eip155:11155111":
+      return "Sepolia";
+    default:
+      return chain;
+  }
 }
 
 function mergedNextCursor<T extends { source: { id: number } }>(
@@ -432,9 +512,8 @@ export async function operateTransactionsRoute(req: Request) {
     const params = new URL(req.url).searchParams;
     const limit = pageLimit(params, 50, 100);
     const cursor = parseCompositeCursor(params.get("cursor"));
-    const results: OperateTransactionsResult[] = await settleBySource(
-      owned.sources,
-      (source) =>
+    const [results, statements] = await Promise.all([
+      settleBySource<OperateTransactionsResult>(owned.sources, (source) =>
         owned.client.listUserSourceTransactions({
           githubUserId: owned.githubUserId,
           platform: owned.platform,
@@ -446,24 +525,94 @@ export async function operateTransactionsRoute(req: Request) {
             | string
             | undefined,
         }),
-    );
-    const transactions = results
+      ),
+      cursor
+        ? Promise.resolve([])
+        : settleBySource<OperateStatementResult>(owned.sources, (source) =>
+            owned.client.getUserSourceStatement({
+              githubUserId: owned.githubUserId,
+              platform: owned.platform,
+              appSourceId: source.id,
+            }),
+          ),
+    ]);
+    const appTransactions = results
       .flatMap((result) =>
         result.transactions.map((transaction) => ({
           ...transaction,
+          kind: "app_transaction",
           source: result.source,
           platform: result.platform,
         })),
       )
       .sort((a, b) => b.createdAt - a.createdAt || b.id.localeCompare(a.id));
+    const payouts = statements.flatMap((statement) =>
+      statement.payments.events
+        .filter((event) => event.kind === "settlement_confirmed")
+        .map((event) => ({
+          id: `partner-payout:${event.id}`,
+          kind: "partner_payout",
+          externalTxId: event.receiptId ?? event.id,
+          application: event.application ?? "Partner payout",
+          applicationId: event.applicationId,
+          status: "confirmed",
+          txHash: event.receiptId,
+          chainId: chainId(event.chain),
+          fromAddress: "",
+          toAddress: event.recipient,
+          value: `${event.assetAmount ?? event.usd} ${event.asset ?? "USD"}`,
+          hasCalldata: false,
+          calldataPreview: null,
+          description: `Partner payout via ${event.paymentMethod}`,
+          createdAt: event.occurredAt,
+          updatedAt: event.occurredAt,
+          submittedAt: event.occurredAt,
+          family: "evm",
+          chainName: chainName(event.chain),
+          fromLabel: "settlement payer",
+          toLabel: "beneficiary",
+          valueUsd: `$${event.usd.toFixed(2)}`,
+          block: null,
+          slot: null,
+          confirmations: null,
+          gasUsed: null,
+          gasLimit: null,
+          effGasPrice: null,
+          computeUnits: null,
+          computeLimit: null,
+          priorityFee: null,
+          txFee: null,
+          platformFee: null,
+          nonce: null,
+          method: "x402 settlement",
+          transfers: [
+            `${event.assetAmount ?? event.usd} ${event.asset ?? "USD"} → ${event.recipient}`,
+          ],
+          revertReason: null,
+          explorerUrl: event.explorerUrl,
+          payment: {
+            credits: event.credits,
+            recipient: event.recipient,
+            scope: statement.payments.scope,
+          },
+          source: statement.source,
+          platform: statement.platform,
+        })),
+    );
+    const transactions = [...appTransactions, ...payouts].sort(
+      (a, b) => b.createdAt - a.createdAt || b.id.localeCompare(a.id),
+    );
     const visible = transactions.slice(0, limit);
+    const visibleAppTransactions = visible.filter(
+      (transaction) => transaction.kind !== "partner_payout",
+    );
     return NextResponse.json({
       sources: results.map((result) => result.source),
       transactions: visible,
       nextCursor: mergedNextCursor(
         cursor,
-        visible,
-        transactions,
+        visibleAppTransactions,
+        appTransactions,
         results,
         transactionCursorFor,
       ),
@@ -557,6 +706,12 @@ export async function operateUsageRoute(req: Request) {
                   b.day.localeCompare(a.day) ||
                   a.application.localeCompare(b.application),
               ),
+            payments: mergedPartnerPayments(
+              statements.map((statement) => ({
+                source: statement.source as UserSource,
+                payments: statement.payments,
+              })),
+            ),
           }
         : exampleStatement(owned.sources[0] ?? EXAMPLE_SOURCE),
     });
@@ -651,6 +806,12 @@ export async function operateObservabilityRoute(req: Request) {
         windowSeconds: results[0]?.monitoring?.windowSeconds ?? 0,
       },
       apps,
+      payments: mergedPartnerPayments(
+        results.map((result) => ({
+          source: result.source as UserSource,
+          payments: result.payments,
+        })),
+      ),
       dashboardLinks: results.flatMap((result) => result.dashboardLinks),
       platformMetrics: results[0]?.platformMetrics ?? [],
     });
