@@ -31,6 +31,11 @@ mistaken for another supported environment.
 
 Progress:
 
+- 2026-07-27 cross-platform project discovery: the Projects index now uses the
+  backend's platform-agnostic, GitHub-user-scoped source list instead of
+  silently defaulting to `community`, and project links preserve each source's
+  bound platform for detail reads.
+
 - 2026-07-27 deployment-history correctness: the project History view now
   loads the deployment-history API and merges it with the promotion log, so a
   successfully deployed/live app remains visible even when its append-only

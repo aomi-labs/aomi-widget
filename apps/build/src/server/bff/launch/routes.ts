@@ -1174,8 +1174,9 @@ export async function redeployLaunchRoute(req: Request) {
 }
 
 // GET /api/bff/launch/sources — the signed-in user's source repos + their apps,
-// merged across installations. Scoped to the github_user_id in the session
-// cookie; a client can never request someone else's sources.
+// merged across installations and platforms unless `platform` is explicit.
+// Scoped to the github_user_id in the session cookie; a client can never
+// request someone else's sources.
 export async function userSourcesRoute(req: Request) {
   const auth = await authorize(req);
   if ("response" in auth) return auth.response;
@@ -1183,12 +1184,18 @@ export async function userSourcesRoute(req: Request) {
 
   try {
     const config = launchConfig();
-    const platform = requestedPlatformFromUrl(req, config);
-    if (!platform) return invalidPlatformResponse();
+    const requestedPlatform = new URL(req.url).searchParams.get("platform");
+    const platform =
+      requestedPlatform === null
+        ? undefined
+        : resolveLaunchPlatform(requestedPlatform, config);
+    if (requestedPlatform !== null && !platform) {
+      return invalidPlatformResponse();
+    }
     const client = await deploymentClient();
     const sources = await client.listUserSources({
       githubUserId: session.githubUserId,
-      platform,
+      platform: platform ?? undefined,
     });
     return NextResponse.json({ sources, githubLogin: session.githubLogin });
   } catch (err) {
