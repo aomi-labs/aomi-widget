@@ -24,6 +24,11 @@ databases. Local schema convergence applies the backend's forward drop instead
 of recreating the retired `bff_cli_device_sessions` / `bff_cli_sessions`
 tables; fresh databases also finish replay with that drop.
 
+2026-07-26 follow-up: the hosted topology is explicitly limited to staging
+`cmwkmjpfbffmdiluvgtu` and production `akejwtxsjvbexutsfhkn`; the public
+architecture guide now names both refs so a legacy third target cannot be
+mistaken for another supported environment.
+
 Progress:
 
 - 2026-07-26 staging Portal account-auth recovery: traced the Settings
