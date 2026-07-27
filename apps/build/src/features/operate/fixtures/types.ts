@@ -108,7 +108,7 @@ export type AppDetail = {
   }>;
   chatsHourly: number[];
   toolCallsHourly: number[];
-  p95Hourly: number[];
+  p95Hourly: Array<number | null>;
   creditsDaily: { days: string[]; values: number[] };
   tools: ToolStat[];
   toolsSummary: string;
