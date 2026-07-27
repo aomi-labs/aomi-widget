@@ -12,13 +12,12 @@ import type {
   OperateUsageResult,
   UserSource,
 } from "@aomi-labs/deploy";
-import { checkRateLimit, getClientIp } from "@build/lib/rate-limit";
 import {
   EXAMPLE_SOURCE,
   exampleStatement,
 } from "@build/features/operate/fixtures/wire";
 import { deploymentClient } from "@build/server/bff/backend";
-import { getGitHubSession } from "@build/server/cookies/github";
+import { authorize } from "@build/server/bff/auth";
 import { launchConfig } from "@build/server/bff/launch/config";
 import { launchErrorResponse } from "@build/server/bff/launch/errors";
 
@@ -45,12 +44,6 @@ async function settleBySource<T>(
     }
   });
   return ok;
-}
-
-function checkRead(req: Request): NextResponse | null {
-  return checkRateLimit(getClientIp(req)).allowed
-    ? null
-    : NextResponse.json({ error: "Too many requests" }, { status: 429 });
 }
 
 function isValidAppSourceId(value: unknown): value is number {
@@ -166,17 +159,9 @@ async function ownedSources(req: Request): Promise<
       client: DeploymentClientInstance;
     }
 > {
-  const blocked = checkRead(req);
-  if (blocked) return { response: blocked };
-  const session = await getGitHubSession();
-  if (!session) {
-    return {
-      response: NextResponse.json(
-        { error: "not signed in with GitHub" },
-        { status: 401 },
-      ),
-    };
-  }
+  const auth = await authorize(req);
+  if ("response" in auth) return auth;
+  const { session } = auth;
   const config = launchConfig();
   const client = await deploymentClient();
   const params = new URL(req.url).searchParams;

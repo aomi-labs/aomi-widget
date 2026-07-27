@@ -48,7 +48,9 @@ export interface UserSourcesResult {
 }
 
 export async function fetchUserSources(): Promise<UserSourcesResult> {
-  const res = await fetch(API_PATHS.bff.launch.sources, { cache: "no-store" });
+  const res = await fetch(API_PATHS.bff.launch.sources(), {
+    cache: "no-store",
+  });
   const json = (await res.json().catch(() => ({}))) as
     | UserSourcesResult
     | { error?: string };
