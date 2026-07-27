@@ -15,15 +15,20 @@ vi.mock("@aomi-labs/account", () => ({
 const getGitHubSession = vi.fn();
 vi.mock("@build/server/cookies/github", () => ({
   getGitHubSession: () => getGitHubSession(),
+  getGitHubCliSessionFromRequest: () => getGitHubSession(),
 }));
 
-function req() {
-  return new Request("http://localhost:3000/api/bff/launch/sources");
+function req(platform?: string) {
+  const url = new URL("http://localhost:3000/api/bff/launch/sources");
+  if (platform) url.searchParams.set("platform", platform);
+  return new Request(url);
 }
 
 describe("userSourcesRoute", () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
     getGitHubSession.mockReset();
   });
 
@@ -74,7 +79,25 @@ describe("userSourcesRoute", () => {
     // The backend call is scoped to the session's github_user_id.
     const [url] = fetchMock.mock.calls[0];
     expect(String(url)).toContain(
-      "/api/integrations/github-app/user/sources?github_user_id=42&platform=community",
+      "/api/integrations/github-app/user/sources?github_user_id=42",
+    );
+    expect(String(url)).not.toContain("&platform=");
+  });
+
+  it("looks up sources on an explicitly configured partner platform", async () => {
+    vi.stubEnv("APP_DEPLOY_PLATFORMS", "community,somm.finance");
+    getGitHubSession.mockResolvedValueOnce({
+      githubUserId: "42",
+      githubLogin: "alice",
+    });
+    const fetchMock = vi.fn(async () => Response.json({ sources: [] }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await userSourcesRoute(req("somm.finance"));
+
+    expect(res.status).toBe(200);
+    expect(String(fetchMock.mock.calls[0][0])).toContain(
+      "github_user_id=42&platform=somm.finance",
     );
   });
 });

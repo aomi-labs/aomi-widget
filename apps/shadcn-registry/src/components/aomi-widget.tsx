@@ -61,14 +61,7 @@ export function AomiWidget(props: AomiWidgetProps) {
       auth={resolved.auth}
       providers={resolved.providers}
       wallets={props.wallets}
-      execution={
-        props.execution ?? {
-          aa: "optional",
-          provider: "auto",
-          modes: ["4337"],
-          owner: "external-wallet",
-        }
-      }
+      execution={props.execution ?? { aa: "optional" }}
       account={account}
     >
       <WidgetFrame

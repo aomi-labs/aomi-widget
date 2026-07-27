@@ -293,8 +293,8 @@ export function liveAppDetailView(
       ],
       chatsHourly,
       toolCallsHourly,
-      p95Hourly: (detail.hourly.p95LatencyMs ?? []).map(
-        (value) => value / 1000,
+      p95Hourly: (detail.hourly.p95LatencyMs ?? []).map((value) =>
+        value === null ? null : value / 1000,
       ),
       creditsDaily,
       tools: realTools,

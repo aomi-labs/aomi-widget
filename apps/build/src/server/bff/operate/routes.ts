@@ -12,13 +12,12 @@ import type {
   OperateUsageResult,
   UserSource,
 } from "@aomi-labs/deploy";
-import { checkRateLimit, getClientIp } from "@build/lib/rate-limit";
 import {
   EXAMPLE_SOURCE,
   exampleStatement,
 } from "@build/features/operate/fixtures/wire";
 import { deploymentClient } from "@build/server/bff/backend";
-import { getGitHubSession } from "@build/server/cookies/github";
+import { authorize } from "@build/server/bff/auth";
 import { launchConfig } from "@build/server/bff/launch/config";
 import { launchErrorResponse } from "@build/server/bff/launch/errors";
 
@@ -45,12 +44,6 @@ async function settleBySource<T>(
     }
   });
   return ok;
-}
-
-function checkRead(req: Request): NextResponse | null {
-  return checkRateLimit(getClientIp(req)).allowed
-    ? null
-    : NextResponse.json({ error: "Too many requests" }, { status: 429 });
 }
 
 function isValidAppSourceId(value: unknown): value is number {
@@ -166,17 +159,9 @@ async function ownedSources(req: Request): Promise<
       client: DeploymentClientInstance;
     }
 > {
-  const blocked = checkRead(req);
-  if (blocked) return { response: blocked };
-  const session = await getGitHubSession();
-  if (!session) {
-    return {
-      response: NextResponse.json(
-        { error: "not signed in with GitHub" },
-        { status: 401 },
-      ),
-    };
-  }
+  const auth = await authorize(req);
+  if ("response" in auth) return auth;
+  const { session } = auth;
   const config = launchConfig();
   const client = await deploymentClient();
   const params = new URL(req.url).searchParams;
@@ -225,17 +210,13 @@ export async function operateBotsRoute(req: Request) {
   const owned = await ownedSources(req);
   if ("response" in owned) return owned.response;
   try {
-    const results = await settleBySource(owned.sources, async (source) => {
-      const bots = await owned.client.listUserSourceBots({
-        githubUserId: owned.githubUserId,
-        platform: owned.platform,
-        appSourceId: source.id,
-      });
-      return bots.map((bot) => ({ ...bot, source }));
+    const bots = await owned.client.listUserBots({
+      githubUserId: owned.githubUserId,
+      platform: owned.platform,
     });
     return NextResponse.json({
       sources: owned.sources,
-      bots: results.flat(),
+      bots,
     });
   } catch (err) {
     return launchErrorResponse(err);
@@ -247,18 +228,20 @@ export async function operateBotsCreateRoute(req: Request) {
   if ("response" in owned) return owned.response;
 
   const body = (await req.json().catch(() => ({}))) as {
-    appSourceId?: unknown;
-    applicationId?: unknown;
+    applicationIds?: unknown;
+    primaryApplicationId?: unknown;
     credential?: unknown;
     label?: unknown;
     threadMode?: unknown;
   };
   if (
-    !isValidAppSourceId(body.appSourceId) ||
-    typeof body.applicationId !== "number"
+    !Array.isArray(body.applicationIds) ||
+    body.applicationIds.length === 0 ||
+    body.applicationIds.some((id) => typeof id !== "number") ||
+    typeof body.primaryApplicationId !== "number"
   ) {
     return NextResponse.json(
-      { error: "missing or invalid `appSourceId` / `applicationId`" },
+      { error: "missing or invalid app mappings" },
       { status: 400 },
     );
   }
@@ -268,27 +251,39 @@ export async function operateBotsCreateRoute(req: Request) {
       { status: 400 },
     );
   }
-  const source = owned.sources.find((s) => s.id === body.appSourceId);
-  if (!source) {
+  const allowedApplicationIds = new Set(
+    owned.sources.flatMap((source) => (source.apps ?? []).map((app) => app.id)),
+  );
+  const applicationIds = body.applicationIds as number[];
+  if (new Set(applicationIds).size !== applicationIds.length) {
     return NextResponse.json(
-      { error: "app source not found for this user" },
-      { status: 404 },
+      { error: "`applicationIds` must be unique" },
+      { status: 400 },
+    );
+  }
+  if (
+    !applicationIds.every((id) => allowedApplicationIds.has(id)) ||
+    !applicationIds.includes(body.primaryApplicationId)
+  ) {
+    return NextResponse.json(
+      { error: "selected apps are not owned by this user" },
+      { status: 403 },
     );
   }
 
   try {
-    const bot: BotRegistration = await owned.client.createUserSourceBot({
+    const bot: BotRegistration = await owned.client.createUserBot({
       githubUserId: owned.githubUserId,
       platform: owned.platform,
-      appSourceId: source.id,
-      applicationId: body.applicationId,
+      applicationIds,
+      primaryApplicationId: body.primaryApplicationId,
       botPlatform: "telegram",
       credential: body.credential.trim(),
       label: typeof body.label === "string" ? body.label : undefined,
       threadMode:
         typeof body.threadMode === "string" ? body.threadMode : undefined,
     });
-    return NextResponse.json({ bot: { ...bot, source } }, { status: 201 });
+    return NextResponse.json({ bot }, { status: 201 });
   } catch (err) {
     return launchErrorResponse(err);
   }
@@ -299,28 +294,180 @@ export async function operateBotsDeleteRoute(req: Request) {
   if ("response" in owned) return owned.response;
 
   const params = new URL(req.url).searchParams;
-  const requestedSourceId = Number(params.get("appSourceId"));
   const botId = params.get("botId");
-  if (!isValidAppSourceId(requestedSourceId) || !botId) {
+  if (!botId) {
+    return NextResponse.json({ error: "missing `botId`" }, { status: 400 });
+  }
+  try {
+    await owned.client.deleteUserBot({
+      githubUserId: owned.githubUserId,
+      platform: owned.platform,
+      botId,
+    });
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    return launchErrorResponse(err);
+  }
+}
+
+export async function operateBotsUpdateRoute(req: Request) {
+  const owned = await ownedSources(req);
+  if ("response" in owned) return owned.response;
+  const body = (await req.json().catch(() => ({}))) as {
+    botId?: unknown;
+    applicationIds?: unknown;
+    primaryApplicationId?: unknown;
+  };
+  if (
+    typeof body.botId !== "string" ||
+    !Array.isArray(body.applicationIds) ||
+    body.applicationIds.length === 0 ||
+    body.applicationIds.some((id) => typeof id !== "number") ||
+    typeof body.primaryApplicationId !== "number"
+  ) {
     return NextResponse.json(
-      { error: "missing or invalid `appSourceId` / `botId`" },
+      { error: "invalid bot mapping update" },
       { status: 400 },
     );
   }
-  const source = owned.sources.find((s) => s.id === requestedSourceId);
-  if (!source) {
+  const allowed = new Set(
+    owned.sources.flatMap((source) => (source.apps ?? []).map((app) => app.id)),
+  );
+  const applicationIds = body.applicationIds as number[];
+  if (new Set(applicationIds).size !== applicationIds.length) {
     return NextResponse.json(
-      { error: "app source not found for this user" },
-      { status: 404 },
+      { error: "`applicationIds` must be unique" },
+      { status: 400 },
+    );
+  }
+  if (
+    !applicationIds.every((id) => allowed.has(id)) ||
+    !applicationIds.includes(body.primaryApplicationId)
+  ) {
+    return NextResponse.json(
+      { error: "selected apps are not owned by this user" },
+      { status: 403 },
+    );
+  }
+  try {
+    const bot = await owned.client.updateUserBot({
+      githubUserId: owned.githubUserId,
+      platform: owned.platform,
+      botId: body.botId,
+      applicationIds,
+      primaryApplicationId: body.primaryApplicationId,
+    });
+    return NextResponse.json({ bot });
+  } catch (err) {
+    return launchErrorResponse(err);
+  }
+}
+
+// ── model keys (funder-ladder app rung, builder-owned) ─────────────────────
+
+/// GET → { sources, keys }: the builder's key inventory with grants, plus
+/// their sources (for the "apply to projects" picker). Never key material.
+export async function operateModelKeysRoute(req: Request) {
+  const owned = await ownedSources(req);
+  if ("response" in owned) return owned.response;
+  try {
+    const keys = await owned.client.listBuilderModelKeys({
+      githubUserId: owned.githubUserId,
+      platform: owned.platform,
+    });
+    return NextResponse.json({ sources: owned.sources, keys });
+  } catch (err) {
+    return launchErrorResponse(err);
+  }
+}
+
+/// POST { provider, key, label? } → create; with `keyId` → rotate in place.
+export async function operateModelKeysSaveRoute(req: Request) {
+  const owned = await ownedSources(req);
+  if ("response" in owned) return owned.response;
+
+  const body = (await req.json().catch(() => ({}))) as {
+    keyId?: unknown;
+    provider?: unknown;
+    key?: unknown;
+    label?: unknown;
+  };
+  if (typeof body.provider !== "string" || !body.provider.trim()) {
+    return NextResponse.json({ error: "missing `provider`" }, { status: 400 });
+  }
+  if (typeof body.key !== "string" || !body.key.trim()) {
+    return NextResponse.json({ error: "missing `key`" }, { status: 400 });
+  }
+  if (body.keyId !== undefined && typeof body.keyId !== "number") {
+    return NextResponse.json({ error: "invalid `keyId`" }, { status: 400 });
+  }
+
+  try {
+    const key = await owned.client.saveBuilderModelKey({
+      githubUserId: owned.githubUserId,
+      platform: owned.platform,
+      keyId: body.keyId as number | undefined,
+      provider: body.provider.trim(),
+      key: body.key.trim(),
+      label: typeof body.label === "string" ? body.label : undefined,
+    });
+    return NextResponse.json({ key }, { status: 201 });
+  } catch (err) {
+    return launchErrorResponse(err);
+  }
+}
+
+/// PUT { keyId, applicationIds } → replace the key's grant set.
+export async function operateModelKeysGrantsRoute(req: Request) {
+  const owned = await ownedSources(req);
+  if ("response" in owned) return owned.response;
+
+  const body = (await req.json().catch(() => ({}))) as {
+    keyId?: unknown;
+    applicationIds?: unknown;
+  };
+  if (
+    typeof body.keyId !== "number" ||
+    !Array.isArray(body.applicationIds) ||
+    body.applicationIds.some((id) => typeof id !== "number")
+  ) {
+    return NextResponse.json(
+      { error: "missing or invalid `keyId` / `applicationIds`" },
+      { status: 400 },
     );
   }
 
   try {
-    await owned.client.deleteUserSourceBot({
+    const key = await owned.client.setModelKeyGrants({
       githubUserId: owned.githubUserId,
       platform: owned.platform,
-      appSourceId: source.id,
-      botId,
+      keyId: body.keyId,
+      applicationIds: body.applicationIds as number[],
+    });
+    return NextResponse.json({ key });
+  } catch (err) {
+    return launchErrorResponse(err);
+  }
+}
+
+export async function operateModelKeysDeleteRoute(req: Request) {
+  const owned = await ownedSources(req);
+  if ("response" in owned) return owned.response;
+
+  const params = new URL(req.url).searchParams;
+  const keyId = Number(params.get("keyId"));
+  if (!Number.isFinite(keyId) || keyId <= 0) {
+    return NextResponse.json(
+      { error: "missing or invalid `keyId`" },
+      { status: 400 },
+    );
+  }
+
+  try {
+    await owned.client.deleteBuilderModelKey({
+      githubUserId: owned.githubUserId,
+      platform: owned.platform,
+      keyId,
     });
     return NextResponse.json({ ok: true });
   } catch (err) {

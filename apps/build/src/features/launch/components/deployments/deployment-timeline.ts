@@ -1,8 +1,9 @@
+import type { UserSourceLatestDeployment } from "@aomi-labs/deploy";
 import type { DeploymentRecord } from "@build/features/launch/contracts";
 
-/** One deployment as derived purely from the DB promotion records — no GitHub
- *  reads. `commit` is decoded from the deployment id
- *  (`dep_<install>_<repokey>_<shortcommit>`). */
+/** One deployment for the project timeline. `commit` is decoded from the
+ * deployment id (`dep_<install>_<repokey>_<shortcommit>`) when history does
+ * not carry the full commit hash. */
 export type TimelineDeployment = {
   deploymentId: string;
   commit: string | null;
@@ -25,19 +26,17 @@ export function commitFromDeploymentId(deploymentId: string): string | null {
 }
 
 /**
- * Merge per-app promotion records into a newest-first deployment list. A single
- * deploy can touch several apps (same `deploymentId`, one record per app), so
- * records are grouped by `deploymentId`. A deployment is "current" when any of
- * its apps' latest record is live; `createdAt`/`actor`/`sdkVersion` come from
- * the newest record in the group.
+ * Merge deployment history with per-app promotion records into a newest-first
+ * deployment list. History is the source of truth for what was deployed;
+ * promotion records enrich it with actor/current state and preserve legacy
+ * deployments that are only present in the activation log.
  */
 export function buildDeploymentList(
   recordsByApp: Record<string, DeploymentRecord[]> | null,
+  history: UserSourceLatestDeployment[] | null = null,
 ): TimelineDeployment[] {
-  if (!recordsByApp) return [];
-
   const byId = new Map<string, TimelineDeployment>();
-  for (const [app, rows] of Object.entries(recordsByApp)) {
+  for (const [app, rows] of Object.entries(recordsByApp ?? {})) {
     for (const row of rows) {
       const existing = byId.get(row.deploymentId);
       if (!existing) {
@@ -64,6 +63,34 @@ export function buildDeploymentList(
         existing.sdkVersion = row.sdkVersion;
       }
     }
+  }
+
+  for (const entry of history ?? []) {
+    if (!entry.deploymentId) continue;
+    const existing = byId.get(entry.deploymentId);
+    const apps = entry.apps.map((app) => app.name);
+    const releaseTags = [
+      ...entry.releaseTags,
+      ...entry.apps.flatMap((app) => (app.releaseTag ? [app.releaseTag] : [])),
+    ];
+    const sdkVersion =
+      entry.sdkVersion ??
+      entry.apps.find((app) => app.sdkVersion)?.sdkVersion ??
+      existing?.sdkVersion ??
+      null;
+    byId.set(entry.deploymentId, {
+      deploymentId: entry.deploymentId,
+      commit:
+        existing?.commit ?? commitFromDeploymentId(entry.deploymentId),
+      apps: [...new Set([...(existing?.apps ?? []), ...apps])],
+      releaseTags: [
+        ...new Set([...(existing?.releaseTags ?? []), ...releaseTags]),
+      ],
+      current: existing?.current ?? false,
+      actor: existing?.actor ?? null,
+      sdkVersion,
+      createdAt: entry.createdAt ?? existing?.createdAt ?? 0,
+    });
   }
 
   return [...byId.values()].sort((a, b) => b.createdAt - a.createdAt);

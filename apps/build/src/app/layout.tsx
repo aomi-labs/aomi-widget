@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, PT_Serif } from "next/font/google";
 import { COLOR_THEME_INIT_SCRIPT } from "@build/lib/color-theme";
 import "./globals.css";
 
@@ -11,6 +11,12 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   subsets: ["latin"],
   variable: "--font-geist-mono",
+});
+
+const ptSerif = PT_Serif({
+  subsets: ["latin"],
+  weight: ["400", "700"],
+  variable: "--font-pt-serif",
 });
 
 export const metadata: Metadata = {
@@ -26,7 +32,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`h-full ${geistSans.variable} ${geistMono.variable}`}
+      className={`h-full ${geistSans.variable} ${geistMono.variable} ${ptSerif.variable}`}
       suppressHydrationWarning
     >
       <head>

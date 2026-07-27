@@ -72,7 +72,7 @@
 @theme inline {
   --font-sans: var(--aomi-font-sans);
   --font-mono: var(--aomi-font-mono);
-  --font-display: var(--aomi-font-display);
+  --font-display: var(--font-pt-serif), var(--aomi-font-display);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -88,6 +88,10 @@
   --color-accent: var(--accent);
   --color-accent-hover: var(--accent-hover);
   --color-accent-selected: var(--accent-selected);
+  /* Text/icon color that sits ON the solid accent fill. Without this the
+     `text-accent-selected-foreground` utility does not exist and labels on
+     accent buttons silently fall back to the body ink. */
+  --color-accent-selected-foreground: var(--accent-selected-foreground);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
@@ -99,6 +103,25 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
+  /* Aomi design-system utilities — same names as the widget theme. */
+  --color-aomi-bg: var(--aomi-bg);
+  --color-aomi-surface: var(--aomi-surface);
+  --color-aomi-surface-2: var(--aomi-surface-2);
+  --color-aomi-raised: var(--aomi-raised);
+  --color-aomi-border: var(--aomi-border);
+  --color-aomi-fg: var(--aomi-fg);
+  --color-aomi-muted: var(--aomi-muted);
+  --color-aomi-accent: var(--aomi-accent-interactive);
+  --color-aomi-accent-strong: var(--aomi-accent-strong);
+  --color-aomi-accent-subtle: var(--aomi-accent-subtle);
+  --color-aomi-on-accent: var(--aomi-on-accent);
+  --color-aomi-hover: var(--aomi-hover);
+  --color-aomi-danger-strong: var(--aomi-danger-strong);
+  --color-aomi-on-danger: var(--aomi-on-danger);
+  --color-aomi-ring: var(--aomi-ring);
+  --color-aomi-accent-tint: var(--aomi-accent-tint);
+  --color-aomi-accent-outline: var(--aomi-accent-outline);
+  --color-aomi-overlay-border: var(--aomi-overlay-border);
   --radius-sm: var(--aomi-radius-sm);
   --radius-md: var(--aomi-radius-md);
   --radius-lg: var(--aomi-radius-lg);
@@ -383,21 +406,9 @@
   color: var(--text-primary);
 }
 .nav-link[data-active="true"] {
-  position: relative;
-  isolation: isolate;
-  /* Pale base pill shows as a smooth crescent on the left… */
-  background: var(--aomi-sky-200);
+  background: var(--accent-selected);
   color: var(--accent-selected-foreground);
   font-weight: 500;
-}
-/* …under the dark pill, inset on the right so the crescent tapers there. */
-.nav-link[data-active="true"]::before {
-  content: "";
-  position: absolute;
-  inset: 0 5px 0 0;
-  z-index: -1;
-  border-radius: inherit;
-  background: var(--accent-selected);
 }
 .nav-link[data-active="true"] .nav-icon {
   color: var(--accent-selected-foreground);

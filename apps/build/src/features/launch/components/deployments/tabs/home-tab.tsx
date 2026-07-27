@@ -126,10 +126,12 @@ function usageCardCopy(usage: UsagePeek | null): {
 
 export function HomeTab({
   detail,
-  tabBaseHref,
+  tabHref,
 }: {
   detail: Detail;
-  tabBaseHref?: string;
+  tabHref?: (
+    tab: "home" | "deployments" | "providers" | "environment" | "chat",
+  ) => string;
 }) {
   const source = detail.source;
   const [usage, setUsage] = useState<UsagePeek | null>(null);
@@ -177,8 +179,9 @@ export function HomeTab({
     return <EmptyPanel>Project not found.</EmptyPanel>;
   }
 
-  const tabHref = (tab: string) =>
-    tabBaseHref ? `${tabBaseHref}?tab=${tab}` : `?tab=${tab}`;
+  const hrefForTab = (
+    tab: "home" | "deployments" | "providers" | "environment" | "chat",
+  ) => tabHref?.(tab) ?? `?tab=${tab}`;
 
   const isLive =
     lifecycle.kind === "live" && Boolean(lifecycle.chatApp) && !outdated;
@@ -214,19 +217,19 @@ export function HomeTab({
   const nextAction =
     outdated && requiredSdk
       ? {
-          href: tabHref("deployments"),
+          href: hrefForTab("deployments"),
           label: `Upgrade to ${requiredSdk}`,
           copy: "Update the linked repository before opening chat.",
         }
       : !isLive
         ? {
-            href: tabHref("deployments"),
+            href: hrefForTab("deployments"),
             label: "Redeploy from Linked Repository",
             copy: "Publish a deployment, then set keys and open chat.",
           }
         : !envReady
           ? {
-              href: tabHref("environment"),
+              href: hrefForTab("environment"),
               label: "Open Environment",
               copy: "Add API keys so the live app can call tools.",
             }
@@ -238,7 +241,7 @@ export function HomeTab({
                 external: true,
               }
             : {
-                href: tabHref("chat"),
+                href: hrefForTab("chat"),
                 label: "Open Chat tab",
                 copy: "Continue in the Chat tab.",
               };
@@ -265,7 +268,7 @@ export function HomeTab({
                 : lifecycle.message || "Deploy and activate an app to go live."
           }
           tone={liveTone}
-          actionHref={tabHref("deployments")}
+          actionHref={hrefForTab("deployments")}
           actionLabel="View deployments"
         />
         <StatusCard
@@ -281,7 +284,7 @@ export function HomeTab({
           }
           hint={BUILD_GLOSSARY.environment.meaning}
           tone={envReady ? "good" : "warn"}
-          actionHref={tabHref("environment")}
+          actionHref={hrefForTab("environment")}
           actionLabel="Open Environment"
         />
         <StatusCard
@@ -293,7 +296,7 @@ export function HomeTab({
               : "Chat unlocks after a live deployment."
           }
           tone={isLive ? "good" : "neutral"}
-          actionHref={isLive ? tabHref("chat") : tabHref("deployments")}
+          actionHref={isLive ? hrefForTab("chat") : hrefForTab("deployments")}
           actionLabel={isLive ? "Chat tab" : "Go to deployments"}
         />
         <StatusCard

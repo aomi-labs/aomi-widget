@@ -547,6 +547,61 @@ describe("DeploymentClient operate observability", () => {
   });
 });
 
+describe("DeploymentClient operate logs", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("normalizes safe builder model-key attribution on usage events", async () => {
+    const fetchMock = vi.fn(async () =>
+      Response.json({
+        source: {
+          id: 42,
+          repository_link: "https://github.com/alice/demo",
+        },
+        platform: "community",
+        logs: [
+          {
+            occurred_at: 1_784_500_000,
+            event_type: "usage",
+            id: "usage-1",
+            application: "goal-digger",
+            application_id: 77,
+            summary: "Usage openai/gpt-5-nano",
+            details: {
+              provider: "openai",
+              model: "gpt-5-nano",
+              payment_method: "app_key",
+              model_key: {
+                id: 7,
+                label: "test-1",
+                prefix: "sk-proj",
+              },
+            },
+            kind: "event",
+          },
+        ],
+        next_cursor: null,
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await client().listUserSourceLogs({
+      githubUserId: "4738254",
+      platform: "community",
+      appSourceId: 42,
+    });
+
+    expect(result.logs[0]).toMatchObject({
+      eventType: "usage",
+      summary: "Usage openai/gpt-5-nano",
+      modelKey: {
+        id: 7,
+        label: "test-1",
+        prefix: "sk-proj",
+      },
+    });
+  });
+});
+
 describe("DeploymentClient operate app detail", () => {
   afterEach(() => vi.unstubAllGlobals());
 
@@ -601,7 +656,7 @@ describe("DeploymentClient operate app detail", () => {
         hourly: {
           chats: [0, 2, 3],
           tool_calls: [1, 4, 5],
-          p95_latency_ms: [800, 1200, 950],
+          p95_latency_ms: [800, null, 950],
           transactions: [0, 1, 1],
         },
       }),
@@ -628,7 +683,7 @@ describe("DeploymentClient operate app detail", () => {
       hourly: {
         chats: [0, 2, 3],
         toolCalls: [1, 4, 5],
-        p95LatencyMs: [800, 1200, 950],
+        p95LatencyMs: [800, null, 950],
       },
     });
     expect(result.tools[0]).toEqual({

@@ -22,11 +22,6 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbList,
-} from "@/components/ui/breadcrumb";
 import { ControlBar, type ControlBarProps } from "@/components/control-bar";
 import { safeEnv } from "../lib/wallet-kit/env";
 
@@ -37,6 +32,7 @@ import { safeEnv } from "../lib/wallet-kit/env";
 type ComposerControlContextValue = {
   enabled: boolean;
   controlBarProps?: Omit<ControlBarProps, "children">;
+  welcomeTitle?: string;
 };
 
 const ComposerControlContext = createContext<ComposerControlContextValue>({
@@ -60,6 +56,8 @@ type RootProps = {
   walletFamilies?: Array<"evm" | "solana">;
   /** Whether to show the thread list sidebar (default: true) */
   showSidebar?: boolean;
+  /** Whether the thread list sidebar starts expanded (default: true) */
+  defaultSidebarOpen?: boolean;
   /** Backend URL for the Aomi runtime */
   backendUrl?: string;
   /** Optional runtime client overrides. */
@@ -89,6 +87,8 @@ type ComposerProps = {
   withControl?: boolean;
   /** Props to pass to the ControlBar when withControl is true */
   controlBarProps?: Omit<ControlBarProps, "children">;
+  /** Optional empty-state title shown beneath the Aomi mark. */
+  welcomeTitle?: string;
   className?: string;
 };
 
@@ -110,6 +110,7 @@ const Root: FC<RootProps> = ({
   walletPosition = "footer",
   walletFamilies,
   showSidebar = true,
+  defaultSidebarOpen = true,
   backendUrl,
   clientOptions,
   persistThread,
@@ -130,10 +131,13 @@ const Root: FC<RootProps> = ({
       threadPersistenceKey={threadPersistenceKey}
       threadPersistenceScope={threadPersistenceScope}
     >
-      <SidebarProvider className="min-h-0! h-full">
+      <SidebarProvider
+        defaultOpen={defaultSidebarOpen}
+        className="min-h-0! h-full"
+      >
         <div
           className={cn(
-            "rounded-4xl flex h-full w-full overflow-hidden bg-white shadow-2xl dark:bg-neutral-950",
+            "rounded-4xl bg-aomi-bg flex h-full w-full overflow-hidden shadow-2xl",
             className,
           )}
           style={frameStyle}
@@ -171,35 +175,23 @@ const Header: FC<HeaderProps> = ({
     meta?.title && meta.title !== "New Chat" ? meta.title : null;
 
   return (
-    <>
-      <header
-        className={cn(
-          "mt-1 flex h-14 shrink-0 items-center gap-2 px-3",
-          className,
-        )}
-      >
-        {showSidebarTrigger && (
-          <>
-            <SidebarTrigger />
-            {currentTitle && <div className="bg-border/50 mr-2 h-3.5 w-px" />}
-          </>
-        )}
-        <Breadcrumb>
-          <BreadcrumbList>
-            {currentTitle && (
-              <BreadcrumbItem className="hidden md:block">
-                {currentTitle}
-              </BreadcrumbItem>
-            )}
-          </BreadcrumbList>
-        </Breadcrumb>
-        <div className="ml-auto flex items-center gap-2">
-          {withControl && <ControlBar {...controlBarProps} />}
-          {children}
-        </div>
-      </header>
-      <div className="pointer-events-none -mb-4 h-4 shrink-0" />
-    </>
+    <header
+      className={cn(
+        "border-aomi-border text-aomi-fg flex h-14 shrink-0 items-center gap-2 border-b px-4",
+        className,
+      )}
+    >
+      {showSidebarTrigger && <SidebarTrigger />}
+      {currentTitle && (
+        <span className="hidden truncate text-sm font-medium md:block">
+          {currentTitle}
+        </span>
+      )}
+      <div className="ml-auto flex items-center gap-2.5">
+        {withControl && <ControlBar {...controlBarProps} />}
+        {children}
+      </div>
+    </header>
   );
 };
 
@@ -211,13 +203,14 @@ const Composer: FC<ComposerProps> = ({
   children,
   withControl = false,
   controlBarProps,
+  welcomeTitle,
   className,
 }) => {
   const { currentThreadId, threadViewKey } = useAomiRuntime();
 
   return (
     <ComposerControlContext.Provider
-      value={{ enabled: withControl, controlBarProps }}
+      value={{ enabled: withControl, controlBarProps, welcomeTitle }}
     >
       <div className={cn("flex flex-1 flex-col overflow-hidden", className)}>
         <Thread key={`${currentThreadId}-${threadViewKey}`} />

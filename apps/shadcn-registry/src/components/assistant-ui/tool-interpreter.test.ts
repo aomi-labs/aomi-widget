@@ -89,6 +89,7 @@ describe("tool interpreter", () => {
     expect(labelsFor(step.chips)).toEqual(["Failed"]);
     expect(step.chips[0].icon).toBeTypeOf("object");
     expect(step.chips[0].dot).toBeUndefined();
+    expect(step.failed).toBe(true);
   });
 
   it("recognizes skill activation", () => {
@@ -105,6 +106,7 @@ describe("tool interpreter", () => {
     expect(labelsFor(step.chips)).toEqual(["Aerodrome"]);
     expect(step.chips[0].icon).toBe(PuzzleIcon);
     expect(step.chips[0].icon).not.toBe(step.icon);
+    expect(step.failed).toBe(false);
   });
 
   it("uses the display name for LI.FI skill activation", () => {

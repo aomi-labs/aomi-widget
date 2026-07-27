@@ -39,7 +39,12 @@ export type CliConfig = {
   chainRpcUrl?: string;
   chain?: number;
   secrets: Record<string, string>;
-  /** undefined = auto: use AA if provider configured, else EOA */
+  /**
+   * undefined = auto (local execution is always EOA). "aa" records an AA
+   * execution request, which the CLI rejects locally — AA runs in the
+   * backend lane. aaProvider/aaMode are preferences synced to user_state
+   * so the backend routes accordingly; they never drive local execution.
+   */
   execution?: CliExecutionMode;
   aaProvider?: CliAAProvider;
   aaMode?: AAMode;

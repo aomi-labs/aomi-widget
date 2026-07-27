@@ -15,6 +15,8 @@ export type InterpretedToolStep = {
   chips: ToolChip[];
   confidence: ToolConfidence;
   rawLabel: string;
+  /** The tool reported a failure/error status (drives the red-X step marker). */
+  failed: boolean;
 };
 
 export type ToolStepInput = {
