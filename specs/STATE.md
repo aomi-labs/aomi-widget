@@ -2,6 +2,50 @@
 
 ## Last Updated
 
+2026-07-27 — Light/dark token sweep. Dark mode was losing all structure: in
+  `themes/default.css` the dark block collapsed `--aomi-surface-2`, `--aomi-raised`
+  and `--aomi-border` onto a single `#27272a`, so every hairline drawn on a panel
+  was the panel's own colour — settings-modal dividers, table rules, the credits
+  meter track and the round close button all rendered at 1.00:1. `apps/build`'s
+  `aomi-design-tokens.css` had the identical collision on `cool-800`.
+
+  Dark ramp re-laid as six distinct steps (bg `#09090b` → surface `#18181b` →
+  raised `#202024` → surface-2 `#2e2e33` → hover `#4a4a52`, border `#3f3f46`
+  clearing all of them); `--aomi-accent-subtle` became a sky tint (`#28354a`)
+  so the selected nav row reads. Light had its own collision — `--aomi-hover`
+  *was* `--aomi-surface-2` (`#f4f4f5`), so surface-2-filled controls had no
+  hover at all; moved to `#e9e9ec`. `--aomi-success` split per theme (`#1f8558`
+  light / `#35b37b` dark) — it renders as text and was 3.38:1 on white.
+  `apps/build` got the same treatment via new `cool-150/650/750/850` stops, plus
+  a duplicate `--aomi-ring` declaration removed from *both* its blocks (a later
+  grey redeclaration was silently overriding the intended sky focus ring).
+
+  Two cascade fixes in `themes/default.css`: `.dark` now re-declares the derived
+  tokens (`--aomi-ring`, `--aomi-accent-tint`, `--aomi-accent-outline`,
+  `--aomi-overlay-border`) — a `var()` inside a custom property substitutes
+  against the *declaring* element, so they only re-derived because `.dark` lands
+  on `<html>`, and broke under any subtree `.dark`; and `:root` is now
+  `:root, .light` so light can be scoped to a subtree too (dark was a one-way
+  door — relevant for embedding the widget in a dark host).
+
+  Harness: NEW dev-only `apps/portal/src/app/dev/theme-audit/` renders the ramp
+  and every redesigned surface twice (light + dark) from `features/usage/fixture.ts`
+  — no account needed — and measures 21 contrast pairs by compositing on a canvas
+  (Chrome serialises `color-mix()` as `color(srgb …)`, whose 0–1 channels an
+  rgb() parser misreads). 9 hard failures → 4, all light-mode and deliberate:
+  white-on-white `raised over bg` (the modal sits on a `black/50` scrim),
+  `surface on raised` (surface is the recessed tone, as in light), and two
+  unresolved below.
+
+  PENDING (design calls, deliberately not made): `--aomi-accent` as text is
+  3.71:1 in light — below AA — for "View full statement →" and tx links; the
+  existing `--aomi-accent-strong` measures 5.30:1, so either darken the light
+  accent or route text through a new `--aomi-accent-text`. `--aomi-warning`
+  (2.48:1 light) is referenced by zero call sites — dead token, fix or delete.
+  Also noted: `apps/landing/public/r/*.json` mirrors are broadly stale (11 files,
+  predating the whole `aomi-*` token system) — `vercel-build` regenerates them
+  from source at deploy, so they were left alone rather than hand-synced.
+
 2026-07-26 (later) — Fixtures solved: Packages + Usage wired to live data
   (branch `worktree-settings-redesign`; backend twin in product-mono worktree
   `account-acl-be`, uncommitted).

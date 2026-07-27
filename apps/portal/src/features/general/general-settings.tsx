@@ -88,7 +88,7 @@ export function GeneralSettings({
       <Divider />
 
       <SettingRow title="Theme" desc="Match system, light, or dark">
-        <div className="border-aomi-border bg-aomi-surface-2 flex rounded-full border p-[3px]">
+        <div className="border-aomi-border bg-aomi-surface flex rounded-full border p-[3px]">
           {themeChoices.map(({ mode, label }) => (
             <button
               key={mode}

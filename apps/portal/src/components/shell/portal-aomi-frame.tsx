@@ -118,7 +118,7 @@ export function PortalAomiFrame() {
         backendUrl={backendUrl}
         walletPosition="footer"
         walletFamilies={["evm", "solana"]}
-        className="rounded-none border-0 shadow-none"
+        className="portal-aomi-frame aui-suggestions-marquee rounded-none border-0 shadow-none"
         clientOptions={clientOptions}
       >
         <AppSelectUrlBootstrap

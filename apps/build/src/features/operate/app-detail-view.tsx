@@ -203,7 +203,7 @@ export function AppDetailView({
           </button>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-xl font-semibold">
+              <h1 className="font-display text-xl font-normal tracking-tight">
                 {displayName ?? meta.name}
               </h1>
               {example ? (

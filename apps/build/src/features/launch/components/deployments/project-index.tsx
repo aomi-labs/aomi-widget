@@ -5,11 +5,7 @@ import { useProjects } from "@build/features/launch/hooks/use-projects";
 import { BUILD_GLOSSARY } from "@build/lib/glossary";
 import { ProjectRow } from "./project-row";
 import { SdkBadge } from "./ui/sdk-badge";
-import {
-  LoadingPanel,
-  ErrorPanel,
-  GitHubSignInPanel,
-} from "./ui/state-panels";
+import { LoadingPanel, ErrorPanel, GitHubSignInPanel } from "./ui/state-panels";
 
 export function ProjectIndex() {
   const { state, reload } = useProjects();
@@ -23,14 +19,14 @@ export function ProjectIndex() {
       : null;
 
   return (
-    <main className="min-h-screen bg-background text-foreground">
+    <main className="bg-background text-foreground min-h-screen">
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-8 sm:px-6">
         <div className="flex items-center justify-between gap-4">
           <div className="min-w-0">
-            <h1 className="text-2xl font-semibold tracking-normal">
+            <h1 className="font-display text-2xl font-normal tracking-tight">
               Projects
             </h1>
-            <p className="mt-1 text-sm text-dim">
+            <p className="text-dim mt-1 text-sm">
               {BUILD_GLOSSARY.project.meaning} Each project can contain apps,
               deployments, and an environment for keys.
             </p>
@@ -39,13 +35,13 @@ export function ProjectIndex() {
             <button
               type="button"
               onClick={reload}
-              className="inline-flex h-8 items-center justify-center rounded-md border border-border bg-surface-1 px-3 text-sm font-medium hover:bg-accent-hover"
+              className="border-border bg-surface-1 hover:bg-accent-hover inline-flex h-8 items-center justify-center rounded-md border px-3 text-sm font-medium"
             >
               Refresh
             </button>
             <a
               href="/operate/deployments/new"
-              className="inline-flex h-8 items-center justify-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:opacity-90"
+              className="bg-primary text-primary-foreground inline-flex h-8 items-center justify-center rounded-md px-3 text-sm font-medium hover:opacity-90"
             >
               New app
             </a>
@@ -53,16 +49,16 @@ export function ProjectIndex() {
         </div>
 
         {requiredSdk && (
-          <div className="flex items-center gap-2 rounded-lg border border-border bg-surface-1 px-3 py-2 text-sm">
+          <div className="border-border bg-surface-1 flex items-center gap-2 rounded-lg border px-3 py-2 text-sm">
             <span className="text-dim">Backend requires aomi-sdk</span>
             <SdkBadge stamped={requiredSdk} required={requiredSdk} />
           </div>
         )}
 
-        <div className="overflow-hidden rounded-lg border border-border bg-surface-1">
-          <div className="flex h-12 items-center justify-between border-b border-border px-4">
+        <div className="border-border bg-surface-1 overflow-hidden rounded-lg border">
+          <div className="border-border flex h-12 items-center justify-between border-b px-4">
             <div className="text-sm font-medium">Projects</div>
-            <div className="text-xs text-dim">
+            <div className="text-dim text-xs">
               {state.status === "ready" ? state.sources.length : 0}
             </div>
           </div>

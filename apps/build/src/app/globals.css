@@ -72,7 +72,7 @@
 @theme inline {
   --font-sans: var(--aomi-font-sans);
   --font-mono: var(--aomi-font-mono);
-  --font-display: var(--aomi-font-display);
+  --font-display: var(--font-pt-serif), var(--aomi-font-display);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);

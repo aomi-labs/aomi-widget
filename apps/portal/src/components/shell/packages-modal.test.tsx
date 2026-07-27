@@ -1,5 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 
 import { PackagesModal } from "./packages-modal";
 import { seedAccountOverview } from "@portal/lib/account-overview";
@@ -53,7 +59,8 @@ async function renderModal() {
   await act(async () => {
     view = render(<PackagesModal onClose={() => undefined} />);
   });
-  return view!;
+  if (!view) throw new Error("Packages modal did not render");
+  return view;
 }
 
 describe("packages modal wiring", () => {
@@ -83,6 +90,41 @@ describe("packages modal wiring", () => {
     // The pinned core app shows as built in, never removable.
     expect(screen.getByText("Built in")).toBeTruthy();
     expect(screen.queryByLabelText("Remove Aomi Core")).toBeNull();
+  });
+
+  it("uses the same chat-pane modal geometry as settings", async () => {
+    installFetchRecorder();
+
+    await renderModal();
+
+    const dialog = screen.getByRole("dialog");
+    expect(dialog.style.width).toBe("900px");
+    expect(dialog.style.height).toBe("600px");
+    expect(dialog.style.maxWidth).toBe("95%");
+    expect(dialog.style.maxHeight).toBe("92%");
+    expect(dialog.parentElement?.className).toContain("absolute");
+    expect(dialog.parentElement?.className).not.toContain("fixed");
+  });
+
+  it("does not render an HTML proxy failure inside the window", async () => {
+    const fetchMock = vi.fn(async () => {
+      return new Response("<!DOCTYPE html><html>proxy failure</html>", {
+        status: 500,
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await renderModal();
+
+    expect(
+      await screen.findByText("Couldn’t load packages. Please try again."),
+    ).toBeTruthy();
+    expect(screen.queryByText(/DOCTYPE/)).toBeNull();
+
+    fireEvent.click(screen.getByText("Retry"));
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
   });
 
   it("uninstalls by PUTting the replaced list", async () => {
