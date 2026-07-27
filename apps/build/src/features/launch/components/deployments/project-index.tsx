@@ -83,7 +83,6 @@ export function ProjectIndex() {
                 key={source.id}
                 source={source}
                 requiredSdk={requiredSdk}
-                href={`/projects/${source.id}`}
               />
             ))}
         </div>
