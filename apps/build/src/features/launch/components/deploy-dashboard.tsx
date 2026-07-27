@@ -121,7 +121,7 @@ function SignInGate() {
   return (
     <div className="space-y-6">
       <header className="space-y-2">
-        <h1 className="text-foreground text-2xl font-semibold tracking-tight">
+        <h1 className="font-display text-foreground text-2xl font-normal tracking-tight">
           Deploy an example agent
         </h1>
         <p className="text-muted-foreground text-sm">

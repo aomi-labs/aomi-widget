@@ -36,7 +36,7 @@ export function useProjects() {
   });
   const projects = useQuery({
     queryKey: buildQueryKeys.projects(accountKey ?? "unavailable"),
-    queryFn: deploymentSources,
+    queryFn: () => deploymentSources(),
     enabled: account.signedIn && accountKey !== null,
     staleTime: 60 * 1000,
   });

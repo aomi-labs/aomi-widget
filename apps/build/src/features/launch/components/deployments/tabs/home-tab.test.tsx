@@ -51,7 +51,9 @@ describe("HomeTab", () => {
   });
 
   it("shows status cards and a deploy next action when not live", async () => {
-    render(<HomeTab detail={detail} tabBaseHref="/projects/1" />);
+    render(
+      <HomeTab detail={detail} tabHref={(tab) => `/projects/1?tab=${tab}`} />,
+    );
 
     expect(loadSecrets).toHaveBeenCalled();
     expect(screen.getByText("Project home")).toBeInTheDocument();
@@ -83,7 +85,9 @@ describe("HomeTab", () => {
         },
       ],
     });
-    render(<HomeTab detail={detail} tabBaseHref="/projects/1" />);
+    render(
+      <HomeTab detail={detail} tabHref={(tab) => `/projects/1?tab=${tab}`} />,
+    );
     expect(await screen.findByText("1.50 credits")).toBeInTheDocument();
     expect(screen.getByText(/1\.3k tokens/i)).toBeInTheDocument();
   });

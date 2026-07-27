@@ -4,9 +4,9 @@ import { getLastProjectId } from "./last-project";
 export type ProjectTab =
   | "home"
   | "deployments"
-  | "chat"
+  | "providers"
   | "environment"
-  | "settings";
+  | "chat";
 
 /** Deep link into a project. Home omits `?tab=` (default). */
 export function projectHref(sourceId: number, tab?: ProjectTab): string {

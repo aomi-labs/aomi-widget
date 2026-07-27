@@ -33,6 +33,10 @@ import type {
   ListUserSourcesInput,
   BotRegistration,
   CreateUserSourceBotInput,
+  BuilderModelKey,
+  BuilderModelKeyUsage,
+  BuilderModelKeysInput,
+  DeleteBuilderModelKeyInput,
   DeleteUserSourceBotInput,
   OperateLogCursor,
   OperateAppDetailResult,
@@ -43,6 +47,8 @@ import type {
   OperateTransactionsResult,
   OperateUsageResult,
   OwnedOperateSourceInput,
+  SaveBuilderModelKeyInput,
+  SetModelKeyGrantsInput,
   UserSource,
   UserDeployment,
   UserDeploymentsPage,
@@ -880,6 +886,112 @@ export class DeploymentClient {
     });
   }
 
+  /** All builder-owned model keys with their grants (funder-ladder app
+   *  rung). Names/prefixes/grants only — key material is write-only. */
+  async listBuilderModelKeys(
+    input: BuilderModelKeysInput,
+  ): Promise<BuilderModelKey[]> {
+    const { params, bearer } = this.builderKeyRequest(input);
+    const raw = await this.get<{ keys?: unknown[] }>(
+      `/api/integrations/github-app/user/model-keys?${params.toString()}`,
+      "list_builder_model_keys",
+      bearer,
+    );
+    await this.audit({
+      action: "list_builder_model_keys",
+      platform: input.platform,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return (raw.keys ?? []).map(camelBuilderModelKey);
+  }
+
+  /** Create (no `keyId`) or rotate (`keyId` set) a builder model key. */
+  async saveBuilderModelKey(
+    input: SaveBuilderModelKeyInput,
+  ): Promise<BuilderModelKey> {
+    const { params, bearer } = this.builderKeyRequest(input);
+    const provider = required(input.provider, "provider");
+    const key = required(input.key, "key");
+    const body = { provider, key, label: input.label };
+    const raw =
+      input.keyId === undefined
+        ? await this.post<{ key?: unknown }>(
+            `/api/integrations/github-app/user/model-keys?${params.toString()}`,
+            body,
+            "save_builder_model_key",
+            bearer,
+          )
+        : await this.put<{ key?: unknown }>(
+            `/api/integrations/github-app/user/model-keys/${encodeURIComponent(
+              String(input.keyId),
+            )}?${params.toString()}`,
+            body,
+            "save_builder_model_key",
+            bearer,
+          );
+    await this.audit({
+      action: "save_builder_model_key",
+      platform: input.platform,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return camelBuilderModelKey(raw.key);
+  }
+
+  async deleteBuilderModelKey(
+    input: DeleteBuilderModelKeyInput,
+  ): Promise<void> {
+    const { params, bearer } = this.builderKeyRequest(input);
+    const keyId = required(String(input.keyId), "keyId");
+    await this.del<unknown>(
+      `/api/integrations/github-app/user/model-keys/${encodeURIComponent(keyId)}?${params.toString()}`,
+      "delete_builder_model_key",
+      bearer,
+    );
+    await this.audit({
+      action: "delete_builder_model_key",
+      platform: input.platform,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+  }
+
+  /** Replace a key's grant set ("apply to projects"). */
+  async setModelKeyGrants(
+    input: SetModelKeyGrantsInput,
+  ): Promise<BuilderModelKey> {
+    const { params, bearer } = this.builderKeyRequest(input);
+    const keyId = required(String(input.keyId), "keyId");
+    const raw = await this.put<{ key?: unknown }>(
+      `/api/integrations/github-app/user/model-keys/${encodeURIComponent(keyId)}/grants?${params.toString()}`,
+      { application_ids: input.applicationIds },
+      "set_model_key_grants",
+      bearer,
+    );
+    await this.audit({
+      action: "set_model_key_grants",
+      platform: input.platform,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return camelBuilderModelKey(raw.key);
+  }
+
+  private builderKeyRequest(input: BuilderModelKeysInput): {
+    params: URLSearchParams;
+    bearer: string;
+  } {
+    const githubUserId = required(input.githubUserId, "githubUserId");
+    const platform = required(input.platform, "platform");
+    const bearer = this.resolveBearer(input.bearer);
+    const params = new URLSearchParams({
+      github_user_id: githubUserId,
+      platform,
+    });
+    return { params, bearer };
+  }
+
   async listUserSourceTransactions(
     input: ListUserSourceTransactionsInput,
   ): Promise<OperateTransactionsResult> {
@@ -1333,6 +1445,24 @@ export class DeploymentClient {
     );
   }
 
+  private async put<Resp>(
+    path: string,
+    body: unknown,
+    operation: string,
+    bearer: string,
+  ): Promise<Resp> {
+    return this.request<Resp>(
+      path,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      operation,
+      bearer,
+    );
+  }
+
   private async del<Resp>(
     path: string,
     operation: string,
@@ -1738,6 +1868,38 @@ function camelBotRegistration(raw: unknown): BotRegistration {
   };
 }
 
+function camelModelKeyUsage(raw: unknown): BuilderModelKeyUsage {
+  const u = (raw ?? {}) as Record<string, any>;
+  return {
+    inputTokens: Number(u.inputTokens ?? 0),
+    outputTokens: Number(u.outputTokens ?? 0),
+    costCredits: Number(u.costCredits ?? 0),
+    turns: Number(u.turns ?? 0),
+  };
+}
+
+function camelBuilderModelKey(raw: unknown): BuilderModelKey {
+  const k = (raw ?? {}) as Record<string, any>;
+  return {
+    id: Number(k.id),
+    provider: String(k.provider ?? ""),
+    label: k.label ?? null,
+    keyPrefix: String(k.keyPrefix ?? k.key_prefix ?? ""),
+    createdAt: Number(k.createdAt ?? k.created_at ?? 0),
+    updatedAt: Number(k.updatedAt ?? k.updated_at ?? 0),
+    applicationIds: Array.isArray(k.applicationIds ?? k.application_ids)
+      ? (k.applicationIds ?? k.application_ids).map(Number)
+      : [],
+    usage: camelModelKeyUsage(k.usage),
+    usageByApplication: Array.isArray(k.usageByApplication)
+      ? k.usageByApplication.map((row: unknown) => ({
+          applicationId: Number((row as Record<string, any>)?.applicationId),
+          ...camelModelKeyUsage(row),
+        }))
+      : [],
+  };
+}
+
 function timestampSeconds(value: unknown): number {
   if (typeof value === "number" && Number.isFinite(value)) {
     return value > 100_000_000_000 ? Math.floor(value / 1000) : value;
@@ -2023,23 +2185,40 @@ function camelOperateLogs(
   return {
     source: camelAppSource(raw.source),
     platform: String(raw.platform ?? fallbackPlatform),
-    logs: ((raw.logs ?? []) as Record<string, any>[]).map((row) => ({
-      occurredAt: timestampSeconds(row.occurred_at ?? row.occurredAt),
-      eventType: String(row.event_type ?? row.eventType ?? ""),
-      id: String(row.id ?? ""),
-      application: String(row.application ?? ""),
-      applicationId: row.application_id ?? row.applicationId ?? null,
-      summary: String(row.summary ?? ""),
-      details: (row.details ?? {}) as Record<string, unknown>,
-      kind: (row.kind ?? null) as "invocation" | "event" | null,
-      status: (row.status ?? null) as "ok" | "error" | "info" | null,
-      tool: optString(row.tool),
-      durationMs: optNumber(row.duration_ms ?? row.durationMs),
-      retries: optNumber(row.retries),
-      threadId: optString(row.thread_id ?? row.threadId),
-      args: optString(row.args),
-      result: optString(row.result),
-    })),
+    logs: ((raw.logs ?? []) as Record<string, any>[]).map((row) => {
+      const details = (row.details ?? {}) as Record<string, any>;
+      const rawModelKey = details.model_key ?? details.modelKey;
+      const modelKeyId =
+        rawModelKey && typeof rawModelKey === "object"
+          ? optNumber(rawModelKey.id)
+          : null;
+      const modelKey =
+        modelKeyId !== null && Number.isFinite(modelKeyId)
+          ? {
+              id: modelKeyId,
+              label: optString(rawModelKey.label),
+              prefix: optString(rawModelKey.prefix),
+            }
+          : null;
+      return {
+        occurredAt: timestampSeconds(row.occurred_at ?? row.occurredAt),
+        eventType: String(row.event_type ?? row.eventType ?? ""),
+        id: String(row.id ?? ""),
+        application: String(row.application ?? ""),
+        applicationId: row.application_id ?? row.applicationId ?? null,
+        summary: String(row.summary ?? ""),
+        details,
+        modelKey,
+        kind: (row.kind ?? null) as "invocation" | "event" | null,
+        status: (row.status ?? null) as "ok" | "error" | "info" | null,
+        tool: optString(row.tool),
+        durationMs: optNumber(row.duration_ms ?? row.durationMs),
+        retries: optNumber(row.retries),
+        threadId: optString(row.thread_id ?? row.threadId),
+        args: optString(row.args),
+        result: optString(row.result),
+      };
+    }),
     nextCursor: camelLogCursor(raw.next_cursor ?? raw.nextCursor),
   };
 }
@@ -2110,6 +2289,14 @@ function camelOperateAppDetail(
   const hourly = (raw.hourly ?? {}) as Record<string, any>;
   const series = (value: unknown): number[] | null =>
     Array.isArray(value) ? value.map(Number) : null;
+  const nullableSeries = (value: unknown): Array<number | null> | null =>
+    Array.isArray(value)
+      ? value.map((item) => {
+          if (item === null || item === undefined) return null;
+          const numeric = Number(item);
+          return Number.isFinite(numeric) ? numeric : null;
+        })
+      : null;
   return {
     source: camelAppSource(raw.source),
     platform: String(raw.platform ?? fallbackPlatform),
@@ -2183,7 +2370,9 @@ function camelOperateAppDetail(
     hourly: {
       chats: series(hourly.chats),
       toolCalls: series(hourly.tool_calls ?? hourly.toolCalls),
-      p95LatencyMs: series(hourly.p95_latency_ms ?? hourly.p95LatencyMs),
+      p95LatencyMs: nullableSeries(
+        hourly.p95_latency_ms ?? hourly.p95LatencyMs,
+      ),
       transactions: series(hourly.transactions),
     },
   };

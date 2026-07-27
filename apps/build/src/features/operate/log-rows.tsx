@@ -23,7 +23,8 @@ export const EMPTY_LOGS_PAGE_FILTER: LogsPageFilter = {
   errorsOnly: false,
 };
 
-const SELECT_CLS = "border-border bg-surface text-foreground h-8 rounded-md border px-2 text-xs";
+const SELECT_CLS =
+  "border-border bg-surface text-foreground h-8 rounded-md border px-2 text-xs";
 
 const DOT: Record<string, string> = {
   ok: "bg-emerald-500",
@@ -32,12 +33,24 @@ const DOT: Record<string, string> = {
 };
 
 function statusOf(row: LogRow): "ok" | "error" | "info" {
-  if (row.status === "ok" || row.status === "error" || row.status === "info") return row.status;
-  return /error|failed|revert/i.test(String(row.eventType ?? "")) ? "error" : "info";
+  if (row.status === "ok" || row.status === "error" || row.status === "info")
+    return row.status;
+  return /error|failed|revert/i.test(String(row.eventType ?? ""))
+    ? "error"
+    : "info";
 }
 
 function isInvocation(row: LogRow): boolean {
   return row.kind === "invocation" || (row.tool != null && row.args != null);
+}
+
+function modelKeyLabel(row: LogRow): string | null {
+  if (row.eventType !== "usage" || !row.modelKey) return null;
+  const label =
+    String(row.modelKey.label ?? "").trim() ||
+    `Key #${String(row.modelKey.id)}`;
+  const prefix = String(row.modelKey.prefix ?? "").trim();
+  return prefix ? `${label} · ${prefix}…` : label;
 }
 
 function pretty(raw: string): string {
@@ -53,14 +66,20 @@ function ExpandedDetail({ row }: { row: LogRow }) {
   return (
     <div className="border-border bg-surface-subtle/60 grid gap-x-6 gap-y-2 border-t px-8 py-3 lg:grid-cols-2">
       <div>
-        <div className="text-dim mb-1 text-[10px] uppercase tracking-wide">Arguments</div>
-        <pre className="font-mono text-xs leading-5 whitespace-pre-wrap">{pretty(String(row.args ?? ""))}</pre>
+        <div className="text-dim mb-1 text-[10px] uppercase tracking-wide">
+          Arguments
+        </div>
+        <pre className="whitespace-pre-wrap font-mono text-xs leading-5">
+          {pretty(String(row.args ?? ""))}
+        </pre>
       </div>
       <div>
         <div className="text-dim mb-1 text-[10px] uppercase tracking-wide">
           {status === "error" ? "Error" : "Result"}
         </div>
-        <pre className={`font-mono text-xs leading-5 whitespace-pre-wrap ${status === "error" ? "text-red-500" : ""}`}>
+        <pre
+          className={`whitespace-pre-wrap font-mono text-xs leading-5 ${status === "error" ? "text-red-500" : ""}`}
+        >
           {pretty(String(row.result ?? ""))}
         </pre>
       </div>
@@ -92,7 +111,8 @@ export function LogRows({
 }) {
   const visible = rows.filter((row) => {
     if (filter.app && row.application !== filter.app) return false;
-    if (filter.tool && (!isInvocation(row) || row.tool !== filter.tool)) return false;
+    if (filter.tool && (!isInvocation(row) || row.tool !== filter.tool))
+      return false;
     if (filter.errorsOnly && statusOf(row) !== "error") return false;
     return true;
   });
@@ -104,29 +124,39 @@ export function LogRows({
       <div className="border-border bg-surface-subtle flex flex-wrap items-center gap-2 rounded-md border px-3 py-2">
         <select
           value={filter.app ?? ""}
-          onChange={(event) => onFilterChange({ ...filter, app: event.target.value || null })}
+          onChange={(event) =>
+            onFilterChange({ ...filter, app: event.target.value || null })
+          }
           className={SELECT_CLS}
         >
           <option value="">All apps</option>
           {apps.map((app) => (
-            <option key={app} value={app}>{app}</option>
+            <option key={app} value={app}>
+              {app}
+            </option>
           ))}
         </select>
         {tools.length ? (
           <select
             value={filter.tool ?? ""}
-            onChange={(event) => onFilterChange({ ...filter, tool: event.target.value || null })}
+            onChange={(event) =>
+              onFilterChange({ ...filter, tool: event.target.value || null })
+            }
             className={SELECT_CLS}
           >
             <option value="">All tools</option>
             {tools.map((tool) => (
-              <option key={tool} value={tool}>{tool}</option>
+              <option key={tool} value={tool}>
+                {tool}
+              </option>
             ))}
           </select>
         ) : null}
         <button
           type="button"
-          onClick={() => onFilterChange({ ...filter, errorsOnly: !filter.errorsOnly })}
+          onClick={() =>
+            onFilterChange({ ...filter, errorsOnly: !filter.errorsOnly })
+          }
           className={`rounded-full border px-2.5 py-1 text-xs ${
             filter.errorsOnly
               ? "border-red-500/30 bg-red-500/10 text-red-500"
@@ -160,20 +190,25 @@ export function LogRows({
           const expandable = isInvocation(row);
           const open = openId === rowId;
           const status = statusOf(row);
+          const keyLabel = modelKeyLabel(row);
           return (
             <div key={rowId}>
               {showDay && day ? (
-                <div className="border-border bg-surface-subtle text-dim border-b px-3 py-1 text-[10px] tracking-wide uppercase">
+                <div className="border-border bg-surface-subtle text-dim border-b px-3 py-1 text-[10px] uppercase tracking-wide">
                   {day}
                 </div>
               ) : null}
               <div
-                onClick={expandable ? () => onToggle(open ? null : rowId) : undefined}
+                onClick={
+                  expandable ? () => onToggle(open ? null : rowId) : undefined
+                }
                 className={`border-border grid grid-cols-[8px_66px_150px_1fr] items-baseline gap-x-3 border-b px-3 py-1.5 font-mono text-xs last:border-b-0 sm:grid-cols-[8px_66px_150px_60px_1fr_110px] ${
                   expandable ? "hover:bg-surface-subtle cursor-pointer" : ""
                 } ${open ? "bg-surface-subtle" : "bg-surface"}`}
               >
-                <span className={`size-2 self-center rounded-full ${DOT[status]}`} />
+                <span
+                  className={`size-2 self-center rounded-full ${DOT[status]}`}
+                />
                 <span className="text-dim">{clockLabel(row.occurredAt)}</span>
                 <span className={expandable ? "text-foreground" : "text-dim"}>
                   {expandable ? row.tool : row.eventType}
@@ -182,15 +217,31 @@ export function LogRows({
                   {row.durationMs != null ? `${row.durationMs}ms` : ""}
                 </span>
                 <span
-                  className={`min-w-0 truncate ${
-                    status === "error" ? "text-red-500" : expandable ? "text-foreground" : "text-dim"
+                  className={`flex min-w-0 items-center gap-2 ${
+                    status === "error"
+                      ? "text-red-500"
+                      : expandable
+                        ? "text-foreground"
+                        : "text-dim"
                   }`}
                   title={String(row.summary ?? "")}
                 >
-                  {row.retries ? `[retry ${row.retries}] ` : ""}
-                  {row.summary}
+                  <span className="min-w-0 truncate">
+                    {row.retries ? `[retry ${row.retries}] ` : ""}
+                    {row.summary}
+                  </span>
+                  {keyLabel ? (
+                    <span
+                      className="border-border bg-surface-subtle text-foreground shrink-0 rounded border px-1.5 py-0.5 font-sans text-[10px]"
+                      title={`Funded by model key ${keyLabel}`}
+                    >
+                      {keyLabel}
+                    </span>
+                  ) : null}
                 </span>
-                <span className="text-dim hidden truncate text-right sm:block">{row.application}</span>
+                <span className="text-dim hidden truncate text-right sm:block">
+                  {row.application}
+                </span>
               </div>
               {open ? <ExpandedDetail row={row} /> : null}
             </div>

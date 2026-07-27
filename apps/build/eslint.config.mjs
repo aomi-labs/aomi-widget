@@ -1,6 +1,11 @@
 import nextVitals from "eslint-config-next/core-web-vitals";
 
 const eslintConfig = [
+  // Global ignores (an entry with only `ignores` applies to every config).
+  // .next*/** also covers NEXT_DIST_DIR overrides like .next-b / .next-verify
+  // (multi-instance local runs), which eslint-config-next's own .next ignore
+  // does not.
+  { ignores: [".next*/**"] },
   ...nextVitals,
   {
     ignores: [".next/**", ".vercel/**", "out/**", "build/**", "next-env.d.ts"],

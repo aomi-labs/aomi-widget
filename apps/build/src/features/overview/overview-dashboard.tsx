@@ -121,15 +121,18 @@ export function OverviewDashboard() {
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
-          <h1 className="text-foreground text-2xl font-semibold">Overview</h1>
+          <h1 className="font-display text-foreground text-2xl font-normal tracking-tight">
+            Overview
+          </h1>
           <p className="text-dim mt-1 text-sm">
             Snapshot for{" "}
-            {account.githubLogin ? `@${account.githubLogin}` : "GitHub"}. Day-to-day
-            work starts from Projects.
+            {account.githubLogin ? `@${account.githubLogin}` : "GitHub"}.
+            Day-to-day work starts from Projects.
           </p>
           <p className="text-dim mt-2 max-w-2xl text-xs leading-5">
             {BUILD_GLOSSARY.project.term}: {BUILD_GLOSSARY.project.meaning}{" "}
-            {BUILD_GLOSSARY.deployment.term}: {BUILD_GLOSSARY.deployment.meaning}
+            {BUILD_GLOSSARY.deployment.term}:{" "}
+            {BUILD_GLOSSARY.deployment.meaning}
           </p>
         </div>
         <button
@@ -173,9 +176,7 @@ export function OverviewDashboard() {
               <div className="text-foreground text-sm font-medium">
                 Recent deployments
               </div>
-              <div className="text-dim text-xs">
-                Latest project activity
-              </div>
+              <div className="text-dim text-xs">Latest project activity</div>
             </div>
             <Link
               href="/operate/deployments"

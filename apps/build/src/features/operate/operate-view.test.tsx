@@ -294,6 +294,32 @@ describe("OperateView transactions", () => {
     expect(screen.getByText(/amount_out/)).toBeInTheDocument();
   });
 
+  it("shows the builder model key on funded usage logs", async () => {
+    operateFetch.mockResolvedValue({
+      sources: [],
+      logs: [
+        {
+          id: "usage-1",
+          occurredAt: 1_700_000_000,
+          eventType: "usage",
+          application: "goal-digger",
+          summary: "Usage openai/gpt-5-nano",
+          modelKey: {
+            id: 7,
+            label: "test-1",
+            prefix: "sk-proj",
+          },
+        },
+      ],
+      nextCursor: null,
+    });
+
+    render(<OperateView kind="logs" />);
+
+    expect(await screen.findByText("test-1 · sk-proj…")).toBeInTheDocument();
+    expect(screen.getByText("Usage openai/gpt-5-nano")).toBeInTheDocument();
+  });
+
   it("renders the statement when present, meter otherwise", async () => {
     operateFetch.mockResolvedValue({
       sources: [],

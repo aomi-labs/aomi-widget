@@ -7,14 +7,8 @@ import {
   GitHubSignInPanel,
   LoadingPanel,
 } from "@build/features/launch/components/deployments/ui/state-panels";
-import {
-  fetchIntegrationStatuses,
-  type IntegrationStatus,
-} from "./client";
-import {
-  INTEGRATION_PROVIDERS,
-  type IntegrationProvider,
-} from "./providers";
+import { fetchIntegrationStatuses, type IntegrationStatus } from "./client";
+import { INTEGRATION_PROVIDERS, type IntegrationProvider } from "./providers";
 
 /** Persist is not wired (BFF returns 501). Keep the form; gate Save. */
 const INTEGRATIONS_SAVE_ENABLED = false;
@@ -128,7 +122,8 @@ export function IntegrationsView() {
 
   const connectedBy = useMemo(() => {
     const map = new Map<string, boolean>();
-    for (const status of statuses ?? []) map.set(status.provider, status.connected);
+    for (const status of statuses ?? [])
+      map.set(status.provider, status.connected);
     return map;
   }, [statuses]);
 
@@ -154,7 +149,7 @@ export function IntegrationsView() {
         <p className="text-dim text-[12px] uppercase tracking-wide">Account</p>
         <div className="flex items-center gap-2">
           <Plug className="text-dim size-5" />
-          <h1 className="text-foreground text-2xl font-semibold">
+          <h1 className="font-display text-foreground text-2xl font-normal tracking-tight">
             Integrations
           </h1>
         </div>

@@ -13,7 +13,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("next/headers", () => ({
   cookies: vi.fn(async () => ({
     get: (name: string) =>
-      name === "aomi_github_oauth_state" && mocks.oauthState
+      name === "aomi_github_oauth_request" && mocks.oauthState
         ? { value: mocks.oauthState }
         : undefined,
   })),
@@ -26,6 +26,14 @@ vi.mock("@build/server/bff/backend", () => ({
 }));
 
 vi.mock("@build/server/cookies/github", () => ({
+  readGitHubOAuthRequest: vi.fn(async () =>
+    mocks.oauthState
+      ? {
+          oauthState: mocks.oauthState,
+          continuation: { kind: "browser" },
+        }
+      : null,
+  ),
   setGitHubSessionCookie: mocks.setGitHubSessionCookie,
 }));
 
@@ -38,13 +46,17 @@ describe("GitHub callback route", () => {
 
   it("redirects callback failures back to deployments with the launch marker", async () => {
     const res = await GET(
-      new Request("http://localhost:3000/api/bff/auth/github/callback?code=x&state=y"),
+      new Request(
+        "http://localhost:3000/api/bff/auth/github/callback?code=x&state=y",
+      ),
     );
     expect(res.status).toBe(307);
     const location = new URL(res.headers.get("location") ?? "");
     expect(location.pathname).toBe("/operate/deployments");
     expect(location.searchParams.get("launch")).toBe("github");
-    expect(location.searchParams.get("github_error")).toBe("invalid_oauth_state");
+    expect(location.searchParams.get("github_error")).toBe(
+      "invalid_oauth_state",
+    );
   });
 
   it("exchanges GitHub code with the one-shot app and matching redirect URI", async () => {

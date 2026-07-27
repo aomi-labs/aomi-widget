@@ -1,75 +1,87 @@
+import { BackendError } from "@aomi-labs/deploy";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { BackendError } from "@aomi-labs/deploy";
+
+import { configuredBackendUrl } from "@build/server/backend-url";
+import {
+  type GitHubOAuthContinuation,
+  readGitHubOAuthRequest,
+  setGitHubSessionCookie,
+} from "@build/server/cookies/github";
+import {
+  GITHUB_OAUTH_REQUEST_COOKIE,
+  clearGitHubOAuthRequest,
+  exchangeGitHubSession,
+  finishCliAuthorization,
+} from "@build/server/github-auth";
 
 export const runtime = "nodejs";
 
-import { API_PATHS } from "@build/lib/api-paths";
-import { configuredBackendUrl } from "@build/server/backend-url";
-import { deploymentClient } from "@build/server/bff/backend";
-import { setGitHubSessionCookie } from "@build/server/cookies/github";
-
-const OAUTH_STATE_COOKIE = "aomi_github_oauth_state";
-// Sign-in runs against the one-shot App so the resulting user token can
-// enumerate the user's one-shot installations (skip-install detection). The
-// backend exchange uses the matching client secret. 2 = one-shot App.
-const LOGIN_APP_INDEX = 2;
-
 function deploymentsUrl(req: Request): URL {
-  const url = new URL(req.url);
-  const deployments = new URL("/operate/deployments", url.origin);
-  deployments.searchParams.set("launch", "github");
-  return deployments;
+  const url = new URL("/operate/deployments", req.url);
+  url.searchParams.set("launch", "github");
+  return url;
 }
 
-// GET /api/bff/auth/github/callback?code=...&state=... — finish "Sign in with
-// GitHub": verify CSRF state, exchange the code for the GitHub identity
-// (backend-side), mint the Aomi Build GitHub session cookie, return to Operate.
+function oauthError(
+  req: Request,
+  continuation: GitHubOAuthContinuation | undefined,
+  error: string,
+): NextResponse {
+  const cli = continuation?.kind === "cli";
+  const redirect = cli
+    ? new URL(continuation.redirectUri)
+    : deploymentsUrl(req);
+  redirect.searchParams.set(cli ? "error" : "github_error", error);
+  if (cli) redirect.searchParams.set("state", continuation.state);
+  return NextResponse.redirect(redirect);
+}
+
+// The only GitHub OAuth callback. Browser login ends in Build; CLI login resumes
+// the signed loopback continuation after minting the same browser session.
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
-  const deployments = deploymentsUrl(req);
-
   const jar = await cookies();
-  const expectedState = jar.get(OAUTH_STATE_COOKIE)?.value;
-  if (!code || !state || !expectedState || state !== expectedState) {
-    deployments.searchParams.set("github_error", "invalid_oauth_state");
-    return NextResponse.redirect(deployments);
+  const oauthRequest = await readGitHubOAuthRequest(
+    jar.get(GITHUB_OAUTH_REQUEST_COOKIE)?.value,
+  );
+  const pendingContinuation = oauthRequest?.continuation;
+
+  if (!code || !state || !oauthRequest || state !== oauthRequest.oauthState) {
+    return oauthError(req, pendingContinuation, "invalid_oauth_state");
   }
+  const continuation = oauthRequest.continuation;
 
   try {
-    const client = await deploymentClient();
-    const identity = await client.exchangeGitHubCode({
-      code,
-      app: LOGIN_APP_INDEX,
-      redirectUri: `${url.origin}${API_PATHS.bff.auth.github.callback}`,
-    });
-    if (!identity.githubUserId) {
-      deployments.searchParams.set("github_error", "identity_unresolved");
-      return NextResponse.redirect(deployments);
-    }
-    const res = NextResponse.redirect(deployments);
-    res.cookies.set(OAUTH_STATE_COOKIE, "", { path: "/", maxAge: 0 });
-    await setGitHubSessionCookie(res, {
-      githubUserId: identity.githubUserId,
-      githubLogin: identity.githubLogin,
-      installationId: identity.installationId,
-    });
-    return res;
+    const session = await exchangeGitHubSession(code, url.origin);
+    const response =
+      continuation.kind === "cli"
+        ? await finishCliAuthorization(session, continuation)
+        : NextResponse.redirect(deploymentsUrl(req));
+    clearGitHubOAuthRequest(response);
+    await setGitHubSessionCookie(response, session);
+    return response;
   } catch (error) {
-    if (error instanceof BackendError && error.status === 403) {
-      console.error("GitHub sign-in exchange forbidden by backend service auth", {
-        backendUrl: configuredBackendUrl(),
-        status: error.status,
-        body: error.body,
-      });
-      deployments.searchParams.set("github_error", "service_auth_forbidden");
-      return NextResponse.redirect(deployments);
+    const serviceAuthFailure =
+      error instanceof BackendError && error.status === 403;
+    if (serviceAuthFailure) {
+      console.error(
+        "GitHub sign-in exchange forbidden by backend service auth",
+        {
+          backendUrl: configuredBackendUrl(),
+          status: error.status,
+          body: error.body,
+        },
+      );
+    } else {
+      console.error("GitHub sign-in exchange failed", error);
     }
-
-    console.error("GitHub sign-in exchange failed", error);
-    deployments.searchParams.set("github_error", "exchange_failed");
-    return NextResponse.redirect(deployments);
+    return oauthError(
+      req,
+      continuation,
+      serviceAuthFailure ? "service_auth_forbidden" : "exchange_failed",
+    );
   }
 }
