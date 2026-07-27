@@ -26,6 +26,13 @@ tables; fresh databases also finish replay with that drop.
 
 Progress:
 
+- 2026-07-26 usage-log model-key attribution: normalized the manager's safe
+  model-key metadata into the deploy client and rendered a compact key
+  label/prefix badge beside funded usage events in Aomi Build Logs. Added
+  client and UI regressions, patch-bumped `@aomi-labs/deploy` to `0.2.4`, and
+  verified focused tests, package build/pack, Build lint/typecheck, and the
+  production Build compile.
+
 - 2026-07-24 idempotent npm publishing: changed the post-merge publish job to
   skip exact package versions that are already live, publish only missing
   versions, and fail closed on registry errors other than a definitive 404.

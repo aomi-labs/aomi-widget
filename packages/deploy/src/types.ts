@@ -887,6 +887,13 @@ export interface OperateStatementResult {
   entries: OperateStatementEntry[];
 }
 
+export interface OperateModelKeyAttribution {
+  id: number;
+  label: string | null;
+  /** Short cleartext prefix already exposed on the Providers page. */
+  prefix: string | null;
+}
+
 export interface OperateLogEntry {
   occurredAt: number;
   eventType: string;
@@ -895,6 +902,8 @@ export interface OperateLogEntry {
   applicationId: number | null;
   summary: string;
   details: Record<string, unknown>;
+  /** Builder-owned key that funded this usage event; null for other events. */
+  modelKey?: OperateModelKeyAttribution | null;
   // Invocation-trace contract — null/absent for plain control-plane events.
   // Privacy: args/results are operational payloads; user intents never ship.
   kind: "invocation" | "event" | null;
