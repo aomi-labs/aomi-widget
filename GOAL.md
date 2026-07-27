@@ -31,6 +31,11 @@ mistaken for another supported environment.
 
 Progress:
 
+- 2026-07-27 Build project membership: the Projects index now treats GitHub
+  source records as internal import/ownership metadata and only surfaces
+  sources that contain at least one Aomi app, removing historical repositories
+  that were bound to a platform but never became Build projects.
+
 - 2026-07-27 deployment-history correctness: the project History view now
   loads the deployment-history API and merges it with the promotion log, so a
   successfully deployed/live app remains visible even when its append-only
