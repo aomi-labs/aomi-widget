@@ -31,6 +31,11 @@ mistaken for another supported environment.
 
 Progress:
 
+- 2026-07-27 deployment-history correctness: the project History view now
+  loads the deployment-history API and merges it with the promotion log, so a
+  successfully deployed/live app remains visible even when its append-only
+  promotion records are empty. Promotions continue to use the activation log.
+
 - 2026-07-27 Shared chat welcome title: replaced the Portal and Landing
   one-off catchphrases with the shared “What should happen on-chain?” default
   and styled it with the same regular PT Serif display face used by Aomi Build
