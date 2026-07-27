@@ -45,11 +45,13 @@ export function DeploymentsTab({
   const [view, setView] = useState<View>("deployments");
   const [expandedDetail, setExpandedDetail] = useState<string | null>(null);
   const [retryingSecrets, setRetryingSecrets] = useState(false);
+  const { loadHistory, loadRecords, loadRequiredSecrets } = detail;
 
   useEffect(() => {
-    detail.loadRecords();
-    detail.loadRequiredSecrets();
-  }, [detail]);
+    loadHistory();
+    loadRecords();
+    loadRequiredSecrets();
+  }, [loadHistory, loadRecords, loadRequiredSecrets]);
 
   const source = detail.source;
   const upgrade = useSdkUpgrade({
@@ -82,8 +84,8 @@ export function DeploymentsTab({
     [source],
   );
   const recordDeployments = useMemo(
-    () => buildDeploymentList(detail.recordsByApp),
-    [detail.recordsByApp],
+    () => buildDeploymentList(detail.recordsByApp, detail.history),
+    [detail.history, detail.recordsByApp],
   );
   const activity = useMemo(
     () => buildActivityList(detail.recordsByApp),
