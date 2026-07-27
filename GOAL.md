@@ -31,6 +31,15 @@ mistaken for another supported environment.
 
 Progress:
 
+- 2026-07-26 usage-log model-key attribution: normalized the manager's safe
+  model-key metadata into the deploy client and rendered a compact key
+  label/prefix badge beside funded usage events in Aomi Build Logs. Added
+  client and UI regressions, patch-bumped `@aomi-labs/deploy` to `0.2.4`, and
+  verified focused tests, package build/pack, Build lint/typecheck, and the
+  production Build compile. Refreshed the staging backend route contract after
+  three account endpoints shipped and removed the unreliable external
+  coordination workflow from frontend CI.
+
 - 2026-07-26 staging Portal account-auth recovery: traced the Settings
   `widget_auth_failed` response to Vercel Preview using the production Supabase
   session pool, where parallel BetterAuth/account functions exhausted the
