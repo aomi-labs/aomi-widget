@@ -11,6 +11,13 @@ import {
 } from "lucide-react";
 import { useProjectDetail } from "@build/features/launch/hooks/use-project-detail";
 import { operateFetch } from "@build/features/operate/client";
+import {
+  caipChainLabel,
+  creditsToUsd,
+  plural,
+  truncateAddress,
+  usdLabel,
+} from "@build/features/operate/format";
 import { chatAppUrl } from "@build/lib/chat-url";
 import { BUILD_GLOSSARY } from "@build/lib/glossary";
 import { projectDeploymentStatus } from "../project-deployment-status";
@@ -124,21 +131,6 @@ function usageCardCopy(usage: UsagePeek | null): {
   };
 }
 
-function pricingChainLabel(chain: string): string {
-  switch (chain) {
-    case "eip155:1":
-      return "Ethereum";
-    case "eip155:8453":
-      return "Base";
-    case "eip155:84532":
-      return "Base Sepolia";
-    case "eip155:11155111":
-      return "Sepolia";
-    default:
-      return chain;
-  }
-}
-
 function monetizationCard(source: NonNullable<Detail["source"]>) {
   const configured = source.apps.flatMap((app) =>
     Object.entries(app.pricing?.config.resources ?? {}).map(
@@ -164,11 +156,11 @@ function monetizationCard(source: NonNullable<Detail["source"]>) {
   }
   const first = configured[0];
   const route = first.beneficiary
-    ? `${pricingChainLabel(first.beneficiary.chain)} · ${first.beneficiary.value.slice(0, 8)}…${first.beneficiary.value.slice(-4)}`
+    ? `${caipChainLabel(first.beneficiary.chain)} · ${truncateAddress(first.beneficiary.value)}`
     : "Aomi-managed beneficiary";
   return {
-    value: `${configured.length} priced tool${configured.length === 1 ? "" : "s"}`,
-    hint: `${first.app}/${first.tool} · ${first.credits.toFixed(2)} credits ($${(first.credits / 100).toFixed(2)}) per successful call · ${route}`,
+    value: plural(configured.length, "priced tool"),
+    hint: `${first.app}/${first.tool} · ${first.credits.toFixed(2)} credits (${usdLabel(creditsToUsd(first.credits))}) per successful call · ${route}`,
     tone: "good" as const,
   };
 }

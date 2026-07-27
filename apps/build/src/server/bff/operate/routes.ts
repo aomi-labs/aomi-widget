@@ -17,6 +17,11 @@ import {
   EXAMPLE_SOURCE,
   exampleStatement,
 } from "@build/features/operate/fixtures/wire";
+import {
+  caipChainId,
+  caipChainLabel,
+  creditsToUsd,
+} from "@build/features/operate/format";
 import { deploymentClient } from "@build/server/bff/backend";
 import { authorize } from "@build/server/bff/auth";
 import { launchConfig } from "@build/server/bff/launch/config";
@@ -154,7 +159,7 @@ function mergedPartnerPayments(
         0,
       ),
       outstandingCredits,
-      outstandingUsd: outstandingCredits / 100,
+      outstandingUsd: creditsToUsd(outstandingCredits),
       pricedCalls: sum((summary) => summary.pricedCalls),
       settlements: settlementEvents.length,
     },
@@ -167,26 +172,6 @@ function mergedPartnerPayments(
     buckets,
     events,
   };
-}
-
-function chainId(chain: string | null): number {
-  const value = Number(chain?.split(":")[1] ?? 0);
-  return Number.isSafeInteger(value) ? value : 0;
-}
-
-function chainName(chain: string | null): string | null {
-  switch (chain) {
-    case "eip155:1":
-      return "Ethereum";
-    case "eip155:8453":
-      return "Base";
-    case "eip155:84532":
-      return "Base Sepolia";
-    case "eip155:11155111":
-      return "Sepolia";
-    default:
-      return chain;
-  }
 }
 
 function mergedNextCursor<T extends { source: { id: number } }>(
@@ -627,7 +612,7 @@ export async function operateTransactionsRoute(req: Request) {
               applicationId: event.applicationId,
               status: "confirmed",
               txHash: event.receiptId,
-              chainId: chainId(event.chain),
+              chainId: caipChainId(event.chain),
               fromAddress: "",
               toAddress: event.recipient,
               value: `${event.assetAmount ?? event.usd} ${event.asset ?? "USD"}`,
@@ -638,7 +623,7 @@ export async function operateTransactionsRoute(req: Request) {
               updatedAt: event.occurredAt,
               submittedAt: event.occurredAt,
               family: "evm",
-              chainName: chainName(event.chain),
+              chainName: caipChainLabel(event.chain) || null,
               fromLabel: "settlement payer",
               toLabel: "beneficiary",
               valueUsd: `$${event.usd.toFixed(2)}`,
