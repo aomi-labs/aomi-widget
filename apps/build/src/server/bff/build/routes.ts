@@ -5,9 +5,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { Readable } from "node:stream";
 import { NextResponse } from "next/server";
-import { validateOrigin } from "@build/lib/csrf";
-import { checkRateLimit, getClientIp } from "@build/lib/rate-limit";
-import { getGitHubSession } from "@build/server/cookies/github";
+import { authorize } from "@build/server/bff/auth";
 import type {
   BuildRunDecisionRequest,
   CreateBuildRunRequest,
@@ -24,45 +22,6 @@ import {
   storedCrateTarball,
 } from "./engine";
 
-function rateLimited(req: Request): NextResponse | null {
-  return checkRateLimit(getClientIp(req)).allowed
-    ? null
-    : NextResponse.json({ error: "Too many requests" }, { status: 429 });
-}
-
-/** Rate limit + same-origin check for mutating routes. */
-function checkWrite(req: Request): NextResponse | null {
-  const limited = rateLimited(req);
-  if (limited) return limited;
-  return validateOrigin(req)
-    ? null
-    : NextResponse.json({ error: "Forbidden" }, { status: 403 });
-}
-
-/** Build runs execute agents and shell commands server-side; a signed-in
- *  session is required, same as the deploy routes. AOMI_BUILD_ALLOW_ANON=1
- *  waives it for local testing — dev builds only, never production. */
-async function requireSession(): Promise<NextResponse | null> {
-  if (
-    process.env.AOMI_BUILD_ALLOW_ANON === "1" &&
-    process.env.NODE_ENV !== "production"
-  ) {
-    return null;
-  }
-  if (await getGitHubSession()) return null;
-  return NextResponse.json(
-    { error: "not signed in with GitHub" },
-    { status: 401 },
-  );
-}
-
-/** Run owner for registry namespacing — the GitHub login, or "dev" in the
- *  anonymous local-testing mode. */
-async function sessionOwner(): Promise<string> {
-  const session = await getGitHubSession();
-  return session?.githubLogin || "dev";
-}
-
 function errorResponse(error: unknown): NextResponse {
   if (error instanceof BuildEngineError) {
     return NextResponse.json({ error: error.message }, { status: error.status });
@@ -74,10 +33,8 @@ function errorResponse(error: unknown): NextResponse {
 const APP_NAME = /^[a-zA-Z0-9_-]{1,64}$/;
 
 export async function createBuildRunRoute(req: Request): Promise<NextResponse> {
-  const blocked = checkWrite(req);
-  if (blocked) return blocked;
-  const denied = await requireSession();
-  if (denied) return denied;
+  const auth = await authorize(req, { write: true, allowAnon: true });
+  if ("response" in auth) return auth.response;
 
   let body: CreateBuildRunRequest;
   try {
@@ -111,7 +68,7 @@ export async function createBuildRunRoute(req: Request): Promise<NextResponse> {
   try {
     const handle = await startBuildRun({
       prompt,
-      owner: await sessionOwner(),
+      owner: auth.session?.githubLogin || "dev",
       app: body.app,
       autoApprove: body.autoApprove,
       builder: body.builder,
@@ -128,10 +85,8 @@ export async function createBuildRunRoute(req: Request): Promise<NextResponse> {
 }
 
 export async function buildRunStatusRoute(req: Request): Promise<NextResponse> {
-  const limited = rateLimited(req);
-  if (limited) return limited;
-  const denied = await requireSession();
-  if (denied) return denied;
+  const auth = await authorize(req, { allowAnon: true });
+  if ("response" in auth) return auth.response;
 
   const runId = new URL(req.url).searchParams.get("id");
   if (!runId) {
@@ -149,10 +104,8 @@ export async function buildRunStatusRoute(req: Request): Promise<NextResponse> {
 /** Request cancellation — a durable store write the executing engine polls,
  *  so it works from any instance (and, later, for sandbox runners). */
 export async function buildRunCancelRoute(req: Request): Promise<NextResponse> {
-  const blocked = checkWrite(req);
-  if (blocked) return blocked;
-  const denied = await requireSession();
-  if (denied) return denied;
+  const auth = await authorize(req, { write: true, allowAnon: true });
+  if ("response" in auth) return auth.response;
 
   let body: { runId?: unknown };
   try {
@@ -175,10 +128,8 @@ export async function buildRunCancelRoute(req: Request): Promise<NextResponse> {
 export async function buildRunDownloadRoute(
   req: Request,
 ): Promise<NextResponse | Response> {
-  const limited = rateLimited(req);
-  if (limited) return limited;
-  const denied = await requireSession();
-  if (denied) return denied;
+  const auth = await authorize(req, { allowAnon: true });
+  if ("response" in auth) return auth.response;
 
   const runId = new URL(req.url).searchParams.get("id");
   if (!runId) {
@@ -235,10 +186,8 @@ export async function buildRunDownloadRoute(
 export async function buildRunFileRoute(
   req: Request,
 ): Promise<NextResponse | Response> {
-  const limited = rateLimited(req);
-  if (limited) return limited;
-  const denied = await requireSession();
-  if (denied) return denied;
+  const auth = await authorize(req, { allowAnon: true });
+  if ("response" in auth) return auth.response;
 
   const url = new URL(req.url);
   const runId = url.searchParams.get("id");
@@ -266,10 +215,8 @@ export async function buildRunFileRoute(
 export async function buildRunDecisionRoute(
   req: Request,
 ): Promise<NextResponse> {
-  const blocked = checkWrite(req);
-  if (blocked) return blocked;
-  const denied = await requireSession();
-  if (denied) return denied;
+  const auth = await authorize(req, { write: true, allowAnon: true });
+  if ("response" in auth) return auth.response;
 
   let body: BuildRunDecisionRequest;
   try {

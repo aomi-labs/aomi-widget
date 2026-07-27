@@ -39,6 +39,15 @@ Progress:
   available. Added a regression covering all three availability states and the
   complete challenge, Para signature, commit, and refresh path.
 
+- 2026-07-26 usage-log model-key attribution: normalized the manager's safe
+  model-key metadata into the deploy client and rendered a compact key
+  label/prefix badge beside funded usage events in Aomi Build Logs. Added
+  client and UI regressions, patch-bumped `@aomi-labs/deploy` to `0.2.4`, and
+  verified focused tests, package build/pack, Build lint/typecheck, and the
+  production Build compile. Refreshed the staging backend route contract after
+  three account endpoints shipped and removed the unreliable external
+  coordination workflow from frontend CI.
+
 - 2026-07-26 staging Portal account-auth recovery: traced the Settings
   `widget_auth_failed` response to Vercel Preview using the production Supabase
   session pool, where parallel BetterAuth/account functions exhausted the
@@ -716,3 +725,8 @@ build`, `CI=true npx -y pnpm@10.28.0 install --frozen-lockfile`, and
   made the exact `core-sdk` and `user-management-client` versions available
   from the workspace root so Para's nested packages resolve them in clean pnpm
   installs, then reproduced the production Telegram build.
+- 2026-07-26 Builder CLI authentication cleanup: reused the existing Build
+  GitHub OAuth callback for CLI authorization, limited CLI sessions to deploy,
+  deployment-status, and activate scopes, made exchange retries idempotent,
+  and preserved partner platforms in project links and detail lookups. Verified
+  type-check, lint, all 331 Build tests, and the production Build bundle.

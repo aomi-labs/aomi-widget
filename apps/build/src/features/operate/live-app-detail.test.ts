@@ -141,6 +141,7 @@ const livePayload = (): LiveAppDetailPayload => ({
       applicationId: 77,
       summary: "Real tool result",
       details: {},
+      modelKey: null,
       kind: "invocation",
       status: "ok",
       tool: "get_price",
