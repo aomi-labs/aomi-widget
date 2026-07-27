@@ -451,10 +451,10 @@ export function BuildView() {
           <div className="flex min-w-0 flex-1 flex-col">
             <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">
               {isEmpty ? (
-                <div className="flex justify-center px-4 pt-8 pb-8 sm:pt-10">
+                <div className="flex justify-center px-4 pb-8 pt-8 sm:pt-10">
                   <div className="w-full max-w-[640px]">
                     <div className="mb-4 space-y-1 text-center sm:text-left">
-                      <h1 className="text-foreground text-base font-medium">
+                      <h1 className="font-display text-foreground text-base font-normal tracking-tight">
                         What do you want to build?
                       </h1>
                       <p className="text-dim text-[13px] leading-5">
@@ -482,7 +482,7 @@ export function BuildView() {
                   </div>
                 </div>
               ) : (
-                <div className="mx-auto w-full max-w-3xl space-y-1 px-4 pt-3 pb-3">
+                <div className="mx-auto w-full max-w-3xl space-y-1 px-4 pb-3 pt-3">
                   {messages.map((msg) => {
                     if (streamingMessageId === msg.id) {
                       return (
@@ -601,11 +601,11 @@ export function BuildView() {
       >
         <FileDialog.Portal>
           <FileDialog.Overlay className="fixed inset-0 z-50 bg-black/50" />
-          <FileDialog.Content className="border-border bg-background fixed top-1/2 left-1/2 z-50 max-h-[80vh] w-[min(760px,92vw)] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-lg border shadow-lg">
+          <FileDialog.Content className="border-border bg-background fixed left-1/2 top-1/2 z-50 max-h-[80vh] w-[min(760px,92vw)] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-lg border shadow-lg">
             <FileDialog.Title className="text-subtle border-border border-b px-4 py-2 font-mono text-[12px]">
               {fileView?.path}
             </FileDialog.Title>
-            <pre className="max-h-[70vh] overflow-auto px-4 py-3 text-[12px] leading-relaxed whitespace-pre">
+            <pre className="max-h-[70vh] overflow-auto whitespace-pre px-4 py-3 text-[12px] leading-relaxed">
               {fileView?.content}
             </pre>
           </FileDialog.Content>

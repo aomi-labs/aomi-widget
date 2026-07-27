@@ -149,7 +149,7 @@ export function IntegrationsView() {
         <p className="text-dim text-[12px] uppercase tracking-wide">Account</p>
         <div className="flex items-center gap-2">
           <Plug className="text-dim size-5" />
-          <h1 className="text-foreground text-2xl font-semibold">
+          <h1 className="font-display text-foreground text-2xl font-normal tracking-tight">
             Integrations
           </h1>
         </div>

@@ -14,6 +14,7 @@ import {
   RefreshCwIcon,
   Square,
   ArrowLeftRightIcon,
+  TrendingUpIcon,
 } from "lucide-react";
 
 import {
@@ -128,6 +129,8 @@ const ThreadScrollToBottom: FC = () => {
 
 const ThreadWelcome: FC = () => {
   const isLoading = useThread((t) => t.isLoading);
+  const { welcomeTitle = "What can I help you onchain?" } =
+    useComposerControl();
 
   if (isLoading) return null;
 
@@ -141,7 +144,7 @@ const ThreadWelcome: FC = () => {
       >
         <AomiMark size={52} className="text-aomi-fg" />
         <h1 className="aui-thread-welcome-title text-aomi-fg text-center text-[30px] font-semibold tracking-[-0.02em]">
-          What can I help you onchain?
+          {welcomeTitle}
         </h1>
       </m.div>
       <m.div
@@ -162,53 +165,102 @@ const ThreadWelcome: FC = () => {
 };
 
 const ThreadSuggestions: FC = () => {
+  const suggestedActions = [
+    {
+      label: "Swap 0.5 ETH to USDC",
+      action: "Swap 0.5 ETH to USDC at the best rate",
+      icon: ArrowLeftRightIcon,
+    },
+    {
+      label: "Bridge USDC to Base",
+      action: "Bridge 100 USDC from Ethereum to Base",
+      icon: CableIcon,
+    },
+    {
+      label: "Check my portfolio",
+      action: "Show my wallet balances and positions",
+      icon: CoinsIcon,
+    },
+    {
+      label: "Deploy an ERC-20 token",
+      action: "Deploy an ERC-20 token",
+      icon: BoxIcon,
+    },
+    {
+      label: "Find the best ETH yield",
+      action: "Find the highest available yield for staking ETH",
+      icon: TrendingUpIcon,
+    },
+  ];
+  const suggestionRows = [
+    {
+      id: "primary",
+      actions: suggestedActions,
+    },
+    {
+      id: "secondary",
+      actions: [
+        ...suggestedActions.slice(2),
+        ...suggestedActions.slice(0, 2),
+      ],
+    },
+  ];
+
   return (
-    <div className="aui-thread-welcome-suggestions flex w-full flex-wrap justify-center gap-2.5 pb-4">
-      {[
-        {
-          label: "Swap 0.5 ETH to USDC",
-          action: "Swap 0.5 ETH to USDC at the best rate",
-          icon: ArrowLeftRightIcon,
-        },
-        {
-          label: "Bridge USDC to Base",
-          action: "Bridge 100 USDC from Ethereum to Base",
-          icon: CableIcon,
-        },
-        {
-          label: "Check my portfolio",
-          action: "Show my wallet balances and positions",
-          icon: CoinsIcon,
-        },
-        {
-          label: "Deploy an ERC-20 token",
-          action: "Deploy an ERC-20 token",
-          icon: BoxIcon,
-        },
-      ].map((suggestedAction, index) => (
-        <m.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 20 }}
-          transition={{ delay: 0.05 * index }}
-          key={`suggested-action-${suggestedAction.label}-${index}`}
-          className="aui-thread-welcome-suggestion-display @max-md:[&:nth-child(n+3)]:hidden"
+    <div className="aui-thread-welcome-suggestions w-full overflow-visible pb-4">
+      {suggestionRows.map((row, rowIndex) => (
+        <div
+          key={row.id}
+          className={cn(
+            "aui-thread-welcome-suggestions-track w-full",
+            rowIndex === 1 &&
+              "aui-thread-welcome-suggestions-track-secondary hidden",
+          )}
+          aria-hidden={rowIndex === 1 || undefined}
         >
-          <ThreadPrimitive.Suggestion
-            prompt={suggestedAction.action}
-            send
-            asChild
-          >
-            <button
-              type="button"
-              className="aui-thread-welcome-suggestion border-aomi-border bg-aomi-surface text-aomi-fg hover:border-aomi-muted/40 flex items-center gap-2 rounded-full border px-3.5 py-[9px] text-[13px] transition-colors"
-              aria-label={suggestedAction.action}
+          {[false, true].map((duplicate) => (
+            <div
+              key={duplicate ? "duplicate" : "primary"}
+              className={cn(
+                "aui-thread-welcome-suggestions-group flex w-full flex-wrap justify-center gap-2.5",
+                duplicate &&
+                  "aui-thread-welcome-suggestions-duplicate hidden",
+              )}
+              aria-hidden={duplicate || undefined}
             >
-              <suggestedAction.icon className="text-aomi-accent size-[15px] shrink-0" />
-              {suggestedAction.label}
-            </button>
-          </ThreadPrimitive.Suggestion>
-        </m.div>
+              {row.actions.map((suggestedAction, index) => (
+                <m.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 20 }}
+                  transition={{ delay: 0.05 * index }}
+                  key={`suggested-action-${row.id}-${duplicate ? "duplicate" : "primary"}-${suggestedAction.label}`}
+                  className={cn(
+                    "aui-thread-welcome-suggestion-display @max-md:[&:nth-child(n+3)]:hidden",
+                    index === 4 &&
+                      "aui-thread-welcome-suggestion-extra hidden",
+                  )}
+                >
+                  <ThreadPrimitive.Suggestion
+                    prompt={suggestedAction.action}
+                    send
+                    asChild
+                  >
+                    <button
+                      type="button"
+                      tabIndex={rowIndex === 1 || duplicate ? -1 : undefined}
+                      className="aui-thread-welcome-suggestion border-aomi-border bg-aomi-surface text-aomi-fg hover:border-aomi-muted/40 flex items-center gap-2 whitespace-nowrap rounded-full border px-3.5 py-[9px] text-[13px] transition-colors"
+                      aria-label={suggestedAction.action}
+                    >
+                      <suggestedAction.icon className="text-aomi-accent size-[15px] shrink-0" />
+                      {suggestedAction.label}
+                    </button>
+                  </ThreadPrimitive.Suggestion>
+                </m.div>
+              ))}
+            </div>
+          ))}
+        </div>
       ))}
     </div>
   );
@@ -232,7 +284,7 @@ const ComposerBox: FC<{ variant: "hero" | "dock"; placeholder: string }> = ({
     >
       <ComposerPrimitive.Input
         placeholder={placeholder}
-        className="aui-composer-input text-aomi-fg placeholder:text-aomi-muted max-h-32 w-full resize-none bg-transparent px-4 pb-2 pt-1.5 text-[13px] outline-none"
+        className="aui-composer-input text-aomi-fg placeholder:text-aomi-muted max-h-32 w-full resize-none overflow-x-hidden bg-transparent px-4 pb-2 pt-1.5 text-[13px] whitespace-pre-wrap break-words outline-none"
         rows={1}
         autoFocus
         aria-label="Message input"

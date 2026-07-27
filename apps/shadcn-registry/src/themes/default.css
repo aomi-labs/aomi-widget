@@ -95,7 +95,12 @@
    Light Theme (Default)
    ============================================ */
 
-:root {
+/* `.light` is listed alongside `:root` so the light palette can also be scoped
+   to a subtree — the mirror of `.dark`. Without it, dark is a one-way door:
+   once `.dark` is on <html> nothing underneath can opt back out, which blocks
+   embedding a light widget in a dark host page (and side-by-side previews). */
+:root,
+.light {
   --font-geist-sans:
     "Geist", "Inter", "SF Pro Display", "Segoe UI", system-ui, -apple-system,
     BlinkMacSystemFont, sans-serif;
@@ -161,10 +166,16 @@
   --aomi-on-accent: #ffffff;
 
   /* state + decorative + status */
-  --aomi-hover: #f4f4f5; /* cool-100 · hover fill — one step off white so it
-                            stays quiet on menus and list rows alike */
+  --aomi-hover: #e9e9ec; /* cool-150 · hover fill — still quiet on menus and
+                            list rows, but a step below surface-2 (#f4f4f5).
+                            At cool-100 it *was* surface-2, so anything already
+                            filled with surface-2 — the round close button, the
+                            chips — had no hover feedback at all. */
   --aomi-pink: #df5d90; /* pink-500 · decorative meters/pops */
-  --aomi-success: #2e9e6b;
+  --aomi-success: #1f8558; /* darkened from #2e9e6b: it renders as text ("free"
+                              rows, status labels), where the lighter green was
+                              3.38:1 on white — under AA. Dark keeps the
+                              brighter value below. */
   --aomi-warning: #d9982b;
   /* Focus: one ring for the whole system, so no surface falls back to the
      browser's default outline. */
@@ -220,25 +231,46 @@
   --sidebar-ring: oklch(0.552 0.016 285.938);
 
   /* Aomi design-system tokens — dark overrides. */
-  --aomi-bg: #09090b;
-  --aomi-surface: #18181b; /* cool-900 */
-  --aomi-surface-2: #27272a; /* cool-800 */
-  --aomi-raised: #27272a; /* panels lift, not sink, on dark */
-  --aomi-border: #27272a;
+  /* Six distinct steps. The previous ramp collapsed surface-2, raised and
+     border onto a single #27272a, which made every hairline on a panel a
+     zero-contrast no-op: modal dividers, table rules, the meter track and the
+     round close button all vanished. Each step below clears the one under it,
+     and `border` clears all of them — on dark it carries the structure that
+     fills carry on light. */
+  --aomi-bg: #09090b; /* cool-950 */
+  --aomi-surface: #18181b; /* cool-900 · recessed, mirrors light's #fafafa */
+  --aomi-raised: #202024; /* panels lift off bg, and leave room for fills */
+  --aomi-surface-2: #2e2e33; /* fills that sit ON a panel */
+  --aomi-border: #3f3f46; /* hairline · reads on bg…surface-2 alike */
 
   --aomi-fg: #fafafa;
   --aomi-muted: #a1a1aa; /* cool-400 */
 
   --aomi-accent: #7facd6; /* sky-400 on dark */
   --aomi-accent-strong: #5288c2;
-  --aomi-accent-subtle: #242e3c; /* sky tint over cool-900 */
+  --aomi-accent-subtle: #28354a; /* sky tint · must read as a selected row */
   --aomi-on-accent: #09090b;
 
-  --aomi-hover: #3f3f46; /* cool-700 — must out-step surface-2/raised (#27272a),
-                            or hover is invisible on menus */
+  --aomi-hover: #4a4a52; /* one step above border, so a hover fill never
+                            swallows the hairline of the row it lands on */
   --aomi-pink: #e77ba6; /* pink-400 — lifted for dark */
+  --aomi-success: #35b37b; /* lifted: light's darkened green is for white
+                              grounds and drops under AA on the dark panel */
   --aomi-danger: #e2687a; /* lifted so it carries on the dark ground */
   --aomi-danger-strong: #c34255;
+
+  /* Derived tokens must be re-declared, not inherited. A `var()` inside a
+     custom property substitutes against the element the property is *declared*
+     on — so the `:root` definitions above bake in the light `--aomi-accent` /
+     `--aomi-muted` and keep them even here. That happens to look right when
+     `.dark` lands on `<html>` (both rules match the same element), but it
+     silently breaks the moment `.dark` is applied to a subtree — a dark
+     container around an embedded widget, or a side-by-side theme preview.
+     Repeating them re-derives against the dark palette in either case. */
+  --aomi-ring: var(--aomi-accent);
+  --aomi-accent-tint: color-mix(in srgb, var(--aomi-accent) 10%, transparent);
+  --aomi-accent-outline: color-mix(in srgb, var(--aomi-accent) 45%, transparent);
+  --aomi-overlay-border: color-mix(in srgb, var(--aomi-muted) 30%, transparent);
 }
 
 /* ============================================
@@ -353,6 +385,109 @@
 @media screen and (max-width: 767px) {
   .aui-composer-input {
     font-size: 16px;
+  }
+}
+
+/* Optional two-lane suggestion marquee. Consumers opt in by applying
+   `aui-suggestions-marquee` to the AomiFrame root. */
+.aui-suggestions-marquee .aui-thread-welcome-suggestions {
+  order: 1;
+  display: flex;
+  width: 88%;
+  margin-right: auto;
+  margin-left: auto;
+  flex-direction: column;
+  gap: 0.875rem;
+  overflow: hidden;
+  padding-bottom: 0;
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    black 10%,
+    black 90%,
+    transparent
+  );
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent,
+    black 10%,
+    black 90%,
+    transparent
+  );
+}
+
+.aui-suggestions-marquee .aui-thread-welcome-suggestions-track {
+  display: flex;
+  width: max-content;
+  animation: aui-suggestion-marquee 30s linear infinite;
+  will-change: transform;
+}
+
+.aui-suggestions-marquee
+  .aui-thread-welcome-suggestions-track-secondary {
+  display: flex;
+  animation-duration: 72s;
+  animation-delay: -17s;
+}
+
+.aui-suggestions-marquee .aui-thread-welcome-suggestions-group {
+  width: max-content;
+  flex-shrink: 0;
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+  gap: 1.25rem;
+  padding-right: 1.25rem;
+}
+
+.aui-suggestions-marquee .aui-thread-welcome-suggestions-duplicate {
+  display: flex;
+}
+
+.aui-suggestions-marquee .aui-thread-welcome-suggestion-display {
+  display: block;
+}
+
+.aui-suggestions-marquee .aui-thread-welcome-suggestion {
+  padding: 0.4375rem 0.75rem;
+  font-size: 0.75rem;
+}
+
+.aui-suggestions-marquee .aui-thread-welcome-suggestion svg {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+.aui-suggestions-marquee
+  .aui-thread-welcome-root
+  > div:has(> .aui-composer-root) {
+  order: 2;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aui-suggestions-marquee .aui-thread-welcome-suggestions-track {
+    width: 100%;
+    animation: none;
+  }
+
+  .aui-suggestions-marquee
+    .aui-thread-welcome-suggestions-track-secondary {
+    display: flex;
+  }
+
+  .aui-suggestions-marquee .aui-thread-welcome-suggestions-group {
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .aui-suggestions-marquee .aui-thread-welcome-suggestions-duplicate {
+    display: none;
+  }
+}
+
+@keyframes aui-suggestion-marquee {
+  to {
+    transform: translateX(-50%);
   }
 }
 

@@ -3,6 +3,7 @@
 import { useState, type CSSProperties } from "react";
 import { AomiFrame } from "@aomi-labs/widget-lib";
 import { LandingWalletKitProvider } from "../components/landing-wallet-kit-provider";
+import styles from "./hero.module.css";
 
 const DEMO_BACKEND_URL = "/";
 
@@ -243,7 +244,7 @@ export function Hero() {
           <br className="hidden md:block" />
           top-security, multi-chain. Land in seconds.
         </p>
-        <div className="flex w-full max-w-[1500px] flex-col items-center justify-start gap-14 pt-2 pb-0">
+        <div className="flex w-full max-w-[1500px] flex-col items-center justify-start gap-6 pt-2 pb-0">
           <div className="relative flex h-10 w-full max-w-[316px] rounded-full bg-black/20 p-0.5 shadow-[0_8px_32px_0_rgba(0,0,0,0.1)] ring-1 ring-white/20 backdrop-blur-[80px]">
             <div
               className={`absolute top-0.5 left-0.5 bottom-0.5 w-[calc(50%-2px)] rounded-full border border-white/40 bg-gradient-to-r from-[#733e83] to-[#ec6b83] transition-transform duration-300 ease-out ${audienceMode === "human" ? "translate-x-0" : "translate-x-full"}`}
@@ -274,6 +275,8 @@ export function Hero() {
                 <AomiFrame.Root
                   height="100%"
                   width="100%"
+                  className={`${styles.demoFrame} aui-suggestions-marquee`}
+                  defaultSidebarOpen={false}
                   walletPosition="footer"
                   walletFamilies={["evm", "solana"]}
                   backendUrl={DEMO_BACKEND_URL}
@@ -281,6 +284,7 @@ export function Hero() {
                   <AomiFrame.Header />
                   <AomiFrame.Composer
                     withControl
+                    welcomeTitle="Start execution onchain today."
                     controlBarProps={{ hideApiKey: true, hideNetwork: false }}
                   />
                 </AomiFrame.Root>

@@ -22,7 +22,7 @@ export const ThreadList: FC = () => {
     <ThreadListPrimitive.Root className="aui-root aui-thread-list-root flex flex-1 list-none flex-col items-stretch gap-0.5 pl-2">
       <ThreadListNew />
       {/* Design mock: a "Recent" section label instead of a hairline */}
-      <span className="aui-thread-list-separator text-aomi-muted px-4 pb-2 pt-5 text-xs font-medium">
+      <span className="aui-thread-list-separator text-aomi-muted px-4 pb-2 pt-5 text-left text-xs font-medium">
         Recent
       </span>
       <ThreadListItems />

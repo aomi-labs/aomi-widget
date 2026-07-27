@@ -136,14 +136,16 @@ export function BotsView() {
     [sources],
   );
 
-  const canCreate = selectedOption.length > 0 && token.trim().length > 0 && !creating;
+  const canCreate =
+    selectedOption.length > 0 && token.trim().length > 0 && !creating;
 
   const handleCreate = useCallback(async () => {
     if (!canCreate) return;
     const [appSourceIdRaw, applicationIdRaw] = selectedOption.split(":");
     const appSourceId = Number(appSourceIdRaw);
     const applicationId = Number(applicationIdRaw);
-    if (!Number.isFinite(appSourceId) || !Number.isFinite(applicationId)) return;
+    if (!Number.isFinite(appSourceId) || !Number.isFinite(applicationId))
+      return;
 
     setCreating(true);
     setFormError(null);
@@ -205,7 +207,10 @@ export function BotsView() {
       }
       setPayload((current) =>
         current
-          ? { ...current, bots: (current.bots ?? []).filter((b) => b.id !== bot.id) }
+          ? {
+              ...current,
+              bots: (current.bots ?? []).filter((b) => b.id !== bot.id),
+            }
           : current,
       );
     } catch (err) {
@@ -234,7 +239,9 @@ export function BotsView() {
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
       <div>
-        <h1 className="text-xl font-semibold">Bots</h1>
+        <h1 className="font-display text-xl font-normal tracking-tight">
+          Bots
+        </h1>
         <p className="text-dim mt-1 max-w-2xl text-sm">
           Register Telegram bots that use your Aomi backend, selected app, and
           runtime session flow. Bot credentials are encrypted and never shown
@@ -258,9 +265,9 @@ export function BotsView() {
           <h2 className="text-base font-medium">Register Telegram bot</h2>
           <p className="text-dim mt-1 text-sm">
             Create the bot in BotFather, paste its token here, and we will
-            verify it with Telegram and activate the webhook automatically.
-            This account owns the bot configuration; people who message the
-            bot still use their own Aomi identity, wallets, and threads.
+            verify it with Telegram and activate the webhook automatically. This
+            account owns the bot configuration; people who message the bot still
+            use their own Aomi identity, wallets, and threads.
           </p>
         </div>
 
@@ -387,7 +394,9 @@ export function BotsView() {
                 {bots.map((bot) => (
                   <tr key={bot.id}>
                     <td className="px-3 py-2">
-                      <div className="text-foreground">{displayBotName(bot)}</div>
+                      <div className="text-foreground">
+                        {displayBotName(bot)}
+                      </div>
                       {bot.platformUsername && bot.label ? (
                         <div className="text-dim text-xs">
                           @{bot.platformUsername}
