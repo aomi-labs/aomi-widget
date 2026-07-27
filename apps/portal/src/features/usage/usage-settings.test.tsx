@@ -140,4 +140,31 @@ describe("usage settings wiring", () => {
       calls.filter((path) => path === "/api/account/statement"),
     ).toHaveLength(1);
   });
+
+  it("turns widget auth failures into an actionable message", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request) => {
+        const url = new URL(input.toString(), "https://portal.test");
+        if (url.pathname === "/api/account/statement") {
+          return Response.json(
+            { error: "widget_auth_failed" },
+            { status: 401 },
+          );
+        }
+        return new Response("unexpected", { status: 500 });
+      }),
+    );
+
+    await act(async () => {
+      render(<UsageSettings />);
+    });
+
+    expect(
+      await screen.findByText(
+        "Couldn’t authenticate your account. Sign in again and retry.",
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByText(/widget_auth_failed/)).toBeNull();
+  });
 });
