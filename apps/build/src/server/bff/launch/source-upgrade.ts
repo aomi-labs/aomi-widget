@@ -1,27 +1,15 @@
 import "server-only";
 
 import { NextResponse } from "next/server";
-import { checkRateLimit, getClientIp } from "@build/lib/rate-limit";
-import { validateOrigin } from "@build/lib/csrf";
-import { getGitHubSession } from "@build/server/cookies/github";
 import { deploymentClient } from "@build/server/bff/backend";
 import { launchConfig, resolveLaunchPlatform } from "./config";
 import { launchErrorResponse } from "./errors";
+import { authorize } from "./auth";
 
 export async function sourceSdkUpgradeRoute(req: Request) {
-  if (!checkRateLimit(getClientIp(req)).allowed) {
-    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
-  }
-  if (!validateOrigin(req)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
-  const session = await getGitHubSession();
-  if (!session) {
-    return NextResponse.json(
-      { error: "not signed in with GitHub" },
-      { status: 401 },
-    );
-  }
+  const auth = await authorize(req, { write: true });
+  if ("response" in auth) return auth.response;
+  const { session } = auth;
   const body: unknown = await req.json().catch(() => null);
   const platformValue =
     body && typeof body === "object" && "platform" in body
@@ -66,16 +54,9 @@ export async function sourceSdkUpgradeRoute(req: Request) {
  * making it safe for the launch flow's 45s recheck loop.
  */
 export async function sourceSdkUpgradeStatusRoute(req: Request) {
-  if (!checkRateLimit(getClientIp(req)).allowed) {
-    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
-  }
-  const session = await getGitHubSession();
-  if (!session) {
-    return NextResponse.json(
-      { error: "not signed in with GitHub" },
-      { status: 401 },
-    );
-  }
+  const auth = await authorize(req);
+  if ("response" in auth) return auth.response;
+  const { session } = auth;
   const appSourceId = Number(
     new URL(req.url).searchParams.get("appSourceId") ?? undefined,
   );
