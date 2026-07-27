@@ -10,6 +10,7 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
+      "@build": resolve(currentDir, "apps/build/src"),
       "@portal": resolve(currentDir, "apps/portal/src"),
       "@aomi-labs/account": resolve(currentDir, "packages/account/src"),
       "@aomi-labs/client": resolve(currentDir, "packages/client/src"),
@@ -31,6 +32,7 @@ export default defineConfig({
     setupFiles: ["./vitest.setup.ts"],
     include: [
       "packages/**/*.{test,spec}.{ts,tsx,mjs,cjs,js,jsx}",
+      "apps/build/src/**/*.{test,spec}.{ts,tsx}",
       "apps/portal/src/{app,server}/mcp/**/*.{test,spec}.{ts,tsx}",
       "apps/portal/src/lib/widget-auth/**/*.{test,spec}.{ts,tsx}",
       "apps/portal/src/app/api/*/route.{test,spec}.{ts,tsx}",

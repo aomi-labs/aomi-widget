@@ -16,6 +16,10 @@ const client = {
   listUserSourceBots: vi.fn(),
   createUserSourceBot: vi.fn(),
   deleteUserSourceBot: vi.fn(),
+  listUserBots: vi.fn(),
+  createUserBot: vi.fn(),
+  updateUserBot: vi.fn(),
+  deleteUserBot: vi.fn(),
   getUserSourceUsage: vi.fn(),
   getUserSourceStatement: vi.fn(),
   getUserSourceObservability: vi.fn(),
@@ -72,6 +76,10 @@ beforeEach(() => {
   client.listUserSourceBots.mockReset();
   client.createUserSourceBot.mockReset();
   client.deleteUserSourceBot.mockReset();
+  client.listUserBots.mockReset();
+  client.createUserBot.mockReset();
+  client.updateUserBot.mockReset();
+  client.deleteUserBot.mockReset();
   client.getUserSourceUsage.mockReset();
   client.getUserSourceStatement.mockReset();
   client.getUserSourceObservability.mockReset();
@@ -94,41 +102,40 @@ describe("operateBotsRoute", () => {
     expect(client.listUserSources).not.toHaveBeenCalled();
   });
 
-  it("lists bots across owned sources", async () => {
+  it("lists builder-wide bots once", async () => {
     setSession({ githubUserId: "gh-1" });
     client.listUserSources.mockResolvedValue([
       { id: 42, repositoryLink: "o/r", apps: [] },
     ]);
-    client.listUserSourceBots.mockResolvedValue([
+    client.listUserBots.mockResolvedValue([
       { id: "b1", platformUsername: "mybot" },
     ]);
     const res = await operateBotsRoute(getReq());
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toMatchObject({
-      bots: [{ id: "b1", platformUsername: "mybot", source: { id: 42 } }],
+      bots: [{ id: "b1", platformUsername: "mybot" }],
     });
-    expect(client.listUserSourceBots).toHaveBeenCalledWith(
+    expect(client.listUserBots).toHaveBeenCalledWith(
       expect.objectContaining({
         githubUserId: "gh-1",
-        appSourceId: 42,
       }),
     );
   });
 
-  it("fans out over every owned source", async () => {
+  it("does not fan out over every owned source", async () => {
     setSession({ githubUserId: "gh-1" });
     client.listUserSources.mockResolvedValue([
       { id: 1, apps: [] },
       { id: 2, apps: [] },
     ]);
-    client.listUserSourceBots
-      .mockResolvedValueOnce([{ id: "b1", platformUsername: "one" }])
-      .mockResolvedValueOnce([{ id: "b2", platformUsername: "two" }]);
+    client.listUserBots.mockResolvedValue([
+      { id: "b1", platformUsername: "one" },
+    ]);
     const res = await operateBotsRoute(getReq());
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.bots).toHaveLength(2);
-    expect(client.listUserSourceBots).toHaveBeenCalledTimes(2);
+    expect(body.bots).toHaveLength(1);
+    expect(client.listUserBots).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -136,61 +143,77 @@ describe("operateBotsCreateRoute", () => {
   it("401s create when not signed in with GitHub", async () => {
     clearSession();
     const res = await operateBotsCreateRoute(
-      postJson({ appSourceId: 42, applicationId: 1, credential: "t" }),
+      postJson({
+        applicationIds: [1],
+        primaryApplicationId: 1,
+        credential: "t",
+      }),
     );
     expect(res.status).toBe(401);
-    expect(client.createUserSourceBot).not.toHaveBeenCalled();
+    expect(client.createUserBot).not.toHaveBeenCalled();
   });
 
-  it("404s a create for a source the user does not own", async () => {
+  it("rejects a create for apps the user does not own", async () => {
     setSession({ githubUserId: "gh-1" });
     client.listUserSources.mockResolvedValue([{ id: 42, apps: [] }]);
     const res = await operateBotsCreateRoute(
-      postJson({ appSourceId: 99, applicationId: 1, credential: "t" }),
+      postJson({
+        applicationIds: [1],
+        primaryApplicationId: 1,
+        credential: "t",
+      }),
     );
-    expect(res.status).toBe(404);
-    expect(client.createUserSourceBot).not.toHaveBeenCalled();
+    expect(res.status).toBe(403);
+    expect(client.createUserBot).not.toHaveBeenCalled();
   });
 
   it("400s an invalid body before calling the backend", async () => {
     setSession({ githubUserId: "gh-1" });
     client.listUserSources.mockResolvedValue([{ id: 42, apps: [] }]);
     let res = await operateBotsCreateRoute(
-      postJson({ appSourceId: "nope", applicationId: 1, credential: "t" }),
+      postJson({
+        applicationIds: "nope",
+        primaryApplicationId: 1,
+        credential: "t",
+      }),
     );
     expect(res.status).toBe(400);
 
     res = await operateBotsCreateRoute(
-      postJson({ appSourceId: 42, applicationId: 1, credential: "   " }),
+      postJson({
+        applicationIds: [1],
+        primaryApplicationId: 1,
+        credential: "   ",
+      }),
     );
     expect(res.status).toBe(400);
-    expect(client.createUserSourceBot).not.toHaveBeenCalled();
+    expect(client.createUserBot).not.toHaveBeenCalled();
   });
 
-  it("creates a bot for an owned source, hardcoding the telegram bot platform", async () => {
+  it("creates a bot with owned cross-source app mappings", async () => {
     setSession({ githubUserId: "gh-1" });
-    client.listUserSources.mockResolvedValue([{ id: 42, apps: [] }]);
-    client.createUserSourceBot.mockResolvedValue({
+    client.listUserSources.mockResolvedValue([{ id: 42, apps: [{ id: 7 }] }]);
+    client.createUserBot.mockResolvedValue({
       id: "b1",
       platform: "telegram",
     });
     const res = await operateBotsCreateRoute(
       postJson({
-        appSourceId: 42,
-        applicationId: 7,
+        applicationIds: [7],
+        primaryApplicationId: 7,
         credential: "secret-token",
         label: "My Bot",
       }),
     );
     expect(res.status).toBe(201);
     await expect(res.json()).resolves.toMatchObject({
-      bot: { id: "b1", platform: "telegram", source: { id: 42 } },
+      bot: { id: "b1", platform: "telegram" },
     });
-    expect(client.createUserSourceBot).toHaveBeenCalledWith(
+    expect(client.createUserBot).toHaveBeenCalledWith(
       expect.objectContaining({
         githubUserId: "gh-1",
-        appSourceId: 42,
-        applicationId: 7,
+        applicationIds: [7],
+        primaryApplicationId: 7,
         botPlatform: "telegram",
         credential: "secret-token",
         label: "My Bot",
@@ -200,10 +223,14 @@ describe("operateBotsCreateRoute", () => {
 
   it("never logs or echoes the credential value on failure paths", async () => {
     setSession({ githubUserId: "gh-1" });
-    client.listUserSources.mockResolvedValue([{ id: 42, apps: [] }]);
-    client.createUserSourceBot.mockRejectedValue(new Error("backend down"));
+    client.listUserSources.mockResolvedValue([{ id: 42, apps: [{ id: 7 }] }]);
+    client.createUserBot.mockRejectedValue(new Error("backend down"));
     const res = await operateBotsCreateRoute(
-      postJson({ appSourceId: 42, applicationId: 7, credential: "top-secret" }),
+      postJson({
+        applicationIds: [7],
+        primaryApplicationId: 7,
+        credential: "top-secret",
+      }),
     );
     const text = await res.text();
     expect(text).not.toContain("top-secret");
@@ -213,46 +240,29 @@ describe("operateBotsCreateRoute", () => {
 describe("operateBotsDeleteRoute", () => {
   it("401s delete when not signed in with GitHub", async () => {
     clearSession();
-    const res = await operateBotsDeleteRoute(
-      deleteReq("?appSourceId=42&botId=b1"),
-    );
+    const res = await operateBotsDeleteRoute(deleteReq("?botId=b1"));
     expect(res.status).toBe(401);
-    expect(client.deleteUserSourceBot).not.toHaveBeenCalled();
+    expect(client.deleteUserBot).not.toHaveBeenCalled();
   });
 
-  it("404s a delete for a source the user does not own", async () => {
+  it("400s a delete missing botId", async () => {
     setSession({ githubUserId: "gh-1" });
     client.listUserSources.mockResolvedValue([{ id: 42, apps: [] }]);
-    const res = await operateBotsDeleteRoute(
-      deleteReq("?appSourceId=99&botId=b1"),
-    );
-    expect(res.status).toBe(404);
-    expect(client.deleteUserSourceBot).not.toHaveBeenCalled();
-  });
-
-  it("400s a delete missing appSourceId or botId", async () => {
-    setSession({ githubUserId: "gh-1" });
-    client.listUserSources.mockResolvedValue([{ id: 42, apps: [] }]);
-    let res = await operateBotsDeleteRoute(deleteReq("?botId=b1"));
+    const res = await operateBotsDeleteRoute(deleteReq(""));
     expect(res.status).toBe(400);
-    res = await operateBotsDeleteRoute(deleteReq("?appSourceId=42"));
-    expect(res.status).toBe(400);
-    expect(client.deleteUserSourceBot).not.toHaveBeenCalled();
+    expect(client.deleteUserBot).not.toHaveBeenCalled();
   });
 
   it("deletes a bot for an owned source", async () => {
     setSession({ githubUserId: "gh-1" });
     client.listUserSources.mockResolvedValue([{ id: 42, apps: [] }]);
-    client.deleteUserSourceBot.mockResolvedValue(undefined);
-    const res = await operateBotsDeleteRoute(
-      deleteReq("?appSourceId=42&botId=b1"),
-    );
+    client.deleteUserBot.mockResolvedValue(undefined);
+    const res = await operateBotsDeleteRoute(deleteReq("?botId=b1"));
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({ ok: true });
-    expect(client.deleteUserSourceBot).toHaveBeenCalledWith(
+    expect(client.deleteUserBot).toHaveBeenCalledWith(
       expect.objectContaining({
         githubUserId: "gh-1",
-        appSourceId: 42,
         botId: "b1",
       }),
     );

@@ -210,17 +210,13 @@ export async function operateBotsRoute(req: Request) {
   const owned = await ownedSources(req);
   if ("response" in owned) return owned.response;
   try {
-    const results = await settleBySource(owned.sources, async (source) => {
-      const bots = await owned.client.listUserSourceBots({
-        githubUserId: owned.githubUserId,
-        platform: owned.platform,
-        appSourceId: source.id,
-      });
-      return bots.map((bot) => ({ ...bot, source }));
+    const bots = await owned.client.listUserBots({
+      githubUserId: owned.githubUserId,
+      platform: owned.platform,
     });
     return NextResponse.json({
       sources: owned.sources,
-      bots: results.flat(),
+      bots,
     });
   } catch (err) {
     return launchErrorResponse(err);
@@ -232,18 +228,20 @@ export async function operateBotsCreateRoute(req: Request) {
   if ("response" in owned) return owned.response;
 
   const body = (await req.json().catch(() => ({}))) as {
-    appSourceId?: unknown;
-    applicationId?: unknown;
+    applicationIds?: unknown;
+    primaryApplicationId?: unknown;
     credential?: unknown;
     label?: unknown;
     threadMode?: unknown;
   };
   if (
-    !isValidAppSourceId(body.appSourceId) ||
-    typeof body.applicationId !== "number"
+    !Array.isArray(body.applicationIds) ||
+    body.applicationIds.length === 0 ||
+    body.applicationIds.some((id) => typeof id !== "number") ||
+    typeof body.primaryApplicationId !== "number"
   ) {
     return NextResponse.json(
-      { error: "missing or invalid `appSourceId` / `applicationId`" },
+      { error: "missing or invalid app mappings" },
       { status: 400 },
     );
   }
@@ -253,27 +251,39 @@ export async function operateBotsCreateRoute(req: Request) {
       { status: 400 },
     );
   }
-  const source = owned.sources.find((s) => s.id === body.appSourceId);
-  if (!source) {
+  const allowedApplicationIds = new Set(
+    owned.sources.flatMap((source) => (source.apps ?? []).map((app) => app.id)),
+  );
+  const applicationIds = body.applicationIds as number[];
+  if (new Set(applicationIds).size !== applicationIds.length) {
     return NextResponse.json(
-      { error: "app source not found for this user" },
-      { status: 404 },
+      { error: "`applicationIds` must be unique" },
+      { status: 400 },
+    );
+  }
+  if (
+    !applicationIds.every((id) => allowedApplicationIds.has(id)) ||
+    !applicationIds.includes(body.primaryApplicationId)
+  ) {
+    return NextResponse.json(
+      { error: "selected apps are not owned by this user" },
+      { status: 403 },
     );
   }
 
   try {
-    const bot: BotRegistration = await owned.client.createUserSourceBot({
+    const bot: BotRegistration = await owned.client.createUserBot({
       githubUserId: owned.githubUserId,
       platform: owned.platform,
-      appSourceId: source.id,
-      applicationId: body.applicationId,
+      applicationIds,
+      primaryApplicationId: body.primaryApplicationId,
       botPlatform: "telegram",
       credential: body.credential.trim(),
       label: typeof body.label === "string" ? body.label : undefined,
       threadMode:
         typeof body.threadMode === "string" ? body.threadMode : undefined,
     });
-    return NextResponse.json({ bot: { ...bot, source } }, { status: 201 });
+    return NextResponse.json({ bot }, { status: 201 });
   } catch (err) {
     return launchErrorResponse(err);
   }
@@ -284,30 +294,70 @@ export async function operateBotsDeleteRoute(req: Request) {
   if ("response" in owned) return owned.response;
 
   const params = new URL(req.url).searchParams;
-  const requestedSourceId = Number(params.get("appSourceId"));
   const botId = params.get("botId");
-  if (!isValidAppSourceId(requestedSourceId) || !botId) {
-    return NextResponse.json(
-      { error: "missing or invalid `appSourceId` / `botId`" },
-      { status: 400 },
-    );
+  if (!botId) {
+    return NextResponse.json({ error: "missing `botId`" }, { status: 400 });
   }
-  const source = owned.sources.find((s) => s.id === requestedSourceId);
-  if (!source) {
-    return NextResponse.json(
-      { error: "app source not found for this user" },
-      { status: 404 },
-    );
-  }
-
   try {
-    await owned.client.deleteUserSourceBot({
+    await owned.client.deleteUserBot({
       githubUserId: owned.githubUserId,
       platform: owned.platform,
-      appSourceId: source.id,
       botId,
     });
     return NextResponse.json({ ok: true });
+  } catch (err) {
+    return launchErrorResponse(err);
+  }
+}
+
+export async function operateBotsUpdateRoute(req: Request) {
+  const owned = await ownedSources(req);
+  if ("response" in owned) return owned.response;
+  const body = (await req.json().catch(() => ({}))) as {
+    botId?: unknown;
+    applicationIds?: unknown;
+    primaryApplicationId?: unknown;
+  };
+  if (
+    typeof body.botId !== "string" ||
+    !Array.isArray(body.applicationIds) ||
+    body.applicationIds.length === 0 ||
+    body.applicationIds.some((id) => typeof id !== "number") ||
+    typeof body.primaryApplicationId !== "number"
+  ) {
+    return NextResponse.json(
+      { error: "invalid bot mapping update" },
+      { status: 400 },
+    );
+  }
+  const allowed = new Set(
+    owned.sources.flatMap((source) => (source.apps ?? []).map((app) => app.id)),
+  );
+  const applicationIds = body.applicationIds as number[];
+  if (new Set(applicationIds).size !== applicationIds.length) {
+    return NextResponse.json(
+      { error: "`applicationIds` must be unique" },
+      { status: 400 },
+    );
+  }
+  if (
+    !applicationIds.every((id) => allowed.has(id)) ||
+    !applicationIds.includes(body.primaryApplicationId)
+  ) {
+    return NextResponse.json(
+      { error: "selected apps are not owned by this user" },
+      { status: 403 },
+    );
+  }
+  try {
+    const bot = await owned.client.updateUserBot({
+      githubUserId: owned.githubUserId,
+      platform: owned.platform,
+      botId: body.botId,
+      applicationIds,
+      primaryApplicationId: body.primaryApplicationId,
+    });
+    return NextResponse.json({ bot });
   } catch (err) {
     return launchErrorResponse(err);
   }
