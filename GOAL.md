@@ -31,6 +31,11 @@ mistaken for another supported environment.
 
 Progress:
 
+- 2026-07-27 Build deploy-platform configuration: reduced the BFF deploy
+  admission allowlist to one server-only source, `APP_DEPLOY_PLATFORMS`, and
+  removed the singular and `NEXT_PUBLIC_*` compatibility paths so Vercel
+  configuration cannot silently diverge.
+
 - 2026-07-27 Para ACL mode recovery: confirmed the reported staging Para EVM
   row is user-controlled (`provider_managed = false`) and that the backend
   permits `client_auto` without a delegated grant. Removed the frontend's
