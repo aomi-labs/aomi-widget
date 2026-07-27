@@ -11,9 +11,13 @@ describe("AomiClient route manifest", () => {
         `${endpoint.method} ${endpoint.path} [${endpoint.auth.join(", ")}]`,
     );
 
-    expect(routeKeys).toHaveLength(112);
+    expect(routeKeys).toHaveLength(113);
     expect(new Set(routeKeys).size).toBe(routeKeys.length);
     expect(routeKeys).toContain("GET /api/account/statement [account]");
+    // Public placement probe. Kept distinct from GET /health, which stays a
+    // pure liveness signal so a missing hosted app never reads as a dead host.
+    expect(routeKeys).toContain("GET /availability []");
+    expect(routeKeys).toContain("GET /health []");
     expect(routeKeys).toContain(
       "POST /api/account/providers/:provider/agent-wallet [account]",
     );
