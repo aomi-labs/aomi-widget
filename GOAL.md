@@ -26,6 +26,15 @@ tables; fresh databases also finish replay with that drop.
 
 Progress:
 
+- 2026-07-26 staging Portal account-auth recovery: traced the Settings
+  `widget_auth_failed` response to Vercel Preview using the production Supabase
+  session pool, where parallel BetterAuth/account functions exhausted the
+  15-client cap. Restored global Preview to the canonical staging branch using
+  its transaction-pool URL, rebuilt merged `main`, and confirmed concurrent
+  session/account probes with no 5xx or pool-exhaustion logs. Settings now
+  translates widget-auth and unknown structured transport failures into calm,
+  actionable copy instead of rendering raw JSON.
+
 - 2026-07-24 idempotent npm publishing: changed the post-merge publish job to
   skip exact package versions that are already live, publish only missing
   versions, and fail closed on registry errors other than a definitive 404.

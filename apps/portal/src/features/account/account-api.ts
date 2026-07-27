@@ -238,7 +238,15 @@ export function explainAccountError(cause: unknown): string {
       return "Unsupported signing mode.";
     case "internal":
       return "The server hit an error. Try again shortly.";
+    case "widget_auth_failed":
+      return "Couldn’t authenticate your account. Sign in again and retry.";
     default:
+      // Transport failures commonly arrive as structured JSON. Never render
+      // an unknown server payload verbatim in Settings; it is implementation
+      // detail, not an actionable message for the account holder.
+      if (code !== raw) {
+        return "Couldn’t load your account. Try again shortly.";
+      }
       return raw || "Something went wrong.";
   }
 }
