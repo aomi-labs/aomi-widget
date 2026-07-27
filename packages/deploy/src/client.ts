@@ -939,7 +939,9 @@ export class DeploymentClient {
     return camelBuilderModelKey(raw.key);
   }
 
-  async deleteBuilderModelKey(input: DeleteBuilderModelKeyInput): Promise<void> {
+  async deleteBuilderModelKey(
+    input: DeleteBuilderModelKeyInput,
+  ): Promise<void> {
     const { params, bearer } = this.builderKeyRequest(input);
     const keyId = required(String(input.keyId), "keyId");
     await this.del<unknown>(
@@ -2183,23 +2185,40 @@ function camelOperateLogs(
   return {
     source: camelAppSource(raw.source),
     platform: String(raw.platform ?? fallbackPlatform),
-    logs: ((raw.logs ?? []) as Record<string, any>[]).map((row) => ({
-      occurredAt: timestampSeconds(row.occurred_at ?? row.occurredAt),
-      eventType: String(row.event_type ?? row.eventType ?? ""),
-      id: String(row.id ?? ""),
-      application: String(row.application ?? ""),
-      applicationId: row.application_id ?? row.applicationId ?? null,
-      summary: String(row.summary ?? ""),
-      details: (row.details ?? {}) as Record<string, unknown>,
-      kind: (row.kind ?? null) as "invocation" | "event" | null,
-      status: (row.status ?? null) as "ok" | "error" | "info" | null,
-      tool: optString(row.tool),
-      durationMs: optNumber(row.duration_ms ?? row.durationMs),
-      retries: optNumber(row.retries),
-      threadId: optString(row.thread_id ?? row.threadId),
-      args: optString(row.args),
-      result: optString(row.result),
-    })),
+    logs: ((raw.logs ?? []) as Record<string, any>[]).map((row) => {
+      const details = (row.details ?? {}) as Record<string, any>;
+      const rawModelKey = details.model_key ?? details.modelKey;
+      const modelKeyId =
+        rawModelKey && typeof rawModelKey === "object"
+          ? optNumber(rawModelKey.id)
+          : null;
+      const modelKey =
+        modelKeyId !== null && Number.isFinite(modelKeyId)
+          ? {
+              id: modelKeyId,
+              label: optString(rawModelKey.label),
+              prefix: optString(rawModelKey.prefix),
+            }
+          : null;
+      return {
+        occurredAt: timestampSeconds(row.occurred_at ?? row.occurredAt),
+        eventType: String(row.event_type ?? row.eventType ?? ""),
+        id: String(row.id ?? ""),
+        application: String(row.application ?? ""),
+        applicationId: row.application_id ?? row.applicationId ?? null,
+        summary: String(row.summary ?? ""),
+        details,
+        modelKey,
+        kind: (row.kind ?? null) as "invocation" | "event" | null,
+        status: (row.status ?? null) as "ok" | "error" | "info" | null,
+        tool: optString(row.tool),
+        durationMs: optNumber(row.duration_ms ?? row.durationMs),
+        retries: optNumber(row.retries),
+        threadId: optString(row.thread_id ?? row.threadId),
+        args: optString(row.args),
+        result: optString(row.result),
+      };
+    }),
     nextCursor: camelLogCursor(raw.next_cursor ?? raw.nextCursor),
   };
 }
