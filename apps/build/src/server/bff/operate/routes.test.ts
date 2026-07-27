@@ -7,7 +7,9 @@ import {
   operateBotsRoute,
   operateBotsCreateRoute,
   operateBotsDeleteRoute,
+  operateLogsRoute,
   operateObservabilityRoute,
+  operateTransactionsRoute,
   operateUsageRoute,
 } from "./routes";
 
@@ -275,6 +277,12 @@ function usageReq() {
 function observabilityReq() {
   return new Request("http://localhost:3000/api/bff/operate/observability");
 }
+function transactionsReq(qs = "") {
+  return new Request(`http://localhost:3000/api/bff/operate/transactions${qs}`);
+}
+function logsReq(qs = "") {
+  return new Request(`http://localhost:3000/api/bff/operate/logs${qs}`);
+}
 function appDetailReq(qs = "?appSourceId=900&applicationId=77") {
   return new Request(
     `http://localhost:3000/api/bff/operate/observability/detail${qs}`,
@@ -312,6 +320,45 @@ function emptyPayments() {
     resources: [],
     buckets: [],
     events: [],
+  };
+}
+
+function sharedSettlementPayments(applicationId: number | null = null) {
+  return {
+    ...emptyPayments(),
+    summary: {
+      ...emptyPayments().summary,
+      settledCredits: 100,
+      settledUsd: 1,
+      settlements: 1,
+    },
+    buckets: [
+      {
+        id: "shared-bucket",
+        recipient: "0xbeneficiary",
+        outstandingCredits: 0,
+        outstandingUsd: 0,
+      },
+    ],
+    events: [
+      {
+        id: "settle:shared",
+        kind: "settlement_confirmed",
+        occurredAt: 1_700_000_000,
+        application: applicationId == null ? null : `app-${applicationId}`,
+        applicationId,
+        tools: [],
+        credits: 100,
+        usd: 1,
+        asset: "USDC",
+        assetAmount: 1,
+        recipient: "0xbeneficiary",
+        paymentMethod: "coinbase",
+        receiptId: "0xreceipt",
+        chain: "eip155:84532",
+        explorerUrl: "https://sepolia.basescan.org/tx/0xreceipt",
+      },
+    ],
   };
 }
 
@@ -406,42 +453,7 @@ describe("operateUsageRoute statement fallback", () => {
         source: { id: appSourceId },
       }),
     );
-    const payment = {
-      ...emptyPayments(),
-      summary: {
-        ...emptyPayments().summary,
-        settledCredits: 100,
-        settledUsd: 1,
-        settlements: 1,
-      },
-      buckets: [
-        {
-          id: "shared-bucket",
-          recipient: "0xbeneficiary",
-          outstandingCredits: 0,
-          outstandingUsd: 0,
-        },
-      ],
-      events: [
-        {
-          id: "settle:shared",
-          kind: "settlement_confirmed",
-          occurredAt: 1_700_000_000,
-          application: null,
-          applicationId: null,
-          tools: [],
-          credits: 100,
-          usd: 1,
-          asset: "USDC",
-          assetAmount: 1,
-          recipient: "0xbeneficiary",
-          paymentMethod: "coinbase",
-          receiptId: "0xreceipt",
-          chain: "eip155:84532",
-          explorerUrl: "https://sepolia.basescan.org/tx/0xreceipt",
-        },
-      ],
-    };
+    const payment = sharedSettlementPayments();
     client.getUserSourceStatement.mockImplementation(({ appSourceId }) =>
       Promise.resolve({
         source: { id: appSourceId },
@@ -468,6 +480,104 @@ describe("operateUsageRoute statement fallback", () => {
     expect(body.statement.payments.summary.settlements).toBe(1);
     expect(body.statement.payments.events).toHaveLength(1);
     expect(body.statement.payments.buckets).toHaveLength(1);
+  });
+});
+
+describe("partner settlement aggregation", () => {
+  beforeEach(() => {
+    setSession({ githubUserId: "gh-1" });
+    client.listUserSources.mockResolvedValue([
+      { id: 900, repositoryLink: "o/one", apps: [] },
+      { id: 901, repositoryLink: "o/two", apps: [] },
+    ]);
+  });
+
+  it("renders one recipient-bucket payout across affected projects", async () => {
+    client.listUserSourceTransactions.mockImplementation(({ appSourceId }) =>
+      Promise.resolve({
+        source: { id: appSourceId },
+        platform: "community",
+        transactions: [],
+        nextCursor: null,
+      }),
+    );
+    client.getUserSourceStatement.mockImplementation(({ appSourceId }) =>
+      Promise.resolve({
+        source: { id: appSourceId },
+        platform: "community",
+        range: { fromDate: "2026-07-01", toDate: "2026-07-15" },
+        available: true,
+        summary: {
+          grossRevenue: 0,
+          platformFees: 0,
+          serviceCharges: 0,
+          net: 0,
+        },
+        revenue: [],
+        charges: [],
+        entries: [],
+        payments: sharedSettlementPayments(appSourceId),
+      }),
+    );
+
+    const body = await (
+      await operateTransactionsRoute(transactionsReq())
+    ).json();
+
+    expect(body.transactions).toHaveLength(1);
+    expect(body.transactions[0]).toMatchObject({
+      id: "partner-payout:settle:shared",
+      application: "Partner payout",
+    });
+  });
+
+  it("deduplicates settlement logs and advances every source cursor", async () => {
+    client.listUserSourceLogs.mockImplementation(({ appSourceId }) =>
+      Promise.resolve({
+        source: { id: appSourceId },
+        platform: "community",
+        logs: [
+          {
+            occurredAt: 1_700_000_000,
+            eventType: "usage",
+            id: "settle:shared",
+            application: "partner-settlement",
+            applicationId: null,
+            summary: "Partner settlement confirmed · 100 credits",
+            details: { source: "partner_settlement" },
+            kind: "event",
+            status: "info",
+            tool: null,
+            durationMs: null,
+            retries: null,
+            threadId: null,
+            args: null,
+            result: null,
+          },
+        ],
+        nextCursor: {
+          occurredAt: 1_699_999_999,
+          eventType: "usage",
+          id: "old",
+        },
+      }),
+    );
+
+    const body = await (await operateLogsRoute(logsReq("?limit=1"))).json();
+
+    expect(body.logs).toHaveLength(1);
+    expect(body.nextCursor.perSource).toEqual({
+      "900": {
+        occurredAt: 1_700_000_000,
+        eventType: "usage",
+        id: "settle:shared",
+      },
+      "901": {
+        occurredAt: 1_700_000_000,
+        eventType: "usage",
+        id: "settle:shared",
+      },
+    });
   });
 });
 

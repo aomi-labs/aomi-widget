@@ -103,16 +103,28 @@ function mergedPartnerPayments(
 ) {
   const sum = (pick: (summary: OperatePartnerPayments["summary"]) => number) =>
     rows.reduce((total, row) => total + pick(row.payments.summary), 0);
-  const events = [
-    ...new Map(
-      rows.flatMap((row) =>
-        row.payments.events.map((event) => [
-          `${event.kind}:${event.id}`,
-          { ...event, source: row.source },
-        ]),
-      ),
-    ).values(),
-  ].sort((a, b) => b.occurredAt - a.occurredAt || b.id.localeCompare(a.id));
+  const eventById = new Map<
+    string,
+    OperatePartnerPayments["events"][number] & { source: UserSource }
+  >();
+  for (const row of rows) {
+    for (const event of row.payments.events) {
+      const key = `${event.kind}:${event.id}`;
+      const existing = eventById.get(key);
+      if (!existing) {
+        eventById.set(key, { ...event, source: row.source });
+      } else if (existing.applicationId !== event.applicationId) {
+        // A recipient-bucket settlement can clear fees for apps in multiple
+        // projects. It belongs to the beneficiary, not whichever project the
+        // BFF happened to merge first.
+        existing.application = null;
+        existing.applicationId = null;
+      }
+    }
+  }
+  const events = [...eventById.values()].sort(
+    (a, b) => b.occurredAt - a.occurredAt || b.id.localeCompare(a.id),
+  );
   const buckets = [
     ...new Map(
       rows.flatMap((row) =>
@@ -596,69 +608,76 @@ export async function operateTransactionsRoute(req: Request) {
         })),
       )
       .sort((a, b) => b.createdAt - a.createdAt || b.id.localeCompare(a.id));
-    const payouts = statements.flatMap((statement) =>
-      statement.payments.events
-        .filter((event) => event.kind === "settlement_confirmed")
-        .map((event) => ({
-          id: `partner-payout:${event.id}`,
-          kind: "partner_payout",
-          externalTxId: event.receiptId ?? event.id,
-          application: event.application ?? "Partner payout",
-          applicationId: event.applicationId,
-          status: "confirmed",
-          txHash: event.receiptId,
-          chainId: chainId(event.chain),
-          fromAddress: "",
-          toAddress: event.recipient,
-          value: `${event.assetAmount ?? event.usd} ${event.asset ?? "USD"}`,
-          hasCalldata: false,
-          calldataPreview: null,
-          description: `Partner payout via ${event.paymentMethod}`,
-          createdAt: event.occurredAt,
-          updatedAt: event.occurredAt,
-          submittedAt: event.occurredAt,
-          family: "evm",
-          chainName: chainName(event.chain),
-          fromLabel: "settlement payer",
-          toLabel: "beneficiary",
-          valueUsd: `$${event.usd.toFixed(2)}`,
-          block: null,
-          slot: null,
-          confirmations: null,
-          gasUsed: null,
-          gasLimit: null,
-          effGasPrice: null,
-          computeUnits: null,
-          computeLimit: null,
-          priorityFee: null,
-          txFee: null,
-          platformFee: null,
-          nonce: null,
-          method: "x402 settlement",
-          transfers: [
-            `${event.assetAmount ?? event.usd} ${event.asset ?? "USD"} → ${event.recipient}`,
-          ],
-          revertReason: null,
-          explorerUrl: event.explorerUrl,
-          payment: {
-            credits: event.credits,
-            recipient: event.recipient,
-            scope: statement.payments.scope,
-          },
-          source: statement.source,
-          platform: statement.platform,
-        })),
+    const payments = mergedPartnerPayments(
+      statements.map((statement) => ({
+        source: statement.source as UserSource,
+        payments: statement.payments,
+      })),
     );
-    const transactions = [...appTransactions, ...payouts].sort(
+    const payouts =
+      params.get("status") && params.get("status") !== "confirmed"
+        ? []
+        : payments.events
+            .filter((event) => event.kind === "settlement_confirmed")
+            .map((event) => ({
+              id: `partner-payout:${event.id}`,
+              kind: "partner_payout",
+              externalTxId: event.receiptId ?? event.id,
+              application: event.application ?? "Partner payout",
+              applicationId: event.applicationId,
+              status: "confirmed",
+              txHash: event.receiptId,
+              chainId: chainId(event.chain),
+              fromAddress: "",
+              toAddress: event.recipient,
+              value: `${event.assetAmount ?? event.usd} ${event.asset ?? "USD"}`,
+              hasCalldata: false,
+              calldataPreview: null,
+              description: `Partner payout via ${event.paymentMethod}`,
+              createdAt: event.occurredAt,
+              updatedAt: event.occurredAt,
+              submittedAt: event.occurredAt,
+              family: "evm",
+              chainName: chainName(event.chain),
+              fromLabel: "settlement payer",
+              toLabel: "beneficiary",
+              valueUsd: `$${event.usd.toFixed(2)}`,
+              block: null,
+              slot: null,
+              confirmations: null,
+              gasUsed: null,
+              gasLimit: null,
+              effGasPrice: null,
+              computeUnits: null,
+              computeLimit: null,
+              priorityFee: null,
+              txFee: null,
+              platformFee: null,
+              nonce: null,
+              method: "x402 settlement",
+              transfers: [
+                `${event.assetAmount ?? event.usd} ${event.asset ?? "USD"} → ${event.recipient}`,
+              ],
+              revertReason: null,
+              explorerUrl: event.explorerUrl,
+              payment: {
+                credits: event.credits,
+                recipient: event.recipient,
+                scope: payments.scope,
+              },
+              source: event.source,
+              platform: owned.platform,
+            }));
+    // Statement-backed payouts have no transaction cursor. Include the full
+    // deduplicated overlay on page one, alongside one normal page of app
+    // transactions, so an older settlement cannot be sliced out forever.
+    const visibleAppTransactions = appTransactions.slice(0, limit);
+    const transactions = [...visibleAppTransactions, ...payouts].sort(
       (a, b) => b.createdAt - a.createdAt || b.id.localeCompare(a.id),
-    );
-    const visible = transactions.slice(0, limit);
-    const visibleAppTransactions = visible.filter(
-      (transaction) => transaction.kind !== "partner_payout",
     );
     return NextResponse.json({
       sources: results.map((result) => result.source),
-      transactions: visible,
+      transactions,
       nextCursor: mergedNextCursor(
         cursor,
         visibleAppTransactions,
@@ -792,28 +811,49 @@ export async function operateLogsRoute(req: Request) {
             | undefined,
         }),
     );
-    const logs = results
-      .flatMap((result) =>
-        result.logs.map((entry) => ({
-          ...entry,
-          source: result.source,
-          platform: result.platform,
-        })),
-      )
-      .sort(
-        (a, b) =>
-          b.occurredAt - a.occurredAt ||
-          b.eventType.localeCompare(a.eventType) ||
-          b.id.localeCompare(a.id),
-      );
+    const sourcedLogs = results.flatMap((result) =>
+      result.logs.map((entry) => ({
+        ...entry,
+        source: result.source,
+        platform: result.platform,
+      })),
+    );
+    const logById = new Map<
+      string,
+      (typeof sourcedLogs)[number] & { cursorSources: UserSource[] }
+    >();
+    for (const log of sourcedLogs) {
+      const sharedSettlement = log.details.source === "partner_settlement";
+      const key = sharedSettlement
+        ? `partner-settlement:${log.id}`
+        : `${log.source.id}:${log.eventType}:${log.id}`;
+      const existing = logById.get(key);
+      if (existing) {
+        existing.cursorSources.push(log.source as UserSource);
+      } else {
+        logById.set(key, {
+          ...log,
+          cursorSources: [log.source as UserSource],
+        });
+      }
+    }
+    const logs = [...logById.values()].sort(
+      (a, b) =>
+        b.occurredAt - a.occurredAt ||
+        b.eventType.localeCompare(a.eventType) ||
+        b.id.localeCompare(a.id),
+    );
     const visible = logs.slice(0, limit);
+    const cursorRows = visible.flatMap((log) =>
+      log.cursorSources.map((source) => ({ ...log, source })),
+    );
     return NextResponse.json({
       sources: results.map((result) => result.source),
-      logs: visible,
+      logs: visible.map(({ cursorSources: _cursorSources, ...log }) => log),
       nextCursor: mergedNextCursor(
         cursor,
-        visible,
-        logs,
+        cursorRows,
+        sourcedLogs,
         results,
         logCursorFor,
       ),
