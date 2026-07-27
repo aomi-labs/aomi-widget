@@ -381,6 +381,12 @@
   background: hsl(var(--border));
 }
 
+/* Match Aomi's editorial page titles. Hosts that load PT Serif through
+   next/font provide --font-pt-serif; other consumers can use the named face. */
+.aui-thread-welcome-title {
+  font-family: var(--font-pt-serif, "PT Serif", ui-serif, Georgia, serif);
+}
+
 /* Prevent iOS from zooming on input focus (font-size >= 16px) */
 @media screen and (max-width: 767px) {
   .aui-composer-input {

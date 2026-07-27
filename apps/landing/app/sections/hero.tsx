@@ -284,7 +284,6 @@ export function Hero() {
                   <AomiFrame.Header />
                   <AomiFrame.Composer
                     withControl
-                    welcomeTitle="Start execution onchain today."
                     controlBarProps={{ hideApiKey: true, hideNetwork: false }}
                   />
                 </AomiFrame.Root>

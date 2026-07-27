@@ -134,7 +134,6 @@ export function PortalAomiFrame() {
         </AomiFrame.Header>
         <AomiFrame.Composer
           withControl
-          welcomeTitle="What to execute on-chain?"
           controlBarProps={{
             hideApiKey: true,
             hideApp: Boolean(lockedApp),

@@ -31,6 +31,11 @@ mistaken for another supported environment.
 
 Progress:
 
+- 2026-07-27 Shared chat welcome title: replaced the Portal and Landing
+  one-off catchphrases with the shared “What should happen on-chain?” default
+  and styled it with the same regular PT Serif display face used by Aomi Build
+  page titles.
+
 - 2026-07-27 Build deploy-platform configuration: reduced the BFF deploy
   admission allowlist to one server-only source, `APP_DEPLOY_PLATFORMS`, and
   removed the singular and `NEXT_PUBLIC_*` compatibility paths so Vercel

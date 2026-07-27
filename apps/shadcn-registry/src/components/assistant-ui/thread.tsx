@@ -129,7 +129,7 @@ const ThreadScrollToBottom: FC = () => {
 
 const ThreadWelcome: FC = () => {
   const isLoading = useThread((t) => t.isLoading);
-  const { welcomeTitle = "What can I help you onchain?" } =
+  const { welcomeTitle = "What should happen on-chain?" } =
     useComposerControl();
 
   if (isLoading) return null;
@@ -143,7 +143,7 @@ const ThreadWelcome: FC = () => {
         className="aui-thread-welcome-message flex flex-col items-center gap-4"
       >
         <AomiMark size={52} className="text-aomi-fg" />
-        <h1 className="aui-thread-welcome-title text-aomi-fg text-center text-[30px] font-semibold tracking-[-0.02em]">
+        <h1 className="aui-thread-welcome-title text-aomi-fg text-center text-[30px] font-normal tracking-[-0.02em]">
           {welcomeTitle}
         </h1>
       </m.div>
