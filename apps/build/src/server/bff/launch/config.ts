@@ -60,17 +60,8 @@ function envJsonOrCommaList(name: string): string[] {
 }
 
 function deployPlatforms(): string[] {
-  for (const name of [
-    "APP_DEPLOY_PLATFORMS",
-    "NEXT_PUBLIC_APP_DEPLOY_PLATFORMS",
-    "APP_DEPLOY_PLATFORM",
-    "NEXT_PUBLIC_APP_DEPLOY_PLATFORM",
-  ]) {
-    const platforms = envJsonOrCommaList(name);
-    if (platforms.length > 0) return platforms;
-  }
-
-  return [DEFAULT_DEPLOY_PLATFORM];
+  const platforms = envJsonOrCommaList("APP_DEPLOY_PLATFORMS");
+  return platforms.length > 0 ? platforms : [DEFAULT_DEPLOY_PLATFORM];
 }
 
 function catalogPlatforms(): string[] {

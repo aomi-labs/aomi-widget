@@ -41,24 +41,14 @@ describe("launchConfig", () => {
     expect(config.catalogPlatforms).toEqual([]);
   });
 
-  it("falls back to public platform envs during deployment bootstrap", () => {
-    vi.stubEnv(
-      "NEXT_PUBLIC_APP_DEPLOY_PLATFORMS",
-      '["somm.finance", "community"]',
-    );
-
-    const config = launchConfig();
-    expect(config.platform).toBe("somm.finance");
-    expect(config.platforms).toEqual(["somm.finance", "community"]);
-    expect(config.catalogPlatforms).toEqual([]);
-  });
-
-  it("accepts a single platform env as a one-item platform list", () => {
+  it("ignores legacy singular and public platform env aliases", () => {
+    vi.stubEnv("APP_DEPLOY_PLATFORM", "partners");
+    vi.stubEnv("NEXT_PUBLIC_APP_DEPLOY_PLATFORMS", "partners");
     vi.stubEnv("NEXT_PUBLIC_APP_DEPLOY_PLATFORM", "somm.finance");
 
     const config = launchConfig();
-    expect(config.platform).toBe("somm.finance");
-    expect(config.platforms).toEqual(["somm.finance"]);
+    expect(config.platform).toBe("community");
+    expect(config.platforms).toEqual(["community"]);
     expect(config.catalogPlatforms).toEqual([]);
   });
 
