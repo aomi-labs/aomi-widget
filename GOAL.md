@@ -31,6 +31,11 @@ mistaken for another supported environment.
 
 Progress:
 
+- 2026-07-27 Aomi Build CLI auth completion: replaced the localhost callback's
+  raw inline HTML with a redirect to a branded Build completion page based on
+  the existing Portal device-auth surface. The hosted page receives only a
+  coarse completion status; OAuth codes and state remain confined to the
+  loopback callback and CLI exchange.
 - 2026-07-27 Build deploy-platform configuration: reduced the BFF deploy
   admission allowlist to one server-only source, `APP_DEPLOY_PLATFORMS`, and
   removed the singular and `NEXT_PUBLIC_*` compatibility paths so Vercel
