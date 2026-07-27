@@ -11,8 +11,13 @@ describe("AomiClient route manifest", () => {
         `${endpoint.method} ${endpoint.path} [${endpoint.auth.join(", ")}]`,
     );
 
-    expect(routeKeys).toHaveLength(109);
+    expect(routeKeys).toHaveLength(112);
     expect(new Set(routeKeys).size).toBe(routeKeys.length);
+    expect(routeKeys).toContain("GET /api/account/statement [account]");
+    expect(routeKeys).toContain(
+      "POST /api/account/providers/:provider/agent-wallet [account]",
+    );
+    expect(routeKeys).toContain("PUT /api/account/apps [account]");
     expect(routeKeys).toContain("POST /api/exec/run [account, thread]");
     expect(routeKeys).toContain(
       "POST /api/threads/:thread_id/archive [account, thread]",
