@@ -31,6 +31,15 @@ mistaken for another supported environment.
 
 Progress:
 
+- 2026-07-27 main-to-production release preparation: audited the frontend's
+  committed backend OpenAPI snapshot against every typed client operation and
+  confirmed the contract suite passes, then ran repository lint and rebuilt the
+  publishable client/React library bundles. The live backend contract probe is
+  intentionally left as a deployment checklist item because this checkout has
+  no `NEXT_PUBLIC_BACKEND_URL`; backend and frontend should be promoted
+  together and the live probe must pass against the production candidate
+  before merge.
+
 - 2026-07-27 Shared chat welcome title: replaced the Portal and Landing
   one-off catchphrases with the shared “What should happen on-chain?” default
   and styled it with the same regular PT Serif display face used by Aomi Build
