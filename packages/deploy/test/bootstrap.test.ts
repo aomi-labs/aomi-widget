@@ -282,6 +282,7 @@ describe("DeploymentClient bootstrap — apps", () => {
       artifactReady: false,
       targetTags: ["staging"],
       loaded: true,
+      pricing: null,
     });
   });
 

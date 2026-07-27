@@ -6,6 +6,7 @@ import type {
   OperateLogCursor,
   OperateLogsResult,
   OperateObservabilityResult,
+  OperatePartnerPayments,
   OperateStatementResult,
   OperateTransactionCursor,
   OperateTransactionsResult,
@@ -16,6 +17,11 @@ import {
   EXAMPLE_SOURCE,
   exampleStatement,
 } from "@build/features/operate/fixtures/wire";
+import {
+  caipChainId,
+  caipChainLabel,
+  creditsToUsd,
+} from "@build/features/operate/format";
 import { deploymentClient } from "@build/server/bff/backend";
 import { authorize } from "@build/server/bff/auth";
 import { launchConfig } from "@build/server/bff/launch/config";
@@ -94,6 +100,77 @@ function logCursorFor(row: {
     occurredAt: row.occurredAt,
     eventType: row.eventType,
     id: row.id,
+  };
+}
+
+function mergedPartnerPayments(
+  rows: Array<{ source: UserSource; payments: OperatePartnerPayments }>,
+) {
+  const sum = (pick: (summary: OperatePartnerPayments["summary"]) => number) =>
+    rows.reduce((total, row) => total + pick(row.payments.summary), 0);
+  const eventById = new Map<
+    string,
+    OperatePartnerPayments["events"][number] & { source: UserSource }
+  >();
+  for (const row of rows) {
+    for (const event of row.payments.events) {
+      const key = `${event.kind}:${event.id}`;
+      const existing = eventById.get(key);
+      if (!existing) {
+        eventById.set(key, { ...event, source: row.source });
+      } else if (existing.applicationId !== event.applicationId) {
+        // A recipient-bucket settlement can clear fees for apps in multiple
+        // projects. It belongs to the beneficiary, not whichever project the
+        // BFF happened to merge first.
+        existing.application = null;
+        existing.applicationId = null;
+      }
+    }
+  }
+  const events = [...eventById.values()].sort(
+    (a, b) => b.occurredAt - a.occurredAt || b.id.localeCompare(a.id),
+  );
+  const buckets = [
+    ...new Map(
+      rows.flatMap((row) =>
+        row.payments.buckets.map((bucket) => [bucket.id, bucket]),
+      ),
+    ).values(),
+  ];
+  const settlementEvents = events.filter(
+    (event) => event.kind === "settlement_confirmed",
+  );
+  const outstandingCredits = buckets.reduce(
+    (total, bucket) => total + bucket.outstandingCredits,
+    0,
+  );
+  return {
+    available: rows.some((row) => row.payments.available),
+    scope: "recipient_bucket",
+    summary: {
+      accruedCredits: sum((summary) => summary.accruedCredits),
+      accruedUsd: sum((summary) => summary.accruedUsd),
+      settledCredits: settlementEvents.reduce(
+        (total, event) => total + event.credits,
+        0,
+      ),
+      settledUsd: settlementEvents.reduce(
+        (total, event) => total + event.usd,
+        0,
+      ),
+      outstandingCredits,
+      outstandingUsd: creditsToUsd(outstandingCredits),
+      pricedCalls: sum((summary) => summary.pricedCalls),
+      settlements: settlementEvents.length,
+    },
+    resources: rows.flatMap((row) =>
+      row.payments.resources.map((resource) => ({
+        ...resource,
+        source: row.source,
+      })),
+    ),
+    buckets,
+    events,
   };
 }
 
@@ -482,9 +559,8 @@ export async function operateTransactionsRoute(req: Request) {
     const params = new URL(req.url).searchParams;
     const limit = pageLimit(params, 50, 100);
     const cursor = parseCompositeCursor(params.get("cursor"));
-    const results: OperateTransactionsResult[] = await settleBySource(
-      owned.sources,
-      (source) =>
+    const [results, statements] = await Promise.all([
+      settleBySource<OperateTransactionsResult>(owned.sources, (source) =>
         owned.client.listUserSourceTransactions({
           githubUserId: owned.githubUserId,
           platform: owned.platform,
@@ -496,24 +572,101 @@ export async function operateTransactionsRoute(req: Request) {
             | string
             | undefined,
         }),
-    );
-    const transactions = results
+      ),
+      cursor
+        ? Promise.resolve([])
+        : settleBySource<OperateStatementResult>(owned.sources, (source) =>
+            owned.client.getUserSourceStatement({
+              githubUserId: owned.githubUserId,
+              platform: owned.platform,
+              appSourceId: source.id,
+            }),
+          ),
+    ]);
+    const appTransactions = results
       .flatMap((result) =>
         result.transactions.map((transaction) => ({
           ...transaction,
+          kind: "app_transaction",
           source: result.source,
           platform: result.platform,
         })),
       )
       .sort((a, b) => b.createdAt - a.createdAt || b.id.localeCompare(a.id));
-    const visible = transactions.slice(0, limit);
+    const payments = mergedPartnerPayments(
+      statements.map((statement) => ({
+        source: statement.source as UserSource,
+        payments: statement.payments,
+      })),
+    );
+    const payouts =
+      params.get("status") && params.get("status") !== "confirmed"
+        ? []
+        : payments.events
+            .filter((event) => event.kind === "settlement_confirmed")
+            .map((event) => ({
+              id: `partner-payout:${event.id}`,
+              kind: "partner_payout",
+              externalTxId: event.receiptId ?? event.id,
+              application: event.application ?? "Partner payout",
+              applicationId: event.applicationId,
+              status: "confirmed",
+              txHash: event.receiptId,
+              chainId: caipChainId(event.chain),
+              fromAddress: "",
+              toAddress: event.recipient,
+              value: `${event.assetAmount ?? event.usd} ${event.asset ?? "USD"}`,
+              hasCalldata: false,
+              calldataPreview: null,
+              description: `Partner payout via ${event.paymentMethod}`,
+              createdAt: event.occurredAt,
+              updatedAt: event.occurredAt,
+              submittedAt: event.occurredAt,
+              family: "evm",
+              chainName: caipChainLabel(event.chain) || null,
+              fromLabel: "settlement payer",
+              toLabel: "beneficiary",
+              valueUsd: `$${event.usd.toFixed(2)}`,
+              block: null,
+              slot: null,
+              confirmations: null,
+              gasUsed: null,
+              gasLimit: null,
+              effGasPrice: null,
+              computeUnits: null,
+              computeLimit: null,
+              priorityFee: null,
+              txFee: null,
+              platformFee: null,
+              nonce: null,
+              method: "x402 settlement",
+              transfers: [
+                `${event.assetAmount ?? event.usd} ${event.asset ?? "USD"} → ${event.recipient}`,
+              ],
+              revertReason: null,
+              explorerUrl: event.explorerUrl,
+              payment: {
+                credits: event.credits,
+                recipient: event.recipient,
+                scope: payments.scope,
+              },
+              source: event.source,
+              platform: owned.platform,
+            }));
+    // Statement-backed payouts have no transaction cursor. Include the full
+    // deduplicated overlay on page one, alongside one normal page of app
+    // transactions, so an older settlement cannot be sliced out forever.
+    const visibleAppTransactions = appTransactions.slice(0, limit);
+    const transactions = [...visibleAppTransactions, ...payouts].sort(
+      (a, b) => b.createdAt - a.createdAt || b.id.localeCompare(a.id),
+    );
     return NextResponse.json({
       sources: results.map((result) => result.source),
-      transactions: visible,
+      transactions,
       nextCursor: mergedNextCursor(
         cursor,
-        visible,
-        transactions,
+        visibleAppTransactions,
+        appTransactions,
         results,
         transactionCursorFor,
       ),
@@ -607,6 +760,12 @@ export async function operateUsageRoute(req: Request) {
                   b.day.localeCompare(a.day) ||
                   a.application.localeCompare(b.application),
               ),
+            payments: mergedPartnerPayments(
+              statements.map((statement) => ({
+                source: statement.source as UserSource,
+                payments: statement.payments,
+              })),
+            ),
           }
         : exampleStatement(owned.sources[0] ?? EXAMPLE_SOURCE),
     });
@@ -637,28 +796,49 @@ export async function operateLogsRoute(req: Request) {
             | undefined,
         }),
     );
-    const logs = results
-      .flatMap((result) =>
-        result.logs.map((entry) => ({
-          ...entry,
-          source: result.source,
-          platform: result.platform,
-        })),
-      )
-      .sort(
-        (a, b) =>
-          b.occurredAt - a.occurredAt ||
-          b.eventType.localeCompare(a.eventType) ||
-          b.id.localeCompare(a.id),
-      );
+    const sourcedLogs = results.flatMap((result) =>
+      result.logs.map((entry) => ({
+        ...entry,
+        source: result.source,
+        platform: result.platform,
+      })),
+    );
+    const logById = new Map<
+      string,
+      (typeof sourcedLogs)[number] & { cursorSources: UserSource[] }
+    >();
+    for (const log of sourcedLogs) {
+      const sharedSettlement = log.details.source === "partner_settlement";
+      const key = sharedSettlement
+        ? `partner-settlement:${log.id}`
+        : `${log.source.id}:${log.eventType}:${log.id}`;
+      const existing = logById.get(key);
+      if (existing) {
+        existing.cursorSources.push(log.source as UserSource);
+      } else {
+        logById.set(key, {
+          ...log,
+          cursorSources: [log.source as UserSource],
+        });
+      }
+    }
+    const logs = [...logById.values()].sort(
+      (a, b) =>
+        b.occurredAt - a.occurredAt ||
+        b.eventType.localeCompare(a.eventType) ||
+        b.id.localeCompare(a.id),
+    );
     const visible = logs.slice(0, limit);
+    const cursorRows = visible.flatMap((log) =>
+      log.cursorSources.map((source) => ({ ...log, source })),
+    );
     return NextResponse.json({
       sources: results.map((result) => result.source),
-      logs: visible,
+      logs: visible.map(({ cursorSources: _cursorSources, ...log }) => log),
       nextCursor: mergedNextCursor(
         cursor,
-        visible,
-        logs,
+        cursorRows,
+        sourcedLogs,
         results,
         logCursorFor,
       ),
@@ -701,6 +881,12 @@ export async function operateObservabilityRoute(req: Request) {
         windowSeconds: results[0]?.monitoring?.windowSeconds ?? 0,
       },
       apps,
+      payments: mergedPartnerPayments(
+        results.map((result) => ({
+          source: result.source as UserSource,
+          payments: result.payments,
+        })),
+      ),
       dashboardLinks: results.flatMap((result) => result.dashboardLinks),
       platformMetrics: results[0]?.platformMetrics ?? [],
     });
