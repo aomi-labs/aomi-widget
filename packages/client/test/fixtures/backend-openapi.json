@@ -465,6 +465,23 @@
         ]
       }
     },
+    "/api/account/statement": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "accountBearer": []
+          }
+        ],
+        "x-aomi-auth": [
+          "account"
+        ]
+      }
+    },
     "/api/account/usage": {
       "get": {
         "responses": {
@@ -483,23 +500,6 @@
       }
     },
     "/api/account/status": {
-      "get": {
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        },
-        "security": [
-          {
-            "accountBearer": []
-          }
-        ],
-        "x-aomi-auth": [
-          "account"
-        ]
-      }
-    },
-    "/api/account/statement": {
       "get": {
         "responses": {
           "200": {
