@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { buildActivityList, buildDeploymentList, sortDeploymentsForTimeline } from "./deployment-timeline";
+import {
+  buildActivityList,
+  buildDeploymentList,
+  sortDeploymentsForTimeline,
+} from "./deployment-timeline";
 
 describe("buildDeploymentList", () => {
   it("returns [] for null", () => {
@@ -64,6 +68,38 @@ describe("buildDeploymentList", () => {
     ]);
 
     expect(rows[0].actor).toBe("bob");
+  });
+
+  it("shows deployed history even when no promotion record exists", () => {
+    const rows = buildDeploymentList({ "somm-agent": [] }, [
+      {
+        deploymentId: "dep_141779906_rd076a82c30_90642ef5ef1b",
+        state: "ready",
+        deployBranch: "ceciliaz030/somm-agent/141779906/90642ef5ef1b",
+        platformRepo: "aomi-labs/somm-finance-apps",
+        commitHash: "90642ef5ef1bad92f3690c8c005355172676d9ed",
+        ciStatus: "passed",
+        ciUrl: null,
+        releaseTags: ["apps-141779906-rd076a82c30-somm-agent-90642ef5ef1b"],
+        sdkVersion: "3.0.4",
+        createdAt: 1785132402,
+        apps: [
+          {
+            name: "somm-agent",
+            releaseTag: "apps-141779906-rd076a82c30-somm-agent-90642ef5ef1b",
+          },
+        ],
+      },
+    ]);
+
+    expect(rows).toEqual([
+      expect.objectContaining({
+        deploymentId: "dep_141779906_rd076a82c30_90642ef5ef1b",
+        commit: "90642ef5ef1b",
+        apps: ["somm-agent"],
+        sdkVersion: "3.0.4",
+      }),
+    ]);
   });
 
   it("sorts current first for the timeline view", () => {

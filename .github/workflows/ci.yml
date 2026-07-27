@@ -36,6 +36,11 @@ jobs:
       - name: Build @aomi-labs/deploy
         run: pnpm run build:deploy
 
+      # Must precede the test steps: the Aomi Build suites import
+      # `@aomi-labs/widget-lib`, which only resolves once the registry is built.
+      - name: Build registry
+        run: pnpm run build:registry
+
       - name: Run library tests
         run: pnpm run test
 
@@ -44,9 +49,6 @@ jobs:
         run: pnpm run test:openapi:live
         env:
           NEXT_PUBLIC_BACKEND_URL: ${{ vars.NEXT_PUBLIC_BACKEND_URL }}
-
-      - name: Build registry
-        run: pnpm run build:registry
 
       - name: Run registry tests
         run: pnpm --dir apps/shadcn-registry exec vitest run

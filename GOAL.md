@@ -31,6 +31,11 @@ mistaken for another supported environment.
 
 Progress:
 
+- 2026-07-27 deployment-history correctness: the project History view now
+  loads the deployment-history API and merges it with the promotion log, so a
+  successfully deployed/live app remains visible even when its append-only
+  promotion records are empty. Promotions continue to use the activation log.
+
 - 2026-07-27 Shared chat welcome title: replaced the Portal and Landing
   one-off catchphrases with the shared “What should happen on-chain?” default
   and styled it with the same regular PT Serif display face used by Aomi Build
@@ -166,6 +171,11 @@ Progress:
   `@/lib` alias. CI now builds the registry before its tests, the shared import
   is package-relative, and the exact registry-build/test plus Landing production
   build sequence passes locally.
+- 2026-07-23 fleet-safe Telegram bot mappings: Build now creates and edits
+  builder-wide many-to-many bot/app mappings with a required primary app,
+  source-qualified display labels, and write-only credentials. The BFF validates
+  every selected app against the signed-in builder's sources before calling the
+  manager-wide bot API.
 
 - 2026-07-22 wallet account-access deduplication: hid the legacy `wallet`
   authentication identity from account management, matching the existing

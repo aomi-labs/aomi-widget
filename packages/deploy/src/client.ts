@@ -32,12 +32,15 @@ import type {
   ListUserSourceDeploymentsInput,
   ListUserSourcesInput,
   BotRegistration,
+  CreateUserBotInput,
+  DeleteUserBotInput,
   CreateUserSourceBotInput,
   BuilderModelKey,
   BuilderModelKeyUsage,
   BuilderModelKeysInput,
   DeleteBuilderModelKeyInput,
   DeleteUserSourceBotInput,
+  OwnedOperateInput,
   OperateLogCursor,
   OperateAppDetailResult,
   OperateStatementResult,
@@ -46,6 +49,7 @@ import type {
   OperateTransactionCursor,
   OperateTransactionsResult,
   OperateUsageResult,
+  UpdateUserBotInput,
   OwnedOperateSourceInput,
   SaveBuilderModelKeyInput,
   SetModelKeyGrantsInput,
@@ -886,6 +890,84 @@ export class DeploymentClient {
     });
   }
 
+  async listUserBots(input: OwnedOperateInput): Promise<BotRegistration[]> {
+    const { params, platform, bearer } = this.ownedOperateUserRequest(input);
+    const raw = await this.get<{ bot_registrations?: unknown[] }>(
+      `/api/integrations/github-app/user/bots?${params.toString()}`,
+      "list_user_bots",
+      bearer,
+    );
+    await this.audit({
+      action: "list_user_bots",
+      platform,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return ((raw.bot_registrations ?? []) as unknown[]).map(
+      camelBotRegistration,
+    );
+  }
+
+  async createUserBot(input: CreateUserBotInput): Promise<BotRegistration> {
+    const { params, platform, bearer } = this.ownedOperateUserRequest(input);
+    const credential = required(input.credential, "credential");
+    const raw = await this.post<{ bot_registration?: unknown }>(
+      `/api/integrations/github-app/user/bots?${params.toString()}`,
+      {
+        platform: required(input.botPlatform, "botPlatform"),
+        application_ids: input.applicationIds,
+        primary_application_id: input.primaryApplicationId,
+        label: input.label,
+        credential,
+        thread_mode: input.threadMode,
+      },
+      "create_user_bot",
+      bearer,
+    );
+    await this.audit({
+      action: "create_user_bot",
+      platform,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return camelBotRegistration(raw.bot_registration);
+  }
+
+  async updateUserBot(input: UpdateUserBotInput): Promise<BotRegistration> {
+    const { params, platform, bearer } = this.ownedOperateUserRequest(input);
+    const raw = await this.patch<{ bot_registration?: unknown }>(
+      `/api/integrations/github-app/user/bots/${encodeURIComponent(required(input.botId, "botId"))}?${params.toString()}`,
+      {
+        application_ids: input.applicationIds,
+        primary_application_id: input.primaryApplicationId,
+      },
+      "update_user_bot",
+      bearer,
+    );
+    await this.audit({
+      action: "update_user_bot",
+      platform,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return camelBotRegistration(raw.bot_registration);
+  }
+
+  async deleteUserBot(input: DeleteUserBotInput): Promise<void> {
+    const { params, platform, bearer } = this.ownedOperateUserRequest(input);
+    await this.del<unknown>(
+      `/api/integrations/github-app/user/bots/${encodeURIComponent(required(input.botId, "botId"))}?${params.toString()}`,
+      "delete_user_bot",
+      bearer,
+    );
+    await this.audit({
+      action: "delete_user_bot",
+      platform,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+  }
+
   /** All builder-owned model keys with their grants (funder-ladder app
    *  rung). Names/prefixes/grants only — key material is write-only. */
   async listBuilderModelKeys(
@@ -1411,6 +1493,20 @@ export class DeploymentClient {
     };
   }
 
+  private ownedOperateUserRequest(input: OwnedOperateInput): {
+    params: URLSearchParams;
+    platform: string;
+    bearer: string;
+  } {
+    const githubUserId = required(input.githubUserId, "githubUserId");
+    const platform = cleanPlatform(input.platform);
+    return {
+      platform,
+      bearer: this.resolveBearer(input.bearer),
+      params: new URLSearchParams({ github_user_id: githubUserId, platform }),
+    };
+  }
+
   private backoffDelay(
     failures: number,
     baseMs: number,
@@ -1437,6 +1533,24 @@ export class DeploymentClient {
       path,
       {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      operation,
+      bearer,
+    );
+  }
+
+  private async patch<Resp>(
+    path: string,
+    body: unknown,
+    operation: string,
+    bearer: string,
+  ): Promise<Resp> {
+    return this.request<Resp>(
+      path,
+      {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       },
@@ -1897,6 +2011,16 @@ function camelBotRegistration(raw: unknown): BotRegistration {
     status: String(b.status ?? ""),
     label: b.label ?? null,
     defaultApp: String(b.default_app ?? b.defaultApp ?? ""),
+    defaultAppId: Number(b.default_app_id ?? b.defaultAppId ?? 0),
+    apps: ((b.apps ?? []) as Record<string, any>[]).map((app) => ({
+      applicationId: Number(app.application_id ?? app.applicationId ?? 0),
+      appSourceId: app.app_source_id ?? app.appSourceId ?? null,
+      sourceLabel: app.source_label ?? app.sourceLabel ?? null,
+      name: String(app.name ?? ""),
+      label: String(app.label ?? app.name ?? ""),
+      platform: app.platform ?? null,
+      isPrimary: Boolean(app.is_primary ?? app.isPrimary),
+    })),
     platformBotId: String(b.platform_bot_id ?? b.platformBotId ?? ""),
     platformUsername: b.platform_username ?? b.platformUsername ?? null,
     webhookUrl: b.webhook_url ?? b.webhookUrl ?? null,
@@ -2406,6 +2530,14 @@ function camelOperateAppDetail(
   const hourly = (raw.hourly ?? {}) as Record<string, any>;
   const series = (value: unknown): number[] | null =>
     Array.isArray(value) ? value.map(Number) : null;
+  const nullableSeries = (value: unknown): Array<number | null> | null =>
+    Array.isArray(value)
+      ? value.map((item) => {
+          if (item === null || item === undefined) return null;
+          const numeric = Number(item);
+          return Number.isFinite(numeric) ? numeric : null;
+        })
+      : null;
   return {
     source: camelAppSource(raw.source),
     platform: String(raw.platform ?? fallbackPlatform),
@@ -2479,7 +2611,9 @@ function camelOperateAppDetail(
     hourly: {
       chats: series(hourly.chats),
       toolCalls: series(hourly.tool_calls ?? hourly.toolCalls),
-      p95LatencyMs: series(hourly.p95_latency_ms ?? hourly.p95LatencyMs),
+      p95LatencyMs: nullableSeries(
+        hourly.p95_latency_ms ?? hourly.p95LatencyMs,
+      ),
       transactions: series(hourly.transactions),
     },
   };

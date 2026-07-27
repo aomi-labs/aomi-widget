@@ -42,6 +42,10 @@ export interface AuditEvent {
     | "list_user_source_bots"
     | "create_user_source_bot"
     | "delete_user_source_bot"
+    | "list_user_bots"
+    | "create_user_bot"
+    | "update_user_bot"
+    | "delete_user_bot"
     | "list_builder_model_keys"
     | "save_builder_model_key"
     | "delete_builder_model_key"
@@ -706,11 +710,47 @@ export interface BotRegistration {
   status: string;
   label: string | null;
   defaultApp: string;
+  defaultAppId?: number;
+  apps: BotRegistrationApp[];
   platformBotId: string;
   platformUsername: string | null;
   webhookUrl: string | null;
   threadMode: string;
   createdAt: number;
+}
+
+export interface BotRegistrationApp {
+  applicationId: number;
+  appSourceId: number | null;
+  sourceLabel: string | null;
+  name: string;
+  label: string;
+  platform: string | null;
+  isPrimary: boolean;
+}
+
+export interface OwnedOperateInput extends BearerOverride {
+  githubUserId: string;
+  platform: string;
+}
+
+export interface CreateUserBotInput extends OwnedOperateInput {
+  applicationIds: number[];
+  primaryApplicationId: number;
+  botPlatform: string;
+  credential: string;
+  label?: string;
+  threadMode?: string;
+}
+
+export interface UpdateUserBotInput extends OwnedOperateInput {
+  botId: string;
+  applicationIds: number[];
+  primaryApplicationId: number;
+}
+
+export interface DeleteUserBotInput extends OwnedOperateInput {
+  botId: string;
 }
 
 export interface CreateUserSourceBotInput extends OwnedOperateSourceInput {
@@ -1122,8 +1162,8 @@ export interface OperateAppDetailResult {
   hourly: {
     chats: number[] | null;
     toolCalls: number[] | null;
-    /** Per-hour chat request P95, in milliseconds. */
-    p95LatencyMs: number[] | null;
+    /** Per-hour chat request P95, in milliseconds. `null` means no samples. */
+    p95LatencyMs: Array<number | null> | null;
     transactions: number[] | null;
   };
 }
