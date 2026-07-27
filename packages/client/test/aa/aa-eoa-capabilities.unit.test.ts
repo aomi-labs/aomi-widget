@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { mainnet } from "viem/chains";
 
-import { DISABLED_PROVIDER_STATE, executeWalletCalls } from "../../src/aa";
+import { executeWalletCalls } from "../../src/aa";
 
 const CALL_LIST = [
   {
@@ -33,7 +33,6 @@ describe("executeWalletCalls EOA capability handling", () => {
         "eip155:1": { atomic: { status: "ready" } },
       },
       localPrivateKey: null,
-      providerState: DISABLED_PROVIDER_STATE,
       sendCallsSyncAsync,
       sendTransactionAsync,
       switchChainAsync: vi.fn(),
@@ -81,7 +80,6 @@ describe("executeWalletCalls EOA capability handling", () => {
           paymasterServiceUrl: "https://paymaster.example.test",
         },
       },
-      providerState: DISABLED_PROVIDER_STATE,
       sendCallsSyncAsync,
       sendTransactionAsync,
       switchChainAsync: vi.fn(),
@@ -129,7 +127,6 @@ describe("executeWalletCalls EOA capability handling", () => {
           } as never,
         },
       },
-      providerState: DISABLED_PROVIDER_STATE,
       sendCallsSyncAsync,
       sendTransactionAsync,
       switchChainAsync: vi.fn(),
@@ -190,7 +187,6 @@ describe("executeWalletCalls EOA capability handling", () => {
             mode: "required",
           },
         },
-        providerState: DISABLED_PROVIDER_STATE,
         sendCallsSyncAsync,
         sendTransactionAsync,
         switchChainAsync: vi.fn(),
@@ -225,7 +221,6 @@ describe("executeWalletCalls EOA capability handling", () => {
           paymasterServiceUrl: "https://paymaster.example.test",
         },
       },
-      providerState: DISABLED_PROVIDER_STATE,
       sendCallsSyncAsync,
       sendTransactionAsync: vi.fn(),
       switchChainAsync: vi.fn(),
@@ -269,7 +264,6 @@ describe("executeWalletCalls EOA capability handling", () => {
             paymasterServiceUrl: "https://paymaster.example.test",
           },
         },
-        providerState: DISABLED_PROVIDER_STATE,
         sendCallsSyncAsync,
         sendTransactionAsync,
         switchChainAsync: vi.fn(),
@@ -295,7 +289,6 @@ describe("executeWalletCalls EOA capability handling", () => {
         "eip155:1": { atomic: { status: "ready" } },
       },
       localPrivateKey: null,
-      providerState: DISABLED_PROVIDER_STATE,
       sendCallsSyncAsync,
       sendTransactionAsync,
       switchChainAsync: vi.fn(),
@@ -354,7 +347,6 @@ describe("executeWalletCalls EOA capability handling", () => {
         "eip155:1": { atomic: { status: "ready" } },
       },
       localPrivateKey: null,
-      providerState: DISABLED_PROVIDER_STATE,
       sendCallsSyncAsync,
       sendTransactionAsync,
       switchChainAsync: vi.fn(),
@@ -406,7 +398,6 @@ describe("executeWalletCalls EOA capability handling", () => {
       nativeWalletExecution: {
         executionKind: "base_account_4337",
       },
-      providerState: DISABLED_PROVIDER_STATE,
       sendCallsSyncAsync,
       sendTransactionAsync,
       switchChainAsync: vi.fn(),
@@ -451,7 +442,6 @@ describe("executeWalletCalls EOA capability handling", () => {
           paymasterServiceUrl: "https://paymaster.example.test",
         },
       },
-      providerState: DISABLED_PROVIDER_STATE,
       sendCallsSyncAsync,
       sendTransactionAsync,
       switchChainAsync: vi.fn(),
@@ -487,7 +477,6 @@ describe("executeWalletCalls EOA capability handling", () => {
       nativeWalletExecution: {
         requiresAtomicForBatch: true,
       },
-      providerState: DISABLED_PROVIDER_STATE,
       sendCallsSyncAsync,
       sendTransactionAsync,
       switchChainAsync: vi.fn(),
@@ -547,7 +536,6 @@ describe("executeWalletCalls EOA capability handling", () => {
         nativeWalletExecution: {
           requiresAtomicForBatch: true,
         },
-        providerState: DISABLED_PROVIDER_STATE,
         sendCallsSyncAsync,
         sendTransactionAsync,
         switchChainAsync: vi.fn(),
@@ -586,7 +574,6 @@ describe("executeWalletCalls EOA capability handling", () => {
           paymasterServiceUrl: "https://paymaster.example.test",
         },
       },
-      providerState: DISABLED_PROVIDER_STATE,
       sendCallsSyncAsync,
       sendTransactionAsync: vi.fn(),
       switchChainAsync: vi.fn(),
@@ -650,7 +637,6 @@ describe("executeWalletCalls EOA capability handling", () => {
           } as never,
         },
       },
-      providerState: DISABLED_PROVIDER_STATE,
       sendCallsSyncAsync,
       sendTransactionAsync: vi.fn(),
       switchChainAsync: vi.fn(),

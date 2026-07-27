@@ -92,6 +92,7 @@ export type {
   OperateStatementChargeRow,
   OperateStatementEntry,
   OperateStatementResult,
+  OperateModelKeyAttribution,
   OperateLogEntry,
   OperateLogCursor,
   OperateLogsResult,

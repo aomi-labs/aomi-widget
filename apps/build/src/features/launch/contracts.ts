@@ -49,6 +49,7 @@ export type LaunchProgress = {
  * `appSourceId`.
  */
 export type LaunchPreflightInput = {
+  platform?: string;
   appSourceId?: number;
   sourceRef?: string;
   /** GitHub App installation that owns the source repo. Wizard context only. */
@@ -60,6 +61,7 @@ export type LaunchPreflightInput = {
 
 /** Commit a deploy against a stable, already-resolved source row. */
 export type LaunchDeployInput = {
+  platform?: string;
   appSourceId: number;
   sourceRef?: string;
   repo?: string;
@@ -67,6 +69,7 @@ export type LaunchDeployInput = {
 };
 
 export type LaunchDeployResult = {
+  projectUrl?: string;
   repo: string;
   installationId?: string;
   appSourceId?: number;

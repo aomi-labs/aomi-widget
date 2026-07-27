@@ -65,6 +65,15 @@
     --aomi-cool-800: #27272a;
     --aomi-cool-900: #18181b;
     --aomi-cool-950: #09090b;
+    /* Off-ramp stops. Stock zinc jumps 900 → 800 → 700, which is too coarse
+       for dark mode: panel, fills-on-panel, hairline and hover all have to fit
+       between #18181b and #3f3f46, and snapping them to the same stop is what
+       made dividers invisible. `150` is the light-mode counterpart — it gives
+       hover somewhere to sit that isn't already surface-2. */
+    --aomi-cool-150: #e9e9ec;
+    --aomi-cool-650: #4a4a52;
+    --aomi-cool-750: #2e2e33;
+    --aomi-cool-850: #202024;
 
     /* ---- Neutral ramp (warm, paper-tinted) ------------------------------ */
     --aomi-neutral-0: #ffffff;
@@ -195,10 +204,29 @@
     --aomi-accent-selected-text: var(--aomi-cool-0);
     /* Interactive accent — focus rings, links, accent CTAs. */
     --aomi-accent-interactive: var(--aomi-sky-500);
+
+    /* ------------------------------------------------------------------
+       Canonical aomi-* names, shared with @aomi-labs/widget-lib so the
+       control plane and the widget speak one vocabulary. Same primitives,
+       just the names the design system documents.
+       ------------------------------------------------------------------ */
+    --aomi-fg: var(--aomi-cool-950);
+    --aomi-muted: var(--aomi-cool-500);
+    --aomi-surface-2: var(--aomi-cool-100);
+    --aomi-raised: var(--aomi-cool-0);
+    /* One stop below surface-2, not equal to it — at cool-100 anything already
+       filled with surface-2 (round icon buttons, chips) had no hover at all. */
+    --aomi-hover: var(--aomi-cool-150);
+    --aomi-accent-strong: #416cac;
+    --aomi-on-accent: var(--aomi-cool-0);
+    --aomi-danger-strong: #b8394a;
+    --aomi-on-danger: #ffffff;
+    --aomi-ring: var(--aomi-sky-500);
+    --aomi-accent-tint: color-mix(in srgb, var(--aomi-sky-500) 10%, transparent);
+    --aomi-accent-outline: color-mix(in srgb, var(--aomi-sky-500) 45%, transparent);
+    --aomi-overlay-border: color-mix(in srgb, var(--aomi-cool-500) 30%, transparent);
     /* Hover fill for items resting on cool-100 surfaces. */
     --aomi-state-hover: var(--aomi-cool-200);
-
-    --aomi-ring: var(--aomi-cool-400);
 
     /* Chat surface — mirrors the portal (assistant-ui / shadcn zinc).
        User turn: light "muted" bubble with dark text. Assistant turn: no
@@ -244,8 +272,10 @@
     --aomi-text-subtle: var(--aomi-cool-500);
     --aomi-text-on-brand: var(--aomi-cool-950);
 
-    --aomi-border: var(--aomi-cool-800);
-    --aomi-border-strong: var(--aomi-cool-700);
+    /* The hairline has to clear every surface it lands on, panels included —
+       on dark it carries the structure that fills carry on light. */
+    --aomi-border: var(--aomi-cool-700);
+    --aomi-border-strong: var(--aomi-cool-600);
 
     /* Inverted ink: primary becomes near-white on dark. */
     --aomi-primary: var(--aomi-cool-0);
@@ -256,13 +286,28 @@
     --aomi-accent: var(--aomi-sky-400);
     --aomi-accent-hover: var(--aomi-sky-300);
     --aomi-accent-active: var(--aomi-sky-200);
-    --aomi-accent-subtle: var(--aomi-cool-800);
+    /* A sky tint, not a grey: this fills the *selected* row, and at cool-800 it
+       neither reads as selected against the panel nor carries the accent that
+       the light theme's sky-100 does. */
+    --aomi-accent-subtle: #28354a;
     --aomi-accent-selected: var(--aomi-sky-500);
     --aomi-accent-selected-text: var(--aomi-cool-0);
     --aomi-accent-interactive: var(--aomi-sky-400);
-    --aomi-state-hover: var(--aomi-cool-800);
 
-    --aomi-ring: var(--aomi-cool-500);
+    /* Canonical aomi-* names — dark. */
+    --aomi-fg: var(--aomi-cool-50);
+    --aomi-muted: var(--aomi-cool-400);
+    /* Distinct stops, mirroring @aomi-labs/widget-lib. These three all sat on
+       cool-800, so a hairline drawn on a panel was the panel's own colour and
+       every divider, table rule and icon-button fill disappeared. */
+    --aomi-raised: var(--aomi-cool-850);
+    --aomi-surface-2: var(--aomi-cool-750);
+    --aomi-hover: var(--aomi-cool-650);
+    --aomi-accent-strong: var(--aomi-sky-500);
+    --aomi-on-accent: var(--aomi-cool-950);
+    --aomi-danger-strong: #c34255;
+    --aomi-ring: var(--aomi-sky-400);
+    --aomi-state-hover: var(--aomi-cool-800);
 
     --aomi-ink: var(--aomi-cool-0);
     --aomi-ink-hover: var(--aomi-cool-100);

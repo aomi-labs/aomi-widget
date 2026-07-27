@@ -27,6 +27,5 @@ export default defineConfig([
     clean: false,
     banner: { js: "#!/usr/bin/env node" },
     tsconfig: "tsconfig.json",
-    external: ["permissionless", "permissionless/accounts", "permissionless/clients/pimlico"],
   },
 ]);

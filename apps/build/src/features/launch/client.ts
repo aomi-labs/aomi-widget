@@ -26,6 +26,8 @@ import {
 import type { RequiredSecretsByApp } from "./required-secrets";
 import { normalizeRepo } from "./state";
 
+type PlatformInput = { platform?: string };
+
 export type GithubAppOAuthStartResponse = {
   ok: boolean;
   install_url?: string;
@@ -118,9 +120,12 @@ export function launchCreateRepo(input: {
   return postJson(API_PATHS.bff.launch.create, "launch repo creation", input);
 }
 
-export function launchStatus(deploymentId: string): Promise<LaunchStatus> {
+export function launchStatus(
+  deploymentId: string,
+  platform?: string,
+): Promise<LaunchStatus> {
   return launchFetch(
-    API_PATHS.bff.launch.status(deploymentId),
+    API_PATHS.bff.launch.status(deploymentId, platform),
     "launch status",
   );
 }
@@ -129,13 +134,18 @@ export function launchSdkStatus(): Promise<LaunchSdkStatus> {
   return launchFetch(API_PATHS.bff.launch.sdkStatus, "launch SDK status");
 }
 
-export function deploymentSources(): Promise<DeploymentSourcesResult> {
-  return launchFetch(API_PATHS.bff.deployments.sources, "deployment sources");
+export function deploymentSources(
+  platform?: string,
+): Promise<DeploymentSourcesResult> {
+  return launchFetch(
+    API_PATHS.bff.deployments.sources(platform),
+    "deployment sources",
+  );
 }
 
-export function deploymentUpgradeSdk(input: {
-  appSourceId: number;
-}): Promise<SourceSdkUpgradeResult> {
+export function deploymentUpgradeSdk(
+  input: PlatformInput & { appSourceId: number },
+): Promise<SourceSdkUpgradeResult> {
   return postJson(
     API_PATHS.bff.deployments.sdkUpgrade,
     "source SDK upgrade",
@@ -150,21 +160,27 @@ export function deploymentSdkStatus(): Promise<LaunchSdkStatus> {
   );
 }
 
-export function deploymentSdkUpgradeStatus(input: {
-  appSourceId: number;
-}): Promise<SourceSdkUpgradeStatusResult> {
+export function deploymentSdkUpgradeStatus(
+  input: PlatformInput & { appSourceId: number },
+): Promise<SourceSdkUpgradeStatusResult> {
   return launchFetch(
-    API_PATHS.bff.deployments.sdkUpgradeStatus(input.appSourceId),
+    API_PATHS.bff.deployments.sdkUpgradeStatus(
+      input.appSourceId,
+      input.platform,
+    ),
     "source SDK upgrade status",
   );
 }
 
-export function deploymentHistory(input: {
-  appSourceId: number;
-  limit?: number;
-}): Promise<DeploymentHistoryResult> {
+export function deploymentHistory(
+  input: PlatformInput & { appSourceId: number; limit?: number },
+): Promise<DeploymentHistoryResult> {
   return launchFetch(
-    API_PATHS.bff.deployments.history(input.appSourceId, input.limit),
+    API_PATHS.bff.deployments.history(
+      input.appSourceId,
+      input.limit,
+      input.platform,
+    ),
     "deployment history",
   );
 }
@@ -180,11 +196,11 @@ export function deploymentFeed(input: {
   );
 }
 
-export function deploymentSecrets(input: {
-  appSourceId: number;
-}): Promise<DeploymentSecretsResult> {
+export function deploymentSecrets(
+  input: PlatformInput & { appSourceId: number },
+): Promise<DeploymentSecretsResult> {
   return launchFetch(
-    API_PATHS.bff.deployments.secrets(input.appSourceId),
+    API_PATHS.bff.deployments.secrets(input.appSourceId, input.platform),
     "deployment secrets",
   );
 }
@@ -193,26 +209,33 @@ export type RequiredSecretsResult = {
   byApp: RequiredSecretsByApp;
 };
 
-export function deploymentRequiredSecrets(input: {
-  appSourceId: number;
-}): Promise<RequiredSecretsResult> {
+export function deploymentRequiredSecrets(
+  input: PlatformInput & { appSourceId: number },
+): Promise<RequiredSecretsResult> {
   return launchFetch(
-    API_PATHS.bff.deployments.requiredSecrets(input.appSourceId),
+    API_PATHS.bff.deployments.requiredSecrets(
+      input.appSourceId,
+      input.platform,
+    ),
     "required secrets",
   );
 }
 
-export function deploymentRecords(input: {
-  app: string;
-  appSourceId?: number;
-}): Promise<ListDeploymentRecordsResult> {
+export function deploymentRecords(
+  input: PlatformInput & { app: string; appSourceId?: number },
+): Promise<ListDeploymentRecordsResult> {
   return launchFetch(
-    API_PATHS.bff.deployments.records(input.app, input.appSourceId),
+    API_PATHS.bff.deployments.records(
+      input.app,
+      input.appSourceId,
+      input.platform,
+    ),
     "deployment records",
   );
 }
 
 export function deploymentPromote(input: {
+  platform?: string;
   deploymentId: string;
   appSourceId: number;
   apps?: string[];
@@ -226,6 +249,7 @@ export function deploymentPromote(input: {
 }
 
 export function launchActivate(input: {
+  platform?: string;
   appSourceId: number;
   releaseTags: string[];
   apps: string[];
@@ -235,6 +259,7 @@ export function launchActivate(input: {
 }
 
 export function deploymentDeactivate(input: {
+  platform?: string;
   appSourceId: number;
   apps: string[];
 }): Promise<{ ok: boolean; apps: string[] }> {
@@ -246,24 +271,26 @@ export function deploymentDeactivate(input: {
 }
 
 export function deploymentSetSecrets(input: {
+  platform?: string;
   app: string;
   appSourceId: number;
   secrets: Record<string, string>;
 }): Promise<{ ok: boolean; keys: string[] }> {
   return postJson(
-    API_PATHS.bff.deployments.secrets(input.appSourceId),
+    API_PATHS.bff.deployments.secrets(input.appSourceId, input.platform),
     "set environment variables",
     input,
   );
 }
 
 export function deploymentDeleteSecret(input: {
+  platform?: string;
   app: string;
   appSourceId: number;
   name: string;
 }): Promise<{ ok: boolean; removed: boolean }> {
   return launchFetch(
-    API_PATHS.bff.deployments.secrets(input.appSourceId),
+    API_PATHS.bff.deployments.secrets(input.appSourceId, input.platform),
     "delete environment variable",
     {
       method: "DELETE",

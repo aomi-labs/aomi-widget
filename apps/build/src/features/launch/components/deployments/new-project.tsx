@@ -39,7 +39,7 @@ export function NewProject({
             <ArrowLeft className="size-4" aria-hidden />
             {backLabel}
           </Link>
-          <h1 className="mt-2 text-2xl font-semibold tracking-normal">
+          <h1 className="font-display mt-2 text-2xl font-normal tracking-tight">
             New app
           </h1>
           <p className="text-dim mt-1 text-sm">

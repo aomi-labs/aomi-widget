@@ -36,9 +36,7 @@ function buildCommands(): CommandItem[] {
     {
       id: "project-home",
       label: lastId ? "Last project" : "Projects",
-      hint: lastId
-        ? "Open project Home"
-        : "Your connected repositories",
+      hint: lastId ? "Open project Home" : "Your connected repositories",
       href: lastProjectHref(),
       icon: FolderKanban,
       keywords: "project app repo home",
@@ -92,9 +90,7 @@ function buildCommands(): CommandItem[] {
     {
       id: "usage",
       label: "Usage",
-      hint: lastId
-        ? "Credits for last project"
-        : "Credits and tokens meter",
+      hint: lastId ? "Credits for last project" : "Credits and tokens meter",
       href: lastUsageHref(),
       icon: Gauge,
       keywords: "credits tokens meter",
@@ -105,6 +101,14 @@ function buildCommands(): CommandItem[] {
       hint: "Account settings",
       href: "/settings",
       icon: Settings,
+    },
+    {
+      id: "providers",
+      label: "Providers",
+      hint: "LLM keys that fund your users",
+      href: "/providers",
+      icon: KeyRound,
+      keywords: "model keys llm openai anthropic openrouter byok",
     },
     {
       id: "secrets",
@@ -154,7 +158,9 @@ export function CommandPalette() {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
-  const [commands, setCommands] = useState<CommandItem[]>(() => buildCommands());
+  const [commands, setCommands] = useState<CommandItem[]>(() =>
+    buildCommands(),
+  );
 
   const filtered = useMemo(
     () => commands.filter((item) => matches(item, query.trim())),
@@ -165,9 +171,9 @@ export function CommandPalette() {
     function onKeyDown(event: KeyboardEvent) {
       // Prefer event.code so layout/IME quirks don't miss "k".
       // Capture phase so we see the chord before focused inputs swallow it.
-      const isK =
-        event.code === "KeyK" || event.key.toLowerCase() === "k";
-      const isPalette = (event.metaKey || event.ctrlKey) && isK && !event.altKey;
+      const isK = event.code === "KeyK" || event.key.toLowerCase() === "k";
+      const isPalette =
+        (event.metaKey || event.ctrlKey) && isK && !event.altKey;
       if (isPalette) {
         event.preventDefault();
         event.stopPropagation();
@@ -229,7 +235,9 @@ export function CommandPalette() {
             onKeyDown={(event) => {
               if (event.key === "ArrowDown") {
                 event.preventDefault();
-                setActive((i) => Math.min(i + 1, Math.max(filtered.length - 1, 0)));
+                setActive((i) =>
+                  Math.min(i + 1, Math.max(filtered.length - 1, 0)),
+                );
               } else if (event.key === "ArrowUp") {
                 event.preventDefault();
                 setActive((i) => Math.max(i - 1, 0));

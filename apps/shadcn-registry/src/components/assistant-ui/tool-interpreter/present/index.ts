@@ -32,6 +32,10 @@ const statusLast = (facts: ToolFact[]): ToolFact[] => [
   ...facts.filter((fact) => fact.kind === "status"),
 ];
 
+/** A failure/error status fact — the same signal that renders the "Failed" chip. */
+const isFailedStatus = (fact: ToolFact): boolean =>
+  fact.kind === "status" && (fact.value === "failed" || fact.value === "error");
+
 export const presentOperation = (
   operation: ToolOperation,
 ): InterpretedToolStep => {
@@ -52,5 +56,6 @@ export const presentOperation = (
     chips,
     confidence: operation.confidence,
     rawLabel: operation.rawLabel,
+    failed: operation.facts.some(isFailedStatus),
   };
 };

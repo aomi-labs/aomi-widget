@@ -14,21 +14,6 @@ export interface TextSectionProps {
   options?: Record<string, unknown>;
 }
 
-export interface BlogEntry {
-  slug: string;
-  title: string;
-  description: string;
-  imageSrc: string;
-  imageAlt: string;
-  eyebrow?: string;
-  publishedAt?: string;
-  cta?: {
-    label: string;
-    href: string;
-  };
-  body?: string;
-}
-
 // Supported chains filtered by providers.toml (via NEXT_PUBLIC_SUPPORTED_CHAIN_IDS).
 // If the env var is empty, all chains are available.
 

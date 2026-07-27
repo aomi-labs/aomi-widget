@@ -1,4 +1,9 @@
-import { UserState, type UserState as UserStateShape, type UserStateAAMode } from "../user-state";
+import {
+  UserState,
+  type UserState as UserStateShape,
+  type UserStateAAMode,
+  type UserStateEvmAa,
+} from "../user-state";
 import { isSubsetMatch, sortJson } from "./json";
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
@@ -51,13 +56,18 @@ export function resolveWalletState(
 ): UserStateShape {
   const resolvedAAMode =
     aa?.aaMode ?? (aa?.smartAccount === address ? "4337" : "none");
-  const aaBlock: Record<string, unknown> = { mode: resolvedAAMode };
+  const aaBlock: UserStateEvmAa = { mode: resolvedAAMode };
+
+  // Browser AA uses the same Alchemy backend lane as the CLI.
+  if (resolvedAAMode === "4337" || resolvedAAMode === "7702") {
+    aaBlock.provider = "alchemy";
+  }
 
   if (aa?.smartAccount4337 !== undefined || aa?.delegation7702 !== undefined) {
     aaBlock.smart_account =
-      resolvedAAMode === "4337" ? aa?.smartAccount4337 ?? null : null;
+      resolvedAAMode === "4337" ? (aa?.smartAccount4337 ?? null) : null;
     aaBlock.delegation_7702 =
-      resolvedAAMode === "7702" ? aa?.delegation7702 ?? null : null;
+      resolvedAAMode === "7702" ? (aa?.delegation7702 ?? null) : null;
   }
 
   const prevEvm = isRecord(userState?.evm) ? userState?.evm : {};
@@ -83,7 +93,10 @@ export function warnIfUserStateMisaligned(
   actual: UserStateShape | null | undefined,
 ): void {
   const expectedUserState = UserState.normalize(expected);
-  const normalizedActualUserState = UserState.reconcile(expectedUserState, actual);
+  const normalizedActualUserState = UserState.reconcile(
+    expectedUserState,
+    actual,
+  );
 
   if (!expectedUserState || !normalizedActualUserState) {
     return;
