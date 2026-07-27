@@ -11,11 +11,26 @@ import {
 } from "@build/server/cookies/github";
 
 type AuthResult = { session: GitHubSession } | { response: NextResponse };
+type AnonymousAuthResult =
+  | { session: GitHubSession | null }
+  | { response: NextResponse };
 
+export function authorize(
+  req: Request,
+  options: { write?: boolean; cliScope?: GitHubCliScope; allowAnon: true },
+): Promise<AnonymousAuthResult>;
+export function authorize(
+  req: Request,
+  options?: { write?: boolean; cliScope?: GitHubCliScope },
+): Promise<AuthResult>;
 export async function authorize(
   req: Request,
-  options: { write?: boolean; cliScope?: GitHubCliScope } = {},
-): Promise<AuthResult> {
+  options: {
+    write?: boolean;
+    cliScope?: GitHubCliScope;
+    allowAnon?: boolean;
+  } = {},
+): Promise<AuthResult | AnonymousAuthResult> {
   if (!checkRateLimit(getClientIp(req)).allowed) {
     return {
       response: NextResponse.json(
@@ -34,6 +49,14 @@ export async function authorize(
     };
   }
   const session = await getGitHubSession();
+  if (
+    !session &&
+    options.allowAnon &&
+    process.env.AOMI_BUILD_ALLOW_ANON === "1" &&
+    process.env.NODE_ENV !== "production"
+  ) {
+    return { session: null };
+  }
   return session
     ? { session }
     : {

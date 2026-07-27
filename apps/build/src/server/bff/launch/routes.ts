@@ -19,7 +19,7 @@ import {
   isValidReleaseTags,
   isValidRepo,
 } from "@build/lib/validate-input";
-import { authorize, rateLimit } from "./auth";
+import { authorize, rateLimit } from "@build/server/bff/auth";
 
 const CREATED_REPO_PREFIX = "my-playground";
 

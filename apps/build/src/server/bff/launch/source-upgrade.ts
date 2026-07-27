@@ -2,9 +2,9 @@ import "server-only";
 
 import { NextResponse } from "next/server";
 import { deploymentClient } from "@build/server/bff/backend";
-import { launchConfig, resolveLaunchPlatform } from "./config";
+import { resolveLaunchPlatform } from "./config";
 import { launchErrorResponse } from "./errors";
-import { authorize } from "./auth";
+import { authorize } from "@build/server/bff/auth";
 
 export async function sourceSdkUpgradeRoute(req: Request) {
   const auth = await authorize(req, { write: true });
@@ -69,10 +69,7 @@ export async function sourceSdkUpgradeStatusRoute(req: Request) {
 
   try {
     const params = new URL(req.url).searchParams;
-    const platform = resolveLaunchPlatform(
-      params.get("platform") ?? undefined,
-      launchConfig(),
-    );
+    const platform = resolveLaunchPlatform(params.get("platform") ?? undefined);
     if (!platform) {
       return NextResponse.json(
         { error: "unknown or unavailable `platform`" },

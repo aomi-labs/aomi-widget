@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 
 import { configuredBackendUrl } from "@build/server/backend-url";
 import {
+  type GitHubOAuthContinuation,
   readGitHubOAuthRequest,
   setGitHubSessionCookie,
 } from "@build/server/cookies/github";
@@ -22,20 +23,17 @@ function deploymentsUrl(req: Request): URL {
   return url;
 }
 
-function browserError(req: Request, error: string): NextResponse {
-  const redirect = deploymentsUrl(req);
-  redirect.searchParams.set("github_error", error);
-  return NextResponse.redirect(redirect);
-}
-
-function cliError(
-  redirectUri: string,
-  state: string,
+function oauthError(
+  req: Request,
+  continuation: GitHubOAuthContinuation | undefined,
   error: string,
 ): NextResponse {
-  const redirect = new URL(redirectUri);
-  redirect.searchParams.set("error", error);
-  redirect.searchParams.set("state", state);
+  const cli = continuation?.kind === "cli";
+  const redirect = cli
+    ? new URL(continuation.redirectUri)
+    : deploymentsUrl(req);
+  redirect.searchParams.set(cli ? "error" : "github_error", error);
+  if (cli) redirect.searchParams.set("state", continuation.state);
   return NextResponse.redirect(redirect);
 }
 
@@ -52,13 +50,7 @@ export async function GET(req: Request) {
   const pendingContinuation = oauthRequest?.continuation;
 
   if (!code || !state || !oauthRequest || state !== oauthRequest.oauthState) {
-    return pendingContinuation?.kind === "cli"
-      ? cliError(
-          pendingContinuation.redirectUri,
-          pendingContinuation.state,
-          "invalid_oauth_state",
-        )
-      : browserError(req, "invalid_oauth_state");
+    return oauthError(req, pendingContinuation, "invalid_oauth_state");
   }
   const continuation = oauthRequest.continuation;
 
@@ -72,7 +64,9 @@ export async function GET(req: Request) {
     await setGitHubSessionCookie(response, session);
     return response;
   } catch (error) {
-    if (error instanceof BackendError && error.status === 403) {
+    const serviceAuthFailure =
+      error instanceof BackendError && error.status === 403;
+    if (serviceAuthFailure) {
       console.error(
         "GitHub sign-in exchange forbidden by backend service auth",
         {
@@ -81,22 +75,13 @@ export async function GET(req: Request) {
           body: error.body,
         },
       );
-      return continuation.kind === "cli"
-        ? cliError(
-            continuation.redirectUri,
-            continuation.state,
-            "service_auth_forbidden",
-          )
-        : browserError(req, "service_auth_forbidden");
+    } else {
+      console.error("GitHub sign-in exchange failed", error);
     }
-
-    console.error("GitHub sign-in exchange failed", error);
-    return continuation.kind === "cli"
-      ? cliError(
-          continuation.redirectUri,
-          continuation.state,
-          "exchange_failed",
-        )
-      : browserError(req, "exchange_failed");
+    return oauthError(
+      req,
+      continuation,
+      serviceAuthFailure ? "service_auth_forbidden" : "exchange_failed",
+    );
   }
 }

@@ -3,7 +3,13 @@ import "server-only";
 import { createHash } from "crypto";
 import { cookies } from "next/headers";
 import type { NextResponse } from "next/server";
-import { CompactEncrypt, SignJWT, compactDecrypt, jwtVerify } from "jose";
+import {
+  CompactEncrypt,
+  SignJWT,
+  compactDecrypt,
+  jwtVerify,
+  type JWTPayload,
+} from "jose";
 
 /**
  * Aomi Build's standalone GitHub session. The backend resolves the verified
@@ -17,6 +23,12 @@ const CLI_EXCHANGE_TYPE = "aomi-build-cli-exchange";
 const OAUTH_REQUEST_AUDIENCE = "aomi-build-github-oauth-request";
 const CLI_EXCHANGE_TTL_SECONDS = 2 * 60;
 const OAUTH_REQUEST_TTL_SECONDS = 10 * 60;
+const SESSION_COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production",
+  sameSite: "lax" as const,
+  path: "/",
+};
 
 export const CLI_SCOPES = ["deploy", "deployment:read", "activate"] as const;
 export type GitHubCliScope = (typeof CLI_SCOPES)[number];
@@ -60,6 +72,33 @@ function secret(): Uint8Array {
 
 function exchangeKey(): Uint8Array {
   return createHash("sha256").update(secret()).digest();
+}
+
+async function sign(
+  payload: JWTPayload,
+  ttl: number,
+  options: { subject?: string; audience?: string } = {},
+): Promise<string> {
+  const now = Math.floor(Date.now() / 1000);
+  let token = new SignJWT(payload)
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt(now)
+    .setExpirationTime(now + ttl);
+  if (options.subject) token = token.setSubject(options.subject);
+  if (options.audience) token = token.setAudience(options.audience);
+  return token.sign(secret());
+}
+
+async function verify(
+  token: string | undefined,
+  audience?: string,
+): Promise<JWTPayload | null> {
+  if (!token) return null;
+  try {
+    return (await jwtVerify(token, secret(), { audience })).payload;
+  } catch {
+    return null;
+  }
 }
 
 function githubSessionClaims(session: GitHubSession) {
@@ -109,106 +148,76 @@ function cliContinuation(value: unknown): GitHubOAuthContinuation | null {
 export async function issueGitHubSession(
   session: GitHubSession,
 ): Promise<string> {
-  const now = Math.floor(Date.now() / 1000);
-  return new SignJWT(githubSessionClaims(session))
-    .setProtectedHeader({ alg: "HS256" })
-    .setSubject(session.githubUserId)
-    .setIssuedAt(now)
-    .setExpirationTime(now + SESSION_TTL_SECONDS)
-    .sign(secret());
+  return sign(githubSessionClaims(session), SESSION_TTL_SECONDS, {
+    subject: session.githubUserId,
+  });
 }
 
 export async function readGitHubSession(
   token: string | undefined,
 ): Promise<GitHubSession | null> {
-  if (!token) return null;
-  try {
-    const { payload } = await jwtVerify(token, secret());
-    return sessionFromPayload(payload);
-  } catch {
-    return null;
-  }
+  const payload = await verify(token);
+  return payload ? sessionFromPayload(payload) : null;
 }
 
 export async function issueGitHubCliSession(
   session: GitHubSession,
 ): Promise<string> {
-  const now = Math.floor(Date.now() / 1000);
-  return new SignJWT({
-    ...githubSessionClaims(session),
-    kind: "cli_session",
-    scopes: CLI_SCOPES,
-  })
-    .setProtectedHeader({ alg: "HS256" })
-    .setSubject(session.githubUserId)
-    .setAudience(CLI_SESSION_AUDIENCE)
-    .setIssuedAt(now)
-    .setExpirationTime(now + SESSION_TTL_SECONDS)
-    .sign(secret());
+  return sign(
+    {
+      ...githubSessionClaims(session),
+      kind: "cli_session",
+      scopes: CLI_SCOPES,
+    },
+    SESSION_TTL_SECONDS,
+    { subject: session.githubUserId, audience: CLI_SESSION_AUDIENCE },
+  );
 }
 
 export async function readGitHubCliSession(
   token: string | undefined,
   requiredScope?: GitHubCliScope,
 ): Promise<GitHubSession | null> {
-  if (!token) return null;
-  try {
-    const { payload } = await jwtVerify(token, secret(), {
-      audience: CLI_SESSION_AUDIENCE,
-    });
-    const scopes = Array.isArray(payload.scopes)
-      ? payload.scopes.filter(
-          (scope): scope is string => typeof scope === "string",
-        )
-      : [];
-    if (
-      payload.kind !== "cli_session" ||
-      (requiredScope && !scopes.includes(requiredScope))
-    ) {
-      return null;
-    }
-    return sessionFromPayload(payload);
-  } catch {
+  const payload = await verify(token, CLI_SESSION_AUDIENCE);
+  const scopes = Array.isArray(payload?.scopes) ? payload.scopes : [];
+  if (
+    !payload ||
+    payload.kind !== "cli_session" ||
+    (requiredScope && !scopes.includes(requiredScope))
+  ) {
     return null;
   }
+  return sessionFromPayload(payload);
 }
 
 export async function issueGitHubOAuthRequest(
   request: GitHubOAuthRequest,
 ): Promise<string> {
-  const now = Math.floor(Date.now() / 1000);
-  return new SignJWT({
-    kind: "github_oauth_request",
-    oauthState: request.oauthState,
-    continuation: request.continuation,
-  })
-    .setProtectedHeader({ alg: "HS256" })
-    .setAudience(OAUTH_REQUEST_AUDIENCE)
-    .setIssuedAt(now)
-    .setExpirationTime(now + OAUTH_REQUEST_TTL_SECONDS)
-    .sign(secret());
+  return sign(
+    {
+      kind: "github_oauth_request",
+      oauthState: request.oauthState,
+      continuation: request.continuation,
+    },
+    OAUTH_REQUEST_TTL_SECONDS,
+    { audience: OAUTH_REQUEST_AUDIENCE },
+  );
 }
 
 export async function readGitHubOAuthRequest(
   token: string | undefined,
 ): Promise<GitHubOAuthRequest | null> {
-  if (!token) return null;
-  try {
-    const { payload } = await jwtVerify(token, secret(), {
-      audience: OAUTH_REQUEST_AUDIENCE,
-    });
-    const continuation = cliContinuation(payload.continuation);
-    if (
-      payload.kind !== "github_oauth_request" ||
-      typeof payload.oauthState !== "string" ||
-      !continuation
-    ) {
-      return null;
-    }
-    return { oauthState: payload.oauthState, continuation };
-  } catch {
+  const payload = await verify(token, OAUTH_REQUEST_AUDIENCE);
+  const continuation = cliContinuation(payload?.continuation);
+  if (
+    !payload ||
+    payload.kind !== "github_oauth_request" ||
+    typeof payload.oauthState !== "string" ||
+    !continuation
+  ) {
     return null;
   }
+  return { oauthState: payload.oauthState, continuation };
 }
 
 /**
@@ -290,20 +299,14 @@ export async function setGitHubSessionCookie(
 ): Promise<void> {
   const token = await issueGitHubSession(session);
   response.cookies.set(GITHUB_SESSION_COOKIE, token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
+    ...SESSION_COOKIE_OPTIONS,
     maxAge: SESSION_TTL_SECONDS,
   });
 }
 
 export function clearGitHubSessionCookie(response: NextResponse): void {
   response.cookies.set(GITHUB_SESSION_COOKIE, "", {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
+    ...SESSION_COOKIE_OPTIONS,
     maxAge: 0,
   });
 }
