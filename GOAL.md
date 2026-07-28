@@ -31,6 +31,12 @@ mistaken for another supported environment.
 
 Progress:
 
+- 2026-07-27 hosted account-pool hardening: traced recurring Settings auth
+  failures to aggregate Supabase session exhaustion across two backend and two
+  manager processes plus independently warm Vercel functions. Portal now
+  normalizes a Supabase session-pooler URL to transaction mode on Vercel while
+  retaining a one-client, short-idle local pool; paired backend deployment
+  work splits and verifies the fleet-wide session budget.
 - 2026-07-27 Build project membership: the Projects index now treats GitHub
   source records as internal import/ownership metadata and only surfaces
   sources that contain at least one Aomi app, removing historical repositories
