@@ -27,13 +27,13 @@ describe("app-metadata", () => {
 
   it("preserves hosted application ids while grouping", () => {
     const grouped = groupAppsByCategory([
-      { name: "somm-agent", applicationId: 1641 },
+      { name: "somm-agent", applicationId: 2938032 },
     ]);
 
     expect(grouped[0]?.apps[0]).toMatchObject({
       id: "somm-agent",
       displayName: "Somm Agent",
-      applicationId: 1641,
+      applicationId: 2938032,
     });
   });
 });

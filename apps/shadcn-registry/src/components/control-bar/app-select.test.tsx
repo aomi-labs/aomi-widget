@@ -7,7 +7,7 @@ const control = vi.hoisted(() => ({
     authorizedApps: ["default", "somm-agent"],
     appDescriptors: [
       { name: "default" },
-      { name: "somm-agent", applicationId: 1641 },
+      { name: "somm-agent", applicationId: 2938032 },
     ],
   },
   getAuthorizedApps: vi.fn(async () => ["default", "somm-agent"]),
@@ -86,7 +86,7 @@ describe("AppSelect", () => {
     fireEvent.click(screen.getByRole("button", { name: "S Somm Agent" }));
 
     expect(control.onAppSelect).toHaveBeenCalledWith("somm-agent", {
-      applicationId: 1641,
+      applicationId: 2938032,
     });
   });
 });
