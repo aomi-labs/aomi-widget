@@ -9,6 +9,7 @@ import {
 } from "@build/features/launch/components/deployments/ui/state-panels";
 import {
   buildQueryKeys,
+  buildQueryStaleTime,
   githubAccountKey,
 } from "@build/features/launch/query-keys";
 import { API_PATHS } from "@build/lib/api-paths";
@@ -88,7 +89,7 @@ export function BotsView() {
     queryKey,
     queryFn: () => operateFetch<BotsPayload>("bots"),
     enabled: account.signedIn && accountKey !== null,
-    staleTime: 30 * 1000,
+    staleTime: buildQueryStaleTime.operate,
   });
   const payload = botsQuery.data ?? null;
   const loading = botsQuery.isPending;

@@ -14,10 +14,12 @@ type ControlPlaneLinkProps = Omit<
   "href" | "prefetch"
 > & {
   href: string;
+  warmOnIntent?: boolean;
 };
 
 export function ControlPlaneLink({
   href,
+  warmOnIntent = true,
   onMouseEnter,
   onFocus,
   ...props
@@ -27,6 +29,7 @@ export function ControlPlaneLink({
   const { account } = useGitHubSession();
 
   const warmRoute = () => {
+    if (!warmOnIntent) return;
     const dataPrefetched = prefetchControlPlaneRoute(
       queryClient,
       href,

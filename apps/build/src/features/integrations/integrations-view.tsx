@@ -10,6 +10,7 @@ import {
 } from "@build/features/launch/components/deployments/ui/state-panels";
 import {
   buildQueryKeys,
+  buildQueryStaleTime,
   githubAccountKey,
 } from "@build/features/launch/query-keys";
 import { fetchIntegrationStatuses } from "./client";
@@ -109,7 +110,7 @@ export function IntegrationsView() {
     queryKey: buildQueryKeys.integrations(accountKey ?? "unavailable"),
     queryFn: fetchIntegrationStatuses,
     enabled: account.signedIn && accountKey !== null,
-    staleTime: 60 * 1000,
+    staleTime: buildQueryStaleTime.integrations,
   });
   const connectedBy = useMemo(() => {
     const map = new Map<string, boolean>();

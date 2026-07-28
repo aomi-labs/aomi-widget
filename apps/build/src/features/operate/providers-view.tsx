@@ -23,6 +23,7 @@ import {
 } from "@build/features/launch/components/deployments/ui/state-panels";
 import {
   buildQueryKeys,
+  buildQueryStaleTime,
   githubAccountKey,
 } from "@build/features/launch/query-keys";
 import { modelKeysFetch } from "@build/features/operate/client";
@@ -784,7 +785,7 @@ export function ProvidersView() {
       keys: (payload.keys ?? []).map(withUsage),
     }),
     enabled: account.signedIn && accountKey !== null,
-    staleTime: 60 * 1000,
+    staleTime: buildQueryStaleTime.modelKeys,
   });
   const payload = providers.data ?? null;
   const loading = providers.isPending;

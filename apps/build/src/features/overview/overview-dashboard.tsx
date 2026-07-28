@@ -15,6 +15,7 @@ import {
 import { useGlobalDeploymentRecords } from "@build/features/launch/components/deployments/use-global-deployment-records";
 import {
   buildQueryKeys,
+  buildQueryStaleTime,
   githubAccountKey,
 } from "@build/features/launch/query-keys";
 import { operateFetch } from "@build/features/operate/client";
@@ -65,7 +66,7 @@ export function OverviewDashboard() {
     queryKey: buildQueryKeys.operate(accountKey ?? "unavailable", "usage"),
     queryFn: () => operateFetch<UsagePayload>("usage"),
     enabled: account.signedIn && accountKey !== null,
-    staleTime: 30 * 1000,
+    staleTime: buildQueryStaleTime.operate,
   });
   const usage = usageQuery.data ?? null;
   const usageError = usageQuery.error

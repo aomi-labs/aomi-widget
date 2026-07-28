@@ -32,6 +32,15 @@ export const buildQueryKeys = {
     [...buildQueryKeys.all, "account", account, "integrations"] as const,
 };
 
+export const buildQueryStaleTime = {
+  projects: 60_000,
+  deployments: 15_000,
+  sdkStatus: 5 * 60_000,
+  operate: 30_000,
+  integrations: 60_000,
+  modelKeys: 60_000,
+} as const;
+
 export function githubAccountKey(login: string | null): string | null {
   const normalized = login?.trim().toLowerCase();
   return normalized || null;

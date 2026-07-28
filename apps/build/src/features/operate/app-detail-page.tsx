@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useGitHubSession } from "@build/components/control-plane/github-session-context";
 import {
   buildQueryKeys,
+  buildQueryStaleTime,
   githubAccountKey,
 } from "@build/features/launch/query-keys";
 import {
@@ -48,7 +49,7 @@ export function AppDetailPage({
     queryFn: () =>
       operateAppDetailFetch<LiveAppDetailPayload>(project, applicationId),
     enabled: account.signedIn && accountKey !== null,
-    staleTime: 30 * 1000,
+    staleTime: buildQueryStaleTime.operate,
   });
   const payload = detailQuery.data ?? null;
   const error = detailQuery.error

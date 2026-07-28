@@ -7,7 +7,10 @@ import {
   deploymentSdkStatus,
   deploymentSources,
 } from "@build/features/launch/client";
-import { buildQueryKeys } from "@build/features/launch/query-keys";
+import {
+  buildQueryKeys,
+  buildQueryStaleTime,
+} from "@build/features/launch/query-keys";
 import { fetchIntegrationStatuses } from "@build/features/integrations/client";
 import {
   modelKeysFetch,
@@ -50,7 +53,7 @@ export function prefetchControlPlaneRoute(
           applicationId,
         ),
         queryFn: () => operateAppDetailFetch(project, applicationId),
-        staleTime: 30 * 1000,
+        staleTime: buildQueryStaleTime.operate,
       });
       return true;
     }
@@ -60,12 +63,12 @@ export function prefetchControlPlaneRoute(
     void queryClient.prefetchQuery({
       queryKey: buildQueryKeys.projects(accountKey),
       queryFn: deploymentSources,
-      staleTime: 60 * 1000,
+      staleTime: buildQueryStaleTime.projects,
     });
     void queryClient.prefetchQuery({
       queryKey: buildQueryKeys.sdkStatus(),
       queryFn: () => deploymentSdkStatus().catch(() => null),
-      staleTime: 5 * 60 * 1000,
+      staleTime: buildQueryStaleTime.sdkStatus,
     });
     return true;
   }
@@ -74,20 +77,20 @@ export function prefetchControlPlaneRoute(
     void queryClient.prefetchQuery({
       queryKey: buildQueryKeys.projects(accountKey),
       queryFn: deploymentSources,
-      staleTime: 60 * 1000,
+      staleTime: buildQueryStaleTime.projects,
     });
     void queryClient.prefetchInfiniteQuery({
       queryKey: buildQueryKeys.deployments(accountKey),
       queryFn: ({ pageParam }) =>
         deploymentFeed({ limit: 50, cursor: pageParam }),
       initialPageParam: null,
-      staleTime: 15 * 1000,
+      staleTime: buildQueryStaleTime.deployments,
     });
     if (path === "/operate/deployments") return true;
     void queryClient.prefetchQuery({
       queryKey: buildQueryKeys.operate(accountKey, "usage"),
       queryFn: () => operateFetch("usage"),
-      staleTime: 30 * 1000,
+      staleTime: buildQueryStaleTime.operate,
     });
     return true;
   }
@@ -96,7 +99,7 @@ export function prefetchControlPlaneRoute(
     void queryClient.prefetchQuery({
       queryKey: buildQueryKeys.integrations(accountKey),
       queryFn: fetchIntegrationStatuses,
-      staleTime: 60 * 1000,
+      staleTime: buildQueryStaleTime.integrations,
     });
     return true;
   }
@@ -105,7 +108,7 @@ export function prefetchControlPlaneRoute(
     void queryClient.prefetchQuery({
       queryKey: buildQueryKeys.modelKeys(accountKey),
       queryFn: () => modelKeysFetch<unknown>(),
-      staleTime: 60 * 1000,
+      staleTime: buildQueryStaleTime.modelKeys,
     });
     return true;
   }
@@ -118,7 +121,7 @@ export function prefetchControlPlaneRoute(
         ? buildQueryKeys.bots(accountKey)
         : buildQueryKeys.operate(accountKey, kind),
     queryFn: () => operateFetch(kind),
-    staleTime: 30 * 1000,
+    staleTime: buildQueryStaleTime.operate,
   });
   return true;
 }

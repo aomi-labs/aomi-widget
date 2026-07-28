@@ -21,6 +21,7 @@ import {
 } from "@build/features/launch/components/deployments/ui/state-panels";
 import {
   buildQueryKeys,
+  buildQueryStaleTime,
   githubAccountKey,
 } from "@build/features/launch/query-keys";
 import { operateFetch, type OperateKind } from "./client";
@@ -516,7 +517,7 @@ export function OperateView({ kind }: { kind: ViewKind }) {
     queryKey,
     queryFn: () => operateFetch<OperatePayload>(kind, sourceId),
     enabled: account.signedIn && accountKey !== null,
-    staleTime: 30 * 1000,
+    staleTime: buildQueryStaleTime.operate,
   });
   const payload = dataQuery.data ?? null;
   const loading = dataQuery.isPending;

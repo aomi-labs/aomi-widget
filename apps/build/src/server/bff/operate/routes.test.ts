@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
-  clearSourcesCacheForTesting,
+  clearOperateCachesForTesting,
   operateAppDetailRoute,
   operateBotsRoute,
   operateBotsCreateRoute,
@@ -67,7 +67,7 @@ function clearSession() {
 }
 
 beforeEach(() => {
-  clearSourcesCacheForTesting();
+  clearOperateCachesForTesting();
   client.listUserSources.mockReset();
   client.listUserSourceBots.mockReset();
   client.createUserSourceBot.mockReset();
