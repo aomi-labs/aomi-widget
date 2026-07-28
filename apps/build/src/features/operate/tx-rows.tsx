@@ -75,10 +75,6 @@ function statusDetail(tx: TxRow): string {
   return "Awaiting signature";
 }
 
-function kindLabel(tx: TxRow): string {
-  return tx.kind === "partner_payout" ? "Partner payout" : "App transaction";
-}
-
 function TxDetail({ tx }: { tx: TxRow }) {
   const svm = tx.family === "svm";
   const payout = tx.kind === "partner_payout";
@@ -118,14 +114,14 @@ function TxDetail({ tx }: { tx: TxRow }) {
             </span>
           </Field>
         ) : null}
-        <Field label="From">
+        <Field label={payout ? "Payer" : "From"}>
           {tx.fromAddress ? (
             <>
               <Mono>{tx.fromAddress}</Mono>
               <CopyBtn value={String(tx.fromAddress)} />
             </>
           ) : (
-            <span className="text-dim text-xs">payer hidden</span>
+            <span className="text-dim text-xs">not recorded</span>
           )}
           {tx.fromLabel ? (
             <span className="text-dim ml-2 text-xs">({tx.fromLabel})</span>
@@ -149,7 +145,7 @@ function TxDetail({ tx }: { tx: TxRow }) {
             </div>
           </Field>
         ) : null}
-        <Field label="Value">
+        <Field label={payout ? "Settlement amount" : "Value"}>
           <span className="font-medium">{valueLabel(tx.value)}</span>
           {tx.valueUsd ? (
             <span className="text-dim ml-2 text-xs">{tx.valueUsd}</span>
@@ -297,20 +293,19 @@ export function TransactionRows({
         </span>
       </div>
       <div className="border-border overflow-x-auto rounded-md border">
-        <table className="divide-border min-w-full divide-y text-sm">
+        <table className="divide-border w-full min-w-[960px] table-fixed divide-y text-sm">
           <thead className="bg-surface-subtle text-dim text-left text-xs uppercase">
             <tr>
               <th className="w-8 px-3 py-2" aria-label="expand" />
-              <th className="px-3 py-2">Time</th>
-              <th className="px-3 py-2">App</th>
-              <th className="px-3 py-2">Kind</th>
-              <th className="px-3 py-2">Status</th>
-              <th className="px-3 py-2">Chain</th>
-              <th className="px-3 py-2">From</th>
-              <th className="px-3 py-2">To</th>
-              <th className="px-3 py-2">Value</th>
+              <th className="w-44 px-3 py-2">Time</th>
+              <th className="w-44 px-3 py-2">App</th>
+              <th className="w-24 px-3 py-2">Status</th>
+              <th className="w-28 px-3 py-2">Chain</th>
+              <th className="w-28 px-3 py-2">From</th>
+              <th className="w-28 px-3 py-2">To</th>
+              <th className="w-24 px-3 py-2">Value</th>
               <th className="px-3 py-2">Description</th>
-              <th className="px-3 py-2">Hash</th>
+              <th className="w-28 px-3 py-2">Hash</th>
             </tr>
           </thead>
           <tbody className="divide-border bg-surface divide-y">
@@ -332,9 +327,20 @@ export function TransactionRows({
                     <td className="text-dim whitespace-nowrap px-3 py-2">
                       {secondsLabel(tx.createdAt)}
                     </td>
-                    <td className="px-3 py-2">{tx.application}</td>
-                    <td className="whitespace-nowrap px-3 py-2 text-xs">
-                      {kindLabel(tx)}
+                    <td className="min-w-0 px-3 py-2">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <span className="truncate" title={tx.application}>
+                          {tx.application}
+                        </span>
+                        {tx.kind === "partner_payout" ? (
+                          <span
+                            aria-label="Partner payout"
+                            className="border-border bg-surface-subtle text-dim shrink-0 rounded-full border px-1.5 py-0.5 text-[10px] font-medium uppercase"
+                          >
+                            Payout
+                          </span>
+                        ) : null}
+                      </div>
                     </td>
                     <td className="px-3 py-2">
                       <span
@@ -343,7 +349,10 @@ export function TransactionRows({
                         {tx.status}
                       </span>
                     </td>
-                    <td className="whitespace-nowrap px-3 py-2">
+                    <td
+                      className="truncate whitespace-nowrap px-3 py-2"
+                      title={chainLabel(tx)}
+                    >
                       {chainLabel(tx)}
                     </td>
                     <td
@@ -376,7 +385,7 @@ export function TransactionRows({
                   </tr>
                   {open ? (
                     <tr>
-                      <td colSpan={11} className="p-0">
+                      <td colSpan={10} className="p-0">
                         <TxDetail tx={tx} />
                       </td>
                     </tr>
