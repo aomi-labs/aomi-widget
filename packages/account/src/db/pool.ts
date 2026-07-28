@@ -22,9 +22,37 @@ export type AccountPoolOptions = {
 };
 
 /**
+ * Supabase's port 5432 pooler is session mode: every warm Vercel function can
+ * consume one of its small fixed client allowance. Port 6543 is transaction
+ * mode and multiplexes those short serverless queries instead. Preserve all
+ * credentials and target identity while selecting the serverless-safe mode.
+ */
+export function resolveAccountConnectionString(
+  connectionString: string,
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  if (!env.VERCEL) return connectionString;
+
+  let url: URL;
+  try {
+    url = new URL(connectionString);
+  } catch {
+    return connectionString;
+  }
+  if (
+    url.hostname.endsWith(".pooler.supabase.com") &&
+    (url.port === "" || url.port === "5432")
+  ) {
+    url.port = "6543";
+    return url.toString();
+  }
+  return connectionString;
+}
+
+/**
  * Vercel can keep a separate warm function instance for each API route. A
- * four-connection pool per instance quickly exhausts Supabase's session-mode
- * client cap, so serverless instances must keep a single, short-lived client.
+ * transaction pooler is still shared infrastructure, so each instance keeps a
+ * single, short-lived client instead of multiplying a larger local pool.
  */
 export function resolveAccountPoolOptions(
   env: NodeJS.ProcessEnv = process.env,
@@ -46,9 +74,8 @@ export function getPool(): Pool {
     );
   }
   cachedPool = new Pool({
-    connectionString,
-    // The portal is one of several DB clients; keep its footprint small so it
-    // never starves the backend on the shared Supabase pooler.
+    connectionString: resolveAccountConnectionString(connectionString),
+    application_name: "aomi-portal",
     ...resolveAccountPoolOptions(),
   });
   return cachedPool;

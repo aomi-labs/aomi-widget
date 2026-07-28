@@ -22,7 +22,15 @@ export function ProjectRow({
         ? source.apps[0]?.name
         : `${source.apps.length} apps`;
   const stamped = sourceSdkVersion(source);
-  const projectHref = href ?? `/projects/${source.id}`;
+  const boundPlatform = source.boundPlatformName?.trim();
+  const projectHref =
+    href ??
+    `/projects/${source.id}${
+      boundPlatform ? `?platform=${encodeURIComponent(boundPlatform)}` : ""
+    }`;
+  const deploymentsHref = `${projectHref}${
+    projectHref.includes("?") ? "&" : "?"
+  }tab=deployments`;
   const outdated = sdkCompatibility(stamped, requiredSdk) === "outdated";
   return (
     <div className="border-border hover:bg-accent-hover flex items-center gap-3 border-b px-4 py-3 last:border-b-0">
@@ -49,7 +57,7 @@ export function ProjectRow({
         <SdkBadge stamped={stamped} required={requiredSdk} />
         {outdated && (
           <Link
-            href={`${projectHref}?tab=deployments`}
+            href={deploymentsHref}
             className="border-warning/40 bg-warning/10 text-warning hover:bg-warning/15 inline-flex h-7 items-center justify-center rounded-md border px-2.5 text-xs font-medium"
           >
             Upgrade

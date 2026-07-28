@@ -11,6 +11,13 @@ import {
 } from "lucide-react";
 import { useProjectDetail } from "@build/features/launch/hooks/use-project-detail";
 import { operateFetch } from "@build/features/operate/client";
+import {
+  caipChainLabel,
+  creditsToUsd,
+  plural,
+  truncateAddress,
+  usdLabel,
+} from "@build/features/operate/format";
 import { chatAppUrl } from "@build/lib/chat-url";
 import { BUILD_GLOSSARY } from "@build/lib/glossary";
 import { projectDeploymentStatus } from "../project-deployment-status";
@@ -124,6 +131,40 @@ function usageCardCopy(usage: UsagePeek | null): {
   };
 }
 
+function monetizationCard(source: NonNullable<Detail["source"]>) {
+  const configured = source.apps.flatMap((app) =>
+    Object.entries(app.pricing?.config.resources ?? {}).map(
+      ([tool, resource]) => {
+        const beneficiary = app.pricing?.config.beneficiaries.find(
+          (candidate) => candidate.name === resource.beneficiary,
+        );
+        return {
+          app: app.name,
+          tool,
+          credits: resource.pricing.flat,
+          beneficiary,
+        };
+      },
+    ),
+  );
+  if (!configured.length) {
+    return {
+      value: "No priced tools",
+      hint: "Add a validated pricing.toml sidecar to monetize successful calls.",
+      tone: "neutral" as const,
+    };
+  }
+  const first = configured[0];
+  const route = first.beneficiary
+    ? `${caipChainLabel(first.beneficiary.chain)} · ${truncateAddress(first.beneficiary.value)}`
+    : "Aomi-managed beneficiary";
+  return {
+    value: plural(configured.length, "priced tool"),
+    hint: `${first.app}/${first.tool} · ${first.credits.toFixed(2)} credits (${usdLabel(creditsToUsd(first.credits))}) per successful call · ${route}`,
+    tone: "good" as const,
+  };
+}
+
 export function HomeTab({
   detail,
   tabHref,
@@ -213,6 +254,7 @@ export function HomeTab({
   const envReady = secretCount !== null && secretCount > 0;
   const envLoading = detail.secretsByApp === null && !detail.secretsError;
   const usageCopy = usageCardCopy(usage);
+  const monetization = monetizationCard(source);
 
   const nextAction =
     outdated && requiredSdk
@@ -311,6 +353,14 @@ export function HomeTab({
           }
           actionHref={`/operate/usage?project=${source.id}`}
           actionLabel="Open Usage"
+        />
+        <StatusCard
+          label="Monetization"
+          value={monetization.value}
+          hint={monetization.hint}
+          tone={monetization.tone}
+          actionHref={`/operate/usage?project=${source.id}`}
+          actionLabel="View partner ledger"
         />
       </div>
 
