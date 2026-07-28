@@ -7,7 +7,13 @@
 // payloads.
 
 import { Lock, X } from "lucide-react";
-import { clockLabel, creditsToUsd, dayLabel, usdLabel } from "./format";
+import {
+  clockLabel,
+  creditsToUsd,
+  dayLabel,
+  truncateAddress,
+  usdLabel,
+} from "./format";
 
 type LogRow = Record<string, any>;
 
@@ -116,6 +122,9 @@ function PaymentDetail({
   const credits = Number(
     (settled ? details.paid_credits : details.credits_used) ?? 0,
   );
+  const billingItems: LogRow[] = Array.isArray(details.billing?.items)
+    ? details.billing.items
+    : [];
   return (
     <div className="border-border bg-surface-subtle/60 grid gap-3 border-t px-8 py-3 text-xs sm:grid-cols-3">
       <div>
@@ -130,27 +139,42 @@ function PaymentDetail({
         <div className="text-dim text-[10px] uppercase tracking-wide">
           Beneficiary
         </div>
-        <div className="mt-1 break-all font-mono">
-          {details.recipient ?? "—"}
+        <div className="mt-1 font-mono" title={String(details.recipient ?? "")}>
+          {truncateAddress(details.recipient) || "—"}
         </div>
       </div>
       <div>
         <div className="text-dim text-[10px] uppercase tracking-wide">
           Settlement
         </div>
-        <div className="mt-1 break-all font-mono">
-          {details.receipt_id ??
+        <div
+          className="mt-1 font-mono"
+          title={String(details.receipt_id ?? "")}
+        >
+          {truncateAddress(details.receipt_id) ||
             (settled ? "—" : "awaiting recipient-bucket settlement")}
         </div>
       </div>
-      {details.billing ? (
+      {billingItems.length ? (
         <div className="sm:col-span-3">
           <div className="text-dim text-[10px] uppercase tracking-wide">
-            Priced call
+            Priced calls
           </div>
-          <pre className="mt-1 whitespace-pre-wrap font-mono text-xs">
-            {JSON.stringify(details.billing, null, 2)}
-          </pre>
+          <div className="divide-border mt-1 divide-y rounded-md border">
+            {billingItems.map((item, index) => (
+              <div
+                key={`${String(item.tool ?? "priced-tool")}-${index}`}
+                className="flex items-center justify-between gap-3 px-2 py-1.5"
+              >
+                <span className="truncate font-mono">
+                  {item.tool ?? "Priced tool"}
+                </span>
+                <span className="text-dim shrink-0 font-mono">
+                  {Number(item.credits ?? 0).toFixed(2)} credits
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
       ) : null}
     </div>
@@ -230,7 +254,7 @@ export function LogRows({
               : "border-border bg-surface text-dim"
           }`}
         >
-          errors only
+          Errors only
         </button>
         <button
           type="button"
@@ -243,7 +267,7 @@ export function LogRows({
               : "border-border bg-surface text-dim"
           }`}
         >
-          payments
+          Partner payments only
         </button>
         {active ? (
           <button
@@ -251,7 +275,7 @@ export function LogRows({
             onClick={() => onFilterChange(EMPTY_LOGS_PAGE_FILTER)}
             className="text-dim hover:text-foreground flex items-center gap-1 text-xs"
           >
-            <X className="size-3" /> clear filters
+            <X className="size-3" /> Clear filters
           </button>
         ) : null}
         <span className="text-dim ml-auto flex items-center gap-1.5 text-xs">
@@ -295,7 +319,7 @@ export function LogRows({
                   {isInvocation(row)
                     ? row.tool
                     : payment === "partner_settlement"
-                      ? "payment settled"
+                      ? "settlement confirmed"
                       : payment === "partner_fee"
                         ? "fee accrued"
                         : row.eventType}

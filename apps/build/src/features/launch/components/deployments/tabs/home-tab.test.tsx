@@ -73,6 +73,7 @@ describe("HomeTab", () => {
       "href",
       "/operate/usage?project=1",
     );
+    expect(screen.queryByText("Monetization")).not.toBeInTheDocument();
   });
 
   it("shows credits and tokens when usage has traffic", async () => {
@@ -127,6 +128,9 @@ describe("HomeTab", () => {
       screen.getByText(/100\.00 credits \(\$1\.00\) per successful call/),
     ).toBeInTheDocument();
     expect(screen.getByText(/Base Sepolia/)).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "View partner ledger" }),
+    ).toHaveAttribute("href", "/operate/usage?project=1#partner-payments");
     expect(await screen.findByText("No traffic yet")).toBeInTheDocument();
   });
 });
