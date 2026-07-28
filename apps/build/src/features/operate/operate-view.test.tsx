@@ -367,6 +367,49 @@ describe("OperateView transactions", () => {
             net: -4.1,
           },
         ],
+        payments: {
+          available: true,
+          scope: "recipient_bucket",
+          summary: {
+            accruedCredits: 100,
+            accruedUsd: 1,
+            settledCredits: 100,
+            settledUsd: 1,
+            outstandingCredits: 0,
+            outstandingUsd: 0,
+            pricedCalls: 1,
+            settlements: 1,
+          },
+          resources: [
+            {
+              application: "somm-agent",
+              applicationId: 2936606,
+              tool: "get_idle_assets",
+              flatCredits: 100,
+              flatUsd: 1,
+              beneficiary: "banana_evm",
+              recipient: "0x5D907BEa404e6F821d467314a9cA07663CF64c9B",
+              chain: "eip155:84532",
+              observedCalls: 1,
+            },
+          ],
+          events: [
+            {
+              id: "settle:proof",
+              kind: "settlement_confirmed",
+              occurredAt: 1_700_000_001,
+              application: "somm-agent",
+              credits: 100,
+              usd: 1,
+              recipient: "0x5D907BEa404e6F821d467314a9cA07663CF64c9B",
+              paymentMethod: "coinbase",
+              receiptId:
+                "0x55e510bb72adb05979adc8afad8c70fa7ca3d0c2cb5dca9432bf82e46ff1df74",
+              explorerUrl:
+                "https://sepolia.basescan.org/tx/0x55e510bb72adb05979adc8afad8c70fa7ca3d0c2cb5dca9432bf82e46ff1df74",
+            },
+          ],
+        },
       },
     });
 
@@ -382,8 +425,96 @@ describe("OperateView transactions", () => {
     expect(screen.getByText("Model usage")).toBeInTheDocument();
     expect(screen.getByText("−$4.10")).toBeInTheDocument();
     expect(screen.getAllByText("Jul 1 – Jul 15").length).toBeGreaterThan(0);
+    expect(screen.getByText("Partner payments")).toBeInTheDocument();
+    expect(screen.getByText("get_idle_assets")).toBeInTheDocument();
+    expect(screen.getByText("Settlement confirmed")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "0x55e5…df74" })).toHaveAttribute(
+      "href",
+      expect.stringContaining("sepolia.basescan.org/tx/"),
+    );
     // example: true → the header labels the page as example data.
     expect(screen.getByText("Example data")).toBeInTheDocument();
+  });
+
+  it("renders partner settlement receipts as transaction records", async () => {
+    operateFetch.mockResolvedValue({
+      sources: [],
+      transactions: [
+        {
+          id: "partner-payout:settle:proof",
+          kind: "partner_payout",
+          application: "somm-agent",
+          status: "confirmed",
+          family: "evm",
+          chainName: "Base Sepolia",
+          chainId: 84532,
+          fromAddress: "",
+          toAddress: "0x5D907BEa404e6F821d467314a9cA07663CF64c9B",
+          value: "1 USDC",
+          description: "Partner payout via coinbase",
+          txHash:
+            "0x55e510bb72adb05979adc8afad8c70fa7ca3d0c2cb5dca9432bf82e46ff1df74",
+          createdAt: 1_700_000_001,
+          payment: {
+            credits: 100,
+            recipient: "0x5D907BEa404e6F821d467314a9cA07663CF64c9B",
+            scope: "recipient_bucket",
+          },
+        },
+      ],
+      nextCursor: null,
+    });
+
+    render(<OperateView kind="transactions" />);
+
+    expect(await screen.findByText("Partner payout")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Partner payout via coinbase"));
+    expect(screen.getByText("Partner payment context")).toBeInTheDocument();
+    expect(screen.getByText("payer hidden")).toBeInTheDocument();
+    expect(screen.getByText(/recipient bucket/i)).toBeInTheDocument();
+  });
+
+  it("filters and expands partner payment ledger records in logs", async () => {
+    operateFetch.mockResolvedValue({
+      sources: [],
+      logs: [
+        {
+          id: "usage:fee",
+          occurredAt: 1_700_000_000,
+          eventType: "usage",
+          application: "somm-agent",
+          summary: "Partner fee accrued · 100.00 credits",
+          details: {
+            source: "partner_fee",
+            credits_used: 100,
+            recipient: "0x5D907BEa404e6F821d467314a9cA07663CF64c9B",
+            billing: { items: [{ tool: "get_idle_assets", credits: 100 }] },
+          },
+        },
+        {
+          id: "ordinary",
+          occurredAt: 1_699_999_999,
+          eventType: "deployment",
+          application: "somm-agent",
+          summary: "Deployment activated",
+          details: {},
+        },
+      ],
+      nextCursor: null,
+    });
+
+    render(<OperateView kind="logs" />);
+    fireEvent.click(await screen.findByRole("button", { name: "payments" }));
+
+    expect(
+      screen.getByText("Partner fee accrued · 100.00 credits"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Deployment activated")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText("Partner fee accrued · 100.00 credits"));
+    expect(
+      screen.getByText(/awaiting recipient-bucket settlement/i),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/get_idle_assets/)).toBeInTheDocument();
   });
 
   it("falls back to the token meter without a statement", async () => {

@@ -407,6 +407,27 @@ describe("DeploymentClient operate observability", () => {
             release_tag: "apps-123-demo-abc1234def56",
             sdk_version: "3.0.2",
             status: "healthy",
+            pricing: {
+              loaded_at: 1_785_118_000,
+              config: {
+                version: 1,
+                beneficiaries: [
+                  {
+                    name: "banana_evm",
+                    type: "evm_address",
+                    chain: "eip155:84532",
+                    value: "0x5D907BEa404e6F821d467314a9cA07663CF64c9B",
+                  },
+                ],
+                resources: {
+                  get_idle_assets: {
+                    pricing: { flat: 100 },
+                    beneficiary: "banana_evm",
+                  },
+                },
+                outcome: [],
+              },
+            },
             metrics: {
               provider: "grafana_prometheus",
               window_seconds: 300,
@@ -434,6 +455,14 @@ describe("DeploymentClient operate observability", () => {
             description: "Shared DB pressure.",
           },
         ],
+        payments: {
+          available: true,
+          scope: "recipient_bucket",
+          summary: {},
+          resources: [],
+          buckets: [],
+          events: [],
+        },
       }),
     );
     vi.stubGlobal("fetch", fetchMock);
@@ -477,6 +506,17 @@ describe("DeploymentClient operate observability", () => {
       txErrorRate: null,
       coldStartMs: null,
       dylibBytes: null,
+    });
+    expect(result.apps[0].pricing).toMatchObject({
+      loadedAt: 1_785_118_000,
+      config: {
+        resources: {
+          get_idle_assets: {
+            pricing: { flat: 100 },
+            beneficiary: "banana_evm",
+          },
+        },
+      },
     });
     expect(result.platformMetrics[0]).toEqual({
       label: "DB pool waiting",
@@ -861,6 +901,61 @@ describe("DeploymentClient operate statement", () => {
             net: -3.3,
           },
         ],
+        payments: {
+          available: true,
+          scope: "recipient_bucket",
+          summary: {
+            accrued_credits: 100,
+            accrued_usd: 1,
+            settled_credits: 100,
+            settled_usd: 1,
+            outstanding_credits: 0,
+            outstanding_usd: 0,
+            priced_calls: 1,
+            settlements: 1,
+          },
+          resources: [
+            {
+              application: "somm-agent",
+              application_id: 2936606,
+              tool: "get_idle_assets",
+              flat_credits: 100,
+              flat_usd: 1,
+              beneficiary: "banana_evm",
+              recipient: "0x5D907BEa404e6F821d467314a9cA07663CF64c9B",
+              chain: "eip155:84532",
+              beneficiary_type: "evm_address",
+              observed_calls: 1,
+            },
+          ],
+          buckets: [
+            {
+              id: "proof-bucket",
+              recipient: "0x5D907BEa404e6F821d467314a9cA07663CF64c9B",
+              outstanding_credits: 0,
+              outstanding_usd: 0,
+            },
+          ],
+          events: [
+            {
+              id: "settle:proof",
+              kind: "settlement_confirmed",
+              occurred_at: 1_785_119_866,
+              application: "somm-agent",
+              application_id: 2936606,
+              tools: [],
+              credits: 100,
+              usd: 1,
+              asset: "USDC",
+              asset_amount: 1,
+              recipient: "0x5D907BEa404e6F821d467314a9cA07663CF64c9B",
+              payment_method: "coinbase",
+              receipt_id: "0x55e510",
+              chain: "eip155:84532",
+              explorer_url: "https://sepolia.basescan.org/tx/0x55e510",
+            },
+          ],
+        },
       }),
     );
     vi.stubGlobal("fetch", fetchMock);
@@ -923,6 +1018,29 @@ describe("DeploymentClient operate statement", () => {
         net: -3.3,
       },
     ]);
+    expect(result.payments.summary).toEqual({
+      accruedCredits: 100,
+      accruedUsd: 1,
+      settledCredits: 100,
+      settledUsd: 1,
+      outstandingCredits: 0,
+      outstandingUsd: 0,
+      pricedCalls: 1,
+      settlements: 1,
+    });
+    expect(result.payments.resources[0]).toMatchObject({
+      application: "somm-agent",
+      applicationId: 2936606,
+      tool: "get_idle_assets",
+      flatCredits: 100,
+      observedCalls: 1,
+    });
+    expect(result.payments.buckets[0].id).toBe("proof-bucket");
+    expect(result.payments.events[0]).toMatchObject({
+      kind: "settlement_confirmed",
+      receiptId: "0x55e510",
+      chain: "eip155:84532",
+    });
   });
 
   it("degrades to an unavailable zeroed statement when the table is missing", async () => {

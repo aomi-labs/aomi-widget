@@ -451,6 +451,28 @@ export interface GetAppInput extends BearerOverride {
   releaseTag?: string;
 }
 
+export interface AppPricingBeneficiary {
+  name: string;
+  type: string;
+  chain: string;
+  value: string;
+}
+
+export interface AppPricingResource {
+  pricing: { flat: number };
+  beneficiary?: string | null;
+}
+
+export interface AppPricingSnapshot {
+  loadedAt: number;
+  config: {
+    version: number;
+    beneficiaries: AppPricingBeneficiary[];
+    resources: Record<string, AppPricingResource>;
+    outcome: Array<Record<string, unknown>>;
+  };
+}
+
 export interface PlatformApp {
   id: number;
   name: string;
@@ -463,6 +485,8 @@ export interface PlatformApp {
   targetTags: string[];
   loaded: boolean;
   artifactReady?: boolean | null;
+  /** Exact runtime-validated pricing sidecar for the loaded release. */
+  pricing?: AppPricingSnapshot | null;
 }
 
 // ── GitHub identity + per-user sources (the sign-in dashboard) ────────────────
@@ -915,6 +939,64 @@ export interface OperateStatementEntry {
   net: number;
 }
 
+export interface OperatePartnerPaymentSummary {
+  accruedCredits: number;
+  accruedUsd: number;
+  settledCredits: number;
+  settledUsd: number;
+  outstandingCredits: number;
+  outstandingUsd: number;
+  pricedCalls: number;
+  settlements: number;
+}
+
+export interface OperatePartnerPaymentResource {
+  application: string;
+  applicationId: number | null;
+  tool: string;
+  flatCredits: number;
+  flatUsd: number;
+  beneficiary: string | null;
+  recipient: string | null;
+  chain: string | null;
+  beneficiaryType: string | null;
+  observedCalls: number;
+}
+
+export interface OperatePartnerPaymentBucket {
+  id: string;
+  recipient: string;
+  outstandingCredits: number;
+  outstandingUsd: number;
+}
+
+export interface OperatePartnerPaymentEvent {
+  id: string;
+  kind: "fee_accrued" | "settlement_confirmed" | string;
+  occurredAt: number;
+  application: string | null;
+  applicationId: number | null;
+  tools: string[];
+  credits: number;
+  usd: number;
+  asset: string | null;
+  assetAmount: number | null;
+  recipient: string;
+  paymentMethod: string;
+  receiptId: string | null;
+  chain: string | null;
+  explorerUrl: string | null;
+}
+
+export interface OperatePartnerPayments {
+  available: boolean;
+  scope: "recipient_bucket" | string;
+  summary: OperatePartnerPaymentSummary;
+  resources: OperatePartnerPaymentResource[];
+  buckets: OperatePartnerPaymentBucket[];
+  events: OperatePartnerPaymentEvent[];
+}
+
 export interface OperateStatementResult {
   source: AppSource;
   platform: string;
@@ -925,6 +1007,7 @@ export interface OperateStatementResult {
   revenue: OperateStatementRevenueRow[];
   charges: OperateStatementChargeRow[];
   entries: OperateStatementEntry[];
+  payments: OperatePartnerPayments;
 }
 
 export interface OperateModelKeyAttribution {
@@ -972,6 +1055,7 @@ export interface OperateAppHealth {
   sdkVersion: string | null;
   status: "healthy" | "not_loaded" | "inactive" | string;
   metrics?: OperateAppMetrics | null;
+  pricing?: AppPricingSnapshot | null;
 }
 
 export interface OperateAppMetrics {
@@ -1026,6 +1110,7 @@ export interface OperateObservabilityResult {
   apps: OperateAppHealth[];
   dashboardLinks: OperateDashboardLink[];
   platformMetrics: OperatePlatformMetric[];
+  payments: OperatePartnerPayments;
 }
 
 export interface OperateAppDetailTool {

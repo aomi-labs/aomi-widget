@@ -1963,6 +1963,43 @@ function camelPlatformApp(raw: unknown): PlatformApp {
     targetTags: a.target_tags ?? [],
     artifactReady: Boolean(a.artifact_ready ?? a.artifactReady),
     loaded: Boolean(a.loaded),
+    pricing: camelAppPricing(a.pricing),
+  };
+}
+
+function camelAppPricing(raw: unknown): PlatformApp["pricing"] {
+  if (!raw || typeof raw !== "object") return null;
+  const pricing = raw as Record<string, any>;
+  const config = (pricing.config ?? {}) as Record<string, any>;
+  const resources = (config.resources ?? {}) as Record<
+    string,
+    Record<string, any>
+  >;
+  return {
+    loadedAt: timestampSeconds(pricing.loaded_at ?? pricing.loadedAt),
+    config: {
+      version: Number(config.version ?? 0),
+      beneficiaries: (
+        (config.beneficiaries ?? []) as Record<string, any>[]
+      ).map((beneficiary) => ({
+        name: String(beneficiary.name ?? ""),
+        type: String(beneficiary.type ?? ""),
+        chain: String(beneficiary.chain ?? ""),
+        value: String(beneficiary.value ?? ""),
+      })),
+      resources: Object.fromEntries(
+        Object.entries(resources).map(([tool, resource]) => [
+          tool,
+          {
+            pricing: {
+              flat: Number(resource.pricing?.flat ?? 0),
+            },
+            beneficiary: resource.beneficiary ?? null,
+          },
+        ]),
+      ),
+      outcome: Array.isArray(config.outcome) ? config.outcome : [],
+    },
   };
 }
 
@@ -2299,6 +2336,84 @@ function camelOperateStatement(
       platformFee: Number(row.platform_fee ?? row.platformFee ?? 0),
       net: Number(row.net ?? 0),
     })),
+    payments: camelPartnerPayments(raw.payments),
+  };
+}
+
+function camelPartnerPayments(raw: unknown) {
+  const payments = (raw ?? {}) as Record<string, any>;
+  const summary = (payments.summary ?? {}) as Record<string, any>;
+  return {
+    available: Boolean(payments.available),
+    scope: String(payments.scope ?? "recipient_bucket"),
+    summary: {
+      accruedCredits: Number(
+        summary.accrued_credits ?? summary.accruedCredits ?? 0,
+      ),
+      accruedUsd: Number(summary.accrued_usd ?? summary.accruedUsd ?? 0),
+      settledCredits: Number(
+        summary.settled_credits ?? summary.settledCredits ?? 0,
+      ),
+      settledUsd: Number(summary.settled_usd ?? summary.settledUsd ?? 0),
+      outstandingCredits: Number(
+        summary.outstanding_credits ?? summary.outstandingCredits ?? 0,
+      ),
+      outstandingUsd: Number(
+        summary.outstanding_usd ?? summary.outstandingUsd ?? 0,
+      ),
+      pricedCalls: Number(summary.priced_calls ?? summary.pricedCalls ?? 0),
+      settlements: Number(summary.settlements ?? 0),
+    },
+    resources: ((payments.resources ?? []) as Record<string, any>[]).map(
+      (resource) => ({
+        application: String(resource.application ?? ""),
+        applicationId:
+          resource.application_id ?? resource.applicationId ?? null,
+        tool: String(resource.tool ?? ""),
+        flatCredits: Number(resource.flat_credits ?? resource.flatCredits ?? 0),
+        flatUsd: Number(resource.flat_usd ?? resource.flatUsd ?? 0),
+        beneficiary: resource.beneficiary ?? null,
+        recipient: resource.recipient ?? null,
+        chain: resource.chain ?? null,
+        beneficiaryType:
+          resource.beneficiary_type ?? resource.beneficiaryType ?? null,
+        observedCalls: Number(
+          resource.observed_calls ?? resource.observedCalls ?? 0,
+        ),
+      }),
+    ),
+    buckets: ((payments.buckets ?? []) as Record<string, any>[]).map(
+      (bucket) => ({
+        id: String(bucket.id ?? ""),
+        recipient: String(bucket.recipient ?? ""),
+        outstandingCredits: Number(
+          bucket.outstanding_credits ?? bucket.outstandingCredits ?? 0,
+        ),
+        outstandingUsd: Number(
+          bucket.outstanding_usd ?? bucket.outstandingUsd ?? 0,
+        ),
+      }),
+    ),
+    events: ((payments.events ?? []) as Record<string, any>[]).map((event) => ({
+      id: String(event.id ?? ""),
+      kind: String(event.kind ?? ""),
+      occurredAt: timestampSeconds(event.occurred_at ?? event.occurredAt),
+      application: event.application ?? null,
+      applicationId: event.application_id ?? event.applicationId ?? null,
+      tools: Array.isArray(event.tools) ? event.tools.map(String) : [],
+      credits: Number(event.credits ?? 0),
+      usd: Number(event.usd ?? 0),
+      asset: event.asset ?? null,
+      assetAmount:
+        event.asset_amount === null || event.asset_amount === undefined
+          ? (event.assetAmount ?? null)
+          : Number(event.asset_amount),
+      recipient: String(event.recipient ?? ""),
+      paymentMethod: String(event.payment_method ?? event.paymentMethod ?? ""),
+      receiptId: event.receipt_id ?? event.receiptId ?? null,
+      chain: event.chain ?? null,
+      explorerUrl: event.explorer_url ?? event.explorerUrl ?? null,
+    })),
   };
 }
 
@@ -2375,6 +2490,7 @@ function camelOperateObservability(
       sdkVersion: app.sdk_version ?? app.sdkVersion ?? null,
       status: String(app.status ?? ""),
       metrics: camelOperateAppMetrics(app.metrics),
+      pricing: camelAppPricing(app.pricing),
     })),
     dashboardLinks: (
       (raw.dashboard_links ?? raw.dashboardLinks ?? []) as Record<string, any>[]
@@ -2399,6 +2515,7 @@ function camelOperateObservability(
       description:
         typeof metric.description === "string" ? metric.description : undefined,
     })),
+    payments: camelPartnerPayments(raw.payments),
   };
 }
 

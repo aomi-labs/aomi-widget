@@ -7,7 +7,10 @@ import {
   within,
 } from "@testing-library/react";
 import { ToastProvider } from "@build/components/control-plane/toast";
+import type { useProjectDetail } from "@build/features/launch/hooks/use-project-detail";
 import { DeploymentsTab } from "./deployments-tab";
+
+type Detail = ReturnType<typeof useProjectDetail>;
 
 function renderTab(ui: React.ReactElement) {
   return render(<ToastProvider>{ui}</ToastProvider>);
@@ -32,6 +35,8 @@ function makeDetail(
     requiredSdk?: string;
     upgradeSdk?: ReturnType<typeof vi.fn>;
     checkSdkUpgradeStatus?: ReturnType<typeof vi.fn>;
+    history?: Detail["history"];
+    recordsByApp?: Detail["recordsByApp"];
   } = {},
 ) {
   const sdkVersion = overrides.sdkVersion ?? "3.0.1";
@@ -55,7 +60,7 @@ function makeDetail(
     loadRecords: vi.fn(),
     loadRequiredSecrets: vi.fn(),
     loadHistory: vi.fn(),
-    history: null,
+    history: overrides.history ?? null,
     historyError: null,
     refreshRequiredSecrets: vi.fn(async () => ({})),
     hasMissingSecrets: overrides.hasMissingSecrets ?? (() => false),
@@ -82,26 +87,28 @@ function makeDetail(
         },
       })),
     deployFlow: { phase: "idle" },
-    recordsByApp: {
-      "my-bot": [
-        {
-          deploymentId: "dep_1_ra_currentcmt",
-          releaseTag: "t-current",
-          actor: "alice",
-          createdAt: 200,
-          sdkVersion,
-          current: true,
-        },
-        {
-          deploymentId: "dep_1_ra_oldcommit1",
-          releaseTag: "t-old",
-          actor: "alice",
-          createdAt: 100,
-          sdkVersion,
-          current: false,
-        },
-      ],
-    },
+    recordsByApp:
+      overrides.recordsByApp ??
+      ({
+        "my-bot": [
+          {
+            deploymentId: "dep_1_ra_currentcmt",
+            releaseTag: "t-current",
+            actor: "alice",
+            createdAt: 200,
+            sdkVersion,
+            current: true,
+          },
+          {
+            deploymentId: "dep_1_ra_oldcommit1",
+            releaseTag: "t-old",
+            actor: "alice",
+            createdAt: 100,
+            sdkVersion,
+            current: false,
+          },
+        ],
+      } satisfies Detail["recordsByApp"]),
     promote,
     deactivate,
     reload: vi.fn(),
@@ -121,6 +128,7 @@ describe("DeploymentsTab", () => {
 
   it("renders deployments from the DB timeline, current first", async () => {
     renderTab(<DeploymentsTab detail={detail} />);
+    expect(detail.loadHistory).toHaveBeenCalled();
     expect(detail.loadRecords).toHaveBeenCalled();
     expect(
       await screen.findByText(/Live · my-bot · 2 deployments/i),
@@ -137,6 +145,37 @@ describe("DeploymentsTab", () => {
       "aria-selected",
       "false",
     );
+  });
+
+  it("renders history when the promotion log is empty", async () => {
+    const historyOnly = makeDetail({
+      recordsByApp: { "my-bot": [] },
+      history: [
+        {
+          deploymentId: "dep_1_ra_sommcommit",
+          state: "ready",
+          deployBranch: "alice/somm/1/sommcommit",
+          platformRepo: "aomi-labs/somm-finance-apps",
+          commitHash: "sommcommit00000000000000000000000000000",
+          ciStatus: "passed",
+          ciUrl: null,
+          releaseTags: ["t-current"],
+          sdkVersion: "3.0.4",
+          createdAt: 200,
+          apps: [{ name: "my-bot", releaseTag: "t-current" }],
+        },
+      ],
+    });
+
+    renderTab(<DeploymentsTab detail={historyOnly} />);
+
+    expect(
+      await screen.findByText(/Live · my-bot · 1 deployment in history/i),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("dep_1_ra_sommcommit").length).toBeGreaterThan(
+      0,
+    );
+    expect(screen.queryByText(/No deployment history yet/i)).toBeNull();
   });
 
   it("renders promotion activity in the Promotions subtab", async () => {
