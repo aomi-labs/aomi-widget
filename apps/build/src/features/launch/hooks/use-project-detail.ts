@@ -308,6 +308,13 @@ export function useProjectDetail(sourceId: number, platform?: string) {
       });
       const pre = await launchPreflight({ repo, platform });
       const appSourceId = pre.appSourceId ?? sourceId;
+      // Preflight re-syncs the source from the repo, so HEAD's `aomi.toml` can
+      // register apps this page never saw. Refresh the source before gating:
+      // the required-secret check runs against `pre.apps`, and both the gate
+      // banner and the Environment tab list apps from `source.apps`. Without
+      // this the check can fail for an app the UI has no row for — the user is
+      // told a secret is missing with nowhere to enter it.
+      await reload();
       await ensureRequiredSecrets(pre.apps, appSourceId);
       setDeployFlow({ phase: "deploying", message: "Deploying new version…" });
       const deployed = await launchDeploy({

@@ -167,6 +167,52 @@ describe("EnvironmentTab", () => {
     );
   });
 
+  it("lists an app the gate flagged but the source snapshot predates", () => {
+    // A deploy re-syncs the source from the repo, so the required-secret check
+    // can name an app this page's `source.apps` does not have yet. Without the
+    // union the user is told a secret is missing with nowhere to enter it.
+    const freshAppDetail = {
+      ...detail,
+      secretsByApp: { demo: [] },
+      requiredSecrets: {
+        demo: { slots: [], missing: [] },
+        "demo-bot": {
+          slots: [
+            {
+              name: "TELEGRAM_BOT_TOKEN",
+              description: "Token from BotFather.",
+              required: true,
+            },
+          ],
+          missing: ["TELEGRAM_BOT_TOKEN"],
+        },
+      },
+    } as typeof detail;
+    renderTab({ detail: freshAppDetail });
+
+    fireEvent.click(screen.getByRole("tab", { name: "demo-bot" }));
+    expect(screen.getByText("TELEGRAM_BOT_TOKEN")).toBeInTheDocument();
+    expect(screen.getByText(/1 required secret missing/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByTitle("Set TELEGRAM_BOT_TOKEN"));
+    expect(screen.getByLabelText("Environment key")).toHaveValue(
+      "TELEGRAM_BOT_TOKEN",
+    );
+  });
+
+  it("explains an unverifiable required-secret check instead of an empty list", () => {
+    renderTab({
+      detail: {
+        ...detail,
+        requiredSecretsError: "Unable to verify required secrets. Try again.",
+        refreshRequiredSecrets: vi.fn(async () => ({})),
+      } as unknown as typeof detail,
+    });
+    expect(
+      screen.getByText(/Required secrets could not be verified/i),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
+  });
+
   it("marks required vs optional slots with an asterisk", () => {
     const requiredDetail = {
       ...detail,
