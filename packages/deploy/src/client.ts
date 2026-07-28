@@ -32,12 +32,15 @@ import type {
   ListUserSourceDeploymentsInput,
   ListUserSourcesInput,
   BotRegistration,
+  CreateUserBotInput,
+  DeleteUserBotInput,
   CreateUserSourceBotInput,
   BuilderModelKey,
   BuilderModelKeyUsage,
   BuilderModelKeysInput,
   DeleteBuilderModelKeyInput,
   DeleteUserSourceBotInput,
+  OwnedOperateInput,
   OperateLogCursor,
   OperateAppDetailResult,
   OperateStatementResult,
@@ -46,6 +49,7 @@ import type {
   OperateTransactionCursor,
   OperateTransactionsResult,
   OperateUsageResult,
+  UpdateUserBotInput,
   OwnedOperateSourceInput,
   SaveBuilderModelKeyInput,
   SetModelKeyGrantsInput,
@@ -886,6 +890,84 @@ export class DeploymentClient {
     });
   }
 
+  async listUserBots(input: OwnedOperateInput): Promise<BotRegistration[]> {
+    const { params, platform, bearer } = this.ownedOperateUserRequest(input);
+    const raw = await this.get<{ bot_registrations?: unknown[] }>(
+      `/api/integrations/github-app/user/bots?${params.toString()}`,
+      "list_user_bots",
+      bearer,
+    );
+    await this.audit({
+      action: "list_user_bots",
+      platform,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return ((raw.bot_registrations ?? []) as unknown[]).map(
+      camelBotRegistration,
+    );
+  }
+
+  async createUserBot(input: CreateUserBotInput): Promise<BotRegistration> {
+    const { params, platform, bearer } = this.ownedOperateUserRequest(input);
+    const credential = required(input.credential, "credential");
+    const raw = await this.post<{ bot_registration?: unknown }>(
+      `/api/integrations/github-app/user/bots?${params.toString()}`,
+      {
+        platform: required(input.botPlatform, "botPlatform"),
+        application_ids: input.applicationIds,
+        primary_application_id: input.primaryApplicationId,
+        label: input.label,
+        credential,
+        thread_mode: input.threadMode,
+      },
+      "create_user_bot",
+      bearer,
+    );
+    await this.audit({
+      action: "create_user_bot",
+      platform,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return camelBotRegistration(raw.bot_registration);
+  }
+
+  async updateUserBot(input: UpdateUserBotInput): Promise<BotRegistration> {
+    const { params, platform, bearer } = this.ownedOperateUserRequest(input);
+    const raw = await this.patch<{ bot_registration?: unknown }>(
+      `/api/integrations/github-app/user/bots/${encodeURIComponent(required(input.botId, "botId"))}?${params.toString()}`,
+      {
+        application_ids: input.applicationIds,
+        primary_application_id: input.primaryApplicationId,
+      },
+      "update_user_bot",
+      bearer,
+    );
+    await this.audit({
+      action: "update_user_bot",
+      platform,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return camelBotRegistration(raw.bot_registration);
+  }
+
+  async deleteUserBot(input: DeleteUserBotInput): Promise<void> {
+    const { params, platform, bearer } = this.ownedOperateUserRequest(input);
+    await this.del<unknown>(
+      `/api/integrations/github-app/user/bots/${encodeURIComponent(required(input.botId, "botId"))}?${params.toString()}`,
+      "delete_user_bot",
+      bearer,
+    );
+    await this.audit({
+      action: "delete_user_bot",
+      platform,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+  }
+
   /** All builder-owned model keys with their grants (funder-ladder app
    *  rung). Names/prefixes/grants only — key material is write-only. */
   async listBuilderModelKeys(
@@ -939,7 +1021,9 @@ export class DeploymentClient {
     return camelBuilderModelKey(raw.key);
   }
 
-  async deleteBuilderModelKey(input: DeleteBuilderModelKeyInput): Promise<void> {
+  async deleteBuilderModelKey(
+    input: DeleteBuilderModelKeyInput,
+  ): Promise<void> {
     const { params, bearer } = this.builderKeyRequest(input);
     const keyId = required(String(input.keyId), "keyId");
     await this.del<unknown>(
@@ -1409,6 +1493,20 @@ export class DeploymentClient {
     };
   }
 
+  private ownedOperateUserRequest(input: OwnedOperateInput): {
+    params: URLSearchParams;
+    platform: string;
+    bearer: string;
+  } {
+    const githubUserId = required(input.githubUserId, "githubUserId");
+    const platform = cleanPlatform(input.platform);
+    return {
+      platform,
+      bearer: this.resolveBearer(input.bearer),
+      params: new URLSearchParams({ github_user_id: githubUserId, platform }),
+    };
+  }
+
   private backoffDelay(
     failures: number,
     baseMs: number,
@@ -1435,6 +1533,24 @@ export class DeploymentClient {
       path,
       {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      operation,
+      bearer,
+    );
+  }
+
+  private async patch<Resp>(
+    path: string,
+    body: unknown,
+    operation: string,
+    bearer: string,
+  ): Promise<Resp> {
+    return this.request<Resp>(
+      path,
+      {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       },
@@ -1847,6 +1963,43 @@ function camelPlatformApp(raw: unknown): PlatformApp {
     targetTags: a.target_tags ?? [],
     artifactReady: Boolean(a.artifact_ready ?? a.artifactReady),
     loaded: Boolean(a.loaded),
+    pricing: camelAppPricing(a.pricing),
+  };
+}
+
+function camelAppPricing(raw: unknown): PlatformApp["pricing"] {
+  if (!raw || typeof raw !== "object") return null;
+  const pricing = raw as Record<string, any>;
+  const config = (pricing.config ?? {}) as Record<string, any>;
+  const resources = (config.resources ?? {}) as Record<
+    string,
+    Record<string, any>
+  >;
+  return {
+    loadedAt: timestampSeconds(pricing.loaded_at ?? pricing.loadedAt),
+    config: {
+      version: Number(config.version ?? 0),
+      beneficiaries: (
+        (config.beneficiaries ?? []) as Record<string, any>[]
+      ).map((beneficiary) => ({
+        name: String(beneficiary.name ?? ""),
+        type: String(beneficiary.type ?? ""),
+        chain: String(beneficiary.chain ?? ""),
+        value: String(beneficiary.value ?? ""),
+      })),
+      resources: Object.fromEntries(
+        Object.entries(resources).map(([tool, resource]) => [
+          tool,
+          {
+            pricing: {
+              flat: Number(resource.pricing?.flat ?? 0),
+            },
+            beneficiary: resource.beneficiary ?? null,
+          },
+        ]),
+      ),
+      outcome: Array.isArray(config.outcome) ? config.outcome : [],
+    },
   };
 }
 
@@ -1858,6 +2011,16 @@ function camelBotRegistration(raw: unknown): BotRegistration {
     status: String(b.status ?? ""),
     label: b.label ?? null,
     defaultApp: String(b.default_app ?? b.defaultApp ?? ""),
+    defaultAppId: Number(b.default_app_id ?? b.defaultAppId ?? 0),
+    apps: ((b.apps ?? []) as Record<string, any>[]).map((app) => ({
+      applicationId: Number(app.application_id ?? app.applicationId ?? 0),
+      appSourceId: app.app_source_id ?? app.appSourceId ?? null,
+      sourceLabel: app.source_label ?? app.sourceLabel ?? null,
+      name: String(app.name ?? ""),
+      label: String(app.label ?? app.name ?? ""),
+      platform: app.platform ?? null,
+      isPrimary: Boolean(app.is_primary ?? app.isPrimary),
+    })),
     platformBotId: String(b.platform_bot_id ?? b.platformBotId ?? ""),
     platformUsername: b.platform_username ?? b.platformUsername ?? null,
     webhookUrl: b.webhook_url ?? b.webhookUrl ?? null,
@@ -2173,6 +2336,84 @@ function camelOperateStatement(
       platformFee: Number(row.platform_fee ?? row.platformFee ?? 0),
       net: Number(row.net ?? 0),
     })),
+    payments: camelPartnerPayments(raw.payments),
+  };
+}
+
+function camelPartnerPayments(raw: unknown) {
+  const payments = (raw ?? {}) as Record<string, any>;
+  const summary = (payments.summary ?? {}) as Record<string, any>;
+  return {
+    available: Boolean(payments.available),
+    scope: String(payments.scope ?? "recipient_bucket"),
+    summary: {
+      accruedCredits: Number(
+        summary.accrued_credits ?? summary.accruedCredits ?? 0,
+      ),
+      accruedUsd: Number(summary.accrued_usd ?? summary.accruedUsd ?? 0),
+      settledCredits: Number(
+        summary.settled_credits ?? summary.settledCredits ?? 0,
+      ),
+      settledUsd: Number(summary.settled_usd ?? summary.settledUsd ?? 0),
+      outstandingCredits: Number(
+        summary.outstanding_credits ?? summary.outstandingCredits ?? 0,
+      ),
+      outstandingUsd: Number(
+        summary.outstanding_usd ?? summary.outstandingUsd ?? 0,
+      ),
+      pricedCalls: Number(summary.priced_calls ?? summary.pricedCalls ?? 0),
+      settlements: Number(summary.settlements ?? 0),
+    },
+    resources: ((payments.resources ?? []) as Record<string, any>[]).map(
+      (resource) => ({
+        application: String(resource.application ?? ""),
+        applicationId:
+          resource.application_id ?? resource.applicationId ?? null,
+        tool: String(resource.tool ?? ""),
+        flatCredits: Number(resource.flat_credits ?? resource.flatCredits ?? 0),
+        flatUsd: Number(resource.flat_usd ?? resource.flatUsd ?? 0),
+        beneficiary: resource.beneficiary ?? null,
+        recipient: resource.recipient ?? null,
+        chain: resource.chain ?? null,
+        beneficiaryType:
+          resource.beneficiary_type ?? resource.beneficiaryType ?? null,
+        observedCalls: Number(
+          resource.observed_calls ?? resource.observedCalls ?? 0,
+        ),
+      }),
+    ),
+    buckets: ((payments.buckets ?? []) as Record<string, any>[]).map(
+      (bucket) => ({
+        id: String(bucket.id ?? ""),
+        recipient: String(bucket.recipient ?? ""),
+        outstandingCredits: Number(
+          bucket.outstanding_credits ?? bucket.outstandingCredits ?? 0,
+        ),
+        outstandingUsd: Number(
+          bucket.outstanding_usd ?? bucket.outstandingUsd ?? 0,
+        ),
+      }),
+    ),
+    events: ((payments.events ?? []) as Record<string, any>[]).map((event) => ({
+      id: String(event.id ?? ""),
+      kind: String(event.kind ?? ""),
+      occurredAt: timestampSeconds(event.occurred_at ?? event.occurredAt),
+      application: event.application ?? null,
+      applicationId: event.application_id ?? event.applicationId ?? null,
+      tools: Array.isArray(event.tools) ? event.tools.map(String) : [],
+      credits: Number(event.credits ?? 0),
+      usd: Number(event.usd ?? 0),
+      asset: event.asset ?? null,
+      assetAmount:
+        event.asset_amount === null || event.asset_amount === undefined
+          ? (event.assetAmount ?? null)
+          : Number(event.asset_amount),
+      recipient: String(event.recipient ?? ""),
+      paymentMethod: String(event.payment_method ?? event.paymentMethod ?? ""),
+      receiptId: event.receipt_id ?? event.receiptId ?? null,
+      chain: event.chain ?? null,
+      explorerUrl: event.explorer_url ?? event.explorerUrl ?? null,
+    })),
   };
 }
 
@@ -2183,23 +2424,40 @@ function camelOperateLogs(
   return {
     source: camelAppSource(raw.source),
     platform: String(raw.platform ?? fallbackPlatform),
-    logs: ((raw.logs ?? []) as Record<string, any>[]).map((row) => ({
-      occurredAt: timestampSeconds(row.occurred_at ?? row.occurredAt),
-      eventType: String(row.event_type ?? row.eventType ?? ""),
-      id: String(row.id ?? ""),
-      application: String(row.application ?? ""),
-      applicationId: row.application_id ?? row.applicationId ?? null,
-      summary: String(row.summary ?? ""),
-      details: (row.details ?? {}) as Record<string, unknown>,
-      kind: (row.kind ?? null) as "invocation" | "event" | null,
-      status: (row.status ?? null) as "ok" | "error" | "info" | null,
-      tool: optString(row.tool),
-      durationMs: optNumber(row.duration_ms ?? row.durationMs),
-      retries: optNumber(row.retries),
-      threadId: optString(row.thread_id ?? row.threadId),
-      args: optString(row.args),
-      result: optString(row.result),
-    })),
+    logs: ((raw.logs ?? []) as Record<string, any>[]).map((row) => {
+      const details = (row.details ?? {}) as Record<string, any>;
+      const rawModelKey = details.model_key ?? details.modelKey;
+      const modelKeyId =
+        rawModelKey && typeof rawModelKey === "object"
+          ? optNumber(rawModelKey.id)
+          : null;
+      const modelKey =
+        modelKeyId !== null && Number.isFinite(modelKeyId)
+          ? {
+              id: modelKeyId,
+              label: optString(rawModelKey.label),
+              prefix: optString(rawModelKey.prefix),
+            }
+          : null;
+      return {
+        occurredAt: timestampSeconds(row.occurred_at ?? row.occurredAt),
+        eventType: String(row.event_type ?? row.eventType ?? ""),
+        id: String(row.id ?? ""),
+        application: String(row.application ?? ""),
+        applicationId: row.application_id ?? row.applicationId ?? null,
+        summary: String(row.summary ?? ""),
+        details,
+        modelKey,
+        kind: (row.kind ?? null) as "invocation" | "event" | null,
+        status: (row.status ?? null) as "ok" | "error" | "info" | null,
+        tool: optString(row.tool),
+        durationMs: optNumber(row.duration_ms ?? row.durationMs),
+        retries: optNumber(row.retries),
+        threadId: optString(row.thread_id ?? row.threadId),
+        args: optString(row.args),
+        result: optString(row.result),
+      };
+    }),
     nextCursor: camelLogCursor(raw.next_cursor ?? raw.nextCursor),
   };
 }
@@ -2232,6 +2490,7 @@ function camelOperateObservability(
       sdkVersion: app.sdk_version ?? app.sdkVersion ?? null,
       status: String(app.status ?? ""),
       metrics: camelOperateAppMetrics(app.metrics),
+      pricing: camelAppPricing(app.pricing),
     })),
     dashboardLinks: (
       (raw.dashboard_links ?? raw.dashboardLinks ?? []) as Record<string, any>[]
@@ -2256,6 +2515,7 @@ function camelOperateObservability(
       description:
         typeof metric.description === "string" ? metric.description : undefined,
     })),
+    payments: camelPartnerPayments(raw.payments),
   };
 }
 
@@ -2270,6 +2530,14 @@ function camelOperateAppDetail(
   const hourly = (raw.hourly ?? {}) as Record<string, any>;
   const series = (value: unknown): number[] | null =>
     Array.isArray(value) ? value.map(Number) : null;
+  const nullableSeries = (value: unknown): Array<number | null> | null =>
+    Array.isArray(value)
+      ? value.map((item) => {
+          if (item === null || item === undefined) return null;
+          const numeric = Number(item);
+          return Number.isFinite(numeric) ? numeric : null;
+        })
+      : null;
   return {
     source: camelAppSource(raw.source),
     platform: String(raw.platform ?? fallbackPlatform),
@@ -2343,7 +2611,9 @@ function camelOperateAppDetail(
     hourly: {
       chats: series(hourly.chats),
       toolCalls: series(hourly.tool_calls ?? hourly.toolCalls),
-      p95LatencyMs: series(hourly.p95_latency_ms ?? hourly.p95LatencyMs),
+      p95LatencyMs: nullableSeries(
+        hourly.p95_latency_ms ?? hourly.p95LatencyMs,
+      ),
       transactions: series(hourly.transactions),
     },
   };

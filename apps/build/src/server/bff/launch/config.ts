@@ -60,17 +60,8 @@ function envJsonOrCommaList(name: string): string[] {
 }
 
 function deployPlatforms(): string[] {
-  for (const name of [
-    "APP_DEPLOY_PLATFORMS",
-    "NEXT_PUBLIC_APP_DEPLOY_PLATFORMS",
-    "APP_DEPLOY_PLATFORM",
-    "NEXT_PUBLIC_APP_DEPLOY_PLATFORM",
-  ]) {
-    const platforms = envJsonOrCommaList(name);
-    if (platforms.length > 0) return platforms;
-  }
-
-  return [DEFAULT_DEPLOY_PLATFORM];
+  const platforms = envJsonOrCommaList("APP_DEPLOY_PLATFORMS");
+  return platforms.length > 0 ? platforms : [DEFAULT_DEPLOY_PLATFORM];
 }
 
 function catalogPlatforms(): string[] {
@@ -98,4 +89,14 @@ export function launchConfig(): LaunchConfig {
     createdRepoPrivate: envBoolean("APP_DEPLOY_CREATED_REPO_PRIVATE", false),
     targetTags: envList("APP_DEPLOY_TARGET_TAGS"),
   };
+}
+
+export function resolveLaunchPlatform(
+  value: unknown,
+  config = launchConfig(),
+): string | null {
+  if (value === undefined) return config.platform;
+  if (typeof value !== "string") return null;
+  const platform = value.trim();
+  return config.platforms.includes(platform) ? platform : null;
 }

@@ -11,7 +11,7 @@
     "start": "next start",
     "lint": "eslint .",
     "type-check": "next typegen && tsc --noEmit --incremental false",
-    "test": "node scripts/run-tests.mjs --passWithNoTests",
+    "test": "vitest run",
     "clean:next": "rm -rf .next",
     "clean:all": "rm -rf .next node_modules",
     "clean": "rm -rf .next node_modules"

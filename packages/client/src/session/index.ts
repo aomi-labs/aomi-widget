@@ -211,7 +211,10 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
    */
   async interrupt(): Promise<void> {
     this.stopPolling();
-    const response = await this.client.interrupt(this.sessionId);
+    const response = await this.client.interrupt(this.sessionId, {
+      app: this.app,
+      applicationId: this.applicationId,
+    });
     this.applyState(response);
     this._isProcessing = false;
     this.emit("processing_end", undefined);
@@ -273,11 +276,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     }
     this.isSSEActive = active;
     if (active) {
-      this.unsubscribeSSE = this.client.subscribeSSE(
-        this.sessionId,
-        (event) => this.handleSSEEvent(event),
-        (error) => this.emit("error", { error }),
-      );
+      this.startSSE();
       return;
     }
     this.unsubscribeSSE?.();
@@ -285,6 +284,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   }
 
   syncRuntimeOptions(options: SessionRuntimeOptions): void {
+    const previousApplicationId = this.applicationId?.toString();
     this.app = options.app;
     this.applicationId = options.applicationId;
     this.apiKey = options.apiKey;
@@ -293,6 +293,23 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     if (options.userState) {
       this.resolveUserState(options.userState);
     }
+
+    if (
+      this.isSSEActive &&
+      previousApplicationId !== this.applicationId?.toString()
+    ) {
+      this.unsubscribeSSE?.();
+      this.startSSE();
+    }
+  }
+
+  private startSSE(): void {
+    this.unsubscribeSSE = this.client.subscribeSSE(
+      this.sessionId,
+      (event) => this.handleSSEEvent(event),
+      (error) => this.emit("error", { error }),
+      { applicationId: this.applicationId },
+    );
   }
 
   resolveUserState(

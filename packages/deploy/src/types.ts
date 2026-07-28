@@ -42,6 +42,10 @@ export interface AuditEvent {
     | "list_user_source_bots"
     | "create_user_source_bot"
     | "delete_user_source_bot"
+    | "list_user_bots"
+    | "create_user_bot"
+    | "update_user_bot"
+    | "delete_user_bot"
     | "list_builder_model_keys"
     | "save_builder_model_key"
     | "delete_builder_model_key"
@@ -447,6 +451,28 @@ export interface GetAppInput extends BearerOverride {
   releaseTag?: string;
 }
 
+export interface AppPricingBeneficiary {
+  name: string;
+  type: string;
+  chain: string;
+  value: string;
+}
+
+export interface AppPricingResource {
+  pricing: { flat: number };
+  beneficiary?: string | null;
+}
+
+export interface AppPricingSnapshot {
+  loadedAt: number;
+  config: {
+    version: number;
+    beneficiaries: AppPricingBeneficiary[];
+    resources: Record<string, AppPricingResource>;
+    outcome: Array<Record<string, unknown>>;
+  };
+}
+
 export interface PlatformApp {
   id: number;
   name: string;
@@ -459,6 +485,8 @@ export interface PlatformApp {
   targetTags: string[];
   loaded: boolean;
   artifactReady?: boolean | null;
+  /** Exact runtime-validated pricing sidecar for the loaded release. */
+  pricing?: AppPricingSnapshot | null;
 }
 
 // ── GitHub identity + per-user sources (the sign-in dashboard) ────────────────
@@ -682,11 +710,47 @@ export interface BotRegistration {
   status: string;
   label: string | null;
   defaultApp: string;
+  defaultAppId?: number;
+  apps: BotRegistrationApp[];
   platformBotId: string;
   platformUsername: string | null;
   webhookUrl: string | null;
   threadMode: string;
   createdAt: number;
+}
+
+export interface BotRegistrationApp {
+  applicationId: number;
+  appSourceId: number | null;
+  sourceLabel: string | null;
+  name: string;
+  label: string;
+  platform: string | null;
+  isPrimary: boolean;
+}
+
+export interface OwnedOperateInput extends BearerOverride {
+  githubUserId: string;
+  platform: string;
+}
+
+export interface CreateUserBotInput extends OwnedOperateInput {
+  applicationIds: number[];
+  primaryApplicationId: number;
+  botPlatform: string;
+  credential: string;
+  label?: string;
+  threadMode?: string;
+}
+
+export interface UpdateUserBotInput extends OwnedOperateInput {
+  botId: string;
+  applicationIds: number[];
+  primaryApplicationId: number;
+}
+
+export interface DeleteUserBotInput extends OwnedOperateInput {
+  botId: string;
 }
 
 export interface CreateUserSourceBotInput extends OwnedOperateSourceInput {
@@ -875,6 +939,64 @@ export interface OperateStatementEntry {
   net: number;
 }
 
+export interface OperatePartnerPaymentSummary {
+  accruedCredits: number;
+  accruedUsd: number;
+  settledCredits: number;
+  settledUsd: number;
+  outstandingCredits: number;
+  outstandingUsd: number;
+  pricedCalls: number;
+  settlements: number;
+}
+
+export interface OperatePartnerPaymentResource {
+  application: string;
+  applicationId: number | null;
+  tool: string;
+  flatCredits: number;
+  flatUsd: number;
+  beneficiary: string | null;
+  recipient: string | null;
+  chain: string | null;
+  beneficiaryType: string | null;
+  observedCalls: number;
+}
+
+export interface OperatePartnerPaymentBucket {
+  id: string;
+  recipient: string;
+  outstandingCredits: number;
+  outstandingUsd: number;
+}
+
+export interface OperatePartnerPaymentEvent {
+  id: string;
+  kind: "fee_accrued" | "settlement_confirmed" | string;
+  occurredAt: number;
+  application: string | null;
+  applicationId: number | null;
+  tools: string[];
+  credits: number;
+  usd: number;
+  asset: string | null;
+  assetAmount: number | null;
+  recipient: string;
+  paymentMethod: string;
+  receiptId: string | null;
+  chain: string | null;
+  explorerUrl: string | null;
+}
+
+export interface OperatePartnerPayments {
+  available: boolean;
+  scope: "recipient_bucket" | string;
+  summary: OperatePartnerPaymentSummary;
+  resources: OperatePartnerPaymentResource[];
+  buckets: OperatePartnerPaymentBucket[];
+  events: OperatePartnerPaymentEvent[];
+}
+
 export interface OperateStatementResult {
   source: AppSource;
   platform: string;
@@ -885,6 +1007,14 @@ export interface OperateStatementResult {
   revenue: OperateStatementRevenueRow[];
   charges: OperateStatementChargeRow[];
   entries: OperateStatementEntry[];
+  payments: OperatePartnerPayments;
+}
+
+export interface OperateModelKeyAttribution {
+  id: number;
+  label: string | null;
+  /** Short cleartext prefix already exposed on the Providers page. */
+  prefix: string | null;
 }
 
 export interface OperateLogEntry {
@@ -895,6 +1025,8 @@ export interface OperateLogEntry {
   applicationId: number | null;
   summary: string;
   details: Record<string, unknown>;
+  /** Builder-owned key that funded this usage event; null for other events. */
+  modelKey?: OperateModelKeyAttribution | null;
   // Invocation-trace contract — null/absent for plain control-plane events.
   // Privacy: args/results are operational payloads; user intents never ship.
   kind: "invocation" | "event" | null;
@@ -923,6 +1055,7 @@ export interface OperateAppHealth {
   sdkVersion: string | null;
   status: "healthy" | "not_loaded" | "inactive" | string;
   metrics?: OperateAppMetrics | null;
+  pricing?: AppPricingSnapshot | null;
 }
 
 export interface OperateAppMetrics {
@@ -977,6 +1110,7 @@ export interface OperateObservabilityResult {
   apps: OperateAppHealth[];
   dashboardLinks: OperateDashboardLink[];
   platformMetrics: OperatePlatformMetric[];
+  payments: OperatePartnerPayments;
 }
 
 export interface OperateAppDetailTool {
@@ -1028,8 +1162,8 @@ export interface OperateAppDetailResult {
   hourly: {
     chats: number[] | null;
     toolCalls: number[] | null;
-    /** Per-hour chat request P95, in milliseconds. */
-    p95LatencyMs: number[] | null;
+    /** Per-hour chat request P95, in milliseconds. `null` means no samples. */
+    p95LatencyMs: Array<number | null> | null;
     transactions: number[] | null;
   };
 }

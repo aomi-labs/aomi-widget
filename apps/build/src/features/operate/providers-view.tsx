@@ -900,7 +900,9 @@ export function ProvidersView() {
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-5 px-4 py-8 sm:px-6 lg:px-8">
       <header>
-        <h1 className="text-xl font-semibold tracking-[-0.01em]">Providers</h1>
+        <h1 className="font-display text-xl font-normal tracking-tight">
+          Providers
+        </h1>
         <p className="text-subtle mt-1.5 max-w-2xl text-[13px] leading-relaxed">
           Your keys fund inference for your apps&apos; users — model cost is
           waived when a key covers their selected model.

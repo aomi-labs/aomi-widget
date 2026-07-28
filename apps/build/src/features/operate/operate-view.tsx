@@ -32,6 +32,7 @@ import {
   percentLabel,
   truncateAddress,
   unitLabel,
+  usdLabel,
 } from "./format";
 import { TransactionRows } from "./tx-rows";
 import {
@@ -63,6 +64,7 @@ type OperatePayload = {
   dashboardLinks?: Array<Record<string, any>>;
   monitoring?: Record<string, any> | null;
   platformMetrics?: Array<Record<string, any>>;
+  payments?: Record<string, any> | null;
   nextCursor?: unknown | null;
 };
 
@@ -273,6 +275,7 @@ function Rows({
             app: filter.app,
             tool: filter.tool,
             errors: filter.errorsOnly ? "1" : null,
+            payments: filter.paymentsOnly ? "1" : null,
           });
         }}
         openId={view.logOpen}
@@ -286,6 +289,8 @@ function Rows({
   const monitoring = payload.monitoring;
   const platformMetrics = payload.platformMetrics ?? [];
   const dashboardLinks = payload.dashboardLinks ?? [];
+  const payments = payload.payments;
+  const paymentSummary = payments?.summary;
   return (
     <div className="space-y-4">
       <div className="border-border bg-surface-subtle flex flex-wrap items-center justify-between gap-3 rounded-md border px-3 py-2 text-sm">
@@ -318,6 +323,52 @@ function Rows({
         ) : null}
       </div>
 
+      {payments?.available ||
+      (Array.isArray(payments?.resources) && payments.resources.length) ? (
+        <div className="border-border bg-surface rounded-md border">
+          <div className="border-border border-b px-3 py-2">
+            <div className="text-foreground text-sm font-medium">
+              Payment health
+            </div>
+            <div className="text-dim text-xs">
+              24h activity · outstanding is the live recipient-bucket balance
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3 px-3 py-3 text-xs lg:grid-cols-4">
+            <div>
+              <div className="text-dim">Priced calls</div>
+              <div className="text-foreground text-base font-semibold">
+                {countLabel(paymentSummary?.pricedCalls)}
+              </div>
+            </div>
+            <div>
+              <div className="text-dim">Accrued</div>
+              <div className="text-foreground text-base font-semibold">
+                {usdLabel(paymentSummary?.accruedUsd)}
+              </div>
+            </div>
+            <div>
+              <div className="text-dim">Settled</div>
+              <div className="text-foreground text-base font-semibold">
+                {usdLabel(paymentSummary?.settledUsd)}
+              </div>
+            </div>
+            <div>
+              <div className="text-dim">Outstanding</div>
+              <div
+                className={`text-base font-semibold ${
+                  Number(paymentSummary?.outstandingUsd ?? 0) > 0
+                    ? "text-amber-500"
+                    : "text-emerald-500"
+                }`}
+              >
+                {usdLabel(paymentSummary?.outstandingUsd)}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
         {apps.map((app) => {
           const metrics = app.metrics ?? {};
@@ -329,6 +380,9 @@ function Rows({
             metrics.toolErrorRate != null || metrics.txErrorRate != null;
           const lifecycle = [
             app.sdkVersion ? `SDK ${app.sdkVersion}` : null,
+            Object.keys(app.pricing?.config?.resources ?? {}).length
+              ? `${Object.keys(app.pricing.config.resources).length} priced tool${Object.keys(app.pricing.config.resources).length === 1 ? "" : "s"}`
+              : null,
             metrics.coldStartMs != null
               ? `cold start ${unitLabel(metrics.coldStartMs, "ms", 0)}`
               : null,
@@ -493,6 +547,7 @@ export function OperateView({ kind }: { kind: ViewKind }) {
   const appFromUrl = searchParams.get("app");
   const toolFromUrl = searchParams.get("tool");
   const errorsFromUrl = searchParams.get("errors") === "1";
+  const paymentsFromUrl = searchParams.get("payments") === "1";
   const txFromUrl = searchParams.get("tx");
   const accountKey = githubAccountKey(account.githubLogin);
   const [sourceId, setSourceId] = useState<number | null>(projectFromUrl);
@@ -503,6 +558,7 @@ export function OperateView({ kind }: { kind: ViewKind }) {
     app: appFromUrl,
     tool: toolFromUrl,
     errorsOnly: errorsFromUrl,
+    paymentsOnly: paymentsFromUrl,
   });
   const [logOpen, setLogOpen] = useState<string | null>(null);
   const [paginationError, setPaginationError] = useState<string | null>(null);
@@ -631,7 +687,9 @@ export function OperateView({ kind }: { kind: ViewKind }) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <Icon className="text-dim size-5" />
-          <h1 className="text-xl font-semibold">{meta[kind].title}</h1>
+          <h1 className="font-display text-xl font-normal tracking-tight">
+            {meta[kind].title}
+          </h1>
           {payload?.example ? (
             <span
               title="Live data for this view isn't connected yet — showing example data."

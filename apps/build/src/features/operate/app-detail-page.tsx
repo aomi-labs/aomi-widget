@@ -68,7 +68,9 @@ export function AppDetailPage({
   if (error) {
     return (
       <div className="mx-auto flex max-w-xl flex-col items-center gap-3 px-6 py-20 text-center">
-        <h1 className="text-lg font-semibold">Observability unavailable</h1>
+        <h1 className="font-display text-lg font-normal tracking-tight">
+          Observability unavailable
+        </h1>
         <p className="text-dim text-sm">{error}</p>
         <button
           type="button"

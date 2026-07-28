@@ -1,0 +1,67 @@
+.demoFrame :global(.aui-thread-welcome-root) {
+  gap: 1.25rem;
+  margin-top: auto;
+  margin-bottom: auto;
+}
+
+.demoFrame :global(.aui-thread-welcome-message) {
+  margin-bottom: 1rem;
+}
+
+.demoFrame :global(.aui-thread-welcome-title) {
+  visibility: hidden;
+}
+
+.demoFrame
+  :global(.aui-thread-welcome-root)
+  :global(.aui-composer-root) {
+  min-height: 9rem;
+}
+
+.demoFrame
+  :global(.aui-thread-welcome-root)
+  :global(.aui-composer-input) {
+  min-height: 4.5rem;
+}
+
+.demoFrame :global(.aui-composer-wrapper) {
+  padding-bottom: 4rem;
+}
+
+.demoFrame:has(
+    > :global([data-slot="sidebar"][data-state="expanded"])
+  )
+  :global(.aui-composer-wrapper) {
+  padding-right: 2rem;
+  padding-left: 2rem;
+}
+
+/* Keep the embedded demo visually subordinate to the hero. Portal retains the
+   shared widget's roomier default type scale. */
+.demoFrame :global(.aomi-sidebar-header-content),
+.demoFrame :global(.aui-thread-list-new),
+.demoFrame :global(.aui-thread-list-item-title),
+.demoFrame :global(.aomi-sidebar-footer button),
+.demoFrame :global(header > span) {
+  font-size: 0.8125rem;
+}
+
+.demoFrame :global(.aui-thread-list-separator) {
+  font-size: 0.6875rem;
+}
+
+.demoFrame :global(.aui-assistant-message-content),
+.demoFrame :global(.aui-user-message-content) {
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+}
+
+@media (min-width: 768px) {
+  .demoFrame :global(.aui-composer-input) {
+    font-size: 0.75rem;
+  }
+
+  .demoFrame :global(.aui-composer-action-scroll button) {
+    font-size: 0.6875rem;
+  }
+}

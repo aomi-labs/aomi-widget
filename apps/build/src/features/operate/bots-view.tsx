@@ -33,12 +33,21 @@ type Bot = {
   status: string;
   label?: string | null;
   defaultApp: string;
+  apps?: BotApp[];
   platformBotId?: string;
   platformUsername?: string | null;
   webhookUrl?: string | null;
   threadMode: string;
   createdAt: number;
-  source?: BotSource;
+};
+
+type BotApp = {
+  applicationId: number;
+  appSourceId: number | null;
+  sourceLabel: string | null;
+  name: string;
+  label: string;
+  isPrimary: boolean;
 };
 
 type BotsPayload = {
@@ -47,7 +56,6 @@ type BotsPayload = {
 };
 
 type AppOption = {
-  appSourceId: number;
   applicationId: number;
   name: string;
   sourceLabel: string;
@@ -103,7 +111,13 @@ export function BotsView() {
   const [label, setLabel] = useState("");
   const [token, setToken] = useState("");
   const [threadMode, setThreadMode] = useState("single");
-  const [selectedOption, setSelectedOption] = useState("");
+  const [selectedApplicationIds, setSelectedApplicationIds] = useState<
+    number[]
+  >([]);
+  const [primaryApplicationId, setPrimaryApplicationId] = useState<
+    number | null
+  >(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [formStatus, setFormStatus] = useState<string | null>(null);
@@ -116,7 +130,6 @@ export function BotsView() {
     () =>
       sources.flatMap((source) =>
         (source.apps ?? []).map((app) => ({
-          appSourceId: source.id,
           applicationId: app.id,
           name: app.name,
           sourceLabel: sourceLabel(source),
@@ -126,29 +139,30 @@ export function BotsView() {
   );
 
   const canCreate =
-    selectedOption.length > 0 && token.trim().length > 0 && !creating;
+    selectedApplicationIds.length > 0 &&
+    primaryApplicationId !== null &&
+    (editingId !== null || token.trim().length > 0) &&
+    !creating;
 
   const handleCreate = useCallback(async () => {
     if (!canCreate) return;
-    const [appSourceIdRaw, applicationIdRaw] = selectedOption.split(":");
-    const appSourceId = Number(appSourceIdRaw);
-    const applicationId = Number(applicationIdRaw);
-    if (!Number.isFinite(appSourceId) || !Number.isFinite(applicationId))
-      return;
-
     setCreating(true);
     setFormError(null);
     setFormStatus(null);
     try {
       const res = await fetch(API_PATHS.bff.operate.bots, {
-        method: "POST",
+        method: editingId ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          appSourceId,
-          applicationId,
-          credential: token.trim(),
-          label: label.trim() || undefined,
-          threadMode,
+          ...(editingId
+            ? { botId: editingId }
+            : {
+                credential: token.trim(),
+                label: label.trim() || undefined,
+                threadMode,
+              }),
+          applicationIds: selectedApplicationIds,
+          primaryApplicationId,
         }),
       });
       const json = (await res.json().catch(() => ({}))) as {
@@ -161,11 +175,22 @@ export function BotsView() {
       const created = json.bot;
       queryClient.setQueryData<BotsPayload>(queryKey, (current) => ({
         sources: current?.sources ?? sources,
-        bots: [created, ...(current?.bots ?? [])],
+        bots: editingId
+          ? (current?.bots ?? []).map((bot) =>
+              bot.id === created.id ? created : bot,
+            )
+          : [created, ...(current?.bots ?? [])],
       }));
       setToken("");
       setLabel("");
-      setFormStatus("Bot registered and webhook activated.");
+      setSelectedApplicationIds([]);
+      setPrimaryApplicationId(null);
+      setEditingId(null);
+      setFormStatus(
+        editingId
+          ? "Bot app mapping updated."
+          : "Bot registered and webhook activated.",
+      );
     } catch (err) {
       setFormError(
         err instanceof Error ? err.message : "Failed to register bot",
@@ -175,10 +200,12 @@ export function BotsView() {
     }
   }, [
     canCreate,
-    selectedOption,
+    editingId,
     token,
     label,
     threadMode,
+    selectedApplicationIds,
+    primaryApplicationId,
     sources,
     queryClient,
     queryKey,
@@ -186,14 +213,10 @@ export function BotsView() {
 
   const handleRemove = useCallback(
     async (bot: Bot) => {
-      if (!bot.source) return;
       setRemovingId(bot.id);
       setFormError(null);
       try {
-        const params = new URLSearchParams({
-          appSourceId: String(bot.source.id),
-          botId: bot.id,
-        });
+        const params = new URLSearchParams({ botId: bot.id });
         const res = await fetch(`${API_PATHS.bff.operate.bots}?${params}`, {
           method: "DELETE",
         });
@@ -223,6 +246,38 @@ export function BotsView() {
     [queryClient, queryKey],
   );
 
+  const toggleApplication = useCallback((applicationId: number) => {
+    setSelectedApplicationIds((current) => {
+      const selected = current.includes(applicationId)
+        ? current.filter((id) => id !== applicationId)
+        : [...current, applicationId];
+      setPrimaryApplicationId((primary) =>
+        primary !== null && selected.includes(primary)
+          ? primary
+          : (selected[0] ?? null),
+      );
+      return selected;
+    });
+  }, []);
+
+  const beginEdit = useCallback((bot: Bot) => {
+    const mapped = bot.apps ?? [];
+    setEditingId(bot.id);
+    setSelectedApplicationIds(mapped.map((app) => app.applicationId));
+    setPrimaryApplicationId(
+      mapped.find((app) => app.isPrimary)?.applicationId ??
+        mapped[0]?.applicationId ??
+        null,
+    );
+    setLabel(bot.label ?? "");
+    setToken("");
+    setThreadMode(bot.threadMode);
+    setFormError(null);
+    setFormStatus(
+      `Editing apps for ${displayBotName(bot)}. Token is not required.`,
+    );
+  }, []);
+
   if (account.loading) {
     return (
       <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
@@ -242,11 +297,13 @@ export function BotsView() {
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
       <div>
-        <h1 className="text-xl font-semibold">Bots</h1>
+        <h1 className="font-display text-xl font-normal tracking-tight">
+          Bots
+        </h1>
         <p className="text-dim mt-1 max-w-2xl text-sm">
-          Register Telegram bots that use your Aomi backend, selected app, and
-          runtime session flow. Bot credentials are encrypted and never shown
-          after registration.
+          Register Telegram bots that use your Aomi backend and one or more
+          attached apps. Bot credentials are encrypted and never shown after
+          registration.
         </p>
       </div>
 
@@ -263,7 +320,9 @@ export function BotsView() {
 
       <section className="border-border bg-surface-1 space-y-4 rounded-md border p-4">
         <div>
-          <h2 className="text-base font-medium">Register Telegram bot</h2>
+          <h2 className="text-base font-medium">
+            {editingId ? "Edit bot apps" : "Register Telegram bot"}
+          </h2>
           <p className="text-dim mt-1 text-sm">
             Create the bot in BotFather, paste its token here, and we will
             verify it with Telegram and activate the webhook automatically. This
@@ -280,7 +339,7 @@ export function BotsView() {
               value={label}
               onChange={(event) => setLabel(event.target.value)}
               placeholder="Trading assistant"
-              disabled={creating}
+              disabled={creating || editingId !== null}
               className="border-border bg-surface text-foreground h-9 w-full rounded-md border px-2"
             />
           </label>
@@ -291,7 +350,7 @@ export function BotsView() {
               value={token}
               onChange={(event) => setToken(event.target.value)}
               placeholder="Paste Telegram BotFather token"
-              disabled={creating}
+              disabled={creating || editingId !== null}
               className="border-border bg-surface text-foreground h-9 w-full rounded-md border px-2"
             />
           </label>
@@ -299,28 +358,60 @@ export function BotsView() {
 
         <div className="grid gap-4 md:grid-cols-2">
           <label className="block space-y-1 text-sm">
-            <span className="text-dim">App</span>
-            <select
-              value={selectedOption}
-              onChange={(event) => setSelectedOption(event.target.value)}
-              disabled={creating || options.length === 0}
-              className="border-border bg-surface text-foreground h-9 w-full rounded-md border px-2"
-            >
-              <option value="">Select an app</option>
-              {options.map((option) => (
-                <option
-                  key={`${option.appSourceId}:${option.applicationId}`}
-                  value={`${option.appSourceId}:${option.applicationId}`}
-                >
-                  {option.name} ({option.sourceLabel})
-                </option>
+            <span className="text-dim">Attached apps</span>
+            <div className="border-border bg-surface max-h-40 space-y-1 overflow-y-auto rounded-md border p-2">
+              {sources.map((source) => (
+                <div key={source.id} className="space-y-1">
+                  <div className="text-dim text-xs font-medium">
+                    {sourceLabel(source)}
+                  </div>
+                  {(source.apps ?? []).map((app) => (
+                    <label
+                      key={app.id}
+                      className="flex items-center gap-2 text-sm"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedApplicationIds.includes(app.id)}
+                        onChange={() => toggleApplication(app.id)}
+                        disabled={creating}
+                      />
+                      <span>{app.name}</span>
+                    </label>
+                  ))}
+                </div>
               ))}
-            </select>
+            </div>
             {options.length === 0 ? (
               <span className="text-dim block text-xs">
                 No deployed apps available for this account.
               </span>
             ) : null}
+          </label>
+          <label className="block space-y-1 text-sm">
+            <span className="text-dim">Primary app</span>
+            <select
+              value={primaryApplicationId ?? ""}
+              onChange={(event) =>
+                setPrimaryApplicationId(Number(event.target.value) || null)
+              }
+              disabled={creating || selectedApplicationIds.length === 0}
+              className="border-border bg-surface text-foreground h-9 w-full rounded-md border px-2"
+            >
+              <option value="">Select primary app</option>
+              {options
+                .filter((option) =>
+                  selectedApplicationIds.includes(option.applicationId),
+                )
+                .map((option) => (
+                  <option
+                    key={option.applicationId}
+                    value={option.applicationId}
+                  >
+                    {option.name} ({option.sourceLabel})
+                  </option>
+                ))}
+            </select>
           </label>
           <label className="block space-y-1 text-sm">
             <span className="text-dim">Thread mode</span>
@@ -347,7 +438,7 @@ export function BotsView() {
             disabled={!canCreate}
             className="bg-foreground text-background disabled:bg-surface-3 disabled:text-dim h-9 rounded-md px-4 text-sm font-medium disabled:cursor-not-allowed"
           >
-            {creating ? "Registering..." : "Register bot"}
+            {creating ? "Saving..." : editingId ? "Save apps" : "Register bot"}
           </button>
         </div>
       </section>
@@ -404,7 +495,15 @@ export function BotsView() {
                         </div>
                       ) : null}
                     </td>
-                    <td className="text-dim px-3 py-2">{bot.defaultApp}</td>
+                    <td className="text-dim px-3 py-2">
+                      {(bot.apps ?? []).map((app) => (
+                        <div key={app.applicationId}>
+                          {app.name}
+                          {app.isPrimary ? " (primary)" : ""}
+                          {app.sourceLabel ? ` — ${app.sourceLabel}` : ""}
+                        </div>
+                      ))}
+                    </td>
                     <td className="text-dim px-3 py-2">{bot.threadMode}</td>
                     <td className="text-dim px-3 py-2">
                       {bot.webhookUrl ? "Configured" : "Not configured"}
@@ -416,8 +515,16 @@ export function BotsView() {
                     <td className="px-3 py-2 text-right">
                       <button
                         type="button"
+                        onClick={() => beginEdit(bot)}
+                        disabled={removingId === bot.id}
+                        className="border-border hover:bg-accent-hover text-dim mr-2 h-7 rounded-md border px-2 text-xs disabled:opacity-50"
+                      >
+                        Edit apps
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => void handleRemove(bot)}
-                        disabled={removingId === bot.id || !bot.source}
+                        disabled={removingId === bot.id}
                         className="border-border hover:bg-accent-hover text-dim h-7 rounded-md border px-2 text-xs disabled:opacity-50"
                       >
                         {removingId === bot.id ? "Removing..." : "Remove"}

@@ -10,6 +10,7 @@ vi.mock("@build/features/launch/hooks/use-projects", () => ({
           id: 3,
           installationId: 1,
           repositoryLink: "alice/bot",
+          boundPlatformName: "somm.finance",
           apps: [],
           latestDeployment: null,
         },
@@ -31,9 +32,10 @@ describe("ProjectIndex", () => {
   it("lists projects with links", async () => {
     render(<ProjectIndex />);
     await waitFor(() =>
-      expect(
-        screen.getByRole("link", { name: /alice\/bot/ }),
-      ).toHaveAttribute("href", "/projects/3"),
+      expect(screen.getByRole("link", { name: /alice\/bot/ })).toHaveAttribute(
+        "href",
+        "/projects/3?platform=somm.finance",
+      ),
     );
   });
 });

@@ -11,8 +11,17 @@ describe("AomiClient route manifest", () => {
         `${endpoint.method} ${endpoint.path} [${endpoint.auth.join(", ")}]`,
     );
 
-    expect(routeKeys).toHaveLength(109);
+    expect(routeKeys).toHaveLength(113);
     expect(new Set(routeKeys).size).toBe(routeKeys.length);
+    expect(routeKeys).toContain("GET /api/account/statement [account]");
+    // Public placement probe. Kept distinct from GET /health, which stays a
+    // pure liveness signal so a missing hosted app never reads as a dead host.
+    expect(routeKeys).toContain("GET /availability []");
+    expect(routeKeys).toContain("GET /health []");
+    expect(routeKeys).toContain(
+      "POST /api/account/providers/:provider/agent-wallet [account]",
+    );
+    expect(routeKeys).toContain("PUT /api/account/apps [account]");
     expect(routeKeys).toContain("POST /api/exec/run [account, thread]");
     expect(routeKeys).toContain(
       "POST /api/threads/:thread_id/archive [account, thread]",
@@ -23,9 +32,7 @@ describe("AomiClient route manifest", () => {
     expect(routeKeys).toContain("GET /api/resource/search/apps [account]");
     expect(routeKeys).toContain("GET /api/resource/search/tools [account]");
     expect(routeKeys).toContain("GET /api/resource/skills [account]");
-    expect(routeKeys).toContain(
-      "GET /api/resource/skills/:skill_id [account]",
-    );
+    expect(routeKeys).toContain("GET /api/resource/skills/:skill_id [account]");
     expect(routeKeys).toContain("GET /api/thread/apps [thread]");
     expect(routeKeys).toContain("GET /api/_internal/secrets [service]");
     expect(routeKeys).toContain("DELETE /api/_internal/secrets [service]");
@@ -794,7 +801,14 @@ describe("AomiClient transport selection", () => {
       });
 
       const onUpdate = vi.fn();
-      const unsubscribe = client.subscribeSSE("session-2", onUpdate);
+      const unsubscribe = client.subscribeSSE(
+        "session-2",
+        onUpdate,
+        undefined,
+        {
+          applicationId: 2937098,
+        },
+      );
       connection?.emit(
         'data: {"type":"tool_update","session_id":"session-2"}\n\n',
       );
@@ -809,6 +823,9 @@ describe("AomiClient transport selection", () => {
       unsubscribe();
       expect(nativeFetch).toHaveBeenCalledTimes(1);
       expect(customFetch).not.toHaveBeenCalled();
+      expect(nativeFetch.mock.calls[0]?.[0]).toBe(
+        "http://unit.test/api/thread/updates?application_id=2937098",
+      );
     } finally {
       vi.stubGlobal("fetch", originalFetch);
     }

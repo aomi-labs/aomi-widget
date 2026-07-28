@@ -81,6 +81,7 @@ describe("ProjectRow", () => {
           id: 42,
           installationId: 1,
           repositoryLink: "alice/bot",
+          boundPlatformName: "somm.finance",
           sdkVersion: "3.0.2",
           apps: [
             {
@@ -99,7 +100,7 @@ describe("ProjectRow", () => {
     expect(screen.getByText("Outdated")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Upgrade" })).toHaveAttribute(
       "href",
-      "/projects/42?tab=deployments",
+      "/projects/42?platform=somm.finance&tab=deployments",
     );
   });
 });

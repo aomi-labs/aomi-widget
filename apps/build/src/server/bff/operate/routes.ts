@@ -7,6 +7,7 @@ import type {
   OperateLogsResult,
   OperateAppDetailResult,
   OperateObservabilityResult,
+  OperatePartnerPayments,
   OperateStatementResult,
   OperateTransactionCursor,
   OperateTransactionsResult,
@@ -14,13 +15,17 @@ import type {
   UserSource,
   UserSourceLatestDeployment,
 } from "@aomi-labs/deploy";
-import { checkRateLimit, getClientIp } from "@build/lib/rate-limit";
 import {
   EXAMPLE_SOURCE,
   exampleStatement,
 } from "@build/features/operate/fixtures/wire";
+import {
+  caipChainId,
+  caipChainLabel,
+  creditsToUsd,
+} from "@build/features/operate/format";
 import { deploymentClient } from "@build/server/bff/backend";
-import { getGitHubSession } from "@build/server/cookies/github";
+import { authorize } from "@build/server/bff/auth";
 import { launchConfig } from "@build/server/bff/launch/config";
 import { launchErrorResponse } from "@build/server/bff/launch/errors";
 import { TimedPromiseCache } from "@build/server/bff/timed-promise-cache";
@@ -48,12 +53,6 @@ async function settleBySource<T>(
     }
   });
   return ok;
-}
-
-function checkRead(req: Request): NextResponse | null {
-  return checkRateLimit(getClientIp(req)).allowed
-    ? null
-    : NextResponse.json({ error: "Too many requests" }, { status: 429 });
 }
 
 function isValidAppSourceId(value: unknown): value is number {
@@ -104,6 +103,77 @@ function logCursorFor(row: {
     occurredAt: row.occurredAt,
     eventType: row.eventType,
     id: row.id,
+  };
+}
+
+function mergedPartnerPayments(
+  rows: Array<{ source: UserSource; payments: OperatePartnerPayments }>,
+) {
+  const sum = (pick: (summary: OperatePartnerPayments["summary"]) => number) =>
+    rows.reduce((total, row) => total + pick(row.payments.summary), 0);
+  const eventById = new Map<
+    string,
+    OperatePartnerPayments["events"][number] & { source: UserSource }
+  >();
+  for (const row of rows) {
+    for (const event of row.payments.events) {
+      const key = `${event.kind}:${event.id}`;
+      const existing = eventById.get(key);
+      if (!existing) {
+        eventById.set(key, { ...event, source: row.source });
+      } else if (existing.applicationId !== event.applicationId) {
+        // A recipient-bucket settlement can clear fees for apps in multiple
+        // projects. It belongs to the beneficiary, not whichever project the
+        // BFF happened to merge first.
+        existing.application = null;
+        existing.applicationId = null;
+      }
+    }
+  }
+  const events = [...eventById.values()].sort(
+    (a, b) => b.occurredAt - a.occurredAt || b.id.localeCompare(a.id),
+  );
+  const buckets = [
+    ...new Map(
+      rows.flatMap((row) =>
+        row.payments.buckets.map((bucket) => [bucket.id, bucket]),
+      ),
+    ).values(),
+  ];
+  const settlementEvents = events.filter(
+    (event) => event.kind === "settlement_confirmed",
+  );
+  const outstandingCredits = buckets.reduce(
+    (total, bucket) => total + bucket.outstandingCredits,
+    0,
+  );
+  return {
+    available: rows.some((row) => row.payments.available),
+    scope: "recipient_bucket",
+    summary: {
+      accruedCredits: sum((summary) => summary.accruedCredits),
+      accruedUsd: sum((summary) => summary.accruedUsd),
+      settledCredits: settlementEvents.reduce(
+        (total, event) => total + event.credits,
+        0,
+      ),
+      settledUsd: settlementEvents.reduce(
+        (total, event) => total + event.usd,
+        0,
+      ),
+      outstandingCredits,
+      outstandingUsd: creditsToUsd(outstandingCredits),
+      pricedCalls: sum((summary) => summary.pricedCalls),
+      settlements: settlementEvents.length,
+    },
+    resources: rows.flatMap((row) =>
+      row.payments.resources.map((resource) => ({
+        ...resource,
+        source: row.source,
+      })),
+    ),
+    buckets,
+    events,
   };
 }
 
@@ -161,17 +231,9 @@ async function ownedSources(req: Request): Promise<
       client: DeploymentClientInstance;
     }
 > {
-  const blocked = checkRead(req);
-  if (blocked) return { response: blocked };
-  const session = await getGitHubSession();
-  if (!session) {
-    return {
-      response: NextResponse.json(
-        { error: "not signed in with GitHub" },
-        { status: 401 },
-      ),
-    };
-  }
+  const auth = await authorize(req);
+  if ("response" in auth) return auth;
+  const { session } = auth;
   const config = launchConfig();
   const client = await deploymentClient();
   const params = new URL(req.url).searchParams;
@@ -223,17 +285,13 @@ export async function operateBotsRoute(req: Request) {
   const owned = await ownedSources(req);
   if ("response" in owned) return owned.response;
   try {
-    const results = await settleBySource(owned.sources, async (source) => {
-      const bots = await owned.client.listUserSourceBots({
-        githubUserId: owned.githubUserId,
-        platform: owned.platform,
-        appSourceId: source.id,
-      });
-      return bots.map((bot) => ({ ...bot, source }));
+    const bots = await owned.client.listUserBots({
+      githubUserId: owned.githubUserId,
+      platform: owned.platform,
     });
     return NextResponse.json({
       sources: owned.sources,
-      bots: results.flat(),
+      bots,
     });
   } catch (err) {
     return launchErrorResponse(err);
@@ -245,18 +303,20 @@ export async function operateBotsCreateRoute(req: Request) {
   if ("response" in owned) return owned.response;
 
   const body = (await req.json().catch(() => ({}))) as {
-    appSourceId?: unknown;
-    applicationId?: unknown;
+    applicationIds?: unknown;
+    primaryApplicationId?: unknown;
     credential?: unknown;
     label?: unknown;
     threadMode?: unknown;
   };
   if (
-    !isValidAppSourceId(body.appSourceId) ||
-    typeof body.applicationId !== "number"
+    !Array.isArray(body.applicationIds) ||
+    body.applicationIds.length === 0 ||
+    body.applicationIds.some((id) => typeof id !== "number") ||
+    typeof body.primaryApplicationId !== "number"
   ) {
     return NextResponse.json(
-      { error: "missing or invalid `appSourceId` / `applicationId`" },
+      { error: "missing or invalid app mappings" },
       { status: 400 },
     );
   }
@@ -266,27 +326,39 @@ export async function operateBotsCreateRoute(req: Request) {
       { status: 400 },
     );
   }
-  const source = owned.sources.find((s) => s.id === body.appSourceId);
-  if (!source) {
+  const allowedApplicationIds = new Set(
+    owned.sources.flatMap((source) => (source.apps ?? []).map((app) => app.id)),
+  );
+  const applicationIds = body.applicationIds as number[];
+  if (new Set(applicationIds).size !== applicationIds.length) {
     return NextResponse.json(
-      { error: "app source not found for this user" },
-      { status: 404 },
+      { error: "`applicationIds` must be unique" },
+      { status: 400 },
+    );
+  }
+  if (
+    !applicationIds.every((id) => allowedApplicationIds.has(id)) ||
+    !applicationIds.includes(body.primaryApplicationId)
+  ) {
+    return NextResponse.json(
+      { error: "selected apps are not owned by this user" },
+      { status: 403 },
     );
   }
 
   try {
-    const bot: BotRegistration = await owned.client.createUserSourceBot({
+    const bot: BotRegistration = await owned.client.createUserBot({
       githubUserId: owned.githubUserId,
       platform: owned.platform,
-      appSourceId: source.id,
-      applicationId: body.applicationId,
+      applicationIds,
+      primaryApplicationId: body.primaryApplicationId,
       botPlatform: "telegram",
       credential: body.credential.trim(),
       label: typeof body.label === "string" ? body.label : undefined,
       threadMode:
         typeof body.threadMode === "string" ? body.threadMode : undefined,
     });
-    return NextResponse.json({ bot: { ...bot, source } }, { status: 201 });
+    return NextResponse.json({ bot }, { status: 201 });
   } catch (err) {
     return launchErrorResponse(err);
   }
@@ -297,30 +369,70 @@ export async function operateBotsDeleteRoute(req: Request) {
   if ("response" in owned) return owned.response;
 
   const params = new URL(req.url).searchParams;
-  const requestedSourceId = Number(params.get("appSourceId"));
   const botId = params.get("botId");
-  if (!isValidAppSourceId(requestedSourceId) || !botId) {
-    return NextResponse.json(
-      { error: "missing or invalid `appSourceId` / `botId`" },
-      { status: 400 },
-    );
+  if (!botId) {
+    return NextResponse.json({ error: "missing `botId`" }, { status: 400 });
   }
-  const source = owned.sources.find((s) => s.id === requestedSourceId);
-  if (!source) {
-    return NextResponse.json(
-      { error: "app source not found for this user" },
-      { status: 404 },
-    );
-  }
-
   try {
-    await owned.client.deleteUserSourceBot({
+    await owned.client.deleteUserBot({
       githubUserId: owned.githubUserId,
       platform: owned.platform,
-      appSourceId: source.id,
       botId,
     });
     return NextResponse.json({ ok: true });
+  } catch (err) {
+    return launchErrorResponse(err);
+  }
+}
+
+export async function operateBotsUpdateRoute(req: Request) {
+  const owned = await ownedSources(req);
+  if ("response" in owned) return owned.response;
+  const body = (await req.json().catch(() => ({}))) as {
+    botId?: unknown;
+    applicationIds?: unknown;
+    primaryApplicationId?: unknown;
+  };
+  if (
+    typeof body.botId !== "string" ||
+    !Array.isArray(body.applicationIds) ||
+    body.applicationIds.length === 0 ||
+    body.applicationIds.some((id) => typeof id !== "number") ||
+    typeof body.primaryApplicationId !== "number"
+  ) {
+    return NextResponse.json(
+      { error: "invalid bot mapping update" },
+      { status: 400 },
+    );
+  }
+  const allowed = new Set(
+    owned.sources.flatMap((source) => (source.apps ?? []).map((app) => app.id)),
+  );
+  const applicationIds = body.applicationIds as number[];
+  if (new Set(applicationIds).size !== applicationIds.length) {
+    return NextResponse.json(
+      { error: "`applicationIds` must be unique" },
+      { status: 400 },
+    );
+  }
+  if (
+    !applicationIds.every((id) => allowed.has(id)) ||
+    !applicationIds.includes(body.primaryApplicationId)
+  ) {
+    return NextResponse.json(
+      { error: "selected apps are not owned by this user" },
+      { status: 403 },
+    );
+  }
+  try {
+    const bot = await owned.client.updateUserBot({
+      githubUserId: owned.githubUserId,
+      platform: owned.platform,
+      botId: body.botId,
+      applicationIds,
+      primaryApplicationId: body.primaryApplicationId,
+    });
+    return NextResponse.json({ bot });
   } catch (err) {
     return launchErrorResponse(err);
   }
@@ -446,9 +558,8 @@ export async function operateTransactionsRoute(req: Request) {
     const limit = pageLimit(params, 50, 100);
     const cursor = parseCompositeCursor(params.get("cursor"));
     const status = params.get("status") ?? undefined;
-    const results: OperateTransactionsResult[] = await settleBySource(
-      owned.sources,
-      (source) =>
+    const [results, statements] = await Promise.all([
+      settleBySource<OperateTransactionsResult>(owned.sources, (source) =>
         readCache.transactions.get(
           [
             owned.githubUserId,
@@ -469,24 +580,109 @@ export async function operateTransactionsRoute(req: Request) {
                 | undefined,
             }),
         ),
-    );
-    const transactions = results
+      ),
+      cursor
+        ? Promise.resolve([])
+        : settleBySource<OperateStatementResult>(owned.sources, (source) =>
+            readCache.statement.get(
+              [owned.githubUserId, owned.platform, source.id, null],
+              () =>
+                owned.client.getUserSourceStatement({
+                  githubUserId: owned.githubUserId,
+                  platform: owned.platform,
+                  appSourceId: source.id,
+                }),
+            ),
+          ),
+    ]);
+    const appTransactions = results
       .flatMap((result) =>
         result.transactions.map((transaction) => ({
           ...transaction,
+          kind: "app_transaction",
           source: result.source,
           platform: result.platform,
         })),
       )
       .sort((a, b) => b.createdAt - a.createdAt || b.id.localeCompare(a.id));
-    const visible = transactions.slice(0, limit);
+    const payments = mergedPartnerPayments(
+      statements.map((statement) => ({
+        source: statement.source as UserSource,
+        payments: statement.payments,
+      })),
+    );
+    const payouts =
+      params.get("status") && params.get("status") !== "confirmed"
+        ? []
+        : payments.events
+            .filter((event) => event.kind === "settlement_confirmed")
+            .map((event) => {
+              const provider =
+                event.paymentMethod.toLowerCase() === "coinbase"
+                  ? "Coinbase"
+                  : event.paymentMethod;
+              return {
+                id: `partner-payout:${event.id}`,
+                kind: "partner_payout",
+                externalTxId: event.receiptId ?? event.id,
+                application: event.application ?? "Partner payout",
+                applicationId: event.applicationId,
+                status: "confirmed",
+                txHash: event.receiptId,
+                chainId: caipChainId(event.chain),
+                fromAddress: "",
+                toAddress: event.recipient,
+                value: `${event.assetAmount ?? event.usd} ${event.asset ?? "USD"}`,
+                hasCalldata: false,
+                calldataPreview: null,
+                description: `Partner settlement via ${provider}`,
+                createdAt: event.occurredAt,
+                updatedAt: event.occurredAt,
+                submittedAt: event.occurredAt,
+                family: "evm",
+                chainName: caipChainLabel(event.chain) || null,
+                fromLabel: null,
+                toLabel: "beneficiary",
+                valueUsd: `$${event.usd.toFixed(2)}`,
+                block: null,
+                slot: null,
+                confirmations: null,
+                gasUsed: null,
+                gasLimit: null,
+                effGasPrice: null,
+                computeUnits: null,
+                computeLimit: null,
+                priorityFee: null,
+                txFee: null,
+                platformFee: null,
+                nonce: null,
+                method: provider === "Coinbase" ? "Coinbase x402" : provider,
+                transfers: [],
+                revertReason: null,
+                explorerUrl: event.explorerUrl,
+                payment: {
+                  credits: event.credits,
+                  recipient: event.recipient,
+                  scope: payments.scope,
+                },
+                source: event.source,
+                platform: owned.platform,
+              };
+            });
+    // Statement-backed payouts have no transaction cursor. Include the full
+    // deduplicated overlay on page one, alongside one normal page of app
+    // transactions, so an older settlement cannot be sliced out forever.
+    const visibleAppTransactions = appTransactions.slice(0, limit);
+    const transactions = [...visibleAppTransactions, ...payouts].sort(
+      (a, b) => b.createdAt - a.createdAt || b.id.localeCompare(a.id),
+    );
     return NextResponse.json({
       sources: results.map((result) => result.source),
-      transactions: visible,
+      transactions,
       nextCursor: mergedNextCursor(
         cursor,
-        visible,
-        transactions,
+        visibleAppTransactions,
+        appTransactions,
         results,
         transactionCursorFor,
       ),
@@ -588,6 +784,12 @@ export async function operateUsageRoute(req: Request) {
                   b.day.localeCompare(a.day) ||
                   a.application.localeCompare(b.application),
               ),
+            payments: mergedPartnerPayments(
+              statements.map((statement) => ({
+                source: statement.source as UserSource,
+                payments: statement.payments,
+              })),
+            ),
           }
         : exampleStatement(owned.sources[0] ?? EXAMPLE_SOURCE),
     });
@@ -628,28 +830,49 @@ export async function operateLogsRoute(req: Request) {
             }),
         ),
     );
-    const logs = results
-      .flatMap((result) =>
-        result.logs.map((entry) => ({
-          ...entry,
-          source: result.source,
-          platform: result.platform,
-        })),
-      )
-      .sort(
-        (a, b) =>
-          b.occurredAt - a.occurredAt ||
-          b.eventType.localeCompare(a.eventType) ||
-          b.id.localeCompare(a.id),
-      );
+    const sourcedLogs = results.flatMap((result) =>
+      result.logs.map((entry) => ({
+        ...entry,
+        source: result.source,
+        platform: result.platform,
+      })),
+    );
+    const logById = new Map<
+      string,
+      (typeof sourcedLogs)[number] & { cursorSources: UserSource[] }
+    >();
+    for (const log of sourcedLogs) {
+      const sharedSettlement = log.details.source === "partner_settlement";
+      const key = sharedSettlement
+        ? `partner-settlement:${log.id}`
+        : `${log.source.id}:${log.eventType}:${log.id}`;
+      const existing = logById.get(key);
+      if (existing) {
+        existing.cursorSources.push(log.source as UserSource);
+      } else {
+        logById.set(key, {
+          ...log,
+          cursorSources: [log.source as UserSource],
+        });
+      }
+    }
+    const logs = [...logById.values()].sort(
+      (a, b) =>
+        b.occurredAt - a.occurredAt ||
+        b.eventType.localeCompare(a.eventType) ||
+        b.id.localeCompare(a.id),
+    );
     const visible = logs.slice(0, limit);
+    const cursorRows = visible.flatMap((log) =>
+      log.cursorSources.map((source) => ({ ...log, source })),
+    );
     return NextResponse.json({
       sources: results.map((result) => result.source),
-      logs: visible,
+      logs: visible.map(({ cursorSources: _cursorSources, ...log }) => log),
       nextCursor: mergedNextCursor(
         cursor,
-        visible,
-        logs,
+        cursorRows,
+        sourcedLogs,
         results,
         logCursorFor,
       ),
@@ -696,6 +919,12 @@ export async function operateObservabilityRoute(req: Request) {
         windowSeconds: results[0]?.monitoring?.windowSeconds ?? 0,
       },
       apps,
+      payments: mergedPartnerPayments(
+        results.map((result) => ({
+          source: result.source as UserSource,
+          payments: result.payments,
+        })),
+      ),
       dashboardLinks: results.flatMap((result) => result.dashboardLinks),
       platformMetrics: results[0]?.platformMetrics ?? [],
     });

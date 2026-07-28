@@ -62,7 +62,7 @@ export function prefetchControlPlaneRoute(
   if (path === "/projects") {
     void queryClient.prefetchQuery({
       queryKey: buildQueryKeys.projects(accountKey),
-      queryFn: deploymentSources,
+      queryFn: () => deploymentSources(),
       staleTime: buildQueryStaleTime.projects,
     });
     void queryClient.prefetchQuery({
@@ -76,7 +76,7 @@ export function prefetchControlPlaneRoute(
   if (path === "/overview" || path === "/operate/deployments") {
     void queryClient.prefetchQuery({
       queryKey: buildQueryKeys.projects(accountKey),
-      queryFn: deploymentSources,
+      queryFn: () => deploymentSources(),
       staleTime: buildQueryStaleTime.projects,
     });
     void queryClient.prefetchInfiniteQuery({

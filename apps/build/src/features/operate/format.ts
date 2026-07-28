@@ -15,7 +15,10 @@ export function clockLabel(value: unknown) {
 export function dayLabel(value: unknown) {
   const n = Number(value ?? 0);
   return n > 0
-    ? new Date(n * 1000).toLocaleDateString([], { month: "short", day: "numeric" })
+    ? new Date(n * 1000).toLocaleDateString([], {
+        month: "short",
+        day: "numeric",
+      })
     : "";
 }
 
@@ -75,6 +78,18 @@ export function signedUsdLabel(value: unknown): string {
   return label.startsWith("−") || label === "—" ? label : `+${label}`;
 }
 
+/** Partner pricing is quoted in credits; 100 credits settle $1.00. */
+export const CREDITS_PER_USD = 100;
+
+export function creditsToUsd(credits: unknown): number {
+  return Number(credits ?? 0) / CREDITS_PER_USD;
+}
+
+/** "1 receipt" / "2 receipts" — counts in this UI are always small. */
+export function plural(count: number, noun: string): string {
+  return `${count.toLocaleString()} ${noun}${count === 1 ? "" : "s"}`;
+}
+
 // Statement subjects are DB slugs; the page speaks billing vocabulary.
 const SUBJECT_LABELS: Record<string, string> = {
   tool_invocation: "Tool invocations",
@@ -89,10 +104,15 @@ export function subjectLabel(subject: unknown): string {
 }
 
 /** "Jul 1 – Jul 15" from the statement's UTC calendar-day range. */
-export function statementPeriodLabel(range: {
-  fromDate?: string;
-  toDate?: string;
-} | null | undefined): string {
+export function statementPeriodLabel(
+  range:
+    | {
+        fromDate?: string;
+        toDate?: string;
+      }
+    | null
+    | undefined,
+): string {
   const day = (value: string | undefined): string => {
     const parsed = Date.parse(`${value ?? ""}T00:00:00Z`);
     if (!Number.isFinite(parsed)) return value ?? "";
@@ -124,9 +144,26 @@ const CHAIN_NAMES: Record<number, string> = {
 };
 
 /** Backend-provided chain_name wins; otherwise map known ids, SVM → Solana. */
-export function chainLabel(row: { chainName?: string | null; chainId?: number; family?: string | null }) {
+export function chainLabel(row: {
+  chainName?: string | null;
+  chainId?: number;
+  family?: string | null;
+}) {
   if (row.chainName) return row.chainName;
   if (row.family === "svm") return "Solana";
   const id = Number(row.chainId ?? 0);
   return CHAIN_NAMES[id] ?? (id ? String(id) : "—");
+}
+
+/** "eip155:8453" → 8453. Anything unparseable → 0. */
+export function caipChainId(chain: unknown): number {
+  const id = Number(String(chain ?? "").split(":")[1]);
+  return Number.isSafeInteger(id) ? id : 0;
+}
+
+/** "eip155:8453" → "Base". Unrecognized chains pass through unchanged. */
+export function caipChainLabel(chain: unknown): string {
+  const raw = String(chain ?? "");
+  if (!raw.startsWith("eip155:")) return raw;
+  return CHAIN_NAMES[caipChainId(raw)] ?? raw;
 }

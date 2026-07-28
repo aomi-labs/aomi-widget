@@ -27,6 +27,10 @@ export type ProjectsState =
     }
   | { status: "error"; error: string };
 
+function hasApps(source: UserSource) {
+  return source.apps.length > 0;
+}
+
 export function useProjects() {
   // The GitHub session comes from the shell-level provider — reusing it here
   // avoids a second `/auth/github/status` round trip on every page mount.
@@ -40,7 +44,7 @@ export function useProjects() {
   });
   const projects = useQuery({
     queryKey: buildQueryKeys.projects(accountKey ?? "unavailable"),
-    queryFn: deploymentSources,
+    queryFn: () => deploymentSources(),
     enabled: account.signedIn && accountKey !== null,
     staleTime: buildQueryStaleTime.projects,
   });
@@ -67,7 +71,7 @@ export function useProjects() {
     const { loading: _loading, ...github } = account;
     return {
       status: "ready",
-      sources: projects.data?.sources ?? [],
+      sources: (projects.data?.sources ?? []).filter(hasApps),
       sdk: sdk.data ?? null,
       github,
     };

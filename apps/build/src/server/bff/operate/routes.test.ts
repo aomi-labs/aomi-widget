@@ -7,7 +7,9 @@ import {
   operateBotsRoute,
   operateBotsCreateRoute,
   operateBotsDeleteRoute,
+  operateLogsRoute,
   operateObservabilityRoute,
+  operateTransactionsRoute,
   operateUsageRoute,
 } from "./routes";
 
@@ -16,6 +18,10 @@ const client = {
   listUserSourceBots: vi.fn(),
   createUserSourceBot: vi.fn(),
   deleteUserSourceBot: vi.fn(),
+  listUserBots: vi.fn(),
+  createUserBot: vi.fn(),
+  updateUserBot: vi.fn(),
+  deleteUserBot: vi.fn(),
   getUserSourceUsage: vi.fn(),
   getUserSourceStatement: vi.fn(),
   getUserSourceObservability: vi.fn(),
@@ -72,6 +78,10 @@ beforeEach(() => {
   client.listUserSourceBots.mockReset();
   client.createUserSourceBot.mockReset();
   client.deleteUserSourceBot.mockReset();
+  client.listUserBots.mockReset();
+  client.createUserBot.mockReset();
+  client.updateUserBot.mockReset();
+  client.deleteUserBot.mockReset();
   client.getUserSourceUsage.mockReset();
   client.getUserSourceStatement.mockReset();
   client.getUserSourceObservability.mockReset();
@@ -94,41 +104,40 @@ describe("operateBotsRoute", () => {
     expect(client.listUserSources).not.toHaveBeenCalled();
   });
 
-  it("lists bots across owned sources", async () => {
+  it("lists builder-wide bots once", async () => {
     setSession({ githubUserId: "gh-1" });
     client.listUserSources.mockResolvedValue([
       { id: 42, repositoryLink: "o/r", apps: [] },
     ]);
-    client.listUserSourceBots.mockResolvedValue([
+    client.listUserBots.mockResolvedValue([
       { id: "b1", platformUsername: "mybot" },
     ]);
     const res = await operateBotsRoute(getReq());
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toMatchObject({
-      bots: [{ id: "b1", platformUsername: "mybot", source: { id: 42 } }],
+      bots: [{ id: "b1", platformUsername: "mybot" }],
     });
-    expect(client.listUserSourceBots).toHaveBeenCalledWith(
+    expect(client.listUserBots).toHaveBeenCalledWith(
       expect.objectContaining({
         githubUserId: "gh-1",
-        appSourceId: 42,
       }),
     );
   });
 
-  it("fans out over every owned source", async () => {
+  it("does not fan out over every owned source", async () => {
     setSession({ githubUserId: "gh-1" });
     client.listUserSources.mockResolvedValue([
       { id: 1, apps: [] },
       { id: 2, apps: [] },
     ]);
-    client.listUserSourceBots
-      .mockResolvedValueOnce([{ id: "b1", platformUsername: "one" }])
-      .mockResolvedValueOnce([{ id: "b2", platformUsername: "two" }]);
+    client.listUserBots.mockResolvedValue([
+      { id: "b1", platformUsername: "one" },
+    ]);
     const res = await operateBotsRoute(getReq());
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.bots).toHaveLength(2);
-    expect(client.listUserSourceBots).toHaveBeenCalledTimes(2);
+    expect(body.bots).toHaveLength(1);
+    expect(client.listUserBots).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -136,61 +145,77 @@ describe("operateBotsCreateRoute", () => {
   it("401s create when not signed in with GitHub", async () => {
     clearSession();
     const res = await operateBotsCreateRoute(
-      postJson({ appSourceId: 42, applicationId: 1, credential: "t" }),
+      postJson({
+        applicationIds: [1],
+        primaryApplicationId: 1,
+        credential: "t",
+      }),
     );
     expect(res.status).toBe(401);
-    expect(client.createUserSourceBot).not.toHaveBeenCalled();
+    expect(client.createUserBot).not.toHaveBeenCalled();
   });
 
-  it("404s a create for a source the user does not own", async () => {
+  it("rejects a create for apps the user does not own", async () => {
     setSession({ githubUserId: "gh-1" });
     client.listUserSources.mockResolvedValue([{ id: 42, apps: [] }]);
     const res = await operateBotsCreateRoute(
-      postJson({ appSourceId: 99, applicationId: 1, credential: "t" }),
+      postJson({
+        applicationIds: [1],
+        primaryApplicationId: 1,
+        credential: "t",
+      }),
     );
-    expect(res.status).toBe(404);
-    expect(client.createUserSourceBot).not.toHaveBeenCalled();
+    expect(res.status).toBe(403);
+    expect(client.createUserBot).not.toHaveBeenCalled();
   });
 
   it("400s an invalid body before calling the backend", async () => {
     setSession({ githubUserId: "gh-1" });
     client.listUserSources.mockResolvedValue([{ id: 42, apps: [] }]);
     let res = await operateBotsCreateRoute(
-      postJson({ appSourceId: "nope", applicationId: 1, credential: "t" }),
+      postJson({
+        applicationIds: "nope",
+        primaryApplicationId: 1,
+        credential: "t",
+      }),
     );
     expect(res.status).toBe(400);
 
     res = await operateBotsCreateRoute(
-      postJson({ appSourceId: 42, applicationId: 1, credential: "   " }),
+      postJson({
+        applicationIds: [1],
+        primaryApplicationId: 1,
+        credential: "   ",
+      }),
     );
     expect(res.status).toBe(400);
-    expect(client.createUserSourceBot).not.toHaveBeenCalled();
+    expect(client.createUserBot).not.toHaveBeenCalled();
   });
 
-  it("creates a bot for an owned source, hardcoding the telegram bot platform", async () => {
+  it("creates a bot with owned cross-source app mappings", async () => {
     setSession({ githubUserId: "gh-1" });
-    client.listUserSources.mockResolvedValue([{ id: 42, apps: [] }]);
-    client.createUserSourceBot.mockResolvedValue({
+    client.listUserSources.mockResolvedValue([{ id: 42, apps: [{ id: 7 }] }]);
+    client.createUserBot.mockResolvedValue({
       id: "b1",
       platform: "telegram",
     });
     const res = await operateBotsCreateRoute(
       postJson({
-        appSourceId: 42,
-        applicationId: 7,
+        applicationIds: [7],
+        primaryApplicationId: 7,
         credential: "secret-token",
         label: "My Bot",
       }),
     );
     expect(res.status).toBe(201);
     await expect(res.json()).resolves.toMatchObject({
-      bot: { id: "b1", platform: "telegram", source: { id: 42 } },
+      bot: { id: "b1", platform: "telegram" },
     });
-    expect(client.createUserSourceBot).toHaveBeenCalledWith(
+    expect(client.createUserBot).toHaveBeenCalledWith(
       expect.objectContaining({
         githubUserId: "gh-1",
-        appSourceId: 42,
-        applicationId: 7,
+        applicationIds: [7],
+        primaryApplicationId: 7,
         botPlatform: "telegram",
         credential: "secret-token",
         label: "My Bot",
@@ -200,10 +225,14 @@ describe("operateBotsCreateRoute", () => {
 
   it("never logs or echoes the credential value on failure paths", async () => {
     setSession({ githubUserId: "gh-1" });
-    client.listUserSources.mockResolvedValue([{ id: 42, apps: [] }]);
-    client.createUserSourceBot.mockRejectedValue(new Error("backend down"));
+    client.listUserSources.mockResolvedValue([{ id: 42, apps: [{ id: 7 }] }]);
+    client.createUserBot.mockRejectedValue(new Error("backend down"));
     const res = await operateBotsCreateRoute(
-      postJson({ appSourceId: 42, applicationId: 7, credential: "top-secret" }),
+      postJson({
+        applicationIds: [7],
+        primaryApplicationId: 7,
+        credential: "top-secret",
+      }),
     );
     const text = await res.text();
     expect(text).not.toContain("top-secret");
@@ -213,46 +242,29 @@ describe("operateBotsCreateRoute", () => {
 describe("operateBotsDeleteRoute", () => {
   it("401s delete when not signed in with GitHub", async () => {
     clearSession();
-    const res = await operateBotsDeleteRoute(
-      deleteReq("?appSourceId=42&botId=b1"),
-    );
+    const res = await operateBotsDeleteRoute(deleteReq("?botId=b1"));
     expect(res.status).toBe(401);
-    expect(client.deleteUserSourceBot).not.toHaveBeenCalled();
+    expect(client.deleteUserBot).not.toHaveBeenCalled();
   });
 
-  it("404s a delete for a source the user does not own", async () => {
+  it("400s a delete missing botId", async () => {
     setSession({ githubUserId: "gh-1" });
     client.listUserSources.mockResolvedValue([{ id: 42, apps: [] }]);
-    const res = await operateBotsDeleteRoute(
-      deleteReq("?appSourceId=99&botId=b1"),
-    );
-    expect(res.status).toBe(404);
-    expect(client.deleteUserSourceBot).not.toHaveBeenCalled();
-  });
-
-  it("400s a delete missing appSourceId or botId", async () => {
-    setSession({ githubUserId: "gh-1" });
-    client.listUserSources.mockResolvedValue([{ id: 42, apps: [] }]);
-    let res = await operateBotsDeleteRoute(deleteReq("?botId=b1"));
+    const res = await operateBotsDeleteRoute(deleteReq(""));
     expect(res.status).toBe(400);
-    res = await operateBotsDeleteRoute(deleteReq("?appSourceId=42"));
-    expect(res.status).toBe(400);
-    expect(client.deleteUserSourceBot).not.toHaveBeenCalled();
+    expect(client.deleteUserBot).not.toHaveBeenCalled();
   });
 
   it("deletes a bot for an owned source", async () => {
     setSession({ githubUserId: "gh-1" });
     client.listUserSources.mockResolvedValue([{ id: 42, apps: [] }]);
-    client.deleteUserSourceBot.mockResolvedValue(undefined);
-    const res = await operateBotsDeleteRoute(
-      deleteReq("?appSourceId=42&botId=b1"),
-    );
+    client.deleteUserBot.mockResolvedValue(undefined);
+    const res = await operateBotsDeleteRoute(deleteReq("?botId=b1"));
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({ ok: true });
-    expect(client.deleteUserSourceBot).toHaveBeenCalledWith(
+    expect(client.deleteUserBot).toHaveBeenCalledWith(
       expect.objectContaining({
         githubUserId: "gh-1",
-        appSourceId: 42,
         botId: "b1",
       }),
     );
@@ -264,6 +276,12 @@ function usageReq() {
 }
 function observabilityReq() {
   return new Request("http://localhost:3000/api/bff/operate/observability");
+}
+function transactionsReq(qs = "") {
+  return new Request(`http://localhost:3000/api/bff/operate/transactions${qs}`);
+}
+function logsReq(qs = "") {
+  return new Request(`http://localhost:3000/api/bff/operate/logs${qs}`);
 }
 function appDetailReq(qs = "?appSourceId=900&applicationId=77") {
   return new Request(
@@ -284,6 +302,65 @@ const emptyUsage = {
   daily: [],
   breakdown: [],
 };
+
+function emptyPayments() {
+  return {
+    available: true,
+    scope: "recipient_bucket",
+    summary: {
+      accruedCredits: 0,
+      accruedUsd: 0,
+      settledCredits: 0,
+      settledUsd: 0,
+      outstandingCredits: 0,
+      outstandingUsd: 0,
+      pricedCalls: 0,
+      settlements: 0,
+    },
+    resources: [],
+    buckets: [],
+    events: [],
+  };
+}
+
+function sharedSettlementPayments(applicationId: number | null = null) {
+  return {
+    ...emptyPayments(),
+    summary: {
+      ...emptyPayments().summary,
+      settledCredits: 100,
+      settledUsd: 1,
+      settlements: 1,
+    },
+    buckets: [
+      {
+        id: "shared-bucket",
+        recipient: "0xbeneficiary",
+        outstandingCredits: 0,
+        outstandingUsd: 0,
+      },
+    ],
+    events: [
+      {
+        id: "settle:shared",
+        kind: "settlement_confirmed",
+        occurredAt: 1_700_000_000,
+        application: applicationId == null ? null : `app-${applicationId}`,
+        applicationId,
+        tools: [],
+        credits: 100,
+        usd: 1,
+        asset: "USDC",
+        assetAmount: 1,
+        recipient: "0xbeneficiary",
+        paymentMethod: "coinbase",
+        receiptId: "0xreceipt",
+        chain: "eip155:84532",
+        explorerUrl: "https://sepolia.basescan.org/tx/0xreceipt",
+      },
+    ],
+  };
+}
 
 describe("operateUsageRoute statement fallback", () => {
   it("serves the example statement (example: true) when the manager has none", async () => {
@@ -352,6 +429,7 @@ describe("operateUsageRoute statement fallback", () => {
       ],
       charges: [],
       entries: [],
+      payments: emptyPayments(),
     });
 
     const res = await operateUsageRoute(usageReq());
@@ -361,6 +439,213 @@ describe("operateUsageRoute statement fallback", () => {
     expect(body.example).toBeUndefined();
     expect(body.statement.summary.net).toBeCloseTo(6.1, 2);
     expect(body.statement.revenue[0].application).toBe("real-bot");
+  });
+
+  it("deduplicates a recipient-bucket settlement shared by two sources", async () => {
+    setSession({ githubUserId: "gh-1" });
+    client.listUserSources.mockResolvedValue([
+      { id: 900, repositoryLink: "o/one", apps: [] },
+      { id: 901, repositoryLink: "o/two", apps: [] },
+    ]);
+    client.getUserSourceUsage.mockImplementation(({ appSourceId }) =>
+      Promise.resolve({
+        ...emptyUsage,
+        source: { id: appSourceId },
+      }),
+    );
+    const payment = sharedSettlementPayments();
+    payment.buckets[0].outstandingCredits = 25;
+    client.getUserSourceStatement.mockImplementation(({ appSourceId }) =>
+      Promise.resolve({
+        source: { id: appSourceId },
+        platform: "community",
+        range: { fromDate: "2026-07-01", toDate: "2026-07-15" },
+        available: true,
+        summary: {
+          grossRevenue: 0,
+          platformFees: 0,
+          serviceCharges: 0,
+          net: 0,
+        },
+        revenue: [],
+        charges: [],
+        entries: [],
+        payments: payment,
+      }),
+    );
+
+    const res = await operateUsageRoute(usageReq());
+    const body = await res.json();
+
+    expect(body.statement.payments.summary.settledCredits).toBe(100);
+    expect(body.statement.payments.summary.settlements).toBe(1);
+    expect(body.statement.payments.summary.outstandingCredits).toBe(25);
+    expect(body.statement.payments.summary.outstandingUsd).toBe(0.25);
+    expect(body.statement.payments.events).toHaveLength(1);
+    expect(body.statement.payments.buckets).toHaveLength(1);
+  });
+});
+
+describe("partner settlement aggregation", () => {
+  beforeEach(() => {
+    setSession({ githubUserId: "gh-1" });
+    client.listUserSources.mockResolvedValue([
+      { id: 900, repositoryLink: "o/one", apps: [] },
+      { id: 901, repositoryLink: "o/two", apps: [] },
+    ]);
+  });
+
+  it("renders one recipient-bucket payout across affected projects", async () => {
+    client.listUserSourceTransactions.mockImplementation(({ appSourceId }) =>
+      Promise.resolve({
+        source: { id: appSourceId },
+        platform: "community",
+        transactions: [],
+        nextCursor: null,
+      }),
+    );
+    client.getUserSourceStatement.mockImplementation(({ appSourceId }) =>
+      Promise.resolve({
+        source: { id: appSourceId },
+        platform: "community",
+        range: { fromDate: "2026-07-01", toDate: "2026-07-15" },
+        available: true,
+        summary: {
+          grossRevenue: 0,
+          platformFees: 0,
+          serviceCharges: 0,
+          net: 0,
+        },
+        revenue: [],
+        charges: [],
+        entries: [],
+        payments: sharedSettlementPayments(appSourceId),
+      }),
+    );
+
+    const body = await (
+      await operateTransactionsRoute(transactionsReq())
+    ).json();
+
+    expect(body.transactions).toHaveLength(1);
+    expect(body.transactions[0]).toMatchObject({
+      id: "partner-payout:settle:shared",
+      application: "Partner payout",
+      description: "Partner settlement via Coinbase",
+      fromLabel: null,
+      method: "Coinbase x402",
+      transfers: [],
+    });
+  });
+
+  it("pages app transactions independently of the payout overlay", async () => {
+    oneSource();
+    const transactions = [
+      { id: "tx:1", application: "demo", createdAt: 1_700_000_008 },
+      { id: "tx:2", application: "demo", createdAt: 1_700_000_007 },
+      { id: "tx:3", application: "demo", createdAt: 1_700_000_006 },
+    ];
+    client.listUserSourceTransactions.mockImplementation(({ cursor }) =>
+      Promise.resolve({
+        source: { id: 900 },
+        platform: "community",
+        transactions: cursor ? transactions.slice(2) : transactions.slice(0, 2),
+        nextCursor: cursor ? null : { createdAt: 1_700_000_007, id: "tx:2" },
+      }),
+    );
+    const payments = sharedSettlementPayments(42);
+    payments.events = [1, 2].map((id) => ({
+      ...payments.events[0],
+      id: `settle:${id}`,
+      occurredAt: 1_700_000_011 - id,
+    }));
+    client.getUserSourceStatement.mockResolvedValue({
+      source: { id: 900 },
+      platform: "community",
+      payments,
+    });
+
+    const first = await (
+      await operateTransactionsRoute(transactionsReq("?limit=2"))
+    ).json();
+    const second = await (
+      await operateTransactionsRoute(
+        transactionsReq(
+          `?limit=2&cursor=${encodeURIComponent(JSON.stringify(first.nextCursor))}`,
+        ),
+      )
+    ).json();
+
+    expect(
+      first.transactions.map((transaction: { id: string }) => transaction.id),
+    ).toEqual([
+      "partner-payout:settle:1",
+      "partner-payout:settle:2",
+      "tx:1",
+      "tx:2",
+    ]);
+    expect(first.nextCursor).toEqual({
+      perSource: { "900": { createdAt: 1_700_000_007, id: "tx:2" } },
+    });
+    expect(
+      second.transactions.map((transaction: { id: string }) => transaction.id),
+    ).toEqual(["tx:3"]);
+    expect(second.nextCursor).toBeNull();
+    expect(client.listUserSourceTransactions).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        cursor: { createdAt: 1_700_000_007, id: "tx:2" },
+      }),
+    );
+    expect(client.getUserSourceStatement).toHaveBeenCalledTimes(1);
+  });
+
+  it("deduplicates settlement logs and advances every source cursor", async () => {
+    client.listUserSourceLogs.mockImplementation(({ appSourceId }) =>
+      Promise.resolve({
+        source: { id: appSourceId },
+        platform: "community",
+        logs: [
+          {
+            occurredAt: 1_700_000_000,
+            eventType: "usage",
+            id: "settle:shared",
+            application: "partner-settlement",
+            applicationId: null,
+            summary: "Partner settlement confirmed · 100 credits",
+            details: { source: "partner_settlement" },
+            kind: "event",
+            status: "info",
+            tool: null,
+            durationMs: null,
+            retries: null,
+            threadId: null,
+            args: null,
+            result: null,
+          },
+        ],
+        nextCursor: {
+          occurredAt: 1_699_999_999,
+          eventType: "usage",
+          id: "old",
+        },
+      }),
+    );
+
+    const body = await (await operateLogsRoute(logsReq("?limit=1"))).json();
+
+    expect(body.logs).toHaveLength(1);
+    expect(body.nextCursor.perSource).toEqual({
+      "900": {
+        occurredAt: 1_700_000_000,
+        eventType: "usage",
+        id: "settle:shared",
+      },
+      "901": {
+        occurredAt: 1_700_000_000,
+        eventType: "usage",
+        id: "settle:shared",
+      },
+    });
   });
 });
 
@@ -374,6 +659,7 @@ describe("operateObservabilityRoute live data", () => {
       scope: "owned_applications",
       monitoring: null,
       apps: [],
+      payments: emptyPayments(),
       dashboardLinks: [],
       platformMetrics: [],
     });
@@ -415,6 +701,7 @@ describe("operateObservabilityRoute live data", () => {
           },
         },
       ],
+      payments: emptyPayments(),
       dashboardLinks: [],
       platformMetrics: [],
     });
@@ -442,6 +729,7 @@ describe("operateObservabilityRoute live data", () => {
       scope: "owned_applications",
       monitoring: null,
       apps: [],
+      payments: emptyPayments(),
       dashboardLinks: [],
       platformMetrics: [],
     });

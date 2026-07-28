@@ -1,13 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { render, waitFor } from "@testing-library/react";
 import type {
   ButtonHTMLAttributes,
   InputHTMLAttributes,
   ReactNode,
 } from "react";
 
-import { AppsSettings } from "./apps/apps-settings";
-import { Bots } from "./bots/bots";
 import { GeneralSettings } from "./general/general-settings";
 
 type FetchCall = {
@@ -56,21 +54,8 @@ function requestUrl(input: FetchCall["input"]): URL {
   return new URL(input.toString(), "https://portal.test");
 }
 
-function requestMethod(call: FetchCall): string {
-  if (call.input instanceof Request) return call.input.method;
-  return call.init?.method ?? "GET";
-}
-
 function requestPaths(calls: FetchCall[]): string[] {
   return calls.map((call) => requestUrl(call.input).pathname);
-}
-
-function hasCall(calls: FetchCall[], path: string, method = "GET") {
-  return calls.some(
-    (call) =>
-      requestUrl(call.input).pathname === path &&
-      requestMethod(call) === method,
-  );
 }
 
 const ACCOUNT_OVERVIEW = {
@@ -93,48 +78,6 @@ const ACCOUNT_OVERVIEW = {
   },
 };
 
-const USAGE_OVERVIEW = {
-  apps: [
-    {
-      app: "default",
-      credit_paid: 10,
-      credits_used: 3,
-      input_tokens: 100,
-      is_available: true,
-      output_tokens: 50,
-      source: "account",
-    },
-  ],
-  overall: {
-    credit_paid: 10,
-    credit_used: 3,
-    input_tokens: 100,
-    output_tokens: 50,
-  },
-  period_utc_from: "2026-07-01",
-  period_utc_to: "2026-07-31",
-  user: {
-    public_key: "0xabc",
-    tier: "pro",
-    user_id: "acct-user-1",
-    verified_email: "alice@example.com",
-  },
-};
-
-const BOT_REGISTRATION = {
-  created_at: 1_700_000_000,
-  default_app: "default",
-  id: "bot-1",
-  label: "Trading assistant",
-  platform: "telegram",
-  platform_bot_id: "telegram-bot-1",
-  platform_username: "trading_bot",
-  status: "active",
-  thread_mode: "single",
-  updated_at: 1_700_000_000,
-  webhook_url: "https://api.aomi.dev/webhooks/telegram/bot-1",
-};
-
 function installFetchRecorder() {
   const calls: FetchCall[] = [];
   const fetchMock = vi.fn(
@@ -147,21 +90,6 @@ function installFetchRecorder() {
       if (url.pathname === "/api/account" && method === "GET") {
         return Response.json(ACCOUNT_OVERVIEW);
       }
-      if (url.pathname === "/api/account/usage" && method === "GET") {
-        return Response.json(USAGE_OVERVIEW);
-      }
-      if (url.pathname === "/api/account/apps" && method === "GET") {
-        return Response.json(["default"]);
-      }
-      if (url.pathname === "/api/account/bots" && method === "GET") {
-        return Response.json({ bot_registrations: [] });
-      }
-      if (url.pathname === "/api/account/bots" && method === "POST") {
-        return Response.json({ bot_registration: BOT_REGISTRATION });
-      }
-      if (url.pathname === "/api/threads" && method === "POST") {
-        return Response.json({ thread_id: "thread-1" });
-      }
 
       return new Response(`Unexpected request: ${method} ${url.pathname}`, {
         status: 500,
@@ -173,10 +101,24 @@ function installFetchRecorder() {
   return { calls, fetchMock };
 }
 
+// NOTE (settings redesign): the Apps/Bots/App Keys/Secrets/BYOK tabs were
+// removed with the three-tab settings redesign. Account is now wired to real
+// routes and covered by features/account/account-acl.test.tsx; Usage still
+// renders from local fixtures (see docs/SETTINGS-REDESIGN-GAPS.md) — add its
+// route-caller test here when /api/account/usage binds.
 describe("settings route callers", () => {
   beforeEach(() => {
     widgetMock.getAccountCredential.mockClear();
     localStorage.clear();
+    // jsdom has no matchMedia; useSettings consults it for the "auto" theme.
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn(() => ({
+        matches: false,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    );
   });
 
   afterEach(() => {
@@ -191,40 +133,5 @@ describe("settings route callers", () => {
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());
     expect(requestPaths(calls)).toContain("/api/account");
     expect(requestPaths(calls)).not.toContain("/api/settings/account");
-  });
-
-  it("loads usage from the account usage route", async () => {
-    const { calls, fetchMock } = installFetchRecorder();
-
-    render(<AppsSettings />);
-
-    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
-    expect(requestPaths(calls)).toContain("/api/account/usage");
-    expect(requestPaths(calls)).not.toContain("/api/settings/apps/overview");
-  });
-
-  it("loads and creates Telegram bot registrations through account bot routes", async () => {
-    const { calls } = installFetchRecorder();
-
-    render(<Bots />);
-
-    await waitFor(() => expect(hasCall(calls, "/api/account/apps")).toBe(true));
-    expect(hasCall(calls, "/api/account/bots")).toBe(true);
-    expect(requestPaths(calls)).not.toContain(
-      "/api/settings/bot-registrations",
-    );
-
-    fireEvent.change(screen.getByLabelText("Bot Token"), {
-      target: { value: "123456:telegram-secret" },
-    });
-    await waitFor(() => expect(screen.getByText("Register bot")).toBeEnabled());
-    fireEvent.click(screen.getByText("Register bot"));
-
-    await waitFor(() =>
-      expect(hasCall(calls, "/api/account/bots", "POST")).toBe(true),
-    );
-    expect(requestPaths(calls)).not.toContain(
-      "/api/settings/bot-registrations",
-    );
   });
 });

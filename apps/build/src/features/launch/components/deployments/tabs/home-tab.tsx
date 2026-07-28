@@ -11,6 +11,13 @@ import {
 } from "lucide-react";
 import { useProjectDetail } from "@build/features/launch/hooks/use-project-detail";
 import { operateFetch } from "@build/features/operate/client";
+import {
+  caipChainLabel,
+  creditsToUsd,
+  plural,
+  truncateAddress,
+  usdLabel,
+} from "@build/features/operate/format";
 import { chatAppUrl } from "@build/lib/chat-url";
 import { BUILD_GLOSSARY } from "@build/lib/glossary";
 import { projectDeploymentStatus } from "../project-deployment-status";
@@ -124,12 +131,42 @@ function usageCardCopy(usage: UsagePeek | null): {
   };
 }
 
+function monetizationCard(source: NonNullable<Detail["source"]>) {
+  const configured = source.apps.flatMap((app) =>
+    Object.entries(app.pricing?.config.resources ?? {}).map(
+      ([tool, resource]) => {
+        const beneficiary = app.pricing?.config.beneficiaries.find(
+          (candidate) => candidate.name === resource.beneficiary,
+        );
+        return {
+          app: app.name,
+          tool,
+          credits: resource.pricing.flat,
+          beneficiary,
+        };
+      },
+    ),
+  );
+  if (!configured.length) return null;
+  const first = configured[0];
+  const route = first.beneficiary
+    ? `${caipChainLabel(first.beneficiary.chain)} · ${truncateAddress(first.beneficiary.value)}`
+    : "Aomi-managed beneficiary";
+  return {
+    value: plural(configured.length, "priced tool"),
+    hint: `${first.app}/${first.tool} · ${first.credits.toFixed(2)} credits (${usdLabel(creditsToUsd(first.credits))}) per successful call · ${route}`,
+    tone: "good" as const,
+  };
+}
+
 export function HomeTab({
   detail,
-  tabBaseHref,
+  tabHref,
 }: {
   detail: Detail;
-  tabBaseHref?: string;
+  tabHref?: (
+    tab: "home" | "deployments" | "providers" | "environment" | "chat",
+  ) => string;
 }) {
   const source = detail.source;
   const [usage, setUsage] = useState<UsagePeek | null>(null);
@@ -177,8 +214,9 @@ export function HomeTab({
     return <EmptyPanel>Project not found.</EmptyPanel>;
   }
 
-  const tabHref = (tab: string) =>
-    tabBaseHref ? `${tabBaseHref}?tab=${tab}` : `?tab=${tab}`;
+  const hrefForTab = (
+    tab: "home" | "deployments" | "providers" | "environment" | "chat",
+  ) => tabHref?.(tab) ?? `?tab=${tab}`;
 
   const isLive =
     lifecycle.kind === "live" && Boolean(lifecycle.chatApp) && !outdated;
@@ -210,23 +248,24 @@ export function HomeTab({
   const envReady = secretCount !== null && secretCount > 0;
   const envLoading = detail.secretsByApp === null && !detail.secretsError;
   const usageCopy = usageCardCopy(usage);
+  const monetization = monetizationCard(source);
 
   const nextAction =
     outdated && requiredSdk
       ? {
-          href: tabHref("deployments"),
+          href: hrefForTab("deployments"),
           label: `Upgrade to ${requiredSdk}`,
           copy: "Update the linked repository before opening chat.",
         }
       : !isLive
         ? {
-            href: tabHref("deployments"),
+            href: hrefForTab("deployments"),
             label: "Redeploy from Linked Repository",
             copy: "Publish a deployment, then set keys and open chat.",
           }
         : !envReady
           ? {
-              href: tabHref("environment"),
+              href: hrefForTab("environment"),
               label: "Open Environment",
               copy: "Add API keys so the live app can call tools.",
             }
@@ -238,7 +277,7 @@ export function HomeTab({
                 external: true,
               }
             : {
-                href: tabHref("chat"),
+                href: hrefForTab("chat"),
                 label: "Open Chat tab",
                 copy: "Continue in the Chat tab.",
               };
@@ -265,7 +304,7 @@ export function HomeTab({
                 : lifecycle.message || "Deploy and activate an app to go live."
           }
           tone={liveTone}
-          actionHref={tabHref("deployments")}
+          actionHref={hrefForTab("deployments")}
           actionLabel="View deployments"
         />
         <StatusCard
@@ -281,7 +320,7 @@ export function HomeTab({
           }
           hint={BUILD_GLOSSARY.environment.meaning}
           tone={envReady ? "good" : "warn"}
-          actionHref={tabHref("environment")}
+          actionHref={hrefForTab("environment")}
           actionLabel="Open Environment"
         />
         <StatusCard
@@ -293,7 +332,7 @@ export function HomeTab({
               : "Chat unlocks after a live deployment."
           }
           tone={isLive ? "good" : "neutral"}
-          actionHref={isLive ? tabHref("chat") : tabHref("deployments")}
+          actionHref={isLive ? hrefForTab("chat") : hrefForTab("deployments")}
           actionLabel={isLive ? "Chat tab" : "Go to deployments"}
         />
         <StatusCard
@@ -309,6 +348,16 @@ export function HomeTab({
           actionHref={`/operate/usage?project=${source.id}`}
           actionLabel="Open Usage"
         />
+        {monetization ? (
+          <StatusCard
+            label="Monetization"
+            value={monetization.value}
+            hint={monetization.hint}
+            tone={monetization.tone}
+            actionHref={`/operate/usage?project=${source.id}#partner-payments`}
+            actionLabel="View partner ledger"
+          />
+        ) : null}
       </div>
 
       <div className="border-border bg-surface-2/40 px-4 py-4">

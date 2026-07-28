@@ -105,6 +105,11 @@ export const AOMI_BACKEND_ENDPOINTS = [
   },
   {
     method: "GET",
+    path: "/api/account/statement",
+    auth: ["account"],
+  },
+  {
+    method: "GET",
     path: "/api/account/usage",
     auth: ["account"],
   },
@@ -325,6 +330,11 @@ export const AOMI_BACKEND_ENDPOINTS = [
   },
   {
     method: "GET",
+    path: "/availability",
+    auth: [],
+  },
+  {
+    method: "GET",
     path: "/health",
     auth: [],
   },
@@ -376,6 +386,11 @@ export const AOMI_BACKEND_ENDPOINTS = [
   {
     method: "POST",
     path: "/api/account/payment/tempo",
+    auth: ["account"],
+  },
+  {
+    method: "POST",
+    path: "/api/account/providers/:provider/agent-wallet",
     auth: ["account"],
   },
   {
@@ -537,6 +552,11 @@ export const AOMI_BACKEND_ENDPOINTS = [
     method: "POST",
     path: "/api/threads/:thread_id/unarchive",
     auth: ["account","thread"],
+  },
+  {
+    method: "PUT",
+    path: "/api/account/apps",
+    auth: ["account"],
   },
   {
     method: "PUT",
