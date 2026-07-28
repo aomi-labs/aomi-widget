@@ -4,13 +4,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const control = vi.hoisted(() => ({
   state: {
-    authorizedApps: ["default", "somm-agent"],
+    authorizedApps: ["default", "partner-agent"],
     appDescriptors: [
       { name: "default" },
-      { name: "somm-agent", applicationId: 2938032 },
+      { name: "partner-agent", applicationId: 42 },
     ],
   },
-  getAuthorizedApps: vi.fn(async () => ["default", "somm-agent"]),
+  getAuthorizedApps: vi.fn(async () => ["default", "partner-agent"]),
   getCurrentThreadApp: vi.fn(() => "default"),
   getCurrentThreadApplicationId: vi.fn(() => null),
   onAppSelect: vi.fn(),
@@ -83,10 +83,10 @@ describe("AppSelect", () => {
   it("passes a hosted app's application id to the controller", () => {
     render(<AppSelect />);
 
-    fireEvent.click(screen.getByRole("button", { name: "S Somm Agent" }));
+    fireEvent.click(screen.getByRole("button", { name: "P Partner Agent" }));
 
-    expect(control.onAppSelect).toHaveBeenCalledWith("somm-agent", {
-      applicationId: 2938032,
+    expect(control.onAppSelect).toHaveBeenCalledWith("partner-agent", {
+      applicationId: 42,
     });
   });
 });
