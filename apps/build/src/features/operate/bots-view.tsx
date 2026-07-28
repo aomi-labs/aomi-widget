@@ -1,5 +1,6 @@
 "use client";
 
+import { Bot } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useGitHubSession } from "@build/components/control-plane/github-session-context";
 import {
@@ -301,10 +302,13 @@ export function BotsView() {
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
       <div>
-        <h1 className="font-display text-xl font-normal tracking-tight">
-          Bots
-        </h1>
-        <p className="text-dim mt-1 max-w-2xl text-sm">
+        <div className="flex items-center gap-2">
+          <Bot className="text-dim size-5" aria-hidden />
+          <h1 className="font-display text-xl font-normal tracking-tight">
+            Bots
+          </h1>
+        </div>
+        <p className="text-dim mt-1.5 max-w-3xl text-sm leading-5">
           Register Telegram bots that use your Aomi backend and one or more
           attached apps. Bot credentials are encrypted and never shown after
           registration.
