@@ -31,10 +31,19 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
     detail.loadRequiredSecrets();
   }, [detail]);
 
-  const appNames = useMemo(
-    () => (detail.source?.apps ?? []).map((a) => a.name),
-    [detail.source],
-  );
+  // Apps come from the source, plus any app the required-secret check knows
+  // about. The two can diverge: a deploy re-syncs the source from the repo and
+  // gates on the freshly registered apps, so an app can be named in a "missing
+  // required secrets" error before this page's source snapshot lists it. Union
+  // them or that app has no row here and its secret can never be entered.
+  const appNames = useMemo(() => {
+    const names = (detail.source?.apps ?? []).map((a) => a.name);
+    const known = new Set(names);
+    for (const name of Object.keys(detail.requiredSecrets ?? {})) {
+      if (!known.has(name)) names.push(name);
+    }
+    return names;
+  }, [detail.source, detail.requiredSecrets]);
   const [app, setApp] = useState<string>("");
   const [rows, setRows] = useState<Row[]>([{ key: "", value: "" }]);
   const [status, setStatus] = useState<{
@@ -209,6 +218,25 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
               detail.secretsError,
               "Could not load environment. Try again.",
             )}
+          </div>
+        )}
+        {/* Without this the declared slots just silently fail to appear, which
+         * reads as "this app has no required secrets" — the opposite of true. */}
+        {detail.requiredSecretsError && (
+          <div className="border-warning/40 bg-warning/10 text-warning mt-3 flex flex-wrap items-center justify-between gap-2 rounded-md px-3 py-2 text-xs">
+            <span>
+              Required secrets could not be verified, so declared variables are
+              not listed.
+            </span>
+            <button
+              type="button"
+              onClick={() =>
+                void detail.refreshRequiredSecrets().catch(() => undefined)
+              }
+              className="shrink-0 font-medium underline underline-offset-2"
+            >
+              Retry
+            </button>
           </div>
         )}
       </div>

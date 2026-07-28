@@ -61,6 +61,9 @@ import {
   deploymentHistory,
   deploymentSecrets,
   deploymentRequiredSecrets,
+  deploymentSources,
+  launchDeploy,
+  launchPreflight,
 } from "@build/features/launch/client";
 
 describe("useProjectDetail", () => {
@@ -176,6 +179,75 @@ describe("useProjectDetail", () => {
       expect(result.current.requiredSecretsError).toBe("boom"),
     );
     expect(result.current.requiredSecrets).toBeNull();
+  });
+
+  it("refreshes the source before gating a redeploy on required secrets", async () => {
+    // Preflight re-syncs the source from the repo, so it can register an app
+    // the page never saw. The gate then fails for that app — and the banner and
+    // Environment tab list apps from `source`, so a stale source leaves the
+    // user with a missing-secret error and nowhere to enter the value.
+    vi.mocked(deploymentSources)
+      .mockResolvedValueOnce({
+        sources: [
+          {
+            id: 7,
+            installationId: 5,
+            repositoryLink: "a/b",
+            apps: [{ name: "my-bot" }],
+            latestDeployment: null,
+          },
+        ],
+      } as never)
+      .mockResolvedValue({
+        sources: [
+          {
+            id: 7,
+            installationId: 5,
+            repositoryLink: "a/b",
+            apps: [{ name: "my-bot" }, { name: "my-bot-2" }],
+            latestDeployment: null,
+          },
+        ],
+      } as never);
+    vi.mocked(launchPreflight).mockResolvedValue({
+      ok: true,
+      appSourceId: 7,
+      sourceRef: "abc1234",
+      apps: ["my-bot", "my-bot-2"],
+    } as never);
+    vi.mocked(deploymentRequiredSecrets).mockResolvedValue({
+      byApp: {
+        "my-bot": { slots: [], missing: [] },
+        "my-bot-2": {
+          slots: [
+            {
+              name: "TELEGRAM_BOT_TOKEN",
+              description: "Token from BotFather.",
+              required: true,
+            },
+          ],
+          missing: ["TELEGRAM_BOT_TOKEN"],
+        },
+      },
+    });
+
+    const { result } = renderHook(() => useProjectDetail(7));
+    await waitFor(() => expect(result.current.source?.apps).toHaveLength(1));
+
+    await act(async () => {
+      await result.current.redeploySource();
+    });
+
+    expect(result.current.deployFlow).toMatchObject({
+      phase: "error",
+      message: expect.stringContaining("TELEGRAM_BOT_TOKEN"),
+    });
+    // The newly registered app is visible, so the gate banner and the
+    // Environment tab can offer somewhere to set the token.
+    expect(result.current.source?.apps.map((app) => app.name)).toContain(
+      "my-bot-2",
+    );
+    expect(launchDeploy).not.toHaveBeenCalled();
   });
 
   it("surfaces direct required-secret check failures for a redeploy target", async () => {
