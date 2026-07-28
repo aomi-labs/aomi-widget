@@ -1,19 +1,6 @@
 "use client";
 
-// The global Providers page: builder-owned LLM model keys, provider-centric.
-// One flat card per provider (header + divide-y key rows). Each key row is an
-// accordion: click to expand an inline panel with key metadata, project
-// assignment, and rotate/remove flows. Key material is write-only — only the
-// stored prefix is ever shown.
-//
-// Styling follows the settings-redesign inventory, mapped onto apps/build's
-// radius scale: rounded-md (12px) cards/tables, rounded-sm (8px) in-card
-// controls, rounded-full pills. 10px uppercase tracked micro-labels, neutral
-// badges for facts and sky-tinted badges for state, mono for key prefixes,
-// and the button ramp (accent commit + accent repair in flow, solid red pill
-// for the destructive commit).
-
-import { Check, ChevronDown } from "lucide-react";
+import { Check, ChevronDown, KeyRound } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useGitHubSession } from "@build/components/control-plane/github-session-context";
 import {
@@ -32,13 +19,11 @@ export const PROVIDER_LABELS: Record<Provider, string> = {
   openrouter: "OpenRouter",
 };
 
-/** What one project has drawn through a key, when the backend reports it. */
 export type ModelKeyUsage = {
   tokens?: number;
   costUsd?: number;
 };
 
-/** Per-application rollup as the manager emits it on each key. */
 export type ModelKeyAppUsage = {
   applicationId: number;
   inputTokens: number;
@@ -63,7 +48,6 @@ export type ModelKey = {
 
 const USD_PER_CREDIT = 0.01;
 
-/** Derive the per-application usage record the table cells read. */
 export function withUsage(key: ModelKey): ModelKey {
   const rows = key.usageByApplication ?? [];
   if (rows.length === 0) return key;
@@ -113,7 +97,6 @@ const tokensCell = (count?: number) =>
 const costCell = (usd?: number) =>
   usd === undefined ? "—" : `$${usd.toFixed(2)}`;
 
-/** Column total across every project, undefined when nothing is reported. */
 function sumUsage(
   options: AppOption[],
   usage: ModelKey["usage"],
@@ -129,7 +112,6 @@ function sumUsage(
   return total;
 }
 
-/** One project (application) option for the grant editor. */
 type AppOption = { applicationId: number; name: string; sourceLabel: string };
 
 function appOptions(sources: KeySource[]): AppOption[] {
@@ -143,30 +125,18 @@ function appOptions(sources: KeySource[]): AppOption[] {
   );
 }
 
-// ── shared bits ─────────────────────────────────────────────────────────────
-
-// In-card controls take rounded-sm (8px) and the destructive commit takes a
-// pill, per the inventory's radius semantics as they map onto apps/build's
-// scale (sm=8px, md=12px). `text-accent-selected-foreground` is the on-accent
-// ink now registered in globals.css.
-/** In-flow commit: sky solid, rounded control. */
 const COMMIT_BTN =
   "bg-accent-selected text-accent-selected-foreground hover:opacity-90 inline-flex h-8 items-center justify-center rounded-sm px-3.5 text-[13px] font-medium disabled:cursor-not-allowed disabled:opacity-50";
-/** In-flow repair: sky outline, rounded control. */
 const REPAIR_BTN =
   "border-accent-selected/50 text-accent-selected hover:bg-accent-selected/10 inline-flex h-8 items-center gap-1 rounded-sm border px-3 text-[13px] font-medium disabled:opacity-50";
-/** Quiet in-card action: neutral outline. */
 const OUTLINE_BTN =
   "border-border hover:bg-surface-2 text-foreground inline-flex h-7 items-center rounded-sm border px-2.5 text-xs font-medium disabled:opacity-50";
-/** Text-only dismiss. */
 const GHOST_BTN =
   "text-dim hover:text-foreground inline-flex h-8 items-center rounded-sm px-2.5 text-[13px]";
-/** Destructive commit: solid red pill, same weight as an ink commit. */
 const DANGER_BTN =
   "bg-destructive text-destructive-foreground hover:opacity-90 inline-flex h-8 items-center rounded-full px-4 text-[13px] font-medium disabled:opacity-50";
 const INPUT =
   "bg-input text-foreground placeholder:text-dim h-8 rounded-sm border border-border px-2.5 text-[13px]";
-/** 10px uppercase tracked column head. */
 const TH =
   "px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.07em] text-dim";
 
@@ -322,8 +292,6 @@ function FundingSummary({
   );
 }
 
-// ── the project-assignment table ────────────────────────────────────────────
-
 function ProjectsTable({
   keyRow,
   options,
@@ -333,7 +301,6 @@ function ProjectsTable({
 }: {
   keyRow: ModelKey;
   options: AppOption[];
-  /** applicationId -> key currently funding it for this provider. */
   fundedBy: Map<number, ModelKey>;
   checked: Set<number>;
   onToggle: (applicationId: number, isChecked: boolean) => void;
@@ -405,7 +372,6 @@ function ProjectsTable({
             );
           })}
         </tbody>
-        {/* Footer summary row, per the framed-table component. */}
         <tfoot className="border-border bg-surface-1 border-t">
           <tr>
             <td className="text-foreground px-3 py-2 font-medium">Total</td>
@@ -424,8 +390,6 @@ function ProjectsTable({
   );
 }
 
-// ── one key row (accordion) ─────────────────────────────────────────────────
-
 function KeyRow({
   keyRow,
   options,
@@ -437,7 +401,6 @@ function KeyRow({
 }: {
   keyRow: ModelKey;
   options: AppOption[];
-  /** applicationId -> key currently funding it for this provider. */
   fundedBy: Map<number, ModelKey>;
   onGrants: (key: ModelKey, applicationIds: number[]) => Promise<void>;
   onRotate: (key: ModelKey, material: string) => Promise<void>;
@@ -646,8 +609,6 @@ function KeyRow({
   );
 }
 
-// ── one provider section ────────────────────────────────────────────────────
-
 function ProviderSection({
   provider,
   keys,
@@ -762,8 +723,6 @@ function ProviderSection({
     </section>
   );
 }
-
-// ── the page ────────────────────────────────────────────────────────────────
 
 export function ProvidersView() {
   const { account } = useGitHubSession();
@@ -897,30 +856,33 @@ export function ProvidersView() {
 
   if (account.loading) {
     return (
-      <div className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
+      <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
         <LoadingPanel label="Checking GitHub session..." />
       </div>
     );
   }
   if (!account.signedIn) {
     return (
-      <div className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
+      <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
         <GitHubSignInPanel error={null} />
       </div>
     );
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-5 px-4 py-8 sm:px-6 lg:px-8">
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
       <header>
-        <h1 className="font-display text-xl font-normal tracking-tight">
-          Providers
-        </h1>
-        <p className="text-subtle mt-1.5 max-w-2xl text-[13px] leading-relaxed">
+        <div className="flex items-center gap-2">
+          <KeyRound className="text-dim size-5" aria-hidden />
+          <h1 className="font-display text-xl font-normal tracking-tight">
+            Providers
+          </h1>
+        </div>
+        <p className="text-dim mt-1.5 max-w-3xl text-sm leading-5">
           Your keys fund inference for your apps&apos; users — model cost is
           waived when a key covers their selected model.
         </p>
-        <p className="text-dim mt-1 max-w-2xl text-xs leading-relaxed">
+        <p className="text-dim mt-1 max-w-3xl text-xs leading-5">
           Keys are encrypted and never shown again. App tool secrets live in
           each project&apos;s Environment.
         </p>
