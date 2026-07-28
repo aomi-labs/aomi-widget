@@ -898,6 +898,45 @@
 2026-07-13 — Fixed required-secrets gate fail-open (P1, external review);
 2026-07-13 — BILLING-EXPERIENCE.md: backend ↔ UI map (code-checked)
 
+## Required-secret gate hid the app it blocked on (2026-07-27)
+
+Reported on build-staging `/projects/1580?tab=deployments`: deploying failed
+with `Missing required secrets — <app>: <KEY>`, but nothing offered a place to
+enter the value — no gate banner with "Set required secrets", and the
+Environment tab listed no such variable.
+
+Cause: `redeploySource` runs `launchPreflight`, which re-syncs the source from
+the repo (`syncSource`, `server/bff/launch/routes.ts:301`) and returns
+`pre.apps` from the *preflight deployment*. HEAD's `aomi.toml` can therefore
+register apps the page's `source` snapshot predates. `ensureRequiredSecrets`
+gates on `pre.apps` (fresh), while the gate banner
+(`deployments-tab.tsx`) and the Environment tab's app list
+(`environment-tab.tsx`) both enumerate `source.apps` (stale) — so the deploy
+error could name an app neither surface would render a row for. It also
+explains why Deploy was clickable at all: the initial gate only checked the
+old app set and saw nothing missing.
+
+- `use-project-detail.ts`: `redeploySource` now `await reload()`s between
+  preflight and the required-secret check, so `source.apps` reflects what the
+  gate is about to check.
+- `deployments-tab.tsx` / `environment-tab.tsx`: apps are the **union** of
+  `source.apps` and the `requiredSecrets` keys, so an app the check flagged is
+  always listed (and settable) even if the source snapshot lags.
+- `environment-tab.tsx` now renders `requiredSecretsError` with a Retry — it
+  was swallowed, so a failed check rendered as "this app has no required
+  secrets", the opposite of the truth. This blind spot was never covered.
+- Tests: 3 added (env tab union + error banner, hook refresh-before-gate;
+  the hook test fails without the `reload()`). Launch suite 142 pass, tsc and
+  eslint clean.
+
+Not verified against staging data: the exact app/KEY pair is whatever the
+repo's current `aomi.toml` declares. If the symptom persists after a hard
+reload, capture
+`/api/bff/deployments/required-secrets?appSourceId=<id>` (status + body) — a
+503 there means `RequiredSecretsCheckError` (missing `GITHUB_TOKEN`,
+unresolvable `platformRepo`, or an unreadable release `manifest.json`), which
+is a different failure with the same silent-UI symptom.
+
 ## Operate statement + example-data fallback (2026-07-19)
 
 Branch `feat/operate-console-mocks` (uncommitted working tree):
