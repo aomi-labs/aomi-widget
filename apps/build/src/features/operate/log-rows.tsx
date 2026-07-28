@@ -7,7 +7,7 @@
 // payloads.
 
 import { Lock, X } from "lucide-react";
-import { clockLabel, dayLabel } from "./format";
+import { clockLabel, creditsToUsd, dayLabel, usdLabel } from "./format";
 
 type LogRow = Record<string, any>;
 
@@ -15,12 +15,14 @@ export type LogsPageFilter = {
   app: string | null;
   tool: string | null;
   errorsOnly: boolean;
+  paymentsOnly: boolean;
 };
 
 export const EMPTY_LOGS_PAGE_FILTER: LogsPageFilter = {
   app: null,
   tool: null,
   errorsOnly: false,
+  paymentsOnly: false,
 };
 
 const SELECT_CLS =
@@ -42,6 +44,16 @@ function statusOf(row: LogRow): "ok" | "error" | "info" {
 
 function isInvocation(row: LogRow): boolean {
   return row.kind === "invocation" || (row.tool != null && row.args != null);
+}
+
+/** Payment rows are usage events the billing pipeline tags at `details.source`. */
+type PaymentSource = "partner_fee" | "partner_settlement";
+
+function paymentSource(row: LogRow): PaymentSource | null {
+  const source = row.details?.source;
+  return source === "partner_fee" || source === "partner_settlement"
+    ? source
+    : null;
 }
 
 function modelKeyLabel(row: LogRow): string | null {
@@ -92,6 +104,59 @@ function ExpandedDetail({ row }: { row: LogRow }) {
   );
 }
 
+function PaymentDetail({
+  row,
+  source,
+}: {
+  row: LogRow;
+  source: PaymentSource;
+}) {
+  const details = row.details ?? {};
+  const settled = source === "partner_settlement";
+  const credits = Number(
+    (settled ? details.paid_credits : details.credits_used) ?? 0,
+  );
+  return (
+    <div className="border-border bg-surface-subtle/60 grid gap-3 border-t px-8 py-3 text-xs sm:grid-cols-3">
+      <div>
+        <div className="text-dim text-[10px] uppercase tracking-wide">
+          Amount
+        </div>
+        <div className="mt-1 font-mono">
+          {credits.toFixed(2)} credits · {usdLabel(creditsToUsd(credits))}
+        </div>
+      </div>
+      <div>
+        <div className="text-dim text-[10px] uppercase tracking-wide">
+          Beneficiary
+        </div>
+        <div className="mt-1 break-all font-mono">
+          {details.recipient ?? "—"}
+        </div>
+      </div>
+      <div>
+        <div className="text-dim text-[10px] uppercase tracking-wide">
+          Settlement
+        </div>
+        <div className="mt-1 break-all font-mono">
+          {details.receipt_id ??
+            (settled ? "—" : "awaiting recipient-bucket settlement")}
+        </div>
+      </div>
+      {details.billing ? (
+        <div className="sm:col-span-3">
+          <div className="text-dim text-[10px] uppercase tracking-wide">
+            Priced call
+          </div>
+          <pre className="mt-1 whitespace-pre-wrap font-mono text-xs">
+            {JSON.stringify(details.billing, null, 2)}
+          </pre>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function LogRows({
   rows,
   apps,
@@ -114,9 +179,11 @@ export function LogRows({
     if (filter.tool && (!isInvocation(row) || row.tool !== filter.tool))
       return false;
     if (filter.errorsOnly && statusOf(row) !== "error") return false;
+    if (filter.paymentsOnly && !paymentSource(row)) return false;
     return true;
   });
-  const active = filter.app || filter.tool || filter.errorsOnly;
+  const active =
+    filter.app || filter.tool || filter.errorsOnly || filter.paymentsOnly;
 
   return (
     <div className="space-y-3">
@@ -165,6 +232,19 @@ export function LogRows({
         >
           errors only
         </button>
+        <button
+          type="button"
+          onClick={() =>
+            onFilterChange({ ...filter, paymentsOnly: !filter.paymentsOnly })
+          }
+          className={`rounded-full border px-2.5 py-1 text-xs ${
+            filter.paymentsOnly
+              ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-500"
+              : "border-border bg-surface text-dim"
+          }`}
+        >
+          payments
+        </button>
         {active ? (
           <button
             type="button"
@@ -187,7 +267,8 @@ export function LogRows({
           const prev = position > 0 ? visible[position - 1] : null;
           const day = dayLabel(row.occurredAt);
           const showDay = !prev || dayLabel(prev.occurredAt) !== day;
-          const expandable = isInvocation(row);
+          const payment = paymentSource(row);
+          const expandable = isInvocation(row) || payment != null;
           const open = openId === rowId;
           const status = statusOf(row);
           const keyLabel = modelKeyLabel(row);
@@ -211,7 +292,13 @@ export function LogRows({
                 />
                 <span className="text-dim">{clockLabel(row.occurredAt)}</span>
                 <span className={expandable ? "text-foreground" : "text-dim"}>
-                  {expandable ? row.tool : row.eventType}
+                  {isInvocation(row)
+                    ? row.tool
+                    : payment === "partner_settlement"
+                      ? "payment settled"
+                      : payment === "partner_fee"
+                        ? "fee accrued"
+                        : row.eventType}
                 </span>
                 <span className="text-dim hidden text-right sm:block">
                   {row.durationMs != null ? `${row.durationMs}ms` : ""}
@@ -243,7 +330,13 @@ export function LogRows({
                   {row.application}
                 </span>
               </div>
-              {open ? <ExpandedDetail row={row} /> : null}
+              {open ? (
+                payment ? (
+                  <PaymentDetail row={row} source={payment} />
+                ) : (
+                  <ExpandedDetail row={row} />
+                )
+              ) : null}
             </div>
           );
         })}
