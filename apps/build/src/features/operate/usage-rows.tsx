@@ -85,7 +85,7 @@ function Statement({
       ) : null}
 
       {statement.payments ? (
-        <PartnerPayments payments={statement.payments} />
+        <PartnerPayments payments={statement.payments} period={period} />
       ) : null}
 
       <Card

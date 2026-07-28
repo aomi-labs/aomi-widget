@@ -119,6 +119,16 @@ describe("OperateView transactions", () => {
       ],
       dashboardLinks: [],
       platformMetrics: [],
+      payments: {
+        available: true,
+        summary: {
+          pricedCalls: 1,
+          accruedUsd: 1,
+          settledUsd: 0,
+          outstandingUsd: 1,
+        },
+        resources: [],
+      },
     });
 
     render(<OperateView kind="observability" />);
@@ -139,6 +149,14 @@ describe("OperateView transactions", () => {
     expect(screen.getByText("Tool errors")).toBeInTheDocument();
     expect(screen.getByText("12.0%")).toBeInTheDocument();
     expect(screen.getByText("Tx failures")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "24h activity · outstanding is the live recipient-bucket balance",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Outstanding").nextElementSibling).toHaveClass(
+      "text-amber-500",
+    );
     // Lifecycle footer.
     expect(
       screen.getByText(/SDK 3\.0\.2 · cold start 1250 ms · 4\.5 MB/),
@@ -426,12 +444,37 @@ describe("OperateView transactions", () => {
     expect(screen.getByText("−$4.10")).toBeInTheDocument();
     expect(screen.getAllByText("Jul 1 – Jul 15").length).toBeGreaterThan(0);
     expect(screen.getByText("Partner payments")).toBeInTheDocument();
+    expect(
+      screen.getByText("Partner payments").closest("#partner-payments"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Statement · Jul 1 – Jul 15")).toBeInTheDocument();
+    expect(screen.getByText("Current outstanding")).toBeInTheDocument();
+    expect(
+      screen.getByText("Current outstanding").nextElementSibling,
+    ).toHaveClass("text-emerald-500");
+    expect(
+      screen.getByText("all periods · recipient bucket"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("100.00 credits · statement period"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("1 receipt · statement period"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /liabilities owed to tool beneficiaries, not builder revenue/,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("banana_evm")).not.toBeInTheDocument();
     expect(screen.getByText("get_idle_assets")).toBeInTheDocument();
     expect(screen.getByText("Settlement confirmed")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "0x55e5…df74" })).toHaveAttribute(
+    const receipt = screen.getByRole("link", { name: "0x55e5…df74" });
+    expect(receipt).toHaveAttribute(
       "href",
       expect.stringContaining("sepolia.basescan.org/tx/"),
     );
+    expect(receipt.querySelector("svg")).toBeInTheDocument();
     // example: true → the header labels the page as example data.
     expect(screen.getByText("Example data")).toBeInTheDocument();
   });
@@ -451,7 +494,10 @@ describe("OperateView transactions", () => {
           fromAddress: "",
           toAddress: "0x5D907BEa404e6F821d467314a9cA07663CF64c9B",
           value: "1 USDC",
-          description: "Partner payout via coinbase",
+          valueUsd: "$1.00",
+          description: "Partner settlement via Coinbase",
+          method: "Coinbase x402",
+          transfers: [],
           txHash:
             "0x55e510bb72adb05979adc8afad8c70fa7ca3d0c2cb5dca9432bf82e46ff1df74",
           createdAt: 1_700_000_001,
@@ -467,10 +513,24 @@ describe("OperateView transactions", () => {
 
     render(<OperateView kind="transactions" />);
 
-    expect(await screen.findByText("Partner payout")).toBeInTheDocument();
-    fireEvent.click(screen.getByText("Partner payout via coinbase"));
+    expect(await screen.findByLabelText("Partner payout")).toHaveTextContent(
+      "Payout",
+    );
+    expect(
+      screen.queryByRole("columnheader", { name: "Kind" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("table")).toHaveClass(
+      "w-full",
+      "min-w-[960px]",
+      "table-fixed",
+    );
+    fireEvent.click(screen.getByText("Partner settlement via Coinbase"));
     expect(screen.getByText("Partner payment context")).toBeInTheDocument();
-    expect(screen.getByText("payer hidden")).toBeInTheDocument();
+    expect(screen.getByText("Payer")).toBeInTheDocument();
+    expect(screen.getByText("not recorded")).toBeInTheDocument();
+    expect(screen.getByText("Settlement amount")).toBeInTheDocument();
+    expect(screen.getByText("Coinbase x402")).toBeInTheDocument();
+    expect(screen.queryByText("ERC-20 transfers")).not.toBeInTheDocument();
     expect(screen.getByText(/recipient bucket/i)).toBeInTheDocument();
   });
 
@@ -488,7 +548,17 @@ describe("OperateView transactions", () => {
             source: "partner_fee",
             credits_used: 100,
             recipient: "0x5D907BEa404e6F821d467314a9cA07663CF64c9B",
-            billing: { items: [{ tool: "get_idle_assets", credits: 100 }] },
+            billing: {
+              items: [
+                {
+                  tool: "get_idle_assets",
+                  credits: 100,
+                  beneficiary: "banana_evm",
+                  beneficiary_address:
+                    "0x5D907BEa404e6F821d467314a9cA07663CF64c9B",
+                },
+              ],
+            },
           },
         },
         {
@@ -504,17 +574,31 @@ describe("OperateView transactions", () => {
     });
 
     render(<OperateView kind="logs" />);
-    fireEvent.click(await screen.findByRole("button", { name: "payments" }));
+    expect(
+      await screen.findByRole("button", { name: "Errors only" }),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Partner payments only" }),
+    );
 
     expect(
       screen.getByText("Partner fee accrued · 100.00 credits"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Clear filters" }),
     ).toBeInTheDocument();
     expect(screen.queryByText("Deployment activated")).not.toBeInTheDocument();
     fireEvent.click(screen.getByText("Partner fee accrued · 100.00 credits"));
     expect(
       screen.getByText(/awaiting recipient-bucket settlement/i),
     ).toBeInTheDocument();
-    expect(screen.getByText(/get_idle_assets/)).toBeInTheDocument();
+    expect(screen.getByText("Priced calls")).toBeInTheDocument();
+    expect(screen.getByText("get_idle_assets")).toBeInTheDocument();
+    expect(
+      screen.getByText("100.00 credits", { selector: "span" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/beneficiary_address/)).not.toBeInTheDocument();
+    expect(screen.queryByText("banana_evm")).not.toBeInTheDocument();
   });
 
   it("falls back to the token meter without a statement", async () => {

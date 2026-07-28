@@ -4,6 +4,7 @@
 // the beneficiary is, and the accrue → settle trail. Settlement is reconciled
 // at recipient-bucket scope, so one receipt can clear fees from several apps.
 
+import { ExternalLink } from "lucide-react";
 import { Card, TD, TH } from "./table";
 import {
   caipChainLabel,
@@ -34,21 +35,28 @@ function SummaryTiles({
       label: "Priced calls",
       value: Number(summary.pricedCalls ?? 0).toLocaleString(),
       sub: plural(toolCount, "configured tool"),
+      valueClass: "text-foreground",
     },
     {
       label: "Accrued",
       value: usdLabel(summary.accruedUsd),
-      sub: `${Number(summary.accruedCredits ?? 0).toFixed(2)} credits`,
+      sub: `${Number(summary.accruedCredits ?? 0).toFixed(2)} credits · statement period`,
+      valueClass: "text-foreground",
     },
     {
       label: "Settled",
       value: usdLabel(summary.settledUsd),
-      sub: plural(settlements, "receipt"),
+      sub: `${plural(settlements, "receipt")} · statement period`,
+      valueClass: "text-foreground",
     },
     {
-      label: "Outstanding",
+      label: "Current outstanding",
       value: usdLabel(summary.outstandingUsd),
-      sub: "recipient bucket",
+      sub: "all periods · recipient bucket",
+      valueClass:
+        Number(summary.outstandingUsd ?? 0) > 0
+          ? "text-amber-500"
+          : "text-emerald-500",
     },
   ];
   return (
@@ -59,7 +67,7 @@ function SummaryTiles({
           className="border-border bg-surface rounded-md border px-3 py-2.5"
         >
           <div className="text-dim text-xs">{tile.label}</div>
-          <div className="text-foreground text-lg font-semibold">
+          <div className={`text-lg font-semibold ${tile.valueClass}`}>
             {tile.value}
           </div>
           <div className="text-dim text-xs">{tile.sub}</div>
@@ -103,9 +111,7 @@ function ConfiguredPrices({ resources }: { resources: Row[] }) {
                     {truncateAddress(resource.recipient)}
                   </div>
                   <div className="text-dim text-xs">
-                    {[resource.beneficiary, caipChainLabel(resource.chain)]
-                      .filter(Boolean)
-                      .join(" · ")}
+                    {caipChainLabel(resource.chain)}
                   </div>
                 </td>
                 <td className={`${TD} text-xs`}>
@@ -183,28 +189,42 @@ function Receipt({ event }: { event: Row }) {
       href={event.explorerUrl}
       target="_blank"
       rel="noreferrer"
-      className="hover:underline"
+      className="inline-flex items-center gap-1 hover:underline"
     >
       {label}
+      <ExternalLink className="size-3" aria-hidden />
     </a>
   );
 }
 
-export function PartnerPayments({ payments }: { payments: Row }) {
+export function PartnerPayments({
+  payments,
+  period,
+}: {
+  payments: Row;
+  period?: string;
+}) {
   const summary: Row = payments.summary ?? {};
   const resources: Row[] = payments.resources ?? [];
   const events: Row[] = payments.events ?? [];
   if (!resources.length && !events.length) return null;
   return (
-    <div className="space-y-2">
+    <div id="partner-payments" className="scroll-mt-4 space-y-2">
       <div>
-        <div className="text-foreground text-sm font-medium">
-          Partner payments
+        <div className="flex items-center justify-between gap-3">
+          <div className="text-foreground text-sm font-medium">
+            Partner payments
+          </div>
+          {period ? (
+            <div className="text-dim text-xs">Statement · {period}</div>
+          ) : null}
         </div>
         <p className="text-dim mt-1 text-xs leading-5">
-          Priced tools accrue debt to the configured beneficiary. Settlements
-          are reconciled at recipient-bucket scope because one receipt can clear
-          fees from more than one app.
+          Partner payments are liabilities owed to tool beneficiaries, not
+          builder revenue. Settlements are reconciled at recipient-bucket scope
+          because one receipt can clear fees from more than one app. Accrued and
+          settled cover this statement; current outstanding is the live balance
+          across all periods.
         </p>
       </div>
       <SummaryTiles summary={summary} toolCount={resources.length} />

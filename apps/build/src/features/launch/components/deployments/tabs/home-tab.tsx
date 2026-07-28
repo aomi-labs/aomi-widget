@@ -147,13 +147,7 @@ function monetizationCard(source: NonNullable<Detail["source"]>) {
       },
     ),
   );
-  if (!configured.length) {
-    return {
-      value: "No priced tools",
-      hint: "Add a validated pricing.toml sidecar to monetize successful calls.",
-      tone: "neutral" as const,
-    };
-  }
+  if (!configured.length) return null;
   const first = configured[0];
   const route = first.beneficiary
     ? `${caipChainLabel(first.beneficiary.chain)} · ${truncateAddress(first.beneficiary.value)}`
@@ -354,14 +348,16 @@ export function HomeTab({
           actionHref={`/operate/usage?project=${source.id}`}
           actionLabel="Open Usage"
         />
-        <StatusCard
-          label="Monetization"
-          value={monetization.value}
-          hint={monetization.hint}
-          tone={monetization.tone}
-          actionHref={`/operate/usage?project=${source.id}`}
-          actionLabel="View partner ledger"
-        />
+        {monetization ? (
+          <StatusCard
+            label="Monetization"
+            value={monetization.value}
+            hint={monetization.hint}
+            tone={monetization.tone}
+            actionHref={`/operate/usage?project=${source.id}#partner-payments`}
+            actionLabel="View partner ledger"
+          />
+        ) : null}
       </div>
 
       <div className="border-border bg-surface-2/40 px-4 py-4">
