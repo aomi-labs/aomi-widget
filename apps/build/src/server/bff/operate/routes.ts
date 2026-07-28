@@ -134,11 +134,18 @@ const sourcesCache = new Map<
   string,
   { at: number; sources: Promise<UserSource[]> }
 >();
+const OPERATE_READ_CACHE_TTL_MS = 15_000;
+const OPERATE_READ_CACHE_MAX_ENTRIES = 500;
+const operateReadCache = new Map<
+  string,
+  { at: number; value: Promise<unknown> }
+>();
 
 // Test seam: the cache would otherwise leak one test's source list into the
 // next within the 15s TTL.
 export function clearSourcesCacheForTesting() {
   sourcesCache.clear();
+  operateReadCache.clear();
 }
 
 function cachedUserSources(
@@ -153,6 +160,41 @@ function cachedUserSources(
   sourcesCache.set(key, { at: Date.now(), sources });
   sources.catch(() => sourcesCache.delete(key));
   return sources;
+}
+
+function cachedOperateRead<T>(
+  githubUserId: string,
+  platform: string,
+  operation: string,
+  appSourceId: number,
+  parameters: unknown,
+  run: () => Promise<T>,
+): Promise<T> {
+  const key = JSON.stringify([
+    githubUserId,
+    platform,
+    operation,
+    appSourceId,
+    parameters,
+  ]);
+  const hit = operateReadCache.get(key);
+  if (hit && Date.now() - hit.at < OPERATE_READ_CACHE_TTL_MS) {
+    return hit.value as Promise<T>;
+  }
+
+  if (operateReadCache.size >= OPERATE_READ_CACHE_MAX_ENTRIES) {
+    const oldest = operateReadCache.keys().next().value;
+    if (oldest !== undefined) operateReadCache.delete(oldest);
+  }
+
+  const value = run();
+  operateReadCache.set(key, { at: Date.now(), value });
+  value.catch(() => {
+    if (operateReadCache.get(key)?.value === value) {
+      operateReadCache.delete(key);
+    }
+  });
+  return value;
 }
 
 async function ownedSources(req: Request): Promise<
@@ -447,20 +489,29 @@ export async function operateTransactionsRoute(req: Request) {
     const params = new URL(req.url).searchParams;
     const limit = pageLimit(params, 50, 100);
     const cursor = parseCompositeCursor(params.get("cursor"));
+    const status = params.get("status") ?? undefined;
     const results: OperateTransactionsResult[] = await settleBySource(
       owned.sources,
       (source) =>
-        owned.client.listUserSourceTransactions({
-          githubUserId: owned.githubUserId,
-          platform: owned.platform,
-          appSourceId: source.id,
-          limit,
-          status: params.get("status") ?? undefined,
-          cursor: sourceCursor(cursor, source.id) as
-            | OperateTransactionCursor
-            | string
-            | undefined,
-        }),
+        cachedOperateRead(
+          owned.githubUserId,
+          owned.platform,
+          "transactions",
+          source.id,
+          { limit, status, cursor: sourceCursor(cursor, source.id) },
+          () =>
+            owned.client.listUserSourceTransactions({
+              githubUserId: owned.githubUserId,
+              platform: owned.platform,
+              appSourceId: source.id,
+              limit,
+              status,
+              cursor: sourceCursor(cursor, source.id) as
+                | OperateTransactionCursor
+                | string
+                | undefined,
+            }),
+        ),
     );
     const transactions = results
       .flatMap((result) =>
@@ -503,20 +554,36 @@ export async function operateUsageRoute(req: Request) {
     // instead (flagged `example: true`) so the design ships visible.
     const [results, statements] = await Promise.all([
       settleBySource<OperateUsageResult>(owned.sources, (source) =>
-        owned.client.getUserSourceUsage({
-          githubUserId: owned.githubUserId,
-          platform: owned.platform,
-          appSourceId: source.id,
-          ...dates,
-        }),
+        cachedOperateRead(
+          owned.githubUserId,
+          owned.platform,
+          "usage",
+          source.id,
+          dates,
+          () =>
+            owned.client.getUserSourceUsage({
+              githubUserId: owned.githubUserId,
+              platform: owned.platform,
+              appSourceId: source.id,
+              ...dates,
+            }),
+        ),
       ),
       settleBySource<OperateStatementResult>(owned.sources, (source) =>
-        owned.client.getUserSourceStatement({
-          githubUserId: owned.githubUserId,
-          platform: owned.platform,
-          appSourceId: source.id,
-          ...dates,
-        }),
+        cachedOperateRead(
+          owned.githubUserId,
+          owned.platform,
+          "statement",
+          source.id,
+          dates,
+          () =>
+            owned.client.getUserSourceStatement({
+              githubUserId: owned.githubUserId,
+              platform: owned.platform,
+              appSourceId: source.id,
+              ...dates,
+            }),
+        ),
       ).then((rows) => rows.filter((statement) => statement.available)),
     ]);
     const sum = (pick: (s: OperateStatementResult) => number) =>
@@ -587,20 +654,29 @@ export async function operateLogsRoute(req: Request) {
     const params = new URL(req.url).searchParams;
     const limit = pageLimit(params, 100, 200);
     const cursor = parseCompositeCursor(params.get("cursor"));
+    const type = params.get("type") ?? undefined;
     const results: OperateLogsResult[] = await settleBySource(
       owned.sources,
       (source) =>
-        owned.client.listUserSourceLogs({
-          githubUserId: owned.githubUserId,
-          platform: owned.platform,
-          appSourceId: source.id,
-          limit,
-          type: params.get("type") ?? undefined,
-          cursor: sourceCursor(cursor, source.id) as
-            | OperateLogCursor
-            | string
-            | undefined,
-        }),
+        cachedOperateRead(
+          owned.githubUserId,
+          owned.platform,
+          "logs",
+          source.id,
+          { limit, type, cursor: sourceCursor(cursor, source.id) },
+          () =>
+            owned.client.listUserSourceLogs({
+              githubUserId: owned.githubUserId,
+              platform: owned.platform,
+              appSourceId: source.id,
+              limit,
+              type,
+              cursor: sourceCursor(cursor, source.id) as
+                | OperateLogCursor
+                | string
+                | undefined,
+            }),
+        ),
     );
     const logs = results
       .flatMap((result) =>
@@ -640,11 +716,19 @@ export async function operateObservabilityRoute(req: Request) {
     const results: OperateObservabilityResult[] = await settleBySource(
       owned.sources,
       (source) =>
-        owned.client.getUserSourceObservability({
-          githubUserId: owned.githubUserId,
-          platform: owned.platform,
-          appSourceId: source.id,
-        }),
+        cachedOperateRead(
+          owned.githubUserId,
+          owned.platform,
+          "observability",
+          source.id,
+          null,
+          () =>
+            owned.client.getUserSourceObservability({
+              githubUserId: owned.githubUserId,
+              platform: owned.platform,
+              appSourceId: source.id,
+            }),
+        ),
     );
     const apps = results.flatMap((result) =>
       result.apps.map((app) => ({
@@ -702,11 +786,49 @@ export async function operateAppDetailRoute(req: Request) {
     };
     const [detail, observability, transactionsResult, logsResult, deployments] =
       await Promise.all([
-        owned.client.getUserSourceAppDetail({ ...input, applicationId }),
-        owned.client.getUserSourceObservability(input),
-        owned.client.listUserSourceTransactions({ ...input, limit: 100 }),
-        owned.client.listUserSourceLogs({ ...input, limit: 200 }),
-        owned.client.listUserSourceDeployments({ ...input, limit: 20 }),
+        cachedOperateRead(
+          owned.githubUserId,
+          owned.platform,
+          "app-detail",
+          source.id,
+          { applicationId },
+          () =>
+            owned.client.getUserSourceAppDetail({ ...input, applicationId }),
+        ),
+        cachedOperateRead(
+          owned.githubUserId,
+          owned.platform,
+          "observability",
+          source.id,
+          null,
+          () => owned.client.getUserSourceObservability(input),
+        ),
+        cachedOperateRead(
+          owned.githubUserId,
+          owned.platform,
+          "transactions",
+          source.id,
+          { limit: 100 },
+          () =>
+            owned.client.listUserSourceTransactions({ ...input, limit: 100 }),
+        ),
+        cachedOperateRead(
+          owned.githubUserId,
+          owned.platform,
+          "logs",
+          source.id,
+          { limit: 200 },
+          () => owned.client.listUserSourceLogs({ ...input, limit: 200 }),
+        ),
+        cachedOperateRead(
+          owned.githubUserId,
+          owned.platform,
+          "deployments",
+          source.id,
+          { limit: 20 },
+          () =>
+            owned.client.listUserSourceDeployments({ ...input, limit: 20 }),
+        ),
       ]);
 
     return NextResponse.json({

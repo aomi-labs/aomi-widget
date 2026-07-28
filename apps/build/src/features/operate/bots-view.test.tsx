@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render as rtlRender, screen } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ReactElement } from "react";
 
 import type { GitHubAccountState } from "@build/components/control-plane/github-session-context";
 
@@ -26,6 +28,15 @@ import { operateFetch } from "./client";
 import { BotsView } from "./bots-view";
 
 const mockedOperateFetch = vi.mocked(operateFetch);
+
+function render(ui: ReactElement) {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return rtlRender(
+    <QueryClientProvider client={client}>{ui}</QueryClientProvider>,
+  );
+}
 
 function mockSession(partial: {
   loading: boolean;
@@ -84,7 +95,7 @@ describe("BotsView", () => {
   });
 
   it("requires an app and a token before registering", async () => {
-    mockSession({ loading: false, signedIn: true });
+    mockSession({ loading: false, signedIn: true, githubLogin: "octocat" });
     mockedOperateFetch.mockResolvedValue({ sources: [], bots: [] });
     render(<BotsView />);
     expect(

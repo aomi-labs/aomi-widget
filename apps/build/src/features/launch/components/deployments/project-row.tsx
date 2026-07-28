@@ -28,6 +28,7 @@ export function ProjectRow({
     <div className="border-border hover:bg-accent-hover flex items-center gap-3 border-b px-4 py-3 last:border-b-0">
       <Link
         href={projectHref}
+        prefetch={false}
         className="flex min-w-0 flex-1 items-center gap-3"
       >
         <div className="border-border flex size-8 shrink-0 items-center justify-center rounded-md border text-xs font-medium">
@@ -50,6 +51,7 @@ export function ProjectRow({
         {outdated && (
           <Link
             href={`${projectHref}?tab=deployments`}
+            prefetch={false}
             className="border-warning/40 bg-warning/10 text-warning hover:bg-warning/15 inline-flex h-7 items-center justify-center rounded-md border px-2.5 text-xs font-medium"
           >
             Upgrade

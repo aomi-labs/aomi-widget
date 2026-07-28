@@ -14,12 +14,18 @@
 // for the destructive commit).
 
 import { Check, ChevronDown } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useGitHubSession } from "@build/components/control-plane/github-session-context";
 import {
   GitHubSignInPanel,
   LoadingPanel,
 } from "@build/features/launch/components/deployments/ui/state-panels";
+import {
+  buildQueryKeys,
+  githubAccountKey,
+} from "@build/features/launch/query-keys";
+import { modelKeysFetch } from "@build/features/operate/client";
 import { API_PATHS } from "@build/lib/api-paths";
 import { cn } from "@build/lib/utils";
 
@@ -767,48 +773,28 @@ function ProviderSection({
 
 export function ProvidersView() {
   const { account } = useGitHubSession();
-  const [payload, setPayload] = useState<ProvidersPayload | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
-
-  const reload = useCallback(async () => {
-    const res = await fetch(API_PATHS.bff.operate.modelKeys);
-    const json = (await res.json().catch(() => ({}))) as ProvidersPayload & {
-      error?: string;
-    };
-    if (!res.ok) throw new Error(json.error || `Failed (${res.status})`);
-    setPayload({ ...json, keys: (json.keys ?? []).map(withUsage) });
-  }, []);
-
-  useEffect(() => {
-    if (account.loading) {
-      setLoading(true);
-      setError(null);
-      setPayload(null);
-      return;
-    }
-    if (!account.signedIn) {
-      setLoading(false);
-      setError(null);
-      setPayload(null);
-      return;
-    }
-    let alive = true;
-    setLoading(true);
-    setError(null);
-    reload()
-      .catch((err) => {
-        if (alive) setError(err instanceof Error ? err.message : String(err));
-      })
-      .finally(() => {
-        if (alive) setLoading(false);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [account.loading, account.signedIn, reload]);
+  const accountKey = githubAccountKey(account.githubLogin);
+  const providers = useQuery({
+    queryKey: buildQueryKeys.modelKeys(accountKey ?? "unavailable"),
+    queryFn: () => modelKeysFetch<ProvidersPayload>(),
+    select: (payload) => ({
+      ...payload,
+      keys: (payload.keys ?? []).map(withUsage),
+    }),
+    enabled: account.signedIn && accountKey !== null,
+    staleTime: 60 * 1000,
+  });
+  const payload = providers.data ?? null;
+  const loading = providers.isPending;
+  const error =
+    providers.error && !providers.data
+      ? providers.error instanceof Error
+        ? providers.error.message
+        : String(providers.error)
+      : null;
+  const reload = providers.refetch;
 
   const options = useMemo(
     () => appOptions(payload?.sources ?? []),

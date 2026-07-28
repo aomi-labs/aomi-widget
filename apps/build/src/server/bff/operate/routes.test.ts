@@ -365,6 +365,27 @@ describe("operateUsageRoute statement fallback", () => {
 });
 
 describe("operateObservabilityRoute live data", () => {
+  it("reuses a recent account-scoped manager read", async () => {
+    setSession({ githubUserId: "gh-1" });
+    oneSource();
+    client.getUserSourceObservability.mockResolvedValue({
+      source: { id: 900 },
+      platform: "community",
+      scope: "owned_applications",
+      monitoring: null,
+      apps: [],
+      dashboardLinks: [],
+      platformMetrics: [],
+    });
+
+    const first = await operateObservabilityRoute(observabilityReq());
+    const second = await operateObservabilityRoute(observabilityReq());
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    expect(client.getUserSourceObservability).toHaveBeenCalledTimes(1);
+  });
+
   it("keeps a partial live card partial instead of grafting example trends", async () => {
     setSession({ githubUserId: "gh-1" });
     oneSource();

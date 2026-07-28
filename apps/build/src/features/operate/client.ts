@@ -48,3 +48,12 @@ export async function operateAppDetailFetch<T>(
   }
   return json;
 }
+
+export async function modelKeysFetch<T>(): Promise<T> {
+  const res = await fetch(API_PATHS.bff.operate.modelKeys);
+  const json = (await res.json().catch(() => ({}))) as T & { error?: string };
+  if (!res.ok) {
+    throw new Error(json.error || `model keys failed (${res.status})`);
+  }
+  return json;
+}

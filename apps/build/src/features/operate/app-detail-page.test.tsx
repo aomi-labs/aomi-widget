@@ -1,4 +1,6 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render as rtlRender, screen } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ReactElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AppDetailPage } from "./app-detail-page";
 
@@ -9,9 +11,30 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push }),
 }));
 
+vi.mock("@build/components/control-plane/github-session-context", () => ({
+  useGitHubSession: () => ({
+    account: {
+      loading: false,
+      signedIn: true,
+      githubLogin: "octocat",
+      githubAvatarUrl: null,
+      installationId: null,
+    },
+  }),
+}));
+
 vi.mock("./client", () => ({
   operateAppDetailFetch: (...args: unknown[]) => operateAppDetailFetch(...args),
 }));
+
+function render(ui: ReactElement) {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return rtlRender(
+    <QueryClientProvider client={client}>{ui}</QueryClientProvider>,
+  );
+}
 
 const payload = {
   detail: {

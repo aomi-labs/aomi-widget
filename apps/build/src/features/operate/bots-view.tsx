@@ -1,11 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback, useMemo, useState } from "react";
 import { useGitHubSession } from "@build/components/control-plane/github-session-context";
 import {
   GitHubSignInPanel,
   LoadingPanel,
 } from "@build/features/launch/components/deployments/ui/state-panels";
+import {
+  buildQueryKeys,
+  githubAccountKey,
+} from "@build/features/launch/query-keys";
 import { API_PATHS } from "@build/lib/api-paths";
 import { operateFetch } from "./client";
 
@@ -76,9 +81,23 @@ function formatTs(ts?: number | null): string {
 
 export function BotsView() {
   const { account } = useGitHubSession();
-  const [payload, setPayload] = useState<BotsPayload | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const accountKey = githubAccountKey(account.githubLogin);
+  const queryKey = buildQueryKeys.bots(accountKey ?? "unavailable");
+  const botsQuery = useQuery({
+    queryKey,
+    queryFn: () => operateFetch<BotsPayload>("bots"),
+    enabled: account.signedIn && accountKey !== null,
+    staleTime: 30 * 1000,
+  });
+  const payload = botsQuery.data ?? null;
+  const loading = botsQuery.isPending;
+  const error =
+    botsQuery.error && !botsQuery.data
+      ? botsQuery.error instanceof Error
+        ? botsQuery.error.message
+        : String(botsQuery.error)
+      : null;
 
   const [label, setLabel] = useState("");
   const [token, setToken] = useState("");
@@ -88,37 +107,6 @@ export function BotsView() {
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [formStatus, setFormStatus] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (account.loading) {
-      setLoading(true);
-      setError(null);
-      setPayload(null);
-      return;
-    }
-    if (!account.signedIn) {
-      setLoading(false);
-      setError(null);
-      setPayload(null);
-      return;
-    }
-    let alive = true;
-    setLoading(true);
-    setError(null);
-    operateFetch<BotsPayload>("bots")
-      .then((next) => {
-        if (alive) setPayload(next);
-      })
-      .catch((err) => {
-        if (alive) setError(err instanceof Error ? err.message : String(err));
-      })
-      .finally(() => {
-        if (alive) setLoading(false);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [account.loading, account.signedIn]);
 
   const sources = useMemo(() => payload?.sources ?? [], [payload?.sources]);
   const bots = useMemo(() => payload?.bots ?? [], [payload?.bots]);
@@ -136,14 +124,16 @@ export function BotsView() {
     [sources],
   );
 
-  const canCreate = selectedOption.length > 0 && token.trim().length > 0 && !creating;
+  const canCreate =
+    selectedOption.length > 0 && token.trim().length > 0 && !creating;
 
   const handleCreate = useCallback(async () => {
     if (!canCreate) return;
     const [appSourceIdRaw, applicationIdRaw] = selectedOption.split(":");
     const appSourceId = Number(appSourceIdRaw);
     const applicationId = Number(applicationIdRaw);
-    if (!Number.isFinite(appSourceId) || !Number.isFinite(applicationId)) return;
+    if (!Number.isFinite(appSourceId) || !Number.isFinite(applicationId))
+      return;
 
     setCreating(true);
     setFormError(null);
@@ -168,7 +158,7 @@ export function BotsView() {
         throw new Error(json.error || `Failed to register bot (${res.status})`);
       }
       const created = json.bot;
-      setPayload((current) => ({
+      queryClient.setQueryData<BotsPayload>(queryKey, (current) => ({
         sources: current?.sources ?? sources,
         bots: [created, ...(current?.bots ?? [])],
       }));
@@ -182,38 +172,55 @@ export function BotsView() {
     } finally {
       setCreating(false);
     }
-  }, [canCreate, selectedOption, token, label, threadMode, sources]);
+  }, [
+    canCreate,
+    selectedOption,
+    token,
+    label,
+    threadMode,
+    sources,
+    queryClient,
+    queryKey,
+  ]);
 
-  const handleRemove = useCallback(async (bot: Bot) => {
-    if (!bot.source) return;
-    setRemovingId(bot.id);
-    setFormError(null);
-    try {
-      const params = new URLSearchParams({
-        appSourceId: String(bot.source.id),
-        botId: bot.id,
-      });
-      const res = await fetch(`${API_PATHS.bff.operate.bots}?${params}`, {
-        method: "DELETE",
-      });
-      const json = (await res.json().catch(() => ({}))) as {
-        ok?: boolean;
-        error?: string;
-      };
-      if (!res.ok) {
-        throw new Error(json.error || `Failed to remove bot (${res.status})`);
+  const handleRemove = useCallback(
+    async (bot: Bot) => {
+      if (!bot.source) return;
+      setRemovingId(bot.id);
+      setFormError(null);
+      try {
+        const params = new URLSearchParams({
+          appSourceId: String(bot.source.id),
+          botId: bot.id,
+        });
+        const res = await fetch(`${API_PATHS.bff.operate.bots}?${params}`, {
+          method: "DELETE",
+        });
+        const json = (await res.json().catch(() => ({}))) as {
+          ok?: boolean;
+          error?: string;
+        };
+        if (!res.ok) {
+          throw new Error(json.error || `Failed to remove bot (${res.status})`);
+        }
+        queryClient.setQueryData<BotsPayload>(queryKey, (current) =>
+          current
+            ? {
+                ...current,
+                bots: (current.bots ?? []).filter((b) => b.id !== bot.id),
+              }
+            : current,
+        );
+      } catch (err) {
+        setFormError(
+          err instanceof Error ? err.message : "Failed to remove bot",
+        );
+      } finally {
+        setRemovingId(null);
       }
-      setPayload((current) =>
-        current
-          ? { ...current, bots: (current.bots ?? []).filter((b) => b.id !== bot.id) }
-          : current,
-      );
-    } catch (err) {
-      setFormError(err instanceof Error ? err.message : "Failed to remove bot");
-    } finally {
-      setRemovingId(null);
-    }
-  }, []);
+    },
+    [queryClient, queryKey],
+  );
 
   if (account.loading) {
     return (
@@ -258,9 +265,9 @@ export function BotsView() {
           <h2 className="text-base font-medium">Register Telegram bot</h2>
           <p className="text-dim mt-1 text-sm">
             Create the bot in BotFather, paste its token here, and we will
-            verify it with Telegram and activate the webhook automatically.
-            This account owns the bot configuration; people who message the
-            bot still use their own Aomi identity, wallets, and threads.
+            verify it with Telegram and activate the webhook automatically. This
+            account owns the bot configuration; people who message the bot still
+            use their own Aomi identity, wallets, and threads.
           </p>
         </div>
 
@@ -387,7 +394,9 @@ export function BotsView() {
                 {bots.map((bot) => (
                   <tr key={bot.id}>
                     <td className="px-3 py-2">
-                      <div className="text-foreground">{displayBotName(bot)}</div>
+                      <div className="text-foreground">
+                        {displayBotName(bot)}
+                      </div>
                       {bot.platformUsername && bot.label ? (
                         <div className="text-dim text-xs">
                           @{bot.platformUsername}

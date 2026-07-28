@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Activity,
   BookOpen,
@@ -46,8 +46,10 @@ import {
   GITHUB_SIGNIN_URL,
   signOutGitHub,
 } from "@build/features/launch/dashboard";
+import { githubAccountKey } from "@build/features/launch/query-keys";
 import { cn } from "@build/lib/utils";
 import { ControlPlaneQueryProvider } from "./control-plane-query-provider";
+import { prefetchControlPlaneRoute } from "./prefetch-control-plane-route";
 
 type NavItem = {
   label: string;
@@ -279,16 +281,29 @@ function NavItemLink({
   active,
   expanded,
   signedIn,
+  accountKey,
   onNavigate,
 }: {
   item: NavItem;
   active: boolean;
   expanded: boolean;
   signedIn: boolean;
+  accountKey: string | null;
   onNavigate?: () => void;
 }) {
+  const router = useRouter();
+  const queryClient = useQueryClient();
   const Icon = item.icon;
   const enabled = item.enabled && (!item.requiresGitHub || signedIn);
+  const warmRoute = () => {
+    if (active) return;
+    const dataPrefetched = prefetchControlPlaneRoute(
+      queryClient,
+      item.href,
+      accountKey,
+    );
+    if (!dataPrefetched) router.prefetch(item.href);
+  };
   const content = (
     <>
       <Icon className="nav-icon size-4 shrink-0" />
@@ -326,6 +341,9 @@ function NavItemLink({
   return (
     <Link
       href={item.href}
+      prefetch={false}
+      onMouseEnter={warmRoute}
+      onFocus={warmRoute}
       onClick={onNavigate}
       data-active={active ? "true" : "false"}
       className="nav-link"
@@ -341,12 +359,14 @@ function NavGroupList({
   expanded,
   pathname,
   signedIn,
+  accountKey,
   onNavigate,
 }: {
   group: NavGroup;
   expanded: boolean;
   pathname: string;
   signedIn: boolean;
+  accountKey: string | null;
   onNavigate?: () => void;
 }) {
   return (
@@ -364,6 +384,7 @@ function NavGroupList({
             active={isActivePath(pathname, item.href)}
             expanded={expanded}
             signedIn={signedIn}
+            accountKey={accountKey}
             onNavigate={onNavigate}
           />
         ))}
@@ -383,6 +404,7 @@ function SidebarNav({
   account: GitHubAccountState;
   onNavigate?: () => void;
 }) {
+  const accountKey = githubAccountKey(account.githubLogin);
   return (
     <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto pb-3">
       {navGroups.map((group) => (
@@ -392,6 +414,7 @@ function SidebarNav({
           expanded={expanded}
           pathname={pathname}
           signedIn={account.loading || account.signedIn}
+          accountKey={accountKey}
           onNavigate={onNavigate}
         />
       ))}
@@ -518,6 +541,7 @@ function AccountMenu({
         )}
         <Link
           href="/settings"
+          prefetch={false}
           className="hover:bg-accent-hover hover:text-foreground flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs transition"
         >
           <Settings className="size-3.5" />

@@ -1,13 +1,18 @@
 "use client";
 
 import { Plug } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
 import { useGitHubSession } from "@build/components/control-plane/github-session-context";
 import {
   GitHubSignInPanel,
   LoadingPanel,
 } from "@build/features/launch/components/deployments/ui/state-panels";
-import { fetchIntegrationStatuses, type IntegrationStatus } from "./client";
+import {
+  buildQueryKeys,
+  githubAccountKey,
+} from "@build/features/launch/query-keys";
+import { fetchIntegrationStatuses } from "./client";
 import { INTEGRATION_PROVIDERS, type IntegrationProvider } from "./providers";
 
 /** Persist is not wired (BFF returns 501). Keep the form; gate Save. */
@@ -99,33 +104,20 @@ function IntegrationCard({
 
 export function IntegrationsView() {
   const { account } = useGitHubSession();
-  const [statuses, setStatuses] = useState<IntegrationStatus[] | null>(null);
-
-  useEffect(() => {
-    if (!account.signedIn) {
-      setStatuses(null);
-      return;
-    }
-    let alive = true;
-    fetchIntegrationStatuses()
-      .then((result) => {
-        if (alive) setStatuses(result.statuses);
-      })
-      .catch(() => {
-        // Status is non-blocking; the connect forms still render if it fails.
-        if (alive) setStatuses([]);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [account.signedIn]);
-
+  const accountKey = githubAccountKey(account.githubLogin);
+  const statusQuery = useQuery({
+    queryKey: buildQueryKeys.integrations(accountKey ?? "unavailable"),
+    queryFn: fetchIntegrationStatuses,
+    enabled: account.signedIn && accountKey !== null,
+    staleTime: 60 * 1000,
+  });
   const connectedBy = useMemo(() => {
     const map = new Map<string, boolean>();
-    for (const status of statuses ?? [])
+    // Status is non-blocking; the connect forms still render if it fails.
+    for (const status of statusQuery.data?.statuses ?? [])
       map.set(status.provider, status.connected);
     return map;
-  }, [statuses]);
+  }, [statusQuery.data?.statuses]);
 
   if (account.loading) {
     return (
