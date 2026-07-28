@@ -5,6 +5,7 @@ export type SseSubscriber = {
     sessionId: string,
     onUpdate: (event: AomiSSEEvent) => void,
     onError?: (error: unknown) => void,
+    options?: { applicationId?: number | string | null },
   ) => () => void;
   reconnect: (reason?: string) => void;
 };
@@ -17,6 +18,7 @@ export type SseSubscriberOptions = {
 };
 
 type SseSubscription = {
+  applicationId?: string;
   abortController: AbortController | null;
   lastEventId: string | null;
   seenEventIds: Set<string>;
@@ -100,6 +102,7 @@ export function createSseSubscriber({
     sessionId,
     onUpdate,
     onError,
+    options,
   ) => {
     const existing = subscriptions.get(sessionId);
     const listener: SseListener = { onUpdate, onError };
@@ -125,6 +128,7 @@ export function createSseSubscriber({
     }
 
     const subscription: SseSubscription = {
+      applicationId: options?.applicationId?.toString().trim() || undefined,
       abortController: null,
       lastEventId: null,
       seenEventIds: new Set(),
@@ -178,7 +182,14 @@ export function createSseSubscriber({
         if (subscription.lastEventId) {
           headers.set("Last-Event-ID", subscription.lastEventId);
         }
-        const response = await fetchImpl(`${backendUrl}/api/thread/updates`, {
+        const updatesUrl = new URL(`${backendUrl}/api/thread/updates`);
+        if (subscription.applicationId) {
+          updatesUrl.searchParams.set(
+            "application_id",
+            subscription.applicationId,
+          );
+        }
+        const response = await fetchImpl(updatesUrl.toString(), {
           headers,
           signal: controller.signal,
         });

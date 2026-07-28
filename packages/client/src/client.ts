@@ -636,14 +636,22 @@ export class AomiClient {
   /**
    * Interrupt the AI's current response.
    */
-  async interrupt(sessionId: string): Promise<AomiInterruptResponse> {
+  async interrupt(
+    sessionId: string,
+    options?: { app?: string; applicationId?: number | string | null },
+  ): Promise<AomiInterruptResponse> {
     this.logger?.debug("[aomi][client] POST /api/thread/interrupt prepared", {
       sessionId,
+      app: options?.app,
+      applicationId: options?.applicationId,
     });
     return postState<AomiInterruptResponse>(
       this.baseUrl,
       "/api/thread/interrupt",
-      {},
+      {
+        app: options?.app,
+        application_id: options?.applicationId,
+      },
       sessionId,
       this.fetchImpl,
       undefined,
@@ -795,8 +803,9 @@ export class AomiClient {
     sessionId: string,
     onUpdate: (event: AomiSSEEvent) => void,
     onError?: (error: unknown) => void,
+    options?: { applicationId?: number | string | null },
   ): () => void {
-    return this.sseSubscriber.subscribe(sessionId, onUpdate, onError);
+    return this.sseSubscriber.subscribe(sessionId, onUpdate, onError, options);
   }
 
   // ===========================================================================

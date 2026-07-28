@@ -330,6 +330,11 @@ export const AOMI_BACKEND_ENDPOINTS = [
   },
   {
     method: "GET",
+    path: "/availability",
+    auth: [],
+  },
+  {
+    method: "GET",
     path: "/health",
     auth: [],
   },
