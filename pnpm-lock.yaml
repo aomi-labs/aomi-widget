@@ -579,9 +579,6 @@ importers:
       '@getpara/react-sdk':
         specifier: ^2.24.0
         version: 2.24.0(5fa8ac97d642b29558a9f2b73ec7e673)
-      '@privy-io/react-auth':
-        specifier: ^3.27.1
-        version: 3.27.1(d04cc54dbaf9119316f1ab3048b026e0)
       '@radix-ui/react-avatar':
         specifier: ^1.1.11
         version: 1.1.11(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)

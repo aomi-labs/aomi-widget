@@ -47,6 +47,7 @@ export function AccountSettings() {
       onCommit={acl.commitMode}
       onRevokeGrant={acl.revokeGrant}
       onStopAllAuto={acl.stopAllAuto}
+      onConnectPrivy={acl.connectPrivy}
       onRegrant={acl.regrant}
       blockedReason={acl.blockedReason}
     />

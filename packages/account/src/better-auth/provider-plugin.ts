@@ -59,59 +59,81 @@ export function aomiProviderAuthPlugin(): BetterAuthPlugin {
                 error instanceof Error
                   ? error.message
                   : "provider_exchange_failed",
-            });
+              });
           }
-          const seed = providerSessionUserSeed(verified);
-          const existing = seed.email
-            ? await ctx.context.internalAdapter.findUserByEmail(seed.email, {
-                includeAccounts: false,
-              })
-            : null;
-          const betterAuthUser =
-            existing?.user ??
-            (await ctx.context.internalAdapter.createUser({
-              email: seed.email,
-              emailVerified: seed.emailVerified,
-              name: seed.name,
-            }));
-          const resolution = await signInWithVerifiedProviderCredential({
-            betterAuthUserId: betterAuthUser.id,
-            verified,
-            email: seed.email,
-            name: seed.name,
-          });
-          if (resolution.status === "conflict") {
-            console.error("provider credential link conflict", {
-              provider: verified.provider,
-              subject: verified.token.subject,
-              betterAuthUserId: betterAuthUser.id,
-              signalType: resolution.signalType,
-            });
-            throw new APIError("CONFLICT", {
-              message: "already_linked_to_another_account",
-            });
-          }
-          const aomiUser = resolution.user;
-          if (!aomiUser) throw new Error("resolved_account_not_found");
+          let stage = "provision_better_auth_user";
+          try {
+            const seed = providerSessionUserSeed(verified);
+            const existing = seed.email
+              ? await ctx.context.internalAdapter.findUserByEmail(seed.email, {
+                  includeAccounts: false,
+                })
+              : null;
+            const betterAuthUser =
+              existing?.user ??
+              (await ctx.context.internalAdapter.createUser({
+                email: seed.email,
+                emailVerified: seed.emailVerified,
+                name: seed.name,
+              }));
 
-          const session = await ctx.context.internalAdapter.createSession(
-            betterAuthUser.id,
-          );
-          await setSessionCookie(ctx, {
-            session,
-            user: betterAuthUser,
-          });
-          return ctx.json({
-            status: "linked",
-            account: await buildAccountResponse({
-              user: aomiUser,
-              session: {
-                carrier: "better_auth",
+            stage = "link_account";
+            const resolution = await signInWithVerifiedProviderCredential({
+              betterAuthUserId: betterAuthUser.id,
+              verified,
+              email: seed.email,
+              name: seed.name,
+            });
+            if (resolution.status === "conflict") {
+              console.error("provider credential link conflict", {
+                provider: verified.provider,
+                subject: verified.token.subject,
                 betterAuthUserId: betterAuthUser.id,
-                expiresAt: session.expiresAt,
-              },
-            }),
-          });
+                signalType: resolution.signalType,
+              });
+              throw new APIError("CONFLICT", {
+                message: "already_linked_to_another_account",
+              });
+            }
+            const aomiUser = resolution.user;
+            if (!aomiUser) throw new Error("resolved_account_not_found");
+
+            stage = "create_session";
+            const session = await ctx.context.internalAdapter.createSession(
+              betterAuthUser.id,
+            );
+            if (!session) {
+              throw new Error("better_auth_session_not_created");
+            }
+            await setSessionCookie(ctx, {
+              session,
+              user: betterAuthUser,
+            });
+
+            stage = "build_account_response";
+            return ctx.json({
+              status: "linked",
+              account: await buildAccountResponse({
+                user: aomiUser,
+                session: {
+                  carrier: "better_auth",
+                  betterAuthUserId: betterAuthUser.id,
+                  expiresAt: session.expiresAt,
+                },
+              }),
+            });
+          } catch (error) {
+            if (error instanceof APIError) throw error;
+            console.error("provider exchange failed", {
+              provider: verified.provider,
+              stage,
+              error: error instanceof Error ? error.message : String(error),
+              claims: decodeClaimsForLog(credential.providerToken),
+            });
+            throw new APIError("INTERNAL_SERVER_ERROR", {
+              message: `provider_exchange_${stage}_failed`,
+            });
+          }
         },
       ),
     },

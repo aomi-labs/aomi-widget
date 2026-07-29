@@ -127,13 +127,37 @@ function collectTrustedOrigins(
   env: AccountAuthEnvInput,
   betterAuthUrl: string,
 ): string[] {
+  const localOrigins = isAccountAuthLocalRuntime(env)
+    ? localLoopbackOrigins(betterAuthUrl)
+    : [];
   return uniqueOrigins([
     ...parseCsv(env.AOMI_TRUSTED_ORIGINS),
     betterAuthUrl,
+    ...localOrigins,
     firstUrl(env.VERCEL_BRANCH_URL),
     firstUrl(env.VERCEL_URL),
     firstUrl(env.VERCEL_PROJECT_PRODUCTION_URL),
   ]);
+}
+
+/** Browsers treat localhost and 127.0.0.1 as distinct origins. The local dev
+ * launcher binds the latter, while users commonly open the former. Trust both
+ * loopback spellings only in development so provider-session exchange works
+ * whichever URL was typed into the browser. */
+function localLoopbackOrigins(betterAuthUrl: string): string[] {
+  const url = new URL(betterAuthUrl);
+  // Account's historical package fallback is :3001, while Portal's local dev
+  // server defaults to :3000. Include both in dev so a manual `pnpm dev`
+  // startup cannot reject the browser's normal Portal origin.
+  const ports = new Set([url.port, "3000"]);
+  return [...ports].flatMap((port) => {
+    const suffix = port ? `:${port}` : "";
+    return [
+      `http://localhost${suffix}`,
+      `http://127.0.0.1${suffix}`,
+      `http://[::1]${suffix}`,
+    ];
+  });
 }
 
 function resolveSiweDomain(

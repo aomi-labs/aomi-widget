@@ -16,6 +16,16 @@ export default defineConfig({
       "@/components": resolve(registryDir, "components"),
       "@/hooks": resolve(registryDir, "hooks"),
       "@/lib": resolve(registryDir, "lib"),
+      // Subpath entries must precede the bare package alias — prefix matching
+      // is order-sensitive. Keep in sync with the alias maps in next.config.ts.
+      "@aomi-labs/widget-lib/providers/para": resolve(
+        registryDir,
+        "lib/wallet-kit/providers/para/index.ts",
+      ),
+      "@aomi-labs/widget-lib/providers/privy": resolve(
+        registryDir,
+        "lib/wallet-kit/providers/privy/index.ts",
+      ),
       "@aomi-labs/widget-lib": registryDir,
       "@aomi-labs/account": resolve(currentDir, "../../packages/account/src"),
       "@aomi-labs/client": resolve(currentDir, "../../packages/client/src"),

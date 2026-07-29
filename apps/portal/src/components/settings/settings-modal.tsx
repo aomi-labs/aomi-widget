@@ -26,11 +26,13 @@ const NAV: {
 function GateNotice({
   status,
   walletConnected,
+  error,
   onRetry,
   onConnect,
 }: {
   status: Exclude<AomiSessionStatus, "ready">;
   walletConnected?: boolean;
+  error?: string;
   onRetry: () => void;
   onConnect?: () => void;
 }) {
@@ -81,7 +83,7 @@ function GateNotice({
       {status === "error" && (
         <>
           <span className="text-aomi-muted text-[13px]">
-            Couldn’t connect your account. Please try again.
+            {error ?? "Couldn’t connect your account. Please try again."}
           </span>
           <button
             type="button"
@@ -104,7 +106,7 @@ function GateNotice({
  */
 export function SettingsModal({ onClose }: { onClose: () => void }) {
   const [tab, setTab] = useState<SettingsTab>("general");
-  const { status, retry } = useAomiSession();
+  const { status, error: sessionError, retry } = useAomiSession();
   const adapter = useAomiAuthAdapter();
 
   const renderContent = () => {
@@ -117,6 +119,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
         <GateNotice
           status={status}
           walletConnected={adapter.identity.isConnected}
+          error={sessionError}
           onRetry={retry}
           onConnect={
             adapter.openAccountUI
@@ -143,7 +146,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
     switch (tab) {
       case "general":
         return status === "error" ? (
-          <GateNotice status={status} onRetry={retry} />
+          <GateNotice status={status} error={sessionError} onRetry={retry} />
         ) : (
           <div className="px-[22px] py-5">
             <GeneralSettings onManageAccount={() => setTab("account")} />

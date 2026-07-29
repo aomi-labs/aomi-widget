@@ -31,6 +31,18 @@ mistaken for another supported environment.
 
 Progress:
 
+- 2026-07-29 Privy delegation BFF: moved the Portal begin call out of Better
+  Auth's `/api/auth/*` catch-all into an authenticated
+  `/api/delegation/privy/begin` proxy. The route forwards the thread header
+  and a server-minted AccountBearer to the Rust `/api/auth/privy/begin`
+  contract; begin and callback proxy coverage now run under the root Vitest
+  configuration. The standalone authorization page now reuses Portal's root
+  PrivyProvider instead of mounting a second wallet kit, avoiding the SDK's
+  duplicate-provider and server-side IndexedDB failures. New delegation now
+  remains in the Settings surface: it invokes Privy's native login modal,
+  adds Aomi's signer, posts the verified callback, and refreshes the ACL
+  without navigating away.
+
 - 2026-07-27 hosted account-pool hardening: traced recurring Settings auth
   failures to aggregate Supabase session exhaustion across two backend and two
   manager processes plus independently warm Vercel functions. Portal now

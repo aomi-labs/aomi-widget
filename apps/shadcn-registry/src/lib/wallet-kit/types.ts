@@ -296,6 +296,19 @@ export type AomiWalletKit = {
   selectedSolanaNetwork?: SvmNetworkOption;
   solanaNetworkSwitchRequiresReconnect?: boolean;
 
+  /**
+   * The EVM address that `signTypedData`/`signMessage` will actually sign with:
+   * the registry's active connection, which is the connector the execution
+   * runtime hands to wagmi.
+   *
+   * Deliberately separate from `identity.address`. That one is the *displayed*
+   * identity and keeps reporting a cached value through a disconnect grace
+   * window, so the two legitimately diverge — the composer logs
+   * `registry:shadow-diff` when they do. Anything that must hold for the key
+   * that actually produces a signature, such as a permit only the wallet itself
+   * may sign, has to check this one.
+   */
+  evmSigningAddress?: string;
   /** All wallet accounts known to the adapter, tagged by family. */
   accounts: readonly AomiAccount[];
   /** Unified picker rows: live accounts, stored account-runtime rows, and options. */
@@ -305,6 +318,7 @@ export type AomiWalletKit = {
   accountUser?: AomiUserRef;
   accountLinkedAccounts?: readonly LinkedAuthAccount[];
   accountWallets?: readonly AccountWallet[];
+  retryAccount?: () => void;
   signOutAccount?: () => Promise<void>;
   deleteAccount?: () => Promise<void>;
   updateAccount?: (input: UpdateAccountInput) => Promise<void>;

@@ -165,20 +165,24 @@ export function AomiPrivyPluginProvider({
       getCredential:
         (privy.getIdentityToken ?? privy.getAccessToken)
           ? async (): Promise<AomiAccountCredential | null> => {
-              const identityToken = (await privy.getIdentityToken?.())?.trim();
-              if (identityToken) {
+              // Aomi's delegated-signing callback already verifies Privy's
+              // access token with PRIVY_JWT_VERIFICATION_KEY. Prefer that
+              // same token here so a normal portal sign-in does not silently
+              // depend on a distinct identity-token verification key.
+              const accessToken = (await privy.getAccessToken?.())?.trim();
+              if (accessToken) {
                 return {
                   provider: "privy",
-                  tokenKind: "identity_token",
-                  providerToken: identityToken,
+                  tokenKind: "access_token",
+                  providerToken: accessToken,
                 };
               }
-              const accessToken = (await privy.getAccessToken?.())?.trim();
-              return accessToken
+              const identityToken = (await privy.getIdentityToken?.())?.trim();
+              return identityToken
                 ? {
                     provider: "privy",
-                    tokenKind: "access_token",
-                    providerToken: accessToken,
+                    tokenKind: "identity_token",
+                    providerToken: identityToken,
                   }
                 : null;
             }

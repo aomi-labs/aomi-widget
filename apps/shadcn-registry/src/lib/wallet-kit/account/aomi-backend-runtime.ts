@@ -8,7 +8,6 @@ import { brandDisplayName } from "../runtime/evm/brands";
 import type { AccountRuntime, AccountWallet } from "./types";
 import type { AomiAccount, SvmCluster, WalletFamily } from "../types";
 import {
-  AomiAccountRequestError,
   createAomiBackendAccountClient,
   type AomiBackendAccountResponse,
   type AomiBackendNonceResponse,
@@ -86,6 +85,8 @@ export function useAomiBackendAccountRuntime(input: {
     input.enabled ? (widgetSignedOut ? "ready" : "loading") : "disabled",
   );
   const [errorVersion, setErrorVersion] = useState(0);
+  const [providerCredentialRetryVersion, setProviderCredentialRetryVersion] =
+    useState(0);
   const [accountError, setAccountError] = useState<string | undefined>();
   const refreshContextKey = JSON.stringify([
     input.enabled,
@@ -462,13 +463,11 @@ export function useAomiBackendAccountRuntime(input: {
         await refresh();
       } catch (error) {
         credentialFailed.current = { attemptKey, failedAt: Date.now() };
-        if (
-          error instanceof AomiAccountRequestError &&
-          error.status === 409 &&
-          error.code === "already_linked_to_another_account"
-        ) {
-          setAccountError(error.message);
-        }
+        setAccountError(
+          error instanceof Error
+            ? error.message
+            : "Could not establish your account session.",
+        );
         setStatus("ready");
         setErrorVersion((version) => version + 1);
       } finally {
@@ -490,9 +489,18 @@ export function useAomiBackendAccountRuntime(input: {
     accountClient,
     input.auth,
     input.enabled,
+    providerCredentialRetryVersion,
     refresh,
     status,
   ]);
+
+  const retryProviderCredential = useCallback(() => {
+    credentialFailed.current = null;
+    credentialExchanged.current = null;
+    providerSessionAttempted.current = null;
+    setAccountError(undefined);
+    setProviderCredentialRetryVersion((version) => version + 1);
+  }, []);
 
   const liveAccounts = useMemo(
     () => [
@@ -532,6 +540,7 @@ export function useAomiBackendAccountRuntime(input: {
     linkedAccounts: account?.linkedAccounts ?? [],
     wallets,
     getAccountBearer: widgetSessionProvider,
+    retryProviderCredential,
     refresh,
     signOut: async () => {
       if (activeEvmAddress && activeEvmChainId) {

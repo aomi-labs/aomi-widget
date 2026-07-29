@@ -78,4 +78,40 @@ describe("provider auth plugin", () => {
     });
     expect(createSession).not.toHaveBeenCalled();
   });
+
+  it("returns a safe stage code when account linking fails unexpectedly", async () => {
+    exchangeMocks.signInWithVerifiedProviderCredential.mockRejectedValueOnce(
+      new Error("database unavailable"),
+    );
+    const endpoint = aomiProviderAuthPlugin().endpoints
+      ?.exchangeProviderToken as unknown as (ctx: unknown) => Promise<unknown>;
+
+    await expect(
+      endpoint({
+        request: new Request(
+          "https://chat.aomi.dev/api/auth/aomi/provider/exchange",
+        ),
+        body: { provider: "privy", providerToken: "token" },
+        context: {
+          internalAdapter: {
+            findUserByEmail: vi.fn(async () => ({
+              user: {
+                id: "ba-user-1",
+                email: "alice@example.com",
+                emailVerified: true,
+                name: "Alice",
+              },
+            })),
+            createUser: vi.fn(),
+            createSession: vi.fn(),
+          },
+        },
+        json: vi.fn(),
+      }),
+    ).rejects.toMatchObject({
+      body: expect.objectContaining({
+        message: "provider_exchange_link_account_failed",
+      }),
+    });
+  });
 });

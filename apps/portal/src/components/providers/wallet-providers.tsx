@@ -1,6 +1,7 @@
 "use client";
 
 import "@aomi-labs/widget-lib/providers/para";
+import "@aomi-labs/widget-lib/providers/privy";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import {
   mainnet,
@@ -24,10 +25,15 @@ import {
   E2EWalletProvider,
   type E2EWalletSeedClient,
 } from "@portal/components/providers/e2e-wallet-provider";
+// Must come from the wallet kit, not a Portal-local copy: the ceremony reads
+// the Privy context that `AomiWalletKitProvider` mounts, and Portal resolves a
+// different `@privy-io/react-auth` install than the kit does.
+import { PrivyDelegationProvider } from "@aomi-labs/widget-lib/providers/privy";
 
 const paraApiKey = process.env.NEXT_PUBLIC_PARA_API_KEY?.trim() ?? "";
 const paraEnvironment =
   process.env.NEXT_PUBLIC_PARA_ENVIRONMENT === "PROD" ? "PROD" : "BETA";
+const privyAppId = process.env.NEXT_PUBLIC_PRIVY_APP_ID?.trim() ?? "";
 
 const walletConnectProjectId =
   process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID?.trim() ||
@@ -124,8 +130,14 @@ export function WalletProviders({ children, e2eWallet }: Props) {
     typeof window !== "undefined" && walletConnectProjectId
       ? (["metamask", "rabby", "coinbase", "walletconnect"] as const)
       : (["metamask", "rabby", "coinbase"] as const);
-  const auth =
-    paraApiKey.length > 0
+  // Privy is the primary embedded-wallet provider when configured. Its
+  // browser SDK attaches Aomi's quorum signer during delegation setup.
+  const auth = privyAppId
+    ? ({
+        provider: "privy",
+        methods: ["email", "google"],
+      } as const)
+    : paraApiKey.length > 0
       ? ({
           provider: "para",
           methods: ["email", "google"],
@@ -157,6 +169,12 @@ export function WalletProviders({ children, e2eWallet }: Props) {
               environment: paraEnvironment,
             }
           : false,
+        privy: privyAppId
+          ? {
+              appId: privyAppId,
+              appName: "Aomi Labs",
+            }
+          : false,
       }}
       wallets={{
         evm: {
@@ -171,7 +189,11 @@ export function WalletProviders({ children, e2eWallet }: Props) {
         },
       }}
     >
-      {children}
+      {privyAppId ? (
+        <PrivyDelegationProvider>{children}</PrivyDelegationProvider>
+      ) : (
+        children
+      )}
     </AomiWalletKitProvider>
   );
 }

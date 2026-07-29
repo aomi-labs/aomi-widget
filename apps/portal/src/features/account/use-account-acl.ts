@@ -7,13 +7,15 @@ import {
   type AuthorizationPoster,
   type WalletEip712Payload,
 } from "@aomi-labs/client";
-import { useAomiWalletKit } from "@aomi-labs/widget-lib";
+import { useOptionalAomiRuntime } from "@aomi-labs/react";
+import { useAomiWalletKit, usePrivyDelegation } from "@aomi-labs/widget-lib";
 import { accountScopedFetch } from "@portal/lib/settings-api";
 import {
   explainAccountError,
   fetchGrants,
   fetchWalletPolicies,
   revokeProviderGrant,
+  shortenAddress,
 } from "./account-api";
 import type { DelegationGrant, SignerMode, WalletPolicy } from "./types";
 
@@ -59,6 +61,8 @@ export type AccountAcl = {
   commitMode: (wallet: WalletPolicy, mode: SignerMode) => Promise<void>;
   revokeGrant: (grant: DelegationGrant) => Promise<void>;
   stopAllAuto: () => Promise<void>;
+  /** Start a fresh Privy embedded-wallet delegation for the current thread. */
+  connectPrivy: () => Promise<void>;
   /** Re-open the provider so a fresh grant can be minted, then reload. */
   regrant: (wallet: WalletPolicy) => Promise<void>;
   /** Why this wallet can't sign the given change right now, or null if it can. */
@@ -67,6 +71,8 @@ export type AccountAcl = {
 
 export function useAccountAcl(): AccountAcl {
   const adapter = useAomiWalletKit();
+  const runtime = useOptionalAomiRuntime();
+  const privyDelegation = usePrivyDelegation();
   const [wallets, setWallets] = useState<WalletPolicy[]>([]);
   const [grants, setGrants] = useState<DelegationGrant[]>([]);
   const [status, setStatus] = useState<AclStatus>("loading");
@@ -80,12 +86,19 @@ export function useAccountAcl(): AccountAcl {
     };
   }, []);
 
-  const evmAddress = adapter.identity.address;
+  // The key that will actually produce the signature, not the displayed
+  // identity. `identity.address` survives a disconnect on a grace window and
+  // can name a different wallet than the connector `signTypedData` uses; a
+  // permit checked against the former and signed by the latter is rejected by
+  // the backend as `wrong_signer` only after the user has already approved it.
+  const evmAddress = adapter.evmSigningAddress ?? adapter.identity.address;
   const svmAddress = adapter.identity.svmAddress;
-  const svmCluster = adapter.identity.svmCluster ?? adapter.identity.solanaCluster;
+  const svmCluster =
+    adapter.identity.svmCluster ?? adapter.identity.solanaCluster;
   const signTypedData = adapter.signTypedData;
   const signSolanaMessage = adapter.signSolanaMessage;
   const openAccountUI = adapter.openAccountUI;
+  const currentThreadId = runtime?.currentThreadId;
 
   const refresh = useCallback(async () => {
     try {
@@ -139,12 +152,17 @@ export function useAccountAcl(): AccountAcl {
       // Loosening authority must be signed by the wallet whose authority grows
       // — except for provider-managed keys, where the user holds no key
       // material and the backend accepts any linked sibling key instead.
-      const needsSelf = isLoosening(wallet.desiredMode, mode) && !wallet.providerManaged;
+      const needsSelf =
+        isLoosening(wallet.desiredMode, mode) && !wallet.providerManaged;
       if (
         needsSelf &&
         signer.address?.toLowerCase() !== wallet.address.toLowerCase()
       ) {
-        return "Connect this wallet itself to widen what it may sign.";
+        // Name both sides: with several wallets connected, "connect this wallet"
+        // gave no clue which one was about to be asked for the signature.
+        return `Only ${shortenAddress(wallet.address)} can widen what it may sign, but ${shortenAddress(
+          signer.address ?? "",
+        )} is the active wallet. Switch to it and try again.`;
       }
       return null;
     },
@@ -172,7 +190,8 @@ export function useAccountAcl(): AccountAcl {
           signTypedData({
             // The backend assembles wagmi-ready EIP-712; the wire type is
             // `unknown` because only the wallet interprets it.
-            typed_data: challenge.typed_data as WalletEip712Payload["typed_data"],
+            typed_data:
+              challenge.typed_data as WalletEip712Payload["typed_data"],
             description: permitDescription(wallet, mode),
           }),
         );
@@ -202,7 +221,14 @@ export function useAccountAcl(): AccountAcl {
 
       await refresh();
     },
-    [blockedReason, refresh, signSolanaMessage, signTypedData, svmAddress, svmCluster],
+    [
+      blockedReason,
+      refresh,
+      signSolanaMessage,
+      signTypedData,
+      svmAddress,
+      svmCluster,
+    ],
   );
 
   const revokeGrant = useCallback(
@@ -228,8 +254,54 @@ export function useAccountAcl(): AccountAcl {
     await refresh();
   }, [grants, refresh]);
 
+  const beginPrivyDelegation = useCallback(
+    async (family: "evm" | "svm") => {
+      if (!currentThreadId) {
+        throw new Error(
+          "Open a chat thread before connecting Privy delegated signing.",
+        );
+      }
+      const response = await fetch("/api/delegation/privy/begin", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Thread-Id": currentThreadId,
+        },
+        body: JSON.stringify({ wallet_family: family }),
+        credentials: "include",
+        cache: "no-store",
+      });
+      const payload = (await response.json().catch(() => null)) as {
+        auth_url?: unknown;
+        state_token?: unknown;
+      } | null;
+      if (
+        !response.ok ||
+        typeof payload?.auth_url !== "string" ||
+        typeof payload.state_token !== "string"
+      ) {
+        throw new Error("Could not start Privy delegated signing.");
+      }
+      const signerId = new URL(payload.auth_url).searchParams
+        .get("signer_id")
+        ?.trim();
+      if (!signerId) {
+        throw new Error(
+          "Privy delegation is missing its signer configuration.",
+        );
+      }
+      await privyDelegation.start({ state: payload.state_token, signerId });
+      await refresh();
+    },
+    [currentThreadId, privyDelegation, refresh],
+  );
+
   const regrant = useCallback(
     async (wallet: WalletPolicy) => {
+      if (wallet.provider?.toLowerCase() === "privy") {
+        await beginPrivyDelegation(wallet.chain);
+        return;
+      }
       if (!openAccountUI) {
         throw new Error(
           "Reconnect this provider from the wallet menu to mint a new grant.",
@@ -241,7 +313,7 @@ export function useAccountAcl(): AccountAcl {
       await openAccountUI({ family: wallet.chain });
       await refresh();
     },
-    [openAccountUI, refresh],
+    [beginPrivyDelegation, openAccountUI, refresh],
   );
 
   return useMemo(
@@ -254,8 +326,10 @@ export function useAccountAcl(): AccountAcl {
       commitMode,
       revokeGrant,
       stopAllAuto,
+      connectPrivy: () => beginPrivyDelegation("evm"),
       regrant,
       blockedReason,
+      beginPrivyDelegation,
     }),
     [
       blockedReason,

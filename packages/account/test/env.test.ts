@@ -19,6 +19,30 @@ describe("readAccountAuthEnv", () => {
     expect(env.databaseUrl).toBe(TEST_DATABASE_URL);
   });
 
+  it("trusts localhost and loopback aliases during local development", () => {
+    const env = readAccountAuthEnv({
+      BETTER_AUTH_URL: "http://127.0.0.1:3000",
+      DATABASE_URL: TEST_DATABASE_URL,
+      NODE_ENV: "development",
+    });
+
+    expect(env.trustedOrigins).toEqual([
+      "http://127.0.0.1:3000",
+      "http://localhost:3000",
+      "http://[::1]:3000",
+    ]);
+  });
+
+  it("trusts Portal's default :3000 origin with the legacy auth URL fallback", () => {
+    const env = readAccountAuthEnv({
+      DATABASE_URL: TEST_DATABASE_URL,
+      NODE_ENV: "development",
+    });
+
+    expect(env.betterAuthUrl).toBe("http://localhost:3001");
+    expect(env.trustedOrigins).toContain("http://localhost:3000");
+  });
+
   it("requires BetterAuth secret outside development and test", () => {
     expect(() =>
       readAccountAuthEnv({

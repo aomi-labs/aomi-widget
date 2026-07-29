@@ -325,6 +325,13 @@ describe("useAomiBackendAccountRuntime", () => {
       ),
     );
     expect(result.current.user).toBeUndefined();
+
+    act(() => result.current.retryProviderCredential?.());
+    await waitFor(() =>
+      expect(
+        mockState.accountClient?.exchangeProviderCredential,
+      ).toHaveBeenCalledTimes(2),
+    );
   });
 
   it("creates a Solana-only account through BetterAuth SIWS", async () => {
