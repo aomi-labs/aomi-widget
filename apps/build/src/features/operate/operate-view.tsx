@@ -54,6 +54,8 @@ type Sourceish = AppSource & { apps?: unknown[] };
 type OperatePayload = {
   /** True when the BFF filled gaps with example fixture data (BE not live yet). */
   example?: boolean;
+  /** Present only when the BFF could not read every source for this account. */
+  degraded?: { dropped: number; total: number };
   sources?: Sourceish[];
   transactions?: Array<Record<string, any>>;
   daily?: Array<Record<string, any>>;
@@ -88,6 +90,35 @@ function syncQuery(patch: Record<string, string | null>) {
     else url.searchParams.set(key, value);
   }
   window.history.replaceState(null, "", url);
+}
+
+// A page that quietly renders 4 of 111 sources reads as a complete page — and
+// for money-bearing views that is worse than an error. Say what is missing.
+function DegradedNotice({
+  dropped,
+  total,
+  onRetry,
+}: {
+  dropped: number;
+  total: number;
+  onRetry: () => void;
+}) {
+  return (
+    <div className="border-warning/40 bg-warning/10 text-warning flex flex-wrap items-center justify-between gap-2 rounded-md border px-4 py-3 text-sm">
+      <span>
+        Showing {total - dropped} of {total} sources — {dropped} could not be
+        read, so this page is incomplete. Pick a single source to load it on its
+        own.
+      </span>
+      <button
+        type="button"
+        onClick={onRetry}
+        className="border-warning/40 hover:bg-warning/15 h-8 rounded-md border px-3 text-xs font-medium"
+      >
+        Retry
+      </button>
+    </div>
+  );
 }
 
 function EmptyState({
@@ -216,10 +247,14 @@ function Rows({
   view: ViewState;
   platform?: string;
 }) {
+  // With sources missing we cannot tell "you have none" from "we could not read
+  // them", so we say neither — the degraded notice above already explains it.
+  const incomplete = Boolean(payload.degraded);
+
   if (kind === "transactions") {
     const rows = payload.transactions ?? [];
     if (!rows.length)
-      return (
+      return incomplete ? null : (
         <EmptyState
           title="Transactions"
           description="On-chain actions from your apps show up here after chat activity."
@@ -250,7 +285,7 @@ function Rows({
     const daily = payload.daily ?? [];
     const breakdown = payload.breakdown ?? [];
     if (!daily.length && !breakdown.length && !payload.statement)
-      return (
+      return incomplete ? null : (
         <EmptyState
           title="Usage"
           description="Credits and tokens appear after your apps run chat turns. This is a meter, not Billing."
@@ -263,7 +298,7 @@ function Rows({
 
   if (kind === "logs") {
     const rows = payload.logs ?? [];
-    if (!rows.length) return <EmptyState title="Logs" />;
+    if (!rows.length) return incomplete ? null : <EmptyState title="Logs" />;
     const apps = [...new Set(rows.map((row) => String(row.application)))];
     const tools = [
       ...new Set(
@@ -292,7 +327,8 @@ function Rows({
   }
 
   const apps = payload.apps ?? [];
-  if (!apps.length) return <EmptyState title="Observability" />;
+  if (!apps.length)
+    return incomplete ? null : <EmptyState title="Observability" />;
   const monitoring = payload.monitoring;
   const platformMetrics = payload.platformMetrics ?? [];
   const dashboardLinks = payload.dashboardLinks ?? [];
@@ -742,6 +778,13 @@ export function OperateView({ kind }: { kind: ViewKind }) {
         </div>
       ) : payload ? (
         <>
+          {payload.degraded ? (
+            <DegradedNotice
+              dropped={payload.degraded.dropped}
+              total={payload.degraded.total}
+              onRetry={() => dataQuery.refetch()}
+            />
+          ) : null}
           <Rows
             kind={kind}
             payload={payload}

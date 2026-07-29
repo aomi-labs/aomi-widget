@@ -35,27 +35,127 @@ import { TimedPromiseCache } from "@build/server/bff/timed-promise-cache";
 
 type DeploymentClientInstance = Awaited<ReturnType<typeof deploymentClient>>;
 
+// An unbounded fan-out is a thundering herd: an account with 100+ sources fired
+// every per-source read at once and saturated the manager's connection pool, so
+// most reads timed out waiting to acquire and the page hung on "Loading". Cap
+// the wave instead — the pool is the scarce resource, not our event loop.
+const SOURCE_FANOUT_LIMIT = 6;
+
+// Beyond this a source is treated as unavailable rather than allowed to hold a
+// fan-out slot (and the whole page) open. Comfortably above a healthy read.
+const SOURCE_READ_TIMEOUT_MS = 8_000;
+
+// Capping concurrency alone still lets a degraded manager stretch a large
+// account over batches × timeout. Bound the whole fan-out too: sources we never
+// got to are dropped like any other failure, so the page renders what it has
+// instead of stalling. Well under the platform's function timeout.
+const SOURCE_FANOUT_BUDGET_MS = 20_000;
+
+async function mapWithLimit<T, R>(
+  items: T[],
+  limit: number,
+  run: (item: T) => Promise<R>,
+): Promise<PromiseSettledResult<R>[]> {
+  const results = new Array<PromiseSettledResult<R>>(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const index = next++;
+      try {
+        results[index] = {
+          status: "fulfilled",
+          value: await run(items[index]),
+        };
+      } catch (reason) {
+        results[index] = { status: "rejected", reason };
+      }
+    }
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(limit, items.length) }, worker),
+  );
+  return results;
+}
+
+// Losing the race does not cancel the underlying read — it stays in the promise
+// cache and can still land for the next request, which is what we want.
+function withTimeout<T>(
+  load: () => Promise<T>,
+  ms: number,
+  label: string,
+): Promise<T> {
+  if (ms <= 0) {
+    return Promise.reject(new Error(`${label} skipped: fan-out budget spent`));
+  }
+  let timer: ReturnType<typeof setTimeout>;
+  return Promise.race([
+    load(),
+    new Promise<never>((_, reject) => {
+      timer = setTimeout(
+        () => reject(new Error(`${label} timed out after ${ms}ms`)),
+        ms,
+      );
+    }),
+  ]).finally(() => clearTimeout(timer));
+}
+
+type Settled<T> = {
+  ok: T[];
+  /** Source ids this read could not cover, for the page's degraded notice. */
+  dropped: number[];
+};
+
 // Fan out a per-source read and keep only the sources that succeed. One source
 // failing — a freshly scaffolded source with no deployed app, or a transient
 // backend blip — must not take down the whole operate page; drop it and render
-// the healthy sources instead of failing the entire request.
+// the healthy sources instead of failing the entire request. Report what was
+// lost: a page silently missing most of the account reads as a complete page.
 async function settleBySource<T>(
   sources: UserSource[],
   run: (source: UserSource) => Promise<T>,
-): Promise<T[]> {
-  const settled = await Promise.allSettled(sources.map(run));
+): Promise<Settled<T>> {
+  const deadline = Date.now() + SOURCE_FANOUT_BUDGET_MS;
+  const settled = await mapWithLimit(sources, SOURCE_FANOUT_LIMIT, (source) =>
+    withTimeout(
+      () => run(source),
+      Math.min(SOURCE_READ_TIMEOUT_MS, deadline - Date.now()),
+      `operate read for source ${source.id}`,
+    ),
+  );
   const ok: T[] = [];
+  const dropped: number[] = [];
   settled.forEach((result, index) => {
+    const source = sources[index];
     if (result.status === "fulfilled") {
       ok.push(result.value);
     } else {
+      if (source) dropped.push(source.id);
       console.warn(
-        `operate: dropping source ${sources[index]?.id} from this page:`,
+        `operate: dropping source ${source?.id} from this page:`,
         result.reason instanceof Error ? result.reason.message : result.reason,
       );
     }
   });
-  return ok;
+  return { ok, dropped };
+}
+
+export type OperateDegraded = {
+  /** Sources this page could not read. */
+  dropped: number;
+  /** Sources the page should have covered. */
+  total: number;
+};
+
+// A route may fan out more than once over the same sources (transactions and
+// statements, say). One source failing both reads is still one missing source,
+// so union the ids rather than summing. Undefined — not a zeroed object — when
+// nothing was lost, so the key stays off the wire on a healthy page.
+function degradedFrom(
+  sources: UserSource[],
+  ...dropped: number[][]
+): OperateDegraded | undefined {
+  const ids = new Set(dropped.flat());
+  return ids.size ? { dropped: ids.size, total: sources.length } : undefined;
 }
 
 function isValidAppSourceId(value: unknown): value is number {
@@ -573,7 +673,7 @@ export async function operateTransactionsRoute(req: Request) {
     const limit = pageLimit(params, 50, 100);
     const cursor = parseCompositeCursor(params.get("cursor"));
     const status = params.get("status") ?? undefined;
-    const [results, statements] = await Promise.all([
+    const [transactionReads, statementReads] = await Promise.all([
       settleBySource<OperateTransactionsResult>(owned.sources, (source) =>
         readCache.transactions.get(
           [
@@ -597,7 +697,10 @@ export async function operateTransactionsRoute(req: Request) {
         ),
       ),
       cursor
-        ? Promise.resolve([])
+        ? Promise.resolve({
+            ok: [],
+            dropped: [],
+          } as Settled<OperateStatementResult>)
         : settleBySource<OperateStatementResult>(owned.sources, (source) =>
             readCache.statement.get(
               [owned.githubUserId, owned.platform, source.id, null],
@@ -610,6 +713,7 @@ export async function operateTransactionsRoute(req: Request) {
             ),
           ),
     ]);
+    const results = transactionReads.ok;
     const appTransactions = results
       .flatMap((result) =>
         result.transactions.map((transaction) => ({
@@ -621,7 +725,7 @@ export async function operateTransactionsRoute(req: Request) {
       )
       .sort((a, b) => b.createdAt - a.createdAt || b.id.localeCompare(a.id));
     const payments = mergedPartnerPayments(
-      statements.map((statement) => ({
+      statementReads.ok.map((statement) => ({
         source: statement.source as UserSource,
         payments: statement.payments,
       })),
@@ -692,8 +796,15 @@ export async function operateTransactionsRoute(req: Request) {
       (a, b) => b.createdAt - a.createdAt || b.id.localeCompare(a.id),
     );
     return NextResponse.json({
-      sources: results.map((result) => result.source),
+      // Every source the account owns, not just the ones this read covered:
+      // the filter dropdown is how a user retries a dropped source on its own.
+      sources: owned.sources,
       transactions,
+      degraded: degradedFrom(
+        owned.sources,
+        transactionReads.dropped,
+        statementReads.dropped,
+      ),
       nextCursor: mergedNextCursor(
         cursor,
         visibleAppTransactions,
@@ -720,7 +831,7 @@ export async function operateUsageRoute(req: Request) {
     // (or with `available: false` — statement_entries not migrated) drops out
     // of `statements`; until BE parity lands we serve the example statement
     // instead (flagged `example: true`) so the design ships visible.
-    const [results, statements] = await Promise.all([
+    const [usageReads, statementReads] = await Promise.all([
       settleBySource<OperateUsageResult>(owned.sources, (source) =>
         readCache.usage.get(
           [owned.githubUserId, owned.platform, source.id, dates],
@@ -744,12 +855,21 @@ export async function operateUsageRoute(req: Request) {
               ...dates,
             }),
         ),
-      ).then((rows) => rows.filter((statement) => statement.available)),
+      ),
     ]);
+    const results = usageReads.ok;
+    // `available: false` is a backend that has no statement for this source,
+    // not a read we lost — it belongs in the example-statement fallback below,
+    // not in the degraded count.
+    const statements = statementReads.ok.filter(
+      (statement) => statement.available,
+    );
     const sum = (pick: (s: OperateStatementResult) => number) =>
       statements.reduce((total, statement) => total + pick(statement), 0);
     return NextResponse.json({
-      sources: results.map((result) => result.source),
+      // Every source the account owns, not just the ones this read covered:
+      // the filter dropdown is how a user retries a dropped source on its own.
+      sources: owned.sources,
       range: results[0]?.range ?? null,
       daily: results.flatMap((result) =>
         result.daily.map((row) => ({
@@ -764,6 +884,11 @@ export async function operateUsageRoute(req: Request) {
           source: result.source,
           platform: result.platform,
         })),
+      ),
+      degraded: degradedFrom(
+        owned.sources,
+        usageReads.dropped,
+        statementReads.dropped,
       ),
       example: statements.length ? undefined : true,
       statement: statements.length
@@ -821,7 +946,7 @@ export async function operateLogsRoute(req: Request) {
     const limit = pageLimit(params, 100, 200);
     const cursor = parseCompositeCursor(params.get("cursor"));
     const type = params.get("type") ?? undefined;
-    const results: OperateLogsResult[] = await settleBySource(
+    const logReads = await settleBySource<OperateLogsResult>(
       owned.sources,
       (source) =>
         readCache.logs.get(
@@ -845,6 +970,7 @@ export async function operateLogsRoute(req: Request) {
             }),
         ),
     );
+    const results = logReads.ok;
     const sourcedLogs = results.flatMap((result) =>
       result.logs.map((entry) => ({
         ...entry,
@@ -882,8 +1008,11 @@ export async function operateLogsRoute(req: Request) {
       log.cursorSources.map((source) => ({ ...log, source })),
     );
     return NextResponse.json({
-      sources: results.map((result) => result.source),
+      // Every source the account owns, not just the ones this read covered:
+      // the filter dropdown is how a user retries a dropped source on its own.
+      sources: owned.sources,
       logs: visible.map(({ cursorSources: _cursorSources, ...log }) => log),
+      degraded: degradedFrom(owned.sources, logReads.dropped),
       nextCursor: mergedNextCursor(
         cursor,
         cursorRows,
@@ -901,7 +1030,7 @@ export async function operateObservabilityRoute(req: Request) {
   try {
     const owned = await ownedSources(req);
     if ("response" in owned) return owned.response;
-    const results: OperateObservabilityResult[] = await settleBySource(
+    const observabilityReads = await settleBySource<OperateObservabilityResult>(
       owned.sources,
       (source) =>
         readCache.observability.get(
@@ -914,6 +1043,7 @@ export async function operateObservabilityRoute(req: Request) {
             }),
         ),
     );
+    const results = observabilityReads.ok;
     const apps = results.flatMap((result) =>
       result.apps.map((app) => ({
         ...app,
@@ -922,7 +1052,10 @@ export async function operateObservabilityRoute(req: Request) {
       })),
     );
     return NextResponse.json({
-      sources: results.map((result) => result.source),
+      // Every source the account owns, not just the ones this read covered:
+      // the filter dropdown is how a user retries a dropped source on its own.
+      sources: owned.sources,
+      degraded: degradedFrom(owned.sources, observabilityReads.dropped),
       scope: "owned_applications",
       monitoring: {
         provider: "grafana_prometheus",
