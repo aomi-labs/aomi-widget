@@ -82,7 +82,7 @@ function formatTs(ts?: number | null): string {
   return new Date(ts * 1000).toLocaleString();
 }
 
-export function BotsView() {
+export function BotsView({ embedded = false }: { embedded?: boolean }) {
   const { account } = useGitHubSession();
   const [payload, setPayload] = useState<BotsPayload | null>(null);
   const [loading, setLoading] = useState(true);
@@ -299,17 +299,24 @@ export function BotsView() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
-      <div>
-        <h1 className="font-display text-xl font-normal tracking-tight">
-          Bots
-        </h1>
-        <p className="text-dim mt-1 max-w-2xl text-sm">
-          Register Telegram bots that use your Aomi backend and one or more
-          attached apps. Bot credentials are encrypted and never shown after
-          registration.
-        </p>
-      </div>
+    <div
+      className={
+        embedded
+          ? "flex w-full flex-col gap-5"
+          : "mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8"
+      }
+    >
+      {embedded ? null : (
+        <div>
+          <h1 className="font-display text-xl font-normal tracking-tight">
+            Telegram bots
+          </h1>
+          <p className="text-dim mt-1 max-w-2xl text-sm">
+            Register a Telegram bot for your Aomi apps. Credentials are
+            encrypted and never shown after registration.
+          </p>
+        </div>
+      )}
 
       {formStatus ? (
         <div className="border-border bg-surface-subtle text-foreground rounded-md border px-3 py-2 text-sm">
@@ -322,16 +329,16 @@ export function BotsView() {
         </div>
       ) : null}
 
-      <section className="border-border bg-surface-1 space-y-4 rounded-md border p-4">
+      <section className="border-border bg-surface-1 space-y-5 rounded-xl border p-5 shadow-sm">
         <div>
           <h2 className="text-base font-medium">
-            {editingId ? "Edit bot apps" : "Register Telegram bot"}
+            {editingId ? "Edit connected apps" : "Add a Telegram bot"}
           </h2>
           <p className="text-dim mt-1 text-sm">
-            Create the bot in BotFather, paste its token here, and we will
-            verify it with Telegram and activate the webhook automatically. This
-            account owns the bot configuration; people who message the bot still
-            use their own Aomi identity, wallets, and threads.
+            Create the bot in BotFather, then paste its token here. We verify it
+            with Telegram and activate its webhook automatically. People who
+            message the bot still use their own Aomi identity, wallets, and
+            threads.
           </p>
         </div>
 
@@ -447,7 +454,7 @@ export function BotsView() {
         </div>
       </section>
 
-      <section className="border-border bg-surface-1 space-y-3 rounded-md border p-4">
+      <section className="border-border bg-surface-1 space-y-3 rounded-xl border p-5">
         <h2 className="text-base font-medium">Optional BotFather commands</h2>
         <p className="text-dim text-sm">
           The bot works without configuring commands, but this list makes the
@@ -459,7 +466,14 @@ export function BotsView() {
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-base font-medium">Registered bots</h2>
+        <div className="flex items-baseline justify-between gap-4">
+          <h2 className="text-base font-medium">Connected bots</h2>
+          {!loading && !error ? (
+            <span className="text-dim text-xs">
+              {bots.length} {bots.length === 1 ? "bot" : "bots"}
+            </span>
+          ) : null}
+        </div>
         {loading ? (
           <div className="border-border bg-surface-subtle text-dim rounded-md border px-4 py-10 text-center text-sm">
             Loading
@@ -470,7 +484,8 @@ export function BotsView() {
           </div>
         ) : bots.length === 0 ? (
           <div className="border-border bg-surface-subtle text-dim rounded-md border px-4 py-10 text-center text-sm">
-            No bots registered yet.
+            No Telegram bots connected yet. Add one above to start receiving
+            messages.
           </div>
         ) : (
           <div className="border-border overflow-x-auto rounded-md border">

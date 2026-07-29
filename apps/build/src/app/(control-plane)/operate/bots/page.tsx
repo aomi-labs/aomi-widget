@@ -1,5 +1,5 @@
-import { BotsView } from "@build/features/operate/bots-view";
+import { redirect } from "next/navigation";
 
 export default function OperateBotsPage() {
-  return <BotsView />;
+  redirect("/integrations");
 }

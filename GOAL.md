@@ -31,6 +31,11 @@ mistaken for another supported environment.
 
 Progress:
 
+- 2026-07-29 integrations consolidation: moved the functional Telegram bot
+  configuration from Operate into Integrations, retained Discord as an explicit
+  coming-soon integration, and redirected the retired Bots route. Verified the
+  focused bot UI regression, Build lint, and Build type-check.
+
 - 2026-07-27 hosted account-pool hardening: traced recurring Settings auth
   failures to aggregate Supabase session exhaustion across two backend and two
   manager processes plus independently warm Vercel functions. Portal now
