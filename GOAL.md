@@ -31,6 +31,11 @@ mistaken for another supported environment.
 
 Progress:
 
+- 2026-07-29 AccountBearer account invariant: kept the canonical-id issuance
+  API and added a final active-account lookup inside `mintAccountBearer`, so a
+  missing or deactivated subject is refused before signing. Verified the full
+  account suite, account and Portal type-checks, and the repository lint.
+
 - 2026-07-29 integrations consolidation: moved the functional Telegram bot
   configuration from Operate into Integrations, retained Discord as an explicit
   coming-soon integration, and redirected the retired Bots route. Verified the

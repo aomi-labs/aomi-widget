@@ -1,3 +1,4 @@
+import { findAomiUserById } from "./db/queries";
 import { portalService } from "./topology";
 
 /**
@@ -22,8 +23,9 @@ export type MintedBearer = {
 };
 
 /**
- * Sign an AccountBearer for a resolved canonical user. `role` defaults to
- * `user`; the topology authorizes it against `aomi-bff`'s configured roles.
+ * Sign an AccountBearer for a resolved canonical user. The final lookup keeps
+ * the issuer from signing a subject that is missing or deactivated in the
+ * database backing this Portal environment.
  *
  * `@aomi-labs/service` is the generic JWT signer (service-mesh tokens too), so it
  * returns the neutral `accessToken`; we re-label it `bearer` here — the account
@@ -33,9 +35,16 @@ export async function mintAccountBearer(
   canonicalUserId: string,
   role: string = "user",
 ): Promise<MintedBearer> {
+  const user = await findAomiUserById(canonicalUserId);
+  if (!user) {
+    throw new Error(
+      "Cannot mint AccountBearer: canonical user does not exist or is deactivated",
+    );
+  }
+
   const { accessToken, expiresAt } = await portalService().mint({
     role,
-    subject: canonicalUserId,
+    subject: user.id,
     audience: AUDIENCE,
     ttlSeconds: ACCOUNT_BEARER_TTL_SECONDS,
   });
