@@ -1,5 +1,15 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { renderHook, waitFor, act } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { createElement, type ReactNode } from "react";
+
+vi.mock("@build/features/launch/dashboard", () => ({
+  fetchGitHubSession: vi.fn(async () => ({
+    signedIn: true,
+    githubLogin: "alice",
+    githubUserId: "u1",
+  })),
+}));
 
 vi.mock("@build/features/launch/client", () => ({
   deploymentSources: vi.fn(async () => ({
@@ -55,6 +65,7 @@ vi.mock("@build/features/launch/client", () => ({
   })),
 }));
 
+import { GitHubSessionProvider } from "@build/components/control-plane/github-session-context";
 import { useProjectDetail } from "./use-project-detail";
 import {
   deploymentRecords,
@@ -66,11 +77,27 @@ import {
   launchPreflight,
 } from "@build/features/launch/client";
 
+// Fresh QueryClient per test so react-query cache never leaks across tests.
+function wrapper() {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return function Wrapper({ children }: { children: ReactNode }) {
+    return createElement(
+      QueryClientProvider,
+      { client },
+      createElement(GitHubSessionProvider, null, children),
+    );
+  };
+}
+
 describe("useProjectDetail", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("resolves the source and lazily loads history once", async () => {
-    const { result } = renderHook(() => useProjectDetail(7));
+    const { result } = renderHook(() => useProjectDetail(7), {
+      wrapper: wrapper(),
+    });
     await waitFor(() => expect(result.current.source?.id).toBe(7));
     expect(deploymentHistory).not.toHaveBeenCalled();
     act(() => result.current.loadHistory());
@@ -81,7 +108,9 @@ describe("useProjectDetail", () => {
   });
 
   it("lazily loads records per app once", async () => {
-    const { result } = renderHook(() => useProjectDetail(7));
+    const { result } = renderHook(() => useProjectDetail(7), {
+      wrapper: wrapper(),
+    });
     await waitFor(() => expect(result.current.source?.id).toBe(7));
     expect(deploymentRecords).not.toHaveBeenCalled();
     act(() => result.current.loadRecords());
@@ -100,7 +129,9 @@ describe("useProjectDetail", () => {
     vi.mocked(deploymentRecords).mockRejectedValueOnce(
       new Error("deployment activations failed (401)"),
     );
-    const { result } = renderHook(() => useProjectDetail(7));
+    const { result } = renderHook(() => useProjectDetail(7), {
+      wrapper: wrapper(),
+    });
     await waitFor(() => expect(result.current.source?.id).toBe(7));
     act(() => result.current.loadRecords());
     await waitFor(() =>
@@ -124,7 +155,9 @@ describe("useProjectDetail", () => {
           },
         ],
       });
-    const { result } = renderHook(() => useProjectDetail(7));
+    const { result } = renderHook(() => useProjectDetail(7), {
+      wrapper: wrapper(),
+    });
     await waitFor(() => expect(result.current.source?.id).toBe(7));
 
     act(() => result.current.loadHistory());
@@ -144,7 +177,9 @@ describe("useProjectDetail", () => {
       .mockResolvedValueOnce({
         byApp: { demo: ["$SECRET:APP:demo::KEY"] },
       });
-    const { result } = renderHook(() => useProjectDetail(7));
+    const { result } = renderHook(() => useProjectDetail(7), {
+      wrapper: wrapper(),
+    });
     await waitFor(() => expect(result.current.source?.id).toBe(7));
 
     act(() => result.current.loadSecrets());
@@ -164,7 +199,9 @@ describe("useProjectDetail", () => {
     vi.mocked(deploymentRequiredSecrets).mockResolvedValue({
       byApp: { binance: { slots: [], missing: ["BINANCE_SECRET_KEY"] } },
     });
-    const { result } = renderHook(() => useProjectDetail(42));
+    const { result } = renderHook(() => useProjectDetail(42), {
+      wrapper: wrapper(),
+    });
     act(() => result.current.loadRequiredSecrets());
     await waitFor(() => expect(result.current.requiredSecrets).not.toBeNull());
     expect(result.current.hasMissingSecrets("binance")).toBe(true);
@@ -173,7 +210,9 @@ describe("useProjectDetail", () => {
 
   it("surfaces a required-secrets load failure instead of a false empty state", async () => {
     vi.mocked(deploymentRequiredSecrets).mockRejectedValue(new Error("boom"));
-    const { result } = renderHook(() => useProjectDetail(42));
+    const { result } = renderHook(() => useProjectDetail(42), {
+      wrapper: wrapper(),
+    });
     act(() => result.current.loadRequiredSecrets());
     await waitFor(() =>
       expect(result.current.requiredSecretsError).toBe("boom"),
@@ -231,7 +270,9 @@ describe("useProjectDetail", () => {
       },
     });
 
-    const { result } = renderHook(() => useProjectDetail(7));
+    const { result } = renderHook(() => useProjectDetail(7), {
+      wrapper: wrapper(),
+    });
     await waitFor(() => expect(result.current.source?.apps).toHaveLength(1));
 
     await act(async () => {
@@ -254,7 +295,9 @@ describe("useProjectDetail", () => {
     vi.mocked(deploymentRequiredSecrets).mockRejectedValueOnce(
       new Error("manifest unavailable"),
     );
-    const { result } = renderHook(() => useProjectDetail(42));
+    const { result } = renderHook(() => useProjectDetail(42), {
+      wrapper: wrapper(),
+    });
 
     await act(async () => {
       await expect(

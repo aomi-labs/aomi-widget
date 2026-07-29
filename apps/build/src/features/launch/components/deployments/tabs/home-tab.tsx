@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, type ReactNode } from "react";
 import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
 import {
   CircleArrowUp,
   ExternalLink,
@@ -10,6 +11,10 @@ import {
   Rocket,
 } from "lucide-react";
 import { useProjectDetail } from "@build/features/launch/hooks/use-project-detail";
+import {
+  buildQueryKeys,
+  buildQueryStaleTime,
+} from "@build/features/launch/query-keys";
 import { operateFetch } from "@build/features/operate/client";
 import {
   caipChainLabel,
@@ -181,28 +186,35 @@ export function HomeTab({
   platform?: string;
 }) {
   const source = detail.source;
-  const [usage, setUsage] = useState<UsagePeek | null>(null);
+  // Same key as the operate usage page and the project-detail prefetch, so a
+  // hover or page-mount warm-up serves this card from cache.
+  const usageQuery = useQuery({
+    queryKey: buildQueryKeys.operate(
+      detail.accountKey ?? "unavailable",
+      "usage",
+      source?.id ?? null,
+      platform,
+    ),
+    queryFn: () =>
+      operateFetch<{
+        daily?: Array<Record<string, unknown>>;
+      }>("usage", { sourceId: source?.id, platform }),
+    enabled: source !== null,
+    staleTime: buildQueryStaleTime.operate,
+  });
+  const usage: UsagePeek | null = useMemo(
+    () =>
+      usageQuery.data !== undefined
+        ? summarizeProjectUsage(usageQuery.data)
+        : usageQuery.isError
+          ? summarizeProjectUsage(null)
+          : null,
+    [usageQuery.data, usageQuery.isError],
+  );
 
   useEffect(() => {
     detail.loadSecrets();
   }, [detail]);
-
-  useEffect(() => {
-    if (!source) return;
-    let alive = true;
-    operateFetch<{
-      daily?: Array<Record<string, unknown>>;
-    }>("usage", { sourceId: source.id, platform })
-      .then((payload) => {
-        if (alive) setUsage(summarizeProjectUsage(payload));
-      })
-      .catch(() => {
-        if (alive) setUsage(summarizeProjectUsage(null));
-      });
-    return () => {
-      alive = false;
-    };
-  }, [platform, source]);
 
   const status = useMemo(
     () => (source ? projectDeploymentStatus(source) : null),

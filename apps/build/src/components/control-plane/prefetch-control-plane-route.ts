@@ -27,6 +27,36 @@ const OPERATE_ROUTES: Record<string, OperateKind> = {
 };
 
 /**
+ * Warm everything a project detail page reads: the server-filtered
+ * single-source read it renders from, the SDK status behind the "outdated"
+ * badge, and the Home tab's usage peek. Called on sidebar/row hover and again
+ * on page mount, so the three reads run in parallel instead of waterfalling
+ * behind the source read.
+ */
+export function prefetchProjectDetail(
+  queryClient: QueryClient,
+  accountKey: string,
+  sourceId: number,
+  platform?: string | null,
+) {
+  void queryClient.prefetchQuery({
+    queryKey: buildQueryKeys.projectSource(accountKey, sourceId, platform),
+    queryFn: () => deploymentSources(platform ?? undefined, sourceId),
+    staleTime: buildQueryStaleTime.projects,
+  });
+  void queryClient.prefetchQuery({
+    queryKey: buildQueryKeys.sdkStatus(),
+    queryFn: () => deploymentSdkStatus().catch(() => null),
+    staleTime: buildQueryStaleTime.sdkStatus,
+  });
+  void queryClient.prefetchQuery({
+    queryKey: buildQueryKeys.operate(accountKey, "usage", sourceId, platform),
+    queryFn: () => operateFetch("usage", { sourceId, platform }),
+    staleTime: buildQueryStaleTime.operate,
+  });
+}
+
+/**
  * Warm only the route a user shows intent to open. This keeps the persistent
  * sidebar from eagerly downloading every control-plane route and API payload
  * while still hiding latency between hover/focus and click.
@@ -57,6 +87,17 @@ export function prefetchControlPlaneRoute(
       });
       return true;
     }
+  }
+
+  const projectMatch = path.match(/^\/projects\/([1-9]\d*)$/);
+  if (projectMatch) {
+    prefetchProjectDetail(
+      queryClient,
+      accountKey,
+      Number(projectMatch[1]),
+      searchParams.get("platform"),
+    );
+    return true;
   }
 
   if (path === "/projects") {
