@@ -858,3 +858,176 @@ describe("operateAppDetailRoute", () => {
     });
   });
 });
+
+describe("per-source fan-out is bounded", () => {
+  const SOURCE_COUNT = 40;
+
+  beforeEach(() => {
+    setSession({ githubUserId: "gh-1" });
+    client.listUserSources.mockResolvedValue(
+      Array.from({ length: SOURCE_COUNT }, (_, index) => ({
+        id: 900 + index,
+        repositoryLink: `o/r${index}`,
+        apps: [],
+      })),
+    );
+  });
+
+  // A 111-source account fired 222 reads at once and saturated the manager's
+  // connection pool, so the page hung on "Loading" for minutes.
+  it("caps concurrent reads instead of firing one per source at once", async () => {
+    let inFlight = 0;
+    let peak = 0;
+    const track = <T>(value: T) => {
+      inFlight += 1;
+      peak = Math.max(peak, inFlight);
+      return new Promise<T>((resolve) =>
+        setTimeout(() => {
+          inFlight -= 1;
+          resolve(value);
+        }, 1),
+      );
+    };
+    client.listUserSourceTransactions.mockImplementation(({ appSourceId }) =>
+      track({
+        source: { id: appSourceId },
+        platform: "community",
+        transactions: [],
+        nextCursor: null,
+      }),
+    );
+    client.getUserSourceStatement.mockImplementation(({ appSourceId }) =>
+      track({
+        source: { id: appSourceId },
+        platform: "community",
+        payments: emptyPayments(),
+      }),
+    );
+
+    const res = await operateTransactionsRoute(transactionsReq());
+
+    expect(res.status).toBe(200);
+    expect(client.listUserSourceTransactions).toHaveBeenCalledTimes(
+      SOURCE_COUNT,
+    );
+    // Two independent fan-outs (transactions + statement) run concurrently, so
+    // the ceiling is two slots' worth — not 2 × SOURCE_COUNT.
+    expect(peak).toBeLessThanOrEqual(12);
+  });
+
+  it("drops a wedged source instead of stalling the whole page", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.useFakeTimers();
+    try {
+      client.listUserSourceTransactions.mockImplementation(({ appSourceId }) =>
+        appSourceId === 901
+          ? new Promise(() => {})
+          : Promise.resolve({
+              source: { id: appSourceId },
+              platform: "community",
+              transactions: [
+                { id: `tx:${appSourceId}`, createdAt: 1_700_000_000 },
+              ],
+              nextCursor: null,
+            }),
+      );
+      client.getUserSourceStatement.mockImplementation(({ appSourceId }) =>
+        Promise.resolve({
+          source: { id: appSourceId },
+          platform: "community",
+          payments: emptyPayments(),
+        }),
+      );
+
+      const pending = operateTransactionsRoute(transactionsReq());
+      await vi.advanceTimersByTimeAsync(30_000);
+      const body = await (await pending).json();
+
+      expect(body.transactions).toHaveLength(SOURCE_COUNT - 1);
+      expect(
+        body.transactions.some(
+          (transaction: { id: string }) => transaction.id === "tx:901",
+        ),
+      ).toBe(false);
+    } finally {
+      vi.useRealTimers();
+      warn.mockRestore();
+    }
+  });
+});
+
+describe("degraded reporting", () => {
+  beforeEach(() => {
+    setSession({ githubUserId: "gh-1" });
+    client.listUserSources.mockResolvedValue([
+      { id: 900, repositoryLink: "o/one", apps: [] },
+      { id: 901, repositoryLink: "o/two", apps: [] },
+      { id: 902, repositoryLink: "o/three", apps: [] },
+    ]);
+  });
+
+  const okTransactions = ({ appSourceId }: { appSourceId: number }) =>
+    Promise.resolve({
+      source: { id: appSourceId },
+      platform: "community",
+      transactions: [],
+      nextCursor: null,
+    });
+  const okStatement = ({ appSourceId }: { appSourceId: number }) =>
+    Promise.resolve({
+      source: { id: appSourceId },
+      platform: "community",
+      payments: emptyPayments(),
+    });
+
+  it("omits the key entirely when every source was read", async () => {
+    client.listUserSourceTransactions.mockImplementation(okTransactions);
+    client.getUserSourceStatement.mockImplementation(okStatement);
+
+    const body = await (
+      await operateTransactionsRoute(transactionsReq())
+    ).json();
+
+    expect(body).not.toHaveProperty("degraded");
+  });
+
+  it("counts a source that failed both fan-outs once", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    client.listUserSourceTransactions.mockImplementation((args) =>
+      args.appSourceId === 901
+        ? Promise.reject(new Error("boom"))
+        : okTransactions(args),
+    );
+    client.getUserSourceStatement.mockImplementation((args) =>
+      args.appSourceId === 901
+        ? Promise.reject(new Error("boom"))
+        : okStatement(args),
+    );
+
+    const body = await (
+      await operateTransactionsRoute(transactionsReq())
+    ).json();
+
+    expect(body.degraded).toEqual({ dropped: 1, total: 3 });
+    warn.mockRestore();
+  });
+
+  it("still lists a dropped source so the user can retry it alone", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    client.listUserSourceTransactions.mockImplementation((args) =>
+      args.appSourceId === 901
+        ? Promise.reject(new Error("boom"))
+        : okTransactions(args),
+    );
+    client.getUserSourceStatement.mockImplementation(okStatement);
+
+    const body = await (
+      await operateTransactionsRoute(transactionsReq())
+    ).json();
+
+    expect(body.sources.map((source: { id: number }) => source.id)).toEqual([
+      900, 901, 902,
+    ]);
+    warn.mockRestore();
+  });
+});

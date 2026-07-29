@@ -16,6 +16,32 @@ export type OperateFetchOptions = {
   platform?: string | null;
 };
 
+// Operate reads fan out across every source on the server, so a degraded
+// backend used to leave the view on "Loading" until the platform's function
+// timeout. Give up first and surface a real error the user can act on.
+const OPERATE_FETCH_TIMEOUT_MS = 25_000;
+
+async function operateJson<T>(url: string, label: string): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      signal: AbortSignal.timeout(OPERATE_FETCH_TIMEOUT_MS),
+    });
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "TimeoutError") {
+      throw new Error(
+        `${label} timed out after ${OPERATE_FETCH_TIMEOUT_MS / 1000}s — the backend is slow or unavailable. Try a single source instead of All sources.`,
+      );
+    }
+    throw err;
+  }
+  const json = (await res.json().catch(() => ({}))) as T & { error?: string };
+  if (!res.ok) {
+    throw new Error(json.error || `${label} failed (${res.status})`);
+  }
+  return json;
+}
+
 export async function operateFetch<T>(
   kind: OperateKind,
   options: OperateFetchOptions = {},
@@ -37,12 +63,7 @@ export async function operateFetch<T>(
     );
   }
   if (options.limit) params.set("limit", String(options.limit));
-  const res = await fetch(`${path}${params.size ? `?${params}` : ""}`);
-  const json = (await res.json().catch(() => ({}))) as T & { error?: string };
-  if (!res.ok) {
-    throw new Error(json.error || `${kind} failed (${res.status})`);
-  }
-  return json;
+  return operateJson<T>(`${path}${params.size ? `?${params}` : ""}`, kind);
 }
 
 export async function operateAppDetailFetch<T>(
@@ -50,27 +71,16 @@ export async function operateAppDetailFetch<T>(
   applicationId: number,
   platform?: string | null,
 ): Promise<T> {
-  const res = await fetch(
+  return operateJson<T>(
     API_PATHS.bff.operate.observabilityDetail(
       appSourceId,
       applicationId,
       platform,
     ),
+    "observability detail",
   );
-  const json = (await res.json().catch(() => ({}))) as T & { error?: string };
-  if (!res.ok) {
-    throw new Error(
-      json.error || `observability detail failed (${res.status})`,
-    );
-  }
-  return json;
 }
 
 export async function modelKeysFetch<T>(): Promise<T> {
-  const res = await fetch(API_PATHS.bff.operate.modelKeys);
-  const json = (await res.json().catch(() => ({}))) as T & { error?: string };
-  if (!res.ok) {
-    throw new Error(json.error || `model keys failed (${res.status})`);
-  }
-  return json;
+  return operateJson<T>(API_PATHS.bff.operate.modelKeys, "model keys");
 }

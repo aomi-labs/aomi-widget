@@ -712,3 +712,46 @@ describe("OperateView transactions", () => {
     expect(operateFetch).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("OperateView degraded pages", () => {
+  beforeEach(() => {
+    operateFetch.mockReset();
+    searchParams.current = new URLSearchParams("");
+  });
+
+  it("says what is missing instead of rendering an empty page as complete", async () => {
+    operateFetch.mockResolvedValue({
+      sources: [{ id: 900, repositoryLink: "o/one" }],
+      transactions: [],
+      degraded: { dropped: 107, total: 111 },
+    });
+
+    render(<OperateView kind="transactions" />);
+
+    expect(await screen.findByText(/Showing 4 of 111 sources/)).toBeTruthy();
+    // The account may well have transactions — we just could not read them.
+    expect(screen.queryByText(/No transactions yet/)).toBeNull();
+  });
+
+  it("keeps the normal empty state when the read covered everything", async () => {
+    operateFetch.mockResolvedValue({ sources: [], transactions: [] });
+
+    render(<OperateView kind="transactions" />);
+
+    expect(await screen.findByText(/No transactions yet/)).toBeTruthy();
+    expect(screen.queryByText(/could not be read/)).toBeNull();
+  });
+
+  it("refetches when the user retries", async () => {
+    operateFetch.mockResolvedValue({
+      sources: [],
+      transactions: [],
+      degraded: { dropped: 2, total: 3 },
+    });
+
+    render(<OperateView kind="transactions" />);
+    fireEvent.click(await screen.findByRole("button", { name: "Retry" }));
+
+    await waitFor(() => expect(operateFetch.mock.calls.length).toBe(2));
+  });
+});
