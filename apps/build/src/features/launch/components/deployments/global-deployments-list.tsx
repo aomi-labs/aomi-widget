@@ -37,6 +37,7 @@ function DeploymentsPageHeader({ onReload }: { onReload: () => void }) {
         </button>
         <Link
           href="/operate/deployments/new"
+          prefetch={false}
           className="bg-primary text-primary-foreground inline-flex h-8 items-center justify-center rounded-md px-3 text-sm font-medium hover:opacity-90"
         >
           New app
@@ -201,6 +202,7 @@ export function GlobalDeploymentsList() {
                 <div className="flex shrink-0 items-center gap-2">
                   <Link
                     href={`/projects/${selectedDeployment.sourceId}`}
+                    prefetch={false}
                     className="border-border bg-surface-1 hover:bg-accent-hover inline-flex h-8 items-center rounded-md border px-3 text-xs font-medium"
                   >
                     Open project
@@ -211,6 +213,7 @@ export function GlobalDeploymentsList() {
                         ? `/operate/deployments?project=${projectParam}`
                         : "/operate/deployments"
                     }
+                    prefetch={false}
                     className="border-border bg-surface-1 hover:bg-accent-hover inline-flex h-8 items-center rounded-md border px-3 text-xs font-medium"
                   >
                     Clear selection
@@ -245,6 +248,7 @@ export function GlobalDeploymentsList() {
                 <Link
                   key={`${deployment.sourceId}-${deployment.deploymentId}`}
                   href={`/operate/deployments?project=${deployment.sourceId}&deployment=${encodeURIComponent(deployment.deploymentId)}`}
+                  prefetch={false}
                   className="hover:bg-accent-hover grid min-h-[76px] grid-cols-[minmax(0,1fr)_auto] items-center gap-4 px-4 py-3"
                 >
                   <div className="min-w-0">

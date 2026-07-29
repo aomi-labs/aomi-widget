@@ -10,7 +10,11 @@ import {
   type TimelineDeployment,
 } from "./deployment-timeline";
 import { useProjects } from "../../hooks/use-projects";
-import { buildQueryKeys, githubAccountKey } from "../../query-keys";
+import {
+  buildQueryKeys,
+  buildQueryStaleTime,
+  githubAccountKey,
+} from "../../query-keys";
 
 export type GlobalDeployment = TimelineDeployment & {
   sourceId: number;
@@ -50,7 +54,7 @@ export function useGlobalDeploymentRecords() {
     initialPageParam: null as UserDeploymentsCursor | null,
     getNextPageParam: (page) => page.nextCursor ?? undefined,
     enabled: account.signedIn && accountKey !== null,
-    staleTime: 15 * 1000,
+    staleTime: buildQueryStaleTime.deployments,
   });
 
   const sources = useMemo(

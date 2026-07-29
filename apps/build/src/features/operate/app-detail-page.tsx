@@ -1,7 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
+import { useGitHubSession } from "@build/components/control-plane/github-session-context";
+import {
+  buildQueryKeys,
+  buildQueryStaleTime,
+  githubAccountKey,
+} from "@build/features/launch/query-keys";
+import {
+  GitHubSignInPanel,
+  LoadingPanel,
+} from "@build/features/launch/components/deployments/ui/state-panels";
 import { AppDetailView } from "./app-detail-view";
 import { operateAppDetailFetch } from "./client";
 import {
@@ -30,33 +40,37 @@ export function AppDetailPage({
   platform?: string;
 }) {
   const router = useRouter();
-  const [attempt, setAttempt] = useState(0);
-  const [payload, setPayload] = useState<LiveAppDetailPayload | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    setPayload(null);
-    setError(null);
-    operateAppDetailFetch<LiveAppDetailPayload>(
+  const { account } = useGitHubSession();
+  const accountKey = githubAccountKey(account.githubLogin);
+  const detailQuery = useQuery({
+    queryKey: buildQueryKeys.operateDetail(
+      accountKey ?? "unavailable",
       project,
       applicationId,
       platform,
-    )
-      .then((result) => {
-        if (!cancelled) setPayload(result);
-      })
-      .catch((reason: unknown) => {
-        if (!cancelled) {
-          setError(
-            reason instanceof Error ? reason.message : "Detail request failed",
-          );
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [applicationId, attempt, platform, project]);
+    ),
+    queryFn: () =>
+      operateAppDetailFetch<LiveAppDetailPayload>(
+        project,
+        applicationId,
+        platform,
+      ),
+    enabled: account.signedIn && accountKey !== null,
+    staleTime: buildQueryStaleTime.operate,
+  });
+  const payload = detailQuery.data ?? null;
+  const error = detailQuery.error
+    ? detailQuery.error instanceof Error
+      ? detailQuery.error.message
+      : "Detail request failed"
+    : null;
+
+  if (account.loading) {
+    return <LoadingPanel label="Checking GitHub session..." />;
+  }
+  if (!account.signedIn) {
+    return <GitHubSignInPanel error={null} />;
+  }
 
   if (error) {
     return (
@@ -67,7 +81,7 @@ export function AppDetailPage({
         <p className="text-dim text-sm">{error}</p>
         <button
           type="button"
-          onClick={() => setAttempt((value) => value + 1)}
+          onClick={() => void detailQuery.refetch()}
           className="border-border bg-surface hover:bg-accent-hover rounded-md border px-3 py-1.5 text-sm"
         >
           Retry

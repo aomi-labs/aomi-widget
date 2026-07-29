@@ -1,11 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback, useMemo, useState } from "react";
 import { useGitHubSession } from "@build/components/control-plane/github-session-context";
 import {
   GitHubSignInPanel,
   LoadingPanel,
 } from "@build/features/launch/components/deployments/ui/state-panels";
+import {
+  buildQueryKeys,
+  buildQueryStaleTime,
+  githubAccountKey,
+} from "@build/features/launch/query-keys";
 import { API_PATHS } from "@build/lib/api-paths";
 import { operateFetch } from "./client";
 
@@ -84,9 +90,23 @@ function formatTs(ts?: number | null): string {
 
 export function BotsView({ embedded = false }: { embedded?: boolean }) {
   const { account } = useGitHubSession();
-  const [payload, setPayload] = useState<BotsPayload | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const accountKey = githubAccountKey(account.githubLogin);
+  const queryKey = buildQueryKeys.bots(accountKey ?? "unavailable");
+  const botsQuery = useQuery({
+    queryKey,
+    queryFn: () => operateFetch<BotsPayload>("bots"),
+    enabled: account.signedIn && accountKey !== null,
+    staleTime: buildQueryStaleTime.operate,
+  });
+  const payload = botsQuery.data ?? null;
+  const loading = botsQuery.isPending;
+  const error =
+    botsQuery.error && !botsQuery.data
+      ? botsQuery.error instanceof Error
+        ? botsQuery.error.message
+        : String(botsQuery.error)
+      : null;
 
   const [label, setLabel] = useState("");
   const [token, setToken] = useState("");
@@ -102,37 +122,6 @@ export function BotsView({ embedded = false }: { embedded?: boolean }) {
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [formStatus, setFormStatus] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (account.loading) {
-      setLoading(true);
-      setError(null);
-      setPayload(null);
-      return;
-    }
-    if (!account.signedIn) {
-      setLoading(false);
-      setError(null);
-      setPayload(null);
-      return;
-    }
-    let alive = true;
-    setLoading(true);
-    setError(null);
-    operateFetch<BotsPayload>("bots")
-      .then((next) => {
-        if (alive) setPayload(next);
-      })
-      .catch((err) => {
-        if (alive) setError(err instanceof Error ? err.message : String(err));
-      })
-      .finally(() => {
-        if (alive) setLoading(false);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [account.loading, account.signedIn]);
 
   const sources = useMemo(() => payload?.sources ?? [], [payload?.sources]);
   const bots = useMemo(() => payload?.bots ?? [], [payload?.bots]);
@@ -184,7 +173,7 @@ export function BotsView({ embedded = false }: { embedded?: boolean }) {
         throw new Error(json.error || `Failed to register bot (${res.status})`);
       }
       const created = json.bot;
-      setPayload((current) => ({
+      queryClient.setQueryData<BotsPayload>(queryKey, (current) => ({
         sources: current?.sources ?? sources,
         bots: editingId
           ? (current?.bots ?? []).map((bot) =>
@@ -218,37 +207,44 @@ export function BotsView({ embedded = false }: { embedded?: boolean }) {
     selectedApplicationIds,
     primaryApplicationId,
     sources,
+    queryClient,
+    queryKey,
   ]);
 
-  const handleRemove = useCallback(async (bot: Bot) => {
-    setRemovingId(bot.id);
-    setFormError(null);
-    try {
-      const params = new URLSearchParams({ botId: bot.id });
-      const res = await fetch(`${API_PATHS.bff.operate.bots}?${params}`, {
-        method: "DELETE",
-      });
-      const json = (await res.json().catch(() => ({}))) as {
-        ok?: boolean;
-        error?: string;
-      };
-      if (!res.ok) {
-        throw new Error(json.error || `Failed to remove bot (${res.status})`);
+  const handleRemove = useCallback(
+    async (bot: Bot) => {
+      setRemovingId(bot.id);
+      setFormError(null);
+      try {
+        const params = new URLSearchParams({ botId: bot.id });
+        const res = await fetch(`${API_PATHS.bff.operate.bots}?${params}`, {
+          method: "DELETE",
+        });
+        const json = (await res.json().catch(() => ({}))) as {
+          ok?: boolean;
+          error?: string;
+        };
+        if (!res.ok) {
+          throw new Error(json.error || `Failed to remove bot (${res.status})`);
+        }
+        queryClient.setQueryData<BotsPayload>(queryKey, (current) =>
+          current
+            ? {
+                ...current,
+                bots: (current.bots ?? []).filter((b) => b.id !== bot.id),
+              }
+            : current,
+        );
+      } catch (err) {
+        setFormError(
+          err instanceof Error ? err.message : "Failed to remove bot",
+        );
+      } finally {
+        setRemovingId(null);
       }
-      setPayload((current) =>
-        current
-          ? {
-              ...current,
-              bots: (current.bots ?? []).filter((b) => b.id !== bot.id),
-            }
-          : current,
-      );
-    } catch (err) {
-      setFormError(err instanceof Error ? err.message : "Failed to remove bot");
-    } finally {
-      setRemovingId(null);
-    }
-  }, []);
+    },
+    [queryClient, queryKey],
+  );
 
   const toggleApplication = useCallback((applicationId: number) => {
     setSelectedApplicationIds((current) => {

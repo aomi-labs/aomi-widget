@@ -1,9 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { Activity, Gauge, Home, Rocket, WalletCards } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
 
+import { ControlPlaneLink } from "@build/components/control-plane/control-plane-link";
 import { useGitHubSession } from "@build/components/control-plane/github-session-context";
 import { EmptyState } from "@build/components/control-plane/empty-state";
 import {
@@ -12,6 +13,11 @@ import {
   LoadingPanel,
 } from "@build/features/launch/components/deployments/ui/state-panels";
 import { useGlobalDeploymentRecords } from "@build/features/launch/components/deployments/use-global-deployment-records";
+import {
+  buildQueryKeys,
+  buildQueryStaleTime,
+  githubAccountKey,
+} from "@build/features/launch/query-keys";
 import { operateFetch } from "@build/features/operate/client";
 import { BUILD_GLOSSARY } from "@build/lib/glossary";
 import { lastUsageHref, projectHref } from "@build/lib/deep-links";
@@ -55,29 +61,19 @@ export function OverviewDashboard() {
   const { account } = useGitHubSession();
   const { projectsState, recordsState, sources, reload } =
     useGlobalDeploymentRecords();
-  const [usage, setUsage] = useState<UsagePayload | null>(null);
-  const [usageError, setUsageError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (account.loading || !account.signedIn) {
-      setUsage(null);
-      setUsageError(null);
-      return;
-    }
-    let alive = true;
-    operateFetch<UsagePayload>("usage")
-      .then((payload) => {
-        if (alive) setUsage(payload);
-      })
-      .catch((err) => {
-        if (alive) {
-          setUsageError(err instanceof Error ? err.message : String(err));
-        }
-      });
-    return () => {
-      alive = false;
-    };
-  }, [account.loading, account.signedIn]);
+  const accountKey = githubAccountKey(account.githubLogin);
+  const usageQuery = useQuery({
+    queryKey: buildQueryKeys.operate(accountKey ?? "unavailable", "usage"),
+    queryFn: () => operateFetch<UsagePayload>("usage"),
+    enabled: account.signedIn && accountKey !== null,
+    staleTime: buildQueryStaleTime.operate,
+  });
+  const usage = usageQuery.data ?? null;
+  const usageError = usageQuery.error
+    ? usageQuery.error instanceof Error
+      ? usageQuery.error.message
+      : String(usageQuery.error)
+    : null;
 
   const deployments =
     recordsState.status === "ready" || recordsState.status === "error"
@@ -181,12 +177,12 @@ export function OverviewDashboard() {
               </div>
               <div className="text-dim text-xs">Latest project activity</div>
             </div>
-            <Link
+            <ControlPlaneLink
               href="/operate/deployments"
               className="text-dim hover:text-foreground text-sm"
             >
               View all
-            </Link>
+            </ControlPlaneLink>
           </div>
           {recordsPending ? (
             <LoadingPanel label="Loading deployments..." />
@@ -205,7 +201,7 @@ export function OverviewDashboard() {
           ) : !recordsPending ? (
             <div className="divide-border divide-y">
               {deployments.slice(0, 5).map((deployment) => (
-                <Link
+                <ControlPlaneLink
                   key={`${deployment.sourceId}-${deployment.deploymentId}`}
                   href={projectHref(deployment.sourceId, "deployments")}
                   className="hover:bg-accent-hover flex items-center justify-between gap-3 px-4 py-3 text-sm"
@@ -222,14 +218,14 @@ export function OverviewDashboard() {
                   <span className="border-border text-dim shrink-0 rounded-sm border px-2 py-0.5 text-xs">
                     {deployment.current ? "Current" : "Previous"}
                   </span>
-                </Link>
+                </ControlPlaneLink>
               ))}
             </div>
           ) : null}
         </div>
 
         <div className="flex flex-col gap-3">
-          <Link
+          <ControlPlaneLink
             href="/operate/deployments/new"
             className="border-border bg-surface-1 hover:bg-accent-hover rounded-md border p-4"
           >
@@ -240,8 +236,8 @@ export function OverviewDashboard() {
             <div className="text-dim mt-1 text-xs">
               Fork, connect, and publish from GitHub.
             </div>
-          </Link>
-          <Link
+          </ControlPlaneLink>
+          <ControlPlaneLink
             href="/operate/transactions"
             className="border-border bg-surface-1 hover:bg-accent-hover rounded-md border p-4"
           >
@@ -252,8 +248,8 @@ export function OverviewDashboard() {
             <div className="text-dim mt-1 text-xs">
               Owned app transaction history.
             </div>
-          </Link>
-          <Link
+          </ControlPlaneLink>
+          <ControlPlaneLink
             href="/operate/observability"
             className="border-border bg-surface-1 hover:bg-accent-hover rounded-md border p-4"
           >
@@ -264,8 +260,8 @@ export function OverviewDashboard() {
             <div className="text-dim mt-1 text-xs">
               Status and dashboard links.
             </div>
-          </Link>
-          <Link
+          </ControlPlaneLink>
+          <ControlPlaneLink
             href={lastUsageHref()}
             className="border-border bg-surface-1 hover:bg-accent-hover rounded-md border p-4"
           >
@@ -282,7 +278,7 @@ export function OverviewDashboard() {
                     ? "Credits by app"
                     : "Appears after app traffic"}
             </div>
-          </Link>
+          </ControlPlaneLink>
         </div>
       </section>
     </div>

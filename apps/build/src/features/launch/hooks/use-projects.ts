@@ -10,7 +10,11 @@ import {
 } from "@build/features/launch/client";
 import type { LaunchSdkStatus } from "@build/features/launch/contracts";
 import type { GitHubSessionInfo } from "@build/features/launch/dashboard";
-import { buildQueryKeys, githubAccountKey } from "../query-keys";
+import {
+  buildQueryKeys,
+  buildQueryStaleTime,
+  githubAccountKey,
+} from "../query-keys";
 
 export type ProjectsState =
   | { status: "loading" }
@@ -36,13 +40,13 @@ export function useProjects() {
     queryKey: buildQueryKeys.sdkStatus(),
     queryFn: () => deploymentSdkStatus().catch(() => null),
     enabled: !account.loading,
-    staleTime: 5 * 60 * 1000,
+    staleTime: buildQueryStaleTime.sdkStatus,
   });
   const projects = useQuery({
     queryKey: buildQueryKeys.projects(accountKey ?? "unavailable"),
     queryFn: () => deploymentSources(),
     enabled: account.signedIn && accountKey !== null,
-    staleTime: 60 * 1000,
+    staleTime: buildQueryStaleTime.projects,
   });
 
   const state = useMemo<ProjectsState>(() => {

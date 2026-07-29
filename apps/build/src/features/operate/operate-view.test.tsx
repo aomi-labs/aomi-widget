@@ -1,5 +1,12 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render as rtlRender,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ReactElement } from "react";
 import { OperateView, truncateAddress } from "./operate-view";
 
 const operateFetch = vi.fn();
@@ -7,17 +14,33 @@ const searchParams = { current: new URLSearchParams("") };
 
 vi.mock("next/navigation", () => ({
   useSearchParams: () => searchParams.current,
+  useRouter: () => ({ prefetch: vi.fn() }),
 }));
 
 vi.mock("@build/components/control-plane/github-session-context", () => ({
   useGitHubSession: () => ({
-    account: { loading: false, signedIn: true, login: "gordian" },
+    account: {
+      loading: false,
+      signedIn: true,
+      githubLogin: "gordian",
+      githubAvatarUrl: null,
+      installationId: null,
+    },
   }),
 }));
 
 vi.mock("./client", () => ({
   operateFetch: (...args: unknown[]) => operateFetch(...args),
 }));
+
+function render(ui: ReactElement) {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return rtlRender(
+    <QueryClientProvider client={client}>{ui}</QueryClientProvider>,
+  );
+}
 
 describe("truncateAddress", () => {
   it("shortens long hex addresses and leaves short values alone", () => {
@@ -660,5 +683,32 @@ describe("OperateView transactions", () => {
         platform: "somm.finance",
       });
     });
+  });
+
+  it("reuses fresh operate data when returning to a tab", async () => {
+    operateFetch.mockResolvedValue({
+      sources: [],
+      transactions: [],
+      nextCursor: null,
+    });
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const first = rtlRender(
+      <QueryClientProvider client={client}>
+        <OperateView kind="transactions" />
+      </QueryClientProvider>,
+    );
+
+    await screen.findByText(/no transactions yet/i);
+    first.unmount();
+    rtlRender(
+      <QueryClientProvider client={client}>
+        <OperateView kind="transactions" />
+      </QueryClientProvider>,
+    );
+
+    await screen.findByText(/no transactions yet/i);
+    expect(operateFetch).toHaveBeenCalledTimes(1);
   });
 });

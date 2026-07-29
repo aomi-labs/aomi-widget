@@ -30,6 +30,7 @@ import { useQueryClient } from "@tanstack/react-query";
 
 import { AomiLogo } from "@build/components/brand/aomi-logo";
 import { ColorThemeToggle } from "@build/components/control-plane/color-theme-toggle";
+import { ControlPlaneLink } from "@build/components/control-plane/control-plane-link";
 import {
   CommandPalette,
   openCommandPalette,
@@ -316,15 +317,16 @@ function NavItemLink({
   }
 
   return (
-    <Link
+    <ControlPlaneLink
       href={item.href}
+      warmOnIntent={!active}
       onClick={onNavigate}
       data-active={active ? "true" : "false"}
       className="nav-link"
       title={!expanded ? item.label : undefined}
     >
       {content}
-    </Link>
+    </ControlPlaneLink>
   );
 }
 
@@ -510,6 +512,7 @@ function AccountMenu({
         )}
         <Link
           href="/settings"
+          prefetch={false}
           className="hover:bg-accent-hover hover:text-foreground flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs transition"
         >
           <Settings className="size-3.5" />

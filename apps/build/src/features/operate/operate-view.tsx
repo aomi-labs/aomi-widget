@@ -11,15 +11,19 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
-import {
-  useGitHubSession,
-  type GitHubAccountState,
-} from "@build/components/control-plane/github-session-context";
+import { ControlPlaneLink } from "@build/components/control-plane/control-plane-link";
+import { useGitHubSession } from "@build/components/control-plane/github-session-context";
 import {
   GitHubSignInPanel,
   LoadingPanel,
 } from "@build/features/launch/components/deployments/ui/state-panels";
+import {
+  buildQueryKeys,
+  buildQueryStaleTime,
+  githubAccountKey,
+} from "@build/features/launch/query-keys";
 import { operateFetch, type OperateKind } from "./client";
 import {
   bytesLabel,
@@ -108,6 +112,7 @@ function EmptyState({
       {actionHref && actionLabel ? (
         <Link
           href={actionHref}
+          prefetch={false}
           className="bg-primary text-primary-foreground mt-4 inline-flex h-8 items-center justify-center rounded-md px-3 text-xs font-medium hover:opacity-90"
         >
           {actionLabel}
@@ -485,14 +490,14 @@ function Rows({
           const className =
             "border-border bg-surface rounded-md border px-3 py-3";
           return detailHref ? (
-            <Link
+            <ControlPlaneLink
               key={key}
               href={detailHref}
               aria-label={`Open ${app.application} observability details`}
               className={`${className} hover:bg-accent-hover focus-visible:ring-ring transition focus-visible:outline-none focus-visible:ring-1`}
             >
               {card}
-            </Link>
+            </ControlPlaneLink>
           ) : (
             <div key={key} className={className}>
               {card}
@@ -536,25 +541,6 @@ function Rows({
   );
 }
 
-// Module-level cache so switching away from an Operate tab and back shows the
-// last-known data instantly while it revalidates in the background, instead of
-// resetting to the "Loading" state on every remount. Lives for the SPA session.
-const operateCache = new Map<string, OperatePayload>();
-
-function operateAccountCacheKey(account: GitHubAccountState): string | null {
-  if (!account.signedIn || !account.githubLogin) return null;
-  return account.githubLogin.toLowerCase();
-}
-
-function operateCacheKey(
-  accountKey: string,
-  kind: ViewKind,
-  sourceId: number | null,
-  platform?: string,
-): string {
-  return `${accountKey}:${platform ?? "default"}:${kind}:${sourceId ?? "all"}`;
-}
-
 function projectIdFromSearch(raw: string | null): number | null {
   if (!raw) return null;
   const id = Number(raw);
@@ -571,7 +557,7 @@ export function OperateView({ kind }: { kind: ViewKind }) {
   const errorsFromUrl = searchParams.get("errors") === "1";
   const paymentsFromUrl = searchParams.get("payments") === "1";
   const txFromUrl = searchParams.get("tx");
-  const accountCacheKey = operateAccountCacheKey(account);
+  const accountKey = githubAccountKey(account.githubLogin);
   const [sourceId, setSourceId] = useState<number | null>(projectFromUrl);
   const [txAppFilter, setTxAppFilter] = useState<string | null>(appFromUrl);
   const [txOpen, setTxOpen] = useState<string | null>(txFromUrl);
@@ -583,17 +569,34 @@ export function OperateView({ kind }: { kind: ViewKind }) {
     paymentsOnly: paymentsFromUrl,
   });
   const [logOpen, setLogOpen] = useState<string | null>(null);
-  const initialCacheKey = accountCacheKey
-    ? operateCacheKey(accountCacheKey, kind, sourceId, platformFromUrl)
-    : null;
-  const [payload, setPayload] = useState<OperatePayload | null>(
-    () => (initialCacheKey ? operateCache.get(initialCacheKey) : null) ?? null,
-  );
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(() =>
-    initialCacheKey ? !operateCache.has(initialCacheKey) : true,
-  );
+  const [paginationError, setPaginationError] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
+  const queryClient = useQueryClient();
+  const queryKey = buildQueryKeys.operate(
+    accountKey ?? "unavailable",
+    kind,
+    sourceId,
+    platformFromUrl,
+  );
+  const dataQuery = useQuery({
+    queryKey,
+    queryFn: () =>
+      operateFetch<OperatePayload>(kind, {
+        sourceId,
+        platform: platformFromUrl,
+      }),
+    enabled: account.signedIn && accountKey !== null,
+    staleTime: buildQueryStaleTime.operate,
+  });
+  const payload = dataQuery.data ?? null;
+  const loading = dataQuery.isPending;
+  const queryError =
+    dataQuery.error && !dataQuery.data
+      ? dataQuery.error instanceof Error
+        ? dataQuery.error.message
+        : String(dataQuery.error)
+      : null;
+  const error = paginationError ?? queryError;
   const Icon = meta[kind].icon;
   const sources = useMemo(() => payload?.sources ?? [], [payload?.sources]);
   const canPage = kind === "transactions" || kind === "logs";
@@ -619,63 +622,9 @@ export function OperateView({ kind }: { kind: ViewKind }) {
   useEffect(() => {
     if (txFromUrl != null) setTxOpen(txFromUrl);
   }, [txFromUrl]);
-
   useEffect(() => {
-    if (account.loading) {
-      setLoading(true);
-      setError(null);
-      setPayload(null);
-      return;
-    }
-    if (!account.signedIn) {
-      setLoading(false);
-      setError(null);
-      setPayload(null);
-      return;
-    }
-    let alive = true;
-    const key = accountCacheKey
-      ? operateCacheKey(accountCacheKey, kind, sourceId, platformFromUrl)
-      : null;
-    const cached = key ? operateCache.get(key) : null;
-    setError(null);
-    if (cached) {
-      // Show last-known data immediately and revalidate silently.
-      setPayload(cached);
-      setLoading(false);
-    } else {
-      setPayload(null);
-      setLoading(true);
-    }
-    operateFetch<OperatePayload>(kind, {
-      sourceId,
-      platform: platformFromUrl,
-    })
-      .then((next) => {
-        if (key) operateCache.set(key, next);
-        if (alive) setPayload(next);
-      })
-      .catch((err) => {
-        // Keep showing stale data if we have it; only surface the error when
-        // there is nothing cached to fall back on.
-        if (alive && (!key || !operateCache.has(key))) {
-          setError(err instanceof Error ? err.message : String(err));
-        }
-      })
-      .finally(() => {
-        if (alive) setLoading(false);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [
-    account.loading,
-    account.signedIn,
-    accountCacheKey,
-    kind,
-    platformFromUrl,
-    sourceId,
-  ]);
+    setPaginationError(null);
+  }, [accountKey, kind, platformFromUrl, sourceId]);
 
   if (account.loading) {
     return (
@@ -696,19 +645,15 @@ export function OperateView({ kind }: { kind: ViewKind }) {
   async function loadMore() {
     if (!nextCursor || loadingMore) return;
     setLoadingMore(true);
-    setError(null);
+    setPaginationError(null);
     try {
       const next = await operateFetch<OperatePayload>(kind, {
         sourceId,
         cursor: nextCursor,
         platform: platformFromUrl,
       });
-      const key = accountCacheKey
-        ? operateCacheKey(accountCacheKey, kind, sourceId, platformFromUrl)
-        : null;
-      setPayload((current) => {
+      queryClient.setQueryData<OperatePayload>(queryKey, (current) => {
         if (!current) {
-          if (key) operateCache.set(key, next);
           return next;
         }
         let merged: OperatePayload;
@@ -730,11 +675,10 @@ export function OperateView({ kind }: { kind: ViewKind }) {
         } else {
           merged = next;
         }
-        if (key) operateCache.set(key, merged);
         return merged;
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setPaginationError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoadingMore(false);
     }
