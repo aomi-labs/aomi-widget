@@ -16,7 +16,6 @@ import {
 import { fetchIntegrationStatuses } from "./client";
 import { INTEGRATION_PROVIDERS, type IntegrationProvider } from "./providers";
 
-/** Persist is not wired (BFF returns 501). Keep the form; gate Save. */
 const INTEGRATIONS_SAVE_ENABLED = false;
 
 function IntegrationCard({
@@ -122,7 +121,7 @@ export function IntegrationsView() {
 
   if (account.loading) {
     return (
-      <div className="mx-auto w-full max-w-6xl px-6 py-6">
+      <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
         <LoadingPanel label="Checking GitHub session..." />
       </div>
     );
@@ -130,23 +129,22 @@ export function IntegrationsView() {
 
   if (!account.signedIn) {
     return (
-      <div className="mx-auto w-full max-w-6xl px-6 py-6">
+      <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
         <GitHubSignInPanel error={null} />
       </div>
     );
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-6">
-      <div className="space-y-2">
-        <p className="text-dim text-[12px] uppercase tracking-wide">Account</p>
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
+      <div className="min-w-0">
         <div className="flex items-center gap-2">
-          <Plug className="text-dim size-5" />
-          <h1 className="font-display text-foreground text-2xl font-normal tracking-tight">
+          <Plug className="text-dim size-5" aria-hidden />
+          <h1 className="font-display text-foreground text-xl font-normal tracking-tight">
             Integrations
           </h1>
         </div>
-        <p className="text-subtle max-w-2xl text-sm">
+        <p className="text-dim mt-1.5 max-w-3xl text-sm leading-5">
           Connect bots and channels to your apps. Credential save is coming
           soon; docs links work today.
         </p>

@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, Gauge, Rocket, WalletCards } from "lucide-react";
+import { Activity, Gauge, Home, Rocket, WalletCards } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 
@@ -117,15 +117,18 @@ export function OverviewDashboard() {
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
-          <h1 className="font-display text-foreground text-2xl font-normal tracking-tight">
-            Overview
-          </h1>
-          <p className="text-dim mt-1 text-sm">
+          <div className="flex items-center gap-2">
+            <Home className="text-dim size-5" aria-hidden />
+            <h1 className="font-display text-foreground text-xl font-normal tracking-tight">
+              Overview
+            </h1>
+          </div>
+          <p className="text-dim mt-1.5 max-w-3xl text-sm leading-5">
             Snapshot for{" "}
             {account.githubLogin ? `@${account.githubLogin}` : "GitHub"}.
             Day-to-day work starts from Projects.
           </p>
-          <p className="text-dim mt-2 max-w-2xl text-xs leading-5">
+          <p className="text-dim mt-1 max-w-3xl text-xs leading-5">
             {BUILD_GLOSSARY.project.term}: {BUILD_GLOSSARY.project.meaning}{" "}
             {BUILD_GLOSSARY.deployment.term}:{" "}
             {BUILD_GLOSSARY.deployment.meaning}
