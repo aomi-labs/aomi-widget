@@ -117,7 +117,10 @@ function EmptyState({
   );
 }
 
-function appDetailHref(app: Record<string, any>): string | null {
+function appDetailHref(
+  app: Record<string, any>,
+  platform?: string,
+): string | null {
   const applicationId = Number(app.applicationId);
   const sourceId = Number(app.source?.id);
   if (
@@ -128,7 +131,9 @@ function appDetailHref(app: Record<string, any>): string | null {
   ) {
     return null;
   }
-  return `/operate/observability/${applicationId}?project=${sourceId}`;
+  const params = new URLSearchParams({ project: String(sourceId) });
+  if (platform) params.set("platform", platform);
+  return `/operate/observability/${applicationId}?${params}`;
 }
 
 const STATUS_DOT: Record<string, string> = {
@@ -199,10 +204,12 @@ function Rows({
   kind,
   payload,
   view,
+  platform,
 }: {
   kind: ViewKind;
   payload: OperatePayload;
   view: ViewState;
+  platform?: string;
 }) {
   if (kind === "transactions") {
     const rows = payload.transactions ?? [];
@@ -383,7 +390,7 @@ function Rows({
               : null,
             bytesLabel(metrics.dylibBytes),
           ].filter(Boolean);
-          const detailHref = appDetailHref(app);
+          const detailHref = appDetailHref(app, platform);
           const card = (
             <>
               <div className="flex items-center justify-between gap-3">
@@ -543,8 +550,9 @@ function operateCacheKey(
   accountKey: string,
   kind: ViewKind,
   sourceId: number | null,
+  platform?: string,
 ): string {
-  return `${accountKey}:${kind}:${sourceId ?? "all"}`;
+  return `${accountKey}:${platform ?? "default"}:${kind}:${sourceId ?? "all"}`;
 }
 
 function projectIdFromSearch(raw: string | null): number | null {
@@ -557,6 +565,7 @@ export function OperateView({ kind }: { kind: ViewKind }) {
   const { account } = useGitHubSession();
   const searchParams = useSearchParams();
   const projectFromUrl = projectIdFromSearch(searchParams.get("project"));
+  const platformFromUrl = searchParams.get("platform") ?? undefined;
   const appFromUrl = searchParams.get("app");
   const toolFromUrl = searchParams.get("tool");
   const errorsFromUrl = searchParams.get("errors") === "1";
@@ -575,7 +584,7 @@ export function OperateView({ kind }: { kind: ViewKind }) {
   });
   const [logOpen, setLogOpen] = useState<string | null>(null);
   const initialCacheKey = accountCacheKey
-    ? operateCacheKey(accountCacheKey, kind, sourceId)
+    ? operateCacheKey(accountCacheKey, kind, sourceId, platformFromUrl)
     : null;
   const [payload, setPayload] = useState<OperatePayload | null>(
     () => (initialCacheKey ? operateCache.get(initialCacheKey) : null) ?? null,
@@ -626,7 +635,7 @@ export function OperateView({ kind }: { kind: ViewKind }) {
     }
     let alive = true;
     const key = accountCacheKey
-      ? operateCacheKey(accountCacheKey, kind, sourceId)
+      ? operateCacheKey(accountCacheKey, kind, sourceId, platformFromUrl)
       : null;
     const cached = key ? operateCache.get(key) : null;
     setError(null);
@@ -638,7 +647,10 @@ export function OperateView({ kind }: { kind: ViewKind }) {
       setPayload(null);
       setLoading(true);
     }
-    operateFetch<OperatePayload>(kind, sourceId)
+    operateFetch<OperatePayload>(kind, {
+      sourceId,
+      platform: platformFromUrl,
+    })
       .then((next) => {
         if (key) operateCache.set(key, next);
         if (alive) setPayload(next);
@@ -656,7 +668,14 @@ export function OperateView({ kind }: { kind: ViewKind }) {
     return () => {
       alive = false;
     };
-  }, [account.loading, account.signedIn, accountCacheKey, kind, sourceId]);
+  }, [
+    account.loading,
+    account.signedIn,
+    accountCacheKey,
+    kind,
+    platformFromUrl,
+    sourceId,
+  ]);
 
   if (account.loading) {
     return (
@@ -679,13 +698,13 @@ export function OperateView({ kind }: { kind: ViewKind }) {
     setLoadingMore(true);
     setError(null);
     try {
-      const next = await operateFetch<OperatePayload>(
-        kind,
+      const next = await operateFetch<OperatePayload>(kind, {
         sourceId,
-        nextCursor,
-      );
+        cursor: nextCursor,
+        platform: platformFromUrl,
+      });
       const key = accountCacheKey
-        ? operateCacheKey(accountCacheKey, kind, sourceId)
+        ? operateCacheKey(accountCacheKey, kind, sourceId, platformFromUrl)
         : null;
       setPayload((current) => {
         if (!current) {
@@ -779,7 +798,12 @@ export function OperateView({ kind }: { kind: ViewKind }) {
         </div>
       ) : payload ? (
         <>
-          <Rows kind={kind} payload={payload} view={view} />
+          <Rows
+            kind={kind}
+            payload={payload}
+            view={view}
+            platform={platformFromUrl}
+          />
           {nextCursor ? (
             <div className="flex justify-center">
               <button
