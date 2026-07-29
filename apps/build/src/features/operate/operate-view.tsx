@@ -122,7 +122,10 @@ function EmptyState({
   );
 }
 
-function appDetailHref(app: Record<string, any>): string | null {
+function appDetailHref(
+  app: Record<string, any>,
+  platform?: string,
+): string | null {
   const applicationId = Number(app.applicationId);
   const sourceId = Number(app.source?.id);
   if (
@@ -133,7 +136,9 @@ function appDetailHref(app: Record<string, any>): string | null {
   ) {
     return null;
   }
-  return `/operate/observability/${applicationId}?project=${sourceId}`;
+  const params = new URLSearchParams({ project: String(sourceId) });
+  if (platform) params.set("platform", platform);
+  return `/operate/observability/${applicationId}?${params}`;
 }
 
 const STATUS_DOT: Record<string, string> = {
@@ -204,10 +209,12 @@ function Rows({
   kind,
   payload,
   view,
+  platform,
 }: {
   kind: ViewKind;
   payload: OperatePayload;
   view: ViewState;
+  platform?: string;
 }) {
   if (kind === "transactions") {
     const rows = payload.transactions ?? [];
@@ -388,7 +395,7 @@ function Rows({
               : null,
             bytesLabel(metrics.dylibBytes),
           ].filter(Boolean);
-          const detailHref = appDetailHref(app);
+          const detailHref = appDetailHref(app, platform);
           const card = (
             <>
               <div className="flex items-center justify-between gap-3">
@@ -544,6 +551,7 @@ export function OperateView({ kind }: { kind: ViewKind }) {
   const { account } = useGitHubSession();
   const searchParams = useSearchParams();
   const projectFromUrl = projectIdFromSearch(searchParams.get("project"));
+  const platformFromUrl = searchParams.get("platform") ?? undefined;
   const appFromUrl = searchParams.get("app");
   const toolFromUrl = searchParams.get("tool");
   const errorsFromUrl = searchParams.get("errors") === "1";
@@ -568,10 +576,15 @@ export function OperateView({ kind }: { kind: ViewKind }) {
     accountKey ?? "unavailable",
     kind,
     sourceId,
+    platformFromUrl,
   );
   const dataQuery = useQuery({
     queryKey,
-    queryFn: () => operateFetch<OperatePayload>(kind, sourceId),
+    queryFn: () =>
+      operateFetch<OperatePayload>(kind, {
+        sourceId,
+        platform: platformFromUrl,
+      }),
     enabled: account.signedIn && accountKey !== null,
     staleTime: buildQueryStaleTime.operate,
   });
@@ -611,7 +624,7 @@ export function OperateView({ kind }: { kind: ViewKind }) {
   }, [txFromUrl]);
   useEffect(() => {
     setPaginationError(null);
-  }, [accountKey, kind, sourceId]);
+  }, [accountKey, kind, platformFromUrl, sourceId]);
 
   if (account.loading) {
     return (
@@ -634,11 +647,11 @@ export function OperateView({ kind }: { kind: ViewKind }) {
     setLoadingMore(true);
     setPaginationError(null);
     try {
-      const next = await operateFetch<OperatePayload>(
-        kind,
+      const next = await operateFetch<OperatePayload>(kind, {
         sourceId,
-        nextCursor,
-      );
+        cursor: nextCursor,
+        platform: platformFromUrl,
+      });
       queryClient.setQueryData<OperatePayload>(queryKey, (current) => {
         if (!current) {
           return next;
@@ -729,7 +742,12 @@ export function OperateView({ kind }: { kind: ViewKind }) {
         </div>
       ) : payload ? (
         <>
-          <Rows kind={kind} payload={payload} view={view} />
+          <Rows
+            kind={kind}
+            payload={payload}
+            view={view}
+            platform={platformFromUrl}
+          />
           {nextCursor ? (
             <div className="flex justify-center">
               <button

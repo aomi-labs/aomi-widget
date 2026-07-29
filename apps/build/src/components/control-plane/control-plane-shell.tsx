@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 import {
   Activity,
   BookOpen,
-  Bot,
   CircleUserRound,
   Github,
   FolderKanban,
@@ -108,13 +107,6 @@ const navGroups: NavGroup[] = [
         label: "Usage",
         href: "/operate/usage",
         icon: Gauge,
-        enabled: true,
-        requiresGitHub: true,
-      },
-      {
-        label: "Bots",
-        href: "/operate/bots",
-        icon: Bot,
         enabled: true,
         requiresGitHub: true,
       },

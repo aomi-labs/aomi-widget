@@ -98,7 +98,11 @@ export function ProjectPage({
             // Details is merged into Home: status cards first, repo
             // metadata (the former Details tab) below.
             <>
-              <HomeTab detail={detail} tabHref={projectTabHref} />
+              <HomeTab
+                detail={detail}
+                tabHref={projectTabHref}
+                platform={platform}
+              />
               <SettingsTab detail={detail} />
             </>
           ) : active === "deployments" ? (

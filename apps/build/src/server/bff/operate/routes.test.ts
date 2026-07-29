@@ -94,6 +94,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.unstubAllEnvs();
 });
 
 describe("operateBotsRoute", () => {
@@ -271,8 +272,8 @@ describe("operateBotsDeleteRoute", () => {
   });
 });
 
-function usageReq() {
-  return new Request("http://localhost:3000/api/bff/operate/usage");
+function usageReq(qs = "") {
+  return new Request(`http://localhost:3000/api/bff/operate/usage${qs}`);
 }
 function observabilityReq() {
   return new Request("http://localhost:3000/api/bff/operate/observability");
@@ -363,6 +364,56 @@ function sharedSettlementPayments(applicationId: number | null = null) {
 }
 
 describe("operateUsageRoute statement fallback", () => {
+  it("uses an allowed partner platform for ownership and usage reads", async () => {
+    vi.stubEnv("APP_DEPLOY_PLATFORMS", "community,somm.finance");
+    setSession({ githubUserId: "gh-1" });
+    oneSource();
+    client.getUserSourceUsage.mockResolvedValue({
+      ...emptyUsage,
+      platform: "somm.finance",
+    });
+    client.getUserSourceStatement.mockRejectedValue(new Error("404"));
+
+    const res = await operateUsageRoute(
+      usageReq("?appSourceId=900&platform=somm.finance"),
+    );
+
+    expect(res.status).toBe(200);
+    expect(client.listUserSources).toHaveBeenCalledWith({
+      githubUserId: "gh-1",
+      platform: "somm.finance",
+    });
+    expect(client.getUserSourceUsage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        appSourceId: 900,
+        githubUserId: "gh-1",
+        platform: "somm.finance",
+      }),
+    );
+    expect(client.getUserSourceStatement).toHaveBeenCalledWith(
+      expect.objectContaining({
+        appSourceId: 900,
+        githubUserId: "gh-1",
+        platform: "somm.finance",
+      }),
+    );
+  });
+
+  it("rejects a platform outside the configured allowlist", async () => {
+    vi.stubEnv("APP_DEPLOY_PLATFORMS", "community,somm.finance");
+    setSession({ githubUserId: "gh-1" });
+
+    const res = await operateUsageRoute(
+      usageReq("?appSourceId=900&platform=attacker.example"),
+    );
+
+    expect(res.status).toBe(400);
+    await expect(res.json()).resolves.toEqual({
+      error: "missing or invalid `platform`",
+    });
+    expect(client.listUserSources).not.toHaveBeenCalled();
+  });
+
   it("serves the example statement (example: true) when the manager has none", async () => {
     setSession({ githubUserId: "gh-1" });
     oneSource();

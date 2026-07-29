@@ -5,22 +5,34 @@ export const buildQueryKeys = {
     [...buildQueryKeys.all, "account", account, "projects"] as const,
   deployments: (account: string) =>
     [...buildQueryKeys.all, "account", account, "deployments"] as const,
-  operate: (account: string, kind: string, sourceId: number | null = null) =>
+  operate: (
+    account: string,
+    kind: string,
+    sourceId: number | null = null,
+    platform?: string | null,
+  ) =>
     [
       ...buildQueryKeys.all,
       "account",
       account,
       "operate",
       kind,
+      platform?.trim() || "default",
       sourceId ?? "all",
     ] as const,
-  operateDetail: (account: string, sourceId: number, applicationId: number) =>
+  operateDetail: (
+    account: string,
+    sourceId: number,
+    applicationId: number,
+    platform?: string | null,
+  ) =>
     [
       ...buildQueryKeys.all,
       "account",
       account,
       "operate",
       "observability-detail",
+      platform?.trim() || "default",
       sourceId,
       applicationId,
     ] as const,
@@ -28,8 +40,6 @@ export const buildQueryKeys = {
     [...buildQueryKeys.all, "account", account, "bots"] as const,
   modelKeys: (account: string) =>
     [...buildQueryKeys.all, "account", account, "model-keys"] as const,
-  integrations: (account: string) =>
-    [...buildQueryKeys.all, "account", account, "integrations"] as const,
 };
 
 export const buildQueryStaleTime = {
@@ -37,7 +47,6 @@ export const buildQueryStaleTime = {
   deployments: 15_000,
   sdkStatus: 5 * 60_000,
   operate: 30_000,
-  integrations: 60_000,
   modelKeys: 60_000,
 } as const;
 

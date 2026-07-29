@@ -26,7 +26,10 @@ import {
 } from "@build/features/operate/format";
 import { deploymentClient } from "@build/server/bff/backend";
 import { authorize } from "@build/server/bff/auth";
-import { launchConfig } from "@build/server/bff/launch/config";
+import {
+  launchConfig,
+  resolveLaunchPlatform,
+} from "@build/server/bff/launch/config";
 import { launchErrorResponse } from "@build/server/bff/launch/errors";
 import { TimedPromiseCache } from "@build/server/bff/timed-promise-cache";
 
@@ -237,13 +240,25 @@ async function ownedSources(req: Request): Promise<
   const config = launchConfig();
   const client = await deploymentClient();
   const params = new URL(req.url).searchParams;
+  const platform = resolveLaunchPlatform(
+    params.get("platform") ?? undefined,
+    config,
+  );
+  if (!platform) {
+    return {
+      response: NextResponse.json(
+        { error: "missing or invalid `platform`" },
+        { status: 400 },
+      ),
+    };
+  }
   const requestedSourceId = Number(params.get("appSourceId"));
   const sources = await readCache.sources.get(
-    [session.githubUserId, config.platform],
+    [session.githubUserId, platform],
     () =>
       client.listUserSources({
         githubUserId: session.githubUserId,
-        platform: config.platform,
+        platform,
       }),
   );
   if (params.has("appSourceId")) {
@@ -268,14 +283,14 @@ async function ownedSources(req: Request): Promise<
     }
     return {
       githubUserId: session.githubUserId,
-      platform: config.platform,
+      platform,
       sources: [source],
       client,
     };
   }
   return {
     githubUserId: session.githubUserId,
-    platform: config.platform,
+    platform,
     sources,
     client,
   };

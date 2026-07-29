@@ -658,7 +658,30 @@ describe("OperateView transactions", () => {
     render(<OperateView kind="usage" />);
 
     await waitFor(() => {
-      expect(operateFetch).toHaveBeenCalledWith("usage", 42);
+      expect(operateFetch).toHaveBeenCalledWith("usage", {
+        sourceId: 42,
+        platform: undefined,
+      });
+    });
+  });
+
+  it("keeps ?platform= on project-scoped operate reads", async () => {
+    searchParams.current = new URLSearchParams(
+      "project=1620&platform=somm.finance",
+    );
+    operateFetch.mockResolvedValue({
+      sources: [{ id: 1620, repositoryLink: "aomi/somm-agent", apps: [] }],
+      daily: [],
+      breakdown: [],
+    });
+
+    render(<OperateView kind="usage" />);
+
+    await waitFor(() => {
+      expect(operateFetch).toHaveBeenCalledWith("usage", {
+        sourceId: 1620,
+        platform: "somm.finance",
+      });
     });
   });
 

@@ -11,7 +11,6 @@ import {
   buildQueryKeys,
   buildQueryStaleTime,
 } from "@build/features/launch/query-keys";
-import { fetchIntegrationStatuses } from "@build/features/integrations/client";
 import {
   modelKeysFetch,
   operateAppDetailFetch,
@@ -39,20 +38,21 @@ export function prefetchControlPlaneRoute(
 ): boolean {
   if (!accountKey) return false;
   const path = href.split("?")[0];
+  const searchParams = new URLSearchParams(href.split("?")[1]);
   const detailMatch = path.match(/^\/operate\/observability\/([1-9]\d*)$/);
   if (detailMatch) {
     const applicationId = Number(detailMatch[1]);
-    const project = Number(
-      new URLSearchParams(href.split("?")[1]).get("project"),
-    );
+    const project = Number(searchParams.get("project"));
+    const platform = searchParams.get("platform");
     if (Number.isSafeInteger(project) && project > 0) {
       void queryClient.prefetchQuery({
         queryKey: buildQueryKeys.operateDetail(
           accountKey,
           project,
           applicationId,
+          platform,
         ),
-        queryFn: () => operateAppDetailFetch(project, applicationId),
+        queryFn: () => operateAppDetailFetch(project, applicationId, platform),
         staleTime: buildQueryStaleTime.operate,
       });
       return true;
@@ -97,9 +97,9 @@ export function prefetchControlPlaneRoute(
 
   if (path === "/integrations") {
     void queryClient.prefetchQuery({
-      queryKey: buildQueryKeys.integrations(accountKey),
-      queryFn: fetchIntegrationStatuses,
-      staleTime: buildQueryStaleTime.integrations,
+      queryKey: buildQueryKeys.bots(accountKey),
+      queryFn: () => operateFetch("bots"),
+      staleTime: buildQueryStaleTime.operate,
     });
     return true;
   }
@@ -115,12 +115,20 @@ export function prefetchControlPlaneRoute(
 
   const kind = OPERATE_ROUTES[path];
   if (!kind) return false;
+  const sourceId = Number(searchParams.get("project"));
+  const scopedSourceId =
+    Number.isSafeInteger(sourceId) && sourceId > 0 ? sourceId : null;
+  const platform = searchParams.get("platform");
   void queryClient.prefetchQuery({
     queryKey:
       kind === "bots"
         ? buildQueryKeys.bots(accountKey)
-        : buildQueryKeys.operate(accountKey, kind),
-    queryFn: () => operateFetch(kind),
+        : buildQueryKeys.operate(accountKey, kind, scopedSourceId, platform),
+    queryFn: () =>
+      operateFetch(kind, {
+        sourceId: scopedSourceId,
+        platform,
+      }),
     staleTime: buildQueryStaleTime.operate,
   });
   return true;
