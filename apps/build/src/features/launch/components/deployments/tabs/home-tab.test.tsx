@@ -1,5 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ReactElement } from "react";
 
 const loadSecrets = vi.fn();
 const operateFetch = vi.fn();
@@ -43,6 +45,16 @@ const detail = {
 
 import { HomeTab } from "./home-tab";
 
+// Fresh client per render so cached usage reads never leak across tests.
+function renderTab(ui: ReactElement) {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={client}>{ui}</QueryClientProvider>,
+  );
+}
+
 describe("HomeTab", () => {
   beforeEach(() => {
     loadSecrets.mockClear();
@@ -52,7 +64,7 @@ describe("HomeTab", () => {
   });
 
   it("shows status cards and a deploy next action when not live", async () => {
-    render(
+    renderTab(
       <HomeTab detail={detail} tabHref={(tab) => `/projects/1?tab=${tab}`} />,
     );
 
@@ -87,7 +99,7 @@ describe("HomeTab", () => {
         },
       ],
     });
-    render(
+    renderTab(
       <HomeTab detail={detail} tabHref={(tab) => `/projects/1?tab=${tab}`} />,
     );
     expect(await screen.findByText("1.50 credits")).toBeInTheDocument();
@@ -118,7 +130,7 @@ describe("HomeTab", () => {
       },
     ];
 
-    render(
+    renderTab(
       <HomeTab detail={detail} tabHref={(tab) => `/projects/1?tab=${tab}`} />,
     );
 
@@ -152,7 +164,7 @@ describe("HomeTab", () => {
       },
     ];
 
-    render(
+    renderTab(
       <HomeTab
         detail={detail}
         platform="somm.finance"

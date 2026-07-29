@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { deploymentClient } from "@build/server/bff/backend";
 import { resolveLaunchPlatform } from "./config";
 import { launchErrorResponse } from "./errors";
+import { clearLaunchReadCache } from "./routes";
 import { authorize } from "@build/server/bff/auth";
 
 export async function sourceSdkUpgradeRoute(req: Request) {
@@ -41,6 +42,9 @@ export async function sourceSdkUpgradeRoute(req: Request) {
       githubUserId: session.githubUserId,
       platform,
     });
+    // The upgrade mutates the source repo; the merged PR changes the source's
+    // stamped SDK version, which the cached source list carries.
+    clearLaunchReadCache();
     return NextResponse.json(result);
   } catch (error) {
     return launchErrorResponse(error);

@@ -2,6 +2,70 @@
 
 ## Last Updated
 
+2026-07-29 — Build project-page perf: react-query ownership + parallel reads
+  (worktree untitled-session-7921bd, uncommitted; based on main 0e89ece2).
+  Diagnosis: /projects/:id was the last page outside react-query — hand-rolled
+  fetch of ALL sources per mount, first paint gated on `Promise.all(sources,
+  sdkStatus)`, no prefetch entry, then a strict depth-2 waterfall for HomeTab's
+  secrets+usage. Changes (apps/build):
+  - `use-project-detail.ts`: source/sdk/loading/error now `useQuery`-owned.
+    Source list keyed by NEW `buildQueryKeys.projectSources(account, platform)`
+    — identical to the `projects` key when unbound (shares the /projects index
+    cache + hover prefetch; nav list→project reads cache), platform-scoped for
+    bound projects (1620/somm.finance would `.find()` nothing in the unbound
+    list). sdkStatus is its own query and NO LONGER gates first paint (badge
+    fills in; `sdkCompatibility(_, null)`="unknown" so nothing flashes).
+    `reload()` → `refetchQueries`; records-latch reset preserved on
+    [sourceId, platform] change. Hook also returns `accountKey`.
+  - `prefetch-control-plane-route.ts`: NEW `prefetchProjectDetail()` (sources +
+    sdk + usage) + a /projects/:id matcher case — hover now warms the detail
+    page; ProjectPage calls the same helper on mount so cold loads run all
+    reads in parallel; ProjectPage also fires `loadSecrets()` for home/env tabs
+    at mount instead of after the source read.
+  - `home-tab.tsx`: usage peek moved from useState/useEffect onto `useQuery`
+    with the operate usage key (shared with /operate/usage + prefetch).
+  - `server/bff/launch/routes.ts`: `timedManagerRead()` logs around
+    `list_user_sources` + `server_tags` — read off one staging load to decide
+    whether the manager needs a single-source/filtered read (fix #4).
+  Behavior deltas: manual refresh no longer shows the full-tab spinner when
+  data exists (SWR semantics via isPending); cold DIRECT loads wait for the
+  GitHub session before the source read (cache key needs accountKey).
+  Second pass (same session) — the two items first skipped, now done properly:
+  - BFF launch read cache WITH mutation invalidation (`launch/routes.ts`):
+    `readCache.{sources,serverTags}` (TimedPromiseCache, 15s) behind
+    userSourcesRoute + launchSdkStatusRoute; unlike operate's read-only cache,
+    every source-mutating route clears it via exported `clearLaunchReadCache()`
+    — deploy/preflight factory, create-repo, activate, promote, deactivate,
+    redeploy, and sourceSdkUpgradeRoute (source-upgrade.ts). This is what makes
+    the cache safe for the redeploy→reload() flow (preflight registers apps;
+    the next sources read must see them). timedManagerRead sits INSIDE the
+    cache loader, so timing logs now measure only real manager calls.
+  - Single-source read WITHOUT losing cache sharing: `?appSourceId=` on the
+    sources BFF route filters BFF-side off the cached list (manager has no
+    single-source endpoint; manager URL unchanged). Client chain:
+    `API_PATHS...sources(platform, appSourceId)` → `deploymentSources(platform,
+    appSourceId)`. Hook now queries `buildQueryKeys.projectSource(account,
+    sourceId, platform)` (nested under the projects prefix) with
+    `initialData`/`initialDataUpdatedAt` seeded from the `projects` LIST cache
+    — warm list→project nav paints from cache with zero fetch while the list
+    is fresh; cold loads transfer ONE source instead of the whole account.
+    `projectSources` key helper replaced by `projectSource`; prefetch warms the
+    slim read.
+  Tests: use-project-detail.test.ts + home-tab.test.tsx + project-page.test.tsx
+  gained QueryClientProvider/GitHubSessionProvider harnesses (pattern from
+  use-projects.test.ts); user-sources.test.ts +3 (appSourceId filter + no
+  manager leak, malformed→400, cache coalesce + clear seam; afterEach clears
+  the module-level cache). Verified: aomi-build type-check, eslint, prettier,
+  full suite 353/353. NOTE for worktree sessions: vitest excludes
+  `**/.claude/**` so running tests INSIDE a .claude worktree needs a throwaway
+  config that drops that exclude + cwd at worktree root; `@aomi-labs/widget-lib`
+  = apps/shadcn-registry and needs `pnpm run build:package` THERE (root
+  build:lib builds packages/react, not it); root build:lib also dirties
+  committed packages/client/dist maps — revert those.
+  Related: PR #423 (unmerged) bounds the operate settleBySource fan-out
+  (6-way cap / 8s per-source / 20s budget) — covers /operate/observability;
+  nothing here overlaps it.
+
 2026-07-27 — Light/dark token sweep. Dark mode was losing all structure: in
   `themes/default.css` the dark block collapsed `--aomi-surface-2`, `--aomi-raised`
   and `--aomi-border` onto a single `#27272a`, so every hairline drawn on a panel
