@@ -159,14 +159,26 @@ function monetizationCard(source: NonNullable<Detail["source"]>) {
   };
 }
 
+function operateUsageHref(
+  sourceId: number,
+  platform?: string,
+  anchor?: string,
+) {
+  const params = new URLSearchParams({ project: String(sourceId) });
+  if (platform) params.set("platform", platform);
+  return `/operate/usage?${params}${anchor ? `#${anchor}` : ""}`;
+}
+
 export function HomeTab({
   detail,
   tabHref,
+  platform,
 }: {
   detail: Detail;
   tabHref?: (
     tab: "home" | "deployments" | "providers" | "environment" | "chat",
   ) => string;
+  platform?: string;
 }) {
   const source = detail.source;
   const [usage, setUsage] = useState<UsagePeek | null>(null);
@@ -180,7 +192,7 @@ export function HomeTab({
     let alive = true;
     operateFetch<{
       daily?: Array<Record<string, unknown>>;
-    }>("usage", source.id)
+    }>("usage", { sourceId: source.id, platform })
       .then((payload) => {
         if (alive) setUsage(summarizeProjectUsage(payload));
       })
@@ -190,7 +202,7 @@ export function HomeTab({
     return () => {
       alive = false;
     };
-  }, [source]);
+  }, [platform, source]);
 
   const status = useMemo(
     () => (source ? projectDeploymentStatus(source) : null),
@@ -345,7 +357,7 @@ export function HomeTab({
               <UsageSpark spark={usage.spark} />
             ) : null
           }
-          actionHref={`/operate/usage?project=${source.id}`}
+          actionHref={operateUsageHref(source.id, platform)}
           actionLabel="Open Usage"
         />
         {monetization ? (
@@ -354,7 +366,11 @@ export function HomeTab({
             value={monetization.value}
             hint={monetization.hint}
             tone={monetization.tone}
-            actionHref={`/operate/usage?project=${source.id}#partner-payments`}
+            actionHref={operateUsageHref(
+              source.id,
+              platform,
+              "partner-payments",
+            )}
             actionLabel="View partner ledger"
           />
         ) : null}

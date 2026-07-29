@@ -23,9 +23,11 @@ function operateHref(
 export function AppDetailPage({
   applicationId,
   project,
+  platform,
 }: {
   applicationId: number;
   project: number;
+  platform?: string;
 }) {
   const router = useRouter();
   const [attempt, setAttempt] = useState(0);
@@ -36,7 +38,11 @@ export function AppDetailPage({
     let cancelled = false;
     setPayload(null);
     setError(null);
-    operateAppDetailFetch<LiveAppDetailPayload>(project, applicationId)
+    operateAppDetailFetch<LiveAppDetailPayload>(
+      project,
+      applicationId,
+      platform,
+    )
       .then((result) => {
         if (!cancelled) setPayload(result);
       })
@@ -50,7 +56,7 @@ export function AppDetailPage({
     return () => {
       cancelled = true;
     };
-  }, [applicationId, attempt, project]);
+  }, [applicationId, attempt, platform, project]);
 
   if (error) {
     return (
@@ -86,7 +92,10 @@ export function AppDetailPage({
       app={view.app}
       onBack={() =>
         router.push(
-          operateHref("/operate/observability", { project: projectValue }),
+          operateHref("/operate/observability", {
+            project: projectValue,
+            platform: platform ?? null,
+          }),
         )
       }
       onOpenTrace={(tool) =>
@@ -95,6 +104,7 @@ export function AppDetailPage({
             app: application,
             tool,
             project: projectValue,
+            platform: platform ?? null,
           }),
         )
       }
@@ -104,6 +114,7 @@ export function AppDetailPage({
             app: application,
             tx,
             project: projectValue,
+            platform: platform ?? null,
           }),
         )
       }

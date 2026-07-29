@@ -3,7 +3,7 @@ import { AppDetailPage } from "@build/features/operate/app-detail-page";
 
 type PageProps = {
   params: Promise<{ application: string }>;
-  searchParams: Promise<{ project?: string }>;
+  searchParams: Promise<{ project?: string; platform?: string }>;
 };
 
 export default async function OperateObservabilityDetailPage({
@@ -22,5 +22,11 @@ export default async function OperateObservabilityDetailPage({
     notFound();
   }
 
-  return <AppDetailPage applicationId={applicationId} project={projectId} />;
+  return (
+    <AppDetailPage
+      applicationId={applicationId}
+      project={projectId}
+      platform={query.platform}
+    />
+  );
 }
