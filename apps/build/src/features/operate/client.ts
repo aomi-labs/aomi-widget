@@ -9,22 +9,34 @@ export type OperateKind =
   | "logs"
   | "observability";
 
+export type OperateFetchOptions = {
+  sourceId?: number | null;
+  cursor?: unknown;
+  limit?: number;
+  platform?: string | null;
+};
+
 export async function operateFetch<T>(
   kind: OperateKind,
-  sourceId?: number | null,
-  cursor?: unknown,
-  limit?: number,
+  options: OperateFetchOptions = {},
 ): Promise<T> {
   const path = API_PATHS.bff.operate[kind];
   const params = new URLSearchParams();
-  if (sourceId) params.set("appSourceId", String(sourceId));
-  if (cursor) {
+  if (options.sourceId) {
+    params.set("appSourceId", String(options.sourceId));
+  }
+  if (options.platform?.trim()) {
+    params.set("platform", options.platform.trim());
+  }
+  if (options.cursor) {
     params.set(
       "cursor",
-      typeof cursor === "string" ? cursor : JSON.stringify(cursor),
+      typeof options.cursor === "string"
+        ? options.cursor
+        : JSON.stringify(options.cursor),
     );
   }
-  if (limit) params.set("limit", String(limit));
+  if (options.limit) params.set("limit", String(options.limit));
   const res = await fetch(`${path}${params.size ? `?${params}` : ""}`);
   const json = (await res.json().catch(() => ({}))) as T & { error?: string };
   if (!res.ok) {
@@ -36,9 +48,14 @@ export async function operateFetch<T>(
 export async function operateAppDetailFetch<T>(
   appSourceId: number,
   applicationId: number,
+  platform?: string | null,
 ): Promise<T> {
   const res = await fetch(
-    API_PATHS.bff.operate.observabilityDetail(appSourceId, applicationId),
+    API_PATHS.bff.operate.observabilityDetail(
+      appSourceId,
+      applicationId,
+      platform,
+    ),
   );
   const json = (await res.json().catch(() => ({}))) as T & { error?: string };
   if (!res.ok) {

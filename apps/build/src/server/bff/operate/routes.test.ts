@@ -94,6 +94,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.unstubAllEnvs();
 });
 
 describe("operateBotsRoute", () => {
@@ -271,8 +272,8 @@ describe("operateBotsDeleteRoute", () => {
   });
 });
 
-function usageReq() {
-  return new Request("http://localhost:3000/api/bff/operate/usage");
+function usageReq(qs = "") {
+  return new Request(`http://localhost:3000/api/bff/operate/usage${qs}`);
 }
 function observabilityReq() {
   return new Request("http://localhost:3000/api/bff/operate/observability");
@@ -363,6 +364,56 @@ function sharedSettlementPayments(applicationId: number | null = null) {
 }
 
 describe("operateUsageRoute statement fallback", () => {
+  it("uses an allowed partner platform for ownership and usage reads", async () => {
+    vi.stubEnv("APP_DEPLOY_PLATFORMS", "community,somm.finance");
+    setSession({ githubUserId: "gh-1" });
+    oneSource();
+    client.getUserSourceUsage.mockResolvedValue({
+      ...emptyUsage,
+      platform: "somm.finance",
+    });
+    client.getUserSourceStatement.mockRejectedValue(new Error("404"));
+
+    const res = await operateUsageRoute(
+      usageReq("?appSourceId=900&platform=somm.finance"),
+    );
+
+    expect(res.status).toBe(200);
+    expect(client.listUserSources).toHaveBeenCalledWith({
+      githubUserId: "gh-1",
+      platform: "somm.finance",
+    });
+    expect(client.getUserSourceUsage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        appSourceId: 900,
+        githubUserId: "gh-1",
+        platform: "somm.finance",
+      }),
+    );
+    expect(client.getUserSourceStatement).toHaveBeenCalledWith(
+      expect.objectContaining({
+        appSourceId: 900,
+        githubUserId: "gh-1",
+        platform: "somm.finance",
+      }),
+    );
+  });
+
+  it("rejects a platform outside the configured allowlist", async () => {
+    vi.stubEnv("APP_DEPLOY_PLATFORMS", "community,somm.finance");
+    setSession({ githubUserId: "gh-1" });
+
+    const res = await operateUsageRoute(
+      usageReq("?appSourceId=900&platform=attacker.example"),
+    );
+
+    expect(res.status).toBe(400);
+    await expect(res.json()).resolves.toEqual({
+      error: "missing or invalid `platform`",
+    });
+    expect(client.listUserSources).not.toHaveBeenCalled();
+  });
+
   it("serves the example statement (example: true) when the manager has none", async () => {
     setSession({ githubUserId: "gh-1" });
     oneSource();
@@ -454,6 +505,7 @@ describe("operateUsageRoute statement fallback", () => {
       }),
     );
     const payment = sharedSettlementPayments();
+    payment.buckets[0].outstandingCredits = 25;
     client.getUserSourceStatement.mockImplementation(({ appSourceId }) =>
       Promise.resolve({
         source: { id: appSourceId },
@@ -478,6 +530,8 @@ describe("operateUsageRoute statement fallback", () => {
 
     expect(body.statement.payments.summary.settledCredits).toBe(100);
     expect(body.statement.payments.summary.settlements).toBe(1);
+    expect(body.statement.payments.summary.outstandingCredits).toBe(25);
+    expect(body.statement.payments.summary.outstandingUsd).toBe(0.25);
     expect(body.statement.payments.events).toHaveLength(1);
     expect(body.statement.payments.buckets).toHaveLength(1);
   });
@@ -528,7 +582,72 @@ describe("partner settlement aggregation", () => {
     expect(body.transactions[0]).toMatchObject({
       id: "partner-payout:settle:shared",
       application: "Partner payout",
+      description: "Partner settlement via Coinbase",
+      fromLabel: null,
+      method: "Coinbase x402",
+      transfers: [],
     });
+  });
+
+  it("pages app transactions independently of the payout overlay", async () => {
+    oneSource();
+    const transactions = [
+      { id: "tx:1", application: "demo", createdAt: 1_700_000_008 },
+      { id: "tx:2", application: "demo", createdAt: 1_700_000_007 },
+      { id: "tx:3", application: "demo", createdAt: 1_700_000_006 },
+    ];
+    client.listUserSourceTransactions.mockImplementation(({ cursor }) =>
+      Promise.resolve({
+        source: { id: 900 },
+        platform: "community",
+        transactions: cursor ? transactions.slice(2) : transactions.slice(0, 2),
+        nextCursor: cursor ? null : { createdAt: 1_700_000_007, id: "tx:2" },
+      }),
+    );
+    const payments = sharedSettlementPayments(42);
+    payments.events = [1, 2].map((id) => ({
+      ...payments.events[0],
+      id: `settle:${id}`,
+      occurredAt: 1_700_000_011 - id,
+    }));
+    client.getUserSourceStatement.mockResolvedValue({
+      source: { id: 900 },
+      platform: "community",
+      payments,
+    });
+
+    const first = await (
+      await operateTransactionsRoute(transactionsReq("?limit=2"))
+    ).json();
+    const second = await (
+      await operateTransactionsRoute(
+        transactionsReq(
+          `?limit=2&cursor=${encodeURIComponent(JSON.stringify(first.nextCursor))}`,
+        ),
+      )
+    ).json();
+
+    expect(
+      first.transactions.map((transaction: { id: string }) => transaction.id),
+    ).toEqual([
+      "partner-payout:settle:1",
+      "partner-payout:settle:2",
+      "tx:1",
+      "tx:2",
+    ]);
+    expect(first.nextCursor).toEqual({
+      perSource: { "900": { createdAt: 1_700_000_007, id: "tx:2" } },
+    });
+    expect(
+      second.transactions.map((transaction: { id: string }) => transaction.id),
+    ).toEqual(["tx:3"]);
+    expect(second.nextCursor).toBeNull();
+    expect(client.listUserSourceTransactions).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        cursor: { createdAt: 1_700_000_007, id: "tx:2" },
+      }),
+    );
+    expect(client.getUserSourceStatement).toHaveBeenCalledTimes(1);
   });
 
   it("deduplicates settlement logs and advances every source cursor", async () => {

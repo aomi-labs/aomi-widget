@@ -24,7 +24,10 @@ import {
 } from "@build/features/operate/format";
 import { deploymentClient } from "@build/server/bff/backend";
 import { authorize } from "@build/server/bff/auth";
-import { launchConfig } from "@build/server/bff/launch/config";
+import {
+  launchConfig,
+  resolveLaunchPlatform,
+} from "@build/server/bff/launch/config";
 import { launchErrorResponse } from "@build/server/bff/launch/errors";
 
 type DeploymentClientInstance = Awaited<ReturnType<typeof deploymentClient>>;
@@ -242,11 +245,23 @@ async function ownedSources(req: Request): Promise<
   const config = launchConfig();
   const client = await deploymentClient();
   const params = new URL(req.url).searchParams;
+  const platform = resolveLaunchPlatform(
+    params.get("platform") ?? undefined,
+    config,
+  );
+  if (!platform) {
+    return {
+      response: NextResponse.json(
+        { error: "missing or invalid `platform`" },
+        { status: 400 },
+      ),
+    };
+  }
   const requestedSourceId = Number(params.get("appSourceId"));
   const sources = await cachedUserSources(
     client,
     session.githubUserId,
-    config.platform,
+    platform,
   );
   if (params.has("appSourceId")) {
     if (!isValidAppSourceId(requestedSourceId)) {
@@ -270,14 +285,14 @@ async function ownedSources(req: Request): Promise<
     }
     return {
       githubUserId: session.githubUserId,
-      platform: config.platform,
+      platform,
       sources: [source],
       client,
     };
   }
   return {
     githubUserId: session.githubUserId,
-    platform: config.platform,
+    platform,
     sources,
     client,
   };
@@ -604,55 +619,59 @@ export async function operateTransactionsRoute(req: Request) {
         ? []
         : payments.events
             .filter((event) => event.kind === "settlement_confirmed")
-            .map((event) => ({
-              id: `partner-payout:${event.id}`,
-              kind: "partner_payout",
-              externalTxId: event.receiptId ?? event.id,
-              application: event.application ?? "Partner payout",
-              applicationId: event.applicationId,
-              status: "confirmed",
-              txHash: event.receiptId,
-              chainId: caipChainId(event.chain),
-              fromAddress: "",
-              toAddress: event.recipient,
-              value: `${event.assetAmount ?? event.usd} ${event.asset ?? "USD"}`,
-              hasCalldata: false,
-              calldataPreview: null,
-              description: `Partner payout via ${event.paymentMethod}`,
-              createdAt: event.occurredAt,
-              updatedAt: event.occurredAt,
-              submittedAt: event.occurredAt,
-              family: "evm",
-              chainName: caipChainLabel(event.chain) || null,
-              fromLabel: "settlement payer",
-              toLabel: "beneficiary",
-              valueUsd: `$${event.usd.toFixed(2)}`,
-              block: null,
-              slot: null,
-              confirmations: null,
-              gasUsed: null,
-              gasLimit: null,
-              effGasPrice: null,
-              computeUnits: null,
-              computeLimit: null,
-              priorityFee: null,
-              txFee: null,
-              platformFee: null,
-              nonce: null,
-              method: "x402 settlement",
-              transfers: [
-                `${event.assetAmount ?? event.usd} ${event.asset ?? "USD"} → ${event.recipient}`,
-              ],
-              revertReason: null,
-              explorerUrl: event.explorerUrl,
-              payment: {
-                credits: event.credits,
-                recipient: event.recipient,
-                scope: payments.scope,
-              },
-              source: event.source,
-              platform: owned.platform,
-            }));
+            .map((event) => {
+              const provider =
+                event.paymentMethod.toLowerCase() === "coinbase"
+                  ? "Coinbase"
+                  : event.paymentMethod;
+              return {
+                id: `partner-payout:${event.id}`,
+                kind: "partner_payout",
+                externalTxId: event.receiptId ?? event.id,
+                application: event.application ?? "Partner payout",
+                applicationId: event.applicationId,
+                status: "confirmed",
+                txHash: event.receiptId,
+                chainId: caipChainId(event.chain),
+                fromAddress: "",
+                toAddress: event.recipient,
+                value: `${event.assetAmount ?? event.usd} ${event.asset ?? "USD"}`,
+                hasCalldata: false,
+                calldataPreview: null,
+                description: `Partner settlement via ${provider}`,
+                createdAt: event.occurredAt,
+                updatedAt: event.occurredAt,
+                submittedAt: event.occurredAt,
+                family: "evm",
+                chainName: caipChainLabel(event.chain) || null,
+                fromLabel: null,
+                toLabel: "beneficiary",
+                valueUsd: `$${event.usd.toFixed(2)}`,
+                block: null,
+                slot: null,
+                confirmations: null,
+                gasUsed: null,
+                gasLimit: null,
+                effGasPrice: null,
+                computeUnits: null,
+                computeLimit: null,
+                priorityFee: null,
+                txFee: null,
+                platformFee: null,
+                nonce: null,
+                method: provider === "Coinbase" ? "Coinbase x402" : provider,
+                transfers: [],
+                revertReason: null,
+                explorerUrl: event.explorerUrl,
+                payment: {
+                  credits: event.credits,
+                  recipient: event.recipient,
+                  scope: payments.scope,
+                },
+                source: event.source,
+                platform: owned.platform,
+              };
+            });
     // Statement-backed payouts have no transaction cursor. Include the full
     // deduplicated overlay on page one, alongside one normal page of app
     // transactions, so an older settlement cannot be sliced out forever.

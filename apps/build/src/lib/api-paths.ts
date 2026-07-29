@@ -115,11 +115,16 @@ export const API_PATHS = {
       usage: `${BFF}/operate/usage`,
       logs: `${BFF}/operate/logs`,
       observability: `${BFF}/operate/observability`,
-      observabilityDetail: (appSourceId: number, applicationId: number) => {
+      observabilityDetail: (
+        appSourceId: number,
+        applicationId: number,
+        platform?: string | null,
+      ) => {
         const params = new URLSearchParams({
           appSourceId: String(appSourceId),
           applicationId: String(applicationId),
         });
+        if (platform?.trim()) params.set("platform", platform.trim());
         return `${BFF}/operate/observability/detail?${params}`;
       },
     },

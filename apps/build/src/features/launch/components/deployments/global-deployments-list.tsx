@@ -3,13 +3,47 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Filter, RefreshCw } from "lucide-react";
+import { Filter, RefreshCw, Rocket } from "lucide-react";
 import { EmptyState } from "@build/components/control-plane/empty-state";
 import { useGlobalDeploymentRecords } from "./use-global-deployment-records";
 import { ErrorPanel, GitHubSignInPanel, LoadingPanel } from "./ui/state-panels";
 
 function formatDate(seconds: number) {
   return new Date(seconds * 1000).toLocaleString();
+}
+
+function DeploymentsPageHeader({ onReload }: { onReload: () => void }) {
+  return (
+    <header className="flex flex-wrap items-start justify-between gap-4">
+      <div className="min-w-0">
+        <div className="flex items-center gap-2">
+          <Rocket className="text-dim size-5" aria-hidden />
+          <h1 className="font-display text-xl font-normal tracking-tight">
+            Deployments
+          </h1>
+        </div>
+        <p className="text-dim mt-1.5 max-w-3xl text-sm leading-5">
+          Deployment history across all projects.
+        </p>
+      </div>
+      <div className="flex shrink-0 items-center gap-2">
+        <button
+          type="button"
+          onClick={onReload}
+          className="border-border bg-surface-1 hover:bg-accent-hover inline-flex h-8 items-center justify-center gap-1.5 rounded-md border px-3 text-sm font-medium"
+        >
+          <RefreshCw className="size-3.5" aria-hidden />
+          Refresh
+        </button>
+        <Link
+          href="/operate/deployments/new"
+          className="bg-primary text-primary-foreground inline-flex h-8 items-center justify-center rounded-md px-3 text-sm font-medium hover:opacity-90"
+        >
+          New app
+        </Link>
+      </div>
+    </header>
+  );
 }
 
 export function GlobalDeploymentsList() {
@@ -79,45 +113,25 @@ export function GlobalDeploymentsList() {
     [deployments, projectParam, selectedDeploymentId],
   );
 
-  if (projectsState.status === "loading") {
-    return <LoadingPanel label="Loading projects…" />;
-  }
-  if (projectsState.status === "signed_out") {
-    return <GitHubSignInPanel error={null} />;
-  }
-  if (projectsState.status === "error") {
-    return <ErrorPanel message={projectsState.error} />;
+  if (projectsState.status !== "ready") {
+    return (
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
+        <DeploymentsPageHeader onReload={reload} />
+        {projectsState.status === "loading" ? (
+          <LoadingPanel label="Loading projects…" />
+        ) : projectsState.status === "signed_out" ? (
+          <GitHubSignInPanel error={null} />
+        ) : (
+          <ErrorPanel message={projectsState.error} />
+        )}
+      </div>
+    );
   }
 
   return (
     <main className="bg-background text-foreground min-h-screen">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-8 sm:px-6">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="min-w-0">
-            <h1 className="font-display text-2xl font-normal tracking-tight">
-              Deployments
-            </h1>
-            <p className="text-dim mt-1 text-sm">
-              Deployment history across all projects.
-            </p>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <button
-              type="button"
-              onClick={reload}
-              className="border-border bg-surface-1 hover:bg-accent-hover inline-flex h-8 items-center justify-center gap-1.5 rounded-md border px-3 text-sm font-medium"
-            >
-              <RefreshCw className="size-3.5" aria-hidden />
-              Refresh
-            </button>
-            <Link
-              href="/operate/deployments/new"
-              className="bg-primary text-primary-foreground inline-flex h-8 items-center justify-center rounded-md px-3 text-sm font-medium hover:opacity-90"
-            >
-              New app
-            </Link>
-          </div>
-        </div>
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
+        <DeploymentsPageHeader onReload={reload} />
 
         <div className="border-border bg-surface-1 rounded-lg border">
           <div className="border-border flex flex-wrap items-center gap-2 border-b px-4 py-3">

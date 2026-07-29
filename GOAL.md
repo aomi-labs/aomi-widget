@@ -42,6 +42,7 @@ Progress:
   normalizes a Supabase session-pooler URL to transaction mode on Vercel while
   retaining a one-client, short-idle local pool; paired backend deployment
   work splits and verifies the fleet-wide session budget.
+- 2026-07-27 Build layout: standardized all twelve primary pages on responsive gutters and PT Serif titles paired with their navigation icons.
 - 2026-07-27 Build project membership: the Projects index now treats GitHub
   source records as internal import/ownership metadata and only surfaces
   sources that contain at least one Aomi app, removing historical repositories

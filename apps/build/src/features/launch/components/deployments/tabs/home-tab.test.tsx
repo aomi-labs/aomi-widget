@@ -73,6 +73,7 @@ describe("HomeTab", () => {
       "href",
       "/operate/usage?project=1",
     );
+    expect(screen.queryByText("Monetization")).not.toBeInTheDocument();
   });
 
   it("shows credits and tokens when usage has traffic", async () => {
@@ -127,6 +128,52 @@ describe("HomeTab", () => {
       screen.getByText(/100\.00 credits \(\$1\.00\) per successful call/),
     ).toBeInTheDocument();
     expect(screen.getByText(/Base Sepolia/)).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "View partner ledger" }),
+    ).toHaveAttribute("href", "/operate/usage?project=1#partner-payments");
     expect(await screen.findByText("No traffic yet")).toBeInTheDocument();
+  });
+
+  it("keeps a partner project platform on usage and ledger reads", async () => {
+    (detail.source as { apps: unknown[] }).apps = [
+      {
+        name: "somm-agent",
+        pricing: {
+          config: {
+            resources: {
+              get_idle_assets: {
+                pricing: { flat: 100 },
+                beneficiary: "banana_evm",
+              },
+            },
+            beneficiaries: [],
+          },
+        },
+      },
+    ];
+
+    render(
+      <HomeTab
+        detail={detail}
+        platform="somm.finance"
+        tabHref={(tab) => `/projects/1?platform=somm.finance&tab=${tab}`}
+      />,
+    );
+
+    expect(await screen.findByText("No traffic yet")).toBeInTheDocument();
+    expect(operateFetch).toHaveBeenCalledWith("usage", {
+      sourceId: 1,
+      platform: "somm.finance",
+    });
+    expect(screen.getByRole("link", { name: /^open usage$/i })).toHaveAttribute(
+      "href",
+      "/operate/usage?project=1&platform=somm.finance",
+    );
+    expect(
+      screen.getByRole("link", { name: "View partner ledger" }),
+    ).toHaveAttribute(
+      "href",
+      "/operate/usage?project=1&platform=somm.finance#partner-payments",
+    );
   });
 });

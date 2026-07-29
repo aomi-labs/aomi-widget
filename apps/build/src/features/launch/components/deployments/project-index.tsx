@@ -1,5 +1,6 @@
 "use client";
 
+import { FolderKanban } from "lucide-react";
 import { EmptyState } from "@build/components/control-plane/empty-state";
 import { useProjects } from "@build/features/launch/hooks/use-projects";
 import { BUILD_GLOSSARY } from "@build/lib/glossary";
@@ -20,13 +21,16 @@ export function ProjectIndex() {
 
   return (
     <main className="bg-background text-foreground min-h-screen">
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-8 sm:px-6">
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between gap-4">
           <div className="min-w-0">
-            <h1 className="font-display text-2xl font-normal tracking-tight">
-              Projects
-            </h1>
-            <p className="text-dim mt-1 text-sm">
+            <div className="flex items-center gap-2">
+              <FolderKanban className="text-dim size-5" aria-hidden />
+              <h1 className="font-display text-xl font-normal tracking-tight">
+                Projects
+              </h1>
+            </div>
+            <p className="text-dim mt-1.5 max-w-3xl text-sm leading-5">
               {BUILD_GLOSSARY.project.meaning} Each project can contain apps,
               deployments, and an environment for keys.
             </p>

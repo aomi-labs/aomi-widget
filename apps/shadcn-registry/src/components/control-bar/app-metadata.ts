@@ -3,9 +3,13 @@
  * Maps raw backend app ids to display names, categories, and aliases.
  */
 
+import type { AomiAppDescriptor } from "@aomi-labs/client";
+
 export type AppInfo = {
   /** Raw app id sent to backend */
   id: string;
+  /** Backend application scope for hosted apps. */
+  applicationId?: AomiAppDescriptor["applicationId"];
   /** Human-readable display name */
   displayName: string;
   /** 1-2 letter abbreviation for avatar fallback */
@@ -241,14 +245,25 @@ export function getAppInfo(appId: string | null | undefined): AppInfo {
   };
 }
 
-export function groupAppsByCategory(apps: string[]): AppGroup[] {
+export function groupAppsByCategory(
+  apps: Array<string | AomiAppDescriptor>,
+): AppGroup[] {
   const grouped = new Map<string, AppInfo[]>();
 
   for (const app of apps) {
-    if (typeof app !== "string" || app.trim().length === 0) {
+    const name =
+      typeof app === "string"
+        ? app
+        : app && typeof app.name === "string"
+          ? app.name
+          : "";
+    if (name.trim().length === 0) {
       continue;
     }
-    const info = getAppInfo(app);
+    const info = {
+      ...getAppInfo(name),
+      applicationId: typeof app === "string" ? undefined : app.applicationId,
+    };
     const existing = grouped.get(info.category.id) ?? [];
     existing.push(info);
     grouped.set(info.category.id, existing);
