@@ -14,6 +14,8 @@ const walletKit = vi.hoisted(() => ({
   signSolanaMessage: vi.fn(async () => ({ signature: "c2ln" })),
   openAccountUI: vi.fn(async () => undefined),
   identity: { address: "", svmAddress: undefined as string | undefined },
+  // Defaults to the identity; a test sets it to pin the divergent case.
+  evmSigningAddress: undefined as string | undefined,
 }));
 
 vi.mock("@aomi-labs/widget-lib", () => ({
@@ -147,6 +149,7 @@ const bodyOf = (calls: FetchCall[], path: string) => {
 describe("account ACL wiring", () => {
   beforeEach(() => {
     walletKit.identity = { address: CONNECTED_EVM, svmAddress: undefined };
+    walletKit.evmSigningAddress = undefined;
     walletKit.signTypedData.mockClear();
     // The overview store is module-level; seed it so the tab doesn't also
     // depend on /api/account here.
@@ -253,13 +256,32 @@ describe("account ACL wiring", () => {
     await click(row);
     await click(await screen.findByText("Accept transactions"));
 
-    expect(
-      screen.getByText("Connect this wallet itself to widen what it may sign."),
-    ).toBeTruthy();
+    expect(screen.getByText(/Only 0x71C7…976F can widen/)).toBeTruthy();
     expect(
       screen.getByRole("button", { name: /Sign to authorize/ }),
     ).toHaveProperty("disabled", true);
     expect(paths(calls)).not.toContain("/api/account/authorization/challenge");
+  });
+
+  // The real failure: Privy reports the embedded wallet as the identity while
+  // MetaMask is the active connector, so the guard passed, MetaMask signed, and
+  // the backend rejected the permit as `wrong_signer` after the user had
+  // already approved it. Gate on the key that actually signs.
+  it("blocks a loosening permit when the signing key differs from the identity", async () => {
+    walletKit.identity = { address: CONNECTED_EVM, svmAddress: undefined };
+    walletKit.evmSigningAddress = "0xMetaMaskWalletAddress00000000000000000000";
+    const { calls } = installFetchRecorder();
+
+    await renderAcl();
+    await click(await screen.findByText("0x71C7…976F"));
+    await click(await screen.findByText("Accept transactions"));
+
+    expect(screen.getByText(/Only 0x71C7…976F can widen/)).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: /Sign to authorize/ }),
+    ).toHaveProperty("disabled", true);
+    expect(paths(calls)).not.toContain("/api/account/authorization/challenge");
+    expect(walletKit.signTypedData).not.toHaveBeenCalled();
   });
 
   it("restates a lost version CAS in words instead of raw JSON", async () => {

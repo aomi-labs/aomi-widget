@@ -15,6 +15,7 @@ import {
   fetchGrants,
   fetchWalletPolicies,
   revokeProviderGrant,
+  shortenAddress,
 } from "./account-api";
 import type { DelegationGrant, SignerMode, WalletPolicy } from "./types";
 
@@ -85,7 +86,12 @@ export function useAccountAcl(): AccountAcl {
     };
   }, []);
 
-  const evmAddress = adapter.identity.address;
+  // The key that will actually produce the signature, not the displayed
+  // identity. `identity.address` survives a disconnect on a grace window and
+  // can name a different wallet than the connector `signTypedData` uses; a
+  // permit checked against the former and signed by the latter is rejected by
+  // the backend as `wrong_signer` only after the user has already approved it.
+  const evmAddress = adapter.evmSigningAddress ?? adapter.identity.address;
   const svmAddress = adapter.identity.svmAddress;
   const svmCluster =
     adapter.identity.svmCluster ?? adapter.identity.solanaCluster;
@@ -152,7 +158,11 @@ export function useAccountAcl(): AccountAcl {
         needsSelf &&
         signer.address?.toLowerCase() !== wallet.address.toLowerCase()
       ) {
-        return "Connect this wallet itself to widen what it may sign.";
+        // Name both sides: with several wallets connected, "connect this wallet"
+        // gave no clue which one was about to be asked for the signature.
+        return `Only ${shortenAddress(wallet.address)} can widen what it may sign, but ${shortenAddress(
+          signer.address ?? "",
+        )} is the active wallet. Switch to it and try again.`;
       }
       return null;
     },

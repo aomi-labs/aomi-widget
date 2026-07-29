@@ -175,6 +175,9 @@ export function AomiWalletKitComposer({
         identity.isConnected,
       canDisconnect: hasAnyDisconnectablePath,
       accounts,
+      // Same source the execution runtime resolves `activeConnector` from, so
+      // this is the key that will sign — not the grace-window identity above.
+      evmSigningAddress: registryState.activeByFamily.evm?.address,
       walletModalRows,
       accountStatus: account.status,
       accountError: account.error,
@@ -244,6 +247,7 @@ export function AomiWalletKitComposer({
     gracefulEvmIdentity.identity.address,
     gracefulEvmIdentity.identity.chainId,
     gracefulEvmIdentity.identity.walletName,
+    registryState.activeByFamily.evm,
     registryStore,
     svm,
     supportedChains,
