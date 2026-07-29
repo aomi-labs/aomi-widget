@@ -24,6 +24,8 @@ const widgetTurbopackAliases = {
   "@/lib": "../../apps/shadcn-registry/src/lib",
   "@aomi-labs/widget-lib/providers/para":
     "../../apps/shadcn-registry/src/lib/wallet-kit/providers/para/index.ts",
+  "@aomi-labs/widget-lib/providers/privy":
+    "../../apps/shadcn-registry/src/lib/wallet-kit/providers/privy/index.ts",
   "@aomi-labs/widget-lib": "../../apps/shadcn-registry/src/index.ts",
 } as const;
 
@@ -36,6 +38,10 @@ const widgetWebpackAliases = {
   "@aomi-labs/widget-lib/providers/para": path.join(
     widgetSrc,
     "lib/wallet-kit/providers/para/index.ts",
+  ),
+  "@aomi-labs/widget-lib/providers/privy": path.join(
+    widgetSrc,
+    "lib/wallet-kit/providers/privy/index.ts",
   ),
   "@aomi-labs/widget-lib": path.join(widgetSrc, "index.ts"),
 } as const;

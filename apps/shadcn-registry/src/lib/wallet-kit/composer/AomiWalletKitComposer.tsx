@@ -181,6 +181,7 @@ export function AomiWalletKitComposer({
       accountUser: account.user,
       accountLinkedAccounts: account.linkedAccounts,
       accountWallets: account.wallets,
+      retryAccount: account.retryProviderCredential,
       signOutAccount: account.signOut,
       deleteAccount: account.deleteAccount,
       updateAccount: account.updateAccount,

@@ -18,6 +18,13 @@ const walletKit = vi.hoisted(() => ({
 
 vi.mock("@aomi-labs/widget-lib", () => ({
   useAomiWalletKit: () => walletKit,
+  // These tests never mount a PrivyProvider, so stand in for the delegation
+  // handle with the same "not configured" behaviour its default context has.
+  usePrivyDelegation: () => ({
+    start: async () => {
+      throw new Error("Privy is not configured for this app.");
+    },
+  }),
 }));
 
 /** Backend `AccountWalletView` rows — the exact wire shape of /api/account/wallets. */

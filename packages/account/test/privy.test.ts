@@ -28,6 +28,30 @@ describe("createPrivyAccessTokenVerifier", () => {
       sessionId: "session-id",
     });
   });
+
+  it("accepts a PEM loaded from an env file with escaped newlines", async () => {
+    const { privateKey, publicKey } = await generateKeyPair("ES256");
+    const jwtVerificationKey = (await exportSPKI(publicKey)).replaceAll(
+      "\n",
+      "\\n",
+    );
+    const verify = createPrivyAccessTokenVerifier({
+      appId: "privy-app",
+      jwtVerificationKey,
+    });
+    const accessToken = await new SignJWT({ sid: "session-id" })
+      .setProtectedHeader({ alg: "ES256" })
+      .setSubject("did:privy:alice")
+      .setIssuer("privy.io")
+      .setAudience("privy-app")
+      .setExpirationTime("1h")
+      .sign(privateKey);
+
+    await expect(verify(accessToken)).resolves.toMatchObject({
+      userId: "did:privy:alice",
+      sessionId: "session-id",
+    });
+  });
 });
 
 describe("verifyPrivyToken", () => {

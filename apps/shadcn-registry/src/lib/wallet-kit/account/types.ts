@@ -75,6 +75,8 @@ export type AccountRuntime = {
   linkedAccounts: LinkedAuthAccount[];
   wallets: AccountWallet[];
   refresh: () => Promise<void>;
+  /** Retry a failed provider credential → Better Auth session exchange. */
+  retryProviderCredential?: () => void;
   signOut?: () => Promise<void>;
   deleteAccount?: () => Promise<void>;
   updateAccount?: (input: UpdateAccountInput) => Promise<void>;

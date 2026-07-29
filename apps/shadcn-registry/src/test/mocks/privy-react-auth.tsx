@@ -33,3 +33,18 @@ export function usePrivy() {
 export function useWallets() {
   return { wallets: [] as ConnectedWallet[], ready: false };
 }
+
+/** Used by the delegation ceremony in `providers/privy/privy-delegation.tsx`.
+ *  Inert here: `usePrivy().ready` is false in this mock, so the ceremony never
+ *  reaches the signer step. */
+export function useSessionSigners() {
+  return {
+    addSessionSigners: async () => undefined,
+    removeSessionSigners: async () => undefined,
+  };
+}
+
+/** Also read by the delegation ceremony, to notice a dismissed sign-in. */
+export function useModalStatus() {
+  return { isOpen: false };
+}

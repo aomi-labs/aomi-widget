@@ -37,6 +37,7 @@ interface AccountSigningViewProps {
   onCommit: (wallet: WalletPolicy, mode: SignerMode) => Promise<void>;
   onRevokeGrant: (grant: DelegationGrant) => Promise<void>;
   onStopAllAuto: () => Promise<void>;
+  onConnectPrivy: () => Promise<void>;
   onRegrant: (wallet: WalletPolicy) => Promise<void>;
   /** Why a target mode can't be signed right now, or null when it can. */
   blockedReason?: (wallet: WalletPolicy, mode: SignerMode) => string | null;
@@ -95,6 +96,7 @@ const EMBEDDED_PROVIDERS: Partial<Record<LinkedVia, ProviderIdentity>> = {
 
 /** Busy/error key for the account-wide "stop all auto-signing" action. */
 const STOP_ALL_KEY = "__stop_all__";
+const CONNECT_PRIVY_KEY = "__connect_privy__";
 
 const CUSTODY_GROUPS: { key: Custody; label: string }[] = [
   { key: "self", label: "Self-custody wallets" },
@@ -177,6 +179,7 @@ export function AccountSigningView({
   onCommit,
   onRevokeGrant,
   onStopAllAuto,
+  onConnectPrivy,
   onRegrant,
   blockedReason,
 }: AccountSigningViewProps) {
@@ -309,6 +312,10 @@ export function AccountSigningView({
       return next;
     });
 
+  const connectPrivy = () => {
+    void run(CONNECT_PRIVY_KEY, onConnectPrivy);
+  };
+
   const walletById = (id: string) => wallets.find((w) => w.id === id);
 
   /**
@@ -436,8 +443,23 @@ export function AccountSigningView({
           desc="These grants are what let an “Aomi auto” policy actually reconcile. Revoke to force those wallets back to manual."
         >
           {grants.length === 0 && (
-            <p className="rounded-xl border border-dashed border-aomi-border px-4 py-3 text-[13px] text-aomi-muted">
-              No delegated grants — nothing can sign on your behalf right now.
+            <div className="rounded-xl border border-dashed border-aomi-border px-4 py-3 text-[13px] text-aomi-muted">
+              <p>No delegated grants — nothing can sign on your behalf right now.</p>
+              <button
+                className="mt-3 rounded-lg bg-aomi-accent px-3 py-2 text-xs font-medium text-white disabled:opacity-60"
+                disabled={Boolean(busy[CONNECT_PRIVY_KEY])}
+                onClick={connectPrivy}
+                type="button"
+              >
+                {busy[CONNECT_PRIVY_KEY]
+                  ? "Opening Privy…"
+                  : "Connect Privy delegation"}
+              </button>
+            </div>
+          )}
+          {errors[CONNECT_PRIVY_KEY] && (
+            <p className="text-[13px] text-aomi-danger">
+              {errors[CONNECT_PRIVY_KEY]}
             </p>
           )}
           {grants.map((grant) => (

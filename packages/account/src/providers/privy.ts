@@ -54,7 +54,10 @@ export type VerifyPrivyAccessToken = (
 export function createPrivyAccessTokenVerifier(
   config: PrivyAccessTokenVerifierConfig,
 ): VerifyPrivyAccessToken {
-  const verificationKey = importSPKI(config.jwtVerificationKey, "ES256");
+  const verificationKey = importSPKI(
+    normalizePem(config.jwtVerificationKey),
+    "ES256",
+  );
 
   return async (accessToken: string): Promise<VerifiedPrivyAccessToken> => {
     const { payload } = await jwtVerify(accessToken, await verificationKey, {
@@ -101,7 +104,7 @@ export async function verifyPrivyToken(input: {
   if (!key) {
     throw new Error("Privy identity-token verification key is not configured");
   }
-  const cryptoKey = await importSPKI(key, "ES256");
+  const cryptoKey = await importSPKI(normalizePem(key), "ES256");
   const { payload } = await jwtVerify<PrivyClaims>(input.token, cryptoKey, {
     issuer: "privy.io",
     audience: input.appId,
@@ -126,6 +129,13 @@ export async function verifyPrivyToken(input: {
     linkedAccounts,
     rawClaims: { ...payload },
   };
+}
+
+// `.env` files commonly encode PEM newlines as the two literal characters
+// `\\n`. `jose` treats that backslash as part of the base64 body and rejects
+// the key, so accept either representation at this trust boundary.
+function normalizePem(value: string): string {
+  return value.replaceAll("\\r\\n", "\n").replaceAll("\\n", "\n");
 }
 
 /** Fetch every wallet Privy attests is owned by `userId` (a verified

@@ -305,6 +305,7 @@ export type AomiWalletKit = {
   accountUser?: AomiUserRef;
   accountLinkedAccounts?: readonly LinkedAuthAccount[];
   accountWallets?: readonly AccountWallet[];
+  retryAccount?: () => void;
   signOutAccount?: () => Promise<void>;
   deleteAccount?: () => Promise<void>;
   updateAccount?: (input: UpdateAccountInput) => Promise<void>;

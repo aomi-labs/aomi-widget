@@ -20,11 +20,13 @@ export type AomiSessionStatus =
 
 export function useAomiSession(): {
   status: AomiSessionStatus;
+  error?: string;
   retry: () => void;
 } {
   const adapter = useAomiAuthAdapter();
   const adapterStatus = adapter.identity.status;
   const accountStatus = adapter.accountStatus;
+  const accountError = adapter.accountError;
   const accountUserId = adapter.accountUser?.id;
   const [probeStatus, setProbeStatus] =
     useState<AomiSessionStatus>("establishing");
@@ -51,6 +53,10 @@ export function useAomiSession(): {
   }, [adapterSettling]);
 
   useEffect(() => {
+    if (adapterStatus === "connected" && accountStatus === "ready" && accountError) {
+      setProbeStatus("error");
+      return;
+    }
     if (adapterSettling && !adapterWaitExpired) {
       setProbeStatus("establishing");
       return;
@@ -120,6 +126,7 @@ export function useAomiSession(): {
     adapterSettling,
     adapterStatus,
     accountStatus,
+    accountError,
     accountUserId,
     adapterWaitExpired,
     probeAttempt,
@@ -127,10 +134,12 @@ export function useAomiSession(): {
 
   const retry = useCallback(() => {
     setProbeAttempt((attempt) => attempt + 1);
+    adapter.retryAccount?.();
     void adapter.connect?.();
   }, [adapter]);
   return {
     status: probeStatus,
+    error: accountError,
     retry,
   };
 }

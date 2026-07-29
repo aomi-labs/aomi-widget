@@ -67,6 +67,13 @@ export {
   useAomiWalletKit,
 } from "./lib/wallet-kit";
 export { AomiWalletProvider } from "./lib/wallet-kit/providers";
+// The hook only, never `PrivyDelegationProvider` — that one pulls in
+// `@privy-io/react-auth` and stays behind the `providers/privy` subpath so apps
+// that do not use Privy never pay for the SDK.
+export {
+  usePrivyDelegation,
+  type PrivyDelegationContextValue,
+} from "./lib/wallet-kit/providers/privy/privy-delegation-context";
 export {
   AomiBaseAccountProvider,
   type AomiBaseAccountProviderProps,
