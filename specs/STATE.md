@@ -142,6 +142,17 @@
   batch soaks; consider caching partner-payment reports (still the slowest
   leg of statement/observability batches).
 
+2026-07-30 — Portal Account tab UI restyle (branch `feat/portal-account-ui`, PR #431).
+  Account settings now matches `aomi-portal` mock: custody-grouped wallet rows
+  with provider logos (`wallet-brands.tsx`), inline grant status, radio signing
+  modes (`SigningModeList`), grant revoke inside expanded rows, attention strip,
+  unbound wallets → Activate (bind), Para agent provision strip, flat Revoke all.
+  Live API wiring unchanged (`use-account-acl.ts`). New helpers:
+  `account-reconcile.ts`, `wallet-policy-row.tsx`. Docs:
+  `docs/SETTINGS-REDESIGN-GAPS.md` updated. Still open: `rdns` on API for
+  self-custody wallet logos (Para/Privy always show). Rebased onto main;
+  preview QA on Vercel before merge.
+
 2026-07-30 — Observability batch read: fan-out removed at the source (branch
   `feat/operate-batch-observability` in BOTH repos; aomi PR #426, product-mono
   PR #901; based on main incl. #423 + #424).

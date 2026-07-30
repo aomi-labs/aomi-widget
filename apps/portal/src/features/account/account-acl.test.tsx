@@ -185,7 +185,8 @@ describe("account ACL wiring", () => {
     await screen.findByText("0x71C7…976F");
     expect(paths(calls)).toContain("/api/account/wallets");
     expect(paths(calls)).toContain("/api/account/grants");
-    // Privy provenance + live grant render from the wire, not fixtures.
+    // Privy provenance + live grant render from the wire inside the expanded row.
+    await click(await screen.findByText("Privy"));
     expect(screen.getByText(/Privy · Session delegation/)).toBeTruthy();
   });
 
@@ -196,7 +197,7 @@ describe("account ACL wiring", () => {
     const row = await screen.findByText("0x71C7…976F");
 
     await click(row);
-    await click(await screen.findByText("Accept transactions"));
+    await click(await screen.findByText("Auto-approve"));
     await click(await screen.findByText("Sign to authorize"));
 
     await waitFor(() =>
@@ -237,14 +238,14 @@ describe("account ACL wiring", () => {
     await click(await screen.findByText("0x71C7…976F"));
 
     const accept = await screen.findByRole("button", {
-      name: "Accept transactions",
+      name: /^Auto-approve/,
     });
     expect(accept).toHaveProperty("disabled", false);
     expect(
-      screen.getByRole("button", { name: "Auto" }),
+      screen.getByRole("button", { name: /^Aomi auto/ }),
     ).toHaveProperty("disabled", true);
     expect(
-      screen.getByRole("button", { name: "Locked" }),
+      screen.getByRole("button", { name: /^Locked/ }),
     ).toHaveProperty("disabled", false);
 
     await click(accept);
@@ -268,7 +269,7 @@ describe("account ACL wiring", () => {
     const row = await screen.findByText("0x71C7…976F");
 
     await click(row);
-    await click(await screen.findByText("Accept transactions"));
+    await click(await screen.findByText("Auto-approve"));
 
     expect(
       screen.getByText("Connect this wallet itself to widen what it may sign."),
@@ -289,7 +290,7 @@ describe("account ACL wiring", () => {
 
     await renderAcl();
     await click(await screen.findByText("0x71C7…976F"));
-    await click(await screen.findByText("Accept transactions"));
+    await click(await screen.findByText("Auto-approve"));
     await click(await screen.findByText("Sign to authorize"));
 
     expect(
@@ -303,6 +304,7 @@ describe("account ACL wiring", () => {
     const { calls } = installFetchRecorder();
 
     await renderAcl();
+    await click(await screen.findByText("Privy"));
     await click(await screen.findByText("Revoke"));
 
     await waitFor(() =>
@@ -337,7 +339,7 @@ describe("account ACL wiring", () => {
     });
 
     await renderAcl();
-    await click(await screen.findByRole("button", { name: "Link to account" }));
+    await click(await screen.findByRole("button", { name: "Activate" }));
 
     await waitFor(() =>
       expect(paths(calls)).toContain("/api/account/authorization/commit"),
