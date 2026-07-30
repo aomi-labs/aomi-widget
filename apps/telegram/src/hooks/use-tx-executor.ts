@@ -28,9 +28,9 @@ function toWalletExecutionCall(call: TxCall): AAWalletCall {
   }
 
   return {
-    to,
+    to: to as Hex,
     value: BigInt(call.value),
-    data,
+    data: data as Hex | undefined,
     chainId: call.chainId,
   };
 }
