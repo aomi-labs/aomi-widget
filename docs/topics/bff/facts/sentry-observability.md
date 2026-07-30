@@ -605,6 +605,11 @@ audit:
   their original `cause`, and required-secret checks retain bounded upstream
   identity/status metadata.
 
+Deploy network errors intentionally omit the configured backend URL from their
+public message while retaining the original exception as `cause`; development
+diagnostics therefore keep the useful failure and stack without propagating
+the endpoint string through every client-facing error.
+
 Smither is intentionally unchanged. This work adds no Smither observer, result
 field, package-version change, generated declaration change, or database
 schema change. Artifact packaging continues to use its established warning and
@@ -637,6 +642,14 @@ and telemetry cannot escape a caller's catch block. Build recovery state is
 mutated before reporting, and telemetry-only work cannot block sandbox release
 or application boot.
 
+The final review follow-up restored the live-run resume fallback across both
+durable-store reads: if the observer read fails, Build reports the original
+error and resumes instead of failing run creation. Artifact-read degradation
+now tags telemetry with the 404 or 409 response the caller actually receives.
+GitHub callback redirects remain contract-compatible (only upstream 403 maps
+to `service_auth_forbidden`), and the Build supervisor keeps its established
+500 body while the shared pipeline owns telemetry and console output.
+
 In local development, classified Issues print their original error and stack
 through the shared router, and upstream 5xx Logs print only their safe
 structured context. Ignored outcomes remain quiet. If Sentry is not initialized
@@ -652,7 +665,7 @@ Local verification completed with Sentry disabled:
   tests;
 - Portal: all 324 tests, type-check, focused changed-file lint, and production
   build passed;
-- Build: all 384 tests, type-check, lint (three existing warnings), and
+- Build: all 386 tests, type-check, lint (three existing warnings), and
   production build passed; and
 - frozen-lockfile installation and `git diff --check` passed.
 
@@ -690,6 +703,10 @@ Required deployment variables for both apps:
 Do not use `NEXT_PUBLIC_SENTRY_DSN`. Temporary previews remain disabled even
 when `VERCEL_ENV=preview`; enablement must come from the explicit deployment
 gate, not from `VERCEL_ENV` alone.
+
+Source-map upload also requires `SENTRY_PROJECT` to match `aomi-bff` exactly.
+That is an intentional fail-closed guard: renaming the Sentry project requires
+an explicit code/config review instead of silently uploading to another target.
 
 Use distinct release names, for example `portal-bff@<git-sha>` and
 `build-bff@<git-sha>`, so source-map artifacts from the two Next.js builds
@@ -890,6 +907,9 @@ and keeps the overall task open:
 - user/session correlation;
 - temporary preview telemetry;
 - new notification or paging rules; and
+- separating unexpected provider/device-auth infrastructure failures from the
+  broad pre-existing 400 response contract, including a separate review of
+  whether any framework `cause` value can reach a response body; and
 - removal of the old `phoebe-zeroclaw` Sentry project, which remains a separate
   cleanup task after its DSN and recent-event usage are audited.
 

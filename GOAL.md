@@ -11,7 +11,10 @@ behavior-preserving ownership boundaries, controlled staging smoke routes, and
 automated verification. The review follow-up made the pipeline and async
 observer seams non-throwing, restored existing HTTP/JSON-RPC/silent-degrade
 contracts, added a safe production fallback when Sentry is unavailable, and
-removed all Smither/schema changes. External Sentry/Vercel/dashboard
+removed all Smither/schema changes. The final review restored the two-read
+Build resume fallback, aligned artifact-degrade telemetry with its 404/409
+responses, and closed the remaining GitHub/supervisor response-contract
+drift. External Sentry/Vercel/dashboard
 configuration and live staging smoke verification remain unperformed and
 require separate authorization.
 

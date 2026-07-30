@@ -25,10 +25,11 @@ export async function GET(req: Request) {
     const actions = await superviseOnce();
     return NextResponse.json({ actions });
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
     return buildFailures.handle({
       source: "local",
       error,
-      response: { status: 500, error: "build_supervisor_failed" },
+      response: { status: 500, error: message },
       context: {
         routeFamily: "/api/bff/build/supervise",
         operation: "build.supervisor_request",

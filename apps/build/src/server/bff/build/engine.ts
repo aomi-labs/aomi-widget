@@ -59,12 +59,15 @@ import { buildFailures } from "@build/server/bff/failures";
 function identifyEngineFailure(
   error: unknown,
   operation: string,
-  upstream?: "vercel",
+  response?: { status: number; error: string },
 ): FailureInput {
   const context = { routeFamily: "/api/bff/build", operation };
-  return upstream
-    ? { source: "upstream_request", upstream, error, context }
-    : { source: "local", error, context };
+  return {
+    source: "local",
+    error,
+    ...(response ? { response } : {}),
+    context,
+  };
 }
 
 /**
@@ -415,7 +418,14 @@ export async function startBuildRun(options: {
     );
     const live = view && runStatusFromView(view.status) === "running";
     if (live) {
-      const observer = await observerHandle(record, api);
+      const observer = await observerHandle(record, api).catch(
+        (error: unknown) => {
+          buildFailures.handle(
+            identifyEngineFailure(error, "build.resume_observer_store_read"),
+          );
+          return undefined;
+        },
+      );
       if (observer) return observer;
     }
   }
@@ -630,7 +640,10 @@ export async function readRunFile(
   // Store artifact.
   const tarball = await storedCrateTarball(handle).catch((error: unknown) => {
     buildFailures.handle(
-      identifyEngineFailure(error, "build.file_artifact_read"),
+      identifyEngineFailure(error, "build.file_artifact_read", {
+        status: 404,
+        error: "file not found",
+      }),
     );
     return null;
   });

@@ -67,7 +67,10 @@ export async function GET(req: Request) {
         method: req.method,
       },
     });
-    if (failure.reason === "service_credential_rejected") {
+    if (
+      failure.reason === "service_credential_rejected" &&
+      failure.upstreamStatus === 403
+    ) {
       deployments.searchParams.set("github_error", "service_auth_forbidden");
       return NextResponse.redirect(deployments);
     }

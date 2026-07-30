@@ -75,7 +75,8 @@ export async function GET(req: Request) {
     return oauthError(
       req,
       continuation,
-      failure.reason === "service_credential_rejected"
+      failure.reason === "service_credential_rejected" &&
+        failure.upstreamStatus === 403
         ? "service_auth_forbidden"
         : "exchange_failed",
     );

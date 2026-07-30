@@ -97,9 +97,12 @@ describe("GitHub callback route", () => {
     expect(mocks.setGitHubSessionCookie).toHaveBeenCalled();
   });
 
-  it.each([401, 403])(
-    "redirects backend service-auth %s with a specific error code",
-    async (status) => {
+  it.each([
+    [401, "exchange_failed"],
+    [403, "service_auth_forbidden"],
+  ])(
+    "redirects backend service-auth %s with the existing error code",
+    async (status, expectedError) => {
       mocks.oauthState = "state-123";
       const error = new BackendError(
         "exchange_github_code",
@@ -110,6 +113,7 @@ describe("GitHub callback route", () => {
       mocks.exchangeGitHubCode.mockRejectedValue(error);
       mocks.observeFailure.mockReturnValue({
         reason: "service_credential_rejected",
+        upstreamStatus: status,
         responseStatus: 500,
         responseError: "internal_error",
       });
@@ -123,9 +127,7 @@ describe("GitHub callback route", () => {
       expect(res.status).toBe(307);
       const location = new URL(res.headers.get("location") ?? "");
       expect(location.pathname).toBe("/operate/deployments");
-      expect(location.searchParams.get("github_error")).toBe(
-        "service_auth_forbidden",
-      );
+      expect(location.searchParams.get("github_error")).toBe(expectedError);
       expect(mocks.observeFailure).toHaveBeenCalledOnce();
       expect(mocks.observeFailure).toHaveBeenCalledWith({
         source: "launch",

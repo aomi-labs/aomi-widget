@@ -187,6 +187,10 @@ export async function buildRunDownloadRoute(
           buildFailures.handle({
             source: "local",
             error,
+            response: {
+              status: 409,
+              error: "no generated crate yet — run the build first",
+            },
             context: {
               routeFamily: new URL(req.url).pathname,
               operation: "build.download_artifact_read",

@@ -1021,7 +1021,7 @@ describe("per-source fan-out is bounded", () => {
         routeFamily: "/api/bff/operate",
         operation: "operate.transactions_source",
         method: "GET",
-        status: 500,
+        status: 502,
       });
     } finally {
       vi.useRealTimers();

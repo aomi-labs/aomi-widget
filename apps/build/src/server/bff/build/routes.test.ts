@@ -244,7 +244,15 @@ describe("build route error classification", () => {
       routeFamily: "/api/bff/build/runs/download",
       operation: "build.download_artifact_read",
       method: "GET",
-      status: 500,
+      status: 409,
     });
+    expect(mocks.handle).toHaveBeenCalledWith(
+      expect.objectContaining({
+        response: {
+          status: 409,
+          error: "no generated crate yet — run the build first",
+        },
+      }),
+    );
   });
 });

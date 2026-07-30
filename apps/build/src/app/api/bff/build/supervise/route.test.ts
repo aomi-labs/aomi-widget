@@ -41,7 +41,7 @@ describe("build supervisor route", () => {
     mocks.capture.mockReset();
   });
 
-  it("captures once and returns a stable failure code", async () => {
+  it("captures once and preserves the existing failure response", async () => {
     const error = new Error("private store detail");
     mocks.superviseOnce.mockRejectedValue(error);
 
@@ -51,7 +51,7 @@ describe("build supervisor route", () => {
 
     expect(response.status).toBe(500);
     await expect(response.json()).resolves.toEqual({
-      error: "build_supervisor_failed",
+      error: "private store detail",
     });
     expect(mocks.capture).toHaveBeenCalledOnce();
     expect(mocks.capture).toHaveBeenCalledWith(error, {
