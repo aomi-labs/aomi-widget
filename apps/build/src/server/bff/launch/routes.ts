@@ -4,7 +4,7 @@ import { randomBytes } from "crypto";
 import { NextResponse } from "next/server";
 import { deploymentClient } from "@build/server/bff/backend";
 import { configuredBackendUrl } from "@build/server/backend-url";
-import { launchErrorResponse } from "./errors";
+import { buildFailures } from "@build/server/bff/failures";
 import { launchConfig, resolveLaunchPlatform } from "./config";
 import { appNamesFromDeployment, releaseTagsFromDeployment } from "./mappers";
 import {
@@ -12,7 +12,11 @@ import {
   missingSecretsForActivation,
   RequiredSecretsCheckError,
 } from "@aomi-labs/deploy/bff";
-import { missingRequiredSecrets, type SecretSlot } from "@aomi-labs/deploy";
+import {
+  BackendError,
+  missingRequiredSecrets,
+  type SecretSlot,
+} from "@aomi-labs/deploy";
 import {
   isValidDeploymentId,
   isValidInstallationId,
@@ -24,6 +28,14 @@ import { authorize, rateLimit } from "@build/server/bff/auth";
 const CREATED_REPO_PREFIX = "my-playground";
 
 type DeploymentClientInstance = Awaited<ReturnType<typeof deploymentClient>>;
+
+function launchErrorContext(req: Request, operation: string) {
+  return {
+    routeFamily: new URL(req.url).pathname,
+    operation,
+    method: req.method,
+  };
+}
 
 /** Whether `appSourceId` belongs to the signed-in user. The backend scopes
  *  listUserSources to the session's GitHub user id, so a source id absent from
@@ -70,7 +82,18 @@ async function sourceDeploymentIds(
           app: app.name,
           appSourceId: source.id,
         })
-        .catch(() => ({ records: [] }));
+        .catch((error: unknown) => {
+          buildFailures.handle({
+            source: "launch",
+            error,
+            context: {
+              routeFamily: "/api/bff/deployments/promote",
+              operation: "deployment.ownership_records",
+              method: "POST",
+            },
+          });
+          return { records: [] };
+        });
       for (const record of records) ids.add(record.deploymentId);
     }),
   );
@@ -98,9 +121,20 @@ async function sourceDeploymentPairs(
           app: app.name,
           appSourceId: source.id,
         })
-        .catch(() => ({
-          records: [] as { deploymentId: string; releaseTag: string }[],
-        }));
+        .catch((error: unknown) => {
+          buildFailures.handle({
+            source: "launch",
+            error,
+            context: {
+              routeFamily: "/api/bff/deployments/promote",
+              operation: "deployment.activation_records",
+              method: "POST",
+            },
+          });
+          return {
+            records: [] as { deploymentId: string; releaseTag: string }[],
+          };
+        });
       const record = records.find((r) => r.deploymentId === deploymentId);
       if (record?.releaseTag) {
         pairs.push({ app: app.name, releaseTag: record.releaseTag });
@@ -224,7 +258,7 @@ function invalidPlatformResponse(): NextResponse {
 }
 
 export function launchDeployRoute(preflight: boolean) {
-  return async function POST(req: Request): Promise<NextResponse> {
+  return async function POST(req: Request): Promise<Response> {
     const auth = await authorize(req, { write: true, cliScope: "deploy" });
     if ("response" in auth) return auth.response;
     const { session } = auth;
@@ -380,7 +414,14 @@ export function launchDeployRoute(preflight: boolean) {
         { status: preflight ? 200 : 202 },
       );
     } catch (err) {
-      return launchErrorResponse(err);
+      return buildFailures.handle({
+        source: "launch",
+        error: err,
+        context: launchErrorContext(
+          req,
+          preflight ? "launch.preflight" : "launch.deploy",
+        ),
+      }).response;
     }
   };
 }
@@ -427,7 +468,11 @@ export async function createLaunchRepoRoute(req: Request) {
       source,
     });
   } catch (err) {
-    return launchErrorResponse(err);
+    return buildFailures.handle({
+      source: "launch",
+      error: err,
+      context: launchErrorContext(req, "launch.create_repo"),
+    }).response;
   }
 }
 
@@ -465,7 +510,11 @@ export async function launchStatusRoute(req: Request) {
       releaseTags: releaseTagsFromDeployment(result.deployment),
     });
   } catch (err) {
-    return launchErrorResponse(err);
+    return buildFailures.handle({
+      source: "launch",
+      error: err,
+      context: launchErrorContext(req, "launch.status"),
+    }).response;
   }
 }
 
@@ -568,7 +617,11 @@ export async function activateLaunchRoute(req: Request) {
     });
     return NextResponse.json(result);
   } catch (err) {
-    return launchErrorResponse(err);
+    return buildFailures.handle({
+      source: "launch",
+      error: err,
+      context: launchErrorContext(req, "launch.activate"),
+    }).response;
   }
 }
 
@@ -622,7 +675,11 @@ export async function launchAppRoute(req: Request) {
       },
     });
   } catch (err) {
-    return launchErrorResponse(err);
+    return buildFailures.handle({
+      source: "launch",
+      error: err,
+      context: launchErrorContext(req, "launch.app"),
+    }).response;
   }
 }
 
@@ -646,7 +703,11 @@ export async function launchSdkStatusRoute(req: Request) {
       },
     });
   } catch (err) {
-    return launchErrorResponse(err);
+    return buildFailures.handle({
+      source: "launch",
+      error: err,
+      context: launchErrorContext(req, "launch.sdk_status"),
+    }).response;
   }
 }
 
@@ -682,7 +743,11 @@ export async function deploymentHistoryRoute(req: Request) {
     });
     return NextResponse.json({ deployments });
   } catch (err) {
-    return launchErrorResponse(err);
+    return buildFailures.handle({
+      source: "launch",
+      error: err,
+      context: launchErrorContext(req, "deployment.history"),
+    }).response;
   }
 }
 
@@ -731,7 +796,11 @@ export async function deploymentFeedRoute(req: Request) {
     });
     return NextResponse.json(page);
   } catch (err) {
-    return launchErrorResponse(err);
+    return buildFailures.handle({
+      source: "launch",
+      error: err,
+      context: launchErrorContext(req, "deployment.feed"),
+    }).response;
   }
 }
 
@@ -771,7 +840,11 @@ export async function deploymentSecretsRoute(req: Request) {
     });
     return NextResponse.json({ byApp });
   } catch (err) {
-    return launchErrorResponse(err);
+    return buildFailures.handle({
+      source: "launch",
+      error: err,
+      context: launchErrorContext(req, "deployment.secrets_read"),
+    }).response;
   }
 }
 
@@ -843,7 +916,11 @@ export async function deploymentSecretsWriteRoute(req: Request) {
       { status: 202 },
     );
   } catch (err) {
-    return launchErrorResponse(err);
+    return buildFailures.handle({
+      source: "launch",
+      error: err,
+      context: launchErrorContext(req, "deployment.secrets_write"),
+    }).response;
   }
 }
 
@@ -898,7 +975,11 @@ export async function deploymentSecretsDeleteRoute(req: Request) {
     });
     return NextResponse.json({ ok: true, removed });
   } catch (err) {
-    return launchErrorResponse(err);
+    return buildFailures.handle({
+      source: "launch",
+      error: err,
+      context: launchErrorContext(req, "deployment.secrets_delete"),
+    }).response;
   }
 }
 
@@ -943,7 +1024,11 @@ export async function deploymentRecordsRoute(req: Request) {
     });
     return NextResponse.json(result);
   } catch (err) {
-    return launchErrorResponse(err);
+    return buildFailures.handle({
+      source: "launch",
+      error: err,
+      context: launchErrorContext(req, "deployment.records"),
+    }).response;
   }
 }
 
@@ -1052,7 +1137,11 @@ export async function deploymentPromoteRoute(req: Request) {
     });
     return NextResponse.json(result, { status: result.ok ? 202 : 409 });
   } catch (err) {
-    return launchErrorResponse(err);
+    return buildFailures.handle({
+      source: "launch",
+      error: err,
+      context: launchErrorContext(req, "deployment.promote"),
+    }).response;
   }
 }
 
@@ -1116,7 +1205,11 @@ export async function deploymentDeactivateRoute(req: Request) {
     }
     return NextResponse.json({ ok: true, apps }, { status: 202 });
   } catch (err) {
-    return launchErrorResponse(err);
+    return buildFailures.handle({
+      source: "launch",
+      error: err,
+      context: launchErrorContext(req, "deployment.deactivate"),
+    }).response;
   }
 }
 
@@ -1169,7 +1262,11 @@ export async function redeployLaunchRoute(req: Request) {
       ciUrl: rerun.ciUrl ?? latest?.ciUrl ?? null,
     });
   } catch (err) {
-    return launchErrorResponse(err);
+    return buildFailures.handle({
+      source: "launch",
+      error: err,
+      context: launchErrorContext(req, "deployment.redeploy"),
+    }).response;
   }
 }
 
@@ -1199,7 +1296,11 @@ export async function userSourcesRoute(req: Request) {
     });
     return NextResponse.json({ sources, githubLogin: session.githubLogin });
   } catch (err) {
-    return launchErrorResponse(err);
+    return buildFailures.handle({
+      source: "launch",
+      error: err,
+      context: launchErrorContext(req, "deployment.sources"),
+    }).response;
   }
 }
 
@@ -1258,8 +1359,13 @@ export async function requiredSecretsRoute(req: Request) {
           appSourceId: source.id,
         });
         platformRepo = latest?.platformRepo ?? undefined;
-      } catch {
-        throw new RequiredSecretsCheckError();
+      } catch (error) {
+        throw new RequiredSecretsCheckError({
+          cause: error,
+          upstream: "rust",
+          upstreamStatus:
+            error instanceof BackendError ? error.status : undefined,
+        });
       }
     }
     if (!platformRepo) throw new RequiredSecretsCheckError();
@@ -1295,6 +1401,10 @@ export async function requiredSecretsRoute(req: Request) {
 
     return NextResponse.json({ byApp });
   } catch (err) {
-    return launchErrorResponse(err);
+    return buildFailures.handle({
+      source: "launch",
+      error: err,
+      context: launchErrorContext(req, "deployment.required_secrets"),
+    }).response;
   }
 }

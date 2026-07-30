@@ -1,3 +1,4 @@
+import { NextRequest } from "next/server";
 import { describe, expect, it, vi } from "vitest";
 
 // Mint + session resolution are exercised elsewhere; here we isolate the route's
@@ -9,9 +10,9 @@ import { createBearerTokenRoute } from "./token";
 
 const mintMock = vi.mocked(mintAccountBearer);
 
-const fakeRequest = {} as Parameters<
-  ReturnType<typeof createBearerTokenRoute>
->[0];
+const fakeRequest = new NextRequest(
+  "https://portal.aomi.dev/api/aomi/account-bearer",
+);
 
 describe("createBearerTokenRoute", () => {
   it("401s when no session is present", async () => {
@@ -42,14 +43,43 @@ describe("createBearerTokenRoute", () => {
 
   it("500s (not 401) when minting fails for a real session", async () => {
     const resolveCanonicalUserId = vi.fn(async () => "user-789");
-    mintMock.mockRejectedValue(new Error("signing key missing"));
-    const GET = createBearerTokenRoute({ resolveCanonicalUserId });
+    const failure = new Error("signing key missing");
+    const observeFailure = vi.fn();
+    mintMock.mockRejectedValue(failure);
+    const GET = createBearerTokenRoute({
+      resolveCanonicalUserId,
+      observeFailure,
+    });
 
     const response = await GET(fakeRequest);
 
     expect(response.status).toBe(500);
     await expect(response.json()).resolves.toEqual({
-      error: "signing key missing",
+      error: "bearer_mint_failed",
+    });
+    expect(observeFailure).toHaveBeenCalledWith({
+      kind: "bearer_mint",
+      error: failure,
+      method: "GET",
+      pathname: "/api/aomi/account-bearer",
+      responseStatus: 500,
+    });
+  });
+
+  it("does not let an observer failure replace the mint response", async () => {
+    mintMock.mockRejectedValue(new Error("signing key missing"));
+    const GET = createBearerTokenRoute({
+      resolveCanonicalUserId: async () => "user-789",
+      observeFailure: () => {
+        throw new Error("telemetry unavailable");
+      },
+    });
+
+    const response = await GET(fakeRequest);
+
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toEqual({
+      error: "bearer_mint_failed",
     });
   });
 });

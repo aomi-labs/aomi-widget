@@ -1,8 +1,14 @@
 // @vitest-environment node
 import { NextRequest } from "next/server";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { GET } from "./route";
+
+const telemetry = vi.hoisted(() => ({ observe: vi.fn() }));
+
+vi.mock("@build/server/bff/failures", () => ({
+  buildFailures: { handle: telemetry.observe },
+}));
 
 vi.mock("@build/server/backend-url", () => ({
   configuredBackendUrl: () => "https://api-staging.aomi.dev",
@@ -15,6 +21,10 @@ vi.mock("@build/server/bff/launch/config", () => ({
 }));
 
 describe("Aomi Build API proxy", () => {
+  beforeEach(() => {
+    telemetry.observe.mockReset();
+  });
+
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
@@ -62,5 +72,76 @@ describe("Aomi Build API proxy", () => {
 
     expect(res.status).toBe(404);
     expect(fetchMock).not.toHaveBeenCalled();
+    expect(telemetry.observe).not.toHaveBeenCalled();
+  });
+
+  it("captures upstream request exceptions and returns a stable 502", async () => {
+    const error = new Error("private network detail");
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(error));
+
+    const res = await GET(
+      new NextRequest(
+        "https://build.aomi.dev/api/integrations/github-app/oauth/start",
+      ),
+      {
+        params: Promise.resolve({
+          slug: ["integrations", "github-app", "oauth", "start"],
+        }),
+      },
+    );
+
+    expect(res.status).toBe(502);
+    await expect(res.json()).resolves.toEqual({
+      error: "upstream_unavailable",
+    });
+    expect(telemetry.observe).toHaveBeenCalledOnce();
+    expect(telemetry.observe).toHaveBeenCalledWith({
+      source: "proxy",
+      failure: {
+        kind: "upstream_request",
+        error,
+        method: "GET",
+        pathname: "/api/integrations/github-app/oauth/start",
+        responseStatus: 502,
+      },
+    });
+  });
+
+  it("logs and sanitizes a downstream Rust 5xx response", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(
+          Response.json({ error: "private backend body" }, { status: 503 }),
+        ),
+    );
+
+    const res = await GET(
+      new NextRequest(
+        "https://build.aomi.dev/api/integrations/github-app/oauth/start",
+      ),
+      {
+        params: Promise.resolve({
+          slug: ["integrations", "github-app", "oauth", "start"],
+        }),
+      },
+    );
+
+    expect(res.status).toBe(503);
+    await expect(res.json()).resolves.toEqual({
+      error: "upstream_unavailable",
+    });
+    expect(telemetry.observe).toHaveBeenCalledOnce();
+    expect(telemetry.observe).toHaveBeenCalledWith({
+      source: "proxy",
+      failure: {
+        kind: "upstream_response",
+        status: 503,
+        method: "GET",
+        pathname: "/api/integrations/github-app/oauth/start",
+        responseStatus: 503,
+      },
+    });
   });
 });

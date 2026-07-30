@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { superviseOnce } from "@build/server/bff/build/supervisor";
+import { buildFailures } from "@build/server/bff/failures";
 
 export const runtime = "nodejs";
 
@@ -24,9 +25,15 @@ export async function GET(req: Request) {
     const actions = await superviseOnce();
     return NextResponse.json({ actions });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : String(error) },
-      { status: 500 },
-    );
+    return buildFailures.handle({
+      source: "local",
+      error,
+      response: { status: 500, error: "build_supervisor_failed" },
+      context: {
+        routeFamily: "/api/bff/build/supervise",
+        operation: "build.supervisor_request",
+        method: req.method,
+      },
+    }).response;
   }
 }

@@ -1614,7 +1614,9 @@ export class DeploymentClient {
       throw new BackendError(
         operation,
         0,
-        `${operation} request to ${url} failed: ${err instanceof Error ? err.message : String(err)}`,
+        `${operation} request failed`,
+        undefined,
+        { cause: err },
       );
     }
 
@@ -1630,12 +1632,13 @@ export class DeploymentClient {
     if (!text.trim()) return null as Resp;
     try {
       return JSON.parse(text) as Resp;
-    } catch {
+    } catch (error) {
       throw new BackendError(
         operation,
         res.status,
         `${operation} returned invalid JSON`,
         text,
+        { cause: error },
       );
     }
   }

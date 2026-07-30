@@ -2,6 +2,7 @@ import "server-only";
 
 import { existsSync } from "node:fs";
 import path from "node:path";
+import type { FailureInput } from "@aomi-labs/bff-observability";
 import {
   crateFileTree,
   createAomiSmither,
@@ -36,10 +37,7 @@ import {
   type BuildRunRecord,
 } from "./registry";
 import { ensureSupervisorInterval } from "./supervisor";
-import {
-  mintSidecarBearer,
-  sidecarVerifierPublicKeyPem,
-} from "./sidecar-auth";
+import { mintSidecarBearer, sidecarVerifierPublicKeyPem } from "./sidecar-auth";
 import {
   dispatchSandboxRun,
   maybeExtendSandbox,
@@ -56,6 +54,18 @@ import type {
   BuildRunStageStatus,
   BuildRunStatus,
 } from "@build/features/build/run-contracts";
+import { buildFailures } from "@build/server/bff/failures";
+
+function identifyEngineFailure(
+  error: unknown,
+  operation: string,
+  upstream?: "vercel",
+): FailureInput {
+  const context = { routeFamily: "/api/bff/build", operation };
+  return upstream
+    ? { source: "upstream_request", upstream, error, context }
+    : { source: "local", error, context };
+}
 
 /**
  * In-process aomi-smither engine behind the /build page.
@@ -249,7 +259,10 @@ function reduceEvent(handle: RunHandle, event: EngineEvent) {
       handle.approvals = handle.approvals.filter(
         (a) => a.nodeId !== event.nodeId,
       );
-      if (handle.approvals.length === 0 && handle.status === "waiting-approval") {
+      if (
+        handle.approvals.length === 0 &&
+        handle.status === "waiting-approval"
+      ) {
         handle.status = "running";
       }
       break;
@@ -305,15 +318,28 @@ function execute(handle: RunHandle, prepared: PreparedRun) {
       if (handle.status === "completed" || handle.status === "failed") {
         await updateRun(handle.api, handle.runId, {
           status: handle.status,
-        }).catch(() => {});
+        }).catch((error: unknown) =>
+          buildFailures.handle(
+            identifyEngineFailure(error, "build.background_store_update"),
+          ),
+        );
       }
     })
     .catch(async (error: unknown) => {
+      buildFailures.handle(
+        identifyEngineFailure(error, "build.background_execute"),
+      );
       handle.status = "failed";
       handle.error = error instanceof Error ? error.message : String(error);
       pushLine(handle, `run failed: ${handle.error}`);
       await updateRun(handle.api, handle.runId, { status: "failed" }).catch(
-        () => {},
+        (updateError: unknown) =>
+          buildFailures.handle(
+            identifyEngineFailure(
+              updateError,
+              "build.background_failure_store_update",
+            ),
+          ),
       );
     });
 }
@@ -379,7 +405,14 @@ export async function startBuildRun(options: {
   if (record?.status === "running") {
     // Another instance (or a past life of this one) is executing. Trust the
     // store: still live → observe, don't double-dispatch; dead → resume.
-    const view = await readRunView(api, record.runId).catch(() => undefined);
+    const view = await readRunView(api, record.runId).catch(
+      (error: unknown) => {
+        buildFailures.handle(
+          identifyEngineFailure(error, "build.resume_store_read"),
+        );
+        return undefined;
+      },
+    );
     const live = view && runStatusFromView(view.status) === "running";
     if (live) {
       const observer = await observerHandle(record, api);
@@ -421,7 +454,9 @@ export async function startBuildRun(options: {
       stageStatus: {},
       stageTimes: {},
       approvals: [],
-      lines: [`dispatched run ${runId} to sandbox ${dispatch.sandbox.sandboxId}`],
+      lines: [
+        `dispatched run ${runId} to sandbox ${dispatch.sandbox.sandboxId}`,
+      ],
       createdAt: now,
       updatedAt: now,
     };
@@ -499,13 +534,21 @@ export async function cancelBuildRun(runId: string): Promise<void> {
   // Registry status flips regardless of whether the engine ever observes the
   // cancel (a dead sandbox can't), so the run never wedges as "running".
   await updateRun(handle.api, handle.runId, { status: "cancelled" }).catch(
-    () => {},
+    (error: unknown) =>
+      buildFailures.handle(
+        identifyEngineFailure(error, "build.cancel_store_update"),
+      ),
   );
   if (handle.dispatch) {
     await stopSandbox(handle.dispatch);
   } else {
     const record = await findRunById(handle.api, handle.runId).catch(
-      () => undefined,
+      (error: unknown) => {
+        buildFailures.handle(
+          identifyEngineFailure(error, "build.cancel_registry_read"),
+        );
+        return undefined;
+      },
     );
     if (record?.sandboxId) await stopSandboxById(record.sandboxId);
   }
@@ -556,9 +599,8 @@ export async function readRunFile(
     }
   }
   // Live sidecar.
-  const record = await findRunById(handle.api, handle.runId).catch(
-    () => undefined,
-  );
+  const record = await findRunById(handle.api, handle.runId);
+  let sidecarError: unknown;
   if (record?.sidecarUrl && record.status === "running") {
     try {
       // Official service-bearer path: fresh short-lived EdDSA bearer per
@@ -572,18 +614,23 @@ export async function readRunFile(
         },
       );
       if (res.ok) return Buffer.from(await res.arrayBuffer());
-    } catch {
+    } catch (error) {
+      sidecarError = error;
       // Sidecar unreachable — fall through to the store.
     }
   }
   // Store artifact.
-  const tarball = await storedCrateTarball(handle).catch(() => null);
-  if (!tarball) return null;
+  const tarball = await storedCrateTarball(handle);
+  if (!tarball) {
+    if (sidecarError !== undefined) throw sidecarError;
+    return null;
+  }
   const { extractFileFromTarGz } = await import("./tar");
   return extractFileFromTarGz(tarball, relPath);
 }
 
-const RUN_ID = /^smither-(.+)-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const RUN_ID =
+  /^smither-(.+)-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 /** Exact plan from a registry row, falling back to recomposition for rows
  *  written before plan_json existed. */
@@ -591,7 +638,10 @@ function planFromRecord(record: BuildRunRecord): BuildPlan {
   try {
     const { plan } = finalizePlan(JSON.parse(record.planJson));
     if (plan) return plan;
-  } catch {
+  } catch (error) {
+    buildFailures.handle(
+      identifyEngineFailure(error, "build.reconstruct_plan"),
+    );
     // Fall through to recomposition.
   }
   return composePlan(record.app, "observed run");
@@ -603,8 +653,8 @@ async function observerHandle(
   record: BuildRunRecord,
   api: AomiSmitherApi,
 ): Promise<RunHandle | undefined> {
-  const view = await readRunView(api, record.runId).catch(() => undefined);
-  if (!view || view.status === null) return undefined;
+  const view = await readRunView(api, record.runId);
+  if (view.status === null) return undefined;
   const now = new Date().toISOString();
   const handle: RunHandle = {
     runId: record.runId,
@@ -637,36 +687,28 @@ export async function reconstructBuildRun(
   // app, which we don't know yet — parse the id for the app either way.
   const app = RUN_ID.exec(runId)?.[1];
   if (!app || sanitizeAppName(app) !== app) return undefined;
-  try {
-    const api = await apiFor(app);
-    const record = await findRunById(api, runId);
-    if (record) return observerHandle(record, api);
-    const view = await readRunView(api, runId);
-    if (view.status === null) return undefined;
-    const now = new Date().toISOString();
-    const handle: RunHandle = {
-      runId,
-      app,
-      owner: "unknown",
-      plan: composePlan(app, "observed run"),
-      api,
-      status: runStatusFromView(view.status) ?? "running",
-      stageStatus: {},
-      stageTimes: {},
-      approvals: [],
-      lines: [`observing run ${runId}`],
-      createdAt: now,
-      updatedAt: now,
-    };
-    registry().byRunId.set(runId, handle);
-    return handle;
-  } catch (error) {
-    console.warn(
-      `could not reconstruct run ${runId}:`,
-      error instanceof Error ? error.message : error,
-    );
-    return undefined;
-  }
+  const api = await apiFor(app);
+  const record = await findRunById(api, runId);
+  if (record) return observerHandle(record, api);
+  const view = await readRunView(api, runId);
+  if (view.status === null) return undefined;
+  const now = new Date().toISOString();
+  const handle: RunHandle = {
+    runId,
+    app,
+    owner: "unknown",
+    plan: composePlan(app, "observed run"),
+    api,
+    status: runStatusFromView(view.status) ?? "running",
+    stageStatus: {},
+    stageTimes: {},
+    approvals: [],
+    lines: [`observing run ${runId}`],
+    createdAt: now,
+    updatedAt: now,
+  };
+  registry().byRunId.set(runId, handle);
+  return handle;
 }
 
 export async function decideBuildRun(options: {
@@ -702,6 +744,9 @@ export async function snapshotBuildRun(
   try {
     view = await readRunView(handle.api, handle.runId);
   } catch (error) {
+    buildFailures.handle(
+      identifyEngineFailure(error, "build.snapshot_store_read"),
+    );
     pushLine(
       handle,
       `store read failed: ${error instanceof Error ? error.message : String(error)}`,
@@ -713,7 +758,10 @@ export async function snapshotBuildRun(
   // Serverless-shaped sandbox keepalive: each poll of a live sandbox run
   // lazily extends its timeout; an unpolled run lets the sandbox lapse (the
   // next create resumes it from store state).
-  if (handle.dispatch && (status === "running" || status === "waiting-approval")) {
+  if (
+    handle.dispatch &&
+    (status === "running" || status === "waiting-approval")
+  ) {
     void maybeExtendSandbox(handle.dispatch);
   }
   const stageStatus = view
@@ -733,7 +781,9 @@ export async function snapshotBuildRun(
     label: stage.label,
     kind: stage.kind,
     status: stageStatus[stage.id] ?? "pending",
-    ...(handle.stageTimes[stage.id] ? { time: handle.stageTimes[stage.id] } : {}),
+    ...(handle.stageTimes[stage.id]
+      ? { time: handle.stageTimes[stage.id] }
+      : {}),
     ...(stage.branchOf ? { branchOf: stage.branchOf } : {}),
     ...(stage.clarify ? { clarify: stage.clarify } : {}),
   }));
@@ -744,7 +794,10 @@ export async function snapshotBuildRun(
     stageStatus[`${handle.app}:codegen`] === "complete" ||
     status === "completed";
   let fileTree = codegenDone
-    ? crateFileTree(path.join(handle.plan.sdkRoot, "apps", handle.app), handle.app)
+    ? crateFileTree(
+        path.join(handle.plan.sdkRoot, "apps", handle.app),
+        handle.app,
+      )
     : [];
   if (fileTree.length === 0) {
     fileTree = artifactFromOutputs(outputs)?.fileTree ?? [];

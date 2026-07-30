@@ -34,7 +34,7 @@ describe("widgetAuthRateLimit", () => {
     const handler = widgetRoute(async (request: Request) => {
       const limited = widgetAuthRateLimit(request);
       return limited ?? Response.json({ ok: true });
-    });
+    }, "widget.test_rate_limit");
     let response: Response | null = null;
     for (let i = 0; i < 200; i++) {
       response = await handler(requestFromIp(ip));

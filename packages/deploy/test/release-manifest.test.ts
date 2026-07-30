@@ -80,6 +80,8 @@ describe("fetchReleaseSecretSlots", () => {
     ).rejects.toMatchObject({
       name: "RequiredSecretsCheckError",
       code: "REQUIRED_SECRETS_CHECK_UNAVAILABLE",
+      upstream: "github",
+      upstreamStatus: 404,
     });
   });
 
@@ -88,16 +90,17 @@ describe("fetchReleaseSecretSlots", () => {
       throw new Error("network down");
     }) as unknown as typeof fetch;
 
-    await expect(
-      fetchReleaseSecretSlots({
-        platformRepo: "aomi-labs/community",
-        releaseTag: "v1",
-        githubToken: "t",
-        fetchImpl,
-      }),
-    ).rejects.toMatchObject({
+    const result = fetchReleaseSecretSlots({
+      platformRepo: "aomi-labs/community",
+      releaseTag: "v1",
+      githubToken: "t",
+      fetchImpl,
+    });
+    await expect(result).rejects.toMatchObject({
       name: "RequiredSecretsCheckError",
       code: "REQUIRED_SECRETS_CHECK_UNAVAILABLE",
+      upstream: "github",
+      cause: expect.objectContaining({ message: "network down" }),
     });
   });
 
@@ -286,10 +289,11 @@ describe("missingSecretsForActivation", () => {
     const fetchImpl = vi.fn();
     vi.stubGlobal("fetch", fetchImpl);
 
+    const backendError = new Error("backend unavailable");
     const client = {
       listAppSecrets: vi.fn(),
       getUserSourceLatestDeployment: vi.fn(async () => {
-        throw new Error("backend unavailable");
+        throw backendError;
       }),
     } as unknown as DeploymentClient;
 
@@ -302,7 +306,11 @@ describe("missingSecretsForActivation", () => {
         source: { id: 42, latestDeployment: null } as never,
         pairs: [{ app: "binance", releaseTag: "v1" }],
       }),
-    ).rejects.toMatchObject({ code: "REQUIRED_SECRETS_CHECK_UNAVAILABLE" });
+    ).rejects.toMatchObject({
+      code: "REQUIRED_SECRETS_CHECK_UNAVAILABLE",
+      upstream: "rust",
+      cause: backendError,
+    });
     expect(client.listAppSecrets).not.toHaveBeenCalled();
   });
 });

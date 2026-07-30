@@ -94,8 +94,9 @@ async function verify(
   audience?: string,
 ): Promise<JWTPayload | null> {
   if (!token) return null;
+  const signingSecret = secret();
   try {
-    return (await jwtVerify(token, secret(), { audience })).payload;
+    return (await jwtVerify(token, signingSecret, { audience })).payload;
   } catch {
     return null;
   }
@@ -246,11 +247,9 @@ export async function readGitHubCliExchange(
   code: string | undefined,
 ): Promise<GitHubCliExchange | null> {
   if (!code) return null;
+  const key = exchangeKey();
   try {
-    const { plaintext, protectedHeader } = await compactDecrypt(
-      code,
-      exchangeKey(),
-    );
+    const { plaintext, protectedHeader } = await compactDecrypt(code, key);
     if (protectedHeader.typ !== CLI_EXCHANGE_TYPE) return null;
     const decoded = JSON.parse(new TextDecoder().decode(plaintext)) as Record<
       string,

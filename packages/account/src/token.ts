@@ -1,7 +1,11 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 import { mintAccountBearer } from "./bearer";
-import type { ResolveCanonicalUserId } from "./proxy";
+import {
+  notifyProxyFailure,
+  type ObserveProxyFailure,
+  type ResolveCanonicalUserId,
+} from "./proxy";
 
 /**
  * The shared AccountBearer route helper. The app supplies session resolution;
@@ -20,6 +24,7 @@ import type { ResolveCanonicalUserId } from "./proxy";
  */
 export function createBearerTokenRoute(config: {
   resolveCanonicalUserId: ResolveCanonicalUserId;
+  observeFailure?: ObserveProxyFailure;
 }) {
   return async function GET(request: NextRequest): Promise<NextResponse> {
     const userId = await config.resolveCanonicalUserId(request);
@@ -33,9 +38,17 @@ export function createBearerTokenRoute(config: {
         expires_at: expiresAt,
       });
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Failed to mint bearer";
-      return NextResponse.json({ error: message }, { status: 500 });
+      notifyProxyFailure(config.observeFailure, {
+        kind: "bearer_mint",
+        error,
+        method: request.method,
+        pathname: request.nextUrl.pathname,
+        responseStatus: 500,
+      });
+      return NextResponse.json(
+        { error: "bearer_mint_failed" },
+        { status: 500 },
+      );
     }
   };
 }

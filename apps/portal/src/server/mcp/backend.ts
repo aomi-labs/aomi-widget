@@ -2,6 +2,7 @@ import "server-only";
 
 import { mintAccountBearer } from "@aomi-labs/account";
 import { configuredBackendUrl } from "@portal/server/backend-url";
+import { portalFailures } from "@portal/server/bff/failures";
 
 /**
  * BFF → kernel calls for the MCP port. Discovery reads the backend's static
@@ -29,10 +30,14 @@ export async function resourceGet(
     }
   }
   const { bearer } = await mintAccountBearer(canonicalUserId);
-  return backendJson(url, {
-    method: "GET",
-    headers: { authorization: `Bearer ${bearer}` },
-  });
+  return backendJson(
+    url,
+    {
+      method: "GET",
+      headers: { authorization: `Bearer ${bearer}` },
+    },
+    "mcp_resource_get",
+  );
 }
 
 export async function toolCall(
@@ -41,15 +46,19 @@ export async function toolCall(
   body: { tool_id: string; arguments: Record<string, unknown>; app?: string },
 ): Promise<BackendResult> {
   const { bearer } = await mintAccountBearer(canonicalUserId);
-  return backendJson(new URL(`${configuredBackendUrl()}/api/exec/tool-call`), {
-    method: "POST",
-    headers: {
-      authorization: `Bearer ${bearer}`,
-      "content-type": "application/json",
-      "x-thread-id": threadId,
+  return backendJson(
+    new URL(`${configuredBackendUrl()}/api/exec/tool-call`),
+    {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${bearer}`,
+        "content-type": "application/json",
+        "x-thread-id": threadId,
+      },
+      body: JSON.stringify(body),
     },
-    body: JSON.stringify(body),
-  });
+    "mcp_tool_call",
+  );
 }
 
 export async function execRun(
@@ -58,27 +67,52 @@ export async function execRun(
   body: { program: string; app?: string },
 ): Promise<BackendResult> {
   const { bearer } = await mintAccountBearer(canonicalUserId);
-  return backendJson(new URL(`${configuredBackendUrl()}/api/exec/run`), {
-    method: "POST",
-    headers: {
-      authorization: `Bearer ${bearer}`,
-      "content-type": "application/json",
-      "x-thread-id": threadId,
+  return backendJson(
+    new URL(`${configuredBackendUrl()}/api/exec/run`),
+    {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${bearer}`,
+        "content-type": "application/json",
+        "x-thread-id": threadId,
+      },
+      body: JSON.stringify(body),
     },
-    body: JSON.stringify(body),
-  });
+    "mcp_exec_run",
+  );
 }
 
 async function backendJson(
   url: URL,
   init: RequestInit,
+  operation: string,
 ): Promise<BackendResult> {
   const response = await fetch(url, { ...init, cache: "no-store" });
+  if (response.status >= 500) {
+    portalFailures.handle({
+      source: "upstream_response",
+      upstream: "rust",
+      status: response.status,
+      response: { status: 200, error: "upstream_unavailable" },
+      context: {
+        routeFamily: "/api/mcp",
+        operation,
+        method: typeof init.method === "string" ? init.method : "GET",
+      },
+    });
+    return {
+      ok: false,
+      status: response.status,
+      body: { error: "upstream_unavailable" },
+    };
+  }
+
   const text = await response.text();
   let body: unknown;
   try {
     body = text ? JSON.parse(text) : null;
-  } catch {
+  } catch (error) {
+    if (response.ok) throw error;
     body = { error: text };
   }
   return { ok: response.ok, status: response.status, body };

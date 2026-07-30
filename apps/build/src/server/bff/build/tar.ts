@@ -17,12 +17,7 @@ export function extractFileFromTarGz(
   tarGz: Buffer,
   wantedPath: string,
 ): Buffer | null {
-  let tar: Buffer;
-  try {
-    tar = gunzipSync(tarGz);
-  } catch {
-    return null;
-  }
+  const tar = gunzipSync(tarGz);
   let offset = 0;
   while (offset + 512 <= tar.length) {
     const block = tar.subarray(offset, offset + 512);

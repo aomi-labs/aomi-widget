@@ -4,6 +4,12 @@ export * from "./commands";
 export * from "./evals";
 export * from "./intake";
 export * from "./intent";
+export {
+  setSmitherArtifactFailureObserver,
+  type ObserveSmitherArtifactFailure,
+  type SmitherArtifactFailure,
+  type SmitherArtifactFailureKind,
+} from "./observability";
 export * from "./plan";
 export * from "./prompts";
 export * from "./rollback";

@@ -1,5 +1,11 @@
 import { execSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
@@ -26,7 +32,7 @@ describe("extractFileFromTarGz", () => {
     expect(extractFileFromTarGz(tarGz, "my-app/nope.rs")).toBeNull();
   });
 
-  it("rejects garbage input gracefully", () => {
-    expect(extractFileFromTarGz(Buffer.from("not gzip"), "x")).toBeNull();
+  it("propagates corrupt artifacts to the route owner", () => {
+    expect(() => extractFileFromTarGz(Buffer.from("not gzip"), "x")).toThrow();
   });
 });

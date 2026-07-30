@@ -1,5 +1,16 @@
 # Auth BFF BetterAuth Cleanup Goal
 
+## BFF Sentry Observability
+
+Current session goal: **LOCAL IMPLEMENTATION AND INDEPENDENT REVIEW COMPLETE;
+EXTERNAL ROLLOUT PENDING 2026-07-29** — the approved server-only Sentry observability design in
+`docs/topics/bff/facts/sentry-observability.md` is implemented and locally
+verified for both Portal and Aomi Build, including the shared
+three-layer identify/classify/route pipeline, typed Account/Deploy/Smither observers,
+sanitized unexpected failures, controlled staging smoke routes, and automated
+verification. External Sentry/Vercel/dashboard configuration and live staging
+smoke verification remain unperformed and require separate authorization.
+
 ## Aomi Build Control Plane Performance
 
 - Replaced the deployments page's per-source history fan-out with one

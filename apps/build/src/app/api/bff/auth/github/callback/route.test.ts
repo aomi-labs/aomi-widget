@@ -8,6 +8,11 @@ const mocks = vi.hoisted(() => ({
   oauthState: undefined as string | undefined,
   exchangeGitHubCode: vi.fn(),
   setGitHubSessionCookie: vi.fn(),
+  observeFailure: vi.fn(),
+}));
+
+vi.mock("@build/server/bff/failures", () => ({
+  buildFailures: { handle: mocks.observeFailure },
 }));
 
 vi.mock("next/headers", () => ({
@@ -42,6 +47,12 @@ describe("GitHub callback route", () => {
     mocks.oauthState = undefined;
     mocks.exchangeGitHubCode.mockReset();
     mocks.setGitHubSessionCookie.mockReset();
+    mocks.observeFailure.mockReset();
+    mocks.observeFailure.mockReturnValue({
+      reason: "local_exception",
+      responseStatus: 500,
+      responseError: "internal_error",
+    });
   });
 
   it("redirects callback failures back to deployments with the launch marker", async () => {
@@ -57,6 +68,7 @@ describe("GitHub callback route", () => {
     expect(location.searchParams.get("github_error")).toBe(
       "invalid_oauth_state",
     );
+    expect(mocks.observeFailure).not.toHaveBeenCalled();
   });
 
   it("exchanges GitHub code with the one-shot app and matching redirect URI", async () => {
@@ -85,23 +97,45 @@ describe("GitHub callback route", () => {
     expect(mocks.setGitHubSessionCookie).toHaveBeenCalled();
   });
 
-  it("redirects backend service-auth failures with a specific error code", async () => {
-    mocks.oauthState = "state-123";
-    mocks.exchangeGitHubCode.mockRejectedValue(
-      new BackendError("exchange_github_code", 403, "forbidden"),
-    );
+  it.each([401, 403])(
+    "redirects backend service-auth %s with a specific error code",
+    async (status) => {
+      mocks.oauthState = "state-123";
+      const error = new BackendError(
+        "exchange_github_code",
+        status,
+        "forbidden",
+        "private upstream body",
+      );
+      mocks.exchangeGitHubCode.mockRejectedValue(error);
+      mocks.observeFailure.mockReturnValue({
+        reason: "service_credential_rejected",
+        responseStatus: 500,
+        responseError: "internal_error",
+      });
 
-    const res = await GET(
-      new Request(
-        "http://localhost:3000/api/bff/auth/github/callback?code=code-123&state=state-123",
-      ),
-    );
+      const res = await GET(
+        new Request(
+          "http://localhost:3000/api/bff/auth/github/callback?code=code-123&state=state-123",
+        ),
+      );
 
-    expect(res.status).toBe(307);
-    const location = new URL(res.headers.get("location") ?? "");
-    expect(location.pathname).toBe("/operate/deployments");
-    expect(location.searchParams.get("github_error")).toBe(
-      "service_auth_forbidden",
-    );
-  });
+      expect(res.status).toBe(307);
+      const location = new URL(res.headers.get("location") ?? "");
+      expect(location.pathname).toBe("/operate/deployments");
+      expect(location.searchParams.get("github_error")).toBe(
+        "service_auth_forbidden",
+      );
+      expect(mocks.observeFailure).toHaveBeenCalledOnce();
+      expect(mocks.observeFailure).toHaveBeenCalledWith({
+        source: "launch",
+        error,
+        context: {
+          routeFamily: "/api/bff/auth/github/callback",
+          operation: "github.oauth_exchange",
+          method: "GET",
+        },
+      });
+    },
+  );
 });

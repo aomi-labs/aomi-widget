@@ -16,7 +16,8 @@ export const PATCH = widgetRoute(
     const body = (await req.json().catch(() => null)) as {
       label?: string | null;
     } | null;
-    if (!body || !("label" in body)) return json(400, { error: "label_required" });
+    if (!body || !("label" in body))
+      return json(400, { error: "label_required" });
     const ok = await renameWallet({
       userId: current.userId,
       walletId: id,
@@ -25,7 +26,7 @@ export const PATCH = widgetRoute(
     if (!ok) return json(404, { error: "wallet_not_found" });
     return Response.json(await accountResponseForPrincipal(req, current));
   },
-  "wallet rename",
+  "wallet.rename",
 );
 
 export const DELETE = widgetRoute(
@@ -44,7 +45,7 @@ export const DELETE = widgetRoute(
     }
     return Response.json({ status: "revoked" });
   },
-  "wallet unlink",
+  "wallet.unlink",
 );
 
 export const OPTIONS = widgetPreflight(["PATCH", "DELETE", "OPTIONS"]);

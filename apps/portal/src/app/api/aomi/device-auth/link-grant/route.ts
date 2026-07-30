@@ -3,6 +3,8 @@ import {
   type DeviceAuthProvider,
 } from "@portal/lib/device-auth-grants";
 import { json } from "@portal/lib/aomi-account/session";
+import { identifyDeviceAuthFailure } from "@portal/server/bff/device-auth-errors";
+import { portalFailures } from "@portal/server/bff/failures";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,6 +16,12 @@ type LinkGrantRequest = {
   provider?: unknown;
   credential?: unknown;
 };
+
+const EXPECTED_ERRORS = new Set([
+  "invalid_or_expired_link_intent",
+  "invalid_link_intent",
+  "invalid_provider_credential",
+]);
 
 export async function POST(req: Request): Promise<Response> {
   const body = (await req.json().catch(() => null)) as LinkGrantRequest | null;
@@ -42,8 +50,12 @@ export async function POST(req: Request): Promise<Response> {
       provider: grant.provider,
     });
   } catch (error) {
-    return json(400, {
-      error: error instanceof Error ? error.message : "invalid_request",
-    });
+    return portalFailures.handle(
+      identifyDeviceAuthFailure(error, {
+        routeFamily: "/api/aomi/device-auth/link-grant",
+        operation: "device_auth_link_grant",
+        expectedCodes: EXPECTED_ERRORS,
+      }),
+    ).response;
   }
 }

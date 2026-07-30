@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { Pool, PoolClient, QueryResultRow } from "pg";
 import { z } from "zod";
 import { getPool } from "../db/pool";
+import { observeAccountInternalFailure } from "../observability";
 
 /** Single owner of the widget-session identifier namespace. `session.ts`
  * imports it to build per-token identifiers; the reconciliation delete below
@@ -104,7 +105,8 @@ async function sweepExpiredWidgetTickets(db: Db): Promise<void> {
         where identifier like $1 and expires_at <= now()`,
       [`${WIDGET_IDENTIFIER_PREFIX}%`],
     );
-  } catch {
+  } catch (error) {
+    observeAccountInternalFailure({ kind: "widget_ticket_sweep", error });
     // Hygiene only — never surface a sweep failure to the caller.
   }
 }

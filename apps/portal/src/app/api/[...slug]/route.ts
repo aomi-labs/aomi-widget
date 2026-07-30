@@ -1,6 +1,7 @@
 import { createBackendProxy, type AllowedRoute } from "@aomi-labs/account";
 import { resolveCanonicalUserId } from "@portal/server/canonical-session";
 import { launchConfig } from "@portal/server/bff/launch/config";
+import { portalFailures } from "@portal/server/bff/failures";
 import { widgetPreflight, widgetRoute } from "@portal/lib/widget-auth/response";
 
 const ALLOWED_ROUTES: AllowedRoute[] = [
@@ -124,6 +125,9 @@ function rewriteLegacyThreadPath(upstreamUrl: URL): void {
 const proxy = createBackendProxy({
   allowedRoutes: ALLOWED_ROUTES,
   resolveCanonicalUserId,
+  observeFailure: (failure) =>
+    portalFailures.handle({ source: "proxy", failure }),
+  sanitizeUpstream5xx: true,
   applyDefaults: (upstreamUrl) => {
     rewriteLegacyThreadPath(upstreamUrl);
     if (
@@ -138,11 +142,11 @@ const proxy = createBackendProxy({
   },
 });
 
-export const GET = widgetRoute(proxy.GET, "proxy GET");
-export const POST = widgetRoute(proxy.POST, "proxy POST");
-export const PUT = widgetRoute(proxy.PUT, "proxy PUT");
-export const PATCH = widgetRoute(proxy.PATCH, "proxy PATCH");
-export const DELETE = widgetRoute(proxy.DELETE, "proxy DELETE");
+export const GET = widgetRoute(proxy.GET, "proxy.request");
+export const POST = widgetRoute(proxy.POST, "proxy.request");
+export const PUT = widgetRoute(proxy.PUT, "proxy.request");
+export const PATCH = widgetRoute(proxy.PATCH, "proxy.request");
+export const DELETE = widgetRoute(proxy.DELETE, "proxy.request");
 
 export const OPTIONS = widgetPreflight([
   "GET",

@@ -97,6 +97,15 @@ export const smitherSchemas = {
     fileTreeJson: z.string().default(""),
     crateTarB64: z.string().default(""),
     artifactWarning: z.string().default(""),
+    artifactFailure: z
+      .enum([
+        "",
+        "crate_tree_read",
+        "crate_tar",
+        "crate_package",
+        "crate_cleanup",
+      ])
+      .default(""),
   }),
 };
 

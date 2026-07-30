@@ -73,10 +73,14 @@ describe("MCP tool inventory", () => {
 describe("dispatchTool routing", () => {
   it("aomi_search_apps -> GET /api/resource/search/apps with q + limit", async () => {
     await dispatchTool(USER, "aomi_search_apps", { q: "swap", limit: 5 });
-    expect(resourceGetMock).toHaveBeenCalledWith(USER, "/api/resource/search/apps", {
-      q: "swap",
-      limit: 5,
-    });
+    expect(resourceGetMock).toHaveBeenCalledWith(
+      USER,
+      "/api/resource/search/apps",
+      {
+        q: "swap",
+        limit: 5,
+      },
+    );
   });
 
   it("aomi_search_tools -> GET /api/resource/search/tools with q + app + limit", async () => {
@@ -85,11 +89,15 @@ describe("dispatchTool routing", () => {
       app: "default",
       limit: 7,
     });
-    expect(resourceGetMock).toHaveBeenCalledWith(USER, "/api/resource/search/tools", {
-      q: "stage",
-      app: "default",
-      limit: 7,
-    });
+    expect(resourceGetMock).toHaveBeenCalledWith(
+      USER,
+      "/api/resource/search/tools",
+      {
+        q: "stage",
+        app: "default",
+        limit: 7,
+      },
+    );
   });
 
   it("aomi_list_tools -> GET /api/resource/tools", async () => {
@@ -153,8 +161,13 @@ describe("dispatchTool routing", () => {
   });
 
   it("propagates a backend failure as isError", async () => {
-    resourceGetMock.mockResolvedValueOnce({ ok: false, status: 502, body: "upstream" });
+    resourceGetMock.mockResolvedValueOnce({
+      ok: false,
+      status: 502,
+      body: "upstream",
+    });
     const out = await dispatchTool(USER, "aomi_search_apps", { q: "swap" });
     expect(out.isError).toBe(true);
+    expect(out.result).toEqual({ error: "upstream_unavailable", status: 502 });
   });
 });

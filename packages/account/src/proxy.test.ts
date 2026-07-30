@@ -25,11 +25,19 @@ function proxyRequest(path: string, init?: NextRequestInit) {
 function createTestProxy(options: {
   allowedRoutes: ReadonlyArray<AllowedRoute>;
   resolveCanonicalUserId: () => Promise<string | null>;
+  observeFailure?: Parameters<typeof createBackendProxy>[0]["observeFailure"];
+  sanitizeUpstream5xx?: boolean;
+  transformResponse?: Parameters<
+    typeof createBackendProxy
+  >[0]["transformResponse"];
 }) {
   return createBackendProxy({
     allowedRoutes: options.allowedRoutes,
     upstreamBaseUrl: "https://backend.aomi.dev",
     resolveCanonicalUserId: options.resolveCanonicalUserId,
+    observeFailure: options.observeFailure,
+    sanitizeUpstream5xx: options.sanitizeUpstream5xx,
+    transformResponse: options.transformResponse,
   });
 }
 
@@ -43,6 +51,7 @@ describe("createBackendProxy", () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
     mintMock.mockRejectedValue(new Error("signing key missing"));
+    const observeFailure = vi.fn();
     const { GET } = createTestProxy({
       allowedRoutes: [
         {
@@ -51,15 +60,160 @@ describe("createBackendProxy", () => {
         },
       ],
       resolveCanonicalUserId: async () => "user-123",
+      observeFailure,
     });
 
     const response = await GET(...proxyRequest("/api/account"));
 
     expect(response.status).toBe(502);
     await expect(response.json()).resolves.toEqual({
-      error: "Account bearer mint failed",
+      error: "bearer_mint_failed",
+    });
+    expect(observeFailure).toHaveBeenCalledWith({
+      kind: "bearer_mint",
+      error: expect.objectContaining({ message: "signing key missing" }),
+      method: "GET",
+      pathname: "/api/account",
+      responseStatus: 502,
     });
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("reports downstream 5xx responses and can sanitize their body", async () => {
+    const upstream = Response.json(
+      { error: "private backend detail" },
+      { status: 503 },
+    );
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => upstream),
+    );
+    const observeFailure = vi.fn();
+    const { GET } = createTestProxy({
+      allowedRoutes: [
+        {
+          pattern: /^\/api\/account$/,
+          methods: new Set(["GET"]),
+          auth: "none",
+        },
+      ],
+      resolveCanonicalUserId: async () => null,
+      observeFailure,
+      sanitizeUpstream5xx: true,
+    });
+
+    const response = await GET(...proxyRequest("/api/account"));
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual({
+      error: "upstream_unavailable",
+    });
+    expect(observeFailure).toHaveBeenCalledWith({
+      kind: "upstream_response",
+      status: 503,
+      method: "GET",
+      pathname: "/api/account",
+      responseStatus: 503,
+    });
+  });
+
+  it("reports the original upstream request exception and sanitizes the response", async () => {
+    const failure = new Error("socket exposed a secret");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => Promise.reject(failure)),
+    );
+    const observeFailure = vi.fn();
+    const { GET } = createTestProxy({
+      allowedRoutes: [
+        {
+          pattern: /^\/api\/account$/,
+          methods: new Set(["GET"]),
+          auth: "none",
+        },
+      ],
+      resolveCanonicalUserId: async () => null,
+      observeFailure,
+    });
+
+    const response = await GET(...proxyRequest("/api/account"));
+
+    expect(response.status).toBe(502);
+    await expect(response.json()).resolves.toEqual({
+      error: "upstream_unavailable",
+    });
+    expect(observeFailure).toHaveBeenCalledWith({
+      kind: "upstream_request",
+      error: failure,
+      method: "GET",
+      pathname: "/api/account",
+      responseStatus: 502,
+    });
+  });
+
+  it("classifies response-transform exceptions as local proxy failures", async () => {
+    const failure = new Error("transform failed");
+    const observeFailure = vi.fn();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => Response.json({ ok: true })),
+    );
+    const { GET } = createTestProxy({
+      allowedRoutes: [
+        {
+          pattern: /^\/api\/account$/,
+          methods: new Set(["GET"]),
+          auth: "none",
+        },
+      ],
+      resolveCanonicalUserId: async () => null,
+      observeFailure,
+      transformResponse: async () => {
+        throw failure;
+      },
+    });
+
+    const response = await GET(...proxyRequest("/api/account"));
+
+    expect(response.status).toBe(502);
+    await expect(response.json()).resolves.toEqual({
+      error: "upstream_unavailable",
+    });
+    expect(observeFailure).toHaveBeenCalledWith({
+      kind: "response_transform",
+      error: failure,
+      method: "GET",
+      pathname: "/api/account",
+      responseStatus: 502,
+    });
+  });
+
+  it("does not let an observer failure alter the proxy response", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => Response.json({ error: "private" }, { status: 503 })),
+    );
+    const { GET } = createTestProxy({
+      allowedRoutes: [
+        {
+          pattern: /^\/api\/account$/,
+          methods: new Set(["GET"]),
+          auth: "none",
+        },
+      ],
+      resolveCanonicalUserId: async () => null,
+      observeFailure: () => {
+        throw new Error("telemetry unavailable");
+      },
+      sanitizeUpstream5xx: true,
+    });
+
+    const response = await GET(...proxyRequest("/api/account"));
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual({
+      error: "upstream_unavailable",
+    });
   });
 
   it("still forwards explicitly public routes anonymously", async () => {

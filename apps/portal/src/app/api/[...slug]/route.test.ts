@@ -8,6 +8,44 @@ const listApps = vi.fn();
 const launchConfigMock = vi.hoisted(() => ({
   catalogPlatforms: [] as string[],
 }));
+const telemetry = vi.hoisted(() => ({
+  capture: vi.fn(),
+  log: vi.fn(),
+}));
+
+vi.mock("@portal/server/bff/failures", async () => {
+  const { classifyFailure, identifyFailure } =
+    await import("@aomi-labs/bff-observability");
+  return {
+    portalFailures: {
+      handle: (input: Parameters<typeof identifyFailure>[0]) => {
+        const decision = classifyFailure(identifyFailure(input));
+        const eventContext = {
+          service: "portal-bff",
+          ...decision.context,
+          status: decision.responseStatus,
+          ...(decision.upstream ? { upstream: decision.upstream } : {}),
+          ...(decision.upstreamStatus !== undefined
+            ? { upstreamStatus: decision.upstreamStatus }
+            : {}),
+          handled: decision.handled,
+        };
+        if (decision.action === "issue") {
+          telemetry.capture(decision.error, eventContext);
+        } else if (decision.action === "log") {
+          telemetry.log(eventContext);
+        }
+        return {
+          ...decision,
+          response: Response.json(
+            { error: decision.responseError },
+            { status: decision.responseStatus },
+          ),
+        };
+      },
+    },
+  };
+});
 
 // Keep the real `createBackendProxy`; only stub the mint. Requests in these
 // tests are unauthenticated, so the portal resolver returns null and the proxy
@@ -64,6 +102,8 @@ describe("portal API proxy", () => {
     vi.restoreAllMocks();
     launchConfigMock.catalogPlatforms = [];
     listApps.mockReset();
+    telemetry.capture.mockReset();
+    telemetry.log.mockReset();
   });
 
   it("forwards the backend thread app catalog without a default platform filter", async () => {
@@ -158,6 +198,59 @@ describe("portal API proxy", () => {
     expect(res.status).toBe(404);
     expect(body).toEqual({ error: "Unsupported API route" });
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("sanitizes and logs a downstream Rust 5xx without creating an Issue", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({ error: "private backend detail" }, { status: 503 }),
+      ),
+    );
+
+    const res = await GET(...apiRequest("/api/thread/apps"));
+
+    expect(res.status).toBe(503);
+    await expect(res.json()).resolves.toEqual({
+      error: "upstream_unavailable",
+    });
+    expect(telemetry.capture).not.toHaveBeenCalled();
+    expect(telemetry.log).toHaveBeenCalledWith({
+      service: "portal-bff",
+      routeFamily: "/api/thread/apps",
+      operation: "proxy.upstream_response",
+      method: "GET",
+      status: 503,
+      upstream: "rust",
+      upstreamStatus: 503,
+      handled: true,
+    });
+  });
+
+  it("captures the original proxy network error exactly once", async () => {
+    const failure = new Error("private socket detail");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => Promise.reject(failure)),
+    );
+
+    const res = await GET(...apiRequest("/api/thread/apps"));
+
+    expect(res.status).toBe(502);
+    await expect(res.json()).resolves.toEqual({
+      error: "upstream_unavailable",
+    });
+    expect(telemetry.log).not.toHaveBeenCalled();
+    expect(telemetry.capture).toHaveBeenCalledTimes(1);
+    expect(telemetry.capture).toHaveBeenCalledWith(failure, {
+      service: "portal-bff",
+      routeFamily: "/api/thread/apps",
+      operation: "proxy.upstream_request",
+      method: "GET",
+      status: 502,
+      upstream: "rust",
+      handled: true,
+    });
   });
 
   it.each(["archive", "unarchive"])(

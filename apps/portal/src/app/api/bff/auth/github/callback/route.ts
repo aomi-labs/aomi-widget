@@ -1,12 +1,11 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { BackendError } from "@aomi-labs/deploy";
 
 export const runtime = "nodejs";
 
 import { API_PATHS } from "@portal/lib/api-paths";
-import { configuredBackendUrl } from "@portal/server/backend-url";
 import { deploymentClient } from "@portal/server/bff/backend";
+import { portalFailures } from "@portal/server/bff/failures";
 import { setGitHubSessionCookie } from "@portal/server/cookies/github";
 
 const OAUTH_STATE_COOKIE = "aomi_github_oauth_state";
@@ -14,6 +13,7 @@ const OAUTH_STATE_COOKIE = "aomi_github_oauth_state";
 // enumerate the user's one-shot installations (skip-install detection). The
 // backend exchange uses the matching client secret. 2 = one-shot App.
 const LOGIN_APP_INDEX = 2;
+const ROUTE_FAMILY = "/api/bff/auth/github/callback";
 
 function deploymentsUrl(req: Request): URL {
   const url = new URL(req.url);
@@ -58,17 +58,20 @@ export async function GET(req: Request) {
     });
     return res;
   } catch (error) {
-    if (error instanceof BackendError && error.status === 403) {
-      console.error("GitHub sign-in exchange forbidden by backend service auth", {
-        backendUrl: configuredBackendUrl(),
-        status: error.status,
-        body: error.body,
-      });
+    const failure = portalFailures.handle({
+      source: "launch",
+      error,
+      context: {
+        routeFamily: ROUTE_FAMILY,
+        operation: "github.oauth_exchange",
+        method: req.method,
+      },
+    });
+    if (failure.reason === "service_credential_rejected") {
       deployments.searchParams.set("github_error", "service_auth_forbidden");
       return NextResponse.redirect(deployments);
     }
 
-    console.error("GitHub sign-in exchange failed", error);
     deployments.searchParams.set("github_error", "exchange_failed");
     return NextResponse.redirect(deployments);
   }

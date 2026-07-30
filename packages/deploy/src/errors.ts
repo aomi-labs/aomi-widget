@@ -17,8 +17,13 @@ export class DeployError extends Error {
   readonly code: DeployErrorCode;
   readonly reason?: unknown;
 
-  constructor(code: DeployErrorCode, message: string, reason?: unknown) {
-    super(message);
+  constructor(
+    code: DeployErrorCode,
+    message: string,
+    reason?: unknown,
+    options?: ErrorOptions,
+  ) {
+    super(message, options);
     this.name = "DeployError";
     this.code = code;
     this.reason = reason;
@@ -37,8 +42,19 @@ export class BrowserEnvironmentError extends DeployError {
 export class BackendError extends DeployError {
   readonly status: number;
   readonly body?: string;
-  constructor(operation: string, status: number, message: string, body?: string) {
-    super(operation === "activation" ? "ACTIVATION" : "BACKEND", message, body);
+  constructor(
+    operation: string,
+    status: number,
+    message: string,
+    body?: string,
+    options?: ErrorOptions,
+  ) {
+    super(
+      operation === "activation" ? "ACTIVATION" : "BACKEND",
+      message,
+      body,
+      options,
+    );
     this.name = operation === "activation" ? "ActivationError" : "BackendError";
     this.status = status;
     this.body = body;
@@ -47,7 +63,12 @@ export class BackendError extends DeployError {
 
 /** Backward-compatible class name for callers already branching on activation failures. */
 export class ActivationError extends BackendError {
-  constructor(status: number, message: string, body?: string) {
-    super("activation", status, message, body);
+  constructor(
+    status: number,
+    message: string,
+    body?: string,
+    options?: ErrorOptions,
+  ) {
+    super("activation", status, message, body, options);
   }
 }

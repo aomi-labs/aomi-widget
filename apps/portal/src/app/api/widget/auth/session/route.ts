@@ -6,7 +6,7 @@ export const DELETE = widgetRoute(async (request: Request) => {
   return revoked
     ? new Response(null, { status: 204 })
     : Response.json({ error: "invalid_widget_session" }, { status: 401 });
-}, "widget session revoke");
+}, "widget.session.revoke");
 
 export const OPTIONS = widgetPreflight(["DELETE", "OPTIONS"]);
 

@@ -1,6 +1,7 @@
 import "server-only";
 
 import { NextResponse } from "next/server";
+import type { FailureInput } from "@aomi-labs/bff-observability";
 import type {
   BotRegistration,
   OperateLogCursor,
@@ -30,10 +31,26 @@ import {
   launchConfig,
   resolveLaunchPlatform,
 } from "@build/server/bff/launch/config";
-import { launchErrorResponse } from "@build/server/bff/launch/errors";
+import { buildFailures } from "@build/server/bff/failures";
 import { TimedPromiseCache } from "@build/server/bff/timed-promise-cache";
 
 type DeploymentClientInstance = Awaited<ReturnType<typeof deploymentClient>>;
+
+function identifyOperateFailure(
+  req: Request,
+  operation: string,
+  error: unknown,
+): FailureInput {
+  return {
+    source: "launch",
+    error,
+    context: {
+      routeFamily: new URL(req.url).pathname,
+      operation,
+      method: req.method,
+    },
+  };
+}
 
 // An unbounded fan-out is a thundering herd: an account with 100+ sources fired
 // every per-source read at once and saturated the manager's connection pool, so
@@ -112,6 +129,7 @@ type Settled<T> = {
 // lost: a page silently missing most of the account reads as a complete page.
 async function settleBySource<T>(
   sources: UserSource[],
+  operation: string,
   run: (source: UserSource) => Promise<T>,
 ): Promise<Settled<T>> {
   const deadline = Date.now() + SOURCE_FANOUT_BUDGET_MS;
@@ -130,10 +148,15 @@ async function settleBySource<T>(
       ok.push(result.value);
     } else {
       if (source) dropped.push(source.id);
-      console.warn(
-        `operate: dropping source ${source?.id} from this page:`,
-        result.reason instanceof Error ? result.reason.message : result.reason,
-      );
+      buildFailures.handle({
+        source: "launch",
+        error: result.reason,
+        context: {
+          routeFamily: "/api/bff/operate",
+          operation,
+          method: "GET",
+        },
+      });
     }
   });
   return { ok, dropped };
@@ -325,7 +348,7 @@ export function clearOperateCachesForTesting() {
 
 async function ownedSources(req: Request): Promise<
   | {
-      response: NextResponse;
+      response: Response;
     }
   | {
       githubUserId: string;
@@ -334,66 +357,80 @@ async function ownedSources(req: Request): Promise<
       client: DeploymentClientInstance;
     }
 > {
-  const auth = await authorize(req);
-  if ("response" in auth) return auth;
-  const { session } = auth;
-  const config = launchConfig();
-  const client = await deploymentClient();
-  const params = new URL(req.url).searchParams;
-  const platform = resolveLaunchPlatform(
-    params.get("platform") ?? undefined,
-    config,
-  );
-  if (!platform) {
-    return {
-      response: NextResponse.json(
-        { error: "missing or invalid `platform`" },
-        { status: 400 },
-      ),
-    };
-  }
-  const requestedSourceId = Number(params.get("appSourceId"));
-  const sources = await readCache.sources.get(
-    [session.githubUserId, platform],
-    () =>
-      client.listUserSources({
-        githubUserId: session.githubUserId,
-        platform,
-      }),
-  );
-  if (params.has("appSourceId")) {
-    if (!isValidAppSourceId(requestedSourceId)) {
+  try {
+    const auth = await authorize(req);
+    if ("response" in auth) return auth;
+    const { session } = auth;
+    const config = launchConfig();
+    const client = await deploymentClient();
+    const params = new URL(req.url).searchParams;
+    const platform = resolveLaunchPlatform(
+      params.get("platform") ?? undefined,
+      config,
+    );
+    if (!platform) {
       return {
         response: NextResponse.json(
-          { error: "missing or invalid `appSourceId`" },
+          { error: "missing or invalid `platform`" },
           { status: 400 },
         ),
       };
     }
-    const source = sources.find(
-      (candidate) => candidate.id === requestedSourceId,
+    const requestedSourceId = Number(params.get("appSourceId"));
+    const sources = await readCache.sources.get(
+      [session.githubUserId, platform],
+      () =>
+        client.listUserSources({
+          githubUserId: session.githubUserId,
+          platform,
+        }),
     );
-    if (!source) {
+    if (params.has("appSourceId")) {
+      if (!isValidAppSourceId(requestedSourceId)) {
+        return {
+          response: NextResponse.json(
+            { error: "missing or invalid `appSourceId`" },
+            { status: 400 },
+          ),
+        };
+      }
+      const source = sources.find(
+        (candidate) => candidate.id === requestedSourceId,
+      );
+      if (!source) {
+        return {
+          response: NextResponse.json(
+            { error: "source not found for this user" },
+            { status: 404 },
+          ),
+        };
+      }
       return {
-        response: NextResponse.json(
-          { error: "source not found for this user" },
-          { status: 404 },
-        ),
+        githubUserId: session.githubUserId,
+        platform,
+        sources: [source],
+        client,
       };
     }
     return {
       githubUserId: session.githubUserId,
       platform,
-      sources: [source],
+      sources,
       client,
     };
+  } catch (err) {
+    return {
+      response: buildFailures.handle({
+        source: "launch",
+        error: err,
+        context: {
+          routeFamily: new URL(req.url).pathname,
+          operation: "operate.owned_sources",
+          method: req.method,
+        },
+      }).response,
+    };
   }
-  return {
-    githubUserId: session.githubUserId,
-    platform,
-    sources,
-    client,
-  };
 }
 
 export async function operateBotsRoute(req: Request) {
@@ -409,7 +446,9 @@ export async function operateBotsRoute(req: Request) {
       bots,
     });
   } catch (err) {
-    return launchErrorResponse(err);
+    return buildFailures.handle(
+      identifyOperateFailure(req, "operate.bots_read", err),
+    ).response;
   }
 }
 
@@ -475,7 +514,9 @@ export async function operateBotsCreateRoute(req: Request) {
     });
     return NextResponse.json({ bot }, { status: 201 });
   } catch (err) {
-    return launchErrorResponse(err);
+    return buildFailures.handle(
+      identifyOperateFailure(req, "operate.bots_create", err),
+    ).response;
   }
 }
 
@@ -496,7 +537,9 @@ export async function operateBotsDeleteRoute(req: Request) {
     });
     return NextResponse.json({ ok: true });
   } catch (err) {
-    return launchErrorResponse(err);
+    return buildFailures.handle(
+      identifyOperateFailure(req, "operate.bots_delete", err),
+    ).response;
   }
 }
 
@@ -549,7 +592,9 @@ export async function operateBotsUpdateRoute(req: Request) {
     });
     return NextResponse.json({ bot });
   } catch (err) {
-    return launchErrorResponse(err);
+    return buildFailures.handle(
+      identifyOperateFailure(req, "operate.bots_update", err),
+    ).response;
   }
 }
 
@@ -567,7 +612,9 @@ export async function operateModelKeysRoute(req: Request) {
     });
     return NextResponse.json({ sources: owned.sources, keys });
   } catch (err) {
-    return launchErrorResponse(err);
+    return buildFailures.handle(
+      identifyOperateFailure(req, "operate.model_keys_read", err),
+    ).response;
   }
 }
 
@@ -603,7 +650,9 @@ export async function operateModelKeysSaveRoute(req: Request) {
     });
     return NextResponse.json({ key }, { status: 201 });
   } catch (err) {
-    return launchErrorResponse(err);
+    return buildFailures.handle(
+      identifyOperateFailure(req, "operate.model_keys_save", err),
+    ).response;
   }
 }
 
@@ -636,7 +685,9 @@ export async function operateModelKeysGrantsRoute(req: Request) {
     });
     return NextResponse.json({ key });
   } catch (err) {
-    return launchErrorResponse(err);
+    return buildFailures.handle(
+      identifyOperateFailure(req, "operate.model_keys_grants", err),
+    ).response;
   }
 }
 
@@ -661,7 +712,9 @@ export async function operateModelKeysDeleteRoute(req: Request) {
     });
     return NextResponse.json({ ok: true });
   } catch (err) {
-    return launchErrorResponse(err);
+    return buildFailures.handle(
+      identifyOperateFailure(req, "operate.model_keys_delete", err),
+    ).response;
   }
 }
 
@@ -674,43 +727,49 @@ export async function operateTransactionsRoute(req: Request) {
     const cursor = parseCompositeCursor(params.get("cursor"));
     const status = params.get("status") ?? undefined;
     const [transactionReads, statementReads] = await Promise.all([
-      settleBySource<OperateTransactionsResult>(owned.sources, (source) =>
-        readCache.transactions.get(
-          [
-            owned.githubUserId,
-            owned.platform,
-            source.id,
-            { limit, status, cursor: sourceCursor(cursor, source.id) },
-          ],
-          () =>
-            owned.client.listUserSourceTransactions({
-              githubUserId: owned.githubUserId,
-              platform: owned.platform,
-              appSourceId: source.id,
-              limit,
-              status,
-              cursor: sourceCursor(cursor, source.id) as
-                | OperateTransactionCursor
-                | string
-                | undefined,
-            }),
-        ),
+      settleBySource<OperateTransactionsResult>(
+        owned.sources,
+        "operate.transactions_source",
+        (source) =>
+          readCache.transactions.get(
+            [
+              owned.githubUserId,
+              owned.platform,
+              source.id,
+              { limit, status, cursor: sourceCursor(cursor, source.id) },
+            ],
+            () =>
+              owned.client.listUserSourceTransactions({
+                githubUserId: owned.githubUserId,
+                platform: owned.platform,
+                appSourceId: source.id,
+                limit,
+                status,
+                cursor: sourceCursor(cursor, source.id) as
+                  | OperateTransactionCursor
+                  | string
+                  | undefined,
+              }),
+          ),
       ),
       cursor
         ? Promise.resolve({
             ok: [],
             dropped: [],
           } as Settled<OperateStatementResult>)
-        : settleBySource<OperateStatementResult>(owned.sources, (source) =>
-            readCache.statement.get(
-              [owned.githubUserId, owned.platform, source.id, null],
-              () =>
-                owned.client.getUserSourceStatement({
-                  githubUserId: owned.githubUserId,
-                  platform: owned.platform,
-                  appSourceId: source.id,
-                }),
-            ),
+        : settleBySource<OperateStatementResult>(
+            owned.sources,
+            "operate.transactions_statement",
+            (source) =>
+              readCache.statement.get(
+                [owned.githubUserId, owned.platform, source.id, null],
+                () =>
+                  owned.client.getUserSourceStatement({
+                    githubUserId: owned.githubUserId,
+                    platform: owned.platform,
+                    appSourceId: source.id,
+                  }),
+              ),
           ),
     ]);
     const results = transactionReads.ok;
@@ -814,7 +873,9 @@ export async function operateTransactionsRoute(req: Request) {
       ),
     });
   } catch (err) {
-    return launchErrorResponse(err);
+    return buildFailures.handle(
+      identifyOperateFailure(req, "operate.transactions", err),
+    ).response;
   }
 }
 
@@ -832,29 +893,35 @@ export async function operateUsageRoute(req: Request) {
     // of `statements`; until BE parity lands we serve the example statement
     // instead (flagged `example: true`) so the design ships visible.
     const [usageReads, statementReads] = await Promise.all([
-      settleBySource<OperateUsageResult>(owned.sources, (source) =>
-        readCache.usage.get(
-          [owned.githubUserId, owned.platform, source.id, dates],
-          () =>
-            owned.client.getUserSourceUsage({
-              githubUserId: owned.githubUserId,
-              platform: owned.platform,
-              appSourceId: source.id,
-              ...dates,
-            }),
-        ),
+      settleBySource<OperateUsageResult>(
+        owned.sources,
+        "operate.usage_source",
+        (source) =>
+          readCache.usage.get(
+            [owned.githubUserId, owned.platform, source.id, dates],
+            () =>
+              owned.client.getUserSourceUsage({
+                githubUserId: owned.githubUserId,
+                platform: owned.platform,
+                appSourceId: source.id,
+                ...dates,
+              }),
+          ),
       ),
-      settleBySource<OperateStatementResult>(owned.sources, (source) =>
-        readCache.statement.get(
-          [owned.githubUserId, owned.platform, source.id, dates],
-          () =>
-            owned.client.getUserSourceStatement({
-              githubUserId: owned.githubUserId,
-              platform: owned.platform,
-              appSourceId: source.id,
-              ...dates,
-            }),
-        ),
+      settleBySource<OperateStatementResult>(
+        owned.sources,
+        "operate.usage_statement",
+        (source) =>
+          readCache.statement.get(
+            [owned.githubUserId, owned.platform, source.id, dates],
+            () =>
+              owned.client.getUserSourceStatement({
+                githubUserId: owned.githubUserId,
+                platform: owned.platform,
+                appSourceId: source.id,
+                ...dates,
+              }),
+          ),
       ),
     ]);
     const results = usageReads.ok;
@@ -934,7 +1001,9 @@ export async function operateUsageRoute(req: Request) {
         : exampleStatement(owned.sources[0] ?? EXAMPLE_SOURCE),
     });
   } catch (err) {
-    return launchErrorResponse(err);
+    return buildFailures.handle(
+      identifyOperateFailure(req, "operate.usage", err),
+    ).response;
   }
 }
 
@@ -948,6 +1017,7 @@ export async function operateLogsRoute(req: Request) {
     const type = params.get("type") ?? undefined;
     const logReads = await settleBySource<OperateLogsResult>(
       owned.sources,
+      "operate.logs_source",
       (source) =>
         readCache.logs.get(
           [
@@ -1022,7 +1092,9 @@ export async function operateLogsRoute(req: Request) {
       ),
     });
   } catch (err) {
-    return launchErrorResponse(err);
+    return buildFailures.handle(
+      identifyOperateFailure(req, "operate.logs", err),
+    ).response;
   }
 }
 
@@ -1032,6 +1104,7 @@ export async function operateObservabilityRoute(req: Request) {
     if ("response" in owned) return owned.response;
     const observabilityReads = await settleBySource<OperateObservabilityResult>(
       owned.sources,
+      "operate.observability_source",
       (source) =>
         readCache.observability.get(
           [owned.githubUserId, owned.platform, source.id],
@@ -1077,7 +1150,9 @@ export async function operateObservabilityRoute(req: Request) {
       platformMetrics: results[0]?.platformMetrics ?? [],
     });
   } catch (err) {
-    return launchErrorResponse(err);
+    return buildFailures.handle(
+      identifyOperateFailure(req, "operate.observability", err),
+    ).response;
   }
 }
 
@@ -1147,6 +1222,8 @@ export async function operateAppDetailRoute(req: Request) {
       deployments,
     });
   } catch (err) {
-    return launchErrorResponse(err);
+    return buildFailures.handle(
+      identifyOperateFailure(req, "operate.app_detail", err),
+    ).response;
   }
 }

@@ -9,6 +9,7 @@ import {
   issueGitHubSession,
   readGitHubCliExchange,
   readGitHubCliSession,
+  readGitHubSession,
   readGitHubOAuthRequest,
 } from "./github";
 
@@ -44,6 +45,18 @@ describe("GitHub CLI sessions", () => {
   it("does not accept a browser session cookie as a CLI bearer", async () => {
     const browserToken = await issueGitHubSession(session);
     await expect(readGitHubCliSession(browserToken)).resolves.toBeNull();
+  });
+
+  it("ignores malformed credentials but does not swallow missing config", async () => {
+    await expect(readGitHubSession("not-a-jwt")).resolves.toBeNull();
+
+    vi.stubEnv("PORTAL_ONLY_SESSION_SECRET", "");
+    await expect(readGitHubSession("not-a-jwt")).rejects.toThrow(
+      /PORTAL_ONLY_SESSION_SECRET/,
+    );
+    await expect(readGitHubCliExchange("not-an-exchange")).rejects.toThrow(
+      /PORTAL_ONLY_SESSION_SECRET/,
+    );
   });
 
   it("round-trips the shared OAuth continuation", async () => {

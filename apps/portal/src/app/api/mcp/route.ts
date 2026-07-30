@@ -3,6 +3,7 @@ import { withMcpAuth } from "better-auth/plugins";
 
 import { MCP_TOOLS, dispatchTool } from "@portal/server/mcp/tools";
 import { resolveMcpCanonicalUser } from "@portal/server/mcp/session";
+import { portalFailures } from "@portal/server/bff/failures";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -73,16 +74,30 @@ export const POST = withMcpAuth(auth, async (request, session) => {
         params?.arguments && typeof params.arguments === "object"
           ? (params.arguments as Record<string, unknown>)
           : {};
-      const canonicalUser = await resolveMcpCanonicalUser({
-        betterAuthUserId: session.userId,
-      });
-      const outcome = await dispatchTool(canonicalUser.id, name, args);
-      return rpcResult(id ?? null, {
-        content: [
-          { type: "text", text: JSON.stringify(outcome.result, null, 2) },
-        ],
-        isError: outcome.isError,
-      });
+      try {
+        const canonicalUser = await resolveMcpCanonicalUser({
+          betterAuthUserId: session.userId,
+        });
+        const outcome = await dispatchTool(canonicalUser.id, name, args);
+        return rpcResult(id ?? null, {
+          content: [
+            { type: "text", text: JSON.stringify(outcome.result, null, 2) },
+          ],
+          isError: outcome.isError,
+        });
+      } catch (error) {
+        portalFailures.handle({
+          source: "local",
+          error,
+          response: { status: 200, error: "internal_error" },
+          context: {
+            routeFamily: "/api/mcp",
+            operation: "mcp_tools_call",
+            method: "POST",
+          },
+        });
+        return rpcError(id ?? null, -32603, "internal_error");
+      }
     }
     default:
       // Notifications (no id) get an empty 202 per streamable HTTP.

@@ -19,7 +19,8 @@ export type McpToolDef = {
 
 const APP_PROPERTY = {
   type: "string",
-  description: "Aomi app name from aomi_list_apps, such as khalani. Defaults to default.",
+  description:
+    "Aomi app name from aomi_list_apps, such as khalani. Defaults to default.",
 } as const;
 
 export const MCP_TOOLS: McpToolDef[] = [
@@ -92,14 +93,16 @@ export const MCP_TOOLS: McpToolDef[] = [
   },
   {
     name: "aomi_list_namespaces",
-    description: "List an app's namespace capability groups with preview tools.",
+    description:
+      "List an app's namespace capability groups with preview tools.",
     inputSchema: {
       type: "object",
       properties: {
         app: { ...APP_PROPERTY },
         limit: {
           type: "number",
-          description: "Maximum namespaces to return, from 1 to 50. Defaults to 50.",
+          description:
+            "Maximum namespaces to return, from 1 to 50. Defaults to 50.",
         },
       },
     },
@@ -151,7 +154,7 @@ export const MCP_TOOLS: McpToolDef[] = [
       "(4) loop: for x in $ref; do ... done (also: for x in $(tool ...); do ... done)",
       "(5) refs: $var, $var.field, $var.items[0]",
       "(6) return $var, # comments.",
-      "Arguments are always key=value; values are bare words, \"quoted strings\", or $refs. Unquoted words are coerced to the tool's schema types.",
+      'Arguments are always key=value; values are bare words, "quoted strings", or $refs. Unquoted words are coerced to the tool\'s schema types.',
       "NOT supported: while, if, arithmetic, grep/jq/curl or any shell command, pipes to non-tools, redirects, && or ||. Only Aomi tool names (from aomi_search_tools / aomi_list_tools) are callable.",
       "Example 1: q=$(khalani_quote from=USDC to=ETH amount=1000)\\nkhalani_swap quote_id=$q.quote_id min_out=$q.amount_out",
       "Example 2: bal=$(get_balances owner=0xme)\\nfor t in $bal.tokens; do evm_stage_tx token=$t.address amount=$t.balance; done",
@@ -216,7 +219,10 @@ export async function dispatchTool(
     case "aomi_get_agent_context": {
       const apps = await resourceGet(canonicalUserId, "/api/resource/apps");
       return wrap(apps, {
-        thread: { id: mcpThreadId(canonicalUserId), resolution: "deterministic" },
+        thread: {
+          id: mcpThreadId(canonicalUserId),
+          resolution: "deterministic",
+        },
         catalog: apps.body,
         next_step:
           "Use aomi_list_apps for discovery, then aomi_select_app, aomi_list_tools, aomi_describe_tool, and aomi_call_tool. Pass app explicitly on every call.",
@@ -229,18 +235,26 @@ export async function dispatchTool(
       return wrap(out, out.body);
     }
     case "aomi_search_apps": {
-      const out = await resourceGet(canonicalUserId, "/api/resource/search/apps", {
-        q: text(args.q),
-        limit: numeric(args.limit),
-      });
+      const out = await resourceGet(
+        canonicalUserId,
+        "/api/resource/search/apps",
+        {
+          q: text(args.q),
+          limit: numeric(args.limit),
+        },
+      );
       return wrap(out, out.body);
     }
     case "aomi_search_tools": {
-      const out = await resourceGet(canonicalUserId, "/api/resource/search/tools", {
-        q: text(args.q),
-        app: text(args.app),
-        limit: numeric(args.limit),
-      });
+      const out = await resourceGet(
+        canonicalUserId,
+        "/api/resource/search/tools",
+        {
+          q: text(args.q),
+          app: text(args.app),
+          limit: numeric(args.limit),
+        },
+      );
       return wrap(out, out.body);
     }
     case "aomi_select_app": {
@@ -305,10 +319,20 @@ export async function dispatchTool(
   }
 }
 
-function wrap(out: { ok: boolean; status: number }, result: unknown): ToolOutcome {
+function wrap(
+  out: { ok: boolean; status: number },
+  result: unknown,
+): ToolOutcome {
   if (!out.ok) {
     return {
-      result: { error: "backend request failed", status: out.status, detail: result },
+      result:
+        out.status >= 500
+          ? { error: "upstream_unavailable", status: out.status }
+          : {
+              error: "backend request failed",
+              status: out.status,
+              detail: result,
+            },
       isError: true,
     };
   }
@@ -324,7 +348,9 @@ function text(value: unknown): string | undefined {
 }
 
 function numeric(value: unknown): number | undefined {
-  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+  return typeof value === "number" && Number.isFinite(value)
+    ? value
+    : undefined;
 }
 
 function objectArgs(value: unknown): Record<string, unknown> {

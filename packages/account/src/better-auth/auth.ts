@@ -7,6 +7,7 @@ import { readAccountAuthEnv } from "./env";
 import { verifySiweMessage } from "./siwe";
 import { aomiSiwsPlugin } from "./siws";
 import { aomiProviderAuthPlugin } from "./provider-plugin";
+import { observeBetterAuthFailure } from "./failure-observer";
 
 const env = readAccountAuthEnv();
 const HEADLESS_MCP_AUTH_METADATA = {
@@ -88,6 +89,9 @@ export const auth = betterAuth({
   trustedOrigins: env.trustedOrigins,
   secret: env.betterAuthSecret,
   baseURL: env.betterAuthUrl,
+  onAPIError: {
+    onError: observeBetterAuthFailure,
+  },
   user: {
     modelName: "ba_users",
     fields: {

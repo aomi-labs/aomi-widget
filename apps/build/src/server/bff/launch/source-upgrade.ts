@@ -3,7 +3,7 @@ import "server-only";
 import { NextResponse } from "next/server";
 import { deploymentClient } from "@build/server/bff/backend";
 import { resolveLaunchPlatform } from "./config";
-import { launchErrorResponse } from "./errors";
+import { buildFailures } from "@build/server/bff/failures";
 import { authorize } from "@build/server/bff/auth";
 
 export async function sourceSdkUpgradeRoute(req: Request) {
@@ -43,7 +43,15 @@ export async function sourceSdkUpgradeRoute(req: Request) {
     });
     return NextResponse.json(result);
   } catch (error) {
-    return launchErrorResponse(error);
+    return buildFailures.handle({
+      source: "launch",
+      error,
+      context: {
+        routeFamily: new URL(req.url).pathname,
+        operation: "deployment.sdk_upgrade",
+        method: req.method,
+      },
+    }).response;
   }
 }
 
@@ -84,6 +92,14 @@ export async function sourceSdkUpgradeStatusRoute(req: Request) {
     });
     return NextResponse.json(result);
   } catch (error) {
-    return launchErrorResponse(error);
+    return buildFailures.handle({
+      source: "launch",
+      error,
+      context: {
+        routeFamily: new URL(req.url).pathname,
+        operation: "deployment.sdk_upgrade_status",
+        method: req.method,
+      },
+    }).response;
   }
 }
