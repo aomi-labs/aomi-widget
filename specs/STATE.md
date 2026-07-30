@@ -2,6 +2,41 @@
 
 ## Last Updated
 
+2026-07-30 — Observability batch read: fan-out removed at the source (branch
+  `feat/operate-batch-observability` in BOTH repos; aomi PR #426, product-mono
+  PR #901; based on main incl. #423 + #424).
+  ROOT CAUSE (measured on staging via a minted service bearer, 113 sources):
+  one per-source observability read = ~1.9s (~9 Grafana HTTP queries); at the
+  BFF's 6-wide fan-out reads stretch to 6.1–8.6s because Grafana serializes
+  the ~54 concurrent queries — every read outlives #423's 8s per-source
+  timeout, so /operate/observability rendered "Showing 0 of 113 sources".
+  Also: partner-bound sources (somm.finance) 404 "not launch-relevant" under
+  the default platform on every unscoped page load — permanently counted in
+  the degraded banner. Probe recipe + full facts in auto-memory
+  (observability-fanout-root-cause).
+  MANAGER (product-mono #901): new service route
+  GET /api/integrations/github-app/user/observability?github_user_id=
+  [&platform=] → { results: [single-source wire shape] }. One
+  Grafana/rollup snapshot per PLATFORM (operate_monitoring generalized to a
+  source-id set; transaction_metrics_24h_for_sources ANY($1)); each source
+  resolved under its own bound/loaded platform (fixes partner 404s);
+  partner-payment ledgers in bounded waves of 8; single-source read's
+  sequential per-app current_sdk_version N+1 replaced with batched
+  current_sdk_versions; app_health_json/dashboard_links_json shared between
+  single + batch so shapes can't drift.
+  AOMI (#426): packages/deploy getUserObservability(); BFF
+  operateObservabilityRoute does ONE batch read (15s TimedPromiseCache).
+  404 (pre-batch manager, mid-rollout) → falls back to the #423 bounded
+  per-source fan-out; other errors surface. degraded unset on batch path.
+  FE untouched (same response shape).
+  DEPLOY ORDER: either PR lands first (fallback covers the gap); page gets
+  fast only once the manager deploys. FOLLOW-UPS once staging verifies:
+  delete the per-source fallback + settleBySource for observability; apply
+  the same batch pattern to transactions/usage/logs/statement (same herd);
+  then re-check the "0 of N" banner never fires.
+  Verified: manager cargo test 137+manifest, clippy/fmt clean, backend check
+  green; aomi 497/497 (apps/build + packages/deploy), type-check + lint clean.
+
 2026-07-29 — Build project-page perf: react-query ownership + parallel reads
   (worktree untitled-session-7921bd, uncommitted; based on main 0e89ece2).
   Diagnosis: /projects/:id was the last page outside react-query — hand-rolled

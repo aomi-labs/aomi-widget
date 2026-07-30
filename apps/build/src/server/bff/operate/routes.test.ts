@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { BackendError } from "@aomi-labs/deploy";
 
 import {
   clearOperateCachesForTesting,
@@ -24,12 +25,20 @@ const client = {
   deleteUserBot: vi.fn(),
   getUserSourceUsage: vi.fn(),
   getUserSourceStatement: vi.fn(),
+  getUserObservability: vi.fn(),
   getUserSourceObservability: vi.fn(),
   getUserSourceAppDetail: vi.fn(),
   listUserSourceTransactions: vi.fn(),
   listUserSourceLogs: vi.fn(),
   listUserSourceDeployments: vi.fn(),
 };
+
+/** An older manager without the batch observability route. */
+function batchRouteMissing() {
+  client.getUserObservability.mockRejectedValue(
+    new BackendError("get_user_observability", 404, "not found"),
+  );
+}
 
 vi.mock("@build/server/bff/backend", () => ({
   deploymentClient: async () => client,
@@ -84,6 +93,10 @@ beforeEach(() => {
   client.deleteUserBot.mockReset();
   client.getUserSourceUsage.mockReset();
   client.getUserSourceStatement.mockReset();
+  client.getUserObservability.mockReset();
+  // Default to the pre-batch manager so the per-source fallback tests below
+  // stay representative; batch tests override this per case.
+  batchRouteMissing();
   client.getUserSourceObservability.mockReset();
   client.getUserSourceAppDetail.mockReset();
   client.listUserSourceTransactions.mockReset();
@@ -792,6 +805,114 @@ describe("operateObservabilityRoute live data", () => {
     expect(body.example).toBeUndefined();
     expect(body.apps).toEqual([]);
     expect(body.monitoring.status).toBe("unconfigured");
+  });
+
+  it("serves the whole account from one batch read when the manager has it", async () => {
+    setSession({ githubUserId: "gh-1" });
+    oneSource();
+    client.getUserObservability.mockResolvedValue([
+      {
+        source: { id: 900 },
+        platform: "community",
+        scope: "owned_applications",
+        monitoring: {
+          provider: "grafana_prometheus",
+          status: "ok",
+          windowSeconds: 900,
+        },
+        apps: [
+          {
+            applicationId: 1,
+            application: "real-bot",
+            active: true,
+            loaded: true,
+            status: "healthy",
+            metrics: null,
+          },
+        ],
+        payments: emptyPayments(),
+        dashboardLinks: [],
+        platformMetrics: [],
+      },
+      {
+        // A partner-bound source the per-source fan-out could never read
+        // under the default platform — the batch covers it.
+        source: { id: 1620 },
+        platform: "somm.finance",
+        scope: "owned_applications",
+        monitoring: {
+          provider: "grafana_prometheus",
+          status: "ok",
+          windowSeconds: 900,
+        },
+        apps: [
+          {
+            applicationId: 2,
+            application: "somm-agent",
+            active: true,
+            loaded: true,
+            status: "healthy",
+            metrics: null,
+          },
+        ],
+        payments: emptyPayments(),
+        dashboardLinks: [],
+        platformMetrics: [],
+      },
+    ]);
+
+    const first = await operateObservabilityRoute(observabilityReq());
+    const second = await operateObservabilityRoute(observabilityReq());
+    const body = await first.json();
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    // One account-wide read, cached across requests; no per-source fan-out.
+    expect(client.getUserObservability).toHaveBeenCalledTimes(1);
+    expect(client.getUserObservability).toHaveBeenCalledWith(
+      expect.objectContaining({ githubUserId: "gh-1", platform: undefined }),
+    );
+    expect(client.getUserSourceObservability).not.toHaveBeenCalled();
+    expect(body.degraded).toBeUndefined();
+    expect(
+      body.apps.map((app: { application: string }) => app.application),
+    ).toEqual(["real-bot", "somm-agent"]);
+    expect(body.monitoring.status).toBe("ok");
+  });
+
+  it("falls back to the per-source fan-out when the batch route 404s", async () => {
+    setSession({ githubUserId: "gh-1" });
+    oneSource();
+    // beforeEach already arms the 404; make the fallback observable.
+    client.getUserSourceObservability.mockResolvedValue({
+      source: { id: 900 },
+      platform: "community",
+      scope: "owned_applications",
+      monitoring: null,
+      apps: [],
+      payments: emptyPayments(),
+      dashboardLinks: [],
+      platformMetrics: [],
+    });
+
+    const res = await operateObservabilityRoute(observabilityReq());
+
+    expect(res.status).toBe(200);
+    expect(client.getUserObservability).toHaveBeenCalled();
+    expect(client.getUserSourceObservability).toHaveBeenCalledTimes(1);
+  });
+
+  it("surfaces non-404 batch failures instead of silently fanning out", async () => {
+    setSession({ githubUserId: "gh-1" });
+    oneSource();
+    client.getUserObservability.mockRejectedValue(
+      new BackendError("get_user_observability", 500, "manager exploded"),
+    );
+
+    const res = await operateObservabilityRoute(observabilityReq());
+
+    expect(res.status).toBeGreaterThanOrEqual(500);
+    expect(client.getUserSourceObservability).not.toHaveBeenCalled();
   });
 });
 
