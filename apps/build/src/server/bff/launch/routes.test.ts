@@ -16,6 +16,43 @@ import {
   requiredSecretsRoute,
 } from "./routes";
 
+const telemetry = vi.hoisted(() => ({
+  capture: vi.fn(),
+  log: vi.fn(),
+}));
+
+vi.mock("@build/server/bff/failures", async () => {
+  const { classifyFailure, identifyFailure } =
+    await import("@aomi-labs/bff-observability");
+  return {
+    buildFailures: {
+      handle: (input: Parameters<typeof identifyFailure>[0]) => {
+        const decision = classifyFailure(identifyFailure(input));
+        const eventContext = {
+          ...decision.context,
+          status: decision.responseStatus,
+          ...(decision.upstream ? { upstream: decision.upstream } : {}),
+          ...(decision.upstreamStatus !== undefined
+            ? { upstreamStatus: decision.upstreamStatus }
+            : {}),
+        };
+        if (decision.action === "issue") {
+          telemetry.capture(decision.error, eventContext);
+        } else if (decision.action === "log") {
+          telemetry.log(eventContext);
+        }
+        return {
+          ...decision,
+          response: Response.json(
+            { error: decision.responseError },
+            { status: decision.responseStatus },
+          ),
+        };
+      },
+    },
+  };
+});
+
 vi.mock("@aomi-labs/account", () => ({
   portalService: () => ({
     mint: vi.fn(async () => ({
@@ -24,6 +61,11 @@ vi.mock("@aomi-labs/account", () => ({
     })),
   }),
 }));
+
+beforeEach(() => {
+  telemetry.capture.mockReset();
+  telemetry.log.mockReset();
+});
 
 const getGitHubSession = vi.fn();
 vi.mock("@build/server/cookies/github", () => ({
@@ -329,6 +371,49 @@ describe("launchDeployRoute", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(res.status).toBe(409);
     expect(body).toEqual({ error: "deploy rejected" });
+    expect(telemetry.capture).not.toHaveBeenCalled();
+    expect(telemetry.log).not.toHaveBeenCalled();
+  });
+
+  it("logs and sanitizes a backend 5xx response", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(ownedSources(123))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: "private backend failure" }), {
+          status: 503,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const POST = launchDeployRoute(false);
+    const res = await POST(
+      new Request("http://localhost:3000/api/bff/launch/deploy", {
+        method: "POST",
+        headers: {
+          origin: "http://localhost:3000",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          appSourceId: 123,
+          sourceRef: "abc1234def5678",
+        }),
+      }),
+    );
+
+    expect(res.status).toBe(503);
+    await expect(res.json()).resolves.toEqual({
+      error: "private backend failure",
+    });
+    expect(telemetry.capture).not.toHaveBeenCalled();
+    expect(telemetry.log).toHaveBeenCalledWith(
+      expect.objectContaining({
+        operation: "launch.deploy",
+        upstream: "rust",
+        upstreamStatus: 503,
+      }),
+    );
   });
 
   it("preflight mints the source row by repo, then previews by app source id", async () => {
@@ -611,6 +696,11 @@ describe("launchDeployRoute", () => {
 
     const res = await POST(req);
     expect(res.status).toBe(502);
+    await expect(res.json()).resolves.toEqual({
+      error: "deploy request failed",
+    });
+    expect(telemetry.capture).toHaveBeenCalledOnce();
+    expect(telemetry.log).not.toHaveBeenCalled();
   });
 });
 
@@ -1512,6 +1602,8 @@ describe("requiredSecretsRoute", () => {
       error: "Unable to verify required secrets. Try again.",
     });
     expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(telemetry.capture).toHaveBeenCalledOnce();
+    expect(telemetry.log).not.toHaveBeenCalled();
   });
 });
 

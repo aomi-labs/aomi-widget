@@ -7,6 +7,12 @@
 // Aomi backend. The activation/service bearer never leaves this layer.
 
 export {
+  identifyLaunchError,
+  launchErrorResponse,
+  type LaunchFailureSource,
+} from "./errors";
+
+export {
   createLaunchRoutes,
   type LaunchRoutes,
   type LaunchRoutesOptions,
@@ -42,8 +48,6 @@ export {
   type LaunchGuards,
   type RouteGuard,
 } from "./guards";
-
-export { launchErrorResponse } from "./errors";
 
 export { releaseTagsFromDeployment, appNamesFromDeployment } from "./mappers";
 

@@ -38,6 +38,7 @@ import {
   type WalletAttestationLogger,
   type WalletAttesterRegistry,
 } from "../providers/wallet-attestation";
+import { observeAccountInternalFailure } from "../observability";
 import {
   IDENTITY_SCOPES,
   type AomiAccountResponse,
@@ -735,7 +736,8 @@ export async function fetchAttestedProviderWallets(input: {
       })) ?? null
     );
   } catch (error) {
-    (input.logger ?? console).warn(
+    observeAccountInternalFailure({ kind: "provider_wallets", error });
+    input.logger?.warn(
       `syncProviderWallets: failed to list ${input.provider} wallets for ${input.subject}`,
       error,
     );

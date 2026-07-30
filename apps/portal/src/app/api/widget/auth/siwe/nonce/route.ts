@@ -22,7 +22,7 @@ export const POST = widgetRoute(async (request: Request) => {
     chainId: parsed.chain_id,
   });
   return widgetChallengeResponse(challenge);
-}, "SIWE nonce");
+}, "widget.siwe.nonce");
 
 export const OPTIONS = widgetPreflight(["POST", "OPTIONS"]);
 

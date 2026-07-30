@@ -1,5 +1,6 @@
 import "server-only";
 
+import type { FailureInput } from "@aomi-labs/bff-observability";
 import {
   createAomiSmither,
   resolveRunBackend,
@@ -8,6 +9,18 @@ import {
 } from "@aomi-labs/smither";
 import { listRunningRuns, updateRun, type BuildRunRecord } from "./registry";
 import { extendSandboxById, stopSandboxById } from "./sandbox-runner";
+import { buildFailures } from "@build/server/bff/failures";
+
+function identifySupervisorFailure(
+  error: unknown,
+  operation: string,
+): FailureInput {
+  return {
+    source: "local",
+    error,
+    context: { routeFamily: "/api/bff/build/supervise", operation },
+  };
+}
 
 /**
  * System-owned sandbox lifetime: the build lives exactly as long as the
@@ -152,7 +165,10 @@ export async function superviseOnce(): Promise<SuperviseAction[]> {
             ? null
             : Number(row.heartbeat_at_ms);
       }
-    } catch {
+    } catch (error) {
+      buildFailures.handle(
+        identifySupervisorFailure(error, "build.supervisor_store_read"),
+      );
       // Store hiccup: decide "none" this tick rather than reaping blind.
       actions.push({ runId: record.runId, app: record.app, decision: "none" });
       continue;
@@ -166,9 +182,8 @@ export async function superviseOnce(): Promise<SuperviseAction[]> {
     try {
       await applyDecision(api, record, decision);
     } catch (error) {
-      console.warn(
-        `supervisor: applying ${decision} to ${record.runId} failed:`,
-        error instanceof Error ? error.message : error,
+      buildFailures.handle(
+        identifySupervisorFailure(error, "build.supervisor_apply_decision"),
       );
     }
     actions.push({ runId: record.runId, app: record.app, decision });
@@ -184,7 +199,11 @@ export function ensureSupervisorInterval(): void {
   const s = state();
   if (s.interval) return;
   s.interval = setInterval(() => {
-    void superviseOnce().catch(() => {});
+    void superviseOnce().catch((error: unknown) =>
+      buildFailures.handle(
+        identifySupervisorFailure(error, "build.supervisor_interval"),
+      ),
+    );
   }, TICK_MS);
   // Never hold the process open just to supervise.
   if (typeof s.interval === "object" && "unref" in s.interval) {

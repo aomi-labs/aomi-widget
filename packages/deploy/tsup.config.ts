@@ -1,7 +1,13 @@
 import { defineConfig } from "tsup";
 
 export default defineConfig({
-  entry: ["src/index.ts", "src/lifecycle.ts", "src/bff/index.ts", "src/launch/index.ts"],
+  entry: [
+    "src/index.ts",
+    "src/lifecycle.ts",
+    "src/bff/index.ts",
+    "src/bff/errors.ts",
+    "src/launch/index.ts",
+  ],
   outDir: "dist",
   format: ["esm", "cjs"],
   dts: {

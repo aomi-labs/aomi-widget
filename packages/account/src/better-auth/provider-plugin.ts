@@ -9,16 +9,30 @@ import {
 } from "../providers";
 import { signInWithVerifiedProviderCredential } from "../service/provider-exchange";
 import { buildAccountResponse } from "../db/queries";
+import { observeAccountDiagnostic } from "../observability";
 import type { AomiAccountCredential } from "../types";
 
-/** aud/iss/exp of a rejected provider token, for the server log. Never the token. */
-function decodeClaimsForLog(token: string): Record<string, unknown> {
+function providerCredentialDiagnostic(token: string) {
   try {
     const { aud, iss, exp, sub } = decodeJwt(token);
     const { kid, alg } = decodeProtectedHeader(token);
-    return { aud, iss, exp, sub_present: Boolean(sub), kid, alg };
+    return {
+      audience: bounded(Array.isArray(aud) ? aud.join(",") : aud),
+      issuer: bounded(iss),
+      expires_at: typeof exp === "number" ? exp : null,
+      subject_present: Boolean(sub),
+      key_id: bounded(kid),
+      algorithm: bounded(alg),
+    };
   } catch {
-    return { decode: "failed (not a JWT?)" };
+    return {
+      audience: null,
+      issuer: null,
+      expires_at: null,
+      subject_present: false,
+      key_id: null,
+      algorithm: null,
+    };
   }
 }
 
@@ -46,19 +60,32 @@ export function aomiProviderAuthPlugin(): BetterAuthPlugin {
           try {
             verified = await verifyProviderCredential(credential);
           } catch (error) {
-            // Surface the rejection server-side: a silent 400 here reads as
-            // "login broken" with no trace. Claims only — never the token.
-            console.error(
-              "provider exchange rejected",
-              credential.provider,
-              error instanceof Error ? error.message : error,
-              decodeClaimsForLog(credential.providerToken),
-            );
+            const message =
+              error instanceof Error
+                ? error.message
+                : "provider_exchange_failed";
+            observeAccountDiagnostic({
+              kind: "provider.credential_rejected",
+              attributes: {
+                provider: bounded(credential.provider),
+                error: bounded(
+                  error instanceof Error ? error.message : String(error),
+                ),
+                ...providerCredentialDiagnostic(credential.providerToken),
+              },
+              context: {
+                routeFamily: "/api/auth/[...all]",
+                operation: "account.provider_exchange",
+                method: "POST",
+              },
+              response: {
+                status: 400,
+                error: message,
+              },
+            });
             throw new APIError("BAD_REQUEST", {
-              message:
-                error instanceof Error
-                  ? error.message
-                  : "provider_exchange_failed",
+              message,
+              cause: error,
             });
           }
           const seed = providerSessionUserSeed(verified);
@@ -81,11 +108,21 @@ export function aomiProviderAuthPlugin(): BetterAuthPlugin {
             name: seed.name,
           });
           if (resolution.status === "conflict") {
-            console.error("provider credential link conflict", {
-              provider: verified.provider,
-              subject: verified.token.subject,
-              betterAuthUserId: betterAuthUser.id,
-              signalType: resolution.signalType,
+            observeAccountDiagnostic({
+              kind: "provider.link_conflict",
+              attributes: {
+                provider: bounded(verified.provider),
+                signal_type: bounded(resolution.signalType),
+              },
+              context: {
+                routeFamily: "/api/auth/[...all]",
+                operation: "account.provider_link",
+                method: "POST",
+              },
+              response: {
+                status: 409,
+                error: "already_linked_to_another_account",
+              },
             });
             throw new APIError("CONFLICT", {
               message: "already_linked_to_another_account",
@@ -116,4 +153,8 @@ export function aomiProviderAuthPlugin(): BetterAuthPlugin {
       ),
     },
   };
+}
+
+function bounded(value: unknown): string | null {
+  return typeof value === "string" ? value.slice(0, 160) : null;
 }

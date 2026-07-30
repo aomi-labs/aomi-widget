@@ -9,6 +9,7 @@ import type {
   BuildRunStageStatus,
   BuildRunStatus,
 } from "@build/features/build/run-contracts";
+import { buildFailures } from "@build/server/bff/failures";
 
 export type RunViewLike = {
   status: string | null;
@@ -18,7 +19,9 @@ export type RunViewLike = {
 
 /** Store run status → wire status. Null (unknown run) maps to nothing —
  *  callers keep their live status. */
-export function runStatusFromView(status: string | null): BuildRunStatus | null {
+export function runStatusFromView(
+  status: string | null,
+): BuildRunStatus | null {
   switch (status) {
     case "finished":
     case "continued":
@@ -125,7 +128,9 @@ export function resultFromOutputs(
  *  for runs whose filesystem this process cannot see (sandbox runs). */
 export function artifactFromOutputs(
   outputs: Record<string, ReadonlyArray<Record<string, unknown>>>,
-): { fileTree: BuildRunFileNode[]; crateTarB64: string; warning: string } | undefined {
+):
+  | { fileTree: BuildRunFileNode[]; crateTarB64: string; warning: string }
+  | undefined {
   const row = outputs.result?.[0];
   if (!row) return undefined;
   let fileTree: BuildRunFileNode[] = [];
@@ -133,7 +138,15 @@ export function artifactFromOutputs(
     try {
       const parsed = JSON.parse(row.fileTreeJson);
       if (Array.isArray(parsed)) fileTree = parsed as BuildRunFileNode[];
-    } catch {
+    } catch (error) {
+      buildFailures.handle({
+        source: "artifact",
+        error,
+        context: {
+          routeFamily: "/api/bff/build/runs",
+          operation: "build.artifact_tree_parse",
+        },
+      });
       // Malformed tree JSON degrades to an empty Files panel, not an error.
     }
   }

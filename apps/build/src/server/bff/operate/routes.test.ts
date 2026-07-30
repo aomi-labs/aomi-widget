@@ -14,6 +14,43 @@ import {
   operateUsageRoute,
 } from "./routes";
 
+const telemetry = vi.hoisted(() => ({
+  capture: vi.fn(),
+  log: vi.fn(),
+}));
+
+vi.mock("@build/server/bff/failures", async () => {
+  const { classifyFailure, identifyFailure } =
+    await import("@aomi-labs/bff-observability");
+  return {
+    buildFailures: {
+      handle: (input: Parameters<typeof identifyFailure>[0]) => {
+        const decision = classifyFailure(identifyFailure(input));
+        const eventContext = {
+          ...decision.context,
+          status: decision.responseStatus,
+          ...(decision.upstream ? { upstream: decision.upstream } : {}),
+          ...(decision.upstreamStatus !== undefined
+            ? { upstreamStatus: decision.upstreamStatus }
+            : {}),
+        };
+        if (decision.action === "issue") {
+          telemetry.capture(decision.error, eventContext);
+        } else if (decision.action === "log") {
+          telemetry.log(eventContext);
+        }
+        return {
+          ...decision,
+          response: Response.json(
+            { error: decision.responseError },
+            { status: decision.responseStatus },
+          ),
+        };
+      },
+    },
+  };
+});
+
 const client = {
   listUserSources: vi.fn(),
   listUserSourceBots: vi.fn(),
@@ -123,6 +160,8 @@ beforeEach(() => {
   client.listUserSourceLogs.mockReset();
   client.listUserSourceDeployments.mockReset();
   getGitHubSession.mockReset();
+  telemetry.capture.mockReset();
+  telemetry.log.mockReset();
 });
 
 afterEach(() => {
@@ -172,6 +211,32 @@ describe("operateBotsRoute", () => {
     const body = await res.json();
     expect(body.bots).toHaveLength(1);
     expect(client.listUserBots).toHaveBeenCalledTimes(1);
+  });
+
+  it("logs an owned-source Rust 5xx without creating a BFF Issue", async () => {
+    setSession({ githubUserId: "gh-1" });
+    client.listUserSources.mockRejectedValue(
+      new BackendError(
+        "list_user_sources",
+        503,
+        "failed",
+        "private backend body",
+      ),
+    );
+
+    const res = await operateBotsRoute(getReq());
+
+    expect(res.status).toBe(503);
+    await expect(res.json()).resolves.toEqual({ error: "failed" });
+    expect(telemetry.capture).not.toHaveBeenCalled();
+    expect(telemetry.log).toHaveBeenCalledOnce();
+    expect(telemetry.log).toHaveBeenCalledWith(
+      expect.objectContaining({
+        operation: "operate.owned_sources",
+        upstream: "rust",
+        upstreamStatus: 503,
+      }),
+    );
   });
 });
 
@@ -1057,7 +1122,6 @@ describe("per-source fan-out is bounded", () => {
   });
 
   it("drops a wedged source instead of stalling the whole page", async () => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     vi.useFakeTimers();
     try {
       client.listUserSourceTransactions.mockImplementation(({ appSourceId }) =>
@@ -1090,9 +1154,15 @@ describe("per-source fan-out is bounded", () => {
           (transaction: { id: string }) => transaction.id === "tx:901",
         ),
       ).toBe(false);
+      expect(telemetry.capture).toHaveBeenCalledOnce();
+      expect(telemetry.capture.mock.calls[0]?.[1]).toEqual({
+        routeFamily: "/api/bff/operate",
+        operation: "operate.transactions_source",
+        method: "GET",
+        status: 502,
+      });
     } finally {
       vi.useRealTimers();
-      warn.mockRestore();
     }
   });
 });
@@ -1133,7 +1203,6 @@ describe("fallback fan-out failure handling", () => {
   });
 
   it("renders the sources it could read when one drops, without a banner", async () => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     client.listUserSourceTransactions.mockImplementation((args) =>
       args.appSourceId === 901
         ? Promise.reject(new Error("boom"))
@@ -1150,11 +1219,11 @@ describe("fallback fan-out failure handling", () => {
 
     expect(res.status).toBe(200);
     expect(body).not.toHaveProperty("degraded");
-    warn.mockRestore();
+    expect(telemetry.capture).toHaveBeenCalledTimes(2);
+    expect(telemetry.log).not.toHaveBeenCalled();
   });
 
   it("still lists a dropped source so the user can load it alone", async () => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     client.listUserSourceTransactions.mockImplementation((args) =>
       args.appSourceId === 901
         ? Promise.reject(new Error("boom"))
@@ -1169,32 +1238,60 @@ describe("fallback fan-out failure handling", () => {
     expect(body.sources.map((source: { id: number }) => source.id)).toEqual([
       900, 901, 902,
     ]);
-    warn.mockRestore();
+    expect(telemetry.capture).toHaveBeenCalledOnce();
+  });
+
+  it("logs a partial Rust 5xx without creating a BFF Issue", async () => {
+    client.listUserSourceTransactions.mockImplementation((args) =>
+      args.appSourceId === 901
+        ? Promise.reject(
+            new BackendError(
+              "transactions",
+              503,
+              "failed",
+              "private backend body",
+            ),
+          )
+        : okTransactions(args),
+    );
+    client.getUserSourceStatement.mockImplementation(okStatement);
+
+    const res = await operateTransactionsRoute(transactionsReq());
+
+    expect(res.status).toBe(200);
+    expect(telemetry.capture).not.toHaveBeenCalled();
+    expect(telemetry.log).toHaveBeenCalledOnce();
+    expect(telemetry.log).toHaveBeenCalledWith({
+      routeFamily: "/api/bff/operate",
+      operation: "operate.transactions_source",
+      method: "GET",
+      status: 503,
+      upstream: "rust",
+      upstreamStatus: 503,
+    });
   });
 
   // "0 of 111 sources" used to render as an empty page behind a warning
   // banner — and Usage then presented the example statement as if it were
   // data. A total outage must surface as an error the view can show.
   it("503s the page when every source drops instead of rendering empty", async () => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     client.listUserSourceTransactions.mockRejectedValue(new Error("boom"));
     client.getUserSourceStatement.mockRejectedValue(new Error("boom"));
 
     const res = await operateTransactionsRoute(transactionsReq());
 
     expect(res.status).toBe(503);
-    warn.mockRestore();
+    expect(telemetry.capture).toHaveBeenCalledTimes(6);
   });
 
   it("503s usage on total failure instead of serving example data", async () => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     client.getUserSourceUsage.mockRejectedValue(new Error("boom"));
     client.getUserSourceStatement.mockRejectedValue(new Error("boom"));
 
     const res = await operateUsageRoute(usageReq());
 
     expect(res.status).toBe(503);
-    warn.mockRestore();
+    expect(telemetry.capture).toHaveBeenCalledTimes(6);
   });
 });
 

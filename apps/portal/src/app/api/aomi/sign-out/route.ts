@@ -23,6 +23,6 @@ export const POST = widgetRoute(async (req: Request) => {
       headers: req.headers,
     }),
   );
-}, "sign out");
+}, "account.sign_out");
 
 export const OPTIONS = widgetPreflight(["POST", "OPTIONS"]);

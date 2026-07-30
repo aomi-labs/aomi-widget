@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 export const runtime = "nodejs";
 
 import { setGitHubSessionCookie } from "@portal/server/cookies/github";
+import { portalFailures } from "@portal/server/bff/failures";
 
 type GitHubUserResponse = {
   id?: unknown;
@@ -70,9 +71,18 @@ export async function GET(req: Request) {
     });
     return res;
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : String(error) },
-      { status: 502 },
-    );
+    return portalFailures.handle({
+      source: "local",
+      error,
+      response: {
+        status: 502,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      context: {
+        routeFamily: "/api/bff/auth/github/dev-session",
+        operation: "github.dev_session",
+        method: req.method,
+      },
+    }).response;
   }
 }

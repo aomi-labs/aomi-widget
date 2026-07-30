@@ -1,7 +1,29 @@
 import { generateKeyPairSync, sign as edSign } from "node:crypto";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { verifyBearer } from "../../../../../../infra/build-runner/sidecar";
+import { sidecarVerifierPublicKeyPem } from "./sidecar-auth";
+
+const mocks = vi.hoisted(() => ({
+  portalService: vi.fn(),
+  capture: vi.fn(),
+}));
+
+vi.mock("@aomi-labs/account", () => ({
+  portalService: mocks.portalService,
+}));
+
+vi.mock("@build/server/bff/failures", () => ({
+  buildFailures: {
+    handle: (input: { error: unknown; context: Record<string, unknown> }) =>
+      mocks.capture(input.error, { ...input.context, status: 500 }),
+  },
+}));
+
+beforeEach(() => {
+  mocks.portalService.mockReset();
+  mocks.capture.mockReset();
+});
 
 /**
  * Round-trips the official service-bearer convention against the in-VM
@@ -13,7 +35,9 @@ import { verifyBearer } from "../../../../../../infra/build-runner/sidecar";
 
 const { publicKey, privateKey } = generateKeyPairSync("ed25519");
 const otherKeys = generateKeyPairSync("ed25519");
-const publicKeyPem = publicKey.export({ type: "spki", format: "pem" }).toString();
+const publicKeyPem = publicKey
+  .export({ type: "spki", format: "pem" })
+  .toString();
 
 const RUN_ID = "smither-my-app-0db9a0f6-0000-0000-0000-000000000000";
 
@@ -24,7 +48,9 @@ function mintJwt(
   claims: Record<string, unknown>,
   key: typeof privateKey = privateKey,
 ): string {
-  const header = b64url(JSON.stringify({ alg: "EdDSA", kid: "aomi-bff-dev-1" }));
+  const header = b64url(
+    JSON.stringify({ alg: "EdDSA", kid: "aomi-bff-dev-1" }),
+  );
   const payload = b64url(JSON.stringify(claims));
   const signature = edSign(null, Buffer.from(`${header}.${payload}`), key);
   return `${header}.${payload}.${b64url(signature)}`;
@@ -58,7 +84,9 @@ describe("verifyBearer", () => {
       claims({ sub: "smither-other-run" }),
       claims({ exp: Math.floor(Date.now() / 1000) - 10 }),
     ]) {
-      expect(await verifyBearer(`Bearer ${mintJwt(bad)}`, expected)).toBe(false);
+      expect(await verifyBearer(`Bearer ${mintJwt(bad)}`, expected)).toBe(
+        false,
+      );
     }
   });
 
@@ -75,10 +103,31 @@ describe("verifyBearer", () => {
 
   it("fails closed on missing config or malformed headers", async () => {
     const jwt = mintJwt(claims());
-    expect(await verifyBearer(`Bearer ${jwt}`, { publicKeyPem: "", runId: RUN_ID })).toBe(false);
-    expect(await verifyBearer(`Bearer ${jwt}`, { publicKeyPem, runId: "" })).toBe(false);
+    expect(
+      await verifyBearer(`Bearer ${jwt}`, { publicKeyPem: "", runId: RUN_ID }),
+    ).toBe(false);
+    expect(
+      await verifyBearer(`Bearer ${jwt}`, { publicKeyPem, runId: "" }),
+    ).toBe(false);
     expect(await verifyBearer(null, expected)).toBe(false);
     expect(await verifyBearer("Bearer not.a.jwt", expected)).toBe(false);
     expect(await verifyBearer(jwt, expected)).toBe(false);
+  });
+});
+
+describe("sidecar verifier configuration", () => {
+  it("captures a topology failure and still fails closed", () => {
+    const error = new Error("private topology path");
+    mocks.portalService.mockImplementation(() => {
+      throw error;
+    });
+
+    expect(sidecarVerifierPublicKeyPem()).toBe("");
+    expect(mocks.capture).toHaveBeenCalledOnce();
+    expect(mocks.capture).toHaveBeenCalledWith(error, {
+      routeFamily: "/api/bff/build",
+      operation: "build.sidecar_verifier_config",
+      status: 500,
+    });
   });
 });

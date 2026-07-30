@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
@@ -102,6 +103,7 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["@aomi-labs/smither", "smithers-orchestrator"],
   transpilePackages: [
     "@aomi-labs/account",
+    "@aomi-labs/bff-observability",
     "@aomi-labs/client",
     "@aomi-labs/deploy",
     "@aomi-labs/react",
@@ -113,6 +115,8 @@ const nextConfig: NextConfig = {
     resolveAlias: {
       "@build": "./src",
       ...widgetTurbopackAliases,
+      "@aomi-labs/account/observability":
+        "../../packages/account/src/observability.ts",
       "@aomi-labs/account": "../../packages/account/src/index.ts",
       "@aomi-labs/client": "../../packages/client/src/index.ts",
       "@aomi-labs/deploy": "../../packages/deploy/src/index.ts",
@@ -137,6 +141,10 @@ const nextConfig: NextConfig = {
       ...(config.resolve.alias ?? {}),
       "@build": buildSrc,
       ...widgetWebpackAliases,
+      "@aomi-labs/account/observability": path.join(
+        workspaceRoot,
+        "packages/account/src/observability.ts",
+      ),
       "@aomi-labs/account": path.join(
         workspaceRoot,
         "packages/account/src/index.ts",
@@ -177,4 +185,31 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+const sentryEnvironment = process.env.SENTRY_ENVIRONMENT;
+const sentryGitSha =
+  process.env.VERCEL_GIT_COMMIT_SHA || process.env.GITHUB_SHA;
+const sentryRelease = sentryGitSha ? `build-bff@${sentryGitSha}` : undefined;
+const sentryBuildEnabled =
+  process.env.SENTRY_ENABLED === "1" &&
+  (sentryEnvironment === "staging" || sentryEnvironment === "production") &&
+  process.env.SENTRY_PROJECT === "aomi-bff" &&
+  Boolean(process.env.SENTRY_ORG) &&
+  Boolean(process.env.SENTRY_AUTH_TOKEN) &&
+  Boolean(sentryRelease);
+
+export default withSentryConfig(nextConfig, {
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  release: {
+    name: sentryRelease,
+    create: sentryBuildEnabled,
+    finalize: sentryBuildEnabled,
+  },
+  silent: true,
+  telemetry: false,
+  sourcemaps: {
+    disable: !sentryBuildEnabled,
+    deleteSourcemapsAfterUpload: true,
+  },
+});

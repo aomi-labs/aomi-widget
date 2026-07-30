@@ -11,10 +11,7 @@ import { explainAccountError } from "./account-api";
 export type BindWalletSigner = {
   chain: "evm" | "svm";
   address: string;
-  signTypedData?: (args: {
-    typed_data: unknown;
-    description: string;
-  }) => Promise<{ signature: string }>;
+  signTypedData?: (args: WalletEip712Payload) => Promise<{ signature: string }>;
   signSolanaMessage?: (args: {
     message: string;
     cluster?: string;
@@ -46,7 +43,9 @@ export async function bindWalletVia(
 
   if (signer.chain === "evm") {
     if (!challenge.typed_data || !signer.signTypedData) {
-      throw new Error("Connect an Ethereum wallet that can sign EIP-712 messages.");
+      throw new Error(
+        "Connect an Ethereum wallet that can sign EIP-712 messages.",
+      );
     }
     const { signature } = await signer.signTypedData({
       typed_data: challenge.typed_data as WalletEip712Payload["typed_data"],
