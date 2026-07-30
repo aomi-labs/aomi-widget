@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, type ReactNode } from "react";
 import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
 import {
   CircleArrowUp,
   ExternalLink,
@@ -10,7 +11,18 @@ import {
   Rocket,
 } from "lucide-react";
 import { useProjectDetail } from "@build/features/launch/hooks/use-project-detail";
+import {
+  buildQueryKeys,
+  buildQueryStaleTime,
+} from "@build/features/launch/query-keys";
 import { operateFetch } from "@build/features/operate/client";
+import {
+  caipChainLabel,
+  creditsToUsd,
+  plural,
+  truncateAddress,
+  usdLabel,
+} from "@build/features/operate/format";
 import { chatAppUrl } from "@build/lib/chat-url";
 import { BUILD_GLOSSARY } from "@build/lib/glossary";
 import { projectDeploymentStatus } from "../project-deployment-status";
@@ -124,38 +136,85 @@ function usageCardCopy(usage: UsagePeek | null): {
   };
 }
 
+function monetizationCard(source: NonNullable<Detail["source"]>) {
+  const configured = source.apps.flatMap((app) =>
+    Object.entries(app.pricing?.config.resources ?? {}).map(
+      ([tool, resource]) => {
+        const beneficiary = app.pricing?.config.beneficiaries.find(
+          (candidate) => candidate.name === resource.beneficiary,
+        );
+        return {
+          app: app.name,
+          tool,
+          credits: resource.pricing.flat,
+          beneficiary,
+        };
+      },
+    ),
+  );
+  if (!configured.length) return null;
+  const first = configured[0];
+  const route = first.beneficiary
+    ? `${caipChainLabel(first.beneficiary.chain)} · ${truncateAddress(first.beneficiary.value)}`
+    : "Aomi-managed beneficiary";
+  return {
+    value: plural(configured.length, "priced tool"),
+    hint: `${first.app}/${first.tool} · ${first.credits.toFixed(2)} credits (${usdLabel(creditsToUsd(first.credits))}) per successful call · ${route}`,
+    tone: "good" as const,
+  };
+}
+
+function operateUsageHref(
+  sourceId: number,
+  platform?: string,
+  anchor?: string,
+) {
+  const params = new URLSearchParams({ project: String(sourceId) });
+  if (platform) params.set("platform", platform);
+  return `/operate/usage?${params}${anchor ? `#${anchor}` : ""}`;
+}
+
 export function HomeTab({
   detail,
   tabHref,
+  platform,
 }: {
   detail: Detail;
   tabHref?: (
     tab: "home" | "deployments" | "providers" | "environment" | "chat",
   ) => string;
+  platform?: string;
 }) {
   const source = detail.source;
-  const [usage, setUsage] = useState<UsagePeek | null>(null);
+  // Same key as the operate usage page and the project-detail prefetch, so a
+  // hover or page-mount warm-up serves this card from cache.
+  const usageQuery = useQuery({
+    queryKey: buildQueryKeys.operate(
+      detail.accountKey ?? "unavailable",
+      "usage",
+      source?.id ?? null,
+      platform,
+    ),
+    queryFn: () =>
+      operateFetch<{
+        daily?: Array<Record<string, unknown>>;
+      }>("usage", { sourceId: source?.id, platform }),
+    enabled: source !== null,
+    staleTime: buildQueryStaleTime.operate,
+  });
+  const usage: UsagePeek | null = useMemo(
+    () =>
+      usageQuery.data !== undefined
+        ? summarizeProjectUsage(usageQuery.data)
+        : usageQuery.isError
+          ? summarizeProjectUsage(null)
+          : null,
+    [usageQuery.data, usageQuery.isError],
+  );
 
   useEffect(() => {
     detail.loadSecrets();
   }, [detail]);
-
-  useEffect(() => {
-    if (!source) return;
-    let alive = true;
-    operateFetch<{
-      daily?: Array<Record<string, unknown>>;
-    }>("usage", source.id)
-      .then((payload) => {
-        if (alive) setUsage(summarizeProjectUsage(payload));
-      })
-      .catch(() => {
-        if (alive) setUsage(summarizeProjectUsage(null));
-      });
-    return () => {
-      alive = false;
-    };
-  }, [source]);
 
   const status = useMemo(
     () => (source ? projectDeploymentStatus(source) : null),
@@ -213,6 +272,7 @@ export function HomeTab({
   const envReady = secretCount !== null && secretCount > 0;
   const envLoading = detail.secretsByApp === null && !detail.secretsError;
   const usageCopy = usageCardCopy(usage);
+  const monetization = monetizationCard(source);
 
   const nextAction =
     outdated && requiredSdk
@@ -309,9 +369,23 @@ export function HomeTab({
               <UsageSpark spark={usage.spark} />
             ) : null
           }
-          actionHref={`/operate/usage?project=${source.id}`}
+          actionHref={operateUsageHref(source.id, platform)}
           actionLabel="Open Usage"
         />
+        {monetization ? (
+          <StatusCard
+            label="Monetization"
+            value={monetization.value}
+            hint={monetization.hint}
+            tone={monetization.tone}
+            actionHref={operateUsageHref(
+              source.id,
+              platform,
+              "partner-payments",
+            )}
+            actionLabel="View partner ledger"
+          />
+        ) : null}
       </div>
 
       <div className="border-border bg-surface-2/40 px-4 py-4">

@@ -27,6 +27,85 @@ import {
 } from "@build/features/operate/fixtures/wire";
 
 const SOURCE = { id: 141779906, repositoryLink: "aomi-labs/apps", apps: [] };
+const SOMM_RECIPIENT = "0x5D907BEa404e6F821d467314a9cA07663CF64c9B";
+const SOMM_RECEIPT =
+  "0x55e510bb72adb05979adc8afad8c70fa7ca3d0c2cb5dca9432bf82e46ff1df74";
+
+const SOMM_PAYMENTS = {
+  available: true,
+  scope: "recipient_bucket",
+  summary: {
+    accruedCredits: 100,
+    accruedUsd: 1,
+    settledCredits: 100,
+    settledUsd: 1,
+    outstandingCredits: 0,
+    outstandingUsd: 0,
+    pricedCalls: 1,
+    settlements: 1,
+  },
+  resources: [
+    {
+      application: "somm-agent",
+      applicationId: 2_936_606,
+      tool: "get_idle_assets",
+      flatCredits: 100,
+      flatUsd: 1,
+      beneficiary: "banana_evm",
+      recipient: SOMM_RECIPIENT,
+      chain: "eip155:84532",
+      beneficiaryType: "evm_address",
+      observedCalls: 1,
+      source: SOURCE,
+    },
+  ],
+  buckets: [
+    {
+      id: "somm-proof-bucket",
+      recipient: SOMM_RECIPIENT,
+      outstandingCredits: 0,
+      outstandingUsd: 0,
+    },
+  ],
+  events: [
+    {
+      id: `settle:${SOMM_RECEIPT}`,
+      kind: "settlement_confirmed",
+      occurredAt: 1_785_119_866,
+      application: "somm-agent",
+      applicationId: 2_936_606,
+      tools: [],
+      credits: 100,
+      usd: 1,
+      asset: "USDC",
+      assetAmount: 1,
+      recipient: SOMM_RECIPIENT,
+      paymentMethod: "coinbase",
+      receiptId: SOMM_RECEIPT,
+      chain: "eip155:84532",
+      explorerUrl: `https://sepolia.basescan.org/tx/${SOMM_RECEIPT}`,
+      source: SOURCE,
+    },
+    {
+      id: "usage:somm-proof-fee",
+      kind: "fee_accrued",
+      occurredAt: 1_785_117_576,
+      application: "somm-agent",
+      applicationId: 2_936_606,
+      tools: ["get_idle_assets"],
+      credits: 100,
+      usd: 1,
+      asset: null,
+      assetAmount: null,
+      recipient: SOMM_RECIPIENT,
+      paymentMethod: "partner",
+      receiptId: null,
+      chain: null,
+      explorerUrl: null,
+      source: SOURCE,
+    },
+  ],
+};
 
 const CHAIN_IDS: Record<string, number> = { Ethereum: 1, Base: 8453 };
 
@@ -110,18 +189,171 @@ const OBSERVABILITY = {
     },
   ],
   platformMetrics: [],
-  apps: exampleAppCards(SOURCE),
+  apps: [
+    {
+      applicationId: 2_936_606,
+      application: "somm-agent",
+      active: true,
+      loaded: true,
+      releaseTag: "apps-somm-agent-proof",
+      sdkVersion: "3.0.3",
+      status: "healthy",
+      pricing: {
+        loadedAt: 1_785_118_000,
+        config: {
+          version: 1,
+          beneficiaries: [
+            {
+              name: "banana_evm",
+              type: "evm_address",
+              chain: "eip155:84532",
+              value: SOMM_RECIPIENT,
+            },
+          ],
+          resources: {
+            get_idle_assets: {
+              pricing: { flat: 100 },
+              beneficiary: "banana_evm",
+            },
+          },
+          outcome: [],
+        },
+      },
+      metrics: {
+        available: true,
+        chats24h: 1,
+        toolCalls24h: 1,
+        transactions24h: 1,
+        errorRate: 0,
+        toolErrorRate: 0,
+        txErrorRate: 0,
+        p95LatencyMs: 840,
+      },
+      source: SOURCE,
+    },
+    ...exampleAppCards(SOURCE),
+  ],
+  payments: SOMM_PAYMENTS,
 };
 
 const TRANSACTIONS = {
   sources: [SOURCE],
-  transactions: ALL_TRANSACTIONS.map(txWire),
+  transactions: [
+    {
+      id: `partner-payout:${SOMM_RECEIPT}`,
+      kind: "partner_payout",
+      externalTxId: SOMM_RECEIPT,
+      application: "somm-agent",
+      applicationId: 2_936_606,
+      status: "confirmed",
+      txHash: SOMM_RECEIPT,
+      chainId: 84532,
+      fromAddress: "",
+      toAddress: SOMM_RECIPIENT,
+      value: "1 USDC",
+      hasCalldata: false,
+      calldataPreview: null,
+      description: "Partner settlement via Coinbase",
+      createdAt: 1_785_119_866,
+      updatedAt: 1_785_119_866,
+      submittedAt: 1_785_119_866,
+      family: "evm",
+      chainName: "Base Sepolia",
+      fromLabel: null,
+      toLabel: "beneficiary",
+      valueUsd: "$1.00",
+      block: null,
+      slot: null,
+      confirmations: 158,
+      gasUsed: null,
+      gasLimit: null,
+      effGasPrice: null,
+      computeUnits: null,
+      computeLimit: null,
+      priorityFee: null,
+      txFee: null,
+      platformFee: null,
+      nonce: null,
+      method: "Coinbase x402",
+      transfers: [],
+      revertReason: null,
+      explorerUrl: `https://sepolia.basescan.org/tx/${SOMM_RECEIPT}`,
+      payment: {
+        credits: 100,
+        recipient: SOMM_RECIPIENT,
+        scope: "recipient_bucket",
+      },
+      source: SOURCE,
+    },
+    ...ALL_TRANSACTIONS.map(txWire),
+  ],
   nextCursor: null,
 };
 
 const LOGS = {
   sources: [SOURCE],
-  logs: ALL_LOGS.map(logWire),
+  logs: [
+    {
+      occurredAt: 1_785_119_866,
+      eventType: "usage",
+      id: `settle:${SOMM_RECEIPT}`,
+      application: "somm-agent",
+      applicationId: 2_936_606,
+      summary: "Partner settlement confirmed · 100 credits",
+      details: {
+        source: "partner_settlement",
+        payment_method: "coinbase",
+        recipient: SOMM_RECIPIENT,
+        paid_credits: 100,
+        receipt_id: SOMM_RECEIPT,
+      },
+      kind: "event",
+      status: "info",
+      tool: null,
+      durationMs: null,
+      retries: null,
+      threadId: null,
+      args: null,
+      result: null,
+      source: SOURCE,
+    },
+    {
+      occurredAt: 1_785_117_576,
+      eventType: "usage",
+      id: "usage:somm-proof-fee",
+      application: "somm-agent",
+      applicationId: 2_936_606,
+      summary: "Partner fee accrued · 100 credits",
+      details: {
+        source: "partner_fee",
+        payment_method: "partner",
+        recipient: SOMM_RECIPIENT,
+        credits_used: 100,
+        billing: {
+          items: [
+            {
+              app: "somm-agent",
+              tool: "get_idle_assets",
+              kind: "tool_call",
+              credits: 100,
+              beneficiary: "banana_evm",
+              beneficiary_address: SOMM_RECIPIENT,
+            },
+          ],
+        },
+      },
+      kind: "event",
+      status: "info",
+      tool: null,
+      durationMs: null,
+      retries: null,
+      threadId: null,
+      args: null,
+      result: null,
+      source: SOURCE,
+    },
+    ...ALL_LOGS.map(logWire),
+  ],
   nextCursor: null,
 };
 
@@ -151,7 +383,10 @@ const USAGE = {
       source: SOURCE,
     },
   ],
-  statement: exampleStatement(SOURCE),
+  statement: {
+    ...exampleStatement(SOURCE),
+    payments: SOMM_PAYMENTS,
+  },
 };
 
 const SESSION = {
@@ -191,7 +426,7 @@ export default function DevOperatePreview() {
     return true;
   });
   const router = useRouter();
-  const [kind, setKind] = useState<ViewKind>("observability");
+  const [kind, setKind] = useState<ViewKind>("usage");
   const [detailApp, setDetailApp] = useState<string | null>(null);
   if (!ready) return null;
 

@@ -1,5 +1,15 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { renderHook, waitFor, act } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { createElement, type ReactNode } from "react";
+
+vi.mock("@build/features/launch/dashboard", () => ({
+  fetchGitHubSession: vi.fn(async () => ({
+    signedIn: true,
+    githubLogin: "alice",
+    githubUserId: "u1",
+  })),
+}));
 
 vi.mock("@build/features/launch/client", () => ({
   deploymentSources: vi.fn(async () => ({
@@ -55,19 +65,39 @@ vi.mock("@build/features/launch/client", () => ({
   })),
 }));
 
+import { GitHubSessionProvider } from "@build/components/control-plane/github-session-context";
 import { useProjectDetail } from "./use-project-detail";
 import {
   deploymentRecords,
   deploymentHistory,
   deploymentSecrets,
   deploymentRequiredSecrets,
+  deploymentSources,
+  launchDeploy,
+  launchPreflight,
 } from "@build/features/launch/client";
+
+// Fresh QueryClient per test so react-query cache never leaks across tests.
+function wrapper() {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return function Wrapper({ children }: { children: ReactNode }) {
+    return createElement(
+      QueryClientProvider,
+      { client },
+      createElement(GitHubSessionProvider, null, children),
+    );
+  };
+}
 
 describe("useProjectDetail", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("resolves the source and lazily loads history once", async () => {
-    const { result } = renderHook(() => useProjectDetail(7));
+    const { result } = renderHook(() => useProjectDetail(7), {
+      wrapper: wrapper(),
+    });
     await waitFor(() => expect(result.current.source?.id).toBe(7));
     expect(deploymentHistory).not.toHaveBeenCalled();
     act(() => result.current.loadHistory());
@@ -78,7 +108,9 @@ describe("useProjectDetail", () => {
   });
 
   it("lazily loads records per app once", async () => {
-    const { result } = renderHook(() => useProjectDetail(7));
+    const { result } = renderHook(() => useProjectDetail(7), {
+      wrapper: wrapper(),
+    });
     await waitFor(() => expect(result.current.source?.id).toBe(7));
     expect(deploymentRecords).not.toHaveBeenCalled();
     act(() => result.current.loadRecords());
@@ -97,7 +129,9 @@ describe("useProjectDetail", () => {
     vi.mocked(deploymentRecords).mockRejectedValueOnce(
       new Error("deployment activations failed (401)"),
     );
-    const { result } = renderHook(() => useProjectDetail(7));
+    const { result } = renderHook(() => useProjectDetail(7), {
+      wrapper: wrapper(),
+    });
     await waitFor(() => expect(result.current.source?.id).toBe(7));
     act(() => result.current.loadRecords());
     await waitFor(() =>
@@ -121,7 +155,9 @@ describe("useProjectDetail", () => {
           },
         ],
       });
-    const { result } = renderHook(() => useProjectDetail(7));
+    const { result } = renderHook(() => useProjectDetail(7), {
+      wrapper: wrapper(),
+    });
     await waitFor(() => expect(result.current.source?.id).toBe(7));
 
     act(() => result.current.loadHistory());
@@ -141,7 +177,9 @@ describe("useProjectDetail", () => {
       .mockResolvedValueOnce({
         byApp: { demo: ["$SECRET:APP:demo::KEY"] },
       });
-    const { result } = renderHook(() => useProjectDetail(7));
+    const { result } = renderHook(() => useProjectDetail(7), {
+      wrapper: wrapper(),
+    });
     await waitFor(() => expect(result.current.source?.id).toBe(7));
 
     act(() => result.current.loadSecrets());
@@ -161,7 +199,9 @@ describe("useProjectDetail", () => {
     vi.mocked(deploymentRequiredSecrets).mockResolvedValue({
       byApp: { binance: { slots: [], missing: ["BINANCE_SECRET_KEY"] } },
     });
-    const { result } = renderHook(() => useProjectDetail(42));
+    const { result } = renderHook(() => useProjectDetail(42), {
+      wrapper: wrapper(),
+    });
     act(() => result.current.loadRequiredSecrets());
     await waitFor(() => expect(result.current.requiredSecrets).not.toBeNull());
     expect(result.current.hasMissingSecrets("binance")).toBe(true);
@@ -170,7 +210,9 @@ describe("useProjectDetail", () => {
 
   it("surfaces a required-secrets load failure instead of a false empty state", async () => {
     vi.mocked(deploymentRequiredSecrets).mockRejectedValue(new Error("boom"));
-    const { result } = renderHook(() => useProjectDetail(42));
+    const { result } = renderHook(() => useProjectDetail(42), {
+      wrapper: wrapper(),
+    });
     act(() => result.current.loadRequiredSecrets());
     await waitFor(() =>
       expect(result.current.requiredSecretsError).toBe("boom"),
@@ -178,11 +220,84 @@ describe("useProjectDetail", () => {
     expect(result.current.requiredSecrets).toBeNull();
   });
 
+  it("refreshes the source before gating a redeploy on required secrets", async () => {
+    // Preflight re-syncs the source from the repo, so it can register an app
+    // the page never saw. The gate then fails for that app — and the banner and
+    // Environment tab list apps from `source`, so a stale source leaves the
+    // user with a missing-secret error and nowhere to enter the value.
+    vi.mocked(deploymentSources)
+      .mockResolvedValueOnce({
+        sources: [
+          {
+            id: 7,
+            installationId: 5,
+            repositoryLink: "a/b",
+            apps: [{ name: "my-bot" }],
+            latestDeployment: null,
+          },
+        ],
+      } as never)
+      .mockResolvedValue({
+        sources: [
+          {
+            id: 7,
+            installationId: 5,
+            repositoryLink: "a/b",
+            apps: [{ name: "my-bot" }, { name: "my-bot-2" }],
+            latestDeployment: null,
+          },
+        ],
+      } as never);
+    vi.mocked(launchPreflight).mockResolvedValue({
+      ok: true,
+      appSourceId: 7,
+      sourceRef: "abc1234",
+      apps: ["my-bot", "my-bot-2"],
+    } as never);
+    vi.mocked(deploymentRequiredSecrets).mockResolvedValue({
+      byApp: {
+        "my-bot": { slots: [], missing: [] },
+        "my-bot-2": {
+          slots: [
+            {
+              name: "TELEGRAM_BOT_TOKEN",
+              description: "Token from BotFather.",
+              required: true,
+            },
+          ],
+          missing: ["TELEGRAM_BOT_TOKEN"],
+        },
+      },
+    });
+
+    const { result } = renderHook(() => useProjectDetail(7), {
+      wrapper: wrapper(),
+    });
+    await waitFor(() => expect(result.current.source?.apps).toHaveLength(1));
+
+    await act(async () => {
+      await result.current.redeploySource();
+    });
+
+    expect(result.current.deployFlow).toMatchObject({
+      phase: "error",
+      message: expect.stringContaining("TELEGRAM_BOT_TOKEN"),
+    });
+    // The newly registered app is visible, so the gate banner and the
+    // Environment tab can offer somewhere to set the token.
+    expect(result.current.source?.apps.map((app) => app.name)).toContain(
+      "my-bot-2",
+    );
+    expect(launchDeploy).not.toHaveBeenCalled();
+  });
+
   it("surfaces direct required-secret check failures for a redeploy target", async () => {
     vi.mocked(deploymentRequiredSecrets).mockRejectedValueOnce(
       new Error("manifest unavailable"),
     );
-    const { result } = renderHook(() => useProjectDetail(42));
+    const { result } = renderHook(() => useProjectDetail(42), {
+      wrapper: wrapper(),
+    });
 
     await act(async () => {
       await expect(

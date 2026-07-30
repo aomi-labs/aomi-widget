@@ -7,7 +7,12 @@
 
 import { Fragment } from "react";
 import { ChevronDown, ChevronRight, Copy, ExternalLink, X } from "lucide-react";
-import { chainLabel, secondsLabel, truncateAddress, valueLabel } from "./format";
+import {
+  chainLabel,
+  secondsLabel,
+  truncateAddress,
+  valueLabel,
+} from "./format";
 
 type TxRow = Record<string, any>;
 
@@ -19,7 +24,13 @@ const STATUS_CHIP: Record<string, string> = {
   created: "bg-surface-subtle text-dim border-border",
 };
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className="flex flex-col gap-0.5 py-1.5 sm:flex-row sm:gap-3">
       <dt className="text-dim w-44 shrink-0 text-xs sm:pt-0.5">{label}</dt>
@@ -29,7 +40,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 function Mono({ children }: { children: React.ReactNode }) {
-  return <span className="font-mono text-xs break-all">{children}</span>;
+  return <span className="break-all font-mono text-xs">{children}</span>;
 }
 
 function CopyBtn({ value }: { value: string }) {
@@ -66,6 +77,7 @@ function statusDetail(tx: TxRow): string {
 
 function TxDetail({ tx }: { tx: TxRow }) {
   const svm = tx.family === "svm";
+  const payout = tx.kind === "partner_payout";
   return (
     <div className="bg-surface-subtle/50 grid gap-x-8 px-4 py-4 lg:grid-cols-[1fr_360px]">
       {/* Onchain facts */}
@@ -77,11 +89,15 @@ function TxDetail({ tx }: { tx: TxRow }) {
               <CopyBtn value={String(tx.txHash)} />
             </>
           ) : (
-            <span className="text-dim text-sm">not yet submitted — awaiting wallet signature</span>
+            <span className="text-dim text-sm">
+              not yet submitted — awaiting wallet signature
+            </span>
           )}
         </Field>
         <Field label="Status">
-          <span className={`rounded-full border px-2 py-0.5 text-xs ${STATUS_CHIP[String(tx.status)] ?? STATUS_CHIP.created}`}>
+          <span
+            className={`rounded-full border px-2 py-0.5 text-xs ${STATUS_CHIP[String(tx.status)] ?? STATUS_CHIP.created}`}
+          >
             {statusDetail(tx)}
           </span>
           {tx.revertReason ? (
@@ -93,41 +109,65 @@ function TxDetail({ tx }: { tx: TxRow }) {
         {tx.block || tx.slot ? (
           <Field label={svm ? "Slot" : "Block"}>
             <Mono>{tx.block ?? tx.slot}</Mono>
-            <span className="text-dim ml-2 text-xs">{secondsLabel(tx.createdAt)}</span>
+            <span className="text-dim ml-2 text-xs">
+              {secondsLabel(tx.createdAt)}
+            </span>
           </Field>
         ) : null}
-        <Field label="From">
-          <Mono>{tx.fromAddress}</Mono>
-          <CopyBtn value={String(tx.fromAddress ?? "")} />
-          {tx.fromLabel ? <span className="text-dim ml-2 text-xs">({tx.fromLabel})</span> : null}
+        <Field label={payout ? "Payer" : "From"}>
+          {tx.fromAddress ? (
+            <>
+              <Mono>{tx.fromAddress}</Mono>
+              <CopyBtn value={String(tx.fromAddress)} />
+            </>
+          ) : (
+            <span className="text-dim text-xs">not recorded</span>
+          )}
+          {tx.fromLabel ? (
+            <span className="text-dim ml-2 text-xs">({tx.fromLabel})</span>
+          ) : null}
         </Field>
         <Field label={svm ? "Program" : "Interacted with (To)"}>
           <Mono>{tx.toAddress}</Mono>
           <CopyBtn value={String(tx.toAddress ?? "")} />
-          {tx.toLabel ? <span className="text-dim ml-2 text-xs">({tx.toLabel})</span> : null}
+          {tx.toLabel ? (
+            <span className="text-dim ml-2 text-xs">({tx.toLabel})</span>
+          ) : null}
         </Field>
         {Array.isArray(tx.transfers) && tx.transfers.length ? (
           <Field label={svm ? "Token transfers" : "ERC-20 transfers"}>
             <div className="space-y-1">
               {tx.transfers.map((transfer: string) => (
-                <div key={transfer} className="font-mono text-xs">{transfer}</div>
+                <div key={transfer} className="font-mono text-xs">
+                  {transfer}
+                </div>
               ))}
             </div>
           </Field>
         ) : null}
-        <Field label="Value">
+        <Field label={payout ? "Settlement amount" : "Value"}>
           <span className="font-medium">{valueLabel(tx.value)}</span>
-          {tx.valueUsd ? <span className="text-dim ml-2 text-xs">{tx.valueUsd}</span> : null}
+          {tx.valueUsd ? (
+            <span className="text-dim ml-2 text-xs">{tx.valueUsd}</span>
+          ) : null}
         </Field>
         {tx.txFee ? (
           <Field label="Transaction fee">
             <span className="font-medium">{tx.txFee}</span>
             <span className="text-dim ml-2 text-xs">
               {svm
-                ? [tx.computeUnits && `${tx.computeUnits} CU of ${tx.computeLimit ?? "—"}`, tx.priorityFee && `priority ${tx.priorityFee}`]
+                ? [
+                    tx.computeUnits &&
+                      `${tx.computeUnits} CU of ${tx.computeLimit ?? "—"}`,
+                    tx.priorityFee && `priority ${tx.priorityFee}`,
+                  ]
                     .filter(Boolean)
                     .join(" · ")
-                : [tx.gasUsed && `${tx.gasUsed} gas used of ${tx.gasLimit ?? "—"}`, tx.effGasPrice]
+                : [
+                    tx.gasUsed &&
+                      `${tx.gasUsed} gas used of ${tx.gasLimit ?? "—"}`,
+                    tx.effGasPrice,
+                  ]
                     .filter(Boolean)
                     .join(" · ")}
             </span>
@@ -161,16 +201,31 @@ function TxDetail({ tx }: { tx: TxRow }) {
       <div className="mt-4 lg:mt-0">
         <div className="border-border bg-surface rounded-md border">
           <div className="border-border text-dim border-b px-3 py-2 text-xs font-medium uppercase">
-            Agent context
+            {payout ? "Partner payment context" : "Agent context"}
           </div>
           <dl className="px-3 py-2">
             <Field label="App">
               <span className="font-medium">{tx.application}</span>
             </Field>
-            <Field label="User intent">
-              {/* Privacy ruling: intent-level content is never shown to builders. */}
-              <span className="text-dim text-xs">hidden · user privacy</span>
-            </Field>
+            {payout ? (
+              <>
+                <Field label="Ledger scope">
+                  <span className="text-dim text-xs">
+                    recipient bucket · may settle more than one priced call
+                  </span>
+                </Field>
+                <Field label="Credits cleared">
+                  <span className="font-mono text-xs">
+                    {Number(tx.payment?.credits ?? 0).toFixed(2)}
+                  </span>
+                </Field>
+              </>
+            ) : (
+              <Field label="User intent">
+                {/* Privacy ruling: intent-level content is never shown to builders. */}
+                <span className="text-dim text-xs">hidden · user privacy</span>
+              </Field>
+            )}
             <Field label="External tx id">
               <Mono>{tx.externalTxId}</Mono>
             </Field>
@@ -206,7 +261,9 @@ export function TransactionRows({
   openId: string | null;
   onToggle: (id: string | null) => void;
 }) {
-  const visible = rows.filter((tx) => !appFilter || tx.application === appFilter);
+  const visible = rows.filter(
+    (tx) => !appFilter || tx.application === appFilter,
+  );
   return (
     <div className="space-y-3">
       <div className="border-border bg-surface-subtle flex flex-wrap items-center gap-2 rounded-md border px-3 py-2">
@@ -217,7 +274,9 @@ export function TransactionRows({
         >
           <option value="">All apps</option>
           {apps.map((app) => (
-            <option key={app} value={app}>{app}</option>
+            <option key={app} value={app}>
+              {app}
+            </option>
           ))}
         </select>
         {appFilter ? (
@@ -229,22 +288,24 @@ export function TransactionRows({
             <X className="size-3" /> clear filter
           </button>
         ) : null}
-        <span className="text-dim ml-auto text-xs">{visible.length} transactions</span>
+        <span className="text-dim ml-auto text-xs">
+          {visible.length} records
+        </span>
       </div>
       <div className="border-border overflow-x-auto rounded-md border">
-        <table className="divide-border min-w-full divide-y text-sm">
+        <table className="divide-border w-full min-w-[960px] table-fixed divide-y text-sm">
           <thead className="bg-surface-subtle text-dim text-left text-xs uppercase">
             <tr>
               <th className="w-8 px-3 py-2" aria-label="expand" />
-              <th className="px-3 py-2">Time</th>
-              <th className="px-3 py-2">App</th>
-              <th className="px-3 py-2">Status</th>
-              <th className="px-3 py-2">Chain</th>
-              <th className="px-3 py-2">From</th>
-              <th className="px-3 py-2">To</th>
-              <th className="px-3 py-2">Value</th>
+              <th className="w-44 px-3 py-2">Time</th>
+              <th className="w-44 px-3 py-2">App</th>
+              <th className="w-24 px-3 py-2">Status</th>
+              <th className="w-28 px-3 py-2">Chain</th>
+              <th className="w-28 px-3 py-2">From</th>
+              <th className="w-28 px-3 py-2">To</th>
+              <th className="w-24 px-3 py-2">Value</th>
               <th className="px-3 py-2">Description</th>
-              <th className="px-3 py-2">Hash</th>
+              <th className="w-28 px-3 py-2">Hash</th>
             </tr>
           </thead>
           <tbody className="divide-border bg-surface divide-y">
@@ -257,27 +318,68 @@ export function TransactionRows({
                     className="hover:bg-surface-subtle cursor-pointer"
                   >
                     <td className="text-dim px-3 py-2">
-                      {open ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
+                      {open ? (
+                        <ChevronDown className="size-3.5" />
+                      ) : (
+                        <ChevronRight className="size-3.5" />
+                      )}
                     </td>
-                    <td className="text-dim whitespace-nowrap px-3 py-2">{secondsLabel(tx.createdAt)}</td>
-                    <td className="px-3 py-2">{tx.application}</td>
+                    <td className="text-dim whitespace-nowrap px-3 py-2">
+                      {secondsLabel(tx.createdAt)}
+                    </td>
+                    <td className="min-w-0 px-3 py-2">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <span className="truncate" title={tx.application}>
+                          {tx.application}
+                        </span>
+                        {tx.kind === "partner_payout" ? (
+                          <span
+                            aria-label="Partner payout"
+                            className="border-border bg-surface-subtle text-dim shrink-0 rounded-full border px-1.5 py-0.5 text-[10px] font-medium uppercase"
+                          >
+                            Payout
+                          </span>
+                        ) : null}
+                      </div>
+                    </td>
                     <td className="px-3 py-2">
-                      <span className={`rounded-full border px-2 py-0.5 text-xs ${STATUS_CHIP[String(tx.status)] ?? STATUS_CHIP.created}`}>
+                      <span
+                        className={`rounded-full border px-2 py-0.5 text-xs ${STATUS_CHIP[String(tx.status)] ?? STATUS_CHIP.created}`}
+                      >
                         {tx.status}
                       </span>
                     </td>
-                    <td className="whitespace-nowrap px-3 py-2">{chainLabel(tx)}</td>
-                    <td className="max-w-36 truncate px-3 py-2 font-mono text-xs" title={String(tx.fromAddress ?? "")}>
+                    <td
+                      className="truncate whitespace-nowrap px-3 py-2"
+                      title={chainLabel(tx)}
+                    >
+                      {chainLabel(tx)}
+                    </td>
+                    <td
+                      className="max-w-36 truncate px-3 py-2 font-mono text-xs"
+                      title={String(tx.fromAddress ?? "")}
+                    >
                       {truncateAddress(tx.fromAddress)}
                     </td>
-                    <td className="max-w-36 truncate px-3 py-2 font-mono text-xs" title={String(tx.toAddress ?? "")}>
+                    <td
+                      className="max-w-36 truncate px-3 py-2 font-mono text-xs"
+                      title={String(tx.toAddress ?? "")}
+                    >
                       {truncateAddress(tx.toAddress)}
                     </td>
-                    <td className="whitespace-nowrap px-3 py-2 font-mono text-xs">{valueLabel(tx.value)}</td>
-                    <td className="max-w-56 truncate px-3 py-2 text-xs" title={String(tx.description ?? "")}>
+                    <td className="whitespace-nowrap px-3 py-2 font-mono text-xs">
+                      {valueLabel(tx.value)}
+                    </td>
+                    <td
+                      className="max-w-56 truncate px-3 py-2 text-xs"
+                      title={String(tx.description ?? "")}
+                    >
                       {tx.description ? String(tx.description) : "—"}
                     </td>
-                    <td className="max-w-36 truncate px-3 py-2 font-mono text-xs" title={String(tx.txHash ?? "")}>
+                    <td
+                      className="max-w-36 truncate px-3 py-2 font-mono text-xs"
+                      title={String(tx.txHash ?? "")}
+                    >
                       {tx.txHash ? truncateAddress(tx.txHash) : "—"}
                     </td>
                   </tr>

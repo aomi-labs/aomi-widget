@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { UserSource, UserSourceLatestDeployment } from "@aomi-labs/deploy";
 import {
   deploymentSources,
@@ -26,10 +27,16 @@ import {
   type RequiredSecretsByApp,
 } from "@build/features/launch/required-secrets";
 import type {
-  LaunchSdkStatus,
   DeploymentPromoteResult,
   DeploymentRecord,
+  DeploymentSourcesResult,
 } from "@build/features/launch/contracts";
+import { useGitHubSession } from "@build/components/control-plane/github-session-context";
+import {
+  buildQueryKeys,
+  buildQueryStaleTime,
+  githubAccountKey,
+} from "../query-keys";
 
 /** Progress of an in-flight linked-source redeploy (deploy → CI → activate). */
 export type DeployFlowState =
@@ -44,10 +51,61 @@ const DEPLOY_POLL_MS = 4000;
 const DEPLOY_TIMEOUT_MS = 8 * 60 * 1000;
 
 export function useProjectDetail(sourceId: number, platform?: string) {
-  const [source, setSource] = useState<UserSource | null>(null);
-  const [sdk, setSdk] = useState<LaunchSdkStatus | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { account } = useGitHubSession();
+  const accountKey = githubAccountKey(account.githubLogin);
+  const queryClient = useQueryClient();
+  const sourceKey = useMemo(
+    () =>
+      buildQueryKeys.projectSource(
+        accountKey ?? "unavailable",
+        sourceId,
+        platform,
+      ),
+    [accountKey, platform, sourceId],
+  );
+  const projectsKey = buildQueryKeys.projects(accountKey ?? "unavailable");
+
+  // Source + SDK status live in react-query. The source is a server-filtered
+  // single-source read (`appSourceId` on the sources BFF route) — a project
+  // page never transfers the whole account. Warm navigations skip even that:
+  // `initialData` seeds from the `/projects` list the index already fetched,
+  // stamped with that list's own freshness, so list → project paints from
+  // cache and doesn't refetch while the list is still fresh.
+  // `enabled: !account.loading` fires the read once the session is known
+  // (signed-out surfaces the auth error, as the hand-rolled version did),
+  // never gating on the SDK badge.
+  const sourcesQuery = useQuery({
+    queryKey: sourceKey,
+    queryFn: () => deploymentSources(platform, sourceId),
+    enabled: !account.loading,
+    staleTime: buildQueryStaleTime.projects,
+    initialData: () => {
+      const list =
+        queryClient.getQueryData<DeploymentSourcesResult>(projectsKey);
+      const seeded = list?.sources.find((s) => s.id === sourceId);
+      return seeded ? { ...list, sources: [seeded] } : undefined;
+    },
+    initialDataUpdatedAt: () =>
+      queryClient.getQueryState(projectsKey)?.dataUpdatedAt,
+  });
+  const sdkQuery = useQuery({
+    queryKey: buildQueryKeys.sdkStatus(),
+    queryFn: () => deploymentSdkStatus().catch(() => null),
+    enabled: !account.loading,
+    staleTime: buildQueryStaleTime.sdkStatus,
+  });
+  const source = useMemo(
+    () => sourcesQuery.data?.sources.find((s) => s.id === sourceId) ?? null,
+    [sourcesQuery.data, sourceId],
+  );
+  const sdk = sdkQuery.data ?? null;
+  const loading = account.loading || sourcesQuery.isPending;
+  const error = sourcesQuery.error
+    ? sourcesQuery.error instanceof Error
+      ? sourcesQuery.error.message
+      : "Failed to load project"
+    : null;
+
   const [history, setHistory] = useState<UserSourceLatestDeployment[] | null>(
     null,
   );
@@ -74,9 +132,9 @@ export function useProjectDetail(sourceId: number, platform?: string) {
   const recordsReq = useRef(false);
   const requiredSecretsReq = useRef(false);
 
+  // Refetch source + SDK status. Kept stable (keyed via the query client, not
+  // the query objects) so callbacks depending on it don't churn every render.
   const reload = useCallback(async () => {
-    setLoading(true);
-    setError(null);
     // Clear the records latch so "Refresh" actually recovers a failed
     // deployment-activity load. On error `fetchRecords` sets `recordsByApp` to
     // `{}` (non-null), which otherwise makes `loadRecords` no-op forever and
@@ -84,23 +142,20 @@ export function useProjectDetail(sourceId: number, platform?: string) {
     recordsReq.current = false;
     setRecords(null);
     setRecordsError(null);
-    try {
-      const [{ sources }, sdkStatus] = await Promise.all([
-        deploymentSources(platform),
-        deploymentSdkStatus().catch(() => null),
-      ]);
-      setSource(sources.find((s) => s.id === sourceId) ?? null);
-      setSdk(sdkStatus);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load project");
-    } finally {
-      setLoading(false);
-    }
-  }, [platform, sourceId]);
+    await Promise.all([
+      queryClient.refetchQueries({ queryKey: sourceKey }),
+      queryClient.refetchQueries({ queryKey: buildQueryKeys.sdkStatus() }),
+    ]);
+  }, [queryClient, sourceKey]);
 
+  // Reset the deployment-activity latch when the project changes so a same-route
+  // navigation (…/projects/1 → …/projects/2, no unmount) doesn't strand the
+  // previous project's records. The source itself refreshes via react-query.
   useEffect(() => {
-    void reload();
-  }, [reload]);
+    recordsReq.current = false;
+    setRecords(null);
+    setRecordsError(null);
+  }, [sourceId, platform]);
 
   const loadHistory = useCallback(() => {
     if (historyReq.current || history !== null) return;
@@ -308,6 +363,13 @@ export function useProjectDetail(sourceId: number, platform?: string) {
       });
       const pre = await launchPreflight({ repo, platform });
       const appSourceId = pre.appSourceId ?? sourceId;
+      // Preflight re-syncs the source from the repo, so HEAD's `aomi.toml` can
+      // register apps this page never saw. Refresh the source before gating:
+      // the required-secret check runs against `pre.apps`, and both the gate
+      // banner and the Environment tab list apps from `source.apps`. Without
+      // this the check can fail for an app the UI has no row for — the user is
+      // told a secret is missing with nowhere to enter it.
+      await reload();
       await ensureRequiredSecrets(pre.apps, appSourceId);
       setDeployFlow({ phase: "deploying", message: "Deploying new version…" });
       const deployed = await launchDeploy({
@@ -409,6 +471,8 @@ export function useProjectDetail(sourceId: number, platform?: string) {
     loading,
     error,
     sdk,
+    /** Cache namespace for account-scoped queries (null until session resolves). */
+    accountKey,
     history,
     historyError,
     secretsByApp,

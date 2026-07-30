@@ -79,6 +79,25 @@ export function revokeProviderGrant(providerKey: string): Promise<unknown> {
   );
 }
 
+/** Provision a provider-managed agent wallet (Para auto-signing prerequisite). */
+export async function provisionAgentWallet(provider: string): Promise<AccountWalletRow> {
+  const data = await accountScopedFetch<{ wallet: AccountWalletRow }>(
+    `/api/account/providers/${encodeURIComponent(provider)}/agent-wallet`,
+    { method: "POST", body: JSON.stringify({}) },
+  );
+  return data.wallet;
+}
+
+const GRANT_KIND_LABELS: Record<string, string> = {
+  session_delegation: "Session delegation",
+  agent_delegation: "Agent delegation",
+  signing_delegation: "Signing delegation",
+};
+
+export function grantKindLabel(kind: string): string {
+  return GRANT_KIND_LABELS[kind] ?? kind.replace(/_/g, " ");
+}
+
 /**
  * Normalize the kernel's `signing_mode` to the view's `SignerMode`, absorbing
  * the pre-rename wire values (`human_sync` / `agent_sync`) that `from_db` still
@@ -140,7 +159,7 @@ function toDelegationGrant(row: AccountGrantRow): DelegationGrant {
     provider: titleCase(row.provider),
     providerKey: row.provider,
     scope: grantScope(row),
-    kind: row.grant_kind.replace(/_/g, " "),
+    kind: grantKindLabel(row.grant_kind),
     status: row.status,
     expiresLabel:
       row.status === "revoked"

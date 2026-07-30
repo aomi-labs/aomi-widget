@@ -136,9 +136,10 @@ export function launchSdkStatus(): Promise<LaunchSdkStatus> {
 
 export function deploymentSources(
   platform?: string,
+  appSourceId?: number,
 ): Promise<DeploymentSourcesResult> {
   return launchFetch(
-    API_PATHS.bff.deployments.sources(platform),
+    API_PATHS.bff.deployments.sources(platform, appSourceId),
     "deployment sources",
   );
 }

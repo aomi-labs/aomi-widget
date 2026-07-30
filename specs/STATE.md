@@ -2,6 +2,144 @@
 
 ## Last Updated
 
+2026-07-30 — Operate batch reads for the REST of the herd: transactions,
+  statement, usage, logs (branch `fix/operate-batch-reads` in aomi,
+  `feat/operate-batch-reads` in product-mono). Cecilia reported Transactions
+  and Usage still showing "0 of 111 — pick a single source" with Usage then
+  presenting the Example-data statement; teammates with real transactions
+  could not see them. MEASURED: per-source statement reads are ~1s solo but
+  ~5–6s each at the BFF's exact 6-wide fan-out (~1 source/sec throughput) —
+  111 sources can never fit the 20s budget, so both fan-out legs mass-drop.
+  MANAGER (product-mono): four new service routes under
+  /api/integrations/github-app/user/ — transactions + logs return ONE
+  globally-merged newest-first page (global tuple cursor; pagination got
+  simpler), statement + usage return per-source results arrays in the exact
+  single-source wire shapes. Shared endpoints/batch_scope.rs resolves every
+  owned source under its own bound/loaded platform (observability batch
+  refactored onto it); statement buckets/usage/logs SQL batched via
+  unnest-pairs joins (EXPLAIN-validated read-only against the live DB before
+  deploy); partner-payment ledgers only for sources WITH apps, in waves of 8.
+  Shared partner-settlement log rows carry NULL app_source_id (account-level).
+  AOMI: deploy client listUserTransactions/getUserStatements/getUserUsage/
+  listUserLogs; BFF routes batch-first (batch caches, 15s), 404 → legacy
+  fan-out fallback, single-source (?appSourceId=) stays on per-source reads
+  (also fixed: observability batch now narrows to the picked source).
+  UX per Cecilia ("the old way is better"): DegradedNotice banner REMOVED
+  everywhere, `degraded` off the wire; a fallback losing EVERY read now 503s
+  ("Operate reads are temporarily unavailable") → FE red error state instead
+  of empty-page-plus-banner or Example data. exampleStatement remains ONLY
+  for genuinely available:false statements (BE-not-migrated), never for
+  failures. Composite cursor gained a `batch` slot ({batch: {...}} on the
+  wire, opaque to the FE).
+  Verified: manager cargo test 137+manifest, clippy/fmt clean; worker
+  node --test green (route added to MANAGER_ROUTE_PATTERNS + test); aomi
+  vitest 1154 passed, tsc + lint clean. DEPLOY ORDER: product-mono first
+  (backend auto-deploys on merge; worker needs MANUAL
+  `wrangler deploy --env staging` with Han's CLOUDFLARE_ACCOUNT_ID), verify
+  via probe, then merge aomi. FOLLOW-UPS: prod worker deploy with the next
+  prod backend release; delete settleBySource + per-source fallback once
+  batch soaks; consider caching partner-payment reports (still the slowest
+  leg of statement/observability batches).
+
+2026-07-30 — Observability batch read: fan-out removed at the source (branch
+  `feat/operate-batch-observability` in BOTH repos; aomi PR #426, product-mono
+  PR #901; based on main incl. #423 + #424).
+  ROOT CAUSE (measured on staging via a minted service bearer, 113 sources):
+  one per-source observability read = ~1.9s (~9 Grafana HTTP queries); at the
+  BFF's 6-wide fan-out reads stretch to 6.1–8.6s because Grafana serializes
+  the ~54 concurrent queries — every read outlives #423's 8s per-source
+  timeout, so /operate/observability rendered "Showing 0 of 113 sources".
+  Also: partner-bound sources (somm.finance) 404 "not launch-relevant" under
+  the default platform on every unscoped page load — permanently counted in
+  the degraded banner. Probe recipe + full facts in auto-memory
+  (observability-fanout-root-cause).
+  MANAGER (product-mono #901): new service route
+  GET /api/integrations/github-app/user/observability?github_user_id=
+  [&platform=] → { results: [single-source wire shape] }. One
+  Grafana/rollup snapshot per PLATFORM (operate_monitoring generalized to a
+  source-id set; transaction_metrics_24h_for_sources ANY($1)); each source
+  resolved under its own bound/loaded platform (fixes partner 404s);
+  partner-payment ledgers in bounded waves of 8; single-source read's
+  sequential per-app current_sdk_version N+1 replaced with batched
+  current_sdk_versions; app_health_json/dashboard_links_json shared between
+  single + batch so shapes can't drift.
+  AOMI (#426): packages/deploy getUserObservability(); BFF
+  operateObservabilityRoute does ONE batch read (15s TimedPromiseCache).
+  404 (pre-batch manager, mid-rollout) → falls back to the #423 bounded
+  per-source fan-out; other errors surface. degraded unset on batch path.
+  FE untouched (same response shape).
+  DEPLOY ORDER: either PR lands first (fallback covers the gap); page gets
+  fast only once the manager deploys. FOLLOW-UPS once staging verifies:
+  delete the per-source fallback + settleBySource for observability; apply
+  the same batch pattern to transactions/usage/logs/statement (same herd);
+  then re-check the "0 of N" banner never fires.
+  Verified: manager cargo test 137+manifest, clippy/fmt clean, backend check
+  green; aomi 497/497 (apps/build + packages/deploy), type-check + lint clean.
+
+2026-07-29 — Build project-page perf: react-query ownership + parallel reads
+  (worktree untitled-session-7921bd, uncommitted; based on main 0e89ece2).
+  Diagnosis: /projects/:id was the last page outside react-query — hand-rolled
+  fetch of ALL sources per mount, first paint gated on `Promise.all(sources,
+  sdkStatus)`, no prefetch entry, then a strict depth-2 waterfall for HomeTab's
+  secrets+usage. Changes (apps/build):
+  - `use-project-detail.ts`: source/sdk/loading/error now `useQuery`-owned.
+    Source list keyed by NEW `buildQueryKeys.projectSources(account, platform)`
+    — identical to the `projects` key when unbound (shares the /projects index
+    cache + hover prefetch; nav list→project reads cache), platform-scoped for
+    bound projects (1620/somm.finance would `.find()` nothing in the unbound
+    list). sdkStatus is its own query and NO LONGER gates first paint (badge
+    fills in; `sdkCompatibility(_, null)`="unknown" so nothing flashes).
+    `reload()` → `refetchQueries`; records-latch reset preserved on
+    [sourceId, platform] change. Hook also returns `accountKey`.
+  - `prefetch-control-plane-route.ts`: NEW `prefetchProjectDetail()` (sources +
+    sdk + usage) + a /projects/:id matcher case — hover now warms the detail
+    page; ProjectPage calls the same helper on mount so cold loads run all
+    reads in parallel; ProjectPage also fires `loadSecrets()` for home/env tabs
+    at mount instead of after the source read.
+  - `home-tab.tsx`: usage peek moved from useState/useEffect onto `useQuery`
+    with the operate usage key (shared with /operate/usage + prefetch).
+  - `server/bff/launch/routes.ts`: `timedManagerRead()` logs around
+    `list_user_sources` + `server_tags` — read off one staging load to decide
+    whether the manager needs a single-source/filtered read (fix #4).
+  Behavior deltas: manual refresh no longer shows the full-tab spinner when
+  data exists (SWR semantics via isPending); cold DIRECT loads wait for the
+  GitHub session before the source read (cache key needs accountKey).
+  Second pass (same session) — the two items first skipped, now done properly:
+  - BFF launch read cache WITH mutation invalidation (`launch/routes.ts`):
+    `readCache.{sources,serverTags}` (TimedPromiseCache, 15s) behind
+    userSourcesRoute + launchSdkStatusRoute; unlike operate's read-only cache,
+    every source-mutating route clears it via exported `clearLaunchReadCache()`
+    — deploy/preflight factory, create-repo, activate, promote, deactivate,
+    redeploy, and sourceSdkUpgradeRoute (source-upgrade.ts). This is what makes
+    the cache safe for the redeploy→reload() flow (preflight registers apps;
+    the next sources read must see them). timedManagerRead sits INSIDE the
+    cache loader, so timing logs now measure only real manager calls.
+  - Single-source read WITHOUT losing cache sharing: `?appSourceId=` on the
+    sources BFF route filters BFF-side off the cached list (manager has no
+    single-source endpoint; manager URL unchanged). Client chain:
+    `API_PATHS...sources(platform, appSourceId)` → `deploymentSources(platform,
+    appSourceId)`. Hook now queries `buildQueryKeys.projectSource(account,
+    sourceId, platform)` (nested under the projects prefix) with
+    `initialData`/`initialDataUpdatedAt` seeded from the `projects` LIST cache
+    — warm list→project nav paints from cache with zero fetch while the list
+    is fresh; cold loads transfer ONE source instead of the whole account.
+    `projectSources` key helper replaced by `projectSource`; prefetch warms the
+    slim read.
+  Tests: use-project-detail.test.ts + home-tab.test.tsx + project-page.test.tsx
+  gained QueryClientProvider/GitHubSessionProvider harnesses (pattern from
+  use-projects.test.ts); user-sources.test.ts +3 (appSourceId filter + no
+  manager leak, malformed→400, cache coalesce + clear seam; afterEach clears
+  the module-level cache). Verified: aomi-build type-check, eslint, prettier,
+  full suite 353/353. NOTE for worktree sessions: vitest excludes
+  `**/.claude/**` so running tests INSIDE a .claude worktree needs a throwaway
+  config that drops that exclude + cwd at worktree root; `@aomi-labs/widget-lib`
+  = apps/shadcn-registry and needs `pnpm run build:package` THERE (root
+  build:lib builds packages/react, not it); root build:lib also dirties
+  committed packages/client/dist maps — revert those.
+  Related: PR #423 (unmerged) bounds the operate settleBySource fan-out
+  (6-way cap / 8s per-source / 20s budget) — covers /operate/observability;
+  nothing here overlaps it.
+
 2026-07-27 — Light/dark token sweep. Dark mode was losing all structure: in
   `themes/default.css` the dark block collapsed `--aomi-surface-2`, `--aomi-raised`
   and `--aomi-border` onto a single `#27272a`, so every hairline drawn on a panel
@@ -897,6 +1035,45 @@
 2026-07-13 — Billing option A: methods live on Chat (no fake Build fetch);
 2026-07-13 — Fixed required-secrets gate fail-open (P1, external review);
 2026-07-13 — BILLING-EXPERIENCE.md: backend ↔ UI map (code-checked)
+
+## Required-secret gate hid the app it blocked on (2026-07-27)
+
+Reported on build-staging `/projects/1580?tab=deployments`: deploying failed
+with `Missing required secrets — <app>: <KEY>`, but nothing offered a place to
+enter the value — no gate banner with "Set required secrets", and the
+Environment tab listed no such variable.
+
+Cause: `redeploySource` runs `launchPreflight`, which re-syncs the source from
+the repo (`syncSource`, `server/bff/launch/routes.ts:301`) and returns
+`pre.apps` from the *preflight deployment*. HEAD's `aomi.toml` can therefore
+register apps the page's `source` snapshot predates. `ensureRequiredSecrets`
+gates on `pre.apps` (fresh), while the gate banner
+(`deployments-tab.tsx`) and the Environment tab's app list
+(`environment-tab.tsx`) both enumerate `source.apps` (stale) — so the deploy
+error could name an app neither surface would render a row for. It also
+explains why Deploy was clickable at all: the initial gate only checked the
+old app set and saw nothing missing.
+
+- `use-project-detail.ts`: `redeploySource` now `await reload()`s between
+  preflight and the required-secret check, so `source.apps` reflects what the
+  gate is about to check.
+- `deployments-tab.tsx` / `environment-tab.tsx`: apps are the **union** of
+  `source.apps` and the `requiredSecrets` keys, so an app the check flagged is
+  always listed (and settable) even if the source snapshot lags.
+- `environment-tab.tsx` now renders `requiredSecretsError` with a Retry — it
+  was swallowed, so a failed check rendered as "this app has no required
+  secrets", the opposite of the truth. This blind spot was never covered.
+- Tests: 3 added (env tab union + error banner, hook refresh-before-gate;
+  the hook test fails without the `reload()`). Launch suite 142 pass, tsc and
+  eslint clean.
+
+Not verified against staging data: the exact app/KEY pair is whatever the
+repo's current `aomi.toml` declares. If the symptom persists after a hard
+reload, capture
+`/api/bff/deployments/required-secrets?appSourceId=<id>` (status + body) — a
+503 there means `RequiredSecretsCheckError` (missing `GITHUB_TOKEN`,
+unresolvable `platformRepo`, or an unreadable release `manifest.json`), which
+is a different failure with the same silent-UI symptom.
 
 ## Operate statement + example-data fallback (2026-07-19)
 

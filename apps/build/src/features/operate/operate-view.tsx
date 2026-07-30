@@ -11,15 +11,19 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
-import {
-  useGitHubSession,
-  type GitHubAccountState,
-} from "@build/components/control-plane/github-session-context";
+import { ControlPlaneLink } from "@build/components/control-plane/control-plane-link";
+import { useGitHubSession } from "@build/components/control-plane/github-session-context";
 import {
   GitHubSignInPanel,
   LoadingPanel,
 } from "@build/features/launch/components/deployments/ui/state-panels";
+import {
+  buildQueryKeys,
+  buildQueryStaleTime,
+  githubAccountKey,
+} from "@build/features/launch/query-keys";
 import { operateFetch, type OperateKind } from "./client";
 import {
   bytesLabel,
@@ -28,6 +32,7 @@ import {
   percentLabel,
   truncateAddress,
   unitLabel,
+  usdLabel,
 } from "./format";
 import { TransactionRows } from "./tx-rows";
 import {
@@ -59,6 +64,7 @@ type OperatePayload = {
   dashboardLinks?: Array<Record<string, any>>;
   monitoring?: Record<string, any> | null;
   platformMetrics?: Array<Record<string, any>>;
+  payments?: Record<string, any> | null;
   nextCursor?: unknown | null;
 };
 
@@ -106,6 +112,7 @@ function EmptyState({
       {actionHref && actionLabel ? (
         <Link
           href={actionHref}
+          prefetch={false}
           className="bg-primary text-primary-foreground mt-4 inline-flex h-8 items-center justify-center rounded-md px-3 text-xs font-medium hover:opacity-90"
         >
           {actionLabel}
@@ -115,7 +122,10 @@ function EmptyState({
   );
 }
 
-function appDetailHref(app: Record<string, any>): string | null {
+function appDetailHref(
+  app: Record<string, any>,
+  platform?: string,
+): string | null {
   const applicationId = Number(app.applicationId);
   const sourceId = Number(app.source?.id);
   if (
@@ -126,7 +136,9 @@ function appDetailHref(app: Record<string, any>): string | null {
   ) {
     return null;
   }
-  return `/operate/observability/${applicationId}?project=${sourceId}`;
+  const params = new URLSearchParams({ project: String(sourceId) });
+  if (platform) params.set("platform", platform);
+  return `/operate/observability/${applicationId}?${params}`;
 }
 
 const STATUS_DOT: Record<string, string> = {
@@ -197,10 +209,12 @@ function Rows({
   kind,
   payload,
   view,
+  platform,
 }: {
   kind: ViewKind;
   payload: OperatePayload;
   view: ViewState;
+  platform?: string;
 }) {
   if (kind === "transactions") {
     const rows = payload.transactions ?? [];
@@ -268,6 +282,7 @@ function Rows({
             app: filter.app,
             tool: filter.tool,
             errors: filter.errorsOnly ? "1" : null,
+            payments: filter.paymentsOnly ? "1" : null,
           });
         }}
         openId={view.logOpen}
@@ -281,6 +296,8 @@ function Rows({
   const monitoring = payload.monitoring;
   const platformMetrics = payload.platformMetrics ?? [];
   const dashboardLinks = payload.dashboardLinks ?? [];
+  const payments = payload.payments;
+  const paymentSummary = payments?.summary;
   return (
     <div className="space-y-4">
       <div className="border-border bg-surface-subtle flex flex-wrap items-center justify-between gap-3 rounded-md border px-3 py-2 text-sm">
@@ -313,6 +330,52 @@ function Rows({
         ) : null}
       </div>
 
+      {payments?.available ||
+      (Array.isArray(payments?.resources) && payments.resources.length) ? (
+        <div className="border-border bg-surface rounded-md border">
+          <div className="border-border border-b px-3 py-2">
+            <div className="text-foreground text-sm font-medium">
+              Payment health
+            </div>
+            <div className="text-dim text-xs">
+              24h activity · outstanding is the live recipient-bucket balance
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3 px-3 py-3 text-xs lg:grid-cols-4">
+            <div>
+              <div className="text-dim">Priced calls</div>
+              <div className="text-foreground text-base font-semibold">
+                {countLabel(paymentSummary?.pricedCalls)}
+              </div>
+            </div>
+            <div>
+              <div className="text-dim">Accrued</div>
+              <div className="text-foreground text-base font-semibold">
+                {usdLabel(paymentSummary?.accruedUsd)}
+              </div>
+            </div>
+            <div>
+              <div className="text-dim">Settled</div>
+              <div className="text-foreground text-base font-semibold">
+                {usdLabel(paymentSummary?.settledUsd)}
+              </div>
+            </div>
+            <div>
+              <div className="text-dim">Outstanding</div>
+              <div
+                className={`text-base font-semibold ${
+                  Number(paymentSummary?.outstandingUsd ?? 0) > 0
+                    ? "text-amber-500"
+                    : "text-emerald-500"
+                }`}
+              >
+                {usdLabel(paymentSummary?.outstandingUsd)}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
         {apps.map((app) => {
           const metrics = app.metrics ?? {};
@@ -324,12 +387,15 @@ function Rows({
             metrics.toolErrorRate != null || metrics.txErrorRate != null;
           const lifecycle = [
             app.sdkVersion ? `SDK ${app.sdkVersion}` : null,
+            Object.keys(app.pricing?.config?.resources ?? {}).length
+              ? `${Object.keys(app.pricing.config.resources).length} priced tool${Object.keys(app.pricing.config.resources).length === 1 ? "" : "s"}`
+              : null,
             metrics.coldStartMs != null
               ? `cold start ${unitLabel(metrics.coldStartMs, "ms", 0)}`
               : null,
             bytesLabel(metrics.dylibBytes),
           ].filter(Boolean);
-          const detailHref = appDetailHref(app);
+          const detailHref = appDetailHref(app, platform);
           const card = (
             <>
               <div className="flex items-center justify-between gap-3">
@@ -424,14 +490,14 @@ function Rows({
           const className =
             "border-border bg-surface rounded-md border px-3 py-3";
           return detailHref ? (
-            <Link
+            <ControlPlaneLink
               key={key}
               href={detailHref}
               aria-label={`Open ${app.application} observability details`}
               className={`${className} hover:bg-accent-hover focus-visible:ring-ring transition focus-visible:outline-none focus-visible:ring-1`}
             >
               {card}
-            </Link>
+            </ControlPlaneLink>
           ) : (
             <div key={key} className={className}>
               {card}
@@ -475,24 +541,6 @@ function Rows({
   );
 }
 
-// Module-level cache so switching away from an Operate tab and back shows the
-// last-known data instantly while it revalidates in the background, instead of
-// resetting to the "Loading" state on every remount. Lives for the SPA session.
-const operateCache = new Map<string, OperatePayload>();
-
-function operateAccountCacheKey(account: GitHubAccountState): string | null {
-  if (!account.signedIn || !account.githubLogin) return null;
-  return account.githubLogin.toLowerCase();
-}
-
-function operateCacheKey(
-  accountKey: string,
-  kind: ViewKind,
-  sourceId: number | null,
-): string {
-  return `${accountKey}:${kind}:${sourceId ?? "all"}`;
-}
-
 function projectIdFromSearch(raw: string | null): number | null {
   if (!raw) return null;
   const id = Number(raw);
@@ -503,11 +551,13 @@ export function OperateView({ kind }: { kind: ViewKind }) {
   const { account } = useGitHubSession();
   const searchParams = useSearchParams();
   const projectFromUrl = projectIdFromSearch(searchParams.get("project"));
+  const platformFromUrl = searchParams.get("platform") ?? undefined;
   const appFromUrl = searchParams.get("app");
   const toolFromUrl = searchParams.get("tool");
   const errorsFromUrl = searchParams.get("errors") === "1";
+  const paymentsFromUrl = searchParams.get("payments") === "1";
   const txFromUrl = searchParams.get("tx");
-  const accountCacheKey = operateAccountCacheKey(account);
+  const accountKey = githubAccountKey(account.githubLogin);
   const [sourceId, setSourceId] = useState<number | null>(projectFromUrl);
   const [txAppFilter, setTxAppFilter] = useState<string | null>(appFromUrl);
   const [txOpen, setTxOpen] = useState<string | null>(txFromUrl);
@@ -516,19 +566,37 @@ export function OperateView({ kind }: { kind: ViewKind }) {
     app: appFromUrl,
     tool: toolFromUrl,
     errorsOnly: errorsFromUrl,
+    paymentsOnly: paymentsFromUrl,
   });
   const [logOpen, setLogOpen] = useState<string | null>(null);
-  const initialCacheKey = accountCacheKey
-    ? operateCacheKey(accountCacheKey, kind, sourceId)
-    : null;
-  const [payload, setPayload] = useState<OperatePayload | null>(
-    () => (initialCacheKey ? operateCache.get(initialCacheKey) : null) ?? null,
-  );
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(() =>
-    initialCacheKey ? !operateCache.has(initialCacheKey) : true,
-  );
+  const [paginationError, setPaginationError] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
+  const queryClient = useQueryClient();
+  const queryKey = buildQueryKeys.operate(
+    accountKey ?? "unavailable",
+    kind,
+    sourceId,
+    platformFromUrl,
+  );
+  const dataQuery = useQuery({
+    queryKey,
+    queryFn: () =>
+      operateFetch<OperatePayload>(kind, {
+        sourceId,
+        platform: platformFromUrl,
+      }),
+    enabled: account.signedIn && accountKey !== null,
+    staleTime: buildQueryStaleTime.operate,
+  });
+  const payload = dataQuery.data ?? null;
+  const loading = dataQuery.isPending;
+  const queryError =
+    dataQuery.error && !dataQuery.data
+      ? dataQuery.error instanceof Error
+        ? dataQuery.error.message
+        : String(dataQuery.error)
+      : null;
+  const error = paginationError ?? queryError;
   const Icon = meta[kind].icon;
   const sources = useMemo(() => payload?.sources ?? [], [payload?.sources]);
   const canPage = kind === "transactions" || kind === "logs";
@@ -554,53 +622,9 @@ export function OperateView({ kind }: { kind: ViewKind }) {
   useEffect(() => {
     if (txFromUrl != null) setTxOpen(txFromUrl);
   }, [txFromUrl]);
-
   useEffect(() => {
-    if (account.loading) {
-      setLoading(true);
-      setError(null);
-      setPayload(null);
-      return;
-    }
-    if (!account.signedIn) {
-      setLoading(false);
-      setError(null);
-      setPayload(null);
-      return;
-    }
-    let alive = true;
-    const key = accountCacheKey
-      ? operateCacheKey(accountCacheKey, kind, sourceId)
-      : null;
-    const cached = key ? operateCache.get(key) : null;
-    setError(null);
-    if (cached) {
-      // Show last-known data immediately and revalidate silently.
-      setPayload(cached);
-      setLoading(false);
-    } else {
-      setPayload(null);
-      setLoading(true);
-    }
-    operateFetch<OperatePayload>(kind, sourceId)
-      .then((next) => {
-        if (key) operateCache.set(key, next);
-        if (alive) setPayload(next);
-      })
-      .catch((err) => {
-        // Keep showing stale data if we have it; only surface the error when
-        // there is nothing cached to fall back on.
-        if (alive && (!key || !operateCache.has(key))) {
-          setError(err instanceof Error ? err.message : String(err));
-        }
-      })
-      .finally(() => {
-        if (alive) setLoading(false);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [account.loading, account.signedIn, accountCacheKey, kind, sourceId]);
+    setPaginationError(null);
+  }, [accountKey, kind, platformFromUrl, sourceId]);
 
   if (account.loading) {
     return (
@@ -621,19 +645,15 @@ export function OperateView({ kind }: { kind: ViewKind }) {
   async function loadMore() {
     if (!nextCursor || loadingMore) return;
     setLoadingMore(true);
-    setError(null);
+    setPaginationError(null);
     try {
-      const next = await operateFetch<OperatePayload>(
-        kind,
+      const next = await operateFetch<OperatePayload>(kind, {
         sourceId,
-        nextCursor,
-      );
-      const key = accountCacheKey
-        ? operateCacheKey(accountCacheKey, kind, sourceId)
-        : null;
-      setPayload((current) => {
+        cursor: nextCursor,
+        platform: platformFromUrl,
+      });
+      queryClient.setQueryData<OperatePayload>(queryKey, (current) => {
         if (!current) {
-          if (key) operateCache.set(key, next);
           return next;
         }
         let merged: OperatePayload;
@@ -655,11 +675,10 @@ export function OperateView({ kind }: { kind: ViewKind }) {
         } else {
           merged = next;
         }
-        if (key) operateCache.set(key, merged);
         return merged;
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setPaginationError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoadingMore(false);
     }
@@ -723,7 +742,12 @@ export function OperateView({ kind }: { kind: ViewKind }) {
         </div>
       ) : payload ? (
         <>
-          <Rows kind={kind} payload={payload} view={view} />
+          <Rows
+            kind={kind}
+            payload={payload}
+            view={view}
+            platform={platformFromUrl}
+          />
           {nextCursor ? (
             <div className="flex justify-center">
               <button

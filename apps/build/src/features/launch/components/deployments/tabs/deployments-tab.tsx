@@ -156,25 +156,33 @@ export function DeploymentsTab({
     () => new Map(source?.apps.map((app) => [app.name, app]) ?? []),
     [source],
   );
+  // A deploy re-syncs the source from the repo and gates on the apps that come
+  // back, which can include an app this page's source snapshot predates. Gate
+  // on the union so the banner never goes silent for an app the check flagged.
+  const gateApps = useMemo(() => {
+    const names = source?.apps.map((app) => app.name) ?? [];
+    const known = new Set(names);
+    for (const name of Object.keys(detail.requiredSecrets ?? {})) {
+      if (!known.has(name)) names.push(name);
+    }
+    return names;
+  }, [source, detail.requiredSecrets]);
   const missingRequiredApps = useMemo(
-    () =>
-      source?.apps
-        .map((app) => app.name)
-        .filter((app) => detail.hasMissingSecrets(app)) ?? [],
-    [detail, source],
+    () => gateApps.filter((app) => detail.hasMissingSecrets(app)),
+    [detail, gateApps],
   );
   const secretsCheckPending = Boolean(
     source &&
-    source.apps.length > 0 &&
+    gateApps.length > 0 &&
     detail.requiredSecrets === null &&
     !detail.requiredSecretsError,
   );
   const secretsCheckFailed = Boolean(
-    source && source.apps.length > 0 && detail.requiredSecretsError,
+    source && gateApps.length > 0 && detail.requiredSecretsError,
   );
   const secretsGateBlocked = Boolean(
     source &&
-    source.apps.length > 0 &&
+    gateApps.length > 0 &&
     (secretsCheckPending ||
       secretsCheckFailed ||
       missingRequiredApps.length > 0),

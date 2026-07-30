@@ -1,16 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { Loader2 } from "lucide-react";
+import { ChevronDown, Loader2 } from "lucide-react";
 import { useUsageStatement } from "./use-usage-statement";
-import { MatrixTable, Meter, usd } from "./usage-shared";
+import {
+  AllowanceSettlementSection,
+  MatrixTable,
+  PeriodTotalHero,
+  SectionHeading,
+  SpendBreakdownSection,
+  USAGE_MATRIX_HINT,
+} from "./usage-shared";
 
 /**
- * Settings › Usage — the compact popup view: the subject summary with the
- * by-app matrix directly under it, rendered from the live model statement
- * (`/api/account/statement`). Tool and on-chain subjects show "—" until their
- * ledger writers exist — absent, not zero. The itemized full statement lives
- * on its own page at /statement.
+ * Settings › Usage — design-sync hierarchy (hero, spend breakdown, allowance,
+ * by-app matrix) on the live model statement (`/api/account/statement`).
+ * Tool and on-chain subjects show "—" until their ledger writers exist.
  */
 export function UsageSettings() {
   const statement = useUsageStatement();
@@ -30,7 +35,7 @@ export function UsageSettings() {
             </button>
           </p>
         ) : (
-          <p className="flex items-center gap-2 text-[13px] text-aomi-muted">
+          <p className="text-aomi-muted flex items-center gap-2 text-[13px]">
             <Loader2 size={14} className="animate-spin" />
             Loading usage…
           </p>
@@ -39,107 +44,46 @@ export function UsageSettings() {
     );
   }
 
-  const { period, summary, payment } = month;
-  const turns = month.apps.reduce((s, a) => s + a.model.turns, 0);
-  // These subjects have no ledger writer yet — absent (—), never $0.00.
-  const hasToolData = month.apps.some((a) => a.tool !== null);
-  const hasOutcomeData = month.apps.some((a) => a.outcome !== null);
-
-  const over = payment.x402SettledUsd > 0;
-  const hasAllowance = payment.allowanceCredits.included > 0;
-  const creditsPct = hasAllowance
-    ? Math.min(
-        100,
-        (payment.allowanceCredits.used / payment.allowanceCredits.included) * 100,
-      )
-    : 0;
+  const { period } = month;
+  const hasAllowance =
+    statement.isCurrentMonth && month.payment.allowanceCredits.included > 0;
 
   return (
     <div className="flex-1 overflow-y-auto px-[22px] py-5">
-      <div className="flex flex-col gap-7">
-        {/* Summary card */}
-        <div className="overflow-hidden">
-          <div className="flex items-center justify-between border-b border-aomi-border p-4">
-            <span className="text-sm font-semibold">Usage</span>
-            <span className="text-[13px] text-aomi-muted">{period.periodLabel}</span>
-          </div>
+      <div className="flex flex-col gap-6">
+        <PeriodTotalHero periodLabel={period.periodLabel} totalUsd={month.summary.totalUsd} />
 
-          <div className="flex flex-col gap-3 p-4">
-            <SummaryRow label="Models" detail={`${turns} turns`} amount={usd(summary.modelUsd)} />
-            <SummaryRow
-              label="Tool calls"
-              detail={hasToolData ? "" : "no charges"}
-              amount={hasToolData ? usd(summary.toolUsd) : "—"}
-            />
-            <SummaryRow
-              label="On-chain fees"
-              detail={hasOutcomeData ? "" : "no charges"}
-              amount={hasOutcomeData ? usd(summary.onchainUsd) : "—"}
-            />
-            <div className="mt-1 flex items-center justify-between border-t border-aomi-border pt-3">
-              <span className="text-sm font-semibold">Total</span>
-              <span className="font-mono text-base font-semibold">{usd(summary.totalUsd)}</span>
-            </div>
-          </div>
+        <SpendBreakdownSection month={month} />
 
-          {/* Allowance position comes from the profile's monthly stats, so it's
-              only exact for the current month — hidden elsewhere. */}
-          {statement.isCurrentMonth && hasAllowance && (
-            <div className="flex flex-col gap-2 border-t border-aomi-border p-4">
-              <span className="text-[13px] text-aomi-muted">
-                Credits {Math.round(payment.allowanceCredits.used)}/
-                {Math.round(payment.allowanceCredits.included)} · paid via{" "}
-                {payment.settledVia}
-              </span>
-              <Meter pct={creditsPct} over={over} />
-              {over && (
-                <span className="text-[11px] text-aomi-muted">
-                  {usd(payment.x402SettledUsd)} settled via x402 beyond your
-                  monthly allowance.
-                </span>
-              )}
-            </div>
-          )}
+        <AllowanceSettlementSection month={month} showAllowance={hasAllowance} />
 
-          <div className="flex items-center justify-end border-t border-aomi-border p-4">
-            <Link
-              href="/statement"
-              className="text-[13px] font-medium text-aomi-accent transition-opacity hover:opacity-80"
-            >
-              View full statement →
-            </Link>
-          </div>
-        </div>
-
-        {/* By app — frameless, right under the summary */}
         {month.apps.length > 0 ? (
-          <div className="flex flex-col gap-2.5">
-            <div className="flex items-baseline justify-between">
-              <span className="text-sm font-semibold">By app</span>
-              <span className="text-[11px] text-aomi-muted">
-                hover a value for the count behind it
-              </span>
+          <section className="flex flex-col gap-2.5">
+            <SectionHeading title="By app" hint={USAGE_MATRIX_HINT} />
+            <div className="border-aomi-border bg-aomi-bg/40 overflow-hidden rounded-xl border px-4 py-3 sm:px-5">
+              <MatrixTable month={month} />
             </div>
-            <MatrixTable month={month} />
-          </div>
+          </section>
         ) : (
-          <p className="text-[13px] text-aomi-muted">
-            No usage this month yet.
-          </p>
+          <p className="text-aomi-muted text-[13px]">No usage this month yet.</p>
         )}
-      </div>
-    </div>
-  );
-}
 
-function SummaryRow({ label, detail, amount }: { label: string; detail: string; amount: string }) {
-  return (
-    <div className="flex items-center justify-between">
-      <div className="flex flex-col gap-0.5">
-        <span className="text-sm">{label}</span>
-        {detail && <span className="text-[11px] text-aomi-muted">{detail}</span>}
+        <Link
+          href="/statement"
+          className="border-aomi-border bg-aomi-bg/40 group flex items-center justify-between gap-3 rounded-xl border px-4 py-3.5 transition-colors hover:bg-aomi-surface-2/40 sm:px-5"
+        >
+          <div className="flex min-w-0 flex-col gap-0.5">
+            <span className="text-sm font-medium leading-none">Full statement</span>
+            <span className="text-aomi-muted text-[12px] leading-snug">
+              Itemized lines, past months, and filters
+            </span>
+          </div>
+          <ChevronDown
+            size={14}
+            className="text-aomi-muted shrink-0 -rotate-90 transition-colors group-hover:text-aomi-fg"
+          />
+        </Link>
       </div>
-      <span className="font-mono text-sm">{amount}</span>
     </div>
   );
 }

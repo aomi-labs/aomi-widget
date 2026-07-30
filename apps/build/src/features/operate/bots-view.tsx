@@ -1,11 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback, useMemo, useState } from "react";
 import { useGitHubSession } from "@build/components/control-plane/github-session-context";
 import {
   GitHubSignInPanel,
   LoadingPanel,
 } from "@build/features/launch/components/deployments/ui/state-panels";
+import {
+  buildQueryKeys,
+  buildQueryStaleTime,
+  githubAccountKey,
+} from "@build/features/launch/query-keys";
 import { API_PATHS } from "@build/lib/api-paths";
 import { operateFetch } from "./client";
 
@@ -82,11 +88,25 @@ function formatTs(ts?: number | null): string {
   return new Date(ts * 1000).toLocaleString();
 }
 
-export function BotsView() {
+export function BotsView({ embedded = false }: { embedded?: boolean }) {
   const { account } = useGitHubSession();
-  const [payload, setPayload] = useState<BotsPayload | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const accountKey = githubAccountKey(account.githubLogin);
+  const queryKey = buildQueryKeys.bots(accountKey ?? "unavailable");
+  const botsQuery = useQuery({
+    queryKey,
+    queryFn: () => operateFetch<BotsPayload>("bots"),
+    enabled: account.signedIn && accountKey !== null,
+    staleTime: buildQueryStaleTime.operate,
+  });
+  const payload = botsQuery.data ?? null;
+  const loading = botsQuery.isPending;
+  const error =
+    botsQuery.error && !botsQuery.data
+      ? botsQuery.error instanceof Error
+        ? botsQuery.error.message
+        : String(botsQuery.error)
+      : null;
 
   const [label, setLabel] = useState("");
   const [token, setToken] = useState("");
@@ -102,37 +122,6 @@ export function BotsView() {
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [formStatus, setFormStatus] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (account.loading) {
-      setLoading(true);
-      setError(null);
-      setPayload(null);
-      return;
-    }
-    if (!account.signedIn) {
-      setLoading(false);
-      setError(null);
-      setPayload(null);
-      return;
-    }
-    let alive = true;
-    setLoading(true);
-    setError(null);
-    operateFetch<BotsPayload>("bots")
-      .then((next) => {
-        if (alive) setPayload(next);
-      })
-      .catch((err) => {
-        if (alive) setError(err instanceof Error ? err.message : String(err));
-      })
-      .finally(() => {
-        if (alive) setLoading(false);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [account.loading, account.signedIn]);
 
   const sources = useMemo(() => payload?.sources ?? [], [payload?.sources]);
   const bots = useMemo(() => payload?.bots ?? [], [payload?.bots]);
@@ -184,7 +173,7 @@ export function BotsView() {
         throw new Error(json.error || `Failed to register bot (${res.status})`);
       }
       const created = json.bot;
-      setPayload((current) => ({
+      queryClient.setQueryData<BotsPayload>(queryKey, (current) => ({
         sources: current?.sources ?? sources,
         bots: editingId
           ? (current?.bots ?? []).map((bot) =>
@@ -218,37 +207,44 @@ export function BotsView() {
     selectedApplicationIds,
     primaryApplicationId,
     sources,
+    queryClient,
+    queryKey,
   ]);
 
-  const handleRemove = useCallback(async (bot: Bot) => {
-    setRemovingId(bot.id);
-    setFormError(null);
-    try {
-      const params = new URLSearchParams({ botId: bot.id });
-      const res = await fetch(`${API_PATHS.bff.operate.bots}?${params}`, {
-        method: "DELETE",
-      });
-      const json = (await res.json().catch(() => ({}))) as {
-        ok?: boolean;
-        error?: string;
-      };
-      if (!res.ok) {
-        throw new Error(json.error || `Failed to remove bot (${res.status})`);
+  const handleRemove = useCallback(
+    async (bot: Bot) => {
+      setRemovingId(bot.id);
+      setFormError(null);
+      try {
+        const params = new URLSearchParams({ botId: bot.id });
+        const res = await fetch(`${API_PATHS.bff.operate.bots}?${params}`, {
+          method: "DELETE",
+        });
+        const json = (await res.json().catch(() => ({}))) as {
+          ok?: boolean;
+          error?: string;
+        };
+        if (!res.ok) {
+          throw new Error(json.error || `Failed to remove bot (${res.status})`);
+        }
+        queryClient.setQueryData<BotsPayload>(queryKey, (current) =>
+          current
+            ? {
+                ...current,
+                bots: (current.bots ?? []).filter((b) => b.id !== bot.id),
+              }
+            : current,
+        );
+      } catch (err) {
+        setFormError(
+          err instanceof Error ? err.message : "Failed to remove bot",
+        );
+      } finally {
+        setRemovingId(null);
       }
-      setPayload((current) =>
-        current
-          ? {
-              ...current,
-              bots: (current.bots ?? []).filter((b) => b.id !== bot.id),
-            }
-          : current,
-      );
-    } catch (err) {
-      setFormError(err instanceof Error ? err.message : "Failed to remove bot");
-    } finally {
-      setRemovingId(null);
-    }
-  }, []);
+    },
+    [queryClient, queryKey],
+  );
 
   const toggleApplication = useCallback((applicationId: number) => {
     setSelectedApplicationIds((current) => {
@@ -299,17 +295,24 @@ export function BotsView() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
-      <div>
-        <h1 className="font-display text-xl font-normal tracking-tight">
-          Bots
-        </h1>
-        <p className="text-dim mt-1 max-w-2xl text-sm">
-          Register Telegram bots that use your Aomi backend and one or more
-          attached apps. Bot credentials are encrypted and never shown after
-          registration.
-        </p>
-      </div>
+    <div
+      className={
+        embedded
+          ? "flex w-full flex-col gap-5"
+          : "mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8"
+      }
+    >
+      {embedded ? null : (
+        <div>
+          <h1 className="font-display text-xl font-normal tracking-tight">
+            Telegram bots
+          </h1>
+          <p className="text-dim mt-1 max-w-2xl text-sm">
+            Register a Telegram bot for your Aomi apps. Credentials are
+            encrypted and never shown after registration.
+          </p>
+        </div>
+      )}
 
       {formStatus ? (
         <div className="border-border bg-surface-subtle text-foreground rounded-md border px-3 py-2 text-sm">
@@ -322,16 +325,16 @@ export function BotsView() {
         </div>
       ) : null}
 
-      <section className="border-border bg-surface-1 space-y-4 rounded-md border p-4">
+      <section className="border-border bg-surface-1 space-y-5 rounded-xl border p-5 shadow-sm">
         <div>
           <h2 className="text-base font-medium">
-            {editingId ? "Edit bot apps" : "Register Telegram bot"}
+            {editingId ? "Edit connected apps" : "Add a Telegram bot"}
           </h2>
           <p className="text-dim mt-1 text-sm">
-            Create the bot in BotFather, paste its token here, and we will
-            verify it with Telegram and activate the webhook automatically. This
-            account owns the bot configuration; people who message the bot still
-            use their own Aomi identity, wallets, and threads.
+            Create the bot in BotFather, then paste its token here. We verify it
+            with Telegram and activate its webhook automatically. People who
+            message the bot still use their own Aomi identity, wallets, and
+            threads.
           </p>
         </div>
 
@@ -447,7 +450,7 @@ export function BotsView() {
         </div>
       </section>
 
-      <section className="border-border bg-surface-1 space-y-3 rounded-md border p-4">
+      <section className="border-border bg-surface-1 space-y-3 rounded-xl border p-5">
         <h2 className="text-base font-medium">Optional BotFather commands</h2>
         <p className="text-dim text-sm">
           The bot works without configuring commands, but this list makes the
@@ -459,7 +462,14 @@ export function BotsView() {
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-base font-medium">Registered bots</h2>
+        <div className="flex items-baseline justify-between gap-4">
+          <h2 className="text-base font-medium">Connected bots</h2>
+          {!loading && !error ? (
+            <span className="text-dim text-xs">
+              {bots.length} {bots.length === 1 ? "bot" : "bots"}
+            </span>
+          ) : null}
+        </div>
         {loading ? (
           <div className="border-border bg-surface-subtle text-dim rounded-md border px-4 py-10 text-center text-sm">
             Loading
@@ -470,7 +480,8 @@ export function BotsView() {
           </div>
         ) : bots.length === 0 ? (
           <div className="border-border bg-surface-subtle text-dim rounded-md border px-4 py-10 text-center text-sm">
-            No bots registered yet.
+            No Telegram bots connected yet. Add one above to start receiving
+            messages.
           </div>
         ) : (
           <div className="border-border overflow-x-auto rounded-md border">

@@ -14,6 +14,13 @@ const walletKit = vi.hoisted(() => ({
   signSolanaMessage: vi.fn(async () => ({ signature: "c2ln" })),
   openAccountUI: vi.fn(async () => undefined),
   identity: { address: "", svmAddress: undefined as string | undefined },
+  accounts: [] as Array<{
+    id: string;
+    family: "evm" | "svm";
+    address: string;
+    walletName?: string;
+    active: boolean;
+  }>,
 }));
 
 vi.mock("@aomi-labs/widget-lib", () => ({
@@ -105,6 +112,22 @@ function installFetchRecorder(overrides: Record<string, () => Response> = {}) {
       if (url.pathname.endsWith("/grant") && method === "DELETE") {
         return Response.json({ status: "revoked", provider: "privy" });
       }
+      if (url.pathname === "/api/account/providers/para/agent-wallet" && method === "POST") {
+        return Response.json({
+          wallet: {
+            address: "ParaAgentWallet111111111111111111111111111",
+            chain_type: "svm",
+            wallet_provider: "para",
+            signing: "delegated",
+            is_primary: false,
+            signing_mode: "manual",
+            authorization_version: 0,
+            has_delegated_grant: false,
+            provider_managed: true,
+            can_use_auto: false,
+          },
+        });
+      }
       return new Response(`Unexpected ${method} ${url.pathname}`, { status: 500 });
     },
   );
@@ -140,6 +163,7 @@ const bodyOf = (calls: FetchCall[], path: string) => {
 describe("account ACL wiring", () => {
   beforeEach(() => {
     walletKit.identity = { address: CONNECTED_EVM, svmAddress: undefined };
+    walletKit.accounts = [];
     walletKit.signTypedData.mockClear();
     // The overview store is module-level; seed it so the tab doesn't also
     // depend on /api/account here.
@@ -162,7 +186,7 @@ describe("account ACL wiring", () => {
     expect(paths(calls)).toContain("/api/account/wallets");
     expect(paths(calls)).toContain("/api/account/grants");
     // Privy provenance + live grant render from the wire, not fixtures.
-    expect(screen.getByText(/Privy · session delegation/)).toBeTruthy();
+    expect(screen.getByText(/Privy · Session delegation/)).toBeTruthy();
   });
 
   it("runs challenge → sign → commit and reloads on a mode change", async () => {
@@ -283,6 +307,69 @@ describe("account ACL wiring", () => {
 
     await waitFor(() =>
       expect(paths(calls)).toContain("/api/account/providers/privy/grant"),
+    );
+  });
+
+  it("shows unbound connected wallets and runs the bind ceremony", async () => {
+    const UNBOUND = "0xUnboundWallet00000000000000000000000001";
+    walletKit.accounts = [
+      {
+        id: "rabby",
+        family: "evm",
+        address: UNBOUND,
+        walletName: "Rabby",
+        active: false,
+      },
+    ];
+    const { calls } = installFetchRecorder({
+      "/api/account/authorization/challenge": () =>
+        Response.json({
+          permit: {
+            account: "acct-1",
+            chain_type: "evm",
+            wallet: UNBOUND,
+            mode: "bind",
+            version: 0,
+            expiry: 1_800_000_000,
+          },
+          typed_data: { primaryType: "AuthorizationPermit" },
+        }),
+    });
+
+    await renderAcl();
+    await click(await screen.findByRole("button", { name: "Link to account" }));
+
+    await waitFor(() =>
+      expect(paths(calls)).toContain("/api/account/authorization/commit"),
+    );
+    expect(bodyOf(calls, "/api/account/authorization/challenge")).toEqual({
+      chain_type: "evm",
+      wallet: UNBOUND,
+      mode: "bind",
+    });
+  });
+
+  it("provisions a Para agent wallet through the provider route", async () => {
+    const paraWallets = {
+      wallets: [
+        {
+          ...WALLETS.wallets[0],
+          wallet_provider: "para",
+          provider_managed: false,
+          can_use_auto: false,
+        },
+      ],
+    };
+    const { calls } = installFetchRecorder({
+      "/api/account/wallets": () => Response.json(paraWallets),
+      "/api/account/grants": () => Response.json({ grants: [] }),
+    });
+
+    await renderAcl();
+    await click(await screen.findByRole("button", { name: "Provision agent wallet" }));
+
+    await waitFor(() =>
+      expect(paths(calls)).toContain("/api/account/providers/para/agent-wallet"),
     );
   });
 });

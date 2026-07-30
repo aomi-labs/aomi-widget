@@ -1,4 +1,6 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render as rtlRender, screen } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ReactElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AppDetailPage } from "./app-detail-page";
 
@@ -9,9 +11,30 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push }),
 }));
 
+vi.mock("@build/components/control-plane/github-session-context", () => ({
+  useGitHubSession: () => ({
+    account: {
+      loading: false,
+      signedIn: true,
+      githubLogin: "octocat",
+      githubAvatarUrl: null,
+      installationId: null,
+    },
+  }),
+}));
+
 vi.mock("./client", () => ({
   operateAppDetailFetch: (...args: unknown[]) => operateAppDetailFetch(...args),
 }));
+
+function render(ui: ReactElement) {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return rtlRender(
+    <QueryClientProvider client={client}>{ui}</QueryClientProvider>,
+  );
+}
 
 const payload = {
   detail: {
@@ -112,7 +135,7 @@ describe("AppDetailPage", () => {
     expect(
       await screen.findByRole("heading", { name: "goal-digger" }),
     ).toBeInTheDocument();
-    expect(operateAppDetailFetch).toHaveBeenCalledWith(1586, 77);
+    expect(operateAppDetailFetch).toHaveBeenCalledWith(1586, 77, undefined);
     expect(screen.queryByText("Partial example data")).not.toBeInTheDocument();
     expect(screen.getByText("Conversion funnel · 24h")).toBeInTheDocument();
     expect(screen.getByText(/20 calls · 1 error/)).toBeInTheDocument();
@@ -133,6 +156,32 @@ describe("AppDetailPage", () => {
     fireEvent.click(await screen.findByText("get_price"));
     expect(push).toHaveBeenCalledWith(
       "/operate/logs?app=goal-digger&tool=get_price&project=1494",
+    );
+  });
+
+  it("keeps a partner platform on detail reads and drill-down links", async () => {
+    render(
+      <AppDetailPage
+        applicationId={77}
+        project={1620}
+        platform="somm.finance"
+      />,
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "goal-digger" }),
+    ).toBeInTheDocument();
+    expect(operateAppDetailFetch).toHaveBeenCalledWith(
+      1620,
+      77,
+      "somm.finance",
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Back to observability" }),
+    );
+    expect(push).toHaveBeenCalledWith(
+      "/operate/observability?project=1620&platform=somm.finance",
     );
   });
 });

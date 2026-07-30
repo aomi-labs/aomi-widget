@@ -1,131 +1,15 @@
 "use client";
 
-import { Plug } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { Bot, Check, ExternalLink, MessageCircle, Plug } from "lucide-react";
 import { useGitHubSession } from "@build/components/control-plane/github-session-context";
 import {
   GitHubSignInPanel,
   LoadingPanel,
 } from "@build/features/launch/components/deployments/ui/state-panels";
-import { fetchIntegrationStatuses, type IntegrationStatus } from "./client";
-import { INTEGRATION_PROVIDERS, type IntegrationProvider } from "./providers";
-
-/** Persist is not wired (BFF returns 501). Keep the form; gate Save. */
-const INTEGRATIONS_SAVE_ENABLED = false;
-
-function IntegrationCard({
-  provider,
-  connected,
-}: {
-  provider: IntegrationProvider;
-  connected: boolean;
-}) {
-  const [values, setValues] = useState<Record<string, string>>({});
-
-  return (
-    <form
-      onSubmit={(event) => event.preventDefault()}
-      className="border-border bg-surface-1 flex h-full flex-col gap-4 rounded-lg border p-5"
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="text-foreground text-sm font-medium">
-            {provider.name}
-          </div>
-          <p className="text-dim mt-2 text-[13px]">{provider.description}</p>
-        </div>
-        <span
-          className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${
-            connected
-              ? "bg-emerald-50 text-emerald-700"
-              : "border-border text-dim border"
-          }`}
-        >
-          {connected ? "Connected" : "Coming soon"}
-        </span>
-      </div>
-
-      <div className="flex flex-col gap-3">
-        {provider.fields.map((field) => (
-          <label key={field.key} className="flex flex-col gap-1">
-            <span className="text-dim text-xs">
-              {field.label}
-              {field.required ? null : (
-                <span className="text-dim/60"> (optional)</span>
-              )}
-            </span>
-            <input
-              type={field.secret ? "password" : "text"}
-              autoComplete="off"
-              placeholder={field.placeholder}
-              value={values[field.key] ?? ""}
-              disabled={!INTEGRATIONS_SAVE_ENABLED}
-              onChange={(event) => {
-                const next = event.target.value;
-                setValues((current) => ({ ...current, [field.key]: next }));
-              }}
-              className="border-border bg-surface text-foreground h-9 rounded-md border px-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
-            />
-          </label>
-        ))}
-      </div>
-
-      <div className="mt-auto flex items-center justify-between gap-3">
-        <a
-          href={provider.docsUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="text-dim hover:text-foreground text-xs underline underline-offset-2"
-        >
-          How to get a token
-        </a>
-        <button
-          type="submit"
-          disabled
-          title="Coming soon"
-          aria-label={`Save ${provider.name} (coming soon)`}
-          className="bg-foreground text-background disabled:text-dim h-9 cursor-not-allowed rounded-md px-3 text-sm font-medium disabled:opacity-60"
-        >
-          Save · Soon
-        </button>
-      </div>
-
-      <p className="text-dim text-xs">
-        Saving credentials is coming soon. Docs stay available above.
-      </p>
-    </form>
-  );
-}
+import { BotsView } from "@build/features/operate/bots-view";
 
 export function IntegrationsView() {
   const { account } = useGitHubSession();
-  const [statuses, setStatuses] = useState<IntegrationStatus[] | null>(null);
-
-  useEffect(() => {
-    if (!account.signedIn) {
-      setStatuses(null);
-      return;
-    }
-    let alive = true;
-    fetchIntegrationStatuses()
-      .then((result) => {
-        if (alive) setStatuses(result.statuses);
-      })
-      .catch(() => {
-        // Status is non-blocking; the connect forms still render if it fails.
-        if (alive) setStatuses([]);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [account.signedIn]);
-
-  const connectedBy = useMemo(() => {
-    const map = new Map<string, boolean>();
-    for (const status of statuses ?? [])
-      map.set(status.provider, status.connected);
-    return map;
-  }, [statuses]);
 
   if (account.loading) {
     return (
@@ -144,8 +28,8 @@ export function IntegrationsView() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-6">
-      <div className="space-y-2">
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-6 sm:px-6 lg:px-8">
+      <div className="space-y-3">
         <p className="text-dim text-[12px] uppercase tracking-wide">Account</p>
         <div className="flex items-center gap-2">
           <Plug className="text-dim size-5" />
@@ -154,19 +38,95 @@ export function IntegrationsView() {
           </h1>
         </div>
         <p className="text-subtle max-w-2xl text-sm">
-          Connect bots and channels to your apps. Credential save is coming
-          soon; docs links work today.
+          Connect the channels where your users already work. Each integration
+          is configured once and can be attached to one or more Aomi apps.
         </p>
       </div>
 
-      <section className="grid gap-4 sm:grid-cols-2">
-        {INTEGRATION_PROVIDERS.map((provider) => (
-          <IntegrationCard
-            key={provider.id}
-            provider={provider}
-            connected={connectedBy.get(provider.id) ?? false}
-          />
-        ))}
+      <section aria-labelledby="telegram-heading" className="space-y-5">
+        <div className="border-border bg-surface-subtle flex flex-col justify-between gap-4 rounded-xl border p-5 sm:flex-row sm:items-start">
+          <div className="flex min-w-0 gap-3">
+            <div className="bg-surface text-foreground flex size-10 shrink-0 items-center justify-center rounded-lg border border-sky-500/20 shadow-sm">
+              <MessageCircle
+                className="size-5 text-sky-500"
+                aria-hidden="true"
+              />
+            </div>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <h2
+                  id="telegram-heading"
+                  className="text-foreground text-base font-medium"
+                >
+                  Telegram
+                </h2>
+                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-400">
+                  <Check className="size-3" aria-hidden="true" />
+                  Available now
+                </span>
+              </div>
+              <p className="text-dim mt-1.5 max-w-2xl text-sm">
+                Create and manage Telegram bots, choose their connected apps,
+                and activate webhooks without leaving Aomi.
+              </p>
+            </div>
+          </div>
+          <a
+            href="https://core.telegram.org/bots#how-do-i-create-a-bot"
+            target="_blank"
+            rel="noreferrer"
+            className="text-dim hover:text-foreground inline-flex shrink-0 items-center gap-1 text-xs font-medium underline underline-offset-4"
+          >
+            BotFather guide
+            <ExternalLink className="size-3" aria-hidden="true" />
+          </a>
+        </div>
+        <BotsView embedded />
+      </section>
+
+      <section
+        aria-labelledby="discord-heading"
+        className="border-border bg-surface-1 overflow-hidden rounded-xl border"
+      >
+        <div className="flex flex-col justify-between gap-4 p-5 sm:flex-row sm:items-start">
+          <div className="flex min-w-0 gap-3">
+            <div className="bg-surface-subtle text-dim flex size-10 shrink-0 items-center justify-center rounded-lg border border-violet-500/15">
+              <Bot className="size-5" aria-hidden="true" />
+            </div>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <h2
+                  id="discord-heading"
+                  className="text-foreground text-base font-medium"
+                >
+                  Discord
+                </h2>
+                <span className="border-border text-dim rounded-full border px-2 py-0.5 text-[11px] font-medium">
+                  Coming soon
+                </span>
+              </div>
+              <p className="text-dim mt-1.5 max-w-2xl text-sm">
+                Bring your Aomi apps to Discord with bot messages, commands, and
+                deployment alerts.
+              </p>
+            </div>
+          </div>
+          <a
+            href="https://discord.com/developers/docs/getting-started"
+            target="_blank"
+            rel="noreferrer"
+            className="text-dim hover:text-foreground inline-flex shrink-0 items-center gap-1 text-xs font-medium underline underline-offset-4"
+          >
+            Developer docs
+            <ExternalLink className="size-3" aria-hidden="true" />
+          </a>
+        </div>
+        <div className="border-border bg-surface-subtle border-t px-5 py-3">
+          <p className="text-dim text-xs">
+            Discord setup is not available yet. No credentials are collected
+            until the integration launches.
+          </p>
+        </div>
       </section>
     </div>
   );

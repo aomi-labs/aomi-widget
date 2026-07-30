@@ -14,7 +14,7 @@ import {
 
 function StatusBadge({ status }: { status: SettingsSection["status"] }) {
   return (
-    <span className="shrink-0 rounded-sm border border-border px-1 py-0.5 text-[9px] uppercase tracking-wide text-dim">
+    <span className="border-border text-dim shrink-0 rounded-sm border px-1 py-0.5 text-[9px] uppercase tracking-wide">
       {settingsStatusLabel(status)}
     </span>
   );
@@ -27,11 +27,12 @@ export function SettingsNav() {
   return (
     <nav className="space-y-0.5" aria-label="Settings sections">
       <div className="mb-3 px-2.5">
-        <p className="text-[12px] uppercase tracking-wide text-dim">Account</p>
+        <p className="text-dim text-[12px] uppercase tracking-wide">Account</p>
       </div>
 
       <Link
         href="/settings"
+        prefetch={false}
         className={cn("interactive-item w-full")}
         data-active={isOverview ? "true" : undefined}
         aria-current={isOverview ? "page" : undefined}
@@ -49,6 +50,7 @@ export function SettingsNav() {
           <Link
             key={section.slug}
             href={href}
+            prefetch={false}
             className={cn(
               "interactive-item w-full",
               section.status === "soon" && "opacity-80",

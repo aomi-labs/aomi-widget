@@ -15,6 +15,13 @@ function withPlatform(path: string, platform?: string): string {
   return `${path}${separator}platform=${encodeURIComponent(platform)}`;
 }
 
+// Sources read, optionally narrowed server-side to a single app source.
+function sourcesPath(base: string, appSourceId?: number): string {
+  return appSourceId === undefined
+    ? base
+    : `${base}?appSourceId=${appSourceId}`;
+}
+
 export const API_PATHS = {
   bff: {
     auth: {
@@ -37,8 +44,11 @@ export const API_PATHS = {
       redeploy: `${BFF}/launch/redeploy`,
       create: `${BFF}/launch/create`,
       activate: `${BFF}/launch/activate`,
-      sources: (platform?: string) =>
-        withPlatform(`${BFF}/launch/sources`, platform),
+      sources: (platform?: string, appSourceId?: number) =>
+        withPlatform(
+          sourcesPath(`${BFF}/launch/sources`, appSourceId),
+          platform,
+        ),
       sdkStatus: `${BFF}/launch/sdk-status`,
       status: (deploymentId: string, platform?: string) =>
         withPlatform(
@@ -56,8 +66,11 @@ export const API_PATHS = {
       deploy: `${BFF}/deployments/deploy`,
       redeploy: `${BFF}/deployments/redeploy`,
       promote: `${BFF}/deployments/promote`,
-      sources: (platform?: string) =>
-        withPlatform(`${BFF}/deployments/sources`, platform),
+      sources: (platform?: string, appSourceId?: number) =>
+        withPlatform(
+          sourcesPath(`${BFF}/deployments/sources`, appSourceId),
+          platform,
+        ),
       feed: (
         limit: number,
         cursor?: { createdAt: number; id: number } | null,
@@ -115,11 +128,16 @@ export const API_PATHS = {
       usage: `${BFF}/operate/usage`,
       logs: `${BFF}/operate/logs`,
       observability: `${BFF}/operate/observability`,
-      observabilityDetail: (appSourceId: number, applicationId: number) => {
+      observabilityDetail: (
+        appSourceId: number,
+        applicationId: number,
+        platform?: string | null,
+      ) => {
         const params = new URLSearchParams({
           appSourceId: String(appSourceId),
           applicationId: String(applicationId),
         });
+        if (platform?.trim()) params.set("platform", platform.trim());
         return `${BFF}/operate/observability/detail?${params}`;
       },
     },

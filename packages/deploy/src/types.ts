@@ -55,6 +55,11 @@ export interface AuditEvent {
     | "get_user_source_statement"
     | "list_user_source_logs"
     | "get_user_source_observability"
+    | "get_user_observability"
+    | "list_user_transactions"
+    | "get_user_statement"
+    | "get_user_usage"
+    | "list_user_logs"
     | "get_user_source_app_detail"
     | "upgrade_user_source_sdk"
     | "get_source_sdk_upgrade_status"
@@ -451,6 +456,28 @@ export interface GetAppInput extends BearerOverride {
   releaseTag?: string;
 }
 
+export interface AppPricingBeneficiary {
+  name: string;
+  type: string;
+  chain: string;
+  value: string;
+}
+
+export interface AppPricingResource {
+  pricing: { flat: number };
+  beneficiary?: string | null;
+}
+
+export interface AppPricingSnapshot {
+  loadedAt: number;
+  config: {
+    version: number;
+    beneficiaries: AppPricingBeneficiary[];
+    resources: Record<string, AppPricingResource>;
+    outcome: Array<Record<string, unknown>>;
+  };
+}
+
 export interface PlatformApp {
   id: number;
   name: string;
@@ -463,6 +490,8 @@ export interface PlatformApp {
   targetTags: string[];
   loaded: boolean;
   artifactReady?: boolean | null;
+  /** Exact runtime-validated pricing sidecar for the loaded release. */
+  pricing?: AppPricingSnapshot | null;
 }
 
 // ── GitHub identity + per-user sources (the sign-in dashboard) ────────────────
@@ -602,6 +631,38 @@ export interface OwnedOperateSourceInput extends BearerOverride {
   githubUserId: string;
   platform: string;
   appSourceId: number;
+}
+
+/** Account-wide observability batch. Without `platform`, the manager reports
+ *  every owned source under its own bound/loaded platform. */
+export interface GetUserObservabilityInput extends BearerOverride {
+  githubUserId: string;
+  platform?: string;
+}
+
+/** Account-wide operate batch reads (`/user/transactions|statement|usage|logs`).
+ *  Without `platform`, the manager reads every owned source under its own
+ *  bound/loaded platform — partner-bound sources included. */
+export interface UserOperateBatchInput extends BearerOverride {
+  githubUserId: string;
+  platform?: string;
+}
+
+export interface GetUserStatementsInput extends UserOperateBatchInput {
+  fromDate?: string;
+  toDate?: string;
+}
+
+export interface ListUserTransactionsInput extends UserOperateBatchInput {
+  cursor?: OperateTransactionCursor | string | null;
+  limit?: number;
+  status?: string;
+}
+
+export interface ListUserLogsInput extends UserOperateBatchInput {
+  cursor?: OperateLogCursor | string | null;
+  limit?: number;
+  type?: "deployment" | "usage" | "transaction" | string;
 }
 
 export interface GetUserSourceAppDetailInput extends OwnedOperateSourceInput {
@@ -848,6 +909,25 @@ export interface OperateTransactionsResult {
   nextCursor: OperateTransactionCursor | null;
 }
 
+/** One owned source and the platform it resolves under, from a batch read. */
+export interface UserSourceRef {
+  source: AppSource;
+  platform: string;
+}
+
+/** A batch row is the single-source row plus which source it belongs to. */
+export type UserTransactionRow = OperateTransaction & {
+  appSourceId: number | null;
+  platform: string | null;
+};
+
+/** Account-wide transactions page: one merged newest-first stream. */
+export interface UserTransactionsResult {
+  sources: UserSourceRef[];
+  transactions: UserTransactionRow[];
+  nextCursor: OperateTransactionCursor | null;
+}
+
 export interface OperateUsageDailyRow {
   periodUtcDay: string;
   application: string;
@@ -915,6 +995,64 @@ export interface OperateStatementEntry {
   net: number;
 }
 
+export interface OperatePartnerPaymentSummary {
+  accruedCredits: number;
+  accruedUsd: number;
+  settledCredits: number;
+  settledUsd: number;
+  outstandingCredits: number;
+  outstandingUsd: number;
+  pricedCalls: number;
+  settlements: number;
+}
+
+export interface OperatePartnerPaymentResource {
+  application: string;
+  applicationId: number | null;
+  tool: string;
+  flatCredits: number;
+  flatUsd: number;
+  beneficiary: string | null;
+  recipient: string | null;
+  chain: string | null;
+  beneficiaryType: string | null;
+  observedCalls: number;
+}
+
+export interface OperatePartnerPaymentBucket {
+  id: string;
+  recipient: string;
+  outstandingCredits: number;
+  outstandingUsd: number;
+}
+
+export interface OperatePartnerPaymentEvent {
+  id: string;
+  kind: "fee_accrued" | "settlement_confirmed" | string;
+  occurredAt: number;
+  application: string | null;
+  applicationId: number | null;
+  tools: string[];
+  credits: number;
+  usd: number;
+  asset: string | null;
+  assetAmount: number | null;
+  recipient: string;
+  paymentMethod: string;
+  receiptId: string | null;
+  chain: string | null;
+  explorerUrl: string | null;
+}
+
+export interface OperatePartnerPayments {
+  available: boolean;
+  scope: "recipient_bucket" | string;
+  summary: OperatePartnerPaymentSummary;
+  resources: OperatePartnerPaymentResource[];
+  buckets: OperatePartnerPaymentBucket[];
+  events: OperatePartnerPaymentEvent[];
+}
+
 export interface OperateStatementResult {
   source: AppSource;
   platform: string;
@@ -925,6 +1063,7 @@ export interface OperateStatementResult {
   revenue: OperateStatementRevenueRow[];
   charges: OperateStatementChargeRow[];
   entries: OperateStatementEntry[];
+  payments: OperatePartnerPayments;
 }
 
 export interface OperateModelKeyAttribution {
@@ -963,6 +1102,20 @@ export interface OperateLogsResult {
   nextCursor: OperateLogCursor | null;
 }
 
+/** A batch log row names its source; shared partner settlements carry null. */
+export type UserLogRow = OperateLogEntry & {
+  appSourceId: number | null;
+  platform: string | null;
+};
+
+/** Account-wide logs page: one merged newest-first stream. */
+export interface UserLogsResult {
+  sources: UserSourceRef[];
+  logs: UserLogRow[];
+  nextCursor: OperateLogCursor | null;
+  invocationsAvailable: boolean;
+}
+
 export interface OperateAppHealth {
   applicationId: number;
   application: string;
@@ -972,6 +1125,7 @@ export interface OperateAppHealth {
   sdkVersion: string | null;
   status: "healthy" | "not_loaded" | "inactive" | string;
   metrics?: OperateAppMetrics | null;
+  pricing?: AppPricingSnapshot | null;
 }
 
 export interface OperateAppMetrics {
@@ -1026,6 +1180,7 @@ export interface OperateObservabilityResult {
   apps: OperateAppHealth[];
   dashboardLinks: OperateDashboardLink[];
   platformMetrics: OperatePlatformMetric[];
+  payments: OperatePartnerPayments;
 }
 
 export interface OperateAppDetailTool {

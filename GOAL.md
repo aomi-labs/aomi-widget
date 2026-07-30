@@ -31,6 +31,18 @@ mistaken for another supported environment.
 
 Progress:
 
+- 2026-07-29 integrations consolidation: moved the functional Telegram bot
+  configuration from Operate into Integrations, retained Discord as an explicit
+  coming-soon integration, and redirected the retired Bots route. Verified the
+  focused bot UI regression, Build lint, and Build type-check.
+
+- 2026-07-27 hosted account-pool hardening: traced recurring Settings auth
+  failures to aggregate Supabase session exhaustion across two backend and two
+  manager processes plus independently warm Vercel functions. Portal now
+  normalizes a Supabase session-pooler URL to transaction mode on Vercel while
+  retaining a one-client, short-idle local pool; paired backend deployment
+  work splits and verifies the fleet-wide session budget.
+- 2026-07-27 Build layout: standardized all twelve primary pages on responsive gutters and PT Serif titles paired with their navigation icons.
 - 2026-07-27 Build project membership: the Projects index now treats GitHub
   source records as internal import/ownership metadata and only surfaces
   sources that contain at least one Aomi app, removing historical repositories
@@ -331,7 +343,7 @@ Progress:
   RPC reads to token-program scans. The standalone holdings tool now defaults
   its owner from SVM wallet context and returns compact aggregated display
   amounts. Added a dedicated holdings trace presenter that shows `0.148008
-  USDC` for the canonical mainnet mint, or just the visible UI amount with the
+USDC` for the canonical mainnet mint, or just the visible UI amount with the
   generic token icon when the symbol is unknown. Patch-bumped
   `@aomi-labs/widget-lib` to 1.4.6 and regenerated registry artifacts.
 
@@ -808,3 +820,14 @@ build`, `CI=true npx -y pnpm@10.28.0 install --frozen-lockfile`, and
   deployment-status, and activate scopes, made exchange retries idempotent,
   and preserved partner platforms in project links and detail lookups. Verified
   type-check, lint, all 331 Build tests, and the production Build bundle.
+- 2026-07-27 partner-payment visibility: exposed validated app pricing and the
+  durable partner ledger in Project Home, Usage, Logs, Transactions, and
+  Observability. Recipient-bucket settlements and outstanding balances are
+  explicitly labeled and deduplicated across projects, while configured prices
+  remain visible before the first successful paid call. Cross-project payout
+  and log rows are deduplicated while advancing every affected project cursor.
+  Patch-bumped `@aomi-labs/deploy` to `0.3.1` after `main` advanced to `0.3.0`.
+  Synced the PR with the July 27 frontend changes and updated the full-suite
+  bootstrap contract to assert the new nullable pricing field. Verified root
+  lint, Build type-check, deploy/client/React/registry builds, 1,390 tests, and
+  the Landing production build.

@@ -7,13 +7,15 @@ import { useAccountOverview } from "@portal/lib/account-overview";
 import { useUsageStatement } from "./use-usage-statement";
 import { ArrowLeft, Check, ChevronDown, Loader2 } from "lucide-react";
 import {
+  AllowanceSettlementSection,
   AppGroup,
   MatrixTable,
-  Meter,
   MODEL_COLS,
-  formatPeriodRange,
   OutcomeTable,
+  SectionHeading,
+  SpendBreakdownSection,
   StatementSection,
+  USAGE_MATRIX_HINT,
   usd,
 } from "./usage-shared";
 
@@ -38,11 +40,8 @@ const SUBJECTS: { id: Subject; label: string }[] = [
 ];
 
 /**
- * /statement — the full usage statement as its own page: month picker,
- * By app / Itemized views, and app + subject filters. Data is the live model
- * statement (`/api/account/statement`), one fetch per selected month; tool
- * and on-chain sections appear only when the ledger actually carries them.
- * Sums here are display-only aggregation of the rows being shown.
+ * /statement — full usage statement: month picker, shared summary band
+ * (matches Settings › Usage), then statement-only detail below.
  */
 export function StatementView() {
   const overview = useAccountOverview();
@@ -66,7 +65,7 @@ export function StatementView() {
           <div className="mx-auto flex max-w-4xl flex-col gap-6 px-6 py-8">
             <Link
               href="/"
-              className="flex w-fit items-center gap-1.5 text-[13px] text-aomi-muted transition-colors hover:text-aomi-fg"
+              className="text-aomi-muted flex w-fit items-center gap-1.5 text-[13px] transition-colors hover:text-aomi-fg"
             >
               <ArrowLeft size={14} />
               Back to chat
@@ -82,7 +81,7 @@ export function StatementView() {
                 </button>
               </p>
             ) : (
-              <p className="flex items-center gap-2 text-[13px] text-aomi-muted">
+              <p className="text-aomi-muted flex items-center gap-2 text-[13px]">
                 <Loader2 size={14} className="animate-spin" />
                 Loading statement…
               </p>
@@ -93,56 +92,42 @@ export function StatementView() {
     );
   }
 
-  const { period, summary, payment } = month;
+  const { summary } = month;
   const identityLine = overview
     ? (overview.user.verified_email ?? overview.user.user_id)
     : "—";
   const identityKey = overview?.user.public_key;
-
-  const over = payment.x402SettledUsd > 0;
   const showAllowance =
-    statement.isCurrentMonth && payment.allowanceCredits.included > 0;
-  const creditsPct = showAllowance
-    ? Math.min(
-        100,
-        (payment.allowanceCredits.used / payment.allowanceCredits.included) * 100,
-      )
-    : 0;
+    statement.isCurrentMonth && month.payment.allowanceCredits.included > 0;
 
   return (
-    // The root layout pins html/body to the viewport with overflow:hidden, so
-    // this page must own its scrolling — h-screen + overflow-y-auto, not
-    // min-h-screen (which would clip everything below the fold).
     <div className="h-screen overflow-y-auto">
       <div className="min-h-full bg-aomi-bg font-sans text-aomi-fg">
-        <div className="mx-auto flex max-w-4xl flex-col gap-7 px-6 py-8">
-          {/* Header */}
+        <div className="mx-auto flex max-w-4xl flex-col gap-6 px-6 py-8">
           <header className="flex flex-col gap-5">
             <Link
               href="/"
-              className="flex w-fit items-center gap-1.5 text-[13px] text-aomi-muted transition-colors hover:text-aomi-fg"
+              className="text-aomi-muted flex w-fit items-center gap-1.5 text-[13px] transition-colors hover:text-aomi-fg"
             >
               <ArrowLeft size={14} />
               Back to chat
             </Link>
-            <div className="flex flex-wrap items-end justify-between gap-4">
-              <div className="flex flex-col gap-1">
-                <h1 className="font-display text-3xl font-normal tracking-tight">
-                  Usage statement
-                </h1>
-                <span className="text-[13px] text-aomi-muted">
-                  {identityLine}
-                  {identityKey && (
-                    <>
-                      {" · "}
-                      <span className="font-mono">
-                        {identityKey.slice(0, 6)}…{identityKey.slice(-4)}
-                      </span>
-                    </>
-                  )}
-                </span>
-              </div>
-              {/* Month picker */}
+            <div className="flex flex-col gap-1">
+              <h1 className="text-xl font-semibold tracking-tight">Usage statement</h1>
+              <span className="text-aomi-muted text-[13px]">
+                {identityLine}
+                {identityKey && (
+                  <>
+                    {" · "}
+                    <span className="font-mono">
+                      {identityKey.slice(0, 6)}…{identityKey.slice(-4)}
+                    </span>
+                  </>
+                )}
+              </span>
+            </div>
+
+            <StatementPeriodHero totalUsd={summary.totalUsd}>
               <Dropdown
                 value={statement.selectedKey}
                 options={statement.monthKeys.map((key) => ({
@@ -151,107 +136,107 @@ export function StatementView() {
                 }))}
                 onChange={selectMonth}
               />
-            </div>
+            </StatementPeriodHero>
           </header>
 
-          {/* Subject tiles — a subject with no ledger rows shows "—" (absent),
-              never $0.00 (a claim). */}
-          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-            <StatTile label="Total" value={usd(summary.totalUsd)} primary />
-            <StatTile label="Models" value={usd(summary.modelUsd)} />
-            <StatTile
-              label="Tool calls"
-              value={month.apps.some((a) => a.tool !== null) ? usd(summary.toolUsd) : "—"}
-            />
-            <StatTile
-              label="On-chain fees"
-              value={month.apps.some((a) => a.outcome !== null) ? usd(summary.onchainUsd) : "—"}
-            />
-          </div>
+          <SpendBreakdownSection month={month} />
 
-          {/* Payment strip — the credits meter reads the profile's live
-              monthly position, so it only renders for the current month. */}
-          <div className="flex flex-col gap-2.5 rounded-xl border border-aomi-border bg-aomi-bg px-4 py-3.5">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="text-[13px] text-aomi-muted">{formatPeriodRange(period)}</span>
-              {showAllowance && (
-                <span className="text-[13px] text-aomi-muted">
-                  Credits {Math.round(payment.allowanceCredits.used)}/
-                  {Math.round(payment.allowanceCredits.included)} · paid via{" "}
-                  {payment.settledVia}
-                </span>
-              )}
+          <AllowanceSettlementSection month={month} showAllowance={showAllowance} />
+
+          <section className="flex flex-col gap-3">
+            <SectionHeading
+              title="Statement detail"
+              hint={view === "byApp" ? "Pivot by app" : "Line-by-line audit"}
+            />
+
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="border-aomi-border flex rounded-full border p-[3px]">
+                {(["byApp", "itemized"] as View[]).map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => setView(v)}
+                    className={`rounded-full px-3.5 py-[6px] text-xs font-medium transition-colors ${
+                      view === v
+                        ? "bg-aomi-surface-2 font-medium text-aomi-fg"
+                        : "text-aomi-muted hover:text-aomi-fg"
+                    }`}
+                  >
+                    {v === "byApp" ? "By app" : "Itemized"}
+                  </button>
+                ))}
+              </div>
+
+              <Dropdown
+                value={appFilter}
+                options={[
+                  { id: "all", label: "All apps" },
+                  ...month.apps.map((app) => ({ id: app.id, label: app.name })),
+                ]}
+                onChange={setAppFilter}
+              />
             </div>
-            {showAllowance && (
-              <>
-                <Meter pct={creditsPct} over={over} />
-                <span className="text-[11px] text-aomi-muted">
-                  {over
-                    ? `${usd(payment.x402SettledUsd)} settled via x402 beyond your monthly allowance (${usd(
-                        payment.allowanceAppliedUsd,
-                      )} applied).`
-                    : `Compute covered by your monthly allowance (${usd(
-                        payment.allowanceAppliedUsd,
-                      )} applied).`}
+
+            {view === "itemized" && (
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-aomi-muted mr-1 text-[11px] uppercase tracking-wide">
+                  Subject
                 </span>
-              </>
+                {SUBJECTS.map((s) => (
+                  <FilterChip
+                    key={s.id}
+                    active={subject === s.id}
+                    onClick={() => setSubject(s.id)}
+                  >
+                    {s.label}
+                  </FilterChip>
+                ))}
+              </div>
             )}
-          </div>
 
-          {/* Controls: view toggle + filters */}
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex rounded-full border border-aomi-border bg-aomi-surface-2 p-[3px]">
-              {(["byApp", "itemized"] as View[]).map((v) => (
-                <button
-                  key={v}
-                  onClick={() => setView(v)}
-                  className={`rounded-full px-3.5 py-[5px] text-xs font-medium transition-colors ${
-                    view === v
-                      ? "bg-aomi-accent-strong text-aomi-on-accent"
-                      : "text-aomi-muted hover:text-aomi-fg"
-                  }`}
-                >
-                  {v === "byApp" ? "By app" : "Itemized"}
-                </button>
-              ))}
-            </div>
-
-            <Dropdown
-              value={appFilter}
-              options={[
-                { id: "all", label: "All apps" },
-                ...month.apps.map((app) => ({ id: app.id, label: app.name })),
-              ]}
-              onChange={setAppFilter}
-            />
-          </div>
-
-          {view === "itemized" && (
-            <div className="-mt-3 flex flex-wrap items-center gap-1.5">
-              <span className="mr-1 text-[11px] uppercase tracking-wide text-aomi-muted">Subject</span>
-              {SUBJECTS.map((s) => (
-                <FilterChip key={s.id} active={subject === s.id} onClick={() => setSubject(s.id)}>
-                  {s.label}
-                </FilterChip>
-              ))}
-            </div>
-          )}
-
-          {/* Content */}
-          {view === "byApp" ? (
-            <MatrixTable month={month} appId={appFilter} framed />
-          ) : (
-            <ItemizedContent month={month} appFilter={appFilter} subject={subject} />
-          )}
+            {view === "byApp" ? (
+              <div className="flex flex-col gap-2.5">
+                <SectionHeading title="By app" hint={USAGE_MATRIX_HINT} />
+                <div className="border-aomi-border bg-aomi-bg/40 overflow-hidden rounded-xl border px-4 py-2 sm:px-5">
+                  <div className="py-2">
+                    <MatrixTable month={month} appId={appFilter} />
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <ItemizedContent month={month} appFilter={appFilter} subject={subject} />
+            )}
+          </section>
         </div>
       </div>
     </div>
   );
 }
 
-/* ---------------------------------------------------------------------- */
-/* Itemized content with filters                                           */
-/* ---------------------------------------------------------------------- */
+function StatementPeriodHero({
+  totalUsd,
+  children,
+}: {
+  totalUsd: number;
+  children: ReactNode;
+}) {
+  return (
+    <div className="border-aomi-border flex items-end justify-between gap-4 border-b pb-4">
+      <div className="flex min-w-0 flex-col gap-2">
+        <span className="text-aomi-muted text-[10px] font-medium uppercase tracking-[0.08em]">
+          Statement period
+        </span>
+        {children}
+      </div>
+      <div className="shrink-0 text-right">
+        <span className="font-mono text-2xl font-semibold tabular-nums leading-none">
+          {usd(totalUsd)}
+        </span>
+        <span className="text-aomi-muted mt-1 block text-[11px]">Total spend</span>
+      </div>
+    </div>
+  );
+}
 
 function ItemizedContent({
   month,
@@ -271,7 +256,6 @@ function ItemizedContent({
 
   const visibleApps = month.apps.filter((a) => appFilter === "all" || a.id === appFilter);
 
-  // Section A: apps that still have rows under the current subject filter.
   const computeApps = visibleApps.filter(
     (a) => (showModels && a.model.byModel.length > 0) || (showTools && a.tool !== null),
   );
@@ -295,13 +279,12 @@ function ItemizedContent({
 
   if (!showSectionA && !showSectionB) {
     return (
-      <div className="rounded-xl border border-aomi-border bg-aomi-surface px-4 py-10 text-center text-[13px] text-aomi-muted">
+      <div className="border-aomi-border bg-aomi-bg/40 rounded-xl border px-4 py-10 text-center text-[13px] text-aomi-muted">
         No items match these filters.
       </div>
     );
   }
 
-  // Footer recipients — only honest for the unfiltered month.
   const aomiTotal = month.apps.reduce(
     (s, a) => s + (a.native ? a.model.chargedUsd : a.settings.appByok ? 0 : a.model.baseUsd),
     0,
@@ -324,7 +307,7 @@ function ItemizedContent({
         >
           {showModels && (
             <div
-              className={`grid ${MODEL_COLS} gap-2 border-b border-aomi-border bg-aomi-surface-2/30 px-4 py-2 text-[10px] font-medium uppercase tracking-wide text-aomi-muted`}
+              className={`grid ${MODEL_COLS} border-aomi-border bg-aomi-surface-2/30 text-aomi-muted gap-2 border-b px-4 py-2 text-[10px] font-medium uppercase tracking-wide`}
             >
               <span>Model</span>
               <span>Detail</span>
@@ -333,7 +316,7 @@ function ItemizedContent({
               <span className="text-right">Charged</span>
             </div>
           )}
-          <div className="flex flex-col divide-y divide-aomi-border">
+          <div className="divide-aomi-border flex flex-col divide-y">
             {computeApps.map((app) => (
               <AppGroup key={app.id} app={app} showModels={showModels} showTools={showTools} />
             ))}
@@ -351,68 +334,45 @@ function ItemizedContent({
         </StatementSection>
       )}
 
-      {/* Total for what's displayed */}
-      <div className="flex items-center justify-between rounded-xl border border-aomi-border bg-aomi-surface px-4 py-3.5">
+      <div className="border-aomi-border bg-aomi-bg/40 flex items-center justify-between rounded-xl border px-4 py-3.5">
         <span className="text-sm font-semibold">
           {filtersActive ? "Filtered total" : `Total · ${period.periodLabel}`}
         </span>
-        <span className="font-mono text-base font-semibold">
+        <span className="font-mono text-base font-semibold tabular-nums">
           {usd(filtersActive ? sectionATotal + sectionBTotal : summary.totalUsd)}
         </span>
       </div>
 
-      {/* Where your money went — whole-month rollup, hidden while filtered */}
       {!filtersActive && (
-        <div className="flex flex-col gap-2.5 rounded-xl border border-aomi-border bg-aomi-surface p-4">
+        <div className="border-aomi-border bg-aomi-bg/40 flex flex-col gap-2.5 rounded-xl border p-4">
           <span className="text-[13px] font-semibold">Where your money went</span>
           <div className="flex flex-col gap-2 text-[13px]">
             <div className="flex items-center justify-between">
-              <span>Aomi — model compute on managed/native</span>
-              <span className="font-mono">{usd(aomiTotal)}</span>
+              <span>Aomi · model compute on managed/native</span>
+              <span className="font-mono tabular-nums">{usd(aomiTotal)}</span>
             </div>
             <div className="flex flex-col gap-1">
-              <span>The apps — tool + outcome fees</span>
-              <div className="flex flex-col gap-1 border-l border-aomi-border pl-3">
+              <span>The apps · tool + outcome fees</span>
+              <div className="border-aomi-border flex flex-col gap-1 border-l pl-3">
                 {appRecipients.map((a) => (
-                  <div key={a.name} className="flex items-center justify-between text-aomi-muted">
+                  <div key={a.name} className="text-aomi-muted flex items-center justify-between">
                     <span>{a.name}</span>
-                    <span className="font-mono text-aomi-fg">{usd(a.amount)}</span>
+                    <span className="font-mono tabular-nums text-aomi-fg">{usd(a.amount)}</span>
                   </div>
                 ))}
               </div>
             </div>
-            <div className="flex items-center justify-between text-aomi-muted">
+            <div className="text-aomi-muted flex items-center justify-between">
               <span>Your model provider</span>
-              <span>— (would show for BYOK)</span>
+              <span>None (would show for BYOK)</span>
             </div>
           </div>
-          <span className="text-[11px] text-aomi-muted">
+          <span className="text-aomi-muted text-[11px]">
             These tool and outcome fees also appear on the apps&apos; own builder statements as
             Aomi&apos;s take.
           </span>
         </div>
       )}
-    </div>
-  );
-}
-
-/* ---------------------------------------------------------------------- */
-/* Bits                                                                    */
-/* ---------------------------------------------------------------------- */
-
-function StatTile({
-  label,
-  value,
-  primary,
-}: {
-  label: string;
-  value: string;
-  primary?: boolean;
-}) {
-  return (
-    <div className="flex flex-col gap-1 rounded-xl border border-aomi-border bg-aomi-surface px-4 py-3.5">
-      <span className="text-[11px] text-aomi-muted">{label}</span>
-      <span className={`font-mono font-semibold ${primary ? "text-xl" : "text-lg"}`}>{value}</span>
     </div>
   );
 }
@@ -432,8 +392,9 @@ function Dropdown({
   return (
     <div className="relative">
       <button
+        type="button"
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-2 rounded-full border border-aomi-border px-3.5 py-[7px] text-xs font-medium text-aomi-fg transition-colors hover:bg-aomi-surface-2/60"
+        className="border-aomi-border flex items-center gap-2 rounded-full border px-3.5 py-[7px] text-xs font-medium text-aomi-fg transition-colors hover:bg-aomi-surface-2/60"
       >
         {current?.label}
         <ChevronDown
@@ -443,23 +404,24 @@ function Dropdown({
       </button>
       {open && (
         <>
-          {/* click-away backdrop */}
           <button
             aria-label="Close menu"
+            type="button"
             onClick={() => setOpen(false)}
             className="fixed inset-0 z-20 cursor-default"
           />
-          <div className="absolute right-0 top-full z-30 mt-1.5 min-w-[160px] overflow-hidden rounded-xl border border-aomi-overlay-border bg-aomi-raised p-1">
+          <div className="border-aomi-overlay-border bg-aomi-raised absolute left-0 top-full z-30 mt-1.5 min-w-[160px] overflow-hidden rounded-xl border p-1 shadow-[0_12px_32px_rgba(0,0,0,0.5)]">
             {options.map((o) => {
               const selected = o.id === value;
               return (
                 <button
                   key={o.id}
+                  type="button"
                   onClick={() => {
                     onChange(o.id);
                     setOpen(false);
                   }}
-                  className={`flex w-full items-center justify-between gap-3 min-h-8 rounded-lg px-2.5 text-left text-xs transition-colors hover:bg-aomi-hover ${
+                  className={`flex min-h-8 w-full items-center justify-between gap-3 rounded-lg px-2.5 text-left text-[13px] transition-colors hover:bg-aomi-hover ${
                     selected ? "bg-aomi-accent-subtle font-medium text-aomi-fg" : "text-aomi-muted"
                   }`}
                 >
@@ -486,11 +448,12 @@ function FilterChip({
 }) {
   return (
     <button
+      type="button"
       onClick={onClick}
-      className={`rounded-full border px-3.5 py-[5px] text-xs transition-colors ${
+      className={`rounded-full border px-3 py-[5px] text-xs transition-colors ${
         active
-          ? "border-transparent bg-aomi-accent-strong font-medium text-aomi-on-accent"
-          : "border-aomi-border bg-aomi-surface-2 text-aomi-muted hover:text-aomi-fg"
+          ? "border-transparent bg-aomi-surface-2 font-medium text-aomi-fg"
+          : "border-aomi-border text-aomi-muted hover:text-aomi-fg"
       }`}
     >
       {children}

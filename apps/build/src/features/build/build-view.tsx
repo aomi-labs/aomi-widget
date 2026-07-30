@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as FileDialog from "@radix-ui/react-dialog";
 import {
   Files,
+  Hammer,
   ListChecks,
   PanelLeftClose,
   PanelLeftOpen,
@@ -447,21 +448,25 @@ export function BuildView() {
           </div>
         </div>
 
+        <div className="mx-auto w-full max-w-7xl shrink-0 px-4 py-4 sm:px-6 lg:px-8">
+          <div className="flex items-center gap-2">
+            <Hammer className="text-dim size-5" aria-hidden />
+            <h1 className="font-display text-xl font-normal tracking-tight">
+              Build
+            </h1>
+          </div>
+          <p className="text-dim mt-1.5 max-w-3xl text-sm leading-5">
+            Describe an agent, review the plan and files, compile, smoke-test,
+            then ship to Projects.
+          </p>
+        </div>
+
         <div className="flex min-h-0 flex-1">
           <div className="flex min-w-0 flex-1 flex-col">
             <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">
               {isEmpty ? (
                 <div className="flex justify-center px-4 pb-8 pt-8 sm:pt-10">
                   <div className="w-full max-w-[640px]">
-                    <div className="mb-4 space-y-1 text-center sm:text-left">
-                      <h1 className="font-display text-foreground text-base font-normal tracking-tight">
-                        What do you want to build?
-                      </h1>
-                      <p className="text-dim text-[13px] leading-5">
-                        Describe an agent, review the plan and files, compile,
-                        smoke-test, then ship to Projects.
-                      </p>
-                    </div>
                     <IntentComposer
                       ref={composerRef}
                       value={input}
@@ -505,7 +510,6 @@ export function BuildView() {
                     );
                   })}
 
-                  {/* Progress in-thread when right rail is hidden */}
                   {(showStreamInThread || isGenerating || awaitingVerify) &&
                   streamEvents.length > 0 ? (
                     <div className="my-2 lg:hidden">

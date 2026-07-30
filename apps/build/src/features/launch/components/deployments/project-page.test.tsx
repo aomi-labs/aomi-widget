@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ToastProvider } from "@build/components/control-plane/toast";
 
 const searchParams = { current: new URLSearchParams("") };
@@ -15,6 +16,12 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@build/features/operate/client", () => ({
   operateFetch: vi.fn(async () => ({ daily: [] })),
+}));
+
+// The page warms its reads through the shared prefetch on mount; keep the
+// test offline instead of letting prefetchQuery hit real clients.
+vi.mock("@build/components/control-plane/prefetch-control-plane-route", () => ({
+  prefetchProjectDetail: vi.fn(),
 }));
 
 vi.mock("@aomi-labs/deploy/lifecycle", () => ({
@@ -70,10 +77,19 @@ vi.mock("@build/features/launch/hooks/use-project-detail", () => ({
 import { ProjectPage } from "./project-page";
 
 function renderPage(platform?: string) {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
   return render(
-    <ToastProvider>
-      <ProjectPage sourceId={1} platform={platform} tabBaseHref="/projects/1" />
-    </ToastProvider>,
+    <QueryClientProvider client={client}>
+      <ToastProvider>
+        <ProjectPage
+          sourceId={1}
+          platform={platform}
+          tabBaseHref="/projects/1"
+        />
+      </ToastProvider>
+    </QueryClientProvider>,
   );
 }
 

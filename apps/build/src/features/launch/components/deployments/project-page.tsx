@@ -2,6 +2,8 @@
 
 import { useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
+import { prefetchProjectDetail } from "@build/components/control-plane/prefetch-control-plane-route";
 import { useProjectDetail } from "@build/features/launch/hooks/use-project-detail";
 import { setLastProjectId } from "@build/lib/last-project";
 import { ProjectHeader } from "./project-header";
@@ -53,10 +55,24 @@ export function ProjectPage({
     return `${tabBaseHref ?? "/operate/deployments"}?${params}`;
   };
   const openEnvironment = () => router.push(projectTabHref("environment"));
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     setLastProjectId(sourceId);
   }, [sourceId]);
+
+  // Start every read this page needs in parallel on mount instead of
+  // waterfalling them behind the source list: usage/SDK warm through the same
+  // prefetch the sidebar hover uses (deduped by react-query), and secrets —
+  // which only need the source id — fire for the tabs that render them.
+  useEffect(() => {
+    if (detail.accountKey) {
+      prefetchProjectDetail(queryClient, detail.accountKey, sourceId, platform);
+    }
+  }, [detail.accountKey, platform, queryClient, sourceId]);
+  useEffect(() => {
+    if (active === "home" || active === "environment") detail.loadSecrets();
+  }, [active, detail]);
 
   return (
     <main className="bg-background text-foreground min-h-screen">
@@ -98,7 +114,11 @@ export function ProjectPage({
             // Details is merged into Home: status cards first, repo
             // metadata (the former Details tab) below.
             <>
-              <HomeTab detail={detail} tabHref={projectTabHref} />
+              <HomeTab
+                detail={detail}
+                tabHref={projectTabHref}
+                platform={platform}
+              />
               <SettingsTab detail={detail} />
             </>
           ) : active === "deployments" ? (

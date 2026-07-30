@@ -1,5 +1,12 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render as rtlRender,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ReactElement } from "react";
 import { OperateView, truncateAddress } from "./operate-view";
 
 const operateFetch = vi.fn();
@@ -7,17 +14,33 @@ const searchParams = { current: new URLSearchParams("") };
 
 vi.mock("next/navigation", () => ({
   useSearchParams: () => searchParams.current,
+  useRouter: () => ({ prefetch: vi.fn() }),
 }));
 
 vi.mock("@build/components/control-plane/github-session-context", () => ({
   useGitHubSession: () => ({
-    account: { loading: false, signedIn: true, login: "gordian" },
+    account: {
+      loading: false,
+      signedIn: true,
+      githubLogin: "gordian",
+      githubAvatarUrl: null,
+      installationId: null,
+    },
   }),
 }));
 
 vi.mock("./client", () => ({
   operateFetch: (...args: unknown[]) => operateFetch(...args),
 }));
+
+function render(ui: ReactElement) {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return rtlRender(
+    <QueryClientProvider client={client}>{ui}</QueryClientProvider>,
+  );
+}
 
 describe("truncateAddress", () => {
   it("shortens long hex addresses and leaves short values alone", () => {
@@ -119,6 +142,16 @@ describe("OperateView transactions", () => {
       ],
       dashboardLinks: [],
       platformMetrics: [],
+      payments: {
+        available: true,
+        summary: {
+          pricedCalls: 1,
+          accruedUsd: 1,
+          settledUsd: 0,
+          outstandingUsd: 1,
+        },
+        resources: [],
+      },
     });
 
     render(<OperateView kind="observability" />);
@@ -139,6 +172,14 @@ describe("OperateView transactions", () => {
     expect(screen.getByText("Tool errors")).toBeInTheDocument();
     expect(screen.getByText("12.0%")).toBeInTheDocument();
     expect(screen.getByText("Tx failures")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "24h activity · outstanding is the live recipient-bucket balance",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Outstanding").nextElementSibling).toHaveClass(
+      "text-amber-500",
+    );
     // Lifecycle footer.
     expect(
       screen.getByText(/SDK 3\.0\.2 · cold start 1250 ms · 4\.5 MB/),
@@ -367,6 +408,49 @@ describe("OperateView transactions", () => {
             net: -4.1,
           },
         ],
+        payments: {
+          available: true,
+          scope: "recipient_bucket",
+          summary: {
+            accruedCredits: 100,
+            accruedUsd: 1,
+            settledCredits: 100,
+            settledUsd: 1,
+            outstandingCredits: 0,
+            outstandingUsd: 0,
+            pricedCalls: 1,
+            settlements: 1,
+          },
+          resources: [
+            {
+              application: "somm-agent",
+              applicationId: 2936606,
+              tool: "get_idle_assets",
+              flatCredits: 100,
+              flatUsd: 1,
+              beneficiary: "banana_evm",
+              recipient: "0x5D907BEa404e6F821d467314a9cA07663CF64c9B",
+              chain: "eip155:84532",
+              observedCalls: 1,
+            },
+          ],
+          events: [
+            {
+              id: "settle:proof",
+              kind: "settlement_confirmed",
+              occurredAt: 1_700_000_001,
+              application: "somm-agent",
+              credits: 100,
+              usd: 1,
+              recipient: "0x5D907BEa404e6F821d467314a9cA07663CF64c9B",
+              paymentMethod: "coinbase",
+              receiptId:
+                "0x55e510bb72adb05979adc8afad8c70fa7ca3d0c2cb5dca9432bf82e46ff1df74",
+              explorerUrl:
+                "https://sepolia.basescan.org/tx/0x55e510bb72adb05979adc8afad8c70fa7ca3d0c2cb5dca9432bf82e46ff1df74",
+            },
+          ],
+        },
       },
     });
 
@@ -382,8 +466,162 @@ describe("OperateView transactions", () => {
     expect(screen.getByText("Model usage")).toBeInTheDocument();
     expect(screen.getByText("−$4.10")).toBeInTheDocument();
     expect(screen.getAllByText("Jul 1 – Jul 15").length).toBeGreaterThan(0);
+    expect(screen.getByText("Partner payments")).toBeInTheDocument();
+    expect(
+      screen.getByText("Partner payments").closest("#partner-payments"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Statement · Jul 1 – Jul 15")).toBeInTheDocument();
+    expect(screen.getByText("Current outstanding")).toBeInTheDocument();
+    expect(
+      screen.getByText("Current outstanding").nextElementSibling,
+    ).toHaveClass("text-emerald-500");
+    expect(
+      screen.getByText("all periods · recipient bucket"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("100.00 credits · statement period"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("1 receipt · statement period"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /liabilities owed to tool beneficiaries, not builder revenue/,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("banana_evm")).not.toBeInTheDocument();
+    expect(screen.getByText("get_idle_assets")).toBeInTheDocument();
+    expect(screen.getByText("Settlement confirmed")).toBeInTheDocument();
+    const receipt = screen.getByRole("link", { name: "0x55e5…df74" });
+    expect(receipt).toHaveAttribute(
+      "href",
+      expect.stringContaining("sepolia.basescan.org/tx/"),
+    );
+    expect(receipt.querySelector("svg")).toBeInTheDocument();
     // example: true → the header labels the page as example data.
     expect(screen.getByText("Example data")).toBeInTheDocument();
+  });
+
+  it("renders partner settlement receipts as transaction records", async () => {
+    operateFetch.mockResolvedValue({
+      sources: [],
+      transactions: [
+        {
+          id: "partner-payout:settle:proof",
+          kind: "partner_payout",
+          application: "somm-agent",
+          status: "confirmed",
+          family: "evm",
+          chainName: "Base Sepolia",
+          chainId: 84532,
+          fromAddress: "",
+          toAddress: "0x5D907BEa404e6F821d467314a9cA07663CF64c9B",
+          value: "1 USDC",
+          valueUsd: "$1.00",
+          description: "Partner settlement via Coinbase",
+          method: "Coinbase x402",
+          transfers: [],
+          txHash:
+            "0x55e510bb72adb05979adc8afad8c70fa7ca3d0c2cb5dca9432bf82e46ff1df74",
+          createdAt: 1_700_000_001,
+          payment: {
+            credits: 100,
+            recipient: "0x5D907BEa404e6F821d467314a9cA07663CF64c9B",
+            scope: "recipient_bucket",
+          },
+        },
+      ],
+      nextCursor: null,
+    });
+
+    render(<OperateView kind="transactions" />);
+
+    expect(await screen.findByLabelText("Partner payout")).toHaveTextContent(
+      "Payout",
+    );
+    expect(
+      screen.queryByRole("columnheader", { name: "Kind" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("table")).toHaveClass(
+      "w-full",
+      "min-w-[960px]",
+      "table-fixed",
+    );
+    fireEvent.click(screen.getByText("Partner settlement via Coinbase"));
+    expect(screen.getByText("Partner payment context")).toBeInTheDocument();
+    expect(screen.getByText("Payer")).toBeInTheDocument();
+    expect(screen.getByText("not recorded")).toBeInTheDocument();
+    expect(screen.getByText("Settlement amount")).toBeInTheDocument();
+    expect(screen.getByText("Coinbase x402")).toBeInTheDocument();
+    expect(screen.queryByText("ERC-20 transfers")).not.toBeInTheDocument();
+    expect(screen.getByText(/recipient bucket/i)).toBeInTheDocument();
+  });
+
+  it("filters and expands partner payment ledger records in logs", async () => {
+    operateFetch.mockResolvedValue({
+      sources: [],
+      logs: [
+        {
+          id: "usage:fee",
+          occurredAt: 1_700_000_000,
+          eventType: "usage",
+          application: "somm-agent",
+          summary: "Partner fee accrued · 100.00 credits",
+          details: {
+            source: "partner_fee",
+            credits_used: 100,
+            recipient: "0x5D907BEa404e6F821d467314a9cA07663CF64c9B",
+            billing: {
+              items: [
+                {
+                  tool: "get_idle_assets",
+                  credits: 100,
+                  beneficiary: "banana_evm",
+                  beneficiary_address:
+                    "0x5D907BEa404e6F821d467314a9cA07663CF64c9B",
+                },
+              ],
+            },
+          },
+        },
+        {
+          id: "ordinary",
+          occurredAt: 1_699_999_999,
+          eventType: "deployment",
+          application: "somm-agent",
+          summary: "Deployment activated",
+          details: {},
+        },
+      ],
+      nextCursor: null,
+    });
+
+    render(<OperateView kind="logs" />);
+    expect(
+      await screen.findByRole("button", { name: "Errors only" }),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Partner payments only" }),
+    );
+
+    expect(
+      screen.getByText("Partner fee accrued · 100.00 credits"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Clear filters" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Deployment activated")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText("Partner fee accrued · 100.00 credits"));
+    expect(
+      screen.getByText(/awaiting recipient-bucket settlement/i),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Priced calls")).toBeInTheDocument();
+    expect(screen.getByText("get_idle_assets")).toBeInTheDocument();
+    expect(
+      screen.getByText("100.00 credits", { selector: "span" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/beneficiary_address/)).not.toBeInTheDocument();
+    expect(screen.queryByText("banana_evm")).not.toBeInTheDocument();
   });
 
   it("falls back to the token meter without a statement", async () => {
@@ -420,7 +658,87 @@ describe("OperateView transactions", () => {
     render(<OperateView kind="usage" />);
 
     await waitFor(() => {
-      expect(operateFetch).toHaveBeenCalledWith("usage", 42);
+      expect(operateFetch).toHaveBeenCalledWith("usage", {
+        sourceId: 42,
+        platform: undefined,
+      });
     });
+  });
+
+  it("keeps ?platform= on project-scoped operate reads", async () => {
+    searchParams.current = new URLSearchParams(
+      "project=1620&platform=somm.finance",
+    );
+    operateFetch.mockResolvedValue({
+      sources: [{ id: 1620, repositoryLink: "aomi/somm-agent", apps: [] }],
+      daily: [],
+      breakdown: [],
+    });
+
+    render(<OperateView kind="usage" />);
+
+    await waitFor(() => {
+      expect(operateFetch).toHaveBeenCalledWith("usage", {
+        sourceId: 1620,
+        platform: "somm.finance",
+      });
+    });
+  });
+
+  it("reuses fresh operate data when returning to a tab", async () => {
+    operateFetch.mockResolvedValue({
+      sources: [],
+      transactions: [],
+      nextCursor: null,
+    });
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const first = rtlRender(
+      <QueryClientProvider client={client}>
+        <OperateView kind="transactions" />
+      </QueryClientProvider>,
+    );
+
+    await screen.findByText(/no transactions yet/i);
+    first.unmount();
+    rtlRender(
+      <QueryClientProvider client={client}>
+        <OperateView kind="transactions" />
+      </QueryClientProvider>,
+    );
+
+    await screen.findByText(/no transactions yet/i);
+    expect(operateFetch).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("OperateView failure and empty states", () => {
+  beforeEach(() => {
+    operateFetch.mockReset();
+    searchParams.current = new URLSearchParams("");
+  });
+
+  it("shows the normal empty state when the account has no transactions", async () => {
+    operateFetch.mockResolvedValue({ sources: [], transactions: [] });
+
+    render(<OperateView kind="transactions" />);
+
+    expect(await screen.findByText(/No transactions yet/)).toBeTruthy();
+  });
+
+  // A total backend outage now surfaces as a BFF error, not an empty page
+  // with a warning banner (and never as example data).
+  it("shows the error state when the BFF reports the reads unavailable", async () => {
+    operateFetch.mockRejectedValue(
+      new Error("Operate reads are temporarily unavailable — retry shortly."),
+    );
+
+    render(<OperateView kind="transactions" />);
+
+    expect(
+      await screen.findByText(/temporarily unavailable/),
+    ).toBeTruthy();
+    expect(screen.queryByText(/No transactions yet/)).toBeNull();
   });
 });
