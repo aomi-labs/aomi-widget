@@ -13,8 +13,10 @@ import {
   explainAccountError,
   fetchGrants,
   fetchWalletPolicies,
+  provisionAgentWallet,
   revokeProviderGrant,
 } from "./account-api";
+import { bindWalletVia } from "./wallet-bind";
 import type { DelegationGrant, SignerMode, WalletPolicy } from "./types";
 
 const post: AuthorizationPoster = (path, body) =>
@@ -49,14 +51,31 @@ export function isLoosening(from: SignerMode, to: SignerMode): boolean {
 
 export type AclStatus = "loading" | "ready" | "error";
 
+export type UnboundWallet = {
+  id: string;
+  chain: "evm" | "svm";
+  address: string;
+  walletName?: string;
+  provider?: string;
+  active: boolean;
+};
+
 export type AccountAcl = {
   status: AclStatus;
   error?: string;
   wallets: WalletPolicy[];
   grants: DelegationGrant[];
+  /** Connected adapter accounts not yet linked via the bind ceremony. */
+  unboundWallets: UnboundWallet[];
+  /** Para login wallet exists but no provider-managed agent wallet yet. */
+  needsParaAgentWallet: boolean;
   refresh: () => Promise<void>;
   /** Run the permit ceremony; resolves once the new mode is committed. */
   commitMode: (wallet: WalletPolicy, mode: SignerMode) => Promise<void>;
+  /** Link a connected wallet to the account (bind ceremony). */
+  bindWallet: (wallet: UnboundWallet) => Promise<"bound" | "already_bound">;
+  /** Provision a Para agent wallet for auto-signing. */
+  provisionParaAgentWallet: () => Promise<void>;
   revokeGrant: (grant: DelegationGrant) => Promise<void>;
   stopAllAuto: () => Promise<void>;
   /** Re-open the provider so a fresh grant can be minted, then reload. */
@@ -65,13 +84,53 @@ export type AccountAcl = {
   blockedReason: (wallet: WalletPolicy, mode: SignerMode) => string | null;
 };
 
+type AdapterAccount = {
+  family: "evm" | "svm";
+  address: string;
+  walletName?: string;
+  provider?: string;
+  active: boolean;
+};
+
+function unboundFromAccounts(
+  accounts: AdapterAccount[],
+  wallets: WalletPolicy[],
+): UnboundWallet[] {
+  const bound = new Set(
+    wallets.map((wallet) => `${wallet.chain}:${wallet.address.toLowerCase()}`),
+  );
+  return accounts
+    .filter((account) => account.address)
+    .filter((account) => {
+      const chain = account.family;
+      return !bound.has(`${chain}:${account.address.toLowerCase()}`);
+    })
+    .map((account) => ({
+      id: `${account.family}:${account.address}`,
+      chain: account.family,
+      address: account.address,
+      walletName: account.walletName,
+      provider: account.provider,
+      active: account.active,
+    }));
+}
+
+function detectNeedsParaAgentWallet(wallets: WalletPolicy[]): boolean {
+  const hasParaLogin = wallets.some(
+    (wallet) => wallet.linkedVia === "para" && !wallet.providerManaged,
+  );
+  const hasParaAgent = wallets.some(
+    (wallet) => wallet.linkedVia === "para" && wallet.providerManaged,
+  );
+  return hasParaLogin && !hasParaAgent;
+}
+
 export function useAccountAcl(): AccountAcl {
   const adapter = useAomiWalletKit();
   const [wallets, setWallets] = useState<WalletPolicy[]>([]);
   const [grants, setGrants] = useState<DelegationGrant[]>([]);
   const [status, setStatus] = useState<AclStatus>("loading");
   const [error, setError] = useState<string | undefined>();
-  // Late responses from a superseded load must not clobber fresher state.
   const mounted = useRef(true);
   useEffect(() => {
     mounted.current = true;
@@ -86,6 +145,16 @@ export function useAccountAcl(): AccountAcl {
   const signTypedData = adapter.signTypedData;
   const signSolanaMessage = adapter.signSolanaMessage;
   const openAccountUI = adapter.openAccountUI;
+  const accounts = (adapter.accounts ?? []) as AdapterAccount[];
+
+  const unboundWallets = useMemo(
+    () => unboundFromAccounts(accounts, wallets),
+    [accounts, wallets],
+  );
+  const needsParaAgentWallet = useMemo(
+    () => detectNeedsParaAgentWallet(wallets),
+    [wallets],
+  );
 
   const refresh = useCallback(async () => {
     try {
@@ -109,12 +178,6 @@ export function useAccountAcl(): AccountAcl {
     void refresh();
   }, [refresh]);
 
-  /**
-   * Which of *this account's* connected keys can produce a signature for a
-   * permit on `wallet`'s chain. Chain-matched on purpose: an EVM permit is an
-   * EIP-712 hash and an SVM permit is an Ed25519 message — one connected wallet
-   * can't stand in for the other.
-   */
   const signerFor = useCallback(
     (wallet: WalletPolicy) =>
       wallet.chain === "evm"
@@ -136,9 +199,6 @@ export function useAccountAcl(): AccountAcl {
       if (!signer.canSign) {
         return `Connect a ${chainLabel} wallet to sign this authorization.`;
       }
-      // Loosening authority must be signed by the wallet whose authority grows
-      // — except for provider-managed keys, where the user holds no key
-      // material and the backend accepts any linked sibling key instead.
       const needsSelf = isLoosening(wallet.desiredMode, mode) && !wallet.providerManaged;
       if (
         needsSelf &&
@@ -170,8 +230,6 @@ export function useAccountAcl(): AccountAcl {
         }
         const { signature } = await readable(() =>
           signTypedData({
-            // The backend assembles wagmi-ready EIP-712; the wire type is
-            // `unknown` because only the wallet interprets it.
             typed_data: challenge.typed_data as WalletEip712Payload["typed_data"],
             description: permitDescription(wallet, mode),
           }),
@@ -190,7 +248,6 @@ export function useAccountAcl(): AccountAcl {
             description: permitDescription(wallet, mode),
           }),
         );
-        // Ed25519 has no recovery, so the signer is named rather than derived.
         await readable(() =>
           authorizationCommit(post, {
             permit: challenge.permit,
@@ -204,6 +261,29 @@ export function useAccountAcl(): AccountAcl {
     },
     [blockedReason, refresh, signSolanaMessage, signTypedData, svmAddress, svmCluster],
   );
+
+  const bindWallet = useCallback(
+    async (wallet: UnboundWallet) => {
+      const result = await readable(() =>
+        bindWalletVia(post, {
+          chain: wallet.chain,
+          address: wallet.address,
+          signTypedData,
+          signSolanaMessage,
+          svmCluster,
+          signerAddress: wallet.chain === "svm" ? svmAddress : evmAddress,
+        }),
+      );
+      await refresh();
+      return result;
+    },
+    [evmAddress, refresh, signSolanaMessage, signTypedData, svmAddress, svmCluster],
+  );
+
+  const provisionParaAgentWallet = useCallback(async () => {
+    await readable(() => provisionAgentWallet("para"));
+    await refresh();
+  }, [refresh]);
 
   const revokeGrant = useCallback(
     async (grant: DelegationGrant) => {
@@ -220,8 +300,6 @@ export function useAccountAcl(): AccountAcl {
         .filter((grant) => grant.status === "active")
         .map((grant) => grant.providerKey ?? grant.provider.toLowerCase()),
     );
-    // Sequential: each revoke clears that identity's vault secrets, and a
-    // partial failure should stop rather than race the rest.
     for (const provider of providers) {
       await readable(() => revokeProviderGrant(provider));
     }
@@ -235,9 +313,6 @@ export function useAccountAcl(): AccountAcl {
           "Reconnect this provider from the wallet menu to mint a new grant.",
         );
       }
-      // Grants are born only from the provider's verified connect flow — there
-      // is no server-side "re-grant". Sending the user back through the
-      // provider is the real path; the reload picks up whatever it minted.
       await openAccountUI({ family: wallet.chain });
       await refresh();
     },
@@ -250,23 +325,31 @@ export function useAccountAcl(): AccountAcl {
       error,
       wallets,
       grants,
+      unboundWallets,
+      needsParaAgentWallet,
       refresh,
       commitMode,
+      bindWallet,
+      provisionParaAgentWallet,
       revokeGrant,
       stopAllAuto,
       regrant,
       blockedReason,
     }),
     [
+      bindWallet,
       blockedReason,
       commitMode,
       error,
       grants,
+      needsParaAgentWallet,
+      provisionParaAgentWallet,
       refresh,
       regrant,
       revokeGrant,
       status,
       stopAllAuto,
+      unboundWallets,
       wallets,
     ],
   );
