@@ -146,7 +146,11 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
           <GateNotice status={status} onRetry={retry} />
         ) : (
           <div className="px-[22px] py-5">
-            <GeneralSettings onManageAccount={() => setTab("account")} />
+            <GeneralSettings
+              onManageAccount={() => setTab("account")}
+              onViewUsage={() => setTab("usage")}
+              onFixWallets={() => setTab("account")}
+            />
           </div>
         );
       case "account":
