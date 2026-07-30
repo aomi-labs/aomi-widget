@@ -44,7 +44,11 @@ export function AccountSettings() {
       email={email}
       wallets={acl.wallets}
       grants={acl.grants}
+      unboundWallets={acl.unboundWallets}
+      needsParaAgentWallet={acl.needsParaAgentWallet}
       onCommit={acl.commitMode}
+      onBindWallet={acl.bindWallet}
+      onProvisionParaAgentWallet={acl.provisionParaAgentWallet}
       onRevokeGrant={acl.revokeGrant}
       onStopAllAuto={acl.stopAllAuto}
       onRegrant={acl.regrant}

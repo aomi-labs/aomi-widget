@@ -473,6 +473,192 @@ export function OutcomeTable({
 }
 
 /* ---------------------------------------------------------------------- */
+/* Usage + Statement summary sections                                      */
+/* ---------------------------------------------------------------------- */
+
+export function StatTile({
+  label,
+  value,
+  detail,
+  primary,
+}: {
+  label: string;
+  value: string;
+  detail?: string;
+  primary?: boolean;
+}) {
+  return (
+    <div className="border-aomi-border bg-aomi-bg/40 flex min-w-0 flex-col gap-1 rounded-xl border px-3 py-3 sm:px-4 sm:py-3.5">
+      <span className="text-aomi-muted truncate text-[11px]">{label}</span>
+      <span
+        className={`truncate font-mono font-semibold tabular-nums ${
+          primary ? "text-lg sm:text-xl" : "text-base sm:text-lg"
+        }`}
+      >
+        {value}
+      </span>
+      {detail && (
+        <span className="text-aomi-muted truncate text-[10px]">{detail}</span>
+      )}
+    </div>
+  );
+}
+
+export const USAGE_MATRIX_HINT =
+  "Hover a cell for counts · — means not billed · $0 + app key = app BYOK";
+
+export function SectionHeading({ title, hint }: { title: string; hint?: string }) {
+  return (
+    <div className="flex flex-wrap items-baseline justify-between gap-2 px-0.5">
+      <span className="text-sm font-medium leading-none">{title}</span>
+      {hint && <span className="text-aomi-muted text-[11px]">{hint}</span>}
+    </div>
+  );
+}
+
+export function PeriodTotalHero({
+  periodLabel,
+  totalUsd,
+  periodCaption = "Current period",
+}: {
+  periodLabel: string;
+  totalUsd: number;
+  periodCaption?: string;
+}) {
+  return (
+    <div className="border-aomi-border flex items-end justify-between gap-4 border-b pb-4">
+      <div className="flex min-w-0 flex-col gap-1">
+        <span className="text-aomi-muted text-[10px] font-medium uppercase tracking-[0.08em]">
+          {periodCaption}
+        </span>
+        <span className="text-lg font-semibold leading-none tracking-[-0.01em]">
+          {periodLabel}
+        </span>
+      </div>
+      <div className="shrink-0 text-right">
+        <span className="font-mono text-2xl font-semibold tabular-nums leading-none">
+          {usd(totalUsd)}
+        </span>
+        <span className="text-aomi-muted mt-1 block text-[11px]">Total spend</span>
+      </div>
+    </div>
+  );
+}
+
+function monthActivityStats(month: MonthlyStatement) {
+  const turns = month.apps.reduce((s, a) => s + a.model.turns, 0);
+  const toolCalls = month.apps.reduce((s, a) => s + (a.tool?.calls ?? 0), 0);
+  const txns = month.apps.reduce((s, a) => s + (a.outcome?.txns ?? 0), 0);
+  const hasToolData = month.apps.some((a) => a.tool !== null);
+  const hasOutcomeData = month.apps.some((a) => a.outcome !== null);
+  const { payment, summary } = month;
+  const over = payment.x402SettledUsd > 0;
+  const hasAllowance = payment.allowanceCredits.included > 0;
+  const creditsPct = hasAllowance
+    ? Math.min(
+        100,
+        (payment.allowanceCredits.used / payment.allowanceCredits.included) * 100,
+      )
+    : 0;
+  const computeShare =
+    summary.totalUsd > 0
+      ? Math.round((summary.computeUsd / summary.totalUsd) * 100)
+      : 0;
+  const onchainShare = 100 - computeShare;
+
+  return {
+    turns,
+    toolCalls,
+    txns,
+    hasToolData,
+    hasOutcomeData,
+    over,
+    hasAllowance,
+    creditsPct,
+    computeShare,
+    onchainShare,
+  };
+}
+
+export function SpendBreakdownSection({ month }: { month: MonthlyStatement }) {
+  const { summary } = month;
+  const { turns, toolCalls, txns, hasToolData, hasOutcomeData, computeShare, onchainShare } =
+    monthActivityStats(month);
+
+  return (
+    <section className="flex flex-col gap-2.5">
+      <SectionHeading
+        title="Spend breakdown"
+        hint={`${computeShare}% compute · ${onchainShare}% on-chain`}
+      />
+      <div className="grid grid-cols-3 gap-2 sm:gap-2.5">
+        <StatTile label="Models" value={usd(summary.modelUsd)} detail={`${turns} turns`} />
+        <StatTile
+          label="Tool calls"
+          value={hasToolData ? usd(summary.toolUsd) : "—"}
+          detail={hasToolData ? `${toolCalls} calls` : "no charges"}
+        />
+        <StatTile
+          label="On-chain"
+          value={hasOutcomeData ? usd(summary.onchainUsd) : "—"}
+          detail={hasOutcomeData ? `${txns} txn${txns === 1 ? "" : "s"}` : "no charges"}
+        />
+      </div>
+      <p className="text-aomi-muted px-0.5 text-[12px] leading-snug">
+        Compute subtotal {usd(summary.computeUsd)} (models + tools)
+        {summary.managedMarkupUsd > 0 && (
+          <> · includes {usd(summary.managedMarkupUsd)} managed markup on third-party apps</>
+        )}
+        . On-chain fees settle separately in-token on your transactions.
+      </p>
+    </section>
+  );
+}
+
+export function AllowanceSettlementSection({
+  month,
+  showAllowance = true,
+}: {
+  month: MonthlyStatement;
+  /** Hide when viewing a past month — profile credits only match the current month. */
+  showAllowance?: boolean;
+}) {
+  const { payment } = month;
+  const { over, hasAllowance, creditsPct } = monthActivityStats(month);
+
+  if (!showAllowance || !hasAllowance) return null;
+
+  return (
+    <section className="flex flex-col gap-2.5">
+      <SectionHeading title="Allowance & settlement" />
+      <div className="border-aomi-border bg-aomi-bg/40 overflow-hidden rounded-xl border">
+        <div className="border-aomi-border flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3 sm:px-5">
+          <span className="text-[13px] font-medium text-aomi-fg">Monthly credits</span>
+          <span className="text-aomi-muted text-[13px] tabular-nums">
+            {payment.allowanceCredits.used.toLocaleString()} /{" "}
+            {payment.allowanceCredits.included.toLocaleString()} used
+          </span>
+        </div>
+        <div className="flex flex-col gap-2.5 px-4 py-3.5 sm:px-5">
+          <Meter pct={creditsPct} over={over} />
+          <span className="text-aomi-muted text-[12px] leading-snug">
+            Paid via {payment.settledVia}.{" "}
+            {over
+              ? `${usd(payment.x402SettledUsd)} billed via x402 beyond your ${usd(
+                  payment.allowanceAppliedUsd,
+                )} monthly allowance.`
+              : `Compute fully covered by your allowance (${usd(
+                  payment.allowanceAppliedUsd,
+                )} applied).`}{" "}
+            On-chain fees {payment.onchainNote}.
+          </span>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ---------------------------------------------------------------------- */
 /* Meter                                                                   */
 /* ---------------------------------------------------------------------- */
 

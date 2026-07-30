@@ -3,6 +3,20 @@ export const buildQueryKeys = {
   sdkStatus: () => [...buildQueryKeys.all, "sdk-status"] as const,
   projects: (account: string) =>
     [...buildQueryKeys.all, "account", account, "projects"] as const,
+  // Server-filtered single-source read backing a project detail page. Nested
+  // under the `projects` key so invalidating the projects prefix covers detail
+  // pages too. Warm navigations seed it from the `projects` list cache.
+  projectSource: (
+    account: string,
+    sourceId: number,
+    platform?: string | null,
+  ) =>
+    [
+      ...buildQueryKeys.projects(account),
+      "source",
+      platform?.trim() || "default",
+      sourceId,
+    ] as const,
   deployments: (account: string) =>
     [...buildQueryKeys.all, "account", account, "deployments"] as const,
   operate: (

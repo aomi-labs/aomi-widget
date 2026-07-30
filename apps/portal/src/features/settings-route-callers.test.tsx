@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import type {
   ButtonHTMLAttributes,
   InputHTMLAttributes,
@@ -46,6 +46,20 @@ vi.mock("@aomi-labs/widget-lib", () => ({
       status: "connected",
     },
     openAccountUI: widgetMock.openAccountUI,
+  }),
+}));
+
+vi.mock("./account/use-account-acl", () => ({
+  useAccountAcl: () => ({
+    status: "ready",
+    wallets: [],
+    grants: [],
+    refresh: vi.fn(),
+    commitMode: vi.fn(),
+    revokeGrant: vi.fn(),
+    stopAllAuto: vi.fn(),
+    regrant: vi.fn(),
+    blockedReason: () => null,
   }),
 }));
 
@@ -133,5 +147,19 @@ describe("settings route callers", () => {
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());
     expect(requestPaths(calls)).toContain("/api/account");
     expect(requestPaths(calls)).not.toContain("/api/settings/account");
+  });
+
+  it("renders the summary card with plan and allowance from the account route", async () => {
+    installFetchRecorder();
+
+    render(<GeneralSettings />);
+
+    await waitFor(() =>
+      expect(screen.getByText("alice@example.com")).toBeTruthy(),
+    );
+    expect(screen.getByText("Pro")).toBeTruthy();
+    expect(screen.getByText(/88 remaining/)).toBeTruthy();
+    expect(screen.getByText(/12 \/ 100 used/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "View usage" })).toBeTruthy();
   });
 });

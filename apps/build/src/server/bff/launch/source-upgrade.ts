@@ -3,8 +3,9 @@ import "server-only";
 import { NextResponse } from "next/server";
 import { deploymentClient } from "@build/server/bff/backend";
 import { resolveLaunchPlatform } from "./config";
-import { buildFailures } from "@build/server/bff/failures";
+import { clearLaunchReadCache } from "./routes";
 import { authorize } from "@build/server/bff/auth";
+import { buildFailures } from "@build/server/bff/failures";
 
 export async function sourceSdkUpgradeRoute(req: Request) {
   const auth = await authorize(req, { write: true });
@@ -41,6 +42,9 @@ export async function sourceSdkUpgradeRoute(req: Request) {
       githubUserId: session.githubUserId,
       platform,
     });
+    // The upgrade mutates the source repo; the merged PR changes the source's
+    // stamped SDK version, which the cached source list carries.
+    clearLaunchReadCache();
     return NextResponse.json(result);
   } catch (error) {
     return buildFailures.handle({

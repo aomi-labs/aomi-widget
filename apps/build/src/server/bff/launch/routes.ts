@@ -3,6 +3,7 @@ import "server-only";
 import { randomBytes } from "crypto";
 import { NextResponse } from "next/server";
 import { deploymentClient } from "@build/server/bff/backend";
+import { TimedPromiseCache } from "@build/server/bff/timed-promise-cache";
 import { configuredBackendUrl } from "@build/server/backend-url";
 import { buildFailures } from "@build/server/bff/failures";
 import { launchConfig, resolveLaunchPlatform } from "./config";
@@ -26,6 +27,23 @@ import {
 import { authorize, rateLimit } from "@build/server/bff/auth";
 
 const CREATED_REPO_PREFIX = "my-playground";
+
+// Server-side timing for the manager reads on the project page's critical
+// path. Read these off a staging load to tell a heavy manager query from a
+// fat payload or pool contention — they want different fixes.
+async function timedManagerRead<T>(
+  label: string,
+  run: () => Promise<T>,
+): Promise<T> {
+  const startedAt = performance.now();
+  try {
+    return await run();
+  } finally {
+    console.info(
+      `launch bff: ${label} took ${Math.round(performance.now() - startedAt)}ms`,
+    );
+  }
+}
 
 type DeploymentClientInstance = Awaited<ReturnType<typeof deploymentClient>>;
 
@@ -53,6 +71,25 @@ async function ownsAppSource(
 type OwnedSource = Awaited<
   ReturnType<DeploymentClientInstance["listUserSources"]>
 >[number];
+
+// Read cache for the hot project-page GETs. Same 15s TTL as operate's, and it
+// coalesces concurrent mounts onto one manager call — but unlike operate's
+// read-only routes, launch mutations CHANGE what these reads return (preflight
+// re-syncs the source and can register apps; activate/promote/deactivate move
+// the live release), so every source-mutating route clears it. Without that,
+// the redeploy flow's `reload()` after preflight would read a stale list and
+// the required-secrets gate could fail for an app the UI has no row for.
+const READ_CACHE_TTL_MS = 15_000;
+const readCache = {
+  sources: new TimedPromiseCache<OwnedSource[]>(READ_CACHE_TTL_MS),
+  serverTags: new TimedPromiseCache<
+    Awaited<ReturnType<DeploymentClientInstance["serverTags"]>>
+  >(READ_CACHE_TTL_MS),
+};
+
+export function clearLaunchReadCache() {
+  Object.values(readCache).forEach((cache) => cache.clear());
+}
 
 /** The signed-in user's source with `appSourceId`, or null if not theirs. */
 async function findOwnedSource(
@@ -394,6 +431,9 @@ export function launchDeployRoute(preflight: boolean) {
       const { deployment } = preflight
         ? await client.preflight(deployInput)
         : await client.deploy(deployInput);
+      // Preflight re-syncs the source (and can register new apps); deploy
+      // records a new deployment. The next sources read must see it.
+      clearLaunchReadCache();
       const projectUrl = new URL(`/projects/${appSourceId}`, req.url);
       projectUrl.searchParams.set("platform", platform);
       projectUrl.searchParams.set("tab", "deployments");
@@ -453,6 +493,7 @@ export async function createLaunchRepoRoute(req: Request) {
       githubUserId: session.githubUserId,
       private: config.createdRepoPrivate,
     });
+    clearLaunchReadCache();
     if (!source.repositoryLink || !source.installationId) {
       return NextResponse.json(
         { error: "backend did not return a created source repo" },
@@ -615,6 +656,7 @@ export async function activateLaunchRoute(req: Request) {
       targetTags: config.targetTags,
       actor: typeof body.actor === "string" ? body.actor : undefined,
     });
+    clearLaunchReadCache();
     return NextResponse.json(result);
   } catch (err) {
     return buildFailures.handle({
@@ -689,7 +731,9 @@ export async function launchSdkStatusRoute(req: Request) {
 
   try {
     const client = await deploymentClient();
-    const status = await client.serverTags();
+    const status = await readCache.serverTags.get(["server_tags"], () =>
+      timedManagerRead("server_tags", () => client.serverTags()),
+    );
     const requiredVersion = status.sdkVersion;
     return NextResponse.json({
       ok: true,
@@ -1135,6 +1179,7 @@ export async function deploymentPromoteRoute(req: Request) {
       targetTags: config.targetTags,
       actor,
     });
+    clearLaunchReadCache();
     return NextResponse.json(result, { status: result.ok ? 202 : 409 });
   } catch (err) {
     return buildFailures.handle({
@@ -1203,6 +1248,7 @@ export async function deploymentDeactivateRoute(req: Request) {
         actor,
       });
     }
+    clearLaunchReadCache();
     return NextResponse.json({ ok: true, apps }, { status: 202 });
   } catch (err) {
     return buildFailures.handle({
@@ -1254,6 +1300,7 @@ export async function redeployLaunchRoute(req: Request) {
       deploymentId,
       githubUserId: session.githubUserId,
     });
+    clearLaunchReadCache();
     return NextResponse.json({
       ok: rerun.ok,
       appSourceId: body.appSourceId,
@@ -1273,7 +1320,9 @@ export async function redeployLaunchRoute(req: Request) {
 // GET /api/bff/launch/sources — the signed-in user's source repos + their apps,
 // merged across installations and platforms unless `platform` is explicit.
 // Scoped to the github_user_id in the session cookie; a client can never
-// request someone else's sources.
+// request someone else's sources. `appSourceId` narrows the response to one
+// source — the manager has no single-source read, so the filter happens here,
+// off the cached list: a project page stops transferring the whole account.
 export async function userSourcesRoute(req: Request) {
   const auth = await authorize(req);
   if ("response" in auth) return auth.response;
@@ -1281,7 +1330,8 @@ export async function userSourcesRoute(req: Request) {
 
   try {
     const config = launchConfig();
-    const requestedPlatform = new URL(req.url).searchParams.get("platform");
+    const params = new URL(req.url).searchParams;
+    const requestedPlatform = params.get("platform");
     const platform =
       requestedPlatform === null
         ? undefined
@@ -1289,12 +1339,33 @@ export async function userSourcesRoute(req: Request) {
     if (requestedPlatform !== null && !platform) {
       return invalidPlatformResponse();
     }
+    const requestedSourceId = params.get("appSourceId");
+    const appSourceId =
+      requestedSourceId === null ? undefined : Number(requestedSourceId);
+    if (appSourceId !== undefined && !isValidAppSourceId(appSourceId)) {
+      return NextResponse.json(
+        { error: "invalid `appSourceId`" },
+        { status: 400 },
+      );
+    }
     const client = await deploymentClient();
-    const sources = await client.listUserSources({
-      githubUserId: session.githubUserId,
-      platform: platform ?? undefined,
+    const sources = await readCache.sources.get(
+      [session.githubUserId, platform ?? null],
+      () =>
+        timedManagerRead("list_user_sources", () =>
+          client.listUserSources({
+            githubUserId: session.githubUserId,
+            platform: platform ?? undefined,
+          }),
+        ),
+    );
+    return NextResponse.json({
+      sources:
+        appSourceId === undefined
+          ? sources
+          : sources.filter((source) => source.id === appSourceId),
+      githubLogin: session.githubLogin,
     });
-    return NextResponse.json({ sources, githubLogin: session.githubLogin });
   } catch (err) {
     return buildFailures.handle({
       source: "launch",
