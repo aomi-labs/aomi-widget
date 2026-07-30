@@ -347,6 +347,9 @@ export function AccountSigningView({
     void run(STOP_ALL_KEY, onStopAllAuto);
   };
 
+  /** Whether anything can currently sign — revoked and expired rows cannot. */
+  const hasActiveGrant = grants.some((grant) => grant.status === "active");
+
   return (
     <div className="flex-1 overflow-y-auto px-[22px] py-5">
       <div className="flex flex-col gap-6">
@@ -442,9 +445,17 @@ export function AccountSigningView({
           title="Delegated signing grants"
           desc="These grants are what let an “Aomi auto” policy actually reconcile. Revoke to force those wallets back to manual."
         >
-          {grants.length === 0 && (
+          {/* Keyed on "nothing can sign", not "no rows": revoked and expired
+              grants stay in the list as history, and gating on `length === 0`
+              stranded the account after a revoke — a dead row and no way to
+              grant again. */}
+          {!hasActiveGrant && (
             <div className="rounded-xl border border-dashed border-aomi-border px-4 py-3 text-[13px] text-aomi-muted">
-              <p>No delegated grants — nothing can sign on your behalf right now.</p>
+              <p>
+                {grants.length === 0
+                  ? "No delegated grants — nothing can sign on your behalf right now."
+                  : "No active delegation — nothing can sign on your behalf right now."}
+              </p>
               <button
                 className="mt-3 rounded-lg bg-aomi-accent px-3 py-2 text-xs font-medium text-white disabled:opacity-60"
                 disabled={Boolean(busy[CONNECT_PRIVY_KEY])}
@@ -453,7 +464,9 @@ export function AccountSigningView({
               >
                 {busy[CONNECT_PRIVY_KEY]
                   ? "Opening Privy…"
-                  : "Connect Privy delegation"}
+                  : grants.length === 0
+                    ? "Connect Privy delegation"
+                    : "Reconnect Privy delegation"}
               </button>
             </div>
           )}
@@ -471,7 +484,7 @@ export function AccountSigningView({
               onRevoke={() => revokeGrant(grant.id)}
             />
           ))}
-          {grants.some((grant) => grant.status === "active") && (
+          {hasActiveGrant && (
             <button
               onClick={stopAllAuto}
               disabled={Boolean(busy[STOP_ALL_KEY])}

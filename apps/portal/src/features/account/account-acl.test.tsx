@@ -340,4 +340,28 @@ describe("account ACL wiring", () => {
       expect(paths(calls)).toContain("/api/account/providers/privy/grant"),
     );
   });
+
+  // A revoked grant stays in the list as history, so gating the connect CTA on
+  // "no rows" stranded the account: a dead row, no Revoke button (it only
+  // renders while active), and no way to grant again.
+  it("offers a reconnect when every grant is revoked", async () => {
+    installFetchRecorder({
+      "/api/account/grants": () =>
+        Response.json({
+          grants: [
+            { ...GRANTS.grants[0], status: "revoked", revoked_at: 1_760_000_000 },
+          ],
+        }),
+    });
+
+    await renderAcl();
+
+    expect(await screen.findByText(/No active delegation/)).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: /Reconnect Privy delegation/ }),
+    ).toBeTruthy();
+    // The historical row is still listed, and offers no revoke of its own.
+    expect(screen.getByText("revoked")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Revoke" })).toBeNull();
+  });
 });
