@@ -16,6 +16,8 @@ export type AccountProfile = {
   user_id: string;
   public_key?: string;
   verified_email?: string | null;
+  tier?: string;
+  created_at?: number;
   /** The account's installed apps (`users.applications`). */
   apps?: string[];
 };
