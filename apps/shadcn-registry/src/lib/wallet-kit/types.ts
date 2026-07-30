@@ -309,6 +309,12 @@ export type AomiWalletKit = {
    * may sign, has to check this one.
    */
   evmSigningAddress?: string;
+  /**
+   * Whether the active EVM connection can actually answer a signing request.
+   * False for a provider session with no wagmi connector behind it, where the
+   * address is real but nothing is wired up to sign for it.
+   */
+  evmCanSign?: boolean;
   /** All wallet accounts known to the adapter, tagged by family. */
   accounts: readonly AomiAccount[];
   /** Unified picker rows: live accounts, stored account-runtime rows, and options. */

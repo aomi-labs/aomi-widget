@@ -84,6 +84,13 @@ export type EvmExecutionRuntime = {
   signTypedData?: (p: WalletEip712Payload) => Promise<{ signature: string }>;
   signMessage?: (p: WalletEip712Payload) => Promise<{ signature: string }>;
   activeConnector?: Connector;
+  /**
+   * Address of the active EVM connection. Present even when `activeConnector`
+   * is not: a provider session is a real connection with no wagmi connector
+   * behind it — Privy's embedded wallet registers under the synthetic uid
+   * `privy-smart-session`, which no wagmi connector will ever match.
+   */
+  activeAddress?: string;
   capabilities?: WalletExecutionKitState["capabilities"];
   chainsById: Record<number, Chain>;
   currentChainId?: number;

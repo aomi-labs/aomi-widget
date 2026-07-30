@@ -92,6 +92,7 @@ export function useAccountAcl(): AccountAcl {
   // permit checked against the former and signed by the latter is rejected by
   // the backend as `wrong_signer` only after the user has already approved it.
   const evmAddress = adapter.evmSigningAddress ?? adapter.identity.address;
+  const evmCanSign = adapter.evmCanSign ?? true;
   const svmAddress = adapter.identity.svmAddress;
   const svmCluster =
     adapter.identity.svmCluster ?? adapter.identity.solanaCluster;
@@ -131,12 +132,18 @@ export function useAccountAcl(): AccountAcl {
   const signerFor = useCallback(
     (wallet: WalletPolicy) =>
       wallet.chain === "evm"
-        ? { address: evmAddress, canSign: Boolean(signTypedData && evmAddress) }
+        ? {
+            address: evmAddress,
+            // `evmCanSign` is false for a provider session with no wagmi
+            // connector: the address is real but nothing can sign for it, and
+            // wagmi would otherwise fall through to another connected wallet.
+            canSign: Boolean(signTypedData && evmAddress && evmCanSign),
+          }
         : {
             address: svmAddress,
             canSign: Boolean(signSolanaMessage && svmAddress),
           },
-    [evmAddress, svmAddress, signSolanaMessage, signTypedData],
+    [evmAddress, evmCanSign, svmAddress, signSolanaMessage, signTypedData],
   );
 
   const blockedReason = useCallback(
@@ -147,6 +154,10 @@ export function useAccountAcl(): AccountAcl {
       const signer = signerFor(wallet);
       const chainLabel = wallet.chain === "evm" ? "Ethereum" : "Solana";
       if (!signer.canSign) {
+        // "Connect a wallet" reads as nonsense when one plainly is connected.
+        if (wallet.chain === "evm" && evmAddress && !evmCanSign) {
+          return `${shortenAddress(evmAddress)} is connected through its provider, which has no signer wired into this app yet, so it can't sign this authorization.`;
+        }
         return `Connect a ${chainLabel} wallet to sign this authorization.`;
       }
       // Loosening authority must be signed by the wallet whose authority grows
@@ -166,7 +177,7 @@ export function useAccountAcl(): AccountAcl {
       }
       return null;
     },
-    [signerFor],
+    [evmAddress, evmCanSign, signerFor],
   );
 
   const commitMode = useCallback(

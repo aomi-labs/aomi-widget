@@ -16,6 +16,8 @@ const walletKit = vi.hoisted(() => ({
   identity: { address: "", svmAddress: undefined as string | undefined },
   // Defaults to the identity; a test sets it to pin the divergent case.
   evmSigningAddress: undefined as string | undefined,
+  // Whether the active EVM connection has a wagmi connector behind it.
+  evmCanSign: true,
 }));
 
 vi.mock("@aomi-labs/widget-lib", () => ({
@@ -150,6 +152,7 @@ describe("account ACL wiring", () => {
   beforeEach(() => {
     walletKit.identity = { address: CONNECTED_EVM, svmAddress: undefined };
     walletKit.evmSigningAddress = undefined;
+    walletKit.evmCanSign = true;
     walletKit.signTypedData.mockClear();
     // The overview store is module-level; seed it so the tab doesn't also
     // depend on /api/account here.
@@ -261,6 +264,29 @@ describe("account ACL wiring", () => {
       screen.getByRole("button", { name: /Sign to authorize/ }),
     ).toHaveProperty("disabled", true);
     expect(paths(calls)).not.toContain("/api/account/authorization/challenge");
+  });
+
+  // What actually happened: Privy's embedded wallet registers as a session with
+  // the synthetic uid `privy-smart-session`, so it IS the active EVM connection
+  // (its address matches the row) but no wagmi connector backs it. wagmi read
+  // `connector: undefined` as "use the current connection" and popped MetaMask
+  // to sign a permit for the Privy wallet.
+  it("blocks a permit when the active connection has no signer behind it", async () => {
+    walletKit.identity = { address: CONNECTED_EVM, svmAddress: undefined };
+    walletKit.evmSigningAddress = CONNECTED_EVM;
+    walletKit.evmCanSign = false;
+    const { calls } = installFetchRecorder();
+
+    await renderAcl();
+    await click(await screen.findByText("0x71C7…976F"));
+    await click(await screen.findByText("Accept transactions"));
+
+    expect(screen.getByText(/no signer wired into this app/)).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: /Sign to authorize/ }),
+    ).toHaveProperty("disabled", true);
+    expect(paths(calls)).not.toContain("/api/account/authorization/challenge");
+    expect(walletKit.signTypedData).not.toHaveBeenCalled();
   });
 
   // The real failure: Privy reports the embedded wallet as the identity while

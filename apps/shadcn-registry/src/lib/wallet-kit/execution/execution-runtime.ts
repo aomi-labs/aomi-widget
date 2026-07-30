@@ -24,6 +24,7 @@ export function buildEvmExecutionRuntime(
 ): EvmExecutionRuntime {
   const runtime: EvmExecutionRuntime = {
     activeConnector: evm.activeConnector,
+    activeAddress: evm.activeEvmConnection?.address,
     capabilities: evm.capabilities,
     chainsById: evm.chainsById,
     currentChainId: evm.activeEvmConnection?.chainId,
@@ -86,8 +87,23 @@ export function buildEvmExecutionRuntime(
             if (!signArgs) {
               throw new Error("Missing typed_data payload");
             }
+            // wagmi reads `connector: undefined` as "use the current
+            // connection". For a provider session that has no wagmi connector,
+            // that silently hands the request to whichever external wallet
+            // happens to be connected — the user is asked to sign as one wallet
+            // on behalf of another, and only the server catches it. Refuse.
+            if (runtime.activeAddress && !runtime.activeConnector) {
+              throw new Error(
+                "This wallet has no signer wired into the app, so it cannot sign here.",
+              );
+            }
             const signature = await signTypedDataAsync({
               ...(signArgs as Record<string, unknown>),
+              // Bind the request to the intended key so a connector holding
+              // several accounts cannot answer with the wrong one.
+              ...(runtime.activeAddress
+                ? { account: runtime.activeAddress }
+                : {}),
               connector: runtime.activeConnector,
             } as never);
             return { signature };

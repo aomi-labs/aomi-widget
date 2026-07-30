@@ -178,6 +178,9 @@ export function AomiWalletKitComposer({
       // Same source the execution runtime resolves `activeConnector` from, so
       // this is the key that will sign — not the grace-window identity above.
       evmSigningAddress: registryState.activeByFamily.evm?.address,
+      // A provider session (Privy's embedded wallet) is a real connection with
+      // no wagmi connector, so it cannot answer a signing request at all.
+      evmCanSign: Boolean(execution.evm.activeConnector),
       walletModalRows,
       accountStatus: account.status,
       accountError: account.error,
