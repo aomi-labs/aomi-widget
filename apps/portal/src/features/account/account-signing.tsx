@@ -14,6 +14,7 @@ import type {
   WalletPolicy,
 } from "./types";
 import { shortenAddress } from "./account-api";
+import type { UnboundWallet } from "./use-account-acl";
 import {
   TriangleAlert as Alert,
   Zap as Bolt,
@@ -33,8 +34,12 @@ interface AccountSigningViewProps {
   email: string;
   wallets: WalletPolicy[];
   grants: DelegationGrant[];
+  unboundWallets: UnboundWallet[];
+  needsParaAgentWallet: boolean;
   /** Run the permit ceremony. Rejects with a user-facing message. */
   onCommit: (wallet: WalletPolicy, mode: SignerMode) => Promise<void>;
+  onBindWallet: (wallet: UnboundWallet) => Promise<"bound" | "already_bound">;
+  onProvisionParaAgentWallet: () => Promise<void>;
   onRevokeGrant: (grant: DelegationGrant) => Promise<void>;
   onStopAllAuto: () => Promise<void>;
   onRegrant: (wallet: WalletPolicy) => Promise<void>;
@@ -95,6 +100,7 @@ const EMBEDDED_PROVIDERS: Partial<Record<LinkedVia, ProviderIdentity>> = {
 
 /** Busy/error key for the account-wide "stop all auto-signing" action. */
 const STOP_ALL_KEY = "__stop_all__";
+const PARA_AGENT_KEY = "__para_agent__";
 
 const CUSTODY_GROUPS: { key: Custody; label: string }[] = [
   { key: "self", label: "Self-custody wallets" },
@@ -163,8 +169,8 @@ function reconcile(wallet: WalletPolicy): Recon {
           }
         : {
             status: "drifted",
-            detail: "You want auto — the runtime fell back to manual.",
-            action: "Re-grant",
+            detail: "You want auto — reconnect the provider to mint a new grant.",
+            action: "Reconnect provider",
           };
   }
 }
@@ -174,7 +180,11 @@ export function AccountSigningView({
   email,
   wallets,
   grants,
+  unboundWallets,
+  needsParaAgentWallet,
   onCommit,
+  onBindWallet,
+  onProvisionParaAgentWallet,
   onRevokeGrant,
   onStopAllAuto,
   onRegrant,
@@ -340,6 +350,18 @@ export function AccountSigningView({
     void run(STOP_ALL_KEY, onStopAllAuto);
   };
 
+  const bindWallet = (id: string) => {
+    const wallet = unboundWallets.find((entry) => entry.id === id);
+    if (!wallet) return;
+    void run(id, async () => {
+      await onBindWallet(wallet);
+    });
+  };
+
+  const provisionParaAgent = () => {
+    void run(PARA_AGENT_KEY, onProvisionParaAgentWallet);
+  };
+
   return (
     <div className="flex-1 overflow-y-auto px-[22px] py-5">
       <div className="flex flex-col gap-6">
@@ -388,6 +410,68 @@ export function AccountSigningView({
             to match — changes are signed authorizations, not toggles.
           </p>
         </div>
+
+        {needsParaAgentWallet && (
+          <div className="border-aomi-border bg-aomi-bg/40 flex items-start justify-between gap-4 rounded-xl border px-4 py-4 sm:px-5">
+            <div className="min-w-0 flex-1">
+              <h3 className="text-[15px] font-semibold leading-snug">
+                Provision Para agent wallet
+              </h3>
+              <p className="text-aomi-muted mt-1.5 text-[13px] leading-relaxed">
+                Para auto-signing uses a separate provider-managed agent wallet.
+                Your login wallet stays on-device; Aomi provisions the signer
+                that can run in the background.
+              </p>
+              {errors[PARA_AGENT_KEY] && (
+                <p className="text-aomi-danger mt-2 text-[13px]">
+                  {errors[PARA_AGENT_KEY]}
+                </p>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={provisionParaAgent}
+              disabled={Boolean(busy[PARA_AGENT_KEY])}
+              className="border-aomi-border text-aomi-fg hover:bg-aomi-surface-2 flex h-9 shrink-0 items-center gap-1.5 self-start rounded-full border px-4 text-[13px] font-medium transition-colors disabled:opacity-50"
+            >
+              {busy[PARA_AGENT_KEY] && <Loader2 size={13} className="animate-spin" />}
+              {busy[PARA_AGENT_KEY] ? "Provisioning…" : "Provision agent wallet"}
+            </button>
+          </div>
+        )}
+
+        {unboundWallets.length > 0 && (
+          <Section
+            title="Link connected wallets"
+            desc="These wallets are connected in your browser but not yet linked to your account for signing."
+          >
+            {unboundWallets.map((wallet) => (
+              <div
+                key={wallet.id}
+                className="border-aomi-border bg-aomi-bg/40 flex items-center justify-between gap-3 rounded-xl border px-4 py-3"
+              >
+                <div className="min-w-0 flex-1">
+                  <span className="block truncate font-mono text-sm font-medium">
+                    {shortenAddress(wallet.address)}
+                  </span>
+                  <span className="text-aomi-muted text-[12px]">
+                    {wallet.walletName ?? (wallet.chain === "evm" ? "Ethereum" : "Solana")}
+                    {wallet.active ? " · active" : ""}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => bindWallet(wallet.id)}
+                  disabled={Boolean(busy[wallet.id])}
+                  className="border-aomi-border text-aomi-fg hover:bg-aomi-surface-2 flex shrink-0 items-center gap-1.5 rounded-full border px-4 py-2 text-[13px] font-medium transition-colors disabled:opacity-50"
+                >
+                  {busy[wallet.id] && <Loader2 size={13} className="animate-spin" />}
+                  {busy[wallet.id] ? "Waiting for signature…" : "Link to account"}
+                </button>
+              </div>
+            ))}
+          </Section>
+        )}
 
         {/* Wallet policies */}
         <div className="flex flex-col gap-3">
