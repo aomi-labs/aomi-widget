@@ -326,12 +326,12 @@ function execute(handle: RunHandle, prepared: PreparedRun) {
       }
     })
     .catch(async (error: unknown) => {
-      buildFailures.handle(
-        identifyEngineFailure(error, "build.background_execute"),
-      );
       handle.status = "failed";
       handle.error = error instanceof Error ? error.message : String(error);
       pushLine(handle, `run failed: ${handle.error}`);
+      buildFailures.handle(
+        identifyEngineFailure(error, "build.background_execute"),
+      );
       await updateRun(handle.api, handle.runId, { status: "failed" }).catch(
         (updateError: unknown) =>
           buildFailures.handle(
@@ -599,8 +599,14 @@ export async function readRunFile(
     }
   }
   // Live sidecar.
-  const record = await findRunById(handle.api, handle.runId);
-  let sidecarError: unknown;
+  const record = await findRunById(handle.api, handle.runId).catch(
+    (error: unknown) => {
+      buildFailures.handle(
+        identifyEngineFailure(error, "build.file_registry_read"),
+      );
+      return undefined;
+    },
+  );
   if (record?.sidecarUrl && record.status === "running") {
     try {
       // Official service-bearer path: fresh short-lived EdDSA bearer per
@@ -615,16 +621,20 @@ export async function readRunFile(
       );
       if (res.ok) return Buffer.from(await res.arrayBuffer());
     } catch (error) {
-      sidecarError = error;
+      buildFailures.handle(
+        identifyEngineFailure(error, "build.file_sidecar_read"),
+      );
       // Sidecar unreachable — fall through to the store.
     }
   }
   // Store artifact.
-  const tarball = await storedCrateTarball(handle);
-  if (!tarball) {
-    if (sidecarError !== undefined) throw sidecarError;
+  const tarball = await storedCrateTarball(handle).catch((error: unknown) => {
+    buildFailures.handle(
+      identifyEngineFailure(error, "build.file_artifact_read"),
+    );
     return null;
-  }
+  });
+  if (!tarball) return null;
   const { extractFileFromTarGz } = await import("./tar");
   return extractFileFromTarGz(tarball, relPath);
 }
@@ -687,28 +697,33 @@ export async function reconstructBuildRun(
   // app, which we don't know yet — parse the id for the app either way.
   const app = RUN_ID.exec(runId)?.[1];
   if (!app || sanitizeAppName(app) !== app) return undefined;
-  const api = await apiFor(app);
-  const record = await findRunById(api, runId);
-  if (record) return observerHandle(record, api);
-  const view = await readRunView(api, runId);
-  if (view.status === null) return undefined;
-  const now = new Date().toISOString();
-  const handle: RunHandle = {
-    runId,
-    app,
-    owner: "unknown",
-    plan: composePlan(app, "observed run"),
-    api,
-    status: runStatusFromView(view.status) ?? "running",
-    stageStatus: {},
-    stageTimes: {},
-    approvals: [],
-    lines: [`observing run ${runId}`],
-    createdAt: now,
-    updatedAt: now,
-  };
-  registry().byRunId.set(runId, handle);
-  return handle;
+  try {
+    const api = await apiFor(app);
+    const record = await findRunById(api, runId);
+    if (record) return await observerHandle(record, api);
+    const view = await readRunView(api, runId);
+    if (view.status === null) return undefined;
+    const now = new Date().toISOString();
+    const handle: RunHandle = {
+      runId,
+      app,
+      owner: "unknown",
+      plan: composePlan(app, "observed run"),
+      api,
+      status: runStatusFromView(view.status) ?? "running",
+      stageStatus: {},
+      stageTimes: {},
+      approvals: [],
+      lines: [`observing run ${runId}`],
+      createdAt: now,
+      updatedAt: now,
+    };
+    registry().byRunId.set(runId, handle);
+    return handle;
+  } catch (error) {
+    buildFailures.handle(identifyEngineFailure(error, "build.reconstruct_run"));
+    return undefined;
+  }
 }
 
 export async function decideBuildRun(options: {

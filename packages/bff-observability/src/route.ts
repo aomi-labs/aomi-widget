@@ -67,35 +67,58 @@ const DISABLED_INTEGRATIONS = new Set([
   "RequestData",
   "VercelAI",
 ]);
+const INITIALIZED_SERVICES = new Set<BffService>();
 
 /** Layer 3: route one classified decision to its approved destinations. */
 export function routeFailure(
   decision: FailureDecision,
   service: BffService,
 ): FailureResult {
-  const response = Response.json(
-    { error: decision.responseError },
-    { status: decision.responseStatus },
-  );
-  const attributes = eventAttributes({
-    service,
-    ...decision.context,
-    status: decision.responseStatus,
-    ...(decision.upstream ? { upstream: decision.upstream } : {}),
-    ...(decision.upstreamStatus !== undefined
-      ? { upstreamStatus: decision.upstreamStatus }
-      : {}),
-    handled: decision.handled,
-  });
-  if (!attributes) {
-    return { ...decision, response };
+  try {
+    return routeDecision(decision, service);
+  } catch (error) {
+    const fallback: FailureDecision = {
+      action: "issue",
+      reason: "local_exception",
+      error,
+      context: {
+        routeFamily: "/observability",
+        operation: "observability.routing_failure",
+      },
+      handled: true,
+      responseStatus: 500,
+      responseError: "internal_error",
+    };
+    return routeDecision(fallback, service);
   }
-  if (decision.action === "ignore") {
-    writeLocalDiagnostic(decision.localDiagnostic, attributes);
-    return { ...decision, response };
+}
+
+function routeDecision(
+  decision: FailureDecision,
+  service: BffService,
+): FailureResult {
+  const routedDecision = normalizeDecision(decision);
+  const response = Response.json(
+    { error: routedDecision.responseError },
+    { status: routedDecision.responseStatus },
+  );
+  const attributes =
+    eventAttributes({
+      service,
+      ...routedDecision.context,
+      status: routedDecision.responseStatus,
+      ...(routedDecision.upstream ? { upstream: routedDecision.upstream } : {}),
+      ...(routedDecision.upstreamStatus !== undefined
+        ? { upstreamStatus: routedDecision.upstreamStatus }
+        : {}),
+      handled: routedDecision.handled,
+    }) ?? invalidContextAttributes(service, routedDecision);
+  if (routedDecision.action === "ignore") {
+    writeLocalDiagnostic(routedDecision.localDiagnostic, attributes);
+    return { ...routedDecision, response };
   }
 
-  if (decision.action === "log") {
+  if (routedDecision.action === "log") {
     writeLocalError("bff.upstream_failure", attributes);
     try {
       Sentry.withIsolationScope((scope) => {
@@ -106,25 +129,25 @@ export function routeFailure(
     } catch {
       // Telemetry delivery must never replace the owned response.
     }
-    return { ...decision, response };
+    return { ...routedDecision, response };
   }
 
   const error =
-    decision.error instanceof Error
-      ? decision.error
+    routedDecision.error instanceof Error
+      ? routedDecision.error
       : new Error("Non-Error BFF exception");
   writeLocalError("bff.exception", attributes, error);
   try {
     Sentry.withIsolationScope((scope) => {
       scope.setLevel("error");
       scope.setTags(attributes);
-      if (decision.requestError) {
+      if (routedDecision.requestError) {
         Sentry.captureRequestError(
           error,
-          decision.requestError.request as Parameters<
+          routedDecision.requestError.request as Parameters<
             typeof Sentry.captureRequestError
           >[1],
-          decision.requestError.errorContext as Parameters<
+          routedDecision.requestError.errorContext as Parameters<
             typeof Sentry.captureRequestError
           >[2],
         );
@@ -135,7 +158,34 @@ export function routeFailure(
   } catch {
     // Telemetry delivery must never replace the owned response.
   }
-  return { ...decision, response };
+  return { ...routedDecision, response };
+}
+
+function normalizeDecision(decision: FailureDecision): FailureDecision {
+  return {
+    ...decision,
+    responseStatus: isResponseStatus(decision.responseStatus)
+      ? decision.responseStatus
+      : 500,
+    responseError:
+      typeof decision.responseError === "string" && decision.responseError
+        ? decision.responseError
+        : "internal_error",
+  };
+}
+
+function invalidContextAttributes(
+  service: BffService,
+  decision: FailureDecision,
+): Record<string, string | number | boolean> {
+  return {
+    service,
+    route_family: "/observability",
+    operation: "observability.invalid_context",
+    "http.status_code": decision.responseStatus,
+    handled: decision.handled,
+    runtime: bffRuntime(),
+  };
 }
 
 export function initBffSentry(options: BffSentryOptions): boolean {
@@ -177,8 +227,10 @@ export function initBffSentry(options: BffSentryOptions): boolean {
         tags: { service: options.service, runtime: bffRuntime() },
       },
     });
+    INITIALIZED_SERVICES.add(options.service);
     return true;
   } catch {
+    INITIALIZED_SERVICES.delete(options.service);
     return false;
   }
 }
@@ -216,7 +268,9 @@ function eventAttributes(
 ): Record<string, string | number | boolean> | undefined {
   if (!isValidContext(context)) return undefined;
   const routeFamily = normalizeRequestPath(context.routeFamily);
-  if (!SAFE_ROUTE_FAMILY.test(routeFamily)) return undefined;
+  if (routeFamily !== "/" && !SAFE_ROUTE_FAMILY.test(routeFamily)) {
+    return undefined;
+  }
 
   const attributes: Record<string, string | number | boolean> = {
     service: context.service,
@@ -294,14 +348,32 @@ function isHttpStatus(value: number): boolean {
   return Number.isInteger(value) && value >= 100 && value <= 599;
 }
 
+function isResponseStatus(value: number): boolean {
+  return (
+    Number.isInteger(value) &&
+    value >= 200 &&
+    value <= 599 &&
+    value !== 204 &&
+    value !== 205 &&
+    value !== 304
+  );
+}
+
 function writeLocalError(
   message: "bff.exception" | "bff.upstream_failure",
   attributes: Record<string, string | number | boolean>,
   error?: Error,
 ): void {
-  if (process.env.NODE_ENV !== "development") return;
+  const development = process.env.NODE_ENV === "development";
+  const service = attributes.service;
+  const productionFallback =
+    process.env.NODE_ENV === "production" &&
+    typeof service === "string" &&
+    SERVICES.has(service as BffService) &&
+    !INITIALIZED_SERVICES.has(service as BffService);
+  if (!development && !productionFallback) return;
   try {
-    if (error) console.error(message, attributes, error);
+    if (development && error) console.error(message, attributes, error);
     else console.error(message, attributes);
   } catch {
     // Local diagnostics are best-effort and must not change request behavior.

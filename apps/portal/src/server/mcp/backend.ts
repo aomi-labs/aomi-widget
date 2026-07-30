@@ -88,6 +88,13 @@ async function backendJson(
   operation: string,
 ): Promise<BackendResult> {
   const response = await fetch(url, { ...init, cache: "no-store" });
+  const text = await response.text();
+  let body: unknown;
+  try {
+    body = text ? JSON.parse(text) : null;
+  } catch {
+    body = { error: text };
+  }
   if (response.status >= 500) {
     portalFailures.handle({
       source: "upstream_response",
@@ -100,20 +107,6 @@ async function backendJson(
         method: typeof init.method === "string" ? init.method : "GET",
       },
     });
-    return {
-      ok: false,
-      status: response.status,
-      body: { error: "upstream_unavailable" },
-    };
-  }
-
-  const text = await response.text();
-  let body: unknown;
-  try {
-    body = text ? JSON.parse(text) : null;
-  } catch (error) {
-    if (response.ok) throw error;
-    body = { error: text };
   }
   return { ok: response.ok, status: response.status, body };
 }

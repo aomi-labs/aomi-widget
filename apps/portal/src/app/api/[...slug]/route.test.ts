@@ -200,7 +200,7 @@ describe("portal API proxy", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("sanitizes and logs a downstream Rust 5xx without creating an Issue", async () => {
+  it("logs a downstream Rust 5xx without changing its response", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () =>
@@ -212,7 +212,7 @@ describe("portal API proxy", () => {
 
     expect(res.status).toBe(503);
     await expect(res.json()).resolves.toEqual({
-      error: "upstream_unavailable",
+      error: "private backend detail",
     });
     expect(telemetry.capture).not.toHaveBeenCalled();
     expect(telemetry.log).toHaveBeenCalledWith({
@@ -238,7 +238,7 @@ describe("portal API proxy", () => {
 
     expect(res.status).toBe(502);
     await expect(res.json()).resolves.toEqual({
-      error: "upstream_unavailable",
+      error: "Upstream request failed",
     });
     expect(telemetry.log).not.toHaveBeenCalled();
     expect(telemetry.capture).toHaveBeenCalledTimes(1);

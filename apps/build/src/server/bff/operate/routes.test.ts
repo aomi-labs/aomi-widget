@@ -196,7 +196,7 @@ describe("operateBotsRoute", () => {
 
     expect(res.status).toBe(503);
     await expect(res.json()).resolves.toEqual({
-      error: "upstream_unavailable",
+      error: "failed",
     });
     expect(telemetry.capture).not.toHaveBeenCalled();
     expect(telemetry.log).toHaveBeenCalledOnce();

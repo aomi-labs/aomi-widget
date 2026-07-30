@@ -67,7 +67,7 @@ describe("createBackendProxy", () => {
 
     expect(response.status).toBe(502);
     await expect(response.json()).resolves.toEqual({
-      error: "bearer_mint_failed",
+      error: "Account bearer mint failed",
     });
     expect(observeFailure).toHaveBeenCalledWith({
       kind: "bearer_mint",
@@ -117,7 +117,7 @@ describe("createBackendProxy", () => {
     });
   });
 
-  it("reports the original upstream request exception and sanitizes the response", async () => {
+  it("reports the original upstream request exception without changing the response", async () => {
     const failure = new Error("socket exposed a secret");
     vi.stubGlobal(
       "fetch",
@@ -140,7 +140,7 @@ describe("createBackendProxy", () => {
 
     expect(response.status).toBe(502);
     await expect(response.json()).resolves.toEqual({
-      error: "upstream_unavailable",
+      error: "Upstream request failed",
     });
     expect(observeFailure).toHaveBeenCalledWith({
       kind: "upstream_request",
@@ -177,7 +177,7 @@ describe("createBackendProxy", () => {
 
     expect(response.status).toBe(502);
     await expect(response.json()).resolves.toEqual({
-      error: "upstream_unavailable",
+      error: "Upstream request failed",
     });
     expect(observeFailure).toHaveBeenCalledWith({
       kind: "response_transform",
@@ -214,6 +214,33 @@ describe("createBackendProxy", () => {
     await expect(response.json()).resolves.toEqual({
       error: "upstream_unavailable",
     });
+  });
+
+  it("does not let an async observer rejection alter the proxy response", async () => {
+    const rejection = Promise.reject(new Error("telemetry unavailable"));
+    const catchSpy = vi.spyOn(rejection, "catch");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => Response.json({ error: "private" }, { status: 503 })),
+    );
+    const { GET } = createTestProxy({
+      allowedRoutes: [
+        {
+          pattern: /^\/api\/account$/,
+          methods: new Set(["GET"]),
+          auth: "none",
+        },
+      ],
+      resolveCanonicalUserId: async () => null,
+      observeFailure: () => rejection,
+    });
+
+    const response = await GET(...proxyRequest("/api/account"));
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual({ error: "private" });
+    expect(catchSpy).toHaveBeenCalledOnce();
+    await rejection.catch(() => {});
   });
 
   it("still forwards explicitly public routes anonymously", async () => {

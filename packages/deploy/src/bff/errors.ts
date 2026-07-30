@@ -22,7 +22,10 @@ export function identifyLaunchError(error: unknown): LaunchFailureSource {
   if (requiredSecretsError) {
     const common = {
       error: requiredSecretsError.cause ?? error,
-      response: { status: 503, error: "upstream_unavailable" },
+      response: {
+        status: 503,
+        error: "Unable to verify required secrets. Try again.",
+      },
     } as const;
     if (
       requiredSecretsError.upstream &&
@@ -56,7 +59,7 @@ export function identifyLaunchError(error: unknown): LaunchFailureSource {
       return {
         ...common,
         origin: "upstream_request",
-        response: { status: 502, error: "upstream_unavailable" },
+        response: { status: 502, error: backendError.message },
       };
     }
     return {
@@ -82,7 +85,10 @@ export function identifyLaunchError(error: unknown): LaunchFailureSource {
   return {
     origin: "local",
     error,
-    response: { status: 500, error: "internal_error" },
+    response: {
+      status: 502,
+      error: error instanceof Error ? error.message : String(error),
+    },
   };
 }
 
@@ -144,13 +150,7 @@ function isDeployError(
 function backendResponse(
   error: BackendErrorLike,
 ): LaunchFailureSource["response"] {
-  if (error.status === 401 || error.status === 403) {
-    return { status: 500, error: "internal_error" };
-  }
-  if (error.status >= 500 && error.status <= 599) {
-    return { status: error.status, error: "upstream_unavailable" };
-  }
-  if (error.status >= 400 && error.status <= 499) {
+  if (error.status >= 400 && error.status <= 599) {
     return {
       status: error.status,
       error:

@@ -34,4 +34,15 @@ describe("Better Auth failure observer", () => {
       observeBetterAuthFailure(new Error("auth failed")),
     ).not.toThrow();
   });
+
+  it("absorbs async observer rejections", async () => {
+    const rejection = Promise.reject(new Error("telemetry unavailable"));
+    const catchSpy = vi.spyOn(rejection, "catch");
+    setBetterAuthFailureObserver(() => rejection);
+
+    observeBetterAuthFailure(new Error("auth failed"));
+
+    expect(catchSpy).toHaveBeenCalledOnce();
+    await rejection.catch(() => {});
+  });
 });

@@ -119,7 +119,7 @@ describe("build route error classification", () => {
     });
   });
 
-  it("captures and sanitizes a typed 5xx BuildEngineError", async () => {
+  it("captures a typed 5xx BuildEngineError without changing its response", async () => {
     const error = new mocks.BuildEngineError("private SDK path", 503);
     mocks.startBuildRun.mockRejectedValue(error);
 
@@ -127,7 +127,7 @@ describe("build route error classification", () => {
 
     expect(response.status).toBe(503);
     await expect(response.json()).resolves.toEqual({
-      error: "build_engine_failed",
+      error: "private SDK path",
     });
     expect(mocks.capture).toHaveBeenCalledOnce();
     expect(mocks.capture).toHaveBeenCalledWith(error, {
@@ -146,7 +146,7 @@ describe("build route error classification", () => {
 
     expect(response.status).toBe(500);
     await expect(response.json()).resolves.toEqual({
-      error: "build_engine_failed",
+      error: "build engine error",
     });
     expect(mocks.capture).toHaveBeenCalledOnce();
   });
@@ -163,7 +163,7 @@ describe("build route error classification", () => {
 
     expect(response.status).toBe(500);
     await expect(response.json()).resolves.toEqual({
-      error: "build_engine_failed",
+      error: "build engine error",
     });
     expect(mocks.capture).toHaveBeenCalledOnce();
     expect(mocks.capture).toHaveBeenCalledWith(error, {
@@ -178,27 +178,20 @@ describe("build route error classification", () => {
     ["download", buildRunDownloadRoute],
     ["file", buildRunFileRoute],
   ])(
-    "owns %s reconstruction failures without query values",
+    "preserves the %s unknown-run response after reconstruction fails",
     async (_, route) => {
-      const error = new Error("private store failure");
-      mocks.reconstructBuildRun.mockRejectedValue(error);
+      mocks.reconstructBuildRun.mockResolvedValue(undefined);
       const response = await route(
         new Request(
           "http://localhost:3000/api/bff/build/runs/download?id=private-run&path=private-app/src/lib.rs",
         ),
       );
 
-      expect(response.status).toBe(500);
+      expect(response.status).toBe(404);
       await expect(response.json()).resolves.toEqual({
-        error: "build_engine_failed",
+        error: "unknown run",
       });
-      expect(mocks.capture).toHaveBeenCalledOnce();
-      expect(mocks.capture).toHaveBeenCalledWith(error, {
-        routeFamily: "/api/bff/build/runs/download",
-        operation: expect.stringMatching(/^build\.(download|file)$/),
-        method: "GET",
-        status: 500,
-      });
+      expect(mocks.capture).not.toHaveBeenCalled();
     },
   );
 
@@ -216,7 +209,7 @@ describe("build route error classification", () => {
 
     expect(response.status).toBe(500);
     await expect(response.json()).resolves.toEqual({
-      error: "build_engine_failed",
+      error: "build engine error",
     });
     expect(mocks.capture).toHaveBeenCalledOnce();
     expect(mocks.capture).toHaveBeenCalledWith(error, {
@@ -227,7 +220,7 @@ describe("build route error classification", () => {
     });
   });
 
-  it("returns a sanitized 500 when the stored download read fails", async () => {
+  it("preserves the 409 fallback when the stored download read fails", async () => {
     const handle = {
       app: "private-app",
       plan: { sdkRoot: "/definitely/missing" },
@@ -242,14 +235,14 @@ describe("build route error classification", () => {
       ),
     );
 
-    expect(response.status).toBe(500);
+    expect(response.status).toBe(409);
     await expect(response.json()).resolves.toEqual({
-      error: "build_engine_failed",
+      error: "no generated crate yet — run the build first",
     });
     expect(mocks.capture).toHaveBeenCalledOnce();
     expect(mocks.capture).toHaveBeenCalledWith(error, {
       routeFamily: "/api/bff/build/runs/download",
-      operation: "build.download",
+      operation: "build.download_artifact_read",
       method: "GET",
       status: 500,
     });

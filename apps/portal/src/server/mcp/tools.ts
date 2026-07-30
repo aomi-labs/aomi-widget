@@ -325,14 +325,11 @@ function wrap(
 ): ToolOutcome {
   if (!out.ok) {
     return {
-      result:
-        out.status >= 500
-          ? { error: "upstream_unavailable", status: out.status }
-          : {
-              error: "backend request failed",
-              status: out.status,
-              detail: result,
-            },
+      result: {
+        error: "backend request failed",
+        status: out.status,
+        detail: result,
+      },
       isError: true,
     };
   }

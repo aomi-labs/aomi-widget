@@ -16,25 +16,8 @@ type GrantRequest = {
   provider?: unknown;
 };
 
-const EXPECTED_ERRORS = new Set([
-  "invalid_state",
-  "invalid_code_challenge",
-  "invalid_redirect_uri",
-]);
-
 export async function POST(req: Request): Promise<Response> {
-  let session: Awaited<ReturnType<typeof getBetterAuthSession>>;
-  try {
-    session = await getBetterAuthSession(req);
-  } catch (error) {
-    return portalFailures.handle(
-      identifyDeviceAuthFailure(error, {
-        routeFamily: "/api/aomi/device-auth/grant",
-        operation: "device_auth_grant",
-        expectedCodes: EXPECTED_ERRORS,
-      }),
-    ).response;
-  }
+  const session = await getBetterAuthSession(req);
   const sessionToken = session?.session?.token;
   if (!session?.user?.id || typeof sessionToken !== "string") {
     return json(401, { error: "unauthenticated" });
@@ -75,7 +58,6 @@ export async function POST(req: Request): Promise<Response> {
       identifyDeviceAuthFailure(error, {
         routeFamily: "/api/aomi/device-auth/grant",
         operation: "device_auth_grant",
-        expectedCodes: EXPECTED_ERRORS,
       }),
     ).response;
   }

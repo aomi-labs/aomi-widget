@@ -212,15 +212,10 @@ async function observeInvalidSiweMessage(
         : null,
       chain_id: input.chainId ?? parseSiweChainId(input.message),
       message_line_count: lines.length,
-      message_first_line: lines[0]?.slice(0, 80) ?? null,
-      message_address_line: lines[1] ? shortAddress(lines[1]) : null,
       message_address_matches:
         lines[1]?.toLowerCase() === input.address.toLowerCase(),
-      message_chain_line:
-        lines.find((line) => line.startsWith("Chain ID: "))?.slice(0, 160) ??
-        null,
-      eoa_error: errorMessage(details.eoaError),
-      smart_account_error: errorMessage(details.smartAccountError),
+      eoa_error_kind: errorKind(details.eoaError),
+      smart_account_error_kind: errorKind(details.smartAccountError),
     },
     context: {
       routeFamily: "/api/auth/[...all]",
@@ -249,6 +244,6 @@ function shortAddress(address: string): string {
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
 }
 
-function errorMessage(error: unknown): string | null {
-  return error instanceof Error ? error.message.slice(0, 160) : null;
+function errorKind(error: unknown): string | null {
+  return error instanceof Error ? error.name.slice(0, 80) : null;
 }

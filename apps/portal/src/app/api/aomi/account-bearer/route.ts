@@ -6,8 +6,9 @@ import type { NextRequest } from "next/server";
 
 const getBearer = createBearerTokenRoute({
   resolveCanonicalUserId,
-  observeFailure: (failure) =>
-    portalFailures.handle({ source: "proxy", failure }),
+  observeFailure: (failure) => {
+    portalFailures.handle({ source: "proxy", failure });
+  },
 });
 
 export const GET = widgetRoute(

@@ -239,6 +239,17 @@ describe("scrubSentryEvent", () => {
       "environment",
     );
   });
+
+  it("drops JWT-shaped values even from allowlisted scalar fields", () => {
+    const jwt = `${"a".repeat(12)}.${"b".repeat(12)}.${"c".repeat(12)}`;
+    const event = scrubSentryEvent({
+      platform: jwt,
+      tags: { operation: jwt },
+    });
+
+    expect(event).not.toHaveProperty("platform");
+    expect(event?.tags).toBeUndefined();
+  });
 });
 
 describe("scrubSentryLog", () => {

@@ -57,4 +57,33 @@ describe("account observers", () => {
       }),
     ).not.toThrow();
   });
+
+  it("absorbs async observer rejections", async () => {
+    const rejection = Promise.reject(new Error("telemetry unavailable"));
+    const catchSpy = vi.spyOn(rejection, "catch");
+    setAccountInternalFailureObserver(() => rejection);
+
+    observeAccountInternalFailure({
+      kind: "provider_wallets",
+      error: new Error("provider unavailable"),
+    });
+
+    expect(catchSpy).toHaveBeenCalledOnce();
+    await rejection.catch(() => {});
+  });
+
+  it("uses the most recently registered observer", () => {
+    const first = vi.fn();
+    const second = vi.fn();
+    setAccountInternalFailureObserver(first);
+    setAccountInternalFailureObserver(second);
+
+    observeAccountInternalFailure({
+      kind: "provider_wallets",
+      error: new Error("provider unavailable"),
+    });
+
+    expect(first).not.toHaveBeenCalled();
+    expect(second).toHaveBeenCalledOnce();
+  });
 });

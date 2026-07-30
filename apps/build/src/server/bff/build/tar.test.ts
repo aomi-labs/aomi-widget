@@ -32,7 +32,7 @@ describe("extractFileFromTarGz", () => {
     expect(extractFileFromTarGz(tarGz, "my-app/nope.rs")).toBeNull();
   });
 
-  it("propagates corrupt artifacts to the route owner", () => {
-    expect(() => extractFileFromTarGz(Buffer.from("not gzip"), "x")).toThrow();
+  it("rejects garbage input gracefully", () => {
+    expect(extractFileFromTarGz(Buffer.from("not gzip"), "x")).toBeNull();
   });
 });

@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
-  artifactFailureFromOutputs,
   artifactFromOutputs,
   curationFromOutputs,
   runStatusFromView,
@@ -145,27 +144,5 @@ describe("artifactFromOutputs", () => {
       artifactFromOutputs({ result: [{ summary: "done" }] }),
     ).toBeUndefined();
     expect(artifactFromOutputs({})).toBeUndefined();
-  });
-});
-
-describe("artifactFailureFromOutputs", () => {
-  it.each([
-    "crate_tree_read",
-    "crate_tar",
-    "crate_package",
-    "crate_cleanup",
-  ] as const)("accepts the bounded %s signal", (artifactFailure) => {
-    expect(artifactFailureFromOutputs({ result: [{ artifactFailure }] })).toBe(
-      artifactFailure,
-    );
-  });
-
-  it("rejects absent and unbounded values", () => {
-    expect(artifactFailureFromOutputs({})).toBeUndefined();
-    expect(
-      artifactFailureFromOutputs({
-        result: [{ artifactFailure: "private/path/or/output" }],
-      }),
-    ).toBeUndefined();
   });
 });

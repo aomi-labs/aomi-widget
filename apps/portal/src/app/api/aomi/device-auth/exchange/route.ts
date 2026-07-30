@@ -27,19 +27,19 @@ export async function POST(req: Request): Promise<Response> {
     return json(400, { error: "invalid_request" });
   }
 
-  try {
-    const grant = exchangeDeviceAuthGrant({
-      code: body.code,
-      state: body.state,
-      codeVerifier: body.codeVerifier,
-      redirectUri: body.redirectUri,
-    });
-    if (!grant) return json(400, { error: "invalid_or_expired_code" });
+  const grant = exchangeDeviceAuthGrant({
+    code: body.code,
+    state: body.state,
+    codeVerifier: body.codeVerifier,
+    redirectUri: body.redirectUri,
+  });
+  if (!grant) return json(400, { error: "invalid_or_expired_code" });
 
-    if (grant.purpose === "link") {
-      if (!grant.betterAuthUserId) {
-        return json(400, { error: "invalid_or_expired_code" });
-      }
+  if (grant.purpose === "link") {
+    if (!grant.betterAuthUserId) {
+      return json(400, { error: "invalid_or_expired_code" });
+    }
+    try {
       const result = await exchangeProviderForExistingSession({
         betterAuthUserId: grant.betterAuthUserId,
         credential: grant.credential as AomiAccountCredential,
@@ -48,20 +48,21 @@ export async function POST(req: Request): Promise<Response> {
         ...result,
         provider: grant.provider,
       });
+    } catch (error) {
+      return portalFailures.handle(
+        identifyDeviceAuthFailure(error, {
+          routeFamily: "/api/aomi/device-auth/exchange",
+          operation: "device_auth_exchange",
+          fallbackError: "provider_exchange_failed",
+        }),
+      ).response;
     }
-
-    return Response.json({
-      sessionToken: grant.sessionToken,
-      expiresAt: grant.expiresAt,
-      betterAuthUserId: grant.betterAuthUserId,
-      provider: grant.provider,
-    });
-  } catch (error) {
-    return portalFailures.handle(
-      identifyDeviceAuthFailure(error, {
-        routeFamily: "/api/aomi/device-auth/exchange",
-        operation: "device_auth_exchange",
-      }),
-    ).response;
   }
+
+  return Response.json({
+    sessionToken: grant.sessionToken,
+    expiresAt: grant.expiresAt,
+    betterAuthUserId: grant.betterAuthUserId,
+    provider: grant.provider,
+  });
 }

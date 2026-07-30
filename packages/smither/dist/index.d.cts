@@ -2,14 +2,6 @@ import { z } from 'zod';
 import { DeploymentClient, ListDeploymentRecordsResult } from '@aomi-labs/deploy';
 import { AgentLike, CreateSmithersApi, SmithersEvent, RunResult } from 'smithers-orchestrator';
 
-type SmitherArtifactFailureKind = "crate_tree_read" | "crate_tar" | "crate_package" | "crate_cleanup";
-type SmitherArtifactFailure = {
-    kind: SmitherArtifactFailureKind;
-    error: unknown;
-};
-type ObserveSmitherArtifactFailure = (failure: SmitherArtifactFailure) => void;
-declare function setSmitherArtifactFailureObserver(observer: ObserveSmitherArtifactFailure | undefined): void;
-
 type CommandResult = {
     exitCode: number;
     stdout: string;
@@ -44,6 +36,8 @@ type CrateFileNode = {
     type: "file" | "folder";
     children?: CrateFileNode[];
 };
+/** The generated crate as a display tree. Paths are prefixed with the app
+ *  name ("<app>/src/tool.rs") — the shape the /build page renders. */
 declare function crateFileTree(appDir: string, app: string): CrateFileNode[];
 type CrateArtifact = {
     /** JSON-encoded CrateFileNode[]; "" when the crate directory is absent. */
@@ -51,20 +45,13 @@ type CrateArtifact = {
     /** Base64 .tar.gz of apps/<app> (target/ and Cargo.lock excluded); "" when
      *  packaging failed or the crate exceeds the embed cap. */
     crateTarB64: string;
-    /** Human-readable packaging warning, if any. */
+    /** Human-readable reason whenever crateTarB64 is empty. */
     warning: string;
-    /** Bounded cross-process signal; never contains paths, output, or source. */
-    failureCode: SmitherArtifactFailureKind | "";
-};
-type ArtifactTempDirectory = {
-    create(prefix: string): string;
-    remove(directory: string): void;
 };
 declare function packageCrate(options: {
     sdkRoot: string;
     app: string;
     runner?: CommandRunner;
-    tempDirectory?: ArtifactTempDirectory;
 }): Promise<CrateArtifact>;
 
 declare const defaultRunner: CommandRunner;
@@ -1370,13 +1357,6 @@ declare const smitherSchemas: {
         fileTreeJson: z.ZodDefault<z.ZodString>;
         crateTarB64: z.ZodDefault<z.ZodString>;
         artifactWarning: z.ZodDefault<z.ZodString>;
-        artifactFailure: z.ZodDefault<z.ZodEnum<{
-            "": "";
-            crate_tree_read: "crate_tree_read";
-            crate_tar: "crate_tar";
-            crate_package: "crate_package";
-            crate_cleanup: "crate_cleanup";
-        }>>;
     }, z.core.$strip>;
 };
 type SmitherSchemas = typeof smitherSchemas;
@@ -1854,4 +1834,4 @@ declare function decideApproval(options: {
     };
 }): Promise<void>;
 
-export { type ActivationCredential, type AgentBilling, type AgentKind, type AgentPhase, type AgentRole, type AomiBuildCommand, type AomiSmitherApi, type AomiWorkflow, type ArtifactTempDirectory, type BinariesRow, type BuildPlan, type ClarifyOption, type ClarifyRow, type CodegenRow, type CommandResult, type CommandRunner, type ComputeOp, type ConsoleHandle, type ConsoleOptions, type CrateArtifact, type CrateFileNode, DEFAULT_CONSOLE_PORT, DEFAULT_OPENROUTER_MODEL, type DeploymentRow, type EvalPhase, type EvaluationRow, type GateRow, type InnerPhase, type IntakePhase, type IntakeServerHandle, type IntakeState, type IntentAgent, type IntentDraft, type IntentTurn, OPENROUTER_BASE_URL, type ObserveSmitherArtifactFailure, type Phase, type PlanStage, type PreparedRun, type PromptContext, type ResolvedBinaries, type ResultRow, type RollbackClient, type RollbackPlanSummary, type RollbackTarget, type RunNodeView, type RunState, type RunView, type SdkFreshness, type SmitherArtifactFailure, type SmitherArtifactFailureKind, type SmitherBackend, type SmitherSchemas, type SmokeRow, type ValidationRow, WORKFLOW_NAME, type WorkflowDeps, activationConfigPath, agentPhaseSchema, agentRoleSchema, agentSpecsFor, assertBunRuntime, boundedLog, buildAppWorkflow, buildPlanSchema, clarifyOptionSchema, clarifyPhaseSchema, classicComposition, compositionIssues, computeOpSchema, computePhaseSchema, crateFileTree, createAomiSmither, createRunState, curatePrompt, decideApproval, defaultRunner, defaultRunsRoot, defaultSdkRoot, describeBackend, describePlan, designPrompt, distillIntent, draftSpecPrompt, ensureFreshSdkCheckout, evalJudge, evalPhaseSchema, executeRollback, executeRun, executeRunUntilSettled, extractJsonObject, finalizePlan, fixPrompt, gatePhaseSchema, innerPhaseSchema, innerPhasesOf, intentDraftSchema, intentPlanFields, intentPrompt, isBunRuntime, judgePrompt, loadPlan, loadRunOutputs, loadRunState, loopPhaseSchema, makeWorkAgent, mergePlanDraft, newAppArgs, nodeId, openrouterAgentEnv, packageCrate, packageRoot, parallelPhaseSchema, phaseAgent, phaseSchema, planPath, planRollback, pluginLibraryFileName, prepareRun, readRunView, requestRunCancel, researchPrompt, resetRunState, resolveActivationCredential, resolveAgentBilling, resolveAgentCwd, resolveAomiBinaries, resolveComposition, resolveFreshAomiBinaries, resolveRunBackend, reviewPrompt, rolePrompt, rollbackClientFromEnv, runAomiBuild, runAomiRun, runAppCargoChecks, runDir, runEvalStep, runStatePath, sanitizeAppName, savePlan, sendSignal, setSmitherArtifactFailureObserver, smitherDbPath, smitherSchemas, stageKeyForNode, stagesFor, startConsole, startConsoleForApp, startIntakeServer, storeQuery, synthesizePrompt, targetBinaryPaths, waitExternalPhaseSchema };
+export { type ActivationCredential, type AgentBilling, type AgentKind, type AgentPhase, type AgentRole, type AomiBuildCommand, type AomiSmitherApi, type AomiWorkflow, type BinariesRow, type BuildPlan, type ClarifyOption, type ClarifyRow, type CodegenRow, type CommandResult, type CommandRunner, type ComputeOp, type ConsoleHandle, type ConsoleOptions, type CrateArtifact, type CrateFileNode, DEFAULT_CONSOLE_PORT, DEFAULT_OPENROUTER_MODEL, type DeploymentRow, type EvalPhase, type EvaluationRow, type GateRow, type InnerPhase, type IntakePhase, type IntakeServerHandle, type IntakeState, type IntentAgent, type IntentDraft, type IntentTurn, OPENROUTER_BASE_URL, type Phase, type PlanStage, type PreparedRun, type PromptContext, type ResolvedBinaries, type ResultRow, type RollbackClient, type RollbackPlanSummary, type RollbackTarget, type RunNodeView, type RunState, type RunView, type SdkFreshness, type SmitherBackend, type SmitherSchemas, type SmokeRow, type ValidationRow, WORKFLOW_NAME, type WorkflowDeps, activationConfigPath, agentPhaseSchema, agentRoleSchema, agentSpecsFor, assertBunRuntime, boundedLog, buildAppWorkflow, buildPlanSchema, clarifyOptionSchema, clarifyPhaseSchema, classicComposition, compositionIssues, computeOpSchema, computePhaseSchema, crateFileTree, createAomiSmither, createRunState, curatePrompt, decideApproval, defaultRunner, defaultRunsRoot, defaultSdkRoot, describeBackend, describePlan, designPrompt, distillIntent, draftSpecPrompt, ensureFreshSdkCheckout, evalJudge, evalPhaseSchema, executeRollback, executeRun, executeRunUntilSettled, extractJsonObject, finalizePlan, fixPrompt, gatePhaseSchema, innerPhaseSchema, innerPhasesOf, intentDraftSchema, intentPlanFields, intentPrompt, isBunRuntime, judgePrompt, loadPlan, loadRunOutputs, loadRunState, loopPhaseSchema, makeWorkAgent, mergePlanDraft, newAppArgs, nodeId, openrouterAgentEnv, packageCrate, packageRoot, parallelPhaseSchema, phaseAgent, phaseSchema, planPath, planRollback, pluginLibraryFileName, prepareRun, readRunView, requestRunCancel, researchPrompt, resetRunState, resolveActivationCredential, resolveAgentBilling, resolveAgentCwd, resolveAomiBinaries, resolveComposition, resolveFreshAomiBinaries, resolveRunBackend, reviewPrompt, rolePrompt, rollbackClientFromEnv, runAomiBuild, runAomiRun, runAppCargoChecks, runDir, runEvalStep, runStatePath, sanitizeAppName, savePlan, sendSignal, smitherDbPath, smitherSchemas, stageKeyForNode, stagesFor, startConsole, startConsoleForApp, startIntakeServer, storeQuery, synthesizePrompt, targetBinaryPaths, waitExternalPhaseSchema };

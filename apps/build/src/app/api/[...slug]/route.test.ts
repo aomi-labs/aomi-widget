@@ -92,7 +92,7 @@ describe("Aomi Build API proxy", () => {
 
     expect(res.status).toBe(502);
     await expect(res.json()).resolves.toEqual({
-      error: "upstream_unavailable",
+      error: "Upstream request failed",
     });
     expect(telemetry.observe).toHaveBeenCalledOnce();
     expect(telemetry.observe).toHaveBeenCalledWith({
@@ -107,7 +107,7 @@ describe("Aomi Build API proxy", () => {
     });
   });
 
-  it("logs and sanitizes a downstream Rust 5xx response", async () => {
+  it("logs a downstream Rust 5xx without changing its response", async () => {
     vi.stubGlobal(
       "fetch",
       vi
@@ -130,7 +130,7 @@ describe("Aomi Build API proxy", () => {
 
     expect(res.status).toBe(503);
     await expect(res.json()).resolves.toEqual({
-      error: "upstream_unavailable",
+      error: "private backend body",
     });
     expect(telemetry.observe).toHaveBeenCalledOnce();
     expect(telemetry.observe).toHaveBeenCalledWith({

@@ -90,14 +90,17 @@ export type ProxyFailure =
       responseStatus: number;
     };
 
-export type ObserveProxyFailure = (failure: ProxyFailure) => void;
+export type ObserveProxyFailure = (
+  failure: ProxyFailure,
+) => void | Promise<void>;
 
 export function notifyProxyFailure(
   observer: ObserveProxyFailure | undefined,
   failure: ProxyFailure,
 ): void {
   try {
-    observer?.(failure);
+    const result = observer?.(failure);
+    if (result) void result.catch(() => {});
   } catch {
     // Observability is best-effort and must not alter proxy behavior.
   }
@@ -186,7 +189,10 @@ function routeRequiresAuth(route: AllowedRoute): boolean {
 }
 
 function bearerMintFailureResponse(): NextResponse {
-  return NextResponse.json({ error: "bearer_mint_failed" }, { status: 502 });
+  return NextResponse.json(
+    { error: "Account bearer mint failed" },
+    { status: 502 },
+  );
 }
 
 function authenticationRequiredResponse(): NextResponse {
@@ -398,7 +404,7 @@ export function createBackendProxy(config: ProxyConfig) {
             responseStatus: 502,
           });
           return NextResponse.json(
-            { error: "upstream_unavailable" },
+            { error: "Upstream request failed" },
             { status: 502 },
           );
         }
@@ -418,7 +424,7 @@ export function createBackendProxy(config: ProxyConfig) {
         responseStatus: 502,
       });
       return NextResponse.json(
-        { error: "upstream_unavailable" },
+        { error: "Upstream request failed" },
         { status: 502 },
       );
     }

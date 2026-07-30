@@ -17,12 +17,6 @@ type LinkGrantRequest = {
   credential?: unknown;
 };
 
-const EXPECTED_ERRORS = new Set([
-  "invalid_or_expired_link_intent",
-  "invalid_link_intent",
-  "invalid_provider_credential",
-]);
-
 export async function POST(req: Request): Promise<Response> {
   const body = (await req.json().catch(() => null)) as LinkGrantRequest | null;
   if (!body) return json(400, { error: "invalid_json" });
@@ -54,7 +48,6 @@ export async function POST(req: Request): Promise<Response> {
       identifyDeviceAuthFailure(error, {
         routeFamily: "/api/aomi/device-auth/link-grant",
         operation: "device_auth_link_grant",
-        expectedCodes: EXPECTED_ERRORS,
       }),
     ).response;
   }

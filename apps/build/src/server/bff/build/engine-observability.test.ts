@@ -69,15 +69,19 @@ describe("reconstructBuildRun operational failures", () => {
     mocks.createAomiSmither.mockResolvedValue(mocks.api);
   });
 
-  it("propagates a registry failure to the route owner", async () => {
+  it("observes a registry failure and preserves the unknown-run fallback", async () => {
     const error = new Error("private registry failure");
     mocks.findRunById.mockRejectedValue(error);
 
-    await expect(reconstructBuildRun(runId)).rejects.toBe(error);
-    expect(mocks.capture).not.toHaveBeenCalled();
+    await expect(reconstructBuildRun(runId)).resolves.toBeUndefined();
+    expect(mocks.capture).toHaveBeenCalledWith(error, {
+      routeFamily: "/api/bff/build",
+      operation: "build.reconstruct_run",
+      status: 500,
+    });
   });
 
-  it("propagates an observer store failure to the route owner", async () => {
+  it("observes an observer-store failure and preserves the unknown-run fallback", async () => {
     const error = new Error("private run store failure");
     mocks.findRunById.mockResolvedValue({
       runId,
@@ -93,8 +97,12 @@ describe("reconstructBuildRun operational failures", () => {
     });
     mocks.readRunView.mockRejectedValue(error);
 
-    await expect(reconstructBuildRun(runId)).rejects.toBe(error);
-    expect(mocks.capture).not.toHaveBeenCalled();
+    await expect(reconstructBuildRun(runId)).resolves.toBeUndefined();
+    expect(mocks.capture).toHaveBeenCalledWith(error, {
+      routeFamily: "/api/bff/build",
+      operation: "build.reconstruct_run",
+      status: 500,
+    });
   });
 
   it("returns undefined only when the durable store confirms absence", async () => {

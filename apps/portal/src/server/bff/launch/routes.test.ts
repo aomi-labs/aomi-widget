@@ -504,7 +504,7 @@ describe("launchDeployRoute", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("returns a sanitized 502 for a backend network exception", async () => {
+  it("preserves the existing 502 contract for a backend network exception", async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(ownedSources(123))
@@ -527,7 +527,7 @@ describe("launchDeployRoute", () => {
     const res = await POST(req);
     expect(res.status).toBe(502);
     await expect(res.json()).resolves.toEqual({
-      error: "upstream_unavailable",
+      error: "deploy request failed",
     });
     expect(telemetry.capture).toHaveBeenCalledTimes(1);
     expect(telemetry.log).not.toHaveBeenCalled();

@@ -55,7 +55,7 @@ describe("createBearerTokenRoute", () => {
 
     expect(response.status).toBe(500);
     await expect(response.json()).resolves.toEqual({
-      error: "bearer_mint_failed",
+      error: "signing key missing",
     });
     expect(observeFailure).toHaveBeenCalledWith({
       kind: "bearer_mint",
@@ -79,7 +79,7 @@ describe("createBearerTokenRoute", () => {
 
     expect(response.status).toBe(500);
     await expect(response.json()).resolves.toEqual({
-      error: "bearer_mint_failed",
+      error: "signing key missing",
     });
   });
 });

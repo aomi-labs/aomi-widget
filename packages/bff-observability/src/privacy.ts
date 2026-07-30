@@ -110,6 +110,8 @@ const STATIC_ROUTE_SEGMENTS = new Set([
 ]);
 
 const SAFE_VALUE = /^[a-zA-Z0-9][a-zA-Z0-9._:@/\[\]-]*$/;
+const JWT_SHAPED_VALUE =
+  /^[a-zA-Z0-9_-]{8,}\.[a-zA-Z0-9_-]{8,}\.[a-zA-Z0-9_-]{8,}$/;
 const SAFE_ERROR_TYPE = /^[A-Za-z][A-Za-z0-9_.]{0,79}$/;
 const SAFE_ID =
   /^(?:[a-f0-9]{16,64}|[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})$/i;
@@ -280,7 +282,7 @@ function scrubAttributes(
       if (environment) sanitized[key] = environment;
     } else if (typeof value === "string" && key === "route_family") {
       sanitized[key] = normalizeRequestPath(value);
-    } else if (typeof value === "string" && SAFE_VALUE.test(value)) {
+    } else if (typeof value === "string" && isSafeScalar(value)) {
       sanitized[key] = value.slice(0, 200);
     }
   }
@@ -292,8 +294,12 @@ function safeEnvironment(value: string | undefined): string | undefined {
 }
 
 function safeScalar(value: string | undefined): string | undefined {
-  if (!value || !SAFE_VALUE.test(value)) return undefined;
+  if (!value || !isSafeScalar(value)) return undefined;
   return value.slice(0, 200);
+}
+
+function isSafeScalar(value: string): boolean {
+  return SAFE_VALUE.test(value) && !JWT_SHAPED_VALUE.test(value);
 }
 
 function safeId(value: string | undefined): string | undefined {

@@ -4,7 +4,9 @@ export type BetterAuthFailure = {
   status?: number;
 };
 
-export type ObserveBetterAuthFailure = (failure: BetterAuthFailure) => void;
+export type ObserveBetterAuthFailure = (
+  failure: BetterAuthFailure,
+) => void | Promise<void>;
 
 let observer: ObserveBetterAuthFailure | undefined;
 
@@ -16,11 +18,12 @@ export function setBetterAuthFailureObserver(
 
 export function observeBetterAuthFailure(error: unknown): void {
   try {
-    observer?.({
+    const result = observer?.({
       kind: "api_error",
       error,
       status: apiErrorStatus(error),
     });
+    if (result) void result.catch(() => {});
   } catch {
     // Observability is best-effort and must not alter auth behavior.
   }

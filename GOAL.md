@@ -2,14 +2,18 @@
 
 ## BFF Sentry Observability
 
-Current session goal: **LOCAL IMPLEMENTATION AND INDEPENDENT REVIEW COMPLETE;
-EXTERNAL ROLLOUT PENDING 2026-07-29** — the approved server-only Sentry observability design in
+Current session goal: **LOCAL IMPLEMENTATION AND REVIEW FIXES COMPLETE;
+EXTERNAL ROLLOUT PENDING 2026-07-30** — the approved server-only Sentry observability design in
 `docs/topics/bff/facts/sentry-observability.md` is implemented and locally
 verified for both Portal and Aomi Build, including the shared
-three-layer identify/classify/route pipeline, typed Account/Deploy/Smither observers,
-sanitized unexpected failures, controlled staging smoke routes, and automated
-verification. External Sentry/Vercel/dashboard configuration and live staging
-smoke verification remain unperformed and require separate authorization.
+three-layer identify/classify/route pipeline, typed Account/Deploy observers,
+behavior-preserving ownership boundaries, controlled staging smoke routes, and
+automated verification. The review follow-up made the pipeline and async
+observer seams non-throwing, restored existing HTTP/JSON-RPC/silent-degrade
+contracts, added a safe production fallback when Sentry is unavailable, and
+removed all Smither/schema changes. External Sentry/Vercel/dashboard
+configuration and live staging smoke verification remain unperformed and
+require separate authorization.
 
 ## Aomi Build Control Plane Performance
 
@@ -41,6 +45,14 @@ architecture guide now names both refs so a legacy third target cannot be
 mistaken for another supported environment.
 
 Progress:
+
+- 2026-07-30 BFF Sentry review fixes: made identify/classify/route defensive
+  end to end, normalized invalid response statuses and context, absorbed async
+  observer rejections, reordered Build recovery before telemetry, and removed
+  telemetry-only orchestration dependencies. Restored pre-existing Deploy,
+  Account proxy/token, device/provider auth, MCP, GitHub cookie, and Build
+  fallback contracts. Removed the Smither observer, result field, generated
+  declaration changes, package bump, and database-shape impact entirely.
 
 - 2026-07-29 integrations consolidation: moved the functional Telegram bot
   configuration from Operate into Integrations, retained Discord as an explicit

@@ -168,6 +168,10 @@ describe("dispatchTool routing", () => {
     });
     const out = await dispatchTool(USER, "aomi_search_apps", { q: "swap" });
     expect(out.isError).toBe(true);
-    expect(out.result).toEqual({ error: "upstream_unavailable", status: 502 });
+    expect(out.result).toEqual({
+      error: "backend request failed",
+      status: 502,
+      detail: "upstream",
+    });
   });
 });

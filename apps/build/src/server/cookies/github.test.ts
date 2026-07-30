@@ -47,16 +47,12 @@ describe("GitHub CLI sessions", () => {
     await expect(readGitHubCliSession(browserToken)).resolves.toBeNull();
   });
 
-  it("ignores malformed credentials but does not swallow missing config", async () => {
+  it("treats malformed credentials and missing read config as unauthenticated", async () => {
     await expect(readGitHubSession("not-a-jwt")).resolves.toBeNull();
 
     vi.stubEnv("PORTAL_ONLY_SESSION_SECRET", "");
-    await expect(readGitHubSession("not-a-jwt")).rejects.toThrow(
-      /PORTAL_ONLY_SESSION_SECRET/,
-    );
-    await expect(readGitHubCliExchange("not-an-exchange")).rejects.toThrow(
-      /PORTAL_ONLY_SESSION_SECRET/,
-    );
+    await expect(readGitHubSession("not-a-jwt")).resolves.toBeNull();
+    await expect(readGitHubCliExchange("not-an-exchange")).resolves.toBeNull();
   });
 
   it("round-trips the shared OAuth continuation", async () => {

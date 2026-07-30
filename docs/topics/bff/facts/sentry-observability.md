@@ -18,7 +18,7 @@ This document records the approved design and implementation plan for adding
 Sentry error diagnosis and structured failure logs to Aomi's Next.js BFF
 layer. The decisions were reviewed in a grilling session on 2026-07-29.
 
-Implementation status: **local code complete and verified on 2026-07-29;
+Implementation status: **local code complete and verified on 2026-07-30;
 external Sentry, Vercel, dashboard, staging-smoke, and production-rollout work
 remains pending**. No external state was changed during the local
 implementation.
@@ -57,7 +57,7 @@ service-bound pipeline instance whose error API is `handle(...)`.
 ```mermaid
 flowchart LR
   subgraph L1["1. Identify — source owners"]
-    A["Existing throw points<br/>Portal · Build · Account · Deploy · Smither"]
+    A["Existing throw points<br/>Portal · Build · Account · Deploy"]
     B["Typed source facts<br/>origin · upstream · status · safe response hint"]
     A --> B
   end
@@ -69,8 +69,8 @@ flowchart LR
   subgraph L3["3. Route — shared library"]
     D["Sentry Issue"]
     E["Sentry structured Log"]
-    F["Sanitized HTTP response"]
-    G["Local development console"]
+    F["Owned HTTP response<br/>existing contract preserved"]
+    G["Safe local console fallback"]
     H["No telemetry"]
   end
 
@@ -78,7 +78,7 @@ flowchart LR
   C -->|"issue"| D
   C -->|"log"| E
   C --> F
-  C -->|"development only"| G
+  C -->|"development or Sentry unavailable"| G
   C -->|"ignore"| H
 
   classDef existing fill:#eef1f5,stroke:#667085,color:#101828
@@ -90,8 +90,8 @@ flowchart LR
 ```
 
 Legend: grey is behavior that already produced errors, amber is an existing
-boundary changed to emit bounded facts or sanitized responses, and green is
-new shared observability behavior.
+boundary changed to emit bounded facts while preserving its response contract,
+and green is new shared observability behavior.
 
 Ownership is intentionally narrow:
 
@@ -199,7 +199,7 @@ Required external access for full completion:
 | Console capture       | No global console integration                                                  |
 | Console cleanup       | Audit the complete server graph reachable by both BFF apps                     |
 | Swallowed errors      | Preserve original `Error` through an internal observer callback                |
-| Client 5xx bodies     | Stable sanitized error codes; details stay in Sentry                           |
+| Client responses      | Preserve established status/body contracts; response hardening is separate     |
 | Shared implementation | Private `@aomi-labs/bff-observability` workspace package                       |
 | Live verification     | Durable, disabled-by-default, secret-protected staging smoke route in each app |
 | Dashboard             | Existing Backend Overview includes `rust` and `aomi-bff`                       |
@@ -455,7 +455,7 @@ the BFF:
 - Better Auth internal failures;
 - MCP dispatch failures originating in the BFF;
 - build-engine failures represented as 5xx;
-- build supervisor, durable-store, artifact, tar, sandbox, or reconstruction
+- build supervisor, durable-store, tar, sandbox, or reconstruction
   exceptions;
 - background failures currently swallowed by empty `.catch()` handlers; and
 - any other unexpected caught exception found by the complete server audit.
@@ -463,6 +463,11 @@ the BFF:
 The boundary that converts an exception into a response owns capture. An error
 that remains thrown is left to Next.js `onRequestError`. Never capture at both
 levels.
+
+BFF-to-upstream network failures deliberately remain Issues because the BFF
+owns completing the request. This can create volume during an outage, so the
+staging rollout must measure grouping and event volume before production;
+deduplication or rate limiting is a follow-up if real traffic warrants it.
 
 ### Create a Structured Error Log Only
 
@@ -560,90 +565,94 @@ only existing `console.error` and `console.warn` calls.
 
 ## Client-Facing Error Contract
 
-Unexpected 5xx responses must return a stable public code rather than
-`error.message`, backend bodies, or internal configuration details. Candidate
-codes include:
+Observability is not authorized to rewrite an established response contract.
+The identify layer therefore carries a source-owned response hint through the
+classifier and router. Status codes, error strings, JSON-RPC behavior, and
+silent-degrade fallbacks that existed before this work remain intact.
 
-- `internal_error`
-- `upstream_unavailable`
-- `bearer_mint_failed`
-- `build_engine_failed`
+The preserved contracts include:
 
-The intended initial mapping is:
+| Boundary                           | Existing result retained                                        |
+| ---------------------------------- | --------------------------------------------------------------- |
+| General proxy network failure      | 502 `{ "error": "Upstream request failed" }`                    |
+| Inline proxy bearer mint failure   | 502 `{ "error": "Account bearer mint failed" }`                 |
+| Direct account-bearer mint failure | Existing 500 error message/fallback                             |
+| Widget-auth wrapper                | Existing typed status/body or `widget_auth_failed` fallback     |
+| Device-auth caught failures        | Existing 400 status and error text/fallback                     |
+| Build engine routes                | Existing typed status/message and `build engine error` fallback |
+| Deploy/Rust responses              | Existing meaningful status and mapped response text             |
+| MCP JSON-RPC and tool dispatch     | Existing HTTP and JSON-RPC propagation behavior                 |
 
-| Boundary                                                |                             Status | Public body                                        |
-| ------------------------------------------------------- | ---------------------------------: | -------------------------------------------------- |
-| General unexpected BFF exception                        |                                500 | `{ "error": "internal_error" }`                    |
-| General proxy network failure                           |                                502 | `{ "error": "upstream_unavailable" }`              |
-| Inline proxy bearer mint failure                        |                                502 | `{ "error": "bearer_mint_failed" }`                |
-| Direct account-bearer mint failure                      |                                500 | `{ "error": "bearer_mint_failed" }`                |
-| Unknown widget-auth exception                           |                                500 | existing `{ "error": "widget_auth_failed" }`       |
-| Unknown device-auth exception                           |                                500 | `{ "error": "device_auth_failed" }`                |
-| Unknown build-engine exception                          |                                500 | `{ "error": "build_engine_failed" }`               |
-| Build supervisor request failure                        |                                500 | `{ "error": "build_supervisor_failed" }`           |
-| Rust/upstream 5xx passed through an app-specific mapper | Preserve meaningful 502/503 status | stable sanitized code, never upstream body/message |
-
-Preserve useful, already-public 4xx codes. Update affected tests and callers in
-the same PR so the response hardening is intentional and reviewable.
-
-Better Auth/library-owned response contracts should not be rewritten unless
-the response is currently exposing an Aomi-controlled exception. If an
-existing external caller depends on a raw 5xx string, update that caller in
-the same PR rather than preserving the leak.
+The shared pipeline uses `internal_error` only for its own defensive fallback
+or at boundaries that already owned that response. Hardening existing public
+5xx bodies is a separate, explicitly reviewed change. Telemetry privacy does
+not depend on those bodies: response text and upstream bodies are never added
+to Sentry attributes or logs.
 
 ## Local Implementation Record
 
 The local implementation on `codex/bff-sentry-observability` includes the
 planned shared package, both application integrations, app-specific releases,
 source-map build wrapping, typed Account observers, ownership-boundary
-classification, stable unexpected-error responses, and both durable smoke
-routes. The route inventory is now 49 Portal entrypoints and 48 Build
+classification, preserved application response contracts, and both durable
+smoke routes. The route inventory is now 49 Portal entrypoints and 48 Build
 entrypoints because each app gained its smoke route.
 
-Two additional publishable-package seams were required by the complete caught
-exception audit:
+One additional publishable-package seam was required by the caught-exception
+audit:
 
 - `@aomi-labs/deploy` is `0.3.2`; network and invalid-response wrappers retain
   their original `cause`, and required-secret checks retain bounded upstream
   identity/status metadata.
-- `@aomi-labs/smither` is `0.1.1`; artifact tree, tar, packaging, temp setup,
-  and cleanup failures produce bounded durable result codes for sandbox runs.
-  Local observers retain the original exception, are best-effort, and cannot
-  change the artifact result.
+
+Smither is intentionally unchanged. This work adds no Smither observer, result
+field, package-version change, generated declaration change, or database
+schema change. Artifact packaging continues to use its established warning and
+null-result behavior.
 
 An independent fresh-context review first consolidated launch response and
 telemetry decisions. A subsequent architecture review removed the remaining
 Portal/Build wrappers and replaced them with the three-layer pipeline above.
 There is now one classifier (`classifyFailure`) and one router
-(`routeFailure`); launch, proxy, build, artifact, account, expected, and
+(`routeFailure`); launch, proxy, build, account, expected, and
 uncaught failures are source parties rather than parallel reporting systems.
-The review also aligned GitHub service-credential 401/403 behavior, restored
-operational store failures as sanitized 500s instead of false 404s, and
-verified that sandbox artifact failures survive the process boundary without
-sending private warnings or output to telemetry.
+The review also retained GitHub service-credential 401/403 classification
+without rewriting its HTTP response and preserved existing 404, 409, null, and
+400 fallbacks at reconstruction, artifact-read, device-auth, and provider-auth
+boundaries.
 
 A final repository-wide catch-boundary audit removed response-producing
 wrappers from Build and widget auth so every call to the shared router is
 visible at the owning catch point. It also connected the previously missed
 GitHub development-session routes, classified response-transform failures as
-local BFF failures, made all observers and Sentry delivery best-effort, and
+local BFF failures, made sync and async observers and Sentry delivery
+best-effort, and
 restored useful SIWE/provider diagnostics through the central development-only
 diagnostic path without restoring identifiers or raw credential data.
 
+The post-implementation review made the pipeline itself total: malformed
+response statuses are normalized, failures in identify/classify/route fall
+back to a fixed internal response, invalid context uses fixed safe attributes,
+and telemetry cannot escape a caller's catch block. Build recovery state is
+mutated before reporting, and telemetry-only work cannot block sandbox release
+or application boot.
+
 In local development, classified Issues print their original error and stack
 through the shared router, and upstream 5xx Logs print only their safe
-structured context. Ignored outcomes remain quiet, and production never uses
-this console fallback.
+structured context. Ignored outcomes remain quiet. If Sentry is not initialized
+in production, Issues and Logs receive a sanitized console fallback containing
+only the fixed event name and allowlisted attributes—not the original error.
 
 Local verification completed with Sentry disabled:
 
-- shared observability: 41 tests and type-check passed;
+- shared observability: 53 tests and type-check passed;
 - Account plus the full Deploy suite: 242 tests passed, plus
   Account type-check and Deploy build;
-- Smither: all 88 tests and the package build passed;
-- Portal: all 325 tests, type-check, focused changed-file lint, and production
+- Smither remains unchanged; its source suite passed as part of 387 package
+  tests;
+- Portal: all 324 tests, type-check, focused changed-file lint, and production
   build passed;
-- Build: all 392 tests, type-check, lint (three existing warnings), and
+- Build: all 384 tests, type-check, lint (three existing warnings), and
   production build passed; and
 - frozen-lockfile installation and `git diff --check` passed.
 
@@ -736,7 +745,7 @@ Deliver one coherent PR:
 6. Wire build request and background error boundaries.
 7. Replace all reachable server console calls with explicit classified
    reporting or remove logging for expected outcomes.
-8. Sanitize unexpected 5xx response bodies and update callers/tests.
+8. Preserve existing response contracts and keep response data out of telemetry.
 9. Add both staging smoke routes.
 10. Document deployment variables and the operator verification procedure.
 
@@ -753,8 +762,8 @@ Automated checks must prove:
 - temporary previews and local/test execution are disabled;
 - smoke routes reject disabled, production, and incorrectly authenticated
   requests; and
-- existing HTTP status, CORS, redirect, and expected response contracts remain
-  intact except for the approved 5xx sanitization.
+- existing HTTP status, body, JSON-RPC, CORS, redirect, and silent-degrade
+  contracts remain intact.
 
 At minimum, add or extend tests at these seams:
 
@@ -762,14 +771,14 @@ At minimum, add or extend tests at these seams:
 | --------------------------- | ---------------------------------------------------------------------------------------------------- |
 | Shared three-layer pipeline | Identification, Issue/Log/Ignore classification, response mapping, and delivery are deterministic    |
 | Privacy scrubbers           | Every forbidden field class is removed from both events and logs                                     |
-| Account proxy/token         | Original exception reaches the observer; response contains only the stable code                      |
+| Account proxy/token         | Original exception reaches the observer; existing response contract is unchanged                     |
 | Portal widget wrapper       | Unknown exception captured once; typed 4xx captured zero times                                       |
 | Portal launch source        | Local 5xx is an Issue; Rust 5xx is log-only; 4xx is ignored                                          |
 | Portal GitHub callback      | Internal exchange failure is captured without OAuth values                                           |
-| Portal device auth          | Unexpected failure becomes sanitized 500; expected code failures remain 4xx and ignored              |
+| Portal device auth          | Existing catch boundaries remain 400; uncaught framework failures use request capture                |
 | Portal Better Auth/MCP      | Uncaught failures use request capture; handled downstream 5xx is log-only                            |
 | Build route mapper          | Unknown/5xx build errors are Issues; 4xx `BuildEngineError` is ignored                               |
-| Build background work       | Supervisor/store/artifact failures are captured with no request data                                 |
+| Build background work       | Supervisor/store failures are captured without changing release or fallback behavior                 |
 | Both smoke routes           | Disabled/wrong-secret/production requests return 404; valid staging invocation emits fixed telemetry |
 | Both SDK configs            | Disabled environments are no-ops; service/environment/release are correct when enabled               |
 
@@ -833,7 +842,7 @@ The task is complete only when all of the following are true:
 - no relevant server-side exception remains silently swallowed or written
   through an unclassified console call;
 - known 4xx outcomes remain absent from Sentry;
-- raw unexpected 5xx details are no longer returned to clients;
+- telemetry contains no raw client response or upstream-body details;
 - the `aomi-bff` Sentry project exists and both canonical staging apps use it;
 - the portal and build staging smoke events have readable TypeScript stacks,
   correct service/environment/release tags, and corresponding error logs;

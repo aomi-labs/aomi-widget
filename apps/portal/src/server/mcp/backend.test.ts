@@ -41,7 +41,7 @@ describe("MCP backend observability", () => {
     mocks.mintAccountBearer.mockResolvedValue({ bearer: "account-bearer" });
   });
 
-  it("logs a Rust 5xx once and returns a sanitized result", async () => {
+  it("logs a Rust 5xx once without changing the backend result", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response("private upstream failure", { status: 503 }),
     );
@@ -51,7 +51,7 @@ describe("MCP backend observability", () => {
     expect(result).toEqual({
       ok: false,
       status: 503,
-      body: { error: "upstream_unavailable" },
+      body: { error: "private upstream failure" },
     });
     expect(mocks.logPortalUpstreamFailure).toHaveBeenCalledTimes(1);
     expect(mocks.logPortalUpstreamFailure).toHaveBeenCalledWith({
@@ -67,7 +67,7 @@ describe("MCP backend observability", () => {
     ).not.toContain("private upstream failure");
   });
 
-  it("lets malformed successful JSON reach the global request error hook", async () => {
+  it("preserves the existing malformed JSON fallback", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response("not-json", {
         status: 200,
@@ -77,7 +77,11 @@ describe("MCP backend observability", () => {
 
     await expect(
       resourceGet("canonical-user", "/api/resource/apps"),
-    ).rejects.toBeInstanceOf(SyntaxError);
+    ).resolves.toEqual({
+      ok: true,
+      status: 200,
+      body: { error: "not-json" },
+    });
     expect(mocks.logPortalUpstreamFailure).not.toHaveBeenCalled();
   });
 

@@ -84,6 +84,21 @@ describe("classifyFailure", () => {
     },
   );
 
+  it.each([401, 403])(
+    "keeps upstream %s without a credential owner as an expected rejection",
+    (upstreamStatus) => {
+      expect(
+        classifyFailure(
+          failure({
+            origin: "upstream_response",
+            upstream: "rust",
+            upstreamStatus,
+          }),
+        ),
+      ).toMatchObject({ action: "ignore", reason: "expected" });
+    },
+  );
+
   it("fails malformed upstream statuses toward an Issue", () => {
     expect(
       classifyFailure(

@@ -9,7 +9,6 @@ import type {
   BuildRunStageStatus,
   BuildRunStatus,
 } from "@build/features/build/run-contracts";
-import type { SmitherArtifactFailureKind } from "@aomi-labs/smither";
 import { buildFailures } from "@build/server/bff/failures";
 
 export type RunViewLike = {
@@ -159,21 +158,4 @@ export function artifactFromOutputs(
     crateTarB64,
     warning: String(row.artifactWarning ?? ""),
   };
-}
-
-const ARTIFACT_FAILURES = new Set<SmitherArtifactFailureKind>([
-  "crate_tree_read",
-  "crate_tar",
-  "crate_package",
-  "crate_cleanup",
-]);
-
-export function artifactFailureFromOutputs(
-  outputs: Record<string, ReadonlyArray<Record<string, unknown>>>,
-): SmitherArtifactFailureKind | undefined {
-  const value = outputs.result?.[0]?.artifactFailure;
-  return typeof value === "string" &&
-    ARTIFACT_FAILURES.has(value as SmitherArtifactFailureKind)
-    ? (value as SmitherArtifactFailureKind)
-    : undefined;
 }

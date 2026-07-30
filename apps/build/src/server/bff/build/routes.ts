@@ -46,14 +46,14 @@ function identifyBuildRouteFailure(
     return {
       source: "local",
       error,
-      response: { status: error.status, error: "build_engine_failed" },
+      response: { status: error.status, error: error.message },
       context,
     };
   }
   return {
     source: "local",
     error,
-    response: { status: 500, error: "build_engine_failed" },
+    response: { status: 500, error: "build engine error" },
     context,
   };
 }
@@ -182,7 +182,20 @@ export async function buildRunDownloadRoute(
     if (!existsSync(path.join(appsDir, handle.app))) {
       // No local crate (sandbox runs — the crate lives in the sandbox's
       // filesystem): serve the artifact the result phase embedded in the store.
-      const stored = await storedCrateTarball(handle);
+      const stored = await storedCrateTarball(handle).catch(
+        (error: unknown) => {
+          buildFailures.handle({
+            source: "local",
+            error,
+            context: {
+              routeFamily: new URL(req.url).pathname,
+              operation: "build.download_artifact_read",
+              method: req.method,
+            },
+          });
+          return null;
+        },
+      );
       if (stored) {
         return new Response(new Uint8Array(stored), {
           headers: {

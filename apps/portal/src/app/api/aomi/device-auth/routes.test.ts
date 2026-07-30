@@ -124,32 +124,23 @@ describe("device-auth route error ownership", () => {
     expect(mocks.capture).not.toHaveBeenCalled();
   });
 
-  it("captures an unexpected grant session failure once", async () => {
+  it("leaves session failures to the framework error boundary", async () => {
     const failure = new Error("private database detail");
     mocks.getSession.mockRejectedValue(failure);
 
-    const response = await grant(
-      post("/api/aomi/device-auth/grant", {
-        state: VALID_STATE,
-        codeChallenge: VALID_CHALLENGE,
-        redirectUri: REDIRECT_URI,
-      }),
-    );
-
-    expect(response.status).toBe(500);
-    await expect(response.json()).resolves.toEqual({
-      error: "device_auth_failed",
-    });
-    expect(mocks.capture).toHaveBeenCalledTimes(1);
-    expect(mocks.capture).toHaveBeenCalledWith(failure, {
-      routeFamily: "/api/aomi/device-auth/grant",
-      operation: "device_auth_grant",
-      method: "POST",
-      status: 500,
-    });
+    await expect(
+      grant(
+        post("/api/aomi/device-auth/grant", {
+          state: VALID_STATE,
+          codeChallenge: VALID_CHALLENGE,
+          redirectUri: REDIRECT_URI,
+        }),
+      ),
+    ).rejects.toBe(failure);
+    expect(mocks.capture).not.toHaveBeenCalled();
   });
 
-  it("keeps link-intent validation failures at 400 and captures unknown failures", async () => {
+  it("preserves link-intent's broad 400 response contract", async () => {
     mocks.issueLinkIntent.mockImplementationOnce(() => {
       throw new Error("invalid_redirect_uri");
     });
@@ -173,14 +164,14 @@ describe("device-auth route error ownership", () => {
     const unexpected = await linkIntent(
       post("/api/aomi/device-auth/link-intent", requestBody),
     );
-    expect(unexpected.status).toBe(500);
+    expect(unexpected.status).toBe(400);
     await expect(unexpected.json()).resolves.toEqual({
-      error: "device_auth_failed",
+      error: "private storage detail",
     });
-    expect(mocks.capture).toHaveBeenCalledTimes(1);
+    expect(mocks.capture).not.toHaveBeenCalled();
   });
 
-  it("keeps expired link grants at 400 and captures unknown failures", async () => {
+  it("preserves link-grant's broad 400 response contract", async () => {
     const requestBody = {
       linkIntent: "intent",
       state: VALID_STATE,
@@ -205,14 +196,14 @@ describe("device-auth route error ownership", () => {
     const unexpected = await linkGrant(
       post("/api/aomi/device-auth/link-grant", requestBody),
     );
-    expect(unexpected.status).toBe(500);
-    expect(mocks.capture).toHaveBeenCalledWith(
-      failure,
-      expect.objectContaining({ operation: "device_auth_link_grant" }),
-    );
+    expect(unexpected.status).toBe(400);
+    await expect(unexpected.json()).resolves.toEqual({
+      error: "private crypto detail",
+    });
+    expect(mocks.capture).not.toHaveBeenCalled();
   });
 
-  it("keeps provider-token failures at 400 and captures unknown exchange failures", async () => {
+  it("preserves provider exchange's broad 400 response contract", async () => {
     const requestBody = {
       code: "code",
       state: VALID_STATE,
@@ -243,13 +234,10 @@ describe("device-auth route error ownership", () => {
     const unexpected = await exchange(
       post("/api/aomi/device-auth/exchange", requestBody),
     );
-    expect(unexpected.status).toBe(500);
+    expect(unexpected.status).toBe(400);
     await expect(unexpected.json()).resolves.toEqual({
-      error: "device_auth_failed",
+      error: "private provider configuration",
     });
-    expect(mocks.capture).toHaveBeenCalledWith(
-      failure,
-      expect.objectContaining({ operation: "device_auth_exchange" }),
-    );
+    expect(mocks.capture).not.toHaveBeenCalled();
   });
 });

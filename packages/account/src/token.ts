@@ -45,10 +45,9 @@ export function createBearerTokenRoute(config: {
         pathname: request.nextUrl.pathname,
         responseStatus: 500,
       });
-      return NextResponse.json(
-        { error: "bearer_mint_failed" },
-        { status: 500 },
-      );
+      const message =
+        error instanceof Error ? error.message : "Failed to mint bearer";
+      return NextResponse.json({ error: message }, { status: 500 });
     }
   };
 }

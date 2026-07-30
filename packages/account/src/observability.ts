@@ -4,7 +4,7 @@ export type AccountInternalFailure =
 
 export type ObserveAccountInternalFailure = (
   failure: AccountInternalFailure,
-) => void;
+) => void | Promise<void>;
 
 export type AccountDiagnosticValue = string | number | boolean | null;
 
@@ -19,7 +19,9 @@ export type AccountDiagnostic = {
   response: { status: number; error: string };
 };
 
-export type ObserveAccountDiagnostic = (diagnostic: AccountDiagnostic) => void;
+export type ObserveAccountDiagnostic = (
+  diagnostic: AccountDiagnostic,
+) => void | Promise<void>;
 
 let failureObserver: ObserveAccountInternalFailure | undefined;
 let diagnosticObserver: ObserveAccountDiagnostic | undefined;
@@ -40,7 +42,7 @@ export function observeAccountInternalFailure(
   failure: AccountInternalFailure,
 ): void {
   try {
-    failureObserver?.(failure);
+    absorbObserverResult(failureObserver?.(failure));
   } catch {
     // Observability is best-effort and must not alter account behavior.
   }
@@ -48,10 +50,14 @@ export function observeAccountInternalFailure(
 
 export function observeAccountDiagnostic(diagnostic: AccountDiagnostic): void {
   try {
-    diagnosticObserver?.(diagnostic);
+    absorbObserverResult(diagnosticObserver?.(diagnostic));
   } catch {
     // Observability is best-effort and must not alter account behavior.
   }
+}
+
+function absorbObserverResult(result: void | Promise<void>): void {
+  if (result) void result.catch(() => {});
 }
 
 export {

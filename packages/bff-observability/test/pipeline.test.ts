@@ -59,13 +59,13 @@ describe("three-layer failure pipeline", () => {
     expect(result).toMatchObject({
       action: "issue",
       reason: "service_credential_rejected",
-      responseStatus: 500,
-      responseError: "internal_error",
+      responseStatus: 401,
+      responseError: "private message",
       upstream: "rust",
       upstreamStatus: 401,
     });
     await expect(result.response.json()).resolves.toEqual({
-      error: "internal_error",
+      error: "private message",
     });
     expect(sentry.captureException).toHaveBeenCalledOnce();
     expect(sentry.captureException).toHaveBeenCalledWith(error);
@@ -190,7 +190,7 @@ describe("three-layer failure pipeline", () => {
 
     expect(result.action).toBe("log");
     await expect(result.response.json()).resolves.toEqual({
-      error: "upstream_unavailable",
+      error: "private",
     });
     expect(sentry.logger.error).toHaveBeenCalledOnce();
     expect(sentry.captureException).not.toHaveBeenCalled();
@@ -247,7 +247,7 @@ describe("three-layer failure pipeline", () => {
       upstream: "github",
       upstreamStatus: 503,
       responseStatus: 503,
-      responseError: "upstream_unavailable",
+      responseError: "Unable to verify required secrets. Try again.",
     });
     expect(sentry.logger.error).toHaveBeenCalledOnce();
   });
@@ -346,6 +346,126 @@ describe("three-layer failure pipeline", () => {
       ).not.toThrow();
     },
   );
+
+  it.each([101, 204, 205, 304])(
+    "normalizes invalid response status %i without throwing",
+    async (status) => {
+      const result = createFailurePipeline("portal-bff").handle({
+        source: "expected",
+        response: { status, error: "invalid_request" },
+        context,
+      });
+
+      expect(result.responseStatus).toBe(500);
+      expect(result.response.status).toBe(500);
+      await expect(result.response.json()).resolves.toEqual({
+        error: "invalid_request",
+      });
+    },
+  );
+
+  it("falls back safely when source identification throws", async () => {
+    const identificationError = new Error("broken deploy error shape");
+    const error = Object.create(null, {
+      code: {
+        get() {
+          throw identificationError;
+        },
+      },
+    });
+
+    const result = createFailurePipeline("portal-bff").handle({
+      source: "launch",
+      error,
+      context,
+    });
+
+    expect(result).toMatchObject({
+      action: "issue",
+      responseStatus: 500,
+      responseError: "internal_error",
+    });
+    await expect(result.response.json()).resolves.toEqual({
+      error: "internal_error",
+    });
+    expect(sentry.captureException).toHaveBeenCalledWith(identificationError);
+  });
+
+  it("captures invalid context under a fixed safe fallback", () => {
+    const error = new Error("database unavailable");
+
+    createFailurePipeline("portal-bff").handle({
+      source: "local",
+      error,
+      context: {
+        routeFamily: "private route with spaces",
+        operation: "INVALID OPERATION",
+      },
+    });
+
+    expect(sentry.scope.setTags).toHaveBeenCalledWith(
+      expect.objectContaining({
+        route_family: "/observability",
+        operation: "observability.invalid_context",
+      }),
+    );
+    expect(sentry.captureException).toHaveBeenCalledWith(error);
+  });
+
+  it("accepts the root route family", () => {
+    createFailurePipeline("portal-bff").handle({
+      source: "local",
+      error: new Error("root failed"),
+      context: { routeFamily: "/", operation: "root.request" },
+    });
+
+    expect(sentry.scope.setTags).toHaveBeenCalledWith(
+      expect.objectContaining({ route_family: "/" }),
+    );
+  });
+
+  it("keeps the 499/500 upstream boundary exact", () => {
+    const pipeline = createFailurePipeline("portal-bff");
+    const rejected = pipeline.handle({
+      source: "upstream_response",
+      upstream: "rust",
+      status: 499,
+      context,
+    });
+    const failed = pipeline.handle({
+      source: "upstream_response",
+      upstream: "rust",
+      status: 500,
+      context,
+    });
+
+    expect(rejected.action).toBe("ignore");
+    expect(failed.action).toBe("log");
+  });
+
+  it("writes a sanitized production fallback when Sentry is not initialized", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    const error = new Error("private database detail");
+
+    createFailurePipeline("portal-bff").handle({
+      source: "local",
+      error,
+      context,
+    });
+
+    expect(consoleError).toHaveBeenCalledWith(
+      "bff.exception",
+      expect.objectContaining({ service: "portal-bff" }),
+    );
+    expect(consoleError).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      error,
+    );
+  });
 });
 
 describe("initBffSentry", () => {

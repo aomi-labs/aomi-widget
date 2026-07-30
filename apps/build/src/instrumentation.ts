@@ -20,31 +20,6 @@ export async function register() {
       });
       throw error;
     }
-    try {
-      const { setSmitherArtifactFailureObserver } =
-        await import("@aomi-labs/smither");
-      setSmitherArtifactFailureObserver(({ kind, error }) => {
-        buildFailures.handle({
-          source: "artifact",
-          error,
-          context: {
-            routeFamily: "/api/bff/build/runs",
-            operation: `build.artifact_${kind}`,
-          },
-        });
-      });
-    } catch (error) {
-      buildFailures.handle({
-        source: "local",
-        error,
-        handled: false,
-        context: {
-          routeFamily: "/instrumentation",
-          operation: "register_smither_observer",
-        },
-      });
-      throw error;
-    }
   }
   if (process.env.NEXT_RUNTIME === "edge") {
     await import("./sentry.edge.config");

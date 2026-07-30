@@ -3,7 +3,6 @@ import "server-only";
 import type { FailureInput } from "@aomi-labs/bff-observability";
 import {
   createAomiSmither,
-  readRunView,
   resolveRunBackend,
   storeQuery,
   type AomiSmitherApi,
@@ -11,7 +10,6 @@ import {
 import { listRunningRuns, updateRun, type BuildRunRecord } from "./registry";
 import { extendSandboxById, stopSandboxById } from "./sandbox-runner";
 import { buildFailures } from "@build/server/bff/failures";
-import { artifactFailureFromOutputs } from "./run-view";
 
 function identifySupervisorFailure(
   error: unknown,
@@ -127,25 +125,10 @@ async function applyDecision(
       await stop();
       await updateRun(api, record.runId, { status: "failed" });
       break;
-    case "release-completed": {
-      const artifactFailure =
-        record.runner === "vercel-sandbox"
-          ? artifactFailureFromOutputs(
-              (await readRunView(api, record.runId)).outputs ?? {},
-            )
-          : undefined;
+    case "release-completed":
       await stop();
       await updateRun(api, record.runId, { status: "completed" });
-      if (artifactFailure) {
-        buildFailures.handle(
-          identifySupervisorFailure(
-            new Error(`Sandbox artifact failure: ${artifactFailure}`),
-            `build.artifact_${artifactFailure}`,
-          ),
-        );
-      }
       break;
-    }
     case "release-failed":
       await stop();
       await updateRun(api, record.runId, { status: "failed" });

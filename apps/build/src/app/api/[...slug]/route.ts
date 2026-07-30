@@ -33,9 +33,9 @@ const backendProxy = createBackendProxy({
   upstreamBaseUrl: process.env.AOMI_PROXY_BACKEND_URL || configuredBackendUrl(),
   applyDefaults: applyBuildDefaults,
   resolveCanonicalUserId: async () => null,
-  observeFailure: (failure) =>
-    buildFailures.handle({ source: "proxy", failure }),
-  sanitizeUpstream5xx: true,
+  observeFailure: (failure) => {
+    buildFailures.handle({ source: "proxy", failure });
+  },
 }) as unknown as Record<
   "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
   RouteHandler

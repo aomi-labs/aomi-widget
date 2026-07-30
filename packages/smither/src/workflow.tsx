@@ -79,21 +79,14 @@ export async function createAomiSmither(
     typeof backend === "string" ? { kind: "sqlite", dbPath: backend } : backend;
   if (resolved.kind === "sqlite") {
     const { createSmithers } = await import("smithers-orchestrator");
-    return createSmithers(smitherSchemas, {
-      ...SMITHER_META,
-      dbPath: resolved.dbPath,
-    });
+    return createSmithers(smitherSchemas, { ...SMITHER_META, dbPath: resolved.dbPath });
   }
   const { createSmithersPostgres } = await import("smithers-orchestrator");
   return createSmithersPostgres(
     smitherSchemas,
     resolved.kind === "pglite"
       ? { ...SMITHER_META, provider: "pglite", dataDir: resolved.dataDir }
-      : {
-          ...SMITHER_META,
-          provider: "postgres",
-          connectionString: resolved.connectionString,
-        },
+      : { ...SMITHER_META, provider: "postgres", connectionString: resolved.connectionString },
   );
 }
 
@@ -172,17 +165,7 @@ export async function buildAppWorkflow(
   plan: BuildPlan,
   deps: WorkflowDeps = {},
 ): Promise<AomiWorkflow> {
-  const {
-    Workflow,
-    Task,
-    Approval,
-    Sequence,
-    Loop,
-    Parallel,
-    Signal,
-    smithers,
-    outputs,
-  } = api;
+  const { Workflow, Task, Approval, Sequence, Loop, Parallel, Signal, smithers, outputs } = api;
   const runner = deps.runner ?? defaultRunner;
   const id = (stage: string) => nodeId(plan.app, stage);
   const composition = resolveComposition(plan);
@@ -210,9 +193,9 @@ export async function buildAppWorkflow(
 
   return smithers((ctx) => {
     const row = <K extends keyof SmitherSchemas>(key: K, phaseId: string) =>
-      ctx.outputMaybe(outputs[key as keyof typeof outputs], {
-        nodeId: id(phaseId),
-      }) as Record<string, unknown> | undefined;
+      ctx.outputMaybe(outputs[key as keyof typeof outputs], { nodeId: id(phaseId) }) as
+        | Record<string, unknown>
+        | undefined;
 
     // --- well-known rows the step functions depend on -----------------------
     const findCompute = (op: string): InnerPhase | undefined => {
@@ -229,29 +212,21 @@ export async function buildAppWorkflow(
       : undefined;
 
     const latestValidationFor = (loop: Extract<Phase, { kind: "loop" }>) => {
-      const validate = loop.body.find(
-        (p) => p.kind === "compute" && p.op === "validate",
-      );
+      const validate = loop.body.find((p) => p.kind === "compute" && p.op === "validate");
       return validate
-        ? (ctx.latest(outputs.validation, id(validate.id)) as
-            | ValidationRow
-            | undefined)
+        ? (ctx.latest(outputs.validation, id(validate.id)) as ValidationRow | undefined)
         : undefined;
     };
     const latestEvalFor = (loop: Extract<Phase, { kind: "loop" }>) => {
       const evalPhase = loop.body.find((p) => p.kind === "eval");
       return evalPhase
-        ? (ctx.latest(outputs.evaluation, id(evalPhase.id)) as
-            | EvaluationRow
-            | undefined)
+        ? (ctx.latest(outputs.evaluation, id(evalPhase.id)) as EvaluationRow | undefined)
         : undefined;
     };
     // Current iteration count for a loop node — lets a `return-last` loop that
     // maxed out (never passed) still settle so the composition can continue.
     const loopIteration = (loopId: string): number =>
-      (ctx as { iterations?: Record<string, number> }).iterations?.[
-        id(loopId)
-      ] ?? 0;
+      (ctx as { iterations?: Record<string, number> }).iterations?.[id(loopId)] ?? 0;
     const loopDone = (loop: Extract<Phase, { kind: "loop" }>): boolean => {
       const passed =
         loop.until === "eval-pass"
@@ -262,10 +237,7 @@ export async function buildAppWorkflow(
       // is the 0-indexed current iteration, so the final round is maxRounds-1.
       // The enclosing <Sequence> still holds downstream tasks until the loop
       // node itself completes, so flipping here during the last round is safe.
-      return (
-        loop.onMax === "return-last" &&
-        loopIteration(loop.id) >= loop.maxRounds - 1
-      );
+      return loop.onMax === "return-last" && loopIteration(loop.id) >= loop.maxRounds - 1;
     };
 
     // Boolean columns round-trip through the store as 0/1 (SQLite storage
@@ -373,18 +345,16 @@ export async function buildAppWorkflow(
     const mountable = (index: number): boolean => {
       const state = states[index];
       if (state.skipped) return false;
-      const isResult =
-        state.phase.kind === "compute" && state.phase.op === "result";
+      const isResult = state.phase.kind === "compute" && state.phase.op === "result";
       return states
         .slice(0, index)
         .every((prev) => (isResult ? prev.settled : prev.done));
     };
 
+
     // --- render one phase ----------------------------------------------------
     const smokePhase = findCompute("smoke");
-    const smoke = smokePhase
-      ? (row("smoke", smokePhase.id) as SmokeRow | undefined)
-      : undefined;
+    const smoke = smokePhase ? (row("smoke", smokePhase.id) as SmokeRow | undefined) : undefined;
     const deployPhase = findCompute("deploy");
     const deployment = deployPhase
       ? (row("deployment", deployPhase.id) as DeploymentRow | undefined)
@@ -404,20 +374,11 @@ export async function buildAppWorkflow(
           return binaries ? (
             <Task
               id={id(phase.id)}
-              label={
-                phase.label ?? `Eval (judge ${phase.judge ?? plan.builder})`
-              }
+              label={phase.label ?? `Eval (judge ${phase.judge ?? plan.builder})`}
               output={outputs.evaluation}
               noRetry
             >
-              {() =>
-                runEvalStep({
-                  plan,
-                  phase: phase as EvalPhase,
-                  binaries: toResolvedBinaries(binaries),
-                  runner,
-                })
-              }
+              {() => runEvalStep({ plan, phase: phase as EvalPhase, binaries: toResolvedBinaries(binaries), runner })}
             </Task>
           ) : null;
         case "agent": {
@@ -451,9 +412,7 @@ export async function buildAppWorkflow(
           return (
             <Task
               id={id(phase.id)}
-              label={
-                phase.label ?? `${phase.role} (${phaseAgent(plan, phase)})`
-              }
+              label={phase.label ?? `${phase.role} (${phaseAgent(plan, phase)})`}
               output={outputs[outputKeyFor(phase) as "curation"]}
               agent={agent}
               needsApproval={phase.role === "curate" && !plan.autoApprove}
@@ -501,9 +460,7 @@ export async function buildAppWorkflow(
       }
     };
 
-    const renderCompute = (
-      phase: Extract<InnerPhase, { kind: "compute" }>,
-    ): ReactNode => {
+    const renderCompute = (phase: Extract<InnerPhase, { kind: "compute" }>): ReactNode => {
       const label = phase.label;
       switch (phase.op) {
         case "binaries":
@@ -519,12 +476,7 @@ export async function buildAppWorkflow(
           );
         case "codegen":
           return binaries ? (
-            <Task
-              id={id(phase.id)}
-              label={label ?? "aomi-build codegen"}
-              output={outputs.codegen}
-              noRetry
-            >
+            <Task id={id(phase.id)} label={label ?? "aomi-build codegen"} output={outputs.codegen} noRetry>
               {() => codegenStep(plan, toResolvedBinaries(binaries), runner)}
             </Task>
           ) : null;
@@ -552,28 +504,14 @@ export async function buildAppWorkflow(
           ) : null;
         case "deploy":
           return binaries ? (
-            <Task
-              id={id(phase.id)}
-              label={label ?? "Deploy via aomi-build"}
-              output={outputs.deployment}
-              noRetry
-            >
-              {() =>
-                deployStep(plan, toResolvedBinaries(binaries), runner, deps)
-              }
+            <Task id={id(phase.id)} label={label ?? "Deploy via aomi-build"} output={outputs.deployment} noRetry>
+              {() => deployStep(plan, toResolvedBinaries(binaries), runner, deps)}
             </Task>
           ) : null;
         case "result":
           return (
-            <Task
-              id={id(phase.id)}
-              label={label ?? "Summarize run"}
-              output={outputs.result}
-              noRetry
-            >
-              {() =>
-                resultStep(plan, { gateDenied, deployment, smoke }, runner)
-              }
+            <Task id={id(phase.id)} label={label ?? "Summarize run"} output={outputs.result} noRetry>
+              {() => resultStep(plan, { gateDenied, deployment, smoke }, runner)}
             </Task>
           );
       }
@@ -585,17 +523,13 @@ export async function buildAppWorkflow(
         const latestValidation = latestValidationFor(phase);
         const latestEval = latestEvalFor(phase);
         const until =
-          phase.until === "eval-pass"
-            ? !!latestEval?.pass
-            : !!latestValidation?.green;
+          phase.until === "eval-pass" ? !!latestEval?.pass : !!latestValidation?.green;
         return (
           <Loop
             id={id(phase.id)}
             until={until}
             maxIterations={phase.maxRounds}
-            onMaxReached={
-              phase.onMax === "return-last" ? "return-last" : "fail"
-            }
+            onMaxReached={phase.onMax === "return-last" ? "return-last" : "fail"}
           >
             <Sequence>
               {phase.body.map((inner) => (
@@ -611,9 +545,7 @@ export async function buildAppWorkflow(
         return (
           <Parallel
             id={id(phase.id)}
-            {...(phase.maxConcurrency
-              ? { maxConcurrency: phase.maxConcurrency }
-              : {})}
+            {...(phase.maxConcurrency ? { maxConcurrency: phase.maxConcurrency } : {})}
           >
             {phase.branches.map((branch, branchIndex) => (
               <Sequence key={`${phase.id}-b${branchIndex}`}>
@@ -633,9 +565,7 @@ export async function buildAppWorkflow(
           <Signal
             id={id(phase.id)}
             schema={smitherSchemas.external}
-            {...(phase.timeoutHours
-              ? { timeoutMs: phase.timeoutHours * 3_600_000 }
-              : {})}
+            {...(phase.timeoutHours ? { timeoutMs: phase.timeoutHours * 3_600_000 } : {})}
             {...(phase.onTimeout ? { onTimeout: phase.onTimeout } : {})}
           />
         );
@@ -713,11 +643,7 @@ async function codegenStep(
           await runAomiBuild(
             binaries,
             "gen-client",
-            [
-              plan.app,
-              ...(plan.shared ? ["--shared"] : []),
-              ...(plan.force ? ["--force"] : []),
-            ],
+            [plan.app, ...(plan.shared ? ["--shared"] : []), ...(plan.force ? ["--force"] : [])],
             runner,
           ),
           await runAomiBuild(
@@ -780,32 +706,16 @@ async function smokeStep(
   binaries: ResolvedBinaries,
   runner: CommandRunner,
 ): Promise<SmokeRow> {
-  const compile = await runAomiBuild(
-    binaries,
-    "compile",
-    ["--app", plan.app],
-    runner,
-  );
+  const compile = await runAomiBuild(binaries, "compile", ["--app", plan.app], runner);
   if (compile.exitCode !== 0) {
     throw new Error(
       `compile failed before smoke: ${boundedLog(compile.stderr || compile.stdout)}`,
     );
   }
-  const plugin = path.join(
-    plan.sdkRoot,
-    "plugins",
-    pluginLibraryFileName(plan.app),
-  );
-  const smoke = await runAomiRun(
-    binaries,
-    plugin,
-    ["--prompt", plan.smokePrompt],
-    runner,
-  );
+  const plugin = path.join(plan.sdkRoot, "plugins", pluginLibraryFileName(plan.app));
+  const smoke = await runAomiRun(binaries, plugin, ["--prompt", plan.smokePrompt], runner);
   if (smoke.exitCode !== 0) {
-    throw new Error(
-      `smoke failed: ${boundedLog(smoke.stderr || smoke.stdout)}`,
-    );
+    throw new Error(`smoke failed: ${boundedLog(smoke.stderr || smoke.stdout)}`);
   }
   return { ok: true, log: boundedLog(smoke.stdout) };
 }
@@ -844,9 +754,7 @@ async function deployStep(
     deployEnv,
   );
   if (deploy.exitCode !== 0) {
-    throw new Error(
-      `deploy failed: ${boundedLog(deploy.stderr || deploy.stdout)}`,
-    );
+    throw new Error(`deploy failed: ${boundedLog(deploy.stderr || deploy.stdout)}`);
   }
   return { ok: true, log: boundedLog(deploy.stdout) };
 }
@@ -871,7 +779,6 @@ async function resultStep(
     fileTreeJson: artifact.fileTreeJson,
     crateTarB64: artifact.crateTarB64,
     artifactWarning: artifact.warning,
-    artifactFailure: artifact.failureCode,
   };
   if (state.gateDenied) {
     return {

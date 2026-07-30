@@ -6,7 +6,11 @@
 // Layering: browser UI → these routes → `DeploymentClient` (root export) →
 // Aomi backend. The activation/service bearer never leaves this layer.
 
-export { identifyLaunchError, type LaunchFailureSource } from "./errors";
+export {
+  identifyLaunchError,
+  launchErrorResponse,
+  type LaunchFailureSource,
+} from "./errors";
 
 export {
   createLaunchRoutes,

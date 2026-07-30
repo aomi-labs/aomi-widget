@@ -125,9 +125,9 @@ function rewriteLegacyThreadPath(upstreamUrl: URL): void {
 const proxy = createBackendProxy({
   allowedRoutes: ALLOWED_ROUTES,
   resolveCanonicalUserId,
-  observeFailure: (failure) =>
-    portalFailures.handle({ source: "proxy", failure }),
-  sanitizeUpstream5xx: true,
+  observeFailure: (failure) => {
+    portalFailures.handle({ source: "proxy", failure });
+  },
   applyDefaults: (upstreamUrl) => {
     rewriteLegacyThreadPath(upstreamUrl);
     if (

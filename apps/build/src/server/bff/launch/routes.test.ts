@@ -404,7 +404,7 @@ describe("launchDeployRoute", () => {
 
     expect(res.status).toBe(503);
     await expect(res.json()).resolves.toEqual({
-      error: "upstream_unavailable",
+      error: "private backend failure",
     });
     expect(telemetry.capture).not.toHaveBeenCalled();
     expect(telemetry.log).toHaveBeenCalledWith(
@@ -697,7 +697,7 @@ describe("launchDeployRoute", () => {
     const res = await POST(req);
     expect(res.status).toBe(502);
     await expect(res.json()).resolves.toEqual({
-      error: "upstream_unavailable",
+      error: "deploy request failed",
     });
     expect(telemetry.capture).toHaveBeenCalledOnce();
     expect(telemetry.log).not.toHaveBeenCalled();
@@ -1599,7 +1599,7 @@ describe("requiredSecretsRoute", () => {
 
     expect(res.status).toBe(503);
     await expect(res.json()).resolves.toEqual({
-      error: "upstream_unavailable",
+      error: "Unable to verify required secrets. Try again.",
     });
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(telemetry.capture).toHaveBeenCalledOnce();

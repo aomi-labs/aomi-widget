@@ -60,7 +60,10 @@ export function aomiProviderAuthPlugin(): BetterAuthPlugin {
           try {
             verified = await verifyProviderCredential(credential);
           } catch (error) {
-            if (!isExpectedProviderCredentialError(error)) throw error;
+            const message =
+              error instanceof Error
+                ? error.message
+                : "provider_exchange_failed";
             observeAccountDiagnostic({
               kind: "provider.credential_rejected",
               attributes: {
@@ -77,11 +80,11 @@ export function aomiProviderAuthPlugin(): BetterAuthPlugin {
               },
               response: {
                 status: 400,
-                error: "invalid_provider_credential",
+                error: message,
               },
             });
             throw new APIError("BAD_REQUEST", {
-              message: "invalid_provider_credential",
+              message,
               cause: error,
             });
           }
@@ -154,22 +157,4 @@ export function aomiProviderAuthPlugin(): BetterAuthPlugin {
 
 function bounded(value: unknown): string | null {
   return typeof value === "string" ? value.slice(0, 160) : null;
-}
-
-function isExpectedProviderCredentialError(error: unknown): boolean {
-  if (!(error instanceof Error)) return false;
-  const code = (error as Error & { code?: unknown }).code;
-  if (
-    typeof code === "string" &&
-    (code.startsWith("ERR_JWT_") || code.startsWith("ERR_JWS_"))
-  ) {
-    return true;
-  }
-  return (
-    error.message === "provider_not_enabled" ||
-    error.message.startsWith("invalid_provider_") ||
-    error.message.startsWith("provider_token_") ||
-    error.message.startsWith("Privy token is missing") ||
-    error.message.startsWith("Privy access token is missing")
-  );
 }
