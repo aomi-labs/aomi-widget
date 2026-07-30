@@ -233,6 +233,62 @@ describe("scrubSentryEvent", () => {
     });
   });
 
+  it("retains Next server virtual paths used for source-map lookup", () => {
+    const codeFile =
+      "app:///_next/server/chunks/[root-of-the-server]__abcdef12._.js";
+    const debugId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+    const event = scrubSentryEvent({
+      exception: {
+        values: [
+          {
+            stacktrace: {
+              frames: [
+                {
+                  filename: `${codeFile}?token=secret#private`,
+                  abs_path: `${codeFile}?cookie=secret`,
+                  function: "privateFunction",
+                  module: "privateModule",
+                  lineno: 1,
+                  colno: 1179,
+                  in_app: true,
+                  debug_id: debugId,
+                },
+              ],
+            },
+          },
+        ],
+      },
+      debug_meta: {
+        images: [
+          {
+            type: "sourcemap",
+            code_file: `${codeFile}?token=secret`,
+            debug_id: debugId,
+          },
+        ],
+      },
+    });
+
+    expect(event?.exception?.values?.[0]?.stacktrace?.frames?.[0]).toEqual({
+      filename: codeFile,
+      abs_path: codeFile,
+      lineno: 1,
+      colno: 1179,
+      in_app: true,
+      debug_id: debugId,
+      platform: undefined,
+    });
+    expect(event?.debug_meta).toEqual({
+      images: [
+        {
+          type: "sourcemap",
+          code_file: codeFile,
+          debug_id: debugId,
+        },
+      ],
+    });
+  });
+
   it("drops non-error events and unsafe environment values", () => {
     expect(scrubSentryEvent({ type: "transaction" })).toBeNull();
     expect(scrubSentryEvent({ environment: "preview" })).not.toHaveProperty(
