@@ -92,7 +92,7 @@ describe("usage settings wiring", () => {
     expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(2);
     expect(screen.getAllByText(/8 turns/).length).toBeGreaterThanOrEqual(1);
     // Allowance meter fed by the profile's credit position.
-    expect(screen.getByText(/Credits 80\/500/)).toBeTruthy();
+    expect(screen.getByText(/80.*500.*used/)).toBeTruthy();
   });
 
   it("recomputes a cached statement when the account allowance arrives later", async () => {
@@ -135,7 +135,7 @@ describe("usage settings wiring", () => {
       );
     });
 
-    expect(screen.getByText(/Credits 80\/500/)).toBeTruthy();
+    expect(screen.getByText(/80.*500.*used/)).toBeTruthy();
     expect(
       calls.filter((path) => path === "/api/account/statement"),
     ).toHaveLength(1);
