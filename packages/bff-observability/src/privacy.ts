@@ -227,6 +227,7 @@ function scrubStackPath(value: string | undefined): string | undefined {
 
 function isKnownStackPath(value: string): boolean {
   if (value.startsWith("node:")) return true;
+  if (value.startsWith("app:///_next/server/")) return true;
   if (
     value.startsWith("webpack-internal:///") ||
     value.startsWith("webpack:///")
