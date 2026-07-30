@@ -56,6 +56,10 @@ export interface AuditEvent {
     | "list_user_source_logs"
     | "get_user_source_observability"
     | "get_user_observability"
+    | "list_user_transactions"
+    | "get_user_statement"
+    | "get_user_usage"
+    | "list_user_logs"
     | "get_user_source_app_detail"
     | "upgrade_user_source_sdk"
     | "get_source_sdk_upgrade_status"
@@ -636,6 +640,31 @@ export interface GetUserObservabilityInput extends BearerOverride {
   platform?: string;
 }
 
+/** Account-wide operate batch reads (`/user/transactions|statement|usage|logs`).
+ *  Without `platform`, the manager reads every owned source under its own
+ *  bound/loaded platform — partner-bound sources included. */
+export interface UserOperateBatchInput extends BearerOverride {
+  githubUserId: string;
+  platform?: string;
+}
+
+export interface GetUserStatementsInput extends UserOperateBatchInput {
+  fromDate?: string;
+  toDate?: string;
+}
+
+export interface ListUserTransactionsInput extends UserOperateBatchInput {
+  cursor?: OperateTransactionCursor | string | null;
+  limit?: number;
+  status?: string;
+}
+
+export interface ListUserLogsInput extends UserOperateBatchInput {
+  cursor?: OperateLogCursor | string | null;
+  limit?: number;
+  type?: "deployment" | "usage" | "transaction" | string;
+}
+
 export interface GetUserSourceAppDetailInput extends OwnedOperateSourceInput {
   applicationId: number;
 }
@@ -880,6 +909,25 @@ export interface OperateTransactionsResult {
   nextCursor: OperateTransactionCursor | null;
 }
 
+/** One owned source and the platform it resolves under, from a batch read. */
+export interface UserSourceRef {
+  source: AppSource;
+  platform: string;
+}
+
+/** A batch row is the single-source row plus which source it belongs to. */
+export type UserTransactionRow = OperateTransaction & {
+  appSourceId: number | null;
+  platform: string | null;
+};
+
+/** Account-wide transactions page: one merged newest-first stream. */
+export interface UserTransactionsResult {
+  sources: UserSourceRef[];
+  transactions: UserTransactionRow[];
+  nextCursor: OperateTransactionCursor | null;
+}
+
 export interface OperateUsageDailyRow {
   periodUtcDay: string;
   application: string;
@@ -1052,6 +1100,20 @@ export interface OperateLogsResult {
   platform: string;
   logs: OperateLogEntry[];
   nextCursor: OperateLogCursor | null;
+}
+
+/** A batch log row names its source; shared partner settlements carry null. */
+export type UserLogRow = OperateLogEntry & {
+  appSourceId: number | null;
+  platform: string | null;
+};
+
+/** Account-wide logs page: one merged newest-first stream. */
+export interface UserLogsResult {
+  sources: UserSourceRef[];
+  logs: UserLogRow[];
+  nextCursor: OperateLogCursor | null;
+  invocationsAvailable: boolean;
 }
 
 export interface OperateAppHealth {

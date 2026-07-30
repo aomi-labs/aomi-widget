@@ -2,6 +2,45 @@
 
 ## Last Updated
 
+2026-07-30 — Operate batch reads for the REST of the herd: transactions,
+  statement, usage, logs (branch `fix/operate-batch-reads` in aomi,
+  `feat/operate-batch-reads` in product-mono). Cecilia reported Transactions
+  and Usage still showing "0 of 111 — pick a single source" with Usage then
+  presenting the Example-data statement; teammates with real transactions
+  could not see them. MEASURED: per-source statement reads are ~1s solo but
+  ~5–6s each at the BFF's exact 6-wide fan-out (~1 source/sec throughput) —
+  111 sources can never fit the 20s budget, so both fan-out legs mass-drop.
+  MANAGER (product-mono): four new service routes under
+  /api/integrations/github-app/user/ — transactions + logs return ONE
+  globally-merged newest-first page (global tuple cursor; pagination got
+  simpler), statement + usage return per-source results arrays in the exact
+  single-source wire shapes. Shared endpoints/batch_scope.rs resolves every
+  owned source under its own bound/loaded platform (observability batch
+  refactored onto it); statement buckets/usage/logs SQL batched via
+  unnest-pairs joins (EXPLAIN-validated read-only against the live DB before
+  deploy); partner-payment ledgers only for sources WITH apps, in waves of 8.
+  Shared partner-settlement log rows carry NULL app_source_id (account-level).
+  AOMI: deploy client listUserTransactions/getUserStatements/getUserUsage/
+  listUserLogs; BFF routes batch-first (batch caches, 15s), 404 → legacy
+  fan-out fallback, single-source (?appSourceId=) stays on per-source reads
+  (also fixed: observability batch now narrows to the picked source).
+  UX per Cecilia ("the old way is better"): DegradedNotice banner REMOVED
+  everywhere, `degraded` off the wire; a fallback losing EVERY read now 503s
+  ("Operate reads are temporarily unavailable") → FE red error state instead
+  of empty-page-plus-banner or Example data. exampleStatement remains ONLY
+  for genuinely available:false statements (BE-not-migrated), never for
+  failures. Composite cursor gained a `batch` slot ({batch: {...}} on the
+  wire, opaque to the FE).
+  Verified: manager cargo test 137+manifest, clippy/fmt clean; worker
+  node --test green (route added to MANAGER_ROUTE_PATTERNS + test); aomi
+  vitest 1154 passed, tsc + lint clean. DEPLOY ORDER: product-mono first
+  (backend auto-deploys on merge; worker needs MANUAL
+  `wrangler deploy --env staging` with Han's CLOUDFLARE_ACCOUNT_ID), verify
+  via probe, then merge aomi. FOLLOW-UPS: prod worker deploy with the next
+  prod backend release; delete settleBySource + per-source fallback once
+  batch soaks; consider caching partner-payment reports (still the slowest
+  leg of statement/observability batches).
+
 2026-07-30 — Observability batch read: fan-out removed at the source (branch
   `feat/operate-batch-observability` in BOTH repos; aomi PR #426, product-mono
   PR #901; based on main incl. #423 + #424).

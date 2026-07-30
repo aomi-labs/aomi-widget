@@ -13,8 +13,10 @@ import type {
   OperateTransactionCursor,
   OperateTransactionsResult,
   OperateUsageResult,
+  UserLogsResult,
   UserSource,
   UserSourceLatestDeployment,
+  UserTransactionsResult,
 } from "@aomi-labs/deploy";
 import {
   EXAMPLE_SOURCE,
@@ -102,7 +104,7 @@ function withTimeout<T>(
 
 type Settled<T> = {
   ok: T[];
-  /** Source ids this read could not cover, for the page's degraded notice. */
+  /** Source ids this read could not cover (feeds the all-dropped guard). */
   dropped: number[];
 };
 
@@ -140,23 +142,37 @@ async function settleBySource<T>(
   return { ok, dropped };
 }
 
-export type OperateDegraded = {
-  /** Sources this page could not read. */
-  dropped: number;
-  /** Sources the page should have covered. */
-  total: number;
-};
+// A missing batch route (older manager mid-rollout) reads as "fall back to
+// the per-source fan-out"; any other failure is a real error and surfaces as
+// one — a page of silently missing data is worse than a retryable error.
+async function batchOrNull<T>(load: () => Promise<T>): Promise<T | null> {
+  try {
+    return await load();
+  } catch (err) {
+    if (err instanceof BackendError && err.status === 404) return null;
+    throw err;
+  }
+}
 
-// A route may fan out more than once over the same sources (transactions and
-// statements, say). One source failing both reads is still one missing source,
-// so union the ids rather than summing. Undefined — not a zeroed object — when
-// nothing was lost, so the key stays off the wire on a healthy page.
-function degradedFrom(
+// The per-source fallback can drop sources; losing every read used to render
+// an empty page behind a warning banner (and Usage then swapped in the
+// example statement). An outage should look like an outage: fail the request
+// and let the view's error state own it. `ok` counts successful reads, not
+// rows, so a healthy-but-empty account never trips this; a skipped leg
+// (statements past page one) contributes an empty `ok` and is outvoted by
+// the leg that ran.
+function nothingRead(
   sources: UserSource[],
-  ...dropped: number[][]
-): OperateDegraded | undefined {
-  const ids = new Set(dropped.flat());
-  return ids.size ? { dropped: ids.size, total: sources.length } : undefined;
+  ...reads: Array<{ ok: unknown[] }>
+) {
+  return sources.length > 0 && reads.every((read) => read.ok.length === 0);
+}
+
+function operateUnavailableResponse() {
+  return NextResponse.json(
+    { error: "Operate reads are temporarily unavailable — retry shortly." },
+    { status: 503 },
+  );
 }
 
 function isValidAppSourceId(value: unknown): value is number {
@@ -171,7 +187,10 @@ function pageLimit(params: URLSearchParams, fallback: number, max: number) {
 }
 
 type CompositeCursor = {
+  /** Per-source cursors from the fallback fan-out. */
   perSource?: Record<string, unknown>;
+  /** The batch endpoints paginate the merged stream with one global cursor. */
+  batch?: unknown;
 };
 
 function parseCompositeCursor(value: string | null): CompositeCursor | null {
@@ -316,6 +335,14 @@ const readCache = {
   observabilityBatch: new TimedPromiseCache<OperateObservabilityResult[]>(
     CACHE_TTL_MS,
   ),
+  transactionsBatch: new TimedPromiseCache<UserTransactionsResult>(
+    CACHE_TTL_MS,
+  ),
+  statementsBatch: new TimedPromiseCache<OperateStatementResult[]>(
+    CACHE_TTL_MS,
+  ),
+  usageBatch: new TimedPromiseCache<OperateUsageResult[]>(CACHE_TTL_MS),
+  logsBatch: new TimedPromiseCache<UserLogsResult>(CACHE_TTL_MS),
   appDetail: new TimedPromiseCache<OperateAppDetailResult>(CACHE_TTL_MS),
   deployments: new TimedPromiseCache<UserSourceLatestDeployment[]>(
     CACHE_TTL_MS,
@@ -677,59 +704,149 @@ export async function operateTransactionsRoute(req: Request) {
     const limit = pageLimit(params, 50, 100);
     const cursor = parseCompositeCursor(params.get("cursor"));
     const status = params.get("status") ?? undefined;
-    const [transactionReads, statementReads] = await Promise.all([
-      settleBySource<OperateTransactionsResult>(owned.sources, (source) =>
-        readCache.transactions.get(
-          [
-            owned.githubUserId,
-            owned.platform,
-            source.id,
-            { limit, status, cursor: sourceCursor(cursor, source.id) },
-          ],
-          () =>
-            owned.client.listUserSourceTransactions({
-              githubUserId: owned.githubUserId,
-              platform: owned.platform,
-              appSourceId: source.id,
-              limit,
-              status,
-              cursor: sourceCursor(cursor, source.id) as
-                | OperateTransactionCursor
-                | string
-                | undefined,
-            }),
-        ),
-      ),
-      cursor
-        ? Promise.resolve({
-            ok: [],
-            dropped: [],
-          } as Settled<OperateStatementResult>)
-        : settleBySource<OperateStatementResult>(owned.sources, (source) =>
-            readCache.statement.get(
-              [owned.githubUserId, owned.platform, source.id, null],
-              () =>
-                owned.client.getUserSourceStatement({
-                  githubUserId: owned.githubUserId,
-                  platform: owned.platform,
-                  appSourceId: source.id,
-                }),
-            ),
+    const requestedPlatform = params.get("platform") ?? undefined;
+
+    // Account-wide reads go through the manager's batch endpoints: one merged
+    // transactions page plus one statement sweep, instead of 2×N per-source
+    // reads that saturated the manager on large accounts. Without an explicit
+    // `platform`, the manager resolves each source under its own bound/loaded
+    // platform, which also covers partner-bound sources. A single-source view
+    // stays on the per-source reads — one call each, and the cursor there is
+    // per-source anyway.
+    let batch: {
+      page: UserTransactionsResult;
+      statements: OperateStatementResult[];
+    } | null = null;
+    if (!params.has("appSourceId")) {
+      batch = await batchOrNull(async () => {
+        const [page, statements] = await Promise.all([
+          readCache.transactionsBatch.get(
+            [
+              owned.githubUserId,
+              requestedPlatform ?? null,
+              { limit, status, cursor: cursor?.batch ?? null },
+            ],
+            () =>
+              owned.client.listUserTransactions({
+                githubUserId: owned.githubUserId,
+                platform: requestedPlatform,
+                limit,
+                status,
+                cursor: (cursor?.batch ?? undefined) as
+                  | OperateTransactionCursor
+                  | undefined,
+              }),
           ),
-    ]);
-    const results = transactionReads.ok;
-    const appTransactions = results
-      .flatMap((result) =>
-        result.transactions.map((transaction) => ({
+          cursor
+            ? Promise.resolve([] as OperateStatementResult[])
+            : readCache.statementsBatch.get(
+                [owned.githubUserId, requestedPlatform ?? null, null, null],
+                () =>
+                  owned.client.getUserStatements({
+                    githubUserId: owned.githubUserId,
+                    platform: requestedPlatform,
+                  }),
+              ),
+        ]);
+        return { page, statements };
+      });
+    }
+
+    let appTransactions: Array<Record<string, any>>;
+    let statements: OperateStatementResult[];
+    let nextCursor: CompositeCursor | null;
+    if (batch) {
+      const sourceById = new Map(
+        batch.page.sources.map((ref) => [ref.source.id, ref.source]),
+      );
+      appTransactions = batch.page.transactions.map(
+        ({ appSourceId, platform, ...transaction }) => ({
           ...transaction,
           kind: "app_transaction",
-          source: result.source,
-          platform: result.platform,
-        })),
-      )
-      .sort((a, b) => b.createdAt - a.createdAt || b.id.localeCompare(a.id));
+          source:
+            (appSourceId != null ? sourceById.get(appSourceId) : undefined) ??
+            null,
+          platform: platform ?? owned.platform,
+        }),
+      );
+      statements = batch.statements;
+      nextCursor = batch.page.nextCursor
+        ? { batch: batch.page.nextCursor }
+        : null;
+    } else {
+      const [transactionReads, statementReads] = await Promise.all([
+        settleBySource<OperateTransactionsResult>(owned.sources, (source) =>
+          readCache.transactions.get(
+            [
+              owned.githubUserId,
+              owned.platform,
+              source.id,
+              { limit, status, cursor: sourceCursor(cursor, source.id) },
+            ],
+            () =>
+              owned.client.listUserSourceTransactions({
+                githubUserId: owned.githubUserId,
+                platform: owned.platform,
+                appSourceId: source.id,
+                limit,
+                status,
+                cursor: sourceCursor(cursor, source.id) as
+                  | OperateTransactionCursor
+                  | string
+                  | undefined,
+              }),
+          ),
+        ),
+        cursor
+          ? Promise.resolve({
+              ok: [],
+              dropped: [],
+            } as Settled<OperateStatementResult>)
+          : settleBySource<OperateStatementResult>(owned.sources, (source) =>
+              readCache.statement.get(
+                [owned.githubUserId, owned.platform, source.id, null],
+                () =>
+                  owned.client.getUserSourceStatement({
+                    githubUserId: owned.githubUserId,
+                    platform: owned.platform,
+                    appSourceId: source.id,
+                  }),
+              ),
+            ),
+      ]);
+      if (nothingRead(owned.sources, transactionReads, statementReads)) {
+        return operateUnavailableResponse();
+      }
+      const results = transactionReads.ok;
+      appTransactions = results
+        .flatMap((result) =>
+          result.transactions.map((transaction) => ({
+            ...transaction,
+            kind: "app_transaction",
+            source: result.source,
+            platform: result.platform,
+          })),
+        )
+        .sort((a, b) => b.createdAt - a.createdAt || b.id.localeCompare(a.id));
+      statements = statementReads.ok;
+      nextCursor = mergedNextCursor(
+        cursor,
+        appTransactions.slice(0, limit) as Array<{
+          source: { id: number };
+          createdAt: number;
+          id: string;
+        }>,
+        appTransactions as Array<{
+          source: { id: number };
+          createdAt: number;
+          id: string;
+        }>,
+        results,
+        transactionCursorFor,
+      );
+    }
     const payments = mergedPartnerPayments(
-      statementReads.ok.map((statement) => ({
+      statements.map((statement) => ({
         source: statement.source as UserSource,
         payments: statement.payments,
       })),
@@ -801,21 +918,10 @@ export async function operateTransactionsRoute(req: Request) {
     );
     return NextResponse.json({
       // Every source the account owns, not just the ones this read covered:
-      // the filter dropdown is how a user retries a dropped source on its own.
+      // the filter dropdown is how a user loads one source on its own.
       sources: owned.sources,
       transactions,
-      degraded: degradedFrom(
-        owned.sources,
-        transactionReads.dropped,
-        statementReads.dropped,
-      ),
-      nextCursor: mergedNextCursor(
-        cursor,
-        visibleAppTransactions,
-        appTransactions,
-        results,
-        transactionCursorFor,
-      ),
+      nextCursor,
     });
   } catch (err) {
     return launchErrorResponse(err);
@@ -831,41 +937,94 @@ export async function operateUsageRoute(req: Request) {
       fromDate: params.get("fromDate") ?? undefined,
       toDate: params.get("toDate") ?? undefined,
     };
-    // The statement lives on its own manager endpoint. A backend without it
-    // (or with `available: false` — statement_entries not migrated) drops out
-    // of `statements`; until BE parity lands we serve the example statement
+    const requestedPlatform = params.get("platform") ?? undefined;
+
+    // Account-wide reads go through the manager's batch endpoints — one usage
+    // sweep plus one statement sweep — instead of 2×N per-source reads. A
+    // single-source view stays on the per-source reads (one call each).
+    let batch: {
+      usage: OperateUsageResult[];
+      statements: OperateStatementResult[];
+    } | null = null;
+    if (!params.has("appSourceId")) {
+      batch = await batchOrNull(async () => {
+        const [usage, statements] = await Promise.all([
+          readCache.usageBatch.get(
+            [
+              owned.githubUserId,
+              requestedPlatform ?? null,
+              dates.fromDate ?? null,
+              dates.toDate ?? null,
+            ],
+            () =>
+              owned.client.getUserUsage({
+                githubUserId: owned.githubUserId,
+                platform: requestedPlatform,
+                ...dates,
+              }),
+          ),
+          readCache.statementsBatch.get(
+            [
+              owned.githubUserId,
+              requestedPlatform ?? null,
+              dates.fromDate ?? null,
+              dates.toDate ?? null,
+            ],
+            () =>
+              owned.client.getUserStatements({
+                githubUserId: owned.githubUserId,
+                platform: requestedPlatform,
+                ...dates,
+              }),
+          ),
+        ]);
+        return { usage, statements };
+      });
+    }
+
+    let results: OperateUsageResult[];
+    let allStatements: OperateStatementResult[];
+    if (batch) {
+      results = batch.usage;
+      allStatements = batch.statements;
+    } else {
+      const [usageReads, statementReads] = await Promise.all([
+        settleBySource<OperateUsageResult>(owned.sources, (source) =>
+          readCache.usage.get(
+            [owned.githubUserId, owned.platform, source.id, dates],
+            () =>
+              owned.client.getUserSourceUsage({
+                githubUserId: owned.githubUserId,
+                platform: owned.platform,
+                appSourceId: source.id,
+                ...dates,
+              }),
+          ),
+        ),
+        settleBySource<OperateStatementResult>(owned.sources, (source) =>
+          readCache.statement.get(
+            [owned.githubUserId, owned.platform, source.id, dates],
+            () =>
+              owned.client.getUserSourceStatement({
+                githubUserId: owned.githubUserId,
+                platform: owned.platform,
+                appSourceId: source.id,
+                ...dates,
+              }),
+          ),
+        ),
+      ]);
+      if (nothingRead(owned.sources, usageReads, statementReads)) {
+        return operateUnavailableResponse();
+      }
+      results = usageReads.ok;
+      allStatements = statementReads.ok;
+    }
+    // The statement lives on its own manager endpoint. A backend with
+    // `available: false` (statement_entries not migrated) drops out of
+    // `statements`; until BE parity lands we serve the example statement
     // instead (flagged `example: true`) so the design ships visible.
-    const [usageReads, statementReads] = await Promise.all([
-      settleBySource<OperateUsageResult>(owned.sources, (source) =>
-        readCache.usage.get(
-          [owned.githubUserId, owned.platform, source.id, dates],
-          () =>
-            owned.client.getUserSourceUsage({
-              githubUserId: owned.githubUserId,
-              platform: owned.platform,
-              appSourceId: source.id,
-              ...dates,
-            }),
-        ),
-      ),
-      settleBySource<OperateStatementResult>(owned.sources, (source) =>
-        readCache.statement.get(
-          [owned.githubUserId, owned.platform, source.id, dates],
-          () =>
-            owned.client.getUserSourceStatement({
-              githubUserId: owned.githubUserId,
-              platform: owned.platform,
-              appSourceId: source.id,
-              ...dates,
-            }),
-        ),
-      ),
-    ]);
-    const results = usageReads.ok;
-    // `available: false` is a backend that has no statement for this source,
-    // not a read we lost — it belongs in the example-statement fallback below,
-    // not in the degraded count.
-    const statements = statementReads.ok.filter(
+    const statements = allStatements.filter(
       (statement) => statement.available,
     );
     const sum = (pick: (s: OperateStatementResult) => number) =>
@@ -888,11 +1047,6 @@ export async function operateUsageRoute(req: Request) {
           source: result.source,
           platform: result.platform,
         })),
-      ),
-      degraded: degradedFrom(
-        owned.sources,
-        usageReads.dropped,
-        statementReads.dropped,
       ),
       example: statements.length ? undefined : true,
       statement: statements.length
@@ -950,6 +1104,51 @@ export async function operateLogsRoute(req: Request) {
     const limit = pageLimit(params, 100, 200);
     const cursor = parseCompositeCursor(params.get("cursor"));
     const type = params.get("type") ?? undefined;
+    const requestedPlatform = params.get("platform") ?? undefined;
+
+    // Account-wide reads go through the manager's batch endpoint: the merged
+    // stream arrives already interleaved, deduplicated (a shared partner
+    // settlement is one table row) and paginated by one global cursor, so
+    // none of the per-source merge/dedupe below applies. A single-source view
+    // stays on the per-source read.
+    if (!params.has("appSourceId")) {
+      const batch = await batchOrNull(() =>
+        readCache.logsBatch.get(
+          [
+            owned.githubUserId,
+            requestedPlatform ?? null,
+            { limit, type, cursor: cursor?.batch ?? null },
+          ],
+          () =>
+            owned.client.listUserLogs({
+              githubUserId: owned.githubUserId,
+              platform: requestedPlatform,
+              limit,
+              type,
+              cursor: (cursor?.batch ?? undefined) as
+                | OperateLogCursor
+                | undefined,
+            }),
+        ),
+      );
+      if (batch) {
+        const sourceById = new Map(
+          batch.sources.map((ref) => [ref.source.id, ref.source]),
+        );
+        return NextResponse.json({
+          sources: owned.sources,
+          logs: batch.logs.map(({ appSourceId, platform, ...log }) => ({
+            ...log,
+            source:
+              (appSourceId != null ? sourceById.get(appSourceId) : undefined) ??
+              null,
+            platform: platform ?? owned.platform,
+          })),
+          nextCursor: batch.nextCursor ? { batch: batch.nextCursor } : null,
+        });
+      }
+    }
+
     const logReads = await settleBySource<OperateLogsResult>(
       owned.sources,
       (source) =>
@@ -974,6 +1173,9 @@ export async function operateLogsRoute(req: Request) {
             }),
         ),
     );
+    if (nothingRead(owned.sources, logReads)) {
+      return operateUnavailableResponse();
+    }
     const results = logReads.ok;
     const sourcedLogs = results.flatMap((result) =>
       result.logs.map((entry) => ({
@@ -1016,7 +1218,6 @@ export async function operateLogsRoute(req: Request) {
       // the filter dropdown is how a user retries a dropped source on its own.
       sources: owned.sources,
       logs: visible.map(({ cursorSources: _cursorSources, ...log }) => log),
-      degraded: degradedFrom(owned.sources, logReads.dropped),
       nextCursor: mergedNextCursor(
         cursor,
         cursorRows,
@@ -1038,24 +1239,29 @@ export async function operateObservabilityRoute(req: Request) {
     // `platform` filter the manager resolves each source under its own
     // bound/loaded platform, which also covers partner-bound sources that the
     // per-source read rejects as not launch-relevant on the default platform.
-    const requestedPlatform =
-      new URL(req.url).searchParams.get("platform") ?? undefined;
+    const params = new URL(req.url).searchParams;
+    const requestedPlatform = params.get("platform") ?? undefined;
     let results: OperateObservabilityResult[] | null = null;
-    try {
-      results = await readCache.observabilityBatch.get(
+    // A manager without the batch route (mid-rollout) 404s; keep the page
+    // alive on the bounded per-source fan-out until the deploy completes.
+    results = await batchOrNull(() =>
+      readCache.observabilityBatch.get(
         [owned.githubUserId, requestedPlatform ?? null],
         () =>
           owned.client.getUserObservability({
             githubUserId: owned.githubUserId,
             platform: requestedPlatform,
           }),
+      ),
+    );
+    if (results !== null && params.has("appSourceId")) {
+      // The batch covers the whole account; a single-source view narrows it
+      // to the sources `ownedSources` resolved for the filter.
+      const wanted = new Set(owned.sources.map((source) => source.id));
+      results = results.filter((result) =>
+        wanted.has((result.source as UserSource).id),
       );
-    } catch (err) {
-      // A manager without the batch route (mid-rollout) 404s; keep the page
-      // alive on the bounded per-source fan-out until the deploy completes.
-      if (!(err instanceof BackendError && err.status === 404)) throw err;
     }
-    let degraded: OperateDegraded | undefined;
     if (results === null) {
       const observabilityReads =
         await settleBySource<OperateObservabilityResult>(
@@ -1071,8 +1277,10 @@ export async function operateObservabilityRoute(req: Request) {
                 }),
             ),
         );
+      if (nothingRead(owned.sources, observabilityReads)) {
+        return operateUnavailableResponse();
+      }
       results = observabilityReads.ok;
-      degraded = degradedFrom(owned.sources, observabilityReads.dropped);
     }
     const apps = results.flatMap((result) =>
       result.apps.map((app) => ({
@@ -1083,9 +1291,8 @@ export async function operateObservabilityRoute(req: Request) {
     );
     return NextResponse.json({
       // Every source the account owns, not just the ones this read covered:
-      // the filter dropdown is how a user retries a dropped source on its own.
+      // the filter dropdown is how a user loads one source on its own.
       sources: owned.sources,
-      degraded,
       scope: "owned_applications",
       monitoring: {
         provider: "grafana_prometheus",
