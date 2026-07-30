@@ -22,6 +22,7 @@ export function ProjectRow({
         ? source.apps[0]?.name
         : `${source.apps.length} apps`;
   const stamped = sourceSdkVersion(source);
+  const mixedSdk = (source.sdkVersions?.length ?? 0) > 1;
   const boundPlatform = source.boundPlatformName?.trim();
   const projectHref =
     href ??
@@ -55,7 +56,11 @@ export function ProjectRow({
         </div>
       </Link>
       <div className="flex shrink-0 items-center gap-2">
-        <SdkBadge stamped={stamped} required={requiredSdk} />
+        <SdkBadge
+          stamped={stamped}
+          required={requiredSdk}
+          label={mixedSdk ? "SDK mixed" : undefined}
+        />
         {outdated && (
           <Link
             href={deploymentsHref}

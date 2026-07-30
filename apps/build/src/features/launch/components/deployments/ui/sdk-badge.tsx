@@ -3,9 +3,11 @@ import { sdkCompatibility } from "../sdk-compatibility";
 export function SdkBadge({
   stamped,
   required,
+  label,
 }: {
   stamped?: string | null;
   required?: string | null;
+  label?: string | null;
 }) {
   const compatibility = sdkCompatibility(stamped, required);
   const state =
@@ -26,7 +28,7 @@ export function SdkBadge({
       data-state={state}
       className={`inline-flex h-6 items-center rounded-full border px-2 text-[10px] font-medium uppercase tracking-[0.05em] whitespace-nowrap ${tone}`}
     >
-      {stamped ?? "SDK unknown"}
+      {label ?? stamped ?? "SDK unknown"}
     </span>
   );
 }

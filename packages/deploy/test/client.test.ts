@@ -1078,6 +1078,34 @@ describe("DeploymentClient operate statement", () => {
   });
 });
 
+describe("DeploymentClient sources", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("keeps the complete live SDK set from a platform-free source list", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({
+          sources: [
+            {
+              id: 42,
+              installation_id: 1,
+              repository_link: "alice/demo",
+              apps: [],
+              sdk_version: null,
+              sdk_versions: ["3.0.3", "3.0.4"],
+            },
+          ],
+        }),
+      ),
+    );
+
+    const [source] = await client().listUserSources({ githubUserId: "42" });
+    expect(source.sdkVersion).toBeNull();
+    expect(source.sdkVersions).toEqual(["3.0.3", "3.0.4"]);
+  });
+});
+
 describe("server-only guard", () => {
   it("throws in a browser-like environment", () => {
     const g = globalThis as Record<string, unknown>;

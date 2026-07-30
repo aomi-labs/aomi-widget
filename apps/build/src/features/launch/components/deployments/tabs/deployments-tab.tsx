@@ -139,6 +139,7 @@ export function DeploymentsTab({
   const requiredSdk = detail.sdk?.sdkStatus.requiredVersion ?? null;
   const deactivated =
     runtimeCanResolveLive &&
+    detail.history !== null &&
     deployments.length > 0 &&
     currentDeployment == null;
   const deploying =
@@ -214,7 +215,12 @@ export function DeploymentsTab({
       <EmptyPanel>Project not found.</EmptyPanel>
     );
   }
-  if (detail.recordsByApp === null) {
+  // Do not publish a terminal state from a partial snapshot: records and the
+  // deployment projection load independently and either may arrive first.
+  if (
+    detail.recordsByApp === null ||
+    (detail.history === null && !detail.historyError)
+  ) {
     return <LoadingPanel label="Loading deployments…" />;
   }
 

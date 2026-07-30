@@ -621,6 +621,8 @@ export interface UserSource extends AppSource {
   /** SDK version of the source's live app, from the DB promotion records
    *  (populated in the source list without a GitHub read). */
   sdkVersion?: string | null;
+  /** All distinct SDK versions running across this source's live apps. */
+  sdkVersions?: string[];
 }
 
 export interface OwnedOperateSourceInput extends BearerOverride {

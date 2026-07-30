@@ -103,4 +103,22 @@ describe("ProjectRow", () => {
       "/projects/42?platform=somm.finance&tab=deployments",
     );
   });
+
+  it("does not choose one SDK when live apps are mixed", () => {
+    render(
+      <ProjectRow
+        source={{
+          id: 42,
+          installationId: 1,
+          repositoryLink: "alice/bot",
+          sdkVersions: ["3.0.3", "3.0.4"],
+          apps: [],
+          latestDeployment: null,
+        }}
+        requiredSdk="3.0.4"
+      />,
+    );
+    expect(screen.getByTestId("sdk-badge")).toHaveTextContent("SDK mixed");
+    expect(screen.queryByRole("link", { name: "Upgrade" })).toBeNull();
+  });
 });
