@@ -55,6 +55,7 @@ export interface AuditEvent {
     | "get_user_source_statement"
     | "list_user_source_logs"
     | "get_user_source_observability"
+    | "get_user_observability"
     | "get_user_source_app_detail"
     | "upgrade_user_source_sdk"
     | "get_source_sdk_upgrade_status"
@@ -626,6 +627,13 @@ export interface OwnedOperateSourceInput extends BearerOverride {
   githubUserId: string;
   platform: string;
   appSourceId: number;
+}
+
+/** Account-wide observability batch. Without `platform`, the manager reports
+ *  every owned source under its own bound/loaded platform. */
+export interface GetUserObservabilityInput extends BearerOverride {
+  githubUserId: string;
+  platform?: string;
 }
 
 export interface GetUserSourceAppDetailInput extends OwnedOperateSourceInput {

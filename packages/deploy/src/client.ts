@@ -51,6 +51,7 @@ import type {
   OperateUsageResult,
   UpdateUserBotInput,
   OwnedOperateSourceInput,
+  GetUserObservabilityInput,
   SaveBuilderModelKeyInput,
   SetModelKeyGrantsInput,
   UserSource,
@@ -1198,6 +1199,37 @@ export class DeploymentClient {
       ts: Date.now(),
     });
     return camelOperateObservability(raw, platform);
+  }
+
+  /**
+   * Account-wide observability batch: every owned source in one request, each
+   * entry in the exact shape of {@link getUserSourceObservability}. Without
+   * `platform`, the manager resolves each source under its own bound/loaded
+   * platform — partner-bound sources included. Requires a manager with
+   * `GET /user/observability`; callers fall back to per-source reads when the
+   * route 404s (older manager).
+   */
+  async getUserObservability(
+    input: GetUserObservabilityInput,
+  ): Promise<OperateObservabilityResult[]> {
+    const githubUserId = required(input.githubUserId, "githubUserId");
+    const bearer = this.resolveBearer(input.bearer);
+    const params = new URLSearchParams({ github_user_id: githubUserId });
+    if (input.platform?.trim()) params.set("platform", input.platform.trim());
+    const raw = await this.get<{ results?: unknown[] }>(
+      `/api/integrations/github-app/user/observability?${params.toString()}`,
+      "get_user_observability",
+      bearer,
+    );
+    await this.audit({
+      action: "get_user_observability",
+      platform: input.platform,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return ((raw.results ?? []) as Record<string, unknown>[]).map((entry) =>
+      camelOperateObservability(entry, input.platform?.trim() ?? ""),
+    );
   }
 
   async getUserSourceAppDetail(

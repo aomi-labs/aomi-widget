@@ -1,6 +1,7 @@
 import "server-only";
 
 import { NextResponse } from "next/server";
+import { BackendError } from "@aomi-labs/deploy";
 import type {
   BotRegistration,
   OperateLogCursor,
@@ -310,6 +311,9 @@ const readCache = {
   statement: new TimedPromiseCache<OperateStatementResult>(CACHE_TTL_MS),
   logs: new TimedPromiseCache<OperateLogsResult>(CACHE_TTL_MS),
   observability: new TimedPromiseCache<OperateObservabilityResult>(
+    CACHE_TTL_MS,
+  ),
+  observabilityBatch: new TimedPromiseCache<OperateObservabilityResult[]>(
     CACHE_TTL_MS,
   ),
   appDetail: new TimedPromiseCache<OperateAppDetailResult>(CACHE_TTL_MS),
@@ -1030,20 +1034,46 @@ export async function operateObservabilityRoute(req: Request) {
   try {
     const owned = await ownedSources(req);
     if ("response" in owned) return owned.response;
-    const observabilityReads = await settleBySource<OperateObservabilityResult>(
-      owned.sources,
-      (source) =>
-        readCache.observability.get(
-          [owned.githubUserId, owned.platform, source.id],
-          () =>
-            owned.client.getUserSourceObservability({
-              githubUserId: owned.githubUserId,
-              platform: owned.platform,
-              appSourceId: source.id,
-            }),
-        ),
-    );
-    const results = observabilityReads.ok;
+    // One manager request for the whole account. Without an explicit
+    // `platform` filter the manager resolves each source under its own
+    // bound/loaded platform, which also covers partner-bound sources that the
+    // per-source read rejects as not launch-relevant on the default platform.
+    const requestedPlatform =
+      new URL(req.url).searchParams.get("platform") ?? undefined;
+    let results: OperateObservabilityResult[] | null = null;
+    try {
+      results = await readCache.observabilityBatch.get(
+        [owned.githubUserId, requestedPlatform ?? null],
+        () =>
+          owned.client.getUserObservability({
+            githubUserId: owned.githubUserId,
+            platform: requestedPlatform,
+          }),
+      );
+    } catch (err) {
+      // A manager without the batch route (mid-rollout) 404s; keep the page
+      // alive on the bounded per-source fan-out until the deploy completes.
+      if (!(err instanceof BackendError && err.status === 404)) throw err;
+    }
+    let degraded: OperateDegraded | undefined;
+    if (results === null) {
+      const observabilityReads =
+        await settleBySource<OperateObservabilityResult>(
+          owned.sources,
+          (source) =>
+            readCache.observability.get(
+              [owned.githubUserId, owned.platform, source.id],
+              () =>
+                owned.client.getUserSourceObservability({
+                  githubUserId: owned.githubUserId,
+                  platform: owned.platform,
+                  appSourceId: source.id,
+                }),
+            ),
+        );
+      results = observabilityReads.ok;
+      degraded = degradedFrom(owned.sources, observabilityReads.dropped);
+    }
     const apps = results.flatMap((result) =>
       result.apps.map((app) => ({
         ...app,
@@ -1055,7 +1085,7 @@ export async function operateObservabilityRoute(req: Request) {
       // Every source the account owns, not just the ones this read covered:
       // the filter dropdown is how a user retries a dropped source on its own.
       sources: owned.sources,
-      degraded: degradedFrom(owned.sources, observabilityReads.dropped),
+      degraded,
       scope: "owned_applications",
       monitoring: {
         provider: "grafana_prometheus",
