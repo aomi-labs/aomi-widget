@@ -18,17 +18,19 @@ import type { TxCall } from "@/lib/wallet-state/types";
 export type TransactionExecutionResult = ExecutionResult;
 
 function toWalletExecutionCall(call: TxCall): AAWalletCall {
-  if (!isAddress(call.to)) {
-    throw new Error(`Invalid transaction recipient: ${call.to}`);
+  const { to, data } = call;
+
+  if (!isAddress(to)) {
+    throw new Error(`Invalid transaction recipient: ${to}`);
   }
-  if (call.data !== undefined && !isHex(call.data)) {
+  if (data !== undefined && !isHex(data)) {
     throw new Error("Invalid transaction data");
   }
 
   return {
-    to: call.to,
+    to,
     value: BigInt(call.value),
-    data: call.data,
+    data,
     chainId: call.chainId,
   };
 }
