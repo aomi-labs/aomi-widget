@@ -215,12 +215,9 @@ export function DeploymentsTab({
       <EmptyPanel>Project not found.</EmptyPanel>
     );
   }
-  // Do not publish a terminal state from a partial snapshot: records and the
-  // deployment projection load independently and either may arrive first.
-  if (
-    detail.recordsByApp === null ||
-    (detail.history === null && !detail.historyError)
-  ) {
+  // The canonical record timeline establishes the UI's current state. History
+  // enriches it independently, so render records while that request is pending.
+  if (detail.recordsByApp === null) {
     return <LoadingPanel label="Loading deployments…" />;
   }
 

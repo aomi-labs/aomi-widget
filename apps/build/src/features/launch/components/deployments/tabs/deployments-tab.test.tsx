@@ -164,7 +164,9 @@ describe("DeploymentsTab", () => {
       },
     });
     renderTab(<DeploymentsTab detail={partial} />);
-    expect(screen.getByText("Loading deployments…")).toBeInTheDocument();
+    expect(
+      screen.getByText("Live · 1 deployment in history"),
+    ).toBeInTheDocument();
     expect(screen.queryByText(/No deployment is currently live/i)).toBeNull();
   });
 

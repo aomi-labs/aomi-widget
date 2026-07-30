@@ -32,7 +32,12 @@ export function ProjectRow({
   const deploymentsHref = `${projectHref}${
     projectHref.includes("?") ? "&" : "?"
   }tab=deployments`;
-  const outdated = sdkCompatibility(stamped, requiredSdk) === "outdated";
+  const outdated = mixedSdk
+    ? (source.sdkVersions ?? []).some(
+        (sdkVersion) =>
+          sdkCompatibility(sdkVersion, requiredSdk) === "outdated",
+      )
+    : sdkCompatibility(stamped, requiredSdk) === "outdated";
   return (
     <div className="border-border hover:bg-accent-hover flex items-center gap-3 border-b px-4 py-3 last:border-b-0">
       <Link

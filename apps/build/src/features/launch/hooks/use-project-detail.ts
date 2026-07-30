@@ -142,19 +142,25 @@ export function useProjectDetail(sourceId: number, platform?: string) {
     recordsReq.current = false;
     setRecords(null);
     setRecordsError(null);
+    historyReq.current = false;
+    setHistory(null);
+    setHistoryError(null);
     await Promise.all([
       queryClient.refetchQueries({ queryKey: sourceKey }),
       queryClient.refetchQueries({ queryKey: buildQueryKeys.sdkStatus() }),
     ]);
   }, [queryClient, sourceKey]);
 
-  // Reset the deployment-activity latch when the project changes so a same-route
-  // navigation (…/projects/1 → …/projects/2, no unmount) doesn't strand the
-  // previous project's records. The source itself refreshes via react-query.
+  // Reset deployment-activity latches when the project changes so a same-route
+  // navigation (…/projects/1 → …/projects/2, no unmount) cannot show the
+  // previous project's records or history. The source refreshes via react-query.
   useEffect(() => {
     recordsReq.current = false;
     setRecords(null);
     setRecordsError(null);
+    historyReq.current = false;
+    setHistory(null);
+    setHistoryError(null);
   }, [sourceId, platform]);
 
   const loadHistory = useCallback(() => {

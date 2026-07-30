@@ -104,7 +104,7 @@ describe("ProjectRow", () => {
     );
   });
 
-  it("does not choose one SDK when live apps are mixed", () => {
+  it("shows an upgrade when any live app has an outdated SDK", () => {
     render(
       <ProjectRow
         source={{
@@ -119,6 +119,10 @@ describe("ProjectRow", () => {
       />,
     );
     expect(screen.getByTestId("sdk-badge")).toHaveTextContent("SDK mixed");
-    expect(screen.queryByRole("link", { name: "Upgrade" })).toBeNull();
+    expect(screen.getByText("Outdated")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Upgrade" })).toHaveAttribute(
+      "href",
+      "/projects/42?tab=deployments",
+    );
   });
 });
