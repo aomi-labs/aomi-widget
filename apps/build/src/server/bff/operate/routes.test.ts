@@ -10,6 +10,7 @@ import {
   operateBotsDeleteRoute,
   operateLogsRoute,
   operateObservabilityRoute,
+  operatePaymentsRoute,
   operateTransactionsRoute,
   operateUsageRoute,
 } from "./routes";
@@ -63,6 +64,7 @@ const client = {
   getUserSourceUsage: vi.fn(),
   getUserSourceStatement: vi.fn(),
   getUserObservability: vi.fn(),
+  getUserPayments: vi.fn(),
   getUserSourceObservability: vi.fn(),
   getUserSourceAppDetail: vi.fn(),
   listUserSourceTransactions: vi.fn(),
@@ -73,25 +75,6 @@ const client = {
   getUserUsage: vi.fn(),
   listUserLogs: vi.fn(),
 };
-
-/** An older manager without the account-wide batch routes. */
-function batchRouteMissing() {
-  client.getUserObservability.mockRejectedValue(
-    new BackendError("get_user_observability", 404, "not found"),
-  );
-  client.listUserTransactions.mockRejectedValue(
-    new BackendError("list_user_transactions", 404, "not found"),
-  );
-  client.getUserStatements.mockRejectedValue(
-    new BackendError("get_user_statement", 404, "not found"),
-  );
-  client.getUserUsage.mockRejectedValue(
-    new BackendError("get_user_usage", 404, "not found"),
-  );
-  client.listUserLogs.mockRejectedValue(
-    new BackendError("list_user_logs", 404, "not found"),
-  );
-}
 
 vi.mock("@build/server/bff/backend", () => ({
   deploymentClient: async () => client,
@@ -147,13 +130,11 @@ beforeEach(() => {
   client.getUserSourceUsage.mockReset();
   client.getUserSourceStatement.mockReset();
   client.getUserObservability.mockReset();
+  client.getUserPayments.mockReset();
   client.listUserTransactions.mockReset();
   client.getUserStatements.mockReset();
   client.getUserUsage.mockReset();
   client.listUserLogs.mockReset();
-  // Default to the pre-batch manager so the per-source fallback tests below
-  // stay representative; batch tests override this per case.
-  batchRouteMissing();
   client.getUserSourceObservability.mockReset();
   client.getUserSourceAppDetail.mockReset();
   client.listUserSourceTransactions.mockReset();
@@ -519,7 +500,7 @@ describe("operateUsageRoute statement fallback", () => {
     // No statement endpoint yet → the client throws → source drops out.
     client.getUserSourceStatement.mockRejectedValue(new Error("404"));
 
-    const res = await operateUsageRoute(usageReq());
+    const res = await operateUsageRoute(usageReq("?appSourceId=900"));
     const body = await res.json();
 
     expect(res.status).toBe(200);
@@ -545,7 +526,7 @@ describe("operateUsageRoute statement fallback", () => {
       entries: [],
     });
 
-    const res = await operateUsageRoute(usageReq());
+    const res = await operateUsageRoute(usageReq("?appSourceId=900"));
     const body = await res.json();
     expect(body.example).toBe(true); // fell back to example
   });
@@ -581,7 +562,7 @@ describe("operateUsageRoute statement fallback", () => {
       payments: emptyPayments(),
     });
 
-    const res = await operateUsageRoute(usageReq());
+    const res = await operateUsageRoute(usageReq("?appSourceId=900"));
     const body = await res.json();
 
     expect(res.status).toBe(200);
@@ -590,7 +571,7 @@ describe("operateUsageRoute statement fallback", () => {
     expect(body.statement.revenue[0].application).toBe("real-bot");
   });
 
-  it("deduplicates a recipient-bucket settlement shared by two sources", async () => {
+  it.skip("deduplicates a recipient-bucket settlement shared by two sources", async () => {
     setSession({ githubUserId: "gh-1" });
     client.listUserSources.mockResolvedValue([
       { id: 900, repositoryLink: "o/one", apps: [] },
@@ -635,7 +616,7 @@ describe("operateUsageRoute statement fallback", () => {
   });
 });
 
-describe("partner settlement aggregation", () => {
+describe.skip("obsolete source fan-out settlement aggregation", () => {
   beforeEach(() => {
     setSession({ githubUserId: "gh-1" });
     client.listUserSources.mockResolvedValue([
@@ -802,58 +783,60 @@ describe("operateObservabilityRoute live data", () => {
   it("reuses a recent account-scoped manager read", async () => {
     setSession({ githubUserId: "gh-1" });
     oneSource();
-    client.getUserSourceObservability.mockResolvedValue({
-      source: { id: 900 },
-      platform: "community",
-      scope: "owned_applications",
-      monitoring: null,
-      apps: [],
-      payments: emptyPayments(),
-      dashboardLinks: [],
-      platformMetrics: [],
-    });
+    client.getUserObservability.mockResolvedValue([
+      {
+        source: { id: 900 },
+        platform: "community",
+        scope: "owned_applications",
+        monitoring: null,
+        apps: [],
+        dashboardLinks: [],
+        platformMetrics: [],
+      },
+    ]);
 
     const first = await operateObservabilityRoute(observabilityReq());
     const second = await operateObservabilityRoute(observabilityReq());
 
     expect(first.status).toBe(200);
     expect(second.status).toBe(200);
-    expect(client.getUserSourceObservability).toHaveBeenCalledTimes(1);
+    expect(client.getUserObservability).toHaveBeenCalledTimes(1);
   });
 
   it("keeps a partial live card partial instead of grafting example trends", async () => {
     setSession({ githubUserId: "gh-1" });
     oneSource();
-    client.getUserSourceObservability.mockResolvedValue({
-      source: { id: 900 },
-      platform: "community",
-      scope: "owned_applications",
-      monitoring: {
-        provider: "grafana_prometheus",
-        status: "ok",
-        windowSeconds: 900,
-      },
-      apps: [
-        {
-          applicationId: 1,
-          application: "real-bot",
-          active: true,
-          loaded: true,
-          status: "healthy",
-          // Live window metrics, but no 24h trend fields yet.
-          metrics: {
-            provider: "grafana_prometheus",
-            windowSeconds: 900,
-            available: true,
-            errorRate: 0.5,
-            p95LatencyMs: 1234,
-          },
+    client.getUserObservability.mockResolvedValue([
+      {
+        source: { id: 900 },
+        platform: "community",
+        scope: "owned_applications",
+        monitoring: {
+          provider: "grafana_prometheus",
+          status: "ok",
+          windowSeconds: 900,
         },
-      ],
-      payments: emptyPayments(),
-      dashboardLinks: [],
-      platformMetrics: [],
-    });
+        apps: [
+          {
+            applicationId: 1,
+            application: "real-bot",
+            active: true,
+            loaded: true,
+            status: "healthy",
+            // Live window metrics, but no 24h trend fields yet.
+            metrics: {
+              provider: "grafana_prometheus",
+              windowSeconds: 900,
+              available: true,
+              errorRate: 0.5,
+              p95LatencyMs: 1234,
+            },
+          },
+        ],
+        dashboardLinks: [],
+        platformMetrics: [],
+      },
+    ]);
 
     const res = await operateObservabilityRoute(observabilityReq());
     const body = await res.json();
@@ -872,16 +855,17 @@ describe("operateObservabilityRoute live data", () => {
   it("returns an empty app list when the account has no live apps", async () => {
     setSession({ githubUserId: "gh-1" });
     oneSource();
-    client.getUserSourceObservability.mockResolvedValue({
-      source: { id: 900 },
-      platform: "community",
-      scope: "owned_applications",
-      monitoring: null,
-      apps: [],
-      payments: emptyPayments(),
-      dashboardLinks: [],
-      platformMetrics: [],
-    });
+    client.getUserObservability.mockResolvedValue([
+      {
+        source: { id: 900 },
+        platform: "community",
+        scope: "owned_applications",
+        monitoring: null,
+        apps: [],
+        dashboardLinks: [],
+        platformMetrics: [],
+      },
+    ]);
 
     const res = await operateObservabilityRoute(observabilityReq());
     const body = await res.json();
@@ -959,32 +943,24 @@ describe("operateObservabilityRoute live data", () => {
     );
     expect(client.getUserSourceObservability).not.toHaveBeenCalled();
     expect(body.degraded).toBeUndefined();
+    expect(body.payments).toBeUndefined();
     expect(
       body.apps.map((app: { application: string }) => app.application),
     ).toEqual(["real-bot", "somm-agent"]);
     expect(body.monitoring.status).toBe("ok");
   });
 
-  it("falls back to the per-source fan-out when the batch route 404s", async () => {
+  it("does not restore the per-source fan-out when the batch route is missing", async () => {
     setSession({ githubUserId: "gh-1" });
     oneSource();
-    // beforeEach already arms the 404; make the fallback observable.
-    client.getUserSourceObservability.mockResolvedValue({
-      source: { id: 900 },
-      platform: "community",
-      scope: "owned_applications",
-      monitoring: null,
-      apps: [],
-      payments: emptyPayments(),
-      dashboardLinks: [],
-      platformMetrics: [],
-    });
-
+    client.getUserObservability.mockRejectedValue(
+      new BackendError("get_user_observability", 404, "not found"),
+    );
     const res = await operateObservabilityRoute(observabilityReq());
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(404);
     expect(client.getUserObservability).toHaveBeenCalled();
-    expect(client.getUserSourceObservability).toHaveBeenCalledTimes(1);
+    expect(client.getUserSourceObservability).not.toHaveBeenCalled();
   });
 
   it("surfaces non-404 batch failures instead of silently fanning out", async () => {
@@ -998,6 +974,29 @@ describe("operateObservabilityRoute live data", () => {
 
     expect(res.status).toBeGreaterThanOrEqual(500);
     expect(client.getUserSourceObservability).not.toHaveBeenCalled();
+  });
+});
+
+describe("operatePaymentsRoute", () => {
+  it("loads the payment ledger independently from the main observability snapshot", async () => {
+    setSession({ githubUserId: "gh-1" });
+    oneSource();
+    client.getUserPayments.mockResolvedValue([
+      { source: { id: 900 }, payments: emptyPayments() },
+    ]);
+
+    const res = await operatePaymentsRoute(
+      new Request("http://localhost:3000/api/bff/operate/payments"),
+    );
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({
+      payments: { scope: "recipient_bucket" },
+    });
+    expect(client.getUserPayments).toHaveBeenCalledWith(
+      expect.objectContaining({ githubUserId: "gh-1", appSourceId: undefined }),
+    );
+    expect(client.getUserObservability).not.toHaveBeenCalled();
   });
 });
 
@@ -1065,7 +1064,7 @@ describe("operateAppDetailRoute", () => {
   });
 });
 
-describe("per-source fan-out is bounded", () => {
+describe.skip("obsolete account-wide source fan-out", () => {
   const SOURCE_COUNT = 40;
 
   beforeEach(() => {
@@ -1167,7 +1166,7 @@ describe("per-source fan-out is bounded", () => {
   });
 });
 
-describe("fallback fan-out failure handling", () => {
+describe.skip("obsolete account-wide source fan-out failure handling", () => {
   beforeEach(() => {
     setSession({ githubUserId: "gh-1" });
     client.listUserSources.mockResolvedValue([

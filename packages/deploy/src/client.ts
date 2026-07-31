@@ -52,6 +52,9 @@ import type {
   UpdateUserBotInput,
   OwnedOperateSourceInput,
   GetUserObservabilityInput,
+  GetUserPaymentsInput,
+  OperateObservabilitySnapshot,
+  OperatePaymentSourceResult,
   UserOperateBatchInput,
   GetUserStatementsInput,
   ListUserTransactionsInput,
@@ -1220,11 +1223,17 @@ export class DeploymentClient {
    */
   async getUserObservability(
     input: GetUserObservabilityInput,
-  ): Promise<OperateObservabilityResult[]> {
+  ): Promise<OperateObservabilitySnapshot[]> {
     const githubUserId = required(input.githubUserId, "githubUserId");
     const bearer = this.resolveBearer(input.bearer);
     const params = new URLSearchParams({ github_user_id: githubUserId });
     if (input.platform?.trim()) params.set("platform", input.platform.trim());
+    if (input.appSourceId !== undefined) {
+      if (!Number.isSafeInteger(input.appSourceId) || input.appSourceId <= 0) {
+        throw new Error("appSourceId must be a positive integer");
+      }
+      params.set("app_source_id", String(input.appSourceId));
+    }
     const raw = await this.get<{ results?: unknown[] }>(
       `/api/integrations/github-app/user/observability?${params.toString()}`,
       "get_user_observability",
@@ -1236,9 +1245,44 @@ export class DeploymentClient {
       actor: input.actor,
       ts: Date.now(),
     });
-    return ((raw.results ?? []) as Record<string, unknown>[]).map((entry) =>
-      camelOperateObservability(entry, input.platform?.trim() ?? ""),
+    return ((raw.results ?? []) as Record<string, unknown>[]).map((entry) => {
+      const { payments: _payments, ...snapshot } = camelOperateObservability(
+        entry,
+        input.platform?.trim() ?? "",
+      );
+      return snapshot;
+    });
+  }
+
+  async getUserPayments(
+    input: GetUserPaymentsInput,
+  ): Promise<OperatePaymentSourceResult[]> {
+    const githubUserId = required(input.githubUserId, "githubUserId");
+    const bearer = this.resolveBearer(input.bearer);
+    const params = new URLSearchParams({ github_user_id: githubUserId });
+    if (input.platform?.trim()) params.set("platform", input.platform.trim());
+    if (input.appSourceId !== undefined) {
+      if (!Number.isSafeInteger(input.appSourceId) || input.appSourceId <= 0) {
+        throw new Error("appSourceId must be a positive integer");
+      }
+      params.set("app_source_id", String(input.appSourceId));
+    }
+    const raw = await this.get<{ results?: unknown[] }>(
+      `/api/integrations/github-app/user/payments?${params.toString()}`,
+      "get_user_payments",
+      bearer,
     );
+    await this.audit({
+      action: "get_user_payments",
+      platform: input.platform,
+      appSourceId: input.appSourceId,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return ((raw.results ?? []) as Record<string, unknown>[]).map((entry) => ({
+      source: camelAppSource(entry.source),
+      payments: camelPartnerPayments(entry.payments),
+    }));
   }
 
   private userBatchParams(input: UserOperateBatchInput): {

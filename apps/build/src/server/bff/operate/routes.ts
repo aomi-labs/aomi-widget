@@ -9,6 +9,8 @@ import type {
   OperateLogsResult,
   OperateAppDetailResult,
   OperateObservabilityResult,
+  OperateObservabilitySnapshot,
+  OperatePaymentSourceResult,
   OperatePartnerPayments,
   OperateStatementResult,
   OperateTransactionCursor,
@@ -165,18 +167,6 @@ async function settleBySource<T>(
   return { ok, dropped };
 }
 
-// A missing batch route (older manager mid-rollout) reads as "fall back to
-// the per-source fan-out"; any other failure is a real error and surfaces as
-// one — a page of silently missing data is worse than a retryable error.
-async function batchOrNull<T>(load: () => Promise<T>): Promise<T | null> {
-  try {
-    return await load();
-  } catch (err) {
-    if (err instanceof BackendError && err.status === 404) return null;
-    throw err;
-  }
-}
-
 // The per-source fallback can drop sources; losing every read used to render
 // an empty page behind a warning banner (and Usage then swapped in the
 // example statement). An outage should look like an outage: fail the request
@@ -253,13 +243,18 @@ function logCursorFor(row: {
 }
 
 function mergedPartnerPayments(
-  rows: Array<{ source: UserSource; payments: OperatePartnerPayments }>,
+  rows: Array<{
+    source: OperatePaymentSourceResult["source"];
+    payments: OperatePartnerPayments;
+  }>,
 ) {
   const sum = (pick: (summary: OperatePartnerPayments["summary"]) => number) =>
     rows.reduce((total, row) => total + pick(row.payments.summary), 0);
   const eventById = new Map<
     string,
-    OperatePartnerPayments["events"][number] & { source: UserSource }
+    OperatePartnerPayments["events"][number] & {
+      source: OperatePaymentSourceResult["source"];
+    }
   >();
   for (const row of rows) {
     for (const event of row.payments.events) {
@@ -355,7 +350,10 @@ const readCache = {
   observability: new TimedPromiseCache<OperateObservabilityResult>(
     CACHE_TTL_MS,
   ),
-  observabilityBatch: new TimedPromiseCache<OperateObservabilityResult[]>(
+  observabilityBatch: new TimedPromiseCache<OperateObservabilitySnapshot[]>(
+    CACHE_TTL_MS,
+  ),
+  paymentsBatch: new TimedPromiseCache<OperatePaymentSourceResult[]>(
     CACHE_TTL_MS,
   ),
   transactionsBatch: new TimedPromiseCache<UserTransactionsResult>(
@@ -771,7 +769,7 @@ export async function operateTransactionsRoute(req: Request) {
       statements: OperateStatementResult[];
     } | null = null;
     if (!params.has("appSourceId")) {
-      batch = await batchOrNull(async () => {
+      batch = await (async () => {
         const [page, statements] = await Promise.all([
           readCache.transactionsBatch.get(
             [
@@ -802,7 +800,7 @@ export async function operateTransactionsRoute(req: Request) {
               ),
         ]);
         return { page, statements };
-      });
+      })();
     }
 
     let appTransactions: Array<Record<string, any>>;
@@ -1008,7 +1006,7 @@ export async function operateUsageRoute(req: Request) {
       statements: OperateStatementResult[];
     } | null = null;
     if (!params.has("appSourceId")) {
-      batch = await batchOrNull(async () => {
+      batch = await (async () => {
         const [usage, statements] = await Promise.all([
           readCache.usageBatch.get(
             [
@@ -1040,7 +1038,7 @@ export async function operateUsageRoute(req: Request) {
           ),
         ]);
         return { usage, statements };
-      });
+      })();
     }
 
     let results: OperateUsageResult[];
@@ -1179,41 +1177,37 @@ export async function operateLogsRoute(req: Request) {
     // none of the per-source merge/dedupe below applies. A single-source view
     // stays on the per-source read.
     if (!params.has("appSourceId")) {
-      const batch = await batchOrNull(() =>
-        readCache.logsBatch.get(
-          [
-            owned.githubUserId,
-            requestedPlatform ?? null,
-            { limit, type, cursor: cursor?.batch ?? null },
-          ],
-          () =>
-            owned.client.listUserLogs({
-              githubUserId: owned.githubUserId,
-              platform: requestedPlatform,
-              limit,
-              type,
-              cursor: (cursor?.batch ?? undefined) as
-                | OperateLogCursor
-                | undefined,
-            }),
-        ),
+      const batch = await readCache.logsBatch.get(
+        [
+          owned.githubUserId,
+          requestedPlatform ?? null,
+          { limit, type, cursor: cursor?.batch ?? null },
+        ],
+        () =>
+          owned.client.listUserLogs({
+            githubUserId: owned.githubUserId,
+            platform: requestedPlatform,
+            limit,
+            type,
+            cursor: (cursor?.batch ?? undefined) as
+              | OperateLogCursor
+              | undefined,
+          }),
       );
-      if (batch) {
-        const sourceById = new Map(
-          batch.sources.map((ref) => [ref.source.id, ref.source]),
-        );
-        return NextResponse.json({
-          sources: owned.sources,
-          logs: batch.logs.map(({ appSourceId, platform, ...log }) => ({
-            ...log,
-            source:
-              (appSourceId != null ? sourceById.get(appSourceId) : undefined) ??
-              null,
-            platform: platform ?? owned.platform,
-          })),
-          nextCursor: batch.nextCursor ? { batch: batch.nextCursor } : null,
-        });
-      }
+      const sourceById = new Map(
+        batch.sources.map((ref) => [ref.source.id, ref.source]),
+      );
+      return NextResponse.json({
+        sources: owned.sources,
+        logs: batch.logs.map(({ appSourceId, platform, ...log }) => ({
+          ...log,
+          source:
+            (appSourceId != null ? sourceById.get(appSourceId) : undefined) ??
+            null,
+          platform: platform ?? owned.platform,
+        })),
+        nextCursor: batch.nextCursor ? { batch: batch.nextCursor } : null,
+      });
     }
 
     const logReads = await settleBySource<OperateLogsResult>(
@@ -1311,48 +1305,19 @@ export async function operateObservabilityRoute(req: Request) {
     // per-source read rejects as not launch-relevant on the default platform.
     const params = new URL(req.url).searchParams;
     const requestedPlatform = params.get("platform") ?? undefined;
-    let results: OperateObservabilityResult[] | null = null;
-    // A manager without the batch route (mid-rollout) 404s; keep the page
-    // alive on the bounded per-source fan-out until the deploy completes.
-    results = await batchOrNull(() =>
-      readCache.observabilityBatch.get(
-        [owned.githubUserId, requestedPlatform ?? null],
+    const appSourceId = params.has("appSourceId")
+      ? owned.sources[0]?.id
+      : undefined;
+    const results: OperateObservabilitySnapshot[] =
+      await readCache.observabilityBatch.get(
+        [owned.githubUserId, requestedPlatform ?? null, appSourceId ?? null],
         () =>
           owned.client.getUserObservability({
             githubUserId: owned.githubUserId,
             platform: requestedPlatform,
+            appSourceId,
           }),
-      ),
-    );
-    if (results !== null && params.has("appSourceId")) {
-      // The batch covers the whole account; a single-source view narrows it
-      // to the sources `ownedSources` resolved for the filter.
-      const wanted = new Set(owned.sources.map((source) => source.id));
-      results = results.filter((result) =>
-        wanted.has((result.source as UserSource).id),
       );
-    }
-    if (results === null) {
-      const observabilityReads =
-        await settleBySource<OperateObservabilityResult>(
-          owned.sources,
-          "operate.observability_source",
-          (source) =>
-            readCache.observability.get(
-              [owned.githubUserId, owned.platform, source.id],
-              () =>
-                owned.client.getUserSourceObservability({
-                  githubUserId: owned.githubUserId,
-                  platform: owned.platform,
-                  appSourceId: source.id,
-                }),
-            ),
-        );
-      if (nothingRead(owned.sources, observabilityReads)) {
-        return operateUnavailableResponse();
-      }
-      results = observabilityReads.ok;
-    }
     const apps = results.flatMap((result) =>
       result.apps.map((app) => ({
         ...app,
@@ -1375,18 +1340,41 @@ export async function operateObservabilityRoute(req: Request) {
         windowSeconds: results[0]?.monitoring?.windowSeconds ?? 0,
       },
       apps,
-      payments: mergedPartnerPayments(
-        results.map((result) => ({
-          source: result.source as UserSource,
-          payments: result.payments,
-        })),
-      ),
       dashboardLinks: results.flatMap((result) => result.dashboardLinks),
       platformMetrics: results[0]?.platformMetrics ?? [],
     });
   } catch (err) {
     return buildFailures.handle(
       identifyOperateFailure(req, "operate.observability", err),
+    ).response;
+  }
+}
+
+/** Optional ledger card for the observability page; never blocks its snapshot. */
+export async function operatePaymentsRoute(req: Request) {
+  try {
+    const owned = await ownedSources(req);
+    if ("response" in owned) return owned.response;
+    const params = new URL(req.url).searchParams;
+    const requestedPlatform = params.get("platform") ?? undefined;
+    const appSourceId = params.has("appSourceId")
+      ? owned.sources[0]?.id
+      : undefined;
+    const results = await readCache.paymentsBatch.get(
+      [owned.githubUserId, requestedPlatform ?? null, appSourceId ?? null],
+      () =>
+        owned.client.getUserPayments({
+          githubUserId: owned.githubUserId,
+          platform: requestedPlatform,
+          appSourceId,
+        }),
+    );
+    return NextResponse.json({
+      payments: mergedPartnerPayments(results),
+    });
+  } catch (err) {
+    return buildFailures.handle(
+      identifyOperateFailure(req, "operate.payments", err),
     ).response;
   }
 }

@@ -7,6 +7,7 @@ import {
   deploymentRecordsRoute,
   deploymentPromoteRoute,
   deploymentSecretsWriteRoute,
+  clearLaunchReadCache,
   activateLaunchRoute,
   launchAppRoute,
   launchDeployRoute,
@@ -63,6 +64,7 @@ vi.mock("@aomi-labs/account", () => ({
 }));
 
 beforeEach(() => {
+  clearLaunchReadCache();
   telemetry.capture.mockReset();
   telemetry.log.mockReset();
 });
@@ -1660,6 +1662,37 @@ describe("deploymentRecordsRoute", () => {
     );
     expect(res.status).toBe(404);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("coalesces concurrent ownership checks for the same source", async () => {
+    getGitHubSession.mockResolvedValue({
+      githubUserId: "42",
+      githubLogin: "alice",
+    });
+    const fetchMock = vi.fn(async (input: string | URL) => {
+      const url = String(input);
+      if (url.includes("/user/sources?")) return ownedSources(99);
+      if (url.includes("/apps/my-bot/records?")) return appRecords("dep_1");
+      throw new Error(`unexpected request ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const req = () =>
+      new Request(
+        "http://localhost:3000/api/bff/deployments/records?app=my-bot&appSourceId=99",
+      );
+
+    const [first, second] = await Promise.all([
+      deploymentRecordsRoute(req()),
+      deploymentRecordsRoute(req()),
+    ]);
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    expect(
+      fetchMock.mock.calls.filter(([url]) =>
+        String(url).includes("/user/sources?"),
+      ),
+    ).toHaveLength(1);
   });
 });
 
