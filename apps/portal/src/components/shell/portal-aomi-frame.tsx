@@ -98,7 +98,15 @@ function AppSelectUrlBootstrap({
 }
 
 export function PortalAomiFrame() {
-  const { accountUser } = useAomiWalletKit();
+  const { accountStatus, accountUser } = useAomiWalletKit();
+  const accountUserId = accountUser?.id;
+  const [hasResolvedInitialAccount, setHasResolvedInitialAccount] = useState(
+    accountStatus !== "loading",
+  );
+  const [accountFrameScope, setAccountFrameScope] = useState(() => ({
+    accountUserId,
+    revision: 0,
+  }));
   const requestedApp = useRequestedAppConfig();
   const lockedApp = requestedApp.locked ? requestedApp.app : null;
   const lockedApplicationId = lockedApp ? requestedApp.applicationId : null;
@@ -111,10 +119,41 @@ export function PortalAomiFrame() {
     "none",
   );
 
+  useEffect(() => {
+    if (accountStatus !== "loading") {
+      setHasResolvedInitialAccount(true);
+    }
+  }, [accountStatus]);
+
+  if (
+    accountStatus !== "loading" &&
+    accountFrameScope.accountUserId !== accountUserId
+  ) {
+    setAccountFrameScope({
+      accountUserId,
+      // Preserve anonymous conversation state when sign-in establishes the
+      // first account. Remount when leaving an authenticated account so its
+      // threads and in-flight sessions cannot cross into another principal.
+      revision:
+        accountFrameScope.accountUserId === undefined
+          ? accountFrameScope.revision
+          : accountFrameScope.revision + 1,
+    });
+  }
+
+  if (!hasResolvedInitialAccount) {
+    return (
+      <main
+        aria-busy="true"
+        className="bg-background relative h-full w-full overflow-hidden"
+      />
+    );
+  }
+
   return (
     <main className="bg-background relative h-full w-full overflow-hidden">
       <AomiFrame.Root
-        key={accountUser?.id ?? "anonymous"}
+        key={accountFrameScope.revision}
         width="100%"
         height="100%"
         backendUrl={backendUrl}
