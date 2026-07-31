@@ -2336,6 +2336,9 @@ function camelUserSource(raw: unknown): UserSource {
       s.latest_deployment ?? s.latestDeployment,
     ),
     sdkVersion: s.sdk_version ?? s.sdkVersion ?? null,
+    sdkVersions: ((s.sdk_versions ?? s.sdkVersions ?? []) as unknown[]).flatMap(
+      (version) => (typeof version === "string" && version ? [version] : []),
+    ),
   };
 }
 
