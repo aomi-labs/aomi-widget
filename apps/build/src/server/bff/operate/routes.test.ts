@@ -14,6 +14,43 @@ import {
   operateUsageRoute,
 } from "./routes";
 
+const telemetry = vi.hoisted(() => ({
+  capture: vi.fn(),
+  log: vi.fn(),
+}));
+
+vi.mock("@build/server/bff/failures", async () => {
+  const { classifyFailure, identifyFailure } =
+    await import("@aomi-labs/bff-observability");
+  return {
+    buildFailures: {
+      handle: (input: Parameters<typeof identifyFailure>[0]) => {
+        const decision = classifyFailure(identifyFailure(input));
+        const eventContext = {
+          ...decision.context,
+          status: decision.responseStatus,
+          ...(decision.upstream ? { upstream: decision.upstream } : {}),
+          ...(decision.upstreamStatus !== undefined
+            ? { upstreamStatus: decision.upstreamStatus }
+            : {}),
+        };
+        if (decision.action === "issue") {
+          telemetry.capture(decision.error, eventContext);
+        } else if (decision.action === "log") {
+          telemetry.log(eventContext);
+        }
+        return {
+          ...decision,
+          response: Response.json(
+            { error: decision.responseError },
+            { status: decision.responseStatus },
+          ),
+        };
+      },
+    },
+  };
+});
+
 const client = {
   listUserSources: vi.fn(),
   listUserSourceBots: vi.fn(),
@@ -31,12 +68,28 @@ const client = {
   listUserSourceTransactions: vi.fn(),
   listUserSourceLogs: vi.fn(),
   listUserSourceDeployments: vi.fn(),
+  listUserTransactions: vi.fn(),
+  getUserStatements: vi.fn(),
+  getUserUsage: vi.fn(),
+  listUserLogs: vi.fn(),
 };
 
-/** An older manager without the batch observability route. */
+/** An older manager without the account-wide batch routes. */
 function batchRouteMissing() {
   client.getUserObservability.mockRejectedValue(
     new BackendError("get_user_observability", 404, "not found"),
+  );
+  client.listUserTransactions.mockRejectedValue(
+    new BackendError("list_user_transactions", 404, "not found"),
+  );
+  client.getUserStatements.mockRejectedValue(
+    new BackendError("get_user_statement", 404, "not found"),
+  );
+  client.getUserUsage.mockRejectedValue(
+    new BackendError("get_user_usage", 404, "not found"),
+  );
+  client.listUserLogs.mockRejectedValue(
+    new BackendError("list_user_logs", 404, "not found"),
   );
 }
 
@@ -94,6 +147,10 @@ beforeEach(() => {
   client.getUserSourceUsage.mockReset();
   client.getUserSourceStatement.mockReset();
   client.getUserObservability.mockReset();
+  client.listUserTransactions.mockReset();
+  client.getUserStatements.mockReset();
+  client.getUserUsage.mockReset();
+  client.listUserLogs.mockReset();
   // Default to the pre-batch manager so the per-source fallback tests below
   // stay representative; batch tests override this per case.
   batchRouteMissing();
@@ -103,6 +160,8 @@ beforeEach(() => {
   client.listUserSourceLogs.mockReset();
   client.listUserSourceDeployments.mockReset();
   getGitHubSession.mockReset();
+  telemetry.capture.mockReset();
+  telemetry.log.mockReset();
 });
 
 afterEach(() => {
@@ -152,6 +211,32 @@ describe("operateBotsRoute", () => {
     const body = await res.json();
     expect(body.bots).toHaveLength(1);
     expect(client.listUserBots).toHaveBeenCalledTimes(1);
+  });
+
+  it("logs an owned-source Rust 5xx without creating a BFF Issue", async () => {
+    setSession({ githubUserId: "gh-1" });
+    client.listUserSources.mockRejectedValue(
+      new BackendError(
+        "list_user_sources",
+        503,
+        "failed",
+        "private backend body",
+      ),
+    );
+
+    const res = await operateBotsRoute(getReq());
+
+    expect(res.status).toBe(503);
+    await expect(res.json()).resolves.toEqual({ error: "failed" });
+    expect(telemetry.capture).not.toHaveBeenCalled();
+    expect(telemetry.log).toHaveBeenCalledOnce();
+    expect(telemetry.log).toHaveBeenCalledWith(
+      expect.objectContaining({
+        operation: "operate.owned_sources",
+        upstream: "rust",
+        upstreamStatus: 503,
+      }),
+    );
   });
 });
 
@@ -1037,7 +1122,6 @@ describe("per-source fan-out is bounded", () => {
   });
 
   it("drops a wedged source instead of stalling the whole page", async () => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     vi.useFakeTimers();
     try {
       client.listUserSourceTransactions.mockImplementation(({ appSourceId }) =>
@@ -1070,14 +1154,20 @@ describe("per-source fan-out is bounded", () => {
           (transaction: { id: string }) => transaction.id === "tx:901",
         ),
       ).toBe(false);
+      expect(telemetry.capture).toHaveBeenCalledOnce();
+      expect(telemetry.capture.mock.calls[0]?.[1]).toEqual({
+        routeFamily: "/api/bff/operate",
+        operation: "operate.transactions_source",
+        method: "GET",
+        status: 502,
+      });
     } finally {
       vi.useRealTimers();
-      warn.mockRestore();
     }
   });
 });
 
-describe("degraded reporting", () => {
+describe("fallback fan-out failure handling", () => {
   beforeEach(() => {
     setSession({ githubUserId: "gh-1" });
     client.listUserSources.mockResolvedValue([
@@ -1101,7 +1191,7 @@ describe("degraded reporting", () => {
       payments: emptyPayments(),
     });
 
-  it("omits the key entirely when every source was read", async () => {
+  it("never emits a degraded key", async () => {
     client.listUserSourceTransactions.mockImplementation(okTransactions);
     client.getUserSourceStatement.mockImplementation(okStatement);
 
@@ -1112,8 +1202,7 @@ describe("degraded reporting", () => {
     expect(body).not.toHaveProperty("degraded");
   });
 
-  it("counts a source that failed both fan-outs once", async () => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+  it("renders the sources it could read when one drops, without a banner", async () => {
     client.listUserSourceTransactions.mockImplementation((args) =>
       args.appSourceId === 901
         ? Promise.reject(new Error("boom"))
@@ -1125,16 +1214,16 @@ describe("degraded reporting", () => {
         : okStatement(args),
     );
 
-    const body = await (
-      await operateTransactionsRoute(transactionsReq())
-    ).json();
+    const res = await operateTransactionsRoute(transactionsReq());
+    const body = await res.json();
 
-    expect(body.degraded).toEqual({ dropped: 1, total: 3 });
-    warn.mockRestore();
+    expect(res.status).toBe(200);
+    expect(body).not.toHaveProperty("degraded");
+    expect(telemetry.capture).toHaveBeenCalledTimes(2);
+    expect(telemetry.log).not.toHaveBeenCalled();
   });
 
-  it("still lists a dropped source so the user can retry it alone", async () => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+  it("still lists a dropped source so the user can load it alone", async () => {
     client.listUserSourceTransactions.mockImplementation((args) =>
       args.appSourceId === 901
         ? Promise.reject(new Error("boom"))
@@ -1149,6 +1238,263 @@ describe("degraded reporting", () => {
     expect(body.sources.map((source: { id: number }) => source.id)).toEqual([
       900, 901, 902,
     ]);
-    warn.mockRestore();
+    expect(telemetry.capture).toHaveBeenCalledOnce();
+  });
+
+  it("logs a partial Rust 5xx without creating a BFF Issue", async () => {
+    client.listUserSourceTransactions.mockImplementation((args) =>
+      args.appSourceId === 901
+        ? Promise.reject(
+            new BackendError(
+              "transactions",
+              503,
+              "failed",
+              "private backend body",
+            ),
+          )
+        : okTransactions(args),
+    );
+    client.getUserSourceStatement.mockImplementation(okStatement);
+
+    const res = await operateTransactionsRoute(transactionsReq());
+
+    expect(res.status).toBe(200);
+    expect(telemetry.capture).not.toHaveBeenCalled();
+    expect(telemetry.log).toHaveBeenCalledOnce();
+    expect(telemetry.log).toHaveBeenCalledWith({
+      routeFamily: "/api/bff/operate",
+      operation: "operate.transactions_source",
+      method: "GET",
+      status: 503,
+      upstream: "rust",
+      upstreamStatus: 503,
+    });
+  });
+
+  // "0 of 111 sources" used to render as an empty page behind a warning
+  // banner — and Usage then presented the example statement as if it were
+  // data. A total outage must surface as an error the view can show.
+  it("503s the page when every source drops instead of rendering empty", async () => {
+    client.listUserSourceTransactions.mockRejectedValue(new Error("boom"));
+    client.getUserSourceStatement.mockRejectedValue(new Error("boom"));
+
+    const res = await operateTransactionsRoute(transactionsReq());
+
+    expect(res.status).toBe(503);
+    expect(telemetry.capture).toHaveBeenCalledTimes(6);
+  });
+
+  it("503s usage on total failure instead of serving example data", async () => {
+    client.getUserSourceUsage.mockRejectedValue(new Error("boom"));
+    client.getUserSourceStatement.mockRejectedValue(new Error("boom"));
+
+    const res = await operateUsageRoute(usageReq());
+
+    expect(res.status).toBe(503);
+    expect(telemetry.capture).toHaveBeenCalledTimes(6);
+  });
+});
+
+describe("account-wide batch reads", () => {
+  beforeEach(() => {
+    setSession({ githubUserId: "gh-1" });
+    client.listUserSources.mockResolvedValue([
+      { id: 900, repositoryLink: "o/one", apps: [] },
+      { id: 1620, repositoryLink: "partner/app", apps: [] },
+    ]);
+  });
+
+  it("serves transactions from one merged page and maps rows to sources", async () => {
+    client.listUserTransactions.mockResolvedValue({
+      sources: [
+        { source: { id: 900, repositoryLink: "o/one" }, platform: "community" },
+        {
+          source: { id: 1620, repositoryLink: "partner/app" },
+          platform: "somm.finance",
+        },
+      ],
+      transactions: [
+        {
+          id: "tx:b",
+          createdAt: 1_700_000_100,
+          appSourceId: 1620,
+          platform: "somm.finance",
+        },
+        {
+          id: "tx:a",
+          createdAt: 1_700_000_000,
+          appSourceId: 900,
+          platform: "community",
+        },
+      ],
+      nextCursor: { createdAt: 1_700_000_000, id: "tx:a" },
+    });
+    client.getUserStatements.mockResolvedValue([]);
+
+    const res = await operateTransactionsRoute(transactionsReq());
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(client.listUserSourceTransactions).not.toHaveBeenCalled();
+    expect(client.getUserSourceStatement).not.toHaveBeenCalled();
+    expect(body.transactions.map((tx: { id: string }) => tx.id)).toEqual([
+      "tx:b",
+      "tx:a",
+    ]);
+    // The partner-bound row resolves to its own source and platform.
+    expect(body.transactions[0].source.id).toBe(1620);
+    expect(body.transactions[0].platform).toBe("somm.finance");
+    // Pagination continues through the batch's global cursor.
+    expect(body.nextCursor).toEqual({
+      batch: { createdAt: 1_700_000_000, id: "tx:a" },
+    });
+  });
+
+  it("passes the batch cursor through and skips statements past page one", async () => {
+    client.listUserTransactions.mockResolvedValue({
+      sources: [],
+      transactions: [],
+      nextCursor: null,
+    });
+
+    const cursor = encodeURIComponent(
+      JSON.stringify({ batch: { createdAt: 1_700_000_000, id: "tx:a" } }),
+    );
+    const res = await operateTransactionsRoute(
+      transactionsReq(`?cursor=${cursor}`),
+    );
+
+    expect(res.status).toBe(200);
+    expect(client.listUserTransactions).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cursor: { createdAt: 1_700_000_000, id: "tx:a" },
+      }),
+    );
+    expect(client.getUserStatements).not.toHaveBeenCalled();
+  });
+
+  it("serves usage and the statement from the batch sweeps", async () => {
+    client.getUserUsage.mockResolvedValue([
+      {
+        ...emptyUsage,
+        daily: [
+          {
+            periodUtcDay: "2026-07-15",
+            application: "app",
+            applicationId: 1,
+            inputTokens: 10,
+            outputTokens: 5,
+            creditsUsed: 2,
+          },
+        ],
+      },
+    ]);
+    client.getUserStatements.mockResolvedValue([
+      {
+        source: { id: 900 },
+        platform: "community",
+        range: { fromDate: "2026-07-01", toDate: "2026-07-15" },
+        available: true,
+        summary: {
+          grossRevenue: 12,
+          platformFees: 2,
+          serviceCharges: 1,
+          net: 9,
+        },
+        revenue: [],
+        charges: [],
+        entries: [],
+        payments: emptyPayments(),
+      },
+    ]);
+
+    const body = await (await operateUsageRoute(usageReq())).json();
+
+    expect(client.getUserSourceUsage).not.toHaveBeenCalled();
+    expect(client.getUserSourceStatement).not.toHaveBeenCalled();
+    expect(body.example).toBeUndefined();
+    expect(body.daily).toHaveLength(1);
+    expect(body.statement.summary.grossRevenue).toBe(12);
+  });
+
+  it("serves logs pre-merged with the batch cursor", async () => {
+    client.listUserLogs.mockResolvedValue({
+      sources: [
+        { source: { id: 900, repositoryLink: "o/one" }, platform: "community" },
+      ],
+      logs: [
+        {
+          id: "log:1",
+          eventType: "transaction",
+          occurredAt: 1_700_000_000,
+          details: {},
+          appSourceId: 900,
+          platform: "community",
+        },
+        {
+          id: "settle:shared",
+          eventType: "usage",
+          occurredAt: 1_699_999_999,
+          details: { source: "partner_settlement" },
+          appSourceId: null,
+          platform: null,
+        },
+      ],
+      nextCursor: {
+        occurredAt: 1_699_999_999,
+        eventType: "usage",
+        id: "settle:shared",
+      },
+      invocationsAvailable: true,
+    });
+
+    const body = await (await operateLogsRoute(logsReq())).json();
+
+    expect(client.listUserSourceLogs).not.toHaveBeenCalled();
+    expect(body.logs).toHaveLength(2);
+    expect(body.logs[0].source.id).toBe(900);
+    // A shared settlement belongs to the account, not one project.
+    expect(body.logs[1].source).toBeNull();
+    expect(body.nextCursor).toEqual({
+      batch: {
+        occurredAt: 1_699_999_999,
+        eventType: "usage",
+        id: "settle:shared",
+      },
+    });
+  });
+
+  it("keeps a single-source view on the per-source read", async () => {
+    client.listUserSourceTransactions.mockResolvedValue({
+      source: { id: 900 },
+      platform: "community",
+      transactions: [],
+      nextCursor: null,
+    });
+    client.getUserSourceStatement.mockResolvedValue({
+      source: { id: 900 },
+      platform: "community",
+      payments: emptyPayments(),
+    });
+
+    const res = await operateTransactionsRoute(
+      transactionsReq("?appSourceId=900"),
+    );
+
+    expect(res.status).toBe(200);
+    expect(client.listUserTransactions).not.toHaveBeenCalled();
+    expect(client.listUserSourceTransactions).toHaveBeenCalledTimes(1);
+  });
+
+  it("surfaces a non-404 batch failure instead of silently fanning out", async () => {
+    client.listUserTransactions.mockRejectedValue(
+      new BackendError("list_user_transactions", 502, "bad gateway"),
+    );
+    client.getUserStatements.mockResolvedValue([]);
+
+    const res = await operateTransactionsRoute(transactionsReq());
+
+    expect(res.status).toBeGreaterThanOrEqual(500);
+    expect(client.listUserSourceTransactions).not.toHaveBeenCalled();
   });
 });

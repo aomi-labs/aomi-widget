@@ -1,4 +1,5 @@
 import type { DeploymentClient } from "../client";
+import { BackendError } from "../errors";
 import type { ReleaseManifest, SecretSlot, UserSource } from "../types";
 import { missingRequiredSecrets } from "../secrets";
 
@@ -12,10 +13,20 @@ export const REQUIRED_SECRETS_CHECK_UNAVAILABLE =
 /** The required-secret metadata could not be verified safely. */
 export class RequiredSecretsCheckError extends Error {
   readonly code = REQUIRED_SECRETS_CHECK_UNAVAILABLE;
+  readonly upstream?: "github" | "rust";
+  readonly upstreamStatus?: number;
 
-  constructor() {
-    super("Unable to verify required secrets. Try again.");
+  constructor(options?: {
+    cause?: unknown;
+    upstream?: "github" | "rust";
+    upstreamStatus?: number;
+  }) {
+    super("Unable to verify required secrets. Try again.", {
+      cause: options?.cause,
+    });
     this.name = "RequiredSecretsCheckError";
+    this.upstream = options?.upstream;
+    this.upstreamStatus = options?.upstreamStatus;
   }
 }
 
@@ -44,7 +55,12 @@ export async function fetchReleaseSecretSlots(input: {
     const releaseRes = await doFetch(releaseUrl, {
       headers: { ...headers, accept: "application/vnd.github+json" },
     });
-    if (!releaseRes.ok) throw new RequiredSecretsCheckError();
+    if (!releaseRes.ok) {
+      throw new RequiredSecretsCheckError({
+        upstream: "github",
+        upstreamStatus: releaseRes.status,
+      });
+    }
 
     const release = (await releaseRes.json()) as { assets?: ReleaseAsset[] };
     const asset = release.assets?.find((a) => a.name === "manifest.json");
@@ -55,7 +71,12 @@ export async function fetchReleaseSecretSlots(input: {
     const assetRes = await doFetch(asset.url, {
       headers: { ...headers, accept: "application/octet-stream" },
     });
-    if (!assetRes.ok) throw new RequiredSecretsCheckError();
+    if (!assetRes.ok) {
+      throw new RequiredSecretsCheckError({
+        upstream: "github",
+        upstreamStatus: assetRes.status,
+      });
+    }
 
     const manifest = (await assetRes.json()) as ReleaseManifest;
     const slots: Record<string, SecretSlot[]> = {};
@@ -63,8 +84,9 @@ export async function fetchReleaseSecretSlots(input: {
       slots[app] = plugin.secrets ?? [];
     }
     return slots;
-  } catch {
-    throw new RequiredSecretsCheckError();
+  } catch (error) {
+    if (error instanceof RequiredSecretsCheckError) throw error;
+    throw new RequiredSecretsCheckError({ cause: error, upstream: "github" });
   }
 }
 
@@ -105,8 +127,13 @@ export async function missingSecretsForActivation(input: {
         appSourceId: input.source.id,
       });
       platformRepo = latest?.platformRepo ?? undefined;
-    } catch {
-      throw new RequiredSecretsCheckError();
+    } catch (error) {
+      throw new RequiredSecretsCheckError({
+        cause: error,
+        upstream: "rust",
+        upstreamStatus:
+          error instanceof BackendError ? error.status : undefined,
+      });
     }
   }
   if (!platformRepo) throw new RequiredSecretsCheckError();

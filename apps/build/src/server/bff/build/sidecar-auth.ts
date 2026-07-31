@@ -1,6 +1,7 @@
 import "server-only";
 
 import { portalService } from "@aomi-labs/account";
+import { buildFailures } from "@build/server/bff/failures";
 
 /**
  * Sidecar auth rides the official service-bearer path (the same
@@ -39,7 +40,15 @@ export async function mintSidecarBearer(runId: string): Promise<string> {
 export function sidecarVerifierPublicKeyPem(): string {
   try {
     return portalService().self.publicKey;
-  } catch {
+  } catch (error) {
+    buildFailures.handle({
+      source: "local",
+      error,
+      context: {
+        routeFamily: "/api/bff/build",
+        operation: "build.sidecar_verifier_config",
+      },
+    });
     return "";
   }
 }

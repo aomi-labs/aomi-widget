@@ -1,4 +1,5 @@
 import { getPool } from "@aomi-labs/account";
+import { portalFailures } from "@portal/server/bff/failures";
 
 const MCP_AUTHORIZE_PATH = "/api/auth/mcp/authorize";
 
@@ -24,12 +25,16 @@ export async function withRegisteredMcpRedirectUri(
 
   const registered = await lookupRedirectUrls(clientId).catch(
     (error: unknown) => {
-      // A silent [] here quietly disables the fix and resurfaces as an
-      // undebuggable "Invalid OAuth callback" at the client. Say something.
-      console.warn(
-        "mcp authorize: registered redirect_uri lookup failed; passing request through",
+      portalFailures.handle({
+        source: "upstream_request",
+        upstream: "supabase",
         error,
-      );
+        context: {
+          routeFamily: MCP_AUTHORIZE_PATH,
+          operation: "mcp_oauth_redirect_lookup",
+          method: "GET",
+        },
+      });
       return [];
     },
   );

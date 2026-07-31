@@ -51,6 +51,6 @@ export const POST = widgetRoute(async (req: Request) => {
     });
   }
   return Response.json(result);
-}, "provider link");
+}, "provider.link");
 
 export const OPTIONS = widgetPreflight(["POST", "OPTIONS"]);

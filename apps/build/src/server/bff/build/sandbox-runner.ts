@@ -1,5 +1,36 @@
 import "server-only";
 
+import type { FailureInput } from "@aomi-labs/bff-observability";
+import { buildFailures } from "@build/server/bff/failures";
+
+function expectedSandboxAbsence(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const candidate = error as {
+    code?: unknown;
+    status?: unknown;
+    statusCode?: unknown;
+  };
+  const status = Number(candidate.status ?? candidate.statusCode);
+  const code =
+    typeof candidate.code === "string" ? candidate.code.toLowerCase() : "";
+  return status === 404 || code === "not_found" || code === "sandbox_not_found";
+}
+
+function identifySandboxFailure(
+  error: unknown,
+  operation: string,
+): FailureInput {
+  return {
+    source: "upstream_request",
+    upstream: "vercel",
+    error,
+    context: {
+      routeFamily: "/api/bff/build",
+      operation,
+    },
+  };
+}
+
 /**
  * Vercel Sandbox dispatch for build runs (ship plan Phase 3).
  *
@@ -87,7 +118,8 @@ export function sandboxRunnerConfig(
     vcpus: Number(env.AOMI_SANDBOX_VCPUS) || 4,
     databaseUrl,
     sdkRoot: env.AOMI_SANDBOX_SDK_ROOT ?? "/workspace/aomi-sdk",
-    smitherDir: env.AOMI_SANDBOX_SMITHER_DIR ?? "/workspace/aomi/packages/smither",
+    smitherDir:
+      env.AOMI_SANDBOX_SMITHER_DIR ?? "/workspace/aomi/packages/smither",
     sidecarPath: env.AOMI_SANDBOX_SIDECAR ?? "/workspace/sidecar.ts",
     builderApiKey: env.SMITHER_ANTHROPIC_API_KEY,
     openrouterApiKey: env.SMITHER_OPENROUTER_API_KEY,
@@ -109,8 +141,7 @@ type SdkSandbox = {
 function adaptSdkSandbox(sandbox: SdkSandbox): SandboxLike {
   return {
     sandboxId: sandbox.name,
-    runCommand: (params) =>
-      sandbox.runCommand(params) as Promise<unknown>,
+    runCommand: (params) => sandbox.runCommand(params) as Promise<unknown>,
     extendTimeout: (durationMs) => sandbox.extendTimeout(durationMs),
     stop: () => sandbox.stop(),
     domain: (port) => sandbox.domain(port),
@@ -122,9 +153,7 @@ async function defaultClient(): Promise<SandboxClientLike> {
   return {
     create: async (params) =>
       adaptSdkSandbox(
-        (await Sandbox.create(
-          params as never,
-        )) as unknown as SdkSandbox,
+        (await Sandbox.create(params as never)) as unknown as SdkSandbox,
       ),
   };
 }
@@ -206,7 +235,8 @@ export async function dispatchSandboxRun(options: {
   let sidecarUrl = "";
   try {
     sidecarUrl = sandbox.domain?.(SIDECAR_PORT) ?? "";
-  } catch {
+  } catch (error) {
+    buildFailures.handle(identifySandboxFailure(error, "build.sandbox_domain"));
     sidecarUrl = "";
   }
   return { sandbox, lastExtendMs: Date.now(), sidecarUrl };
@@ -222,7 +252,8 @@ export async function maybeExtendSandbox(
   try {
     await dispatch.sandbox.extendTimeout(EXTEND_STEP_MS);
     return true;
-  } catch {
+  } catch (error) {
+    buildFailures.handle(identifySandboxFailure(error, "build.sandbox_extend"));
     // Expired/stopped sandbox — the run resumes in a fresh one on re-create.
     return false;
   }
@@ -231,7 +262,10 @@ export async function maybeExtendSandbox(
 export async function stopSandbox(dispatch: SandboxDispatch): Promise<void> {
   try {
     await dispatch.sandbox.stop();
-  } catch {
+  } catch (error) {
+    if (!expectedSandboxAbsence(error)) {
+      buildFailures.handle(identifySandboxFailure(error, "build.sandbox_stop"));
+    }
     // Best-effort: durable cancel already reached the store.
   }
 }
@@ -250,7 +284,12 @@ async function getSandboxById(sandboxId: string): Promise<SandboxLike | null> {
     return adaptSdkSandbox(
       await get.call(Sandbox, { name: sandboxId, resume: false }),
     );
-  } catch {
+  } catch (error) {
+    if (!expectedSandboxAbsence(error)) {
+      buildFailures.handle(
+        identifySandboxFailure(error, "build.sandbox_lookup"),
+      );
+    }
     return null;
   }
 }
@@ -260,7 +299,12 @@ export async function stopSandboxById(sandboxId: string): Promise<void> {
   if (!sandbox) return;
   try {
     await sandbox.stop();
-  } catch {
+  } catch (error) {
+    if (!expectedSandboxAbsence(error)) {
+      buildFailures.handle(
+        identifySandboxFailure(error, "build.sandbox_stop_by_id"),
+      );
+    }
     // Already stopped/expired — the goal state.
   }
 }
@@ -273,7 +317,10 @@ export async function extendSandboxById(sandboxId: string): Promise<boolean> {
   try {
     await sandbox.extendTimeout(EXTEND_STEP_MS);
     return true;
-  } catch {
+  } catch (error) {
+    buildFailures.handle(
+      identifySandboxFailure(error, "build.sandbox_extend_by_id"),
+    );
     return false;
   }
 }

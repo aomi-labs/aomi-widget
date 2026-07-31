@@ -3,9 +3,9 @@ import "server-only";
 import { NextResponse } from "next/server";
 import { deploymentClient } from "@build/server/bff/backend";
 import { resolveLaunchPlatform } from "./config";
-import { launchErrorResponse } from "./errors";
 import { clearLaunchReadCache } from "./routes";
 import { authorize } from "@build/server/bff/auth";
+import { buildFailures } from "@build/server/bff/failures";
 
 export async function sourceSdkUpgradeRoute(req: Request) {
   const auth = await authorize(req, { write: true });
@@ -47,7 +47,15 @@ export async function sourceSdkUpgradeRoute(req: Request) {
     clearLaunchReadCache();
     return NextResponse.json(result);
   } catch (error) {
-    return launchErrorResponse(error);
+    return buildFailures.handle({
+      source: "launch",
+      error,
+      context: {
+        routeFamily: new URL(req.url).pathname,
+        operation: "deployment.sdk_upgrade",
+        method: req.method,
+      },
+    }).response;
   }
 }
 
@@ -88,6 +96,14 @@ export async function sourceSdkUpgradeStatusRoute(req: Request) {
     });
     return NextResponse.json(result);
   } catch (error) {
-    return launchErrorResponse(error);
+    return buildFailures.handle({
+      source: "launch",
+      error,
+      context: {
+        routeFamily: new URL(req.url).pathname,
+        operation: "deployment.sdk_upgrade_status",
+        method: req.method,
+      },
+    }).response;
   }
 }

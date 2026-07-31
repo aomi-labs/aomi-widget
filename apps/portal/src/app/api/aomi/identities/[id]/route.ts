@@ -27,11 +27,13 @@ export const PATCH = widgetRoute(
       identityId: id,
       displayLabel: body.displayLabel ?? null,
     });
-    if (result === "not_found") return json(404, { error: "identity_not_found" });
-    if (result === "protected") return json(403, { error: "protected_identity" });
+    if (result === "not_found")
+      return json(404, { error: "identity_not_found" });
+    if (result === "protected")
+      return json(403, { error: "protected_identity" });
     return Response.json(await accountResponseForPrincipal(req, current));
   },
-  "identity rename",
+  "identity.rename",
 );
 
 export const DELETE = widgetRoute(
@@ -42,14 +44,16 @@ export const DELETE = widgetRoute(
       userId: current.userId,
       identityId: id,
     });
-    if (result === "not_found") return json(404, { error: "identity_not_found" });
-    if (result === "protected") return json(403, { error: "protected_identity" });
+    if (result === "not_found")
+      return json(404, { error: "identity_not_found" });
+    if (result === "protected")
+      return json(403, { error: "protected_identity" });
     if (result === "last_factor") {
       return json(409, { error: "cannot_unlink_last_login_factor" });
     }
     return Response.json({ status: "revoked" });
   },
-  "identity unlink",
+  "identity.unlink",
 );
 
 export const OPTIONS = widgetPreflight(["PATCH", "DELETE", "OPTIONS"]);

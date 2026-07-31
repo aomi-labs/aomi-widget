@@ -17,6 +17,7 @@ import {
   polygon,
   sepolia,
 } from "viem/chains";
+import { observeAccountDiagnostic } from "../observability";
 
 export async function verifySiweMessage(input: {
   message: string;
@@ -39,12 +40,15 @@ export async function verifySiweMessage(input: {
 
   const chainId = input.chainId ?? parseSiweChainId(input.message);
   if (!chainId) {
-    await logInvalidSiweMessage(input, { eoaError, reason: "missing_chain" });
+    await observeInvalidSiweMessage(input, {
+      eoaError,
+      reason: "missing_chain",
+    });
     return false;
   }
   const client = publicClientForChain(chainId);
   if (!client) {
-    await logInvalidSiweMessage(input, {
+    await observeInvalidSiweMessage(input, {
       eoaError,
       reason: "unsupported_chain",
     });
@@ -58,14 +62,14 @@ export async function verifySiweMessage(input: {
     });
     if (smartAccountOk) return true;
   } catch (error) {
-    await logInvalidSiweMessage(input, {
+    await observeInvalidSiweMessage(input, {
       eoaError,
       smartAccountError: error,
       reason: "signature_mismatch",
     });
     return false;
   }
-  await logInvalidSiweMessage(input, {
+  await observeInvalidSiweMessage(input, {
     eoaError,
     reason: "signature_mismatch",
   });
@@ -183,7 +187,7 @@ function parseSiweChainId(message: string): number | null {
   return Number.isInteger(chainId) && chainId > 0 ? chainId : null;
 }
 
-async function logInvalidSiweMessage(
+async function observeInvalidSiweMessage(
   input: {
     message: string;
     signature: string;
@@ -198,20 +202,27 @@ async function logInvalidSiweMessage(
 ): Promise<void> {
   const recoveredAddress = await recoverSigner(input.message, input.signature);
   const lines = input.message.split(/\r?\n/);
-  console.warn("[aomi][siwe] invalid signature", {
-    reason: details.reason,
-    expectedAddress: shortAddress(input.address),
-    recoveredAddress: recoveredAddress ? shortAddress(recoveredAddress) : null,
-    chainId: input.chainId ?? parseSiweChainId(input.message),
-    messageShape: {
-      lineCount: lines.length,
-      firstLinePrefix: lines[0]?.slice(0, 80) ?? null,
-      addressLine: lines[1] ? shortAddress(lines[1]) : null,
-      addressMatches: lines[1]?.toLowerCase() === input.address.toLowerCase(),
-      chainLine: lines.find((line) => line.startsWith("Chain ID: ")) ?? null,
+  observeAccountDiagnostic({
+    kind: "siwe.signature_mismatch",
+    attributes: {
+      reason: details.reason,
+      expected_address: shortAddress(input.address),
+      recovered_address: recoveredAddress
+        ? shortAddress(recoveredAddress)
+        : null,
+      chain_id: input.chainId ?? parseSiweChainId(input.message),
+      message_line_count: lines.length,
+      message_address_matches:
+        lines[1]?.toLowerCase() === input.address.toLowerCase(),
+      eoa_error_kind: errorKind(details.eoaError),
+      smart_account_error_kind: errorKind(details.smartAccountError),
     },
-    eoaError: errorMessage(details.eoaError),
-    smartAccountError: errorMessage(details.smartAccountError),
+    context: {
+      routeFamily: "/api/auth/[...all]",
+      operation: "account.siwe_verify",
+      method: "POST",
+    },
+    response: { status: 401, error: "invalid_siwe_signature" },
   });
 }
 
@@ -233,6 +244,6 @@ function shortAddress(address: string): string {
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
 }
 
-function errorMessage(error: unknown): string | null {
-  return error instanceof Error ? error.message : null;
+function errorKind(error: unknown): string | null {
+  return error instanceof Error ? error.name.slice(0, 80) : null;
 }

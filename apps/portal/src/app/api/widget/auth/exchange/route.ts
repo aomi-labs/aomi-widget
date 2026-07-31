@@ -39,7 +39,7 @@ export const POST = widgetRoute(async (request: Request) => {
     providerIdentityId: resolution.identity.id,
   });
   return widgetSessionResponse(session);
-}, "provider exchange");
+}, "widget.provider.exchange");
 
 export const OPTIONS = widgetPreflight(["POST", "OPTIONS"]);
 

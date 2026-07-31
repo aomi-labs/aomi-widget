@@ -1,4 +1,9 @@
 export { auth } from "./auth";
+export {
+  setBetterAuthFailureObserver,
+  type BetterAuthFailure,
+  type ObserveBetterAuthFailure,
+} from "./failure-observer";
 export { readAccountAuthEnv, type AccountAuthEnv } from "./env";
 export { verifySiweMessage } from "./siwe";
 export {

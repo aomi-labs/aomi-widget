@@ -4,6 +4,14 @@ import {
   type WidgetChallenge,
   type WidgetSession,
 } from "@aomi-labs/account/widget-auth";
+import {
+  normalizeRequestPath,
+  type FailureContext,
+  type FailureInput,
+} from "@aomi-labs/bff-observability";
+// This module is imported only by server route handlers despite its legacy lib path.
+// eslint-disable-next-line no-restricted-imports
+import { portalFailures } from "@portal/server/bff/failures";
 import { ZodError } from "zod";
 import { applyWidgetCors, widgetCorsPreflight } from "./cors";
 import { PortalPrincipalError } from "./principal";
@@ -28,61 +36,76 @@ function providerTokenErrorCode(error: unknown): string | null {
   return null;
 }
 
-export function widgetAuthErrorResponse(
-  request: Request,
+export function identifyWidgetAuthFailure(
   error: unknown,
-  operation: string,
-): Response {
+  context: FailureContext,
+): FailureInput {
   if (
     error instanceof WidgetAuthError ||
     error instanceof PortalPrincipalError
   ) {
-    return applyWidgetCors(
-      request,
-      Response.json({ error: error.code }, { status: error.status }),
-    );
+    return {
+      source: "expected",
+      error,
+      response: { status: error.status, error: error.code },
+      context,
+    };
   }
   if (error instanceof IdentityConflictError) {
-    return applyWidgetCors(
-      request,
-      Response.json({ error: error.code }, { status: 409 }),
-    );
+    return {
+      source: "expected",
+      error,
+      response: { status: 409, error: error.code },
+      context,
+    };
   }
   if (error instanceof ZodError) {
-    return applyWidgetCors(
-      request,
-      Response.json({ error: "invalid_request" }, { status: 400 }),
-    );
+    return {
+      source: "expected",
+      error,
+      response: { status: 400, error: "invalid_request" },
+      context,
+    };
   }
   const providerTokenCode = providerTokenErrorCode(error);
   if (providerTokenCode) {
-    return applyWidgetCors(
-      request,
-      Response.json({ error: providerTokenCode }, { status: 401 }),
-    );
+    return {
+      source: "expected",
+      error,
+      response: { status: 401, error: providerTokenCode },
+      context,
+    };
   }
-  console.error(`widget auth ${operation} failed`, error);
-  return applyWidgetCors(
-    request,
-    Response.json({ error: "widget_auth_failed" }, { status: 500 }),
-  );
+  return {
+    source: "local",
+    error,
+    response: { status: 500, error: "widget_auth_failed" },
+    context,
+  };
 }
 
 /**
  * Wraps a widget route handler so it can return plain `Response`s and throw
  * typed errors: the wrapper applies the cross-origin CORS headers on success
- * and maps thrown errors centrally via {@link widgetAuthErrorResponse}.
+ * and routes thrown errors through the shared failure pipeline.
  */
 export function widgetRoute<Args extends unknown[]>(
   handler: (...args: Args) => Promise<Response>,
-  operation = "widget route",
+  operation: string,
 ): (...args: Args) => Promise<Response> {
   return async (...args: Args): Promise<Response> => {
     const request = args[0] as Request;
     try {
       return applyWidgetCors(request, await handler(...args));
     } catch (error) {
-      return widgetAuthErrorResponse(request, error, operation);
+      const failure = portalFailures.handle(
+        identifyWidgetAuthFailure(error, {
+          routeFamily: normalizeRequestPath(request.url),
+          operation,
+          method: request.method,
+        }),
+      );
+      return applyWidgetCors(request, failure.response);
     }
   };
 }

@@ -26,7 +26,7 @@ export const POST = widgetRoute(async (request: Request) => {
     chainId: parsed.chain_id,
   });
   return widgetSessionResponse(session);
-}, "SIWS verify");
+}, "widget.siws.verify");
 
 export const OPTIONS = widgetPreflight(["POST", "OPTIONS"]);
 
