@@ -1342,6 +1342,74 @@
         ]
       }
     },
+    "/api/platforms/{name}/telegram/handover": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "platformBearer": []
+          }
+        ],
+        "x-aomi-auth": [
+          "activation"
+        ]
+      }
+    },
+    "/api/platforms/{name}/telegram/handover/{bot}/{id}": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "platformBearer": []
+          }
+        ],
+        "x-aomi-auth": [
+          "activation"
+        ]
+      }
+    },
+    "/api/platforms/{name}/telegram/handover/{bot}/{id}/activate": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "platformBearer": []
+          }
+        ],
+        "x-aomi-auth": [
+          "activation"
+        ]
+      }
+    },
+    "/api/platforms/{name}/telegram/handover/{bot}/{id}/revoke": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "platformBearer": []
+          }
+        ],
+        "x-aomi-auth": [
+          "activation"
+        ]
+      }
+    },
     "/api/platforms/{name}/activate": {
       "post": {
         "responses": {
