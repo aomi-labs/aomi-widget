@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { AomiFrame } from "@aomi-labs/widget-lib";
+import { AomiFrame, useAomiWalletKit } from "@aomi-labs/widget-lib";
 import { useAomiRuntime, usePerThreadControl } from "@aomi-labs/react";
 import { RequiredSecretsGate } from "@portal/components/shell/required-secrets-gate";
 import { HeaderControls } from "@portal/components/shell/header-controls";
@@ -98,6 +98,7 @@ function AppSelectUrlBootstrap({
 }
 
 export function PortalAomiFrame() {
+  const { accountUser } = useAomiWalletKit();
   const requestedApp = useRequestedAppConfig();
   const lockedApp = requestedApp.locked ? requestedApp.app : null;
   const lockedApplicationId = lockedApp ? requestedApp.applicationId : null;
@@ -113,9 +114,11 @@ export function PortalAomiFrame() {
   return (
     <main className="bg-background relative h-full w-full overflow-hidden">
       <AomiFrame.Root
+        key={accountUser?.id ?? "anonymous"}
         width="100%"
         height="100%"
         backendUrl={backendUrl}
+        accountSessionAvailable={Boolean(accountUser)}
         walletPosition="footer"
         walletFamilies={["evm", "solana"]}
         className="portal-aomi-frame aui-suggestions-marquee rounded-none border-0 shadow-none"

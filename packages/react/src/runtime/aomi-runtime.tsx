@@ -32,6 +32,8 @@ export type AomiRuntimeProviderProps = {
   applicationId?: number | string | null;
   appPlatforms?: AomiPlatformFilter;
   clientOptions?: Omit<AomiClientOptions, "baseUrl">;
+  /** Whether a canonical account session can load threads without a wallet. */
+  accountSessionAvailable?: boolean;
   /** Optional explicit initial thread. Takes precedence over stored state. */
   initialThreadId?: string;
   /** Persist the active materialized thread in localStorage. Defaults to true. */
@@ -52,6 +54,7 @@ export function AomiRuntimeProvider({
   applicationId,
   appPlatforms,
   clientOptions,
+  accountSessionAvailable = false,
   initialThreadId,
   persistThread = true,
   threadPersistenceKey,
@@ -108,6 +111,7 @@ export function AomiRuntimeProvider({
             aomiClient={aomiClient}
             applicationId={applicationId}
             appPlatforms={appPlatforms}
+            accountSessionAvailable={accountSessionAvailable}
             restoredThreadId={restoredThreadId}
             threadPersistenceKey={resolvedThreadPersistenceKey}
           >
@@ -128,6 +132,7 @@ type AomiRuntimeInnerProps = {
   aomiClient: AomiClient;
   applicationId?: number | string | null;
   appPlatforms?: AomiPlatformFilter;
+  accountSessionAvailable: boolean;
   restoredThreadId?: string;
   threadPersistenceKey?: string | null;
 };
@@ -137,6 +142,7 @@ function AomiRuntimeInner({
   aomiClient,
   applicationId,
   appPlatforms,
+  accountSessionAvailable,
   restoredThreadId,
   threadPersistenceKey,
 }: Readonly<AomiRuntimeInnerProps>) {
@@ -157,6 +163,7 @@ function AomiRuntimeInner({
         <AomiRuntimeCore
           aomiClient={aomiClient}
           applicationId={applicationId}
+          accountSessionAvailable={accountSessionAvailable}
           restoredThreadId={restoredThreadId}
           threadPersistenceKey={threadPersistenceKey}
         >
