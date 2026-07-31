@@ -95,13 +95,37 @@ export function sandboxRunnerConfig(
   };
 }
 
+/** The SDK surface we consume. Sandboxes are identified by `name` — the
+ *  Sandbox class has no `sandboxId`/`id` getter, and `Sandbox.get` takes
+ *  `{name}` — so the adapter maps `name` onto SandboxLike.sandboxId. */
+type SdkSandbox = {
+  name: string;
+  runCommand(params: unknown): Promise<unknown>;
+  extendTimeout(durationMs: number): Promise<unknown>;
+  stop(): Promise<unknown>;
+  domain(port: number): string;
+};
+
+function adaptSdkSandbox(sandbox: SdkSandbox): SandboxLike {
+  return {
+    sandboxId: sandbox.name,
+    runCommand: (params) =>
+      sandbox.runCommand(params) as Promise<unknown>,
+    extendTimeout: (durationMs) => sandbox.extendTimeout(durationMs),
+    stop: () => sandbox.stop(),
+    domain: (port) => sandbox.domain(port),
+  };
+}
+
 async function defaultClient(): Promise<SandboxClientLike> {
   const { Sandbox } = await import("@vercel/sandbox");
-  // The SDK's Sandbox is a superset of SandboxLike; the seam keeps tests
-  // SDK-free, so narrow through unknown.
   return {
-    create: (params) =>
-      Sandbox.create(params) as unknown as Promise<SandboxLike>,
+    create: async (params) =>
+      adaptSdkSandbox(
+        (await Sandbox.create(
+          params as never,
+        )) as unknown as SdkSandbox,
+      ),
   };
 }
 
@@ -219,10 +243,13 @@ async function getSandboxById(sandboxId: string): Promise<SandboxLike | null> {
     const { Sandbox } = await import("@vercel/sandbox");
     const get = (
       Sandbox as unknown as {
-        get(params: { sandboxId: string }): Promise<SandboxLike>;
+        get(params: { name: string; resume: boolean }): Promise<SdkSandbox>;
       }
     ).get;
-    return await get.call(Sandbox, { sandboxId });
+    // resume:false — never resurrect a lapsed sandbox just to manage it.
+    return adaptSdkSandbox(
+      await get.call(Sandbox, { name: sandboxId, resume: false }),
+    );
   } catch {
     return null;
   }
