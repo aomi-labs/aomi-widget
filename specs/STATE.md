@@ -2,6 +2,44 @@
 
 ## Last Updated
 
+2026-08-01 — Integrations/bots BE lifecycle fixes (product-mono worktree
+  `.claude/worktrees/bots-be-fixes`, branch `fix/bot-registration-lifecycle`
+  off origin/main d1d694a1e, uncommitted). Session goal: redesign the
+  build-staging /integrations page (Telegram bots) UI/UX + fix bugs FE→BE;
+  this entry is the BE half. Three confirmed bugs fixed in the manager's
+  builder-bot routes (`bin/manager/src/endpoints/github_app_bots.rs`) +
+  `aomi-database` entity:
+  (1) REMOVED BOT COULD NEVER BE RE-REGISTERED — "Remove" only disables the
+  row, but create's `find_by_platform_bot` pre-check ignored disabled rows
+  and `UNIQUE (platform, platform_bot_id)` hard-blocks re-insert → permanent
+  409. Now create revives a same-builder disabled row in place (new entity
+  `DbBotRegistration::revive_for_builder` + `BotRevival`): webhook
+  re-activated on the row's EXISTING secret BEFORE the row re-enables (failed
+  activation leaves it disabled — no rollback path), then credential/label/
+  username/thread_mode/apps refreshed atomically, configuration_version
+  bumped. Active rows and rows owned by another builder/account still 409.
+  (2) PATCH now accepts optional `label`/`thread_mode`
+  (`UpdateBuilderBotRequest`; entity `BotConfigPatch` on
+  `replace_apps_for_builder` — omitted field = unchanged, blank label =
+  clear, invalid thread_mode = 400). Previously the FE's enabled Thread-mode
+  select during edit was silently ignored.
+  (3) Both DELETE routes now do best-effort Telegram `deleteWebhook` after
+  disabling (credential decrypted via BotCredentialCipher; failure logged +
+  swallowed — receiver already rejects inactive secrets).
+  Verified: manager 140+22 tests green incl. 3 new DB-backed tests
+  (revive happy path, active/foreign-builder guards, patch semantics —
+  local supabase :54322, ran `supabase migration up --include-all` to apply
+  the out-of-order 20260723 bot_registration_apps migration), clippy clean
+  both crates, fmt applied, `cargo check -p backend` green.
+  PENDING (FE half, this aomi worktree): send label+threadMode on the
+  bots PATCH (BFF `operateBotsUpdateRoute` + `packages/deploy`
+  `updateUserBot` + bots-view), cancel-edit affordance, ghost-app-id
+  handling, delete dead `features/integrations/client.ts` +
+  `server/bff/integrations/routes.ts` stub, then the BotsView UI redesign
+  (list-first, per-bot edit). NOTE: the user-owned (portal) create path in
+  `bin/backend/src/handler/bot_registration.rs:458` has the same
+  revive-vs-409 bug — deliberately untouched, follow-up.
+
 2026-07-30 — Operate batch reads for the REST of the herd: transactions,
   statement, usage, logs (branch `fix/operate-batch-reads` in aomi,
   `feat/operate-batch-reads` in product-mono). Cecilia reported Transactions
