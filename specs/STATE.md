@@ -2,6 +2,48 @@
 
 ## Last Updated
 
+2026-08-01 — Integrations page (build-staging.aomi.dev/integrations) FE logic
+  fixes + redesign kickoff (worktree vibrant-cerf-89d084, branch
+  claude/page-redesign-bug-fixes-277017, uncommitted). Full-chain read done:
+  IntegrationsView shell → embedded BotsView → BFF operate/bots →
+  packages/deploy client → manager github_app_bots.rs → bin/telegram runtime.
+  FE fixes in `apps/build/src/features/operate/bots-view.tsx`:
+  - Cancel button for edit mode (was a one-way door — editingId only cleared
+    by successful save).
+  - Thread mode select now disabled while editing, with explanatory hint
+    (PATCH carries only app mappings; manager UpdateBuilderBotRequest has no
+    thread_mode — the enabled select silently discarded changes).
+  - Ghost apps (bot mappings no longer in the builder's sources) render as
+    uncheckable-only rows under "No longer available", appear in the Primary
+    select, and block save with an inline message instead of an opaque BFF
+    403 "selected apps are not owned by this user".
+  - Removing the bot being edited exits edit mode.
+  - toggleApplication no longer calls setState inside another setState
+    updater (StrictMode impurity).
+  - "Attached apps" group is a div, not a <label> (nested labels gave every
+    checkbox the same accessible name and any click in the box toggled the
+    first checkbox).
+  Tests: bots-view.test.tsx +2 (edit-mode lock/cancel, ghost-block); apps/
+  build suite 403/403, type-check + eslint clean. NOTE: fresh worktree needed
+  `pnpm install` + `pnpm --filter @aomi-labs/smither build` (dist JS is
+  untracked; its tsup DTS step fails but emits JS first — the two committed
+  dist .d.ts get deleted by the build, restore with git checkout).
+  NEW blank design playground `apps/build/src/app/mock-integration/page.tsx`
+  at localhost:3010/mock-integration (launch.json entry
+  `build-mock-integration`, NEXT_DIST_DIR=.next-mock-integration; tsconfig
+  include gained the matching two type globs, same pattern as .next-b/
+  .next-verify). Page is deliberately empty — redesign direction TBD with
+  Cecilia.
+  KNOWN BE bugs deliberately NOT touched this session (FE-only scope):
+  (1) removed (disabled) bot can never be re-registered — create's
+  find_by_platform_bot ignores disabled rows + DB UNIQUE
+  (platform, platform_bot_id) → permanent 409; fix = revive-on-create for
+  same-owner disabled rows; (2) disable never calls Telegram deleteWebhook;
+  (3) thread_mode/label not updatable via PATCH (manager + BFF + client).
+  Dead FE stub also left in place: features/integrations/client.ts +
+  server/bff/integrations/routes.ts (status always disconnected, connect
+  501) — wired to /api/bff/integrations but nothing calls it.
+
 2026-07-30 — Operate batch reads for the REST of the herd: transactions,
   statement, usage, logs (branch `fix/operate-batch-reads` in aomi,
   `feat/operate-batch-reads` in product-mono). Cecilia reported Transactions

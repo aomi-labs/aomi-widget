@@ -138,9 +138,33 @@ export function BotsView({ embedded = false }: { embedded?: boolean }) {
     [sources],
   );
 
+  const editingBot = useMemo(
+    () => (editingId ? (bots.find((bot) => bot.id === editingId) ?? null) : null),
+    [bots, editingId],
+  );
+
+  // Apps still mapped to the bot being edited but no longer present in the
+  // builder's sources. They render as uncheckable-only rows: keeping one
+  // selected would 403 at the BFF ownership check, so save stays blocked
+  // until they are unchecked.
+  const ghostApps = useMemo(() => {
+    if (!editingBot) return [];
+    const available = new Set(options.map((option) => option.applicationId));
+    return (editingBot.apps ?? []).filter(
+      (app) => !available.has(app.applicationId),
+    );
+  }, [editingBot, options]);
+
+  const ghostSelected = useMemo(() => {
+    if (ghostApps.length === 0) return [];
+    const ghosts = new Set(ghostApps.map((app) => app.applicationId));
+    return selectedApplicationIds.filter((id) => ghosts.has(id));
+  }, [ghostApps, selectedApplicationIds]);
+
   const canCreate =
     selectedApplicationIds.length > 0 &&
     primaryApplicationId !== null &&
+    ghostSelected.length === 0 &&
     (editingId !== null || token.trim().length > 0) &&
     !creating;
 
@@ -235,6 +259,15 @@ export function BotsView({ embedded = false }: { embedded?: boolean }) {
               }
             : current,
         );
+        if (editingId === bot.id) {
+          setEditingId(null);
+          setSelectedApplicationIds([]);
+          setPrimaryApplicationId(null);
+          setLabel("");
+          setToken("");
+          setThreadMode("single");
+          setFormStatus(null);
+        }
       } catch (err) {
         setFormError(
           err instanceof Error ? err.message : "Failed to remove bot",
@@ -243,22 +276,23 @@ export function BotsView({ embedded = false }: { embedded?: boolean }) {
         setRemovingId(null);
       }
     },
-    [queryClient, queryKey],
+    [editingId, queryClient, queryKey],
   );
 
-  const toggleApplication = useCallback((applicationId: number) => {
-    setSelectedApplicationIds((current) => {
-      const selected = current.includes(applicationId)
-        ? current.filter((id) => id !== applicationId)
-        : [...current, applicationId];
+  const toggleApplication = useCallback(
+    (applicationId: number) => {
+      const selected = selectedApplicationIds.includes(applicationId)
+        ? selectedApplicationIds.filter((id) => id !== applicationId)
+        : [...selectedApplicationIds, applicationId];
+      setSelectedApplicationIds(selected);
       setPrimaryApplicationId((primary) =>
         primary !== null && selected.includes(primary)
           ? primary
           : (selected[0] ?? null),
       );
-      return selected;
-    });
-  }, []);
+    },
+    [selectedApplicationIds],
+  );
 
   const beginEdit = useCallback((bot: Bot) => {
     const mapped = bot.apps ?? [];
@@ -276,6 +310,17 @@ export function BotsView({ embedded = false }: { embedded?: boolean }) {
     setFormStatus(
       `Editing apps for ${displayBotName(bot)}. Token is not required.`,
     );
+  }, []);
+
+  const cancelEdit = useCallback(() => {
+    setEditingId(null);
+    setSelectedApplicationIds([]);
+    setPrimaryApplicationId(null);
+    setLabel("");
+    setToken("");
+    setThreadMode("single");
+    setFormError(null);
+    setFormStatus(null);
   }, []);
 
   if (account.loading) {
@@ -364,7 +409,10 @@ export function BotsView({ embedded = false }: { embedded?: boolean }) {
         </div>
 
         <div className="grid gap-4 md:grid-cols-2">
-          <label className="block space-y-1 text-sm">
+          {/* A div, not a label: wrapping the whole group in a <label> gave
+              every checkbox the same accessible name and made any click in
+              the box toggle the first checkbox. */}
+          <div className="block space-y-1 text-sm">
             <span className="text-dim">Attached apps</span>
             <div className="border-border bg-surface max-h-40 space-y-1 overflow-y-auto rounded-md border p-2">
               {sources.map((source) => (
@@ -388,13 +436,42 @@ export function BotsView({ embedded = false }: { embedded?: boolean }) {
                   ))}
                 </div>
               ))}
+              {ghostApps.length > 0 ? (
+                <div className="space-y-1">
+                  <div className="text-dim text-xs font-medium">
+                    No longer available
+                  </div>
+                  {ghostApps.map((app) => (
+                    <label
+                      key={app.applicationId}
+                      className="flex items-center gap-2 text-sm"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedApplicationIds.includes(
+                          app.applicationId,
+                        )}
+                        onChange={() => toggleApplication(app.applicationId)}
+                        disabled={
+                          creating ||
+                          !selectedApplicationIds.includes(app.applicationId)
+                        }
+                      />
+                      <span className="text-dim">
+                        {app.name}
+                        {app.sourceLabel ? ` — ${app.sourceLabel}` : ""}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              ) : null}
             </div>
             {options.length === 0 ? (
               <span className="text-dim block text-xs">
                 No deployed apps available for this account.
               </span>
             ) : null}
-          </label>
+          </div>
           <label className="block space-y-1 text-sm">
             <span className="text-dim">Primary app</span>
             <select
@@ -418,6 +495,15 @@ export function BotsView({ embedded = false }: { embedded?: boolean }) {
                     {option.name} ({option.sourceLabel})
                   </option>
                 ))}
+              {ghostApps
+                .filter((app) =>
+                  selectedApplicationIds.includes(app.applicationId),
+                )
+                .map((app) => (
+                  <option key={app.applicationId} value={app.applicationId}>
+                    {app.name} (no longer available)
+                  </option>
+                ))}
             </select>
           </label>
           <label className="block space-y-1 text-sm">
@@ -425,20 +511,36 @@ export function BotsView({ embedded = false }: { embedded?: boolean }) {
             <select
               value={threadMode}
               onChange={(event) => setThreadMode(event.target.value)}
-              disabled={creating}
+              disabled={creating || editingId !== null}
               className="border-border bg-surface text-foreground h-9 w-full rounded-md border px-2"
             >
               <option value="single">Single thread</option>
               <option value="multi">Multiple threads</option>
             </select>
             <span className="text-dim block text-xs">
-              Single keeps the bot simple; multiple lets users switch threads
-              with session commands.
+              {editingId
+                ? "Thread mode can't be changed after registration."
+                : "Single keeps the bot simple; multiple lets users switch threads with session commands."}
             </span>
           </label>
         </div>
 
-        <div className="flex justify-end">
+        <div className="flex items-center justify-end gap-3">
+          {ghostSelected.length > 0 ? (
+            <span className="text-danger text-xs">
+              Uncheck the apps that are no longer available to save.
+            </span>
+          ) : null}
+          {editingId ? (
+            <button
+              type="button"
+              onClick={cancelEdit}
+              disabled={creating}
+              className="border-border hover:bg-accent-hover text-foreground h-9 rounded-md border px-4 text-sm font-medium disabled:opacity-50"
+            >
+              Cancel
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={() => void handleCreate()}
