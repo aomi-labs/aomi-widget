@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { AomiFrame } from "@aomi-labs/widget-lib";
+import { AomiFrame, useAomiWalletKit } from "@aomi-labs/widget-lib";
 import { useAomiRuntime, usePerThreadControl } from "@aomi-labs/react";
 import { RequiredSecretsGate } from "@portal/components/shell/required-secrets-gate";
 import { HeaderControls } from "@portal/components/shell/header-controls";
@@ -98,6 +98,15 @@ function AppSelectUrlBootstrap({
 }
 
 export function PortalAomiFrame() {
+  const { accountStatus, accountUser } = useAomiWalletKit();
+  const accountUserId = accountUser?.id;
+  const [hasResolvedInitialAccount, setHasResolvedInitialAccount] = useState(
+    accountStatus !== "loading",
+  );
+  const [accountFrameScope, setAccountFrameScope] = useState(() => ({
+    accountUserId,
+    revision: 0,
+  }));
   const requestedApp = useRequestedAppConfig();
   const lockedApp = requestedApp.locked ? requestedApp.app : null;
   const lockedApplicationId = lockedApp ? requestedApp.applicationId : null;
@@ -110,12 +119,45 @@ export function PortalAomiFrame() {
     "none",
   );
 
+  useEffect(() => {
+    if (accountStatus !== "loading") {
+      setHasResolvedInitialAccount(true);
+    }
+  }, [accountStatus]);
+
+  if (
+    accountStatus !== "loading" &&
+    accountFrameScope.accountUserId !== accountUserId
+  ) {
+    setAccountFrameScope({
+      accountUserId,
+      // Preserve anonymous conversation state when sign-in establishes the
+      // first account. Remount when leaving an authenticated account so its
+      // threads and in-flight sessions cannot cross into another principal.
+      revision:
+        accountFrameScope.accountUserId === undefined
+          ? accountFrameScope.revision
+          : accountFrameScope.revision + 1,
+    });
+  }
+
+  if (!hasResolvedInitialAccount) {
+    return (
+      <main
+        aria-busy="true"
+        className="bg-background relative h-full w-full overflow-hidden"
+      />
+    );
+  }
+
   return (
     <main className="bg-background relative h-full w-full overflow-hidden">
       <AomiFrame.Root
+        key={accountFrameScope.revision}
         width="100%"
         height="100%"
         backendUrl={backendUrl}
+        accountSessionAvailable={Boolean(accountUser)}
         walletPosition="footer"
         walletFamilies={["evm", "solana"]}
         className="portal-aomi-frame aui-suggestions-marquee rounded-none border-0 shadow-none"

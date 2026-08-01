@@ -36,6 +36,7 @@ export type AomiRuntimeCoreProps = {
   children: ReactNode;
   aomiClient: AomiClient;
   applicationId?: number | string | null;
+  accountSessionAvailable?: boolean;
   restoredThreadId?: string;
   threadPersistenceKey?: string | null;
 };
@@ -48,6 +49,7 @@ export function AomiRuntimeCore({
   children,
   aomiClient,
   applicationId,
+  accountSessionAvailable = false,
   restoredThreadId,
   threadPersistenceKey,
 }: Readonly<AomiRuntimeCoreProps>) {
@@ -242,6 +244,7 @@ export function AomiRuntimeCore({
       warmedThreadIdsRef,
       warmThread,
     },
+    accountSessionAvailable,
     threadPersistence,
   });
 

@@ -93,6 +93,7 @@ type RemoteThreadRegistry = {
 type RuntimeUserStateEffectsOptions = {
   sessions: RuntimeSessionBridge;
   remoteThreads: RemoteThreadRegistry;
+  accountSessionAvailable?: boolean;
   threadPersistence?: {
     restoredThreadId?: string;
     onInvalidRestoredThread?: () => void;
@@ -265,12 +266,13 @@ function useRemoteThreadListSync(
   context: RuntimeUserStateContext,
   sessions: RuntimeSessionBridge,
   remoteThreads: RemoteThreadRegistry,
+  accountSessionAvailable: boolean,
   threadPersistence?: RuntimeUserStateEffectsOptions["threadPersistence"],
 ): { isThreadListLoading: boolean; threadListError: boolean } {
   const [isThreadListLoading, setIsThreadListLoading] = useState(true);
   const [threadListError, setThreadListError] = useState(false);
   const prefetchCancelRef = useRef<(() => void) | null>(null);
-  const wasConnectedRef = useRef(false);
+  const hadThreadAccessRef = useRef(false);
   const { getControlState, threadContextRef, user } = context;
   const {
     aomiClientRef,
@@ -286,6 +288,7 @@ function useRemoteThreadListSync(
     warmThread,
   } = remoteThreads;
   const isConnected = UserStateHelpers.isConnected(user) === true;
+  const canLoadThreads = isConnected || accountSessionAvailable;
   const restoredThreadId = threadPersistence?.restoredThreadId;
 
   const listThreadsWithAuthRetry = useCallback(
@@ -366,14 +369,14 @@ function useRemoteThreadListSync(
   );
 
   useEffect(() => {
-    if (!isConnected) {
-      const wasPreviouslyConnected = wasConnectedRef.current;
-      wasConnectedRef.current = false;
+    if (!canLoadThreads) {
+      const previouslyHadThreadAccess = hadThreadAccessRef.current;
+      hadThreadAccessRef.current = false;
       setIsThreadListLoading(false);
       prefetchCancelRef.current?.();
       prefetchCancelRef.current = null;
 
-      if (wasPreviouslyConnected) {
+      if (previouslyHadThreadAccess) {
         const hadRemoteThreads = remoteThreadIdsRef.current.size > 0;
         const hadSessions = sessionManager.size > 0;
         remoteThreadIdsRef.current.clear();
@@ -388,7 +391,7 @@ function useRemoteThreadListSync(
       return;
     }
 
-    wasConnectedRef.current = true;
+    hadThreadAccessRef.current = true;
 
     let cancelled = false;
     setIsThreadListLoading(true);
@@ -548,6 +551,7 @@ function useRemoteThreadListSync(
       prefetchCancelRef.current = null;
     };
   }, [
+    canLoadThreads,
     closeAllSessions,
     ensureInitialState,
     getControlState,
@@ -559,7 +563,6 @@ function useRemoteThreadListSync(
     threadContextRef,
     restoredThreadId,
     threadPersistence,
-    isConnected,
     warmPromisesRef,
     warmedThreadIdsRef,
     warmThread,
@@ -578,6 +581,7 @@ export function useRuntimeUserStateEffects({
     setIsThreadLoading,
   },
   remoteThreads,
+  accountSessionAvailable = false,
   threadPersistence,
 }: RuntimeUserStateEffectsOptions): {
   isThreadListLoading: boolean;
@@ -612,6 +616,7 @@ export function useRuntimeUserStateEffects({
     context,
     sessions,
     remoteThreads,
+    accountSessionAvailable,
     threadPersistence,
   );
 }

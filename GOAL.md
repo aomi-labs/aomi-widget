@@ -49,6 +49,12 @@ mistaken for another supported environment.
 
 Progress:
 
+- 2026-07-31 Portal thread-history recovery: decoupled canonical account
+  history from wallet connectivity, so a signed-in user can load and retain
+  their threads with no wallet attached. Account identity changes remount the
+  runtime to prevent one signed-in account from retaining another account's
+  in-memory thread list.
+
 - 2026-07-30 BFF Sentry review fixes: made identify/classify/route defensive
   end to end, normalized invalid response statuses and context, absorbed async
   observer rejections, reordered Build recovery before telemetry, and removed
