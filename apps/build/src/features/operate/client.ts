@@ -66,6 +66,18 @@ export async function operateFetch<T>(
   return operateJson<T>(`${path}${params.size ? `?${params}` : ""}`, kind);
 }
 
+export async function operatePaymentsFetch<T>(
+  options: Pick<OperateFetchOptions, "sourceId" | "platform"> = {},
+): Promise<T> {
+  const params = new URLSearchParams();
+  if (options.sourceId) params.set("appSourceId", String(options.sourceId));
+  if (options.platform?.trim()) params.set("platform", options.platform.trim());
+  return operateJson<T>(
+    `${API_PATHS.bff.operate.payments}${params.size ? `?${params}` : ""}`,
+    "payments",
+  );
+}
+
 export async function operateAppDetailFetch<T>(
   appSourceId: number,
   applicationId: number,

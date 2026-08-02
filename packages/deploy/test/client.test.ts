@@ -527,6 +527,64 @@ describe("DeploymentClient operate observability", () => {
     });
   });
 
+  it("reads a source-filtered account snapshot without a payment ledger", async () => {
+    fetchMock.mockResolvedValueOnce(
+      Response.json({
+        results: [
+          {
+            source: { id: 42, installation_id: 123 },
+            platform: "community",
+            scope: "owned_applications",
+            apps: [],
+            dashboard_links: [],
+            platform_metrics: [],
+          },
+        ],
+      }),
+    );
+
+    const result = await client().getUserObservability({
+      githubUserId: "4738254",
+      platform: "community",
+      appSourceId: 42,
+    });
+
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      "https://staging-api.example.com/api/integrations/github-app/user/observability?github_user_id=4738254&platform=community&app_source_id=42",
+    );
+    expect(result[0]).not.toHaveProperty("payments");
+  });
+
+  it("maps the separate account payment ledger", async () => {
+    fetchMock.mockResolvedValueOnce(
+      Response.json({
+        results: [
+          {
+            source: { id: 42, installation_id: 123 },
+            payments: {
+              available: true,
+              scope: "recipient_bucket",
+              summary: { priced_calls: 1 },
+              resources: [],
+              buckets: [],
+              events: [],
+            },
+          },
+        ],
+      }),
+    );
+
+    const result = await client().getUserPayments({
+      githubUserId: "4738254",
+      appSourceId: 42,
+    });
+
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      "https://staging-api.example.com/api/integrations/github-app/user/payments?github_user_id=4738254&app_source_id=42",
+    );
+    expect(result[0].payments.summary.pricedCalls).toBe(1);
+  });
+
   it("maps the 24h trend contract when the manager emits it", async () => {
     vi.stubGlobal(
       "fetch",

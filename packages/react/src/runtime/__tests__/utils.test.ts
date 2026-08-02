@@ -3,7 +3,20 @@ import { describe, expect, it } from "vitest";
 import { toInboundMessage } from "../utils";
 
 describe("toInboundMessage", () => {
-  it("renders backend credit errors as an actionable assistant notice", () => {
+  it("drops internal system-endpoint acknowledgements", () => {
+    const message = toInboundMessage({
+      sender: "system",
+      content:
+        'Response of system endpoint: {"type":"wallet:state_changed","payload":{"connection":{"is_connected":true}}}',
+      tool_result: null,
+      timestamp: "2026-08-02T04:41:35Z",
+      is_streaming: false,
+    });
+
+    expect(message).toBeNull();
+  });
+
+  it("keeps persisted system records out of assistant chat bubbles", () => {
     const message = toInboundMessage({
       sender: "system",
       content:
@@ -14,23 +27,17 @@ describe("toInboundMessage", () => {
     });
 
     expect(message).toMatchObject({
-      role: "assistant",
+      role: "system",
       content: [
         {
           type: "text",
           text: "Completion credit budget is exhausted. Please add credits and try again.",
         },
       ],
-      metadata: {
-        custom: {
-          aomiNoticeKind: "payment_required",
-          aomiNoticeTitle: "Credits needed",
-        },
-      },
     });
   });
 
-  it("keeps non-credit system messages visible as notices", () => {
+  it("maps non-credit system records to the hidden system renderer", () => {
     const message = toInboundMessage({
       sender: "system",
       content: "The requested operation could not be completed.",
@@ -40,13 +47,13 @@ describe("toInboundMessage", () => {
     });
 
     expect(message).toMatchObject({
-      role: "assistant",
-      metadata: {
-        custom: {
-          aomiNoticeKind: "system_notice",
-          aomiNoticeTitle: "System notice",
+      role: "system",
+      content: [
+        {
+          type: "text",
+          text: "The requested operation could not be completed.",
         },
-      },
+      ],
     });
   });
 });

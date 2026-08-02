@@ -56,6 +56,7 @@ export interface AuditEvent {
     | "list_user_source_logs"
     | "get_user_source_observability"
     | "get_user_observability"
+    | "get_user_payments"
     | "list_user_transactions"
     | "get_user_statement"
     | "get_user_usage"
@@ -640,7 +641,11 @@ export interface OwnedOperateSourceInput extends BearerOverride {
 export interface GetUserObservabilityInput extends BearerOverride {
   githubUserId: string;
   platform?: string;
+  /** Optional source narrowing for an observability deep link. */
+  appSourceId?: number;
 }
+
+export interface GetUserPaymentsInput extends GetUserObservabilityInput {}
 
 /** Account-wide operate batch reads (`/user/transactions|statement|usage|logs`).
  *  Without `platform`, the manager reads every owned source under its own
@@ -1186,6 +1191,17 @@ export interface OperateObservabilityResult {
   apps: OperateAppHealth[];
   dashboardLinks: OperateDashboardLink[];
   platformMetrics: OperatePlatformMetric[];
+  payments: OperatePartnerPayments;
+}
+
+/** Account-wide snapshots omit the optional payment-ledger read. */
+export type OperateObservabilitySnapshot = Omit<
+  OperateObservabilityResult,
+  "payments"
+>;
+
+export interface OperatePaymentSourceResult {
+  source: AppSource;
   payments: OperatePartnerPayments;
 }
 

@@ -49,6 +49,13 @@ mistaken for another supported environment.
 
 Progress:
 
+- 2026-08-02 PR #436 integration: merged account-level Operate observability
+  and payment reads into the platform-switch branch, including the concurrent
+  deployment-read ownership cache. Preserved the intervening system-notification
+  work from current `main`, patch-bumped `@aomi-labs/deploy` to `0.4.1`, and
+  verified the focused Operate, launch, and deploy-client tests, Build
+  type-check, and deploy package build.
+
 - 2026-08-01 Aomi Build exact platform switching: added a non-discoverable
   header input that checks an exact platform name against the authenticated
   manager source read, keeps the current page unchanged on a missing platform,
@@ -56,6 +63,18 @@ Progress:
   names are not hardcoded or listed in the frontend; `APP_DEPLOY_PLATFORMS`
   continues to supply the default launch platform rather than the set of names
   a signed-in user may try.
+
+- 2026-08-02 notification presentation preview: moved the shared notification
+  toast to a macOS-style upper-right stack below the chat header, added Aomi
+  title/body hierarchy and custom blue line-art notice, success, error, and
+  wallet SVGs, and verified the live Portal layout in dark mode. Wallet
+  transaction requests now use the wallet presentation instead of a generic
+  notice. Internal `/api/system` acknowledgement records are filtered before
+  they reach chat, persisted system transcript records stay hidden, and live
+  wallet connection plus system notice/error events route through the
+  notification model; payment-required messages retain the dedicated blocking
+  gate. Non-blocking notification banners dismiss after six seconds by default
+  and remain manually dismissible.
 
 - 2026-07-31 Portal thread-history recovery: decoupled canonical account
   history from wallet connectivity, so a signed-in user can load and retain

@@ -64,13 +64,23 @@ async function ownsAppSource(
   platform: string,
   appSourceId: number,
 ): Promise<boolean> {
-  const sources = await client.listUserSources({ githubUserId, platform });
+  const sources = await cachedUserSources(client, githubUserId, platform);
   return sources.some((source) => source.id === appSourceId);
 }
 
 type OwnedSource = Awaited<
   ReturnType<DeploymentClientInstance["listUserSources"]>
 >[number];
+
+function cachedUserSources(
+  client: DeploymentClientInstance,
+  githubUserId: string,
+  platform: string,
+): Promise<OwnedSource[]> {
+  return readCache.sources.get([githubUserId, platform], () =>
+    client.listUserSources({ githubUserId, platform }),
+  );
+}
 
 // Read cache for the hot project-page GETs. Same 15s TTL as operate's, and it
 // coalesces concurrent mounts onto one manager call — but unlike operate's
@@ -98,7 +108,7 @@ async function findOwnedSource(
   platform: string,
   appSourceId: number,
 ): Promise<OwnedSource | null> {
-  const sources = await client.listUserSources({ githubUserId, platform });
+  const sources = await cachedUserSources(client, githubUserId, platform);
   return sources.find((source) => source.id === appSourceId) ?? null;
 }
 
