@@ -47,10 +47,23 @@ type MessageContentPart =
     ? U
     : never;
 
+const SYSTEM_ENDPOINT_RESPONSE_PREFIX = "Response of system endpoint:";
+
 export function toInboundMessage(msg: AomiMessage): ThreadMessageLike | null {
+  if (
+    msg.sender === "system" &&
+    msg.content?.trimStart().startsWith(SYSTEM_ENDPOINT_RESPONSE_PREFIX)
+  ) {
+    return null;
+  }
+
   const content: MessageContentPart[] = [];
   const role: ThreadMessageLike["role"] =
-    msg.sender === "user" ? "user" : "assistant";
+    msg.sender === "user"
+      ? "user"
+      : msg.sender === "system"
+        ? "system"
+        : "assistant";
 
   if (msg.content && msg.content.trim().length > 0) {
     content.push({ type: "text" as const, text: msg.content });
@@ -81,25 +94,9 @@ export function toInboundMessage(msg: AomiMessage): ThreadMessageLike | null {
     role,
     content: content as ThreadMessageLike["content"],
     ...(msg.timestamp && { createdAt: new Date(msg.timestamp) }),
-    ...(msg.sender === "system" && {
-      metadata: {
-        custom: {
-          aomiNoticeKind: isCreditNotice(msg.content)
-            ? "payment_required"
-            : "system_notice",
-          aomiNoticeTitle: isCreditNotice(msg.content)
-            ? "Credits needed"
-            : "System notice",
-        },
-      },
-    }),
   } satisfies ThreadMessageLike;
 
   return threadMessage;
-}
-
-function isCreditNotice(content: string | undefined): boolean {
-  return /\b(?:credit|quota|payment)\b/i.test(content ?? "");
 }
 
 function parseToolResult(

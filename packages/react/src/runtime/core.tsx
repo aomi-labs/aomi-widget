@@ -362,15 +362,45 @@ export function AomiRuntimeCore({
   // are still emitted on the bus for any other consumer.
 
   // ---------------------------------------------------------------------------
-  // Show notifications for system notices
+  // Show live system events as side notifications. Persisted system messages
+  // take the separate `SystemMessage` rendering path in the chat surface.
   // ---------------------------------------------------------------------------
   useEffect(() => {
-    const unsubscribe = eventContext.subscribe("system_notice", (_event) => {
-      // TODO: Disable it for now, we don't need async execution
+    const getMessage = (payload: unknown) => {
+      if (!payload || typeof payload !== "object") return null;
+      const message = (payload as { message?: unknown }).message;
+      return typeof message === "string" && message.trim()
+        ? message.trim()
+        : null;
+    };
+
+    const unsubscribeNotice = eventContext.subscribe(
+      "system_notice",
+      (event) => {
+        const message = getMessage(event.payload);
+        if (!message) return;
+        notificationContext.showNotification({
+          type: "notice",
+          title: "System notice",
+          message,
+        });
+      },
+    );
+    const unsubscribeError = eventContext.subscribe("system_error", (event) => {
+      const message = getMessage(event.payload);
+      if (!message) return;
+      notificationContext.showNotification({
+        type: "error",
+        title: "Error",
+        message,
+      });
     });
 
-    return unsubscribe;
-  }, [eventContext, notificationContext]);
+    return () => {
+      unsubscribeNotice();
+      unsubscribeError();
+    };
+  }, [eventContext, notificationContext.showNotification]);
 
   // ---------------------------------------------------------------------------
   // External store runtime

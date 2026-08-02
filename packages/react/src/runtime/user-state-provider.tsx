@@ -13,6 +13,7 @@ import { UserState as UserStateHelpers } from "@aomi-labs/client";
 
 import { useControl, type ControlState } from "../contexts/control-context";
 import { useEventContext } from "../contexts/event-context";
+import { useNotification } from "../contexts/notification-context";
 import type { ThreadContext } from "../contexts/thread-context";
 import { useThreadContext } from "../contexts/thread-context";
 import { useUser } from "../contexts/ext-user-context";
@@ -129,6 +130,7 @@ function useWalletStateSync(
   sessions: Pick<RuntimeSessionBridge, "aomiClientRef">,
   remoteThreads: Pick<RemoteThreadRegistry, "remoteThreadIdsRef">,
 ) {
+  const { showNotification } = useNotification();
   const {
     getCurrentThreadApp,
     getUserState,
@@ -194,6 +196,8 @@ function useWalletStateSync(
       const prevWalletState = lastWalletStateRef.current;
       const previousAddress = normalizeWalletId(prevWalletState.evm?.address);
       const nextAddress = normalizeWalletId(nextWalletState.evm?.address);
+      const wasConnected = prevWalletState.connection.is_connected;
+      const isConnected = nextWalletState.connection.is_connected;
       if (
         stableStateString(prevWalletState as UserState) ===
         stableStateString(nextWalletState as UserState)
@@ -202,6 +206,12 @@ function useWalletStateSync(
       }
 
       lastWalletStateRef.current = nextWalletState;
+      if (wasConnected !== isConnected) {
+        showNotification({
+          type: "wallet",
+          title: isConnected ? "Wallet connected" : "Wallet disconnected",
+        });
+      }
       if (
         previousAddress !== undefined &&
         nextAddress !== undefined &&
@@ -231,6 +241,7 @@ function useWalletStateSync(
     getUserState,
     onUserStateChange,
     remoteThreadIdsRef,
+    showNotification,
     threadContextRef,
     walletSnapshot,
   ]);

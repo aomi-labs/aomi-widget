@@ -275,7 +275,10 @@ export const registry: RegistryComponent[] = [
   },
   {
     name: "notification",
-    file: "components/ui/notification.tsx",
+    file: [
+      "components/ui/notification.tsx",
+      "components/ui/notification-icon.tsx",
+    ],
     dependencies: ["@aomi-labs/react", "sonner"],
     registryDependencies: [aomi("sonner")],
     description:

@@ -41,7 +41,6 @@ import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button
 import {
   cn,
   useCurrentThreadMetadata,
-  useNotification,
   useThreadContext,
 } from "@aomi-labs/react";
 import { useComposerControl } from "@/components/aomi-frame";
@@ -55,8 +54,6 @@ import { SecretGate } from "@/components/control-bar/secret-gate";
 import { PaymentRequiredGate } from "@/components/control-bar/payment-required-gate";
 import { shouldShowThreadLoadingSkeleton } from "@/components/assistant-ui/thread-loading";
 import { useThread, useComposerRuntime, useMessage } from "@assistant-ui/react";
-
-const seenSystemMessages = new Set<string>();
 
 export const Thread: FC = () => {
   const composerRuntime = useComposerRuntime();
@@ -641,52 +638,4 @@ const BranchPicker: FC<BranchPickerPrimitive.Root.Props> = ({
   );
 };
 
-const SystemMessage: FC = () => {
-  const { showNotification } = useNotification();
-  const messageId = useMessage((state) => state.id);
-  const content = useMessage((state) => state.content) as Array<{
-    type: string;
-    text?: string;
-  }>;
-  const custom = useMessage((state) => state.metadata?.custom) as
-    | { kind?: string; title?: string }
-    | undefined;
-  useEffect(() => {
-    const text = content
-      .filter((part) => part.type === "text")
-      .map((part) => part.text ?? "")
-      .join("")
-      .trim();
-
-    if (!text) return;
-
-    const key = messageId ?? text;
-    if (seenSystemMessages.has(key)) return;
-    seenSystemMessages.add(key);
-
-    const inferredKind =
-      custom?.kind ??
-      (text.startsWith("Wallet transaction request:")
-        ? "wallet_tx_request"
-        : "system_notice");
-
-    const type =
-      inferredKind === "system_error"
-        ? "error"
-        : inferredKind === "system_success"
-          ? "success"
-          : "notice";
-
-    const title =
-      custom?.title ??
-      (inferredKind === "wallet_tx_request"
-        ? "Wallet transaction request"
-        : inferredKind === "system_error"
-          ? "Error"
-          : "System notice");
-
-    showNotification({ type, title, message: text });
-  }, [content, custom, showNotification, messageId]);
-
-  return null;
-};
+const SystemMessage: FC = () => null;
