@@ -3,11 +3,14 @@ import { describe, expect, it } from "vitest";
 import { collectTxOutcomes, toInboundMessage } from "../utils";
 import type { AomiMessage } from "@aomi-labs/client";
 
-const echoMessage = (payload: unknown): AomiMessage =>
+const echoMessage = (
+  payload: unknown,
+  type = "wallet:tx_complete",
+): AomiMessage =>
   ({
     sender: "system",
     content: `Response of system endpoint: ${JSON.stringify({
-      type: "wallet:tx_complete",
+      type,
       payload,
     })}`,
     tool_result: null,
@@ -117,7 +120,7 @@ describe("collectTxOutcomes", () => {
       }),
     ]);
 
-    expect(outcomes?.get(1)).toEqual({
+    expect(outcomes?.evm.get(1)).toEqual({
       status: "failed",
       error: "HTTP 400: Bad Request",
     });
@@ -129,7 +132,7 @@ describe("collectTxOutcomes", () => {
       echoMessage({ txHash: "0xabc", status: "success", pending_tx_ids: [2] }),
     ]);
 
-    expect(outcomes?.get(2)).toEqual({ status: "success", txHash: "0xabc" });
+    expect(outcomes?.evm.get(2)).toEqual({ status: "success", txHash: "0xabc" });
   });
 
   it("returns null when the transcript has no callbacks", () => {
@@ -144,6 +147,84 @@ describe("collectTxOutcomes", () => {
         } as AomiMessage,
       ]),
     ).toBeNull();
+  });
+});
+
+describe("collectTxOutcomes solana callbacks", () => {
+  it("maps solana completions into the svm id-space, not the evm one", () => {
+    const outcomes = collectTxOutcomes([
+      echoMessage(
+        { status: "submitted", signature: "5xSig", pending_solana_id: 1 },
+        "wallet::solana_send_complete",
+      ),
+    ]);
+
+    expect(outcomes?.svm.get(1)).toEqual({ status: "success", txHash: "5xSig" });
+    // Same numeric id must NOT leak into the EVM map — the spaces collide.
+    expect(outcomes?.evm.get(1)).toBeUndefined();
+  });
+
+  it("treats a rejected solana request as failed", () => {
+    const outcomes = collectTxOutcomes([
+      echoMessage(
+        { status: "rejected", pending_solana_id: 3 },
+        "wallet::solana_sign_and_send_complete",
+      ),
+    ]);
+
+    expect(outcomes?.svm.get(3)).toEqual({ status: "failed" });
+  });
+
+  it("joins svm outcomes to staged envelopes via the unsigned tx blob", () => {
+    // The staged pending_approval envelope has no pending_solana_id — the
+    // blob is the only key present on both sides (policy/svm.rs).
+    const outcomes = collectTxOutcomes([
+      echoMessage(
+        {
+          status: "submitted",
+          signature: "5xSig",
+          unsigned_tx: "AQAAbase64blob",
+          pending_solana_id: 2,
+        },
+        "wallet::solana_sign_and_send_complete",
+      ),
+    ]);
+    const message = toInboundMessage(
+      {
+        sender: "assistant",
+        content: "",
+        tool_result: [
+          "Stage Jupiter swap",
+          JSON.stringify({
+            status: "pending_approval",
+            chain_kind: "svm",
+            svm_ix_ids: [1],
+            unsigned_tx: "AQAAbase64blob",
+          }),
+        ],
+        timestamp: "2026-08-01T00:00:00Z",
+        is_streaming: false,
+      } as AomiMessage,
+      outcomes,
+    );
+    const part = (
+      message?.content as Array<{ type: string; result?: unknown }>
+    ).find((entry) => entry.type === "tool-call");
+
+    expect(part?.result).toMatchObject({
+      tx_outcome: { status: "success", txHash: "5xSig" },
+    });
+  });
+
+  it("ignores sign-message completions (no staged tx to reconcile)", () => {
+    const outcomes = collectTxOutcomes([
+      echoMessage(
+        { status: "signed", signature: "s", pending_solana_id: 4 },
+        "wallet::solana_sign_message_complete",
+      ),
+    ]);
+
+    expect(outcomes).toBeNull();
   });
 });
 

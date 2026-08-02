@@ -34,6 +34,19 @@ export type Scenario = {
    */
   apps: string[];
   /**
+   * Chain actors (mock off-chain counterparties from product-mono's
+   * `aomi-actors` crate — `across` is the first) to run for the take.
+   *
+   * The recorder starts `aomi test-env actors up` after reset + funding and
+   * stops it after the take. This is what makes cross-chain scenarios
+   * completable on forks: the actor watches the source fork and lands the
+   * real follow-up transaction (e.g. an Across `fillRelay`) on the
+   * destination fork, with a few seconds of fill delay for on-camera
+   * suspense. A scenario with actors is expected to advance EVERY chain it
+   * declares, not just one.
+   */
+  actors?: string[];
+  /**
    * Conversation turns, typed in order; each waits for the agent's response to
    * complete before the next is sent. One entry = a single-shot demo. Most
    * execution demos need two: the ask, then the go-ahead — a real agent
@@ -45,6 +58,61 @@ export type Scenario = {
    * they are looking for, and it tells us whether the scenario has a point.
    */
   moneyShot: string;
+  /**
+   * ERC-20 balances to seed on the demo wallet before the take.
+   *
+   * `anvil_setBalance` only moves native ETH, so tokens are seeded by
+   * impersonating a holder and transferring — for USDC the obvious holder is
+   * one of the faucet wallets `test-env evm up` already funds. Runs after the
+   * chain reset, like ETH funding, because a reset reforks and wipes balances.
+   */
+  erc20?: Array<{
+    /** For logs only. */
+    symbol: string;
+    /** Token contract. */
+    token: string;
+    /** An address that already holds enough; impersonated, never signed for. */
+    holder: string;
+    /** Base-units amount (USDC has 6 decimals, not 18). */
+    amount: string;
+  }>;
+  /**
+   * Solana leg. Present = the take runs against the Surfpool mirror
+   * (`aomi test-env svm up --cluster <cluster>`), reset before recording.
+   * A scenario may be SVM-only (`chains: []`) or span both VMs.
+   */
+  svm?: {
+    cluster: "mainnet-beta" | "devnet";
+    /**
+     * Native SOL the wallet starts each take with, in raw lamports. Written
+     * after reset via `surfnet_setAccount`, because reset does NOT re-apply
+     * the startup airdrop (see svm-env.ts `resetSvm`). Declare this on any
+     * scenario that spends SOL, or take N+1 inherits take N's leftovers.
+     */
+    fund?: { sol: string };
+    /**
+     * Token accounts fabricated after reset via `surfnet_setTokenAccount`
+     * (raw base units). `amount: "0"` creates an EMPTY ATA — required for
+     * first-time destinations while the svm_stage_ix skill manifests still
+     * block ATA creation (see SOLANA-DEMO-PLAN.md).
+     */
+    tokenAccounts?: Array<{ symbol: string; mint: string; amount: string }>;
+    /**
+     * Post-take chain-state proof. Surfpool mints slots on a clock, so slot
+     * advance proves nothing — execution is verified by balances or not at
+     * all. Amounts are raw base units (lamports / SPL raw).
+     */
+    verify?: Array<
+      | { kind: "sol"; atLeast?: string; atMost?: string }
+      | {
+          kind: "spl";
+          symbol: string;
+          mint: string;
+          atLeast?: string;
+          atMost?: string;
+        }
+    >;
+  };
   /**
    * Upper bound for the agent's turn. Not a sleep: the recorder waits on the
    * streaming indicator and only uses this to fail a hung take.

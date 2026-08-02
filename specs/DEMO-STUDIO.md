@@ -99,6 +99,14 @@ A pinned EVM fork does not cover the whole surface.
 | CEX | Binance, Bybit, OKX | No | Venue sandbox API keys |
 | Read-only data | DefiLlama, Dune, GeckoTerminal, Hyperliquid, dYdX, GMX, Morpho, Yearn, l2beat, Kaito, Neynar | N/A | Live APIs, response-cached |
 
+**Plan (2026-07-31 late): `specs/SOLANA-DEMO-PLAN.md`** — full replication
+plan for scenario 6 on a Surfpool mainnet fork. Key upgrades over what's below:
+mainnet-beta forking and declarative USDC fixtures (`surfnet_setTokenAccount`)
+already exist in `test-env svm`; the only real code gap is the portal's
+`solana:mainnet` E2E cluster; the only real unknown is Jupiter-quote replay on
+fork state (phase-0 spike). Slot advance is NOT execution proof on Surfpool —
+balance assertions replace the block-delta heuristic.
+
 **Correction (2026-07-31): Solana is not as settled as stated above.** I earlier
 called it closed on the strength of `byreal-solana-test-plan.md`. Reading the CLI
 source shows a whole `aomi test-env svm` command group — a Surfpool-backed local
@@ -140,6 +148,23 @@ flows, which would contradict the read-only finding for the standalone
 `Cargo.lock` — so this needs checking against byreal's source or a live tool
 listing before any perps scenario is scripted. Until then, assume no perp
 execution.
+
+## The wallet layer is a test double (2026-08-01)
+
+Recordings use the portal's E2E executor, not the production wallet stack:
+`viem` / `@solana/web3.js` + `tweetnacl` + an HMAC session cookie, with **zero
+`@getpara/*` imports**. The `providers/para/` plugin is not on the recording
+path.
+
+Consequence for claims: a take proves the agent, backend, skills, permit,
+simulation, broadcast and chain state — it proves **nothing** about the wallet
+integration. And because the stub hardcodes `walletProvider: "para"`, the
+account chip in current takes shows a **Para badge it has not earned**; relabel
+the stub or wire real Para before any partner-facing cut.
+
+Full detail, including why no signature popup appears (`client_auto` mode + the
+permit ceremony) and caption guidance: `demo/README.md` → "What a take proves —
+and what it does not".
 
 ## On-camera gotchas
 

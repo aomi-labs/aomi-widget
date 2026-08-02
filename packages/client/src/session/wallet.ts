@@ -340,7 +340,13 @@ export class SessionWalletController {
     payload: WalletTxPayload,
     result: Extract<WalletRequestResult, { kind: "transaction" }>,
   ): Promise<void> {
-    const pendingTxIds = txIdsFromPayload(payload);
+    // A sequential executor can land a PREFIX of a batch and then fail.
+    // When the result narrows the outcome (`completedTxIds`), the success
+    // event below covers only the legs that actually mined, and a second,
+    // failed `wallet:tx_complete` reports the rest — so the backend's
+    // pending-tx ledger matches the chain instead of re-queuing legs that
+    // already spent funds.
+    const pendingTxIds = result.completedTxIds ?? txIdsFromPayload(payload);
     const requestedMode =
       result.aaRequestedMode ??
       aaRequestedModeFromPreference(payload.aaPreference);
@@ -384,6 +390,21 @@ export class SessionWalletController {
       smart_account_4337: result.SmartAccount4337,
       delegation_7702: result.Delegation7702,
     });
+
+    if (result.failedTxIds?.length) {
+      await this.deps.sendSystemEvent("wallet:tx_complete", {
+        txHash: "",
+        status: "failed",
+        error:
+          result.failureReason ??
+          "Batch aborted after a mid-sequence failure; these legs were not executed",
+        pending_tx_ids: result.failedTxIds,
+        aa_requested_mode: requestedMode,
+        aa_resolved_mode: resolvedMode,
+        batched: result.failedTxIds.length > 1,
+        call_count: result.failedTxIds.length,
+      });
+    }
   }
 
   private clearResolvedSolanaPending(request: WalletRequest): void {

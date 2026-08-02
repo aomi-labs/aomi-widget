@@ -188,8 +188,223 @@ export async function blockNumber(chain: ForkedChain): Promise<number> {
   return Number.parseInt(body.result ?? "0x0", 16);
 }
 
-/** Env overrides the portal dev server needs to route at the fork. */
-export function portalEnv(chains: readonly ForkedChain[]): NodeJS.ProcessEnv {
+async function rpc(
+  rpcUrl: string,
+  method: string,
+  params: unknown[],
+): Promise<unknown> {
+  const response = await fetch(rpcUrl, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
+  });
+  const body = (await response.json()) as { result?: unknown; error?: unknown };
+  if (body.error) {
+    throw new Error(`${method} failed: ${JSON.stringify(body.error)}`);
+  }
+  return body.result;
+}
+
+/** Give an address native ETH. `wei` is a hex quantity. */
+export async function setBalance(
+  chain: ForkedChain,
+  address: string,
+  wei: string,
+): Promise<void> {
+  await rpc(chain.rpcUrl, "anvil_setBalance", [address, wei]);
+}
+
+/**
+ * Wipe any code at an address — the EIP-7702 booby-trap guard.
+ *
+ * The anvil mnemonic accounts (including the demo wallet, account 2) are
+ * publicly-compromised keys, and on REAL mainnet + Base they carry 7702
+ * delegations (`0xef0100…`) to sweeper contracts. Outbound txs and ERC-20
+ * receipts are unaffected — which is why staking/Aave takes never noticed —
+ * but native ETH delivered BY CONTRACT CALL executes the delegate and gets
+ * swept inside the same transaction. A bridge fill is exactly that call:
+ * the first Across fill smoke "succeeded" while the recipient's balance
+ * stayed flat, the ETH stolen in-tx by the sweeper the fork inherited.
+ * Discovered live on 2026-08-01; runs after every reset because a refork
+ * re-inherits the delegation from upstream.
+ */
+export async function wipeAccountCode(
+  chain: ForkedChain,
+  address: string,
+): Promise<void> {
+  await rpc(chain.rpcUrl, "anvil_setCode", [address, "0x"]);
+}
+
+/** Native balance in wei. */
+export async function nativeBalance(
+  chain: ForkedChain,
+  address: string,
+): Promise<bigint> {
+  const result = await rpc(chain.rpcUrl, "eth_getBalance", [
+    address,
+    "latest",
+  ]);
+  return BigInt((result as string) ?? "0x0");
+}
+
+/**
+ * Chain-actor daemon lifecycle (`aomi test-env actors …`) — the mock
+ * off-chain counterparties (Across relayer first) that make cross-chain
+ * takes completable on forks. Start AFTER reset + funding: the daemon's
+ * block cursors begin at the current head, and a reset can respawn forks
+ * on new ports, which would strand a daemon started earlier.
+ */
+export async function actorsUp(
+  actors: readonly string[],
+  fillDelayMs: number,
+): Promise<void> {
+  await execFileAsync(
+    AOMI_BIN,
+    [
+      "test-env",
+      "actors",
+      "up",
+      "--actors",
+      actors.join(","),
+      "--fill-delay-ms",
+      String(fillDelayMs),
+    ],
+    { env: { ...process.env, FULL_TESTNETS: "true" } },
+  );
+}
+
+/** Best-effort stop — also used to clear a stale daemon before `actorsUp`. */
+export async function actorsDown(): Promise<void> {
+  await execFileAsync(AOMI_BIN, ["test-env", "actors", "down"], {
+    env: { ...process.env, FULL_TESTNETS: "true" },
+  }).catch(() => {
+    // No daemon (or no state file) is exactly the state we want.
+  });
+}
+
+/**
+ * Force the backend's SIM forks to re-fork from their proxies.
+ *
+ * The backend the agent READS through spawns one sim anvil per chain,
+ * forking from our proxy at BACKEND BOOT — and in the demo backend's mode
+ * the per-instance refork tasks never start (its log has zero "Starting
+ * per-instance refork task" lines), so the sim stays frozen on whatever
+ * the proxy held at boot. That state is the anvil 10,000 ETH prefund, and
+ * the agent has proposed "bridge 1,000 ETH" off it — measured live on
+ * 2026-08-02: proxy 10 ETH (seeded), sim 10,000 ETH (boot snapshot).
+ *
+ * The sims are discoverable: they are the anvil processes whose
+ * `--fork-url` points at our proxy endpoints. `anvil_reset` with that
+ * same fork url re-forks them against the CURRENT (post-seed) proxy
+ * state. Runs after every seeding pass; a sim that has vanished is
+ * skipped (the backend will respawn it on its own terms).
+ *
+ * CRITICAL caveat, measured 2026-08-02: `anvil_reset` re-applies anvil's
+ * OWN genesis prefund — the 10 mnemonic dev accounts read 10,000 ETH on
+ * the sim regardless of what the proxy holds, because local account
+ * state shadows forked state. ERC-20 balances fork through fine (no
+ * prefund shadows them); NATIVE balances of dev accounts do not. So this
+ * returns the sim endpoints as `ForkedChain`s and the CALLER must
+ * re-apply the demo wallet's native balances (and code wipe) to each sim
+ * mirror, exactly as it did to the proxy. Skipping that re-application
+ * is how an agent came to stake 5,000 ETH of a 10 ETH wallet.
+ */
+export async function resyncSimForks(
+  chains: readonly ForkedChain[],
+): Promise<ForkedChain[]> {
+  const { stdout } = await execFileAsync("ps", ["axww", "-o", "command"]);
+  const sims: ForkedChain[] = [];
+  for (const chain of chains) {
+    const pattern = new RegExp(
+      `anvil --port (\\d+) [^\\n]*--fork-url ${chain.rpcUrl.replace(/[/.:]/g, "\\$&")}(?:\\s|/|$)`,
+      "g",
+    );
+    for (const match of stdout.matchAll(pattern)) {
+      const simPort = Number(match[1]);
+      if (!Number.isInteger(simPort) || simPort === chain.port) continue;
+      await rpc(`http://127.0.0.1:${simPort}`, "anvil_reset", [
+        { forking: { jsonRpcUrl: chain.rpcUrl } },
+      ]).then(
+        () => {
+          console.log(
+            `resynced sim fork :${simPort} from chain ${chain.chainId}`,
+          );
+          sims.push({
+            chainId: chain.chainId,
+            port: simPort,
+            rpcUrl: `http://127.0.0.1:${simPort}`,
+          });
+        },
+        (error) =>
+          console.warn(
+            `sim resync :${simPort} failed (${String(error)}); backend reads may be stale`,
+          ),
+      );
+    }
+  }
+  return sims;
+}
+
+/**
+ * Move ERC-20 balance to the demo wallet by impersonating a holder.
+ *
+ * `anvil_setBalance` only moves native ETH, and writing the token's balance
+ * storage slot directly means knowing each token's layout. Impersonating a
+ * holder and calling `transfer` is layout-agnostic and reads as a normal
+ * transfer to anything inspecting the chain afterwards.
+ *
+ * The holder is topped up with gas first — a faucet wallet has ETH, but a
+ * whale plucked off mainnet may have none on the fork.
+ */
+export async function seedErc20(
+  chain: ForkedChain,
+  token: string,
+  holder: string,
+  recipient: string,
+  amount: string,
+): Promise<void> {
+  const transferCall =
+    "0xa9059cbb" +
+    recipient.toLowerCase().replace(/^0x/, "").padStart(64, "0") +
+    BigInt(amount).toString(16).padStart(64, "0");
+
+  await setBalance(chain, holder, "0xDE0B6B3A7640000"); // 1 ETH for gas
+  await rpc(chain.rpcUrl, "anvil_impersonateAccount", [holder]);
+  try {
+    await rpc(chain.rpcUrl, "eth_sendTransaction", [
+      { from: holder, to: token, data: transferCall },
+    ]);
+  } finally {
+    await rpc(chain.rpcUrl, "anvil_stopImpersonatingAccount", [holder]);
+  }
+}
+
+/** ERC-20 `balanceOf`, as a decimal string of base units. */
+export async function erc20BalanceOf(
+  chain: ForkedChain,
+  token: string,
+  address: string,
+): Promise<bigint> {
+  const data =
+    "0x70a08231" + address.toLowerCase().replace(/^0x/, "").padStart(64, "0");
+  const result = await rpc(chain.rpcUrl, "eth_call", [
+    { to: token, data },
+    "latest",
+  ]);
+  return BigInt((result as string) ?? "0x0");
+}
+
+/**
+ * Env overrides the portal dev server needs to route at the fork.
+ *
+ * Returns a plain record rather than NodeJS.ProcessEnv: this repo's ProcessEnv
+ * is augmented with a required NODE_ENV, so the literal below does not satisfy
+ * it — and these are overrides meant to be spread onto process.env, not a
+ * complete environment.
+ */
+export function portalEnv(
+  chains: readonly ForkedChain[],
+): Record<string, string> {
   return {
     NEXT_PUBLIC_USE_FULL_TESTNET: "true",
     NEXT_PUBLIC_FULL_TESTNET_RPC_MAP: toRpcMap(chains),

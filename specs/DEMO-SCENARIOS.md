@@ -138,11 +138,22 @@ same agent, same UI as the Ethereum scenarios.
 **Why it matters:** most agentic wallets are EVM-only. EVM and Solana in one
 product without a mode switch is a real architectural differentiator.
 
-**Production note:** unlike the others, this one **cannot run on a fork.** There
-is no usable Solana test environment with real liquidity, so this is recorded on
-mainnet with small real amounts. Treat it as a one-take proof video, not an
-infinitely re-recordable asset. Sizes should be small enough that a bad take is
-cheap.
+**Production note (corrected 2026-08-01):** an earlier version of this entry
+said this scenario **cannot run on a fork** and would have to be shot on
+mainnet with real money as a one-take proof video. **That was wrong**, and it
+was wrong in the expensive direction — it would have had us spending real SOL
+on camera for no reason.
+
+It runs on a Surfpool mainnet mirror, and it is now recorded: a Jupiter swap
+and a Marinade stake, both confirmed on-chain, re-recordable for free
+(`demo/out/ds6-sol-swap-stake`). Jupiter replays cleanly against the mirror —
+real route, real address-lookup table — which was the one genuine unknown.
+
+Two things this take cost us that are worth knowing before scripting more
+Solana scenarios: the agent does not build the same instruction bundle every
+run (three consecutive takes died in a repair loop), and a turn that stops
+streaming has not necessarily finished its transaction. Both are handled in
+the studio now; see `demo/README.md`.
 
 **Money shot:** the chain switcher, same agent handling both.
 

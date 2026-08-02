@@ -585,6 +585,38 @@ describe("tool interpreter", () => {
     expect(step.chips[2].icon).toBeTypeOf("object");
   });
 
+  it("flips an SVM pending-approval step when the solana callback failed", () => {
+    const step = interpretToolStep({
+      toolName: "Stage Jupiter swap bundle",
+      result: {
+        chain_kind: "svm",
+        svm_ix_ids: [1, 2],
+        status: "pending_approval",
+        pending_solana_id: 1,
+        tx_outcome: { status: "failed", error: "Request rejected" },
+      },
+    });
+
+    expect(labelsFor(step.chips)).toEqual(["2 txs", "Failed"]);
+    expect(step.failed).toBe(true);
+  });
+
+  it("flips an SVM pending-approval step to Success on submission", () => {
+    const step = interpretToolStep({
+      toolName: "Stage Jupiter swap bundle",
+      result: {
+        chain_kind: "svm",
+        svm_ix_ids: [1, 2],
+        status: "pending_approval",
+        pending_solana_id: 1,
+        tx_outcome: { status: "success", txHash: "5xSig" },
+      },
+    });
+
+    expect(labelsFor(step.chips)).toEqual(["2 txs", "Success"]);
+    expect(step.failed).toBe(false);
+  });
+
   it("flips a staged tx to Failed and marks the step when the callback failed", () => {
     // The runtime attaches `tx_outcome` from a later wallet:tx_complete echo —
     // without it this step would read "Queued ✓" forever on a failed run.

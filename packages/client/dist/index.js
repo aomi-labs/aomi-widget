@@ -931,9 +931,8 @@ function wrapFetchWithAccountBearer(fetchImpl, getAccountBearer) {
   if (!getAccountBearer) return fetchImpl;
   return async (input, init) => {
     var _a;
-    const baseHeaders = new Headers(
-      (_a = init == null ? void 0 : init.headers) != null ? _a : input instanceof Request ? input.headers : void 0
-    );
+    const request = input instanceof Request ? input : void 0;
+    const baseHeaders = new Headers((_a = init == null ? void 0 : init.headers) != null ? _a : request == null ? void 0 : request.headers);
     const fetchWithBearer = async (forceRefresh) => {
       const headers = new Headers(baseHeaders);
       let bearer;
@@ -948,7 +947,7 @@ function wrapFetchWithAccountBearer(fetchImpl, getAccountBearer) {
       if (bearer) {
         headers.set("Authorization", `Bearer ${bearer}`);
       }
-      return fetchImpl(input, __spreadProps(__spreadValues({}, init), { headers }));
+      return fetchImpl(request ? request.clone() : input, __spreadProps(__spreadValues({}, init), { headers }));
     };
     const response = await fetchWithBearer(false);
     if (response.status !== 401) return response;
@@ -3291,10 +3290,10 @@ var SessionWalletController = class {
     }
   }
   async resolveTransaction(payload, result) {
-    var _a, _b, _c, _d, _e, _f, _g;
-    const pendingTxIds = txIdsFromPayload(payload);
-    const requestedMode = (_a = result.aaRequestedMode) != null ? _a : aaRequestedModeFromPreference(payload.aaPreference);
-    const resolvedMode = (_c = (_b = result.aaResolvedMode) != null ? _b : aaModeFromExecutionKind(result.executionKind)) != null ? _c : requestedMode;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j;
+    const pendingTxIds = (_a = result.completedTxIds) != null ? _a : txIdsFromPayload(payload);
+    const requestedMode = (_b = result.aaRequestedMode) != null ? _b : aaRequestedModeFromPreference(payload.aaPreference);
+    const resolvedMode = (_d = (_c = result.aaResolvedMode) != null ? _c : aaModeFromExecutionKind(result.executionKind)) != null ? _d : requestedMode;
     const userState = this.deps.getUserState();
     const prevEvm = isRecord2(userState == null ? void 0 : userState.evm) ? userState.evm : {};
     const prevAa = isRecord2(prevEvm.aa) ? prevEvm.aa : {};
@@ -3303,8 +3302,8 @@ var SessionWalletController = class {
         aa: __spreadProps(__spreadValues(__spreadProps(__spreadValues({}, prevAa), {
           mode: resolvedMode
         }), resolvedMode === "4337" || resolvedMode === "7702" ? { provider: "alchemy" } : {}), {
-          smart_account: resolvedMode === "4337" ? (_d = result.SmartAccount4337) != null ? _d : null : null,
-          delegation_7702: resolvedMode === "7702" ? (_e = result.Delegation7702) != null ? _e : null : null
+          smart_account: resolvedMode === "4337" ? (_e = result.SmartAccount4337) != null ? _e : null : null,
+          delegation_7702: resolvedMode === "7702" ? (_f = result.Delegation7702) != null ? _f : null : null
         })
       })
     }));
@@ -3317,12 +3316,24 @@ var SessionWalletController = class {
       aa_resolved_mode: resolvedMode,
       aa_fallback_reason: result.aaFallbackReason,
       execution_kind: result.executionKind,
-      batched: (_f = result.batched) != null ? _f : pendingTxIds.length > 1,
-      call_count: (_g = result.callCount) != null ? _g : pendingTxIds.length,
+      batched: (_g = result.batched) != null ? _g : pendingTxIds.length > 1,
+      call_count: (_h = result.callCount) != null ? _h : pendingTxIds.length,
       sponsored: result.sponsored,
       smart_account_4337: result.SmartAccount4337,
       delegation_7702: result.Delegation7702
     });
+    if ((_i = result.failedTxIds) == null ? void 0 : _i.length) {
+      await this.deps.sendSystemEvent("wallet:tx_complete", {
+        txHash: "",
+        status: "failed",
+        error: (_j = result.failureReason) != null ? _j : "Batch aborted after a mid-sequence failure; these legs were not executed",
+        pending_tx_ids: result.failedTxIds,
+        aa_requested_mode: requestedMode,
+        aa_resolved_mode: resolvedMode,
+        batched: result.failedTxIds.length > 1,
+        call_count: result.failedTxIds.length
+      });
+    }
   }
   clearResolvedSolanaPending(request) {
     const userState = this.deps.getUserState();

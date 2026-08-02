@@ -57,7 +57,7 @@ type MessageContentPart =
  */
 const SYSTEM_ENDPOINT_ECHO_PREFIX = "Response of system endpoint:";
 
-/** Final outcome of a staged tx, mined from `wallet:tx_complete` callbacks. */
+/** Final outcome of a staged tx, mined from wallet completion callbacks. */
 export type TxOutcome = {
   status: "success" | "failed";
   txHash?: string;
@@ -65,23 +65,57 @@ export type TxOutcome = {
 };
 
 /**
+ * Staged-tx outcomes, keyed per VM. EVM `pending_tx_ids` and SVM
+ * `pending_solana_id` are independent counters that can collide numerically,
+ * so they get separate maps — a failed EVM tx-1 must never paint a Solana
+ * step red.
+ */
+export type TxOutcomes = {
+  evm: ReadonlyMap<number, TxOutcome>;
+  svm: ReadonlyMap<number, TxOutcome>;
+  /**
+   * SVM outcomes keyed by the unsigned tx blob. The staged tool envelope
+   * (`policy/svm.rs wallet_pending`) does NOT carry `pending_solana_id` —
+   * that id exists only between the wallet request and its callback — but
+   * BOTH the envelope and the callback echo `unsigned_tx`, so the blob is
+   * the join key that actually reaches the trace step.
+   */
+  svmByTx: ReadonlyMap<string, TxOutcome>;
+};
+
+/**
+ * The Solana wallet flow reports through four `wallet::solana_*_complete`
+ * event types (packages/client `session/wallet.ts`), with statuses
+ * `signed`/`submitted` on the happy path and `rejected`/`failed` otherwise —
+ * unlike EVM's single `wallet:tx_complete` with `success`/`failed`.
+ */
+const SVM_COMPLETE_TYPES = new Set([
+  "wallet::solana_sign_complete",
+  "wallet::solana_send_complete",
+  "wallet::solana_sign_and_send_complete",
+]);
+
+/**
  * Mine the transcript's system-endpoint echoes for staged-tx outcomes.
  *
- * A staged tool step is recorded once, with `current_lifecycle: "queued"`, and
- * never updated — the actual result arrives later as a `wallet:tx_complete`
- * callback that only the model was meant to read. Without reconciling the two,
- * the trace shows "Execute ✓ / Queued" forever, even when execution failed.
- * The echo messages are hidden from display (see the prefix guard above), but
- * they are still the single durable record of what happened — including after
- * a reload, when no client-side wallet state survives.
+ * A staged tool step is recorded once (`current_lifecycle: "queued"` on EVM,
+ * `status: "pending_approval"` on SVM) and never updated — the actual result
+ * arrives later as a wallet callback that only the model was meant to read.
+ * Without reconciling the two, the trace shows "Execute ✓ / Queued" forever,
+ * even when execution failed. The echo messages are hidden from display (see
+ * the prefix guard above), but they are still the single durable record of
+ * what happened — including after a reload, when no client-side wallet state
+ * survives.
  *
  * Later callbacks win: a re-staged tx gets a fresh pending id, so collisions
  * only occur when the same id genuinely reports twice.
  */
 export function collectTxOutcomes(
   messages: readonly AomiMessage[],
-): ReadonlyMap<number, TxOutcome> | null {
-  let outcomes: Map<number, TxOutcome> | null = null;
+): TxOutcomes | null {
+  let evm: Map<number, TxOutcome> | null = null;
+  let svm: Map<number, TxOutcome> | null = null;
+  let svmByTx: Map<string, TxOutcome> | null = null;
   for (const msg of messages) {
     if (
       msg.sender !== "system" ||
@@ -97,39 +131,78 @@ export function collectTxOutcomes(
     } catch {
       continue;
     }
-    if (
-      typeof parsed !== "object" ||
-      parsed === null ||
-      (parsed as { type?: unknown }).type !== "wallet:tx_complete"
-    ) {
-      continue;
-    }
+    if (typeof parsed !== "object" || parsed === null) continue;
+    const type = (parsed as { type?: unknown }).type;
     const payload = (parsed as { payload?: unknown }).payload;
     if (typeof payload !== "object" || payload === null) continue;
-    const { status, txHash, error, pending_tx_ids } = payload as {
-      status?: unknown;
-      txHash?: unknown;
-      error?: unknown;
-      pending_tx_ids?: unknown;
-    };
-    if (status !== "success" && status !== "failed") continue;
-    if (!Array.isArray(pending_tx_ids)) continue;
-    for (const id of pending_tx_ids) {
-      if (typeof id !== "number" || !Number.isInteger(id)) continue;
-      outcomes ??= new Map();
-      outcomes.set(id, {
-        status,
-        ...(typeof txHash === "string" && txHash && { txHash }),
+
+    if (type === "wallet:tx_complete") {
+      const { status, txHash, error, pending_tx_ids } = payload as {
+        status?: unknown;
+        txHash?: unknown;
+        error?: unknown;
+        pending_tx_ids?: unknown;
+      };
+      if (status !== "success" && status !== "failed") continue;
+      if (!Array.isArray(pending_tx_ids)) continue;
+      for (const id of pending_tx_ids) {
+        if (typeof id !== "number" || !Number.isInteger(id)) continue;
+        evm ??= new Map();
+        evm.set(id, {
+          status,
+          ...(typeof txHash === "string" && txHash && { txHash }),
+          ...(typeof error === "string" && error && { error }),
+        });
+      }
+      continue;
+    }
+
+    if (typeof type === "string" && SVM_COMPLETE_TYPES.has(type)) {
+      const { status, signature, error, pending_solana_id, unsigned_tx } =
+        payload as {
+          status?: unknown;
+          signature?: unknown;
+          error?: unknown;
+          pending_solana_id?: unknown;
+          unsigned_tx?: unknown;
+        };
+      const mapped =
+        status === "signed" || status === "submitted"
+          ? ("success" as const)
+          : status === "rejected" || status === "failed"
+            ? ("failed" as const)
+            : null;
+      if (mapped === null) continue;
+      const outcome: TxOutcome = {
+        status: mapped,
+        ...(typeof signature === "string" &&
+          signature && { txHash: signature }),
         ...(typeof error === "string" && error && { error }),
-      });
+      };
+      if (
+        typeof pending_solana_id === "number" &&
+        Number.isInteger(pending_solana_id)
+      ) {
+        svm ??= new Map();
+        svm.set(pending_solana_id, outcome);
+      }
+      if (typeof unsigned_tx === "string" && unsigned_tx) {
+        svmByTx ??= new Map();
+        svmByTx.set(unsigned_tx, outcome);
+      }
     }
   }
-  return outcomes;
+  if (!evm && !svm && !svmByTx) return null;
+  return {
+    evm: evm ?? new Map(),
+    svm: svm ?? new Map(),
+    svmByTx: svmByTx ?? new Map(),
+  };
 }
 
 export function toInboundMessage(
   msg: AomiMessage,
-  txOutcomes?: ReadonlyMap<number, TxOutcome> | null,
+  txOutcomes?: TxOutcomes | null,
 ): ThreadMessageLike | null {
   if (
     msg.sender === "system" &&
@@ -170,11 +243,19 @@ export function toInboundMessage(
           parsed !== null &&
           !Array.isArray(parsed)
         ) {
-          const record = parsed as { pending_tx_id?: unknown };
+          const record = parsed as {
+            pending_tx_id?: unknown;
+            pending_solana_id?: unknown;
+            unsigned_tx?: unknown;
+          };
           const outcome =
             typeof record.pending_tx_id === "number"
-              ? txOutcomes.get(record.pending_tx_id)
-              : undefined;
+              ? txOutcomes.evm.get(record.pending_tx_id)
+              : typeof record.pending_solana_id === "number"
+                ? txOutcomes.svm.get(record.pending_solana_id)
+                : typeof record.unsigned_tx === "string"
+                  ? txOutcomes.svmByTx.get(record.unsigned_tx)
+                  : undefined;
           if (outcome) {
             return { ...record, tx_outcome: outcome };
           }
