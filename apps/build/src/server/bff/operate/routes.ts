@@ -581,6 +581,7 @@ export async function operateBotsUpdateRoute(req: Request) {
     botId?: unknown;
     applicationIds?: unknown;
     primaryApplicationId?: unknown;
+    threadMode?: unknown;
   };
   if (
     typeof body.botId !== "string" ||
@@ -591,6 +592,17 @@ export async function operateBotsUpdateRoute(req: Request) {
   ) {
     return NextResponse.json(
       { error: "invalid bot mapping update" },
+      { status: 400 },
+    );
+  }
+  // Optional settings patch: omitted leaves the stored value unchanged.
+  if (
+    body.threadMode !== undefined &&
+    body.threadMode !== "single" &&
+    body.threadMode !== "multi"
+  ) {
+    return NextResponse.json(
+      { error: "invalid `threadMode`" },
       { status: 400 },
     );
   }
@@ -620,6 +632,7 @@ export async function operateBotsUpdateRoute(req: Request) {
       botId: body.botId,
       applicationIds,
       primaryApplicationId: body.primaryApplicationId,
+      threadMode: body.threadMode,
     });
     return NextResponse.json({ bot });
   } catch (err) {

@@ -52,6 +52,37 @@ function mockSession(partial: {
   };
 }
 
+const SOURCES = [
+  {
+    id: 1,
+    repositoryLink: "ceciliaz030/local-8",
+    apps: [{ id: 11, name: "playground-example" }],
+  },
+];
+
+const BOT = {
+  id: "b1",
+  platform: "telegram",
+  status: "active",
+  label: null,
+  defaultApp: "playground-example",
+  platformBotId: "8184083135",
+  platformUsername: "chico_chico_bot",
+  webhookUrl: "https://x",
+  threadMode: "single",
+  createdAt: 1,
+  apps: [
+    {
+      applicationId: 11,
+      appSourceId: 1,
+      sourceLabel: "ceciliaz030/local-8",
+      name: "playground-example",
+      label: "playground-example",
+      isPrimary: true,
+    },
+  ],
+};
+
 afterEach(() => {
   mockedOperateFetch.mockReset();
 });
@@ -60,135 +91,106 @@ describe("BotsView", () => {
   it("shows the sign-in panel when not signed in with GitHub", () => {
     mockSession({ loading: false, signedIn: false });
     render(<BotsView />);
-    // GitHubSignInPanel (reused verbatim from state-panels.tsx) renders its
-    // CTA as a link ("Continue with GitHub"), not a button — see self-review
-    // note in the completion report for why this deviates from the brief's
-    // literal `getByRole("button", { name: /sign in with github/i })`.
     expect(
       screen.getByRole("link", { name: /continue with github/i }),
     ).toBeInTheDocument();
     expect(mockedOperateFetch).not.toHaveBeenCalled();
   });
 
-  it("renders registered bots", async () => {
+  it("renders registered bots as cards with masked tokens", async () => {
     mockSession({ loading: false, signedIn: true, githubLogin: "octocat" });
     mockedOperateFetch.mockResolvedValue({
-      sources: [],
-      bots: [
-        {
-          id: "b1",
-          platform: "telegram",
-          status: "active",
-          label: "Trading assistant",
-          defaultApp: "binance",
-          platformUsername: "mybot",
-          webhookUrl: "https://x",
-          threadMode: "single",
-          createdAt: 1,
-        },
-      ],
+      sources: SOURCES,
+      bots: [{ ...BOT, label: "Trading assistant" }],
     });
     render(<BotsView />);
     expect(await screen.findByText("Trading assistant")).toBeInTheDocument();
-    expect(screen.getByText("@mybot")).toBeInTheDocument();
-    expect(screen.getByText("Configured")).toBeInTheDocument();
+    expect(screen.getByText("@chico_chico_bot")).toBeInTheDocument();
+    expect(screen.getByText("Active")).toBeInTheDocument();
+    expect(screen.getByText(/8184083135:•/)).toBeInTheDocument();
+    expect(screen.getByText("1 bot")).toBeInTheDocument();
   });
 
-  it("requires an app and a token before registering", async () => {
+  it("requires a token and an app before registering", async () => {
     mockSession({ loading: false, signedIn: true, githubLogin: "octocat" });
-    mockedOperateFetch.mockResolvedValue({ sources: [], bots: [] });
+    mockedOperateFetch.mockResolvedValue({ sources: SOURCES, bots: [] });
     render(<BotsView />);
-    expect(
-      await screen.findByRole("button", { name: /register bot/i }),
-    ).toBeDisabled();
-  });
 
-  it("edit mode locks thread mode and can be cancelled", async () => {
-    mockSession({ loading: false, signedIn: true, githubLogin: "octocat" });
-    mockedOperateFetch.mockResolvedValue({
-      sources: [
-        {
-          id: 1,
-          repositoryLink: "ceciliaz030/local-8",
-          apps: [{ id: 11, name: "playground-example" }],
-        },
-      ],
-      bots: [
-        {
-          id: "b1",
-          platform: "telegram",
-          status: "active",
-          label: null,
-          defaultApp: "playground-example",
-          platformUsername: "chico_chico_bot",
-          webhookUrl: "https://x",
-          threadMode: "single",
-          createdAt: 1,
-          apps: [
-            {
-              applicationId: 11,
-              appSourceId: 1,
-              sourceLabel: "ceciliaz030/local-8",
-              name: "playground-example",
-              label: "playground-example",
-              isPrimary: true,
-            },
-          ],
-        },
-      ],
+    fireEvent.click(await screen.findByRole("button", { name: /add bot/i }));
+    const register = screen.getByRole("button", { name: /register bot/i });
+    expect(register).toBeDisabled();
+
+    fireEvent.change(screen.getByPlaceholderText(/paste botfather token/i), {
+      target: { value: "123:abc" },
     });
+    expect(register).toBeDisabled();
+
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: /attach playground-example/i }),
+    );
+    expect(register).toBeEnabled();
+  });
+
+  it("edit mode saves thread mode changes through PATCH", async () => {
+    mockSession({ loading: false, signedIn: true, githubLogin: "octocat" });
+    mockedOperateFetch.mockResolvedValue({ sources: SOURCES, bots: [BOT] });
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(
+        Response.json({ bot: { ...BOT, threadMode: "multi" } }),
+      );
     render(<BotsView />);
 
-    fireEvent.click(await screen.findByRole("button", { name: /edit apps/i }));
-    expect(
-      screen.getByText(/editing apps for @chico_chico_bot/i),
-    ).toBeInTheDocument();
-    expect(screen.getByLabelText(/thread mode/i)).toBeDisabled();
-    expect(
-      screen.getByText(/thread mode can't be changed after registration/i),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /save apps/i })).toBeEnabled();
+    fireEvent.click(
+      await screen.findByRole("button", { name: /change apps/i }),
+    );
+    expect(screen.getByText("Editing")).toBeInTheDocument();
+    // Two thread-mode toggles are on screen (explainer + edit panel); the
+    // edit panel's is the last in DOM order.
+    const multiRadios = screen.getAllByRole("radio", {
+      name: /multiple threads/i,
+    });
+    fireEvent.click(multiRadios[multiRadios.length - 1]);
+    fireEvent.click(screen.getByRole("button", { name: /^save/i }));
 
+    await screen.findByRole("button", { name: /change apps/i });
+    const [, patchInit] = fetchSpy.mock.calls.find(
+      ([, init]) => init?.method === "PATCH",
+    )!;
+    expect(JSON.parse(String(patchInit?.body))).toMatchObject({
+      botId: "b1",
+      applicationIds: [11],
+      primaryApplicationId: 11,
+      threadMode: "multi",
+    });
+    fetchSpy.mockRestore();
+  });
+
+  it("cancelling edit restores the draft", async () => {
+    mockSession({ loading: false, signedIn: true, githubLogin: "octocat" });
+    mockedOperateFetch.mockResolvedValue({ sources: SOURCES, bots: [BOT] });
+    render(<BotsView />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: /change apps/i }),
+    );
+    expect(screen.getByText("Editing")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /cancel/i }));
     expect(
-      screen.getByRole("button", { name: /register bot/i }),
+      screen.getByRole("button", { name: /change apps/i }),
     ).toBeInTheDocument();
-    expect(
-      screen.queryByText(/editing apps for @chico_chico_bot/i),
-    ).not.toBeInTheDocument();
-    expect(screen.getByLabelText(/thread mode/i)).toBeEnabled();
+    expect(screen.queryByText("Editing")).not.toBeInTheDocument();
   });
 
   it("blocks saving while unavailable apps stay selected", async () => {
     mockSession({ loading: false, signedIn: true, githubLogin: "octocat" });
     mockedOperateFetch.mockResolvedValue({
-      sources: [
-        {
-          id: 1,
-          repositoryLink: "ceciliaz030/local-8",
-          apps: [{ id: 11, name: "playground-example" }],
-        },
-      ],
+      sources: SOURCES,
       bots: [
         {
-          id: "b1",
-          platform: "telegram",
-          status: "active",
-          label: null,
-          defaultApp: "playground-example",
-          platformUsername: "chico_chico_bot",
-          webhookUrl: "https://x",
-          threadMode: "single",
-          createdAt: 1,
+          ...BOT,
           apps: [
-            {
-              applicationId: 11,
-              appSourceId: 1,
-              sourceLabel: "ceciliaz030/local-8",
-              name: "playground-example",
-              label: "playground-example",
-              isPrimary: true,
-            },
+            ...BOT.apps,
             {
               applicationId: 99,
               appSourceId: null,
@@ -203,18 +205,22 @@ describe("BotsView", () => {
     });
     render(<BotsView />);
 
-    fireEvent.click(await screen.findByRole("button", { name: /edit apps/i }));
-    expect(screen.getByText("No longer available")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /save apps/i })).toBeDisabled();
+    fireEvent.click(
+      await screen.findByRole("button", { name: /change apps/i }),
+    );
+    expect(
+      screen.getByText(/no longer available/i, { selector: "td" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^save/i })).toBeDisabled();
     expect(
       screen.getByText(/uncheck the apps that are no longer available/i),
     ).toBeInTheDocument();
 
-    const ghostRow = screen.getByRole("checkbox", { name: /gone-app/i });
+    const ghostRow = screen.getByRole("checkbox", { name: /detach gone-app/i });
     expect(ghostRow).toBeEnabled();
     fireEvent.click(ghostRow);
     expect(ghostRow).toBeDisabled();
-    expect(screen.getByRole("button", { name: /save apps/i })).toBeEnabled();
+    expect(screen.getByRole("button", { name: /^save/i })).toBeEnabled();
     expect(
       screen.queryByText(/uncheck the apps that are no longer available/i),
     ).not.toBeInTheDocument();
