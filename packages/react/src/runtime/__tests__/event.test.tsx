@@ -120,6 +120,38 @@ describe("Event API", () => {
       expect(getApi().notifications[0].title).toBe("Test");
     });
 
+    it("routes live system notices and errors to notifications", async () => {
+      setAomiClientConfig({
+        postChatMessage: vi.fn(async () => ({
+          is_processing: false,
+          messages: [],
+          system_events: [
+            { SystemNotice: "Backend connected" },
+            { SystemError: "Transaction simulation failed" },
+          ],
+        })),
+      });
+
+      const { api, getApi } = renderRuntime();
+
+      await act(async () => {
+        await api.sendMessage("Connect and simulate");
+      });
+
+      expect(getApi().notifications).toEqual([
+        expect.objectContaining({
+          type: "error",
+          title: "Error",
+          message: "Transaction simulation failed",
+        }),
+        expect.objectContaining({
+          type: "notice",
+          title: "System notice",
+          message: "Backend connected",
+        }),
+      ]);
+    });
+
     it("dedupes payment_required notifications", async () => {
       const { api, getApi } = renderRuntime();
       let firstId: string;

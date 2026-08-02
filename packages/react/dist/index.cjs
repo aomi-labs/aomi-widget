@@ -1606,14 +1606,18 @@ var isPlaceholderTitle = (title) => {
   const normalized = (_a = title == null ? void 0 : title.trim()) != null ? _a : "";
   return !normalized || normalized.startsWith("#[");
 };
+var SYSTEM_ENDPOINT_RESPONSE_PREFIX = "Response of system endpoint:";
 function toInboundMessage(msg) {
-  var _a;
+  var _a, _b;
+  if (msg.sender === "system" && ((_a = msg.content) == null ? void 0 : _a.trimStart().startsWith(SYSTEM_ENDPOINT_RESPONSE_PREFIX))) {
+    return null;
+  }
   const content = [];
-  const role = msg.sender === "user" ? "user" : "assistant";
+  const role = msg.sender === "user" ? "user" : msg.sender === "system" ? "system" : "assistant";
   if (msg.content && msg.content.trim().length > 0) {
     content.push({ type: "text", text: msg.content });
   }
-  const [topic, toolContent] = (_a = parseToolResult(msg.tool_result)) != null ? _a : [];
+  const [topic, toolContent] = (_b = parseToolResult(msg.tool_result)) != null ? _b : [];
   if (topic && toolContent) {
     content.push({
       type: "tool-call",
@@ -1632,21 +1636,11 @@ function toInboundMessage(msg) {
   if (content.length === 0 && role === "assistant" && !msg.is_streaming) {
     return null;
   }
-  const threadMessage = __spreadValues(__spreadValues({
+  const threadMessage = __spreadValues({
     role,
     content
-  }, msg.timestamp && { createdAt: new Date(msg.timestamp) }), msg.sender === "system" && {
-    metadata: {
-      custom: {
-        aomiNoticeKind: isCreditNotice(msg.content) ? "payment_required" : "system_notice",
-        aomiNoticeTitle: isCreditNotice(msg.content) ? "Credits needed" : "System notice"
-      }
-    }
-  });
+  }, msg.timestamp && { createdAt: new Date(msg.timestamp) });
   return threadMessage;
-}
-function isCreditNotice(content) {
-  return /\b(?:credit|quota|payment)\b/i.test(content != null ? content : "");
 }
 function parseToolResult(toolResult) {
   if (!toolResult) return null;
@@ -2720,6 +2714,7 @@ function normalizeWalletId(value) {
   return value.startsWith("0x") ? value.toLowerCase() : value;
 }
 function useWalletStateSync(context, sessions, remoteThreads) {
+  const { showNotification } = useNotification();
   const {
     getCurrentThreadApp,
     getUserState,
@@ -2776,10 +2771,18 @@ function useWalletStateSync(context, sessions, remoteThreads) {
       const prevWalletState = lastWalletStateRef.current;
       const previousAddress = normalizeWalletId((_a = prevWalletState.evm) == null ? void 0 : _a.address);
       const nextAddress = normalizeWalletId((_b = nextWalletState.evm) == null ? void 0 : _b.address);
+      const wasConnected = prevWalletState.connection.is_connected;
+      const isConnected = nextWalletState.connection.is_connected;
       if (stableStateString2(prevWalletState) === stableStateString2(nextWalletState)) {
         return;
       }
       lastWalletStateRef.current = nextWalletState;
+      if (wasConnected !== isConnected) {
+        showNotification({
+          type: "wallet",
+          title: isConnected ? "Wallet connected" : "Wallet disconnected"
+        });
+      }
       if (previousAddress !== void 0 && nextAddress !== void 0 && previousAddress !== nextAddress) {
         return;
       }
@@ -2802,6 +2805,7 @@ function useWalletStateSync(context, sessions, remoteThreads) {
     getUserState,
     onUserStateChange,
     remoteThreadIdsRef,
+    showNotification,
     threadContextRef,
     walletSnapshot
   ]);
@@ -3463,10 +3467,37 @@ function AomiRuntimeCore({
     ]
   );
   (0, import_react14.useEffect)(() => {
-    const unsubscribe = eventContext.subscribe("system_notice", (_event) => {
+    const getMessage = (payload) => {
+      if (!payload || typeof payload !== "object") return null;
+      const message = payload.message;
+      return typeof message === "string" && message.trim() ? message.trim() : null;
+    };
+    const unsubscribeNotice = eventContext.subscribe(
+      "system_notice",
+      (event) => {
+        const message = getMessage(event.payload);
+        if (!message) return;
+        notificationContext.showNotification({
+          type: "notice",
+          title: "System notice",
+          message
+        });
+      }
+    );
+    const unsubscribeError = eventContext.subscribe("system_error", (event) => {
+      const message = getMessage(event.payload);
+      if (!message) return;
+      notificationContext.showNotification({
+        type: "error",
+        title: "Error",
+        message
+      });
     });
-    return unsubscribe;
-  }, [eventContext, notificationContext]);
+    return () => {
+      unsubscribeNotice();
+      unsubscribeError();
+    };
+  }, [eventContext, notificationContext.showNotification]);
   const runtime = (0, import_react15.useExternalStoreRuntime)({
     messages: currentMessages,
     isLoading: isThreadLoading,

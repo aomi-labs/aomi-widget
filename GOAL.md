@@ -49,6 +49,18 @@ mistaken for another supported environment.
 
 Progress:
 
+- 2026-08-02 notification presentation preview: moved the shared notification
+  toast to a macOS-style upper-right stack below the chat header, added Aomi
+  title/body hierarchy and custom blue line-art notice, success, error, and
+  wallet SVGs, and verified the live Portal layout in dark mode. Wallet
+  transaction requests now use the wallet presentation instead of a generic
+  notice. Internal `/api/system` acknowledgement records are filtered before
+  they reach chat, persisted system transcript records stay hidden, and live
+  wallet connection plus system notice/error events route through the
+  notification model; payment-required messages retain the dedicated blocking
+  gate. Non-blocking notification banners dismiss after six seconds by default
+  and remain manually dismissible.
+
 - 2026-07-31 Portal thread-history recovery: decoupled canonical account
   history from wallet connectivity, so a signed-in user can load and retain
   their threads with no wallet attached. Account identity changes remount the
