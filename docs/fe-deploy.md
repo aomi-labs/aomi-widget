@@ -9,7 +9,7 @@ the browser never holds GitHub tokens or service credentials.
 > - Portal BFF source dashboard now calls backend `user/sources` with the configured launch platform; backend hides unrelated repos from broad GitHub App installations.
 > - Existing-repo preflight sync sends the signed-in GitHub user id so the backend can prove ownership and bind `app_source.github_user_id`; otherwise deployed/admin-synced repos can be live but missing from the Source Repositories dashboard.
 > - The deploy preview route is `preflight`, not `dry-run`.
-> - Launch config is server-env-driven: `APP_DEPLOY_PLATFORMS` (JSON array or comma-separated list), `APP_DEPLOY_AOMI_TOML_PATHS`, and optional `APP_DEPLOY_TARGET_TAGS`. The first platform is the primary deploy target; app pickers can merge all configured platforms. The deploy source ref is an immutable commit SHA from `APP_DEPLOY_SOURCE_REF` (or `APP_DEPLOY_SOURCE_COMMIT`).
+> - Launch defaults are server-env-driven: `APP_DEPLOY_PLATFORMS` (JSON array or comma-separated list), `APP_DEPLOY_AOMI_TOML_PATHS`, and optional `APP_DEPLOY_TARGET_TAGS`. The first platform is the primary deploy target; app pickers can merge all configured platforms. Aomi Build's platform switcher does not enumerate this configuration: it submits one exact name to the authenticated manager source read and advances only when that platform exists. The deploy source ref is an immutable commit SHA from `APP_DEPLOY_SOURCE_REF` (or `APP_DEPLOY_SOURCE_COMMIT`).
 > - Chat links are controlled by `NEXT_PUBLIC_CHAT_URL`.
 > - Redeploy hydrates one target source's latest deployment metadata, then reruns an existing backend-owned GitHub Actions run. It requires portal `GITHUB_TOKEN` and refuses when no `ciRunId` is available.
 > - GitHub install redirects in the **same tab** (was: new tab + fragile localStorage polling) — eliminates popup-blocker + race-condition bugs
@@ -68,13 +68,13 @@ stateDiagram-v2
 
 **Backend (BE)** — `product-mono/aomi/bin/backend/src/endpoint/…`
 
-| Endpoint                                                                      | Purpose                                                                                                                                                                      |
-| ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /api/integrations/github-app/oauth/start?platform&repo&mode`             | mint signed `state`, return GitHub `install_url`. `mode=authorize` re-verifies an existing install.                                                                          |
-| `GET /api/integrations/github-app/oauth/callback`                             | validate `state`, exchange `code`, confirm the install is visible to the user, bind `app_source`, then **303 → `$AOMI_FRONTEND_URL/settings?installation_id&onboard=bound`** |
-| `POST /api/integrations/github-app/webhook`                                   | (HMAC) installation events → **upsert `app_source`**                                                                                                                         |
-| `POST /api/platforms/:platform/sources/{create-from-template,sync-installed}` | create repo from template / resolve+upsert an existing install to get `app_source.id`                                                                                        |
-| `POST /api/platforms/:platform/{deploy,activate}`                             | push candidate / activate a built release                                                                                                                                    |
+| Endpoint                                                                      | Purpose                                                                                                                                                                                     |
+| ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/integrations/github-app/oauth/start?platform&repo&mode&return_to`   | mint signed `state`, return GitHub `install_url`. A validated Aomi Build Projects `return_to` is signed with the exact platform and repo; `mode=authorize` re-verifies an existing install. |
+| `GET /api/integrations/github-app/oauth/callback`                             | validate `state`, exchange `code`, prove one visible installation reads the signed repo, bind `app_source`, then **303 → the signed Build Projects page**.                                  |
+| `POST /api/integrations/github-app/webhook`                                   | (HMAC) installation events → **upsert `app_source`**                                                                                                                                        |
+| `POST /api/platforms/:platform/sources/{create-from-template,sync-installed}` | create repo from template / resolve+upsert an existing install to get `app_source.id`                                                                                                       |
+| `POST /api/platforms/:platform/{deploy,activate}`                             | push candidate / activate a built release                                                                                                                                                   |
 
 **Portal BFF** — `aomi/apps/portal/src/app/api/launch/*` (each proxies the BE)
 
@@ -156,6 +156,13 @@ dead tunnel) but the App is already installed, the FE calls `oauth/start` with
 → BE `…/sources/sync-installed` resolves the install via the App and upserts
 `app_source`, so the wizard advances without a fresh install.
 
+**Self-service existing repository:** on a platform-scoped Aomi Build Projects
+page, the developer can enter an exact `owner/repo`. The OAuth callback proves
+the signed-in GitHub user can see an installation that reads that repository,
+claims the source for that user and platform, and returns to the same Projects
+page. If several installations are visible, the backend resolves the one that
+can read the signed repository; it never guesses from installation order.
+
 ---
 
 ## One-click (`oneshot`)
@@ -218,15 +225,15 @@ Per-user isolation: the candidate branch + release tag both encode the
 
 ## Configuration
 
-| Knob                                                                     | Local dev                                                   | Deployed (staging)                                                                                                              |
-| ------------------------------------------------------------------------ | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| Backend URL                                                              | local defaults to `http://127.0.0.1:8080`                   | Vercel production defaults to `https://api.aomi.dev`; previews default to `https://api-staging.aomi.dev`                        |
-| BE `AOMI_PORTAL_URL` (callback redirect target, was `AOMI_FRONTEND_URL`) | `http://localhost:3000`                                     | the deployed portal URL                                                                                                         |
-| GitHub App **Webhook URL**                                               | tunnel → `/api/integrations/github-app/webhook`             | `https://api-staging.aomi.dev/api/integrations/github-app/webhook`                                                              |
-| GitHub App **Callback URL**                                              | tunnel → `/api/integrations/github-app/oauth/callback`      | `https://api-staging.aomi.dev/api/integrations/github-app/oauth/callback`                                                       |
-| BE GitHub App secrets                                                    | `github_app.toml` / `GITHUB_APP_TOML` + `AOMI_GITHUB_APP_*` | same `AOMI_GITHUB_APP_*` as deployment secrets                                                                                  |
-| BFF service signer                                                       | `PORTAL_SERVICE_PRIVATE_KEY`                                | portal deployment secret; committed topology is auto-selected                                                                   |
-| Portal deploy platforms                                                  | `APP_DEPLOY_PLATFORMS`, defaults to `community`             | set explicitly for white-labeled partner portals, e.g. `["somm.finance"]`; the first platform is used for `/api/launch/*` calls |
+| Knob                                                                     | Local dev                                                   | Deployed (staging)                                                                                                                            |
+| ------------------------------------------------------------------------ | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Backend URL                                                              | local defaults to `http://127.0.0.1:8080`                   | Vercel production defaults to `https://api.aomi.dev`; previews default to `https://api-staging.aomi.dev`                                      |
+| BE `AOMI_PORTAL_URL` (callback redirect target, was `AOMI_FRONTEND_URL`) | `http://localhost:3000`                                     | the deployed portal URL                                                                                                                       |
+| GitHub App **Webhook URL**                                               | tunnel → `/api/integrations/github-app/webhook`             | `https://api-staging.aomi.dev/api/integrations/github-app/webhook`                                                                            |
+| GitHub App **Callback URL**                                              | tunnel → `/api/integrations/github-app/oauth/callback`      | `https://api-staging.aomi.dev/api/integrations/github-app/oauth/callback`                                                                     |
+| BE GitHub App secrets                                                    | `github_app.toml` / `GITHUB_APP_TOML` + `AOMI_GITHUB_APP_*` | same `AOMI_GITHUB_APP_*` as deployment secrets                                                                                                |
+| BFF service signer                                                       | `PORTAL_SERVICE_PRIVATE_KEY`                                | portal deployment secret; committed topology is auto-selected                                                                                 |
+| Portal deploy defaults                                                   | `APP_DEPLOY_PLATFORMS`, defaults to `community`             | set explicitly for white-labeled partner portals, e.g. `["somm.finance"]`; the first platform is used when a request does not name a platform |
 
 > Only the **webhook** strictly needs a public tunnel (server-to-server); the
 > callback is a browser redirect. Pointing at staging requires the App's

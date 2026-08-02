@@ -14,9 +14,11 @@ import { LoadingPanel } from "./ui/state-panels";
 /** Console-framed one-shot create flow. Reuses the existing Onboarding wizard
  *  (install → create → deploy → activate → live) inside the deployments shell. */
 export function NewProject({
+  platform,
   backHref = "/operate/deployments",
   backLabel = "Deployments",
 }: {
+  platform?: string;
   backHref?: string;
   backLabel?: string;
 }) {
@@ -53,6 +55,7 @@ export function NewProject({
           ) : session.signedIn ? (
             <Onboarding
               hideWizardBack
+              platform={platform}
               sessionInstallationId={session.installationId ?? null}
             />
           ) : (

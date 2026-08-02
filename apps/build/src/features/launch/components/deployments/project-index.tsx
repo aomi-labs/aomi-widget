@@ -5,19 +5,27 @@ import { EmptyState } from "@build/components/control-plane/empty-state";
 import { useProjects } from "@build/features/launch/hooks/use-projects";
 import { BUILD_GLOSSARY } from "@build/lib/glossary";
 import { ProjectRow } from "./project-row";
+import {
+  RepositoryConnector,
+  type RepositoryConnectionResult,
+} from "./repository-connector";
 import { SdkBadge } from "./ui/sdk-badge";
 import { LoadingPanel, ErrorPanel, GitHubSignInPanel } from "./ui/state-panels";
 
-export function ProjectIndex() {
-  const { state, reload } = useProjects();
+export function ProjectIndex({
+  platform,
+  connectionResult,
+}: {
+  platform?: string;
+  connectionResult?: RepositoryConnectionResult;
+}) {
+  const { state, reload } = useProjects(platform);
   const requiredSdk =
     state.status === "ready" || state.status === "signed_out"
       ? state.sdk?.sdkStatus.requiredVersion
       : null;
   const githubError =
-    typeof window !== "undefined"
-      ? new URLSearchParams(window.location.search).get("github_error")
-      : null;
+    connectionResult?.status === "error" ? connectionResult.message : null;
 
   return (
     <main className="bg-background text-foreground min-h-screen">
@@ -44,7 +52,9 @@ export function ProjectIndex() {
               Refresh
             </button>
             <a
-              href="/operate/deployments/new"
+              href={`/operate/deployments/new${
+                platform ? `?platform=${encodeURIComponent(platform)}` : ""
+              }`}
               className="bg-primary text-primary-foreground inline-flex h-8 items-center justify-center rounded-md px-3 text-sm font-medium hover:opacity-90"
             >
               New app
@@ -57,6 +67,10 @@ export function ProjectIndex() {
             <span className="text-dim">Backend requires aomi-sdk</span>
             <SdkBadge stamped={requiredSdk} required={requiredSdk} />
           </div>
+        )}
+
+        {state.status === "ready" && platform && (
+          <RepositoryConnector platform={platform} result={connectionResult} />
         )}
 
         <div className="border-border bg-surface-1 overflow-hidden rounded-lg border">
@@ -77,7 +91,9 @@ export function ProjectIndex() {
             <EmptyState
               title="No projects yet"
               description="Import a GitHub repository to deploy your first app."
-              actionHref="/operate/deployments/new"
+              actionHref={`/operate/deployments/new${
+                platform ? `?platform=${encodeURIComponent(platform)}` : ""
+              }`}
               actionLabel="New app"
             />
           )}
@@ -87,6 +103,9 @@ export function ProjectIndex() {
                 key={source.id}
                 source={source}
                 requiredSdk={requiredSdk}
+                href={`/projects/${source.id}${
+                  platform ? `?platform=${encodeURIComponent(platform)}` : ""
+                }`}
               />
             ))}
         </div>

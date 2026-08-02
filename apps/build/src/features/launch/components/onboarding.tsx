@@ -24,10 +24,12 @@ const PATH = "oneshot" as const;
 export function Onboarding({
   hideWizardBack = false,
   knownSources = [],
+  platform,
   sessionInstallationId = null,
 }: {
   hideWizardBack?: boolean;
   knownSources?: UserSource[];
+  platform?: string;
   /**
    * Installation id from the signed-in GitHub session — present when the App is
    * already installed. Seeds the wizard so it skips the install step and starts
@@ -39,7 +41,20 @@ export function Onboarding({
   const actor = adapter.identity.address ?? undefined;
 
   const [state, setState] = useState<LaunchState>(() => {
-    const loaded = loadLaunch();
+    const requestedPlatform = platform?.trim() || null;
+    let loaded = loadLaunch();
+    // Wizard progress belongs to exactly one platform. Reusing a source id or
+    // deployment from Community after entering a partner flow would route
+    // subsequent writes to the wrong platform.
+    if (loaded.platform !== requestedPlatform) {
+      loaded = {
+        platform: requestedPlatform,
+        path: null,
+        oneshot: {},
+        pendingInstall: null,
+        rejectedInstallationId: null,
+      };
+    }
     // One-click is the only path — always mount the wizard.
     loaded.path = PATH;
     // Skip-install: if the App is already installed and we don't have a repo
@@ -226,7 +241,14 @@ export function Onboarding({
     setInstallError(null);
     setInstalling(true);
     try {
-      window.location.href = await githubAppInstallUrl({ app: 2 });
+      const returnTo = platform
+        ? `${window.location.origin}/operate/deployments/new?platform=${encodeURIComponent(platform)}`
+        : undefined;
+      window.location.href = await githubAppInstallUrl({
+        app: 2,
+        platform,
+        returnTo,
+      });
     } catch (error) {
       setInstalling(false);
       setInstallError(
@@ -235,7 +257,7 @@ export function Onboarding({
           : "Failed to start GitHub App install.",
       );
     }
-  }, [state]);
+  }, [platform, state]);
 
   // knownSources / hideWizardBack are accepted for parity with the dashboard's
   // call site; the one-click wizard derives everything it needs from `progress`.
@@ -247,6 +269,7 @@ export function Onboarding({
       {installSuccess && <InstallSuccessBanner />}
       <OneshotWizard
         progress={state.oneshot}
+        platform={platform}
         actor={actor}
         onRestart={restart}
         beginInstall={beginInstall}

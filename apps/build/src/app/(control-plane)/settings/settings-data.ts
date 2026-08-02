@@ -31,8 +31,8 @@ export const settingsSections: SettingsSection[] = [
     description: "Profile and workspace defaults.",
     icon: UserRound,
     enabled: true,
-    status: "soon",
-    detail: "Coming soon. Profile persistence is not built yet.",
+    status: "available",
+    detail: "Switch Build to an exact deployment platform.",
   },
   {
     slug: "secrets",
@@ -80,8 +80,7 @@ export const settingsSections: SettingsSection[] = [
     icon: CreditCard,
     enabled: true,
     status: "available",
-    detail:
-      "Invoices are not in Build yet. See Operate → Usage for spend.",
+    detail: "Invoices are not in Build yet. See Operate → Usage for spend.",
   },
   {
     slug: "bots",

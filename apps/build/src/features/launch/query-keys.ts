@@ -1,8 +1,14 @@
 export const buildQueryKeys = {
   all: ["aomi-build"] as const,
   sdkStatus: () => [...buildQueryKeys.all, "sdk-status"] as const,
-  projects: (account: string) =>
-    [...buildQueryKeys.all, "account", account, "projects"] as const,
+  projects: (account: string, platform?: string | null) =>
+    [
+      ...buildQueryKeys.all,
+      "account",
+      account,
+      "projects",
+      platform?.trim() || "all",
+    ] as const,
   // Server-filtered single-source read backing a project detail page. Nested
   // under the `projects` key so invalidating the projects prefix covers detail
   // pages too. Warm navigations seed it from the `projects` list cache.
@@ -12,9 +18,8 @@ export const buildQueryKeys = {
     platform?: string | null,
   ) =>
     [
-      ...buildQueryKeys.projects(account),
+      ...buildQueryKeys.projects(account, platform),
       "source",
-      platform?.trim() || "default",
       sourceId,
     ] as const,
   deployments: (account: string) =>

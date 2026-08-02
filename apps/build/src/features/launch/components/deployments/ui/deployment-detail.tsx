@@ -2,8 +2,8 @@
 
 import { ChevronDown, ExternalLink } from "lucide-react";
 import type { UserSource, UserSourceLatestDeployment } from "@aomi-labs/deploy";
+import { HelpBadge } from "@build/components/help-badge";
 import type { TimelineDeployment } from "../deployment-timeline";
-import { HintBubble } from "./hint-bubble";
 import { sdkCompatibility } from "../sdk-compatibility";
 
 const GITHUB = "https://github.com";
@@ -35,7 +35,7 @@ function MetaRow({
     <div className="border-border grid grid-cols-[160px_minmax(0,1fr)] items-baseline gap-4 border-b py-2.5 last:border-b-0 max-sm:grid-cols-1 max-sm:gap-1">
       <dt className="text-dim inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider">
         {label}
-        {hint && <HintBubble label={`About ${label}`}>{hint}</HintBubble>}
+        {hint && <HelpBadge label={`About ${label}`}>{hint}</HelpBadge>}
       </dt>
       <dd className="min-w-0 text-xs">{children}</dd>
     </div>
@@ -173,15 +173,17 @@ export function DeploymentDetail({
             <MetaRow label="Deployed platform">
               {platformName && platformRepo ? (
                 <>
-                  <GhLink text={platformName} href={`${GITHUB}/${platformRepo}`} />
+                  <GhLink
+                    text={platformName}
+                    href={`${GITHUB}/${platformRepo}`}
+                  />
                   <div className="text-dim/70 mt-0.5 font-mono text-[10px]">
                     {platformRepo}
                   </div>
                 </>
               ) : (
                 <span className="text-dim">
-                  {platformName ??
-                    (historyPending ? "loading…" : "unknown")}
+                  {platformName ?? (historyPending ? "loading…" : "unknown")}
                 </span>
               )}
             </MetaRow>
@@ -205,10 +207,10 @@ export function DeploymentDetail({
           <div className="mt-3">
             <div className="text-dim mb-2 inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider">
               Apps <span className="text-dim/70">· {apps.length}</span>
-              <HintBubble label="About apps">
-                One deployment can contain multiple apps — each is compiled
-                and released independently under its own release tag.
-              </HintBubble>
+              <HelpBadge label="About apps">
+                One deployment can contain multiple apps — each is compiled and
+                released independently under its own release tag.
+              </HelpBadge>
             </div>
             <div className="grid gap-2">
               {apps.map((app) => (
@@ -252,11 +254,11 @@ export function DeploymentDetail({
           <div className="mt-3">
             <div className="text-dim mb-2 inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider">
               Build artifacts
-              <HintBubble label="About build artifacts">
+              <HelpBadge label="About build artifacts">
                 Published by platform CI as a GitHub release. The runtime
                 downloads the tarball and verifies the plugin against the
                 manifest digest before loading.
-              </HintBubble>
+              </HelpBadge>
             </div>
             {artifactsPublished ? (
               <dl>
@@ -332,8 +334,7 @@ export function DeploymentDetail({
                 <span>
                   Waiting on platform CI — the compiled plugin and release
                   assets appear here once{" "}
-                  <code className="font-mono">manifest.json</code> is
-                  published.
+                  <code className="font-mono">manifest.json</code> is published.
                   {entry?.ciUrl && (
                     <>
                       {" "}

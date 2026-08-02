@@ -38,6 +38,7 @@ export async function githubAppInstallUrl(args: {
   repo?: string;
   mode?: "install" | "authorize";
   app?: number;
+  returnTo?: string;
 }): Promise<string> {
   const params = new URLSearchParams();
   const platform = args.platform?.trim();
@@ -46,6 +47,8 @@ export async function githubAppInstallUrl(args: {
   if (repo) params.set("repo", repo);
   if (args.mode === "authorize") params.set("mode", "authorize");
   if (args.app && args.app !== 1) params.set("app", String(args.app));
+  const returnTo = args.returnTo?.trim();
+  if (returnTo) params.set("return_to", returnTo);
   const query = params.toString();
   const result = await sessionScopedFetch<GithubAppOAuthStartResponse>(
     `/api/integrations/github-app/oauth/start${query ? `?${query}` : ""}`,
@@ -114,6 +117,7 @@ export function launchRedeploy(input: {
 }
 
 export function launchCreateRepo(input: {
+  platform?: string;
   installationId: string;
   repoName?: string;
 }): Promise<LaunchCreateRepoResult> {

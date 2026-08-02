@@ -39,7 +39,10 @@ vi.mock("@build/features/launch/dashboard", () => ({
 
 import { GitHubSessionProvider } from "@build/components/control-plane/github-session-context";
 import { useProjects } from "./use-projects";
-import { deploymentFeed } from "@build/features/launch/client";
+import {
+  deploymentFeed,
+  deploymentSources,
+} from "@build/features/launch/client";
 import { fetchGitHubSession } from "@build/features/launch/dashboard";
 
 function wrapper() {
@@ -71,5 +74,14 @@ describe("useProjects", () => {
       expect(result.current.state.sources).toHaveLength(1);
       expect(result.current.state.sources[0]?.repositoryLink).toBe("a/b");
     }
+  });
+
+  it("loads sources from an exact platform when one is selected", async () => {
+    const { result } = renderHook(() => useProjects("somm.finance"), {
+      wrapper: wrapper(),
+    });
+
+    await waitFor(() => expect(result.current.state.status).toBe("ready"));
+    expect(deploymentSources).toHaveBeenCalledWith("somm.finance");
   });
 });

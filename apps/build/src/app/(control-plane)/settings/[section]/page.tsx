@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { getSettingsSection, settingsSections } from "../settings-data";
 import { SettingsBillingPanel } from "../settings-billing-panel";
+import { SettingsGeneralPanel } from "../settings-general-panel";
 import { SettingsSecretsPanel } from "../settings-secrets-panel";
 
 export function generateStaticParams() {
@@ -21,8 +22,10 @@ export default async function SettingsSectionPage({
   const Icon = section.icon;
 
   return (
-    <div className="flex max-w-3xl flex-col gap-6">
-      <div className="space-y-2">
+    <div
+      className={`flex flex-col ${slug === "general" ? "max-w-4xl gap-10" : "max-w-3xl gap-6"}`}
+    >
+      <div className={slug === "general" ? "space-y-3" : "space-y-2"}>
         <div className="flex items-center gap-2">
           <Icon className="text-dim size-5" />
           <h1 className="font-display text-foreground text-2xl font-normal tracking-tight">
@@ -32,7 +35,9 @@ export default async function SettingsSectionPage({
         <p className="text-subtle max-w-2xl text-sm">{section.description}</p>
       </div>
 
-      {slug === "secrets" ? (
+      {slug === "general" ? (
+        <SettingsGeneralPanel />
+      ) : slug === "secrets" ? (
         <SettingsSecretsPanel />
       ) : slug === "billing" ? (
         <SettingsBillingPanel />

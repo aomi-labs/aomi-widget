@@ -497,19 +497,22 @@ describe("operateUsageRoute statement fallback", () => {
     );
   });
 
-  it("rejects a platform outside the configured allowlist", async () => {
-    vi.stubEnv("APP_DEPLOY_PLATFORMS", "community,somm.finance");
+  it("lets the backend resolve an exact platform outside the defaults", async () => {
+    vi.stubEnv("APP_DEPLOY_PLATFORMS", "community");
     setSession({ githubUserId: "gh-1" });
+    oneSource();
+    client.getUserSourceUsage.mockResolvedValue(emptyUsage);
+    client.getUserSourceStatement.mockRejectedValue(new Error("404"));
 
     const res = await operateUsageRoute(
-      usageReq("?appSourceId=900&platform=attacker.example"),
+      usageReq("?appSourceId=900&platform=known.partner"),
     );
 
-    expect(res.status).toBe(400);
-    await expect(res.json()).resolves.toEqual({
-      error: "missing or invalid `platform`",
+    expect(res.status).toBe(200);
+    expect(client.listUserSources).toHaveBeenCalledWith({
+      githubUserId: "gh-1",
+      platform: "known.partner",
     });
-    expect(client.listUserSources).not.toHaveBeenCalled();
   });
 
   it("serves the example statement (example: true) when the manager has none", async () => {

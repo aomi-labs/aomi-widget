@@ -31,7 +31,7 @@ function hasApps(source: UserSource) {
   return source.apps.length > 0;
 }
 
-export function useProjects() {
+export function useProjects(platform?: string) {
   // The GitHub session comes from the shell-level provider — reusing it here
   // avoids a second `/auth/github/status` round trip on every page mount.
   const { account } = useGitHubSession();
@@ -43,8 +43,8 @@ export function useProjects() {
     staleTime: buildQueryStaleTime.sdkStatus,
   });
   const projects = useQuery({
-    queryKey: buildQueryKeys.projects(accountKey ?? "unavailable"),
-    queryFn: () => deploymentSources(),
+    queryKey: buildQueryKeys.projects(accountKey ?? "unavailable", platform),
+    queryFn: () => deploymentSources(platform),
     enabled: account.signedIn && accountKey !== null,
     staleTime: buildQueryStaleTime.projects,
   });
