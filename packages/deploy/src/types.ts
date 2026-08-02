@@ -791,6 +791,10 @@ export interface UpdateUserBotInput extends OwnedOperateInput {
   botId: string;
   applicationIds: number[];
   primaryApplicationId: number;
+  /** Omitted = unchanged; blank clears the label (manager semantics). */
+  label?: string;
+  /** Omitted = unchanged; "single" | "multi". */
+  threadMode?: string;
 }
 
 export interface DeleteUserBotInput extends OwnedOperateInput {

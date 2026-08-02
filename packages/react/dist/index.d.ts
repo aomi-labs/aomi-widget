@@ -12,6 +12,8 @@ type AomiRuntimeProviderProps = {
     applicationId?: number | string | null;
     appPlatforms?: AomiPlatformFilter;
     clientOptions?: Omit<AomiClientOptions, "baseUrl">;
+    /** Whether a canonical account session can load threads without a wallet. */
+    accountSessionAvailable?: boolean;
     /** Optional explicit initial thread. Takes precedence over stored state. */
     initialThreadId?: string;
     /** Persist the active materialized thread in localStorage. Defaults to true. */
@@ -21,7 +23,7 @@ type AomiRuntimeProviderProps = {
     /** Extra key segment for tenant/user/app scoping without owning the full key. */
     threadPersistenceScope?: string | null;
 };
-declare function AomiRuntimeProvider({ children, backendUrl, applicationId, appPlatforms, clientOptions, initialThreadId, persistThread, threadPersistenceKey, threadPersistenceScope, }: Readonly<AomiRuntimeProviderProps>): react_jsx_runtime.JSX.Element;
+declare function AomiRuntimeProvider({ children, backendUrl, applicationId, appPlatforms, clientOptions, accountSessionAvailable, initialThreadId, persistThread, threadPersistenceKey, threadPersistenceScope, }: Readonly<AomiRuntimeProviderProps>): react_jsx_runtime.JSX.Element;
 
 declare class SessionManager {
     private readonly clientFactory;

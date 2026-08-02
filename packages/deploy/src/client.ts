@@ -953,6 +953,8 @@ export class DeploymentClient {
       {
         application_ids: input.applicationIds,
         primary_application_id: input.primaryApplicationId,
+        label: input.label,
+        thread_mode: input.threadMode,
       },
       "update_user_bot",
       bearer,

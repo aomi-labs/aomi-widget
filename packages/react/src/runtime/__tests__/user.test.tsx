@@ -91,6 +91,41 @@ describe("User API", () => {
       expect(getApi().user.connection?.is_connected).toBe(true);
     });
 
+    it("notifies live wallet connection transitions", async () => {
+      const { api, getApi } = renderRuntime();
+
+      await act(async () => {
+        api.setUser({
+          address: "0x123",
+          chainId: 1,
+          isConnected: true,
+        });
+        await flushPromises();
+      });
+
+      expect(getApi().notifications).toEqual([
+        expect.objectContaining({
+          type: "wallet",
+          title: "Wallet connected",
+        }),
+      ]);
+
+      await act(async () => {
+        getApi().clearAllNotifications();
+      });
+      await act(async () => {
+        getApi().setUser({ isConnected: false });
+        await flushPromises();
+      });
+
+      expect(getApi().notifications).toEqual([
+        expect.objectContaining({
+          type: "wallet",
+          title: "Wallet disconnected",
+        }),
+      ]);
+    });
+
     it("updates all user state fields", async () => {
       const { api, getApi } = renderRuntime();
 
