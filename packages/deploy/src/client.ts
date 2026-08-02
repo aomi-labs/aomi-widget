@@ -950,6 +950,8 @@ export class DeploymentClient {
       {
         application_ids: input.applicationIds,
         primary_application_id: input.primaryApplicationId,
+        label: input.label,
+        thread_mode: input.threadMode,
       },
       "update_user_bot",
       bearer,
@@ -2336,6 +2338,9 @@ function camelUserSource(raw: unknown): UserSource {
       s.latest_deployment ?? s.latestDeployment,
     ),
     sdkVersion: s.sdk_version ?? s.sdkVersion ?? null,
+    sdkVersions: ((s.sdk_versions ?? s.sdkVersions ?? []) as unknown[]).flatMap(
+      (version) => (typeof version === "string" && version ? [version] : []),
+    ),
   };
 }
 

@@ -139,6 +139,7 @@ export function DeploymentsTab({
   const requiredSdk = detail.sdk?.sdkStatus.requiredVersion ?? null;
   const deactivated =
     runtimeCanResolveLive &&
+    detail.history !== null &&
     deployments.length > 0 &&
     currentDeployment == null;
   const deploying =
@@ -214,6 +215,8 @@ export function DeploymentsTab({
       <EmptyPanel>Project not found.</EmptyPanel>
     );
   }
+  // The canonical record timeline establishes the UI's current state. History
+  // enriches it independently, so render records while that request is pending.
   if (detail.recordsByApp === null) {
     return <LoadingPanel label="Loading deployments…" />;
   }

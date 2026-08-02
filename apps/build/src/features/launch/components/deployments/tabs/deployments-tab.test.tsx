@@ -60,7 +60,7 @@ function makeDetail(
     loadRecords: vi.fn(),
     loadRequiredSecrets: vi.fn(),
     loadHistory: vi.fn(),
-    history: overrides.history ?? null,
+    history: "history" in overrides ? overrides.history : [],
     historyError: null,
     refreshRequiredSecrets: vi.fn(async () => ({})),
     hasMissingSecrets: overrides.hasMissingSecrets ?? (() => false),
@@ -145,6 +145,29 @@ describe("DeploymentsTab", () => {
       "aria-selected",
       "false",
     );
+  });
+
+  it("does not label a records-only snapshot as deactivated", () => {
+    const partial = makeDetail({
+      history: null,
+      recordsByApp: {
+        "my-bot": [
+          {
+            deploymentId: "dep_1_ra_oldcommit1",
+            releaseTag: "t-old",
+            actor: "alice",
+            createdAt: 100,
+            sdkVersion: "3.0.1",
+            current: false,
+          },
+        ],
+      },
+    });
+    renderTab(<DeploymentsTab detail={partial} />);
+    expect(
+      screen.getByText("Live · 1 deployment in history"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/No deployment is currently live/i)).toBeNull();
   });
 
   it("renders history when the promotion log is empty", async () => {

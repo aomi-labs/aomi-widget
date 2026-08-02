@@ -103,4 +103,26 @@ describe("ProjectRow", () => {
       "/projects/42?platform=somm.finance&tab=deployments",
     );
   });
+
+  it("shows an upgrade when any live app has an outdated SDK", () => {
+    render(
+      <ProjectRow
+        source={{
+          id: 42,
+          installationId: 1,
+          repositoryLink: "alice/bot",
+          sdkVersions: ["3.0.3", "3.0.4"],
+          apps: [],
+          latestDeployment: null,
+        }}
+        requiredSdk="3.0.4"
+      />,
+    );
+    expect(screen.getByTestId("sdk-badge")).toHaveTextContent("SDK mixed");
+    expect(screen.getByText("Outdated")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Upgrade" })).toHaveAttribute(
+      "href",
+      "/projects/42?tab=deployments",
+    );
+  });
 });

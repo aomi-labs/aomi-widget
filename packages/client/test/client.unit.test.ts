@@ -11,7 +11,7 @@ describe("AomiClient route manifest", () => {
         `${endpoint.method} ${endpoint.path} [${endpoint.auth.join(", ")}]`,
     );
 
-    expect(routeKeys).toHaveLength(113);
+    expect(routeKeys).toHaveLength(117);
     expect(new Set(routeKeys).size).toBe(routeKeys.length);
     expect(routeKeys).toContain("GET /api/account/statement [account]");
     // Public placement probe. Kept distinct from GET /health, which stays a
@@ -53,6 +53,18 @@ describe("AomiClient route manifest", () => {
     );
     expect(routeKeys).toContain(
       "POST /api/platforms/:name/deployments/:deployment/rerun [activation]",
+    );
+    expect(routeKeys).toContain(
+      "GET /api/platforms/:name/telegram/handover/:bot/:id [activation]",
+    );
+    expect(routeKeys).toContain(
+      "POST /api/platforms/:name/telegram/handover [activation]",
+    );
+    expect(routeKeys).toContain(
+      "POST /api/platforms/:name/telegram/handover/:bot/:id/activate [activation]",
+    );
+    expect(routeKeys).toContain(
+      "POST /api/platforms/:name/telegram/handover/:bot/:id/revoke [activation]",
     );
     expect(routeKeys).not.toContain("GET /api/control/apps [session]");
     expect(routeKeys.some((route) => route.includes("/api/control/"))).toBe(

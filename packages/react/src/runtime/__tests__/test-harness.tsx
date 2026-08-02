@@ -663,6 +663,7 @@ export type RenderRuntimeOptions = {
   backendUrl?: string;
   applicationId?: number | string | null;
   appPlatforms?: string | readonly string[] | null;
+  accountSessionAvailable?: boolean;
   initialThreadId?: string;
   persistThread?: boolean;
   threadPersistenceKey?: string;
@@ -684,6 +685,7 @@ export const renderRuntime = ({
   backendUrl = "http://test-backend",
   applicationId,
   appPlatforms,
+  accountSessionAvailable,
   initialThreadId,
   persistThread,
   threadPersistenceKey,
@@ -696,6 +698,7 @@ export const renderRuntime = ({
       backendUrl={backendUrl}
       applicationId={applicationId}
       appPlatforms={appPlatforms}
+      accountSessionAvailable={accountSessionAvailable}
       initialThreadId={initialThreadId}
       persistThread={persistThread}
       threadPersistenceKey={threadPersistenceKey}
