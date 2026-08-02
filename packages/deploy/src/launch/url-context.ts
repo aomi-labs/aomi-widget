@@ -52,3 +52,15 @@ export function hasSourceForLaunchUrlContext(
     sourceMatchesLaunchUrlContext(source, context),
   );
 }
+
+/**
+ * Read `?platform=` off a router's `searchParams` value (Next hands back an
+ * array when the param repeats — there is no single platform to honour then).
+ * Hosts each spelled this out and disagreed about trimming.
+ */
+export function platformParam(
+  value: string | string[] | undefined,
+): string | undefined {
+  const platform = typeof value === "string" ? value.trim() : "";
+  return platform || undefined;
+}

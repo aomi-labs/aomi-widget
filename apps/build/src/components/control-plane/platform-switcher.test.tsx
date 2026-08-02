@@ -10,6 +10,7 @@ const { push, deploymentSources } = vi.hoisted(() => ({
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push }),
   useSearchParams: () => new URLSearchParams(),
+  usePathname: () => "/settings/general",
 }));
 vi.mock("@build/features/launch/client", async (importOriginal) => {
   const original =

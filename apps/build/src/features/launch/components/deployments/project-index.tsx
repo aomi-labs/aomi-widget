@@ -3,6 +3,7 @@
 import { FolderKanban } from "lucide-react";
 import { EmptyState } from "@build/components/control-plane/empty-state";
 import { useProjects } from "@build/features/launch/hooks/use-projects";
+import { platformHref } from "@build/features/launch/platform";
 import { BUILD_GLOSSARY } from "@build/lib/glossary";
 import { ProjectRow } from "./project-row";
 import {
@@ -52,9 +53,7 @@ export function ProjectIndex({
               Refresh
             </button>
             <a
-              href={`/operate/deployments/new${
-                platform ? `?platform=${encodeURIComponent(platform)}` : ""
-              }`}
+              href={platformHref("/operate/deployments/new", platform)}
               className="bg-primary text-primary-foreground inline-flex h-8 items-center justify-center rounded-md px-3 text-sm font-medium hover:opacity-90"
             >
               New app
@@ -91,9 +90,7 @@ export function ProjectIndex({
             <EmptyState
               title="No projects yet"
               description="Import a GitHub repository to deploy your first app."
-              actionHref={`/operate/deployments/new${
-                platform ? `?platform=${encodeURIComponent(platform)}` : ""
-              }`}
+              actionHref={platformHref("/operate/deployments/new", platform)}
               actionLabel="New app"
             />
           )}
@@ -103,9 +100,7 @@ export function ProjectIndex({
                 key={source.id}
                 source={source}
                 requiredSdk={requiredSdk}
-                href={`/projects/${source.id}${
-                  platform ? `?platform=${encodeURIComponent(platform)}` : ""
-                }`}
+                href={platformHref(`/projects/${source.id}`, platform)}
               />
             ))}
         </div>

@@ -15,6 +15,8 @@ import {
   buildQueryKeys,
   githubAccountKey,
 } from "@build/features/launch/query-keys";
+import { writePlatform } from "@build/features/launch/platform";
+import { usePlatform } from "@build/features/launch/use-platform";
 
 export function PlatformSwitcher({
   currentPlatform,
@@ -23,9 +25,12 @@ export function PlatformSwitcher({
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const stored = usePlatform();
+  // Settings has no `?platform=`, so without the persisted selection this
+  // would always render empty and never show which platform you are on.
   const activePlatform =
     currentPlatform === undefined
-      ? searchParams.get("platform")?.trim() || null
+      ? searchParams.get("platform")?.trim() || stored
       : currentPlatform;
   const queryClient = useQueryClient();
   const { account } = useGitHubSession();
@@ -61,7 +66,15 @@ export function PlatformSwitcher({
           buildQueryKeys.projects(accountKey, platform),
           result,
         );
+        // The platform we are leaving keeps a cache entry that is now stale
+        // for anyone who switches back.
+        if (activePlatform) {
+          queryClient.invalidateQueries({
+            queryKey: buildQueryKeys.projects(accountKey, activePlatform),
+          });
+        }
       }
+      writePlatform(platform);
       router.push(`/projects?platform=${encodeURIComponent(platform)}`);
     } catch (cause) {
       setError(
@@ -79,6 +92,7 @@ export function PlatformSwitcher({
     if (checking) return;
     setValue("community");
     setError(null);
+    writePlatform("community");
     router.push("/projects?platform=community");
   }
 

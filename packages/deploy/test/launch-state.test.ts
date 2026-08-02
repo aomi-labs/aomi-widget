@@ -114,6 +114,7 @@ describe("load/save", () => {
     globalThis.window = win;
 
     expect(loadLaunch()).toEqual({
+      platform: null,
       path: null,
       oneshot: {},
       pendingInstall: null,

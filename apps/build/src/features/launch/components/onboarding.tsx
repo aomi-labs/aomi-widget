@@ -17,6 +17,7 @@ import {
   type LaunchProgress,
   type UserSource,
 } from "@build/features/launch";
+import { readPlatform } from "@build/features/launch/platform";
 import { OneshotWizard } from "./oneshot-wizard";
 
 const PATH = "oneshot" as const;
@@ -241,13 +242,15 @@ export function Onboarding({
     setInstallError(null);
     setInstalling(true);
     try {
-      const returnTo = platform
-        ? `${window.location.origin}/operate/deployments/new?platform=${encodeURIComponent(platform)}`
-        : undefined;
+      // A return URL has to name an exact platform, and without one the
+      // backend falls back to the *portal's* settings page — a different app.
+      // An unscoped Build page is the Community platform, so say so and come
+      // back here.
+      const target = platform || readPlatform() || "community";
       window.location.href = await githubAppInstallUrl({
         app: 2,
-        platform,
-        returnTo,
+        platform: target,
+        returnTo: `${window.location.origin}/operate/deployments/new?platform=${encodeURIComponent(target)}`,
       });
     } catch (error) {
       setInstalling(false);

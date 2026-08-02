@@ -1,6 +1,7 @@
 import { ErrorBoundary } from "@build/components/shell/error-boundary";
+import { connectionResult } from "@aomi-labs/deploy/launch";
 import { ProjectIndex } from "@build/features/launch/components/deployments/project-index";
-import type { RepositoryConnectionResult } from "@build/features/launch/components/deployments/repository-connector";
+import { platformParam } from "@build/features/launch/platform";
 
 export default async function ProjectsPage({
   searchParams,
@@ -18,27 +19,18 @@ export default async function ProjectsPage({
     repo: rawRepo,
     github_error: rawGithubError,
   } = await searchParams;
-  const platform = typeof rawPlatform === "string" ? rawPlatform.trim() : "";
-  const launch = typeof rawLaunch === "string" ? rawLaunch : "";
-  const repo = typeof rawRepo === "string" ? rawRepo : undefined;
-  const githubError =
-    typeof rawGithubError === "string" ? rawGithubError : undefined;
-  let connectionResult: RepositoryConnectionResult | undefined;
-  if (githubError) {
-    connectionResult = { status: "error", message: githubError };
-  } else if (launch === "bound") {
-    connectionResult = { status: "success", repo };
-  } else if (launch) {
-    connectionResult = {
-      status: "error",
-      message: "GitHub installation was not completed. Try connecting again.",
-    };
-  }
+  const one = (value?: string | string[]) =>
+    typeof value === "string" ? value : undefined;
+
   return (
     <ErrorBoundary>
       <ProjectIndex
-        platform={platform || undefined}
-        connectionResult={connectionResult}
+        platform={platformParam(rawPlatform)}
+        connectionResult={connectionResult({
+          launch: one(rawLaunch),
+          repo: one(rawRepo),
+          githubError: one(rawGithubError),
+        })}
       />
     </ErrorBoundary>
   );

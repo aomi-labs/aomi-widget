@@ -1,19 +1,17 @@
 import { NewProject } from "@build/features/launch/components/deployments/new-project";
+import { platformHref, platformParam } from "@build/features/launch/platform";
 
 export default async function NewOperateDeploymentPage({
   searchParams,
 }: {
   searchParams: Promise<{ platform?: string | string[] }>;
 }) {
-  const { platform: rawPlatform } = await searchParams;
-  const platform = typeof rawPlatform === "string" ? rawPlatform.trim() : "";
+  const platform = platformParam((await searchParams).platform);
   return (
     <NewProject
-      platform={platform || undefined}
+      platform={platform}
       backHref={
-        platform
-          ? `/projects?platform=${encodeURIComponent(platform)}`
-          : "/operate/deployments"
+        platform ? platformHref("/projects", platform) : "/operate/deployments"
       }
       backLabel={platform ? "Projects" : "Deployments"}
     />

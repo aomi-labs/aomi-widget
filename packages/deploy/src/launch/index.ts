@@ -6,7 +6,9 @@
 
 export {
   createLaunchClient,
+  LaunchRequestError,
   DEFAULT_LAUNCH_BASE_PATH,
+  DEFAULT_DEPLOYMENTS_BASE_PATH,
   DEFAULT_GITHUB_AUTH_BASE_PATH,
   type LaunchClient,
   type LaunchClientOptions,
@@ -32,7 +34,25 @@ export {
   type LaunchActivateResult,
   type LaunchAppStatus,
   type LaunchRedeployResult,
+  type LaunchSdkStatus,
+  type DeploymentSourcesResult,
+  type DeploymentHistoryResult,
+  type DeploymentFeedResult,
+  type DeploymentSecretsResult,
+  type DeploymentPromoteResult,
+  type RequiredSecretsByApp,
+  type RequiredSecretsResult,
 } from "./contracts";
+
+export {
+  MissingRequiredSecretsError,
+  missingRequiredSecrets,
+} from "./required-secrets";
+
+export {
+  connectionResult,
+  type RepositoryConnectionResult,
+} from "./connection-result";
 
 export {
   loadLaunch,
@@ -60,5 +80,6 @@ export {
   readLaunchUrlContext,
   sourceMatchesLaunchUrlContext,
   hasSourceForLaunchUrlContext,
+  platformParam,
   type LaunchUrlContext,
 } from "./url-context";

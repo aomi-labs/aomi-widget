@@ -12,6 +12,13 @@ export type PendingInstall = {
 };
 
 export type LaunchState = {
+  /**
+   * Platform context for the persisted wizard progress. Wizard progress
+   * belongs to exactly one platform: reusing a source id or deployment from
+   * one platform after entering another would route writes to the wrong
+   * platform, so hosts reset the state when this differs from the page's.
+   */
+  platform: string | null;
   path: LaunchPath | null;
   oneshot: LaunchProgress;
   pendingInstall: PendingInstall | null;
@@ -42,6 +49,7 @@ function browserStorage(): StorageLike | null {
 
 function empty(): LaunchState {
   return {
+    platform: null,
     path: null,
     oneshot: {},
     pendingInstall: null,
@@ -57,6 +65,10 @@ export function loadLaunch(): LaunchState {
     if (!raw) return empty();
     const parsed = JSON.parse(raw) as Partial<LaunchState>;
     return {
+      platform:
+        typeof parsed.platform === "string" && parsed.platform.trim()
+          ? parsed.platform.trim()
+          : null,
       path: parsed.path ?? null,
       oneshot: parsed.oneshot ?? {},
       pendingInstall: parsed.pendingInstall ?? null,

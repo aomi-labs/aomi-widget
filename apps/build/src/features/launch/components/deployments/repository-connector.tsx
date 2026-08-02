@@ -1,13 +1,12 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { AlertCircle, CheckCircle2, Github } from "lucide-react";
+import { AlertCircle, CheckCircle2, Clock, Github } from "lucide-react";
 import { githubAppInstallUrl } from "@build/features/launch/client";
 import { normalizeRepo } from "@build/features/launch/state";
+import type { RepositoryConnectionResult } from "@aomi-labs/deploy/launch";
 
-export type RepositoryConnectionResult =
-  | { status: "success"; repo?: string }
-  | { status: "error"; message: string };
+export type { RepositoryConnectionResult };
 
 export function RepositoryConnector({
   platform,
@@ -41,6 +40,9 @@ export function RepositoryConnector({
           ? cause.message
           : "Could not start GitHub authorization.",
       );
+    } finally {
+      // A real `navigate` leaves the page, but it is injectable and the button
+      // should not be able to strand itself on "Connecting…".
       setConnecting(false);
     }
   }
@@ -67,6 +69,15 @@ export function RepositoryConnector({
           <span>
             {result.repo ?? "Repository"} is now connected to {platform}.
           </span>
+        </div>
+      )}
+      {result?.status === "pending" && (
+        <div
+          role="status"
+          className="border-border bg-surface-1 text-dim flex items-center gap-2 rounded-md border px-3 py-2 text-sm"
+        >
+          <Clock className="size-4 shrink-0" aria-hidden />
+          <span>{result.message}</span>
         </div>
       )}
       {result?.status === "error" && (

@@ -7,7 +7,7 @@ separated layers:
 | --- | --- | --- |
 | `@aomi-labs/deploy` | server only | `DeploymentClient` — typed HTTP client holding the activation/service bearer |
 | `@aomi-labs/deploy/bff` | server only | Drop-in BFF route factories: the one-shot launch flow + "Sign in with GitHub" |
-| `@aomi-labs/deploy/launch` | browser | Typed client for the BFF routes, wizard state machine, contracts |
+| `@aomi-labs/deploy/launch` | browser | Typed client for the BFF routes (launch + deployments console), wizard state machine, contracts, OAuth-callback result mapping |
 | `@aomi-labs/deploy/lifecycle` | browser | Pure helpers projecting deploy records into dashboard state |
 
 **There is no UI component to install.** The deploy UI is a fast-churn page,
@@ -119,6 +119,118 @@ example to read — not vendor.
 The flow your users get: Sign in with GitHub → install the Aomi GitHub App →
 one-click repo from the template → deploy → CI builds → activate → the live
 agent appears in chat.
+
+## Platform-scoped launch (named partner platforms)
+
+Everything above deploys into your host's **default** platform (the first
+entry of `APP_DEPLOY_PLATFORMS`). A partner integration usually targets a
+specific named platform instead — `"somm.finance"`, not `"community"`. Two
+rules make that work:
+
+1. **Every read and write takes an optional `platform`.** Omitted, the BFF
+   falls back to its configured default. Named, the request is scoped to that
+   exact platform — the Aomi manager answers `404` for a name that doesn't
+   exist, and refuses writes against a source that belongs to a different
+   platform. Platform names are deliberately **not** enumerated client-side;
+   there is no directory to list, you pass the exact name your partner gave
+   you.
+
+2. **A deploy target is earned, not asserted.** A source deploys into a
+   platform because it was *claimed* there — created one-click on it, or
+   connected through the GitHub OAuth ceremony below. Passing a different
+   `platform` string on a later call doesn't move it; the backend rejects the
+   mismatch.
+
+```ts
+"use client";
+import { createLaunchClient, LaunchRequestError } from "@aomi-labs/deploy/launch";
+
+const launch = createLaunchClient();
+const PLATFORM = "somm.finance"; // the exact name your partner gave you
+
+// Probe the platform by reading the signed-in user's sources on it.
+try {
+  const { sources } = await launch.deploymentSources(PLATFORM);
+} catch (err) {
+  if (err instanceof LaunchRequestError && err.status === 404) {
+    // No such platform — exact match failed; nothing changed.
+  }
+  throw err;
+}
+```
+
+`LaunchRequestError` carries `status` and the raw `body` on every non-2xx BFF
+response, so "unknown platform" (404), "not yours" (403), and transport
+failures stay distinguishable.
+
+### Connecting an existing repository
+
+One-click creates a fresh repo on the user's personal account. A partner
+developer usually arrives with an **existing** repository (often under an
+org). Connecting it is a GitHub OAuth round trip that proves — with the
+*user's* token, not the App's — that the signed-in GitHub user can actually
+read that repo, then claims the source for that user and that exact platform:
+
+```ts
+// 1. Start: sign platform + repo + a validated return page into OAuth state.
+const url = await launch.githubAppInstallUrl({
+  platform: PLATFORM,
+  repo: "PeggyJV/somm-agent", // owner/name or a github.com URL — normalized
+  returnTo: `${window.location.origin}/projects?platform=${encodeURIComponent(PLATFORM)}`,
+});
+window.location.assign(url); // full-page nav to GitHub
+```
+
+`returnTo` must be a page the Aomi backend recognizes for your deployment
+(`AOMI_BUILD_URL` origin, `/projects` or `/operate/deployments/new`, carrying
+exactly `?platform=<the signed platform>`). Anything else is rejected before
+the state is signed — the callback will never redirect a browser to a URL it
+didn't validate.
+
+```ts
+// 2. Finish: the callback redirects back to `returnTo` with the outcome in
+// the query string. `connectionResult` maps it for rendering — including the
+// in-progress statuses that are NOT failures (org-owner approval pending,
+// webhook still landing).
+import { connectionResult } from "@aomi-labs/deploy/launch";
+
+const result = connectionResult({
+  launch: params.launch,            // "bound" | "awaiting_install" | …
+  repo: params.repo,
+  githubError: params.github_error, // capped + sanitized before display
+});
+// result: { status: "success", repo } | { status: "pending" | "error", message }
+```
+
+After a `"bound"` result the repo shows up in
+`deploymentSources(PLATFORM)` and the normal `preflight → deploy → status →
+activate` calls work with `platform: PLATFORM` on each input.
+
+### Platform context helpers
+
+- `platformParam(searchParams.platform)` — normalize `?platform=` off a
+  router's searchParams value (trims; repeated params mean "no platform").
+- `LaunchState.platform` — the persisted wizard state records which platform
+  its progress belongs to. Reset the wizard when the page's platform differs:
+  reusing a cached `appSourceId` from one platform inside another would route
+  writes to the wrong place.
+
+```ts
+import { loadLaunch } from "@aomi-labs/deploy/launch";
+
+let state = loadLaunch();
+if (state.platform !== PLATFORM) {
+  state = { platform: PLATFORM, path: null, oneshot: {}, pendingInstall: null, rejectedInstallationId: null };
+}
+```
+
+### Deployments console endpoints
+
+The same client covers the project-dashboard surface (default mount
+`/api/bff/deployments`, override via `deploymentsBasePath`): `history`,
+`feed`, `records`, `promote`, `deactivate`, `secrets` / `setSecrets` /
+`deleteSecret`, `requiredSecrets`, `upgradeSdk` / `sdkUpgradeStatus` /
+`deploymentSdkStatus`. Each takes the same optional `platform`.
 
 ## Core API (`@aomi-labs/deploy`)
 
@@ -368,6 +480,7 @@ packages/deploy/test/
   github-auth.test.ts          — session codec + sign-in routes
   launch-state.test.ts         — wizard state machine
   launch-url-context.test.ts   — install-redirect matching
+  launch-connection-result.test.ts — OAuth-callback outcome mapping
   dashboard-lifecycle.test.ts  — lifecycle projections
 ```
 
