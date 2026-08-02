@@ -16,7 +16,7 @@
 /coverage
 
 # next.js
-**/.next/
+**/.next*/
 /out/
 
 # production
@@ -48,8 +48,7 @@ specs/FINAL-REVIEW-CHECKLIST.md
 
 # generated registry build output
 apps/landing/public/r/dist
-apps/shadcn-registry/dist/*
-!apps/shadcn-registry/dist/aomi-widget.json
+apps/shadcn-registry/dist
 apps/widget-consumer/dist
 
 # generated package JavaScript bundles
@@ -67,3 +66,6 @@ next-env.d.ts
 
 # Guard against accidentally re-adding a nested checkout as a gitlink
 /bff-unification
+
+# aomi-smither durable run state (sqlite/pglite dirs)
+**/.smithers/

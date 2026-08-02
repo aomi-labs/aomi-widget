@@ -3,6 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { privateKeyToAccount } from "viem/accounts";
+import { Keypair } from "@solana/web3.js";
+import bs58 from "bs58";
 
 const ORIGINAL_ENV = { ...process.env };
 const PRIVATE_KEY =
@@ -94,6 +96,7 @@ describe("CLI BetterAuth SIWE auth", () => {
     expect(result.auth).toEqual({
       sessionToken: "better-auth-session-token",
       expiresAt: Date.parse("2030-01-02T03:04:05.000Z"),
+      walletFamily: "evm",
       walletAddress: ACCOUNT.address,
       chainId: 8453,
       betterAuthUserId: "canonical-user",
@@ -124,6 +127,74 @@ describe("CLI BetterAuth SIWE auth", () => {
       () => 10_000,
     );
     await expect(expiredProvider()).resolves.toBeUndefined();
+  });
+
+  it("signs in through BetterAuth SIWS and persists the canonical account session", async () => {
+    const { signInWithCliSiws } = await import("../../src/cli/auth");
+    const keypair = Keypair.generate();
+    const secret = bs58.encode(keypair.secretKey);
+    const fetchMock = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        if (url.endsWith("/api/auth/siws/nonce")) {
+          expect(JSON.parse(String(init?.body))).toEqual({
+            walletAddress: keypair.publicKey.toBase58(),
+            chainId: "solana:devnet",
+            intent: "sign-in",
+          });
+          return Response.json({
+            nonce: "solana-nonce",
+            domain: "portal.test",
+            uri: "https://portal.test",
+          });
+        }
+        if (url.endsWith("/api/auth/siws/verify")) {
+          const body = JSON.parse(String(init?.body));
+          expect(body.message).toContain(
+            "portal.test wants you to sign in with your Solana account",
+          );
+          expect(body.message).toContain("Chain ID: solana:devnet");
+          expect(Buffer.from(body.signature, "base64")).toHaveLength(64);
+          expect(body.intent).toBe("sign-in");
+          return Response.json(
+            {
+              success: true,
+              user: { id: "better-auth-solana-user" },
+            },
+            { headers: { "set-auth-token": "siws-session-token" } },
+          );
+        }
+        if (url.endsWith("/api/aomi/account")) {
+          expect(new Headers(init?.headers).get("Authorization")).toBe(
+            "Bearer siws-session-token",
+          );
+          return Response.json({
+            session: {
+              betterAuthUserId: "better-auth-solana-user",
+              expiresAt: "2030-01-02T03:04:05.000Z",
+            },
+          });
+        }
+        throw new Error(`Unexpected URL ${url}`);
+      },
+    ) as unknown as typeof fetch;
+
+    const result = await signInWithCliSiws({
+      baseUrl: "https://portal.test",
+      privateKey: secret,
+      chainId: "solana:devnet",
+      fetch: fetchMock,
+    });
+
+    expect(result.address).toBe(keypair.publicKey.toBase58());
+    expect(result.auth).toEqual({
+      sessionToken: "siws-session-token",
+      expiresAt: Date.parse("2030-01-02T03:04:05.000Z"),
+      walletFamily: "svm",
+      walletAddress: keypair.publicKey.toBase58(),
+      chainScope: "solana:devnet",
+      betterAuthUserId: "better-auth-solana-user",
+    });
   });
 
   it("signs localhost as the SIWE domain when the portal URL uses 127.0.0.1", async () => {

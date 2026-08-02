@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AccountAuthEnv } from "../src/better-auth/env";
 import { createDefaultWalletAttesters } from "../src/providers/default-wallet-attesters";
 import {
@@ -11,6 +11,7 @@ import {
   fetchAttestedProviderWallets,
   mergeProviderWalletAttestations,
 } from "../src/service/account-service";
+import { setAccountInternalFailureObserver } from "../src/observability";
 
 const EVM = "0x1111111111111111111111111111111111111111";
 const EVM2 = "0x2222222222222222222222222222222222222222";
@@ -25,6 +26,8 @@ const baseEnv: AccountAuthEnv = {
 };
 
 describe("fetchAttestedProviderWallets", () => {
+  afterEach(() => setAccountInternalFailureObserver(undefined));
+
   it("fetches wallets from a provider registry", async () => {
     const wallets: AttestedWallet[] = [
       {
@@ -61,9 +64,10 @@ describe("fetchAttestedProviderWallets", () => {
     ).resolves.toBeNull();
   });
 
-  it("logs and returns null when the provider fetch fails", async () => {
+  it("observes the original error and returns null when the provider fetch fails", async () => {
     const error = new Error("provider down");
-    const logger = { warn: vi.fn() };
+    const observer = vi.fn();
+    setAccountInternalFailureObserver(observer);
     const attesters: WalletAttesterRegistry = {
       custom: async () => {
         throw error;
@@ -75,11 +79,28 @@ describe("fetchAttestedProviderWallets", () => {
         provider: "custom",
         subject: "provider-user",
         attesters,
-        logger,
       }),
     ).resolves.toBeNull();
+    expect(observer).toHaveBeenCalledWith({ kind: "provider_wallets", error });
+  });
+
+  it("preserves an explicitly supplied diagnostic logger", async () => {
+    const error = new Error("provider down");
+    const logger = { warn: vi.fn() };
+
+    await fetchAttestedProviderWallets({
+      provider: "custom",
+      subject: "provider-user",
+      attesters: {
+        custom: async () => {
+          throw error;
+        },
+      },
+      logger,
+    });
+
     expect(logger.warn).toHaveBeenCalledWith(
-      expect.stringContaining("failed to list custom wallets"),
+      "syncProviderWallets: failed to list custom wallets for provider-user",
       error,
     );
   });

@@ -12,7 +12,11 @@ export const runtime = "nodejs";
 function isSameOrigin(request: NextRequest): boolean {
   const origin = request.headers.get("origin");
   if (!origin) return true;
-  return origin === request.nextUrl.origin;
+  try {
+    return new URL(origin).host === request.headers.get("host");
+  } catch {
+    return false;
+  }
 }
 
 export async function POST(request: NextRequest) {

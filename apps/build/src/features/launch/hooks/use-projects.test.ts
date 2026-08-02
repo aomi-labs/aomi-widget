@@ -1,0 +1,75 @@
+import { describe, expect, it, vi, beforeEach } from "vitest";
+import { renderHook, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { createElement, type ReactNode } from "react";
+
+vi.mock("@build/features/launch/client", () => ({
+  deploymentSources: vi.fn(async () => ({
+    sources: [
+      {
+        id: 1,
+        installationId: 5,
+        repositoryLink: "a/b",
+        apps: [{ name: "bot" }],
+        latestDeployment: null,
+      },
+      {
+        id: 2,
+        installationId: 5,
+        repositoryLink: "a/historical-repo",
+        apps: [],
+        latestDeployment: null,
+      },
+    ],
+  })),
+  deploymentSdkStatus: vi.fn(async () => ({
+    ok: true,
+    serverTags: [],
+    sdkStatus: { requiredVersion: "3.0.1", status: "unknown" },
+  })),
+  deploymentFeed: vi.fn(),
+}));
+vi.mock("@build/features/launch/dashboard", () => ({
+  fetchGitHubSession: vi.fn(async () => ({
+    signedIn: true,
+    githubLogin: "alice",
+    githubUserId: "u1",
+  })),
+}));
+
+import { GitHubSessionProvider } from "@build/components/control-plane/github-session-context";
+import { useProjects } from "./use-projects";
+import { deploymentFeed } from "@build/features/launch/client";
+import { fetchGitHubSession } from "@build/features/launch/dashboard";
+
+function wrapper() {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return function Wrapper({ children }: { children: ReactNode }) {
+    return createElement(
+      QueryClientProvider,
+      { client },
+      createElement(GitHubSessionProvider, null, children),
+    );
+  };
+}
+
+describe("useProjects", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("loads app projects off the shared session and omits empty sources", async () => {
+    const { result } = renderHook(() => useProjects(), {
+      wrapper: wrapper(),
+    });
+    await waitFor(() => expect(result.current.state.status).toBe("ready"));
+    // The session must come from the provider — exactly one status fetch,
+    // not one per hook consumer.
+    expect(fetchGitHubSession).toHaveBeenCalledTimes(1);
+    expect(deploymentFeed).not.toHaveBeenCalled();
+    if (result.current.state.status === "ready") {
+      expect(result.current.state.sources).toHaveLength(1);
+      expect(result.current.state.sources[0]?.repositoryLink).toBe("a/b");
+    }
+  });
+});

@@ -1,6 +1,6 @@
 {
   "name": "@aomi-labs/deploy",
-  "version": "0.2.1",
+  "version": "0.3.2",
   "description": "TypeScript toolkit for the Aomi platform deploy API: server client, drop-in BFF route factories, and a browser launch client. Root and ./bff entries are server-only.",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -35,6 +35,16 @@
       "require": {
         "types": "./dist/bff/index.d.cts",
         "default": "./dist/bff/index.cjs"
+      }
+    },
+    "./bff/errors": {
+      "import": {
+        "types": "./dist/bff/errors.d.ts",
+        "default": "./dist/bff/errors.js"
+      },
+      "require": {
+        "types": "./dist/bff/errors.d.cts",
+        "default": "./dist/bff/errors.cjs"
       }
     },
     "./launch": {

@@ -32,6 +32,8 @@ export type AomiRuntimeProviderProps = {
   applicationId?: number | string | null;
   appPlatforms?: AomiPlatformFilter;
   clientOptions?: Omit<AomiClientOptions, "baseUrl">;
+  /** Whether a canonical account session can load threads without a wallet. */
+  accountSessionAvailable?: boolean;
   /** Optional explicit initial thread. Takes precedence over stored state. */
   initialThreadId?: string;
   /** Persist the active materialized thread in localStorage. Defaults to true. */
@@ -41,19 +43,6 @@ export type AomiRuntimeProviderProps = {
   /** Extra key segment for tenant/user/app scoping without owning the full key. */
   threadPersistenceScope?: string | null;
 };
-
-function normalizeBackendUrl(url: string): string {
-  try {
-    const parsed = new URL(url);
-    if (parsed.hostname === "localhost") {
-      parsed.hostname = "127.0.0.1";
-      return parsed.toString().replace(/\/$/, "");
-    }
-  } catch {
-    // Keep caller-provided strings unchanged if URL parsing fails.
-  }
-  return url;
-}
 
 // =============================================================================
 // Provider Shell
@@ -65,25 +54,25 @@ export function AomiRuntimeProvider({
   applicationId,
   appPlatforms,
   clientOptions,
+  accountSessionAvailable = false,
   initialThreadId,
   persistThread = true,
   threadPersistenceKey,
   threadPersistenceScope,
 }: Readonly<AomiRuntimeProviderProps>) {
-  const normalizedBackendUrl = normalizeBackendUrl(backendUrl);
   const resolvedThreadPersistenceKey = useMemo(() => {
     if (!persistThread) return null;
     return (
       threadPersistenceKey ??
       buildThreadPersistenceKey({
-        backendUrl: normalizedBackendUrl,
+        backendUrl,
         applicationId,
         scope: threadPersistenceScope,
       })
     );
   }, [
     applicationId,
-    normalizedBackendUrl,
+    backendUrl,
     persistThread,
     threadPersistenceKey,
     threadPersistenceScope,
@@ -108,10 +97,10 @@ export function AomiRuntimeProvider({
   const aomiClient = useMemo(
     () =>
       new AomiClient({
-        baseUrl: normalizedBackendUrl,
+        baseUrl: backendUrl,
         ...resolvedClientOptions,
       }),
-    [normalizedBackendUrl, resolvedClientOptions],
+    [backendUrl, resolvedClientOptions],
   );
 
   return (
@@ -122,6 +111,7 @@ export function AomiRuntimeProvider({
             aomiClient={aomiClient}
             applicationId={applicationId}
             appPlatforms={appPlatforms}
+            accountSessionAvailable={accountSessionAvailable}
             restoredThreadId={restoredThreadId}
             threadPersistenceKey={resolvedThreadPersistenceKey}
           >
@@ -142,6 +132,7 @@ type AomiRuntimeInnerProps = {
   aomiClient: AomiClient;
   applicationId?: number | string | null;
   appPlatforms?: AomiPlatformFilter;
+  accountSessionAvailable: boolean;
   restoredThreadId?: string;
   threadPersistenceKey?: string | null;
 };
@@ -151,6 +142,7 @@ function AomiRuntimeInner({
   aomiClient,
   applicationId,
   appPlatforms,
+  accountSessionAvailable,
   restoredThreadId,
   threadPersistenceKey,
 }: Readonly<AomiRuntimeInnerProps>) {
@@ -171,6 +163,7 @@ function AomiRuntimeInner({
         <AomiRuntimeCore
           aomiClient={aomiClient}
           applicationId={applicationId}
+          accountSessionAvailable={accountSessionAvailable}
           restoredThreadId={restoredThreadId}
           threadPersistenceKey={threadPersistenceKey}
         >

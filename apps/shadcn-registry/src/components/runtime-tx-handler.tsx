@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { Connection as SolanaConnection } from "@solana/web3.js";
+import { normalizeSolanaCluster } from "@aomi-labs/client";
 import {
   UserState,
   appendFeeCallToPayload,
@@ -87,37 +88,26 @@ export function RuntimeTxHandler() {
       processingRef.current = false;
     });
 
-    /**
-     * Best-effort: switch the active Solana cluster to match the request's
-     * CAIP-2 cluster string before signing. Mirrors how the EVM signTypedData
-     * branch calls `adapter.switchChain` when `domain.chainId` differs.
-     *
-     * - No-op when the request didn't specify a cluster.
-     * - No-op when the adapter doesn't expose `selectNetwork` (single-network
-     *   builds).
-     * - No-op when the active Solana network already matches the request.
-     * - If a switch is needed but the adapter says
-     *   `solanaNetworkSwitchRequiresReconnect`, we don't tear the wallet down
-     *   from under the user — fall through and let the wallet either accept
-     *   the tx as-is (matching cluster) or reject it (mismatched cluster
-     *   surfaces as a normal wallet error).
-     */
+    /** Canonicalize cluster aliases and match before asking the wallet. */
     async function maybeSwitchSolanaCluster(
       requestedCluster: string | undefined,
     ): Promise<void> {
-      if (!requestedCluster) return;
-      if (!adapter.selectNetwork || !adapter.supportedNetworks?.solana) return;
-      const target = adapter.supportedNetworks.solana.find(
-        (n) => n.cluster === requestedCluster,
+      const normalizedCluster = normalizeSolanaCluster(requestedCluster);
+      if (!normalizedCluster) return;
+      const target = adapter.supportedNetworks?.solana?.find(
+        (n) => n.cluster === normalizedCluster,
       );
-      if (!target) return;
-      // `selectNetwork` self-dedups (no-op when already on `target`), so we
-      // don't need to compare against a current "active network" here.
+      if (!target) {
+        throw new Error(`Unsupported Solana cluster: ${normalizedCluster}`);
+      }
+      if (adapter.selectedSolanaNetwork?.id === target.id) return;
+      if (!adapter.selectNetwork) {
+        throw new Error(`Cannot switch the wallet to ${normalizedCluster}`);
+      }
       if (adapter.solanaNetworkSwitchRequiresReconnect) {
-        // The wallet currently has a session against a different cluster.
-        // Don't silently disconnect the user — they'll see the wallet's
-        // own cluster-mismatch UI on the sign prompt instead.
-        return;
+        throw new Error(
+          `Reconnect the Solana wallet on ${normalizedCluster} before signing`,
+        );
       }
       try {
         await adapter.selectNetwork({
@@ -125,9 +115,9 @@ export function RuntimeTxHandler() {
           networkId: target.id,
         });
       } catch (error) {
-        console.warn(
-          "[RuntimeTxHandler] Solana cluster auto-switch failed",
-          error,
+        throw new Error(
+          `Failed to switch the Solana wallet to ${normalizedCluster}`,
+          { cause: error },
         );
       }
     }
@@ -322,11 +312,6 @@ export function RuntimeTxHandler() {
         }
 
         // req.kind === "eip712_sign"
-        if (!adapter.signTypedData) {
-          await rejectWalletRequest(req.id, "Wallet provider is not ready");
-          return;
-        }
-
         const signArgs = toViemSignTypedDataArgs(req.payload);
         const messageArgs = toViemSignMessageArgs(req.payload);
         if (signArgs && messageArgs) {

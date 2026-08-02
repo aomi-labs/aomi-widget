@@ -7,6 +7,7 @@ import {
   MonadIcon,
   OptimismIcon,
   PolygonIcon,
+  RobinhoodIcon,
   SepoliaIcon,
 } from "./chains";
 
@@ -21,6 +22,7 @@ const CHAIN_ICONS: Record<number, FC<SVGProps<SVGSVGElement>>> = {
   59141: LineaIcon,
   143: MonadIcon,
   10143: MonadIcon,
+  4663: RobinhoodIcon,
 };
 
 /**

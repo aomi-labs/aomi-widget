@@ -23,13 +23,33 @@ describe("supported chain metadata", () => {
   it("includes the networks surfaced by the headless SDK and widget UI", () => {
     expect(SUPPORTED_CHAIN_IDS).toEqual(
       expect.arrayContaining([
-        1, 137, 42161, 8453, 10, 11155111, 59144, 59141, 143, 10143, 31337,
+        1, 137, 42161, 8453, 84532, 10, 11155111, 59144, 59141, 143, 10143,
+        4663, 31337,
       ]),
     );
   });
 
   it("defines Alchemy slugs for supported Alchemy-backed RPC chains", () => {
+    expect(ALCHEMY_CHAIN_SLUGS[84532]).toBe("base-sepolia");
     expect(ALCHEMY_CHAIN_SLUGS[59144]).toBe("linea-mainnet");
     expect(ALCHEMY_CHAIN_SLUGS[59141]).toBe("linea-sepolia");
+    expect(ALCHEMY_CHAIN_SLUGS[4663]).toBe("robinhood-mainnet");
+  });
+
+  it("defines the Robinhood Chain mainnet RPC and explorer", () => {
+    expect(CHAINS_BY_ID[4663]).toMatchObject({
+      id: 4663,
+      name: "Robinhood Chain",
+      nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+      rpcUrls: {
+        default: { http: ["https://rpc.mainnet.chain.robinhood.com"] },
+      },
+      blockExplorers: {
+        default: {
+          name: "Robinhood Chain Explorer",
+          url: "https://robinhoodchain.blockscout.com",
+        },
+      },
+    });
   });
 });

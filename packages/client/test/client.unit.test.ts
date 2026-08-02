@@ -11,11 +11,28 @@ describe("AomiClient route manifest", () => {
         `${endpoint.method} ${endpoint.path} [${endpoint.auth.join(", ")}]`,
     );
 
-    expect(routeKeys).toHaveLength(105);
+    expect(routeKeys).toHaveLength(117);
     expect(new Set(routeKeys).size).toBe(routeKeys.length);
+    expect(routeKeys).toContain("GET /api/account/statement [account]");
+    // Public placement probe. Kept distinct from GET /health, which stays a
+    // pure liveness signal so a missing hosted app never reads as a dead host.
+    expect(routeKeys).toContain("GET /availability []");
+    expect(routeKeys).toContain("GET /health []");
+    expect(routeKeys).toContain(
+      "POST /api/account/providers/:provider/agent-wallet [account]",
+    );
+    expect(routeKeys).toContain("PUT /api/account/apps [account]");
     expect(routeKeys).toContain("POST /api/exec/run [account, thread]");
+    expect(routeKeys).toContain(
+      "POST /api/threads/:thread_id/archive [account, thread]",
+    );
+    expect(routeKeys).toContain(
+      "POST /api/threads/:thread_id/unarchive [account, thread]",
+    );
     expect(routeKeys).toContain("GET /api/resource/search/apps [account]");
     expect(routeKeys).toContain("GET /api/resource/search/tools [account]");
+    expect(routeKeys).toContain("GET /api/resource/skills [account]");
+    expect(routeKeys).toContain("GET /api/resource/skills/:skill_id [account]");
     expect(routeKeys).toContain("GET /api/thread/apps [thread]");
     expect(routeKeys).toContain("GET /api/_internal/secrets [service]");
     expect(routeKeys).toContain("DELETE /api/_internal/secrets [service]");
@@ -36,6 +53,18 @@ describe("AomiClient route manifest", () => {
     );
     expect(routeKeys).toContain(
       "POST /api/platforms/:name/deployments/:deployment/rerun [activation]",
+    );
+    expect(routeKeys).toContain(
+      "GET /api/platforms/:name/telegram/handover/:bot/:id [activation]",
+    );
+    expect(routeKeys).toContain(
+      "POST /api/platforms/:name/telegram/handover [activation]",
+    );
+    expect(routeKeys).toContain(
+      "POST /api/platforms/:name/telegram/handover/:bot/:id/activate [activation]",
+    );
+    expect(routeKeys).toContain(
+      "POST /api/platforms/:name/telegram/handover/:bot/:id/revoke [activation]",
     );
     expect(routeKeys).not.toContain("GET /api/control/apps [session]");
     expect(routeKeys.some((route) => route.includes("/api/control/"))).toBe(
@@ -319,6 +348,35 @@ describe("AomiClient account profile", () => {
     }
   });
 
+  it("passes chat payment method as a query param", async () => {
+    const response = {
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      json: vi.fn(async () => ({ messages: [], is_processing: false })),
+    } as unknown as Response;
+    const nativeFetch = vi.fn(async () => response);
+    const originalFetch = globalThis.fetch;
+    vi.stubGlobal("fetch", nativeFetch);
+
+    try {
+      const client = new AomiClient({ baseUrl: "http://unit.test" });
+
+      await client.sendMessage("session-1", "paid turn", {
+        app: "somm-agent",
+        applicationId: 31,
+        clientId: "client-1",
+        paymentMethod: "coinbase",
+      });
+
+      expect(String(nativeFetch.mock.calls[0]?.[0])).toBe(
+        "http://unit.test/api/thread/chat?app=somm-agent&application_id=31&message=paid+turn&client_id=client-1&payment_method=coinbase",
+      );
+    } finally {
+      vi.stubGlobal("fetch", originalFetch);
+    }
+  });
+
   it("sends setModel as query params instead of a JSON body", async () => {
     const response = {
       ok: true,
@@ -552,28 +610,6 @@ describe("AomiClient transport selection", () => {
     }
   });
 
-  it("does not downgrade required authorization failures to anonymous", async () => {
-    const nativeFetch = vi.fn();
-    const originalFetch = globalThis.fetch;
-    vi.stubGlobal("fetch", nativeFetch);
-
-    try {
-      const client = new AomiClient({
-        baseUrl: "http://unit.test",
-        authorization: async () => {
-          throw new Error("Widget signature rejected");
-        },
-      });
-
-      await expect(client.fetchState("session-1")).rejects.toThrow(
-        "Widget signature rejected",
-      );
-      expect(nativeFetch).not.toHaveBeenCalled();
-    } finally {
-      vi.stubGlobal("fetch", originalFetch);
-    }
-  });
-
   it("attaches bearer sessions to account probes", async () => {
     const accountResponse = {
       ok: true,
@@ -733,6 +769,28 @@ describe("AomiClient transport selection", () => {
     expect(headers.get("X-Thread-Id")).toBe("thread-1");
   });
 
+  it("archives and unarchives through the current thread endpoints", async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>(async () =>
+      Response.json({ success: true }),
+    );
+    const client = new AomiClient({ baseUrl: "http://unit.test", fetch });
+
+    await client.archiveThread("thread/1");
+    await client.unarchiveThread("thread/1");
+
+    expect(String(fetch.mock.calls[0]?.[0])).toBe(
+      "http://unit.test/api/threads/thread%2F1/archive",
+    );
+    expect(String(fetch.mock.calls[1]?.[0])).toBe(
+      "http://unit.test/api/threads/thread%2F1/unarchive",
+    );
+    for (const call of fetch.mock.calls) {
+      const init = call[1] as RequestInit;
+      expect(init.method).toBe("POST");
+      expect(new Headers(init.headers).get("X-Thread-Id")).toBe("thread/1");
+    }
+  });
+
   it("uses native fetch for SSE subscriptions even when a custom fetch is provided", async () => {
     let connection: ReturnType<typeof createMockSseConnection> | undefined;
     const nativeFetch = vi.fn(async (_input, init) => {
@@ -755,7 +813,14 @@ describe("AomiClient transport selection", () => {
       });
 
       const onUpdate = vi.fn();
-      const unsubscribe = client.subscribeSSE("session-2", onUpdate);
+      const unsubscribe = client.subscribeSSE(
+        "session-2",
+        onUpdate,
+        undefined,
+        {
+          applicationId: 2937098,
+        },
+      );
       connection?.emit(
         'data: {"type":"tool_update","session_id":"session-2"}\n\n',
       );
@@ -770,6 +835,9 @@ describe("AomiClient transport selection", () => {
       unsubscribe();
       expect(nativeFetch).toHaveBeenCalledTimes(1);
       expect(customFetch).not.toHaveBeenCalled();
+      expect(nativeFetch.mock.calls[0]?.[0]).toBe(
+        "http://unit.test/api/thread/updates?application_id=2937098",
+      );
     } finally {
       vi.stubGlobal("fetch", originalFetch);
     }

@@ -3,7 +3,9 @@ import "server-only";
 import { randomBytes } from "crypto";
 import { NextResponse } from "next/server";
 import { deploymentClient } from "@portal/server/bff/backend";
-import { launchErrorResponse } from "./errors";
+import { configuredBackendUrl } from "@portal/server/backend-url";
+import type { FailureContext as LaunchFailureContext } from "@aomi-labs/bff-observability";
+import { portalFailures } from "@portal/server/bff/failures";
 import { launchConfig } from "./config";
 import { appNamesFromDeployment, releaseTagsFromDeployment } from "./mappers";
 import { checkRateLimit, getClientIp } from "@portal/lib/rate-limit";
@@ -37,6 +39,17 @@ function checkWrite(req: Request): NextResponse | null {
 
 type GitHubSession = NonNullable<Awaited<ReturnType<typeof getGitHubSession>>>;
 type DeploymentClientInstance = Awaited<ReturnType<typeof deploymentClient>>;
+
+function launchFailureContext(
+  req: Request,
+  operation: string,
+): LaunchFailureContext {
+  return {
+    routeFamily: new URL(req.url).pathname,
+    operation,
+    method: req.method,
+  };
+}
 
 /** Require a signed-in GitHub session; the credentials backing these writes
  *  are server-held, so origin+rate-limit alone must not authorize them. */
@@ -90,6 +103,7 @@ async function sourceDeploymentIds(
   client: DeploymentClientInstance,
   platform: string,
   source: OwnedSource,
+  failureContext: LaunchFailureContext,
 ): Promise<Set<string>> {
   const ids = new Set<string>();
   await Promise.all(
@@ -100,7 +114,14 @@ async function sourceDeploymentIds(
           app: app.name,
           appSourceId: source.id,
         })
-        .catch(() => ({ records: [] }));
+        .catch((error: unknown) => {
+          portalFailures.handle({
+            source: "launch",
+            error,
+            context: failureContext,
+          });
+          return { records: [] };
+        });
       for (const record of records) ids.add(record.deploymentId);
     }),
   );
@@ -117,6 +138,7 @@ async function sourceDeploymentPairs(
   source: OwnedSource,
   deploymentId: string,
   appsFilter: string[] | undefined,
+  failureContext: LaunchFailureContext,
 ): Promise<{ app: string; releaseTag: string }[]> {
   const pairs: { app: string; releaseTag: string }[] = [];
   await Promise.all(
@@ -128,7 +150,16 @@ async function sourceDeploymentPairs(
           app: app.name,
           appSourceId: source.id,
         })
-        .catch(() => ({ records: [] as { deploymentId: string; releaseTag: string }[] }));
+        .catch((error: unknown) => {
+          portalFailures.handle({
+            source: "launch",
+            error,
+            context: failureContext,
+          });
+          return {
+            records: [] as { deploymentId: string; releaseTag: string }[],
+          };
+        });
       const record = records.find((r) => r.deploymentId === deploymentId);
       if (record?.releaseTag) {
         pairs.push({ app: app.name, releaseTag: record.releaseTag });
@@ -218,7 +249,7 @@ function sourceRefFromSource(source: {
 }
 
 export function launchDeployRoute(preflight: boolean) {
-  return async function POST(req: Request): Promise<NextResponse> {
+  return async function POST(req: Request): Promise<Response> {
     const blocked = checkWrite(req);
     if (blocked) return blocked;
 
@@ -364,7 +395,14 @@ export function launchDeployRoute(preflight: boolean) {
         { status: preflight ? 200 : 202 },
       );
     } catch (err) {
-      return launchErrorResponse(err);
+      return portalFailures.handle({
+        source: "launch",
+        error: err,
+        context: launchFailureContext(
+          req,
+          preflight ? "launch.preflight" : "launch.deploy",
+        ),
+      }).response;
     }
   };
 }
@@ -406,10 +444,7 @@ export async function createLaunchRepoRoute(req: Request) {
       private: config.createdRepoPrivate,
     });
     if (!source.repositoryLink || !source.installationId) {
-      return NextResponse.json(
-        { error: "backend did not return a created source repo" },
-        { status: 502 },
-      );
+      throw new Error("backend did not return a created source repo");
     }
     return NextResponse.json({
       ok: true,
@@ -420,7 +455,11 @@ export async function createLaunchRepoRoute(req: Request) {
       source,
     });
   } catch (err) {
-    return launchErrorResponse(err);
+    return portalFailures.handle({
+      source: "launch",
+      error: err,
+      context: launchFailureContext(req, "launch.create_repo"),
+    }).response;
   }
 }
 
@@ -456,7 +495,11 @@ export async function launchStatusRoute(req: Request) {
       releaseTags: releaseTagsFromDeployment(result.deployment),
     });
   } catch (err) {
-    return launchErrorResponse(err);
+    return portalFailures.handle({
+      source: "launch",
+      error: err,
+      context: launchFailureContext(req, "launch.status"),
+    }).response;
   }
 }
 
@@ -559,7 +602,11 @@ export async function activateLaunchRoute(req: Request) {
     });
     return NextResponse.json(result);
   } catch (err) {
-    return launchErrorResponse(err);
+    return portalFailures.handle({
+      source: "launch",
+      error: err,
+      context: launchFailureContext(req, "launch.activate"),
+    }).response;
   }
 }
 
@@ -616,7 +663,11 @@ export async function launchAppRoute(req: Request) {
       },
     });
   } catch (err) {
-    return launchErrorResponse(err);
+    return portalFailures.handle({
+      source: "launch",
+      error: err,
+      context: launchFailureContext(req, "launch.app"),
+    }).response;
   }
 }
 
@@ -635,12 +686,16 @@ export async function launchSdkStatusRoute(req: Request) {
         requiredVersion,
         status: requiredVersion ? "unknown" : "missing",
         fixCommand: requiredVersion
-          ? `aomi-build sdk fix --backend ${new URL(req.url).origin}`
+          ? `aomi-build sdk fix --backend ${configuredBackendUrl()}`
           : null,
       },
     });
   } catch (err) {
-    return launchErrorResponse(err);
+    return portalFailures.handle({
+      source: "launch",
+      error: err,
+      context: launchFailureContext(req, "launch.sdk_status"),
+    }).response;
   }
 }
 
@@ -681,7 +736,11 @@ export async function deploymentHistoryRoute(req: Request) {
     });
     return NextResponse.json({ deployments });
   } catch (err) {
-    return launchErrorResponse(err);
+    return portalFailures.handle({
+      source: "launch",
+      error: err,
+      context: launchFailureContext(req, "deployment.history"),
+    }).response;
   }
 }
 
@@ -726,7 +785,11 @@ export async function deploymentSecretsRoute(req: Request) {
     });
     return NextResponse.json({ byApp });
   } catch (err) {
-    return launchErrorResponse(err);
+    return portalFailures.handle({
+      source: "launch",
+      error: err,
+      context: launchFailureContext(req, "deployment.secrets_read"),
+    }).response;
   }
 }
 
@@ -797,7 +860,11 @@ export async function deploymentSecretsWriteRoute(req: Request) {
       { status: 202 },
     );
   } catch (err) {
-    return launchErrorResponse(err);
+    return portalFailures.handle({
+      source: "launch",
+      error: err,
+      context: launchFailureContext(req, "deployment.secrets_write"),
+    }).response;
   }
 }
 
@@ -852,7 +919,11 @@ export async function deploymentSecretsDeleteRoute(req: Request) {
     });
     return NextResponse.json({ ok: true, removed });
   } catch (err) {
-    return launchErrorResponse(err);
+    return portalFailures.handle({
+      source: "launch",
+      error: err,
+      context: launchFailureContext(req, "deployment.secrets_delete"),
+    }).response;
   }
 }
 
@@ -902,7 +973,11 @@ export async function deploymentRecordsRoute(req: Request) {
     });
     return NextResponse.json(result);
   } catch (err) {
-    return launchErrorResponse(err);
+    return portalFailures.handle({
+      source: "launch",
+      error: err,
+      context: launchFailureContext(req, "deployment.records"),
+    }).response;
   }
 }
 
@@ -961,7 +1036,16 @@ export async function deploymentPromoteRoute(req: Request) {
         { status: 404 },
       );
     }
-    const known = await sourceDeploymentIds(client, config.platform, source);
+    const recordsFailureContext = launchFailureContext(
+      req,
+      "deployment.records_lookup",
+    );
+    const known = await sourceDeploymentIds(
+      client,
+      config.platform,
+      source,
+      recordsFailureContext,
+    );
     if (!known.has(deploymentId)) {
       return NextResponse.json(
         { error: "deployment does not belong to this source" },
@@ -981,6 +1065,7 @@ export async function deploymentPromoteRoute(req: Request) {
       source,
       deploymentId,
       apps,
+      recordsFailureContext,
     );
     const missingByApp = await missingSecretsForActivation({
       client,
@@ -1011,7 +1096,11 @@ export async function deploymentPromoteRoute(req: Request) {
     });
     return NextResponse.json(result, { status: result.ok ? 202 : 409 });
   } catch (err) {
-    return launchErrorResponse(err);
+    return portalFailures.handle({
+      source: "launch",
+      error: err,
+      context: launchFailureContext(req, "deployment.promote"),
+    }).response;
   }
 }
 
@@ -1075,7 +1164,11 @@ export async function deploymentDeactivateRoute(req: Request) {
     }
     return NextResponse.json({ ok: true, apps }, { status: 202 });
   } catch (err) {
-    return launchErrorResponse(err);
+    return portalFailures.handle({
+      source: "launch",
+      error: err,
+      context: launchFailureContext(req, "deployment.deactivate"),
+    }).response;
   }
 }
 
@@ -1133,7 +1226,11 @@ export async function redeployLaunchRoute(req: Request) {
       ciUrl: rerun.ciUrl ?? latest?.ciUrl ?? null,
     });
   } catch (err) {
-    return launchErrorResponse(err);
+    return portalFailures.handle({
+      source: "launch",
+      error: err,
+      context: launchFailureContext(req, "deployment.redeploy"),
+    }).response;
   }
 }
 
@@ -1161,6 +1258,10 @@ export async function userSourcesRoute(req: Request) {
     });
     return NextResponse.json({ sources, githubLogin: session.githubLogin });
   } catch (err) {
-    return launchErrorResponse(err);
+    return portalFailures.handle({
+      source: "launch",
+      error: err,
+      context: launchFailureContext(req, "deployment.sources"),
+    }).response;
   }
 }

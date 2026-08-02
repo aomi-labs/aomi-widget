@@ -43,7 +43,6 @@ import {
   normalizeSimulatedFee,
   MAX_AUTO_FEE_WEI,
   executeWalletCalls,
-  DISABLED_PROVIDER_STATE,
   parseChainId,
   aaModeFromExecutionKind,
   toViemSignMessageArgs,
@@ -435,8 +434,12 @@ function generateUUID() {
   });
 }
 
+// src/utils/env.ts
+import { safeEnv } from "@aomi-labs/client";
+
 // src/state/thread-store.ts
-var shouldLogThreadUpdates = process.env.NODE_ENV !== "production";
+var threadLogEnv = safeEnv(() => process.env.NODE_ENV);
+var shouldLogThreadUpdates = threadLogEnv !== void 0 && threadLogEnv !== "production";
 var logThreadMetadataChange = (source, threadId, prev, next) => {
   if (!shouldLogThreadUpdates) return;
   if (!prev && !next) return;
@@ -1592,7 +1595,6 @@ var isPlaceholderTitle = (title) => {
 };
 function toInboundMessage(msg) {
   var _a;
-  if (msg.sender === "system") return null;
   const content = [];
   const role = msg.sender === "user" ? "user" : "assistant";
   if (msg.content && msg.content.trim().length > 0) {
@@ -1617,11 +1619,21 @@ function toInboundMessage(msg) {
   if (content.length === 0 && role === "assistant" && !msg.is_streaming) {
     return null;
   }
-  const threadMessage = __spreadValues({
+  const threadMessage = __spreadValues(__spreadValues({
     role,
     content
-  }, msg.timestamp && { createdAt: new Date(msg.timestamp) });
+  }, msg.timestamp && { createdAt: new Date(msg.timestamp) }), msg.sender === "system" && {
+    metadata: {
+      custom: {
+        aomiNoticeKind: isCreditNotice(msg.content) ? "payment_required" : "system_notice",
+        aomiNoticeTitle: isCreditNotice(msg.content) ? "Credits needed" : "System notice"
+      }
+    }
+  });
   return threadMessage;
+}
+function isCreditNotice(content) {
+  return /\b(?:credit|quota|payment)\b/i.test(content != null ? content : "");
 }
 function parseToolResult(toolResult) {
   if (!toolResult) return null;
@@ -2805,11 +2817,11 @@ function useUserStateRequestResponder(context, sessions) {
     return unsubscribe;
   }, [eventContext, getSession, getUserState, threadContextRef]);
 }
-function useRemoteThreadListSync(context, sessions, remoteThreads, threadPersistence) {
+function useRemoteThreadListSync(context, sessions, remoteThreads, accountSessionAvailable, threadPersistence) {
   const [isThreadListLoading, setIsThreadListLoading] = useState8(true);
   const [threadListError, setThreadListError] = useState8(false);
   const prefetchCancelRef = useRef8(null);
-  const wasConnectedRef = useRef8(false);
+  const hadThreadAccessRef = useRef8(false);
   const { getControlState, threadContextRef, user } = context;
   const {
     aomiClientRef,
@@ -2825,6 +2837,7 @@ function useRemoteThreadListSync(context, sessions, remoteThreads, threadPersist
     warmThread
   } = remoteThreads;
   const isConnected = UserStateHelpers.isConnected(user) === true;
+  const canLoadThreads = isConnected || accountSessionAvailable;
   const restoredThreadId = threadPersistence == null ? void 0 : threadPersistence.restoredThreadId;
   const listThreadsWithAuthRetry = useCallback11(
     async (sessionId, isCancelled) => {
@@ -2886,13 +2899,13 @@ function useRemoteThreadListSync(context, sessions, remoteThreads, threadPersist
   );
   useEffect7(() => {
     var _a, _b;
-    if (!isConnected) {
-      const wasPreviouslyConnected = wasConnectedRef.current;
-      wasConnectedRef.current = false;
+    if (!canLoadThreads) {
+      const previouslyHadThreadAccess = hadThreadAccessRef.current;
+      hadThreadAccessRef.current = false;
       setIsThreadListLoading(false);
       (_a = prefetchCancelRef.current) == null ? void 0 : _a.call(prefetchCancelRef);
       prefetchCancelRef.current = null;
-      if (wasPreviouslyConnected) {
+      if (previouslyHadThreadAccess) {
         const hadRemoteThreads = remoteThreadIdsRef.current.size > 0;
         const hadSessions = sessionManager.size > 0;
         remoteThreadIdsRef.current.clear();
@@ -2906,7 +2919,7 @@ function useRemoteThreadListSync(context, sessions, remoteThreads, threadPersist
       }
       return;
     }
-    wasConnectedRef.current = true;
+    hadThreadAccessRef.current = true;
     let cancelled = false;
     setIsThreadListLoading(true);
     setThreadListError(false);
@@ -3037,6 +3050,7 @@ function useRemoteThreadListSync(context, sessions, remoteThreads, threadPersist
       prefetchCancelRef.current = null;
     };
   }, [
+    canLoadThreads,
     closeAllSessions,
     ensureInitialState,
     getControlState,
@@ -3048,7 +3062,6 @@ function useRemoteThreadListSync(context, sessions, remoteThreads, threadPersist
     threadContextRef,
     restoredThreadId,
     threadPersistence,
-    isConnected,
     warmPromisesRef,
     warmedThreadIdsRef,
     warmThread
@@ -3065,6 +3078,7 @@ function useRuntimeUserStateEffects({
     setIsThreadLoading
   },
   remoteThreads,
+  accountSessionAvailable = false,
   threadPersistence
 }) {
   const threadContext = useThreadContext();
@@ -3094,6 +3108,7 @@ function useRuntimeUserStateEffects({
     context,
     sessions,
     remoteThreads,
+    accountSessionAvailable,
     threadPersistence
   );
 }
@@ -3186,6 +3201,7 @@ function AomiRuntimeCore({
   children,
   aomiClient,
   applicationId,
+  accountSessionAvailable = false,
   restoredThreadId,
   threadPersistenceKey
 }) {
@@ -3351,6 +3367,7 @@ function AomiRuntimeCore({
       warmedThreadIdsRef,
       warmThread
     },
+    accountSessionAvailable,
     threadPersistence
   });
   useEffect8(() => {
@@ -3651,39 +3668,28 @@ function AomiRuntimeCore({
 
 // src/runtime/aomi-runtime.tsx
 import { jsx as jsx8 } from "react/jsx-runtime";
-function normalizeBackendUrl(url) {
-  try {
-    const parsed = new URL(url);
-    if (parsed.hostname === "localhost") {
-      parsed.hostname = "127.0.0.1";
-      return parsed.toString().replace(/\/$/, "");
-    }
-  } catch (e) {
-  }
-  return url;
-}
 function AomiRuntimeProvider({
   children,
   backendUrl = "http://127.0.0.1:8080",
   applicationId,
   appPlatforms,
   clientOptions,
+  accountSessionAvailable = false,
   initialThreadId,
   persistThread = true,
   threadPersistenceKey,
   threadPersistenceScope
 }) {
-  const normalizedBackendUrl = normalizeBackendUrl(backendUrl);
   const resolvedThreadPersistenceKey = useMemo3(() => {
     if (!persistThread) return null;
     return threadPersistenceKey != null ? threadPersistenceKey : buildThreadPersistenceKey({
-      backendUrl: normalizedBackendUrl,
+      backendUrl,
       applicationId,
       scope: threadPersistenceScope
     });
   }, [
     applicationId,
-    normalizedBackendUrl,
+    backendUrl,
     persistThread,
     threadPersistenceKey,
     threadPersistenceScope
@@ -3704,9 +3710,9 @@ function AomiRuntimeProvider({
   );
   const aomiClient = useMemo3(
     () => new AomiClient(__spreadValues({
-      baseUrl: normalizedBackendUrl
+      baseUrl: backendUrl
     }, resolvedClientOptions)),
-    [normalizedBackendUrl, resolvedClientOptions]
+    [backendUrl, resolvedClientOptions]
   );
   return /* @__PURE__ */ jsx8(ThreadContextProvider, { initialThreadId: restoredThreadId, children: /* @__PURE__ */ jsx8(NotificationContextProvider, { children: /* @__PURE__ */ jsx8(ExtUserProvider, { children: /* @__PURE__ */ jsx8(
     AomiRuntimeInner,
@@ -3714,6 +3720,7 @@ function AomiRuntimeProvider({
       aomiClient,
       applicationId,
       appPlatforms,
+      accountSessionAvailable,
       restoredThreadId,
       threadPersistenceKey: resolvedThreadPersistenceKey,
       children
@@ -3725,6 +3732,7 @@ function AomiRuntimeInner({
   aomiClient,
   applicationId,
   appPlatforms,
+  accountSessionAvailable,
   restoredThreadId,
   threadPersistenceKey
 }) {
@@ -3747,6 +3755,7 @@ function AomiRuntimeInner({
             {
               aomiClient,
               applicationId,
+              accountSessionAvailable,
               restoredThreadId,
               threadPersistenceKey,
               children
@@ -3804,7 +3813,6 @@ export {
   AomiRuntimeApiProvider,
   AomiRuntimeProvider,
   ControlContextProvider,
-  DISABLED_PROVIDER_STATE,
   EventContextProvider,
   ExtUserProvider,
   MAX_AUTO_FEE_WEI,

@@ -39,12 +39,30 @@ export interface AuditEvent {
     | "list_user_sources"
     | "list_user_deployments"
     | "list_user_source_deployments"
-    | "list_user_source_agents"
+    | "list_user_source_bots"
+    | "create_user_source_bot"
+    | "delete_user_source_bot"
+    | "list_user_bots"
+    | "create_user_bot"
+    | "update_user_bot"
+    | "delete_user_bot"
+    | "list_builder_model_keys"
+    | "save_builder_model_key"
+    | "delete_builder_model_key"
+    | "set_model_key_grants"
     | "list_user_source_transactions"
     | "get_user_source_usage"
+    | "get_user_source_statement"
     | "list_user_source_logs"
     | "get_user_source_observability"
+    | "get_user_observability"
+    | "list_user_transactions"
+    | "get_user_statement"
+    | "get_user_usage"
+    | "list_user_logs"
+    | "get_user_source_app_detail"
     | "upgrade_user_source_sdk"
+    | "get_source_sdk_upgrade_status"
     | "list_deployment_records"
     | "get_user_source_latest_deployment"
     | "deactivate"
@@ -438,6 +456,28 @@ export interface GetAppInput extends BearerOverride {
   releaseTag?: string;
 }
 
+export interface AppPricingBeneficiary {
+  name: string;
+  type: string;
+  chain: string;
+  value: string;
+}
+
+export interface AppPricingResource {
+  pricing: { flat: number };
+  beneficiary?: string | null;
+}
+
+export interface AppPricingSnapshot {
+  loadedAt: number;
+  config: {
+    version: number;
+    beneficiaries: AppPricingBeneficiary[];
+    resources: Record<string, AppPricingResource>;
+    outcome: Array<Record<string, unknown>>;
+  };
+}
+
 export interface PlatformApp {
   id: number;
   name: string;
@@ -450,6 +490,8 @@ export interface PlatformApp {
   targetTags: string[];
   loaded: boolean;
   artifactReady?: boolean | null;
+  /** Exact runtime-validated pricing sidecar for the loaded release. */
+  pricing?: AppPricingSnapshot | null;
 }
 
 // ── GitHub identity + per-user sources (the sign-in dashboard) ────────────────
@@ -583,12 +625,50 @@ export interface UserSource extends AppSource {
   /** SDK version of the source's live app, from the DB promotion records
    *  (populated in the source list without a GitHub read). */
   sdkVersion?: string | null;
+  /** All distinct SDK versions running across this source's live apps. */
+  sdkVersions?: string[];
 }
 
 export interface OwnedOperateSourceInput extends BearerOverride {
   githubUserId: string;
   platform: string;
   appSourceId: number;
+}
+
+/** Account-wide observability batch. Without `platform`, the manager reports
+ *  every owned source under its own bound/loaded platform. */
+export interface GetUserObservabilityInput extends BearerOverride {
+  githubUserId: string;
+  platform?: string;
+}
+
+/** Account-wide operate batch reads (`/user/transactions|statement|usage|logs`).
+ *  Without `platform`, the manager reads every owned source under its own
+ *  bound/loaded platform — partner-bound sources included. */
+export interface UserOperateBatchInput extends BearerOverride {
+  githubUserId: string;
+  platform?: string;
+}
+
+export interface GetUserStatementsInput extends UserOperateBatchInput {
+  fromDate?: string;
+  toDate?: string;
+}
+
+export interface ListUserTransactionsInput extends UserOperateBatchInput {
+  cursor?: OperateTransactionCursor | string | null;
+  limit?: number;
+  status?: string;
+}
+
+export interface ListUserLogsInput extends UserOperateBatchInput {
+  cursor?: OperateLogCursor | string | null;
+  limit?: number;
+  type?: "deployment" | "usage" | "transaction" | string;
+}
+
+export interface GetUserSourceAppDetailInput extends OwnedOperateSourceInput {
+  applicationId: number;
 }
 
 export type SourceSdkUpgradeResult =
@@ -616,6 +696,24 @@ export type SourceSdkUpgradeResult =
       reason: string;
       command: string;
     };
+
+/**
+ * Cheap read-only merge poll for the upgrade PR opened by an earlier
+ * `upgradeUserSourceSdk` call. `merged` is terminal (redeploy from the merged
+ * default branch); `open` means keep polling; `closed`/`none` mean the PR is
+ * gone, so re-run the upgrade to recreate it.
+ */
+export type SourceSdkUpgradeStatusResult = {
+  status: "merged" | "open" | "closed" | "none";
+  requiredSdkVersion: string;
+  branch: string;
+  pullRequest: {
+    number: number;
+    url: string;
+    state: string;
+    merged: boolean;
+  } | null;
+};
 
 export interface ListUserSourceTransactionsInput extends OwnedOperateSourceInput {
   cursor?: OperateTransactionCursor | string | null;
@@ -645,10 +743,127 @@ export interface OperateLogCursor {
   id: string;
 }
 
-export interface OperateAgentsResult {
-  source: AppSource;
+export interface BotRegistration {
+  id: string;
   platform: string;
-  agents: PlatformApp[];
+  status: string;
+  label: string | null;
+  defaultApp: string;
+  defaultAppId?: number;
+  apps: BotRegistrationApp[];
+  platformBotId: string;
+  platformUsername: string | null;
+  webhookUrl: string | null;
+  threadMode: string;
+  createdAt: number;
+}
+
+export interface BotRegistrationApp {
+  applicationId: number;
+  appSourceId: number | null;
+  sourceLabel: string | null;
+  name: string;
+  label: string;
+  platform: string | null;
+  isPrimary: boolean;
+}
+
+export interface OwnedOperateInput extends BearerOverride {
+  githubUserId: string;
+  platform: string;
+}
+
+export interface CreateUserBotInput extends OwnedOperateInput {
+  applicationIds: number[];
+  primaryApplicationId: number;
+  botPlatform: string;
+  credential: string;
+  label?: string;
+  threadMode?: string;
+}
+
+export interface UpdateUserBotInput extends OwnedOperateInput {
+  botId: string;
+  applicationIds: number[];
+  primaryApplicationId: number;
+  /** Omitted = unchanged; blank clears the label (manager semantics). */
+  label?: string;
+  /** Omitted = unchanged; "single" | "multi". */
+  threadMode?: string;
+}
+
+export interface DeleteUserBotInput extends OwnedOperateInput {
+  botId: string;
+}
+
+export interface CreateUserSourceBotInput extends OwnedOperateSourceInput {
+  applicationId: number;
+  /** The bot's platform (e.g. "telegram") — distinct from `platform`, which
+   *  is the deploy platform (e.g. "community"). Maps to the request body's
+   *  `platform` field. */
+  botPlatform: string;
+  /** Passed through to the backend; never stored, logged, or returned. */
+  credential: string;
+  label?: string;
+  threadMode?: string;
+}
+
+/** All-time funded-turn rollup the manager reports for a key. `costCredits`
+ *  is the insert-time model cost the platform would have charged (1 credit =
+ *  $0.01) — funded turns record it even though the user was charged 0. */
+export interface BuilderModelKeyUsage {
+  inputTokens: number;
+  outputTokens: number;
+  costCredits: number;
+  turns: number;
+}
+
+export interface BuilderModelKeyAppUsage extends BuilderModelKeyUsage {
+  applicationId: number;
+}
+
+/** A builder-owned LLM model key (funder-ladder app rung): provider +
+ *  recognizable prefix + the applications it is granted to. Never carries
+ *  key material. */
+export interface BuilderModelKey {
+  id: number;
+  provider: string;
+  label: string | null;
+  keyPrefix: string;
+  createdAt: number;
+  updatedAt: number;
+  applicationIds: number[];
+  usage: BuilderModelKeyUsage;
+  usageByApplication: BuilderModelKeyAppUsage[];
+}
+
+export interface BuilderModelKeysInput extends BearerOverride {
+  githubUserId: string;
+  platform: string;
+}
+
+/** Create (no keyId) or rotate (keyId set) a builder model key. `key` is the
+ *  raw material; never stored client-side, logged, or returned. */
+export interface SaveBuilderModelKeyInput extends BuilderModelKeysInput {
+  keyId?: number;
+  /** "openai" | "anthropic" | "openrouter". */
+  provider: string;
+  key: string;
+  label?: string;
+}
+
+export interface DeleteBuilderModelKeyInput extends BuilderModelKeysInput {
+  keyId: number;
+}
+
+/** Replace a key's grant set ("apply to projects"). */
+export interface SetModelKeyGrantsInput extends BuilderModelKeysInput {
+  keyId: number;
+  applicationIds: number[];
+}
+
+export interface DeleteUserSourceBotInput extends OwnedOperateSourceInput {
+  botId: string;
 }
 
 export interface OperateTransaction {
@@ -657,6 +872,7 @@ export interface OperateTransaction {
   application: string;
   applicationId: number | null;
   status: string;
+  /** EVM tx hash or SVM signature */
   txHash: string | null;
   chainId: number;
   fromAddress: string;
@@ -668,12 +884,53 @@ export interface OperateTransaction {
   createdAt: number;
   updatedAt: number;
   submittedAt: number | null;
+  // Receipt contract — null until the confirmation watcher lands.
+  family: "evm" | "svm" | null;
+  chainName: string | null;
+  fromLabel: string | null;
+  toLabel: string | null;
+  valueUsd: string | null;
+  block: string | null;
+  slot: string | null;
+  confirmations: number | null;
+  gasUsed: string | null;
+  gasLimit: string | null;
+  effGasPrice: string | null;
+  computeUnits: string | null;
+  computeLimit: string | null;
+  priorityFee: string | null;
+  txFee: string | null;
+  platformFee: string | null;
+  nonce: number | null;
+  method: string | null;
+  transfers: string[] | null;
+  revertReason: string | null;
+  explorerUrl: string | null;
 }
 
 export interface OperateTransactionsResult {
   source: AppSource;
   platform: string;
   transactions: OperateTransaction[];
+  nextCursor: OperateTransactionCursor | null;
+}
+
+/** One owned source and the platform it resolves under, from a batch read. */
+export interface UserSourceRef {
+  source: AppSource;
+  platform: string;
+}
+
+/** A batch row is the single-source row plus which source it belongs to. */
+export type UserTransactionRow = OperateTransaction & {
+  appSourceId: number | null;
+  platform: string | null;
+};
+
+/** Account-wide transactions page: one merged newest-first stream. */
+export interface UserTransactionsResult {
+  sources: UserSourceRef[];
+  transactions: UserTransactionRow[];
   nextCursor: OperateTransactionCursor | null;
 }
 
@@ -704,6 +961,124 @@ export interface OperateUsageResult {
   breakdown: OperateUsageBreakdownRow[];
 }
 
+// Statement contract — mirrors the manager's `/user/sources/:id/statement`
+// endpoint (bank-statement model: Aomi's statement to the builder, one
+// document, entries of both signs). Charges (`model`, `hosting` subjects)
+// carry negative net; earnings (`tool_invocation`, `outcome`) positive.
+// Amounts are raw USD floats off the wire; the UI formats at render time.
+export interface OperateStatementSummary {
+  grossRevenue: number;
+  platformFees: number;
+  serviceCharges: number;
+  net: number;
+}
+
+export interface OperateStatementRevenueRow {
+  subject: string;
+  application: string;
+  applicationId: number | null;
+  events: number;
+  gross: number;
+  platformFee: number;
+  net: number;
+}
+
+export interface OperateStatementChargeRow {
+  item: string;
+  application: string;
+  applicationId: number | null;
+  events: number;
+  amount: number;
+}
+
+export interface OperateStatementEntry {
+  day: string;
+  application: string;
+  subject: string;
+  events: number;
+  gross: number;
+  platformFee: number;
+  net: number;
+}
+
+export interface OperatePartnerPaymentSummary {
+  accruedCredits: number;
+  accruedUsd: number;
+  settledCredits: number;
+  settledUsd: number;
+  outstandingCredits: number;
+  outstandingUsd: number;
+  pricedCalls: number;
+  settlements: number;
+}
+
+export interface OperatePartnerPaymentResource {
+  application: string;
+  applicationId: number | null;
+  tool: string;
+  flatCredits: number;
+  flatUsd: number;
+  beneficiary: string | null;
+  recipient: string | null;
+  chain: string | null;
+  beneficiaryType: string | null;
+  observedCalls: number;
+}
+
+export interface OperatePartnerPaymentBucket {
+  id: string;
+  recipient: string;
+  outstandingCredits: number;
+  outstandingUsd: number;
+}
+
+export interface OperatePartnerPaymentEvent {
+  id: string;
+  kind: "fee_accrued" | "settlement_confirmed" | string;
+  occurredAt: number;
+  application: string | null;
+  applicationId: number | null;
+  tools: string[];
+  credits: number;
+  usd: number;
+  asset: string | null;
+  assetAmount: number | null;
+  recipient: string;
+  paymentMethod: string;
+  receiptId: string | null;
+  chain: string | null;
+  explorerUrl: string | null;
+}
+
+export interface OperatePartnerPayments {
+  available: boolean;
+  scope: "recipient_bucket" | string;
+  summary: OperatePartnerPaymentSummary;
+  resources: OperatePartnerPaymentResource[];
+  buckets: OperatePartnerPaymentBucket[];
+  events: OperatePartnerPaymentEvent[];
+}
+
+export interface OperateStatementResult {
+  source: AppSource;
+  platform: string;
+  range: { fromDate: string; toDate: string };
+  /** False when statement_entries isn't migrated yet — fall back to the meter. */
+  available: boolean;
+  summary: OperateStatementSummary;
+  revenue: OperateStatementRevenueRow[];
+  charges: OperateStatementChargeRow[];
+  entries: OperateStatementEntry[];
+  payments: OperatePartnerPayments;
+}
+
+export interface OperateModelKeyAttribution {
+  id: number;
+  label: string | null;
+  /** Short cleartext prefix already exposed on the Providers page. */
+  prefix: string | null;
+}
+
 export interface OperateLogEntry {
   occurredAt: number;
   eventType: string;
@@ -712,6 +1087,18 @@ export interface OperateLogEntry {
   applicationId: number | null;
   summary: string;
   details: Record<string, unknown>;
+  /** Builder-owned key that funded this usage event; null for other events. */
+  modelKey?: OperateModelKeyAttribution | null;
+  // Invocation-trace contract — null/absent for plain control-plane events.
+  // Privacy: args/results are operational payloads; user intents never ship.
+  kind: "invocation" | "event" | null;
+  status: "ok" | "error" | "info" | null;
+  tool: string | null;
+  durationMs: number | null;
+  retries: number | null;
+  threadId: string | null;
+  args: string | null;
+  result: string | null;
 }
 
 export interface OperateLogsResult {
@@ -719,6 +1106,20 @@ export interface OperateLogsResult {
   platform: string;
   logs: OperateLogEntry[];
   nextCursor: OperateLogCursor | null;
+}
+
+/** A batch log row names its source; shared partner settlements carry null. */
+export type UserLogRow = OperateLogEntry & {
+  appSourceId: number | null;
+  platform: string | null;
+};
+
+/** Account-wide logs page: one merged newest-first stream. */
+export interface UserLogsResult {
+  sources: UserSourceRef[];
+  logs: UserLogRow[];
+  nextCursor: OperateLogCursor | null;
+  invocationsAvailable: boolean;
 }
 
 export interface OperateAppHealth {
@@ -730,6 +1131,7 @@ export interface OperateAppHealth {
   sdkVersion: string | null;
   status: "healthy" | "not_loaded" | "inactive" | string;
   metrics?: OperateAppMetrics | null;
+  pricing?: AppPricingSnapshot | null;
 }
 
 export interface OperateAppMetrics {
@@ -737,9 +1139,23 @@ export interface OperateAppMetrics {
   windowSeconds: number;
   available: boolean;
   requestsPerMinute: number | null;
+  /** Chat-request error rate; tool/tx failures are separate domains below. */
   errorRate: number | null;
   p95LatencyMs: number | null;
   inflightRequests: number | null;
+  /** 24h trend contract, oldest bucket first. */
+  trendWindowSeconds: number | null;
+  chats24h: number | null;
+  toolCalls24h: number | null;
+  transactions24h: number | null;
+  /** Hourly counts over the trend window, oldest bucket first. */
+  chatsHourly: number[] | null;
+  toolCallsHourly: number[] | null;
+  transactionsHourly: number[] | null;
+  toolErrorRate: number | null;
+  txErrorRate: number | null;
+  coldStartMs: number | null;
+  dylibBytes: number | null;
 }
 
 export interface OperateDashboardLink {
@@ -770,6 +1186,62 @@ export interface OperateObservabilityResult {
   apps: OperateAppHealth[];
   dashboardLinks: OperateDashboardLink[];
   platformMetrics: OperatePlatformMetric[];
+  payments: OperatePartnerPayments;
+}
+
+export interface OperateAppDetailTool {
+  tool: string;
+  calls: number | null;
+  errors: number | null;
+  errorRate: number | null;
+  p95Ms: number | null;
+  lastError: {
+    message: string | null;
+    occurredAt: number;
+  } | null;
+}
+
+export interface OperateAppDetailResult {
+  source: AppSource;
+  platform: string;
+  windowSeconds: number;
+  app: {
+    applicationId: number;
+    name: string;
+    releaseTag: string | null;
+    sdkVersion: string | null;
+    active: boolean;
+    loaded: boolean;
+    status: string;
+  };
+  funnel: {
+    chats24h: number | null;
+    toolCalls24h: number | null;
+    txProposed24h: number | null;
+    txSubmitted24h: number | null;
+    txConfirmed24h: number | null;
+    txReverted24h: number | null;
+  };
+  activeUsers24h: number | null;
+  credits: {
+    credits24h: number | null;
+    creditsPerTurn24h: number | null;
+    creditsDaily: Array<{ day: string; credits: number }>;
+  };
+  tools: OperateAppDetailTool[];
+  lifecycle: {
+    coldStartMs: number | null;
+    dylibBytes: number | null;
+    loads24h: number | null;
+    evictions24h: number | null;
+  };
+  hourly: {
+    chats: number[] | null;
+    toolCalls: number[] | null;
+    /** Per-hour chat request P95, in milliseconds. `null` means no samples. */
+    p95LatencyMs: Array<number | null> | null;
+    transactions: number[] | null;
+  };
 }
 
 // =============================================================================

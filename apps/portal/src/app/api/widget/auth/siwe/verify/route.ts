@@ -1,9 +1,10 @@
 import { verifyWidgetSiweProof } from "@aomi-labs/account/widget-auth";
+import { widgetAuthRateLimit } from "@portal/lib/widget-auth/rate-limit";
 import {
-  applyWidgetCors,
-  widgetCorsPreflight,
-} from "@portal/lib/widget-auth/cors";
-import { widgetAuthErrorResponse } from "@portal/lib/widget-auth/response";
+  widgetPreflight,
+  widgetRoute,
+  widgetSessionResponse,
+} from "@portal/lib/widget-auth/response";
 import { z } from "zod";
 
 const requestSchema = z.object({
@@ -13,39 +14,21 @@ const requestSchema = z.object({
   chain_id: z.number().int().positive(),
 });
 
-export async function POST(request: Request): Promise<Response> {
-  try {
-    const parsed = requestSchema.safeParse(await request.json());
-    if (!parsed.success) {
-      return applyWidgetCors(
-        request,
-        Response.json({ error: "invalid_request" }, { status: 400 }),
-      );
-    }
-    const session = await verifyWidgetSiweProof({
-      request,
-      message: parsed.data.message,
-      signature: parsed.data.signature,
-      walletAddress: parsed.data.wallet_address,
-      chainId: parsed.data.chain_id,
-    });
-    return applyWidgetCors(
-      request,
-      Response.json({
-        access_token: session.token,
-        token_type: session.tokenType,
-        expires_at: session.expiresAt,
-        user_id: session.userId,
-      }),
-    );
-  } catch (error) {
-    return widgetAuthErrorResponse(request, error, "SIWE verify");
-  }
-}
+export const POST = widgetRoute(async (request: Request) => {
+  const limited = widgetAuthRateLimit(request);
+  if (limited) return limited;
+  const parsed = requestSchema.parse(await request.json().catch(() => null));
+  const session = await verifyWidgetSiweProof({
+    request,
+    message: parsed.message,
+    signature: parsed.signature,
+    walletAddress: parsed.wallet_address,
+    chainId: parsed.chain_id,
+  });
+  return widgetSessionResponse(session);
+}, "widget.siwe.verify");
 
-export function OPTIONS(request: Parameters<typeof widgetCorsPreflight>[0]) {
-  return widgetCorsPreflight(request, ["POST", "OPTIONS"]);
-}
+export const OPTIONS = widgetPreflight(["POST", "OPTIONS"]);
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

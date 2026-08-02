@@ -90,6 +90,13 @@ export const smitherSchemas = {
   result: z.object({
     status: z.enum(["complete", "deploy-denied", "blocked"]),
     summary: z.string(),
+    /** Crate artifact (artifacts.ts): display tree + embedded tarball so
+     *  surfaces without this run's filesystem (web BFF observing a sandbox
+     *  run) serve real Files/Download. Empty when packaging was skipped,
+     *  failed, or over the embed cap — artifactWarning says why. */
+    fileTreeJson: z.string().default(""),
+    crateTarB64: z.string().default(""),
+    artifactWarning: z.string().default(""),
   }),
 };
 

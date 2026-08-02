@@ -1,20 +1,98 @@
+:root {
+  color: #e9eef5;
+  background: #080b10;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+}
+
 * {
   box-sizing: border-box;
 }
 
 body {
+  min-width: 320px;
+  min-height: 100vh;
   margin: 0;
-  background: #f4f4f5;
-  color: #18181b;
-  font-family: ui-sans-serif, system-ui, sans-serif;
 }
 
-main {
-  min-height: 100dvh;
-  padding: 1rem;
+.shell,
+.setup {
+  width: min(1180px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 32px 0;
+}
+
+header {
+  max-width: 760px;
+  margin-bottom: 24px;
+}
+
+h1,
+p {
+  margin-top: 0;
+}
+
+h1 {
+  margin-bottom: 8px;
+  font-size: clamp(2rem, 5vw, 3.75rem);
+  line-height: 1;
 }
 
 p {
-  margin: 0 0 0.75rem;
+  color: #aeb9c8;
+  line-height: 1.6;
+}
+
+.eyebrow {
+  margin-bottom: 8px;
+  color: #7ce3bd;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.signing-check {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin-top: 16px;
+  padding: 16px 18px;
+  border: 1px solid #26313f;
+  border-radius: 12px;
+  background: #10161f;
+}
+
+.signing-check strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.signing-check p {
+  margin: 0;
   font-size: 0.875rem;
+}
+
+.signing-check button {
+  flex: none;
+  padding: 10px 14px;
+  border: 0;
+  border-radius: 8px;
+  color: #07120e;
+  background: #7ce3bd;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.signing-check button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+@media (max-width: 640px) {
+  .signing-check {
+    align-items: stretch;
+    flex-direction: column;
+  }
 }

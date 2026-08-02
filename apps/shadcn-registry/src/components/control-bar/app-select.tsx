@@ -37,6 +37,7 @@ export const AppSelect: FC<AppSelectProps> = ({
     state,
     getAuthorizedApps,
     getCurrentThreadApp,
+    getCurrentThreadApplicationId,
     onAppSelect,
     isProcessing,
   } = useControl();
@@ -46,13 +47,14 @@ export const AppSelect: FC<AppSelectProps> = ({
     void getAuthorizedApps();
   }, [getAuthorizedApps]);
 
-  const selectApp = (id: string) => {
+  const selectApp = (id: string, applicationId?: string | number | null) => {
     if (isProcessing) return;
-    onAppSelect(id);
+    onAppSelect(id, { applicationId });
     setOpen(false);
   };
 
   const selectedApp = getCurrentThreadApp();
+  const selectedApplicationId = getCurrentThreadApplicationId();
   const selectedInfo = getAppInfo(selectedApp);
   const SelectedAppIcon = getAppIcon(selectedApp);
 
@@ -60,7 +62,10 @@ export const AppSelect: FC<AppSelectProps> = ({
 
   // Separate "default" (All Apps) from the rest for pinned treatment
   const hasAllApps = apps.includes(ALL_APPS_ID);
-  const otherApps = apps.filter((a) => a !== ALL_APPS_ID);
+  const otherApps =
+    state.appDescriptors.length > 0
+      ? state.appDescriptors.filter((app) => app.name !== ALL_APPS_ID)
+      : apps.filter((app) => app !== ALL_APPS_ID);
   const groups = groupAppsByCategory(otherApps);
 
   if (apps.length === 0) {
@@ -159,12 +164,16 @@ export const AppSelect: FC<AppSelectProps> = ({
               >
                 {group.apps.map((app) => {
                   const AppIcon = getAppIcon(app.id);
+                  const selected =
+                    selectedApp === app.id &&
+                    String(selectedApplicationId ?? "") ===
+                      String(app.applicationId ?? "");
                   return (
                     <CommandItem
-                      key={app.id}
+                      key={`${app.id}:${app.applicationId ?? "unscoped"}`}
                       value={`${app.displayName} ${app.category.label} ${app.id}`}
                       disabled={isProcessing}
-                      onSelect={() => selectApp(app.id)}
+                      onSelect={() => selectApp(app.id, app.applicationId)}
                       className="flex items-center justify-between gap-2"
                     >
                       <div className="flex min-w-0 items-center gap-2">
@@ -172,15 +181,14 @@ export const AppSelect: FC<AppSelectProps> = ({
                           className={cn(
                             "flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[10px] font-medium",
                             "bg-muted text-muted-foreground",
-                            selectedApp === app.id &&
-                              "bg-primary/10 text-primary",
+                            selected && "bg-primary/10 text-primary",
                           )}
                         >
                           {AppIcon ? <AppIcon className="h-4 w-4" /> : app.abbr}
                         </span>
                         <span className="truncate">{app.displayName}</span>
                       </div>
-                      {selectedApp === app.id && (
+                      {selected && (
                         <CheckIcon className="text-primary h-4 w-4 shrink-0" />
                       )}
                     </CommandItem>

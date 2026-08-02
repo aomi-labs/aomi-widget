@@ -50,6 +50,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   private apiKey?: string;
   private userState?: UserStateShape;
   private clientId: string;
+  private paymentMethod?: string | null;
   private syncPendingTxRequestsFromUserState: boolean;
   private pollIntervalMs: number;
   private logger?: { debug: (...args: unknown[]) => void };
@@ -81,6 +82,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     this.app = sessionOptions?.app ?? "default";
     this.applicationId = sessionOptions?.applicationId;
     this.apiKey = sessionOptions?.apiKey;
+    this.paymentMethod = sessionOptions?.paymentMethod;
     const initialUserState = UserState.reconcile(
       undefined,
       sessionOptions?.userState,
@@ -128,6 +130,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       apiKey: this.apiKey,
       userState: this.userState,
       clientId: this.clientId,
+      paymentMethod: this.paymentMethod,
     });
 
     this.assertUserStateAligned(response.user_state);
@@ -159,6 +162,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       apiKey: this.apiKey,
       userState: this.userState,
       clientId: this.clientId,
+      paymentMethod: this.paymentMethod,
     });
 
     this.assertUserStateAligned(response.user_state);
@@ -186,9 +190,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
    */
   async resolve(requestId: string, result: WalletRequestResult): Promise<void> {
     await this.walletController.resolve(requestId, result);
-    if (this._isProcessing) {
-      this.startPolling();
-    }
+    this.resumeAfterWalletResponse();
   }
 
   /**
@@ -197,9 +199,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
    */
   async reject(requestId: string, reason?: string): Promise<void> {
     await this.walletController.reject(requestId, reason);
-    if (this._isProcessing) {
-      this.startPolling();
-    }
+    this.resumeAfterWalletResponse();
   }
 
   // ===========================================================================
@@ -211,7 +211,10 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
    */
   async interrupt(): Promise<void> {
     this.stopPolling();
-    const response = await this.client.interrupt(this.sessionId);
+    const response = await this.client.interrupt(this.sessionId, {
+      app: this.app,
+      applicationId: this.applicationId,
+    });
     this.applyState(response);
     this._isProcessing = false;
     this.emit("processing_end", undefined);
@@ -273,11 +276,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     }
     this.isSSEActive = active;
     if (active) {
-      this.unsubscribeSSE = this.client.subscribeSSE(
-        this.sessionId,
-        (event) => this.handleSSEEvent(event),
-        (error) => this.emit("error", { error }),
-      );
+      this.startSSE();
       return;
     }
     this.unsubscribeSSE?.();
@@ -285,6 +284,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   }
 
   syncRuntimeOptions(options: SessionRuntimeOptions): void {
+    const previousApplicationId = this.applicationId?.toString();
     this.app = options.app;
     this.applicationId = options.applicationId;
     this.apiKey = options.apiKey;
@@ -293,6 +293,23 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     if (options.userState) {
       this.resolveUserState(options.userState);
     }
+
+    if (
+      this.isSSEActive &&
+      previousApplicationId !== this.applicationId?.toString()
+    ) {
+      this.unsubscribeSSE?.();
+      this.startSSE();
+    }
+  }
+
+  private startSSE(): void {
+    this.unsubscribeSSE = this.client.subscribeSSE(
+      this.sessionId,
+      (event) => this.handleSSEEvent(event),
+      (error) => this.emit("error", { error }),
+      { applicationId: this.applicationId },
+    );
   }
 
   resolveUserState(
@@ -353,6 +370,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       this.sessionId,
       this.userState,
       this.clientId,
+      { app: this.app, applicationId: this.applicationId },
     );
     this.assertUserStateAligned(state.user_state);
     this.applyState(state);
@@ -379,6 +397,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       this.sessionId,
       this.userState,
       this.clientId,
+      { app: this.app, applicationId: this.applicationId },
     );
 
     this.assertUserStateAligned(state.user_state);
@@ -424,6 +443,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
         this.sessionId,
         this.userState,
         this.clientId,
+        { app: this.app, applicationId: this.applicationId },
       );
 
       // Guard: polling may have been stopped while awaiting fetch
@@ -502,6 +522,14 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       app: this.app,
       applicationId: this.applicationId,
     });
+  }
+
+  private resumeAfterWalletResponse(): void {
+    if (!this._isProcessing) {
+      this._isProcessing = true;
+      this.emit("processing_start", undefined);
+    }
+    this.startPolling();
   }
 
   private resolvePending(): void {

@@ -26,6 +26,10 @@ const SUBCOMMAND_NAMES = new Set([
   "secret",
 ]);
 
+export function hasRootSubcommand(rawArgs: string[]): boolean {
+  return rawArgs.some((arg) => SUBCOMMAND_NAMES.has(arg));
+}
+
 const logoutDef = defineCommand({
   meta: {
     name: "logout",
@@ -66,8 +70,7 @@ export const root = defineCommand({
     // contain a known subcommand token — otherwise every `aomi wallet set …`
     // or `aomi tx sign …` would spuriously try to start the REPL and exit 1
     // on non-TTY.
-    const firstToken = rawArgs.find((arg) => !arg.startsWith("-"));
-    if (firstToken && SUBCOMMAND_NAMES.has(firstToken)) {
+    if (hasRootSubcommand(rawArgs)) {
       return;
     }
     const { runRootCli } = await import("./repl");

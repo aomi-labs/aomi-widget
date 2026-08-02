@@ -25,7 +25,7 @@ import type {
   AomiSystemEvent,
   AomiSystemResponse,
   AomiThread,
-  GetAuthorization,
+  GetAccountBearer,
   Logger,
   AomiHttpMethod,
   AomiPlatformFilter,
@@ -234,20 +234,11 @@ async function fetchStateResponse(
   });
 }
 
-function wrapFetchWithCredentials(
+function wrapFetchWithAccountBearer(
   fetchImpl: typeof fetch,
-  credentials?: RequestCredentials,
+  getAccountBearer?: GetAccountBearer,
 ): typeof fetch {
-  if (!credentials) return fetchImpl;
-  return (input, init) => fetchImpl(input, { ...init, credentials });
-}
-
-function wrapFetchWithAuthorization(
-  fetchImpl: typeof fetch,
-  getAuthorization?: GetAuthorization,
-  mode: "required" | "optional" = "required",
-): typeof fetch {
-  if (!getAuthorization) return fetchImpl;
+  if (!getAccountBearer) return fetchImpl;
 
   return async (input, init) => {
     const baseHeaders = new Headers(
@@ -255,15 +246,16 @@ function wrapFetchWithAuthorization(
     );
     const fetchWithBearer = async (forceRefresh: boolean) => {
       const headers = new Headers(baseHeaders);
+      // The account bearer is additive — never let a failing source break the
+      // request. A throwing/absent bearer just means no Authorization header.
       let bearer: string | null | undefined;
-      if (mode === "required") {
-        bearer = await getAuthorization({ forceRefresh });
-      } else {
-        try {
-          bearer = await getAuthorization({ forceRefresh });
-        } catch {
-          bearer = undefined;
+      try {
+        bearer = await getAccountBearer({ forceRefresh });
+      } catch (error) {
+        if (getAccountBearer.required) {
+          throw error;
         }
+        bearer = undefined;
       }
       if (bearer) {
         headers.set("Authorization", `Bearer ${bearer}`);
@@ -278,8 +270,8 @@ function wrapFetchWithAuthorization(
 }
 
 function supportsTokenRefreshSubscription(
-  provider: GetAuthorization | undefined,
-): provider is GetAuthorization & {
+  provider: GetAccountBearer | undefined,
+): provider is GetAccountBearer & {
   subscribe: (listener: () => void) => () => void;
 } {
   return (
@@ -369,27 +361,18 @@ export class AomiClient {
     // Strip trailing slash
     this.baseUrl = options.baseUrl.replace(/\/+$/, "");
     this.apiKey = options.apiKey;
-    const fetchImpl = wrapFetchWithCredentials(
-      options.fetch ?? globalThis.fetch.bind(globalThis),
-      options.credentials,
-    );
-    const rawFetchImpl = wrapFetchWithCredentials(
+    const fetchImpl = options.fetch ?? globalThis.fetch.bind(globalThis);
+    const rawFetchImpl =
       typeof globalThis.fetch === "function"
         ? globalThis.fetch.bind(globalThis)
-        : fetchImpl,
-      options.credentials,
-    );
-    const authorization = options.authorization ?? options.getAccountBearer;
-    const authorizationMode = options.authorization ? "required" : "optional";
-    this.fetchImpl = wrapFetchWithAuthorization(
+        : fetchImpl;
+    this.fetchImpl = wrapFetchWithAccountBearer(
       fetchImpl,
-      authorization,
-      authorizationMode,
+      options.getAccountBearer,
     );
-    this.rawFetchImpl = wrapFetchWithAuthorization(
+    this.rawFetchImpl = wrapFetchWithAccountBearer(
       rawFetchImpl,
-      authorization,
-      authorizationMode,
+      options.getAccountBearer,
     );
     this.logger = options.logger;
 
@@ -402,9 +385,9 @@ export class AomiClient {
       fetchImpl: this.rawFetchImpl,
       logger: this.logger,
     });
-    if (supportsTokenRefreshSubscription(authorization)) {
-      authorization.subscribe(() => {
-        this.sseSubscriber.reconnect("authorization-refreshed");
+    if (supportsTokenRefreshSubscription(options.getAccountBearer)) {
+      options.getAccountBearer.subscribe(() => {
+        this.sseSubscriber.reconnect("account-token-refreshed");
       });
     }
   }
@@ -470,22 +453,35 @@ export class AomiClient {
     sessionId: string,
     userState?: UserStateShape,
     clientId?: string,
+    options?: { app?: string; applicationId?: number | string | null },
   ): Promise<AomiStateResponse> {
     const normalizedUserState = stripBulkyPendingFields(
       UserState.normalize(userState),
     );
+    const applicationId = options?.applicationId?.toString().trim();
+    const stateContext = {
+      app: options?.app,
+      application_id: applicationId || undefined,
+    };
     const urlWithSyncParams = buildApiUrl(this.baseUrl, "/api/thread/state", {
+      ...stateContext,
       user_state: normalizedUserState
         ? JSON.stringify(normalizedUserState)
         : undefined,
       client_id: clientId,
     });
-    const bareUrl = buildApiUrl(this.baseUrl, "/api/thread/state");
+    const bareUrl = buildApiUrl(
+      this.baseUrl,
+      "/api/thread/state",
+      stateContext,
+    );
     const shouldRetryWithoutSyncParams =
       Boolean(normalizedUserState) || Boolean(clientId);
 
     this.logger?.debug("[aomi][client] GET /api/thread/state start", {
       sessionId,
+      app: options?.app,
+      applicationId,
       clientId,
       hasUserState: Boolean(normalizedUserState),
     });
@@ -542,6 +538,7 @@ export class AomiClient {
       apiKey?: string;
       userState?: UserStateShape;
       clientId?: string;
+      paymentMethod?: string | null;
     },
   ): Promise<AomiChatResponse> {
     const app = options?.app ?? "default";
@@ -558,6 +555,7 @@ export class AomiClient {
         ? JSON.stringify(normalizedUserState)
         : undefined,
       client_id: options?.clientId,
+      payment_method: options?.paymentMethod ?? undefined,
     });
 
     this.logger?.debug("[aomi][client] POST /api/thread/chat prepared", {
@@ -565,6 +563,7 @@ export class AomiClient {
       app,
       applicationId,
       clientId: options?.clientId,
+      paymentMethod: options?.paymentMethod,
       hasUserState: Boolean(normalizedUserState),
       messagePreview: previewText(message),
     });
@@ -637,14 +636,22 @@ export class AomiClient {
   /**
    * Interrupt the AI's current response.
    */
-  async interrupt(sessionId: string): Promise<AomiInterruptResponse> {
+  async interrupt(
+    sessionId: string,
+    options?: { app?: string; applicationId?: number | string | null },
+  ): Promise<AomiInterruptResponse> {
     this.logger?.debug("[aomi][client] POST /api/thread/interrupt prepared", {
       sessionId,
+      app: options?.app,
+      applicationId: options?.applicationId,
     });
     return postState<AomiInterruptResponse>(
       this.baseUrl,
       "/api/thread/interrupt",
-      {},
+      {
+        app: options?.app,
+        application_id: options?.applicationId,
+      },
       sessionId,
       this.fetchImpl,
       undefined,
@@ -796,8 +803,9 @@ export class AomiClient {
     sessionId: string,
     onUpdate: (event: AomiSSEEvent) => void,
     onError?: (error: unknown) => void,
+    options?: { applicationId?: number | string | null },
   ): () => void {
-    return this.sseSubscriber.subscribe(sessionId, onUpdate, onError);
+    return this.sseSubscriber.subscribe(sessionId, onUpdate, onError, options);
   }
 
   // ===========================================================================
@@ -909,18 +917,36 @@ export class AomiClient {
    * Archive a thread.
    */
   async archiveThread(sessionId: string): Promise<void> {
-    throw new Error(
-      "Failed to archive thread: current backend does not expose /api/threads/:id/archive",
+    const url = buildApiUrl(
+      this.baseUrl,
+      `/api/threads/${encodeURIComponent(sessionId)}/archive`,
     );
+    const response = await this.fetchImpl(url, {
+      method: "POST",
+      headers: withSessionHeader(sessionId),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to archive thread: HTTP ${response.status}`);
+    }
   }
 
   /**
    * Unarchive a thread.
    */
   async unarchiveThread(sessionId: string): Promise<void> {
-    throw new Error(
-      "Failed to unarchive thread: current backend does not expose /api/threads/:id/unarchive",
+    const url = buildApiUrl(
+      this.baseUrl,
+      `/api/threads/${encodeURIComponent(sessionId)}/unarchive`,
     );
+    const response = await this.fetchImpl(url, {
+      method: "POST",
+      headers: withSessionHeader(sessionId),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to unarchive thread: HTTP ${response.status}`);
+    }
   }
 
   // ===========================================================================

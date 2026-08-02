@@ -1,0 +1,71 @@
+<svg width="1140" height="640" viewBox="0 0 1140 640" xmlns="http://www.w3.org/2000/svg" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" role="img" aria-label="The BFF converts a browser session into a server-injected backend assertion; no client credential crosses the boundary">
+<defs>
+<marker id="a" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#6b7280"/></marker>
+<marker id="ar" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#D85A30"/></marker>
+<style>
+text{font-family:ui-monospace, SFMono-Regular, Menlo, monospace;}
+.h{font-size:13.5px;font-weight:700}
+.b{font-size:12px;fill:#1f2937}
+.s{font-size:11.5px;fill:#6b7280}
+.arw{stroke:#6b7280;stroke-width:1.5;fill:none}
+</style>
+</defs>
+
+<!-- provider proofs stop -->
+<rect x="430" y="36" width="300" height="54" rx="9" fill="#fafafa" stroke="#9CA3AF" stroke-width="1.2" stroke-dasharray="4 4"/>
+<text x="580" y="59" class="b" text-anchor="middle">SIWE · Privy · Para proofs</text>
+<text x="580" y="78" class="s" text-anchor="middle">consumed one hop earlier — never proxied</text>
+<path class="arw" d="M580,90 V126" marker-end="url(#a)"/>
+
+<!-- browser -->
+<rect x="40" y="180" width="240" height="170" rx="10" fill="#fafafa" stroke="#9CA3AF" stroke-width="1.3"/>
+<text x="60" y="210" class="h" fill="#374151">BROWSER</text>
+<text x="60" y="240" class="b">holds: HttpOnly cookie</text>
+<text x="60" y="264" class="b">holds: no backend token</text>
+<text x="60" y="292" class="s">cannot read the cookie,</text>
+<text x="60" y="310" class="s">cannot pick its identity</text>
+
+<!-- BFF -->
+<rect x="430" y="130" width="300" height="290" rx="10" fill="#eef5fc" stroke="#378ADD" stroke-width="1.4"/>
+<text x="450" y="160" class="h" fill="#185FA5">BFF — IDENTITY BROKER</text>
+<text x="450" y="192" class="b">① match route allowlist</text>
+<text x="450" y="218" class="b">② resolve Better Auth session</text>
+<text x="450" y="244" class="b">③ map → canonical user</text>
+<text x="450" y="270" class="b">④ mint EdDSA assertion</text>
+<text x="450" y="296" class="b" font-weight="700" fill="#9e3f17">⑤ drop Cookie + client Authorization</text>
+<text x="450" y="322" class="b">⑥ inject its own Bearer</text>
+<text x="450" y="348" class="b">⑦ stream the response back</text>
+<text x="450" y="394" class="s">a policy boundary — review it</text>
+<text x="450" y="410" class="s">like an API gateway config</text>
+
+<!-- backend -->
+<rect x="880" y="180" width="220" height="170" rx="10" fill="#f6fcf9" stroke="#1D9E75" stroke-width="1.4"/>
+<text x="900" y="210" class="h" fill="#0F6E56">RUST BACKEND</text>
+<text x="900" y="240" class="b">verifies assertion</text>
+<text x="900" y="264" class="b">typed route policy</text>
+<text x="900" y="292" class="s">never parses cookies,</text>
+<text x="900" y="310" class="s">never sees a provider</text>
+
+<!-- edges -->
+<path class="arw" d="M280,255 H426" marker-end="url(#a)"/>
+<text x="353" y="238" class="s" text-anchor="middle">same-origin request</text>
+<text x="353" y="278" class="b" text-anchor="middle" font-size="11.5px">Cookie: session</text>
+
+<path class="arw" d="M730,255 H876" marker-end="url(#a)"/>
+<text x="803" y="228" class="s" text-anchor="middle">Authorization: Bearer</text>
+<text x="803" y="244" class="s" text-anchor="middle">&lt;assertion&gt;</text>
+<text x="803" y="278" class="b" text-anchor="middle" font-size="11.5px">aud-bound · minutes</text>
+
+<!-- key custody -->
+<rect x="450" y="448" width="260" height="44" rx="9" fill="#fffaf0" stroke="#EF9F27" stroke-width="1.4"/>
+<text x="580" y="475" class="b" text-anchor="middle" font-weight="700" fill="#B0710F">PRIVATE KEY — issuer only</text>
+<rect x="870" y="448" width="240" height="44" rx="9" fill="#f6fcf9" stroke="#1D9E75" stroke-width="1.4"/>
+<text x="990" y="475" class="b" text-anchor="middle" font-weight="700" fill="#0F6E56">PUBLIC KEYS — verify only</text>
+<text x="795" y="522" class="b" text-anchor="middle" font-weight="700">→ the verifier cannot mint ←</text>
+
+<!-- blocked direct path -->
+<path d="M160,350 C160,580 990,580 990,496" stroke="#D85A30" stroke-width="1.5" fill="none" stroke-dasharray="6 5" marker-end="url(#ar)"/>
+<rect x="380" y="560" width="26" height="26" rx="13" fill="#fdeee7" stroke="#D85A30" stroke-width="1.3"/>
+<text x="393" y="578" font-size="13px" font-weight="700" fill="#9e3f17" text-anchor="middle">✕</text>
+<text x="418" y="578" class="s" fill="#9e3f17">no client-chosen identity header ever reaches the backend</text>
+</svg>

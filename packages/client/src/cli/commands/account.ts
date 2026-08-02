@@ -1,7 +1,12 @@
 import { CliSession } from "../cli-session";
 import { fatal } from "../errors";
 import { printDataFileLocation, printJson } from "../output";
-import { signInWithCliSiwe, signOutCliSession } from "../auth";
+import {
+  linkCliSiwsWallet,
+  signInWithCliSiwe,
+  signInWithCliSiws,
+  signOutCliSession,
+} from "../auth";
 import type { CliConfig } from "../types";
 import {
   getDeviceProviderCredential,
@@ -26,12 +31,14 @@ const LEGACY_RAW_BACKEND_URL = "https://api.aomi.dev";
 export type AccountLoginOptions = {
   provider?: string;
   wallet?: boolean;
+  solana?: boolean;
   noBrowser?: boolean;
 };
 
 export type AccountLinkOptions = {
   provider?: string;
   wallet?: boolean;
+  solana?: boolean;
   label?: string;
 };
 
@@ -55,6 +62,13 @@ export async function accountLoginCommand(
   }
   if (rewroteLegacyBackend && !config.json) {
     console.log(`Backend updated to ${DEFAULT_CLI_BASE_URL}`);
+  }
+  if (options.solana && (options.wallet || options.provider)) {
+    fatal("Choose only one of `--solana`, `--wallet`, or `--provider`.");
+  }
+  if (options.solana) {
+    await accountLoginWithSiws(cli, config);
+    return;
   }
   if (options.wallet || options.noBrowser || config.privateKey) {
     await accountLoginWithSiwe(cli, config);
@@ -89,6 +103,49 @@ export async function accountLoginCommand(
   console.log(
     `Signed in${result.provider ? ` with ${formatProvider(result.provider)}` : ""}`,
   );
+  console.log(
+    `Session expires at ${new Date(result.auth.expiresAt).toISOString()}`,
+  );
+  printDataFileLocation({ verbose: config.verbose });
+}
+
+async function accountLoginWithSiws(
+  cli: CliSession,
+  config: CliConfig,
+): Promise<void> {
+  const privateKey =
+    cli.resolvedSvmPrivateKey(config.solanaPrivateKey) ??
+    process.env.SOLANA_PRIVATE_KEY;
+  if (!privateKey) {
+    fatal(
+      "No Solana private key configured.\n" +
+        "Run `aomi wallet set --solana <solana-private-key>` or pass `--solana-private-key`.",
+    );
+  }
+
+  const chainId = config.svmCluster ?? cli.svmCluster ?? "solana:mainnet";
+  const result = await signInWithCliSiws({
+    baseUrl: cli.baseUrl,
+    privateKey: privateKey!,
+    chainId,
+  });
+
+  cli.setSvmWallet(privateKey!, result.address);
+  cli.setSvmCluster(chainId);
+  cli.setAuthSession(result.auth);
+
+  if (config.json) {
+    printJson({
+      status: "signed_in",
+      provider: "siws",
+      address: result.address,
+      chainId,
+      baseUrl: cli.baseUrl,
+      expiresAt: new Date(result.auth.expiresAt).toISOString(),
+    });
+    return;
+  }
+  console.log(`Signed in with Solana wallet ${result.address}`);
   console.log(
     `Session expires at ${new Date(result.auth.expiresAt).toISOString()}`,
   );
@@ -241,10 +298,50 @@ export async function accountLinkCommand(
   const cli = loadMergedCli(config);
   const client = requireAccountGraphClient(cli);
   const provider = normalizeProviderOption(options.provider);
-  const wantsWallet = options.wallet || !provider;
+  const wantsWallet = options.wallet || (!provider && !options.solana);
 
-  if (provider && options.wallet) {
-    fatal("Choose either `--provider` or `--wallet`.");
+  if (
+    [
+      Boolean(provider),
+      Boolean(options.wallet),
+      Boolean(options.solana),
+    ].filter(Boolean).length > 1
+  ) {
+    fatal("Choose only one of `--provider`, `--wallet`, or `--solana`.");
+  }
+
+  if (options.solana) {
+    const privateKey =
+      cli.resolvedSvmPrivateKey(config.solanaPrivateKey) ??
+      process.env.SOLANA_PRIVATE_KEY;
+    if (!privateKey) {
+      fatal(
+        "No Solana private key configured.\n" +
+          "Run `aomi wallet set --solana <solana-private-key>` or pass `--solana-private-key`.",
+      );
+    }
+    const chainId = config.svmCluster ?? cli.svmCluster ?? "solana:mainnet";
+    const result = await linkCliSiwsWallet({
+      baseUrl: cli.baseUrl,
+      sessionToken: cli.auth!.sessionToken,
+      privateKey: privateKey!,
+      chainId,
+    });
+    cli.setSvmWallet(privateKey!, result.address);
+    cli.setSvmCluster(chainId);
+    const account = await client.getAccount();
+    if (config.json) {
+      printJson({ ...result, account });
+      return;
+    }
+    console.log(
+      result.status === "noop"
+        ? `Solana login method already linked for ${result.address}`
+        : `Linked Solana wallet login method ${result.address}`,
+    );
+    printAccountLinks(account);
+    printDataFileLocation({ verbose: config.verbose });
+    return;
   }
 
   if (provider) {

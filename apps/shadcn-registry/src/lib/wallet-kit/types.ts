@@ -53,7 +53,7 @@ export type AomiNetworkTarget =
   | { family: "svm" | "solana"; networkId: string };
 export type AomiWalletKind = "eoa" | "smart-account";
 export type AomiAAMode = "none" | "4337" | "7702";
-export type AomiSponsorProvider = "alchemy" | "coinbase" | "pimlico" | "self";
+export type AomiSponsorProvider = "alchemy" | "coinbase" | "self";
 export type SessionProvider = "para" | "privy" | "custom" | (string & {});
 export type EmbeddedProvider = "para" | "privy" | "aomi" | (string & {});
 export type AuthProviderId = SessionProvider | "none" | "baseAccount";
@@ -271,18 +271,13 @@ export type AomiTxResult = {
   Delegation7702?: string;
 };
 
+/**
+ * Upstream wallet-provider credential the portal exchanges for an Aomi bearer.
+ * Aliased to the client type (the same inline `@aomi-labs/client` edge already
+ * used for `GetAccountBearer` below) so the shape cannot drift.
+ */
 export type AomiAccountCredential =
-  | {
-      provider: "privy";
-      tokenKind?: "identity_token" | "access_token";
-      providerToken: string;
-    }
-  | {
-      provider: "para";
-      tokenKind?: "session_jwt";
-      providerToken: string;
-      keyId?: string;
-    };
+  import("@aomi-labs/client").ProviderCredential;
 
 export type AomiWalletKit = {
   identity: AomiSessionIdentity;
@@ -298,6 +293,7 @@ export type AomiWalletKit = {
     evm: readonly Chain[];
     solana: readonly SvmNetworkOption[];
   };
+  selectedSolanaNetwork?: SvmNetworkOption;
   solanaNetworkSwitchRequiresReconnect?: boolean;
 
   /** All wallet accounts known to the adapter, tagged by family. */
@@ -305,6 +301,7 @@ export type AomiWalletKit = {
   /** Unified picker rows: live accounts, stored account-runtime rows, and options. */
   walletModalRows?: readonly WalletModalRow[];
   accountStatus?: AccountRuntimeStatus;
+  accountError?: string;
   accountUser?: AomiUserRef;
   accountLinkedAccounts?: readonly LinkedAuthAccount[];
   accountWallets?: readonly AccountWallet[];
@@ -412,6 +409,7 @@ export type AomiWalletKit = {
    * for a short-lived Aomi bearer.
    */
   getAccountCredential?: () => Promise<AomiAccountCredential | null>;
+  getAccountBearer?: import("@aomi-labs/client").GetAccountBearer;
   solanaRpcHttpUrl?: string;
   solanaRpcWsUrl?: string;
 };

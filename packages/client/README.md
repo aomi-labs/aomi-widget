@@ -28,38 +28,6 @@ const response = await client.sendMessage(threadId, "What's the price of ETH?");
 console.log(response.messages);
 ```
 
-### Cross-domain widget sessions
-
-Use `createWidgetSessionProvider` when a widget runs on a customer origin and
-calls the Aomi Portal directly. The provider asks the connected EVM wallet to
-sign a Portal-issued SIWE challenge, keeps the returned Widget Session Token in
-memory, and supplies it to every client request. The customer site does not
-receive or expose an Aomi or wallet-provider API key.
-
-```ts
-import { AomiClient, createWidgetSessionProvider } from "@aomi-labs/client";
-
-const authorization = createWidgetSessionProvider({
-  baseUrl: "https://chat.aomi.dev",
-  getSigner: async () => ({
-    address: wallet.address,
-    chainId: wallet.chainId,
-    signMessage: (message) => wallet.signMessage({ message }),
-  }),
-});
-
-const client = new AomiClient({
-  baseUrl: "https://chat.aomi.dev",
-  authorization,
-  credentials: "omit",
-});
-```
-
-The server binds each 30-minute session to the browser-observed `Origin` and
-stores only a hash of the token. Call `authorization.revoke()` on an explicit
-sign-out. Para and Privy proof exchange are separate provider integrations;
-this helper currently accepts EOA SIWE signers only.
-
 ### Session (high-level)
 
 Handles polling, event dispatch, and wallet request management automatically.
@@ -146,9 +114,13 @@ unsub(); // stop listening
 
 ## CLI
 
-The package includes an `aomi` CLI for scripting and Claude Code skills.
-When installed globally or in a project, the executable name is `aomi`.
-For one-off usage, run commands via `npx @aomi-labs/client ...`.
+The package includes an `aomi` CLI for scripting. When installed globally or
+in a project, the executable name is `aomi`. For one-off usage, run commands
+via `npx @aomi-labs/client ...`.
+
+Claude Code / Codex skills that drive this CLI live in the separate
+[`aomi-labs/skills`](https://github.com/aomi-labs/skills) repository — that
+repo is the single source of truth for skill content.
 
 ```bash
 npx @aomi-labs/client --version                         # print installed CLI version

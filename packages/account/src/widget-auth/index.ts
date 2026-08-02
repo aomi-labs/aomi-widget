@@ -1,7 +1,13 @@
-export { observedWidgetOrigin, widgetOriginDomain } from "./origin";
 export {
+  observedWidgetOrigin,
+  requireWidgetOrigin,
+  widgetOriginDomain,
+  WidgetAuthError,
+} from "./origin";
+export { type WidgetChallenge } from "./challenge";
+export {
+  hasWidgetSessionBearer,
   issueWidgetSession,
-  resolveWidgetCanonicalUserId,
   resolveWidgetSession,
   revokeWidgetSession,
   WIDGET_SESSION_TTL_SECONDS,
@@ -10,8 +16,17 @@ export {
 export {
   createWidgetSiweChallenge,
   verifyWidgetSiweProof,
-  WidgetAuthError,
   WIDGET_SIWE_NONCE_TTL_SECONDS,
   type WidgetSiweChallenge,
 } from "./siwe";
-export type { WidgetAuthStore, WidgetAuthTicket } from "./store";
+export {
+  createWidgetSiwsChallenge,
+  verifyWidgetSiwsProof,
+  WIDGET_SIWS_NONCE_TTL_SECONDS,
+  type WidgetSiwsChallenge,
+} from "./siws";
+export {
+  deleteWidgetSessionsForProviderIdentity,
+  type WidgetAuthStore,
+  type WidgetAuthTicket,
+} from "./store";

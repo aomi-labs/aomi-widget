@@ -1,36 +1,21 @@
 import { observedWidgetOrigin } from "@aomi-labs/account/widget-auth";
-import type { NextRequest } from "next/server";
 
 const ALLOWED_HEADERS = [
   "Authorization",
   "Content-Type",
   "Aomi-App-Key",
+  "Last-Event-ID",
   "X-Session-Id",
   "X-Thread-Id",
 ];
 
-type RouteHandler<Context> = (
-  request: NextRequest,
-  context: Context,
-) => Promise<Response>;
-
-export function withWidgetCors<Context>(
-  handler: RouteHandler<Context>,
-): RouteHandler<Context> {
-  return async (request, context) => {
-    const response = await handler(request, context);
-    return applyWidgetCors(request, response);
-  };
-}
-
 export function widgetCorsPreflight(
-  request: NextRequest,
+  request: Request,
   allowedMethods: readonly string[],
 ): Response {
   if (!observedWidgetOrigin(request)) {
     return Response.json({ error: "invalid_widget_origin" }, { status: 403 });
   }
-
   return applyWidgetCors(request, new Response(null, { status: 204 }), {
     allowedMethods,
     preflight: true,
@@ -44,7 +29,6 @@ export function applyWidgetCors(
 ): Response {
   const origin = observedWidgetOrigin(request);
   if (!origin) return response;
-
   response.headers.set("Access-Control-Allow-Origin", origin);
   appendVary(response.headers, "Origin");
   if (options?.preflight) {

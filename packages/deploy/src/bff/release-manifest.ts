@@ -1,4 +1,5 @@
 import type { DeploymentClient } from "../client";
+import { BackendError } from "../errors";
 import type { ReleaseManifest, SecretSlot, UserSource } from "../types";
 import { missingRequiredSecrets } from "../secrets";
 
@@ -6,11 +7,36 @@ const GITHUB_API = "https://api.github.com";
 
 type ReleaseAsset = { name: string; url: string };
 
+export const REQUIRED_SECRETS_CHECK_UNAVAILABLE =
+  "REQUIRED_SECRETS_CHECK_UNAVAILABLE" as const;
+
+/** The required-secret metadata could not be verified safely. */
+export class RequiredSecretsCheckError extends Error {
+  readonly code = REQUIRED_SECRETS_CHECK_UNAVAILABLE;
+  readonly upstream?: "github" | "rust";
+  readonly upstreamStatus?: number;
+
+  constructor(options?: {
+    cause?: unknown;
+    upstream?: "github" | "rust";
+    upstreamStatus?: number;
+  }) {
+    super("Unable to verify required secrets. Try again.", {
+      cause: options?.cause,
+    });
+    this.name = "RequiredSecretsCheckError";
+    this.upstream = options?.upstream;
+    this.upstreamStatus = options?.upstreamStatus;
+  }
+}
+
 /**
  * Read the declared secret slots out of a release's `manifest.json` asset.
  *
- * Returns `{}` for any release that predates `aomi-build compile` writing the
+ * Returns `{}` for a release that predates `aomi-build compile` writing the
  * slots, so activation of an older release is never blocked by their absence.
+ * Lookup failures throw instead: treating an unreadable manifest as an old
+ * release would silently bypass required-secret gating.
  */
 export async function fetchReleaseSecretSlots(input: {
   platformRepo: string;
@@ -24,16 +50,17 @@ export async function fetchReleaseSecretSlots(input: {
     "x-github-api-version": "2022-11-28",
   };
 
-  // Any failure below — a rejected fetch (network/DNS/timeout/abort) or a
-  // response body that doesn't parse as JSON (even on a 200) — must degrade
-  // to `{}` rather than throw. An old or unreachable release must never
-  // block an activation.
   try {
     const releaseUrl = `${GITHUB_API}/repos/${input.platformRepo}/releases/tags/${encodeURIComponent(input.releaseTag)}`;
     const releaseRes = await doFetch(releaseUrl, {
       headers: { ...headers, accept: "application/vnd.github+json" },
     });
-    if (!releaseRes.ok) return {};
+    if (!releaseRes.ok) {
+      throw new RequiredSecretsCheckError({
+        upstream: "github",
+        upstreamStatus: releaseRes.status,
+      });
+    }
 
     const release = (await releaseRes.json()) as { assets?: ReleaseAsset[] };
     const asset = release.assets?.find((a) => a.name === "manifest.json");
@@ -44,7 +71,12 @@ export async function fetchReleaseSecretSlots(input: {
     const assetRes = await doFetch(asset.url, {
       headers: { ...headers, accept: "application/octet-stream" },
     });
-    if (!assetRes.ok) return {};
+    if (!assetRes.ok) {
+      throw new RequiredSecretsCheckError({
+        upstream: "github",
+        upstreamStatus: assetRes.status,
+      });
+    }
 
     const manifest = (await assetRes.json()) as ReleaseManifest;
     const slots: Record<string, SecretSlot[]> = {};
@@ -52,17 +84,17 @@ export async function fetchReleaseSecretSlots(input: {
       slots[app] = plugin.secrets ?? [];
     }
     return slots;
-  } catch {
-    return {};
+  } catch (error) {
+    if (error instanceof RequiredSecretsCheckError) throw error;
+    throw new RequiredSecretsCheckError({ cause: error, upstream: "github" });
   }
 }
 
 /**
  * Required slots the apps declare (from each release's manifest.json) that have
- * no value in the vault yet, keyed by app name. Empty object = safe to activate.
- *
- * Returns `{}` when the GitHub token or the source's platform repo is unknown —
- * activation must never be blocked by our inability to read the manifest.
+ * no value in the vault yet, keyed by app name. Empty object = no missing
+ * required values. Verification failures throw so activation cannot proceed
+ * when the manifest is unreadable.
  *
  * `input.source` normally comes from `listUserSources`, and the backend
  * deliberately returns `latest_deployment: null` on that list endpoint (it's
@@ -81,8 +113,10 @@ export async function missingSecretsForActivation(input: {
   pairs: { app: string; releaseTag: string }[];
   githubToken?: string;
 }): Promise<Record<string, string[]>> {
+  if (input.pairs.length === 0) return {};
+
   const githubToken = input.githubToken ?? process.env.GITHUB_TOKEN?.trim();
-  if (!githubToken) return {};
+  if (!githubToken) throw new RequiredSecretsCheckError();
 
   let platformRepo = input.source.latestDeployment?.platformRepo ?? undefined;
   if (!platformRepo) {
@@ -93,11 +127,16 @@ export async function missingSecretsForActivation(input: {
         appSourceId: input.source.id,
       });
       platformRepo = latest?.platformRepo ?? undefined;
-    } catch {
-      return {}; // couldn't read deployment state → fail open, never block activation
+    } catch (error) {
+      throw new RequiredSecretsCheckError({
+        cause: error,
+        upstream: "rust",
+        upstreamStatus:
+          error instanceof BackendError ? error.status : undefined,
+      });
     }
   }
-  if (!platformRepo) return {};
+  if (!platformRepo) throw new RequiredSecretsCheckError();
 
   const configured = await input.client.listAppSecrets({
     githubUserId: input.githubUserId,

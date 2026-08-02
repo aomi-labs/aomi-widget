@@ -1,9 +1,19 @@
 import { auth } from "@aomi-labs/account/better-auth";
+import { revokeWidgetSession } from "@aomi-labs/account/widget-auth";
+import { requirePortalPrincipal } from "@portal/lib/widget-auth/principal";
+import { widgetPreflight, widgetRoute } from "@portal/lib/widget-auth/response";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function POST(req: Request): Promise<Response> {
+export const POST = widgetRoute(async (req: Request) => {
+  const principal = await requirePortalPrincipal(req);
+  if (principal.kind === "widget") {
+    const revoked = await revokeWidgetSession({ request: req });
+    return revoked
+      ? new Response(null, { status: 204 })
+      : Response.json({ error: "invalid_widget_session" }, { status: 401 });
+  }
   const url = new URL(req.url);
   url.pathname = "/api/auth/sign-out";
   url.search = "";
@@ -13,4 +23,6 @@ export async function POST(req: Request): Promise<Response> {
       headers: req.headers,
     }),
   );
-}
+}, "account.sign_out");
+
+export const OPTIONS = widgetPreflight(["POST", "OPTIONS"]);

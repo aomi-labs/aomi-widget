@@ -1,13 +1,23 @@
 // Main entry point for @aomi-labs/widget-lib
 // Re-export the main AomiFrame component
 export { AomiFrame } from "./components/aomi-frame";
-export { AomiWidget, type AomiWidgetProps } from "./components/aomi-widget";
+export {
+  AomiWidget,
+  type AomiWidgetAuthConfig,
+  type AomiWidgetProps,
+} from "./components/aomi-widget";
 
 // Dual-wallet UI
 export {
   DualWalletBar,
   type DualWalletBarProps,
 } from "./components/control-bar/dual-wallet-bar";
+
+// Per-thread network picker (used by hosts that lift it into their chrome)
+export {
+  NetworkSelect,
+  type NetworkSelectProps,
+} from "./components/control-bar/network-select";
 
 // Notification UI
 export { NotificationToaster } from "./components/ui/notification";
@@ -38,7 +48,7 @@ export {
   SUPPORTED_CHAINS,
 } from "@aomi-labs/react";
 export { ExtUserProvider, useUser, UserState } from "@aomi-labs/react";
-export { monad, monadTestnet } from "@aomi-labs/client";
+export { monad, monadTestnet, robinhood } from "@aomi-labs/client";
 export type {
   AomiWalletKit,
   AomiWalletKit as AomiAuthAdapter,

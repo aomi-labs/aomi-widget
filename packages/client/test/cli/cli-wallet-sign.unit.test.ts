@@ -10,19 +10,15 @@ const mocks = vi.hoisted(() => ({
   resolveWallet: vi.fn(),
   close: vi.fn(),
   executeWalletCalls: vi.fn(),
-  createCliProviderState: vi.fn(),
   readState: vi.fn(),
   syncPendingTxsFromUserState: vi.fn(),
   writeState: vi.fn(),
   addSignedTx: vi.fn(),
-  describeExecutionDecision: vi.fn(() => "EOA"),
-  resolveCliExecutionDecision: vi.fn(() => ({ execution: "eoa" })),
 }));
 
 vi.mock("viem/accounts", async () => {
-  const actual = await vi.importActual<typeof import("viem/accounts")>(
-    "viem/accounts",
-  );
+  const actual =
+    await vi.importActual<typeof import("viem/accounts")>("viem/accounts");
   return {
     ...actual,
     privateKeyToAccount: vi.fn(() => ({ address: MOCK_ADDRESS })),
@@ -45,24 +41,11 @@ vi.mock("../../src/session", () => ({
 }));
 
 vi.mock("../../src/aa", async () => {
-  const actual = await vi.importActual<typeof import("../../src/aa")>(
-    "../../src/aa",
-  );
+  const actual =
+    await vi.importActual<typeof import("../../src/aa")>("../../src/aa");
   return {
     ...actual,
     executeWalletCalls: mocks.executeWalletCalls,
-  };
-});
-
-vi.mock("../../src/cli/execution", async () => {
-  const actual = await vi.importActual<typeof import("../../src/cli/execution")>(
-    "../../src/cli/execution",
-  );
-  return {
-    ...actual,
-    createCliProviderState: mocks.createCliProviderState,
-    describeExecutionDecision: mocks.describeExecutionDecision,
-    resolveCliExecutionDecision: mocks.resolveCliExecutionDecision,
   };
 });
 
@@ -131,10 +114,9 @@ describe("CLI wallet sign simulation integration", () => {
         pending_eip712s: {},
       },
     });
-    mocks.createCliProviderState.mockResolvedValue({ providerState: "mock" });
-    mocks.describeExecutionDecision.mockReturnValue("EOA");
-    mocks.resolveCliExecutionDecision.mockReturnValue({ execution: "eoa" });
-    mocks.syncPendingTxsFromUserState.mockImplementation((state) => state.pendingTxs ?? []);
+    mocks.syncPendingTxsFromUserState.mockImplementation(
+      (state) => state.pendingTxs ?? [],
+    );
     mocks.executeWalletCalls.mockResolvedValue({
       txHash: "0xabc",
       txHashes: ["0xabc"],
@@ -240,7 +222,7 @@ describe("CLI wallet sign simulation integration", () => {
     expect(mocks.executeWalletCalls).not.toHaveBeenCalled();
   });
 
-  it("syncs wallet state and lets backend resolve simulateBatch sender", async () => {
+  it("syncs wallet state, injects the fee call, and executes via EOA", async () => {
     await signCommand(
       {
         privateKey:
@@ -273,9 +255,11 @@ describe("CLI wallet sign simulation integration", () => {
       smartAccount: null,
     });
 
-    expect(mocks.createCliProviderState).toHaveBeenCalledWith(
+    // Fee call is appended and the whole batch signs with the local key.
+    expect(mocks.executeWalletCalls).toHaveBeenCalledWith(
       expect.objectContaining({
-        baseUrl: "http://127.0.0.1:8080",
+        localPrivateKey:
+          "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
         callList: [
           {
             to: "0x1111111111111111111111111111111111111111",
@@ -291,6 +275,55 @@ describe("CLI wallet sign simulation integration", () => {
         ],
       }),
     );
+
+    expect(mocks.sendSystemMessage).toHaveBeenCalledTimes(1);
+    expect(
+      JSON.parse(mocks.sendSystemMessage.mock.calls[0]?.[1] as string),
+    ).toMatchObject({
+      type: "wallet:tx_complete",
+      payload: {
+        pending_tx_ids: [1],
+        execution_kind: "eoa",
+        aa_requested_mode: "none",
+        aa_resolved_mode: "none",
+      },
+    });
+  });
+
+  it("reports the requested EOA transaction hash separately from its service fee", async () => {
+    mocks.executeWalletCalls.mockResolvedValue({
+      txHash: "0xfee",
+      txHashes: ["0xaction", "0xfee"],
+      executionKind: "eoa",
+      batched: true,
+      sponsored: false,
+    });
+
+    await signCommand(
+      {
+        privateKey:
+          "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        baseUrl: "http://127.0.0.1:8080",
+        app: "default",
+        apiKey: "test-key",
+        secrets: {},
+      },
+      ["tx-1"],
+    );
+
+    const callback = JSON.parse(
+      mocks.sendSystemMessage.mock.calls[0]?.[1] as string,
+    );
+    expect(callback).toMatchObject({
+      type: "wallet:tx_complete",
+      payload: {
+        txHash: "0xaction",
+        service_fee_tx_hash: "0xfee",
+        pending_tx_ids: [1],
+        batched: false,
+        call_count: 1,
+      },
+    });
   });
 
   it("ignores a zero-valued fee and still signs the transaction", async () => {
@@ -322,9 +355,8 @@ describe("CLI wallet sign simulation integration", () => {
       ["tx-1"],
     );
 
-    expect(mocks.createCliProviderState).toHaveBeenCalledWith(
+    expect(mocks.executeWalletCalls).toHaveBeenCalledWith(
       expect.objectContaining({
-        baseUrl: "http://127.0.0.1:8080",
         callList: [
           {
             to: "0x1111111111111111111111111111111111111111",
@@ -335,7 +367,6 @@ describe("CLI wallet sign simulation integration", () => {
         ],
       }),
     );
-    expect(mocks.executeWalletCalls).toHaveBeenCalled();
   });
 
   it("uses the saved private key when no override is passed", async () => {
@@ -352,276 +383,29 @@ describe("CLI wallet sign simulation integration", () => {
     expect(mocks.executeWalletCalls).toHaveBeenCalled();
   });
 
-  it("skips the native fee transfer for sponsored AA execution", async () => {
-    mocks.describeExecutionDecision.mockReturnValue("aa (alchemy, 4337)");
-    mocks.resolveCliExecutionDecision.mockReturnValue({
-      execution: "aa",
-      provider: "alchemy",
-      aaMode: "4337",
-      apiKey: "alchemy-key",
-    });
-    mocks.createCliProviderState.mockResolvedValue({
-      resolved: {
-        sponsorship: "optional",
-      },
-      account: {
-        AAAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-      },
-      pending: false,
-      error: null,
-    });
-
-    await signCommand(
-      {
-        privateKey:
-          "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-        baseUrl: "http://127.0.0.1:8080",
-        app: "default",
-        apiKey: "test-key",
-        execution: "aa",
-        secrets: {},
-      },
-      ["tx-1"],
-    );
-
-    expect(mocks.createCliProviderState).toHaveBeenCalledWith(
-      expect.objectContaining({
-        callList: [
-          {
-            to: "0x1111111111111111111111111111111111111111",
-            value: 0n,
-            data: "0x",
-            chainId: 1,
-          },
-          {
-            to: "0x9C7a99480c59955a635123EDa064456393e519f5",
-            value: 1000000000000n,
-            chainId: 1,
-          },
-        ],
-      }),
-    );
-    expect(mocks.executeWalletCalls).toHaveBeenCalledWith(
-      expect.objectContaining({
-        callList: [
-          {
-            to: "0x1111111111111111111111111111111111111111",
-            value: 0n,
-            data: "0x",
-            chainId: 1,
-          },
-        ],
-      }),
-    );
-  });
-
-  it("retries with 4337 when --aa 7702 fails (auto fallback)", async () => {
-    mocks.describeExecutionDecision
-      .mockReturnValueOnce("aa (alchemy, 7702)")
-      .mockReturnValueOnce("aa (alchemy, 4337)");
-    mocks.resolveCliExecutionDecision.mockReturnValue({
-      execution: "aa",
-      provider: "alchemy",
-      aaMode: "7702",
-      apiKey: "alchemy-key",
-      modeExplicit: false,
-    });
-    mocks.createCliProviderState
-      .mockResolvedValueOnce({
-        resolved: { sponsorship: "disabled" },
-        account: {
-          AAAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-          executionAddress: MOCK_ADDRESS,
-        },
-        pending: false,
-        error: null,
-      })
-      .mockResolvedValueOnce({
-        resolved: { sponsorship: "disabled" },
-        account: {
-          AAAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-          executionAddress: MOCK_ADDRESS,
-        },
-        pending: false,
-        error: null,
-      })
-      .mockResolvedValueOnce({
-        resolved: { sponsorship: "optional" },
-        account: {
-          AAAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-          executionAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-        },
-        pending: false,
-        error: null,
-      });
-    mocks.executeWalletCalls
-      .mockRejectedValueOnce(new Error("7702 failed"))
-      .mockResolvedValueOnce({
-        txHash: "0x4337hash",
-        txHashes: ["0x4337hash"],
-        executionKind: "alchemy_4337",
-        batched: false,
-        sponsored: true,
-      });
-
-    await signCommand(
-      {
-        privateKey: "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-        baseUrl: "http://127.0.0.1:8080",
-        app: "default",
-        apiKey: "test-key",
-        execution: "aa",
-        secrets: {},
-      },
-      ["tx-1"],
-    );
-
-    expect(mocks.simulateBatch).toHaveBeenCalledTimes(1);
-    expect(mocks.simulateBatch).toHaveBeenCalledWith(
-      "session-1",
-      [
-        {
-          to: "0x1111111111111111111111111111111111111111",
-          value: "0",
-          data: "0x",
-          label: "send zero",
-          chain_id: 1,
-        },
-      ],
-      {
-        chainId: 1,
-      },
-    );
-    expect(mocks.resolveWallet).toHaveBeenCalledWith(MOCK_ADDRESS, 1, {
-      aaMode: "7702",
-      smartAccount: null,
-    });
-
-    // planning 7702 + execution 7702 + execution 4337
-    expect(mocks.createCliProviderState).toHaveBeenCalledTimes(3);
-    expect(mocks.executeWalletCalls).toHaveBeenCalledTimes(2);
-    expect(mocks.sendSystemMessage).toHaveBeenCalledTimes(1);
-    expect(mocks.sendSystemMessage.mock.calls[0]?.[0]).toBe("session-1");
-    expect(JSON.parse(mocks.sendSystemMessage.mock.calls[0]?.[1] as string)).toMatchObject({
-      type: "wallet:tx_complete",
-      payload: {
-        pending_tx_ids: [1],
-        execution_kind: "alchemy_4337",
-        aa_requested_mode: "7702",
-        aa_resolved_mode: "4337",
-        aa_fallback_reason: "requested_7702_fallback_4337",
-      },
-    });
-  });
-
-  it("raises a fatal error when --aa is explicit and both 7702 and 4337 fail", async () => {
-    mocks.describeExecutionDecision
-      .mockReturnValueOnce("aa (alchemy, 7702)")
-      .mockReturnValueOnce("aa (alchemy, 4337)");
-    mocks.resolveCliExecutionDecision.mockReturnValue({
-      execution: "aa",
-      provider: "alchemy",
-      aaMode: "7702",
-      apiKey: "alchemy-key",
-      modeExplicit: false,
-    });
-    mocks.createCliProviderState.mockResolvedValue({
-      resolved: { sponsorship: "disabled" },
-      account: { AAAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
-      pending: false,
-      error: null,
-    });
-    mocks.executeWalletCalls
-      .mockRejectedValueOnce(new Error("7702 failed"))
-      .mockRejectedValueOnce(new Error("4337 failed"));
-
+  it("rejects an AA execution request — AA runs in the backend lane", async () => {
     await expect(
       signCommand(
         {
-          privateKey: "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+          privateKey:
+            "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
           baseUrl: "http://127.0.0.1:8080",
           app: "default",
           apiKey: "test-key",
-          execution: "aa",
           secrets: {},
+          execution: "aa",
+          aaMode: "7702",
         },
         ["tx-1"],
       ),
     ).rejects.toThrow();
 
-    // Both AA modes tried, no third attempt (no EOA)
-    expect(mocks.createCliProviderState).toHaveBeenCalledTimes(3);
-    expect(mocks.executeWalletCalls).toHaveBeenCalledTimes(2);
+    expect(mocks.executeWalletCalls).not.toHaveBeenCalled();
+    expect(mocks.sendSystemMessage).not.toHaveBeenCalled();
   });
 
-  it("falls back through 7702→4337→EOA in auto mode when both AA modes fail", async () => {
-    mocks.describeExecutionDecision
-      .mockReturnValueOnce("aa (alchemy, 7702)")
-      .mockReturnValueOnce("aa (alchemy, 4337)")
-      .mockReturnValueOnce("eoa");
-    mocks.resolveCliExecutionDecision.mockReturnValue({
-      execution: "aa",
-      provider: "alchemy",
-      aaMode: "7702",
-      apiKey: "alchemy-key",
-      modeExplicit: false,
-    });
-    mocks.createCliProviderState.mockResolvedValue({
-      resolved: { sponsorship: "disabled" },
-      account: { AAAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
-      pending: false,
-      error: null,
-    });
-    mocks.executeWalletCalls
-      .mockRejectedValueOnce(new Error("7702 failed"))
-      .mockRejectedValueOnce(new Error("4337 failed"))
-      .mockResolvedValueOnce({
-        txHash: "0xeoahash",
-        txHashes: ["0xeoahash"],
-        executionKind: "eoa",
-        batched: false,
-        sponsored: false,
-      });
-
-    await signCommand(
-      {
-        privateKey: "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-        baseUrl: "http://127.0.0.1:8080",
-        app: "default",
-        apiKey: "test-key",
-        // no execution: "aa" — auto mode
-        secrets: {},
-      },
-      ["tx-1"],
-    );
-
-    // All three strategies attempted: 7702, 4337, eoa
-    expect(mocks.createCliProviderState).toHaveBeenCalledTimes(4);
-    expect(mocks.executeWalletCalls).toHaveBeenCalledTimes(3);
-  });
-
-  it("does not retry with 4337 when 7702 was explicitly requested", async () => {
-    mocks.describeExecutionDecision.mockReturnValue("aa (alchemy, 7702)");
-    mocks.resolveCliExecutionDecision.mockReturnValue({
-      execution: "aa",
-      provider: "alchemy",
-      aaMode: "7702",
-      apiKey: "alchemy-key",
-      modeExplicit: true,
-    });
-    mocks.createCliProviderState.mockResolvedValue({
-      resolved: {
-        sponsorship: "optional",
-      },
-      account: {
-        AAAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-      },
-      pending: false,
-      error: null,
-    });
-    mocks.executeWalletCalls.mockRejectedValue(
-      new Error("wallet_prepareCalls failed: validation reverted: [reason]: AA23 reverted"),
-    );
+  it("propagates execution failure without a fallback retry", async () => {
+    mocks.executeWalletCalls.mockRejectedValue(new Error("nonce too low"));
 
     await expect(
       signCommand(
@@ -631,15 +415,13 @@ describe("CLI wallet sign simulation integration", () => {
           baseUrl: "http://127.0.0.1:8080",
           app: "default",
           apiKey: "test-key",
-          execution: "aa",
-          aaMode: "7702",
           secrets: {},
         },
         ["tx-1"],
       ),
     ).rejects.toThrow();
 
-    expect(mocks.createCliProviderState).toHaveBeenCalledTimes(2);
     expect(mocks.executeWalletCalls).toHaveBeenCalledTimes(1);
+    expect(mocks.sendSystemMessage).not.toHaveBeenCalled();
   });
 });

@@ -37,6 +37,7 @@ export type ProvidersConfig = {
         appName?: string;
         appDescription?: string;
         appUrl?: string;
+        disableWorkers?: boolean;
       }
     | false;
   privy?:
@@ -61,6 +62,15 @@ export type AuthConfig =
       methods?: readonly AuthMethodId[];
     }
   | false;
+
+export type AomiWidgetAuthConfig =
+  | false
+  | {
+      provider: AuthProviderId;
+      environment: string;
+      methods?: readonly AuthMethodId[];
+      providers?: ProvidersConfig;
+    };
 
 export type EvmWalletsConfig = {
   chains?: readonly [Chain, ...Chain[]];
@@ -88,9 +98,6 @@ export type WalletsConfig = {
 
 export type ExecutionConfig = {
   aa?: "off" | "optional" | "required";
-  provider?: "auto" | "alchemy" | "pimlico";
-  modes?: ReadonlyArray<"4337" | "7702">;
-  owner?: "auto" | "external-wallet" | "provider-session";
   sponsorship?:
     | { mode?: "disabled" }
     | {
@@ -121,6 +128,15 @@ export type ExecutionConfig = {
       };
 };
 
+/**
+ * Single source of truth for how the widget mints its own backend session.
+ * `provider` mode exchanges a host provider credential; `wallet` mode signs a
+ * SIWE/SIWS challenge with the connected external wallet.
+ */
+export type WidgetAuthConfig =
+  | { mode: "provider"; provider: string; environment: string }
+  | { mode: "wallet" };
+
 export type AccountConfig =
   | false
   | { mode: "disabled" }
@@ -129,6 +145,7 @@ export type AccountConfig =
       baseUrl?: string;
       authDomain?: string;
       authUri?: string;
+      widgetAuth?: WidgetAuthConfig;
     };
 
 export type AomiWalletKitProviderProps = {
@@ -151,6 +168,7 @@ export type AomiWalletKitProviderInput =
         methods?: readonly AuthMethodId[];
         appName?: string;
         appDescription?: string;
+        disableWorkers?: boolean;
       };
       children: ReactNode;
     }

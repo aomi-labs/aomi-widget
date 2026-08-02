@@ -8,7 +8,7 @@ import {
 import { useStandardWalletAdapters } from "@solana/wallet-standard-wallet-adapter-react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ExtUserProvider } from "@aomi-labs/react";
-import { monad, monadTestnet } from "@aomi-labs/client";
+import { monad, monadTestnet, robinhood } from "@aomi-labs/client";
 import {
   arbitrum,
   base,
@@ -23,7 +23,6 @@ import type { Chain } from "viem";
 import { AomiWalletKitComposer } from "../composer/AomiWalletKitComposer";
 import type { AuthRuntime, ExecutionRuntime } from "../composer/types";
 import { useResolvedAccountRuntime } from "../account/use-resolved-account-runtime";
-import { resolveAAProviderState } from "../execution/aa-provider-state";
 import { buildEvmExecutionRuntime } from "../execution/execution-runtime";
 import {
   AomiWalletNetworkPreferencesProvider,
@@ -76,6 +75,7 @@ const defaultNetworks = [
   lineaSepolia,
   monad,
   monadTestnet,
+  robinhood,
 ] as const;
 
 type ResolvedSvmWalletsConfig = ReturnType<typeof resolveAomiSvmConfig>;
@@ -108,19 +108,8 @@ function ExternalWalletComposerProvider({
     () => ({
       sponsorship: resolveExecutionSponsorshipIdentity(execution),
       evm: buildEvmExecutionRuntime(evmRuntime, {
-        aaModes: execution?.modes,
-        aaOwner: execution?.owner ?? "auto",
-        aaPolicy: execution?.aa ?? "optional",
-        aaProvider: execution?.provider ?? "auto",
         nativeWalletExecution:
           resolveConfiguredNativeWalletExecutionPolicy(execution),
-        resolveAAProviderState: async (params, context) =>
-          resolveAAProviderState({
-            ...params,
-            ownerStrategy: { kind: "external-wallet" },
-            walletClient: context.walletClient,
-            address: context.address,
-          }),
       }),
     }),
     [evmRuntime, execution],

@@ -333,26 +333,26 @@ flowchart TB
 
 ## External Integrations
 
-| Service          | Crate      | Purpose                |
-| ---------------- | ---------- | ---------------------- |
-| Anthropic Claude | aomi-chat  | LLM inference          |
-| Etherscan        | aomi-tools | Contract data          |
-| Brave Search     | aomi-tools | Web search             |
-| BAML Server      | aomi-baml  | Structured AI outputs  |
-| Alchemy/Infura   | aomi-tools | RPC endpoints          |
+| Service          | Crate      | Purpose               |
+| ---------------- | ---------- | --------------------- |
+| Anthropic Claude | aomi-chat  | LLM inference         |
+| Etherscan        | aomi-tools | Contract data         |
+| Brave Search     | aomi-tools | Web search            |
+| BAML Server      | aomi-baml  | Structured AI outputs |
+| Alchemy/Infura   | aomi-tools | RPC endpoints         |
 
 ## Configuration
 
 ### Environment Variables
 
-| Variable               | Required | Purpose                      |
-| ---------------------- | -------- | ---------------------------- |
-| `ANTHROPIC_API_KEY`    | Yes      | Claude API access            |
-| `DATABASE_URL`         | Yes      | Backend Postgres connection; staging and production use separate Supabase project URLs |
-| `BRAVE_SEARCH_API_KEY` | No       | Web search                   |
-| `ETHERSCAN_API_KEY`    | No       | Contract data                |
-| `ALCHEMY_API_KEY`      | No       | RPC endpoints                |
-| `BAML_SERVER_URL`      | No       | Structured AI                |
+| Variable               | Required | Purpose                                                                                                                               |
+| ---------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `ANTHROPIC_API_KEY`    | Yes      | Claude API access                                                                                                                     |
+| `DATABASE_URL`         | Yes      | Backend Postgres connection; only staging `cmwkmjpfbffmdiluvgtu` and production `akejwtxsjvbexutsfhkn` are valid hosted Supabase refs |
+| `BRAVE_SEARCH_API_KEY` | No       | Web search                                                                                                                            |
+| `ETHERSCAN_API_KEY`    | No       | Contract data                                                                                                                         |
+| `ALCHEMY_API_KEY`      | No       | RPC endpoints                                                                                                                         |
+| `BAML_SERVER_URL`      | No       | Structured AI                                                                                                                         |
 
 ### Network Configuration
 

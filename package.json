@@ -121,6 +121,8 @@
     "zustand": "^5.0.0"
   },
   "dependencies": {
+    "@getpara/core-sdk": "2.24.0",
+    "@getpara/user-management-client": "2.24.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "tailwind-merge": "^3.3.1"

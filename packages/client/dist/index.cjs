@@ -1,12 +1,10 @@
 "use strict";
-var __create = Object.create;
 var __defProp = Object.defineProperty;
 var __defProps = Object.defineProperties;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __getOwnPropDescs = Object.getOwnPropertyDescriptors;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __getOwnPropSymbols = Object.getOwnPropertySymbols;
-var __getProtoOf = Object.getPrototypeOf;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
 var __propIsEnum = Object.prototype.propertyIsEnumerable;
 var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
@@ -46,14 +44,6 @@ var __copyProps = (to, from, except, desc) => {
   }
   return to;
 };
-var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
-  // If the importer is in node compatibility mode or this is not an ESM
-  // file that has been converted to a CommonJS file using a Babel-
-  // compatible transform (i.e. "__esModule" has not been set), then set
-  // "default" to the CommonJS "module.exports" for node compatibility.
-  isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
-  mod
-));
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
 // src/index.ts
@@ -66,8 +56,6 @@ __export(index_exports, {
   CHAIN_NAMES: () => CHAIN_NAMES,
   CLIENT_TYPE_TS_CLI: () => CLIENT_TYPE_TS_CLI,
   CLIENT_TYPE_WEB_UI: () => CLIENT_TYPE_WEB_UI,
-  DEFAULT_AA_CONFIG: () => DEFAULT_AA_CONFIG,
-  DISABLED_PROVIDER_STATE: () => DISABLED_PROVIDER_STATE,
   MAX_AUTO_FEE_WEI: () => MAX_AUTO_FEE_WEI,
   SUPPORTED_CHAINS: () => SUPPORTED_CHAINS,
   SUPPORTED_CHAIN_IDS: () => SUPPORTED_CHAIN_IDS,
@@ -75,41 +63,47 @@ __export(index_exports, {
   TypedEventEmitter: () => TypedEventEmitter,
   UserState: () => UserState,
   aaModeFromExecutionKind: () => aaModeFromExecutionKind,
-  adaptSmartAccount: () => adaptSmartAccount,
   appIdentityKey: () => appIdentityKey,
   appendFeeCallToPayload: () => appendFeeCallToPayload,
-  buildAAExecutionPlan: () => buildAAExecutionPlan,
+  authorizationChallenge: () => authorizationChallenge,
+  authorizationCommit: () => authorizationCommit,
   buildFeeAAWalletCall: () => buildFeeAAWalletCall,
-  createAAProviderState: () => createAAProviderState,
+  buildSiwsMessage: () => buildSiwsMessage,
   createAccountBearerProvider: () => createAccountBearerProvider,
-  createAlchemyAAProvider: () => createAlchemyAAProvider,
-  createPimlicoAAProvider: () => createPimlicoAAProvider,
+  createProviderCredentialAdapter: () => createProviderCredentialAdapter,
+  createSiweWidgetAuthAdapter: () => createSiweWidgetAuthAdapter,
+  createSiwsWidgetAuthAdapter: () => createSiwsWidgetAuthAdapter,
   createWidgetSessionProvider: () => createWidgetSessionProvider,
+  ensureSvmWalletBound: () => ensureSvmWalletBound,
+  ensureSvmWalletBoundVia: () => ensureSvmWalletBoundVia,
   executeWalletCalls: () => executeWalletCalls,
-  getAAChainConfig: () => getAAChainConfig,
-  getWalletExecutorReady: () => getWalletExecutorReady,
+  handlePaymentChallenges: () => handlePaymentChallenges,
   hydrateTxPayloadFromUserState: () => hydrateTxPayloadFromUserState,
-  isAlchemySponsorshipLimitError: () => isAlchemySponsorshipLimitError,
   isAsyncCallback: () => isAsyncCallback,
   isInlineCall: () => isInlineCall,
   isSystemError: () => isSystemError,
   isSystemNotice: () => isSystemNotice,
+  isUnboundWalletError: () => isUnboundWalletError,
   monad: () => monad,
   monadTestnet: () => monadTestnet,
   normalizeAppDescriptor: () => normalizeAppDescriptor,
   normalizeEip712Payload: () => normalizeEip712Payload,
   normalizeSimulatedFee: () => normalizeSimulatedFee,
+  normalizeSolanaCluster: () => normalizeSolanaCluster,
   normalizeSolanaSignMessagePayload: () => normalizeSolanaSignMessagePayload,
   normalizeSolanaSignPayload: () => normalizeSolanaSignPayload,
   normalizeSolanaWalletRequest: () => normalizeSolanaWalletRequest,
   normalizeTxPayload: () => normalizeTxPayload,
   parseChainId: () => parseChainId3,
-  resolvePimlicoConfig: () => resolvePimlicoConfig,
+  posterFromClient: () => posterFromClient,
+  robinhood: () => robinhood,
+  safeEnv: () => safeEnv,
   toAAWalletCall: () => toAAWalletCall,
   toAAWalletCalls: () => toAAWalletCalls,
   toViemSignMessageArgs: () => toViemSignMessageArgs,
   toViemSignTypedDataArgs: () => toViemSignTypedDataArgs,
-  unwrapSystemEvent: () => unwrapSystemEvent
+  unwrapSystemEvent: () => unwrapSystemEvent,
+  wrapFetchWithPaymentChallenges: () => wrapFetchWithPaymentChallenges
 });
 module.exports = __toCommonJS(index_exports);
 
@@ -646,7 +640,8 @@ function createSseSubscriber({
   logger
 }) {
   const subscriptions = /* @__PURE__ */ new Map();
-  const subscribe = (sessionId, onUpdate, onError) => {
+  const subscribe = (sessionId, onUpdate, onError, options) => {
+    var _a;
     const existing = subscriptions.get(sessionId);
     const listener = { onUpdate, onError };
     if (existing) {
@@ -670,6 +665,7 @@ function createSseSubscriber({
       };
     }
     const subscription = {
+      applicationId: ((_a = options == null ? void 0 : options.applicationId) == null ? void 0 : _a.toString().trim()) || void 0,
       abortController: null,
       lastEventId: null,
       seenEventIds: /* @__PURE__ */ new Set(),
@@ -678,13 +674,13 @@ function createSseSubscriber({
       stopped: false,
       listeners: /* @__PURE__ */ new Set([listener]),
       stop: (reason) => {
-        var _a;
+        var _a2;
         subscription.stopped = true;
         if (subscription.retryTimer) {
           clearTimeout(subscription.retryTimer);
           subscription.retryTimer = null;
         }
-        (_a = subscription.abortController) == null ? void 0 : _a.abort();
+        (_a2 = subscription.abortController) == null ? void 0 : _a2.abort();
         subscription.abortController = null;
         logger == null ? void 0 : logger.debug("[aomi][sse] stop", {
           sessionId,
@@ -707,7 +703,7 @@ function createSseSubscriber({
       }, delayMs);
     };
     const open = async () => {
-      var _a;
+      var _a2;
       if (subscription.stopped) return;
       if (subscription.retryTimer) {
         clearTimeout(subscription.retryTimer);
@@ -721,7 +717,14 @@ function createSseSubscriber({
         if (subscription.lastEventId) {
           headers.set("Last-Event-ID", subscription.lastEventId);
         }
-        const response = await fetchImpl(`${backendUrl}/api/thread/updates`, {
+        const updatesUrl = new URL(`${backendUrl}/api/thread/updates`);
+        if (subscription.applicationId) {
+          updatesUrl.searchParams.set(
+            "application_id",
+            subscription.applicationId
+          );
+        }
+        const response = await fetchImpl(updatesUrl.toString(), {
           headers,
           signal: controller.signal
         });
@@ -738,7 +741,7 @@ function createSseSubscriber({
           response.body,
           controller.signal,
           ({ data, id }) => {
-            var _a2, _b;
+            var _a3, _b;
             if (id && subscription.seenEventIds.has(id)) {
               return;
             }
@@ -755,7 +758,7 @@ function createSseSubscriber({
               parsed = JSON.parse(data);
             } catch (error) {
               for (const item of subscription.listeners) {
-                (_a2 = item.onError) == null ? void 0 : _a2.call(item, error);
+                (_a3 = item.onError) == null ? void 0 : _a3.call(item, error);
               }
               return;
             }
@@ -777,7 +780,7 @@ function createSseSubscriber({
       } catch (error) {
         if (!controller.signal.aborted && !subscription.stopped) {
           for (const item of subscription.listeners) {
-            (_a = item.onError) == null ? void 0 : _a.call(item, error);
+            (_a2 = item.onError) == null ? void 0 : _a2.call(item, error);
           }
         }
       }
@@ -1001,12 +1004,8 @@ async function fetchStateResponse(fetchImpl, url, sessionId) {
     headers: withSessionHeader(sessionId)
   });
 }
-function wrapFetchWithCredentials(fetchImpl, credentials) {
-  if (!credentials) return fetchImpl;
-  return (input, init) => fetchImpl(input, __spreadProps(__spreadValues({}, init), { credentials }));
-}
-function wrapFetchWithAuthorization(fetchImpl, getAuthorization, mode = "required") {
-  if (!getAuthorization) return fetchImpl;
+function wrapFetchWithAccountBearer(fetchImpl, getAccountBearer) {
+  if (!getAccountBearer) return fetchImpl;
   return async (input, init) => {
     var _a;
     const baseHeaders = new Headers(
@@ -1015,14 +1014,13 @@ function wrapFetchWithAuthorization(fetchImpl, getAuthorization, mode = "require
     const fetchWithBearer = async (forceRefresh) => {
       const headers = new Headers(baseHeaders);
       let bearer;
-      if (mode === "required") {
-        bearer = await getAuthorization({ forceRefresh });
-      } else {
-        try {
-          bearer = await getAuthorization({ forceRefresh });
-        } catch (e) {
-          bearer = void 0;
+      try {
+        bearer = await getAccountBearer({ forceRefresh });
+      } catch (error) {
+        if (getAccountBearer.required) {
+          throw error;
         }
+        bearer = void 0;
       }
       if (bearer) {
         headers.set("Authorization", `Bearer ${bearer}`);
@@ -1088,28 +1086,18 @@ async function postState(baseUrl, path, payload, sessionId, fetchImpl, apiKey, l
 }
 var AomiClient = class {
   constructor(options) {
-    var _a, _b;
+    var _a;
     this.baseUrl = options.baseUrl.replace(/\/+$/, "");
     this.apiKey = options.apiKey;
-    const fetchImpl = wrapFetchWithCredentials(
-      (_a = options.fetch) != null ? _a : globalThis.fetch.bind(globalThis),
-      options.credentials
-    );
-    const rawFetchImpl = wrapFetchWithCredentials(
-      typeof globalThis.fetch === "function" ? globalThis.fetch.bind(globalThis) : fetchImpl,
-      options.credentials
-    );
-    const authorization = (_b = options.authorization) != null ? _b : options.getAccountBearer;
-    const authorizationMode = options.authorization ? "required" : "optional";
-    this.fetchImpl = wrapFetchWithAuthorization(
+    const fetchImpl = (_a = options.fetch) != null ? _a : globalThis.fetch.bind(globalThis);
+    const rawFetchImpl = typeof globalThis.fetch === "function" ? globalThis.fetch.bind(globalThis) : fetchImpl;
+    this.fetchImpl = wrapFetchWithAccountBearer(
       fetchImpl,
-      authorization,
-      authorizationMode
+      options.getAccountBearer
     );
-    this.rawFetchImpl = wrapFetchWithAuthorization(
+    this.rawFetchImpl = wrapFetchWithAccountBearer(
       rawFetchImpl,
-      authorization,
-      authorizationMode
+      options.getAccountBearer
     );
     this.logger = options.logger;
     this.sseSubscriber = createSseSubscriber({
@@ -1120,9 +1108,9 @@ var AomiClient = class {
       fetchImpl: this.rawFetchImpl,
       logger: this.logger
     });
-    if (supportsTokenRefreshSubscription(authorization)) {
-      authorization.subscribe(() => {
-        this.sseSubscriber.reconnect("authorization-refreshed");
+    if (supportsTokenRefreshSubscription(options.getAccountBearer)) {
+      options.getAccountBearer.subscribe(() => {
+        this.sseSubscriber.reconnect("account-token-refreshed");
       });
     }
   }
@@ -1175,19 +1163,30 @@ ${body}` : ""}`
   /**
    * Fetch current session state (messages, processing status, title).
    */
-  async fetchState(sessionId, userState, clientId) {
-    var _a, _b, _c;
+  async fetchState(sessionId, userState, clientId, options) {
+    var _a, _b, _c, _d;
     const normalizedUserState = stripBulkyPendingFields(
       UserState.normalize(userState)
     );
-    const urlWithSyncParams = buildApiUrl(this.baseUrl, "/api/thread/state", {
+    const applicationId = (_a = options == null ? void 0 : options.applicationId) == null ? void 0 : _a.toString().trim();
+    const stateContext = {
+      app: options == null ? void 0 : options.app,
+      application_id: applicationId || void 0
+    };
+    const urlWithSyncParams = buildApiUrl(this.baseUrl, "/api/thread/state", __spreadProps(__spreadValues({}, stateContext), {
       user_state: normalizedUserState ? JSON.stringify(normalizedUserState) : void 0,
       client_id: clientId
-    });
-    const bareUrl = buildApiUrl(this.baseUrl, "/api/thread/state");
+    }));
+    const bareUrl = buildApiUrl(
+      this.baseUrl,
+      "/api/thread/state",
+      stateContext
+    );
     const shouldRetryWithoutSyncParams = Boolean(normalizedUserState) || Boolean(clientId);
-    (_a = this.logger) == null ? void 0 : _a.debug("[aomi][client] GET /api/thread/state start", {
+    (_b = this.logger) == null ? void 0 : _b.debug("[aomi][client] GET /api/thread/state start", {
       sessionId,
+      app: options == null ? void 0 : options.app,
+      applicationId,
       clientId,
       hasUserState: Boolean(normalizedUserState)
     });
@@ -1197,7 +1196,7 @@ ${body}` : ""}`
       sessionId
     );
     if (!response.ok && shouldRetryWithoutSyncParams && (response.status === 400 || response.status === 414)) {
-      (_b = this.logger) == null ? void 0 : _b.debug(
+      (_c = this.logger) == null ? void 0 : _c.debug(
         "[aomi][client] GET /api/thread/state retrying without sync params",
         {
           sessionId,
@@ -1212,7 +1211,7 @@ ${body}` : ""}`
         sessionId
       );
     }
-    (_c = this.logger) == null ? void 0 : _c.debug("[aomi][client] GET /api/thread/state response", {
+    (_d = this.logger) == null ? void 0 : _d.debug("[aomi][client] GET /api/thread/state response", {
       sessionId,
       status: response.status,
       ok: response.ok
@@ -1226,7 +1225,7 @@ ${body}` : ""}`
    * Send a chat message and return updated session state.
    */
   async sendMessage(sessionId, message, options) {
-    var _a, _b, _c, _d, _e, _f;
+    var _a, _b, _c, _d, _e, _f, _g;
     const app = (_a = options == null ? void 0 : options.app) != null ? _a : "default";
     const apiKey = (_b = options == null ? void 0 : options.apiKey) != null ? _b : this.apiKey;
     const normalizedUserState = stripBulkyPendingFields(
@@ -1238,13 +1237,15 @@ ${body}` : ""}`
       application_id: applicationId || void 0,
       message,
       user_state: normalizedUserState ? JSON.stringify(normalizedUserState) : void 0,
-      client_id: options == null ? void 0 : options.clientId
+      client_id: options == null ? void 0 : options.clientId,
+      payment_method: (_d = options == null ? void 0 : options.paymentMethod) != null ? _d : void 0
     });
-    (_d = this.logger) == null ? void 0 : _d.debug("[aomi][client] POST /api/thread/chat prepared", {
+    (_e = this.logger) == null ? void 0 : _e.debug("[aomi][client] POST /api/thread/chat prepared", {
       sessionId,
       app,
       applicationId,
       clientId: options == null ? void 0 : options.clientId,
+      paymentMethod: options == null ? void 0 : options.paymentMethod,
       hasUserState: Boolean(normalizedUserState),
       messagePreview: previewText(message)
     });
@@ -1252,7 +1253,7 @@ ${body}` : ""}`
     if (apiKey) {
       headers.set(APP_KEY_HEADER, apiKey);
     }
-    (_e = this.logger) == null ? void 0 : _e.debug("[aomi][client] POST start", {
+    (_f = this.logger) == null ? void 0 : _f.debug("[aomi][client] POST start", {
       path: "/api/thread/chat",
       sessionId,
       hasApiKey: Boolean(apiKey),
@@ -1262,7 +1263,7 @@ ${body}` : ""}`
       method: "POST",
       headers
     });
-    (_f = this.logger) == null ? void 0 : _f.debug("[aomi][client] POST response", {
+    (_g = this.logger) == null ? void 0 : _g.debug("[aomi][client] POST response", {
       path: "/api/thread/chat",
       sessionId,
       status: response.status,
@@ -1306,15 +1307,20 @@ ${body}` : ""}`
   /**
    * Interrupt the AI's current response.
    */
-  async interrupt(sessionId) {
+  async interrupt(sessionId, options) {
     var _a;
     (_a = this.logger) == null ? void 0 : _a.debug("[aomi][client] POST /api/thread/interrupt prepared", {
-      sessionId
+      sessionId,
+      app: options == null ? void 0 : options.app,
+      applicationId: options == null ? void 0 : options.applicationId
     });
     return postState(
       this.baseUrl,
       "/api/thread/interrupt",
-      {},
+      {
+        app: options == null ? void 0 : options.app,
+        application_id: options == null ? void 0 : options.applicationId
+      },
       sessionId,
       this.fetchImpl,
       void 0,
@@ -1420,8 +1426,8 @@ ${body}` : ""}`
    * Automatically reconnects with exponential backoff on disconnects.
    * Returns an unsubscribe function.
    */
-  subscribeSSE(sessionId, onUpdate, onError) {
-    return this.sseSubscriber.subscribe(sessionId, onUpdate, onError);
+  subscribeSSE(sessionId, onUpdate, onError, options) {
+    return this.sseSubscriber.subscribe(sessionId, onUpdate, onError, options);
   }
   // ===========================================================================
   // Thread / Session Management
@@ -1517,17 +1523,33 @@ ${body}` : ""}`
    * Archive a thread.
    */
   async archiveThread(sessionId) {
-    throw new Error(
-      "Failed to archive thread: current backend does not expose /api/threads/:id/archive"
+    const url = buildApiUrl(
+      this.baseUrl,
+      `/api/threads/${encodeURIComponent(sessionId)}/archive`
     );
+    const response = await this.fetchImpl(url, {
+      method: "POST",
+      headers: withSessionHeader(sessionId)
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to archive thread: HTTP ${response.status}`);
+    }
   }
   /**
    * Unarchive a thread.
    */
   async unarchiveThread(sessionId) {
-    throw new Error(
-      "Failed to unarchive thread: current backend does not expose /api/threads/:id/unarchive"
+    const url = buildApiUrl(
+      this.baseUrl,
+      `/api/threads/${encodeURIComponent(sessionId)}/unarchive`
     );
+    const response = await this.fetchImpl(url, {
+      method: "POST",
+      headers: withSessionHeader(sessionId)
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to unarchive thread: HTTP ${response.status}`);
+    }
   }
   // ===========================================================================
   // System Events
@@ -1785,6 +1807,96 @@ ${body}` : ""}`
   }
 };
 
+// src/authorization.ts
+function posterFromClient(client) {
+  return (path, body) => client.request("POST", path, { body, raw: true });
+}
+function authorizationChallenge(post, request) {
+  return post("/api/account/authorization/challenge", request);
+}
+function authorizationCommit(post, request) {
+  return post("/api/account/authorization/commit", request);
+}
+async function ensureSvmWalletBoundVia(post, wallet, signMessage) {
+  let challenge;
+  try {
+    challenge = await authorizationChallenge(post, {
+      chain_type: "svm",
+      wallet,
+      mode: "bind"
+    });
+  } catch (error) {
+    if (isAlreadyBound(error)) return { status: "already_bound" };
+    throw error;
+  }
+  if (!challenge.message_base64) {
+    throw new Error("bind challenge returned no svm message payload");
+  }
+  const signature = await signMessage(base64ToBytes(challenge.message_base64));
+  try {
+    return {
+      status: "bound",
+      state: await authorizationCommit(post, {
+        permit: challenge.permit,
+        signature: bytesToBase64(signature)
+      })
+    };
+  } catch (error) {
+    if (isAlreadyBound(error)) return { status: "already_bound" };
+    throw error;
+  }
+}
+function ensureSvmWalletBound(client, wallet, signMessage) {
+  return ensureSvmWalletBoundVia(posterFromClient(client), wallet, signMessage);
+}
+function isUnboundWalletError(error) {
+  const text = error instanceof Error ? error.message : typeof error === "string" ? error : "";
+  return text.includes("signing_unbound_wallet");
+}
+function isAlreadyBound(error) {
+  return error instanceof Error && error.message.includes("already_bound");
+}
+function base64ToBytes(value) {
+  if (typeof Buffer !== "undefined") {
+    return new Uint8Array(Buffer.from(value, "base64"));
+  }
+  return Uint8Array.from(atob(value), (char) => char.charCodeAt(0));
+}
+function bytesToBase64(bytes) {
+  if (typeof Buffer !== "undefined") {
+    return Buffer.from(bytes).toString("base64");
+  }
+  return btoa(String.fromCharCode(...bytes));
+}
+
+// src/internal/url.ts
+function joinUrl(baseUrl, path) {
+  return `${baseUrl.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`;
+}
+
+// src/internal/encoding.ts
+function decodeBase64Url(value) {
+  const normalized = value.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(value.length / 4) * 4, "=");
+  if (typeof globalThis.atob === "function") {
+    return globalThis.atob(normalized);
+  }
+  const BufferCtor = globalThis.Buffer;
+  if (BufferCtor) {
+    return BufferCtor.from(normalized, "base64").toString("utf8");
+  }
+  throw new Error("No base64 decoder is available");
+}
+function decodeJwtSubject(token) {
+  const payload = token.split(".")[1];
+  if (!payload) return null;
+  try {
+    const subject = JSON.parse(decodeBase64Url(payload)).sub;
+    return typeof subject === "string" && subject.trim() ? subject.trim() : null;
+  } catch (e) {
+    return null;
+  }
+}
+
 // src/account-session.ts
 var AccountCredentialUnavailableError = class extends Error {
   constructor(message = "Account credential is not available yet") {
@@ -1818,9 +1930,7 @@ function createAccountBearerProvider({
     const refreshAt = session.expires_at * 1e3 - refreshBeforeExpiryMs;
     refreshTimer = setTimeout(
       () => {
-        void getAccountBearer({ forceRefresh: true }).catch(
-          () => void 0
-        );
+        void getAccountBearer({ forceRefresh: true }).catch(() => void 0);
       },
       Math.max(refreshAt - now(), 1e3)
     );
@@ -1932,9 +2042,6 @@ function createAccountBearerProvider({
   };
   return getAccountBearer;
 }
-function joinUrl(baseUrl, path) {
-  return `${baseUrl.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`;
-}
 function normalizeBetterAuthTokenResponse(response) {
   var _a, _b;
   const token = typeof response.bearer === "string" && response.bearer ? response.bearer : "";
@@ -1978,49 +2085,220 @@ function decodeJwtPayload(token) {
   if (!payload) throw new Error("Better Auth token is not a JWT");
   return JSON.parse(decodeBase64Url(payload));
 }
-function decodeBase64Url(value) {
-  const normalized = value.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(value.length / 4) * 4, "=");
-  if (typeof globalThis.atob === "function") {
-    return globalThis.atob(normalized);
+
+// src/siws.ts
+function buildSiwsMessage(input) {
+  var _a;
+  const statement = input.intent === "link" ? "Only sign this message if you want this Solana wallet attached to the current Aomi account." : "Sign in to Aomi.";
+  return `${input.domain} wants you to sign in with your Solana account:
+${input.address}
+
+${statement}
+
+URI: ${input.uri}
+Version: 1
+Chain ID: ${input.chainId}
+Nonce: ${input.nonce}
+Issued At: ${((_a = input.issuedAt) != null ? _a : /* @__PURE__ */ new Date()).toISOString()}`;
+}
+
+// src/payment.ts
+var import_fetch = require("@x402/fetch");
+var MAX_PAYMENT_CHALLENGES = 4;
+function paymentResponseHeader(response) {
+  var _a;
+  return (_a = response.headers.get("payment-response")) != null ? _a : response.headers.get("x-payment-response");
+}
+function withInitialResponse(initialResponse, fetchImpl) {
+  let pendingResponse = initialResponse;
+  return (input, init) => {
+    if (pendingResponse) {
+      const response = pendingResponse;
+      pendingResponse = void 0;
+      return Promise.resolve(response);
+    }
+    return fetchImpl(input, init);
+  };
+}
+async function handlePaymentChallenges(request, initialResponse, fetchImpl, client) {
+  let response = initialResponse;
+  let attempts = 0;
+  while (response.status === 402) {
+    if (attempts > 0 && paymentResponseHeader(response) === null) {
+      return response;
+    }
+    if (attempts === MAX_PAYMENT_CHALLENGES) {
+      throw new Error(
+        `Exceeded ${MAX_PAYMENT_CHALLENGES} sequential x402 payment challenges`
+      );
+    }
+    response = await (0, import_fetch.wrapFetchWithPayment)(
+      withInitialResponse(response, fetchImpl),
+      client
+    )(request.clone());
+    attempts += 1;
   }
-  const BufferCtor = globalThis.Buffer;
-  if (BufferCtor) {
-    return BufferCtor.from(normalized, "base64").toString("utf8");
-  }
-  throw new Error("No base64 decoder is available");
+  return response;
+}
+function wrapFetchWithPaymentChallenges(fetchImpl, client) {
+  return async (input, init) => {
+    const request = new Request(input, init);
+    const response = await fetchImpl(request.clone());
+    return handlePaymentChallenges(request, response, fetchImpl, client);
+  };
 }
 
 // src/widget-session.ts
 var import_viem = require("viem");
 var import_siwe = require("viem/siwe");
-var DEFAULT_REFRESH_BEFORE_EXPIRY_MS2 = 6e4;
-var NONCE_PATH = "/api/widget/auth/siwe/nonce";
-var VERIFY_PATH = "/api/widget/auth/siwe/verify";
-var SESSION_PATH = "/api/widget/auth/session";
-function createWidgetSessionProvider({
-  baseUrl,
-  getSigner,
-  fetch: fetchImpl = fetch,
-  now = Date.now,
-  refreshBeforeExpiryMs = DEFAULT_REFRESH_BEFORE_EXPIRY_MS2
-}) {
+var EXPIRES_AT_MILLISECONDS_THRESHOLD2 = 1e11;
+function createProviderCredentialAdapter(input) {
+  let inferredFingerprint = null;
+  let stagedCredential = null;
+  return {
+    getFingerprint: async () => {
+      const subject = input.getSubject();
+      if (subject) return `${input.provider}:${subject}`;
+      if (inferredFingerprint) return inferredFingerprint;
+      const credential = await input.getCredential();
+      if (!credential || credential.provider !== input.provider) return null;
+      stagedCredential = credential;
+      const tokenSubject = decodeJwtSubject(credential.providerToken);
+      inferredFingerprint = tokenSubject ? `${input.provider}:${tokenSubject}` : `${input.provider}:authenticated-session`;
+      return inferredFingerprint;
+    },
+    exchange: async ({ baseUrl, fetch: fetchImpl }) => {
+      const credential = stagedCredential != null ? stagedCredential : await input.getCredential();
+      stagedCredential = null;
+      if (!credential || credential.provider !== input.provider) {
+        throw new Error("Widget provider credential is unavailable");
+      }
+      return exchangeJson(
+        fetchImpl,
+        joinUrl(baseUrl, "/api/widget/auth/exchange"),
+        {
+          provider: input.provider,
+          environment: input.environment,
+          provider_token: credential.providerToken,
+          key_id: credential.keyId
+        }
+      );
+    },
+    signOut: async () => {
+      var _a;
+      inferredFingerprint = null;
+      stagedCredential = null;
+      await ((_a = input.signOut) == null ? void 0 : _a.call(input));
+    }
+  };
+}
+function createSignedChallengeAdapter(config) {
+  return {
+    getFingerprint: async () => config.getFingerprint(config.normalizeSigner(await config.getSigner())),
+    exchange: async ({ baseUrl, fetch: fetchImpl }) => {
+      const signer = config.normalizeSigner(await config.getSigner());
+      const challenge = await challengeJson(
+        fetchImpl,
+        joinUrl(baseUrl, config.noncePath),
+        { wallet_address: signer.address, chain_id: signer.chainId }
+      );
+      const message = config.buildMessage({ signer, challenge });
+      const signature = await signer.signMessage(message);
+      return exchangeJson(fetchImpl, joinUrl(baseUrl, config.verifyPath), {
+        message,
+        signature,
+        wallet_address: signer.address,
+        chain_id: signer.chainId
+      });
+    }
+  };
+}
+function createSiweWidgetAuthAdapter(input) {
+  return createSignedChallengeAdapter({
+    noncePath: "/api/widget/auth/siwe/nonce",
+    verifyPath: "/api/widget/auth/siwe/verify",
+    getSigner: input.getSigner,
+    normalizeSigner: normalizeSiweSigner,
+    getFingerprint: (signer) => `${signer.chainId}:${signer.address.toLowerCase()}`,
+    buildMessage: ({ signer, challenge }) => (0, import_siwe.createSiweMessage)({
+      address: signer.address,
+      chainId: signer.chainId,
+      domain: challenge.domain,
+      uri: challenge.uri,
+      version: "1",
+      nonce: challenge.nonce,
+      issuedAt: new Date(challenge.issuedAt),
+      expirationTime: new Date(challenge.expirationTime),
+      // Kept identical to the SIWS statement (buildSiwsMessage). The SIWS
+      // server verifier requires exactly "Sign in to Aomi."; the SIWE
+      // verifier does not check statement text, so aligning is safe.
+      statement: "Sign in to Aomi."
+    })
+  });
+}
+function createSiwsWidgetAuthAdapter(input) {
+  return createSignedChallengeAdapter({
+    noncePath: "/api/widget/auth/siws/nonce",
+    verifyPath: "/api/widget/auth/siws/verify",
+    getSigner: input.getSigner,
+    normalizeSigner: (signer) => signer,
+    getFingerprint: (signer) => `${signer.chainId}:${signer.address}`,
+    buildMessage: ({ signer, challenge }) => buildSiwsMessage({
+      address: signer.address,
+      chainId: signer.chainId,
+      nonce: challenge.nonce,
+      intent: "sign-in",
+      domain: challenge.domain,
+      uri: challenge.uri,
+      issuedAt: new Date(challenge.issuedAt)
+    })
+  });
+}
+function createWidgetSessionProvider(input) {
+  var _a, _b, _c;
+  const { adapter } = input;
+  const fetchImpl = (_a = input.fetch) != null ? _a : fetch;
+  const now = (_b = input.now) != null ? _b : Date.now;
+  const refreshBeforeExpiryMs = (_c = input.refreshBeforeExpiryMs) != null ? _c : 6e4;
   let cached = null;
   let pending = null;
   let disposed = false;
+  let epoch = 0;
+  let latestFingerprint = null;
+  let nextFingerprintRequestId = 0;
+  let latestResolvedFingerprint = null;
   const listeners = /* @__PURE__ */ new Set();
+  const notify = () => {
+    for (const listener of listeners) listener();
+  };
   const revokeSession = async (session) => {
-    await fetchImpl(joinUrl2(baseUrl, SESSION_PATH), {
+    await fetchImpl(joinUrl(input.baseUrl, "/api/widget/auth/session"), {
       method: "DELETE",
       credentials: "omit",
       headers: { Authorization: `Bearer ${session.accessToken}` }
     }).catch(() => void 0);
   };
-  const getAuthorization = async ({
-    forceRefresh = false
-  } = {}) => {
-    if (disposed) return void 0;
-    const signer = normalizeSigner(await getSigner());
-    const fingerprint = signerFingerprint(signer);
+  const base2 = async ({ forceRefresh = false } = {}) => {
+    if (disposed) {
+      throw new Error("Widget session provider has been disposed");
+    }
+    const startEpoch = epoch;
+    const fingerprintRequestId = ++nextFingerprintRequestId;
+    const fingerprint = await adapter.getFingerprint();
+    if (!fingerprint) throw new Error("Widget auth identity is unavailable");
+    if (disposed || epoch !== startEpoch) {
+      throw new Error("Widget session request was superseded");
+    }
+    if (latestResolvedFingerprint && latestResolvedFingerprint.requestId > fingerprintRequestId && latestResolvedFingerprint.fingerprint !== fingerprint) {
+      throw new Error("Widget session request was superseded");
+    }
+    if (!latestResolvedFingerprint || fingerprintRequestId > latestResolvedFingerprint.requestId) {
+      latestResolvedFingerprint = {
+        requestId: fingerprintRequestId,
+        fingerprint
+      };
+    }
+    latestFingerprint = fingerprint;
     const refreshAt = cached ? cached.expiresAt * 1e3 - refreshBeforeExpiryMs : 0;
     if (!forceRefresh && (cached == null ? void 0 : cached.fingerprint) === fingerprint && now() < refreshAt) {
       return cached.accessToken;
@@ -2031,108 +2309,74 @@ function createWidgetSessionProvider({
       void revokeSession(stale);
     }
     if (!pending || pending.fingerprint !== fingerprint) {
-      const promise = authenticate({
-        baseUrl,
-        fetchImpl,
-        signer,
-        fingerprint
-      }).then((session) => {
-        if (disposed) return session;
-        cached = session;
-        for (const listener of listeners) listener();
+      let clearPending2 = function() {
+        if ((pending == null ? void 0 : pending.promise) === promise) pending = null;
+      };
+      var clearPending = clearPending2;
+      const promise = adapter.exchange({ baseUrl: input.baseUrl, fetch: fetchImpl }).then(async (session) => {
+        const isCurrent = !disposed && epoch === startEpoch && fingerprint === latestFingerprint;
+        if (!isCurrent) {
+          await revokeSession(session);
+          throw new Error("Widget session exchange was superseded");
+        }
+        cached = __spreadProps(__spreadValues({}, session), { fingerprint });
+        notify();
         return session;
       });
       pending = { fingerprint, promise };
-      const clearPending = () => {
-        if ((pending == null ? void 0 : pending.promise) === promise) pending = null;
-      };
-      void promise.then(clearPending, clearPending);
+      void promise.then(clearPending2, clearPending2);
     }
     return (await pending.promise).accessToken;
   };
-  getAuthorization.revoke = async () => {
+  const revoke = async () => {
     const session = cached;
-    cached = null;
-    if (session) await revokeSession(session);
-  };
-  getAuthorization.dispose = () => {
-    disposed = true;
+    epoch += 1;
     cached = null;
     pending = null;
-    listeners.clear();
+    latestResolvedFingerprint = null;
+    notify();
+    if (session) await revokeSession(session);
   };
-  getAuthorization.subscribe = (listener) => {
-    listeners.add(listener);
-    return () => listeners.delete(listener);
-  };
-  return getAuthorization;
-}
-async function authenticate(input) {
-  const challengeResponse = await input.fetchImpl(
-    joinUrl2(input.baseUrl, NONCE_PATH),
-    {
-      method: "POST",
-      credentials: "omit",
-      headers: jsonHeaders(),
-      body: JSON.stringify({
-        wallet_address: input.signer.address,
-        chain_id: input.signer.chainId
-      })
+  const provider = Object.assign(base2, {
+    required: true,
+    revoke,
+    signOut: async () => {
+      var _a2;
+      await revoke();
+      await ((_a2 = adapter.signOut) == null ? void 0 : _a2.call(adapter));
+    },
+    dispose: () => {
+      disposed = true;
+      epoch += 1;
+      cached = null;
+      pending = null;
+      latestResolvedFingerprint = null;
+      notify();
+      listeners.clear();
+    },
+    subscribe: (listener) => {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
     }
-  );
-  if (!challengeResponse.ok) {
-    throw new Error(
-      `Widget SIWE challenge failed: ${challengeResponse.status}`
-    );
-  }
-  const challenge = parseChallenge(await challengeResponse.json());
-  const message = (0, import_siwe.createSiweMessage)({
-    address: input.signer.address,
-    chainId: input.signer.chainId,
-    domain: challenge.domain,
-    uri: challenge.uri,
-    version: "1",
-    nonce: challenge.nonce,
-    issuedAt: new Date(challenge.issuedAt),
-    expirationTime: new Date(challenge.expirationTime),
-    statement: "Sign in to Aomi from this site."
   });
-  const signature = await input.signer.signMessage(message);
-  const verifyResponse = await input.fetchImpl(
-    joinUrl2(input.baseUrl, VERIFY_PATH),
-    {
-      method: "POST",
-      credentials: "omit",
-      headers: jsonHeaders(),
-      body: JSON.stringify({
-        message,
-        signature,
-        wallet_address: input.signer.address,
-        chain_id: input.signer.chainId
-      })
-    }
-  );
-  if (!verifyResponse.ok) {
-    throw new Error(`Widget SIWE verify failed: ${verifyResponse.status}`);
-  }
-  const session = parseSession(await verifyResponse.json());
-  return __spreadProps(__spreadValues({}, session), { fingerprint: input.fingerprint });
+  return provider;
 }
-function normalizeSigner(signer) {
-  if (!Number.isInteger(signer.chainId) || signer.chainId <= 0) {
-    throw new Error("Widget SIWE signer has no valid chain id");
-  }
-  return __spreadProps(__spreadValues({}, signer), { address: (0, import_viem.getAddress)(signer.address) });
-}
-function signerFingerprint(signer) {
-  return `${signer.chainId}:${signer.address.toLowerCase()}`;
-}
-function parseChallenge(value) {
-  if (!value || typeof value !== "object") {
-    throw new Error("Widget SIWE challenge response is invalid");
-  }
-  if (!("nonce" in value) || typeof value.nonce !== "string" || !("domain" in value) || typeof value.domain !== "string" || !("uri" in value) || typeof value.uri !== "string" || !("issued_at" in value) || typeof value.issued_at !== "string" || !("expiration_time" in value) || typeof value.expiration_time !== "string") {
-    throw new Error("Widget SIWE challenge response is invalid");
+async function challengeJson(fetchImpl, url, body) {
+  const response = await fetchImpl(url, requestInit(body));
+  if (!response.ok)
+    throw new Error(`Widget challenge failed: ${response.status}`);
+  const value = await response.json();
+  for (const key of [
+    "nonce",
+    "domain",
+    "uri",
+    "issued_at",
+    "expiration_time"
+  ]) {
+    if (typeof value[key] !== "string")
+      throw new Error("Widget challenge is invalid");
   }
   return {
     nonce: value.nonce,
@@ -2142,22 +2386,41 @@ function parseChallenge(value) {
     expirationTime: value.expiration_time
   };
 }
-function parseSession(value) {
-  if (!value || typeof value !== "object") {
+async function exchangeJson(fetchImpl, url, body) {
+  const response = await fetchImpl(url, requestInit(body));
+  if (!response.ok)
+    throw new Error(`Widget auth exchange failed: ${response.status}`);
+  const value = await response.json();
+  if (typeof value.access_token !== "string" || typeof value.expires_at !== "number") {
     throw new Error("Widget session response is invalid");
   }
-  const accessToken = "access_token" in value ? value.access_token : void 0;
-  const expiresAt = "expires_at" in value ? value.expires_at : void 0;
-  if (typeof accessToken !== "string" || !accessToken || typeof expiresAt !== "number" || !Number.isFinite(expiresAt)) {
-    throw new Error("Widget session response is invalid");
+  if (value.expires_at > EXPIRES_AT_MILLISECONDS_THRESHOLD2) {
+    throw new Error("Widget session expires_at must be seconds, not ms");
   }
-  return { accessToken, expiresAt };
+  return { accessToken: value.access_token, expiresAt: value.expires_at };
 }
-function jsonHeaders() {
-  return { Accept: "application/json", "Content-Type": "application/json" };
+function requestInit(body) {
+  return {
+    method: "POST",
+    credentials: "omit",
+    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    body: JSON.stringify(body)
+  };
 }
-function joinUrl2(baseUrl, path) {
-  return `${baseUrl.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`;
+function normalizeSiweSigner(signer) {
+  if (!Number.isInteger(signer.chainId) || signer.chainId <= 0) {
+    throw new Error("Widget SIWE signer has no valid chain id");
+  }
+  return __spreadProps(__spreadValues({}, signer), { address: (0, import_viem.getAddress)(signer.address) });
+}
+
+// src/internal/env.ts
+function safeEnv(read) {
+  try {
+    return read();
+  } catch (e) {
+    return void 0;
+  }
 }
 
 // src/types.ts
@@ -2323,6 +2586,26 @@ function getToolArgs(payload) {
 function parseChainKind(value) {
   return value === "evm" || value === "svm" ? value : void 0;
 }
+function normalizeSolanaCluster(value) {
+  if (typeof value !== "string") return void 0;
+  const trimmed = value.trim();
+  if (!trimmed) return void 0;
+  switch (trimmed.toLowerCase()) {
+    case "mainnet":
+    case "mainnet-beta":
+    case "solana:mainnet":
+    case "solana:mainnet-beta":
+      return "solana:mainnet";
+    case "devnet":
+    case "solana:devnet":
+      return "solana:devnet";
+    case "testnet":
+    case "solana:testnet":
+      return "solana:testnet";
+    default:
+      return trimmed;
+  }
+}
 function inferSolanaRequestKind(payload) {
   const rawKind = typeof payload.kind === "string" ? payload.kind : typeof payload.request_kind === "string" ? payload.request_kind : typeof payload.requestKind === "string" ? payload.requestKind : void 0;
   switch (rawKind) {
@@ -2340,16 +2623,21 @@ function inferSolanaRequestKind(payload) {
   }
 }
 function parseChainId3(value) {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "number") {
+    return Number.isSafeInteger(value) && value > 0 ? value : void 0;
+  }
   if (typeof value !== "string") return void 0;
   const trimmed = value.trim();
   if (!trimmed) return void 0;
-  if (trimmed.startsWith("0x")) {
-    const parsedHex = Number.parseInt(trimmed.slice(2), 16);
-    return Number.isFinite(parsedHex) ? parsedHex : void 0;
-  }
-  const parsed = Number.parseInt(trimmed, 10);
-  return Number.isFinite(parsed) ? parsed : void 0;
+  const parsed = trimmed.startsWith("0x") ? parseCanonicalInteger(trimmed.slice(2), 16) : parseCanonicalInteger(trimmed, 10);
+  return parsed !== void 0 && parsed > 0 ? parsed : void 0;
+}
+function parseCanonicalInteger(value, radix) {
+  if (value === "") return void 0;
+  const pattern = radix === 16 ? /^[0-9a-fA-F]+$/ : /^[0-9]+$/;
+  if (!pattern.test(value)) return void 0;
+  const parsed = Number.parseInt(value, radix);
+  return Number.isSafeInteger(parsed) ? parsed : void 0;
 }
 function parseTxIds(value) {
   if (!Array.isArray(value)) return [];
@@ -2510,15 +2798,22 @@ function hydrateTxPayloadFromUserState(payload, userState, options) {
   });
 }
 function normalizeSolanaSignPayload(payload) {
-  var _a, _b, _c, _d;
+  var _a, _b, _c, _d, _e, _f;
   const args = getToolArgs(payload);
   const unsignedTxRaw = (_a = args.unsigned_tx) != null ? _a : args.unsignedTx;
   const unsignedTx = typeof unsignedTxRaw === "string" ? unsignedTxRaw : void 0;
   const description = typeof args.description === "string" ? args.description : void 0;
-  const clusterRaw = args.cluster;
-  const cluster = typeof clusterRaw === "string" ? clusterRaw : void 0;
-  const pendingSolanaId = (_d = (_c = (_b = parsePendingId(args.pendingSolanaId)) != null ? _b : parsePendingId(args.pending_solana_id)) != null ? _c : parsePendingId(args.pendingSvmSigId)) != null ? _d : parsePendingId(args.pending_svm_sig_id);
-  return { unsignedTx, description, cluster, pendingSolanaId };
+  const cluster = normalizeSolanaCluster(args.cluster);
+  const rawPendingIds = (_b = args.svm_tx_ids) != null ? _b : args.svm_ix_ids;
+  const pendingSolanaIds = Array.isArray(rawPendingIds) ? rawPendingIds.map(parsePendingId).filter((id) => id !== void 0) : void 0;
+  const pendingSolanaId = (_f = (_e = (_d = (_c = parsePendingId(args.pendingSolanaId)) != null ? _c : parsePendingId(args.pending_solana_id)) != null ? _d : parsePendingId(args.pendingSvmSigId)) != null ? _e : parsePendingId(args.pending_svm_sig_id)) != null ? _f : pendingSolanaIds == null ? void 0 : pendingSolanaIds[0];
+  return {
+    unsignedTx,
+    description,
+    cluster,
+    pendingSolanaId,
+    pendingSolanaIds
+  };
 }
 function normalizeSolanaSignMessagePayload(payload) {
   var _a, _b, _c, _d, _e;
@@ -2526,17 +2821,16 @@ function normalizeSolanaSignMessagePayload(payload) {
   const messageRaw = (_b = (_a = args.message_base64) != null ? _a : args.messageBase64) != null ? _b : args.message;
   const message = typeof messageRaw === "string" ? messageRaw : void 0;
   const description = typeof args.description === "string" ? args.description : void 0;
-  const clusterRaw = args.cluster;
-  const cluster = typeof clusterRaw === "string" ? clusterRaw : void 0;
+  const cluster = normalizeSolanaCluster(args.cluster);
   const pendingSolanaId = (_e = (_d = (_c = parsePendingId(args.pendingSolanaId)) != null ? _c : parsePendingId(args.pending_solana_id)) != null ? _d : parsePendingId(args.pendingSvmSigId)) != null ? _e : parsePendingId(args.pending_svm_sig_id);
   return { message, description, cluster, pendingSolanaId };
 }
 function normalizeSolanaWalletRequest(payload) {
-  var _a;
+  var _a, _b, _c;
   const root = asRecord(payload);
   const args = getToolArgs(payload);
   const solanaRequest = __spreadValues(__spreadValues({}, root != null ? root : {}), args);
-  const chainKind = (_a = parseChainKind(args.chain_kind)) != null ? _a : parseChainKind(root == null ? void 0 : root.chain_kind);
+  const chainKind = (_c = (_b = (_a = parseChainKind(args.chain_kind)) != null ? _a : parseChainKind(args.chain_family)) != null ? _b : parseChainKind(root == null ? void 0 : root.chain_kind)) != null ? _c : parseChainKind(root == null ? void 0 : root.chain_family);
   if (chainKind !== "svm") {
     return null;
   }
@@ -2806,6 +3100,9 @@ function resolveWalletState(userState, address3, chainId3, aa) {
   var _a, _b, _c;
   const resolvedAAMode = (_a = aa == null ? void 0 : aa.aaMode) != null ? _a : (aa == null ? void 0 : aa.smartAccount) === address3 ? "4337" : "none";
   const aaBlock2 = { mode: resolvedAAMode };
+  if (resolvedAAMode === "4337" || resolvedAAMode === "7702") {
+    aaBlock2.provider = "alchemy";
+  }
   if ((aa == null ? void 0 : aa.smartAccount4337) !== void 0 || (aa == null ? void 0 : aa.delegation7702) !== void 0) {
     aaBlock2.smart_account = resolvedAAMode === "4337" ? (_b = aa == null ? void 0 : aa.smartAccount4337) != null ? _b : null : null;
     aaBlock2.delegation_7702 = resolvedAAMode === "7702" ? (_c = aa == null ? void 0 : aa.delegation7702) != null ? _c : null : null;
@@ -2825,7 +3122,10 @@ function resolveWalletState(userState, address3, chainId3, aa) {
 }
 function warnIfUserStateMisaligned(expected, actual) {
   const expectedUserState = UserState.normalize(expected);
-  const normalizedActualUserState = UserState.reconcile(expectedUserState, actual);
+  const normalizedActualUserState = UserState.reconcile(
+    expectedUserState,
+    actual
+  );
   if (!expectedUserState || !normalizedActualUserState) {
     return;
   }
@@ -2851,9 +3151,6 @@ function aaModeFromExecutionKind(executionKind) {
   if (executionKind === "eoa") return "none";
   return void 0;
 }
-function resolveAASponsorship(mode, configuredSponsorship) {
-  return mode === "7702" ? "disabled" : configuredSponsorship;
-}
 
 // src/session/wallet.ts
 function isRecord2(value) {
@@ -2868,12 +3165,23 @@ function txIdsFromPayload(payload) {
   }
   return [];
 }
+function solanaPendingIdFields(payload) {
+  const fields = {};
+  if (payload.pendingSolanaId !== void 0) {
+    fields.pending_solana_id = payload.pendingSolanaId;
+  }
+  if ("pendingSolanaIds" in payload && Array.isArray(payload.pendingSolanaIds) && payload.pendingSolanaIds.length > 0) {
+    fields.pending_svm_tx_ids = [...payload.pendingSolanaIds];
+  }
+  return fields;
+}
 var SessionWalletController = class {
   constructor(deps) {
     this.deps = deps;
     this.requests = [];
     this.nextId = 1;
     this.resolvedRequestIds = /* @__PURE__ */ new Set();
+    this.resolvingRequestIds = /* @__PURE__ */ new Set();
   }
   get length() {
     return this.requests.length;
@@ -2937,101 +3245,126 @@ var SessionWalletController = class {
         `WalletRequestResult.kind mismatch for "${requestId}": request is "${req.kind}" but result is "${result.kind}".`
       );
     }
-    this.remove(requestId);
-    this.resolvedRequestIds.add(requestId);
-    if (req.kind === "transaction" && result.kind === "transaction") {
-      await this.resolveTransaction(req.payload, result);
-    } else if (req.kind === "eip712_sign" && result.kind === "eip712_sign") {
-      await this.deps.sendSystemEvent("wallet_eip712_response", __spreadValues({
-        status: "success",
-        signature: result.signature,
-        description: req.payload.description
-      }, req.payload.eip712Id !== void 0 ? { pending_eip712_id: req.payload.eip712Id } : {}));
-    } else if (req.kind === "solana_sign" && result.kind === "solana_sign") {
-      await this.deps.sendSystemEvent("wallet::solana_sign_complete", __spreadValues(__spreadProps(__spreadValues({
-        status: "signed",
-        signed_tx: result.signedTx
-      }, req.payload.unsignedTx !== void 0 ? { unsigned_tx: req.payload.unsignedTx } : {}), {
-        description: req.payload.description
-      }), req.payload.pendingSolanaId !== void 0 ? { pending_solana_id: req.payload.pendingSolanaId } : {}));
-    } else if (req.kind === "solana_sign_message" && result.kind === "solana_sign_message") {
-      await this.deps.sendSystemEvent("wallet::solana_sign_message_complete", __spreadValues(__spreadProps(__spreadValues({
-        status: "signed",
-        signature: result.signature
-      }, req.payload.message !== void 0 ? { message: req.payload.message } : {}), {
-        description: req.payload.description
-      }), req.payload.pendingSolanaId !== void 0 ? { pending_solana_id: req.payload.pendingSolanaId } : {}));
-    } else if (req.kind === "solana_send" && result.kind === "solana_send") {
-      await this.deps.sendSystemEvent("wallet::solana_send_complete", __spreadValues(__spreadProps(__spreadValues({
-        status: "submitted",
-        signature: result.signature,
-        signed_tx: result.signedTx
-      }, req.payload.unsignedTx !== void 0 ? { unsigned_tx: req.payload.unsignedTx } : {}), {
-        description: req.payload.description
-      }), req.payload.pendingSolanaId !== void 0 ? { pending_solana_id: req.payload.pendingSolanaId } : {}));
-    } else if (req.kind === "solana_sign_and_send" && result.kind === "solana_sign_and_send") {
-      await this.deps.sendSystemEvent("wallet::solana_sign_and_send_complete", __spreadValues(__spreadProps(__spreadValues({
-        status: "submitted",
-        signature: result.signature,
-        signed_tx: result.signedTx
-      }, req.payload.unsignedTx !== void 0 ? { unsigned_tx: req.payload.unsignedTx } : {}), {
-        description: req.payload.description
-      }), req.payload.pendingSolanaId !== void 0 ? { pending_solana_id: req.payload.pendingSolanaId } : {}));
+    if (this.resolvingRequestIds.has(requestId)) return;
+    this.resolvingRequestIds.add(requestId);
+    try {
+      if (req.kind === "transaction" && result.kind === "transaction") {
+        await this.resolveTransaction(req.payload, result);
+      } else if (req.kind === "eip712_sign" && result.kind === "eip712_sign") {
+        await this.deps.sendSystemEvent("wallet_eip712_response", __spreadValues({
+          status: "success",
+          signature: result.signature,
+          description: req.payload.description
+        }, req.payload.eip712Id !== void 0 ? { pending_eip712_id: req.payload.eip712Id } : {}));
+      } else if (req.kind === "solana_sign" && result.kind === "solana_sign") {
+        await this.deps.sendSystemEvent("wallet::solana_sign_complete", __spreadValues(__spreadProps(__spreadValues({
+          status: "signed",
+          signed_tx: result.signedTx
+        }, req.payload.unsignedTx !== void 0 ? { unsigned_tx: req.payload.unsignedTx } : {}), {
+          description: req.payload.description
+        }), solanaPendingIdFields(req.payload)));
+      } else if (req.kind === "solana_sign_message" && result.kind === "solana_sign_message") {
+        await this.deps.sendSystemEvent(
+          "wallet::solana_sign_message_complete",
+          __spreadValues(__spreadProps(__spreadValues({
+            status: "signed",
+            signature: result.signature
+          }, req.payload.message !== void 0 ? { message: req.payload.message } : {}), {
+            description: req.payload.description
+          }), solanaPendingIdFields(req.payload))
+        );
+      } else if (req.kind === "solana_send" && result.kind === "solana_send") {
+        await this.deps.sendSystemEvent("wallet::solana_send_complete", __spreadValues(__spreadProps(__spreadValues({
+          status: "submitted",
+          signature: result.signature,
+          signed_tx: result.signedTx
+        }, req.payload.unsignedTx !== void 0 ? { unsigned_tx: req.payload.unsignedTx } : {}), {
+          description: req.payload.description
+        }), solanaPendingIdFields(req.payload)));
+      } else if (req.kind === "solana_sign_and_send" && result.kind === "solana_sign_and_send") {
+        await this.deps.sendSystemEvent(
+          "wallet::solana_sign_and_send_complete",
+          __spreadValues(__spreadProps(__spreadValues({
+            status: "submitted",
+            signature: result.signature,
+            signed_tx: result.signedTx
+          }, req.payload.unsignedTx !== void 0 ? { unsigned_tx: req.payload.unsignedTx } : {}), {
+            description: req.payload.description
+          }), solanaPendingIdFields(req.payload))
+        );
+      }
+      this.finishRequest(req);
+    } finally {
+      this.resolvingRequestIds.delete(requestId);
     }
   }
   async reject(requestId, reason) {
-    const req = this.remove(requestId);
+    const req = this.find(requestId);
     if (!req) {
       throw new Error(`No pending wallet request with id "${requestId}"`);
     }
-    this.resolvedRequestIds.add(requestId);
-    if (req.kind === "transaction") {
-      const pendingTxIds = txIdsFromPayload(req.payload);
-      const requestedMode = aaRequestedModeFromPreference(req.payload.aaPreference);
-      await this.deps.sendSystemEvent("wallet:tx_complete", {
-        txHash: "",
-        status: "failed",
-        error: reason != null ? reason : "Request rejected",
-        pending_tx_ids: pendingTxIds,
-        aa_requested_mode: requestedMode,
-        aa_resolved_mode: requestedMode,
-        batched: pendingTxIds.length > 1,
-        call_count: pendingTxIds.length
-      });
-    } else if (req.kind === "eip712_sign") {
-      await this.deps.sendSystemEvent("wallet_eip712_response", __spreadValues({
-        status: "failed",
-        error: reason != null ? reason : "Request rejected",
-        description: req.payload.description
-      }, req.payload.eip712Id !== void 0 ? { pending_eip712_id: req.payload.eip712Id } : {}));
-    } else if (req.kind === "solana_sign") {
-      await this.deps.sendSystemEvent("wallet::solana_sign_complete", __spreadValues(__spreadProps(__spreadValues({
-        status: "rejected",
-        error: reason != null ? reason : "Request rejected"
-      }, req.payload.unsignedTx !== void 0 ? { unsigned_tx: req.payload.unsignedTx } : {}), {
-        description: req.payload.description
-      }), req.payload.pendingSolanaId !== void 0 ? { pending_solana_id: req.payload.pendingSolanaId } : {}));
-    } else if (req.kind === "solana_sign_message") {
-      await this.deps.sendSystemEvent("wallet::solana_sign_message_complete", __spreadValues(__spreadProps(__spreadValues({
-        status: "rejected",
-        error: reason != null ? reason : "Request rejected"
-      }, req.payload.message !== void 0 ? { message: req.payload.message } : {}), {
-        description: req.payload.description
-      }), req.payload.pendingSolanaId !== void 0 ? { pending_solana_id: req.payload.pendingSolanaId } : {}));
-    } else if (req.kind === "solana_send") {
-      await this.deps.sendSystemEvent("wallet::solana_send_complete", __spreadValues(__spreadProps(__spreadValues({
-        status: "rejected",
-        error: reason != null ? reason : "Request rejected"
-      }, req.payload.unsignedTx !== void 0 ? { unsigned_tx: req.payload.unsignedTx } : {}), {
-        description: req.payload.description
-      }), req.payload.pendingSolanaId !== void 0 ? { pending_solana_id: req.payload.pendingSolanaId } : {}));
-    } else {
-      await this.deps.sendSystemEvent("wallet::solana_sign_and_send_complete", __spreadValues(__spreadProps(__spreadValues({
-        status: "rejected",
-        error: reason != null ? reason : "Request rejected"
-      }, req.payload.unsignedTx !== void 0 ? { unsigned_tx: req.payload.unsignedTx } : {}), {
-        description: req.payload.description
-      }), req.payload.pendingSolanaId !== void 0 ? { pending_solana_id: req.payload.pendingSolanaId } : {}));
+    if (this.resolvingRequestIds.has(requestId)) return;
+    this.resolvingRequestIds.add(requestId);
+    try {
+      if (req.kind === "transaction") {
+        const pendingTxIds = txIdsFromPayload(req.payload);
+        const requestedMode = aaRequestedModeFromPreference(
+          req.payload.aaPreference
+        );
+        await this.deps.sendSystemEvent("wallet:tx_complete", {
+          txHash: "",
+          status: "failed",
+          error: reason != null ? reason : "Request rejected",
+          pending_tx_ids: pendingTxIds,
+          aa_requested_mode: requestedMode,
+          aa_resolved_mode: requestedMode,
+          batched: pendingTxIds.length > 1,
+          call_count: pendingTxIds.length
+        });
+      } else if (req.kind === "eip712_sign") {
+        await this.deps.sendSystemEvent("wallet_eip712_response", __spreadValues({
+          status: "failed",
+          error: reason != null ? reason : "Request rejected",
+          description: req.payload.description
+        }, req.payload.eip712Id !== void 0 ? { pending_eip712_id: req.payload.eip712Id } : {}));
+      } else if (req.kind === "solana_sign") {
+        await this.deps.sendSystemEvent("wallet::solana_sign_complete", __spreadValues(__spreadProps(__spreadValues({
+          status: "rejected",
+          error: reason != null ? reason : "Request rejected"
+        }, req.payload.unsignedTx !== void 0 ? { unsigned_tx: req.payload.unsignedTx } : {}), {
+          description: req.payload.description
+        }), solanaPendingIdFields(req.payload)));
+      } else if (req.kind === "solana_sign_message") {
+        await this.deps.sendSystemEvent(
+          "wallet::solana_sign_message_complete",
+          __spreadValues(__spreadProps(__spreadValues({
+            status: "rejected",
+            error: reason != null ? reason : "Request rejected"
+          }, req.payload.message !== void 0 ? { message: req.payload.message } : {}), {
+            description: req.payload.description
+          }), solanaPendingIdFields(req.payload))
+        );
+      } else if (req.kind === "solana_send") {
+        await this.deps.sendSystemEvent("wallet::solana_send_complete", __spreadValues(__spreadProps(__spreadValues({
+          status: "rejected",
+          error: reason != null ? reason : "Request rejected"
+        }, req.payload.unsignedTx !== void 0 ? { unsigned_tx: req.payload.unsignedTx } : {}), {
+          description: req.payload.description
+        }), solanaPendingIdFields(req.payload)));
+      } else {
+        await this.deps.sendSystemEvent(
+          "wallet::solana_sign_and_send_complete",
+          __spreadValues(__spreadProps(__spreadValues({
+            status: "rejected",
+            error: reason != null ? reason : "Request rejected"
+          }, req.payload.unsignedTx !== void 0 ? { unsigned_tx: req.payload.unsignedTx } : {}), {
+            description: req.payload.description
+          }), solanaPendingIdFields(req.payload))
+        );
+      }
+      this.finishRequest(req);
+    } finally {
+      this.resolvingRequestIds.delete(requestId);
     }
   }
   async resolveTransaction(payload, result) {
@@ -3044,8 +3377,9 @@ var SessionWalletController = class {
     const prevAa = isRecord2(prevEvm.aa) ? prevEvm.aa : {};
     this.deps.resolveUserState(__spreadProps(__spreadValues({}, userState != null ? userState : {}), {
       evm: __spreadProps(__spreadValues({}, prevEvm), {
-        aa: __spreadProps(__spreadValues({}, prevAa), {
-          mode: resolvedMode,
+        aa: __spreadProps(__spreadValues(__spreadProps(__spreadValues({}, prevAa), {
+          mode: resolvedMode
+        }), resolvedMode === "4337" || resolvedMode === "7702" ? { provider: "alchemy" } : {}), {
           smart_account: resolvedMode === "4337" ? (_d = result.SmartAccount4337) != null ? _d : null : null,
           delegation_7702: resolvedMode === "7702" ? (_e = result.Delegation7702) != null ? _e : null : null
         })
@@ -3067,6 +3401,43 @@ var SessionWalletController = class {
       delegation_7702: result.Delegation7702
     });
   }
+  clearResolvedSolanaPending(request) {
+    const userState = this.deps.getUserState();
+    const pending = isRecord2(userState == null ? void 0 : userState.pending) ? userState.pending : void 0;
+    if (!userState || !pending) return;
+    if (request.kind === "transaction" || request.kind === "eip712_sign")
+      return;
+    const ids = "pendingSolanaIds" in request.payload && Array.isArray(request.payload.pendingSolanaIds) && request.payload.pendingSolanaIds.length > 0 ? request.payload.pendingSolanaIds : request.payload.pendingSolanaId !== void 0 ? [request.payload.pendingSolanaId] : [];
+    if (ids.length === 0) return;
+    const targets = request.kind === "solana_sign" || request.kind === "solana_sign_message" ? [
+      ["svm_sigs", ids],
+      ["solana_sigs", ids]
+    ] : [
+      ["svm_ixs", ids],
+      ["solana_txs", ids]
+    ];
+    const nextPending = __spreadValues({}, pending);
+    let changed = false;
+    for (const [bucketName, ids2] of targets) {
+      const bucket = isRecord2(nextPending[bucketName]) ? __spreadValues({}, nextPending[bucketName]) : void 0;
+      if (!bucket) continue;
+      for (const id of ids2) {
+        if (Object.hasOwn(bucket, String(id))) {
+          delete bucket[String(id)];
+          changed = true;
+        }
+      }
+      nextPending[bucketName] = bucket;
+    }
+    if (changed) {
+      this.deps.resolveUserState(__spreadProps(__spreadValues({}, userState), { pending: nextPending }));
+    }
+  }
+  finishRequest(request) {
+    this.remove(request.id);
+    this.resolvedRequestIds.add(request.id);
+    this.clearResolvedSolanaPending(request);
+  }
   syncTransactions(next, pendingTxs) {
     var _a, _b;
     const entries = Object.entries(pendingTxs != null ? pendingTxs : {}).filter(([id]) => Number.isInteger(Number(id))).sort((left, right) => Number(left[0]) - Number(right[0]));
@@ -3074,7 +3445,9 @@ var SessionWalletController = class {
     const covered = /* @__PURE__ */ new Set();
     const existing = this.requests.filter(
       (request) => request.kind === "transaction"
-    ).map((request) => ({ request, txIds: txIdsFromPayload(request.payload) })).filter(({ txIds }) => txIds.length > 0 && txIds.every((id) => pendingIds.has(id))).sort(
+    ).map((request) => ({ request, txIds: txIdsFromPayload(request.payload) })).filter(
+      ({ txIds }) => txIds.length > 0 && txIds.every((id) => pendingIds.has(id))
+    ).sort(
       (left, right) => left.txIds.length !== right.txIds.length ? right.txIds.length - left.txIds.length : left.request.timestamp - right.request.timestamp
     );
     for (const { request, txIds } of existing) {
@@ -3160,7 +3533,8 @@ var SessionWalletController = class {
       if (typeof eip712Id === "number") return `eip712-${eip712Id}`;
     } else {
       const { pendingSolanaId } = payload;
-      if (typeof pendingSolanaId === "number") return `${kind}-${pendingSolanaId}`;
+      if (typeof pendingSolanaId === "number")
+        return `${kind}-${pendingSolanaId}`;
     }
     return `wreq-${this.nextId++}`;
   }
@@ -3221,6 +3595,7 @@ var ClientSession = class extends TypedEventEmitter {
     this.app = (_b = sessionOptions == null ? void 0 : sessionOptions.app) != null ? _b : "default";
     this.applicationId = sessionOptions == null ? void 0 : sessionOptions.applicationId;
     this.apiKey = sessionOptions == null ? void 0 : sessionOptions.apiKey;
+    this.paymentMethod = sessionOptions == null ? void 0 : sessionOptions.paymentMethod;
     const initialUserState = UserState.reconcile(
       void 0,
       sessionOptions == null ? void 0 : sessionOptions.userState
@@ -3260,7 +3635,8 @@ var ClientSession = class extends TypedEventEmitter {
       applicationId: this.applicationId,
       apiKey: this.apiKey,
       userState: this.userState,
-      clientId: this.clientId
+      clientId: this.clientId,
+      paymentMethod: this.paymentMethod
     });
     this.assertUserStateAligned(response.user_state);
     this.applyState(response);
@@ -3285,7 +3661,8 @@ var ClientSession = class extends TypedEventEmitter {
       applicationId: this.applicationId,
       apiKey: this.apiKey,
       userState: this.userState,
-      clientId: this.clientId
+      clientId: this.clientId,
+      paymentMethod: this.paymentMethod
     });
     this.assertUserStateAligned(response.user_state);
     this.applyState(response);
@@ -3308,9 +3685,7 @@ var ClientSession = class extends TypedEventEmitter {
    */
   async resolve(requestId, result) {
     await this.walletController.resolve(requestId, result);
-    if (this._isProcessing) {
-      this.startPolling();
-    }
+    this.resumeAfterWalletResponse();
   }
   /**
    * Reject a pending wallet request.
@@ -3318,9 +3693,7 @@ var ClientSession = class extends TypedEventEmitter {
    */
   async reject(requestId, reason) {
     await this.walletController.reject(requestId, reason);
-    if (this._isProcessing) {
-      this.startPolling();
-    }
+    this.resumeAfterWalletResponse();
   }
   // ===========================================================================
   // Public API — Control
@@ -3330,7 +3703,10 @@ var ClientSession = class extends TypedEventEmitter {
    */
   async interrupt() {
     this.stopPolling();
-    const response = await this.client.interrupt(this.sessionId);
+    const response = await this.client.interrupt(this.sessionId, {
+      app: this.app,
+      applicationId: this.applicationId
+    });
     this.applyState(response);
     this._isProcessing = false;
     this.emit("processing_end", void 0);
@@ -3385,25 +3761,34 @@ var ClientSession = class extends TypedEventEmitter {
     }
     this.isSSEActive = active;
     if (active) {
-      this.unsubscribeSSE = this.client.subscribeSSE(
-        this.sessionId,
-        (event) => this.handleSSEEvent(event),
-        (error) => this.emit("error", { error })
-      );
+      this.startSSE();
       return;
     }
     (_a = this.unsubscribeSSE) == null ? void 0 : _a.call(this);
     this.unsubscribeSSE = null;
   }
   syncRuntimeOptions(options) {
-    var _a;
+    var _a, _b, _c, _d;
+    const previousApplicationId = (_a = this.applicationId) == null ? void 0 : _a.toString();
     this.app = options.app;
     this.applicationId = options.applicationId;
     this.apiKey = options.apiKey;
-    this.clientId = (_a = options.clientId) != null ? _a : this.clientId;
+    this.clientId = (_b = options.clientId) != null ? _b : this.clientId;
     if (options.userState) {
       this.resolveUserState(options.userState);
     }
+    if (this.isSSEActive && previousApplicationId !== ((_c = this.applicationId) == null ? void 0 : _c.toString())) {
+      (_d = this.unsubscribeSSE) == null ? void 0 : _d.call(this);
+      this.startSSE();
+    }
+  }
+  startSSE() {
+    this.unsubscribeSSE = this.client.subscribeSSE(
+      this.sessionId,
+      (event) => this.handleSSEEvent(event),
+      (error) => this.emit("error", { error }),
+      { applicationId: this.applicationId }
+    );
   }
   resolveUserState(userState, opts) {
     const previousSerialized = stableUserStateString(this.userState);
@@ -3439,7 +3824,8 @@ var ClientSession = class extends TypedEventEmitter {
     const state = await this.client.fetchState(
       this.sessionId,
       this.userState,
-      this.clientId
+      this.clientId,
+      { app: this.app, applicationId: this.applicationId }
     );
     this.assertUserStateAligned(state.user_state);
     this.applyState(state);
@@ -3461,7 +3847,8 @@ var ClientSession = class extends TypedEventEmitter {
     const state = await this.client.fetchState(
       this.sessionId,
       this.userState,
-      this.clientId
+      this.clientId,
+      { app: this.app, applicationId: this.applicationId }
     );
     this.assertUserStateAligned(state.user_state);
     this.applyState(state);
@@ -3502,7 +3889,8 @@ var ClientSession = class extends TypedEventEmitter {
       const state = await this.client.fetchState(
         this.sessionId,
         this.userState,
-        this.clientId
+        this.clientId,
+        { app: this.app, applicationId: this.applicationId }
       );
       if (!this.pollTimer) return;
       this.assertUserStateAligned(state.user_state);
@@ -3560,6 +3948,13 @@ var ClientSession = class extends TypedEventEmitter {
       app: this.app,
       applicationId: this.applicationId
     });
+  }
+  resumeAfterWalletResponse() {
+    if (!this._isProcessing) {
+      this._isProcessing = true;
+      this.emit("processing_start", void 0);
+    }
+    this.startPolling();
   }
   resolvePending() {
     if (this.pendingResolve) {
@@ -3622,17 +4017,39 @@ var monadTestnet = (0, import_viem3.defineChain)({
   },
   testnet: true
 });
+var robinhood = (0, import_viem3.defineChain)({
+  id: 4663,
+  name: "Robinhood Chain",
+  nativeCurrency: {
+    name: "Ether",
+    symbol: "ETH",
+    decimals: 18
+  },
+  rpcUrls: {
+    default: {
+      http: ["https://rpc.mainnet.chain.robinhood.com"]
+    }
+  },
+  blockExplorers: {
+    default: {
+      name: "Robinhood Chain Explorer",
+      url: "https://robinhoodchain.blockscout.com"
+    }
+  }
+});
 var SUPPORTED_CHAINS = [
   { id: 1, name: "Ethereum", ticker: "ETH" },
   { id: 137, name: "Polygon", ticker: "MATIC" },
   { id: 42161, name: "Arbitrum", ticker: "ARB" },
   { id: 8453, name: "Base", ticker: "BASE" },
+  { id: 84532, name: "Base Sepolia", ticker: "ETH" },
   { id: 10, name: "Optimism", ticker: "OP" },
   { id: 11155111, name: "Sepolia", ticker: "SEP" },
   { id: 59144, name: "Linea Mainnet", ticker: "LINEA" },
   { id: 59141, name: "Linea Sepolia Testnet", ticker: "LINEA" },
   { id: 143, name: "Monad", ticker: "MON" },
   { id: 10143, name: "Monad Testnet", ticker: "MON" },
+  { id: 4663, name: "Robinhood Chain", ticker: "ETH" },
   { id: 31337, name: "Anvil (local)", ticker: "ETH" }
 ];
 var SUPPORTED_CHAIN_IDS = SUPPORTED_CHAINS.map((chain) => chain.id);
@@ -3644,10 +4061,12 @@ var ALCHEMY_CHAIN_SLUGS = {
   137: "polygon-mainnet",
   42161: "arb-mainnet",
   8453: "base-mainnet",
+  84532: "base-sepolia",
   10: "opt-mainnet",
   11155111: "eth-sepolia",
   59144: "linea-mainnet",
-  59141: "linea-sepolia"
+  59141: "linea-sepolia",
+  4663: "robinhood-mainnet"
 };
 var CHAINS_BY_ID = {
   1: import_chains.mainnet,
@@ -3655,105 +4074,14 @@ var CHAINS_BY_ID = {
   42161: import_chains.arbitrum,
   10: import_chains.optimism,
   8453: import_chains.base,
+  84532: import_chains.baseSepolia,
   11155111: import_chains.sepolia,
   59144: import_chains.linea,
   59141: import_chains.lineaSepolia,
   143: monad,
   10143: monadTestnet,
+  4663: robinhood,
   31337: import_chains.foundry
-};
-
-// src/aa/types.ts
-function getAAChainConfig(config, calls, chainsById) {
-  if (!config.enabled || calls.length === 0) {
-    return null;
-  }
-  const chainIds = Array.from(new Set(calls.map((call) => call.chainId)));
-  if (chainIds.length !== 1) {
-    return null;
-  }
-  const chainId3 = chainIds[0];
-  if (!chainsById[chainId3]) {
-    return null;
-  }
-  const chainConfig = config.chains.find((item) => item.chainId === chainId3);
-  if (!(chainConfig == null ? void 0 : chainConfig.enabled)) {
-    return null;
-  }
-  if (calls.length > 1 && !chainConfig.allowBatching) {
-    return null;
-  }
-  return chainConfig;
-}
-function buildAAExecutionPlan(config, chainConfig) {
-  const mode = chainConfig.supportedModes.includes(chainConfig.defaultMode) ? chainConfig.defaultMode : chainConfig.supportedModes[0];
-  if (!mode) {
-    throw new Error(
-      `No smart account mode configured for chain ${chainConfig.chainId}`
-    );
-  }
-  return {
-    provider: config.provider,
-    chainId: chainConfig.chainId,
-    mode,
-    batchingEnabled: chainConfig.allowBatching,
-    sponsorship: chainConfig.sponsorship
-  };
-}
-function getWalletExecutorReady(providerState) {
-  return !providerState.resolved || !providerState.pending && (Boolean(providerState.account) || Boolean(providerState.error));
-}
-var DEFAULT_AA_CONFIG = {
-  enabled: true,
-  provider: "alchemy",
-  chains: [
-    {
-      chainId: 1,
-      enabled: true,
-      defaultMode: "7702",
-      supportedModes: ["7702", "4337"],
-      allowBatching: true,
-      sponsorship: "optional"
-    },
-    {
-      chainId: 137,
-      enabled: true,
-      defaultMode: "7702",
-      supportedModes: ["7702", "4337"],
-      allowBatching: true,
-      sponsorship: "optional"
-    },
-    {
-      chainId: 42161,
-      enabled: true,
-      defaultMode: "7702",
-      supportedModes: ["7702", "4337"],
-      allowBatching: true,
-      sponsorship: "optional"
-    },
-    {
-      chainId: 10,
-      enabled: true,
-      defaultMode: "7702",
-      supportedModes: ["7702", "4337"],
-      allowBatching: true,
-      sponsorship: "optional"
-    },
-    {
-      chainId: 8453,
-      enabled: true,
-      defaultMode: "7702",
-      supportedModes: ["7702", "4337"],
-      allowBatching: true,
-      sponsorship: "optional"
-    }
-  ]
-};
-var DISABLED_PROVIDER_STATE = {
-  resolved: null,
-  account: void 0,
-  pending: false,
-  error: null
 };
 
 // src/aa/execute.ts
@@ -3784,137 +4112,19 @@ function debugAA(label, data) {
   console.info(`[aomi][aa][debug] ${label}`, data);
 }
 async function executeWalletCalls(params) {
+  var _a, _b, _c;
   const {
     callList,
     currentChainId,
     capabilities,
     localPrivateKey,
     nativeWalletExecution,
-    providerState,
     sendCallsSyncAsync,
     sendTransactionAsync,
     switchChainAsync,
     chainsById,
     getPreferredRpcUrl
   } = params;
-  if (providerState.resolved && providerState.account) {
-    return executeViaAA(callList, providerState, getPreferredRpcUrl);
-  }
-  if (providerState.resolved && providerState.error) {
-    throw providerState.error;
-  }
-  return executeViaEoa({
-    callList,
-    currentChainId,
-    capabilities,
-    localPrivateKey,
-    nativeWalletExecution,
-    sendCallsSyncAsync,
-    sendTransactionAsync,
-    switchChainAsync,
-    chainsById,
-    getPreferredRpcUrl
-  });
-}
-async function executeViaAA(callList, providerState, getPreferredRpcUrl) {
-  var _a;
-  const account = providerState.account;
-  const resolved = providerState.resolved;
-  if (!account || !resolved) {
-    throw (_a = providerState.error) != null ? _a : new Error("smart_account_unavailable");
-  }
-  const callsPayload = callList.map(({ to, value, data }) => ({
-    to,
-    value,
-    data: normalizeRpcCallData(data)
-  }));
-  const sendAARequest = async () => {
-    return callList.length > 1 ? account.sendBatchTransaction(callsPayload) : account.sendTransaction(callsPayload[0]);
-  };
-  let receipt;
-  try {
-    receipt = await sendAARequest();
-  } catch (error) {
-    if (!isRetryableBundlerSubmissionError(error)) {
-      throw error;
-    }
-    console.warn(
-      "[aomi][aa] transient bundler submission error; retrying once",
-      {
-        provider: account.provider,
-        mode: account.mode,
-        chainId: resolved.chainId,
-        callCount: callList.length,
-        error: toErrorMessage(error)
-      }
-    );
-    try {
-      receipt = await sendAARequest();
-    } catch (retryError) {
-      console.error(
-        "[aomi][aa] AA retry failed after transient bundler submission error",
-        {
-          provider: account.provider,
-          mode: account.mode,
-          chainId: resolved.chainId,
-          callCount: callList.length,
-          firstError: toErrorMessage(error),
-          retryError: toErrorMessage(retryError)
-        }
-      );
-      throw retryError;
-    }
-  }
-  const txHash = receipt.transactionHash;
-  const providerPrefix = account.provider.toLowerCase();
-  let Delegation77022 = account.mode === "7702" ? account.Delegation7702 : void 0;
-  if (account.mode === "7702" && !Delegation77022) {
-    Delegation77022 = await resolve7702Delegation(
-      txHash,
-      callList,
-      getPreferredRpcUrl
-    );
-  }
-  return __spreadValues(__spreadValues({
-    txHash,
-    txHashes: [txHash],
-    executionKind: `${providerPrefix}_${account.mode}`,
-    batched: callList.length > 1,
-    sponsored: resolved.sponsorship !== "disabled"
-  }, account.mode === "4337" && account.SmartAccount4337 ? { SmartAccount4337: account.SmartAccount4337 } : {}), Delegation77022 ? { Delegation7702: Delegation77022 } : {});
-}
-async function resolve7702Delegation(txHash, callList, getPreferredRpcUrl) {
-  var _a, _b, _c, _d;
-  try {
-    const chainId3 = (_a = callList[0]) == null ? void 0 : _a.chainId;
-    if (!chainId3) return void 0;
-    const chain = CHAINS_BY_ID[chainId3];
-    if (!chain) return void 0;
-    const rpcUrl = getPreferredRpcUrl(chain);
-    const client = (0, import_viem4.createPublicClient)({ chain, transport: (0, import_viem4.http)(rpcUrl) });
-    const tx = await client.getTransaction({ hash: txHash });
-    const authList = tx.authorizationList;
-    const target = (_d = (_b = authList == null ? void 0 : authList[0]) == null ? void 0 : _b.address) != null ? _d : (_c = authList == null ? void 0 : authList[0]) == null ? void 0 : _c.contractAddress;
-    if (target) {
-      return target;
-    }
-  } catch (e) {
-  }
-  return void 0;
-}
-async function executeViaEoa({
-  callList,
-  currentChainId,
-  capabilities,
-  localPrivateKey,
-  nativeWalletExecution,
-  sendCallsSyncAsync,
-  sendTransactionAsync,
-  switchChainAsync,
-  chainsById,
-  getPreferredRpcUrl
-}) {
-  var _a, _b, _c;
   const hashes = [];
   const normalizedCalls = callList.map((call) => __spreadProps(__spreadValues({}, call), {
     data: normalizeRpcCallData(call.data)
@@ -4036,10 +4246,7 @@ async function executeViaEoa({
       usedPaymasterService = Boolean(sendCallsCapabilities == null ? void 0 : sendCallsCapabilities.paymasterService);
       usedSendCalls = true;
     } catch (error) {
-      if (!canFallbackToSequentialWalletSends(
-        error,
-        requiresSponsoredSendCalls
-      )) {
+      if (!canFallbackToSequentialWalletSends(error, requiresSponsoredSendCalls)) {
         throw error;
       }
       await sendSequentially();
@@ -4138,18 +4345,6 @@ function canFallbackToSequentialWalletSends(error, requiresSponsoredSendCalls) {
   }
   return isUnsupportedAtomicCapabilityError(error) || isRecoverableOptionalPaymasterError(error);
 }
-function toErrorMessage(error) {
-  var _a;
-  if (error instanceof Error) {
-    return (_a = error.stack) != null ? _a : error.message;
-  }
-  return String(error);
-}
-function isRetryableBundlerSubmissionError(error) {
-  const message = error instanceof Error ? error.message : String(error);
-  const lowered = message.toLowerCase();
-  return lowered.includes("bundle id is unknown") || lowered.includes("bundle id unknown") || lowered.includes("has not been submitted") || lowered.includes("userop") && lowered.includes("not found") || lowered.includes("user operation") && lowered.includes("not found");
-}
 function resolveChainCapabilities(capabilities, chainId3) {
   var _a, _b;
   if (!capabilities) {
@@ -4237,911 +4432,6 @@ function appendFeeCallToPayload(payload, fee, defaultChainId, options) {
     aaStrict: strictAa
   });
 }
-
-// src/aa/alchemy/defaults.ts
-var DEFAULT_ALCHEMY_API_KEY = "72eIUle_3rfixX00QJVwk";
-var DEFAULT_ALCHEMY_GAS_POLICY_ID = "fb17d7d7-9a32-479d-937a-52d72b849c40";
-function trimToUndefined(value) {
-  const trimmed = value == null ? void 0 : value.trim();
-  return trimmed ? trimmed : void 0;
-}
-function resolveAlchemyApiKey(options) {
-  const explicit = trimToUndefined(options == null ? void 0 : options.apiKey);
-  if (explicit) return explicit;
-  if (!(options == null ? void 0 : options.publicOnly)) {
-    const privateEnv = trimToUndefined(process.env.ALCHEMY_API_KEY);
-    if (privateEnv) return privateEnv;
-  }
-  const publicEnv = trimToUndefined(process.env.NEXT_PUBLIC_ALCHEMY_API_KEY);
-  if (publicEnv) return publicEnv;
-  return DEFAULT_ALCHEMY_API_KEY;
-}
-function resolveAlchemyGasPolicyId(options) {
-  const explicit = trimToUndefined(options == null ? void 0 : options.gasPolicyId);
-  if (explicit) return explicit;
-  if (!(options == null ? void 0 : options.publicOnly)) {
-    const privateEnv = trimToUndefined(process.env.ALCHEMY_GAS_POLICY_ID);
-    if (privateEnv) return privateEnv;
-  }
-  const publicEnv = trimToUndefined(process.env.NEXT_PUBLIC_ALCHEMY_GAS_POLICY_ID);
-  if (publicEnv) return publicEnv;
-  return DEFAULT_ALCHEMY_GAS_POLICY_ID;
-}
-
-// src/aa/alchemy/provider.ts
-function resolveForHook(params) {
-  const { calls, localPrivateKey, accountAbstractionConfig, chainsById, getPreferredRpcUrl } = params;
-  if (!calls || localPrivateKey) return null;
-  const config = __spreadProps(__spreadValues({}, accountAbstractionConfig), { provider: "alchemy" });
-  const chainConfig = getAAChainConfig(config, calls, chainsById);
-  if (!chainConfig) return null;
-  const apiKey = resolveAlchemyApiKey({ publicOnly: true });
-  const chain = chainsById[chainConfig.chainId];
-  if (!chain) return null;
-  const gasPolicyId = resolveAlchemyGasPolicyId({ publicOnly: true });
-  const resolved = buildAAExecutionPlan(config, chainConfig);
-  return __spreadProps(__spreadValues({}, resolved), {
-    apiKey,
-    chain,
-    rpcUrl: getPreferredRpcUrl(chain),
-    gasPolicyId,
-    mode: chainConfig.defaultMode
-  });
-}
-function createAlchemyAAProvider({
-  accountAbstractionConfig = DEFAULT_AA_CONFIG,
-  useAlchemyAA,
-  chainsById,
-  chainSlugById,
-  getPreferredRpcUrl
-}) {
-  return function useAlchemyAAProvider(calls, localPrivateKey) {
-    var _a;
-    const resolved = resolveForHook({
-      calls,
-      localPrivateKey,
-      accountAbstractionConfig,
-      chainsById,
-      chainSlugById,
-      getPreferredRpcUrl
-    });
-    const params = resolved ? {
-      enabled: true,
-      apiKey: resolved.apiKey,
-      chain: resolved.chain,
-      rpcUrl: resolved.rpcUrl,
-      gasPolicyId: resolved.gasPolicyId,
-      mode: resolved.mode
-    } : void 0;
-    const query = useAlchemyAA(params);
-    return {
-      resolved: resolved != null ? resolved : null,
-      account: query.account,
-      pending: Boolean(resolved && query.pending),
-      error: (_a = query.error) != null ? _a : null
-    };
-  };
-}
-
-// src/aa/alchemy/create.ts
-var import_accounts3 = require("viem/accounts");
-
-// src/aa/adapt.ts
-function normalizeAAProvider(value) {
-  const lowered = value.toLowerCase();
-  if (lowered === "alchemy" || lowered === "pimlico") {
-    return lowered;
-  }
-  throw new Error(`Unsupported AA provider from SDK: ${value}`);
-}
-function adaptSmartAccount(account, address3) {
-  if (account.mode === "4337") {
-    return {
-      provider: normalizeAAProvider(account.provider),
-      mode: "4337",
-      address: address3,
-      SmartAccount4337: account.smartAccountAddress,
-      sendTransaction: async (call) => {
-        const receipt = await account.sendTransaction(call);
-        return { transactionHash: receipt.transactionHash };
-      },
-      sendBatchTransaction: async (calls) => {
-        const receipt = await account.sendBatchTransaction(calls);
-        return { transactionHash: receipt.transactionHash };
-      }
-    };
-  }
-  const Delegation77022 = account.delegationAddress && account.smartAccountAddress && account.delegationAddress.toLowerCase() !== account.smartAccountAddress.toLowerCase() ? account.delegationAddress : void 0;
-  return __spreadProps(__spreadValues({
-    provider: normalizeAAProvider(account.provider),
-    mode: "7702",
-    address: address3
-  }, Delegation77022 ? { Delegation7702: Delegation77022 } : {}), {
-    sendTransaction: async (call) => {
-      const receipt = await account.sendTransaction(call);
-      return { transactionHash: receipt.transactionHash };
-    },
-    sendBatchTransaction: async (calls) => {
-      const receipt = await account.sendBatchTransaction(calls);
-      return { transactionHash: receipt.transactionHash };
-    }
-  });
-}
-function isAlchemySponsorshipLimitError(error) {
-  const message = error instanceof Error ? error.message : String(error != null ? error : "");
-  const normalized = message.toLowerCase();
-  return normalized.includes("gas sponsorship limit") || normalized.includes("put your team over your gas sponsorship limit") || normalized.includes("buy gas credits in your gas manager dashboard");
-}
-
-// src/aa/owner.ts
-var import_accounts2 = require("viem/accounts");
-function getDirectOwnerParams(owner) {
-  return {
-    kind: "ready",
-    ownerParams: {
-      para: void 0,
-      signer: (0, import_accounts2.privateKeyToAccount)(owner.privateKey)
-    }
-  };
-}
-function getParaSessionOwnerParams(owner) {
-  if (owner.signer) {
-    return {
-      kind: "ready",
-      ownerParams: __spreadValues({
-        para: owner.session,
-        signer: owner.signer
-      }, owner.address ? { address: owner.address } : {})
-    };
-  }
-  return {
-    kind: "ready",
-    ownerParams: __spreadValues({
-      para: owner.session
-    }, owner.address ? { address: owner.address } : {})
-  };
-}
-function getSessionOwnerParams(owner) {
-  switch (owner.adapter) {
-    case "para":
-      return getParaSessionOwnerParams(owner);
-    default:
-      return { kind: "unsupported_adapter", adapter: owner.adapter };
-  }
-}
-function getExternalWalletOwnerParams(owner) {
-  return {
-    kind: "ready",
-    ownerParams: {
-      para: void 0,
-      signer: owner.signer,
-      address: owner.address
-    }
-  };
-}
-function getOwnerParams(owner) {
-  if (!owner) {
-    return { kind: "missing" };
-  }
-  switch (owner.kind) {
-    case "direct":
-      return getDirectOwnerParams(owner);
-    case "session":
-      return getSessionOwnerParams(owner);
-    case "external-wallet":
-      return getExternalWalletOwnerParams(owner);
-  }
-}
-function getMissingOwnerState(resolved, provider) {
-  return {
-    resolved,
-    account: null,
-    pending: false,
-    error: new Error(
-      `${provider} AA account creation requires a direct owner or a supported session owner.`
-    )
-  };
-}
-function getUnsupportedAdapterState(resolved, adapter) {
-  return {
-    resolved,
-    account: null,
-    pending: false,
-    error: new Error(`Session adapter "${adapter}" is not implemented.`)
-  };
-}
-function getUnsupportedOwnerState(resolved, provider, ownerKind, message) {
-  return {
-    resolved,
-    account: null,
-    pending: false,
-    error: new Error(
-      message != null ? message : `${provider} AA does not support ${ownerKind} owners in this build.`
-    )
-  };
-}
-
-// src/aa/alchemy/create.ts
-var ALCHEMY_7702_DELEGATION_ADDRESS = "0x69007702764179f14F51cdce752f4f775d74E139";
-var AA_DEBUG_ENABLED = process.env.AOMI_AA_DEBUG === "1";
-function extractExistingAccountAddress(error) {
-  var _a;
-  const message = error instanceof Error ? error.message : String(error);
-  const match = message.match(
-    /Account with address (0x[a-fA-F0-9]{40}) already exists/
-  );
-  return (_a = match == null ? void 0 : match[1]) != null ? _a : null;
-}
-function deriveAlchemy4337AccountId(address3) {
-  var _a;
-  const hex = address3.toLowerCase().slice(2).padEnd(32, "0").slice(0, 32).split("");
-  const namespace = ["4", "3", "3", "7", "5", "a", "a", "b"];
-  for (let index = 0; index < namespace.length; index += 1) {
-    hex[index] = namespace[index];
-  }
-  hex[12] = "4";
-  const variant = Number.parseInt((_a = hex[16]) != null ? _a : "0", 16);
-  hex[16] = (variant & 3 | 8).toString(16);
-  return [
-    hex.slice(0, 8).join(""),
-    hex.slice(8, 12).join(""),
-    hex.slice(12, 16).join(""),
-    hex.slice(16, 20).join(""),
-    hex.slice(20, 32).join("")
-  ].join("-");
-}
-function aaDebug(message, fields) {
-  if (!AA_DEBUG_ENABLED) return;
-  if (fields) {
-    console.debug(`[aomi][aa][alchemy] ${message}`, fields);
-    return;
-  }
-  console.debug(`[aomi][aa][alchemy] ${message}`);
-}
-async function createAlchemySdkState(params) {
-  const { createAlchemySmartAccount } = await import("@getpara/aa-alchemy");
-  const smartAccount = await createAlchemySmartAccount(__spreadProps(__spreadValues({}, params.ownerParams), {
-    apiKey: params.apiKey,
-    gasPolicyId: params.gasPolicyId,
-    chain: params.chain,
-    rpcUrl: params.rpcUrl,
-    mode: params.mode
-  }));
-  if (!smartAccount) {
-    return {
-      resolved: params.resolved,
-      account: null,
-      pending: false,
-      error: new Error("Alchemy AA account could not be initialized.")
-    };
-  }
-  const ownerAddress = "address" in params.ownerParams ? params.ownerParams.address : void 0;
-  if (!ownerAddress) {
-    return {
-      resolved: params.resolved,
-      account: null,
-      pending: false,
-      error: new Error(
-        "Alchemy AA session owner is missing a wallet address. Connect a wallet first."
-      )
-    };
-  }
-  return {
-    resolved: params.resolved,
-    account: adaptSmartAccount(smartAccount, ownerAddress),
-    pending: false,
-    error: null
-  };
-}
-async function createAlchemyAAState(options) {
-  const { chain, owner, callList, mode } = options;
-  const apiKey = resolveAlchemyApiKey({ apiKey: options.apiKey });
-  const chainConfig = getAAChainConfig(DEFAULT_AA_CONFIG, callList, {
-    [chain.id]: chain
-  });
-  if (!chainConfig) {
-    throw new Error(`AA is not configured for chain ${chain.id}.`);
-  }
-  const effectiveMode = mode != null ? mode : chainConfig.defaultMode;
-  const plan = buildAAExecutionPlan(
-    __spreadProps(__spreadValues({}, DEFAULT_AA_CONFIG), { provider: "alchemy" }),
-    __spreadProps(__spreadValues({}, chainConfig), { defaultMode: effectiveMode })
-  );
-  const sponsored2 = effectiveMode === "4337";
-  const gasPolicyId = sponsored2 ? resolveAlchemyGasPolicyId({ gasPolicyId: options.gasPolicyId }) : void 0;
-  const execution = __spreadProps(__spreadValues({}, plan), {
-    mode: effectiveMode,
-    sponsorship: gasPolicyId ? resolveAASponsorship(effectiveMode, plan.sponsorship) : "disabled"
-  });
-  const ownerParams = getOwnerParams(owner);
-  if (ownerParams.kind === "missing") {
-    return getMissingOwnerState(execution, "alchemy");
-  }
-  if (ownerParams.kind === "unsupported_adapter") {
-    return getUnsupportedAdapterState(execution, ownerParams.adapter);
-  }
-  if (owner.kind === "direct") {
-    const directParams = {
-      resolved: execution,
-      chain,
-      privateKey: owner.privateKey,
-      apiKey,
-      proxyBaseUrl: options.proxyBaseUrl,
-      gasPolicyId
-    };
-    try {
-      return await createAlchemyWalletApisState(directParams);
-    } catch (error) {
-      return {
-        resolved: execution,
-        account: null,
-        pending: false,
-        error: error instanceof Error ? error : new Error(String(error))
-      };
-    }
-  }
-  if (owner.kind === "external-wallet") {
-    return getUnsupportedOwnerState(
-      execution,
-      "alchemy",
-      owner.kind,
-      "Alchemy AA external-wallet owners are not implemented yet. Use Pimlico for sessionless external-wallet 4337 execution."
-    );
-  }
-  if (!apiKey) {
-    return {
-      resolved: execution,
-      account: null,
-      pending: false,
-      error: new Error(
-        "Alchemy AA with session/adapter owner requires ALCHEMY_API_KEY."
-      )
-    };
-  }
-  try {
-    return await createAlchemySdkState({
-      resolved: execution,
-      ownerParams: ownerParams.ownerParams,
-      chain,
-      rpcUrl: options.rpcUrl,
-      apiKey,
-      gasPolicyId,
-      mode: execution.mode
-    });
-  } catch (error) {
-    return {
-      resolved: execution,
-      account: null,
-      pending: false,
-      error: error instanceof Error ? error : new Error(String(error))
-    };
-  }
-}
-async function createAlchemyWalletApisState(params) {
-  const { createSmartWalletClient, alchemyWalletTransport } = await import("@alchemy/wallet-apis");
-  const transport = params.proxyBaseUrl ? alchemyWalletTransport({ url: params.proxyBaseUrl }) : alchemyWalletTransport({ apiKey: params.apiKey });
-  const signer = (0, import_accounts3.privateKeyToAccount)(params.privateKey);
-  const alchemyClient = createSmartWalletClient(__spreadValues({
-    transport,
-    chain: params.chain,
-    signer
-  }, params.gasPolicyId ? { paymaster: { policyId: params.gasPolicyId } } : {}));
-  const signerAddress = signer.address;
-  let accountAddress = signerAddress;
-  if (params.resolved.mode === "4337") {
-    const accountId = deriveAlchemy4337AccountId(signerAddress);
-    aaDebug("4337:requestAccount:start", {
-      signerAddress,
-      chainId: params.chain.id,
-      accountId,
-      hasGasPolicyId: Boolean(params.gasPolicyId)
-    });
-    try {
-      const account = await alchemyClient.requestAccount({
-        signerAddress,
-        id: accountId,
-        creationHint: {
-          accountType: "sma-b",
-          createAdditional: true
-        }
-      });
-      accountAddress = account.address;
-    } catch (error) {
-      const existingAccountAddress = extractExistingAccountAddress(error);
-      if (!existingAccountAddress) {
-        throw error;
-      }
-      aaDebug("4337:requestAccount:existing-account", {
-        signerAddress,
-        existingAccountAddress
-      });
-      const account = await alchemyClient.requestAccount({
-        accountAddress: existingAccountAddress
-      });
-      accountAddress = account.address;
-    }
-    aaDebug("4337:requestAccount:done", { signerAddress, accountAddress });
-  }
-  const sendCalls = async (calls) => {
-    var _a, _b, _c, _d;
-    aaDebug(`${params.resolved.mode}:sendCalls:start`, {
-      signerAddress,
-      accountAddress,
-      chainId: params.chain.id,
-      callCount: calls.length,
-      hasGasPolicyId: Boolean(params.gasPolicyId)
-    });
-    try {
-      const result = await alchemyClient.sendCalls(__spreadProps(__spreadValues({}, params.resolved.mode === "4337" ? { account: accountAddress } : {}), {
-        calls
-      }));
-      aaDebug(`${params.resolved.mode}:sendCalls:submitted`, {
-        callId: result.id
-      });
-      const status = await alchemyClient.waitForCallsStatus({ id: result.id });
-      const transactionHash = (_b = (_a = status.receipts) == null ? void 0 : _a[0]) == null ? void 0 : _b.transactionHash;
-      aaDebug(`${params.resolved.mode}:sendCalls:receipt`, {
-        callId: result.id,
-        hasTransactionHash: Boolean(transactionHash),
-        receipts: (_d = (_c = status.receipts) == null ? void 0 : _c.length) != null ? _d : 0
-      });
-      if (!transactionHash) {
-        throw new Error(
-          "Alchemy Wallets API did not return a transaction hash."
-        );
-      }
-      return { transactionHash };
-    } catch (error) {
-      aaDebug(`${params.resolved.mode}:sendCalls:error`, {
-        signerAddress,
-        accountAddress,
-        chainId: params.chain.id,
-        error: error instanceof Error ? error.message : String(error)
-      });
-      throw error;
-    }
-  };
-  const smartAccount = __spreadProps(__spreadValues({
-    provider: "alchemy",
-    mode: params.resolved.mode,
-    address: signerAddress
-  }, params.resolved.mode === "4337" ? { SmartAccount4337: accountAddress } : { Delegation7702: ALCHEMY_7702_DELEGATION_ADDRESS }), {
-    sendTransaction: async (call) => sendCalls([call]),
-    sendBatchTransaction: async (calls) => sendCalls(calls)
-  });
-  return {
-    resolved: params.resolved,
-    account: smartAccount,
-    pending: false,
-    error: null
-  };
-}
-
-// src/aa/pimlico/resolve.ts
-function resolvePimlicoConfig(options) {
-  var _a, _b, _c;
-  const {
-    calls,
-    localPrivateKey,
-    accountAbstractionConfig = DEFAULT_AA_CONFIG,
-    chainsById,
-    rpcUrl,
-    modeOverride,
-    publicOnly = false,
-    throwOnMissingConfig = false,
-    apiKey: preResolvedApiKey
-  } = options;
-  if (!calls || localPrivateKey) {
-    return null;
-  }
-  const config = __spreadProps(__spreadValues({}, accountAbstractionConfig), {
-    provider: "pimlico"
-  });
-  const chainConfig = getAAChainConfig(config, calls, chainsById);
-  if (!chainConfig) {
-    if (throwOnMissingConfig) {
-      const chainIds = Array.from(new Set(calls.map((c) => c.chainId)));
-      throw new Error(
-        `AA is not configured for chain ${chainIds[0]}, or batching is disabled for that chain.`
-      );
-    }
-    return null;
-  }
-  const apiKey = (_c = preResolvedApiKey != null ? preResolvedApiKey : (_a = process.env.PIMLICO_API_KEY) == null ? void 0 : _a.trim()) != null ? _c : publicOnly ? (_b = process.env.NEXT_PUBLIC_PIMLICO_API_KEY) == null ? void 0 : _b.trim() : void 0;
-  if (!apiKey) {
-    if (throwOnMissingConfig) {
-      throw new Error("Pimlico AA requires PIMLICO_API_KEY.");
-    }
-    return null;
-  }
-  const chain = chainsById[chainConfig.chainId];
-  if (!chain) {
-    return null;
-  }
-  if (modeOverride && !chainConfig.supportedModes.includes(modeOverride)) {
-    if (throwOnMissingConfig) {
-      throw new Error(
-        `AA mode "${modeOverride}" is not supported on chain ${chainConfig.chainId}.`
-      );
-    }
-    return null;
-  }
-  const resolvedChainConfig = modeOverride ? __spreadProps(__spreadValues({}, chainConfig), { defaultMode: modeOverride }) : chainConfig;
-  const resolved = buildAAExecutionPlan(config, resolvedChainConfig);
-  return __spreadProps(__spreadValues({}, resolved), {
-    apiKey,
-    chain,
-    rpcUrl,
-    mode: resolvedChainConfig.defaultMode
-  });
-}
-
-// src/aa/pimlico/provider.ts
-function createPimlicoAAProvider({
-  accountAbstractionConfig = DEFAULT_AA_CONFIG,
-  usePimlicoAA,
-  chainsById,
-  rpcUrl
-}) {
-  return function usePimlicoAAProvider(calls, localPrivateKey) {
-    var _a;
-    const resolved = resolvePimlicoConfig({
-      calls,
-      localPrivateKey,
-      accountAbstractionConfig,
-      chainsById,
-      rpcUrl,
-      publicOnly: true
-    });
-    const params = resolved ? {
-      enabled: true,
-      apiKey: resolved.apiKey,
-      chain: resolved.chain,
-      mode: resolved.mode,
-      rpcUrl: resolved.rpcUrl
-    } : void 0;
-    const query = usePimlicoAA(params);
-    return {
-      resolved: resolved != null ? resolved : null,
-      account: query.account,
-      pending: Boolean(resolved && query.pending),
-      error: (_a = query.error) != null ? _a : null
-    };
-  };
-}
-
-// src/aa/pimlico/create.ts
-var import_accounts4 = require("viem/accounts");
-var AA_DEBUG_ENABLED2 = process.env.AOMI_AA_DEBUG === "1";
-function pimDebug(message, fields) {
-  if (!AA_DEBUG_ENABLED2) return;
-  if (fields) {
-    console.debug(`[aomi][aa][pimlico] ${message}`, fields);
-    return;
-  }
-  console.debug(`[aomi][aa][pimlico] ${message}`);
-}
-async function createPimlicoAAState(options) {
-  var _a, _b;
-  const { chain, owner, callList, mode } = options;
-  const chainConfig = getAAChainConfig(DEFAULT_AA_CONFIG, callList, {
-    [chain.id]: chain
-  });
-  if (!chainConfig) {
-    throw new Error(`AA is not configured for chain ${chain.id}.`);
-  }
-  const effectiveMode = mode != null ? mode : chainConfig.defaultMode;
-  const plan = buildAAExecutionPlan(
-    __spreadProps(__spreadValues({}, DEFAULT_AA_CONFIG), { provider: "pimlico" }),
-    __spreadProps(__spreadValues({}, chainConfig), { defaultMode: effectiveMode })
-  );
-  const apiKey = (_b = options.apiKey) != null ? _b : (_a = process.env.PIMLICO_API_KEY) == null ? void 0 : _a.trim();
-  if (!apiKey) {
-    throw new Error("Pimlico AA requires PIMLICO_API_KEY.");
-  }
-  const execution = __spreadProps(__spreadValues({}, plan), {
-    mode: effectiveMode,
-    sponsorship: resolveAASponsorship(effectiveMode, plan.sponsorship)
-  });
-  const ownerParams = getOwnerParams(owner);
-  if (ownerParams.kind === "missing") {
-    return getMissingOwnerState(execution, "pimlico");
-  }
-  if (ownerParams.kind === "unsupported_adapter") {
-    return getUnsupportedAdapterState(execution, ownerParams.adapter);
-  }
-  const permissionlessSigner = owner.kind === "session" || owner.kind === "external-wallet" ? resolvePimlicoSessionSigner(ownerParams.ownerParams) : null;
-  try {
-    const signer = owner.kind === "direct" ? (0, import_accounts4.privateKeyToAccount)(owner.privateKey) : permissionlessSigner;
-    if (signer) {
-      return await createPimlicoPermissionlessState({
-        resolved: execution,
-        chain,
-        signer,
-        externalSigner: (owner.kind === "session" || owner.kind === "external-wallet") && "signer" in ownerParams.ownerParams ? ownerParams.ownerParams.signer : void 0,
-        rpcUrl: options.rpcUrl,
-        apiKey,
-        mode: effectiveMode
-      });
-    }
-    const { createPimlicoSmartAccount } = await import("@getpara/aa-pimlico");
-    const smartAccount = await createPimlicoSmartAccount(__spreadProps(__spreadValues({}, ownerParams.ownerParams), {
-      apiKey,
-      chain,
-      rpcUrl: options.rpcUrl,
-      mode: execution.mode
-    }));
-    if (!smartAccount) {
-      return {
-        resolved: execution,
-        account: null,
-        pending: false,
-        error: new Error("Pimlico AA account could not be initialized.")
-      };
-    }
-    const ownerAddress = "address" in ownerParams.ownerParams ? ownerParams.ownerParams.address : void 0;
-    if (!ownerAddress) {
-      return {
-        resolved: execution,
-        account: null,
-        pending: false,
-        error: new Error(
-          "Pimlico AA session owner is missing a wallet address. Connect a wallet first."
-        )
-      };
-    }
-    const account = adaptPimlicoSdkAccount(smartAccount, ownerAddress);
-    return {
-      resolved: execution,
-      account,
-      pending: false,
-      error: null
-    };
-  } catch (error) {
-    return {
-      resolved: execution,
-      account: null,
-      pending: false,
-      error: error instanceof Error ? error : new Error(String(error))
-    };
-  }
-}
-function buildPimlicoRpcUrl(chain, apiKey) {
-  const slug = chain.name.toLowerCase().replace(/\s+/g, "-");
-  return `https://api.pimlico.io/v2/${slug}/rpc?apikey=${apiKey}`;
-}
-function isExternalWalletSigner(signer) {
-  return !!signer && typeof signer === "object" && "transport" in signer && "account" in signer;
-}
-function resolvePimlicoSessionSigner(ownerParams) {
-  if (!("signer" in ownerParams) || !ownerParams.signer) {
-    return null;
-  }
-  if (!isExternalWalletSigner(ownerParams.signer)) {
-    return ownerParams.signer;
-  }
-  const account = ownerParams.signer.account;
-  if (!(account == null ? void 0 : account.address)) {
-    throw new Error(
-      "[resolvePimlicoSessionSigner] WalletClient must have an account set."
-    );
-  }
-  const externalSigner = ownerParams.signer;
-  return {
-    address: account.address,
-    publicKey: "0x",
-    source: "custom",
-    type: "local",
-    sign: async ({ hash }) => externalSigner.signMessage({
-      account: account.address,
-      message: { raw: hash }
-    }),
-    signMessage: async ({ message }) => externalSigner.signMessage({
-      account: account.address,
-      message
-    }),
-    signTransaction: async (tx) => externalSigner.signTransaction(__spreadProps(__spreadValues({}, tx), {
-      account
-    })),
-    signTypedData: async (typedData) => externalSigner.signTypedData(__spreadProps(__spreadValues({}, typedData), {
-      account: account.address
-    })),
-    signAuthorization: async () => {
-      throw new Error(
-        "EIP-7702 account delegation (signAuthorization) is not supported with external wallets."
-      );
-    }
-  };
-}
-async function ensureExternalWalletChain(signer, chain) {
-  if (!isExternalWalletSigner(signer)) return;
-  const currentChainId = await signer.getChainId();
-  if (currentChainId !== chain.id) {
-    throw new Error(
-      `External wallet is on chain ${currentChainId} but smart account targets chain ${chain.id} (${chain.name}).`
-    );
-  }
-}
-function rejectExternalWallet7702(signer) {
-  if (!isExternalWalletSigner(signer)) return;
-  throw new Error(
-    "EIP-7702 mode is not supported with external wallets. Use an embedded wallet or 4337 mode."
-  );
-}
-function adaptPimlicoSdkAccount(account, address3) {
-  const lowered = account.provider.toLowerCase();
-  if (lowered !== "alchemy" && lowered !== "pimlico") {
-    throw new Error(
-      `Unsupported AA provider from Pimlico SDK: ${account.provider}`
-    );
-  }
-  const provider = lowered;
-  if (account.mode === "4337") {
-    return {
-      provider,
-      mode: "4337",
-      address: address3,
-      SmartAccount4337: account.smartAccountAddress,
-      sendTransaction: async (call) => account.sendTransaction(call),
-      sendBatchTransaction: async (calls) => account.sendBatchTransaction(calls)
-    };
-  }
-  return __spreadProps(__spreadValues({
-    provider,
-    mode: "7702",
-    address: address3
-  }, account.delegationAddress ? { Delegation7702: account.delegationAddress } : {}), {
-    sendTransaction: async (call) => account.sendTransaction(call),
-    sendBatchTransaction: async (calls) => account.sendBatchTransaction(calls)
-  });
-}
-async function createPimlicoPermissionlessState(params) {
-  const { createSmartAccountClient } = await import("permissionless");
-  const { toSimpleSmartAccount, to7702SimpleSmartAccount } = await import("permissionless/accounts");
-  const { createPimlicoClient } = await import("permissionless/clients/pimlico");
-  const { createPublicClient: createPublicClient2, http: http2 } = await import("viem");
-  const { entryPoint07Address, entryPoint08Address, prepareUserOperation } = await import("viem/account-abstraction");
-  const signerAddress = params.signer.address;
-  const pimlicoRpcUrl = buildPimlicoRpcUrl(params.chain, params.apiKey);
-  const sponsored2 = params.resolved.sponsorship !== "disabled";
-  const entryPoint = params.mode === "7702" ? { address: entryPoint08Address, version: "0.8" } : { address: entryPoint07Address, version: "0.7" };
-  pimDebug(`${params.mode}:start`, {
-    signerAddress,
-    chainId: params.chain.id,
-    sponsored: sponsored2,
-    pimlicoRpcUrl: pimlicoRpcUrl.replace(params.apiKey, "***")
-  });
-  const publicClient = createPublicClient2({
-    chain: params.chain,
-    transport: http2(params.rpcUrl)
-  });
-  if (params.mode === "7702") {
-    rejectExternalWallet7702(params.externalSigner);
-  }
-  const paymasterClient = sponsored2 ? createPimlicoClient({
-    entryPoint,
-    transport: http2(pimlicoRpcUrl)
-  }) : void 0;
-  const smartAccount = params.mode === "7702" ? await to7702SimpleSmartAccount({
-    client: publicClient,
-    owner: params.signer,
-    entryPoint
-  }) : await toSimpleSmartAccount({
-    client: publicClient,
-    owner: params.signer,
-    entryPoint
-  });
-  if (params.mode === "7702") {
-    smartAccount.isDeployed = async () => false;
-  }
-  const accountAddress = smartAccount.address;
-  pimDebug(`${params.mode}:account-created`, {
-    signerAddress,
-    accountAddress
-  });
-  const userOperation = __spreadValues(__spreadValues({}, paymasterClient ? {
-    estimateFeesPerGas: async () => {
-      const gasPrice = await paymasterClient.getUserOperationGasPrice();
-      return gasPrice.fast;
-    }
-  } : {}), params.mode === "7702" ? {
-    prepareUserOperation: async (client, args) => {
-      const prepared = await prepareUserOperation(client, args);
-      if (prepared.authorization && params.signer.signAuthorization) {
-        prepared.authorization = await params.signer.signAuthorization({
-          contractAddress: prepared.authorization.address,
-          chainId: prepared.authorization.chainId,
-          nonce: prepared.authorization.nonce
-        });
-      }
-      return prepared;
-    }
-  } : {});
-  const smartAccountClient = createSmartAccountClient(__spreadProps(__spreadValues({
-    account: smartAccount,
-    chain: params.chain,
-    bundlerTransport: http2(pimlicoRpcUrl)
-  }, paymasterClient ? { paymaster: paymasterClient } : {}), {
-    userOperation
-  }));
-  const sendCalls = async (calls) => {
-    pimDebug(`${params.mode}:send:start`, {
-      accountAddress,
-      chainId: params.chain.id,
-      callCount: calls.length
-    });
-    await ensureExternalWalletChain(params.externalSigner, params.chain);
-    try {
-      const hash = await smartAccountClient.sendTransaction({
-        account: smartAccount,
-        calls: calls.map((c) => {
-          var _a;
-          return {
-            to: c.to,
-            value: c.value,
-            data: (_a = c.data) != null ? _a : "0x"
-          };
-        })
-      });
-      pimDebug(`${params.mode}:send:userOpHash`, { hash });
-      const receipt = await publicClient.waitForTransactionReceipt({
-        hash
-      });
-      pimDebug(`${params.mode}:send:confirmed`, {
-        transactionHash: receipt.transactionHash,
-        status: receipt.status
-      });
-      return { transactionHash: receipt.transactionHash };
-    } catch (error) {
-      throw error instanceof Error ? error : new Error(String(error));
-    }
-  };
-  const account = params.mode === "4337" ? {
-    provider: "pimlico",
-    mode: "4337",
-    address: signerAddress,
-    SmartAccount4337: accountAddress,
-    sendTransaction: async (call) => sendCalls([call]),
-    sendBatchTransaction: async (calls) => sendCalls(calls)
-  } : {
-    provider: "pimlico",
-    mode: "7702",
-    address: signerAddress,
-    sendTransaction: async (call) => sendCalls([call]),
-    sendBatchTransaction: async (calls) => sendCalls(calls)
-  };
-  return {
-    resolved: params.resolved,
-    account,
-    pending: false,
-    error: null
-  };
-}
-
-// src/aa/create.ts
-async function createAAProviderState(options) {
-  if (options.provider === "alchemy") {
-    return createAlchemyAAState({
-      chain: options.chain,
-      owner: options.owner,
-      rpcUrl: options.rpcUrl,
-      callList: options.callList,
-      mode: options.mode,
-      apiKey: options.apiKey,
-      gasPolicyId: options.gasPolicyId,
-      sponsored: options.sponsored,
-      proxyBaseUrl: options.proxyBaseUrl
-    });
-  }
-  return createPimlicoAAState({
-    chain: options.chain,
-    owner: options.owner,
-    rpcUrl: options.rpcUrl,
-    callList: options.callList,
-    mode: options.mode,
-    apiKey: options.apiKey
-  });
-}
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   ALCHEMY_CHAIN_SLUGS,
@@ -5151,8 +4441,6 @@ async function createAAProviderState(options) {
   CHAIN_NAMES,
   CLIENT_TYPE_TS_CLI,
   CLIENT_TYPE_WEB_UI,
-  DEFAULT_AA_CONFIG,
-  DISABLED_PROVIDER_STATE,
   MAX_AUTO_FEE_WEI,
   SUPPORTED_CHAINS,
   SUPPORTED_CHAIN_IDS,
@@ -5160,40 +4448,46 @@ async function createAAProviderState(options) {
   TypedEventEmitter,
   UserState,
   aaModeFromExecutionKind,
-  adaptSmartAccount,
   appIdentityKey,
   appendFeeCallToPayload,
-  buildAAExecutionPlan,
+  authorizationChallenge,
+  authorizationCommit,
   buildFeeAAWalletCall,
-  createAAProviderState,
+  buildSiwsMessage,
   createAccountBearerProvider,
-  createAlchemyAAProvider,
-  createPimlicoAAProvider,
+  createProviderCredentialAdapter,
+  createSiweWidgetAuthAdapter,
+  createSiwsWidgetAuthAdapter,
   createWidgetSessionProvider,
+  ensureSvmWalletBound,
+  ensureSvmWalletBoundVia,
   executeWalletCalls,
-  getAAChainConfig,
-  getWalletExecutorReady,
+  handlePaymentChallenges,
   hydrateTxPayloadFromUserState,
-  isAlchemySponsorshipLimitError,
   isAsyncCallback,
   isInlineCall,
   isSystemError,
   isSystemNotice,
+  isUnboundWalletError,
   monad,
   monadTestnet,
   normalizeAppDescriptor,
   normalizeEip712Payload,
   normalizeSimulatedFee,
+  normalizeSolanaCluster,
   normalizeSolanaSignMessagePayload,
   normalizeSolanaSignPayload,
   normalizeSolanaWalletRequest,
   normalizeTxPayload,
   parseChainId,
-  resolvePimlicoConfig,
+  posterFromClient,
+  robinhood,
+  safeEnv,
   toAAWalletCall,
   toAAWalletCalls,
   toViemSignMessageArgs,
   toViemSignTypedDataArgs,
-  unwrapSystemEvent
+  unwrapSystemEvent,
+  wrapFetchWithPaymentChallenges
 });
 //# sourceMappingURL=index.cjs.map

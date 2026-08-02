@@ -8,9 +8,47 @@ import {
   activateLaunchRoute,
   launchAppRoute,
   launchDeployRoute,
+  launchSdkStatusRoute,
   launchStatusRoute,
   redeployLaunchRoute,
 } from "./routes";
+
+const telemetry = vi.hoisted(() => ({
+  capture: vi.fn(),
+  log: vi.fn(),
+}));
+
+vi.mock("@portal/server/bff/failures", async () => {
+  const { classifyFailure, identifyFailure } =
+    await import("@aomi-labs/bff-observability");
+  return {
+    portalFailures: {
+      handle: (input: Parameters<typeof identifyFailure>[0]) => {
+        const decision = classifyFailure(identifyFailure(input));
+        const eventContext = {
+          ...decision.context,
+          status: decision.responseStatus,
+          ...(decision.upstream ? { upstream: decision.upstream } : {}),
+          ...(decision.upstreamStatus !== undefined
+            ? { upstreamStatus: decision.upstreamStatus }
+            : {}),
+        };
+        if (decision.action === "issue") {
+          telemetry.capture(decision.error, eventContext);
+        } else if (decision.action === "log") {
+          telemetry.log(eventContext);
+        }
+        return {
+          ...decision,
+          response: Response.json(
+            { error: decision.responseError },
+            { status: decision.responseStatus },
+          ),
+        };
+      },
+    },
+  };
+});
 
 vi.mock("@aomi-labs/account", () => ({
   portalService: () => ({
@@ -25,6 +63,11 @@ const getGitHubSession = vi.fn();
 vi.mock("@portal/server/cookies/github", () => ({
   getGitHubSession: () => getGitHubSession(),
 }));
+
+beforeEach(() => {
+  telemetry.capture.mockReset();
+  telemetry.log.mockReset();
+});
 
 function writeReq(body: unknown) {
   return new Request("http://localhost:3000/api/bff/launch/redeploy", {
@@ -224,7 +267,7 @@ describe("launchDeployRoute", () => {
     );
   });
 
-  it("propagates BackendError status codes (400-599)", async () => {
+  it("preserves expected BackendError 4xx responses", async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(ownedSources(123))
@@ -461,7 +504,7 @@ describe("launchDeployRoute", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("returns 502 for non-BackendError exceptions", async () => {
+  it("preserves the existing 502 contract for a backend network exception", async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(ownedSources(123))
@@ -483,6 +526,44 @@ describe("launchDeployRoute", () => {
 
     const res = await POST(req);
     expect(res.status).toBe(502);
+    await expect(res.json()).resolves.toEqual({
+      error: "deploy request failed",
+    });
+    expect(telemetry.capture).toHaveBeenCalledTimes(1);
+    expect(telemetry.log).not.toHaveBeenCalled();
+  });
+});
+
+describe("launchSdkStatusRoute", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+
+  it("prints the configured backend URL in the local SDK repair command", async () => {
+    vi.stubEnv("BACKEND_URL", "");
+    vi.stubEnv("NEXT_PUBLIC_BACKEND_URL", "https://api.example.test/");
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        Response.json({ server_tags: ["staging"], sdk_version: "3.0.2" }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await launchSdkStatusRoute(
+      new Request("https://build.example.test/api/bff/launch/sdk-status"),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.sdkStatus.fixCommand).toBe(
+      "aomi-build sdk fix --backend https://api.example.test",
+    );
+    expect(body.sdkStatus.fixCommand).not.toContain("build.example.test");
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(String(fetchMock.mock.calls[0][0])).toBe(
+      "https://api.example.test/api/platforms/server-tags",
+    );
   });
 });
 
@@ -499,6 +580,36 @@ describe("deploymentPromoteRoute", () => {
       body: JSON.stringify(body),
     });
   }
+
+  it("logs a swallowed deployment-records 5xx without creating an Issue", async () => {
+    getGitHubSession.mockResolvedValue({
+      githubUserId: "42",
+      githubLogin: "alice",
+    });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(activationSource())
+      .mockResolvedValueOnce(
+        Response.json({ error: "private backend detail" }, { status: 503 }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await deploymentPromoteRoute(
+      promoteReq({ deploymentId: DEPLOYMENT, appSourceId: 99 }),
+    );
+
+    expect(res.status).toBe(404);
+    expect(telemetry.capture).not.toHaveBeenCalled();
+    expect(telemetry.log).toHaveBeenCalledTimes(1);
+    expect(telemetry.log).toHaveBeenCalledWith({
+      routeFamily: "/api/bff/deployments/promote",
+      operation: "deployment.records_lookup",
+      method: "POST",
+      status: 503,
+      upstream: "rust",
+      upstreamStatus: 503,
+    });
+  });
 
   beforeEach(() => {
     getGitHubSession.mockResolvedValue({
@@ -576,6 +687,7 @@ describe("deploymentPromoteRoute", () => {
   });
 
   it("promotes an owned deployment and attributes the GitHub login", async () => {
+    vi.stubEnv("GITHUB_TOKEN", "gh-token");
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(ownedSources(99))
@@ -583,9 +695,9 @@ describe("deploymentPromoteRoute", () => {
       // sourceDeploymentPairs re-reads the same DB records to derive the
       // secret-gate pairs.
       .mockResolvedValueOnce(appRecords(DEPLOYMENT))
-      // No GITHUB_TOKEN is stubbed for this test, so
-      // missingSecretsForActivation fails open (token-first check) before
-      // ever fetching deployment state — no 4th call is made here.
+      .mockResolvedValueOnce(latestDeploymentResponse("aomi-labs/community"))
+      .mockResolvedValueOnce(Response.json({ by_app: {} }))
+      .mockResolvedValueOnce(Response.json({ assets: [] }))
       .mockResolvedValueOnce(
         Response.json({
           ok: true,
@@ -605,7 +717,7 @@ describe("deploymentPromoteRoute", () => {
     expect(res.status).toBe(202);
     expect(body.ok).toBe(true);
     expect(body.promote.deploymentId).toBe(DEPLOYMENT);
-    const [promoteUrl, promoteInit] = fetchMock.mock.calls[3];
+    const [promoteUrl, promoteInit] = fetchMock.mock.calls[6];
     expect(String(promoteUrl)).toContain(`/deployments/${DEPLOYMENT}/promote`);
     expect(String(promoteInit?.body)).toContain('"actor":"alice"');
   });
@@ -1165,13 +1277,14 @@ describe("activateLaunchRoute", () => {
   });
 
   it("activates only an owned app/tag pair", async () => {
+    vi.stubEnv("GITHUB_TOKEN", "gh-token");
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(activationSource())
       .mockResolvedValueOnce(sourceDeployments())
-      // No GITHUB_TOKEN is stubbed for this test, so
-      // missingSecretsForActivation fails open (token-first check) before
-      // ever fetching deployment state.
+      .mockResolvedValueOnce(latestDeploymentResponse("aomi-labs/community"))
+      .mockResolvedValueOnce(Response.json({ by_app: {} }))
+      .mockResolvedValueOnce(Response.json({ assets: [] }))
       .mockResolvedValueOnce(
         Response.json({ ok: true, activation: { apps: [] } }),
       );
@@ -1185,8 +1298,8 @@ describe("activateLaunchRoute", () => {
       }),
     );
     expect(res.status).toBe(200);
-    expect(fetchMock).toHaveBeenCalledTimes(3);
-    expect(fetchMock.mock.calls[2][1]).toMatchObject({
+    expect(fetchMock).toHaveBeenCalledTimes(6);
+    expect(fetchMock.mock.calls[5][1]).toMatchObject({
       method: "POST",
       body: JSON.stringify({
         target: {

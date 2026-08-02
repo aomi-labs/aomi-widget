@@ -1,0 +1,84 @@
+<svg width="1140" height="820" viewBox="0 0 1140 820" xmlns="http://www.w3.org/2000/svg" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" role="img" aria-label="SIWE, Privy, and Para login lanes converge through normalization and transactional linking into one first-party session">
+<defs>
+<marker id="a" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#6b7280"/></marker>
+<style>
+text{font-family:ui-monospace, SFMono-Regular, Menlo, monospace;}
+.h{font-size:14px;font-weight:700}
+.b{font-size:12px;fill:#1f2937}
+.s{font-size:11.5px;fill:#6b7280}
+.arw{stroke:#6b7280;stroke-width:1.5;fill:none}
+</style>
+</defs>
+
+<!-- SIWE lane -->
+<rect x="40" y="46" width="310" height="380" rx="10" fill="#f6fcf9" stroke="#1D9E75" stroke-width="1.4"/>
+<text x="60" y="76" class="h" fill="#0F6E56">SIWE</text>
+<text x="60" y="96" class="s">external / smart-account wallet</text>
+<line x1="60" y1="110" x2="330" y2="110" stroke="#cdeadd"/>
+<text x="60" y="140" class="b">① nonce challenge binds</text>
+<text x="78" y="160" class="s">user · address · domain · time</text>
+<text x="60" y="192" class="b">② wallet signs the message</text>
+<text x="60" y="224" class="b">③ verify envelope + signature</text>
+<text x="60" y="256" class="b">④ EOA → signature recovery</text>
+<text x="60" y="288" class="b">⑤ smart account → onchain</text>
+<text x="78" y="308" class="s">contract / deployless check</text>
+<line x1="60" y1="336" x2="330" y2="336" stroke="#cdeadd"/>
+<text x="60" y="366" class="b" font-weight="700" fill="#0F6E56">proof of address control</text>
+<text x="60" y="388" class="s">one ceremony, then it is spent</text>
+
+<!-- Privy lane -->
+<rect x="415" y="46" width="310" height="380" rx="10" fill="#faf9ff" stroke="#7F77DD" stroke-width="1.4"/>
+<text x="435" y="76" class="h" fill="#534AB7">PRIVY</text>
+<text x="435" y="96" class="s">identity / access token</text>
+<line x1="435" y1="110" x2="705" y2="110" stroke="#ddd9f7"/>
+<text x="435" y="140" class="b">① provider JWT arrives</text>
+<text x="435" y="172" class="b">② pin the contract:</text>
+<text x="453" y="192" class="s">algorithm · key · issuer · audience</text>
+<text x="435" y="224" class="b">③ check expiry + subject</text>
+<text x="435" y="256" class="b">④ accepted token kind explicit</text>
+<text x="435" y="288" class="b">⑤ parse linked accounts</text>
+<text x="453" y="308" class="s">+ server-side wallet lookup</text>
+<line x1="435" y1="336" x2="705" y2="336" stroke="#ddd9f7"/>
+<text x="435" y="366" class="b" font-weight="700" fill="#534AB7">proof of provider subject</text>
+<text x="435" y="388" class="s">token terminates at the BFF</text>
+
+<!-- Para lane -->
+<rect x="790" y="46" width="310" height="380" rx="10" fill="#eef5fc" stroke="#378ADD" stroke-width="1.4"/>
+<text x="810" y="76" class="h" fill="#185FA5">PARA</text>
+<text x="810" y="96" class="s">session JWT</text>
+<line x1="810" y1="110" x2="1080" y2="110" stroke="#cfe3f6"/>
+<text x="810" y="140" class="b">① session JWT arrives</text>
+<text x="810" y="172" class="b">② resolve JWKS · match kid</text>
+<text x="810" y="204" class="b">③ verify alg · aud · exp · sub</text>
+<text x="810" y="236" class="b">④ normalize wallet claims</text>
+<text x="810" y="268" class="b">⑤ optional live session check</text>
+<text x="828" y="288" class="s">endpoint down ≠ invalid token</text>
+<line x1="810" y1="336" x2="1080" y2="336" stroke="#cfe3f6"/>
+<text x="810" y="366" class="b" font-weight="700" fill="#185FA5">proof of provider subject</text>
+<text x="810" y="388" class="s">token terminates at the BFF</text>
+
+<!-- convergence arrows -->
+<path class="arw" d="M195,426 C195,458 480,452 540,484" marker-end="url(#a)"/>
+<path class="arw" d="M570,426 V484" marker-end="url(#a)"/>
+<path class="arw" d="M945,426 C945,458 660,452 600,484" marker-end="url(#a)"/>
+
+<!-- normalize -->
+<rect x="40" y="488" width="1060" height="64" rx="10" fill="#fafafa" stroke="#9CA3AF" stroke-width="1.3"/>
+<text x="570" y="514" class="h" fill="#374151" text-anchor="middle">NORMALIZE  →  VerifiedCredential { provider, subject, wallets[] }</text>
+<text x="570" y="536" class="s" text-anchor="middle">normalize after verification, never before — an unverified claim is input, not identity</text>
+
+<path class="arw" d="M570,552 V584" marker-end="url(#a)"/>
+
+<!-- transactional linking -->
+<rect x="40" y="588" width="1060" height="90" rx="10" fill="#fffaf0" stroke="#EF9F27" stroke-width="1.4"/>
+<text x="570" y="616" class="h" fill="#B0710F" text-anchor="middle">TRANSACTIONAL LINKING</text>
+<text x="570" y="638" class="b" text-anchor="middle">link provider identity + reconcile attested wallets — one transaction</text>
+<text x="570" y="660" font-size="12px" font-weight="700" fill="#9e3f17" text-anchor="middle">signal already attached elsewhere → conflict · roll back · no session</text>
+
+<path class="arw" d="M570,678 V710" marker-end="url(#a)"/>
+
+<!-- session -->
+<rect x="400" y="714" width="340" height="48" rx="24" fill="#1f2937"/>
+<text x="570" y="744" font-size="13.5px" font-weight="700" fill="#ffffff" text-anchor="middle">FIRST-PARTY SESSION</text>
+<text x="570" y="786" class="s" text-anchor="middle">HttpOnly cookie · days · revocable — the backend never sees any of the ceremonies above</text>
+</svg>

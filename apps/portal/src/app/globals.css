@@ -1,6 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
-@import "@aomi-labs/widget-lib/styles.css";
+@import "@aomi-labs/widget-lib/themes/default.css";
 @source "../../../../apps/shadcn-registry/src/**/*.{ts,tsx}";
 
 @font-face {
@@ -37,7 +37,8 @@
 
 @font-face {
   font-family: "Bauhaus_Chez_Display_2.0";
-  src: url("/assets/fonts/BauhausChezDisplay2.0-SemiBold.otf") format("opentype");
+  src: url("/assets/fonts/BauhausChezDisplay2.0-SemiBold.otf")
+    format("opentype");
   font-weight: 600;
   font-style: normal;
   font-display: swap;
@@ -125,6 +126,14 @@
   font-family: "Bauhaus_Chez_Display_2.0", "Arial Black", sans-serif;
 }
 
+.portal-aomi-frame .aui-composer-wrapper {
+  padding-bottom: 4rem;
+}
+
+.portal-aomi-frame .aui-composer-wrapper .aui-composer-input {
+  min-height: 4.5rem;
+}
+
 :root {
   --apkt-tokens-theme-textInverted: var(--background) !important;
   --apkt-tokens-core-backgroundAccentPrimary: var(--foreground) !important;
@@ -140,4 +149,12 @@
   --apkt-tokens-core-backgroundAccentPrimary: var(--muted) !important;
   --apkt-tokens-core-backgroundAccentSecondary: var(--accent) !important;
   --apkt-tokens-core-foregroundPrimary: var(--foreground) !important;
+}
+
+/* Aomi design-system `aomi-*` tokens + utilities now live in the shared
+   widget theme (@aomi-labs/widget-lib themes/default.css), imported above,
+   so every widget consumer resolves them identically. */
+@theme inline {
+  /* PT Serif display face (loaded in app/layout) — portal-only. */
+  --font-display: var(--font-pt-serif);
 }

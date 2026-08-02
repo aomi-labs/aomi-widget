@@ -1,11 +1,8 @@
 import { createBackendProxy, type AllowedRoute } from "@aomi-labs/account";
-import {
-  withWidgetCors,
-  widgetCorsPreflight,
-} from "@portal/lib/widget-auth/cors";
-import { resolvePortalCanonicalUserId } from "@portal/lib/widget-auth/principal";
+import { resolveCanonicalUserId } from "@portal/server/canonical-session";
 import { launchConfig } from "@portal/server/bff/launch/config";
-import type { NextRequest } from "next/server";
+import { portalFailures } from "@portal/server/bff/failures";
+import { widgetPreflight, widgetRoute } from "@portal/lib/widget-auth/response";
 
 const ALLOWED_ROUTES: AllowedRoute[] = [
   {
@@ -51,6 +48,11 @@ const ALLOWED_ROUTES: AllowedRoute[] = [
     auth: "optional",
   },
   {
+    pattern: /^\/api\/threads\/[^/]+\/(archive|unarchive)$/,
+    methods: new Set(["POST"]),
+    auth: "optional",
+  },
+  {
     pattern: /^\/api\/thread\/events$/,
     methods: new Set(["GET"]),
     auth: "optional",
@@ -63,7 +65,7 @@ const ALLOWED_ROUTES: AllowedRoute[] = [
   {
     pattern: /^\/api\/thread\/models$/,
     methods: new Set(["GET"]),
-    auth: "optional",
+    auth: "none",
   },
   {
     pattern: /^\/api\/thread\/model$/,
@@ -122,7 +124,10 @@ function rewriteLegacyThreadPath(upstreamUrl: URL): void {
 
 const proxy = createBackendProxy({
   allowedRoutes: ALLOWED_ROUTES,
-  resolveCanonicalUserId: resolvePortalCanonicalUserId,
+  resolveCanonicalUserId,
+  observeFailure: (failure) => {
+    portalFailures.handle({ source: "proxy", failure });
+  },
   applyDefaults: (upstreamUrl) => {
     rewriteLegacyThreadPath(upstreamUrl);
     if (
@@ -137,34 +142,20 @@ const proxy = createBackendProxy({
   },
 });
 
-export const GET = withWidgetCors(proxy.GET);
-export const POST = withWidgetCors(proxy.POST);
-export const PUT = withWidgetCors(proxy.PUT);
-export const PATCH = withWidgetCors(proxy.PATCH);
-export const DELETE = withWidgetCors(proxy.DELETE);
+export const GET = widgetRoute(proxy.GET, "proxy.request");
+export const POST = widgetRoute(proxy.POST, "proxy.request");
+export const PUT = widgetRoute(proxy.PUT, "proxy.request");
+export const PATCH = widgetRoute(proxy.PATCH, "proxy.request");
+export const DELETE = widgetRoute(proxy.DELETE, "proxy.request");
 
-export async function OPTIONS(
-  request: NextRequest,
-  context: { params: Promise<{ slug?: string[] }> },
-): Promise<Response> {
-  const method = request.headers
-    .get("access-control-request-method")
-    ?.toUpperCase();
-  if (!method) {
-    return Response.json({ error: "missing_cors_method" }, { status: 400 });
-  }
-  const { slug } = await context.params;
-  const url = new URL(`/api/${(slug ?? []).join("/")}`, request.url);
-  rewriteLegacyThreadPath(url);
-  const route = ALLOWED_ROUTES.find(
-    (candidate) =>
-      candidate.pattern.test(url.pathname) && candidate.methods.has(method),
-  );
-  if (!route) {
-    return Response.json({ error: "Unsupported API route" }, { status: 404 });
-  }
-  return widgetCorsPreflight(request, [...route.methods, "OPTIONS"]);
-}
+export const OPTIONS = widgetPreflight([
+  "GET",
+  "POST",
+  "PUT",
+  "PATCH",
+  "DELETE",
+  "OPTIONS",
+]);
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";

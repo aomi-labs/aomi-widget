@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, PT_Serif } from "next/font/google";
 import { cookies } from "next/headers";
 import "./globals.css";
 import { CookieConsent } from "@portal/components/analytics/cookie-consent";
@@ -21,9 +21,17 @@ const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
 });
 
+// PT Serif — the aomi display face (statement page headings).
+const ptSerif = PT_Serif({
+  subsets: ["latin"],
+  weight: ["400", "700"],
+  variable: "--font-pt-serif",
+});
+
 export const metadata: Metadata = {
   title: "Aomi Labs",
-  description: "A research and engineering group focused on building agentic software for blockchain automation",
+  description:
+    "A research and engineering group focused on building agentic software for blockchain automation",
   icons: {
     icon: "/assets/images/a.svg",
     shortcut: "/assets/images/a.svg",
@@ -44,7 +52,7 @@ export default async function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} ${ptSerif.variable} font-sans antialiased`}
       >
         <GoogleAnalytics />
         <WalletProviders
@@ -53,12 +61,16 @@ export default async function RootLayout({
               ? {
                   address: e2eWallet.address,
                   chainId: e2eWallet.chainId,
+                  svmAddress: e2eWallet.svmAddress,
+                  svmCluster: e2eWallet.svmCluster,
                 }
               : null
           }
         >
           <SettingsInitializer>
-            <div className="relative h-screen w-full overflow-hidden">{children}</div>
+            <div className="relative h-screen w-full overflow-hidden">
+              {children}
+            </div>
           </SettingsInitializer>
         </WalletProviders>
         <CookieConsent />

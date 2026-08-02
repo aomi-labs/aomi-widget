@@ -6,39 +6,42 @@ import { z } from "zod";
 import {
   providerSessionUserSeed,
   verifyProviderCredential,
-} from "../providers/account-credentials";
-import {
-  getOrCreateAomiUserForBetterAuthSession,
-  isIdentityAlreadyLinkedError,
-} from "../service/account-service";
-import { linkVerifiedProviderCredentialForUser } from "../service/provider-exchange";
+} from "../providers";
+import { signInWithVerifiedProviderCredential } from "../service/provider-exchange";
 import { buildAccountResponse } from "../db/queries";
+import { observeAccountDiagnostic } from "../observability";
 import type { AomiAccountCredential } from "../types";
 
-/** aud/iss/exp of a rejected provider token, for the server log. Never the token. */
-function decodeClaimsForLog(token: string): Record<string, unknown> {
+function providerCredentialDiagnostic(token: string) {
   try {
     const { aud, iss, exp, sub } = decodeJwt(token);
     const { kid, alg } = decodeProtectedHeader(token);
-    return { aud, iss, exp, sub_present: Boolean(sub), kid, alg };
+    return {
+      audience: bounded(Array.isArray(aud) ? aud.join(",") : aud),
+      issuer: bounded(iss),
+      expires_at: typeof exp === "number" ? exp : null,
+      subject_present: Boolean(sub),
+      key_id: bounded(kid),
+      algorithm: bounded(alg),
+    };
   } catch {
-    return { decode: "failed (not a JWT?)" };
+    return {
+      audience: null,
+      issuer: null,
+      expires_at: null,
+      subject_present: false,
+      key_id: null,
+      algorithm: null,
+    };
   }
 }
 
-const bodySchema = z.discriminatedUnion("provider", [
-  z.object({
-    provider: z.literal("privy"),
-    tokenKind: z.enum(["identity_token", "access_token"]).optional(),
-    providerToken: z.string().min(1),
-  }),
-  z.object({
-    provider: z.literal("para"),
-    tokenKind: z.literal("session_jwt").optional(),
-    providerToken: z.string().min(1),
-    keyId: z.string().optional(),
-  }),
-]);
+const bodySchema = z.object({
+  provider: z.string().trim().min(1),
+  tokenKind: z.string().trim().min(1).optional(),
+  providerToken: z.string().min(1),
+  keyId: z.string().trim().min(1).optional(),
+});
 
 export function aomiProviderAuthPlugin(): BetterAuthPlugin {
   return {
@@ -57,19 +60,32 @@ export function aomiProviderAuthPlugin(): BetterAuthPlugin {
           try {
             verified = await verifyProviderCredential(credential);
           } catch (error) {
-            // Surface the rejection server-side: a silent 400 here reads as
-            // "login broken" with no trace. Claims only — never the token.
-            console.error(
-              "provider exchange rejected",
-              credential.provider,
-              error instanceof Error ? error.message : error,
-              decodeClaimsForLog(credential.providerToken),
-            );
+            const message =
+              error instanceof Error
+                ? error.message
+                : "provider_exchange_failed";
+            observeAccountDiagnostic({
+              kind: "provider.credential_rejected",
+              attributes: {
+                provider: bounded(credential.provider),
+                error: bounded(
+                  error instanceof Error ? error.message : String(error),
+                ),
+                ...providerCredentialDiagnostic(credential.providerToken),
+              },
+              context: {
+                routeFamily: "/api/auth/[...all]",
+                operation: "account.provider_exchange",
+                method: "POST",
+              },
+              response: {
+                status: 400,
+                error: message,
+              },
+            });
             throw new APIError("BAD_REQUEST", {
-              message:
-                error instanceof Error
-                  ? error.message
-                  : "provider_exchange_failed",
+              message,
+              cause: error,
             });
           }
           const seed = providerSessionUserSeed(verified);
@@ -85,52 +101,35 @@ export function aomiProviderAuthPlugin(): BetterAuthPlugin {
               emailVerified: seed.emailVerified,
               name: seed.name,
             }));
-          let aomiUser: Awaited<
-            ReturnType<typeof getOrCreateAomiUserForBetterAuthSession>
-          >;
-          try {
-            aomiUser = await getOrCreateAomiUserForBetterAuthSession({
-              betterAuthUserId: betterAuthUser.id,
-              email: seed.email,
-              emailVerified: seed.emailVerified,
-              name: seed.name,
-              accessSignals: [
-                {
-                  type: "identity",
-                  provider: verified.provider,
-                  subject: verified.token.subject,
-                },
-              ],
-            });
-          } catch (error) {
-            if (isIdentityAlreadyLinkedError(error)) {
-              console.error("provider exchange conflict", {
-                provider: verified.provider,
-                subject: verified.token.subject,
-                betterAuthUserId: betterAuthUser.id,
-                detail: error instanceof Error ? error.message : error,
-              });
-              throw new APIError("CONFLICT", {
-                message: "already_linked_to_another_account",
-              });
-            }
-            throw error;
-          }
-          const resolution = await linkVerifiedProviderCredentialForUser({
-            userId: aomiUser.id,
+          const resolution = await signInWithVerifiedProviderCredential({
+            betterAuthUserId: betterAuthUser.id,
             verified,
+            email: seed.email,
+            name: seed.name,
           });
           if (resolution.status === "conflict") {
-            console.error("provider credential link conflict", {
-              provider: verified.provider,
-              subject: verified.token.subject,
-              resolvedAomiUser: aomiUser.id,
-              betterAuthUserId: betterAuthUser.id,
+            observeAccountDiagnostic({
+              kind: "provider.link_conflict",
+              attributes: {
+                provider: bounded(verified.provider),
+                signal_type: bounded(resolution.signalType),
+              },
+              context: {
+                routeFamily: "/api/auth/[...all]",
+                operation: "account.provider_link",
+                method: "POST",
+              },
+              response: {
+                status: 409,
+                error: "already_linked_to_another_account",
+              },
             });
             throw new APIError("CONFLICT", {
               message: "already_linked_to_another_account",
             });
           }
+          const aomiUser = resolution.user;
+          if (!aomiUser) throw new Error("resolved_account_not_found");
 
           const session = await ctx.context.internalAdapter.createSession(
             betterAuthUser.id,
@@ -142,13 +141,20 @@ export function aomiProviderAuthPlugin(): BetterAuthPlugin {
           return ctx.json({
             status: "linked",
             account: await buildAccountResponse({
-              user: resolution.user ?? aomiUser,
-              betterAuthUserId: betterAuthUser.id,
-              sessionExpiresAt: session.expiresAt,
+              user: aomiUser,
+              session: {
+                carrier: "better_auth",
+                betterAuthUserId: betterAuthUser.id,
+                expiresAt: session.expiresAt,
+              },
             }),
           });
         },
       ),
     },
   };
+}
+
+function bounded(value: unknown): string | null {
+  return typeof value === "string" ? value.slice(0, 160) : null;
 }

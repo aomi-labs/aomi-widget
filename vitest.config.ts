@@ -10,12 +10,14 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
+      "@build": resolve(currentDir, "apps/build/src"),
       "@portal": resolve(currentDir, "apps/portal/src"),
       "@aomi-labs/account": resolve(currentDir, "packages/account/src"),
       "@aomi-labs/client": resolve(currentDir, "packages/client/src"),
       "@aomi-labs/deploy": resolve(currentDir, "packages/deploy/src"),
       "@aomi-labs/react": resolve(currentDir, "packages/react/src"),
       "@aomi-labs/service": resolve(currentDir, "packages/service/src"),
+      "@aomi-labs/smither": resolve(currentDir, "packages/smither/src"),
       "server-only": resolve(
         currentDir,
         "apps/portal/__mocks__/server-only.ts",
@@ -31,8 +33,10 @@ export default defineConfig({
     setupFiles: ["./vitest.setup.ts"],
     include: [
       "packages/**/*.{test,spec}.{ts,tsx,mjs,cjs,js,jsx}",
-      "apps/portal/src/app/api/**/*.{test,spec}.{ts,tsx}",
+      "apps/build/src/**/*.{test,spec}.{ts,tsx}",
       "apps/portal/src/{app,server}/mcp/**/*.{test,spec}.{ts,tsx}",
+      "apps/portal/src/lib/widget-auth/**/*.{test,spec}.{ts,tsx}",
+      "apps/portal/src/app/api/*/route.{test,spec}.{ts,tsx}",
     ],
     exclude: [".claude/**", "**/.claude/**", "**/node_modules/**", "dist/**"],
     restoreMocks: true,

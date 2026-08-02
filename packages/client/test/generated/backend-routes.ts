@@ -105,6 +105,11 @@ export const AOMI_BACKEND_ENDPOINTS = [
   },
   {
     method: "GET",
+    path: "/api/account/statement",
+    auth: ["account"],
+  },
+  {
+    method: "GET",
     path: "/api/account/usage",
     auth: ["account"],
   },
@@ -225,6 +230,11 @@ export const AOMI_BACKEND_ENDPOINTS = [
   },
   {
     method: "GET",
+    path: "/api/platforms/:name/telegram/handover/:bot/:id",
+    auth: ["activation"],
+  },
+  {
+    method: "GET",
     path: "/api/platforms/:name/tokens",
     auth: ["activation"],
   },
@@ -251,6 +261,16 @@ export const AOMI_BACKEND_ENDPOINTS = [
   {
     method: "GET",
     path: "/api/resource/search/tools",
+    auth: ["account"],
+  },
+  {
+    method: "GET",
+    path: "/api/resource/skills",
+    auth: ["account"],
+  },
+  {
+    method: "GET",
+    path: "/api/resource/skills/:skill_id",
     auth: ["account"],
   },
   {
@@ -315,6 +335,11 @@ export const AOMI_BACKEND_ENDPOINTS = [
   },
   {
     method: "GET",
+    path: "/availability",
+    auth: [],
+  },
+  {
+    method: "GET",
     path: "/health",
     auth: [],
   },
@@ -366,6 +391,11 @@ export const AOMI_BACKEND_ENDPOINTS = [
   {
     method: "POST",
     path: "/api/account/payment/tempo",
+    auth: ["account"],
+  },
+  {
+    method: "POST",
+    path: "/api/account/providers/:provider/agent-wallet",
     auth: ["account"],
   },
   {
@@ -470,6 +500,21 @@ export const AOMI_BACKEND_ENDPOINTS = [
   },
   {
     method: "POST",
+    path: "/api/platforms/:name/telegram/handover",
+    auth: ["activation"],
+  },
+  {
+    method: "POST",
+    path: "/api/platforms/:name/telegram/handover/:bot/:id/activate",
+    auth: ["activation"],
+  },
+  {
+    method: "POST",
+    path: "/api/platforms/:name/telegram/handover/:bot/:id/revoke",
+    auth: ["activation"],
+  },
+  {
+    method: "POST",
     path: "/api/platforms/:name/tokens",
     auth: ["activation"],
   },
@@ -517,6 +562,21 @@ export const AOMI_BACKEND_ENDPOINTS = [
     method: "POST",
     path: "/api/threads",
     auth: ["thread"],
+  },
+  {
+    method: "POST",
+    path: "/api/threads/:thread_id/archive",
+    auth: ["account","thread"],
+  },
+  {
+    method: "POST",
+    path: "/api/threads/:thread_id/unarchive",
+    auth: ["account","thread"],
+  },
+  {
+    method: "PUT",
+    path: "/api/account/apps",
+    auth: ["account"],
   },
   {
     method: "PUT",

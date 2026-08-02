@@ -1,0 +1,7 @@
+{
+  "sub": "para-subject-shared",
+  "aud": "para-project-alpha",
+  "email": "top-level@example.test",
+  "email_verified": true,
+  "wallets": [{ "id": "wallet-untrusted", "type": "EVM" }]
+}

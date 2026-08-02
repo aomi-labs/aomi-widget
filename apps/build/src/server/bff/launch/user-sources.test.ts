@@ -1,0 +1,168 @@
+// @vitest-environment node
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { clearLaunchReadCache, userSourcesRoute } from "./routes";
+
+vi.mock("@aomi-labs/account", () => ({
+  portalService: () => ({
+    mint: vi.fn(async () => ({
+      accessToken: "service-token",
+      expiresAt: Date.now() + 300_000,
+    })),
+  }),
+}));
+
+const getGitHubSession = vi.fn();
+vi.mock("@build/server/cookies/github", () => ({
+  getGitHubSession: () => getGitHubSession(),
+  getGitHubCliSessionFromRequest: () => getGitHubSession(),
+}));
+
+function req(platform?: string, appSourceId?: string) {
+  const url = new URL("http://localhost:3000/api/bff/launch/sources");
+  if (platform) url.searchParams.set("platform", platform);
+  if (appSourceId) url.searchParams.set("appSourceId", appSourceId);
+  return new Request(url);
+}
+
+function sourceRow(id: number) {
+  return {
+    id,
+    installation_id: 555,
+    repository_link: `https://github.com/alice/bot-${id}`,
+    github_user_id: "42",
+    apps: [],
+  };
+}
+
+describe("userSourcesRoute", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+    getGitHubSession.mockReset();
+    // The sources read cache is module state — don't leak one test's list
+    // into the next.
+    clearLaunchReadCache();
+  });
+
+  it("401s when there is no GitHub session", async () => {
+    getGitHubSession.mockResolvedValueOnce(null);
+    const res = await userSourcesRoute(req());
+    expect(res.status).toBe(401);
+  });
+
+  it("returns the session user's sources, scoped to the cookie's github_user_id", async () => {
+    getGitHubSession.mockResolvedValueOnce({
+      githubUserId: "42",
+      githubLogin: "alice",
+    });
+    const fetchMock = vi.fn(async () =>
+      Response.json({
+        sources: [
+          {
+            id: 99,
+            installation_id: 555,
+            repository_link: "https://github.com/alice/bot",
+            github_user_id: "42",
+            apps: [
+              {
+                id: 5,
+                name: "bot",
+                is_active: true,
+                loaded: true,
+                app_release_tag: "apps-555-r1-bot-abc",
+              },
+            ],
+          },
+        ],
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await userSourcesRoute(req());
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.githubLogin).toBe("alice");
+    expect(body.sources[0]).toMatchObject({
+      id: 99,
+      installationId: 555,
+      apps: [{ id: 5, name: "bot", isActive: true, loaded: true }],
+    });
+
+    // The backend call is scoped to the session's github_user_id.
+    const [url] = fetchMock.mock.calls[0];
+    expect(String(url)).toContain(
+      "/api/integrations/github-app/user/sources?github_user_id=42",
+    );
+    expect(String(url)).not.toContain("&platform=");
+  });
+
+  it("looks up sources on an explicitly configured partner platform", async () => {
+    vi.stubEnv("APP_DEPLOY_PLATFORMS", "community,somm.finance");
+    getGitHubSession.mockResolvedValueOnce({
+      githubUserId: "42",
+      githubLogin: "alice",
+    });
+    const fetchMock = vi.fn(async () => Response.json({ sources: [] }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await userSourcesRoute(req("somm.finance"));
+
+    expect(res.status).toBe(200);
+    expect(String(fetchMock.mock.calls[0][0])).toContain(
+      "github_user_id=42&platform=somm.finance",
+    );
+  });
+
+  it("narrows to one source on `appSourceId` without leaking it to the manager", async () => {
+    getGitHubSession.mockResolvedValueOnce({
+      githubUserId: "42",
+      githubLogin: "alice",
+    });
+    const fetchMock = vi.fn(async () =>
+      Response.json({ sources: [sourceRow(99), sourceRow(100)] }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await userSourcesRoute(req(undefined, "99"));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.sources).toHaveLength(1);
+    expect(body.sources[0].id).toBe(99);
+    expect(body.githubLogin).toBe("alice");
+
+    // The filter is BFF-side; the manager still gets the plain list read.
+    expect(String(fetchMock.mock.calls[0][0])).not.toContain("appSourceId");
+  });
+
+  it("400s on a malformed appSourceId", async () => {
+    getGitHubSession.mockResolvedValueOnce({
+      githubUserId: "42",
+      githubLogin: "alice",
+    });
+    const res = await userSourcesRoute(req(undefined, "not-a-number"));
+    expect(res.status).toBe(400);
+  });
+
+  it("coalesces repeat reads onto the cache and refetches once cleared", async () => {
+    getGitHubSession.mockResolvedValue({
+      githubUserId: "42",
+      githubLogin: "alice",
+    });
+    const fetchMock = vi.fn(async () =>
+      Response.json({ sources: [sourceRow(99)] }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await userSourcesRoute(req());
+    const narrowed = await userSourcesRoute(req(undefined, "99"));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect((await narrowed.json()).sources).toHaveLength(1);
+
+    // Mutations clear the cache so post-deploy reloads see fresh sources.
+    clearLaunchReadCache();
+    await userSourcesRoute(req());
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+});

@@ -9,14 +9,18 @@ const queryMocks = vi.hoisted(() => ({
   createAomiUser: vi.fn(),
   deactivateAomiUser: vi.fn(),
   deleteBetterAuthSiweWallet: vi.fn(),
+  deleteBetterAuthSiwsWallet: vi.fn(),
   findAuthIdentityById: vi.fn(),
   findAomiUserById: vi.fn(),
   findAomiUserByBetterAuthId: vi.fn(),
   findLegacyBackendUserIdByWallet: vi.fn(),
+  findProviderSubjectOwners: vi.fn(),
   findSignalOwner: vi.fn(),
   findWalletById: vi.fn(),
   listBetterAuthSiweWallets: vi.fn(),
+  listBetterAuthSiwsWallets: vi.fn(),
   listWalletsForUser: vi.fn(),
+  lockIdentityResolutionKeys: vi.fn(),
   logAccountEvent: vi.fn(),
   revokeAllAuthIdentitiesForUser: vi.fn(),
   revokeAllWalletsForUser: vi.fn(),
@@ -41,11 +45,42 @@ describe("getOrCreateAomiUserForBetterAuthSession adoption", () => {
     vi.clearAllMocks();
   });
 
+  it("links a verified provider email without overwriting the canonical profile", async () => {
+    const db = { tag: "transaction-client" };
+    queryMocks.runAomiAuthSchema.mockResolvedValue(undefined);
+    queryMocks.findSignalOwner.mockResolvedValue(null);
+    queryMocks.upsertAuthIdentity.mockResolvedValue({ id: "provider-row" });
+    queryMocks.upsertEmailIdentity.mockResolvedValue({ id: "email-row" });
+
+    const { linkProviderIdentity } =
+      await import("../src/service/account-service");
+    await expect(
+      linkProviderIdentity({
+        userId: "canonical-user",
+        provider: "para",
+        issuerEnvironment: "para:beta",
+        tenantId: "project-a",
+        subject: "provider-subject",
+        email: "claimed@example.com",
+        emailVerified: true,
+        db: db as never,
+      }),
+    ).resolves.toMatchObject({ status: "linked" });
+
+    expect(queryMocks.upsertEmailIdentity).toHaveBeenCalledWith({
+      userId: "canonical-user",
+      email: "claimed@example.com",
+      db,
+    });
+    expect(queryMocks.updateAomiUserProfile).not.toHaveBeenCalled();
+  });
+
   it("preserves an existing wallet-keyed canonical UUID on first BetterAuth SIWE login", async () => {
     const legacyUserId = "2f7d9690-10aa-49f2-9f20-067aa8cc9a17";
     const db = { tag: "transaction-client" };
     queryMocks.runAomiAuthSchema.mockResolvedValue(undefined);
     queryMocks.withTransaction.mockImplementation(async (fn) => fn(db));
+    queryMocks.findProviderSubjectOwners.mockResolvedValue([]);
     queryMocks.findAomiUserByBetterAuthId.mockResolvedValue(null);
     queryMocks.listBetterAuthSiweWallets.mockResolvedValue([
       {
@@ -56,11 +91,12 @@ describe("getOrCreateAomiUserForBetterAuthSession adoption", () => {
         createdAt: new Date(),
       },
     ]);
-    queryMocks.findSignalOwner.mockResolvedValue(null);
-    queryMocks.findLegacyBackendUserIdByWallet.mockResolvedValue(legacyUserId);
-    queryMocks.createAomiUser.mockResolvedValue({
-      id: legacyUserId,
-    });
+    queryMocks.listBetterAuthSiwsWallets.mockResolvedValue([]);
+    queryMocks.findSignalOwner.mockImplementation(async (signal) =>
+      signal.type === "wallet" ? legacyUserId : null,
+    );
+    queryMocks.findAomiUserById.mockResolvedValue({ id: legacyUserId });
+    queryMocks.updateAomiUserProfile.mockResolvedValue({ id: legacyUserId });
 
     const { getOrCreateAomiUserForBetterAuthSession } =
       await import("../src/service/account-service");
@@ -73,16 +109,7 @@ describe("getOrCreateAomiUserForBetterAuthSession adoption", () => {
     });
 
     expect(user.id).toBe(legacyUserId);
-    expect(queryMocks.findLegacyBackendUserIdByWallet).toHaveBeenCalledWith(
-      "0xfcad0b19bb29d4674531d6f115237e16afce377c",
-      db,
-    );
-    expect(queryMocks.createAomiUser).toHaveBeenCalledWith(
-      expect.objectContaining({
-        userId: legacyUserId,
-        db,
-      }),
-    );
+    expect(queryMocks.createAomiUser).not.toHaveBeenCalled();
     expect(queryMocks.upsertAuthIdentity).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: legacyUserId,
@@ -93,60 +120,48 @@ describe("getOrCreateAomiUserForBetterAuthSession adoption", () => {
     );
   });
 
-  it("creates one canonical user and links both SIWE ownership signals", async () => {
+  it("adopts an existing canonical user on first BetterAuth SIWS login", async () => {
+    const canonicalUser = {
+      id: "1f2d9690-10aa-49f2-9f20-067aa8cc9a99",
+    };
     const db = { tag: "transaction-client" };
     queryMocks.runAomiAuthSchema.mockResolvedValue(undefined);
     queryMocks.withTransaction.mockImplementation(async (fn) => fn(db));
-    queryMocks.findSignalOwner.mockResolvedValue(null);
-    queryMocks.createAomiUser.mockResolvedValue({ id: "user-1" });
-    queryMocks.upsertAuthIdentity.mockResolvedValue({ id: "identity-1" });
-    queryMocks.upsertWallet.mockResolvedValue({ id: "wallet-1" });
+    queryMocks.findProviderSubjectOwners.mockResolvedValue([]);
+    queryMocks.findAomiUserByBetterAuthId.mockResolvedValue(null);
+    queryMocks.listBetterAuthSiweWallets.mockResolvedValue([]);
+    queryMocks.listBetterAuthSiwsWallets.mockResolvedValue([
+      {
+        betterAuthUserId: "ba-solana-user",
+        address: "CB3XMCCSTp9U9vnQerN8yoqazSt8MPgGvoS1gunYXL8v",
+        createdAt: new Date(),
+      },
+    ]);
+    queryMocks.findSignalOwner.mockResolvedValue(canonicalUser.id);
+    queryMocks.findAomiUserById.mockResolvedValue(canonicalUser);
 
-    const { getOrCreateAomiUserForSiwe } =
+    const { getOrCreateAomiUserForBetterAuthSession } =
       await import("../src/service/account-service");
-
-    const user = await getOrCreateAomiUserForSiwe({
-      address: "0xFCAd0B19bB29D4674531d6f115237E16AfCE377c",
-      chainId: 1,
+    const user = await getOrCreateAomiUserForBetterAuthSession({
+      betterAuthUserId: "ba-solana-user",
     });
 
-    expect(user.id).toBe("user-1");
-    expect(queryMocks.createAomiUser).toHaveBeenCalledWith(
-      expect.objectContaining({ db }),
-    );
-    expect(queryMocks.upsertAuthIdentity).toHaveBeenCalledWith({
-      userId: "user-1",
-      provider: "siwe",
-      subject: "eip155:*:0xfcad0b19bb29d4674531d6f115237e16afce377c",
+    expect(user.id).toBe(canonicalUser.id);
+    expect(queryMocks.findSignalOwner).toHaveBeenCalledWith(
+      {
+        type: "wallet",
+        family: "svm",
+        normalizedAddress: "CB3XMCCSTp9U9vnQerN8yoqazSt8MPgGvoS1gunYXL8v",
+        chainScope: null,
+      },
       db,
-    });
-    expect(queryMocks.upsertWallet).toHaveBeenCalledWith(
+    );
+    expect(queryMocks.upsertAuthIdentity).toHaveBeenCalledWith(
       expect.objectContaining({
-        userId: "user-1",
-        address: "0xFCAd0B19bB29D4674531d6f115237E16AfCE377c",
-        linkedVia: "siwe",
-        db,
+        userId: canonicalUser.id,
+        provider: "better_auth",
+        subject: "ba-solana-user",
       }),
     );
-  });
-
-  it("rejects a SIWE proof when wallet and identity signals have different owners", async () => {
-    const db = { tag: "transaction-client" };
-    queryMocks.runAomiAuthSchema.mockResolvedValue(undefined);
-    queryMocks.withTransaction.mockImplementation(async (fn) => fn(db));
-    queryMocks.findSignalOwner
-      .mockResolvedValueOnce("user-wallet")
-      .mockResolvedValueOnce("user-identity");
-
-    const { getOrCreateAomiUserForSiwe } =
-      await import("../src/service/account-service");
-
-    await expect(
-      getOrCreateAomiUserForSiwe({
-        address: "0xFCAd0B19bB29D4674531d6f115237E16AfCE377c",
-        chainId: 1,
-      }),
-    ).rejects.toThrow("conflicting_identity_owners");
-    expect(queryMocks.createAomiUser).not.toHaveBeenCalled();
   });
 });

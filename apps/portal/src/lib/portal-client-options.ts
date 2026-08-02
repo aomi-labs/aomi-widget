@@ -1,0 +1,282 @@
+"use client";
+
+/**
+ * The portal's runtime fetch stack, extracted from the frame shell so the
+ * component file stays presentational.
+ *
+ * Layers (inside-out): native fetch → debug logging → payment handling
+ * (x402 + optional mppx/tempo) → locked-app query scoping. The composed fetch
+ * plus the AccountBearer provider become the widget's `clientOptions`.
+ */
+
+import { useEffect, useMemo, useState } from "react";
+import { type AomiClientOptions } from "@aomi-labs/react";
+import { useAomiWalletKit } from "@aomi-labs/widget-lib";
+import { Mppx, tempo } from "mppx/client";
+import { useConfig } from "wagmi";
+import { getConnectorClient } from "wagmi/actions";
+import { createPortalAccountBearerProvider } from "@portal/lib/account-bearer";
+import {
+  createPortalPaymentFetch,
+  createPortalX402Client,
+} from "@portal/lib/payment-fetch";
+
+export type RequestedAppConfig = {
+  app: string | null;
+  applicationId: string | null;
+  locked: boolean;
+};
+
+export function getRequestedAppConfig(search: string): RequestedAppConfig {
+  const params = new URLSearchParams(search);
+  let app: string | null = null;
+
+  for (const key of ["aomi_app", "app"] as const) {
+    const value = params.get(key)?.trim();
+    if (value) {
+      app = value;
+      break;
+    }
+  }
+
+  return {
+    app,
+    applicationId:
+      params.get("application_id")?.trim() ||
+      params.get("applicationId")?.trim() ||
+      null,
+    locked:
+      params.get("lock_app") === "1" ||
+      params.get("lock_app") === "true" ||
+      params.get("app_locked") === "1" ||
+      params.get("app_locked") === "true",
+  };
+}
+
+export function useRequestedAppConfig(): RequestedAppConfig {
+  const [config, setConfig] = useState<RequestedAppConfig>({
+    app: null,
+    applicationId: null,
+    locked: false,
+  });
+
+  useEffect(() => {
+    setConfig(getRequestedAppConfig(window.location.search));
+  }, []);
+
+  return config;
+}
+
+function useOptionalWagmiConfig(): ReturnType<typeof useConfig> | undefined {
+  try {
+    return useConfig();
+  } catch {
+    return undefined;
+  }
+}
+
+function withDebugLogging(
+  fetchName: string,
+  fetchImpl: typeof fetch,
+): typeof fetch {
+  return async (input, init) => {
+    const rawUrl =
+      typeof input === "string"
+        ? input
+        : input instanceof URL
+          ? input.toString()
+          : input.url;
+    const normalizeLocalhostUrl = (value: string) => {
+      try {
+        // Keep requests same-origin as the page. Rewriting the host (e.g.
+        // localhost → 127.0.0.1) drops the httpOnly `aomi_session` cookie,
+        // which is host-scoped to wherever the user logged in — so the proxy
+        // can't inject the AccountBearer and session routes 401.
+        return new URL(value, window.location.href).toString();
+      } catch {
+        return value;
+      }
+    };
+    const url = normalizeLocalhostUrl(rawUrl);
+    const method =
+      init?.method ?? (input instanceof Request ? input.method : "GET");
+    const startedAt = Date.now();
+    console.debug("[aomi][portal-fetch] start", {
+      fetchName,
+      method,
+      url,
+    });
+
+    const pendingWarning = setTimeout(() => {
+      console.debug("[aomi][portal-fetch] still pending", {
+        fetchName,
+        method,
+        url,
+        pendingMs: Date.now() - startedAt,
+      });
+    }, 5000);
+
+    try {
+      const normalizedInput =
+        typeof input === "string"
+          ? url
+          : input instanceof URL
+            ? new URL(url)
+            : new Request(url, input);
+      const response = await fetchImpl(normalizedInput, init);
+      clearTimeout(pendingWarning);
+      console.debug("[aomi][portal-fetch] response", {
+        fetchName,
+        method,
+        url,
+        status: response.status,
+        ok: response.ok,
+        durationMs: Date.now() - startedAt,
+      });
+      return response;
+    } catch (error) {
+      clearTimeout(pendingWarning);
+      console.error("[aomi][portal-fetch] failed", {
+        fetchName,
+        method,
+        url,
+        durationMs: Date.now() - startedAt,
+        error,
+      });
+      throw error;
+    }
+  };
+}
+
+function parseUrl(input: RequestInfo | URL): URL | null {
+  try {
+    if (typeof input === "string") {
+      return new URL(input, window.location.href);
+    }
+    if (input instanceof URL) {
+      return input;
+    }
+    return new URL(input.url, window.location.href);
+  } catch {
+    return null;
+  }
+}
+
+/** Pin `?app=` / `?application_id=` on the send-path routes of a locked app. */
+function applyLockedAppScope(
+  input: RequestInfo | URL,
+  lockedApp: string | null,
+  lockedApplicationId: string | null,
+): RequestInfo | URL {
+  if (!lockedApp) {
+    return input;
+  }
+  const url = parseUrl(input);
+  if (
+    !url ||
+    ![
+      "/api/thread/chat",
+      "/api/system",
+      "/api/thread/model",
+      "/api/session/model",
+    ].includes(url.pathname)
+  ) {
+    return input;
+  }
+  url.searchParams.set("app", lockedApp);
+  if (lockedApplicationId) {
+    url.searchParams.set("application_id", lockedApplicationId);
+  }
+  if (typeof input === "string") {
+    return url.toString();
+  }
+  if (input instanceof URL) {
+    return url;
+  }
+  return new Request(url, input);
+}
+
+export function usePortalClientOptions(
+  lockedApp: string | null,
+  lockedApplicationId: string | null,
+): Omit<AomiClientOptions, "baseUrl"> | undefined {
+  const wagmiConfig = useOptionalWagmiConfig();
+  const nativeFetch = useMemo(() => globalThis.fetch.bind(globalThis), []);
+  const {
+    getAccountCredential,
+    identity,
+    signTypedData,
+    switchChain: switchWalletChain,
+  } = useAomiWalletKit();
+
+  const accountAccessTokenProvider = useMemo(() => {
+    return createPortalAccountBearerProvider(getAccountCredential, {
+      fetch: nativeFetch,
+    });
+  }, [getAccountCredential, nativeFetch]);
+
+  useEffect(
+    () => () => {
+      accountAccessTokenProvider?.dispose();
+    },
+    [accountAccessTokenProvider],
+  );
+
+  const mppFetch = useMemo(() => {
+    if (!wagmiConfig) {
+      return undefined;
+    }
+
+    const mppx = Mppx.create({
+      polyfill: false,
+      methods: [
+        tempo({
+          getClient: (parameters) =>
+            getConnectorClient(
+              wagmiConfig,
+              parameters as Parameters<typeof getConnectorClient>[1],
+            ),
+        }),
+      ],
+    });
+
+    return mppx.fetch;
+  }, [wagmiConfig]);
+
+  const paymentClient = useMemo(
+    () =>
+      createPortalX402Client({
+        identity,
+        signTypedData,
+        switchChain: switchWalletChain,
+      }),
+    [identity, signTypedData, switchWalletChain],
+  );
+
+  return useMemo(() => {
+    const rawFetch = withDebugLogging("native.fetch", nativeFetch);
+    const paymentFetch = createPortalPaymentFetch({
+      fetch: rawFetch,
+      mppFetch: mppFetch ? withDebugLogging("mppx.fetch", mppFetch) : undefined,
+      x402: paymentClient,
+    });
+    const routedFetch: typeof fetch = (input, init) => {
+      return paymentFetch(
+        applyLockedAppScope(input, lockedApp, lockedApplicationId),
+        init,
+      );
+    };
+
+    return {
+      fetch: routedFetch,
+      getAccountBearer: accountAccessTokenProvider ?? undefined,
+    };
+  }, [
+    accountAccessTokenProvider,
+    lockedApp,
+    lockedApplicationId,
+    mppFetch,
+    nativeFetch,
+    paymentClient,
+  ]);
+}

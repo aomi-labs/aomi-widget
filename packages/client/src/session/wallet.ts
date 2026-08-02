@@ -32,6 +32,23 @@ export function txIdsFromPayload(payload: WalletTxPayload): number[] {
   return [];
 }
 
+function solanaPendingIdFields(
+  payload: WalletSolanaSignPayload | WalletSolanaSignMessagePayload,
+): Record<string, number | number[]> {
+  const fields: Record<string, number | number[]> = {};
+  if (payload.pendingSolanaId !== undefined) {
+    fields.pending_solana_id = payload.pendingSolanaId;
+  }
+  if (
+    "pendingSolanaIds" in payload &&
+    Array.isArray(payload.pendingSolanaIds) &&
+    payload.pendingSolanaIds.length > 0
+  ) {
+    fields.pending_svm_tx_ids = [...payload.pendingSolanaIds];
+  }
+  return fields;
+}
+
 type WalletControllerDeps = {
   getUserState: () => UserStateShape | undefined;
   resolveUserState: (userState: UserStateShape) => void;
@@ -44,6 +61,7 @@ export class SessionWalletController {
   private requests: WalletRequest[] = [];
   private nextId = 1;
   private resolvedRequestIds = new Set<string>();
+  private resolvingRequestIds = new Set<string>();
 
   constructor(private readonly deps: WalletControllerDeps) {}
 
@@ -105,7 +123,9 @@ export class SessionWalletController {
 
   sync(): void {
     const userState = this.deps.getUserState();
-    const pending = isRecord(userState?.pending) ? userState.pending : undefined;
+    const pending = isRecord(userState?.pending)
+      ? userState.pending
+      : undefined;
     const pendingTxs = isRecord(pending?.evm_txs) ? pending.evm_txs : undefined;
     const pendingEip712s = isRecord(pending?.evm_sigs)
       ? pending.evm_sigs
@@ -154,156 +174,165 @@ export class SessionWalletController {
         `WalletRequestResult.kind mismatch for "${requestId}": request is "${req.kind}" but result is "${result.kind}".`,
       );
     }
-    this.remove(requestId);
-    this.resolvedRequestIds.add(requestId);
+    if (this.resolvingRequestIds.has(requestId)) return;
+    this.resolvingRequestIds.add(requestId);
 
-    if (req.kind === "transaction" && result.kind === "transaction") {
-      await this.resolveTransaction(req.payload, result);
-    } else if (req.kind === "eip712_sign" && result.kind === "eip712_sign") {
-      await this.deps.sendSystemEvent("wallet_eip712_response", {
-        status: "success",
-        signature: result.signature,
-        description: req.payload.description,
-        ...(req.payload.eip712Id !== undefined
-          ? { pending_eip712_id: req.payload.eip712Id }
-          : {}),
-      });
-    } else if (req.kind === "solana_sign" && result.kind === "solana_sign") {
-      await this.deps.sendSystemEvent("wallet::solana_sign_complete", {
-        status: "signed",
-        signed_tx: result.signedTx,
-        ...(req.payload.unsignedTx !== undefined
-          ? { unsigned_tx: req.payload.unsignedTx }
-          : {}),
-        description: req.payload.description,
-        ...(req.payload.pendingSolanaId !== undefined
-          ? { pending_solana_id: req.payload.pendingSolanaId }
-          : {}),
-      });
-    } else if (
-      req.kind === "solana_sign_message" &&
-      result.kind === "solana_sign_message"
-    ) {
-      await this.deps.sendSystemEvent("wallet::solana_sign_message_complete", {
-        status: "signed",
-        signature: result.signature,
-        ...(req.payload.message !== undefined
-          ? { message: req.payload.message }
-          : {}),
-        description: req.payload.description,
-        ...(req.payload.pendingSolanaId !== undefined
-          ? { pending_solana_id: req.payload.pendingSolanaId }
-          : {}),
-      });
-    } else if (req.kind === "solana_send" && result.kind === "solana_send") {
-      await this.deps.sendSystemEvent("wallet::solana_send_complete", {
-        status: "submitted",
-        signature: result.signature,
-        signed_tx: result.signedTx,
-        ...(req.payload.unsignedTx !== undefined
-          ? { unsigned_tx: req.payload.unsignedTx }
-          : {}),
-        description: req.payload.description,
-        ...(req.payload.pendingSolanaId !== undefined
-          ? { pending_solana_id: req.payload.pendingSolanaId }
-          : {}),
-      });
-    } else if (
-      req.kind === "solana_sign_and_send" &&
-      result.kind === "solana_sign_and_send"
-    ) {
-      await this.deps.sendSystemEvent("wallet::solana_sign_and_send_complete", {
-        status: "submitted",
-        signature: result.signature,
-        signed_tx: result.signedTx,
-        ...(req.payload.unsignedTx !== undefined
-          ? { unsigned_tx: req.payload.unsignedTx }
-          : {}),
-        description: req.payload.description,
-        ...(req.payload.pendingSolanaId !== undefined
-          ? { pending_solana_id: req.payload.pendingSolanaId }
-          : {}),
-      });
+    try {
+      if (req.kind === "transaction" && result.kind === "transaction") {
+        await this.resolveTransaction(req.payload, result);
+      } else if (req.kind === "eip712_sign" && result.kind === "eip712_sign") {
+        await this.deps.sendSystemEvent("wallet_eip712_response", {
+          status: "success",
+          signature: result.signature,
+          description: req.payload.description,
+          ...(req.payload.eip712Id !== undefined
+            ? { pending_eip712_id: req.payload.eip712Id }
+            : {}),
+        });
+      } else if (req.kind === "solana_sign" && result.kind === "solana_sign") {
+        await this.deps.sendSystemEvent("wallet::solana_sign_complete", {
+          status: "signed",
+          signed_tx: result.signedTx,
+          ...(req.payload.unsignedTx !== undefined
+            ? { unsigned_tx: req.payload.unsignedTx }
+            : {}),
+          description: req.payload.description,
+          ...solanaPendingIdFields(req.payload),
+        });
+      } else if (
+        req.kind === "solana_sign_message" &&
+        result.kind === "solana_sign_message"
+      ) {
+        await this.deps.sendSystemEvent(
+          "wallet::solana_sign_message_complete",
+          {
+            status: "signed",
+            signature: result.signature,
+            ...(req.payload.message !== undefined
+              ? { message: req.payload.message }
+              : {}),
+            description: req.payload.description,
+            ...solanaPendingIdFields(req.payload),
+          },
+        );
+      } else if (req.kind === "solana_send" && result.kind === "solana_send") {
+        await this.deps.sendSystemEvent("wallet::solana_send_complete", {
+          status: "submitted",
+          signature: result.signature,
+          signed_tx: result.signedTx,
+          ...(req.payload.unsignedTx !== undefined
+            ? { unsigned_tx: req.payload.unsignedTx }
+            : {}),
+          description: req.payload.description,
+          ...solanaPendingIdFields(req.payload),
+        });
+      } else if (
+        req.kind === "solana_sign_and_send" &&
+        result.kind === "solana_sign_and_send"
+      ) {
+        await this.deps.sendSystemEvent(
+          "wallet::solana_sign_and_send_complete",
+          {
+            status: "submitted",
+            signature: result.signature,
+            signed_tx: result.signedTx,
+            ...(req.payload.unsignedTx !== undefined
+              ? { unsigned_tx: req.payload.unsignedTx }
+              : {}),
+            description: req.payload.description,
+            ...solanaPendingIdFields(req.payload),
+          },
+        );
+      }
+      this.finishRequest(req);
+    } finally {
+      this.resolvingRequestIds.delete(requestId);
     }
   }
 
   async reject(requestId: string, reason?: string): Promise<void> {
-    const req = this.remove(requestId);
+    const req = this.find(requestId);
     if (!req) {
       throw new Error(`No pending wallet request with id "${requestId}"`);
     }
-    this.resolvedRequestIds.add(requestId);
+    if (this.resolvingRequestIds.has(requestId)) return;
+    this.resolvingRequestIds.add(requestId);
 
-    if (req.kind === "transaction") {
-      const pendingTxIds = txIdsFromPayload(req.payload);
-      const requestedMode = aaRequestedModeFromPreference(req.payload.aaPreference);
-      await this.deps.sendSystemEvent("wallet:tx_complete", {
-        txHash: "",
-        status: "failed",
-        error: reason ?? "Request rejected",
-        pending_tx_ids: pendingTxIds,
-        aa_requested_mode: requestedMode,
-        aa_resolved_mode: requestedMode,
-        batched: pendingTxIds.length > 1,
-        call_count: pendingTxIds.length,
-      });
-    } else if (req.kind === "eip712_sign") {
-      await this.deps.sendSystemEvent("wallet_eip712_response", {
-        status: "failed",
-        error: reason ?? "Request rejected",
-        description: req.payload.description,
-        ...(req.payload.eip712Id !== undefined
-          ? { pending_eip712_id: req.payload.eip712Id }
-          : {}),
-      });
-    } else if (req.kind === "solana_sign") {
-      await this.deps.sendSystemEvent("wallet::solana_sign_complete", {
-        status: "rejected",
-        error: reason ?? "Request rejected",
-        ...(req.payload.unsignedTx !== undefined
-          ? { unsigned_tx: req.payload.unsignedTx }
-          : {}),
-        description: req.payload.description,
-        ...(req.payload.pendingSolanaId !== undefined
-          ? { pending_solana_id: req.payload.pendingSolanaId }
-          : {}),
-      });
-    } else if (req.kind === "solana_sign_message") {
-      await this.deps.sendSystemEvent("wallet::solana_sign_message_complete", {
-        status: "rejected",
-        error: reason ?? "Request rejected",
-        ...(req.payload.message !== undefined
-          ? { message: req.payload.message }
-          : {}),
-        description: req.payload.description,
-        ...(req.payload.pendingSolanaId !== undefined
-          ? { pending_solana_id: req.payload.pendingSolanaId }
-          : {}),
-      });
-    } else if (req.kind === "solana_send") {
-      await this.deps.sendSystemEvent("wallet::solana_send_complete", {
-        status: "rejected",
-        error: reason ?? "Request rejected",
-        ...(req.payload.unsignedTx !== undefined
-          ? { unsigned_tx: req.payload.unsignedTx }
-          : {}),
-        description: req.payload.description,
-        ...(req.payload.pendingSolanaId !== undefined
-          ? { pending_solana_id: req.payload.pendingSolanaId }
-          : {}),
-      });
-    } else {
-      await this.deps.sendSystemEvent("wallet::solana_sign_and_send_complete", {
-        status: "rejected",
-        error: reason ?? "Request rejected",
-        ...(req.payload.unsignedTx !== undefined
-          ? { unsigned_tx: req.payload.unsignedTx }
-          : {}),
-        description: req.payload.description,
-        ...(req.payload.pendingSolanaId !== undefined
-          ? { pending_solana_id: req.payload.pendingSolanaId }
-          : {}),
-      });
+    try {
+      if (req.kind === "transaction") {
+        const pendingTxIds = txIdsFromPayload(req.payload);
+        const requestedMode = aaRequestedModeFromPreference(
+          req.payload.aaPreference,
+        );
+        await this.deps.sendSystemEvent("wallet:tx_complete", {
+          txHash: "",
+          status: "failed",
+          error: reason ?? "Request rejected",
+          pending_tx_ids: pendingTxIds,
+          aa_requested_mode: requestedMode,
+          aa_resolved_mode: requestedMode,
+          batched: pendingTxIds.length > 1,
+          call_count: pendingTxIds.length,
+        });
+      } else if (req.kind === "eip712_sign") {
+        await this.deps.sendSystemEvent("wallet_eip712_response", {
+          status: "failed",
+          error: reason ?? "Request rejected",
+          description: req.payload.description,
+          ...(req.payload.eip712Id !== undefined
+            ? { pending_eip712_id: req.payload.eip712Id }
+            : {}),
+        });
+      } else if (req.kind === "solana_sign") {
+        await this.deps.sendSystemEvent("wallet::solana_sign_complete", {
+          status: "rejected",
+          error: reason ?? "Request rejected",
+          ...(req.payload.unsignedTx !== undefined
+            ? { unsigned_tx: req.payload.unsignedTx }
+            : {}),
+          description: req.payload.description,
+          ...solanaPendingIdFields(req.payload),
+        });
+      } else if (req.kind === "solana_sign_message") {
+        await this.deps.sendSystemEvent(
+          "wallet::solana_sign_message_complete",
+          {
+            status: "rejected",
+            error: reason ?? "Request rejected",
+            ...(req.payload.message !== undefined
+              ? { message: req.payload.message }
+              : {}),
+            description: req.payload.description,
+            ...solanaPendingIdFields(req.payload),
+          },
+        );
+      } else if (req.kind === "solana_send") {
+        await this.deps.sendSystemEvent("wallet::solana_send_complete", {
+          status: "rejected",
+          error: reason ?? "Request rejected",
+          ...(req.payload.unsignedTx !== undefined
+            ? { unsigned_tx: req.payload.unsignedTx }
+            : {}),
+          description: req.payload.description,
+          ...solanaPendingIdFields(req.payload),
+        });
+      } else {
+        await this.deps.sendSystemEvent(
+          "wallet::solana_sign_and_send_complete",
+          {
+            status: "rejected",
+            error: reason ?? "Request rejected",
+            ...(req.payload.unsignedTx !== undefined
+              ? { unsigned_tx: req.payload.unsignedTx }
+              : {}),
+            description: req.payload.description,
+            ...solanaPendingIdFields(req.payload),
+          },
+        );
+      }
+      this.finishRequest(req);
+    } finally {
+      this.resolvingRequestIds.delete(requestId);
     }
   }
 
@@ -313,7 +342,8 @@ export class SessionWalletController {
   ): Promise<void> {
     const pendingTxIds = txIdsFromPayload(payload);
     const requestedMode =
-      result.aaRequestedMode ?? aaRequestedModeFromPreference(payload.aaPreference);
+      result.aaRequestedMode ??
+      aaRequestedModeFromPreference(payload.aaPreference);
     const resolvedMode =
       result.aaResolvedMode ??
       aaModeFromExecutionKind(result.executionKind) ??
@@ -328,10 +358,14 @@ export class SessionWalletController {
         aa: {
           ...prevAa,
           mode: resolvedMode,
+          // Preserve backend AA routing across post-transaction state updates.
+          ...(resolvedMode === "4337" || resolvedMode === "7702"
+            ? { provider: "alchemy" }
+            : {}),
           smart_account:
-            resolvedMode === "4337" ? result.SmartAccount4337 ?? null : null,
+            resolvedMode === "4337" ? (result.SmartAccount4337 ?? null) : null,
           delegation_7702:
-            resolvedMode === "7702" ? result.Delegation7702 ?? null : null,
+            resolvedMode === "7702" ? (result.Delegation7702 ?? null) : null,
         },
       },
     });
@@ -352,6 +386,62 @@ export class SessionWalletController {
     });
   }
 
+  private clearResolvedSolanaPending(request: WalletRequest): void {
+    const userState = this.deps.getUserState();
+    const pending = isRecord(userState?.pending)
+      ? userState.pending
+      : undefined;
+    if (!userState || !pending) return;
+
+    if (request.kind === "transaction" || request.kind === "eip712_sign")
+      return;
+    const ids =
+      "pendingSolanaIds" in request.payload &&
+      Array.isArray(request.payload.pendingSolanaIds) &&
+      request.payload.pendingSolanaIds.length > 0
+        ? request.payload.pendingSolanaIds
+        : request.payload.pendingSolanaId !== undefined
+          ? [request.payload.pendingSolanaId]
+          : [];
+    if (ids.length === 0) return;
+    const targets: Array<[string, number[]]> =
+      request.kind === "solana_sign" || request.kind === "solana_sign_message"
+        ? [
+            ["svm_sigs", ids],
+            ["solana_sigs", ids],
+          ]
+        : [
+            ["svm_ixs", ids],
+            ["solana_txs", ids],
+          ];
+
+    const nextPending = { ...pending };
+    let changed = false;
+    for (const [bucketName, ids] of targets) {
+      const bucket = isRecord(nextPending[bucketName])
+        ? { ...nextPending[bucketName] }
+        : undefined;
+      if (!bucket) continue;
+      for (const id of ids) {
+        if (Object.hasOwn(bucket, String(id))) {
+          delete bucket[String(id)];
+          changed = true;
+        }
+      }
+      nextPending[bucketName] = bucket;
+    }
+
+    if (changed) {
+      this.deps.resolveUserState({ ...userState, pending: nextPending });
+    }
+  }
+
+  private finishRequest(request: WalletRequest): void {
+    this.remove(request.id);
+    this.resolvedRequestIds.add(request.id);
+    this.clearResolvedSolanaPending(request);
+  }
+
   private syncTransactions(
     next: WalletRequest[],
     pendingTxs: Record<string, unknown> | undefined,
@@ -368,7 +458,10 @@ export class SessionWalletController {
           request.kind === "transaction",
       )
       .map((request) => ({ request, txIds: txIdsFromPayload(request.payload) }))
-      .filter(({ txIds }) => txIds.length > 0 && txIds.every((id) => pendingIds.has(id)))
+      .filter(
+        ({ txIds }) =>
+          txIds.length > 0 && txIds.every((id) => pendingIds.has(id)),
+      )
       .sort((left, right) =>
         left.txIds.length !== right.txIds.length
           ? right.txIds.length - left.txIds.length
@@ -404,8 +497,8 @@ export class SessionWalletController {
         kind: "transaction",
         payload,
         timestamp:
-          this.requests.find((request) => request.id === requestId)?.timestamp ??
-          Date.now(),
+          this.requests.find((request) => request.id === requestId)
+            ?.timestamp ?? Date.now(),
       });
     }
   }
@@ -427,8 +520,8 @@ export class SessionWalletController {
         kind: "eip712_sign",
         payload,
         timestamp:
-          this.requests.find((request) => request.id === requestId)?.timestamp ??
-          Date.now(),
+          this.requests.find((request) => request.id === requestId)
+            ?.timestamp ?? Date.now(),
       });
     }
   }
@@ -455,8 +548,8 @@ export class SessionWalletController {
           normalized.kind,
           normalized.payload,
           requestId,
-          this.requests.find((request) => request.id === requestId)?.timestamp ??
-            Date.now(),
+          this.requests.find((request) => request.id === requestId)
+            ?.timestamp ?? Date.now(),
         ),
       );
     }
@@ -472,7 +565,10 @@ export class SessionWalletController {
   ): string {
     if (kind === "transaction") {
       const txPayload = payload as WalletTxPayload;
-      if (typeof txPayload.requestId === "string" && txPayload.requestId.length > 0) {
+      if (
+        typeof txPayload.requestId === "string" &&
+        txPayload.requestId.length > 0
+      ) {
         return `txreq-${txPayload.requestId}`;
       }
       const txIds = txIdsFromPayload(txPayload);
@@ -484,7 +580,8 @@ export class SessionWalletController {
       const { pendingSolanaId } = payload as
         | WalletSolanaSignPayload
         | WalletSolanaSignMessagePayload;
-      if (typeof pendingSolanaId === "number") return `${kind}-${pendingSolanaId}`;
+      if (typeof pendingSolanaId === "number")
+        return `${kind}-${pendingSolanaId}`;
     }
     return `wreq-${this.nextId++}`;
   }

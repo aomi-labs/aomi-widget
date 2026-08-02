@@ -18,6 +18,7 @@ import type {
   DeploymentAppStatus,
   ExchangeGitHubCodeInput,
   GetAppInput,
+  GetUserSourceAppDetailInput,
   GetUserSourceLatestDeploymentInput,
   GitHubIdentity,
   ListAppsInput,
@@ -30,14 +31,38 @@ import type {
   ListUserDeploymentsInput,
   ListUserSourceDeploymentsInput,
   ListUserSourcesInput,
-  OperateAgentsResult,
+  BotRegistration,
+  CreateUserBotInput,
+  DeleteUserBotInput,
+  CreateUserSourceBotInput,
+  BuilderModelKey,
+  BuilderModelKeyUsage,
+  BuilderModelKeysInput,
+  DeleteBuilderModelKeyInput,
+  DeleteUserSourceBotInput,
+  OwnedOperateInput,
   OperateLogCursor,
+  OperateAppDetailResult,
+  OperateStatementResult,
   OperateLogsResult,
   OperateObservabilityResult,
   OperateTransactionCursor,
   OperateTransactionsResult,
   OperateUsageResult,
+  UpdateUserBotInput,
   OwnedOperateSourceInput,
+  GetUserObservabilityInput,
+  UserOperateBatchInput,
+  GetUserStatementsInput,
+  ListUserTransactionsInput,
+  ListUserLogsInput,
+  UserTransactionsResult,
+  UserLogsResult,
+  UserSourceRef,
+  OperateTransaction,
+  OperateLogEntry,
+  SaveBuilderModelKeyInput,
+  SetModelKeyGrantsInput,
   UserSource,
   UserDeployment,
   UserDeploymentsPage,
@@ -57,6 +82,7 @@ import type {
   ScaffoldInput,
   StatusInput,
   SourceSdkUpgradeResult,
+  SourceSdkUpgradeStatusResult,
   SyncSourceInput,
   TokenRecord,
   WatchDeploymentOptions,
@@ -795,30 +821,269 @@ export class DeploymentClient {
       );
   }
 
-  async listUserSourceAgents(
+  async listUserSourceBots(
     input: OwnedOperateSourceInput,
-  ): Promise<OperateAgentsResult> {
+  ): Promise<BotRegistration[]> {
     const { appSourceId, params, platform, bearer } =
       this.ownedOperateRequest(input);
-    const raw = await this.get<Record<string, unknown>>(
+    const raw = await this.get<{ bot_registrations?: unknown[] }>(
       `/api/integrations/github-app/user/sources/${encodeURIComponent(
         String(appSourceId),
-      )}/agents?${params.toString()}`,
-      "list_user_source_agents",
+      )}/bots?${params.toString()}`,
+      "list_user_source_bots",
       bearer,
     );
     await this.audit({
-      action: "list_user_source_agents",
+      action: "list_user_source_bots",
       platform,
       appSourceId,
       actor: input.actor,
       ts: Date.now(),
     });
-    return {
-      source: camelAppSource(raw.source),
-      platform: String(raw.platform ?? platform),
-      agents: ((raw.agents ?? []) as unknown[]).map(camelPlatformApp),
-    };
+    return ((raw.bot_registrations ?? []) as unknown[]).map(
+      camelBotRegistration,
+    );
+  }
+
+  async createUserSourceBot(
+    input: CreateUserSourceBotInput,
+  ): Promise<BotRegistration> {
+    const { appSourceId, params, platform, bearer } =
+      this.ownedOperateRequest(input);
+    const botPlatform = required(input.botPlatform, "botPlatform");
+    const applicationId = required(
+      String(input.applicationId),
+      "applicationId",
+    );
+    const credential = required(input.credential, "credential");
+    const raw = await this.post<{ bot_registration?: unknown }>(
+      `/api/integrations/github-app/user/sources/${encodeURIComponent(
+        String(appSourceId),
+      )}/bots?${params.toString()}`,
+      {
+        platform: botPlatform,
+        application_id: Number(applicationId),
+        label: input.label,
+        credential,
+        thread_mode: input.threadMode,
+      },
+      "create_user_source_bot",
+      bearer,
+    );
+    await this.audit({
+      action: "create_user_source_bot",
+      platform,
+      appSourceId,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return camelBotRegistration(raw.bot_registration);
+  }
+
+  async deleteUserSourceBot(input: DeleteUserSourceBotInput): Promise<void> {
+    const { appSourceId, params, platform, bearer } =
+      this.ownedOperateRequest(input);
+    const botId = required(input.botId, "botId");
+    await this.del<unknown>(
+      `/api/integrations/github-app/user/sources/${encodeURIComponent(
+        String(appSourceId),
+      )}/bots/${encodeURIComponent(botId)}?${params.toString()}`,
+      "delete_user_source_bot",
+      bearer,
+    );
+    await this.audit({
+      action: "delete_user_source_bot",
+      platform,
+      appSourceId,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+  }
+
+  async listUserBots(input: OwnedOperateInput): Promise<BotRegistration[]> {
+    const { params, platform, bearer } = this.ownedOperateUserRequest(input);
+    const raw = await this.get<{ bot_registrations?: unknown[] }>(
+      `/api/integrations/github-app/user/bots?${params.toString()}`,
+      "list_user_bots",
+      bearer,
+    );
+    await this.audit({
+      action: "list_user_bots",
+      platform,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return ((raw.bot_registrations ?? []) as unknown[]).map(
+      camelBotRegistration,
+    );
+  }
+
+  async createUserBot(input: CreateUserBotInput): Promise<BotRegistration> {
+    const { params, platform, bearer } = this.ownedOperateUserRequest(input);
+    const credential = required(input.credential, "credential");
+    const raw = await this.post<{ bot_registration?: unknown }>(
+      `/api/integrations/github-app/user/bots?${params.toString()}`,
+      {
+        platform: required(input.botPlatform, "botPlatform"),
+        application_ids: input.applicationIds,
+        primary_application_id: input.primaryApplicationId,
+        label: input.label,
+        credential,
+        thread_mode: input.threadMode,
+      },
+      "create_user_bot",
+      bearer,
+    );
+    await this.audit({
+      action: "create_user_bot",
+      platform,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return camelBotRegistration(raw.bot_registration);
+  }
+
+  async updateUserBot(input: UpdateUserBotInput): Promise<BotRegistration> {
+    const { params, platform, bearer } = this.ownedOperateUserRequest(input);
+    const raw = await this.patch<{ bot_registration?: unknown }>(
+      `/api/integrations/github-app/user/bots/${encodeURIComponent(required(input.botId, "botId"))}?${params.toString()}`,
+      {
+        application_ids: input.applicationIds,
+        primary_application_id: input.primaryApplicationId,
+        label: input.label,
+        thread_mode: input.threadMode,
+      },
+      "update_user_bot",
+      bearer,
+    );
+    await this.audit({
+      action: "update_user_bot",
+      platform,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return camelBotRegistration(raw.bot_registration);
+  }
+
+  async deleteUserBot(input: DeleteUserBotInput): Promise<void> {
+    const { params, platform, bearer } = this.ownedOperateUserRequest(input);
+    await this.del<unknown>(
+      `/api/integrations/github-app/user/bots/${encodeURIComponent(required(input.botId, "botId"))}?${params.toString()}`,
+      "delete_user_bot",
+      bearer,
+    );
+    await this.audit({
+      action: "delete_user_bot",
+      platform,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+  }
+
+  /** All builder-owned model keys with their grants (funder-ladder app
+   *  rung). Names/prefixes/grants only — key material is write-only. */
+  async listBuilderModelKeys(
+    input: BuilderModelKeysInput,
+  ): Promise<BuilderModelKey[]> {
+    const { params, bearer } = this.builderKeyRequest(input);
+    const raw = await this.get<{ keys?: unknown[] }>(
+      `/api/integrations/github-app/user/model-keys?${params.toString()}`,
+      "list_builder_model_keys",
+      bearer,
+    );
+    await this.audit({
+      action: "list_builder_model_keys",
+      platform: input.platform,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return (raw.keys ?? []).map(camelBuilderModelKey);
+  }
+
+  /** Create (no `keyId`) or rotate (`keyId` set) a builder model key. */
+  async saveBuilderModelKey(
+    input: SaveBuilderModelKeyInput,
+  ): Promise<BuilderModelKey> {
+    const { params, bearer } = this.builderKeyRequest(input);
+    const provider = required(input.provider, "provider");
+    const key = required(input.key, "key");
+    const body = { provider, key, label: input.label };
+    const raw =
+      input.keyId === undefined
+        ? await this.post<{ key?: unknown }>(
+            `/api/integrations/github-app/user/model-keys?${params.toString()}`,
+            body,
+            "save_builder_model_key",
+            bearer,
+          )
+        : await this.put<{ key?: unknown }>(
+            `/api/integrations/github-app/user/model-keys/${encodeURIComponent(
+              String(input.keyId),
+            )}?${params.toString()}`,
+            body,
+            "save_builder_model_key",
+            bearer,
+          );
+    await this.audit({
+      action: "save_builder_model_key",
+      platform: input.platform,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return camelBuilderModelKey(raw.key);
+  }
+
+  async deleteBuilderModelKey(
+    input: DeleteBuilderModelKeyInput,
+  ): Promise<void> {
+    const { params, bearer } = this.builderKeyRequest(input);
+    const keyId = required(String(input.keyId), "keyId");
+    await this.del<unknown>(
+      `/api/integrations/github-app/user/model-keys/${encodeURIComponent(keyId)}?${params.toString()}`,
+      "delete_builder_model_key",
+      bearer,
+    );
+    await this.audit({
+      action: "delete_builder_model_key",
+      platform: input.platform,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+  }
+
+  /** Replace a key's grant set ("apply to projects"). */
+  async setModelKeyGrants(
+    input: SetModelKeyGrantsInput,
+  ): Promise<BuilderModelKey> {
+    const { params, bearer } = this.builderKeyRequest(input);
+    const keyId = required(String(input.keyId), "keyId");
+    const raw = await this.put<{ key?: unknown }>(
+      `/api/integrations/github-app/user/model-keys/${encodeURIComponent(keyId)}/grants?${params.toString()}`,
+      { application_ids: input.applicationIds },
+      "set_model_key_grants",
+      bearer,
+    );
+    await this.audit({
+      action: "set_model_key_grants",
+      platform: input.platform,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return camelBuilderModelKey(raw.key);
+  }
+
+  private builderKeyRequest(input: BuilderModelKeysInput): {
+    params: URLSearchParams;
+    bearer: string;
+  } {
+    const githubUserId = required(input.githubUserId, "githubUserId");
+    const platform = required(input.platform, "platform");
+    const bearer = this.resolveBearer(input.bearer);
+    const params = new URLSearchParams({
+      github_user_id: githubUserId,
+      platform,
+    });
+    return { params, bearer };
   }
 
   async listUserSourceTransactions(
@@ -873,6 +1138,30 @@ export class DeploymentClient {
     return camelOperateUsage(raw, platform);
   }
 
+  async getUserSourceStatement(
+    input: GetUserSourceUsageInput,
+  ): Promise<OperateStatementResult> {
+    const { appSourceId, params, platform, bearer } =
+      this.ownedOperateRequest(input);
+    if (input.fromDate?.trim()) params.set("from_date", input.fromDate.trim());
+    if (input.toDate?.trim()) params.set("to_date", input.toDate.trim());
+    const raw = await this.get<Record<string, unknown>>(
+      `/api/integrations/github-app/user/sources/${encodeURIComponent(
+        String(appSourceId),
+      )}/statement?${params.toString()}`,
+      "get_user_source_statement",
+      bearer,
+    );
+    await this.audit({
+      action: "get_user_source_statement",
+      platform,
+      appSourceId,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return camelOperateStatement(raw, platform);
+  }
+
   async listUserSourceLogs(
     input: ListUserSourceLogsInput,
   ): Promise<OperateLogsResult> {
@@ -921,6 +1210,204 @@ export class DeploymentClient {
       ts: Date.now(),
     });
     return camelOperateObservability(raw, platform);
+  }
+
+  /**
+   * Account-wide observability batch: every owned source in one request, each
+   * entry in the exact shape of {@link getUserSourceObservability}. Without
+   * `platform`, the manager resolves each source under its own bound/loaded
+   * platform — partner-bound sources included. Requires a manager with
+   * `GET /user/observability`; callers fall back to per-source reads when the
+   * route 404s (older manager).
+   */
+  async getUserObservability(
+    input: GetUserObservabilityInput,
+  ): Promise<OperateObservabilityResult[]> {
+    const githubUserId = required(input.githubUserId, "githubUserId");
+    const bearer = this.resolveBearer(input.bearer);
+    const params = new URLSearchParams({ github_user_id: githubUserId });
+    if (input.platform?.trim()) params.set("platform", input.platform.trim());
+    const raw = await this.get<{ results?: unknown[] }>(
+      `/api/integrations/github-app/user/observability?${params.toString()}`,
+      "get_user_observability",
+      bearer,
+    );
+    await this.audit({
+      action: "get_user_observability",
+      platform: input.platform,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return ((raw.results ?? []) as Record<string, unknown>[]).map((entry) =>
+      camelOperateObservability(entry, input.platform?.trim() ?? ""),
+    );
+  }
+
+  private userBatchParams(input: UserOperateBatchInput): {
+    params: URLSearchParams;
+    bearer: string;
+    fallbackPlatform: string;
+  } {
+    const githubUserId = required(input.githubUserId, "githubUserId");
+    const bearer = this.resolveBearer(input.bearer);
+    const params = new URLSearchParams({ github_user_id: githubUserId });
+    const fallbackPlatform = input.platform?.trim() ?? "";
+    if (fallbackPlatform) params.set("platform", fallbackPlatform);
+    return { params, bearer, fallbackPlatform };
+  }
+
+  /**
+   * Account-wide transactions batch: one newest-first page merged across
+   * every owned source, with a single global cursor. Requires a manager with
+   * `GET /user/transactions`; callers fall back to per-source reads when the
+   * route 404s (older manager).
+   */
+  async listUserTransactions(
+    input: ListUserTransactionsInput,
+  ): Promise<UserTransactionsResult> {
+    const { params, bearer, fallbackPlatform } = this.userBatchParams(input);
+    if (input.limit && Number.isSafeInteger(input.limit) && input.limit > 0) {
+      params.set("limit", String(input.limit));
+    }
+    if (input.status?.trim()) params.set("status", input.status.trim());
+    const cursor = encodeTransactionCursor(input.cursor);
+    if (cursor) params.set("cursor", cursor);
+    const raw = await this.get<Record<string, unknown>>(
+      `/api/integrations/github-app/user/transactions?${params.toString()}`,
+      "list_user_transactions",
+      bearer,
+    );
+    await this.audit({
+      action: "list_user_transactions",
+      platform: input.platform,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return {
+      sources: camelUserSourceRefs(raw.sources, fallbackPlatform),
+      transactions: ((raw.transactions ?? []) as Record<string, any>[]).map(
+        (row) => ({
+          ...camelTransactionRow(row),
+          appSourceId: optNumber(row.app_source_id ?? row.appSourceId),
+          platform: optString(row.platform) ?? (fallbackPlatform || null),
+        }),
+      ),
+      nextCursor: camelTransactionCursor(raw.next_cursor ?? raw.nextCursor),
+    };
+  }
+
+  /**
+   * Account-wide statement batch: every owned source in one request, each
+   * entry in the exact shape of {@link getUserSourceStatement}.
+   */
+  async getUserStatements(
+    input: GetUserStatementsInput,
+  ): Promise<OperateStatementResult[]> {
+    const { params, bearer, fallbackPlatform } = this.userBatchParams(input);
+    if (input.fromDate?.trim()) params.set("from_date", input.fromDate.trim());
+    if (input.toDate?.trim()) params.set("to_date", input.toDate.trim());
+    const raw = await this.get<{ results?: unknown[] }>(
+      `/api/integrations/github-app/user/statement?${params.toString()}`,
+      "get_user_statement",
+      bearer,
+    );
+    await this.audit({
+      action: "get_user_statement",
+      platform: input.platform,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return ((raw.results ?? []) as Record<string, unknown>[]).map((entry) =>
+      camelOperateStatement(entry, fallbackPlatform),
+    );
+  }
+
+  /**
+   * Account-wide usage batch: every owned source in one request, each entry
+   * in the exact shape of {@link getUserSourceUsage}.
+   */
+  async getUserUsage(
+    input: GetUserStatementsInput,
+  ): Promise<OperateUsageResult[]> {
+    const { params, bearer, fallbackPlatform } = this.userBatchParams(input);
+    if (input.fromDate?.trim()) params.set("from_date", input.fromDate.trim());
+    if (input.toDate?.trim()) params.set("to_date", input.toDate.trim());
+    const raw = await this.get<{ results?: unknown[] }>(
+      `/api/integrations/github-app/user/usage?${params.toString()}`,
+      "get_user_usage",
+      bearer,
+    );
+    await this.audit({
+      action: "get_user_usage",
+      platform: input.platform,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return ((raw.results ?? []) as Record<string, unknown>[]).map((entry) =>
+      camelOperateUsage(entry, fallbackPlatform),
+    );
+  }
+
+  /**
+   * Account-wide logs batch: one newest-first page of the merged log stream
+   * across every owned source, with a single global cursor. Shared partner
+   * settlements carry a null `appSourceId`.
+   */
+  async listUserLogs(input: ListUserLogsInput): Promise<UserLogsResult> {
+    const { params, bearer, fallbackPlatform } = this.userBatchParams(input);
+    if (input.limit && Number.isSafeInteger(input.limit) && input.limit > 0) {
+      params.set("limit", String(input.limit));
+    }
+    if (input.type?.trim()) params.set("type", input.type.trim());
+    const cursor = encodeLogCursor(input.cursor);
+    if (cursor) params.set("cursor", cursor);
+    const raw = await this.get<Record<string, unknown>>(
+      `/api/integrations/github-app/user/logs?${params.toString()}`,
+      "list_user_logs",
+      bearer,
+    );
+    await this.audit({
+      action: "list_user_logs",
+      platform: input.platform,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return {
+      sources: camelUserSourceRefs(raw.sources, fallbackPlatform),
+      logs: ((raw.logs ?? []) as Record<string, any>[]).map((row) => ({
+        ...camelLogRow(row),
+        appSourceId: optNumber(row.app_source_id ?? row.appSourceId),
+        platform: optString(row.platform) ?? (fallbackPlatform || null),
+      })),
+      nextCursor: camelLogCursor(raw.next_cursor ?? raw.nextCursor),
+      invocationsAvailable: raw.invocations_available !== false,
+    };
+  }
+
+  async getUserSourceAppDetail(
+    input: GetUserSourceAppDetailInput,
+  ): Promise<OperateAppDetailResult> {
+    const { appSourceId, params, platform, bearer } =
+      this.ownedOperateRequest(input);
+    const applicationId = required(
+      String(input.applicationId),
+      "applicationId",
+    );
+    const raw = await this.get<Record<string, unknown>>(
+      `/api/integrations/github-app/user/sources/${encodeURIComponent(
+        String(appSourceId),
+      )}/apps/${encodeURIComponent(applicationId)}/detail?${params.toString()}`,
+      "get_user_source_app_detail",
+      bearer,
+    );
+    await this.audit({
+      action: "get_user_source_app_detail",
+      platform,
+      appSourceId,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return camelOperateAppDetail(raw, platform);
   }
 
   async upgradeUserSourceSdk(
@@ -977,6 +1464,61 @@ export class DeploymentClient {
       "BACKEND",
       "backend returned an unknown source SDK upgrade status",
     );
+  }
+
+  /**
+   * Read the merge state of the `aomi/sdk-<required>` upgrade PR with one
+   * GitHub-backed call — the cheap counterpart to {@link upgradeUserSourceSdk},
+   * safe to poll. No repo tarball, no branch mutation.
+   */
+  async sdkUpgradeStatus(
+    input: OwnedOperateSourceInput,
+  ): Promise<SourceSdkUpgradeStatusResult> {
+    const { appSourceId, params, platform, bearer } =
+      this.ownedOperateRequest(input);
+    const raw = await this.get<Record<string, unknown>>(
+      `/api/integrations/github-app/user/sources/${encodeURIComponent(
+        String(appSourceId),
+      )}/sdk-upgrade-status?${params.toString()}`,
+      "get_source_sdk_upgrade_status",
+      bearer,
+    );
+    await this.audit({
+      action: "get_source_sdk_upgrade_status",
+      platform,
+      appSourceId,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    const status = raw.status;
+    if (
+      status !== "merged" &&
+      status !== "open" &&
+      status !== "closed" &&
+      status !== "none"
+    ) {
+      throw new DeployError(
+        "BACKEND",
+        "backend returned an unknown source SDK upgrade status",
+      );
+    }
+    const pr =
+      raw.pull_request && typeof raw.pull_request === "object"
+        ? (raw.pull_request as Record<string, unknown>)
+        : null;
+    return {
+      status,
+      requiredSdkVersion: String(raw.required_sdk_version ?? ""),
+      branch: String(raw.branch ?? ""),
+      pullRequest: pr
+        ? {
+            number: Number(pr.number),
+            url: String(pr.url ?? ""),
+            state: String(pr.state ?? ""),
+            merged: Boolean(pr.merged),
+          }
+        : null,
+    };
   }
 
   async listDeploymentRecords(
@@ -1135,6 +1677,20 @@ export class DeploymentClient {
     };
   }
 
+  private ownedOperateUserRequest(input: OwnedOperateInput): {
+    params: URLSearchParams;
+    platform: string;
+    bearer: string;
+  } {
+    const githubUserId = required(input.githubUserId, "githubUserId");
+    const platform = cleanPlatform(input.platform);
+    return {
+      platform,
+      bearer: this.resolveBearer(input.bearer),
+      params: new URLSearchParams({ github_user_id: githubUserId, platform }),
+    };
+  }
+
   private backoffDelay(
     failures: number,
     baseMs: number,
@@ -1161,6 +1717,42 @@ export class DeploymentClient {
       path,
       {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      operation,
+      bearer,
+    );
+  }
+
+  private async patch<Resp>(
+    path: string,
+    body: unknown,
+    operation: string,
+    bearer: string,
+  ): Promise<Resp> {
+    return this.request<Resp>(
+      path,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      operation,
+      bearer,
+    );
+  }
+
+  private async put<Resp>(
+    path: string,
+    body: unknown,
+    operation: string,
+    bearer: string,
+  ): Promise<Resp> {
+    return this.request<Resp>(
+      path,
+      {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       },
@@ -1206,7 +1798,9 @@ export class DeploymentClient {
       throw new BackendError(
         operation,
         0,
-        `${operation} request to ${url} failed: ${err instanceof Error ? err.message : String(err)}`,
+        `${operation} request failed`,
+        undefined,
+        { cause: err },
       );
     }
 
@@ -1222,12 +1816,13 @@ export class DeploymentClient {
     if (!text.trim()) return null as Resp;
     try {
       return JSON.parse(text) as Resp;
-    } catch {
+    } catch (error) {
       throw new BackendError(
         operation,
         res.status,
         `${operation} returned invalid JSON`,
         text,
+        { cause: error },
       );
     }
   }
@@ -1555,6 +2150,101 @@ function camelPlatformApp(raw: unknown): PlatformApp {
     targetTags: a.target_tags ?? [],
     artifactReady: Boolean(a.artifact_ready ?? a.artifactReady),
     loaded: Boolean(a.loaded),
+    pricing: camelAppPricing(a.pricing),
+  };
+}
+
+function camelAppPricing(raw: unknown): PlatformApp["pricing"] {
+  if (!raw || typeof raw !== "object") return null;
+  const pricing = raw as Record<string, any>;
+  const config = (pricing.config ?? {}) as Record<string, any>;
+  const resources = (config.resources ?? {}) as Record<
+    string,
+    Record<string, any>
+  >;
+  return {
+    loadedAt: timestampSeconds(pricing.loaded_at ?? pricing.loadedAt),
+    config: {
+      version: Number(config.version ?? 0),
+      beneficiaries: (
+        (config.beneficiaries ?? []) as Record<string, any>[]
+      ).map((beneficiary) => ({
+        name: String(beneficiary.name ?? ""),
+        type: String(beneficiary.type ?? ""),
+        chain: String(beneficiary.chain ?? ""),
+        value: String(beneficiary.value ?? ""),
+      })),
+      resources: Object.fromEntries(
+        Object.entries(resources).map(([tool, resource]) => [
+          tool,
+          {
+            pricing: {
+              flat: Number(resource.pricing?.flat ?? 0),
+            },
+            beneficiary: resource.beneficiary ?? null,
+          },
+        ]),
+      ),
+      outcome: Array.isArray(config.outcome) ? config.outcome : [],
+    },
+  };
+}
+
+function camelBotRegistration(raw: unknown): BotRegistration {
+  const b = (raw ?? {}) as Record<string, any>;
+  return {
+    id: String(b.id),
+    platform: String(b.platform ?? ""),
+    status: String(b.status ?? ""),
+    label: b.label ?? null,
+    defaultApp: String(b.default_app ?? b.defaultApp ?? ""),
+    defaultAppId: Number(b.default_app_id ?? b.defaultAppId ?? 0),
+    apps: ((b.apps ?? []) as Record<string, any>[]).map((app) => ({
+      applicationId: Number(app.application_id ?? app.applicationId ?? 0),
+      appSourceId: app.app_source_id ?? app.appSourceId ?? null,
+      sourceLabel: app.source_label ?? app.sourceLabel ?? null,
+      name: String(app.name ?? ""),
+      label: String(app.label ?? app.name ?? ""),
+      platform: app.platform ?? null,
+      isPrimary: Boolean(app.is_primary ?? app.isPrimary),
+    })),
+    platformBotId: String(b.platform_bot_id ?? b.platformBotId ?? ""),
+    platformUsername: b.platform_username ?? b.platformUsername ?? null,
+    webhookUrl: b.webhook_url ?? b.webhookUrl ?? null,
+    threadMode: String(b.thread_mode ?? b.threadMode ?? "single"),
+    createdAt: Number(b.created_at ?? b.createdAt ?? 0),
+  };
+}
+
+function camelModelKeyUsage(raw: unknown): BuilderModelKeyUsage {
+  const u = (raw ?? {}) as Record<string, any>;
+  return {
+    inputTokens: Number(u.inputTokens ?? 0),
+    outputTokens: Number(u.outputTokens ?? 0),
+    costCredits: Number(u.costCredits ?? 0),
+    turns: Number(u.turns ?? 0),
+  };
+}
+
+function camelBuilderModelKey(raw: unknown): BuilderModelKey {
+  const k = (raw ?? {}) as Record<string, any>;
+  return {
+    id: Number(k.id),
+    provider: String(k.provider ?? ""),
+    label: k.label ?? null,
+    keyPrefix: String(k.keyPrefix ?? k.key_prefix ?? ""),
+    createdAt: Number(k.createdAt ?? k.created_at ?? 0),
+    updatedAt: Number(k.updatedAt ?? k.updated_at ?? 0),
+    applicationIds: Array.isArray(k.applicationIds ?? k.application_ids)
+      ? (k.applicationIds ?? k.application_ids).map(Number)
+      : [],
+    usage: camelModelKeyUsage(k.usage),
+    usageByApplication: Array.isArray(k.usageByApplication)
+      ? k.usageByApplication.map((row: unknown) => ({
+          applicationId: Number((row as Record<string, any>)?.applicationId),
+          ...camelModelKeyUsage(row),
+        }))
+      : [],
   };
 }
 
@@ -1648,6 +2338,9 @@ function camelUserSource(raw: unknown): UserSource {
       s.latest_deployment ?? s.latestDeployment,
     ),
     sdkVersion: s.sdk_version ?? s.sdkVersion ?? null,
+    sdkVersions: ((s.sdk_versions ?? s.sdkVersions ?? []) as unknown[]).flatMap(
+      (version) => (typeof version === "string" && version ? [version] : []),
+    ),
   };
 }
 
@@ -1688,6 +2381,59 @@ function camelLogCursor(raw: unknown): OperateLogCursor | null {
   return occurredAt && eventType && id ? { occurredAt, eventType, id } : null;
 }
 
+function optString(value: unknown): string | null {
+  return value === null || value === undefined ? null : String(value);
+}
+
+function optNumber(value: unknown): number | null {
+  return value === null || value === undefined ? null : Number(value);
+}
+
+function camelTransactionRow(row: Record<string, any>): OperateTransaction {
+  return {
+    id: String(row.id ?? ""),
+    externalTxId: String(row.external_tx_id ?? row.externalTxId ?? ""),
+    application: String(row.application ?? ""),
+    applicationId: row.application_id ?? row.applicationId ?? null,
+    status: String(row.status ?? ""),
+    txHash: row.tx_hash ?? row.txHash ?? null,
+    chainId: Number(row.chain_id ?? row.chainId ?? 0),
+    fromAddress: String(row.from_address ?? row.fromAddress ?? ""),
+    toAddress: String(row.to_address ?? row.toAddress ?? ""),
+    value: String(row.value ?? "0"),
+    hasCalldata: Boolean(row.has_calldata ?? row.hasCalldata),
+    calldataPreview: row.calldata_preview ?? row.calldataPreview ?? null,
+    description: row.description ?? null,
+    createdAt: timestampSeconds(row.created_at ?? row.createdAt),
+    updatedAt: timestampSeconds(row.updated_at ?? row.updatedAt),
+    submittedAt:
+      row.submitted_at == null && row.submittedAt == null
+        ? null
+        : timestampSeconds(row.submitted_at ?? row.submittedAt),
+    family: (row.family ?? null) as "evm" | "svm" | null,
+    chainName: optString(row.chain_name ?? row.chainName),
+    fromLabel: optString(row.from_label ?? row.fromLabel),
+    toLabel: optString(row.to_label ?? row.toLabel),
+    valueUsd: optString(row.value_usd ?? row.valueUsd),
+    block: optString(row.block),
+    slot: optString(row.slot),
+    confirmations: optNumber(row.confirmations),
+    gasUsed: optString(row.gas_used ?? row.gasUsed),
+    gasLimit: optString(row.gas_limit ?? row.gasLimit),
+    effGasPrice: optString(row.eff_gas_price ?? row.effGasPrice),
+    computeUnits: optString(row.compute_units ?? row.computeUnits),
+    computeLimit: optString(row.compute_limit ?? row.computeLimit),
+    priorityFee: optString(row.priority_fee ?? row.priorityFee),
+    txFee: optString(row.tx_fee ?? row.txFee),
+    platformFee: optString(row.platform_fee ?? row.platformFee),
+    nonce: optNumber(row.nonce),
+    method: optString(row.method),
+    transfers: Array.isArray(row.transfers) ? row.transfers.map(String) : null,
+    revertReason: optString(row.revert_reason ?? row.revertReason),
+    explorerUrl: optString(row.explorer_url ?? row.explorerUrl),
+  };
+}
+
 function camelOperateTransactions(
   raw: Record<string, unknown>,
   fallbackPlatform: string,
@@ -1696,30 +2442,20 @@ function camelOperateTransactions(
     source: camelAppSource(raw.source),
     platform: String(raw.platform ?? fallbackPlatform),
     transactions: ((raw.transactions ?? []) as Record<string, any>[]).map(
-      (row) => ({
-        id: String(row.id ?? ""),
-        externalTxId: String(row.external_tx_id ?? row.externalTxId ?? ""),
-        application: String(row.application ?? ""),
-        applicationId: row.application_id ?? row.applicationId ?? null,
-        status: String(row.status ?? ""),
-        txHash: row.tx_hash ?? row.txHash ?? null,
-        chainId: Number(row.chain_id ?? row.chainId ?? 0),
-        fromAddress: String(row.from_address ?? row.fromAddress ?? ""),
-        toAddress: String(row.to_address ?? row.toAddress ?? ""),
-        value: String(row.value ?? "0"),
-        hasCalldata: Boolean(row.has_calldata ?? row.hasCalldata),
-        calldataPreview: row.calldata_preview ?? row.calldataPreview ?? null,
-        description: row.description ?? null,
-        createdAt: timestampSeconds(row.created_at ?? row.createdAt),
-        updatedAt: timestampSeconds(row.updated_at ?? row.updatedAt),
-        submittedAt:
-          row.submitted_at == null && row.submittedAt == null
-            ? null
-            : timestampSeconds(row.submitted_at ?? row.submittedAt),
-      }),
+      camelTransactionRow,
     ),
     nextCursor: camelTransactionCursor(raw.next_cursor ?? raw.nextCursor),
   };
+}
+
+function camelUserSourceRefs(
+  raw: unknown,
+  fallbackPlatform: string,
+): UserSourceRef[] {
+  return ((raw ?? []) as Record<string, any>[]).map((entry) => ({
+    source: camelAppSource(entry.source),
+    platform: String(entry.platform ?? fallbackPlatform),
+  }));
 }
 
 function camelOperateUsage(
@@ -1755,6 +2491,169 @@ function camelOperateUsage(
   };
 }
 
+function camelOperateStatement(
+  raw: Record<string, unknown>,
+  fallbackPlatform: string,
+): OperateStatementResult {
+  const range = (raw.range ?? {}) as Record<string, any>;
+  const summary = (raw.summary ?? {}) as Record<string, any>;
+  return {
+    source: camelAppSource(raw.source),
+    platform: String(raw.platform ?? fallbackPlatform),
+    range: {
+      fromDate: String(range.from_date ?? range.fromDate ?? ""),
+      toDate: String(range.to_date ?? range.toDate ?? ""),
+    },
+    available: Boolean(raw.available),
+    summary: {
+      grossRevenue: Number(summary.gross_revenue ?? summary.grossRevenue ?? 0),
+      platformFees: Number(summary.platform_fees ?? summary.platformFees ?? 0),
+      serviceCharges: Number(
+        summary.service_charges ?? summary.serviceCharges ?? 0,
+      ),
+      net: Number(summary.net ?? 0),
+    },
+    revenue: ((raw.revenue ?? []) as Record<string, any>[]).map((row) => ({
+      subject: String(row.subject ?? ""),
+      application: String(row.application ?? ""),
+      applicationId: row.application_id ?? row.applicationId ?? null,
+      events: Number(row.events ?? 0),
+      gross: Number(row.gross ?? 0),
+      platformFee: Number(row.platform_fee ?? row.platformFee ?? 0),
+      net: Number(row.net ?? 0),
+    })),
+    charges: ((raw.charges ?? []) as Record<string, any>[]).map((row) => ({
+      item: String(row.item ?? ""),
+      application: String(row.application ?? ""),
+      applicationId: row.application_id ?? row.applicationId ?? null,
+      events: Number(row.events ?? 0),
+      amount: Number(row.amount ?? 0),
+    })),
+    entries: ((raw.entries ?? []) as Record<string, any>[]).map((row) => ({
+      day: String(row.day ?? ""),
+      application: String(row.application ?? ""),
+      subject: String(row.subject ?? ""),
+      events: Number(row.events ?? 0),
+      gross: Number(row.gross ?? 0),
+      platformFee: Number(row.platform_fee ?? row.platformFee ?? 0),
+      net: Number(row.net ?? 0),
+    })),
+    payments: camelPartnerPayments(raw.payments),
+  };
+}
+
+function camelPartnerPayments(raw: unknown) {
+  const payments = (raw ?? {}) as Record<string, any>;
+  const summary = (payments.summary ?? {}) as Record<string, any>;
+  return {
+    available: Boolean(payments.available),
+    scope: String(payments.scope ?? "recipient_bucket"),
+    summary: {
+      accruedCredits: Number(
+        summary.accrued_credits ?? summary.accruedCredits ?? 0,
+      ),
+      accruedUsd: Number(summary.accrued_usd ?? summary.accruedUsd ?? 0),
+      settledCredits: Number(
+        summary.settled_credits ?? summary.settledCredits ?? 0,
+      ),
+      settledUsd: Number(summary.settled_usd ?? summary.settledUsd ?? 0),
+      outstandingCredits: Number(
+        summary.outstanding_credits ?? summary.outstandingCredits ?? 0,
+      ),
+      outstandingUsd: Number(
+        summary.outstanding_usd ?? summary.outstandingUsd ?? 0,
+      ),
+      pricedCalls: Number(summary.priced_calls ?? summary.pricedCalls ?? 0),
+      settlements: Number(summary.settlements ?? 0),
+    },
+    resources: ((payments.resources ?? []) as Record<string, any>[]).map(
+      (resource) => ({
+        application: String(resource.application ?? ""),
+        applicationId:
+          resource.application_id ?? resource.applicationId ?? null,
+        tool: String(resource.tool ?? ""),
+        flatCredits: Number(resource.flat_credits ?? resource.flatCredits ?? 0),
+        flatUsd: Number(resource.flat_usd ?? resource.flatUsd ?? 0),
+        beneficiary: resource.beneficiary ?? null,
+        recipient: resource.recipient ?? null,
+        chain: resource.chain ?? null,
+        beneficiaryType:
+          resource.beneficiary_type ?? resource.beneficiaryType ?? null,
+        observedCalls: Number(
+          resource.observed_calls ?? resource.observedCalls ?? 0,
+        ),
+      }),
+    ),
+    buckets: ((payments.buckets ?? []) as Record<string, any>[]).map(
+      (bucket) => ({
+        id: String(bucket.id ?? ""),
+        recipient: String(bucket.recipient ?? ""),
+        outstandingCredits: Number(
+          bucket.outstanding_credits ?? bucket.outstandingCredits ?? 0,
+        ),
+        outstandingUsd: Number(
+          bucket.outstanding_usd ?? bucket.outstandingUsd ?? 0,
+        ),
+      }),
+    ),
+    events: ((payments.events ?? []) as Record<string, any>[]).map((event) => ({
+      id: String(event.id ?? ""),
+      kind: String(event.kind ?? ""),
+      occurredAt: timestampSeconds(event.occurred_at ?? event.occurredAt),
+      application: event.application ?? null,
+      applicationId: event.application_id ?? event.applicationId ?? null,
+      tools: Array.isArray(event.tools) ? event.tools.map(String) : [],
+      credits: Number(event.credits ?? 0),
+      usd: Number(event.usd ?? 0),
+      asset: event.asset ?? null,
+      assetAmount:
+        event.asset_amount === null || event.asset_amount === undefined
+          ? (event.assetAmount ?? null)
+          : Number(event.asset_amount),
+      recipient: String(event.recipient ?? ""),
+      paymentMethod: String(event.payment_method ?? event.paymentMethod ?? ""),
+      receiptId: event.receipt_id ?? event.receiptId ?? null,
+      chain: event.chain ?? null,
+      explorerUrl: event.explorer_url ?? event.explorerUrl ?? null,
+    })),
+  };
+}
+
+function camelLogRow(row: Record<string, any>): OperateLogEntry {
+  const details = (row.details ?? {}) as Record<string, any>;
+  const rawModelKey = details.model_key ?? details.modelKey;
+  const modelKeyId =
+    rawModelKey && typeof rawModelKey === "object"
+      ? optNumber(rawModelKey.id)
+      : null;
+  const modelKey =
+    modelKeyId !== null && Number.isFinite(modelKeyId)
+      ? {
+          id: modelKeyId,
+          label: optString(rawModelKey.label),
+          prefix: optString(rawModelKey.prefix),
+        }
+      : null;
+  return {
+    occurredAt: timestampSeconds(row.occurred_at ?? row.occurredAt),
+    eventType: String(row.event_type ?? row.eventType ?? ""),
+    id: String(row.id ?? ""),
+    application: String(row.application ?? ""),
+    applicationId: row.application_id ?? row.applicationId ?? null,
+    summary: String(row.summary ?? ""),
+    details,
+    modelKey,
+    kind: (row.kind ?? null) as "invocation" | "event" | null,
+    status: (row.status ?? null) as "ok" | "error" | "info" | null,
+    tool: optString(row.tool),
+    durationMs: optNumber(row.duration_ms ?? row.durationMs),
+    retries: optNumber(row.retries),
+    threadId: optString(row.thread_id ?? row.threadId),
+    args: optString(row.args),
+    result: optString(row.result),
+  };
+}
+
 function camelOperateLogs(
   raw: Record<string, unknown>,
   fallbackPlatform: string,
@@ -1762,15 +2661,7 @@ function camelOperateLogs(
   return {
     source: camelAppSource(raw.source),
     platform: String(raw.platform ?? fallbackPlatform),
-    logs: ((raw.logs ?? []) as Record<string, any>[]).map((row) => ({
-      occurredAt: timestampSeconds(row.occurred_at ?? row.occurredAt),
-      eventType: String(row.event_type ?? row.eventType ?? ""),
-      id: String(row.id ?? ""),
-      application: String(row.application ?? ""),
-      applicationId: row.application_id ?? row.applicationId ?? null,
-      summary: String(row.summary ?? ""),
-      details: (row.details ?? {}) as Record<string, unknown>,
-    })),
+    logs: ((raw.logs ?? []) as Record<string, any>[]).map(camelLogRow),
     nextCursor: camelLogCursor(raw.next_cursor ?? raw.nextCursor),
   };
 }
@@ -1803,6 +2694,7 @@ function camelOperateObservability(
       sdkVersion: app.sdk_version ?? app.sdkVersion ?? null,
       status: String(app.status ?? ""),
       metrics: camelOperateAppMetrics(app.metrics),
+      pricing: camelAppPricing(app.pricing),
     })),
     dashboardLinks: (
       (raw.dashboard_links ?? raw.dashboardLinks ?? []) as Record<string, any>[]
@@ -1827,6 +2719,107 @@ function camelOperateObservability(
       description:
         typeof metric.description === "string" ? metric.description : undefined,
     })),
+    payments: camelPartnerPayments(raw.payments),
+  };
+}
+
+function camelOperateAppDetail(
+  raw: Record<string, unknown>,
+  fallbackPlatform: string,
+): OperateAppDetailResult {
+  const app = (raw.app ?? {}) as Record<string, any>;
+  const funnel = (raw.funnel ?? {}) as Record<string, any>;
+  const credits = (raw.credits ?? {}) as Record<string, any>;
+  const lifecycle = (raw.lifecycle ?? {}) as Record<string, any>;
+  const hourly = (raw.hourly ?? {}) as Record<string, any>;
+  const series = (value: unknown): number[] | null =>
+    Array.isArray(value) ? value.map(Number) : null;
+  const nullableSeries = (value: unknown): Array<number | null> | null =>
+    Array.isArray(value)
+      ? value.map((item) => {
+          if (item === null || item === undefined) return null;
+          const numeric = Number(item);
+          return Number.isFinite(numeric) ? numeric : null;
+        })
+      : null;
+  return {
+    source: camelAppSource(raw.source),
+    platform: String(raw.platform ?? fallbackPlatform),
+    windowSeconds: Number(raw.window_seconds ?? raw.windowSeconds ?? 0),
+    app: {
+      applicationId: Number(app.application_id ?? app.applicationId ?? 0),
+      name: String(app.name ?? ""),
+      releaseTag: optString(app.release_tag ?? app.releaseTag),
+      sdkVersion: optString(app.sdk_version ?? app.sdkVersion),
+      active: Boolean(app.active),
+      loaded: Boolean(app.loaded),
+      status: String(app.status ?? ""),
+    },
+    funnel: {
+      chats24h: optNumber(funnel.chats_24h ?? funnel.chats24h),
+      toolCalls24h: optNumber(funnel.tool_calls_24h ?? funnel.toolCalls24h),
+      txProposed24h: optNumber(funnel.tx_proposed_24h ?? funnel.txProposed24h),
+      txSubmitted24h: optNumber(
+        funnel.tx_submitted_24h ?? funnel.txSubmitted24h,
+      ),
+      txConfirmed24h: optNumber(
+        funnel.tx_confirmed_24h ?? funnel.txConfirmed24h,
+      ),
+      txReverted24h: optNumber(funnel.tx_reverted_24h ?? funnel.txReverted24h),
+    },
+    activeUsers24h: optNumber(raw.active_users_24h ?? raw.activeUsers24h),
+    credits: {
+      credits24h: optNumber(credits.credits_24h ?? credits.credits24h),
+      creditsPerTurn24h: optNumber(
+        credits.credits_per_turn_24h ?? credits.creditsPerTurn24h,
+      ),
+      creditsDaily: (
+        (credits.credits_daily ?? credits.creditsDaily ?? []) as Record<
+          string,
+          any
+        >[]
+      ).map((row) => ({
+        day: String(row.day ?? ""),
+        credits: Number(row.credits ?? 0),
+      })),
+    },
+    tools: ((raw.tools ?? []) as Record<string, any>[]).map((row) => {
+      const lastError = (row.last_error ?? row.lastError) as
+        | Record<string, any>
+        | null
+        | undefined;
+      return {
+        tool: String(row.tool ?? ""),
+        calls: optNumber(row.calls),
+        errors: optNumber(row.errors),
+        errorRate: optNumber(row.error_rate ?? row.errorRate),
+        p95Ms: optNumber(row.p95_ms ?? row.p95Ms),
+        lastError: lastError
+          ? {
+              message: optString(lastError.message),
+              occurredAt: Number(
+                lastError.occurred_at ?? lastError.occurredAt ?? 0,
+              ),
+            }
+          : null,
+      };
+    }),
+    lifecycle: {
+      coldStartMs: optNumber(lifecycle.cold_start_ms ?? lifecycle.coldStartMs),
+      dylibBytes: optNumber(lifecycle.dylib_bytes ?? lifecycle.dylibBytes),
+      loads24h: optNumber(lifecycle.loads_24h ?? lifecycle.loads24h),
+      evictions24h: optNumber(
+        lifecycle.evictions_24h ?? lifecycle.evictions24h,
+      ),
+    },
+    hourly: {
+      chats: series(hourly.chats),
+      toolCalls: series(hourly.tool_calls ?? hourly.toolCalls),
+      p95LatencyMs: nullableSeries(
+        hourly.p95_latency_ms ?? hourly.p95LatencyMs,
+      ),
+      transactions: series(hourly.transactions),
+    },
   };
 }
 
@@ -1837,6 +2830,10 @@ function camelOperateAppMetrics(raw: unknown) {
     const value = metrics[snake] ?? metrics[camel];
     return value === null || value === undefined ? null : Number(value);
   };
+  const metricSeries = (snake: string, camel: string): number[] | null => {
+    const value = metrics[snake] ?? metrics[camel];
+    return Array.isArray(value) ? value.map(Number) : null;
+  };
   return {
     provider: String(metrics.provider ?? ""),
     windowSeconds: Number(metrics.window_seconds ?? metrics.windowSeconds ?? 0),
@@ -1845,5 +2842,22 @@ function camelOperateAppMetrics(raw: unknown) {
     errorRate: metricNumber("error_rate", "errorRate"),
     p95LatencyMs: metricNumber("p95_latency_ms", "p95LatencyMs"),
     inflightRequests: metricNumber("inflight_requests", "inflightRequests"),
+    trendWindowSeconds: metricNumber(
+      "trend_window_seconds",
+      "trendWindowSeconds",
+    ),
+    chats24h: metricNumber("chats_24h", "chats24h"),
+    toolCalls24h: metricNumber("tool_calls_24h", "toolCalls24h"),
+    transactions24h: metricNumber("transactions_24h", "transactions24h"),
+    chatsHourly: metricSeries("chats_hourly", "chatsHourly"),
+    toolCallsHourly: metricSeries("tool_calls_hourly", "toolCallsHourly"),
+    transactionsHourly: metricSeries(
+      "transactions_hourly",
+      "transactionsHourly",
+    ),
+    toolErrorRate: metricNumber("tool_error_rate", "toolErrorRate"),
+    txErrorRate: metricNumber("tx_error_rate", "txErrorRate"),
+    coldStartMs: metricNumber("cold_start_ms", "coldStartMs"),
+    dylibBytes: metricNumber("dylib_bytes", "dylibBytes"),
   };
 }

@@ -4,9 +4,30 @@
 
 export { AomiClient } from "./client";
 export {
+  authorizationChallenge,
+  authorizationCommit,
+  ensureSvmWalletBound,
+  ensureSvmWalletBoundVia,
+  isUnboundWalletError,
+  posterFromClient,
+} from "./authorization";
+export type {
+  AomiAuthorizationChallenge,
+  AomiAuthorizationPermit,
+  AomiAuthorizationState,
+  AomiEnsureBoundResult,
+  AuthorizationPoster,
+} from "./authorization";
+export {
   AccountCredentialUnavailableError,
   createAccountBearerProvider,
 } from "./account-session";
+export { buildSiwsMessage } from "./siws";
+export type { SiwsChainId, SiwsIntent } from "./siws";
+export {
+  handlePaymentChallenges,
+  wrapFetchWithPaymentChallenges,
+} from "./payment";
 export type {
   AccountBearerProviderOptions,
   AccountBearerProvider,
@@ -15,12 +36,6 @@ export type {
   BetterAuthAccountTokenSourceOptions,
   BetterAuthTokenResponse,
 } from "./account-session";
-export { createWidgetSessionProvider } from "./widget-session";
-export type {
-  WidgetSessionProvider,
-  WidgetSessionProviderOptions,
-  WidgetSessionSigner,
-} from "./widget-session";
 
 // =============================================================================
 // Types
@@ -40,7 +55,6 @@ export type {
   AomiIdentityWallet,
   AomiUsageStats,
   AomiUser,
-  GetAuthorization,
   GetAccountBearer,
   AomiMessage,
   AomiWalletFamily,
@@ -63,7 +77,21 @@ export type {
   AomiThread,
   Logger,
 } from "./types";
+export {
+  createProviderCredentialAdapter,
+  createSiweWidgetAuthAdapter,
+  createSiwsWidgetAuthAdapter,
+  createWidgetSessionProvider,
+  type ProviderCredential,
+  type SiwsWidgetSessionSigner,
+  type WidgetAuthAdapter,
+  type WidgetAuthSession,
+  type WidgetSession,
+  type WidgetSessionProvider,
+  type WidgetSessionSigner,
+} from "./widget-session";
 export { normalizeAppDescriptor, appIdentityKey } from "./app-descriptor";
+export { safeEnv } from "./internal/env";
 export type {
   AomiClientType,
   UserStateAAMode,
@@ -122,6 +150,7 @@ export {
   normalizeSolanaSignPayload,
   normalizeSolanaSignMessagePayload,
   normalizeSolanaWalletRequest,
+  normalizeSolanaCluster,
   toViemSignMessageArgs,
   toViemSignTypedDataArgs,
   toAAWalletCalls,
@@ -153,60 +182,34 @@ export {
   SUPPORTED_CHAIN_IDS,
   monad,
   monadTestnet,
+  robinhood,
 } from "./chains";
 export type { ChainInfo } from "./chains";
 
 // =============================================================================
-// Account Abstraction
+// Wallet Execution (native wallet only — AA executes server-side)
 // =============================================================================
 
 export {
-  DEFAULT_AA_CONFIG,
-  DISABLED_PROVIDER_STATE,
-  getAAChainConfig,
-  buildAAExecutionPlan,
-  getWalletExecutorReady,
   executeWalletCalls,
   MAX_AUTO_FEE_WEI,
   normalizeSimulatedFee,
   buildFeeAAWalletCall,
   appendFeeCallToPayload,
-  createAlchemyAAProvider,
-  createPimlicoAAProvider,
-  adaptSmartAccount,
-  isAlchemySponsorshipLimitError,
-  resolvePimlicoConfig,
-  createAAProviderState,
 } from "./aa";
 
 export type {
-  AAProvider,
   AAMode,
   AASponsorship,
   AAWalletCall,
   AACallPayload,
-  AAChainConfig,
-  AAConfig,
-  AAResolvedConfig,
   WalletCapabilities,
   WalletAtomicCapability,
   NativeWalletExecutionPolicy,
   NativeWalletSponsorship,
   SponsorshipPaymasterServiceContext,
-  SmartAccount,
-  AAState,
   ExecutionResult,
   AtomicBatchArgs,
   ExecuteWalletCallsParams,
-  AlchemyHookParams,
-  UseAlchemyAAHook,
-  CreateAlchemyAAProviderOptions,
-  PimlicoHookParams,
-  UsePimlicoAAHook,
-  CreatePimlicoAAProviderOptions,
-  PimlicoResolveOptions,
-  PimlicoResolvedConfig,
-  AAOwner,
-  CreateAAStateOptions,
   NormalizedSimulatedFee,
 } from "./aa";

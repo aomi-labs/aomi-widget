@@ -7,6 +7,12 @@
 // Aomi backend. The activation/service bearer never leaves this layer.
 
 export {
+  identifyLaunchError,
+  launchErrorResponse,
+  type LaunchFailureSource,
+} from "./errors";
+
+export {
   createLaunchRoutes,
   type LaunchRoutes,
   type LaunchRoutesOptions,
@@ -43,12 +49,7 @@ export {
   type RouteGuard,
 } from "./guards";
 
-export { launchErrorResponse } from "./errors";
-
-export {
-  releaseTagsFromDeployment,
-  appNamesFromDeployment,
-} from "./mappers";
+export { releaseTagsFromDeployment, appNamesFromDeployment } from "./mappers";
 
 export {
   isValidInstallationId,
@@ -58,13 +59,11 @@ export {
   isValidAppSourceId,
 } from "./validate";
 
-export {
-  readCookie,
-  serializeCookie,
-  appendSetCookie,
-} from "./cookies";
+export { readCookie, serializeCookie, appendSetCookie } from "./cookies";
 
 export {
   fetchReleaseSecretSlots,
   missingSecretsForActivation,
+  RequiredSecretsCheckError,
+  REQUIRED_SECRETS_CHECK_UNAVAILABLE,
 } from "./release-manifest";

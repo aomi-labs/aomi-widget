@@ -2,6 +2,7 @@
 
 import { describe, expect, it, vi } from "vitest";
 import {
+  countLoginFactors,
   revokeAuthIdentity,
   updateWalletLabel,
   upsertWallet,
@@ -29,6 +30,19 @@ function fakeDb(
 }
 
 describe("canonical account queries", () => {
+  it("counts independent auth providers instead of provider-owned child wallets", async () => {
+    const { db, calls } = fakeDb(() => ({
+      rows: [{ count: 1 }],
+    }));
+
+    await expect(countLoginFactors("user-1", db as never)).resolves.toBe(1);
+    expect(calls[0]?.sql).not.toContain("public_keys");
+    expect(calls[0]?.sql).not.toContain("'email'");
+    expect(calls[0]?.sql).not.toContain("'siwe'");
+    expect(calls[0]?.sql).not.toContain("'siws'");
+    expect(calls[0]?.sql).toContain("'betterauth'");
+  });
+
   it("links a SIWE wallet as an owned public key with SIWE provenance", async () => {
     const { db, calls } = fakeDb((call) => {
       if (call.sql.includes("insert into auth_providers")) {

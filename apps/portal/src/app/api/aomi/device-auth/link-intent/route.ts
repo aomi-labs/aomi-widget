@@ -3,6 +3,8 @@ import {
   type DeviceAuthProvider,
 } from "@portal/lib/device-auth-grants";
 import { getBetterAuthSession, json } from "@portal/lib/aomi-account/session";
+import { identifyDeviceAuthFailure } from "@portal/server/bff/device-auth-errors";
+import { portalFailures } from "@portal/server/bff/failures";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -49,8 +51,11 @@ export async function POST(req: Request): Promise<Response> {
       provider: intent.provider,
     });
   } catch (error) {
-    return json(400, {
-      error: error instanceof Error ? error.message : "invalid_request",
-    });
+    return portalFailures.handle(
+      identifyDeviceAuthFailure(error, {
+        routeFamily: "/api/aomi/device-auth/link-intent",
+        operation: "device_auth_link_intent",
+      }),
+    ).response;
   }
 }

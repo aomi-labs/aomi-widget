@@ -11,7 +11,7 @@ export const PORTAL_TOPOLOGIES: Record<PortalTopologyName, string> = {
 name = "aomi-bff"
 kid = "aomi-bff-dev-1"
 issues = ["user", "service"]
-audiences = ["aomi-backend"]
+audiences = ["aomi-backend", "aomi-sidecar"]
 public_key = """
 -----BEGIN PUBLIC KEY-----
 MCowBQYDK2VwAyEARK6H6nByUxFk68PqBKJocX11IX+9zKFFne0rXKdW94M=
@@ -43,7 +43,7 @@ public_key = ""
 name = "aomi-bff"
 kid = "aomi-bff-staging-1"
 issues = ["user", "service"]
-audiences = ["aomi-backend"]
+audiences = ["aomi-backend", "aomi-sidecar"]
 public_key = """
 -----BEGIN PUBLIC KEY-----
 MCowBQYDK2VwAyEAgLSENuOGsWvaeM+7eU6BWSp9tY61HF7Ml4Vv/fxaupY=
@@ -75,7 +75,7 @@ public_key = ""
 name = "aomi-bff"
 kid = "aomi-bff-prod-1"
 issues = ["user", "service"]
-audiences = ["aomi-backend"]
+audiences = ["aomi-backend", "aomi-sidecar"]
 public_key = """
 -----BEGIN PUBLIC KEY-----
 MCowBQYDK2VwAyEAyaIwzD82igAdhA3xw9Tkr5yJEpaRU3SY73bVqjE7Ajc=

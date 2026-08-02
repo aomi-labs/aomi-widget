@@ -3,7 +3,6 @@ import { CliSession } from "../cli-session";
 import { createControlClient } from "../context";
 import { printDataFileLocation, printJson } from "../output";
 import type { CliConfig } from "../types";
-import { DEFAULT_AA_CONFIG } from "../../aa/types";
 import { fatal } from "../errors";
 
 export async function statusCommand(config: CliConfig): Promise<void> {
@@ -279,6 +278,7 @@ export async function setModelCommand(
   try {
     await session.client.setModel(cli.sessionId, model, {
       app: cli.app,
+      applicationId: config.applicationId,
       apiKey: cli.apiKey,
     });
     cli.setModel(model);
@@ -294,34 +294,20 @@ export async function setModelCommand(
 export function chainsCommand(config: CliConfig = { secrets: {} }): void {
   const cli = CliSession.load();
   const currentChainId = cli?.chainId;
-  const chains = SUPPORTED_CHAIN_IDS.map((id) => {
-    const aaChain = DEFAULT_AA_CONFIG.chains.find((c) => c.chainId === id);
-    return {
-      id,
-      name: CHAIN_NAMES[id] ?? `Chain ${id}`,
-      aa: aaChain?.enabled
-        ? {
-            enabled: true,
-            defaultMode: aaChain.defaultMode,
-            supportedModes: aaChain.supportedModes,
-          }
-        : { enabled: false },
-      current: currentChainId === id,
-    };
-  });
+  // AA chain support lives in the backend AA lane now; the CLI only lists
+  // the chains themselves.
+  const chains = SUPPORTED_CHAIN_IDS.map((id) => ({
+    id,
+    name: CHAIN_NAMES[id] ?? `Chain ${id}`,
+    current: currentChainId === id,
+  }));
   if (config.json) {
     printJson(chains);
     return;
   }
 
   for (const chain of chains) {
-    const id = chain.id;
-    const name = chain.name;
-    const aaChain = DEFAULT_AA_CONFIG.chains.find((c) => c.chainId === id);
-    const aaInfo = aaChain?.enabled
-      ? `  AA: ${aaChain.defaultMode} (${aaChain.supportedModes.join(", ")})`
-      : "";
-    const marker = currentChainId === id ? "  (current)" : "";
-    console.log(`${id}  ${name}${aaInfo}${marker}`);
+    const marker = chain.current ? "  (current)" : "";
+    console.log(`${chain.id}  ${chain.name}${marker}`);
   }
 }

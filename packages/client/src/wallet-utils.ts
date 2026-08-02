@@ -74,6 +74,8 @@ export type WalletSolanaSignPayload = {
   cluster?: string;
   /** Server-side correlation id for the staged sign request. */
   pendingSolanaId?: number;
+  /** All staged instruction/transaction ids resolved by this wallet request. */
+  pendingSolanaIds?: number[];
 };
 
 export type WalletSolanaSignMessagePayload = {
@@ -119,10 +121,14 @@ function asRecord(value: unknown): UnknownRecord | undefined {
   return value as UnknownRecord;
 }
 
-function pendingTxsFromUserState(userState: unknown): UnknownRecord | undefined {
+function pendingTxsFromUserState(
+  userState: unknown,
+): UnknownRecord | undefined {
   const normalized = UserState.normalize(userState as UserState);
   const pending = asRecord(normalized?.pending);
-  return asRecord(pending?.evm_txs) ?? asRecord(asRecord(userState)?.pending_txs);
+  return (
+    asRecord(pending?.evm_txs) ?? asRecord(asRecord(userState)?.pending_txs)
+  );
 }
 
 function getToolArgs(payload: unknown): UnknownRecord {
@@ -133,6 +139,33 @@ function getToolArgs(payload: unknown): UnknownRecord {
 
 function parseChainKind(value: unknown): "evm" | "svm" | undefined {
   return value === "evm" || value === "svm" ? value : undefined;
+}
+
+/**
+ * Normalize Solana's legacy cluster labels to the CAIP-style identifiers used
+ * by the wallet runtime. Preserve unknown labels so callers can surface a
+ * useful unsupported-cluster error instead of silently changing networks.
+ */
+export function normalizeSolanaCluster(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+
+  switch (trimmed.toLowerCase()) {
+    case "mainnet":
+    case "mainnet-beta":
+    case "solana:mainnet":
+    case "solana:mainnet-beta":
+      return "solana:mainnet";
+    case "devnet":
+    case "solana:devnet":
+      return "solana:devnet";
+    case "testnet":
+    case "solana:testnet":
+      return "solana:testnet";
+    default:
+      return trimmed;
+  }
 }
 
 export function inferSolanaRequestKind(
@@ -163,19 +196,30 @@ export function inferSolanaRequestKind(
 }
 
 export function parseChainId(value: unknown): number | undefined {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "number") {
+    return Number.isSafeInteger(value) && value > 0 ? value : undefined;
+  }
   if (typeof value !== "string") return undefined;
 
   const trimmed = value.trim();
   if (!trimmed) return undefined;
 
-  if (trimmed.startsWith("0x")) {
-    const parsedHex = Number.parseInt(trimmed.slice(2), 16);
-    return Number.isFinite(parsedHex) ? parsedHex : undefined;
-  }
+  const parsed = trimmed.startsWith("0x")
+    ? parseCanonicalInteger(trimmed.slice(2), 16)
+    : parseCanonicalInteger(trimmed, 10);
+  return parsed !== undefined && parsed > 0 ? parsed : undefined;
+}
 
-  const parsed = Number.parseInt(trimmed, 10);
-  return Number.isFinite(parsed) ? parsed : undefined;
+function parseCanonicalInteger(
+  value: string,
+  radix: 10 | 16,
+): number | undefined {
+  if (value === "") return undefined;
+  const pattern = radix === 16 ? /^[0-9a-fA-F]+$/ : /^[0-9]+$/;
+  if (!pattern.test(value)) return undefined;
+
+  const parsed = Number.parseInt(value, radix);
+  return Number.isSafeInteger(parsed) ? parsed : undefined;
 }
 
 function parseTxIds(value: unknown): number[] {
@@ -432,16 +476,28 @@ export function normalizeSolanaSignPayload(
   const description =
     typeof args.description === "string" ? args.description : undefined;
 
-  const clusterRaw = args.cluster;
-  const cluster = typeof clusterRaw === "string" ? clusterRaw : undefined;
+  const cluster = normalizeSolanaCluster(args.cluster);
 
+  const rawPendingIds = args.svm_tx_ids ?? args.svm_ix_ids;
+  const pendingSolanaIds = Array.isArray(rawPendingIds)
+    ? rawPendingIds
+        .map(parsePendingId)
+        .filter((id): id is number => id !== undefined)
+    : undefined;
   const pendingSolanaId =
     parsePendingId(args.pendingSolanaId) ??
     parsePendingId(args.pending_solana_id) ??
     parsePendingId(args.pendingSvmSigId) ??
-    parsePendingId(args.pending_svm_sig_id);
+    parsePendingId(args.pending_svm_sig_id) ??
+    pendingSolanaIds?.[0];
 
-  return { unsignedTx, description, cluster, pendingSolanaId };
+  return {
+    unsignedTx,
+    description,
+    cluster,
+    pendingSolanaId,
+    pendingSolanaIds,
+  };
 }
 
 export function normalizeSolanaSignMessagePayload(
@@ -455,8 +511,7 @@ export function normalizeSolanaSignMessagePayload(
   const description =
     typeof args.description === "string" ? args.description : undefined;
 
-  const clusterRaw = args.cluster;
-  const cluster = typeof clusterRaw === "string" ? clusterRaw : undefined;
+  const cluster = normalizeSolanaCluster(args.cluster);
 
   const pendingSolanaId =
     parsePendingId(args.pendingSolanaId) ??
@@ -477,7 +532,10 @@ export function normalizeSolanaWalletRequest(
     ...args,
   };
   const chainKind =
-    parseChainKind(args.chain_kind) ?? parseChainKind(root?.chain_kind);
+    parseChainKind(args.chain_kind) ??
+    parseChainKind(args.chain_family) ??
+    parseChainKind(root?.chain_kind) ??
+    parseChainKind(root?.chain_family);
   if (chainKind !== "svm") {
     return null;
   }

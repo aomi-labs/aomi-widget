@@ -388,7 +388,10 @@ export function useEvmWalletRuntime({
       const connector = wagmiConfig.connectors.find(
         (candidate) => candidate.uid === connection.uid,
       );
-      if (!connector) {
+      if (
+        !connector ||
+        providerHooks.isProviderInternalConnector?.(connector)
+      ) {
         const providerSignature =
           await providerHooks.signMessageForProviderAccount?.({
             connection,
@@ -398,6 +401,8 @@ export function useEvmWalletRuntime({
         if (providerSignature) {
           return providerSignature;
         }
+      }
+      if (!connector) {
         throw new Error("Wallet linking requires the target wallet connector");
       }
       const walletClient = (await getWalletClientFor({

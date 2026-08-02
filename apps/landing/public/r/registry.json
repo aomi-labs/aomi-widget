@@ -17,6 +17,25 @@
       "registryDependencies": []
     },
     {
+      "name": "aomi-widget",
+      "type": "registry:component",
+      "description": "Embeddable Aomi widget with tenant-scoped provider or wallet authentication.",
+      "files": [
+        {
+          "type": "registry:component",
+          "path": "components/aomi-widget.tsx"
+        }
+      ],
+      "dependencies": [
+        "@aomi-labs/client",
+        "@aomi-labs/react"
+      ],
+      "registryDependencies": [
+        "https://aomi.dev/r/aomi-frame.json",
+        "https://aomi.dev/r/aomi-wallet-kit.json"
+      ]
+    },
+    {
       "name": "aomi-frame",
       "type": "registry:component",
       "description": "Full assistant shell with thread list and runtime wiring.",
@@ -43,24 +62,6 @@
       ]
     },
     {
-      "name": "aomi-widget",
-      "type": "registry:component",
-      "description": "Cross-domain Aomi widget with an origin-bound, memory-only SIWE session.",
-      "files": [
-        {
-          "type": "registry:component",
-          "path": "components/aomi-widget.tsx"
-        }
-      ],
-      "dependencies": [
-        "@aomi-labs/client"
-      ],
-      "registryDependencies": [
-        "https://aomi.dev/r/aomi-frame.json",
-        "https://aomi.dev/r/aomi-wallet-kit.json"
-      ]
-    },
-    {
       "name": "aomi-wallet-kit",
       "type": "registry:component",
       "description": "Generic Aomi wallet kit context. Identity → UserState sync is mounted automatically by AomiWalletKitContextProvider.",
@@ -80,6 +81,10 @@
         {
           "type": "registry:component",
           "path": "lib/wallet-kit/types.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/wallet-kit/env.ts"
         },
         {
           "type": "registry:component",
@@ -120,6 +125,10 @@
         {
           "type": "registry:component",
           "path": "lib/wallet-kit/config/index.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/wallet-kit/config/provider-auth.ts"
         },
         {
           "type": "registry:component",
@@ -176,6 +185,14 @@
         {
           "type": "registry:component",
           "path": "lib/wallet-kit/account/aomi-backend-runtime.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/wallet-kit/account/encoding.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/wallet-kit/account/use-widget-session-provider.ts"
         },
         {
           "type": "registry:component",
@@ -499,6 +516,18 @@
         },
         {
           "type": "registry:component",
+          "path": "components/assistant-ui/tool-interpreter/families/svm.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/assistant-ui/tool-interpreter/families/svm-tx.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/assistant-ui/tool-interpreter/families/jupiter.ts"
+        },
+        {
+          "type": "registry:component",
           "path": "components/assistant-ui/tool-interpreter/families/lifi.ts"
         },
         {
@@ -701,11 +730,19 @@
         },
         {
           "type": "registry:component",
+          "path": "lib/wallet-kit/providers/para/para-message-signing.ts"
+        },
+        {
+          "type": "registry:component",
           "path": "lib/wallet-kit/providers/para/para-auth.ts"
         },
         {
           "type": "registry:component",
           "path": "lib/wallet-kit/providers/para/para-embedded-wallet.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/wallet-kit/providers/para/widget-auth.ts"
         },
         {
           "type": "registry:component",
@@ -830,6 +867,10 @@
         {
           "type": "registry:component",
           "path": "lib/wallet-kit/providers/privy/privy.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/wallet-kit/providers/privy/widget-auth.ts"
         },
         {
           "type": "registry:component",

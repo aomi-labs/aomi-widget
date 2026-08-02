@@ -407,6 +407,27 @@ describe("DeploymentClient operate observability", () => {
             release_tag: "apps-123-demo-abc1234def56",
             sdk_version: "3.0.2",
             status: "healthy",
+            pricing: {
+              loaded_at: 1_785_118_000,
+              config: {
+                version: 1,
+                beneficiaries: [
+                  {
+                    name: "banana_evm",
+                    type: "evm_address",
+                    chain: "eip155:84532",
+                    value: "0x5D907BEa404e6F821d467314a9cA07663CF64c9B",
+                  },
+                ],
+                resources: {
+                  get_idle_assets: {
+                    pricing: { flat: 100 },
+                    beneficiary: "banana_evm",
+                  },
+                },
+                outcome: [],
+              },
+            },
             metrics: {
               provider: "grafana_prometheus",
               window_seconds: 300,
@@ -434,6 +455,14 @@ describe("DeploymentClient operate observability", () => {
             description: "Shared DB pressure.",
           },
         ],
+        payments: {
+          available: true,
+          scope: "recipient_bucket",
+          summary: {},
+          resources: [],
+          buckets: [],
+          events: [],
+        },
       }),
     );
     vi.stubGlobal("fetch", fetchMock);
@@ -465,6 +494,29 @@ describe("DeploymentClient operate observability", () => {
       errorRate: 0.025,
       p95LatencyMs: 1234,
       inflightRequests: 3,
+      // Legacy payload: the 24h trend contract stays null.
+      trendWindowSeconds: null,
+      chats24h: null,
+      toolCalls24h: null,
+      transactions24h: null,
+      chatsHourly: null,
+      toolCallsHourly: null,
+      transactionsHourly: null,
+      toolErrorRate: null,
+      txErrorRate: null,
+      coldStartMs: null,
+      dylibBytes: null,
+    });
+    expect(result.apps[0].pricing).toMatchObject({
+      loadedAt: 1_785_118_000,
+      config: {
+        resources: {
+          get_idle_assets: {
+            pricing: { flat: 100 },
+            beneficiary: "banana_evm",
+          },
+        },
+      },
     });
     expect(result.platformMetrics[0]).toEqual({
       label: "DB pool waiting",
@@ -472,6 +524,218 @@ describe("DeploymentClient operate observability", () => {
       unit: "connections",
       scope: "platform",
       description: "Shared DB pressure.",
+    });
+  });
+
+  it("maps the 24h trend contract when the manager emits it", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({
+          monitoring: {
+            provider: "grafana_prometheus",
+            status: "ok",
+            window_seconds: 900,
+          },
+          apps: [
+            {
+              application_id: 77,
+              application: "demo",
+              active: true,
+              loaded: true,
+              status: "healthy",
+              metrics: {
+                provider: "grafana_prometheus",
+                window_seconds: 900,
+                available: true,
+                trend_window_seconds: 86400,
+                chats_24h: 47,
+                tool_calls_24h: 130,
+                transactions_24h: 12,
+                chats_hourly: [0, 3, "5"],
+                tool_calls_hourly: [1, 2],
+                transactions_hourly: [],
+                tool_error_rate: 0.12,
+                tx_error_rate: 0,
+                cold_start_ms: 1250,
+                dylib_bytes: 4718592,
+              },
+            },
+          ],
+        }),
+      ),
+    );
+
+    const result = await client().getUserSourceObservability({
+      githubUserId: "4738254",
+      platform: "community",
+      appSourceId: 42,
+    });
+    expect(result.apps[0].metrics).toMatchObject({
+      trendWindowSeconds: 86400,
+      chats24h: 47,
+      toolCalls24h: 130,
+      transactions24h: 12,
+      chatsHourly: [0, 3, 5],
+      toolCallsHourly: [1, 2],
+      transactionsHourly: [],
+      toolErrorRate: 0.12,
+      txErrorRate: 0,
+      coldStartMs: 1250,
+      dylibBytes: 4718592,
+    });
+  });
+});
+
+describe("DeploymentClient operate logs", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("normalizes safe builder model-key attribution on usage events", async () => {
+    const fetchMock = vi.fn(async () =>
+      Response.json({
+        source: {
+          id: 42,
+          repository_link: "https://github.com/alice/demo",
+        },
+        platform: "community",
+        logs: [
+          {
+            occurred_at: 1_784_500_000,
+            event_type: "usage",
+            id: "usage-1",
+            application: "goal-digger",
+            application_id: 77,
+            summary: "Usage openai/gpt-5-nano",
+            details: {
+              provider: "openai",
+              model: "gpt-5-nano",
+              payment_method: "app_key",
+              model_key: {
+                id: 7,
+                label: "test-1",
+                prefix: "sk-proj",
+              },
+            },
+            kind: "event",
+          },
+        ],
+        next_cursor: null,
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await client().listUserSourceLogs({
+      githubUserId: "4738254",
+      platform: "community",
+      appSourceId: 42,
+    });
+
+    expect(result.logs[0]).toMatchObject({
+      eventType: "usage",
+      summary: "Usage openai/gpt-5-nano",
+      modelKey: {
+        id: 7,
+        label: "test-1",
+        prefix: "sk-proj",
+      },
+    });
+  });
+});
+
+describe("DeploymentClient operate app detail", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("reads and normalizes the owned app detail aggregate", async () => {
+    const fetchMock = vi.fn(async () =>
+      Response.json({
+        source: { id: 42, repository_link: "https://github.com/alice/demo" },
+        platform: "community",
+        window_seconds: 86400,
+        app: {
+          application_id: 77,
+          name: "demo",
+          release_tag: "apps-42-demo-abc1234",
+          sdk_version: "3.0.3",
+          active: true,
+          loaded: true,
+          status: "healthy",
+        },
+        funnel: {
+          chats_24h: 12,
+          tool_calls_24h: 30,
+          tx_proposed_24h: 4,
+          tx_submitted_24h: 3,
+          tx_confirmed_24h: 2,
+          tx_reverted_24h: 1,
+        },
+        active_users_24h: 5,
+        credits: {
+          credits_24h: 8.5,
+          credits_per_turn_24h: 0.71,
+          credits_daily: [{ day: "2026-07-19", credits: 8.5 }],
+        },
+        tools: [
+          {
+            tool: "get_price",
+            calls: 20,
+            errors: 1,
+            error_rate: 0.05,
+            p95_ms: 310,
+            last_error: {
+              message: "upstream timeout",
+              occurred_at: 1784500000,
+            },
+          },
+        ],
+        lifecycle: {
+          cold_start_ms: 1250,
+          dylib_bytes: 4718592,
+          loads_24h: 2,
+          evictions_24h: 1,
+        },
+        hourly: {
+          chats: [0, 2, 3],
+          tool_calls: [1, 4, 5],
+          p95_latency_ms: [800, null, 950],
+          transactions: [0, 1, 1],
+        },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await client().getUserSourceAppDetail({
+      githubUserId: "4738254",
+      platform: "community",
+      appSourceId: 42,
+      applicationId: 77,
+    });
+
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      "https://staging-api.example.com/api/integrations/github-app/user/sources/42/apps/77/detail?github_user_id=4738254&platform=community",
+    );
+    expect(result).toMatchObject({
+      windowSeconds: 86400,
+      app: { applicationId: 77, name: "demo", status: "healthy" },
+      funnel: { chats24h: 12, txConfirmed24h: 2 },
+      activeUsers24h: 5,
+      credits: { credits24h: 8.5, creditsPerTurn24h: 0.71 },
+      lifecycle: { coldStartMs: 1250, loads24h: 2 },
+      hourly: {
+        chats: [0, 2, 3],
+        toolCalls: [1, 4, 5],
+        p95LatencyMs: [800, null, 950],
+      },
+    });
+    expect(result.tools[0]).toEqual({
+      tool: "get_price",
+      calls: 20,
+      errors: 1,
+      errorRate: 0.05,
+      p95Ms: 310,
+      lastError: {
+        message: "upstream timeout",
+        occurredAt: 1784500000,
+      },
     });
   });
 });
@@ -517,6 +781,328 @@ describe("DeploymentClient source SDK upgrade", () => {
         created: true,
       },
     });
+  });
+
+  it("GETs the cheap upgrade-status poll and normalizes a merged PR", async () => {
+    const fetchMock = vi.fn(async () =>
+      Response.json({
+        status: "merged",
+        required_sdk_version: "3.0.3",
+        branch: "aomi/sdk-3.0.3",
+        pull_request: {
+          number: 7,
+          url: "https://github.com/alice/demo/pull/7",
+          state: "closed",
+          merged: true,
+        },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await client().sdkUpgradeStatus({
+      githubUserId: "4738254",
+      platform: "community",
+      appSourceId: 42,
+    });
+
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      "https://staging-api.example.com/api/integrations/github-app/user/sources/42/sdk-upgrade-status?github_user_id=4738254&platform=community",
+    );
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({ method: "GET" });
+    expect(result).toEqual({
+      status: "merged",
+      requiredSdkVersion: "3.0.3",
+      branch: "aomi/sdk-3.0.3",
+      pullRequest: {
+        number: 7,
+        url: "https://github.com/alice/demo/pull/7",
+        state: "closed",
+        merged: true,
+      },
+    });
+  });
+
+  it("normalizes a null pull_request to status none", async () => {
+    const fetchMock = vi.fn(async () =>
+      Response.json({
+        status: "none",
+        required_sdk_version: "3.0.3",
+        branch: "aomi/sdk-3.0.3",
+        pull_request: null,
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await client().sdkUpgradeStatus({
+      githubUserId: "4738254",
+      platform: "community",
+      appSourceId: 42,
+    });
+
+    expect(result).toEqual({
+      status: "none",
+      requiredSdkVersion: "3.0.3",
+      branch: "aomi/sdk-3.0.3",
+      pullRequest: null,
+    });
+  });
+});
+
+describe("DeploymentClient operate statement", () => {
+  let fetchMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    fetchMock = vi.fn(async () =>
+      Response.json({
+        source: {
+          id: 42,
+          installation_id: 123,
+          repository_id: 987,
+          repository_link: "https://github.com/alice/demo.git",
+          github_account: "alice",
+        },
+        platform: "community",
+        range: { from_date: "2026-07-01", to_date: "2026-07-15" },
+        available: true,
+        summary: {
+          gross_revenue: 20.0,
+          platform_fees: 4.0,
+          service_charges: 13.3,
+          net: 2.7,
+        },
+        revenue: [
+          {
+            subject: "tool_invocation",
+            application: "alpha",
+            application_id: 7,
+            events: 4,
+            gross: 8.0,
+            platform_fee: 0.8,
+            net: 7.2,
+          },
+        ],
+        charges: [
+          {
+            item: "hosting",
+            application: "beta",
+            application_id: 9,
+            events: 1,
+            amount: 10.0,
+          },
+        ],
+        entries: [
+          {
+            day: "2026-07-02",
+            application: "alpha",
+            subject: "model",
+            events: 3,
+            gross: 3.3,
+            platform_fee: 0.3,
+            net: -3.3,
+          },
+        ],
+        payments: {
+          available: true,
+          scope: "recipient_bucket",
+          summary: {
+            accrued_credits: 100,
+            accrued_usd: 1,
+            settled_credits: 100,
+            settled_usd: 1,
+            outstanding_credits: 0,
+            outstanding_usd: 0,
+            priced_calls: 1,
+            settlements: 1,
+          },
+          resources: [
+            {
+              application: "somm-agent",
+              application_id: 2936606,
+              tool: "get_idle_assets",
+              flat_credits: 100,
+              flat_usd: 1,
+              beneficiary: "banana_evm",
+              recipient: "0x5D907BEa404e6F821d467314a9cA07663CF64c9B",
+              chain: "eip155:84532",
+              beneficiary_type: "evm_address",
+              observed_calls: 1,
+            },
+          ],
+          buckets: [
+            {
+              id: "proof-bucket",
+              recipient: "0x5D907BEa404e6F821d467314a9cA07663CF64c9B",
+              outstanding_credits: 0,
+              outstanding_usd: 0,
+            },
+          ],
+          events: [
+            {
+              id: "settle:proof",
+              kind: "settlement_confirmed",
+              occurred_at: 1_785_119_866,
+              application: "somm-agent",
+              application_id: 2936606,
+              tools: [],
+              credits: 100,
+              usd: 1,
+              asset: "USDC",
+              asset_amount: 1,
+              recipient: "0x5D907BEa404e6F821d467314a9cA07663CF64c9B",
+              payment_method: "coinbase",
+              receipt_id: "0x55e510",
+              chain: "eip155:84532",
+              explorer_url: "https://sepolia.basescan.org/tx/0x55e510",
+            },
+          ],
+        },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+  });
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("maps the statement wire (subjects, entries, USD floats) to camelCase", async () => {
+    const result = await client().getUserSourceStatement({
+      githubUserId: "4738254",
+      platform: "community",
+      appSourceId: 42,
+      fromDate: "2026-07-01",
+      toDate: "2026-07-15",
+    });
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      "https://staging-api.example.com/api/integrations/github-app/user/sources/42/statement?github_user_id=4738254&platform=community&from_date=2026-07-01&to_date=2026-07-15",
+    );
+    expect(result.range).toEqual({
+      fromDate: "2026-07-01",
+      toDate: "2026-07-15",
+    });
+    expect(result.available).toBe(true);
+    expect(result.summary).toEqual({
+      grossRevenue: 20.0,
+      platformFees: 4.0,
+      serviceCharges: 13.3,
+      net: 2.7,
+    });
+    expect(result.revenue).toEqual([
+      {
+        subject: "tool_invocation",
+        application: "alpha",
+        applicationId: 7,
+        events: 4,
+        gross: 8.0,
+        platformFee: 0.8,
+        net: 7.2,
+      },
+    ]);
+    expect(result.charges).toEqual([
+      {
+        item: "hosting",
+        application: "beta",
+        applicationId: 9,
+        events: 1,
+        amount: 10.0,
+      },
+    ]);
+    expect(result.entries).toEqual([
+      {
+        day: "2026-07-02",
+        application: "alpha",
+        subject: "model",
+        events: 3,
+        gross: 3.3,
+        platformFee: 0.3,
+        net: -3.3,
+      },
+    ]);
+    expect(result.payments.summary).toEqual({
+      accruedCredits: 100,
+      accruedUsd: 1,
+      settledCredits: 100,
+      settledUsd: 1,
+      outstandingCredits: 0,
+      outstandingUsd: 0,
+      pricedCalls: 1,
+      settlements: 1,
+    });
+    expect(result.payments.resources[0]).toMatchObject({
+      application: "somm-agent",
+      applicationId: 2936606,
+      tool: "get_idle_assets",
+      flatCredits: 100,
+      observedCalls: 1,
+    });
+    expect(result.payments.buckets[0].id).toBe("proof-bucket");
+    expect(result.payments.events[0]).toMatchObject({
+      kind: "settlement_confirmed",
+      receiptId: "0x55e510",
+      chain: "eip155:84532",
+    });
+  });
+
+  it("degrades to an unavailable zeroed statement when the table is missing", async () => {
+    fetchMock.mockResolvedValueOnce(
+      Response.json({
+        source: {
+          id: 42,
+          installation_id: 123,
+          repository_id: 987,
+          repository_link: "x",
+        },
+        platform: "community",
+        range: { from_date: "2026-07-01", to_date: "2026-07-15" },
+        available: false,
+        summary: {
+          gross_revenue: 0.0,
+          platform_fees: 0.0,
+          service_charges: 0.0,
+          net: 0.0,
+        },
+        revenue: [],
+        charges: [],
+        entries: [],
+      }),
+    );
+
+    const result = await client().getUserSourceStatement({
+      githubUserId: "4738254",
+      platform: "community",
+      appSourceId: 42,
+    });
+    expect(result.available).toBe(false);
+    expect(result.summary.net).toBe(0);
+    expect(result.revenue).toEqual([]);
+  });
+});
+
+describe("DeploymentClient sources", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("keeps the complete live SDK set from a platform-free source list", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({
+          sources: [
+            {
+              id: 42,
+              installation_id: 1,
+              repository_link: "alice/demo",
+              apps: [],
+              sdk_version: null,
+              sdk_versions: ["3.0.3", "3.0.4"],
+            },
+          ],
+        }),
+      ),
+    );
+
+    const [source] = await client().listUserSources({ githubUserId: "42" });
+    expect(source.sdkVersion).toBeNull();
+    expect(source.sdkVersions).toEqual(["3.0.3", "3.0.4"]);
   });
 });
 
