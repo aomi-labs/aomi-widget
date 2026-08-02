@@ -2,6 +2,107 @@
 
 ## Last Updated
 
+2026-08-01 (later) — Integrations page REDESIGN PORTED TO THE REAL PAGE
+  (same worktree/branch, uncommitted). Design was iterated with Cecilia on
+  /mock-integration, then moved wholesale:
+  - `features/integrations/how-it-works.tsx` (NEW): TelegramHowItWorks —
+    plain-text 4-step explainer (PT Serif heading) + BotFatherGuide, a
+    Telegram-dark chat mimic of the real /setcommands exchange (hardcoded
+    Telegram colors #0e1621/#182533/#2b5278 by design, BotFather header with
+    verified badge, Copy chip on the command-list bubble).
+  - `features/operate/bots-view.tsx` (REWRITTEN): provider rail (real brand
+    marks: Telegram plane #2AABEE, Discord Clyde #5865F2, Slack 4-color;
+    Discord/Slack greyed "Soon"; bot count pill; Add bot pill) → how-it-works
+    → inline AddBotCard (token/label 13px labels over 12px hints, sliding
+    ThreadModeToggle with `?` tooltip control top-right of the app table) →
+    one card per bot (monogram, masked token `platform_bot_id:••••`, Active
+    pill, thread-mode label, Change apps + circular trash, primary-starred
+    app chips) with in-place edit (framed APP|SOURCE|PRIMARY table, checked
+    rows accent-washed, radio primary, ghost rows uncheckable-only + save
+    blocked, thread mode DISABLED with "can't be changed after registration
+    yet" tooltip until the manager PATCH gains thread_mode). Data layer
+    unchanged (react-query bots key, POST/PATCH/DELETE via
+    API_PATHS.bff.operate.bots, cache updates). `embedded` prop dropped.
+  - `features/integrations/integrations-view.tsx`: slimmed to page header +
+    BotsView (old Telegram hero + Discord placeholder cards gone; sign-in
+    gates live in BotsView).
+  - `/mock-integration` is now a fixture HARNESS for the real page (pattern
+    from dev-operate-preview): stubbed window.fetch serves github/status +
+    operate/bots GET/POST/PATCH/DELETE from in-memory fixtures under
+    QueryClientProvider + GitHubSessionProvider, plus a page-local
+    light/dark ThemeSwitch. Full add/edit/remove flows work there without
+    auth — verified live (edit → toggle app → Save → PATCH → chips update).
+  - bots-view.test.tsx rewritten for the new UI (5 tests: sign-in gate,
+    cards+masked token+count pill, add-flow gating, edit lock/cancel, ghost
+    block/unblock).
+  Verified: apps/build vitest 403/403 (63 files), type-check, eslint clean.
+  HARNESSES GROUPED under /dev (per Cecilia): NEW index
+  `app/dev/page.tsx` (dev-only, notFound in prod — portal convention) lists
+  all fixture harnesses; `dev-operate-preview` → `/dev/operate-preview`,
+  `mock-integration` → `/dev/integrations-preview` (git mv; internal
+  router.replace paths updated); old URLs kept as redirect stubs. NOTE:
+  a concurrent session extracted `features/integrations/thread-mode-control.tsx`
+  and made BotFather commands thread-mode-aware (botfatherCommands(mode) with
+  a mode selector in the explainer) — bots-view test rescoped to the edit
+  panel's disabled toggle to coexist. Re-verified 403/403 after both.
+  BE COMPAT REVIEW vs product-mono main (PRs #914 lifecycle + #915
+  /sessions): manager bot endpoints rewrote github_app_bots.rs →
+  endpoints/builder_bots/ but the WIRE CONTRACT is unchanged (same paths,
+  bot_registration(s) keys, same field names) — FE fully compatible. New
+  capabilities adopted: PATCH now takes optional `label`/`thread_mode`
+  (omitted=unchanged, blank label clears), create REVIVES disabled
+  same-owner bots, delete drops the Telegram webhook. Wired through:
+  packages/deploy UpdateUserBotInput + updateUserBot body
+  (label/thread_mode), BFF operateBotsUpdateRoute accepts+validates optional
+  `threadMode` ("single"|"multi"), bots-view edit panel thread-mode toggle
+  ENABLED (draftThreadMode, Cancel restores, Save PATCHes), harness stub
+  applies threadMode. Label editing via PATCH is possible BE-side but has no
+  UI yet (follow-up). Verified: apps/build 404/404, packages/deploy 128/128
+  (root vitest needs --exclude override inside .claude worktrees),
+  type-check + lint clean; live harness round trip single→multi green.
+
+2026-08-01 — Integrations page (build-staging.aomi.dev/integrations) FE logic
+  fixes + redesign kickoff (worktree vibrant-cerf-89d084, branch
+  claude/page-redesign-bug-fixes-277017, uncommitted). Full-chain read done:
+  IntegrationsView shell → embedded BotsView → BFF operate/bots →
+  packages/deploy client → manager github_app_bots.rs → bin/telegram runtime.
+  FE fixes in `apps/build/src/features/operate/bots-view.tsx`:
+  - Cancel button for edit mode (was a one-way door — editingId only cleared
+    by successful save).
+  - Thread mode select now disabled while editing, with explanatory hint
+    (PATCH carries only app mappings; manager UpdateBuilderBotRequest has no
+    thread_mode — the enabled select silently discarded changes).
+  - Ghost apps (bot mappings no longer in the builder's sources) render as
+    uncheckable-only rows under "No longer available", appear in the Primary
+    select, and block save with an inline message instead of an opaque BFF
+    403 "selected apps are not owned by this user".
+  - Removing the bot being edited exits edit mode.
+  - toggleApplication no longer calls setState inside another setState
+    updater (StrictMode impurity).
+  - "Attached apps" group is a div, not a <label> (nested labels gave every
+    checkbox the same accessible name and any click in the box toggled the
+    first checkbox).
+  Tests: bots-view.test.tsx +2 (edit-mode lock/cancel, ghost-block); apps/
+  build suite 403/403, type-check + eslint clean. NOTE: fresh worktree needed
+  `pnpm install` + `pnpm --filter @aomi-labs/smither build` (dist JS is
+  untracked; its tsup DTS step fails but emits JS first — the two committed
+  dist .d.ts get deleted by the build, restore with git checkout).
+  NEW blank design playground `apps/build/src/app/mock-integration/page.tsx`
+  at localhost:3010/mock-integration (launch.json entry
+  `build-mock-integration`, NEXT_DIST_DIR=.next-mock-integration; tsconfig
+  include gained the matching two type globs, same pattern as .next-b/
+  .next-verify). Page is deliberately empty — redesign direction TBD with
+  Cecilia.
+  KNOWN BE bugs deliberately NOT touched this session (FE-only scope):
+  (1) removed (disabled) bot can never be re-registered — create's
+  find_by_platform_bot ignores disabled rows + DB UNIQUE
+  (platform, platform_bot_id) → permanent 409; fix = revive-on-create for
+  same-owner disabled rows; (2) disable never calls Telegram deleteWebhook;
+  (3) thread_mode/label not updatable via PATCH (manager + BFF + client).
+  Dead FE stub also left in place: features/integrations/client.ts +
+  server/bff/integrations/routes.ts (status always disconnected, connect
+  501) — wired to /api/bff/integrations but nothing calls it.
+
 2026-07-30 — Operate batch reads for the REST of the herd: transactions,
   statement, usage, logs (branch `fix/operate-batch-reads` in aomi,
   `feat/operate-batch-reads` in product-mono). Cecilia reported Transactions
