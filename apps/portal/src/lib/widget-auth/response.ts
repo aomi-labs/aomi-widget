@@ -9,8 +9,6 @@ import {
   type FailureContext,
   type FailureInput,
 } from "@aomi-labs/bff-observability";
-// This module is imported only by server route handlers despite its legacy lib path.
-// eslint-disable-next-line no-restricted-imports
 import { portalFailures } from "@portal/server/bff/failures";
 import { ZodError } from "zod";
 import { applyWidgetCors, widgetCorsPreflight } from "./cors";
