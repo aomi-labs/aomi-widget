@@ -47,7 +47,97 @@ type MessageContentPart =
     ? U
     : never;
 
-export function toInboundMessage(msg: AomiMessage): ThreadMessageLike | null {
+/**
+ * The backend transcribes every system-endpoint callback verbatim as
+ * `Response of system endpoint: {raw json}` (runtime `thread.rs`). That line
+ * exists for the MODEL — it is how wallet callbacks reach the next turn — and
+ * was never meant for humans; the CLI has filtered it from display since day
+ * one (`cli/commands/history.ts`). Without this guard the web thread renders
+ * the raw JSON as an assistant bubble.
+ */
+const SYSTEM_ENDPOINT_ECHO_PREFIX = "Response of system endpoint:";
+
+/** Final outcome of a staged tx, mined from `wallet:tx_complete` callbacks. */
+export type TxOutcome = {
+  status: "success" | "failed";
+  txHash?: string;
+  error?: string;
+};
+
+/**
+ * Mine the transcript's system-endpoint echoes for staged-tx outcomes.
+ *
+ * A staged tool step is recorded once, with `current_lifecycle: "queued"`, and
+ * never updated — the actual result arrives later as a `wallet:tx_complete`
+ * callback that only the model was meant to read. Without reconciling the two,
+ * the trace shows "Execute ✓ / Queued" forever, even when execution failed.
+ * The echo messages are hidden from display (see the prefix guard above), but
+ * they are still the single durable record of what happened — including after
+ * a reload, when no client-side wallet state survives.
+ *
+ * Later callbacks win: a re-staged tx gets a fresh pending id, so collisions
+ * only occur when the same id genuinely reports twice.
+ */
+export function collectTxOutcomes(
+  messages: readonly AomiMessage[],
+): ReadonlyMap<number, TxOutcome> | null {
+  let outcomes: Map<number, TxOutcome> | null = null;
+  for (const msg of messages) {
+    if (
+      msg.sender !== "system" ||
+      !msg.content?.startsWith(SYSTEM_ENDPOINT_ECHO_PREFIX)
+    ) {
+      continue;
+    }
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(
+        msg.content.slice(SYSTEM_ENDPOINT_ECHO_PREFIX.length),
+      );
+    } catch {
+      continue;
+    }
+    if (
+      typeof parsed !== "object" ||
+      parsed === null ||
+      (parsed as { type?: unknown }).type !== "wallet:tx_complete"
+    ) {
+      continue;
+    }
+    const payload = (parsed as { payload?: unknown }).payload;
+    if (typeof payload !== "object" || payload === null) continue;
+    const { status, txHash, error, pending_tx_ids } = payload as {
+      status?: unknown;
+      txHash?: unknown;
+      error?: unknown;
+      pending_tx_ids?: unknown;
+    };
+    if (status !== "success" && status !== "failed") continue;
+    if (!Array.isArray(pending_tx_ids)) continue;
+    for (const id of pending_tx_ids) {
+      if (typeof id !== "number" || !Number.isInteger(id)) continue;
+      outcomes ??= new Map();
+      outcomes.set(id, {
+        status,
+        ...(typeof txHash === "string" && txHash && { txHash }),
+        ...(typeof error === "string" && error && { error }),
+      });
+    }
+  }
+  return outcomes;
+}
+
+export function toInboundMessage(
+  msg: AomiMessage,
+  txOutcomes?: ReadonlyMap<number, TxOutcome> | null,
+): ThreadMessageLike | null {
+  if (
+    msg.sender === "system" &&
+    msg.content?.startsWith(SYSTEM_ENDPOINT_ECHO_PREFIX)
+  ) {
+    return null;
+  }
+
   const content: MessageContentPart[] = [];
   const role: ThreadMessageLike["role"] =
     msg.sender === "user" ? "user" : "assistant";
@@ -64,11 +154,32 @@ export function toInboundMessage(msg: AomiMessage): ThreadMessageLike | null {
       toolName: topic,
       args: undefined,
       result: (() => {
+        let parsed: unknown;
         try {
-          return JSON.parse(toolContent);
+          parsed = JSON.parse(toolContent);
         } catch {
           return { args: toolContent };
         }
+        // Reconcile the step with its async outcome: a staged tx records
+        // `current_lifecycle: "queued"` and is never touched again, so the
+        // trace would show Queued/✓ forever. The interpreter reads
+        // `tx_outcome` to flip the chip (and the red-X marker) instead.
+        if (
+          txOutcomes &&
+          typeof parsed === "object" &&
+          parsed !== null &&
+          !Array.isArray(parsed)
+        ) {
+          const record = parsed as { pending_tx_id?: unknown };
+          const outcome =
+            typeof record.pending_tx_id === "number"
+              ? txOutcomes.get(record.pending_tx_id)
+              : undefined;
+          if (outcome) {
+            return { ...record, tx_outcome: outcome };
+          }
+        }
+        return parsed;
       })(),
     });
   }

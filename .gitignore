@@ -69,3 +69,6 @@ next-env.d.ts
 
 # aomi-smither durable run state (sqlite/pglite dirs)
 **/.smithers/
+
+# Recorded demo masters — regenerable build artifacts, not source
+/demo/out/

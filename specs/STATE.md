@@ -2,6 +2,40 @@
 
 ## Last Updated
 
+2026-08-01 — Renamed portal E2E executor `executeE2EWalletTransaction` →
+  `executeE2EvmTransaction` (EVM-only; pairs with `executeE2ESolanaTransaction`).
+  Touched: apps/portal/src/server/e2e-wallet.ts, e2e-wallet.test.ts,
+  apps/portal/src/app/api/bff/e2e/execute/route.ts.
+
+2026-07-31 — Fixed the browser POST /api/exec/simulate empty-body bug (on this
+  branch, not committed). ROOT CAUSE (proven in real Chrome + undici): the
+  portal's withDebugLogging rebuilt Request inputs via `new Request(url,
+  request)` — the Request lands in the RequestInit position, so its buffered
+  string body is read back as a ReadableStream (`duplex: "half"`). Chrome only
+  sends streaming uploads over HTTP/2, so on plain-http localhost the fetch
+  dies with ERR_ALPN_NEGOTIATION_FAILED, and under Playwright interception the
+  streamed body reads as 0 bytes → backend 400 "EOF while parsing". The chain:
+  simulateBatch → wrapFetchWithAccountBearer → paymentFetch (wraps string url
+  + init into a Request) → withDebugLogging (mangled it). FIXES:
+  apps/portal/src/lib/portal-client-options.ts — withDebugLogging now passes
+  Request inputs through untouched (their URL is already absolute);
+  applyLockedAppScope (same Request-as-init bug, latent) now rebuilds field by
+  field with a buffered body and went async. packages/client/src/client.ts —
+  wrapFetchWithAccountBearer clones Request inputs per attempt so the body
+  survives the first send AND the 401 retry (was: retry re-sent a consumed
+  Request); exported for tests. Tests: packages/client/test/
+  client.fetch-wrapper.unit.test.ts (4) + apps/portal/src/lib/
+  portal-client-options.test.ts (6, node env — jsdom mixes undici Request
+  with its own AbortSignal). Verified in the main checkout before porting
+  here: full client suite 289 green, portal lib tests green, eslint/tsc clean
+  on touched files, real-Chrome A/B against an HTTP/1.1 echo server (buggy
+  chain fails, fixed chain delivers the body intact). The demo rig's
+  WORKAROUND stub for **/api/exec/simulate in demo/capture/record.ts was
+  REMOVED with the fix in place — per the stub's own note, re-run a fork demo
+  capture to confirm fee injection now works end-to-end (not yet re-tested;
+  vitest cannot run inside .claude worktrees, so run tests from a regular
+  checkout).
+
 2026-07-30 — Operate batch reads for the REST of the herd: transactions,
   statement, usage, logs (branch `fix/operate-batch-reads` in aomi,
   `feat/operate-batch-reads` in product-mono). Cecilia reported Transactions
@@ -3268,6 +3302,214 @@ Controls disabled while isProcessing === true
 - SSE event handling verification (SystemNotice, AsyncCallback)
 - E2E verification of control flow: apiKey → namespaces → model selection
 - Thread list should show model/namespace per thread (optional enhancement)
+
+## Trace truthfulness + system-echo cleanup (2026-07-31, forked session, merged into this worktree)
+
+- Two UI fixes ported/built here (the forked nervous-haibt worktree was deleted
+  after porting, per Cecilia):
+  1. HIDE SYSTEM ECHO: `packages/react/src/runtime/utils.ts` drops
+     `sender=system` messages prefixed `Response of system endpoint:` from the
+     thread (backend `thread.rs` transcribes every /api/system callback
+     verbatim FOR THE MODEL; the CLI has filtered it since day one in
+     `cli/commands/history.ts`; the web UI rendered raw JSON as an assistant
+     bubble). Prefix guard runs BEFORE isCreditNotice so a tx callback
+     containing "payment" can't become a Credits card.
+  2. ASYNC OUTCOME RECONCILIATION: staged tx steps froze at "Queued ✓" even
+     when the later `wallet:tx_complete` said failed. Now
+     `collectTxOutcomes()` (utils.ts) mines the (hidden) echo messages for
+     `pending_tx_ids` outcomes — latest wins; computed over the FULL raw list
+     in `projectInboundMessages` (orchestrator.ts) so truncated projections
+     still reconcile; survives reload since the transcript is the durable
+     record. `toInboundMessage` attaches `tx_outcome` to matching tool
+     results; `matchStagedTx` (tool-interpreter families/evm-tx.ts) prefers
+     `tx_outcome.status` over `current_lifecycle` for the status fact — chips
+     flip Queued → Success/Failed and `isFailedStatus` drives the red-X step
+     marker for free.
+- Callback shape verified from `packages/client/src/session/wallet.ts`:
+  `{txHash, status: "success"|"failed", error?, pending_tx_ids: number[]}`.
+- Tests: packages/react 136/136 (5 new), shadcn-registry 281/281 (2 new
+  interpreter tests; package-boundary tests need `pnpm run build:package`
+  first — dist/ missing is an environment condition, not a regression).
+  eslint + tsc clean.
+- Root-cause note from the parallel session (memory): the simulate empty-body
+  + ERR_ALPN bug = `new Request(url, req)` streaming-body footgun; fixed
+  separately.
+
+## Demo studio — FIRST SUCCESSFUL RECORDING (2026-07-31 late)
+
+- `demo/out/ds2-stake-eth/ds2-stake-eth-master.mp4` (27.6s) + markers.json:
+  two-turn DS2, Lido stake EXECUTED on the fork. Verified on-chain: account 2
+  (0x3C44...93BC) holds 5.0 stETH, ETH 10 → 4.9999, block 25655803 → 25655804.
+- The last-mile fixes, in order:
+  1. Backend trust: portal signs bearers with kid `aomi-bff-dev-1` but local
+     service.toml only trusted `aomi-bff-staging-1` (same keypair!) — added a
+     dev-kid trust record to the demo worktree's gitignored service.toml.
+  2. Wallet identity: anvil account 0 is BOUND to another user (the old anon
+     E2E artifact) — switched demo signer to unbound anvil account 2, then ran
+     the bind + client_auto permit ceremonies via curl + `cast wallet sign`
+     (challenge → EIP-712 sign → commit; mode strings: bind, client_auto).
+     NOTE: this bound anvil dev account 2 (public key!) to Cecilia's account in
+     the prod DB — revoke when demos are done (mode=denied or unlink).
+  3. Client flag: the E2E provider checks NEXT_PUBLIC_AOMI_E2E_EXECUTION_MODE
+     (not the server-side var) AND Turbopack caches inlined env across restarts
+     — cleared `.next-demo-studio` to pick it up.
+  4. FE BUG (spawned task): browser POST /api/exec/simulate sends an EMPTY
+     body (+ intermittent ERR_ALPN_NEGOTIATION_FAILED) → fee simulate 400s →
+     wallet request rejected. Studio stubs the route with a no-fee success
+     (WORKAROUND in record.ts); backend-side simulate_batch still real.
+  5. E2E executor policy was self-transfer-only — added an additive
+     fork-verified branch to apps/portal/src/server/e2e-wallet.ts: contract
+     calls allowed ONLY when the RPC answers `anvil_nodeInfo` (fails closed);
+     real-RPC posture unchanged. executionKind "e2e_real_fork_call" added.
+     Value cap raised via AOMI_E2E_MAX_NATIVE_WEI=6e18 in .env.local.
+  6. Multi-turn scenarios (`prompts: string[]`), typed-text verification
+     (hydration ate the first keystroke), consent-banner dismissal per turn,
+     funding AFTER `test-env evm reset` (reset reforks and wipes balances),
+     block-advance polling (30s) instead of instant sampling.
+- Honest caveats: video tail cuts mid-sentence of the post-execution
+  confirmation (recorder should settle-wait for a follow-up turn); sidebar
+  shows debug threads — takes DO create real threads on Cecilia's prod account
+  now that auth works (earlier "no writes" check predated working auth);
+  archive them before a partner-facing take.
+
+## Demo studio — landed so far (2026-07-31)
+
+- `apps/portal/src/components/providers/wallet-providers.tsx` now consumes
+  `useFullTestnet` + `FullTestnetWalletRouter`. Routed chains go to BOTH the
+  E2E-wallet branch and the normal wallet-kit branch (demos need E2E wallet AND
+  fork RPC together). Inert unless `NEXT_PUBLIC_USE_FULL_TESTNET=true` and the
+  RPC map parses. Portal type-check + eslint clean, 329/329 portal tests pass.
+  NOTE: `apps/landing` only uses `isFullTestnet()` as a guard and never routes
+  chains — it is still not fully wired. Left alone (not our change to make).
+- New `demo/` dir: `capture/test-env.ts` (fork orchestration, Playwright-free),
+  `capture/selectors.ts`, `capture/record.ts`, `scenarios/types.ts`,
+  `scenarios/ds2-stake-eth.scenario.ts`, `README.md`. Non-Playwright files
+  typecheck clean; `eslint demo` clean; root `typecheck` is scoped to
+  `packages/react/src` so `demo/` cannot break it.
+- Selectors use EXISTING aria-labels (`Message input`, `Send message`,
+  `Stop generating`) + `data-role="assistant"` — no `data-testid` added to
+  production code. `Stop generating` presence/absence is the streaming signal,
+  so the recorder never sleeps.
+- SAFETY: full-testnet routing FAILS OPEN to real mainnet if env is missing —
+  scenarios that stake/swap would spend real money and the take would still look
+  successful. Two guards, neither to be downgraded: `assertForkedOrDie()`
+  (`anvil_nodeInfo` probe) and `watchForForkTraffic()` (fails the take if the
+  browser never hit the fork port).
+- `@playwright/test` + `tsx` added as root devDependencies (approved
+  2026-07-31); chromium downloaded. All demo files typecheck + lint clean.
+  `demo/out/` gitignored — recorded masters are regenerable artifacts.
+- CLI CORRECTIONS found by reading `product-mono/aomi/bin/cli/src/cli.rs`
+  (both contradict `full-testnet.md`, which is wrong on the first point):
+  1. The real command has an `evm`/`svm` layer: `aomi test-env evm up --chains 1`,
+     `... evm reset --chain 1`. NOT `aomi test-env up`.
+  2. The released CLI on PATH (homebrew v0.3.9) has NO `test-env` group at all
+     ("Unknown command test-env"). Must build from product-mono source;
+     `demo/capture/test-env.ts` defaults `AOMI_BIN` to that debug build.
+- SOLANA CORRECTION: `aomi test-env svm` EXISTS — a Surfpool-backed local SVM
+  mirror (up/down/status/reset + wallet/airdrop/usdc). My earlier "Solana has no
+  usable fork, settled" was wrong; it was based on the byreal doc, which is only
+  right about byreal (off-chain orderbook, unforkable). Jupiter/Marinade are
+  on-chain and may work against the mirror — UNVERIFIED, but try it before
+  accepting real-money Solana takes.
+- VERIFIED against a live fork (2026-07-31). `aomi-cli test-env evm up --chains 1`
+  needs `PROVIDERS_TOML=~/Code/product-mono/providers.toml` (it is NOT found from
+  this repo's cwd). Fork came up on chain 1, faucets Alice/Bob funded 100 ETH +
+  10k USDC each. `pids.json` real schema confirmed:
+  `{version, started_at, proxies:[{chain_id,pid,port,endpoint,fork_url,name}]}`
+  — `parsePids()` rewritten to match and prefers `endpoint` over rebuilding it.
+  `assertForkedOrDie()` passes on the fork AND a negative control proves it
+  REJECTS a real mainnet RPC (cloudflare-eth.com), so the spend-real-money path
+  is genuinely guarded.
+- BLOCKED on first recording. Four walls hit in order, each real:
+  1. Hosted backend can't work: agent tools run SERVER-side, so a staging
+     backend reads real mainnet and never sees the fork. Backend MUST be local.
+  2. Anonymous E2E session 402s (no payment rail). FIXED by
+     `AOMI_E2E_CANONICAL_USER_ID=8641fa7c-c03c-47b4-89af-0230bad8cbf6`
+     (cecilia@foameo.ai, 266/500 credits used) — maps the E2E session onto a
+     real account. NOTE: comping credits would NOT have fixed this; the anon
+     account had zero usage against a 500 cap. Verified read-only, no DB writes.
+  3. GitHub 429 rate limiting on app tarballs. FIXED by
+     `OFFICIAL_GITHUB_TOKEN="$(gh auth token)"`.
+  4. Catalog hydration: FIXED via new `LOCAL_SCOPED_APPS` env var (see below).
+  5. Schema drift (RESOLVED same evening): the #904 migration
+     (`active_deployment_record_id` + `deployment_records`) was applied to the
+     hosted DB out-of-band later that night — column verified present, so
+     current main boots fine now. NOTE: the migration is NOT in
+     `supabase_migrations.schema_migrations` (ledger ends at 20260726030000);
+     file is idempotent so re-application is a no-op, but the ledger should be
+     reconciled. The throwaway pre-#904 worktree
+     `~/Code/product-mono/.claude/worktrees/demo-rig-backend` is now
+     unnecessary (~7GB; `git worktree remove --force` reclaims it). Future
+     demo backends: build from current main.
+  6. Demo stack torn down 2026-07-31 ~23:00 (memory pressure): backend killed,
+     `test-env evm down` clean, all anvils gone. Restore = fork up → read
+     port from pids.json → regen portal .env.local ports → relaunch backend
+     with LOCAL_SCOPED_APPS (see demo/README.md).
+
+## LOCAL_SCOPED_APPS backend scoping (2026-07-31, uncommitted in product-mono main)
+
+- `aomi/bin/backend/src/handler/app/reconcile.rs`: `local_scope:
+  Arc<Option<HashSet<String>>>` on `ArtifactsReconciler`, parsed from
+  `LOCAL_SCOPED_APPS` (comma-separated app names, lowercase-normalized; Cecilia
+  requested plain Option<HashSet> over a wrapper struct). When set: (a) rows
+  not in the set are skipped in `reconcile_active_once` — applies to both
+  poll and `wake`; (b) `reconcile_official_catalog_rows` is SKIPPED entirely,
+  because it UPSERTS rows into the shared `applications` table and a scoped
+  dev/demo host must not write the shared catalog (my local backend had been
+  doing exactly that against prod on every poll).
+- Composes with the other session's committed `FetchBreaker` (e7b6f7536):
+  breaker = steady-state hygiene for dead tags, scope = hard boundary for
+  non-fleet hosts. 8/8 reconcile tests pass, fmt clean.
+- No way to say "no apps at all": scope activates only when non-empty, so the
+  demo uses sentinel `LOCAL_SCOPED_APPS=demo-studio-none` (matches nothing).
+  Skills-only scenarios (DS2) need exactly this.
+- Fork proxies do NOT reliably survive other sessions: state at
+  `~/.aomi/test-env` was wiped mid-session (likely the other Claude's test
+  run). Port changes on every re-up (51610 → 55465 → 49330) — always re-read
+  `pids.json` and regenerate portal `.env.local`.
+- GUARD CORRECTED: `watchForForkTraffic` was mis-specified (browser never
+  contacts the fork by design) and would have failed every take. Replaced with
+  `forkProgress()` — block height before/after, enforced only when a scenario
+  sets `expectsExecution`. `assertForkedOrDie()` unchanged and still correct.
+- Selector bug fixed: working-trace renders "Working" / "Worked for 5.6s" /
+  "Worked it out"; matching only the last burned the full 180s timeout per take.
+- A fork proxy is LEFT RUNNING (chain 1, pid 76737, port 51610). Stop with
+  `FULL_TESTNETS=true ~/Code/product-mono/aomi/target/debug/aomi-cli test-env evm down`.
+
+## Demo studio (2026-07-30, in progress)
+
+- Goal: systematic, repeatable product demo videos for BD calls + social + docs.
+  Design agreed; nothing implemented yet. See `specs/DEMO-STUDIO.md`.
+- Architecture: 3 layers — scenarios (content) → fork fixture (determinism) →
+  Playwright capture (automation). Record ONE master per scenario + timestamped
+  markers; derive short cuts, never re-shoot per format.
+- **Layer 2 already exists — do not build it.** `aomi test-env up/down/status/
+  reset` in product-mono spawns detached pre-funded anvil-fork proxies per chain
+  (gated on `FULL_TESTNETS=true`, needs `ALCHEMY_API_KEY`). Frontend routing
+  (`NEXT_PUBLIC_USE_FULL_TESTNET`, `FullTestnetWalletRouter`) preserves REAL
+  chain ids while swapping RPC, so the UI shows "Ethereum · Mainnet" on camera
+  while running on a fork. Remaining Layer 2 work: fork block heights, non-USDC
+  whale funding, wiring the capture runner to test-env.
+- Capability boundary: SDK plugins verified against `~/Code/aomi-sdk/apps/*/src/
+  *.rs` — perps + lending (Hyperliquid, dYdX, GMX, Morpho, Yearn) READ-ONLY.
+  But a SEPARATE protocol-skill layer (Uniswap, Lido, Rocket Pool, Ether.fi,
+  Aave, CCTP, Stargate, Base native, Pendle) does execute — so liquid staking
+  IS demoable. byreal perps write capability is UNVERIFIED (source not in this
+  checkout); verify before scripting any perps scenario.
+- Derive scenarios from the existing passing story catalog in product-mono
+  (`docs/topics/testing-automation/facts/aomi-transact-automation.md`, ids
+  DS1-6/P1-8/APP1-4) rather than inventing prompts — those paths are proven.
+- On-camera gotchas: `aomi tx sign` prints the FEE tx hash (to 0x9C7a...519f5),
+  not the protocol tx hash — never show it as the swap; route leakage
+  (Uniswap → LI.FI/Sushi) can put the wrong protocol on screen; a dead local
+  `providers.toml` makes healthy runs look flaky.
+- Solana has NO usable fork (no meaningful byreal devnet) → mainnet, tiny
+  amounts, treated as one-take proof video.
+- `specs/DEMO-SCENARIOS.md` holds 6 draft scenarios awaiting external trader
+  review. Blocking: do not build capture until the catalog is signed off.
+- Pending: Solana fixture strategy; CEX sandbox credentials; which scenarios get
+  real-mainnet proof videos with visible tx hashes; where finished videos land
+  in the GTM system at scrum.aomi.dev.
 
 ## Notes
 

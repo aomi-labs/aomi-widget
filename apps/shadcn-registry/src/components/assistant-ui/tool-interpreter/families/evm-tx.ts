@@ -29,6 +29,21 @@ const stagedActionId = (action: string): string =>
     .replace(/[^a-z0-9]+/g, "_")
     .replace(/^_+|_+$/g, "") || "custom";
 
+/**
+ * A staged tx's recorded lifecycle is frozen at "queued" — the real outcome
+ * arrives later as a `wallet:tx_complete` callback, which the runtime
+ * reconciles onto the result as `tx_outcome` (see packages/react
+ * `collectTxOutcomes`). Prefer that verdict when present: it flips the chip to
+ * Success/Failed and, via `isFailedStatus`, the step's red-X marker — instead
+ * of showing "Queued ✓" forever on a transaction that never made it on-chain.
+ */
+const txOutcomeStatus = (record: Record<string, unknown>): string | null => {
+  const outcome = record.tx_outcome;
+  if (typeof outcome !== "object" || outcome === null) return null;
+  const status = (outcome as { status?: unknown }).status;
+  return status === "success" || status === "failed" ? status : null;
+};
+
 export const matchStagedTx: ToolMatcher = ({ rawLabel, resultRecord }) => {
   if (!resultRecord || resultRecord.current_lifecycle !== "queued") {
     return null;
@@ -62,7 +77,7 @@ export const matchStagedTx: ToolMatcher = ({ rawLabel, resultRecord }) => {
           source: "result",
         }
       : null,
-    statusFact(resultRecord.current_lifecycle),
+    statusFact(txOutcomeStatus(resultRecord) ?? resultRecord.current_lifecycle),
   ]);
 };
 

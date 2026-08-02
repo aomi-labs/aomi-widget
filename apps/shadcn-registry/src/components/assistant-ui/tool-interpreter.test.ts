@@ -585,6 +585,50 @@ describe("tool interpreter", () => {
     expect(step.chips[2].icon).toBeTypeOf("object");
   });
 
+  it("flips a staged tx to Failed and marks the step when the callback failed", () => {
+    // The runtime attaches `tx_outcome` from a later wallet:tx_complete echo —
+    // without it this step would read "Queued ✓" forever on a failed run.
+    const step = interpretToolStep({
+      toolName: "Stage transfer of 0.1 ETH",
+      result: {
+        chain_id: 1,
+        kind: "native_transfer",
+        pending_tx_id: 1,
+        current_lifecycle: "queued",
+        tx_outcome: { status: "failed", error: "HTTP 400: Bad Request" },
+      },
+    });
+
+    expect(labelsFor(step.chips)).toEqual([
+      "Ethereum",
+      "Native transfer",
+      "1 tx",
+      "Failed",
+    ]);
+    expect(step.failed).toBe(true);
+  });
+
+  it("flips a staged tx to Success when the callback confirmed it", () => {
+    const step = interpretToolStep({
+      toolName: "Stage transfer of 0.1 ETH",
+      result: {
+        chain_id: 1,
+        kind: "native_transfer",
+        pending_tx_id: 1,
+        current_lifecycle: "queued",
+        tx_outcome: { status: "success", txHash: "0xabc" },
+      },
+    });
+
+    expect(labelsFor(step.chips)).toEqual([
+      "Ethereum",
+      "Native transfer",
+      "1 tx",
+      "Success",
+    ]);
+    expect(step.failed).toBe(false);
+  });
+
   it("capitalizes staged ERC-20 approval labels and uses action and tx icons", () => {
     const step = interpretToolStep({
       toolName: "Stage exact USDC approval for Aerodrome swap",

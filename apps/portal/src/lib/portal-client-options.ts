@@ -75,7 +75,7 @@ function useOptionalWagmiConfig(): ReturnType<typeof useConfig> | undefined {
   }
 }
 
-function withDebugLogging(
+export function withDebugLogging(
   fetchName: string,
   fetchImpl: typeof fetch,
 ): typeof fetch {
@@ -117,12 +117,17 @@ function withDebugLogging(
     }, 5000);
 
     try {
+      // Request inputs pass through untouched: their URL is already absolute,
+      // and rebuilding via `new Request(url, request)` treats the Request as
+      // a RequestInit — the buffered body comes back as a ReadableStream,
+      // which Chrome only sends over HTTP/2 (plain-http localhost fails ALPN
+      // and intercepted bodies read as empty).
       const normalizedInput =
         typeof input === "string"
           ? url
           : input instanceof URL
             ? new URL(url)
-            : new Request(url, input);
+            : input;
       const response = await fetchImpl(normalizedInput, init);
       clearTimeout(pendingWarning);
       console.debug("[aomi][portal-fetch] response", {
@@ -163,11 +168,11 @@ function parseUrl(input: RequestInfo | URL): URL | null {
 }
 
 /** Pin `?app=` / `?application_id=` on the send-path routes of a locked app. */
-function applyLockedAppScope(
+export async function applyLockedAppScope(
   input: RequestInfo | URL,
   lockedApp: string | null,
   lockedApplicationId: string | null,
-): RequestInfo | URL {
+): Promise<RequestInfo | URL> {
   if (!lockedApp) {
     return input;
   }
@@ -193,7 +198,23 @@ function applyLockedAppScope(
   if (input instanceof URL) {
     return url;
   }
-  return new Request(url, input);
+  // Rebuild the Request on the pinned URL field by field: `new Request(url,
+  // request)` would treat the Request as a RequestInit and turn its buffered
+  // body into a ReadableStream (see the normalizedInput note above).
+  return new Request(url, {
+    method: input.method,
+    headers: input.headers,
+    body: input.body ? await input.clone().arrayBuffer() : undefined,
+    mode: input.mode === "navigate" ? undefined : input.mode,
+    credentials: input.credentials,
+    cache: input.cache,
+    redirect: input.redirect,
+    referrer: input.referrer,
+    referrerPolicy: input.referrerPolicy,
+    integrity: input.integrity,
+    keepalive: input.keepalive,
+    signal: input.signal,
+  });
 }
 
 export function usePortalClientOptions(
@@ -260,9 +281,9 @@ export function usePortalClientOptions(
       mppFetch: mppFetch ? withDebugLogging("mppx.fetch", mppFetch) : undefined,
       x402: paymentClient,
     });
-    const routedFetch: typeof fetch = (input, init) => {
+    const routedFetch: typeof fetch = async (input, init) => {
       return paymentFetch(
-        applyLockedAppScope(input, lockedApp, lockedApplicationId),
+        await applyLockedAppScope(input, lockedApp, lockedApplicationId),
         init,
       );
     };

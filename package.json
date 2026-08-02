@@ -135,6 +135,7 @@
     "@eslint/eslintrc": "^3",
     "@getpara/react-common": "2.19.0",
     "@getpara/react-components": "2.19.0",
+    "@playwright/test": "^1.62.1",
     "@radix-ui/react-avatar": "^1.1.10",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-separator": "^1.1.7",

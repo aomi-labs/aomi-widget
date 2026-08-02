@@ -43,7 +43,7 @@ type E2EExecutionSuccess = {
   ok: true;
   txHash: `0x${string}`;
   valueWei: string;
-  executionKind: "e2e_real_self_transfer";
+  executionKind: "e2e_real_self_transfer" | "e2e_real_fork_call";
 };
 
 type E2EExecutionResponse =

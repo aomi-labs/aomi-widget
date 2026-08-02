@@ -40,6 +40,35 @@ export type E2ESvmCluster = "solana:devnet" | "solana:testnet";
 
 const MAX_TTL_SECONDS = 60 * 60;
 const DEFAULT_MAX_NATIVE_WEI = BigInt("1000000000000");
+
+/**
+ * Is this RPC an anvil fork? `anvil_nodeInfo` is anvil-only — a real RPC
+ * returns a JSON-RPC error for it. Used to gate contract-call execution to
+ * environments where money is not real. Fails closed on any error.
+ */
+async function isAnvilForkRpc(rpcUrl: string): Promise<boolean> {
+  try {
+    const response = await fetch(rpcUrl, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "anvil_nodeInfo",
+        params: [],
+      }),
+      signal: AbortSignal.timeout(3_000),
+    });
+    if (!response.ok) return false;
+    const body = (await response.json()) as {
+      result?: unknown;
+      error?: unknown;
+    };
+    return Boolean(body.result) && !body.error;
+  } catch {
+    return false;
+  }
+}
 const LOCALHOST_CHAIN_ID = 31337;
 
 type E2EExecuteErrorCode =
@@ -59,7 +88,7 @@ export type E2EExecuteResult =
       to: `0x${string}`;
       valueWei: string;
       gasLimit: string;
-      executionKind: "e2e_real_self_transfer";
+      executionKind: "e2e_real_self_transfer" | "e2e_real_fork_call";
     }
   | {
       ok: false;
@@ -331,7 +360,7 @@ function reject(
   return { ok: false, code, error };
 }
 
-export async function executeE2EWalletTransaction({
+export async function executeE2EvmTransaction({
   seed,
   payload,
 }: {
@@ -364,25 +393,38 @@ export async function executeE2EWalletTransaction({
   if (call.chainId !== seed.chainId) {
     return reject("policy_rejected", "Transaction chain does not match seed");
   }
-  if (call.to !== signerAddress) {
-    return reject("policy_rejected", "Only self-transfers are allowed");
-  }
-  if (call.data !== "0x") {
-    return reject(
-      "policy_rejected",
-      "Calldata is not allowed for self-transfer",
-    );
-  }
-  if (call.value <= BigInt(0)) {
-    return reject("policy_rejected", "Self-transfer value must be positive");
-  }
-  if (call.value > maxNativeWei()) {
-    return reject("policy_rejected", "Self-transfer exceeds E2E value cap");
-  }
 
   const rpcUrl = rpcUrlForChain(call.chainId);
   if (!rpcUrl) {
     return reject("rpc_unavailable", "No E2E RPC URL configured for chain");
+  }
+
+  // Contract calls are permitted ONLY against a proven anvil fork. The probe
+  // is the gate itself: `anvil_nodeInfo` exists on anvil and nothing else, so
+  // a real RPC — or a fork that silently died and got replaced by something
+  // else on the same port — falls through to the strict self-transfer policy
+  // below. This keeps the E2E executor's original safety posture for every
+  // real-chain configuration while letting the demo studio stake/swap on forks.
+  const forkVerified = await isAnvilForkRpc(rpcUrl);
+  if (!forkVerified) {
+    if (call.to !== signerAddress) {
+      return reject("policy_rejected", "Only self-transfers are allowed");
+    }
+    if (call.data !== "0x") {
+      return reject(
+        "policy_rejected",
+        "Calldata is not allowed for self-transfer",
+      );
+    }
+    if (call.value <= BigInt(0)) {
+      return reject("policy_rejected", "Self-transfer value must be positive");
+    }
+  }
+  if (call.value < BigInt(0)) {
+    return reject("policy_rejected", "Transfer value must not be negative");
+  }
+  if (call.value > maxNativeWei()) {
+    return reject("policy_rejected", "Transfer exceeds E2E value cap");
   }
 
   try {
@@ -419,7 +461,9 @@ export async function executeE2EWalletTransaction({
       to: call.to as `0x${string}`,
       valueWei: call.value.toString(),
       gasLimit: gas.toString(),
-      executionKind: "e2e_real_self_transfer",
+      executionKind: forkVerified
+        ? "e2e_real_fork_call"
+        : "e2e_real_self_transfer",
     };
   } catch (error) {
     return reject(
