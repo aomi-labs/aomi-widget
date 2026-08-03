@@ -25,6 +25,7 @@ export function DisconnectConfirmDialog({
         type="button"
         aria-label="Dismiss"
         onClick={onCancel}
+        disabled={busy}
         className="absolute inset-0 cursor-default bg-black/55"
       />
       <div

@@ -64,6 +64,7 @@ const adapterState = {
       },
     ],
     disconnect: vi.fn(async () => undefined),
+    signOutAccount: vi.fn(async () => undefined),
   } satisfies Partial<AomiWalletKit>,
 };
 
@@ -71,6 +72,8 @@ afterEach(() => {
   cleanup();
   openPicker.mockClear();
   adapterState.current.disconnect.mockClear();
+  adapterState.current.signOutAccount.mockReset();
+  adapterState.current.signOutAccount.mockResolvedValue(undefined);
 });
 
 describe("DualWalletBar account menu", () => {
@@ -160,5 +163,62 @@ describe("DualWalletBar account menu", () => {
 
     await waitFor(() => expect(onDisconnect).toHaveBeenCalledTimes(1));
     expect(adapterState.current.disconnect).not.toHaveBeenCalled();
+    expect(adapterState.current.signOutAccount).not.toHaveBeenCalled();
+  });
+
+  it("defaults to account sign-out before wallet disconnect", async () => {
+    render(
+      <DualWalletBar
+        families={["evm"]}
+        accountMenu={{ enabled: true, secondaryLine: "420 credits left" }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Open account menu" }));
+    fireEvent.click(screen.getByRole("button", { name: "Disconnect" }));
+    fireEvent.click(screen.getByRole("button", { name: "Disconnect" }));
+
+    await waitFor(() =>
+      expect(adapterState.current.disconnect).toHaveBeenCalledWith({
+        family: "all",
+      }),
+    );
+    expect(adapterState.current.signOutAccount).toHaveBeenCalledTimes(1);
+    expect(
+      adapterState.current.signOutAccount.mock.invocationCallOrder[0],
+    ).toBeLessThan(
+      adapterState.current.disconnect.mock.invocationCallOrder[0] ?? 0,
+    );
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+  });
+
+  it("still disconnects wallets when account sign-out fails", async () => {
+    adapterState.current.signOutAccount.mockRejectedValueOnce(
+      new Error("sign-out failed"),
+    );
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    render(
+      <DualWalletBar
+        families={["evm"]}
+        accountMenu={{ enabled: true, secondaryLine: "420 credits left" }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Open account menu" }));
+    fireEvent.click(screen.getByRole("button", { name: "Disconnect" }));
+    fireEvent.click(screen.getByRole("button", { name: "Disconnect" }));
+
+    await waitFor(() =>
+      expect(adapterState.current.disconnect).toHaveBeenCalledWith({
+        family: "all",
+      }),
+    );
+    // The failure is contained (no unhandled rejection) and the dialog stays
+    // open for a retry until the connected-state effect observes the drop.
+    await waitFor(() => expect(warn).toHaveBeenCalled());
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    warn.mockRestore();
   });
 });

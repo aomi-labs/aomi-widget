@@ -2,6 +2,46 @@
 
 ## Last Updated
 
+2026-08-03 (staging smoke) — **Staging API verified healthy; DOMAIN.md route
+  table found stale.** Live smoke of `api-staging.aomi.dev` (the hostname
+  `api.staging.aomi.dev` does not resolve): health, auth boundaries, OAuth
+  start, direct `/api/thread/chat` round-trip, and browser chat through
+  `chat-staging.aomi.dev` all pass. Finding: the deployed backend serves ONLY
+  the `/api/thread/*` + `/api/threads` surface; legacy `/api/chat`,
+  `/api/state`, `/api/sessions`, `/api/session/*` 404 by design.
+  `packages/client` already uses the new routes, but `specs/DOMAIN.md`'s
+  "Backend Endpoints" table still documents the legacy paths (and claims
+  archive/unarchive routes don't exist — they do now, per staging OpenAPI).
+  **Pending:** refresh DOMAIN.md's endpoint table from
+  `/api/openapi.json` + `packages/client/src/client.ts`.
+
+2026-08-03 (later) — **PR #7: canonical sign-out centralized in widget-lib.**
+  Review follow-up (Codex + Claude review agreed): DualWalletBar's disconnect
+  fallback called only `adapter.disconnect()`, skipping account/widget session
+  teardown — latent, since portal (the only `accountMenu` consumer) supplied
+  its own correct `onDisconnect`, but any future consumer would have leaked
+  live backend sessions behind a "Connect wallet" chip. The
+  signOut→disconnect sequence lived in three places (wallet-picker.tsx:542,
+  portal's `disconnectPortalAccount`, the incomplete fallback); now it is ONE:
+  new `lib/wallet-kit/account/sign-out.ts` exports `signOutAndDisconnect()`
+  (`try { signOutAccount } finally { disconnect({family:"all"}) }`), used by
+  WalletPicker and as DualWalletBar's default; portal's `onDisconnect` +
+  `disconnectPortalAccount` deleted (hook comment documents why). Also fixed
+  in the same path: `handleDisconnectConfirm` now catches (was an unhandled
+  rejection when a host `onDisconnect` rethrew; dialog stays open for retry,
+  `console.warn` per house idiom) and the confirm-dialog backdrop honors
+  `busy` like the Cancel button. New file registered in `registry.ts`
+  (build:registry validates) and exported from `wallet-kit/index.ts`. Tests:
+  registry fallback ordering + sign-out-failure cases added (7 pass), portal
+  onDisconnect tests replaced with an is-undefined assertion (4 pass); full
+  registry suite 296 pass (package-boundary tests need `build:package` first
+  or they ENOENT on dist/ — environmental, not code). Portal `type-check` and
+  registry `tsc --noEmit` clean. Pending from review, NOT done: AccountMenu
+  a11y (no Escape-close, rows not `menuitem`), `networkLabel.slice(0,8)` hard
+  truncation, multi-wallet chip collapses to primary wallet in account-menu
+  mode (verify against mock), portal→registry DOM coupling via
+  `[data-aomi-network-select-trigger]` click.
+
 2026-08-03 — **PR #7 (feat/portal-account-menu) sign-in wiring + CI fix.**
   Green CI blocker found and fixed: `pnpm run build:registry` failed with
   `Registry item "control-bar" is missing internal files` because

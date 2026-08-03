@@ -31,21 +31,6 @@ function finishAccountSignIn(adapter: ReturnType<typeof useAomiWalletKit>) {
 }
 
 /**
- * End the canonical Aomi session before dropping wallet/provider connections.
- * The account runtime owns backend and widget-session teardown; wallet-kit
- * disconnect alone only signs out the provider and must not substitute for it.
- */
-async function disconnectPortalAccount(
-  adapter: ReturnType<typeof useAomiWalletKit>,
-) {
-  try {
-    await adapter.signOutAccount?.();
-  } finally {
-    await adapter.disconnect?.({ family: "all" });
-  }
-}
-
-/**
  * The chip's second line is a single truncated row, so backend error copy
  * (e.g. the 409 "already linked to another Aomi account" sentence) gets clipped
  * into nonsense there. Keep the chip to a short status and let the menu render
@@ -113,7 +98,8 @@ export function usePortalWalletAccountMenu(
       onSignIn: needsAccountSignIn
         ? () => finishAccountSignIn(adapter)
         : undefined,
-      onDisconnect: () => disconnectPortalAccount(adapter),
+      // No onDisconnect: DualWalletBar's default already runs the canonical
+      // teardown (account/widget session sign-out, then wallet disconnect).
     };
   }, [
     accountError,

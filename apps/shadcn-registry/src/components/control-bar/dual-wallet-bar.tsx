@@ -3,7 +3,11 @@
 import { Fragment, useEffect, useState, type FC } from "react";
 import { ChevronsUpDownIcon, UnfoldVerticalIcon } from "lucide-react";
 import { cn, getChainInfo } from "@aomi-labs/react";
-import { useAomiWalletKit, formatWalletAddress } from "../../lib/wallet-kit";
+import {
+  useAomiWalletKit,
+  formatWalletAddress,
+  signOutAndDisconnect,
+} from "../../lib/wallet-kit";
 import { WalletIconSlot } from "./wallet-icon-slot";
 import { WalletPicker } from "./wallet-picker";
 import { WalletPickerProvider, useWalletPicker } from "./wallet-picker-context";
@@ -139,9 +143,13 @@ const DualWalletBarInner: FC<DualWalletBarProps> = ({
       if (accountMenu?.onDisconnect) {
         await accountMenu.onDisconnect();
       } else {
-        await adapter.disconnect?.({ family: "all" });
+        await signOutAndDisconnect(adapter);
       }
       setDisconnectOpen(false);
+    } catch (err) {
+      // Keep the dialog open for a retry; if the wallet drop itself landed,
+      // the connected-state effect above closes it.
+      console.warn("[DualWalletBar] disconnect failed", err);
     } finally {
       setDisconnectBusy(false);
     }

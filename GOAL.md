@@ -49,6 +49,14 @@ mistaken for another supported environment.
 
 Progress:
 
+- 2026-08-03 (later) canonical sign-out centralized: extracted the
+  signOut-then-disconnect sequence into widget-lib
+  (`wallet-kit/account/sign-out.ts`), made it DualWalletBar's disconnect
+  default (the old fallback skipped account/widget session teardown), pointed
+  WalletPicker at it, and dropped portal's now-redundant `onDisconnect`; also
+  contained disconnect failures (no unhandled rejection, dialog stays open for
+  retry) and stopped the confirm-dialog backdrop from dismissing mid-flight.
+
 - 2026-08-03 Portal account-menu session safety: made sidebar Disconnect end
   the canonical Aomi account/widget session before dropping wallet-provider
   connections, corrected the history copy to describe account-backed history,

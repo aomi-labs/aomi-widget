@@ -82,6 +82,7 @@ export const registry: RegistryComponent[] = [
       "lib/wallet-kit/account/disabled-runtime.ts",
       "lib/wallet-kit/account/aomi-backend-client.ts",
       "lib/wallet-kit/account/aomi-backend-runtime.ts",
+      "lib/wallet-kit/account/sign-out.ts",
       "lib/wallet-kit/account/encoding.ts",
       "lib/wallet-kit/account/use-widget-session-provider.ts",
       "lib/wallet-kit/account/use-resolved-account-runtime.ts",

@@ -78,31 +78,12 @@ describe("usePortalWalletAccountMenu sign-in wiring", () => {
     expect(menu?.secondaryLine).toBe("Loading allowance…");
   });
 
-  it("ends the Aomi account session before disconnecting every wallet", async () => {
+  it("leaves disconnect to the widget-lib canonical teardown", () => {
     const menu = readMenu();
 
-    await menu?.onDisconnect?.();
-
-    expect(walletKitState.current.signOutAccount).toHaveBeenCalledTimes(1);
-    expect(walletKitState.current.disconnect).toHaveBeenCalledWith({
-      family: "all",
-    });
-    expect(
-      walletKitState.current.signOutAccount.mock.invocationCallOrder[0],
-    ).toBeLessThan(
-      walletKitState.current.disconnect.mock.invocationCallOrder[0] ?? 0,
-    );
-  });
-
-  it("still disconnects wallets if account-session teardown fails", async () => {
-    walletKitState.current.signOutAccount.mockRejectedValueOnce(
-      new Error("sign-out failed"),
-    );
-    const menu = readMenu();
-
-    await expect(menu?.onDisconnect?.()).rejects.toThrow("sign-out failed");
-    expect(walletKitState.current.disconnect).toHaveBeenCalledWith({
-      family: "all",
-    });
+    // DualWalletBar's default runs account/widget session sign-out before
+    // wallet disconnect (covered in dual-wallet-bar.test.tsx); supplying a
+    // portal onDisconnect would just duplicate it.
+    expect(menu?.onDisconnect).toBeUndefined();
   });
 });
