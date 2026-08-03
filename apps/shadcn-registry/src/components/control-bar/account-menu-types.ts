@@ -14,6 +14,8 @@ export type WalletAccountMenuOptions = {
   onToggleTheme?: () => void;
   onOpenSettings?: () => void;
   onOpenDeployments?: () => void;
+  /** Finish Aomi account sign-in (wallet connected, session missing). */
+  onSignIn?: () => void;
   /** Called after disconnect confirm. Falls back to wallet-kit disconnect. */
   onDisconnect?: () => void | Promise<void>;
 };

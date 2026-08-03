@@ -17,6 +17,7 @@ export type AccountMenuProps = {
   onToggleTheme?: () => void;
   onOpenSettings?: () => void;
   onOpenDeployments?: () => void;
+  onSignIn?: () => void;
   onDisconnect: () => void;
 };
 
@@ -56,6 +57,7 @@ export function AccountMenu({
   onToggleTheme,
   onOpenSettings,
   onOpenDeployments,
+  onSignIn,
   onDisconnect,
 }: AccountMenuProps) {
   if (!open) return null;
@@ -100,6 +102,19 @@ export function AccountMenu({
             </div>
           ) : null}
         </div>
+
+        {onSignIn ? (
+          <button
+            type="button"
+            onClick={() => {
+              onClose();
+              onSignIn();
+            }}
+            className="bg-aomi-fg text-aomi-bg hover:opacity-90 mx-0.5 mb-1 flex h-9 w-[calc(100%-4px)] items-center justify-center rounded-lg px-2.5 text-[13px] font-medium transition-opacity"
+          >
+            Sign in
+          </button>
+        ) : null}
 
         <MenuRow label="Manage wallets" trailing="›" onClick={onManageWallets} />
         {onSwitchNetwork ? (

@@ -108,6 +108,23 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
   const adapter = useAomiAuthAdapter();
 
   const renderContent = () => {
+    const walletConnected = adapter.identity.isConnected;
+
+    // Wallet connected but session still probing — show the actionable
+    // sign-in gate instead of a passive spinner (exchange may still be in flight).
+    if (
+      walletConnected &&
+      (status === "anonymous" || status === "establishing")
+    ) {
+      return (
+        <GateNotice
+          status="anonymous"
+          walletConnected
+          onRetry={retry}
+        />
+      );
+    }
+
     // Anonymous / still-connecting sessions have nothing to show — gate fully.
     // A probe *error* (backend unreachable) only blocks the account-backed
     // General tab; Account and Usage render their clearly-marked fixtures so
@@ -116,7 +133,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
       return (
         <GateNotice
           status={status}
-          walletConnected={adapter.identity.isConnected}
+          walletConnected={walletConnected}
           onRetry={retry}
           onConnect={
             adapter.openAccountUI

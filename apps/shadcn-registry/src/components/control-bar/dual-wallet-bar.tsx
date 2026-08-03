@@ -274,6 +274,7 @@ const DualWalletBarInner: FC<DualWalletBarProps> = ({
             onToggleTheme={wrapMenuAction(accountMenu?.onToggleTheme)}
             onOpenSettings={wrapMenuAction(accountMenu?.onOpenSettings)}
             onOpenDeployments={wrapMenuAction(accountMenu?.onOpenDeployments)}
+            onSignIn={wrapMenuAction(accountMenu?.onSignIn)}
             onDisconnect={handleDisconnectRequest}
           />
         ) : null}

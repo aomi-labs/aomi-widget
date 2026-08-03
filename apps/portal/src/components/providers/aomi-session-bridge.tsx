@@ -7,10 +7,11 @@ import {
   type AccountOverview,
 } from "@portal/lib/account-overview";
 
-const SESSION_RETRY_BUDGET_MS = 30_000;
+const SESSION_RETRY_BUDGET_MS = 8_000;
 const SESSION_RETRY_BASE_DELAY_MS = 300;
-const SESSION_RETRY_MAX_DELAY_MS = 2_000;
+const SESSION_RETRY_MAX_DELAY_MS = 1_500;
 const SESSION_RETRY_BACKOFF_FACTOR = 1.7;
+const ADAPTER_SETTLE_BUDGET_MS = 8_000;
 
 export type AomiSessionStatus =
   | "anonymous"
@@ -45,7 +46,7 @@ export function useAomiSession(): {
     }
     const timer = globalThis.setTimeout(
       () => setAdapterWaitExpired(true),
-      15_000,
+      ADAPTER_SETTLE_BUDGET_MS,
     );
     return () => globalThis.clearTimeout(timer);
   }, [adapterSettling]);
@@ -62,6 +63,8 @@ export function useAomiSession(): {
     const run = async () => {
       let nextDelay = SESSION_RETRY_BASE_DELAY_MS;
       let waitedMs = 0;
+      const exchangeInFlight =
+        adapterStatus === "connected" && accountStatus === "loading";
 
       for (;;) {
         try {
@@ -82,8 +85,8 @@ export function useAomiSession(): {
             return;
           }
           if (
-            adapterStatus === "connected" &&
             response.status === 401 &&
+            exchangeInFlight &&
             waitedMs < SESSION_RETRY_BUDGET_MS
           ) {
             setProbeStatus("establishing");
@@ -127,8 +130,13 @@ export function useAomiSession(): {
 
   const retry = useCallback(() => {
     setProbeAttempt((attempt) => attempt + 1);
+    if (adapter.openAccountUI) {
+      void adapter.openAccountUI();
+      return;
+    }
     void adapter.connect?.();
   }, [adapter]);
+
   return {
     status: probeStatus,
     retry,

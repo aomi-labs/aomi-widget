@@ -15,6 +15,14 @@ function openHeaderNetworkSelect() {
     ?.click();
 }
 
+function finishAccountSignIn(adapter: ReturnType<typeof useAomiWalletKit>) {
+  if (adapter.openAccountUI) {
+    void adapter.openAccountUI();
+    return;
+  }
+  void adapter.connect?.();
+}
+
 /**
  * Portal-only account menu config for the sidebar wallet chip.
  * Reuses the shared `/api/account` overview — same source as General settings.
@@ -25,12 +33,13 @@ export function usePortalWalletAccountMenu(
   const overview = useAccountOverview();
   const { settings, updateSetting } = useSettings();
   const adapter = useAomiWalletKit();
-  const { accountUser, identity } = adapter;
+  const { accountUser, identity, accountStatus } = adapter;
 
   return useMemo(() => {
     if (!identity.isConnected) return undefined;
 
     const usage = overview?.usage;
+    const needsAccountSignIn = !accountUser;
     const secondaryLine =
       usage && usage.credit_paid > 0
         ? formatAllowanceSummary(usage.credit_used, usage.credit_paid)
@@ -38,7 +47,9 @@ export function usePortalWalletAccountMenu(
           ? `${Math.max(0, usage.credit_paid - usage.credit_used).toLocaleString()} credits left`
           : accountUser
             ? "Loading allowance…"
-            : "Sign in for allowance";
+            : accountStatus === "error"
+              ? "Sign-in failed — tap Sign in"
+              : "Sign in for allowance";
 
     const activeAccount = adapter.accounts.find((account) => account.active);
 
@@ -66,8 +77,12 @@ export function usePortalWalletAccountMenu(
       onOpenDeployments: () => {
         window.location.assign("/deployments");
       },
+      onSignIn: needsAccountSignIn
+        ? () => finishAccountSignIn(adapter)
+        : undefined,
     };
   }, [
+    accountStatus,
     accountUser,
     adapter.accounts,
     identity.chainId,

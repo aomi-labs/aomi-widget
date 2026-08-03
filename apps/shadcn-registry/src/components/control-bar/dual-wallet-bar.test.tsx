@@ -95,4 +95,22 @@ describe("DualWalletBar account menu", () => {
     expect(openPicker).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole("menu", { name: "Account menu" })).not.toBeInTheDocument();
   });
+
+  it("shows Sign in when account menu supplies onSignIn", () => {
+    const onSignIn = vi.fn();
+    render(
+      <DualWalletBar
+        families={["evm"]}
+        accountMenu={{
+          enabled: true,
+          secondaryLine: "Sign in for allowance",
+          onSignIn,
+        }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Open account menu" }));
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    expect(onSignIn).toHaveBeenCalledTimes(1);
+  });
 });
