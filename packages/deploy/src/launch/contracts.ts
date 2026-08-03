@@ -4,7 +4,17 @@
 // Browser-safe: types plus a few pure helpers, no env reads and no secrets.
 // =============================================================================
 
-import type { ActivateResult, DeployPayload, DeploymentStatus } from "../types";
+import type {
+  ActivateResult,
+  DeployPayload,
+  DeploymentStatus,
+  PromoteResult,
+  SdkVersionStatus,
+  SecretSlot,
+  UserDeploymentsPage,
+  UserSource,
+  UserSourceLatestDeployment,
+} from "../types";
 
 // One-click is the only launch path: the host forks the template and deploys
 // it for the user. (Kept as a single-member union so the small amount of
@@ -59,6 +69,8 @@ export type LaunchProgress = {
  * `appSourceId`.
  */
 export type LaunchPreflightInput = {
+  /** Exact platform the deploy targets; the host's default when omitted. */
+  platform?: string;
   appSourceId?: number;
   sourceRef?: string;
   /** GitHub App installation that owns the source repo. Wizard context only. */
@@ -70,6 +82,8 @@ export type LaunchPreflightInput = {
 
 /** Commit a deploy against a stable, already-resolved source row. */
 export type LaunchDeployInput = {
+  /** Exact platform the deploy targets; the host's default when omitted. */
+  platform?: string;
   appSourceId: number;
   sourceRef?: string;
   repo?: string;
@@ -77,6 +91,7 @@ export type LaunchDeployInput = {
 };
 
 export type LaunchDeployResult = {
+  projectUrl?: string;
   repo: string;
   installationId?: string;
   appSourceId?: number;
@@ -113,7 +128,39 @@ export type LaunchAppStatus = {
 export type LaunchRedeployResult = {
   ok: boolean;
   appSourceId: number;
-  platformRepo: string;
-  ciRunId: string;
-  ciUrl: string;
+  platformRepo: string | null;
+  ciRunId: string | null;
+  ciUrl: string | null;
+};
+
+export type LaunchSdkStatus = {
+  ok: boolean;
+  serverTags: string[];
+  sdkStatus: SdkVersionStatus;
+};
+
+export type DeploymentSourcesResult = {
+  sources: UserSource[];
+  githubLogin?: string;
+};
+
+export type DeploymentHistoryResult = {
+  deployments: UserSourceLatestDeployment[];
+};
+
+export type DeploymentFeedResult = UserDeploymentsPage;
+
+export type DeploymentSecretsResult = {
+  byApp: Record<string, string[]>;
+};
+
+export type DeploymentPromoteResult = PromoteResult;
+
+export type RequiredSecretsByApp = Record<
+  string,
+  { slots: SecretSlot[]; missing: string[] }
+>;
+
+export type RequiredSecretsResult = {
+  byApp: RequiredSecretsByApp;
 };

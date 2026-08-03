@@ -158,6 +158,7 @@ describe("OneshotWizard", () => {
     render(
       <OneshotWizard
         {...defaultProps}
+        platform="somm.finance"
         progress={{ installationId: "12345" }}
         patch={patch}
       />,
@@ -171,6 +172,7 @@ describe("OneshotWizard", () => {
     await waitFor(() => {
       expect(launchCreateRepo).toHaveBeenCalledWith({
         installationId: "12345",
+        platform: "somm.finance",
         repoName: "custom-playground",
       });
     });

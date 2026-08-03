@@ -20,6 +20,8 @@ import {
   lastUsageHref,
 } from "@build/lib/deep-links";
 import { getLastProjectId } from "@build/lib/last-project";
+import { platformHref } from "@build/features/launch/platform";
+import { usePlatform } from "@build/features/launch/use-platform";
 
 type CommandItem = {
   id: string;
@@ -155,6 +157,7 @@ function matches(item: CommandItem, query: string) {
 
 export function CommandPalette() {
   const router = useRouter();
+  const platform = usePlatform();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
@@ -209,7 +212,7 @@ export function CommandPalette() {
 
   function run(href: string) {
     setOpen(false);
-    router.push(href);
+    router.push(platformHref(href, platform));
   }
 
   if (!open) return null;

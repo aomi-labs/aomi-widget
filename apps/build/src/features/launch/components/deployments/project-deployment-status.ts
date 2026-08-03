@@ -78,7 +78,10 @@ export function projectDeploymentStatus(
 
   return {
     lifecycle,
-    label: "No deployment",
+    // A claimed source with no apps yet is the fresh-connect state — say so
+    // instead of the generic "No deployment".
+    label:
+      source.apps.length === 0 ? "Connected — not deployed yet" : "No deployment",
     dotState: "none",
     isLive: false,
     hasRecordedDeployment: false,

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { launchConfig } from "./config";
+import { launchConfig, resolveLaunchPlatform } from "./config";
 
 describe("launchConfig", () => {
   afterEach(() => {
@@ -69,5 +69,18 @@ describe("launchConfig", () => {
     expect(config.platform).toBe("community");
     expect(config.platforms).toEqual(["community"]);
     expect(config.catalogPlatforms).toEqual(["somm.finance"]);
+  });
+
+  it("accepts an exact platform name without a configured partner list", () => {
+    vi.stubEnv("APP_DEPLOY_PLATFORMS", "community");
+
+    expect(resolveLaunchPlatform(" somm.finance ")).toBe("somm.finance");
+    expect(resolveLaunchPlatform("partner-tag")).toBe("partner-tag");
+  });
+
+  it("rejects malformed platform names before the backend lookup", () => {
+    expect(resolveLaunchPlatform("")).toBeNull();
+    expect(resolveLaunchPlatform("Partner Name")).toBeNull();
+    expect(resolveLaunchPlatform("../partner")).toBeNull();
   });
 });

@@ -479,6 +479,7 @@ export async function createLaunchRepoRoute(req: Request) {
 
   try {
     const body = (await req.json().catch(() => ({}))) as {
+      platform?: unknown;
       installationId?: unknown;
       repoName?: string;
     };
@@ -490,9 +491,11 @@ export async function createLaunchRepoRoute(req: Request) {
     }
 
     const config = launchConfig();
+    const platform = resolveLaunchPlatform(body.platform, config);
+    if (!platform) return invalidPlatformResponse();
     const client = await deploymentClient();
     const source = await client.scaffold({
-      platform: config.platform,
+      platform,
       installationId: Number(body.installationId),
       templateRepo: config.templateRepo,
       repoName: body.repoName?.trim() || defaultRepoName(),

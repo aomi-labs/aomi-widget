@@ -1,8 +1,11 @@
 import { describe, it, expect, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { DeployStep } from "./deploy-step";
-import type { LaunchDeployPayload } from "@build/features/launch";
-import type { LaunchProgress } from "@build/features/launch";
+import {
+  launchPreflight,
+  type LaunchDeployPayload,
+  type LaunchProgress,
+} from "@build/features/launch";
 
 const noop = () => {};
 
@@ -65,6 +68,19 @@ describe("DeployStep", () => {
     expect(
       screen.getByRole("button", { name: "Activate" }),
     ).toBeInTheDocument();
+  });
+
+  it("keeps the selected platform on preflight", async () => {
+    vi.mocked(launchPreflight).mockRejectedValueOnce(new Error("stop"));
+    render(<DeployStep {...defaultProps} platform="somm.finance" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Preflight" }));
+
+    await waitFor(() =>
+      expect(launchPreflight).toHaveBeenCalledWith(
+        expect.objectContaining({ platform: "somm.finance" }),
+      ),
+    );
   });
 
   it("shows the deployment ID when progress has one", () => {

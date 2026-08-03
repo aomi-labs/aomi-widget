@@ -33,7 +33,7 @@ import { LivePanel } from "./live-panel";
  * Once a source exists, failures are surfaced and block deployment/activation
  * until the required-secret state can be verified.
  */
-function useWizardSecretsGate(appSourceId?: number) {
+function useWizardSecretsGate(appSourceId?: number, platform?: string) {
   const [requiredSecrets, setRequiredSecrets] =
     useState<RequiredSecretsByApp | null>(null);
   const [requiredSecretsError, setRequiredSecretsError] = useState<
@@ -46,7 +46,7 @@ function useWizardSecretsGate(appSourceId?: number) {
     requestedFor.current = appSourceId;
     setRequiredSecretsError(null);
     try {
-      const result = await deploymentRequiredSecrets({ appSourceId });
+      const result = await deploymentRequiredSecrets({ appSourceId, platform });
       setRequiredSecrets(result.byApp);
       return result.byApp;
     } catch (err) {
@@ -56,7 +56,7 @@ function useWizardSecretsGate(appSourceId?: number) {
       requestedFor.current = null;
       throw err;
     }
-  }, [appSourceId]);
+  }, [appSourceId, platform]);
 
   const loadRequiredSecrets = useCallback(() => {
     if (!appSourceId || requestedFor.current === appSourceId) return;
@@ -70,7 +70,12 @@ function useWizardSecretsGate(appSourceId?: number) {
       const byApp =
         sourceId === appSourceId
           ? await refreshRequiredSecrets()
-          : (await deploymentRequiredSecrets({ appSourceId: sourceId })).byApp;
+          : (
+              await deploymentRequiredSecrets({
+                appSourceId: sourceId,
+                platform,
+              })
+            ).byApp;
       if (!byApp) return;
       setRequiredSecrets(byApp);
       setRequiredSecretsError(null);
@@ -80,19 +85,22 @@ function useWizardSecretsGate(appSourceId?: number) {
         throw new MissingRequiredSecretsError(missing);
       }
     },
-    [appSourceId, refreshRequiredSecrets],
+    [appSourceId, platform, refreshRequiredSecrets],
   );
 
   const setEnvVars = useCallback(
     async (app: string, secrets: Record<string, string>) => {
       if (!appSourceId) throw new Error("App source is missing.");
-      await deploymentSetSecrets({ app, appSourceId, secrets });
-      const result = await deploymentRequiredSecrets({ appSourceId });
+      await deploymentSetSecrets({ app, appSourceId, platform, secrets });
+      const result = await deploymentRequiredSecrets({
+        appSourceId,
+        platform,
+      });
       setRequiredSecrets(result.byApp);
       setRequiredSecretsError(null);
       requestedFor.current = appSourceId;
     },
-    [appSourceId],
+    [appSourceId, platform],
   );
 
   const hasMissingSecrets = useCallback(
@@ -138,6 +146,7 @@ function repoNameError(value: string): string | null {
 
 export function OneshotWizard({
   progress,
+  platform,
   actor,
   onRestart,
   beginInstall,
@@ -148,6 +157,7 @@ export function OneshotWizard({
   onInstallRejected,
 }: {
   progress: LaunchProgress;
+  platform?: string;
   actor?: string;
   onRestart?: () => void;
   beginInstall: () => void;
@@ -159,7 +169,7 @@ export function OneshotWizard({
 }) {
   const step = oneshotStep(progress);
   const installStatus = installationStatusLabel(progress.installationStatus);
-  const secretsGate = useWizardSecretsGate(progress.appSourceId);
+  const secretsGate = useWizardSecretsGate(progress.appSourceId, platform);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [repoName, setRepoName] = useState(DEFAULT_REPO_NAME);
@@ -173,6 +183,7 @@ export function OneshotWizard({
       const result = await launchCreateRepo({
         installationId: progress.installationId,
         repoName: repoName.trim(),
+        platform,
       });
       patch({
         installationId: result.installationId,
@@ -313,6 +324,7 @@ export function OneshotWizard({
           <DeployStep
             installationId={progress.installationId}
             repo={progress.repo}
+            platform={platform}
             actor={actor}
             progress={progress}
             onProgress={patch}

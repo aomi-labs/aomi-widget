@@ -39,7 +39,10 @@ vi.mock("@build/features/launch/dashboard", () => ({
 
 import { GitHubSessionProvider } from "@build/components/control-plane/github-session-context";
 import { useProjects } from "./use-projects";
-import { deploymentFeed } from "@build/features/launch/client";
+import {
+  deploymentFeed,
+  deploymentSources,
+} from "@build/features/launch/client";
 import { fetchGitHubSession } from "@build/features/launch/dashboard";
 
 function wrapper() {
@@ -58,7 +61,7 @@ function wrapper() {
 describe("useProjects", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("loads app projects off the shared session and omits empty sources", async () => {
+  it("loads app projects off the shared session, empty sources included", async () => {
     const { result } = renderHook(() => useProjects(), {
       wrapper: wrapper(),
     });
@@ -68,8 +71,21 @@ describe("useProjects", () => {
     expect(fetchGitHubSession).toHaveBeenCalledTimes(1);
     expect(deploymentFeed).not.toHaveBeenCalled();
     if (result.current.state.status === "ready") {
-      expect(result.current.state.sources).toHaveLength(1);
+      // A claimed source with no apps yet (fresh connect) is a real project.
+      expect(result.current.state.sources).toHaveLength(2);
       expect(result.current.state.sources[0]?.repositoryLink).toBe("a/b");
+      expect(result.current.state.sources[1]?.repositoryLink).toBe(
+        "a/historical-repo",
+      );
     }
+  });
+
+  it("loads sources from an exact platform when one is selected", async () => {
+    const { result } = renderHook(() => useProjects("somm.finance"), {
+      wrapper: wrapper(),
+    });
+
+    await waitFor(() => expect(result.current.state.status).toBe("ready"));
+    expect(deploymentSources).toHaveBeenCalledWith("somm.finance");
   });
 });

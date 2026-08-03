@@ -65,6 +65,20 @@ mistaken for another supported environment.
 
 Progress:
 
+- 2026-08-02 PR #436 integration: merged account-level Operate observability
+  and payment reads into the platform-switch branch, including the concurrent
+  deployment-read ownership cache. Preserved the intervening system-notification
+  work from current `main`, patch-bumped `@aomi-labs/deploy` to `0.4.1`, and
+  verified the focused Operate, launch, and deploy-client tests, Build
+  type-check, and deploy package build.
+
+- 2026-08-01 Aomi Build exact platform switching: added a non-discoverable
+  header input that checks an exact platform name against the authenticated
+  manager source read, keeps the current page unchanged on a missing platform,
+  and opens the matching platform-scoped Projects page on success. Partner
+  names are not hardcoded or listed in the frontend; `APP_DEPLOY_PLATFORMS`
+  continues to supply the default launch platform rather than the set of names
+  a signed-in user may try.
 - 2026-08-03 (later) canonical sign-out centralized: extracted the
   signOut-then-disconnect sequence into widget-lib
   (`wallet-kit/account/sign-out.ts`), made it DualWalletBar's disconnect
@@ -142,9 +156,11 @@ Progress:
   coarse completion status; OAuth codes and state remain confined to the
   loopback callback and CLI exchange.
 - 2026-07-27 Build deploy-platform configuration: reduced the BFF deploy
-  admission allowlist to one server-only source, `APP_DEPLOY_PLATFORMS`, and
+  default configuration to one server-only source, `APP_DEPLOY_PLATFORMS`, and
   removed the singular and `NEXT_PUBLIC_*` compatibility paths so Vercel
-  configuration cannot silently diverge.
+  configuration cannot silently diverge. The 2026-08-01 exact-match switcher
+  subsequently moved partner-name validation to the manager lookup rather than
+  treating this default configuration as a partner directory.
 
 - 2026-07-27 Para ACL mode recovery: confirmed the reported staging Para EVM
   row is user-controlled (`provider_managed = false`) and that the backend

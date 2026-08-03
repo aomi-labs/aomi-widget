@@ -85,6 +85,8 @@ const BOT = {
 
 afterEach(() => {
   mockedOperateFetch.mockReset();
+  window.history.replaceState({}, "", "/integrations");
+  window.localStorage.clear();
 });
 
 describe("BotsView", () => {
@@ -109,6 +111,37 @@ describe("BotsView", () => {
     expect(screen.getByText("Active")).toBeInTheDocument();
     expect(screen.getByText(/8184083135:•/)).toBeInTheDocument();
     expect(screen.getByText("1 bot")).toBeInTheDocument();
+  });
+
+  it("reads and writes against the active platform", async () => {
+    // A partner source is bound to its own platform, so the picker only ever
+    // offers its apps while the shell is scoped there. Read and write have to
+    // agree: the BFF re-checks every id against the same source list, so a
+    // PATCH on the default platform would reject what the picker just offered.
+    window.history.replaceState(
+      {},
+      "",
+      "/integrations?platform=world-market-apps",
+    );
+    mockSession({ loading: false, signedIn: true, githubLogin: "octocat" });
+    mockedOperateFetch.mockResolvedValue({ sources: SOURCES, bots: [BOT] });
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(Response.json({ bot: BOT }));
+    render(<BotsView />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /change apps/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^save/i }));
+    await screen.findByRole("button", { name: /change apps/i });
+
+    expect(mockedOperateFetch).toHaveBeenCalledWith("bots", {
+      platform: "world-market-apps",
+    });
+    const [patchUrl] = fetchSpy.mock.calls.find(
+      ([, init]) => init?.method === "PATCH",
+    )!;
+    expect(String(patchUrl)).toContain("platform=world-market-apps");
+    fetchSpy.mockRestore();
   });
 
   it("requires a token and an app before registering", async () => {

@@ -2,6 +2,70 @@
 
 ## Last Updated
 
+2026-08-02 — PLATFORM-BINDING INVARIANT, E2E (FE worktree platform-switch +
+  BE worktree somm-repo-connect/product-mono branch
+  codex/build-existing-repo-oauth, both uncommitted; BE sits on top of the
+  merged h4n0 PR #907). Design: a source is either DISCOVERED (unowned,
+  unbound, invisible) or CLAIMED (one owner, exactly one platform, visible on
+  that platform's page only); Build has no unscoped view — no `?platform=`
+  means Community.
+  BE (product-mono):
+  - NEW migration 20260803000000_app_source_platform_backfill.sql — bucket 1
+    infers bound_platform_id from apps' platform_id (multi-platform rows
+    skipped for operator repair, verify-SELECT in the header), bucket 2 binds
+    owned-but-unbound to community, then CHECK app_source_owned_implies_bound
+    (owner NULL OR platform NOT NULL). All write paths audited: oneshot
+    insert + claim_user_and_platform set both, webhook upsert sets neither,
+    bind_platform only adds — admin-bound-unowned stays legal.
+  - endpoints/github_app.rs: LaunchSourceKind (oneshot-everywhere +
+    deployed-app grandfathering + Other) DELETED; platform-scoped
+    list/latest-deployment/history/loader now gate on source_on_platform()
+    equality; launch_source_kind dropped from the wire; presenter dissolved
+    into free deployment_json{,_from_row}; app_loaded lost its vestigial
+    platform param (obs monitoring/detail/batch updated).
+  - handler.rs: check_source_deploy_platform is STRICT equality (unbound only
+    passes preflight, mirroring check_source_deploy_owner); grandfathering
+    deleted — cross-platform rows (bound A, serving on B) now 403 redeploys
+    until operator repair; gate tests rewritten (8/8 green).
+  - oauth/start: `mode` param KILLED — with a repo the backend checks
+    repo_has_installation() (new GitHubApp helper, 404→false) and returns the
+    OAuth consent URL when covered, install URL when not; no repo → install.
+  - Verified: cargo check -p manager --tests clean; gate unit tests 8/8.
+    DB-backed tests refuse locally (hosted-DB guard) — CI covers them. No
+    clippy/build run (Cecilia: no memory-heavy ops).
+  FE (this repo):
+  - platform.ts: platformParam now DEFAULTS to DEFAULT_DEPLOY_PLATFORM
+    ("community"); usePlatform returns string (defaults too); hardcoded
+    "community" literals in onboarding/platform-switcher/home-redirect
+    replaced with the constant; deployments/new backHref always Projects.
+  - githubAppInstallUrl lost `mode` (packages/deploy client + build client);
+    launchSourceKind deleted from UserSource type + camel mapper.
+  - use-projects.ts: hasApps filter DROPPED — claimed zero-app sources render
+    as "Connected — not deployed yet" (project-deployment-status empty
+    branch), fixing connect-success-banner-over-missing-row.
+  - docs/fe-deploy.md oauth/start rows updated (backend picks the ceremony).
+  - Verified: apps/build vitest 416 passed/12 skipped (69 files),
+    packages/deploy 136/136, tsc clean both, eslint clean on touched files.
+  2026-08-03 follow-up — BUILDERS DUPES + REDUNDANT FIELDS (from Cecilia's
+  Supabase screenshot): the live DB has DUPLICATE builders.github_user_id rows
+  (4738254/h4n0 twice) because 0714's CREATE TABLE IF NOT EXISTS no-opped on a
+  pre-existing table and its UNIQUE never materialized — every ON CONFLICT
+  (github_user_id) (claim ceremony, 0802 backfill) would error at runtime.
+  Fixed in-place in the 0802 migration: idempotent dedupe (merge onto MIN(id),
+  carry github_login, repoint app_source/bot_registrations/builder_model_keys)
+  + guarded ADD CONSTRAINT builders_github_user_id_key. 0803 also now flips
+  app_source.bound_platform_id FK from SET NULL to RESTRICT (SET NULL would
+  collide with the owned-implies-bound CHECK). Redundant-field verdict:
+  app_source.github_user_id + its index are the only redundant ones; Rust no
+  longer references them; the SQL drop is documented in the 0802 header and
+  DROPPED at the end of 0802 (Cecilia accepted the brief rolling-window
+  breakage in exchange for a one-cycle removal — no follow-up migration).
+  PENDING/handoff: run the migration's verify-SELECT against staging+prod and
+  hand-repair any multi-platform or cross-platform rows BEFORE deploying the
+  strict gate; deploy order migration → BE → FE; AOMI_BUILD_URL must be set
+  on staging/prod backends or return_to is rejected; commits/pushes are
+  Cecilia's (BE branch also has 4 unpushed commits incl. the #907 merge).
+
 2026-08-03 (staging smoke) — **Staging API verified healthy; DOMAIN.md route
   table found stale.** Live smoke of `api-staging.aomi.dev` (the hostname
   `api.staging.aomi.dev` does not resolve): health, auth boundaries, OAuth

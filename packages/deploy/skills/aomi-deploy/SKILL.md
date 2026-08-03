@@ -145,11 +145,18 @@ githubSigninUrl              → href for a "Sign in with GitHub" link
 githubAppInstallUrl({app:2}) → URL to install the Aomi GitHub App
 createRepo({installationId, repoName}) → scaffold from the template
 preflight(input) / deploy(input)       → dry-run / apply
-status(deploymentId)         → poll: building | releasing | ready | failed
+status({deploymentId})       → one poll: building | releasing | ready | failed
+watch({deploymentId}, onEvent)         → poll to completion, backoff, never throws
 activate({releaseTags, apps})→ promote the built release to live
 appStatus({name, releaseTag})→ confirm the app is loaded & live
-fetchUserSources()           → the signed-in user's deployed agents
+sources()                    → the signed-in user's deployed agents
+platform / forPlatform(name) → the bound platform; a client scoped to another
+deployments.*                → project console (sources, history, secrets, promote, …)
 ```
+
+Targeting a named partner platform? Bind it once —
+`createLaunchClient({ platform: "somm.finance" })` — rather than passing it on
+every call; omitting it on one call silently falls back to the host default.
 
 ## Step 3 — Build the UI (in your stack)
 

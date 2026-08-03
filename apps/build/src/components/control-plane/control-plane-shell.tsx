@@ -31,6 +31,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { AomiLogo } from "@build/components/brand/aomi-logo";
 import { ColorThemeToggle } from "@build/components/control-plane/color-theme-toggle";
 import { ControlPlaneLink } from "@build/components/control-plane/control-plane-link";
+import { platformHref } from "@build/features/launch/platform";
+import { usePlatform } from "@build/features/launch/use-platform";
 import {
   CommandPalette,
   openCommandPalette,
@@ -281,6 +283,7 @@ function NavItemLink({
   onNavigate?: () => void;
 }) {
   const Icon = item.icon;
+  const platform = usePlatform();
   const enabled = item.enabled && (!item.requiresGitHub || signedIn);
   const content = (
     <>
@@ -318,7 +321,7 @@ function NavItemLink({
 
   return (
     <ControlPlaneLink
-      href={item.href}
+      href={platformHref(item.href, platform)}
       warmOnIntent={!active}
       onClick={onNavigate}
       data-active={active ? "true" : "false"}

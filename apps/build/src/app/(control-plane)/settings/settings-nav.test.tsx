@@ -54,6 +54,6 @@ describe("SettingsNav", () => {
 
     expect(screen.getAllByText("Soon").length).toBeGreaterThan(0);
     expect(screen.getByText("Project-scoped")).toBeInTheDocument();
-    expect(screen.getByText("Available")).toBeInTheDocument();
+    expect(screen.getAllByText("Available").length).toBeGreaterThan(0);
   });
 });
