@@ -36,10 +36,49 @@ export type E2EWalletSeed = {
   expiresAt: number;
 };
 
-export type E2ESvmCluster = "solana:devnet" | "solana:testnet";
+/**
+ * `solana:mainnet` here means the LOCAL mainnet-fork mirror, never the real
+ * cluster: `loopbackSolanaRpcUrl()` refuses any non-loopback RPC regardless of
+ * cluster, so a mainnet-labeled seed can only ever sign against 127.0.0.1
+ * (the Surfpool mirror `aomi test-env svm up --cluster mainnet-beta` runs).
+ * Same posture as the EVM fork-verified executor policy, enforced harder.
+ */
+export type E2ESvmCluster =
+  | "solana:devnet"
+  | "solana:testnet"
+  | "solana:mainnet";
 
 const MAX_TTL_SECONDS = 60 * 60;
 const DEFAULT_MAX_NATIVE_WEI = BigInt("1000000000000");
+
+/**
+ * Is this RPC an anvil fork? `anvil_nodeInfo` is anvil-only — a real RPC
+ * returns a JSON-RPC error for it. Used to gate contract-call execution to
+ * environments where money is not real. Fails closed on any error.
+ */
+async function isAnvilForkRpc(rpcUrl: string): Promise<boolean> {
+  try {
+    const response = await fetch(rpcUrl, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "anvil_nodeInfo",
+        params: [],
+      }),
+      signal: AbortSignal.timeout(3_000),
+    });
+    if (!response.ok) return false;
+    const body = (await response.json()) as {
+      result?: unknown;
+      error?: unknown;
+    };
+    return Boolean(body.result) && !body.error;
+  } catch {
+    return false;
+  }
+}
 const LOCALHOST_CHAIN_ID = 31337;
 
 type E2EExecuteErrorCode =
@@ -50,6 +89,21 @@ type E2EExecuteErrorCode =
   | "rpc_unavailable"
   | "execution_failed";
 
+/** What actually mined before a sequential batch aborted mid-way.
+ * Execution is sequential and non-atomic, so "the batch failed" without
+ * this detail erases on-chain truth — the backend re-queues every leg and
+ * the retry double-executes the ones that already landed. */
+export type E2EPartialExecution = {
+  /** Staged pending-tx ids that mined (in order). Empty when nothing did. */
+  executedTxIds: number[];
+  /** Hash of the last mined call, if any. */
+  lastTxHash: `0x${string}` | null;
+  /** The id of the call that failed, when the payload carried ids. */
+  failedTxId: number | null;
+  /** Ids never attempted because the batch aborts on first failure. */
+  remainingTxIds: number[];
+};
+
 export type E2EExecuteResult =
   | {
       ok: true;
@@ -59,12 +113,13 @@ export type E2EExecuteResult =
       to: `0x${string}`;
       valueWei: string;
       gasLimit: string;
-      executionKind: "e2e_real_self_transfer";
+      executionKind: "e2e_real_self_transfer" | "e2e_real_fork_call";
     }
   | {
       ok: false;
       error: string;
       code: E2EExecuteErrorCode;
+      partial?: E2EPartialExecution;
     };
 
 export type E2ESolanaResult =
@@ -139,7 +194,9 @@ export function parseE2ESvmAddress(value: string | null): string | null {
 }
 
 export function parseE2ESvmCluster(value: string | null): E2ESvmCluster {
-  return value === "solana:testnet" ? "solana:testnet" : "solana:devnet";
+  if (value === "solana:testnet") return "solana:testnet";
+  if (value === "solana:mainnet") return "solana:mainnet";
+  return "solana:devnet";
 }
 
 function normalizeE2ESvmCluster(
@@ -148,6 +205,12 @@ function normalizeE2ESvmCluster(
   if (value === "devnet" || value === "solana:devnet") return "solana:devnet";
   if (value === "testnet" || value === "solana:testnet")
     return "solana:testnet";
+  if (
+    value === "mainnet" ||
+    value === "mainnet-beta" ||
+    value === "solana:mainnet"
+  )
+    return "solana:mainnet";
   return null;
 }
 
@@ -211,7 +274,8 @@ export function verifyE2EWalletCookie(
       parsed.svmAddress &&
       parseE2ESvmAddress(parsed.svmAddress) &&
       (parsed.svmCluster === "solana:devnet" ||
-        parsed.svmCluster === "solana:testnet"),
+        parsed.svmCluster === "solana:testnet" ||
+        parsed.svmCluster === "solana:mainnet"),
     );
     if (!hasEvm && !hasSvm) return null;
     if (
@@ -226,8 +290,20 @@ export function verifyE2EWalletCookie(
   }
 }
 
+/**
+ * Resolve the account an E2E session acts as, from `E2E_STUB_CANONICAL_USER_ID`.
+ *
+ * This does not create or impersonate a "test account" — it makes the session
+ * authenticate AS the named real user, so threads, usage and billing land on
+ * that account exactly as if they had signed in. Only the *signing key* is
+ * disposable; the identity is genuine.
+ *
+ * Doubly gated: the env var alone does nothing without a valid signed E2E
+ * cookie, and `isE2EWalletEnabled()` additionally requires a non-production
+ * build with `VERCEL_ENV` unset. It cannot be pointed at a deployment.
+ */
 export function resolveE2ECanonicalUserId(request: Request): string | null {
-  const userId = process.env.AOMI_E2E_CANONICAL_USER_ID?.trim();
+  const userId = process.env.E2E_STUB_CANONICAL_USER_ID?.trim();
   if (!userId || !isE2EWalletEnabled()) return null;
   const cookieHeader = request.headers.get("cookie") ?? "";
   const cookie = cookieHeader
@@ -272,18 +348,30 @@ function normalizeData(data: unknown): Hex {
   return data as Hex;
 }
 
-function callFromPayload(payload: WalletTxPayload): {
+type E2ECall = {
   to: Address;
   value: bigint;
   data: Hex;
   chainId: number;
   callCount: number;
-} | null {
-  const calls = Array.isArray(payload.calls) ? payload.calls : [];
-  const rawCall =
-    calls.length === 1 ? calls[0] : calls.length === 0 ? payload : null;
-  if (!rawCall) return null;
+  /** Staged pending-tx id, when the payload carries one. Powers the
+   * partial-outcome report: without ids the caller cannot tell the
+   * backend WHICH legs of an aborted batch actually mined. */
+  txId: number | null;
+};
 
+/** One raw call from a payload, normalized. `payload` supplies the fallback chain. */
+function parseCall(
+  rawCall: {
+    to?: unknown;
+    value?: unknown;
+    data?: unknown;
+    chainId?: unknown;
+    txId?: unknown;
+  },
+  payload: WalletTxPayload,
+  callCount: number,
+): E2ECall | null {
   const to = typeof rawCall.to === "string" ? rawCall.to.trim() : "";
   if (!isAddress(to)) return null;
   const value = parseWei(rawCall.value ?? "0");
@@ -297,14 +385,34 @@ function callFromPayload(payload: WalletTxPayload): {
         ? payload.chainId
         : 0;
   if (chainId <= 0) return null;
+  const txId =
+    typeof rawCall.txId === "number" && Number.isInteger(rawCall.txId)
+      ? rawCall.txId
+      : null;
 
-  return {
-    to: getAddress(to),
-    value,
-    data,
-    chainId,
-    callCount: calls.length || 1,
-  };
+  return { to: getAddress(to), value, data, chainId, callCount, txId };
+}
+
+/**
+ * Every call in the payload, in order.
+ *
+ * The original single-call reader silently blocked every batched flow —
+ * approve+supply, or stake→wrap→approve→supply→borrow — rejecting with
+ * "Unsupported E2E transaction payload" *after* the agent had already staged
+ * and simulated the batch. Batches are the interesting case for a demo, so we
+ * unpack them and let the caller decide whether the environment is safe enough
+ * to run one (it is not, off a fork).
+ */
+function callsFromPayload(payload: WalletTxPayload): E2ECall[] | null {
+  const calls = Array.isArray(payload.calls) ? payload.calls : [];
+  const raw = calls.length > 0 ? calls : [payload];
+  const parsed: E2ECall[] = [];
+  for (const rawCall of raw) {
+    const one = parseCall(rawCall, payload, raw.length);
+    if (!one) return null;
+    parsed.push(one);
+  }
+  return parsed.length > 0 ? parsed : null;
 }
 
 function e2eChain(chainId: number, rpcUrl: string) {
@@ -331,7 +439,7 @@ function reject(
   return { ok: false, code, error };
 }
 
-export async function executeE2EWalletTransaction({
+export async function executeE2EvmTransaction({
   seed,
   payload,
 }: {
@@ -357,32 +465,66 @@ export async function executeE2EWalletTransaction({
     return reject("unauthorized", "Seeded E2E wallet does not match signer");
   }
 
-  const call = callFromPayload(payload);
-  if (!call) {
+  const calls = callsFromPayload(payload);
+  if (!calls) {
     return reject("invalid_request", "Unsupported E2E transaction payload");
   }
-  if (call.chainId !== seed.chainId) {
-    return reject("policy_rejected", "Transaction chain does not match seed");
-  }
-  if (call.to !== signerAddress) {
-    return reject("policy_rejected", "Only self-transfers are allowed");
-  }
-  if (call.data !== "0x") {
-    return reject(
-      "policy_rejected",
-      "Calldata is not allowed for self-transfer",
-    );
-  }
-  if (call.value <= BigInt(0)) {
-    return reject("policy_rejected", "Self-transfer value must be positive");
-  }
-  if (call.value > maxNativeWei()) {
-    return reject("policy_rejected", "Self-transfer exceeds E2E value cap");
+  const call = calls[0]!;
+  // One chain per batch — but NOT necessarily the seed's chain. The E2E
+  // wallet is explicitly multi-chain (one AOMI_E2E_RPC_URL_<id> per served
+  // chain), and pinning execution to the seed chain broke every
+  // cross-chain scenario's far leg: the bridge round-trip's Base→mainnet
+  // return deposit died here with "does not match seed" while the agent
+  // told the camera the funds were on their way. Which chains are safe is
+  // decided below by configuration + the anvil-fork probe, not by which
+  // chain the wallet happened to be seeded on.
+  if (calls.some((one) => one.chainId !== call.chainId)) {
+    return reject("policy_rejected", "Batch spans multiple chains");
   }
 
   const rpcUrl = rpcUrlForChain(call.chainId);
   if (!rpcUrl) {
     return reject("rpc_unavailable", "No E2E RPC URL configured for chain");
+  }
+
+  // Contract calls are permitted ONLY against a proven anvil fork. The probe
+  // is the gate itself: `anvil_nodeInfo` exists on anvil and nothing else, so
+  // a real RPC — or a fork that silently died and got replaced by something
+  // else on the same port — falls through to the strict self-transfer policy
+  // below. This keeps the E2E executor's original safety posture for every
+  // real-chain configuration while letting the demo studio stake/swap on forks.
+  const forkVerified = await isAnvilForkRpc(rpcUrl);
+  if (!forkVerified) {
+    // Off a fork the executor keeps its original posture exactly: exactly one
+    // call, self-transfer, no calldata, positive value. A batch here is a
+    // hard no — sequential real-chain sends are the last thing this should do.
+    if (calls.length !== 1) {
+      return reject(
+        "policy_rejected",
+        "Batched execution requires a verified anvil fork",
+      );
+    }
+    if (call.to !== signerAddress) {
+      return reject("policy_rejected", "Only self-transfers are allowed");
+    }
+    if (call.data !== "0x") {
+      return reject(
+        "policy_rejected",
+        "Calldata is not allowed for self-transfer",
+      );
+    }
+    if (call.value <= BigInt(0)) {
+      return reject("policy_rejected", "Self-transfer value must be positive");
+    }
+  }
+  // The cap binds the WHOLE batch, not each leg — otherwise N calls just under
+  // the limit would together move far more than the cap intends to allow.
+  const totalValue = calls.reduce((sum, one) => sum + one.value, BigInt(0));
+  if (calls.some((one) => one.value < BigInt(0))) {
+    return reject("policy_rejected", "Transfer value must not be negative");
+  }
+  if (totalValue > maxNativeWei()) {
+    return reject("policy_rejected", "Transfer exceeds E2E value cap");
   }
 
   try {
@@ -396,30 +538,69 @@ export async function executeE2EWalletTransaction({
       chain,
       transport: http(rpcUrl),
     });
-    const gas = await publicClient.estimateGas({
-      account: signerAddress,
-      to: call.to,
-      value: call.value,
-      data: call.data,
-    });
-    const txHash = await walletClient.sendTransaction({
-      account,
-      chain,
-      to: call.to,
-      value: call.value,
-      data: call.data,
-      gas,
-    });
+    // Sequential, not atomic: each call is mined before the next is estimated,
+    // because a batch like approve→supply only estimates correctly once the
+    // approval is on chain. Any failure aborts the rest — and MUST report
+    // which legs already mined: the first take that hit a mid-batch revert
+    // (Aave borrow, custom error 0x5b263df7) reported blanket failure, the
+    // backend re-queued all six legs, and the retry re-ran an
+    // already-executed 5 ETH stake into an insufficient-funds spiral.
+    let txHash: `0x${string}` | null = null;
+    let gas = BigInt(0);
+    const executedTxIds: number[] = [];
+    for (const [index, one] of calls.entries()) {
+      try {
+        const gasForCall = await publicClient.estimateGas({
+          account: signerAddress,
+          to: one.to,
+          value: one.value,
+          data: one.data,
+        });
+        txHash = await walletClient.sendTransaction({
+          account,
+          chain,
+          to: one.to,
+          value: one.value,
+          data: one.data,
+          gas: gasForCall,
+        });
+        await publicClient.waitForTransactionReceipt({ hash: txHash });
+        gas += gasForCall;
+        if (one.txId !== null) executedTxIds.push(one.txId);
+      } catch (error) {
+        return {
+          ok: false,
+          code: "execution_failed",
+          error:
+            error instanceof Error ? error.message : "E2E transaction failed",
+          partial: {
+            executedTxIds,
+            lastTxHash: txHash,
+            failedTxId: one.txId,
+            remainingTxIds: calls
+              .slice(index + 1)
+              .map((c) => c.txId)
+              .filter((id): id is number => id !== null),
+          },
+        };
+      }
+    }
+    if (!txHash) {
+      return reject("invalid_request", "No executable calls in payload");
+    }
 
+    const last = calls[calls.length - 1]!;
     return {
       ok: true,
       txHash,
       chainId: call.chainId,
       from: signerAddress as `0x${string}`,
-      to: call.to as `0x${string}`,
-      valueWei: call.value.toString(),
+      to: last.to as `0x${string}`,
+      valueWei: totalValue.toString(),
       gasLimit: gas.toString(),
-      executionKind: "e2e_real_self_transfer",
+      executionKind: forkVerified
+        ? "e2e_real_fork_call"
+        : "e2e_real_self_transfer",
     };
   } catch (error) {
     return reject(

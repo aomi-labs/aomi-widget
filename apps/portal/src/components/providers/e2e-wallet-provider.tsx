@@ -22,7 +22,7 @@ export type E2EWalletSeedClient = {
   address?: `0x${string}`;
   chainId?: number;
   svmAddress?: string;
-  svmCluster?: "solana:devnet" | "solana:testnet";
+  svmCluster?: "solana:devnet" | "solana:testnet" | "solana:mainnet";
 };
 
 type Props = {
@@ -43,7 +43,14 @@ type E2EExecutionSuccess = {
   ok: true;
   txHash: `0x${string}`;
   valueWei: string;
-  executionKind: "e2e_real_self_transfer";
+  executionKind: "e2e_real_self_transfer" | "e2e_real_fork_call";
+};
+
+type E2EExecutionPartial = {
+  executedTxIds: number[];
+  lastTxHash: `0x${string}` | null;
+  failedTxId: number | null;
+  remainingTxIds: number[];
 };
 
 type E2EExecutionResponse =
@@ -51,7 +58,23 @@ type E2EExecutionResponse =
   | {
       ok: false;
       error: string;
+      /** Sequential batches can land a prefix before failing — see
+       * `E2EPartialExecution` in server/e2e-wallet.ts. */
+      partial?: E2EExecutionPartial;
     };
+
+/** Thrown when a batch aborted mid-way with legs already mined; carries
+ * the partial outcome so the runtime tx handler can report per-leg truth
+ * instead of a blanket failure. */
+export class E2EPartialExecutionError extends Error {
+  constructor(
+    message: string,
+    public readonly partial: E2EExecutionPartial,
+  ) {
+    super(message);
+    this.name = "E2EPartialExecutionError";
+  }
+}
 
 type E2ESolanaResponse =
   | { ok: true; signature: string; signedTx?: string }
@@ -96,6 +119,9 @@ async function executeRealE2ETransaction(
   });
   const result = (await response.json()) as E2EExecutionResponse;
   if (!result.ok) {
+    if (result.partial && result.partial.executedTxIds.length > 0) {
+      throw new E2EPartialExecutionError(result.error, result.partial);
+    }
     throw new Error(result.error);
   }
   if (!response.ok) {

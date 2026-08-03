@@ -1,6 +1,5 @@
 "use client";
 
-import { useAccountOverview } from "@portal/lib/account-overview";
 import { AccountSigningView } from "./account-signing";
 import { useAccountAcl } from "./use-account-acl";
 
@@ -14,11 +13,7 @@ import { useAccountAcl } from "./use-account-acl";
  * returns the committed row.
  */
 export function AccountSettings() {
-  const account = useAccountOverview();
   const acl = useAccountAcl();
-
-  const accountId = account?.user.user_id ?? "—";
-  const email = account?.user.verified_email ?? "wallet-only account";
 
   if (acl.status === "loading") {
     return <AccountNotice>Loading your wallets…</AccountNotice>;
@@ -40,8 +35,6 @@ export function AccountSettings() {
 
   return (
     <AccountSigningView
-      accountId={accountId}
-      email={email}
       wallets={acl.wallets}
       grants={acl.grants}
       unboundWallets={acl.unboundWallets}

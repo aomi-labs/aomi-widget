@@ -42,6 +42,13 @@ const widgetWebpackAliases = {
 } as const;
 
 const nextConfig: NextConfig = {
+  // Hide the dev-tools indicator when recording demo takes. It renders a
+  // badge in the bottom-left corner, directly on top of the account chip,
+  // and reads on camera as "this product has N issues". Opt-in via env so
+  // normal local development keeps the indicator.
+  ...(process.env.AOMI_HIDE_DEV_INDICATOR === "true"
+    ? { devIndicators: false as const }
+    : {}),
   env: {
     NEXT_PUBLIC_BACKEND_URL:
       process.env.NEXT_PUBLIC_BACKEND_URL ||

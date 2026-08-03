@@ -16,9 +16,11 @@ import {
 import { type Chain } from "viem";
 import {
   AomiWalletKitProvider,
+  FullTestnetWalletRouter,
   monad,
   monadTestnet,
   robinhood,
+  useFullTestnet,
 } from "@aomi-labs/widget-lib";
 import {
   E2EWalletProvider,
@@ -113,6 +115,14 @@ export function WalletProviders({ children, e2eWallet }: Props) {
   useEffect(() => {
     setBrowserAuthOrigin(getBrowserAuthOrigin());
   }, []);
+  // Keeps the real chain ids (1, 8453, ...) and swaps only the RPC url, so the
+  // UI still reads "Ethereum · Mainnet" while transactions hit a local fork.
+  // Inert unless NEXT_PUBLIC_USE_FULL_TESTNET=true and the RPC map parses.
+  const {
+    enabled: fullTestnetEnabled,
+    routedChains,
+    routedChainIds,
+  } = useFullTestnet(networks);
   const account = useMemo(
     () => ({
       mode: "aomi-backend" as const,
@@ -136,7 +146,7 @@ export function WalletProviders({ children, e2eWallet }: Props) {
     return (
       <E2EWalletProvider
         seed={e2eWallet}
-        networks={networks}
+        networks={routedChains}
         solanaNetworks={solanaNetworks}
       >
         {children}
@@ -160,7 +170,7 @@ export function WalletProviders({ children, e2eWallet }: Props) {
       }}
       wallets={{
         evm: {
-          chains: networks,
+          chains: routedChains,
           appName: "Aomi Labs",
           wallets: evmWallets,
           walletConnectProjectId,
@@ -171,7 +181,14 @@ export function WalletProviders({ children, e2eWallet }: Props) {
         },
       }}
     >
-      {children}
+      <FullTestnetWalletRouter
+        enabled={fullTestnetEnabled}
+        chains={routedChains}
+        routedChainIds={routedChainIds}
+        logLabel="portal:FullTestnetWalletRouter"
+      >
+        {children}
+      </FullTestnetWalletRouter>
     </AomiWalletKitProvider>
   );
 }

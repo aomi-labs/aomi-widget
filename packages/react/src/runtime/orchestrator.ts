@@ -17,7 +17,7 @@ import {
 } from "../contexts/thread-context";
 import type { ThreadTurnPhase } from "../state/thread-store";
 import { SessionManager } from "./session-manager";
-import { toInboundMessage } from "./utils";
+import { collectTxOutcomes, toInboundMessage } from "./utils";
 import { mergeAssistantTurns } from "./merge-turns";
 
 type OrchestratorOptions = {
@@ -117,12 +117,16 @@ const projectInboundMessages = (
   messages: readonly AomiMessage[],
   projection: MessageProjection | null,
 ) => {
+  // Collected over the FULL raw list, not the projected ranges: a truncated
+  // projection may hide the system echo while still showing the staged step
+  // it reports on.
+  const txOutcomes = collectTxOutcomes(messages);
   const projectedMessages: ThreadMessageLike[] = [];
   for (const { message } of selectProjectedMessageEntries(
     messages,
     projection,
   )) {
-    const converted = toInboundMessage(message);
+    const converted = toInboundMessage(message, txOutcomes);
     if (converted) projectedMessages.push(converted);
   }
   return mergeAssistantTurns(projectedMessages);

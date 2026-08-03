@@ -1606,10 +1606,73 @@ var isPlaceholderTitle = (title) => {
   const normalized = (_a = title == null ? void 0 : title.trim()) != null ? _a : "";
   return !normalized || normalized.startsWith("#[");
 };
-var SYSTEM_ENDPOINT_RESPONSE_PREFIX = "Response of system endpoint:";
-function toInboundMessage(msg) {
+var SYSTEM_ENDPOINT_ECHO_PREFIX = "Response of system endpoint:";
+var SVM_COMPLETE_TYPES = /* @__PURE__ */ new Set([
+  "wallet::solana_sign_complete",
+  "wallet::solana_send_complete",
+  "wallet::solana_sign_and_send_complete"
+]);
+function collectTxOutcomes(messages) {
+  var _a;
+  let evm = null;
+  let svm = null;
+  let svmByTx = null;
+  for (const msg of messages) {
+    if (msg.sender !== "system" || !((_a = msg.content) == null ? void 0 : _a.startsWith(SYSTEM_ENDPOINT_ECHO_PREFIX))) {
+      continue;
+    }
+    let parsed;
+    try {
+      parsed = JSON.parse(
+        msg.content.slice(SYSTEM_ENDPOINT_ECHO_PREFIX.length)
+      );
+    } catch (e) {
+      continue;
+    }
+    if (typeof parsed !== "object" || parsed === null) continue;
+    const type = parsed.type;
+    const payload = parsed.payload;
+    if (typeof payload !== "object" || payload === null) continue;
+    if (type === "wallet:tx_complete") {
+      const { status, txHash, error, pending_tx_ids } = payload;
+      if (status !== "success" && status !== "failed") continue;
+      if (!Array.isArray(pending_tx_ids)) continue;
+      for (const id of pending_tx_ids) {
+        if (typeof id !== "number" || !Number.isInteger(id)) continue;
+        evm != null ? evm : evm = /* @__PURE__ */ new Map();
+        evm.set(id, __spreadValues(__spreadValues({
+          status
+        }, typeof txHash === "string" && txHash && { txHash }), typeof error === "string" && error && { error }));
+      }
+      continue;
+    }
+    if (typeof type === "string" && SVM_COMPLETE_TYPES.has(type)) {
+      const { status, signature, error, pending_solana_id, unsigned_tx } = payload;
+      const mapped = status === "signed" || status === "submitted" ? "success" : status === "rejected" || status === "failed" ? "failed" : null;
+      if (mapped === null) continue;
+      const outcome = __spreadValues(__spreadValues({
+        status: mapped
+      }, typeof signature === "string" && signature && { txHash: signature }), typeof error === "string" && error && { error });
+      if (typeof pending_solana_id === "number" && Number.isInteger(pending_solana_id)) {
+        svm != null ? svm : svm = /* @__PURE__ */ new Map();
+        svm.set(pending_solana_id, outcome);
+      }
+      if (typeof unsigned_tx === "string" && unsigned_tx) {
+        svmByTx != null ? svmByTx : svmByTx = /* @__PURE__ */ new Map();
+        svmByTx.set(unsigned_tx, outcome);
+      }
+    }
+  }
+  if (!evm && !svm && !svmByTx) return null;
+  return {
+    evm: evm != null ? evm : /* @__PURE__ */ new Map(),
+    svm: svm != null ? svm : /* @__PURE__ */ new Map(),
+    svmByTx: svmByTx != null ? svmByTx : /* @__PURE__ */ new Map()
+  };
+}
+function toInboundMessage(msg, txOutcomes) {
   var _a, _b;
-  if (msg.sender === "system" && ((_a = msg.content) == null ? void 0 : _a.trimStart().startsWith(SYSTEM_ENDPOINT_RESPONSE_PREFIX))) {
+  if (msg.sender === "system" && ((_a = msg.content) == null ? void 0 : _a.trimStart().startsWith(SYSTEM_ENDPOINT_ECHO_PREFIX))) {
     return null;
   }
   const content = [];
@@ -1625,11 +1688,20 @@ function toInboundMessage(msg) {
       toolName: topic,
       args: void 0,
       result: (() => {
+        let parsed;
         try {
-          return JSON.parse(toolContent);
+          parsed = JSON.parse(toolContent);
         } catch (e) {
           return { args: toolContent };
         }
+        if (txOutcomes && typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
+          const record = parsed;
+          const outcome = typeof record.pending_tx_id === "number" ? txOutcomes.evm.get(record.pending_tx_id) : typeof record.pending_solana_id === "number" ? txOutcomes.svm.get(record.pending_solana_id) : typeof record.unsigned_tx === "string" ? txOutcomes.svmByTx.get(record.unsigned_tx) : void 0;
+          if (outcome) {
+            return __spreadProps(__spreadValues({}, record), { tx_outcome: outcome });
+          }
+        }
+        return parsed;
       })()
     });
   }
@@ -1824,12 +1896,13 @@ var selectProjectedMessageEntries = (messages, projection) => {
   });
 };
 var projectInboundMessages = (messages, projection) => {
+  const txOutcomes = collectTxOutcomes(messages);
   const projectedMessages = [];
   for (const { message } of selectProjectedMessageEntries(
     messages,
     projection
   )) {
-    const converted = toInboundMessage(message);
+    const converted = toInboundMessage(message, txOutcomes);
     if (converted) projectedMessages.push(converted);
   }
   return mergeAssistantTurns(projectedMessages);
