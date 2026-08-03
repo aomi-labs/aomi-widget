@@ -42,6 +42,35 @@ describe("createAomiBackendAccountClient", () => {
     );
   });
 
+  it.each([
+    ["wallet", "This wallet address is already linked"],
+    ["identity", "This sign-in method is already linked"],
+    ["email", "This email is already linked"],
+  ])("names the %s that actually collided", async (signalType, expected) => {
+    const fetchImpl = vi.fn(async () => ({
+      ok: false,
+      status: 409,
+      json: async () => ({
+        message: "already_linked_to_another_account",
+        signalType,
+      }),
+    }));
+    const client = createAomiBackendAccountClient({
+      fetch: fetchImpl as unknown as typeof fetch,
+    });
+
+    await expect(
+      client.exchangeProviderCredential(
+        {
+          provider: "para",
+          tokenKind: "session_jwt",
+          providerToken: "para-jwt",
+        },
+        { hasAccount: false },
+      ),
+    ).rejects.toThrow(expected);
+  });
+
   it("uses BetterAuth SIWS endpoints for browser sign-in and linking", async () => {
     const fetchImpl = vi.fn(
       async () =>

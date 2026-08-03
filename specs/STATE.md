@@ -41,6 +41,26 @@
   "Sign-in needs attention". Rule going forward: chip copy stays under ~25
   chars, backend error strings go to `noticeLine`.
 
+  **Conflict diagnosis (this change).** The 409 has a `signalType` of
+  `identity` | `wallet` | `email` that decides the remedy (unlink a login
+  method vs unlink a wallet), but it never reached the user: the better-auth
+  path threw `APIError("CONFLICT", { message })` with no `signalType`, and the
+  client's `extractErrorCode()` kept only `error`/`message` anyway. Now
+  `provider-plugin.ts` includes `signalType` in the error body (better-call
+  types it as `{message?,code?,cause?} & Record<string,any>`, so extra fields
+  serialize), and `AomiAccountRequestError` carries it into one of three
+  specific messages. `/api/aomi/provider/exchange` already spread it via
+  `...result`. NOTE: this is the first `packages/account` file in PR #7 — one
+  additive error field, but it breaks the "UI-only" property.
+
+  **CI gap found, NOT fixed here.** Root `vitest.config.ts` only includes
+  `apps/portal/src/{app,server}/mcp`, `lib/widget-auth`, and
+  `app/api/*/route.*`, so ~40 portal test files under `components/`,
+  `features/`, and most of `lib/` never run in CI — including this PR's
+  `use-portal-wallet-account-menu.test.tsx`. Registry tests do run, via
+  `pnpm --dir apps/shadcn-registry exec vitest run`. Widening the include is
+  its own PR; expect pre-existing failures to surface.
+
 2026-08-02 (~17:45) — **ds13 RECORDED — catalog COMPLETE.** Post-fixer-session
   run (their parseTxIds ordering fix + dist rebuild + Aave gateway address
   correction + my backend rebuild/restack): attempt 3 landed
