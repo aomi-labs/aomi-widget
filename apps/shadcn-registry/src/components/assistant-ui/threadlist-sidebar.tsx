@@ -12,16 +12,19 @@ import {
 import { ThreadList } from "@/components/assistant-ui/thread-list";
 import { ConnectButton } from "@/components/control-bar/connect-button";
 import { AomiMark } from "@/components/aomi-mark";
+import type { WalletAccountMenuOptions } from "@/components/control-bar/account-menu-types";
 
 type ThreadListSidebarProps = React.ComponentProps<typeof Sidebar> & {
   /** Position of the wallet button: "header" (top), "footer" (bottom), or null (hidden) */
   walletPosition?: "header" | "footer" | null;
   walletFamilies?: Array<"evm" | "solana">;
+  walletAccountMenu?: WalletAccountMenuOptions;
 };
 
 export function ThreadListSidebar({
   walletPosition = "footer",
   walletFamilies,
+  walletAccountMenu,
   ...props
 }: ThreadListSidebarProps) {
   return (
@@ -47,7 +50,7 @@ export function ThreadListSidebar({
             <ChevronDown className="text-aomi-muted size-3.5" />
           </a>
           {walletPosition === "header" && (
-            <ConnectButton families={walletFamilies} />
+            <ConnectButton families={walletFamilies} accountMenu={walletAccountMenu} />
           )}
         </div>
       </SidebarHeader>
@@ -58,7 +61,11 @@ export function ThreadListSidebar({
       {walletPosition === "footer" && (
         <SidebarFooter className="aomi-sidebar-footer mx-3 mb-4 border-0 pt-1">
           <div className="border-aomi-border mx-2 mb-1 border-t" />
-          <ConnectButton className="w-full" families={walletFamilies} />
+          <ConnectButton
+            className="w-full"
+            families={walletFamilies}
+            accountMenu={walletAccountMenu}
+          />
         </SidebarFooter>
       )}
     </Sidebar>

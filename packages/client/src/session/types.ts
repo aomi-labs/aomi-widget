@@ -70,6 +70,22 @@ export type WalletRequestResult =
       sponsored?: boolean;
       SmartAccount4337?: string;
       Delegation7702?: string;
+      /**
+       * PARTIAL batch outcome. Sequential (non-atomic) executors can land a
+       * prefix of a batch and then fail: reporting that as one blanket
+       * failure erases the on-chain truth — the backend re-queues ALL legs,
+       * the agent re-commits, and the already-executed leg double-spends
+       * (observed: a 6-leg stake→wrap→supply→borrow where the 5 ETH stake
+       * landed, the borrow reverted, and the retry re-staked the 5 ETH
+       * against a 4.99 ETH balance). When set, `completedTxIds` narrows the
+       * success `wallet:tx_complete` to the legs that actually mined, and
+       * `failedTxIds`/`failureReason` emit a second, failed
+       * `wallet:tx_complete` for the rest so the backend's ledger matches
+       * the chain. Omit both for the atomic all-or-nothing paths (AA).
+       */
+      completedTxIds?: number[];
+      failedTxIds?: number[];
+      failureReason?: string;
     }
   | {
       kind: "eip712_sign";

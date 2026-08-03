@@ -1514,26 +1514,6 @@ describe("requiredSecretsRoute", () => {
     );
   }
 
-  /** The listUserSources response for a single source with one app. Shaped
-   *  like production: `latest_deployment` is always null on the list
-   *  response, so the route must resolve `platformRepo` via the per-source
-   *  detail endpoint (see `latestDeploymentResponse`). */
-  function ownedSourceWithApp(
-    id: number,
-    app: { name: string; appReleaseTag: string },
-  ) {
-    return Response.json({
-      sources: [
-        {
-          id,
-          installation_id: 555,
-          apps: [{ name: app.name, app_release_tag: app.appReleaseTag }],
-          latest_deployment: null,
-        },
-      ],
-    });
-  }
-
   beforeEach(() => {
     getGitHubSession.mockResolvedValue({
       githubUserId: "gh-1",
@@ -1548,38 +1528,13 @@ describe("requiredSecretsRoute", () => {
   });
 
   it("returns slots and the missing set per app", async () => {
-    vi.stubEnv("GITHUB_TOKEN", "gh-token");
-    const fetchMock = vi
-      .fn()
-      // findOwnedSource -> listUserSources
-      .mockResolvedValueOnce(
-        ownedSourceWithApp(42, { name: "binance", appReleaseTag: "v1" }),
-      )
-      // platformRepo resolution via the per-source latest-deployment detail
-      // endpoint (listUserSources always returns latest_deployment: null)
-      .mockResolvedValueOnce(latestDeploymentResponse("aomi-labs/community"))
-      // listAppSecrets
-      .mockResolvedValueOnce(
-        Response.json({
-          by_app: { binance: ["$SECRET:APP:binance::BINANCE_API_KEY"] },
-        }),
-      )
-      // fetchReleaseSecretSlots: release lookup
-      .mockResolvedValueOnce(
-        Response.json({
-          assets: [
-            { name: "manifest.json", url: "https://api.github.com/asset/1" },
-          ],
-        }),
-      )
-      // fetchReleaseSecretSlots: manifest.json asset
-      .mockResolvedValueOnce(
-        Response.json({
-          plugins: {
+    const fetchMock = vi.fn(async (input: unknown) => {
+      const url = String(input);
+      if (url.includes("/required-secrets?")) {
+        return Response.json({
+          by_app: {
             binance: {
-              file: "libbinance.dylib",
-              sha256: "x",
-              secrets: [
+              slots: [
                 { name: "BINANCE_API_KEY", description: "d", required: true },
                 {
                   name: "BINANCE_SECRET_KEY",
@@ -1589,8 +1544,15 @@ describe("requiredSecretsRoute", () => {
               ],
             },
           },
-        }),
-      );
+        });
+      }
+      if (url.includes("/_internal/secrets?")) {
+        return Response.json({
+          by_app: { binance: ["$SECRET:APP:binance::BINANCE_API_KEY"] },
+        });
+      }
+      throw new Error(`unexpected request ${url}`);
+    });
     vi.stubGlobal("fetch", fetchMock);
 
     const res = await requiredSecretsRoute(
@@ -1609,7 +1571,12 @@ describe("requiredSecretsRoute", () => {
         },
       },
     });
-    expect(fetchMock).toHaveBeenCalledTimes(5);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(
+      fetchMock.mock.calls.some(([input]) =>
+        String(input).startsWith("https://api.github.com"),
+      ),
+    ).toBe(false);
   });
 
   it("401s without a GitHub session", async () => {
@@ -1626,7 +1593,11 @@ describe("requiredSecretsRoute", () => {
   });
 
   it("404s for a source the user does not own", async () => {
-    const fetchMock = vi.fn().mockResolvedValueOnce(ownedSources(1));
+    const fetchMock = vi.fn((input: unknown) =>
+      String(input).includes("/required-secrets?")
+        ? Response.json({ error: "source not found" }, { status: 404 })
+        : Response.json({ by_app: {} }),
+    );
     vi.stubGlobal("fetch", fetchMock);
 
     const res = await requiredSecretsRoute(
@@ -1636,13 +1607,12 @@ describe("requiredSecretsRoute", () => {
     expect(res.status).toBe(404);
   });
 
-  it("503s when required-secret metadata cannot be verified", async () => {
-    vi.stubEnv("GITHUB_TOKEN", "");
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(
-        ownedSourceWithApp(42, { name: "binance", appReleaseTag: "v1" }),
-      );
+  it("surfaces a Manager snapshot failure without falling back to GitHub", async () => {
+    const fetchMock = vi.fn((input: unknown) =>
+      String(input).includes("/required-secrets?")
+        ? Response.json({ error: "projection missing" }, { status: 500 })
+        : Response.json({ by_app: {} }),
+    );
     vi.stubGlobal("fetch", fetchMock);
 
     const res = await requiredSecretsRoute(
@@ -1653,9 +1623,9 @@ describe("requiredSecretsRoute", () => {
     await expect(res.json()).resolves.toEqual({
       error: "Unable to verify required secrets. Try again.",
     });
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(telemetry.capture).toHaveBeenCalledOnce();
-    expect(telemetry.log).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(telemetry.capture).not.toHaveBeenCalled();
+    expect(telemetry.log).toHaveBeenCalledOnce();
   });
 });
 

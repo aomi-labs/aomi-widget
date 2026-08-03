@@ -6,10 +6,12 @@ aomi design system (sky accent, pink decorative meters, flat/no shadows, PT
 Serif display). Where the backend surface didn't exist yet, the UI renders
 from clearly-marked fixtures. This is the fill-up list.
 
-## Account tab (`src/features/account/`) — **wired 2026-07-26**
+## Account tab (`src/features/account/`) — **wired 2026-07-26, UI restyle 2026-07-30**
 
-The tab now renders from live endpoints (`account-api.ts` + `use-account-acl.ts`);
+The tab renders from live endpoints (`account-api.ts` + `use-account-acl.ts`);
 `fixtures.ts` is no longer referenced and is kept only as the design reference.
+The **visual layout** now matches `aomi-portal` (grouped wallet rows, provider
+avatars, inline status, radio signing modes, grant revoke inside expanded rows).
 
 | Was | Now |
 |---|---|
@@ -17,6 +19,8 @@ The tab now renders from live endpoints (`account-api.ts` + `use-account-acl.ts`
 | Grants from `seedGrants` | `GET /api/account/grants` — provider, key scope, derived `active`/`expired`/`revoked` |
 | Mode change simulated in local state | Real permit ceremony: `challenge` → `signTypedData` (EVM) / `signSolanaMessage` (SVM) → `commit`, then a refetch. **Nothing is optimistic** — the row flips only on the committed backend value |
 | Revoke / "stop all" mutated local state | `DELETE /api/account/providers/:provider/grant`, per provider identity (that's the revocation unit — it clears the identity's vault secrets) |
+| Endpoint-only layout (cards, grants section, status band) | Mock layout: custody groups in one bordered container per group, `WalletPolicyRow` + `SigningModeList`, attention strip, flat "Revoke all", unbound → **Activate** (bind) |
+| Wallet brand tags never rendered | Provider logos via `wallet-brands.tsx` — Para/Privy from `linkedVia`, MetaMask/Phantom/etc. when `rdns` is on the wire, adapter `walletName` for unbound rows; generic icon fallback |
 
 Behavior worth knowing:
 
@@ -28,16 +32,16 @@ Behavior worth knowing:
   matching the backend's Loosen→Tighten relaxation for them.
 - **SVM commits name their signer** (`signer` field) because Ed25519 has no
   recovery.
+- **Active grants hint** under "Wallet signing" when live grants exist — expand
+  a wallet to revoke (replaces the old standalone grants list).
 
 Still open here:
 
 | Gap | Today | Real binding |
 |---|---|---|
 | "Re-grant" on a drifted wallet | `openAccountUI()` then refetch | There is no server-side re-grant — grants are born only from the provider's verified connect flow. A dedicated re-consent route would make this deterministic instead of "send the user back to the provider and hope" |
-| Activate (unbound → signable) | not surfaced | SIWE/SIWS bind (`mode: "bind"`). **Backend is ready** — the permit ceremony already parses `mode: "bind"` (possession-proof `Action::Bind`, `already_bound` → 409); just wire the button. The old SVM bind card (`features/general/use-svm-wallet-binding.ts`) still holds the working template |
-| Provision Para agent wallet (arm Para `auto`) | not surfaced | `POST /api/account/providers/:provider/agent-wallet` (backend live). Para's login wallet keeps its key share on-device, so `auto` signs from a **separate partner-owned** wallet Aomi provisions; the new key lands `manual`+`provider_managed:true` and reaching `auto` still needs the signed permit. Without this UI, Para `auto` is unreachable from the Account tab |
-| Wallet brand tags (MetaMask/Phantom) | never rendered — the wire has no `rdns` | Capture EIP-6963 `rdns` / wallet-adapter id at connect, persist to wallet `displayMetadata`, return via account API. `BRANDS` in `account-signing.tsx` is ready for it |
-| Grant `kind` copy | raw `grant_kind` with underscores swapped | A display map, once the kinds settle |
+| `rdns` on self-custody wallets | Para/Privy logos always; MetaMask/Phantom only when API returns `rdns` | Capture EIP-6963 `rdns` / wallet-adapter id at connect, persist to wallet `displayMetadata`, return via account API |
+| Grant `kind` copy | `grantKindLabel()` display map | Settle grant_kind enum copy on the backend |
 
 ## Usage tab + `/statement` (`src/features/usage/`) — **model subject wired 2026-07-26**
 

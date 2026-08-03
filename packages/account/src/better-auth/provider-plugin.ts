@@ -126,6 +126,9 @@ export function aomiProviderAuthPlugin(): BetterAuthPlugin {
             });
             throw new APIError("CONFLICT", {
               message: "already_linked_to_another_account",
+              // Which signal collided decides the remedy (unlink a wallet vs a
+              // login method), so it has to reach the client, not just the logs.
+              signalType: resolution.signalType,
             });
           }
           const aomiUser = resolution.user;

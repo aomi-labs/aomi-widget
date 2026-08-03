@@ -12,6 +12,7 @@ export {
   DualWalletBar,
   type DualWalletBarProps,
 } from "./components/control-bar/dual-wallet-bar";
+export type { WalletAccountMenuOptions } from "./components/control-bar/account-menu-types";
 
 // Per-thread network picker (used by hosts that lift it into their chrome)
 export {

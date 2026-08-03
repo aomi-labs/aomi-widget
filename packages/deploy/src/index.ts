@@ -138,6 +138,8 @@ export type {
   UserDeploymentsPage,
   UserSourceDeploymentApp,
   UserSourceLatestDeployment,
+  GetUserSourceRequiredSecretsInput,
+  UserSourceRequiredSecretsResult,
   RedactedDeploymentSecret,
   RedactedDeploymentEnvVar,
   PromoteInput,

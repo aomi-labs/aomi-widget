@@ -66,6 +66,481 @@
   on staging/prod backends or return_to is rejected; commits/pushes are
   Cecilia's (BE branch also has 4 unpushed commits incl. the #907 merge).
 
+2026-08-03 (staging smoke) — **Staging API verified healthy; DOMAIN.md route
+  table found stale.** Live smoke of `api-staging.aomi.dev` (the hostname
+  `api.staging.aomi.dev` does not resolve): health, auth boundaries, OAuth
+  start, direct `/api/thread/chat` round-trip, and browser chat through
+  `chat-staging.aomi.dev` all pass. Finding: the deployed backend serves ONLY
+  the `/api/thread/*` + `/api/threads` surface; legacy `/api/chat`,
+  `/api/state`, `/api/sessions`, `/api/session/*` 404 by design.
+  `packages/client` already uses the new routes, but `specs/DOMAIN.md`'s
+  "Backend Endpoints" table still documents the legacy paths (and claims
+  archive/unarchive routes don't exist — they do now, per staging OpenAPI).
+  **Pending:** refresh DOMAIN.md's endpoint table from
+  `/api/openapi.json` + `packages/client/src/client.ts`.
+
+2026-08-03 (later) — **PR #7: canonical sign-out centralized in widget-lib.**
+  Review follow-up (Codex + Claude review agreed): DualWalletBar's disconnect
+  fallback called only `adapter.disconnect()`, skipping account/widget session
+  teardown — latent, since portal (the only `accountMenu` consumer) supplied
+  its own correct `onDisconnect`, but any future consumer would have leaked
+  live backend sessions behind a "Connect wallet" chip. The
+  signOut→disconnect sequence lived in three places (wallet-picker.tsx:542,
+  portal's `disconnectPortalAccount`, the incomplete fallback); now it is ONE:
+  new `lib/wallet-kit/account/sign-out.ts` exports `signOutAndDisconnect()`
+  (`try { signOutAccount } finally { disconnect({family:"all"}) }`), used by
+  WalletPicker and as DualWalletBar's default; portal's `onDisconnect` +
+  `disconnectPortalAccount` deleted (hook comment documents why). Also fixed
+  in the same path: `handleDisconnectConfirm` now catches (was an unhandled
+  rejection when a host `onDisconnect` rethrew; dialog stays open for retry,
+  `console.warn` per house idiom) and the confirm-dialog backdrop honors
+  `busy` like the Cancel button. New file registered in `registry.ts`
+  (build:registry validates) and exported from `wallet-kit/index.ts`. Tests:
+  registry fallback ordering + sign-out-failure cases added (7 pass), portal
+  onDisconnect tests replaced with an is-undefined assertion (4 pass); full
+  registry suite 296 pass (package-boundary tests need `build:package` first
+  or they ENOENT on dist/ — environmental, not code). Portal `type-check` and
+  registry `tsc --noEmit` clean. Pending from review, NOT done: AccountMenu
+  a11y (no Escape-close, rows not `menuitem`), `networkLabel.slice(0,8)` hard
+  truncation, multi-wallet chip collapses to primary wallet in account-menu
+  mode (verify against mock), portal→registry DOM coupling via
+  `[data-aomi-network-select-trigger]` click.
+
+2026-08-03 — **PR #7 (feat/portal-account-menu) sign-in wiring + CI fix.**
+  Green CI blocker found and fixed: `pnpm run build:registry` failed with
+  `Registry item "control-bar" is missing internal files` because
+  `account-menu.tsx`, `account-menu-types.ts` and
+  `disconnect-confirm-dialog.tsx` were added to `components/control-bar/` but
+  never listed in `src/registry.ts` (the build validates every *relative*
+  import in a registry item resolves to a listed file). Also fixed a
+  `tsc --noEmit` error in `dual-wallet-bar.test.tsx` — the `walletModalRows`
+  mock was missing the required `source`/`status`/`actions` fields.
+  **Behaviour fix:** the sidebar AccountMenu "Sign in" and the Settings gate
+  retry both called `openAccountUI()`, which opens Para's *account
+  management* modal (`ACCOUNT_MAIN`) — the email/profile popup — and can
+  never mint the missing Aomi session. Both now call `connect()`
+  (`AUTH_MAIN`), which re-arms the provider credential exchange. Removed a
+  dead `accountStatus === "error"` branch: a failed exchange sets status back
+  to `"ready"` and only populates `accountError` for 409, so the chip now
+  shows `accountError` when present. Session probe no longer burns the full
+  30s budget once the exchange has settled (short settle grace instead), so
+  Settings stops sitting on "Connecting your account…" and reaches the
+  actionable "Finish signing in" gate. `widget-lib` at 1.4.18 (main: 1.4.16).
+
+  **Preview QA result — `PARA_JWT_AUDIENCE` is NOT the blocker.** With the
+  error now visible, preview returns the semantic **409
+  `already_linked_to_another_account`**, not a 400. A 409 means the Para JWT
+  verified and the exchange reached identity linkage, so the audience env var
+  is correct on preview. The real condition is data, not config: that Para
+  identity is already linked to a *different* Aomi account (leftover from
+  earlier testing), and the backend refuses to move a login factor silently.
+  Remedy is per the error copy — sign in to the owning account and unlink
+  there, or use a different Para identity. No code fix applies.
+
+  **Follow-up fix (this change):** `accountError` was being piped into the
+  chip's `secondaryLine`, a single `truncate`d row, so the 409's full sentence
+  rendered as "This wallet or sign-in m…". Split the two surfaces: added
+  `noticeLine` to `WalletAccountMenuOptions` / `AccountMenu` for wrapped
+  full-length copy in the menu header, and the chip now shows the short
+  "Sign-in needs attention". Rule going forward: chip copy stays under ~25
+  chars, backend error strings go to `noticeLine`.
+
+  **Conflict diagnosis (this change).** The 409 has a `signalType` of
+  `identity` | `wallet` | `email` that decides the remedy (unlink a login
+  method vs unlink a wallet), but it never reached the user: the better-auth
+  path threw `APIError("CONFLICT", { message })` with no `signalType`, and the
+  client's `extractErrorCode()` kept only `error`/`message` anyway. Now
+  `provider-plugin.ts` includes `signalType` in the error body (better-call
+  types it as `{message?,code?,cause?} & Record<string,any>`, so extra fields
+  serialize), and `AomiAccountRequestError` carries it into one of three
+  specific messages. `/api/aomi/provider/exchange` already spread it via
+  `...result`. NOTE: this is the first `packages/account` file in PR #7 — one
+  additive error field, but it breaks the "UI-only" property.
+
+  **CI gap found, NOT fixed here.** Root `vitest.config.ts` only includes
+  `apps/portal/src/{app,server}/mcp`, `lib/widget-auth`, and
+  `app/api/*/route.*`, so ~40 portal test files under `components/`,
+  `features/`, and most of `lib/` never run in CI — including this PR's
+  `use-portal-wallet-account-menu.test.tsx`. Registry tests do run, via
+  `pnpm --dir apps/shadcn-registry exec vitest run`. Widening the include is
+  its own PR; expect pre-existing failures to surface.
+
+2026-08-02 (~17:45) — **ds13 RECORDED — catalog COMPLETE.** Post-fixer-session
+  run (their parseTxIds ordering fix + dist rebuild + Aave gateway address
+  correction + my backend rebuild/restack): attempt 3 landed
+  wrap→approve→supply 2 WETH→borrow 2,000 USDC on Compound v3 IN DEPENDENCY
+  ORDER (first production proof of the ordering fix), 5 txs mined, 2,000.0
+  USDC verified on-chain, agent closes with a chain-read health-factor
+  calculation (3.01, math shown). 57s @2x + 30s social delivered.
+  Residual rough edge (cost attempts 1-2, reported to the fixer session):
+  compound_v3 rate-read tools intermittently fail "Argument count
+  mismatch: expected 1 arguments, got 0" — agent recovers but burns turn
+  budget. **Every authored scenario now has a shipped take**: ds2, ds4,
+  stake-shootout, money-legos, ds13, ds14 (EVM, this session) + ds6, ds10,
+  ds11 (SVM, -svm session); eval PASS on the destination leg; full
+  BD/social/docs cut derivation for all.
+
+2026-08-02 (~17:25) — **ds14-bridge-round-trip RECORDED** (80s @2x + 43s
+  social, delivered): 4 ETH mainnet→Base (canonical leg in the first pass,
+  Across in the shipped take), agent reads the TRUE arrival off Base,
+  picks Across for the return, bridges ~2 ETH back — journal shows the
+  AcrossFiller filling BOTH directions (1→8453 fill 0xb0bcbf…, 8453→1 fill
+  0xf71af1…), first bidirectional operation. Unblocked by the
+  **multi-chain E2E executor fix** (apps/portal/src/server/e2e-wallet.ts):
+  the old gate rejected any call whose chainId ≠ the SEED chain
+  ("Transaction chain does not match seed"), killing every cross-chain
+  scenario's far leg; now one-chain-per-batch is enforced but the chain is
+  judged by config + fork probe (15/15 executor tests, incl. new
+  non-seed-chain case). GOTCHA: Next dev did NOT hot-reload the server
+  module — a stale portal ran the old gate for a full re-roll; restart the
+  portal after server/*.ts edits.
+  **ds13-cheapest-borrow PARKED** (9 attempts, deterministic): the
+  comparison half works beautifully (live Aave 8.86% vs Compound 3.97%
+  with shown math, picks Compound) but execution dies on the
+  **commit-ordering bug** — batch executes in ascending id order, supply
+  runs before wrap, Comet reverts on zero WETH. Also hit the Aave
+  native-ETH gateway coverage gap en route. Both bugs + the post-callback
+  re-evaluation bug are now owned by Cecilia's fixer session
+  ("Fix post-callback turn re-evaluating completed requests",
+  local_c514f206…) — full evidence briefs sent to it; ds13 is the repro
+  vehicle once its fix lands. Machine-pressure note: daytime takes flaked
+  with "fetch failed" whenever free RAM <500MB (portal balloons to ~1.8GB
+  — restart it between batches; Cursor's rust-analyzer ~1GB).
+
+2026-08-02 16:15 — SVM shooting session CLOSED. Scoreboard: ds10-sol-unstake
+  SHIPPED (attempt 1, 85s; agent quoted real 0.0042 mSOL pool fee, closing
+  numbers match chain). ds11-sol-lst-switch SHIPPED (attempt 1 on a
+  minutes-old fork after 4 stale-fork failures — freshness rule CONFIRMED for
+  LST routes; mSOL 3.5→0, JitoSOL 3.7765, message matches chain). ds9 CHAIN-
+  PERFECT but video unusable: post-callback turn RE-EVALUATED the original
+  request against post-payment balance and refused a payment it had already
+  made (recipient provably holds exactly 150 USDC + fresh ATA) — REAL BACKEND
+  BUG: the wallet-callback follow-up turn should reconcile, never re-plan.
+  ds12 CLOSED AS BLOCKED after 6 attempts x 3 configs: aggregator multi-hop
+  SOL→USDC routes fail simulation on the mirror regardless of freshness
+  (GoonFi V2 / Alpha Q thin routes); agent repair behavior correct but
+  non-convergent; ds6's pass was route luck. Product conversations to have:
+  (1) callback-turn semantics, (2) mirror fidelity vs aggregator routes OR a
+  route-stability hint for fork environments. Authoring rule added to ds12:
+  scripted turn N+1 requires turn N to leave nothing to ask back (slippage
+  question derailed a take). Freshness rule tightened: re-fork every ~30 min
+  while shooting, not 2h. mp4s in demo/out/. Backend 8081 + portal 3500 +
+  mirror LEFT RUNNING for the video-maker session; rig announced free.
+
+2026-08-02 (~16:45) — **Three-cut derivation SHIPPED** (the original
+  one-master-three-cuts vision): demo/capture/to-cuts.sh reads
+  markers.json and emits `<id>-social-2x.mp4` (trailing turns fitted to a
+  90s real-time window — ask + payoff, no setup) and `<id>-turn<N>-2x.mp4`
+  per conversation turn (docs), alongside the existing BD 2x master. Run
+  on all four EVM takes: social cuts 28-45s delivered. Gotcha encoded in
+  the script: ffmpeg inside a while-read loop MUST use -nostdin or it
+  slurps the remaining plan lines (first run silently dropped half the
+  cuts). ALSO: two new queue scenarios authored, load-checked, ready when
+  the rig frees — ds13-cheapest-borrow (Aave vs Compound rate referee,
+  3 turns, chain 1) and ds14-bridge-round-trip (mainnet→Base→back, both
+  actors, first Base-side E2E execution; expects the agent to pick Across
+  for the return leg since canonical L2→L1 has a 7-day window the
+  OpDepositFinalizer deliberately doesn't fake).
+
+2026-08-02 (~15:30) — **money-legos RECORDED + the staged-tx-loss bug FIXED.**
+  Root cause (from thread cb69aa17 + portal 500s): the E2E executor runs
+  batches sequentially; the Aave borrow leg reverted at estimateGas
+  (0x5b263df7) AFTER earlier legs mined, and the blanket-failed
+  wallet:tx_complete re-queued ALL ids → retry re-ran the 5 ETH stake into
+  an insufficient-funds spiral. FIX (widget worktree, additive, 5 layers):
+  server/e2e-wallet.ts tracks per-call txId + returns E2EPartialExecution
+  {executedTxIds,lastTxHash,failedTxId,remainingTxIds}; provider throws
+  E2EPartialExecutionError; runtime-tx-handler resolves partials instead of
+  blanket-rejecting; packages/client session emits TWO tx_complete events
+  (success for the mined prefix, failed for the tail) via new optional
+  completedTxIds/failedTxIds/failureReason on the transaction result type.
+  VERIFIED: new regression test (leg-2 revert → exact partial shape),
+  portal 14/14, client 297/297, tsc clean ×3. THEN money-legos recorded
+  first try: 7 txs mined, agent close "ids 1–6 all consumed", 1000.0 USDC
+  borrowed VERIFIED on-chain; 259s @2x delivered.
+  Coordination: SVM cases ds9–ds12 are the -svm session's to shoot (per
+  Cecilia); rig handed over after money-legos with merged config — derived
+  providers.toml now carries well-formed [solana.mainnet] mirror pin
+  (kind/cluster/rpc_url=8899/fallback_urls=[]) — NOTE `evm up` regenerates
+  the file and drops this patch; re-apply after any evm up. Their field
+  reports: backend booted without SOLANA_MAINNET_RPC_URL reads PUBLIC
+  mainnet (0 SOL takes); mirrors older than ~2-3h fail Jupiter/Sanctum
+  sims; `test-env svm down/up` broken (wrong pid tracking) — boot surfpool
+  directly.
+
+2026-08-02 (~04:20) — **FIRST DESTINATION-LEG EVAL PASS**:
+  bridge_base_usdc_to_arbitrum_send_and_fill on claude-sonnet-4-6 — agent
+  deposited 5 USDC into the Base SpokePool (9 tool calls, 53s), in-process
+  across actor filled on the REAL Arbitrum SpokePool (fill tx 0xd68aec…),
+  ALL assertions green incl. FilledRelay + USDC-arrival on 42161. Reports
+  archived at demo/out/eval/*.PASS.*.json. Fixes en route (product-mono,
+  uncommitted): eval actor-endpoint fallback via provider_manager when
+  pids.json isn't tracked (explicit PROVIDERS_TOML runs); Base USDC whale →
+  0x498581fF… (Uniswap v4 PoolManager, ~10M) and Arbitrum USDC whale →
+  0x2Df1c51E… (Hyperliquid bridge, ~419M) in BOTH funding presets and
+  actors WHALES — prior whales were dry/drained (Arbitrum's Binance wallet
+  was drained to 0.05 USDC by our own 2×10,000 faucet funding). NOTE: eval
+  default model Gpt55 produced a silent 0-token turn — worth a loud error;
+  pass --model explicitly for now.
+
+2026-08-02 (overnight batch) — ds2-stake-eth (47s @2x, 5 ETH→stETH executed)
+  and stake-shootout (37s @2x, agent COMPARED and chose Rocket Pool: 4 ETH →
+  ~3.42 rETH) recorded clean and delivered. Unblocking fix chain:
+  (a) `test-env evm up` stamps sim instances `accounts = 1` — anvil's
+  genesis prefund is a LOCAL override on every derived mnemonic account
+  that shadows forked state after ANY anvil_reset (including the agent's
+  own sync-fork tool), so the demo wallet (index 2) read 10,000 ETH
+  forever; with one derived account only index 0 is shadowed and truth
+  forks through; (b) recorder resyncSimForks() + native-balance mirroring
+  onto sims (belt over braces). ALSO: overnight restacks must kill :8081
+  before relaunching backend (stale-backend footgun) and never TaskStop a
+  recorder mid-reset (orphans the proxy).
+  **money-legos PARKED — product bug with hard evidence**: two consecutive
+  takes failed identically; on-chain after the take the wallet holds
+  5.0 stETH + 4.9999 ETH, i.e. the Lido leg EXECUTED, then the pipeline
+  re-staged the SAME leg and the agent reported "wallet balance (4.999)
+  below the 5 required". Staged-tx-loss (the unfixed half of
+  task_90d7e590): after a successful commit the plan restarts at leg 1
+  instead of proceeding to wrap→collateralize→borrow. Threads from
+  ~04:05-04:15 2026-08-02 on the demo account show it twice.
+
+2026-08-02 01:40 — Four new Solana case files AUTHORED, none shot (per
+  Cecilia: files only). Confidence order for the next recording session:
+  ds10-sol-unstake (marinade liquid_unstake, cleanest — proven program, no
+  ATA side quest) > ds9-sol-payment (USDC invoice + recipient-ATA creation;
+  recipient = deterministic throwaway 4568cBFk…tMoX, key held by nobody) >
+  ds12-sol-best-price (Jupiter vs Raydium quote shootout; Raydium unproven
+  but quote-only in happy path) > ds11-sol-lst-switch (mSOL→JitoSOL via
+  Sanctum; Lane 2 venue UNPROVEN on the mirror — first take doubles as its
+  phase-0 spike, Jupiter fallback noted in-file). ds10/ds11 share DS6's
+  wallet biography (3.5 mSOL) so the takes cut together. All four compile.
+  Standing rules apply: re-fork the mirror before shooting; verify env
+  inside the live backend process before rolling.
+
+2026-08-02 (later) — **CLEAN ds4 take delivered**: 66s at 2x, attempt 1, zero
+  reverts, arrival 0 → 9.8505 ETH on Base, agent's own close: "The bridge
+  landed. ✅ … matches the ~9.85 min-received floor after the Across relayer
+  fee." Three content fixes got it there, each from a failed take:
+  (1) across skill template fallback (product-mono
+  crates/skills/manifests/evm/across/across.template.md): derive
+  quote_timestamp/fill_deadline from SpokePool getCurrentTime() (wall clock
+  reverts InvalidQuoteTimestamp/InvalidFillDeadline on forks) AND
+  output_token = DESTINATION chain's WETH (agent reused the mainnet WETH
+  address → unfillable deposit, filler correctly refused for lack of
+  inventory); (2) recorder zeroes the wallet on non-source chains (anvil's
+  10,000 ETH prefund made one honest agent say "fork-default state, can't
+  tell if the fill landed"); (3) recorder resyncSimForks() — the demo
+  backend NEVER starts per-instance refork/sync tasks (log has zero
+  "Starting per-instance refork task" lines), so sims freeze at boot state;
+  measured live: proxy 10 ETH vs sim 10,000 ETH; agent proposed bridging
+  1,000 ETH (E2E cap correctly blocked it). Recorder now finds each sim by
+  ps (anvil forking from our proxy) and anvil_reset's it post-seed; the
+  interval stamping in up.rs is kept but insufficient alone — WHY the
+  backend skips start_background in this mode is an open product question.
+  ALSO DONE (task #9, was chip task_fe0fc8c8): custom-error decoding in
+  product-mono crates/evm — gateway/error_decode.rs + generated
+  known_error_selectors.rs (337 selectors from all crates/skills/abis via
+  cast keccak), wired into cast_client eth_call errors, simulate.rs
+  decode_revert_reason fallthrough, view.rs revert_reason; 46/46 aomi-evm
+  tests, clippy/fmt clean. NOTE for commit: crates/skills/generated/* now
+  mixes my across.md regen with the other workstream's marinade regen —
+  regenerate on a clean tree at commit time.
+
+2026-08-02 — **ds4-bridge-to-base RECORDED end-to-end** (demo/out/…/-2x.mp4,
+  140s @2x, delivered). Agent chose Across, picked its own 0.05 ETH gas
+  reserve, bridged 9.95; AcrossFiller executed real fillRelay on the Base
+  fork (fill 0x8304d9…, journal `filled`); agent verified "+9.865 ETH
+  credited" on Base ON CAMERA. Journal also shows strictness working:
+  upstream deposits toward unforked chains rejected with reasons.
+  Landed on the way (product-mono `chain-actor` branch, uncommitted):
+  (1) OpDepositFinalizer — phase-2 canonical "mock sequencer" (`base-native`
+  actor; agent's first takes chose L1StandardBridge depositETHTo, invisible
+  to the Across filler; scenario now arms BOTH actors); (2) driver per-chain
+  fault isolation + daemon tracing init (an OOM-killed Base proxy silently
+  froze ALL scanning with an empty journal); (3) `test-env evm up` stamps
+  sim instances with sync=5s/refork=15s (localhost upstream = free) — fixes
+  agent READS seeing pre-seed state (thread titled "Approve 0.1 ETH
+  Transfer" while the proxy held 10 ETH); (4) ActorCtx timeout 10s→120s;
+  Widget recorder: 20s post-seed settle, deviceScaleFactor 2→1 (Chromium
+  OOM), actors up/down per attempt, 7702 wipe, source-only funding,
+  require-all-chains execution proof. Ops: account 8641fa7c… upgraded
+  free→pro (500.9/500 exhausted mid-take → payment-required modal blocked
+  the composer); machine survived OOM (Docker + other sessions' 10-anvil
+  fleets + 4.9GB bloated next-server) and a 100% full disk (foundry rpc
+  cache + failed-take webms). FOLLOW-UPS: agent falsely claimed "9.9 ETH
+  arrived" in a NO-fill take (balance read through sim showed the 10k anvil
+  prefund? investigate read path + consider zeroing dest-chain prefund at
+  seeding); Base USDC whale 0x0B0A5886… holds 0 on current forks (swap
+  WHALES entry); eval spec + across upstream-deposit noise fills journal on
+  refork (cursor clamp interplay — benign, verify); demo stack left UP
+  (forks 51521/51524, backend 8081, portal 3500) for more takes.
+
+2026-08-02 01:15 — **PROOF TAKE PASSED on the rebuilt backend** (attempt 1,
+  fresh Surfpool fork): SOL 10→0.008, USDC 25→391.09, mSOL 0→3.571, all
+  chain-verified. All four agent fixes observed in behaviour: no invented
+  amounts (closing line states no numbers it didn't read), one leg per turn,
+  repair bounded (2 corrective re-stages then success, 45s turn), and the
+  agent CREATED the mSOL ATA itself — no fixture. Root cause of the earlier
+  fresh-rig failure confirmed as FORK STALENESS: a 7h-old mirror rejects
+  live-quoted Jupiter routes in simulation; a minutes-old fork passes first
+  try. RUNBOOK RULE: re-fork the mirror before any recording session.
+  Note: `test-env svm down` tracked a wrong pid (killed a ghost, left the
+  real 7h surfpool holding 8899) and `svm up`'s spawn path dies silently
+  (empty logs) — fresh mirror was booted directly; worth a product-mono chip.
+  Polish candidates, NOT blockers: closing message is a terse "Solana
+  transaction confirmed." (rule over-corrected — should read balances and
+  summarize from tool results); turn-4 trace shows two Failed simulate steps
+  before success (honest, but a re-roll could get a cleaner hero take).
+  Videos: demo/out/ds6-sol-swap-stake (133s master + 67s 2x).
+
+2026-08-02 (session halted by Cecilia — read before resuming demo work) —
+  Backend REBUILT with all four agent fixes (invented amounts, dependent-batch
+  staging, unbounded repair loops, missing-ATA handling); binary + runtime
+  skills bundle both verified to carry them. NO passing take on the new binary
+  yet: the shared apps/portal/.env.local was repointed to port 8081 mid-session
+  by a parallel session, so two recording runs died with the portal unable to
+  reach the backend at all (browser showed prompts with no reply + HTTP 502).
+  Demo backend moved to 8081 to match; portal→backend verified healed (502→400)
+  but the re-run was stopped before completing. ds6 scenario now has NO mSOL
+  fixture (removed to prove the post-#912 agent creates the ATA itself) — that
+  claim is UNPROVEN. Rig left running: backend :8081 (providers-demo.toml,
+  mirror pinned, real-mainnet fallback removed), portal :3500, surfpool :8899.
+  EVM anvil forks are DOWN. ~180 GB freed (stale worktree build caches).
+  Full handoff: this entry + demo/README.md failure-modes section.
+
+2026-08-01 — **First Solana demo recorded** (`demo/out/ds6-sol-swap-stake`,
+  86s master + 43s 2x). Jupiter swap 5 SOL → 365 USDC via HumidiFi, then
+  Marinade stake of the rest → 3.57 mSOL, both confirmed on the Surfpool
+  mainnet mirror and both proven from chain state, not UI text. This closes
+  phases 2–3 of SOLANA-DEMO-PLAN.md; the plan is now fully executed.
+
+  Getting there cost eight takes and surfaced four defects worth keeping:
+
+  1. **`test-env svm reset` does not reset.** It does not restart Surfpool
+     (up 3h57m across a dozen resets) and does not re-apply the airdrop or
+     `token_fixtures`. Takes silently inherited the previous take's balances.
+     Fixed: scenarios declare `svm.fund.sol` + `svm.tokenAccounts`, and the
+     recorder writes both after every reset via `surfnet_setAccount` /
+     `surfnet_setTokenAccount`. Assertions tightened to match.
+  2. **The agent apologised for succeeding** — the same failure class as the
+     chat.aomi.dev screenshot that started this work. Turn 2 fired 1.6s after
+     turn 1 stopped streaming, before the execution callbacks landed, so the
+     agent re-staged an executed leg and closed on "your current balance is
+     ~0.0099 SOL … not enough" over a perfect swap and stake. Fixed: the
+     recorder settles follow-up turns after EVERY turn, not just at the end.
+  3. **Empty (`amount: "0"`) ATA fixtures hang the take.** The agent cannot
+     distinguish an empty ATA from a missing one, tries to create it,
+     `svm-manifest-guard` blocks it (backend predates #912), and it loops on
+     "Correcting Marinade stake account" until timeout. Fixed with dust;
+     removable once the demo backend is rebuilt past #912.
+  4. **Joint simulation of both legs fails deterministically.** Every passing
+     take simulated 8 txs; every hung take simulated 9. Asking for swap+stake
+     in one sentence makes the agent batch them, and the stake cannot simulate
+     against SOL the swap has not freed. Fixed by one leg per turn.
+
+  Also: LLM bundle construction is non-deterministic, so `RECORD_ATTEMPTS`
+  (default 3) re-seeds and re-shoots until a take passes and deletes failed
+  attempts' videos — the shipped take passed on attempt 2. Camera hygiene now
+  handled in-recorder: consent pre-declined, dev indicator off via
+  `AOMI_HIDE_DEV_INDICATOR` (new opt-in flag in apps/portal/next.config.ts +
+  the `portal-demo-studio` launch config, which was referenced in the README
+  but did not exist), sidebar collapsed and *verified* collapsed.
+
+  New scenarios authored, NOT yet recorded: `ds7-sol-yield-scan` (read-only
+  venue comparison — the reasoning turn with nothing to fail, and the most
+  reliable asset in the catalog) and `ds8-cross-vm` (Ethereum + Solana in one
+  thread; the actual differentiator, and the one unproven thing is whether the
+  agent holds both wallet identities across the VM boundary).
+
+  Corrected `specs/DEMO-SCENARIOS.md` scenario 6, which claimed Solana
+  "cannot run on a fork" and should be shot on mainnet with real money.
+
+  OPEN, needs a decision: the agent's closing summary said "approximately
+  4.85 mSOL" when the wallet actually received 3.57 — a wrong number, stated
+  confidently, on camera. Chain state is right; the agent's arithmetic in the
+  summary is not. Worth fixing before this take goes to a Solana-literate
+  audience.
+
+2026-08-01 — BUILT mock-relayer phase 1 (product-mono branch `chain-actor` off
+  origin/main e3d9739ea, uncommitted). MY files: aomi/Cargo.toml+lock (member +
+  workspace dep), crates/anvil/{Cargo.toml,src/lib.rs,src/evm/mod.rs,
+  src/evm/actors/* NEW}, crates/actors/ NEW (AcrossFiller), bin/cli/{Cargo.toml,
+  cli.rs,commands/test_env/{mod.rs,evm/mod.rs,actors.rs NEW}}, bin/eval/
+  {Cargo.toml,spec/mod.rs,assertions/{mod,balance,event_log,state}.rs,
+  run/{mod,preflight}.rs, specs/across/bridge_base_usdc_to_arbitrum_send_and_fill.json
+  NEW}. WARNING: the same checkout carries ANOTHER session's uncommitted
+  protocol-attribution work (crates/skills/guards/*, crates/evm/assemble.rs,
+  crates/tools/*, crates/core/*, bin/backend, bin/cli/src/tests.rs) being
+  edited live during mine — state.rs was a merge point (their `protocol: None`
+  fix + my field restore). Cecilia must not commit the tree wholesale.
+  Verified: aomi-anvil 64+10 tests (6 new actors), aomi-actors 10/10,
+  aomi-eval 83/83, clippy/fmt clean; LIVE smoke (isolated forks 53101/53102,
+  sandboxed $HOME): crafted depositV3 on eth fork → daemon filled via real
+  Base SpokePool → +0.998 ETH native at recipient, journal filled, status
+  renders; fill tx receipt shows FilledRelay + WETH pull + unwrap.
+  DISCOVERY: anvil mnemonic accounts incl. demo wallet #2 have EIP-7702
+  sweeper code on real mainnet+Base (0xef0100…) — bridge fills to them get
+  swept in-tx; recorder must anvil_setCode(wallet,"0x") at funding time.
+  Fixes en route: ActorCtx timeout 120s (cold-fork fills exceeded 10s and
+  journaled as errors while landing), journal errors now carry {err:#} chain.
+  PENDING: 42161 fork target in providers.toml (new eval spec fails fast on
+  it, correctly); rewrite ds4-bridge-to-base to chains [1,8453] +
+  actors ["across"] + setCode wipe + dest-chain verify; dest-chain ERC20
+  token aliases in eval (custom aliases still pin to env chain — natives +
+  event_log route today); phase 2+ adapters (OpDepositFinalizer, CctpAttester,
+  ZeroXGaslessRelayer).
+
+2026-08-01 — Designed the mock relayer: specs/MOCK-RELAYER.md (design only, no
+  code; target repo product-mono). "Chain actors" — impersonated counterparties
+  that watch a source fork and submit the REAL fill tx to the REAL destination
+  contract on a destination fork: mechanism (trait + poll driver + JSONL
+  journal) in aomi-anvil::evm::actors, protocol adapters in a new aomi-actors
+  crate (phase 1 AcrossFiller, then OpDepositFinalizer, CctpAttester,
+  ZeroXGaslessRelayer). Strictness contract: reject what a real relayer would
+  reject; the certified claim is "the agent produced a deposit a correct
+  relayer would have filled". Surfaces: `aomi test-env actors up/status/down`,
+  demo Scenario gains `actors?: string[]` (unblocks ds4-bridge-to-base
+  end-to-end on chains [1,8453] and dissolves the route-drift problem), and
+  eval `run.environment.actors` in preflight (same provider_manager()) so
+  EXISTING balance_delta/event_log assertions grade destination chains — the
+  across/cctp/base_native eval specs currently stop at source-side assertions.
+  Open: crate-vs-module, fill latency default (4s demo / 0s eval), 42161 fork
+  for the Base→Arbitrum eval. PENDING: Cecilia reviews the spec before any
+  code.
+
+2026-08-01 — Renamed portal E2E executor `executeE2EWalletTransaction` →
+  `executeE2EvmTransaction` (EVM-only; pairs with `executeE2ESolanaTransaction`).
+  Touched: apps/portal/src/server/e2e-wallet.ts, e2e-wallet.test.ts,
+  apps/portal/src/app/api/bff/e2e/execute/route.ts.
+
+2026-07-31 — Fixed the browser POST /api/exec/simulate empty-body bug (on this
+  branch, not committed). ROOT CAUSE (proven in real Chrome + undici): the
+  portal's withDebugLogging rebuilt Request inputs via `new Request(url,
+  request)` — the Request lands in the RequestInit position, so its buffered
+  string body is read back as a ReadableStream (`duplex: "half"`). Chrome only
+  sends streaming uploads over HTTP/2, so on plain-http localhost the fetch
+  dies with ERR_ALPN_NEGOTIATION_FAILED, and under Playwright interception the
+  streamed body reads as 0 bytes → backend 400 "EOF while parsing". The chain:
+  simulateBatch → wrapFetchWithAccountBearer → paymentFetch (wraps string url
+  + init into a Request) → withDebugLogging (mangled it). FIXES:
+  apps/portal/src/lib/portal-client-options.ts — withDebugLogging now passes
+  Request inputs through untouched (their URL is already absolute);
+  applyLockedAppScope (same Request-as-init bug, latent) now rebuilds field by
+  field with a buffered body and went async. packages/client/src/client.ts —
+  wrapFetchWithAccountBearer clones Request inputs per attempt so the body
+  survives the first send AND the 401 retry (was: retry re-sent a consumed
+  Request); exported for tests. Tests: packages/client/test/
+  client.fetch-wrapper.unit.test.ts (4) + apps/portal/src/lib/
+  portal-client-options.test.ts (6, node env — jsdom mixes undici Request
+  with its own AbortSignal). Verified in the main checkout before porting
+  here: full client suite 289 green, portal lib tests green, eslint/tsc clean
+  on touched files, real-Chrome A/B against an HTTP/1.1 echo server (buggy
+  chain fails, fixed chain delivers the body intact). The demo rig's
+  WORKAROUND stub for **/api/exec/simulate in demo/capture/record.ts was
+  REMOVED with the fix in place — per the stub's own note, re-run a fork demo
+  capture to confirm fee injection now works end-to-end (not yet re-tested;
+  vitest cannot run inside .claude worktrees, so run tests from a regular
+  checkout).
 2026-08-01 (later) — Integrations page REDESIGN PORTED TO THE REAL PAGE
   (same worktree/branch, uncommitted). Design was iterated with Cecilia on
   /mock-integration, then moved wholesale:
@@ -205,6 +680,15 @@
   prod backend release; delete settleBySource + per-source fallback once
   batch soaks; consider caching partner-payment reports (still the slowest
   leg of statement/observability batches).
+
+2026-08-03 — Portal Account tab UI restyle **merged** (PR #431 → `main`).
+  Account settings now matches `aomi-portal` mock: custody-grouped wallet rows
+  with provider logos (`wallet-brands.tsx`), inline grant status, radio signing
+  modes (`SigningModeList`), grant revoke inside expanded rows, attention strip,
+  unbound wallets → Activate (bind), Para agent provision strip, flat Revoke all.
+  Live API wiring unchanged (`use-account-acl.ts`). New helpers:
+  `account-reconcile.ts`, `wallet-policy-row.tsx`. Follow-ups (not blockers):
+  `rdns` on API for self-custody wallet logos; deterministic re-grant route.
 
 2026-07-30 — Observability batch read: fan-out removed at the source (branch
   `feat/operate-batch-observability` in BOTH repos; aomi PR #426, product-mono
@@ -3433,6 +3917,370 @@ Controls disabled while isProcessing === true
 - SSE event handling verification (SystemNotice, AsyncCallback)
 - E2E verification of control flow: apiKey → namespaces → model selection
 - Thread list should show model/namespace per thread (optional enhancement)
+
+## Demo-video credibility boundary documented (2026-08-01)
+
+- Finding (grep-verified): the recording wallet has NO Para code — E2E executor
+  is viem/@solana/web3.js/tweetnacl + HMAC cookie; the 8 `@getpara/*` packages
+  and `providers/para/` plugin are off the recording path. The identity object
+  hardcodes `walletProvider: "para"`, so takes display a Para badge for a
+  non-Para wallet — must be relabeled (`walletProvider: "e2e"`, 1 line in
+  e2e-wallet-provider.tsx) or real Para wired, before any partner-facing cut.
+  NOT changed yet: Cecilia's call, since the chip loses its brand either way.
+- Documented in `demo/README.md` → "What a take proves — and what it does not"
+  (real vs double, the Para badge, why no popup appears, caption guidance:
+  say "pre-authorized agent wallet", never "no approval needed"), with a
+  pointer section in `specs/DEMO-STUDIO.md`.
+- Signing model recorded for the recurring question: demo wallet is
+  `client_auto` (not `auto`/delegated); it earned that via the bind +
+  client_auto permit ceremony off camera. Browser holds only the HMAC session
+  cookie; the key is a server-only env var behind `import "server-only"`, so it
+  cannot reach the client bundle. In production `client_auto` the edge signer
+  is often genuinely the browser (Para MPC/passkey) — the studio moves it
+  server-side so no key material is near a recording.
+
+## Reconciled with product-mono fix/svm-read-cluster-default (2026-08-01)
+
+- Cecilia's BE branch (not yet CI-green) is THE build the Solana studio work
+  must run against: `git checkout fix/svm-read-cluster-default` in
+  product-mono before building backend/CLI for takes. It contains:
+  (a) ATA_CREATE_IDEMPOTENT in the svm skill manifests (marinade/kamino/
+  drift) — supersedes the task chip I filed (dismissed); ds6's empty-mSOL-ATA
+  fixture kept as belt-and-suspenders. (b) SVM read cluster-default fixes,
+  wallet-less reads, declarative SPL transfers via curated registry.
+  (c) policy/svm.rs commit-matrix refactor.
+- Contract check against the branch: authorization.rs UNCHANGED (ceremony
+  script contract holds); staged wallet envelope still `status:
+  pending_approval` + `chain_kind: svm` + `svm_ix_ids` (interpreter matcher
+  holds); `pending_solana_id` is NOT in the staged tool envelope — it only
+  exists between wallet request and callback (policy/svm.rs wallet_pending).
+- RESOLVED the flagged phase-4 unknown accordingly: outcomes now ALSO keyed
+  by `unsigned_tx` (present on BOTH the envelope and every solana completion
+  callback) — `TxOutcomes.svmByTx`, enrichment falls back to it when a result
+  has no pending id. react tests 140/140.
+
+## Solana phases 2-4 IMPLEMENTED, unverified live (2026-08-01, forked session)
+
+- Implementation only per Cecilia (no heavy runs / OOM): all code in place,
+  vitest+tsc+eslint green, NO live recording yet.
+- Phase 2 (studio): `demo/capture/svm-env.ts` (assertSurfnetOrDie via
+  getVersion "surfnet-version"; resetSvm; surfnet_setTokenAccount seeding;
+  sol/spl balance readers; checkAssertions). `types.ts` gains `svm{cluster,
+  tokenAccounts, verify}`. `record.ts`: EVM lifecycle gated on
+  chains.length>0, seed URL carries svmAddress+svmCluster
+  (AOMI_E2E_SVM_ADDRESS), per-VM execution proof — EVM block-delta vs SVM
+  balance assertions with 30s settle polling.
+- Phase 3: `demo/capture/authorize-svm.mts` — zero-dep bind+client_auto
+  ceremony (node:crypto Ed25519, PKCS8-wrapped seed; pubkey passed as arg to
+  avoid base58 dep). Not yet run.
+- Phase 4: collectTxOutcomes returns per-VM maps {evm, svm} (id spaces
+  collide numerically!); accepts wallet::solana_{sign,send,sign_and_send}_
+  complete with signed/submitted→success, rejected/failed→failed (sign_message
+  ignored); enrichment keys on pending_solana_id. `txOutcomeStatus` hoisted to
+  interpreter normalize.ts, used by evm-tx AND svm-tx pending_approval.
+  Tests: react 139, e2e-wallet 10, interpreter 38 — all passing.
+- New scenario `ds6-sol-swap-stake` (chains:[], svm mainnet-beta, empty mSOL
+  ATA fixture, balance assertions from spike rates, two-turn).
+- UNVERIFIED (needs a live run, deliberately deferred): ceremony script
+  against real portal+backend; SVM challenge/commit field names
+  (message_base64/permit) assumed from backend source; recorder svm path end
+  to end; whether svm staged tool results actually carry pending_solana_id
+  for enrichment (spike tail didn't show the tool-result shape — if absent,
+  enrichment needs the runtime to thread it).
+
+## Solana phase 0+1: DONE (2026-08-01, forked session)
+
+- BOTH scenario-6 legs EXECUTE on the Surfpool mainnet-fork mirror, verified
+  from chain state (see SOLANA-DEMO-PLAN.md "Phase 0 VERDICT"): Jupiter
+  0.5 SOL→35.96 USDC finalized; Marinade 2 SOL→1.4313 mSOL confirmed. The
+  plan's riskiest unknown (Jupiter quote replay) is resolved YES — Surfpool
+  even substitutes a safe blockhash (SURFNETxSAFEHASH…).
+- Phase 1 shipped in this worktree: `solana:mainnet` added to E2ESvmCluster
+  (e2e-wallet.ts + provider type), normalize accepts mainnet/mainnet-beta;
+  safe because the SVM executor is loopback-RPC-only regardless of cluster.
+  e2e-wallet tests 10/10.
+- Mirror recipe: `[surfpool.mainnet-beta]` section appended to the operator
+  providers.toml (airdrop HtVw…2LsA 10 SOL + 25 USDC fixture); demo keypair at
+  ~/.aomi/test-env/svm/demo-mainnet-fork.json (fork-only). Mirror left RUNNING
+  on 127.0.0.1:8899 (pid in ~/.aomi/test-env/svm/; `test-env svm down` stops).
+- Fork-authenticity probe for the studio: getVersion → "surfnet-version".
+- Product gaps found: (a) marinade/svm_stage_ix skills can't create ATAs
+  (chip filed — needs skill owner); demo workaround = surfnet_setTokenAccount
+  empty-ATA fixture. (b) CLI-under-FULL_TESTNETS needs
+  AOMI_ALLOW_HOSTED_TEST_DB=1 for skill IDL lookups (guard working as
+  designed; backend path unaffected).
+- Remaining for a recorded Solana take: phase 2 (recorder svm scenario block,
+  reset+fixtures, balance-assert verify replacing block-delta) and phase 3
+  (SVM bind + client_auto ceremonies, then record). Phase 4 = svm-tx trace
+  outcome parity.
+
+## Solana demo plan (2026-07-31 late, forked session)
+
+- `specs/SOLANA-DEMO-PLAN.md` written — replication plan for scenario 6 on the
+  Surfpool SVM mirror. Grounded in source: `test-env svm` forks MAINNET-BETA
+  (`svm/state.rs:316`) and seeds USDC declaratively via `surfnet_setTokenAccount`
+  token fixtures (`svm/fixtures.rs`) — richer than the EVM harness.
+- Only code gap in portal: `E2ESvmCluster` lacks `"solana:mainnet"`; safe to add
+  because the SVM executor already refuses ANY non-loopback RPC (stricter than
+  the EVM anvil probe). Only real unknown: Jupiter quote replay against fork
+  state (ALTs + drift) — phase-0 CLI spike answers it before any code.
+- Recorder design change for SVM: Surfpool mints slots on a clock, so block
+  advance proves NOTHING — plan replaces it with declarative balance assertions
+  (SOL down / USDC up / mSOL up), worth backporting to EVM.
+- SVM trace-outcome parity (svm-tx family + collectTxOutcomes accepting solana
+  callback types) planned as phase 4; verify callback event names first.
+- Coordination: the EVM rig is being extended concurrently (erc20 seeding
+  landed in types.ts/test-env.ts from the other session) — svm scenario-shape
+  changes must rebase on that.
+
+## Trace truthfulness + system-echo cleanup (2026-07-31, forked session, merged into this worktree)
+
+- Two UI fixes ported/built here (the forked nervous-haibt worktree was deleted
+  after porting, per Cecilia):
+  1. HIDE SYSTEM ECHO: `packages/react/src/runtime/utils.ts` drops
+     `sender=system` messages prefixed `Response of system endpoint:` from the
+     thread (backend `thread.rs` transcribes every /api/system callback
+     verbatim FOR THE MODEL; the CLI has filtered it since day one in
+     `cli/commands/history.ts`; the web UI rendered raw JSON as an assistant
+     bubble). Prefix guard runs BEFORE isCreditNotice so a tx callback
+     containing "payment" can't become a Credits card.
+  2. ASYNC OUTCOME RECONCILIATION: staged tx steps froze at "Queued ✓" even
+     when the later `wallet:tx_complete` said failed. Now
+     `collectTxOutcomes()` (utils.ts) mines the (hidden) echo messages for
+     `pending_tx_ids` outcomes — latest wins; computed over the FULL raw list
+     in `projectInboundMessages` (orchestrator.ts) so truncated projections
+     still reconcile; survives reload since the transcript is the durable
+     record. `toInboundMessage` attaches `tx_outcome` to matching tool
+     results; `matchStagedTx` (tool-interpreter families/evm-tx.ts) prefers
+     `tx_outcome.status` over `current_lifecycle` for the status fact — chips
+     flip Queued → Success/Failed and `isFailedStatus` drives the red-X step
+     marker for free.
+- Callback shape verified from `packages/client/src/session/wallet.ts`:
+  `{txHash, status: "success"|"failed", error?, pending_tx_ids: number[]}`.
+- Tests: packages/react 136/136 (5 new), shadcn-registry 281/281 (2 new
+  interpreter tests; package-boundary tests need `pnpm run build:package`
+  first — dist/ missing is an environment condition, not a regression).
+  eslint + tsc clean.
+- Root-cause note from the parallel session (memory): the simulate empty-body
+  + ERR_ALPN bug = `new Request(url, req)` streaming-body footgun; fixed
+  separately.
+
+## Demo studio — scenario round 2 (2026-08-01)
+
+- Scenario set rewritten per Cecilia: no easy swaps; lending, staking, bridging,
+  pushed past vanilla. `demo/scenarios/`: ds2-stake-eth (proven),
+  money-legos-stake-collateralize, aave-borrow-against-usdc, stake-shootout,
+  ds4-bridge-to-base. Swap + plain-Aave-supply scenarios deleted as too easy.
+- CATALOG REALITY CHECK: 5 of the 6 original DEMO-SCENARIOS.md entries are NOT
+  fork-recordable, all for one reason — anything depending on an OFF-CHAIN
+  service cannot be forked. Polymarket (live matching engine), 0x gasless
+  (relayer submits to real mainnet), CEX (fills at the venue + no API keys),
+  bridges via Across/LI.FI (filler relayers watch real chains), Solana
+  (unverified mirror). Only pure on-chain contract calls work.
+- `Scenario.erc20[]` added: seeds tokens by impersonating a holder (faucet
+  Alice holds 10k USDC) since anvil_setBalance is native-only. Recorder also
+  fixed to pass POST-reset chains to runScenario (ports can change on reset).
+- NO COMPLETED VIDEOS THIS ROUND. Two product bugs blocked execution, both
+  spawned as task_90d7e590:
+  1. Multi-skill guard interference — with lido+rocket_pool+etherfi active,
+     each guard rejects the others' txs at simulation. Kills the single most
+     common staking prompt ("stake in the highest yield pool"), which is
+     exactly what DS2 asks. Agent's workaround: "reset skills and stake in X".
+  2. Staged txs lost between turns after a failed commit — a 6-tx batch that
+     simulated clean had to be fully rebuilt.
+- money-legos got FURTHEST and is the strongest product evidence so far even
+  unfinished: agent discovered wstETH UNPROMPTED (Aave v3 won't take rebasing
+  stETH), computed exact wrap output (~4.03 wstETH) to avoid rounding failure,
+  staged and simulated all SIX transactions (stake → approve → wrap → approve →
+  supply → borrow), and self-verified the Aave V3 Pool address against a Lido
+  guard warning. Frame saved. Needed a 3rd turn to commit; even then hit bug 2.
+- OPS FINDING (runbook-critical): the backend caches the fork endpoint AT BOOT.
+  Restarting `test-env evm up` gives a NEW random port, so the backend MUST be
+  restarted after every fork restart or it silently talks to a dead proxy
+  ("connection issue with the network provider").
+- ENVIRONMENT: memory is the real constraint — free RAM hit 154 MB with Cursor
+  + tsserver + rust-analyzer + next-server + another session's cargo build. The
+  test-env proxy is what gets OOM-killed, which is the recurring "fork died"
+  mystery from the whole session. Recording needs fork + backend + portal +
+  chromium concurrently; close heavy apps first.
+- Also: earlier "15 anvils" panic was a misread — those were clang processes
+  compiling the aomi-anvil crate, not anvil instances.
+
+## Demo studio — FIRST SUCCESSFUL RECORDING (2026-07-31 late)
+
+- `demo/out/ds2-stake-eth/ds2-stake-eth-master.mp4` (27.6s) + markers.json:
+  two-turn DS2, Lido stake EXECUTED on the fork. Verified on-chain: account 2
+  (0x3C44...93BC) holds 5.0 stETH, ETH 10 → 4.9999, block 25655803 → 25655804.
+- The last-mile fixes, in order:
+  1. Backend trust: portal signs bearers with kid `aomi-bff-dev-1` but local
+     service.toml only trusted `aomi-bff-staging-1` (same keypair!) — added a
+     dev-kid trust record to the demo worktree's gitignored service.toml.
+  2. Wallet identity: anvil account 0 is BOUND to another user (the old anon
+     E2E artifact) — switched demo signer to unbound anvil account 2, then ran
+     the bind + client_auto permit ceremonies via curl + `cast wallet sign`
+     (challenge → EIP-712 sign → commit; mode strings: bind, client_auto).
+     NOTE: this bound anvil dev account 2 (public key!) to Cecilia's account in
+     the prod DB — revoke when demos are done (mode=denied or unlink).
+  3. Client flag: the E2E provider checks NEXT_PUBLIC_AOMI_E2E_EXECUTION_MODE
+     (not the server-side var) AND Turbopack caches inlined env across restarts
+     — cleared `.next-demo-studio` to pick it up.
+  4. FE BUG (spawned task): browser POST /api/exec/simulate sends an EMPTY
+     body (+ intermittent ERR_ALPN_NEGOTIATION_FAILED) → fee simulate 400s →
+     wallet request rejected. Studio stubs the route with a no-fee success
+     (WORKAROUND in record.ts); backend-side simulate_batch still real.
+  5. E2E executor policy was self-transfer-only — added an additive
+     fork-verified branch to apps/portal/src/server/e2e-wallet.ts: contract
+     calls allowed ONLY when the RPC answers `anvil_nodeInfo` (fails closed);
+     real-RPC posture unchanged. executionKind "e2e_real_fork_call" added.
+     Value cap raised via AOMI_E2E_MAX_NATIVE_WEI=6e18 in .env.local.
+  6. Multi-turn scenarios (`prompts: string[]`), typed-text verification
+     (hydration ate the first keystroke), consent-banner dismissal per turn,
+     funding AFTER `test-env evm reset` (reset reforks and wipes balances),
+     block-advance polling (30s) instead of instant sampling.
+- Honest caveats: video tail cuts mid-sentence of the post-execution
+  confirmation (recorder should settle-wait for a follow-up turn); sidebar
+  shows debug threads — takes DO create real threads on Cecilia's prod account
+  now that auth works (earlier "no writes" check predated working auth);
+  archive them before a partner-facing take.
+
+## Demo studio — landed so far (2026-07-31)
+
+- `apps/portal/src/components/providers/wallet-providers.tsx` now consumes
+  `useFullTestnet` + `FullTestnetWalletRouter`. Routed chains go to BOTH the
+  E2E-wallet branch and the normal wallet-kit branch (demos need E2E wallet AND
+  fork RPC together). Inert unless `NEXT_PUBLIC_USE_FULL_TESTNET=true` and the
+  RPC map parses. Portal type-check + eslint clean, 329/329 portal tests pass.
+  NOTE: `apps/landing` only uses `isFullTestnet()` as a guard and never routes
+  chains — it is still not fully wired. Left alone (not our change to make).
+- New `demo/` dir: `capture/test-env.ts` (fork orchestration, Playwright-free),
+  `capture/selectors.ts`, `capture/record.ts`, `scenarios/types.ts`,
+  `scenarios/ds2-stake-eth.scenario.ts`, `README.md`. Non-Playwright files
+  typecheck clean; `eslint demo` clean; root `typecheck` is scoped to
+  `packages/react/src` so `demo/` cannot break it.
+- Selectors use EXISTING aria-labels (`Message input`, `Send message`,
+  `Stop generating`) + `data-role="assistant"` — no `data-testid` added to
+  production code. `Stop generating` presence/absence is the streaming signal,
+  so the recorder never sleeps.
+- SAFETY: full-testnet routing FAILS OPEN to real mainnet if env is missing —
+  scenarios that stake/swap would spend real money and the take would still look
+  successful. Two guards, neither to be downgraded: `assertForkedOrDie()`
+  (`anvil_nodeInfo` probe) and `watchForForkTraffic()` (fails the take if the
+  browser never hit the fork port).
+- `@playwright/test` + `tsx` added as root devDependencies (approved
+  2026-07-31); chromium downloaded. All demo files typecheck + lint clean.
+  `demo/out/` gitignored — recorded masters are regenerable artifacts.
+- CLI CORRECTIONS found by reading `product-mono/aomi/bin/cli/src/cli.rs`
+  (both contradict `full-testnet.md`, which is wrong on the first point):
+  1. The real command has an `evm`/`svm` layer: `aomi test-env evm up --chains 1`,
+     `... evm reset --chain 1`. NOT `aomi test-env up`.
+  2. The released CLI on PATH (homebrew v0.3.9) has NO `test-env` group at all
+     ("Unknown command test-env"). Must build from product-mono source;
+     `demo/capture/test-env.ts` defaults `AOMI_BIN` to that debug build.
+- SOLANA CORRECTION: `aomi test-env svm` EXISTS — a Surfpool-backed local SVM
+  mirror (up/down/status/reset + wallet/airdrop/usdc). My earlier "Solana has no
+  usable fork, settled" was wrong; it was based on the byreal doc, which is only
+  right about byreal (off-chain orderbook, unforkable). Jupiter/Marinade are
+  on-chain and may work against the mirror — UNVERIFIED, but try it before
+  accepting real-money Solana takes.
+- VERIFIED against a live fork (2026-07-31). `aomi-cli test-env evm up --chains 1`
+  needs `PROVIDERS_TOML=~/Code/product-mono/providers.toml` (it is NOT found from
+  this repo's cwd). Fork came up on chain 1, faucets Alice/Bob funded 100 ETH +
+  10k USDC each. `pids.json` real schema confirmed:
+  `{version, started_at, proxies:[{chain_id,pid,port,endpoint,fork_url,name}]}`
+  — `parsePids()` rewritten to match and prefers `endpoint` over rebuilding it.
+  `assertForkedOrDie()` passes on the fork AND a negative control proves it
+  REJECTS a real mainnet RPC (cloudflare-eth.com), so the spend-real-money path
+  is genuinely guarded.
+- BLOCKED on first recording. Four walls hit in order, each real:
+  1. Hosted backend can't work: agent tools run SERVER-side, so a staging
+     backend reads real mainnet and never sees the fork. Backend MUST be local.
+  2. Anonymous E2E session 402s (no payment rail). FIXED by
+     `E2E_STUB_CANONICAL_USER_ID=8641fa7c-c03c-47b4-89af-0230bad8cbf6`
+     (cecilia@foameo.ai, 266/500 credits used) — maps the E2E session onto a
+     real account. NOTE: comping credits would NOT have fixed this; the anon
+     account had zero usage against a 500 cap. Verified read-only, no DB writes.
+  3. GitHub 429 rate limiting on app tarballs. FIXED by
+     `OFFICIAL_GITHUB_TOKEN="$(gh auth token)"`.
+  4. Catalog hydration: FIXED via new `LOCAL_SCOPED_APPS` env var (see below).
+  5. Schema drift (RESOLVED same evening): the #904 migration
+     (`active_deployment_record_id` + `deployment_records`) was applied to the
+     hosted DB out-of-band later that night — column verified present, so
+     current main boots fine now. NOTE: the migration is NOT in
+     `supabase_migrations.schema_migrations` (ledger ends at 20260726030000);
+     file is idempotent so re-application is a no-op, but the ledger should be
+     reconciled. The throwaway pre-#904 worktree
+     `~/Code/product-mono/.claude/worktrees/demo-rig-backend` is now
+     unnecessary (~7GB; `git worktree remove --force` reclaims it). Future
+     demo backends: build from current main.
+  6. Demo stack torn down 2026-07-31 ~23:00 (memory pressure): backend killed,
+     `test-env evm down` clean, all anvils gone. Restore = fork up → read
+     port from pids.json → regen portal .env.local ports → relaunch backend
+     with LOCAL_SCOPED_APPS (see demo/README.md).
+
+## LOCAL_SCOPED_APPS backend scoping (2026-07-31, uncommitted in product-mono main)
+
+- `aomi/bin/backend/src/handler/app/reconcile.rs`: `local_scope:
+  Arc<Option<HashSet<String>>>` on `ArtifactsReconciler`, parsed from
+  `LOCAL_SCOPED_APPS` (comma-separated app names, lowercase-normalized; Cecilia
+  requested plain Option<HashSet> over a wrapper struct). When set: (a) rows
+  not in the set are skipped in `reconcile_active_once` — applies to both
+  poll and `wake`; (b) `reconcile_official_catalog_rows` is SKIPPED entirely,
+  because it UPSERTS rows into the shared `applications` table and a scoped
+  dev/demo host must not write the shared catalog (my local backend had been
+  doing exactly that against prod on every poll).
+- Composes with the other session's committed `FetchBreaker` (e7b6f7536):
+  breaker = steady-state hygiene for dead tags, scope = hard boundary for
+  non-fleet hosts. 8/8 reconcile tests pass, fmt clean.
+- No way to say "no apps at all": scope activates only when non-empty, so the
+  demo uses sentinel `LOCAL_SCOPED_APPS=demo-studio-none` (matches nothing).
+  Skills-only scenarios (DS2) need exactly this.
+- Fork proxies do NOT reliably survive other sessions: state at
+  `~/.aomi/test-env` was wiped mid-session (likely the other Claude's test
+  run). Port changes on every re-up (51610 → 55465 → 49330) — always re-read
+  `pids.json` and regenerate portal `.env.local`.
+- GUARD CORRECTED: `watchForForkTraffic` was mis-specified (browser never
+  contacts the fork by design) and would have failed every take. Replaced with
+  `forkProgress()` — block height before/after, enforced only when a scenario
+  sets `expectsExecution`. `assertForkedOrDie()` unchanged and still correct.
+- Selector bug fixed: working-trace renders "Working" / "Worked for 5.6s" /
+  "Worked it out"; matching only the last burned the full 180s timeout per take.
+- A fork proxy is LEFT RUNNING (chain 1, pid 76737, port 51610). Stop with
+  `FULL_TESTNETS=true ~/Code/product-mono/aomi/target/debug/aomi-cli test-env evm down`.
+
+## Demo studio (2026-07-30, in progress)
+
+- Goal: systematic, repeatable product demo videos for BD calls + social + docs.
+  Design agreed; nothing implemented yet. See `specs/DEMO-STUDIO.md`.
+- Architecture: 3 layers — scenarios (content) → fork fixture (determinism) →
+  Playwright capture (automation). Record ONE master per scenario + timestamped
+  markers; derive short cuts, never re-shoot per format.
+- **Layer 2 already exists — do not build it.** `aomi test-env up/down/status/
+  reset` in product-mono spawns detached pre-funded anvil-fork proxies per chain
+  (gated on `FULL_TESTNETS=true`, needs `ALCHEMY_API_KEY`). Frontend routing
+  (`NEXT_PUBLIC_USE_FULL_TESTNET`, `FullTestnetWalletRouter`) preserves REAL
+  chain ids while swapping RPC, so the UI shows "Ethereum · Mainnet" on camera
+  while running on a fork. Remaining Layer 2 work: fork block heights, non-USDC
+  whale funding, wiring the capture runner to test-env.
+- Capability boundary: SDK plugins verified against `~/Code/aomi-sdk/apps/*/src/
+  *.rs` — perps + lending (Hyperliquid, dYdX, GMX, Morpho, Yearn) READ-ONLY.
+  But a SEPARATE protocol-skill layer (Uniswap, Lido, Rocket Pool, Ether.fi,
+  Aave, CCTP, Stargate, Base native, Pendle) does execute — so liquid staking
+  IS demoable. byreal perps write capability is UNVERIFIED (source not in this
+  checkout); verify before scripting any perps scenario.
+- Derive scenarios from the existing passing story catalog in product-mono
+  (`docs/topics/testing-automation/facts/aomi-transact-automation.md`, ids
+  DS1-6/P1-8/APP1-4) rather than inventing prompts — those paths are proven.
+- On-camera gotchas: `aomi tx sign` prints the FEE tx hash (to 0x9C7a...519f5),
+  not the protocol tx hash — never show it as the swap; route leakage
+  (Uniswap → LI.FI/Sushi) can put the wrong protocol on screen; a dead local
+  `providers.toml` makes healthy runs look flaky.
+- Solana has NO usable fork (no meaningful byreal devnet) → mainnet, tiny
+  amounts, treated as one-take proof video.
+- `specs/DEMO-SCENARIOS.md` holds 6 draft scenarios awaiting external trader
+  review. Blocking: do not build capture until the catalog is signed off.
+- Pending: Solana fixture strategy; CEX sandbox credentials; which scenarios get
+  real-mainnet proof videos with visible tx hashes; where finished videos land
+  in the GTM system at scrum.aomi.dev.
 
 ## Notes
 

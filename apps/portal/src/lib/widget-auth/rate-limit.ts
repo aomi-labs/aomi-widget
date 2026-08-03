@@ -5,9 +5,8 @@ import { checkRateLimit, getClientIp } from "@portal/lib/rate-limit";
  * (`exchange`, `siwe|siws nonce/verify`). These run before any bearer exists,
  * yet each one writes a `ba_verifications` row and does signature crypto / JWKS
  * fetches — and `exchange` can create a canonical user — so an unthrottled
- * caller can spam rows and burn CPU. We reuse the shared in-process
- * `checkRateLimit` helper/pattern (the same one the launch BFF routes use) so
- * there is one rate-limit implementation, keyed per client IP.
+ * caller can spam rows and burn CPU. The small in-process limiter is scoped to
+ * this public pre-authentication boundary and keyed per client IP.
  *
  * Returned as a plain 429 `Response`; callers return it from inside the
  * `widgetRoute` handler so the wrapper still applies the cross-origin CORS

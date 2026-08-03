@@ -1500,3 +1500,155 @@ describe("account-wide batch reads", () => {
     expect(client.listUserSourceTransactions).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * These assert the *shape of the request graph*, not the payload. Output
+ * parity would survive a refactor that quietly put `listUserSources` back on
+ * the critical path, and that round trip is the whole cost this change
+ * removed — so it needs a test that fails when it comes back.
+ */
+describe("account-wide reads do not waterfall behind listUserSources", () => {
+  /** A `listUserSources` that never settles until the test releases it. */
+  function pendingSources() {
+    let release!: (sources: unknown[]) => void;
+    const gate = new Promise<unknown[]>((resolve) => {
+      release = resolve;
+    });
+    client.listUserSources.mockReturnValue(gate);
+    return { release };
+  }
+
+  it("starts the observability snapshot while the source list is still pending", async () => {
+    setSession({ githubUserId: "gh-1" });
+    const { release } = pendingSources();
+    let snapshotStarted = false;
+    client.getUserObservability.mockImplementation(async () => {
+      snapshotStarted = true;
+      return [];
+    });
+
+    const pending = operateObservabilityRoute(
+      new Request("http://localhost:3000/api/bff/operate/observability"),
+    );
+    // Yield past the microtasks the route needs to reach its manager call.
+    // If the snapshot were sequenced after the source list, it could not have
+    // started while that list is still unresolved.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(snapshotStarted).toBe(true);
+    expect(client.getUserObservability).toHaveBeenCalledOnce();
+
+    release([{ id: 42, repositoryLink: "o/r", apps: [] }]);
+    const res = await pending;
+    expect(res.status).toBe(200);
+    // The dropdown still gets the full list — parallel, not dropped.
+    await expect(res.json()).resolves.toMatchObject({
+      sources: [{ id: 42 }],
+    });
+  });
+
+  it("starts the merged logs page while the source list is still pending", async () => {
+    setSession({ githubUserId: "gh-1" });
+    const { release } = pendingSources();
+    let pageStarted = false;
+    client.listUserLogs.mockImplementation(async () => {
+      pageStarted = true;
+      return { sources: [], logs: [], nextCursor: null };
+    });
+
+    const pending = operateLogsRoute(
+      new Request("http://localhost:3000/api/bff/operate/logs"),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(pageStarted).toBe(true);
+
+    release([{ id: 42, repositoryLink: "o/r", apps: [] }]);
+    expect((await pending).status).toBe(200);
+  });
+
+  it("starts the merged transactions page while the source list is still pending", async () => {
+    setSession({ githubUserId: "gh-1" });
+    const { release } = pendingSources();
+    let pageStarted = false;
+    client.listUserTransactions.mockImplementation(async () => {
+      pageStarted = true;
+      return { sources: [], transactions: [], nextCursor: null };
+    });
+    client.getUserStatements.mockResolvedValue([]);
+
+    const pending = operateTransactionsRoute(
+      new Request("http://localhost:3000/api/bff/operate/transactions"),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(pageStarted).toBe(true);
+    expect(client.listUserTransactions).toHaveBeenCalledOnce();
+
+    release([{ id: 42, repositoryLink: "o/r", apps: [] }]);
+    const res = await pending;
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({ sources: [{ id: 42 }] });
+  });
+
+  it("starts the usage sweep while the source list is still pending", async () => {
+    setSession({ githubUserId: "gh-1" });
+    const { release } = pendingSources();
+    let sweepStarted = false;
+    client.getUserUsage.mockImplementation(async () => {
+      sweepStarted = true;
+      return [];
+    });
+    client.getUserStatements.mockResolvedValue([]);
+
+    const pending = operateUsageRoute(
+      new Request("http://localhost:3000/api/bff/operate/usage"),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(sweepStarted).toBe(true);
+    expect(client.getUserUsage).toHaveBeenCalledOnce();
+
+    release([{ id: 42, repositoryLink: "o/r", apps: [] }]);
+    const res = await pending;
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({ sources: [{ id: 42 }] });
+  });
+
+  /** The payments response is derived entirely from the ledger read, so an
+   *  unfiltered request must not read the source list at all — not even in
+   *  parallel. A regression here is a wasted manager round trip per poll. */
+  it("never reads the source list for an unfiltered payments request", async () => {
+    setSession({ githubUserId: "gh-1" });
+    client.getUserPayments.mockResolvedValue([]);
+
+    const res = await operatePaymentsRoute(
+      new Request("http://localhost:3000/api/bff/operate/payments"),
+    );
+
+    expect(res.status).toBe(200);
+    expect(client.getUserPayments).toHaveBeenCalledOnce();
+    expect(client.listUserSources).not.toHaveBeenCalled();
+  });
+
+  /** …but a source-scoped request still must, because that is where
+   *  `appSourceId` is proven to belong to the signed-in user. */
+  it("still resolves the source list to authorize a scoped payments request", async () => {
+    setSession({ githubUserId: "gh-1" });
+    client.listUserSources.mockResolvedValue([
+      { id: 42, repositoryLink: "o/r", apps: [] },
+    ]);
+    client.getUserPayments.mockResolvedValue([]);
+
+    const ok = await operatePaymentsRoute(
+      new Request(
+        "http://localhost:3000/api/bff/operate/payments?appSourceId=42",
+      ),
+    );
+    expect(ok.status).toBe(200);
+    expect(client.listUserSources).toHaveBeenCalled();
+
+    const foreign = await operatePaymentsRoute(
+      new Request(
+        "http://localhost:3000/api/bff/operate/payments?appSourceId=99",
+      ),
+    );
+    expect(foreign.status).toBe(404);
+  });
+});

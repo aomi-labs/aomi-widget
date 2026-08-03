@@ -79,6 +79,7 @@ describe("provider auth plugin", () => {
     ).rejects.toMatchObject({
       body: expect.objectContaining({
         message: "already_linked_to_another_account",
+        signalType: "wallet",
       }),
     });
     expect(createSession).not.toHaveBeenCalled();

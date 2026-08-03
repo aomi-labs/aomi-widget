@@ -14,7 +14,7 @@ vi.mock("@build/features/launch", () => ({
   launchDeploy: vi.fn(),
   launchStatus: vi.fn(),
   launchActivate: vi.fn(),
-  launchAppStatus: vi.fn(),
+  deploymentSources: vi.fn(),
 }));
 
 vi.mock("@aomi-labs/widget-lib", () => ({
