@@ -7,7 +7,7 @@ import {
   type AuthorizationPoster,
   type WalletEip712Payload,
 } from "@aomi-labs/client";
-import { useAomiWalletKit } from "@aomi-labs/widget-lib";
+import { type AomiWalletKit, useAomiWalletKit } from "@aomi-labs/widget-lib";
 import { accountScopedFetch } from "@portal/lib/settings-api";
 import {
   explainAccountError,
@@ -84,16 +84,10 @@ export type AccountAcl = {
   blockedReason: (wallet: WalletPolicy, mode: SignerMode) => string | null;
 };
 
-type AdapterAccount = {
-  family: "evm" | "svm";
-  address: string;
-  walletName?: string;
-  provider?: string;
-  active: boolean;
-};
+type AdapterAccount = AomiWalletKit["accounts"][number];
 
 function unboundFromAccounts(
-  accounts: AdapterAccount[],
+  accounts: readonly AdapterAccount[],
   wallets: WalletPolicy[],
 ): UnboundWallet[] {
   const bound = new Set(
@@ -141,15 +135,14 @@ export function useAccountAcl(): AccountAcl {
 
   const evmAddress = adapter.identity.address;
   const svmAddress = adapter.identity.svmAddress;
-  const svmCluster = adapter.identity.svmCluster ?? adapter.identity.solanaCluster;
+  const svmCluster =
+    adapter.identity.svmCluster ?? adapter.identity.solanaCluster;
   const signTypedData = adapter.signTypedData;
   const signSolanaMessage = adapter.signSolanaMessage;
   const openAccountUI = adapter.openAccountUI;
-  const accounts = (adapter.accounts ?? []) as AdapterAccount[];
-
   const unboundWallets = useMemo(
-    () => unboundFromAccounts(accounts, wallets),
-    [accounts, wallets],
+    () => unboundFromAccounts(adapter.accounts ?? [], wallets),
+    [adapter.accounts, wallets],
   );
   const needsParaAgentWallet = useMemo(
     () => detectNeedsParaAgentWallet(wallets),
@@ -199,7 +192,8 @@ export function useAccountAcl(): AccountAcl {
       if (!signer.canSign) {
         return `Connect a ${chainLabel} wallet to sign this authorization.`;
       }
-      const needsSelf = isLoosening(wallet.desiredMode, mode) && !wallet.providerManaged;
+      const needsSelf =
+        isLoosening(wallet.desiredMode, mode) && !wallet.providerManaged;
       if (
         needsSelf &&
         signer.address?.toLowerCase() !== wallet.address.toLowerCase()
@@ -230,7 +224,8 @@ export function useAccountAcl(): AccountAcl {
         }
         const { signature } = await readable(() =>
           signTypedData({
-            typed_data: challenge.typed_data as WalletEip712Payload["typed_data"],
+            typed_data:
+              challenge.typed_data as WalletEip712Payload["typed_data"],
             description: permitDescription(wallet, mode),
           }),
         );
@@ -259,7 +254,14 @@ export function useAccountAcl(): AccountAcl {
 
       await refresh();
     },
-    [blockedReason, refresh, signSolanaMessage, signTypedData, svmAddress, svmCluster],
+    [
+      blockedReason,
+      refresh,
+      signSolanaMessage,
+      signTypedData,
+      svmAddress,
+      svmCluster,
+    ],
   );
 
   const bindWallet = useCallback(
@@ -277,7 +279,14 @@ export function useAccountAcl(): AccountAcl {
       await refresh();
       return result;
     },
-    [evmAddress, refresh, signSolanaMessage, signTypedData, svmAddress, svmCluster],
+    [
+      evmAddress,
+      refresh,
+      signSolanaMessage,
+      signTypedData,
+      svmAddress,
+      svmCluster,
+    ],
   );
 
   const provisionParaAgentWallet = useCallback(async () => {

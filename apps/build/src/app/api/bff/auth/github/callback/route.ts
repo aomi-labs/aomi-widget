@@ -1,8 +1,6 @@
-import { BackendError } from "@aomi-labs/deploy";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
-import { configuredBackendUrl } from "@build/server/backend-url";
 import {
   type GitHubOAuthContinuation,
   readGitHubOAuthRequest,
@@ -14,6 +12,7 @@ import {
   exchangeGitHubSession,
   finishCliAuthorization,
 } from "@build/server/github-auth";
+import { buildFailures } from "@build/server/bff/failures";
 
 export const runtime = "nodejs";
 
@@ -64,24 +63,22 @@ export async function GET(req: Request) {
     await setGitHubSessionCookie(response, session);
     return response;
   } catch (error) {
-    const serviceAuthFailure =
-      error instanceof BackendError && error.status === 403;
-    if (serviceAuthFailure) {
-      console.error(
-        "GitHub sign-in exchange forbidden by backend service auth",
-        {
-          backendUrl: configuredBackendUrl(),
-          status: error.status,
-          body: error.body,
-        },
-      );
-    } else {
-      console.error("GitHub sign-in exchange failed", error);
-    }
+    const failure = buildFailures.handle({
+      source: "launch",
+      error,
+      context: {
+        routeFamily: "/api/bff/auth/github/callback",
+        operation: "github.oauth_exchange",
+        method: req.method,
+      },
+    });
     return oauthError(
       req,
       continuation,
-      serviceAuthFailure ? "service_auth_forbidden" : "exchange_failed",
+      failure.reason === "service_credential_rejected" &&
+        failure.upstreamStatus === 403
+        ? "service_auth_forbidden"
+        : "exchange_failed",
     );
   }
 }

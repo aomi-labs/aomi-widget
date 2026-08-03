@@ -1,5 +1,23 @@
 # Auth BFF BetterAuth Cleanup Goal
 
+## BFF Sentry Observability
+
+Current session goal: **LOCAL IMPLEMENTATION AND REVIEW FIXES COMPLETE;
+EXTERNAL ROLLOUT PENDING 2026-07-30** — the approved server-only Sentry observability design in
+`docs/topics/bff/facts/sentry-observability.md` is implemented and locally
+verified for both Portal and Aomi Build, including the shared
+three-layer identify/classify/route pipeline, typed Account/Deploy observers,
+behavior-preserving ownership boundaries, controlled staging smoke routes, and
+automated verification. The review follow-up made the pipeline and async
+observer seams non-throwing, restored existing HTTP/JSON-RPC/silent-degrade
+contracts, added a safe production fallback when Sentry is unavailable, and
+removed all Smither/schema changes. The final review restored the two-read
+Build resume fallback, aligned artifact-degrade telemetry with its 404/409
+responses, and closed the remaining GitHub/supervisor response-contract
+drift. External Sentry/Vercel/dashboard
+configuration and live staging smoke verification remain unperformed and
+require separate authorization.
+
 ## Aomi Build Control Plane Performance
 
 - Replaced the deployments page's per-source history fan-out with one
@@ -30,6 +48,32 @@ architecture guide now names both refs so a legacy third target cannot be
 mistaken for another supported environment.
 
 Progress:
+
+- 2026-08-02 notification presentation preview: moved the shared notification
+  toast to a macOS-style upper-right stack below the chat header, added Aomi
+  title/body hierarchy and custom blue line-art notice, success, error, and
+  wallet SVGs, and verified the live Portal layout in dark mode. Wallet
+  transaction requests now use the wallet presentation instead of a generic
+  notice. Internal `/api/system` acknowledgement records are filtered before
+  they reach chat, persisted system transcript records stay hidden, and live
+  wallet connection plus system notice/error events route through the
+  notification model; payment-required messages retain the dedicated blocking
+  gate. Non-blocking notification banners dismiss after six seconds by default
+  and remain manually dismissible.
+
+- 2026-07-31 Portal thread-history recovery: decoupled canonical account
+  history from wallet connectivity, so a signed-in user can load and retain
+  their threads with no wallet attached. Account identity changes remount the
+  runtime to prevent one signed-in account from retaining another account's
+  in-memory thread list.
+
+- 2026-07-30 BFF Sentry review fixes: made identify/classify/route defensive
+  end to end, normalized invalid response statuses and context, absorbed async
+  observer rejections, reordered Build recovery before telemetry, and removed
+  telemetry-only orchestration dependencies. Restored pre-existing Deploy,
+  Account proxy/token, device/provider auth, MCP, GitHub cookie, and Build
+  fallback contracts. Removed the Smither observer, result field, generated
+  declaration changes, package bump, and database-shape impact entirely.
 
 - 2026-07-29 integrations consolidation: moved the functional Telegram bot
   configuration from Operate into Integrations, retained Discord as an explicit

@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { useNotification } from "@aomi-labs/react";
 import type { Notification } from "@aomi-labs/react";
 
+import { NotificationIcon } from "./notification-icon";
 import { Toaster } from "./sonner";
 
 export function NotificationToaster() {
@@ -30,7 +31,13 @@ export function NotificationToaster() {
     }
   }, [notifications, dismissNotification]);
 
-  return <Toaster position="top-center" />;
+  return (
+    <Toaster
+      position="top-right"
+      offset={{ top: 72, right: 16 }}
+      mobileOffset={{ top: 68, right: 16, left: 16 }}
+    />
+  );
 }
 
 function showToast(
@@ -39,28 +46,38 @@ function showToast(
 ) {
   const options = {
     id: notification.id,
-    duration: notification.duration ?? Infinity,
+    duration: notification.duration ?? 6000,
     unstyled: true,
     onDismiss: () => dismissNotification(notification.id),
+    onAutoClose: () => dismissNotification(notification.id),
   };
 
   toast.custom(
     () => (
-      <div className="bg-background text-foreground relative mx-auto inline-flex w-fit max-w-[calc(100vw-2rem)] items-center justify-center rounded-xl border px-5 py-3 shadow-lg">
+      <div className="border-aomi-border bg-aomi-surface-2 text-aomi-fg group relative flex w-[22rem] max-w-[calc(100vw-2rem)] items-start gap-2.5 rounded-2xl border p-3.5 shadow-2xl">
+        <NotificationIcon type={notification.type} />
+        <div className="min-w-0 flex-1 pt-0.5 text-left">
+          <div className="pr-7 text-sm font-semibold leading-5">
+            {notification.title}
+          </div>
+          {notification.message &&
+            notification.message !== notification.title && (
+              <div className="text-aomi-muted mt-0.5 pr-7 text-sm leading-5">
+                {notification.message}
+              </div>
+            )}
+        </div>
         <button
           type="button"
           aria-label="Close notification"
-          className="text-muted-foreground hover:text-foreground absolute right-2 top-2 inline-flex h-6 w-6 items-center justify-center rounded-md text-sm transition-colors"
+          className="text-aomi-muted hover:bg-aomi-hover hover:text-aomi-fg absolute right-2.5 top-2.5 inline-flex h-6 w-6 items-center justify-center rounded-full text-sm opacity-70 transition-colors group-hover:opacity-100"
           onClick={() => {
             dismissNotification(notification.id);
             toast.dismiss(notification.id);
           }}
         >
-          x
+          ×
         </button>
-        <div className="min-w-0 pr-6 text-center text-sm font-medium leading-5">
-          {notification.message ?? notification.title}
-        </div>
       </div>
     ),
     options,

@@ -415,7 +415,7 @@ describe("Thread API", () => {
   });
 
   describe("fetching thread list", () => {
-    it("fetches threads when user connects", async () => {
+    it("fetches account threads without a connected wallet", async () => {
       const listThreads = vi.fn(
         async (): Promise<AomiThread[]> => [
           { session_id: "thread-1", title: "Chat 1", last_active_at: 100 },
@@ -424,12 +424,7 @@ describe("Thread API", () => {
       );
       setAomiClientConfig({ listThreads });
 
-      const { api, getApi } = renderRuntime();
-
-      await act(async () => {
-        api.setUser({ address: "0x123", chainId: 1, isConnected: true });
-        await flushPromises();
-      });
+      const { getApi } = renderRuntime({ accountSessionAvailable: true });
 
       await waitFor(() => {
         expect(listThreads).toHaveBeenCalledWith(expect.any(String));
@@ -441,6 +436,41 @@ describe("Thread API", () => {
         expect(getApi().getThreadMetadata("thread-1")?.lastActiveAt).toBe(100);
         expect(getApi().getThreadMetadata("thread-2")?.lastActiveAt).toBe(200);
       });
+    });
+
+    it("preserves account threads when the wallet disconnects", async () => {
+      const listThreads = vi.fn(
+        async (): Promise<AomiThread[]> => [
+          { session_id: "thread-1", title: "Account Thread" },
+        ],
+      );
+      setAomiClientConfig({ listThreads });
+
+      const { api, getApi } = renderRuntime({
+        accountSessionAvailable: true,
+      });
+
+      await waitFor(() => {
+        expect(getApi().getThreadMetadata("thread-1")?.title).toBe(
+          "Account Thread",
+        );
+      });
+
+      await act(async () => {
+        api.setUser({ address: "0x123", chainId: 1, isConnected: true });
+        await flushPromises();
+        getApi().setUser({
+          address: undefined,
+          chainId: undefined,
+          isConnected: false,
+        });
+        await flushPromises();
+      });
+
+      expect(getApi().getThreadMetadata("thread-1")?.title).toBe(
+        "Account Thread",
+      );
+      expect(listThreads).toHaveBeenCalledTimes(1);
     });
 
     it("does not refetch account threads when the connected address changes", async () => {

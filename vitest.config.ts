@@ -17,6 +17,7 @@ export default defineConfig({
       "@aomi-labs/deploy": resolve(currentDir, "packages/deploy/src"),
       "@aomi-labs/react": resolve(currentDir, "packages/react/src"),
       "@aomi-labs/service": resolve(currentDir, "packages/service/src"),
+      "@aomi-labs/smither": resolve(currentDir, "packages/smither/src"),
       "server-only": resolve(
         currentDir,
         "apps/portal/__mocks__/server-only.ts",

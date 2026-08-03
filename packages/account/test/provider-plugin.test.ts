@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 const providerMocks = vi.hoisted(() => ({
   providerSessionUserSeed: vi.fn(() => ({
@@ -39,10 +39,15 @@ vi.mock("../src/db/queries", () => ({
 }));
 
 import { aomiProviderAuthPlugin } from "../src/better-auth/provider-plugin";
+import { setAccountDiagnosticObserver } from "../src/observability";
 
 describe("provider auth plugin", () => {
+  afterEach(() => setAccountDiagnosticObserver(undefined));
+
   it("does not create a session when verified signals conflict", async () => {
     const createSession = vi.fn();
+    const diagnostic = vi.fn();
+    setAccountDiagnosticObserver(diagnostic);
     const endpoint = aomiProviderAuthPlugin().endpoints
       ?.exchangeProviderToken as unknown as (ctx: unknown) => Promise<unknown>;
 
@@ -77,5 +82,24 @@ describe("provider auth plugin", () => {
       }),
     });
     expect(createSession).not.toHaveBeenCalled();
+    expect(diagnostic).toHaveBeenCalledWith({
+      kind: "provider.link_conflict",
+      attributes: { provider: "para", signal_type: "wallet" },
+      context: {
+        routeFamily: "/api/auth/[...all]",
+        operation: "account.provider_link",
+        method: "POST",
+      },
+      response: {
+        status: 409,
+        error: "already_linked_to_another_account",
+      },
+    });
+    expect(diagnostic.mock.calls[0]?.[0]?.attributes).not.toHaveProperty(
+      "subject",
+    );
+    expect(diagnostic.mock.calls[0]?.[0]?.attributes).not.toHaveProperty(
+      "better_auth_user_id",
+    );
   });
 });

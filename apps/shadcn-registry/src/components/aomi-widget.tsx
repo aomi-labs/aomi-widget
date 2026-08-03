@@ -121,7 +121,9 @@ function WidgetFrame({
   const walletKit = useAomiWalletKit();
   return (
     <AomiFrame.Root
+      key={walletKit.accountUser?.id ?? "anonymous"}
       backendUrl={apiUrl}
+      accountSessionAvailable={Boolean(walletKit.accountUser)}
       clientOptions={{
         ...clientOptions,
         getAccountBearer: walletKit.getAccountBearer,

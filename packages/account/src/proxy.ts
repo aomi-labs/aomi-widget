@@ -60,6 +60,52 @@ type ProxyAuthState =
   | { kind: "invalid_credentials" }
   | { kind: "mint_failed"; error: unknown };
 
+export type ProxyFailure =
+  | {
+      kind: "bearer_mint";
+      error: unknown;
+      method: string;
+      pathname: string;
+      responseStatus: number;
+    }
+  | {
+      kind: "upstream_request";
+      error: unknown;
+      method: string;
+      pathname: string;
+      responseStatus: number;
+    }
+  | {
+      kind: "response_transform";
+      error: unknown;
+      method: string;
+      pathname: string;
+      responseStatus: number;
+    }
+  | {
+      kind: "upstream_response";
+      status: number;
+      method: string;
+      pathname: string;
+      responseStatus: number;
+    };
+
+export type ObserveProxyFailure = (
+  failure: ProxyFailure,
+) => void | Promise<void>;
+
+export function notifyProxyFailure(
+  observer: ObserveProxyFailure | undefined,
+  failure: ProxyFailure,
+): void {
+  try {
+    const result = observer?.(failure);
+    if (result) void result.catch(() => {});
+  } catch {
+    // Observability is best-effort and must not alter proxy behavior.
+  }
+}
+
 export type ProxyConfig = {
   /**
    * Backend routes this proxy is willing to forward. A request whose path+method
@@ -85,6 +131,10 @@ export type ProxyConfig = {
   upstreamBaseUrl?: string;
   /** Resolve the canonical backend user id for bearer injection. */
   resolveCanonicalUserId: ResolveCanonicalUserId;
+  /** Observe normalized failures without exposing request or response data. */
+  observeFailure?: ObserveProxyFailure;
+  /** Replace downstream 5xx bodies with a stable public error code. */
+  sanitizeUpstream5xx?: boolean;
 };
 
 function defaultBackendUrl(): string {
@@ -138,14 +188,7 @@ function routeRequiresAuth(route: AllowedRoute): boolean {
   return (route.auth ?? "required") === "required";
 }
 
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
-function bearerMintFailureResponse(error: unknown): NextResponse {
-  console.error("Aomi proxy: could not mint AccountBearer", {
-    message: errorMessage(error),
-  });
+function bearerMintFailureResponse(): NextResponse {
   return NextResponse.json(
     { error: "Account bearer mint failed" },
     { status: 502 },
@@ -191,6 +234,11 @@ function applyProxyAuthState(
   route: AllowedRoute,
   authState: ProxyAuthState,
   headers: Headers,
+  failureContext: {
+    method: string;
+    pathname: string;
+    observeFailure?: ObserveProxyFailure;
+  },
 ): NextResponse | null {
   if (authState.kind === "authenticated") {
     headers.set("authorization", `Bearer ${authState.bearer}`);
@@ -198,7 +246,14 @@ function applyProxyAuthState(
   }
 
   if (authState.kind === "mint_failed") {
-    return bearerMintFailureResponse(authState.error);
+    notifyProxyFailure(failureContext.observeFailure, {
+      kind: "bearer_mint",
+      error: authState.error,
+      method: failureContext.method,
+      pathname: failureContext.pathname,
+      responseStatus: 502,
+    });
+    return bearerMintFailureResponse();
   }
 
   if (authState.kind === "invalid_credentials") {
@@ -291,7 +346,17 @@ export function createBackendProxy(config: ProxyConfig) {
       allowedRoute.auth === "none"
         ? ({ kind: "anonymous" } as const)
         : await resolveProxyAuthState(req, config.resolveCanonicalUserId);
-    const authResponse = applyProxyAuthState(allowedRoute, authState, headers);
+    const failureContext = {
+      method: req.method,
+      pathname: upstreamUrl.pathname,
+      observeFailure: config.observeFailure,
+    };
+    const authResponse = applyProxyAuthState(
+      allowedRoute,
+      authState,
+      headers,
+      failureContext,
+    );
     if (authResponse) return authResponse;
 
     try {
@@ -305,14 +370,44 @@ export function createBackendProxy(config: ProxyConfig) {
         redirect: "manual",
       });
 
-      if (config.transformResponse) {
-        const transformed = await config.transformResponse({
-          req,
-          upstreamUrl,
-          upstream,
-          copyResponseHeaders,
+      if (upstream.status >= 500) {
+        notifyProxyFailure(config.observeFailure, {
+          kind: "upstream_response",
+          status: upstream.status,
+          method: req.method,
+          pathname: upstreamUrl.pathname,
+          responseStatus: upstream.status,
         });
-        if (transformed) return transformed;
+        if (config.sanitizeUpstream5xx) {
+          return NextResponse.json(
+            { error: "upstream_unavailable" },
+            { status: upstream.status },
+          );
+        }
+      }
+
+      if (config.transformResponse) {
+        try {
+          const transformed = await config.transformResponse({
+            req,
+            upstreamUrl,
+            upstream,
+            copyResponseHeaders,
+          });
+          if (transformed) return transformed;
+        } catch (error) {
+          notifyProxyFailure(config.observeFailure, {
+            kind: "response_transform",
+            error,
+            method: req.method,
+            pathname: upstreamUrl.pathname,
+            responseStatus: 502,
+          });
+          return NextResponse.json(
+            { error: "Upstream request failed" },
+            { status: 502 },
+          );
+        }
       }
 
       return new NextResponse(upstream.body, {
@@ -321,8 +416,12 @@ export function createBackendProxy(config: ProxyConfig) {
         headers: copyResponseHeaders(upstream),
       });
     } catch (error) {
-      console.error("Aomi upstream request failed", {
-        message: error instanceof Error ? error.message : String(error),
+      notifyProxyFailure(config.observeFailure, {
+        kind: "upstream_request",
+        error,
+        method: req.method,
+        pathname: upstreamUrl.pathname,
+        responseStatus: 502,
       });
       return NextResponse.json(
         { error: "Upstream request failed" },

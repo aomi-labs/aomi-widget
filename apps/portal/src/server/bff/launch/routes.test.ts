@@ -13,6 +13,43 @@ import {
   redeployLaunchRoute,
 } from "./routes";
 
+const telemetry = vi.hoisted(() => ({
+  capture: vi.fn(),
+  log: vi.fn(),
+}));
+
+vi.mock("@portal/server/bff/failures", async () => {
+  const { classifyFailure, identifyFailure } =
+    await import("@aomi-labs/bff-observability");
+  return {
+    portalFailures: {
+      handle: (input: Parameters<typeof identifyFailure>[0]) => {
+        const decision = classifyFailure(identifyFailure(input));
+        const eventContext = {
+          ...decision.context,
+          status: decision.responseStatus,
+          ...(decision.upstream ? { upstream: decision.upstream } : {}),
+          ...(decision.upstreamStatus !== undefined
+            ? { upstreamStatus: decision.upstreamStatus }
+            : {}),
+        };
+        if (decision.action === "issue") {
+          telemetry.capture(decision.error, eventContext);
+        } else if (decision.action === "log") {
+          telemetry.log(eventContext);
+        }
+        return {
+          ...decision,
+          response: Response.json(
+            { error: decision.responseError },
+            { status: decision.responseStatus },
+          ),
+        };
+      },
+    },
+  };
+});
+
 vi.mock("@aomi-labs/account", () => ({
   portalService: () => ({
     mint: vi.fn(async () => ({
@@ -26,6 +63,11 @@ const getGitHubSession = vi.fn();
 vi.mock("@portal/server/cookies/github", () => ({
   getGitHubSession: () => getGitHubSession(),
 }));
+
+beforeEach(() => {
+  telemetry.capture.mockReset();
+  telemetry.log.mockReset();
+});
 
 function writeReq(body: unknown) {
   return new Request("http://localhost:3000/api/bff/launch/redeploy", {
@@ -225,7 +267,7 @@ describe("launchDeployRoute", () => {
     );
   });
 
-  it("propagates BackendError status codes (400-599)", async () => {
+  it("preserves expected BackendError 4xx responses", async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(ownedSources(123))
@@ -462,7 +504,7 @@ describe("launchDeployRoute", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("returns 502 for non-BackendError exceptions", async () => {
+  it("preserves the existing 502 contract for a backend network exception", async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(ownedSources(123))
@@ -484,6 +526,11 @@ describe("launchDeployRoute", () => {
 
     const res = await POST(req);
     expect(res.status).toBe(502);
+    await expect(res.json()).resolves.toEqual({
+      error: "deploy request failed",
+    });
+    expect(telemetry.capture).toHaveBeenCalledTimes(1);
+    expect(telemetry.log).not.toHaveBeenCalled();
   });
 });
 
@@ -496,9 +543,11 @@ describe("launchSdkStatusRoute", () => {
   it("prints the configured backend URL in the local SDK repair command", async () => {
     vi.stubEnv("BACKEND_URL", "");
     vi.stubEnv("NEXT_PUBLIC_BACKEND_URL", "https://api.example.test/");
-    const fetchMock = vi.fn().mockResolvedValueOnce(
-      Response.json({ server_tags: ["staging"], sdk_version: "3.0.2" }),
-    );
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        Response.json({ server_tags: ["staging"], sdk_version: "3.0.2" }),
+      );
     vi.stubGlobal("fetch", fetchMock);
 
     const res = await launchSdkStatusRoute(
@@ -531,6 +580,36 @@ describe("deploymentPromoteRoute", () => {
       body: JSON.stringify(body),
     });
   }
+
+  it("logs a swallowed deployment-records 5xx without creating an Issue", async () => {
+    getGitHubSession.mockResolvedValue({
+      githubUserId: "42",
+      githubLogin: "alice",
+    });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(activationSource())
+      .mockResolvedValueOnce(
+        Response.json({ error: "private backend detail" }, { status: 503 }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await deploymentPromoteRoute(
+      promoteReq({ deploymentId: DEPLOYMENT, appSourceId: 99 }),
+    );
+
+    expect(res.status).toBe(404);
+    expect(telemetry.capture).not.toHaveBeenCalled();
+    expect(telemetry.log).toHaveBeenCalledTimes(1);
+    expect(telemetry.log).toHaveBeenCalledWith({
+      routeFamily: "/api/bff/deployments/promote",
+      operation: "deployment.records_lookup",
+      method: "POST",
+      status: 503,
+      upstream: "rust",
+      upstreamStatus: 503,
+    });
+  });
 
   beforeEach(() => {
     getGitHubSession.mockResolvedValue({

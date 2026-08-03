@@ -22,7 +22,7 @@ export const GET = widgetRoute(async (req: Request) => {
       ? { user: null, linkedAccounts: [], wallets: [], session: null }
       : await accountResponseForPrincipal(req, principal);
   return Response.json(body);
-}, "account read");
+}, "account.read");
 
 export const PATCH = widgetRoute(async (req: Request) => {
   const principal = await requirePortalPrincipal(req);
@@ -37,7 +37,7 @@ export const PATCH = widgetRoute(async (req: Request) => {
     avatarUrl: body.avatarUrl,
   });
   return Response.json(await accountResponseForPrincipal(req, principal));
-}, "account update");
+}, "account.update");
 
 export const DELETE = widgetRoute(async (req: Request) => {
   const principal = await requirePortalPrincipal(req);
@@ -56,6 +56,6 @@ export const DELETE = widgetRoute(async (req: Request) => {
     new Request(url, { method: "POST", headers: req.headers }),
   );
   return Response.json(result, { headers: signOutResponse.headers });
-}, "account delete");
+}, "account.delete");
 
 export const OPTIONS = widgetPreflight(["GET", "PATCH", "DELETE", "OPTIONS"]);

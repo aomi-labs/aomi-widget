@@ -14,6 +14,7 @@ import {
   requirePortalPrincipal,
 } from "@portal/lib/widget-auth/principal";
 import { widgetPreflight, widgetRoute } from "@portal/lib/widget-auth/response";
+import { portalFailures } from "@portal/server/bff/failures";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -39,7 +40,7 @@ export const GET = widgetRoute(async (req: Request) => {
     domain: env.siweDomain,
     uri: env.betterAuthUrl,
   });
-}, "wallet link nonce");
+}, "wallet.link_nonce");
 
 export const POST = widgetRoute(async (req: Request) => {
   const current = await requirePortalPrincipal(req);
@@ -84,32 +85,53 @@ export const POST = widgetRoute(async (req: Request) => {
     domain: env.siweDomain,
   });
   if (!signatureOk) {
-    const recoveredAddress = await recoverWalletLinkSigner({
+    const recoveredAddress = await recoverMessageAddress({
       message: body.message,
-      signature: body.signature,
-    });
-    console.warn("[aomi][wallet-link] invalid wallet signature", {
-      expectedAddress: shortAddress(body.address),
-      recoveredAddress: recoveredAddress
-        ? shortAddress(recoveredAddress)
-        : null,
+      signature: body.signature as `0x${string}`,
+    }).catch(() => null);
+    const messageShape = describeWalletLinkMessage({
+      message: body.message,
+      address: body.address,
       chainId: body.chainId,
-      messageMatches: walletLinkMessageMatches({
-        message: body.message,
-        address: body.address,
-        chainId: body.chainId,
-        nonce: body.nonce,
-        domain: env.siweDomain,
-      }),
-      messageShape: describeWalletLinkMessage({
-        message: body.message,
-        address: body.address,
-        chainId: body.chainId,
-        nonce: body.nonce,
-        domain: env.siweDomain,
-      }),
+      nonce: body.nonce,
+      domain: env.siweDomain,
     });
-    return json(401, { error: "invalid_wallet_signature" });
+    return portalFailures.handle({
+      source: "expected",
+      response: { status: 401, error: "invalid_wallet_signature" },
+      context: {
+        routeFamily: "/api/aomi/wallets/link",
+        operation: "wallet.link",
+        method: "POST",
+      },
+      localDiagnostic: {
+        kind: "wallet.signature_mismatch",
+        attributes: {
+          expected_address: shortAddress(body.address),
+          recovered_address: recoveredAddress
+            ? shortAddress(recoveredAddress)
+            : null,
+          chain_id: body.chainId,
+          message_matches: walletLinkMessageMatches({
+            message: body.message,
+            address: body.address,
+            chainId: body.chainId,
+            nonce: body.nonce,
+            domain: env.siweDomain,
+          }),
+          message_line_count: messageShape.lineCount,
+          first_line_prefix: messageShape.firstLinePrefix,
+          expected_domain_prefix: messageShape.expectedDomainPrefix,
+          first_line_matches_domain: messageShape.firstLineMatchesDomain,
+          address_line: messageShape.addressLine,
+          address_matches: messageShape.addressMatches,
+          chain_line: messageShape.chainLine,
+          chain_matches: messageShape.chainMatches,
+          nonce_line_present: messageShape.nonceLinePresent,
+          nonce_matches: messageShape.nonceMatches,
+        },
+      },
+    }).response;
   }
 
   const resolution = await upsertVerifiedWallet({
@@ -133,23 +155,9 @@ export const POST = widgetRoute(async (req: Request) => {
     status: resolution.status,
     account: await accountResponseForPrincipal(req, current),
   });
-}, "wallet link");
+}, "wallet.link");
 
 export const OPTIONS = widgetPreflight(["GET", "POST", "OPTIONS"]);
-
-async function recoverWalletLinkSigner(input: {
-  message: string;
-  signature: string;
-}): Promise<string | null> {
-  try {
-    return await recoverMessageAddress({
-      message: input.message,
-      signature: input.signature as `0x${string}`,
-    });
-  } catch {
-    return null;
-  }
-}
 
 function shortAddress(address: string): string {
   return `${address.slice(0, 6)}...${address.slice(-4)}`;

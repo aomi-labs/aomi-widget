@@ -950,6 +950,8 @@ export class DeploymentClient {
       {
         application_ids: input.applicationIds,
         primary_application_id: input.primaryApplicationId,
+        label: input.label,
+        thread_mode: input.threadMode,
       },
       "update_user_bot",
       bearer,
@@ -1796,7 +1798,9 @@ export class DeploymentClient {
       throw new BackendError(
         operation,
         0,
-        `${operation} request to ${url} failed: ${err instanceof Error ? err.message : String(err)}`,
+        `${operation} request failed`,
+        undefined,
+        { cause: err },
       );
     }
 
@@ -1812,12 +1816,13 @@ export class DeploymentClient {
     if (!text.trim()) return null as Resp;
     try {
       return JSON.parse(text) as Resp;
-    } catch {
+    } catch (error) {
       throw new BackendError(
         operation,
         res.status,
         `${operation} returned invalid JSON`,
         text,
+        { cause: error },
       );
     }
   }
@@ -2333,6 +2338,9 @@ function camelUserSource(raw: unknown): UserSource {
       s.latest_deployment ?? s.latestDeployment,
     ),
     sdkVersion: s.sdk_version ?? s.sdkVersion ?? null,
+    sdkVersions: ((s.sdk_versions ?? s.sdkVersions ?? []) as unknown[]).flatMap(
+      (version) => (typeof version === "string" && version ? [version] : []),
+    ),
   };
 }
 

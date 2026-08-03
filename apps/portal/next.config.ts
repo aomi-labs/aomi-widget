@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
@@ -67,6 +68,7 @@ const nextConfig: NextConfig = {
   },
   transpilePackages: [
     "@aomi-labs/account",
+    "@aomi-labs/bff-observability",
     "@aomi-labs/client",
     "@aomi-labs/react",
     "@aomi-labs/widget-lib",
@@ -79,6 +81,8 @@ const nextConfig: NextConfig = {
       "@aomi-labs/account/account": "../../packages/account/src/account.ts",
       "@aomi-labs/account/better-auth":
         "../../packages/account/src/better-auth/index.ts",
+      "@aomi-labs/account/observability":
+        "../../packages/account/src/observability.ts",
       "@aomi-labs/account/providers":
         "../../packages/account/src/providers/index.ts",
       "@aomi-labs/account": "../../packages/account/src/index.ts",
@@ -107,6 +111,10 @@ const nextConfig: NextConfig = {
       "@aomi-labs/account/better-auth": path.join(
         accountSrc,
         "better-auth/index.ts",
+      ),
+      "@aomi-labs/account/observability": path.join(
+        accountSrc,
+        "observability.ts",
       ),
       "@aomi-labs/account/providers": path.join(
         accountSrc,
@@ -141,4 +149,31 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+const sentryEnvironment = process.env.SENTRY_ENVIRONMENT;
+const sentryGitSha =
+  process.env.VERCEL_GIT_COMMIT_SHA || process.env.GITHUB_SHA;
+const sentryRelease = sentryGitSha ? `portal-bff@${sentryGitSha}` : undefined;
+const sentryBuildEnabled =
+  process.env.SENTRY_ENABLED === "1" &&
+  (sentryEnvironment === "staging" || sentryEnvironment === "production") &&
+  process.env.SENTRY_PROJECT === "aomi-bff" &&
+  Boolean(process.env.SENTRY_ORG) &&
+  Boolean(process.env.SENTRY_AUTH_TOKEN) &&
+  Boolean(sentryRelease);
+
+export default withSentryConfig(nextConfig, {
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  release: {
+    name: sentryRelease,
+    create: sentryBuildEnabled,
+    finalize: sentryBuildEnabled,
+  },
+  silent: true,
+  telemetry: false,
+  sourcemaps: {
+    disable: !sentryBuildEnabled,
+    deleteSourcemapsAfterUpload: true,
+  },
+});

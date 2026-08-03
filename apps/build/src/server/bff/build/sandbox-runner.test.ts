@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   dispatchSandboxRun,
@@ -9,8 +9,33 @@ import {
   type SandboxLike,
 } from "./sandbox-runner";
 
+const telemetry = vi.hoisted(() => ({ capture: vi.fn() }));
+
+vi.mock("@build/server/bff/failures", () => ({
+  buildFailures: {
+    handle: (input: {
+      error: unknown;
+      upstream?: string;
+      context: Record<string, unknown>;
+    }) =>
+      telemetry.capture(input.error, {
+        ...input.context,
+        status: 500,
+        ...(input.upstream ? { upstream: input.upstream } : {}),
+      }),
+  },
+}));
+
+beforeEach(() => {
+  telemetry.capture.mockReset();
+});
+
 function fakeSandbox() {
-  const calls: Record<string, unknown[]> = { runCommand: [], extend: [], stop: [] };
+  const calls: Record<string, unknown[]> = {
+    runCommand: [],
+    extend: [],
+    stop: [],
+  };
   const sandbox: SandboxLike = {
     sandboxId: "sbx_test",
     async runCommand(params) {
@@ -71,7 +96,8 @@ describe("dispatchSandboxRun", () => {
       runId: "smither-my-app-0000",
       config: CONFIG,
       client,
-      sidecarPublicKeyPem: "-----BEGIN PUBLIC KEY-----\nAAAA\n-----END PUBLIC KEY-----",
+      sidecarPublicKeyPem:
+        "-----BEGIN PUBLIC KEY-----\nAAAA\n-----END PUBLIC KEY-----",
     });
 
     expect(created[0]).toMatchObject({
@@ -110,7 +136,9 @@ describe("dispatchSandboxRun", () => {
     expect(cmd.args.slice(0, 2)).toEqual(["dist/cli.js", "run-plan"]);
     const b64 = cmd.args[cmd.args.indexOf("--plan-b64") + 1];
     expect(Buffer.from(b64, "base64").toString("utf8")).toBe(plan);
-    expect(cmd.args[cmd.args.indexOf("--run-id") + 1]).toBe("smither-my-app-0000");
+    expect(cmd.args[cmd.args.indexOf("--run-id") + 1]).toBe(
+      "smither-my-app-0000",
+    );
   });
 });
 
@@ -127,6 +155,11 @@ describe("keepalive and stop", () => {
       throw new Error("sandbox gone");
     };
     expect(await maybeExtendSandbox(dispatch, 400_000)).toBe(false);
+    expect(telemetry.capture).toHaveBeenCalledOnce();
+    expect(telemetry.capture.mock.calls[0]?.[1]).toMatchObject({
+      operation: "build.sandbox_extend",
+      upstream: "vercel",
+    });
   });
 
   it("stops best-effort", async () => {
@@ -136,6 +169,9 @@ describe("keepalive and stop", () => {
     sandbox.stop = async () => {
       throw new Error("already stopped");
     };
-    await expect(stopSandbox({ sandbox, lastExtendMs: 0 })).resolves.toBeUndefined();
+    await expect(
+      stopSandbox({ sandbox, lastExtendMs: 0 }),
+    ).resolves.toBeUndefined();
+    expect(telemetry.capture).toHaveBeenCalledOnce();
   });
 });

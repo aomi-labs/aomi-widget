@@ -62,6 +62,8 @@ type RootProps = {
   backendUrl?: string;
   /** Optional runtime client overrides. */
   clientOptions?: Omit<AomiClientOptions, "baseUrl">;
+  /** Whether an account session can load thread history without a wallet. */
+  accountSessionAvailable?: boolean;
   /** Persist the active materialized thread in localStorage. Defaults to true. */
   persistThread?: boolean;
   /** Full localStorage key override for vendors that need exact isolation. */
@@ -113,6 +115,7 @@ const Root: FC<RootProps> = ({
   defaultSidebarOpen = true,
   backendUrl,
   clientOptions,
+  accountSessionAvailable,
   persistThread,
   threadPersistenceKey,
   threadPersistenceScope,
@@ -127,6 +130,7 @@ const Root: FC<RootProps> = ({
     <AomiRuntimeProvider
       backendUrl={resolvedBackendUrl}
       clientOptions={clientOptions}
+      accountSessionAvailable={accountSessionAvailable}
       persistThread={persistThread}
       threadPersistenceKey={threadPersistenceKey}
       threadPersistenceScope={threadPersistenceScope}

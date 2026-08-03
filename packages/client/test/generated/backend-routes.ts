@@ -230,6 +230,11 @@ export const AOMI_BACKEND_ENDPOINTS = [
   },
   {
     method: "GET",
+    path: "/api/platforms/:name/telegram/handover/:bot/:id",
+    auth: ["activation"],
+  },
+  {
+    method: "GET",
     path: "/api/platforms/:name/tokens",
     auth: ["activation"],
   },
@@ -491,6 +496,21 @@ export const AOMI_BACKEND_ENDPOINTS = [
   {
     method: "POST",
     path: "/api/platforms/:name/sources/sync-installed",
+    auth: ["activation"],
+  },
+  {
+    method: "POST",
+    path: "/api/platforms/:name/telegram/handover",
+    auth: ["activation"],
+  },
+  {
+    method: "POST",
+    path: "/api/platforms/:name/telegram/handover/:bot/:id/activate",
+    auth: ["activation"],
+  },
+  {
+    method: "POST",
+    path: "/api/platforms/:name/telegram/handover/:bot/:id/revoke",
     auth: ["activation"],
   },
   {

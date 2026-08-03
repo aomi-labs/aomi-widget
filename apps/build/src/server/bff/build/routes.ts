@@ -5,6 +5,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { Readable } from "node:stream";
 import { NextResponse } from "next/server";
+import type { FailureInput } from "@aomi-labs/bff-observability";
 import { authorize } from "@build/server/bff/auth";
 import type {
   BuildRunDecisionRequest,
@@ -21,18 +22,45 @@ import {
   startBuildRun,
   storedCrateTarball,
 } from "./engine";
+import { buildFailures } from "@build/server/bff/failures";
 
-function errorResponse(error: unknown): NextResponse {
+function identifyBuildRouteFailure(
+  error: unknown,
+  req: Request,
+  operation: string,
+): FailureInput {
+  const context = {
+    routeFamily: new URL(req.url).pathname,
+    operation,
+    method: req.method,
+  };
   if (error instanceof BuildEngineError) {
-    return NextResponse.json({ error: error.message }, { status: error.status });
+    if (error.status < 500) {
+      return {
+        source: "expected",
+        error,
+        response: { status: error.status, error: error.message },
+        context,
+      };
+    }
+    return {
+      source: "local",
+      error,
+      response: { status: error.status, error: error.message },
+      context,
+    };
   }
-  console.error("build run route failed:", error);
-  return NextResponse.json({ error: "build engine error" }, { status: 500 });
+  return {
+    source: "local",
+    error,
+    response: { status: 500, error: "build engine error" },
+    context,
+  };
 }
 
 const APP_NAME = /^[a-zA-Z0-9_-]{1,64}$/;
 
-export async function createBuildRunRoute(req: Request): Promise<NextResponse> {
+export async function createBuildRunRoute(req: Request): Promise<Response> {
   const auth = await authorize(req, { write: true, allowAnon: true });
   if ("response" in auth) return auth.response;
 
@@ -80,11 +108,13 @@ export async function createBuildRunRoute(req: Request): Promise<NextResponse> {
       stages: snapshot.stages,
     });
   } catch (error) {
-    return errorResponse(error);
+    return buildFailures.handle(
+      identifyBuildRouteFailure(error, req, "build.start"),
+    ).response;
   }
 }
 
-export async function buildRunStatusRoute(req: Request): Promise<NextResponse> {
+export async function buildRunStatusRoute(req: Request): Promise<Response> {
   const auth = await authorize(req, { allowAnon: true });
   if ("response" in auth) return auth.response;
 
@@ -94,16 +124,22 @@ export async function buildRunStatusRoute(req: Request): Promise<NextResponse> {
   }
   // Registry miss ≠ unknown run: another instance (or a past process life)
   // may own it — reconstruct an observer handle from the durable store.
-  const handle = getBuildRun(runId) ?? (await reconstructBuildRun(runId));
-  if (!handle) {
-    return NextResponse.json({ error: "unknown run" }, { status: 404 });
+  try {
+    const handle = getBuildRun(runId) ?? (await reconstructBuildRun(runId));
+    if (!handle) {
+      return NextResponse.json({ error: "unknown run" }, { status: 404 });
+    }
+    return NextResponse.json(await snapshotBuildRun(handle));
+  } catch (error) {
+    return buildFailures.handle(
+      identifyBuildRouteFailure(error, req, "build.status"),
+    ).response;
   }
-  return NextResponse.json(await snapshotBuildRun(handle));
 }
 
 /** Request cancellation — a durable store write the executing engine polls,
  *  so it works from any instance (and, later, for sandbox runners). */
-export async function buildRunCancelRoute(req: Request): Promise<NextResponse> {
+export async function buildRunCancelRoute(req: Request): Promise<Response> {
   const auth = await authorize(req, { write: true, allowAnon: true });
   if ("response" in auth) return auth.response;
 
@@ -120,7 +156,9 @@ export async function buildRunCancelRoute(req: Request): Promise<NextResponse> {
     await cancelBuildRun(body.runId);
     return NextResponse.json({ ok: true });
   } catch (error) {
-    return errorResponse(error);
+    return buildFailures.handle(
+      identifyBuildRouteFailure(error, req, "build.cancel"),
+    ).response;
   }
 }
 
@@ -135,16 +173,33 @@ export async function buildRunDownloadRoute(
   if (!runId) {
     return NextResponse.json({ error: "missing id" }, { status: 400 });
   }
-  const handle = getBuildRun(runId) ?? (await reconstructBuildRun(runId));
-  if (!handle) {
-    return NextResponse.json({ error: "unknown run" }, { status: 404 });
-  }
-  const appsDir = path.join(handle.plan.sdkRoot, "apps");
-  if (!existsSync(path.join(appsDir, handle.app))) {
-    // No local crate (sandbox runs — the crate lives in the sandbox's
-    // filesystem): serve the artifact the result phase embedded in the store.
-    try {
-      const stored = await storedCrateTarball(handle);
+  try {
+    const handle = getBuildRun(runId) ?? (await reconstructBuildRun(runId));
+    if (!handle) {
+      return NextResponse.json({ error: "unknown run" }, { status: 404 });
+    }
+    const appsDir = path.join(handle.plan.sdkRoot, "apps");
+    if (!existsSync(path.join(appsDir, handle.app))) {
+      // No local crate (sandbox runs — the crate lives in the sandbox's
+      // filesystem): serve the artifact the result phase embedded in the store.
+      const stored = await storedCrateTarball(handle).catch(
+        (error: unknown) => {
+          buildFailures.handle({
+            source: "local",
+            error,
+            response: {
+              status: 409,
+              error: "no generated crate yet — run the build first",
+            },
+            context: {
+              routeFamily: new URL(req.url).pathname,
+              operation: "build.download_artifact_read",
+              method: req.method,
+            },
+          });
+          return null;
+        },
+      );
       if (stored) {
         return new Response(new Uint8Array(stored), {
           headers: {
@@ -153,32 +208,58 @@ export async function buildRunDownloadRoute(
           },
         });
       }
-    } catch (error) {
-      console.error("stored crate read failed:", error);
+      return NextResponse.json(
+        { error: "no generated crate yet — run the build first" },
+        { status: 409 },
+      );
     }
-    return NextResponse.json(
-      { error: "no generated crate yet — run the build first" },
-      { status: 409 },
-    );
+    // Stream `tar` directly; the crate is small (target/ excluded).
+    const tar = spawn("tar", [
+      "-cz",
+      "--exclude",
+      "target",
+      "--exclude",
+      "Cargo.lock",
+      "-C",
+      appsDir,
+      handle.app,
+    ]);
+    let spawnFailed = false;
+    tar.once("error", (error) => {
+      spawnFailed = true;
+      buildFailures.handle({
+        source: "local",
+        error,
+        context: {
+          routeFamily: new URL(req.url).pathname,
+          operation: "build.download_tar",
+          method: req.method,
+        },
+      });
+    });
+    tar.once("close", (code) => {
+      if (code === 0 || spawnFailed) return;
+      buildFailures.handle({
+        source: "local",
+        error: new Error("Build tar subprocess failed"),
+        context: {
+          routeFamily: new URL(req.url).pathname,
+          operation: "build.download_tar",
+          method: req.method,
+        },
+      });
+    });
+    return new Response(Readable.toWeb(tar.stdout) as ReadableStream, {
+      headers: {
+        "Content-Type": "application/gzip",
+        "Content-Disposition": `attachment; filename="${handle.app}.tar.gz"`,
+      },
+    });
+  } catch (error) {
+    return buildFailures.handle(
+      identifyBuildRouteFailure(error, req, "build.download"),
+    ).response;
   }
-  // Stream `tar` directly; the crate is small (target/ excluded).
-  const tar = spawn("tar", [
-    "-cz",
-    "--exclude",
-    "target",
-    "--exclude",
-    "Cargo.lock",
-    "-C",
-    appsDir,
-    handle.app,
-  ]);
-  tar.on("error", (error) => console.error("crate tar failed:", error));
-  return new Response(Readable.toWeb(tar.stdout) as ReadableStream, {
-    headers: {
-      "Content-Type": "application/gzip",
-      "Content-Disposition": `attachment; filename="${handle.app}.tar.gz"`,
-    },
-  });
 }
 
 /** One generated-crate file (display path "<app>/src/tool.rs") — live disk,
@@ -195,11 +276,11 @@ export async function buildRunFileRoute(
   if (!runId || !filePath) {
     return NextResponse.json({ error: "missing id or path" }, { status: 400 });
   }
-  const handle = getBuildRun(runId) ?? (await reconstructBuildRun(runId));
-  if (!handle) {
-    return NextResponse.json({ error: "unknown run" }, { status: 404 });
-  }
   try {
+    const handle = getBuildRun(runId) ?? (await reconstructBuildRun(runId));
+    if (!handle) {
+      return NextResponse.json({ error: "unknown run" }, { status: 404 });
+    }
     const body = await readRunFile(handle, filePath);
     if (!body) {
       return NextResponse.json({ error: "file not found" }, { status: 404 });
@@ -208,13 +289,13 @@ export async function buildRunFileRoute(
       headers: { "Content-Type": "text/plain; charset=utf-8" },
     });
   } catch (error) {
-    return errorResponse(error);
+    return buildFailures.handle(
+      identifyBuildRouteFailure(error, req, "build.file"),
+    ).response;
   }
 }
 
-export async function buildRunDecisionRoute(
-  req: Request,
-): Promise<NextResponse> {
+export async function buildRunDecisionRoute(req: Request): Promise<Response> {
   const auth = await authorize(req, { write: true, allowAnon: true });
   if ("response" in auth) return auth.response;
 
@@ -248,6 +329,8 @@ export async function buildRunDecisionRoute(
     });
     return NextResponse.json({ ok: true });
   } catch (error) {
-    return errorResponse(error);
+    return buildFailures.handle(
+      identifyBuildRouteFailure(error, req, "build.decision"),
+    ).response;
   }
 }

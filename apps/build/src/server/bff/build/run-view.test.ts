@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   artifactFromOutputs,
@@ -6,6 +6,19 @@ import {
   runStatusFromView,
   stageStatusesFromView,
 } from "./run-view";
+
+const telemetry = vi.hoisted(() => ({ capture: vi.fn() }));
+
+vi.mock("@build/server/bff/failures", () => ({
+  buildFailures: {
+    handle: (input: { error: unknown; context: Record<string, unknown> }) =>
+      telemetry.capture(input.error, { ...input.context, status: 500 }),
+  },
+}));
+
+beforeEach(() => {
+  telemetry.capture.mockReset();
+});
 
 const fold = (nodeId: string) =>
   nodeId === "app:validate" || nodeId === "app:fix"
@@ -86,7 +99,9 @@ describe("curationFromOutputs", () => {
   it("reads the curation row and stringifies optional fields", () => {
     expect(
       curationFromOutputs({
-        curation: [{ summary: "did things", changedFiles: "", followUps: "next" }],
+        curation: [
+          { summary: "did things", changedFiles: "", followUps: "next" },
+        ],
       }),
     ).toEqual({ summary: "did things", changedFiles: "", followUps: "next" });
     expect(curationFromOutputs({})).toBeUndefined();
@@ -114,10 +129,20 @@ describe("artifactFromOutputs", () => {
   it("degrades malformed tree JSON to empty and absent artifacts to undefined", () => {
     expect(
       artifactFromOutputs({
-        result: [{ summary: "done", fileTreeJson: "{oops", crateTarB64: "dGFy" }],
+        result: [
+          { summary: "done", fileTreeJson: "{oops", crateTarB64: "dGFy" },
+        ],
       }),
     ).toEqual({ fileTree: [], crateTarB64: "dGFy", warning: "" });
-    expect(artifactFromOutputs({ result: [{ summary: "done" }] })).toBeUndefined();
+    expect(telemetry.capture).toHaveBeenCalledOnce();
+    expect(telemetry.capture.mock.calls[0]?.[1]).toEqual({
+      routeFamily: "/api/bff/build/runs",
+      operation: "build.artifact_tree_parse",
+      status: 500,
+    });
+    expect(
+      artifactFromOutputs({ result: [{ summary: "done" }] }),
+    ).toBeUndefined();
     expect(artifactFromOutputs({})).toBeUndefined();
   });
 });
