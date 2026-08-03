@@ -22,10 +22,24 @@
   30s budget once the exchange has settled (short settle grace instead), so
   Settings stops sitting on "Connecting your account…" and reaches the
   actionable "Finish signing in" gate. `widget-lib` at 1.4.18 (main: 1.4.16).
-  Still blocked on infra for a *complete* sign-in: preview
-  `PARA_JWT_AUDIENCE` must be the Para project UUID or
-  `POST /api/auth/aomi/provider/exchange` 400s and no allowance/Settings data
-  can load.
+
+  **Preview QA result — `PARA_JWT_AUDIENCE` is NOT the blocker.** With the
+  error now visible, preview returns the semantic **409
+  `already_linked_to_another_account`**, not a 400. A 409 means the Para JWT
+  verified and the exchange reached identity linkage, so the audience env var
+  is correct on preview. The real condition is data, not config: that Para
+  identity is already linked to a *different* Aomi account (leftover from
+  earlier testing), and the backend refuses to move a login factor silently.
+  Remedy is per the error copy — sign in to the owning account and unlink
+  there, or use a different Para identity. No code fix applies.
+
+  **Follow-up fix (this change):** `accountError` was being piped into the
+  chip's `secondaryLine`, a single `truncate`d row, so the 409's full sentence
+  rendered as "This wallet or sign-in m…". Split the two surfaces: added
+  `noticeLine` to `WalletAccountMenuOptions` / `AccountMenu` for wrapped
+  full-length copy in the menu header, and the chip now shows the short
+  "Sign-in needs attention". Rule going forward: chip copy stays under ~25
+  chars, backend error strings go to `noticeLine`.
 
 2026-08-02 (~17:45) — **ds13 RECORDED — catalog COMPLETE.** Post-fixer-session
   run (their parseTxIds ordering fix + dist rebuild + Aave gateway address

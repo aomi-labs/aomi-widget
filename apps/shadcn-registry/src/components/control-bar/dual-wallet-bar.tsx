@@ -266,6 +266,7 @@ const DualWalletBarInner: FC<DualWalletBarProps> = ({
             address={visibleAddress}
             walletLabel={walletLabel}
             allowanceLine={accountMenu?.secondaryLine}
+            noticeLine={accountMenu?.noticeLine}
             networkLabel={accountMenu?.networkLabel ?? networkDetail}
             themeLabel={accountMenu?.themeLabel}
             onClose={() => setMenuOpen(false)}

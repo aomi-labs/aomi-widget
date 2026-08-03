@@ -54,10 +54,13 @@ describe("usePortalWalletAccountMenu sign-in wiring", () => {
     expect(walletKitState.current.openAccountUI).not.toHaveBeenCalled();
   });
 
-  it("surfaces a provider exchange failure on the chip", () => {
-    walletKitState.current.accountError = "already linked to another account";
+  it("keeps exchange failure copy off the truncated chip line", () => {
+    walletKitState.current.accountError =
+      "This wallet or sign-in method is already linked to another Aomi account.";
 
-    expect(readMenu()?.secondaryLine).toBe("already linked to another account");
+    const menu = readMenu();
+    expect(menu?.secondaryLine).toBe("Sign-in needs attention");
+    expect(menu?.noticeLine).toBe(walletKitState.current.accountError);
   });
 
   it("drops Sign in once the account session exists", () => {

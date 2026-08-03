@@ -28,6 +28,14 @@ function finishAccountSignIn(adapter: ReturnType<typeof useAomiWalletKit>) {
 }
 
 /**
+ * The chip's second line is a single truncated row, so backend error copy
+ * (e.g. the 409 "already linked to another Aomi account" sentence) gets clipped
+ * into nonsense there. Keep the chip to a short status and let the menu render
+ * the full explanation.
+ */
+const CHIP_ACCOUNT_ERROR_LABEL = "Sign-in needs attention";
+
+/**
  * Portal-only account menu config for the sidebar wallet chip.
  * Reuses the shared `/api/account` overview — same source as General settings.
  */
@@ -53,7 +61,9 @@ export function usePortalWalletAccountMenu(
           ? `${Math.max(0, usage.credit_paid - usage.credit_used).toLocaleString()} credits left`
           : accountUser
             ? "Loading allowance…"
-            : (accountError ?? "Sign in for allowance");
+            : accountError
+              ? CHIP_ACCOUNT_ERROR_LABEL
+              : "Sign in for allowance";
 
     const activeAccount = adapter.accounts.find((account) => account.active);
 
@@ -71,6 +81,7 @@ export function usePortalWalletAccountMenu(
     return {
       enabled: true,
       secondaryLine,
+      noticeLine: accountUser ? undefined : accountError,
       walletLabel: activeAccount?.walletName,
       networkLabel,
       themeLabel: isDark ? "Dark" : "Light",

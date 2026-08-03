@@ -9,6 +9,7 @@ export type AccountMenuProps = {
   address?: string;
   walletLabel?: string;
   allowanceLine?: string;
+  noticeLine?: string;
   networkLabel?: string;
   themeLabel?: string;
   onClose: () => void;
@@ -49,6 +50,7 @@ export function AccountMenu({
   address,
   walletLabel,
   allowanceLine,
+  noticeLine,
   networkLabel,
   themeLabel,
   onClose,
@@ -100,6 +102,11 @@ export function AccountMenu({
             <div className="text-aomi-muted mt-2 text-[12px] font-medium">
               {allowanceLine}
             </div>
+          ) : null}
+          {noticeLine ? (
+            <p className="text-aomi-muted mt-2 text-[12px] leading-snug">
+              {noticeLine}
+            </p>
           ) : null}
         </div>
 
