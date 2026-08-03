@@ -54,7 +54,7 @@ export function ThreadListSidebar({
           )}
         </div>
       </SidebarHeader>
-      <SidebarContent className="aomi-sidebar-content">
+      <SidebarContent className="aomi-sidebar-content mr-0">
         <ThreadList />
       </SidebarContent>
       <SidebarRail />
