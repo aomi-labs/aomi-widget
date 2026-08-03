@@ -2,6 +2,27 @@
 
 ## Last Updated
 
+2026-08-02 20:15 — **P0 REGRESSION on merged main: wallet-request delivery
+  broken, both VMs, ALL configs.** Window: e3d9739ea (build 23:25 Aug 1 —
+  ds10/ds11/money-legos all executed on it) → 5722f0d73 (merge of origin/main
+  incl. #903 + today's chain-actor commits; build 18:43 — nothing executes).
+  Symptom: agent stages, simulation passes, agent commits and says "I have
+  sent tx-N to your wallet for signing" — the FE wallet executor is NEVER
+  invoked (no /api/bff/e2e/execute call; pending tx parked at
+  current_lifecycle=queued forever). Verified by differentials: same FE +
+  same scenario pass/fail flips exactly with the binary; LOCAL_SCOPED_APPS
+  on/off makes no difference. Prime suspect (unconfirmed): the new per-turn
+  enforcement plane `state.app_policy = app.app_policy()` in
+  crates/runtime/src/thread.rs + the WalletResponse::new refactor — the
+  chain-actor delta touches exactly the wallet-callback path. Impact beyond
+  demos: ANY client relying on wallet-request events (web FE human-sync
+  flows included) silently stalls at "waiting for wallet approval" on this
+  code. ds8 (crown jewel) is BLOCKED on this; do not shoot execution
+  scenarios on binaries built from 5722f0d73+ until fixed. Rig parked:
+  scoped backend 8081 (merged config), portal 3500, mirror 8899, chain-1
+  proxy 49800 (portal env updated but portal NOT restarted — fine for SVM,
+  restart before EVM takes).
+
 2026-08-02 (~17:45) — **ds13 RECORDED — catalog COMPLETE.** Post-fixer-session
   run (their parseTxIds ordering fix + dist rebuild + Aave gateway address
   correction + my backend rebuild/restack): attempt 3 landed
