@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useRef, useState, useSyncExternalStore } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 
 import {
   STREAM_TO_JOURNEY,
@@ -91,6 +97,7 @@ export function useBuildSession() {
   const [showStreamInThread, setShowStreamInThread] = useState(false);
   const timersRef = useRef<number[]>([]);
   const pollRef = useRef<number | null>(null);
+  const pollEpochRef = useRef(0);
   const sessionDraftRef = useRef<{
     id: string;
     title: string;
@@ -103,13 +110,16 @@ export function useBuildSession() {
   const recentSessions = mergeSessions(persistedSessions);
 
   const clearTimers = useCallback(() => {
+    pollEpochRef.current += 1;
     timersRef.current.forEach((id) => window.clearTimeout(id));
     timersRef.current = [];
     if (pollRef.current !== null) {
-      window.clearInterval(pollRef.current);
+      window.clearTimeout(pollRef.current);
       pollRef.current = null;
     }
   }, []);
+
+  useEffect(() => clearTimers, [clearTimers]);
 
   /** Fold a run snapshot into view state + the session draft. Stops the poll
    *  loop and persists the session once the run settles. */
@@ -117,9 +127,9 @@ export function useBuildSession() {
     (
       snapshot: BuildRunSnapshot,
       onAssistantReady?: (msg: BuildMessage) => void,
-    ) => {
+    ): boolean => {
       const draft = sessionDraftRef.current;
-      if (!draft) return;
+      if (!draft) return false;
       const nodes = nodesFromSnapshot(snapshot);
       const streamEvents = streamEventsFromSnapshot(snapshot);
       const flags = flagsFromSnapshot(snapshot);
@@ -137,11 +147,7 @@ export function useBuildSession() {
 
       const settled =
         snapshot.status === "completed" || snapshot.status === "failed";
-      if (!settled) return;
-      if (pollRef.current !== null) {
-        window.clearInterval(pollRef.current);
-        pollRef.current = null;
-      }
+      if (!settled) return false;
       setIsGenerating(false);
       setShipReady(flags.shipReady);
       if (flags.shipReady) setStageId("ship");
@@ -173,6 +179,7 @@ export function useBuildSession() {
         fileTree,
         nodes,
       });
+      return true;
     },
     [],
   );
@@ -180,24 +187,45 @@ export function useBuildSession() {
   /** Start (or restart) the poll loop for a run; it stops itself on settle. */
   const beginRunPolling = useCallback(
     (runId: string, onAssistantReady?: (msg: BuildMessage) => void) => {
-      if (pollRef.current !== null) {
-        window.clearInterval(pollRef.current);
-        pollRef.current = null;
-      }
+      clearTimers();
+      const pollEpoch = pollEpochRef.current;
+      const schedule = () => {
+        if (pollEpochRef.current !== pollEpoch) return;
+        pollRef.current = window.setTimeout(() => {
+          pollRef.current = null;
+          void poll();
+        }, RUN_POLL_MS);
+      };
       const poll = async () => {
-        const res = await fetch(
-          `/api/bff/build/runs?id=${encodeURIComponent(runId)}`,
-        );
-        if (!res.ok) return;
-        applyRunSnapshot(
-          (await res.json()) as BuildRunSnapshot,
-          onAssistantReady,
-        );
+        if (pollEpochRef.current !== pollEpoch) return;
+        if (document.hidden) {
+          schedule();
+          return;
+        }
+        let settled = false;
+        try {
+          const res = await fetch(
+            `/api/bff/build/runs?id=${encodeURIComponent(runId)}`,
+          );
+          if (res.ok && pollEpochRef.current === pollEpoch) {
+            settled = applyRunSnapshot(
+              (await res.json()) as BuildRunSnapshot,
+              onAssistantReady,
+            );
+          }
+        } catch {
+          // A later poll can recover from a transient network interruption.
+        } finally {
+          if (settled) {
+            pollEpochRef.current += 1;
+          } else {
+            schedule();
+          }
+        }
       };
       void poll();
-      pollRef.current = window.setInterval(() => void poll(), RUN_POLL_MS);
     },
-    [applyRunSnapshot],
+    [applyRunSnapshot, clearTimers],
   );
 
   const loadSession = useCallback(

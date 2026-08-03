@@ -31,6 +31,22 @@ require separate authorization.
 - Kept backend endpoint contracts unchanged; the new global feed belongs to
   manager and the Aomi Build BFF relays it.
 
+## Control Plane Request Usability
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-03** — keep
+authenticated Build and Portal pages functional under normal navigation and
+deployment polling without hiding real failures behind indiscriminate retries.
+
+- Removed the process-local, per-IP request budget from authenticated Build
+  and Portal launch/deployment routes while preserving write-origin checks and
+  the targeted limiter on expensive unauthenticated widget-auth endpoints.
+- Limited foreground control-plane recovery to one network or gateway retry;
+  deterministic HTTP failures surface immediately, and a 429 retries only when
+  the server supplies a short `Retry-After` delay. Intent prefetches never retry.
+- Replaced per-app activation verification fan-out with one source snapshot per
+  polling interval, and made the Create build-run poll sequential, hidden-tab
+  aware, and cancellable on navigation/unmount.
+
 Current session goal: **IMPLEMENTED; LIVE E2E IN PROGRESS 2026-07-22** — implement and verify
 `specs/WIDGET-AUTH-INTEGRATION-PLAN.md` across `aomi`, `db-master`, and
 `product-mono`, including tenant-scoped provider identities, the atomic
