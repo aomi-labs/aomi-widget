@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import type { WalletTxPayload } from "@aomi-labs/react";
 import {
   E2E_WALLET_COOKIE,
-  executeE2EWalletTransaction,
+  executeE2EvmTransaction,
   isE2EExecutorEnabled,
   verifyE2EWalletCookie,
 } from "@portal/server/e2e-wallet";
@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const result = await executeE2EWalletTransaction({ seed, payload });
+  const result = await executeE2EvmTransaction({ seed, payload });
   if (result.ok) {
     return NextResponse.json(result);
   }

@@ -175,7 +175,51 @@ export function RuntimeTxHandler() {
             });
           }
 
-          const result = await adapter.sendTransaction(payloadWithFee);
+          let result;
+          try {
+            result = await adapter.sendTransaction(payloadWithFee);
+          } catch (error) {
+            // A sequential (non-atomic) executor may have landed a PREFIX
+            // of the batch before failing — adapters signal that by
+            // attaching `partial` to the thrown error. Reporting such a
+            // failure as a blanket reject erases on-chain truth: the
+            // backend re-queues every leg and a retry double-executes the
+            // ones that already mined (observed: a re-run 5 ETH stake
+            // against the already-debited balance). Resolve with per-leg
+            // outcomes instead; anything without partial info falls
+            // through to the normal reject path.
+            const partial = (
+              error as {
+                partial?: {
+                  executedTxIds?: number[];
+                  lastTxHash?: string | null;
+                  failedTxId?: number | null;
+                  remainingTxIds?: number[];
+                };
+              }
+            )?.partial;
+            const executed = partial?.executedTxIds ?? [];
+            if (executed.length > 0 && partial?.lastTxHash) {
+              const failedTxIds = [
+                partial.failedTxId,
+                ...(partial.remainingTxIds ?? []),
+              ].filter((id): id is number => typeof id === "number");
+              await resolveWalletRequest(req.id, {
+                kind: "transaction",
+                txHash: partial.lastTxHash,
+                batched: true,
+                callCount: payload.calls?.length,
+                completedTxIds: executed,
+                failedTxIds,
+                failureReason:
+                  error instanceof Error
+                    ? error.message
+                    : "Batch aborted after a mid-sequence failure",
+              });
+              return;
+            }
+            throw error;
+          }
           await resolveWalletRequest(req.id, {
             kind: "transaction",
             ...result,
