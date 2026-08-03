@@ -250,6 +250,15 @@ function openAddWallets() {
 }
 
 describe("WalletPicker", () => {
+  it("uses the shared light blurred backdrop", () => {
+    renderPicker(makeAdapter());
+
+    const backdrop = screen.getAllByRole("button", { name: "Close" })[0];
+    expect(backdrop).toHaveAttribute("data-slot", "modal-backdrop");
+    expect(backdrop.className).toContain("bg-black/20");
+    expect(backdrop.className).toContain("backdrop-blur-[3px]");
+  });
+
   it("quietly handles a rejected or unfinished wallet connection", async () => {
     const connectEvmWallet = vi.fn(async () => {
       throw Object.assign(

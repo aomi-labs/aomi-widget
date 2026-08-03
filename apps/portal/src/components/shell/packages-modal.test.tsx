@@ -92,7 +92,7 @@ describe("packages modal wiring", () => {
     expect(screen.queryByLabelText("Remove Aomi Core")).toBeNull();
   });
 
-  it("uses the same chat-pane modal geometry as settings", async () => {
+  it("uses the same full-frame modal geometry as settings", async () => {
     installFetchRecorder();
 
     await renderModal();

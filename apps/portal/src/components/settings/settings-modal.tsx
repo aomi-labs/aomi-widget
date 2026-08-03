@@ -3,6 +3,7 @@
 import { useState, type ComponentType } from "react";
 import { LineChart, Settings, Wallet, X } from "lucide-react";
 import { useAomiAuthAdapter } from "@aomi-labs/widget-lib";
+import { ModalBackdrop } from "@/components/ui/modal-backdrop";
 import { GeneralSettings } from "@portal/features/general";
 import { AccountSettings } from "@portal/features/account";
 import { UsageSettings } from "@portal/features/usage";
@@ -45,8 +46,8 @@ function GateNotice({
             Finish signing in
           </span>
           <span className="text-aomi-muted max-w-sm text-[13px]">
-            Your wallet is connected, but your account session isn’t set up
-            yet. Sign in to view and manage your settings.
+            Your wallet is connected, but your account session isn’t set up yet.
+            Sign in to view and manage your settings.
           </span>
           {detail && (
             <span className="text-aomi-danger max-w-sm text-[12px]">
@@ -106,9 +107,9 @@ function GateNotice({
 
 /**
  * Settings as a popup over the chat — the aomi-chat-design modal, built
- * entirely on the `aomi-*` design tokens: overlay dims the chat column (the
- * session panel stays visible), 900×600 panel, left nav, content header with
- * the active tab title and a close button.
+ * entirely on the `aomi-*` design tokens: overlay softens the full frame,
+ * 900×600 panel, left nav, content header with the active tab title and a
+ * close button.
  */
 export function SettingsModal({ onClose }: { onClose: () => void }) {
   const [tab, setTab] = useState<SettingsTab>("general");
@@ -135,7 +136,9 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
     }
     const errorBanner = status === "error" && (
       <div className="border-aomi-border bg-aomi-surface-2 text-aomi-muted mx-[22px] mt-4 flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-[13px]">
-        <span>Couldn’t refresh your account — some live data may be unavailable.</span>
+        <span>
+          Couldn’t refresh your account — some live data may be unavailable.
+        </span>
         <button
           type="button"
           onClick={retry}
@@ -180,11 +183,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
       className="absolute inset-0 flex items-center justify-center"
       style={{ zIndex: 60 }}
     >
-      <button
-        aria-label="Dismiss"
-        onClick={onClose}
-        className="absolute inset-0 bg-black/50"
-      />
+      <ModalBackdrop aria-label="Dismiss" onClick={onClose} />
       <div
         className="border-aomi-border bg-aomi-raised text-aomi-fg relative flex overflow-hidden rounded-2xl border"
         // Inline geometry: immune to Tailwind arbitrary-class scanning misses.

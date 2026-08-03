@@ -26,6 +26,7 @@ export { NotificationToaster } from "./components/ui/notification";
 // UI Components
 export { Button } from "./components/ui/button";
 export { Input } from "./components/ui/input";
+export { ModalBackdrop } from "./components/ui/modal-backdrop";
 export {
   Card,
   CardContent,

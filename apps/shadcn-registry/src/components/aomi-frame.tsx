@@ -15,7 +15,6 @@ import {
 } from "@aomi-labs/react";
 import { Thread } from "@/components/assistant-ui/thread";
 import { ThreadListSidebar } from "@/components/assistant-ui/threadlist-sidebar";
-import { NotificationToaster } from "@/components/ui/notification";
 import { RuntimeTxHandler } from "@/components/runtime-tx-handler";
 import {
   SidebarInset,
@@ -160,7 +159,6 @@ const Root: FC<RootProps> = ({
           <SidebarInset className="relative flex min-h-0 flex-col">
             {children}
           </SidebarInset>
-          <NotificationToaster />
           <RuntimeTxHandler />
         </div>
       </SidebarProvider>

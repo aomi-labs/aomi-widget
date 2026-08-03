@@ -42,7 +42,6 @@ export const registry: RegistryComponent[] = [
       aomi("assistant-threadlist-sidebar"),
       aomi("aomi-wallet-kit"),
       aomi("control-bar"),
-      aomi("notification"),
       aomi("runtime-tx-handler"),
       // shadcn primitives
       "separator",
@@ -148,6 +147,7 @@ export const registry: RegistryComponent[] = [
       "components/control-bar/wallet-account-model.ts",
       "components/control-bar/wallet-picker-context.tsx",
       "components/control-bar/wallet-icon-slot.tsx",
+      "components/ui/modal-backdrop.tsx",
       "components/icons/index.ts",
       "components/icons/auto-mode.tsx",
       "components/icons/app-map.tsx",
