@@ -183,7 +183,13 @@ const WorkingTrace: FC<{
   revealed: number;
   /** The turn delegated to child agents — announces the mode in the header. */
   orchestrating: boolean;
-}> = ({ running, items, revealed, orchestrating }) => {
+  /**
+   * When the turn actually started, if known. The card can mount long after
+   * the work began (the transcript part for a delegation only lands at the
+   * end), so mount time alone under-reports "Orchestrated for Ns" badly.
+   */
+  startedAtMs?: number;
+}> = ({ running, items, revealed, orchestrating, startedAtMs }) => {
   const [open, setOpen] = useState(running);
   const [expanded, setExpanded] = useState(false);
   const [overflowing, setOverflowing] = useState(false);
@@ -206,7 +212,12 @@ const WorkingTrace: FC<{
   const animRef = useRef<Animation | null>(null);
   const [elapsed, setElapsed] = useState<number | null>(null);
   const wasRunning = useRef(running);
-  const startedAt = useRef<number>(Date.now());
+  const startedAt = useRef<number>(startedAtMs ?? Date.now());
+  // An earlier anchor can arrive after mount (e.g. the first task_started
+  // event lands a beat later); only ever move the start backwards.
+  if (startedAtMs !== undefined && startedAtMs < startedAt.current) {
+    startedAt.current = startedAtMs;
+  }
 
   // How many items have already played their entrance. Survives the body's
   // collapse/remount (this component stays mounted), so an item only animates
@@ -693,6 +704,27 @@ export const AssistantTurnParts: FC = () => {
   );
   const revealed = Math.max(staggered, revealFloor);
 
+  // When the work actually began, for the header's "Orchestrated for Ns".
+  // Anchored to the earliest signal we have: the moment this turn was first
+  // seen running, or the earliest delegation's client-clock start — whichever
+  // is older. Mount time alone lies when the trace mounts late (a delegating
+  // turn's transcript part only lands at the very end).
+  const turnStartRef = useRef<number | null>(running ? Date.now() : null);
+  if (running && turnStartRef.current === null) {
+    turnStartRef.current = Date.now();
+  }
+  const earliestRunStart = items.reduce<number | null>(
+    (earliest, item) =>
+      item.kind === "agent" && item.run
+        ? Math.min(earliest ?? item.run.startedAt, item.run.startedAt)
+        : earliest,
+    null,
+  );
+  const startedAtMs =
+    turnStartRef.current !== null && earliestRunStart !== null
+      ? Math.min(turnStartRef.current, earliestRunStart)
+      : (turnStartRef.current ?? earliestRunStart ?? undefined);
+
   // Whether this turn was seen working live (vs. loaded already complete). Gates
   // the entrance/fake-stream so a reloaded thread doesn't replay the animation.
   const liveTurnRef = useRef(running);
@@ -739,6 +771,7 @@ export const AssistantTurnParts: FC = () => {
         items={items}
         revealed={revealed}
         orchestrating={orchestrating}
+        startedAtMs={startedAtMs}
       />
       {answerReady && answerText.length > 0 && (
         <div className="aui-working-answer">

@@ -42,6 +42,7 @@ import {
   cn,
   useCurrentThreadMetadata,
   useThreadContext,
+  useThreadTaskRuns,
 } from "@aomi-labs/react";
 import { useComposerControl } from "@/components/aomi-frame";
 import { AomiMark } from "@/components/aomi-mark";
@@ -426,8 +427,17 @@ const AssistantMessage: FC = () => {
     | { aomiNoticeKind?: string; aomiNoticeTitle?: string }
     | undefined;
   const isPaymentRequiredNotice = notice?.aomiNoticeKind === "payment_required";
+  // A live delegation must always reach AssistantTurnParts (which renders the
+  // agent row from the taskRuns sidecar even with no transcript parts). The
+  // turnPhase gate alone is not enough: on a thread whose metadata is not
+  // registered yet, updateTurnPhase no-ops and the phase reads "idle" for the
+  // whole run — the dot would sit on top of a fully-streaming delegation.
+  const taskRuns = useThreadTaskRuns();
+  const hasLiveTaskRun = Object.values(taskRuns).some(
+    (run) => run.status === "running",
+  );
   const showLoadingDot =
-    isEmpty && isRunning && isLast && turnPhase !== "working";
+    isEmpty && isRunning && isLast && turnPhase !== "working" && !hasLiveTaskRun;
   const showFinishedEmptyMessage = isEmpty && !isRunning;
 
   return (
