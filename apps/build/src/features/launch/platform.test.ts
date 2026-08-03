@@ -8,14 +8,15 @@ import {
 } from "./platform";
 
 describe("platformParam", () => {
-  it("trims, and treats absent or repeated params as none", () => {
+  it("trims, and defaults absent or repeated params to Community", () => {
     expect(platformParam("  somm.finance ")).toBe("somm.finance");
-    expect(platformParam(undefined)).toBeUndefined();
-    expect(platformParam("")).toBeUndefined();
-    expect(platformParam("   ")).toBeUndefined();
+    // Build has no unscoped view: no usable param means the default platform.
+    expect(platformParam(undefined)).toBe("community");
+    expect(platformParam("")).toBe("community");
+    expect(platformParam("   ")).toBe("community");
     // Next hands back an array when a param repeats; there is no single
     // platform to honour, so scope falls back to Community.
-    expect(platformParam(["a", "b"])).toBeUndefined();
+    expect(platformParam(["a", "b"])).toBe("community");
   });
 });
 

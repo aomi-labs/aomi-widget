@@ -46,7 +46,6 @@ const client = createLaunchClient({
 export function githubAppInstallUrl(args: {
   platform?: string;
   repo?: string;
-  mode?: "install" | "authorize";
   app?: number;
   returnTo?: string;
 }): Promise<string> {

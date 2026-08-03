@@ -17,6 +17,7 @@ import {
 } from "@build/features/launch/query-keys";
 import { writePlatform } from "@build/features/launch/platform";
 import { usePlatform } from "@build/features/launch/use-platform";
+import { DEFAULT_DEPLOY_PLATFORM } from "@build/lib/deploy-platform";
 
 export function PlatformSwitcher({
   currentPlatform,
@@ -90,10 +91,12 @@ export function PlatformSwitcher({
 
   function useCommunity() {
     if (checking) return;
-    setValue("community");
+    setValue(DEFAULT_DEPLOY_PLATFORM);
     setError(null);
-    writePlatform("community");
-    router.push("/projects?platform=community");
+    writePlatform(DEFAULT_DEPLOY_PLATFORM);
+    router.push(
+      `/projects?platform=${encodeURIComponent(DEFAULT_DEPLOY_PLATFORM)}`,
+    );
   }
 
   return (

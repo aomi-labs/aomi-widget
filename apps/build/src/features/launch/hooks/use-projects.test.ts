@@ -61,7 +61,7 @@ function wrapper() {
 describe("useProjects", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("loads app projects off the shared session and omits empty sources", async () => {
+  it("loads app projects off the shared session, empty sources included", async () => {
     const { result } = renderHook(() => useProjects(), {
       wrapper: wrapper(),
     });
@@ -71,8 +71,12 @@ describe("useProjects", () => {
     expect(fetchGitHubSession).toHaveBeenCalledTimes(1);
     expect(deploymentFeed).not.toHaveBeenCalled();
     if (result.current.state.status === "ready") {
-      expect(result.current.state.sources).toHaveLength(1);
+      // A claimed source with no apps yet (fresh connect) is a real project.
+      expect(result.current.state.sources).toHaveLength(2);
       expect(result.current.state.sources[0]?.repositoryLink).toBe("a/b");
+      expect(result.current.state.sources[1]?.repositoryLink).toBe(
+        "a/historical-repo",
+      );
     }
   });
 

@@ -18,6 +18,7 @@ import {
   type UserSource,
 } from "@build/features/launch";
 import { readPlatform } from "@build/features/launch/platform";
+import { DEFAULT_DEPLOY_PLATFORM } from "@build/lib/deploy-platform";
 import { OneshotWizard } from "./oneshot-wizard";
 
 const PATH = "oneshot" as const;
@@ -246,7 +247,7 @@ export function Onboarding({
       // backend falls back to the *portal's* settings page — a different app.
       // An unscoped Build page is the Community platform, so say so and come
       // back here.
-      const target = platform || readPlatform() || "community";
+      const target = platform || readPlatform() || DEFAULT_DEPLOY_PLATFORM;
       window.location.href = await githubAppInstallUrl({
         app: 2,
         platform: target,

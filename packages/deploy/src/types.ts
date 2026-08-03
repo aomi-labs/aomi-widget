@@ -416,7 +416,6 @@ export interface AppSource {
   boundPlatformName?: string | null;
   createdBy?: string | null;
   templateRepo?: string | null;
-  launchSourceKind?: string | null;
 }
 
 export interface SyncSourceInput extends BearerOverride {

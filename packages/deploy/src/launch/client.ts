@@ -401,13 +401,14 @@ export function createLaunchClient(options: LaunchClientOptions = {}) {
     },
 
     /**
-     * Ask the backend for the GitHub App install (or authorize) URL. Reaches
+     * Ask the backend for the GitHub entry URL. The backend picks the
+     * ceremony — OAuth consent when an installation already covers the repo,
+     * the install flow otherwise — so callers never choose a mode. Reaches
      * the backend through `backendFetch` — same-origin widget proxy by default.
      */
     async githubAppInstallUrl(args: {
       platform?: string;
       repo?: string;
-      mode?: "install" | "authorize";
       app?: number;
       /** Validated Aomi Build page the OAuth callback should land back on. */
       returnTo?: string;
@@ -417,7 +418,6 @@ export function createLaunchClient(options: LaunchClientOptions = {}) {
       if (platform) params.set("platform", platform);
       const repo = args.repo ? normalizeRepo(args.repo) : null;
       if (repo) params.set("repo", repo);
-      if (args.mode === "authorize") params.set("mode", "authorize");
       if (args.app && args.app !== 1) params.set("app", String(args.app));
       const returnTo = args.returnTo?.trim();
       if (returnTo) params.set("return_to", returnTo);

@@ -70,7 +70,7 @@ stateDiagram-v2
 
 | Endpoint                                                                      | Purpose                                                                                                                                                                                     |
 | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /api/integrations/github-app/oauth/start?platform&repo&mode&return_to`   | mint signed `state`, return GitHub `install_url`. A validated Aomi Build Projects `return_to` is signed with the exact platform and repo; `mode=authorize` re-verifies an existing install. |
+| `GET /api/integrations/github-app/oauth/start?platform&repo&return_to`   | mint signed `state`, return the GitHub entry URL. A validated Aomi Build Projects `return_to` is signed with the exact platform and repo. The backend picks the ceremony: a repo already covered by an installation gets the OAuth consent URL, an uncovered (or absent) repo gets the install URL. |
 | `GET /api/integrations/github-app/oauth/callback`                             | validate `state`, exchange `code`, prove one visible installation reads the signed repo, bind `app_source`, then **303 → the signed Build Projects page**.                                  |
 | `POST /api/integrations/github-app/webhook`                                   | (HMAC) installation events → **upsert `app_source`**                                                                                                                                        |
 | `POST /api/platforms/:platform/sources/{create-from-template,sync-installed}` | create repo from template / resolve+upsert an existing install to get `app_source.id`                                                                                                       |
@@ -152,7 +152,8 @@ sequenceDiagram
 
 **Recovery — "Verify existing install":** if the OAuth redirect is lost (e.g. a
 dead tunnel) but the App is already installed, the FE calls `oauth/start` with
-`mode=authorize`; on return the BFF route `POST /api/launch/sync-installed`
+the repo — the backend sees the existing installation and returns the OAuth
+consent URL; on return the BFF route `POST /api/launch/sync-installed`
 → BE `…/sources/sync-installed` resolves the install via the App and upserts
 `app_source`, so the wizard advances without a fresh install.
 

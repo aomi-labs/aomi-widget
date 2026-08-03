@@ -10,10 +10,8 @@ export default async function NewOperateDeploymentPage({
   return (
     <NewProject
       platform={platform}
-      backHref={
-        platform ? platformHref("/projects", platform) : "/operate/deployments"
-      }
-      backLabel={platform ? "Projects" : "Deployments"}
+      backHref={platformHref("/projects", platform)}
+      backLabel="Projects"
     />
   );
 }

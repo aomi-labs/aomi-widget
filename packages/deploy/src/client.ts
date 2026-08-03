@@ -2161,7 +2161,6 @@ function camelAppSource(raw: unknown): AppSource {
     boundPlatformName: s.bound_platform_name ?? null,
     createdBy: s.created_by ?? s.createdBy ?? null,
     templateRepo: s.template_repo ?? s.templateRepo ?? null,
-    launchSourceKind: s.launch_source_kind ?? s.launchSourceKind ?? null,
   };
 }
 

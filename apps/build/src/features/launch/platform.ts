@@ -33,7 +33,17 @@ export function writePlatform(platform: string | null) {
   }
 }
 
-export { platformParam } from "@aomi-labs/deploy/launch";
+import { platformParam as rawPlatformParam } from "@aomi-labs/deploy/launch";
+import { DEFAULT_DEPLOY_PLATFORM } from "@build/lib/deploy-platform";
+
+/**
+ * The platform a page renders against. Build has no unscoped view — every
+ * source is bound to exactly one platform, and a URL without `?platform=`
+ * means the default (Community).
+ */
+export function platformParam(value: string | string[] | undefined): string {
+  return rawPlatformParam(value) ?? DEFAULT_DEPLOY_PLATFORM;
+}
 
 /** Routes that understand `?platform=`. Anything else is left alone. */
 function isPlatformScoped(href: string): boolean {

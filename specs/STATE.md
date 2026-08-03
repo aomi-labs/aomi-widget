@@ -2,6 +2,56 @@
 
 ## Last Updated
 
+2026-08-02 — PLATFORM-BINDING INVARIANT, E2E (FE worktree platform-switch +
+  BE worktree somm-repo-connect/product-mono branch
+  codex/build-existing-repo-oauth, both uncommitted; BE sits on top of the
+  merged h4n0 PR #907). Design: a source is either DISCOVERED (unowned,
+  unbound, invisible) or CLAIMED (one owner, exactly one platform, visible on
+  that platform's page only); Build has no unscoped view — no `?platform=`
+  means Community.
+  BE (product-mono):
+  - NEW migration 20260803000000_app_source_platform_backfill.sql — bucket 1
+    infers bound_platform_id from apps' platform_id (multi-platform rows
+    skipped for operator repair, verify-SELECT in the header), bucket 2 binds
+    owned-but-unbound to community, then CHECK app_source_owned_implies_bound
+    (owner NULL OR platform NOT NULL). All write paths audited: oneshot
+    insert + claim_user_and_platform set both, webhook upsert sets neither,
+    bind_platform only adds — admin-bound-unowned stays legal.
+  - endpoints/github_app.rs: LaunchSourceKind (oneshot-everywhere +
+    deployed-app grandfathering + Other) DELETED; platform-scoped
+    list/latest-deployment/history/loader now gate on source_on_platform()
+    equality; launch_source_kind dropped from the wire; presenter dissolved
+    into free deployment_json{,_from_row}; app_loaded lost its vestigial
+    platform param (obs monitoring/detail/batch updated).
+  - handler.rs: check_source_deploy_platform is STRICT equality (unbound only
+    passes preflight, mirroring check_source_deploy_owner); grandfathering
+    deleted — cross-platform rows (bound A, serving on B) now 403 redeploys
+    until operator repair; gate tests rewritten (8/8 green).
+  - oauth/start: `mode` param KILLED — with a repo the backend checks
+    repo_has_installation() (new GitHubApp helper, 404→false) and returns the
+    OAuth consent URL when covered, install URL when not; no repo → install.
+  - Verified: cargo check -p manager --tests clean; gate unit tests 8/8.
+    DB-backed tests refuse locally (hosted-DB guard) — CI covers them. No
+    clippy/build run (Cecilia: no memory-heavy ops).
+  FE (this repo):
+  - platform.ts: platformParam now DEFAULTS to DEFAULT_DEPLOY_PLATFORM
+    ("community"); usePlatform returns string (defaults too); hardcoded
+    "community" literals in onboarding/platform-switcher/home-redirect
+    replaced with the constant; deployments/new backHref always Projects.
+  - githubAppInstallUrl lost `mode` (packages/deploy client + build client);
+    launchSourceKind deleted from UserSource type + camel mapper.
+  - use-projects.ts: hasApps filter DROPPED — claimed zero-app sources render
+    as "Connected — not deployed yet" (project-deployment-status empty
+    branch), fixing connect-success-banner-over-missing-row.
+  - docs/fe-deploy.md oauth/start rows updated (backend picks the ceremony).
+  - Verified: apps/build vitest 416 passed/12 skipped (69 files),
+    packages/deploy 136/136, tsc clean both, eslint clean on touched files.
+  PENDING/handoff: run the migration's verify-SELECT against staging+prod and
+  hand-repair any multi-platform or cross-platform rows BEFORE deploying the
+  strict gate; deploy order migration → BE → FE; AOMI_BUILD_URL must be set
+  on staging/prod backends or return_to is rejected; commits/pushes are
+  Cecilia's (BE branch also has 4 unpushed commits incl. the #907 merge).
+
 2026-08-01 (later) — Integrations page REDESIGN PORTED TO THE REAL PAGE
   (same worktree/branch, uncommitted). Design was iterated with Cecilia on
   /mock-integration, then moved wholesale:

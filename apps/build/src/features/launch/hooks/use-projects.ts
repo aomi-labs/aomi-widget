@@ -27,10 +27,6 @@ export type ProjectsState =
     }
   | { status: "error"; error: string };
 
-function hasApps(source: UserSource) {
-  return source.apps.length > 0;
-}
-
 export function useProjects(platform?: string) {
   // The GitHub session comes from the shell-level provider — reusing it here
   // avoids a second `/auth/github/status` round trip on every page mount.
@@ -69,9 +65,11 @@ export function useProjects(platform?: string) {
       return { status: "error", error: message };
     }
     const { loading: _loading, ...github } = account;
+    // Every listed source is deliberately claimed onto this platform — a
+    // freshly connected repo with no apps yet is a real project, not noise.
     return {
       status: "ready",
-      sources: (projects.data?.sources ?? []).filter(hasApps),
+      sources: projects.data?.sources ?? [],
       sdk: sdk.data ?? null,
       github,
     };
