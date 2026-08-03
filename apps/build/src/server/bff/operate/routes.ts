@@ -375,23 +375,33 @@ export function clearOperateCachesForTesting() {
   Object.values(readCache).forEach((cache) => cache.clear());
 }
 
-async function ownedSources(req: Request): Promise<
-  | {
-      response: Response;
-    }
-  | {
-      githubUserId: string;
-      platform: string;
-      sources: UserSource[];
-      client: DeploymentClientInstance;
-    }
-> {
+type OperateScope = {
+  githubUserId: string;
+  platform: string;
+  sources: UserSource[];
+  client: DeploymentClientInstance;
+};
+
+/** Session, platform, and a live client — everything a read needs *except* the
+ *  source list, which costs its own manager round trip. Splitting it out lets
+ *  the account-wide reads start their real query immediately instead of
+ *  waterfalling behind a list they only use to populate a filter dropdown. */
+type OperateSession = {
+  githubUserId: string;
+  platform: string;
+  client: DeploymentClientInstance;
+  /** The signed-in user's sources, resolved lazily and cached per request. */
+  sources: () => Promise<UserSource[]>;
+};
+
+async function operateSession(
+  req: Request,
+): Promise<{ response: Response } | OperateSession> {
   try {
     const auth = await authorize(req);
     if ("response" in auth) return auth;
     const { session } = auth;
     const config = launchConfig();
-    const client = await deploymentClient();
     const params = new URL(req.url).searchParams;
     const platform = resolveLaunchPlatform(
       params.get("platform") ?? undefined,
@@ -405,47 +415,18 @@ async function ownedSources(req: Request): Promise<
         ),
       };
     }
-    const requestedSourceId = Number(params.get("appSourceId"));
-    const sources = await readCache.sources.get(
-      [session.githubUserId, platform],
-      () =>
-        client.listUserSources({
-          githubUserId: session.githubUserId,
-          platform,
-        }),
-    );
-    if (params.has("appSourceId")) {
-      if (!isValidAppSourceId(requestedSourceId)) {
-        return {
-          response: NextResponse.json(
-            { error: "missing or invalid `appSourceId`" },
-            { status: 400 },
-          ),
-        };
-      }
-      const source = sources.find(
-        (candidate) => candidate.id === requestedSourceId,
-      );
-      if (!source) {
-        return {
-          response: NextResponse.json(
-            { error: "source not found for this user" },
-            { status: 404 },
-          ),
-        };
-      }
-      return {
-        githubUserId: session.githubUserId,
-        platform,
-        sources: [source],
-        client,
-      };
-    }
+    const client = await deploymentClient();
     return {
       githubUserId: session.githubUserId,
       platform,
-      sources,
       client,
+      sources: () =>
+        readCache.sources.get([session.githubUserId, platform], () =>
+          client.listUserSources({
+            githubUserId: session.githubUserId,
+            platform,
+          }),
+        ),
     };
   } catch (err) {
     return {
@@ -460,6 +441,96 @@ async function ownedSources(req: Request): Promise<
       }).response,
     };
   }
+}
+
+/** A single-source scope: `appSourceId` is validated as this user's, so the
+ *  source list is genuinely on the critical path. Also the scope for reads
+ *  whose whole answer is the list itself (bots, model keys). */
+async function ownedSources(
+  req: Request,
+): Promise<{ response: Response } | OperateScope> {
+  const session = await operateSession(req);
+  if ("response" in session) return session;
+  try {
+    const params = new URL(req.url).searchParams;
+    const sources = await session.sources();
+    if (!params.has("appSourceId")) {
+      return { ...session, sources };
+    }
+    const requestedSourceId = Number(params.get("appSourceId"));
+    if (!isValidAppSourceId(requestedSourceId)) {
+      return {
+        response: NextResponse.json(
+          { error: "missing or invalid `appSourceId`" },
+          { status: 400 },
+        ),
+      };
+    }
+    const source = sources.find(
+      (candidate) => candidate.id === requestedSourceId,
+    );
+    if (!source) {
+      return {
+        response: NextResponse.json(
+          { error: "source not found for this user" },
+          { status: 404 },
+        ),
+      };
+    }
+    return { ...session, sources: [source] };
+  } catch (err) {
+    return {
+      response: buildFailures.handle({
+        source: "launch",
+        error: err,
+        context: {
+          routeFamily: new URL(req.url).pathname,
+          operation: "operate.owned_sources",
+          method: req.method,
+        },
+      }).response,
+    };
+  }
+}
+
+/** Scope for the account-wide reads. `sources` is a lazy, memoised thunk
+ *  rather than a resolved list — calling it STARTS the read, so a route kicks
+ *  it off before awaiting its own manager query and `Promise.all`s the two
+ *  together. Routes whose response never mentions the source list (payments)
+ *  simply never call it and pay nothing for it.
+ *
+ *  A request that names an `appSourceId` falls back to the resolved scope,
+ *  because the id must be proven to belong to this user before it can be
+ *  forwarded to the manager. */
+async function batchScope(req: Request): Promise<
+  | { response: Response }
+  | {
+      githubUserId: string;
+      platform: string;
+      client: DeploymentClientInstance;
+      /** Set only for a single-source view; already validated as owned. */
+      appSourceId: number | undefined;
+      sources: () => Promise<UserSource[]>;
+    }
+> {
+  if (new URL(req.url).searchParams.has("appSourceId")) {
+    const owned = await ownedSources(req);
+    if ("response" in owned) return owned;
+    return {
+      ...owned,
+      appSourceId: owned.sources[0]?.id,
+      sources: () => Promise.resolve(owned.sources),
+    };
+  }
+  const session = await operateSession(req);
+  if ("response" in session) return session;
+  return {
+    githubUserId: session.githubUserId,
+    platform: session.platform,
+    client: session.client,
+    appSourceId: undefined,
+    sources: session.sources,
+  };
 }
 
 export async function operateBotsRoute(req: Request) {
@@ -762,8 +833,10 @@ export async function operateModelKeysDeleteRoute(req: Request) {
 
 export async function operateTransactionsRoute(req: Request) {
   try {
-    const owned = await ownedSources(req);
-    if ("response" in owned) return owned.response;
+    const scope = await batchScope(req);
+    if ("response" in scope) return scope.response;
+    // Started before the reads below so it overlaps them.
+    const sourcesPending = scope.sources();
     const params = new URL(req.url).searchParams;
     const limit = pageLimit(params, 50, 100);
     const cursor = parseCompositeCursor(params.get("cursor"));
@@ -777,44 +850,47 @@ export async function operateTransactionsRoute(req: Request) {
     // platform, which also covers partner-bound sources. A single-source view
     // stays on the per-source reads — one call each, and the cursor there is
     // per-source anyway.
+    //
+    // The source list resolves alongside them rather than ahead of them: it
+    // only feeds the filter dropdown, so making the page's real reads wait on
+    // it added a whole manager round trip to first paint.
     let batch: {
       page: UserTransactionsResult;
       statements: OperateStatementResult[];
     } | null = null;
-    if (!params.has("appSourceId")) {
-      batch = await (async () => {
-        const [page, statements] = await Promise.all([
-          readCache.transactionsBatch.get(
-            [
-              owned.githubUserId,
-              requestedPlatform ?? null,
-              { limit, status, cursor: cursor?.batch ?? null },
-            ],
-            () =>
-              owned.client.listUserTransactions({
-                githubUserId: owned.githubUserId,
-                platform: requestedPlatform,
-                limit,
-                status,
-                cursor: (cursor?.batch ?? undefined) as
-                  | OperateTransactionCursor
-                  | undefined,
-              }),
-          ),
-          cursor
-            ? Promise.resolve([] as OperateStatementResult[])
-            : readCache.statementsBatch.get(
-                [owned.githubUserId, requestedPlatform ?? null, null, null],
-                () =>
-                  owned.client.getUserStatements({
-                    githubUserId: owned.githubUserId,
-                    platform: requestedPlatform,
-                  }),
-              ),
-        ]);
-        return { page, statements };
-      })();
+    if (scope.appSourceId === undefined) {
+      const [page, statements] = await Promise.all([
+        readCache.transactionsBatch.get(
+          [
+            scope.githubUserId,
+            requestedPlatform ?? null,
+            { limit, status, cursor: cursor?.batch ?? null },
+          ],
+          () =>
+            scope.client.listUserTransactions({
+              githubUserId: scope.githubUserId,
+              platform: requestedPlatform,
+              limit,
+              status,
+              cursor: (cursor?.batch ?? undefined) as
+                | OperateTransactionCursor
+                | undefined,
+            }),
+        ),
+        cursor
+          ? Promise.resolve([] as OperateStatementResult[])
+          : readCache.statementsBatch.get(
+              [scope.githubUserId, requestedPlatform ?? null, null, null],
+              () =>
+                scope.client.getUserStatements({
+                  githubUserId: scope.githubUserId,
+                  platform: requestedPlatform,
+                }),
+            ),
+      ]);
+      batch = { page, statements };
     }
+    const owned = { ...scope, sources: await sourcesPending };
 
     let appTransactions: Array<Record<string, any>>;
     let statements: OperateStatementResult[];
@@ -1002,8 +1078,10 @@ export async function operateTransactionsRoute(req: Request) {
 
 export async function operateUsageRoute(req: Request) {
   try {
-    const owned = await ownedSources(req);
-    if ("response" in owned) return owned.response;
+    const scope = await batchScope(req);
+    if ("response" in scope) return scope.response;
+    // Started before the reads below so it overlaps them.
+    const sourcesPending = scope.sources();
     const params = new URL(req.url).searchParams;
     const dates = {
       fromDate: params.get("fromDate") ?? undefined,
@@ -1013,46 +1091,46 @@ export async function operateUsageRoute(req: Request) {
 
     // Account-wide reads go through the manager's batch endpoints — one usage
     // sweep plus one statement sweep — instead of 2×N per-source reads. A
-    // single-source view stays on the per-source reads (one call each).
+    // single-source view stays on the per-source reads (one call each). The
+    // source list resolves alongside, not ahead: it only feeds the dropdown.
     let batch: {
       usage: OperateUsageResult[];
       statements: OperateStatementResult[];
     } | null = null;
-    if (!params.has("appSourceId")) {
-      batch = await (async () => {
-        const [usage, statements] = await Promise.all([
-          readCache.usageBatch.get(
-            [
-              owned.githubUserId,
-              requestedPlatform ?? null,
-              dates.fromDate ?? null,
-              dates.toDate ?? null,
-            ],
-            () =>
-              owned.client.getUserUsage({
-                githubUserId: owned.githubUserId,
-                platform: requestedPlatform,
-                ...dates,
-              }),
-          ),
-          readCache.statementsBatch.get(
-            [
-              owned.githubUserId,
-              requestedPlatform ?? null,
-              dates.fromDate ?? null,
-              dates.toDate ?? null,
-            ],
-            () =>
-              owned.client.getUserStatements({
-                githubUserId: owned.githubUserId,
-                platform: requestedPlatform,
-                ...dates,
-              }),
-          ),
-        ]);
-        return { usage, statements };
-      })();
+    if (scope.appSourceId === undefined) {
+      const [usage, statements] = await Promise.all([
+        readCache.usageBatch.get(
+          [
+            scope.githubUserId,
+            requestedPlatform ?? null,
+            dates.fromDate ?? null,
+            dates.toDate ?? null,
+          ],
+          () =>
+            scope.client.getUserUsage({
+              githubUserId: scope.githubUserId,
+              platform: requestedPlatform,
+              ...dates,
+            }),
+        ),
+        readCache.statementsBatch.get(
+          [
+            scope.githubUserId,
+            requestedPlatform ?? null,
+            dates.fromDate ?? null,
+            dates.toDate ?? null,
+          ],
+          () =>
+            scope.client.getUserStatements({
+              githubUserId: scope.githubUserId,
+              platform: requestedPlatform,
+              ...dates,
+            }),
+        ),
+      ]);
+      batch = { usage, statements };
     }
+    const owned = { ...scope, sources: await sourcesPending };
 
     let results: OperateUsageResult[];
     let allStatements: OperateStatementResult[];
@@ -1176,8 +1254,6 @@ export async function operateUsageRoute(req: Request) {
 
 export async function operateLogsRoute(req: Request) {
   try {
-    const owned = await ownedSources(req);
-    if ("response" in owned) return owned.response;
     const params = new URL(req.url).searchParams;
     const limit = pageLimit(params, 100, 200);
     const cursor = parseCompositeCursor(params.get("cursor"));
@@ -1190,39 +1266,47 @@ export async function operateLogsRoute(req: Request) {
     // none of the per-source merge/dedupe below applies. A single-source view
     // stays on the per-source read.
     if (!params.has("appSourceId")) {
-      const batch = await readCache.logsBatch.get(
-        [
-          owned.githubUserId,
-          requestedPlatform ?? null,
-          { limit, type, cursor: cursor?.batch ?? null },
-        ],
-        () =>
-          owned.client.listUserLogs({
-            githubUserId: owned.githubUserId,
-            platform: requestedPlatform,
-            limit,
-            type,
-            cursor: (cursor?.batch ?? undefined) as
-              | OperateLogCursor
-              | undefined,
-          }),
-      );
+      const scope = await batchScope(req);
+      if ("response" in scope) return scope.response;
+      const sourcesPending = scope.sources();
+      const [batch, sources] = await Promise.all([
+        readCache.logsBatch.get(
+          [
+            scope.githubUserId,
+            requestedPlatform ?? null,
+            { limit, type, cursor: cursor?.batch ?? null },
+          ],
+          () =>
+            scope.client.listUserLogs({
+              githubUserId: scope.githubUserId,
+              platform: requestedPlatform,
+              limit,
+              type,
+              cursor: (cursor?.batch ?? undefined) as
+                | OperateLogCursor
+                | undefined,
+            }),
+        ),
+        sourcesPending,
+      ]);
       const sourceById = new Map(
         batch.sources.map((ref) => [ref.source.id, ref.source]),
       );
       return NextResponse.json({
-        sources: owned.sources,
+        sources,
         logs: batch.logs.map(({ appSourceId, platform, ...log }) => ({
           ...log,
           source:
             (appSourceId != null ? sourceById.get(appSourceId) : undefined) ??
             null,
-          platform: platform ?? owned.platform,
+          platform: platform ?? scope.platform,
         })),
         nextCursor: batch.nextCursor ? { batch: batch.nextCursor } : null,
       });
     }
 
+    const owned = await ownedSources(req);
+    if ("response" in owned) return owned.response;
     const logReads = await settleBySource<OperateLogsResult>(
       owned.sources,
       "operate.logs_source",
@@ -1310,27 +1394,31 @@ export async function operateLogsRoute(req: Request) {
 
 export async function operateObservabilityRoute(req: Request) {
   try {
-    const owned = await ownedSources(req);
-    if ("response" in owned) return owned.response;
+    const requestedPlatform =
+      new URL(req.url).searchParams.get("platform") ?? undefined;
+    const scope = await batchScope(req);
+    if ("response" in scope) return scope.response;
+    const { appSourceId } = scope;
+    // Kick the dropdown's source list off first so it overlaps the snapshot
+    // below rather than following it.
+    const sourcesPending = scope.sources();
+
     // One manager request for the whole account. Without an explicit
     // `platform` filter the manager resolves each source under its own
     // bound/loaded platform, which also covers partner-bound sources that the
     // per-source read rejects as not launch-relevant on the default platform.
-    const params = new URL(req.url).searchParams;
-    const requestedPlatform = params.get("platform") ?? undefined;
-    const appSourceId = params.has("appSourceId")
-      ? owned.sources[0]?.id
-      : undefined;
-    const results: OperateObservabilitySnapshot[] =
-      await readCache.observabilityBatch.get(
-        [owned.githubUserId, requestedPlatform ?? null, appSourceId ?? null],
+    const [results, sources] = await Promise.all([
+      readCache.observabilityBatch.get(
+        [scope.githubUserId, requestedPlatform ?? null, appSourceId ?? null],
         () =>
-          owned.client.getUserObservability({
-            githubUserId: owned.githubUserId,
+          scope.client.getUserObservability({
+            githubUserId: scope.githubUserId,
             platform: requestedPlatform,
             appSourceId,
           }),
-      );
+      ) as Promise<OperateObservabilitySnapshot[]>,
+      sourcesPending,
+    ]);
     const apps = results.flatMap((result) =>
       result.apps.map((app) => ({
         ...app,
@@ -1341,7 +1429,7 @@ export async function operateObservabilityRoute(req: Request) {
     return NextResponse.json({
       // Every source the account owns, not just the ones this read covered:
       // the filter dropdown is how a user loads one source on its own.
-      sources: owned.sources,
+      sources,
       scope: "owned_applications",
       monitoring: {
         provider: "grafana_prometheus",
@@ -1363,21 +1451,21 @@ export async function operateObservabilityRoute(req: Request) {
   }
 }
 
-/** Optional ledger card for the observability page; never blocks its snapshot. */
+/** Optional ledger card for the observability page; never blocks its snapshot.
+ *  The response is derived purely from the ledger read, so the source list is
+ *  never awaited here at all. */
 export async function operatePaymentsRoute(req: Request) {
   try {
-    const owned = await ownedSources(req);
-    if ("response" in owned) return owned.response;
-    const params = new URL(req.url).searchParams;
-    const requestedPlatform = params.get("platform") ?? undefined;
-    const appSourceId = params.has("appSourceId")
-      ? owned.sources[0]?.id
-      : undefined;
+    const scope = await batchScope(req);
+    if ("response" in scope) return scope.response;
+    const requestedPlatform =
+      new URL(req.url).searchParams.get("platform") ?? undefined;
+    const { appSourceId } = scope;
     const results = await readCache.paymentsBatch.get(
-      [owned.githubUserId, requestedPlatform ?? null, appSourceId ?? null],
+      [scope.githubUserId, requestedPlatform ?? null, appSourceId ?? null],
       () =>
-        owned.client.getUserPayments({
-          githubUserId: owned.githubUserId,
+        scope.client.getUserPayments({
+          githubUserId: scope.githubUserId,
           platform: requestedPlatform,
           appSourceId,
         }),

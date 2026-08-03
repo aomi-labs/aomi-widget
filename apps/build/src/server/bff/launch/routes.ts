@@ -25,6 +25,7 @@ import {
   isValidRepo,
 } from "@build/lib/validate-input";
 import { authorize, rateLimit } from "@build/server/bff/auth";
+import { mapWithConcurrency } from "@build/server/bff/concurrency";
 
 const CREATED_REPO_PREFIX = "my-playground";
 
@@ -90,12 +91,40 @@ function cachedUserSources(
 // the redeploy flow's `reload()` after preflight would read a stale list and
 // the required-secrets gate could fail for an app the UI has no row for.
 const READ_CACHE_TTL_MS = 15_000;
+
+// Release manifests are looked up by (platformRepo, releaseTag) and change only
+// when a release's assets are re-uploaded — rare, but possible, so this is a
+// short TTL rather than a permanent memo. Long enough that the apps on one
+// project share a lookup and a tab revisit is free; short enough that a
+// re-uploaded manifest is picked up without a deploy.
+const RELEASE_MANIFEST_TTL_MS = 5 * 60_000;
+
+// Required-secret checks fan out per app to GitHub. Bounded so a project with
+// many apps cannot open an unbounded burst against the shared token's rate
+// limit, but wide enough that the common 1–4 app project is one wave.
+const RELEASE_MANIFEST_CONCURRENCY = 4;
+
 const readCache = {
   sources: new TimedPromiseCache<OwnedSource[]>(READ_CACHE_TTL_MS),
   serverTags: new TimedPromiseCache<
     Awaited<ReturnType<DeploymentClientInstance["serverTags"]>>
   >(READ_CACHE_TTL_MS),
+  releaseSlots: new TimedPromiseCache<Record<string, SecretSlot[]>>(
+    RELEASE_MANIFEST_TTL_MS,
+  ),
 };
+
+/** Secret slots declared by a release, memoised per (repo, tag). */
+function releaseSecretSlots(input: {
+  platformRepo: string;
+  releaseTag: string;
+  githubToken: string;
+}): Promise<Record<string, SecretSlot[]>> {
+  return readCache.releaseSlots.get(
+    [input.platformRepo, input.releaseTag],
+    () => fetchReleaseSecretSlots(input),
+  );
+}
 
 export function clearLaunchReadCache() {
   Object.values(readCache).forEach((cache) => cache.clear());
@@ -1455,32 +1484,42 @@ export async function requiredSecretsRoute(req: Request) {
       sourceId: String(source.id),
     });
 
-    const byApp: Record<string, { slots: SecretSlot[]; missing: string[] }> =
-      {};
-    for (const app of source.apps) {
-      const releaseTag = app.appReleaseTag;
-      const slots =
-        githubToken && platformRepo && releaseTag
-          ? ((
-              await fetchReleaseSecretSlots({
-                platformRepo,
-                releaseTag,
-                githubToken,
-              })
-            )[app.name] ?? [])
-          : [];
-      const configuredKeys = (configured.byApp[app.name] ?? []).map(
-        (handle) => handle.split("::").pop() ?? handle,
-      );
-      byApp[app.name] = {
-        slots,
-        missing: missingRequiredSecrets(slots, configuredKeys).map(
-          (slot) => slot.name,
-        ),
-      };
-    }
+    // One GitHub round trip per app, run in bounded parallel and memoised per
+    // (repo, tag). Serially awaiting each app's manifest put every app's
+    // GitHub latency end-to-end on the Deployments tab's critical path, and
+    // apps on one project usually share a release tag — so the common case is
+    // now a single lookup rather than one per app.
+    const entries = await mapWithConcurrency(
+      source.apps,
+      RELEASE_MANIFEST_CONCURRENCY,
+      async (app) => {
+        const releaseTag = app.appReleaseTag;
+        const slots =
+          platformRepo && releaseTag
+            ? ((
+                await releaseSecretSlots({
+                  platformRepo,
+                  releaseTag,
+                  githubToken,
+                })
+              )[app.name] ?? [])
+            : [];
+        const configuredKeys = (configured.byApp[app.name] ?? []).map(
+          (handle) => handle.split("::").pop() ?? handle,
+        );
+        return [
+          app.name,
+          {
+            slots,
+            missing: missingRequiredSecrets(slots, configuredKeys).map(
+              (slot) => slot.name,
+            ),
+          },
+        ] as const;
+      },
+    );
 
-    return NextResponse.json({ byApp });
+    return NextResponse.json({ byApp: Object.fromEntries(entries) });
   } catch (err) {
     return buildFailures.handle({
       source: "launch",

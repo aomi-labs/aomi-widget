@@ -1607,6 +1607,165 @@ describe("requiredSecretsRoute", () => {
     expect(telemetry.capture).toHaveBeenCalledOnce();
     expect(telemetry.log).not.toHaveBeenCalled();
   });
+
+  /** Apps on one project normally ship in the same release, and the manifest
+   *  lookup is keyed by (platformRepo, releaseTag). Three apps on one tag must
+   *  cost one release lookup and one asset read — not three of each — and each
+   *  app must still get its own slots out of the shared manifest. */
+  it("reads a shared release manifest once for every app on the tag", async () => {
+    vi.stubEnv("GITHUB_TOKEN", "gh-token");
+    const manifest = {
+      plugins: {
+        alpha: {
+          secrets: [{ name: "ALPHA_KEY", description: "a", required: true }],
+        },
+        beta: {
+          secrets: [{ name: "BETA_KEY", description: "b", required: true }],
+        },
+        gamma: {
+          secrets: [{ name: "GAMMA_KEY", description: "g", required: true }],
+        },
+      },
+    };
+    // Route by URL rather than call order: the fan-out is concurrent now, so
+    // the apps' manifest reads have no deterministic sequence.
+    const fetchMock = vi.fn(async (input: unknown) => {
+      const url = String(input);
+      if (url.includes("/latest-deployment")) {
+        return latestDeploymentResponse("aomi-labs/community");
+      }
+      if (url.includes("/user/sources")) {
+        return Response.json({
+          sources: [
+            {
+              id: 42,
+              installation_id: 555,
+              apps: ["alpha", "beta", "gamma"].map((name) => ({
+                name,
+                app_release_tag: "shared-v1",
+              })),
+              latest_deployment: null,
+            },
+          ],
+        });
+      }
+      if (url.includes("secrets")) return Response.json({ by_app: {} });
+      if (url.includes("/releases/tags/")) {
+        return Response.json({
+          assets: [
+            { name: "manifest.json", url: "https://api.github.com/asset/1" },
+          ],
+        });
+      }
+      if (url.includes("/asset/1")) return Response.json(manifest);
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await requiredSecretsRoute(
+      requiredSecretsReq("?appSourceId=42"),
+    );
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({
+      byApp: {
+        alpha: {
+          slots: [{ name: "ALPHA_KEY", description: "a", required: true }],
+          missing: ["ALPHA_KEY"],
+        },
+        beta: {
+          slots: [{ name: "BETA_KEY", description: "b", required: true }],
+          missing: ["BETA_KEY"],
+        },
+        gamma: {
+          slots: [{ name: "GAMMA_KEY", description: "g", required: true }],
+          missing: ["GAMMA_KEY"],
+        },
+      },
+    });
+    const githubCalls = fetchMock.mock.calls.filter(([input]) =>
+      String(input).startsWith("https://api.github.com"),
+    );
+    expect(githubCalls).toHaveLength(2);
+  });
+
+  /** Deduplication is not the same guarantee as bounded concurrency: with
+   *  every app on its own release tag the cache never hits, and the fan-out
+   *  must still cap in-flight GitHub reads. Six distinct tags must never put
+   *  more than four requests in flight — and must still complete, which is
+   *  what catches a limiter that deadlocks or drops the tail. */
+  it("caps in-flight GitHub reads when every app has its own release tag", async () => {
+    vi.stubEnv("GITHUB_TOKEN", "gh-token");
+    const apps = ["a", "b", "c", "d", "e", "f"];
+    let inFlight = 0;
+    let peak = 0;
+    // Hold every GitHub read open briefly so overlapping requests are actually
+    // concurrent when `peak` samples them. A fixed delay (rather than a gate
+    // released at a target count) is what keeps this from deadlocking: each app
+    // makes two *sequential* reads, so later waves never all arrive at once.
+    const slow = () => new Promise<void>((resolve) => setTimeout(resolve, 5));
+
+    const fetchMock = vi.fn(async (input: unknown) => {
+      const url = String(input);
+      if (url.includes("/latest-deployment")) {
+        return latestDeploymentResponse("aomi-labs/community");
+      }
+      if (url.includes("/user/sources")) {
+        return Response.json({
+          sources: [
+            {
+              id: 42,
+              installation_id: 555,
+              apps: apps.map((name) => ({
+                name,
+                app_release_tag: `tag-${name}`,
+              })),
+              latest_deployment: null,
+            },
+          ],
+        });
+      }
+      if (url.includes("secrets")) return Response.json({ by_app: {} });
+
+      inFlight += 1;
+      peak = Math.max(peak, inFlight);
+      await slow();
+      inFlight -= 1;
+
+      if (url.includes("/releases/tags/")) {
+        const tag = decodeURIComponent(url.split("/releases/tags/")[1]);
+        return Response.json({
+          assets: [
+            {
+              name: "manifest.json",
+              url: `https://api.github.com/asset/${tag}`,
+            },
+          ],
+        });
+      }
+      const app = url.split("/asset/tag-")[1];
+      return Response.json({
+        plugins: {
+          [app]: {
+            secrets: [{ name: `${app.toUpperCase()}_KEY`, required: true }],
+          },
+        },
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await requiredSecretsRoute(
+      requiredSecretsReq("?appSourceId=42"),
+    );
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { byApp: Record<string, unknown> };
+    // Every app is still answered — a limiter that silently drops the tail
+    // would leave the last apps missing from the gate's response.
+    expect(Object.keys(body.byApp).sort()).toEqual(apps);
+    expect(peak).toBeLessThanOrEqual(4);
+    expect(peak).toBeGreaterThan(1);
+  });
 });
 
 describe("launchAppRoute", () => {
