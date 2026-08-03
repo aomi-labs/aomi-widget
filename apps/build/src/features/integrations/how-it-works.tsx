@@ -22,7 +22,7 @@ export function botfatherCommands(threadMode: BotThreadMode): string {
       ? "sessions - View and switch threads"
       : "sessions - View your conversation",
     "wallet - Connect or manage wallet",
-    "signing - View or change signing mode",
+    "permission - View or change what the agent may sign",
     "tx - Review pending transactions",
     "sign - Sign selected transactions",
     "app - View or change app",
@@ -123,11 +123,11 @@ export function TelegramHowItWorks() {
     },
     {
       title: "Users choose how their agent signs",
-      body: "Agent wallets start unable to sign. In /signing, a user can turn on autonomous signing — letting the agent trade without approving each transaction — or turn it back off. Wallets the user holds themselves stay read-only there and change in the web app, since loosening those needs their signature.",
+      body: "Agent wallets start unable to sign. In /permission, a user can turn on autonomous signing — letting the agent trade without approving each transaction — or turn it back off. Wallets the user holds themselves stay read-only there and change in the web app, since loosening those needs their signature.",
     },
     {
       title: "Optional: make slash commands visible",
-      body: "Send /setcommands to BotFather as shown on the right, so commands like /signing and /tx autocomplete in Telegram.",
+      body: "Send /setcommands to BotFather as shown on the right, so commands like /permission and /tx autocomplete in Telegram.",
     },
   ];
   return (
