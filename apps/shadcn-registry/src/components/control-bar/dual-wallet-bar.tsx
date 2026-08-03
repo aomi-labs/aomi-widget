@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useState, type FC } from "react";
-import { ChevronsUpDownIcon } from "lucide-react";
+import { ChevronsUpDownIcon, UnfoldVerticalIcon } from "lucide-react";
 import { cn, getChainInfo } from "@aomi-labs/react";
 import { useAomiWalletKit, formatWalletAddress } from "../../lib/wallet-kit";
 import { WalletIconSlot } from "./wallet-icon-slot";
@@ -92,9 +92,11 @@ const DualWalletBarInner: FC<DualWalletBarProps> = ({
     .map((wallet) => wallet.detail)
     .filter(Boolean)
     .join(" · ");
-  const secondaryLine =
-    accountMenu?.secondaryLine ??
-    (connectedWallets.some((wallet) => wallet.detail) ? networkDetail : undefined);
+  const secondaryLine = accountMenuEnabled
+    ? (accountMenu?.secondaryLine ?? "Allowance —")
+    : connectedWallets.some((wallet) => wallet.detail)
+      ? networkDetail
+      : undefined;
   const walletLabel =
     accountMenu?.walletLabel ??
     primaryWallet?.walletName ??
@@ -153,77 +155,109 @@ const DualWalletBarInner: FC<DualWalletBarProps> = ({
     };
   };
 
+  const chipClassName = cn(
+    "inline-flex w-full items-center justify-between gap-2.5 whitespace-nowrap text-left transition-colors",
+    "border-aomi-border text-aomi-fg hover:bg-aomi-hover/80 bg-transparent",
+    "focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
+    accountMenuEnabled
+      ? "rounded-lg border p-2.5"
+      : "@container rounded-xl border p-3",
+    className,
+  );
+
+  const chipChevron = accountMenuEnabled ? (
+    <UnfoldVerticalIcon className="text-aomi-muted size-4 shrink-0" />
+  ) : (
+    <ChevronsUpDownIcon className="text-aomi-muted size-4 shrink-0" />
+  );
+
   return (
     <>
       <div className="relative w-full">
         <button
           type="button"
           onClick={handleChipClick}
-          className={cn(
-            "@container inline-flex items-center justify-between gap-2.5 whitespace-nowrap text-left",
-            "border-aomi-border w-full rounded-xl border p-3 transition-colors",
-            "text-aomi-fg hover:bg-aomi-hover bg-transparent",
-            "focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
-            className,
-          )}
+          className={chipClassName}
           aria-label={
             accountMenuEnabled && connected ? "Open account menu" : "Manage wallets"
           }
           aria-expanded={accountMenuEnabled && connected ? menuOpen : undefined}
         >
           {connected && connectedWallets.length ? (
-            <span className="flex min-w-0 items-center gap-2.5">
-              <span className="flex shrink-0 items-center">
-                {connectedWallets.map((wallet, index) => (
-                  <WalletIconSlot
-                    key={wallet.family}
-                    label={
-                      wallet.walletName ??
-                      (wallet.family === "solana" ? "Solana" : "Ethereum")
-                    }
-                    size={AVATAR_SIZE}
-                    className={cn(
-                      "ring-aomi-border bg-aomi-surface-2 rounded-full ring-1",
-                      index > 0 && "-ml-2",
-                    )}
-                  />
-                ))}
+            accountMenuEnabled ? (
+              <span className="flex min-w-0 flex-1 items-center gap-2.5">
+                <WalletIconSlot
+                  label={walletLabel}
+                  size={AVATAR_SIZE}
+                  className="ring-aomi-border bg-aomi-surface-2 shrink-0 rounded-full ring-1"
+                />
+                <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                  <span className="text-aomi-fg truncate font-mono text-[12px] font-medium leading-none tracking-tight">
+                    {primaryWallet ? longAddress(primaryWallet.address) : "Connected"}
+                  </span>
+                  {secondaryLine ? (
+                    <span className="text-aomi-muted truncate text-[11px] leading-none">
+                      {secondaryLine}
+                    </span>
+                  ) : null}
+                </span>
               </span>
-              <span className="flex min-w-0 flex-col">
-                <span className="min-w-0 truncate text-[13px] font-medium">
+            ) : (
+              <span className="flex min-w-0 items-center gap-2.5">
+                <span className="flex shrink-0 items-center">
                   {connectedWallets.map((wallet, index) => (
-                    <Fragment key={wallet.family}>
-                      {index > 0 ? (
-                        <span className="text-aomi-muted/60">{" / "}</span>
-                      ) : null}
-                      {singleWallet ? (
-                        <>
-                          <span className="@[15rem]:hidden">
-                            {formatWalletAddress(wallet.address)}
-                          </span>
-                          <span className="hidden @[15rem]:inline">
-                            {longAddress(wallet.address)}
-                          </span>
-                        </>
-                      ) : (
-                        <span>{formatWalletAddress(wallet.address)}</span>
+                    <WalletIconSlot
+                      key={wallet.family}
+                      label={
+                        wallet.walletName ??
+                        (wallet.family === "solana" ? "Solana" : "Ethereum")
+                      }
+                      size={AVATAR_SIZE}
+                      className={cn(
+                        "ring-aomi-border bg-aomi-surface-2 rounded-full ring-1",
+                        index > 0 && "-ml-2",
                       )}
-                    </Fragment>
+                    />
                   ))}
                 </span>
-                {secondaryLine ? (
-                  <span className="text-aomi-muted min-w-0 truncate text-[11px]">
-                    {secondaryLine}
+                <span className="flex min-w-0 flex-col">
+                  <span className="min-w-0 truncate text-[13px] font-medium">
+                    {connectedWallets.map((wallet, index) => (
+                      <Fragment key={wallet.family}>
+                        {index > 0 ? (
+                          <span className="text-aomi-muted/60">{" / "}</span>
+                        ) : null}
+                        {singleWallet ? (
+                          <>
+                            <span className="@[15rem]:hidden">
+                              {formatWalletAddress(wallet.address)}
+                            </span>
+                            <span className="hidden @[15rem]:inline">
+                              {longAddress(wallet.address)}
+                            </span>
+                          </>
+                        ) : (
+                          <span>{formatWalletAddress(wallet.address)}</span>
+                        )}
+                      </Fragment>
+                    ))}
                   </span>
-                ) : null}
+                  {secondaryLine ? (
+                    <span className="text-aomi-muted min-w-0 truncate text-[11px]">
+                      {secondaryLine}
+                    </span>
+                  ) : null}
+                </span>
+              </span>
+            )
+          ) : (
+            <span className="flex h-7 min-w-0 flex-1 items-center">
+              <span className="truncate text-sm font-medium">
+                {accountMenuEnabled ? "Connect wallet" : "Connect wallet"}
               </span>
             </span>
-          ) : (
-            <span className="flex h-7 min-w-0 items-center">
-              <span className="truncate text-sm font-medium">Connect wallet</span>
-            </span>
           )}
-          <ChevronsUpDownIcon className="text-aomi-muted size-4 shrink-0" />
+          {chipChevron}
         </button>
 
         {accountMenuEnabled && connected ? (

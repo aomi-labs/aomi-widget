@@ -28,13 +28,19 @@ export function usePortalWalletAccountMenu(
   const { accountUser, identity } = adapter;
 
   return useMemo(() => {
-    if (!accountUser) return undefined;
+    if (!identity.isConnected) return undefined;
 
     const usage = overview?.usage;
     const secondaryLine =
       usage && usage.credit_paid > 0
         ? formatAllowanceSummary(usage.credit_used, usage.credit_paid)
-        : undefined;
+        : usage
+          ? `${Math.max(0, usage.credit_paid - usage.credit_used).toLocaleString()} credits left`
+          : accountUser
+            ? "Loading allowance…"
+            : "Sign in for allowance";
+
+    const activeAccount = adapter.accounts.find((account) => account.active);
 
     const isDark =
       settings.colorMode === "dark" ||
@@ -50,6 +56,7 @@ export function usePortalWalletAccountMenu(
     return {
       enabled: true,
       secondaryLine,
+      walletLabel: activeAccount?.walletName,
       networkLabel,
       themeLabel: isDark ? "Dark" : "Light",
       onSwitchNetwork: openHeaderNetworkSelect,
@@ -62,7 +69,9 @@ export function usePortalWalletAccountMenu(
     };
   }, [
     accountUser,
+    adapter.accounts,
     identity.chainId,
+    identity.isConnected,
     identity.svmCluster,
     onOpenSettings,
     overview?.usage,
