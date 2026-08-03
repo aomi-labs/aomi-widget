@@ -2470,6 +2470,7 @@ function useRuntimeOrchestrator(aomiClient, options) {
       threadContextRef.current.updateThreadMetadata(threadId, {
         lastActiveAt: (/* @__PURE__ */ new Date()).toISOString()
       });
+      threadContextRef.current.clearThreadTaskRuns(threadId);
       updateTurnPhase(threadContextRef.current, threadId, "submitting");
       const submittingFallbackTimer = setTimeout(() => {
         const metadata = threadContextRef.current.getThreadMetadata(threadId);

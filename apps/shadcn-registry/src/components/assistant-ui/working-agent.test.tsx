@@ -203,9 +203,50 @@ describe("WorkingAgent", () => {
     expect(rail).not.toBeNull();
     expect(rail?.querySelectorAll(".aui-working-step")).toHaveLength(1);
     expect(rail?.querySelectorAll(".aui-working-note")).toHaveLength(1);
+    // Notes render but are not steps: the count is visible tool calls only,
+    // matching the backend's "steps = tool_call activities" semantics.
     expect(
       container.querySelector(".aui-working-agent-count")?.textContent,
-    ).toBe("2 steps · 3s");
+    ).toBe("1 step · 3s");
+  });
+
+  it("hides protocol plumbing from the rail", () => {
+    const { container } = render(
+      <WorkingAgent
+        agentId="a"
+        run={makeRun({
+          steps: [
+            {
+              kind: "tool_call",
+              toolName: "get_chain_context",
+              childSeq: 1,
+            },
+            { kind: "note", text: '{"staged":[{"tx_id":1}]}', childSeq: 2 },
+            {
+              kind: "tool_call",
+              toolName: "thread_return",
+              args: { status: "completed" },
+              childSeq: 3,
+            },
+          ],
+          status: "completed",
+          stepCount: 3,
+          durationMs: 2000,
+        })}
+        order={0}
+        active={false}
+        animate={false}
+      />,
+    );
+
+    // thread_return and raw-JSON "notes" are internal — neither rendered
+    // nor counted.
+    const rail = container.querySelector(".aui-working-agent-rail");
+    expect(rail?.querySelectorAll(".aui-working-step")).toHaveLength(1);
+    expect(rail?.querySelectorAll(".aui-working-note")).toHaveLength(0);
+    expect(
+      container.querySelector(".aui-working-agent-count")?.textContent,
+    ).toBe("1 step · 2s");
   });
 
   it("degrades to the transcript part when there is no sidecar", () => {

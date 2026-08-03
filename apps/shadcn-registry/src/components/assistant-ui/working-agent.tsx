@@ -2,7 +2,7 @@
 
 import { type FC, useEffect, useMemo, useRef, useState } from "react";
 import type { ToolCallMessagePart } from "@assistant-ui/react";
-import { CheckIcon, ChevronRightIcon, XIcon } from "lucide-react";
+import { BotIcon, CheckIcon, ChevronRightIcon, XIcon } from "lucide-react";
 
 import {
   cn,
@@ -83,6 +83,39 @@ const toStatus = (value: unknown): TaskRunStatus | undefined => {
   }
 };
 
+/**
+ * Steps that are protocol plumbing, not work: the child's `thread_return`
+ * call (its message already becomes the row summary) and "notes" that are
+ * really raw JSON blobs a model narrated instead of prose.
+ */
+const isInternalStep = (step: TaskRunStep): boolean => {
+  if (step.kind === "tool_call") return step.toolName === "thread_return";
+  const text = step.text.trim();
+  if (!text.startsWith("{") && !text.startsWith("[")) return false;
+  try {
+    JSON.parse(text);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+/** The child steps the row actually shows. */
+export const visibleAgentSteps = (run?: TaskRunState): TaskRunStep[] =>
+  (run?.steps ?? []).filter((step) => !isInternalStep(step));
+
+/**
+ * The step count shown for an agent row — visible tool calls when we have the
+ * step stream, the backend's terminal count otherwise (Phase 0). Shared with
+ * the trace header so "N steps" always matches what expanding reveals.
+ */
+export const agentStepCount = (run?: TaskRunState): number => {
+  const visible = visibleAgentSteps(run);
+  return visible.length > 0
+    ? visible.filter((step) => step.kind === "tool_call").length
+    : (run?.stepCount ?? 0);
+};
+
 const stepKey = (step: TaskRunStep, index: number): string =>
   `${step.kind}-${step.childSeq}-${index}`;
 
@@ -151,8 +184,8 @@ export const WorkingAgent: FC<WorkingAgentProps> = ({
     run?.status ?? toStatus(result?.status) ?? (tool ? "completed" : "running");
   const live = status === "running";
   const label = asText(run?.label) ?? asText(args?.label) ?? "agent";
-  const steps = run?.steps ?? [];
-  const stepCount = run?.stepCount ?? steps.length;
+  const steps = useMemo(() => visibleAgentSteps(run), [run]);
+  const stepCount = agentStepCount(run);
   const stagedCount = run?.stagedCount ?? asCount(result?.staged_count) ?? 0;
   const startedAt = run?.startedAt ?? 0;
 
@@ -232,11 +265,12 @@ export const WorkingAgent: FC<WorkingAgentProps> = ({
       >
         <span className="relative flex size-4 shrink-0 items-center justify-center">
           {live ? (
-            <span
-              className="size-[7px] animate-pulse rounded-full motion-reduce:animate-none"
-              style={{
-                backgroundColor: AGENT_COLORS[order % AGENT_COLORS.length],
-              }}
+            // The robot IS the marker while the child works — same contract as
+            // a tool row's icon (identity while running, check when done), and
+            // the one glyph that says "a subagent is doing this" at a glance.
+            <BotIcon
+              className="aui-working-agent-bot size-3.5 animate-pulse motion-reduce:animate-none"
+              style={{ color: AGENT_COLORS[order % AGENT_COLORS.length] }}
               aria-hidden="true"
             />
           ) : status === "completed" ? (

@@ -636,6 +636,11 @@ export function useRuntimeOrchestrator(
       threadContextRef.current.updateThreadMetadata(threadId, {
         lastActiveAt: new Date().toISOString(),
       });
+      // A new turn starts a fresh delegation sidecar. This is what lets the
+      // trace treat every run in `taskRuns` as belonging to the current turn
+      // (and keep rendering completed runs until the transcript catches up)
+      // without leaking rows from earlier turns.
+      threadContextRef.current.clearThreadTaskRuns(threadId);
       updateTurnPhase(threadContextRef.current, threadId, "submitting");
       const submittingFallbackTimer = setTimeout(() => {
         const metadata = threadContextRef.current.getThreadMetadata(threadId);

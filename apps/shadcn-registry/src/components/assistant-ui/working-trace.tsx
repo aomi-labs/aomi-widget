@@ -18,7 +18,10 @@ import {
 } from "@aomi-labs/react";
 import { MarkdownText } from "@/components/assistant-ui/markdown-text";
 import { interpretToolStep } from "@/components/assistant-ui/tool-interpreter";
-import { WorkingAgent } from "@/components/assistant-ui/working-agent";
+import {
+  agentStepCount,
+  WorkingAgent,
+} from "@/components/assistant-ui/working-agent";
 import {
   prefersReducedMotion,
   toDetailString,
@@ -173,9 +176,7 @@ type TraceItem =
 
 /** Child steps an agent row contributes to the header/pill step count. */
 const childStepCount = (item: TraceItem): number =>
-  item.kind === "agent"
-    ? (item.run?.stepCount ?? item.run?.steps.length ?? 0)
-    : 0;
+  item.kind === "agent" ? agentStepCount(item.run) : 0;
 
 const WorkingTrace: FC<{
   running: boolean;
@@ -601,21 +602,17 @@ export const AssistantTurnParts: FC = () => {
     -1,
   );
 
-  // Delegations this turn has shown as a live row. A run is remembered so the
-  // row stays put in the gap between `task_completed` and the mother's `task`
-  // transcript part landing — otherwise it would blink out and back in. Only
-  // ever filled while this turn is the live one, so scrollback stays inert.
-  // (Ref mutation during render is idempotent — it's a set of ids.)
-  const seenLiveRef = useRef<Set<string>>(new Set());
-  if (isLast && running) {
-    for (const run of Object.values(taskRuns)) {
-      if (run.status === "running") seenLiveRef.current.add(run.agentId);
-    }
-  }
+  // The sidecar is cleared on every send (see the runtime's sendMessage), so
+  // every run in it belongs to the current turn — render them all on the last
+  // message, running or finished. Deliberately NOT gated on "seen while
+  // running" via a component ref: fast models can stream the final text as a
+  // separate message that remounts this component between `task_completed`
+  // and the `task` transcript part landing, and a ref-based memory would
+  // blank the trace for that gap (it re-appeared with the row folded).
+  // Scrollback stays inert because only the last message reads the sidecar,
+  // and reloads start with an empty sidecar (transcript rows take over).
   const liveDelegations = isLast
-    ? Object.values(taskRuns)
-        .filter((run) => seenLiveRef.current.has(run.agentId))
-        .sort((a, b) => a.startedAt - b.startedAt)
+    ? Object.values(taskRuns).sort((a, b) => a.startedAt - b.startedAt)
     : [];
 
   // Where the trace ends and the final answer begins. Normally the last tool
