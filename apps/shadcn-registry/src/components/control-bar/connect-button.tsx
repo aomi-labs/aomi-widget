@@ -5,12 +5,14 @@ import { cn, formatAddress, getChainInfo } from "@aomi-labs/react";
 import { useAomiWalletKit } from "../../lib/wallet-kit";
 import { DualWalletBar } from "./dual-wallet-bar";
 import { formatWalletProvider } from "../../lib/wallet-kit";
+import type { WalletAccountMenuOptions } from "./account-menu-types";
 
 export type ConnectButtonProps = {
   className?: string;
   connectLabel?: string;
   onConnectionChange?: (connected: boolean) => void;
   families?: Array<"evm" | "solana">;
+  accountMenu?: WalletAccountMenuOptions;
 };
 
 type WalletFamilyFilter = NonNullable<ConnectButtonProps["families"]>[number];
@@ -122,6 +124,7 @@ export const ConnectButton: FC<ConnectButtonProps> = ({
   className,
   connectLabel,
   onConnectionChange,
+  accountMenu,
 }) => {
   const adapter = useAomiWalletKit();
   const pickerFamilies =
@@ -136,6 +139,7 @@ export const ConnectButton: FC<ConnectButtonProps> = ({
         families={pickerFamilies}
         className={className}
         onConnectionChange={onConnectionChange}
+        accountMenu={accountMenu}
       />
     );
   }

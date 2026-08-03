@@ -111,3 +111,9 @@ export function useAccountOverview(): AccountOverview | null {
   }, [data]);
   return data;
 }
+
+/** Shared allowance line — matches mock sidebar/menu and Usage tab copy. */
+export function formatAllowanceSummary(used: number, included: number): string {
+  const remaining = Math.max(0, included - used);
+  return `${remaining.toLocaleString()} left · ${used.toLocaleString()}/${included.toLocaleString()} used`;
+}

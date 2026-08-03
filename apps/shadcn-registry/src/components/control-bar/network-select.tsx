@@ -341,6 +341,7 @@ export const NetworkSelect: FC<NetworkSelectProps> = ({
             variant="ghost"
             role="combobox"
             aria-expanded={open}
+            data-aomi-network-select-trigger
             disabled={!adapter.selectNetwork}
             className={cn(
               "h-8 w-auto min-w-0 justify-between gap-px rounded-full px-0.5 text-xs md:min-w-[80px] md:gap-1.5 md:px-3",
