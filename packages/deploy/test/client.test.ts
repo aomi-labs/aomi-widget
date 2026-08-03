@@ -1162,6 +1162,44 @@ describe("DeploymentClient sources", () => {
     expect(source.sdkVersion).toBeNull();
     expect(source.sdkVersions).toEqual(["3.0.3", "3.0.4"]);
   });
+
+  it("maps Manager's DB-backed required-secret declarations", async () => {
+    const fetchMock = vi.fn(async () =>
+      Response.json({
+        by_app: {
+          demo: {
+            slots: [
+              {
+                name: "DEMO_KEY",
+                description: "Credential",
+                required: true,
+              },
+            ],
+          },
+        },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await client().getUserSourceRequiredSecrets({
+      githubUserId: "42",
+      platform: "community",
+      appSourceId: 7,
+    });
+
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      "https://staging-api.example.com/api/integrations/github-app/user/sources/7/required-secrets?github_user_id=42&platform=community",
+    );
+    expect(result).toEqual({
+      byApp: {
+        demo: {
+          slots: [
+            { name: "DEMO_KEY", description: "Credential", required: true },
+          ],
+        },
+      },
+    });
+  });
 });
 
 describe("server-only guard", () => {

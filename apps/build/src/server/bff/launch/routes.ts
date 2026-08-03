@@ -9,15 +9,10 @@ import { buildFailures } from "@build/server/bff/failures";
 import { launchConfig, resolveLaunchPlatform } from "./config";
 import { appNamesFromDeployment, releaseTagsFromDeployment } from "./mappers";
 import {
-  fetchReleaseSecretSlots,
   missingSecretsForActivation,
   RequiredSecretsCheckError,
 } from "@aomi-labs/deploy/bff";
-import {
-  BackendError,
-  missingRequiredSecrets,
-  type SecretSlot,
-} from "@aomi-labs/deploy";
+import { BackendError, missingRequiredSecrets } from "@aomi-labs/deploy";
 import {
   isValidDeploymentId,
   isValidInstallationId,
@@ -25,7 +20,6 @@ import {
   isValidRepo,
 } from "@build/lib/validate-input";
 import { authorize, rateLimit } from "@build/server/bff/auth";
-import { mapWithConcurrency } from "@build/server/bff/concurrency";
 
 const CREATED_REPO_PREFIX = "my-playground";
 
@@ -92,39 +86,12 @@ function cachedUserSources(
 // the required-secrets gate could fail for an app the UI has no row for.
 const READ_CACHE_TTL_MS = 15_000;
 
-// Release manifests are looked up by (platformRepo, releaseTag) and change only
-// when a release's assets are re-uploaded — rare, but possible, so this is a
-// short TTL rather than a permanent memo. Long enough that the apps on one
-// project share a lookup and a tab revisit is free; short enough that a
-// re-uploaded manifest is picked up without a deploy.
-const RELEASE_MANIFEST_TTL_MS = 5 * 60_000;
-
-// Required-secret checks fan out per app to GitHub. Bounded so a project with
-// many apps cannot open an unbounded burst against the shared token's rate
-// limit, but wide enough that the common 1–4 app project is one wave.
-const RELEASE_MANIFEST_CONCURRENCY = 4;
-
 const readCache = {
   sources: new TimedPromiseCache<OwnedSource[]>(READ_CACHE_TTL_MS),
   serverTags: new TimedPromiseCache<
     Awaited<ReturnType<DeploymentClientInstance["serverTags"]>>
   >(READ_CACHE_TTL_MS),
-  releaseSlots: new TimedPromiseCache<Record<string, SecretSlot[]>>(
-    RELEASE_MANIFEST_TTL_MS,
-  ),
 };
-
-/** Secret slots declared by a release, memoised per (repo, tag). */
-function releaseSecretSlots(input: {
-  platformRepo: string;
-  releaseTag: string;
-  githubToken: string;
-}): Promise<Record<string, SecretSlot[]>> {
-  return readCache.releaseSlots.get(
-    [input.platformRepo, input.releaseTag],
-    () => fetchReleaseSecretSlots(input),
-  );
-}
 
 export function clearLaunchReadCache() {
   Object.values(readCache).forEach((cache) => cache.clear());
@@ -1414,12 +1381,9 @@ export async function userSourcesRoute(req: Request) {
   }
 }
 
-// GET /api/bff/deployments/required-secrets?appSourceId=<n> — the declared
-// secret slots per app (from the release manifest) plus which required slots
-// are still unfilled in the vault. Read-only twin of the 409 backstop on
-// activate: lets the UI disable Activate and explain why before the user
-// clicks it, instead of only rejecting after the fact. Never returns secret
-// VALUES — only key names, descriptions, and the `required` flag.
+// GET /api/bff/deployments/required-secrets?appSourceId=<n> — the Manager's
+// DB-backed secret declarations for each live release plus which required slots
+// are still unfilled in the vault. Never returns secret VALUES.
 export async function requiredSecretsRoute(req: Request) {
   const auth = await authorize(req);
   if ("response" in auth) return auth.response;
@@ -1438,89 +1402,51 @@ export async function requiredSecretsRoute(req: Request) {
     const platform = requestedPlatformFromUrl(req, config);
     if (!platform) return invalidPlatformResponse();
     const client = await deploymentClient();
-    const source = await findOwnedSource(
-      client,
-      session.githubUserId,
-      platform,
-      appSourceId,
-    );
-    if (!source) {
-      return NextResponse.json(
-        { error: "app source not found for this user" },
-        { status: 404 },
+    const [declared, configured] = await Promise.all([
+      client.getUserSourceRequiredSecrets({
+        githubUserId: session.githubUserId,
+        platform,
+        appSourceId,
+      }),
+      client.listAppSecrets({
+        githubUserId: session.githubUserId,
+        sourceId: String(appSourceId),
+      }),
+    ]);
+    const entries = Object.entries(declared.byApp).map(([app, { slots }]) => {
+      const configuredKeys = (configured.byApp[app] ?? []).map(
+        (handle) => handle.split("::").pop() ?? handle,
       );
-    }
-
-    // Required-secret metadata must be verified before the UI can show an
-    // activation path. An empty slot list is only valid when GitHub confirms
-    // that the release predates manifest secret declarations.
-    // `source` comes from `findOwnedSource` -> `listUserSources`, and the
-    // backend deliberately returns `latest_deployment: null` there (it's lazy
-    // for the list); resolve the real value from the per-source
-    // latest-deployment detail endpoint instead, same as the redeploy route.
-    const githubToken = process.env.GITHUB_TOKEN?.trim();
-    if (!githubToken) throw new RequiredSecretsCheckError();
-    let platformRepo = source.latestDeployment?.platformRepo ?? undefined;
-    if (!platformRepo) {
-      try {
-        const latest = await client.getUserSourceLatestDeployment({
-          githubUserId: session.githubUserId,
-          platform,
-          appSourceId: source.id,
-        });
-        platformRepo = latest?.platformRepo ?? undefined;
-      } catch (error) {
-        throw new RequiredSecretsCheckError({
-          cause: error,
-          upstream: "rust",
-          upstreamStatus:
-            error instanceof BackendError ? error.status : undefined,
-        });
-      }
-    }
-    if (!platformRepo) throw new RequiredSecretsCheckError();
-    const configured = await client.listAppSecrets({
-      githubUserId: session.githubUserId,
-      sourceId: String(source.id),
+      return [
+        app,
+        {
+          slots,
+          missing: missingRequiredSecrets(slots, configuredKeys).map(
+            (slot) => slot.name,
+          ),
+        },
+      ] as const;
     });
-
-    // One GitHub round trip per app, run in bounded parallel and memoised per
-    // (repo, tag). Serially awaiting each app's manifest put every app's
-    // GitHub latency end-to-end on the Deployments tab's critical path, and
-    // apps on one project usually share a release tag — so the common case is
-    // now a single lookup rather than one per app.
-    const entries = await mapWithConcurrency(
-      source.apps,
-      RELEASE_MANIFEST_CONCURRENCY,
-      async (app) => {
-        const releaseTag = app.appReleaseTag;
-        const slots =
-          platformRepo && releaseTag
-            ? ((
-                await releaseSecretSlots({
-                  platformRepo,
-                  releaseTag,
-                  githubToken,
-                })
-              )[app.name] ?? [])
-            : [];
-        const configuredKeys = (configured.byApp[app.name] ?? []).map(
-          (handle) => handle.split("::").pop() ?? handle,
-        );
-        return [
-          app.name,
-          {
-            slots,
-            missing: missingRequiredSecrets(slots, configuredKeys).map(
-              (slot) => slot.name,
-            ),
-          },
-        ] as const;
-      },
-    );
 
     return NextResponse.json({ byApp: Object.fromEntries(entries) });
   } catch (err) {
+    if (err instanceof BackendError) {
+      if (err.status === 404) {
+        return NextResponse.json(
+          { error: "app source not found for this user" },
+          { status: 404 },
+        );
+      }
+      return buildFailures.handle({
+        source: "launch",
+        error: new RequiredSecretsCheckError({
+          cause: err,
+          upstream: "rust",
+          upstreamStatus: err.status,
+        }),
+        context: launchErrorContext(req, "deployment.required_secrets"),
+      }).response;
+    }
     return buildFailures.handle({
       source: "launch",
       error: err,

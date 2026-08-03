@@ -66,6 +66,7 @@ export interface AuditEvent {
     | "get_source_sdk_upgrade_status"
     | "list_deployment_records"
     | "get_user_source_latest_deployment"
+    | "get_user_source_required_secrets"
     | "deactivate"
     | "ingest_secrets";
   platform?: string;
@@ -525,6 +526,17 @@ export interface GetUserSourceLatestDeploymentInput extends BearerOverride {
   githubUserId: string;
   platform: string;
   appSourceId: number;
+}
+
+/** DB-backed declarations for the source's currently live app releases. */
+export interface GetUserSourceRequiredSecretsInput extends BearerOverride {
+  githubUserId: string;
+  platform: string;
+  appSourceId: number;
+}
+
+export interface UserSourceRequiredSecretsResult {
+  byApp: Record<string, { slots: SecretSlot[] }>;
 }
 
 export interface ListUserSourceDeploymentsInput extends BearerOverride {

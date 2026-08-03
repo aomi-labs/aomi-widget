@@ -20,6 +20,7 @@ import type {
   GetAppInput,
   GetUserSourceAppDetailInput,
   GetUserSourceLatestDeploymentInput,
+  GetUserSourceRequiredSecretsInput,
   GitHubIdentity,
   ListAppsInput,
   DeactivateAppInput,
@@ -70,6 +71,7 @@ import type {
   UserDeployment,
   UserDeploymentsPage,
   UserSourceLatestDeployment,
+  UserSourceRequiredSecretsResult,
   ListTokensInput,
   MintTokenInput,
   MintedToken,
@@ -787,6 +789,56 @@ export class DeploymentClient {
       ts: Date.now(),
     });
     return camelUserSourceLatestDeployment(raw.latest_deployment) ?? null;
+  }
+
+  async getUserSourceRequiredSecrets(
+    input: GetUserSourceRequiredSecretsInput,
+  ): Promise<UserSourceRequiredSecretsResult> {
+    const githubUserId = required(input.githubUserId, "githubUserId");
+    const platform = cleanPlatform(input.platform);
+    const appSourceId = required(String(input.appSourceId), "appSourceId");
+    const bearer = this.resolveBearer(input.bearer);
+    const params = new URLSearchParams({
+      github_user_id: githubUserId,
+      platform,
+    });
+    const raw = await this.get<{
+      by_app?: Record<string, { slots?: unknown[] }>;
+    }>(
+      `/api/integrations/github-app/user/sources/${encodeURIComponent(
+        appSourceId,
+      )}/required-secrets?${params.toString()}`,
+      "get_user_source_required_secrets",
+      bearer,
+    );
+    await this.audit({
+      action: "get_user_source_required_secrets",
+      platform,
+      appSourceId: input.appSourceId,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return {
+      byApp: Object.fromEntries(
+        Object.entries(raw.by_app ?? {}).map(([app, value]) => [
+          app,
+          {
+            slots: (value.slots ?? []).flatMap((slot) => {
+              if (!slot || typeof slot !== "object") return [];
+              const rawSlot = slot as Record<string, unknown>;
+              const name = rawSlot.name;
+              const description = rawSlot.description;
+              const required = rawSlot.required;
+              return typeof name === "string" &&
+                typeof description === "string" &&
+                typeof required === "boolean"
+                ? [{ name, description, required }]
+                : [];
+            }),
+          },
+        ]),
+      ),
+    };
   }
 
   async listUserSourceDeployments(
