@@ -2,7 +2,10 @@
 
 import { useMemo } from "react";
 import { getChainInfo } from "@aomi-labs/react";
-import { useAomiWalletKit, type WalletAccountMenuOptions } from "@aomi-labs/widget-lib";
+import {
+  useAomiWalletKit,
+  type WalletAccountMenuOptions,
+} from "@aomi-labs/widget-lib";
 import {
   formatAllowanceSummary,
   useAccountOverview,
@@ -25,6 +28,21 @@ function openHeaderNetworkSelect() {
  */
 function finishAccountSignIn(adapter: ReturnType<typeof useAomiWalletKit>) {
   void adapter.connect?.();
+}
+
+/**
+ * End the canonical Aomi session before dropping wallet/provider connections.
+ * The account runtime owns backend and widget-session teardown; wallet-kit
+ * disconnect alone only signs out the provider and must not substitute for it.
+ */
+async function disconnectPortalAccount(
+  adapter: ReturnType<typeof useAomiWalletKit>,
+) {
+  try {
+    await adapter.signOutAccount?.();
+  } finally {
+    await adapter.disconnect?.({ family: "all" });
+  }
 }
 
 /**
@@ -95,6 +113,7 @@ export function usePortalWalletAccountMenu(
       onSignIn: needsAccountSignIn
         ? () => finishAccountSignIn(adapter)
         : undefined,
+      onDisconnect: () => disconnectPortalAccount(adapter),
     };
   }, [
     accountError,

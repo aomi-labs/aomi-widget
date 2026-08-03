@@ -1,13 +1,20 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import type { AomiWalletKit } from "@/lib/wallet-kit";
 import { DualWalletBar } from "./dual-wallet-bar";
 
 const openPicker = vi.fn();
 
 vi.mock("./wallet-picker-context", () => ({
-  WalletPickerProvider: ({ children }: { children: React.ReactNode }) => children,
+  WalletPickerProvider: ({ children }: { children: React.ReactNode }) =>
+    children,
   useWalletPicker: () => ({
     open: false,
     openPicker,
@@ -63,6 +70,7 @@ const adapterState = {
 afterEach(() => {
   cleanup();
   openPicker.mockClear();
+  adapterState.current.disconnect.mockClear();
 });
 
 describe("DualWalletBar account menu", () => {
@@ -70,7 +78,9 @@ describe("DualWalletBar account menu", () => {
     render(<DualWalletBar families={["evm"]} />);
     fireEvent.click(screen.getByRole("button", { name: "Manage wallets" }));
     expect(openPicker).toHaveBeenCalledTimes(1);
-    expect(screen.queryByRole("menu", { name: "Account menu" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("menu", { name: "Account menu" }),
+    ).not.toBeInTheDocument();
   });
 
   it("opens AccountMenu instead of WalletPicker when enabled and connected", () => {
@@ -88,7 +98,9 @@ describe("DualWalletBar account menu", () => {
     expect(screen.getByText("420 left · 80/500 used")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Open account menu" }));
     expect(openPicker).not.toHaveBeenCalled();
-    expect(screen.getByRole("menu", { name: "Account menu" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("menu", { name: "Account menu" }),
+    ).toBeInTheDocument();
   });
 
   it("routes Manage wallets from AccountMenu to WalletPicker", () => {
@@ -102,7 +114,9 @@ describe("DualWalletBar account menu", () => {
     fireEvent.click(screen.getByRole("button", { name: "Open account menu" }));
     fireEvent.click(screen.getByText("Manage wallets"));
     expect(openPicker).toHaveBeenCalledTimes(1);
-    expect(screen.queryByRole("menu", { name: "Account menu" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("menu", { name: "Account menu" }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows Sign in when account menu supplies onSignIn", () => {
@@ -121,5 +135,30 @@ describe("DualWalletBar account menu", () => {
     fireEvent.click(screen.getByRole("button", { name: "Open account menu" }));
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
     expect(onSignIn).toHaveBeenCalledTimes(1);
+  });
+
+  it("confirms account sign-out and keeps canonical history", async () => {
+    const onDisconnect = vi.fn(async () => undefined);
+    render(
+      <DualWalletBar
+        families={["evm"]}
+        accountMenu={{
+          enabled: true,
+          secondaryLine: "420 credits left",
+          onDisconnect,
+        }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Open account menu" }));
+    fireEvent.click(screen.getByRole("button", { name: "Disconnect" }));
+
+    expect(screen.getByRole("dialog")).toHaveTextContent(
+      "Your chat history remains in your Aomi account.",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Disconnect" }));
+
+    await waitFor(() => expect(onDisconnect).toHaveBeenCalledTimes(1));
+    expect(adapterState.current.disconnect).not.toHaveBeenCalled();
   });
 });

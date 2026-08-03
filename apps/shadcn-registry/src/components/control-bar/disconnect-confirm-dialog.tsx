@@ -40,7 +40,8 @@ export function DisconnectConfirmDialog({
           Disconnect wallet?
         </h2>
         <p className="text-aomi-muted mt-2 text-[14px] leading-5">
-          Ends your session for {label}. Your chat history stays on this device.
+          Disconnects {label} and signs you out. Your chat history remains in
+          your Aomi account.
         </p>
         <div className="mt-5 flex justify-end gap-2.5">
           <button

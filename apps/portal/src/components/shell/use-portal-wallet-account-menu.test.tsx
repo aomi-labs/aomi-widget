@@ -11,7 +11,9 @@ const walletKitState = vi.hoisted(() => ({
     accountUser: undefined as { id: string } | undefined,
     accountError: undefined as string | undefined,
     connect: vi.fn(async () => undefined),
+    disconnect: vi.fn(async () => undefined),
     openAccountUI: vi.fn(async () => undefined),
+    signOutAccount: vi.fn(async () => undefined),
   },
 }));
 
@@ -20,7 +22,10 @@ vi.mock("@aomi-labs/widget-lib", () => ({
 }));
 
 vi.mock("@portal/lib/use-settings", () => ({
-  useSettings: () => ({ settings: { colorMode: "dark" }, updateSetting: vi.fn() }),
+  useSettings: () => ({
+    settings: { colorMode: "dark" },
+    updateSetting: vi.fn(),
+  }),
 }));
 
 function readMenu() {
@@ -41,7 +46,9 @@ describe("usePortalWalletAccountMenu sign-in wiring", () => {
     walletKitState.current.accountUser = undefined;
     walletKitState.current.accountError = undefined;
     walletKitState.current.connect.mockClear();
+    walletKitState.current.disconnect.mockClear();
     walletKitState.current.openAccountUI.mockClear();
+    walletKitState.current.signOutAccount.mockClear();
   });
 
   it("offers Sign in that runs the auth flow, not the provider account popup", () => {
@@ -69,5 +76,33 @@ describe("usePortalWalletAccountMenu sign-in wiring", () => {
     const menu = readMenu();
     expect(menu?.onSignIn).toBeUndefined();
     expect(menu?.secondaryLine).toBe("Loading allowance…");
+  });
+
+  it("ends the Aomi account session before disconnecting every wallet", async () => {
+    const menu = readMenu();
+
+    await menu?.onDisconnect?.();
+
+    expect(walletKitState.current.signOutAccount).toHaveBeenCalledTimes(1);
+    expect(walletKitState.current.disconnect).toHaveBeenCalledWith({
+      family: "all",
+    });
+    expect(
+      walletKitState.current.signOutAccount.mock.invocationCallOrder[0],
+    ).toBeLessThan(
+      walletKitState.current.disconnect.mock.invocationCallOrder[0] ?? 0,
+    );
+  });
+
+  it("still disconnects wallets if account-session teardown fails", async () => {
+    walletKitState.current.signOutAccount.mockRejectedValueOnce(
+      new Error("sign-out failed"),
+    );
+    const menu = readMenu();
+
+    await expect(menu?.onDisconnect?.()).rejects.toThrow("sign-out failed");
+    expect(walletKitState.current.disconnect).toHaveBeenCalledWith({
+      family: "all",
+    });
   });
 });
