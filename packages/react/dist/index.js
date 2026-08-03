@@ -1658,16 +1658,16 @@ function collectTxOutcomes(messages) {
   };
 }
 function toInboundMessage(msg, txOutcomes) {
-  var _a, _b;
-  if (msg.sender === "system" && ((_a = msg.content) == null ? void 0 : _a.trimStart().startsWith(SYSTEM_ENDPOINT_ECHO_PREFIX))) {
+  var _a;
+  if (msg.sender === "system") {
     return null;
   }
   const content = [];
-  const role = msg.sender === "user" ? "user" : msg.sender === "system" ? "system" : "assistant";
+  const role = msg.sender === "user" ? "user" : "assistant";
   if (msg.content && msg.content.trim().length > 0) {
     content.push({ type: "text", text: msg.content });
   }
-  const [topic, toolContent] = (_b = parseToolResult(msg.tool_result)) != null ? _b : [];
+  const [topic, toolContent] = (_a = parseToolResult(msg.tool_result)) != null ? _a : [];
   if (topic && toolContent) {
     content.push({
       type: "tool-call",

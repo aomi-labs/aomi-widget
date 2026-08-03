@@ -90,7 +90,6 @@ export const Thread: FC = () => {
                 UserMessage,
                 EditComposer,
                 AssistantMessage,
-                SystemMessage,
               }}
             />
 
@@ -637,5 +636,3 @@ const BranchPicker: FC<BranchPickerPrimitive.Root.Props> = ({
     </BranchPickerPrimitive.Root>
   );
 };
-
-const SystemMessage: FC = () => null;
