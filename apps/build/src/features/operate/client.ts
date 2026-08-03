@@ -1,6 +1,7 @@
 "use client";
 
 import { API_PATHS } from "@build/lib/api-paths";
+import { HttpRequestError, parseRetryAfter } from "@build/lib/request-retry";
 
 export type OperateKind =
   | "bots"
@@ -29,15 +30,23 @@ async function operateJson<T>(url: string, label: string): Promise<T> {
     });
   } catch (err) {
     if (err instanceof DOMException && err.name === "TimeoutError") {
-      throw new Error(
+      throw new HttpRequestError(
         `${label} timed out after ${OPERATE_FETCH_TIMEOUT_MS / 1000}s — the backend is slow or unavailable. Try a single source instead of All sources.`,
+        { retryable: false },
       );
     }
     throw err;
   }
   const json = (await res.json().catch(() => ({}))) as T & { error?: string };
   if (!res.ok) {
-    throw new Error(json.error || `${label} failed (${res.status})`);
+    throw new HttpRequestError(
+      json.error || `${label} failed (${res.status})`,
+      {
+        status: res.status,
+        body: json,
+        retryAfterMs: parseRetryAfter(res.headers.get("retry-after")),
+      },
+    );
   }
   return json;
 }

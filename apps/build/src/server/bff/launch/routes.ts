@@ -19,7 +19,7 @@ import {
   isValidReleaseTags,
   isValidRepo,
 } from "@build/lib/validate-input";
-import { authorize, rateLimit } from "@build/server/bff/auth";
+import { authorize } from "@build/server/bff/auth";
 
 const CREATED_REPO_PREFIX = "my-playground";
 
@@ -732,9 +732,6 @@ export async function launchAppRoute(req: Request) {
 }
 
 export async function launchSdkStatusRoute(req: Request) {
-  const blocked = rateLimit(req);
-  if (blocked) return blocked;
-
   try {
     const client = await deploymentClient();
     const status = await readCache.serverTags.get(["server_tags"], () =>

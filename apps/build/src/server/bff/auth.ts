@@ -1,7 +1,6 @@
 import "server-only";
 
 import { NextResponse } from "next/server";
-import { checkRateLimit, getClientIp } from "@build/lib/rate-limit";
 import { validateOrigin } from "@build/lib/csrf";
 import {
   type GitHubCliScope,
@@ -31,14 +30,6 @@ export async function authorize(
     allowAnon?: boolean;
   } = {},
 ): Promise<AuthResult | AnonymousAuthResult> {
-  if (!checkRateLimit(getClientIp(req)).allowed) {
-    return {
-      response: NextResponse.json(
-        { error: "Too many requests" },
-        { status: 429 },
-      ),
-    };
-  }
   if (options.cliScope) {
     const cli = await getGitHubCliSessionFromRequest(req, options.cliScope);
     if (cli) return { session: cli };
@@ -65,10 +56,4 @@ export async function authorize(
           { status: 401 },
         ),
       };
-}
-
-export function rateLimit(req: Request): NextResponse | null {
-  return checkRateLimit(getClientIp(req)).allowed
-    ? null
-    : NextResponse.json({ error: "Too many requests" }, { status: 429 });
 }

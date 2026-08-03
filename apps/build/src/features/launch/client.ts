@@ -5,6 +5,7 @@ import type {
   SourceSdkUpgradeStatusResult,
 } from "@aomi-labs/deploy";
 import { API_PATHS } from "@build/lib/api-paths";
+import { HttpRequestError, parseRetryAfter } from "@build/lib/request-retry";
 import { sessionScopedFetch } from "@build/lib/settings-api";
 import {
   type LaunchActivateResult,
@@ -58,15 +59,15 @@ export async function githubAppInstallUrl(args: {
 
 // Every launch BFF route returns the payload on success or `{ error }` on
 // failure. Centralize that contract so each call site stays a one-liner.
-export class LaunchRequestError extends Error {
-  readonly status: number;
-  readonly body: unknown;
-
-  constructor(message: string, status: number, body: unknown) {
-    super(message);
+export class LaunchRequestError extends HttpRequestError {
+  constructor(
+    message: string,
+    status: number,
+    body: unknown,
+    retryAfterMs: number | null = null,
+  ) {
+    super(message, { status, body, retryAfterMs });
     this.name = "LaunchRequestError";
-    this.status = status;
-    this.body = body;
   }
 }
 
@@ -82,6 +83,7 @@ async function launchFetch<T>(
       json.error || `${label} failed (${res.status})`,
       res.status,
       json,
+      parseRetryAfter(res.headers.get("retry-after")),
     );
   }
   return json;
