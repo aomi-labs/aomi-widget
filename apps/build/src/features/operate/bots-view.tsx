@@ -103,6 +103,20 @@ function threadModeLabel(threadMode: string): string {
   return threadMode === "multi" ? "Multiple threads" : "Single thread";
 }
 
+/** Bot writes carry the active platform so they resolve the same source list
+ *  the picker was populated from. */
+function botsUrl(
+  platform: string | null | undefined,
+  extra: Record<string, string> = {},
+): string {
+  const params = new URLSearchParams(extra);
+  if (platform?.trim()) params.set("platform", platform.trim());
+  const query = params.toString();
+  return query
+    ? `${API_PATHS.bff.operate.bots}?${query}`
+    : API_PATHS.bff.operate.bots;
+}
+
 // ── shared glyphs (recipes shared with providers-view.tsx) ──────────────────
 
 const TH =
@@ -337,7 +351,7 @@ function ProviderRail({
         <span className="text-foreground text-[13px] font-medium">
           Telegram
         </span>
-        <span className="bg-emerald-500/10 rounded-full px-2 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-400">
+        <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-400">
           {botCount} {botCount === 1 ? "bot" : "bots"}
         </span>
       </div>
@@ -811,7 +825,7 @@ export function BotsView() {
       }));
       setAdding(false);
     },
-    [queryClient, queryKey, sources],
+    [queryClient, queryKey, sources, platform],
   );
 
   const handleSaveApps = useCallback(
@@ -842,7 +856,7 @@ export function BotsView() {
       }));
       setEditingId(null);
     },
-    [queryClient, queryKey, sources],
+    [queryClient, queryKey, sources, platform],
   );
 
   const handleRemove = useCallback(
@@ -877,7 +891,7 @@ export function BotsView() {
         setRemovingId(null);
       }
     },
-    [editingId, queryClient, queryKey],
+    [editingId, queryClient, queryKey, platform],
   );
 
   if (account.loading) {
@@ -930,7 +944,9 @@ export function BotsView() {
               editing={editingId === bot.id}
               onBeginEdit={() => setEditingId(bot.id)}
               onCancel={() => setEditingId(null)}
-              onSave={(draft, threadMode) => handleSaveApps(bot, draft, threadMode)}
+              onSave={(draft, threadMode) =>
+                handleSaveApps(bot, draft, threadMode)
+              }
               onRemove={() => void handleRemove(bot)}
               removing={removingId === bot.id}
             />

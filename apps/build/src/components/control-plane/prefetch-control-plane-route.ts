@@ -137,9 +137,13 @@ export function prefetchControlPlaneRoute(
   }
 
   if (path === "/integrations") {
+    // The bot list is builder-wide, but the apps it can be pointed at come
+    // from platform-bound sources — so the read is platform-scoped and the
+    // key has to say which one, or a partner-platform visit warms Community.
+    const platform = searchParams.get("platform");
     void queryClient.prefetchQuery({
-      queryKey: buildQueryKeys.bots(accountKey),
-      queryFn: () => operateFetch("bots"),
+      queryKey: buildQueryKeys.bots(accountKey, platform),
+      queryFn: () => operateFetch("bots", { platform }),
       staleTime: buildQueryStaleTime.operate,
     });
     return true;
@@ -163,7 +167,7 @@ export function prefetchControlPlaneRoute(
   void queryClient.prefetchQuery({
     queryKey:
       kind === "bots"
-        ? buildQueryKeys.bots(accountKey)
+        ? buildQueryKeys.bots(accountKey, platform)
         : buildQueryKeys.operate(accountKey, kind, scopedSourceId, platform),
     queryFn: () =>
       operateFetch(kind, {

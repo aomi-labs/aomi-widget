@@ -46,6 +46,20 @@
   - docs/fe-deploy.md oauth/start rows updated (backend picks the ceremony).
   - Verified: apps/build vitest 416 passed/12 skipped (69 files),
     packages/deploy 136/136, tsc clean both, eslint clean on touched files.
+  2026-08-03 follow-up — BUILDERS DUPES + REDUNDANT FIELDS (from Cecilia's
+  Supabase screenshot): the live DB has DUPLICATE builders.github_user_id rows
+  (4738254/h4n0 twice) because 0714's CREATE TABLE IF NOT EXISTS no-opped on a
+  pre-existing table and its UNIQUE never materialized — every ON CONFLICT
+  (github_user_id) (claim ceremony, 0802 backfill) would error at runtime.
+  Fixed in-place in the 0802 migration: idempotent dedupe (merge onto MIN(id),
+  carry github_login, repoint app_source/bot_registrations/builder_model_keys)
+  + guarded ADD CONSTRAINT builders_github_user_id_key. 0803 also now flips
+  app_source.bound_platform_id FK from SET NULL to RESTRICT (SET NULL would
+  collide with the owned-implies-bound CHECK). Redundant-field verdict:
+  app_source.github_user_id + its index are the only redundant ones; Rust no
+  longer references them; the SQL drop is documented in the 0802 header and
+  DROPPED at the end of 0802 (Cecilia accepted the brief rolling-window
+  breakage in exchange for a one-cycle removal — no follow-up migration).
   PENDING/handoff: run the migration's verify-SELECT against staging+prod and
   hand-repair any multi-platform or cross-platform rows BEFORE deploying the
   strict gate; deploy order migration → BE → FE; AOMI_BUILD_URL must be set
