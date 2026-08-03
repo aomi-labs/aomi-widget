@@ -10,6 +10,7 @@ import type { ReactElement } from "react";
 import { OperateView, truncateAddress } from "./operate-view";
 
 const operateFetch = vi.fn();
+const operatePaymentsFetch = vi.fn();
 const searchParams = { current: new URLSearchParams("") };
 
 vi.mock("next/navigation", () => ({
@@ -31,6 +32,7 @@ vi.mock("@build/components/control-plane/github-session-context", () => ({
 
 vi.mock("./client", () => ({
   operateFetch: (...args: unknown[]) => operateFetch(...args),
+  operatePaymentsFetch: (...args: unknown[]) => operatePaymentsFetch(...args),
 }));
 
 function render(ui: ReactElement) {
@@ -56,6 +58,8 @@ describe("truncateAddress", () => {
 describe("OperateView transactions", () => {
   beforeEach(() => {
     operateFetch.mockReset();
+    operatePaymentsFetch.mockReset();
+    operatePaymentsFetch.mockResolvedValue({ payments: null });
     searchParams.current = new URLSearchParams("");
   });
 
@@ -114,6 +118,18 @@ describe("OperateView transactions", () => {
   });
 
   it("renders 24h trend tiles and error split when the manager emits them", async () => {
+    operatePaymentsFetch.mockResolvedValue({
+      payments: {
+        available: true,
+        summary: {
+          pricedCalls: 1,
+          accruedUsd: 1,
+          settledUsd: 0,
+          outstandingUsd: 1,
+        },
+        resources: [],
+      },
+    });
     operateFetch.mockResolvedValue({
       sources: [],
       monitoring: { status: "ok", windowSeconds: 900 },
@@ -736,9 +752,7 @@ describe("OperateView failure and empty states", () => {
 
     render(<OperateView kind="transactions" />);
 
-    expect(
-      await screen.findByText(/temporarily unavailable/),
-    ).toBeTruthy();
+    expect(await screen.findByText(/temporarily unavailable/)).toBeTruthy();
     expect(screen.queryByText(/No transactions yet/)).toBeNull();
   });
 });
