@@ -18,6 +18,7 @@ import {
   buildQueryStaleTime,
   githubAccountKey,
 } from "@build/features/launch/query-keys";
+import { usePlatform } from "@build/features/launch/use-platform";
 import { TelegramHowItWorks } from "@build/features/integrations/how-it-works";
 import { ThreadModeControl } from "@build/features/integrations/thread-mode-control";
 import { API_PATHS } from "@build/lib/api-paths";
@@ -733,10 +734,16 @@ export function BotsView() {
   const { account } = useGitHubSession();
   const queryClient = useQueryClient();
   const accountKey = githubAccountKey(account.githubLogin);
-  const queryKey = buildQueryKeys.bots(accountKey ?? "unavailable");
+  // The bot list itself is builder-wide, but the apps it may be pointed at are
+  // not: a source is bound to one platform, so the picker follows the platform
+  // the shell is on. Without this a builder whose apps live on a partner
+  // platform only ever sees their Community sources — the apps they actually
+  // want to attach are invisible, on every platform, with no way to reach them.
+  const platform = usePlatform();
+  const queryKey = buildQueryKeys.bots(accountKey ?? "unavailable", platform);
   const botsQuery = useQuery({
     queryKey,
-    queryFn: () => operateFetch<BotsPayload>("bots"),
+    queryFn: () => operateFetch<BotsPayload>("bots", { platform }),
     enabled: account.signedIn && accountKey !== null,
     staleTime: buildQueryStaleTime.operate,
   });
@@ -776,7 +783,10 @@ export function BotsView() {
       threadMode: string;
       draft: Draft;
     }) => {
-      const res = await fetch(API_PATHS.bff.operate.bots, {
+      // Same platform the picker listed: the BFF re-checks every id against
+      // that platform's sources, so a write scoped differently from the read
+      // would reject apps the user was just offered.
+      const res = await fetch(botsUrl(platform), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -806,7 +816,7 @@ export function BotsView() {
 
   const handleSaveApps = useCallback(
     async (bot: Bot, draft: Draft, threadMode: string) => {
-      const res = await fetch(API_PATHS.bff.operate.bots, {
+      const res = await fetch(botsUrl(platform), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -840,8 +850,7 @@ export function BotsView() {
       setRemovingId(bot.id);
       setRemoveError(null);
       try {
-        const params = new URLSearchParams({ botId: bot.id });
-        const res = await fetch(`${API_PATHS.bff.operate.bots}?${params}`, {
+        const res = await fetch(botsUrl(platform, { botId: bot.id }), {
           method: "DELETE",
         });
         const json = (await res.json().catch(() => ({}))) as {

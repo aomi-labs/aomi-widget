@@ -90,17 +90,23 @@ Defaults you can override: rate limiting + same-origin CSRF guards
 
 Point a `createLaunchClient` at the routes and drive them. The whole happy
 path is: `fetchGitHubSession` → `githubAppInstallUrl` → `createRepo` →
-`deploy` → poll `status` → `activate` → `appStatus` → embed chat. Render it
-however your product needs — often just a button, a status line, and a chat
-embed.
+`deploy` → `watch` → `activate` → `appStatus` → embed chat. Render it however
+your product needs — often just a button, a status line, and a chat embed.
 
 ```ts
 "use client";
 import { createLaunchClient } from "@aomi-labs/deploy/launch";
 
 const launch = createLaunchClient(); // defaults to /api/bff/launch + /api/bff/auth/github
-const { deployment } = await launch.deploy({ appSourceId, sourceRef });
-// poll launch.status(deployment.id) until "ready", then launch.activate(...)
+const { deployment, releaseTags, apps } = await launch.deploy({
+  appSourceId,
+  sourceRef,
+});
+
+await launch.watch({ deploymentId: deployment.id }, (event) => {
+  setProgress(event.progress); // { completed, total, label }
+});
+await launch.activate({ appSourceId, releaseTags, apps });
 ```
 
 See the [`aomi-deploy` skill](skills/aomi-deploy/SKILL.md) for the full flow,
@@ -141,16 +147,20 @@ rules make that work:
    `platform` string on a later call doesn't move it; the backend rejects the
    mismatch.
 
+**Bind the platform once**, at construction — do not thread it through every
+call. Omitting it on a single call falls back to the BFF's *default* platform,
+which is a silent wrong-platform write rather than an error:
+
 ```ts
 "use client";
 import { createLaunchClient, LaunchRequestError } from "@aomi-labs/deploy/launch";
 
-const launch = createLaunchClient();
-const PLATFORM = "somm.finance"; // the exact name your partner gave you
+// The exact name your partner gave you.
+const launch = createLaunchClient({ platform: "somm.finance" });
 
 // Probe the platform by reading the signed-in user's sources on it.
 try {
-  const { sources } = await launch.deploymentSources(PLATFORM);
+  const { sources } = await launch.deployments.sources();
 } catch (err) {
   if (err instanceof LaunchRequestError && err.status === 404) {
     // No such platform — exact match failed; nothing changed.
@@ -158,6 +168,13 @@ try {
   throw err;
 }
 ```
+
+`launch.forPlatform("community")` returns the same client scoped elsewhere, so
+switching platforms is one explicit act instead of a parameter you might forget
+on one call out of fifteen. Any single call may still pass `platform` to
+override. The launch flow sits on the client; the project console lives under
+`launch.deployments.*` — two different BFF mounts, so the namespace says which
+one you are calling.
 
 `LaunchRequestError` carries `status` and the raw `body` on every non-2xx BFF
 response, so "unknown platform" (404), "not yours" (403), and transport
@@ -202,9 +219,28 @@ const result = connectionResult({
 // result: { status: "success", repo } | { status: "pending" | "error", message }
 ```
 
-After a `"bound"` result the repo shows up in
-`deploymentSources(PLATFORM)` and the normal `preflight → deploy → status →
-activate` calls work with `platform: PLATFORM` on each input.
+After a `"bound"` result the repo shows up in `launch.deployments.sources()`
+and the normal `preflight → deploy → watch → activate` calls work with no
+further platform plumbing.
+
+### Watching a deployment
+
+Do not hand-roll a polling loop. `watch` backs off 3s → 30s, treats a 4xx as
+fatal, keeps `completed` monotonic so progress never jumps backwards, and
+**never throws** — a failure arrives as an `error` event, so a render loop has
+exactly one code path:
+
+```ts
+const { deployment } = await launch.deploy({ appSourceId, sourceRef });
+
+await launch.watch({ deploymentId: deployment.id }, (event) => {
+  setProgress(event.progress);            // { completed, total, label }
+  if (event.kind === "terminal") setState(event.status.state);
+  if (event.kind === "error") setError(event.error);
+});
+```
+
+Cancel with `{ signal }` from an `AbortController` when the component unmounts.
 
 ### Platform context helpers
 
@@ -218,19 +254,21 @@ activate` calls work with `platform: PLATFORM` on each input.
 ```ts
 import { loadLaunch } from "@aomi-labs/deploy/launch";
 
-let state = loadLaunch();
-if (state.platform !== PLATFORM) {
-  state = { platform: PLATFORM, path: null, oneshot: {}, pendingInstall: null, rejectedInstallationId: null };
-}
+// Scoped load: progress saved under another platform is discarded rather than
+// returned, so a stale appSourceId can never route a write to the wrong place.
+const state = loadLaunch(PLATFORM);
 ```
 
 ### Deployments console endpoints
 
-The same client covers the project-dashboard surface (default mount
-`/api/bff/deployments`, override via `deploymentsBasePath`): `history`,
-`feed`, `records`, `promote`, `deactivate`, `secrets` / `setSecrets` /
-`deleteSecret`, `requiredSecrets`, `upgradeSdk` / `sdkUpgradeStatus` /
-`deploymentSdkStatus`. Each takes the same optional `platform`.
+`launch.deployments.*` covers the project-dashboard surface (default mount
+`/api/bff/deployments`, override via `deploymentsBasePath`): `sources`,
+`status`, `history`, `feed`, `records`, `promote`, `deactivate`, `secrets` /
+`setSecrets` / `deleteSecret`, `requiredSecrets`, `upgradeSdk` /
+`sdkUpgradeStatus`. All inherit the client's bound platform.
+
+`launch.sdkStatus()` is not duplicated here — both mounts serve it from the
+same handler, so there is one method.
 
 ## Core API (`@aomi-labs/deploy`)
 
@@ -480,6 +518,7 @@ packages/deploy/test/
   github-auth.test.ts          — session codec + sign-in routes
   launch-state.test.ts         — wizard state machine
   launch-url-context.test.ts   — install-redirect matching
+  launch-client-platform.test.ts — bound platform, forPlatform, mount routing
   launch-connection-result.test.ts — OAuth-callback outcome mapping
   dashboard-lifecycle.test.ts  — lifecycle projections
 ```

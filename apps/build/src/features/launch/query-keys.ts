@@ -55,8 +55,14 @@ export const buildQueryKeys = {
       sourceId,
       applicationId,
     ] as const,
-  bots: (account: string) =>
-    [...buildQueryKeys.all, "account", account, "bots"] as const,
+  bots: (account: string, platform?: string | null) =>
+    [
+      ...buildQueryKeys.all,
+      "account",
+      account,
+      "bots",
+      platform?.trim() || "default",
+    ] as const,
   modelKeys: (account: string) =>
     [...buildQueryKeys.all, "account", account, "model-keys"] as const,
 };

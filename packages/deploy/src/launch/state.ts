@@ -57,25 +57,39 @@ function empty(): LaunchState {
   };
 }
 
-export function loadLaunch(): LaunchState {
+/**
+ * Read the persisted wizard state.
+ *
+ * Pass the platform the page is rendering against and the state is scoped to
+ * it: progress saved under a different platform is discarded rather than
+ * returned, because reusing its `appSourceId` or deployment would route the
+ * next write to the wrong platform. Without an argument the stored state is
+ * returned as-is.
+ */
+export function loadLaunch(platform?: string | null): LaunchState {
+  const scope = platform?.trim() || null;
   const storage = browserStorage();
-  if (!storage) return empty();
+  if (!storage) return { ...empty(), platform: scope };
   try {
     const raw = storage.getItem(STORAGE_KEY);
-    if (!raw) return empty();
+    if (!raw) return { ...empty(), platform: scope };
     const parsed = JSON.parse(raw) as Partial<LaunchState>;
+    const stored =
+      typeof parsed.platform === "string" && parsed.platform.trim()
+        ? parsed.platform.trim()
+        : null;
+    if (platform !== undefined && stored !== scope) {
+      return { ...empty(), platform: scope };
+    }
     return {
-      platform:
-        typeof parsed.platform === "string" && parsed.platform.trim()
-          ? parsed.platform.trim()
-          : null,
+      platform: stored,
       path: parsed.path ?? null,
       oneshot: parsed.oneshot ?? {},
       pendingInstall: parsed.pendingInstall ?? null,
       rejectedInstallationId: parsed.rejectedInstallationId ?? null,
     };
   } catch {
-    return empty();
+    return { ...empty(), platform: scope };
   }
 }
 

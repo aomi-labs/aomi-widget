@@ -43,20 +43,10 @@ export function Onboarding({
   const actor = adapter.identity.address ?? undefined;
 
   const [state, setState] = useState<LaunchState>(() => {
-    const requestedPlatform = platform?.trim() || null;
-    let loaded = loadLaunch();
-    // Wizard progress belongs to exactly one platform. Reusing a source id or
-    // deployment from Community after entering a partner flow would route
-    // subsequent writes to the wrong platform.
-    if (loaded.platform !== requestedPlatform) {
-      loaded = {
-        platform: requestedPlatform,
-        path: null,
-        oneshot: {},
-        pendingInstall: null,
-        rejectedInstallationId: null,
-      };
-    }
+    // Scoped load: wizard progress belongs to exactly one platform, and
+    // `loadLaunch` discards progress saved under a different one rather than
+    // letting a stale source id route writes to the wrong platform.
+    const loaded = loadLaunch(platform ?? DEFAULT_DEPLOY_PLATFORM);
     // One-click is the only path — always mount the wizard.
     loaded.path = PATH;
     // Skip-install: if the App is already installed and we don't have a repo

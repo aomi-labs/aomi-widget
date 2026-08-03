@@ -77,6 +77,13 @@ export {
 } from "./state";
 
 export {
+  deploymentProgress,
+  isTerminalState,
+  watchDeploymentLoop,
+  type WatchLoopOptions,
+} from "./watch";
+
+export {
   readLaunchUrlContext,
   sourceMatchesLaunchUrlContext,
   hasSourceForLaunchUrlContext,
