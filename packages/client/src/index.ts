@@ -72,6 +72,13 @@ export type {
   AomiSimulateResponse,
   AomiSSEEvent,
   AomiSSEEventType,
+  AomiTaskActivityEvent,
+  AomiTaskActivityKind,
+  AomiTaskCompletedEvent,
+  AomiTaskEvent,
+  AomiTaskEventType,
+  AomiTaskStartedEvent,
+  AomiTaskStatus,
   AomiStateResponse,
   AomiSystemEvent,
   AomiSystemResponse,
@@ -116,6 +123,9 @@ export {
   isInlineCall,
   isSystemError,
   isSystemNotice,
+  isAomiTaskEventType,
+  parseAomiTaskEvent,
+  AOMI_TASK_EVENT_TYPES,
 } from "./types";
 
 // =============================================================================

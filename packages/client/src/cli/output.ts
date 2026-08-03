@@ -1,4 +1,10 @@
-import type { AomiMessage, AomiSSEEvent } from "../types";
+import type {
+  AomiMessage,
+  AomiSSEEvent,
+  AomiTaskActivityEvent,
+  AomiTaskCompletedEvent,
+  AomiTaskStartedEvent,
+} from "../types";
 import type { CliPaymentEvent } from "./payment";
 import { STATE_ROOT_DIR, getActiveStateFilePath } from "./state";
 
@@ -35,6 +41,51 @@ export function printToolComplete(event: AomiSSEEvent): void {
   const result = getToolResultFromEvent(event);
   const line = formatToolResultLine(name, result);
   console.log(line);
+}
+
+// ---------------------------------------------------------------------------
+// Orchestrator delegation lines (verbose mode only — see chat command)
+// ---------------------------------------------------------------------------
+
+const TASK_LINE_MAX = 100;
+
+export function printTaskStarted(event: AomiTaskStartedEvent): void {
+  const label = event.label || event.agent_id;
+  console.log(`${CYAN}◆ [agent] ${label} started${RESET}`);
+}
+
+export function printTaskActivity(event: AomiTaskActivityEvent): void {
+  console.log(`${DIM}  ↳ ${formatTaskActivity(event)}${RESET}`);
+}
+
+export function printTaskCompleted(
+  event: AomiTaskCompletedEvent,
+  label?: string,
+): void {
+  const color = event.status === "completed" ? GREEN : "\x1b[31m";
+  const mark = event.status === "completed" ? "✔" : "✖";
+  console.log(
+    `${color}  ${mark} ${label || event.agent_id}: ${event.status} (${formatTaskCompletionStats(event)})${RESET}`,
+  );
+}
+
+/** `tool_call` → tool name, `note` → note text. Truncated for one-line output. */
+export function formatTaskActivity(event: AomiTaskActivityEvent): string {
+  const raw =
+    event.kind === "note"
+      ? (event.text ?? "")
+      : (event.tool_name ?? "unknown tool");
+  const normalized = raw.replace(/\s+/g, " ").trim();
+  if (normalized.length <= TASK_LINE_MAX) return normalized;
+  return `${normalized.slice(0, TASK_LINE_MAX)}…`;
+}
+
+export function formatTaskCompletionStats(
+  event: AomiTaskCompletedEvent,
+): string {
+  const steps = event.steps ?? 0;
+  const seconds = ((event.duration_ms ?? 0) / 1000).toFixed(1);
+  return `${steps} ${steps === 1 ? "step" : "steps"}, ${seconds}s`;
 }
 
 export function printToolResultLine(name: string, result?: string): void {

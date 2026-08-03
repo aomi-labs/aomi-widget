@@ -975,3 +975,12 @@ build`, `CI=true npx -y pnpm@10.28.0 install --frozen-lockfile`, and
   bootstrap contract to assert the new nullable pricing field. Verified root
   lint, Build type-check, deploy/client/React/registry builds, 1,390 tests, and
   the Landing production build.
+- 2026-07-31 mother-commit orchestration client: removed delegated child-wallet
+  auto-signing and child callback routing, restored every wallet request to the
+  owning session queue/callback path, retained `WalletRequestTarget` only as a
+  deprecated compatibility export, and versioned `@aomi-labs/client` at 0.4.0.
+  Replaced the v1 child-routing tests with an ordinary mother-session callback
+  test and a CLI E2E that receives a two-transaction mother batch, resolves it
+  through the normal signing API, verifies session-thread/app-scoped callback
+  delivery, and observes the resumed final state. Client build/declarations,
+  library typecheck, and all 59 focused tests passed.

@@ -1,5 +1,5 @@
-import { AomiPlatformFilter, AomiClientOptions, AomiClient, SessionOptions, Session, UserState, WalletRequest, WalletRequestResult, AomiSimulateResponse, ChainInfo, AomiAppDescriptor } from '@aomi-labs/client';
-export { AomiAppDescriptor, AomiChatResponse, AomiClient, AomiClientOptions, AomiCreateThreadResponse, AomiInterruptResponse, AomiMessage, AomiPlatformFilter, AomiSSEEvent, AomiSecretSlot, AomiStateResponse, AomiSystemEvent, AomiSystemResponse, AomiThread, ChainInfo, MAX_AUTO_FEE_WEI, NativeWalletExecutionPolicy, NativeWalletSponsorship, SponsorshipPaymasterServiceContext, UserState, ViemSignMessageArgs, WalletAaSignPayload, WalletAaSignatureRequest, WalletCapabilities, WalletEip712Payload, WalletRequest, WalletRequestKind, WalletRequestResult, WalletSolanaSignMessagePayload, WalletSolanaSignPayload, WalletTxPayload, aaModeFromExecutionKind, appIdentityKey, appendFeeCallToPayload, buildFeeAAWalletCall, executeWalletCalls, hydrateTxPayloadFromUserState, normalizeAppDescriptor, normalizeSimulatedFee, parseChainId, toAAWalletCall, toAAWalletCalls, toViemSignMessageArgs, toViemSignTypedDataArgs } from '@aomi-labs/client';
+import { AomiPlatformFilter, AomiClientOptions, AomiClient, SessionOptions, Session, UserState, AomiTaskEvent, WalletRequest, WalletRequestResult, AomiSimulateResponse, ChainInfo, AomiAppDescriptor } from '@aomi-labs/client';
+export { AOMI_TASK_EVENT_TYPES, AomiAppDescriptor, AomiChatResponse, AomiClient, AomiClientOptions, AomiCreateThreadResponse, AomiInterruptResponse, AomiMessage, AomiPlatformFilter, AomiSSEEvent, AomiSecretSlot, AomiStateResponse, AomiSystemEvent, AomiSystemResponse, AomiTaskActivityEvent, AomiTaskActivityKind, AomiTaskCompletedEvent, AomiTaskEvent, AomiTaskEventType, AomiTaskStartedEvent, AomiTaskStatus, AomiThread, ChainInfo, MAX_AUTO_FEE_WEI, NativeWalletExecutionPolicy, NativeWalletSponsorship, SponsorshipPaymasterServiceContext, UserState, ViemSignMessageArgs, WalletAaSignPayload, WalletAaSignatureRequest, WalletCapabilities, WalletEip712Payload, WalletRequest, WalletRequestKind, WalletRequestResult, WalletSolanaSignMessagePayload, WalletSolanaSignPayload, WalletTxPayload, aaModeFromExecutionKind, appIdentityKey, appendFeeCallToPayload, buildFeeAAWalletCall, executeWalletCalls, hydrateTxPayloadFromUserState, isAomiTaskEventType, normalizeAppDescriptor, normalizeSimulatedFee, parseAomiTaskEvent, parseChainId, toAAWalletCall, toAAWalletCalls, toViemSignMessageArgs, toViemSignTypedDataArgs } from '@aomi-labs/client';
 import * as react_jsx_runtime from 'react/jsx-runtime';
 import * as react from 'react';
 import { ReactNode, SetStateAction } from 'react';
@@ -62,6 +62,11 @@ type ThreadContext = {
     setThreadMessages: (threadId: string, messages: ThreadMessageLike[]) => void;
     getThreadMetadata: (threadId: string) => ThreadMetadata | undefined;
     updateThreadMetadata: (threadId: string, updates: Partial<ThreadMetadata>) => void;
+    /** Orchestrator delegation sidecar: threadId → (agentId → TaskRunState). */
+    allThreadTaskRuns: Map<string, ThreadTaskRuns>;
+    getThreadTaskRuns: (threadId: string) => ThreadTaskRuns;
+    applyTaskEvent: (threadId: string, event: AomiTaskEvent) => void;
+    clearThreadTaskRuns: (threadId: string) => void;
     resetToDefault: () => string;
 };
 type ThreadContextProviderProps = {
@@ -72,7 +77,76 @@ declare function useThreadContext(): ThreadContext;
 declare function ThreadContextProvider({ children, initialThreadId, }: ThreadContextProviderProps): react_jsx_runtime.JSX.Element;
 declare function useCurrentThreadMessages(): ThreadMessageLike[];
 declare function useCurrentThreadMetadata(): ThreadMetadata | undefined;
+/**
+ * Live delegation state for a thread, keyed by agent id. Defaults to the
+ * current thread. Joined to the transcript through
+ * `metadata.custom.aomiTask.agentId` on the `task` tool-call part.
+ */
+declare function useThreadTaskRuns(threadId?: string): ThreadTaskRuns;
+/** A single agent's run, or `undefined` when no sidecar exists (e.g. reload). */
+declare function useTaskRun(agentId: string | undefined, threadId?: string): TaskRunState | undefined;
 
+/**
+ * A child step observed while a delegated `task` call is running.
+ * `childSeq` is the backend's monotonic per-agent counter — it orders the list
+ * and dedupes SSE replay after a reconnect.
+ */
+type TaskRunStep = {
+    kind: "tool_call";
+    toolName: string;
+    args?: unknown;
+    resultPreview?: string;
+    childSeq: number;
+} | {
+    kind: "note";
+    text: string;
+    childSeq: number;
+};
+type TaskRunStatus = "running" | "completed" | "failed" | "stalled" | "cancelled";
+/**
+ * Live state for one delegated child agent.
+ *
+ * Reconciliation contract: while `status === "running"` there is **no**
+ * transcript part for this run — the mother's `task` tool message only lands
+ * once the child finishes. The UI renders a synthetic row from this state, and
+ * once the transcript part carrying the same `agentId` (see
+ * `metadata.custom.aomiTask` in `runtime/utils.ts`) arrives it joins the two:
+ * the transcript part renders the row, this state supplies steps and summary.
+ * On reload there is no sidecar for older runs, so the row degrades to whatever
+ * the transcript part alone carries (label + staged count, no steps).
+ */
+type TaskRunState = {
+    agentId: string;
+    callId: string;
+    label: string;
+    app: string | null;
+    status: TaskRunStatus;
+    /** Client clock at `task_started` (backend sends no start timestamp). */
+    startedAt: number;
+    /** Ordered by `childSeq`, deduped. */
+    steps: TaskRunStep[];
+    message?: string;
+    stagedCount?: number;
+    durationMs?: number;
+    /**
+     * Step count reported by `task_completed`. May exceed `steps.length` when
+     * activity events were dropped (e.g. the tab was backgrounded mid-run).
+     */
+    stepCount?: number;
+};
+/** All live/finished task runs for one thread, keyed by agent id. */
+type ThreadTaskRuns = Record<string, TaskRunState>;
+declare const EMPTY_TASK_RUNS: ThreadTaskRuns;
+/**
+ * Fold one delegation event into a thread's task runs.
+ *
+ * Pure and idempotent: replaying the same SSE window (which the backend does
+ * after a reconnect via `Last-Event-ID`) returns the identical object, so React
+ * consumers do not re-render. Events may also arrive out of order — an activity
+ * or completion before `task_started` creates a placeholder run that the later
+ * `task_started` fills in without discarding collected steps.
+ */
+declare function reduceTaskRuns(runs: ThreadTaskRuns, event: AomiTaskEvent, now?: number): ThreadTaskRuns;
 type ThreadStatus = "regular" | "archived";
 type ModelSelectionMode = "auto" | "manual";
 type ThreadTurnPhase = "idle" | "submitting" | "working";
@@ -380,6 +454,17 @@ declare function ExtUserProvider({ children }: {
  */
 declare function cn(...inputs: ClassValue[]): string;
 /**
+ * UI-only join key attached to a completed `task` tool-call part. The trace uses
+ * it to pair the transcript part with the live `TaskRunState` sidecar (see
+ * `state/thread-store.ts`). Survives `fromThreadMessageLike` because unknown
+ * tool-call properties are spread through unchanged.
+ */
+type AomiTaskPartMetadata = {
+    agentId: string;
+};
+/** Read `metadata.custom.aomiTask.agentId` off a tool-call part, if present. */
+declare function readTaskPartAgentId(part: unknown): string | undefined;
+/**
  * User configuration props for footer components.
  * Provides user state and setter from UserContext.
  */
@@ -507,4 +592,4 @@ type ControlContextProviderProps = {
 };
 declare function ControlContextProvider({ children, aomiClient, sessionId, getThreadMetadata, updateThreadMetadata, appPlatforms, }: ControlContextProviderProps): react_jsx_runtime.JSX.Element;
 
-export { type AomiRuntimeApi, AomiRuntimeApiProvider, AomiRuntimeProvider, type AomiRuntimeProviderProps, type ControlContextApi, ControlContextProvider, type ControlContextProviderProps, type ControlState, type EventContext, EventContextProvider, type EventContextProviderProps, type EventSubscriber, ExtUserProvider, type InboundEvent, type ModelSelectionMode, type Notification$1 as Notification, type NotificationApi, NotificationContextProvider, type NotificationContextProviderProps, type NotificationContextApi as NotificationContextValue, type NotificationHandlerConfig, type NotificationType, RuntimeUserStateProvider, type SSEStatus, SUPPORTED_CHAINS, type NotificationData as ShowNotificationParams, type StoredByokKey, type ThreadContext, ThreadContextProvider, type ThreadControlState, type ThreadMetadata, type ThreadTurnPhase, type UserConfig, type WalletHandlerApi, type WalletHandlerConfig, type WalletRequestStatus, cn, formatAddress, getChainInfo, getNetworkName, initThreadControl, resolveAutoModel, useAomiRuntime, useApiKey, useAuthEndpoints, useByok, useControl, useCurrentThreadMessages, useCurrentThreadMetadata, useEventContext, useNotification, useNotificationHandler, useOptionalAomiRuntime, usePerThreadControl, useThreadContext, useUser, useWalletHandler };
+export { type AomiRuntimeApi, AomiRuntimeApiProvider, AomiRuntimeProvider, type AomiRuntimeProviderProps, type AomiTaskPartMetadata, type ControlContextApi, ControlContextProvider, type ControlContextProviderProps, type ControlState, EMPTY_TASK_RUNS, type EventContext, EventContextProvider, type EventContextProviderProps, type EventSubscriber, ExtUserProvider, type InboundEvent, type ModelSelectionMode, type Notification$1 as Notification, type NotificationApi, NotificationContextProvider, type NotificationContextProviderProps, type NotificationContextApi as NotificationContextValue, type NotificationHandlerConfig, type NotificationType, RuntimeUserStateProvider, type SSEStatus, SUPPORTED_CHAINS, type NotificationData as ShowNotificationParams, type StoredByokKey, type TaskRunState, type TaskRunStatus, type TaskRunStep, type ThreadContext, ThreadContextProvider, type ThreadControlState, type ThreadMetadata, type ThreadTaskRuns, type ThreadTurnPhase, type UserConfig, type WalletHandlerApi, type WalletHandlerConfig, type WalletRequestStatus, cn, formatAddress, getChainInfo, getNetworkName, initThreadControl, readTaskPartAgentId, reduceTaskRuns, resolveAutoModel, useAomiRuntime, useApiKey, useAuthEndpoints, useByok, useControl, useCurrentThreadMessages, useCurrentThreadMetadata, useEventContext, useNotification, useNotificationHandler, useOptionalAomiRuntime, usePerThreadControl, useTaskRun, useThreadContext, useThreadTaskRuns, useUser, useWalletHandler };

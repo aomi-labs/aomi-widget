@@ -294,10 +294,10 @@ smoke_chat() {
   curl --max-time 30 -s -o /tmp/aomi-dev-stack-chat.json -w "%{http_code}\n" \
     -X POST \
     -H "X-Thread-Id: $thread_id" \
-    "$PORTAL_URL/api/chat?app=default&message=Say%20only%20pong&client_id=dev-stack-smoke" | grep -q '^200$'
+    "$PORTAL_URL/api/thread/chat?app=default&message=Say%20only%20pong&client_id=dev-stack-smoke" | grep -q '^200$'
 
   for _ in $(seq 1 18); do
-    body="$(curl -s -H "X-Thread-Id: $thread_id" "$PORTAL_URL/api/state")"
+    body="$(curl -s -H "X-Thread-Id: $thread_id" "$PORTAL_URL/api/thread/state")"
     if printf "%s" "$body" | grep -q '"is_processing":false'; then
       if printf "%s" "$body" | grep -q '"content":"pong"'; then
         echo "200 pong"

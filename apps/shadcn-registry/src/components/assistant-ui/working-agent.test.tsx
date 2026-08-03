@@ -1,0 +1,242 @@
+import { act, fireEvent, render } from "@testing-library/react";
+import type { ToolCallMessagePart } from "@assistant-ui/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import type { TaskRunState } from "@aomi-labs/react";
+
+vi.mock("@/components/assistant-ui/markdown-text", () => ({
+  MarkdownText: () => null,
+}));
+
+import { WorkingAgent } from "./working-agent";
+
+const makeRun = (over: Partial<TaskRunState> = {}): TaskRunState => ({
+  agentId: "task-agent:9f2c1a2b3c4d",
+  callId: "call-1",
+  label: "swap-worker",
+  app: "default",
+  status: "running",
+  startedAt: Date.now(),
+  steps: [],
+  ...over,
+});
+
+const rowOf = (container: HTMLElement): HTMLElement => {
+  const row = container.querySelector<HTMLElement>(".aui-working-agent");
+  if (!row) throw new Error("no agent row rendered");
+  return row;
+};
+
+describe("WorkingAgent", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("mounts expanded while the run is live", () => {
+    const { container } = render(
+      <WorkingAgent
+        agentId="a"
+        run={makeRun()}
+        order={0}
+        active
+        animate={false}
+      />,
+    );
+
+    const row = rowOf(container);
+    expect(row.dataset.open).toBe("true");
+    expect(row.dataset.live).toBe("true");
+    expect(row).toHaveTextContent("swap-worker");
+  });
+
+  it("folds itself a beat after the run goes terminal", () => {
+    const { container, rerender } = render(
+      <WorkingAgent
+        agentId="a"
+        run={makeRun()}
+        order={0}
+        active
+        animate={false}
+      />,
+    );
+    expect(rowOf(container).dataset.open).toBe("true");
+
+    rerender(
+      <WorkingAgent
+        agentId="a"
+        run={makeRun({
+          status: "completed",
+          message: "staged 1 swap",
+          durationMs: 12400,
+        })}
+        order={0}
+        active={false}
+        animate={false}
+      />,
+    );
+    expect(rowOf(container).dataset.open).toBe("true");
+
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(rowOf(container).dataset.open).toBe("false");
+    expect(rowOf(container)).toHaveTextContent("staged 1 swap");
+  });
+
+  it("never auto-changes a row the reader has toggled", () => {
+    const { container, rerender } = render(
+      <WorkingAgent
+        agentId="a"
+        run={makeRun()}
+        order={0}
+        active
+        animate={false}
+      />,
+    );
+
+    fireEvent.click(
+      container.querySelector<HTMLElement>(".aui-working-agent-header")!,
+    );
+    expect(rowOf(container).dataset.open).toBe("false");
+
+    // Still live, more steps land: the row is not re-expanded.
+    rerender(
+      <WorkingAgent
+        agentId="a"
+        run={makeRun({
+          steps: [{ kind: "note", text: "Looking up the mint", childSeq: 1 }],
+        })}
+        order={0}
+        active
+        animate={false}
+      />,
+    );
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+    expect(rowOf(container).dataset.open).toBe("false");
+  });
+
+  it("keeps a reader-opened finished row open", () => {
+    const { container } = render(
+      <WorkingAgent
+        agentId="a"
+        run={makeRun({ status: "completed", durationMs: 4000 })}
+        order={0}
+        active={false}
+        animate={false}
+      />,
+    );
+    // Terminal at mount (scrollback) starts folded.
+    expect(rowOf(container).dataset.open).toBe("false");
+
+    fireEvent.click(
+      container.querySelector<HTMLElement>(".aui-working-agent-header")!,
+    );
+    act(() => {
+      vi.advanceTimersByTime(5000);
+    });
+    expect(rowOf(container).dataset.open).toBe("true");
+  });
+
+  it("marks a completed run with a check and a failed one with an X", () => {
+    const completed = render(
+      <WorkingAgent
+        agentId="a"
+        run={makeRun({ status: "completed" })}
+        order={0}
+        active={false}
+        animate={false}
+      />,
+    );
+    expect(
+      completed.container.querySelector(".text-aomi-success"),
+    ).not.toBeNull();
+    expect(completed.container.querySelector(".text-aomi-danger")).toBeNull();
+
+    for (const status of ["failed", "stalled", "cancelled"] as const) {
+      const failed = render(
+        <WorkingAgent
+          agentId="a"
+          run={makeRun({ status })}
+          order={0}
+          active={false}
+          animate={false}
+        />,
+      );
+      expect(
+        failed.container.querySelector(".text-aomi-danger"),
+      ).not.toBeNull();
+      failed.unmount();
+    }
+  });
+
+  it("renders child steps behind the rail and counts them", () => {
+    const { container } = render(
+      <WorkingAgent
+        agentId="a"
+        run={makeRun({
+          steps: [
+            { kind: "note", text: "Fetching a quote", childSeq: 1 },
+            {
+              kind: "tool_call",
+              toolName: "get_chain_context",
+              args: { chain_id: 1 },
+              resultPreview: '{"chain_id":1,"block_number":7}',
+              childSeq: 2,
+            },
+          ],
+          status: "completed",
+          stepCount: 2,
+          durationMs: 3000,
+        })}
+        order={0}
+        active={false}
+        animate={false}
+      />,
+    );
+
+    const rail = container.querySelector(".aui-working-agent-rail");
+    expect(rail).not.toBeNull();
+    expect(rail?.querySelectorAll(".aui-working-step")).toHaveLength(1);
+    expect(rail?.querySelectorAll(".aui-working-note")).toHaveLength(1);
+    expect(
+      container.querySelector(".aui-working-agent-count")?.textContent,
+    ).toBe("2 steps · 3s");
+  });
+
+  it("degrades to the transcript part when there is no sidecar", () => {
+    const tool = {
+      type: "tool-call",
+      toolCallId: "tool_1",
+      toolName: "task",
+      args: { label: "approvals-auditor", app: "default", prompt: "audit" },
+      result: {
+        agent_id: "task-agent:9f2c1a2b3c4d",
+        status: "completed",
+        staged_count: 2,
+      },
+    } as unknown as ToolCallMessagePart;
+
+    const { container } = render(
+      <WorkingAgent
+        agentId="task-agent:9f2c1a2b3c4d"
+        tool={tool}
+        order={1}
+        active={false}
+        animate={false}
+      />,
+    );
+
+    const row = rowOf(container);
+    expect(row.dataset.live).toBe("false");
+    expect(row).toHaveTextContent("approvals-auditor");
+    expect(row).toHaveTextContent("staged 2");
+    expect(
+      container.querySelector(".aui-working-agent-rail")?.children.length,
+    ).toBe(0);
+  });
+});

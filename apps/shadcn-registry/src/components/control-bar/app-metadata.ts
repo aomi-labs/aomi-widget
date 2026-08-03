@@ -30,6 +30,8 @@ export type AppGroup = {
 
 const APP_CATEGORIES = {
   all: { id: "all", label: "All", order: 0 },
+  /** Ways of working rather than places to trade — sorts under "Basic Apps". */
+  modes: { id: "modes", label: "Modes", order: 5 },
   cex: { id: "cex", label: "Centralized Exchanges", order: 10 },
   dex: { id: "dex", label: "DEX & Swaps", order: 20 },
   analytics: { id: "analytics", label: "Analytics", order: 30 },
@@ -147,6 +149,11 @@ const APP_DISPLAY_NAMES: Record<string, Omit<AppInfo, "id">> = {
     displayName: "1inch",
     abbr: "1i",
     category: APP_CATEGORIES.dex,
+  },
+  orchestrator: {
+    displayName: "Orchestrator",
+    abbr: "Or",
+    category: APP_CATEGORIES.modes,
   },
   para: {
     displayName: "Para",

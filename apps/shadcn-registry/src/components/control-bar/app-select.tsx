@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, type FC } from "react";
-import { ChevronDownIcon, CheckIcon } from "lucide-react";
+import { BotIcon, ChevronDownIcon, CheckIcon } from "lucide-react";
 import { useControl, cn } from "@aomi-labs/react";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,6 +28,14 @@ export type AppSelectProps = {
 
 /** The "default" app id that means "all apps". */
 const ALL_APPS_ID = "default";
+
+/**
+ * The orchestrator is a *mode*, not a venue: it coordinates child agents rather
+ * than wrapping one protocol. It gets the same pinned two-line treatment as
+ * "Basic Apps", directly beneath it, and is kept out of the category groups so
+ * it is not listed twice.
+ */
+const ORCHESTRATOR_ID = "orchestrator";
 
 export const AppSelect: FC<AppSelectProps> = ({
   className,
@@ -60,13 +68,19 @@ export const AppSelect: FC<AppSelectProps> = ({
 
   const apps = state.authorizedApps;
 
-  // Separate "default" (All Apps) from the rest for pinned treatment
+  // Separate the pinned rows ("default" / orchestrator) from the rest
   const hasAllApps = apps.includes(ALL_APPS_ID);
+  const hasOrchestrator = apps.includes(ORCHESTRATOR_ID);
+  const isPinned = (name: string) =>
+    name === ALL_APPS_ID || name === ORCHESTRATOR_ID;
   const otherApps =
     state.appDescriptors.length > 0
-      ? state.appDescriptors.filter((app) => app.name !== ALL_APPS_ID)
-      : apps.filter((app) => app !== ALL_APPS_ID);
+      ? state.appDescriptors.filter((app) => !isPinned(app.name))
+      : apps.filter((app) => !isPinned(app));
   const groups = groupAppsByCategory(otherApps);
+  const orchestratorApplicationId = state.appDescriptors.find(
+    (app) => app.name === ORCHESTRATOR_ID,
+  )?.applicationId;
 
   if (apps.length === 0) {
     return (
@@ -121,36 +135,69 @@ export const AppSelect: FC<AppSelectProps> = ({
           <CommandList>
             <CommandEmpty>No apps found.</CommandEmpty>
 
-            {/* Basic Apps (the "default" namespace) — pinned at top */}
-            {hasAllApps && (
+            {/* Basic Apps (the "default" namespace) + the orchestrator mode —
+                pinned above the category groups */}
+            {(hasAllApps || hasOrchestrator) && (
               <>
                 <CommandGroup>
-                  <CommandItem
-                    value="basic apps all default"
-                    disabled={isProcessing}
-                    onSelect={() => selectApp(ALL_APPS_ID)}
-                    className="flex items-center justify-between gap-2"
-                  >
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={cn(
-                          "flex h-5 w-5 shrink-0 items-center justify-center rounded-md",
-                          "bg-primary/10 text-primary",
-                        )}
-                      >
-                        <AllAppsIcon className="h-3.5 w-3.5" />
-                      </span>
-                      <div className="flex flex-col">
-                        <span className="font-medium">Basic Apps</span>
-                        <span className="text-muted-foreground text-xs">
-                          Use curated apps by Aomi
+                  {hasAllApps && (
+                    <CommandItem
+                      value="basic apps all default"
+                      disabled={isProcessing}
+                      onSelect={() => selectApp(ALL_APPS_ID)}
+                      className="flex items-center justify-between gap-2"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={cn(
+                            "flex h-5 w-5 shrink-0 items-center justify-center rounded-md",
+                            "bg-primary/10 text-primary",
+                          )}
+                        >
+                          <AllAppsIcon className="h-3.5 w-3.5" />
                         </span>
+                        <div className="flex flex-col">
+                          <span className="font-medium">Basic Apps</span>
+                          <span className="text-muted-foreground text-xs">
+                            Use curated apps by Aomi
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                    {selectedApp === ALL_APPS_ID && (
-                      <CheckIcon className="h-4 w-4 shrink-0" />
-                    )}
-                  </CommandItem>
+                      {selectedApp === ALL_APPS_ID && (
+                        <CheckIcon className="h-4 w-4 shrink-0" />
+                      )}
+                    </CommandItem>
+                  )}
+                  {hasOrchestrator && (
+                    <CommandItem
+                      value="orchestrator modes agents delegate"
+                      disabled={isProcessing}
+                      onSelect={() =>
+                        selectApp(ORCHESTRATOR_ID, orchestratorApplicationId)
+                      }
+                      className="flex items-center justify-between gap-2"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={cn(
+                            "flex h-5 w-5 shrink-0 items-center justify-center rounded-md",
+                            "bg-primary/10 text-primary",
+                          )}
+                        >
+                          <BotIcon className="h-3.5 w-3.5" />
+                        </span>
+                        <div className="flex flex-col">
+                          <span className="font-medium">Orchestrator</span>
+                          <span className="text-muted-foreground text-xs">
+                            Coordinate multiple agents on one task
+                          </span>
+                        </div>
+                      </div>
+                      {selectedApp === ORCHESTRATOR_ID && (
+                        <CheckIcon className="h-4 w-4 shrink-0" />
+                      )}
+                    </CommandItem>
+                  )}
                 </CommandGroup>
                 {otherApps.length > 0 && <CommandSeparator />}
               </>

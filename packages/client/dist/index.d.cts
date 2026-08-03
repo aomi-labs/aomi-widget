@@ -188,6 +188,10 @@ interface AomiMessage {
     timestamp?: string;
     is_streaming?: boolean;
     tool_result?: [string, string] | null;
+    /** Name of the tool this message reports on, when the backend supplies it. */
+    tool_name?: string;
+    /** Arguments the model passed to `tool_name`, as serialized by the backend. */
+    tool_arguments?: unknown;
 }
 /**
  * GET /api/thread/state
@@ -375,12 +379,74 @@ interface AomiByokKeyEntry {
  * optional for SDK compatibility with existing consumers.
  */
 type AomiSSEEvent = {
-    type: "title_changed" | "tool_update" | "tool_complete" | "system_notice" | string;
+    type: "title_changed" | "tool_update" | "tool_complete" | "system_notice" | "task_started" | "task_activity" | "task_completed" | string;
     session_id?: string;
     thread_id?: string;
     new_title?: string;
     [key: string]: unknown;
 };
+/** Terminal status reported by `task_completed`. */
+type AomiTaskStatus = "completed" | "failed" | "stalled" | "cancelled" | string;
+/** Child step flavor reported by `task_activity`. */
+type AomiTaskActivityKind = "tool_call" | "note";
+/** Emitted when the mother dispatches a `task` call, before awaiting the child. */
+type AomiTaskStartedEvent = {
+    type: "task_started";
+    /** id of the mother's `task` tool call. */
+    call_id: string;
+    /** Stable child handle, e.g. `task-agent:9f2c…`. */
+    agent_id: string;
+    label: string;
+    app?: string | null;
+    resumed?: boolean;
+    session_id?: string;
+    thread_id?: string;
+};
+/** Emitted as the mother observes the child transcript grow. */
+type AomiTaskActivityEvent = {
+    type: "task_activity";
+    call_id: string;
+    agent_id: string;
+    kind: AomiTaskActivityKind;
+    /** Present for `kind: "tool_call"`. */
+    tool_name?: string;
+    /** Present for `kind: "tool_call"`; redacted/truncated by the backend. */
+    args?: unknown;
+    /** Present for `kind: "tool_call"`; redacted/truncated by the backend. */
+    result_preview?: string;
+    /** Present for `kind: "note"`. */
+    text?: string;
+    /** Monotonic per agent — used for ordering and replay dedupe. */
+    child_seq: number;
+    session_id?: string;
+    thread_id?: string;
+};
+/** Emitted just before the mother's `task` call returns. */
+type AomiTaskCompletedEvent = {
+    type: "task_completed";
+    call_id: string;
+    agent_id: string;
+    status: AomiTaskStatus;
+    message?: string;
+    staged_count?: number;
+    /** Number of child steps the backend counted (may exceed observed activity). */
+    steps?: number;
+    duration_ms?: number;
+    session_id?: string;
+    thread_id?: string;
+};
+type AomiTaskEvent = AomiTaskStartedEvent | AomiTaskActivityEvent | AomiTaskCompletedEvent;
+type AomiTaskEventType = AomiTaskEvent["type"];
+declare const AOMI_TASK_EVENT_TYPES: readonly ["task_started", "task_activity", "task_completed"];
+declare function isAomiTaskEventType(type: string): type is AomiTaskEventType;
+/**
+ * Narrow a raw SSE payload to a typed task event.
+ *
+ * Returns `null` when the payload is not a task event or is missing the fields
+ * the UI joins on (`agent_id`, plus `child_seq` for activity), so a malformed
+ * backend event degrades to "no row" instead of a half-built one.
+ */
+declare function parseAomiTaskEvent(event: AomiSSEEvent | AomiTaskEvent): AomiTaskEvent | null;
 /**
  * POST /api/secrets
  * Ingests secrets for a client, returns opaque handles
@@ -436,7 +502,7 @@ interface AomiAppDescriptor {
     artifactReady?: boolean | null;
     secrets?: AomiSecretSlot[];
 }
-type AomiSSEEventType = "title_changed" | "tool_update" | "tool_complete" | "system_notice";
+type AomiSSEEventType = "title_changed" | "tool_update" | "tool_complete" | "system_notice" | AomiTaskEventType;
 /**
  * Backend SystemEvent enum serializes as tagged JSON:
  * - InlineCall: {"InlineCall": {"type": "wallet_tx_request", "payload": {...}}}
@@ -1321,6 +1387,9 @@ type SessionEventMap = {
     async_callback: Record<string, unknown>;
     tool_update: AomiSSEEvent;
     tool_complete: AomiSSEEvent;
+    task_started: AomiTaskStartedEvent;
+    task_activity: AomiTaskActivityEvent;
+    task_completed: AomiTaskCompletedEvent;
     title_changed: {
         title: string;
     };
@@ -1731,4 +1800,4 @@ declare function appendFeeCallToPayload(payload: WalletTxPayload, fee: AomiSimul
     strictAa?: boolean;
 }): WalletTxPayload;
 
-export { type AACallPayload, type AAMode, type AASponsorship, type AAWalletCall, ALCHEMY_CHAIN_SLUGS, type AccountBearerProvider, type AccountBearerProviderOptions, type AccountCredentialProvider, AccountCredentialUnavailableError, type AccountSessionExchangeResponse, type AomiAccessApproval, type AomiAccountProfile, type AomiAccountResponse, type AomiAppDescriptor, type AomiAuthIdentity, type AomiAuthPurpose, type AomiAuthorizationChallenge, type AomiAuthorizationPermit, type AomiAuthorizationState, type AomiChatResponse, type AomiClearSecretsResponse, AomiClient, type AomiClientOptions, type AomiClientType, type AomiCreateApprovalRequest, type AomiCreateThreadResponse, type AomiDeleteSecretResponse, type AomiEnsureBoundResult, type AomiHttpMethod, type AomiIdentityWallet, type AomiIngestSecretsResponse, type AomiInterruptResponse, type AomiListSecretsResponse, type AomiMessage, type AomiPlatformFilter, type AomiRequestOptions, type AomiRequestQueryValue, type AomiSSEEvent, type AomiSSEEventType, type AomiSecretSlot, type AomiSimulateFee, type AomiSimulateResponse, type AomiStateResponse, type AomiSystemEvent, type AomiSystemResponse, type AomiThread, type AomiUsageStats, type AomiUser, type AomiWalletFamily, type AtomicBatchArgs, type AuthorizationPoster, type BetterAuthAccountTokenSourceOptions, type BetterAuthTokenResponse, CHAINS_BY_ID, CHAIN_NAMES, CLIENT_TYPE_TS_CLI, CLIENT_TYPE_WEB_UI, type ChainInfo, type ExecuteWalletCallsParams, type ExecutionResult, type GetAccountBearer, type Logger, MAX_AUTO_FEE_WEI, type NativeWalletExecutionPolicy, type NativeWalletSponsorship, type NormalizedSimulatedFee, type NormalizedSolanaWalletRequest, type ProviderCredential, SUPPORTED_CHAINS, SUPPORTED_CHAIN_IDS, type SendResult, ClientSession as Session, type SessionEventMap, type SessionOptions, type SiwsChainId, type SiwsIntent, type SiwsWidgetSessionSigner, type SponsorshipPaymasterServiceContext, TypedEventEmitter, type UnwrappedEvent, UserState, type UserStateAAMode, type UserStateAuthMethod, type UserStateSponsorProvider, type UserStateWalletKind, type UserStateWalletProvider, type ViemSignMessageArgs, type ViemSignTypedDataArgs, type WalletAaSignPayload, type WalletAaSignatureRequest, type WalletAtomicCapability, type WalletCapabilities, type WalletEip712Payload, type WalletRequest, type WalletRequestKind, type WalletRequestResult, type WalletSolanaSignMessagePayload, type WalletSolanaSignPayload, type WalletTxAaPreference, type WalletTxCallPayload, type WalletTxPayload, type WidgetAuthAdapter, type WidgetAuthSession, type WidgetSession, type WidgetSessionProvider, type WidgetSessionSigner, aaModeFromExecutionKind, appIdentityKey, appendFeeCallToPayload, authorizationChallenge, authorizationCommit, buildFeeAAWalletCall, buildSiwsMessage, createAccountBearerProvider, createProviderCredentialAdapter, createSiweWidgetAuthAdapter, createSiwsWidgetAuthAdapter, createWidgetSessionProvider, ensureSvmWalletBound, ensureSvmWalletBoundVia, executeWalletCalls, handlePaymentChallenges, hydrateTxPayloadFromUserState, isAsyncCallback, isInlineCall, isSystemError, isSystemNotice, isUnboundWalletError, megaeth, monad, monadTestnet, normalizeAppDescriptor, normalizeEip712Payload, normalizeSimulatedFee, normalizeSolanaCluster, normalizeSolanaSignMessagePayload, normalizeSolanaSignPayload, normalizeSolanaWalletRequest, normalizeTxPayload, parseChainId, posterFromClient, robinhood, safeEnv, toAAWalletCall, toAAWalletCalls, toViemSignMessageArgs, toViemSignTypedDataArgs, unwrapSystemEvent, wrapFetchWithPaymentChallenges };
+export { type AACallPayload, type AAMode, type AASponsorship, type AAWalletCall, ALCHEMY_CHAIN_SLUGS, AOMI_TASK_EVENT_TYPES, type AccountBearerProvider, type AccountBearerProviderOptions, type AccountCredentialProvider, AccountCredentialUnavailableError, type AccountSessionExchangeResponse, type AomiAccessApproval, type AomiAccountProfile, type AomiAccountResponse, type AomiAppDescriptor, type AomiAuthIdentity, type AomiAuthPurpose, type AomiAuthorizationChallenge, type AomiAuthorizationPermit, type AomiAuthorizationState, type AomiChatResponse, type AomiClearSecretsResponse, AomiClient, type AomiClientOptions, type AomiClientType, type AomiCreateApprovalRequest, type AomiCreateThreadResponse, type AomiDeleteSecretResponse, type AomiEnsureBoundResult, type AomiHttpMethod, type AomiIdentityWallet, type AomiIngestSecretsResponse, type AomiInterruptResponse, type AomiListSecretsResponse, type AomiMessage, type AomiPlatformFilter, type AomiRequestOptions, type AomiRequestQueryValue, type AomiSSEEvent, type AomiSSEEventType, type AomiSecretSlot, type AomiSimulateFee, type AomiSimulateResponse, type AomiStateResponse, type AomiSystemEvent, type AomiSystemResponse, type AomiTaskActivityEvent, type AomiTaskActivityKind, type AomiTaskCompletedEvent, type AomiTaskEvent, type AomiTaskEventType, type AomiTaskStartedEvent, type AomiTaskStatus, type AomiThread, type AomiUsageStats, type AomiUser, type AomiWalletFamily, type AtomicBatchArgs, type AuthorizationPoster, type BetterAuthAccountTokenSourceOptions, type BetterAuthTokenResponse, CHAINS_BY_ID, CHAIN_NAMES, CLIENT_TYPE_TS_CLI, CLIENT_TYPE_WEB_UI, type ChainInfo, type ExecuteWalletCallsParams, type ExecutionResult, type GetAccountBearer, type Logger, MAX_AUTO_FEE_WEI, type NativeWalletExecutionPolicy, type NativeWalletSponsorship, type NormalizedSimulatedFee, type NormalizedSolanaWalletRequest, type ProviderCredential, SUPPORTED_CHAINS, SUPPORTED_CHAIN_IDS, type SendResult, ClientSession as Session, type SessionEventMap, type SessionOptions, type SiwsChainId, type SiwsIntent, type SiwsWidgetSessionSigner, type SponsorshipPaymasterServiceContext, TypedEventEmitter, type UnwrappedEvent, UserState, type UserStateAAMode, type UserStateAuthMethod, type UserStateSponsorProvider, type UserStateWalletKind, type UserStateWalletProvider, type ViemSignMessageArgs, type ViemSignTypedDataArgs, type WalletAaSignPayload, type WalletAaSignatureRequest, type WalletAtomicCapability, type WalletCapabilities, type WalletEip712Payload, type WalletRequest, type WalletRequestKind, type WalletRequestResult, type WalletSolanaSignMessagePayload, type WalletSolanaSignPayload, type WalletTxAaPreference, type WalletTxCallPayload, type WalletTxPayload, type WidgetAuthAdapter, type WidgetAuthSession, type WidgetSession, type WidgetSessionProvider, type WidgetSessionSigner, aaModeFromExecutionKind, appIdentityKey, appendFeeCallToPayload, authorizationChallenge, authorizationCommit, buildFeeAAWalletCall, buildSiwsMessage, createAccountBearerProvider, createProviderCredentialAdapter, createSiweWidgetAuthAdapter, createSiwsWidgetAuthAdapter, createWidgetSessionProvider, ensureSvmWalletBound, ensureSvmWalletBoundVia, executeWalletCalls, handlePaymentChallenges, hydrateTxPayloadFromUserState, isAomiTaskEventType, isAsyncCallback, isInlineCall, isSystemError, isSystemNotice, isUnboundWalletError, megaeth, monad, monadTestnet, normalizeAppDescriptor, normalizeEip712Payload, normalizeSimulatedFee, normalizeSolanaCluster, normalizeSolanaSignMessagePayload, normalizeSolanaSignPayload, normalizeSolanaWalletRequest, normalizeTxPayload, parseAomiTaskEvent, parseChainId, posterFromClient, robinhood, safeEnv, toAAWalletCall, toAAWalletCalls, toViemSignMessageArgs, toViemSignTypedDataArgs, unwrapSystemEvent, wrapFetchWithPaymentChallenges };

@@ -201,6 +201,16 @@ const descriptorById: Record<string, Descriptor> = {
     icon: SHAPE_ICONS.skillActivation,
     chipPlan: [{ kind: "skill", repeat: true }],
   },
+  "task.delegate": {
+    // Title comes from the operation (it carries the child's label).
+    title: "label",
+    icon: SHAPE_ICONS.delegation,
+    chipPlan: [
+      { kind: "code" },
+      { kind: "count", role: "staged" },
+      { kind: "status" },
+    ],
+  },
   "svm.context": {
     title: "fixed",
     fixedTitle: "Check network",

@@ -25,6 +25,20 @@ describe("app-metadata", () => {
     expect(info.abbr).toBe("?");
   });
 
+  it("describes the orchestrator as a mode that sorts under Basic Apps", () => {
+    const info = getAppInfo("orchestrator");
+
+    expect(info).toMatchObject({
+      id: "orchestrator",
+      displayName: "Orchestrator",
+      abbr: "Or",
+    });
+    expect(info.category).toEqual({ id: "modes", label: "Modes", order: 5 });
+
+    const grouped = groupAppsByCategory(["binance", "orchestrator"]);
+    expect(grouped.map((group) => group.category.id)).toEqual(["modes", "cex"]);
+  });
+
   it("preserves hosted application ids while grouping", () => {
     const grouped = groupAppsByCategory([
       { name: "partner-agent", applicationId: 42 },

@@ -1,4 +1,10 @@
-import type { AomiMessage, AomiSSEEvent } from "../types";
+import type {
+  AomiMessage,
+  AomiSSEEvent,
+  AomiTaskActivityEvent,
+  AomiTaskCompletedEvent,
+  AomiTaskStartedEvent,
+} from "../types";
 import type {
   AomiClientType,
   UserState as UserStateShape,
@@ -45,6 +51,14 @@ export type WalletAaSignPayload = {
   sponsored: boolean;
   tx_id?: string;
   timestamp?: string;
+};
+
+/** @deprecated Wallet callbacks are session-owned as of client 0.4.0. */
+export type WalletRequestTarget = {
+  /** Runtime-managed child that owns this wallet request, when delegated. */
+  targetThreadId?: string;
+  /** Stable child handle for UI/CLI attribution. */
+  agentId?: string;
 };
 
 export type WalletRequest =
@@ -205,6 +219,9 @@ export type SessionEventMap = {
   async_callback: Record<string, unknown>;
   tool_update: AomiSSEEvent;
   tool_complete: AomiSSEEvent;
+  task_started: AomiTaskStartedEvent;
+  task_activity: AomiTaskActivityEvent;
+  task_completed: AomiTaskCompletedEvent;
   title_changed: { title: string };
   messages: AomiMessage[];
   user_state_updated: UserStateShape;

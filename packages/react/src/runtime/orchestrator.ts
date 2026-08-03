@@ -515,6 +515,29 @@ export function useRuntimeOrchestrator(
 
       cleanups.push(forwardEvent("tool_update"));
       cleanups.push(forwardEvent("tool_complete"));
+
+      // Orchestrator delegation events → per-thread taskRuns sidecar.
+      // The mother's `task` tool message only lands in the transcript once the
+      // child finishes, so the live agent row can only come from these events.
+      // `applyTaskEvent` dedupes on (agentId, child_seq), which makes the SSE
+      // replay after a reconnect idempotent.
+      const forwardTaskEvent = <
+        K extends "task_started" | "task_activity" | "task_completed",
+      >(
+        type: K,
+      ) =>
+        session.on(type, (event) => {
+          threadContextRef.current.applyTaskEvent(threadId, event);
+          optionsRef.current.onEvent?.({
+            type,
+            payload: event,
+            sessionId: threadId,
+          });
+        });
+
+      cleanups.push(forwardTaskEvent("task_started"));
+      cleanups.push(forwardTaskEvent("task_activity"));
+      cleanups.push(forwardTaskEvent("task_completed"));
       cleanups.push(forwardEvent("system_notice"));
       cleanups.push(forwardEvent("system_error"));
       cleanups.push(forwardEvent("async_callback"));

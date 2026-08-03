@@ -75,9 +75,16 @@ vi.mock("@/components/icons", () => ({
 import { AppSelect } from "./app-select";
 
 describe("AppSelect", () => {
+  const baseState = {
+    authorizedApps: [...control.state.authorizedApps],
+    appDescriptors: [...control.state.appDescriptors],
+  };
+
   beforeEach(() => {
     control.getAuthorizedApps.mockClear();
     control.onAppSelect.mockClear();
+    control.state.authorizedApps = [...baseState.authorizedApps];
+    control.state.appDescriptors = [...baseState.appDescriptors];
   });
 
   it("passes a hosted app's application id to the controller", () => {
@@ -87,6 +94,43 @@ describe("AppSelect", () => {
 
     expect(control.onAppSelect).toHaveBeenCalledWith("partner-agent", {
       applicationId: 42,
+    });
+  });
+
+  it("omits the orchestrator row when it is not authorized", () => {
+    render(<AppSelect />);
+
+    expect(screen.queryByText("Orchestrator")).toBeNull();
+  });
+
+  it("pins the orchestrator under Basic Apps and keeps it out of the groups", () => {
+    control.state.authorizedApps = ["default", "orchestrator", "partner-agent"];
+    control.state.appDescriptors = [
+      { name: "default" },
+      { name: "orchestrator" },
+      { name: "partner-agent", applicationId: 42 },
+    ];
+
+    render(<AppSelect />);
+
+    expect(
+      screen.getByText("Coordinate multiple agents on one task"),
+    ).toBeInTheDocument();
+    // Pinned directly under the "Basic Apps" row…
+    const rows = screen.getAllByRole("button");
+    const basicIndex = rows.findIndex((row) =>
+      row.textContent?.includes("Basic Apps"),
+    );
+    const orchestratorIndex = rows.findIndex((row) =>
+      row.textContent?.includes("Orchestrator"),
+    );
+    expect(orchestratorIndex).toBe(basicIndex + 1);
+    // …and listed exactly once (never again in a category group).
+    expect(screen.getAllByText("Orchestrator")).toHaveLength(1);
+
+    fireEvent.click(rows[orchestratorIndex]!);
+    expect(control.onAppSelect).toHaveBeenCalledWith("orchestrator", {
+      applicationId: undefined,
     });
   });
 });

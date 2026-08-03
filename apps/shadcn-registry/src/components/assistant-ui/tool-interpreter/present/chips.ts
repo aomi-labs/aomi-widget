@@ -130,6 +130,9 @@ export const chipForFact = (fact: ToolFact): ToolChip | null => {
       if (fact.role === "results") {
         return { label: `${fact.value} results` };
       }
+      if (fact.role === "staged") {
+        return { label: `staged ${fact.value}`, icon: SHAPE_ICONS.staged };
+      }
       return { label: fact.value };
     case "decoded":
       if (fact.role === "decimals") {

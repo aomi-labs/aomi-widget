@@ -117,6 +117,8 @@ export {
   useThreadContext,
   useCurrentThreadMessages,
   useCurrentThreadMetadata,
+  useThreadTaskRuns,
+  useTaskRun,
   ThreadContextProvider,
 } from "./contexts/thread-context";
 export type { ThreadContext } from "./contexts/thread-context";
@@ -125,8 +127,34 @@ export type {
   ThreadMetadata,
   ThreadControlState,
   ThreadTurnPhase,
+  TaskRunState,
+  TaskRunStatus,
+  TaskRunStep,
+  ThreadTaskRuns,
 } from "./state/thread-store";
-export { initThreadControl } from "./state/thread-store";
+export {
+  initThreadControl,
+  reduceTaskRuns,
+  EMPTY_TASK_RUNS,
+} from "./state/thread-store";
+
+// =============================================================================
+// Orchestrator delegation events (re-exported from @aomi-labs/client)
+// =============================================================================
+export type {
+  AomiTaskEvent,
+  AomiTaskEventType,
+  AomiTaskStartedEvent,
+  AomiTaskActivityEvent,
+  AomiTaskActivityKind,
+  AomiTaskCompletedEvent,
+  AomiTaskStatus,
+} from "@aomi-labs/client";
+export {
+  isAomiTaskEventType,
+  parseAomiTaskEvent,
+  AOMI_TASK_EVENT_TYPES,
+} from "@aomi-labs/client";
 
 // =============================================================================
 // Utilities
@@ -136,7 +164,9 @@ export {
   formatAddress,
   getNetworkName,
   getChainInfo,
+  readTaskPartAgentId,
   SUPPORTED_CHAINS,
+  type AomiTaskPartMetadata,
   type ChainInfo,
 } from "./runtime/utils";
 export { resolveAutoModel } from "./utils/model-selection";
