@@ -253,7 +253,7 @@ const DualWalletBarInner: FC<DualWalletBarProps> = ({
           ) : (
             <span className="flex h-7 min-w-0 flex-1 items-center">
               <span className="truncate text-sm font-medium">
-                {accountMenuEnabled ? "Connect wallet" : "Connect wallet"}
+                Connect wallet
               </span>
             </span>
           )}
