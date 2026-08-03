@@ -15,11 +15,15 @@ function openHeaderNetworkSelect() {
     ?.click();
 }
 
+/**
+ * Finish the Aomi account session for an already-connected wallet.
+ *
+ * `openAccountUI` opens the provider's *account management* surface
+ * (Para `ACCOUNT_MAIN`), which cannot mint the missing Aomi session — it just
+ * re-shows the email/profile popup. `connect` runs the provider auth flow
+ * (`AUTH_MAIN`) and re-arms the credential exchange that creates the session.
+ */
 function finishAccountSignIn(adapter: ReturnType<typeof useAomiWalletKit>) {
-  if (adapter.openAccountUI) {
-    void adapter.openAccountUI();
-    return;
-  }
   void adapter.connect?.();
 }
 
@@ -33,12 +37,14 @@ export function usePortalWalletAccountMenu(
   const overview = useAccountOverview();
   const { settings, updateSetting } = useSettings();
   const adapter = useAomiWalletKit();
-  const { accountUser, identity, accountStatus } = adapter;
+  const { accountUser, accountError, identity } = adapter;
 
   return useMemo(() => {
     if (!identity.isConnected) return undefined;
 
     const usage = overview?.usage;
+    // A wallet can be connected while the Aomi account session is missing:
+    // the provider credential exchange either has not run yet or it failed.
     const needsAccountSignIn = !accountUser;
     const secondaryLine =
       usage && usage.credit_paid > 0
@@ -47,9 +53,7 @@ export function usePortalWalletAccountMenu(
           ? `${Math.max(0, usage.credit_paid - usage.credit_used).toLocaleString()} credits left`
           : accountUser
             ? "Loading allowance…"
-            : accountStatus === "error"
-              ? "Sign-in failed — tap Sign in"
-              : "Sign in for allowance";
+            : (accountError ?? "Sign in for allowance");
 
     const activeAccount = adapter.accounts.find((account) => account.active);
 
@@ -82,9 +86,9 @@ export function usePortalWalletAccountMenu(
         : undefined,
     };
   }, [
-    accountStatus,
+    accountError,
     accountUser,
-    adapter.accounts,
+    adapter,
     identity.chainId,
     identity.isConnected,
     identity.svmCluster,

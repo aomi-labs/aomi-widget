@@ -46,7 +46,16 @@ const adapterState = {
         active: true,
       },
     ],
-    walletModalRows: [{ id: "metamask", label: "MetaMask", family: "evm" }],
+    walletModalRows: [
+      {
+        id: "metamask",
+        label: "MetaMask",
+        family: "evm" as const,
+        source: "live" as const,
+        status: "active" as const,
+        actions: [],
+      },
+    ],
     disconnect: vi.fn(async () => undefined),
   } satisfies Partial<AomiWalletKit>,
 };

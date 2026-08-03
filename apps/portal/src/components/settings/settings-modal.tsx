@@ -26,11 +26,14 @@ const NAV: {
 function GateNotice({
   status,
   walletConnected,
+  detail,
   onRetry,
   onConnect,
 }: {
   status: Exclude<AomiSessionStatus, "ready">;
   walletConnected?: boolean;
+  /** Provider-reported reason the session could not be created. */
+  detail?: string;
   onRetry: () => void;
   onConnect?: () => void;
 }) {
@@ -45,6 +48,11 @@ function GateNotice({
             Your wallet is connected, but your account session isn’t set up
             yet. Sign in to view and manage your settings.
           </span>
+          {detail && (
+            <span className="text-aomi-danger max-w-sm text-[12px]">
+              {detail}
+            </span>
+          )}
           <button
             type="button"
             onClick={onRetry}
@@ -108,23 +116,6 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
   const adapter = useAomiAuthAdapter();
 
   const renderContent = () => {
-    const walletConnected = adapter.identity.isConnected;
-
-    // Wallet connected but session still probing — show the actionable
-    // sign-in gate instead of a passive spinner (exchange may still be in flight).
-    if (
-      walletConnected &&
-      (status === "anonymous" || status === "establishing")
-    ) {
-      return (
-        <GateNotice
-          status="anonymous"
-          walletConnected
-          onRetry={retry}
-        />
-      );
-    }
-
     // Anonymous / still-connecting sessions have nothing to show — gate fully.
     // A probe *error* (backend unreachable) only blocks the account-backed
     // General tab; Account and Usage render their clearly-marked fixtures so
@@ -133,15 +124,12 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
       return (
         <GateNotice
           status={status}
-          walletConnected={walletConnected}
+          walletConnected={adapter.identity.isConnected}
+          detail={adapter.accountError}
           onRetry={retry}
-          onConnect={
-            adapter.openAccountUI
-              ? () => {
-                  void adapter.openAccountUI?.();
-                }
-              : undefined
-          }
+          onConnect={() => {
+            void adapter.connect?.();
+          }}
         />
       );
     }

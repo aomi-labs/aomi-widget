@@ -12,6 +12,10 @@ const SESSION_RETRY_BASE_DELAY_MS = 300;
 const SESSION_RETRY_MAX_DELAY_MS = 1_500;
 const SESSION_RETRY_BACKOFF_FACTOR = 1.7;
 const ADAPTER_SETTLE_BUDGET_MS = 8_000;
+// The exchange can report "done" a beat before its session cookie is readable
+// by /api/account. Keep a short retry window even when nothing is in flight so
+// a freshly created session is not reported as anonymous.
+const SESSION_SETTLE_GRACE_MS = 1_500;
 
 export type AomiSessionStatus =
   | "anonymous"
@@ -63,8 +67,14 @@ export function useAomiSession(): {
     const run = async () => {
       let nextDelay = SESSION_RETRY_BASE_DELAY_MS;
       let waitedMs = 0;
+      // Only a provider exchange that is still running justifies the long
+      // retry budget. Once it settles (success or failure) a 401 is the real
+      // answer, so the gate can offer sign-in instead of spinning.
       const exchangeInFlight =
         adapterStatus === "connected" && accountStatus === "loading";
+      const retryBudgetMs = exchangeInFlight
+        ? SESSION_RETRY_BUDGET_MS
+        : SESSION_SETTLE_GRACE_MS;
 
       for (;;) {
         try {
@@ -84,11 +94,7 @@ export function useAomiSession(): {
             setProbeStatus("ready");
             return;
           }
-          if (
-            response.status === 401 &&
-            exchangeInFlight &&
-            waitedMs < SESSION_RETRY_BUDGET_MS
-          ) {
+          if (response.status === 401 && waitedMs < retryBudgetMs) {
             setProbeStatus("establishing");
           } else if (response.status === 401) {
             seedAccountOverview(null);
@@ -128,12 +134,11 @@ export function useAomiSession(): {
     probeAttempt,
   ]);
 
+  // `connect` runs the provider auth flow, which re-arms the credential
+  // exchange that mints the Aomi session. `openAccountUI` only opens the
+  // provider's account management popup and would leave the gate unchanged.
   const retry = useCallback(() => {
     setProbeAttempt((attempt) => attempt + 1);
-    if (adapter.openAccountUI) {
-      void adapter.openAccountUI();
-      return;
-    }
     void adapter.connect?.();
   }, [adapter]);
 

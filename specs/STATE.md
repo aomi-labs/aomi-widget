@@ -2,6 +2,31 @@
 
 ## Last Updated
 
+2026-08-03 — **PR #7 (feat/portal-account-menu) sign-in wiring + CI fix.**
+  Green CI blocker found and fixed: `pnpm run build:registry` failed with
+  `Registry item "control-bar" is missing internal files` because
+  `account-menu.tsx`, `account-menu-types.ts` and
+  `disconnect-confirm-dialog.tsx` were added to `components/control-bar/` but
+  never listed in `src/registry.ts` (the build validates every *relative*
+  import in a registry item resolves to a listed file). Also fixed a
+  `tsc --noEmit` error in `dual-wallet-bar.test.tsx` — the `walletModalRows`
+  mock was missing the required `source`/`status`/`actions` fields.
+  **Behaviour fix:** the sidebar AccountMenu "Sign in" and the Settings gate
+  retry both called `openAccountUI()`, which opens Para's *account
+  management* modal (`ACCOUNT_MAIN`) — the email/profile popup — and can
+  never mint the missing Aomi session. Both now call `connect()`
+  (`AUTH_MAIN`), which re-arms the provider credential exchange. Removed a
+  dead `accountStatus === "error"` branch: a failed exchange sets status back
+  to `"ready"` and only populates `accountError` for 409, so the chip now
+  shows `accountError` when present. Session probe no longer burns the full
+  30s budget once the exchange has settled (short settle grace instead), so
+  Settings stops sitting on "Connecting your account…" and reaches the
+  actionable "Finish signing in" gate. `widget-lib` at 1.4.18 (main: 1.4.16).
+  Still blocked on infra for a *complete* sign-in: preview
+  `PARA_JWT_AUDIENCE` must be the Para project UUID or
+  `POST /api/auth/aomi/provider/exchange` 400s and no allowance/Settings data
+  can load.
+
 2026-08-02 (~17:45) — **ds13 RECORDED — catalog COMPLETE.** Post-fixer-session
   run (their parseTxIds ordering fix + dist rebuild + Aave gateway address
   correction + my backend rebuild/restack): attempt 3 landed
