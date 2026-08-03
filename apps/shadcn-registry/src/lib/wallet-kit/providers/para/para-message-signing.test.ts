@@ -25,8 +25,8 @@ describe("signParaMessage", () => {
   });
 
   it("fails clearly when the address is not an embedded Para wallet", async () => {
-    await expect(
-      signParaMessage({}, ADDRESS, "message"),
-    ).rejects.toThrow("Para embedded wallet is not available for signing");
+    await expect(signParaMessage({}, ADDRESS, "message")).rejects.toThrow(
+      "Para embedded wallet is not available for signing",
+    );
   });
 });

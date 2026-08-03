@@ -2,6 +2,27 @@
 
 ## Last Updated
 
+2026-08-03 — **Para EVM signing fix hardened before commit.** Review of the
+  working diff found the registry build broken: `para-evm-runtime-provider.tsx`
+  was imported by the registered `para-plugin.tsx` but missing from the
+  `aomi-para-provider` file list in `apps/shadcn-registry/src/registry.ts`, and
+  `@getpara/wagmi-v2-connector` was missing from its `dependencies` — a
+  `shadcn add` would have installed a broken component. Both added; build green.
+  Correctness fix in `execution/wallet-execution.ts`: the new sequential
+  receipt-wait only counted a leg as executed after its receipt confirmed, so a
+  non-revert wait failure (RPC timeout) reported an already-broadcast leg as
+  un-run and `runtime-tx-handler` blanket-rejected — re-queuing a mined tx, the
+  exact double-execution the handler guards against. Now tracks broadcast legs
+  and emits a partial for them, excluding a leg that mined `reverted`.
+  Also: failure cooldown on the Para wagmi auto-connect effect (was retryable on
+  every store dispatch with no backoff), shared `PARA_SESSION_UID` constant in
+  `para-brand.ts` replacing the duplicated `"para-session"` literal, dropped an
+  unnecessary `as unknown as CreateConnectorFn` double cast. 295 registry tests
+  + 1287 root tests pass; typecheck, eslint, prettier, registry build clean.
+  NOTE: the receipt wait applies to **every** sequential wallet send, not just
+  embedded/Para — non-Para wallets now pay a block confirmation between legs of
+  any non-atomic batch. Intentional (safer default), but call it out in review.
+
 2026-08-02 — PLATFORM-BINDING INVARIANT, E2E (FE worktree platform-switch +
   BE worktree somm-repo-connect/product-mono branch
   codex/build-existing-repo-oauth, both uncommitted; BE sits on top of the
