@@ -1,0 +1,224 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
+import "@testing-library/jest-dom/vitest";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import type { AomiWalletKit } from "@/lib/wallet-kit";
+import { DualWalletBar } from "./dual-wallet-bar";
+
+const openPicker = vi.fn();
+
+vi.mock("./wallet-picker-context", () => ({
+  WalletPickerProvider: ({ children }: { children: React.ReactNode }) =>
+    children,
+  useWalletPicker: () => ({
+    open: false,
+    openPicker,
+    closePicker: vi.fn(),
+  }),
+}));
+
+vi.mock("./wallet-picker", () => ({
+  WalletPicker: () => null,
+}));
+
+vi.mock("../../lib/wallet-kit", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../lib/wallet-kit")>();
+  return {
+    ...actual,
+    useAomiWalletKit: () => adapterState.current,
+  };
+});
+
+const adapterState = {
+  current: {
+    identity: {
+      status: "connected",
+      isConnected: true,
+      address: "0x71C7656EC7ab88b098defB751B7401B5f6d8976F",
+      chainId: 1,
+      svmAddress: undefined,
+    },
+    accounts: [
+      {
+        id: "mm",
+        family: "evm" as const,
+        address: "0x71C7656EC7ab88b098defB751B7401B5f6d8976F",
+        walletName: "MetaMask",
+        chainId: 1,
+        active: true,
+      },
+    ],
+    walletModalRows: [
+      {
+        id: "metamask",
+        label: "MetaMask",
+        family: "evm" as const,
+        source: "live" as const,
+        status: "active" as const,
+        actions: [],
+      },
+    ],
+    disconnect: vi.fn(async () => undefined),
+    signOutAccount: vi.fn(async () => undefined),
+  } satisfies Partial<AomiWalletKit>,
+};
+
+afterEach(() => {
+  cleanup();
+  openPicker.mockClear();
+  adapterState.current.disconnect.mockClear();
+  adapterState.current.signOutAccount.mockReset();
+  adapterState.current.signOutAccount.mockResolvedValue(undefined);
+});
+
+describe("DualWalletBar account menu", () => {
+  it("opens WalletPicker directly when account menu is disabled", () => {
+    render(<DualWalletBar families={["evm"]} />);
+    fireEvent.click(screen.getByRole("button", { name: "Manage wallets" }));
+    expect(openPicker).toHaveBeenCalledTimes(1);
+    expect(
+      screen.queryByRole("menu", { name: "Account menu" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("opens AccountMenu instead of WalletPicker when enabled and connected", () => {
+    render(
+      <DualWalletBar
+        families={["evm"]}
+        accountMenu={{
+          enabled: true,
+          secondaryLine: "420 left · 80/500 used",
+          onOpenSettings: vi.fn(),
+        }}
+      />,
+    );
+
+    expect(screen.getByText("420 left · 80/500 used")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Open account menu" }));
+    expect(openPicker).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("menu", { name: "Account menu" }),
+    ).toBeInTheDocument();
+  });
+
+  it("routes Manage wallets from AccountMenu to WalletPicker", () => {
+    render(
+      <DualWalletBar
+        families={["evm"]}
+        accountMenu={{ enabled: true, secondaryLine: "420 left · 80/500 used" }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Open account menu" }));
+    fireEvent.click(screen.getByText("Manage wallets"));
+    expect(openPicker).toHaveBeenCalledTimes(1);
+    expect(
+      screen.queryByRole("menu", { name: "Account menu" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows Sign in when account menu supplies onSignIn", () => {
+    const onSignIn = vi.fn();
+    render(
+      <DualWalletBar
+        families={["evm"]}
+        accountMenu={{
+          enabled: true,
+          secondaryLine: "Sign in for allowance",
+          onSignIn,
+        }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Open account menu" }));
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    expect(onSignIn).toHaveBeenCalledTimes(1);
+  });
+
+  it("confirms account sign-out and keeps canonical history", async () => {
+    const onDisconnect = vi.fn(async () => undefined);
+    render(
+      <DualWalletBar
+        families={["evm"]}
+        accountMenu={{
+          enabled: true,
+          secondaryLine: "420 credits left",
+          onDisconnect,
+        }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Open account menu" }));
+    fireEvent.click(screen.getByRole("button", { name: "Disconnect" }));
+
+    expect(screen.getByRole("dialog")).toHaveTextContent(
+      "Your chat history remains in your Aomi account.",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Disconnect" }));
+
+    await waitFor(() => expect(onDisconnect).toHaveBeenCalledTimes(1));
+    expect(adapterState.current.disconnect).not.toHaveBeenCalled();
+    expect(adapterState.current.signOutAccount).not.toHaveBeenCalled();
+  });
+
+  it("defaults to account sign-out before wallet disconnect", async () => {
+    render(
+      <DualWalletBar
+        families={["evm"]}
+        accountMenu={{ enabled: true, secondaryLine: "420 credits left" }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Open account menu" }));
+    fireEvent.click(screen.getByRole("button", { name: "Disconnect" }));
+    fireEvent.click(screen.getByRole("button", { name: "Disconnect" }));
+
+    await waitFor(() =>
+      expect(adapterState.current.disconnect).toHaveBeenCalledWith({
+        family: "all",
+      }),
+    );
+    expect(adapterState.current.signOutAccount).toHaveBeenCalledTimes(1);
+    expect(
+      adapterState.current.signOutAccount.mock.invocationCallOrder[0],
+    ).toBeLessThan(
+      adapterState.current.disconnect.mock.invocationCallOrder[0] ?? 0,
+    );
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+  });
+
+  it("still disconnects wallets when account sign-out fails", async () => {
+    adapterState.current.signOutAccount.mockRejectedValueOnce(
+      new Error("sign-out failed"),
+    );
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    render(
+      <DualWalletBar
+        families={["evm"]}
+        accountMenu={{ enabled: true, secondaryLine: "420 credits left" }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Open account menu" }));
+    fireEvent.click(screen.getByRole("button", { name: "Disconnect" }));
+    fireEvent.click(screen.getByRole("button", { name: "Disconnect" }));
+
+    await waitFor(() =>
+      expect(adapterState.current.disconnect).toHaveBeenCalledWith({
+        family: "all",
+      }),
+    );
+    // The failure is contained (no unhandled rejection) and the dialog stays
+    // open for a retry until the connected-state effect observes the drop.
+    await waitFor(() => expect(warn).toHaveBeenCalled());
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    warn.mockRestore();
+  });
+});

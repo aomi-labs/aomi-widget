@@ -36,6 +36,7 @@ import {
   formatAuthMethod,
   formatWalletProvider,
   normalizeWalletOptionId,
+  signOutAndDisconnect,
   useWalletActivationGuard,
 } from "../../lib/wallet-kit";
 import type { AomiWalletKit, WalletFamily } from "../../lib/wallet-kit/types";
@@ -539,17 +540,10 @@ export function WalletPicker() {
     if (!hasAccountManagement && view !== "wallets") setView("wallets");
   }, [hasAccountManagement, view]);
 
-  const signOutAccount = useCallback(async () => {
-    // The runtime owns account-vs-widget teardown ordering (it revokes the
-    // backend account before the widget session). Here we only ensure the
-    // wallet connectors are disconnected afterwards even if that teardown
-    // throws, so no provider connection is left dangling.
-    try {
-      await adapter.signOutAccount?.();
-    } finally {
-      await adapter.disconnect?.({ family: "all" });
-    }
-  }, [adapter]);
+  const signOutAccount = useCallback(
+    () => signOutAndDisconnect(adapter),
+    [adapter],
+  );
 
   const deleteAccount = useCallback(async () => {
     const confirmed = window.confirm(

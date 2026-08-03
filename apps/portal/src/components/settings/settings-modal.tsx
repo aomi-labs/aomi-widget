@@ -26,11 +26,14 @@ const NAV: {
 function GateNotice({
   status,
   walletConnected,
+  detail,
   onRetry,
   onConnect,
 }: {
   status: Exclude<AomiSessionStatus, "ready">;
   walletConnected?: boolean;
+  /** Provider-reported reason the session could not be created. */
+  detail?: string;
   onRetry: () => void;
   onConnect?: () => void;
 }) {
@@ -45,6 +48,11 @@ function GateNotice({
             Your wallet is connected, but your account session isn’t set up
             yet. Sign in to view and manage your settings.
           </span>
+          {detail && (
+            <span className="text-aomi-danger max-w-sm text-[12px]">
+              {detail}
+            </span>
+          )}
           <button
             type="button"
             onClick={onRetry}
@@ -117,14 +125,11 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
         <GateNotice
           status={status}
           walletConnected={adapter.identity.isConnected}
+          detail={adapter.accountError}
           onRetry={retry}
-          onConnect={
-            adapter.openAccountUI
-              ? () => {
-                  void adapter.openAccountUI?.();
-                }
-              : undefined
-          }
+          onConnect={() => {
+            void adapter.connect?.();
+          }}
         />
       );
     }

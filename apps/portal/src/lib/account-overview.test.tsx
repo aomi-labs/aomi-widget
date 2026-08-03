@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, render, screen } from "@testing-library/react";
 
 import {
+  formatAllowanceSummary,
   scopeAccountOverviewToUser,
   seedAccountOverview,
   useAccountOverview,
@@ -59,5 +60,11 @@ describe("account overview store", () => {
 
     expect(screen.getByText("acct-b")).toBeTruthy();
     expect(screen.queryByText("acct-a")).toBeNull();
+  });
+});
+
+describe("formatAllowanceSummary", () => {
+  it("matches mock sidebar allowance copy", () => {
+    expect(formatAllowanceSummary(80, 500)).toBe("420 left · 80/500 used");
   });
 });

@@ -52,6 +52,10 @@ vi.mock("@portal/lib/settings-api", () => ({
   getBackendUrl: () => "https://api.example.test",
 }));
 
+vi.mock("@portal/components/shell/use-portal-wallet-account-menu", () => ({
+  usePortalWalletAccountMenu: () => undefined,
+}));
+
 describe("PortalAomiFrame account bootstrap", () => {
   afterEach(() => {
     frameInstances.next = 0;
