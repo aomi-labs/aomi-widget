@@ -15,8 +15,8 @@ import {
 import { Button } from "@aomi-labs/widget-lib";
 import type { SecretSlot } from "@aomi-labs/deploy";
 import {
+  deploymentSources,
   launchActivate,
-  launchAppStatus,
   launchDeploy,
   launchPreflight,
   launchStatus,
@@ -524,36 +524,32 @@ export function DeployStep({
       for (let attempt = 0; attempt < 30; attempt += 1) {
         setVerifyAttempt(attempt + 1);
         try {
-          const checks = await Promise.all(
-            nextApps.map((name, index) =>
-              launchAppStatus({ name, releaseTag: nextTags[index] }),
+          const result = await deploymentSources(
+            undefined,
+            progress.appSourceId,
+          );
+          const source = result.sources.find(
+            (candidate) => candidate.id === progress.appSourceId,
+          );
+          const checks = nextApps.map((name, index) =>
+            source?.apps.find(
+              (app) =>
+                app.name === name &&
+                (!nextTags[index] || app.appReleaseTag === nextTags[index]),
             ),
           );
           if (
             checks.length > 0 &&
-            checks.every((check) => check.ok && check.state === "live")
+            checks.every((app) => app?.isActive && app.loaded)
           ) {
             const firstApplicationId = checks
-              .find((check) => check.app?.id)
-              ?.app?.id?.toString();
+              .find((app) => app?.id)
+              ?.id.toString();
             onProgress({
               live: true,
               applicationId: firstApplicationId,
             });
             setPhase("live");
-            return;
-          }
-          // Early exit if any app reports a terminal error
-          const terminal = checks.find(
-            (c) => c.app?.is_active === false && c.app?.loaded === false,
-          );
-          if (terminal) {
-            setError(
-              terminal.app?.name
-                ? `Runtime check failed for ${terminal.app.name}`
-                : "Runtime reported a terminal error during verification.",
-            );
-            setPhase("error");
             return;
           }
         } catch (e) {
@@ -570,7 +566,7 @@ export function DeployStep({
       );
       setPhase("error");
     },
-    [apps, onProgress, tags],
+    [apps, onProgress, progress.appSourceId, tags],
   );
 
   const activate = useCallback(async () => {
