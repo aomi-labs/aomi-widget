@@ -1562,6 +1562,52 @@ describe("account-wide reads do not waterfall behind listUserSources", () => {
     expect((await pending).status).toBe(200);
   });
 
+  it("starts the merged transactions page while the source list is still pending", async () => {
+    setSession({ githubUserId: "gh-1" });
+    const { release } = pendingSources();
+    let pageStarted = false;
+    client.listUserTransactions.mockImplementation(async () => {
+      pageStarted = true;
+      return { sources: [], transactions: [], nextCursor: null };
+    });
+    client.getUserStatements.mockResolvedValue([]);
+
+    const pending = operateTransactionsRoute(
+      new Request("http://localhost:3000/api/bff/operate/transactions"),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(pageStarted).toBe(true);
+    expect(client.listUserTransactions).toHaveBeenCalledOnce();
+
+    release([{ id: 42, repositoryLink: "o/r", apps: [] }]);
+    const res = await pending;
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({ sources: [{ id: 42 }] });
+  });
+
+  it("starts the usage sweep while the source list is still pending", async () => {
+    setSession({ githubUserId: "gh-1" });
+    const { release } = pendingSources();
+    let sweepStarted = false;
+    client.getUserUsage.mockImplementation(async () => {
+      sweepStarted = true;
+      return [];
+    });
+    client.getUserStatements.mockResolvedValue([]);
+
+    const pending = operateUsageRoute(
+      new Request("http://localhost:3000/api/bff/operate/usage"),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(sweepStarted).toBe(true);
+    expect(client.getUserUsage).toHaveBeenCalledOnce();
+
+    release([{ id: 42, repositoryLink: "o/r", apps: [] }]);
+    const res = await pending;
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({ sources: [{ id: 42 }] });
+  });
+
   /** The payments response is derived entirely from the ledger read, so an
    *  unfiltered request must not read the source list at all — not even in
    *  parallel. A regression here is a wasted manager round trip per poll. */
