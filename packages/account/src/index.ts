@@ -21,6 +21,7 @@ export {
   type ResolveCanonicalUserId,
 } from "./proxy";
 export { createBearerTokenRoute } from "./token";
+export { getPool } from "./db/pool";
 
 // Account auth types folded in from the former `@aomi-labs/auth` root export.
 export * from "./types";

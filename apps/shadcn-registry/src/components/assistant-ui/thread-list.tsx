@@ -1,21 +1,24 @@
 "use client";
 
-import { type FC, useEffect, useRef, useState } from "react";
+import { type FC, useState } from "react";
 import {
   ThreadListItemPrimitive,
   ThreadListPrimitive,
-  useThreadList,
+  useAssistantState,
 } from "@assistant-ui/react";
-import { ArchiveIcon, MoreHorizontalIcon, PlusIcon } from "lucide-react";
+import { PlusIcon, TrashIcon } from "lucide-react";
 
-import { cn } from "@aomi-labs/react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 export const ThreadList: FC = () => {
   return (
@@ -42,7 +45,7 @@ const ThreadListNew: FC = () => {
 };
 
 const ThreadListItems: FC = () => {
-  const isLoading = useThreadList((t) => t.isLoading);
+  const isLoading = useAssistantState(({ threads }) => threads.isLoading);
 
   if (isLoading) {
     return <ThreadListSkeleton />;
@@ -98,38 +101,12 @@ const ThreadListSkeleton: FC = () => {
 };
 
 const ThreadListItem: FC = () => {
-  const [menuOpen, setMenuOpen] = useState(false);
-  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const cancelClose = () => {
-    if (closeTimer.current) {
-      clearTimeout(closeTimer.current);
-      closeTimer.current = null;
-    }
-  };
-  // Grace delay so the pointer can travel the small gap from the button to the
-  // portaled menu without the row's mouseleave closing it first.
-  const scheduleClose = () => {
-    cancelClose();
-    closeTimer.current = setTimeout(() => setMenuOpen(false), 120);
-  };
-  useEffect(() => cancelClose, []);
-
   return (
-    <ThreadListItemPrimitive.Root
-      className="aui-thread-list-item group/thread hover:bg-accent focus-visible:bg-accent data-active:bg-accent flex w-full min-w-0 items-center rounded-2xl pr-2 transition-all focus-visible:outline-none"
-      onMouseEnter={cancelClose}
-      onMouseLeave={scheduleClose}
-    >
-      <ThreadListItemPrimitive.Trigger className="aui-thread-list-item-trigger min-w-0 flex-1 py-2 pl-4 pr-1 text-start">
+    <ThreadListItemPrimitive.Root className="aui-thread-list-item hover:bg-accent focus-visible:bg-accent data-active:bg-accent flex w-full min-w-0 items-center rounded-2xl pl-4 pr-2 transition-all focus-visible:outline-none">
+      <ThreadListItemPrimitive.Trigger className="aui-thread-list-item-trigger min-w-0 flex-1 py-2 text-start">
         <ThreadListItemTitle />
       </ThreadListItemPrimitive.Trigger>
-      <ThreadListItemMenu
-        open={menuOpen}
-        onOpenChange={setMenuOpen}
-        onContentMouseEnter={cancelClose}
-        onContentMouseLeave={scheduleClose}
-      />
+      <ThreadListItemDelete />
     </ThreadListItemPrimitive.Root>
   );
 };
@@ -142,66 +119,48 @@ const ThreadListItemTitle: FC = () => {
   );
 };
 
-const ThreadListItemMenu: FC<{
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onContentMouseEnter: () => void;
-  onContentMouseLeave: () => void;
-}> = ({ open, onOpenChange, onContentMouseEnter, onContentMouseLeave }) => {
-  // Collapsed to zero width by default so the title uses the full row; on row
-  // hover / keyboard focus (scoped to *this* row via the named group) it
-  // expands and the title reflows to a truncated "…". Named group so an
-  // ancestor `.group` in a host app can't reveal every row at once. Pinned
-  // open while the menu is showing, since the cursor leaves the row for the
-  // portaled popover.
-  const revealClass = open
-    ? "w-7 opacity-100"
-    : "w-0 opacity-0 group-hover/thread:w-7 group-hover/thread:opacity-100 group-focus-within/thread:w-7 group-focus-within/thread:opacity-100";
+const ThreadListItemDelete: FC = () => {
+  const [open, setOpen] = useState(false);
 
   return (
-    <Popover open={open} onOpenChange={onOpenChange}>
-      <PopoverTrigger asChild>
-        <Button
-          className={cn(
-            "aui-thread-list-item-menu-trigger text-muted-foreground hover:text-foreground h-7 shrink-0 overflow-hidden rounded-md transition-all",
-            revealClass,
-          )}
-          variant="ghost"
-          size="icon"
-          aria-label="Chat options"
-          onClick={(event) => {
-            // Only stop the row's click — do NOT preventDefault, or Radix's
-            // PopoverTrigger will skip its own open/close toggle.
-            event.stopPropagation();
-          }}
-        >
-          <MoreHorizontalIcon className="size-4" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent
-        align="start"
-        side="bottom"
-        sideOffset={6}
-        alignOffset={0}
-        className="aui-thread-list-item-menu-content border-border/70 bg-popover/95 w-44 rounded-xl border p-1.5 shadow-xl backdrop-blur-sm"
-        onClick={(event) => event.stopPropagation()}
-        onMouseEnter={onContentMouseEnter}
-        onMouseLeave={onContentMouseLeave}
+    <Dialog open={open} onOpenChange={setOpen}>
+      <Button
+        className="aui-thread-list-item-delete text-foreground hover:text-primary shrink-0 pl-2"
+        variant="ghost"
+        size="icon"
+        aria-label="Delete thread"
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          setOpen(true);
+        }}
       >
-        <ThreadListItemPrimitive.Archive asChild>
-          <button
-            type="button"
-            className="aui-thread-list-item-menu-item text-foreground/90 hover:bg-accent hover:text-foreground focus-visible:bg-accent flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-start text-sm font-medium outline-none transition-colors"
-            onClick={(event) => {
-              event.stopPropagation();
-              onOpenChange(false);
-            }}
-          >
-            <ArchiveIcon className="text-muted-foreground size-4" />
-            Archive
-          </button>
-        </ThreadListItemPrimitive.Archive>
-      </PopoverContent>
-    </Popover>
+        <TrashIcon className="size-3.5" />
+      </Button>
+      <DialogContent className="aui-thread-list-delete-dialog sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Delete chat?</DialogTitle>
+          <DialogDescription>
+            This will permanently delete this thread and its message history.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button variant="outline">Cancel</Button>
+          </DialogClose>
+          <ThreadListItemPrimitive.Delete asChild>
+            <Button
+              variant="default"
+              onClick={(event) => {
+                event.stopPropagation();
+                setOpen(false);
+              }}
+            >
+              Delete
+            </Button>
+          </ThreadListItemPrimitive.Delete>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 };

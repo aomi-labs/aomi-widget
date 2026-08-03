@@ -2,10 +2,7 @@ import { defineCommand } from "citty";
 import { globalArgs, buildCliConfig } from "./shared";
 
 const modelListDef = defineCommand({
-  meta: {
-    name: "list",
-    description: "List models available to the current backend",
-  },
+  meta: { name: "list", description: "List models available to the current backend" },
   args: { ...globalArgs },
   async run({ args }) {
     const { modelsCommand } = await import("../control");
@@ -14,10 +11,7 @@ const modelListDef = defineCommand({
 });
 
 const modelSetDef = defineCommand({
-  meta: {
-    name: "set",
-    description: "Set the active model for the current thread",
-  },
+  meta: { name: "set", description: "Set the active model for the current session" },
   args: {
     ...globalArgs,
     rig: {

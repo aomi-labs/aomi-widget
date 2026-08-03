@@ -45,26 +45,27 @@ describe("Base backend proxy route", () => {
     const { POST } = await loadRoute();
 
     const response = await POST(
-      request("/api/chat?app=default", {
+      request("/api/thread/chat?app=default", {
         method: "POST",
         headers: {
           authorization: "Bearer browser-token",
           cookie: "better-auth.session_token=secret",
           "content-type": "application/json",
-          "x-thread-id": "thread-1",
+          "x-session-id": "thread-1",
         },
         body: JSON.stringify({ message: "hello" }),
       }),
-      context(["chat"]),
+      context(["thread", "chat"]),
     );
 
     expect(response.status).toBe(200);
     expect(fetch).toHaveBeenCalledTimes(1);
     const [target, init] = vi.mocked(fetch).mock.calls[0]!;
-    expect(String(target)).toBe("https://backend.example/api/chat?app=default");
+    expect(String(target)).toBe("https://backend.example/api/thread/chat?app=default");
     const headers = init?.headers as Headers;
     expect(headers.get("authorization")).toBeNull();
     expect(headers.get("cookie")).toBeNull();
+    expect(headers.get("x-session-id")).toBe("thread-1");
     expect(headers.get("x-thread-id")).toBe("thread-1");
   });
 
@@ -72,17 +73,17 @@ describe("Base backend proxy route", () => {
     const { POST } = await loadRoute();
 
     const response = await POST(
-      request("/api/chat", {
+      request("/api/thread/chat", {
         method: "POST",
         body: "hello",
       }),
-      context(["chat"]),
+      context(["thread", "chat"]),
     );
 
     expect(response.status).toBe(200);
     expect(fetch).toHaveBeenCalledTimes(1);
     const [target] = vi.mocked(fetch).mock.calls[0]!;
-    expect(String(target)).toBe("http://127.0.0.1:8080/api/chat");
+    expect(String(target)).toBe("http://127.0.0.1:8080/api/thread/chat");
   });
 
   it("requires an explicit backend URL when deployed", async () => {
@@ -90,8 +91,8 @@ describe("Base backend proxy route", () => {
     const { POST } = await loadRoute();
 
     const response = await POST(
-      request("/api/chat", { method: "POST", body: "hello" }),
-      context(["chat"]),
+      request("/api/thread/chat", { method: "POST", body: "hello" }),
+      context(["thread", "chat"]),
     );
 
     expect(response.status).toBe(503);
@@ -106,8 +107,8 @@ describe("Base backend proxy route", () => {
     const { POST } = await loadRoute();
 
     const response = await POST(
-      request("/api/chat", { method: "POST", body: "hello" }),
-      context(["chat"]),
+      request("/api/thread/chat", { method: "POST", body: "hello" }),
+      context(["thread", "chat"]),
     );
 
     expect(response.status).toBe(503);

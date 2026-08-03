@@ -4,7 +4,7 @@ import { ApiConsole } from "./ApiConsole";
 import type { EndpointDef } from "./ApiConsole";
 
 const SESSION_HEADER = {
-  key: "X-Thread-Id",
+  key: "X-Session-Id",
   placeholder: "session-uuid",
   required: true,
 };

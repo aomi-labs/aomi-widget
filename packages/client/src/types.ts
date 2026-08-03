@@ -94,7 +94,7 @@ export interface AomiMessage {
 // =============================================================================
 
 /**
- * GET /api/state
+ * GET /api/thread/state
  * Fetches current session state including messages and processing status
  */
 export interface AomiStateResponse {
@@ -106,7 +106,7 @@ export interface AomiStateResponse {
 }
 
 /**
- * POST /api/chat
+ * POST /api/thread/chat
  * Sends a chat message and returns updated session state
  */
 export interface AomiChatResponse {
@@ -126,7 +126,7 @@ export interface AomiSystemResponse {
 }
 
 /**
- * POST /api/simulate
+ * POST /api/exec/simulate
  * Batch-simulate pending transactions atomically (snapshot → sequential send → revert).
  */
 export interface AomiSimulateFee {
@@ -159,7 +159,7 @@ export interface AomiSimulateResponse {
 }
 
 /**
- * POST /api/interrupt
+ * POST /api/thread/interrupt
  * Interrupts current processing and returns updated session state
  */
 export type AomiInterruptResponse = AomiChatResponse;
@@ -173,7 +173,6 @@ export interface AomiThread {
   session_id: string;
   title: string | null;
   is_archived?: boolean;
-  last_active_at?: number;
 }
 
 export type AomiAccountResponse = AomiAccountProfile;
@@ -238,65 +237,6 @@ export interface AomiAccountProfile {
   usage?: AomiUsageStats;
 }
 
-export interface AomiAccountWallet {
-  address: string;
-  chain_type: string;
-  wallet_provider: string;
-  signing: string;
-  signing_mode: "autonomous" | "human_sync" | "denied" | (string & {});
-  has_delegated_grant: boolean;
-  can_use_autonomous: boolean;
-  wallet_ref?: string | null;
-  label?: string | null;
-  expires_at?: number | null;
-}
-
-export interface AomiListWalletsResponse {
-  wallets: AomiAccountWallet[];
-}
-
-export interface AomiAuthorizationPermit {
-  account: string;
-  chain_type: string;
-  wallet: string;
-  mode: string;
-  version: number;
-  expiry: number;
-}
-
-export interface AomiAuthorizationChallengeResponse {
-  permit: AomiAuthorizationPermit;
-  typed_data: unknown;
-}
-
-export interface AomiAuthorizationState {
-  address: string;
-  chain_type: string;
-  signing_mode: string;
-  authorization_version: number;
-}
-
-export interface AomiScheduledThread {
-  id: string;
-  user_id: string;
-  root_thread_id: string;
-  application: string;
-  intent: string;
-  trigger_at: number;
-  recurrence_seconds?: number | null;
-  last_run_at?: number | null;
-  created_at: number;
-  updated_at: number;
-}
-
-export interface AomiListScheduledThreadsResponse {
-  scheduled_threads: AomiScheduledThread[];
-}
-
-export interface AomiDeleteScheduledThreadResponse {
-  deleted: boolean;
-}
-
 export interface AomiCreateApprovalRequest {
   auth_identity_id: number;
   grant_kind: string;
@@ -358,7 +298,7 @@ export interface AomiDeleteByokKeyResponse {
 }
 
 // =============================================================================
-// SSE Event Types (/api/updates)
+// SSE Event Types (/api/thread/updates)
 // =============================================================================
 
 /**
@@ -446,7 +386,7 @@ export type AomiSSEEventType =
   | "system_notice";
 
 // =============================================================================
-// System Events (/api/events)
+// System Events (/api/thread/events)
 // =============================================================================
 
 /**

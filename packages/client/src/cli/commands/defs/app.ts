@@ -12,10 +12,10 @@ const appListDef = defineCommand({
 
 const appCurrentDef = defineCommand({
   meta: { name: "current", description: "Show the current app" },
-  args: { ...globalArgs },
-  async run({ args }) {
+  args: {},
+  async run() {
     const { currentAppCommand } = await import("../control");
-    currentAppCommand(buildCliConfig(args));
+    currentAppCommand();
   },
 });
 

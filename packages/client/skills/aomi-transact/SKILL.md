@@ -6,6 +6,7 @@ description: >
   EIP-712 payloads with account-abstraction-first execution. The skill only
   invokes the `aomi` CLI; it does not run arbitrary shell commands.
 compatibility: "Requires @aomi-labs/client (`npm install -g @aomi-labs/client`). CLI executable is `aomi`. Configuration is via the aomi CLI's own flags and environment variables — see `aomi --help` for the full list."
+
 license: MIT
 allowed-tools: Bash(aomi:*)
 metadata:
@@ -65,7 +66,7 @@ aomi chat <message>                 Send a message
 aomi tx list                        List pending/signed transactions
 aomi tx simulate <id>...            Simulate a batch
 aomi tx sign <id>...                Sign and submit
-aomi thread list|new|resume|delete|status|log|events|close
+aomi session list|new|resume|delete|status|log|events|close
 aomi model list|set|current
 aomi app list|current
 aomi chain list
@@ -79,7 +80,7 @@ Run this once at the start of the session:
 ```bash
 aomi --version
 aomi --prompt "hello" --new-session
-aomi thread status 2>/dev/null || echo "no session"
+aomi session status 2>/dev/null || echo "no session"
 ```
 
 If the user is asking for a read-only result, that may be enough. If they want
@@ -91,7 +92,7 @@ to build or sign a transaction, continue with the workflow below.
 2. If the agent asks whether to proceed, send a short confirmation in the same session.
 3. Review pending requests with `aomi tx list`.
 4. Sign the queued request with `aomi tx sign <id>`.
-5. Verify with `aomi tx list`, `aomi thread log`, or `aomi thread status`.
+5. Verify with `aomi tx list`, `aomi session log`, or `aomi session status`.
 
 The CLI output is the source of truth. If you do not see `Wallet request queued:
 tx-N`, there is nothing to sign yet.
@@ -108,17 +109,17 @@ aomi
 aomi chat "<message>" --new-session
 aomi chat "<message>" --verbose
 aomi tx list
-aomi thread log
-aomi thread status
-aomi thread events
+aomi session log
+aomi session status
+aomi session events
 aomi --version
 aomi app list
 aomi app current
 aomi model list
 aomi model current
 aomi chain list
-aomi thread list
-aomi thread resume <id>
+aomi session list
+aomi session resume <id>
 ```
 
 Notes:
@@ -131,7 +132,7 @@ Notes:
 - Pass `--public-key` on the first wallet-aware chat if the backend needs the user's address.
 - For chain-specific requests, prefer `--chain <id>` on the command itself. Use `AOMI_CHAIN_ID=<id>` only when multiple consecutive commands should stay on the same chain.
 - Use `aomi secret list` to inspect configured secret handles for the active session.
-- `aomi thread close` wipes the active local session pointer and starts a fresh thread next time.
+- `aomi session close` wipes the active local session pointer and starts a fresh thread next time.
 
 ### Secret Ingestion
 
@@ -317,10 +318,10 @@ More signing notes:
 - Useful commands:
 
 ```bash
-aomi thread list
-aomi thread resume <id>
-aomi thread delete <id>
-aomi thread close
+aomi session list
+aomi session resume <id>
+aomi session delete <id>
+aomi session close
 ```
 
 ## Reference: Commands
@@ -354,24 +355,24 @@ aomi tx sign <id> [<id> ...]
 - `aomi tx simulate` runs a simulation batch for the given tx IDs.
 - `aomi tx sign` signs and submits one or more queued requests.
 
-### Thread Commands
+### Session Commands
 
 ```bash
-aomi thread list
-aomi thread new
-aomi thread resume <id>
-aomi thread delete <id>
-aomi thread status
-aomi thread log
-aomi thread events
-aomi thread close
+aomi session list
+aomi session new
+aomi session resume <id>
+aomi session delete <id>
+aomi session status
+aomi session log
+aomi session events
+aomi session close
 ```
 
-- `aomi thread status` shows the current session summary.
-- `aomi thread log` replays conversation and tool output.
-- `aomi thread events` shows raw backend system events.
-- `aomi thread close` clears the active local session pointer. The next chat starts fresh.
-- Session selectors accept the backend session ID, `thread-N`, or `N`.
+- `aomi session status` shows the current session summary.
+- `aomi session log` replays conversation and tool output.
+- `aomi session events` shows raw backend system events.
+- `aomi session close` clears the active local session pointer. The next chat starts fresh.
+- Session selectors accept the backend session ID, `session-N`, or `N`.
 
 ### Secret Commands
 
@@ -436,33 +437,33 @@ listed below are the app-specific additions. For the exact credential variable
 names any given app expects, run `aomi app list` and `aomi secret add` — the CLI
 is the source of truth.
 
-| App           | Description                                           | App-Specific Tools                                                                                                                                                                                                                                                                                                                                                                     | Credentials             |
-| ------------- | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
-| `default`     | General-purpose on-chain agent with web search        | `brave_search`                                                                                                                                                                                                                                                                                                                                                                         | None                    |
-| `binance`     | Binance CEX — prices, order book, klines              | `binance_get_price`, `binance_get_depth`, `binance_get_klines`                                                                                                                                                                                                                                                                                                                         | Exchange credentials    |
-| `bybit`       | Bybit CEX — orders, positions, leverage               | `brave_search` (no Bybit-specific tools yet)                                                                                                                                                                                                                                                                                                                                           | Exchange credentials    |
-| `cow`         | CoW Protocol — MEV-protected swaps via batch auctions | `get_cow_swap_quote`, `place_cow_order`, `get_cow_order`, `get_cow_order_status`, `get_cow_user_orders`                                                                                                                                                                                                                                                                                | None                    |
-| `defillama`   | DefiLlama — TVL, yields, volumes, stablecoins         | `get_token_price`, `get_yield_opportunities`, `get_defi_protocols`, `get_chain_tvl`, `get_protocol_detail`, `get_dex_volumes`, `get_fees_overview`, `get_protocol_fees`, `get_stablecoins`, `get_stablecoin_chains`, `get_historical_token_price`, `get_token_price_change`, `get_historical_chain_tvl`, `get_dex_protocol_volume`, `get_stablecoin_history`, `get_yield_pool_history` | None                    |
-| `dune`        | Dune Analytics — execute and fetch SQL queries        | `execute_query`, `get_execution_status`, `get_execution_results`, `get_query_results`                                                                                                                                                                                                                                                                                                  | Provider token          |
-| `dydx`        | dYdX perpetuals — markets, orderbook, candles, trades | `dydx_get_markets`, `dydx_get_orderbook`, `dydx_get_candles`, `dydx_get_trades`, `dydx_get_account`                                                                                                                                                                                                                                                                                    | None                    |
-| `gmx`         | GMX perpetuals — markets, positions, orders, prices   | `get_gmx_prices`, `get_gmx_signed_prices`, `get_gmx_markets`, `get_gmx_positions`, `get_gmx_orders`                                                                                                                                                                                                                                                                                    | None                    |
-| `hyperliquid` | Hyperliquid perps — mid prices, orderbook             | `get_meta`, `get_all_mids`                                                                                                                                                                                                                                                                                                                                                             | None                    |
-| `kaito`       | Kaito — crypto social search, trending, mindshare     | `kaito_search`, `kaito_get_trending`, `kaito_get_mindshare`                                                                                                                                                                                                                                                                                                                            | Provider token          |
-| `kalshi`      | Kalshi prediction markets via Simmer SDK              | `simmer_register`, `simmer_status`, `simmer_briefing`                                                                                                                                                                                                                                                                                                                                  | SDK token               |
-| `khalani`     | Khalani cross-chain intents — quote, build, submit    | `get_khalani_quote`, `build_khalani_order`, `submit_khalani_order`, `get_khalani_order_status`, `get_khalani_orders_by_address`                                                                                                                                                                                                                                                        | None                    |
-| `lifi`        | LI.FI aggregator — cross-chain swaps & bridges        | `get_lifi_swap_quote`, `place_lifi_order`, `get_lifi_bridge_quote`, `get_lifi_transfer_status`, `get_lifi_chains`                                                                                                                                                                                                                                                                      | Optional provider token |
-| `manifold`    | Manifold prediction markets — search, bet, create     | `list_markets`, `get_market`, `get_market_positions`, `search_markets`, `place_bet`, `create_market`                                                                                                                                                                                                                                                                                   | Provider token          |
-| `molinar`     | Molinar on-chain world — move, explore, chat          | `molinar_get_state`, `molinar_look`, `molinar_move`, `molinar_jump`, `molinar_chat`, `molinar_get_chat`, `molinar_get_new_messages`, `molinar_get_players`, `molinar_collect_coins`, `molinar_explore`, `molinar_create_object`, `molinar_customize`, `molinar_ping`                                                                                                                   | None                    |
-| `morpho`      | Morpho lending — markets, vaults, positions           | `get_markets`, `get_vaults`, `get_user_positions`                                                                                                                                                                                                                                                                                                                                      | None                    |
-| `neynar`      | Farcaster social — users, search                      | `get_user_by_username`, `search_users`                                                                                                                                                                                                                                                                                                                                                 | Provider token          |
-| `okx`         | OKX CEX — tickers, order book, candles                | `okx_get_tickers`, `okx_get_order_book`, `okx_get_candles`                                                                                                                                                                                                                                                                                                                             | Exchange credentials    |
-| `oneinch`     | 1inch DEX aggregator — quotes, swaps, allowances      | `get_oneinch_quote`, `get_oneinch_swap`, `get_oneinch_approve_transaction`, `get_oneinch_allowance`, `get_oneinch_liquidity_sources`                                                                                                                                                                                                                                                   | Provider token          |
-| `polymarket`  | Polymarket prediction markets — search, trade, CLOB   | `search_polymarket`, `get_polymarket_details`, `get_polymarket_trades`, `resolve_polymarket_trade_intent`, `build_polymarket_order_preview`                                                                                                                                                                                                                                            | None                    |
-| `x`           | X/Twitter — users, posts, search, trends              | `get_x_user`, `get_x_user_posts`, `search_x`, `get_x_trends`, `get_x_post`                                                                                                                                                                                                                                                                                                             | Provider token          |
-| `yearn`       | Yearn Finance — vault discovery, details              | `get_all_vaults`, `get_vault_detail`, `get_blacklisted_vaults`                                                                                                                                                                                                                                                                                                                         | None                    |
-| `zerox`       | 0x DEX aggregator — swaps, quotes, liquidity          | `get_zerox_swap_quote`, `place_zerox_order`, `get_zerox_swap_chains`, `get_zerox_allowance_holder_price`, `get_zerox_liquidity_sources`                                                                                                                                                                                                                                                | Provider token          |
+| App | Description | App-Specific Tools | Credentials |
+|-----|-------------|-------------------|-------------|
+| `default` | General-purpose on-chain agent with web search | `brave_search` | None |
+| `binance` | Binance CEX — prices, order book, klines | `binance_get_price`, `binance_get_depth`, `binance_get_klines` | Exchange credentials |
+| `bybit` | Bybit CEX — orders, positions, leverage | `brave_search` (no Bybit-specific tools yet) | Exchange credentials |
+| `cow` | CoW Protocol — MEV-protected swaps via batch auctions | `get_cow_swap_quote`, `place_cow_order`, `get_cow_order`, `get_cow_order_status`, `get_cow_user_orders` | None |
+| `defillama` | DefiLlama — TVL, yields, volumes, stablecoins | `get_token_price`, `get_yield_opportunities`, `get_defi_protocols`, `get_chain_tvl`, `get_protocol_detail`, `get_dex_volumes`, `get_fees_overview`, `get_protocol_fees`, `get_stablecoins`, `get_stablecoin_chains`, `get_historical_token_price`, `get_token_price_change`, `get_historical_chain_tvl`, `get_dex_protocol_volume`, `get_stablecoin_history`, `get_yield_pool_history` | None |
+| `dune` | Dune Analytics — execute and fetch SQL queries | `execute_query`, `get_execution_status`, `get_execution_results`, `get_query_results` | Provider token |
+| `dydx` | dYdX perpetuals — markets, orderbook, candles, trades | `dydx_get_markets`, `dydx_get_orderbook`, `dydx_get_candles`, `dydx_get_trades`, `dydx_get_account` | None |
+| `gmx` | GMX perpetuals — markets, positions, orders, prices | `get_gmx_prices`, `get_gmx_signed_prices`, `get_gmx_markets`, `get_gmx_positions`, `get_gmx_orders` | None |
+| `hyperliquid` | Hyperliquid perps — mid prices, orderbook | `get_meta`, `get_all_mids` | None |
+| `kaito` | Kaito — crypto social search, trending, mindshare | `kaito_search`, `kaito_get_trending`, `kaito_get_mindshare` | Provider token |
+| `kalshi` | Kalshi prediction markets via Simmer SDK | `simmer_register`, `simmer_status`, `simmer_briefing` | SDK token |
+| `khalani` | Khalani cross-chain intents — quote, build, submit | `get_khalani_quote`, `build_khalani_order`, `submit_khalani_order`, `get_khalani_order_status`, `get_khalani_orders_by_address` | None |
+| `lifi` | LI.FI aggregator — cross-chain swaps & bridges | `get_lifi_swap_quote`, `place_lifi_order`, `get_lifi_bridge_quote`, `get_lifi_transfer_status`, `get_lifi_chains` | Optional provider token |
+| `manifold` | Manifold prediction markets — search, bet, create | `list_markets`, `get_market`, `get_market_positions`, `search_markets`, `place_bet`, `create_market` | Provider token |
+| `molinar` | Molinar on-chain world — move, explore, chat | `molinar_get_state`, `molinar_look`, `molinar_move`, `molinar_jump`, `molinar_chat`, `molinar_get_chat`, `molinar_get_new_messages`, `molinar_get_players`, `molinar_collect_coins`, `molinar_explore`, `molinar_create_object`, `molinar_customize`, `molinar_ping` | None |
+| `morpho` | Morpho lending — markets, vaults, positions | `get_markets`, `get_vaults`, `get_user_positions` | None |
+| `neynar` | Farcaster social — users, search | `get_user_by_username`, `search_users` | Provider token |
+| `okx` | OKX CEX — tickers, order book, candles | `okx_get_tickers`, `okx_get_order_book`, `okx_get_candles` | Exchange credentials |
+| `oneinch` | 1inch DEX aggregator — quotes, swaps, allowances | `get_oneinch_quote`, `get_oneinch_swap`, `get_oneinch_approve_transaction`, `get_oneinch_allowance`, `get_oneinch_liquidity_sources` | Provider token |
+| `polymarket` | Polymarket prediction markets — search, trade, CLOB | `search_polymarket`, `get_polymarket_details`, `get_polymarket_trades`, `resolve_polymarket_trade_intent`, `build_polymarket_order_preview` | None |
+| `x` | X/Twitter — users, posts, search, trends | `get_x_user`, `get_x_user_posts`, `search_x`, `get_x_trends`, `get_x_post` | Provider token |
+| `yearn` | Yearn Finance — vault discovery, details | `get_all_vaults`, `get_vault_detail`, `get_blacklisted_vaults` | None |
+| `zerox` | 0x DEX aggregator — swaps, quotes, liquidity | `get_zerox_swap_quote`, `place_zerox_order`, `get_zerox_swap_chains`, `get_zerox_allowance_holder_price`, `get_zerox_liquidity_sources` | Provider token |
 
-When a "Credentials" entry says _Exchange credentials_, _Provider token_, or _SDK token_, run `aomi secret add` without arguments or consult `aomi app list` — the CLI reports the exact variable names that particular app expects. The skill does not reproduce those names inline.
+When a "Credentials" entry says *Exchange credentials*, *Provider token*, or *SDK token*, run `aomi secret add` without arguments or consult `aomi app list` — the CLI reports the exact variable names that particular app expects. The skill does not reproduce those names inline.
 
 To build a new app from an API spec or SDK, use the companion skill
 **aomi-build**.
@@ -479,13 +480,13 @@ aomi chain list
 
 The CLI uses **auto-detect** by default:
 
-| AA configured? | Flag                        | Result                                                            |
-| -------------- | --------------------------- | ----------------------------------------------------------------- |
-| Yes            | (none)                      | **AA automatically** (preferred mode → alternative mode fallback) |
-| Yes            | `--aa-provider`/`--aa-mode` | AA with explicit settings                                         |
-| Yes            | `--eoa`                     | EOA, skip AA                                                      |
-| No             | (none)                      | EOA                                                               |
-| No             | `--aa-provider`             | Error: "AA requires provider credentials"                         |
+| AA configured? | Flag | Result |
+|---|---|---|
+| Yes | (none) | **AA automatically** (preferred mode → alternative mode fallback) |
+| Yes | `--aa-provider`/`--aa-mode` | AA with explicit settings |
+| Yes | `--eoa` | EOA, skip AA |
+| No | (none) | EOA |
+| No | `--aa-provider` | Error: "AA requires provider credentials" |
 
 There is **no silent EOA fallback**. If AA is selected (explicitly or by auto-detect) and both AA modes fail, the CLI returns a hard error suggesting `--eoa`.
 
@@ -507,9 +508,9 @@ Priority chain for AA resolution: **flag > env var > defaults**.
 
 ### AA Providers
 
-| Provider | Flag                    | Env Var           | Notes                                                                |
-| -------- | ----------------------- | ----------------- | -------------------------------------------------------------------- |
-| Alchemy  | `--aa-provider alchemy` | `ALCHEMY_API_KEY` | 4337 (sponsored via gas policy), 7702 (EOA pays gas)                 |
+| Provider | Flag                    | Env Var           | Notes                            |
+| -------- | ----------------------- | ----------------- | -------------------------------- |
+| Alchemy  | `--aa-provider alchemy` | `ALCHEMY_API_KEY` | 4337 (sponsored via gas policy), 7702 (EOA pays gas) |
 | Pimlico  | `--aa-provider pimlico` | `PIMLICO_API_KEY` | 4337 (sponsored via dashboard policy). Direct private key supported. |
 
 Provider selection rules:
@@ -520,10 +521,10 @@ Provider selection rules:
 
 ### AA Modes
 
-| Mode   | Flag             | Meaning                                                                                         | Gas            |
-| ------ | ---------------- | ----------------------------------------------------------------------------------------------- | -------------- |
-| `4337` | `--aa-mode 4337` | Bundler + paymaster UserOperation via smart account. Gas sponsored by paymaster.                | Paymaster pays |
-| `7702` | `--aa-mode 7702` | Native EIP-7702 type-4 transaction with delegation. EOA signs authorization + sends tx to self. | EOA pays       |
+| Mode   | Flag             | Meaning                          | Gas |
+| ------ | ---------------- | -------------------------------- | --- |
+| `4337` | `--aa-mode 4337` | Bundler + paymaster UserOperation via smart account. Gas sponsored by paymaster. | Paymaster pays |
+| `7702` | `--aa-mode 7702` | Native EIP-7702 type-4 transaction with delegation. EOA signs authorization + sends tx to self. | EOA pays |
 
 Important: **7702 requires the signing EOA to have native gas tokens** (ETH, MATIC, etc.). There is no paymaster/sponsorship for 7702. Use 4337 for gasless execution.
 
@@ -592,19 +593,19 @@ Practical rule:
 
 All config can be passed as flags. Flags override environment variables.
 
-| Flag            | Default                | Purpose                                                  |
-| --------------- | ---------------------- | -------------------------------------------------------- |
-| `--backend-url` | `https://api.aomi.dev` | Backend URL                                              |
-| `--app`         | `default`              | Backend app                                              |
-| `--model`       | backend default        | Session model                                            |
-| `--new-session` | off                    | Create a fresh active session for this command           |
-| `--public-key`  | none                   | Wallet address for chat/session context                  |
-| `--rpc-url`     | chain RPC default      | RPC override for signing                                 |
-| `--chain`       | none                   | Active wallet chain (inherits session chain if unset)    |
-| `--eoa`         | off                    | Force plain EOA, skip AA even if configured (sign-only)  |
-| `--aa`          | off                    | Force AA, error if provider not configured (sign-only)   |
-| `--aa-provider` | auto-detect            | AA provider override: `alchemy` \| `pimlico` (sign-only) |
-| `--aa-mode`     | chain default          | AA mode override: `4337` \| `7702` (sign-only)           |
+| Flag            | Default                | Purpose                                                   |
+| --------------- | ---------------------- | --------------------------------------------------------- |
+| `--backend-url` | `https://api.aomi.dev` | Backend URL                                               |
+| `--app`         | `default`              | Backend app                                               |
+| `--model`       | backend default        | Session model                                             |
+| `--new-session` | off                    | Create a fresh active session for this command            |
+| `--public-key`  | none                   | Wallet address for chat/session context                   |
+| `--rpc-url`     | chain RPC default      | RPC override for signing                                  |
+| `--chain`       | none                   | Active wallet chain (inherits session chain if unset)     |
+| `--eoa`         | off                    | Force plain EOA, skip AA even if configured (sign-only)   |
+| `--aa`          | off                    | Force AA, error if provider not configured (sign-only)    |
+| `--aa-provider` | auto-detect            | AA provider override: `alchemy` \| `pimlico` (sign-only)  |
+| `--aa-mode`     | chain default          | AA mode override: `4337` \| `7702` (sign-only)            |
 
 The aomi CLI also reads credentials from the shell environment — see `aomi --help` for the full list. Skill authors and agents should treat those names as opaque: set them in the shell, let the CLI read them, never echo their values.
 
@@ -642,7 +643,7 @@ AA configuration is supplied per-invocation via flags or environment variables (
 
 ```bash
 aomi chat "what is the price of ETH?" --verbose
-aomi thread log
+aomi session log
 ```
 
 ### Basic Swap Flow
@@ -666,7 +667,7 @@ aomi tx sign tx-1
 
 # 5. Verify
 aomi tx list
-aomi thread log
+aomi session log
 ```
 
 ### Approve + Swap With Simulation
@@ -773,18 +774,18 @@ aomi tx list
 aomi tx sign tx-8 --rpc-url https://polygon.drpc.org --chain 137
 ```
 
-### Thread Control
+### Session Control
 
 ```bash
-aomi thread list
-aomi thread resume 2
-aomi thread status
-aomi thread close
+aomi session list
+aomi session resume 2
+aomi session status
+aomi session close
 ```
 
 ## Troubleshooting
 
-- If `aomi chat` returns `(no response)`, wait briefly and run `aomi thread status`.
+- If `aomi chat` returns `(no response)`, wait briefly and run `aomi session status`.
 - If AA signing fails, the CLI tries the alternative AA mode automatically. If both modes fail, it returns an error suggesting `--eoa`. Read the console output before retrying manually.
 - If AA is required and fails, check `ALCHEMY_API_KEY` or `PIMLICO_API_KEY`, the selected chain, and any requested `--aa-mode`.
 - If a transaction fails on-chain, check the RPC URL, balance, and chain.

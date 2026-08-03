@@ -11,7 +11,6 @@ import {
   normalizePrivateKey,
   parseAAProvider,
   parseAAMode,
-  validateSolanaPrivateKey,
 } from "../../validation";
 
 type SvmCluster = NonNullable<CliConfig["svmCluster"]>;
@@ -66,14 +65,6 @@ export const globalArgs = {
     type: "string",
     description: "API key for non-default apps",
   },
-  json: {
-    type: "boolean",
-    description: "Print machine-readable JSON where supported",
-  },
-  verbose: {
-    type: "boolean",
-    description: "Show extra diagnostics such as local state file paths",
-  },
   "account-bearer": {
     type: "string",
     description: "Aomi account bearer for authenticated REST/SSE requests",
@@ -93,15 +84,15 @@ export const globalArgs = {
   },
   model: {
     type: "string",
-    description: "Set the active model for this thread",
+    description: "Set the active model for this session",
   },
   "new-session": {
     type: "boolean",
-    description: "Create a fresh active thread for this command",
+    description: "Create a fresh active session for this command",
   },
   chain: {
     type: "string",
-    description: "Active chain for chat/thread context",
+    description: "Active chain for chat/session context",
   },
   "public-key": {
     type: "string",
@@ -144,7 +135,9 @@ function derivePublicKeyFromPrivateKey(
   try {
     return privateKeyToAccount(privateKey as `0x${string}`).address;
   } catch {
-    fatal("Invalid private key. Expected a 0x-prefixed 32-byte hex string.");
+    fatal(
+      "Invalid private key. Pass a 32-byte hex key via `--private-key` or `PRIVATE_KEY`.",
+    );
   }
 }
 
@@ -228,9 +221,8 @@ export function buildCliConfig(args: Record<string, unknown>): CliConfig {
     );
   }
 
-  const solanaPrivateKey = validateSolanaPrivateKey(
-    str(args["solana-private-key"]) ?? process.env.SOLANA_PRIVATE_KEY,
-  );
+  const solanaPrivateKey =
+    str(args["solana-private-key"]) ?? process.env.SOLANA_PRIVATE_KEY;
 
   const svmCluster = parseSvmCluster(
     str(args.cluster) ?? process.env.AOMI_SOLANA_CLUSTER,
@@ -239,8 +231,6 @@ export function buildCliConfig(args: Record<string, unknown>): CliConfig {
   return {
     baseUrl: str(args["backend-url"]) ?? process.env.AOMI_BACKEND_URL,
     apiKey: str(args["api-key"]) ?? process.env.AOMI_API_KEY,
-    json: args.json === true,
-    verbose: args.verbose === true,
     accountBearer,
     embeddedProvider,
     embeddedProviderToken,

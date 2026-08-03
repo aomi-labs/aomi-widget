@@ -1,6 +1,6 @@
 import { CliSession } from "../cli-session";
 import { fatal } from "../errors";
-import { printDataFileLocation, printJson } from "../output";
+import { printDataFileLocation } from "../output";
 import { signInWithCliSiwe, signOutCliSession } from "../auth";
 import type { CliConfig } from "../types";
 import {
@@ -18,6 +18,7 @@ import {
   type AccountGraphWallet,
   type ResolvedAccountLink,
 } from "../account-graph";
+import { resumeSessionCommand, sessionsCommand } from "./sessions";
 
 const DEFAULT_CHAIN_ID = 1;
 const LEGACY_RAW_BACKEND_URL = "https://api.aomi.dev";
@@ -26,7 +27,6 @@ export type AccountLoginOptions = {
   provider?: string;
   wallet?: boolean;
   noBrowser?: boolean;
-  walletFamily?: "evm" | "solana";
 };
 
 export type AccountLinkOptions = {
@@ -48,13 +48,8 @@ export async function accountLoginCommand(
   options: AccountLoginOptions = {},
 ): Promise<void> {
   const cli = CliSession.loadOrCreate(config);
-  let rewroteLegacyBackend = false;
   if (!config.baseUrl && cli.baseUrl === LEGACY_RAW_BACKEND_URL) {
     cli.setBaseUrl(DEFAULT_CLI_BASE_URL);
-    rewroteLegacyBackend = true;
-  }
-  if (rewroteLegacyBackend && !config.json) {
-    console.log(`Backend updated to ${DEFAULT_CLI_BASE_URL}`);
   }
   if (options.wallet || options.noBrowser || config.privateKey) {
     await accountLoginWithSiwe(cli, config);
@@ -73,27 +68,16 @@ export async function accountLoginCommand(
   const result = await signInWithDeviceProvider({
     baseUrl: cli.baseUrl,
     provider,
-    walletFamily: options.walletFamily,
   });
   cli.setAuthSession(result.auth);
 
-  if (config.json) {
-    printJson({
-      status: "signed_in",
-      provider: result.provider ?? null,
-      baseUrl: cli.baseUrl,
-      migratedLegacyBackend: rewroteLegacyBackend,
-      expiresAt: new Date(result.auth.expiresAt).toISOString(),
-    });
-    return;
-  }
   console.log(
     `Signed in${result.provider ? ` with ${formatProvider(result.provider)}` : ""}`,
   );
   console.log(
     `Session expires at ${new Date(result.auth.expiresAt).toISOString()}`,
   );
-  printDataFileLocation({ verbose: config.verbose });
+  printDataFileLocation();
 }
 
 async function accountLoginWithSiwe(
@@ -104,7 +88,7 @@ async function accountLoginWithSiwe(
   if (!privateKey) {
     fatal(
       "No EVM private key configured.\n" +
-        "Run `aomi wallet dev-key <evm-private-key>` or pass `--private-key`.",
+        "Run `aomi wallet set <evm-private-key>` or pass `--private-key`.",
     );
   }
 
@@ -121,22 +105,11 @@ async function accountLoginWithSiwe(
   }
   cli.setAuthSession(result.auth);
 
-  if (config.json) {
-    printJson({
-      status: "signed_in",
-      provider: "siwe",
-      address: result.address,
-      chainId,
-      baseUrl: cli.baseUrl,
-      expiresAt: new Date(result.auth.expiresAt).toISOString(),
-    });
-    return;
-  }
   console.log(`Signed in with ${result.address}`);
   console.log(
     `Session expires at ${new Date(result.auth.expiresAt).toISOString()}`,
   );
-  printDataFileLocation({ verbose: config.verbose });
+  printDataFileLocation();
 }
 
 function formatProvider(provider: DeviceAuthProvider): string {
@@ -146,12 +119,8 @@ function formatProvider(provider: DeviceAuthProvider): string {
 export async function accountWhoamiCommand(config: CliConfig): Promise<void> {
   const cli = CliSession.load();
   if (!cli) {
-    if (config.json) {
-      printJson({ active: false });
-      return;
-    }
     console.log("No active session");
-    printDataFileLocation({ verbose: config.verbose });
+    printDataFileLocation();
     return;
   }
   cli.mergeConfig(config);
@@ -159,12 +128,8 @@ export async function accountWhoamiCommand(config: CliConfig): Promise<void> {
   if (cli.auth?.sessionToken) {
     try {
       const account = await requireAccountGraphClient(cli).getAccount();
-      if (config.json) {
-        printJson(account);
-        return;
-      }
-      printAccountSummary(account);
-      printDataFileLocation({ verbose: config.verbose });
+      printAccountGraph(account);
+      printDataFileLocation();
       return;
     } catch {
       // Fall through to the backend profile endpoint below. Older sessions or
@@ -175,10 +140,6 @@ export async function accountWhoamiCommand(config: CliConfig): Promise<void> {
   const session = cli.createClientSession();
   try {
     const account = await session.client.getAccount(cli.sessionId);
-    if (config.json) {
-      printJson(account);
-      return;
-    }
     const user = account.user;
     console.log(`Account:  ${user.user_id}`);
     if (user.username) console.log(`Username: ${user.username}`);
@@ -195,27 +156,19 @@ export async function accountWhoamiCommand(config: CliConfig): Promise<void> {
         `- ${formatWalletChainType(wallet.chain_type)} [${wallet.wallet_provider}]: ${wallet.address}${walletId}`,
       );
     }
-    printDataFileLocation({ verbose: config.verbose });
+    printDataFileLocation();
   } catch {
-    if (config.json) {
-      printJson({
-        active: true,
-        bound: false,
-        hasCredential: hasAccountCredential(cli.toState()),
-      });
-      return;
-    }
     console.log("Not bound to an account (anonymous session).");
     if (!hasAccountCredential(cli.toState())) {
       console.log(
-        "No account credential configured. Run `aomi login` or pass --account-bearer.",
+        "No account credential configured. Run `aomi account login` or pass --account-bearer.",
       );
     } else {
       console.log(
         "An account credential was sent, but the backend did not bind or accept this session.",
       );
     }
-    printDataFileLocation({ verbose: config.verbose });
+    printDataFileLocation();
   } finally {
     session.close();
   }
@@ -227,12 +180,8 @@ export async function accountLinksCommand(config: CliConfig): Promise<void> {
   const cli = loadMergedCli(config);
   const client = requireAccountGraphClient(cli);
   const account = await client.getAccount();
-  if (config.json) {
-    printJson(account);
-    return;
-  }
-  printAccountLinks(account);
-  printDataFileLocation({ verbose: config.verbose });
+  printAccountGraph(account);
+  printDataFileLocation();
 }
 
 export async function accountLinkCommand(
@@ -257,15 +206,11 @@ export async function accountLinkCommand(
     if (result.status === "conflict") {
       fatal("This login method is already linked to another Aomi account.");
     }
-    if (config.json) {
-      printJson(result);
-      return;
-    }
     console.log(`Linked ${formatProvider(provider)} login method`);
     if (result.status === "linked" && result.account) {
-      printAccountLinks(result.account);
+      printAccountGraph(result.account);
     }
-    printDataFileLocation({ verbose: config.verbose });
+    printDataFileLocation();
     return;
   }
 
@@ -276,19 +221,15 @@ export async function accountLinkCommand(
       label: options.label,
     });
     const result = await client.linkWallet(body);
-    if (config.json) {
-      printJson(result);
-      return;
-    }
     console.log(
       result.status === "noop"
         ? `Login method already linked for ${body.address}`
         : `Linked wallet login method ${body.address}`,
     );
     if (result.account) {
-      printAccountLinks(result.account);
+      printAccountGraph(result.account);
     }
-    printDataFileLocation({ verbose: config.verbose });
+    printDataFileLocation();
   }
 }
 
@@ -307,12 +248,8 @@ export async function accountUnlinkCommand(
   } else {
     await client.unlinkWallet(link.id);
   }
-  if (config.json) {
-    printJson({ status: "unlinked", link: serializeResolvedLink(link) });
-    return;
-  }
   console.log(`Unlinked ${formatResolvedLink(link)}`);
-  printDataFileLocation({ verbose: config.verbose });
+  printDataFileLocation();
 }
 
 export async function accountRenameCommand(
@@ -332,16 +269,8 @@ export async function accountRenameCommand(
   } else {
     await client.updateWallet(link.id, { label: options.label });
   }
-  if (config.json) {
-    printJson({
-      status: "renamed",
-      label: options.label,
-      link: serializeResolvedLink(link),
-    });
-    return;
-  }
   console.log(`Renamed ${formatResolvedLink(link)}`);
-  printDataFileLocation({ verbose: config.verbose });
+  printDataFileLocation();
 }
 
 export async function accountUpdateCommand(
@@ -357,13 +286,9 @@ export async function accountUpdateCommand(
     displayName: input.displayName,
     avatarUrl: input.avatarUrl,
   });
-  if (config.json) {
-    printJson(account);
-    return;
-  }
   console.log("Updated account profile");
-  printAccountSummary(account);
-  printDataFileLocation({ verbose: config.verbose });
+  printAccountGraph(account);
+  printDataFileLocation();
 }
 
 export async function accountDeleteCommand(
@@ -375,14 +300,18 @@ export async function accountDeleteCommand(
   const client = requireAccountGraphClient(cli);
   const result = await client.deleteAccount();
   cli.clearAuthSession();
-  if (config.json) {
-    printJson(result);
-    return;
-  }
   console.log(
     `Deleted account (${result.revokedIdentities} login methods, ${result.revokedWallets} wallets revoked)`,
   );
-  printDataFileLocation({ verbose: config.verbose });
+  printDataFileLocation();
+}
+
+export async function accountSessionsCommand(config: CliConfig): Promise<void> {
+  await sessionsCommand(config);
+}
+
+export function accountSwitchCommand(selector: string): void {
+  resumeSessionCommand(selector);
 }
 
 function hasAccountCredential(
@@ -402,18 +331,11 @@ function formatWalletChainType(chainType: string): string {
   return chainType;
 }
 
-export async function logoutCommand(
-  config: CliConfig,
-  _options: { provider?: string } = {},
-): Promise<void> {
+export async function logoutCommand(config: CliConfig): Promise<void> {
   const cli = CliSession.load();
   if (!cli) {
-    if (config.json) {
-      printJson({ active: false });
-      return;
-    }
     console.log("No active session");
-    printDataFileLocation({ verbose: config.verbose });
+    printDataFileLocation();
     return;
   }
   cli.mergeConfig(config);
@@ -426,21 +348,16 @@ export async function logoutCommand(
     });
   } finally {
     cli.clearAuthSession();
-    cli.clearSigningKeys();
   }
 
-  if (config.json) {
-    printJson({ status: "signed_out" });
-    return;
-  }
   console.log("Signed out");
-  printDataFileLocation({ verbose: config.verbose });
+  printDataFileLocation();
 }
 
 function loadMergedCli(config: CliConfig): CliSession {
   const cli = CliSession.load();
   if (!cli) {
-    fatal("No active thread. Run `aomi login` first.");
+    fatal("No active session. Run `aomi account login` first.");
   }
   cli!.mergeConfig(config);
   return cli!;
@@ -455,29 +372,7 @@ function normalizeProviderOption(
   fatal('Unknown --provider value. Use "privy" or "para".');
 }
 
-function printAccountSummary(account: AccountGraphResponse): void {
-  if (!account.user) {
-    console.log("No active account");
-    return;
-  }
-
-  console.log(`Account:  ${account.user.id}`);
-  if (account.user.displayName) {
-    console.log(`Name:     ${account.user.displayName}`);
-  }
-  if (account.user.email) {
-    console.log(`Email:    ${account.user.email}`);
-  }
-  if (account.session?.expiresAt) {
-    console.log(
-      `Session:  expires ${new Date(account.session.expiresAt).toISOString()}`,
-    );
-  }
-  console.log(`Login methods: ${account.linkedAccounts.length}`);
-  console.log(`Wallets:       ${account.wallets.length}`);
-}
-
-function printAccountLinks(account: AccountGraphResponse): void {
+function printAccountGraph(account: AccountGraphResponse): void {
   if (!account.user) {
     console.log("No active account");
     return;
@@ -497,7 +392,7 @@ function printAccountLinks(account: AccountGraphResponse): void {
   }
 
   const identities = account.linkedAccounts ?? [];
-  console.log(`Login methods: ${identities.length}`);
+  console.log(`Links:    ${identities.length}`);
   for (const identity of identities) {
     console.log(formatIdentityLine(identity));
     const childWallets = account.wallets.filter((wallet) =>
@@ -524,18 +419,6 @@ function printAccountLinks(account: AccountGraphResponse): void {
       console.log(formatWalletLine(wallet));
     }
   }
-}
-
-function serializeResolvedLink(
-  link: ResolvedAccountLink,
-): Record<string, unknown> {
-  return {
-    kind: link.kind,
-    id: link.id,
-    provider:
-      link.kind === "identity" ? link.link.provider : link.link.provider,
-    family: link.kind === "wallet" ? link.link.family : undefined,
-  };
 }
 
 function formatIdentityLine(identity: AccountGraphLinkedAccount): string {

@@ -11,9 +11,11 @@ describe("AomiClient route manifest", () => {
         `${endpoint.method} ${endpoint.path} [${endpoint.auth.join(", ")}]`,
     );
 
-    expect(routeKeys).toHaveLength(96);
+    expect(routeKeys).toHaveLength(104);
     expect(new Set(routeKeys).size).toBe(routeKeys.length);
-    expect(routeKeys).toContain("POST /api/aa/v1/:chain_slug [thread]");
+    expect(routeKeys).toContain("POST /api/exec/run [account, thread]");
+    expect(routeKeys).toContain("GET /api/resource/search/apps [account]");
+    expect(routeKeys).toContain("GET /api/resource/search/tools [account]");
     expect(routeKeys).toContain("GET /api/thread/apps [thread]");
     expect(routeKeys).toContain("GET /api/_internal/secrets [service]");
     expect(routeKeys).toContain("DELETE /api/_internal/secrets [service]");
@@ -70,7 +72,7 @@ describe("AomiClient route manifest", () => {
     expect(JSON.parse(init.body as string)).toEqual({ source: "github" });
 
     const headers = new Headers(init.headers);
-    expect(headers.get("X-Thread-Id")).toBe("session-1");
+    expect(headers.get("X-Session-Id")).toBe("session-1");
     expect(headers.get("Aomi-App-Key")).toBe("app-key-1");
     expect(headers.get("Content-Type")).toBe("application/json");
   });
@@ -81,7 +83,7 @@ describe("AomiClient account profile", () => {
     vi.restoreAllMocks();
   });
 
-  it("fetches the bound account profile with the thread header and account bearer", async () => {
+  it("fetches the bound account profile with the session header and account bearer", async () => {
     const profile = {
       account: {
         user_id: "user-1",
@@ -124,7 +126,7 @@ describe("AomiClient account profile", () => {
         (nativeFetch.mock.calls[0]?.[1] as RequestInit).headers,
       );
       expect(headers.get("Authorization")).toBe("Bearer bearer-1");
-      expect(headers.get("X-Thread-Id")).toBe("session-1");
+      expect(headers.get("X-Session-Id")).toBe("session-1");
       expect(result?.account.user_id).toBe("user-1");
       expect(result?.wallets?.[0]?.wallet_id).toBe("wallet-evm-1");
     } finally {
@@ -228,7 +230,7 @@ describe("AomiClient account profile", () => {
       for (const [, init] of nativeFetch.mock.calls) {
         const headers = new Headers((init as RequestInit).headers);
         expect(headers.get("Authorization")).toBe("Bearer bearer-1");
-        expect(headers.get("X-Thread-Id")).toBe("session-1");
+        expect(headers.get("X-Session-Id")).toBe("session-1");
       }
     } finally {
       vi.stubGlobal("fetch", originalFetch);
@@ -303,11 +305,11 @@ describe("AomiClient account profile", () => {
 
       const [url, init] = nativeFetch.mock.calls[0] ?? [];
       expect(String(url)).toBe(
-        "http://unit.test/api/chat?app=default&message=swap+20+mon+to+usdc&client_id=client-1",
+        "http://unit.test/api/thread/chat?app=default&message=swap+20+mon+to+usdc&client_id=client-1",
       );
       expect((init as RequestInit | undefined)?.body).toBeUndefined();
       expect(
-        new Headers((init as RequestInit).headers).get("X-Thread-Id"),
+        new Headers((init as RequestInit).headers).get("X-Session-Id"),
       ).toBe("session-1");
     } finally {
       vi.stubGlobal("fetch", originalFetch);
@@ -344,7 +346,7 @@ describe("AomiClient account profile", () => {
       );
       expect((init as RequestInit | undefined)?.body).toBeUndefined();
       expect(
-        new Headers((init as RequestInit).headers).get("X-Thread-Id"),
+        new Headers((init as RequestInit).headers).get("X-Session-Id"),
       ).toBe("session-1");
     } finally {
       vi.stubGlobal("fetch", originalFetch);
@@ -476,8 +478,9 @@ describe("AomiClient transport selection", () => {
       },
     ] as Response[];
     const nativeFetch = vi.fn(async () => responses.shift() as Response);
-    const getAccountBearer = vi.fn(async ({ forceRefresh = false } = {}) =>
-      forceRefresh ? "fresh-token" : "stale-token",
+    const getAccountBearer = vi.fn(
+      async ({ forceRefresh = false } = {}) =>
+        forceRefresh ? "fresh-token" : "stale-token",
     );
     const originalFetch = globalThis.fetch;
     vi.stubGlobal("fetch", nativeFetch);
@@ -664,16 +667,10 @@ describe("AomiClient transport selection", () => {
     const fetch = vi
       .fn<typeof globalThis.fetch>()
       .mockResolvedValueOnce(
-        Response.json({
-          thread_id: "thread-1",
-          title: null,
-          last_active_at: "123",
-        }),
+        Response.json({ thread_id: "thread-1", title: null }),
       )
       .mockResolvedValueOnce(
-        Response.json([
-          { thread_id: "thread-1", title: "One", last_active_at: 456 },
-        ]),
+        Response.json([{ thread_id: "thread-1", title: "One" }]),
       );
     const client = new AomiClient({
       baseUrl: "http://unit.test",
@@ -683,14 +680,12 @@ describe("AomiClient transport selection", () => {
     await expect(client.createThread("thread-1")).resolves.toEqual({
       session_id: "thread-1",
       title: null,
-      last_active_at: 123,
     });
     await expect(client.listThreads("thread-1")).resolves.toEqual([
       {
         session_id: "thread-1",
         title: "One",
         is_archived: undefined,
-        last_active_at: 456,
       },
     ]);
 

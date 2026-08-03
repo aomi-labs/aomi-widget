@@ -42,7 +42,8 @@ describe("CLI BetterAuth SIWE auth", () => {
               domain: "portal.test",
               uri: "https://portal.test",
             },
-            {},
+            {
+            },
           );
         }
         if (url.endsWith("/api/auth/siwe/verify")) {
@@ -136,7 +137,9 @@ describe("CLI BetterAuth SIWE auth", () => {
         }
         if (url.endsWith("/api/auth/siwe/verify")) {
           const body = JSON.parse(String(init?.body));
-          expect(body.message).toContain("localhost:3000 wants you to sign in");
+          expect(body.message).toContain(
+            "localhost:3000 wants you to sign in",
+          );
           return Response.json(
             { success: true },
             { headers: { "set-auth-token": "better-auth-session-token" } },
@@ -156,7 +159,7 @@ describe("CLI BetterAuth SIWE auth", () => {
     });
   });
 
-  it("logs out and clears the stored CLI auth session and signing keys", async () => {
+  it("logs out and clears the stored CLI auth session", async () => {
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     const fetchMock = vi.fn(
       async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -188,19 +191,11 @@ describe("CLI BetterAuth SIWE auth", () => {
       sessionToken: "session-token",
       expiresAt: Date.now() + 60_000,
     });
-    cli.setWallet(PRIVATE_KEY, ACCOUNT.address);
-    cli.setSvmWallet("solana-secret", "solana-public");
 
     await logoutCommand({ secrets: {} });
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(readState()).toEqual(
-      expect.objectContaining({
-        auth: undefined,
-        privateKey: undefined,
-        svmPrivateKey: undefined,
-      }),
-    );
+    expect(readState()?.auth).toBeUndefined();
     expect(logSpy).toHaveBeenCalledWith("Signed out");
   });
 });

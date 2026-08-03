@@ -27,7 +27,6 @@ import { buildCliUserState } from "./user-state";
 import { fatal } from "./errors";
 import { parseSolanaKeypairSecret } from "./solana-signer";
 import { createCliAuthTokenProvider } from "./auth";
-import { DEFAULT_CLI_BASE_URL } from "./client-factory";
 
 export class CliSession {
   private state: CliSessionState;
@@ -77,7 +76,7 @@ export class CliSession {
     const state: CliSessionState = {
       sessionId: crypto.randomUUID(),
       clientId: crypto.randomUUID(),
-      baseUrl: config.baseUrl ?? seed?.baseUrl ?? DEFAULT_CLI_BASE_URL,
+      baseUrl: config.baseUrl ?? seed?.baseUrl ?? "https://api.aomi.dev",
       app: config.app ?? seed?.app,
       model: config.model ?? seed?.model,
       apiKey: config.apiKey ?? seed?.apiKey,
@@ -87,11 +86,12 @@ export class CliSession {
       embeddedProviderToken:
         config.embeddedProviderToken ?? seed?.embeddedProviderToken,
       publicKey: config.publicKey ?? seed?.publicKey,
-      privateKey: seed?.privateKey,
+      privateKey: config.privateKey ?? seed?.privateKey,
       svmPublicKey: svmPublicKey ?? seed?.svmPublicKey,
-      // Carry forward only persisted Solana keys from `wallet set --solana`.
-      // Keys supplied via --solana-private-key/env stay transient.
-      svmPrivateKey: seed?.svmPrivateKey,
+      // Carry forward the persisted Solana private key so `wallet set --solana`
+      // survives `--new-session` — signing key is a user preference, not a
+      // per-session artifact.
+      svmPrivateKey: config.solanaPrivateKey ?? seed?.svmPrivateKey,
       chainId: config.chain ?? seed?.chainId,
       secretHandles: seed?.secretHandles,
       auth: seed?.auth,
@@ -314,19 +314,6 @@ export class CliSession {
     if (!this.state.auth) return;
     delete this.state.auth;
     this.save();
-  }
-
-  clearSigningKeys(): void {
-    let changed = false;
-    if (this.state.privateKey !== undefined) {
-      delete this.state.privateKey;
-      changed = true;
-    }
-    if (this.state.svmPrivateKey !== undefined) {
-      delete this.state.svmPrivateKey;
-      changed = true;
-    }
-    if (changed) this.save();
   }
 
   /** Ensure clientId exists, generate if absent. Returns the clientId. */
