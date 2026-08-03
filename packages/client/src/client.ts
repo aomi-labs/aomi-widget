@@ -234,16 +234,15 @@ async function fetchStateResponse(
   });
 }
 
-function wrapFetchWithAccountBearer(
+export function wrapFetchWithAccountBearer(
   fetchImpl: typeof fetch,
   getAccountBearer?: GetAccountBearer,
 ): typeof fetch {
   if (!getAccountBearer) return fetchImpl;
 
   return async (input, init) => {
-    const baseHeaders = new Headers(
-      init?.headers ?? (input instanceof Request ? input.headers : undefined),
-    );
+    const request = input instanceof Request ? input : undefined;
+    const baseHeaders = new Headers(init?.headers ?? request?.headers);
     const fetchWithBearer = async (forceRefresh: boolean) => {
       const headers = new Headers(baseHeaders);
       // The account bearer is additive — never let a failing source break the
@@ -260,7 +259,9 @@ function wrapFetchWithAccountBearer(
       if (bearer) {
         headers.set("Authorization", `Bearer ${bearer}`);
       }
-      return fetchImpl(input, { ...init, headers });
+      // A Request body is single-use: hand fetch a clone so the 401 retry
+      // below can still send the original body.
+      return fetchImpl(request ? request.clone() : input, { ...init, headers });
     };
 
     const response = await fetchWithBearer(false);

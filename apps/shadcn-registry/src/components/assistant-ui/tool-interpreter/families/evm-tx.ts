@@ -8,6 +8,7 @@ import {
   humanize,
   selectorFact,
   statusFact,
+  txOutcomeStatus,
   uniqueFacts,
 } from "../normalize";
 import type { ToolFact, ToolMatcher, ToolOperation } from "../types";
@@ -62,7 +63,7 @@ export const matchStagedTx: ToolMatcher = ({ rawLabel, resultRecord }) => {
           source: "result",
         }
       : null,
-    statusFact(resultRecord.current_lifecycle),
+    statusFact(txOutcomeStatus(resultRecord) ?? resultRecord.current_lifecycle),
   ]);
 };
 
