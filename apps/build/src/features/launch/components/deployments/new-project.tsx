@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ArrowLeft, ArrowRight, Github, Sparkles } from "lucide-react";
 import { Onboarding } from "@build/features/launch/components/onboarding";
 import {
@@ -74,6 +74,19 @@ export function NewProject({
     if (modeParam) return;
     if (resumingTemplate(platform)) setMode("template");
   }, [modeParam, platform]);
+
+  // `?mode=` can change under a mounted component: the App Router reuses this
+  // instance across a soft navigation to the same route, so a "New app" link
+  // that carries no mode has to return the user to the picker rather than
+  // leaving them in the flow they last chose. Only an actual change counts —
+  // our own `replaceState` below never re-renders the server component, and
+  // reacting on mount would race the resume effect above.
+  const lastModeParam = useRef(modeParam);
+  useEffect(() => {
+    if (lastModeParam.current === modeParam) return;
+    lastModeParam.current = modeParam;
+    setMode(modeParam ?? null);
+  }, [modeParam]);
 
   // Keep `?mode=` in sync so reload, back/forward, and the GitHub round-trip
   // all return to the card the user chose.
@@ -188,16 +201,23 @@ function StartPicker({
 
 /**
  * Is a template launch mid-flight? Either the GitHub install redirect is still
- * on the URL, a deployment is being watched, or we saved a pending install
- * before navigating away. A stale `installationId` in storage deliberately does
- * not count — that would pin every later visit to the template card.
+ * on the URL, or the saved state says a launch is unfinished: a pending install
+ * we navigated away for, or a deployment that has not gone live.
+ *
+ * The wizard mirrors `deploymentId` into the URL, but only while it is mounted
+ * — leaving Build mid-deploy and coming back through the nav arrives with a
+ * clean URL, so the check has to reach into storage too.
+ *
+ * A stale `installationId` deliberately does not count, and neither does a
+ * launch already `live`: both survive a finished run, and either one would pin
+ * every later visit to the template card instead of offering the choice.
  */
 function resumingTemplate(platform?: string): boolean {
   if (typeof window === "undefined") return false;
   const params = new URLSearchParams(window.location.search);
   if (params.has("installation_id") || params.has("deployment_id")) return true;
   if (params.get("launch") === "personal_required") return true;
-  return Boolean(
-    loadLaunch(platform ?? DEFAULT_DEPLOY_PLATFORM).pendingInstall,
-  );
+  const saved = loadLaunch(platform ?? DEFAULT_DEPLOY_PLATFORM);
+  if (saved.pendingInstall) return true;
+  return Boolean(saved.oneshot.deploymentId) && !saved.oneshot.live;
 }

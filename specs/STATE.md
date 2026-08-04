@@ -23,9 +23,27 @@
     the Projects index; that page now renders only the extracted
     `ConnectionResultBanner` (GitHub still returns to `/projects`, so the
     outcome has to render without the form that started it).
-  - Verified: apps/build vitest 434 passed/12 skipped (71 files, incl. new
+  - Verified: apps/build vitest 441 passed/12 skipped (71 files, incl. new
     `new-project.test.tsx`), tsc clean, eslint clean, prettier clean; both
     flows driven in a local dev server.
+  Codex review follow-up (same day):
+  - resumingTemplate() also resumes on a saved `oneshot.deploymentId` that is
+    not yet `live` — the wizard only mirrors it into the URL while mounted, so
+    leaving Build mid-deploy and returning through the nav used to land on the
+    picker. `live` still falls through to the cards.
+  - `?mode=` now syncs on change (ref-guarded, so it never races the resume
+    effect on mount): the App Router reuses this instance across a soft nav, so
+    a "New app" link carrying no mode has to return the user to the picker.
+  - Both fixes mutation-checked (tests fail when the fix is backed out) and
+    `ConnectionResultBanner` got its own tests.
+  - Review's P1 ("Import depends on unmerged BE") does NOT hold:
+    codex/build-existing-repo-oauth landed on product-mono main as 0b6eb9582
+    (PR #923, 2026-08-03). `github_app_oauth_start` reads `return_to`,
+    `validate_build_return_to` allowlists it, and `redirect_url()` honours it.
+    NOTE for anyone extending returnTo: validation requires the URL's query to
+    be EXACTLY `platform=<signed platform>` and the path to be `/projects` or
+    `/operate/deployments/new` — putting `&mode=` on a returnTo would 400,
+    which is why the resume state is derived instead.
 
 2026-08-02 — PLATFORM-BINDING INVARIANT, E2E (FE worktree platform-switch +
   BE worktree somm-repo-connect/product-mono branch

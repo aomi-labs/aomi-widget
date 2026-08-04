@@ -21,6 +21,7 @@ vi.mock("./repository-connector", () => ({
 }));
 
 import { newProjectMode } from "@build/features/launch/new-project-mode";
+import { saveLaunch } from "@build/features/launch";
 import { NewProject } from "./new-project";
 
 const TEMPLATE_CARD = { name: /Start from the template/ };
@@ -91,12 +92,63 @@ describe("NewProject", () => {
     ).toBeVisible();
   });
 
+  it("resumes a deploy the user navigated away from mid-flight", async () => {
+    saveLaunch({
+      platform: "somm.finance",
+      path: "oneshot",
+      oneshot: { installationId: "42", repo: "alice/bot", deploymentId: "d-1" },
+      pendingInstall: null,
+      rejectedInstallationId: null,
+    });
+    render(<NewProject platform="somm.finance" />);
+
+    expect(
+      await screen.findByText("Template wizard for somm.finance"),
+    ).toBeVisible();
+  });
+
+  it("offers the cards again once a launch has gone live", async () => {
+    saveLaunch({
+      platform: "somm.finance",
+      path: "oneshot",
+      oneshot: {
+        installationId: "42",
+        repo: "alice/bot",
+        deploymentId: "d-1",
+        live: true,
+      },
+      pendingInstall: null,
+      rejectedInstallationId: null,
+    });
+    render(<NewProject platform="somm.finance" />);
+
+    expect(await screen.findByRole("button", TEMPLATE_CARD)).toBeVisible();
+    expect(screen.queryByText(/Template wizard/)).toBeNull();
+  });
+
   it("honours an explicit mode from the URL", async () => {
     render(<NewProject platform="somm.finance" mode="import" />);
 
     expect(
       await screen.findByText("Connect repository to somm.finance"),
     ).toBeVisible();
+  });
+
+  it("follows `?mode=` when it changes under a mounted page", async () => {
+    const { rerender } = render(
+      <NewProject platform="somm.finance" mode="import" />,
+    );
+    expect(
+      await screen.findByText("Connect repository to somm.finance"),
+    ).toBeVisible();
+
+    // A soft navigation to the same route without `?mode=` — the picker has to
+    // come back rather than stranding the user in the import flow.
+    rerender(<NewProject platform="somm.finance" />);
+    expect(screen.getByRole("button", TEMPLATE_CARD)).toBeVisible();
+
+    rerender(<NewProject platform="somm.finance" mode="template" />);
+    expect(screen.getByText("Template wizard for somm.finance")).toBeVisible();
   });
 
   it("asks for GitHub sign-in before showing the cards", async () => {
