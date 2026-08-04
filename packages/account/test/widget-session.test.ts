@@ -107,13 +107,12 @@ describe("widget sessions", () => {
     expect(tickets.size).toBe(0);
   });
 
-  it("requires explicit secure origins, with localhost HTTP only outside production", () => {
+  it("requires HTTPS except for explicit loopback origins", () => {
     expect(
       observedWidgetOrigin(
         new Request("https://portal.example", {
           headers: { Origin: "https://consumer.example" },
         }),
-        "production",
       ),
     ).toBe("https://consumer.example");
     expect(
@@ -121,15 +120,20 @@ describe("widget sessions", () => {
         new Request("https://portal.example", {
           headers: { Origin: "http://localhost:3001" },
         }),
-        "development",
       ),
     ).toBe("http://localhost:3001");
     expect(
       observedWidgetOrigin(
         new Request("https://portal.example", {
-          headers: { Origin: "http://localhost:3001" },
+          headers: { Origin: "http://127.0.0.1:3000" },
         }),
-        "production",
+      ),
+    ).toBe("http://127.0.0.1:3000");
+    expect(
+      observedWidgetOrigin(
+        new Request("https://portal.example", {
+          headers: { Origin: "http://consumer.example" },
+        }),
       ),
     ).toBeNull();
     expect(

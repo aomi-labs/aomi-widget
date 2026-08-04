@@ -18,7 +18,6 @@ export function requireWidgetOrigin(request: Request): string {
 
 export function observedWidgetOrigin(
   request: Request,
-  nodeEnv = process.env.NODE_ENV,
 ): string | null {
   const rawOrigin = request.headers.get("origin");
   if (!rawOrigin || rawOrigin === "null") return null;
@@ -30,8 +29,10 @@ export function observedWidgetOrigin(
   }
   if (origin.origin !== rawOrigin) return null;
   if (origin.protocol === "https:") return origin.origin;
+  // Browsers treat loopback hosts as local development even when the remote
+  // auth service itself runs in production. Keep plain HTTP limited to exact
+  // loopback hostnames; every non-local widget origin must still use HTTPS.
   if (
-    nodeEnv !== "production" &&
     origin.protocol === "http:" &&
     LOCAL_WIDGET_HOSTS.has(origin.hostname)
   ) {

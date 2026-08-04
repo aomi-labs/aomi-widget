@@ -18,6 +18,29 @@ afterEach(() => {
 });
 
 describe("Control context", () => {
+  it("does not fabricate the default app when the app catalog request fails", async () => {
+    const getApps = vi.fn(async () => {
+      throw new Error("HTTP 403: invalid_widget_origin");
+    });
+    setAomiClientConfig({
+      getApps,
+      getModels: async () => [],
+    });
+
+    const { getControl } = renderRuntime({
+      appPlatforms: ["somm.finance"],
+    });
+
+    await waitFor(() => expect(getApps).toHaveBeenCalledTimes(1));
+    await act(async () => {
+      await flushPromises();
+    });
+
+    expect(getControl().state.authorizedApps).toEqual([]);
+    expect(getControl().state.appDescriptors).toEqual([]);
+    expect(getControl().state.defaultApp).toBeNull();
+  });
+
   it("does not refetch authorized apps when the wallet address changes", async () => {
     // Refetching on every wallet/network switch caused the app picker to
     // visually reset (e.g. when toggling between EVM and Solana wallets,
