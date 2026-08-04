@@ -54,7 +54,6 @@
         "https://aomi.dev/r/assistant-threadlist-sidebar.json",
         "https://aomi.dev/r/aomi-wallet-kit.json",
         "https://aomi.dev/r/control-bar.json",
-        "https://aomi.dev/r/notification.json",
         "https://aomi.dev/r/runtime-tx-handler.json",
         "separator",
         "breadcrumb",
@@ -137,14 +136,6 @@
         {
           "type": "registry:component",
           "path": "lib/wallet-kit/providers/plugin-registry.ts"
-        },
-        {
-          "type": "registry:component",
-          "path": "lib/wallet-kit/execution/aa-owner.ts"
-        },
-        {
-          "type": "registry:component",
-          "path": "lib/wallet-kit/execution/aa-provider-state.ts"
         },
         {
           "type": "registry:component",
@@ -383,6 +374,10 @@
         {
           "type": "registry:component",
           "path": "components/control-bar/wallet-icon-slot.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/ui/modal-backdrop.tsx"
         },
         {
           "type": "registry:component",
@@ -665,6 +660,10 @@
         {
           "type": "registry:component",
           "path": "components/ui/notification.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/ui/notification-icon.tsx"
         }
       ],
       "dependencies": [
@@ -727,6 +726,10 @@
         {
           "type": "registry:component",
           "path": "lib/wallet-kit/providers/para/ParaPluginProvider.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/wallet-kit/providers/para/para-evm-runtime-provider.tsx"
         },
         {
           "type": "registry:component",
@@ -821,6 +824,7 @@
         "@aomi-labs/client",
         "@aomi-labs/react",
         "@getpara/react-sdk",
+        "@getpara/wagmi-v2-connector",
         "@solana/wallet-adapter-react",
         "@solana/web3.js",
         "@tanstack/react-query",

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import type { WalletRegistryStore } from "../../../registry/store";
 import { useEmbeddedSessionSource } from "../../sources/embedded-session-source";
+import { PARA_BRAND_KEY, PARA_SESSION_UID } from "../para-brand";
 
 type ParaAccountSnapshot = {
   isConnected: boolean;
@@ -120,9 +121,9 @@ export function useParaSessionSource(
 
   useEmbeddedSessionSource(store, {
     up: opts.paraAccount.isConnected,
-    providerId: "para",
-    uid: "para-session",
-    stableId: "para",
+    providerId: PARA_BRAND_KEY,
+    uid: PARA_SESSION_UID,
+    stableId: PARA_BRAND_KEY,
     walletName: "Para",
     embeddedEvmAddress,
     chainId,

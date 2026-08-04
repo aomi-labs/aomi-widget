@@ -481,6 +481,52 @@ describe("Chat API", () => {
       ).toHaveLength(0);
     });
 
+    it("keeps the final response in the tool trace message across hidden system records", async () => {
+      setAomiClientConfig({
+        postChatMessage: vi.fn(
+          async (): Promise<AomiChatResponse> =>
+            ({
+              is_processing: false,
+              messages: [
+                message("user", "Send 1 wei"),
+                {
+                  sender: "agent",
+                  content: "",
+                  tool_result: [
+                    "Stage transfer",
+                    JSON.stringify({ pending_tx_id: 1 }),
+                  ],
+                  timestamp: new Date().toISOString(),
+                  is_streaming: false,
+                },
+                {
+                  sender: "system",
+                  content: "Wallet transaction request: approve transfer",
+                  tool_result: null,
+                  timestamp: new Date().toISOString(),
+                  is_streaming: false,
+                },
+                message("agent", "Please approve it in your wallet."),
+              ],
+            }) as AomiChatResponse,
+        ),
+      });
+
+      const { api } = renderRuntime();
+
+      await act(async () => {
+        await api.sendMessage("Send 1 wei");
+      });
+
+      const messages = api.getMessages();
+      expect(messages).toHaveLength(2);
+      expect(messages.map((item) => item.role)).toEqual(["user", "assistant"]);
+      expect(messages[1]?.content).toMatchObject([
+        { type: "tool-call", toolName: "Stage transfer" },
+        { type: "text", text: "Please approve it in your wallet." },
+      ]);
+    });
+
     it("sends ext values via userState in message options", async () => {
       const postChatMessage = vi.fn(
         async (): Promise<AomiChatResponse> => ({

@@ -204,20 +204,18 @@ export function toInboundMessage(
   msg: AomiMessage,
   txOutcomes?: TxOutcomes | null,
 ): ThreadMessageLike | null {
-  if (
-    msg.sender === "system" &&
-    msg.content?.trimStart().startsWith(SYSTEM_ENDPOINT_ECHO_PREFIX)
-  ) {
+  // System records exist in the transcript for model/runtime coordination, not
+  // as chat turns. Live notices are presented through the event notification
+  // path, while transaction-completion echoes are still consumed above by
+  // `collectTxOutcomes`. Keeping an otherwise-hidden system message here would
+  // split the surrounding assistant fragments into two message identities.
+  if (msg.sender === "system") {
     return null;
   }
 
   const content: MessageContentPart[] = [];
   const role: ThreadMessageLike["role"] =
-    msg.sender === "user"
-      ? "user"
-      : msg.sender === "system"
-        ? "system"
-        : "assistant";
+    msg.sender === "user" ? "user" : "assistant";
 
   if (msg.content && msg.content.trim().length > 0) {
     content.push({ type: "text" as const, text: msg.content });

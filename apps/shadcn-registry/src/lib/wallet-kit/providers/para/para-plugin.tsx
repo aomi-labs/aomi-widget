@@ -24,6 +24,7 @@ import {
   type WalletProviderPlugin,
 } from "../plugin-registry";
 import { AomiParaPluginProvider } from "./ParaPluginProvider";
+import { AomiParaEvmRuntimeProvider } from "./para-evm-runtime-provider";
 import { defaultOAuthMethods } from "./para-auth";
 import { safeEnv } from "../../env";
 
@@ -253,6 +254,9 @@ export const paraPlugin: WalletProviderPlugin = {
     );
   },
   wrap: (props) => <ParaAuthLayer {...props} />,
+  renderEvmRuntimeProvider: (props) => (
+    <AomiParaEvmRuntimeProvider {...props} />
+  ),
   renderComposer: ({
     account,
     auth,

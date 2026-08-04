@@ -40,6 +40,7 @@ import {
   useWalletActivationGuard,
 } from "../../lib/wallet-kit";
 import type { AomiWalletKit, WalletFamily } from "../../lib/wallet-kit/types";
+import { ModalBackdrop } from "../ui/modal-backdrop";
 import { WalletIconSlot } from "./wallet-icon-slot";
 import { useWalletPicker } from "./wallet-picker-context";
 import {
@@ -822,12 +823,7 @@ export function WalletPicker() {
       aria-labelledby="aomi-wallet-picker-title"
       className="animate-in fade-in-0 fixed inset-0 z-50 flex items-center justify-center px-4 py-4 duration-150"
     >
-      <button
-        type="button"
-        aria-label="Close"
-        onClick={closePicker}
-        className="absolute inset-0 cursor-default bg-black/50"
-      />
+      <ModalBackdrop aria-label="Close" onClick={closePicker} />
       <div
         className={cn(
           "relative z-10 flex max-h-[min(720px,92vh)] w-full max-w-[430px] flex-col overflow-hidden",

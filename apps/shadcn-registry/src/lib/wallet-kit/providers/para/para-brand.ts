@@ -10,4 +10,11 @@ import { registerWalletBrand } from "../../catalog/wallet-branding";
  */
 export const PARA_BRAND_KEY = "para";
 
+/**
+ * Uid of the synthetic registry connection that Para authentication publishes
+ * before any wagmi connector is live. Shared so callers can tell "auth only"
+ * rows apart from a real Para wagmi connection, which carries a connector uid.
+ */
+export const PARA_SESSION_UID = "para-session";
+
 registerWalletBrand({ key: PARA_BRAND_KEY, matchers: ["para"] });

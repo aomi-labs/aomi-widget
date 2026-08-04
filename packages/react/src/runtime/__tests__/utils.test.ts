@@ -32,7 +32,7 @@ describe("toInboundMessage", () => {
     expect(message).toBeNull();
   });
 
-  it("keeps persisted system records out of assistant chat bubbles", () => {
+  it("drops persisted credit records from the chat projection", () => {
     const message = toInboundMessage({
       sender: "system",
       content:
@@ -42,18 +42,10 @@ describe("toInboundMessage", () => {
       is_streaming: false,
     });
 
-    expect(message).toMatchObject({
-      role: "system",
-      content: [
-        {
-          type: "text",
-          text: "Completion credit budget is exhausted. Please add credits and try again.",
-        },
-      ],
-    });
+    expect(message).toBeNull();
   });
 
-  it("maps non-credit system records to the hidden system renderer", () => {
+  it("drops other persisted system records from the chat projection", () => {
     const message = toInboundMessage({
       sender: "system",
       content: "The requested operation could not be completed.",
@@ -62,15 +54,7 @@ describe("toInboundMessage", () => {
       is_streaming: false,
     });
 
-    expect(message).toMatchObject({
-      role: "system",
-      content: [
-        {
-          type: "text",
-          text: "The requested operation could not be completed.",
-        },
-      ],
-    });
+    expect(message).toBeNull();
   });
 
   it("drops the backend's raw system-endpoint echo from the thread", () => {
