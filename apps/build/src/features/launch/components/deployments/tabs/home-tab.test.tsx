@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 
 const loadSecrets = vi.fn();
+const loadRequiredSecrets = vi.fn();
 const operateFetch = vi.fn();
 
 vi.mock("@aomi-labs/deploy/lifecycle", () => ({
@@ -38,7 +39,10 @@ const detail = {
   error: null,
   secretsByApp: {},
   secretsError: null,
+  requiredSecrets: null,
+  requiredSecretsError: null,
   loadSecrets,
+  loadRequiredSecrets,
 } as unknown as ReturnType<
   typeof import("@build/features/launch/hooks/use-project-detail").useProjectDetail
 >;
@@ -58,9 +62,11 @@ function renderTab(ui: ReactElement) {
 describe("HomeTab", () => {
   beforeEach(() => {
     loadSecrets.mockClear();
+    loadRequiredSecrets.mockClear();
     operateFetch.mockReset();
     operateFetch.mockResolvedValue({ daily: [] });
     (detail.source as { apps: unknown[] }).apps = [];
+    (detail as { requiredSecrets: unknown }).requiredSecrets = null;
   });
 
   it("shows status cards and a deploy next action when not live", async () => {
@@ -69,9 +75,12 @@ describe("HomeTab", () => {
     );
 
     expect(loadSecrets).toHaveBeenCalled();
+    expect(loadRequiredSecrets).toHaveBeenCalled();
     expect(screen.getByText("Project home")).toBeInTheDocument();
     expect(screen.getByText("Not live")).toBeInTheDocument();
-    expect(screen.getByText("Keys missing")).toBeInTheDocument();
+    // Nothing declares a required key here, so this is not a fault.
+    expect(screen.getByText("No keys required")).toBeInTheDocument();
+    expect(screen.queryByText("Keys missing")).not.toBeInTheDocument();
     expect(
       await screen.findByRole("link", {
         name: /redeploy from linked repository/i,
@@ -86,6 +95,26 @@ describe("HomeTab", () => {
       "/operate/usage?project=1",
     );
     expect(screen.queryByText("Monetization")).not.toBeInTheDocument();
+  });
+
+  it("warns with the app and key names when a required key is unset", async () => {
+    (detail.source as { apps: unknown[] }).apps = [{ name: "somm-agent" }];
+    (detail as { requiredSecrets: unknown }).requiredSecrets = {
+      "somm-agent": {
+        slots: [{ name: "OPENAI_API_KEY" }],
+        missing: ["OPENAI_API_KEY"],
+      },
+    };
+
+    renderTab(
+      <HomeTab detail={detail} tabHref={(tab) => `/projects/1?tab=${tab}`} />,
+    );
+
+    expect(screen.getByText("Keys missing")).toBeInTheDocument();
+    expect(
+      screen.getByText(/1 required key not set for somm-agent: OPENAI_API_KEY/),
+    ).toBeInTheDocument();
+    expect(await screen.findByText("No traffic yet")).toBeInTheDocument();
   });
 
   it("shows credits and tokens when usage has traffic", async () => {

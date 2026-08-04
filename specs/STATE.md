@@ -2,6 +2,27 @@
 
 ## Last Updated
 
+2026-08-04 — PROJECT HOME "KEYS MISSING" FALSE ALARM (apps/build,
+  uncommitted). The Environment card warned whenever no key was set
+  (`envReady = secretCount > 0`), so every project that declares no required
+  key at all — including a fresh one with no apps — read as broken.
+  - NEW `tabs/environment-card.ts`: pure `environmentCard()` mirroring the gate
+    the rest of Build enforces (a declared required slot with no value), in
+    order error → loading → missing → set → none-required. "No keys required"
+    is `good`, not `warn`.
+  - Warn state now carries concrete detail instead of the glossary line:
+    "2 required keys not set for somm-agent: OPENAI_API_KEY and
+    ALCHEMY_API_KEY. Set them in Environment before deploying." (names capped
+    at 4, then "and N more"). The "Next" block reuses that same sentence.
+  - A failed read is "Unavailable" with the error text, and `blocked: false` —
+    nothing is KNOWN missing, so it must not read as a key fault.
+  - home-tab now calls `loadRequiredSecrets()` (it only loaded `secrets`
+    before) and gates on source apps ∪ apps the check named, same union
+    deployments-tab uses.
+  - Verified: apps/build vitest 452 passed/12 skipped (72 files), tsc/eslint/
+    prettier clean; both states driven in a local dev server against stubbed
+    BFF reads.
+
 2026-08-04 — NEW APP: TWO STARTS (apps/build, uncommitted). `/operate/
   deployments/new` no longer assumes the template. Signed-in users get two
   cards — "Start from the template" (the existing Onboarding/OneshotWizard) and
