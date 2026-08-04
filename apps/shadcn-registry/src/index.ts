@@ -2,6 +2,10 @@
 // Re-export the main AomiFrame component
 export { AomiFrame } from "./components/aomi-frame";
 export {
+  DEFAULT_SIDEBAR_PRODUCTS,
+  type SidebarProduct,
+} from "./components/assistant-ui/threadlist-sidebar";
+export {
   AomiWidget,
   type AomiWidgetAuthConfig,
   type AomiWidgetProps,

@@ -14,7 +14,10 @@ import {
   type AomiClientOptions,
 } from "@aomi-labs/react";
 import { Thread } from "@/components/assistant-ui/thread";
-import { ThreadListSidebar } from "@/components/assistant-ui/threadlist-sidebar";
+import {
+  ThreadListSidebar,
+  type SidebarProduct,
+} from "@/components/assistant-ui/threadlist-sidebar";
 import { RuntimeTxHandler } from "@/components/runtime-tx-handler";
 import {
   SidebarInset,
@@ -56,6 +59,10 @@ type RootProps = {
   walletFamilies?: Array<"evm" | "solana">;
   /** Optional account menu on the sidebar wallet chip (portal supplies live data). */
   walletAccountMenu?: WalletAccountMenuOptions;
+  /** Products in the sidebar wordmark dropdown. Pass `null` for a plain wordmark. */
+  products?: SidebarProduct[] | null;
+  /** Which product this frame is, for the wordmark badge (default: "chat"). */
+  currentProductId?: string;
   /** Whether to show the thread list sidebar (default: true) */
   showSidebar?: boolean;
   /** Whether the thread list sidebar starts expanded (default: true) */
@@ -114,6 +121,8 @@ const Root: FC<RootProps> = ({
   walletPosition = "footer",
   walletFamilies,
   walletAccountMenu,
+  products,
+  currentProductId,
   showSidebar = true,
   defaultSidebarOpen = true,
   backendUrl,
@@ -154,6 +163,8 @@ const Root: FC<RootProps> = ({
               walletPosition={walletPosition}
               walletFamilies={walletFamilies}
               walletAccountMenu={walletAccountMenu}
+              products={products}
+              currentProductId={currentProductId}
             />
           )}
           <SidebarInset className="relative flex min-h-0 flex-col">

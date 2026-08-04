@@ -2,6 +2,20 @@
 
 ## Last Updated
 
+2026-08-04 — **Sidebar wordmark is now a product switcher.** The chat sidebar
+  header (`apps/shadcn-registry/src/components/assistant-ui/threadlist-sidebar.tsx`)
+  no longer links out to `aomi.dev`; the logo · "Aomi" · chevron row is a Popover
+  trigger that also carries a `CHAT` badge (same treatment as Build's wordmark
+  badge in `apps/build/src/components/brand/aomi-logo.tsx`). The menu lists Aomi
+  Chat (current, checkmarked) and Aomi Build → `https://build.aomi.dev` (new tab),
+  styled off the thread-list row menu (`bg-aomi-raised` / `border-aomi-overlay-border`
+  / `hover:bg-aomi-hover`). Entries are data: `DEFAULT_SIDEBAR_PRODUCTS` +
+  `SidebarProduct` are exported from the package index, and `AomiFrame.Root` takes
+  `products` (pass `null` for a plain wordmark) and `currentProductId` so embedders
+  can override or hide the Aomi cross-links. Portal keeps the defaults. Verified in
+  the browser against portal on :3001 in light and dark. Note: `apps/build`'s own
+  header wordmark is still a plain link to `/` — it has no switcher yet.
+
 2026-08-03 — **Para EVM signing fix hardened before commit.** Review of the
   working diff found the registry build broken: `para-evm-runtime-provider.tsx`
   was imported by the registered `para-plugin.tsx` but missing from the
