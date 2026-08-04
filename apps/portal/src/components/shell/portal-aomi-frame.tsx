@@ -113,9 +113,8 @@ export function PortalAomiFrame() {
   const lockedApplicationId = lockedApp ? requestedApp.applicationId : null;
   const clientOptions = usePortalClientOptions(lockedApp, lockedApplicationId);
   const backendUrl = getBackendUrl();
-  // Settings and the packages catalog open as popups over the chat column
-  // (rendered as Root children → inside the relative SidebarInset, so the
-  // session panel stays visible like the design mock).
+  // Settings and the packages catalog are siblings of the frame so their
+  // backdrops cover the sidebar and chat as one surface.
   const [overlay, setOverlay] = useState<"none" | "settings" | "packages">(
     "none",
   );
@@ -188,15 +187,15 @@ export function PortalAomiFrame() {
             hideNetwork: true,
           }}
         />
-        {overlay === "settings" && (
-          <SettingsModal onClose={() => setOverlay("none")} />
-        )}
-        {overlay === "packages" && (
-          <PackagesModal onClose={() => setOverlay("none")} />
-        )}
         <RequiredSecretsGate />
         <SvmWalletBindingGate />
       </AomiFrame.Root>
+      {overlay === "settings" && (
+        <SettingsModal onClose={() => setOverlay("none")} />
+      )}
+      {overlay === "packages" && (
+        <PackagesModal onClose={() => setOverlay("none")} />
+      )}
     </main>
   );
 }

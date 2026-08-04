@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { type Chain } from "viem";
 import type { TOAuthMethod } from "@getpara/react-sdk";
 import { AomiWalletKitComposer } from "../../composer/AomiWalletKitComposer";
@@ -26,7 +26,7 @@ import { walletDebug } from "../../wallet-debug";
 import { buildEvmExecutionRuntime } from "../../execution/execution-runtime";
 import type { AomiAccount, SvmNetworkOption } from "../../types";
 import { resolveExecutionSponsorshipIdentity } from "../../config/execution";
-import { PARA_BRAND_KEY } from "./para-brand";
+import { PARA_BRAND_KEY, PARA_SESSION_UID } from "./para-brand";
 import {
   DEFAULT_SVM_ENDPOINT,
   useSafeSvmWallet,
@@ -67,6 +67,27 @@ export type AomiParaPluginProviderProps = {
   execution?: ExecutionConfig;
   account?: AccountConfig;
 };
+
+const PARA_EVM_CONNECT_RETRY_COOLDOWN_MS = 30_000;
+
+/**
+ * Para auth publishes a synthetic session row before any wagmi connector
+ * exists, so an authenticated user can still have no signer. Connect only
+ * while every Para row is that synthetic one.
+ */
+export function shouldConnectParaEvmSession(
+  authenticated: boolean,
+  connections: ReadonlyArray<{ uid: string; stableId: string }>,
+): boolean {
+  return (
+    authenticated &&
+    !connections.some(
+      (connection) =>
+        connection.stableId === PARA_BRAND_KEY &&
+        connection.uid !== PARA_SESSION_UID,
+    )
+  );
+}
 
 export function AomiParaPluginProvider({
   children,
@@ -200,8 +221,13 @@ export function AomiParaPluginProvider({
     storageKey: REGISTRY_STORAGE_KEY,
     providerHooks,
   });
-  const { registryStore, registryState } = evmRuntime;
+  const { connect: connectEvm, registryStore, registryState } = evmRuntime;
   useParaSessionSource(registryStore, { paraAccount });
+  // `inFlight` stops concurrent connects; `retryAfter` stops a hot retry loop.
+  // The effect re-runs on every new `registryState.connections` identity, so a
+  // connect that keeps failing would otherwise be retried on each store
+  // dispatch with no backoff. Mirrors the JWT-issuance cooldown in para-auth.
+  const paraConnectRef = useRef({ inFlight: false, retryAfter: 0 });
   const startParaAuthFlow = useCallback(
     (reason: string) => {
       registryStore.dispatch({
@@ -222,6 +248,32 @@ export function AomiParaPluginProvider({
   const exposeParaSession = Boolean(
     paraAccount.isConnected && !paraSessionLocallyDetached,
   );
+  useEffect(() => {
+    if (
+      !paraSession ||
+      paraConnectRef.current.inFlight ||
+      Date.now() < paraConnectRef.current.retryAfter ||
+      !shouldConnectParaEvmSession(exposeParaSession, registryState.connections)
+    ) {
+      return;
+    }
+
+    paraConnectRef.current.inFlight = true;
+    void connectEvm(PARA_BRAND_KEY)
+      .then(() => {
+        paraConnectRef.current.retryAfter = 0;
+      })
+      .catch((error) => {
+        paraConnectRef.current.retryAfter =
+          Date.now() + PARA_EVM_CONNECT_RETRY_COOLDOWN_MS;
+        walletDebug("para:evm-connect-failed", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      })
+      .finally(() => {
+        paraConnectRef.current.inFlight = false;
+      });
+  }, [connectEvm, exposeParaSession, paraSession, registryState.connections]);
   const paraSubject = exposeParaSession
     ? resolveParaSubject(paraAccount, paraSession)
     : undefined;

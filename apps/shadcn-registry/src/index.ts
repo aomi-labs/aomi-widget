@@ -2,6 +2,10 @@
 // Re-export the main AomiFrame component
 export { AomiFrame } from "./components/aomi-frame";
 export {
+  DEFAULT_SIDEBAR_PRODUCTS,
+  type SidebarProduct,
+} from "./components/assistant-ui/threadlist-sidebar";
+export {
   AomiWidget,
   type AomiWidgetAuthConfig,
   type AomiWidgetProps,
@@ -26,6 +30,7 @@ export { NotificationToaster } from "./components/ui/notification";
 // UI Components
 export { Button } from "./components/ui/button";
 export { Input } from "./components/ui/input";
+export { ModalBackdrop } from "./components/ui/modal-backdrop";
 export {
   Card,
   CardContent,

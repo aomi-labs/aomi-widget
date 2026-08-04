@@ -91,10 +91,47 @@ export async function fetchReleaseSecretSlots(input: {
 }
 
 /**
+ * Manifest reads in flight at once. This gate runs on the activate/promote
+ * write path, where GitHub is authoritative — the DB-backed console read only
+ * reports declarations already snapshotted by a previous activation, so it
+ * cannot stand in for this check on a release being activated for the first
+ * time. Bounded so a many-app project cannot burst the shared token's rate
+ * limit, wide enough that a typical project is a single wave.
+ */
+const MANIFEST_CONCURRENCY = 4;
+
+/** Resolve `task` over `items` with at most `limit` in flight. Rejections
+ *  propagate: an unreadable manifest must fail the gate, not skip an app. */
+async function mapWithConcurrency<T, R>(
+  items: readonly T[],
+  limit: number,
+  task: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let next = 0;
+  const worker = async () => {
+    for (;;) {
+      const index = next++;
+      if (index >= items.length) return;
+      results[index] = await task(items[index]);
+    }
+  };
+  await Promise.all(
+    Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, worker),
+  );
+  return results;
+}
+
+/**
  * Required slots the apps declare (from each release's manifest.json) that have
  * no value in the vault yet, keyed by app name. Empty object = no missing
  * required values. Verification failures throw so activation cannot proceed
  * when the manifest is unreadable.
+ *
+ * A manifest covers every app in its release, so the lookup is keyed by
+ * release tag, not by app: apps activated together normally share one tag and
+ * therefore one fetch. Awaiting them one pair at a time put every app's GitHub
+ * latency end-to-end in front of the user's Activate click.
  *
  * `input.source` normally comes from `listUserSources`, and the backend
  * deliberately returns `latest_deployment: null` on that list endpoint (it's
@@ -137,19 +174,29 @@ export async function missingSecretsForActivation(input: {
     }
   }
   if (!platformRepo) throw new RequiredSecretsCheckError();
+  const repo = platformRepo;
 
+  // Kept after the platform-repo resolution on purpose: when that fails the
+  // gate is already closed, and this read must not fire anyway.
   const configured = await input.client.listAppSecrets({
     githubUserId: input.githubUserId,
     sourceId: String(input.source.id),
   });
 
+  const releaseTags = [...new Set(input.pairs.map((pair) => pair.releaseTag))];
+  const manifests = await mapWithConcurrency(
+    releaseTags,
+    MANIFEST_CONCURRENCY,
+    (releaseTag) =>
+      fetchReleaseSecretSlots({ platformRepo: repo, releaseTag, githubToken }),
+  );
+  const slotsByTag = new Map(
+    releaseTags.map((releaseTag, index) => [releaseTag, manifests[index]]),
+  );
+
   const missing: Record<string, string[]> = {};
   for (const pair of input.pairs) {
-    const slots = await fetchReleaseSecretSlots({
-      platformRepo,
-      releaseTag: pair.releaseTag,
-      githubToken,
-    });
+    const slots = slotsByTag.get(pair.releaseTag) ?? {};
     const configuredKeys = (configured.byApp[pair.app] ?? []).map(
       (handle) => handle.split("::").pop() ?? handle,
     );

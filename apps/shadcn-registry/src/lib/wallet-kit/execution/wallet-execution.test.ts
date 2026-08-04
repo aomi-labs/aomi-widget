@@ -53,6 +53,9 @@ describe("executeWalletKitTransaction native execution", () => {
       .mockResolvedValueOnce("0x111")
       .mockResolvedValueOnce("0x222");
     const sendCallsSyncAsync = vi.fn();
+    const waitForTransactionReceipt = vi
+      .fn()
+      .mockResolvedValue({ status: "success" });
 
     const result = await executeWalletKitTransaction({
       payload: optionalFeeBatchPayload(),
@@ -62,11 +65,16 @@ describe("executeWalletKitTransaction native execution", () => {
         sendTransactionAsync,
         switchChainAsync: vi.fn(),
         chainsById: { [mainnet.id]: mainnet },
+        waitForTransactionReceipt,
       },
     });
 
     expect(sendCallsSyncAsync).not.toHaveBeenCalled();
     expect(sendTransactionAsync).toHaveBeenCalledTimes(2);
+    expect(waitForTransactionReceipt).toHaveBeenCalledWith({
+      chainId: 1,
+      hash: "0x111",
+    });
     expect(result).toMatchObject({
       txHash: "0x222",
       aaRequestedMode: "7702",
@@ -76,6 +84,120 @@ describe("executeWalletKitTransaction native execution", () => {
       batched: true,
       sponsored: false,
     });
+  });
+
+  it("waits for the confirmed prefix before requesting the next wallet signature", async () => {
+    const events: string[] = [];
+    const sendTransactionAsync = vi
+      .fn()
+      .mockImplementationOnce(async () => {
+        events.push("send:first");
+        return "0x111";
+      })
+      .mockImplementationOnce(async () => {
+        events.push("send:second");
+        return "0x222";
+      });
+    const waitForTransactionReceipt = vi.fn().mockImplementation(async () => {
+      events.push("wait:first");
+      return { status: "success" };
+    });
+
+    await executeWalletKitTransaction({
+      payload: optionalFeeBatchPayload(),
+      state: {
+        currentChainId: 1,
+        sendCallsSyncAsync: vi.fn(),
+        sendTransactionAsync,
+        switchChainAsync: vi.fn(),
+        chainsById: { [mainnet.id]: mainnet },
+        waitForTransactionReceipt,
+      },
+    });
+
+    expect(events).toEqual(["send:first", "wait:first", "send:second"]);
+  });
+
+  it("reports a confirmed prefix when a later sequential send fails", async () => {
+    const sendTransactionAsync = vi
+      .fn()
+      .mockResolvedValueOnce("0x111")
+      .mockRejectedValueOnce(new Error("fee send failed"));
+
+    await expect(
+      executeWalletKitTransaction({
+        payload: optionalFeeBatchPayload(),
+        state: {
+          currentChainId: 1,
+          sendCallsSyncAsync: vi.fn(),
+          sendTransactionAsync,
+          switchChainAsync: vi.fn(),
+          chainsById: { [mainnet.id]: mainnet },
+          waitForTransactionReceipt: vi
+            .fn()
+            .mockResolvedValue({ status: "success" }),
+        },
+      }),
+    ).rejects.toMatchObject({
+      message: "fee send failed",
+      partial: {
+        executedTxIds: [1],
+        lastTxHash: "0x111",
+        failedTxId: null,
+        remainingTxIds: [],
+      },
+    });
+  });
+
+  it("still reports the broadcast prefix when a receipt wait times out", async () => {
+    // The receipt wait can fail while the transaction mines anyway. Dropping
+    // the leg from the partial would let the backend re-queue a transaction
+    // that is already on chain, so a broadcast leg counts as executed.
+    const sendTransactionAsync = vi.fn().mockResolvedValueOnce("0x111");
+
+    await expect(
+      executeWalletKitTransaction({
+        payload: optionalFeeBatchPayload(),
+        state: {
+          currentChainId: 1,
+          sendCallsSyncAsync: vi.fn(),
+          sendTransactionAsync,
+          switchChainAsync: vi.fn(),
+          chainsById: { [mainnet.id]: mainnet },
+          waitForTransactionReceipt: vi
+            .fn()
+            .mockRejectedValue(new Error("WaitForTransactionReceiptTimeout")),
+        },
+      }),
+    ).rejects.toMatchObject({
+      message: "WaitForTransactionReceiptTimeout",
+      partial: { executedTxIds: [1], lastTxHash: "0x111" },
+    });
+    expect(sendTransactionAsync).toHaveBeenCalledTimes(1);
+  });
+
+  it("excludes a leg that mined reverted from the executed prefix", async () => {
+    const sendTransactionAsync = vi.fn().mockResolvedValueOnce("0x111");
+
+    const error = await executeWalletKitTransaction({
+      payload: optionalFeeBatchPayload(),
+      state: {
+        currentChainId: 1,
+        sendCallsSyncAsync: vi.fn(),
+        sendTransactionAsync,
+        switchChainAsync: vi.fn(),
+        chainsById: { [mainnet.id]: mainnet },
+        waitForTransactionReceipt: vi
+          .fn()
+          .mockResolvedValue({ status: "reverted" }),
+      },
+    }).catch((caught: unknown) => caught);
+
+    expect(error).toMatchObject({
+      message: "wallet_sequential_transaction_reverted",
+    });
+    expect(error).not.toHaveProperty("partial");
+    expect(sendTransactionAsync).toHaveBeenCalledTimes(1);
   });
 
   it("reports a plain single-call send as none/none", async () => {
@@ -129,6 +251,9 @@ describe("executeWalletKitTransaction native execution", () => {
         sendTransactionAsync,
         switchChainAsync: vi.fn(),
         chainsById: { [mainnet.id]: mainnet },
+        waitForTransactionReceipt: vi
+          .fn()
+          .mockResolvedValue({ status: "success" }),
       },
     });
 

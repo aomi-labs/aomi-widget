@@ -2,8 +2,9 @@
 
 ## Last Updated
 
-2026-08-04 — PROJECT HOME "KEYS MISSING" FALSE ALARM (apps/build,
-  uncommitted). The Environment card warned whenever no key was set
+2026-08-04 — PROJECT HOME "KEYS MISSING" FALSE ALARM (apps/build, committed
+  on `feat/build-new-app-two-starts`). The Environment card warned whenever no
+  key was set
   (`envReady = secretCount > 0`), so every project that declares no required
   key at all — including a fresh one with no apps — read as broken.
   - NEW `tabs/environment-card.ts`: pure `environmentCard()` mirroring the gate
@@ -23,7 +24,8 @@
     prettier clean; both states driven in a local dev server against stubbed
     BFF reads.
 
-2026-08-04 — NEW APP: TWO STARTS (apps/build, uncommitted). `/operate/
+2026-08-04 — NEW APP: TWO STARTS (apps/build, committed on
+  `feat/build-new-app-two-starts`). `/operate/
   deployments/new` no longer assumes the template. Signed-in users get two
   cards — "Start from the template" (the existing Onboarding/OneshotWizard) and
   "Import from GitHub" (the existing `RepositoryConnector`) — then the chosen
@@ -65,6 +67,41 @@
     be EXACTLY `platform=<signed platform>` and the path to be `/projects` or
     `/operate/deployments/new` — putting `&mode=` on a returnTo would 400,
     which is why the resume state is derived instead.
+
+2026-08-04 — **Sidebar wordmark is now a product switcher.** The chat sidebar
+  header (`apps/shadcn-registry/src/components/assistant-ui/threadlist-sidebar.tsx`)
+  no longer links out to `aomi.dev`; the logo · "Aomi" · chevron row is a Popover
+  trigger that also carries a `CHAT` badge (same treatment as Build's wordmark
+  badge in `apps/build/src/components/brand/aomi-logo.tsx`). The menu lists Aomi
+  Chat (current, checkmarked) and Aomi Build → `https://build.aomi.dev` (new tab),
+  styled off the thread-list row menu (`bg-aomi-raised` / `border-aomi-overlay-border`
+  / `hover:bg-aomi-hover`). Entries are data: `DEFAULT_SIDEBAR_PRODUCTS` +
+  `SidebarProduct` are exported from the package index, and `AomiFrame.Root` takes
+  `products` (pass `null` for a plain wordmark) and `currentProductId` so embedders
+  can override or hide the Aomi cross-links. Portal keeps the defaults. Verified in
+  the browser against portal on :3001 in light and dark. Note: `apps/build`'s own
+  header wordmark is still a plain link to `/` — it has no switcher yet.
+
+2026-08-03 — **Para EVM signing fix hardened before commit.** Review of the
+  working diff found the registry build broken: `para-evm-runtime-provider.tsx`
+  was imported by the registered `para-plugin.tsx` but missing from the
+  `aomi-para-provider` file list in `apps/shadcn-registry/src/registry.ts`, and
+  `@getpara/wagmi-v2-connector` was missing from its `dependencies` — a
+  `shadcn add` would have installed a broken component. Both added; build green.
+  Correctness fix in `execution/wallet-execution.ts`: the new sequential
+  receipt-wait only counted a leg as executed after its receipt confirmed, so a
+  non-revert wait failure (RPC timeout) reported an already-broadcast leg as
+  un-run and `runtime-tx-handler` blanket-rejected — re-queuing a mined tx, the
+  exact double-execution the handler guards against. Now tracks broadcast legs
+  and emits a partial for them, excluding a leg that mined `reverted`.
+  Also: failure cooldown on the Para wagmi auto-connect effect (was retryable on
+  every store dispatch with no backoff), shared `PARA_SESSION_UID` constant in
+  `para-brand.ts` replacing the duplicated `"para-session"` literal, dropped an
+  unnecessary `as unknown as CreateConnectorFn` double cast. 295 registry tests
+  + 1287 root tests pass; typecheck, eslint, prettier, registry build clean.
+  NOTE: the receipt wait applies to **every** sequential wallet send, not just
+  embedded/Para — non-Para wallets now pay a block confirmation between legs of
+  any non-atomic batch. Intentional (safer default), but call it out in review.
 
 2026-08-02 — PLATFORM-BINDING INVARIANT, E2E (FE worktree platform-switch +
   BE worktree somm-repo-connect/product-mono branch

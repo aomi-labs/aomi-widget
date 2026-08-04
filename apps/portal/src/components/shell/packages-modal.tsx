@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { X as Close, Filter, Loader2, Search } from "lucide-react";
+import { ModalBackdrop } from "@/components/ui/modal-backdrop";
 import {
   seedAccountOverview,
   useAccountOverview,
@@ -152,19 +153,13 @@ export function PackagesModal({ onClose }: PackagesModalProps) {
       className="absolute inset-0 flex items-center justify-center"
       style={{ zIndex: 60 }}
     >
-      <button
-        type="button"
-        aria-label="Dismiss packages"
-        onClick={onClose}
-        className="absolute inset-0 bg-black/50"
-      />
+      <ModalBackdrop aria-label="Dismiss packages" onClick={onClose} />
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="packages-title"
         className="border-aomi-border bg-aomi-raised text-aomi-fg relative flex flex-col overflow-hidden rounded-2xl border"
-        // Match Settings exactly and size against the chat pane, not the
-        // browser viewport (the session sidebar remains visible).
+        // Match Settings exactly within the full Portal frame.
         style={{ width: 900, height: 600, maxWidth: "95%", maxHeight: "92%" }}
       >
         <header className="border-aomi-border relative shrink-0 border-b px-[22px] pb-2 pt-[22px]">
