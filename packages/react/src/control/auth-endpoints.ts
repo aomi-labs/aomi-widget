@@ -95,9 +95,12 @@ export function useAuthEndpointsImpl({
         setDefaultApp(getDefaultApp(names));
       } catch (error) {
         console.error("Failed to fetch apps:", error);
-        setAuthorizedApps(["default"]);
-        setAppDescriptors([{ name: "default" }]);
-        setDefaultApp("default");
+        // An auth, CORS, or network failure is not evidence that only the
+        // default app is authorized. Clear the catalog so consumers do not
+        // misreport a requested hosted app as inactive.
+        setAuthorizedApps([]);
+        setAppDescriptors([]);
+        setDefaultApp(null);
       }
     };
     void fetchApps();
@@ -155,10 +158,10 @@ export function useAuthEndpointsImpl({
       return names;
     } catch (error) {
       console.error("Failed to fetch apps:", error);
-      setAuthorizedApps(["default"]);
-      setAppDescriptors([{ name: "default" }]);
-      setDefaultApp("default");
-      return ["default"];
+      setAuthorizedApps([]);
+      setAppDescriptors([]);
+      setDefaultApp(null);
+      return [];
     }
   }, [aomiClientRef, apiKeyRef, getControlSessionId, appPlatformsKey]);
 

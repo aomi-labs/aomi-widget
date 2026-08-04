@@ -350,9 +350,9 @@ function useAuthEndpointsImpl({
         setDefaultApp(getDefaultApp(names));
       } catch (error) {
         console.error("Failed to fetch apps:", error);
-        setAuthorizedApps(["default"]);
-        setAppDescriptors([{ name: "default" }]);
-        setDefaultApp("default");
+        setAuthorizedApps([]);
+        setAppDescriptors([]);
+        setDefaultApp(null);
       }
     };
     void fetchApps();
@@ -401,10 +401,10 @@ function useAuthEndpointsImpl({
       return names;
     } catch (error) {
       console.error("Failed to fetch apps:", error);
-      setAuthorizedApps(["default"]);
-      setAppDescriptors([{ name: "default" }]);
-      setDefaultApp("default");
-      return ["default"];
+      setAuthorizedApps([]);
+      setAppDescriptors([]);
+      setDefaultApp(null);
+      return [];
     }
   }, [aomiClientRef, apiKeyRef, getControlSessionId2, appPlatformsKey]);
   return {
