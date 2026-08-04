@@ -7,7 +7,7 @@ import { platformHref } from "@build/features/launch/platform";
 import { BUILD_GLOSSARY } from "@build/lib/glossary";
 import { ProjectRow } from "./project-row";
 import {
-  RepositoryConnector,
+  ConnectionResultBanner,
   type RepositoryConnectionResult,
 } from "./repository-connector";
 import { SdkBadge } from "./ui/sdk-badge";
@@ -68,8 +68,13 @@ export function ProjectIndex({
           </div>
         )}
 
-        {state.status === "ready" && platform && (
-          <RepositoryConnector platform={platform} result={connectionResult} />
+        {/* Importing starts on the New app page; GitHub sends the user back
+            here, so this page reports the outcome. */}
+        {platform && (
+          <ConnectionResultBanner
+            platform={platform}
+            result={connectionResult}
+          />
         )}
 
         <div className="border-border bg-surface-1 overflow-hidden rounded-lg border">

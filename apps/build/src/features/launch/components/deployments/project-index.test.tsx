@@ -27,8 +27,8 @@ vi.mock("@build/features/launch/hooks/use-projects", () => ({
 }));
 
 vi.mock("./repository-connector", () => ({
-  RepositoryConnector: ({ platform }: { platform: string }) => (
-    <div>Connect repository to {platform}</div>
+  ConnectionResultBanner: ({ platform }: { platform: string }) => (
+    <div>Connection result for {platform}</div>
   ),
 }));
 
@@ -50,7 +50,7 @@ describe("ProjectIndex", () => {
       "/operate/deployments/new?platform=somm.finance",
     );
     expect(
-      screen.getByText("Connect repository to somm.finance"),
+      screen.getByText("Connection result for somm.finance"),
     ).toBeVisible();
   });
 });

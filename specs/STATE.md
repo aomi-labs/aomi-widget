@@ -2,6 +2,31 @@
 
 ## Last Updated
 
+2026-08-04 — NEW APP: TWO STARTS (apps/build, uncommitted). `/operate/
+  deployments/new` no longer assumes the template. Signed-in users get two
+  cards — "Start from the template" (the existing Onboarding/OneshotWizard) and
+  "Import from GitHub" (the existing `RepositoryConnector`) — then the chosen
+  flow renders in the same framed panel with a "Choose a different start" back
+  button.
+  - `new-project.tsx`: card picker + `?mode=template|import` kept in sync via
+    `history.replaceState`, so reload and back/forward stay on the chosen flow.
+  - `new-project-mode.ts` (NEW, no `"use client"`): `NewProjectMode` +
+    `newProjectMode()` parser. It lives outside the component because the route
+    parses `?mode=` on the server — calling it from the client module threw
+    "Attempted to call newProjectMode() from the server".
+  - Resume guard: `resumingTemplate()` re-opens the template card when the
+    GitHub round-trip returns (`installation_id`/`deployment_id`/
+    `launch=personal_required` on the URL, or a saved `pendingInstall`). A
+    stale stored `installationId` deliberately does NOT count — it would pin
+    every later visit to the template card.
+  - De-duplicated the import entry point: the inline connect form is gone from
+    the Projects index; that page now renders only the extracted
+    `ConnectionResultBanner` (GitHub still returns to `/projects`, so the
+    outcome has to render without the form that started it).
+  - Verified: apps/build vitest 434 passed/12 skipped (71 files, incl. new
+    `new-project.test.tsx`), tsc clean, eslint clean, prettier clean; both
+    flows driven in a local dev server.
+
 2026-08-02 — PLATFORM-BINDING INVARIANT, E2E (FE worktree platform-switch +
   BE worktree somm-repo-connect/product-mono branch
   codex/build-existing-repo-oauth, both uncommitted; BE sits on top of the
