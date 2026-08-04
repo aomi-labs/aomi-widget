@@ -2,7 +2,7 @@ import type {
   ActivateResult,
   ActivatedApp,
   DeploymentStatus,
-  UserSource,
+  UserProject,
 } from "./types";
 
 export type DeploymentLifecycleKind =
@@ -35,7 +35,7 @@ export type DeploymentLifecycle = {
   failureReport?: string;
 };
 
-export function sourceRepositoryLabel(source: UserSource): string {
+export function sourceRepositoryLabel(source: UserProject): string {
   return (
     normalizeRepo(source.repositoryLink ?? "") ??
     source.repositoryLink ??
@@ -44,7 +44,7 @@ export function sourceRepositoryLabel(source: UserSource): string {
 }
 
 export function deploymentLifecycleFromSource(
-  source: UserSource,
+  source: UserProject,
 ): DeploymentLifecycle {
   const repo = sourceRepositoryLabel(source);
   const latest = source.latestDeployment ?? null;
@@ -260,7 +260,7 @@ function clean(value: string | number | null | undefined): string | null {
 }
 
 function liveAppFromSource(
-  source: UserSource,
+  source: UserProject,
 ): { name: string; applicationId?: number } | null {
   const latest = source.latestDeployment;
   const latestLive = latest?.apps.find(
@@ -278,7 +278,7 @@ function liveAppFromSource(
   return live ? { name: live.name, applicationId: live.id } : null;
 }
 
-function namesFromSource(source: UserSource): string[] {
+function namesFromSource(source: UserProject): string[] {
   const names =
     source.latestDeployment?.apps
       .map((app) => app.name.trim())
@@ -287,7 +287,7 @@ function namesFromSource(source: UserSource): string[] {
   return unique(source.apps.map((app) => app.name.trim()).filter(Boolean));
 }
 
-function tagsFromSource(source: UserSource): string[] {
+function tagsFromSource(source: UserProject): string[] {
   const latestTags = source.latestDeployment?.releaseTags ?? [];
   const cleanLatestTags = latestTags.map((tag) => tag.trim()).filter(Boolean);
   if (cleanLatestTags.length > 0) return unique(cleanLatestTags);

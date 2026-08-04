@@ -12,7 +12,7 @@ vi.mock("./use-global-deployment-records", () => ({
   useGlobalDeploymentRecords: () => ({
     projectsState: {
       status: "ready",
-      sources: [
+      projects: [
         {
           id: 42,
           repositoryLink: "alice/bot",
@@ -23,7 +23,7 @@ vi.mock("./use-global-deployment-records", () => ({
       status: "ready",
       deployments: [
         {
-          sourceId: 42,
+          projectId: 42,
           repositoryLink: "alice/bot",
           deploymentId: "dep_1_alice-bot_abc123",
           commit: "abc123",
@@ -36,7 +36,7 @@ vi.mock("./use-global-deployment-records", () => ({
         },
       ],
     },
-    sources: [{ id: 42, repositoryLink: "alice/bot" }],
+    projects: [{ id: 42, repositoryLink: "alice/bot" }],
     reload: vi.fn(),
     loadMore: vi.fn(),
     hasMore: false,

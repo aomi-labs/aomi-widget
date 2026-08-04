@@ -41,7 +41,7 @@ export function isValidReleaseTags(value: unknown): value is string[] {
   );
 }
 
-/** Positive safe integer — app source ids, app ids. */
-export function isValidAppSourceId(value: unknown): value is number {
+/** Positive safe integer — project ids and app ids. */
+export function isValidProjectId(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
 }

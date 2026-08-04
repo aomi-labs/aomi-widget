@@ -15,7 +15,7 @@
 export type RouteGuard = (req: Request) => Response | null;
 
 export type LaunchGuards = {
-  /** Applied to read routes (status, app, sources). */
+  /** Applied to read routes (status, app, projects). */
   read: RouteGuard;
   /** Applied to write routes (preflight, deploy, create, activate, redeploy). */
   write: RouteGuard;

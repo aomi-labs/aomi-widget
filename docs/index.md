@@ -35,6 +35,7 @@ sources_of_truth:
 - bff: [topics/bff/facts/endpoints.md](topics/bff/facts/endpoints.md)
 - client-runtime: [topics/client-runtime/facts/react-runtime.md](topics/client-runtime/facts/react-runtime.md), [topics/client-runtime/facts/transport-client.md](topics/client-runtime/facts/transport-client.md), [topics/client-runtime/facts/cli.md](topics/client-runtime/facts/cli.md), [topics/client-runtime/facts/solana-transactions.md](topics/client-runtime/facts/solana-transactions.md)
 - development: [topics/development/facts/workspace.md](topics/development/facts/workspace.md)
+- deploy: [topics/deploy/facts/projects.md](topics/deploy/facts/projects.md)
 
 ## Policy
 

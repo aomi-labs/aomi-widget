@@ -1,4 +1,4 @@
-import type { UserSource } from "@aomi-labs/deploy";
+import type { UserProject } from "@aomi-labs/deploy";
 import { StatusDot } from "./ui/status-dot";
 import { SdkBadge } from "./ui/sdk-badge";
 
@@ -6,7 +6,7 @@ export function ProjectRow({
   source,
   requiredSdk,
 }: {
-  source: UserSource;
+  source: UserProject;
   requiredSdk?: string | null;
 }) {
   const activeApps = source.apps.filter((app) => app.isActive).length;

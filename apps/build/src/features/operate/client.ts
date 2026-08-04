@@ -11,7 +11,7 @@ export type OperateKind =
   | "observability";
 
 export type OperateFetchOptions = {
-  sourceId?: number | null;
+  projectId?: number | null;
   cursor?: unknown;
   limit?: number;
   platform?: string | null;
@@ -31,7 +31,7 @@ async function operateJson<T>(url: string, label: string): Promise<T> {
   } catch (err) {
     if (err instanceof DOMException && err.name === "TimeoutError") {
       throw new HttpRequestError(
-        `${label} timed out after ${OPERATE_FETCH_TIMEOUT_MS / 1000}s — the backend is slow or unavailable. Try a single source instead of All sources.`,
+        `${label} timed out after ${OPERATE_FETCH_TIMEOUT_MS / 1000}s — the backend is slow or unavailable. Try a single source instead of All projects.`,
         { retryable: false },
       );
     }
@@ -57,8 +57,8 @@ export async function operateFetch<T>(
 ): Promise<T> {
   const path = API_PATHS.bff.operate[kind];
   const params = new URLSearchParams();
-  if (options.sourceId) {
-    params.set("appSourceId", String(options.sourceId));
+  if (options.projectId) {
+    params.set("projectId", String(options.projectId));
   }
   if (options.platform?.trim()) {
     params.set("platform", options.platform.trim());
@@ -76,10 +76,10 @@ export async function operateFetch<T>(
 }
 
 export async function operatePaymentsFetch<T>(
-  options: Pick<OperateFetchOptions, "sourceId" | "platform"> = {},
+  options: Pick<OperateFetchOptions, "projectId" | "platform"> = {},
 ): Promise<T> {
   const params = new URLSearchParams();
-  if (options.sourceId) params.set("appSourceId", String(options.sourceId));
+  if (options.projectId) params.set("projectId", String(options.projectId));
   if (options.platform?.trim()) params.set("platform", options.platform.trim());
   return operateJson<T>(
     `${API_PATHS.bff.operate.payments}${params.size ? `?${params}` : ""}`,
@@ -88,13 +88,13 @@ export async function operatePaymentsFetch<T>(
 }
 
 export async function operateAppDetailFetch<T>(
-  appSourceId: number,
+  projectId: number,
   applicationId: number,
   platform?: string | null,
 ): Promise<T> {
   return operateJson<T>(
     API_PATHS.bff.operate.observabilityDetail(
-      appSourceId,
+      projectId,
       applicationId,
       platform,
     ),

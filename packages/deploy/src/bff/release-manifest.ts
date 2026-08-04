@@ -1,6 +1,6 @@
 import type { DeploymentClient } from "../client";
 import { BackendError } from "../errors";
-import type { ReleaseManifest, SecretSlot, UserSource } from "../types";
+import type { ReleaseManifest, SecretSlot, UserProject } from "../types";
 import { missingRequiredSecrets } from "../secrets";
 
 const GITHUB_API = "https://api.github.com";
@@ -133,20 +133,20 @@ async function mapWithConcurrency<T, R>(
  * therefore one fetch. Awaiting them one pair at a time put every app's GitHub
  * latency end-to-end in front of the user's Activate click.
  *
- * `input.source` normally comes from `listUserSources`, and the backend
+ * `input.project` normally comes from `listUserProjects`, and the backend
  * deliberately returns `latest_deployment: null` on that list endpoint (it's
- * lazy there). So `input.source.latestDeployment?.platformRepo` is checked
+ * lazy there). So `input.project.latestDeployment?.platformRepo` is checked
  * first as a cheap path (in case a caller ever passes an already-populated
- * source), but the real value comes from the per-source latest-deployment
+ * project), but the real value comes from the per-project latest-deployment
  * detail endpoint, which does populate `platformRepo`. `platformRepo` is a
- * platform-level constant across a source's deployments, so the latest
+ * platform-level constant across a project's deployments, so the latest
  * deployment's value is correct for any release tag being gated here.
  */
 export async function missingSecretsForActivation(input: {
   client: DeploymentClient;
   githubUserId: string;
   platform: string;
-  source: UserSource;
+  project: UserProject;
   pairs: { app: string; releaseTag: string }[];
   githubToken?: string;
 }): Promise<Record<string, string[]>> {
@@ -155,13 +155,13 @@ export async function missingSecretsForActivation(input: {
   const githubToken = input.githubToken ?? process.env.GITHUB_TOKEN?.trim();
   if (!githubToken) throw new RequiredSecretsCheckError();
 
-  let platformRepo = input.source.latestDeployment?.platformRepo ?? undefined;
+  let platformRepo = input.project.latestDeployment?.platformRepo ?? undefined;
   if (!platformRepo) {
     try {
-      const latest = await input.client.getUserSourceLatestDeployment({
+      const latest = await input.client.getUserProjectLatestDeployment({
         githubUserId: input.githubUserId,
         platform: input.platform,
-        appSourceId: input.source.id,
+        projectId: input.project.id,
       });
       platformRepo = latest?.platformRepo ?? undefined;
     } catch (error) {
@@ -180,7 +180,7 @@ export async function missingSecretsForActivation(input: {
   // gate is already closed, and this read must not fire anyway.
   const configured = await input.client.listAppSecrets({
     githubUserId: input.githubUserId,
-    sourceId: String(input.source.id),
+    projectId: String(input.project.id),
   });
 
   const releaseTags = [...new Set(input.pairs.map((pair) => pair.releaseTag))];

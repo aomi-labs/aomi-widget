@@ -109,7 +109,7 @@ Mount them (Next.js App Router shown; any fetch server maps the same):
 // app/api/bff/launch/redeploy/route.ts    → export const POST = launch.redeploy;
 // app/api/bff/launch/status/route.ts      → export const GET  = launch.status;
 // app/api/bff/launch/app/route.ts         → export const GET  = launch.app;
-// app/api/bff/launch/sources/route.ts     → export const GET  = launch.sources;
+// app/api/bff/launch/projects/route.ts     → export const GET  = launch.sources;
 // app/api/bff/auth/github/login/route.ts    → export const GET  = githubAuth.login;
 // app/api/bff/auth/github/callback/route.ts → export const GET  = githubAuth.callback;
 // app/api/bff/auth/github/status/route.ts   → export const GET  = githubAuth.status;
@@ -170,8 +170,8 @@ The **smallest useful flow** (the entire happy path) is:
 
 1. `fetchGitHubSession()` → if not signed in, link to `githubSigninUrl`.
 2. If `installationId` is null, send the user to `githubAppInstallUrl({app:2})`.
-3. `createRepo({ installationId, repoName })` → get `appSourceId` + `sourceRef`.
-4. `deploy({ appSourceId, sourceRef })` → get `deploymentId`.
+3. `createRepo({ installationId, repoName })` → get `projectId` + `sourceRef`.
+4. `deploy({ projectId, sourceRef })` → get `deploymentId`.
 5. Poll `status(deploymentId)` until `ready` (or `failed`).
 6. `activate({ releaseTags, apps })` (both come off the deploy result / status).
 7. `appStatus(...)` until live, then embed chat:
@@ -208,7 +208,7 @@ page you'll have to hand-reconcile on every upstream change.
   the template, users only supply config) — that is a backend arrangement; ask
   Aomi rather than working around it client-side.
 - **Immutable source ref.** `deploy` takes a git commit SHA, never a branch.
-  `createRepo`/`preflight` resolve it for you; if you deploy by `appSourceId`
+  `createRepo`/`preflight` resolve it for you; if you deploy by `projectId`
   directly, pass the SHA.
 - **Secrets are write-only.** App env-vars/secrets, where supported, return
   key *names* only — values are never read back.

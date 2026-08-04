@@ -52,7 +52,7 @@ function mockSession(partial: {
   };
 }
 
-const SOURCES = [
+const PROJECTS = [
   {
     id: 1,
     repositoryLink: "ceciliaz030/local-8",
@@ -74,8 +74,8 @@ const BOT = {
   apps: [
     {
       applicationId: 11,
-      appSourceId: 1,
-      sourceLabel: "ceciliaz030/local-8",
+      projectId: 1,
+      projectLabel: "ceciliaz030/local-8",
       name: "playground-example",
       label: "playground-example",
       isPrimary: true,
@@ -102,7 +102,7 @@ describe("BotsView", () => {
   it("renders registered bots as cards with masked tokens", async () => {
     mockSession({ loading: false, signedIn: true, githubLogin: "octocat" });
     mockedOperateFetch.mockResolvedValue({
-      sources: SOURCES,
+      projects: PROJECTS,
       bots: [{ ...BOT, label: "Trading assistant" }],
     });
     render(<BotsView />);
@@ -113,18 +113,14 @@ describe("BotsView", () => {
     expect(screen.getByText("1 bot")).toBeInTheDocument();
   });
 
-  it("reads and writes against the active platform", async () => {
-    // A partner source is bound to its own platform, so the picker only ever
-    // offers its apps while the shell is scoped there. Read and write have to
-    // agree: the BFF re-checks every id against the same source list, so a
-    // PATCH on the default platform would reject what the picker just offered.
+  it("reads and writes the builder-wide app set regardless of shell platform", async () => {
     window.history.replaceState(
       {},
       "",
       "/integrations?platform=world-market-apps",
     );
     mockSession({ loading: false, signedIn: true, githubLogin: "octocat" });
-    mockedOperateFetch.mockResolvedValue({ sources: SOURCES, bots: [BOT] });
+    mockedOperateFetch.mockResolvedValue({ projects: PROJECTS, bots: [BOT] });
     const fetchSpy = vi
       .spyOn(globalThis, "fetch")
       .mockResolvedValue(Response.json({ bot: BOT }));
@@ -134,19 +130,17 @@ describe("BotsView", () => {
     fireEvent.click(screen.getByRole("button", { name: /^save/i }));
     await screen.findByRole("button", { name: /change apps/i });
 
-    expect(mockedOperateFetch).toHaveBeenCalledWith("bots", {
-      platform: "world-market-apps",
-    });
+    expect(mockedOperateFetch).toHaveBeenCalledWith("bots");
     const [patchUrl] = fetchSpy.mock.calls.find(
       ([, init]) => init?.method === "PATCH",
     )!;
-    expect(String(patchUrl)).toContain("platform=world-market-apps");
+    expect(String(patchUrl)).not.toContain("platform=");
     fetchSpy.mockRestore();
   });
 
   it("requires a token and an app before registering", async () => {
     mockSession({ loading: false, signedIn: true, githubLogin: "octocat" });
-    mockedOperateFetch.mockResolvedValue({ sources: SOURCES, bots: [] });
+    mockedOperateFetch.mockResolvedValue({ projects: PROJECTS, bots: [] });
     render(<BotsView />);
 
     fireEvent.click(await screen.findByRole("button", { name: /add bot/i }));
@@ -166,7 +160,7 @@ describe("BotsView", () => {
 
   it("edit mode saves thread mode changes through PATCH", async () => {
     mockSession({ loading: false, signedIn: true, githubLogin: "octocat" });
-    mockedOperateFetch.mockResolvedValue({ sources: SOURCES, bots: [BOT] });
+    mockedOperateFetch.mockResolvedValue({ projects: PROJECTS, bots: [BOT] });
     const fetchSpy = vi
       .spyOn(globalThis, "fetch")
       .mockResolvedValue(
@@ -201,7 +195,7 @@ describe("BotsView", () => {
 
   it("cancelling edit restores the draft", async () => {
     mockSession({ loading: false, signedIn: true, githubLogin: "octocat" });
-    mockedOperateFetch.mockResolvedValue({ sources: SOURCES, bots: [BOT] });
+    mockedOperateFetch.mockResolvedValue({ projects: PROJECTS, bots: [BOT] });
     render(<BotsView />);
 
     fireEvent.click(
@@ -218,7 +212,7 @@ describe("BotsView", () => {
   it("blocks saving while unavailable apps stay selected", async () => {
     mockSession({ loading: false, signedIn: true, githubLogin: "octocat" });
     mockedOperateFetch.mockResolvedValue({
-      sources: SOURCES,
+      projects: PROJECTS,
       bots: [
         {
           ...BOT,
@@ -226,8 +220,8 @@ describe("BotsView", () => {
             ...BOT.apps,
             {
               applicationId: 99,
-              appSourceId: null,
-              sourceLabel: "ceciliaz030/retired",
+              projectId: null,
+              projectLabel: "ceciliaz030/retired",
               name: "gone-app",
               label: "gone-app",
               isPrimary: false,

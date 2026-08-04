@@ -43,7 +43,7 @@ describe("DeploymentClient app-scoped service secrets", () => {
 
     const result = await c.listAppSecrets({
       githubUserId: "github-user",
-      sourceId: "42",
+      projectId: "42",
     });
 
     expect(result.byApp).toEqual({ demo: ["API_KEY"] });
@@ -66,13 +66,13 @@ describe("DeploymentClient app-scoped service secrets", () => {
     await c.ingestSecrets({
       githubUserId: "github-user",
       app: "demo",
-      sourceId: "42",
+      projectId: "42",
       secrets: { API_KEY: "secret" },
     });
     const removed = await c.removeAppSecret({
       githubUserId: "github-user",
       app: "demo",
-      sourceId: "42",
+      projectId: "42",
       name: "API_KEY",
     });
 

@@ -16,7 +16,7 @@ import type {
   DeploymentHistoryResult,
   DeploymentPromoteResult,
   DeploymentSecretsResult,
-  DeploymentSourcesResult,
+  DeploymentProjectsResult,
   LaunchActivateResult,
   LaunchAppStatus,
   LaunchCreateRepoResult,
@@ -31,14 +31,14 @@ import type {
 import type {
   DeploymentProgressEvent,
   ListDeploymentRecordsResult,
-  SourceSdkUpgradeResult,
-  SourceSdkUpgradeStatusResult,
+  ProjectSdkUpgradeResult,
+  ProjectSdkUpgradeStatusResult,
 } from "../types";
 import { normalizeRepo } from "./state";
 import { watchDeploymentLoop, type WatchLoopOptions } from "./watch";
-import type { UserSource } from "../types";
+import type { UserProject } from "../types";
 
-export type { UserSource };
+export type { UserProject };
 
 export const DEFAULT_LAUNCH_BASE_PATH = "/api/bff/launch";
 export const DEFAULT_DEPLOYMENTS_BASE_PATH = "/api/bff/deployments";
@@ -69,8 +69,8 @@ export interface GitHubSessionInfo {
   installationId?: string | null;
 }
 
-export interface UserSourcesResult {
-  sources: UserSource[];
+export interface UserProjectsResult {
+  projects: UserProject[];
   githubLogin: string | null;
 }
 
@@ -196,12 +196,12 @@ function createBaseClient(options: LaunchClientOptions) {
 
   /** The project console — `/api/bff/deployments/*`. */
   const deployments = {
-    sources(
-      input: { platform?: string; appSourceId?: number } = {},
-    ): Promise<DeploymentSourcesResult> {
+    projects(
+      input: { platform?: string; projectId?: number } = {},
+    ): Promise<DeploymentProjectsResult> {
       return launchFetch(
-        `${deploymentsPath}/sources${query({ appSourceId: input.appSourceId }, input.platform)}`,
-        "deployment sources",
+        `${deploymentsPath}/projects${query({ projectId: input.projectId }, input.platform)}`,
+        "deployment projects",
       );
     },
 
@@ -217,8 +217,8 @@ function createBaseClient(options: LaunchClientOptions) {
 
     upgradeSdk(input: {
       platform?: string;
-      appSourceId: number;
-    }): Promise<SourceSdkUpgradeResult> {
+      projectId: number;
+    }): Promise<ProjectSdkUpgradeResult> {
       return postJson(
         `${deploymentsPath}/sdk-upgrade`,
         "source SDK upgrade",
@@ -228,21 +228,21 @@ function createBaseClient(options: LaunchClientOptions) {
 
     sdkUpgradeStatus(input: {
       platform?: string;
-      appSourceId: number;
-    }): Promise<SourceSdkUpgradeStatusResult> {
+      projectId: number;
+    }): Promise<ProjectSdkUpgradeStatusResult> {
       return launchFetch(
-        `${deploymentsPath}/sdk-upgrade-status${query({ appSourceId: input.appSourceId }, input.platform)}`,
+        `${deploymentsPath}/sdk-upgrade-status${query({ projectId: input.projectId }, input.platform)}`,
         "source SDK upgrade status",
       );
     },
 
     history(input: {
       platform?: string;
-      appSourceId: number;
+      projectId: number;
       limit?: number;
     }): Promise<DeploymentHistoryResult> {
       return launchFetch(
-        `${deploymentsPath}/history${query({ appSourceId: input.appSourceId, limit: input.limit }, input.platform)}`,
+        `${deploymentsPath}/history${query({ projectId: input.projectId, limit: input.limit }, input.platform)}`,
         "deployment history",
       );
     },
@@ -264,20 +264,20 @@ function createBaseClient(options: LaunchClientOptions) {
 
     secrets(input: {
       platform?: string;
-      appSourceId: number;
+      projectId: number;
     }): Promise<DeploymentSecretsResult> {
       return launchFetch(
-        `${deploymentsPath}/secrets${query({ appSourceId: input.appSourceId }, input.platform)}`,
+        `${deploymentsPath}/secrets${query({ projectId: input.projectId }, input.platform)}`,
         "deployment secrets",
       );
     },
 
     requiredSecrets(input: {
       platform?: string;
-      appSourceId: number;
+      projectId: number;
     }): Promise<RequiredSecretsResult> {
       return launchFetch(
-        `${deploymentsPath}/required-secrets${query({ appSourceId: input.appSourceId }, input.platform)}`,
+        `${deploymentsPath}/required-secrets${query({ projectId: input.projectId }, input.platform)}`,
         "required secrets",
       );
     },
@@ -285,11 +285,11 @@ function createBaseClient(options: LaunchClientOptions) {
     setSecrets(input: {
       platform?: string;
       app: string;
-      appSourceId: number;
+      projectId: number;
       secrets: Record<string, string>;
     }): Promise<{ ok: boolean; keys: string[] }> {
       return postJson(
-        `${deploymentsPath}/secrets${query({ appSourceId: input.appSourceId }, input.platform)}`,
+        `${deploymentsPath}/secrets${query({ projectId: input.projectId }, input.platform)}`,
         "set environment variables",
         withPlatform(input),
       );
@@ -298,11 +298,11 @@ function createBaseClient(options: LaunchClientOptions) {
     deleteSecret(input: {
       platform?: string;
       app: string;
-      appSourceId: number;
+      projectId: number;
       name: string;
     }): Promise<{ ok: boolean; removed: boolean }> {
       return launchFetch(
-        `${deploymentsPath}/secrets${query({ appSourceId: input.appSourceId }, input.platform)}`,
+        `${deploymentsPath}/secrets${query({ projectId: input.projectId }, input.platform)}`,
         "delete environment variable",
         {
           method: "DELETE",
@@ -315,10 +315,10 @@ function createBaseClient(options: LaunchClientOptions) {
     records(input: {
       platform?: string;
       app: string;
-      appSourceId?: number;
+      projectId?: number;
     }): Promise<ListDeploymentRecordsResult> {
       return launchFetch(
-        `${deploymentsPath}/records${query({ app: input.app, appSourceId: input.appSourceId }, input.platform)}`,
+        `${deploymentsPath}/records${query({ app: input.app, projectId: input.projectId }, input.platform)}`,
         "deployment records",
       );
     },
@@ -326,7 +326,7 @@ function createBaseClient(options: LaunchClientOptions) {
     promote(input: {
       platform?: string;
       deploymentId: string;
-      appSourceId: number;
+      projectId: number;
       apps?: string[];
       actor?: string;
     }): Promise<DeploymentPromoteResult> {
@@ -339,7 +339,7 @@ function createBaseClient(options: LaunchClientOptions) {
 
     deactivate(input: {
       platform?: string;
-      appSourceId: number;
+      projectId: number;
       apps: string[];
     }): Promise<{ ok: boolean; apps: string[] }> {
       return postJson(
@@ -370,7 +370,7 @@ function createBaseClient(options: LaunchClientOptions) {
     },
 
     redeploy(input: {
-      appSourceId: number;
+      projectId: number;
       platform?: string;
     }): Promise<LaunchRedeployResult> {
       return postJson(
@@ -425,7 +425,7 @@ function createBaseClient(options: LaunchClientOptions) {
 
     activate(input: {
       platform?: string;
-      appSourceId?: number;
+      projectId?: number;
       releaseTags: string[];
       apps?: string[];
       actor?: string;
@@ -462,20 +462,20 @@ function createBaseClient(options: LaunchClientOptions) {
       await doFetch(`${authBasePath}/signout`, { method: "POST" });
     },
 
-    /** The signed-in user's sources on the launch mount. */
-    async sources(): Promise<UserSourcesResult> {
-      const res = await doFetch(`${basePath}/sources`, { cache: "no-store" });
+    /** The signed-in user's projects on the launch mount. */
+    async projects(): Promise<UserProjectsResult> {
+      const res = await doFetch(`${basePath}/projects`, { cache: "no-store" });
       const json = (await res.json().catch(() => ({}))) as
-        | UserSourcesResult
+        | UserProjectsResult
         | { error?: string };
       if (!res.ok) {
         const message =
           "error" in json && json.error
             ? json.error
-            : `failed to load sources (${res.status})`;
+            : `failed to load projects (${res.status})`;
         throw new Error(message);
       }
-      return json as UserSourcesResult;
+      return json as UserProjectsResult;
     },
 
     deployments,

@@ -24,9 +24,9 @@ vi.mock("@build/features/launch", () => ({
     signedIn: true,
     githubLogin: "alice",
   })),
-  fetchUserSources: vi.fn(async () => ({
+  fetchUserProjects: vi.fn(async () => ({
     githubLogin: "alice",
-    sources: [
+    projects: [
       {
         id: 99,
         installationId: 555,
@@ -36,7 +36,7 @@ vi.mock("@build/features/launch", () => ({
       },
     ],
   })),
-  hasSourceForLaunchUrlContext: vi.fn(() => true),
+  hasProjectForLaunchUrlContext: vi.fn(() => true),
   launchActivate: vi.fn(),
   launchRedeploy: vi.fn(),
   launchStatus: vi.fn(),
@@ -129,7 +129,7 @@ describe("LifecyclePanel", () => {
     render(
       <LifecyclePanel
         detail={detail}
-        appSourceId={42}
+        projectId={42}
         lifecycle={makeLifecycle()}
         onLifecycleChange={() => {}}
         onLive={() => {}}
@@ -149,7 +149,7 @@ describe("LifecyclePanel", () => {
     render(
       <LifecyclePanel
         detail={detail}
-        appSourceId={42}
+        projectId={42}
         lifecycle={makeLifecycle()}
         onLifecycleChange={() => {}}
         onLive={() => {}}

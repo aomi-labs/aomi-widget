@@ -35,16 +35,16 @@ describe("DeploymentClient bots", () => {
     );
     vi.stubGlobal("fetch", fetchImpl);
 
-    const bots = await client().listUserSourceBots({
+    const bots = await client().listUserProjectBots({
       githubUserId: "gh-1",
       platform: "community",
-      appSourceId: 42,
+      projectId: 42,
     });
 
     expect(bots[0].platformUsername).toBe("mybot");
     expect(bots[0].defaultApp).toBe("binance");
     expect(fetchImpl.mock.calls[0][0]).toContain(
-      "/api/integrations/github-app/user/sources/42/bots?",
+      "/api/integrations/github-app/user/projects/42/bots?",
     );
   });
 
@@ -68,10 +68,10 @@ describe("DeploymentClient bots", () => {
     );
     vi.stubGlobal("fetch", fetchImpl);
 
-    const bot = await client().createUserSourceBot({
+    const bot = await client().createUserProjectBot({
       githubUserId: "gh-1",
       platform: "community",
-      appSourceId: 42,
+      projectId: 42,
       applicationId: 7,
       botPlatform: "telegram",
       credential: "tok",

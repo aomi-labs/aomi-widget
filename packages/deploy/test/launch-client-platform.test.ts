@@ -25,8 +25,8 @@ describe("createLaunchClient — bound platform", () => {
     const { client, calls } = recordingClient("somm.finance");
 
     await client.status({ deploymentId: "d-1" });
-    await client.deployments.history({ appSourceId: 7 });
-    await client.deployments.secrets({ appSourceId: 7 });
+    await client.deployments.history({ projectId: 7 });
+    await client.deployments.secrets({ projectId: 7 });
 
     for (const { url } of calls) {
       expect(url).toContain("platform=somm.finance");
@@ -36,9 +36,9 @@ describe("createLaunchClient — bound platform", () => {
   it("carries the bound platform into write bodies", async () => {
     const { client, calls } = recordingClient("somm.finance");
 
-    await client.deploy({ appSourceId: 7, sourceRef: "abc123" });
+    await client.deploy({ projectId: 7, sourceRef: "abc123" });
     await client.createRepo({ installationId: "55" });
-    await client.deployments.promote({ deploymentId: "d-1", appSourceId: 7 });
+    await client.deployments.promote({ deploymentId: "d-1", projectId: 7 });
 
     for (const { body } of calls) {
       expect(body).toMatchObject({ platform: "somm.finance" });
@@ -49,10 +49,10 @@ describe("createLaunchClient — bound platform", () => {
   it("sends the platform on redeploy", async () => {
     const { client, calls } = recordingClient("somm.finance");
 
-    await client.redeploy({ appSourceId: 7 });
+    await client.redeploy({ projectId: 7 });
 
     expect(calls[0]?.body).toMatchObject({
-      appSourceId: 7,
+      projectId: 7,
       platform: "somm.finance",
     });
   });
@@ -60,7 +60,7 @@ describe("createLaunchClient — bound platform", () => {
   it("lets an explicit per-call platform win", async () => {
     const { client, calls } = recordingClient("somm.finance");
 
-    await client.deployments.history({ appSourceId: 7, platform: "community" });
+    await client.deployments.history({ projectId: 7, platform: "community" });
 
     expect(calls[0]?.url).toContain("platform=community");
     expect(calls[0]?.url).not.toContain("somm.finance");
@@ -70,7 +70,7 @@ describe("createLaunchClient — bound platform", () => {
     const { client, calls } = recordingClient();
 
     await client.status({ deploymentId: "d-1" });
-    await client.deploy({ appSourceId: 7, sourceRef: "abc123" });
+    await client.deploy({ projectId: 7, sourceRef: "abc123" });
 
     expect(calls[0]?.url).not.toContain("platform=");
     expect(calls[1]?.body).not.toHaveProperty("platform");

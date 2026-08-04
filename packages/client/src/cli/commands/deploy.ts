@@ -169,15 +169,15 @@ export async function deployCommand(args: DeployArgs): Promise<void> {
     process.env.AOMI_DEPLOY_TOKEN ??
     (await deviceAuthFlow(backendUrl, platform)).token;
 
-  const appSourceId = Number(
+  const projectId = Number(
     required(
-      str(args["app-source-id"]) ?? process.env.AOMI_APP_SOURCE_ID,
-      "app-source-id",
-      "AOMI_APP_SOURCE_ID",
+      str(args["project-id"]) ?? process.env.AOMI_PROJECT_ID,
+      "project-id",
+      "AOMI_PROJECT_ID",
     ),
   );
-  if (!Number.isSafeInteger(appSourceId) || appSourceId <= 0) {
-    throw new DeployCliError("VALIDATION_ERROR", "`--app-source-id` must be a positive integer.");
+  if (!Number.isSafeInteger(projectId) || projectId <= 0) {
+    throw new DeployCliError("VALIDATION_ERROR", "`--project-id` must be a positive integer.");
   }
 
   const branch = str(args.branch);
@@ -197,26 +197,18 @@ export async function deployCommand(args: DeployArgs): Promise<void> {
     checkGitRemote();
   }
 
-  const aomiTomlPaths = (str(args["aomi-toml-paths"]) ?? "")
-    .split(",")
-    .map((p) => p.trim())
-    .filter(Boolean);
   const preflight = args["preflight"] === true;
 
   console.log(` Deploying to ${backendUrl} (platform: ${platform})`);
-  console.log(`   app source id: ${appSourceId}`);
+  console.log(`   project id:    ${projectId}`);
   if (branch) console.log(`   branch:        ${branch}`);
   console.log(`   commit:        ${sourceRef}`);
-  console.log(
-    `   aomi.toml:     ${aomiTomlPaths.length ? aomiTomlPaths.join(", ") : "discover"}`,
-  );
   if (preflight) console.log("   preflight:      yes");
 
   const url = `${backendUrl}/api/platforms/${encodeURIComponent(platform)}/deploy`;
   const body = {
-    app_source_id: appSourceId,
+    project_id: projectId,
     source_ref: sourceRef,
-    aomi_toml_paths: aomiTomlPaths,
     preflight: preflight,
   };
 
@@ -306,7 +298,7 @@ export async function deployCommand(args: DeployArgs): Promise<void> {
     await writeDeploymentState({
       deploymentId,
       platform,
-      appSourceId,
+      projectId,
       releaseTags,
       apps,
       timestamp: new Date().toISOString(),

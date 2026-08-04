@@ -10,7 +10,7 @@ import {
   type DeploymentSecretsResult,
   type ListDeploymentRecordsResult,
   type DeploymentPromoteResult,
-  type DeploymentSourcesResult,
+  type DeploymentProjectsResult,
   type LaunchDeployInput,
   type LaunchDeployResult,
   type LaunchPreflightInput,
@@ -84,7 +84,7 @@ export function launchDeploy(
 }
 
 export function launchRedeploy(input: {
-  appSourceId: number;
+  projectId: number;
 }): Promise<LaunchRedeployResult> {
   return postJson(API_PATHS.bff.launch.redeploy, "launch redeploy", input);
 }
@@ -107,8 +107,8 @@ export function launchSdkStatus(): Promise<LaunchSdkStatus> {
   return launchFetch(API_PATHS.bff.launch.sdkStatus, "launch SDK status");
 }
 
-export function deploymentSources(): Promise<DeploymentSourcesResult> {
-  return launchFetch(API_PATHS.bff.deployments.sources, "deployment sources");
+export function deploymentProjects(): Promise<DeploymentProjectsResult> {
+  return launchFetch(API_PATHS.bff.deployments.projects, "deployment projects");
 }
 
 export function deploymentSdkStatus(): Promise<LaunchSdkStatus> {
@@ -119,37 +119,37 @@ export function deploymentSdkStatus(): Promise<LaunchSdkStatus> {
 }
 
 export function deploymentHistory(input: {
-  appSourceId: number;
+  projectId: number;
   limit?: number;
 }): Promise<DeploymentHistoryResult> {
   return launchFetch(
-    API_PATHS.bff.deployments.history(input.appSourceId, input.limit),
+    API_PATHS.bff.deployments.history(input.projectId, input.limit),
     "deployment history",
   );
 }
 
 export function deploymentSecrets(input: {
-  appSourceId: number;
+  projectId: number;
 }): Promise<DeploymentSecretsResult> {
   return launchFetch(
-    API_PATHS.bff.deployments.secrets(input.appSourceId),
+    API_PATHS.bff.deployments.secrets(input.projectId),
     "deployment secrets",
   );
 }
 
 export function deploymentRecords(input: {
   app: string;
-  appSourceId?: number;
+  projectId?: number;
 }): Promise<ListDeploymentRecordsResult> {
   return launchFetch(
-    API_PATHS.bff.deployments.records(input.app, input.appSourceId),
+    API_PATHS.bff.deployments.records(input.app, input.projectId),
     "deployment records",
   );
 }
 
 export function deploymentPromote(input: {
   deploymentId: string;
-  appSourceId: number;
+  projectId: number;
   apps?: string[];
   actor?: string;
 }): Promise<DeploymentPromoteResult> {
@@ -161,7 +161,7 @@ export function deploymentPromote(input: {
 }
 
 export function launchActivate(input: {
-  appSourceId: number;
+  projectId: number;
   releaseTags: string[];
   apps: string[];
   actor?: string;
@@ -170,7 +170,7 @@ export function launchActivate(input: {
 }
 
 export function deploymentDeactivate(input: {
-  appSourceId: number;
+  projectId: number;
   apps: string[];
 }): Promise<{ ok: boolean; apps: string[] }> {
   return postJson(
@@ -182,11 +182,11 @@ export function deploymentDeactivate(input: {
 
 export function deploymentSetSecrets(input: {
   app: string;
-  appSourceId: number;
+  projectId: number;
   secrets: Record<string, string>;
 }): Promise<{ ok: boolean; keys: string[] }> {
   return postJson(
-    API_PATHS.bff.deployments.secrets(input.appSourceId),
+    API_PATHS.bff.deployments.secrets(input.projectId),
     "set environment variables",
     input,
   );
@@ -194,11 +194,11 @@ export function deploymentSetSecrets(input: {
 
 export function deploymentDeleteSecret(input: {
   app: string;
-  appSourceId: number;
+  projectId: number;
   name: string;
 }): Promise<{ ok: boolean; removed: boolean }> {
   return launchFetch(
-    API_PATHS.bff.deployments.secrets(input.appSourceId),
+    API_PATHS.bff.deployments.secrets(input.projectId),
     "delete environment variable",
     {
       method: "DELETE",

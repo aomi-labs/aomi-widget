@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { UserSource } from "@aomi-labs/deploy";
+import type { UserProject } from "@aomi-labs/deploy";
 import { projectDeploymentStatus } from "./project-deployment-status";
 import { sdkCompatibility, sourceSdkVersion } from "./sdk-compatibility";
 import { StatusDot } from "./ui/status-dot";
@@ -10,7 +10,7 @@ export function ProjectRow({
   requiredSdk,
   href,
 }: {
-  source: UserSource;
+  source: UserProject;
   requiredSdk?: string | null;
   href?: string;
 }) {
@@ -23,7 +23,7 @@ export function ProjectRow({
         : `${source.apps.length} apps`;
   const stamped = sourceSdkVersion(source);
   const mixedSdk = (source.sdkVersions?.length ?? 0) > 1;
-  const boundPlatform = source.boundPlatformName?.trim();
+  const boundPlatform = source.platformName?.trim();
   const projectHref =
     href ??
     `/projects/${source.id}${

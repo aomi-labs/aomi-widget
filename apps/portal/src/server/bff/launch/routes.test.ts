@@ -80,10 +80,10 @@ function writeReq(body: unknown) {
   });
 }
 
-/** The listUserSources response granting the signed-in user these source ids. */
+/** The listUserProjects response granting the signed-in user these source ids. */
 function ownedSources(...ids: number[]) {
   return Response.json({
-    sources: ids.map((id) => ({
+    projects: ids.map((id) => ({
       id,
       installation_id: 555,
       apps: [{ name: "my-bot" }],
@@ -93,7 +93,7 @@ function ownedSources(...ids: number[]) {
 
 function sourceWithApps(id: number, apps: Array<Record<string, unknown>>) {
   return Response.json({
-    sources: [
+    projects: [
       {
         id,
         installation_id: 555,
@@ -121,7 +121,7 @@ function appRecords(...deploymentIds: string[]) {
 
 /** Same shape as `appRecords`, but with an explicit release tag — used to
  *  derive the promote secret-gate's (app, releaseTag) pairs from the DB
- *  promotion records (the `sourceDeploymentPairs` call). */
+ *  promotion records (the `projectDeploymentPairs` call). */
 function appRecordsWithTag(deploymentId: string, releaseTag: string) {
   return Response.json({
     app: "my-bot",
@@ -141,7 +141,7 @@ function appRecordsWithTag(deploymentId: string, releaseTag: string) {
 
 function activationSource(id = 99) {
   return Response.json({
-    sources: [
+    projects: [
       {
         id,
         installation_id: 555,
@@ -156,7 +156,7 @@ function activationSource(id = 99) {
   });
 }
 
-function sourceDeployments() {
+function projectDeployments() {
   return Response.json({
     deployments: [
       {
@@ -168,13 +168,13 @@ function sourceDeployments() {
   });
 }
 
-/** Like `activationSource`, but shaped like the real `listUserSources`
+/** Like `activationSource`, but shaped like the real `listUserProjects`
  *  response: `latest_deployment` is always null there (the backend is lazy
  *  for the list). Pair with `latestDeploymentResponse(platformRepo)` to stub
  *  the per-source detail endpoint the required-secrets check now reads. */
 function activationSourceWithRepo(_platformRepo: string, id = 99) {
   return Response.json({
-    sources: [
+    projects: [
       {
         id,
         installation_id: 555,
@@ -190,7 +190,7 @@ function activationSourceWithRepo(_platformRepo: string, id = 99) {
   });
 }
 
-/** The `getUserSourceLatestDeployment` detail-endpoint response —
+/** The `getUserProjectLatestDeployment` detail-endpoint response —
  *  the real source of `platformRepo` in production. */
 function latestDeploymentResponse(platformRepo: string) {
   return Response.json({
@@ -229,7 +229,7 @@ describe("launchDeployRoute", () => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          appSourceId: 123,
+          projectId: 123,
           sourceRef: "abc1234def5678",
         }),
       }),
@@ -239,7 +239,7 @@ describe("launchDeployRoute", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("rejects deploy of an app source the user does not own", async () => {
+  it("rejects deploy of a project the user does not own", async () => {
     const fetchMock = vi.fn().mockResolvedValueOnce(ownedSources(1, 2));
     vi.stubGlobal("fetch", fetchMock);
 
@@ -252,7 +252,7 @@ describe("launchDeployRoute", () => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          appSourceId: 123,
+          projectId: 123,
           sourceRef: "abc1234def5678",
         }),
       }),
@@ -260,10 +260,10 @@ describe("launchDeployRoute", () => {
     const body = await res.json();
 
     expect(res.status).toBe(404);
-    expect(body.error).toContain("app source not found");
+    expect(body.error).toContain("project not found");
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(String(fetchMock.mock.calls[0][0])).toContain(
-      "/api/integrations/github-app/user/sources?github_user_id=42",
+      "/api/integrations/github-app/user/projects?github_user_id=42",
     );
   });
 
@@ -288,7 +288,7 @@ describe("launchDeployRoute", () => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        appSourceId: 123,
+        projectId: 123,
         sourceRef: "abc1234def5678",
       }),
     });
@@ -301,7 +301,7 @@ describe("launchDeployRoute", () => {
     expect(body).toEqual({ error: "deploy rejected" });
   });
 
-  it("preflight mints the source row by repo, then previews by app source id", async () => {
+  it("preflight creates the project by repo, then resolves its immutable commit", async () => {
     getGitHubSession.mockResolvedValueOnce({
       githubUserId: "42",
       githubLogin: "alice",
@@ -311,11 +311,15 @@ describe("launchDeployRoute", () => {
       .mockResolvedValueOnce(
         Response.json({
           ok: true,
-          source: {
+          project: {
             id: 123,
             installation_id: 555,
+            repository_id: 999,
             repository_link: "alice/bot",
-            source_ref: "abc1234def5678",
+            platform_id: 1,
+            owner_builder_id: 42,
+            created_at: 1,
+            updated_at: 1,
           },
         }),
       )
@@ -324,7 +328,10 @@ describe("launchDeployRoute", () => {
           ok: true,
           deployment: {
             id: "dep_555_rabc1234_deadbeef",
-            source: { repository_link: "alice/bot" },
+            source: {
+              repository_link: "alice/bot",
+              commit_hash: "abc1234def5678",
+            },
             platform: { apps: [] },
           },
         }),
@@ -348,7 +355,7 @@ describe("launchDeployRoute", () => {
     expect(body.repo).toBe("alice/bot");
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
-      "http://127.0.0.1:8080/api/platforms/community/sources/sync-installed",
+      "http://127.0.0.1:8080/api/platforms/community/projects",
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({
@@ -362,12 +369,12 @@ describe("launchDeployRoute", () => {
       "http://127.0.0.1:8080/api/platforms/community/deploy",
       expect.objectContaining({
         method: "POST",
-        body: expect.stringContaining('"source_ref":"abc1234def5678"'),
+        body: JSON.stringify({ project_id: 123, preflight: true }),
       }),
     );
   });
 
-  it("real deploy rejects a repo-only request without an app source id", async () => {
+  it("real deploy rejects a repo-only request without a project id", async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
 
@@ -386,7 +393,7 @@ describe("launchDeployRoute", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("deploys directly by appSourceId when the source identity is already known", async () => {
+  it("deploys directly by projectId when the source identity is already known", async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(ownedSources(777))
@@ -413,7 +420,7 @@ describe("launchDeployRoute", () => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        appSourceId: 777,
+        projectId: 777,
         sourceRef: "abc1234def5678",
         installationId: "555",
         repo: "alice/bot",
@@ -426,7 +433,7 @@ describe("launchDeployRoute", () => {
     expect(res.status).toBe(202);
     expect(body).toMatchObject({
       repo: "alice/bot",
-      appSourceId: 777,
+      projectId: 777,
     });
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
@@ -452,7 +459,7 @@ describe("launchDeployRoute", () => {
         origin: "http://localhost:3000",
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ appSourceId: 777 }),
+      body: JSON.stringify({ projectId: 777 }),
     });
 
     const res = await POST(req);
@@ -462,11 +469,11 @@ describe("launchDeployRoute", () => {
     expect(body.error).toContain("missing source commit");
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(String(fetchMock.mock.calls[0][0])).toContain(
-      "/api/integrations/github-app/user/sources",
+      "/api/integrations/github-app/user/projects",
     );
   });
 
-  it("rejects a request without appSourceId or repo before calling the backend", async () => {
+  it("rejects a request without projectId or repo before calling the backend", async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
 
@@ -519,7 +526,7 @@ describe("launchDeployRoute", () => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        appSourceId: 123,
+        projectId: 123,
         sourceRef: "abc1234def5678",
       }),
     });
@@ -595,7 +602,7 @@ describe("deploymentPromoteRoute", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const res = await deploymentPromoteRoute(
-      promoteReq({ deploymentId: DEPLOYMENT, appSourceId: 99 }),
+      promoteReq({ deploymentId: DEPLOYMENT, projectId: 99 }),
     );
 
     expect(res.status).toBe(404);
@@ -630,14 +637,14 @@ describe("deploymentPromoteRoute", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const res = await deploymentPromoteRoute(
-      promoteReq({ deploymentId: DEPLOYMENT, appSourceId: 99 }),
+      promoteReq({ deploymentId: DEPLOYMENT, projectId: 99 }),
     );
 
     expect(res.status).toBe(401);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("requires appSourceId so the promote target can be authorized", async () => {
+  it("requires projectId so the promote target can be authorized", async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
 
@@ -647,7 +654,7 @@ describe("deploymentPromoteRoute", () => {
     const body = await res.json();
 
     expect(res.status).toBe(400);
-    expect(body.error).toContain("appSourceId");
+    expect(body.error).toContain("projectId");
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -656,7 +663,7 @@ describe("deploymentPromoteRoute", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const res = await deploymentPromoteRoute(
-      promoteReq({ deploymentId: DEPLOYMENT, appSourceId: 99 }),
+      promoteReq({ deploymentId: DEPLOYMENT, projectId: 99 }),
     );
     const body = await res.json();
 
@@ -673,7 +680,7 @@ describe("deploymentPromoteRoute", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const res = await deploymentPromoteRoute(
-      promoteReq({ deploymentId: DEPLOYMENT, appSourceId: 99 }),
+      promoteReq({ deploymentId: DEPLOYMENT, projectId: 99 }),
     );
     const body = await res.json();
 
@@ -692,7 +699,7 @@ describe("deploymentPromoteRoute", () => {
       .fn()
       .mockResolvedValueOnce(ownedSources(99))
       .mockResolvedValueOnce(appRecords(DEPLOYMENT))
-      // sourceDeploymentPairs re-reads the same DB records to derive the
+      // projectDeploymentPairs re-reads the same DB records to derive the
       // secret-gate pairs.
       .mockResolvedValueOnce(appRecords(DEPLOYMENT))
       .mockResolvedValueOnce(latestDeploymentResponse("aomi-labs/community"))
@@ -710,7 +717,7 @@ describe("deploymentPromoteRoute", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const res = await deploymentPromoteRoute(
-      promoteReq({ deploymentId: DEPLOYMENT, appSourceId: 99 }),
+      promoteReq({ deploymentId: DEPLOYMENT, projectId: 99 }),
     );
     const body = await res.json();
 
@@ -769,7 +776,7 @@ describe("deploymentPromoteRoute", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const res = await deploymentPromoteRoute(
-      promoteReq({ deploymentId: DEPLOYMENT, appSourceId: 99 }),
+      promoteReq({ deploymentId: DEPLOYMENT, projectId: 99 }),
     );
 
     expect(res.status).toBe(409);
@@ -812,7 +819,7 @@ describe("deploymentPromoteRoute", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const res = await deploymentPromoteRoute(
-      promoteReq({ deploymentId: DEPLOYMENT, appSourceId: 99 }),
+      promoteReq({ deploymentId: DEPLOYMENT, projectId: 99 }),
     );
     const body = await res.json();
 
@@ -823,14 +830,14 @@ describe("deploymentPromoteRoute", () => {
 
   it("gates promote by the authorized DB records, not a size-limited deployments listing (regression)", async () => {
     // Regression for the bypass where the secret gate derived its pairs from
-    // listUserSourceDeployments (limit: 100) — a different, size-limited
+    // listUserProjectDeployments (limit: 100) — a different, size-limited
     // source than the ownership check (listDeploymentRecords, no limit). A
     // deployment authorized via the records but absent from that limited
     // listing yielded empty pairs and silently skipped the 409. This
     // deployment IS authorized (present in the records used for ownership,
     // same as `known`), so it must now fail closed on its unfilled required
     // secret — and promote must never be called. Note there is no
-    // listUserSourceDeployments stub anywhere here: the fixed route never
+    // listUserProjectDeployments stub anywhere here: the fixed route never
     // calls it for promote.
     vi.stubEnv("GITHUB_TOKEN", "gh-token");
     const fetchMock = vi
@@ -869,7 +876,7 @@ describe("deploymentPromoteRoute", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const res = await deploymentPromoteRoute(
-      promoteReq({ deploymentId: DEPLOYMENT, appSourceId: 99 }),
+      promoteReq({ deploymentId: DEPLOYMENT, projectId: 99 }),
     );
 
     expect(res.status).toBe(409);
@@ -921,13 +928,13 @@ describe("redeployLaunchRoute", () => {
       );
     vi.stubGlobal("fetch", fetchMock);
 
-    const res = await redeployLaunchRoute(writeReq({ appSourceId: 99 }));
+    const res = await redeployLaunchRoute(writeReq({ projectId: 99 }));
     const body = await res.json();
 
     expect(res.status).toBe(200);
     expect(body).toMatchObject({
       ok: true,
-      appSourceId: 99,
+      projectId: 99,
       platformRepo: "aomi-labs/community-apps",
       ciRunId: "123456",
     });
@@ -950,7 +957,7 @@ describe("redeployLaunchRoute", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    const res = await redeployLaunchRoute(writeReq({ appSourceId: 99 }));
+    const res = await redeployLaunchRoute(writeReq({ projectId: 99 }));
     const body = await res.json();
 
     expect(res.status).toBe(409);
@@ -987,7 +994,7 @@ describe("redeployLaunchRoute", () => {
       );
     vi.stubGlobal("fetch", fetchMock);
 
-    const res = await redeployLaunchRoute(writeReq({ appSourceId: 99 }));
+    const res = await redeployLaunchRoute(writeReq({ projectId: 99 }));
     const body = await res.json();
 
     expect(res.status).toBe(409);
@@ -1023,20 +1030,20 @@ describe("deploymentDeactivateRoute", () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
     const res = await deploymentDeactivateRoute(
-      deactReq({ appSourceId: 99, apps: ["my-bot"] }),
+      deactReq({ projectId: 99, apps: ["my-bot"] }),
     );
     expect(res.status).toBe(401);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("requires appSourceId and apps", async () => {
+  it("requires projectId and apps", async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
     expect(
       (await deploymentDeactivateRoute(deactReq({ apps: ["x"] }))).status,
     ).toBe(400);
     expect(
-      (await deploymentDeactivateRoute(deactReq({ appSourceId: 99 }))).status,
+      (await deploymentDeactivateRoute(deactReq({ projectId: 99 }))).status,
     ).toBe(400);
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -1045,11 +1052,11 @@ describe("deploymentDeactivateRoute", () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(
-        Response.json({ sources: [{ id: 1, installation_id: 5 }] }),
+        Response.json({ projects: [{ id: 1, installation_id: 5 }] }),
       );
     vi.stubGlobal("fetch", fetchMock);
     const res = await deploymentDeactivateRoute(
-      deactReq({ appSourceId: 99, apps: ["my-bot"] }),
+      deactReq({ projectId: 99, apps: ["my-bot"] }),
     );
     expect(res.status).toBe(404);
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -1059,13 +1066,13 @@ describe("deploymentDeactivateRoute", () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(
-        Response.json({ sources: [{ id: 99, installation_id: 5 }] }),
+        Response.json({ projects: [{ id: 99, installation_id: 5 }] }),
       )
       .mockResolvedValueOnce(Response.json(true))
       .mockResolvedValueOnce(Response.json(true));
     vi.stubGlobal("fetch", fetchMock);
     const res = await deploymentDeactivateRoute(
-      deactReq({ appSourceId: 99, apps: ["api", "web"] }),
+      deactReq({ projectId: 99, apps: ["api", "web"] }),
     );
     const body = await res.json();
     expect(res.status).toBe(202);
@@ -1109,7 +1116,7 @@ describe("activateLaunchRoute", () => {
     vi.stubGlobal("fetch", fetchMock);
     const res = await activateLaunchRoute(
       activateReq({
-        appSourceId: 99,
+        projectId: 99,
         apps: ["my-bot"],
         releaseTags: ["apps-555-r1-my-bot-abc"],
       }),
@@ -1123,7 +1130,7 @@ describe("activateLaunchRoute", () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(activationSourceWithRepo("aomi-labs/my-bot-app"))
-      .mockResolvedValueOnce(sourceDeployments())
+      .mockResolvedValueOnce(projectDeployments())
       .mockResolvedValueOnce(latestDeploymentResponse("aomi-labs/my-bot-app"))
       .mockResolvedValueOnce(
         Response.json({
@@ -1159,7 +1166,7 @@ describe("activateLaunchRoute", () => {
 
     const res = await activateLaunchRoute(
       activateReq({
-        appSourceId: 99,
+        projectId: 99,
         apps: ["my-bot"],
         releaseTags: ["apps-555-r1-my-bot-abc"],
       }),
@@ -1179,7 +1186,7 @@ describe("activateLaunchRoute", () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(activationSourceWithRepo("aomi-labs/my-bot-app"))
-      .mockResolvedValueOnce(sourceDeployments())
+      .mockResolvedValueOnce(projectDeployments())
       .mockResolvedValueOnce(latestDeploymentResponse("aomi-labs/my-bot-app"))
       .mockResolvedValueOnce(Response.json({ by_app: {} }))
       .mockResolvedValueOnce(Response.json({ assets: [] }))
@@ -1190,7 +1197,7 @@ describe("activateLaunchRoute", () => {
 
     const res = await activateLaunchRoute(
       activateReq({
-        appSourceId: 99,
+        projectId: 99,
         apps: ["my-bot"],
         releaseTags: ["apps-555-r1-my-bot-abc"],
       }),
@@ -1200,7 +1207,7 @@ describe("activateLaunchRoute", () => {
     expect(fetchMock).toHaveBeenCalledTimes(6);
   });
 
-  it("requires appSourceId and app/tag pairs", async () => {
+  it("requires projectId and app/tag pairs", async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
     expect(
@@ -1217,7 +1224,7 @@ describe("activateLaunchRoute", () => {
       (
         await activateLaunchRoute(
           activateReq({
-            appSourceId: 99,
+            projectId: 99,
             releaseTags: ["apps-555-r1-my-bot-abc"],
           }),
         )
@@ -1227,7 +1234,7 @@ describe("activateLaunchRoute", () => {
       (
         await activateLaunchRoute(
           activateReq({
-            appSourceId: 99,
+            projectId: 99,
             apps: ["my-bot", "web"],
             releaseTags: ["apps-555-r1-my-bot-abc"],
           }),
@@ -1243,7 +1250,7 @@ describe("activateLaunchRoute", () => {
       (
         await activateLaunchRoute(
           activateReq({
-            appSourceId: 99,
+            projectId: 99,
             apps: ["my-bot"],
             releaseTags: ["apps-555-r1-my-bot-abc"],
           }),
@@ -1261,13 +1268,13 @@ describe("activateLaunchRoute", () => {
       vi
         .fn()
         .mockResolvedValueOnce(activationSource())
-        .mockResolvedValueOnce(sourceDeployments()),
+        .mockResolvedValueOnce(projectDeployments()),
     );
     expect(
       (
         await activateLaunchRoute(
           activateReq({
-            appSourceId: 99,
+            projectId: 99,
             apps: ["my-bot"],
             releaseTags: ["apps-555-r1-my-bot-wrong"],
           }),
@@ -1281,7 +1288,7 @@ describe("activateLaunchRoute", () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(activationSource())
-      .mockResolvedValueOnce(sourceDeployments())
+      .mockResolvedValueOnce(projectDeployments())
       .mockResolvedValueOnce(latestDeploymentResponse("aomi-labs/community"))
       .mockResolvedValueOnce(Response.json({ by_app: {} }))
       .mockResolvedValueOnce(Response.json({ assets: [] }))
@@ -1292,7 +1299,7 @@ describe("activateLaunchRoute", () => {
 
     const res = await activateLaunchRoute(
       activateReq({
-        appSourceId: 99,
+        projectId: 99,
         apps: ["my-bot"],
         releaseTags: ["apps-555-r1-my-bot-abc"],
       }),
@@ -1351,7 +1358,7 @@ describe("deploymentRecordsRoute", () => {
     getGitHubSession.mockReset();
   });
 
-  it("requires appSourceId ownership before listing records", async () => {
+  it("requires projectId ownership before listing records", async () => {
     getGitHubSession.mockResolvedValue({
       githubUserId: "42",
       githubLogin: "alice",
@@ -1360,7 +1367,7 @@ describe("deploymentRecordsRoute", () => {
     vi.stubGlobal("fetch", fetchMock);
     const res = await deploymentRecordsRoute(
       new Request(
-        "http://localhost:3000/api/bff/deployments/records?app=my-bot&appSourceId=99",
+        "http://localhost:3000/api/bff/deployments/records?app=my-bot&projectId=99",
       ),
     );
     expect(res.status).toBe(404);

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
-import type { UserSource, UserSourceLatestDeployment } from "@aomi-labs/deploy";
+import type { UserProject, UserProjectLatestDeployment } from "@aomi-labs/deploy";
 import { DeploymentDetail } from "./deployment-detail";
 import type { TimelineDeployment } from "../deployment-timeline";
 
@@ -18,10 +18,9 @@ const deployment: TimelineDeployment = {
 const source = {
   id: 1586,
   repositoryLink: "ceciliaz030/playground-6",
-  commitHash: "0f88b7504e07c1bf4eeafcf0d6165fc93938bb3f",
-  boundPlatformName: "community",
+  platformName: "community",
   apps: [],
-} as unknown as UserSource;
+} as unknown as UserProject;
 
 const entry = {
   deploymentId: "dep_142228159_rb87f6980b6_0f88b7504e07",
@@ -40,7 +39,7 @@ const entry = {
       artifactReady: true,
     },
   ],
-} as unknown as UserSourceLatestDeployment;
+} as unknown as UserProjectLatestDeployment;
 
 function renderDetail(
   overrides: Partial<React.ComponentProps<typeof DeploymentDetail>> = {},
@@ -69,10 +68,10 @@ describe("DeploymentDetail", () => {
       screen.getByRole("link", { name: /ceciliaz030\/playground-6$/i }),
     ).toHaveAttribute("href", "https://github.com/ceciliaz030/playground-6");
 
-    // Short commit links to the full source commit; full hash shown beneath.
+    // The project feed preserves the immutable short source commit.
     expect(screen.getByRole("link", { name: "0f88b7504e07" })).toHaveAttribute(
       "href",
-      "https://github.com/ceciliaz030/playground-6/commit/0f88b7504e07c1bf4eeafcf0d6165fc93938bb3f",
+      "https://github.com/ceciliaz030/playground-6/commit/0f88b7504e07",
     );
 
     // Outdated SDK carries the required-version pill.
@@ -127,7 +126,7 @@ describe("DeploymentDetail", () => {
         ...entry,
         state: "building",
         apps: entry.apps.map((app) => ({ ...app, artifactReady: false })),
-      } as UserSourceLatestDeployment,
+      } as UserProjectLatestDeployment,
     });
 
     expect(screen.getByText(/waiting on platform ci/i)).toBeInTheDocument();

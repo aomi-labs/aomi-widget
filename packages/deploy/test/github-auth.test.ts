@@ -74,7 +74,7 @@ describe("createGitHubSessionCodec", () => {
   it("reads the session from a request cookie header", async () => {
     const c = codec();
     const token = await c.issue({ githubUserId: "42", githubLogin: "alice" });
-    const req = new Request("http://localhost:3000/api/bff/launch/sources", {
+    const req = new Request("http://localhost:3000/api/bff/launch/projects", {
       headers: { cookie: `other=1; aomi_github=${encodeURIComponent(token)}` },
     });
     const session = await c.fromRequest(req);

@@ -4,8 +4,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 
 vi.mock("@build/features/launch/client", () => ({
-  deploymentSources: vi.fn(async () => ({
-    sources: [
+  deploymentProjects: vi.fn(async () => ({
+    projects: [
       {
         id: 1,
         repositoryLink: "ceciliaz030/my-aomi-bots",
@@ -27,7 +27,7 @@ vi.mock("@build/features/launch/client", () => ({
         releaseTags: ["apps-141779906-r229e1090c5-geckoterminal-cb7227310237"],
         sdkVersion: "3.0.1",
         createdAt: 1,
-        sourceId: 1,
+        projectId: 1,
         repositoryLink: "ceciliaz030/my-aomi-bots",
         apps: [
           {
@@ -87,7 +87,7 @@ describe("useGlobalDeploymentRecords", () => {
         current: true,
         apps: ["geckoterminal"],
         createdAt: 1,
-        sourceId: 1,
+        projectId: 1,
         repositoryLink: "ceciliaz030/my-aomi-bots",
       },
     ]);

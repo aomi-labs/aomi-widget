@@ -38,7 +38,7 @@ function render(ui: ReactElement) {
 
 const payload = {
   detail: {
-    source: { id: 1586, repositoryLink: "https://github.com/aomi/demo" },
+    project: { id: 1586, repositoryLink: "https://github.com/aomi/demo" },
     platform: "community",
     windowSeconds: 86400,
     app: {

@@ -15,10 +15,10 @@ const TABS = [
 ] as const;
 type TabId = (typeof TABS)[number]["id"];
 
-export function ProjectPage({ sourceId }: { sourceId: number }) {
+export function ProjectPage({ projectId }: { projectId: number }) {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const detail = useProjectDetail(sourceId);
+  const detail = useProjectDetail(projectId);
   const raw = searchParams.get("tab");
   const active: TabId = TABS.some((t) => t.id === raw)
     ? (raw as TabId)
@@ -43,7 +43,7 @@ export function ProjectPage({ sourceId }: { sourceId: number }) {
               type="button"
               aria-selected={active === tab.id}
               onClick={() =>
-                router.push(`/deployments/${sourceId}?tab=${tab.id}`)
+                router.push(`/deployments/${projectId}?tab=${tab.id}`)
               }
               className={`h-7 rounded px-2.5 text-xs font-medium ${
                 active === tab.id

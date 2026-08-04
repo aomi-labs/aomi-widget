@@ -31,17 +31,17 @@ export interface AuditEvent {
     | "mint_token"
     | "list_tokens"
     | "revoke_token"
-    | "sync_source"
+    | "create_project"
     | "scaffold"
     | "list_apps"
     | "get_app"
     | "exchange_github_code"
-    | "list_user_sources"
+    | "list_user_projects"
     | "list_user_deployments"
-    | "list_user_source_deployments"
-    | "list_user_source_bots"
-    | "create_user_source_bot"
-    | "delete_user_source_bot"
+    | "list_user_project_deployments"
+    | "list_user_project_bots"
+    | "create_user_project_bot"
+    | "delete_user_project_bot"
     | "list_user_bots"
     | "create_user_bot"
     | "update_user_bot"
@@ -50,27 +50,27 @@ export interface AuditEvent {
     | "save_builder_model_key"
     | "delete_builder_model_key"
     | "set_model_key_grants"
-    | "list_user_source_transactions"
-    | "get_user_source_usage"
-    | "get_user_source_statement"
-    | "list_user_source_logs"
-    | "get_user_source_observability"
+    | "list_user_project_transactions"
+    | "get_user_project_usage"
+    | "get_user_project_statement"
+    | "list_user_project_logs"
+    | "get_user_project_observability"
     | "get_user_observability"
     | "get_user_payments"
     | "list_user_transactions"
     | "get_user_statement"
     | "get_user_usage"
     | "list_user_logs"
-    | "get_user_source_app_detail"
-    | "upgrade_user_source_sdk"
-    | "get_source_sdk_upgrade_status"
+    | "get_user_project_app_detail"
+    | "upgrade_user_project_sdk"
+    | "get_project_sdk_upgrade_status"
     | "list_deployment_records"
-    | "get_user_source_latest_deployment"
-    | "get_user_source_required_secrets"
+    | "get_user_project_latest_deployment"
+    | "get_user_project_required_secrets"
     | "deactivate"
     | "ingest_secrets";
   platform?: string;
-  appSourceId?: number;
+  projectId?: number;
   apps?: string[];
   targetTags?: string[];
   /** Token scope for `mint_token`. */
@@ -102,8 +102,8 @@ export interface IngestSecretsInput extends BearerOverride {
   /** GitHub user id used as the only owner scope for app secret vault entries. */
   githubUserId: string;
   app: string;
-  /** Optional portal source row id used to scope list/delete surfaces. */
-  sourceId?: string;
+  /** Optional project id used to scope list/delete surfaces. */
+  projectId?: string;
   secrets: Record<string, string>;
 }
 
@@ -116,15 +116,15 @@ export interface ListAppSecretsInput extends BearerOverride {
   githubUserId: string;
   /** When present, only this app's handles are returned. */
   app?: string;
-  /** When present, only this source's handles are returned. */
-  sourceId?: string;
+  /** When present, only this project's handles are returned. */
+  projectId?: string;
 }
 
 export interface RemoveAppSecretInput extends BearerOverride {
   /** GitHub user id used as the only owner scope for app secret vault entries. */
   githubUserId: string;
   app: string;
-  sourceId?: string;
+  projectId?: string;
   name: string;
 }
 
@@ -147,15 +147,16 @@ export type SourceRef = string;
 
 export interface DeployInput {
   platform: string;
-  /** Connected GitHub App source row selected for this deploy. */
-  appSourceId: number;
+  /** Platform-bound project selected for this deploy. */
+  projectId: number;
   sourceRef: SourceRef;
-  /** Optional explicit manifests. Empty/omitted lets the backend discover every aomi.toml. */
-  aomiTomlPaths?: string[];
   actor?: string;
 }
 
-export interface PreflightInput extends DeployInput {}
+export interface PreflightInput extends Omit<DeployInput, "sourceRef"> {
+  /** Omit to preflight the project's current default head. */
+  sourceRef?: SourceRef;
+}
 
 export type DeployStatus =
   | "preflight"
@@ -184,7 +185,6 @@ export interface Source {
   ownerRepoName?: string;
   ref: SourceRef;
   commitHash: string;
-  aomiTomlPaths: string[];
 }
 
 export interface Platform {
@@ -402,29 +402,25 @@ export interface RevokeTokenInput extends BearerOverride {
   id: number;
 }
 
-// ── App sources (POST sync-installed / GET resolve / POST create-from-template)
+// ── Projects (POST create / POST create-from-template) ─────────────────────
 
-export interface AppSource {
+export interface Project {
   id: number;
   installationId: number;
-  repositoryId: number | null;
-  repositoryLink: string | null;
-  sourceRef: SourceRef | null;
-  commitHash: string | null;
-  githubAccount: string | null;
-  githubUserId: number | null;
-  boundPlatformId: number | null;
-  boundPlatformName?: string | null;
-  createdBy?: string | null;
-  templateRepo?: string | null;
+  repositoryId: number;
+  repositoryLink: string;
+  platformId: number;
+  ownerBuilderId: number;
+  createdAt: number;
+  updatedAt: number;
 }
 
-export interface SyncSourceInput extends BearerOverride {
+export interface CreateProjectInput extends BearerOverride {
   platform: string;
   /** `owner/name` of a repo already installed on the Aomi GitHub App. */
   repo: string;
-  /** Signed-in GitHub user id to bind this existing source to, when known. */
-  githubUserId?: string;
+  /** Signed-in GitHub user that owns the project. */
+  githubUserId: string;
 }
 
 export interface ScaffoldInput extends BearerOverride {
@@ -486,7 +482,7 @@ export interface PlatformApp {
   platform: string | null;
   isActive: boolean;
   isPublic: boolean;
-  appSourceId: number | null;
+  projectId: number | null;
   appReleaseTag: string | null;
   targetTags: string[];
   loaded: boolean;
@@ -516,32 +512,32 @@ export interface GitHubIdentity {
   installationId: string | null;
 }
 
-export interface ListUserSourcesInput extends BearerOverride {
+export interface ListUserProjectsInput extends BearerOverride {
   githubUserId: string;
   platform?: string;
 }
 
-export interface GetUserSourceLatestDeploymentInput extends BearerOverride {
+export interface GetUserProjectLatestDeploymentInput extends BearerOverride {
   githubUserId: string;
   platform: string;
-  appSourceId: number;
+  projectId: number;
 }
 
-/** DB-backed declarations for the source's currently live app releases. */
-export interface GetUserSourceRequiredSecretsInput extends BearerOverride {
+/** DB-backed declarations for the project's currently live app releases. */
+export interface GetUserProjectRequiredSecretsInput extends BearerOverride {
   githubUserId: string;
   platform: string;
-  appSourceId: number;
+  projectId: number;
 }
 
-export interface UserSourceRequiredSecretsResult {
+export interface UserProjectRequiredSecretsResult {
   byApp: Record<string, { slots: SecretSlot[] }>;
 }
 
-export interface ListUserSourceDeploymentsInput extends BearerOverride {
+export interface ListUserProjectDeploymentsInput extends BearerOverride {
   githubUserId: string;
   platform: string;
-  appSourceId: number;
+  projectId: number;
   limit?: number;
 }
 
@@ -552,7 +548,6 @@ export interface UserDeploymentsCursor {
 
 export interface ListUserDeploymentsInput extends BearerOverride {
   githubUserId: string;
-  platform: string;
   limit?: number;
   cursor?: UserDeploymentsCursor | null;
 }
@@ -571,14 +566,14 @@ export interface ListDeploymentRecordsInput extends BearerOverride {
   platform: string;
   app: string;
   /** Disambiguates same-named apps across sources on one platform. */
-  appSourceId?: number;
+  projectId?: number;
 }
 
 export interface DeactivateAppInput extends BearerOverride {
   platform: string;
   app: string;
   /** Disambiguates same-named apps across sources on one platform. */
-  appSourceId?: number;
+  projectId?: number;
   actor?: string;
 }
 
@@ -588,20 +583,20 @@ export interface ListDeploymentRecordsResult {
   records: DeploymentRecord[];
 }
 
-export interface UserSourceDeploymentApp {
+export interface UserProjectDeploymentApp {
   name: string;
   releaseTag: string | null;
   sdkVersion?: string | null;
   target?: string | null;
   applicationId?: number | null;
-  appSourceId?: number | null;
+  projectId?: number | null;
   appReleaseTag?: string | null;
   isActive?: boolean;
   artifactReady?: boolean | null;
   loaded?: boolean;
 }
 
-export interface UserSourceLatestDeployment {
+export interface UserProjectLatestDeployment {
   deploymentId: string | null;
   state: string | null;
   deployBranch: string | null;
@@ -617,12 +612,12 @@ export interface UserSourceLatestDeployment {
   /** Epoch seconds of the deploy request (`created_at`); null on legacy
    *  records that predate the timestamp. */
   createdAt?: number | null;
-  apps: UserSourceDeploymentApp[];
+  apps: UserProjectDeploymentApp[];
 }
 
-export interface UserDeployment extends UserSourceLatestDeployment {
-  sourceId: number;
-  repositoryLink: string | null;
+export interface UserDeployment extends UserProjectLatestDeployment {
+  projectId: number;
+  repositoryLink: string;
 }
 
 export interface UserDeploymentsPage {
@@ -630,21 +625,21 @@ export interface UserDeploymentsPage {
   nextCursor: UserDeploymentsCursor | null;
 }
 
-/** A source repo plus the applications deployed from it. */
-export interface UserSource extends AppSource {
+/** A platform-bound project plus its applications. */
+export interface UserProject extends Project {
+  platformName: string | null;
   apps: PlatformApp[];
-  latestDeployment?: UserSourceLatestDeployment | null;
-  /** SDK version of the source's live app, from the DB promotion records
-   *  (populated in the source list without a GitHub read). */
+  latestDeployment?: UserProjectLatestDeployment | null;
+  /** SDK version of the project's live app, from DB promotion records. */
   sdkVersion?: string | null;
-  /** All distinct SDK versions running across this source's live apps. */
+  /** All distinct SDK versions running across this project's live apps. */
   sdkVersions?: string[];
 }
 
-export interface OwnedOperateSourceInput extends BearerOverride {
+export interface OwnedOperateProjectInput extends BearerOverride {
   githubUserId: string;
   platform: string;
-  appSourceId: number;
+  projectId: number;
 }
 
 /** Account-wide observability batch. Without `platform`, the manager reports
@@ -653,7 +648,7 @@ export interface GetUserObservabilityInput extends BearerOverride {
   githubUserId: string;
   platform?: string;
   /** Optional source narrowing for an observability deep link. */
-  appSourceId?: number;
+  projectId?: number;
 }
 
 export interface GetUserPaymentsInput extends GetUserObservabilityInput {}
@@ -683,11 +678,11 @@ export interface ListUserLogsInput extends UserOperateBatchInput {
   type?: "deployment" | "usage" | "transaction" | string;
 }
 
-export interface GetUserSourceAppDetailInput extends OwnedOperateSourceInput {
+export interface GetUserProjectAppDetailInput extends OwnedOperateProjectInput {
   applicationId: number;
 }
 
-export type SourceSdkUpgradeResult =
+export type ProjectSdkUpgradeResult =
   | {
       status: "current";
       requiredSdkVersion: string;
@@ -715,11 +710,11 @@ export type SourceSdkUpgradeResult =
 
 /**
  * Cheap read-only merge poll for the upgrade PR opened by an earlier
- * `upgradeUserSourceSdk` call. `merged` is terminal (redeploy from the merged
+ * `upgradeUserProjectSdk` call. `merged` is terminal (redeploy from the merged
  * default branch); `open` means keep polling; `closed`/`none` mean the PR is
  * gone, so re-run the upgrade to recreate it.
  */
-export type SourceSdkUpgradeStatusResult = {
+export type ProjectSdkUpgradeStatusResult = {
   status: "merged" | "open" | "closed" | "none";
   requiredSdkVersion: string;
   branch: string;
@@ -731,18 +726,18 @@ export type SourceSdkUpgradeStatusResult = {
   } | null;
 };
 
-export interface ListUserSourceTransactionsInput extends OwnedOperateSourceInput {
+export interface ListUserProjectTransactionsInput extends OwnedOperateProjectInput {
   cursor?: OperateTransactionCursor | string | null;
   limit?: number;
   status?: string;
 }
 
-export interface GetUserSourceUsageInput extends OwnedOperateSourceInput {
+export interface GetUserProjectUsageInput extends OwnedOperateProjectInput {
   fromDate?: string;
   toDate?: string;
 }
 
-export interface ListUserSourceLogsInput extends OwnedOperateSourceInput {
+export interface ListUserProjectLogsInput extends OwnedOperateProjectInput {
   cursor?: OperateLogCursor | string | null;
   limit?: number;
   type?: "deployment" | "usage" | "transaction" | string;
@@ -776,8 +771,8 @@ export interface BotRegistration {
 
 export interface BotRegistrationApp {
   applicationId: number;
-  appSourceId: number | null;
-  sourceLabel: string | null;
+  projectId: number | null;
+  projectLabel: string | null;
   name: string;
   label: string;
   platform: string | null;
@@ -789,7 +784,11 @@ export interface OwnedOperateInput extends BearerOverride {
   platform: string;
 }
 
-export interface CreateUserBotInput extends OwnedOperateInput {
+export interface BuilderBotsInput extends BearerOverride {
+  githubUserId: string;
+}
+
+export interface CreateUserBotInput extends BuilderBotsInput {
   applicationIds: number[];
   primaryApplicationId: number;
   botPlatform: string;
@@ -798,7 +797,7 @@ export interface CreateUserBotInput extends OwnedOperateInput {
   threadMode?: string;
 }
 
-export interface UpdateUserBotInput extends OwnedOperateInput {
+export interface UpdateUserBotInput extends BuilderBotsInput {
   botId: string;
   applicationIds: number[];
   primaryApplicationId: number;
@@ -808,11 +807,11 @@ export interface UpdateUserBotInput extends OwnedOperateInput {
   threadMode?: string;
 }
 
-export interface DeleteUserBotInput extends OwnedOperateInput {
+export interface DeleteUserBotInput extends BuilderBotsInput {
   botId: string;
 }
 
-export interface CreateUserSourceBotInput extends OwnedOperateSourceInput {
+export interface CreateUserProjectBotInput extends OwnedOperateProjectInput {
   applicationId: number;
   /** The bot's platform (e.g. "telegram") — distinct from `platform`, which
    *  is the deploy platform (e.g. "community"). Maps to the request body's
@@ -878,7 +877,7 @@ export interface SetModelKeyGrantsInput extends BuilderModelKeysInput {
   applicationIds: number[];
 }
 
-export interface DeleteUserSourceBotInput extends OwnedOperateSourceInput {
+export interface DeleteUserProjectBotInput extends OwnedOperateProjectInput {
   botId: string;
 }
 
@@ -925,27 +924,27 @@ export interface OperateTransaction {
 }
 
 export interface OperateTransactionsResult {
-  source: AppSource;
+  project: Project;
   platform: string;
   transactions: OperateTransaction[];
   nextCursor: OperateTransactionCursor | null;
 }
 
 /** One owned source and the platform it resolves under, from a batch read. */
-export interface UserSourceRef {
-  source: AppSource;
+export interface UserProjectRef {
+  project: Project;
   platform: string;
 }
 
 /** A batch row is the single-source row plus which source it belongs to. */
 export type UserTransactionRow = OperateTransaction & {
-  appSourceId: number | null;
+  projectId: number | null;
   platform: string | null;
 };
 
 /** Account-wide transactions page: one merged newest-first stream. */
 export interface UserTransactionsResult {
-  sources: UserSourceRef[];
+  projects: UserProjectRef[];
   transactions: UserTransactionRow[];
   nextCursor: OperateTransactionCursor | null;
 }
@@ -970,14 +969,14 @@ export interface OperateUsageBreakdownRow {
 }
 
 export interface OperateUsageResult {
-  source: AppSource;
+  project: Project;
   platform: string;
   range: { fromDate: string; toDate: string; maxDays: number };
   daily: OperateUsageDailyRow[];
   breakdown: OperateUsageBreakdownRow[];
 }
 
-// Statement contract — mirrors the manager's `/user/sources/:id/statement`
+// Statement contract — mirrors the manager's `/user/projects/:id/statement`
 // endpoint (bank-statement model: Aomi's statement to the builder, one
 // document, entries of both signs). Charges (`model`, `hosting` subjects)
 // carry negative net; earnings (`tool_invocation`, `outcome`) positive.
@@ -1076,7 +1075,7 @@ export interface OperatePartnerPayments {
 }
 
 export interface OperateStatementResult {
-  source: AppSource;
+  project: Project;
   platform: string;
   range: { fromDate: string; toDate: string };
   /** False when statement_entries isn't migrated yet — fall back to the meter. */
@@ -1118,7 +1117,7 @@ export interface OperateLogEntry {
 }
 
 export interface OperateLogsResult {
-  source: AppSource;
+  project: Project;
   platform: string;
   logs: OperateLogEntry[];
   nextCursor: OperateLogCursor | null;
@@ -1126,13 +1125,13 @@ export interface OperateLogsResult {
 
 /** A batch log row names its source; shared partner settlements carry null. */
 export type UserLogRow = OperateLogEntry & {
-  appSourceId: number | null;
+  projectId: number | null;
   platform: string | null;
 };
 
 /** Account-wide logs page: one merged newest-first stream. */
 export interface UserLogsResult {
-  sources: UserSourceRef[];
+  projects: UserProjectRef[];
   logs: UserLogRow[];
   nextCursor: OperateLogCursor | null;
   invocationsAvailable: boolean;
@@ -1195,7 +1194,7 @@ export interface OperateMonitoringStatus {
 }
 
 export interface OperateObservabilityResult {
-  source: AppSource;
+  project: Project;
   platform: string;
   scope: "owned_applications" | string;
   monitoring?: OperateMonitoringStatus | null;
@@ -1211,8 +1210,8 @@ export type OperateObservabilitySnapshot = Omit<
   "payments"
 >;
 
-export interface OperatePaymentSourceResult {
-  source: AppSource;
+export interface OperatePaymentProjectResult {
+  project: Project;
   payments: OperatePartnerPayments;
 }
 
@@ -1229,7 +1228,7 @@ export interface OperateAppDetailTool {
 }
 
 export interface OperateAppDetailResult {
-  source: AppSource;
+  project: Project;
   platform: string;
   windowSeconds: number;
   app: {

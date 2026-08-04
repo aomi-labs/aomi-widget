@@ -6,7 +6,7 @@ import {
 
 const livePayload = (): LiveAppDetailPayload => ({
   detail: {
-    source: {
+    project: {
       id: 1586,
       repositoryLink: "https://github.com/aomi/real-app",
       repositoryOwner: "aomi",

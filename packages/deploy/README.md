@@ -99,14 +99,14 @@ import { createLaunchClient } from "@aomi-labs/deploy/launch";
 
 const launch = createLaunchClient(); // defaults to /api/bff/launch + /api/bff/auth/github
 const { deployment, releaseTags, apps } = await launch.deploy({
-  appSourceId,
+  projectId,
   sourceRef,
 });
 
 await launch.watch({ deploymentId: deployment.id }, (event) => {
   setProgress(event.progress); // { completed, total, label }
 });
-await launch.activate({ appSourceId, releaseTags, apps });
+await launch.activate({ projectId, releaseTags, apps });
 ```
 
 See the [`aomi-deploy` skill](skills/aomi-deploy/SKILL.md) for the full flow,
@@ -231,7 +231,7 @@ fatal, keeps `completed` monotonic so progress never jumps backwards, and
 exactly one code path:
 
 ```ts
-const { deployment } = await launch.deploy({ appSourceId, sourceRef });
+const { deployment } = await launch.deploy({ projectId, sourceRef });
 
 await launch.watch({ deploymentId: deployment.id }, (event) => {
   setProgress(event.progress);            // { completed, total, label }
@@ -248,14 +248,14 @@ Cancel with `{ signal }` from an `AbortController` when the component unmounts.
   router's searchParams value (trims; repeated params mean "no platform").
 - `LaunchState.platform` — the persisted wizard state records which platform
   its progress belongs to. Reset the wizard when the page's platform differs:
-  reusing a cached `appSourceId` from one platform inside another would route
+  reusing a cached `projectId` from one platform inside another would route
   writes to the wrong place.
 
 ```ts
 import { loadLaunch } from "@aomi-labs/deploy/launch";
 
 // Scoped load: progress saved under another platform is discarded rather than
-// returned, so a stale appSourceId can never route a write to the wrong place.
+// returned, so a stale projectId can never route a write to the wrong place.
 const state = loadLaunch(PLATFORM);
 ```
 
@@ -274,22 +274,22 @@ same handler, so there is one method.
 
 ### `preflight()`
 
-Calls `POST /api/platforms/:platform/deploy` with `app_source_id`, `source_ref`,
-optional `aomi_toml_paths`, and `preflight: true`. Returns the deployment
-record without opening or updating the platform PR. Use this to render
+Calls `POST /api/platforms/:platform/deploy` with the source identity, optional
+root `.aomi/config.json`, and `preflight: true`. Returns the deployment record
+without opening or updating the platform PR. Use this to render
 `deployment.json` before the user applies.
 
 ### `deploy()`
 
-Calls `POST /api/platforms/:platform/deploy` with `app_source_id`, `source_ref`,
-and optional `aomi_toml_paths`. This is the apply step: it writes the platform
-deployment branch/PR when needed and starts the CI path.
+Calls `POST /api/platforms/:platform/deploy` with the source identity and root
+`.aomi/config.json`. This is the apply step: it writes the platform deployment
+branch/PR when needed and starts the CI path.
 
 `sourceRef` must be the immutable git commit SHA to deploy. Resolve branches or
 tags before calling the client; the backend does not accept mutable refs.
 
-`aomiTomlPaths` may be omitted to let the backend discover every `aomi.toml` in
-the source commit.
+`projectConfig` may be omitted from preflight while the backend transition is
+in progress. Deploy should reuse the configuration returned by preflight.
 
 ### `activate()`
 
@@ -329,11 +329,11 @@ commands. Each maps 1:1 onto a `/api/platforms/*` route.
 | -------------------------------- | ------------------------------------------------------------------------------ | ---------------------------------------------------------------------- |
 | `mintToken()`                    | `POST /:p/tokens`                                                              | mint a `platform` or `app` activation token (plaintext returned once)  |
 | `listTokens()` / `revokeToken()` | `GET` / `DELETE /:p/tokens[/:id]`                                              | token lifecycle                                                         |
-| `syncSource()`                   | `POST /:p/sources/sync-installed`                                              | resolve an installed repo → `appSourceId` for deploy                    |
-| `scaffold()`                     | `POST /api/integrations/github-app/platforms/:p/sources/create-from-template`  | one-shot: create a repo from a template → source                        |
+| `createProject()`                   | `POST /:p/projects/sync-installed`                                              | resolve an installed repo → `projectId` for deploy                    |
+| `scaffold()`                     | `POST /api/integrations/github-app/platforms/:p/projects/create-from-template`  | one-shot: create a repo from a template → source                        |
 | `listApps()` / `getApp()`        | `GET /:p/apps[/:app]`                                                          | inventory loaded apps (find `app_id` for app-scoped tokens)             |
 | `exchangeGitHubCode()`           | `GET /api/integrations/github-app/oauth/exchange`                              | GitHub OAuth code → identity (sign-in seam)                             |
-| `listUserSources()`              | `GET /api/integrations/github-app/user/sources`                                | a GitHub user's connected source repos + their apps                     |
+| `listUserProjects()`              | `GET /api/integrations/github-app/user/projects`                                | a GitHub user's connected source repos + their apps                     |
 
 ### Credential model
 
@@ -373,15 +373,15 @@ const { token } = await dc.mintToken({
 const client = new DeploymentClient({
   aomi: { backendUrl: process.env.AOMI_BACKEND_URL!, activationToken: token },
 });
-const { id } = await client.syncSource({
+const { id } = await client.createProject({
   platform: "playground",
   repo: "alice/alice-bot",
 });
 await client.deploy({
   platform: "playground",
-  appSourceId: id,
+  projectId: id,
   sourceRef: process.env.AOMI_SOURCE_REF!,
-  aomiTomlPaths: ["aomi.toml"],
+  projectConfig: { version: 1, applications: ["aomi.toml"] },
 });
 ```
 
@@ -432,10 +432,10 @@ ones you'll touch first:
 ```ts
 interface DeployInput {
   platform: string;
-  appSourceId: number;
+  projectId: number;
   /** Immutable git commit SHA. Branch names are rejected by the backend. */
   sourceRef: string;
-  aomiTomlPaths?: string[];
+  projectConfig?: { version: 1; applications: string[] };
   actor?: string;
 }
 
@@ -483,14 +483,14 @@ const dc = new DeploymentClient({
 
 const preview = await dc.preflight({
   platform: "community",
-  appSourceId: 42,
+  projectId: 42,
   sourceRef: process.env.AOMI_SOURCE_REF!,
 });
 console.log(JSON.stringify(preview.deployment, null, 2));
 
 const { deployment } = await dc.deploy({
   platform: "community",
-  appSourceId: 42,
+  projectId: 42,
   sourceRef: process.env.AOMI_SOURCE_REF!,
 });
 
@@ -513,7 +513,7 @@ packages/deploy/test/
   bootstrap.test.ts            — tokens, sources, scaffold, apps
   activation-request.test.ts   — request construction
   watch-deployment.pbt.test.ts — property-based backoff/timeout
-  launch-routes.test.ts        — BFF factory: deploy/preflight/status/redeploy/sources
+  launch-routes.test.ts        — BFF factory: deploy/preflight/status/redeploy/projects
   launch-config.test.ts        — APP_DEPLOY_* env resolution
   github-auth.test.ts          — session codec + sign-in routes
   launch-state.test.ts         — wizard state machine

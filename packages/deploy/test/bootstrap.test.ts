@@ -151,7 +151,7 @@ describe("DeploymentClient bootstrap — tokens", () => {
   });
 });
 
-describe("DeploymentClient bootstrap — sources", () => {
+describe("DeploymentClient bootstrap — projects", () => {
   let fetchMock: ReturnType<typeof vi.fn>;
   beforeEach(() => {
     fetchMock = vi.fn();
@@ -159,53 +159,50 @@ describe("DeploymentClient bootstrap — sources", () => {
   });
   afterEach(() => vi.unstubAllGlobals());
 
-  const sourceBody = {
+  const projectBody = {
     ok: true,
-    source: {
+    project: {
       id: 99,
       installation_id: 555,
       repository_id: 111,
       repository_link: "https://github.com/alice/alice-bot",
-      source_ref: "abc1234def5678",
-      commit_hash: "abc1234def5678",
-      github_account: "alice",
-      github_user_id: 222,
-      bound_platform_id: 3,
+      platform_id: 3,
+      owner_builder_id: 222,
+      created_at: 1,
+      updated_at: 2,
     },
   };
 
-  it("syncs an installed source and maps to camelCase", async () => {
-    jsonOnce(fetchMock, sourceBody);
-    const src = await client({ activationToken: "plat-tok" }).syncSource({
+  it("creates an installed project and maps to camelCase", async () => {
+    jsonOnce(fetchMock, projectBody);
+    const src = await client({ activationToken: "plat-tok" }).createProject({
       platform: "playground",
       repo: "alice/alice-bot",
+      githubUserId: "222",
     });
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe(
-      "https://staging-api.example.com/api/platforms/playground/sources/sync-installed",
+      "https://staging-api.example.com/api/platforms/playground/projects",
     );
     expect(JSON.parse((init as RequestInit).body as string)).toEqual({
       repo: "alice/alice-bot",
+      github_user_id: "222",
     });
     expect(src).toEqual({
       id: 99,
       installationId: 555,
       repositoryId: 111,
       repositoryLink: "https://github.com/alice/alice-bot",
-      sourceRef: "abc1234def5678",
-      commitHash: "abc1234def5678",
-      githubAccount: "alice",
-      githubUserId: 222,
-      boundPlatformId: 3,
-      boundPlatformName: null,
-      createdBy: null,
-      templateRepo: null,
+      platformId: 3,
+      ownerBuilderId: 222,
+      createdAt: 1,
+      updatedAt: 2,
     });
   });
 
   it("binds an installed source to the signed-in GitHub user when provided", async () => {
-    jsonOnce(fetchMock, sourceBody);
-    await client({ activationToken: "plat-tok" }).syncSource({
+    jsonOnce(fetchMock, projectBody);
+    await client({ activationToken: "plat-tok" }).createProject({
       platform: "playground",
       repo: "alice/alice-bot",
       githubUserId: "222",
@@ -219,7 +216,7 @@ describe("DeploymentClient bootstrap — sources", () => {
   });
 
   it("scaffolds from the caller-provided template and maps the source", async () => {
-    jsonOnce(fetchMock, sourceBody);
+    jsonOnce(fetchMock, projectBody);
     const src = await client({ activationToken: "plat-tok" }).scaffold({
       platform: "playground",
       installationId: 555,
@@ -229,7 +226,7 @@ describe("DeploymentClient bootstrap — sources", () => {
     });
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe(
-      "https://staging-api.example.com/api/integrations/github-app/platforms/playground/sources/create-from-template",
+      "https://staging-api.example.com/api/integrations/github-app/platforms/playground/projects/create-from-template",
     );
     expect(JSON.parse((init as RequestInit).body as string)).toEqual({
       installation_id: 555,
@@ -259,7 +256,7 @@ describe("DeploymentClient bootstrap — apps", () => {
           label: "My Bot",
           is_active: true,
           is_public: true,
-          app_source_id: 99,
+          project_id: 99,
           app_release_tag: "apps-555-r1-my-bot-abc1234",
           target_tags: ["staging"],
           loaded: true,
@@ -276,7 +273,7 @@ describe("DeploymentClient bootstrap — apps", () => {
       platform: null,
       isActive: true,
       isPublic: true,
-      appSourceId: 99,
+      projectId: 99,
       appReleaseTag: "apps-555-r1-my-bot-abc1234",
       artifactReady: false,
       targetTags: ["staging"],

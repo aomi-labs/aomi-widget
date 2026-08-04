@@ -1,6 +1,6 @@
 "use client";
 
-import type { UserSource } from "./dashboard";
+import type { UserProject } from "./dashboard";
 import { normalizeRepo } from "./state";
 
 export type LaunchUrlContext = {
@@ -20,33 +20,33 @@ export function readLaunchUrlContext(search: string): LaunchUrlContext | null {
   return { installationId, repo };
 }
 
-export function sourceMatchesLaunchUrlContext(
-  source: UserSource,
+export function projectMatchesLaunchUrlContext(
+  project: UserProject,
   context: LaunchUrlContext,
 ): boolean {
   if (
     context.installationId &&
-    String(source.installationId) !== context.installationId
+    String(project.installationId) !== context.installationId
   ) {
     return false;
   }
 
   if (context.repo) {
-    return normalizeRepo(source.repositoryLink ?? "") === context.repo;
+    return normalizeRepo(project.repositoryLink ?? "") === context.repo;
   }
 
   return true;
 }
 
-export function hasSourceForLaunchUrlContext(
-  sources: UserSource[],
+export function hasProjectForLaunchUrlContext(
+  projects: UserProject[],
   context: LaunchUrlContext | null,
 ): boolean {
   if (!context) {
     return true;
   }
 
-  return sources.some((source) =>
-    sourceMatchesLaunchUrlContext(source, context),
+  return projects.some((project) =>
+    projectMatchesLaunchUrlContext(project, context),
   );
 }

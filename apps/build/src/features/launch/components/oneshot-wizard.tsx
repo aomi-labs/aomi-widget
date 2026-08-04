@@ -25,15 +25,15 @@ import { LivePanel } from "./live-panel";
 /**
  * Minimal required-secrets gate for `DeployStep` during onboarding. The
  * wizard has no persisted project row to hang a full `useProjectDetail` off
- * of — it only ever has `progress.appSourceId`, which the "create repo" step
+ * of — it only ever has `progress.projectId`, which the "create repo" step
  * mints alongside `progress.repo` (the wizard's sole setter of both). So this
  * mirrors just the read-only slice `DeployStep` needs, keyed on that id,
  * instead of fabricating a project-detail hook the wizard doesn't otherwise
- * use. If `appSourceId` is ever absent, there is no target app to gate yet.
+ * use. If `projectId` is ever absent, there is no target app to gate yet.
  * Once a source exists, failures are surfaced and block deployment/activation
  * until the required-secret state can be verified.
  */
-function useWizardSecretsGate(appSourceId?: number, platform?: string) {
+function useWizardSecretsGate(projectId?: number, platform?: string) {
   const [requiredSecrets, setRequiredSecrets] =
     useState<RequiredSecretsByApp | null>(null);
   const [requiredSecretsError, setRequiredSecretsError] = useState<
@@ -42,11 +42,11 @@ function useWizardSecretsGate(appSourceId?: number, platform?: string) {
   const requestedFor = useRef<number | null>(null);
 
   const refreshRequiredSecrets = useCallback(async () => {
-    if (!appSourceId) return;
-    requestedFor.current = appSourceId;
+    if (!projectId) return;
+    requestedFor.current = projectId;
     setRequiredSecretsError(null);
     try {
-      const result = await deploymentRequiredSecrets({ appSourceId, platform });
+      const result = await deploymentRequiredSecrets({ projectId, platform });
       setRequiredSecrets(result.byApp);
       return result.byApp;
     } catch (err) {
@@ -56,51 +56,51 @@ function useWizardSecretsGate(appSourceId?: number, platform?: string) {
       requestedFor.current = null;
       throw err;
     }
-  }, [appSourceId, platform]);
+  }, [projectId, platform]);
 
   const loadRequiredSecrets = useCallback(() => {
-    if (!appSourceId || requestedFor.current === appSourceId) return;
+    if (!projectId || requestedFor.current === projectId) return;
     void refreshRequiredSecrets().catch(() => undefined);
-  }, [appSourceId, refreshRequiredSecrets]);
+  }, [projectId, refreshRequiredSecrets]);
 
   const ensureRequiredSecrets = useCallback(
-    async (apps: string[], sourceIdOverride?: number) => {
-      const sourceId = sourceIdOverride ?? appSourceId;
-      if (!sourceId) return;
+    async (apps: string[], projectIdOverride?: number) => {
+      const targetProjectId = projectIdOverride ?? projectId;
+      if (!targetProjectId) return;
       const byApp =
-        sourceId === appSourceId
+        targetProjectId === projectId
           ? await refreshRequiredSecrets()
           : (
               await deploymentRequiredSecrets({
-                appSourceId: sourceId,
+                projectId: targetProjectId,
                 platform,
               })
             ).byApp;
       if (!byApp) return;
       setRequiredSecrets(byApp);
       setRequiredSecretsError(null);
-      requestedFor.current = sourceId;
+      requestedFor.current = targetProjectId;
       const missing = missingRequiredSecrets(byApp, apps);
       if (Object.keys(missing).length > 0) {
         throw new MissingRequiredSecretsError(missing);
       }
     },
-    [appSourceId, platform, refreshRequiredSecrets],
+    [projectId, platform, refreshRequiredSecrets],
   );
 
   const setEnvVars = useCallback(
     async (app: string, secrets: Record<string, string>) => {
-      if (!appSourceId) throw new Error("App source is missing.");
-      await deploymentSetSecrets({ app, appSourceId, platform, secrets });
+      if (!projectId) throw new Error("App source is missing.");
+      await deploymentSetSecrets({ app, projectId, platform, secrets });
       const result = await deploymentRequiredSecrets({
-        appSourceId,
+        projectId,
         platform,
       });
       setRequiredSecrets(result.byApp);
       setRequiredSecretsError(null);
-      requestedFor.current = appSourceId;
+      requestedFor.current = projectId;
     },
-    [appSourceId, platform],
+    [projectId, platform],
   );
 
   const hasMissingSecrets = useCallback(
@@ -169,7 +169,7 @@ export function OneshotWizard({
 }) {
   const step = oneshotStep(progress);
   const installStatus = installationStatusLabel(progress.installationStatus);
-  const secretsGate = useWizardSecretsGate(progress.appSourceId, platform);
+  const secretsGate = useWizardSecretsGate(progress.projectId, platform);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [repoName, setRepoName] = useState(DEFAULT_REPO_NAME);
@@ -188,7 +188,7 @@ export function OneshotWizard({
       patch({
         installationId: result.installationId,
         repo: result.repo,
-        appSourceId: result.appSourceId,
+        projectId: result.projectId,
         sourceRef: result.sourceRef,
       });
     } catch (err) {

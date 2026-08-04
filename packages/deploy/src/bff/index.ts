@@ -56,7 +56,7 @@ export {
   isValidRepo,
   isValidDeploymentId,
   isValidReleaseTags,
-  isValidAppSourceId,
+  isValidProjectId,
 } from "./validate";
 
 export { readCookie, serializeCookie, appendSetCookie } from "./cookies";

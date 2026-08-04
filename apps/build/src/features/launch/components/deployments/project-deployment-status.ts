@@ -1,4 +1,4 @@
-import type { UserSource } from "@aomi-labs/deploy";
+import type { UserProject } from "@aomi-labs/deploy";
 import {
   deploymentLifecycleFromSource,
   type DeploymentLifecycle,
@@ -19,7 +19,7 @@ export type ProjectDeploymentStatus = {
  * Always derived from `deploymentLifecycleFromSource` (same as Chat / Home).
  */
 export function projectDeploymentStatus(
-  source: UserSource,
+  source: UserProject,
 ): ProjectDeploymentStatus {
   const lifecycle = deploymentLifecycleFromSource(source);
   const hasRecordedDeployment =

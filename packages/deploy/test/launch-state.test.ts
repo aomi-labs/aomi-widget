@@ -178,7 +178,7 @@ describe("loadLaunch — platform scoping", () => {
   const saved = (platform: string) => ({
     platform,
     path: "oneshot",
-    oneshot: { appSourceId: 7 },
+    oneshot: { projectId: 7 },
     pendingInstall: null,
     rejectedInstallationId: null,
   });
@@ -187,7 +187,7 @@ describe("loadLaunch — platform scoping", () => {
 
   it("keeps progress saved under the same platform", () => {
     seed(saved("somm.finance"));
-    expect(loadLaunch("somm.finance").oneshot.appSourceId).toBe(7);
+    expect(loadLaunch("somm.finance").oneshot.projectId).toBe(7);
   });
 
   it("discards progress from another platform rather than reusing its source", () => {
@@ -199,6 +199,6 @@ describe("loadLaunch — platform scoping", () => {
 
   it("returns stored state untouched when no platform is named", () => {
     seed(saved("community"));
-    expect(loadLaunch().oneshot.appSourceId).toBe(7);
+    expect(loadLaunch().oneshot.projectId).toBe(7);
   });
 });

@@ -14,20 +14,20 @@ export const buildQueryKeys = {
   // pages too. Warm navigations seed it from the `projects` list cache.
   projectSource: (
     account: string,
-    sourceId: number,
+    projectId: number,
     platform?: string | null,
   ) =>
     [
       ...buildQueryKeys.projects(account, platform),
       "source",
-      sourceId,
+      projectId,
     ] as const,
   deployments: (account: string) =>
     [...buildQueryKeys.all, "account", account, "deployments"] as const,
   operate: (
     account: string,
     kind: string,
-    sourceId: number | null = null,
+    projectId: number | null = null,
     platform?: string | null,
   ) =>
     [
@@ -37,11 +37,11 @@ export const buildQueryKeys = {
       "operate",
       kind,
       platform?.trim() || "default",
-      sourceId ?? "all",
+      projectId ?? "all",
     ] as const,
   operateDetail: (
     account: string,
-    sourceId: number,
+    projectId: number,
     applicationId: number,
     platform?: string | null,
   ) =>
@@ -52,17 +52,11 @@ export const buildQueryKeys = {
       "operate",
       "observability-detail",
       platform?.trim() || "default",
-      sourceId,
+      projectId,
       applicationId,
     ] as const,
-  bots: (account: string, platform?: string | null) =>
-    [
-      ...buildQueryKeys.all,
-      "account",
-      account,
-      "bots",
-      platform?.trim() || "default",
-    ] as const,
+  bots: (account: string) =>
+    [...buildQueryKeys.all, "account", account, "bots"] as const,
   modelKeys: (account: string) =>
     [...buildQueryKeys.all, "account", account, "model-keys"] as const,
 };

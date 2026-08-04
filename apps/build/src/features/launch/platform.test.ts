@@ -31,7 +31,7 @@ describe("platformHref", () => {
     expect(platformHref("/operate/deployments/new", "somm.finance")).toBe(
       "/operate/deployments/new?platform=somm.finance",
     );
-    // A bot's app picker lists sources, and a source is bound to one platform.
+    // A bot's app picker lists projects, and a source is bound to one platform.
     expect(platformHref("/integrations", "somm.finance")).toBe(
       "/integrations?platform=somm.finance",
     );

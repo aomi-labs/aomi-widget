@@ -5,7 +5,7 @@ import type { QueryClient } from "@tanstack/react-query";
 import {
   deploymentFeed,
   deploymentSdkStatus,
-  deploymentSources,
+  deploymentProjects,
 } from "@build/features/launch/client";
 import {
   buildQueryKeys,
@@ -36,12 +36,12 @@ const OPERATE_ROUTES: Record<string, OperateKind> = {
 export function prefetchProjectDetail(
   queryClient: QueryClient,
   accountKey: string,
-  sourceId: number,
+  projectId: number,
   platform?: string | null,
 ) {
   void queryClient.prefetchQuery({
-    queryKey: buildQueryKeys.projectSource(accountKey, sourceId, platform),
-    queryFn: () => deploymentSources(platform ?? undefined, sourceId),
+    queryKey: buildQueryKeys.projectSource(accountKey, projectId, platform),
+    queryFn: () => deploymentProjects(platform ?? undefined, projectId),
     staleTime: buildQueryStaleTime.projects,
     retry: false,
   });
@@ -52,8 +52,8 @@ export function prefetchProjectDetail(
     retry: false,
   });
   void queryClient.prefetchQuery({
-    queryKey: buildQueryKeys.operate(accountKey, "usage", sourceId, platform),
-    queryFn: () => operateFetch("usage", { sourceId, platform }),
+    queryKey: buildQueryKeys.operate(accountKey, "usage", projectId, platform),
+    queryFn: () => operateFetch("usage", { projectId, platform }),
     staleTime: buildQueryStaleTime.operate,
     retry: false,
   });
@@ -107,7 +107,7 @@ export function prefetchControlPlaneRoute(
   if (path === "/projects") {
     void queryClient.prefetchQuery({
       queryKey: buildQueryKeys.projects(accountKey),
-      queryFn: () => deploymentSources(),
+      queryFn: () => deploymentProjects(),
       staleTime: buildQueryStaleTime.projects,
       retry: false,
     });
@@ -123,7 +123,7 @@ export function prefetchControlPlaneRoute(
   if (path === "/overview" || path === "/operate/deployments") {
     void queryClient.prefetchQuery({
       queryKey: buildQueryKeys.projects(accountKey),
-      queryFn: () => deploymentSources(),
+      queryFn: () => deploymentProjects(),
       staleTime: buildQueryStaleTime.projects,
       retry: false,
     });
@@ -146,13 +146,9 @@ export function prefetchControlPlaneRoute(
   }
 
   if (path === "/integrations") {
-    // The bot list is builder-wide, but the apps it can be pointed at come
-    // from platform-bound sources — so the read is platform-scoped and the
-    // key has to say which one, or a partner-platform visit warms Community.
-    const platform = searchParams.get("platform");
     void queryClient.prefetchQuery({
-      queryKey: buildQueryKeys.bots(accountKey, platform),
-      queryFn: () => operateFetch("bots", { platform }),
+      queryKey: buildQueryKeys.bots(accountKey),
+      queryFn: () => operateFetch("bots"),
       staleTime: buildQueryStaleTime.operate,
       retry: false,
     });
@@ -171,20 +167,22 @@ export function prefetchControlPlaneRoute(
 
   const kind = OPERATE_ROUTES[path];
   if (!kind) return false;
-  const sourceId = Number(searchParams.get("project"));
-  const scopedSourceId =
-    Number.isSafeInteger(sourceId) && sourceId > 0 ? sourceId : null;
+  const projectId = Number(searchParams.get("project"));
+  const scopedProjectId =
+    Number.isSafeInteger(projectId) && projectId > 0 ? projectId : null;
   const platform = searchParams.get("platform");
   void queryClient.prefetchQuery({
     queryKey:
       kind === "bots"
-        ? buildQueryKeys.bots(accountKey, platform)
-        : buildQueryKeys.operate(accountKey, kind, scopedSourceId, platform),
+        ? buildQueryKeys.bots(accountKey)
+        : buildQueryKeys.operate(accountKey, kind, scopedProjectId, platform),
     queryFn: () =>
-      operateFetch(kind, {
-        sourceId: scopedSourceId,
-        platform,
-      }),
+      kind === "bots"
+        ? operateFetch(kind)
+        : operateFetch(kind, {
+            projectId: scopedProjectId,
+            platform,
+          }),
     staleTime: buildQueryStaleTime.operate,
     retry: false,
   });

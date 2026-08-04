@@ -259,7 +259,7 @@ function Meter({ daily, breakdown }: { daily: Row[]; breakdown: Row[] }) {
             <tbody className="divide-border bg-surface divide-y">
               {daily.map((row, index) => (
                 <tr
-                  key={`${row.source?.id}-${row.periodUtcDay}-${row.application}-${index}`}
+                  key={`${row.project?.id}-${row.periodUtcDay}-${row.application}-${index}`}
                 >
                   <td className="px-3 py-2">{row.periodUtcDay}</td>
                   <td className="px-3 py-2">{row.application}</td>
@@ -282,7 +282,7 @@ function Meter({ daily, breakdown }: { daily: Row[]; breakdown: Row[] }) {
           <div className="space-y-2">
             {breakdown.map((row, index) => (
               <div
-                key={`${row.source?.id}-${row.provider}-${row.model}-${index}`}
+                key={`${row.project?.id}-${row.provider}-${row.model}-${index}`}
                 className="flex items-center justify-between gap-3 text-sm"
               >
                 <span className="min-w-0 truncate">

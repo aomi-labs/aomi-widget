@@ -17,7 +17,7 @@ import {
 } from "../../query-keys";
 
 export type GlobalDeployment = TimelineDeployment & {
-  sourceId: number;
+  projectId: number;
   repositoryLink: string | null;
 };
 
@@ -38,7 +38,7 @@ function globalDeployment(deployment: UserDeployment): GlobalDeployment | null {
     actor: null,
     sdkVersion: deployment.sdkVersion ?? null,
     createdAt: deployment.createdAt ?? 0,
-    sourceId: deployment.sourceId,
+    projectId: deployment.projectId,
     repositoryLink: deployment.repositoryLink,
   };
 }
@@ -57,8 +57,8 @@ export function useGlobalDeploymentRecords() {
     staleTime: buildQueryStaleTime.deployments,
   });
 
-  const sources = useMemo(
-    () => (projectsState.status === "ready" ? projectsState.sources : []),
+  const projects = useMemo(
+    () => (projectsState.status === "ready" ? projectsState.projects : []),
     [projectsState],
   );
 
@@ -95,7 +95,7 @@ export function useGlobalDeploymentRecords() {
   return {
     projectsState,
     recordsState,
-    sources,
+    projects,
     reload,
     loadMore: () => void feed.fetchNextPage(),
     hasMore: feed.hasNextPage,

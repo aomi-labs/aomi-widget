@@ -20,13 +20,13 @@ import type { SourceRef } from "../src/index";
 const backendUrl = requiredEnv("AOMI_BACKEND_URL");
 const activationToken = requiredEnv("AOMI_APP_ACTIVATION_TOKEN");
 const platform = requiredEnv("AOMI_PLATFORM");
-const appSourceId = Number.parseInt(requiredEnv("AOMI_APP_SOURCE_ID"), 10);
-const aomiTomlPaths = (process.env.AOMI_TOML_PATHS ?? "")
+const projectId = Number.parseInt(requiredEnv("AOMI_APP_SOURCE_ID"), 10);
+const applications = (process.env.AOMI_TOML_PATHS ?? "")
   .split(",")
   .map((path) => path.trim())
   .filter(Boolean);
 
-if (!Number.isSafeInteger(appSourceId) || appSourceId <= 0) {
+if (!Number.isSafeInteger(projectId) || projectId <= 0) {
   throw new Error("AOMI_APP_SOURCE_ID must be a positive integer");
 }
 
@@ -45,9 +45,11 @@ const dc = new DeploymentClient({
 
 const deployInput = {
   platform,
-  appSourceId,
+  projectId,
   sourceRef,
-  aomiTomlPaths,
+  projectConfig: applications.length
+    ? { version: 1 as const, applications }
+    : undefined,
 };
 
 const deploy =

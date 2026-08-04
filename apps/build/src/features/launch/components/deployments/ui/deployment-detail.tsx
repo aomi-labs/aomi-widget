@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronDown, ExternalLink } from "lucide-react";
-import type { UserSource, UserSourceLatestDeployment } from "@aomi-labs/deploy";
+import type { UserProject, UserProjectLatestDeployment } from "@aomi-labs/deploy";
 import { HelpBadge } from "@build/components/help-badge";
 import type { TimelineDeployment } from "../deployment-timeline";
 import { sdkCompatibility } from "../sdk-compatibility";
@@ -46,7 +46,7 @@ function MetaRow({
  *  fall back to zipping the DB record's app/release-tag lists. */
 function appRows(
   deployment: TimelineDeployment,
-  entry: UserSourceLatestDeployment | null,
+  entry: UserProjectLatestDeployment | null,
 ) {
   if (entry && entry.apps.length > 0) {
     return entry.apps.map((app) => ({
@@ -79,10 +79,10 @@ export function DeploymentDetail({
   onToggle,
 }: {
   deployment: TimelineDeployment;
-  source: UserSource;
+  source: UserProject;
   requiredSdk: string | null;
   /** History entry matched by deploymentId, when loaded. */
-  entry: UserSourceLatestDeployment | null;
+  entry: UserProjectLatestDeployment | null;
   /** Platform repo (`owner/name`) resolved from any history entry. */
   platformRepo: string | null;
   historyPending: boolean;
@@ -92,13 +92,13 @@ export function DeploymentDetail({
   const repo = source.repositoryLink;
   const shortCommit = deployment.commit;
   const fullCommit =
-    shortCommit && source.commitHash?.startsWith(shortCommit)
-      ? source.commitHash
+    shortCommit && entry?.commitHash?.startsWith(shortCommit)
+      ? entry.commitHash
       : null;
   const outdated =
     deployment.current &&
     sdkCompatibility(deployment.sdkVersion, requiredSdk) === "outdated";
-  const platformName = source.boundPlatformName ?? platformRepo ?? null;
+  const platformName = source.platformName ?? platformRepo ?? null;
   const deployBranch = entry?.deployBranch ?? null;
   const apps = appRows(deployment, entry);
   const releaseUrl = (tag: string) =>

@@ -11,7 +11,7 @@ vi.mock("@portal/features/launch", () => ({
   launchDeploy: vi.fn(),
   launchStatus: vi.fn(),
   launchActivate: vi.fn(),
-  deploymentSources: vi.fn(),
+  deploymentProjects: vi.fn(),
 }));
 
 vi.mock("@aomi-labs/widget-lib", () => ({
@@ -89,7 +89,6 @@ describe("DeployStep", () => {
           ownerRepoName: "a/b",
           ref: "abc123",
           commitHash: "abc123",
-          aomiTomlPaths: ["aomi.toml"],
         },
         platform: {
           platform: "community",

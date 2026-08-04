@@ -13,9 +13,9 @@ export {
   type LaunchClient,
   type LaunchClientOptions,
   type GitHubSessionInfo,
-  type UserSourcesResult,
+  type UserProjectsResult,
   type GithubAppOAuthStartResponse,
-  type UserSource,
+  type UserProject,
 } from "./client";
 
 export {
@@ -35,7 +35,7 @@ export {
   type LaunchAppStatus,
   type LaunchRedeployResult,
   type LaunchSdkStatus,
-  type DeploymentSourcesResult,
+  type DeploymentProjectsResult,
   type DeploymentHistoryResult,
   type DeploymentFeedResult,
   type DeploymentSecretsResult,
@@ -85,8 +85,8 @@ export {
 
 export {
   readLaunchUrlContext,
-  sourceMatchesLaunchUrlContext,
-  hasSourceForLaunchUrlContext,
+  projectMatchesLaunchUrlContext,
+  hasProjectForLaunchUrlContext,
   platformParam,
   type LaunchUrlContext,
 } from "./url-context";

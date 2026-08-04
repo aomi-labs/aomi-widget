@@ -81,7 +81,7 @@ describe("ProjectRow", () => {
           id: 42,
           installationId: 1,
           repositoryLink: "alice/bot",
-          boundPlatformName: "somm.finance",
+          platformName: "somm.finance",
           sdkVersion: "3.0.2",
           apps: [
             {

@@ -12,8 +12,8 @@ import type {
   SdkVersionStatus,
   SecretSlot,
   UserDeploymentsPage,
-  UserSource,
-  UserSourceLatestDeployment,
+  UserProject,
+  UserProjectLatestDeployment,
 } from "../types";
 
 // One-click is the only launch path: the host forks the template and deploys
@@ -51,9 +51,9 @@ export type LaunchProgress = {
   installationId?: string;
   installationStatus?: string;
   repo?: string;
-  /** Cached source row id from create/sync/dashboard responses. */
-  appSourceId?: number;
-  /** Immutable source commit returned by source sync/create. */
+  /** Cached project id from create/dashboard responses. */
+  projectId?: number;
+  /** Immutable source commit returned by preflight. */
   sourceRef?: string;
   deploymentId?: string;
   deployment?: LaunchDeployPayload;
@@ -65,27 +65,27 @@ export type LaunchProgress = {
 
 /**
  * Preflight / preview input. This is the one place a repo may stand in for a
- * source row: the preflight materializes the backend source and returns its
- * `appSourceId`.
+ * project: the preflight materializes the backend project and returns its
+ * `projectId`.
  */
 export type LaunchPreflightInput = {
   /** Exact platform the deploy targets; the host's default when omitted. */
   platform?: string;
-  appSourceId?: number;
+  projectId?: number;
   sourceRef?: string;
-  /** GitHub App installation that owns the source repo. Wizard context only. */
+  /** GitHub App installation that owns the project repo. Wizard context only. */
   installationId?: string;
-  /** `owner/name` repo used to mint the backend source when appSourceId is absent. */
+  /** `owner/name` repo used to create the backend project when projectId is absent. */
   repo?: string;
   actor?: string;
 };
 
-/** Commit a deploy against a stable, already-resolved source row. */
+/** Commit a deploy against a stable project and immutable source revision. */
 export type LaunchDeployInput = {
   /** Exact platform the deploy targets; the host's default when omitted. */
   platform?: string;
-  appSourceId: number;
-  sourceRef?: string;
+  projectId: number;
+  sourceRef: string;
   repo?: string;
   actor?: string;
 };
@@ -94,7 +94,7 @@ export type LaunchDeployResult = {
   projectUrl?: string;
   repo: string;
   installationId?: string;
-  appSourceId?: number;
+  projectId?: number;
   sourceRef?: string;
   deployment: LaunchDeployPayload;
   releaseTags: string[];
@@ -105,7 +105,7 @@ export type LaunchCreateRepoResult = {
   ok: boolean;
   repo: string;
   installationId: string;
-  appSourceId?: number;
+  projectId?: number;
   sourceRef?: string;
 };
 
@@ -127,7 +127,7 @@ export type LaunchAppStatus = {
 
 export type LaunchRedeployResult = {
   ok: boolean;
-  appSourceId: number;
+  projectId: number;
   platformRepo: string | null;
   ciRunId: string | null;
   ciUrl: string | null;
@@ -139,13 +139,13 @@ export type LaunchSdkStatus = {
   sdkStatus: SdkVersionStatus;
 };
 
-export type DeploymentSourcesResult = {
-  sources: UserSource[];
+export type DeploymentProjectsResult = {
+  projects: UserProject[];
   githubLogin?: string;
 };
 
 export type DeploymentHistoryResult = {
-  deployments: UserSourceLatestDeployment[];
+  deployments: UserProjectLatestDeployment[];
 };
 
 export type DeploymentFeedResult = UserDeploymentsPage;

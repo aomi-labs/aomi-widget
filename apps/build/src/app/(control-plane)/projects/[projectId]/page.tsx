@@ -7,21 +7,21 @@ export default async function ProjectDetailPage({
   params,
   searchParams,
 }: {
-  params: Promise<{ sourceId: string }>;
+  params: Promise<{ projectId: string }>;
   searchParams: Promise<{ platform?: string | string[] }>;
 }) {
-  const { sourceId } = await params;
-  const id = Number(sourceId);
+  const { projectId } = await params;
+  const id = Number(projectId);
   if (!Number.isSafeInteger(id)) notFound();
   const platform = platformParam((await searchParams).platform);
 
   return (
     <ProjectPage
-      sourceId={id}
+      projectId={id}
       platform={platform}
       backHref={platformHref("/projects", platform)}
       backLabel="Projects"
-      tabBaseHref={`/projects/${sourceId}`}
+      tabBaseHref={`/projects/${projectId}`}
     />
   );
 }

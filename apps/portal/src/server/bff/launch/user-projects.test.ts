@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { userSourcesRoute } from "./routes";
+import { userProjectsRoute } from "./routes";
 
 vi.mock("@aomi-labs/account", () => ({
   portalService: () => ({
@@ -18,10 +18,10 @@ vi.mock("@portal/server/cookies/github", () => ({
 }));
 
 function req() {
-  return new Request("http://localhost:3000/api/bff/launch/sources");
+  return new Request("http://localhost:3000/api/bff/launch/projects");
 }
 
-describe("userSourcesRoute", () => {
+describe("userProjectsRoute", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     getGitHubSession.mockReset();
@@ -29,18 +29,18 @@ describe("userSourcesRoute", () => {
 
   it("401s when there is no GitHub session", async () => {
     getGitHubSession.mockResolvedValueOnce(null);
-    const res = await userSourcesRoute(req());
+    const res = await userProjectsRoute(req());
     expect(res.status).toBe(401);
   });
 
-  it("returns the session user's sources, scoped to the cookie's github_user_id", async () => {
+  it("returns the session user's projects, scoped to the cookie's github_user_id", async () => {
     getGitHubSession.mockResolvedValueOnce({
       githubUserId: "42",
       githubLogin: "alice",
     });
     const fetchMock = vi.fn(async () =>
       Response.json({
-        sources: [
+        projects: [
           {
             id: 99,
             installation_id: 555,
@@ -61,11 +61,11 @@ describe("userSourcesRoute", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    const res = await userSourcesRoute(req());
+    const res = await userProjectsRoute(req());
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.githubLogin).toBe("alice");
-    expect(body.sources[0]).toMatchObject({
+    expect(body.projects[0]).toMatchObject({
       id: 99,
       installationId: 555,
       apps: [{ id: 5, name: "bot", isActive: true, loaded: true }],
@@ -74,7 +74,7 @@ describe("userSourcesRoute", () => {
     // The backend call is scoped to the session's github_user_id.
     const [url] = fetchMock.mock.calls[0];
     expect(String(url)).toContain(
-      "/api/integrations/github-app/user/sources?github_user_id=42&platform=community",
+      "/api/integrations/github-app/user/projects?github_user_id=42&platform=community",
     );
   });
 });

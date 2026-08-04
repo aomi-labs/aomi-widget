@@ -50,7 +50,7 @@ function isPlatformScoped(href: string): boolean {
   return (
     href === "/projects" ||
     href === "/operate/deployments/new" ||
-    // A bot's app picker lists the builder's sources, and a source is bound to
+    // A bot's app picker lists the builder's projects, and a source is bound to
     // exactly one platform — so which apps a bot can be pointed at is a
     // platform-scoped question like any other.
     href === "/integrations" ||

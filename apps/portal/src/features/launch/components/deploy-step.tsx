@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { Button } from "@aomi-labs/widget-lib";
 import {
-  deploymentSources,
+  deploymentProjects,
   launchActivate,
   launchDeploy,
   launchPreflight,
@@ -155,7 +155,7 @@ export function DeployStep({
   onReconnectInstall,
   onReset,
 }: {
-  /** GitHub App installation for wizard context; deploy uses appSourceId or repo. */
+  /** GitHub App installation for wizard context; deploy uses projectId or repo. */
   installationId: string;
   repo?: string;
   actor?: string;
@@ -200,7 +200,7 @@ export function DeployStep({
     (next: {
       repo?: string;
       installationId?: string;
-      appSourceId?: number;
+      projectId?: number;
       sourceRef?: string;
       deployment: LaunchDeployPayload;
       releaseTags?: string[];
@@ -218,7 +218,7 @@ export function DeployStep({
         sourceRef: next.sourceRef ?? next.deployment.source?.ref,
       };
       if (next.installationId) patch.installationId = next.installationId;
-      if (next.appSourceId) patch.appSourceId = next.appSourceId;
+      if (next.projectId) patch.projectId = next.projectId;
       onProgress(patch);
     },
     [onProgress, repo],
@@ -232,7 +232,7 @@ export function DeployStep({
       const result = await launchPreflight({
         installationId,
         repo,
-        appSourceId: progress.appSourceId,
+        projectId: progress.projectId,
         sourceRef: progress.sourceRef,
         actor,
       });
@@ -246,7 +246,7 @@ export function DeployStep({
     actor,
     applyDeployment,
     installationId,
-    progress.appSourceId,
+    progress.projectId,
     progress.sourceRef,
     repo,
   ]);
@@ -259,28 +259,28 @@ export function DeployStep({
       // Deploy commits against a stable source row id. The first deploy after
       // an install has none yet, so a preflight mints it (and primes the
       // preview); afterwards we go straight through by id.
-      let appSourceId = progress.appSourceId;
+      let projectId = progress.projectId;
       let sourceRef = progress.sourceRef ?? deployment?.source?.ref;
-      if (!appSourceId || !sourceRef) {
+      if (!projectId || !sourceRef) {
         const preflightResult = await launchPreflight({
           installationId,
           repo,
-          appSourceId,
+          projectId,
           sourceRef,
           actor,
         });
         applyDeployment(preflightResult);
-        appSourceId = preflightResult.appSourceId;
+        projectId = preflightResult.projectId;
         sourceRef =
           preflightResult.sourceRef ?? preflightResult.deployment.source?.ref;
       }
-      if (!appSourceId) {
+      if (!projectId) {
         throw new Error(
           "Could not resolve a source to deploy. Run a preflight first.",
         );
       }
       const result = await launchDeploy({
-        appSourceId,
+        projectId,
         sourceRef,
         repo,
         actor,
@@ -298,7 +298,7 @@ export function DeployStep({
         live: false,
       };
       if (result.installationId) patch.installationId = result.installationId;
-      if (result.appSourceId) patch.appSourceId = result.appSourceId;
+      if (result.projectId) patch.projectId = result.projectId;
       onProgress(patch);
       setPhase("building");
     } catch (e) {
@@ -310,7 +310,7 @@ export function DeployStep({
     applyDeployment,
     installationId,
     onProgress,
-    progress.appSourceId,
+    progress.projectId,
     progress.sourceRef,
     repo,
     deployment,
@@ -405,9 +405,9 @@ export function DeployStep({
       for (let attempt = 0; attempt < 30; attempt += 1) {
         setVerifyAttempt(attempt + 1);
         try {
-          const result = await deploymentSources();
-          const source = result.sources.find(
-            (candidate) => candidate.id === progress.appSourceId,
+          const result = await deploymentProjects();
+          const source = result.projects.find(
+            (candidate) => candidate.id === progress.projectId,
           );
           const checks = nextApps.map((name, index) =>
             source?.apps.find(
@@ -444,11 +444,11 @@ export function DeployStep({
       );
       setPhase("error");
     },
-    [apps, onProgress, progress.appSourceId, tags],
+    [apps, onProgress, progress.projectId, tags],
   );
 
   const activate = useCallback(async () => {
-    if (!progress.appSourceId) {
+    if (!progress.projectId) {
       setError("App source is missing; rerun deployment before activation.");
       setPhase("error");
       return;
@@ -457,7 +457,7 @@ export function DeployStep({
     setError(null);
     try {
       const result = await launchActivate({
-        appSourceId: progress.appSourceId,
+        projectId: progress.projectId,
         releaseTags: tags,
         apps,
         actor,
@@ -476,7 +476,7 @@ export function DeployStep({
       setError(e instanceof Error ? e.message : String(e));
       setPhase("error");
     }
-  }, [actor, apps, onProgress, progress.appSourceId, tags, verifyLive]);
+  }, [actor, apps, onProgress, progress.projectId, tags, verifyLive]);
 
   const reset = useCallback(() => {
     setError(null);

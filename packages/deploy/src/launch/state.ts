@@ -62,7 +62,7 @@ function empty(): LaunchState {
  *
  * Pass the platform the page is rendering against and the state is scoped to
  * it: progress saved under a different platform is discarded rather than
- * returned, because reusing its `appSourceId` or deployment would route the
+ * returned, because reusing its `projectId` or deployment would route the
  * next write to the wrong platform. Without an argument the stored state is
  * returned as-is.
  */

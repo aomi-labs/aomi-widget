@@ -25,14 +25,14 @@ const TABS = [
 type TabId = (typeof TABS)[number]["id"];
 
 export function ProjectPage({
-  sourceId,
+  projectId,
   platform,
   backHref = "/operate/deployments",
   backLabel = "Deployments",
   tabBaseHref,
   tabHref,
 }: {
-  sourceId: number;
+  projectId: number;
   platform?: string;
   backHref?: string;
   backLabel?: string;
@@ -41,7 +41,7 @@ export function ProjectPage({
 }) {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const detail = useProjectDetail(sourceId, platform);
+  const detail = useProjectDetail(projectId, platform);
   const raw = searchParams.get("tab");
   const active: TabId = TABS.some((t) => t.id === raw)
     ? (raw as TabId)
@@ -49,7 +49,7 @@ export function ProjectPage({
   const projectTabHref = (tab: TabId) => {
     if (tabHref) return tabHref(tab);
     const params = new URLSearchParams();
-    if (!tabBaseHref) params.set("project", String(sourceId));
+    if (!tabBaseHref) params.set("project", String(projectId));
     if (platform) params.set("platform", platform);
     params.set("tab", tab);
     return `${tabBaseHref ?? "/operate/deployments"}?${params}`;
@@ -58,8 +58,8 @@ export function ProjectPage({
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    setLastProjectId(sourceId);
-  }, [sourceId]);
+    setLastProjectId(projectId);
+  }, [projectId]);
 
   // Start every read this page needs in parallel on mount instead of
   // waterfalling them behind the source list: usage/SDK warm through the same
@@ -67,9 +67,9 @@ export function ProjectPage({
   // which only need the source id — fire for the tabs that render them.
   useEffect(() => {
     if (detail.accountKey) {
-      prefetchProjectDetail(queryClient, detail.accountKey, sourceId, platform);
+      prefetchProjectDetail(queryClient, detail.accountKey, projectId, platform);
     }
-  }, [detail.accountKey, platform, queryClient, sourceId]);
+  }, [detail.accountKey, platform, queryClient, projectId]);
   useEffect(() => {
     if (active === "home" || active === "environment") detail.loadSecrets();
   }, [active, detail]);

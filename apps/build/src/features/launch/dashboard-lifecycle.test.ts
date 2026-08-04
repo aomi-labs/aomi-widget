@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
-import type { UserSource } from "@aomi-labs/deploy";
+import type { UserProject } from "@aomi-labs/deploy";
 import {
   deploymentLifecycleFromSource,
   deploymentLifecycleFromStatus,
   deploymentIdFromReleaseTag,
 } from "@aomi-labs/deploy/lifecycle";
 
-function source(patch: Partial<UserSource>): UserSource {
+function source(patch: Partial<UserProject>): UserProject {
   return {
     id: 1,
     installationId: 123,
@@ -33,7 +33,7 @@ describe("deploymentLifecycleFromSource", () => {
             label: "bot",
             isActive: true,
             isPublic: true,
-            appSourceId: 1,
+            projectId: 1,
             appReleaseTag: "apps-123-bot-abc",
             targetTags: [],
             loaded: true,
@@ -57,7 +57,7 @@ describe("deploymentLifecycleFromSource", () => {
             label: "bot",
             isActive: true,
             isPublic: true,
-            appSourceId: 1,
+            projectId: 1,
             appReleaseTag: "apps-123-bot-abc",
             targetTags: [],
             loaded: false,
@@ -82,7 +82,7 @@ describe("deploymentLifecycleFromSource", () => {
             label: "bot",
             isActive: true,
             isPublic: true,
-            appSourceId: 1,
+            projectId: 1,
             appReleaseTag: "apps-123-bot-old",
             targetTags: [],
             loaded: true,
@@ -158,7 +158,7 @@ describe("deploymentLifecycleFromSource", () => {
             label: "bot",
             isActive: true,
             isPublic: true,
-            appSourceId: 1,
+            projectId: 1,
             appReleaseTag: "apps-123-bot-old",
             targetTags: [],
             loaded: true,

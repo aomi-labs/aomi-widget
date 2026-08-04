@@ -16,14 +16,14 @@ export async function sourceSdkUpgradeRoute(req: Request) {
     body && typeof body === "object" && "platform" in body
       ? body.platform
       : undefined;
-  const appSourceId = Number(
-    body && typeof body === "object" && "appSourceId" in body
-      ? body.appSourceId
+  const projectId = Number(
+    body && typeof body === "object" && "projectId" in body
+      ? body.projectId
       : undefined,
   );
-  if (!Number.isSafeInteger(appSourceId) || appSourceId <= 0) {
+  if (!Number.isSafeInteger(projectId) || projectId <= 0) {
     return NextResponse.json(
-      { error: "missing or invalid `appSourceId`" },
+      { error: "missing or invalid `projectId`" },
       { status: 400 },
     );
   }
@@ -37,8 +37,8 @@ export async function sourceSdkUpgradeRoute(req: Request) {
       );
     }
     const client = await deploymentClient();
-    const result = await client.upgradeUserSourceSdk({
-      appSourceId,
+    const result = await client.upgradeUserProjectSdk({
+      projectId,
       githubUserId: session.githubUserId,
       platform,
     });
@@ -69,12 +69,12 @@ export async function sourceSdkUpgradeStatusRoute(req: Request) {
   const auth = await authorize(req);
   if ("response" in auth) return auth.response;
   const { session } = auth;
-  const appSourceId = Number(
-    new URL(req.url).searchParams.get("appSourceId") ?? undefined,
+  const projectId = Number(
+    new URL(req.url).searchParams.get("projectId") ?? undefined,
   );
-  if (!Number.isSafeInteger(appSourceId) || appSourceId <= 0) {
+  if (!Number.isSafeInteger(projectId) || projectId <= 0) {
     return NextResponse.json(
-      { error: "missing or invalid `appSourceId`" },
+      { error: "missing or invalid `projectId`" },
       { status: 400 },
     );
   }
@@ -90,7 +90,7 @@ export async function sourceSdkUpgradeStatusRoute(req: Request) {
     }
     const client = await deploymentClient();
     const result = await client.sdkUpgradeStatus({
-      appSourceId,
+      projectId,
       githubUserId: session.githubUserId,
       platform,
     });

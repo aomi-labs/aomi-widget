@@ -3,7 +3,7 @@ import type {
   OperateAppHealth,
   OperateLogEntry,
   OperateTransaction,
-  UserSourceLatestDeployment,
+  UserProjectLatestDeployment,
 } from "@aomi-labs/deploy";
 import type {
   AppFixture,
@@ -18,7 +18,7 @@ export type LiveAppDetailPayload = {
   health: OperateAppHealth | null;
   transactions: OperateTransaction[];
   logs: OperateLogEntry[];
-  deployments: UserSourceLatestDeployment[];
+  deployments: UserProjectLatestDeployment[];
 };
 
 export type LiveAppDetailView = {
@@ -230,7 +230,7 @@ export function liveAppDetailView(
         detail.app.status === "inactive"
           ? detail.app.status
           : "inactive",
-      repo: detail.source.repositoryLink ?? "—",
+      repo: detail.project.repositoryLink || "—",
     },
     card: {
       requestsPerMinute: health?.requestsPerMinute ?? null,

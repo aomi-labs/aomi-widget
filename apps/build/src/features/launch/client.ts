@@ -6,8 +6,8 @@
 // leaves the BFF: it reaches the backend through the session-scoped fetch.
 
 import type {
-  SourceSdkUpgradeResult,
-  SourceSdkUpgradeStatusResult,
+  ProjectSdkUpgradeResult,
+  ProjectSdkUpgradeStatusResult,
 } from "@aomi-labs/deploy";
 import {
   createLaunchClient,
@@ -24,7 +24,7 @@ import {
   type DeploymentSecretsResult,
   type ListDeploymentRecordsResult,
   type DeploymentPromoteResult,
-  type DeploymentSourcesResult,
+  type DeploymentProjectsResult,
   type LaunchDeployInput,
   type LaunchDeployResult,
   type LaunchPreflightInput,
@@ -66,7 +66,7 @@ export function launchDeploy(
 
 export function launchRedeploy(input: {
   platform?: string;
-  appSourceId: number;
+  projectId: number;
 }): Promise<LaunchRedeployResult> {
   return client.redeploy(input);
 }
@@ -90,16 +90,16 @@ export function launchSdkStatus(): Promise<LaunchSdkStatus> {
   return client.sdkStatus();
 }
 
-export function deploymentSources(
+export function deploymentProjects(
   platform?: string,
-  appSourceId?: number,
-): Promise<DeploymentSourcesResult> {
-  return client.deployments.sources({ platform, appSourceId });
+  projectId?: number,
+): Promise<DeploymentProjectsResult> {
+  return client.deployments.projects({ platform, projectId });
 }
 
 export function deploymentUpgradeSdk(
-  input: PlatformInput & { appSourceId: number },
-): Promise<SourceSdkUpgradeResult> {
+  input: PlatformInput & { projectId: number },
+): Promise<ProjectSdkUpgradeResult> {
   return client.deployments.upgradeSdk(input);
 }
 
@@ -108,13 +108,13 @@ export function deploymentSdkStatus(): Promise<LaunchSdkStatus> {
 }
 
 export function deploymentSdkUpgradeStatus(
-  input: PlatformInput & { appSourceId: number },
-): Promise<SourceSdkUpgradeStatusResult> {
+  input: PlatformInput & { projectId: number },
+): Promise<ProjectSdkUpgradeStatusResult> {
   return client.deployments.sdkUpgradeStatus(input);
 }
 
 export function deploymentHistory(
-  input: PlatformInput & { appSourceId: number; limit?: number },
+  input: PlatformInput & { projectId: number; limit?: number },
 ): Promise<DeploymentHistoryResult> {
   return client.deployments.history(input);
 }
@@ -127,7 +127,7 @@ export function deploymentFeed(input: {
 }
 
 export function deploymentSecrets(
-  input: PlatformInput & { appSourceId: number },
+  input: PlatformInput & { projectId: number },
 ): Promise<DeploymentSecretsResult> {
   return client.deployments.secrets(input);
 }
@@ -137,13 +137,13 @@ export type RequiredSecretsResult = {
 };
 
 export function deploymentRequiredSecrets(
-  input: PlatformInput & { appSourceId: number },
+  input: PlatformInput & { projectId: number },
 ): Promise<RequiredSecretsResult> {
   return client.deployments.requiredSecrets(input);
 }
 
 export function deploymentRecords(
-  input: PlatformInput & { app: string; appSourceId?: number },
+  input: PlatformInput & { app: string; projectId?: number },
 ): Promise<ListDeploymentRecordsResult> {
   return client.deployments.records(input);
 }
@@ -151,7 +151,7 @@ export function deploymentRecords(
 export function deploymentPromote(input: {
   platform?: string;
   deploymentId: string;
-  appSourceId: number;
+  projectId: number;
   apps?: string[];
   actor?: string;
 }): Promise<DeploymentPromoteResult> {
@@ -160,7 +160,7 @@ export function deploymentPromote(input: {
 
 export function launchActivate(input: {
   platform?: string;
-  appSourceId: number;
+  projectId: number;
   releaseTags: string[];
   apps: string[];
   actor?: string;
@@ -170,7 +170,7 @@ export function launchActivate(input: {
 
 export function deploymentDeactivate(input: {
   platform?: string;
-  appSourceId: number;
+  projectId: number;
   apps: string[];
 }): Promise<{ ok: boolean; apps: string[] }> {
   return client.deployments.deactivate(input);
@@ -179,7 +179,7 @@ export function deploymentDeactivate(input: {
 export function deploymentSetSecrets(input: {
   platform?: string;
   app: string;
-  appSourceId: number;
+  projectId: number;
   secrets: Record<string, string>;
 }): Promise<{ ok: boolean; keys: string[] }> {
   return client.deployments.setSecrets(input);
@@ -188,7 +188,7 @@ export function deploymentSetSecrets(input: {
 export function deploymentDeleteSecret(input: {
   platform?: string;
   app: string;
-  appSourceId: number;
+  projectId: number;
   name: string;
 }): Promise<{ ok: boolean; removed: boolean }> {
   return client.deployments.deleteSecret(input);

@@ -4,8 +4,8 @@ import type {
   DeploymentStatus,
   PromoteResult,
   SdkVersionStatus,
-  UserSource,
-  UserSourceLatestDeployment,
+  UserProject,
+  UserProjectLatestDeployment,
 } from "@aomi-labs/deploy";
 
 export type {
@@ -31,7 +31,7 @@ export type LaunchProgress = {
   installationStatus?: string;
   repo?: string;
   /** Cached source row id from create/sync/dashboard responses. */
-  appSourceId?: number;
+  projectId?: number;
   /** Immutable source commit returned by source sync/create. */
   sourceRef?: string;
   deploymentId?: string;
@@ -45,21 +45,21 @@ export type LaunchProgress = {
 /**
  * Preflight / preview input. This is the one place a repo may stand in for a
  * source row: the preflight materializes the backend source and returns its
- * `appSourceId`.
+ * `projectId`.
  */
 export type LaunchPreflightInput = {
-  appSourceId?: number;
+  projectId?: number;
   sourceRef?: string;
   /** GitHub App installation that owns the source repo. Wizard context only. */
   installationId?: string;
-  /** `owner/name` repo used to mint the backend source when appSourceId is absent. */
+  /** `owner/name` repo used to mint the backend source when projectId is absent. */
   repo?: string;
   actor?: string;
 };
 
 /** Commit a deploy against a stable, already-resolved source row. */
 export type LaunchDeployInput = {
-  appSourceId: number;
+  projectId: number;
   sourceRef?: string;
   repo?: string;
   actor?: string;
@@ -68,7 +68,7 @@ export type LaunchDeployInput = {
 export type LaunchDeployResult = {
   repo: string;
   installationId?: string;
-  appSourceId?: number;
+  projectId?: number;
   sourceRef?: string;
   deployment: LaunchDeployPayload;
   releaseTags: string[];
@@ -79,7 +79,7 @@ export type LaunchCreateRepoResult = {
   ok: boolean;
   repo: string;
   installationId: string;
-  appSourceId?: number;
+  projectId?: number;
   sourceRef?: string;
 };
 
@@ -101,7 +101,7 @@ export type LaunchAppStatus = {
 
 export type LaunchRedeployResult = {
   ok: boolean;
-  appSourceId: number;
+  projectId: number;
   platformRepo: string;
   ciRunId: string;
   ciUrl: string;
@@ -113,13 +113,13 @@ export type LaunchSdkStatus = {
   sdkStatus: SdkVersionStatus;
 };
 
-export type DeploymentSourcesResult = {
-  sources: UserSource[];
+export type DeploymentProjectsResult = {
+  projects: UserProject[];
   githubLogin?: string;
 };
 
 export type DeploymentHistoryResult = {
-  deployments: UserSourceLatestDeployment[];
+  deployments: UserProjectLatestDeployment[];
 };
 
 export type DeploymentSecretsResult = {

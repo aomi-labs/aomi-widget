@@ -207,10 +207,10 @@ describe("missingSecretsForActivation", () => {
       listAppSecrets: vi.fn(async () => ({
         byApp: { binance: ["$SECRET:APP:binance::BINANCE_API_KEY"] },
       })),
-      // Production shape: `listUserSources` (the source of `input.source`)
+      // Production shape: `listUserProjects` (the source of `input.source`)
       // deliberately returns `latest_deployment: null` — the helper must
       // resolve `platformRepo` itself via the detail endpoint.
-      getUserSourceLatestDeployment: vi.fn(async () => ({
+      getUserProjectLatestDeployment: vi.fn(async () => ({
         platformRepo: "aomi-labs/community",
       })),
     } as unknown as DeploymentClient;
@@ -220,17 +220,17 @@ describe("missingSecretsForActivation", () => {
       githubUserId: "gh-1",
       platform: "community",
       githubToken: "t",
-      source: {
+      project: {
         id: 42,
         latestDeployment: null,
       } as never,
       pairs: [{ app: "binance", releaseTag: "v1" }],
     });
     expect(missing).toEqual({ binance: ["BINANCE_SECRET_KEY"] });
-    expect(client.getUserSourceLatestDeployment).toHaveBeenCalledWith({
+    expect(client.getUserProjectLatestDeployment).toHaveBeenCalledWith({
       githubUserId: "gh-1",
       platform: "community",
-      appSourceId: 42,
+      projectId: 42,
     });
   });
 
@@ -242,7 +242,7 @@ describe("missingSecretsForActivation", () => {
     // returns null, so the release manifest cannot be verified.
     const client = {
       listAppSecrets: vi.fn(),
-      getUserSourceLatestDeployment: vi.fn(async () => null),
+      getUserProjectLatestDeployment: vi.fn(async () => null),
     } as unknown as DeploymentClient;
     await expect(
       missingSecretsForActivation({
@@ -250,7 +250,7 @@ describe("missingSecretsForActivation", () => {
         githubUserId: "gh-1",
         platform: "community",
         githubToken: "t",
-        source: { id: 42, latestDeployment: null } as never,
+        project: { id: 42, latestDeployment: null } as never,
         pairs: [{ app: "binance", releaseTag: "v1" }],
       }),
     ).rejects.toMatchObject({ code: "REQUIRED_SECRETS_CHECK_UNAVAILABLE" });
@@ -265,7 +265,7 @@ describe("missingSecretsForActivation", () => {
 
     const client = {
       listAppSecrets: vi.fn(),
-      getUserSourceLatestDeployment: vi.fn(async () => ({
+      getUserProjectLatestDeployment: vi.fn(async () => ({
         platformRepo: "aomi-labs/community",
       })),
     } as unknown as DeploymentClient;
@@ -276,23 +276,23 @@ describe("missingSecretsForActivation", () => {
         githubUserId: "gh-1",
         platform: "community",
         githubToken: undefined,
-        source: { id: 42, latestDeployment: null } as never,
+        project: { id: 42, latestDeployment: null } as never,
         pairs: [{ app: "binance", releaseTag: "v1" }],
       }),
     ).rejects.toMatchObject({ code: "REQUIRED_SECRETS_CHECK_UNAVAILABLE" });
-    expect(client.getUserSourceLatestDeployment).not.toHaveBeenCalled();
+    expect(client.getUserProjectLatestDeployment).not.toHaveBeenCalled();
     expect(client.listAppSecrets).not.toHaveBeenCalled();
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
-  it("blocks when getUserSourceLatestDeployment rejects", async () => {
+  it("blocks when getUserProjectLatestDeployment rejects", async () => {
     const fetchImpl = vi.fn();
     vi.stubGlobal("fetch", fetchImpl);
 
     const backendError = new Error("backend unavailable");
     const client = {
       listAppSecrets: vi.fn(),
-      getUserSourceLatestDeployment: vi.fn(async () => {
+      getUserProjectLatestDeployment: vi.fn(async () => {
         throw backendError;
       }),
     } as unknown as DeploymentClient;
@@ -303,7 +303,7 @@ describe("missingSecretsForActivation", () => {
         githubUserId: "gh-1",
         platform: "community",
         githubToken: "t",
-        source: { id: 42, latestDeployment: null } as never,
+        project: { id: 42, latestDeployment: null } as never,
         pairs: [{ app: "binance", releaseTag: "v1" }],
       }),
     ).rejects.toMatchObject({

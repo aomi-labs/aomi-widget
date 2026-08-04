@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { DeployStep } from "./deploy-step";
 import {
+  launchDeploy,
   launchPreflight,
   type LaunchDeployPayload,
   type LaunchProgress,
@@ -14,7 +15,7 @@ vi.mock("@build/features/launch", () => ({
   launchDeploy: vi.fn(),
   launchStatus: vi.fn(),
   launchActivate: vi.fn(),
-  deploymentSources: vi.fn(),
+  deploymentProjects: vi.fn(),
 }));
 
 vi.mock("@aomi-labs/widget-lib", () => ({
@@ -83,6 +84,39 @@ describe("DeployStep", () => {
     );
   });
 
+  it("deploys the immutable commit returned by preflight", async () => {
+    vi.mocked(launchPreflight).mockResolvedValueOnce({
+      repo: "alice/bot",
+      projectId: 42,
+      sourceRef: "abc1234",
+      deployment: {
+        id: "preview",
+        status: "preflight",
+        source: {
+          ref: "abc1234",
+        },
+        platform: {
+          apps: [],
+        },
+      },
+      releaseTags: [],
+      apps: [],
+    } as never);
+    vi.mocked(launchDeploy).mockRejectedValueOnce(new Error("stop"));
+    render(<DeployStep {...defaultProps} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Deploy" }));
+
+    await waitFor(() =>
+      expect(launchDeploy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          projectId: 42,
+          sourceRef: "abc1234",
+        }),
+      ),
+    );
+  });
+
   it("shows the deployment ID when progress has one", () => {
     render(
       <DeployStep
@@ -107,7 +141,6 @@ describe("DeployStep", () => {
           ownerRepoName: "a/b",
           ref: "abc123",
           commitHash: "abc123",
-          aomiTomlPaths: ["aomi.toml"],
         },
         platform: {
           platform: "community",

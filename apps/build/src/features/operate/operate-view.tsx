@@ -1,6 +1,6 @@
 "use client";
 
-import type { AppSource } from "@aomi-labs/deploy";
+import type { Project } from "@aomi-labs/deploy";
 import {
   Activity,
   Gauge,
@@ -49,12 +49,12 @@ export { truncateAddress };
 // kind-indexed rows below.
 export type ViewKind = Exclude<OperateKind, "bots">;
 
-type Sourceish = AppSource & { apps?: unknown[] };
+type Projectish = Project & { apps?: unknown[] };
 
 type OperatePayload = {
   /** True when the BFF filled gaps with example fixture data (BE not live yet). */
   example?: boolean;
-  sources?: Sourceish[];
+  projects?: Projectish[];
   transactions?: Array<Record<string, any>>;
   daily?: Array<Record<string, any>>;
   breakdown?: Array<Record<string, any>>;
@@ -86,8 +86,8 @@ const meta = {
   observability: { title: "Observability", icon: Activity },
 } satisfies Record<ViewKind, { title: string; icon: LucideIcon }>;
 
-function sourceLabel(source: Sourceish) {
-  return source.repositoryLink || source.githubAccount || `Source ${source.id}`;
+function projectLabel(project: Projectish) {
+  return project.repositoryLink || `Project ${project.id}`;
 }
 
 /** Keep shareable filters in the URL without triggering a navigation. */
@@ -138,16 +138,16 @@ function appDetailHref(
   platform?: string,
 ): string | null {
   const applicationId = Number(app.applicationId);
-  const sourceId = Number(app.source?.id);
+  const projectId = Number(app.project?.id);
   if (
     !Number.isSafeInteger(applicationId) ||
     applicationId <= 0 ||
-    !Number.isSafeInteger(sourceId) ||
-    sourceId <= 0
+    !Number.isSafeInteger(projectId) ||
+    projectId <= 0
   ) {
     return null;
   }
-  const params = new URLSearchParams({ project: String(sourceId) });
+  const params = new URLSearchParams({ project: String(projectId) });
   if (platform) params.set("platform", platform);
   return `/operate/observability/${applicationId}?${params}`;
 }
@@ -520,7 +520,7 @@ function Rows({
               ) : null}
             </>
           );
-          const key = `${app.source?.id}-${app.applicationId}`;
+          const key = `${app.project?.id}-${app.applicationId}`;
           const className =
             "border-border bg-surface rounded-md border px-3 py-3";
           return detailHref ? (
@@ -592,7 +592,7 @@ export function OperateView({ kind }: { kind: ViewKind }) {
   const paymentsFromUrl = searchParams.get("payments") === "1";
   const txFromUrl = searchParams.get("tx");
   const accountKey = githubAccountKey(account.githubLogin);
-  const [sourceId, setSourceId] = useState<number | null>(projectFromUrl);
+  const [projectId, setSourceId] = useState<number | null>(projectFromUrl);
   const [txAppFilter, setTxAppFilter] = useState<string | null>(appFromUrl);
   const [txOpen, setTxOpen] = useState<string | null>(txFromUrl);
   const [logsFilter, setLogsFilter] = useState<LogsPageFilter>({
@@ -609,14 +609,14 @@ export function OperateView({ kind }: { kind: ViewKind }) {
   const queryKey = buildQueryKeys.operate(
     accountKey ?? "unavailable",
     kind,
-    sourceId,
+    projectId,
     platformFromUrl,
   );
   const dataQuery = useQuery({
     queryKey,
     queryFn: () =>
       operateFetch<OperatePayload>(kind, {
-        sourceId,
+        projectId,
         platform: platformFromUrl,
       }),
     enabled: account.signedIn && accountKey !== null,
@@ -628,12 +628,12 @@ export function OperateView({ kind }: { kind: ViewKind }) {
     queryKey: buildQueryKeys.operate(
       accountKey ?? "unavailable",
       "payments",
-      sourceId,
+      projectId,
       platformFromUrl,
     ),
     queryFn: () =>
       operatePaymentsFetch<PaymentPayload>({
-        sourceId,
+        projectId,
         platform: platformFromUrl,
       }),
     enabled:
@@ -668,7 +668,7 @@ export function OperateView({ kind }: { kind: ViewKind }) {
         }
       : null;
   const Icon = meta[kind].icon;
-  const sources = useMemo(() => payload?.sources ?? [], [payload?.sources]);
+  const projects = useMemo(() => payload?.projects ?? [], [payload?.projects]);
   const canPage = kind === "transactions" || kind === "logs";
   const nextCursor = canPage ? payload?.nextCursor : null;
 
@@ -694,7 +694,7 @@ export function OperateView({ kind }: { kind: ViewKind }) {
   }, [txFromUrl]);
   useEffect(() => {
     setPaginationError(null);
-  }, [accountKey, kind, platformFromUrl, sourceId]);
+  }, [accountKey, kind, platformFromUrl, projectId]);
 
   if (account.loading) {
     return (
@@ -718,7 +718,7 @@ export function OperateView({ kind }: { kind: ViewKind }) {
     setPaginationError(null);
     try {
       const next = await operateFetch<OperatePayload>(kind, {
-        sourceId,
+        projectId,
         cursor: nextCursor,
         platform: platformFromUrl,
       });
@@ -730,7 +730,7 @@ export function OperateView({ kind }: { kind: ViewKind }) {
         if (kind === "transactions") {
           merged = {
             ...next,
-            sources: current.sources ?? next.sources,
+            projects: current.projects ?? next.projects,
             transactions: [
               ...(current.transactions ?? []),
               ...(next.transactions ?? []),
@@ -739,7 +739,7 @@ export function OperateView({ kind }: { kind: ViewKind }) {
         } else if (kind === "logs") {
           merged = {
             ...next,
-            sources: current.sources ?? next.sources,
+            projects: current.projects ?? next.projects,
             logs: [...(current.logs ?? []), ...(next.logs ?? [])],
           };
         } else {
@@ -785,7 +785,7 @@ export function OperateView({ kind }: { kind: ViewKind }) {
         <label className="text-dim flex items-center gap-2 text-sm">
           <ListFilter className="size-4" />
           <select
-            value={sourceId ?? ""}
+            value={projectId ?? ""}
             onChange={(event) =>
               setSourceId(
                 event.target.value ? Number(event.target.value) : null,
@@ -793,10 +793,10 @@ export function OperateView({ kind }: { kind: ViewKind }) {
             }
             className="border-border bg-surface text-foreground h-9 rounded-md border px-2"
           >
-            <option value="">All sources</option>
-            {sources.map((source) => (
+            <option value="">All projects</option>
+            {projects.map((source) => (
               <option key={source.id} value={source.id}>
-                {sourceLabel(source)}
+                {projectLabel(source)}
               </option>
             ))}
           </select>

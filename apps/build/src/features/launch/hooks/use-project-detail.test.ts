@@ -12,8 +12,8 @@ vi.mock("@build/features/launch/dashboard", () => ({
 }));
 
 vi.mock("@build/features/launch/client", () => ({
-  deploymentSources: vi.fn(async () => ({
-    sources: [
+  deploymentProjects: vi.fn(async () => ({
+    projects: [
       {
         id: 7,
         installationId: 5,
@@ -72,7 +72,7 @@ import {
   deploymentHistory,
   deploymentSecrets,
   deploymentRequiredSecrets,
-  deploymentSources,
+  deploymentProjects,
   launchDeploy,
   launchPreflight,
 } from "@build/features/launch/client";
@@ -121,7 +121,7 @@ describe("useProjectDetail", () => {
     expect(deploymentRecords).toHaveBeenCalledTimes(1);
     expect(deploymentRecords).toHaveBeenCalledWith({
       app: "my-bot",
-      appSourceId: 7,
+      projectId: 7,
     });
   });
 
@@ -225,9 +225,9 @@ describe("useProjectDetail", () => {
     // the page never saw. The gate then fails for that app — and the banner and
     // Environment tab list apps from `source`, so a stale source leaves the
     // user with a missing-secret error and nowhere to enter the value.
-    vi.mocked(deploymentSources)
+    vi.mocked(deploymentProjects)
       .mockResolvedValueOnce({
-        sources: [
+        projects: [
           {
             id: 7,
             installationId: 5,
@@ -238,7 +238,7 @@ describe("useProjectDetail", () => {
         ],
       } as never)
       .mockResolvedValue({
-        sources: [
+        projects: [
           {
             id: 7,
             installationId: 5,
@@ -250,7 +250,7 @@ describe("useProjectDetail", () => {
       } as never);
     vi.mocked(launchPreflight).mockResolvedValue({
       ok: true,
-      appSourceId: 7,
+      projectId: 7,
       sourceRef: "abc1234",
       apps: ["my-bot", "my-bot-2"],
     } as never);

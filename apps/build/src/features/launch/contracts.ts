@@ -25,7 +25,7 @@ export type {
   LaunchAppStatus,
   LaunchRedeployResult,
   LaunchSdkStatus,
-  DeploymentSourcesResult,
+  DeploymentProjectsResult,
   DeploymentHistoryResult,
   DeploymentFeedResult,
   DeploymentSecretsResult,

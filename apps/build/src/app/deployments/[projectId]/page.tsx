@@ -17,10 +17,10 @@ export default async function ProjectRoute({
   params,
   searchParams,
 }: {
-  params: Promise<{ sourceId: string }>;
+  params: Promise<{ projectId: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const { sourceId } = await params;
+  const { projectId } = await params;
   const query = queryString(await searchParams);
-  redirect(`/projects/${encodeURIComponent(sourceId)}${query ? `?${query}` : ""}`);
+  redirect(`/projects/${encodeURIComponent(projectId)}${query ? `?${query}` : ""}`);
 }

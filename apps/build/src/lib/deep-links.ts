@@ -9,10 +9,10 @@ export type ProjectTab =
   | "chat";
 
 /** Deep link into a project. Home omits `?tab=` (default). */
-export function projectHref(sourceId: number, tab?: ProjectTab): string {
-  if (!Number.isSafeInteger(sourceId) || sourceId <= 0) return "/projects";
-  if (!tab || tab === "home") return `/projects/${sourceId}`;
-  return `/projects/${sourceId}?tab=${tab}`;
+export function projectHref(projectId: number, tab?: ProjectTab): string {
+  if (!Number.isSafeInteger(projectId) || projectId <= 0) return "/projects";
+  if (!tab || tab === "home") return `/projects/${projectId}`;
+  return `/projects/${projectId}?tab=${tab}`;
 }
 
 /** Last opened project, or the Projects list when none. */
@@ -23,13 +23,13 @@ export function lastProjectHref(tab?: ProjectTab): string {
 }
 
 /** Operate Usage, optionally scoped to one project. */
-export function usageHref(sourceId?: number | null): string {
+export function usageHref(projectId?: number | null): string {
   if (
-    sourceId != null &&
-    Number.isSafeInteger(sourceId) &&
-    sourceId > 0
+    projectId != null &&
+    Number.isSafeInteger(projectId) &&
+    projectId > 0
   ) {
-    return `/operate/usage?project=${sourceId}`;
+    return `/operate/usage?project=${projectId}`;
   }
   return "/operate/usage";
 }

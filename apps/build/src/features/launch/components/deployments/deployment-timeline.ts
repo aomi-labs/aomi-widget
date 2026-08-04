@@ -1,4 +1,4 @@
-import type { UserSourceLatestDeployment } from "@aomi-labs/deploy";
+import type { UserProjectLatestDeployment } from "@aomi-labs/deploy";
 import type { DeploymentRecord } from "@build/features/launch/contracts";
 
 /** One deployment for the project timeline. `commit` is decoded from the
@@ -33,7 +33,7 @@ export function commitFromDeploymentId(deploymentId: string): string | null {
  */
 export function buildDeploymentList(
   recordsByApp: Record<string, DeploymentRecord[]> | null,
-  history: UserSourceLatestDeployment[] | null = null,
+  history: UserProjectLatestDeployment[] | null = null,
 ): TimelineDeployment[] {
   const byId = new Map<string, TimelineDeployment>();
   for (const [app, rows] of Object.entries(recordsByApp ?? {})) {

@@ -26,7 +26,7 @@ export const API_PATHS = {
       redeploy: `${BFF}/launch/redeploy`,
       create: `${BFF}/launch/create`,
       activate: `${BFF}/launch/activate`,
-      sources: `${BFF}/launch/sources`,
+      projects: `${BFF}/launch/projects`,
       sdkStatus: `${BFF}/launch/sdk-status`,
       status: (deploymentId: string) =>
         `${BFF}/launch/status?deploymentId=${encodeURIComponent(deploymentId)}`,
@@ -41,10 +41,10 @@ export const API_PATHS = {
       deploy: `${BFF}/deployments/deploy`,
       redeploy: `${BFF}/deployments/redeploy`,
       promote: `${BFF}/deployments/promote`,
-      sources: `${BFF}/deployments/sources`,
-      history: (appSourceId: number, limit?: number) => {
+      projects: `${BFF}/deployments/projects`,
+      history: (projectId: number, limit?: number) => {
         const params = new URLSearchParams({
-          appSourceId: String(appSourceId),
+          projectId: String(projectId),
         });
         if (limit) params.set("limit", String(limit));
         return `${BFF}/deployments/history?${params}`;
@@ -52,11 +52,11 @@ export const API_PATHS = {
       sdkStatus: `${BFF}/deployments/sdk-status`,
       status: (deploymentId: string) =>
         `${BFF}/deployments/status?deploymentId=${encodeURIComponent(deploymentId)}`,
-      secrets: (appSourceId: number) =>
-        `${BFF}/deployments/secrets?appSourceId=${appSourceId}`,
-      records: (app: string, appSourceId?: number) =>
+      secrets: (projectId: number) =>
+        `${BFF}/deployments/secrets?projectId=${projectId}`,
+      records: (app: string, projectId?: number) =>
         `${BFF}/deployments/records?app=${encodeURIComponent(app)}${
-          appSourceId != null ? `&appSourceId=${appSourceId}` : ""
+          projectId != null ? `&projectId=${projectId}` : ""
         }`,
       deactivate: `${BFF}/deployments/deactivate`,
     },

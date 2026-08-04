@@ -203,7 +203,7 @@ describe("HomeTab", () => {
 
     expect(await screen.findByText("No traffic yet")).toBeInTheDocument();
     expect(operateFetch).toHaveBeenCalledWith("usage", {
-      sourceId: 1,
+      projectId: 1,
       platform: "somm.finance",
     });
     expect(screen.getByRole("link", { name: /^open usage$/i })).toHaveAttribute(

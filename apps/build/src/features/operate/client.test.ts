@@ -21,12 +21,12 @@ afterEach(() => {
 describe("operate client platform scope", () => {
   it("sends the project platform with usage reads", async () => {
     await operateFetch("usage", {
-      sourceId: 1620,
+      projectId: 1620,
       platform: "somm.finance",
     });
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "/api/bff/operate/usage?appSourceId=1620&platform=somm.finance",
+      "/api/bff/operate/usage?projectId=1620&platform=somm.finance",
       { signal: expect.any(AbortSignal) },
     );
   });
@@ -35,7 +35,7 @@ describe("operate client platform scope", () => {
     await operateAppDetailFetch(1620, 2938032, "somm.finance");
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "/api/bff/operate/observability/detail?appSourceId=1620&applicationId=2938032&platform=somm.finance",
+      "/api/bff/operate/observability/detail?projectId=1620&applicationId=2938032&platform=somm.finance",
       { signal: expect.any(AbortSignal) },
     );
   });

@@ -1,5 +1,28 @@
 # Auth BFF BetterAuth Cleanup Goal
 
+## Canonical Build Projects Refactor
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED
+2026-08-03** — replace the frontend's invented source/discovery model with the
+backend's canonical platform-bound Project model, with no compatibility path.
+
+- Removed `/sources`, `app_source_id`, `AppSource`/`UserSource`, frontend
+  `.aomi/config.json` parsing, and manifest-path forwarding.
+- Project pages now consume only persisted builder-owned projects; GitHub App
+  repository access remains candidate data used only during explicit creation.
+- Deployment history uses the account-wide project feed and `projectId`.
+- Operate reads are account-wide by default; selected-project detail uses the
+  project's bound platform, and Telegram receives eligible applications across
+  every bound platform.
+- Preflight resolves and returns an immutable commit; apply requires it.
+- The breaking shared packages are versioned as `@aomi-labs/deploy@0.5.0` and
+  `@aomi-labs/client@0.4.0`.
+- Local manager + Build browser E2E against an isolated migrated Postgres
+  database verified that candidate repositories never appear as projects,
+  deployment history spans platforms, World Markets opens from observability
+  overview into detail, and the Telegram picker offers World Markets even from
+  a Community shell URL.
+
 ## BFF Sentry Observability
 
 Current session goal: **LOCAL IMPLEMENTATION AND REVIEW FIXES COMPLETE;

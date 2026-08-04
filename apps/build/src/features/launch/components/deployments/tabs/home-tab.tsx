@@ -166,11 +166,11 @@ function monetizationCard(source: NonNullable<Detail["source"]>) {
 }
 
 function operateUsageHref(
-  sourceId: number,
+  projectId: number,
   platform?: string,
   anchor?: string,
 ) {
-  const params = new URLSearchParams({ project: String(sourceId) });
+  const params = new URLSearchParams({ project: String(projectId) });
   if (platform) params.set("platform", platform);
   return `/operate/usage?${params}${anchor ? `#${anchor}` : ""}`;
 }
@@ -199,7 +199,7 @@ export function HomeTab({
     queryFn: () =>
       operateFetch<{
         daily?: Array<Record<string, unknown>>;
-      }>("usage", { sourceId: source?.id, platform }),
+      }>("usage", { projectId: source?.id, platform }),
     enabled: source !== null,
     staleTime: buildQueryStaleTime.operate,
   });

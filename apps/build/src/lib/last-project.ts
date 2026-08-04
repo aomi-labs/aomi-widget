@@ -12,11 +12,11 @@ export function getLastProjectId(): number | null {
   }
 }
 
-export function setLastProjectId(sourceId: number) {
+export function setLastProjectId(projectId: number) {
   if (typeof window === "undefined") return;
-  if (!Number.isSafeInteger(sourceId) || sourceId <= 0) return;
+  if (!Number.isSafeInteger(projectId) || projectId <= 0) return;
   try {
-    window.localStorage.setItem(LAST_PROJECT_KEY, String(sourceId));
+    window.localStorage.setItem(LAST_PROJECT_KEY, String(projectId));
   } catch {
     // ignore quota / private mode
   }

@@ -19,7 +19,7 @@ describe("SettingsSecretsPanel", () => {
     useProjectsMock.mockReturnValue({
       state: {
         status: "ready",
-        sources: [],
+        projects: [],
         sdk: null,
         github: { signedIn: true, githubLogin: "alice", githubUserId: "1" },
       },
@@ -38,7 +38,7 @@ describe("SettingsSecretsPanel", () => {
     useProjectsMock.mockReturnValue({
       state: {
         status: "ready",
-        sources: [
+        projects: [
           {
             id: 7,
             installationId: 1,
@@ -66,7 +66,7 @@ describe("SettingsSecretsPanel", () => {
     useProjectsMock.mockReturnValue({
       state: {
         status: "ready",
-        sources: [
+        projects: [
           {
             id: 3,
             installationId: 1,

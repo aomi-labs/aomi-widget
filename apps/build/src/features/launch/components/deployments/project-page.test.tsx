@@ -84,7 +84,7 @@ function renderPage(platform?: string) {
     <QueryClientProvider client={client}>
       <ToastProvider>
         <ProjectPage
-          sourceId={1}
+          projectId={1}
           platform={platform}
           tabBaseHref="/projects/1"
         />
