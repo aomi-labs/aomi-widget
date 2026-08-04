@@ -2,6 +2,72 @@
 
 ## Last Updated
 
+2026-08-04 — PROJECT HOME "KEYS MISSING" FALSE ALARM (apps/build, committed
+  on `feat/build-new-app-two-starts`). The Environment card warned whenever no
+  key was set
+  (`envReady = secretCount > 0`), so every project that declares no required
+  key at all — including a fresh one with no apps — read as broken.
+  - NEW `tabs/environment-card.ts`: pure `environmentCard()` mirroring the gate
+    the rest of Build enforces (a declared required slot with no value), in
+    order error → loading → missing → set → none-required. "No keys required"
+    is `good`, not `warn`.
+  - Warn state now carries concrete detail instead of the glossary line:
+    "2 required keys not set for somm-agent: OPENAI_API_KEY and
+    ALCHEMY_API_KEY. Set them in Environment before deploying." (names capped
+    at 4, then "and N more"). The "Next" block reuses that same sentence.
+  - A failed read is "Unavailable" with the error text, and `blocked: false` —
+    nothing is KNOWN missing, so it must not read as a key fault.
+  - home-tab now calls `loadRequiredSecrets()` (it only loaded `secrets`
+    before) and gates on source apps ∪ apps the check named, same union
+    deployments-tab uses.
+  - Verified: apps/build vitest 452 passed/12 skipped (72 files), tsc/eslint/
+    prettier clean; both states driven in a local dev server against stubbed
+    BFF reads.
+
+2026-08-04 — NEW APP: TWO STARTS (apps/build, committed on
+  `feat/build-new-app-two-starts`). `/operate/
+  deployments/new` no longer assumes the template. Signed-in users get two
+  cards — "Start from the template" (the existing Onboarding/OneshotWizard) and
+  "Import from GitHub" (the existing `RepositoryConnector`) — then the chosen
+  flow renders in the same framed panel with a "Choose a different start" back
+  button.
+  - `new-project.tsx`: card picker + `?mode=template|import` kept in sync via
+    `history.replaceState`, so reload and back/forward stay on the chosen flow.
+  - `new-project-mode.ts` (NEW, no `"use client"`): `NewProjectMode` +
+    `newProjectMode()` parser. It lives outside the component because the route
+    parses `?mode=` on the server — calling it from the client module threw
+    "Attempted to call newProjectMode() from the server".
+  - Resume guard: `resumingTemplate()` re-opens the template card when the
+    GitHub round-trip returns (`installation_id`/`deployment_id`/
+    `launch=personal_required` on the URL, or a saved `pendingInstall`). A
+    stale stored `installationId` deliberately does NOT count — it would pin
+    every later visit to the template card.
+  - De-duplicated the import entry point: the inline connect form is gone from
+    the Projects index; that page now renders only the extracted
+    `ConnectionResultBanner` (GitHub still returns to `/projects`, so the
+    outcome has to render without the form that started it).
+  - Verified: apps/build vitest 441 passed/12 skipped (71 files, incl. new
+    `new-project.test.tsx`), tsc clean, eslint clean, prettier clean; both
+    flows driven in a local dev server.
+  Codex review follow-up (same day):
+  - resumingTemplate() also resumes on a saved `oneshot.deploymentId` that is
+    not yet `live` — the wizard only mirrors it into the URL while mounted, so
+    leaving Build mid-deploy and returning through the nav used to land on the
+    picker. `live` still falls through to the cards.
+  - `?mode=` now syncs on change (ref-guarded, so it never races the resume
+    effect on mount): the App Router reuses this instance across a soft nav, so
+    a "New app" link carrying no mode has to return the user to the picker.
+  - Both fixes mutation-checked (tests fail when the fix is backed out) and
+    `ConnectionResultBanner` got its own tests.
+  - Review's P1 ("Import depends on unmerged BE") does NOT hold:
+    codex/build-existing-repo-oauth landed on product-mono main as 0b6eb9582
+    (PR #923, 2026-08-03). `github_app_oauth_start` reads `return_to`,
+    `validate_build_return_to` allowlists it, and `redirect_url()` honours it.
+    NOTE for anyone extending returnTo: validation requires the URL's query to
+    be EXACTLY `platform=<signed platform>` and the path to be `/projects` or
+    `/operate/deployments/new` — putting `&mode=` on a returnTo would 400,
+    which is why the resume state is derived instead.
+
 2026-08-04 — **Sidebar wordmark is now a product switcher.** The chat sidebar
   header (`apps/shadcn-registry/src/components/assistant-ui/threadlist-sidebar.tsx`)
   no longer links out to `aomi.dev`; the logo · "Aomi" · chevron row is a Popover

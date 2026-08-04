@@ -5,7 +5,52 @@ const githubAppInstallUrl = vi.hoisted(() => vi.fn());
 
 vi.mock("@build/features/launch/client", () => ({ githubAppInstallUrl }));
 
-import { RepositoryConnector } from "./repository-connector";
+import {
+  ConnectionResultBanner,
+  RepositoryConnector,
+} from "./repository-connector";
+
+describe("ConnectionResultBanner", () => {
+  it("renders nothing without a result", () => {
+    const { container } = render(
+      <ConnectionResultBanner platform="somm.finance" />,
+    );
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("names the connected repository and platform on success", () => {
+    render(
+      <ConnectionResultBanner
+        platform="somm.finance"
+        result={{ status: "success", repo: "PeggyJV/somm-agent" }}
+      />,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "PeggyJV/somm-agent is now connected to somm.finance.",
+    );
+  });
+
+  it("reports progress as a status, not a failure", () => {
+    render(
+      <ConnectionResultBanner
+        platform="somm.finance"
+        result={{ status: "pending", message: "Install requested." }}
+      />,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("Install requested.");
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("reports a failure as an alert", () => {
+    render(
+      <ConnectionResultBanner
+        platform="somm.finance"
+        result={{ status: "error", message: "Could not connect." }}
+      />,
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent("Could not connect.");
+  });
+});
 
 describe("RepositoryConnector", () => {
   beforeEach(() => {

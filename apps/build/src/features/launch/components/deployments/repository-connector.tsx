@@ -8,6 +8,59 @@ import type { RepositoryConnectionResult } from "@aomi-labs/deploy/launch";
 
 export type { RepositoryConnectionResult };
 
+/**
+ * The outcome of a GitHub round-trip, rendered on its own.
+ *
+ * The connect form lives on the "New app" page, but GitHub returns the user to
+ * the scoped Projects page — where the new project is — so the result has to be
+ * renderable without the form that started it.
+ */
+export function ConnectionResultBanner({
+  platform,
+  result,
+}: {
+  platform: string;
+  result?: RepositoryConnectionResult;
+}) {
+  if (!result) return null;
+
+  if (result.status === "success") {
+    return (
+      <div
+        role="status"
+        className="border-border bg-surface-1 flex items-center gap-2 rounded-md border px-3 py-2 text-sm"
+      >
+        <CheckCircle2 className="size-4 text-emerald-500" aria-hidden />
+        <span>
+          {result.repo ?? "Repository"} is now connected to {platform}.
+        </span>
+      </div>
+    );
+  }
+
+  if (result.status === "pending") {
+    return (
+      <div
+        role="status"
+        className="border-border bg-surface-1 text-dim flex items-center gap-2 rounded-md border px-3 py-2 text-sm"
+      >
+        <Clock className="size-4 shrink-0" aria-hidden />
+        <span>{result.message}</span>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      role="alert"
+      className="border-destructive/30 bg-destructive/5 text-destructive flex items-center gap-2 rounded-md border px-3 py-2 text-sm"
+    >
+      <AlertCircle className="size-4 shrink-0" aria-hidden />
+      <span>{result.message}</span>
+    </div>
+  );
+}
+
 export function RepositoryConnector({
   platform,
   result,
@@ -54,41 +107,15 @@ export function RepositoryConnector({
           Connect an existing repository
         </h2>
         <p className="text-dim mt-1 text-sm">
-          Enter the GitHub repository your partner gave you. It will only be
-          added to <span className="text-foreground">{platform}</span> after
-          GitHub confirms your access.
+          Enter the GitHub repository you already own — or the one your partner
+          gave you. It will only be added to{" "}
+          <span className="text-foreground">{platform}</span> after GitHub
+          confirms your access, and you&apos;ll come back to Projects when
+          it&apos;s connected.
         </p>
       </div>
 
-      {result?.status === "success" && (
-        <div
-          role="status"
-          className="border-border bg-surface-1 flex items-center gap-2 rounded-md border px-3 py-2 text-sm"
-        >
-          <CheckCircle2 className="size-4 text-emerald-500" aria-hidden />
-          <span>
-            {result.repo ?? "Repository"} is now connected to {platform}.
-          </span>
-        </div>
-      )}
-      {result?.status === "pending" && (
-        <div
-          role="status"
-          className="border-border bg-surface-1 text-dim flex items-center gap-2 rounded-md border px-3 py-2 text-sm"
-        >
-          <Clock className="size-4 shrink-0" aria-hidden />
-          <span>{result.message}</span>
-        </div>
-      )}
-      {result?.status === "error" && (
-        <div
-          role="alert"
-          className="border-destructive/30 bg-destructive/5 text-destructive flex items-center gap-2 rounded-md border px-3 py-2 text-sm"
-        >
-          <AlertCircle className="size-4 shrink-0" aria-hidden />
-          <span>{result.message}</span>
-        </div>
-      )}
+      <ConnectionResultBanner platform={platform} result={result} />
 
       <form onSubmit={connect} className="flex max-w-2xl gap-2">
         <div className="relative min-w-0 flex-1">
