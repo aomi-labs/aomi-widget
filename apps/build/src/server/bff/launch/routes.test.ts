@@ -9,6 +9,7 @@ import {
   deploymentSecretsWriteRoute,
   clearLaunchReadCache,
   activateLaunchRoute,
+  createLaunchRepoRoute,
   launchAppRoute,
   launchDeployRoute,
   launchSdkStatusRoute,
@@ -220,6 +221,55 @@ function latestDeploymentResponse(platformRepo: string) {
     },
   });
 }
+
+describe("createLaunchRepoRoute", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    getGitHubSession.mockReset();
+  });
+
+  it("creates the source in the explicitly selected partner platform", async () => {
+    getGitHubSession.mockResolvedValue({
+      githubUserId: "42",
+      githubLogin: "alice",
+    });
+    const fetchMock = vi.fn().mockResolvedValue(
+      Response.json({
+        ok: true,
+        source: {
+          id: 123,
+          installation_id: 555,
+          repository_id: 999,
+          repository_link: "alice/bot",
+          github_account: "alice",
+          source_ref: "abc1234def5678",
+        },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await createLaunchRepoRoute(
+      new Request("http://localhost:3000/api/bff/launch/create", {
+        method: "POST",
+        headers: {
+          origin: "http://localhost:3000",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          platform: "somm.finance",
+          installationId: "555",
+          repoName: "bot",
+        }),
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://127.0.0.1:8080/api/integrations/github-app/platforms/somm.finance/sources/create-from-template",
+      expect.objectContaining({ method: "POST" }),
+    );
+  });
+});
 
 describe("CLI bearer scope", () => {
   afterEach(() => {

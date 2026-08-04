@@ -2,6 +2,169 @@
 
 ## Last Updated
 
+2026-08-02 — PLATFORM-BINDING INVARIANT, E2E (FE worktree platform-switch +
+  BE worktree somm-repo-connect/product-mono branch
+  codex/build-existing-repo-oauth, both uncommitted; BE sits on top of the
+  merged h4n0 PR #907). Design: a source is either DISCOVERED (unowned,
+  unbound, invisible) or CLAIMED (one owner, exactly one platform, visible on
+  that platform's page only); Build has no unscoped view — no `?platform=`
+  means Community.
+  BE (product-mono):
+  - NEW migration 20260803000000_app_source_platform_backfill.sql — bucket 1
+    infers bound_platform_id from apps' platform_id (multi-platform rows
+    skipped for operator repair, verify-SELECT in the header), bucket 2 binds
+    owned-but-unbound to community, then CHECK app_source_owned_implies_bound
+    (owner NULL OR platform NOT NULL). All write paths audited: oneshot
+    insert + claim_user_and_platform set both, webhook upsert sets neither,
+    bind_platform only adds — admin-bound-unowned stays legal.
+  - endpoints/github_app.rs: LaunchSourceKind (oneshot-everywhere +
+    deployed-app grandfathering + Other) DELETED; platform-scoped
+    list/latest-deployment/history/loader now gate on source_on_platform()
+    equality; launch_source_kind dropped from the wire; presenter dissolved
+    into free deployment_json{,_from_row}; app_loaded lost its vestigial
+    platform param (obs monitoring/detail/batch updated).
+  - handler.rs: check_source_deploy_platform is STRICT equality (unbound only
+    passes preflight, mirroring check_source_deploy_owner); grandfathering
+    deleted — cross-platform rows (bound A, serving on B) now 403 redeploys
+    until operator repair; gate tests rewritten (8/8 green).
+  - oauth/start: `mode` param KILLED — with a repo the backend checks
+    repo_has_installation() (new GitHubApp helper, 404→false) and returns the
+    OAuth consent URL when covered, install URL when not; no repo → install.
+  - Verified: cargo check -p manager --tests clean; gate unit tests 8/8.
+    DB-backed tests refuse locally (hosted-DB guard) — CI covers them. No
+    clippy/build run (Cecilia: no memory-heavy ops).
+  FE (this repo):
+  - platform.ts: platformParam now DEFAULTS to DEFAULT_DEPLOY_PLATFORM
+    ("community"); usePlatform returns string (defaults too); hardcoded
+    "community" literals in onboarding/platform-switcher/home-redirect
+    replaced with the constant; deployments/new backHref always Projects.
+  - githubAppInstallUrl lost `mode` (packages/deploy client + build client);
+    launchSourceKind deleted from UserSource type + camel mapper.
+  - use-projects.ts: hasApps filter DROPPED — claimed zero-app sources render
+    as "Connected — not deployed yet" (project-deployment-status empty
+    branch), fixing connect-success-banner-over-missing-row.
+  - docs/fe-deploy.md oauth/start rows updated (backend picks the ceremony).
+  - Verified: apps/build vitest 416 passed/12 skipped (69 files),
+    packages/deploy 136/136, tsc clean both, eslint clean on touched files.
+  2026-08-03 follow-up — BUILDERS DUPES + REDUNDANT FIELDS (from Cecilia's
+  Supabase screenshot): the live DB has DUPLICATE builders.github_user_id rows
+  (4738254/h4n0 twice) because 0714's CREATE TABLE IF NOT EXISTS no-opped on a
+  pre-existing table and its UNIQUE never materialized — every ON CONFLICT
+  (github_user_id) (claim ceremony, 0802 backfill) would error at runtime.
+  Fixed in-place in the 0802 migration: idempotent dedupe (merge onto MIN(id),
+  carry github_login, repoint app_source/bot_registrations/builder_model_keys)
+  + guarded ADD CONSTRAINT builders_github_user_id_key. 0803 also now flips
+  app_source.bound_platform_id FK from SET NULL to RESTRICT (SET NULL would
+  collide with the owned-implies-bound CHECK). Redundant-field verdict:
+  app_source.github_user_id + its index are the only redundant ones; Rust no
+  longer references them; the SQL drop is documented in the 0802 header and
+  DROPPED at the end of 0802 (Cecilia accepted the brief rolling-window
+  breakage in exchange for a one-cycle removal — no follow-up migration).
+  PENDING/handoff: run the migration's verify-SELECT against staging+prod and
+  hand-repair any multi-platform or cross-platform rows BEFORE deploying the
+  strict gate; deploy order migration → BE → FE; AOMI_BUILD_URL must be set
+  on staging/prod backends or return_to is rejected; commits/pushes are
+  Cecilia's (BE branch also has 4 unpushed commits incl. the #907 merge).
+
+2026-08-03 (staging smoke) — **Staging API verified healthy; DOMAIN.md route
+  table found stale.** Live smoke of `api-staging.aomi.dev` (the hostname
+  `api.staging.aomi.dev` does not resolve): health, auth boundaries, OAuth
+  start, direct `/api/thread/chat` round-trip, and browser chat through
+  `chat-staging.aomi.dev` all pass. Finding: the deployed backend serves ONLY
+  the `/api/thread/*` + `/api/threads` surface; legacy `/api/chat`,
+  `/api/state`, `/api/sessions`, `/api/session/*` 404 by design.
+  `packages/client` already uses the new routes, but `specs/DOMAIN.md`'s
+  "Backend Endpoints" table still documents the legacy paths (and claims
+  archive/unarchive routes don't exist — they do now, per staging OpenAPI).
+  **Pending:** refresh DOMAIN.md's endpoint table from
+  `/api/openapi.json` + `packages/client/src/client.ts`.
+
+2026-08-03 (later) — **PR #7: canonical sign-out centralized in widget-lib.**
+  Review follow-up (Codex + Claude review agreed): DualWalletBar's disconnect
+  fallback called only `adapter.disconnect()`, skipping account/widget session
+  teardown — latent, since portal (the only `accountMenu` consumer) supplied
+  its own correct `onDisconnect`, but any future consumer would have leaked
+  live backend sessions behind a "Connect wallet" chip. The
+  signOut→disconnect sequence lived in three places (wallet-picker.tsx:542,
+  portal's `disconnectPortalAccount`, the incomplete fallback); now it is ONE:
+  new `lib/wallet-kit/account/sign-out.ts` exports `signOutAndDisconnect()`
+  (`try { signOutAccount } finally { disconnect({family:"all"}) }`), used by
+  WalletPicker and as DualWalletBar's default; portal's `onDisconnect` +
+  `disconnectPortalAccount` deleted (hook comment documents why). Also fixed
+  in the same path: `handleDisconnectConfirm` now catches (was an unhandled
+  rejection when a host `onDisconnect` rethrew; dialog stays open for retry,
+  `console.warn` per house idiom) and the confirm-dialog backdrop honors
+  `busy` like the Cancel button. New file registered in `registry.ts`
+  (build:registry validates) and exported from `wallet-kit/index.ts`. Tests:
+  registry fallback ordering + sign-out-failure cases added (7 pass), portal
+  onDisconnect tests replaced with an is-undefined assertion (4 pass); full
+  registry suite 296 pass (package-boundary tests need `build:package` first
+  or they ENOENT on dist/ — environmental, not code). Portal `type-check` and
+  registry `tsc --noEmit` clean. Pending from review, NOT done: AccountMenu
+  a11y (no Escape-close, rows not `menuitem`), `networkLabel.slice(0,8)` hard
+  truncation, multi-wallet chip collapses to primary wallet in account-menu
+  mode (verify against mock), portal→registry DOM coupling via
+  `[data-aomi-network-select-trigger]` click.
+
+2026-08-03 — **PR #7 (feat/portal-account-menu) sign-in wiring + CI fix.**
+  Green CI blocker found and fixed: `pnpm run build:registry` failed with
+  `Registry item "control-bar" is missing internal files` because
+  `account-menu.tsx`, `account-menu-types.ts` and
+  `disconnect-confirm-dialog.tsx` were added to `components/control-bar/` but
+  never listed in `src/registry.ts` (the build validates every *relative*
+  import in a registry item resolves to a listed file). Also fixed a
+  `tsc --noEmit` error in `dual-wallet-bar.test.tsx` — the `walletModalRows`
+  mock was missing the required `source`/`status`/`actions` fields.
+  **Behaviour fix:** the sidebar AccountMenu "Sign in" and the Settings gate
+  retry both called `openAccountUI()`, which opens Para's *account
+  management* modal (`ACCOUNT_MAIN`) — the email/profile popup — and can
+  never mint the missing Aomi session. Both now call `connect()`
+  (`AUTH_MAIN`), which re-arms the provider credential exchange. Removed a
+  dead `accountStatus === "error"` branch: a failed exchange sets status back
+  to `"ready"` and only populates `accountError` for 409, so the chip now
+  shows `accountError` when present. Session probe no longer burns the full
+  30s budget once the exchange has settled (short settle grace instead), so
+  Settings stops sitting on "Connecting your account…" and reaches the
+  actionable "Finish signing in" gate. `widget-lib` at 1.4.18 (main: 1.4.16).
+
+  **Preview QA result — `PARA_JWT_AUDIENCE` is NOT the blocker.** With the
+  error now visible, preview returns the semantic **409
+  `already_linked_to_another_account`**, not a 400. A 409 means the Para JWT
+  verified and the exchange reached identity linkage, so the audience env var
+  is correct on preview. The real condition is data, not config: that Para
+  identity is already linked to a *different* Aomi account (leftover from
+  earlier testing), and the backend refuses to move a login factor silently.
+  Remedy is per the error copy — sign in to the owning account and unlink
+  there, or use a different Para identity. No code fix applies.
+
+  **Follow-up fix (this change):** `accountError` was being piped into the
+  chip's `secondaryLine`, a single `truncate`d row, so the 409's full sentence
+  rendered as "This wallet or sign-in m…". Split the two surfaces: added
+  `noticeLine` to `WalletAccountMenuOptions` / `AccountMenu` for wrapped
+  full-length copy in the menu header, and the chip now shows the short
+  "Sign-in needs attention". Rule going forward: chip copy stays under ~25
+  chars, backend error strings go to `noticeLine`.
+
+  **Conflict diagnosis (this change).** The 409 has a `signalType` of
+  `identity` | `wallet` | `email` that decides the remedy (unlink a login
+  method vs unlink a wallet), but it never reached the user: the better-auth
+  path threw `APIError("CONFLICT", { message })` with no `signalType`, and the
+  client's `extractErrorCode()` kept only `error`/`message` anyway. Now
+  `provider-plugin.ts` includes `signalType` in the error body (better-call
+  types it as `{message?,code?,cause?} & Record<string,any>`, so extra fields
+  serialize), and `AomiAccountRequestError` carries it into one of three
+  specific messages. `/api/aomi/provider/exchange` already spread it via
+  `...result`. NOTE: this is the first `packages/account` file in PR #7 — one
+  additive error field, but it breaks the "UI-only" property.
+
+  **CI gap found, NOT fixed here.** Root `vitest.config.ts` only includes
+  `apps/portal/src/{app,server}/mcp`, `lib/widget-auth`, and
+  `app/api/*/route.*`, so ~40 portal test files under `components/`,
+  `features/`, and most of `lib/` never run in CI — including this PR's
+  `use-portal-wallet-account-menu.test.tsx`. Registry tests do run, via
+  `pnpm --dir apps/shadcn-registry exec vitest run`. Widening the include is
+  its own PR; expect pre-existing failures to surface.
+
 2026-08-02 (~17:45) — **ds13 RECORDED — catalog COMPLETE.** Post-fixer-session
   run (their parseTxIds ordering fix + dist rebuild + Aave gateway address
   correction + my backend rebuild/restack): attempt 3 landed
@@ -518,16 +681,14 @@
   batch soaks; consider caching partner-payment reports (still the slowest
   leg of statement/observability batches).
 
-2026-07-30 — Portal Account tab UI restyle (branch `feat/portal-account-ui`, PR #431).
+2026-08-03 — Portal Account tab UI restyle **merged** (PR #431 → `main`).
   Account settings now matches `aomi-portal` mock: custody-grouped wallet rows
   with provider logos (`wallet-brands.tsx`), inline grant status, radio signing
   modes (`SigningModeList`), grant revoke inside expanded rows, attention strip,
   unbound wallets → Activate (bind), Para agent provision strip, flat Revoke all.
   Live API wiring unchanged (`use-account-acl.ts`). New helpers:
-  `account-reconcile.ts`, `wallet-policy-row.tsx`. Docs:
-  `docs/SETTINGS-REDESIGN-GAPS.md` updated. Still open: `rdns` on API for
-  self-custody wallet logos (Para/Privy always show). Rebased onto main;
-  preview QA on Vercel before merge.
+  `account-reconcile.ts`, `wallet-policy-row.tsx`. Follow-ups (not blockers):
+  `rdns` on API for self-custody wallet logos; deterministic re-grant route.
 
 2026-07-30 — Observability batch read: fan-out removed at the source (branch
   `feat/operate-batch-observability` in BOTH repos; aomi PR #426, product-mono

@@ -1,7 +1,17 @@
 import { NewProject } from "@build/features/launch/components/deployments/new-project";
+import { platformHref, platformParam } from "@build/features/launch/platform";
 
-export default function NewOperateDeploymentPage() {
+export default async function NewOperateDeploymentPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ platform?: string | string[] }>;
+}) {
+  const platform = platformParam((await searchParams).platform);
   return (
-    <NewProject backHref="/operate/deployments" backLabel="Deployments" />
+    <NewProject
+      platform={platform}
+      backHref={platformHref("/projects", platform)}
+      backLabel="Projects"
+    />
   );
 }

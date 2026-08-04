@@ -8,6 +8,7 @@ import type {
   DeploymentStatus,
   ProgressModel,
 } from "../types";
+import { backoffDelay, deploymentProgress } from "../launch/watch";
 
 // Shared client reused in unit-level property tests (Properties 4)
 let client: DeploymentClient;
@@ -180,8 +181,8 @@ describe("Property 4 — exponential backoff is non-decreasing", () => {
       fc.property(
         fc.integer({ min: 1, max: 7 }),
         (n) => {
-          const delayN = (client as any).backoffDelay(n, 3000, 30000) as number;
-          const delayNminus1 = (client as any).backoffDelay(
+          const delayN = backoffDelay(n, 3000, 30000) as number;
+          const delayNminus1 = backoffDelay(
             n - 1,
             3000,
             30000,
@@ -199,7 +200,7 @@ describe("Property 4 — exponential backoff is non-decreasing", () => {
         fc.integer({ min: 100, max: 5000 }),
         fc.integer({ min: 5000, max: 60000 }),
         (baseMs, maxMs) => {
-          const delay = (client as any).backoffDelay(
+          const delay = backoffDelay(
             0,
             baseMs,
             maxMs,
@@ -218,7 +219,7 @@ describe("Property 4 — exponential backoff is non-decreasing", () => {
         fc.integer({ min: 100, max: 5000 }),
         fc.integer({ min: 5000, max: 60000 }),
         (failures, baseMs, maxMs) => {
-          const delay = (client as any).backoffDelay(
+          const delay = backoffDelay(
             failures,
             baseMs,
             maxMs,

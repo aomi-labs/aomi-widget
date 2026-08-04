@@ -54,9 +54,9 @@ describe("projectDeploymentStatus", () => {
     expect(status.label).toBe("Deactivated");
   });
 
-  it("marks empty sources as no deployment", () => {
+  it("marks empty sources as freshly connected", () => {
     const status = projectDeploymentStatus(source({ apps: [] }));
     expect(status.isLive).toBe(false);
-    expect(status.label).toBe("No deployment");
+    expect(status.label).toBe("Connected — not deployed yet");
   });
 });

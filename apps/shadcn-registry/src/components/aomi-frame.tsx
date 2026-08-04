@@ -23,6 +23,7 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { ControlBar, type ControlBarProps } from "@/components/control-bar";
+import type { WalletAccountMenuOptions } from "@/components/control-bar/account-menu-types";
 import { safeEnv } from "../lib/wallet-kit/env";
 
 // =============================================================================
@@ -54,6 +55,8 @@ type RootProps = {
   walletPosition?: "header" | "footer" | null;
   /** Which wallet families to show as dual slots (omit for single-family mode) */
   walletFamilies?: Array<"evm" | "solana">;
+  /** Optional account menu on the sidebar wallet chip (portal supplies live data). */
+  walletAccountMenu?: WalletAccountMenuOptions;
   /** Whether to show the thread list sidebar (default: true) */
   showSidebar?: boolean;
   /** Whether the thread list sidebar starts expanded (default: true) */
@@ -111,6 +114,7 @@ const Root: FC<RootProps> = ({
   style,
   walletPosition = "footer",
   walletFamilies,
+  walletAccountMenu,
   showSidebar = true,
   defaultSidebarOpen = true,
   backendUrl,
@@ -150,6 +154,7 @@ const Root: FC<RootProps> = ({
             <ThreadListSidebar
               walletPosition={walletPosition}
               walletFamilies={walletFamilies}
+              walletAccountMenu={walletAccountMenu}
             />
           )}
           <SidebarInset className="relative flex min-h-0 flex-col">

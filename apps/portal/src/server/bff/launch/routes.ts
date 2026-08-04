@@ -8,7 +8,6 @@ import type { FailureContext as LaunchFailureContext } from "@aomi-labs/bff-obse
 import { portalFailures } from "@portal/server/bff/failures";
 import { launchConfig } from "./config";
 import { appNamesFromDeployment, releaseTagsFromDeployment } from "./mappers";
-import { checkRateLimit, getClientIp } from "@portal/lib/rate-limit";
 import { validateOrigin } from "@portal/lib/csrf";
 import { getGitHubSession } from "@portal/server/cookies/github";
 import { missingSecretsForActivation } from "@aomi-labs/deploy/bff";
@@ -21,20 +20,12 @@ import {
 
 const CREATED_REPO_PREFIX = "my-playground";
 
-function tooManyRequests() {
-  return NextResponse.json({ error: "Too many requests" }, { status: 429 });
-}
-
 function forbidden() {
   return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 }
 
-function checkRead(req: Request): NextResponse | null {
-  return checkRateLimit(getClientIp(req)).allowed ? null : tooManyRequests();
-}
-
 function checkWrite(req: Request): NextResponse | null {
-  return checkRead(req) ?? (validateOrigin(req) ? null : forbidden());
+  return validateOrigin(req) ? null : forbidden();
 }
 
 type GitHubSession = NonNullable<Awaited<ReturnType<typeof getGitHubSession>>>;
@@ -52,7 +43,7 @@ function launchFailureContext(
 }
 
 /** Require a signed-in GitHub session; the credentials backing these writes
- *  are server-held, so origin+rate-limit alone must not authorize them. */
+ *  are server-held, so origin validation alone must not authorize them. */
 async function requireSession(): Promise<
   { session: GitHubSession } | { response: NextResponse }
 > {
@@ -464,9 +455,6 @@ export async function createLaunchRepoRoute(req: Request) {
 }
 
 export async function launchStatusRoute(req: Request) {
-  const blocked = checkRead(req);
-  if (blocked) return blocked;
-
   const auth = await requireSession();
   if ("response" in auth) return auth.response;
   const { session } = auth;
@@ -611,9 +599,6 @@ export async function activateLaunchRoute(req: Request) {
 }
 
 export async function launchAppRoute(req: Request) {
-  const blocked = checkRead(req);
-  if (blocked) return blocked;
-
   const auth = await requireSession();
   if ("response" in auth) return auth.response;
   const { session } = auth;
@@ -672,9 +657,6 @@ export async function launchAppRoute(req: Request) {
 }
 
 export async function launchSdkStatusRoute(req: Request) {
-  const blocked = checkRead(req);
-  if (blocked) return blocked;
-
   try {
     const client = await deploymentClient();
     const status = await client.serverTags();
@@ -705,9 +687,6 @@ export const deploymentDeployRoute = launchDeployRoute;
 export const deploymentRedeployRoute = redeployLaunchRoute;
 
 export async function deploymentHistoryRoute(req: Request) {
-  const blocked = checkRead(req);
-  if (blocked) return blocked;
-
   const session = await getGitHubSession();
   if (!session) {
     return NextResponse.json(
@@ -745,9 +724,6 @@ export async function deploymentHistoryRoute(req: Request) {
 }
 
 export async function deploymentSecretsRoute(req: Request) {
-  const blocked = checkRead(req);
-  if (blocked) return blocked;
-
   const session = await getGitHubSession();
   if (!session) {
     return NextResponse.json(
@@ -928,9 +904,6 @@ export async function deploymentSecretsDeleteRoute(req: Request) {
 }
 
 export async function deploymentRecordsRoute(req: Request) {
-  const blocked = checkRead(req);
-  if (blocked) return blocked;
-
   const session = await getGitHubSession();
   if (!session) {
     return NextResponse.json(
@@ -1238,9 +1211,6 @@ export async function redeployLaunchRoute(req: Request) {
 // merged across installations. Scoped to the github_user_id in the session
 // cookie; a client can never request someone else's sources.
 export async function userSourcesRoute(req: Request) {
-  const blocked = checkRead(req);
-  if (blocked) return blocked;
-
   const session = await getGitHubSession();
   if (!session) {
     return NextResponse.json(

@@ -6,6 +6,7 @@ const push = vi.fn();
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push }),
+  usePathname: () => "/projects",
 }));
 
 import {
@@ -69,7 +70,8 @@ describe("CommandPalette", () => {
     await screen.findByRole("dialog", { name: /command palette/i });
 
     fireEvent.click(screen.getByRole("button", { name: /^last project\b/i }));
-    expect(push).toHaveBeenCalledWith("/projects/42");
+    // No stored selection: the shell scopes to the default platform.
+    expect(push).toHaveBeenCalledWith("/projects/42?platform=community");
 
     push.mockClear();
     openCommandPalette();

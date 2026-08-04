@@ -15,8 +15,8 @@ import {
 import { Button } from "@aomi-labs/widget-lib";
 import type { SecretSlot } from "@aomi-labs/deploy";
 import {
+  deploymentSources,
   launchActivate,
-  launchAppStatus,
   launchDeploy,
   launchPreflight,
   launchStatus,
@@ -174,6 +174,7 @@ function stepStatus(
 export function DeployStep({
   installationId,
   repo,
+  platform,
   actor,
   progress,
   onProgress,
@@ -184,6 +185,7 @@ export function DeployStep({
   /** GitHub App installation for wizard context; deploy uses appSourceId or repo. */
   installationId: string;
   repo?: string;
+  platform?: string;
   actor?: string;
   progress: LaunchProgress;
   onProgress: (patch: Partial<LaunchProgress>) => void;
@@ -339,6 +341,7 @@ export function DeployStep({
     statusFailuresRef.current = 0;
     try {
       const result = await launchPreflight({
+        platform,
         installationId,
         repo,
         appSourceId: progress.appSourceId,
@@ -355,6 +358,7 @@ export function DeployStep({
     actor,
     applyDeployment,
     installationId,
+    platform,
     progress.appSourceId,
     progress.sourceRef,
     repo,
@@ -373,6 +377,7 @@ export function DeployStep({
       let targetApps = apps;
       if (!appSourceId || !sourceRef) {
         const preflightResult = await launchPreflight({
+          platform,
           installationId,
           repo,
           appSourceId,
@@ -392,6 +397,7 @@ export function DeployStep({
       }
       await detail?.ensureRequiredSecrets?.(targetApps, appSourceId);
       const result = await launchDeploy({
+        platform,
         appSourceId,
         sourceRef,
         repo,
@@ -428,6 +434,7 @@ export function DeployStep({
     apps,
     detail,
     installationId,
+    platform,
     onProgress,
     progress.appSourceId,
     progress.sourceRef,
@@ -450,7 +457,7 @@ export function DeployStep({
         return;
       }
       try {
-        const status = await launchStatus(deploymentId);
+        const status = await launchStatus(deploymentId, platform);
         if (cancelled) return;
         statusFailuresRef.current = 0;
         if (status.deployment) {
@@ -516,7 +523,7 @@ export function DeployStep({
       cancelled = true;
       if (pollRef.current) clearTimeout(pollRef.current);
     };
-  }, [deploymentId, onProgress, phase]);
+  }, [deploymentId, onProgress, phase, platform]);
 
   const verifyLive = useCallback(
     async (nextApps = apps, nextTags = tags) => {
@@ -524,36 +531,32 @@ export function DeployStep({
       for (let attempt = 0; attempt < 30; attempt += 1) {
         setVerifyAttempt(attempt + 1);
         try {
-          const checks = await Promise.all(
-            nextApps.map((name, index) =>
-              launchAppStatus({ name, releaseTag: nextTags[index] }),
+          const result = await deploymentSources(
+            undefined,
+            progress.appSourceId,
+          );
+          const source = result.sources.find(
+            (candidate) => candidate.id === progress.appSourceId,
+          );
+          const checks = nextApps.map((name, index) =>
+            source?.apps.find(
+              (app) =>
+                app.name === name &&
+                (!nextTags[index] || app.appReleaseTag === nextTags[index]),
             ),
           );
           if (
             checks.length > 0 &&
-            checks.every((check) => check.ok && check.state === "live")
+            checks.every((app) => app?.isActive && app.loaded)
           ) {
             const firstApplicationId = checks
-              .find((check) => check.app?.id)
-              ?.app?.id?.toString();
+              .find((app) => app?.id)
+              ?.id.toString();
             onProgress({
               live: true,
               applicationId: firstApplicationId,
             });
             setPhase("live");
-            return;
-          }
-          // Early exit if any app reports a terminal error
-          const terminal = checks.find(
-            (c) => c.app?.is_active === false && c.app?.loaded === false,
-          );
-          if (terminal) {
-            setError(
-              terminal.app?.name
-                ? `Runtime check failed for ${terminal.app.name}`
-                : "Runtime reported a terminal error during verification.",
-            );
-            setPhase("error");
             return;
           }
         } catch (e) {
@@ -570,7 +573,7 @@ export function DeployStep({
       );
       setPhase("error");
     },
-    [apps, onProgress, tags],
+    [apps, onProgress, progress.appSourceId, tags],
   );
 
   const activate = useCallback(async () => {
@@ -583,6 +586,7 @@ export function DeployStep({
     setError(null);
     try {
       const result = await launchActivate({
+        platform,
         appSourceId: progress.appSourceId,
         releaseTags: tags,
         apps,
@@ -611,7 +615,15 @@ export function DeployStep({
       }
       setPhase("error");
     }
-  }, [actor, apps, onProgress, progress.appSourceId, tags, verifyLive]);
+  }, [
+    actor,
+    apps,
+    onProgress,
+    platform,
+    progress.appSourceId,
+    tags,
+    verifyLive,
+  ]);
 
   const reset = useCallback(() => {
     setError(null);

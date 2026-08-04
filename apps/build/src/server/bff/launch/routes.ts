@@ -19,7 +19,7 @@ import {
   isValidReleaseTags,
   isValidRepo,
 } from "@build/lib/validate-input";
-import { authorize, rateLimit } from "@build/server/bff/auth";
+import { authorize } from "@build/server/bff/auth";
 
 const CREATED_REPO_PREFIX = "my-playground";
 
@@ -479,6 +479,7 @@ export async function createLaunchRepoRoute(req: Request) {
 
   try {
     const body = (await req.json().catch(() => ({}))) as {
+      platform?: unknown;
       installationId?: unknown;
       repoName?: string;
     };
@@ -490,9 +491,11 @@ export async function createLaunchRepoRoute(req: Request) {
     }
 
     const config = launchConfig();
+    const platform = resolveLaunchPlatform(body.platform, config);
+    if (!platform) return invalidPlatformResponse();
     const client = await deploymentClient();
     const source = await client.scaffold({
-      platform: config.platform,
+      platform,
       installationId: Number(body.installationId),
       templateRepo: config.templateRepo,
       repoName: body.repoName?.trim() || defaultRepoName(),
@@ -732,9 +735,6 @@ export async function launchAppRoute(req: Request) {
 }
 
 export async function launchSdkStatusRoute(req: Request) {
-  const blocked = rateLimit(req);
-  if (blocked) return blocked;
-
   try {
     const client = await deploymentClient();
     const status = await readCache.serverTags.get(["server_tags"], () =>

@@ -6,7 +6,7 @@
 // features/operate because bots-view already imports from
 // features/integrations — the other direction would be a cycle.
 
-import { HelpCircle } from "lucide-react";
+import { HelpBadge } from "@build/components/help-badge";
 import { cn } from "@build/lib/utils";
 
 export function ThreadModeToggle({
@@ -79,22 +79,10 @@ export function ThreadModeControl({
   return (
     <div className="flex items-center gap-2">
       <ThreadModeToggle value={value} onChange={onChange} disabled={disabled} />
-      <span className="group relative flex">
-        <button
-          type="button"
-          aria-label="About thread mode"
-          className="text-dim hover:text-foreground flex size-6 items-center justify-center"
-        >
-          <HelpCircle className="size-[18px]" aria-hidden />
-        </button>
-        <span
-          role="tooltip"
-          className="border-border bg-surface-1 text-dim invisible absolute bottom-full left-0 z-10 mb-2 w-72 rounded-md border p-3 text-xs leading-5 group-focus-within:visible group-hover:visible"
-        >
-          {tooltip ??
-            "Single thread keeps the bot to one conversation. Multiple threads lets users switch threads with /sessions."}
-        </span>
-      </span>
+      <HelpBadge label="About thread mode">
+        {tooltip ??
+          "Single thread keeps the bot to one conversation. Multiple threads lets users switch threads with /sessions."}
+      </HelpBadge>
     </div>
   );
 }

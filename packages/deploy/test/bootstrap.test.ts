@@ -200,7 +200,6 @@ describe("DeploymentClient bootstrap — sources", () => {
       boundPlatformName: null,
       createdBy: null,
       templateRepo: null,
-      launchSourceKind: null,
     });
   });
 

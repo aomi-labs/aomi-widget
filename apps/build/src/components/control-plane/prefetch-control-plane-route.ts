@@ -43,16 +43,19 @@ export function prefetchProjectDetail(
     queryKey: buildQueryKeys.projectSource(accountKey, sourceId, platform),
     queryFn: () => deploymentSources(platform ?? undefined, sourceId),
     staleTime: buildQueryStaleTime.projects,
+    retry: false,
   });
   void queryClient.prefetchQuery({
     queryKey: buildQueryKeys.sdkStatus(),
     queryFn: () => deploymentSdkStatus().catch(() => null),
     staleTime: buildQueryStaleTime.sdkStatus,
+    retry: false,
   });
   void queryClient.prefetchQuery({
     queryKey: buildQueryKeys.operate(accountKey, "usage", sourceId, platform),
     queryFn: () => operateFetch("usage", { sourceId, platform }),
     staleTime: buildQueryStaleTime.operate,
+    retry: false,
   });
 }
 
@@ -84,6 +87,7 @@ export function prefetchControlPlaneRoute(
         ),
         queryFn: () => operateAppDetailFetch(project, applicationId, platform),
         staleTime: buildQueryStaleTime.operate,
+        retry: false,
       });
       return true;
     }
@@ -105,11 +109,13 @@ export function prefetchControlPlaneRoute(
       queryKey: buildQueryKeys.projects(accountKey),
       queryFn: () => deploymentSources(),
       staleTime: buildQueryStaleTime.projects,
+      retry: false,
     });
     void queryClient.prefetchQuery({
       queryKey: buildQueryKeys.sdkStatus(),
       queryFn: () => deploymentSdkStatus().catch(() => null),
       staleTime: buildQueryStaleTime.sdkStatus,
+      retry: false,
     });
     return true;
   }
@@ -119,6 +125,7 @@ export function prefetchControlPlaneRoute(
       queryKey: buildQueryKeys.projects(accountKey),
       queryFn: () => deploymentSources(),
       staleTime: buildQueryStaleTime.projects,
+      retry: false,
     });
     void queryClient.prefetchInfiniteQuery({
       queryKey: buildQueryKeys.deployments(accountKey),
@@ -126,21 +133,28 @@ export function prefetchControlPlaneRoute(
         deploymentFeed({ limit: 50, cursor: pageParam }),
       initialPageParam: null,
       staleTime: buildQueryStaleTime.deployments,
+      retry: false,
     });
     if (path === "/operate/deployments") return true;
     void queryClient.prefetchQuery({
       queryKey: buildQueryKeys.operate(accountKey, "usage"),
       queryFn: () => operateFetch("usage"),
       staleTime: buildQueryStaleTime.operate,
+      retry: false,
     });
     return true;
   }
 
   if (path === "/integrations") {
+    // The bot list is builder-wide, but the apps it can be pointed at come
+    // from platform-bound sources — so the read is platform-scoped and the
+    // key has to say which one, or a partner-platform visit warms Community.
+    const platform = searchParams.get("platform");
     void queryClient.prefetchQuery({
-      queryKey: buildQueryKeys.bots(accountKey),
-      queryFn: () => operateFetch("bots"),
+      queryKey: buildQueryKeys.bots(accountKey, platform),
+      queryFn: () => operateFetch("bots", { platform }),
       staleTime: buildQueryStaleTime.operate,
+      retry: false,
     });
     return true;
   }
@@ -150,6 +164,7 @@ export function prefetchControlPlaneRoute(
       queryKey: buildQueryKeys.modelKeys(accountKey),
       queryFn: () => modelKeysFetch<unknown>(),
       staleTime: buildQueryStaleTime.modelKeys,
+      retry: false,
     });
     return true;
   }
@@ -163,7 +178,7 @@ export function prefetchControlPlaneRoute(
   void queryClient.prefetchQuery({
     queryKey:
       kind === "bots"
-        ? buildQueryKeys.bots(accountKey)
+        ? buildQueryKeys.bots(accountKey, platform)
         : buildQueryKeys.operate(accountKey, kind, scopedSourceId, platform),
     queryFn: () =>
       operateFetch(kind, {
@@ -171,6 +186,7 @@ export function prefetchControlPlaneRoute(
         platform,
       }),
     staleTime: buildQueryStaleTime.operate,
+    retry: false,
   });
   return true;
 }

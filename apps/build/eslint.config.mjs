@@ -49,7 +49,10 @@ const eslintConfig = [
               allowTypeImports: true,
             },
             {
-              regex: "^@aomi-labs/deploy$|^@aomi-labs/deploy/(?!lifecycle$).+",
+              // The deploy root and ./bff are server-only; ./lifecycle and
+              // ./launch are the package's browser-safe entries.
+              regex:
+                "^@aomi-labs/deploy$|^@aomi-labs/deploy/(?!lifecycle$|launch$).+",
               message:
                 "Node-only packages must not be imported from client/shared code.",
               allowTypeImports: true,

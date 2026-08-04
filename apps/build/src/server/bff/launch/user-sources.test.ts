@@ -98,8 +98,8 @@ describe("userSourcesRoute", () => {
     expect(String(url)).not.toContain("&platform=");
   });
 
-  it("looks up sources on an explicitly configured partner platform", async () => {
-    vi.stubEnv("APP_DEPLOY_PLATFORMS", "community,somm.finance");
+  it("looks up an exact partner platform without a frontend list", async () => {
+    vi.stubEnv("APP_DEPLOY_PLATFORMS", "community");
     getGitHubSession.mockResolvedValueOnce({
       githubUserId: "42",
       githubLogin: "alice",
@@ -113,6 +113,26 @@ describe("userSourcesRoute", () => {
     expect(String(fetchMock.mock.calls[0][0])).toContain(
       "github_user_id=42&platform=somm.finance",
     );
+  });
+
+  it("preserves the manager's not-found status for an unknown platform", async () => {
+    getGitHubSession.mockResolvedValueOnce({
+      githubUserId: "42",
+      githubLogin: "alice",
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json(
+          { error: "unknown platform `missing.partner`" },
+          { status: 404 },
+        ),
+      ),
+    );
+
+    const res = await userSourcesRoute(req("missing.partner"));
+
+    expect(res.status).toBe(404);
   });
 
   it("narrows to one source on `appSourceId` without leaking it to the manager", async () => {

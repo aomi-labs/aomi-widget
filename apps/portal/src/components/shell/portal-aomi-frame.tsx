@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AomiFrame, useAomiWalletKit } from "@aomi-labs/widget-lib";
 import { useAomiRuntime, usePerThreadControl } from "@aomi-labs/react";
 import { RequiredSecretsGate } from "@portal/components/shell/required-secrets-gate";
@@ -13,6 +13,7 @@ import {
 } from "@portal/lib/portal-client-options";
 import { getBackendUrl } from "@portal/lib/settings-api";
 import { SvmWalletBindingGate } from "@portal/features/general/svm-wallet-binding-gate";
+import { usePortalWalletAccountMenu } from "@portal/components/shell/use-portal-wallet-account-menu";
 
 function AppSelectUrlBootstrap({
   requestedApp,
@@ -118,6 +119,9 @@ export function PortalAomiFrame() {
   const [overlay, setOverlay] = useState<"none" | "settings" | "packages">(
     "none",
   );
+  const walletAccountMenu = usePortalWalletAccountMenu(
+    useCallback(() => setOverlay("settings"), []),
+  );
 
   useEffect(() => {
     if (accountStatus !== "loading") {
@@ -160,6 +164,7 @@ export function PortalAomiFrame() {
         accountSessionAvailable={Boolean(accountUser)}
         walletPosition="footer"
         walletFamilies={["evm", "solana"]}
+        walletAccountMenu={walletAccountMenu}
         className="portal-aomi-frame aui-suggestions-marquee rounded-none border-0 shadow-none"
         clientOptions={clientOptions}
       >

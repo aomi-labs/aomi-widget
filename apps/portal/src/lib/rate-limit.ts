@@ -1,7 +1,7 @@
 /**
- * In-process per-IP rate limiting for BFF route handlers.
+ * In-process per-IP rate limiting for unauthenticated widget-auth handlers.
  *
- * Uses a rolling 60-second window with a maximum of 10 requests per IP.
+ * Uses a rolling 60-second window with a maximum of 60 requests per IP.
  * Note: This is module-level (one Map per process). In a multi-instance
  * deployment each instance maintains its own counters — acceptable for the
  * current use case.

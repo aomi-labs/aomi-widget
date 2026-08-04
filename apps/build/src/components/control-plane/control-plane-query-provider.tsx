@@ -2,6 +2,10 @@
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
+import {
+  controlPlaneRetryDelay,
+  shouldRetryControlPlaneQuery,
+} from "@build/lib/request-retry";
 
 export function ControlPlaneQueryProvider({
   children,
@@ -15,7 +19,8 @@ export function ControlPlaneQueryProvider({
           queries: {
             gcTime: 15 * 60 * 1000,
             refetchOnWindowFocus: false,
-            retry: 1,
+            retry: shouldRetryControlPlaneQuery,
+            retryDelay: controlPlaneRetryDelay,
           },
         },
       }),

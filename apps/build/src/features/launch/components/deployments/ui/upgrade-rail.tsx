@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { HelpBadge } from "@build/components/help-badge";
 import type { DeployFlowState } from "@build/features/launch/hooks/use-project-detail";
 import type { SdkUpgradeState } from "@build/features/launch/hooks/use-sdk-upgrade";
-import { HintBubble } from "./hint-bubble";
 
 /**
  * The SDK-upgrade lifecycle rail. Lives in the banner slot of the
@@ -114,9 +114,9 @@ function Stepper({ stage }: { stage: UpgradeRailStage }) {
               className={`mt-1.5 inline-flex items-center gap-1 text-[11px] font-semibold ${current ? "text-foreground" : "text-dim"}`}
             >
               {step.label}
-              <HintBubble label={`About the ${step.label} step`} side="bottom">
+              <HelpBadge label={`About the ${step.label} step`} side="bottom">
                 {step.hint}
-              </HintBubble>
+              </HelpBadge>
             </span>
             <span
               className={`text-[9px] uppercase tracking-wider ${current && step.you ? "text-warning" : "text-dim/70"}`}
@@ -316,7 +316,9 @@ export function UpgradeRail({
 
       {stage === "live" && (
         <div className="border-positive/40 bg-positive/10 text-positive flex items-center justify-between gap-3 border-t px-4 py-2 text-xs">
-          <span>Upgraded to SDK {requiredSdk ?? "the required version"} and live.</span>
+          <span>
+            Upgraded to SDK {requiredSdk ?? "the required version"} and live.
+          </span>
           <button
             type="button"
             onClick={onDismiss}

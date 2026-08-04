@@ -27,11 +27,7 @@ export type ProjectsState =
     }
   | { status: "error"; error: string };
 
-function hasApps(source: UserSource) {
-  return source.apps.length > 0;
-}
-
-export function useProjects() {
+export function useProjects(platform?: string) {
   // The GitHub session comes from the shell-level provider — reusing it here
   // avoids a second `/auth/github/status` round trip on every page mount.
   const { account } = useGitHubSession();
@@ -43,8 +39,8 @@ export function useProjects() {
     staleTime: buildQueryStaleTime.sdkStatus,
   });
   const projects = useQuery({
-    queryKey: buildQueryKeys.projects(accountKey ?? "unavailable"),
-    queryFn: () => deploymentSources(),
+    queryKey: buildQueryKeys.projects(accountKey ?? "unavailable", platform),
+    queryFn: () => deploymentSources(platform),
     enabled: account.signedIn && accountKey !== null,
     staleTime: buildQueryStaleTime.projects,
   });
@@ -69,9 +65,11 @@ export function useProjects() {
       return { status: "error", error: message };
     }
     const { loading: _loading, ...github } = account;
+    // Every listed source is deliberately claimed onto this platform — a
+    // freshly connected repo with no apps yet is a real project, not noise.
     return {
       status: "ready",
-      sources: (projects.data?.sources ?? []).filter(hasApps),
+      sources: projects.data?.sources ?? [],
       sdk: sdk.data ?? null,
       github,
     };
