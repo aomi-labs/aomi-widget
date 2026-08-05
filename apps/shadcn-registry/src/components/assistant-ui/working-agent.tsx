@@ -2,7 +2,13 @@
 
 import { type FC, useEffect, useMemo, useRef, useState } from "react";
 import type { ToolCallMessagePart } from "@assistant-ui/react";
-import { BotIcon, CheckIcon, ChevronRightIcon, XIcon } from "lucide-react";
+import {
+  BotIcon,
+  CheckIcon,
+  ChevronRightIcon,
+  LayersIcon,
+  XIcon,
+} from "lucide-react";
 
 import {
   cn,
@@ -53,6 +59,64 @@ const asText = (value: unknown): string | undefined =>
 const asCount = (value: unknown): number | undefined =>
   typeof value === "number" && Number.isFinite(value) ? value : undefined;
 
+const summaryValue = (value: unknown): string | undefined => {
+  if (typeof value === "string") return asText(value)?.trim();
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  if (
+    Array.isArray(value) &&
+    value.length > 0 &&
+    value.every(
+      (item) =>
+        typeof item === "string" ||
+        typeof item === "number" ||
+        typeof item === "boolean",
+    )
+  ) {
+    return value.map(String).join(", ");
+  }
+  return undefined;
+};
+
+const summaryLabel = (key: string): string => {
+  const words = key.replace(/[_-]+/g, " ").trim();
+  return words.length > 0 ? `${words[0]!.toUpperCase()}${words.slice(1)}` : key;
+};
+
+/**
+ * `thread_return.value` may be structured for the parent orchestrator. The
+ * task-completion event carries that value as a string, but the compact agent
+ * row is a prose surface: preserve ordinary text, extract an explicitly named
+ * human summary. When there is no explicit summary field, flatten scalar fields
+ * into readable `Input: … · Output: …` prose instead of leaking JSON syntax.
+ */
+const completionSummary = (value: unknown): string | undefined => {
+  const text = asText(value)?.trim();
+  if (!text || (!text.startsWith("{") && !text.startsWith("["))) return text;
+  try {
+    const parsed: unknown = JSON.parse(text);
+    if (typeof parsed === "string") return asText(parsed);
+    const record = asRecord(parsed);
+    const namedSummary =
+      asText(record?.summary) ??
+      asText(record?.message) ??
+      asText(record?.reason);
+    if (namedSummary) return namedSummary.trim();
+    if (!record) return undefined;
+    const facts = Object.entries(record).flatMap(([key, field]) => {
+      const rendered = summaryValue(field);
+      return rendered ? [`${summaryLabel(key)}: ${rendered}`] : [];
+    });
+    return facts.length > 0 ? facts.join(" · ") : undefined;
+  } catch {
+    // TaskCompleted has a small wire budget, so a structured return can arrive
+    // clipped into invalid JSON. Its opening delimiter still identifies it as
+    // parent-only data; never fall back to rendering that fragment as prose.
+    return undefined;
+  }
+};
+
 /** The `ChildTaskRequest` the mother sent: `{label, app, prompt}`. */
 const readArgs = (
   tool: ToolCallMessagePart | undefined,
@@ -83,26 +147,73 @@ const toStatus = (value: unknown): TaskRunStatus | undefined => {
   }
 };
 
-/**
- * Steps that are protocol plumbing, not work: the child's `thread_return`
- * call (its message already becomes the row summary) and "notes" that are
- * really raw JSON blobs a model narrated instead of prose.
- */
-const isInternalStep = (step: TaskRunStep): boolean => {
-  if (step.kind === "tool_call") return step.toolName === "thread_return";
-  const text = step.text.trim();
-  if (!text.startsWith("{") && !text.startsWith("[")) return false;
-  try {
-    JSON.parse(text);
-    return true;
-  } catch {
-    return false;
+type TerminalNote = { index: number; text: string };
+
+/** Read the child's post-`thread_return` transcript note at its larger budget. */
+const terminalReturnNote = (run?: TaskRunState): TerminalNote | undefined => {
+  const steps = run?.steps ?? [];
+  let returnIndex = -1;
+  for (let i = steps.length - 1; i >= 0; i--) {
+    const step = steps[i]!;
+    if (step.kind === "tool_call" && step.toolName === "thread_return") {
+      returnIndex = i;
+      break;
+    }
   }
+  if (returnIndex < 0) return undefined;
+  for (let i = steps.length - 1; i > returnIndex; i--) {
+    const step = steps[i]!;
+    if (step.kind !== "note") continue;
+    const text = completionSummary(step.text);
+    if (text) return { index: i, text };
+  }
+  return undefined;
 };
 
-/** The child steps the row actually shows. */
-export const visibleAgentSteps = (run?: TaskRunState): TaskRunStep[] =>
-  (run?.steps ?? []).filter((step) => !isInternalStep(step));
+/** Best human-readable form of the exact result returned to the mother. */
+const agentFinalMessage = (run?: TaskRunState): string | undefined =>
+  terminalReturnNote(run)?.text ?? completionSummary(run?.message);
+
+/**
+ * The child steps the row actually shows. Protocol `thread_return` stays
+ * hidden, but its resulting message is humanized and kept as the final note.
+ */
+export const visibleAgentSteps = (run?: TaskRunState): TaskRunStep[] => {
+  const source = run?.steps ?? [];
+  const terminal = terminalReturnNote(run);
+  const visible: TaskRunStep[] = [];
+
+  source.forEach((step, index) => {
+    if (step.kind === "tool_call") {
+      if (step.toolName !== "thread_return") visible.push(step);
+      return;
+    }
+    const text = step.text.trim();
+    const structured = text.startsWith("{") || text.startsWith("[");
+    if (structured) {
+      if (terminal?.index === index) {
+        visible.push({ ...step, text: terminal.text });
+      }
+      return;
+    }
+    visible.push(step);
+  });
+
+  const finalMessage = terminal?.text ?? completionSummary(run?.message);
+  const last = visible[visible.length - 1];
+  if (
+    finalMessage &&
+    terminal === undefined &&
+    !(last?.kind === "note" && last.text.trim() === finalMessage.trim())
+  ) {
+    visible.push({
+      kind: "note",
+      text: finalMessage,
+      childSeq: (source[source.length - 1]?.childSeq ?? 0) + 1,
+    });
+  }
+  return visible;
+};
 
 /**
  * The step count shown for an agent row — visible tool calls when we have the
@@ -235,12 +346,14 @@ export const WorkingAgent: FC<WorkingAgentProps> = ({
   // While live and expanded the children tell the story, so the slot is empty;
   // collapsed, it carries the latest intent as the row's live signal; once the
   // run is done it settles into the child's summary line.
+  const completedSummary = agentFinalMessage(run);
+  const showsStagedSummary = !live && !completedSummary && stagedCount > 0;
   const summary = live
     ? open
       ? undefined
       : (latestTitle ?? "starting…")
-    : (asText(run?.message) ??
-      (stagedCount > 0 ? `staged ${stagedCount}` : undefined));
+    : (completedSummary ??
+      (showsStagedSummary ? `Staged ${stagedCount}` : undefined));
   const summaryShimmers = live && !open && active;
 
   return (
@@ -284,13 +397,19 @@ export const WorkingAgent: FC<WorkingAgentProps> = ({
         </span>
         <span
           className={cn(
-            "aui-working-agent-summary min-w-0 flex-1 truncate font-mono text-[12.5px]",
+            "aui-working-agent-summary flex min-w-0 flex-1 items-center gap-1.5 font-mono text-[12.5px]",
             summaryShimmers
               ? "aui-working-shimmer font-medium"
               : "text-aomi-muted",
           )}
         >
-          {summary}
+          {showsStagedSummary && (
+            <LayersIcon
+              className="aui-working-agent-staged-icon size-3.5 shrink-0"
+              aria-hidden="true"
+            />
+          )}
+          <span className="truncate">{summary}</span>
         </span>
         <span className="aui-working-agent-count text-aomi-muted shrink-0 font-mono text-xs tabular-nums">
           {formatCounter(stepCount, seconds)}

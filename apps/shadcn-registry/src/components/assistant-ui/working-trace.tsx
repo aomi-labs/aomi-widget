@@ -178,7 +178,7 @@ type TraceItem =
 const childStepCount = (item: TraceItem): number =>
   item.kind === "agent" ? agentStepCount(item.run) : 0;
 
-const WorkingTrace: FC<{
+export const WorkingTrace: FC<{
   running: boolean;
   items: TraceItem[];
   revealed: number;
@@ -231,6 +231,17 @@ const WorkingTrace: FC<{
   // The trace has fully caught up once every queued item has been revealed.
   const fullyRevealed = !running && revealed >= items.length;
 
+  // A delegated agent remains one top-level trace item while its nested step
+  // stream grows. Track that growth separately: `revealed` does not change for
+  // those updates, but the viewport still needs to follow the newest child step.
+  const revealedChildStepCount = items.reduce(
+    (total, item, index) =>
+      index < revealed && item.kind === "agent"
+        ? total + (item.run?.steps.length ?? 0)
+        : total,
+    0,
+  );
+
   // Cap the open trace to a scrolling window — live and after completion alike:
   // the newest steps stay pinned at the bottom and older ones remain wheel/touch/
   // keyboard-scrollable under edge fades instead of marching down the page.
@@ -247,7 +258,7 @@ const WorkingTrace: FC<{
     // stable while the expand/collapse height animation is mid-flight — otherwise
     // the "Show all" control would flicker out.
     setOverflowing(body.offsetHeight - WORKING_WINDOW_PX > 24);
-  }, [windowed, revealed, open]);
+  }, [windowed, revealed, revealedChildStepCount, open]);
 
   const handleViewportScroll = () => {
     const viewport = viewportRef.current;
@@ -310,7 +321,7 @@ const WorkingTrace: FC<{
       viewport.scrollTop = viewport.scrollHeight;
       setHasContentBelow(false);
     }
-  }, [animating, open, revealed, windowed]);
+  }, [animating, open, revealed, revealedChildStepCount, windowed]);
 
   useEffect(() => () => animRef.current?.cancel(), []);
 
@@ -330,15 +341,14 @@ const WorkingTrace: FC<{
     return () => clearTimeout(timer);
   }, [fullyRevealed]);
 
+  // The badge already names the orchestration mode. Keep the status language
+  // identical across modes so the header never reads as the redundant
+  // “Orchestrating · ORCHESTRATOR”.
   const label = running
-    ? orchestrating
-      ? "Orchestrating"
-      : "Working"
+    ? "Working"
     : elapsed != null
-      ? `${orchestrating ? "Orchestrated" : "Worked"} for ${formatDuration(elapsed)}`
-      : orchestrating
-        ? "Orchestrated it"
-        : "Worked it out";
+      ? `Worked for ${formatDuration(elapsed)}`
+      : "Worked it out";
 
   // Exactly one "live" signal: the newest *revealed* step shimmers while running
   // and the trace is open; if the user collapses mid-run, the header shimmers.

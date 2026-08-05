@@ -26,14 +26,14 @@ export type AppSelectProps = {
   placeholder?: string;
 };
 
-/** The "default" app id that means "all apps". */
+/** The Basic mode, with no individual app selected. */
 const ALL_APPS_ID = "default";
 
 /**
  * The orchestrator is a *mode*, not a venue: it coordinates child agents rather
  * than wrapping one protocol. It gets the same pinned two-line treatment as
- * "Basic Apps", directly beneath it, and is kept out of the category groups so
- * it is not listed twice.
+ * the Basic mode, directly beneath it, and is kept out of the category
+ * groups so it is not listed twice.
  */
 const ORCHESTRATOR_ID = "orchestrator";
 
@@ -64,7 +64,8 @@ export const AppSelect: FC<AppSelectProps> = ({
   const selectedApp = getCurrentThreadApp();
   const selectedApplicationId = getCurrentThreadApplicationId();
   const selectedInfo = getAppInfo(selectedApp);
-  const SelectedAppIcon = getAppIcon(selectedApp);
+  const SelectedAppIcon =
+    selectedApp === ORCHESTRATOR_ID ? BotIcon : getAppIcon(selectedApp);
 
   const apps = state.authorizedApps;
 
@@ -135,14 +136,14 @@ export const AppSelect: FC<AppSelectProps> = ({
           <CommandList>
             <CommandEmpty>No apps found.</CommandEmpty>
 
-            {/* Basic Apps (the "default" namespace) + the orchestrator mode —
+            {/* Basic + the orchestrator mode —
                 pinned above the category groups */}
             {(hasAllApps || hasOrchestrator) && (
               <>
                 <CommandGroup>
                   {hasAllApps && (
                     <CommandItem
-                      value="basic apps all default"
+                      value="basic default no app"
                       disabled={isProcessing}
                       onSelect={() => selectApp(ALL_APPS_ID)}
                       className="flex items-center justify-between gap-2"
@@ -157,9 +158,9 @@ export const AppSelect: FC<AppSelectProps> = ({
                           <AllAppsIcon className="h-3.5 w-3.5" />
                         </span>
                         <div className="flex flex-col">
-                          <span className="font-medium">Basic Apps</span>
+                          <span className="font-medium">Basic</span>
                           <span className="text-muted-foreground text-xs">
-                            Use curated apps by Aomi
+                            Use Basic without selecting an app
                           </span>
                         </div>
                       </div>
@@ -189,7 +190,7 @@ export const AppSelect: FC<AppSelectProps> = ({
                         <div className="flex flex-col">
                           <span className="font-medium">Orchestrator</span>
                           <span className="text-muted-foreground text-xs">
-                            Coordinate multiple agents on one task
+                            Coordinate work across any number of apps
                           </span>
                         </div>
                       </div>

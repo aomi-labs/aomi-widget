@@ -25,7 +25,14 @@ describe("app-metadata", () => {
     expect(info.abbr).toBe("?");
   });
 
-  it("describes the orchestrator as a mode that sorts under Basic Apps", () => {
+  it("labels the default as Basic", () => {
+    expect(getAppInfo("default")).toMatchObject({
+      displayName: "Basic",
+      abbr: "B",
+    });
+  });
+
+  it("describes the orchestrator as a mode that sorts above individual apps", () => {
     const info = getAppInfo("orchestrator");
 
     expect(info).toMatchObject({

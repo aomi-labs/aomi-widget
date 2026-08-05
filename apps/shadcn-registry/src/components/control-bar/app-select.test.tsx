@@ -103,7 +103,16 @@ describe("AppSelect", () => {
     expect(screen.queryByText("Orchestrator")).toBeNull();
   });
 
-  it("pins the orchestrator under Basic Apps and keeps it out of the groups", () => {
+  it("describes the default as Basic", () => {
+    render(<AppSelect />);
+
+    expect(screen.getAllByText("Basic")).toHaveLength(2);
+    expect(
+      screen.getByText("Use Basic without selecting an app"),
+    ).toBeInTheDocument();
+  });
+
+  it("pins the orchestrator under Basic and keeps it out of the groups", () => {
     control.state.authorizedApps = ["default", "orchestrator", "partner-agent"];
     control.state.appDescriptors = [
       { name: "default" },
@@ -114,12 +123,12 @@ describe("AppSelect", () => {
     render(<AppSelect />);
 
     expect(
-      screen.getByText("Coordinate multiple agents on one task"),
+      screen.getByText("Coordinate work across any number of apps"),
     ).toBeInTheDocument();
-    // Pinned directly under the "Basic Apps" row…
+    // Pinned directly under the Basic row…
     const rows = screen.getAllByRole("button");
     const basicIndex = rows.findIndex((row) =>
-      row.textContent?.includes("Basic Apps"),
+      row.textContent?.includes("Use Basic without selecting an app"),
     );
     const orchestratorIndex = rows.findIndex((row) =>
       row.textContent?.includes("Orchestrator"),
@@ -132,5 +141,20 @@ describe("AppSelect", () => {
     expect(control.onAppSelect).toHaveBeenCalledWith("orchestrator", {
       applicationId: undefined,
     });
+  });
+
+  it("shows the orchestrator icon in the selected trigger", () => {
+    control.state.authorizedApps = ["default", "orchestrator"];
+    control.state.appDescriptors = [
+      { name: "default" },
+      { name: "orchestrator" },
+    ];
+    control.getCurrentThreadApp.mockReturnValueOnce("orchestrator");
+
+    render(<AppSelect />);
+
+    const trigger = screen.getByRole("combobox");
+    expect(trigger).toHaveTextContent("Orchestrator");
+    expect(trigger.querySelector("svg.lucide-bot")).not.toBeNull();
   });
 });

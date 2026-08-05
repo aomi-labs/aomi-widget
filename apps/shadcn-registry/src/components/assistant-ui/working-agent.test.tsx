@@ -8,7 +8,7 @@ vi.mock("@/components/assistant-ui/markdown-text", () => ({
   MarkdownText: () => null,
 }));
 
-import { WorkingAgent } from "./working-agent";
+import { visibleAgentSteps, WorkingAgent } from "./working-agent";
 
 const makeRun = (over: Partial<TaskRunState> = {}): TaskRunState => ({
   agentId: "task-agent:9f2c1a2b3c4d",
@@ -84,6 +84,109 @@ describe("WorkingAgent", () => {
     });
     expect(rowOf(container).dataset.open).toBe("false");
     expect(rowOf(container)).toHaveTextContent("staged 1 swap");
+  });
+
+  it("renders a structured child return as a readable preview", () => {
+    const { container } = render(
+      <WorkingAgent
+        agentId="a"
+        run={makeRun({
+          status: "completed",
+          message: JSON.stringify({
+            fees: "~$0.0053 gas; $0.0001 route fee",
+            output: "0.0000265986 WETH",
+          }),
+          stagedCount: 2,
+          durationMs: 153000,
+        })}
+        order={0}
+        active={false}
+        animate={false}
+      />,
+    );
+
+    const summary = container.querySelector(".aui-working-agent-summary");
+    expect(summary).toHaveTextContent(
+      "Fees: ~$0.0053 gas; $0.0001 route fee · Output: 0.0000265986 WETH",
+    );
+    expect(summary?.querySelector("svg.lucide-layers")).toBeNull();
+    expect(summary).not.toHaveTextContent('{"fees"');
+  });
+
+  it("uses the full returned note when the completion preview was truncated", () => {
+    const state = makeRun({
+      status: "completed",
+      message: '{"input":"0.000058926935921387 WETH","output":"0.109671 USDC…',
+      steps: [
+        {
+          kind: "tool_call",
+          toolName: "get_account_info",
+          childSeq: 1,
+        },
+        {
+          kind: "tool_call",
+          toolName: "thread_return",
+          childSeq: 2,
+        },
+        {
+          kind: "note",
+          text: JSON.stringify({
+            input: "0.000058926935921387 WETH",
+            output: "0.109671 USDC",
+            minimum: "0.109122 USDC",
+          }),
+          childSeq: 3,
+        },
+      ],
+      stagedCount: 2,
+      durationMs: 156000,
+    });
+    const { container } = render(
+      <WorkingAgent
+        agentId="a"
+        run={state}
+        order={0}
+        active={false}
+        animate={false}
+      />,
+    );
+
+    const summary = container.querySelector(".aui-working-agent-summary");
+    expect(summary).toHaveTextContent(
+      "Input: 0.000058926935921387 WETH · Output: 0.109671 USDC · Minimum: 0.109122 USDC",
+    );
+    expect(summary?.querySelector("svg.lucide-layers")).toBeNull();
+
+    const visible = visibleAgentSteps(state);
+    expect(visible[visible.length - 1]).toMatchObject({
+      kind: "note",
+      text: "Input: 0.000058926935921387 WETH · Output: 0.109671 USDC · Minimum: 0.109122 USDC",
+    });
+    expect(
+      container.querySelectorAll(".aui-working-agent-rail .aui-working-note"),
+    ).toHaveLength(1);
+  });
+
+  it("extracts an explicitly named summary from a structured child return", () => {
+    const { container } = render(
+      <WorkingAgent
+        agentId="a"
+        run={makeRun({
+          status: "completed",
+          message: JSON.stringify({ summary: "Simulation passed" }),
+        })}
+        order={0}
+        active={false}
+        animate={false}
+      />,
+    );
+
+    expect(
+      container.querySelector(".aui-working-agent-summary"),
+    ).toHaveTextContent("Simulation passed");
+    expect(
+      container.querySelectorAll(".aui-working-agent-rail .aui-working-note"),
+    ).toHaveLength(1);
   });
 
   it("never auto-changes a row the reader has toggled", () => {
@@ -275,7 +378,10 @@ describe("WorkingAgent", () => {
     const row = rowOf(container);
     expect(row.dataset.live).toBe("false");
     expect(row).toHaveTextContent("approvals-auditor");
-    expect(row).toHaveTextContent("staged 2");
+    expect(row).toHaveTextContent("Staged 2");
+    expect(
+      container.querySelector(".aui-working-agent-staged-icon"),
+    ).not.toBeNull();
     expect(
       container.querySelector(".aui-working-agent-rail")?.children.length,
     ).toBe(0);

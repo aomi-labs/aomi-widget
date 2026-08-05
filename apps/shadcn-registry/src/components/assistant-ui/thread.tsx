@@ -151,10 +151,7 @@ const ThreadWelcome: FC = () => {
         transition={{ delay: 0.05 }}
         className="w-full"
       >
-        <ComposerBox
-          variant="hero"
-          placeholder="Ask Aomi to swap, bridge, send, or deploy…"
-        />
+        <ComposerBox placeholder="Ask Aomi to swap, bridge, send, or deploy…" />
       </m.div>
       <ThreadSuggestions />
     </div>
@@ -196,10 +193,7 @@ const ThreadSuggestions: FC = () => {
     },
     {
       id: "secondary",
-      actions: [
-        ...suggestedActions.slice(2),
-        ...suggestedActions.slice(0, 2),
-      ],
+      actions: [...suggestedActions.slice(2), ...suggestedActions.slice(0, 2)],
     },
   ];
 
@@ -220,8 +214,7 @@ const ThreadSuggestions: FC = () => {
               key={duplicate ? "duplicate" : "primary"}
               className={cn(
                 "aui-thread-welcome-suggestions-group flex w-full flex-wrap justify-center gap-2.5",
-                duplicate &&
-                  "aui-thread-welcome-suggestions-duplicate hidden",
+                duplicate && "aui-thread-welcome-suggestions-duplicate hidden",
               )}
               aria-hidden={duplicate || undefined}
             >
@@ -234,8 +227,7 @@ const ThreadSuggestions: FC = () => {
                   key={`suggested-action-${row.id}-${duplicate ? "duplicate" : "primary"}-${suggestedAction.label}`}
                   className={cn(
                     "aui-thread-welcome-suggestion-display @max-md:[&:nth-child(n+3)]:hidden",
-                    index === 4 &&
-                      "aui-thread-welcome-suggestion-extra hidden",
+                    index === 4 && "aui-thread-welcome-suggestion-extra hidden",
                   )}
                 >
                   <ThreadPrimitive.Suggestion
@@ -268,20 +260,12 @@ const ThreadSuggestions: FC = () => {
  * the bottom dock (active thread). Same runtime composer either way — only the
  * placement and placeholder differ.
  */
-const ComposerBox: FC<{ variant: "hero" | "dock"; placeholder: string }> = ({
-  variant,
-  placeholder,
-}) => {
+const ComposerBox: FC<{ placeholder: string }> = ({ placeholder }) => {
   return (
-    <ComposerPrimitive.Root
-      className={cn(
-        "aui-composer-root border-aomi-border bg-aomi-surface relative flex w-full flex-col rounded-2xl border",
-        variant === "hero" ? "pt-3" : "pt-2",
-      )}
-    >
+    <ComposerPrimitive.Root className="aui-composer-root border-aomi-border bg-aomi-surface relative flex w-full flex-col rounded-2xl border pt-3">
       <ComposerPrimitive.Input
         placeholder={placeholder}
-        className="aui-composer-input text-aomi-fg placeholder:text-aomi-muted max-h-32 w-full resize-none overflow-x-hidden bg-transparent px-4 pb-2 pt-1.5 text-[13px] whitespace-pre-wrap break-words outline-none"
+        className="aui-composer-input text-aomi-fg placeholder:text-aomi-muted max-h-32 w-full resize-none overflow-x-hidden whitespace-pre-wrap break-words bg-transparent px-4 pb-2 pt-1.5 text-[13px] outline-none"
         rows={1}
         autoFocus
         aria-label="Message input"
@@ -293,9 +277,9 @@ const ComposerBox: FC<{ variant: "hero" | "dock"; placeholder: string }> = ({
 
 const Composer: FC = () => {
   return (
-    <div className="aui-composer-wrapper bg-aomi-bg mx-auto flex w-full max-w-[var(--thread-max-width)] shrink-0 flex-col gap-4 overflow-visible px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-1 md:pb-6">
+    <div className="aui-composer-wrapper bg-aomi-bg mx-auto flex w-full max-w-[var(--thread-max-width)] shrink-0 flex-col gap-4 overflow-visible px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-1 md:pb-6">
       <ThreadScrollToBottom />
-      <ComposerBox variant="dock" placeholder="Reply to Aomi…" />
+      <ComposerBox placeholder="Reply to Aomi…" />
     </div>
   );
 };
@@ -332,7 +316,7 @@ const ComposerAction: FC = () => {
               type="submit"
               variant="default"
               size="icon"
-              className="aui-composer-send bg-aomi-fg text-aomi-bg mr-2 size-8 shrink-0 rounded-full p-1 transition-opacity hover:bg-aomi-fg hover:opacity-90 md:mr-2.5"
+              className="aui-composer-send bg-aomi-fg text-aomi-bg hover:bg-aomi-fg mr-2 size-8 shrink-0 rounded-full p-1 transition-opacity hover:opacity-90 md:mr-2.5"
               aria-label="Send message"
             >
               <ArrowUpIcon className="aui-composer-send-icon size-4" />
@@ -346,7 +330,7 @@ const ComposerAction: FC = () => {
               type="button"
               variant="default"
               size="icon"
-              className="aui-composer-cancel bg-aomi-fg text-aomi-bg mr-2 size-8 shrink-0 rounded-full transition-opacity hover:bg-aomi-fg hover:opacity-90 md:mr-2.5"
+              className="aui-composer-cancel bg-aomi-fg text-aomi-bg hover:bg-aomi-fg mr-2 size-8 shrink-0 rounded-full transition-opacity hover:opacity-90 md:mr-2.5"
               aria-label="Stop generating"
             >
               <Square className="aui-composer-cancel-icon fill-aomi-bg size-3" />
@@ -437,7 +421,11 @@ const AssistantMessage: FC = () => {
     (run) => run.status === "running",
   );
   const showLoadingDot =
-    isEmpty && isRunning && isLast && turnPhase !== "working" && !hasLiveTaskRun;
+    isEmpty &&
+    isRunning &&
+    isLast &&
+    turnPhase !== "working" &&
+    !hasLiveTaskRun;
   const showFinishedEmptyMessage = isEmpty && !isRunning;
 
   return (

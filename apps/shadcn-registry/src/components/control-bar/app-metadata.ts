@@ -29,8 +29,8 @@ export type AppGroup = {
 };
 
 const APP_CATEGORIES = {
-  all: { id: "all", label: "All", order: 0 },
-  /** Ways of working rather than places to trade — sorts under "Basic Apps". */
+  default: { id: "default", label: "Default", order: 0 },
+  /** Ways of working rather than individual apps — pinned above app groups. */
   modes: { id: "modes", label: "Modes", order: 5 },
   cex: { id: "cex", label: "Centralized Exchanges", order: 10 },
   dex: { id: "dex", label: "DEX & Swaps", order: 20 },
@@ -46,9 +46,9 @@ const APP_CATEGORIES = {
 
 const APP_DISPLAY_NAMES: Record<string, Omit<AppInfo, "id">> = {
   default: {
-    displayName: "Basic Apps",
-    abbr: "All",
-    category: APP_CATEGORIES.all,
+    displayName: "Basic",
+    abbr: "B",
+    category: APP_CATEGORIES.default,
   },
   across: {
     displayName: "Across",

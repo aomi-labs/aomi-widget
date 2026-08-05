@@ -48,6 +48,42 @@ through the canonical Session contract.
 - Kept the public BotFather contract aligned to `/start`, `/thread`,
   `/wallet`, `/permission`, `/tx`, `/app`, `/model`, `/network`, and
   `/disconnect`.
+## Chat Composer Parity
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-05** — keep the active-thread
+composer the same resting size as the welcome composer and place it closer to
+the bottom of the Portal viewport. Both states now share the same component
+padding and horizontal inset; Portal no longer adds chat-only input height or
+bottom-spacing overrides.
+
+## Orchestrator Working-Trace Scrolling
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-05** — keep
+the capped working-trace viewport pinned to new nested subagent steps while the
+reader is following the latest activity. Child-step growth now also refreshes
+overflow affordances; manually scrolling up still opts out of auto-follow.
+Completed agent rows no longer render serialized structured `thread_return`
+objects as prose: they extract explicit summary fields or fall back to a compact
+staged-count status, including objects clipped by the completion-event wire
+budget into invalid JSON. The compact row prefers a readable, width-truncated
+preview of the child result, and the expanded child rail ends with the full
+humanized return message. `Staged N` with the trace's staging Layers glyph is
+reserved for runs with no recoverable return. The trace status consistently says `Working`/`Worked…`;
+the blue Orchestrator badge alone identifies orchestration mode.
+
+## App Selector Semantics
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-05** — make
+the Portal app selector distinguish Basic, Orchestrator, and individual apps
+accurately. The default is now labeled `Basic` and described as running
+without a selected app; Orchestrator is described as coordinating work across
+any number of apps and keeps its bot icon in the compact selected state.
+Focused selector/metadata tests and the publishable widget build pass, with
+`@aomi-labs/widget-lib` patch-bumped to `1.4.23` and registry mirrors refreshed.
+The reported short local catalog was separately traced to GitHub API rate
+limits during per-application artifact reconciliation; production and staging
+still expose the full catalog.
+
 ## Chat Model Default
 
 Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-05** — make
