@@ -500,6 +500,14 @@ export function RuntimeTxHandler() {
             </DialogDescription>
           </DialogHeader>
           <div className="bg-muted/40 grid gap-3 rounded-xl border p-4 text-sm">
+            {aaRequest.payload.description ? (
+              <div className="flex items-start justify-between gap-4">
+                <span className="text-muted-foreground">Action</span>
+                <span className="text-right font-medium">
+                  {aaRequest.payload.description}
+                </span>
+              </div>
+            ) : null}
             <div className="flex items-center justify-between gap-4">
               <span className="text-muted-foreground">Network</span>
               <span className="font-medium">{chainName}</span>

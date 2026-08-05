@@ -910,6 +910,103 @@ describe("ClientSession ext helpers", () => {
     session.close();
   });
 
+  it("rebuilds the attended AA request from a parked handoff", async () => {
+    const { client, fetchState } = createMockClient();
+    const session = new Session(client, {
+      sessionId: "session-unit-aa-resync",
+    });
+
+    fetchState.mockResolvedValueOnce({
+      is_processing: false,
+      messages: [],
+      user_state: {
+        pending_txs: {
+          7: {
+            from: "0x1111111111111111111111111111111111111111",
+            to: "0x000000000000000000000000000000000000dead",
+            value: "0",
+            data: "0x",
+            chain_id: 4326,
+            label: "Execute three calls",
+            current_lifecycle: "awaiting_aa_signature",
+            aa_handoff: {
+              prepared_blob: { type: "array", data: [] },
+              signature_requests: [
+                {
+                  kind: "eip7702_authorization",
+                  contract_address:
+                    "0x0000000000000000000000000000000000007702",
+                  chain_id: 4326,
+                  nonce: 0,
+                  raw_payload: `0x${"11".repeat(32)}`,
+                },
+                {
+                  kind: "personal_sign",
+                  message: "0xprepared-user-operation",
+                  raw_payload: `0x${"22".repeat(32)}`,
+                },
+              ],
+              tx_ids: [7],
+              aa_mode: "7702",
+              executor: "0x1111111111111111111111111111111111111111",
+            },
+          },
+        },
+      },
+    } satisfies AomiStateResponse);
+
+    await session.fetchCurrentState();
+
+    expect(session.getPendingRequests()).toEqual([
+      expect.objectContaining({
+        id: "aa-7",
+        kind: "aa_sign",
+        payload: expect.objectContaining({
+          chain_family: "evm",
+          chain_id: 4326,
+          signer: "0x1111111111111111111111111111111111111111",
+          executor: "0x1111111111111111111111111111111111111111",
+          aa_mode: "7702",
+          tx_ids: [7],
+          description: "Execute three calls",
+          sponsored: true,
+          signature_requests: [
+            expect.objectContaining({ kind: "eip7702_authorization" }),
+            expect.objectContaining({ kind: "personal_sign" }),
+          ],
+        }),
+      }),
+    ]);
+    session.close();
+  });
+
+  it("does not re-offer backend-held AA records as plain transactions", async () => {
+    const { client, fetchState } = createMockClient();
+    const session = new Session(client, { sessionId: "session-unit-aa-held" });
+
+    fetchState.mockResolvedValueOnce({
+      is_processing: false,
+      messages: [],
+      user_state: {
+        pending_txs: {
+          3: {
+            to: "0x000000000000000000000000000000000000beef",
+            value: "0",
+            data: "0x",
+            chain_id: 4326,
+            current_lifecycle: "inflight",
+            aa_prepared_call_id: "prep-1",
+          },
+        },
+      },
+    } satisfies AomiStateResponse);
+
+    await session.fetchCurrentState();
+
+    expect(session.getPendingRequests()).toEqual([]);
+    session.close();
+  });
+
   it("forwards backend eip712 identifiers in wallet rejection callbacks", async () => {
     const { client, sendMessage, sendSystemMessage } = createMockClient();
     const session = new Session(client, { sessionId: "session-unit-9" });
