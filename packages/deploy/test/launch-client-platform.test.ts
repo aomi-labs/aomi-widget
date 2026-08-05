@@ -21,46 +21,49 @@ function recordingClient(platform?: string) {
 }
 
 describe("createLaunchClient — bound platform", () => {
-  it("carries the bound platform into query reads", async () => {
+  it("carries the bound platform into pre-project calls", async () => {
     const { client, calls } = recordingClient("somm.finance");
 
     await client.status({ deploymentId: "d-1" });
+    await client.preflight({ repo: "alice/demo" });
+    await client.createRepo({ installationId: "55" });
+
+    expect(calls[0]?.url).toContain("platform=somm.finance");
+    expect(calls[1]?.body).toMatchObject({ platform: "somm.finance" });
+    expect(calls[2]?.body).toMatchObject({ platform: "somm.finance" });
+  });
+
+  it("never sends a platform on project-scoped calls, bound or not", async () => {
+    const { client, calls } = recordingClient("somm.finance");
+
     await client.deployments.history({ projectId: 7 });
     await client.deployments.secrets({ projectId: 7 });
-
-    for (const { url } of calls) {
-      expect(url).toContain("platform=somm.finance");
-    }
-  });
-
-  it("carries the bound platform into write bodies", async () => {
-    const { client, calls } = recordingClient("somm.finance");
-
+    await client.deployments.requiredSecrets({ projectId: 7 });
     await client.deploy({ projectId: 7, sourceRef: "abc123" });
-    await client.createRepo({ installationId: "55" });
+    await client.redeploy({ projectId: 7 });
+    await client.activate({ projectId: 7, releaseTags: ["t1"] });
     await client.deployments.promote({ deploymentId: "d-1", projectId: 7 });
+    await client.deployments.deactivate({ projectId: 7, apps: ["demo"] });
+    await client.deployments.records({ app: "demo", projectId: 7 });
 
-    for (const { body } of calls) {
-      expect(body).toMatchObject({ platform: "somm.finance" });
+    for (const { url, body } of calls) {
+      expect(url).not.toContain("platform=");
+      if (body) expect(body).not.toHaveProperty("platform");
     }
   });
 
-  /** The BFF route always read `body.platform`; the client used to drop it. */
-  it("sends the platform on redeploy", async () => {
+  it("keeps platform addressing for records without a project", async () => {
     const { client, calls } = recordingClient("somm.finance");
 
-    await client.redeploy({ projectId: 7 });
+    await client.deployments.records({ app: "demo" });
 
-    expect(calls[0]?.body).toMatchObject({
-      projectId: 7,
-      platform: "somm.finance",
-    });
+    expect(calls[0]?.url).toContain("platform=somm.finance");
   });
 
-  it("lets an explicit per-call platform win", async () => {
+  it("lets an explicit per-call platform win on pre-project reads", async () => {
     const { client, calls } = recordingClient("somm.finance");
 
-    await client.deployments.history({ projectId: 7, platform: "community" });
+    await client.status({ deploymentId: "d-1", platform: "community" });
 
     expect(calls[0]?.url).toContain("platform=community");
     expect(calls[0]?.url).not.toContain("somm.finance");

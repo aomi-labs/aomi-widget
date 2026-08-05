@@ -15,7 +15,6 @@ import type {
   DeploymentClientOptions,
   DeploymentProgressEvent,
   DeploymentStatus,
-  DeploymentAppStatus,
   ExchangeGitHubCodeInput,
   GetAppInput,
   GetUserProjectAppDetailInput,
@@ -42,7 +41,6 @@ import type {
   BuilderModelKeysInput,
   DeleteBuilderModelKeyInput,
   DeleteUserProjectBotInput,
-  OwnedOperateInput,
   OperateLogCursor,
   OperateAppDetailResult,
   OperateStatementResult,
@@ -685,13 +683,9 @@ export class DeploymentClient {
     input: GetUserProjectLatestDeploymentInput,
   ): Promise<UserProjectLatestDeployment | null> {
     const githubUserId = required(input.githubUserId, "githubUserId");
-    const platform = cleanPlatform(input.platform);
     const projectId = required(String(input.projectId), "projectId");
     const bearer = this.resolveBearer(input.bearer);
-    const params = new URLSearchParams({
-      github_user_id: githubUserId,
-      platform,
-    });
+    const params = new URLSearchParams({ github_user_id: githubUserId });
     const raw = await this.get<{ latest_deployment?: unknown }>(
       `/api/integrations/github-app/user/projects/${encodeURIComponent(
         projectId,
@@ -701,7 +695,6 @@ export class DeploymentClient {
     );
     await this.audit({
       action: "get_user_project_latest_deployment",
-      platform,
       projectId: input.projectId,
       actor: input.actor,
       ts: Date.now(),
@@ -713,13 +706,9 @@ export class DeploymentClient {
     input: GetUserProjectRequiredSecretsInput,
   ): Promise<UserProjectRequiredSecretsResult> {
     const githubUserId = required(input.githubUserId, "githubUserId");
-    const platform = cleanPlatform(input.platform);
     const projectId = required(String(input.projectId), "projectId");
     const bearer = this.resolveBearer(input.bearer);
-    const params = new URLSearchParams({
-      github_user_id: githubUserId,
-      platform,
-    });
+    const params = new URLSearchParams({ github_user_id: githubUserId });
     const raw = await this.get<{
       by_app?: Record<string, { slots?: unknown[] }>;
     }>(
@@ -731,7 +720,6 @@ export class DeploymentClient {
     );
     await this.audit({
       action: "get_user_project_required_secrets",
-      platform,
       projectId: input.projectId,
       actor: input.actor,
       ts: Date.now(),
@@ -763,13 +751,9 @@ export class DeploymentClient {
     input: ListUserProjectDeploymentsInput,
   ): Promise<UserProjectLatestDeployment[]> {
     const githubUserId = required(input.githubUserId, "githubUserId");
-    const platform = cleanPlatform(input.platform);
     const projectId = required(String(input.projectId), "projectId");
     const bearer = this.resolveBearer(input.bearer);
-    const params = new URLSearchParams({
-      github_user_id: githubUserId,
-      platform,
-    });
+    const params = new URLSearchParams({ github_user_id: githubUserId });
     if (input.limit && Number.isSafeInteger(input.limit) && input.limit > 0) {
       params.set("limit", String(input.limit));
     }
@@ -782,7 +766,6 @@ export class DeploymentClient {
     );
     await this.audit({
       action: "list_user_project_deployments",
-      platform,
       projectId: input.projectId,
       actor: input.actor,
       ts: Date.now(),
@@ -797,8 +780,7 @@ export class DeploymentClient {
   async listUserProjectBots(
     input: OwnedOperateProjectInput,
   ): Promise<BotRegistration[]> {
-    const { projectId, params, platform, bearer } =
-      this.ownedOperateRequest(input);
+    const { projectId, params, bearer } = this.ownedOperateRequest(input);
     const raw = await this.get<{ bot_registrations?: unknown[] }>(
       `/api/integrations/github-app/user/projects/${encodeURIComponent(
         String(projectId),
@@ -808,7 +790,6 @@ export class DeploymentClient {
     );
     await this.audit({
       action: "list_user_project_bots",
-      platform,
       projectId,
       actor: input.actor,
       ts: Date.now(),
@@ -821,8 +802,7 @@ export class DeploymentClient {
   async createUserProjectBot(
     input: CreateUserProjectBotInput,
   ): Promise<BotRegistration> {
-    const { projectId, params, platform, bearer } =
-      this.ownedOperateRequest(input);
+    const { projectId, params, bearer } = this.ownedOperateRequest(input);
     const botPlatform = required(input.botPlatform, "botPlatform");
     const applicationId = required(
       String(input.applicationId),
@@ -845,7 +825,6 @@ export class DeploymentClient {
     );
     await this.audit({
       action: "create_user_project_bot",
-      platform,
       projectId,
       actor: input.actor,
       ts: Date.now(),
@@ -854,8 +833,7 @@ export class DeploymentClient {
   }
 
   async deleteUserProjectBot(input: DeleteUserProjectBotInput): Promise<void> {
-    const { projectId, params, platform, bearer } =
-      this.ownedOperateRequest(input);
+    const { projectId, params, bearer } = this.ownedOperateRequest(input);
     const botId = required(input.botId, "botId");
     await this.del<unknown>(
       `/api/integrations/github-app/user/projects/${encodeURIComponent(
@@ -866,7 +844,6 @@ export class DeploymentClient {
     );
     await this.audit({
       action: "delete_user_project_bot",
-      platform,
       projectId,
       actor: input.actor,
       ts: Date.now(),
@@ -1058,8 +1035,7 @@ export class DeploymentClient {
   async listUserProjectTransactions(
     input: ListUserProjectTransactionsInput,
   ): Promise<OperateTransactionsResult> {
-    const { projectId, params, platform, bearer } =
-      this.ownedOperateRequest(input);
+    const { projectId, params, bearer } = this.ownedOperateRequest(input);
     if (input.limit && Number.isSafeInteger(input.limit) && input.limit > 0) {
       params.set("limit", String(input.limit));
     }
@@ -1075,19 +1051,17 @@ export class DeploymentClient {
     );
     await this.audit({
       action: "list_user_project_transactions",
-      platform,
       projectId,
       actor: input.actor,
       ts: Date.now(),
     });
-    return camelOperateTransactions(raw, platform);
+    return camelOperateTransactions(raw);
   }
 
   async getUserProjectUsage(
     input: GetUserProjectUsageInput,
   ): Promise<OperateUsageResult> {
-    const { projectId, params, platform, bearer } =
-      this.ownedOperateRequest(input);
+    const { projectId, params, bearer } = this.ownedOperateRequest(input);
     if (input.fromDate?.trim()) params.set("from_date", input.fromDate.trim());
     if (input.toDate?.trim()) params.set("to_date", input.toDate.trim());
     const raw = await this.get<Record<string, unknown>>(
@@ -1099,19 +1073,17 @@ export class DeploymentClient {
     );
     await this.audit({
       action: "get_user_project_usage",
-      platform,
       projectId,
       actor: input.actor,
       ts: Date.now(),
     });
-    return camelOperateUsage(raw, platform);
+    return camelOperateUsage(raw);
   }
 
   async getUserProjectStatement(
     input: GetUserProjectUsageInput,
   ): Promise<OperateStatementResult> {
-    const { projectId, params, platform, bearer } =
-      this.ownedOperateRequest(input);
+    const { projectId, params, bearer } = this.ownedOperateRequest(input);
     if (input.fromDate?.trim()) params.set("from_date", input.fromDate.trim());
     if (input.toDate?.trim()) params.set("to_date", input.toDate.trim());
     const raw = await this.get<Record<string, unknown>>(
@@ -1123,19 +1095,17 @@ export class DeploymentClient {
     );
     await this.audit({
       action: "get_user_project_statement",
-      platform,
       projectId,
       actor: input.actor,
       ts: Date.now(),
     });
-    return camelOperateStatement(raw, platform);
+    return camelOperateStatement(raw);
   }
 
   async listUserProjectLogs(
     input: ListUserProjectLogsInput,
   ): Promise<OperateLogsResult> {
-    const { projectId, params, platform, bearer } =
-      this.ownedOperateRequest(input);
+    const { projectId, params, bearer } = this.ownedOperateRequest(input);
     if (input.limit && Number.isSafeInteger(input.limit) && input.limit > 0) {
       params.set("limit", String(input.limit));
     }
@@ -1151,19 +1121,17 @@ export class DeploymentClient {
     );
     await this.audit({
       action: "list_user_project_logs",
-      platform,
       projectId,
       actor: input.actor,
       ts: Date.now(),
     });
-    return camelOperateLogs(raw, platform);
+    return camelOperateLogs(raw);
   }
 
   async getUserProjectObservability(
     input: OwnedOperateProjectInput,
   ): Promise<OperateObservabilityResult> {
-    const { projectId, params, platform, bearer } =
-      this.ownedOperateRequest(input);
+    const { projectId, params, bearer } = this.ownedOperateRequest(input);
     const raw = await this.get<Record<string, unknown>>(
       `/api/integrations/github-app/user/projects/${encodeURIComponent(
         String(projectId),
@@ -1173,21 +1141,18 @@ export class DeploymentClient {
     );
     await this.audit({
       action: "get_user_project_observability",
-      platform,
       projectId,
       actor: input.actor,
       ts: Date.now(),
     });
-    return camelOperateObservability(raw, platform);
+    return camelOperateObservability(raw);
   }
 
   /**
-   * Account-wide observability batch: every owned source in one request, each
-   * entry in the exact shape of {@link getUserProjectObservability}. Without
-   * `platform`, the manager resolves each source under its own bound/loaded
-   * platform — partner-bound sources included. Requires a manager with
-   * `GET /user/observability`; callers fall back to per-source reads when the
-   * route 404s (older manager).
+   * Account-wide observability batch: every owned project in one request,
+   * each entry in the exact shape of {@link getUserProjectObservability}. The
+   * manager resolves each project under its own bound platform —
+   * partner-bound projects included.
    */
   async getUserObservability(
     input: GetUserObservabilityInput,
@@ -1195,7 +1160,6 @@ export class DeploymentClient {
     const githubUserId = required(input.githubUserId, "githubUserId");
     const bearer = this.resolveBearer(input.bearer);
     const params = new URLSearchParams({ github_user_id: githubUserId });
-    if (input.platform?.trim()) params.set("platform", input.platform.trim());
     if (input.projectId !== undefined) {
       if (!Number.isSafeInteger(input.projectId) || input.projectId <= 0) {
         throw new Error("projectId must be a positive integer");
@@ -1209,15 +1173,12 @@ export class DeploymentClient {
     );
     await this.audit({
       action: "get_user_observability",
-      platform: input.platform,
       actor: input.actor,
       ts: Date.now(),
     });
     return ((raw.results ?? []) as Record<string, unknown>[]).map((entry) => {
-      const { payments: _payments, ...snapshot } = camelOperateObservability(
-        entry,
-        input.platform?.trim() ?? "",
-      );
+      const { payments: _payments, ...snapshot } =
+        camelOperateObservability(entry);
       return snapshot;
     });
   }
@@ -1228,7 +1189,6 @@ export class DeploymentClient {
     const githubUserId = required(input.githubUserId, "githubUserId");
     const bearer = this.resolveBearer(input.bearer);
     const params = new URLSearchParams({ github_user_id: githubUserId });
-    if (input.platform?.trim()) params.set("platform", input.platform.trim());
     if (input.projectId !== undefined) {
       if (!Number.isSafeInteger(input.projectId) || input.projectId <= 0) {
         throw new Error("projectId must be a positive integer");
@@ -1242,7 +1202,6 @@ export class DeploymentClient {
     );
     await this.audit({
       action: "get_user_payments",
-      platform: input.platform,
       projectId: input.projectId,
       actor: input.actor,
       ts: Date.now(),
@@ -1256,14 +1215,11 @@ export class DeploymentClient {
   private userBatchParams(input: UserOperateBatchInput): {
     params: URLSearchParams;
     bearer: string;
-    fallbackPlatform: string;
   } {
     const githubUserId = required(input.githubUserId, "githubUserId");
     const bearer = this.resolveBearer(input.bearer);
     const params = new URLSearchParams({ github_user_id: githubUserId });
-    const fallbackPlatform = input.platform?.trim() ?? "";
-    if (fallbackPlatform) params.set("platform", fallbackPlatform);
-    return { params, bearer, fallbackPlatform };
+    return { params, bearer };
   }
 
   /**
@@ -1275,7 +1231,7 @@ export class DeploymentClient {
   async listUserTransactions(
     input: ListUserTransactionsInput,
   ): Promise<UserTransactionsResult> {
-    const { params, bearer, fallbackPlatform } = this.userBatchParams(input);
+    const { params, bearer } = this.userBatchParams(input);
     if (input.limit && Number.isSafeInteger(input.limit) && input.limit > 0) {
       params.set("limit", String(input.limit));
     }
@@ -1289,17 +1245,16 @@ export class DeploymentClient {
     );
     await this.audit({
       action: "list_user_transactions",
-      platform: input.platform,
       actor: input.actor,
       ts: Date.now(),
     });
     return {
-      projects: camelUserProjectRefs(raw.projects, fallbackPlatform),
+      projects: camelUserProjectRefs(raw.projects),
       transactions: ((raw.transactions ?? []) as Record<string, any>[]).map(
         (row) => ({
           ...camelTransactionRow(row),
           projectId: optNumber(row.project_id ?? row.projectId),
-          platform: optString(row.platform) ?? (fallbackPlatform || null),
+          platform: optString(row.platform),
         }),
       ),
       nextCursor: camelTransactionCursor(raw.next_cursor ?? raw.nextCursor),
@@ -1313,7 +1268,7 @@ export class DeploymentClient {
   async getUserStatements(
     input: GetUserStatementsInput,
   ): Promise<OperateStatementResult[]> {
-    const { params, bearer, fallbackPlatform } = this.userBatchParams(input);
+    const { params, bearer } = this.userBatchParams(input);
     if (input.fromDate?.trim()) params.set("from_date", input.fromDate.trim());
     if (input.toDate?.trim()) params.set("to_date", input.toDate.trim());
     const raw = await this.get<{ results?: unknown[] }>(
@@ -1323,12 +1278,11 @@ export class DeploymentClient {
     );
     await this.audit({
       action: "get_user_statement",
-      platform: input.platform,
       actor: input.actor,
       ts: Date.now(),
     });
     return ((raw.results ?? []) as Record<string, unknown>[]).map((entry) =>
-      camelOperateStatement(entry, fallbackPlatform),
+      camelOperateStatement(entry),
     );
   }
 
@@ -1339,7 +1293,7 @@ export class DeploymentClient {
   async getUserUsage(
     input: GetUserStatementsInput,
   ): Promise<OperateUsageResult[]> {
-    const { params, bearer, fallbackPlatform } = this.userBatchParams(input);
+    const { params, bearer } = this.userBatchParams(input);
     if (input.fromDate?.trim()) params.set("from_date", input.fromDate.trim());
     if (input.toDate?.trim()) params.set("to_date", input.toDate.trim());
     const raw = await this.get<{ results?: unknown[] }>(
@@ -1349,12 +1303,11 @@ export class DeploymentClient {
     );
     await this.audit({
       action: "get_user_usage",
-      platform: input.platform,
       actor: input.actor,
       ts: Date.now(),
     });
     return ((raw.results ?? []) as Record<string, unknown>[]).map((entry) =>
-      camelOperateUsage(entry, fallbackPlatform),
+      camelOperateUsage(entry),
     );
   }
 
@@ -1364,7 +1317,7 @@ export class DeploymentClient {
    * settlements carry a null `projectId`.
    */
   async listUserLogs(input: ListUserLogsInput): Promise<UserLogsResult> {
-    const { params, bearer, fallbackPlatform } = this.userBatchParams(input);
+    const { params, bearer } = this.userBatchParams(input);
     if (input.limit && Number.isSafeInteger(input.limit) && input.limit > 0) {
       params.set("limit", String(input.limit));
     }
@@ -1378,16 +1331,15 @@ export class DeploymentClient {
     );
     await this.audit({
       action: "list_user_logs",
-      platform: input.platform,
       actor: input.actor,
       ts: Date.now(),
     });
     return {
-      projects: camelUserProjectRefs(raw.projects, fallbackPlatform),
+      projects: camelUserProjectRefs(raw.projects),
       logs: ((raw.logs ?? []) as Record<string, any>[]).map((row) => ({
         ...camelLogRow(row),
         projectId: optNumber(row.project_id ?? row.projectId),
-        platform: optString(row.platform) ?? (fallbackPlatform || null),
+        platform: optString(row.platform),
       })),
       nextCursor: camelLogCursor(raw.next_cursor ?? raw.nextCursor),
       invocationsAvailable: raw.invocations_available !== false,
@@ -1397,8 +1349,7 @@ export class DeploymentClient {
   async getUserProjectAppDetail(
     input: GetUserProjectAppDetailInput,
   ): Promise<OperateAppDetailResult> {
-    const { projectId, params, platform, bearer } =
-      this.ownedOperateRequest(input);
+    const { projectId, params, bearer } = this.ownedOperateRequest(input);
     const applicationId = required(
       String(input.applicationId),
       "applicationId",
@@ -1412,19 +1363,17 @@ export class DeploymentClient {
     );
     await this.audit({
       action: "get_user_project_app_detail",
-      platform,
       projectId,
       actor: input.actor,
       ts: Date.now(),
     });
-    return camelOperateAppDetail(raw, platform);
+    return camelOperateAppDetail(raw);
   }
 
   async upgradeUserProjectSdk(
     input: OwnedOperateProjectInput,
   ): Promise<ProjectSdkUpgradeResult> {
-    const { projectId, params, platform, bearer } =
-      this.ownedOperateRequest(input);
+    const { projectId, params, bearer } = this.ownedOperateRequest(input);
     const raw = await this.post<Record<string, unknown>>(
       `/api/integrations/github-app/user/projects/${encodeURIComponent(
         String(projectId),
@@ -1435,7 +1384,6 @@ export class DeploymentClient {
     );
     await this.audit({
       action: "upgrade_user_project_sdk",
-      platform,
       projectId,
       actor: input.actor,
       ts: Date.now(),
@@ -1484,8 +1432,7 @@ export class DeploymentClient {
   async sdkUpgradeStatus(
     input: OwnedOperateProjectInput,
   ): Promise<ProjectSdkUpgradeStatusResult> {
-    const { projectId, params, platform, bearer } =
-      this.ownedOperateRequest(input);
+    const { projectId, params, bearer } = this.ownedOperateRequest(input);
     const raw = await this.get<Record<string, unknown>>(
       `/api/integrations/github-app/user/projects/${encodeURIComponent(
         String(projectId),
@@ -1495,7 +1442,6 @@ export class DeploymentClient {
     );
     await this.audit({
       action: "get_project_sdk_upgrade_status",
-      platform,
       projectId,
       actor: input.actor,
       ts: Date.now(),
@@ -1643,26 +1589,20 @@ export class DeploymentClient {
   private ownedOperateRequest(input: OwnedOperateProjectInput): {
     projectId: number;
     params: URLSearchParams;
-    platform: string;
     bearer: string;
   } {
     const githubUserId = required(input.githubUserId, "githubUserId");
-    const platform = cleanPlatform(input.platform);
     const projectId = Number(input.projectId);
     if (!Number.isSafeInteger(projectId) || projectId <= 0) {
       throw new DeployError(
         "INVALID_REQUEST",
-        "operate source reads require a positive projectId",
+        "operate project reads require a positive projectId",
       );
     }
     return {
       projectId,
-      platform,
       bearer: this.resolveBearer(input.bearer),
-      params: new URLSearchParams({
-        github_user_id: githubUserId,
-        platform,
-      }),
+      params: new URLSearchParams({ github_user_id: githubUserId }),
     };
   }
 
@@ -1835,10 +1775,19 @@ function deployRequest(
       "deploy requires a positive projectId",
     );
   }
+  if (preflight) {
+    // Preflight may omit `source_ref`; the backend resolves the default head.
+    return {
+      project_id: projectId,
+      ...(input.sourceRef ? { source_ref: sourceRef(input.sourceRef) } : {}),
+      preflight: true,
+    };
+  }
+  // Apply always pins the exact preflight commit — reject a missing ref here
+  // rather than letting an unpinned request reach the backend.
   return {
     project_id: projectId,
-    ...(input.sourceRef ? { source_ref: sourceRef(input.sourceRef) } : {}),
-    ...(preflight ? { preflight: true } : {}),
+    source_ref: sourceRef(input.sourceRef),
   };
 }
 
@@ -1864,7 +1813,7 @@ function activateRequest(input: ActivateInput): Record<string, unknown> {
   };
 }
 
-function sourceRef(ref: DeployInput["sourceRef"]): string {
+function sourceRef(ref: DeployInput["sourceRef"] | undefined): string {
   const clean = required(ref, "sourceRef");
   if (!/^[0-9a-f]{7,40}$/i.test(clean)) {
     throw new DeployError(
@@ -1952,7 +1901,7 @@ function camelDeployResult(result: unknown): DeployResult {
         platform: platform.platform,
         repository: platform.repository,
         deployBranch: platform.deploy_branch,
-        sourceBranch: platform.source_branch,
+        platformBranch: platform.platform_branch,
         commitHash: platform.commit_hash ?? null,
         prNumber: platform.pr_number ?? null,
         prUrl: platform.pr_url ?? null,
@@ -1997,7 +1946,7 @@ function camelActivateResult(result: unknown): ActivateResult {
           (promotion: Record<string, any>) => ({
             name: promotion.name,
             releaseTag: promotion.release_tag,
-            sourceBranch: promotion.source_branch,
+            platformBranch: promotion.platform_branch,
             platformCommitHash:
               promotion.platform_commit_hash ??
               promotion.activated_commit_hash ??
@@ -2020,7 +1969,7 @@ function camelActivateResult(result: unknown): ActivateResult {
         artifactReady: Boolean(app.artifact_ready ?? app.artifactReady),
         loaded: Boolean(app.loaded),
         error: app.error ?? null,
-        sourceBranch: app.source_branch ?? null,
+        platformBranch: app.platform_branch ?? null,
         liveCommitHash: app.live_commit_hash ?? null,
         activationStatus: app.activation_status ?? null,
         activationPr: app.activation_pr ?? app.activationPr ?? null,
@@ -2029,10 +1978,6 @@ function camelActivateResult(result: unknown): ActivateResult {
       })),
     },
   };
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function camelStatusResult(raw: Record<string, unknown>): DeploymentStatus {
@@ -2238,8 +2183,7 @@ function camelUserProjectLatestDeployment(
   return {
     deploymentId: d.deployment_id ?? d.deploymentId ?? d.id ?? null,
     state: d.state ?? d.status ?? null,
-    deployBranch:
-      d.deploy_branch ?? d.deployBranch ?? d.platform_branch ?? null,
+    platformBranch: d.platform_branch ?? d.platformBranch ?? null,
     platformRepo: d.platform_repo ?? d.platformRepo ?? d.repository ?? null,
     commitHash: d.commit_hash ?? d.commitHash ?? null,
     ciStatus: d.ci_status ?? d.ciStatus ?? d.ci?.status ?? null,
@@ -2403,7 +2347,7 @@ function camelTransactionRow(row: Record<string, any>): OperateTransaction {
 
 function camelOperateTransactions(
   raw: Record<string, unknown>,
-  fallbackPlatform: string,
+  fallbackPlatform = "",
 ): OperateTransactionsResult {
   return {
     project: camelProject(raw.project),
@@ -2417,7 +2361,7 @@ function camelOperateTransactions(
 
 function camelUserProjectRefs(
   raw: unknown,
-  fallbackPlatform: string,
+  fallbackPlatform = "",
 ): UserProjectRef[] {
   return ((raw ?? []) as Record<string, any>[]).map((entry) => ({
     project: camelProject(entry.project),
@@ -2427,7 +2371,7 @@ function camelUserProjectRefs(
 
 function camelOperateUsage(
   raw: Record<string, unknown>,
-  fallbackPlatform: string,
+  fallbackPlatform = "",
 ): OperateUsageResult {
   const range = (raw.range ?? {}) as Record<string, any>;
   return {
@@ -2460,7 +2404,7 @@ function camelOperateUsage(
 
 function camelOperateStatement(
   raw: Record<string, unknown>,
-  fallbackPlatform: string,
+  fallbackPlatform = "",
 ): OperateStatementResult {
   const range = (raw.range ?? {}) as Record<string, any>;
   const summary = (raw.summary ?? {}) as Record<string, any>;
@@ -2623,7 +2567,7 @@ function camelLogRow(row: Record<string, any>): OperateLogEntry {
 
 function camelOperateLogs(
   raw: Record<string, unknown>,
-  fallbackPlatform: string,
+  fallbackPlatform = "",
 ): OperateLogsResult {
   return {
     project: camelProject(raw.project),
@@ -2635,7 +2579,7 @@ function camelOperateLogs(
 
 function camelOperateObservability(
   raw: Record<string, unknown>,
-  fallbackPlatform: string,
+  fallbackPlatform = "",
 ): OperateObservabilityResult {
   const monitoring = (raw.monitoring ?? {}) as Record<string, any>;
   return {
@@ -2692,7 +2636,7 @@ function camelOperateObservability(
 
 function camelOperateAppDetail(
   raw: Record<string, unknown>,
-  fallbackPlatform: string,
+  fallbackPlatform = "",
 ): OperateAppDetailResult {
   const app = (raw.app ?? {}) as Record<string, any>;
   const funnel = (raw.funnel ?? {}) as Record<string, any>;

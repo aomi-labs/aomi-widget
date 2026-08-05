@@ -218,7 +218,6 @@ describe("missingSecretsForActivation", () => {
     const missing = await missingSecretsForActivation({
       client,
       githubUserId: "gh-1",
-      platform: "community",
       githubToken: "t",
       project: {
         id: 42,
@@ -229,7 +228,6 @@ describe("missingSecretsForActivation", () => {
     expect(missing).toEqual({ binance: ["BINANCE_SECRET_KEY"] });
     expect(client.getUserProjectLatestDeployment).toHaveBeenCalledWith({
       githubUserId: "gh-1",
-      platform: "community",
       projectId: 42,
     });
   });
@@ -248,7 +246,6 @@ describe("missingSecretsForActivation", () => {
       missingSecretsForActivation({
         client,
         githubUserId: "gh-1",
-        platform: "community",
         githubToken: "t",
         project: { id: 42, latestDeployment: null } as never,
         pairs: [{ app: "binance", releaseTag: "v1" }],
@@ -274,7 +271,6 @@ describe("missingSecretsForActivation", () => {
       missingSecretsForActivation({
         client,
         githubUserId: "gh-1",
-        platform: "community",
         githubToken: undefined,
         project: { id: 42, latestDeployment: null } as never,
         pairs: [{ app: "binance", releaseTag: "v1" }],
@@ -301,7 +297,6 @@ describe("missingSecretsForActivation", () => {
       missingSecretsForActivation({
         client,
         githubUserId: "gh-1",
-        platform: "community",
         githubToken: "t",
         project: { id: 42, latestDeployment: null } as never,
         pairs: [{ app: "binance", releaseTag: "v1" }],

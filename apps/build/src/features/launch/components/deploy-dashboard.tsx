@@ -37,7 +37,7 @@ import {
 } from "@build/features/launch";
 import type { SecretSlot, UserProject } from "@aomi-labs/deploy";
 import {
-  deploymentLifecycleFromSource,
+  deploymentLifecycleFromProject,
   deploymentLifecycleFromStatus,
   deploymentIdFromReleaseTag,
   failedActivationApp,
@@ -470,7 +470,7 @@ function SourceCard({ source }: { source: UserProject }) {
     applicationId?: number;
   } | null>(null);
   const lifecycle = useMemo(
-    () => deploymentLifecycleFromSource(source),
+    () => deploymentLifecycleFromProject(source),
     [source],
   );
   const [statusLifecycle, setStatusLifecycle] =
@@ -855,7 +855,7 @@ function LifecycleDetails({ lifecycle }: { lifecycle: DeploymentLifecycle }) {
       <SummaryTile
         label="Build"
         value={lifecycle.ciStatus ?? lifecycle.statusLabel}
-        detail={lifecycle.deployBranch ?? lifecycle.platformRepo ?? undefined}
+        detail={lifecycle.platformBranch ?? lifecycle.platformRepo ?? undefined}
         tone={
           lifecycle.ciStatus === "passed"
             ? "good"

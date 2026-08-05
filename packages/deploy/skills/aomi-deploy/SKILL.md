@@ -109,7 +109,7 @@ Mount them (Next.js App Router shown; any fetch server maps the same):
 // app/api/bff/launch/redeploy/route.ts    → export const POST = launch.redeploy;
 // app/api/bff/launch/status/route.ts      → export const GET  = launch.status;
 // app/api/bff/launch/app/route.ts         → export const GET  = launch.app;
-// app/api/bff/launch/projects/route.ts     → export const GET  = launch.sources;
+// app/api/bff/launch/projects/route.ts    → export const GET  = launch.projects;
 // app/api/bff/auth/github/login/route.ts    → export const GET  = githubAuth.login;
 // app/api/bff/auth/github/callback/route.ts → export const GET  = githubAuth.callback;
 // app/api/bff/auth/github/status/route.ts   → export const GET  = githubAuth.status;
@@ -147,16 +147,17 @@ createRepo({installationId, repoName}) → scaffold from the template
 preflight(input) / deploy(input)       → dry-run / apply
 status({deploymentId})       → one poll: building | releasing | ready | failed
 watch({deploymentId}, onEvent)         → poll to completion, backoff, never throws
-activate({releaseTags, apps})→ promote the built release to live
+activate({projectId, releaseTags, apps}) → promote the built release to live
 appStatus({name, releaseTag})→ confirm the app is loaded & live
-sources()                    → the signed-in user's deployed agents
+projects()                   → the signed-in user's projects
 platform / forPlatform(name) → the bound platform; a client scoped to another
-deployments.*                → project console (sources, history, secrets, promote, …)
+deployments.*                → project console (projects, history, secrets, promote, …)
 ```
 
 Targeting a named partner platform? Bind it once —
-`createLaunchClient({ platform: "somm.finance" })` — rather than passing it on
-every call; omitting it on one call silently falls back to the host default.
+`createLaunchClient({ platform: "somm.finance" })` — the binding applies to
+project creation and wizard status polls. Project-scoped calls never send a
+platform: the BFF derives each project's bound platform from the project row.
 
 ## Step 3 — Build the UI (in your stack)
 

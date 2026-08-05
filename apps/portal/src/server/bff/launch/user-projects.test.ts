@@ -74,7 +74,7 @@ describe("userProjectsRoute", () => {
     // The backend call is scoped to the session's github_user_id.
     const [url] = fetchMock.mock.calls[0];
     expect(String(url)).toContain(
-      "/api/integrations/github-app/user/projects?github_user_id=42&platform=community",
+      "/api/integrations/github-app/user/projects?github_user_id=42",
     );
   });
 });

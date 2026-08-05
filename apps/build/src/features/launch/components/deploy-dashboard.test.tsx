@@ -57,7 +57,7 @@ vi.mock("@build/features/launch/hooks/use-project-detail", () => ({
 }));
 
 vi.mock("@aomi-labs/deploy/lifecycle", () => ({
-  deploymentLifecycleFromSource: vi.fn(() => ({
+  deploymentLifecycleFromProject: vi.fn(() => ({
     kind: "live",
     repo: "alice/bot",
     statusLabel: "Live",

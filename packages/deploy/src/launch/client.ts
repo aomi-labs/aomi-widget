@@ -87,13 +87,10 @@ export type LaunchClientOptions = {
   /** Where `createGitHubAuthRoutes` is mounted. Default `/api/bff/auth/github`. */
   authBasePath?: string;
   /**
-   * The platform every call targets. A partner integration binds its exact
-   * platform here once instead of threading it through every call — omitting
-   * it on a single call would otherwise fall back to the BFF's *default*
-   * platform, which is a silent wrong-platform write, not an error.
-   *
-   * Individual calls may still pass `platform` to override. Omit both and the
-   * BFF picks its configured default.
+   * The platform for calls made BEFORE a project exists — project creation,
+   * the wizard's status polls, and explicit platform-filtered lists. A
+   * partner integration binds its exact platform here once. Project-scoped
+   * calls never send a platform: the BFF derives the project's bound one.
    */
   platform?: string;
   /**
@@ -168,6 +165,22 @@ function createBaseClient(options: LaunchClientOptions) {
     return search ? `?${search}` : "";
   }
 
+  /**
+   * Project-scoped query: never carries a platform. The BFF derives the
+   * bound platform from the project row, so sending one here would only
+   * reintroduce the wrong-platform default this refactor removes.
+   */
+  function projectQuery(
+    parts: Record<string, string | number | undefined>,
+  ): string {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(parts)) {
+      if (value !== undefined) params.set(key, String(value));
+    }
+    const search = `${params}`;
+    return search ? `?${search}` : "";
+  }
+
   function postJson<T>(
     path: string,
     label: string,
@@ -215,34 +228,29 @@ function createBaseClient(options: LaunchClientOptions) {
       );
     },
 
-    upgradeSdk(input: {
-      platform?: string;
-      projectId: number;
-    }): Promise<ProjectSdkUpgradeResult> {
+    upgradeSdk(input: { projectId: number }): Promise<ProjectSdkUpgradeResult> {
       return postJson(
         `${deploymentsPath}/sdk-upgrade`,
-        "source SDK upgrade",
-        withPlatform(input),
+        "project SDK upgrade",
+        input,
       );
     },
 
     sdkUpgradeStatus(input: {
-      platform?: string;
       projectId: number;
     }): Promise<ProjectSdkUpgradeStatusResult> {
       return launchFetch(
-        `${deploymentsPath}/sdk-upgrade-status${query({ projectId: input.projectId }, input.platform)}`,
-        "source SDK upgrade status",
+        `${deploymentsPath}/sdk-upgrade-status${projectQuery({ projectId: input.projectId })}`,
+        "project SDK upgrade status",
       );
     },
 
     history(input: {
-      platform?: string;
       projectId: number;
       limit?: number;
     }): Promise<DeploymentHistoryResult> {
       return launchFetch(
-        `${deploymentsPath}/history${query({ projectId: input.projectId, limit: input.limit }, input.platform)}`,
+        `${deploymentsPath}/history${projectQuery({ projectId: input.projectId, limit: input.limit })}`,
         "deployment history",
       );
     },
@@ -262,90 +270,82 @@ function createBaseClient(options: LaunchClientOptions) {
       return launchFetch(`${deploymentsPath}/feed?${params}`, "deployment feed");
     },
 
-    secrets(input: {
-      platform?: string;
-      projectId: number;
-    }): Promise<DeploymentSecretsResult> {
+    secrets(input: { projectId: number }): Promise<DeploymentSecretsResult> {
       return launchFetch(
-        `${deploymentsPath}/secrets${query({ projectId: input.projectId }, input.platform)}`,
+        `${deploymentsPath}/secrets${projectQuery({ projectId: input.projectId })}`,
         "deployment secrets",
       );
     },
 
     requiredSecrets(input: {
-      platform?: string;
       projectId: number;
     }): Promise<RequiredSecretsResult> {
       return launchFetch(
-        `${deploymentsPath}/required-secrets${query({ projectId: input.projectId }, input.platform)}`,
+        `${deploymentsPath}/required-secrets${projectQuery({ projectId: input.projectId })}`,
         "required secrets",
       );
     },
 
     setSecrets(input: {
-      platform?: string;
       app: string;
       projectId: number;
       secrets: Record<string, string>;
     }): Promise<{ ok: boolean; keys: string[] }> {
       return postJson(
-        `${deploymentsPath}/secrets${query({ projectId: input.projectId }, input.platform)}`,
+        `${deploymentsPath}/secrets${projectQuery({ projectId: input.projectId })}`,
         "set environment variables",
-        withPlatform(input),
+        input,
       );
     },
 
     deleteSecret(input: {
-      platform?: string;
       app: string;
       projectId: number;
       name: string;
     }): Promise<{ ok: boolean; removed: boolean }> {
       return launchFetch(
-        `${deploymentsPath}/secrets${query({ projectId: input.projectId }, input.platform)}`,
+        `${deploymentsPath}/secrets${projectQuery({ projectId: input.projectId })}`,
         "delete environment variable",
         {
           method: "DELETE",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(withPlatform(input)),
+          body: JSON.stringify(input),
         },
       );
     },
 
     records(input: {
+      /** Only meaningful without `projectId`; a project's records derive
+       *  their platform from the project row. */
       platform?: string;
       app: string;
       projectId?: number;
     }): Promise<ListDeploymentRecordsResult> {
       return launchFetch(
-        `${deploymentsPath}/records${query({ app: input.app, projectId: input.projectId }, input.platform)}`,
+        input.projectId !== undefined
+          ? `${deploymentsPath}/records${projectQuery({ app: input.app, projectId: input.projectId })}`
+          : `${deploymentsPath}/records${query({ app: input.app }, input.platform)}`,
         "deployment records",
       );
     },
 
     promote(input: {
-      platform?: string;
       deploymentId: string;
       projectId: number;
       apps?: string[];
       actor?: string;
     }): Promise<DeploymentPromoteResult> {
-      return postJson(
-        `${deploymentsPath}/promote`,
-        "deployment promote",
-        withPlatform(input),
-      );
+      return postJson(`${deploymentsPath}/promote`, "deployment promote", input);
     },
 
     deactivate(input: {
-      platform?: string;
       projectId: number;
       apps: string[];
     }): Promise<{ ok: boolean; apps: string[] }> {
       return postJson(
         `${deploymentsPath}/deactivate`,
         "deployment deactivate",
-        withPlatform(input),
+        input,
       );
     },
   };
@@ -366,18 +366,11 @@ function createBaseClient(options: LaunchClientOptions) {
     },
 
     deploy(input: LaunchDeployInput): Promise<LaunchDeployResult> {
-      return postJson(`${basePath}/deploy`, "launch deploy", withPlatform(input));
+      return postJson(`${basePath}/deploy`, "launch deploy", input);
     },
 
-    redeploy(input: {
-      projectId: number;
-      platform?: string;
-    }): Promise<LaunchRedeployResult> {
-      return postJson(
-        `${basePath}/redeploy`,
-        "launch redeploy",
-        withPlatform(input),
-      );
+    redeploy(input: { projectId: number }): Promise<LaunchRedeployResult> {
+      return postJson(`${basePath}/redeploy`, "launch redeploy", input);
     },
 
     createRepo(input: {
@@ -424,17 +417,12 @@ function createBaseClient(options: LaunchClientOptions) {
     },
 
     activate(input: {
-      platform?: string;
-      projectId?: number;
+      projectId: number;
       releaseTags: string[];
       apps?: string[];
       actor?: string;
     }): Promise<LaunchActivateResult> {
-      return postJson(
-        `${basePath}/activate`,
-        "launch activation",
-        withPlatform(input),
-      );
+      return postJson(`${basePath}/activate`, "launch activation", input);
     },
 
     appStatus(input: {

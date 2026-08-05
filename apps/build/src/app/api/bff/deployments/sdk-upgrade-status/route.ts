@@ -1,3 +1,3 @@
-import { sourceSdkUpgradeStatusRoute } from "@build/server/bff/launch/project-upgrade";
+import { projectSdkUpgradeStatusRoute } from "@build/server/bff/launch/project-upgrade";
 
-export const GET = sourceSdkUpgradeStatusRoute;
+export const GET = projectSdkUpgradeStatusRoute;

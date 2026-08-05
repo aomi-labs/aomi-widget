@@ -2,20 +2,15 @@ import "server-only";
 
 import { NextResponse } from "next/server";
 import { deploymentClient } from "@build/server/bff/backend";
-import { resolveLaunchPlatform } from "./config";
 import { clearLaunchReadCache } from "./routes";
 import { authorize } from "@build/server/bff/auth";
 import { buildFailures } from "@build/server/bff/failures";
 
-export async function sourceSdkUpgradeRoute(req: Request) {
+export async function projectSdkUpgradeRoute(req: Request) {
   const auth = await authorize(req, { write: true });
   if ("response" in auth) return auth.response;
   const { session } = auth;
   const body: unknown = await req.json().catch(() => null);
-  const platformValue =
-    body && typeof body === "object" && "platform" in body
-      ? body.platform
-      : undefined;
   const projectId = Number(
     body && typeof body === "object" && "projectId" in body
       ? body.projectId
@@ -29,21 +24,13 @@ export async function sourceSdkUpgradeRoute(req: Request) {
   }
 
   try {
-    const platform = resolveLaunchPlatform(platformValue);
-    if (!platform) {
-      return NextResponse.json(
-        { error: "unknown or unavailable `platform`" },
-        { status: 400 },
-      );
-    }
     const client = await deploymentClient();
     const result = await client.upgradeUserProjectSdk({
       projectId,
       githubUserId: session.githubUserId,
-      platform,
     });
-    // The upgrade mutates the source repo; the merged PR changes the source's
-    // stamped SDK version, which the cached source list carries.
+    // The upgrade mutates the project repo; the merged PR changes the
+    // project's stamped SDK version, which the cached project list carries.
     clearLaunchReadCache();
     return NextResponse.json(result);
   } catch (error) {
@@ -61,11 +48,11 @@ export async function sourceSdkUpgradeRoute(req: Request) {
 
 /**
  * Read-only merge poll for the upgrade PR — the cheap counterpart to
- * {@link sourceSdkUpgradeRoute}. A GET, so no CSRF/origin gate; the backend
+ * {@link projectSdkUpgradeRoute}. A GET, so no CSRF/origin gate; the backend
  * answers with a single GitHub call (no repo tarball, no branch mutation),
  * making it safe for the launch flow's 45s recheck loop.
  */
-export async function sourceSdkUpgradeStatusRoute(req: Request) {
+export async function projectSdkUpgradeStatusRoute(req: Request) {
   const auth = await authorize(req);
   if ("response" in auth) return auth.response;
   const { session } = auth;
@@ -80,19 +67,10 @@ export async function sourceSdkUpgradeStatusRoute(req: Request) {
   }
 
   try {
-    const params = new URL(req.url).searchParams;
-    const platform = resolveLaunchPlatform(params.get("platform") ?? undefined);
-    if (!platform) {
-      return NextResponse.json(
-        { error: "unknown or unavailable `platform`" },
-        { status: 400 },
-      );
-    }
     const client = await deploymentClient();
     const result = await client.sdkUpgradeStatus({
       projectId,
       githubUserId: session.githubUserId,
-      platform,
     });
     return NextResponse.json(result);
   } catch (error) {

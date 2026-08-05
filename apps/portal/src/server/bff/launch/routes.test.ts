@@ -668,7 +668,7 @@ describe("deploymentPromoteRoute", () => {
     const body = await res.json();
 
     expect(res.status).toBe(404);
-    expect(body.error).toContain("app source not found");
+    expect(body.error).toContain("project not found");
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
@@ -905,6 +905,7 @@ describe("redeployLaunchRoute", () => {
     });
     const fetchMock = vi
       .fn()
+      .mockResolvedValueOnce(ownedSources(99))
       .mockResolvedValueOnce(
         Response.json({
           latest_deployment: {
@@ -939,10 +940,10 @@ describe("redeployLaunchRoute", () => {
       ciRunId: "123456",
     });
     // The rerun call goes to the Aomi backend, never to api.github.com.
-    expect(String(fetchMock.mock.calls[1][0])).toContain(
+    expect(String(fetchMock.mock.calls[2][0])).toContain(
       "/api/platforms/community/deployments/dep_1/rerun?github_user_id=42",
     );
-    expect(fetchMock.mock.calls[1][1]).toMatchObject({ method: "POST" });
+    expect(fetchMock.mock.calls[2][1]).toMatchObject({ method: "POST" });
   });
 
   it("refuses redeploy when the source has no backend-owned deployment yet", async () => {
@@ -950,11 +951,14 @@ describe("redeployLaunchRoute", () => {
       githubUserId: "42",
       githubLogin: "alice",
     });
-    const fetchMock = vi.fn().mockResolvedValueOnce(
-      Response.json({
-        latest_deployment: null,
-      }),
-    );
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(ownedSources(99))
+      .mockResolvedValueOnce(
+        Response.json({
+          latest_deployment: null,
+        }),
+      );
     vi.stubGlobal("fetch", fetchMock);
 
     const res = await redeployLaunchRoute(writeReq({ projectId: 99 }));
@@ -962,7 +966,7 @@ describe("redeployLaunchRoute", () => {
 
     expect(res.status).toBe(409);
     expect(body.error).toContain("No backend-owned deployment");
-    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("propagates a backend rerun rejection instead of masking it", async () => {
@@ -972,6 +976,7 @@ describe("redeployLaunchRoute", () => {
     });
     const fetchMock = vi
       .fn()
+      .mockResolvedValueOnce(ownedSources(99))
       .mockResolvedValueOnce(
         Response.json({
           latest_deployment: {

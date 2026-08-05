@@ -390,9 +390,7 @@ export function useProjectDetail(projectId: number, platform?: string) {
       setDeployFlow({ phase: "deploying", message: "Deploying new version…" });
       const deployed = await launchDeploy({
         projectId: targetProjectId,
-        platform,
         sourceRef: pre.sourceRef,
-        repo,
       });
       const deploymentId = deployed.deployment.id;
 
@@ -428,9 +426,10 @@ export function useProjectDetail(projectId: number, platform?: string) {
       }
 
       setDeployFlow({ phase: "activating", message: "Activating release…" });
+      // Activate the SAME project the deploy targeted — `targetProjectId`
+      // is preflight-resolved and can differ from the page's `projectId`.
       const activated = await launchActivate({
-        projectId,
-        platform,
+        projectId: targetProjectId,
         releaseTags,
         apps,
       });

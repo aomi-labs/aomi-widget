@@ -53,31 +53,31 @@ function launchErrorContext(req: Request, operation: string) {
   };
 }
 
-/** Whether `projectId` belongs to the signed-in user. The backend scopes
- *  listUserProjects to the session's GitHub user id, so a source id absent from
- *  the result is not owned by the caller. */
-async function ownsProject(
-  client: DeploymentClientInstance,
-  githubUserId: string,
-  platform: string,
-  projectId: number,
-): Promise<boolean> {
-  const projects = await cachedUserProjects(client, githubUserId, platform);
-  return projects.some((source) => source.id === projectId);
-}
-
 type OwnedProject = Awaited<
   ReturnType<DeploymentClientInstance["listUserProjects"]>
 >[number];
 
+/** The signed-in user's projects. Ownership checks always read the
+ *  account-wide list (platform undefined) so partner-bound projects are never
+ *  invisible; an explicit platform is only a Projects-page narrowing filter. */
 function cachedUserProjects(
   client: DeploymentClientInstance,
   githubUserId: string,
-  platform: string,
+  platform?: string,
 ): Promise<OwnedProject[]> {
-  return readCache.projects.get([githubUserId, platform], () =>
+  return readCache.projects.get([githubUserId, platform ?? null], () =>
     client.listUserProjects({ githubUserId, platform }),
   );
+}
+
+/** The platform every downstream platform-addressed call must use once a
+ *  project is known: the project's bound platform. The configured default
+ *  applies only before a project exists (creation) or on unbound legacy rows. */
+function projectPlatform(
+  project: OwnedProject,
+  config: ReturnType<typeof launchConfig>,
+): string {
+  return project.platformName?.trim() || config.platform;
 }
 
 // Read cache for the hot project-page GETs. Same 15s TTL as operate's, and it
@@ -100,15 +100,16 @@ export function clearLaunchReadCache() {
   Object.values(readCache).forEach((cache) => cache.clear());
 }
 
-/** The signed-in user's source with `projectId`, or null if not theirs. */
+/** The signed-in user's project with `projectId`, or null if not theirs.
+ *  Account-wide: the backend scopes listUserProjects to the session's GitHub
+ *  user id, so an id absent from the result is not owned by the caller. */
 async function findOwnedProject(
   client: DeploymentClientInstance,
   githubUserId: string,
-  platform: string,
   projectId: number,
 ): Promise<OwnedProject | null> {
-  const projects = await cachedUserProjects(client, githubUserId, platform);
-  return projects.find((source) => source.id === projectId) ?? null;
+  const projects = await cachedUserProjects(client, githubUserId);
+  return projects.find((project) => project.id === projectId) ?? null;
 }
 
 /** Every deployment id in the source's DB promotion records (all its apps).
@@ -117,16 +118,16 @@ async function findOwnedProject(
 async function projectDeploymentIds(
   client: DeploymentClientInstance,
   platform: string,
-  source: OwnedProject,
+  project: OwnedProject,
 ): Promise<Set<string>> {
   const ids = new Set<string>();
   await Promise.all(
-    source.apps.map(async (app) => {
+    project.apps.map(async (app) => {
       const { records } = await client
         .listDeploymentRecords({
           platform,
           app: app.name,
-          projectId: source.id,
+          projectId: project.id,
         })
         .catch((error: unknown) => {
           buildFailures.handle({
@@ -153,19 +154,19 @@ async function projectDeploymentIds(
 async function projectDeploymentPairs(
   client: DeploymentClientInstance,
   platform: string,
-  source: OwnedProject,
+  project: OwnedProject,
   deploymentId: string,
   appsFilter: string[] | undefined,
 ): Promise<{ app: string; releaseTag: string }[]> {
   const pairs: { app: string; releaseTag: string }[] = [];
   await Promise.all(
-    source.apps.map(async (app) => {
+    project.apps.map(async (app) => {
       if (appsFilter && !appsFilter.includes(app.name)) return;
       const { records } = await client
         .listDeploymentRecords({
           platform,
           app: app.name,
-          projectId: source.id,
+          projectId: project.id,
         })
         .catch((error: unknown) => {
           buildFailures.handle({
@@ -208,15 +209,15 @@ function deploymentContainsPair(
   );
 }
 
-function sourceContainsCurrentPair(
-  source: OwnedProject,
+function projectContainsCurrentPair(
+  project: OwnedProject,
   pair: ActivationPair,
 ): boolean {
   return (
-    (source.latestDeployment
-      ? deploymentContainsPair(source.latestDeployment, pair)
+    (project.latestDeployment
+      ? deploymentContainsPair(project.latestDeployment, pair)
       : false) ||
-    source.apps.some(
+    project.apps.some(
       (app) =>
         app.name === pair.app && releaseTagForApp(app) === pair.releaseTag,
     )
@@ -226,21 +227,19 @@ function sourceContainsCurrentPair(
 async function activationPairsBelongToProject(
   client: DeploymentClientInstance,
   githubUserId: string,
-  platform: string,
-  source: OwnedProject,
+  project: OwnedProject,
   pairs: ActivationPair[],
 ): Promise<boolean> {
   const deployments = await client.listUserProjectDeployments({
     githubUserId,
-    platform,
-    projectId: source.id,
+    projectId: project.id,
     limit: 100,
   });
   return pairs.every(
     (pair) =>
       deployments.some((deployment) =>
         deploymentContainsPair(deployment, pair),
-      ) || sourceContainsCurrentPair(source, pair),
+      ) || projectContainsCurrentPair(project, pair),
   );
 }
 
@@ -302,60 +301,46 @@ export function launchDeployRoute(preflight: boolean) {
       return NextResponse.json({ error: "invalid `repo`" }, { status: 400 });
     }
     const repo = isValidRepo(body.repo) ? body.repo : undefined;
-    let syncGithubUserId: string | null | undefined;
-    async function githubUserIdForSync(): Promise<string | null> {
-      if (syncGithubUserId !== undefined) return syncGithubUserId;
-      syncGithubUserId = session.githubUserId;
-      return syncGithubUserId;
-    }
 
     try {
       const config = launchConfig();
-      const platform = resolveLaunchPlatform(body.platform, config);
-      if (!platform) return invalidPlatformResponse();
       const client = await deploymentClient();
-
-      // An explicit source id must belong to the signed-in user; the
-      // repo-based preflight path resolves/creates a source scoped to the
-      // installation instead.
-      if (
-        isValidProjectId(body.projectId) &&
-        !(await ownsProject(
-          client,
-          session.githubUserId,
-          platform,
-          body.projectId,
-        ))
-      ) {
-        return NextResponse.json(
-          { error: "project not found for this user" },
-          { status: 404 },
-        );
-      }
 
       // Preflight may create a project from a repository and resolve its
       // default head. Apply always reuses preflight's immutable commit.
+      // Once a project is known its bound platform wins; the requested
+      // platform only applies at creation time.
       let projectId: number;
+      let platform: string;
       let deploySourceRef = sourceRef(body.sourceRef);
       if (isValidProjectId(body.projectId)) {
-        projectId = body.projectId;
-      } else if (preflight && repo) {
-        const githubUserId = await githubUserIdForSync();
-        if (!githubUserId) {
+        // An explicit project id must belong to the signed-in user.
+        const project = await findOwnedProject(
+          client,
+          session.githubUserId,
+          body.projectId,
+        );
+        if (!project) {
           return NextResponse.json(
-            { error: "not signed in with GitHub" },
-            { status: 401 },
+            { error: "project not found for this user" },
+            { status: 404 },
           );
         }
+        projectId = project.id;
+        platform = projectPlatform(project, config);
+      } else if (preflight && repo) {
+        const createPlatform = resolveLaunchPlatform(body.platform, config);
+        if (!createPlatform) return invalidPlatformResponse();
         const project = await client.createProject({
-          platform,
+          platform: createPlatform,
           repo,
-          githubUserId,
+          githubUserId: session.githubUserId,
         });
         if (!isValidProjectId(project.id)) {
           throw new Error("backend did not return a valid project id");
         }
         projectId = project.id;
+        platform = createPlatform;
       } else {
         return NextResponse.json(
           {
@@ -392,7 +377,6 @@ export function launchDeployRoute(preflight: boolean) {
       // records a new deployment. The next projects read must see it.
       clearLaunchReadCache();
       const projectUrl = new URL(`/projects/${projectId}`, req.url);
-      projectUrl.searchParams.set("platform", platform);
       projectUrl.searchParams.set("tab", "deployments");
       return NextResponse.json(
         {
@@ -562,22 +546,20 @@ export async function activateLaunchRoute(req: Request) {
     }
 
     const config = launchConfig();
-    const platform = resolveLaunchPlatform(body.platform, config);
-    if (!platform) return invalidPlatformResponse();
     const client = await deploymentClient();
     const { session } = auth;
-    const source = await findOwnedProject(
+    const project = await findOwnedProject(
       client,
       session.githubUserId,
-      platform,
       body.projectId,
     );
-    if (!source) {
+    if (!project) {
       return NextResponse.json(
-        { error: "app source not found for this user" },
+        { error: "project not found for this user" },
         { status: 404 },
       );
     }
+    const platform = projectPlatform(project, config);
     const pairs = apps.map((app, index) => ({
       app,
       releaseTag: releaseTags[index],
@@ -585,8 +567,7 @@ export async function activateLaunchRoute(req: Request) {
     const authorized = await activationPairsBelongToProject(
       client,
       session.githubUserId,
-      platform,
-      source,
+      project,
       pairs,
     );
     if (!authorized) {
@@ -598,8 +579,7 @@ export async function activateLaunchRoute(req: Request) {
     const missingByApp = await missingSecretsForActivation({
       client,
       githubUserId: session.githubUserId,
-      platform,
-      project: source,
+      project,
       pairs,
     });
     if (Object.keys(missingByApp).length > 0) {
@@ -641,25 +621,22 @@ export async function launchAppRoute(req: Request) {
   try {
     const config = launchConfig();
     const client = await deploymentClient();
-    const projects = await client.listUserProjects({
-      githubUserId: session.githubUserId,
-      platform: config.platform,
-    });
-    const owned = projects.some((source) =>
-      source.apps.some(
+    const projects = await cachedUserProjects(client, session.githubUserId);
+    const owner = projects.find((project) =>
+      project.apps.some(
         (app) =>
           app.name === name &&
           (!releaseTag || app.appReleaseTag === releaseTag),
       ),
     );
-    if (!owned) {
+    if (!owner) {
       return NextResponse.json(
         { error: "app not found for this user" },
         { status: 404 },
       );
     }
     const app = await client.getApp({
-      platform: config.platform,
+      platform: projectPlatform(owner, config),
       app: name,
       releaseTag: releaseTag || undefined,
     });
@@ -731,13 +708,9 @@ export async function deploymentHistoryRoute(req: Request) {
   const limit = Number(params.get("limit") ?? "20");
 
   try {
-    const config = launchConfig();
-    const platform = requestedPlatformFromUrl(req, config);
-    if (!platform) return invalidPlatformResponse();
     const client = await deploymentClient();
     const deployments = await client.listUserProjectDeployments({
       githubUserId: session.githubUserId,
-      platform,
       projectId,
       limit: Number.isSafeInteger(limit) && limit > 0 ? limit : undefined,
     });
@@ -816,19 +789,15 @@ export async function deploymentSecretsRoute(req: Request) {
   }
 
   try {
-    const config = launchConfig();
-    const platform = requestedPlatformFromUrl(req, config);
-    if (!platform) return invalidPlatformResponse();
     const client = await deploymentClient();
-    const source = await findOwnedProject(
+    const project = await findOwnedProject(
       client,
       session.githubUserId,
-      platform,
       projectId,
     );
-    if (!source) {
+    if (!project) {
       return NextResponse.json(
-        { error: "source not found for this user" },
+        { error: "project not found for this user" },
         { status: 404 },
       );
     }
@@ -885,18 +854,14 @@ export async function deploymentSecretsWriteRoute(req: Request) {
   }
 
   try {
-    const config = launchConfig();
-    const platform = resolveLaunchPlatform(body.platform, config);
-    if (!platform) return invalidPlatformResponse();
     const client = await deploymentClient();
-    // The app must belong to a source the signed-in user owns.
-    const source = await findOwnedProject(
+    // The app must belong to a project the signed-in user owns.
+    const project = await findOwnedProject(
       client,
       session.githubUserId,
-      platform,
       body.projectId,
     );
-    if (!source || !source.apps.some((a) => a.name === app)) {
+    if (!project || !project.apps.some((a) => a.name === app)) {
       return NextResponse.json(
         { error: "app not found for this user" },
         { status: 404 },
@@ -949,17 +914,13 @@ export async function deploymentSecretsDeleteRoute(req: Request) {
   }
 
   try {
-    const config = launchConfig();
-    const platform = resolveLaunchPlatform(body.platform, config);
-    if (!platform) return invalidPlatformResponse();
     const client = await deploymentClient();
-    const source = await findOwnedProject(
+    const project = await findOwnedProject(
       client,
       session.githubUserId,
-      platform,
       body.projectId,
     );
-    if (!source || !source.apps.some((a) => a.name === app)) {
+    if (!project || !project.apps.some((a) => a.name === app)) {
       return NextResponse.json(
         { error: "app not found for this user" },
         { status: 404 },
@@ -1000,23 +961,20 @@ export async function deploymentRecordsRoute(req: Request) {
 
   try {
     const config = launchConfig();
-    const platform = requestedPlatformFromUrl(req, config);
-    if (!platform) return invalidPlatformResponse();
     const client = await deploymentClient();
-    const source = await findOwnedProject(
+    const project = await findOwnedProject(
       client,
       session.githubUserId,
-      platform,
       projectId,
     );
-    if (!source || !source.apps.some((candidate) => candidate.name === app)) {
+    if (!project || !project.apps.some((candidate) => candidate.name === app)) {
       return NextResponse.json(
         { error: "app not found for this user" },
         { status: 404 },
       );
     }
     const result = await client.listDeploymentRecords({
-      platform,
+      platform: projectPlatform(project, config),
       app,
       projectId,
     });
@@ -1064,31 +1022,29 @@ export async function deploymentPromoteRoute(req: Request) {
 
   try {
     const config = launchConfig();
-    const platform = resolveLaunchPlatform(body.platform, config);
-    if (!platform) return invalidPlatformResponse();
     const client = await deploymentClient();
 
-    // Authorize the promote target against the signed-in user: the source
-    // must be theirs, and the deployment must appear in that source's DB
+    // Authorize the promote target against the signed-in user: the project
+    // must be theirs, and the deployment must appear in that project's DB
     // promotion records — the same timeline the console lists. (Authorizing
     // against the GitHub history fanout instead falsely rejected deployments
     // that are in the DB but not on a live GitHub branch.)
-    const source = await findOwnedProject(
+    const project = await findOwnedProject(
       client,
       session.githubUserId,
-      platform,
       projectId,
     );
-    if (!source) {
+    if (!project) {
       return NextResponse.json(
-        { error: "app source not found for this user" },
+        { error: "project not found for this user" },
         { status: 404 },
       );
     }
-    const known = await projectDeploymentIds(client, platform, source);
+    const platform = projectPlatform(project, config);
+    const known = await projectDeploymentIds(client, platform, project);
     if (!known.has(deploymentId)) {
       return NextResponse.json(
-        { error: "deployment does not belong to this source" },
+        { error: "deployment does not belong to this project" },
         { status: 404 },
       );
     }
@@ -1102,15 +1058,14 @@ export async function deploymentPromoteRoute(req: Request) {
     const pairs = await projectDeploymentPairs(
       client,
       platform,
-      source,
+      project,
       deploymentId,
       apps,
     );
     const missingByApp = await missingSecretsForActivation({
       client,
       githubUserId: session.githubUserId,
-      platform,
-      project: source,
+      project,
       pairs,
     });
     if (Object.keys(missingByApp).length > 0) {
@@ -1174,22 +1129,19 @@ export async function deploymentDeactivateRoute(req: Request) {
 
   try {
     const config = launchConfig();
-    const platform = resolveLaunchPlatform(body.platform, config);
-    if (!platform) return invalidPlatformResponse();
     const client = await deploymentClient();
-    if (
-      !(await ownsProject(
-        client,
-        session.githubUserId,
-        platform,
-        body.projectId,
-      ))
-    ) {
+    const project = await findOwnedProject(
+      client,
+      session.githubUserId,
+      body.projectId,
+    );
+    if (!project) {
       return NextResponse.json(
-        { error: "app source not found for this user" },
+        { error: "project not found for this user" },
         { status: 404 },
       );
     }
+    const platform = projectPlatform(project, config);
     const actor =
       typeof body.actor === "string" && body.actor.trim()
         ? body.actor
@@ -1228,12 +1180,20 @@ export async function redeployLaunchRoute(req: Request) {
 
   try {
     const config = launchConfig();
-    const platform = resolveLaunchPlatform(body.platform, config);
-    if (!platform) return invalidPlatformResponse();
     const client = await deploymentClient();
+    const project = await findOwnedProject(
+      client,
+      session.githubUserId,
+      body.projectId,
+    );
+    if (!project) {
+      return NextResponse.json(
+        { error: "project not found for this user" },
+        { status: 404 },
+      );
+    }
     const latest = await client.getUserProjectLatestDeployment({
       githubUserId: session.githubUserId,
-      platform,
       projectId: body.projectId,
     });
     const deploymentId = latest?.deploymentId ?? null;
@@ -1241,7 +1201,7 @@ export async function redeployLaunchRoute(req: Request) {
       return NextResponse.json(
         {
           error:
-            "No backend-owned deployment is available for this source yet; refusing to reuse Deploy because GitHub can skip tree-identical pushes.",
+            "No backend-owned deployment is available for this project yet; refusing to reuse Deploy because GitHub can skip tree-identical pushes.",
         },
         { status: 409 },
       );
@@ -1250,7 +1210,7 @@ export async function redeployLaunchRoute(req: Request) {
     // The backend re-runs the Actions run behind the deployment's recorded
     // commit on its App installation token; no GitHub token in this layer.
     const rerun = await client.rerunDeployment({
-      platform,
+      platform: projectPlatform(project, config),
       deploymentId,
       githubUserId: session.githubUserId,
     });
@@ -1271,12 +1231,13 @@ export async function redeployLaunchRoute(req: Request) {
   }
 }
 
-// GET /api/bff/launch/projects — the signed-in user's source repos + their apps,
+// GET /api/bff/launch/projects — the signed-in user's projects + their apps,
 // merged across installations and platforms unless `platform` is explicit.
 // Scoped to the github_user_id in the session cookie; a client can never
 // request someone else's projects. `projectId` narrows the response to one
-// source — the manager has no single-source read, so the filter happens here,
-// off the cached list: a project page stops transferring the whole account.
+// project — the manager has no single-project read, so the filter happens
+// here, off the cached list: a project page stops transferring the whole
+// account.
 export async function userProjectsRoute(req: Request) {
   const auth = await authorize(req);
   if ("response" in auth) return auth.response;
@@ -1293,9 +1254,9 @@ export async function userProjectsRoute(req: Request) {
     if (requestedPlatform !== null && !platform) {
       return invalidPlatformResponse();
     }
-    const requestedSourceId = params.get("projectId");
+    const requestedProjectId = params.get("projectId");
     const projectId =
-      requestedSourceId === null ? undefined : Number(requestedSourceId);
+      requestedProjectId === null ? undefined : Number(requestedProjectId);
     if (projectId !== undefined && !isValidProjectId(projectId)) {
       return NextResponse.json(
         { error: "invalid `projectId`" },
@@ -1317,7 +1278,7 @@ export async function userProjectsRoute(req: Request) {
       projects:
         projectId === undefined
           ? projects
-          : projects.filter((source) => source.id === projectId),
+          : projects.filter((project) => project.id === projectId),
       githubLogin: session.githubLogin,
     });
   } catch (err) {
@@ -1346,14 +1307,10 @@ export async function requiredSecretsRoute(req: Request) {
   }
 
   try {
-    const config = launchConfig();
-    const platform = requestedPlatformFromUrl(req, config);
-    if (!platform) return invalidPlatformResponse();
     const client = await deploymentClient();
     const [declared, configured] = await Promise.all([
       client.getUserProjectRequiredSecrets({
         githubUserId: session.githubUserId,
-        platform,
         projectId,
       }),
       client.listAppSecrets({
@@ -1381,7 +1338,7 @@ export async function requiredSecretsRoute(req: Request) {
     if (err instanceof BackendError) {
       if (err.status === 404) {
         return NextResponse.json(
-          { error: "app source not found for this user" },
+          { error: "project not found for this user" },
           { status: 404 },
         );
       }

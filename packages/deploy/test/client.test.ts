@@ -42,7 +42,7 @@ describe("DeploymentClient deploy/preflight", () => {
             platform: "community",
             repository: "aomi-labs/community-apps",
             deploy_branch: "main",
-            source_branch: "alice/demo/123/abc1234def56",
+            platform_branch: "alice/demo/123/abc1234def56",
             commit_hash: null,
             pr_number: null,
             pr_url: null,
@@ -285,7 +285,7 @@ describe("DeploymentClient.activate", () => {
               {
                 name: "demo",
                 release_tag: "apps-123-demo-abc1234def56",
-                source_branch: "alice/demo/123/abc1234def56",
+                platform_branch: "alice/demo/123/abc1234def56",
                 activated_commit_hash: "ff00aa",
                 live_commit_hash: "ff00bb",
                 ci_status: "passed",
@@ -334,7 +334,7 @@ describe("DeploymentClient.activate", () => {
     expect(result.activation.target.promoted[0]).toMatchObject({
       name: "demo",
       releaseTag: "apps-123-demo-abc1234def56",
-      sourceBranch: "alice/demo/123/abc1234def56",
+      platformBranch: "alice/demo/123/abc1234def56",
       platformCommitHash: "ff00aa",
       liveCommitHash: "ff00bb",
       ciStatus: "passed",
@@ -474,7 +474,7 @@ describe("DeploymentClient operate observability", () => {
 
     expect(fetchMock).toHaveBeenCalledOnce();
     expect(fetchMock.mock.calls[0][0]).toBe(
-      "https://staging-api.example.com/api/integrations/github-app/user/projects/42/observability?github_user_id=4738254&platform=community",
+      "https://staging-api.example.com/api/integrations/github-app/user/projects/42/observability?github_user_id=4738254",
     );
     expect(result.monitoring).toEqual({
       provider: "grafana_prometheus",
@@ -545,7 +545,7 @@ describe("DeploymentClient operate observability", () => {
     });
 
     expect(fetchMock.mock.calls[0][0]).toBe(
-      "https://staging-api.example.com/api/integrations/github-app/user/observability?github_user_id=4738254&platform=community&project_id=42",
+      "https://staging-api.example.com/api/integrations/github-app/user/observability?github_user_id=4738254&project_id=42",
     );
     expect(result[0]).not.toHaveProperty("payments");
   });
@@ -764,7 +764,7 @@ describe("DeploymentClient operate app detail", () => {
     });
 
     expect(fetchMock.mock.calls[0][0]).toBe(
-      "https://staging-api.example.com/api/integrations/github-app/user/projects/42/apps/77/detail?github_user_id=4738254&platform=community",
+      "https://staging-api.example.com/api/integrations/github-app/user/projects/42/apps/77/detail?github_user_id=4738254",
     );
     expect(result).toMatchObject({
       windowSeconds: 86400,
@@ -820,7 +820,7 @@ describe("DeploymentClient source SDK upgrade", () => {
     });
 
     expect(fetchMock.mock.calls[0][0]).toBe(
-      "https://staging-api.example.com/api/integrations/github-app/user/projects/42/sdk-upgrade?github_user_id=4738254&platform=community",
+      "https://staging-api.example.com/api/integrations/github-app/user/projects/42/sdk-upgrade?github_user_id=4738254",
     );
     expect(result).toEqual({
       status: "pull_request",
@@ -859,7 +859,7 @@ describe("DeploymentClient source SDK upgrade", () => {
     });
 
     expect(fetchMock.mock.calls[0][0]).toBe(
-      "https://staging-api.example.com/api/integrations/github-app/user/projects/42/sdk-upgrade-status?github_user_id=4738254&platform=community",
+      "https://staging-api.example.com/api/integrations/github-app/user/projects/42/sdk-upgrade-status?github_user_id=4738254",
     );
     expect(fetchMock.mock.calls[0][1]).toMatchObject({ method: "GET" });
     expect(result).toEqual({
@@ -1027,7 +1027,7 @@ describe("DeploymentClient operate statement", () => {
 
     expect(fetchMock).toHaveBeenCalledOnce();
     expect(fetchMock.mock.calls[0][0]).toBe(
-      "https://staging-api.example.com/api/integrations/github-app/user/projects/42/statement?github_user_id=4738254&platform=community&from_date=2026-07-01&to_date=2026-07-15",
+      "https://staging-api.example.com/api/integrations/github-app/user/projects/42/statement?github_user_id=4738254&from_date=2026-07-01&to_date=2026-07-15",
     );
     expect(result.range).toEqual({
       fromDate: "2026-07-01",
@@ -1183,7 +1183,7 @@ describe("DeploymentClient projects", () => {
     });
 
     expect(fetchMock.mock.calls[0][0]).toBe(
-      "https://staging-api.example.com/api/integrations/github-app/user/projects/7/required-secrets?github_user_id=42&platform=community",
+      "https://staging-api.example.com/api/integrations/github-app/user/projects/7/required-secrets?github_user_id=42",
     );
     expect(result).toEqual({
       byApp: {

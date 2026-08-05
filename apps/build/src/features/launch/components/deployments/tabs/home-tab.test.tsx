@@ -8,7 +8,7 @@ const loadRequiredSecrets = vi.fn();
 const operateFetch = vi.fn();
 
 vi.mock("@aomi-labs/deploy/lifecycle", () => ({
-  deploymentLifecycleFromSource: () => ({
+  deploymentLifecycleFromProject: () => ({
     kind: "empty",
     repo: "a/b",
     statusLabel: "No deployment",

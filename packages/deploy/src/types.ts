@@ -191,7 +191,8 @@ export interface Platform {
   platform: string;
   repository: string;
   deployBranch: string;
-  sourceBranch: string;
+  /** Generated branch in the platform repository (never a source-repo branch). */
+  platformBranch: string;
   commitHash: string | null;
   prNumber: number | null;
   prUrl: string | null;
@@ -252,7 +253,7 @@ export interface ActivateResult {
 export interface ActivationPromotion {
   name: string;
   releaseTag: string;
-  sourceBranch: string;
+  platformBranch: string;
   platformCommitHash: string | null;
   liveCommitHash?: string | null;
   activationStatus?: "promoted" | "unchanged" | string | null;
@@ -271,7 +272,7 @@ export interface ActivatedApp {
   artifactReady?: boolean | null;
   loaded: boolean;
   error?: string | null;
-  sourceBranch?: string | null;
+  platformBranch?: string | null;
   liveCommitHash?: string | null;
   activationStatus?: "promoted" | "unchanged" | string | null;
   activationPr?: unknown | null;
@@ -431,9 +432,9 @@ export interface ScaffoldInput extends BearerOverride {
   /** Template `owner/repo` to copy for the one-shot flow. */
   templateRepo: string;
   /**
-   * GitHub user the created source is owned by. Written onto the source row at
-   * insert so it appears on the developer's dashboard immediately. Supplied by
-   * the portal BFF from the signed-in GitHub session.
+   * GitHub user the created project is owned by. Written onto the project row
+   * at insert so it appears on the developer's dashboard immediately. Supplied
+   * by the portal BFF from the signed-in GitHub session.
    */
   githubUserId: string;
   /** Create the new repo private. Defaults to false. */
@@ -519,14 +520,12 @@ export interface ListUserProjectsInput extends BearerOverride {
 
 export interface GetUserProjectLatestDeploymentInput extends BearerOverride {
   githubUserId: string;
-  platform: string;
   projectId: number;
 }
 
 /** DB-backed declarations for the project's currently live app releases. */
 export interface GetUserProjectRequiredSecretsInput extends BearerOverride {
   githubUserId: string;
-  platform: string;
   projectId: number;
 }
 
@@ -536,7 +535,6 @@ export interface UserProjectRequiredSecretsResult {
 
 export interface ListUserProjectDeploymentsInput extends BearerOverride {
   githubUserId: string;
-  platform: string;
   projectId: number;
   limit?: number;
 }
@@ -565,14 +563,14 @@ export interface DeploymentRecord {
 export interface ListDeploymentRecordsInput extends BearerOverride {
   platform: string;
   app: string;
-  /** Disambiguates same-named apps across sources on one platform. */
+  /** Disambiguates same-named apps across projects on one platform. */
   projectId?: number;
 }
 
 export interface DeactivateAppInput extends BearerOverride {
   platform: string;
   app: string;
-  /** Disambiguates same-named apps across sources on one platform. */
+  /** Disambiguates same-named apps across projects on one platform. */
   projectId?: number;
   actor?: string;
 }
@@ -599,7 +597,8 @@ export interface UserProjectDeploymentApp {
 export interface UserProjectLatestDeployment {
   deploymentId: string | null;
   state: string | null;
-  deployBranch: string | null;
+  /** Generated branch in the platform repository for this deployment. */
+  platformBranch: string | null;
   platformRepo: string | null;
   commitHash: string | null;
   ciStatus: string | null;
@@ -636,29 +635,28 @@ export interface UserProject extends Project {
   sdkVersions?: string[];
 }
 
+/** Project-scoped read: the backend derives the bound platform from the
+ *  project row — callers never supply one. */
 export interface OwnedOperateProjectInput extends BearerOverride {
   githubUserId: string;
-  platform: string;
   projectId: number;
 }
 
-/** Account-wide observability batch. Without `platform`, the manager reports
- *  every owned source under its own bound/loaded platform. */
+/** Account-wide observability batch: the manager reports every owned project
+ *  under its own bound platform. */
 export interface GetUserObservabilityInput extends BearerOverride {
   githubUserId: string;
-  platform?: string;
-  /** Optional source narrowing for an observability deep link. */
+  /** Optional project narrowing for an observability deep link. */
   projectId?: number;
 }
 
 export interface GetUserPaymentsInput extends GetUserObservabilityInput {}
 
 /** Account-wide operate batch reads (`/user/transactions|statement|usage|logs`).
- *  Without `platform`, the manager reads every owned source under its own
- *  bound/loaded platform — partner-bound sources included. */
+ *  The manager reads every owned project under its own bound platform —
+ *  partner-bound projects included. */
 export interface UserOperateBatchInput extends BearerOverride {
   githubUserId: string;
-  platform?: string;
 }
 
 export interface GetUserStatementsInput extends UserOperateBatchInput {
@@ -777,11 +775,6 @@ export interface BotRegistrationApp {
   label: string;
   platform: string | null;
   isPrimary: boolean;
-}
-
-export interface OwnedOperateInput extends BearerOverride {
-  githubUserId: string;
-  platform: string;
 }
 
 export interface BuilderBotsInput extends BearerOverride {
@@ -930,13 +923,13 @@ export interface OperateTransactionsResult {
   nextCursor: OperateTransactionCursor | null;
 }
 
-/** One owned source and the platform it resolves under, from a batch read. */
+/** One owned project and the platform it resolves under, from a batch read. */
 export interface UserProjectRef {
   project: Project;
   platform: string;
 }
 
-/** A batch row is the single-source row plus which source it belongs to. */
+/** A batch row is the single-project row plus which project it belongs to. */
 export type UserTransactionRow = OperateTransaction & {
   projectId: number | null;
   platform: string | null;
@@ -1123,7 +1116,7 @@ export interface OperateLogsResult {
   nextCursor: OperateLogCursor | null;
 }
 
-/** A batch log row names its source; shared partner settlements carry null. */
+/** A batch log row names its project; shared partner settlements carry null. */
 export type UserLogRow = OperateLogEntry & {
   projectId: number | null;
   platform: string | null;

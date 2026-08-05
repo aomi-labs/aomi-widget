@@ -871,7 +871,6 @@ export async function operateTransactionsRoute(req: Request) {
           () =>
             scope.client.listUserTransactions({
               githubUserId: scope.githubUserId,
-              platform: requestedPlatform,
               limit,
               status,
               cursor: (cursor?.batch ?? undefined) as
@@ -886,7 +885,6 @@ export async function operateTransactionsRoute(req: Request) {
               () =>
                 scope.client.getUserStatements({
                   githubUserId: scope.githubUserId,
-                  platform: requestedPlatform,
                 }),
             ),
       ]);
@@ -931,7 +929,6 @@ export async function operateTransactionsRoute(req: Request) {
               () =>
                 owned.client.listUserProjectTransactions({
                   githubUserId: owned.githubUserId,
-                  platform: owned.platform,
                   projectId: source.id,
                   limit,
                   status,
@@ -956,7 +953,6 @@ export async function operateTransactionsRoute(req: Request) {
                   () =>
                     owned.client.getUserProjectStatement({
                       githubUserId: owned.githubUserId,
-                      platform: owned.platform,
                       projectId: source.id,
                     }),
                 ),
@@ -1111,7 +1107,6 @@ export async function operateUsageRoute(req: Request) {
           () =>
             scope.client.getUserUsage({
               githubUserId: scope.githubUserId,
-              platform: requestedPlatform,
               ...dates,
             }),
         ),
@@ -1125,7 +1120,6 @@ export async function operateUsageRoute(req: Request) {
           () =>
             scope.client.getUserStatements({
               githubUserId: scope.githubUserId,
-              platform: requestedPlatform,
               ...dates,
             }),
         ),
@@ -1150,7 +1144,6 @@ export async function operateUsageRoute(req: Request) {
               () =>
                 owned.client.getUserProjectUsage({
                   githubUserId: owned.githubUserId,
-                  platform: owned.platform,
                   projectId: source.id,
                   ...dates,
                 }),
@@ -1165,7 +1158,6 @@ export async function operateUsageRoute(req: Request) {
               () =>
                 owned.client.getUserProjectStatement({
                   githubUserId: owned.githubUserId,
-                  platform: owned.platform,
                   projectId: source.id,
                   ...dates,
                 }),
@@ -1281,7 +1273,6 @@ export async function operateLogsRoute(req: Request) {
           () =>
             scope.client.listUserLogs({
               githubUserId: scope.githubUserId,
-              platform: requestedPlatform,
               limit,
               type,
               cursor: (cursor?.batch ?? undefined) as
@@ -1323,7 +1314,6 @@ export async function operateLogsRoute(req: Request) {
           () =>
             owned.client.listUserProjectLogs({
               githubUserId: owned.githubUserId,
-              platform: owned.platform,
               projectId: source.id,
               limit,
               type,
@@ -1415,7 +1405,6 @@ export async function operateObservabilityRoute(req: Request) {
         () =>
           scope.client.getUserObservability({
             githubUserId: scope.githubUserId,
-            platform: requestedPlatform,
             projectId,
           }),
       ) as Promise<OperateObservabilitySnapshot[]>,
@@ -1468,7 +1457,6 @@ export async function operatePaymentsRoute(req: Request) {
       () =>
         scope.client.getUserPayments({
           githubUserId: scope.githubUserId,
-          platform: requestedPlatform,
           projectId,
         }),
     );

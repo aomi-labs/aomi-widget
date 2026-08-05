@@ -112,6 +112,20 @@ function ownedSources(...ids: number[]) {
   });
 }
 
+/** An owned project bound to a specific platform (partner scope). */
+function ownedBoundProject(id: number, platformName: string) {
+  return Response.json({
+    projects: [
+      {
+        id,
+        installation_id: 555,
+        platform_name: platformName,
+        apps: [{ name: "my-bot" }],
+      },
+    ],
+  });
+}
+
 function sourceWithApps(id: number, apps: Array<Record<string, unknown>>) {
   return Response.json({
     projects: [
@@ -604,8 +618,7 @@ describe("launchDeployRoute", () => {
     expect(body).toMatchObject({
       repo: "alice/bot",
       projectId: 777,
-      projectUrl:
-        "http://localhost:3000/projects/777?platform=community&tab=deployments",
+      projectUrl: "http://localhost:3000/projects/777?tab=deployments",
     });
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
@@ -617,11 +630,11 @@ describe("launchDeployRoute", () => {
     );
   });
 
-  it("deploys to an explicitly configured partner platform", async () => {
+  it("deploys to the project's bound partner platform", async () => {
     vi.stubEnv("APP_DEPLOY_PLATFORMS", "community,somm.finance");
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(ownedSources(777))
+      .mockResolvedValueOnce(ownedBoundProject(777, "somm.finance"))
       .mockResolvedValueOnce(
         Response.json({
           ok: true,
@@ -657,11 +670,10 @@ describe("launchDeployRoute", () => {
 
     expect(res.status).toBe(202);
     expect(body.projectUrl).toBe(
-      "https://build-staging.aomi.dev/projects/777?platform=somm.finance&tab=deployments",
+      "https://build-staging.aomi.dev/projects/777?tab=deployments",
     );
-    expect(String(fetchMock.mock.calls[0][0])).toContain(
-      "platform=somm.finance",
-    );
+    // Ownership is account-wide: the projects read carries no platform.
+    expect(String(fetchMock.mock.calls[0][0])).not.toContain("platform=");
     expect(String(fetchMock.mock.calls[1][0])).toBe(
       "http://127.0.0.1:8080/api/platforms/somm.finance/deploy",
     );
@@ -866,7 +878,7 @@ describe("deploymentPromoteRoute", () => {
     const body = await res.json();
 
     expect(res.status).toBe(404);
-    expect(body.error).toContain("app source not found");
+    expect(body.error).toContain("project not found");
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
@@ -1103,6 +1115,7 @@ describe("redeployLaunchRoute", () => {
     });
     const fetchMock = vi
       .fn()
+      .mockResolvedValueOnce(ownedSources(99))
       .mockResolvedValueOnce(
         Response.json({
           latest_deployment: {
@@ -1137,12 +1150,12 @@ describe("redeployLaunchRoute", () => {
       ciRunId: "123456",
     });
     // The rerun call goes to the Aomi backend, never to api.github.com.
-    expect(String(fetchMock.mock.calls[1][0])).toContain(
+    expect(String(fetchMock.mock.calls[2][0])).toContain(
       "/api/platforms/community/deployments/dep_1/rerun?github_user_id=42",
     );
-    expect(fetchMock.mock.calls[1][1]).toMatchObject({ method: "POST" });
-    expect(String(fetchMock.mock.calls[0][0])).toContain(
-      "/api/integrations/github-app/user/projects/99/latest-deployment?github_user_id=42&platform=community",
+    expect(fetchMock.mock.calls[2][1]).toMatchObject({ method: "POST" });
+    expect(String(fetchMock.mock.calls[1][0])).toContain(
+      "/api/integrations/github-app/user/projects/99/latest-deployment?github_user_id=42",
     );
   });
 
@@ -1151,11 +1164,14 @@ describe("redeployLaunchRoute", () => {
       githubUserId: "42",
       githubLogin: "alice",
     });
-    const fetchMock = vi.fn().mockResolvedValueOnce(
-      Response.json({
-        latest_deployment: null,
-      }),
-    );
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(ownedSources(99))
+      .mockResolvedValueOnce(
+        Response.json({
+          latest_deployment: null,
+        }),
+      );
     vi.stubGlobal("fetch", fetchMock);
 
     const res = await redeployLaunchRoute(writeReq({ projectId: 99 }));
@@ -1163,7 +1179,7 @@ describe("redeployLaunchRoute", () => {
 
     expect(res.status).toBe(409);
     expect(body.error).toContain("No backend-owned deployment");
-    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("propagates a backend rerun rejection instead of masking it", async () => {
@@ -1173,6 +1189,7 @@ describe("redeployLaunchRoute", () => {
     });
     const fetchMock = vi
       .fn()
+      .mockResolvedValueOnce(ownedSources(99))
       .mockResolvedValueOnce(
         Response.json({
           latest_deployment: {

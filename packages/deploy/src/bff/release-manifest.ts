@@ -145,7 +145,6 @@ async function mapWithConcurrency<T, R>(
 export async function missingSecretsForActivation(input: {
   client: DeploymentClient;
   githubUserId: string;
-  platform: string;
   project: UserProject;
   pairs: { app: string; releaseTag: string }[];
   githubToken?: string;
@@ -160,7 +159,6 @@ export async function missingSecretsForActivation(input: {
     try {
       const latest = await input.client.getUserProjectLatestDeployment({
         githubUserId: input.githubUserId,
-        platform: input.platform,
         projectId: input.project.id,
       });
       platformRepo = latest?.platformRepo ?? undefined;

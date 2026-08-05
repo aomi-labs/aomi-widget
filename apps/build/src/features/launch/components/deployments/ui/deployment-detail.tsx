@@ -99,7 +99,7 @@ export function DeploymentDetail({
     deployment.current &&
     sdkCompatibility(deployment.sdkVersion, requiredSdk) === "outdated";
   const platformName = source.platformName ?? platformRepo ?? null;
-  const deployBranch = entry?.deployBranch ?? null;
+  const platformBranch = entry?.platformBranch ?? null;
   const apps = appRows(deployment, entry);
   const releaseUrl = (tag: string) =>
     platformRepo ? `${GITHUB}/${platformRepo}/releases/tag/${tag}` : null;
@@ -191,10 +191,10 @@ export function DeploymentDetail({
               label="Platform branch"
               hint="The platform's copy of your app. Aomi mirrors your source onto this branch in the platform repository, where CI builds and publishes it."
             >
-              {deployBranch && platformRepo ? (
+              {platformBranch && platformRepo ? (
                 <GhLink
-                  text={deployBranch}
-                  href={`${GITHUB}/${platformRepo}/tree/${deployBranch}`}
+                  text={platformBranch}
+                  href={`${GITHUB}/${platformRepo}/tree/${platformBranch}`}
                 />
               ) : (
                 <span className="text-dim">

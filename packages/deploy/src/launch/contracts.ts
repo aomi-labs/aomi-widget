@@ -69,7 +69,11 @@ export type LaunchProgress = {
  * `projectId`.
  */
 export type LaunchPreflightInput = {
-  /** Exact platform the deploy targets; the host's default when omitted. */
+  /**
+   * Platform a project is CREATED on when `repo` stands in for a project;
+   * the host's default when omitted. Ignored once `projectId` is present —
+   * a known project always deploys to its own bound platform.
+   */
   platform?: string;
   projectId?: number;
   sourceRef?: string;
@@ -80,13 +84,13 @@ export type LaunchPreflightInput = {
   actor?: string;
 };
 
-/** Commit a deploy against a stable project and immutable source revision. */
+/**
+ * Commit a deploy against a stable project and immutable source revision.
+ * No platform: the BFF derives the project's bound platform.
+ */
 export type LaunchDeployInput = {
-  /** Exact platform the deploy targets; the host's default when omitted. */
-  platform?: string;
   projectId: number;
   sourceRef: string;
-  repo?: string;
   actor?: string;
 };
 

@@ -276,13 +276,15 @@ export function DeployStep({
       }
       if (!projectId) {
         throw new Error(
-          "Could not resolve a source to deploy. Run a preflight first.",
+          "Could not resolve a project to deploy. Run a preflight first.",
         );
+      }
+      if (!sourceRef) {
+        throw new Error("Preflight did not return an immutable source commit.");
       }
       const result = await launchDeploy({
         projectId,
         sourceRef,
-        repo,
         actor,
       });
       applyDeployment(result);
@@ -687,7 +689,7 @@ function DeploymentSummary({
   const ciUrl = platform?.ciUrl;
   const prNumber = platform?.prNumber;
   const prUrl = platform?.prUrl;
-  const sourceBranch = platform?.sourceBranch;
+  const platformBranch = platform?.platformBranch;
   const target = apps[0]?.target;
   const fileCount = apps.reduce((sum, app) => {
     return sum + (app.files?.length ?? 0);
@@ -710,7 +712,7 @@ function DeploymentSummary({
         <SummaryTile
           label="Build"
           value={ciStatus ? ciStatusLabel(ciStatus) : statusLabel(phase)}
-          detail={sourceBranch ?? platform?.repository}
+          detail={platformBranch ?? platform?.repository}
           tone={
             ciStatus === "passed"
               ? "good"

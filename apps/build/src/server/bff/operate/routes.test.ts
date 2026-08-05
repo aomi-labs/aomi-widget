@@ -477,18 +477,21 @@ describe("operateUsageRoute statement fallback", () => {
       githubUserId: "gh-1",
       platform: "somm.finance",
     });
+    // Per-project reads carry no platform: the backend derives the
+    // project's bound platform from the row.
     expect(client.getUserProjectUsage).toHaveBeenCalledWith(
       expect.objectContaining({
         projectId: 900,
         githubUserId: "gh-1",
-        platform: "somm.finance",
       }),
+    );
+    expect(client.getUserProjectUsage).toHaveBeenCalledWith(
+      expect.not.objectContaining({ platform: expect.anything() }),
     );
     expect(client.getUserProjectStatement).toHaveBeenCalledWith(
       expect.objectContaining({
         projectId: 900,
         githubUserId: "gh-1",
-        platform: "somm.finance",
       }),
     );
   });
@@ -794,7 +797,7 @@ describe("operateObservabilityRoute live data", () => {
     // One account-wide read, cached across requests; no per-source fan-out.
     expect(client.getUserObservability).toHaveBeenCalledTimes(1);
     expect(client.getUserObservability).toHaveBeenCalledWith(
-      expect.objectContaining({ githubUserId: "gh-1", platform: undefined }),
+      expect.objectContaining({ githubUserId: "gh-1" }),
     );
     expect(client.getUserProjectObservability).not.toHaveBeenCalled();
     expect(body.degraded).toBeUndefined();

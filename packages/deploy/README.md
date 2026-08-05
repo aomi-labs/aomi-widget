@@ -288,8 +288,8 @@ branch/PR when needed and starts the CI path.
 `sourceRef` must be the immutable git commit SHA to deploy. Resolve branches or
 tags before calling the client; the backend does not accept mutable refs.
 
-`projectConfig` may be omitted from preflight while the backend transition is
-in progress. Deploy should reuse the configuration returned by preflight.
+The backend reads the project's committed `.aomi/config.json` itself —
+clients never parse or send project configuration.
 
 ### `activate()`
 
@@ -329,7 +329,7 @@ commands. Each maps 1:1 onto a `/api/platforms/*` route.
 | -------------------------------- | ------------------------------------------------------------------------------ | ---------------------------------------------------------------------- |
 | `mintToken()`                    | `POST /:p/tokens`                                                              | mint a `platform` or `app` activation token (plaintext returned once)  |
 | `listTokens()` / `revokeToken()` | `GET` / `DELETE /:p/tokens[/:id]`                                              | token lifecycle                                                         |
-| `createProject()`                   | `POST /:p/projects/sync-installed`                                              | resolve an installed repo → `projectId` for deploy                    |
+| `createProject()`                   | `POST /api/platforms/:p/projects`                                              | resolve an installed repo → `projectId` for deploy                    |
 | `scaffold()`                     | `POST /api/integrations/github-app/platforms/:p/projects/create-from-template`  | one-shot: create a repo from a template → source                        |
 | `listApps()` / `getApp()`        | `GET /:p/apps[/:app]`                                                          | inventory loaded apps (find `app_id` for app-scoped tokens)             |
 | `exchangeGitHubCode()`           | `GET /api/integrations/github-app/oauth/exchange`                              | GitHub OAuth code → identity (sign-in seam)                             |
@@ -381,7 +381,6 @@ await client.deploy({
   platform: "playground",
   projectId: id,
   sourceRef: process.env.AOMI_SOURCE_REF!,
-  projectConfig: { version: 1, applications: ["aomi.toml"] },
 });
 ```
 
@@ -435,7 +434,6 @@ interface DeployInput {
   projectId: number;
   /** Immutable git commit SHA. Branch names are rejected by the backend. */
   sourceRef: string;
-  projectConfig?: { version: 1; applications: string[] };
   actor?: string;
 }
 

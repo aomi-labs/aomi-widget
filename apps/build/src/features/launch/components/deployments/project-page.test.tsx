@@ -25,7 +25,7 @@ vi.mock("@build/components/control-plane/prefetch-control-plane-route", () => ({
 }));
 
 vi.mock("@aomi-labs/deploy/lifecycle", () => ({
-  deploymentLifecycleFromSource: () => ({
+  deploymentLifecycleFromProject: () => ({
     kind: "empty",
     repo: "a/b",
     statusLabel: "No deployment",

@@ -14,7 +14,7 @@ export type PendingInstall = {
 export type LaunchState = {
   /**
    * Platform context for the persisted wizard progress. Wizard progress
-   * belongs to exactly one platform: reusing a source id or deployment from
+   * belongs to exactly one platform: reusing a project id or deployment from
    * one platform after entering another would route writes to the wrong
    * platform, so hosts reset the state when this differs from the page's.
    */
@@ -84,13 +84,29 @@ export function loadLaunch(platform?: string | null): LaunchState {
     return {
       platform: stored,
       path: parsed.path ?? null,
-      oneshot: parsed.oneshot ?? {},
+      oneshot: migrateProgress(parsed.oneshot),
       pendingInstall: parsed.pendingInstall ?? null,
       rejectedInstallationId: parsed.rejectedInstallationId ?? null,
     };
   } catch {
     return { ...empty(), platform: scope };
   }
+}
+
+/**
+ * Progress persisted before the project rename stored the resolved id as
+ * `appSourceId`. Without this one-line migration a mid-onboarding user
+ * resumes with no project id and the activation gate wedges permanently.
+ */
+function migrateProgress(raw: unknown): LaunchProgress {
+  if (!raw || typeof raw !== "object") return {};
+  const { appSourceId, ...progress } = raw as LaunchProgress & {
+    appSourceId?: number;
+  };
+  return {
+    ...progress,
+    projectId: progress.projectId ?? appSourceId,
+  };
 }
 
 export function saveLaunch(state: LaunchState): void {
@@ -184,9 +200,9 @@ export function readGithubRedirect(search: string): GithubRedirect | null {
  * Is a launch mid-flow, returning from the GitHub install round-trip?
  *
  * A template → install → deploy launch is a full-page navigation away to GitHub
- * and back, so by the time we return a matching source already exists. Callers
+ * and back, so by the time we return a matching project already exists. Callers
  * (the deploy dashboard) gate the wizard on "nothing connected yet", which would
- * otherwise yank the user out of the stepper to the source list at exactly the
+ * otherwise yank the user out of the stepper to the project list at exactly the
  * install → deploy hand-off. This stays true only while the install redirect is
  * being consumed: an active `path` plus either a saved `pendingInstall` or the
  * `installation_id` redirect still on the URL.

@@ -25,7 +25,7 @@ const source = {
 const entry = {
   deploymentId: "dep_142228159_rb87f6980b6_0f88b7504e07",
   state: "ready",
-  deployBranch: "ceciliaz030/playground-6/142228159/0f88b7504e07",
+  platformBranch: "ceciliaz030/playground-6/142228159/0f88b7504e07",
   platformRepo: "aomi-labs/community-apps",
   commitHash: "b1879438b457226422d50a5bf3eaa64f64c2cb72",
   ciStatus: "passed",
