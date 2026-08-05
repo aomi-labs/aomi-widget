@@ -18,6 +18,7 @@ import {
 } from '@privy-io/wagmi';
 import { http, type Chain, type Transport } from 'viem';
 import { useChainId } from 'wagmi';
+import { megaeth } from '@aomi-labs/client';
 import { arbitrum, base, mainnet, optimism, polygon } from 'wagmi/chains';
 
 import { getTelegramUserId, readyTelegramWebApp } from '@/lib/telegram-webapp';
@@ -25,7 +26,7 @@ import { getTelegramUserId, readyTelegramWebApp } from '@/lib/telegram-webapp';
 type RequestedFamily = 'evm' | 'svm';
 
 const queryClient = new QueryClient();
-const defaultNetworks = [mainnet, arbitrum, optimism, base, polygon] as const;
+const defaultNetworks = [mainnet, arbitrum, optimism, base, polygon, megaeth] as const;
 const defaultSolanaCluster = 'solana:mainnet';
 const privyAppId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
 const walletConnectProjectId =
@@ -37,7 +38,8 @@ const defaultTransports: Record<
   | typeof arbitrum.id
   | typeof optimism.id
   | typeof base.id
-  | typeof polygon.id,
+  | typeof polygon.id
+  | typeof megaeth.id,
   Transport
 > = {
   [mainnet.id]: http(mainnet.rpcUrls.default.http[0]),
@@ -45,6 +47,7 @@ const defaultTransports: Record<
   [optimism.id]: http(optimism.rpcUrls.default.http[0]),
   [base.id]: http(base.rpcUrls.default.http[0]),
   [polygon.id]: http(polygon.rpcUrls.default.http[0]),
+  [megaeth.id]: http(megaeth.rpcUrls.default.http[0]),
 };
 
 function parseRequestedFamily(search: string): RequestedFamily {

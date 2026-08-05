@@ -7,6 +7,7 @@ const ALCHEMY_NETWORK_BY_CHAIN_ID: Record<number, string> = {
   42161: 'arb-mainnet',
   10: 'opt-mainnet',
   8453: 'base-mainnet',
+  4326: 'megaeth-mainnet',
 };
 
 function getAlchemyRpcUrl(chainId: number): string | undefined {

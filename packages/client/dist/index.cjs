@@ -84,6 +84,7 @@ __export(index_exports, {
   isSystemError: () => isSystemError,
   isSystemNotice: () => isSystemNotice,
   isUnboundWalletError: () => isUnboundWalletError,
+  megaeth: () => import_chains.megaeth,
   monad: () => monad,
   monadTestnet: () => monadTestnet,
   normalizeAppDescriptor: () => normalizeAppDescriptor,
@@ -4061,6 +4062,7 @@ var SUPPORTED_CHAINS = [
   { id: 143, name: "Monad", ticker: "MON" },
   { id: 10143, name: "Monad Testnet", ticker: "MON" },
   { id: 4663, name: "Robinhood Chain", ticker: "ETH" },
+  { id: 4326, name: "MegaETH", ticker: "ETH" },
   { id: 31337, name: "Anvil (local)", ticker: "ETH" }
 ];
 var SUPPORTED_CHAIN_IDS = SUPPORTED_CHAINS.map((chain) => chain.id);
@@ -4077,7 +4079,8 @@ var ALCHEMY_CHAIN_SLUGS = {
   11155111: "eth-sepolia",
   59144: "linea-mainnet",
   59141: "linea-sepolia",
-  4663: "robinhood-mainnet"
+  4663: "robinhood-mainnet",
+  4326: "megaeth-mainnet"
 };
 var CHAINS_BY_ID = {
   1: import_chains.mainnet,
@@ -4092,6 +4095,7 @@ var CHAINS_BY_ID = {
   143: monad,
   10143: monadTestnet,
   4663: robinhood,
+  4326: import_chains.megaeth,
   31337: import_chains.foundry
 };
 
@@ -4480,6 +4484,7 @@ function appendFeeCallToPayload(payload, fee, defaultChainId, options) {
   isSystemError,
   isSystemNotice,
   isUnboundWalletError,
+  megaeth,
   monad,
   monadTestnet,
   normalizeAppDescriptor,

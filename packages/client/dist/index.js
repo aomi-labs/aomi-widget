@@ -3919,6 +3919,7 @@ import {
   sepolia,
   linea,
   lineaSepolia,
+  megaeth,
   foundry
 } from "viem/chains";
 var monad = defineChain({
@@ -3995,6 +3996,7 @@ var SUPPORTED_CHAINS = [
   { id: 143, name: "Monad", ticker: "MON" },
   { id: 10143, name: "Monad Testnet", ticker: "MON" },
   { id: 4663, name: "Robinhood Chain", ticker: "ETH" },
+  { id: 4326, name: "MegaETH", ticker: "ETH" },
   { id: 31337, name: "Anvil (local)", ticker: "ETH" }
 ];
 var SUPPORTED_CHAIN_IDS = SUPPORTED_CHAINS.map((chain) => chain.id);
@@ -4011,7 +4013,8 @@ var ALCHEMY_CHAIN_SLUGS = {
   11155111: "eth-sepolia",
   59144: "linea-mainnet",
   59141: "linea-sepolia",
-  4663: "robinhood-mainnet"
+  4663: "robinhood-mainnet",
+  4326: "megaeth-mainnet"
 };
 var CHAINS_BY_ID = {
   1: mainnet,
@@ -4026,6 +4029,7 @@ var CHAINS_BY_ID = {
   143: monad,
   10143: monadTestnet,
   4663: robinhood,
+  4326: megaeth,
   31337: foundry
 };
 
@@ -4413,6 +4417,7 @@ export {
   isSystemError,
   isSystemNotice,
   isUnboundWalletError,
+  megaeth,
   monad,
   monadTestnet,
   normalizeAppDescriptor,

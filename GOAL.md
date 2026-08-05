@@ -65,6 +65,14 @@ mistaken for another supported environment.
 
 Progress:
 
+- 2026-08-05 MegaETH chain support: added chain 4326 to the shared client,
+  React network naming, server-side smart-account SIWE verification, and the
+  Landing, Docs, Portal, Telegram, wallet-kit, and Privy network registries.
+  Publishable packages were patch-bumped and generated artifacts rebuilt.
+  Focused Vitest, account/library/Landing/Telegram type checks, targeted ESLint,
+  and package builds pass. The full Portal typecheck remains blocked by the
+  existing mixed Para SDK version error in the unchanged Para runtime provider.
+
 - 2026-08-02 PR #436 integration: merged account-level Operate observability
   and payment reads into the platform-switch branch, including the concurrent
   deployment-read ownership cache. Preserved the intervening system-notification

@@ -1729,6 +1729,8 @@ var getNetworkName = (chainId) => {
       return "monad";
     case 10143:
       return "monad-testnet";
+    case 4326:
+      return "megaeth";
     case 1337:
     case 31337:
       return "testnet";

@@ -3,6 +3,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ParaProvider, type TExternalWallet } from '@getpara/react-sdk';
 import { http } from 'wagmi';
+import { megaeth } from '@aomi-labs/client';
 import { mainnet, arbitrum, optimism, polygon, base } from 'wagmi/chains';
 import type { ReactNode } from 'react';
 
@@ -36,6 +37,7 @@ function getAlchemyTransports() {
     [optimism.id]: http(`https://opt-mainnet.g.alchemy.com/v2/${alchemyApiKey}`),
     [polygon.id]: http(`https://polygon-mainnet.g.alchemy.com/v2/${alchemyApiKey}`),
     [base.id]: http(`https://base-mainnet.g.alchemy.com/v2/${alchemyApiKey}`),
+    [megaeth.id]: http(`https://megaeth-mainnet.g.alchemy.com/v2/${alchemyApiKey}`),
   };
 }
 
@@ -85,7 +87,7 @@ export function Providers({ children }: { children: ReactNode }) {
           wallets: externalWallets,
           evmConnector: {
             config: {
-              chains: [mainnet, arbitrum, optimism, polygon, base],
+              chains: [mainnet, arbitrum, optimism, polygon, base, megaeth],
               transports: getAlchemyTransports(),
             },
           },

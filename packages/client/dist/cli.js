@@ -104,6 +104,7 @@ import {
   sepolia,
   linea,
   lineaSepolia,
+  megaeth,
   foundry
 } from "viem/chains";
 var monad, monadTestnet, robinhood, SUPPORTED_CHAINS, SUPPORTED_CHAIN_IDS, CHAIN_NAMES;
@@ -184,6 +185,7 @@ var init_chains = __esm({
       { id: 143, name: "Monad", ticker: "MON" },
       { id: 10143, name: "Monad Testnet", ticker: "MON" },
       { id: 4663, name: "Robinhood Chain", ticker: "ETH" },
+      { id: 4326, name: "MegaETH", ticker: "ETH" },
       { id: 31337, name: "Anvil (local)", ticker: "ETH" }
     ];
     SUPPORTED_CHAIN_IDS = SUPPORTED_CHAINS.map((chain) => chain.id);
@@ -10317,7 +10319,7 @@ init_shared();
 // package.json
 var package_default = {
   name: "@aomi-labs/client",
-  version: "0.3.9",
+  version: "0.3.10",
   description: "Platform-agnostic TypeScript client for the Aomi backend API",
   type: "module",
   main: "./dist/index.cjs",

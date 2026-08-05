@@ -180,6 +180,7 @@ export {
   CHAINS_BY_ID,
   SUPPORTED_CHAINS,
   SUPPORTED_CHAIN_IDS,
+  megaeth,
   monad,
   monadTestnet,
   robinhood,

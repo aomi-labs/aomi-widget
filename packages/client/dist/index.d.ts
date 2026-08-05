@@ -1,6 +1,7 @@
 import { x402Client, x402HTTPClient } from '@x402/core/client';
 import * as viem from 'viem';
 import { Hex, Chain } from 'viem';
+export { megaeth } from 'viem/chains';
 
 declare function address(userState?: UserState | null): string | undefined;
 declare function svmAddress(userState?: UserState | null): string | undefined;
@@ -1602,11 +1603,15 @@ declare const SUPPORTED_CHAINS: readonly [{
     readonly name: "Robinhood Chain";
     readonly ticker: "ETH";
 }, {
+    readonly id: 4326;
+    readonly name: "MegaETH";
+    readonly ticker: "ETH";
+}, {
     readonly id: 31337;
     readonly name: "Anvil (local)";
     readonly ticker: "ETH";
 }];
-declare const SUPPORTED_CHAIN_IDS: (1 | 10 | 143 | 10143 | 4663 | 137 | 42161 | 8453 | 84532 | 11155111 | 59144 | 59141 | 31337)[];
+declare const SUPPORTED_CHAIN_IDS: (1 | 10 | 143 | 10143 | 4663 | 137 | 42161 | 8453 | 84532 | 11155111 | 59144 | 59141 | 4326 | 31337)[];
 declare const CHAIN_NAMES: Record<number, string>;
 /** Alchemy network slugs for proxy URL construction. */
 declare const ALCHEMY_CHAIN_SLUGS: Record<number, string>;
