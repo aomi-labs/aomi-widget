@@ -1,4 +1,4 @@
-import type { DeploymentClient } from "../client";
+import type { BackendClient } from "../backend";
 import { BackendError } from "../errors";
 import type { ReleaseManifest, SecretSlot, UserProject } from "../types";
 import { missingRequiredSecrets } from "../secrets";
@@ -143,7 +143,7 @@ async function mapWithConcurrency<T, R>(
  * deployment's value is correct for any release tag being gated here.
  */
 export async function missingSecretsForActivation(input: {
-  client: DeploymentClient;
+  client: BackendClient;
   githubUserId: string;
   project: UserProject;
   pairs: { app: string; releaseTag: string }[];

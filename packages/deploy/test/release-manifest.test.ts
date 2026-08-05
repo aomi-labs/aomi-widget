@@ -3,7 +3,7 @@ import {
   fetchReleaseSecretSlots,
   missingSecretsForActivation,
 } from "../src/bff/release-manifest";
-import type { DeploymentClient } from "../src/client";
+import type { BackendClient } from "../src/backend";
 
 function fakeFetch(routes: Record<string, { status: number; body: unknown }>) {
   return vi.fn(async (input: RequestInfo | URL) => {
@@ -213,7 +213,7 @@ describe("missingSecretsForActivation", () => {
       getUserProjectLatestDeployment: vi.fn(async () => ({
         platformRepo: "aomi-labs/community",
       })),
-    } as unknown as DeploymentClient;
+    } as unknown as BackendClient;
 
     const missing = await missingSecretsForActivation({
       client,
@@ -241,7 +241,7 @@ describe("missingSecretsForActivation", () => {
     const client = {
       listAppSecrets: vi.fn(),
       getUserProjectLatestDeployment: vi.fn(async () => null),
-    } as unknown as DeploymentClient;
+    } as unknown as BackendClient;
     await expect(
       missingSecretsForActivation({
         client,
@@ -265,7 +265,7 @@ describe("missingSecretsForActivation", () => {
       getUserProjectLatestDeployment: vi.fn(async () => ({
         platformRepo: "aomi-labs/community",
       })),
-    } as unknown as DeploymentClient;
+    } as unknown as BackendClient;
 
     await expect(
       missingSecretsForActivation({
@@ -291,7 +291,7 @@ describe("missingSecretsForActivation", () => {
       getUserProjectLatestDeployment: vi.fn(async () => {
         throw backendError;
       }),
-    } as unknown as DeploymentClient;
+    } as unknown as BackendClient;
 
     await expect(
       missingSecretsForActivation({

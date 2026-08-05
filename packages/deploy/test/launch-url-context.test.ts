@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { UserProject } from "../src/launch/client";
+import type { UserProject } from "../src/launch/browser-client";
 import {
   hasProjectForLaunchUrlContext,
   readLaunchUrlContext,

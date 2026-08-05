@@ -3,7 +3,7 @@
 // mountable directly as Next.js App Router route exports (or behind any
 // fetch-style server).
 //
-// Layering: browser UI → these routes → `DeploymentClient` (root export) →
+// Layering: browser UI → these routes → `BackendClient` (root export) →
 // Aomi backend. The activation/service bearer never leaves this layer.
 
 export {

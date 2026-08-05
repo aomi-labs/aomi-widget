@@ -1,7 +1,7 @@
 // =============================================================================
 // Deployment payload → client summary mappers.
 //
-// Tolerant of both snake_case (raw backend) and camelCase (DeploymentClient)
+// Tolerant of both snake_case (raw backend) and camelCase (BackendClient)
 // app records, since status payloads have carried both shapes.
 // =============================================================================
 

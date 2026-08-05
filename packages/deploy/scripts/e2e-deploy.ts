@@ -13,7 +13,7 @@
  *   AOMI_SOURCE_COMMIT=<sha> (legacy alias for AOMI_SOURCE_REF)
  *   AOMI_ACTIVATE=1
  */
-import { DeploymentClient } from "../src/index";
+import { BackendClient } from "../src/index";
 import type { SourceRef } from "../src/index";
 
 const backendUrl = requiredEnv("AOMI_BACKEND_URL");
@@ -33,7 +33,7 @@ if (!sourceRef) {
   throw new Error("AOMI_SOURCE_REF or AOMI_SOURCE_COMMIT is required");
 }
 
-const dc = new DeploymentClient({
+const dc = new BackendClient({
   aomi: { backendUrl, activationToken },
   onAudit: (event) => console.log("audit", JSON.stringify(event)),
 });

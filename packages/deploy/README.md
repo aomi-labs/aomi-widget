@@ -5,7 +5,7 @@ separated layers:
 
 | Entry | Runs in | What it is |
 | --- | --- | --- |
-| `@aomi-labs/deploy` | server only | `DeploymentClient` — typed HTTP client holding the activation/service bearer |
+| `@aomi-labs/deploy` | server only | `BackendClient` — typed HTTP client holding the activation/service bearer |
 | `@aomi-labs/deploy/bff` | server only | Drop-in BFF route factories: the one-shot launch flow + "Sign in with GitHub" |
 | `@aomi-labs/deploy/launch` | browser | Typed client for the BFF routes (launch + deployments console), wizard state machine, contracts, OAuth-callback result mapping |
 | `@aomi-labs/deploy/lifecycle` | browser | Pure helpers projecting deploy records into dashboard state |
@@ -37,10 +37,10 @@ import {
   createGitHubAuthRoutes,
   createGitHubSessionCodec,
 } from "@aomi-labs/deploy/bff";
-import { DeploymentClient } from "@aomi-labs/deploy";
+import { BackendClient } from "@aomi-labs/deploy";
 
 const client = () =>
-  new DeploymentClient({
+  new BackendClient({
     aomi: {
       backendUrl: process.env.AOMI_BACKEND_URL!,
       activationToken: process.env.AOMI_ACTIVATION_TOKEN!, // stays server-side
@@ -346,7 +346,7 @@ for a token if you are integrating externally) and hand it in.
 
 ```ts
 import { AomiService } from "@aomi-labs/service";
-import { DeploymentClient } from "@aomi-labs/deploy";
+import { BackendClient } from "@aomi-labs/deploy";
 
 // 1. Sign a short-lived admin bearer (holds the EdDSA private key).
 const svc = AomiService.fromTopology({
@@ -361,7 +361,7 @@ const { accessToken: adminBearer } = await svc.mint({
 });
 
 // 2. Mint a platform activation token with it.
-const dc = new DeploymentClient({
+const dc = new BackendClient({
   aomi: { backendUrl: process.env.AOMI_BACKEND_URL!, adminBearer },
 });
 const { token } = await dc.mintToken({
@@ -370,7 +370,7 @@ const { token } = await dc.mintToken({
 });
 
 // 3. Resolve the source, then deploy with the minted token.
-const client = new DeploymentClient({
+const client = new BackendClient({
   aomi: { backendUrl: process.env.AOMI_BACKEND_URL!, activationToken: token },
 });
 const { id } = await client.createProject({
@@ -470,9 +470,9 @@ import {
 ## Example
 
 ```ts
-import { DeploymentClient } from "@aomi-labs/deploy";
+import { BackendClient } from "@aomi-labs/deploy";
 
-const dc = new DeploymentClient({
+const dc = new BackendClient({
   aomi: {
     backendUrl: process.env.AOMI_BACKEND_URL!,
     activationToken: process.env.AOMI_APP_ACTIVATION_TOKEN!,

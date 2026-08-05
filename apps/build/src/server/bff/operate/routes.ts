@@ -29,7 +29,7 @@ import {
   caipChainLabel,
   creditsToUsd,
 } from "@build/features/operate/format";
-import { deploymentClient } from "@build/server/bff/backend";
+import { backendClient } from "@build/server/bff/backend";
 import { authorize } from "@build/server/bff/auth";
 import {
   launchConfig,
@@ -38,7 +38,7 @@ import {
 import { buildFailures } from "@build/server/bff/failures";
 import { TimedPromiseCache } from "@build/server/bff/timed-promise-cache";
 
-type DeploymentClientInstance = Awaited<ReturnType<typeof deploymentClient>>;
+type BackendClientInstance = Awaited<ReturnType<typeof backendClient>>;
 
 function identifyOperateFailure(
   req: Request,
@@ -378,7 +378,7 @@ type OperateScope = {
   githubUserId: string;
   platform: string;
   projects: UserProject[];
-  client: DeploymentClientInstance;
+  client: BackendClientInstance;
 };
 
 /** Session, platform, and a live client — everything a read needs *except* the
@@ -388,7 +388,7 @@ type OperateScope = {
 type OperateSession = {
   githubUserId: string;
   platform: string;
-  client: DeploymentClientInstance;
+  client: BackendClientInstance;
   /** The signed-in user's projects, resolved lazily and cached per request. */
   projects: () => Promise<UserProject[]>;
 };
@@ -415,7 +415,7 @@ async function operateSession(
         ),
       };
     }
-    const client = await deploymentClient();
+    const client = await backendClient();
     return {
       githubUserId: session.githubUserId,
       platform,
@@ -513,7 +513,7 @@ async function batchScope(req: Request): Promise<
   | {
       githubUserId: string;
       platform: string;
-      client: DeploymentClientInstance;
+      client: BackendClientInstance;
       /** Set only for a single-source view; already validated as owned. */
       projectId: number | undefined;
       projects: () => Promise<UserProject[]>;

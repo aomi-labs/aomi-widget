@@ -2,7 +2,7 @@ import "server-only";
 
 import { randomBytes } from "crypto";
 import { NextResponse } from "next/server";
-import { deploymentClient } from "@portal/server/bff/backend";
+import { backendClient } from "@portal/server/bff/backend";
 import { configuredBackendUrl } from "@portal/server/backend-url";
 import type { FailureContext as LaunchFailureContext } from "@aomi-labs/bff-observability";
 import { portalFailures } from "@portal/server/bff/failures";
@@ -29,7 +29,7 @@ function checkWrite(req: Request): NextResponse | null {
 }
 
 type GitHubSession = NonNullable<Awaited<ReturnType<typeof getGitHubSession>>>;
-type DeploymentClientInstance = Awaited<ReturnType<typeof deploymentClient>>;
+type BackendClientInstance = Awaited<ReturnType<typeof backendClient>>;
 
 function launchFailureContext(
   req: Request,
@@ -60,7 +60,7 @@ async function requireSession(): Promise<
 }
 
 type OwnedProject = Awaited<
-  ReturnType<DeploymentClientInstance["listUserProjects"]>
+  ReturnType<BackendClientInstance["listUserProjects"]>
 >[number];
 
 /** The signed-in user's project with `projectId`, or null if not theirs.
@@ -68,7 +68,7 @@ type OwnedProject = Awaited<
  *  user id, so an id absent from the result is not owned by the caller —
  *  and partner-bound projects are never invisible to the check. */
 async function findOwnedProject(
-  client: DeploymentClientInstance,
+  client: BackendClientInstance,
   githubUserId: string,
   projectId: number,
 ): Promise<OwnedProject | null> {
@@ -90,7 +90,7 @@ function projectPlatform(
  *  This is the same timeline the console lists, so promote authorization and
  *  what the user sees never diverge. */
 async function projectDeploymentIds(
-  client: DeploymentClientInstance,
+  client: BackendClientInstance,
   platform: string,
   project: OwnedProject,
   failureContext: LaunchFailureContext,
@@ -123,7 +123,7 @@ async function projectDeploymentIds(
  *  the size-limited `listUserProjectDeployments` listing — so the secret gate
  *  can never see an emptier set than the authorization check just proved. */
 async function projectDeploymentPairs(
-  client: DeploymentClientInstance,
+  client: BackendClientInstance,
   platform: string,
   project: OwnedProject,
   deploymentId: string,
@@ -193,7 +193,7 @@ function projectContainsCurrentPair(
 }
 
 async function activationPairsBelongToProject(
-  client: DeploymentClientInstance,
+  client: BackendClientInstance,
   githubUserId: string,
   project: OwnedProject,
   pairs: ActivationPair[],
@@ -258,7 +258,7 @@ export function launchDeployRoute(preflight: boolean) {
 
     try {
       const config = launchConfig();
-      const client = await deploymentClient();
+      const client = await backendClient();
 
       // Preflight may create a project and asks the backend to resolve its
       // immutable default-head commit. Apply must reuse that returned commit.
@@ -380,7 +380,7 @@ export async function createLaunchRepoRoute(req: Request) {
     }
 
     const config = launchConfig();
-    const client = await deploymentClient();
+    const client = await backendClient();
     const project = await client.scaffold({
       platform: config.platform,
       installationId: Number(body.installationId),
@@ -423,7 +423,7 @@ export async function launchStatusRoute(req: Request) {
 
   try {
     const config = launchConfig();
-    const client = await deploymentClient();
+    const client = await backendClient();
     // The backend resolves CI live per poll (by the deployment's recorded
     // commit, on the App installation token) and deep-links the run URL —
     // no client-side GitHub enrichment on top.
@@ -491,7 +491,7 @@ export async function activateLaunchRoute(req: Request) {
     }
 
     const config = launchConfig();
-    const client = await deploymentClient();
+    const client = await backendClient();
     const { session } = auth;
     const project = await findOwnedProject(
       client,
@@ -564,7 +564,7 @@ export async function launchAppRoute(req: Request) {
 
   try {
     const config = launchConfig();
-    const client = await deploymentClient();
+    const client = await backendClient();
     const projects = await client.listUserProjects({
       githubUserId: session.githubUserId,
     });
@@ -609,7 +609,7 @@ export async function launchAppRoute(req: Request) {
 
 export async function launchSdkStatusRoute(req: Request) {
   try {
-    const client = await deploymentClient();
+    const client = await backendClient();
     const status = await client.serverTags();
     const requiredVersion = status.sdkVersion;
     return NextResponse.json({
@@ -656,7 +656,7 @@ export async function deploymentHistoryRoute(req: Request) {
   const limit = Number(params.get("limit") ?? "20");
 
   try {
-    const client = await deploymentClient();
+    const client = await backendClient();
     const deployments = await client.listUserProjectDeployments({
       githubUserId: session.githubUserId,
       projectId,
@@ -690,7 +690,7 @@ export async function deploymentSecretsRoute(req: Request) {
   }
 
   try {
-    const client = await deploymentClient();
+    const client = await backendClient();
     const project = await findOwnedProject(
       client,
       session.githubUserId,
@@ -757,7 +757,7 @@ export async function deploymentSecretsWriteRoute(req: Request) {
   }
 
   try {
-    const client = await deploymentClient();
+    const client = await backendClient();
     // The app must belong to a project the signed-in user owns.
     const project = await findOwnedProject(
       client,
@@ -818,7 +818,7 @@ export async function deploymentSecretsDeleteRoute(req: Request) {
   }
 
   try {
-    const client = await deploymentClient();
+    const client = await backendClient();
     const project = await findOwnedProject(
       client,
       session.githubUserId,
@@ -869,7 +869,7 @@ export async function deploymentRecordsRoute(req: Request) {
 
   try {
     const config = launchConfig();
-    const client = await deploymentClient();
+    const client = await backendClient();
     const project = await findOwnedProject(
       client,
       session.githubUserId,
@@ -932,7 +932,7 @@ export async function deploymentPromoteRoute(req: Request) {
 
   try {
     const config = launchConfig();
-    const client = await deploymentClient();
+    const client = await backendClient();
 
     // Authorize the promote target against the signed-in user: the project
     // must be theirs, and the deployment must appear in that project's DB
@@ -1050,7 +1050,7 @@ export async function deploymentDeactivateRoute(req: Request) {
 
   try {
     const config = launchConfig();
-    const client = await deploymentClient();
+    const client = await backendClient();
     const project = await findOwnedProject(
       client,
       session.githubUserId,
@@ -1107,7 +1107,7 @@ export async function redeployLaunchRoute(req: Request) {
 
   try {
     const config = launchConfig();
-    const client = await deploymentClient();
+    const client = await backendClient();
     const project = await findOwnedProject(
       client,
       session.githubUserId,
@@ -1171,7 +1171,7 @@ export async function userProjectsRoute(req: Request) {
   }
 
   try {
-    const client = await deploymentClient();
+    const client = await backendClient();
     const platform =
       new URL(req.url).searchParams.get("platform")?.trim() || undefined;
     const projects = await client.listUserProjects({

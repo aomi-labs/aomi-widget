@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { DeploymentClient } from "../src/client";
+import { BackendClient } from "../src/backend";
 import { DeployError } from "../src/errors";
 import type { AuditEvent } from "../src/types";
 
@@ -10,7 +10,7 @@ function client(opts?: {
   adminBearer?: string;
   onAudit?: (event: AuditEvent) => void;
 }) {
-  return new DeploymentClient({
+  return new BackendClient({
     aomi: {
       backendUrl: "https://staging-api.example.com/",
       activationToken: opts?.activationToken,
@@ -24,7 +24,7 @@ function jsonOnce(fetchMock: ReturnType<typeof vi.fn>, body: unknown) {
   fetchMock.mockResolvedValueOnce(Response.json(body));
 }
 
-describe("DeploymentClient bootstrap — tokens", () => {
+describe("BackendClient bootstrap — tokens", () => {
   let fetchMock: ReturnType<typeof vi.fn>;
   beforeEach(() => {
     fetchMock = vi.fn();
@@ -151,7 +151,7 @@ describe("DeploymentClient bootstrap — tokens", () => {
   });
 });
 
-describe("DeploymentClient bootstrap — projects", () => {
+describe("BackendClient bootstrap — projects", () => {
   let fetchMock: ReturnType<typeof vi.fn>;
   beforeEach(() => {
     fetchMock = vi.fn();
@@ -239,7 +239,7 @@ describe("DeploymentClient bootstrap — projects", () => {
   });
 });
 
-describe("DeploymentClient bootstrap — apps", () => {
+describe("BackendClient bootstrap — apps", () => {
   let fetchMock: ReturnType<typeof vi.fn>;
   beforeEach(() => {
     fetchMock = vi.fn();

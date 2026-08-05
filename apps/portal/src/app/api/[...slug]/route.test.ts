@@ -66,7 +66,7 @@ vi.mock("@portal/server/backend-url", () => ({
 }));
 
 vi.mock("@portal/server/bff/backend", () => ({
-  deploymentClient: vi.fn(async () => ({ listApps })),
+  backendClient: vi.fn(async () => ({ listApps })),
 }));
 
 vi.mock("@portal/server/bff/launch/config", () => ({

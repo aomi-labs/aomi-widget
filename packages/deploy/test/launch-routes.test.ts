@@ -4,7 +4,7 @@
 // injected client/session seams instead of portal module mocks.
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { DeploymentClient } from "../src/client";
+import { BackendClient } from "../src/backend";
 import { createLaunchRoutes } from "../src/bff/launch-routes";
 import type { GitHubSession } from "../src/bff/github-session";
 
@@ -15,7 +15,7 @@ const session = vi.fn<() => Promise<GitHubSession | null>>(async () => null);
 function routes() {
   return createLaunchRoutes({
     client: () =>
-      new DeploymentClient({
+      new BackendClient({
         aomi: { backendUrl: BACKEND, activationToken: "service-token" },
       }),
     session: () => session(),

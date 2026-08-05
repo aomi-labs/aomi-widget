@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { DeploymentClient } from "../src/client";
+import { BackendClient } from "../src/backend";
 import {
   BackendError,
   BrowserEnvironmentError,
@@ -10,7 +10,7 @@ import {
 import type { AuditEvent } from "../src/types";
 
 function client(onAudit?: (event: AuditEvent) => void) {
-  return new DeploymentClient({
+  return new BackendClient({
     aomi: {
       backendUrl: "https://staging-api.example.com/",
       activationToken: "act-token",
@@ -19,7 +19,7 @@ function client(onAudit?: (event: AuditEvent) => void) {
   });
 }
 
-describe("DeploymentClient deploy/preflight", () => {
+describe("BackendClient deploy/preflight", () => {
   let fetchMock: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
@@ -153,7 +153,7 @@ describe("DeploymentClient deploy/preflight", () => {
   });
 });
 
-describe("DeploymentClient.activate", () => {
+describe("BackendClient.activate", () => {
   let fetchMock: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
@@ -373,7 +373,7 @@ describe("DeploymentClient.activate", () => {
   });
 });
 
-describe("DeploymentClient operate observability", () => {
+describe("BackendClient operate observability", () => {
   let fetchMock: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
@@ -640,7 +640,7 @@ describe("DeploymentClient operate observability", () => {
   });
 });
 
-describe("DeploymentClient operate logs", () => {
+describe("BackendClient operate logs", () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it("normalizes safe builder model-key attribution on usage events", async () => {
@@ -695,7 +695,7 @@ describe("DeploymentClient operate logs", () => {
   });
 });
 
-describe("DeploymentClient operate app detail", () => {
+describe("BackendClient operate app detail", () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it("reads and normalizes the owned app detail aggregate", async () => {
@@ -793,7 +793,7 @@ describe("DeploymentClient operate app detail", () => {
   });
 });
 
-describe("DeploymentClient source SDK upgrade", () => {
+describe("BackendClient source SDK upgrade", () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it("POSTs the owned source request and normalizes the upgrade PR", async () => {
@@ -901,7 +901,7 @@ describe("DeploymentClient source SDK upgrade", () => {
   });
 });
 
-describe("DeploymentClient operate statement", () => {
+describe("BackendClient operate statement", () => {
   let fetchMock: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
@@ -1131,7 +1131,7 @@ describe("DeploymentClient operate statement", () => {
   });
 });
 
-describe("DeploymentClient projects", () => {
+describe("BackendClient projects", () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it("keeps the complete live SDK set from a platform-free source list", async () => {

@@ -12,8 +12,8 @@
 // override `oauth.clientId`.
 // =============================================================================
 
-import type { DeploymentClient } from "../client";
-import { assertServerOnly } from "../client";
+import type { BackendClient } from "../backend";
+import { assertServerOnly } from "../backend";
 import {
   appendSetCookie,
   defaultSecure,
@@ -50,7 +50,7 @@ export type GitHubAuthRoutes = {
 
 export type GitHubAuthRoutesOptions = {
   /** Deployment client per request — `callback` exchanges the code with it. */
-  client: () => DeploymentClient | Promise<DeploymentClient>;
+  client: () => BackendClient | Promise<BackendClient>;
   /** Session codec that signs/reads the GitHub session cookie. */
   session: GitHubSessionCodec;
   /** Path the callback route is mounted at, e.g. "/api/bff/auth/github/callback". */

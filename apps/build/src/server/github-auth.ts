@@ -4,7 +4,7 @@ import { randomBytes } from "crypto";
 import { NextResponse } from "next/server";
 
 import { API_PATHS } from "@build/lib/api-paths";
-import { deploymentClient } from "@build/server/bff/backend";
+import { backendClient } from "@build/server/bff/backend";
 import {
   type GitHubCliLoginRequest,
   type GitHubOAuthContinuation,
@@ -103,7 +103,7 @@ export async function exchangeGitHubSession(
 ): Promise<GitHubSession> {
   const callback = new URL(API_PATHS.bff.auth.github.callback, origin);
   const identity = await (
-    await deploymentClient()
+    await backendClient()
   ).exchangeGitHubCode({
     code,
     app: GITHUB_LOGIN_APP_INDEX,

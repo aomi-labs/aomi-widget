@@ -1,7 +1,7 @@
 import "server-only";
 
 import { NextResponse } from "next/server";
-import { deploymentClient } from "@build/server/bff/backend";
+import { backendClient } from "@build/server/bff/backend";
 import { clearLaunchReadCache } from "./routes";
 import { authorize } from "@build/server/bff/auth";
 import { buildFailures } from "@build/server/bff/failures";
@@ -24,7 +24,7 @@ export async function projectSdkUpgradeRoute(req: Request) {
   }
 
   try {
-    const client = await deploymentClient();
+    const client = await backendClient();
     const result = await client.upgradeUserProjectSdk({
       projectId,
       githubUserId: session.githubUserId,
@@ -67,7 +67,7 @@ export async function projectSdkUpgradeStatusRoute(req: Request) {
   }
 
   try {
-    const client = await deploymentClient();
+    const client = await backendClient();
     const result = await client.sdkUpgradeStatus({
       projectId,
       githubUserId: session.githubUserId,

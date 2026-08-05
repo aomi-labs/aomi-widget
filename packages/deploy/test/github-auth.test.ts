@@ -3,7 +3,7 @@
 // "Sign in with GitHub" auth route factory.
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { DeploymentClient } from "../src/client";
+import { BackendClient } from "../src/backend";
 import { createGitHubSessionCodec } from "../src/bff/github-session";
 import { createGitHubAuthRoutes } from "../src/bff/github-auth-routes";
 import { readCookie } from "../src/bff/cookies";
@@ -17,7 +17,7 @@ function codec() {
 function authRoutes() {
   return createGitHubAuthRoutes({
     client: () =>
-      new DeploymentClient({
+      new BackendClient({
         aomi: {
           backendUrl: "http://127.0.0.1:8080",
           activationToken: "service-token",

@@ -34,7 +34,7 @@ entry points are **server-only**:
 
 | Import | Runs | Holds |
 | --- | --- | --- |
-| `@aomi-labs/deploy` | **server only** | `DeploymentClient` + the activation bearer |
+| `@aomi-labs/deploy` | **server only** | `BackendClient` + the activation bearer |
 | `@aomi-labs/deploy/bff` | **server only** | route factories that mint/inject the bearer |
 | `@aomi-labs/deploy/launch` | browser | typed fetch client to your own BFF routes — no secrets |
 | `@aomi-labs/deploy/lifecycle` | browser | pure helpers projecting deploy records into UI state |
@@ -70,10 +70,10 @@ import {
   createGitHubAuthRoutes,
   createGitHubSessionCodec,
 } from "@aomi-labs/deploy/bff";
-import { DeploymentClient } from "@aomi-labs/deploy";
+import { BackendClient } from "@aomi-labs/deploy";
 
 const client = () =>
-  new DeploymentClient({
+  new BackendClient({
     aomi: {
       backendUrl: process.env.AOMI_BACKEND_URL!,
       activationToken: process.env.AOMI_ACTIVATION_TOKEN!, // stays here
@@ -219,6 +219,6 @@ page you'll have to hand-reconcile on every upstream change.
 - **Not yet in the browser client:** operator lifecycle (deactivate/"stop",
   promote/rollback, deploy history) exists at the SDK layer but is not exposed
   through `createLaunchClient` yet. If you need a "stop my agent" button, add a
-  BFF route over `DeploymentClient` and a client method — ask Aomi for the
+  BFF route over `BackendClient` and a client method — ask Aomi for the
   current shape.
 ```

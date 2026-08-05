@@ -83,7 +83,7 @@ export interface AuditEvent {
   ts: number;
 }
 
-export interface DeploymentClientOptions {
+export interface BackendClientOptions {
   aomi: AomiConfig;
   /** Called on every privileged op. The proxy should persist this. */
   onAudit?: (event: AuditEvent) => void | Promise<void>;

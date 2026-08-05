@@ -1,7 +1,7 @@
 // @aomi-labs/deploy — server-side typed relay for the Aomi platform deploy API.
 // (Service-identity/topology lives in @aomi-labs/service.)
 
-export { DeploymentClient, assertServerOnly } from "./client";
+export { BackendClient, assertServerOnly } from "./backend";
 
 export {
   buildActivationRequest,
@@ -24,7 +24,7 @@ export type { DeployErrorCode } from "./errors";
 export type {
   AomiConfig,
   AuditEvent,
-  DeploymentClientOptions,
+  BackendClientOptions,
   ServerTagsResult,
   SdkVersionStatus,
   SourceRef,

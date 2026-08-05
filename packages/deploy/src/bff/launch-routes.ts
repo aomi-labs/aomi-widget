@@ -9,7 +9,7 @@
 //   export const POST = launchRoutes.deploy;
 //
 // The host injects the privileged pieces; nothing here reads a framework:
-//   - `client`   — a DeploymentClient carrying the activation/service bearer
+//   - `client`   — a BackendClient carrying the activation/service bearer
 //   - `session`  — the signed-in GitHub user for a request (see
 //                  `createGitHubSessionCodec` for the batteries-included one)
 //   - `guards`   — rate-limit/CSRF (defaults provided)
@@ -18,9 +18,9 @@
 // Aomi backend, whose GitHub App installation token makes every GitHub call.
 // =============================================================================
 
-import type { DeploymentClient } from "../client";
+import type { BackendClient } from "../backend";
 import type { UserProject } from "../types";
-import { assertServerOnly } from "../client";
+import { assertServerOnly } from "../backend";
 import { resolveLaunchConfig, type LaunchConfig } from "./config";
 import { launchErrorResponse } from "./errors";
 import { appNamesFromDeployment, releaseTagsFromDeployment } from "./mappers";
@@ -59,7 +59,7 @@ export type LaunchRoutes = {
 
 export type LaunchRoutesOptions = {
   /** Deployment client per request — holds the activation/service bearer. */
-  client: () => DeploymentClient | Promise<DeploymentClient>;
+  client: () => BackendClient | Promise<BackendClient>;
   /** The signed-in GitHub session for a request, or null. */
   session: (
     req: Request,
@@ -79,7 +79,7 @@ function sourceRef(value: unknown): string | null {
 }
 
 type OwnedProject = Awaited<
-  ReturnType<DeploymentClient["listUserProjects"]>
+  ReturnType<BackendClient["listUserProjects"]>
 >[number];
 type ActivationPair = { app: string; releaseTag: string };
 
@@ -115,7 +115,7 @@ function projectContainsCurrentPair(
 }
 
 async function activationPairsBelongToProject(
-  client: DeploymentClient,
+  client: BackendClient,
   githubUserId: string,
   project: OwnedProject,
   pairs: ActivationPair[],
@@ -139,7 +139,7 @@ async function activationPairsBelongToProject(
  * never depends on a platform parameter.
  */
 async function ownedProject(
-  client: DeploymentClient,
+  client: BackendClient,
   githubUserId: string,
   projectId: number,
 ): Promise<OwnedProject | null> {

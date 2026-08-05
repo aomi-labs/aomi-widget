@@ -16,7 +16,7 @@ export {
   type UserProjectsResult,
   type GithubAppOAuthStartResponse,
   type UserProject,
-} from "./client";
+} from "./browser-client";
 
 export {
   DEFAULT_TEMPLATE_REPO,

@@ -1,6 +1,6 @@
 // =============================================================================
 // Deployment watch loop — polling with backoff, shared by the server client
-// (`DeploymentClient.watchDeployment`) and the browser client
+// (`BackendClient.watchDeployment`) and the browser client
 // (`createLaunchClient().watch`).
 //
 // Browser-safe: no fetch, no env, no transport. It takes a `poll` closure so

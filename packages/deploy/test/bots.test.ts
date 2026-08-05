@@ -1,14 +1,14 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { DeploymentClient } from "../src/client";
+import { BackendClient } from "../src/backend";
 
 function client() {
-  return new DeploymentClient({
+  return new BackendClient({
     aomi: { backendUrl: "https://api.test", activationToken: "t" },
   });
 }
 
-describe("DeploymentClient bots", () => {
+describe("BackendClient bots", () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it("lists bots for an owned source", async () => {

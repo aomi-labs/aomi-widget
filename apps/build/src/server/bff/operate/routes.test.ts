@@ -77,7 +77,7 @@ const client = {
 };
 
 vi.mock("@build/server/bff/backend", () => ({
-  deploymentClient: async () => client,
+  backendClient: async () => client,
 }));
 
 const getGitHubSession = vi.fn();

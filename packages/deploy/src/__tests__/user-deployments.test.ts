@@ -1,12 +1,12 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { DeploymentClient } from "../client";
+import { BackendClient } from "../backend";
 
-let client: DeploymentClient;
+let client: BackendClient;
 
 beforeEach(() => {
-  client = new DeploymentClient({
+  client = new BackendClient({
     aomi: {
       backendUrl: "https://staging-api.example.com",
       activationToken: "service-token",

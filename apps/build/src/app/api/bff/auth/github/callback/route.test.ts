@@ -25,7 +25,7 @@ vi.mock("next/headers", () => ({
 }));
 
 vi.mock("@build/server/bff/backend", () => ({
-  deploymentClient: vi.fn(async () => ({
+  backendClient: vi.fn(async () => ({
     exchangeGitHubCode: mocks.exchangeGitHubCode,
   })),
 }));

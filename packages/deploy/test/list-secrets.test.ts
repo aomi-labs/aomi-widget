@@ -1,10 +1,10 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from "vitest";
 
-import { DeploymentClient } from "../src/client";
+import { BackendClient } from "../src/backend";
 
 function client() {
-  return new DeploymentClient({
+  return new BackendClient({
     aomi: {
       backendUrl: "https://staging-api.example.com/",
       activationToken: "act-token",
@@ -12,7 +12,7 @@ function client() {
   });
 }
 
-describe("DeploymentClient.listSecrets", () => {
+describe("BackendClient.listSecrets", () => {
   it("maps by_app handles and never leaks values", async () => {
     const c = client();
     vi.spyOn(c as unknown as { get: () => unknown }, "get").mockResolvedValue({
@@ -32,7 +32,7 @@ describe("DeploymentClient.listSecrets", () => {
   });
 });
 
-describe("DeploymentClient app-scoped service secrets", () => {
+describe("BackendClient app-scoped service secrets", () => {
   it("passes source_id when listing app secrets", async () => {
     const c = client();
     const get = vi
