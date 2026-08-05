@@ -48,6 +48,15 @@ through the canonical Session contract.
 - Kept the public BotFather contract aligned to `/start`, `/thread`,
   `/wallet`, `/permission`, `/tx`, `/app`, `/model`, `/network`, and
   `/disconnect`.
+## Chat Model Default
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-05** — make
+GPT-5.6 Terra the default user-facing chat model across the backend and React
+frontend. The product-mono runtime now defaults its chat rig to Terra while
+retaining Luna for the separate internal BAML helper workload. React auto mode
+prefers Terra ahead of its previous Haiku fallback, with focused resolver and
+control-context coverage. Rebuilt the publishable React artifacts and
+patch-bumped `@aomi-labs/react` to `0.5.8`.
 
 ## BFF Sentry Observability
 

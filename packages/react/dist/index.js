@@ -293,6 +293,7 @@ import { useCallback as useCallback3, useEffect as useEffect3, useState as useSt
 
 // src/utils/model-selection.ts
 var PREFERRED_DEFAULT_MODEL_PATTERNS = [
+  /^gpt-5\.6[- ]terra/i,
   /^claude.*opus.*4[.-]?8/i,
   /^claude.*4[.-]?8.*opus/i,
   /^claude.*opus.*4[.-]?6/i,
