@@ -833,6 +833,83 @@ describe("ClientSession ext helpers", () => {
     session.close();
   });
 
+  it("round-trips an ordered first-use 7702 signature handoff", async () => {
+    const { client, sendMessage, sendSystemMessage } = createMockClient();
+    const session = new Session(client, { sessionId: "session-unit-aa-sign" });
+
+    sendMessage.mockResolvedValueOnce({
+      is_processing: false,
+      messages: [],
+      system_events: [
+        {
+          InlineCall: {
+            type: "wallet_aa_sign_request",
+            payload: {
+              chain_family: "evm",
+              chain_id: 4326,
+              signer: "0x1111111111111111111111111111111111111111",
+              executor: "0x1111111111111111111111111111111111111111",
+              aa_mode: "7702",
+              tx_ids: [7, 8, 9],
+              signature_requests: [
+                {
+                  kind: "eip7702_authorization",
+                  contract_address:
+                    "0x0000000000000000000000000000000000007702",
+                  chain_id: 4326,
+                  nonce: 0,
+                  raw_payload: `0x${"11".repeat(32)}`,
+                },
+                {
+                  kind: "personal_sign",
+                  message: "0xprepared-user-operation",
+                  raw_payload: `0x${"22".repeat(32)}`,
+                },
+              ],
+              description: "Execute three calls",
+              sponsored: true,
+            },
+          },
+        },
+      ],
+    } satisfies AomiChatResponse);
+
+    const requestPromise = new Promise((resolve) => {
+      session.once("wallet_aa_sign_request", resolve);
+    });
+    await session.sendAsync("queue attended AA");
+    const request = await requestPromise;
+
+    expect(request).toMatchObject({
+      id: "aa-7-8-9",
+      kind: "aa_sign",
+      payload: {
+        chain_id: 4326,
+        aa_mode: "7702",
+        tx_ids: [7, 8, 9],
+      },
+    });
+
+    await session.resolve((request as { id: string }).id, {
+      kind: "aa_sign",
+      signatures: ["0xauthorization", "0xuserop"],
+    });
+
+    expect(sendSystemMessage).toHaveBeenCalledWith(
+      "session-unit-aa-sign",
+      JSON.stringify({
+        type: "wallet:aa_sign_complete",
+        payload: {
+          status: "signed",
+          tx_ids: [7, 8, 9],
+          signatures: ["0xauthorization", "0xuserop"],
+        },
+      }),
+      { app: "default" },
+    );
+    session.close();
+  });
+
   it("forwards backend eip712 identifiers in wallet rejection callbacks", async () => {
     const { client, sendMessage, sendSystemMessage } = createMockClient();
     const session = new Session(client, { sessionId: "session-unit-9" });

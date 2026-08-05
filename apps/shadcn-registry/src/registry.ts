@@ -297,8 +297,8 @@ export const registry: RegistryComponent[] = [
   {
     name: "runtime-tx-handler",
     file: "components/runtime-tx-handler.tsx",
-    dependencies: ["@aomi-labs/react"],
-    registryDependencies: [aomi("aomi-wallet-kit")],
+    dependencies: ["@aomi-labs/react", "lucide-react"],
+    registryDependencies: [aomi("aomi-wallet-kit"), "button", "dialog"],
     description:
       "Executes wallet transaction and EIP-712 signing requests from the AI backend through the active wallet kit.",
   },
@@ -356,6 +356,8 @@ export const registry: RegistryComponent[] = [
       "lib/wallet-kit/providers/privy/PrivyProvider.tsx",
       "lib/wallet-kit/providers/privy/privy-auth.ts",
       "lib/wallet-kit/providers/privy/privy-execution.ts",
+      "lib/wallet-kit/providers/privy/privy-delegation-context.ts",
+      "lib/wallet-kit/providers/privy/privy-delegation.tsx",
       "lib/wallet-kit/providers/privy/privy-plugin.tsx",
       "lib/wallet-kit/providers/privy/privy-svm.ts",
       "lib/wallet-kit/providers/privy/privy.tsx",

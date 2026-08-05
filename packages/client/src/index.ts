@@ -129,6 +129,8 @@ export type {
   SessionEventMap,
   SendResult,
   WalletRequest,
+  WalletAaSignPayload,
+  WalletAaSignatureRequest,
   WalletRequestKind,
   WalletRequestResult,
 } from "./session";
@@ -183,6 +185,7 @@ export {
   SUPPORTED_CHAIN_IDS,
   monad,
   monadTestnet,
+  megaeth,
   robinhood,
 } from "./chains";
 export type { ChainInfo } from "./chains";

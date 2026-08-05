@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { ShieldCheck } from "lucide-react";
 import { Connection as SolanaConnection } from "@solana/web3.js";
 import { normalizeSolanaCluster } from "@aomi-labs/client";
 import {
@@ -16,6 +17,15 @@ import {
 } from "@aomi-labs/react";
 import { useAomiWalletKit } from "../lib/wallet-kit";
 import { walletDebug } from "../lib/wallet-kit/wallet-debug";
+import { Button } from "./ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "./ui/dialog";
 
 function hasHydratedCalls(payload: WalletTxPayload): boolean {
   return Array.isArray(payload.calls) && payload.calls.length > 0;
@@ -69,6 +79,7 @@ export function RuntimeTxHandler() {
   const {
     user,
     pendingWalletRequests,
+    startWalletRequest,
     resolveWalletRequest,
     rejectWalletRequest,
     simulateBatchTransactions,
@@ -77,11 +88,19 @@ export function RuntimeTxHandler() {
   const adapter = useAomiWalletKit();
   const { chainId: currentChainId } = adapter.identity;
   const processingRef = useRef(false);
+  const [isSigningAa, setIsSigningAa] = useState(false);
+  const aaRequest =
+    pendingWalletRequests[0]?.kind === "aa_sign"
+      ? pendingWalletRequests[0]
+      : null;
 
   useEffect(() => {
     if (!pendingWalletRequests.length) return;
     const next = pendingWalletRequests[0];
     if (!next || processingRef.current) return;
+    // Attended AA is deliberately not automatic. The dialog below is the
+    // user's authorization boundary; only its confirm button invokes Privy.
+    if (next.kind === "aa_sign") return;
 
     processingRef.current = true;
     processRequest(next).finally(() => {
@@ -421,6 +440,113 @@ export function RuntimeTxHandler() {
     simulateBatchTransactions,
     showNotification,
   ]);
+
+  const approveAa = async () => {
+    if (!aaRequest || isSigningAa) return;
+    if (!adapter.signAaRequests) {
+      await rejectWalletRequest(
+        aaRequest.id,
+        "This wallet cannot sign account-abstraction requests",
+      );
+      return;
+    }
+    setIsSigningAa(true);
+    startWalletRequest(aaRequest.id);
+    try {
+      const result = await adapter.signAaRequests(aaRequest.payload);
+      await resolveWalletRequest(aaRequest.id, {
+        kind: "aa_sign",
+        signatures: result.signatures,
+      });
+    } catch (error) {
+      await rejectWalletRequest(
+        aaRequest.id,
+        error instanceof Error ? error.message : "AA signing failed",
+      );
+    } finally {
+      setIsSigningAa(false);
+    }
+  };
+
+  const rejectAa = async () => {
+    if (!aaRequest || isSigningAa) return;
+    await rejectWalletRequest(aaRequest.id, "User rejected AA signing");
+  };
+
+  if (aaRequest) {
+    const chainName =
+      adapter.supportedChains?.find(
+        (chain) => chain.id === aaRequest.payload.chain_id,
+      )?.name ?? `Chain ${aaRequest.payload.chain_id}`;
+    const signatureCount = aaRequest.payload.signature_requests.length;
+    // EIP-7702's protocol-level code authorization is not the Privy provider
+    // delegation that enables Auto. This remains a user-clicked Manual
+    // transaction approval and never creates an Aomi signing grant.
+    const includes7702Authorization = aaRequest.payload.signature_requests.some(
+      (request) => request.kind === "eip7702_authorization",
+    );
+    return (
+      <Dialog open onOpenChange={(open) => !open && void rejectAa()}>
+        <DialogContent showCloseButton={false} className="sm:max-w-md">
+          <DialogHeader>
+            <div className="bg-primary/10 text-primary mb-1 flex size-10 items-center justify-center rounded-full">
+              <ShieldCheck className="size-5" />
+            </div>
+            <DialogTitle>Approve account action</DialogTitle>
+            <DialogDescription>
+              Review this sponsored {aaRequest.payload.aa_mode} action before
+              your wallet signs it. Aomi cannot sign on your behalf in Manual
+              mode.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="bg-muted/40 grid gap-3 rounded-xl border p-4 text-sm">
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-muted-foreground">Network</span>
+              <span className="font-medium">{chainName}</span>
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-muted-foreground">Account</span>
+              <span className="font-mono text-xs">
+                {aaRequest.payload.signer.slice(0, 8)}…
+                {aaRequest.payload.signer.slice(-6)}
+              </span>
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-muted-foreground">Operations</span>
+              <span className="font-medium">
+                {aaRequest.payload.tx_ids.length}
+              </span>
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-muted-foreground">Wallet approvals</span>
+              <span className="font-medium">{signatureCount}</span>
+            </div>
+            {includes7702Authorization ? (
+              <p className="text-muted-foreground border-t pt-3 text-xs leading-relaxed">
+                The first approval installs the 7702 smart-account code for this
+                network. The second approves this action. Future actions
+                normally need one approval.
+              </p>
+            ) : null}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => void rejectAa()}
+              disabled={isSigningAa}
+            >
+              Cancel
+            </Button>
+            <Button onClick={() => void approveAa()} disabled={isSigningAa}>
+              {isSigningAa
+                ? "Waiting for wallet…"
+                : `Review & sign${signatureCount > 1 ? ` (${signatureCount})` : ""}`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return null;
 }

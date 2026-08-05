@@ -1140,11 +1140,40 @@ declare function toViemSignTypedDataArgs(payload: WalletEip712Payload): ViemSign
  */
 declare function toViemSignMessageArgs(payload: WalletEip712Payload): ViemSignMessageArgs | null;
 
-type WalletRequestKind = "transaction" | "eip712_sign" | "solana_sign" | "solana_sign_message" | "solana_send" | "solana_sign_and_send";
+type WalletRequestKind = "transaction" | "aa_sign" | "eip712_sign" | "solana_sign" | "solana_sign_message" | "solana_send" | "solana_sign_and_send";
+type WalletAaSignatureRequest = {
+    kind: "personal_sign";
+    message: string;
+    raw_payload: string;
+} | {
+    kind: "eip7702_authorization";
+    contract_address: string;
+    chain_id: number;
+    nonce: number;
+    raw_payload: string;
+};
+type WalletAaSignPayload = {
+    chain_family: "evm";
+    chain_id: number;
+    signer: string;
+    executor: string;
+    aa_mode: "4337" | "7702";
+    tx_ids: number[];
+    signature_requests: WalletAaSignatureRequest[];
+    description: string;
+    sponsored: boolean;
+    tx_id?: string;
+    timestamp?: string;
+};
 type WalletRequest = {
     id: string;
     kind: "transaction";
     payload: WalletTxPayload;
+    timestamp: number;
+} | {
+    id: string;
+    kind: "aa_sign";
+    payload: WalletAaSignPayload;
     timestamp: number;
 } | {
     id: string;
@@ -1201,6 +1230,9 @@ type WalletRequestResult = {
     completedTxIds?: number[];
     failedTxIds?: number[];
     failureReason?: string;
+} | {
+    kind: "aa_sign";
+    signatures: string[];
 } | {
     kind: "eip712_sign";
     signature: string;
@@ -1263,6 +1295,7 @@ type SessionRuntimeOptions = {
 };
 type SessionEventMap = {
     wallet_tx_request: WalletRequest;
+    wallet_aa_sign_request: WalletRequest;
     wallet_eip712_request: WalletRequest;
     wallet_solana_sign_request: WalletRequest;
     wallet_solana_sign_message_request: WalletRequest;
@@ -1553,6 +1586,53 @@ declare const robinhood: {
     serializers?: viem.ChainSerializers<undefined, viem.TransactionSerializable> | undefined;
     verifyHash?: ((client: viem.Client, parameters: viem.VerifyHashActionParameters) => Promise<viem.VerifyHashActionReturnType>) | undefined;
 };
+declare const megaeth: {
+    blockExplorers: {
+        readonly default: {
+            readonly name: "MegaETH Explorer";
+            readonly url: "https://mega.etherscan.io";
+        };
+    };
+    blockTime?: number | undefined | undefined;
+    contracts?: {
+        [x: string]: viem.ChainContract | {
+            [sourceId: number]: viem.ChainContract | undefined;
+        } | undefined;
+        ensRegistry?: viem.ChainContract | undefined;
+        ensUniversalResolver?: viem.ChainContract | undefined;
+        multicall3?: viem.ChainContract | undefined;
+        erc6492Verifier?: viem.ChainContract | undefined;
+    } | undefined;
+    ensTlds?: readonly string[] | undefined;
+    id: 4326;
+    name: "MegaETH";
+    nativeCurrency: {
+        readonly name: "Ether";
+        readonly symbol: "ETH";
+        readonly decimals: 18;
+    };
+    experimental_preconfirmationTime?: number | undefined | undefined;
+    rpcUrls: {
+        readonly default: {
+            readonly http: readonly ["https://mainnet.megaeth.com/rpc"];
+        };
+    };
+    sourceId?: number | undefined | undefined;
+    testnet?: boolean | undefined | undefined;
+    custom?: Record<string, unknown> | undefined;
+    extendSchema?: Record<string, unknown> | undefined;
+    fees?: viem.ChainFees<undefined> | undefined;
+    formatters?: undefined;
+    prepareTransactionRequest?: ((args: viem.PrepareTransactionRequestParameters, options: {
+        phase: "beforeFillTransaction" | "beforeFillParameters" | "afterFillParameters";
+    }) => Promise<viem.PrepareTransactionRequestParameters>) | [fn: ((args: viem.PrepareTransactionRequestParameters, options: {
+        phase: "beforeFillTransaction" | "beforeFillParameters" | "afterFillParameters";
+    }) => Promise<viem.PrepareTransactionRequestParameters>) | undefined, options: {
+        runAt: readonly ("beforeFillTransaction" | "beforeFillParameters" | "afterFillParameters")[];
+    }] | undefined;
+    serializers?: viem.ChainSerializers<undefined, viem.TransactionSerializable> | undefined;
+    verifyHash?: ((client: viem.Client, parameters: viem.VerifyHashActionParameters) => Promise<viem.VerifyHashActionReturnType>) | undefined;
+};
 declare const SUPPORTED_CHAINS: readonly [{
     readonly id: 1;
     readonly name: "Ethereum";
@@ -1602,11 +1682,15 @@ declare const SUPPORTED_CHAINS: readonly [{
     readonly name: "Robinhood Chain";
     readonly ticker: "ETH";
 }, {
+    readonly id: 4326;
+    readonly name: "MegaETH";
+    readonly ticker: "ETH";
+}, {
     readonly id: 31337;
     readonly name: "Anvil (local)";
     readonly ticker: "ETH";
 }];
-declare const SUPPORTED_CHAIN_IDS: (1 | 10 | 143 | 10143 | 4663 | 137 | 42161 | 8453 | 84532 | 11155111 | 59144 | 59141 | 31337)[];
+declare const SUPPORTED_CHAIN_IDS: (1 | 10 | 143 | 10143 | 4663 | 4326 | 137 | 42161 | 8453 | 84532 | 11155111 | 59144 | 59141 | 31337)[];
 declare const CHAIN_NAMES: Record<number, string>;
 /** Alchemy network slugs for proxy URL construction. */
 declare const ALCHEMY_CHAIN_SLUGS: Record<number, string>;
@@ -1636,4 +1720,4 @@ declare function appendFeeCallToPayload(payload: WalletTxPayload, fee: AomiSimul
     strictAa?: boolean;
 }): WalletTxPayload;
 
-export { type AACallPayload, type AAMode, type AASponsorship, type AAWalletCall, ALCHEMY_CHAIN_SLUGS, type AccountBearerProvider, type AccountBearerProviderOptions, type AccountCredentialProvider, AccountCredentialUnavailableError, type AccountSessionExchangeResponse, type AomiAccessApproval, type AomiAccountProfile, type AomiAccountResponse, type AomiAppDescriptor, type AomiAuthIdentity, type AomiAuthorizationChallenge, type AomiAuthorizationPermit, type AomiAuthorizationState, type AomiChatResponse, type AomiClearSecretsResponse, AomiClient, type AomiClientOptions, type AomiClientType, type AomiCreateApprovalRequest, type AomiCreateThreadResponse, type AomiDeleteSecretResponse, type AomiEnsureBoundResult, type AomiHttpMethod, type AomiIdentityWallet, type AomiIngestSecretsResponse, type AomiInterruptResponse, type AomiListSecretsResponse, type AomiMessage, type AomiPlatformFilter, type AomiRequestOptions, type AomiRequestQueryValue, type AomiSSEEvent, type AomiSSEEventType, type AomiSecretSlot, type AomiSimulateFee, type AomiSimulateResponse, type AomiStateResponse, type AomiSystemEvent, type AomiSystemResponse, type AomiThread, type AomiUsageStats, type AomiUser, type AomiWalletFamily, type AtomicBatchArgs, type AuthorizationPoster, type BetterAuthAccountTokenSourceOptions, type BetterAuthTokenResponse, CHAINS_BY_ID, CHAIN_NAMES, CLIENT_TYPE_TS_CLI, CLIENT_TYPE_WEB_UI, type ChainInfo, type ExecuteWalletCallsParams, type ExecutionResult, type GetAccountBearer, type Logger, MAX_AUTO_FEE_WEI, type NativeWalletExecutionPolicy, type NativeWalletSponsorship, type NormalizedSimulatedFee, type NormalizedSolanaWalletRequest, type ProviderCredential, SUPPORTED_CHAINS, SUPPORTED_CHAIN_IDS, type SendResult, ClientSession as Session, type SessionEventMap, type SessionOptions, type SiwsChainId, type SiwsIntent, type SiwsWidgetSessionSigner, type SponsorshipPaymasterServiceContext, TypedEventEmitter, type UnwrappedEvent, UserState, type UserStateAAMode, type UserStateAuthMethod, type UserStateSponsorProvider, type UserStateWalletKind, type UserStateWalletProvider, type ViemSignMessageArgs, type ViemSignTypedDataArgs, type WalletAtomicCapability, type WalletCapabilities, type WalletEip712Payload, type WalletRequest, type WalletRequestKind, type WalletRequestResult, type WalletSolanaSignMessagePayload, type WalletSolanaSignPayload, type WalletTxAaPreference, type WalletTxCallPayload, type WalletTxPayload, type WidgetAuthAdapter, type WidgetAuthSession, type WidgetSession, type WidgetSessionProvider, type WidgetSessionSigner, aaModeFromExecutionKind, appIdentityKey, appendFeeCallToPayload, authorizationChallenge, authorizationCommit, buildFeeAAWalletCall, buildSiwsMessage, createAccountBearerProvider, createProviderCredentialAdapter, createSiweWidgetAuthAdapter, createSiwsWidgetAuthAdapter, createWidgetSessionProvider, ensureSvmWalletBound, ensureSvmWalletBoundVia, executeWalletCalls, handlePaymentChallenges, hydrateTxPayloadFromUserState, isAsyncCallback, isInlineCall, isSystemError, isSystemNotice, isUnboundWalletError, monad, monadTestnet, normalizeAppDescriptor, normalizeEip712Payload, normalizeSimulatedFee, normalizeSolanaCluster, normalizeSolanaSignMessagePayload, normalizeSolanaSignPayload, normalizeSolanaWalletRequest, normalizeTxPayload, parseChainId, posterFromClient, robinhood, safeEnv, toAAWalletCall, toAAWalletCalls, toViemSignMessageArgs, toViemSignTypedDataArgs, unwrapSystemEvent, wrapFetchWithPaymentChallenges };
+export { type AACallPayload, type AAMode, type AASponsorship, type AAWalletCall, ALCHEMY_CHAIN_SLUGS, type AccountBearerProvider, type AccountBearerProviderOptions, type AccountCredentialProvider, AccountCredentialUnavailableError, type AccountSessionExchangeResponse, type AomiAccessApproval, type AomiAccountProfile, type AomiAccountResponse, type AomiAppDescriptor, type AomiAuthIdentity, type AomiAuthorizationChallenge, type AomiAuthorizationPermit, type AomiAuthorizationState, type AomiChatResponse, type AomiClearSecretsResponse, AomiClient, type AomiClientOptions, type AomiClientType, type AomiCreateApprovalRequest, type AomiCreateThreadResponse, type AomiDeleteSecretResponse, type AomiEnsureBoundResult, type AomiHttpMethod, type AomiIdentityWallet, type AomiIngestSecretsResponse, type AomiInterruptResponse, type AomiListSecretsResponse, type AomiMessage, type AomiPlatformFilter, type AomiRequestOptions, type AomiRequestQueryValue, type AomiSSEEvent, type AomiSSEEventType, type AomiSecretSlot, type AomiSimulateFee, type AomiSimulateResponse, type AomiStateResponse, type AomiSystemEvent, type AomiSystemResponse, type AomiThread, type AomiUsageStats, type AomiUser, type AomiWalletFamily, type AtomicBatchArgs, type AuthorizationPoster, type BetterAuthAccountTokenSourceOptions, type BetterAuthTokenResponse, CHAINS_BY_ID, CHAIN_NAMES, CLIENT_TYPE_TS_CLI, CLIENT_TYPE_WEB_UI, type ChainInfo, type ExecuteWalletCallsParams, type ExecutionResult, type GetAccountBearer, type Logger, MAX_AUTO_FEE_WEI, type NativeWalletExecutionPolicy, type NativeWalletSponsorship, type NormalizedSimulatedFee, type NormalizedSolanaWalletRequest, type ProviderCredential, SUPPORTED_CHAINS, SUPPORTED_CHAIN_IDS, type SendResult, ClientSession as Session, type SessionEventMap, type SessionOptions, type SiwsChainId, type SiwsIntent, type SiwsWidgetSessionSigner, type SponsorshipPaymasterServiceContext, TypedEventEmitter, type UnwrappedEvent, UserState, type UserStateAAMode, type UserStateAuthMethod, type UserStateSponsorProvider, type UserStateWalletKind, type UserStateWalletProvider, type ViemSignMessageArgs, type ViemSignTypedDataArgs, type WalletAaSignPayload, type WalletAaSignatureRequest, type WalletAtomicCapability, type WalletCapabilities, type WalletEip712Payload, type WalletRequest, type WalletRequestKind, type WalletRequestResult, type WalletSolanaSignMessagePayload, type WalletSolanaSignPayload, type WalletTxAaPreference, type WalletTxCallPayload, type WalletTxPayload, type WidgetAuthAdapter, type WidgetAuthSession, type WidgetSession, type WidgetSessionProvider, type WidgetSessionSigner, aaModeFromExecutionKind, appIdentityKey, appendFeeCallToPayload, authorizationChallenge, authorizationCommit, buildFeeAAWalletCall, buildSiwsMessage, createAccountBearerProvider, createProviderCredentialAdapter, createSiweWidgetAuthAdapter, createSiwsWidgetAuthAdapter, createWidgetSessionProvider, ensureSvmWalletBound, ensureSvmWalletBoundVia, executeWalletCalls, handlePaymentChallenges, hydrateTxPayloadFromUserState, isAsyncCallback, isInlineCall, isSystemError, isSystemNotice, isUnboundWalletError, megaeth, monad, monadTestnet, normalizeAppDescriptor, normalizeEip712Payload, normalizeSimulatedFee, normalizeSolanaCluster, normalizeSolanaSignMessagePayload, normalizeSolanaSignPayload, normalizeSolanaWalletRequest, normalizeTxPayload, parseChainId, posterFromClient, robinhood, safeEnv, toAAWalletCall, toAAWalletCalls, toViemSignMessageArgs, toViemSignTypedDataArgs, unwrapSystemEvent, wrapFetchWithPaymentChallenges };

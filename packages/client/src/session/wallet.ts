@@ -14,6 +14,7 @@ import {
 } from "../wallet-utils";
 import type {
   WalletRequest,
+  WalletAaSignPayload,
   WalletRequestKind,
   WalletRequestResult,
 } from "./types";
@@ -78,6 +79,7 @@ export class SessionWalletController {
   }
 
   enqueue(kind: "transaction", payload: WalletTxPayload): WalletRequest;
+  enqueue(kind: "aa_sign", payload: WalletAaSignPayload): WalletRequest;
   enqueue(kind: "eip712_sign", payload: WalletEip712Payload): WalletRequest;
   enqueue(kind: "solana_sign", payload: WalletSolanaSignPayload): WalletRequest;
   enqueue(
@@ -92,6 +94,7 @@ export class SessionWalletController {
     kind: WalletRequestKind,
     payload:
       | WalletTxPayload
+      | WalletAaSignPayload
       | WalletEip712Payload
       | WalletSolanaSignPayload
       | WalletSolanaSignMessagePayload,
@@ -180,6 +183,12 @@ export class SessionWalletController {
     try {
       if (req.kind === "transaction" && result.kind === "transaction") {
         await this.resolveTransaction(req.payload, result);
+      } else if (req.kind === "aa_sign" && result.kind === "aa_sign") {
+        await this.deps.sendSystemEvent("wallet:aa_sign_complete", {
+          status: "signed",
+          tx_ids: req.payload.tx_ids,
+          signatures: result.signatures,
+        });
       } else if (req.kind === "eip712_sign" && result.kind === "eip712_sign") {
         await this.deps.sendSystemEvent("wallet_eip712_response", {
           status: "success",
@@ -273,6 +282,13 @@ export class SessionWalletController {
           aa_resolved_mode: requestedMode,
           batched: pendingTxIds.length > 1,
           call_count: pendingTxIds.length,
+        });
+      } else if (req.kind === "aa_sign") {
+        await this.deps.sendSystemEvent("wallet:aa_sign_complete", {
+          status: "rejected",
+          error: reason ?? "Request rejected",
+          tx_ids: req.payload.tx_ids,
+          signatures: [],
         });
       } else if (req.kind === "eip712_sign") {
         await this.deps.sendSystemEvent("wallet_eip712_response", {
@@ -414,7 +430,11 @@ export class SessionWalletController {
       : undefined;
     if (!userState || !pending) return;
 
-    if (request.kind === "transaction" || request.kind === "eip712_sign")
+    if (
+      request.kind === "transaction" ||
+      request.kind === "aa_sign" ||
+      request.kind === "eip712_sign"
+    )
       return;
     const ids =
       "pendingSolanaIds" in request.payload &&
@@ -580,6 +600,7 @@ export class SessionWalletController {
     kind: WalletRequestKind,
     payload:
       | WalletTxPayload
+      | WalletAaSignPayload
       | WalletEip712Payload
       | WalletSolanaSignPayload
       | WalletSolanaSignMessagePayload,
@@ -594,6 +615,9 @@ export class SessionWalletController {
       }
       const txIds = txIdsFromPayload(txPayload);
       if (txIds.length > 0) return `tx-${txIds.join("-")}`;
+    } else if (kind === "aa_sign") {
+      const { tx_ids: txIds } = payload as WalletAaSignPayload;
+      if (txIds.length > 0) return `aa-${txIds.join("-")}`;
     } else if (kind === "eip712_sign") {
       const { eip712Id } = payload as WalletEip712Payload;
       if (typeof eip712Id === "number") return `eip712-${eip712Id}`;
@@ -611,6 +635,7 @@ export class SessionWalletController {
     kind: WalletRequestKind,
     payload:
       | WalletTxPayload
+      | WalletAaSignPayload
       | WalletEip712Payload
       | WalletSolanaSignPayload
       | WalletSolanaSignMessagePayload,
@@ -619,6 +644,9 @@ export class SessionWalletController {
   ): WalletRequest {
     if (kind === "transaction") {
       return { id, kind, payload: payload as WalletTxPayload, timestamp };
+    }
+    if (kind === "aa_sign") {
+      return { id, kind, payload: payload as WalletAaSignPayload, timestamp };
     }
     if (kind === "eip712_sign") {
       return { id, kind, payload: payload as WalletEip712Payload, timestamp };

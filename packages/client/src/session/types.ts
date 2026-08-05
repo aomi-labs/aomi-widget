@@ -12,17 +12,52 @@ import type {
 
 export type WalletRequestKind =
   | "transaction"
+  | "aa_sign"
   | "eip712_sign"
   | "solana_sign"
   | "solana_sign_message"
   | "solana_send"
   | "solana_sign_and_send";
 
+export type WalletAaSignatureRequest =
+  | {
+      kind: "personal_sign";
+      message: string;
+      raw_payload: string;
+    }
+  | {
+      kind: "eip7702_authorization";
+      contract_address: string;
+      chain_id: number;
+      nonce: number;
+      raw_payload: string;
+    };
+
+export type WalletAaSignPayload = {
+  chain_family: "evm";
+  chain_id: number;
+  signer: string;
+  executor: string;
+  aa_mode: "4337" | "7702";
+  tx_ids: number[];
+  signature_requests: WalletAaSignatureRequest[];
+  description: string;
+  sponsored: boolean;
+  tx_id?: string;
+  timestamp?: string;
+};
+
 export type WalletRequest =
   | {
       id: string;
       kind: "transaction";
       payload: WalletTxPayload;
+      timestamp: number;
+    }
+  | {
+      id: string;
+      kind: "aa_sign";
+      payload: WalletAaSignPayload;
       timestamp: number;
     }
   | {
@@ -86,6 +121,10 @@ export type WalletRequestResult =
       completedTxIds?: number[];
       failedTxIds?: number[];
       failureReason?: string;
+    }
+  | {
+      kind: "aa_sign";
+      signatures: string[];
     }
   | {
       kind: "eip712_sign";
@@ -155,6 +194,7 @@ export type SessionRuntimeOptions = {
 
 export type SessionEventMap = {
   wallet_tx_request: WalletRequest;
+  wallet_aa_sign_request: WalletRequest;
   wallet_eip712_request: WalletRequest;
   wallet_solana_sign_request: WalletRequest;
   wallet_solana_sign_message_request: WalletRequest;
