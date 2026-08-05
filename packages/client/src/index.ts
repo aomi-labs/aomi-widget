@@ -50,6 +50,7 @@ export type {
   AomiHttpMethod,
   AomiAccessApproval,
   AomiAccountProfile,
+  AomiAuthPurpose,
   AomiAuthIdentity,
   AomiCreateApprovalRequest,
   AomiIdentityWallet,

@@ -302,6 +302,7 @@ describe("AomiClient account profile", () => {
         ),
       ).toEqual({
         application: "byreal",
+        purpose: "link_wallet",
       });
       expect(
         JSON.parse(
@@ -309,8 +310,35 @@ describe("AomiClient account profile", () => {
         ),
       ).toEqual({
         application: "byreal",
+        purpose: "link_wallet",
         wallet_family: "solana",
       });
+    } finally {
+      vi.stubGlobal("fetch", originalFetch);
+    }
+  });
+
+  it("keeps Privy delegation separate from wallet linking", async () => {
+    const response = {
+      ok: true,
+      json: vi.fn(async () => ({
+        state_token: "state-1",
+        auth_url: "https://chat.example/auth/privy?purpose=delegate_signing",
+        expires_at: 1_800_000_000,
+      })),
+    } as unknown as Response;
+    const nativeFetch = vi.fn(async () => response);
+    const originalFetch = globalThis.fetch;
+    vi.stubGlobal("fetch", nativeFetch);
+
+    try {
+      const client = new AomiClient({ baseUrl: "http://unit.test" });
+      await client.beginPrivyDelegation("session-1", { walletFamily: "evm" });
+      expect(
+        JSON.parse(
+          (nativeFetch.mock.calls[0]?.[1] as RequestInit).body as string,
+        ),
+      ).toEqual({ purpose: "delegate_signing" });
     } finally {
       vi.stubGlobal("fetch", originalFetch);
     }

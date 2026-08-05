@@ -3,6 +3,7 @@
 import type { SignerMode, WalletPolicy } from "./types";
 import {
   SIGNER_MODES,
+  modeHintFor,
   modeValidFor,
   unavailableReason,
 } from "./account-reconcile";
@@ -45,16 +46,24 @@ export function SigningModeList({
           >
             <span
               className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${
-                isSelected ? "border-aomi-fg bg-aomi-fg" : "border-aomi-border bg-aomi-bg"
+                isSelected
+                  ? "border-aomi-fg bg-aomi-fg"
+                  : "border-aomi-border bg-aomi-bg"
               }`}
             >
-              {isSelected && <span className="bg-aomi-bg h-1.5 w-1.5 rounded-full" />}
+              {isSelected && (
+                <span className="bg-aomi-bg h-1.5 w-1.5 rounded-full" />
+              )}
             </span>
             <span className="flex min-w-0 flex-col gap-0.5">
-              <span className={`text-sm font-medium leading-none ${isSelected ? "text-aomi-fg" : ""}`}>
+              <span
+                className={`text-sm font-medium leading-none ${isSelected ? "text-aomi-fg" : ""}`}
+              >
                 {mode.label}
               </span>
-              <span className="text-aomi-muted text-[12px] leading-snug">{mode.hint}</span>
+              <span className="text-aomi-muted text-[12px] leading-snug">
+                {modeHintFor(wallet, mode.id)}
+              </span>
               {!valid && (
                 <span className="text-aomi-muted/80 text-[11px] leading-snug">
                   {unavailableReason(wallet, mode.id)}
