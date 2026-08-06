@@ -71,16 +71,17 @@ describe("DeployStep", () => {
     ).toBeInTheDocument();
   });
 
-  it("does not send the shell platform during project preflight", async () => {
+  it("keeps the selected platform on preflight", async () => {
     vi.mocked(launchPreflight).mockRejectedValueOnce(new Error("stop"));
     render(<DeployStep {...defaultProps} platform="somm.finance" />);
 
     fireEvent.click(screen.getByRole("button", { name: "Preflight" }));
 
-    await waitFor(() => expect(launchPreflight).toHaveBeenCalledOnce());
-    const input = vi.mocked(launchPreflight).mock.calls[0]?.[0];
-    expect(input).toMatchObject({ installationId: "12345", repo: "alice/bot" });
-    expect(input).not.toHaveProperty("platform");
+    await waitFor(() =>
+      expect(launchPreflight).toHaveBeenCalledWith(
+        expect.objectContaining({ platform: "somm.finance" }),
+      ),
+    );
   });
 
   it("deploys the immutable commit returned by preflight", async () => {

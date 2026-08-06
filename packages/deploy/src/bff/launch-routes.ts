@@ -145,10 +145,7 @@ export function resolveLaunchConfig(
     templateRepo:
       overrides?.templateRepo ??
       (process.env.APP_DEPLOY_TEMPLATE_REPO?.trim() ||
-        envString(
-          "NEXT_PUBLIC_APP_DEPLOY_TEMPLATE_REPO",
-          DEFAULT_TEMPLATE_REPO,
-        )),
+        envString("NEXT_PUBLIC_APP_DEPLOY_TEMPLATE_REPO", DEFAULT_TEMPLATE_REPO)),
     createdRepoPrivate:
       overrides?.createdRepoPrivate ??
       envBoolean("APP_DEPLOY_CREATED_REPO_PRIVATE", false),
@@ -182,7 +179,7 @@ export function appNamesFromDeployment(
 export type LaunchRouteHandler = (req: Request) => Promise<Response>;
 
 export type LaunchRoutes = {
-  /** POST — dry-run deploy; resolves an existing Project by id or repo. */
+  /** POST — dry-run deploy; creates a project from a repo when needed. */
   preflight: LaunchRouteHandler;
   /** POST — the apply step against a resolved project. */
   deploy: LaunchRouteHandler;
@@ -328,7 +325,10 @@ export function createLaunchRoutes(options: LaunchRoutesOptions): LaunchRoutes {
         string,
         unknown
       >;
-      if (body.projectId !== undefined && !isValidProjectId(body.projectId)) {
+      if (
+        body.projectId !== undefined &&
+        !isValidProjectId(body.projectId)
+      ) {
         return jsonResponse({ error: "invalid `projectId`" }, 400);
       }
       if (body.repo !== undefined && !isValidRepo(body.repo)) {
@@ -341,12 +341,15 @@ export function createLaunchRoutes(options: LaunchRoutesOptions): LaunchRoutes {
         if (!session) {
           return jsonResponse({ error: "not signed in with GitHub" }, 401);
         }
+        const cfg = config();
         const client = await getClient();
 
-        // Preflight may resolve an existing Project by repository. It never
-        // creates one: `project create` owns that lifecycle. Apply reuses the
-        // immutable Project id and commit returned by preflight.
+        // Preflight may create a project from a repo and resolve its default
+        // head. Apply always reuses the immutable commit returned by preflight.
+        // Once a project is known its bound platform wins; the host default
+        // applies only at creation time.
         let projectId: number;
+        let platform: string;
         let deploySourceRef = sourceRef(body.sourceRef);
         if (isValidProjectId(body.projectId)) {
           const project = await ownedProject(
@@ -361,25 +364,18 @@ export function createLaunchRoutes(options: LaunchRoutesOptions): LaunchRoutes {
             );
           }
           projectId = project.id;
+          platform = platformOf(project, cfg.platform);
         } else if (preflight && repo) {
-          const projects = await client.listUserProjects({
+          const project = await client.createProject({
+            platform: cfg.platform,
+            repo,
             githubUserId: session.githubUserId,
           });
-          const project = projects.find(
-            (candidate) =>
-              candidate.repositoryLink.trim().toLowerCase() ===
-              repo.toLowerCase(),
-          );
-          if (!project) {
-            return jsonResponse(
-              {
-                error:
-                  "repository is not connected as a Project; run `aomi-build project create` first",
-              },
-              404,
-            );
+          if (!isValidProjectId(project.id)) {
+            throw new Error("backend did not return a valid project id");
           }
           projectId = project.id;
+          platform = cfg.platform;
         } else {
           return jsonResponse(
             {
@@ -403,11 +399,13 @@ export function createLaunchRoutes(options: LaunchRoutesOptions): LaunchRoutes {
         const actor = typeof body.actor === "string" ? body.actor : undefined;
         const { deployment } = preflight
           ? await client.preflight({
+              platform,
               projectId,
               sourceRef: deploySourceRef ?? undefined,
               actor,
             })
           : await client.deploy({
+              platform,
               projectId,
               sourceRef: deploySourceRef!,
               actor,
@@ -563,7 +561,10 @@ export function createLaunchRoutes(options: LaunchRoutesOptions): LaunchRoutes {
         body.projectId,
       );
       if (!project) {
-        return jsonResponse({ error: "project not found for this user" }, 404);
+        return jsonResponse(
+          { error: "project not found for this user" },
+          404,
+        );
       }
       const platform = platformOf(project, cfg.platform);
       const pairs = apps.map((app, index) => ({

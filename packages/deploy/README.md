@@ -3,12 +3,12 @@
 TypeScript toolkit for the Aomi platform deploy API, in three cleanly
 separated layers:
 
-| Entry                         | Runs in     | What it is                                                                                                                     |
-| ----------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `@aomi-labs/deploy`           | server only | `BackendClient` — typed HTTP client holding the activation/service bearer                                                      |
-| `@aomi-labs/deploy/bff`       | server only | Drop-in BFF route factories: the one-shot launch flow + "Sign in with GitHub"                                                  |
-| `@aomi-labs/deploy/launch`    | browser     | Typed client for the BFF routes (launch + deployments console), wizard state machine, contracts, OAuth-callback result mapping |
-| `@aomi-labs/deploy/lifecycle` | browser     | Pure helpers projecting deploy records into dashboard state                                                                    |
+| Entry | Runs in | What it is |
+| --- | --- | --- |
+| `@aomi-labs/deploy` | server only | `BackendClient` — typed HTTP client holding the activation/service bearer |
+| `@aomi-labs/deploy/bff` | server only | Drop-in BFF route factories: the one-shot launch flow + "Sign in with GitHub" |
+| `@aomi-labs/deploy/launch` | browser | Typed client for the BFF routes (launch + deployments console), wizard state machine, contracts, OAuth-callback result mapping |
+| `@aomi-labs/deploy/lifecycle` | browser | Pure helpers projecting deploy records into dashboard state |
 
 **There is no UI component to install.** The deploy UI is a fast-churn page,
 not a stable primitive, so it is not published as a package you vendor — build
@@ -142,21 +142,18 @@ rules make that work:
    you.
 
 2. **A deploy target is earned, not asserted.** A source deploys into a
-   platform because it was _claimed_ there — created one-click on it, or
+   platform because it was *claimed* there — created one-click on it, or
    connected through the GitHub OAuth ceremony below. Passing a different
    `platform` string on a later call doesn't move it; the backend rejects the
    mismatch.
 
 **Bind the platform once**, at construction — do not thread it through every
-call. Omitting it on a single call falls back to the BFF's _default_ platform,
+call. Omitting it on a single call falls back to the BFF's *default* platform,
 which is a silent wrong-platform write rather than an error:
 
 ```ts
 "use client";
-import {
-  createLaunchClient,
-  LaunchRequestError,
-} from "@aomi-labs/deploy/launch";
+import { createLaunchClient, LaunchRequestError } from "@aomi-labs/deploy/launch";
 
 // The exact name your partner gave you.
 const launch = createLaunchClient({ platform: "somm.finance" });
@@ -188,7 +185,7 @@ failures stay distinguishable.
 One-click creates a fresh repo on the user's personal account. A partner
 developer usually arrives with an **existing** repository (often under an
 org). Connecting it is a GitHub OAuth round trip that proves — with the
-_user's_ token, not the App's — that the signed-in GitHub user can actually
+*user's* token, not the App's — that the signed-in GitHub user can actually
 read that repo, then claims the source for that user and that exact platform:
 
 ```ts
@@ -215,7 +212,7 @@ didn't validate.
 import { connectionResult } from "@aomi-labs/deploy/launch";
 
 const result = connectionResult({
-  launch: params.launch, // "bound" | "awaiting_install" | …
+  launch: params.launch,            // "bound" | "awaiting_install" | …
   repo: params.repo,
   githubError: params.github_error, // capped + sanitized before display
 });
@@ -237,7 +234,7 @@ exactly one code path:
 const { deployment } = await launch.deploy({ projectId, sourceRef });
 
 await launch.watch({ deploymentId: deployment.id }, (event) => {
-  setProgress(event.progress); // { completed, total, label }
+  setProgress(event.progress);            // { completed, total, label }
   if (event.kind === "terminal") setState(event.status.state);
   if (event.kind === "error") setError(event.error);
 });
@@ -277,14 +274,15 @@ same handler, so there is one method.
 
 ### `preflight()`
 
-Calls `POST /api/projects/:projectId/deploy` with `preflight: true`. Returns the deployment record
+Calls `POST /api/platforms/:platform/deploy` with the source identity, optional
+root `.aomi/config.json`, and `preflight: true`. Returns the deployment record
 without opening or updating the platform PR. Use this to render
 `deployment.json` before the user applies.
 
 ### `deploy()`
 
-Calls `POST /api/projects/:projectId/deploy` with an immutable source ref.
-This is the apply step: it writes the platform deployment
+Calls `POST /api/platforms/:platform/deploy` with the source identity and root
+`.aomi/config.json`. This is the apply step: it writes the platform deployment
 branch/PR when needed and starts the CI path.
 
 `sourceRef` must be the immutable git commit SHA to deploy. Resolve branches or
@@ -327,15 +325,15 @@ await dc.watchDeployment(id, "community", (event) => {
 The steps **before** deploy — the twin of the Rust `aomi-build` bootstrap
 commands. Each maps 1:1 onto a `/api/platforms/*` route.
 
-| Method                           | Route                                                                          | Purpose                                                               |
-| -------------------------------- | ------------------------------------------------------------------------------ | --------------------------------------------------------------------- |
-| `mintToken()`                    | `POST /:p/tokens`                                                              | mint a `platform` or `app` activation token (plaintext returned once) |
-| `listTokens()` / `revokeToken()` | `GET` / `DELETE /:p/tokens[/:id]`                                              | token lifecycle                                                       |
-| `createProject()`                | `POST /api/platforms/:p/projects`                                              | resolve an installed repo → `projectId` for deploy                    |
-| `scaffold()`                     | `POST /api/integrations/github-app/platforms/:p/projects/create-from-template` | one-shot: create a repo from a template → source                      |
-| `listApps()` / `getApp()`        | `GET /:p/apps[/:app]`                                                          | inventory loaded apps (find `app_id` for app-scoped tokens)           |
-| `exchangeGitHubCode()`           | `GET /api/integrations/github-app/oauth/exchange`                              | GitHub OAuth code → identity (sign-in seam)                           |
-| `listUserProjects()`             | `GET /api/integrations/github-app/user/projects`                               | a GitHub user's connected source repos + their apps                   |
+| Method                           | Route                                                                          | Purpose                                                                |
+| -------------------------------- | ------------------------------------------------------------------------------ | ---------------------------------------------------------------------- |
+| `mintToken()`                    | `POST /:p/tokens`                                                              | mint a `platform` or `app` activation token (plaintext returned once)  |
+| `listTokens()` / `revokeToken()` | `GET` / `DELETE /:p/tokens[/:id]`                                              | token lifecycle                                                         |
+| `createProject()`                   | `POST /api/platforms/:p/projects`                                              | resolve an installed repo → `projectId` for deploy                    |
+| `scaffold()`                     | `POST /api/integrations/github-app/platforms/:p/projects/create-from-template`  | one-shot: create a repo from a template → source                        |
+| `listApps()` / `getApp()`        | `GET /:p/apps[/:app]`                                                          | inventory loaded apps (find `app_id` for app-scoped tokens)             |
+| `exchangeGitHubCode()`           | `GET /api/integrations/github-app/oauth/exchange`                              | GitHub OAuth code → identity (sign-in seam)                             |
+| `listUserProjects()`              | `GET /api/integrations/github-app/user/projects`                                | a GitHub user's connected source repos + their apps                     |
 
 ### Credential model
 
@@ -380,6 +378,7 @@ const { id } = await client.createProject({
   repo: "alice/alice-bot",
 });
 await client.deploy({
+  platform: "playground",
   projectId: id,
   sourceRef: process.env.AOMI_SOURCE_REF!,
 });
@@ -441,7 +440,7 @@ interface DeployInput {
 interface ActivateInput {
   platform: string;
   target: { kind: "release_tags"; value: string[] };
-  apps?: string[]; // optional; backend can derive from release tags
+  apps?: string[];       // optional; backend can derive from release tags
   targetTags?: string[];
   actor?: string;
 }
@@ -481,12 +480,14 @@ const dc = new BackendClient({
 });
 
 const preview = await dc.preflight({
+  platform: "community",
   projectId: 42,
   sourceRef: process.env.AOMI_SOURCE_REF!,
 });
 console.log(JSON.stringify(preview.deployment, null, 2));
 
 const { deployment } = await dc.deploy({
+  platform: "community",
   projectId: 42,
   sourceRef: process.env.AOMI_SOURCE_REF!,
 });

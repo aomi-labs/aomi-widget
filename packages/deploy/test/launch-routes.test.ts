@@ -140,11 +140,25 @@ describe("createLaunchRoutes deploy/preflight", () => {
     expect(body).toEqual({ error: "deploy rejected" });
   });
 
-  it("preflight resolves the existing Project by repo and its immutable commit", async () => {
+  it("preflight creates the project by repo, then resolves its immutable commit", async () => {
     session.mockResolvedValueOnce({ githubUserId: "42", githubLogin: "alice" });
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(ownedProjects(123))
+      .mockResolvedValueOnce(
+        Response.json({
+          ok: true,
+          project: {
+            id: 123,
+            installation_id: 555,
+            repository_id: 999,
+            repository_link: "alice/bot",
+            platform_id: 1,
+            owner_builder_id: 42,
+            created_at: 1,
+            updated_at: 1,
+          },
+        }),
+      )
       .mockResolvedValueOnce(
         Response.json({
           ok: true,
@@ -169,17 +183,18 @@ describe("createLaunchRoutes deploy/preflight", () => {
     expect(body.repo).toBe("alice/bot");
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
-      `${BACKEND}/api/integrations/github-app/user/projects?github_user_id=42`,
+      `${BACKEND}/api/platforms/community/projects`,
       expect.objectContaining({
-        method: "GET",
+        method: "POST",
+        body: JSON.stringify({ repo: "alice/bot", github_user_id: "42" }),
       }),
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
-      `${BACKEND}/api/projects/123/deploy`,
+      `${BACKEND}/api/platforms/community/deploy`,
       expect.objectContaining({
         method: "POST",
-        body: JSON.stringify({ preflight: true }),
+        body: JSON.stringify({ project_id: 123, preflight: true }),
       }),
     );
   });
@@ -230,7 +245,7 @@ describe("createLaunchRoutes deploy/preflight", () => {
     expect(body).toMatchObject({ repo: "alice/bot", projectId: 777 });
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
-      `${BACKEND}/api/projects/777/deploy`,
+      `${BACKEND}/api/platforms/community/deploy`,
       expect.objectContaining({
         method: "POST",
         body: expect.stringContaining('"source_ref":"abc1234def5678"'),
@@ -238,7 +253,7 @@ describe("createLaunchRoutes deploy/preflight", () => {
     );
   });
 
-  it("deploys by Project identity without a client-selected platform", async () => {
+  it("deploys to the project's bound platform, not the configured default", async () => {
     session.mockResolvedValueOnce({ githubUserId: "42", githubLogin: "alice" });
     const fetchMock = vi
       .fn()
@@ -261,7 +276,7 @@ describe("createLaunchRoutes deploy/preflight", () => {
 
     expect(res.status).toBe(202);
     expect(String(fetchMock.mock.calls[1][0])).toBe(
-      `${BACKEND}/api/projects/777/deploy`,
+      `${BACKEND}/api/platforms/somm.finance/deploy`,
     );
   });
 

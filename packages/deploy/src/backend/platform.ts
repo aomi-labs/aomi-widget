@@ -47,8 +47,8 @@ import {
 import { BackendClientCore } from "./core";
 
 /**
- * Platform/admin tier of the deploy client: Project-scoped deployment plus
- * the `/api/platforms/*` result, activation, token, and bootstrap surfaces
+ * Platform/admin tier of the deploy client: the `/api/platforms/*` surface
+ * (deploy lifecycle, activation, tokens, project bootstrap, apps, records)
  * plus the secrets vault. See core.ts for the tier layout.
  */
 export class BackendPlatformClient extends BackendClientCore {
@@ -118,13 +118,10 @@ export class BackendPlatformClient extends BackendClientCore {
     input: PreflightInput | DeployInput,
     action: "preflight" | "deploy",
   ): Promise<DeployResult> {
-    const projectId = this.positiveInt(
-      input.projectId,
-      "deploy requires a positive projectId",
-    );
+    const platform = required(input.platform, "platform");
     const body = deployRequest(input, action === "preflight");
     const result = await this.post<DeployResult>(
-      `/api/projects/${projectId}/deploy`,
+      this.platformPath(platform, "deploy"),
       body,
       action,
       this.resolveBearer(),
@@ -137,7 +134,8 @@ export class BackendPlatformClient extends BackendClientCore {
       );
     }
     await this.audit(action, input.actor, {
-      projectId,
+      platform,
+      projectId: input.projectId,
     });
     return cameled;
   }

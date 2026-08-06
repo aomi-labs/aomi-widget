@@ -195,7 +195,7 @@ function createBaseClient(options: LaunchClientOptions) {
 
   const backendFetch =
     options.backendFetch ??
-    (<T>(path: string) => launchFetch<T>(path, "backend request"));
+    (<T,>(path: string) => launchFetch<T>(path, "backend request"));
 
   function status(input: {
     deploymentId: string;
@@ -267,15 +267,10 @@ function createBaseClient(options: LaunchClientOptions) {
         params.set("cursorCreatedAt", String(input.cursor.createdAt));
         params.set("cursorId", String(input.cursor.id));
       }
-      return launchFetch(
-        `${deploymentsPath}/feed?${params}`,
-        "deployment feed",
-      );
+      return launchFetch(`${deploymentsPath}/feed?${params}`, "deployment feed");
     },
 
-    secrets(input: {
-      applicationId: number;
-    }): Promise<DeploymentSecretsResult> {
+    secrets(input: { applicationId: number }): Promise<DeploymentSecretsResult> {
       return launchFetch(
         `${deploymentsPath}/secrets?applicationId=${encodeURIComponent(String(input.applicationId))}`,
         "deployment secrets",
@@ -338,11 +333,7 @@ function createBaseClient(options: LaunchClientOptions) {
       apps?: string[];
       actor?: string;
     }): Promise<DeploymentPromoteResult> {
-      return postJson(
-        `${deploymentsPath}/promote`,
-        "deployment promote",
-        input,
-      );
+      return postJson(`${deploymentsPath}/promote`, "deployment promote", input);
     },
 
     deactivate(input: {
@@ -365,7 +356,11 @@ function createBaseClient(options: LaunchClientOptions) {
     platform: boundPlatform,
 
     preflight(input: LaunchPreflightInput): Promise<LaunchDeployResult> {
-      return postJson(`${basePath}/preflight`, "launch preflight", input);
+      return postJson(
+        `${basePath}/preflight`,
+        "launch preflight",
+        withPlatform(input),
+      );
     },
 
     deploy(input: LaunchDeployInput): Promise<LaunchDeployResult> {

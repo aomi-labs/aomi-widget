@@ -86,7 +86,6 @@ function ownedSources(...ids: number[]) {
     projects: ids.map((id) => ({
       id,
       installation_id: 555,
-      repository_link: "alice/bot",
       apps: [{ id: 77, name: "my-bot" }],
     })),
   });
@@ -304,14 +303,28 @@ describe("launchDeployRoute", () => {
     expect(body).toEqual({ error: "deploy rejected" });
   });
 
-  it("preflight resolves the existing Project by repo and immutable commit", async () => {
+  it("preflight creates the project by repo, then resolves its immutable commit", async () => {
     getGitHubSession.mockResolvedValueOnce({
       githubUserId: "42",
       githubLogin: "alice",
     });
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(ownedSources(123))
+      .mockResolvedValueOnce(
+        Response.json({
+          ok: true,
+          project: {
+            id: 123,
+            installation_id: 555,
+            repository_id: 999,
+            repository_link: "alice/bot",
+            platform_id: 1,
+            owner_builder_id: 42,
+            created_at: 1,
+            updated_at: 1,
+          },
+        }),
+      )
       .mockResolvedValueOnce(
         Response.json({
           ok: true,
@@ -344,17 +357,21 @@ describe("launchDeployRoute", () => {
     expect(body.repo).toBe("alice/bot");
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
-      "http://127.0.0.1:8080/api/integrations/github-app/user/projects?github_user_id=42",
+      "http://127.0.0.1:8080/api/platforms/community/projects",
       expect.objectContaining({
-        method: "GET",
+        method: "POST",
+        body: JSON.stringify({
+          repo: "alice/bot",
+          github_user_id: "42",
+        }),
       }),
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
-      "http://127.0.0.1:8080/api/projects/123/deploy",
+      "http://127.0.0.1:8080/api/platforms/community/deploy",
       expect.objectContaining({
         method: "POST",
-        body: JSON.stringify({ preflight: true }),
+        body: JSON.stringify({ project_id: 123, preflight: true }),
       }),
     );
   });
@@ -422,7 +439,7 @@ describe("launchDeployRoute", () => {
     });
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
-      "http://127.0.0.1:8080/api/projects/777/deploy",
+      "http://127.0.0.1:8080/api/platforms/community/deploy",
       expect.objectContaining({
         method: "POST",
         body: expect.stringContaining('"source_ref":"abc1234def5678"'),

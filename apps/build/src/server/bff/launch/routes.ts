@@ -302,11 +302,15 @@ export function launchDeployRoute(preflight: boolean) {
     const repo = isValidRepo(body.repo) ? body.repo : undefined;
 
     try {
+      const config = launchConfig();
       const client = await backendClient();
 
-      // Preflight resolves an existing Project by repository; creation is an
-      // explicit lifecycle. Apply reuses preflight's Project and commit.
+      // Preflight may create a project from a repository and resolve its
+      // default head. Apply always reuses preflight's immutable commit.
+      // Once a project is known its bound platform wins; the requested
+      // platform only applies at creation time.
       let projectId: number;
+      let platform: string;
       let deploySourceRef = sourceRef(body.sourceRef);
       if (isValidProjectId(body.projectId)) {
         // An explicit project id must belong to the signed-in user.
@@ -322,25 +326,20 @@ export function launchDeployRoute(preflight: boolean) {
           );
         }
         projectId = project.id;
+        platform = projectPlatform(project, config);
       } else if (preflight && repo) {
-        const projects = await client.listUserProjects({
+        const createPlatform = resolveLaunchPlatform(body.platform, config);
+        if (!createPlatform) return invalidPlatformResponse();
+        const project = await client.createProject({
+          platform: createPlatform,
+          repo,
           githubUserId: session.githubUserId,
         });
-        const project = projects.find(
-          (candidate) =>
-            candidate.repositoryLink.trim().toLowerCase() ===
-            repo.toLowerCase(),
-        );
-        if (!project) {
-          return NextResponse.json(
-            {
-              error:
-                "repository is not connected as a Project; run `aomi-build project create` first",
-            },
-            { status: 404 },
-          );
+        if (!isValidProjectId(project.id)) {
+          throw new Error("backend did not return a valid project id");
         }
         projectId = project.id;
+        platform = createPlatform;
       } else {
         return NextResponse.json(
           {
@@ -362,11 +361,13 @@ export function launchDeployRoute(preflight: boolean) {
       const actor = typeof body.actor === "string" ? body.actor : undefined;
       const { deployment } = preflight
         ? await client.preflight({
+            platform,
             projectId,
             sourceRef: deploySourceRef ?? undefined,
             actor,
           })
         : await client.deploy({
+            platform,
             projectId,
             sourceRef: deploySourceRef!,
             actor,

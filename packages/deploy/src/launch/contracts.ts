@@ -65,15 +65,22 @@ export type LaunchProgress = {
 };
 
 /**
- * Preflight / preview input. A repo may stand in for its already-connected
- * Project; preflight never creates one.
+ * Preflight / preview input. This is the one place a repo may stand in for a
+ * project: the preflight materializes the backend project and returns its
+ * `projectId`.
  */
 export type LaunchPreflightInput = {
+  /**
+   * Platform a project is CREATED on when `repo` stands in for a project;
+   * the host's default when omitted. Ignored once `projectId` is present —
+   * a known project always deploys to its own bound platform.
+   */
+  platform?: string;
   projectId?: number;
   sourceRef?: string;
   /** GitHub App installation that owns the project repo. Wizard context only. */
   installationId?: string;
-  /** `owner/name` repo used to resolve the existing Project. */
+  /** `owner/name` repo used to create the backend project when projectId is absent. */
   repo?: string;
   actor?: string;
 };
