@@ -27,6 +27,7 @@ import { operateFetch } from "./client";
 type BotProjectApp = {
   id: number;
   name: string;
+  isActive: boolean;
 };
 
 type BotProject = {
@@ -104,9 +105,7 @@ function threadModeLabel(threadMode: string): string {
   return threadMode === "multi" ? "Multiple threads" : "Single thread";
 }
 
-function botsUrl(
-  extra: Record<string, string> = {},
-): string {
+function botsUrl(extra: Record<string, string> = {}): string {
   const params = new URLSearchParams(extra);
   const query = params.toString();
   return query
@@ -772,11 +771,13 @@ export function BotsView() {
   const options = useMemo<AppOption[]>(
     () =>
       projects.flatMap((project) =>
-        (project.apps ?? []).map((app) => ({
-          applicationId: app.id,
-          name: app.name,
-          projectLabel: projectLabel(project),
-        })),
+        (project.apps ?? [])
+          .filter((app) => app.isActive)
+          .map((app) => ({
+            applicationId: app.id,
+            name: app.name,
+            projectLabel: projectLabel(project),
+          })),
       ),
     [projects],
   );

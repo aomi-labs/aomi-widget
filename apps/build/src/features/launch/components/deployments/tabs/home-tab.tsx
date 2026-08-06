@@ -180,6 +180,7 @@ export function HomeTab({
   ) => string;
 }) {
   const source = detail.source;
+  const { loadRequiredSecrets, loadSecrets } = detail;
   // Same key as the operate usage page and the project-detail prefetch, so a
   // hover or page-mount warm-up serves this card from cache.
   const usageQuery = useQuery({
@@ -206,11 +207,11 @@ export function HomeTab({
   );
 
   useEffect(() => {
-    detail.loadSecrets();
+    loadSecrets();
     // The card reports the same gate the deploy enforces, so it needs the
     // declared requirements — not just which keys happen to be set.
-    detail.loadRequiredSecrets?.();
-  }, [detail]);
+    loadRequiredSecrets?.();
+  }, [loadRequiredSecrets, loadSecrets]);
 
   const status = useMemo(
     () => (source ? projectDeploymentStatus(source) : null),

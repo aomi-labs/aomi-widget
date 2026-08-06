@@ -98,6 +98,16 @@ export class BackendClientCore {
     );
   }
 
+  protected ownedProjectBasePath(
+    projectId: number | string,
+    params: URLSearchParams,
+  ): string {
+    return this.userPath(
+      `projects/${encodeURIComponent(String(projectId))}`,
+      params,
+    );
+  }
+
   /** Shared interior of the owned-project operate reads: GET
    *  `/user/projects/:id/<suffix>`, audit `action`, map the body.
    *  Strict: `projectId` must be a positive safe integer. */

@@ -135,14 +135,12 @@ describe("userProjectsRoute", () => {
     expect(res.status).toBe(404);
   });
 
-  it("narrows by Project ID without leaking ID or platform to the manager", async () => {
+  it("reads the exact owned Project without leaking the shell platform", async () => {
     getGitHubSession.mockResolvedValueOnce({
       githubUserId: "42",
       githubLogin: "alice",
     });
-    const fetchMock = vi.fn(async () =>
-      Response.json({ projects: [sourceRow(99), sourceRow(100)] }),
-    );
+    const fetchMock = vi.fn(async () => Response.json(sourceRow(99)));
     vi.stubGlobal("fetch", fetchMock);
 
     const res = await userProjectsRoute(req("community", "99"));
@@ -152,9 +150,12 @@ describe("userProjectsRoute", () => {
     expect(body.projects[0].id).toBe(99);
     expect(body.githubLogin).toBe("alice");
 
-    // The filter is BFF-side; the manager still gets the plain list read.
-    expect(String(fetchMock.mock.calls[0][0])).not.toContain("projectId");
-    expect(String(fetchMock.mock.calls[0][0])).not.toContain("platform");
+    const managerUrl = String(fetchMock.mock.calls[0][0]);
+    expect(managerUrl).toContain(
+      "/api/integrations/github-app/user/projects/99?github_user_id=42",
+    );
+    expect(managerUrl).not.toContain("projectId");
+    expect(managerUrl).not.toContain("platform");
   });
 
   it("400s on a malformed projectId", async () => {
@@ -166,24 +167,28 @@ describe("userProjectsRoute", () => {
     expect(res.status).toBe(400);
   });
 
-  it("coalesces repeat reads onto the cache and refetches once cleared", async () => {
+  it("caches list and detail reads independently and refetches once cleared", async () => {
     getGitHubSession.mockResolvedValue({
       githubUserId: "42",
       githubLogin: "alice",
     });
-    const fetchMock = vi.fn(async () =>
-      Response.json({ projects: [sourceRow(99)] }),
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) =>
+      String(input).includes("/projects/99?")
+        ? Response.json(sourceRow(99))
+        : Response.json({ projects: [sourceRow(99)] }),
     );
     vi.stubGlobal("fetch", fetchMock);
 
     await userProjectsRoute(req());
     const narrowed = await userProjectsRoute(req(undefined, "99"));
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await userProjectsRoute(req(undefined, "99"));
+    expect(fetchMock).toHaveBeenCalledTimes(2);
     expect((await narrowed.json()).projects).toHaveLength(1);
 
     // Mutations clear the cache so post-deploy reloads see fresh projects.
     clearLaunchReadCache();
     await userProjectsRoute(req());
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    await userProjectsRoute(req(undefined, "99"));
+    expect(fetchMock).toHaveBeenCalledTimes(4);
   });
 });

@@ -23,10 +23,11 @@ describe("BackendClient deploy/preflight", () => {
   let fetchMock: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
-    // manager-v2 wire shape: a successful deploy is `{ deployment }` with no
-    // `ok` envelope — HTTP status carries success.
+    // Canonical manager wire shape: successful deploys explicitly confirm
+    // the application-level result as well as returning the deployment.
     fetchMock = vi.fn(async () =>
       Response.json({
+        ok: true,
         deployment: {
           id: "dep_123_abc1234",
           status: "preflight",

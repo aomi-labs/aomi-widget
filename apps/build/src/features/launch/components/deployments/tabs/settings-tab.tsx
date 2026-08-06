@@ -28,7 +28,7 @@ export function SettingsTab({ detail }: { detail: Detail }) {
     <div className="text-sm">
       <dl className="divide-border divide-y">
         <Row label="Repository" value={source.repositoryLink ?? "-"} />
-        <Row label="Source ID" value={`#${source.id}`} />
+        <Row label="Project ID" value={`#${source.id}`} />
         <Row label="Installation" value={String(source.installationId)} />
       </dl>
       <div className="border-border flex items-center justify-between border-t px-4 py-3">

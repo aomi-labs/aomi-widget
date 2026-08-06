@@ -56,7 +56,7 @@ const PROJECTS = [
   {
     id: 1,
     repositoryLink: "ceciliaz030/local-8",
-    apps: [{ id: 11, name: "playground-example" }],
+    apps: [{ id: 11, name: "playground-example", isActive: true }],
   },
 ];
 

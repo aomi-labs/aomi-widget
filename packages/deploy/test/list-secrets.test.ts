@@ -33,7 +33,7 @@ describe("BackendClient.listSecrets", () => {
 });
 
 describe("BackendClient app-scoped service secrets", () => {
-  it("passes source_id when listing app secrets", async () => {
+  it("passes project_id when listing app secrets", async () => {
     const c = client();
     const get = vi
       .spyOn(c as unknown as { get: () => unknown }, "get")
@@ -48,13 +48,13 @@ describe("BackendClient app-scoped service secrets", () => {
 
     expect(result.byApp).toEqual({ demo: ["API_KEY"] });
     expect(get).toHaveBeenCalledWith(
-      "/api/_internal/secrets?user_id=github-user&source_id=42",
+      "/api/_internal/secrets?user_id=github-user&project_id=42",
       "list_secrets",
       "act-token",
     );
   });
 
-  it("tags writes and deletes with source_id", async () => {
+  it("tags writes and deletes with project_id", async () => {
     const c = client();
     const post = vi
       .spyOn(c as unknown as { post: () => unknown }, "post")
@@ -82,7 +82,7 @@ describe("BackendClient app-scoped service secrets", () => {
       {
         user_id: "github-user",
         app: "demo",
-        source_id: "42",
+        project_id: "42",
         secrets: { API_KEY: "secret" },
       },
       "ingest_secrets",
@@ -95,7 +95,7 @@ describe("BackendClient app-scoped service secrets", () => {
       {
         user_id: "github-user",
         app: "demo",
-        source_id: "42",
+        project_id: "42",
         name: "API_KEY",
       },
     );

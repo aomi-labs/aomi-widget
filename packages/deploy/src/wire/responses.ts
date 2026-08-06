@@ -25,10 +25,7 @@ export function camelDeployResult(result: unknown): DeployResult {
   const source = deployment.source ?? {};
   const platform = deployment.platform ?? {};
   return {
-    // manager-v2 answers a successful deploy with `{ deployment }` and no
-    // `ok` envelope — HTTP status carries success (non-2xx already threw in
-    // the transport). Only an explicit `ok: false` marks a rejection.
-    ok: raw.ok !== false,
+    ok: raw.ok === true,
     deployment: {
       id: deployment.id,
       status: deployment.status,
@@ -387,10 +384,46 @@ export function camelUserDeploymentsCursor(
 
 export function camelUserProject(raw: unknown): UserProject {
   const project = (raw ?? {}) as Record<string, any>;
+  const configuration = project.configuration as
+    | Record<string, any>
+    | null
+    | undefined;
   return {
     ...camelProject(project),
     platformName: project.platform_name ?? project.platformName ?? null,
     apps: ((project.apps ?? []) as unknown[]).map(camelPlatformApp),
+    configuration:
+      configuration?.status === "valid"
+        ? {
+            status: "valid",
+            revision: String(configuration.revision ?? ""),
+            configHash: String(
+              configuration.config_hash ?? configuration.configHash ?? "",
+            ),
+            applications: (
+              (configuration.applications ?? []) as Record<string, any>[]
+            ).map((app) => ({
+              path: String(app.path ?? ""),
+              name: String(app.name ?? ""),
+              sdkVersion: app.sdk_version ?? app.sdkVersion ?? null,
+              target: String(app.target ?? ""),
+            })),
+          }
+        : configuration?.status === "invalid"
+          ? {
+              status: "invalid",
+              checkedRevision: String(
+                configuration.checked_revision ??
+                  configuration.checkedRevision ??
+                  "",
+              ),
+              reason: configuration.reason,
+              lastValidRevision:
+                configuration.last_valid_revision ??
+                configuration.lastValidRevision ??
+                null,
+            }
+          : undefined,
     latestDeployment: camelUserProjectLatestDeployment(
       project.latest_deployment ?? project.latestDeployment,
     ),

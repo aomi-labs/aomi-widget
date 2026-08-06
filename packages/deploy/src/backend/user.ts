@@ -10,6 +10,7 @@ import type {
   DeleteUserBotInput,
   DeleteUserProjectBotInput,
   ExchangeGitHubCodeInput,
+  GetUserProjectInput,
   GetUserObservabilityInput,
   GetUserPaymentsInput,
   GetUserProjectAppDetailInput,
@@ -142,6 +143,24 @@ export class BackendClient extends BackendPlatformClient {
       },
       { platform: input.platform },
     );
+  }
+
+  async getUserProject(input: GetUserProjectInput): Promise<UserProject> {
+    if (!Number.isSafeInteger(input.projectId) || input.projectId <= 0) {
+      throw new Error("projectId must be a positive integer");
+    }
+    const githubUserId = required(input.githubUserId, "githubUserId");
+    const bearer = this.resolveBearer(input.bearer);
+    const params = new URLSearchParams({ github_user_id: githubUserId });
+    const raw = await this.get<Record<string, unknown>>(
+      this.ownedProjectBasePath(input.projectId, params),
+      "get_user_project",
+      bearer,
+    );
+    await this.audit("get_user_project", input.actor, {
+      projectId: input.projectId,
+    });
+    return camelUserProject(raw);
   }
 
   async listUserDeployments(

@@ -40,6 +40,7 @@ export function ProjectPage({
   const searchParams = useSearchParams();
   const router = useRouter();
   const detail = useProjectDetail(projectId);
+  const { accountKey, loadSecrets } = detail;
   const raw = searchParams.get("tab");
   const active: TabId = TABS.some((t) => t.id === raw)
     ? (raw as TabId)
@@ -63,13 +64,13 @@ export function ProjectPage({
   // prefetch the sidebar hover uses (deduped by react-query), and secrets —
   // which only need the source id — fire for the tabs that render them.
   useEffect(() => {
-    if (detail.accountKey) {
-      prefetchProjectDetail(queryClient, detail.accountKey, projectId);
+    if (accountKey) {
+      prefetchProjectDetail(queryClient, accountKey, projectId);
     }
-  }, [detail.accountKey, queryClient, projectId]);
+  }, [accountKey, queryClient, projectId]);
   useEffect(() => {
-    if (active === "home" || active === "environment") detail.loadSecrets();
-  }, [active, detail]);
+    if (active === "environment") loadSecrets();
+  }, [active, loadSecrets]);
 
   return (
     <main className="bg-background text-foreground min-h-screen">
@@ -81,6 +82,25 @@ export function ProjectPage({
         backLabel={backLabel}
       />
       <div className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6">
+        {detail.source?.configuration?.status === "invalid" ? (
+          <div
+            role="alert"
+            className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/5 px-4 py-3"
+          >
+            <div className="text-sm font-medium">
+              Project configuration invalid
+            </div>
+            <p className="text-dim mt-1 text-xs leading-5">
+              {detail.source.configuration.reason.replaceAll("-", " ")} at
+              revision{" "}
+              <span className="font-mono">
+                {detail.source.configuration.checkedRevision.slice(0, 12)}
+              </span>
+              . Existing deployments, history, and observability remain
+              available.
+            </p>
+          </div>
+        ) : null}
         <div
           role="tablist"
           className="bg-surface-2 mb-4 flex w-fit items-center gap-1 rounded-md p-1 text-sm"

@@ -88,6 +88,7 @@ const READ_CACHE_TTL_MS = 15_000;
 
 const readCache = {
   projects: new TimedPromiseCache<OwnedProject[]>(READ_CACHE_TTL_MS),
+  projectDetails: new TimedPromiseCache<OwnedProject>(READ_CACHE_TTL_MS),
   serverTags: new TimedPromiseCache<
     Awaited<ReturnType<BackendClientInstance["serverTags"]>>
   >(READ_CACHE_TTL_MS),
@@ -1240,9 +1241,8 @@ export async function redeployLaunchRoute(req: Request) {
 // merged across installations and platforms unless `platform` is explicit.
 // Scoped to the github_user_id in the session cookie; a client can never
 // request someone else's projects. `projectId` narrows the response to one
-// project — the manager has no single-project read, so the filter happens
-// here, off the cached list: a project page stops transferring the whole
-// account.
+// project through the manager's canonical detail read, including the current
+// revision-specific ProjectConfiguration.
 export async function userProjectsRoute(req: Request) {
   const auth = await authorize(req);
   if ("response" in auth) return auth.response;
@@ -1273,21 +1273,32 @@ export async function userProjectsRoute(req: Request) {
     const listPlatform =
       projectId === undefined ? (platform ?? undefined) : undefined;
     const client = await backendClient();
-    const projects = await readCache.projects.get(
-      [session.githubUserId, listPlatform ?? null],
-      () =>
-        timedManagerRead("list_user_projects", () =>
-          client.listUserProjects({
-            githubUserId: session.githubUserId,
-            platform: listPlatform,
-          }),
-        ),
-    );
+    const projects =
+      projectId === undefined
+        ? await readCache.projects.get(
+            [session.githubUserId, listPlatform ?? null],
+            () =>
+              timedManagerRead("list_user_projects", () =>
+                client.listUserProjects({
+                  githubUserId: session.githubUserId,
+                  platform: listPlatform,
+                }),
+              ),
+          )
+        : [
+            await readCache.projectDetails.get(
+              [session.githubUserId, projectId],
+              () =>
+                timedManagerRead("get_user_project", () =>
+                  client.getUserProject({
+                    githubUserId: session.githubUserId,
+                    projectId,
+                  }),
+                ),
+            ),
+          ];
     return NextResponse.json({
-      projects:
-        projectId === undefined
-          ? projects
-          : projects.filter((project) => project.id === projectId),
+      projects,
       githubLogin: session.githubLogin,
     });
   } catch (err) {

@@ -78,7 +78,7 @@ export class BackendPlatformClient extends BackendClientCore {
     return n;
   }
 
-  /** Shared `user_id`/`app`/`source_id` body for the internal secrets vault. */
+  /** Shared `user_id`/`app`/`project_id` body for the internal secrets vault. */
   private appSecretsBody(input: {
     githubUserId: string;
     app: string;
@@ -89,7 +89,7 @@ export class BackendPlatformClient extends BackendClientCore {
       app: required(input.app, "app"),
     };
     const projectId = input.projectId?.trim();
-    if (projectId) body.source_id = projectId;
+    if (projectId) body.project_id = projectId;
     return body;
   }
 
@@ -494,7 +494,7 @@ export class BackendPlatformClient extends BackendClientCore {
       `/api/_internal/secrets${this.qs({
         user_id: required(input.githubUserId, "githubUserId"),
         app: input.app?.trim() || undefined,
-        source_id: input.projectId?.trim() || undefined,
+        project_id: input.projectId?.trim() || undefined,
       })}`,
       this.resolveBearer(input.bearer, { privileged: true }),
     );

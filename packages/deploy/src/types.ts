@@ -36,6 +36,7 @@ export interface AuditEvent {
     | "list_user_project_apps"
     | "exchange_github_code"
     | "list_user_projects"
+    | "get_user_project"
     | "list_user_deployments"
     | "list_user_project_deployments"
     | "list_user_project_bots"
@@ -506,6 +507,11 @@ export interface ListUserProjectsInput extends BearerOverride {
   platform?: string;
 }
 
+export interface GetUserProjectInput extends BearerOverride {
+  githubUserId: string;
+  projectId: number;
+}
+
 export interface GetUserProjectLatestDeploymentInput extends BearerOverride {
   githubUserId: string;
   projectId: number;
@@ -612,10 +618,37 @@ export interface UserDeploymentsPage {
   nextCursor: UserDeploymentsCursor | null;
 }
 
+export interface ProjectApplicationManifest {
+  path: string;
+  name: string;
+  sdkVersion: string | null;
+  target: string;
+}
+
+export type ProjectConfiguration =
+  | {
+      status: "valid";
+      revision: string;
+      configHash: string;
+      applications: ProjectApplicationManifest[];
+    }
+  | {
+      status: "invalid";
+      checkedRevision: string;
+      reason:
+        | "config-missing"
+        | "config-invalid"
+        | "manifest-missing"
+        | "manifest-invalid"
+        | "application-name-conflict";
+      lastValidRevision: string | null;
+    };
+
 /** A platform-bound project plus its applications. */
 export interface UserProject extends Project {
   platformName: string | null;
   apps: PlatformApp[];
+  configuration?: ProjectConfiguration;
   latestDeployment?: UserProjectLatestDeployment | null;
   /** SDK version of the project's live app, from DB promotion records. */
   sdkVersion?: string | null;
