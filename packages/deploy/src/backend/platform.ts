@@ -8,11 +8,9 @@ import type {
   DeployResult,
   DeploymentProgressEvent,
   DeploymentStatus,
-  GetAppInput,
   IngestSecretsInput,
   IngestSecretsResult,
   ListAppSecretsInput,
-  ListAppsInput,
   ListDeploymentRecordsInput,
   ListDeploymentRecordsResult,
   ListSecretsInput,
@@ -20,7 +18,6 @@ import type {
   ListTokensInput,
   MintTokenInput,
   MintedToken,
-  PlatformApp,
   PreflightInput,
   Project,
   PromoteInput,
@@ -40,7 +37,6 @@ import {
   activateRequest,
   camelActivateResult,
   camelDeployResult,
-  camelPlatformApp,
   camelProject,
   camelStatusResult,
   camelTokenRecord,
@@ -190,19 +186,22 @@ export class BackendPlatformClient extends BackendClientCore {
     await this.audit("deactivate", input.actor, { platform, apps: [app] });
   }
 
+  /**
+   * Promote a recorded deployment to live through the one activation door:
+   * `POST /api/platforms/:platform/apps/activate` with a `deployment` target
+   * (`apps` filters the deployment's apps; empty = all). Replaces the retired
+   * v1 `/deployments/:id/promote` route.
+   */
   async promote(input: PromoteInput): Promise<PromoteResult> {
     const platform = required(input.platform, "platform");
     const deploymentId = required(input.deploymentId, "deploymentId");
     const result = await this.post<ActivateResult>(
-      this.platformPath(
-        platform,
-        `deployments/${encodeURIComponent(deploymentId)}/promote`,
-      ),
+      this.platformPath(platform, "apps/activate"),
       {
-        deployment_id: deploymentId,
-        apps: input.apps,
-        target_tags: input.targetTags,
-        actor: input.actor,
+        target: { kind: "deployment", value: deploymentId },
+        ...(input.apps?.length ? { apps: input.apps } : {}),
+        ...(input.targetTags?.length ? { target_tags: input.targetTags } : {}),
+        ...(input.actor ? { actor: input.actor } : {}),
       },
       "promote",
       this.resolveBearer(),
@@ -438,33 +437,6 @@ export class BackendPlatformClient extends BackendClientCore {
   // ──────────────────────── Bootstrap: platform apps ────────────────────────
 
   /** List loaded apps on a platform. `GET /api/platforms/:platform/apps`. */
-  async listApps(input: ListAppsInput): Promise<PlatformApp[]> {
-    const platform = required(input.platform, "platform");
-    const bearer = this.resolveBearer(input.bearer);
-    const raw = await this.get<{ apps?: unknown[] }>(
-      this.platformPath(platform, "apps"),
-      "list_apps",
-      bearer,
-    );
-    await this.audit("list_apps", input.actor, { platform });
-    return (raw.apps ?? []).map(camelPlatformApp);
-  }
-
-  /** Get one app on a platform. `GET /api/platforms/:platform/apps/:app`. */
-  async getApp(input: GetAppInput): Promise<PlatformApp> {
-    const platform = required(input.platform, "platform");
-    const app = required(input.app, "app");
-    const bearer = this.resolveBearer(input.bearer);
-    const raw = await this.get<{ app?: unknown }>(
-      this.platformPath(platform, `apps/${encodeURIComponent(app)}`) +
-        this.qs({ release_tag: input.releaseTag?.trim() || undefined }),
-      "get_app",
-      bearer,
-    );
-    await this.audit("get_app", input.actor, { platform });
-    return camelPlatformApp(raw.app);
-  }
-
   async listDeploymentRecords(
     input: ListDeploymentRecordsInput,
   ): Promise<ListDeploymentRecordsResult> {

@@ -934,9 +934,15 @@ describe("deploymentPromoteRoute", () => {
     expect(res.status).toBe(202);
     expect(body.ok).toBe(true);
     expect(body.promote.deploymentId).toBe(DEPLOYMENT);
+    // Promote goes through the one activation door with a deployment target.
     const [promoteUrl, promoteInit] = fetchMock.mock.calls[6];
-    expect(String(promoteUrl)).toContain(`/deployments/${DEPLOYMENT}/promote`);
-    expect(String(promoteInit?.body)).toContain('"actor":"alice"');
+    expect(String(promoteUrl)).toContain("/apps/activate");
+    const promoteBody = JSON.parse(String(promoteInit?.body));
+    expect(promoteBody.target).toEqual({
+      kind: "deployment",
+      value: DEPLOYMENT,
+    });
+    expect(promoteBody.actor).toBe("alice");
   });
 
   it("409s a promote when a required secret is unfilled", async () => {

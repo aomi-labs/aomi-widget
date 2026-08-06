@@ -619,7 +619,6 @@ export async function launchAppRoute(req: Request) {
   }
 
   try {
-    const config = launchConfig();
     const client = await backendClient();
     const projects = await cachedUserProjects(client, session.githubUserId);
     const owner = projects.find((project) =>
@@ -635,11 +634,23 @@ export async function launchAppRoute(req: Request) {
         { status: 404 },
       );
     }
-    const app = await client.getApp({
-      platform: projectPlatform(owner, config),
-      app: name,
-      releaseTag: releaseTag || undefined,
+    // Fresh per-project read — the project-scoped replacement for the
+    // retired platform-door `GET /:platform/apps/:app`.
+    const { apps } = await client.listUserProjectApps({
+      githubUserId: session.githubUserId,
+      projectId: owner.id,
     });
+    const app = apps.find(
+      (candidate) =>
+        candidate.name === name &&
+        (!releaseTag || candidate.appReleaseTag === releaseTag),
+    );
+    if (!app) {
+      return NextResponse.json(
+        { error: "app not found for this user" },
+        { status: 404 },
+      );
+    }
     const live = app.isActive && app.loaded;
     return NextResponse.json({
       ok: true,

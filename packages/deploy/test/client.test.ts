@@ -23,9 +23,10 @@ describe("BackendClient deploy/preflight", () => {
   let fetchMock: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
+    // manager-v2 wire shape: a successful deploy is `{ deployment }` with no
+    // `ok` envelope — HTTP status carries success.
     fetchMock = vi.fn(async () =>
       Response.json({
-        ok: true,
         deployment: {
           id: "dep_123_abc1234",
           status: "preflight",
@@ -128,6 +129,19 @@ describe("BackendClient deploy/preflight", () => {
       project_id: 42,
       source_ref: "abc1234def5678",
     });
+  });
+
+  it("still rejects an explicit ok:false deploy envelope", async () => {
+    fetchMock.mockResolvedValueOnce(
+      Response.json({ ok: false, deployment: { id: "dep_123_abc1234" } }),
+    );
+    await expect(
+      client().deploy({
+        platform: "community",
+        projectId: 42,
+        sourceRef: "abc1234def5678",
+      }),
+    ).rejects.toThrow(/rejected by backend/);
   });
 
   it("rejects invalid deploy input before calling the backend", async () => {

@@ -622,7 +622,6 @@ export function createLaunchRoutes(options: LaunchRoutesOptions): LaunchRoutes {
     }
 
     try {
-      const cfg = config();
       const client = await getClient();
       const projects = await client.listUserProjects({
         githubUserId: session.githubUserId,
@@ -637,11 +636,20 @@ export function createLaunchRoutes(options: LaunchRoutesOptions): LaunchRoutes {
       if (!owner) {
         return jsonResponse({ error: "app not found for this user" }, 404);
       }
-      const result = await client.getApp({
-        platform: platformOf(owner, cfg.platform),
-        app: name,
-        releaseTag: releaseTag || undefined,
+      // Fresh per-project read — the project-scoped replacement for the
+      // retired platform-door `GET /:platform/apps/:app`.
+      const { apps } = await client.listUserProjectApps({
+        githubUserId: session.githubUserId,
+        projectId: owner.id,
       });
+      const result = apps.find(
+        (candidate) =>
+          candidate.name === name &&
+          (!releaseTag || candidate.appReleaseTag === releaseTag),
+      );
+      if (!result) {
+        return jsonResponse({ error: "app not found for this user" }, 404);
+      }
       const live = result.isActive && result.loaded;
       return jsonResponse(
         {

@@ -33,8 +33,7 @@ export interface AuditEvent {
     | "revoke_token"
     | "create_project"
     | "scaffold"
-    | "list_apps"
-    | "get_app"
+    | "list_user_project_apps"
     | "exchange_github_code"
     | "list_user_projects"
     | "list_user_deployments"
@@ -441,18 +440,7 @@ export interface ScaffoldInput extends BearerOverride {
   private?: boolean;
 }
 
-// ── Platform apps (GET /api/platforms/:p/apps[/:app]) ────────────────────────
-
-export interface ListAppsInput extends BearerOverride {
-  platform: string;
-}
-
-export interface GetAppInput extends BearerOverride {
-  platform: string;
-  app: string;
-  /** Check loaded-state for a specific release tag. */
-  releaseTag?: string;
-}
+// ── Platform apps ────────────────────────────────────────────────────────────
 
 export interface AppPricingBeneficiary {
   name: string;
@@ -633,6 +621,15 @@ export interface UserProject extends Project {
   sdkVersion?: string | null;
   /** All distinct SDK versions running across this project's live apps. */
   sdkVersions?: string[];
+}
+
+/** One project's apps with live flags, from `GET /user/projects/:id/apps`
+ *  — the project-scoped replacement for the retired platform-door app
+ *  reads. */
+export interface UserProjectAppsResult {
+  project: Project;
+  platform: string;
+  apps: PlatformApp[];
 }
 
 /** Project-scoped read: the backend derives the bound platform from the

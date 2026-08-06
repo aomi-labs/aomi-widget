@@ -43,6 +43,7 @@ import type {
   UserDeploymentsPage,
   UserLogsResult,
   UserProject,
+  UserProjectAppsResult,
   UserProjectLatestDeployment,
   UserProjectRequiredSecretsResult,
   UserTransactionsResult,
@@ -59,6 +60,7 @@ import {
   camelOperateTransactions,
   camelOperateUsage,
   camelPartnerPayments,
+  camelPlatformApp,
   camelProject,
   camelTransactionCursor,
   camelTransactionRow,
@@ -225,6 +227,23 @@ export class BackendClient extends BackendPlatformClient {
             Boolean(deployment),
           ),
       (params) => setLimit(params, input.limit),
+    );
+  }
+
+  /** One project's apps with live flags — the project-scoped replacement
+   *  for the retired platform-door `GET /:platform/apps/:app`. */
+  async listUserProjectApps(
+    input: OwnedOperateProjectInput,
+  ): Promise<UserProjectAppsResult> {
+    return this.ownedGetLoose(
+      input,
+      "apps",
+      "list_user_project_apps",
+      (raw) => ({
+        project: camelProject(raw.project),
+        platform: optString(raw.platform) ?? "",
+        apps: ((raw.apps ?? []) as unknown[]).map(camelPlatformApp),
+      }),
     );
   }
 

@@ -25,7 +25,10 @@ export function camelDeployResult(result: unknown): DeployResult {
   const source = deployment.source ?? {};
   const platform = deployment.platform ?? {};
   return {
-    ok: Boolean(raw.ok),
+    // manager-v2 answers a successful deploy with `{ deployment }` and no
+    // `ok` envelope — HTTP status carries success (non-2xx already threw in
+    // the transport). Only an explicit `ok: false` marks a rejection.
+    ok: raw.ok !== false,
     deployment: {
       id: deployment.id,
       status: deployment.status,
