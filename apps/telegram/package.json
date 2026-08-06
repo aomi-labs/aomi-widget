@@ -3,40 +3,42 @@
   "version": "0.1.0",
   "private": true,
   "packageManager": "pnpm@10.28.0",
+  "engines": {
+    "node": ">=20.9.0"
+  },
+  "type": "module",
   "scripts": {
     "dev": "next dev",
     "dev:webpack": "next dev --no-turbopack",
     "build": "next build",
     "start": "next start",
+    "typecheck": "tsc --noEmit",
     "lint": "eslint .",
-    "test:unit": "rm -rf .tmp-test-dist && tsc -p tsconfig.test.json && tsc-alias -p tsconfig.test.json && node --test test/*.test.mjs",
-    "clean": "rm -rf node_modules .next .tmp-test-dist"
+    "test": "node --test test/*.test.mjs",
+    "test:unit": "node --test test/*.test.mjs",
+    "check": "pnpm typecheck && pnpm lint && pnpm test && pnpm build",
+    "clean": "rm -rf node_modules .next"
   },
   "dependencies": {
     "@aomi-labs/client": "workspace:*",
-    "@getpara/evm-wallet-connectors": "2.24.0",
-    "@getpara/react-sdk": "2.24.0",
-    "@getpara/web-sdk": "2.24.0",
-    "@privy-io/react-auth": "^2.0.0",
-    "@privy-io/wagmi": "^1.0.0",
+    "@getpara/core-sdk": "3.12.0",
+    "@getpara/react-core": "3.12.0",
+    "@getpara/react-sdk-lite": "3.12.0",
+    "@getpara/user-management-client": "3.12.0",
+    "@getpara/viem-v2-integration": "3.12.0",
     "@tanstack/react-query": "^5.90.10",
-    "@walletconnect/sign-client": "^2.23.9",
-    "next": "16.1.0",
+    "next": "16.3.0",
+    "ox": "0.11.3",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "viem": "^2.47.11",
-    "wagmi": "^2.19.5"
+    "viem": "^2.47.11"
   },
   "devDependencies": {
     "@types/node": "^24",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "autoprefixer": "^10.5.0",
     "eslint": "^9.39.2",
-    "eslint-config-next": "16.1.0",
-    "postcss": "^8.5.10",
-    "tailwindcss": "^3.4.19",
-    "tsc-alias": "^1.8.16",
+    "eslint-config-next": "16.3.0",
     "typescript": "^5.9.3"
   }
 }

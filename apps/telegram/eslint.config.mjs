@@ -1,15 +1,11 @@
+import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
+import nextTs from "eslint-config-next/typescript";
 
-const eslintConfig = [
+const eslintConfig = defineConfig([
   ...nextVitals,
-  {
-    ignores: [".next/**", ".vercel/**", "out/**", "build/**", "next-env.d.ts"],
-    rules: {
-      "@next/next/no-sync-scripts": "off",
-      "react-hooks/immutability": "off",
-      "react-hooks/set-state-in-effect": "off",
-    },
-  },
-];
+  ...nextTs,
+  globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts"]),
+]);
 
 export default eslintConfig;
