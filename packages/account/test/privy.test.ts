@@ -1,70 +1,77 @@
 // @vitest-environment node
 
-import { exportSPKI, generateKeyPair, SignJWT } from "jose";
+import { SignJWT } from "jose";
 import { describe, expect, it } from "vitest";
-import {
-  createPrivyAccessTokenVerifier,
-  verifyPrivyToken,
-} from "../src/providers/privy";
-
-describe("createPrivyAccessTokenVerifier", () => {
-  it("verifies issuer, audience, signature, subject, session, and expiration", async () => {
-    const { privateKey, publicKey } = await generateKeyPair("ES256");
-    const jwtVerificationKey = await exportSPKI(publicKey);
-    const verify = createPrivyAccessTokenVerifier({
-      appId: "privy-app",
-      jwtVerificationKey,
-    });
-    const accessToken = await new SignJWT({ sid: "session-id" })
-      .setProtectedHeader({ alg: "ES256" })
-      .setSubject("did:privy:alice")
-      .setIssuer("privy.io")
-      .setAudience("privy-app")
-      .setExpirationTime("5m")
-      .sign(privateKey);
-
-    await expect(verify(accessToken)).resolves.toMatchObject({
-      userId: "did:privy:alice",
-      sessionId: "session-id",
-    });
-  });
-});
+import { verifyPrivyToken } from "../src/providers/privy";
 
 describe("verifyPrivyToken", () => {
-  it("extracts email from stringified linked accounts on identity tokens", async () => {
-    const { privateKey, publicKey } = await generateKeyPair("ES256");
-    const identityTokenVerificationKey = await exportSPKI(publicKey);
-    const token = await new SignJWT({
-      linked_accounts: JSON.stringify([
-        {
-          type: "wallet",
-          address: "0x1111111111111111111111111111111111111111",
-        },
-        {
-          type: "google_oauth",
-          email: "alice@example.com",
-        },
-      ]),
-    })
-      .setProtectedHeader({ alg: "ES256" })
+  it("extracts email from SDK-verified identity-token accounts", async () => {
+    const secret = new TextEncoder().encode("test-secret");
+    const token = await new SignJWT()
+      .setProtectedHeader({ alg: "HS256" })
       .setSubject("did:privy:alice")
       .setIssuer("privy.io")
       .setAudience("privy-app")
       .setExpirationTime("5m")
-      .sign(privateKey);
+      .sign(secret);
 
     await expect(
-      verifyPrivyToken({
-        token,
-        tokenKind: "identity_token",
-        appId: "privy-app",
-        identityTokenVerificationKey,
-      }),
+      verifyPrivyToken(
+        {
+          token,
+          tokenKind: "identity_token",
+          appId: "privy-app",
+        },
+        {
+          verifyAccessToken: async () => {
+            throw new Error("unexpected access-token verification");
+          },
+          verifyIdentityToken: async () => ({
+            id: "did:privy:alice",
+            linked_accounts: [
+              {
+                type: "wallet",
+                address: "0x1111111111111111111111111111111111111111",
+              },
+              {
+                type: "google_oauth",
+                email: "alice@example.com",
+              },
+            ],
+          }),
+        },
+      ),
     ).resolves.toMatchObject({
       subject: "did:privy:alice",
       email: "alice@example.com",
       emailVerified: true,
       displayLabel: "alice@example.com",
+    });
+  });
+
+  it("maps SDK-verified access-token claims", async () => {
+    await expect(
+      verifyPrivyToken(
+        {
+          token: "access-token",
+          tokenKind: "access_token",
+          appId: "privy-app",
+        },
+        {
+          verifyAccessToken: async () => ({
+            user_id: "did:privy:alice",
+            session_id: "session-id",
+            expiration: 4_102_444_800,
+          }),
+          verifyIdentityToken: async () => {
+            throw new Error("unexpected identity-token verification");
+          },
+        },
+      ),
+    ).resolves.toMatchObject({
+      subject: "did:privy:alice",
+      sessionId: "session-id",
+      expiresAt: 4_102_444_800,
     });
   });
 });

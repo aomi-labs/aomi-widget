@@ -128,8 +128,6 @@ function createPrivyCredentialVerifier(
       token: credential.providerToken,
       tokenKind,
       appId: env.privyAppId,
-      accessTokenVerificationKey: env.privyAccessTokenVerificationKey,
-      identityTokenVerificationKey: env.privyIdentityTokenVerificationKey,
     });
     return {
       provider: "privy",
