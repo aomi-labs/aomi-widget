@@ -125,7 +125,7 @@ export function deploymentFeed(input: {
 }
 
 export function deploymentSecrets(input: {
-  projectId: number;
+  applicationId: number;
 }): Promise<DeploymentSecretsResult> {
   return client.deployments.secrets(input);
 }
@@ -174,16 +174,14 @@ export function deploymentDeactivate(input: {
 }
 
 export function deploymentSetSecrets(input: {
-  app: string;
-  projectId: number;
+  applicationId: number;
   secrets: Record<string, string>;
 }): Promise<{ ok: boolean; keys: string[] }> {
   return client.deployments.setSecrets(input);
 }
 
 export function deploymentDeleteSecret(input: {
-  app: string;
-  projectId: number;
+  applicationId: number;
   name: string;
 }): Promise<{ ok: boolean; removed: boolean }> {
   return client.deployments.deleteSecret(input);

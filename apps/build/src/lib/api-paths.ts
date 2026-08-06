@@ -94,11 +94,6 @@ export const API_PATHS = {
           `${BFF}/deployments/status?deploymentId=${encodeURIComponent(deploymentId)}`,
           platform,
         ),
-      secrets: (projectId: number, platform?: string) =>
-        withPlatform(
-          `${BFF}/deployments/secrets?projectId=${projectId}`,
-          platform,
-        ),
       requiredSecrets: (projectId: number, platform?: string) =>
         withPlatform(
           `${BFF}/deployments/required-secrets?projectId=${projectId}`,
@@ -127,9 +122,8 @@ export const API_PATHS = {
       logs: `${BFF}/operate/logs`,
       observability: `${BFF}/operate/observability`,
       payments: `${BFF}/operate/payments`,
-      observabilityDetail: (projectId: number, applicationId: number) => {
+      observabilityDetail: (applicationId: number) => {
         const params = new URLSearchParams({
-          projectId: String(projectId),
           applicationId: String(applicationId),
         });
         return `${BFF}/operate/observability/detail?${params}`;

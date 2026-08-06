@@ -107,7 +107,7 @@ function ownedSources(...ids: number[]) {
     projects: ids.map((id) => ({
       id,
       installation_id: 555,
-      apps: [{ name: "my-bot" }],
+      apps: [{ id: 77, name: "my-bot" }],
     })),
   });
 }
@@ -120,7 +120,7 @@ function ownedBoundProject(id: number, platformName: string) {
         id,
         installation_id: 555,
         platform_name: platformName,
-        apps: [{ name: "my-bot" }],
+        apps: [{ id: 77, name: "my-bot" }],
       },
     ],
   });
@@ -182,6 +182,7 @@ function activationSource(id = 99) {
         installation_id: 555,
         apps: [
           {
+            id: 77,
             name: "my-bot",
             app_release_tag: "apps-555-r1-my-bot-abc",
           },
@@ -215,6 +216,7 @@ function activationSourceWithRepo(_platformRepo: string, id = 99) {
         installation_id: 555,
         apps: [
           {
+            id: 77,
             name: "my-bot",
             app_release_tag: "apps-555-r1-my-bot-abc",
           },
@@ -1290,7 +1292,18 @@ describe("deploymentDeactivateRoute", () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(
-        Response.json({ projects: [{ id: 99, installation_id: 5 }] }),
+        Response.json({
+          projects: [
+            {
+              id: 99,
+              installation_id: 5,
+              apps: [
+                { id: 701, name: "api" },
+                { id: 702, name: "web" },
+              ],
+            },
+          ],
+        }),
       )
       .mockResolvedValueOnce(Response.json(true))
       .mockResolvedValueOnce(Response.json(true));
@@ -1302,10 +1315,10 @@ describe("deploymentDeactivateRoute", () => {
     expect(res.status).toBe(202);
     expect(body).toMatchObject({ ok: true, apps: ["api", "web"] });
     expect(String(fetchMock.mock.calls[1][0])).toContain(
-      "/apps/api/deactivate",
+      "/applications/701/deactivate",
     );
     expect(String(fetchMock.mock.calls[2][0])).toContain(
-      "/apps/web/deactivate",
+      "/applications/702/deactivate",
     );
   });
 });
@@ -1570,6 +1583,7 @@ describe("requiredSecretsRoute", () => {
         return Response.json({
           by_app: {
             binance: {
+              application_id: 77,
               slots: [
                 { name: "BINANCE_API_KEY", description: "d", required: true },
                 {
@@ -1591,14 +1605,13 @@ describe("requiredSecretsRoute", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    const res = await requiredSecretsRoute(
-      requiredSecretsReq("?projectId=42"),
-    );
+    const res = await requiredSecretsRoute(requiredSecretsReq("?projectId=42"));
 
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({
       byApp: {
         binance: {
+          applicationId: 77,
           slots: [
             { name: "BINANCE_API_KEY", description: "d", required: true },
             { name: "BINANCE_SECRET_KEY", description: "d2", required: true },
@@ -1620,9 +1633,7 @@ describe("requiredSecretsRoute", () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
 
-    const res = await requiredSecretsRoute(
-      requiredSecretsReq("?projectId=42"),
-    );
+    const res = await requiredSecretsRoute(requiredSecretsReq("?projectId=42"));
 
     expect(res.status).toBe(401);
     expect(fetchMock).not.toHaveBeenCalled();
@@ -1636,9 +1647,7 @@ describe("requiredSecretsRoute", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    const res = await requiredSecretsRoute(
-      requiredSecretsReq("?projectId=99"),
-    );
+    const res = await requiredSecretsRoute(requiredSecretsReq("?projectId=99"));
 
     expect(res.status).toBe(404);
   });
@@ -1651,15 +1660,13 @@ describe("requiredSecretsRoute", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    const res = await requiredSecretsRoute(
-      requiredSecretsReq("?projectId=42"),
-    );
+    const res = await requiredSecretsRoute(requiredSecretsReq("?projectId=42"));
 
     expect(res.status).toBe(503);
     await expect(res.json()).resolves.toEqual({
       error: "Unable to verify required secrets. Try again.",
     });
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(telemetry.capture).not.toHaveBeenCalled();
     expect(telemetry.log).toHaveBeenCalledOnce();
   });

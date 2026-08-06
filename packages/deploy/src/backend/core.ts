@@ -86,6 +86,11 @@ export class BackendClientCore {
     return `/api/integrations/github-app/user/${pathSuffix}?${params.toString()}`;
   }
 
+  /** `/api/integrations/github-app/builder/<suffix>?…` */
+  protected builderPath(pathSuffix: string, params: URLSearchParams): string {
+    return `/api/integrations/github-app/builder/${pathSuffix}?${params.toString()}`;
+  }
+
   /** `/api/integrations/github-app/user/projects/:id/<suffix>?…` */
   protected ownedProjectPath(
     projectId: number | string,

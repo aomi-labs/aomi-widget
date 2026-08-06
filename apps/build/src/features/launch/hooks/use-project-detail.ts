@@ -127,7 +127,7 @@ export function useProjectDetail(projectId: number) {
     phase: "idle",
   });
   const historyReq = useRef(false);
-  const secretsReq = useRef(false);
+  const secretsReq = useRef<Set<number>>(new Set());
   const recordsReq = useRef(false);
   const requiredSecretsReq = useRef(false);
 
@@ -160,6 +160,9 @@ export function useProjectDetail(projectId: number) {
     historyReq.current = false;
     setHistory(null);
     setHistoryError(null);
+    secretsReq.current.clear();
+    setSecrets(null);
+    setSecretsError(null);
   }, [projectId]);
 
   const loadHistory = useCallback(() => {
@@ -176,21 +179,23 @@ export function useProjectDetail(projectId: number) {
       });
   }, [history, projectId]);
 
-  const loadSecrets = useCallback(() => {
-    if (secretsReq.current || secretsByApp !== null) return;
-    secretsReq.current = true;
+  const loadSecrets = useCallback((applicationId: number) => {
+    if (secretsReq.current.has(applicationId)) return;
+    secretsReq.current.add(applicationId);
     setSecretsError(null);
-    void deploymentSecrets({ projectId })
-      .then((r) => setSecrets(r.byApp))
+    void deploymentSecrets({ applicationId })
+      .then((r) =>
+        setSecrets((current) => ({ ...(current ?? {}), ...r.byApp })),
+      )
       .catch((err) => {
         setSecretsError(
           err instanceof Error
             ? err.message
             : "Failed to load environment variables",
         );
-        secretsReq.current = false;
+        secretsReq.current.delete(applicationId);
       });
-  }, [secretsByApp, projectId]);
+  }, []);
 
   const refreshRequiredSecrets = useCallback(async () => {
     requiredSecretsReq.current = true;
@@ -249,11 +254,11 @@ export function useProjectDetail(projectId: number) {
     [requiredSecrets],
   );
 
-  const refreshSecrets = useCallback(async () => {
+  const refreshSecrets = useCallback(async (applicationId: number) => {
     setSecretsError(null);
     try {
-      const r = await deploymentSecrets({ projectId });
-      setSecrets(r.byApp);
+      const r = await deploymentSecrets({ applicationId });
+      setSecrets((current) => ({ ...(current ?? {}), ...r.byApp }));
     } catch (err) {
       setSecretsError(
         err instanceof Error
@@ -262,33 +267,31 @@ export function useProjectDetail(projectId: number) {
       );
       throw err;
     }
-  }, [projectId]);
+  }, []);
 
   const setEnvVars = useCallback(
-    async (app: string, secrets: Record<string, string>) => {
+    async (applicationId: number, secrets: Record<string, string>) => {
       const result = await deploymentSetSecrets({
-        app,
-        projectId,
+        applicationId,
         secrets,
       });
-      await refreshSecrets();
+      await refreshSecrets(applicationId);
       await refreshRequiredSecrets();
       return result;
     },
-    [refreshRequiredSecrets, refreshSecrets, projectId],
+    [refreshRequiredSecrets, refreshSecrets],
   );
 
   const deleteEnvVar = useCallback(
-    async (app: string, name: string) => {
+    async (applicationId: number, name: string) => {
       const result = await deploymentDeleteSecret({
-        app,
-        projectId,
+        applicationId,
         name,
       });
-      await refreshSecrets();
+      await refreshSecrets(applicationId);
       return result;
     },
-    [refreshSecrets, projectId],
+    [refreshSecrets],
   );
 
   // Fetch the DB activation timeline for every app on this source (per-app but

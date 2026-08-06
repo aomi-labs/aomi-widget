@@ -74,7 +74,7 @@ describe("HomeTab", () => {
       <HomeTab detail={detail} tabHref={(tab) => `/projects/1?tab=${tab}`} />,
     );
 
-    expect(loadSecrets).toHaveBeenCalled();
+    expect(loadSecrets).not.toHaveBeenCalled();
     expect(loadRequiredSecrets).toHaveBeenCalled();
     expect(screen.getByText("Project home")).toBeInTheDocument();
     expect(screen.getByText("Not live")).toBeInTheDocument();
@@ -98,9 +98,12 @@ describe("HomeTab", () => {
   });
 
   it("warns with the app and key names when a required key is unset", async () => {
-    (detail.source as { apps: unknown[] }).apps = [{ name: "somm-agent" }];
+    (detail.source as { apps: unknown[] }).apps = [
+      { id: 17, name: "somm-agent" },
+    ];
     (detail as { requiredSecrets: unknown }).requiredSecrets = {
       "somm-agent": {
+        applicationId: 17,
         slots: [{ name: "OPENAI_API_KEY" }],
         missing: ["OPENAI_API_KEY"],
       },

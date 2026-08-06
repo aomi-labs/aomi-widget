@@ -86,7 +86,7 @@ function ownedSources(...ids: number[]) {
     projects: ids.map((id) => ({
       id,
       installation_id: 555,
-      apps: [{ name: "my-bot" }],
+      apps: [{ id: 77, name: "my-bot" }],
     })),
   });
 }
@@ -147,6 +147,7 @@ function activationSource(id = 99) {
         installation_id: 555,
         apps: [
           {
+            id: 77,
             name: "my-bot",
             app_release_tag: "apps-555-r1-my-bot-abc",
           },
@@ -180,6 +181,7 @@ function activationSourceWithRepo(_platformRepo: string, id = 99) {
         installation_id: 555,
         apps: [
           {
+            id: 77,
             name: "my-bot",
             app_release_tag: "apps-555-r1-my-bot-abc",
           },
@@ -1077,7 +1079,18 @@ describe("deploymentDeactivateRoute", () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(
-        Response.json({ projects: [{ id: 99, installation_id: 5 }] }),
+        Response.json({
+          projects: [
+            {
+              id: 99,
+              installation_id: 5,
+              apps: [
+                { id: 701, name: "api" },
+                { id: 702, name: "web" },
+              ],
+            },
+          ],
+        }),
       )
       .mockResolvedValueOnce(Response.json(true))
       .mockResolvedValueOnce(Response.json(true));
@@ -1089,10 +1102,10 @@ describe("deploymentDeactivateRoute", () => {
     expect(res.status).toBe(202);
     expect(body).toMatchObject({ ok: true, apps: ["api", "web"] });
     expect(String(fetchMock.mock.calls[1][0])).toContain(
-      "/apps/api/deactivate",
+      "/applications/701/deactivate",
     );
     expect(String(fetchMock.mock.calls[2][0])).toContain(
-      "/apps/web/deactivate",
+      "/applications/702/deactivate",
     );
   });
 });

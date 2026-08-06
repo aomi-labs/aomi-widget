@@ -12,7 +12,7 @@ const detail = {
     id: 1,
     installationId: 5,
     repositoryLink: "a/b",
-    apps: [{ name: "demo", isActive: true, loaded: true }],
+    apps: [{ id: 11, name: "demo", isActive: true, loaded: true }],
     latestDeployment: null,
   },
   loadSecrets: vi.fn(),
@@ -27,9 +27,7 @@ const detail = {
   typeof import("@build/features/launch/hooks/use-project-detail").useProjectDetail
 >;
 
-function renderTab(
-  props: { detail?: typeof detail } = {},
-) {
+function renderTab(props: { detail?: typeof detail } = {}) {
   return render(
     <ToastProvider>
       <EnvironmentTab detail={props.detail ?? detail} />
@@ -62,6 +60,44 @@ describe("EnvironmentTab", () => {
     expect(screen.queryByText("Env")).not.toBeInTheDocument();
   });
 
+  it("keeps the environment shell and app scope stable while keys load", () => {
+    renderTab({
+      detail: {
+        ...detail,
+        secretsByApp: null,
+      } as typeof detail,
+    });
+
+    expect(screen.getByText("Environment")).toBeInTheDocument();
+    expect(screen.getAllByText("demo")).toHaveLength(2);
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Loading environment…",
+    );
+    expect(screen.getByRole("button", { name: /save values/i })).toBeDisabled();
+  });
+
+  it("does not reload keys when unrelated detail state changes", () => {
+    detail.loadSecrets.mockClear();
+    detail.loadRequiredSecrets.mockClear();
+    const view = renderTab();
+
+    view.rerender(
+      <ToastProvider>
+        <EnvironmentTab
+          detail={
+            {
+              ...detail,
+              requiredSecretsError: "temporary failure",
+            } as typeof detail
+          }
+        />
+      </ToastProvider>,
+    );
+
+    expect(detail.loadSecrets).toHaveBeenCalledOnce();
+    expect(detail.loadRequiredSecrets).toHaveBeenCalledOnce();
+  });
+
   it("tells one vault story in the helper copy", () => {
     renderTab();
     expect(
@@ -85,7 +121,7 @@ describe("EnvironmentTab", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: /save values/i }));
     await waitFor(() =>
-      expect(setEnvVars).toHaveBeenCalledWith("demo", {
+      expect(setEnvVars).toHaveBeenCalledWith(11, {
         API_KEY: "secret",
       }),
     );
@@ -95,9 +131,7 @@ describe("EnvironmentTab", () => {
     renderTab();
 
     fireEvent.click(screen.getByTitle("Copy EXISTING_KEY"));
-    await waitFor(() =>
-      expect(writeText).toHaveBeenCalledWith("EXISTING_KEY"),
-    );
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith("EXISTING_KEY"));
 
     fireEvent.click(screen.getByTitle("Overwrite EXISTING_KEY"));
     expect(screen.getByLabelText("Environment key")).toHaveValue(
@@ -107,7 +141,7 @@ describe("EnvironmentTab", () => {
 
     fireEvent.click(screen.getByTitle("Delete EXISTING_KEY"));
     await waitFor(() =>
-      expect(deleteEnvVar).toHaveBeenCalledWith("demo", "EXISTING_KEY"),
+      expect(deleteEnvVar).toHaveBeenCalledWith(11, "EXISTING_KEY"),
     );
   });
 
@@ -130,9 +164,7 @@ describe("EnvironmentTab", () => {
       } as typeof detail,
     });
     expect(screen.getByText("No variables yet")).toBeInTheDocument();
-    expect(
-      screen.getByText(/Add keys your agent needs/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/Add keys your agent needs/i)).toBeInTheDocument();
   });
 
   it("lists missing required slots in the unified view (no inline inputs)", () => {
@@ -140,6 +172,7 @@ describe("EnvironmentTab", () => {
       ...detail,
       requiredSecrets: {
         demo: {
+          applicationId: 11,
           slots: [
             {
               name: "DEMO_API_KEY",
@@ -175,8 +208,9 @@ describe("EnvironmentTab", () => {
       ...detail,
       secretsByApp: { demo: [] },
       requiredSecrets: {
-        demo: { slots: [], missing: [] },
+        demo: { applicationId: 11, slots: [], missing: [] },
         "demo-bot": {
+          applicationId: 12,
           slots: [
             {
               name: "TELEGRAM_BOT_TOKEN",
@@ -219,6 +253,7 @@ describe("EnvironmentTab", () => {
       secretsByApp: { demo: [] },
       requiredSecrets: {
         demo: {
+          applicationId: 11,
           slots: [
             {
               name: "DEMO_API_KEY",
@@ -240,6 +275,8 @@ describe("EnvironmentTab", () => {
     expect(screen.getByText("DEMO_BASE_URL")).toBeInTheDocument();
     expect(screen.getAllByLabelText("Required")).toHaveLength(1);
     expect(screen.getAllByText("Not set")).toHaveLength(2);
-    expect(screen.getByText(/cannot be activated without it/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/cannot be activated without it/i),
+    ).toBeInTheDocument();
   });
 });

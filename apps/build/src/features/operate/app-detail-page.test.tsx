@@ -130,12 +130,12 @@ describe("AppDetailPage", () => {
   });
 
   it("renders the live detail aggregate under the owned app identity", async () => {
-    render(<AppDetailPage applicationId={77} project={1586} />);
+    render(<AppDetailPage applicationId={77} />);
 
     expect(
       await screen.findByRole("heading", { name: "goal-digger" }),
     ).toBeInTheDocument();
-    expect(operateAppDetailFetch).toHaveBeenCalledWith(1586, 77);
+    expect(operateAppDetailFetch).toHaveBeenCalledWith(77);
     expect(screen.queryByText("Partial example data")).not.toBeInTheDocument();
     expect(screen.getByText("Conversion funnel · 24h")).toBeInTheDocument();
     expect(screen.getByText(/20 calls · 1 error/)).toBeInTheDocument();
@@ -151,25 +151,25 @@ describe("AppDetailPage", () => {
   });
 
   it("deep-links real tool rows through the operate logs route", async () => {
-    render(<AppDetailPage applicationId={77} project={1494} />);
+    render(<AppDetailPage applicationId={77} />);
 
     fireEvent.click(await screen.findByText("get_price"));
     expect(push).toHaveBeenCalledWith(
-      "/operate/logs?app=goal-digger&tool=get_price&project=1494",
+      "/operate/logs?app=goal-digger&tool=get_price&project=1586",
     );
   });
 
-  it("keeps detail reads and drill-down links Project-addressed", async () => {
-    render(<AppDetailPage applicationId={77} project={1620} />);
+  it("derives the parent Project for project-scoped drill-down links", async () => {
+    render(<AppDetailPage applicationId={77} />);
 
     expect(
       await screen.findByRole("heading", { name: "goal-digger" }),
     ).toBeInTheDocument();
-    expect(operateAppDetailFetch).toHaveBeenCalledWith(1620, 77);
+    expect(operateAppDetailFetch).toHaveBeenCalledWith(77);
 
     fireEvent.click(
       screen.getByRole("button", { name: "Back to observability" }),
     );
-    expect(push).toHaveBeenCalledWith("/operate/observability?project=1620");
+    expect(push).toHaveBeenCalledWith("/operate/observability?project=1586");
   });
 });

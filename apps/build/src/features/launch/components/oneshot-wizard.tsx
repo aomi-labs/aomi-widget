@@ -88,9 +88,9 @@ function useWizardSecretsGate(projectId?: number) {
   );
 
   const setEnvVars = useCallback(
-    async (app: string, secrets: Record<string, string>) => {
+    async (applicationId: number, secrets: Record<string, string>) => {
       if (!projectId) throw new Error("App source is missing.");
-      await deploymentSetSecrets({ app, projectId, secrets });
+      await deploymentSetSecrets({ applicationId, secrets });
       const result = await deploymentRequiredSecrets({ projectId });
       setRequiredSecrets(result.byApp);
       setRequiredSecretsError(null);

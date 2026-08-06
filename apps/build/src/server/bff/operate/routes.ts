@@ -1478,45 +1478,40 @@ export async function operateAppDetailRoute(req: Request) {
   }
 
   try {
-    const owned = await ownedSources(req);
-    if ("response" in owned) return owned.response;
-    const source = owned.projects[0];
-    if (!source) {
-      return NextResponse.json(
-        { error: "source not found for this user" },
-        { status: 404 },
-      );
-    }
-
+    const session = await operateSession(req);
+    if ("response" in session) return session.response;
+    const detail = await readCache.appDetail.get(
+      [session.githubUserId, applicationId],
+      () =>
+        session.client.getBuilderApplicationDetail({
+          githubUserId: session.githubUserId,
+          applicationId,
+        }),
+    );
+    const projectId = detail.project.id;
     const input = {
-      githubUserId: owned.githubUserId,
-      platform: owned.platform,
-      projectId: source.id,
+      githubUserId: session.githubUserId,
+      projectId,
     };
-    const [detail, observability, transactionsResult, logsResult, deployments] =
+    const [observability, transactionsResult, logsResult, deployments] =
       await Promise.all([
-        readCache.appDetail.get(
-          [owned.githubUserId, owned.platform, source.id, { applicationId }],
-          () =>
-            owned.client.getUserProjectAppDetail({ ...input, applicationId }),
-        ),
         readCache.observability.get(
-          [owned.githubUserId, owned.platform, source.id],
-          () => owned.client.getUserProjectObservability(input),
+          [session.githubUserId, detail.platform, projectId],
+          () => session.client.getUserProjectObservability(input),
         ),
         readCache.transactions.get(
-          [owned.githubUserId, owned.platform, source.id, { limit: 100 }],
+          [session.githubUserId, detail.platform, projectId, { limit: 100 }],
           () =>
-            owned.client.listUserProjectTransactions({ ...input, limit: 100 }),
+            session.client.listUserProjectTransactions({ ...input, limit: 100 }),
         ),
         readCache.logs.get(
-          [owned.githubUserId, owned.platform, source.id, { limit: 200 }],
-          () => owned.client.listUserProjectLogs({ ...input, limit: 200 }),
+          [session.githubUserId, detail.platform, projectId, { limit: 200 }],
+          () => session.client.listUserProjectLogs({ ...input, limit: 200 }),
         ),
         readCache.deployments.get(
-          [owned.githubUserId, owned.platform, source.id, { limit: 20 }],
+          [session.githubUserId, detail.platform, projectId, { limit: 20 }],
           () =>
-            owned.client.listUserProjectDeployments({ ...input, limit: 20 }),
+            session.client.listUserProjectDeployments({ ...input, limit: 20 }),
         ),
       ]);
 

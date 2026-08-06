@@ -222,6 +222,7 @@ describe("missingSecretsForActivation", () => {
       project: {
         id: 42,
         latestDeployment: null,
+        apps: [{ id: 17, name: "binance" }],
       } as never,
       pairs: [{ app: "binance", releaseTag: "v1" }],
     });
@@ -359,7 +360,14 @@ describe("missingSecretsForActivation", () => {
       client,
       githubUserId: "gh-1",
       githubToken: "t",
-      project: { id: 42, latestDeployment: null } as never,
+      project: {
+        id: 42,
+        latestDeployment: null,
+        apps: ["alpha", "beta", "gamma"].map((name, index) => ({
+          id: index + 1,
+          name,
+        })),
+      } as never,
       pairs: ["alpha", "beta", "gamma"].map((app) => ({
         app,
         releaseTag: "v1",
@@ -432,7 +440,11 @@ describe("missingSecretsForActivation", () => {
       client,
       githubUserId: "gh-1",
       githubToken: "t",
-      project: { id: 42, latestDeployment: null } as never,
+      project: {
+        id: 42,
+        latestDeployment: null,
+        apps: apps.map((name, index) => ({ id: index + 1, name })),
+      } as never,
       pairs: apps.map((app) => ({ app, releaseTag: `tag-${app}` })),
     });
 
@@ -466,7 +478,14 @@ describe("missingSecretsForActivation", () => {
         client,
         githubUserId: "gh-1",
         githubToken: "t",
-        project: { id: 42, latestDeployment: null } as never,
+        project: {
+          id: 42,
+          latestDeployment: null,
+          apps: [
+            { id: 1, name: "ok" },
+            { id: 2, name: "broken" },
+          ],
+        } as never,
         pairs: [
           { app: "ok", releaseTag: "good" },
           { app: "broken", releaseTag: "bad" },

@@ -52,8 +52,8 @@ export const API_PATHS = {
       sdkStatus: `${BFF}/deployments/sdk-status`,
       status: (deploymentId: string) =>
         `${BFF}/deployments/status?deploymentId=${encodeURIComponent(deploymentId)}`,
-      secrets: (projectId: number) =>
-        `${BFF}/deployments/secrets?projectId=${projectId}`,
+      secrets: (applicationId: number) =>
+        `${BFF}/deployments/secrets?applicationId=${applicationId}`,
       records: (app: string, projectId?: number) =>
         `${BFF}/deployments/records?app=${encodeURIComponent(app)}${
           projectId != null ? `&projectId=${projectId}` : ""

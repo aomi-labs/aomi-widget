@@ -223,6 +223,8 @@ function isValidProjectId(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
 }
 
+const isValidApplicationId = isValidProjectId;
+
 function sourceRef(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const clean = value.trim().toLowerCase();
@@ -242,10 +244,7 @@ export function launchDeployRoute(preflight: boolean) {
       string,
       unknown
     >;
-    if (
-      body.projectId !== undefined &&
-      !isValidProjectId(body.projectId)
-    ) {
+    if (body.projectId !== undefined && !isValidProjectId(body.projectId)) {
       return NextResponse.json(
         { error: "invalid `projectId`" },
         { status: 400 },
@@ -692,30 +691,22 @@ export async function deploymentSecretsRoute(req: Request) {
     );
   }
   const params = new URL(req.url).searchParams;
-  const projectId = Number(params.get("projectId"));
-  if (!isValidProjectId(projectId)) {
+  const applicationId = Number(params.get("applicationId"));
+  if (!isValidApplicationId(applicationId)) {
     return NextResponse.json(
-      { error: "missing or invalid `projectId`" },
+      { error: "missing or invalid `applicationId`" },
       { status: 400 },
     );
   }
 
   try {
     const client = await backendClient();
-    const project = await findOwnedProject(
-      client,
-      session.githubUserId,
-      projectId,
-    );
-    if (!project) {
-      return NextResponse.json(
-        { error: "project not found for this user" },
-        { status: 404 },
-      );
-    }
-    const { byApp } = await client.listAppSecrets({
+    await client.getBuilderApplication({
       githubUserId: session.githubUserId,
-      projectId: String(projectId),
+      applicationId,
+    });
+    const { byApp } = await client.listAppSecrets({
+      applicationId,
     });
     return NextResponse.json({ byApp });
   } catch (err) {
@@ -736,17 +727,12 @@ export async function deploymentSecretsWriteRoute(req: Request) {
   const { session } = auth;
 
   const body = (await req.json().catch(() => ({}))) as {
-    app?: unknown;
-    projectId?: unknown;
+    applicationId?: unknown;
     secrets?: unknown;
   };
-  const app = typeof body.app === "string" ? body.app.trim() : "";
-  if (!app) {
-    return NextResponse.json({ error: "missing `app`" }, { status: 400 });
-  }
-  if (!isValidProjectId(body.projectId)) {
+  if (!isValidApplicationId(body.applicationId)) {
     return NextResponse.json(
-      { error: "missing or invalid `projectId`" },
+      { error: "missing or invalid `applicationId`" },
       { status: 400 },
     );
   }
@@ -769,22 +755,13 @@ export async function deploymentSecretsWriteRoute(req: Request) {
 
   try {
     const client = await backendClient();
-    // The app must belong to a project the signed-in user owns.
-    const project = await findOwnedProject(
-      client,
-      session.githubUserId,
-      body.projectId,
-    );
-    if (!project || !project.apps.some((a) => a.name === app)) {
-      return NextResponse.json(
-        { error: "app not found for this user" },
-        { status: 404 },
-      );
-    }
-    const { handles } = await client.ingestSecrets({
+    const { application } = await client.getBuilderApplication({
       githubUserId: session.githubUserId,
-      app,
-      projectId: String(body.projectId),
+      applicationId: body.applicationId,
+    });
+    const { handles } = await client.ingestSecrets({
+      applicationId: body.applicationId,
+      app: application.name,
       secrets,
     });
     return NextResponse.json(
@@ -809,42 +786,28 @@ export async function deploymentSecretsDeleteRoute(req: Request) {
   const { session } = auth;
 
   const body = (await req.json().catch(() => ({}))) as {
-    app?: unknown;
-    projectId?: unknown;
+    applicationId?: unknown;
     name?: unknown;
   };
-  const app = typeof body.app === "string" ? body.app.trim() : "";
   const name = typeof body.name === "string" ? body.name.trim() : "";
-  if (!app || !name) {
-    return NextResponse.json(
-      { error: "missing `app` or `name`" },
-      { status: 400 },
-    );
+  if (!name) {
+    return NextResponse.json({ error: "missing `name`" }, { status: 400 });
   }
-  if (!isValidProjectId(body.projectId)) {
+  if (!isValidApplicationId(body.applicationId)) {
     return NextResponse.json(
-      { error: "missing or invalid `projectId`" },
+      { error: "missing or invalid `applicationId`" },
       { status: 400 },
     );
   }
 
   try {
     const client = await backendClient();
-    const project = await findOwnedProject(
-      client,
-      session.githubUserId,
-      body.projectId,
-    );
-    if (!project || !project.apps.some((a) => a.name === app)) {
-      return NextResponse.json(
-        { error: "app not found for this user" },
-        { status: 404 },
-      );
-    }
-    const removed = await client.removeAppSecret({
+    await client.getBuilderApplication({
       githubUserId: session.githubUserId,
-      app,
-      projectId: String(body.projectId),
+      applicationId: body.applicationId,
+    });
+    const removed = await client.removeAppSecret({
+      applicationId: body.applicationId,
       name,
     });
     return NextResponse.json({ ok: true, removed });
@@ -1078,11 +1041,23 @@ export async function deploymentDeactivateRoute(req: Request) {
       typeof body.actor === "string" && body.actor.trim()
         ? body.actor
         : session.githubLogin;
-    for (const app of apps) {
-      await client.deactivateApp({
+    const applications = apps.flatMap((name) => {
+      const application = project.apps.find(
+        (candidate) => candidate.name === name,
+      );
+      return application ? [application] : [];
+    });
+    if (applications.length !== apps.length) {
+      return NextResponse.json(
+        { error: "application not found in project" },
+        { status: 404 },
+      );
+    }
+    for (const application of applications) {
+      await client.deactivateApplication({
         platform,
-        app,
-        projectId: body.projectId,
+        applicationId: application.id,
+        app: application.name,
         actor,
       });
     }

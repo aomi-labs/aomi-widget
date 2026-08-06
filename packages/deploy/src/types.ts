@@ -37,6 +37,7 @@ export interface AuditEvent {
     | "exchange_github_code"
     | "list_user_projects"
     | "get_user_project"
+    | "get_builder_application"
     | "list_user_deployments"
     | "list_user_project_deployments"
     | "list_user_project_bots"
@@ -61,7 +62,7 @@ export interface AuditEvent {
     | "get_user_statement"
     | "get_user_usage"
     | "list_user_logs"
-    | "get_user_project_app_detail"
+    | "get_builder_application_detail"
     | "upgrade_user_project_sdk"
     | "get_project_sdk_upgrade_status"
     | "list_deployment_records"
@@ -71,6 +72,7 @@ export interface AuditEvent {
     | "ingest_secrets";
   platform?: string;
   projectId?: number;
+  applicationId?: number;
   apps?: string[];
   targetTags?: string[];
   /** Token scope for `mint_token`. */
@@ -99,11 +101,8 @@ export interface ListSecretsResult {
 }
 
 export interface IngestSecretsInput extends BearerOverride {
-  /** GitHub user id used as the only owner scope for app secret vault entries. */
-  githubUserId: string;
+  applicationId: number;
   app: string;
-  /** Optional project id used to scope list/delete surfaces. */
-  projectId?: string;
   secrets: Record<string, string>;
 }
 
@@ -112,19 +111,11 @@ export interface IngestSecretsResult {
 }
 
 export interface ListAppSecretsInput extends BearerOverride {
-  /** GitHub user id used as the only owner scope for app secret vault entries. */
-  githubUserId: string;
-  /** When present, only this app's handles are returned. */
-  app?: string;
-  /** When present, only this project's handles are returned. */
-  projectId?: string;
+  applicationId: number;
 }
 
 export interface RemoveAppSecretInput extends BearerOverride {
-  /** GitHub user id used as the only owner scope for app secret vault entries. */
-  githubUserId: string;
-  app: string;
-  projectId?: string;
+  applicationId: number;
   name: string;
 }
 
@@ -512,6 +503,17 @@ export interface GetUserProjectInput extends BearerOverride {
   projectId: number;
 }
 
+export interface GetBuilderApplicationInput extends BearerOverride {
+  githubUserId: string;
+  applicationId: number;
+}
+
+export interface BuilderApplication {
+  project: Project;
+  platform: string;
+  application: PlatformApp;
+}
+
 export interface GetUserProjectLatestDeploymentInput extends BearerOverride {
   githubUserId: string;
   projectId: number;
@@ -524,7 +526,7 @@ export interface GetUserProjectRequiredSecretsInput extends BearerOverride {
 }
 
 export interface UserProjectRequiredSecretsResult {
-  byApp: Record<string, { slots: SecretSlot[] }>;
+  byApp: Record<string, { applicationId: number; slots: SecretSlot[] }>;
 }
 
 export interface ListUserProjectDeploymentsInput extends BearerOverride {
@@ -561,11 +563,10 @@ export interface ListDeploymentRecordsInput extends BearerOverride {
   projectId?: number;
 }
 
-export interface DeactivateAppInput extends BearerOverride {
+export interface DeactivateApplicationInput extends BearerOverride {
   platform: string;
-  app: string;
-  /** Disambiguates same-named apps across projects on one platform. */
-  projectId?: number;
+  applicationId: number;
+  app?: string;
   actor?: string;
 }
 
@@ -706,9 +707,7 @@ export interface ListUserLogsInput extends UserOperateBatchInput {
   type?: "deployment" | "usage" | "transaction" | string;
 }
 
-export interface GetUserProjectAppDetailInput extends OwnedOperateProjectInput {
-  applicationId: number;
-}
+export interface GetBuilderApplicationDetailInput extends GetBuilderApplicationInput {}
 
 export type ProjectSdkUpgradeResult =
   | {

@@ -56,7 +56,7 @@ export type SecretsGateDetail = {
   hasMissingSecrets: (app: string) => boolean;
   requiredSecrets: Record<
     string,
-    { slots: SecretSlot[]; missing: string[] }
+    { applicationId: number; slots: SecretSlot[]; missing: string[] }
   > | null;
   loadRequiredSecrets: () => void;
 };

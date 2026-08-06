@@ -227,7 +227,7 @@ describe("OperateView transactions", () => {
       await screen.findByRole("link", {
         name: "Open playground-example observability details",
       }),
-    ).toHaveAttribute("href", "/operate/observability/2937099?project=1586");
+    ).toHaveAttribute("href", "/operate/observability/2937099");
   });
 
   it("falls back to the legacy live tiles when trend data is absent", async () => {

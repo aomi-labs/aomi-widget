@@ -61,6 +61,7 @@ function activationProject(id = 99) {
         installation_id: 555,
         apps: [
           {
+            id: 77,
             name: "my-bot",
             app_release_tag: "apps-555-r1-my-bot-abc",
           },
@@ -92,6 +93,7 @@ function activationProjectWithRepo(platformRepo: string, id = 99) {
         installation_id: 555,
         apps: [
           {
+            id: 77,
             name: "my-bot",
             app_release_tag: "apps-555-r1-my-bot-abc",
           },

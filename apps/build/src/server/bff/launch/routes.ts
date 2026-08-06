@@ -253,6 +253,10 @@ function isValidProjectId(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
 }
 
+function isValidApplicationId(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
+}
+
 function sourceRef(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const clean = value.trim().toLowerCase();
@@ -786,30 +790,22 @@ export async function deploymentSecretsRoute(req: Request) {
   if ("response" in auth) return auth.response;
   const { session } = auth;
   const params = new URL(req.url).searchParams;
-  const projectId = Number(params.get("projectId"));
-  if (!isValidProjectId(projectId)) {
+  const applicationId = Number(params.get("applicationId"));
+  if (!isValidApplicationId(applicationId)) {
     return NextResponse.json(
-      { error: "missing or invalid `projectId`" },
+      { error: "missing or invalid `applicationId`" },
       { status: 400 },
     );
   }
 
   try {
     const client = await backendClient();
-    const project = await findOwnedProject(
-      client,
-      session.githubUserId,
-      projectId,
-    );
-    if (!project) {
-      return NextResponse.json(
-        { error: "project not found for this user" },
-        { status: 404 },
-      );
-    }
-    const { byApp } = await client.listAppSecrets({
+    await client.getBuilderApplication({
       githubUserId: session.githubUserId,
-      projectId: String(projectId),
+      applicationId,
+    });
+    const { byApp } = await client.listAppSecrets({
+      applicationId,
     });
     return NextResponse.json({ byApp });
   } catch (err) {
@@ -827,18 +823,12 @@ export async function deploymentSecretsWriteRoute(req: Request) {
   const { session } = auth;
 
   const body = (await req.json().catch(() => ({}))) as {
-    app?: unknown;
-    projectId?: unknown;
-    platform?: unknown;
+    applicationId?: unknown;
     secrets?: unknown;
   };
-  const app = typeof body.app === "string" ? body.app.trim() : "";
-  if (!app) {
-    return NextResponse.json({ error: "missing `app`" }, { status: 400 });
-  }
-  if (!isValidProjectId(body.projectId)) {
+  if (!isValidApplicationId(body.applicationId)) {
     return NextResponse.json(
-      { error: "missing or invalid `projectId`" },
+      { error: "missing or invalid `applicationId`" },
       { status: 400 },
     );
   }
@@ -861,23 +851,13 @@ export async function deploymentSecretsWriteRoute(req: Request) {
 
   try {
     const client = await backendClient();
-    // The app must belong to a project the signed-in user owns.
-    const project = await findOwnedProject(
-      client,
-      session.githubUserId,
-      body.projectId,
-    );
-    if (!project || !project.apps.some((a) => a.name === app)) {
-      return NextResponse.json(
-        { error: "app not found for this user" },
-        { status: 404 },
-      );
-    }
-    // Vault key is the GitHub user id, matching the read side.
-    const { handles } = await client.ingestSecrets({
+    const { application } = await client.getBuilderApplication({
       githubUserId: session.githubUserId,
-      app,
-      projectId: String(body.projectId),
+      applicationId: body.applicationId,
+    });
+    const { handles } = await client.ingestSecrets({
+      applicationId: body.applicationId,
+      app: application.name,
       secrets,
     });
     return NextResponse.json(
@@ -899,43 +879,28 @@ export async function deploymentSecretsDeleteRoute(req: Request) {
   const { session } = auth;
 
   const body = (await req.json().catch(() => ({}))) as {
-    app?: unknown;
-    projectId?: unknown;
+    applicationId?: unknown;
     name?: unknown;
-    platform?: unknown;
   };
-  const app = typeof body.app === "string" ? body.app.trim() : "";
   const name = typeof body.name === "string" ? body.name.trim() : "";
-  if (!app || !name) {
-    return NextResponse.json(
-      { error: "missing `app` or `name`" },
-      { status: 400 },
-    );
+  if (!name) {
+    return NextResponse.json({ error: "missing `name`" }, { status: 400 });
   }
-  if (!isValidProjectId(body.projectId)) {
+  if (!isValidApplicationId(body.applicationId)) {
     return NextResponse.json(
-      { error: "missing or invalid `projectId`" },
+      { error: "missing or invalid `applicationId`" },
       { status: 400 },
     );
   }
 
   try {
     const client = await backendClient();
-    const project = await findOwnedProject(
-      client,
-      session.githubUserId,
-      body.projectId,
-    );
-    if (!project || !project.apps.some((a) => a.name === app)) {
-      return NextResponse.json(
-        { error: "app not found for this user" },
-        { status: 404 },
-      );
-    }
-    const removed = await client.removeAppSecret({
+    await client.getBuilderApplication({
       githubUserId: session.githubUserId,
-      app,
-      projectId: String(body.projectId),
+      applicationId: body.applicationId,
+    });
+    const removed = await client.removeAppSecret({
+      applicationId: body.applicationId,
       name,
     });
     return NextResponse.json({ ok: true, removed });
@@ -1152,11 +1117,23 @@ export async function deploymentDeactivateRoute(req: Request) {
       typeof body.actor === "string" && body.actor.trim()
         ? body.actor
         : session.githubLogin;
-    for (const app of apps) {
-      await client.deactivateApp({
+    const applications = apps.flatMap((name) => {
+      const application = project.apps.find(
+        (candidate) => candidate.name === name,
+      );
+      return application ? [application] : [];
+    });
+    if (applications.length !== apps.length) {
+      return NextResponse.json(
+        { error: "application not found in project" },
+        { status: 404 },
+      );
+    }
+    for (const application of applications) {
+      await client.deactivateApplication({
         platform,
-        app,
-        projectId: body.projectId,
+        applicationId: application.id,
+        app: application.name,
         actor,
       });
     }
@@ -1328,30 +1305,32 @@ export async function requiredSecretsRoute(req: Request) {
 
   try {
     const client = await backendClient();
-    const [declared, configured] = await Promise.all([
-      client.getUserProjectRequiredSecrets({
-        githubUserId: session.githubUserId,
-        projectId,
-      }),
-      client.listAppSecrets({
-        githubUserId: session.githubUserId,
-        projectId: String(projectId),
-      }),
-    ]);
-    const entries = Object.entries(declared.byApp).map(([app, { slots }]) => {
-      const configuredKeys = (configured.byApp[app] ?? []).map(
-        (handle) => handle.split("::").pop() ?? handle,
-      );
-      return [
-        app,
-        {
-          slots,
-          missing: missingRequiredSecrets(slots, configuredKeys).map(
-            (slot) => slot.name,
-          ),
-        },
-      ] as const;
+    const declared = await client.getUserProjectRequiredSecrets({
+      githubUserId: session.githubUserId,
+      projectId,
     });
+    const entries = await Promise.all(
+      Object.entries(declared.byApp).map(
+        async ([app, { applicationId, slots }]) => {
+          const configured = await client.listAppSecrets({
+            applicationId,
+          });
+          const configuredKeys = (configured.byApp[app] ?? []).map(
+            (handle) => handle.split("::").pop() ?? handle,
+          );
+          return [
+            app,
+            {
+              applicationId,
+              slots,
+              missing: missingRequiredSecrets(slots, configuredKeys).map(
+                (slot) => slot.name,
+              ),
+            },
+          ] as const;
+        },
+      ),
+    );
 
     return NextResponse.json({ byApp: Object.fromEntries(entries) });
   } catch (err) {
