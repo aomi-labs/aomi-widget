@@ -19,6 +19,7 @@ export { NotificationToaster } from "./components/ui/notification";
 // UI Components
 export { Button } from "./components/ui/button";
 export { Input } from "./components/ui/input";
+export { getAppIcon } from "./components/icons/app-map";
 export {
   Card,
   CardContent,

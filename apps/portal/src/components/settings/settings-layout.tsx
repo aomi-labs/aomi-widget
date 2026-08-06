@@ -7,6 +7,7 @@ import { ErrorBoundary } from "@portal/components/shell/error-boundary";
 import { GeneralSettings } from "@portal/features/general";
 import { AppsSettings } from "@portal/features/apps";
 import { AppKeys } from "@portal/features/app-keys";
+import { Marketplace } from "@portal/features/marketplace";
 import { Bots } from "@portal/features/bots";
 import { Secrets } from "@portal/features/secrets";
 import { Byok } from "@portal/features/byok";
@@ -129,6 +130,8 @@ export function SettingsLayout() {
             </ErrorBoundary>
           </div>
         );
+      case "marketplace":
+        return <Marketplace />;
       case "app-keys":
         return <AppKeys />;
       case "bots":

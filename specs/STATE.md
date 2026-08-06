@@ -2,6 +2,24 @@
 
 ## Last Updated
 
+2026-07-22 — Marketplace (App Keys → Plugins) + package layer. FE (worktree
+  claude/marketplace-ui): portal Settings gains a Marketplace tab —
+  features/marketplace/ with Plugins (public = 1-click Install, proprietary =
+  app-key input, real brand icons via getAppIcon now exported from
+  shadcn-registry) and a read-only Skills catalog; both still on MOCK data
+  (fetchPlugins/fetchSkills are swap-in seams for GET /api/account/apps and
+  GET /api/resource/skills). BE (product-mono worktree claude/package-layer-be):
+  Packages plan Phase 1+2 thin slice — migration
+  20260725000000_packages_and_grants.sql (packages/package_apps/package_skills/
+  package_grants), DbPackage* entities, PackagesHandler (definitions, 1:1
+  app-sync auto-wrap, grants, ready/setup_required status from is_public + app
+  keys), endpoints GET /api/resource/packages(/:slug), GET/POST
+  /api/account/packages(/:slug/enable|disable), POST /api/admin/packages/sync;
+  plus app install write-path (POST/DELETE /api/account/apps, DbUser
+  add_app/remove_app, public-only gate) and builtin is_public on the wire.
+  cargo check green; migration NOT applied; grants not yet feeding
+  current_apps/EffectiveScope. Plan doc:
+  ~/Downloads/Aomi_Packages_Skills_Apps_Architecture_Plan.pdf.
 2026-07-23 (latest) — Review-checklist fix pass on
   `codex/widget-auth-single-tenant`: all §1–§4 items and the actionable §5
   items of the (untracked) REVIEW-CHECKLIST.md closed via six parallel
