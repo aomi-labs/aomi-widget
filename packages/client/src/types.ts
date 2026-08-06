@@ -197,6 +197,10 @@ export interface AomiCreateThreadResponse {
   thread_id?: string;
   session_id: string;
   title?: string | null;
+  /** Bound rig slug — present only when the create carried `rig` (fast path). */
+  rig?: string;
+  /** Bound baml client — present only on the create fast path. */
+  baml?: string;
 }
 
 /**

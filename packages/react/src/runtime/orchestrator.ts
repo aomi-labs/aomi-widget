@@ -15,7 +15,10 @@ import {
   useThreadContext,
   type ThreadContext,
 } from "../contexts/thread-context";
-import type { ThreadTurnPhase } from "../state/thread-store";
+import {
+  initThreadControl,
+  type ThreadTurnPhase,
+} from "../state/thread-store";
 import { SessionManager } from "./session-manager";
 import { collectTxOutcomes, toInboundMessage } from "./utils";
 import { mergeAssistantTurns } from "./merge-turns";
@@ -264,10 +267,29 @@ const updateTurnPhase = (
   options?: { completed?: boolean },
 ) => {
   const metadata = threadContext.getThreadMetadata(threadId);
-  if (
-    !metadata ||
-    (metadata.control.turnPhase === turnPhase && !options?.completed)
-  ) {
+  if (metadata?.control.turnPhase === turnPhase && !options?.completed) {
+    return;
+  }
+
+  if (!metadata) {
+    // A first send can reach a phase change before anything registered this
+    // thread's metadata. updateThreadMetadata no-ops on missing rows, so
+    // create the row here — otherwise the phase reads "idle" for the whole
+    // turn and the working indicator never appears.
+    threadContext.setThreadMetadata((all) => {
+      const next = new Map(all);
+      next.set(threadId, {
+        title: "New Chat",
+        status: "regular",
+        lastActiveAt: new Date().toISOString(),
+        control: {
+          ...initThreadControl(),
+          turnPhase,
+          ...(options?.completed ? { lastCompletedAt: Date.now() } : null),
+        },
+      });
+      return next;
+    });
     return;
   }
 

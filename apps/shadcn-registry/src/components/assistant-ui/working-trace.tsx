@@ -532,6 +532,27 @@ const MinimalWorkingTrace: FC = () => (
   </div>
 );
 
+/**
+ * True once `active` has held for the submitting→working grace window. The
+ * runtime flips `turnPhase` on the same 300ms timer, but that write can be
+ * lost — a fresh thread has no registered metadata yet, and a control sync
+ * racing the send can rebuild it — so the trace keeps its own clock instead
+ * of leaving the user staring at a bare dot until the first backend event.
+ */
+const WORKING_GRACE_MS = 300;
+export function useWorkingGrace(active: boolean): boolean {
+  const [elapsed, setElapsed] = useState(false);
+  useEffect(() => {
+    if (!active) {
+      setElapsed(false);
+      return;
+    }
+    const timer = setTimeout(() => setElapsed(true), WORKING_GRACE_MS);
+    return () => clearTimeout(timer);
+  }, [active]);
+  return elapsed;
+}
+
 const collectText = (parts: TextMessagePart[]): string =>
   parts
     .map((part) => part.text)
@@ -596,7 +617,11 @@ const FakeStreamedText: FC<{ text: string; stream: boolean }> = ({
  * from the `taskRuns` sidecar and hands over to the transcript part (same key,
  * same row) once that lands. See `WorkingAgent`.
  */
-export const AssistantTurnParts: FC = () => {
+export const AssistantTurnParts: FC<{
+  /** Rendered parent saw the working grace elapse; show the chip even if the
+   * store's turnPhase write was lost (see useWorkingGrace). */
+  workingFallback?: boolean;
+}> = ({ workingFallback = false }) => {
   const content = useMessage((s) => s.content);
   const running = useMessage((s) => s.status?.type === "running");
   const isLast = useMessage((s) => s.isLast);
@@ -747,7 +772,9 @@ export const AssistantTurnParts: FC = () => {
     // a later tool call can arrive and move that text into the Working trace.
     // Keep it buffered so it never flashes as the final answer and jumps upward.
     if (running) {
-      return turnPhase === "working" ? <MinimalWorkingTrace /> : null;
+      return turnPhase === "working" || workingFallback ? (
+        <MinimalWorkingTrace />
+      ) : null;
     }
 
     const answerText = collectText(

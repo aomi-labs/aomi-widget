@@ -2146,7 +2146,22 @@ var updateOptimisticMessage = (threadContext, threadId, messageId, status, error
 };
 var updateTurnPhase = (threadContext, threadId, turnPhase, options) => {
   const metadata = threadContext.getThreadMetadata(threadId);
-  if (!metadata || metadata.control.turnPhase === turnPhase && !(options == null ? void 0 : options.completed)) {
+  if ((metadata == null ? void 0 : metadata.control.turnPhase) === turnPhase && !(options == null ? void 0 : options.completed)) {
+    return;
+  }
+  if (!metadata) {
+    threadContext.setThreadMetadata((all) => {
+      const next = new Map(all);
+      next.set(threadId, {
+        title: "New Chat",
+        status: "regular",
+        lastActiveAt: (/* @__PURE__ */ new Date()).toISOString(),
+        control: __spreadValues(__spreadProps(__spreadValues({}, initThreadControl()), {
+          turnPhase
+        }), (options == null ? void 0 : options.completed) ? { lastCompletedAt: Date.now() } : null)
+      });
+      return next;
+    });
     return;
   }
   threadContext.updateThreadMetadata(threadId, {
@@ -3577,13 +3592,28 @@ function AomiRuntimeCore({
   );
   const ensureBackendThread = useCallback12(
     async (threadId) => {
+      var _a, _b, _c, _d, _e;
       if (remoteThreadIdsRef.current.has(threadId)) return false;
-      await aomiClientRef.current.createThread(threadId);
+      const control = (_a = threadContextRef.current.getThreadMetadata(threadId)) == null ? void 0 : _a.control;
+      const created = await aomiClientRef.current.createThread(threadId, {
+        rig: (_b = control == null ? void 0 : control.model) != null ? _b : void 0,
+        app: (_c = control == null ? void 0 : control.app) != null ? _c : void 0,
+        applicationId: (_d = control == null ? void 0 : control.applicationId) != null ? _d : void 0,
+        clientId: (_e = getControlState().clientId) != null ? _e : void 0
+      });
       remoteThreadIdsRef.current.add(threadId);
       warmedThreadIdsRef.current.add(threadId);
+      if ((created == null ? void 0 : created.rig) && (control == null ? void 0 : control.model)) {
+        const latest = threadContextRef.current.getThreadMetadata(threadId);
+        if ((latest == null ? void 0 : latest.control.controlDirty) && latest.control.model === control.model && latest.control.app === control.app && latest.control.applicationId === control.applicationId) {
+          threadContextRef.current.updateThreadMetadata(threadId, {
+            control: __spreadProps(__spreadValues({}, latest.control), { controlDirty: false })
+          });
+        }
+      }
       return true;
     },
-    [aomiClientRef]
+    [aomiClientRef, getControlState]
   );
   const getRuntimeSession = useCallback12(
     (threadId) => {

@@ -283,6 +283,10 @@ interface AomiCreateThreadResponse {
     thread_id?: string;
     session_id: string;
     title?: string | null;
+    /** Bound rig slug — present only when the create carried `rig` (fast path). */
+    rig?: string;
+    /** Bound baml client — present only on the create fast path. */
+    baml?: string;
 }
 /**
  * GET /api/account
@@ -636,8 +640,18 @@ declare class AomiClient {
     getThread(sessionId: string): Promise<AomiThread>;
     /**
      * Create a new thread. The client generates the session ID.
+     *
+     * Passing `rig` (and optionally `app`/`applicationId`/`platform`/`clientId`)
+     * binds the model selection in the same request — the fast path that saves
+     * the follow-up `setModel` round-trip on a fresh chat.
      */
-    createThread(threadId: string): Promise<AomiCreateThreadResponse>;
+    createThread(threadId: string, options?: {
+        rig?: string;
+        app?: string;
+        applicationId?: number | string;
+        platform?: string;
+        clientId?: string;
+    }): Promise<AomiCreateThreadResponse>;
     /**
      * Delete a thread by ID.
      */

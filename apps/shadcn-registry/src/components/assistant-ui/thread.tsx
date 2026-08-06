@@ -35,7 +35,10 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MarkdownText } from "@/components/assistant-ui/markdown-text";
 import { ToolFallback } from "@/components/assistant-ui/tool-fallback";
-import { AssistantTurnParts } from "@/components/assistant-ui/working-trace";
+import {
+  AssistantTurnParts,
+  useWorkingGrace,
+} from "@/components/assistant-ui/working-trace";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
 
 import {
@@ -420,12 +423,19 @@ const AssistantMessage: FC = () => {
   const hasLiveTaskRun = Object.values(taskRuns).some(
     (run) => run.status === "running",
   );
+  // Component-local submitting→working clock. The store's turnPhase is meant
+  // to make this transition, but its write can be dropped (fresh thread with
+  // unregistered metadata, control sync racing the send) — and then the dot
+  // sits for the whole pre-stream wait. After the grace, swap to the Working
+  // chip no matter what the store says.
+  const workingGrace = useWorkingGrace(isEmpty && isRunning && isLast);
   const showLoadingDot =
     isEmpty &&
     isRunning &&
     isLast &&
     turnPhase !== "working" &&
-    !hasLiveTaskRun;
+    !hasLiveTaskRun &&
+    !workingGrace;
   const showFinishedEmptyMessage = isEmpty && !isRunning;
 
   return (
@@ -467,7 +477,7 @@ const AssistantMessage: FC = () => {
                 {showLoadingDot ? (
                   <AssistantLoadingDot />
                 ) : (
-                  <AssistantTurnParts />
+                  <AssistantTurnParts workingFallback={workingGrace} />
                 )}
                 <MessageError />
               </div>

@@ -1993,9 +1993,19 @@ ${body}` : ""}`
       }
       /**
        * Create a new thread. The client generates the session ID.
+       *
+       * Passing `rig` (and optionally `app`/`applicationId`/`platform`/`clientId`)
+       * binds the model selection in the same request — the fast path that saves
+       * the follow-up `setModel` round-trip on a fresh chat.
        */
-      async createThread(threadId) {
-        const url = buildApiUrl(this.baseUrl, "/api/threads");
+      async createThread(threadId, options) {
+        const url = buildApiUrl(this.baseUrl, "/api/threads", {
+          rig: options == null ? void 0 : options.rig,
+          app: options == null ? void 0 : options.app,
+          application_id: (options == null ? void 0 : options.applicationId) === void 0 ? void 0 : String(options.applicationId),
+          platform: options == null ? void 0 : options.platform,
+          client_id: options == null ? void 0 : options.clientId
+        });
         const response = await this.fetchImpl(url, {
           method: "POST",
           headers: withSessionHeader(threadId)
