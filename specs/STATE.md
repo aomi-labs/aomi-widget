@@ -2,6 +2,21 @@
 
 ## Last Updated
 
+2026-07-29 — Partner Telegram handoff (World Markets / Composite Labs). This is
+  a BACKEND feature: both the spec and the implementation live in product-mono,
+  not here. Spec + as-built notes: `docs/superpowers/specs/2026-07-29-bot-handoff-decision-record.md`
+  in **product-mono**, implemented on branch `claude/bot-handoff`. Locked
+  decisions: TG = autonomy surface / web = custody surface (Mini App retired, TG
+  never asks for signatures); server-side signing on the auto path with
+  `Broadcaster::Aomi`, AA-first with EOA fallback; new `bot_handoff_tokens` table
+  (pending → claimed → active, hashed one-time token, 90s TTL); `context`/`mandate`
+  opaque JSONB enforced app-side, never interpreted by the BE; QR carries zero
+  authority (venue grant lands after claim, reverse-confirmed in web); agent key
+  provisioned at claim under the freshly minted canonical user, permit self-signed
+  by the agent key itself via Para `/sign-raw`. Nothing in this repo changed
+  except this note — the partner-facing FE work (QR modal, claim poll, authorize
+  step) is theirs, not ours.
+
 2026-07-27 — Light/dark token sweep. Dark mode was losing all structure: in
   `themes/default.css` the dark block collapsed `--aomi-surface-2`, `--aomi-raised`
   and `--aomi-border` onto a single `#27272a`, so every hairline drawn on a panel
