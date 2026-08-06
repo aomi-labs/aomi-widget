@@ -1,5 +1,10 @@
-import { verifyAccessToken, verifyIdentityToken } from "@privy-io/node";
-import { createRemoteJWKSet, decodeJwt } from "jose";
+import {
+  createRemoteJWKSet,
+  errors,
+  importSPKI,
+  jwtVerify,
+  type JWTVerifyOptions,
+} from "jose";
 import { z } from "zod";
 import type { VerifiedPrivyToken, WalletFamily } from "../types";
 import type { WidgetProviderDescriptor } from "./descriptor";
@@ -39,13 +44,13 @@ export const privyWidgetDescriptor: WidgetProviderDescriptor = {
 
 type PrivyTokenVerifier = {
   verifyAccessToken: (token: string) => Promise<{
-    user_id: string;
-    session_id: string;
+    userId: string;
+    sessionId: string;
     expiration: number;
   }>;
   verifyIdentityToken: (token: string) => Promise<{
-    id: string;
-    linked_accounts: unknown[];
+    payload: PrivyClaims;
+    linkedAccounts: unknown[];
   }>;
 };
 
@@ -54,28 +59,21 @@ export async function verifyPrivyToken(
     token: string;
     tokenKind: "identity_token" | "access_token";
     appId: string;
+    accessTokenVerificationKey?: string;
+    identityTokenVerificationKey?: string;
   },
   verifier = createPrivyTokenVerifier(input),
 ): Promise<VerifiedPrivyToken> {
   if (input.tokenKind === "access_token") {
     const access = await verifier.verifyAccessToken(input.token);
-    return fromAccessToken(
-      {
-        userId: access.user_id,
-        sessionId: access.session_id,
-        expiration: access.expiration,
-      },
-      input.appId,
-    );
+    return fromAccessToken(access, input.appId);
   }
 
-  const user = await verifier.verifyIdentityToken(input.token);
-  const payload = decodeJwt(input.token) as PrivyClaims;
-  if (!payload.sub || payload.sub !== user.id) {
-    throw new Error("Privy token subject does not match verified user");
-  }
+  const { payload, linkedAccounts } = await verifier.verifyIdentityToken(
+    input.token,
+  );
+  if (!payload.sub) throw new Error("Privy token is missing sub");
   if (!payload.exp) throw new Error("Privy token is missing exp");
-  const linkedAccounts = user.linked_accounts;
   const linkedEmail = findPrivyLinkedEmail(linkedAccounts);
   const displayLabel = findPrivyDisplayLabel(linkedAccounts);
   const email = stringClaim(payload.email) ?? linkedEmail;
@@ -95,25 +93,59 @@ export async function verifyPrivyToken(
 
 function createPrivyTokenVerifier(input: {
   appId: string;
+  accessTokenVerificationKey?: string;
+  identityTokenVerificationKey?: string;
 }): PrivyTokenVerifier {
   const verificationKey = createRemoteJWKSet(
     new URL(
-      `https://api.privy.io/v1/apps/${encodeURIComponent(input.appId)}/jwks.json`,
+      `https://auth.privy.io/api/v1/apps/${encodeURIComponent(input.appId)}/jwks.json`,
     ),
+    { headers: { "privy-app-id": input.appId } },
   );
+  const verify = async (token: string, fallbackKey?: string) => {
+    const options: JWTVerifyOptions = {
+      algorithms: ["ES256"],
+      audience: input.appId,
+      issuer: "privy.io",
+    };
+    try {
+      return await jwtVerify<PrivyClaims>(token, verificationKey, options);
+    } catch (error) {
+      if (!(error instanceof errors.JWKSNoMatchingKey) || !fallbackKey) {
+        throw error;
+      }
+      return jwtVerify<PrivyClaims>(
+        token,
+        await importSPKI(fallbackKey, "ES256"),
+        options,
+      );
+    }
+  };
   return {
-    verifyAccessToken: (token) =>
-      verifyAccessToken({
-        access_token: token,
-        app_id: input.appId,
-        verification_key: verificationKey,
-      }),
-    verifyIdentityToken: (token) =>
-      verifyIdentityToken({
-        identity_token: token,
-        app_id: input.appId,
-        verification_key: verificationKey,
-      }),
+    verifyAccessToken: async (token) => {
+      const { payload } = await verify(token, input.accessTokenVerificationKey);
+      if (!payload.sub || !payload.sid || !payload.exp) {
+        throw new Error("Privy access token is missing required claims");
+      }
+      return {
+        userId: payload.sub,
+        sessionId: payload.sid,
+        expiration: payload.exp,
+      };
+    },
+    verifyIdentityToken: async (token) => {
+      const { payload } = await verify(
+        token,
+        input.identityTokenVerificationKey ?? input.accessTokenVerificationKey,
+      );
+      return {
+        payload,
+        linkedAccounts:
+          parseLinkedAccounts(
+            payload.linked_accounts ?? payload.linkedAccounts,
+          ) ?? [],
+      };
+    },
   };
 }
 
@@ -227,6 +259,17 @@ function fromAccessToken(
       aud: audience,
     },
   };
+}
+
+function parseLinkedAccounts(value: unknown): unknown[] | undefined {
+  if (Array.isArray(value)) return value;
+  if (typeof value !== "string" || value.trim().length === 0) return undefined;
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function findPrivyLinkedEmail(

@@ -1,24 +1,14 @@
 // @vitest-environment node
 
-import { SignJWT } from "jose";
 import { describe, expect, it } from "vitest";
 import { verifyPrivyToken } from "../src/providers/privy";
 
 describe("verifyPrivyToken", () => {
-  it("extracts email from SDK-verified identity-token accounts", async () => {
-    const secret = new TextEncoder().encode("test-secret");
-    const token = await new SignJWT()
-      .setProtectedHeader({ alg: "HS256" })
-      .setSubject("did:privy:alice")
-      .setIssuer("privy.io")
-      .setAudience("privy-app")
-      .setExpirationTime("5m")
-      .sign(secret);
-
+  it("extracts email from verified identity-token accounts", async () => {
     await expect(
       verifyPrivyToken(
         {
-          token,
+          token: "identity-token",
           tokenKind: "identity_token",
           appId: "privy-app",
         },
@@ -27,8 +17,13 @@ describe("verifyPrivyToken", () => {
             throw new Error("unexpected access-token verification");
           },
           verifyIdentityToken: async () => ({
-            id: "did:privy:alice",
-            linked_accounts: [
+            payload: {
+              sub: "did:privy:alice",
+              aud: "privy-app",
+              iss: "privy.io",
+              exp: 4_102_444_800,
+            },
+            linkedAccounts: [
               {
                 type: "wallet",
                 address: "0x1111111111111111111111111111111111111111",
@@ -49,7 +44,7 @@ describe("verifyPrivyToken", () => {
     });
   });
 
-  it("maps SDK-verified access-token claims", async () => {
+  it("maps verified access-token claims", async () => {
     await expect(
       verifyPrivyToken(
         {
@@ -59,8 +54,8 @@ describe("verifyPrivyToken", () => {
         },
         {
           verifyAccessToken: async () => ({
-            user_id: "did:privy:alice",
-            session_id: "session-id",
+            userId: "did:privy:alice",
+            sessionId: "session-id",
             expiration: 4_102_444_800,
           }),
           verifyIdentityToken: async () => {

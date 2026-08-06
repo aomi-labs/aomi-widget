@@ -25,7 +25,6 @@
   },
   "dependencies": {
     "@aomi-labs/service": "workspace:*",
-    "@privy-io/node": "0.28.0",
     "better-auth": "^1.6.19",
     "bs58": "^6.0.0",
     "jose": "^6.1.3",
