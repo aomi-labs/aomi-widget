@@ -74,20 +74,13 @@ export function prefetchControlPlaneRoute(
   const detailMatch = path.match(/^\/operate\/observability\/([1-9]\d*)$/);
   if (detailMatch) {
     const applicationId = Number(detailMatch[1]);
-    const project = Number(searchParams.get("project"));
-    if (Number.isSafeInteger(project) && project > 0) {
-      void queryClient.prefetchQuery({
-        queryKey: buildQueryKeys.operateDetail(
-          accountKey,
-          project,
-          applicationId,
-        ),
-        queryFn: () => operateAppDetailFetch(project, applicationId),
-        staleTime: buildQueryStaleTime.operate,
-        retry: false,
-      });
-      return true;
-    }
+    void queryClient.prefetchQuery({
+      queryKey: buildQueryKeys.applicationDetail(accountKey, applicationId),
+      queryFn: () => operateAppDetailFetch(applicationId),
+      staleTime: buildQueryStaleTime.operate,
+      retry: false,
+    });
+    return true;
   }
 
   const projectMatch = path.match(/^\/projects\/([1-9]\d*)$/);

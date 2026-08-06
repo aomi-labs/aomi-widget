@@ -710,8 +710,47 @@ describe("BackendClient operate logs", () => {
   });
 });
 
-describe("BackendClient operate app detail", () => {
+describe("BackendClient Builder application", () => {
   afterEach(() => vi.unstubAllGlobals());
+
+  it("loads a canonical Application from the Builder surface", async () => {
+    const fetchMock = vi.fn(async () =>
+      Response.json({
+        project: {
+          id: 42,
+          installation_id: 555,
+          repository_id: 9001,
+          repository_link: "alice/demo",
+          platform_id: 3,
+          owner_builder_id: 9,
+          created_at: 10,
+          updated_at: 11,
+        },
+        platform: "community",
+        application: {
+          id: 77,
+          name: "demo",
+          project_id: 42,
+          is_active: true,
+        },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await client().getBuilderApplication({
+      githubUserId: "4738254",
+      applicationId: 77,
+    });
+
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      "https://staging-api.example.com/api/integrations/github-app/builder/applications/77?github_user_id=4738254",
+    );
+    expect(result).toMatchObject({
+      project: { id: 42 },
+      platform: "community",
+      application: { id: 77, name: "demo", projectId: 42 },
+    });
+  });
 
   it("reads and normalizes the owned app detail aggregate", async () => {
     const fetchMock = vi.fn(async () =>
@@ -771,15 +810,13 @@ describe("BackendClient operate app detail", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    const result = await client().getUserProjectAppDetail({
+    const result = await client().getBuilderApplicationDetail({
       githubUserId: "4738254",
-      platform: "community",
-      projectId: 42,
       applicationId: 77,
     });
 
     expect(fetchMock.mock.calls[0][0]).toBe(
-      "https://staging-api.example.com/api/integrations/github-app/user/projects/42/apps/77/detail?github_user_id=4738254",
+      "https://staging-api.example.com/api/integrations/github-app/builder/applications/77/detail?github_user_id=4738254",
     );
     expect(result).toMatchObject({
       windowSeconds: 86400,
@@ -1178,6 +1215,7 @@ describe("BackendClient projects", () => {
       Response.json({
         by_app: {
           demo: {
+            application_id: 77,
             slots: [
               {
                 name: "DEMO_KEY",
@@ -1203,6 +1241,7 @@ describe("BackendClient projects", () => {
     expect(result).toEqual({
       byApp: {
         demo: {
+          applicationId: 77,
           slots: [
             { name: "DEMO_KEY", description: "Credential", required: true },
           ],

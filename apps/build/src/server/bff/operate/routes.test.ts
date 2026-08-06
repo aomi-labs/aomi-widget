@@ -66,7 +66,7 @@ const client = {
   getUserObservability: vi.fn(),
   getUserPayments: vi.fn(),
   getUserProjectObservability: vi.fn(),
-  getUserProjectAppDetail: vi.fn(),
+  getBuilderApplicationDetail: vi.fn(),
   listUserProjectTransactions: vi.fn(),
   listUserProjectLogs: vi.fn(),
   listUserProjectDeployments: vi.fn(),
@@ -136,7 +136,7 @@ beforeEach(() => {
   client.getUserUsage.mockReset();
   client.listUserLogs.mockReset();
   client.getUserProjectObservability.mockReset();
-  client.getUserProjectAppDetail.mockReset();
+  client.getBuilderApplicationDetail.mockReset();
   client.listUserProjectTransactions.mockReset();
   client.listUserProjectLogs.mockReset();
   client.listUserProjectDeployments.mockReset();
@@ -378,7 +378,7 @@ function transactionsReq(qs = "") {
 function logsReq(qs = "") {
   return new Request(`http://localhost:3000/api/bff/operate/logs${qs}`);
 }
-function appDetailReq(qs = "?projectId=900&applicationId=77") {
+function appDetailReq(qs = "?applicationId=77") {
   return new Request(
     `http://localhost:3000/api/bff/operate/observability/detail${qs}`,
   );
@@ -861,16 +861,16 @@ describe("operatePaymentsRoute", () => {
 describe("operateAppDetailRoute", () => {
   it("requires a valid application id", async () => {
     const res = await operateAppDetailRoute(
-      appDetailReq("?projectId=900&applicationId=nope"),
+      appDetailReq("?applicationId=nope"),
     );
     expect(res.status).toBe(400);
     expect(client.listUserProjects).not.toHaveBeenCalled();
   });
 
-  it("uses the project's bound platform for the detail behind an overview card", async () => {
+  it("derives the parent project and bound platform from the application", async () => {
     setSession({ githubUserId: "gh-1" });
     oneSource("world-markets");
-    client.getUserProjectAppDetail.mockResolvedValue({
+    client.getBuilderApplicationDetail.mockResolvedValue({
       project: { id: 900 },
       platform: "community",
       app: { applicationId: 77, name: "demo" },
@@ -913,16 +913,11 @@ describe("operateAppDetailRoute", () => {
     expect(body.transactions).toEqual([{ id: "tx-match", applicationId: 77 }]);
     expect(body.logs).toEqual([{ id: "log-match", applicationId: 77 }]);
     expect(body.deployments).toEqual([{ deploymentId: "dep-1", apps: [] }]);
-    expect(client.getUserProjectAppDetail).toHaveBeenCalledWith({
+    expect(client.getBuilderApplicationDetail).toHaveBeenCalledWith({
       githubUserId: "gh-1",
-      platform: "world-markets",
-      projectId: 900,
       applicationId: 77,
     });
-    expect(client.listUserProjects).toHaveBeenCalledWith({
-      githubUserId: "gh-1",
-      platform: undefined,
-    });
+    expect(client.listUserProjects).not.toHaveBeenCalled();
   });
 });
 

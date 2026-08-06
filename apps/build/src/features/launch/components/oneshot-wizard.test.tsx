@@ -180,7 +180,13 @@ describe("OneshotWizard", () => {
 
   it("wires progress.projectId into DeployStep's required-secrets gate at the build step", async () => {
     vi.mocked(deploymentRequiredSecrets).mockResolvedValue({
-      byApp: { "my-bot": { slots: [], missing: ["MY_BOT_API_KEY"] } },
+      byApp: {
+        "my-bot": {
+          applicationId: 71,
+          slots: [],
+          missing: ["MY_BOT_API_KEY"],
+        },
+      },
     });
 
     render(
@@ -210,6 +216,7 @@ describe("OneshotWizard", () => {
     vi.mocked(deploymentRequiredSecrets).mockResolvedValue({
       byApp: {
         "my-bot": {
+          applicationId: 71,
           slots: [
             {
               name: "MY_BOT_API_KEY",
@@ -243,8 +250,7 @@ describe("OneshotWizard", () => {
 
     await waitFor(() =>
       expect(deploymentSetSecrets).toHaveBeenCalledWith({
-        app: "my-bot",
-        projectId: 7,
+        applicationId: 71,
         secrets: { MY_BOT_API_KEY: "secret-value" },
       }),
     );

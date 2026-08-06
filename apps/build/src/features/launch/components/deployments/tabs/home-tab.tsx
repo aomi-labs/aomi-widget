@@ -207,11 +207,11 @@ export function HomeTab({
   );
 
   useEffect(() => {
-    loadSecrets();
+    for (const app of source?.apps ?? []) loadSecrets(app.id);
     // The card reports the same gate the deploy enforces, so it needs the
     // declared requirements — not just which keys happen to be set.
     loadRequiredSecrets?.();
-  }, [loadRequiredSecrets, loadSecrets]);
+  }, [loadRequiredSecrets, loadSecrets, source?.apps]);
 
   const status = useMemo(
     () => (source ? projectDeploymentStatus(source) : null),

@@ -69,8 +69,10 @@ export function ProjectPage({
     }
   }, [accountKey, queryClient, projectId]);
   useEffect(() => {
-    if (active === "environment") loadSecrets();
-  }, [active, loadSecrets]);
+    if (active === "environment") {
+      for (const app of detail.source?.apps ?? []) loadSecrets(app.id);
+    }
+  }, [active, detail.source?.apps, loadSecrets]);
 
   return (
     <main className="bg-background text-foreground min-h-screen">

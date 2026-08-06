@@ -33,14 +33,14 @@ type SecretsGateDetail = {
   hasMissingSecrets: (app: string) => boolean;
   requiredSecrets: Record<
     string,
-    { slots: SecretSlot[]; missing: string[] }
+    { applicationId: number; slots: SecretSlot[]; missing: string[] }
   > | null;
   requiredSecretsError?: string | null;
   loadRequiredSecrets: () => void;
   refreshRequiredSecrets?: () => Promise<unknown>;
   ensureRequiredSecrets?: (apps: string[], projectId?: number) => Promise<void>;
   setEnvVars?: (
-    app: string,
+    applicationId: number,
     secrets: Record<string, string>,
   ) => Promise<unknown>;
 };
@@ -267,23 +267,28 @@ export function DeployStep({
 
   const saveRequiredSecrets = useCallback(async () => {
     if (!detail?.setEnvVars || missingSecretSlots.length === 0) return;
-    const valuesByApp = new Map<string, Record<string, string>>();
+    const valuesByApplication = new Map<number, Record<string, string>>();
     for (const { app, slot } of missingSecretSlots) {
       const value = requiredSecretValues[`${app}::${slot.name}`] ?? "";
       if (!value) {
         setError(`Enter a value for ${slot.name}.`);
         return;
       }
-      const values = valuesByApp.get(app) ?? {};
+      const applicationId = detail.requiredSecrets?.[app]?.applicationId;
+      if (!applicationId) {
+        setError(`Application identity is unavailable for ${app}.`);
+        return;
+      }
+      const values = valuesByApplication.get(applicationId) ?? {};
       values[slot.name] = value;
-      valuesByApp.set(app, values);
+      valuesByApplication.set(applicationId, values);
     }
     setSavingRequiredSecrets(true);
     setError(null);
     try {
       await Promise.all(
-        Array.from(valuesByApp, ([app, values]) =>
-          detail.setEnvVars?.(app, values),
+        Array.from(valuesByApplication, ([applicationId, values]) =>
+          detail.setEnvVars?.(applicationId, values),
         ),
       );
       setRequiredSecretValues({});

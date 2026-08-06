@@ -83,11 +83,10 @@ export async function operatePaymentsFetch<T>(
 }
 
 export async function operateAppDetailFetch<T>(
-  projectId: number,
   applicationId: number,
 ): Promise<T> {
   return operateJson<T>(
-    API_PATHS.bff.operate.observabilityDetail(projectId, applicationId),
+    API_PATHS.bff.operate.observabilityDetail(applicationId),
     "observability detail",
   );
 }

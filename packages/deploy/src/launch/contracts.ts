@@ -163,7 +163,7 @@ export type DeploymentPromoteResult = PromoteResult;
 
 export type RequiredSecretsByApp = Record<
   string,
-  { slots: SecretSlot[]; missing: string[] }
+  { applicationId: number; slots: SecretSlot[]; missing: string[] }
 >;
 
 export type RequiredSecretsResult = {

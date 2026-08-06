@@ -23,14 +23,13 @@ export const buildQueryKeys = {
       kind,
       projectId ?? "all",
     ] as const,
-  operateDetail: (account: string, projectId: number, applicationId: number) =>
+  applicationDetail: (account: string, applicationId: number) =>
     [
       ...buildQueryKeys.all,
       "account",
       account,
       "operate",
       "observability-detail",
-      projectId,
       applicationId,
     ] as const,
   bots: (account: string) =>

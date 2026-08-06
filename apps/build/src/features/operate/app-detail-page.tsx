@@ -32,22 +32,18 @@ function operateHref(
 
 export function AppDetailPage({
   applicationId,
-  project,
 }: {
   applicationId: number;
-  project: number;
 }) {
   const router = useRouter();
   const { account } = useGitHubSession();
   const accountKey = githubAccountKey(account.githubLogin);
   const detailQuery = useQuery({
-    queryKey: buildQueryKeys.operateDetail(
+    queryKey: buildQueryKeys.applicationDetail(
       accountKey ?? "unavailable",
-      project,
       applicationId,
     ),
-    queryFn: () =>
-      operateAppDetailFetch<LiveAppDetailPayload>(project, applicationId),
+    queryFn: () => operateAppDetailFetch<LiveAppDetailPayload>(applicationId),
     enabled: account.signedIn && accountKey !== null,
     staleTime: buildQueryStaleTime.operate,
   });
@@ -93,7 +89,7 @@ export function AppDetailPage({
 
   const view = liveAppDetailView(payload);
   const application = payload.detail.app.name;
-  const projectValue = String(project);
+  const projectValue = String(payload.detail.project.id);
   return (
     <AppDetailView
       app={view.app}

@@ -270,9 +270,9 @@ function createBaseClient(options: LaunchClientOptions) {
       return launchFetch(`${deploymentsPath}/feed?${params}`, "deployment feed");
     },
 
-    secrets(input: { projectId: number }): Promise<DeploymentSecretsResult> {
+    secrets(input: { applicationId: number }): Promise<DeploymentSecretsResult> {
       return launchFetch(
-        `${deploymentsPath}/secrets${projectQuery({ projectId: input.projectId })}`,
+        `${deploymentsPath}/secrets?applicationId=${encodeURIComponent(String(input.applicationId))}`,
         "deployment secrets",
       );
     },
@@ -287,24 +287,22 @@ function createBaseClient(options: LaunchClientOptions) {
     },
 
     setSecrets(input: {
-      app: string;
-      projectId: number;
+      applicationId: number;
       secrets: Record<string, string>;
     }): Promise<{ ok: boolean; keys: string[] }> {
       return postJson(
-        `${deploymentsPath}/secrets${projectQuery({ projectId: input.projectId })}`,
+        `${deploymentsPath}/secrets`,
         "set environment variables",
         input,
       );
     },
 
     deleteSecret(input: {
-      app: string;
-      projectId: number;
+      applicationId: number;
       name: string;
     }): Promise<{ ok: boolean; removed: boolean }> {
       return launchFetch(
-        `${deploymentsPath}/secrets${projectQuery({ projectId: input.projectId })}`,
+        `${deploymentsPath}/secrets`,
         "delete environment variable",
         {
           method: "DELETE",

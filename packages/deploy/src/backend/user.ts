@@ -10,10 +10,11 @@ import type {
   DeleteUserBotInput,
   DeleteUserProjectBotInput,
   ExchangeGitHubCodeInput,
+  GetBuilderApplicationDetailInput,
+  GetBuilderApplicationInput,
   GetUserProjectInput,
   GetUserObservabilityInput,
   GetUserPaymentsInput,
-  GetUserProjectAppDetailInput,
   GetUserProjectLatestDeploymentInput,
   GetUserProjectRequiredSecretsInput,
   GetUserProjectUsageInput,
@@ -42,6 +43,7 @@ import type {
   UpdateUserBotInput,
   UserDeployment,
   UserDeploymentsPage,
+  BuilderApplication,
   UserLogsResult,
   UserProject,
   UserProjectAppsResult,
@@ -163,6 +165,36 @@ export class BackendClient extends BackendPlatformClient {
     return camelUserProject(raw);
   }
 
+  async getBuilderApplication(
+    input: GetBuilderApplicationInput,
+  ): Promise<BuilderApplication> {
+    if (
+      !Number.isSafeInteger(input.applicationId) ||
+      input.applicationId <= 0
+    ) {
+      throw new Error("applicationId must be a positive integer");
+    }
+    const githubUserId = required(input.githubUserId, "githubUserId");
+    const bearer = this.resolveBearer(input.bearer);
+    const params = new URLSearchParams({ github_user_id: githubUserId });
+    const raw = await this.get<Record<string, unknown>>(
+      this.builderPath(
+        `applications/${encodeURIComponent(String(input.applicationId))}`,
+        params,
+      ),
+      "get_builder_application",
+      bearer,
+    );
+    await this.audit("get_builder_application", input.actor, {
+      applicationId: input.applicationId,
+    });
+    return {
+      project: camelProject(raw.project),
+      platform: optString(raw.platform) ?? "",
+      application: camelPlatformApp(raw.application),
+    };
+  }
+
   async listUserDeployments(
     input: ListUserDeploymentsInput,
   ): Promise<UserDeploymentsPage> {
@@ -209,10 +241,14 @@ export class BackendClient extends BackendPlatformClient {
       (raw) => ({
         byApp: Object.fromEntries(
           Object.entries(
-            (raw.by_app ?? {}) as Record<string, { slots?: unknown[] }>,
+            (raw.by_app ?? {}) as Record<
+              string,
+              { application_id?: unknown; slots?: unknown[] }
+            >,
           ).map(([app, value]) => [
             app,
             {
+              applicationId: Number(value.application_id),
               slots: (value.slots ?? []).flatMap((slot) => {
                 if (!slot || typeof slot !== "object") return [];
                 const rawSlot = slot as Record<string, unknown>;
@@ -664,19 +700,28 @@ export class BackendClient extends BackendPlatformClient {
     );
   }
 
-  async getUserProjectAppDetail(
-    input: GetUserProjectAppDetailInput,
+  async getBuilderApplicationDetail(
+    input: GetBuilderApplicationDetailInput,
   ): Promise<OperateAppDetailResult> {
     const applicationId = required(
       String(input.applicationId),
       "applicationId",
     );
-    return this.ownedGet(
-      input,
-      `apps/${encodeURIComponent(applicationId)}/detail`,
-      "get_user_project_app_detail",
-      camelOperateAppDetail,
+    const githubUserId = required(input.githubUserId, "githubUserId");
+    const bearer = this.resolveBearer(input.bearer);
+    const params = new URLSearchParams({ github_user_id: githubUserId });
+    const raw = await this.get<Record<string, unknown>>(
+      this.builderPath(
+        `applications/${encodeURIComponent(applicationId)}/detail`,
+        params,
+      ),
+      "get_builder_application_detail",
+      bearer,
     );
+    await this.audit("get_builder_application_detail", input.actor, {
+      applicationId: input.applicationId,
+    });
+    return camelOperateAppDetail(raw);
   }
 
   async upgradeUserProjectSdk(

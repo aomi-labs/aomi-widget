@@ -32,8 +32,8 @@ describe("BackendClient.listSecrets", () => {
   });
 });
 
-describe("BackendClient app-scoped service secrets", () => {
-  it("passes project_id when listing app secrets", async () => {
+describe("BackendClient application-scoped service secrets", () => {
+  it("passes only application_id when listing app secrets", async () => {
     const c = client();
     const get = vi
       .spyOn(c as unknown as { get: () => unknown }, "get")
@@ -42,19 +42,18 @@ describe("BackendClient app-scoped service secrets", () => {
       });
 
     const result = await c.listAppSecrets({
-      githubUserId: "github-user",
-      projectId: "42",
+      applicationId: 42,
     });
 
     expect(result.byApp).toEqual({ demo: ["API_KEY"] });
     expect(get).toHaveBeenCalledWith(
-      "/api/_internal/secrets?user_id=github-user&project_id=42",
+      "/api/_internal/secrets?application_id=42",
       "list_secrets",
       "act-token",
     );
   });
 
-  it("tags writes and deletes with project_id", async () => {
+  it("tags writes and deletes with application_id", async () => {
     const c = client();
     const post = vi
       .spyOn(c as unknown as { post: () => unknown }, "post")
@@ -64,15 +63,12 @@ describe("BackendClient app-scoped service secrets", () => {
       .mockResolvedValue({ removed: true });
 
     await c.ingestSecrets({
-      githubUserId: "github-user",
       app: "demo",
-      projectId: "42",
+      applicationId: 42,
       secrets: { API_KEY: "secret" },
     });
     const removed = await c.removeAppSecret({
-      githubUserId: "github-user",
-      app: "demo",
-      projectId: "42",
+      applicationId: 42,
       name: "API_KEY",
     });
 
@@ -80,9 +76,8 @@ describe("BackendClient app-scoped service secrets", () => {
     expect(post).toHaveBeenCalledWith(
       "/api/_internal/secrets",
       {
-        user_id: "github-user",
         app: "demo",
-        project_id: "42",
+        application_id: 42,
         secrets: { API_KEY: "secret" },
       },
       "ingest_secrets",
@@ -93,9 +88,7 @@ describe("BackendClient app-scoped service secrets", () => {
       "ingest_secrets",
       "act-token",
       {
-        user_id: "github-user",
-        app: "demo",
-        project_id: "42",
+        application_id: 42,
         name: "API_KEY",
       },
     );

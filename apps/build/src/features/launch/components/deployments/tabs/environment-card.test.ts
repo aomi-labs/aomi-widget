@@ -18,7 +18,9 @@ describe("environmentCard", () => {
     const card = environmentCard({
       ...base,
       apps: ["somm-agent"],
-      requiredSecrets: { "somm-agent": { slots: [], missing: [] } },
+      requiredSecrets: {
+        "somm-agent": { applicationId: 11, slots: [], missing: [] },
+      },
     });
 
     expect(card).toMatchObject({ value: "No keys required", tone: "good" });
@@ -38,6 +40,7 @@ describe("environmentCard", () => {
       apps: ["somm-agent"],
       requiredSecrets: {
         "somm-agent": {
+          applicationId: 11,
           slots: slots(["OPENAI_API_KEY", "ALCHEMY_API_KEY"]),
           missing: ["OPENAI_API_KEY", "ALCHEMY_API_KEY"],
         },
@@ -59,7 +62,9 @@ describe("environmentCard", () => {
     const card = environmentCard({
       ...base,
       apps: ["agent"],
-      requiredSecrets: { agent: { slots: slots(missing), missing } },
+      requiredSecrets: {
+        agent: { applicationId: 11, slots: slots(missing), missing },
+      },
     });
 
     expect(card.hint).toBe(
@@ -72,7 +77,11 @@ describe("environmentCard", () => {
       ...base,
       apps: ["one", "two"],
       requiredSecrets: {
-        one: { slots: slots(["A_KEY"]), missing: ["A_KEY"] },
+        one: {
+          applicationId: 11,
+          slots: slots(["A_KEY"]),
+          missing: ["A_KEY"],
+        },
         two: { slots: slots(["B_KEY"]), missing: ["B_KEY"] },
       },
     });
@@ -87,7 +96,11 @@ describe("environmentCard", () => {
       ...base,
       apps: ["somm-agent"],
       requiredSecrets: {
-        "somm-agent": { slots: slots(["OPENAI_API_KEY"]), missing: [] },
+        "somm-agent": {
+          applicationId: 11,
+          slots: slots(["OPENAI_API_KEY"]),
+          missing: [],
+        },
       },
       secretsByApp: { "somm-agent": ["OPENAI_API_KEY"] },
     });
@@ -101,7 +114,11 @@ describe("environmentCard", () => {
       ...base,
       apps: ["fresh-agent"],
       requiredSecrets: {
-        "fresh-agent": { slots: slots(["NEW_KEY"]), missing: ["NEW_KEY"] },
+        "fresh-agent": {
+          applicationId: 12,
+          slots: slots(["NEW_KEY"]),
+          missing: ["NEW_KEY"],
+        },
       },
     });
 

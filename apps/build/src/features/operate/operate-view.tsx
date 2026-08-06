@@ -135,17 +135,10 @@ function EmptyState({
 
 function appDetailHref(app: Record<string, any>): string | null {
   const applicationId = Number(app.applicationId);
-  const projectId = Number(app.project?.id);
-  if (
-    !Number.isSafeInteger(applicationId) ||
-    applicationId <= 0 ||
-    !Number.isSafeInteger(projectId) ||
-    projectId <= 0
-  ) {
+  if (!Number.isSafeInteger(applicationId) || applicationId <= 0) {
     return null;
   }
-  const params = new URLSearchParams({ project: String(projectId) });
-  return `/operate/observability/${applicationId}?${params}`;
+  return `/operate/observability/${applicationId}`;
 }
 
 const STATUS_DOT: Record<string, string> = {

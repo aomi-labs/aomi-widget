@@ -197,7 +197,13 @@ describe("useProjectDetail", () => {
 
   it("exposes the missing required secrets per app", async () => {
     vi.mocked(deploymentRequiredSecrets).mockResolvedValue({
-      byApp: { binance: { slots: [], missing: ["BINANCE_SECRET_KEY"] } },
+      byApp: {
+        binance: {
+          applicationId: 17,
+          slots: [],
+          missing: ["BINANCE_SECRET_KEY"],
+        },
+      },
     });
     const { result } = renderHook(() => useProjectDetail(42), {
       wrapper: wrapper(),
@@ -256,7 +262,7 @@ describe("useProjectDetail", () => {
     } as never);
     vi.mocked(deploymentRequiredSecrets).mockResolvedValue({
       byApp: {
-        "my-bot": { slots: [], missing: [] },
+        "my-bot": { applicationId: 19, slots: [], missing: [] },
         "my-bot-2": {
           slots: [
             {

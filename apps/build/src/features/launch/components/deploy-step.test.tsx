@@ -186,7 +186,11 @@ describe("DeployStep", () => {
     const detail = {
       hasMissingSecrets: (app: string) => app === "binance",
       requiredSecrets: {
-        binance: { slots: [], missing: ["BINANCE_API_KEY"] },
+        binance: {
+          applicationId: 17,
+          slots: [],
+          missing: ["BINANCE_API_KEY"],
+        },
       },
       loadRequiredSecrets: vi.fn(),
     };
@@ -205,7 +209,9 @@ describe("DeployStep", () => {
   it("does not show the required-secrets banner when nothing is missing", () => {
     const detail = {
       hasMissingSecrets: () => false,
-      requiredSecrets: { binance: { slots: [], missing: [] } },
+      requiredSecrets: {
+        binance: { applicationId: 17, slots: [], missing: [] },
+      },
       loadRequiredSecrets: vi.fn(),
     };
     render(

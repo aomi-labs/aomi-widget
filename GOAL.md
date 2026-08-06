@@ -15,8 +15,16 @@ backend's canonical platform-bound Project model, with no compatibility path.
   project's bound platform, and Telegram receives eligible applications across
   every bound platform.
 - Preflight resolves and returns an immutable commit; apply requires it.
-- The breaking shared packages are versioned as `@aomi-labs/deploy@0.5.0` and
+- The breaking shared packages are versioned as `@aomi-labs/deploy@0.6.0` and
   `@aomi-labs/client@0.4.0`.
+- Project and Application identities are now separate in every touched path:
+  Project owns deployment/provider administration, while environment,
+  observability, chat, and deactivation target canonical numeric Application
+  ids. The new service contract uses Builder vocabulary
+  (`getBuilderApplication` and `/builder/applications/:id`) rather than
+  account-user terminology.
+- Environment loading keeps the editor and declared variables mounted while
+  vault handles resolve, eliminating the tab's empty-panel flicker.
 - Local manager + Build browser E2E against an isolated migrated Postgres
   database verified that candidate repositories never appear as projects,
   deployment history spans platforms, World Markets opens from observability

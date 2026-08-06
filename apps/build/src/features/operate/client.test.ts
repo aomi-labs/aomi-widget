@@ -28,11 +28,11 @@ describe("operate client Project identity", () => {
     );
   });
 
-  it("addresses application detail by Project and application", async () => {
-    await operateAppDetailFetch(1620, 2938032);
+  it("addresses application detail by its canonical application id", async () => {
+    await operateAppDetailFetch(2938032);
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "/api/bff/operate/observability/detail?projectId=1620&applicationId=2938032",
+      "/api/bff/operate/observability/detail?applicationId=2938032",
       { signal: expect.any(AbortSignal) },
     );
   });

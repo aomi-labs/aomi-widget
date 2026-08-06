@@ -96,7 +96,10 @@ describe("DeployDashboard", () => {
 });
 
 function makeDetail(overrides: {
-  requiredSecrets: Record<string, { slots: SecretSlot[]; missing: string[] }>;
+  requiredSecrets: Record<
+    string,
+    { applicationId: number; slots: SecretSlot[]; missing: string[] }
+  >;
 }): SecretsGateDetail {
   return {
     hasMissingSecrets: (app: string) =>
@@ -124,7 +127,13 @@ function makeLifecycle(
 describe("LifecyclePanel", () => {
   it("disables Activate while a required secret is missing", () => {
     const detail = makeDetail({
-      requiredSecrets: { binance: { slots: [], missing: ["BINANCE_API_KEY"] } },
+      requiredSecrets: {
+        binance: {
+          applicationId: 17,
+          slots: [],
+          missing: ["BINANCE_API_KEY"],
+        },
+      },
     });
     render(
       <LifecyclePanel
@@ -144,7 +153,9 @@ describe("LifecyclePanel", () => {
 
   it("enables Activate once no required secret is missing", () => {
     const detail = makeDetail({
-      requiredSecrets: { binance: { slots: [], missing: [] } },
+      requiredSecrets: {
+        binance: { applicationId: 17, slots: [], missing: [] },
+      },
     });
     render(
       <LifecyclePanel

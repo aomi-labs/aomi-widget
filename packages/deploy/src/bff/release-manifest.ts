@@ -176,10 +176,21 @@ export async function missingSecretsForActivation(input: {
 
   // Kept after the platform-repo resolution on purpose: when that fails the
   // gate is already closed, and this read must not fire anyway.
-  const configured = await input.client.listAppSecrets({
-    githubUserId: input.githubUserId,
-    projectId: String(input.project.id),
-  });
+  const configured = Object.fromEntries(
+    await mapWithConcurrency(input.pairs, MANIFEST_CONCURRENCY, async (pair) => {
+      const application = input.project.apps.find((app) => app.name === pair.app);
+      if (!application) {
+        throw new RequiredSecretsCheckError({
+          cause: new Error(`Application identity is unavailable for ${pair.app}`),
+          upstream: "rust",
+        });
+      }
+      const result = await input.client.listAppSecrets({
+        applicationId: application.id,
+      });
+      return [pair.app, result.byApp[pair.app] ?? []] as const;
+    }),
+  );
 
   const releaseTags = [...new Set(input.pairs.map((pair) => pair.releaseTag))];
   const manifests = await mapWithConcurrency(
@@ -195,7 +206,7 @@ export async function missingSecretsForActivation(input: {
   const missing: Record<string, string[]> = {};
   for (const pair of input.pairs) {
     const slots = slotsByTag.get(pair.releaseTag) ?? {};
-    const configuredKeys = (configured.byApp[pair.app] ?? []).map(
+    const configuredKeys = (configured[pair.app] ?? []).map(
       (handle) => handle.split("::").pop() ?? handle,
     );
     const unfilled = missingRequiredSecrets(slots[pair.app], configuredKeys);

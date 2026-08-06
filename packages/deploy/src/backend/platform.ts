@@ -3,7 +3,7 @@ import type {
   ActivateInput,
   ActivateResult,
   CreateProjectInput,
-  DeactivateAppInput,
+  DeactivateApplicationInput,
   DeployInput,
   DeployResult,
   DeploymentProgressEvent,
@@ -78,19 +78,18 @@ export class BackendPlatformClient extends BackendClientCore {
     return n;
   }
 
-  /** Shared `user_id`/`app`/`project_id` body for the internal secrets vault. */
+  /** Stable Application identity plus manifest name for handle labels. */
   private appSecretsBody(input: {
-    githubUserId: string;
+    applicationId: number;
     app: string;
-    projectId?: string;
   }): Record<string, unknown> {
-    const body: Record<string, unknown> = {
-      user_id: required(input.githubUserId, "githubUserId"),
+    return {
+      application_id: this.positiveInt(
+        input.applicationId,
+        "applicationId must be a positive integer",
+      ),
       app: required(input.app, "app"),
     };
-    const projectId = input.projectId?.trim();
-    if (projectId) body.project_id = projectId;
-    return body;
   }
 
   private async secretsByApp(
@@ -171,19 +170,33 @@ export class BackendPlatformClient extends BackendClientCore {
 
   /** Deactivate one app: clears its live pointer and unloads the binary. The
    *  deployment's git record and activation history are untouched. */
-  async deactivateApp(input: DeactivateAppInput): Promise<void> {
+  async deactivateApplication(
+    input: DeactivateApplicationInput,
+  ): Promise<void> {
     const platform = required(input.platform, "platform");
-    const app = required(input.app, "app");
+    if (
+      !Number.isSafeInteger(input.applicationId) ||
+      input.applicationId <= 0
+    ) {
+      throw new DeployError(
+        "INVALID_REQUEST",
+        "deactivate requires a positive applicationId",
+      );
+    }
     await this.post<unknown>(
       this.platformPath(
         platform,
-        `apps/${encodeURIComponent(app)}/deactivate`,
-      ) + this.qs({ project_id: input.projectId }),
+        `applications/${encodeURIComponent(String(input.applicationId))}/deactivate`,
+      ),
       {},
       "deactivate",
       this.resolveBearer(input.bearer),
     );
-    await this.audit("deactivate", input.actor, { platform, apps: [app] });
+    await this.audit("deactivate", input.actor, {
+      platform,
+      applicationId: input.applicationId,
+      apps: input.app ? [input.app] : undefined,
+    });
   }
 
   /**
@@ -473,9 +486,7 @@ export class BackendPlatformClient extends BackendClientCore {
     );
   }
 
-  /** Ingest app-scoped env vars into the secret vault under the GitHub user id.
-   *  The backend field is still named `user_id`, but GitHub is the only owner
-   *  scope this client accepts for app secrets. Service op. */
+  /** Ingest Environment values for one canonical Application. Service op. */
   async ingestSecrets(input: IngestSecretsInput): Promise<IngestSecretsResult> {
     const raw = await this.post<{ handles?: Record<string, string> }>(
       `/api/_internal/secrets`,
@@ -486,15 +497,14 @@ export class BackendPlatformClient extends BackendClientCore {
     return { handles: raw.handles ?? {} };
   }
 
-  /** List vault handle names (never values) for the GitHub user id, keyed by
-   *  app. Service read, so it works with the portal's service bearer (unlike
-   *  the session-scoped `listSecrets`). */
+  /** List vault handle names (never values) for one Application. */
   async listAppSecrets(input: ListAppSecretsInput): Promise<ListSecretsResult> {
     return this.secretsByApp(
       `/api/_internal/secrets${this.qs({
-        user_id: required(input.githubUserId, "githubUserId"),
-        app: input.app?.trim() || undefined,
-        project_id: input.projectId?.trim() || undefined,
+        application_id: this.positiveInt(
+          input.applicationId,
+          "applicationId must be a positive integer",
+        ),
       })}`,
       this.resolveBearer(input.bearer, { privileged: true }),
     );
@@ -505,7 +515,10 @@ export class BackendPlatformClient extends BackendClientCore {
     // Validate the full body (name included) before resolving the bearer, so
     // a bad input never reads as "missing bearer".
     const body = {
-      ...this.appSecretsBody(input),
+      application_id: this.positiveInt(
+        input.applicationId,
+        "applicationId must be a positive integer",
+      ),
       name: required(input.name, "name"),
     };
     const raw = await this.del<{ removed?: boolean }>(
