@@ -78,7 +78,6 @@ describe("BackendClient deploy/preflight", () => {
   it("POSTs a preflight request and maps the deployment.json response to camelCase", async () => {
     const audits: AuditEvent[] = [];
     const result = await client((event) => audits.push(event)).preflight({
-      platform: "community",
       projectId: 42,
       sourceRef: "ABC1234DEF5678",
       actor: "alice",
@@ -86,15 +85,12 @@ describe("BackendClient deploy/preflight", () => {
 
     expect(fetchMock).toHaveBeenCalledOnce();
     const [url, init] = fetchMock.mock.calls[0];
-    expect(url).toBe(
-      "https://staging-api.example.com/api/platforms/community/deploy",
-    );
+    expect(url).toBe("https://staging-api.example.com/api/projects/42/deploy");
     expect((init as RequestInit).headers).toMatchObject({
       Authorization: "Bearer act-token",
       "Content-Type": "application/json",
     });
     expect(JSON.parse((init as RequestInit).body as string)).toEqual({
-      project_id: 42,
       source_ref: "abc1234def5678",
       preflight: true,
     });
@@ -110,7 +106,6 @@ describe("BackendClient deploy/preflight", () => {
     expect(audits).toEqual([
       expect.objectContaining({
         action: "preflight",
-        platform: "community",
         projectId: 42,
         actor: "alice",
       }),
@@ -119,7 +114,6 @@ describe("BackendClient deploy/preflight", () => {
 
   it("POSTs an apply deploy request without the preflight flag", async () => {
     const result = await client().deploy({
-      platform: "community",
       projectId: 42,
       sourceRef: "abc1234def5678",
     });
@@ -127,7 +121,6 @@ describe("BackendClient deploy/preflight", () => {
     expect(result.deployment.id).toBe("dep_123_abc1234");
     const [, init] = fetchMock.mock.calls[0];
     expect(JSON.parse((init as RequestInit).body as string)).toEqual({
-      project_id: 42,
       source_ref: "abc1234def5678",
     });
   });
@@ -138,7 +131,6 @@ describe("BackendClient deploy/preflight", () => {
     );
     await expect(
       client().deploy({
-        platform: "community",
         projectId: 42,
         sourceRef: "abc1234def5678",
       }),
@@ -148,7 +140,6 @@ describe("BackendClient deploy/preflight", () => {
   it("rejects invalid deploy input before calling the backend", async () => {
     await expect(
       client().deploy({
-        platform: "community",
         projectId: 0,
         sourceRef: "abc1234",
       }),
@@ -159,7 +150,6 @@ describe("BackendClient deploy/preflight", () => {
   it("rejects branch-like source refs before calling the backend", async () => {
     await expect(
       client().deploy({
-        platform: "community",
         projectId: 42,
         sourceRef: "main",
       }),

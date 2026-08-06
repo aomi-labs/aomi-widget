@@ -19,7 +19,6 @@ export function deployRequest(
   if (preflight) {
     // Preflight may omit `source_ref`; the backend resolves the default head.
     return {
-      project_id: projectId,
       ...(input.sourceRef ? { source_ref: sourceRef(input.sourceRef) } : {}),
       preflight: true,
     };
@@ -27,7 +26,6 @@ export function deployRequest(
   // Apply always pins the exact preflight commit — reject a missing ref here
   // rather than letting an unpinned request reach the backend.
   return {
-    project_id: projectId,
     source_ref: sourceRef(input.sourceRef),
   };
 }

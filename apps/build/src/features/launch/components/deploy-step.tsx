@@ -342,7 +342,6 @@ export function DeployStep({
     statusFailuresRef.current = 0;
     try {
       const result = await launchPreflight({
-        platform,
         installationId,
         repo,
         projectId: progress.projectId,
@@ -359,7 +358,6 @@ export function DeployStep({
     actor,
     applyDeployment,
     installationId,
-    platform,
     progress.projectId,
     progress.sourceRef,
     repo,
@@ -371,14 +369,13 @@ export function DeployStep({
     statusFailuresRef.current = 0;
     try {
       // Deploy commits against a stable source row id. The first deploy after
-      // an install has none yet, so a preflight mints it (and primes the
-      // preview); afterwards we go straight through by id.
+      // an install has none yet, so preflight resolves the connected Project
+      // by repository; afterwards we go straight through by id.
       let projectId = progress.projectId;
       let sourceRef = progress.sourceRef ?? deployment?.source?.ref;
       let targetApps = apps;
       if (!projectId || !sourceRef) {
         const preflightResult = await launchPreflight({
-          platform,
           installationId,
           repo,
           projectId,
@@ -436,7 +433,6 @@ export function DeployStep({
     apps,
     detail,
     installationId,
-    platform,
     onProgress,
     progress.projectId,
     progress.sourceRef,
