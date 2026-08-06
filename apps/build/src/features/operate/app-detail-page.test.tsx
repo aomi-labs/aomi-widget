@@ -135,7 +135,7 @@ describe("AppDetailPage", () => {
     expect(
       await screen.findByRole("heading", { name: "goal-digger" }),
     ).toBeInTheDocument();
-    expect(operateAppDetailFetch).toHaveBeenCalledWith(1586, 77, undefined);
+    expect(operateAppDetailFetch).toHaveBeenCalledWith(1586, 77);
     expect(screen.queryByText("Partial example data")).not.toBeInTheDocument();
     expect(screen.getByText("Conversion funnel · 24h")).toBeInTheDocument();
     expect(screen.getByText(/20 calls · 1 error/)).toBeInTheDocument();
@@ -159,29 +159,17 @@ describe("AppDetailPage", () => {
     );
   });
 
-  it("keeps a partner platform on detail reads and drill-down links", async () => {
-    render(
-      <AppDetailPage
-        applicationId={77}
-        project={1620}
-        platform="somm.finance"
-      />,
-    );
+  it("keeps detail reads and drill-down links Project-addressed", async () => {
+    render(<AppDetailPage applicationId={77} project={1620} />);
 
     expect(
       await screen.findByRole("heading", { name: "goal-digger" }),
     ).toBeInTheDocument();
-    expect(operateAppDetailFetch).toHaveBeenCalledWith(
-      1620,
-      77,
-      "somm.finance",
-    );
+    expect(operateAppDetailFetch).toHaveBeenCalledWith(1620, 77);
 
     fireEvent.click(
       screen.getByRole("button", { name: "Back to observability" }),
     );
-    expect(push).toHaveBeenCalledWith(
-      "/operate/observability?project=1620&platform=somm.finance",
-    );
+    expect(push).toHaveBeenCalledWith("/operate/observability?project=1620");
   });
 });

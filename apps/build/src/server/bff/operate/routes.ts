@@ -389,7 +389,7 @@ type OperateSession = {
   githubUserId: string;
   platform: string;
   client: BackendClientInstance;
-  /** The signed-in user's projects, resolved lazily and cached per request. */
+  /** The signed-in user's account-wide projects, resolved lazily. */
   projects: () => Promise<UserProject[]>;
 };
 
@@ -403,10 +403,7 @@ async function operateSession(
     const config = launchConfig();
     const params = new URL(req.url).searchParams;
     const requestedPlatform = params.get("platform") ?? undefined;
-    const platform = resolveLaunchPlatform(
-      requestedPlatform,
-      config,
-    );
+    const platform = resolveLaunchPlatform(requestedPlatform, config);
     if (!platform) {
       return {
         response: NextResponse.json(
@@ -421,12 +418,10 @@ async function operateSession(
       platform,
       client,
       projects: () =>
-        readCache.projects.get(
-          [session.githubUserId, requestedPlatform ?? null],
-          () =>
+        readCache.projects.get([session.githubUserId, null], () =>
           client.listUserProjects({
             githubUserId: session.githubUserId,
-            platform: requestedPlatform,
+            platform: undefined,
           }),
         ),
     };
@@ -586,7 +581,9 @@ export async function operateBotsCreateRoute(req: Request) {
     );
   }
   const allowedApplicationIds = new Set(
-    owned.projects.flatMap((source) => (source.apps ?? []).map((app) => app.id)),
+    owned.projects.flatMap((source) =>
+      (source.apps ?? []).map((app) => app.id),
+    ),
   );
   const applicationIds = body.applicationIds as number[];
   if (new Set(applicationIds).size !== applicationIds.length) {
@@ -679,7 +676,9 @@ export async function operateBotsUpdateRoute(req: Request) {
     );
   }
   const allowed = new Set(
-    owned.projects.flatMap((source) => (source.apps ?? []).map((app) => app.id)),
+    owned.projects.flatMap((source) =>
+      (source.apps ?? []).map((app) => app.id),
+    ),
   );
   const applicationIds = body.applicationIds as number[];
   if (new Set(applicationIds).size !== applicationIds.length) {
@@ -904,8 +903,7 @@ export async function operateTransactionsRoute(req: Request) {
           ...transaction,
           kind: "app_transaction",
           project:
-            (projectId != null ? sourceById.get(projectId) : undefined) ??
-            null,
+            (projectId != null ? sourceById.get(projectId) : undefined) ?? null,
           platform: platform ?? owned.platform,
         }),
       );
@@ -1290,8 +1288,7 @@ export async function operateLogsRoute(req: Request) {
         logs: batch.logs.map(({ projectId, platform, ...log }) => ({
           ...log,
           project:
-            (projectId != null ? sourceById.get(projectId) : undefined) ??
-            null,
+            (projectId != null ? sourceById.get(projectId) : undefined) ?? null,
           platform: platform ?? scope.platform,
         })),
         nextCursor: batch.nextCursor ? { batch: batch.nextCursor } : null,
@@ -1518,7 +1515,8 @@ export async function operateAppDetailRoute(req: Request) {
         ),
         readCache.deployments.get(
           [owned.githubUserId, owned.platform, source.id, { limit: 20 }],
-          () => owned.client.listUserProjectDeployments({ ...input, limit: 20 }),
+          () =>
+            owned.client.listUserProjectDeployments({ ...input, limit: 20 }),
         ),
       ]);
 

@@ -9,49 +9,27 @@ export const buildQueryKeys = {
       "projects",
       platform?.trim() || "all",
     ] as const,
-  // Server-filtered single-source read backing a project detail page. Nested
-  // under the `projects` key so invalidating the projects prefix covers detail
-  // pages too. Warm navigations seed it from the `projects` list cache.
-  projectSource: (
-    account: string,
-    projectId: number,
-    platform?: string | null,
-  ) =>
-    [
-      ...buildQueryKeys.projects(account, platform),
-      "source",
-      projectId,
-    ] as const,
+  // A Project ID is canonical and already owns its platform binding.
+  projectSource: (account: string, projectId: number) =>
+    [...buildQueryKeys.all, "account", account, "project", projectId] as const,
   deployments: (account: string) =>
     [...buildQueryKeys.all, "account", account, "deployments"] as const,
-  operate: (
-    account: string,
-    kind: string,
-    projectId: number | null = null,
-    platform?: string | null,
-  ) =>
+  operate: (account: string, kind: string, projectId: number | null = null) =>
     [
       ...buildQueryKeys.all,
       "account",
       account,
       "operate",
       kind,
-      platform?.trim() || "default",
       projectId ?? "all",
     ] as const,
-  operateDetail: (
-    account: string,
-    projectId: number,
-    applicationId: number,
-    platform?: string | null,
-  ) =>
+  operateDetail: (account: string, projectId: number, applicationId: number) =>
     [
       ...buildQueryKeys.all,
       "account",
       account,
       "operate",
       "observability-detail",
-      platform?.trim() || "default",
       projectId,
       applicationId,
     ] as const,

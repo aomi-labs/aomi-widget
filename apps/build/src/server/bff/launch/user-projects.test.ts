@@ -135,7 +135,7 @@ describe("userProjectsRoute", () => {
     expect(res.status).toBe(404);
   });
 
-  it("narrows to one source on `projectId` without leaking it to the manager", async () => {
+  it("narrows by Project ID without leaking ID or platform to the manager", async () => {
     getGitHubSession.mockResolvedValueOnce({
       githubUserId: "42",
       githubLogin: "alice",
@@ -145,7 +145,7 @@ describe("userProjectsRoute", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    const res = await userProjectsRoute(req(undefined, "99"));
+    const res = await userProjectsRoute(req("community", "99"));
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.projects).toHaveLength(1);
@@ -154,6 +154,7 @@ describe("userProjectsRoute", () => {
 
     // The filter is BFF-side; the manager still gets the plain list read.
     expect(String(fetchMock.mock.calls[0][0])).not.toContain("projectId");
+    expect(String(fetchMock.mock.calls[0][0])).not.toContain("platform");
   });
 
   it("400s on a malformed projectId", async () => {

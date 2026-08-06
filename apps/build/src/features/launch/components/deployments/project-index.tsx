@@ -105,7 +105,7 @@ export function ProjectIndex({
                 key={source.id}
                 source={source}
                 requiredSdk={requiredSdk}
-                href={platformHref(`/projects/${source.id}`, platform)}
+                href={`/projects/${source.id}`}
               />
             ))}
         </div>

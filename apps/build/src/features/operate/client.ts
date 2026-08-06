@@ -14,7 +14,6 @@ export type OperateFetchOptions = {
   projectId?: number | null;
   cursor?: unknown;
   limit?: number;
-  platform?: string | null;
 };
 
 // Operate reads fan out across every source on the server, so a degraded
@@ -60,9 +59,6 @@ export async function operateFetch<T>(
   if (options.projectId) {
     params.set("projectId", String(options.projectId));
   }
-  if (options.platform?.trim()) {
-    params.set("platform", options.platform.trim());
-  }
   if (options.cursor) {
     params.set(
       "cursor",
@@ -76,11 +72,10 @@ export async function operateFetch<T>(
 }
 
 export async function operatePaymentsFetch<T>(
-  options: Pick<OperateFetchOptions, "projectId" | "platform"> = {},
+  options: Pick<OperateFetchOptions, "projectId"> = {},
 ): Promise<T> {
   const params = new URLSearchParams();
   if (options.projectId) params.set("projectId", String(options.projectId));
-  if (options.platform?.trim()) params.set("platform", options.platform.trim());
   return operateJson<T>(
     `${API_PATHS.bff.operate.payments}${params.size ? `?${params}` : ""}`,
     "payments",
@@ -90,14 +85,9 @@ export async function operatePaymentsFetch<T>(
 export async function operateAppDetailFetch<T>(
   projectId: number,
   applicationId: number,
-  platform?: string | null,
 ): Promise<T> {
   return operateJson<T>(
-    API_PATHS.bff.operate.observabilityDetail(
-      projectId,
-      applicationId,
-      platform,
-    ),
+    API_PATHS.bff.operate.observabilityDetail(projectId, applicationId),
     "observability detail",
   );
 }

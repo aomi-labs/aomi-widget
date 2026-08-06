@@ -38,10 +38,7 @@ type SecretsGateDetail = {
   requiredSecretsError?: string | null;
   loadRequiredSecrets: () => void;
   refreshRequiredSecrets?: () => Promise<unknown>;
-  ensureRequiredSecrets?: (
-    apps: string[],
-    projectId?: number,
-  ) => Promise<void>;
+  ensureRequiredSecrets?: (apps: string[], projectId?: number) => Promise<void>;
   setEnvVars?: (
     app: string,
     secrets: Record<string, string>,
@@ -82,9 +79,7 @@ function deploymentApps(deployment?: LaunchDeployPayload) {
   return deployment?.platform?.apps ?? [];
 }
 
-function launchDeployment(
-  next: DeployPayload,
-): LaunchDeployPayload {
+function launchDeployment(next: DeployPayload): LaunchDeployPayload {
   return next;
 }
 
@@ -594,7 +589,6 @@ export function DeployStep({
     setError(null);
     try {
       const result = await launchActivate({
-        platform,
         projectId: progress.projectId,
         releaseTags: tags,
         apps,
@@ -623,15 +617,7 @@ export function DeployStep({
       }
       setPhase("error");
     }
-  }, [
-    actor,
-    apps,
-    onProgress,
-    platform,
-    progress.projectId,
-    tags,
-    verifyLive,
-  ]);
+  }, [actor, apps, onProgress, progress.projectId, tags, verifyLive]);
 
   const reset = useCallback(() => {
     setError(null);

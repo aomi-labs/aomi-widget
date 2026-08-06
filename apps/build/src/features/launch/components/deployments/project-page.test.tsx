@@ -76,18 +76,14 @@ vi.mock("@build/features/launch/hooks/use-project-detail", () => ({
 
 import { ProjectPage } from "./project-page";
 
-function renderPage(platform?: string) {
+function renderPage() {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   return render(
     <QueryClientProvider client={client}>
       <ToastProvider>
-        <ProjectPage
-          projectId={1}
-          platform={platform}
-          tabBaseHref="/projects/1"
-        />
+        <ProjectPage projectId={1} tabBaseHref="/projects/1" />
       </ToastProvider>
     </QueryClientProvider>,
   );
@@ -119,13 +115,11 @@ describe("ProjectPage", () => {
     expect(screen.queryByText("Project home")).not.toBeInTheDocument();
   });
 
-  it("preserves the partner platform in project reads and tab links", () => {
-    renderPage("somm.finance");
+  it("uses canonical Project identity in reads and tab links", () => {
+    renderPage();
 
-    expect(useProjectDetail).toHaveBeenCalledWith(1, "somm.finance");
+    expect(useProjectDetail).toHaveBeenCalledWith(1);
     fireEvent.click(screen.getByRole("tab", { name: /^deployments$/i }));
-    expect(push).toHaveBeenCalledWith(
-      "/projects/1?platform=somm.finance&tab=deployments",
-    );
+    expect(push).toHaveBeenCalledWith("/projects/1?tab=deployments");
   });
 });

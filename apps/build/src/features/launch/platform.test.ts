@@ -21,27 +21,24 @@ describe("platformParam", () => {
 });
 
 describe("platformHref", () => {
-  it("re-attaches the platform to the routes that understand it", () => {
+  it("re-attaches the platform only before a Project exists", () => {
     expect(platformHref("/projects", "somm.finance")).toBe(
       "/projects?platform=somm.finance",
-    );
-    expect(platformHref("/projects/3", "somm.finance")).toBe(
-      "/projects/3?platform=somm.finance",
     );
     expect(platformHref("/operate/deployments/new", "somm.finance")).toBe(
       "/operate/deployments/new?platform=somm.finance",
     );
-    // A bot's app picker lists projects, and a source is bound to one platform.
-    expect(platformHref("/integrations", "somm.finance")).toBe(
-      "/integrations?platform=somm.finance",
-    );
-    expect(platformHref("/operate/bots", "somm.finance")).toBe(
-      "/operate/bots?platform=somm.finance",
-    );
   });
 
   it("leaves routes that are not platform-scoped alone", () => {
-    for (const href of ["/overview", "/settings/general", "/build"]) {
+    for (const href of [
+      "/overview",
+      "/settings/general",
+      "/build",
+      "/projects/3",
+      "/integrations",
+      "/operate/bots",
+    ]) {
       expect(platformHref(href, "somm.finance")).toBe(href);
     }
   });

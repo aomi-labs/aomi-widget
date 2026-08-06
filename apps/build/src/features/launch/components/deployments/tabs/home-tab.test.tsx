@@ -175,7 +175,7 @@ describe("HomeTab", () => {
     expect(await screen.findByText("No traffic yet")).toBeInTheDocument();
   });
 
-  it("keeps a partner project platform on usage and ledger reads", async () => {
+  it("uses canonical Project identity for usage and ledger reads", async () => {
     (detail.source as { apps: unknown[] }).apps = [
       {
         name: "somm-agent",
@@ -194,27 +194,19 @@ describe("HomeTab", () => {
     ];
 
     renderTab(
-      <HomeTab
-        detail={detail}
-        platform="somm.finance"
-        tabHref={(tab) => `/projects/1?platform=somm.finance&tab=${tab}`}
-      />,
+      <HomeTab detail={detail} tabHref={(tab) => `/projects/1?tab=${tab}`} />,
     );
 
     expect(await screen.findByText("No traffic yet")).toBeInTheDocument();
     expect(operateFetch).toHaveBeenCalledWith("usage", {
       projectId: 1,
-      platform: "somm.finance",
     });
     expect(screen.getByRole("link", { name: /^open usage$/i })).toHaveAttribute(
       "href",
-      "/operate/usage?project=1&platform=somm.finance",
+      "/operate/usage?project=1",
     );
     expect(
       screen.getByRole("link", { name: "View partner ledger" }),
-    ).toHaveAttribute(
-      "href",
-      "/operate/usage?project=1&platform=somm.finance#partner-payments",
-    );
+    ).toHaveAttribute("href", "/operate/usage?project=1#partner-payments");
   });
 });

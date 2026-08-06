@@ -26,14 +26,12 @@ type TabId = (typeof TABS)[number]["id"];
 
 export function ProjectPage({
   projectId,
-  platform,
   backHref = "/operate/deployments",
   backLabel = "Deployments",
   tabBaseHref,
   tabHref,
 }: {
   projectId: number;
-  platform?: string;
   backHref?: string;
   backLabel?: string;
   tabBaseHref?: string;
@@ -41,7 +39,7 @@ export function ProjectPage({
 }) {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const detail = useProjectDetail(projectId, platform);
+  const detail = useProjectDetail(projectId);
   const raw = searchParams.get("tab");
   const active: TabId = TABS.some((t) => t.id === raw)
     ? (raw as TabId)
@@ -50,7 +48,6 @@ export function ProjectPage({
     if (tabHref) return tabHref(tab);
     const params = new URLSearchParams();
     if (!tabBaseHref) params.set("project", String(projectId));
-    if (platform) params.set("platform", platform);
     params.set("tab", tab);
     return `${tabBaseHref ?? "/operate/deployments"}?${params}`;
   };
@@ -67,9 +64,9 @@ export function ProjectPage({
   // which only need the source id — fire for the tabs that render them.
   useEffect(() => {
     if (detail.accountKey) {
-      prefetchProjectDetail(queryClient, detail.accountKey, projectId, platform);
+      prefetchProjectDetail(queryClient, detail.accountKey, projectId);
     }
-  }, [detail.accountKey, platform, queryClient, projectId]);
+  }, [detail.accountKey, queryClient, projectId]);
   useEffect(() => {
     if (active === "home" || active === "environment") detail.loadSecrets();
   }, [active, detail]);
@@ -114,11 +111,7 @@ export function ProjectPage({
             // Details is merged into Home: status cards first, repo
             // metadata (the former Details tab) below.
             <>
-              <HomeTab
-                detail={detail}
-                tabHref={projectTabHref}
-                platform={platform}
-              />
+              <HomeTab detail={detail} tabHref={projectTabHref} />
               <SettingsTab detail={detail} />
             </>
           ) : active === "deployments" ? (

@@ -37,11 +37,10 @@ export function prefetchProjectDetail(
   queryClient: QueryClient,
   accountKey: string,
   projectId: number,
-  platform?: string | null,
 ) {
   void queryClient.prefetchQuery({
-    queryKey: buildQueryKeys.projectSource(accountKey, projectId, platform),
-    queryFn: () => deploymentProjects(platform ?? undefined, projectId),
+    queryKey: buildQueryKeys.projectSource(accountKey, projectId),
+    queryFn: () => deploymentProjects(undefined, projectId),
     staleTime: buildQueryStaleTime.projects,
     retry: false,
   });
@@ -52,8 +51,8 @@ export function prefetchProjectDetail(
     retry: false,
   });
   void queryClient.prefetchQuery({
-    queryKey: buildQueryKeys.operate(accountKey, "usage", projectId, platform),
-    queryFn: () => operateFetch("usage", { projectId, platform }),
+    queryKey: buildQueryKeys.operate(accountKey, "usage", projectId),
+    queryFn: () => operateFetch("usage", { projectId }),
     staleTime: buildQueryStaleTime.operate,
     retry: false,
   });
@@ -76,16 +75,14 @@ export function prefetchControlPlaneRoute(
   if (detailMatch) {
     const applicationId = Number(detailMatch[1]);
     const project = Number(searchParams.get("project"));
-    const platform = searchParams.get("platform");
     if (Number.isSafeInteger(project) && project > 0) {
       void queryClient.prefetchQuery({
         queryKey: buildQueryKeys.operateDetail(
           accountKey,
           project,
           applicationId,
-          platform,
         ),
-        queryFn: () => operateAppDetailFetch(project, applicationId, platform),
+        queryFn: () => operateAppDetailFetch(project, applicationId),
         staleTime: buildQueryStaleTime.operate,
         retry: false,
       });
@@ -95,12 +92,7 @@ export function prefetchControlPlaneRoute(
 
   const projectMatch = path.match(/^\/projects\/([1-9]\d*)$/);
   if (projectMatch) {
-    prefetchProjectDetail(
-      queryClient,
-      accountKey,
-      Number(projectMatch[1]),
-      searchParams.get("platform"),
-    );
+    prefetchProjectDetail(queryClient, accountKey, Number(projectMatch[1]));
     return true;
   }
 
@@ -170,19 +162,15 @@ export function prefetchControlPlaneRoute(
   const projectId = Number(searchParams.get("project"));
   const scopedProjectId =
     Number.isSafeInteger(projectId) && projectId > 0 ? projectId : null;
-  const platform = searchParams.get("platform");
   void queryClient.prefetchQuery({
     queryKey:
       kind === "bots"
         ? buildQueryKeys.bots(accountKey)
-        : buildQueryKeys.operate(accountKey, kind, scopedProjectId, platform),
+        : buildQueryKeys.operate(accountKey, kind, scopedProjectId),
     queryFn: () =>
       kind === "bots"
         ? operateFetch(kind)
-        : operateFetch(kind, {
-            projectId: scopedProjectId,
-            platform,
-          }),
+        : operateFetch(kind, { projectId: scopedProjectId }),
     staleTime: buildQueryStaleTime.operate,
     retry: false,
   });

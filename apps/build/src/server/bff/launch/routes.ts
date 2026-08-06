@@ -12,10 +12,7 @@ import {
   missingSecretsForActivation,
   RequiredSecretsCheckError,
 } from "@aomi-labs/deploy/bff";
-import {
-  BackendError,
-  missingRequiredSecrets,
-} from "@aomi-labs/deploy";
+import { BackendError, missingRequiredSecrets } from "@aomi-labs/deploy";
 import {
   isValidDeploymentId,
   isValidInstallationId,
@@ -288,10 +285,7 @@ export function launchDeployRoute(preflight: boolean) {
       string,
       unknown
     >;
-    if (
-      body.projectId !== undefined &&
-      !isValidProjectId(body.projectId)
-    ) {
+    if (body.projectId !== undefined && !isValidProjectId(body.projectId)) {
       return NextResponse.json(
         { error: "invalid `projectId`" },
         { status: 400 },
@@ -1274,14 +1268,18 @@ export async function userProjectsRoute(req: Request) {
         { status: 400 },
       );
     }
+    // Platform is a list filter only. Once the caller supplies a canonical
+    // Project ID, ownership and platform binding come from that Project.
+    const listPlatform =
+      projectId === undefined ? (platform ?? undefined) : undefined;
     const client = await backendClient();
     const projects = await readCache.projects.get(
-      [session.githubUserId, platform ?? null],
+      [session.githubUserId, listPlatform ?? null],
       () =>
         timedManagerRead("list_user_projects", () =>
           client.listUserProjects({
             githubUserId: session.githubUserId,
-            platform: platform ?? undefined,
+            platform: listPlatform,
           }),
         ),
     );

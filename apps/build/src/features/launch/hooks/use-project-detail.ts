@@ -2,7 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import type { UserProject, UserProjectLatestDeployment } from "@aomi-labs/deploy";
+import type {
+  UserProject,
+  UserProjectLatestDeployment,
+} from "@aomi-labs/deploy";
 import {
   deploymentProjects,
   deploymentHistory,
@@ -50,23 +53,15 @@ export type DeployFlowState =
 const DEPLOY_POLL_MS = 4000;
 const DEPLOY_TIMEOUT_MS = 8 * 60 * 1000;
 
-export function useProjectDetail(projectId: number, platform?: string) {
+export function useProjectDetail(projectId: number) {
   const { account } = useGitHubSession();
   const accountKey = githubAccountKey(account.githubLogin);
   const queryClient = useQueryClient();
   const sourceKey = useMemo(
-    () =>
-      buildQueryKeys.projectSource(
-        accountKey ?? "unavailable",
-        projectId,
-        platform,
-      ),
-    [accountKey, platform, projectId],
+    () => buildQueryKeys.projectSource(accountKey ?? "unavailable", projectId),
+    [accountKey, projectId],
   );
-  const projectsKey = buildQueryKeys.projects(
-    accountKey ?? "unavailable",
-    platform,
-  );
+  const projectsKey = buildQueryKeys.projects(accountKey ?? "unavailable");
 
   // Source + SDK status live in react-query. The source is a server-filtered
   // single-source read (`projectId` on the projects BFF route) — a project
@@ -79,7 +74,7 @@ export function useProjectDetail(projectId: number, platform?: string) {
   // never gating on the SDK badge.
   const projectsQuery = useQuery({
     queryKey: sourceKey,
-    queryFn: () => deploymentProjects(platform, projectId),
+    queryFn: () => deploymentProjects(undefined, projectId),
     enabled: !account.loading,
     staleTime: buildQueryStaleTime.projects,
     initialData: () => {
@@ -101,6 +96,7 @@ export function useProjectDetail(projectId: number, platform?: string) {
     () => projectsQuery.data?.projects.find((s) => s.id === projectId) ?? null,
     [projectsQuery.data, projectId],
   );
+  const projectPlatform = source?.platformName?.trim() || undefined;
   const sdk = sdkQuery.data ?? null;
   const loading = account.loading || projectsQuery.isPending;
   const error = projectsQuery.error
@@ -164,13 +160,13 @@ export function useProjectDetail(projectId: number, platform?: string) {
     historyReq.current = false;
     setHistory(null);
     setHistoryError(null);
-  }, [projectId, platform]);
+  }, [projectId]);
 
   const loadHistory = useCallback(() => {
     if (historyReq.current || history !== null) return;
     historyReq.current = true;
     setHistoryError(null);
-    void deploymentHistory({ projectId: projectId, limit: 20, platform })
+    void deploymentHistory({ projectId, limit: 20 })
       .then((r) => setHistory(r.deployments))
       .catch((err) => {
         setHistoryError(
@@ -178,13 +174,13 @@ export function useProjectDetail(projectId: number, platform?: string) {
         );
         historyReq.current = false;
       });
-  }, [history, platform, projectId]);
+  }, [history, projectId]);
 
   const loadSecrets = useCallback(() => {
     if (secretsReq.current || secretsByApp !== null) return;
     secretsReq.current = true;
     setSecretsError(null);
-    void deploymentSecrets({ projectId: projectId, platform })
+    void deploymentSecrets({ projectId })
       .then((r) => setSecrets(r.byApp))
       .catch((err) => {
         setSecretsError(
@@ -194,16 +190,13 @@ export function useProjectDetail(projectId: number, platform?: string) {
         );
         secretsReq.current = false;
       });
-  }, [platform, secretsByApp, projectId]);
+  }, [secretsByApp, projectId]);
 
   const refreshRequiredSecrets = useCallback(async () => {
     requiredSecretsReq.current = true;
     setRequiredSecretsError(null);
     try {
-      const result = await deploymentRequiredSecrets({
-        projectId: projectId,
-        platform,
-      });
+      const result = await deploymentRequiredSecrets({ projectId });
       setRequiredSecrets(result.byApp);
       return result.byApp;
     } catch (err) {
@@ -213,7 +206,7 @@ export function useProjectDetail(projectId: number, platform?: string) {
       requiredSecretsReq.current = false;
       throw err;
     }
-  }, [platform, projectId]);
+  }, [projectId]);
 
   const loadRequiredSecrets = useCallback(() => {
     if (requiredSecretsReq.current || requiredSecrets !== null) return;
@@ -229,7 +222,6 @@ export function useProjectDetail(projectId: number, platform?: string) {
             : (
                 await deploymentRequiredSecrets({
                   projectId: projectIdOverride,
-                  platform,
                 })
               ).byApp;
         if (projectIdOverride !== undefined) setRequiredSecrets(byApp);
@@ -249,7 +241,7 @@ export function useProjectDetail(projectId: number, platform?: string) {
         throw err;
       }
     },
-    [platform, refreshRequiredSecrets],
+    [refreshRequiredSecrets],
   );
 
   const hasMissingSecrets = useCallback(
@@ -260,7 +252,7 @@ export function useProjectDetail(projectId: number, platform?: string) {
   const refreshSecrets = useCallback(async () => {
     setSecretsError(null);
     try {
-      const r = await deploymentSecrets({ projectId: projectId, platform });
+      const r = await deploymentSecrets({ projectId });
       setSecrets(r.byApp);
     } catch (err) {
       setSecretsError(
@@ -270,66 +262,60 @@ export function useProjectDetail(projectId: number, platform?: string) {
       );
       throw err;
     }
-  }, [platform, projectId]);
+  }, [projectId]);
 
   const setEnvVars = useCallback(
     async (app: string, secrets: Record<string, string>) => {
       const result = await deploymentSetSecrets({
         app,
-        projectId: projectId,
-        platform,
+        projectId,
         secrets,
       });
       await refreshSecrets();
       await refreshRequiredSecrets();
       return result;
     },
-    [platform, refreshRequiredSecrets, refreshSecrets, projectId],
+    [refreshRequiredSecrets, refreshSecrets, projectId],
   );
 
   const deleteEnvVar = useCallback(
     async (app: string, name: string) => {
       const result = await deploymentDeleteSecret({
         app,
-        projectId: projectId,
-        platform,
+        projectId,
         name,
       });
       await refreshSecrets();
       return result;
     },
-    [platform, refreshSecrets, projectId],
+    [refreshSecrets, projectId],
   );
 
   // Fetch the DB activation timeline for every app on this source (per-app but
   // all DB reads — no GitHub fan-out). `force` re-fetches after an operation.
-  const fetchRecords = useCallback(
-    async (src: UserProject) => {
-      setRecordsError(null);
-      try {
-        const entries = await Promise.all(
-          src.apps.map(async (app) => {
-            const result = await deploymentRecords({
-              app: app.name,
-              projectId: src.id,
-              platform,
-            });
-            return [app.name, result.records] as const;
-          }),
-        );
-        setRecords(Object.fromEntries(entries));
-      } catch (err) {
-        const message =
-          err instanceof Error
-            ? err.message
-            : "Failed to load deployment activity";
-        setRecordsError(message);
-        setRecords({});
-        throw err;
-      }
-    },
-    [platform],
-  );
+  const fetchRecords = useCallback(async (src: UserProject) => {
+    setRecordsError(null);
+    try {
+      const entries = await Promise.all(
+        src.apps.map(async (app) => {
+          const result = await deploymentRecords({
+            app: app.name,
+            projectId: src.id,
+          });
+          return [app.name, result.records] as const;
+        }),
+      );
+      setRecords(Object.fromEntries(entries));
+    } catch (err) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : "Failed to load deployment activity";
+      setRecordsError(message);
+      setRecords({});
+      throw err;
+    }
+  }, []);
 
   const loadRecords = useCallback(() => {
     if (recordsReq.current || recordsByApp !== null || !source) return;
@@ -346,14 +332,13 @@ export function useProjectDetail(projectId: number, platform?: string) {
 
   const promote = useCallback(
     (deploymentId: string): Promise<DeploymentPromoteResult> =>
-      deploymentPromote({ deploymentId, projectId: projectId, platform }),
-    [platform, projectId],
+      deploymentPromote({ deploymentId, projectId }),
+    [projectId],
   );
 
   const deactivate = useCallback(
-    (apps: string[]) =>
-      deploymentDeactivate({ projectId: projectId, apps, platform }),
-    [platform, projectId],
+    (apps: string[]) => deploymentDeactivate({ projectId, apps }),
+    [projectId],
   );
 
   // Deploy the source repo's current HEAD and activate the resulting release
@@ -372,7 +357,7 @@ export function useProjectDetail(projectId: number, platform?: string) {
       });
       const pre = await launchPreflight({
         repo,
-        platform,
+        platform: projectPlatform,
         projectId,
       });
       const targetProjectId = pre.projectId ?? projectId;
@@ -399,7 +384,7 @@ export function useProjectDetail(projectId: number, platform?: string) {
       let apps = deployed.apps;
       // Poll CI until the release is published.
       for (;;) {
-        const status = await launchStatus(deploymentId, platform);
+        const status = await launchStatus(deploymentId, projectPlatform);
         releaseTags = status.releaseTags?.length
           ? status.releaseTags
           : releaseTags;
@@ -462,7 +447,7 @@ export function useProjectDetail(projectId: number, platform?: string) {
     }
   }, [
     ensureRequiredSecrets,
-    platform,
+    projectPlatform,
     refreshRecords,
     reload,
     source,
@@ -470,15 +455,15 @@ export function useProjectDetail(projectId: number, platform?: string) {
   ]);
 
   const upgradeSdk = useCallback(
-    () => deploymentUpgradeSdk({ projectId: projectId, platform }),
-    [platform, projectId],
+    () => deploymentUpgradeSdk({ projectId }),
+    [projectId],
   );
 
   // Cheap merge-poll counterpart to upgradeSdk: one GitHub-backed read, no
   // repo tarball or branch refresh, safe to call on the 45s recheck loop.
   const checkSdkUpgradeStatus = useCallback(
-    () => deploymentSdkUpgradeStatus({ projectId: projectId, platform }),
-    [platform, projectId],
+    () => deploymentSdkUpgradeStatus({ projectId }),
+    [projectId],
   );
 
   return {

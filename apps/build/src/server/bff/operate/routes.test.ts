@@ -458,7 +458,7 @@ function sharedSettlementPayments(applicationId: number | null = null) {
 }
 
 describe("operateUsageRoute statement fallback", () => {
-  it("uses an allowed partner platform for ownership and usage reads", async () => {
+  it("uses the canonical Project platform for ownership and usage reads", async () => {
     vi.stubEnv("APP_DEPLOY_PLATFORMS", "community,somm.finance");
     setSession({ githubUserId: "gh-1" });
     oneSource("somm.finance");
@@ -475,7 +475,7 @@ describe("operateUsageRoute statement fallback", () => {
     expect(res.status).toBe(200);
     expect(client.listUserProjects).toHaveBeenCalledWith({
       githubUserId: "gh-1",
-      platform: "somm.finance",
+      platform: undefined,
     });
     // Per-project reads carry no platform: the backend derives the
     // project's bound platform from the row.
@@ -496,7 +496,7 @@ describe("operateUsageRoute statement fallback", () => {
     );
   });
 
-  it("lets the backend resolve an exact platform outside the defaults", async () => {
+  it("ignores a URL platform once a canonical Project ID exists", async () => {
     vi.stubEnv("APP_DEPLOY_PLATFORMS", "community");
     setSession({ githubUserId: "gh-1" });
     oneSource("known.partner");
@@ -510,7 +510,7 @@ describe("operateUsageRoute statement fallback", () => {
     expect(res.status).toBe(200);
     expect(client.listUserProjects).toHaveBeenCalledWith({
       githubUserId: "gh-1",
-      platform: "known.partner",
+      platform: undefined,
     });
   });
 
@@ -938,7 +938,10 @@ describe("account-wide batch reads", () => {
   it("serves transactions from one merged page and maps rows to projects", async () => {
     client.listUserTransactions.mockResolvedValue({
       projects: [
-        { project: { id: 900, repositoryLink: "o/one" }, platform: "community" },
+        {
+          project: { id: 900, repositoryLink: "o/one" },
+          platform: "community",
+        },
         {
           project: { id: 1620, repositoryLink: "partner/app" },
           platform: "somm.finance",
@@ -1051,7 +1054,10 @@ describe("account-wide batch reads", () => {
   it("serves logs pre-merged with the batch cursor", async () => {
     client.listUserLogs.mockResolvedValue({
       projects: [
-        { project: { id: 900, repositoryLink: "o/one" }, platform: "community" },
+        {
+          project: { id: 900, repositoryLink: "o/one" },
+          platform: "community",
+        },
       ],
       logs: [
         {

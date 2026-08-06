@@ -37,8 +37,6 @@ import type { RequiredSecretsByApp } from "./required-secrets";
 export { LaunchRequestError };
 export type { GithubAppOAuthStartResponse };
 
-type PlatformInput = { platform?: string };
-
 const client = createLaunchClient({
   backendFetch: sessionScopedFetch,
 });
@@ -65,7 +63,6 @@ export function launchDeploy(
 }
 
 export function launchRedeploy(input: {
-  platform?: string;
   projectId: number;
 }): Promise<LaunchRedeployResult> {
   return client.redeploy(input);
@@ -97,9 +94,9 @@ export function deploymentProjects(
   return client.deployments.projects({ platform, projectId });
 }
 
-export function deploymentUpgradeSdk(
-  input: PlatformInput & { projectId: number },
-): Promise<ProjectSdkUpgradeResult> {
+export function deploymentUpgradeSdk(input: {
+  projectId: number;
+}): Promise<ProjectSdkUpgradeResult> {
   return client.deployments.upgradeSdk(input);
 }
 
@@ -107,15 +104,16 @@ export function deploymentSdkStatus(): Promise<LaunchSdkStatus> {
   return client.sdkStatus();
 }
 
-export function deploymentSdkUpgradeStatus(
-  input: PlatformInput & { projectId: number },
-): Promise<ProjectSdkUpgradeStatusResult> {
+export function deploymentSdkUpgradeStatus(input: {
+  projectId: number;
+}): Promise<ProjectSdkUpgradeStatusResult> {
   return client.deployments.sdkUpgradeStatus(input);
 }
 
-export function deploymentHistory(
-  input: PlatformInput & { projectId: number; limit?: number },
-): Promise<DeploymentHistoryResult> {
+export function deploymentHistory(input: {
+  projectId: number;
+  limit?: number;
+}): Promise<DeploymentHistoryResult> {
   return client.deployments.history(input);
 }
 
@@ -126,9 +124,9 @@ export function deploymentFeed(input: {
   return client.deployments.feed(input);
 }
 
-export function deploymentSecrets(
-  input: PlatformInput & { projectId: number },
-): Promise<DeploymentSecretsResult> {
+export function deploymentSecrets(input: {
+  projectId: number;
+}): Promise<DeploymentSecretsResult> {
   return client.deployments.secrets(input);
 }
 
@@ -136,20 +134,21 @@ export type RequiredSecretsResult = {
   byApp: RequiredSecretsByApp;
 };
 
-export function deploymentRequiredSecrets(
-  input: PlatformInput & { projectId: number },
-): Promise<RequiredSecretsResult> {
+export function deploymentRequiredSecrets(input: {
+  projectId: number;
+}): Promise<RequiredSecretsResult> {
   return client.deployments.requiredSecrets(input);
 }
 
-export function deploymentRecords(
-  input: PlatformInput & { app: string; projectId?: number },
-): Promise<ListDeploymentRecordsResult> {
+export function deploymentRecords(input: {
+  app: string;
+  projectId?: number;
+  platform?: string;
+}): Promise<ListDeploymentRecordsResult> {
   return client.deployments.records(input);
 }
 
 export function deploymentPromote(input: {
-  platform?: string;
   deploymentId: string;
   projectId: number;
   apps?: string[];
@@ -159,7 +158,6 @@ export function deploymentPromote(input: {
 }
 
 export function launchActivate(input: {
-  platform?: string;
   projectId: number;
   releaseTags: string[];
   apps: string[];
@@ -169,7 +167,6 @@ export function launchActivate(input: {
 }
 
 export function deploymentDeactivate(input: {
-  platform?: string;
   projectId: number;
   apps: string[];
 }): Promise<{ ok: boolean; apps: string[] }> {
@@ -177,7 +174,6 @@ export function deploymentDeactivate(input: {
 }
 
 export function deploymentSetSecrets(input: {
-  platform?: string;
   app: string;
   projectId: number;
   secrets: Record<string, string>;
@@ -186,7 +182,6 @@ export function deploymentSetSecrets(input: {
 }
 
 export function deploymentDeleteSecret(input: {
-  platform?: string;
   app: string;
   projectId: number;
   name: string;

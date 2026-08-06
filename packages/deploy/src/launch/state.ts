@@ -86,29 +86,13 @@ export function loadLaunch(platform?: string | null): LaunchState {
     return {
       platform: stored,
       path: parsed.path ?? null,
-      oneshot: migrateProgress(parsed.oneshot),
+      oneshot: parsed.oneshot ?? {},
       pendingInstall: parsed.pendingInstall ?? null,
       rejectedInstallationId: parsed.rejectedInstallationId ?? null,
     };
   } catch {
     return { ...empty(), platform: scope };
   }
-}
-
-/**
- * Progress persisted before the project rename stored the resolved id as
- * `appSourceId`. Without this one-line migration a mid-onboarding user
- * resumes with no project id and the activation gate wedges permanently.
- */
-function migrateProgress(raw: unknown): LaunchProgress {
-  if (!raw || typeof raw !== "object") return {};
-  const { appSourceId, ...progress } = raw as LaunchProgress & {
-    appSourceId?: number;
-  };
-  return {
-    ...progress,
-    projectId: progress.projectId ?? appSourceId,
-  };
 }
 
 export function saveLaunch(state: LaunchState): void {
@@ -378,6 +362,7 @@ export function connectionResult(params: {
   if (params.githubError) {
     return { status: "error", message: connectionError(params.githubError) };
   }
-  if (params.launch === "bound") return { status: "success", repo: params.repo };
+  if (params.launch === "bound")
+    return { status: "success", repo: params.repo };
   return params.launch ? LAUNCH_RESULTS[params.launch] : undefined;
 }

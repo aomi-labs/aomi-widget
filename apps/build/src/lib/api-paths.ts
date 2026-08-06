@@ -17,9 +17,7 @@ function withPlatform(path: string, platform?: string): string {
 
 // Sources read, optionally narrowed server-side to a single app source.
 function sourcesPath(base: string, projectId?: number): string {
-  return projectId === undefined
-    ? base
-    : `${base}?projectId=${projectId}`;
+  return projectId === undefined ? base : `${base}?projectId=${projectId}`;
 }
 
 export const API_PATHS = {
@@ -129,16 +127,11 @@ export const API_PATHS = {
       logs: `${BFF}/operate/logs`,
       observability: `${BFF}/operate/observability`,
       payments: `${BFF}/operate/payments`,
-      observabilityDetail: (
-        projectId: number,
-        applicationId: number,
-        platform?: string | null,
-      ) => {
+      observabilityDetail: (projectId: number, applicationId: number) => {
         const params = new URLSearchParams({
           projectId: String(projectId),
           applicationId: String(applicationId),
         });
-        if (platform?.trim()) params.set("platform", platform.trim());
         return `${BFF}/operate/observability/detail?${params}`;
       },
     },

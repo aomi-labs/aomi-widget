@@ -165,26 +165,19 @@ function monetizationCard(source: NonNullable<Detail["source"]>) {
   };
 }
 
-function operateUsageHref(
-  projectId: number,
-  platform?: string,
-  anchor?: string,
-) {
+function operateUsageHref(projectId: number, anchor?: string) {
   const params = new URLSearchParams({ project: String(projectId) });
-  if (platform) params.set("platform", platform);
   return `/operate/usage?${params}${anchor ? `#${anchor}` : ""}`;
 }
 
 export function HomeTab({
   detail,
   tabHref,
-  platform,
 }: {
   detail: Detail;
   tabHref?: (
     tab: "home" | "deployments" | "providers" | "environment" | "chat",
   ) => string;
-  platform?: string;
 }) {
   const source = detail.source;
   // Same key as the operate usage page and the project-detail prefetch, so a
@@ -194,12 +187,11 @@ export function HomeTab({
       detail.accountKey ?? "unavailable",
       "usage",
       source?.id ?? null,
-      platform,
     ),
     queryFn: () =>
       operateFetch<{
         daily?: Array<Record<string, unknown>>;
-      }>("usage", { projectId: source?.id, platform }),
+      }>("usage", { projectId: source?.id }),
     enabled: source !== null,
     staleTime: buildQueryStaleTime.operate,
   });
@@ -384,7 +376,7 @@ export function HomeTab({
               <UsageSpark spark={usage.spark} />
             ) : null
           }
-          actionHref={operateUsageHref(source.id, platform)}
+          actionHref={operateUsageHref(source.id)}
           actionLabel="Open Usage"
         />
         {monetization ? (
@@ -393,11 +385,7 @@ export function HomeTab({
             value={monetization.value}
             hint={monetization.hint}
             tone={monetization.tone}
-            actionHref={operateUsageHref(
-              source.id,
-              platform,
-              "partner-payments",
-            )}
+            actionHref={operateUsageHref(source.id, "partner-payments")}
             actionLabel="View partner ledger"
           />
         ) : null}

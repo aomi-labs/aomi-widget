@@ -9,10 +9,7 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/projects",
 }));
 
-import {
-  CommandPalette,
-  openCommandPalette,
-} from "./command-palette";
+import { CommandPalette, openCommandPalette } from "./command-palette";
 
 describe("CommandPalette", () => {
   beforeEach(() => {
@@ -27,7 +24,9 @@ describe("CommandPalette", () => {
 
   it("opens from the header Search event", async () => {
     render(<CommandPalette />);
-    expect(screen.queryByRole("dialog", { name: /command palette/i })).toBeNull();
+    expect(
+      screen.queryByRole("dialog", { name: /command palette/i }),
+    ).toBeNull();
 
     openCommandPalette();
 
@@ -70,8 +69,7 @@ describe("CommandPalette", () => {
     await screen.findByRole("dialog", { name: /command palette/i });
 
     fireEvent.click(screen.getByRole("button", { name: /^last project\b/i }));
-    // No stored selection: the shell scopes to the default platform.
-    expect(push).toHaveBeenCalledWith("/projects/42?platform=community");
+    expect(push).toHaveBeenCalledWith("/projects/42");
 
     push.mockClear();
     openCommandPalette();

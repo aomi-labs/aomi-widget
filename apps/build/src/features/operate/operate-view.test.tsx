@@ -676,12 +676,11 @@ describe("OperateView transactions", () => {
     await waitFor(() => {
       expect(operateFetch).toHaveBeenCalledWith("usage", {
         projectId: 42,
-        platform: undefined,
       });
     });
   });
 
-  it("keeps ?platform= on project-scoped operate reads", async () => {
+  it("ignores stale ?platform= on Project-scoped operate reads", async () => {
     searchParams.current = new URLSearchParams(
       "project=1620&platform=somm.finance",
     );
@@ -696,7 +695,6 @@ describe("OperateView transactions", () => {
     await waitFor(() => {
       expect(operateFetch).toHaveBeenCalledWith("usage", {
         projectId: 1620,
-        platform: "somm.finance",
       });
     });
   });

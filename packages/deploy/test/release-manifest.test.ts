@@ -350,17 +350,16 @@ describe("missingSecretsForActivation", () => {
 
     const client = {
       listAppSecrets: vi.fn(async () => ({ byApp: {} })),
-      getUserSourceLatestDeployment: vi.fn(async () => ({
+      getUserProjectLatestDeployment: vi.fn(async () => ({
         platformRepo: "aomi-labs/community",
       })),
-    } as unknown as DeploymentClient;
+    } as unknown as BackendClient;
 
     const missing = await missingSecretsForActivation({
       client,
       githubUserId: "gh-1",
-      platform: "community",
       githubToken: "t",
-      source: { id: 42, latestDeployment: null } as never,
+      project: { id: 42, latestDeployment: null } as never,
       pairs: ["alpha", "beta", "gamma"].map((app) => ({
         app,
         releaseTag: "v1",
@@ -424,17 +423,16 @@ describe("missingSecretsForActivation", () => {
 
     const client = {
       listAppSecrets: vi.fn(async () => ({ byApp: {} })),
-      getUserSourceLatestDeployment: vi.fn(async () => ({
+      getUserProjectLatestDeployment: vi.fn(async () => ({
         platformRepo: "aomi-labs/community",
       })),
-    } as unknown as DeploymentClient;
+    } as unknown as BackendClient;
 
     const missing = await missingSecretsForActivation({
       client,
       githubUserId: "gh-1",
-      platform: "community",
       githubToken: "t",
-      source: { id: 42, latestDeployment: null } as never,
+      project: { id: 42, latestDeployment: null } as never,
       pairs: apps.map((app) => ({ app, releaseTag: `tag-${app}` })),
     });
 
@@ -458,18 +456,17 @@ describe("missingSecretsForActivation", () => {
 
     const client = {
       listAppSecrets: vi.fn(async () => ({ byApp: {} })),
-      getUserSourceLatestDeployment: vi.fn(async () => ({
+      getUserProjectLatestDeployment: vi.fn(async () => ({
         platformRepo: "aomi-labs/community",
       })),
-    } as unknown as DeploymentClient;
+    } as unknown as BackendClient;
 
     await expect(
       missingSecretsForActivation({
         client,
         githubUserId: "gh-1",
-        platform: "community",
         githubToken: "t",
-        source: { id: 42, latestDeployment: null } as never,
+        project: { id: 42, latestDeployment: null } as never,
         pairs: [
           { app: "ok", releaseTag: "good" },
           { app: "broken", releaseTag: "bad" },
