@@ -1,4 +1,10 @@
-import { cleanup, render, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const runtimeState = vi.hoisted(() => ({
@@ -6,7 +12,9 @@ const runtimeState = vi.hoisted(() => ({
   pendingWalletRequests: [] as Array<Record<string, unknown>>,
   resolveWalletRequest: vi.fn(),
   rejectWalletRequest: vi.fn(),
+  startWalletRequest: vi.fn(),
   simulateBatchTransactions: vi.fn(),
+  showNotification: vi.fn(),
 }));
 
 const authState = vi.hoisted(() => ({
@@ -36,9 +44,13 @@ const authState = vi.hoisted(() => ({
     | ((payload: Record<string, unknown>) => Promise<{ signature: string }>)
     | undefined,
   signMessage: vi.fn(),
+  signAaRequests: vi.fn(),
+  supportedChains: [{ id: 4326, name: "MegaETH" }],
 }));
 
 vi.mock("@aomi-labs/react", () => ({
+  cn: (...values: Array<string | undefined | false>) =>
+    values.filter(Boolean).join(" "),
   UserState: {
     address: () => undefined,
   },
@@ -66,6 +78,7 @@ describe("RuntimeTxHandler", () => {
     runtimeState.pendingWalletRequests = [];
     runtimeState.resolveWalletRequest.mockReset();
     runtimeState.rejectWalletRequest.mockReset();
+    runtimeState.startWalletRequest.mockReset();
     runtimeState.simulateBatchTransactions.mockReset();
     authState.selectNetwork.mockReset();
     authState.signSolanaTransaction.mockReset();
@@ -73,6 +86,7 @@ describe("RuntimeTxHandler", () => {
     authState.sendSolanaTransaction.mockReset();
     authState.signTypedData = undefined;
     authState.signMessage.mockReset();
+    authState.signAaRequests.mockReset();
     authState.selectedSolanaNetwork = {
       id: "solana-devnet",
       cluster: "solana:devnet",
@@ -245,5 +259,59 @@ describe("RuntimeTxHandler", () => {
       { kind: "eip712_sign", signature: "0xsignature" },
     );
     expect(runtimeState.rejectWalletRequest).not.toHaveBeenCalled();
+  });
+
+  it("waits for explicit approval before asking Privy for AA signatures", async () => {
+    authState.signAaRequests.mockResolvedValue({
+      signatures: ["0xauthorization", "0xuserop"],
+    });
+    runtimeState.pendingWalletRequests = [
+      {
+        id: "aa-7-8-9",
+        kind: "aa_sign",
+        payload: {
+          chain_family: "evm",
+          chain_id: 4326,
+          signer: "0x1111111111111111111111111111111111111111",
+          executor: "0x1111111111111111111111111111111111111111",
+          aa_mode: "7702",
+          tx_ids: [7, 8, 9],
+          sponsored: true,
+          description: "Execute three calls",
+          signature_requests: [
+            {
+              kind: "eip7702_authorization",
+              contract_address: "0x0000000000000000000000000000000000007702",
+              chain_id: 4326,
+              nonce: 0,
+              raw_payload: `0x${"11".repeat(32)}`,
+            },
+            {
+              kind: "personal_sign",
+              message: "0xprepared-user-operation",
+              raw_payload: `0x${"22".repeat(32)}`,
+            },
+          ],
+        },
+        timestamp: Date.now(),
+      },
+    ];
+
+    render(<RuntimeTxHandler />);
+
+    expect(screen.getByText("Approve account action")).toBeInTheDocument();
+    expect(screen.getByText("MegaETH")).toBeInTheDocument();
+    expect(screen.getByText("3")).toBeInTheDocument();
+    expect(authState.signAaRequests).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Review & sign (2)" }));
+
+    await waitFor(() => {
+      expect(authState.signAaRequests).toHaveBeenCalledTimes(1);
+    });
+    expect(runtimeState.resolveWalletRequest).toHaveBeenCalledWith("aa-7-8-9", {
+      kind: "aa_sign",
+      signatures: ["0xauthorization", "0xuserop"],
+    });
   });
 });

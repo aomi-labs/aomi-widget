@@ -25,6 +25,8 @@ interface AccountSigningViewProps {
   onProvisionParaAgentWallet: () => Promise<void>;
   onRevokeGrant: (grant: DelegationGrant) => Promise<void>;
   onStopAllAuto: () => Promise<void>;
+  canConnectPrivy: boolean;
+  onConnectPrivy: () => Promise<void>;
   onRegrant: (wallet: WalletPolicy) => Promise<void>;
   /** Why a target mode can't be signed right now, or null when it can. */
   blockedReason?: (wallet: WalletPolicy, mode: SignerMode) => string | null;
@@ -33,6 +35,7 @@ interface AccountSigningViewProps {
 /** Busy/error key for the account-wide "stop all auto-signing" action. */
 const STOP_ALL_KEY = "__stop_all__";
 const PARA_AGENT_KEY = "__para_agent__";
+const CONNECT_PRIVY_KEY = "__connect_privy__";
 
 export function AccountSigningView({
   wallets,
@@ -44,6 +47,8 @@ export function AccountSigningView({
   onProvisionParaAgentWallet,
   onRevokeGrant,
   onStopAllAuto,
+  canConnectPrivy,
+  onConnectPrivy,
   onRegrant,
   blockedReason,
 }: AccountSigningViewProps) {
@@ -71,7 +76,10 @@ export function AccountSigningView({
     });
   }, [wallets, seeded]);
 
-  const run = async (id: string, action: () => Promise<void>): Promise<boolean> => {
+  const run = async (
+    id: string,
+    action: () => Promise<void>,
+  ): Promise<boolean> => {
     setBusy((b) => ({ ...b, [id]: true }));
     setErrors((e) => {
       const next = { ...e };
@@ -106,7 +114,9 @@ export function AccountSigningView({
       CUSTODY_GROUPS.map((group) => ({
         key: group.key,
         label: group.label,
-        wallets: sortWallets(wallets.filter((w) => walletGroupKey(w) === group.key)),
+        wallets: sortWallets(
+          wallets.filter((w) => walletGroupKey(w) === group.key),
+        ),
       })).filter((g) => g.wallets.length > 0),
     [wallets],
   );
@@ -115,8 +125,21 @@ export function AccountSigningView({
     () => grants.filter((g) => g.status === "active").length,
     [grants],
   );
-
   const hasActiveGrants = liveGrants > 0;
+
+  // An unrelated provider grant (for example Para/Solana) must not hide the
+  // Privy EVM setup action. Grants are provider capabilities, not a single
+  // account-wide on/off bit.
+  const hasActivePrivyGrant = useMemo(
+    () =>
+      grants.some(
+        (grant) =>
+          grant.status === "active" &&
+          (grant.providerKey ?? grant.provider).toLowerCase() === "privy" &&
+          !grant.scope.toLowerCase().startsWith("solana"),
+      ),
+    [grants],
+  );
 
   const jumpToAttention = () => {
     const target = wallets.find((w) => reconcile(w).status === "drifted");
@@ -175,6 +198,10 @@ export function AccountSigningView({
     void run(STOP_ALL_KEY, onStopAllAuto);
   };
 
+  const connectPrivy = () => {
+    void run(CONNECT_PRIVY_KEY, onConnectPrivy);
+  };
+
   const bindWallet = (id: string) => {
     const wallet = unboundWallets.find((entry) => entry.id === id);
     if (!wallet) return;
@@ -193,7 +220,8 @@ export function AccountSigningView({
         {attentionCount > 0 && (
           <div className="border-aomi-border bg-aomi-surface-2/40 flex items-center justify-between gap-3 rounded-lg border px-4 py-3">
             <span className="text-aomi-fg text-[13px]">
-              {attentionCount} {attentionCount === 1 ? "wallet needs" : "wallets need"} a new
+              {attentionCount}{" "}
+              {attentionCount === 1 ? "wallet needs" : "wallets need"} a new
               provider grant
             </span>
             <button
@@ -227,8 +255,42 @@ export function AccountSigningView({
               disabled={Boolean(busy[PARA_AGENT_KEY])}
               className="border-aomi-border text-aomi-fg hover:bg-aomi-surface-2 flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[13px] font-medium transition-colors disabled:opacity-50"
             >
-              {busy[PARA_AGENT_KEY] && <Loader2 size={13} className="animate-spin" />}
-              {busy[PARA_AGENT_KEY] ? "Provisioning…" : "Provision agent wallet"}
+              {busy[PARA_AGENT_KEY] && (
+                <Loader2 size={13} className="animate-spin" />
+              )}
+              {busy[PARA_AGENT_KEY]
+                ? "Provisioning…"
+                : "Provision agent wallet"}
+            </button>
+          </div>
+        )}
+
+        {canConnectPrivy && !hasActivePrivyGrant && (
+          <div className="border-aomi-border bg-aomi-surface-2/40 flex items-center justify-between gap-3 rounded-lg border px-4 py-3">
+            <div className="min-w-0 flex-1">
+              <span className="text-aomi-fg block text-[13px] font-medium">
+                Enable automatic signing
+              </span>
+              <span className="text-aomi-muted mt-0.5 block text-[12px] leading-snug">
+                Privy will ask once to add Aomi as a delegated requester. You
+                can revoke it here at any time.
+              </span>
+              {errors[CONNECT_PRIVY_KEY] && (
+                <span className="text-aomi-danger mt-1 block text-[12px]">
+                  {errors[CONNECT_PRIVY_KEY]}
+                </span>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={connectPrivy}
+              disabled={Boolean(busy[CONNECT_PRIVY_KEY])}
+              className="border-aomi-border text-aomi-fg hover:bg-aomi-surface-2 flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[13px] font-medium transition-colors disabled:opacity-50"
+            >
+              {busy[CONNECT_PRIVY_KEY] && (
+                <Loader2 size={13} className="animate-spin" />
+              )}
+              {busy[CONNECT_PRIVY_KEY] ? "Waiting for Privy…" : "Enable"}
             </button>
           </div>
         )}
@@ -237,12 +299,14 @@ export function AccountSigningView({
           <div className="flex flex-col gap-0.5">
             <span className="text-sm font-semibold">Wallet signing</span>
             <span className="text-aomi-muted text-[13px]">
-              Choose who can sign for each wallet. Changes require your signature.
+              Choose who can sign for each wallet. Changes require your
+              signature.
             </span>
             {liveGrants > 0 && (
               <span className="text-aomi-muted text-[12px]">
-                {liveGrants} active provider {liveGrants === 1 ? "grant" : "grants"} — expand
-                a wallet to revoke
+                {liveGrants} active provider{" "}
+                {liveGrants === 1 ? "grant" : "grants"} — expand a wallet to
+                revoke
               </span>
             )}
           </div>
@@ -267,7 +331,10 @@ export function AccountSigningView({
                         error={errors[wallet.id]}
                         blockedReason={blockedReason}
                         onToggle={() =>
-                          setExpanded((e) => ({ ...e, [wallet.id]: !e[wallet.id] }))
+                          setExpanded((e) => ({
+                            ...e,
+                            [wallet.id]: !e[wallet.id],
+                          }))
                         }
                         onDraft={(mode) => setDraft(wallet.id, mode)}
                         onCommit={() => void commit(wallet.id)}
@@ -318,12 +385,16 @@ export function AccountSigningView({
                 disabled={Boolean(busy[STOP_ALL_KEY])}
                 className="border-aomi-border text-aomi-muted hover:bg-aomi-surface-2 hover:text-aomi-fg flex h-8 items-center gap-1.5 rounded-md border px-3 text-[13px] font-medium transition-colors disabled:opacity-50"
               >
-                {busy[STOP_ALL_KEY] && <Loader2 size={13} className="animate-spin" />}
+                {busy[STOP_ALL_KEY] && (
+                  <Loader2 size={13} className="animate-spin" />
+                )}
                 Revoke all
               </button>
             </SettingRow>
             {errors[STOP_ALL_KEY] && (
-              <p className="text-aomi-danger text-[13px]">{errors[STOP_ALL_KEY]}</p>
+              <p className="text-aomi-danger text-[13px]">
+                {errors[STOP_ALL_KEY]}
+              </p>
             )}
           </div>
         )}

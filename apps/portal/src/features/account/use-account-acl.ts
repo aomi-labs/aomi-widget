@@ -7,7 +7,12 @@ import {
   type AuthorizationPoster,
   type WalletEip712Payload,
 } from "@aomi-labs/client";
-import { type AomiWalletKit, useAomiWalletKit } from "@aomi-labs/widget-lib";
+import { useOptionalAomiRuntime } from "@aomi-labs/react";
+import {
+  type AomiWalletKit,
+  useAomiWalletKit,
+  usePrivyDelegation,
+} from "@aomi-labs/widget-lib";
 import { accountScopedFetch } from "@portal/lib/settings-api";
 import {
   explainAccountError,
@@ -78,6 +83,8 @@ export type AccountAcl = {
   provisionParaAgentWallet: () => Promise<void>;
   revokeGrant: (grant: DelegationGrant) => Promise<void>;
   stopAllAuto: () => Promise<void>;
+  canConnectPrivy: boolean;
+  connectPrivy: () => Promise<void>;
   /** Re-open the provider so a fresh grant can be minted, then reload. */
   regrant: (wallet: WalletPolicy) => Promise<void>;
   /** Why this wallet can't sign the given change right now, or null if it can. */
@@ -121,6 +128,8 @@ function detectNeedsParaAgentWallet(wallets: WalletPolicy[]): boolean {
 
 export function useAccountAcl(): AccountAcl {
   const adapter = useAomiWalletKit();
+  const runtime = useOptionalAomiRuntime();
+  const privyDelegation = usePrivyDelegation();
   const [wallets, setWallets] = useState<WalletPolicy[]>([]);
   const [grants, setGrants] = useState<DelegationGrant[]>([]);
   const [status, setStatus] = useState<AclStatus>("loading");
@@ -140,6 +149,10 @@ export function useAccountAcl(): AccountAcl {
   const signTypedData = adapter.signTypedData;
   const signSolanaMessage = adapter.signSolanaMessage;
   const openAccountUI = adapter.openAccountUI;
+  const currentThreadId = runtime?.currentThreadId;
+  const canConnectPrivy =
+    adapter.identity.sessionProvider === "privy" ||
+    adapter.identity.embeddedProvider === "privy";
   const unboundWallets = useMemo(
     () => unboundFromAccounts(adapter.accounts ?? [], wallets),
     [adapter.accounts, wallets],
@@ -315,8 +328,55 @@ export function useAccountAcl(): AccountAcl {
     await refresh();
   }, [grants, refresh]);
 
+  const connectPrivy = useCallback(async () => {
+    if (!currentThreadId) {
+      throw new Error("Open a chat thread before enabling automatic signing.");
+    }
+    const response = await fetch("/api/delegation/privy/begin", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Thread-Id": currentThreadId,
+      },
+      // Linking a Privy wallet is intentionally the safe default. Auto must
+      // cross the separate delegated-signing consent boundary explicitly.
+      body: JSON.stringify({
+        wallet_family: "evm",
+        purpose: "delegate_signing",
+      }),
+      credentials: "include",
+      cache: "no-store",
+    });
+    const payload = (await response.json().catch(() => null)) as {
+      auth_url?: unknown;
+      state_token?: unknown;
+    } | null;
+    if (
+      !response.ok ||
+      typeof payload?.auth_url !== "string" ||
+      typeof payload.state_token !== "string"
+    ) {
+      throw new Error("Could not start Privy automatic signing setup.");
+    }
+    const signerId = new URL(payload.auth_url).searchParams
+      .get("signer_id")
+      ?.trim();
+    if (!signerId) {
+      throw new Error("Aomi's Privy signer is not configured.");
+    }
+    await privyDelegation.start({ state: payload.state_token, signerId });
+    await refresh();
+  }, [currentThreadId, privyDelegation, refresh]);
+
   const regrant = useCallback(
     async (wallet: WalletPolicy) => {
+      if (
+        wallet.chain === "evm" &&
+        wallet.provider?.toLowerCase() === "privy"
+      ) {
+        await connectPrivy();
+        return;
+      }
       if (!openAccountUI) {
         throw new Error(
           "Reconnect this provider from the wallet menu to mint a new grant.",
@@ -325,7 +385,7 @@ export function useAccountAcl(): AccountAcl {
       await openAccountUI({ family: wallet.chain });
       await refresh();
     },
-    [openAccountUI, refresh],
+    [connectPrivy, openAccountUI, refresh],
   );
 
   return useMemo(
@@ -342,13 +402,17 @@ export function useAccountAcl(): AccountAcl {
       provisionParaAgentWallet,
       revokeGrant,
       stopAllAuto,
+      canConnectPrivy,
+      connectPrivy,
       regrant,
       blockedReason,
     }),
     [
       bindWallet,
       blockedReason,
+      canConnectPrivy,
       commitMode,
+      connectPrivy,
       error,
       grants,
       needsParaAgentWallet,

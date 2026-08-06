@@ -54,7 +54,7 @@ export {
   SUPPORTED_CHAINS,
 } from "@aomi-labs/react";
 export { ExtUserProvider, useUser, UserState } from "@aomi-labs/react";
-export { monad, monadTestnet, robinhood } from "@aomi-labs/client";
+export { megaeth, monad, monadTestnet, robinhood } from "@aomi-labs/client";
 export type {
   AomiWalletKit,
   AomiWalletKit as AomiAuthAdapter,
@@ -73,6 +73,10 @@ export {
   useAomiWalletKit,
 } from "./lib/wallet-kit";
 export { AomiWalletProvider } from "./lib/wallet-kit/providers";
+export {
+  usePrivyDelegation,
+  type PrivyDelegationContextValue,
+} from "./lib/wallet-kit/providers/privy/privy-delegation-context";
 export {
   AomiBaseAccountProvider,
   type AomiBaseAccountProviderProps,

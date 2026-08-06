@@ -3,6 +3,8 @@
 import { useCallback, useRef, useState } from "react";
 import type {
   WalletEip712Payload,
+  WalletAaSignPayload,
+  WalletAaSignatureRequest,
   WalletSolanaSignMessagePayload,
   WalletSolanaSignPayload,
   WalletTxPayload,
@@ -21,6 +23,8 @@ export type {
   WalletRequestResult,
   WalletTxPayload,
   WalletEip712Payload,
+  WalletAaSignPayload,
+  WalletAaSignatureRequest,
   WalletSolanaSignMessagePayload,
   WalletSolanaSignPayload,
   ViemSignMessageArgs,
@@ -77,8 +81,7 @@ export function useWalletHandler({
       ),
     );
     setHasBlockingWalletRequests(
-      requestsRef.current.length > 0 ||
-        inFlightRequestSetRef.current.size > 0,
+      requestsRef.current.length > 0 || inFlightRequestSetRef.current.size > 0,
     );
   }, []);
 

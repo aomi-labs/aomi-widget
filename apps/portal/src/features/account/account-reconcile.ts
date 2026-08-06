@@ -1,4 +1,9 @@
-import type { DelegationGrant, LinkedVia, SignerMode, WalletPolicy } from "./types";
+import type {
+  DelegationGrant,
+  LinkedVia,
+  SignerMode,
+  WalletPolicy,
+} from "./types";
 import { shortenAddress } from "./account-api";
 
 export const SIGNER_MODES: { id: SignerMode; label: string; hint: string }[] = [
@@ -55,8 +60,31 @@ export function modeLabel(mode: SignerMode): string {
   return SIGNER_MODES.find((m) => m.id === mode)?.label ?? mode;
 }
 
+/** Human copy for the actual signer, not just the abstract mode name. */
+export function modeHintFor(wallet: WalletPolicy, mode: SignerMode): string {
+  if (mode === "manual") {
+    return "A wallet popup asks you to approve each transaction. Aomi cannot sign it for you.";
+  }
+  if (mode !== "auto") {
+    return (
+      SIGNER_MODES.find((candidate) => candidate.id === mode)?.hint ?? mode
+    );
+  }
+  if (wallet.linkedVia === "privy") {
+    return "Privy signs from this same wallet only after your separate one-time Aomi delegation.";
+  }
+  if (wallet.linkedVia === "para" && wallet.providerManaged) {
+    return "Aomi signs from this separate Para agent wallet. Your Para login wallet remains manual.";
+  }
+  if (wallet.linkedVia === "para") {
+    return "Para cannot delegate this login wallet. Create the separate Para agent wallet to use Auto.";
+  }
+  return SIGNER_MODES.find((candidate) => candidate.id === mode)?.hint ?? mode;
+}
+
 export function walletMarkKey(wallet: WalletPolicy): string | null {
-  if (wallet.rdns && RDNS_MARK_KEYS[wallet.rdns]) return RDNS_MARK_KEYS[wallet.rdns]!;
+  if (wallet.rdns && RDNS_MARK_KEYS[wallet.rdns])
+    return RDNS_MARK_KEYS[wallet.rdns]!;
   if (wallet.linkedVia === "para") return "para";
   if (wallet.linkedVia === "privy") return "privy";
   return null;
@@ -65,7 +93,10 @@ export function walletMarkKey(wallet: WalletPolicy): string | null {
 /** Map adapter wallet names (e.g. "Rabby") to brand mark keys. */
 export function walletNameToMarkKey(name?: string): string | null {
   if (!name) return null;
-  const key = name.toLowerCase().replace(/\s+wallet$/, "").replace(/\s+/g, "");
+  const key = name
+    .toLowerCase()
+    .replace(/\s+wallet$/, "")
+    .replace(/\s+/g, "");
   if (RDNS_MARK_KEYS[`io.${key}`]) return key;
   const aliases: Record<string, string> = {
     metamask: "metamask",
@@ -115,11 +146,15 @@ export function modeValidFor(wallet: WalletPolicy, mode: SignerMode): boolean {
   return wallet.canUseAuto ?? custodyOf(wallet.linkedVia) === "embedded";
 }
 
-export function unavailableReason(wallet: WalletPolicy, mode: SignerMode): string {
+export function unavailableReason(
+  wallet: WalletPolicy,
+  mode: SignerMode,
+): string {
   if (wallet.providerManaged) {
     return "This is a provider-managed signer — you hold no key for it.";
   }
-  if (mode === "auto") return "Only available on embedded wallets (Para or Privy).";
+  if (mode === "auto")
+    return "Only available on embedded wallets (Para or Privy).";
   if (mode === "client_auto") return "Only available on self-custody wallets.";
   return "Not available for this wallet.";
 }
@@ -127,11 +162,17 @@ export function unavailableReason(wallet: WalletPolicy, mode: SignerMode): strin
 export function reconcile(wallet: WalletPolicy): Recon {
   switch (wallet.desiredMode) {
     case "denied":
-      return { status: "reconciled", detail: "Locked. This wallet cannot sign." };
+      return {
+        status: "reconciled",
+        detail: "Locked. This wallet cannot sign.",
+      };
     case "manual":
       return { status: "reconciled", detail: "You approve every transaction." };
     case "client_auto":
-      return { status: "reconciled", detail: "Your wallet auto-signs each transaction." };
+      return {
+        status: "reconciled",
+        detail: "Your wallet auto-signs each transaction.",
+      };
     case "auto":
       return wallet.grantActive
         ? {

@@ -281,6 +281,8 @@ export interface AomiBeginAccountAuthResponse {
 
 export type AomiWalletFamily = "evm" | "svm";
 export type AomiAuthWalletFamily = "evm" | "solana";
+/** Provider login intent. Linking ownership never implies delegated signing. */
+export type AomiAuthPurpose = "link_wallet" | "delegate_signing";
 
 /**
  * GET/POST/DELETE /api/account/payment/byok
