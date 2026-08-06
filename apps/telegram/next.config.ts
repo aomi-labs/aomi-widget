@@ -7,30 +7,18 @@ const workspaceRoot = path.resolve(appRoot, "../..");
 const appNodeModules = path.join(appRoot, "node_modules");
 
 const nextConfig: NextConfig = {
+  agentRules: false,
   reactStrictMode: true,
   output: "standalone",
   outputFileTracingRoot: workspaceRoot,
-  images: {
-    unoptimized: true,
-  },
-  allowedDevOrigins: ["*.ngrok-free.dev", "*.ngrok.io", "*.trycloudflare.com"],
-  experimental: {
-    externalDir: true,
-  },
-  transpilePackages: [
-    "@aomi-labs/client",
-    "@getpara/evm-wallet-connectors",
-    "@getpara/react-sdk",
-    "@getpara/react-sdk-lite",
-    "@getpara/web-sdk",
-  ],
+  transpilePackages: ["@aomi-labs/client"],
   turbopack: {
     resolveAlias: {
       "@aomi-labs/client": "../../packages/client/src/index.ts",
-      "@tanstack/react-query": "./node_modules/@tanstack/react-query",
-      viem: "./node_modules/viem",
-      wagmi: "./node_modules/wagmi",
-      zustand: "./node_modules/zustand",
+      "@getpara/core-sdk": "./node_modules/@getpara/core-sdk",
+      "@getpara/user-management-client":
+        "./node_modules/@getpara/user-management-client",
+      "@getpara/web-sdk": "./node_modules/@getpara/web-sdk",
     },
   },
   webpack: (config) => {
@@ -41,15 +29,13 @@ const nextConfig: NextConfig = {
         workspaceRoot,
         "packages/client/src/index.ts",
       ),
-      "@tanstack/react-query": path.join(
+      "@getpara/core-sdk": path.join(appNodeModules, "@getpara/core-sdk"),
+      "@getpara/user-management-client": path.join(
         appNodeModules,
-        "@tanstack/react-query",
+        "@getpara/user-management-client",
       ),
-      viem: path.join(appNodeModules, "viem"),
-      wagmi: path.join(appNodeModules, "wagmi"),
-      zustand: path.join(appNodeModules, "zustand"),
+      "@getpara/web-sdk": path.join(appNodeModules, "@getpara/web-sdk"),
     };
-
     return config;
   },
 };
