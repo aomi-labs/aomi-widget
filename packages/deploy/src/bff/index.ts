@@ -14,52 +14,44 @@ export {
 
 export {
   createLaunchRoutes,
+  resolveLaunchConfig,
+  DEFAULT_DEPLOY_PLATFORM,
+  DEFAULT_TEMPLATE_REPO,
+  releaseTagsFromDeployment,
+  appNamesFromDeployment,
   type LaunchRoutes,
   type LaunchRoutesOptions,
   type LaunchRouteHandler,
+  type LaunchConfig,
 } from "./launch-routes";
 
 export {
   createGitHubAuthRoutes,
-  type GitHubAuthRoutes,
-  type GitHubAuthRoutesOptions,
-} from "./github-auth-routes";
-
-export {
   createGitHubSessionCodec,
   GITHUB_SESSION_COOKIE,
+  type GitHubAuthRoutes,
+  type GitHubAuthRoutesOptions,
   type GitHubSession,
   type GitHubSessionCodec,
   type GitHubSessionCodecOptions,
-} from "./github-session";
-
-export {
-  resolveLaunchConfig,
-  DEFAULT_DEPLOY_PLATFORM,
-  DEFAULT_TEMPLATE_REPO,
-  type LaunchConfig,
-} from "./config";
+} from "./auth";
 
 export {
   createDefaultGuards,
   createRateLimiter,
   validateOrigin,
   getClientIp,
-  type LaunchGuards,
-  type RouteGuard,
-} from "./guards";
-
-export { releaseTagsFromDeployment, appNamesFromDeployment } from "./mappers";
-
-export {
+  readCookie,
+  serializeCookie,
+  appendSetCookie,
   isValidInstallationId,
   isValidRepo,
   isValidDeploymentId,
   isValidReleaseTags,
   isValidProjectId,
-} from "./validate";
-
-export { readCookie, serializeCookie, appendSetCookie } from "./cookies";
+  type LaunchGuards,
+  type RouteGuard,
+} from "./http";
 
 export {
   fetchReleaseSecretSlots,

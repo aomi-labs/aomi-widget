@@ -111,3 +111,10 @@ export function setDateRange(
   if (range.fromDate?.trim()) params.set("from_date", range.fromDate.trim());
   if (range.toDate?.trim()) params.set("to_date", range.toDate.trim());
 }
+
+/** Set `limit` only when it is a positive safe integer. */
+export function setLimit(params: URLSearchParams, limit?: number): void {
+  if (limit && Number.isSafeInteger(limit) && limit > 0) {
+    params.set("limit", String(limit));
+  }
+}

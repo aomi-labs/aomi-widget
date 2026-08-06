@@ -1,7 +1,8 @@
 // =============================================================================
-// Launch client contracts — the shapes the launch BFF routes return.
+// Launch client contracts — the shapes the launch BFF routes return, plus the
+// required-secrets gate that blocks a deploy when env keys are missing.
 //
-// Browser-safe: types plus a few pure helpers, no env reads and no secrets.
+// Browser-safe: types plus a few pure helpers, no secrets.
 // =============================================================================
 
 import type {
@@ -168,3 +169,27 @@ export type RequiredSecretsByApp = Record<
 export type RequiredSecretsResult = {
   byApp: RequiredSecretsByApp;
 };
+
+export class MissingRequiredSecretsError extends Error {
+  readonly missing: Record<string, string[]>;
+
+  constructor(missing: Record<string, string[]>) {
+    const names = Object.entries(missing)
+      .map(([app, keys]) => `${app}: ${keys.join(", ")}`)
+      .join("; ");
+    super(`Missing required secrets — ${names}`);
+    this.name = "MissingRequiredSecretsError";
+    this.missing = missing;
+  }
+}
+
+export function missingRequiredSecrets(
+  byApp: RequiredSecretsByApp,
+  apps: string[],
+): Record<string, string[]> {
+  return Object.fromEntries(
+    apps
+      .map((app) => [app, byApp[app]?.missing ?? []] as const)
+      .filter(([, missing]) => missing.length > 0),
+  );
+}

@@ -4,9 +4,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { BackendClient } from "../src/backend";
-import { createGitHubSessionCodec } from "../src/bff/github-session";
-import { createGitHubAuthRoutes } from "../src/bff/github-auth-routes";
-import { readCookie } from "../src/bff/cookies";
+import {
+  createGitHubAuthRoutes,
+  createGitHubSessionCodec,
+} from "../src/bff/auth";
+import { readCookie } from "../src/bff/http";
 
 const SECRET = "test-secret-at-least-16-chars";
 

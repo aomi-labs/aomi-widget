@@ -3,7 +3,7 @@ import type { UserProject } from "../src/launch/browser-client";
 import {
   hasProjectForLaunchUrlContext,
   readLaunchUrlContext,
-} from "../src/launch/url-context";
+} from "../src/launch/state";
 
 function source(
   installationId: number,

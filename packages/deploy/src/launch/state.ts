@@ -1,11 +1,13 @@
 // =============================================================================
-// Launch wizard state machine — pure functions plus a localStorage store.
+// Launch wizard state — localStorage store, GitHub-redirect parsing, and
+// post-install URL matching.
 //
 // Browser-safe; every window/localStorage read is guarded so the module also
 // loads in server components and tests.
 // =============================================================================
 
 import type { LaunchPath, LaunchProgress } from "./contracts";
+import type { UserProject } from "../types";
 
 export type PendingInstall = {
   path: LaunchPath;
@@ -246,4 +248,136 @@ export function installationStatusLabel(status?: string): string | null {
     default:
       return null;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Post-GitHub-redirect URL context — match install query params to projects.
+// ---------------------------------------------------------------------------
+
+export type LaunchUrlContext = {
+  installationId: string | null;
+  repo: string | null;
+};
+
+export function readLaunchUrlContext(search: string): LaunchUrlContext | null {
+  const params = new URLSearchParams(search);
+  const installationId = params.get("installation_id")?.trim() || null;
+  const repo = normalizeRepo(params.get("repo") ?? "");
+
+  if (!installationId && !repo) {
+    return null;
+  }
+
+  return { installationId, repo };
+}
+
+export function projectMatchesLaunchUrlContext(
+  project: UserProject,
+  context: LaunchUrlContext,
+): boolean {
+  if (
+    context.installationId &&
+    String(project.installationId) !== context.installationId
+  ) {
+    return false;
+  }
+
+  if (context.repo) {
+    return normalizeRepo(project.repositoryLink ?? "") === context.repo;
+  }
+
+  return true;
+}
+
+export function hasProjectForLaunchUrlContext(
+  projects: UserProject[],
+  context: LaunchUrlContext | null,
+): boolean {
+  if (!context) {
+    return true;
+  }
+
+  return projects.some((project) =>
+    projectMatchesLaunchUrlContext(project, context),
+  );
+}
+
+/**
+ * Read `?platform=` off a router's `searchParams` value (Next hands back an
+ * array when the param repeats — there is no single platform to honour then).
+ * Hosts each spelled this out and disagreed about trimming.
+ */
+export function platformParam(
+  value: string | string[] | undefined,
+): string | undefined {
+  const platform = typeof value === "string" ? value.trim() : "";
+  return platform || undefined;
+}
+
+// ---------------------------------------------------------------------------
+// Repository connection result — OAuth/install callback → UI status.
+// ---------------------------------------------------------------------------
+
+/**
+ * How a GitHub OAuth callback lands back on the scoped Projects page.
+ *
+ * The backend redirects with `launch=<OnboardStatus>` on success and
+ * `github_error=<message>` on failure; this turns those query parameters into
+ * something the connector can render.
+ */
+export type RepositoryConnectionResult =
+  | { status: "success"; repo?: string }
+  | { status: "pending"; message: string }
+  | { status: "error"; message: string };
+
+/**
+ * The backend's `OnboardStatus` values other than `bound`. Two of them are
+ * progress rather than failure — collapsing all of them into "installation was
+ * not completed" told an organization member waiting on an owner's approval
+ * that something had gone wrong.
+ */
+const LAUNCH_RESULTS: Record<string, RepositoryConnectionResult> = {
+  awaiting_install: {
+    status: "pending",
+    message:
+      "Install requested. A GitHub organization owner has to approve Aomi Build before this repository can connect.",
+  },
+  awaiting_webhook: {
+    status: "pending",
+    message:
+      "GitHub authorized the install. Finishing the connection — refresh in a moment.",
+  },
+  personal_required: {
+    status: "error",
+    message:
+      "That installation belongs to an organization. Creating a new repository needs Aomi Build installed on your personal GitHub account.",
+  },
+};
+
+/**
+ * Frame a backend error as quoted detail. We author these messages, but
+ * `github_error` is only a URL parameter — anyone can send a user a link
+ * carrying arbitrary text — so it is capped and stripped of characters that
+ * would let it read as Build's own UI rather than as a reported message.
+ */
+function connectionError(raw: string): string {
+  const detail = raw
+    .replace(/[^\p{L}\p{N} .,:;'`@/_-]/gu, " ")
+    .trim()
+    .slice(0, 200);
+  return detail
+    ? `Could not connect the repository: ${detail}`
+    : "Could not connect the repository. Try connecting again.";
+}
+
+export function connectionResult(params: {
+  launch?: string;
+  repo?: string;
+  githubError?: string;
+}): RepositoryConnectionResult | undefined {
+  if (params.githubError) {
+    return { status: "error", message: connectionError(params.githubError) };
+  }
+  if (params.launch === "bound") return { status: "success", repo: params.repo };
+  return params.launch ? LAUNCH_RESULTS[params.launch] : undefined;
 }

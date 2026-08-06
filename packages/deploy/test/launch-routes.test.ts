@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { BackendClient } from "../src/backend";
 import { createLaunchRoutes } from "../src/bff/launch-routes";
-import type { GitHubSession } from "../src/bff/github-session";
+import type { GitHubSession } from "../src/bff/auth";
 
 const BACKEND = "http://127.0.0.1:8080";
 

@@ -74,8 +74,13 @@ import {
   required,
   responseRecord,
   setDateRange,
+  setLimit,
 } from "../wire";
 import { BackendPlatformClient } from "./platform";
+
+function botRegistrations(raw: Record<string, unknown>): BotRegistration[] {
+  return ((raw.bot_registrations ?? []) as unknown[]).map(camelBotRegistration);
+}
 
 /**
  * Server-side client to the Aomi platform deploy backend. It is a typed HTTP
@@ -153,13 +158,7 @@ export class BackendClient extends BackendPlatformClient {
         nextCursor: camelUserDeploymentsCursor(raw.next_cursor),
       }),
       (params) => {
-        if (
-          input.limit &&
-          Number.isSafeInteger(input.limit) &&
-          input.limit > 0
-        ) {
-          params.set("limit", String(input.limit));
-        }
+        setLimit(params, input.limit);
         if (input.cursor) {
           params.set("cursor_created_at", String(input.cursor.createdAt));
           params.set("cursor_id", String(input.cursor.id));
@@ -171,97 +170,72 @@ export class BackendClient extends BackendPlatformClient {
   async getUserProjectLatestDeployment(
     input: GetUserProjectLatestDeploymentInput,
   ): Promise<UserProjectLatestDeployment | null> {
-    const githubUserId = required(input.githubUserId, "githubUserId");
-    const projectId = required(String(input.projectId), "projectId");
-    const bearer = this.resolveBearer(input.bearer);
-    const params = new URLSearchParams({ github_user_id: githubUserId });
-    const raw = await this.get<{ latest_deployment?: unknown }>(
-      `/api/integrations/github-app/user/projects/${encodeURIComponent(
-        projectId,
-      )}/latest-deployment?${params.toString()}`,
+    return this.ownedGetLoose(
+      input,
+      "latest-deployment",
       "get_user_project_latest_deployment",
-      bearer,
+      (raw) => camelUserProjectLatestDeployment(raw.latest_deployment) ?? null,
     );
-    await this.audit("get_user_project_latest_deployment", input.actor, {
-      projectId: input.projectId,
-    });
-    return camelUserProjectLatestDeployment(raw.latest_deployment) ?? null;
   }
 
   async getUserProjectRequiredSecrets(
     input: GetUserProjectRequiredSecretsInput,
   ): Promise<UserProjectRequiredSecretsResult> {
-    const githubUserId = required(input.githubUserId, "githubUserId");
-    const projectId = required(String(input.projectId), "projectId");
-    const bearer = this.resolveBearer(input.bearer);
-    const params = new URLSearchParams({ github_user_id: githubUserId });
-    const raw = await this.get<{
-      by_app?: Record<string, { slots?: unknown[] }>;
-    }>(
-      `/api/integrations/github-app/user/projects/${encodeURIComponent(
-        projectId,
-      )}/required-secrets?${params.toString()}`,
+    return this.ownedGetLoose(
+      input,
+      "required-secrets",
       "get_user_project_required_secrets",
-      bearer,
+      (raw) => ({
+        byApp: Object.fromEntries(
+          Object.entries(
+            (raw.by_app ?? {}) as Record<string, { slots?: unknown[] }>,
+          ).map(([app, value]) => [
+            app,
+            {
+              slots: (value.slots ?? []).flatMap((slot) => {
+                if (!slot || typeof slot !== "object") return [];
+                const rawSlot = slot as Record<string, unknown>;
+                const name = rawSlot.name;
+                const description = rawSlot.description;
+                const requiredFlag = rawSlot.required;
+                return typeof name === "string" &&
+                  typeof description === "string" &&
+                  typeof requiredFlag === "boolean"
+                  ? [{ name, description, required: requiredFlag }]
+                  : [];
+              }),
+            },
+          ]),
+        ),
+      }),
     );
-    await this.audit("get_user_project_required_secrets", input.actor, {
-      projectId: input.projectId,
-    });
-    return {
-      byApp: Object.fromEntries(
-        Object.entries(raw.by_app ?? {}).map(([app, value]) => [
-          app,
-          {
-            slots: (value.slots ?? []).flatMap((slot) => {
-              if (!slot || typeof slot !== "object") return [];
-              const rawSlot = slot as Record<string, unknown>;
-              const name = rawSlot.name;
-              const description = rawSlot.description;
-              const required = rawSlot.required;
-              return typeof name === "string" &&
-                typeof description === "string" &&
-                typeof required === "boolean"
-                ? [{ name, description, required }]
-                : [];
-            }),
-          },
-        ]),
-      ),
-    };
   }
 
   async listUserProjectDeployments(
     input: ListUserProjectDeploymentsInput,
   ): Promise<UserProjectLatestDeployment[]> {
-    const githubUserId = required(input.githubUserId, "githubUserId");
-    const projectId = required(String(input.projectId), "projectId");
-    const bearer = this.resolveBearer(input.bearer);
-    const params = new URLSearchParams({ github_user_id: githubUserId });
-    if (input.limit && Number.isSafeInteger(input.limit) && input.limit > 0) {
-      params.set("limit", String(input.limit));
-    }
-    const raw = await this.get<{ deployments?: unknown[] }>(
-      `/api/integrations/github-app/user/projects/${encodeURIComponent(
-        projectId,
-      )}/deployments?${params.toString()}`,
+    return this.ownedGetLoose(
+      input,
+      "deployments",
       "list_user_project_deployments",
-      bearer,
+      (raw) =>
+        ((raw.deployments ?? []) as unknown[])
+          .map(camelUserProjectLatestDeployment)
+          .filter((deployment): deployment is UserProjectLatestDeployment =>
+            Boolean(deployment),
+          ),
+      (params) => setLimit(params, input.limit),
     );
-    await this.audit("list_user_project_deployments", input.actor, {
-      projectId: input.projectId,
-    });
-    return (raw.deployments ?? [])
-      .map(camelUserProjectLatestDeployment)
-      .filter((deployment): deployment is UserProjectLatestDeployment =>
-        Boolean(deployment),
-      );
   }
 
   async listUserProjectBots(
     input: OwnedOperateProjectInput,
   ): Promise<BotRegistration[]> {
-    return this.ownedGet(input, "bots", "list_user_project_bots", (raw) =>
-      ((raw.bot_registrations ?? []) as unknown[]).map(camelBotRegistration),
+    return this.ownedGet(
+      input,
+      "bots",
+      "list_user_project_bots",
+      botRegistrations,
     );
   }
 
@@ -276,9 +250,7 @@ export class BackendClient extends BackendPlatformClient {
     );
     const credential = required(input.credential, "credential");
     const raw = await this.post<{ bot_registration?: unknown }>(
-      `/api/integrations/github-app/user/projects/${encodeURIComponent(
-        String(projectId),
-      )}/bots?${params.toString()}`,
+      this.ownedProjectPath(projectId, "bots", params),
       {
         platform: botPlatform,
         application_id: Number(applicationId),
@@ -297,9 +269,11 @@ export class BackendClient extends BackendPlatformClient {
     const { projectId, params, bearer } = this.ownedOperateRequest(input);
     const botId = required(input.botId, "botId");
     await this.del<unknown>(
-      `/api/integrations/github-app/user/projects/${encodeURIComponent(
-        String(projectId),
-      )}/bots/${encodeURIComponent(botId)}?${params.toString()}`,
+      this.ownedProjectPath(
+        projectId,
+        `bots/${encodeURIComponent(botId)}`,
+        params,
+      ),
       "delete_user_project_bot",
       bearer,
     );
@@ -307,16 +281,14 @@ export class BackendClient extends BackendPlatformClient {
   }
 
   async listUserBots(input: BuilderBotsInput): Promise<BotRegistration[]> {
-    return this.userGet(input, "bots", "list_user_bots", (raw) =>
-      ((raw.bot_registrations ?? []) as unknown[]).map(camelBotRegistration),
-    );
+    return this.userGet(input, "bots", "list_user_bots", botRegistrations);
   }
 
   async createUserBot(input: CreateUserBotInput): Promise<BotRegistration> {
     const { params, bearer } = this.userParams(input);
     const credential = required(input.credential, "credential");
     const raw = await this.post<{ bot_registration?: unknown }>(
-      `/api/integrations/github-app/user/bots?${params.toString()}`,
+      this.userPath("bots", params),
       {
         platform: required(input.botPlatform, "botPlatform"),
         application_ids: input.applicationIds,
@@ -335,7 +307,10 @@ export class BackendClient extends BackendPlatformClient {
   async updateUserBot(input: UpdateUserBotInput): Promise<BotRegistration> {
     const { params, bearer } = this.userParams(input);
     const raw = await this.patch<{ bot_registration?: unknown }>(
-      `/api/integrations/github-app/user/bots/${encodeURIComponent(required(input.botId, "botId"))}?${params.toString()}`,
+      this.userPath(
+        `bots/${encodeURIComponent(required(input.botId, "botId"))}`,
+        params,
+      ),
       {
         application_ids: input.applicationIds,
         primary_application_id: input.primaryApplicationId,
@@ -352,7 +327,10 @@ export class BackendClient extends BackendPlatformClient {
   async deleteUserBot(input: DeleteUserBotInput): Promise<void> {
     const { params, bearer } = this.userParams(input);
     await this.del<unknown>(
-      `/api/integrations/github-app/user/bots/${encodeURIComponent(required(input.botId, "botId"))}?${params.toString()}`,
+      this.userPath(
+        `bots/${encodeURIComponent(required(input.botId, "botId"))}`,
+        params,
+      ),
       "delete_user_bot",
       bearer,
     );
@@ -366,7 +344,7 @@ export class BackendClient extends BackendPlatformClient {
   ): Promise<BuilderModelKey[]> {
     const { params, bearer } = this.builderKeyRequest(input);
     const raw = await this.get<{ keys?: unknown[] }>(
-      `/api/integrations/github-app/user/model-keys?${params.toString()}`,
+      this.userPath("model-keys", params),
       "list_builder_model_keys",
       bearer,
     );
@@ -387,15 +365,16 @@ export class BackendClient extends BackendPlatformClient {
     const raw =
       input.keyId === undefined
         ? await this.post<{ key?: unknown }>(
-            `/api/integrations/github-app/user/model-keys?${params.toString()}`,
+            this.userPath("model-keys", params),
             body,
             "save_builder_model_key",
             bearer,
           )
         : await this.put<{ key?: unknown }>(
-            `/api/integrations/github-app/user/model-keys/${encodeURIComponent(
-              String(input.keyId),
-            )}?${params.toString()}`,
+            this.userPath(
+              `model-keys/${encodeURIComponent(String(input.keyId))}`,
+              params,
+            ),
             body,
             "save_builder_model_key",
             bearer,
@@ -412,7 +391,7 @@ export class BackendClient extends BackendPlatformClient {
     const { params, bearer } = this.builderKeyRequest(input);
     const keyId = required(String(input.keyId), "keyId");
     await this.del<unknown>(
-      `/api/integrations/github-app/user/model-keys/${encodeURIComponent(keyId)}?${params.toString()}`,
+      this.userPath(`model-keys/${encodeURIComponent(keyId)}`, params),
       "delete_builder_model_key",
       bearer,
     );
@@ -428,7 +407,7 @@ export class BackendClient extends BackendPlatformClient {
     const { params, bearer } = this.builderKeyRequest(input);
     const keyId = required(String(input.keyId), "keyId");
     const raw = await this.put<{ key?: unknown }>(
-      `/api/integrations/github-app/user/model-keys/${encodeURIComponent(keyId)}/grants?${params.toString()}`,
+      this.userPath(`model-keys/${encodeURIComponent(keyId)}/grants`, params),
       { application_ids: input.applicationIds },
       "set_model_key_grants",
       bearer,
@@ -448,13 +427,7 @@ export class BackendClient extends BackendPlatformClient {
       "list_user_project_transactions",
       camelOperateTransactions,
       (params) => {
-        if (
-          input.limit &&
-          Number.isSafeInteger(input.limit) &&
-          input.limit > 0
-        ) {
-          params.set("limit", String(input.limit));
-        }
+        setLimit(params, input.limit);
         if (input.status?.trim()) params.set("status", input.status.trim());
         const cursor = encodeTransactionCursor(input.cursor);
         if (cursor) params.set("cursor", cursor);
@@ -495,13 +468,7 @@ export class BackendClient extends BackendPlatformClient {
       "list_user_project_logs",
       camelOperateLogs,
       (params) => {
-        if (
-          input.limit &&
-          Number.isSafeInteger(input.limit) &&
-          input.limit > 0
-        ) {
-          params.set("limit", String(input.limit));
-        }
+        setLimit(params, input.limit);
         if (input.type?.trim()) params.set("type", input.type.trim());
         const cursor = encodeLogCursor(input.cursor);
         if (cursor) params.set("cursor", cursor);
@@ -584,13 +551,7 @@ export class BackendClient extends BackendPlatformClient {
         nextCursor: camelTransactionCursor(raw.next_cursor ?? raw.nextCursor),
       }),
       (params) => {
-        if (
-          input.limit &&
-          Number.isSafeInteger(input.limit) &&
-          input.limit > 0
-        ) {
-          params.set("limit", String(input.limit));
-        }
+        setLimit(params, input.limit);
         if (input.status?.trim()) params.set("status", input.status.trim());
         const cursor = encodeTransactionCursor(input.cursor);
         if (cursor) params.set("cursor", cursor);
@@ -657,13 +618,7 @@ export class BackendClient extends BackendPlatformClient {
         invocationsAvailable: raw.invocations_available !== false,
       }),
       (params) => {
-        if (
-          input.limit &&
-          Number.isSafeInteger(input.limit) &&
-          input.limit > 0
-        ) {
-          params.set("limit", String(input.limit));
-        }
+        setLimit(params, input.limit);
         if (input.type?.trim()) params.set("type", input.type.trim());
         const cursor = encodeLogCursor(input.cursor);
         if (cursor) params.set("cursor", cursor);
@@ -691,9 +646,7 @@ export class BackendClient extends BackendPlatformClient {
   ): Promise<ProjectSdkUpgradeResult> {
     const { projectId, params, bearer } = this.ownedOperateRequest(input);
     const raw = await this.post<Record<string, unknown>>(
-      `/api/integrations/github-app/user/projects/${encodeURIComponent(
-        String(projectId),
-      )}/sdk-upgrade?${params.toString()}`,
+      this.ownedProjectPath(projectId, "sdk-upgrade", params),
       {},
       "upgrade_user_project_sdk",
       bearer,

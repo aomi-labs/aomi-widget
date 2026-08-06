@@ -23,6 +23,8 @@ export {
   resolveTemplateRepo,
   templateRepoUrl,
   templateGenerateUrl,
+  MissingRequiredSecretsError,
+  missingRequiredSecrets,
   type LaunchPath,
   type LaunchDeployPayload,
   type LaunchProgress,
@@ -45,16 +47,6 @@ export {
 } from "./contracts";
 
 export {
-  MissingRequiredSecretsError,
-  missingRequiredSecrets,
-} from "./required-secrets";
-
-export {
-  connectionResult,
-  type RepositoryConnectionResult,
-} from "./connection-result";
-
-export {
   loadLaunch,
   saveLaunch,
   resetLaunch,
@@ -70,10 +62,17 @@ export {
   installationStatusLabel,
   GITHUB_REDIRECT_KEYS,
   ONESHOT_STEPS,
+  readLaunchUrlContext,
+  projectMatchesLaunchUrlContext,
+  hasProjectForLaunchUrlContext,
+  platformParam,
+  connectionResult,
   type LaunchState,
   type PendingInstall,
   type GithubRedirect,
   type OneshotStep,
+  type LaunchUrlContext,
+  type RepositoryConnectionResult,
 } from "./state";
 
 export {
@@ -82,11 +81,3 @@ export {
   watchDeploymentLoop,
   type WatchLoopOptions,
 } from "./watch";
-
-export {
-  readLaunchUrlContext,
-  projectMatchesLaunchUrlContext,
-  hasProjectForLaunchUrlContext,
-  platformParam,
-  type LaunchUrlContext,
-} from "./url-context";

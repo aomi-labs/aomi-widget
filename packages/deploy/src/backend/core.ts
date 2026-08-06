@@ -81,8 +81,26 @@ export class BackendClientCore {
     };
   }
 
+  /** `/api/integrations/github-app/user/<suffix>?…` */
+  protected userPath(pathSuffix: string, params: URLSearchParams): string {
+    return `/api/integrations/github-app/user/${pathSuffix}?${params.toString()}`;
+  }
+
+  /** `/api/integrations/github-app/user/projects/:id/<suffix>?…` */
+  protected ownedProjectPath(
+    projectId: number | string,
+    pathSuffix: string,
+    params: URLSearchParams,
+  ): string {
+    return this.userPath(
+      `projects/${encodeURIComponent(String(projectId))}/${pathSuffix}`,
+      params,
+    );
+  }
+
   /** Shared interior of the owned-project operate reads: GET
-   *  `/user/projects/:id/<suffix>`, audit `action`, map the body. */
+   *  `/user/projects/:id/<suffix>`, audit `action`, map the body.
+   *  Strict: `projectId` must be a positive safe integer. */
   protected async ownedGet<T>(
     input: OwnedOperateProjectInput,
     pathSuffix: string,
@@ -93,13 +111,42 @@ export class BackendClientCore {
     const { projectId, params, bearer } = this.ownedOperateRequest(input);
     extraParams?.(params);
     const raw = await this.get<Record<string, unknown>>(
-      `/api/integrations/github-app/user/projects/${encodeURIComponent(
-        String(projectId),
-      )}/${pathSuffix}?${params.toString()}`,
+      this.ownedProjectPath(projectId, pathSuffix, params),
       action,
       bearer,
     );
     await this.audit(action, input.actor, { projectId });
+    return map(raw);
+  }
+
+  /**
+   * Same path/audit shape as {@link ownedGet}, but with the loose projectId
+   * check (`required(String(id))` only). Kept for the three non-operate
+   * project reads that intentionally never ran the positive-int gate.
+   */
+  protected async ownedGetLoose<T>(
+    input: {
+      githubUserId: string;
+      projectId: number;
+      bearer?: string;
+      actor?: string;
+    },
+    pathSuffix: string,
+    action: AuditEvent["action"],
+    map: (raw: Record<string, unknown>) => T,
+    extraParams?: (params: URLSearchParams) => void,
+  ): Promise<T> {
+    const githubUserId = required(input.githubUserId, "githubUserId");
+    const projectId = required(String(input.projectId), "projectId");
+    const bearer = this.resolveBearer(input.bearer);
+    const params = new URLSearchParams({ github_user_id: githubUserId });
+    extraParams?.(params);
+    const raw = await this.get<Record<string, unknown>>(
+      this.ownedProjectPath(projectId, pathSuffix, params),
+      action,
+      bearer,
+    );
+    await this.audit(action, input.actor, { projectId: input.projectId });
     return map(raw);
   }
 
@@ -140,7 +187,7 @@ export class BackendClientCore {
     const { params, bearer } = this.userParams(input);
     extraParams?.(params);
     const raw = await this.get<Record<string, unknown>>(
-      `/api/integrations/github-app/user/${pathSuffix}?${params.toString()}`,
+      this.userPath(pathSuffix, params),
       action,
       bearer,
     );

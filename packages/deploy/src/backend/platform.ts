@@ -56,6 +56,59 @@ import { BackendClientCore } from "./core";
  * plus the secrets vault. See core.ts for the tier layout.
  */
 export class BackendPlatformClient extends BackendClientCore {
+  /** `/api/platforms/:platform/<suffix>` */
+  private platformPath(platform: string, suffix: string): string {
+    return `/api/platforms/${encodeURIComponent(platform)}/${suffix}`;
+  }
+
+  /** `?k=v&…` for defined non-empty entries; skips null/undefined/"". */
+  private qs(
+    entries: Record<string, string | number | null | undefined>,
+  ): string {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(entries)) {
+      if (value == null || value === "") continue;
+      params.set(key, String(value));
+    }
+    const query = params.toString();
+    return query ? `?${query}` : "";
+  }
+
+  private positiveInt(value: unknown, message: string): number {
+    const n = Number(value);
+    if (!Number.isSafeInteger(n) || n <= 0) {
+      throw new DeployError("INVALID_REQUEST", message);
+    }
+    return n;
+  }
+
+  /** Shared `user_id`/`app`/`source_id` body for the internal secrets vault. */
+  private appSecretsBody(input: {
+    githubUserId: string;
+    app: string;
+    projectId?: string;
+  }): Record<string, unknown> {
+    const body: Record<string, unknown> = {
+      user_id: required(input.githubUserId, "githubUserId"),
+      app: required(input.app, "app"),
+    };
+    const projectId = input.projectId?.trim();
+    if (projectId) body.source_id = projectId;
+    return body;
+  }
+
+  private async secretsByApp(
+    path: string,
+    bearer: string,
+  ): Promise<ListSecretsResult> {
+    const raw = await this.get<{ by_app?: Record<string, string[]> }>(
+      path,
+      "list_secrets",
+      bearer,
+    );
+    return { byApp: raw.by_app ?? {} };
+  }
+
   async preflight(input: PreflightInput): Promise<DeployResult> {
     return this.runDeploy(input, "preflight");
   }
@@ -73,7 +126,7 @@ export class BackendPlatformClient extends BackendClientCore {
     const platform = required(input.platform, "platform");
     const body = deployRequest(input, action === "preflight");
     const result = await this.post<DeployResult>(
-      `/api/platforms/${encodeURIComponent(platform)}/deploy`,
+      this.platformPath(platform, "deploy"),
       body,
       action,
       this.resolveBearer(),
@@ -96,7 +149,7 @@ export class BackendPlatformClient extends BackendClientCore {
     const platform = required(input.platform, "platform");
     const body = activateRequest(input);
     const result = await this.post<ActivateResult>(
-      `/api/platforms/${encodeURIComponent(platform)}/apps/activate`,
+      this.platformPath(platform, "apps/activate"),
       body,
       "activation",
       this.resolveBearer(),
@@ -125,12 +178,11 @@ export class BackendPlatformClient extends BackendClientCore {
   async deactivateApp(input: DeactivateAppInput): Promise<void> {
     const platform = required(input.platform, "platform");
     const app = required(input.app, "app");
-    const query =
-      input.projectId != null
-        ? `?project_id=${encodeURIComponent(String(input.projectId))}`
-        : "";
     await this.post<unknown>(
-      `/api/platforms/${encodeURIComponent(platform)}/apps/${encodeURIComponent(app)}/deactivate${query}`,
+      this.platformPath(
+        platform,
+        `apps/${encodeURIComponent(app)}/deactivate`,
+      ) + this.qs({ project_id: input.projectId }),
       {},
       "deactivate",
       this.resolveBearer(input.bearer),
@@ -142,7 +194,10 @@ export class BackendPlatformClient extends BackendClientCore {
     const platform = required(input.platform, "platform");
     const deploymentId = required(input.deploymentId, "deploymentId");
     const result = await this.post<ActivateResult>(
-      `/api/platforms/${encodeURIComponent(platform)}/deployments/${encodeURIComponent(deploymentId)}/promote`,
+      this.platformPath(
+        platform,
+        `deployments/${encodeURIComponent(deploymentId)}/promote`,
+      ),
       {
         deployment_id: deploymentId,
         apps: input.apps,
@@ -182,13 +237,11 @@ export class BackendPlatformClient extends BackendClientCore {
   ): Promise<RerunDeploymentResult> {
     const platform = required(input.platform, "platform");
     const deploymentId = required(input.deploymentId, "deploymentId");
-    const params = new URLSearchParams();
-    if (input.githubUserId?.trim()) {
-      params.set("github_user_id", input.githubUserId.trim());
-    }
-    const query = params.toString();
     const result = await this.post<Record<string, unknown>>(
-      `/api/platforms/${encodeURIComponent(platform)}/deployments/${encodeURIComponent(deploymentId)}/rerun${query ? `?${query}` : ""}`,
+      this.platformPath(
+        platform,
+        `deployments/${encodeURIComponent(deploymentId)}/rerun`,
+      ) + this.qs({ github_user_id: input.githubUserId?.trim() || undefined }),
       {},
       "rerun",
       this.resolveBearer(),
@@ -206,14 +259,15 @@ export class BackendPlatformClient extends BackendClientCore {
 
   async status(input: StatusInput): Promise<DeploymentStatus> {
     const platform = required(input.platform, "platform");
-    const statusParams = new URLSearchParams();
-    if (input.githubUserId?.trim()) {
-      statusParams.set("github_user_id", input.githubUserId.trim());
-    }
-    const statusQuery = statusParams.toString();
+    const githubQuery = this.qs({
+      github_user_id: input.githubUserId?.trim() || undefined,
+    });
     const path = input.deploymentId
-      ? `/api/platforms/${encodeURIComponent(platform)}/deployments/${encodeURIComponent(input.deploymentId)}/status${statusQuery ? `?${statusQuery}` : ""}`
-      : (input.path ?? `/api/platforms/${encodeURIComponent(platform)}/status`);
+      ? this.platformPath(
+          platform,
+          `deployments/${encodeURIComponent(input.deploymentId)}/status${githubQuery}`,
+        )
+      : (input.path ?? this.platformPath(platform, "status"));
     const result = await this.get<Record<string, unknown>>(
       path,
       "status",
@@ -278,18 +332,14 @@ export class BackendPlatformClient extends BackendClientCore {
     }
     const body: Record<string, unknown> = { scope: input.scope };
     if (input.scope === "app") {
-      const appId = Number(input.appId);
-      if (!Number.isSafeInteger(appId) || appId <= 0) {
-        throw new DeployError(
-          "INVALID_REQUEST",
-          'scope "app" requires a positive appId',
-        );
-      }
-      body.app_id = appId;
+      body.app_id = this.positiveInt(
+        input.appId,
+        'scope "app" requires a positive appId',
+      );
     }
     const bearer = this.resolveBearer(input.bearer, { privileged: true });
     const raw = await this.post<Record<string, unknown>>(
-      `/api/platforms/${encodeURIComponent(platform)}/tokens`,
+      this.platformPath(platform, "tokens"),
       body,
       "mint_token",
       bearer,
@@ -310,7 +360,7 @@ export class BackendPlatformClient extends BackendClientCore {
     const platform = required(input.platform, "platform");
     const bearer = this.resolveBearer(input.bearer);
     const raw = await this.get<unknown>(
-      `/api/platforms/${encodeURIComponent(platform)}/tokens`,
+      this.platformPath(platform, "tokens"),
       "list_tokens",
       bearer,
     );
@@ -321,16 +371,10 @@ export class BackendPlatformClient extends BackendClientCore {
   /** Revoke a token by id. `DELETE /api/platforms/:platform/tokens/:id`. */
   async revokeToken(input: RevokeTokenInput): Promise<boolean> {
     const platform = required(input.platform, "platform");
-    const id = Number(input.id);
-    if (!Number.isSafeInteger(id) || id <= 0) {
-      throw new DeployError(
-        "INVALID_REQUEST",
-        "revokeToken requires a positive id",
-      );
-    }
+    const id = this.positiveInt(input.id, "revokeToken requires a positive id");
     const bearer = this.resolveBearer(input.bearer, { privileged: true });
     const raw = await this.del<unknown>(
-      `/api/platforms/${encodeURIComponent(platform)}/tokens/${id}`,
+      this.platformPath(platform, `tokens/${id}`),
       "revoke_token",
       bearer,
     );
@@ -349,7 +393,7 @@ export class BackendPlatformClient extends BackendClientCore {
     const repo = required(input.repo, "repo");
     const bearer = this.resolveBearer(input.bearer);
     const raw = await this.post<{ ok?: boolean; project?: unknown }>(
-      `/api/platforms/${encodeURIComponent(platform)}/projects`,
+      this.platformPath(platform, "projects"),
       {
         repo,
         github_user_id: required(input.githubUserId, "githubUserId"),
@@ -367,13 +411,10 @@ export class BackendPlatformClient extends BackendClientCore {
    */
   async scaffold(input: ScaffoldInput): Promise<Project> {
     const platform = required(input.platform, "platform");
-    const installationId = Number(input.installationId);
-    if (!Number.isSafeInteger(installationId) || installationId <= 0) {
-      throw new DeployError(
-        "INVALID_REQUEST",
-        "scaffold requires a positive installationId",
-      );
-    }
+    const installationId = this.positiveInt(
+      input.installationId,
+      "scaffold requires a positive installationId",
+    );
     const repoName = required(input.repoName, "repoName");
     const templateRepo = required(input.templateRepo, "templateRepo");
     const githubUserId = required(input.githubUserId, "githubUserId");
@@ -401,7 +442,7 @@ export class BackendPlatformClient extends BackendClientCore {
     const platform = required(input.platform, "platform");
     const bearer = this.resolveBearer(input.bearer);
     const raw = await this.get<{ apps?: unknown[] }>(
-      `/api/platforms/${encodeURIComponent(platform)}/apps`,
+      this.platformPath(platform, "apps"),
       "list_apps",
       bearer,
     );
@@ -414,12 +455,9 @@ export class BackendPlatformClient extends BackendClientCore {
     const platform = required(input.platform, "platform");
     const app = required(input.app, "app");
     const bearer = this.resolveBearer(input.bearer);
-    const releaseTag = input.releaseTag?.trim();
-    const query = releaseTag
-      ? `?${new URLSearchParams({ release_tag: releaseTag })}`
-      : "";
     const raw = await this.get<{ app?: unknown }>(
-      `/api/platforms/${encodeURIComponent(platform)}/apps/${encodeURIComponent(app)}${query}`,
+      this.platformPath(platform, `apps/${encodeURIComponent(app)}`) +
+        this.qs({ release_tag: input.releaseTag?.trim() || undefined }),
       "get_app",
       bearer,
     );
@@ -432,16 +470,13 @@ export class BackendPlatformClient extends BackendClientCore {
   ): Promise<ListDeploymentRecordsResult> {
     const platform = required(input.platform, "platform");
     const app = required(input.app, "app");
-    const query =
-      input.projectId != null
-        ? `?project_id=${encodeURIComponent(String(input.projectId))}`
-        : "";
     const raw = await this.get<{
       app?: string;
       current_release_tag?: string | null;
       records?: Array<Record<string, unknown>>;
     }>(
-      `/api/platforms/${encodeURIComponent(platform)}/apps/${encodeURIComponent(app)}/records${query}`,
+      this.platformPath(platform, `apps/${encodeURIComponent(app)}/records`) +
+        this.qs({ project_id: input.projectId }),
       "list_deployment_records",
       this.resolveBearer(input.bearer),
     );
@@ -460,33 +495,19 @@ export class BackendPlatformClient extends BackendClientCore {
   }
 
   async listSecrets(input: ListSecretsInput = {}): Promise<ListSecretsResult> {
-    const params = new URLSearchParams();
-    const clientId = input.clientId ?? input.githubUserId;
-    if (clientId) params.set("client_id", clientId);
-    const query = params.toString();
-    const raw = await this.get<{ by_app?: Record<string, string[]> }>(
-      `/api/secrets${query ? `?${query}` : ""}`,
-      "list_secrets",
+    return this.secretsByApp(
+      `/api/secrets${this.qs({ client_id: input.clientId ?? input.githubUserId })}`,
       this.resolveBearer(input.bearer, { privileged: true }),
     );
-    return { byApp: raw.by_app ?? {} };
   }
 
   /** Ingest app-scoped env vars into the secret vault under the GitHub user id.
    *  The backend field is still named `user_id`, but GitHub is the only owner
    *  scope this client accepts for app secrets. Service op. */
   async ingestSecrets(input: IngestSecretsInput): Promise<IngestSecretsResult> {
-    const githubUserId = required(input.githubUserId, "githubUserId");
-    const app = required(input.app, "app");
-    const projectId = input.projectId?.trim();
     const raw = await this.post<{ handles?: Record<string, string> }>(
       `/api/_internal/secrets`,
-      {
-        user_id: githubUserId,
-        app,
-        ...(projectId ? { source_id: projectId } : {}),
-        secrets: input.secrets,
-      },
+      { ...this.appSecretsBody(input), secrets: input.secrets },
       "ingest_secrets",
       this.resolveBearer(input.bearer, { privileged: true }),
     );
@@ -497,36 +518,29 @@ export class BackendPlatformClient extends BackendClientCore {
    *  app. Service read, so it works with the portal's service bearer (unlike
    *  the session-scoped `listSecrets`). */
   async listAppSecrets(input: ListAppSecretsInput): Promise<ListSecretsResult> {
-    const githubUserId = required(input.githubUserId, "githubUserId");
-    const params = new URLSearchParams({ user_id: githubUserId });
-    if (input.app?.trim()) params.set("app", input.app.trim());
-    if (input.projectId?.trim()) {
-      params.set("source_id", input.projectId.trim());
-    }
-    const raw = await this.get<{ by_app?: Record<string, string[]> }>(
-      `/api/_internal/secrets?${params.toString()}`,
-      "list_secrets",
+    return this.secretsByApp(
+      `/api/_internal/secrets${this.qs({
+        user_id: required(input.githubUserId, "githubUserId"),
+        app: input.app?.trim() || undefined,
+        source_id: input.projectId?.trim() || undefined,
+      })}`,
       this.resolveBearer(input.bearer, { privileged: true }),
     );
-    return { byApp: raw.by_app ?? {} };
   }
 
   /** Remove one app-scoped secret. Service op. Returns whether it existed. */
   async removeAppSecret(input: RemoveAppSecretInput): Promise<boolean> {
-    const githubUserId = required(input.githubUserId, "githubUserId");
-    const app = required(input.app, "app");
-    const name = required(input.name, "name");
-    const projectId = input.projectId?.trim();
+    // Validate the full body (name included) before resolving the bearer, so
+    // a bad input never reads as "missing bearer".
+    const body = {
+      ...this.appSecretsBody(input),
+      name: required(input.name, "name"),
+    };
     const raw = await this.del<{ removed?: boolean }>(
       `/api/_internal/secrets`,
       "ingest_secrets",
       this.resolveBearer(input.bearer, { privileged: true }),
-      {
-        user_id: githubUserId,
-        app,
-        ...(projectId ? { source_id: projectId } : {}),
-        name,
-      },
+      body,
     );
     return Boolean(raw.removed);
   }
