@@ -6,6 +6,9 @@ const appRoot = path.dirname(fileURLToPath(import.meta.url));
 const workspaceRoot = path.resolve(appRoot, "../..");
 const appNodeModules = path.join(appRoot, "node_modules");
 
+// Para consumes React Query through a peer dependency. Pin both sides to the
+// app copy so the provider and Para hooks share the same runtime context.
+
 const nextConfig: NextConfig = {
   agentRules: false,
   reactStrictMode: true,
