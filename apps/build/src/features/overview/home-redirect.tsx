@@ -4,6 +4,8 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 import { LoadingPanel } from "@build/features/launch/components/deployments/ui/state-panels";
+import { platformHref, readPlatform } from "@build/features/launch/platform";
+import { DEFAULT_DEPLOY_PLATFORM } from "@build/lib/deploy-platform";
 import { getLastProjectId } from "@build/lib/last-project";
 
 /**
@@ -15,7 +17,10 @@ export function HomeRedirect() {
 
   useEffect(() => {
     const last = getLastProjectId();
-    router.replace(last ? `/projects/${last}` : "/projects");
+    const href = last ? `/projects/${last}` : "/projects";
+    router.replace(
+      platformHref(href, readPlatform() ?? DEFAULT_DEPLOY_PLATFORM),
+    );
   }, [router]);
 
   return <LoadingPanel label="Opening projects…" />;

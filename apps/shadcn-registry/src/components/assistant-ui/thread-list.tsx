@@ -19,7 +19,7 @@ import {
 
 export const ThreadList: FC = () => {
   return (
-    <ThreadListPrimitive.Root className="aui-root aui-thread-list-root flex flex-1 list-none flex-col items-stretch gap-0.5 pl-2">
+    <ThreadListPrimitive.Root className="aui-root aui-thread-list-root flex w-full flex-1 list-none flex-col items-stretch gap-0.5 px-2">
       <ThreadListNew />
       {/* Design mock: a "Recent" section label instead of a hairline */}
       <span className="aui-thread-list-separator text-aomi-muted px-4 pb-2 pt-5 text-left text-xs font-medium">
@@ -34,7 +34,7 @@ const ThreadListNew: FC = () => {
   return (
     <ThreadListPrimitive.New asChild>
       <Button
-        className="aui-thread-list-new border-aomi-border bg-aomi-surface-2 hover:border-aomi-muted/40 hover:bg-aomi-surface-2 mr-2 flex items-center justify-start gap-2 rounded-lg border px-3 py-[9px] text-start text-sm font-medium"
+        className="aui-thread-list-new border-aomi-border bg-aomi-surface-2 hover:border-aomi-muted/40 hover:bg-aomi-surface-2 flex items-center justify-start gap-2 rounded-lg border px-3 py-[9px] text-start text-sm font-medium"
         variant="ghost"
       >
         <PlusIcon className="size-4" />
@@ -126,7 +126,7 @@ const ThreadListItem: FC = () => {
     >
       <ThreadListItemPrimitive.Trigger className="aui-thread-list-item-trigger flex min-w-0 flex-1 items-center gap-2 py-2 pl-3 pr-1 text-start">
         {/* Sky dot marks the active session, per the design mock */}
-        <span className="bg-aomi-accent-strong size-1.5 shrink-0 rounded-full opacity-0 group-data-active/thread:opacity-100" />
+        <span className="bg-aomi-accent-strong group-data-active/thread:opacity-100 size-1.5 shrink-0 rounded-full opacity-0" />
         <ThreadListItemTitle />
       </ThreadListItemPrimitive.Trigger>
       <ThreadListItemMenu

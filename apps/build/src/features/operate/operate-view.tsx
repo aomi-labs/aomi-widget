@@ -24,7 +24,7 @@ import {
   buildQueryStaleTime,
   githubAccountKey,
 } from "@build/features/launch/query-keys";
-import { operateFetch, type OperateKind } from "./client";
+import { operateFetch, operatePaymentsFetch, type OperateKind } from "./client";
 import {
   bytesLabel,
   countLabel,
@@ -66,6 +66,17 @@ type OperatePayload = {
   platformMetrics?: Array<Record<string, any>>;
   payments?: Record<string, any> | null;
   nextCursor?: unknown | null;
+};
+
+type PaymentPayload = {
+  payments?: Record<string, any> | null;
+};
+
+type PaymentState = {
+  payments: Record<string, any> | null;
+  loading: boolean;
+  error: string | null;
+  retry: () => void;
 };
 
 const meta = {
@@ -210,11 +221,13 @@ function Rows({
   payload,
   view,
   platform,
+  payment,
 }: {
   kind: ViewKind;
   payload: OperatePayload;
   view: ViewState;
   platform?: string;
+  payment: PaymentState | null;
 }) {
   if (kind === "transactions") {
     const rows = payload.transactions ?? [];
@@ -296,7 +309,7 @@ function Rows({
   const monitoring = payload.monitoring;
   const platformMetrics = payload.platformMetrics ?? [];
   const dashboardLinks = payload.dashboardLinks ?? [];
-  const payments = payload.payments;
+  const payments = payment?.payments ?? payload.payments;
   const paymentSummary = payments?.summary;
   return (
     <div className="space-y-4">
@@ -330,8 +343,29 @@ function Rows({
         ) : null}
       </div>
 
-      {payments?.available ||
-      (Array.isArray(payments?.resources) && payments.resources.length) ? (
+      {payment?.loading ? (
+        <div className="border-border bg-surface rounded-md border px-3 py-3">
+          <div className="text-foreground text-sm font-medium">
+            Payment health
+          </div>
+          <div className="text-dim mt-2 text-xs">Loading payment health…</div>
+        </div>
+      ) : payment?.error ? (
+        <div className="border-danger/30 bg-danger/5 rounded-md border px-3 py-3">
+          <div className="text-foreground text-sm font-medium">
+            Payment health
+          </div>
+          <div className="text-danger mt-1 text-xs">{payment.error}</div>
+          <button
+            type="button"
+            onClick={payment.retry}
+            className="border-border bg-surface hover:bg-accent-hover mt-2 rounded-md border px-2 py-1 text-xs"
+          >
+            Retry
+          </button>
+        </div>
+      ) : payments?.available ||
+        (Array.isArray(payments?.resources) && payments.resources.length) ? (
         <div className="border-border bg-surface rounded-md border">
           <div className="border-border border-b px-3 py-2">
             <div className="text-foreground text-sm font-medium">
@@ -588,6 +622,27 @@ export function OperateView({ kind }: { kind: ViewKind }) {
     enabled: account.signedIn && accountKey !== null,
     staleTime: buildQueryStaleTime.operate,
   });
+  // The payment ledger is optional and source-scoped. Start it only after the
+  // monitoring snapshot has resolved so a slow ledger never holds the page.
+  const paymentQuery = useQuery({
+    queryKey: buildQueryKeys.operate(
+      accountKey ?? "unavailable",
+      "payments",
+      sourceId,
+      platformFromUrl,
+    ),
+    queryFn: () =>
+      operatePaymentsFetch<PaymentPayload>({
+        sourceId,
+        platform: platformFromUrl,
+      }),
+    enabled:
+      kind === "observability" &&
+      dataQuery.isSuccess &&
+      account.signedIn &&
+      accountKey !== null,
+    staleTime: buildQueryStaleTime.operate,
+  });
   const payload = dataQuery.data ?? null;
   const loading = dataQuery.isPending;
   const queryError =
@@ -597,6 +652,21 @@ export function OperateView({ kind }: { kind: ViewKind }) {
         : String(dataQuery.error)
       : null;
   const error = paginationError ?? queryError;
+  const payment: PaymentState | null =
+    kind === "observability"
+      ? {
+          payments: paymentQuery.data?.payments ?? null,
+          loading: paymentQuery.isLoading,
+          error: paymentQuery.isError
+            ? paymentQuery.error instanceof Error
+              ? paymentQuery.error.message
+              : String(paymentQuery.error)
+            : null,
+          retry: () => {
+            void paymentQuery.refetch();
+          },
+        }
+      : null;
   const Icon = meta[kind].icon;
   const sources = useMemo(() => payload?.sources ?? [], [payload?.sources]);
   const canPage = kind === "transactions" || kind === "logs";
@@ -747,6 +817,7 @@ export function OperateView({ kind }: { kind: ViewKind }) {
             payload={payload}
             view={view}
             platform={platformFromUrl}
+            payment={payment}
           />
           {nextCursor ? (
             <div className="flex justify-center">

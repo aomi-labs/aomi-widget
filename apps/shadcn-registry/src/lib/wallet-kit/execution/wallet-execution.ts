@@ -1,6 +1,6 @@
 "use client";
 
-import type { Chain } from "viem";
+import { createPublicClient, http, type Chain, type Hex } from "viem";
 import type {
   NativeWalletExecutionPolicy as ClientNativeWalletExecutionPolicy,
   SponsorshipPaymasterServiceContext,
@@ -34,6 +34,10 @@ export type WalletExecutionKitState = {
   >[0]["switchChainAsync"];
   chainsById: Record<number, Chain>;
   getPreferredRpcUrl?: (chain: Chain) => string;
+  waitForTransactionReceipt?: (args: {
+    chainId: number;
+    hash: Hex;
+  }) => Promise<{ status?: string }>;
 };
 
 export type NativeWalletExecutionPolicy = Omit<
@@ -98,6 +102,36 @@ export function normalizeAtomicCapabilities(
   }
 
   return normalized;
+}
+
+async function waitForReceipt(
+  state: WalletExecutionKitState,
+  chainId: number,
+  hash: Hex,
+): Promise<{ status?: string }> {
+  if (state.waitForTransactionReceipt) {
+    return state.waitForTransactionReceipt({ chainId, hash });
+  }
+
+  const chain = state.chainsById[chainId];
+  if (!chain) {
+    throw new Error(`Unsupported chain ${chainId}`);
+  }
+  const rpcUrl = (state.getPreferredRpcUrl ?? getPreferredRpcUrl)(chain);
+  if (!rpcUrl) {
+    throw new Error(`No RPC for chain ${chainId}`);
+  }
+  return createPublicClient({
+    chain,
+    transport: http(rpcUrl),
+  }).waitForTransactionReceipt({ hash });
+}
+
+function transactionCallIds(payload: WalletTxPayload): number[] {
+  if (payload.calls?.length) {
+    return payload.calls.map((call) => call.txId);
+  }
+  return [payload.txId ?? payload.txIds?.[0] ?? 0];
 }
 
 function resolveNativeWalletExecutionPolicy({
@@ -169,26 +203,88 @@ export async function executeWalletKitTransaction({
     requiresAtomicForBatch,
   });
 
-  const execution = await executeWalletCalls({
-    callList,
-    currentChainId: state.currentChainId ?? callList[0]?.chainId ?? 1,
-    capabilities: state.capabilities,
-    localPrivateKey: null,
-    nativeWalletExecution,
-    sendCallsSyncAsync: sendCallsSyncAsync
-      ? async (args) => sendCallsSyncAsync(args)
-      : async () => {
-          throw new Error("wallet_send_calls_not_supported");
+  const broadcastLegs: Array<{ chainId: number; hash: Hex }> = [];
+  let revertedLegIndex: number | null = null;
+  const callTxIds = transactionCallIds(payload);
+  // Embedded providers may prepare each sequential transaction from the
+  // latest mined nonce. Confirm the preceding leg before requesting the next
+  // signature so the fee leg cannot reuse the user's transaction nonce.
+  const sendSequentialTransaction: typeof sendTransactionAsync = async (
+    args,
+  ) => {
+    const previousSend = broadcastLegs[broadcastLegs.length - 1];
+    if (previousSend) {
+      const receipt = await waitForReceipt(
+        state,
+        previousSend.chainId,
+        previousSend.hash,
+      );
+      if (receipt.status === "reverted") {
+        revertedLegIndex = broadcastLegs.length - 1;
+        throw new Error("wallet_sequential_transaction_reverted");
+      }
+    }
+
+    const hash = await sendTransactionAsync(args);
+    broadcastLegs.push({ chainId: args.chainId, hash: hash as Hex });
+    return hash;
+  };
+
+  let execution: Awaited<ReturnType<typeof executeWalletCalls>>;
+  try {
+    execution = await executeWalletCalls({
+      callList,
+      currentChainId: state.currentChainId ?? callList[0]?.chainId ?? 1,
+      capabilities: state.capabilities,
+      localPrivateKey: null,
+      nativeWalletExecution,
+      sendCallsSyncAsync: sendCallsSyncAsync
+        ? async (args) => sendCallsSyncAsync(args)
+        : async () => {
+            throw new Error("wallet_send_calls_not_supported");
+          },
+      sendTransactionAsync: sendSequentialTransaction,
+      switchChainAsync: switchChainAsync
+        ? async ({ chainId }) => switchChainAsync({ chainId })
+        : async () => {
+            throw new Error("wallet_switch_chain_not_supported");
+          },
+      chainsById: state.chainsById,
+      getPreferredRpcUrl: state.getPreferredRpcUrl ?? getPreferredRpcUrl,
+    });
+  } catch (error) {
+    // A broadcast leg counts as executed even when we never saw its receipt:
+    // a receipt wait can fail on an RPC timeout while the transaction mines
+    // anyway, and reporting that leg as un-run makes the backend re-queue a
+    // transaction that is already on chain. A leg that mined *reverted* is
+    // the failure itself, so it is excluded from the executed prefix.
+    const landedLegCount = revertedLegIndex ?? broadcastLegs.length;
+    const executedTxIds = callTxIds
+      .slice(0, landedLegCount)
+      .filter((txId) => txId > 0);
+    const lastLandedHash = broadcastLegs[landedLegCount - 1]?.hash;
+    if (executedTxIds.length > 0 && lastLandedHash) {
+      const failedTxId = callTxIds[landedLegCount];
+      const remainingTxIds = callTxIds
+        .slice(landedLegCount + 1)
+        .filter((txId) => txId > 0);
+      const enrichedError =
+        error instanceof Error ? error : new Error(String(error));
+      Object.assign(enrichedError, {
+        partial: {
+          executedTxIds,
+          lastTxHash: lastLandedHash,
+          failedTxId:
+            typeof failedTxId === "number" && failedTxId > 0
+              ? failedTxId
+              : null,
+          remainingTxIds,
         },
-    sendTransactionAsync,
-    switchChainAsync: switchChainAsync
-      ? async ({ chainId }) => switchChainAsync({ chainId })
-      : async () => {
-          throw new Error("wallet_switch_chain_not_supported");
-        },
-    chainsById: state.chainsById,
-    getPreferredRpcUrl: state.getPreferredRpcUrl ?? getPreferredRpcUrl,
-  });
+      });
+      throw enrichedError;
+    }
+    throw error;
+  }
 
   if (!execution.txHash) {
     throw new Error("wallet_execution_missing_transaction_hash");

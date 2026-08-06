@@ -40,7 +40,10 @@ import {
   useSvmWalletRuntime,
 } from "../runtime/svm/wallet-runtime";
 import { REGISTRY_STORAGE_KEY } from "../registry/types";
-import { createAomiEvmConfig } from "../catalog/evm-connector-catalog";
+import {
+  createAomiEvmConfig,
+  type ResolvedEvmWalletsConfig,
+} from "../catalog/evm-connector-catalog";
 import { resolveAomiSvmConfig } from "../catalog/svm-wallet-catalog";
 import { canonicalWalletKey } from "../catalog/wallet-branding";
 import {
@@ -368,6 +371,21 @@ function WalletKitComposerOutlet({
   );
 }
 
+function DefaultEvmRuntimeProvider({
+  children,
+  config,
+}: {
+  children: ReactNode;
+  config: ResolvedEvmWalletsConfig;
+}) {
+  const wagmiConfig = useMemo(() => createAomiEvmConfig(config), [config]);
+  return (
+    <AomiEvmRuntimeProvider config={wagmiConfig}>
+      {children}
+    </AomiEvmRuntimeProvider>
+  );
+}
+
 function AomiEvmExternalWalletProvider({
   account,
   auth,
@@ -391,19 +409,18 @@ function AomiEvmExternalWalletProvider({
 }) {
   const chains = evmWallets?.chains ?? defaultNetworks;
   const routing = useFullTestnet(chains);
-  const wagmiConfig = useMemo(
-    () =>
-      createAomiEvmConfig({
-        chains: routing.routedChains,
-        preset: evmWallets?.preset,
-        wallets: evmWallets?.wallets,
-        connectors: evmWallets?.connectors,
-        walletConnectProjectId: evmWallets?.walletConnectProjectId,
-        coinbase: evmWallets?.coinbase,
-        appName: evmWallets?.appName,
-        appLogoUrl: evmWallets?.appLogoUrl,
-        transports: evmWallets?.transports,
-      }),
+  const evmConfig = useMemo(
+    () => ({
+      chains: routing.routedChains,
+      preset: evmWallets?.preset,
+      wallets: evmWallets?.wallets,
+      connectors: evmWallets?.connectors,
+      walletConnectProjectId: evmWallets?.walletConnectProjectId,
+      coinbase: evmWallets?.coinbase,
+      appName: evmWallets?.appName,
+      appLogoUrl: evmWallets?.appLogoUrl,
+      transports: evmWallets?.transports,
+    }),
     [evmWallets, routing.routedChains],
   );
   const [queryClient] = useState(() => new QueryClient());
@@ -415,36 +432,46 @@ function AomiEvmExternalWalletProvider({
   const wrapWithAuthProvider =
     authPlugin?.wrap ??
     ((props: { children: ReactNode }) => <>{props.children}</>);
+  const runtimeChildren = (
+    <MaybeSvmWalletProvider resolvedSvm={resolvedSvm}>
+      <FullTestnetWalletRouter
+        enabled={routing.enabled}
+        chains={routing.routedChains}
+        routedChainIds={routing.routedChainIds}
+      >
+        <WalletKitComposerOutlet
+          account={account}
+          auth={auth}
+          authPlugin={shouldUseAuthPlugin ? authPlugin : undefined}
+          execution={execution}
+          providers={providers}
+          resolvedSvm={resolvedSvm}
+          routing={routing}
+          setSelectedSolanaNetworkId={setSelectedSolanaNetworkId}
+        >
+          {children}
+        </WalletKitComposerOutlet>
+      </FullTestnetWalletRouter>
+    </MaybeSvmWalletProvider>
+  );
+  const evmRuntime =
+    shouldUseAuthPlugin && authPlugin?.renderEvmRuntimeProvider ? (
+      authPlugin.renderEvmRuntimeProvider({
+        config: evmConfig,
+        children: runtimeChildren,
+      })
+    ) : (
+      <DefaultEvmRuntimeProvider config={evmConfig}>
+        {runtimeChildren}
+      </DefaultEvmRuntimeProvider>
+    );
 
   return (
     <QueryClientProvider client={queryClient}>
       {wrapWithAuthProvider({
         auth,
         providers,
-        children: (
-          <AomiEvmRuntimeProvider config={wagmiConfig}>
-            <MaybeSvmWalletProvider resolvedSvm={resolvedSvm}>
-              <FullTestnetWalletRouter
-                enabled={routing.enabled}
-                chains={routing.routedChains}
-                routedChainIds={routing.routedChainIds}
-              >
-                <WalletKitComposerOutlet
-                  account={account}
-                  auth={auth}
-                  authPlugin={shouldUseAuthPlugin ? authPlugin : undefined}
-                  execution={execution}
-                  providers={providers}
-                  resolvedSvm={resolvedSvm}
-                  routing={routing}
-                  setSelectedSolanaNetworkId={setSelectedSolanaNetworkId}
-                >
-                  {children}
-                </WalletKitComposerOutlet>
-              </FullTestnetWalletRouter>
-            </MaybeSvmWalletProvider>
-          </AomiEvmRuntimeProvider>
-        ),
+        children: evmRuntime,
       })}
     </QueryClientProvider>
   );

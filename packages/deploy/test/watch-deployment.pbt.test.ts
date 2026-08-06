@@ -8,6 +8,7 @@ import type {
   DeploymentStatus,
   ProgressModel,
 } from "../src/types";
+import { backoffDelay, deploymentProgress } from "../src/launch/watch";
 
 describe("watchDeployment — property-based", () => {
   it("buildProgressModel produces monotonic completed", () => {
@@ -35,7 +36,7 @@ describe("watchDeployment — property-based", () => {
             state !== "failed" ? true : lastCompleted >= 0,
           ),
         ({ state, lastCompleted }) => {
-          const model = (client as any).buildProgressModel(
+          const model = deploymentProgress(
             { state, releaseTags: [] } as DeploymentStatus,
             lastCompleted,
           ) as ProgressModel;
@@ -64,7 +65,7 @@ describe("watchDeployment — property-based", () => {
         fc.integer({ min: 100, max: 5000 }),
         fc.integer({ min: 5000, max: 60000 }),
         (failures, baseMs, maxMs) => {
-          const delay = (client as any).backoffDelay(
+          const delay = backoffDelay(
             failures,
             baseMs,
             maxMs,
@@ -99,7 +100,7 @@ describe("watchDeployment — property-based", () => {
         ),
         (state) => {
           const isTerminal = state === "ready" || state === "failed";
-          const model = (client as any).buildProgressModel(
+          const model = deploymentProgress(
             { state, releaseTags: [] } as DeploymentStatus,
             0,
           ) as ProgressModel;
@@ -256,7 +257,7 @@ describe("watchDeployment — property-based", () => {
           "unknown_state",
         ),
         (state) => {
-          const model = (client as any).buildProgressModel(
+          const model = deploymentProgress(
             { state, releaseTags: [] } as DeploymentStatus,
             3,
           ) as ProgressModel;

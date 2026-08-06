@@ -1,8 +1,13 @@
-import { CircleArrowUp, ExternalLink, GitCommitHorizontal, RotateCcw } from "lucide-react";
+import {
+  CircleArrowUp,
+  ExternalLink,
+  GitCommitHorizontal,
+  RotateCcw,
+} from "lucide-react";
+import { HelpBadge } from "@build/components/help-badge";
 import type { TimelineDeployment } from "../deployment-timeline";
 import { formatRelativeTime } from "../format-relative-time";
 import { sdkCompatibility } from "../sdk-compatibility";
-import { HintBubble } from "./hint-bubble";
 
 /** Deployment row from DB promotion records. Lead with apps + status; id is secondary. */
 export function TimelineDeploymentRow({
@@ -111,11 +116,11 @@ export function TimelineDeploymentRow({
             </button>
             <span className="text-dim inline-flex items-center gap-1 text-[10px]">
               via pull request
-              <HintBubble label="Why a pull request">
+              <HelpBadge label="Why a pull request">
                 Aomi never pushes to your default branch. Upgrades arrive as a
                 pull request in your repository — you review the one-line
                 Cargo.toml change and merge when ready.
-              </HintBubble>
+              </HelpBadge>
             </span>
           </div>
         ) : null}

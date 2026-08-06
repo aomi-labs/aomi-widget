@@ -37,6 +37,8 @@ export type {
   SessionOptions,
   SessionRuntimeOptions,
   WalletRequest,
+  WalletAaSignPayload,
+  WalletAaSignatureRequest,
   WalletRequestKind,
   WalletRequestResult,
 } from "./types";

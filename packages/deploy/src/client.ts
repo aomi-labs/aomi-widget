@@ -20,6 +20,7 @@ import type {
   GetAppInput,
   GetUserSourceAppDetailInput,
   GetUserSourceLatestDeploymentInput,
+  GetUserSourceRequiredSecretsInput,
   GitHubIdentity,
   ListAppsInput,
   DeactivateAppInput,
@@ -52,6 +53,9 @@ import type {
   UpdateUserBotInput,
   OwnedOperateSourceInput,
   GetUserObservabilityInput,
+  GetUserPaymentsInput,
+  OperateObservabilitySnapshot,
+  OperatePaymentSourceResult,
   UserOperateBatchInput,
   GetUserStatementsInput,
   ListUserTransactionsInput,
@@ -67,12 +71,12 @@ import type {
   UserDeployment,
   UserDeploymentsPage,
   UserSourceLatestDeployment,
+  UserSourceRequiredSecretsResult,
   ListTokensInput,
   MintTokenInput,
   MintedToken,
   PlatformApp,
   PreflightInput,
-  ProgressModel,
   PromoteInput,
   PromoteResult,
   RerunDeploymentInput,
@@ -87,6 +91,7 @@ import type {
   TokenRecord,
   WatchDeploymentOptions,
 } from "./types";
+import { watchDeploymentLoop } from "./launch/watch";
 
 /**
  * Server-side client to the Aomi platform deploy backend. It is a typed HTTP
@@ -363,90 +368,16 @@ export class DeploymentClient {
     onEvent: (event: DeploymentProgressEvent) => void,
     options?: WatchDeploymentOptions,
   ): Promise<void> {
-    const baseDelayMs = options?.baseDelayMs ?? 3000;
-    const maxDelayMs = options?.maxDelayMs ?? 30000;
-    const maxRetries = options?.maxRetries ?? 8;
-    const signal = options?.signal;
-
-    let failures = 0;
-    let lastCompleted = 0;
-    let lastProgress: ProgressModel = {
-      completed: 0,
-      total: 8,
-      label: "Waiting for build",
-    };
-
-    while (!signal?.aborted && failures < maxRetries) {
-      try {
-        const status = await this.status({ platform, deploymentId });
-        const mapped = this.buildProgressModel(status, lastCompleted);
-        const completed = Math.max(mapped.completed, lastCompleted);
-        const progress: ProgressModel = { ...mapped, completed };
-        lastCompleted = completed;
-        lastProgress = progress;
-
-        const isTerminal =
-          status.state === "ready" ||
-          status.state === "failed" ||
-          status.state === "no_ci";
-        onEvent({
-          kind: isTerminal ? "terminal" : "progress",
-          status,
-          progress,
-        });
-
-        if (isTerminal) return;
-
-        failures = 0;
-        await sleep(this.backoffDelay(0, baseDelayMs, maxDelayMs));
-      } catch (err) {
-        // Non-retryable HTTP error — bail immediately
-        if (
-          err instanceof BackendError &&
-          err.status >= 400 &&
-          err.status < 500
-        ) {
-          onEvent({
-            kind: "error",
-            status: {
-              state: "failed",
-              releaseTags: [],
-              message: err.message,
-            },
-            progress: lastProgress,
-            error: err,
-          });
-          return;
-        }
-        failures++;
-        onEvent({
-          kind: "warning",
-          status: {
-            state: "failed",
-            releaseTags: [],
-            message: `Polling attempt failed (${failures}/${maxRetries}): ${err instanceof Error ? err.message : String(err)}`,
-          },
-          progress: lastProgress,
-          error: err instanceof Error ? err : new Error(String(err)),
-        });
-        await sleep(this.backoffDelay(failures, baseDelayMs, maxDelayMs));
-      }
-    }
-
-    // Loop exited without a terminal state — emit error event
-    const errorMsg = signal?.aborted
-      ? "Watch cancelled"
-      : `Polling stopped after ${maxRetries} consecutive failures`;
-    onEvent({
-      kind: "error",
-      status: {
-        state: "failed",
-        releaseTags: [],
-        message: errorMsg,
+    return watchDeploymentLoop(
+      () => this.status({ platform, deploymentId }),
+      onEvent,
+      {
+        ...options,
+        // A 4xx is the backend telling us this will never succeed.
+        isFatal: (err) =>
+          err instanceof BackendError && err.status >= 400 && err.status < 500,
       },
-      progress: lastProgress,
-      error: new Error(errorMsg),
-    });
+    );
   }
 
   // ───────────────────────── Bootstrap: tokens ──────────────────────────────
@@ -784,6 +715,56 @@ export class DeploymentClient {
       ts: Date.now(),
     });
     return camelUserSourceLatestDeployment(raw.latest_deployment) ?? null;
+  }
+
+  async getUserSourceRequiredSecrets(
+    input: GetUserSourceRequiredSecretsInput,
+  ): Promise<UserSourceRequiredSecretsResult> {
+    const githubUserId = required(input.githubUserId, "githubUserId");
+    const platform = cleanPlatform(input.platform);
+    const appSourceId = required(String(input.appSourceId), "appSourceId");
+    const bearer = this.resolveBearer(input.bearer);
+    const params = new URLSearchParams({
+      github_user_id: githubUserId,
+      platform,
+    });
+    const raw = await this.get<{
+      by_app?: Record<string, { slots?: unknown[] }>;
+    }>(
+      `/api/integrations/github-app/user/sources/${encodeURIComponent(
+        appSourceId,
+      )}/required-secrets?${params.toString()}`,
+      "get_user_source_required_secrets",
+      bearer,
+    );
+    await this.audit({
+      action: "get_user_source_required_secrets",
+      platform,
+      appSourceId: input.appSourceId,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return {
+      byApp: Object.fromEntries(
+        Object.entries(raw.by_app ?? {}).map(([app, value]) => [
+          app,
+          {
+            slots: (value.slots ?? []).flatMap((slot) => {
+              if (!slot || typeof slot !== "object") return [];
+              const rawSlot = slot as Record<string, unknown>;
+              const name = rawSlot.name;
+              const description = rawSlot.description;
+              const required = rawSlot.required;
+              return typeof name === "string" &&
+                typeof description === "string" &&
+                typeof required === "boolean"
+                ? [{ name, description, required }]
+                : [];
+            }),
+          },
+        ]),
+      ),
+    };
   }
 
   async listUserSourceDeployments(
@@ -1222,11 +1203,17 @@ export class DeploymentClient {
    */
   async getUserObservability(
     input: GetUserObservabilityInput,
-  ): Promise<OperateObservabilityResult[]> {
+  ): Promise<OperateObservabilitySnapshot[]> {
     const githubUserId = required(input.githubUserId, "githubUserId");
     const bearer = this.resolveBearer(input.bearer);
     const params = new URLSearchParams({ github_user_id: githubUserId });
     if (input.platform?.trim()) params.set("platform", input.platform.trim());
+    if (input.appSourceId !== undefined) {
+      if (!Number.isSafeInteger(input.appSourceId) || input.appSourceId <= 0) {
+        throw new Error("appSourceId must be a positive integer");
+      }
+      params.set("app_source_id", String(input.appSourceId));
+    }
     const raw = await this.get<{ results?: unknown[] }>(
       `/api/integrations/github-app/user/observability?${params.toString()}`,
       "get_user_observability",
@@ -1238,9 +1225,44 @@ export class DeploymentClient {
       actor: input.actor,
       ts: Date.now(),
     });
-    return ((raw.results ?? []) as Record<string, unknown>[]).map((entry) =>
-      camelOperateObservability(entry, input.platform?.trim() ?? ""),
+    return ((raw.results ?? []) as Record<string, unknown>[]).map((entry) => {
+      const { payments: _payments, ...snapshot } = camelOperateObservability(
+        entry,
+        input.platform?.trim() ?? "",
+      );
+      return snapshot;
+    });
+  }
+
+  async getUserPayments(
+    input: GetUserPaymentsInput,
+  ): Promise<OperatePaymentSourceResult[]> {
+    const githubUserId = required(input.githubUserId, "githubUserId");
+    const bearer = this.resolveBearer(input.bearer);
+    const params = new URLSearchParams({ github_user_id: githubUserId });
+    if (input.platform?.trim()) params.set("platform", input.platform.trim());
+    if (input.appSourceId !== undefined) {
+      if (!Number.isSafeInteger(input.appSourceId) || input.appSourceId <= 0) {
+        throw new Error("appSourceId must be a positive integer");
+      }
+      params.set("app_source_id", String(input.appSourceId));
+    }
+    const raw = await this.get<{ results?: unknown[] }>(
+      `/api/integrations/github-app/user/payments?${params.toString()}`,
+      "get_user_payments",
+      bearer,
     );
+    await this.audit({
+      action: "get_user_payments",
+      platform: input.platform,
+      appSourceId: input.appSourceId,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return ((raw.results ?? []) as Record<string, unknown>[]).map((entry) => ({
+      source: camelAppSource(entry.source),
+      payments: camelPartnerPayments(entry.payments),
+    }));
   }
 
   private userBatchParams(input: UserOperateBatchInput): {
@@ -1628,29 +1650,6 @@ export class DeploymentClient {
     return `${this.baseUrl}${cleanPath}`;
   }
 
-  private buildProgressModel(
-    status: DeploymentStatus,
-    lastCompleted: number,
-  ): ProgressModel {
-    const total = 8;
-    switch (status.state) {
-      case "pending":
-        return { completed: 1, total, label: "Waiting for build" };
-      case "building":
-        return { completed: 2, total, label: "Building CI" };
-      case "releasing":
-        return { completed: 5, total, label: "Verifying release assets" };
-      case "ready":
-        return { completed: 8, total, label: "Build ready" };
-      case "no_ci":
-        return { completed: lastCompleted, total, label: "No CI" };
-      case "failed":
-        return { completed: lastCompleted, total, label: "Build failed" };
-      default:
-        return { completed: lastCompleted, total, label: "Waiting for build" };
-    }
-  }
-
   private ownedOperateRequest(input: OwnedOperateSourceInput): {
     appSourceId: number;
     params: URLSearchParams;
@@ -1689,14 +1688,6 @@ export class DeploymentClient {
       bearer: this.resolveBearer(input.bearer),
       params: new URLSearchParams({ github_user_id: githubUserId, platform }),
     };
-  }
-
-  private backoffDelay(
-    failures: number,
-    baseMs: number,
-    maxMs: number,
-  ): number {
-    return Math.min(baseMs * Math.pow(2, failures), maxMs);
   }
 
   private async get<Resp>(
@@ -2117,7 +2108,6 @@ function camelAppSource(raw: unknown): AppSource {
     boundPlatformName: s.bound_platform_name ?? null,
     createdBy: s.created_by ?? s.createdBy ?? null,
     templateRepo: s.template_repo ?? s.templateRepo ?? null,
-    launchSourceKind: s.launch_source_kind ?? s.launchSourceKind ?? null,
   };
 }
 

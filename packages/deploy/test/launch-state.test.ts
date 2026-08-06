@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import {
   GITHUB_REDIRECT_KEYS,
   installationStatusLabel,
@@ -111,9 +111,13 @@ describe("load/save", () => {
         removeItem: (k: string) => void store.delete(k),
       },
     } as unknown as Window & typeof globalThis;
+    // Restore rather than delete: clobbering `window` for the rest of the file
+    // made every later test see a storage-less environment.
+    const previousWindow = globalThis.window;
     globalThis.window = win;
 
     expect(loadLaunch()).toEqual({
+      platform: null,
       path: null,
       oneshot: {},
       pendingInstall: null,
@@ -124,7 +128,7 @@ describe("load/save", () => {
     saveLaunch(next);
     expect(loadLaunch().oneshot.repo).toBe("me/app");
 
-    (globalThis as { window?: unknown }).window = undefined;
+    globalThis.window = previousWindow;
   });
 });
 
@@ -163,5 +167,38 @@ describe("GITHUB_REDIRECT_KEYS", () => {
     for (const k of ["installation_id", "setup_action", "state", "code", "launch"]) {
       expect(GITHUB_REDIRECT_KEYS).toContain(k);
     }
+  });
+});
+
+describe("loadLaunch — platform scoping", () => {
+  // `browserStorage()` reads globalThis.localStorage, which jsdom provides.
+  function seed(state: Record<string, unknown>) {
+    localStorage.setItem("aomi_launch", JSON.stringify(state));
+  }
+  const saved = (platform: string) => ({
+    platform,
+    path: "oneshot",
+    oneshot: { appSourceId: 7 },
+    pendingInstall: null,
+    rejectedInstallationId: null,
+  });
+
+  beforeEach(() => localStorage.clear());
+
+  it("keeps progress saved under the same platform", () => {
+    seed(saved("somm.finance"));
+    expect(loadLaunch("somm.finance").oneshot.appSourceId).toBe(7);
+  });
+
+  it("discards progress from another platform rather than reusing its source", () => {
+    seed(saved("community"));
+    const state = loadLaunch("somm.finance");
+    expect(state.oneshot).toEqual({});
+    expect(state.platform).toBe("somm.finance");
+  });
+
+  it("returns stored state untouched when no platform is named", () => {
+    seed(saved("community"));
+    expect(loadLaunch().oneshot.appSourceId).toBe(7);
   });
 });

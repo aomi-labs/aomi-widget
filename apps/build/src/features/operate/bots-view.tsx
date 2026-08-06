@@ -18,6 +18,7 @@ import {
   buildQueryStaleTime,
   githubAccountKey,
 } from "@build/features/launch/query-keys";
+import { usePlatform } from "@build/features/launch/use-platform";
 import { TelegramHowItWorks } from "@build/features/integrations/how-it-works";
 import { ThreadModeControl } from "@build/features/integrations/thread-mode-control";
 import { API_PATHS } from "@build/lib/api-paths";
@@ -100,6 +101,20 @@ function monogram(bot: Bot): string {
 
 function threadModeLabel(threadMode: string): string {
   return threadMode === "multi" ? "Multiple threads" : "Single thread";
+}
+
+/** Bot writes carry the active platform so they resolve the same source list
+ *  the picker was populated from. */
+function botsUrl(
+  platform: string | null | undefined,
+  extra: Record<string, string> = {},
+): string {
+  const params = new URLSearchParams(extra);
+  if (platform?.trim()) params.set("platform", platform.trim());
+  const query = params.toString();
+  return query
+    ? `${API_PATHS.bff.operate.bots}?${query}`
+    : API_PATHS.bff.operate.bots;
 }
 
 // ── shared glyphs (recipes shared with providers-view.tsx) ──────────────────
@@ -336,7 +351,7 @@ function ProviderRail({
         <span className="text-foreground text-[13px] font-medium">
           Telegram
         </span>
-        <span className="bg-emerald-500/10 rounded-full px-2 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-400">
+        <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-400">
           {botCount} {botCount === 1 ? "bot" : "bots"}
         </span>
       </div>
@@ -733,10 +748,16 @@ export function BotsView() {
   const { account } = useGitHubSession();
   const queryClient = useQueryClient();
   const accountKey = githubAccountKey(account.githubLogin);
-  const queryKey = buildQueryKeys.bots(accountKey ?? "unavailable");
+  // The bot list itself is builder-wide, but the apps it may be pointed at are
+  // not: a source is bound to one platform, so the picker follows the platform
+  // the shell is on. Without this a builder whose apps live on a partner
+  // platform only ever sees their Community sources — the apps they actually
+  // want to attach are invisible, on every platform, with no way to reach them.
+  const platform = usePlatform();
+  const queryKey = buildQueryKeys.bots(accountKey ?? "unavailable", platform);
   const botsQuery = useQuery({
     queryKey,
-    queryFn: () => operateFetch<BotsPayload>("bots"),
+    queryFn: () => operateFetch<BotsPayload>("bots", { platform }),
     enabled: account.signedIn && accountKey !== null,
     staleTime: buildQueryStaleTime.operate,
   });
@@ -776,7 +797,10 @@ export function BotsView() {
       threadMode: string;
       draft: Draft;
     }) => {
-      const res = await fetch(API_PATHS.bff.operate.bots, {
+      // Same platform the picker listed: the BFF re-checks every id against
+      // that platform's sources, so a write scoped differently from the read
+      // would reject apps the user was just offered.
+      const res = await fetch(botsUrl(platform), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -801,12 +825,12 @@ export function BotsView() {
       }));
       setAdding(false);
     },
-    [queryClient, queryKey, sources],
+    [queryClient, queryKey, sources, platform],
   );
 
   const handleSaveApps = useCallback(
     async (bot: Bot, draft: Draft, threadMode: string) => {
-      const res = await fetch(API_PATHS.bff.operate.bots, {
+      const res = await fetch(botsUrl(platform), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -832,7 +856,7 @@ export function BotsView() {
       }));
       setEditingId(null);
     },
-    [queryClient, queryKey, sources],
+    [queryClient, queryKey, sources, platform],
   );
 
   const handleRemove = useCallback(
@@ -840,8 +864,7 @@ export function BotsView() {
       setRemovingId(bot.id);
       setRemoveError(null);
       try {
-        const params = new URLSearchParams({ botId: bot.id });
-        const res = await fetch(`${API_PATHS.bff.operate.bots}?${params}`, {
+        const res = await fetch(botsUrl(platform, { botId: bot.id }), {
           method: "DELETE",
         });
         const json = (await res.json().catch(() => ({}))) as {
@@ -868,7 +891,7 @@ export function BotsView() {
         setRemovingId(null);
       }
     },
-    [editingId, queryClient, queryKey],
+    [editingId, queryClient, queryKey, platform],
   );
 
   if (account.loading) {
@@ -921,7 +944,9 @@ export function BotsView() {
               editing={editingId === bot.id}
               onBeginEdit={() => setEditingId(bot.id)}
               onCancel={() => setEditingId(null)}
-              onSave={(draft, threadMode) => handleSaveApps(bot, draft, threadMode)}
+              onSave={(draft, threadMode) =>
+                handleSaveApps(bot, draft, threadMode)
+              }
               onRemove={() => void handleRemove(bot)}
               removing={removingId === bot.id}
             />

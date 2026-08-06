@@ -83,6 +83,27 @@ export const robinhood = defineChain({
   },
 });
 
+export const megaeth = defineChain({
+  id: 4326,
+  name: "MegaETH",
+  nativeCurrency: {
+    name: "Ether",
+    symbol: "ETH",
+    decimals: 18,
+  },
+  rpcUrls: {
+    default: {
+      http: ["https://mainnet.megaeth.com/rpc"],
+    },
+  },
+  blockExplorers: {
+    default: {
+      name: "MegaETH Explorer",
+      url: "https://mega.etherscan.io",
+    },
+  },
+});
+
 export const SUPPORTED_CHAINS = [
   { id: 1, name: "Ethereum", ticker: "ETH" },
   { id: 137, name: "Polygon", ticker: "MATIC" },
@@ -96,6 +117,7 @@ export const SUPPORTED_CHAINS = [
   { id: 143, name: "Monad", ticker: "MON" },
   { id: 10143, name: "Monad Testnet", ticker: "MON" },
   { id: 4663, name: "Robinhood Chain", ticker: "ETH" },
+  { id: 4326, name: "MegaETH", ticker: "ETH" },
   { id: 31337, name: "Anvil (local)", ticker: "ETH" },
 ] as const satisfies readonly ChainInfo[];
 
@@ -132,5 +154,6 @@ export const CHAINS_BY_ID: Record<number, Chain> = {
   143: monad,
   10143: monadTestnet,
   4663: robinhood,
+  4326: megaeth,
   31337: foundry,
 };

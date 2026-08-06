@@ -17,6 +17,8 @@ import {
   type LaunchProgress,
   type UserSource,
 } from "@build/features/launch";
+import { readPlatform } from "@build/features/launch/platform";
+import { DEFAULT_DEPLOY_PLATFORM } from "@build/lib/deploy-platform";
 import { OneshotWizard } from "./oneshot-wizard";
 
 const PATH = "oneshot" as const;
@@ -24,10 +26,12 @@ const PATH = "oneshot" as const;
 export function Onboarding({
   hideWizardBack = false,
   knownSources = [],
+  platform,
   sessionInstallationId = null,
 }: {
   hideWizardBack?: boolean;
   knownSources?: UserSource[];
+  platform?: string;
   /**
    * Installation id from the signed-in GitHub session — present when the App is
    * already installed. Seeds the wizard so it skips the install step and starts
@@ -39,7 +43,10 @@ export function Onboarding({
   const actor = adapter.identity.address ?? undefined;
 
   const [state, setState] = useState<LaunchState>(() => {
-    const loaded = loadLaunch();
+    // Scoped load: wizard progress belongs to exactly one platform, and
+    // `loadLaunch` discards progress saved under a different one rather than
+    // letting a stale source id route writes to the wrong platform.
+    const loaded = loadLaunch(platform ?? DEFAULT_DEPLOY_PLATFORM);
     // One-click is the only path — always mount the wizard.
     loaded.path = PATH;
     // Skip-install: if the App is already installed and we don't have a repo
@@ -226,7 +233,16 @@ export function Onboarding({
     setInstallError(null);
     setInstalling(true);
     try {
-      window.location.href = await githubAppInstallUrl({ app: 2 });
+      // A return URL has to name an exact platform, and without one the
+      // backend falls back to the *portal's* settings page — a different app.
+      // An unscoped Build page is the Community platform, so say so and come
+      // back here.
+      const target = platform || readPlatform() || DEFAULT_DEPLOY_PLATFORM;
+      window.location.href = await githubAppInstallUrl({
+        app: 2,
+        platform: target,
+        returnTo: `${window.location.origin}/operate/deployments/new?platform=${encodeURIComponent(target)}`,
+      });
     } catch (error) {
       setInstalling(false);
       setInstallError(
@@ -235,7 +251,7 @@ export function Onboarding({
           : "Failed to start GitHub App install.",
       );
     }
-  }, [state]);
+  }, [platform, state]);
 
   // knownSources / hideWizardBack are accepted for parity with the dashboard's
   // call site; the one-click wizard derives everything it needs from `progress`.
@@ -247,6 +263,7 @@ export function Onboarding({
       {installSuccess && <InstallSuccessBanner />}
       <OneshotWizard
         progress={state.oneshot}
+        platform={platform}
         actor={actor}
         onRestart={restart}
         beginInstall={beginInstall}

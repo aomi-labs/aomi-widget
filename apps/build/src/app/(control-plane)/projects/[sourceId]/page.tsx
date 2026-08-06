@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { ProjectPage } from "@build/features/launch/components/deployments/project-page";
+import { platformHref, platformParam } from "@build/features/launch/platform";
 
 export default async function ProjectDetailPage({
   params,
@@ -10,16 +11,15 @@ export default async function ProjectDetailPage({
   searchParams: Promise<{ platform?: string | string[] }>;
 }) {
   const { sourceId } = await params;
-  const { platform: rawPlatform } = await searchParams;
   const id = Number(sourceId);
   if (!Number.isSafeInteger(id)) notFound();
-  const platform = typeof rawPlatform === "string" ? rawPlatform : undefined;
+  const platform = platformParam((await searchParams).platform);
 
   return (
     <ProjectPage
       sourceId={id}
       platform={platform}
-      backHref="/projects"
+      backHref={platformHref("/projects", platform)}
       backLabel="Projects"
       tabBaseHref={`/projects/${sourceId}`}
     />

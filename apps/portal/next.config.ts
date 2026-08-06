@@ -25,6 +25,8 @@ const widgetTurbopackAliases = {
   "@/lib": "../../apps/shadcn-registry/src/lib",
   "@aomi-labs/widget-lib/providers/para":
     "../../apps/shadcn-registry/src/lib/wallet-kit/providers/para/index.ts",
+  "@aomi-labs/widget-lib/providers/privy":
+    "../../apps/shadcn-registry/src/lib/wallet-kit/providers/privy/index.ts",
   "@aomi-labs/widget-lib": "../../apps/shadcn-registry/src/index.ts",
 } as const;
 
@@ -37,6 +39,10 @@ const widgetWebpackAliases = {
   "@aomi-labs/widget-lib/providers/para": path.join(
     widgetSrc,
     "lib/wallet-kit/providers/para/index.ts",
+  ),
+  "@aomi-labs/widget-lib/providers/privy": path.join(
+    widgetSrc,
+    "lib/wallet-kit/providers/privy/index.ts",
   ),
   "@aomi-labs/widget-lib": path.join(widgetSrc, "index.ts"),
 } as const;
@@ -60,6 +66,7 @@ const nextConfig: NextConfig = {
       "http://127.0.0.1:8545",
     NEXT_PUBLIC_SUPPORTED_CHAIN_IDS:
       process.env.NEXT_PUBLIC_SUPPORTED_CHAIN_IDS || "",
+    NEXT_PUBLIC_PRIVY_APP_ID: process.env.NEXT_PUBLIC_PRIVY_APP_ID || "",
   },
   output: process.env.VERCEL === "1" ? undefined : "standalone",
   outputFileTracingRoot: workspaceRoot,

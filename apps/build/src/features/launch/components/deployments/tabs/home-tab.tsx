@@ -25,6 +25,7 @@ import {
 } from "@build/features/operate/format";
 import { chatAppUrl } from "@build/lib/chat-url";
 import { BUILD_GLOSSARY } from "@build/lib/glossary";
+import { environmentCard } from "./environment-card";
 import { projectDeploymentStatus } from "../project-deployment-status";
 import { sdkCompatibility, sourceSdkVersion } from "../sdk-compatibility";
 import {
@@ -214,6 +215,9 @@ export function HomeTab({
 
   useEffect(() => {
     detail.loadSecrets();
+    // The card reports the same gate the deploy enforces, so it needs the
+    // declared requirements — not just which keys happen to be set.
+    detail.loadRequiredSecrets?.();
   }, [detail]);
 
   const status = useMemo(
@@ -226,13 +230,34 @@ export function HomeTab({
     sdkCompatibility(source ? sourceSdkVersion(source) : null, requiredSdk) ===
     "outdated";
 
-  const secretCount = useMemo(() => {
-    if (!detail.secretsByApp) return null;
-    return Object.values(detail.secretsByApp).reduce(
-      (sum, keys) => sum + keys.length,
-      0,
-    );
-  }, [detail.secretsByApp]);
+  // Gate on the union of the source's apps and any the required-secrets check
+  // itself named — a re-synced repo can register an app this snapshot predates.
+  const gateApps = useMemo(() => {
+    const names = source?.apps.map((app) => app.name) ?? [];
+    const known = new Set(names);
+    for (const name of Object.keys(detail.requiredSecrets ?? {})) {
+      if (!known.has(name)) names.push(name);
+    }
+    return names;
+  }, [source, detail.requiredSecrets]);
+
+  const environment = useMemo(
+    () =>
+      environmentCard({
+        apps: gateApps,
+        requiredSecrets: detail.requiredSecrets ?? null,
+        requiredSecretsError: detail.requiredSecretsError ?? null,
+        secretsByApp: detail.secretsByApp,
+        secretsError: detail.secretsError,
+      }),
+    [
+      gateApps,
+      detail.requiredSecrets,
+      detail.requiredSecretsError,
+      detail.secretsByApp,
+      detail.secretsError,
+    ],
+  );
 
   if (!source || !lifecycle) {
     return <EmptyPanel>Project not found.</EmptyPanel>;
@@ -269,8 +294,6 @@ export function HomeTab({
         ? "warn"
         : "warn";
 
-  const envReady = secretCount !== null && secretCount > 0;
-  const envLoading = detail.secretsByApp === null && !detail.secretsError;
   const usageCopy = usageCardCopy(usage);
   const monetization = monetizationCard(source);
 
@@ -287,11 +310,11 @@ export function HomeTab({
             label: "Redeploy from Linked Repository",
             copy: "Publish a deployment, then set keys and open chat.",
           }
-        : !envReady
+        : environment.blocked
           ? {
               href: hrefForTab("environment"),
               label: "Open Environment",
-              copy: "Add API keys so the live app can call tools.",
+              copy: environment.hint,
             }
           : chatUrl
             ? {
@@ -333,17 +356,9 @@ export function HomeTab({
         />
         <StatusCard
           label="Environment"
-          value={
-            envLoading
-              ? "Loading…"
-              : detail.secretsError
-                ? "Unavailable"
-                : envReady
-                  ? `${secretCount} key${secretCount === 1 ? "" : "s"} set`
-                  : "Keys missing"
-          }
-          hint={BUILD_GLOSSARY.environment.meaning}
-          tone={envReady ? "good" : "warn"}
+          value={environment.value}
+          hint={environment.hint}
+          tone={environment.tone}
           actionHref={hrefForTab("environment")}
           actionLabel="Open Environment"
         />

@@ -1,6 +1,5 @@
 "use client";
 
-import { useAccountOverview } from "@portal/lib/account-overview";
 import { AccountSigningView } from "./account-signing";
 import { useAccountAcl } from "./use-account-acl";
 
@@ -14,11 +13,7 @@ import { useAccountAcl } from "./use-account-acl";
  * returns the committed row.
  */
 export function AccountSettings() {
-  const account = useAccountOverview();
   const acl = useAccountAcl();
-
-  const accountId = account?.user.user_id ?? "—";
-  const email = account?.user.verified_email ?? "wallet-only account";
 
   if (acl.status === "loading") {
     return <AccountNotice>Loading your wallets…</AccountNotice>;
@@ -30,7 +25,7 @@ export function AccountSettings() {
         {acl.error ?? "Couldn't load your account."}
         <button
           onClick={() => void acl.refresh()}
-          className="ml-2 underline underline-offset-2 hover:text-aomi-fg"
+          className="hover:text-aomi-fg ml-2 underline underline-offset-2"
         >
           Retry
         </button>
@@ -40,8 +35,6 @@ export function AccountSettings() {
 
   return (
     <AccountSigningView
-      accountId={accountId}
-      email={email}
       wallets={acl.wallets}
       grants={acl.grants}
       unboundWallets={acl.unboundWallets}
@@ -51,6 +44,8 @@ export function AccountSettings() {
       onProvisionParaAgentWallet={acl.provisionParaAgentWallet}
       onRevokeGrant={acl.revokeGrant}
       onStopAllAuto={acl.stopAllAuto}
+      canConnectPrivy={acl.canConnectPrivy}
+      onConnectPrivy={acl.connectPrivy}
       onRegrant={acl.regrant}
       blockedReason={acl.blockedReason}
     />

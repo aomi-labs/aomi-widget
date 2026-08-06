@@ -2,6 +2,7 @@ import type {
   AomiAccountProfile,
   AomiAccountResponse,
   AomiAccessApproval,
+  AomiAuthPurpose,
   AomiAuthWalletFamily,
   AomiAppDescriptor,
   AomiBeginAccountAuthResponse,
@@ -1076,7 +1077,11 @@ export class AomiClient {
    */
   async beginPrivyAuth(
     sessionId: string,
-    options?: { application?: string; walletFamily?: AomiAuthWalletFamily },
+    options?: {
+      application?: string;
+      walletFamily?: AomiAuthWalletFamily;
+      purpose?: AomiAuthPurpose;
+    },
   ): Promise<AomiBeginAccountAuthResponse> {
     const url = buildApiUrl(this.baseUrl, "/api/auth/privy/begin");
     const response = await this.rawFetchImpl(url, {
@@ -1086,6 +1091,7 @@ export class AomiClient {
       }),
       body: JSON.stringify({
         application: options?.application,
+        purpose: options?.purpose ?? "link_wallet",
         wallet_family:
           options?.walletFamily === "evm" ? undefined : options?.walletFamily,
       }),
@@ -1096,6 +1102,20 @@ export class AomiClient {
     }
 
     return (await response.json()) as AomiBeginAccountAuthResponse;
+  }
+
+  /**
+   * Start Privy's separate one-time delegated-signer consent. This is not a
+   * wallet-link operation and callers should label it as enabling Auto.
+   */
+  async beginPrivyDelegation(
+    sessionId: string,
+    options?: { application?: string; walletFamily?: AomiAuthWalletFamily },
+  ): Promise<AomiBeginAccountAuthResponse> {
+    return this.beginPrivyAuth(sessionId, {
+      ...options,
+      purpose: "delegate_signing",
+    });
   }
 
   /**

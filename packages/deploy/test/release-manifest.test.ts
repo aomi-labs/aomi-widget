@@ -313,4 +313,175 @@ describe("missingSecretsForActivation", () => {
     });
     expect(client.listAppSecrets).not.toHaveBeenCalled();
   });
+
+  /** A manifest covers every app in its release, so apps activated together on
+   *  one tag must cost one fetch pair — not one per app. This is the common
+   *  shape: a project's apps ship in the same release. */
+  it("fetches a shared release manifest once for all apps on the tag", async () => {
+    const manifest = {
+      plugins: Object.fromEntries(
+        ["alpha", "beta", "gamma"].map((app) => [
+          app,
+          {
+            secrets: [
+              {
+                name: `${app.toUpperCase()}_KEY`,
+                description: "d",
+                required: true,
+              },
+            ],
+          },
+        ]),
+      ),
+    };
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url === RELEASE_URL) {
+        return new Response(
+          JSON.stringify({
+            assets: [
+              { name: "manifest.json", url: "https://api.github.com/asset/1" },
+            ],
+          }),
+          { status: 200 },
+        );
+      }
+      if (url === "https://api.github.com/asset/1") {
+        return new Response(JSON.stringify(manifest), { status: 200 });
+      }
+      return new Response("not found", { status: 404 });
+    });
+    vi.stubGlobal("fetch", fetchImpl);
+
+    const client = {
+      listAppSecrets: vi.fn(async () => ({ byApp: {} })),
+      getUserSourceLatestDeployment: vi.fn(async () => ({
+        platformRepo: "aomi-labs/community",
+      })),
+    } as unknown as DeploymentClient;
+
+    const missing = await missingSecretsForActivation({
+      client,
+      githubUserId: "gh-1",
+      platform: "community",
+      githubToken: "t",
+      source: { id: 42, latestDeployment: null } as never,
+      pairs: ["alpha", "beta", "gamma"].map((app) => ({
+        app,
+        releaseTag: "v1",
+      })),
+    });
+
+    // Every app is still gated on its own declarations.
+    expect(missing).toEqual({
+      alpha: ["ALPHA_KEY"],
+      beta: ["BETA_KEY"],
+      gamma: ["GAMMA_KEY"],
+    });
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  /** Distinct tags cannot be deduplicated, so they must instead stay under the
+   *  in-flight cap while still all being fetched. */
+  it("caps in-flight manifest reads when every app has its own tag", async () => {
+    const apps = ["a", "b", "c", "d", "e", "f"];
+    let inFlight = 0;
+    let peak = 0;
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input.toString();
+      inFlight += 1;
+      peak = Math.max(peak, inFlight);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      inFlight -= 1;
+      const tagMatch = url.match(/releases\/tags\/(.+)$/);
+      if (tagMatch) {
+        return new Response(
+          JSON.stringify({
+            assets: [
+              {
+                name: "manifest.json",
+                url: `https://api.github.com/asset/${tagMatch[1]}`,
+              },
+            ],
+          }),
+          { status: 200 },
+        );
+      }
+      const app = url.split("/asset/tag-")[1];
+      return new Response(
+        JSON.stringify({
+          plugins: {
+            [app]: {
+              secrets: [
+                {
+                  name: `${app.toUpperCase()}_KEY`,
+                  description: "d",
+                  required: true,
+                },
+              ],
+            },
+          },
+        }),
+        { status: 200 },
+      );
+    });
+    vi.stubGlobal("fetch", fetchImpl);
+
+    const client = {
+      listAppSecrets: vi.fn(async () => ({ byApp: {} })),
+      getUserSourceLatestDeployment: vi.fn(async () => ({
+        platformRepo: "aomi-labs/community",
+      })),
+    } as unknown as DeploymentClient;
+
+    const missing = await missingSecretsForActivation({
+      client,
+      githubUserId: "gh-1",
+      platform: "community",
+      githubToken: "t",
+      source: { id: 42, latestDeployment: null } as never,
+      pairs: apps.map((app) => ({ app, releaseTag: `tag-${app}` })),
+    });
+
+    // No app is skipped by the limiter — all six are still gated.
+    expect(Object.keys(missing).sort()).toEqual(apps);
+    expect(peak).toBeLessThanOrEqual(4);
+    expect(peak).toBeGreaterThan(1);
+  });
+
+  /** One unreadable manifest must fail the whole gate. Parallelism must not
+   *  turn a verification failure into a silently skipped app. */
+  it("still blocks when one tag's manifest cannot be read", async () => {
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.endsWith("/releases/tags/good")) {
+        return new Response(JSON.stringify({ assets: [] }), { status: 200 });
+      }
+      return new Response("boom", { status: 500 });
+    });
+    vi.stubGlobal("fetch", fetchImpl);
+
+    const client = {
+      listAppSecrets: vi.fn(async () => ({ byApp: {} })),
+      getUserSourceLatestDeployment: vi.fn(async () => ({
+        platformRepo: "aomi-labs/community",
+      })),
+    } as unknown as DeploymentClient;
+
+    await expect(
+      missingSecretsForActivation({
+        client,
+        githubUserId: "gh-1",
+        platform: "community",
+        githubToken: "t",
+        source: { id: 42, latestDeployment: null } as never,
+        pairs: [
+          { app: "ok", releaseTag: "good" },
+          { app: "broken", releaseTag: "bad" },
+        ],
+      }),
+    ).rejects.toMatchObject({
+      code: "REQUIRED_SECRETS_CHECK_UNAVAILABLE",
+    });
+  });
 });

@@ -56,6 +56,7 @@ export interface AuditEvent {
     | "list_user_source_logs"
     | "get_user_source_observability"
     | "get_user_observability"
+    | "get_user_payments"
     | "list_user_transactions"
     | "get_user_statement"
     | "get_user_usage"
@@ -65,6 +66,7 @@ export interface AuditEvent {
     | "get_source_sdk_upgrade_status"
     | "list_deployment_records"
     | "get_user_source_latest_deployment"
+    | "get_user_source_required_secrets"
     | "deactivate"
     | "ingest_secrets";
   platform?: string;
@@ -415,7 +417,6 @@ export interface AppSource {
   boundPlatformName?: string | null;
   createdBy?: string | null;
   templateRepo?: string | null;
-  launchSourceKind?: string | null;
 }
 
 export interface SyncSourceInput extends BearerOverride {
@@ -524,6 +525,17 @@ export interface GetUserSourceLatestDeploymentInput extends BearerOverride {
   githubUserId: string;
   platform: string;
   appSourceId: number;
+}
+
+/** DB-backed declarations for the source's currently live app releases. */
+export interface GetUserSourceRequiredSecretsInput extends BearerOverride {
+  githubUserId: string;
+  platform: string;
+  appSourceId: number;
+}
+
+export interface UserSourceRequiredSecretsResult {
+  byApp: Record<string, { slots: SecretSlot[] }>;
 }
 
 export interface ListUserSourceDeploymentsInput extends BearerOverride {
@@ -640,7 +652,11 @@ export interface OwnedOperateSourceInput extends BearerOverride {
 export interface GetUserObservabilityInput extends BearerOverride {
   githubUserId: string;
   platform?: string;
+  /** Optional source narrowing for an observability deep link. */
+  appSourceId?: number;
 }
+
+export interface GetUserPaymentsInput extends GetUserObservabilityInput {}
 
 /** Account-wide operate batch reads (`/user/transactions|statement|usage|logs`).
  *  Without `platform`, the manager reads every owned source under its own
@@ -1186,6 +1202,17 @@ export interface OperateObservabilityResult {
   apps: OperateAppHealth[];
   dashboardLinks: OperateDashboardLink[];
   platformMetrics: OperatePlatformMetric[];
+  payments: OperatePartnerPayments;
+}
+
+/** Account-wide snapshots omit the optional payment-ledger read. */
+export type OperateObservabilitySnapshot = Omit<
+  OperateObservabilityResult,
+  "payments"
+>;
+
+export interface OperatePaymentSourceResult {
+  source: AppSource;
   payments: OperatePartnerPayments;
 }
 

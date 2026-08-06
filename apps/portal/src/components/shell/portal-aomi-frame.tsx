@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AomiFrame, useAomiWalletKit } from "@aomi-labs/widget-lib";
 import { useAomiRuntime, usePerThreadControl } from "@aomi-labs/react";
 import { RequiredSecretsGate } from "@portal/components/shell/required-secrets-gate";
@@ -13,6 +13,7 @@ import {
 } from "@portal/lib/portal-client-options";
 import { getBackendUrl } from "@portal/lib/settings-api";
 import { SvmWalletBindingGate } from "@portal/features/general/svm-wallet-binding-gate";
+import { usePortalWalletAccountMenu } from "@portal/components/shell/use-portal-wallet-account-menu";
 
 function AppSelectUrlBootstrap({
   requestedApp,
@@ -112,11 +113,13 @@ export function PortalAomiFrame() {
   const lockedApplicationId = lockedApp ? requestedApp.applicationId : null;
   const clientOptions = usePortalClientOptions(lockedApp, lockedApplicationId);
   const backendUrl = getBackendUrl();
-  // Settings and the packages catalog open as popups over the chat column
-  // (rendered as Root children → inside the relative SidebarInset, so the
-  // session panel stays visible like the design mock).
+  // Settings and the packages catalog are siblings of the frame so their
+  // backdrops cover the sidebar and chat as one surface.
   const [overlay, setOverlay] = useState<"none" | "settings" | "packages">(
     "none",
+  );
+  const walletAccountMenu = usePortalWalletAccountMenu(
+    useCallback(() => setOverlay("settings"), []),
   );
 
   useEffect(() => {
@@ -160,6 +163,7 @@ export function PortalAomiFrame() {
         accountSessionAvailable={Boolean(accountUser)}
         walletPosition="footer"
         walletFamilies={["evm", "solana"]}
+        walletAccountMenu={walletAccountMenu}
         className="portal-aomi-frame aui-suggestions-marquee rounded-none border-0 shadow-none"
         clientOptions={clientOptions}
       >
@@ -183,15 +187,15 @@ export function PortalAomiFrame() {
             hideNetwork: true,
           }}
         />
-        {overlay === "settings" && (
-          <SettingsModal onClose={() => setOverlay("none")} />
-        )}
-        {overlay === "packages" && (
-          <PackagesModal onClose={() => setOverlay("none")} />
-        )}
         <RequiredSecretsGate />
         <SvmWalletBindingGate />
       </AomiFrame.Root>
+      {overlay === "settings" && (
+        <SettingsModal onClose={() => setOverlay("none")} />
+      )}
+      {overlay === "packages" && (
+        <PackagesModal onClose={() => setOverlay("none")} />
+      )}
     </main>
   );
 }

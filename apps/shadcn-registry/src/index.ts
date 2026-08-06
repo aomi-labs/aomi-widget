@@ -2,6 +2,10 @@
 // Re-export the main AomiFrame component
 export { AomiFrame } from "./components/aomi-frame";
 export {
+  DEFAULT_SIDEBAR_PRODUCTS,
+  type SidebarProduct,
+} from "./components/assistant-ui/threadlist-sidebar";
+export {
   AomiWidget,
   type AomiWidgetAuthConfig,
   type AomiWidgetProps,
@@ -12,6 +16,7 @@ export {
   DualWalletBar,
   type DualWalletBarProps,
 } from "./components/control-bar/dual-wallet-bar";
+export type { WalletAccountMenuOptions } from "./components/control-bar/account-menu-types";
 
 // Per-thread network picker (used by hosts that lift it into their chrome)
 export {
@@ -25,6 +30,7 @@ export { NotificationToaster } from "./components/ui/notification";
 // UI Components
 export { Button } from "./components/ui/button";
 export { Input } from "./components/ui/input";
+export { ModalBackdrop } from "./components/ui/modal-backdrop";
 export {
   Card,
   CardContent,
@@ -48,7 +54,7 @@ export {
   SUPPORTED_CHAINS,
 } from "@aomi-labs/react";
 export { ExtUserProvider, useUser, UserState } from "@aomi-labs/react";
-export { monad, monadTestnet, robinhood } from "@aomi-labs/client";
+export { megaeth, monad, monadTestnet, robinhood } from "@aomi-labs/client";
 export type {
   AomiWalletKit,
   AomiWalletKit as AomiAuthAdapter,
@@ -67,6 +73,10 @@ export {
   useAomiWalletKit,
 } from "./lib/wallet-kit";
 export { AomiWalletProvider } from "./lib/wallet-kit/providers";
+export {
+  usePrivyDelegation,
+  type PrivyDelegationContextValue,
+} from "./lib/wallet-kit/providers/privy/privy-delegation-context";
 export {
   AomiBaseAccountProvider,
   type AomiBaseAccountProviderProps,

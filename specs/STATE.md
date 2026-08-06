@@ -2,6 +2,270 @@
 
 ## Last Updated
 
+2026-08-04 — PROJECT HOME "KEYS MISSING" FALSE ALARM (apps/build, committed
+  on `feat/build-new-app-two-starts`). The Environment card warned whenever no
+  key was set
+  (`envReady = secretCount > 0`), so every project that declares no required
+  key at all — including a fresh one with no apps — read as broken.
+  - NEW `tabs/environment-card.ts`: pure `environmentCard()` mirroring the gate
+    the rest of Build enforces (a declared required slot with no value), in
+    order error → loading → missing → set → none-required. "No keys required"
+    is `good`, not `warn`.
+  - Warn state now carries concrete detail instead of the glossary line:
+    "2 required keys not set for somm-agent: OPENAI_API_KEY and
+    ALCHEMY_API_KEY. Set them in Environment before deploying." (names capped
+    at 4, then "and N more"). The "Next" block reuses that same sentence.
+  - A failed read is "Unavailable" with the error text, and `blocked: false` —
+    nothing is KNOWN missing, so it must not read as a key fault.
+  - home-tab now calls `loadRequiredSecrets()` (it only loaded `secrets`
+    before) and gates on source apps ∪ apps the check named, same union
+    deployments-tab uses.
+  - Verified: apps/build vitest 452 passed/12 skipped (72 files), tsc/eslint/
+    prettier clean; both states driven in a local dev server against stubbed
+    BFF reads.
+
+2026-08-04 — NEW APP: TWO STARTS (apps/build, committed on
+  `feat/build-new-app-two-starts`). `/operate/
+  deployments/new` no longer assumes the template. Signed-in users get two
+  cards — "Start from the template" (the existing Onboarding/OneshotWizard) and
+  "Import from GitHub" (the existing `RepositoryConnector`) — then the chosen
+  flow renders in the same framed panel with a "Choose a different start" back
+  button.
+  - `new-project.tsx`: card picker + `?mode=template|import` kept in sync via
+    `history.replaceState`, so reload and back/forward stay on the chosen flow.
+  - `new-project-mode.ts` (NEW, no `"use client"`): `NewProjectMode` +
+    `newProjectMode()` parser. It lives outside the component because the route
+    parses `?mode=` on the server — calling it from the client module threw
+    "Attempted to call newProjectMode() from the server".
+  - Resume guard: `resumingTemplate()` re-opens the template card when the
+    GitHub round-trip returns (`installation_id`/`deployment_id`/
+    `launch=personal_required` on the URL, or a saved `pendingInstall`). A
+    stale stored `installationId` deliberately does NOT count — it would pin
+    every later visit to the template card.
+  - De-duplicated the import entry point: the inline connect form is gone from
+    the Projects index; that page now renders only the extracted
+    `ConnectionResultBanner` (GitHub still returns to `/projects`, so the
+    outcome has to render without the form that started it).
+  - Verified: apps/build vitest 441 passed/12 skipped (71 files, incl. new
+    `new-project.test.tsx`), tsc clean, eslint clean, prettier clean; both
+    flows driven in a local dev server.
+  Codex review follow-up (same day):
+  - resumingTemplate() also resumes on a saved `oneshot.deploymentId` that is
+    not yet `live` — the wizard only mirrors it into the URL while mounted, so
+    leaving Build mid-deploy and returning through the nav used to land on the
+    picker. `live` still falls through to the cards.
+  - `?mode=` now syncs on change (ref-guarded, so it never races the resume
+    effect on mount): the App Router reuses this instance across a soft nav, so
+    a "New app" link carrying no mode has to return the user to the picker.
+  - Both fixes mutation-checked (tests fail when the fix is backed out) and
+    `ConnectionResultBanner` got its own tests.
+  - Review's P1 ("Import depends on unmerged BE") does NOT hold:
+    codex/build-existing-repo-oauth landed on product-mono main as 0b6eb9582
+    (PR #923, 2026-08-03). `github_app_oauth_start` reads `return_to`,
+    `validate_build_return_to` allowlists it, and `redirect_url()` honours it.
+    NOTE for anyone extending returnTo: validation requires the URL's query to
+    be EXACTLY `platform=<signed platform>` and the path to be `/projects` or
+    `/operate/deployments/new` — putting `&mode=` on a returnTo would 400,
+    which is why the resume state is derived instead.
+
+2026-08-04 — **Sidebar wordmark is now a product switcher.** The chat sidebar
+  header (`apps/shadcn-registry/src/components/assistant-ui/threadlist-sidebar.tsx`)
+  no longer links out to `aomi.dev`; the logo · "Aomi" · chevron row is a Popover
+  trigger that also carries a `CHAT` badge (same treatment as Build's wordmark
+  badge in `apps/build/src/components/brand/aomi-logo.tsx`). The menu lists Aomi
+  Chat (current, checkmarked) and Aomi Build → `https://build.aomi.dev` (new tab),
+  styled off the thread-list row menu (`bg-aomi-raised` / `border-aomi-overlay-border`
+  / `hover:bg-aomi-hover`). Entries are data: `DEFAULT_SIDEBAR_PRODUCTS` +
+  `SidebarProduct` are exported from the package index, and `AomiFrame.Root` takes
+  `products` (pass `null` for a plain wordmark) and `currentProductId` so embedders
+  can override or hide the Aomi cross-links. Portal keeps the defaults. Verified in
+  the browser against portal on :3001 in light and dark. Note: `apps/build`'s own
+  header wordmark is still a plain link to `/` — it has no switcher yet.
+
+2026-08-03 — **Para EVM signing fix hardened before commit.** Review of the
+  working diff found the registry build broken: `para-evm-runtime-provider.tsx`
+  was imported by the registered `para-plugin.tsx` but missing from the
+  `aomi-para-provider` file list in `apps/shadcn-registry/src/registry.ts`, and
+  `@getpara/wagmi-v2-connector` was missing from its `dependencies` — a
+  `shadcn add` would have installed a broken component. Both added; build green.
+  Correctness fix in `execution/wallet-execution.ts`: the new sequential
+  receipt-wait only counted a leg as executed after its receipt confirmed, so a
+  non-revert wait failure (RPC timeout) reported an already-broadcast leg as
+  un-run and `runtime-tx-handler` blanket-rejected — re-queuing a mined tx, the
+  exact double-execution the handler guards against. Now tracks broadcast legs
+  and emits a partial for them, excluding a leg that mined `reverted`.
+  Also: failure cooldown on the Para wagmi auto-connect effect (was retryable on
+  every store dispatch with no backoff), shared `PARA_SESSION_UID` constant in
+  `para-brand.ts` replacing the duplicated `"para-session"` literal, dropped an
+  unnecessary `as unknown as CreateConnectorFn` double cast. 295 registry tests
+  + 1287 root tests pass; typecheck, eslint, prettier, registry build clean.
+  NOTE: the receipt wait applies to **every** sequential wallet send, not just
+  embedded/Para — non-Para wallets now pay a block confirmation between legs of
+  any non-atomic batch. Intentional (safer default), but call it out in review.
+
+2026-08-02 — PLATFORM-BINDING INVARIANT, E2E (FE worktree platform-switch +
+  BE worktree somm-repo-connect/product-mono branch
+  codex/build-existing-repo-oauth, both uncommitted; BE sits on top of the
+  merged h4n0 PR #907). Design: a source is either DISCOVERED (unowned,
+  unbound, invisible) or CLAIMED (one owner, exactly one platform, visible on
+  that platform's page only); Build has no unscoped view — no `?platform=`
+  means Community.
+  BE (product-mono):
+  - NEW migration 20260803000000_app_source_platform_backfill.sql — bucket 1
+    infers bound_platform_id from apps' platform_id (multi-platform rows
+    skipped for operator repair, verify-SELECT in the header), bucket 2 binds
+    owned-but-unbound to community, then CHECK app_source_owned_implies_bound
+    (owner NULL OR platform NOT NULL). All write paths audited: oneshot
+    insert + claim_user_and_platform set both, webhook upsert sets neither,
+    bind_platform only adds — admin-bound-unowned stays legal.
+  - endpoints/github_app.rs: LaunchSourceKind (oneshot-everywhere +
+    deployed-app grandfathering + Other) DELETED; platform-scoped
+    list/latest-deployment/history/loader now gate on source_on_platform()
+    equality; launch_source_kind dropped from the wire; presenter dissolved
+    into free deployment_json{,_from_row}; app_loaded lost its vestigial
+    platform param (obs monitoring/detail/batch updated).
+  - handler.rs: check_source_deploy_platform is STRICT equality (unbound only
+    passes preflight, mirroring check_source_deploy_owner); grandfathering
+    deleted — cross-platform rows (bound A, serving on B) now 403 redeploys
+    until operator repair; gate tests rewritten (8/8 green).
+  - oauth/start: `mode` param KILLED — with a repo the backend checks
+    repo_has_installation() (new GitHubApp helper, 404→false) and returns the
+    OAuth consent URL when covered, install URL when not; no repo → install.
+  - Verified: cargo check -p manager --tests clean; gate unit tests 8/8.
+    DB-backed tests refuse locally (hosted-DB guard) — CI covers them. No
+    clippy/build run (Cecilia: no memory-heavy ops).
+  FE (this repo):
+  - platform.ts: platformParam now DEFAULTS to DEFAULT_DEPLOY_PLATFORM
+    ("community"); usePlatform returns string (defaults too); hardcoded
+    "community" literals in onboarding/platform-switcher/home-redirect
+    replaced with the constant; deployments/new backHref always Projects.
+  - githubAppInstallUrl lost `mode` (packages/deploy client + build client);
+    launchSourceKind deleted from UserSource type + camel mapper.
+  - use-projects.ts: hasApps filter DROPPED — claimed zero-app sources render
+    as "Connected — not deployed yet" (project-deployment-status empty
+    branch), fixing connect-success-banner-over-missing-row.
+  - docs/fe-deploy.md oauth/start rows updated (backend picks the ceremony).
+  - Verified: apps/build vitest 416 passed/12 skipped (69 files),
+    packages/deploy 136/136, tsc clean both, eslint clean on touched files.
+  2026-08-03 follow-up — BUILDERS DUPES + REDUNDANT FIELDS (from Cecilia's
+  Supabase screenshot): the live DB has DUPLICATE builders.github_user_id rows
+  (4738254/h4n0 twice) because 0714's CREATE TABLE IF NOT EXISTS no-opped on a
+  pre-existing table and its UNIQUE never materialized — every ON CONFLICT
+  (github_user_id) (claim ceremony, 0802 backfill) would error at runtime.
+  Fixed in-place in the 0802 migration: idempotent dedupe (merge onto MIN(id),
+  carry github_login, repoint app_source/bot_registrations/builder_model_keys)
+  + guarded ADD CONSTRAINT builders_github_user_id_key. 0803 also now flips
+  app_source.bound_platform_id FK from SET NULL to RESTRICT (SET NULL would
+  collide with the owned-implies-bound CHECK). Redundant-field verdict:
+  app_source.github_user_id + its index are the only redundant ones; Rust no
+  longer references them; the SQL drop is documented in the 0802 header and
+  DROPPED at the end of 0802 (Cecilia accepted the brief rolling-window
+  breakage in exchange for a one-cycle removal — no follow-up migration).
+  PENDING/handoff: run the migration's verify-SELECT against staging+prod and
+  hand-repair any multi-platform or cross-platform rows BEFORE deploying the
+  strict gate; deploy order migration → BE → FE; AOMI_BUILD_URL must be set
+  on staging/prod backends or return_to is rejected; commits/pushes are
+  Cecilia's (BE branch also has 4 unpushed commits incl. the #907 merge).
+
+2026-08-03 (staging smoke) — **Staging API verified healthy; DOMAIN.md route
+  table found stale.** Live smoke of `api-staging.aomi.dev` (the hostname
+  `api.staging.aomi.dev` does not resolve): health, auth boundaries, OAuth
+  start, direct `/api/thread/chat` round-trip, and browser chat through
+  `chat-staging.aomi.dev` all pass. Finding: the deployed backend serves ONLY
+  the `/api/thread/*` + `/api/threads` surface; legacy `/api/chat`,
+  `/api/state`, `/api/sessions`, `/api/session/*` 404 by design.
+  `packages/client` already uses the new routes, but `specs/DOMAIN.md`'s
+  "Backend Endpoints" table still documents the legacy paths (and claims
+  archive/unarchive routes don't exist — they do now, per staging OpenAPI).
+  **Pending:** refresh DOMAIN.md's endpoint table from
+  `/api/openapi.json` + `packages/client/src/client.ts`.
+
+2026-08-03 (later) — **PR #7: canonical sign-out centralized in widget-lib.**
+  Review follow-up (Codex + Claude review agreed): DualWalletBar's disconnect
+  fallback called only `adapter.disconnect()`, skipping account/widget session
+  teardown — latent, since portal (the only `accountMenu` consumer) supplied
+  its own correct `onDisconnect`, but any future consumer would have leaked
+  live backend sessions behind a "Connect wallet" chip. The
+  signOut→disconnect sequence lived in three places (wallet-picker.tsx:542,
+  portal's `disconnectPortalAccount`, the incomplete fallback); now it is ONE:
+  new `lib/wallet-kit/account/sign-out.ts` exports `signOutAndDisconnect()`
+  (`try { signOutAccount } finally { disconnect({family:"all"}) }`), used by
+  WalletPicker and as DualWalletBar's default; portal's `onDisconnect` +
+  `disconnectPortalAccount` deleted (hook comment documents why). Also fixed
+  in the same path: `handleDisconnectConfirm` now catches (was an unhandled
+  rejection when a host `onDisconnect` rethrew; dialog stays open for retry,
+  `console.warn` per house idiom) and the confirm-dialog backdrop honors
+  `busy` like the Cancel button. New file registered in `registry.ts`
+  (build:registry validates) and exported from `wallet-kit/index.ts`. Tests:
+  registry fallback ordering + sign-out-failure cases added (7 pass), portal
+  onDisconnect tests replaced with an is-undefined assertion (4 pass); full
+  registry suite 296 pass (package-boundary tests need `build:package` first
+  or they ENOENT on dist/ — environmental, not code). Portal `type-check` and
+  registry `tsc --noEmit` clean. Pending from review, NOT done: AccountMenu
+  a11y (no Escape-close, rows not `menuitem`), `networkLabel.slice(0,8)` hard
+  truncation, multi-wallet chip collapses to primary wallet in account-menu
+  mode (verify against mock), portal→registry DOM coupling via
+  `[data-aomi-network-select-trigger]` click.
+
+2026-08-03 — **PR #7 (feat/portal-account-menu) sign-in wiring + CI fix.**
+  Green CI blocker found and fixed: `pnpm run build:registry` failed with
+  `Registry item "control-bar" is missing internal files` because
+  `account-menu.tsx`, `account-menu-types.ts` and
+  `disconnect-confirm-dialog.tsx` were added to `components/control-bar/` but
+  never listed in `src/registry.ts` (the build validates every *relative*
+  import in a registry item resolves to a listed file). Also fixed a
+  `tsc --noEmit` error in `dual-wallet-bar.test.tsx` — the `walletModalRows`
+  mock was missing the required `source`/`status`/`actions` fields.
+  **Behaviour fix:** the sidebar AccountMenu "Sign in" and the Settings gate
+  retry both called `openAccountUI()`, which opens Para's *account
+  management* modal (`ACCOUNT_MAIN`) — the email/profile popup — and can
+  never mint the missing Aomi session. Both now call `connect()`
+  (`AUTH_MAIN`), which re-arms the provider credential exchange. Removed a
+  dead `accountStatus === "error"` branch: a failed exchange sets status back
+  to `"ready"` and only populates `accountError` for 409, so the chip now
+  shows `accountError` when present. Session probe no longer burns the full
+  30s budget once the exchange has settled (short settle grace instead), so
+  Settings stops sitting on "Connecting your account…" and reaches the
+  actionable "Finish signing in" gate. `widget-lib` at 1.4.18 (main: 1.4.16).
+
+  **Preview QA result — `PARA_JWT_AUDIENCE` is NOT the blocker.** With the
+  error now visible, preview returns the semantic **409
+  `already_linked_to_another_account`**, not a 400. A 409 means the Para JWT
+  verified and the exchange reached identity linkage, so the audience env var
+  is correct on preview. The real condition is data, not config: that Para
+  identity is already linked to a *different* Aomi account (leftover from
+  earlier testing), and the backend refuses to move a login factor silently.
+  Remedy is per the error copy — sign in to the owning account and unlink
+  there, or use a different Para identity. No code fix applies.
+
+  **Follow-up fix (this change):** `accountError` was being piped into the
+  chip's `secondaryLine`, a single `truncate`d row, so the 409's full sentence
+  rendered as "This wallet or sign-in m…". Split the two surfaces: added
+  `noticeLine` to `WalletAccountMenuOptions` / `AccountMenu` for wrapped
+  full-length copy in the menu header, and the chip now shows the short
+  "Sign-in needs attention". Rule going forward: chip copy stays under ~25
+  chars, backend error strings go to `noticeLine`.
+
+  **Conflict diagnosis (this change).** The 409 has a `signalType` of
+  `identity` | `wallet` | `email` that decides the remedy (unlink a login
+  method vs unlink a wallet), but it never reached the user: the better-auth
+  path threw `APIError("CONFLICT", { message })` with no `signalType`, and the
+  client's `extractErrorCode()` kept only `error`/`message` anyway. Now
+  `provider-plugin.ts` includes `signalType` in the error body (better-call
+  types it as `{message?,code?,cause?} & Record<string,any>`, so extra fields
+  serialize), and `AomiAccountRequestError` carries it into one of three
+  specific messages. `/api/aomi/provider/exchange` already spread it via
+  `...result`. NOTE: this is the first `packages/account` file in PR #7 — one
+  additive error field, but it breaks the "UI-only" property.
+
+  **CI gap found, NOT fixed here.** Root `vitest.config.ts` only includes
+  `apps/portal/src/{app,server}/mcp`, `lib/widget-auth`, and
+  `app/api/*/route.*`, so ~40 portal test files under `components/`,
+  `features/`, and most of `lib/` never run in CI — including this PR's
+  `use-portal-wallet-account-menu.test.tsx`. Registry tests do run, via
+  `pnpm --dir apps/shadcn-registry exec vitest run`. Widening the include is
+  its own PR; expect pre-existing failures to surface.
+
 2026-08-02 (~17:45) — **ds13 RECORDED — catalog COMPLETE.** Post-fixer-session
   run (their parseTxIds ordering fix + dist rebuild + Aave gateway address
   correction + my backend rebuild/restack): attempt 3 landed
@@ -517,6 +781,15 @@
   prod backend release; delete settleBySource + per-source fallback once
   batch soaks; consider caching partner-payment reports (still the slowest
   leg of statement/observability batches).
+
+2026-08-03 — Portal Account tab UI restyle **merged** (PR #431 → `main`).
+  Account settings now matches `aomi-portal` mock: custody-grouped wallet rows
+  with provider logos (`wallet-brands.tsx`), inline grant status, radio signing
+  modes (`SigningModeList`), grant revoke inside expanded rows, attention strip,
+  unbound wallets → Activate (bind), Para agent provision strip, flat Revoke all.
+  Live API wiring unchanged (`use-account-acl.ts`). New helpers:
+  `account-reconcile.ts`, `wallet-policy-row.tsx`. Follow-ups (not blockers):
+  `rdns` on API for self-custody wallet logos; deterministic re-grant route.
 
 2026-07-30 — Observability batch read: fan-out removed at the source (branch
   `feat/operate-batch-observability` in BOTH repos; aomi PR #426, product-mono

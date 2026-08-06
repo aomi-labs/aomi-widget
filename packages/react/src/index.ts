@@ -82,6 +82,8 @@ export type {
   WalletRequest,
   WalletTxPayload,
   WalletEip712Payload,
+  WalletAaSignPayload,
+  WalletAaSignatureRequest,
   WalletSolanaSignMessagePayload,
   WalletSolanaSignPayload,
   WalletRequestKind,

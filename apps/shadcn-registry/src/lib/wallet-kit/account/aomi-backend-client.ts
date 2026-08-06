@@ -49,12 +49,16 @@ export type AomiBackendNonceResponse = {
   uri?: string;
 };
 
+/** Which signal the backend refused to move between accounts. */
+export type AomiAccountConflictSignal = "wallet" | "identity" | "email";
+
 export class AomiAccountRequestError extends Error {
   constructor(
     readonly status: number,
     readonly code: string | null,
+    readonly signalType: AomiAccountConflictSignal | null = null,
   ) {
-    super(formatAccountRequestError(status, code));
+    super(formatAccountRequestError(status, code, signalType));
     this.name = "AomiAccountRequestError";
   }
 }
@@ -248,7 +252,11 @@ async function sendAccountRequest(
   if (!response.ok) {
     const error = await response.json().catch(() => null);
     const code = extractErrorCode(error);
-    throw new AomiAccountRequestError(response.status, code);
+    throw new AomiAccountRequestError(
+      response.status,
+      code,
+      extractConflictSignal(error),
+    );
   }
   return response;
 }
@@ -288,12 +296,37 @@ function extractErrorCode(error: unknown): string | null {
   return null;
 }
 
+function extractConflictSignal(
+  error: unknown,
+): AomiAccountConflictSignal | null {
+  if (!error || typeof error !== "object" || !("signalType" in error)) {
+    return null;
+  }
+  const value = (error as { signalType: unknown }).signalType;
+  return value === "wallet" || value === "identity" || value === "email"
+    ? value
+    : null;
+}
+
+const CONFLICT_MESSAGES: Record<AomiAccountConflictSignal, string> = {
+  wallet:
+    "This wallet address is already linked to another Aomi account. Sign in to that account, unlink the wallet there, then return here and link it.",
+  identity:
+    "This sign-in method is already linked to another Aomi account. Sign in to that account, unlink it there, then return here and link it.",
+  email:
+    "This email is already linked to another Aomi account. Sign in to that account, unlink it there, then return here and link it.",
+};
+
 function formatAccountRequestError(
   status: number,
   code: string | null,
+  signalType: AomiAccountConflictSignal | null,
 ): string {
   if (status === 409 && code === "already_linked_to_another_account") {
-    return "This wallet or sign-in method is already linked to another Aomi account. Sign in to that account, unlink it there, then return here and link it.";
+    return (
+      (signalType ? CONFLICT_MESSAGES[signalType] : undefined) ??
+      "This wallet or sign-in method is already linked to another Aomi account. Sign in to that account, unlink it there, then return here and link it."
+    );
   }
   return code ?? `Request failed: ${status}`;
 }

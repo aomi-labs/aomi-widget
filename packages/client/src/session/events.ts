@@ -7,6 +7,7 @@ import type {
 } from "../types";
 import type { UserState as UserStateShape } from "../user-state";
 import type { SessionEventMap } from "./types";
+import type { WalletAaSignPayload, WalletAaSignatureRequest } from "./types";
 import type { SessionWalletController } from "./wallet";
 import {
   hydrateTxPayloadFromUserState,
@@ -56,6 +57,75 @@ function aomiMessagesEqual(a: AomiMessage[], b: AomiMessage[]): boolean {
   return true;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function normalizeAaSignatureRequest(
+  value: unknown,
+): WalletAaSignatureRequest | null {
+  if (!isRecord(value) || typeof value.raw_payload !== "string") return null;
+  if (value.kind === "personal_sign" && typeof value.message === "string") {
+    return {
+      kind: value.kind,
+      message: value.message,
+      raw_payload: value.raw_payload,
+    };
+  }
+  if (
+    value.kind === "eip7702_authorization" &&
+    typeof value.contract_address === "string" &&
+    typeof value.chain_id === "number" &&
+    typeof value.nonce === "number"
+  ) {
+    return {
+      kind: value.kind,
+      contract_address: value.contract_address,
+      chain_id: value.chain_id,
+      nonce: value.nonce,
+      raw_payload: value.raw_payload,
+    };
+  }
+  return null;
+}
+
+function normalizeAaSignPayload(value: unknown): WalletAaSignPayload | null {
+  if (!isRecord(value)) return null;
+  const requests = Array.isArray(value.signature_requests)
+    ? value.signature_requests.map(normalizeAaSignatureRequest)
+    : [];
+  if (
+    value.chain_family !== "evm" ||
+    typeof value.chain_id !== "number" ||
+    typeof value.signer !== "string" ||
+    typeof value.executor !== "string" ||
+    (value.aa_mode !== "4337" && value.aa_mode !== "7702") ||
+    !Array.isArray(value.tx_ids) ||
+    !value.tx_ids.every((id) => typeof id === "number") ||
+    requests.length === 0 ||
+    requests.some((request) => request === null) ||
+    typeof value.description !== "string" ||
+    typeof value.sponsored !== "boolean"
+  ) {
+    return null;
+  }
+  return {
+    chain_family: "evm",
+    chain_id: value.chain_id,
+    signer: value.signer,
+    executor: value.executor,
+    aa_mode: value.aa_mode,
+    tx_ids: [...value.tx_ids],
+    signature_requests: requests as WalletAaSignatureRequest[],
+    description: value.description,
+    sponsored: value.sponsored,
+    ...(typeof value.tx_id === "string" ? { tx_id: value.tx_id } : {}),
+    ...(typeof value.timestamp === "string"
+      ? { timestamp: value.timestamp }
+      : {}),
+  };
+}
+
 export function applySessionState(
   state: Pick<
     AomiStateResponse,
@@ -100,13 +170,24 @@ export function handleSessionSSEEvent(
   }
 }
 
-function dispatchSystemEvents(events: AomiSystemEvent[], deps: StateDeps): void {
+function dispatchSystemEvents(
+  events: AomiSystemEvent[],
+  deps: StateDeps,
+): void {
   for (const event of events) {
     const unwrapped = unwrapSystemEvent(event);
     if (!unwrapped) continue;
 
-    if (unwrapped.type === "wallet_tx_request") {
-      const solanaRequest = normalizeSolanaWalletRequest(unwrapped.payload ?? {});
+    if (unwrapped.type === "wallet_aa_sign_request") {
+      const payload = normalizeAaSignPayload(unwrapped.payload);
+      if (payload) {
+        const req = deps.walletController.enqueue("aa_sign", payload);
+        deps.emit("wallet_aa_sign_request", req);
+      }
+    } else if (unwrapped.type === "wallet_tx_request") {
+      const solanaRequest = normalizeSolanaWalletRequest(
+        unwrapped.payload ?? {},
+      );
       if (solanaRequest) {
         if (solanaRequest.kind === "solana_sign_message") {
           const req = deps.walletController.enqueue(
@@ -149,7 +230,9 @@ function dispatchSystemEvents(events: AomiSystemEvent[], deps: StateDeps): void 
       const req = deps.walletController.enqueue("eip712_sign", payload);
       deps.emit("wallet_eip712_request", req);
     } else if (unwrapped.type === "wallet::solana_sign_request") {
-      const solanaRequest = normalizeSolanaWalletRequest(unwrapped.payload ?? {});
+      const solanaRequest = normalizeSolanaWalletRequest(
+        unwrapped.payload ?? {},
+      );
       if (solanaRequest) {
         if (solanaRequest.kind === "solana_sign_message") {
           const req = deps.walletController.enqueue(
@@ -183,7 +266,9 @@ function dispatchSystemEvents(events: AomiSystemEvent[], deps: StateDeps): void 
       const req = deps.walletController.enqueue("solana_sign", payload);
       deps.emit("wallet_solana_sign_request", req);
     } else if (unwrapped.type === "wallet::solana_sign_message_request") {
-      const payload = normalizeSolanaSignMessagePayload(unwrapped.payload ?? {});
+      const payload = normalizeSolanaSignMessagePayload(
+        unwrapped.payload ?? {},
+      );
       const req = deps.walletController.enqueue("solana_sign_message", payload);
       deps.emit("wallet_solana_sign_message_request", req);
     } else if (unwrapped.type === "wallet::solana_send_request") {
@@ -192,7 +277,10 @@ function dispatchSystemEvents(events: AomiSystemEvent[], deps: StateDeps): void 
       deps.emit("wallet_solana_send_request", req);
     } else if (unwrapped.type === "wallet::solana_sign_and_send_request") {
       const payload = normalizeSolanaSignPayload(unwrapped.payload ?? {});
-      const req = deps.walletController.enqueue("solana_sign_and_send", payload);
+      const req = deps.walletController.enqueue(
+        "solana_sign_and_send",
+        payload,
+      );
       deps.emit("wallet_solana_sign_and_send_request", req);
     } else if (
       unwrapped.type === "system_notice" ||

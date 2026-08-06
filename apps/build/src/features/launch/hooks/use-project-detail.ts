@@ -63,7 +63,10 @@ export function useProjectDetail(sourceId: number, platform?: string) {
       ),
     [accountKey, platform, sourceId],
   );
-  const projectsKey = buildQueryKeys.projects(accountKey ?? "unavailable");
+  const projectsKey = buildQueryKeys.projects(
+    accountKey ?? "unavailable",
+    platform,
+  );
 
   // Source + SDK status live in react-query. The source is a server-filtered
   // single-source read (`appSourceId` on the sources BFF route) — a project

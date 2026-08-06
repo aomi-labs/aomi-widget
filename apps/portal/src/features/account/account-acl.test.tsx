@@ -1,5 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 
 import { AccountSettings } from "./account-settings";
 import { seedAccountOverview } from "@portal/lib/account-overview";
@@ -13,7 +19,12 @@ const walletKit = vi.hoisted(() => ({
   signTypedData: vi.fn(async () => ({ signature: "0xsignature" })),
   signSolanaMessage: vi.fn(async () => ({ signature: "c2ln" })),
   openAccountUI: vi.fn(async () => undefined),
-  identity: { address: "", svmAddress: undefined as string | undefined },
+  identity: {
+    address: "",
+    svmAddress: undefined as string | undefined,
+    sessionProvider: undefined as string | undefined,
+    embeddedProvider: undefined as string | undefined,
+  },
   accounts: [] as Array<{
     id: string;
     family: "evm" | "svm";
@@ -23,8 +34,16 @@ const walletKit = vi.hoisted(() => ({
   }>,
 }));
 
+const privyDelegation = vi.hoisted(() => ({ start: vi.fn() }));
+
 vi.mock("@aomi-labs/widget-lib", () => ({
   useAomiWalletKit: () => walletKit,
+  usePrivyDelegation: () => privyDelegation,
+}));
+
+vi.mock("@aomi-labs/react", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@aomi-labs/react")>()),
+  useOptionalAomiRuntime: () => ({ currentThreadId: "thread-aa-test" }),
 }));
 
 /** Backend `AccountWalletView` rows — the exact wire shape of /api/account/wallets. */
@@ -86,7 +105,8 @@ function installFetchRecorder(overrides: Record<string, () => Response> = {}) {
       const override = overrides[url.pathname];
       if (override) return override();
 
-      if (url.pathname === "/api/account/wallets") return Response.json(WALLETS);
+      if (url.pathname === "/api/account/wallets")
+        return Response.json(WALLETS);
       if (url.pathname === "/api/account/grants") return Response.json(GRANTS);
       if (url.pathname === "/api/account/authorization/challenge") {
         return Response.json({
@@ -112,7 +132,10 @@ function installFetchRecorder(overrides: Record<string, () => Response> = {}) {
       if (url.pathname.endsWith("/grant") && method === "DELETE") {
         return Response.json({ status: "revoked", provider: "privy" });
       }
-      if (url.pathname === "/api/account/providers/para/agent-wallet" && method === "POST") {
+      if (
+        url.pathname === "/api/account/providers/para/agent-wallet" &&
+        method === "POST"
+      ) {
         return Response.json({
           wallet: {
             address: "ParaAgentWallet111111111111111111111111111",
@@ -128,7 +151,9 @@ function installFetchRecorder(overrides: Record<string, () => Response> = {}) {
           },
         });
       }
-      return new Response(`Unexpected ${method} ${url.pathname}`, { status: 500 });
+      return new Response(`Unexpected ${method} ${url.pathname}`, {
+        status: 500,
+      });
     },
   );
 
@@ -151,7 +176,9 @@ const click = async (el: HTMLElement) => {
 };
 
 const paths = (calls: FetchCall[]) =>
-  calls.map((call) => new URL(call.input.toString(), "https://portal.test").pathname);
+  calls.map(
+    (call) => new URL(call.input.toString(), "https://portal.test").pathname,
+  );
 
 const bodyOf = (calls: FetchCall[], path: string) => {
   const call = calls.find(
@@ -162,9 +189,16 @@ const bodyOf = (calls: FetchCall[], path: string) => {
 
 describe("account ACL wiring", () => {
   beforeEach(() => {
-    walletKit.identity = { address: CONNECTED_EVM, svmAddress: undefined };
+    walletKit.identity = {
+      address: CONNECTED_EVM,
+      svmAddress: undefined,
+      sessionProvider: undefined,
+      embeddedProvider: undefined,
+    };
     walletKit.accounts = [];
     walletKit.signTypedData.mockClear();
+    privyDelegation.start.mockReset();
+    privyDelegation.start.mockResolvedValue(undefined);
     // The overview store is module-level; seed it so the tab doesn't also
     // depend on /api/account here.
     seedAccountOverview({
@@ -185,7 +219,8 @@ describe("account ACL wiring", () => {
     await screen.findByText("0x71C7…976F");
     expect(paths(calls)).toContain("/api/account/wallets");
     expect(paths(calls)).toContain("/api/account/grants");
-    // Privy provenance + live grant render from the wire, not fixtures.
+    // Privy provenance + live grant render from the wire inside the expanded row.
+    await click(await screen.findByText("Privy"));
     expect(screen.getByText(/Privy · Session delegation/)).toBeTruthy();
   });
 
@@ -196,7 +231,7 @@ describe("account ACL wiring", () => {
     const row = await screen.findByText("0x71C7…976F");
 
     await click(row);
-    await click(await screen.findByText("Accept transactions"));
+    await click(await screen.findByText("Auto-approve"));
     await click(await screen.findByText("Sign to authorize"));
 
     await waitFor(() =>
@@ -237,15 +272,17 @@ describe("account ACL wiring", () => {
     await click(await screen.findByText("0x71C7…976F"));
 
     const accept = await screen.findByRole("button", {
-      name: "Accept transactions",
+      name: /^Auto-approve/,
     });
     expect(accept).toHaveProperty("disabled", false);
-    expect(
-      screen.getByRole("button", { name: "Auto" }),
-    ).toHaveProperty("disabled", true);
-    expect(
-      screen.getByRole("button", { name: "Locked" }),
-    ).toHaveProperty("disabled", false);
+    expect(screen.getByRole("button", { name: /^Aomi auto/ })).toHaveProperty(
+      "disabled",
+      true,
+    );
+    expect(screen.getByRole("button", { name: /^Locked/ })).toHaveProperty(
+      "disabled",
+      false,
+    );
 
     await click(accept);
     const authorize = await screen.findByRole("button", {
@@ -261,14 +298,17 @@ describe("account ACL wiring", () => {
   });
 
   it("blocks a loosening permit when the wallet itself isn't connected", async () => {
-    walletKit.identity = { address: "0xSomeOtherWallet", svmAddress: undefined };
+    walletKit.identity = {
+      address: "0xSomeOtherWallet",
+      svmAddress: undefined,
+    };
     const { calls } = installFetchRecorder();
 
     await renderAcl();
     const row = await screen.findByText("0x71C7…976F");
 
     await click(row);
-    await click(await screen.findByText("Accept transactions"));
+    await click(await screen.findByText("Auto-approve"));
 
     expect(
       screen.getByText("Connect this wallet itself to widen what it may sign."),
@@ -284,12 +324,14 @@ describe("account ACL wiring", () => {
     // commit won the version race; the raw body must never reach the user.
     installFetchRecorder({
       "/api/account/authorization/commit": () =>
-        new Response(JSON.stringify({ error: "stale_permit" }), { status: 409 }),
+        new Response(JSON.stringify({ error: "stale_permit" }), {
+          status: 409,
+        }),
     });
 
     await renderAcl();
     await click(await screen.findByText("0x71C7…976F"));
-    await click(await screen.findByText("Accept transactions"));
+    await click(await screen.findByText("Auto-approve"));
     await click(await screen.findByText("Sign to authorize"));
 
     expect(
@@ -303,6 +345,7 @@ describe("account ACL wiring", () => {
     const { calls } = installFetchRecorder();
 
     await renderAcl();
+    await click(await screen.findByText("Privy"));
     await click(await screen.findByText("Revoke"));
 
     await waitFor(() =>
@@ -337,7 +380,7 @@ describe("account ACL wiring", () => {
     });
 
     await renderAcl();
-    await click(await screen.findByRole("button", { name: "Link to account" }));
+    await click(await screen.findByRole("button", { name: "Activate" }));
 
     await waitFor(() =>
       expect(paths(calls)).toContain("/api/account/authorization/commit"),
@@ -366,10 +409,52 @@ describe("account ACL wiring", () => {
     });
 
     await renderAcl();
-    await click(await screen.findByRole("button", { name: "Provision agent wallet" }));
+    await click(
+      await screen.findByRole("button", { name: "Provision agent wallet" }),
+    );
 
     await waitFor(() =>
-      expect(paths(calls)).toContain("/api/account/providers/para/agent-wallet"),
+      expect(paths(calls)).toContain(
+        "/api/account/providers/para/agent-wallet",
+      ),
     );
+  });
+
+  it("runs the one-time Privy delegation ceremony before Auto is available", async () => {
+    walletKit.identity = {
+      address: CONNECTED_EVM,
+      svmAddress: undefined,
+      sessionProvider: "privy",
+      embeddedProvider: "privy",
+    };
+    const { calls } = installFetchRecorder({
+      "/api/delegation/privy/begin": () =>
+        Response.json({
+          auth_url: "https://portal.test/auth/privy?signer_id=aomi-signer",
+          state_token: "signed-state",
+        }),
+    });
+
+    await renderAcl();
+    await click(await screen.findByRole("button", { name: "Enable" }));
+
+    await waitFor(() => {
+      expect(privyDelegation.start).toHaveBeenCalledWith({
+        state: "signed-state",
+        signerId: "aomi-signer",
+      });
+    });
+    const begin = calls.find(
+      (call) =>
+        new URL(call.input.toString(), "https://portal.test").pathname ===
+        "/api/delegation/privy/begin",
+    );
+    expect(begin?.init?.headers).toMatchObject({
+      "X-Thread-Id": "thread-aa-test",
+    });
+    expect(JSON.parse(String(begin?.init?.body))).toEqual({
+      wallet_family: "evm",
+      purpose: "delegate_signing",
+    });
   });
 });

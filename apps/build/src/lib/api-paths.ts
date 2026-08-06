@@ -128,6 +128,7 @@ export const API_PATHS = {
       usage: `${BFF}/operate/usage`,
       logs: `${BFF}/operate/logs`,
       observability: `${BFF}/operate/observability`,
+      payments: `${BFF}/operate/payments`,
       observabilityDetail: (
         appSourceId: number,
         applicationId: number,

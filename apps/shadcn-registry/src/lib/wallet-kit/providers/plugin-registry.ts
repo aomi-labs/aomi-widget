@@ -11,6 +11,7 @@ import type {
 } from "../config/types";
 import type { SvmNetworkOption } from "../types";
 import type { Chain } from "viem";
+import type { ResolvedEvmWalletsConfig } from "../catalog/evm-connector-catalog";
 
 /**
  * A wallet provider plugin. Knows how to render itself from the normalized
@@ -32,6 +33,10 @@ export type WalletProviderPlugin = {
     auth?: AuthConfig;
     providers?: ProvidersConfig;
   }) => boolean;
+  renderEvmRuntimeProvider?: (props: {
+    children: ReactNode;
+    config: ResolvedEvmWalletsConfig;
+  }) => ReactNode;
   renderComposer?: (props: {
     account?: AccountConfig;
     auth?: AuthConfig;
