@@ -19,6 +19,7 @@ const nextConfig: NextConfig = {
       "@getpara/user-management-client":
         "./node_modules/@getpara/user-management-client",
       "@getpara/web-sdk": "./node_modules/@getpara/web-sdk",
+      "@tanstack/react-query": "./node_modules/@tanstack/react-query",
     },
   },
   webpack: (config) => {
@@ -35,6 +36,10 @@ const nextConfig: NextConfig = {
         "@getpara/user-management-client",
       ),
       "@getpara/web-sdk": path.join(appNodeModules, "@getpara/web-sdk"),
+      "@tanstack/react-query": path.join(
+        appNodeModules,
+        "@tanstack/react-query",
+      ),
     };
     return config;
   },

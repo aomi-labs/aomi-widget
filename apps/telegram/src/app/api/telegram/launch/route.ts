@@ -1,4 +1,4 @@
-import { verifyTelegramInitData } from "@/lib/telegram-init-data";
+import { verifyTelegramInitData } from "@aomi-labs/account/telegram";
 
 const STATUS_BY_REASON = {
   malformed: 400,
