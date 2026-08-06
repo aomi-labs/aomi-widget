@@ -2,13 +2,40 @@
 
 ## Last Updated
 
-2026-08-01 — Integrations/bots BE lifecycle fixes (product-mono worktree
-  `.claude/worktrees/bots-be-fixes`, branch `fix/bot-registration-lifecycle`
-  off origin/main d1d694a1e, uncommitted). Session goal: redesign the
-  build-staging /integrations page (Telegram bots) UI/UX + fix bugs FE→BE;
-  this entry is the BE half. Three confirmed bugs fixed in the manager's
-  builder-bot routes (`bin/manager/src/endpoints/github_app_bots.rs`) +
-  `aomi-database` entity:
+2026-08-01 (later) — /sessions command audit + thread-mode-aware BotFather
+  instructions. Audited every command the Integrations page tells builders to
+  register with BotFather against the telegram router: 8/9 routable, but
+  `sessions` was registered NOWHERE — tapping it from Telegram's autocomplete
+  fell through to the chat model as literal text (confusing LLM reply + burned
+  turn). BE FIX: product-mono PR #915
+  (https://github.com/aomi-labs/product-mono/pull/915, branch
+  `feat/telegram-sessions-command`) — `sessions` aliased on the threads panel
+  (`bin/telegram/src/panels/threads.rs`; its on_command ignores the name and
+  falls back to render, so the alias is complete) + regression test
+  `advertised_botfather_commands_are_routable` pinning all 9 advertised
+  commands to build_router(). aomi-telegram 49/49, fmt+clippy clean. PR #914
+  (bot lifecycle) MERGED earlier this session. NOTE: /sessions stays dead in
+  prod until #915 merges+deploys — BE first, then publish the FE list.
+  FE (in the OTHER worktree `vibrant-cerf-89d084`, branch
+  `claude/page-redesign-bug-fixes-277017`, uncommitted — the redesign
+  session's workspace): `features/integrations/how-it-works.tsx` — added a
+  Single thread / Multiple threads segmented switch (house tablist pattern
+  from environment-tab) under step 4 of "How Telegram bots work with Aomi";
+  BOTFATHER_COMMANDS const → `botfatherCommands(threadMode)`; the mock
+  BotFather chat + Copy button now render per mode: single =
+  "sessions - View your conversation" (switching is blocked bot-side with a
+  toast), multi = "sessions - View and switch threads". Verified: build-app
+  vitest 403/403, type-check, eslint; live on the redesign session's :3010
+  dev server via HMR — both switch states screenshot-checked. Also noted:
+  bare `/sign` from the menu answers with a usage toast (needs indices) —
+  wording tweak candidate, not changed.
+
+2026-08-01 — Integrations/bots BE lifecycle fixes — SHIPPED as product-mono
+  PR #914 (https://github.com/aomi-labs/product-mono/pull/914), branch
+  `fix/bot-registration-lifecycle`, rebased onto main baa4df209, 2 commits.
+  Session goal: redesign the build-staging /integrations page (Telegram bots)
+  UI/UX + fix bugs FE→BE; this entry is the BE half. Three confirmed bugs
+  fixed in the manager's builder-bot routes + `aomi-database` entity:
   (1) REMOVED BOT COULD NEVER BE RE-REGISTERED — "Remove" only disables the
   row, but create's `find_by_platform_bot` pre-check ignored disabled rows
   and `UNIQUE (platform, platform_bot_id)` hard-blocks re-insert → permanent
@@ -26,11 +53,33 @@
   (3) Both DELETE routes now do best-effort Telegram `deleteWebhook` after
   disabling (credential decrypted via BotCredentialCipher; failure logged +
   swallowed — receiver already rejects inactive secrets).
-  Verified: manager 140+22 tests green incl. 3 new DB-backed tests
-  (revive happy path, active/foreign-builder guards, patch semantics —
-  local supabase :54322, ran `supabase migration up --include-all` to apply
-  the out-of-order 20260723 bot_registration_apps migration), clippy clean
-  both crates, fmt applied, `cargo check -p backend` green.
+  RESTRUCTURE (same PR, commit 1): `endpoints/github_app_bots.rs` (966 logic
+  LoC, named for the auth mechanism not the owner) → `endpoints/builder_bots/`
+  {mod,routes,registry,telegram,tests}.rs. Route path
+  /api/integrations/github-app/user/bots and every wire shape UNCHANGED.
+  `BotRegistry` owns create/revive/list/disable + webhook lifecycle over one
+  pool + one `Telegram` client (replaced a 9-arg free fn); request types
+  validate themselves (`CreateBot::normalized`,
+  `UpdateBuilderBotRequest::patch`, `OwnedSourceQuery::require_github_user_id`
+  — last one also adopted at model_keys' 5 call sites), replacing 7
+  module-level normalize_*/require_* helpers; `CreateBuilderBotRequest` +
+  `RevivalSettings` deleted as same-data restatements. Also removed an
+  unreachable re-validation of app ids inside create (routes + entity both
+  still guard).
+  COMMIT 2 = pre-existing CI flake, fixed: seed helpers derived
+  `repository_id` from `timestamp_nanos_opt()` while `DbAppSource::upsert`
+  conflicts on `repository_id` → two parallel tests on one clock tick upsert
+  onto ONE row, later seed steals `owner_builder_id`, isolation asserts fail
+  (~1-in-4 locally; fails on main too). Seeds now use a random `sentinel()`.
+  Verified: manager 141/141 run 5× consecutively (0 flakes), 3 new DB-backed
+  tests, `cargo fmt --all --check` + `cargo clippy --all-targets -D warnings`
+  clean workspace-wide (both CI gates), CI's DB steps green locally.
+  GOTCHA: local supabase needed `supabase migration up --include-all` for the
+  out-of-order 20260723 bot_registration_apps migration; and main's new
+  `aomi_database::test_database_url()` guard (#913) PANICS if the shell
+  exports a hosted `SUPABASE_DB_URL` — run tests with
+  `env -u DATABASE_URL -u SUPABASE_DB_URL`, do NOT set
+  AOMI_ALLOW_HOSTED_TEST_DB.
   PENDING (FE half, this aomi worktree): send label+threadMode on the
   bots PATCH (BFF `operateBotsUpdateRoute` + `packages/deploy`
   `updateUserBot` + bots-view), cancel-edit affordance, ghost-app-id
