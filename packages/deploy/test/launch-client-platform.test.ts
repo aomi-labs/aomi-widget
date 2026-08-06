@@ -21,7 +21,7 @@ function recordingClient(platform?: string) {
 }
 
 describe("createLaunchClient — bound platform", () => {
-  it("carries the bound platform into pre-project calls", async () => {
+  it("carries the bound platform only into platform bootstrap calls", async () => {
     const { client, calls } = recordingClient("somm.finance");
 
     await client.status({ deploymentId: "d-1" });
@@ -29,7 +29,7 @@ describe("createLaunchClient — bound platform", () => {
     await client.createRepo({ installationId: "55" });
 
     expect(calls[0]?.url).toContain("platform=somm.finance");
-    expect(calls[1]?.body).toMatchObject({ platform: "somm.finance" });
+    expect(calls[1]?.body).not.toHaveProperty("platform");
     expect(calls[2]?.body).toMatchObject({ platform: "somm.finance" });
   });
 

@@ -360,7 +360,6 @@ export function useProjectDetail(projectId: number) {
       });
       const pre = await launchPreflight({
         repo,
-        platform: projectPlatform,
         projectId,
       });
       const targetProjectId = pre.projectId ?? projectId;

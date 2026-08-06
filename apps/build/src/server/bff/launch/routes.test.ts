@@ -107,6 +107,7 @@ function ownedSources(...ids: number[]) {
     projects: ids.map((id) => ({
       id,
       installation_id: 555,
+      repository_link: "alice/bot",
       apps: [{ id: 77, name: "my-bot" }],
     })),
   });
@@ -486,28 +487,14 @@ describe("launchDeployRoute", () => {
     );
   });
 
-  it("preflight creates the project by repo, then resolves its immutable commit", async () => {
+  it("preflight resolves the existing Project by repo and immutable commit", async () => {
     getGitHubSession.mockResolvedValueOnce({
       githubUserId: "42",
       githubLogin: "alice",
     });
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(
-        Response.json({
-          ok: true,
-          project: {
-            id: 123,
-            installation_id: 555,
-            repository_id: 999,
-            repository_link: "alice/bot",
-            platform_id: 1,
-            owner_builder_id: 42,
-            created_at: 1,
-            updated_at: 1,
-          },
-        }),
-      )
+      .mockResolvedValueOnce(ownedSources(123))
       .mockResolvedValueOnce(
         Response.json({
           ok: true,
@@ -540,21 +527,17 @@ describe("launchDeployRoute", () => {
     expect(body.repo).toBe("alice/bot");
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
-      "http://127.0.0.1:8080/api/platforms/community/projects",
+      "http://127.0.0.1:8080/api/integrations/github-app/user/projects?github_user_id=42",
       expect.objectContaining({
-        method: "POST",
-        body: JSON.stringify({
-          repo: "alice/bot",
-          github_user_id: "42",
-        }),
+        method: "GET",
       }),
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
-      "http://127.0.0.1:8080/api/platforms/community/deploy",
+      "http://127.0.0.1:8080/api/projects/123/deploy",
       expect.objectContaining({
         method: "POST",
-        body: JSON.stringify({ project_id: 123, preflight: true }),
+        body: JSON.stringify({ preflight: true }),
       }),
     );
   });
@@ -624,7 +607,7 @@ describe("launchDeployRoute", () => {
     });
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
-      "http://127.0.0.1:8080/api/platforms/community/deploy",
+      "http://127.0.0.1:8080/api/projects/777/deploy",
       expect.objectContaining({
         method: "POST",
         body: expect.stringContaining('"source_ref":"abc1234def5678"'),
@@ -632,7 +615,7 @@ describe("launchDeployRoute", () => {
     );
   });
 
-  it("deploys to the project's bound partner platform", async () => {
+  it("deploys by Project identity without a client-selected platform", async () => {
     vi.stubEnv("APP_DEPLOY_PLATFORMS", "community,somm.finance");
     const fetchMock = vi
       .fn()
@@ -677,11 +660,10 @@ describe("launchDeployRoute", () => {
     // Ownership is account-wide: the projects read carries no platform.
     expect(String(fetchMock.mock.calls[0][0])).not.toContain("platform=");
     expect(String(fetchMock.mock.calls[1][0])).toBe(
-      "http://127.0.0.1:8080/api/platforms/somm.finance/deploy",
+      "http://127.0.0.1:8080/api/projects/777/deploy",
     );
     expect(fetchMock.mock.calls[1][1]?.body).toBe(
       JSON.stringify({
-        project_id: 777,
         source_ref: "abc1234def5678",
       }),
     );

@@ -137,7 +137,6 @@ export interface SdkVersionStatus {
 export type SourceRef = string;
 
 export interface DeployInput {
-  platform: string;
   /** Platform-bound project selected for this deploy. */
   projectId: number;
   sourceRef: SourceRef;
@@ -641,7 +640,8 @@ export type ProjectConfiguration =
         | "config-invalid"
         | "manifest-missing"
         | "manifest-invalid"
-        | "application-name-conflict";
+        | "application-name-conflict"
+        | "platform-mismatch";
       lastValidRevision: string | null;
     };
 
