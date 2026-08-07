@@ -45,7 +45,10 @@ jobs:
         run: pnpm run test
 
       - name: Check live backend OpenAPI contract
-        if: vars.NEXT_PUBLIC_BACKEND_URL != ''
+        # Pull requests are checked against the exact combined backend/manager
+        # fixture above. Staging can legitimately lag a coordinated backend PR,
+        # so compare with the deployed API only after a branch is merged.
+        if: github.event_name == 'push' && vars.NEXT_PUBLIC_BACKEND_URL != ''
         run: pnpm run test:openapi:live
         env:
           NEXT_PUBLIC_BACKEND_URL: ${{ vars.NEXT_PUBLIC_BACKEND_URL }}
