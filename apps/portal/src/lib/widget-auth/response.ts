@@ -1,3 +1,5 @@
+/* eslint-disable no-restricted-imports -- Server-only widget route response helper. */
+
 import { IdentityConflictError } from "@aomi-labs/account/account";
 import {
   WidgetAuthError,

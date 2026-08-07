@@ -19,6 +19,7 @@ export {
   DEFAULT_TEMPLATE_REPO,
   releaseTagsFromDeployment,
   appNamesFromDeployment,
+  launchAppStatusesResult,
   type LaunchRoutes,
   type LaunchRoutesOptions,
   type LaunchRouteHandler,

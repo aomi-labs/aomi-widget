@@ -61,6 +61,41 @@ describe("runtime readiness watcher", () => {
 
     await expect(pending).rejects.toMatchObject({ name: "AbortError" });
   });
+
+  it("fails immediately when the runtime read is permanently rejected", async () => {
+    const error = Object.assign(new Error("project not found for this user"), {
+      status: 404,
+    });
+    const poll = vi.fn().mockRejectedValue(error);
+
+    await expect(
+      waitForAppsToLoad(poll, expected, {
+        intervalMs: 0,
+        timeoutMs: 1000,
+        isFatal: (value) =>
+          typeof value === "object" &&
+          value !== null &&
+          "status" in value &&
+          value.status === 404,
+      }),
+    ).rejects.toBe(error);
+    expect(poll).toHaveBeenCalledOnce();
+  });
+
+  it("includes the last transient runtime error when timing out", async () => {
+    const poll = vi
+      .fn()
+      .mockRejectedValue(new Error("backend temporarily unavailable"));
+
+    await expect(
+      waitForAppsToLoad(poll, expected, {
+        intervalMs: 0,
+        timeoutMs: 0,
+      }),
+    ).rejects.toThrow(
+      "Timed out waiting for playground-example to load in this runtime. Last error: backend temporarily unavailable",
+    );
+  });
 });
 
 describe("deployment readiness watcher", () => {
@@ -81,5 +116,40 @@ describe("deployment readiness watcher", () => {
 
     expect(result.state).toBe("ready");
     expect(states).toEqual(["pending", "ready"]);
+  });
+
+  it("fails immediately when CI status returns a fatal client error", async () => {
+    const error = Object.assign(new Error("deployment not found"), {
+      status: 404,
+    });
+    const poll = vi.fn().mockRejectedValue(error);
+
+    await expect(
+      waitForDeploymentReady(poll, {
+        intervalMs: 0,
+        timeoutMs: 1000,
+        isFatal: (value) =>
+          typeof value === "object" &&
+          value !== null &&
+          "status" in value &&
+          value.status === 404,
+      }),
+    ).rejects.toBe(error);
+    expect(poll).toHaveBeenCalledOnce();
+  });
+
+  it("includes the last transient CI error when timing out", async () => {
+    const poll = vi
+      .fn()
+      .mockRejectedValue(new Error("GitHub status temporarily unavailable"));
+
+    await expect(
+      waitForDeploymentReady(poll, {
+        intervalMs: 0,
+        timeoutMs: 0,
+      }),
+    ).rejects.toThrow(
+      "Timed out waiting for the deployment to become ready. Last error: GitHub status temporarily unavailable",
+    );
   });
 });

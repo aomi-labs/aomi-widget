@@ -14,7 +14,6 @@ const eslintConfig = [
     // poison pill already fails the build at runtime; this catches it at lint
     // time with a clearer message. Server code (app/api/**, app/**/{page,layout},
     // src/server/**) is intentionally out of scope.
-    ignores: ["src/lib/aomi-account/**", "src/lib/widget-auth/**"],
     files: [
       "src/components/**/*.{ts,tsx}",
       "src/hooks/**/*.{ts,tsx}",

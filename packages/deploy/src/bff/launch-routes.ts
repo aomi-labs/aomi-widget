@@ -22,9 +22,12 @@
 // =============================================================================
 
 import type { BackendClient } from "../backend";
-import type { DeployPayload, UserProject } from "../types";
+import type { DeployPayload, PlatformApp, UserProject } from "../types";
 import { assertServerOnly } from "../backend";
-import { DEFAULT_TEMPLATE_REPO } from "../launch/contracts";
+import {
+  DEFAULT_TEMPLATE_REPO,
+  type LaunchAppStatusesResult,
+} from "../launch/contracts";
 import { launchErrorResponse } from "./errors";
 import {
   createDefaultGuards,
@@ -179,6 +182,29 @@ export function appNamesFromDeployment(
     .filter((name): name is string => Boolean(name));
 }
 
+/** Map BackendClient app flags to the browser-safe project runtime contract. */
+export function launchAppStatusesResult(
+  projectId: number,
+  apps: readonly PlatformApp[],
+): LaunchAppStatusesResult {
+  const runtimeApps = apps.map((app) => ({
+    id: app.id,
+    name: app.name,
+    is_active: app.isActive,
+    loaded: app.loaded,
+    app_release_tag: app.appReleaseTag,
+  }));
+  const live =
+    runtimeApps.length > 0 &&
+    runtimeApps.every((app) => app.is_active && app.loaded);
+  return {
+    ok: true,
+    projectId,
+    state: live ? "live" : "pending",
+    apps: runtimeApps,
+  };
+}
+
 export type LaunchRouteHandler = (req: Request) => Promise<Response>;
 
 export type LaunchRoutes = {
@@ -194,6 +220,8 @@ export type LaunchRoutes = {
   status: LaunchRouteHandler;
   /** GET `?name=&releaseTag=` — one app's live/pending state. */
   app: LaunchRouteHandler;
+  /** GET `?projectId=` — one project's live/pending app runtime states. */
+  apps: LaunchRouteHandler;
   /** POST — re-run the recorded CI run for a project's latest deployment. */
   redeploy: LaunchRouteHandler;
   /** GET — the signed-in user's projects + their apps. */
@@ -665,6 +693,36 @@ export function createLaunchRoutes(options: LaunchRoutesOptions): LaunchRoutes {
     }
   };
 
+  const apps: LaunchRouteHandler = async (req) => {
+    const blocked = checkRead(req);
+    if (blocked) return blocked;
+
+    const session = await getSession(req);
+    if (!session) {
+      return jsonResponse({ error: "not signed in with GitHub" }, 401);
+    }
+
+    const projectId = Number(new URL(req.url).searchParams.get("projectId"));
+    if (!isValidProjectId(projectId)) {
+      return jsonResponse({ error: "missing or invalid `projectId`" }, 400);
+    }
+
+    try {
+      const client = await getClient();
+      const owner = await ownedProject(client, session.githubUserId, projectId);
+      if (!owner) {
+        return jsonResponse({ error: "project not found for this user" }, 404);
+      }
+      const result = await client.listUserProjectApps({
+        githubUserId: session.githubUserId,
+        projectId: owner.id,
+      });
+      return jsonResponse(launchAppStatusesResult(owner.id, result.apps), 200);
+    } catch (err) {
+      return launchErrorResponse(err);
+    }
+  };
+
   const redeploy: LaunchRouteHandler = async (req) => {
     const blocked = checkWrite(req);
     if (blocked) return blocked;
@@ -765,6 +823,7 @@ export function createLaunchRoutes(options: LaunchRoutesOptions): LaunchRoutes {
     activate,
     status,
     app,
+    apps,
     redeploy,
     projects,
   };

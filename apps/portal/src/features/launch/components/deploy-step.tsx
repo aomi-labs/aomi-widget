@@ -62,17 +62,27 @@ function deploymentApps(deployment?: LaunchDeployPayload) {
   return deployment?.platform?.apps ?? [];
 }
 
+type DeploymentTarget = { name: string; releaseTag: string };
+
+function deploymentTargets(
+  deployment?: LaunchDeployPayload,
+): DeploymentTarget[] {
+  const targets = deploymentApps(deployment).map((app) => ({
+    name: app.name?.trim() ?? "",
+    releaseTag: app.releaseTag?.trim() ?? "",
+  }));
+  return targets.length > 0 &&
+    targets.every((target) => target.name && target.releaseTag)
+    ? targets
+    : [];
+}
+
 function releaseTags(deployment?: LaunchDeployPayload): string[] {
-  return deploymentApps(deployment)
-    .map((app) => app.releaseTag)
-    .map((tag) => tag?.trim())
-    .filter((tag): tag is string => Boolean(tag));
+  return deploymentTargets(deployment).map((target) => target.releaseTag);
 }
 
 function appNames(deployment?: LaunchDeployPayload): string[] {
-  return deploymentApps(deployment)
-    .map((app) => app.name?.trim())
-    .filter((name): name is string => Boolean(name));
+  return deploymentTargets(deployment).map((target) => target.name);
 }
 
 const DEPLOY_TIMEOUT_MS = 30 * 60 * 1000; // 30-minute hard limit
@@ -174,6 +184,7 @@ export function DeployStep({
   const [verifyAttempt, setVerifyAttempt] = useState(0);
   const [copied, setCopied] = useState(false);
   const runtimeAbortRef = useRef<AbortController | null>(null);
+  const phaseRef = useRef<Phase>(phase);
   const [progressModel, setProgressModel] = useState<ProgressModel | null>(
     null,
   );
@@ -195,6 +206,10 @@ export function DeployStep({
   useEffect(() => {
     return () => runtimeAbortRef.current?.abort();
   }, []);
+
+  useEffect(() => {
+    phaseRef.current = phase;
+  }, [phase]);
 
   const applyDeployment = useCallback(
     (next: {
@@ -317,7 +332,8 @@ export function DeployStep({
   ]);
 
   useEffect(() => {
-    if (!deploymentId || progress.live) return;
+    if (!deploymentId || progress.live || phaseRef.current !== "building")
+      return;
     const controller = new AbortController();
     let cancelled = false;
     const watch = async () => {
@@ -395,6 +411,10 @@ export function DeployStep({
             signal: controller.signal,
             timeoutMs: DEPLOY_TIMEOUT_MS,
             intervalMs: 3000,
+            isFatal: (error) =>
+              error instanceof LaunchRequestError &&
+              error.status >= 400 &&
+              error.status < 500,
             onProgress: ({ attempt }) => setVerifyAttempt(attempt),
           },
         );

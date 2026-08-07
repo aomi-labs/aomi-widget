@@ -10,7 +10,10 @@ import { launchConfig } from "./config";
 import { appNamesFromDeployment, releaseTagsFromDeployment } from "./mappers";
 import { validateOrigin } from "@portal/lib/csrf";
 import { getGitHubSession } from "@portal/server/cookies/github";
-import { missingSecretsForActivation } from "@aomi-labs/deploy/bff";
+import {
+  launchAppStatusesResult,
+  missingSecretsForActivation,
+} from "@aomi-labs/deploy/bff";
 import {
   isValidDeploymentId,
   isValidInstallationId,
@@ -646,21 +649,7 @@ export async function launchAppsRoute(req: Request) {
       githubUserId: session.githubUserId,
       projectId: owner.id,
     });
-    const apps = result.apps.map((app) => ({
-      id: app.id,
-      name: app.name,
-      is_active: app.isActive,
-      loaded: app.loaded,
-      app_release_tag: app.appReleaseTag,
-    }));
-    const live =
-      apps.length > 0 && apps.every((app) => app.is_active && app.loaded);
-    return NextResponse.json({
-      ok: true,
-      projectId: owner.id,
-      state: live ? "live" : "pending",
-      apps,
-    });
+    return NextResponse.json(launchAppStatusesResult(owner.id, result.apps));
   } catch (err) {
     return portalFailures.handle({
       source: "launch",
@@ -1213,12 +1202,29 @@ export async function userProjectsRoute(req: Request) {
 
   try {
     const client = await backendClient();
-    const platform =
-      new URL(req.url).searchParams.get("platform")?.trim() || undefined;
-    const projects = await client.listUserProjects({
-      githubUserId: session.githubUserId,
-      platform,
-    });
+    const params = new URL(req.url).searchParams;
+    const platform = params.get("platform")?.trim() || undefined;
+    const requestedProjectId = params.get("projectId");
+    const projectId =
+      requestedProjectId === null ? undefined : Number(requestedProjectId);
+    if (projectId !== undefined && !isValidProjectId(projectId)) {
+      return NextResponse.json(
+        { error: "invalid `projectId`" },
+        { status: 400 },
+      );
+    }
+    const projects =
+      projectId === undefined
+        ? await client.listUserProjects({
+            githubUserId: session.githubUserId,
+            platform,
+          })
+        : [
+            await client.getUserProject({
+              githubUserId: session.githubUserId,
+              projectId,
+            }),
+          ];
     return NextResponse.json({ projects, githubLogin: session.githubLogin });
   } catch (err) {
     return portalFailures.handle({

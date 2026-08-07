@@ -9,6 +9,7 @@ import { buildFailures } from "@build/server/bff/failures";
 import { launchConfig, resolveLaunchPlatform } from "./config";
 import { appNamesFromDeployment, releaseTagsFromDeployment } from "./mappers";
 import {
+  launchAppStatusesResult,
   missingSecretsForActivation,
   RequiredSecretsCheckError,
 } from "@aomi-labs/deploy/bff";
@@ -698,21 +699,7 @@ export async function launchAppsRoute(req: Request) {
       githubUserId: session.githubUserId,
       projectId: owner.id,
     });
-    const apps = result.apps.map((app) => ({
-      id: app.id,
-      name: app.name,
-      is_active: app.isActive,
-      loaded: app.loaded,
-      app_release_tag: app.appReleaseTag,
-    }));
-    const live =
-      apps.length > 0 && apps.every((app) => app.is_active && app.loaded);
-    return NextResponse.json({
-      ok: true,
-      projectId: owner.id,
-      state: live ? "live" : "pending",
-      apps,
-    });
+    return NextResponse.json(launchAppStatusesResult(owner.id, result.apps));
   } catch (err) {
     return buildFailures.handle({
       source: "launch",

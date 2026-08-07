@@ -172,6 +172,7 @@ export async function waitForDeploymentReady(
   const intervalMs = options.intervalMs ?? 4000;
   const timeoutMs = options.timeoutMs ?? 8 * 60 * 1000;
   const deadline = Date.now() + timeoutMs;
+  let lastError: unknown;
 
   for (;;) {
     if (options.signal?.aborted) throw abortError();
@@ -179,12 +180,11 @@ export async function waitForDeploymentReady(
     try {
       status = await poll();
     } catch (error) {
+      lastError = error;
       if (options.isFatal?.(error)) throw error;
     }
 
     if (status) {
-      options.onProgress?.(status);
-      if (status.state === "ready") return status;
       if (status.state === "failed" || status.state === "no_ci") {
         throw new Error(
           status.message ??
@@ -193,11 +193,16 @@ export async function waitForDeploymentReady(
               : "Deploy CI failed."),
         );
       }
+      options.onProgress?.(status);
+      if (status.state === "ready") return status;
     }
 
     const remaining = deadline - Date.now();
     if (remaining <= 0) {
-      throw new Error("Timed out waiting for the deployment to become ready.");
+      throw timeoutError(
+        "Timed out waiting for the deployment to become ready.",
+        lastError,
+      );
     }
     await sleepWithAbort(Math.min(intervalMs, remaining), options.signal);
   }
@@ -232,6 +237,7 @@ export type AppRuntimeWatchOptions = {
   timeoutMs?: number;
   signal?: AbortSignal;
   onProgress?: (progress: AppRuntimeWatchProgress) => void;
+  isFatal?: (error: unknown) => boolean;
 };
 
 function runtimeAppMatches(
@@ -273,6 +279,13 @@ function abortError(): Error {
   return error;
 }
 
+function timeoutError(message: string, lastError: unknown): Error {
+  if (lastError === undefined) return new Error(message);
+  const detail =
+    lastError instanceof Error ? lastError.message : String(lastError);
+  return new Error(`${message} Last error: ${detail}`);
+}
+
 function sleepWithAbort(ms: number, signal?: AbortSignal): Promise<void> {
   if (signal?.aborted) return Promise.reject(abortError());
   return new Promise((resolve, reject) => {
@@ -291,8 +304,9 @@ function sleepWithAbort(ms: number, signal?: AbortSignal): Promise<void> {
 
 /**
  * Poll a project-scoped runtime snapshot until every expected release is live.
- * Transient read failures stay inside the same deadline; navigation or reset
- * can cancel the loop through the supplied AbortSignal.
+ * Transient read failures stay inside the same deadline, while callers can
+ * rethrow permanent errors through `isFatal`; navigation or reset can cancel
+ * the loop through the supplied AbortSignal.
  */
 export async function waitForAppsToLoad(
   poll: () => Promise<AppRuntimeSnapshot>,
@@ -303,6 +317,7 @@ export async function waitForAppsToLoad(
   const timeoutMs = options.timeoutMs ?? 8 * 60 * 1000;
   const deadline = Date.now() + timeoutMs;
   let attempt = 0;
+  let lastError: unknown;
 
   for (;;) {
     if (options.signal?.aborted) throw abortError();
@@ -316,14 +331,17 @@ export async function waitForAppsToLoad(
         snapshot,
       });
       if (runtimeAppsReady(snapshot, expected)) return snapshot;
-    } catch {
+    } catch (error) {
+      lastError = error;
+      if (options.isFatal?.(error)) throw error;
       // Keep transient ownership/runtime reads inside the same deadline.
     }
 
     const remaining = deadline - Date.now();
     if (remaining <= 0) {
-      throw new Error(
+      throw timeoutError(
         `Timed out waiting for ${expected.map((app) => app.name).join(", ")} to load in this runtime.`,
+        lastError,
       );
     }
     await sleepWithAbort(Math.min(intervalMs, remaining), options.signal);

@@ -453,7 +453,7 @@ export function useProjectDetail(projectId: number) {
       const deploymentId = deployed.deployment.id;
 
       let releaseTags = deployed.releaseTags;
-      let apps = deployed.apps;
+      const apps = deployed.apps;
       const ready = await waitForDeploymentReady(
         () => launchStatus(deploymentId, projectPlatform),
         {
@@ -526,6 +526,10 @@ export function useProjectDetail(projectId: number) {
               signal: controller.signal,
               intervalMs: DEPLOY_POLL_MS,
               timeoutMs: DEPLOY_TIMEOUT_MS,
+              isFatal: (error) =>
+                error instanceof LaunchRequestError &&
+                error.status >= 400 &&
+                error.status < 500,
               onProgress: ({ ready, total }) => {
                 if (isCurrent()) {
                   setDeployFlow({
