@@ -799,14 +799,16 @@ export async function deploymentSecretsRoute(req: Request) {
 
   try {
     const client = await backendClient();
-    await client.getBuilderApplication({
+    const { application } = await client.getBuilderApplication({
       githubUserId: session.githubUserId,
       applicationId,
     });
     const { byApp } = await client.listAppSecrets({
       applicationId,
     });
-    return NextResponse.json({ byApp });
+    return NextResponse.json({
+      byApp: { [application.name]: byApp[application.name] ?? [] },
+    });
   } catch (err) {
     return buildFailures.handle({
       source: "launch",

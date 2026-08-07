@@ -6,6 +6,7 @@ import {
   deploymentFeedRoute,
   deploymentRecordsRoute,
   deploymentPromoteRoute,
+  deploymentSecretsRoute,
   deploymentSecretsWriteRoute,
   clearLaunchReadCache,
   activateLaunchRoute,
@@ -1738,6 +1739,50 @@ describe("deploymentRecordsRoute", () => {
         String(url).includes("/user/projects?"),
       ),
     ).toHaveLength(1);
+  });
+});
+
+describe("deploymentSecretsRoute", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    getGitHubSession.mockReset();
+  });
+
+  it("returns the canonical app with an empty key list when the vault is empty", async () => {
+    getGitHubSession.mockResolvedValue({
+      githubUserId: "42",
+      githubLogin: "alice",
+    });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        Response.json({
+          project: {
+            id: 7,
+            installation_id: 5,
+            repository_id: 6,
+            repository_link: "alice/demo",
+            platform_id: 1,
+            owner_builder_id: 2,
+            created_at: 1,
+            updated_at: 1,
+          },
+          platform: "community",
+          application: { id: 11, name: "demo" },
+        }),
+      )
+      .mockResolvedValueOnce(Response.json({ by_app: {} }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await deploymentSecretsRoute(
+      new Request(
+        "http://localhost:3000/api/bff/deployments/secrets?applicationId=11",
+      ),
+    );
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ byApp: { demo: [] } });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });
 
