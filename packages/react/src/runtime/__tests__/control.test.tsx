@@ -205,6 +205,65 @@ describe("Control context", () => {
     );
   });
 
+  it("sends with the backend default when automatic model sync is unavailable", async () => {
+    localStorage.removeItem("aomi_model_selection");
+    const sendMessage = vi.fn(
+      async (): Promise<AomiChatResponse> => ({
+        is_processing: false,
+        messages: [],
+      }),
+    );
+    const setModel = vi.fn(async () => {
+      throw new Error("HTTP 503");
+    });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    setAomiClientConfig({
+      getApps: async () => [
+        { name: "default" },
+        { name: "goal-digger", applicationId: 2936682 },
+      ],
+      getModels: async () => ["auto-model"],
+      setModel,
+      sendMessage,
+    });
+
+    const { getApi, getControl } = renderRuntime({ applicationId: 2936682 });
+
+    await waitFor(() => {
+      expect(getControl().getCurrentThreadControl().model).toBe("auto-model");
+    });
+    act(() => {
+      getControl().onAppSelect("goal-digger", { applicationId: 2936682 });
+    });
+
+    await act(async () => {
+      await getApi().sendMessage("list your tools");
+    });
+
+    expect(setModel).toHaveBeenCalledWith(
+      expect.any(String),
+      "auto-model",
+      expect.objectContaining({
+        app: "goal-digger",
+        applicationId: 2936682,
+      }),
+    );
+    expect(sendMessage).toHaveBeenCalledWith(
+      expect.any(String),
+      "list your tools",
+      expect.objectContaining({
+        app: "goal-digger",
+        applicationId: 2936682,
+      }),
+    );
+    expect(warn).toHaveBeenCalledWith(
+      "[per-thread-control] auto model sync failed; using backend default",
+      expect.any(Error),
+    );
+    warn.mockRestore();
+  });
+
   it("does not select a hosted app by bare name when an application id is required", async () => {
     setAomiClientConfig({
       getApps: async () => [
