@@ -12,8 +12,14 @@ export const buildQueryKeys = {
   // A Project ID is canonical and already owns its platform binding.
   projectSource: (account: string, projectId: number) =>
     [...buildQueryKeys.all, "account", account, "project", projectId] as const,
-  deployments: (account: string) =>
-    [...buildQueryKeys.all, "account", account, "deployments"] as const,
+  deployments: (account: string, platform?: string | null) =>
+    [
+      ...buildQueryKeys.all,
+      "account",
+      account,
+      "deployments",
+      platform?.trim() || "all",
+    ] as const,
   operate: (account: string, kind: string, projectId: number | null = null) =>
     [
       ...buildQueryKeys.all,

@@ -255,14 +255,18 @@ function createBaseClient(options: LaunchClientOptions) {
       );
     },
 
-    /** Cross-source activity feed — not platform-scoped. */
+    /** Activity feed for the selected platform. */
     feed(
       input: {
+        platform?: string;
         limit?: number;
         cursor?: DeploymentFeedResult["nextCursor"];
       } = {},
     ): Promise<DeploymentFeedResult> {
       const params = new URLSearchParams({ limit: String(input.limit ?? 50) });
+      if (input.platform?.trim()) {
+        params.set("platform", input.platform.trim());
+      }
       if (input.cursor) {
         params.set("cursorCreatedAt", String(input.cursor.createdAt));
         params.set("cursorId", String(input.cursor.id));

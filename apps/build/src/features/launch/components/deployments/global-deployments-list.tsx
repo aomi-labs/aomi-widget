@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Filter, RefreshCw, Rocket } from "lucide-react";
 import { EmptyState } from "@build/components/control-plane/empty-state";
+import { platformHref } from "@build/features/launch/platform";
 import { useGlobalDeploymentRecords } from "./use-global-deployment-records";
 import { ErrorPanel, GitHubSignInPanel, LoadingPanel } from "./ui/state-panels";
 
@@ -12,7 +13,23 @@ function formatDate(seconds: number) {
   return new Date(seconds * 1000).toLocaleString();
 }
 
-function DeploymentsPageHeader({ onReload }: { onReload: () => void }) {
+function deploymentsHref(
+  platform: string,
+  values: { project?: string; deployment?: string } = {},
+) {
+  const params = new URLSearchParams({ platform });
+  if (values.project) params.set("project", values.project);
+  if (values.deployment) params.set("deployment", values.deployment);
+  return `/operate/deployments?${params}`;
+}
+
+function DeploymentsPageHeader({
+  platform,
+  onReload,
+}: {
+  platform: string;
+  onReload: () => void;
+}) {
   return (
     <header className="flex flex-wrap items-start justify-between gap-4">
       <div className="min-w-0">
@@ -23,7 +40,7 @@ function DeploymentsPageHeader({ onReload }: { onReload: () => void }) {
           </h1>
         </div>
         <p className="text-dim mt-1.5 max-w-3xl text-sm leading-5">
-          Deployment history across all projects.
+          Deployment history for projects on {platform}.
         </p>
       </div>
       <div className="flex shrink-0 items-center gap-2">
@@ -36,7 +53,7 @@ function DeploymentsPageHeader({ onReload }: { onReload: () => void }) {
           Refresh
         </button>
         <Link
-          href="/operate/deployments/new"
+          href={platformHref("/operate/deployments/new", platform)}
           prefetch={false}
           className="bg-primary text-primary-foreground inline-flex h-8 items-center justify-center rounded-md px-3 text-sm font-medium hover:opacity-90"
         >
@@ -47,7 +64,7 @@ function DeploymentsPageHeader({ onReload }: { onReload: () => void }) {
   );
 }
 
-export function GlobalDeploymentsList() {
+export function GlobalDeploymentsList({ platform }: { platform: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const {
@@ -58,7 +75,7 @@ export function GlobalDeploymentsList() {
     loadMore,
     hasMore,
     loadingMore,
-  } = useGlobalDeploymentRecords();
+  } = useGlobalDeploymentRecords(platform);
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<"all" | "current" | "previous">("all");
   const projectParam = searchParams.get("project");
@@ -117,7 +134,7 @@ export function GlobalDeploymentsList() {
   if (projectsState.status !== "ready") {
     return (
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
-        <DeploymentsPageHeader onReload={reload} />
+        <DeploymentsPageHeader platform={platform} onReload={reload} />
         {projectsState.status === "loading" ? (
           <LoadingPanel label="Loading projects…" />
         ) : projectsState.status === "signed_out" ? (
@@ -132,7 +149,7 @@ export function GlobalDeploymentsList() {
   return (
     <main className="bg-background text-foreground min-h-screen">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
-        <DeploymentsPageHeader onReload={reload} />
+        <DeploymentsPageHeader platform={platform} onReload={reload} />
 
         <div className="border-border bg-surface-1 rounded-lg border">
           <div className="border-border flex flex-wrap items-center gap-2 border-b px-4 py-3">
@@ -143,9 +160,9 @@ export function GlobalDeploymentsList() {
                 const value = event.target.value;
                 setSourceFilter(value);
                 if (value !== "all") {
-                  router.push(`/operate/deployments?project=${value}`);
+                  router.push(deploymentsHref(platform, { project: value }));
                 } else {
-                  router.push("/operate/deployments");
+                  router.push(deploymentsHref(platform));
                 }
               }}
               className="border-border bg-surface-1 h-8 rounded-md border px-2 text-sm"
@@ -201,7 +218,10 @@ export function GlobalDeploymentsList() {
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   <Link
-                    href={`/projects/${selectedDeployment.projectId}`}
+                    href={platformHref(
+                      `/projects/${selectedDeployment.projectId}`,
+                      platform,
+                    )}
                     prefetch={false}
                     className="border-border bg-surface-1 hover:bg-accent-hover inline-flex h-8 items-center rounded-md border px-3 text-xs font-medium"
                   >
@@ -210,8 +230,8 @@ export function GlobalDeploymentsList() {
                   <Link
                     href={
                       projectParam
-                        ? `/operate/deployments?project=${projectParam}`
-                        : "/operate/deployments"
+                        ? deploymentsHref(platform, { project: projectParam })
+                        : deploymentsHref(platform)
                     }
                     prefetch={false}
                     className="border-border bg-surface-1 hover:bg-accent-hover inline-flex h-8 items-center rounded-md border px-3 text-xs font-medium"
@@ -233,7 +253,7 @@ export function GlobalDeploymentsList() {
               <EmptyState
                 title="No deployments yet"
                 description="Deploy an app from a connected project to see history here."
-                actionHref="/operate/deployments/new"
+                actionHref={platformHref("/operate/deployments/new", platform)}
                 actionLabel="New app"
               />
             ) : (
@@ -247,7 +267,10 @@ export function GlobalDeploymentsList() {
               {filtered.map((deployment) => (
                 <Link
                   key={`${deployment.projectId}-${deployment.deploymentId}`}
-                  href={`/operate/deployments?project=${deployment.projectId}&deployment=${encodeURIComponent(deployment.deploymentId)}`}
+                  href={deploymentsHref(platform, {
+                    project: String(deployment.projectId),
+                    deployment: deployment.deploymentId,
+                  })}
                   prefetch={false}
                   className="hover:bg-accent-hover grid min-h-[76px] grid-cols-[minmax(0,1fr)_auto] items-center gap-4 px-4 py-3"
                 >

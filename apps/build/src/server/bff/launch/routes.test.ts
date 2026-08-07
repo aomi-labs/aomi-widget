@@ -1843,7 +1843,7 @@ describe("deploymentFeedRoute", () => {
 
     const res = await deploymentFeedRoute(
       new Request(
-        "http://localhost:3000/api/bff/deployments/feed?limit=50&cursorCreatedAt=200&cursorId=10",
+        "http://localhost:3000/api/bff/deployments/feed?platform=world-market-apps&limit=50&cursorCreatedAt=200&cursorId=10",
       ),
     );
     const body = await res.json();
@@ -1855,7 +1855,7 @@ describe("deploymentFeedRoute", () => {
       "/api/integrations/github-app/user/deployments?",
     );
     expect(String(url)).toContain("github_user_id=42");
-    expect(String(url)).not.toContain("platform=");
+    expect(String(url)).toContain("platform=world-market-apps");
     expect(String(url)).toContain("cursor_created_at=200");
     expect(body).toMatchObject({
       deployments: [{ deploymentId: "dep_1", projectId: 7 }],

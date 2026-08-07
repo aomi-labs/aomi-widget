@@ -9,7 +9,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("./use-global-deployment-records", () => ({
-  useGlobalDeploymentRecords: () => ({
+  useGlobalDeploymentRecords: vi.fn(() => ({
     projectsState: {
       status: "ready",
       projects: [
@@ -41,14 +41,14 @@ vi.mock("./use-global-deployment-records", () => ({
     loadMore: vi.fn(),
     hasMore: false,
     loadingMore: false,
-  }),
+  })),
 }));
 
 import { GlobalDeploymentsList } from "./global-deployments-list";
 
 describe("GlobalDeploymentsList", () => {
   it("renders all deployment records read-only", () => {
-    render(<GlobalDeploymentsList />);
+    render(<GlobalDeploymentsList platform="world-market-apps" />);
 
     expect(screen.getByText("dep_1_alice-bot_abc123")).toBeInTheDocument();
     expect(screen.getAllByText("alice/bot").length).toBeGreaterThan(0);
@@ -59,7 +59,7 @@ describe("GlobalDeploymentsList", () => {
       screen.getByRole("link", { name: /view deployment/i }),
     ).toHaveAttribute(
       "href",
-      "/operate/deployments?project=42&deployment=dep_1_alice-bot_abc123",
+      "/operate/deployments?platform=world-market-apps&project=42&deployment=dep_1_alice-bot_abc123",
     );
   });
 });

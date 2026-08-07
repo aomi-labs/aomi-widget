@@ -50,7 +50,10 @@ vi.mock("@build/features/launch/dashboard", () => ({
 }));
 
 import { GitHubSessionProvider } from "@build/components/control-plane/github-session-context";
-import { deploymentFeed } from "@build/features/launch/client";
+import {
+  deploymentFeed,
+  deploymentProjects,
+} from "@build/features/launch/client";
 import { useGlobalDeploymentRecords } from "./use-global-deployment-records";
 
 function wrapper(client = new QueryClient()) {
@@ -66,16 +69,23 @@ function wrapper(client = new QueryClient()) {
 describe("useGlobalDeploymentRecords", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("loads one global feed regardless of source or app count", async () => {
-    const { result } = renderHook(() => useGlobalDeploymentRecords(), {
-      wrapper: wrapper(),
-    });
+  it("loads one platform feed regardless of project or app count", async () => {
+    const { result } = renderHook(
+      () => useGlobalDeploymentRecords("community"),
+      {
+        wrapper: wrapper(),
+      },
+    );
 
     await waitFor(() =>
       expect(result.current.recordsState.status).toBe("ready"),
     );
     expect(deploymentFeed).toHaveBeenCalledTimes(1);
-    expect(deploymentFeed).toHaveBeenCalledWith({ limit: 50, cursor: null });
+    expect(deploymentFeed).toHaveBeenCalledWith({
+      platform: "community",
+      limit: 50,
+      cursor: null,
+    });
     expect(
       result.current.recordsState.status === "ready"
         ? result.current.recordsState.deployments
@@ -96,7 +106,7 @@ describe("useGlobalDeploymentRecords", () => {
   it("reuses cached records after the page hook remounts", async () => {
     const client = new QueryClient();
     const sharedWrapper = wrapper(client);
-    const first = renderHook(() => useGlobalDeploymentRecords(), {
+    const first = renderHook(() => useGlobalDeploymentRecords("community"), {
       wrapper: sharedWrapper,
     });
     await waitFor(() =>
@@ -104,12 +114,42 @@ describe("useGlobalDeploymentRecords", () => {
     );
     first.unmount();
 
-    const second = renderHook(() => useGlobalDeploymentRecords(), {
+    const second = renderHook(() => useGlobalDeploymentRecords("community"), {
       wrapper: sharedWrapper,
     });
     await waitFor(() =>
       expect(second.result.current.recordsState.status).toBe("ready"),
     );
     expect(deploymentFeed).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses the selected platform for both project and deployment totals", async () => {
+    vi.mocked(deploymentProjects).mockResolvedValueOnce({
+      projects: [],
+    } as never);
+    vi.mocked(deploymentFeed).mockResolvedValueOnce({
+      deployments: [],
+      nextCursor: null,
+    });
+    const { result } = renderHook(
+      () => useGlobalDeploymentRecords("world-market-apps"),
+      { wrapper: wrapper() },
+    );
+
+    await waitFor(() =>
+      expect(result.current.recordsState.status).toBe("ready"),
+    );
+    expect(deploymentProjects).toHaveBeenCalledWith("world-market-apps");
+    expect(deploymentFeed).toHaveBeenCalledWith({
+      platform: "world-market-apps",
+      limit: 50,
+      cursor: null,
+    });
+    expect(result.current.projects).toEqual([]);
+    expect(
+      result.current.recordsState.status === "ready"
+        ? result.current.recordsState.deployments
+        : [],
+    ).toEqual([]);
   });
 });

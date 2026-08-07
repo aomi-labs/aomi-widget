@@ -69,7 +69,7 @@ describe("CommandPalette", () => {
     await screen.findByRole("dialog", { name: /command palette/i });
 
     fireEvent.click(screen.getByRole("button", { name: /^last project\b/i }));
-    expect(push).toHaveBeenCalledWith("/projects/42");
+    expect(push).toHaveBeenCalledWith("/projects/42?platform=community");
 
     push.mockClear();
     openCommandPalette();
@@ -77,7 +77,9 @@ describe("CommandPalette", () => {
     fireEvent.click(
       screen.getByRole("button", { name: /^environment \/ secrets\b/i }),
     );
-    expect(push).toHaveBeenCalledWith("/projects/42?tab=environment");
+    expect(push).toHaveBeenCalledWith(
+      "/projects/42?tab=environment&platform=community",
+    );
 
     push.mockClear();
     openCommandPalette();

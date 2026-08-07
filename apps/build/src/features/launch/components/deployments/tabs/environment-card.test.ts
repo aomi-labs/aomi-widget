@@ -30,7 +30,10 @@ describe("environmentCard", () => {
   it("does not warn for a source with no apps at all", () => {
     const card = environmentCard(base);
 
-    expect(card).toMatchObject({ value: "No keys required", tone: "good" });
+    expect(card).toMatchObject({ value: "No apps yet", tone: "neutral" });
+    expect(card.hint).toBe(
+      "Deploy an app before configuring its environment keys.",
+    );
     expect(card.blocked).toBe(false);
   });
 
@@ -146,7 +149,14 @@ describe("environmentCard", () => {
   });
 
   it("waits for the configured keys too", () => {
-    const card = environmentCard({ ...base, secretsByApp: null });
+    const card = environmentCard({
+      ...base,
+      apps: ["somm-agent"],
+      requiredSecrets: {
+        "somm-agent": { applicationId: 11, slots: [], missing: [] },
+      },
+      secretsByApp: null,
+    });
 
     expect(card).toMatchObject({ value: "Loading…", tone: "neutral" });
   });

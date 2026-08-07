@@ -11,6 +11,7 @@ import {
   buildQueryKeys,
   buildQueryStaleTime,
 } from "@build/features/launch/query-keys";
+import { platformParam } from "@build/features/launch/platform";
 import {
   modelKeysFetch,
   operateAppDetailFetch,
@@ -90,9 +91,10 @@ export function prefetchControlPlaneRoute(
   }
 
   if (path === "/projects") {
+    const platform = platformParam(searchParams.get("platform") ?? undefined);
     void queryClient.prefetchQuery({
-      queryKey: buildQueryKeys.projects(accountKey),
-      queryFn: () => deploymentProjects(),
+      queryKey: buildQueryKeys.projects(accountKey, platform),
+      queryFn: () => deploymentProjects(platform),
       staleTime: buildQueryStaleTime.projects,
       retry: false,
     });
@@ -106,16 +108,17 @@ export function prefetchControlPlaneRoute(
   }
 
   if (path === "/overview" || path === "/operate/deployments") {
+    const platform = platformParam(searchParams.get("platform") ?? undefined);
     void queryClient.prefetchQuery({
-      queryKey: buildQueryKeys.projects(accountKey),
-      queryFn: () => deploymentProjects(),
+      queryKey: buildQueryKeys.projects(accountKey, platform),
+      queryFn: () => deploymentProjects(platform),
       staleTime: buildQueryStaleTime.projects,
       retry: false,
     });
     void queryClient.prefetchInfiniteQuery({
-      queryKey: buildQueryKeys.deployments(accountKey),
+      queryKey: buildQueryKeys.deployments(accountKey, platform),
       queryFn: ({ pageParam }) =>
-        deploymentFeed({ limit: 50, cursor: pageParam }),
+        deploymentFeed({ platform, limit: 50, cursor: pageParam }),
       initialPageParam: null,
       staleTime: buildQueryStaleTime.deployments,
       retry: false,

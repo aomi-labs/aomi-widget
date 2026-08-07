@@ -43,6 +43,7 @@ vi.mock("@build/features/launch/hooks/use-project-detail", () => ({
       source: {
         id: 1,
         repositoryLink: "a/b",
+        platformName: "somm.finance",
         apps: [],
         latestDeployment: null,
         installationId: 5,
@@ -120,6 +121,8 @@ describe("ProjectPage", () => {
 
     expect(useProjectDetail).toHaveBeenCalledWith(1);
     fireEvent.click(screen.getByRole("tab", { name: /^deployments$/i }));
-    expect(push).toHaveBeenCalledWith("/projects/1?tab=deployments");
+    expect(push).toHaveBeenCalledWith(
+      "/projects/1?tab=deployments&platform=somm.finance",
+    );
   });
 });

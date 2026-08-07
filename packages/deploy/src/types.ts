@@ -540,6 +540,7 @@ export interface UserDeploymentsCursor {
 
 export interface ListUserDeploymentsInput extends BearerOverride {
   githubUserId: string;
+  platform?: string;
   limit?: number;
   cursor?: UserDeploymentsCursor | null;
 }

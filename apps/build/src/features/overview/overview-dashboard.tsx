@@ -22,6 +22,7 @@ import { operateFetch } from "@build/features/operate/client";
 import { BUILD_GLOSSARY } from "@build/lib/glossary";
 import { lastUsageHref, projectHref } from "@build/lib/deep-links";
 import { getLastProjectId } from "@build/lib/last-project";
+import { platformHref } from "@build/features/launch/platform";
 
 type UsagePayload = {
   daily?: Array<Record<string, any>>;
@@ -57,10 +58,10 @@ function StatCard({
   );
 }
 
-export function OverviewDashboard() {
+export function OverviewDashboard({ platform }: { platform: string }) {
   const { account } = useGitHubSession();
   const { projectsState, recordsState, projects, reload } =
-    useGlobalDeploymentRecords();
+    useGlobalDeploymentRecords(platform);
   const accountKey = githubAccountKey(account.githubLogin);
   const usageQuery = useQuery({
     queryKey: buildQueryKeys.operate(accountKey ?? "unavailable", "usage"),
@@ -147,7 +148,7 @@ export function OverviewDashboard() {
         <StatCard
           label="Projects"
           value={projectsLoading ? "—" : String(projects.length)}
-          helper="App projects on GitHub"
+          helper={platform ? `Projects on ${platform}` : "Projects on GitHub"}
         />
         <StatCard
           label="Live deployments"
@@ -178,7 +179,7 @@ export function OverviewDashboard() {
               <div className="text-dim text-xs">Latest project activity</div>
             </div>
             <ControlPlaneLink
-              href="/operate/deployments"
+              href={platformHref("/operate/deployments", platform)}
               className="text-dim hover:text-foreground text-sm"
             >
               View all
@@ -195,7 +196,7 @@ export function OverviewDashboard() {
             <EmptyState
               title="No deployments yet"
               description={BUILD_GLOSSARY.deployment.meaning}
-              actionHref="/operate/deployments/new"
+              actionHref={platformHref("/operate/deployments/new", platform)}
               actionLabel="New app"
             />
           ) : !recordsPending ? (
@@ -203,7 +204,10 @@ export function OverviewDashboard() {
               {deployments.slice(0, 5).map((deployment) => (
                 <ControlPlaneLink
                   key={`${deployment.projectId}-${deployment.deploymentId}`}
-                  href={projectHref(deployment.projectId, "deployments")}
+                  href={platformHref(
+                    projectHref(deployment.projectId, "deployments"),
+                    platform,
+                  )}
                   className="hover:bg-accent-hover flex items-center justify-between gap-3 px-4 py-3 text-sm"
                 >
                   <div className="min-w-0">
@@ -226,7 +230,7 @@ export function OverviewDashboard() {
 
         <div className="flex flex-col gap-3">
           <ControlPlaneLink
-            href="/operate/deployments/new"
+            href={platformHref("/operate/deployments/new", platform)}
             className="border-border bg-surface-1 hover:bg-accent-hover rounded-md border p-4"
           >
             <Rocket className="text-dim size-4" aria-hidden />

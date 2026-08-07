@@ -211,6 +211,9 @@ export class BackendClient extends BackendPlatformClient {
         nextCursor: camelUserDeploymentsCursor(raw.next_cursor),
       }),
       (params) => {
+        if (input.platform?.trim()) {
+          params.set("platform", input.platform.trim());
+        }
         setLimit(params, input.limit);
         if (input.cursor) {
           params.set("cursor_created_at", String(input.cursor.createdAt));
