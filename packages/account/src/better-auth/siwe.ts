@@ -13,6 +13,7 @@ import {
   linea,
   lineaSepolia,
   mainnet,
+  megaeth,
   optimism,
   polygon,
   sepolia,
@@ -104,6 +105,7 @@ const VERIFY_CHAINS: readonly Chain[] = [
   sepolia,
   linea,
   lineaSepolia,
+  megaeth,
 ];
 
 const publicClients = new Map<number, PublicClient>();
@@ -126,6 +128,7 @@ const RPC_ENV_BY_CHAIN: Record<number, readonly string[]> = {
   [sepolia.id]: ["SEPOLIA_RPC_URL"],
   [linea.id]: ["LINEA_RPC_URL"],
   [lineaSepolia.id]: ["LINEA_SEPOLIA_RPC_URL"],
+  [megaeth.id]: ["MEGAETH_RPC_URL"],
 };
 
 // Alchemy network slugs, mirroring ALCHEMY_CHAIN_SLUGS in `@aomi-labs/client`
@@ -140,6 +143,7 @@ const ALCHEMY_SLUG_BY_CHAIN: Record<number, string> = {
   [polygon.id]: "polygon-mainnet",
   [linea.id]: "linea-mainnet",
   [lineaSepolia.id]: "linea-sepolia",
+  [megaeth.id]: "megaeth-mainnet",
 };
 
 // Shared public default, mirrors DEFAULT_ALCHEMY_API_KEY in `@aomi-labs/client`

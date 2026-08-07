@@ -4173,7 +4173,8 @@ var ALCHEMY_CHAIN_SLUGS = {
   11155111: "eth-sepolia",
   59144: "linea-mainnet",
   59141: "linea-sepolia",
-  4663: "robinhood-mainnet"
+  4663: "robinhood-mainnet",
+  4326: "megaeth-mainnet"
 };
 var CHAINS_BY_ID = {
   1: mainnet,

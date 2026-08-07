@@ -13,7 +13,7 @@ import {
   polygon,
   sepolia,
 } from "wagmi/chains";
-import { AomiWalletKitProvider } from "@aomi-labs/widget-lib";
+import { AomiWalletKitProvider, megaeth } from "@aomi-labs/widget-lib";
 
 const privyAppId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
 const walletConnectProjectId =
@@ -29,6 +29,7 @@ const networks = [
   sepolia,
   linea,
   lineaSepolia,
+  megaeth,
 ] as const satisfies readonly [Chain, ...Chain[]];
 const solanaNetworks = [
   {
