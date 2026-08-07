@@ -46,11 +46,18 @@ export function platformParam(value: string | string[] | undefined): string {
 }
 
 /**
- * Routes where the user chooses a platform before a Project exists. Project
- * detail and account-wide operate routes resolve it from the canonical Project.
+ * Routes whose navigation stays inside one platform. Project detail still
+ * derives authority from the canonical Project; carrying the query here keeps
+ * surrounding links and the return path in the same visible scope.
  */
 function isPlatformScoped(href: string): boolean {
-  return href === "/projects" || href === "/operate/deployments/new";
+  return (
+    href === "/overview" ||
+    href === "/projects" ||
+    href.startsWith("/projects/") ||
+    href === "/operate/deployments" ||
+    href === "/operate/deployments/new"
+  );
 }
 
 /** Re-attach the active platform to a platform-scoped href. */
@@ -58,6 +65,10 @@ export function platformHref(
   href: string,
   platform: string | null | undefined,
 ): string {
-  if (!platform || href.includes("?") || !isPlatformScoped(href)) return href;
-  return `${href}?platform=${encodeURIComponent(platform)}`;
+  if (!platform) return href;
+  const [pathname, query = ""] = href.split("?", 2);
+  if (!isPlatformScoped(pathname)) return href;
+  const params = new URLSearchParams(query);
+  params.set("platform", platform);
+  return `${pathname}?${params}`;
 }

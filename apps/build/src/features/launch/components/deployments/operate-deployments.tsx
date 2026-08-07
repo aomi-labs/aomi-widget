@@ -2,6 +2,6 @@
 
 import { GlobalDeploymentsList } from "./global-deployments-list";
 
-export function OperateDeployments() {
-  return <GlobalDeploymentsList />;
+export function OperateDeployments({ platform }: { platform: string }) {
+  return <GlobalDeploymentsList platform={platform} />;
 }

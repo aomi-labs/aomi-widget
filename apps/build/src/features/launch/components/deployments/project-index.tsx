@@ -82,6 +82,7 @@ export function ProjectIndex({
             <div className="text-sm font-medium">Projects</div>
             <div className="text-dim text-xs">
               {state.status === "ready" ? state.projects.length : 0}
+              {platform ? ` on ${platform}` : ""}
             </div>
           </div>
           {state.status === "loading" && (
@@ -105,7 +106,7 @@ export function ProjectIndex({
                 key={source.id}
                 source={source}
                 requiredSdk={requiredSdk}
-                href={`/projects/${source.id}`}
+                href={platformHref(`/projects/${source.id}`, platform)}
               />
             ))}
         </div>

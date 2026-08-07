@@ -41,7 +41,7 @@ describe("ProjectIndex", () => {
     await waitFor(() =>
       expect(screen.getByRole("link", { name: /alice\/bot/ })).toHaveAttribute(
         "href",
-        "/projects/3",
+        "/projects/3?platform=somm.finance",
       ),
     );
     expect(useProjects).toHaveBeenCalledWith("somm.finance");

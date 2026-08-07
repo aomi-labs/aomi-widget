@@ -43,14 +43,15 @@ function globalDeployment(deployment: UserDeployment): GlobalDeployment | null {
   };
 }
 
-export function useGlobalDeploymentRecords() {
-  const { state: projectsState, reload: reloadProjects } = useProjects();
+export function useGlobalDeploymentRecords(platform: string) {
+  const { state: projectsState, reload: reloadProjects } =
+    useProjects(platform);
   const { account } = useGitHubSession();
   const accountKey = githubAccountKey(account.githubLogin);
   const feed = useInfiniteQuery({
-    queryKey: buildQueryKeys.deployments(accountKey ?? "unavailable"),
+    queryKey: buildQueryKeys.deployments(accountKey ?? "unavailable", platform),
     queryFn: ({ pageParam }) =>
-      deploymentFeed({ limit: 50, cursor: pageParam }),
+      deploymentFeed({ platform, limit: 50, cursor: pageParam }),
     initialPageParam: null as UserDeploymentsCursor | null,
     getNextPageParam: (page) => page.nextCursor ?? undefined,
     enabled: account.signedIn && accountKey !== null,

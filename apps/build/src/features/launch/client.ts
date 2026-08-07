@@ -118,6 +118,7 @@ export function deploymentHistory(input: {
 }
 
 export function deploymentFeed(input: {
+  platform?: string;
   limit?: number;
   cursor?: DeploymentFeedResult["nextCursor"];
 }): Promise<DeploymentFeedResult> {

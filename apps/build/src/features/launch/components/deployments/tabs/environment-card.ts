@@ -38,6 +38,15 @@ export function environmentCard({
 }): EnvironmentCard {
   const glossary = BUILD_GLOSSARY.environment.meaning;
 
+  if (apps.length === 0) {
+    return {
+      value: "No apps yet",
+      hint: "Deploy an app before configuring its environment keys.",
+      tone: "neutral",
+      blocked: false,
+    };
+  }
+
   // An error is worth reporting on its own terms — saying "keys missing"
   // because a read failed would send the user looking for a key that is fine.
   const error = requiredSecretsError ?? secretsError;

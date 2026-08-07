@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { prefetchProjectDetail } from "@build/components/control-plane/prefetch-control-plane-route";
 import { useProjectDetail } from "@build/features/launch/hooks/use-project-detail";
+import { platformHref } from "@build/features/launch/platform";
 import { setLastProjectId } from "@build/lib/last-project";
 import { ProjectHeader } from "./project-header";
 import { ChatTab } from "./tabs/chat-tab";
@@ -50,7 +51,10 @@ export function ProjectPage({
     const params = new URLSearchParams();
     if (!tabBaseHref) params.set("project", String(projectId));
     params.set("tab", tab);
-    return `${tabBaseHref ?? "/operate/deployments"}?${params}`;
+    return platformHref(
+      `${tabBaseHref ?? "/operate/deployments"}?${params}`,
+      detail.source?.platformName,
+    );
   };
   const openEnvironment = () => router.push(projectTabHref("environment"));
   const queryClient = useQueryClient();
@@ -80,7 +84,7 @@ export function ProjectPage({
         source={detail.source}
         latest={detail.source?.latestDeployment ?? null}
         onRefresh={detail.reload}
-        backHref={backHref}
+        backHref={platformHref(backHref, detail.source?.platformName)}
         backLabel={backLabel}
       />
       <div className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6">

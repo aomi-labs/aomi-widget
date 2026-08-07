@@ -42,6 +42,7 @@ describe("listUserDeployments", () => {
 
     const result = await client.listUserDeployments({
       githubUserId: "123",
+      platform: "world-market-apps",
       limit: 50,
       cursor: { createdAt: 200, id: 9 },
     });
@@ -50,7 +51,7 @@ describe("listUserDeployments", () => {
     expect(String(url)).toContain(
       "/api/integrations/github-app/user/deployments?",
     );
-    expect(String(url)).not.toContain("platform=");
+    expect(String(url)).toContain("platform=world-market-apps");
     expect(String(url)).toContain("cursor_created_at=200");
     expect(String(url)).toContain("cursor_id=9");
     expect(result).toEqual({

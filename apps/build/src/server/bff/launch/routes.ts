@@ -736,6 +736,7 @@ export async function deploymentFeedRoute(req: Request) {
   if ("response" in auth) return auth.response;
   const { session } = auth;
   const params = new URL(req.url).searchParams;
+  const platform = params.get("platform")?.trim() || undefined;
   const limit = Number(params.get("limit") ?? "50");
   const cursorCreatedAt = params.get("cursorCreatedAt");
   const cursorId = params.get("cursorId");
@@ -769,6 +770,7 @@ export async function deploymentFeedRoute(req: Request) {
     const client = await backendClient();
     const page = await client.listUserDeployments({
       githubUserId: session.githubUserId,
+      platform,
       limit,
       cursor,
     });
