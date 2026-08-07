@@ -627,11 +627,19 @@ export function DeployStep({
     lastCompletedRef.current = 0;
     setProgressModel(null);
     setVerifyAttempt(0);
+    setDeployment(undefined);
     setDeploymentId(undefined);
-    onProgress({ deploymentId: undefined, live: false });
-    setPhase(deployment ? "preflight_ready" : "idle");
+    onProgress({
+      deployment: undefined,
+      deploymentId: undefined,
+      sourceRef: undefined,
+      releaseTags: undefined,
+      apps: undefined,
+      live: false,
+    });
+    setPhase("idle");
     onReset?.();
-  }, [deployment, onProgress, onReset]);
+  }, [onProgress, onReset]);
 
   if (phase === "error") {
     return (
