@@ -8,6 +8,11 @@ export type TelegramLaunch = {
 
 export type LaunchContext = {
   inTelegram: boolean;
+  proof: {
+    botId: string;
+    initData: string;
+    telegramUserId: string;
+  } | null;
   sessionId: string | null;
   requestId: string | null;
   verified: boolean;
@@ -36,6 +41,7 @@ export async function establishTelegramLaunch(): Promise<LaunchContext> {
     if (!isLocalPreview()) throw new Error("open_from_telegram");
     return {
       inTelegram: false,
+      proof: null,
       sessionId: querySessionId,
       requestId,
       verified: false,
@@ -61,24 +67,13 @@ export async function establishTelegramLaunch(): Promise<LaunchContext> {
 
   return {
     inTelegram: true,
+    proof: {
+      botId,
+      initData: webApp.initData,
+      telegramUserId: launch.telegramUserId,
+    },
     sessionId: querySessionId ?? launch.startParam ?? null,
     requestId,
     verified: true,
   };
-}
-
-export function finishTelegramRequest(payload: Record<string, unknown>): void {
-  const webApp = window.Telegram?.WebApp;
-  webApp?.HapticFeedback?.notificationOccurred("success");
-  if (!webApp?.sendData) return;
-  webApp.sendData(JSON.stringify(payload));
-  window.setTimeout(() => webApp.close(), 150);
-}
-
-export function failTelegramRequest(payload: Record<string, unknown>): void {
-  const webApp = window.Telegram?.WebApp;
-  webApp?.HapticFeedback?.notificationOccurred("error");
-  if (!webApp?.sendData) return;
-  webApp.sendData(JSON.stringify(payload));
-  window.setTimeout(() => webApp.close(), 150);
 }

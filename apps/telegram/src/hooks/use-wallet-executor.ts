@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createParaViemClientHook } from "@getpara/react-core/evm/viem";
 import {
   toAAWalletCalls,
@@ -10,18 +10,30 @@ import {
   type WalletRequest,
   type WalletRequestResult,
 } from "@aomi-labs/client";
-import { http, type Hex } from "viem";
+import { createPublicClient, http, type Hex } from "viem";
 
 import {
   errorMessage,
   requestChain,
   requestedAaMode,
 } from "@/lib/wallet-request";
-import { failTelegramRequest, finishTelegramRequest } from "@/lib/telegram";
 
 type ExecutionState = {
   error: string | null;
-  status: "idle" | "preparing" | "awaiting_wallet" | "done" | "error";
+  status:
+    | "idle"
+    | "preparing"
+    | "review"
+    | "awaiting_wallet"
+    | "done"
+    | "error";
+};
+
+export type WalletExecution = ExecutionState & {
+  /** Sign the request. Only meaningful while `status` is `review`. */
+  approve: () => void;
+  /** Decline the request and tell the bot it was not approved. */
+  reject: () => void;
 };
 
 type EvmWalletRequest = Extract<
@@ -41,12 +53,12 @@ function isEvmRequest(request: WalletRequest): request is EvmWalletRequest {
 export function useWalletExecutor(input: {
   request: WalletRequest | null;
   session: Session | null;
-}): ExecutionState {
+}): WalletExecution {
   const [state, setState] = useState<ExecutionState>({
     error: null,
     status: "idle",
   });
-  const processed = useRef(new Set<string>());
+  const settled = useRef(new Set<string>());
   const chain = requestChain(input.request);
   const { viemClient } = useEmbeddedParaViemClient({
     walletClientConfig: {
@@ -55,37 +67,42 @@ export function useWalletExecutor(input: {
     },
   });
 
+  // A fresh request opens the review screen; nothing signs until the user acts.
+  useEffect(() => {
+    const request = input.request;
+    if (!request || !input.session || !isEvmRequest(request)) return;
+    if (settled.current.has(request.id)) return;
+    setState({ error: null, status: "review" });
+  }, [input.request, input.session]);
+
+  // A request this app cannot present for review is declined outright — that is
+  // not a decision to put in front of the user.
   useEffect(() => {
     const request = input.request;
     const session = input.session;
-    if (!request || !session || processed.current.has(request.id)) return;
+    if (!request || !session) return;
+    if (isEvmRequest(request) || settled.current.has(request.id)) return;
 
-    if (!isEvmRequest(request)) {
-      processed.current.add(request.id);
-      void session
-        .reject(
-          request.id,
-          "Telegram Mini App currently supports EVM requests only.",
-        )
-        .finally(() => {
-          setState({ error: "unsupported_wallet_request", status: "error" });
-          failTelegramRequest({
-            request_id: request.id,
-            status: "failed",
-            error: "unsupported_wallet_request",
-          });
-        });
-      return;
-    }
+    settled.current.add(request.id);
+    void session
+      .reject(
+        request.id,
+        "Telegram Mini App currently supports EVM requests only.",
+      )
+      .finally(() => {
+        setState({ error: "unsupported_wallet_request", status: "error" });
+      });
+  }, [input.request, input.session]);
+
+  const approve = useCallback(() => {
+    const request = input.request;
+    const session = input.session;
+    if (!request || !session || !isEvmRequest(request)) return;
+    if (!viemClient?.account || settled.current.has(request.id)) return;
+
+    settled.current.add(request.id);
+    setState({ error: null, status: "awaiting_wallet" });
     const evmRequest = request;
-
-    if (!viemClient?.account) return;
-
-    processed.current.add(request.id);
-    let active = true;
-    queueMicrotask(() => {
-      if (active) setState({ error: null, status: "awaiting_wallet" });
-    });
 
     const execute = async (): Promise<EvmWalletResult> => {
       if (evmRequest.kind === "eip712_sign") {
@@ -128,6 +145,13 @@ export function useWalletExecutor(input: {
         to: call.to,
         value: call.value,
       });
+      const receipt = await createPublicClient({
+        chain,
+        transport: http(chain.rpcUrls.default.http[0]),
+      }).waitForTransactionReceipt({ hash: txHash });
+      if (receipt.status !== "success") {
+        throw new Error("transaction_reverted");
+      }
       return {
         kind: "transaction",
         txHash,
@@ -145,38 +169,36 @@ export function useWalletExecutor(input: {
     void execute()
       .then(async (result) => {
         await session.resolve(request.id, result);
-        if (!active) return;
         setState({ error: null, status: "done" });
-        finishTelegramRequest({
-          request_id: request.id,
-          status: "signed",
-          kind: result.kind,
-          ...(result.kind === "transaction"
-            ? { tx_hash: result.txHash }
-            : { signature: result.signature }),
-        });
       })
       .catch(async (error: unknown) => {
         const message = errorMessage(error);
         await session.reject(request.id, message).catch(() => undefined);
-        if (!active) return;
         setState({ error: message, status: "error" });
-        failTelegramRequest({
-          request_id: request.id,
-          status: "failed",
-          error: message,
-        });
       });
-
-    return () => {
-      active = false;
-    };
   }, [chain, input.request, input.session, viemClient]);
 
-  const preparing =
-    input.request &&
-    input.session &&
-    isEvmRequest(input.request) &&
-    !viemClient?.account;
-  return preparing ? { error: null, status: "preparing" } : state;
+  const reject = useCallback(() => {
+    const request = input.request;
+    const session = input.session;
+    if (!request || !session || settled.current.has(request.id)) return;
+
+    settled.current.add(request.id);
+    setState({ error: null, status: "error" });
+    void session
+      .reject(request.id, "Declined in the Telegram Mini App.")
+      .catch(() => undefined);
+  }, [input.request, input.session]);
+
+  // `settled` is only ever read from effects and callbacks — the rendered view
+  // comes from state, so approving or declining re-renders.
+  return {
+    ...state,
+    status:
+      state.status === "review" && !viemClient?.account
+        ? "preparing"
+        : state.status,
+    approve,
+    reject,
+  };
 }

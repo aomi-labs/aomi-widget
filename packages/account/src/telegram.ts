@@ -58,8 +58,13 @@ function telegramUserId(fields: URLSearchParams): string | null {
 export function verifyTelegramInitData(
   initData: string,
   botId: string,
-  now = Date.now(),
+  options: {
+    now?: number;
+    /** Test-only override. Production always verifies against Telegram's key. */
+    publicKeyHex?: string;
+  } = {},
 ): TelegramLaunchVerification {
+  const now = options.now ?? Date.now();
   if (!initData || !/^\d+$/.test(botId)) {
     return { ok: false, reason: "malformed" };
   }
@@ -87,7 +92,7 @@ export function verifyTelegramInitData(
   const publicKey = createPublicKey({
     key: Buffer.concat([
       SPKI_ED25519_PREFIX,
-      Buffer.from(TELEGRAM_PUBLIC_KEY, "hex"),
+      Buffer.from(options.publicKeyHex ?? TELEGRAM_PUBLIC_KEY, "hex"),
     ]),
     format: "der",
     type: "spki",
