@@ -15,7 +15,10 @@ import {
   useThreadContext,
   type ThreadContext,
 } from "../contexts/thread-context";
-import type { ThreadTurnPhase } from "../state/thread-store";
+import {
+  initThreadControl,
+  type ThreadTurnPhase,
+} from "../state/thread-store";
 import { SessionManager } from "./session-manager";
 import { collectTxOutcomes, toInboundMessage } from "./utils";
 import { mergeAssistantTurns } from "./merge-turns";
@@ -264,10 +267,29 @@ const updateTurnPhase = (
   options?: { completed?: boolean },
 ) => {
   const metadata = threadContext.getThreadMetadata(threadId);
-  if (
-    !metadata ||
-    (metadata.control.turnPhase === turnPhase && !options?.completed)
-  ) {
+  if (metadata?.control.turnPhase === turnPhase && !options?.completed) {
+    return;
+  }
+
+  if (!metadata) {
+    // A first send can reach a phase change before anything registered this
+    // thread's metadata. updateThreadMetadata no-ops on missing rows, so
+    // create the row here — otherwise the phase reads "idle" for the whole
+    // turn and the working indicator never appears.
+    threadContext.setThreadMetadata((all) => {
+      const next = new Map(all);
+      next.set(threadId, {
+        title: "New Chat",
+        status: "regular",
+        lastActiveAt: new Date().toISOString(),
+        control: {
+          ...initThreadControl(),
+          turnPhase,
+          ...(options?.completed ? { lastCompletedAt: Date.now() } : null),
+        },
+      });
+      return next;
+    });
     return;
   }
 
@@ -515,6 +537,29 @@ export function useRuntimeOrchestrator(
 
       cleanups.push(forwardEvent("tool_update"));
       cleanups.push(forwardEvent("tool_complete"));
+
+      // Orchestrator delegation events → per-thread taskRuns sidecar.
+      // The mother's `task` tool message only lands in the transcript once the
+      // child finishes, so the live agent row can only come from these events.
+      // `applyTaskEvent` dedupes on (agentId, child_seq), which makes the SSE
+      // replay after a reconnect idempotent.
+      const forwardTaskEvent = <
+        K extends "task_started" | "task_activity" | "task_completed",
+      >(
+        type: K,
+      ) =>
+        session.on(type, (event) => {
+          threadContextRef.current.applyTaskEvent(threadId, event);
+          optionsRef.current.onEvent?.({
+            type,
+            payload: event,
+            sessionId: threadId,
+          });
+        });
+
+      cleanups.push(forwardTaskEvent("task_started"));
+      cleanups.push(forwardTaskEvent("task_activity"));
+      cleanups.push(forwardTaskEvent("task_completed"));
       cleanups.push(forwardEvent("system_notice"));
       cleanups.push(forwardEvent("system_error"));
       cleanups.push(forwardEvent("async_callback"));
@@ -613,6 +658,11 @@ export function useRuntimeOrchestrator(
       threadContextRef.current.updateThreadMetadata(threadId, {
         lastActiveAt: new Date().toISOString(),
       });
+      // A new turn starts a fresh delegation sidecar. This is what lets the
+      // trace treat every run in `taskRuns` as belonging to the current turn
+      // (and keep rendering completed runs until the transcript catches up)
+      // without leaking rows from earlier turns.
+      threadContextRef.current.clearThreadTaskRuns(threadId);
       updateTurnPhase(threadContextRef.current, threadId, "submitting");
       const submittingFallbackTimer = setTimeout(() => {
         const metadata = threadContextRef.current.getThreadMetadata(threadId);

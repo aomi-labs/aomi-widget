@@ -203,12 +203,38 @@ export function AomiRuntimeCore({
     async (threadId: string) => {
       if (remoteThreadIdsRef.current.has(threadId)) return false;
 
-      await aomiClientRef.current.createThread(threadId);
+      // Fast path: carry the thread's selected model/app on the create so a
+      // fresh chat binds in one round-trip instead of create + setModel.
+      const control =
+        threadContextRef.current.getThreadMetadata(threadId)?.control;
+      const created = await aomiClientRef.current.createThread(threadId, {
+        rig: control?.model ?? undefined,
+        app: control?.app ?? undefined,
+        applicationId: control?.applicationId ?? undefined,
+        clientId: getControlState().clientId ?? undefined,
+      });
       remoteThreadIdsRef.current.add(threadId);
       warmedThreadIdsRef.current.add(threadId);
+
+      if (created?.rig && control?.model) {
+        // The create bound the selection. Clear the dirty flag (only if the
+        // control hasn't changed meanwhile) so the send path's
+        // syncCurrentThreadControl no-ops instead of re-posting it.
+        const latest = threadContextRef.current.getThreadMetadata(threadId);
+        if (
+          latest?.control.controlDirty &&
+          latest.control.model === control.model &&
+          latest.control.app === control.app &&
+          latest.control.applicationId === control.applicationId
+        ) {
+          threadContextRef.current.updateThreadMetadata(threadId, {
+            control: { ...latest.control, controlDirty: false },
+          });
+        }
+      }
       return true;
     },
-    [aomiClientRef],
+    [aomiClientRef, getControlState],
   );
 
   const getRuntimeSession = useCallback(

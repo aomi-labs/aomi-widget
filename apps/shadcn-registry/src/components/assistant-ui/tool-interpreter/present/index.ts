@@ -41,9 +41,10 @@ export const presentOperation = (
 ): InterpretedToolStep => {
   const descriptor = descriptorFor(operation);
   const title =
-    descriptor.title === "fixed"
+    operation.title ??
+    (descriptor.title === "fixed"
       ? (descriptor.fixedTitle ?? humanize(operation.rawLabel))
-      : humanize(operation.rawLabel);
+      : humanize(operation.rawLabel));
   const chips = uniqueChips(
     statusLast(pickFacts(operation.facts, descriptor.chipPlan))
       .map(chipForFact)
@@ -56,6 +57,6 @@ export const presentOperation = (
     chips,
     confidence: operation.confidence,
     rawLabel: operation.rawLabel,
-    failed: operation.facts.some(isFailedStatus),
+    failed: operation.failed ?? operation.facts.some(isFailedStatus),
   };
 };

@@ -10,6 +10,9 @@ import {
   isAlwaysVisibleTool,
   printNewAgentMessages,
   printPaymentEvent,
+  printTaskActivity,
+  printTaskCompleted,
+  printTaskStarted,
   printToolComplete,
   printToolResultLine,
   printToolUpdate,
@@ -270,6 +273,22 @@ export async function chatCommand(
     });
 
     if (verbose) {
+      // Orchestrator delegation narration: one row per child agent, its steps
+      // indented under it. `task_completed` carries no label, so remember the
+      // one announced by `task_started` (keyed by agent, parallel-safe).
+      const agentLabels = new Map<string, string>();
+      session.on("task_started", (event) => {
+        agentLabels.set(event.agent_id, event.label || event.agent_id);
+        printTaskStarted(event);
+      });
+      session.on("task_activity", (event) => {
+        printTaskActivity(event);
+      });
+      session.on("task_completed", (event) => {
+        printTaskCompleted(event, agentLabels.get(event.agent_id));
+        agentLabels.delete(event.agent_id);
+      });
+
       session.on("processing_start", () => {
         console.log(`${DIM}⏳ Thinking…${RESET}`);
       });
@@ -317,7 +336,6 @@ export async function chatCommand(
         session.on("processing_end", () => resolve());
       });
     }
-
     const messageToolResults = getMessageToolResults(
       session.getMessages(),
       seedIdx + 1,

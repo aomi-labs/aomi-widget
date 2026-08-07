@@ -791,6 +791,92 @@
   `account-reconcile.ts`, `wallet-policy-row.tsx`. Follow-ups (not blockers):
   `rdns` on API for self-custody wallet logos; deterministic re-grant route.
 
+  `account-reconcile.ts`, `wallet-policy-row.tsx`. Docs:
+  `docs/SETTINGS-REDESIGN-GAPS.md` updated. Still open: `rdns` on API for
+  self-custody wallet logos (Para/Privy always show). Rebased onto main;
+  preview QA on Vercel before merge.
+2026-08-03 (later) — ROOT CAUSE + FIX: browser SSE was silently dead in the portal
+  (every session, every event type, predating the orchestrator work).
+  packages/client/src/sse.ts built the stream URL with `new URL(`${backendUrl}/api/
+  thread/updates`)`; the portal's getBackendUrl() returns "" (same-origin BFF), and
+  a base-less relative `new URL("/api/…")` THROWS before fetch — the subscriber's
+  retry loop swallowed it forever, so zero /api/thread/updates requests ever left
+  the browser (portal log evidence: 247 state polls, 0 SSE connects during an
+  orchestrator run). Nobody noticed because polling covers messages; task_* events
+  are the first SSE-only user-visible feature. Fix: relative-safe string URL (like
+  buildApiUrl) in sse.ts + regression test test/sse-url.unit.test.ts; client+react
+  dists rebuilt; portal restarted with fresh .next. Verified: bus replay of the
+  affected thread shows task_started + 5 task_activity flowing through the portal
+  proxy. Also: backend emission confirmed working from the user's actual run (child
+  thread spawned, label "1 wei self-transfer"). Remaining perceived slowness is the
+  known local GPT-5.5 pipeline latency (12-16s/call through cliproxy, serial).
+
+2026-08-03 — Orchestrator UI §5 (+§1) landed in apps/shadcn-registry — the trace UI.
+  New `WorkingAgent` (components/assistant-ui/working-agent.tsx): one delegation as a
+  row — pulsing identity dot (accent → pink by order of appearance) that becomes a
+  check/X on terminal status, mono label, summary slot (hidden while live+expanded,
+  shimmering latest intent while live+collapsed, the child's `message` when done),
+  live "N steps · Xs" counter (1s tick), chevron; children stream under the
+  `ml-[7px] pl-[17px] border-l` rail (tool calls through the existing interpreter,
+  notes as WorkingNote, both with the same expandable `<pre>` detail). Mounts
+  expanded while live, auto-folds ~900ms after completion unless the reader toggled
+  it. Row primitives shared with the mother trace were factored into
+  working-trace-rows.tsx (ToolStepRow / WorkingNote / ToolChipView) to avoid an
+  import cycle. working-trace.tsx joins transcript ↔ sidecar: `readTaskPartAgentId`
+  parts render as agent rows, live runs with no part yet render as synthetic rows
+  keyed by agent id (sticky until the part lands, so the row never blinks), header
+  says "Orchestrating"/"Orchestrated for X" + `aui-working-badge` when the TURN has
+  task rows (not the selected app), step count = rows + child steps, and agent rows
+  are exempt from the staggered-reveal backlog. Interpreter: new `task` family
+  (title "Delegated: <label>", Bot icon, short-agent-hash + `staged N` chips, failed
+  when status ≠ completed) via optional `title`/`failed` overrides on ToolOperation.
+  App selector: `orchestrator` app-metadata entry (Orchestrator/Or, new "Modes"
+  category, order 5) + pinned two-line row under "Basic Apps" in AppSelect.
+  Tests: working-agent.test.tsx (7), 3 interpreter cases, orchestrator app-metadata
+  + 2 AppSelect cases. Pending: product-mono event emission (§2) — until it ships
+  the UI renders the Phase-0 done-state row from the transcript alone.
+
+2026-08-03 — Orchestrator UI §3+§4 landed (client + React runtime; UI still pending).
+  packages/client: AomiMessage now models `tool_name`/`tool_arguments`; new
+  `AomiTaskEvent` union (task_started | task_activity | task_completed) +
+  `parseAomiTaskEvent` guard in src/types.ts; SessionEventMap gained the three
+  events; session/events.ts re-emits them like tool_update (no session-state
+  mutation); CLI verbose narration (`◆ [agent] … started`, `  ↳ step`,
+  `  ✔ label: status (N steps, Xs)`) in cli/output.ts + commands/chat.ts.
+  packages/react: `TaskRunState`/`TaskRunStep` + pure `reduceTaskRuns` reducer and a
+  per-thread `taskRuns` map in state/thread-store.ts (dedupe on (agentId, childSeq),
+  idempotent SSE replay, out-of-order tolerant, client-clock startedAt);
+  ThreadContext gained allThreadTaskRuns/getThreadTaskRuns/applyTaskEvent/
+  clearThreadTaskRuns plus `useThreadTaskRuns` / `useTaskRun`; runtime/orchestrator.ts
+  subscribes to the three events next to forwardEvent("tool_update") and reduces
+  into the sidecar; toInboundMessage now prefers `tool_name`, passes
+  `tool_arguments` as args, and attaches `metadata.custom.aomiTask = { agentId }` to
+  completed `task` tool-call parts (survives mergeAssistantTurns re-keying and
+  fromThreadMessageLike). Tests: reducer/store unit tests, runtime wiring test,
+  projection + merge metadata tests, client SSE routing + CLI line tests.
+  Pending: apps/shadcn-registry WorkingAgent UI + task interpreter family + app
+  selector entry (§1/§5), and the product-mono event emission (§2).
+
+2026-08-03 — Orchestrator UI: plan written (specs/ORCHESTRATOR-UI-PLAN.md), no code
+  yet. Decided UX (animated mocks:
+  https://claude.ai/code/artifact/96148a25-4320-4138-928e-ed4a395c3e35): agent row
+  per delegation inside aui-working-trace, auto-expands while live / auto-folds to a
+  one-line summary on completion unless user-toggled; vertical rail under each agent
+  row is a MUST-KEEP; header shows "Orchestrating" + orchestrator badge. Entry =
+  selecting the `orchestrator` app in the existing AppSelect (backend already gates
+  `task` on app id; needs descriptor exposure + app-metadata entry + pinned "Modes"
+  row). Protocol decision: backend emits task_started / task_activity / task_completed
+  on the MOTHER's event bus from ChildTaskService::drive() (parent SSE endpoint and
+  child 409 gates unchanged). Today NOTHING of a child is visible to any UI — parent
+  transcript gets one redacted `task` result post-hoc; TS AomiMessage doesn't even
+  model tool_name/tool_arguments (Rust serializes them). Phases: 0 = transcript-only
+  done-state rows (no backend change), 1 = lifecycle events, 2 = child activity
+  streaming (full UX), 3 = failure states + parallel children. Pending: product-mono
+  event emission; packages/client types + SessionEventMap; taskRuns sidecar in
+  thread-store + orchestrator.ts reducer; WorkingAgent component; task interpreter
+  family; open questions in the spec (app gating tier, activity payload truncation,
+  stall UX, note granularity).
+
 2026-07-30 — Observability batch read: fan-out removed at the source (branch
   `feat/operate-batch-observability` in BOTH repos; aomi PR #426, product-mono
   PR #901; based on main incl. #423 + #424).

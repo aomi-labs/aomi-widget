@@ -182,14 +182,20 @@ export function createSseSubscriber({
         if (subscription.lastEventId) {
           headers.set("Last-Event-ID", subscription.lastEventId);
         }
-        const updatesUrl = new URL(`${backendUrl}/api/thread/updates`);
+        // Build the URL by string concatenation, not `new URL(...)`: the
+        // portal runs with an empty same-origin base URL, and a base-less
+        // relative `new URL("/api/…")` throws before any request is made —
+        // which silently killed every browser SSE subscription via the retry
+        // loop. `fetch` accepts relative URLs, so keep them relative.
+        const normalizedBase =
+          backendUrl === "/" ? "" : backendUrl.replace(/\/+$/, "");
+        const params = new URLSearchParams();
         if (subscription.applicationId) {
-          updatesUrl.searchParams.set(
-            "application_id",
-            subscription.applicationId,
-          );
+          params.set("application_id", subscription.applicationId);
         }
-        const response = await fetchImpl(updatesUrl.toString(), {
+        const query = params.toString();
+        const updatesUrl = `${normalizedBase}/api/thread/updates${query ? `?${query}` : ""}`;
+        const response = await fetchImpl(updatesUrl, {
           headers,
           signal: controller.signal,
         });

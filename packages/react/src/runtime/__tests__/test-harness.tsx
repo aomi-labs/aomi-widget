@@ -630,6 +630,7 @@ export type RuntimeHarnessHandle = {
   api: AomiRuntimeApi;
   assistantRuntime: AssistantRuntime;
   control: ControlContextApi;
+  threadContext: ReturnType<typeof useThreadContext>;
   threadCount: number;
 };
 
@@ -645,9 +646,10 @@ const RuntimeHarness = forwardRef<RuntimeHarnessHandle>((_, ref) => {
       api,
       assistantRuntime,
       control,
+      threadContext,
       threadCount: threadContext.threadCnt,
     }),
-    [api, assistantRuntime, control, threadContext.threadCnt],
+    [api, assistantRuntime, control, threadContext],
   );
 
   return null;
@@ -674,6 +676,7 @@ export type RenderRuntimeResult = {
   api: AomiRuntimeApi;
   assistantRuntime: AssistantRuntime;
   control: ControlContextApi;
+  getThreadContext: () => ReturnType<typeof useThreadContext>;
   getThreadCount: () => number;
   getApi: () => AomiRuntimeApi;
   getControl: () => ControlContextApi;
@@ -716,6 +719,7 @@ export const renderRuntime = ({
     api: ref.current.api,
     assistantRuntime: ref.current.assistantRuntime,
     control: ref.current.control,
+    getThreadContext: () => ref.current!.threadContext,
     getThreadCount: () => ref.current!.threadCount,
     getApi: () => ref.current!.api,
     getControl: () => ref.current!.control,
