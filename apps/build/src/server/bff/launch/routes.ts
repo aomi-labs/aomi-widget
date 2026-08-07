@@ -68,13 +68,11 @@ function cachedUserProjects(
 }
 
 /** The platform every downstream platform-addressed call must use once a
- *  project is known: the project's bound platform. The configured default
- *  applies only before a project exists (creation) or on unbound legacy rows. */
-function projectPlatform(
-  project: OwnedProject,
-  config: ReturnType<typeof launchConfig>,
-): string {
-  return project.platformName?.trim() || config.platform;
+ *  project is known: the project's required bound platform. */
+function projectPlatform(project: OwnedProject): string {
+  const platform = project.platformName.trim();
+  if (!platform) throw new Error("project is missing its bound platform");
+  return platform;
 }
 
 // Read cache for the hot project-page GETs. Same 15s TTL as operate's, and it
@@ -557,7 +555,7 @@ export async function activateLaunchRoute(req: Request) {
         { status: 404 },
       );
     }
-    const platform = projectPlatform(project, config);
+    const platform = projectPlatform(project);
     const pairs = apps.map((app, index) => ({
       app,
       releaseTag: releaseTags[index],
@@ -946,7 +944,7 @@ export async function deploymentRecordsRoute(req: Request) {
       );
     }
     const result = await client.listDeploymentRecords({
-      platform: projectPlatform(project, config),
+      platform: projectPlatform(project),
       app,
       projectId,
     });
@@ -1012,7 +1010,7 @@ export async function deploymentPromoteRoute(req: Request) {
         { status: 404 },
       );
     }
-    const platform = projectPlatform(project, config);
+    const platform = projectPlatform(project);
     const known = await projectDeploymentIds(client, platform, project);
     if (!known.has(deploymentId)) {
       return NextResponse.json(
@@ -1113,7 +1111,7 @@ export async function deploymentDeactivateRoute(req: Request) {
         { status: 404 },
       );
     }
-    const platform = projectPlatform(project, config);
+    const platform = projectPlatform(project);
     const actor =
       typeof body.actor === "string" && body.actor.trim()
         ? body.actor
@@ -1194,7 +1192,7 @@ export async function redeployLaunchRoute(req: Request) {
     // The backend re-runs the Actions run behind the deployment's recorded
     // commit on its App installation token; no GitHub token in this layer.
     const rerun = await client.rerunDeployment({
-      platform: projectPlatform(project, config),
+      platform: projectPlatform(project),
       deploymentId,
       githubUserId: session.githubUserId,
     });

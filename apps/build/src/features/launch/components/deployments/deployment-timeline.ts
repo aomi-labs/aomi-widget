@@ -28,8 +28,7 @@ export function commitFromDeploymentId(deploymentId: string): string | null {
 /**
  * Merge deployment history with per-app promotion records into a newest-first
  * deployment list. History is the source of truth for what was deployed;
- * promotion records enrich it with actor/current state and preserve legacy
- * deployments that are only present in the activation log.
+ * promotion records enrich it with actor and current activation state.
  */
 export function buildDeploymentList(
   recordsByApp: Record<string, DeploymentRecord[]> | null,
@@ -80,8 +79,7 @@ export function buildDeploymentList(
       null;
     byId.set(entry.deploymentId, {
       deploymentId: entry.deploymentId,
-      commit:
-        existing?.commit ?? commitFromDeploymentId(entry.deploymentId),
+      commit: existing?.commit ?? commitFromDeploymentId(entry.deploymentId),
       apps: [...new Set([...(existing?.apps ?? []), ...apps])],
       releaseTags: [
         ...new Set([...(existing?.releaseTags ?? []), ...releaseTags]),
@@ -89,7 +87,7 @@ export function buildDeploymentList(
       current: existing?.current ?? false,
       actor: existing?.actor ?? null,
       sdkVersion,
-      createdAt: entry.createdAt ?? existing?.createdAt ?? 0,
+      createdAt: entry.createdAt,
     });
   }
 

@@ -602,9 +602,7 @@ export class BackendClient extends BackendPlatformClient {
 
   /**
    * Account-wide transactions batch: one newest-first page merged across
-   * every owned source, with a single global cursor. Requires a manager with
-   * `GET /user/transactions`; callers fall back to per-source reads when the
-   * route 404s (older manager).
+   * every owned project, with a single global cursor.
    */
   async listUserTransactions(
     input: ListUserTransactionsInput,

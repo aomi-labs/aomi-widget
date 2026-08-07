@@ -290,13 +290,9 @@ async function ownedProject(
   return projects.find((candidate) => candidate.id === projectId) ?? null;
 }
 
-/**
- * The platform every downstream platform-addressed call must use once a
- * project is known: the project's bound platform. The host default applies
- * only before a project exists (creation) or on legacy rows with no binding.
- */
-function platformOf(project: OwnedProject, fallback: string): string {
-  return project.platformName?.trim() || fallback;
+/** The Project's persisted platform is authoritative after creation. */
+function platformOf(project: OwnedProject): string {
+  return project.platformName;
 }
 
 export function createLaunchRoutes(options: LaunchRoutesOptions): LaunchRoutes {
@@ -565,7 +561,7 @@ export function createLaunchRoutes(options: LaunchRoutesOptions): LaunchRoutes {
       if (!project) {
         return jsonResponse({ error: "project not found for this user" }, 404);
       }
-      const platform = platformOf(project, cfg.platform);
+      const platform = platformOf(project);
       const pairs = apps.map((app, index) => ({
         app,
         releaseTag: releaseTags[index],
@@ -687,7 +683,6 @@ export function createLaunchRoutes(options: LaunchRoutesOptions): LaunchRoutes {
     }
 
     try {
-      const cfg = config();
       const client = await getClient();
       const project = await ownedProject(
         client,
@@ -715,7 +710,7 @@ export function createLaunchRoutes(options: LaunchRoutesOptions): LaunchRoutes {
       // The backend re-runs the Actions run behind the deployment's recorded
       // commit on its App installation token; no GitHub token in this layer.
       const rerun = await client.rerunDeployment({
-        platform: platformOf(project, cfg.platform),
+        platform: platformOf(project),
         deploymentId,
         githubUserId: session.githubUserId,
       });

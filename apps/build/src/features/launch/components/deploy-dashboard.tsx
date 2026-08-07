@@ -50,8 +50,8 @@ import { DeployStep } from "./deploy-step";
 import { Onboarding } from "./onboarding";
 
 // The subset of `useProjectDetail`'s return value the deploy dashboard needs
-// to gate Activate on required secrets — kept narrow (structural typing) so
-// this legacy flow doesn't have to mock the whole hook in tests.
+// to gate Activate on required secrets. Structural typing keeps component
+// tests focused on this contract instead of the entire hook.
 export type SecretsGateDetail = {
   hasMissingSecrets: (app: string) => boolean;
   requiredSecrets: Record<

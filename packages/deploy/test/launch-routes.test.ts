@@ -39,7 +39,7 @@ function readReq(path: string, query = "") {
   );
 }
 
-function ownedProjects(id = 99, platformName: string | null = null) {
+function ownedProjects(id = 99, platformName = "community") {
   return Response.json({
     projects: [
       {
@@ -59,6 +59,8 @@ function activationProject(id = 99) {
       {
         id,
         installation_id: 555,
+        repository_link: "alice/bot",
+        platform_name: "community",
         apps: [
           {
             id: 77,
@@ -76,6 +78,9 @@ function projectDeployments() {
     deployments: [
       {
         deployment_id: "dep_1",
+        project_id: 99,
+        repository_link: "alice/bot",
+        created_at: 1,
         release_tags: ["apps-555-r1-my-bot-abc"],
         apps: [{ name: "my-bot", release_tag: "apps-555-r1-my-bot-abc" }],
       },
@@ -91,6 +96,8 @@ function activationProjectWithRepo(platformRepo: string, id = 99) {
       {
         id,
         installation_id: 555,
+        repository_link: "alice/bot",
+        platform_name: "community",
         apps: [
           {
             id: 77,
@@ -100,6 +107,7 @@ function activationProjectWithRepo(platformRepo: string, id = 99) {
         ],
         latest_deployment: {
           platform_repo: platformRepo,
+          created_at: 1,
           apps: [{ name: "my-bot", release_tag: "apps-555-r1-my-bot-abc" }],
         },
       },
@@ -369,6 +377,7 @@ describe("createLaunchRoutes redeploy", () => {
         Response.json({
           latest_deployment: {
             deployment_id: "dep_1",
+            created_at: 1,
             platform_repo: "aomi-labs/community-apps",
             ci_run_id: "123456",
             ci_url:
@@ -437,6 +446,7 @@ describe("createLaunchRoutes redeploy", () => {
         Response.json({
           latest_deployment: {
             deployment_id: "dep_1",
+            created_at: 1,
             platform_repo: "aomi-labs/community-apps",
             ci_run_id: "123456",
             ci_url:
@@ -554,6 +564,7 @@ describe("createLaunchRoutes projects", () => {
             installation_id: 555,
             repository_link: "https://github.com/alice/bot",
             github_user_id: "42",
+            platform_name: "community",
             apps: [
               {
                 id: 5,
@@ -746,7 +757,10 @@ describe("createLaunchRoutes activate/app security", () => {
       .mockResolvedValueOnce(projectDeployments())
       .mockResolvedValueOnce(
         Response.json({
-          latest_deployment: { platform_repo: "aomi-labs/community" },
+          latest_deployment: {
+            platform_repo: "aomi-labs/community",
+            created_at: 1,
+          },
         }),
       )
       .mockResolvedValueOnce(Response.json({ by_app: {} }))

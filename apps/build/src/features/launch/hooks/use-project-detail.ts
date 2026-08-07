@@ -96,7 +96,7 @@ export function useProjectDetail(projectId: number) {
     () => projectsQuery.data?.projects.find((s) => s.id === projectId) ?? null,
     [projectsQuery.data, projectId],
   );
-  const projectPlatform = source?.platformName?.trim() || undefined;
+  const projectPlatform = source ? source.platformName.trim() : undefined;
   const sdk = sdkQuery.data ?? null;
   const loading = account.loading || projectsQuery.isPending;
   const error = projectsQuery.error

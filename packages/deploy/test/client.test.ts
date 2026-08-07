@@ -35,10 +35,9 @@ describe("BackendClient deploy/preflight", () => {
             installation_id: 123,
             repository_id: 987,
             repository_link: "https://github.com/alice/demo.git",
-            owner_repo_name: "alice/demo",
             ref: "abc1234def5678",
             commit_hash: "abc1234def5678",
-            aomi_toml_paths: ["aomi.toml"],
+            applications: ["aomi.toml"],
           },
           platform: {
             platform: "community",
@@ -1176,7 +1175,7 @@ describe("BackendClient operate statement", () => {
 describe("BackendClient projects", () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it("keeps the complete live SDK set from a platform-free source list", async () => {
+  it("keeps the complete live SDK set from an account-wide Project list", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () =>
@@ -1186,6 +1185,7 @@ describe("BackendClient projects", () => {
               id: 42,
               installation_id: 1,
               repository_link: "alice/demo",
+              platform_name: "community",
               apps: [],
               sdk_version: null,
               sdk_versions: ["3.0.3", "3.0.4"],

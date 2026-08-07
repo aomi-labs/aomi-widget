@@ -1,7 +1,10 @@
 "use client";
 
 import { ChevronDown, ExternalLink } from "lucide-react";
-import type { UserProject, UserProjectLatestDeployment } from "@aomi-labs/deploy";
+import type {
+  UserProject,
+  UserProjectLatestDeployment,
+} from "@aomi-labs/deploy";
 import { HelpBadge } from "@build/components/help-badge";
 import type { TimelineDeployment } from "../deployment-timeline";
 import { sdkCompatibility } from "../sdk-compatibility";
@@ -98,7 +101,7 @@ export function DeploymentDetail({
   const outdated =
     deployment.current &&
     sdkCompatibility(deployment.sdkVersion, requiredSdk) === "outdated";
-  const platformName = source.platformName ?? platformRepo ?? null;
+  const platformName = source.platformName;
   const platformBranch = entry?.platformBranch ?? null;
   const apps = appRows(deployment, entry);
   const releaseUrl = (tag: string) =>

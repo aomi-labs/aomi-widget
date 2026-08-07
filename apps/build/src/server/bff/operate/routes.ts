@@ -476,7 +476,7 @@ async function ownedSources(
     }
     return {
       ...session,
-      platform: project.platformName ?? session.platform,
+      platform: project.platformName,
       projects: [project],
     };
   } catch (err) {
@@ -1502,7 +1502,10 @@ export async function operateAppDetailRoute(req: Request) {
         readCache.transactions.get(
           [session.githubUserId, detail.platform, projectId, { limit: 100 }],
           () =>
-            session.client.listUserProjectTransactions({ ...input, limit: 100 }),
+            session.client.listUserProjectTransactions({
+              ...input,
+              limit: 100,
+            }),
         ),
         readCache.logs.get(
           [session.githubUserId, detail.platform, projectId, { limit: 200 }],

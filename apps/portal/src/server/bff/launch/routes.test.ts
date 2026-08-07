@@ -87,6 +87,7 @@ function ownedSources(...ids: number[]) {
       id,
       installation_id: 555,
       repository_link: "alice/bot",
+      platform_name: "community",
       apps: [{ id: 77, name: "my-bot" }],
     })),
   });
@@ -98,6 +99,8 @@ function sourceWithApps(id: number, apps: Array<Record<string, unknown>>) {
       {
         id,
         installation_id: 555,
+        repository_link: "alice/bot",
+        platform_name: "community",
         apps,
       },
     ],
@@ -146,6 +149,8 @@ function activationSource(id = 99) {
       {
         id,
         installation_id: 555,
+        repository_link: "alice/bot",
+        platform_name: "community",
         apps: [
           {
             id: 77,
@@ -163,6 +168,9 @@ function projectDeployments() {
     deployments: [
       {
         deployment_id: "dep_1",
+        project_id: 99,
+        repository_link: "alice/bot",
+        created_at: 1,
         release_tags: ["apps-555-r1-my-bot-abc"],
         apps: [{ name: "my-bot", release_tag: "apps-555-r1-my-bot-abc" }],
       },
@@ -180,6 +188,8 @@ function activationSourceWithRepo(_platformRepo: string, id = 99) {
       {
         id,
         installation_id: 555,
+        repository_link: "alice/bot",
+        platform_name: "community",
         apps: [
           {
             id: 77,
@@ -199,6 +209,7 @@ function latestDeploymentResponse(platformRepo: string) {
   return Response.json({
     latest_deployment: {
       platform_repo: platformRepo,
+      created_at: 1,
       apps: [{ name: "my-bot", release_tag: "apps-555-r1-my-bot-abc" }],
     },
   });
@@ -643,7 +654,7 @@ describe("deploymentPromoteRoute", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("rejects promote of an app source the user does not own", async () => {
+  it("rejects promote of a Project the user does not own", async () => {
     const fetchMock = vi.fn().mockResolvedValueOnce(ownedSources(1, 2));
     vi.stubGlobal("fetch", fetchMock);
 
@@ -901,6 +912,7 @@ describe("redeployLaunchRoute", () => {
         Response.json({
           latest_deployment: {
             deployment_id: "dep_1",
+            created_at: 1,
             platform_repo: "aomi-labs/community-apps",
             ci_run_id: "123456",
             ci_url:
@@ -972,6 +984,7 @@ describe("redeployLaunchRoute", () => {
         Response.json({
           latest_deployment: {
             deployment_id: "dep_1",
+            created_at: 1,
             platform_repo: "aomi-labs/community-apps",
             ci_run_id: "123456",
             ci_url:
@@ -1044,12 +1057,20 @@ describe("deploymentDeactivateRoute", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("rejects a foreign app source", async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(
-        Response.json({ projects: [{ id: 1, installation_id: 5 }] }),
-      );
+  it("rejects a foreign Project", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      Response.json({
+        projects: [
+          {
+            id: 1,
+            installation_id: 5,
+            repository_link: "alice/other",
+            platform_name: "community",
+            apps: [],
+          },
+        ],
+      }),
+    );
     vi.stubGlobal("fetch", fetchMock);
     const res = await deploymentDeactivateRoute(
       deactReq({ projectId: 99, apps: ["my-bot"] }),
@@ -1067,6 +1088,8 @@ describe("deploymentDeactivateRoute", () => {
             {
               id: 99,
               installation_id: 5,
+              repository_link: "alice/bot",
+              platform_name: "community",
               apps: [
                 { id: 701, name: "api" },
                 { id: 702, name: "web" },
@@ -1251,7 +1274,7 @@ describe("activateLaunchRoute", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("rejects a foreign app source or unmatched app/tag pair", async () => {
+  it("rejects a foreign Project or unmatched app/tag pair", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(ownedSources(1)));
     expect(
       (

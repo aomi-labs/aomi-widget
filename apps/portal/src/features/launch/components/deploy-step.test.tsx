@@ -86,7 +86,6 @@ describe("DeployStep", () => {
           installationId: 12345,
           repositoryId: 1,
           repositoryLink: "a/b",
-          ownerRepoName: "a/b",
           ref: "abc123",
           commitHash: "abc123",
         },

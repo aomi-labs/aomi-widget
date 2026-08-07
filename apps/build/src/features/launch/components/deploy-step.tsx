@@ -918,7 +918,7 @@ function DeploymentSummary({
       <div className="grid gap-3 sm:grid-cols-3">
         <SummaryTile
           label="Source"
-          value={source?.ownerRepoName ?? source?.repositoryLink ?? "Repo"}
+          value={source?.repositoryLink ?? "Repo"}
           detail={
             source?.commitHash
               ? `${source.commitHash.slice(0, 12)} from ${

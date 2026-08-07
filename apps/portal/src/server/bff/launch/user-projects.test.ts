@@ -46,6 +46,7 @@ describe("userProjectsRoute", () => {
             installation_id: 555,
             repository_link: "https://github.com/alice/bot",
             github_user_id: "42",
+            platform_name: "community",
             apps: [
               {
                 id: 5,

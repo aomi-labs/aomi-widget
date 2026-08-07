@@ -23,7 +23,7 @@ export function ProjectRow({
         : `${source.apps.length} apps`;
   const stamped = sourceSdkVersion(source);
   const mixedSdk = (source.sdkVersions?.length ?? 0) > 1;
-  const boundPlatform = source.platformName?.trim();
+  const boundPlatform = source.platformName.trim();
   const projectHref =
     href ??
     `/projects/${source.id}${

@@ -37,7 +37,7 @@ function globalDeployment(deployment: UserDeployment): GlobalDeployment | null {
     current: deployment.apps.some((app) => app.isActive),
     actor: null,
     sdkVersion: deployment.sdkVersion ?? null,
-    createdAt: deployment.createdAt ?? 0,
+    createdAt: deployment.createdAt,
     projectId: deployment.projectId,
     repositoryLink: deployment.repositoryLink,
   };

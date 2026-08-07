@@ -18,6 +18,7 @@ vi.mock("@build/features/launch/client", () => ({
         id: 7,
         installationId: 5,
         repositoryLink: "a/b",
+        platformName: "community",
         apps: [{ name: "my-bot" }],
         latestDeployment: null,
       },
@@ -26,7 +27,13 @@ vi.mock("@build/features/launch/client", () => ({
   deploymentSdkStatus: vi.fn(async () => null),
   deploymentHistory: vi.fn(async () => ({
     deployments: [
-      { deploymentId: "dep_1", apps: [], releaseTags: [], state: "recorded" },
+      {
+        deploymentId: "dep_1",
+        apps: [],
+        releaseTags: [],
+        state: "recorded",
+        createdAt: 1,
+      },
     ],
   })),
   deploymentSecrets: vi.fn(async () => ({
@@ -152,6 +159,7 @@ describe("useProjectDetail", () => {
             apps: [],
             releaseTags: [],
             state: "recorded",
+            createdAt: 1,
           },
         ],
       });
@@ -238,6 +246,7 @@ describe("useProjectDetail", () => {
             id: 7,
             installationId: 5,
             repositoryLink: "a/b",
+            platformName: "community",
             apps: [{ name: "my-bot" }],
             latestDeployment: null,
           },
@@ -249,6 +258,7 @@ describe("useProjectDetail", () => {
             id: 7,
             installationId: 5,
             repositoryLink: "a/b",
+            platformName: "community",
             apps: [{ name: "my-bot" }, { name: "my-bot-2" }],
             latestDeployment: null,
           },

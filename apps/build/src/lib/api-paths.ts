@@ -15,8 +15,8 @@ function withPlatform(path: string, platform?: string): string {
   return `${path}${separator}platform=${encodeURIComponent(platform)}`;
 }
 
-// Sources read, optionally narrowed server-side to a single app source.
-function sourcesPath(base: string, projectId?: number): string {
+// Project read, optionally narrowed server-side to one Project.
+function projectsPath(base: string, projectId?: number): string {
   return projectId === undefined ? base : `${base}?projectId=${projectId}`;
 }
 
@@ -44,7 +44,7 @@ export const API_PATHS = {
       activate: `${BFF}/launch/activate`,
       projects: (platform?: string, projectId?: number) =>
         withPlatform(
-          sourcesPath(`${BFF}/launch/projects`, projectId),
+          projectsPath(`${BFF}/launch/projects`, projectId),
           platform,
         ),
       sdkStatus: `${BFF}/launch/sdk-status`,
@@ -66,7 +66,7 @@ export const API_PATHS = {
       promote: `${BFF}/deployments/promote`,
       projects: (platform?: string, projectId?: number) =>
         withPlatform(
-          sourcesPath(`${BFF}/deployments/projects`, projectId),
+          projectsPath(`${BFF}/deployments/projects`, projectId),
           platform,
         ),
       feed: (

@@ -34,7 +34,6 @@ export function camelDeployResult(result: unknown): DeployResult {
         installationId: source.installation_id,
         repositoryId: source.repository_id,
         repositoryLink: source.repository_link,
-        ownerRepoName: source.owner_repo_name,
         ref: source.ref,
         commitHash: source.commit_hash,
       },
@@ -323,6 +322,13 @@ export function camelUserProjectLatestDeployment(
   if (!raw || typeof raw !== "object") return null;
   const d = raw as Record<string, any>;
   const apps = (d.apps ?? []) as Record<string, any>[];
+  const createdAt = d.created_at;
+  if (typeof createdAt !== "number" || !Number.isFinite(createdAt)) {
+    throw new DeployError(
+      "BACKEND",
+      "backend deployment response is missing created_at",
+    );
+  }
   return {
     deploymentId: d.deployment_id ?? d.deploymentId ?? d.id ?? null,
     state: d.state ?? d.status ?? null,
@@ -336,10 +342,7 @@ export function camelUserProjectLatestDeployment(
     sdkVersion: d.sdk_version ?? d.sdkVersion ?? null,
     artifactTarget: d.artifact_target ?? d.artifactTarget ?? null,
     buildTarget: d.build_target ?? d.buildTarget ?? d.target ?? null,
-    createdAt:
-      typeof (d.created_at ?? d.createdAt) === "number"
-        ? (d.created_at ?? d.createdAt)
-        : null,
+    createdAt,
     apps: apps.map((app) => ({
       name: app.name,
       releaseTag: app.release_tag ?? app.releaseTag ?? null,
@@ -384,13 +387,20 @@ export function camelUserDeploymentsCursor(
 
 export function camelUserProject(raw: unknown): UserProject {
   const project = (raw ?? {}) as Record<string, any>;
+  const platformName = project.platform_name;
+  if (typeof platformName !== "string" || !platformName.trim()) {
+    throw new DeployError(
+      "BACKEND",
+      "backend Project response is missing its platform binding",
+    );
+  }
   const configuration = project.configuration as
     | Record<string, any>
     | null
     | undefined;
   return {
     ...camelProject(project),
-    platformName: project.platform_name ?? project.platformName ?? null,
+    platformName: platformName.trim(),
     apps: ((project.apps ?? []) as unknown[]).map(camelPlatformApp),
     configuration:
       configuration?.status === "valid"

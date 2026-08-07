@@ -172,7 +172,6 @@ export interface Source {
   installationId: number;
   repositoryId: number;
   repositoryLink: string;
-  ownerRepoName?: string;
   ref: SourceRef;
   commitHash: string;
 }
@@ -602,9 +601,8 @@ export interface UserProjectLatestDeployment {
   sdkVersion?: string | null;
   artifactTarget?: string | null;
   buildTarget?: string | null;
-  /** Epoch seconds of the deploy request (`created_at`); null on legacy
-   *  records that predate the timestamp. */
-  createdAt?: number | null;
+  /** Epoch seconds of the deploy request (`created_at`). */
+  createdAt: number;
   apps: UserProjectDeploymentApp[];
 }
 
@@ -647,7 +645,7 @@ export type ProjectConfiguration =
 
 /** A platform-bound project plus its applications. */
 export interface UserProject extends Project {
-  platformName: string | null;
+  platformName: string;
   apps: PlatformApp[];
   configuration?: ProjectConfiguration;
   latestDeployment?: UserProjectLatestDeployment | null;
