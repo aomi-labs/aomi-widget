@@ -14,6 +14,7 @@
     "./better-auth/env": "./src/better-auth/env.ts",
     "./better-auth/siwe": "./src/better-auth/siwe.ts",
     "./providers": "./src/providers/index.ts",
+    "./telegram": "./src/telegram.ts",
     "./observability": "./src/observability.ts",
     "./widget-auth": "./src/widget-auth/index.ts"
   },

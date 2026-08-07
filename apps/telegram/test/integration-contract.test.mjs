@@ -3,6 +3,8 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
+const readWorkspace = (path) =>
+  readFile(new URL(`../../../${path}`, import.meta.url), "utf8");
 
 test("Para login resolves the canonical Aomi account", async () => {
   const [providers, canonicalAccount] = await Promise.all([
@@ -14,6 +16,7 @@ test("Para login resolves the canonical Aomi account", async () => {
   assert.match(canonicalAccount, /createProviderCredentialAdapter/);
   assert.match(canonicalAccount, /paraClient\.issueJwt/);
   assert.match(canonicalAccount, /createWidgetSessionProvider/);
+  assert.match(canonicalAccount, /\/api\/aomi\/telegram\/exchange/);
   assert.match(canonicalAccount, /\/api\/aomi\/account/);
 });
 
@@ -21,7 +24,7 @@ test("Telegram launches are verified before a production wallet flow", async () 
   const [client, route, verifier] = await Promise.all([
     read("src/lib/telegram.ts"),
     read("src/app/api/telegram/launch/route.ts"),
-    read("src/lib/telegram-init-data.ts"),
+    readWorkspace("packages/account/src/telegram.ts"),
   ]);
 
   assert.match(client, /webApp\.initData/);
@@ -48,6 +51,14 @@ test("the Mini App uses canonical wallet requests and acknowledgements", async (
   assert.match(executor, /session\.resolve/);
   assert.match(executor, /session\.reject/);
   assert.match(executor, /strict_account_abstraction_is_backend_only/);
+  assert.match(executor, /waitForTransactionReceipt/);
+});
+
+test("Para and the app share one React Query context", async () => {
+  const nextConfig = await read("next.config.ts");
+
+  assert.match(nextConfig, /"@tanstack\/react-query"/);
+  assert.match(nextConfig, /appNodeModules/);
 });
 
 test("the legacy relay and multi-page wallet are absent", async () => {
@@ -58,4 +69,30 @@ test("the legacy relay and multi-page wallet are absent", async () => {
 
   assert.doesNotMatch(packageJson, /walletconnect|wagmi|privy/i);
   assert.doesNotMatch(page, /\/api\/operation|Swap assets|Review & sign/i);
+});
+
+test("signing is gated behind an explicit approval of a rendered request", async () => {
+  const [executor, page, describe] = await Promise.all([
+    read("src/hooks/use-wallet-executor.ts"),
+    read("src/app/page.tsx"),
+    read("src/lib/wallet-request.ts"),
+  ]);
+
+  // The Telegram button only opens the app; the user must read the request and
+  // approve it here. Para signs headlessly, so this screen is the only place a
+  // Telegram user ever sees what they are signing.
+  assert.match(executor, /approve: \(\) => void/);
+  assert.match(executor, /reject: \(\) => void/);
+  assert.match(page, /onClick=\{execution\.approve\}/);
+  assert.match(page, /onClick=\{execution\.reject\}/);
+  assert.match(page, /describeRequest/);
+  assert.match(describe, /export function describeRequest/);
+
+  // sendTransaction must be reachable only from the approve callback.
+  const approveIndex = executor.indexOf("const approve = useCallback");
+  assert.ok(approveIndex > 0, "approve callback is present");
+  assert.ok(
+    executor.indexOf("sendTransaction") > approveIndex,
+    "sendTransaction is only called after the user approves",
+  );
 });
