@@ -180,6 +180,42 @@ describe("DeployStep", () => {
     ).toBeInTheDocument();
   });
 
+  it("clears the pinned source revision before retrying", async () => {
+    const onProgress = vi.fn();
+    vi.mocked(launchPreflight).mockRejectedValueOnce(new Error("stale source"));
+    render(
+      <DeployStep
+        {...defaultProps}
+        progress={{
+          ...baseProgress(),
+          projectId: 42,
+          sourceRef: "old-commit",
+          deployment: {
+            id: "preview",
+            status: "preflight",
+            source: { ref: "old-commit" },
+            platform: { apps: [] },
+          } as LaunchDeployPayload,
+        }}
+        onProgress={onProgress}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Preflight" }));
+    await screen.findByText("stale source");
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+    expect(onProgress).toHaveBeenLastCalledWith({
+      deployment: undefined,
+      deploymentId: undefined,
+      sourceRef: undefined,
+      releaseTags: undefined,
+      apps: undefined,
+      live: false,
+    });
+    expect(screen.getByText(/Run a preflight/)).toBeInTheDocument();
+  });
+
   it("shows the required-secrets banner and keeps Activate disabled when the target app is missing one", () => {
     const detail = {
       hasMissingSecrets: (app: string) => app === "binance",
