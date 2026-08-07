@@ -810,4 +810,53 @@ describe("tool interpreter", () => {
     expect(step.title).toBe("Await wallet approval");
     expect(labelsFor(step.chips)).toEqual(["6 txs", "Pending approval"]);
   });
+  it("recognizes a delegated task with the child label and staged count", () => {
+    const step = interpretToolStep({
+      toolName: "task",
+      argsText: JSON.stringify({
+        label: "swap-worker",
+        app: "default",
+        prompt: "swap half my USDC",
+      }),
+      result: {
+        agent_id: "task-agent:9f2c1a2b3c4d",
+        status: "completed",
+        staged_count: 1,
+      },
+    });
+
+    expect(step.title).toBe("Delegated: swap-worker");
+    expect(labelsFor(step.chips)).toEqual(["1a2b3c4d", "staged 1"]);
+    expect(step.failed).toBe(false);
+  });
+
+  it("falls back to a generic delegation title without args", () => {
+    const step = interpretToolStep({
+      toolName: "task",
+      result: {
+        agent_id: "task-agent:9f2c1a2b3c4d",
+        status: "completed",
+        staged_count: 0,
+      },
+    });
+
+    expect(step.title).toBe("Delegated task");
+    expect(labelsFor(step.chips)).toEqual(["1a2b3c4d"]);
+  });
+
+  it("marks a non-completed delegation as failed", () => {
+    const step = interpretToolStep({
+      toolName: "task",
+      argsText: JSON.stringify({ label: "approvals-auditor" }),
+      result: {
+        agent_id: "task-agent:0011223344",
+        status: "stalled",
+        staged_count: 0,
+      },
+    });
+
+    expect(step.title).toBe("Delegated: approvals-auditor");
+    expect(labelsFor(step.chips)).toEqual(["11223344", "Stalled"]);
+    expect(step.failed).toBe(true);
+  });
 });

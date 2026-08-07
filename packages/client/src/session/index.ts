@@ -18,6 +18,7 @@ import type {
   SessionOptions,
   SessionRuntimeOptions,
   WalletRequest,
+  WalletRequestTarget,
   WalletRequestResult,
 } from "./types";
 import { stableUserStateString } from "./json";
@@ -40,6 +41,7 @@ export type {
   WalletAaSignPayload,
   WalletAaSignatureRequest,
   WalletRequestKind,
+  WalletRequestTarget,
   WalletRequestResult,
 } from "./types";
 
@@ -507,9 +509,16 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     event: Parameters<typeof handleSessionSSEEvent>[0],
   ): void {
     handleSessionSSEEvent(event, {
+      userState: () => this.userState,
+      resolveUserState: (userState) => this.resolveUserState(userState),
+      setMessages: (messages) => {
+        this._messages = messages;
+      },
+      getMessages: () => this.getMessages(),
       setTitle: (title) => {
         this._title = title;
       },
+      walletController: this.walletController,
       emit: (type, payload) => this.emit(type, payload),
     });
   }

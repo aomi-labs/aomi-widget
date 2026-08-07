@@ -58,6 +58,7 @@ export type FactRole =
   | "results"
   | "secondary"
   | "spender"
+  | "staged"
   | "to"
   | "tx";
 
@@ -76,6 +77,17 @@ export type ToolOperation = {
   facts: ToolFact[];
   confidence: ToolConfidence;
   rawLabel: string;
+  /**
+   * Title that overrides the descriptor's. Only for families whose title
+   * carries payload data (e.g. a delegation's child label), which a static
+   * `fixedTitle` cannot express.
+   */
+  title?: string;
+  /**
+   * Forces the failed (red X) presentation. Families whose failure signal is
+   * not a `failed`/`error` status fact set this explicitly.
+   */
+  failed?: boolean;
 };
 
 export type ToolContext = {

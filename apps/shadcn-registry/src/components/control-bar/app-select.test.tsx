@@ -75,9 +75,16 @@ vi.mock("@/components/icons", () => ({
 import { AppSelect } from "./app-select";
 
 describe("AppSelect", () => {
+  const baseState = {
+    authorizedApps: [...control.state.authorizedApps],
+    appDescriptors: [...control.state.appDescriptors],
+  };
+
   beforeEach(() => {
     control.getAuthorizedApps.mockClear();
     control.onAppSelect.mockClear();
+    control.state.authorizedApps = [...baseState.authorizedApps];
+    control.state.appDescriptors = [...baseState.appDescriptors];
   });
 
   it("passes a hosted app's application id to the controller", () => {
@@ -88,5 +95,66 @@ describe("AppSelect", () => {
     expect(control.onAppSelect).toHaveBeenCalledWith("partner-agent", {
       applicationId: 42,
     });
+  });
+
+  it("omits the orchestrator row when it is not authorized", () => {
+    render(<AppSelect />);
+
+    expect(screen.queryByText("Orchestrator")).toBeNull();
+  });
+
+  it("describes the default as Basic", () => {
+    render(<AppSelect />);
+
+    expect(screen.getAllByText("Basic")).toHaveLength(2);
+    expect(
+      screen.getByText("Use Basic without selecting an app"),
+    ).toBeInTheDocument();
+  });
+
+  it("pins the orchestrator under Basic and keeps it out of the groups", () => {
+    control.state.authorizedApps = ["default", "orchestrator", "partner-agent"];
+    control.state.appDescriptors = [
+      { name: "default" },
+      { name: "orchestrator" },
+      { name: "partner-agent", applicationId: 42 },
+    ];
+
+    render(<AppSelect />);
+
+    expect(
+      screen.getByText("Coordinate work across any number of apps"),
+    ).toBeInTheDocument();
+    // Pinned directly under the Basic row…
+    const rows = screen.getAllByRole("button");
+    const basicIndex = rows.findIndex((row) =>
+      row.textContent?.includes("Use Basic without selecting an app"),
+    );
+    const orchestratorIndex = rows.findIndex((row) =>
+      row.textContent?.includes("Orchestrator"),
+    );
+    expect(orchestratorIndex).toBe(basicIndex + 1);
+    // …and listed exactly once (never again in a category group).
+    expect(screen.getAllByText("Orchestrator")).toHaveLength(1);
+
+    fireEvent.click(rows[orchestratorIndex]!);
+    expect(control.onAppSelect).toHaveBeenCalledWith("orchestrator", {
+      applicationId: undefined,
+    });
+  });
+
+  it("shows the orchestrator icon in the selected trigger", () => {
+    control.state.authorizedApps = ["default", "orchestrator"];
+    control.state.appDescriptors = [
+      { name: "default" },
+      { name: "orchestrator" },
+    ];
+    control.getCurrentThreadApp.mockReturnValueOnce("orchestrator");
+
+    render(<AppSelect />);
+
+    const trigger = screen.getByRole("combobox");
+    expect(trigger).toHaveTextContent("Orchestrator");
+    expect(trigger.querySelector("svg.lucide-bot")).not.toBeNull();
   });
 });

@@ -179,6 +179,10 @@
         },
         {
           "type": "registry:component",
+          "path": "lib/wallet-kit/account/sign-out.ts"
+        },
+        {
+          "type": "registry:component",
           "path": "lib/wallet-kit/account/encoding.ts"
         },
         {
@@ -361,6 +365,18 @@
         },
         {
           "type": "registry:component",
+          "path": "components/control-bar/account-menu.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/control-bar/account-menu-types.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/control-bar/disconnect-confirm-dialog.tsx"
+        },
+        {
+          "type": "registry:component",
           "path": "components/control-bar/wallet-picker.tsx"
         },
         {
@@ -475,6 +491,14 @@
         },
         {
           "type": "registry:component",
+          "path": "components/assistant-ui/working-trace-rows.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/assistant-ui/working-agent.tsx"
+        },
+        {
+          "type": "registry:component",
           "path": "components/assistant-ui/tool-interpreter.ts"
         },
         {
@@ -524,6 +548,10 @@
         {
           "type": "registry:component",
           "path": "components/assistant-ui/tool-interpreter/families/lifi.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/assistant-ui/tool-interpreter/families/task.ts"
         },
         {
           "type": "registry:component",
@@ -700,10 +728,13 @@
         }
       ],
       "dependencies": [
-        "@aomi-labs/react"
+        "@aomi-labs/react",
+        "lucide-react"
       ],
       "registryDependencies": [
-        "https://aomi.dev/r/aomi-wallet-kit.json"
+        "https://aomi.dev/r/aomi-wallet-kit.json",
+        "button",
+        "dialog"
       ]
     },
     {
@@ -859,6 +890,14 @@
         {
           "type": "registry:component",
           "path": "lib/wallet-kit/providers/privy/privy-execution.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/wallet-kit/providers/privy/privy-delegation-context.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/wallet-kit/providers/privy/privy-delegation.tsx"
         },
         {
           "type": "registry:component",

@@ -1,6 +1,7 @@
 import {
   ArrowRightLeftIcon,
   BadgeCheckIcon,
+  BotIcon,
   CableIcon,
   CoinsIcon,
   FlameIcon,
@@ -151,6 +152,7 @@ export const SHAPE_ICONS = {
   chainContext: GlobeIcon,
   commit: SendIcon,
   customCall: WrenchIcon,
+  delegation: BotIcon,
   nativeBalance: WalletIcon,
   search: SearchIcon,
   simulation: FlaskConicalIcon,
