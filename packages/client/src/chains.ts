@@ -139,6 +139,7 @@ export const ALCHEMY_CHAIN_SLUGS: Record<number, string> = {
   59144: "linea-mainnet",
   59141: "linea-sepolia",
   4663: "robinhood-mainnet",
+  4326: "megaeth-mainnet",
 };
 
 export const CHAINS_BY_ID: Record<number, Chain> = {

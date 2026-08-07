@@ -7,6 +7,7 @@ import { useAccount, useSwitchChain } from "wagmi";
 import {
   AomiWalletKitProvider,
   isFullTestnet,
+  megaeth,
   monad,
   monadTestnet,
   robinhood,
@@ -65,6 +66,7 @@ const defaultNetworks = [
   monad,
   monadTestnet,
   robinhood,
+  megaeth,
 ] as const;
 
 const networks = (

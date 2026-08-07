@@ -2165,6 +2165,7 @@ ${body}` : ""}`
        * Mint a Privy browser auth URL bound to the current backend session.
        */
       async beginPrivyAuth(sessionId, options) {
+        var _a3;
         const url = buildApiUrl(this.baseUrl, "/api/auth/privy/begin");
         const response = await this.rawFetchImpl(url, {
           method: "POST",
@@ -2173,6 +2174,7 @@ ${body}` : ""}`
           }),
           body: JSON.stringify({
             application: options == null ? void 0 : options.application,
+            purpose: (_a3 = options == null ? void 0 : options.purpose) != null ? _a3 : "link_wallet",
             wallet_family: (options == null ? void 0 : options.walletFamily) === "evm" ? void 0 : options == null ? void 0 : options.walletFamily
           })
         });
@@ -2180,6 +2182,15 @@ ${body}` : ""}`
           throw new Error(`Failed to begin Privy auth: HTTP ${response.status}`);
         }
         return await response.json();
+      }
+      /**
+       * Start Privy's separate one-time delegated-signer consent. This is not a
+       * wallet-link operation and callers should label it as enabling Auto.
+       */
+      async beginPrivyDelegation(sessionId, options) {
+        return this.beginPrivyAuth(sessionId, __spreadProps(__spreadValues({}, options), {
+          purpose: "delegate_signing"
+        }));
       }
       /**
        * Get available models.
@@ -3163,6 +3174,35 @@ var init_policy = __esm({
 function isRecord3(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
+function isAaSignatureRequest(value) {
+  if (!isRecord3(value) || typeof value.raw_payload !== "string") return false;
+  if (value.kind === "personal_sign") return typeof value.message === "string";
+  if (value.kind === "eip7702_authorization") {
+    return typeof value.contract_address === "string" && typeof value.chain_id === "number" && typeof value.nonce === "number";
+  }
+  return false;
+}
+function aaSignPayloadFromRecord(record) {
+  const handoff = isRecord3(record.aa_handoff) ? record.aa_handoff : void 0;
+  if (!handoff) return null;
+  const txIds = Array.isArray(handoff.tx_ids) ? handoff.tx_ids.filter((id) => typeof id === "number") : [];
+  const rawRequests = Array.isArray(handoff.signature_requests) ? handoff.signature_requests : [];
+  const requests = rawRequests.filter(isAaSignatureRequest);
+  if (txIds.length === 0 || requests.length === 0 || requests.length !== rawRequests.length || typeof record.from !== "string" || typeof record.chain_id !== "number") {
+    return null;
+  }
+  return {
+    chain_family: "evm",
+    chain_id: record.chain_id,
+    signer: record.from,
+    executor: typeof handoff.executor === "string" ? handoff.executor : record.from,
+    aa_mode: handoff.aa_mode === "4337" ? "4337" : "7702",
+    tx_ids: txIds,
+    signature_requests: requests,
+    description: typeof record.label === "string" ? record.label : "",
+    sponsored: true
+  };
+}
 function txIdsFromPayload(payload) {
   if (Array.isArray(payload.txIds) && payload.txIds.length > 0) {
     return [...payload.txIds];
@@ -3234,6 +3274,7 @@ var init_wallet = __esm({
         const pendingSolanaTxs = isRecord3(pending == null ? void 0 : pending.solana_txs) ? pending.solana_txs : isRecord3(pending == null ? void 0 : pending.svm_ixs) ? pending.svm_ixs : void 0;
         const pendingSolanaSigs = isRecord3(pending == null ? void 0 : pending.solana_sigs) ? pending.solana_sigs : isRecord3(pending == null ? void 0 : pending.svm_sigs) ? pending.svm_sigs : void 0;
         const next = [];
+        this.syncAaSign(next, pendingTxs);
         this.syncTransactions(next, pendingTxs);
         this.syncEip712(next, pendingEip712s);
         this.syncSolana(next, pendingSolanaTxs);
@@ -3476,9 +3517,34 @@ var init_wallet = __esm({
         this.resolvedRequestIds.add(request.id);
         this.clearResolvedSolanaPending(request);
       }
+      /**
+       * Rebuild attended-AA signing requests from user state. The backend parks
+       * the request's projection on the batch anchor (`aa_handoff`) while it
+       * awaits owner signatures, so a reloaded client recovers the exact dialog
+       * it lost instead of orphaning the prepared batch.
+       */
+      syncAaSign(next, pendingTxs) {
+        var _a3, _b;
+        for (const [, raw] of Object.entries(pendingTxs != null ? pendingTxs : {})) {
+          if (!isRecord3(raw) || raw.current_lifecycle !== "awaiting_aa_signature")
+            continue;
+          const payload = aaSignPayloadFromRecord(raw);
+          if (!payload) continue;
+          const requestId = this.requestId("aa_sign", payload);
+          if (this.resolvedRequestIds.has(requestId)) continue;
+          next.push({
+            id: requestId,
+            kind: "aa_sign",
+            payload,
+            timestamp: (_b = (_a3 = this.requests.find((request) => request.id === requestId)) == null ? void 0 : _a3.timestamp) != null ? _b : Date.now()
+          });
+        }
+      }
       syncTransactions(next, pendingTxs) {
         var _a3, _b;
-        const entries = Object.entries(pendingTxs != null ? pendingTxs : {}).filter(([id]) => Number.isInteger(Number(id))).sort((left, right) => Number(left[0]) - Number(right[0]));
+        const entries = Object.entries(pendingTxs != null ? pendingTxs : {}).filter(([id]) => Number.isInteger(Number(id))).filter(
+          ([, raw]) => !isRecord3(raw) || raw.current_lifecycle !== "awaiting_aa_signature" && raw.current_lifecycle !== "inflight"
+        ).sort((left, right) => Number(left[0]) - Number(right[0]));
         const pendingIds = new Set(entries.map(([id]) => Number(id)));
         const covered = /* @__PURE__ */ new Set();
         const existing = this.requests.filter(
@@ -10413,7 +10479,7 @@ init_shared();
 // package.json
 var package_default = {
   name: "@aomi-labs/client",
-  version: "0.3.9",
+  version: "0.3.10",
   description: "Platform-agnostic TypeScript client for the Aomi backend API",
   type: "module",
   main: "./dist/index.cjs",
