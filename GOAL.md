@@ -30,6 +30,9 @@ backend's canonical platform-bound Project model, with no compatibility path.
   deployment history spans platforms, World Markets opens from observability
   overview into detail, and the Telegram picker offers World Markets even from
   a Community shell URL.
+- The published TypeScript CLI now sends deploys to the V2
+  `/api/projects/:projectId/deploy` route, omits client-selected platform data,
+  and persists the platform resolved by the backend response.
 
 ## BFF Sentry Observability
 

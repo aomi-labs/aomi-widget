@@ -19,10 +19,9 @@ export const deployDef = defineCommand({
     },
     "project-id": {
       type: "string",
-      description:
-        "Backend project ID (required; or set AOMI_PROJECT_ID env)",
+      description: "Backend project ID (required; or set AOMI_PROJECT_ID env)",
     },
-    "preflight": {
+    preflight: {
       type: "boolean",
       description: "Preview the deployment manifest without applying it",
     },
@@ -38,7 +37,7 @@ export const deployDef = defineCommand({
     platform: {
       type: "string",
       description:
-        "Deploy platform (default: community; or set AOMI_DEPLOY_PLATFORM env)",
+        "Authentication platform for browser login (the Project determines the deployment platform)",
     },
   },
   async run({ args }) {

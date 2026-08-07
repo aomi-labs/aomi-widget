@@ -45,7 +45,7 @@ describe("publishPackageIfNeeded", () => {
         publishImpl,
       }),
     ).rejects.toThrow(
-      "Registry check for @aomi-labs/client@0.4.0 failed with HTTP 503",
+      "Registry check for @aomi-labs/client@0.4.1 failed with HTTP 503",
     );
 
     expect(publishImpl).not.toHaveBeenCalled();
