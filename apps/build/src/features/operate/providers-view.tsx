@@ -89,7 +89,7 @@ export type KeySource = {
 };
 
 export type ProvidersPayload = {
-  sources?: KeySource[];
+  projects?: KeySource[];
   keys?: ModelKey[];
 };
 
@@ -132,14 +132,14 @@ function sumUsage(
   return total;
 }
 
-type AppOption = { applicationId: number; name: string; sourceLabel: string };
+type AppOption = { applicationId: number; name: string; projectLabel: string };
 
-function appOptions(sources: KeySource[]): AppOption[] {
-  return sources.flatMap((source) =>
+function appOptions(projects: KeySource[]): AppOption[] {
+  return projects.flatMap((source) =>
     (source.apps ?? []).map((app) => ({
       applicationId: app.id,
       name: app.name,
-      sourceLabel:
+      projectLabel:
         source.repositoryLink || source.githubAccount || `Source ${source.id}`,
     })),
   );
@@ -365,7 +365,7 @@ function ProjectsTable({
                   </label>
                 </td>
                 <td className="text-dim truncate px-3 py-2 text-xs">
-                  {option.sourceLabel}
+                  {option.projectLabel}
                 </td>
                 <td className="px-3 py-2 text-xs">
                   {stolen ? (
@@ -770,8 +770,8 @@ export function ProvidersView() {
   const reload = providers.refetch;
 
   const options = useMemo(
-    () => appOptions(payload?.sources ?? []),
-    [payload?.sources],
+    () => appOptions(payload?.projects ?? []),
+    [payload?.projects],
   );
   const keysByProvider = useMemo(() => {
     const map = new Map<string, ModelKey[]>();

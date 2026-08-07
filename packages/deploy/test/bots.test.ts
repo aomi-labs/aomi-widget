@@ -1,14 +1,14 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { DeploymentClient } from "../src/client";
+import { BackendClient } from "../src/backend";
 
 function client() {
-  return new DeploymentClient({
+  return new BackendClient({
     aomi: { backendUrl: "https://api.test", activationToken: "t" },
   });
 }
 
-describe("DeploymentClient bots", () => {
+describe("BackendClient bots", () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it("lists bots for an owned source", async () => {
@@ -35,16 +35,16 @@ describe("DeploymentClient bots", () => {
     );
     vi.stubGlobal("fetch", fetchImpl);
 
-    const bots = await client().listUserSourceBots({
+    const bots = await client().listUserProjectBots({
       githubUserId: "gh-1",
       platform: "community",
-      appSourceId: 42,
+      projectId: 42,
     });
 
     expect(bots[0].platformUsername).toBe("mybot");
     expect(bots[0].defaultApp).toBe("binance");
     expect(fetchImpl.mock.calls[0][0]).toContain(
-      "/api/integrations/github-app/user/sources/42/bots?",
+      "/api/integrations/github-app/user/projects/42/bots?",
     );
   });
 
@@ -68,10 +68,10 @@ describe("DeploymentClient bots", () => {
     );
     vi.stubGlobal("fetch", fetchImpl);
 
-    const bot = await client().createUserSourceBot({
+    const bot = await client().createUserProjectBot({
       githubUserId: "gh-1",
       platform: "community",
-      appSourceId: 42,
+      projectId: 42,
       applicationId: 7,
       botPlatform: "telegram",
       credential: "tok",

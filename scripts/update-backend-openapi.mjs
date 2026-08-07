@@ -20,19 +20,23 @@ const routesPath = join(
   repoRoot,
   "packages/client/test/generated/backend-routes.ts",
 );
-const tmpPath = join(repoRoot, ".tmp/backend-openapi.json");
+const backendTmpPath = join(repoRoot, ".tmp/backend-openapi.json");
+const managerTmpPath = join(repoRoot, ".tmp/manager-openapi.json");
 
-mkdirSync(dirname(tmpPath), { recursive: true });
+mkdirSync(dirname(backendTmpPath), { recursive: true });
 mkdirSync(dirname(routesPath), { recursive: true });
 
 const openApiUrl = resolveOpenApiUrl();
-const openApi = openApiUrl
+const backendOpenApi = openApiUrl
   ? await fetchOpenApi(openApiUrl)
-  : exportOpenApiFromProductMono();
+  : exportBackendOpenApi(resolveProductMonoRoot());
+const managerOpenApi = exportManagerOpenApi(resolveProductMonoRoot());
+const openApi = mergeOpenApi(backendOpenApi, managerOpenApi);
 
 writeFileSync(fixturePath, `${JSON.stringify(openApi, null, 2)}\n`);
 writeFileSync(routesPath, routeSourceFromOpenApi(openApi));
-rmSync(tmpPath, { force: true });
+rmSync(backendTmpPath, { force: true });
+rmSync(managerTmpPath, { force: true });
 
 console.log(`Updated ${fixturePath}`);
 console.log(`Updated ${routesPath}`);
@@ -58,8 +62,7 @@ async function fetchOpenApi(openApiUrl) {
   return response.json();
 }
 
-function exportOpenApiFromProductMono() {
-  const productMonoRoot = resolveProductMonoRoot();
+function exportBackendOpenApi(productMonoRoot) {
   const result = spawnSync(
     "cargo",
     [
@@ -76,7 +79,7 @@ function exportOpenApiFromProductMono() {
       cwd: join(productMonoRoot, "aomi"),
       env: {
         ...process.env,
-        AOMI_OPENAPI_OUT: tmpPath,
+        AOMI_OPENAPI_OUT: backendTmpPath,
       },
       stdio: "inherit",
     },
@@ -86,7 +89,63 @@ function exportOpenApiFromProductMono() {
     process.exit(result.status ?? 1);
   }
 
-  return JSON.parse(readFileSync(tmpPath, "utf8"));
+  return JSON.parse(readFileSync(backendTmpPath, "utf8"));
+}
+
+function exportManagerOpenApi(productMonoRoot) {
+  const result = spawnSync(
+    "cargo",
+    [
+      "test",
+      "-p",
+      "manager",
+      "routes::tests::export_openapi_fixture",
+      "--",
+      "--ignored",
+      "--exact",
+      "--nocapture",
+    ],
+    {
+      cwd: join(productMonoRoot, "aomi"),
+      env: {
+        ...process.env,
+        AOMI_MANAGER_OPENAPI_OUT: managerTmpPath,
+      },
+      stdio: "inherit",
+    },
+  );
+
+  if (result.status !== 0) {
+    process.exit(result.status ?? 1);
+  }
+
+  return JSON.parse(readFileSync(managerTmpPath, "utf8"));
+}
+
+function mergeOpenApi(backend, manager) {
+  const paths = structuredClone(backend.paths ?? {});
+  for (const [path, managerItem] of Object.entries(manager.paths ?? {})) {
+    const target = (paths[path] ??= {});
+    for (const [method, operation] of Object.entries(managerItem)) {
+      const existing = target[method];
+      if (
+        existing &&
+        JSON.stringify(existing["x-aomi-auth"]) !==
+          JSON.stringify(operation["x-aomi-auth"])
+      ) {
+        throw new Error(
+          `Conflicting OpenAPI auth contract for ${method} ${path}`,
+        );
+      }
+      target[method] = operation;
+    }
+  }
+
+  return {
+    ...backend,
+    info: { ...backend.info, title: "Aomi API" },
+    paths,
+  };
 }
 
 function resolveProductMonoRoot() {

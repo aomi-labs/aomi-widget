@@ -15,11 +15,9 @@ function withPlatform(path: string, platform?: string): string {
   return `${path}${separator}platform=${encodeURIComponent(platform)}`;
 }
 
-// Sources read, optionally narrowed server-side to a single app source.
-function sourcesPath(base: string, appSourceId?: number): string {
-  return appSourceId === undefined
-    ? base
-    : `${base}?appSourceId=${appSourceId}`;
+// Project read, optionally narrowed server-side to one Project.
+function projectsPath(base: string, projectId?: number): string {
+  return projectId === undefined ? base : `${base}?projectId=${projectId}`;
 }
 
 export const API_PATHS = {
@@ -44,9 +42,9 @@ export const API_PATHS = {
       redeploy: `${BFF}/launch/redeploy`,
       create: `${BFF}/launch/create`,
       activate: `${BFF}/launch/activate`,
-      sources: (platform?: string, appSourceId?: number) =>
+      projects: (platform?: string, projectId?: number) =>
         withPlatform(
-          sourcesPath(`${BFF}/launch/sources`, appSourceId),
+          projectsPath(`${BFF}/launch/projects`, projectId),
           platform,
         ),
       sdkStatus: `${BFF}/launch/sdk-status`,
@@ -66,9 +64,9 @@ export const API_PATHS = {
       deploy: `${BFF}/deployments/deploy`,
       redeploy: `${BFF}/deployments/redeploy`,
       promote: `${BFF}/deployments/promote`,
-      sources: (platform?: string, appSourceId?: number) =>
+      projects: (platform?: string, projectId?: number) =>
         withPlatform(
-          sourcesPath(`${BFF}/deployments/sources`, appSourceId),
+          projectsPath(`${BFF}/deployments/projects`, projectId),
           platform,
         ),
       feed: (
@@ -82,9 +80,9 @@ export const API_PATHS = {
         }
         return `${BFF}/deployments/feed?${params}`;
       },
-      history: (appSourceId: number, limit?: number, platform?: string) => {
+      history: (projectId: number, limit?: number, platform?: string) => {
         const params = new URLSearchParams({
-          appSourceId: String(appSourceId),
+          projectId: String(projectId),
         });
         if (limit) params.set("limit", String(limit));
         if (platform) params.set("platform", platform);
@@ -96,28 +94,23 @@ export const API_PATHS = {
           `${BFF}/deployments/status?deploymentId=${encodeURIComponent(deploymentId)}`,
           platform,
         ),
-      secrets: (appSourceId: number, platform?: string) =>
+      requiredSecrets: (projectId: number, platform?: string) =>
         withPlatform(
-          `${BFF}/deployments/secrets?appSourceId=${appSourceId}`,
+          `${BFF}/deployments/required-secrets?projectId=${projectId}`,
           platform,
         ),
-      requiredSecrets: (appSourceId: number, platform?: string) =>
-        withPlatform(
-          `${BFF}/deployments/required-secrets?appSourceId=${appSourceId}`,
-          platform,
-        ),
-      records: (app: string, appSourceId?: number, platform?: string) =>
+      records: (app: string, projectId?: number, platform?: string) =>
         withPlatform(
           `${BFF}/deployments/records?app=${encodeURIComponent(app)}${
-            appSourceId != null ? `&appSourceId=${appSourceId}` : ""
+            projectId != null ? `&projectId=${projectId}` : ""
           }`,
           platform,
         ),
       deactivate: `${BFF}/deployments/deactivate`,
       sdkUpgrade: `${BFF}/deployments/sdk-upgrade`,
-      sdkUpgradeStatus: (appSourceId: number, platform?: string) =>
+      sdkUpgradeStatus: (projectId: number, platform?: string) =>
         withPlatform(
-          `${BFF}/deployments/sdk-upgrade-status?appSourceId=${appSourceId}`,
+          `${BFF}/deployments/sdk-upgrade-status?projectId=${projectId}`,
           platform,
         ),
     },
@@ -129,16 +122,10 @@ export const API_PATHS = {
       logs: `${BFF}/operate/logs`,
       observability: `${BFF}/operate/observability`,
       payments: `${BFF}/operate/payments`,
-      observabilityDetail: (
-        appSourceId: number,
-        applicationId: number,
-        platform?: string | null,
-      ) => {
+      observabilityDetail: (applicationId: number) => {
         const params = new URLSearchParams({
-          appSourceId: String(appSourceId),
           applicationId: String(applicationId),
         });
-        if (platform?.trim()) params.set("platform", platform.trim());
         return `${BFF}/operate/observability/detail?${params}`;
       },
     },

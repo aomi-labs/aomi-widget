@@ -9,60 +9,31 @@ export const buildQueryKeys = {
       "projects",
       platform?.trim() || "all",
     ] as const,
-  // Server-filtered single-source read backing a project detail page. Nested
-  // under the `projects` key so invalidating the projects prefix covers detail
-  // pages too. Warm navigations seed it from the `projects` list cache.
-  projectSource: (
-    account: string,
-    sourceId: number,
-    platform?: string | null,
-  ) =>
-    [
-      ...buildQueryKeys.projects(account, platform),
-      "source",
-      sourceId,
-    ] as const,
+  // A Project ID is canonical and already owns its platform binding.
+  projectSource: (account: string, projectId: number) =>
+    [...buildQueryKeys.all, "account", account, "project", projectId] as const,
   deployments: (account: string) =>
     [...buildQueryKeys.all, "account", account, "deployments"] as const,
-  operate: (
-    account: string,
-    kind: string,
-    sourceId: number | null = null,
-    platform?: string | null,
-  ) =>
+  operate: (account: string, kind: string, projectId: number | null = null) =>
     [
       ...buildQueryKeys.all,
       "account",
       account,
       "operate",
       kind,
-      platform?.trim() || "default",
-      sourceId ?? "all",
+      projectId ?? "all",
     ] as const,
-  operateDetail: (
-    account: string,
-    sourceId: number,
-    applicationId: number,
-    platform?: string | null,
-  ) =>
+  applicationDetail: (account: string, applicationId: number) =>
     [
       ...buildQueryKeys.all,
       "account",
       account,
       "operate",
       "observability-detail",
-      platform?.trim() || "default",
-      sourceId,
       applicationId,
     ] as const,
-  bots: (account: string, platform?: string | null) =>
-    [
-      ...buildQueryKeys.all,
-      "account",
-      account,
-      "bots",
-      platform?.trim() || "default",
-    ] as const,
+  bots: (account: string) =>
+    [...buildQueryKeys.all, "account", account, "bots"] as const,
   modelKeys: (account: string) =>
     [...buildQueryKeys.all, "account", account, "model-keys"] as const,
 };

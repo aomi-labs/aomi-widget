@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
-  EXAMPLE_SOURCE,
+  EXAMPLE_PROJECT,
   exampleAppCards,
   exampleStatement,
   withExampleTrends,
 } from "./wire";
 
 describe("exampleStatement", () => {
-  const statement = exampleStatement(EXAMPLE_SOURCE);
+  const statement = exampleStatement(EXAMPLE_PROJECT);
 
   it("folds the summary from entries like the manager's assemble_statement", () => {
     expect(statement.summary.grossRevenue).toBeCloseTo(183.25, 2);
@@ -30,7 +30,7 @@ describe("exampleStatement", () => {
       ...statement.charges,
       ...statement.entries,
     ]) {
-      expect(row.source).toBe(EXAMPLE_SOURCE);
+      expect(row.project).toBe(EXAMPLE_PROJECT);
       expect(row.application).toBeTruthy();
     }
   });
@@ -78,12 +78,12 @@ describe("withExampleTrends", () => {
 
 describe("exampleAppCards", () => {
   it("builds one complete card per fixture app", () => {
-    const cards = exampleAppCards(EXAMPLE_SOURCE);
+    const cards = exampleAppCards(EXAMPLE_PROJECT);
     expect(cards.length).toBeGreaterThanOrEqual(3);
     for (const card of cards) {
       expect(card.application).toBeTruthy();
       expect(card.exampleFixture).toBe(card.application);
-      expect(card.source).toBe(EXAMPLE_SOURCE);
+      expect(card.project).toBe(EXAMPLE_PROJECT);
       expect(card.metrics.chats24h).not.toBeNull();
       expect(card.metrics.trendWindowSeconds).toBe(86_400);
     }

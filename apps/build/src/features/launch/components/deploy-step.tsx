@@ -13,9 +13,9 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { Button } from "@aomi-labs/widget-lib";
-import type { SecretSlot } from "@aomi-labs/deploy";
+import type { DeployPayload, SecretSlot } from "@aomi-labs/deploy";
 import {
-  deploymentSources,
+  deploymentProjects,
   launchActivate,
   launchDeploy,
   launchPreflight,
@@ -33,17 +33,14 @@ type SecretsGateDetail = {
   hasMissingSecrets: (app: string) => boolean;
   requiredSecrets: Record<
     string,
-    { slots: SecretSlot[]; missing: string[] }
+    { applicationId: number; slots: SecretSlot[]; missing: string[] }
   > | null;
   requiredSecretsError?: string | null;
   loadRequiredSecrets: () => void;
   refreshRequiredSecrets?: () => Promise<unknown>;
-  ensureRequiredSecrets?: (
-    apps: string[],
-    appSourceId?: number,
-  ) => Promise<void>;
+  ensureRequiredSecrets?: (apps: string[], projectId?: number) => Promise<void>;
   setEnvVars?: (
-    app: string,
+    applicationId: number,
     secrets: Record<string, string>,
   ) => Promise<unknown>;
 };
@@ -80,6 +77,10 @@ const BUSY_PHASES: Phase[] = [
 
 function deploymentApps(deployment?: LaunchDeployPayload) {
   return deployment?.platform?.apps ?? [];
+}
+
+function launchDeployment(next: DeployPayload): LaunchDeployPayload {
+  return next;
 }
 
 function releaseTags(deployment?: LaunchDeployPayload): string[] {
@@ -182,7 +183,7 @@ export function DeployStep({
   onReset,
   detail,
 }: {
-  /** GitHub App installation for wizard context; deploy uses appSourceId or repo. */
+  /** GitHub App installation for wizard context; deploy uses projectId or repo. */
   installationId: string;
   repo?: string;
   platform?: string;
@@ -266,23 +267,28 @@ export function DeployStep({
 
   const saveRequiredSecrets = useCallback(async () => {
     if (!detail?.setEnvVars || missingSecretSlots.length === 0) return;
-    const valuesByApp = new Map<string, Record<string, string>>();
+    const valuesByApplication = new Map<number, Record<string, string>>();
     for (const { app, slot } of missingSecretSlots) {
       const value = requiredSecretValues[`${app}::${slot.name}`] ?? "";
       if (!value) {
         setError(`Enter a value for ${slot.name}.`);
         return;
       }
-      const values = valuesByApp.get(app) ?? {};
+      const applicationId = detail.requiredSecrets?.[app]?.applicationId;
+      if (!applicationId) {
+        setError(`Application identity is unavailable for ${app}.`);
+        return;
+      }
+      const values = valuesByApplication.get(applicationId) ?? {};
       values[slot.name] = value;
-      valuesByApp.set(app, values);
+      valuesByApplication.set(applicationId, values);
     }
     setSavingRequiredSecrets(true);
     setError(null);
     try {
       await Promise.all(
-        Array.from(valuesByApp, ([app, values]) =>
-          detail.setEnvVars?.(app, values),
+        Array.from(valuesByApplication, ([applicationId, values]) =>
+          detail.setEnvVars?.(applicationId, values),
         ),
       );
       setRequiredSecretValues({});
@@ -311,7 +317,7 @@ export function DeployStep({
     (next: {
       repo?: string;
       installationId?: string;
-      appSourceId?: number;
+      projectId?: number;
       sourceRef?: string;
       deployment: LaunchDeployPayload;
       releaseTags?: string[];
@@ -329,7 +335,7 @@ export function DeployStep({
         sourceRef: next.sourceRef ?? next.deployment.source?.ref,
       };
       if (next.installationId) patch.installationId = next.installationId;
-      if (next.appSourceId) patch.appSourceId = next.appSourceId;
+      if (next.projectId) patch.projectId = next.projectId;
       onProgress(patch);
     },
     [onProgress, repo],
@@ -341,10 +347,9 @@ export function DeployStep({
     statusFailuresRef.current = 0;
     try {
       const result = await launchPreflight({
-        platform,
         installationId,
         repo,
-        appSourceId: progress.appSourceId,
+        projectId: progress.projectId,
         sourceRef: progress.sourceRef,
         actor,
       });
@@ -358,8 +363,7 @@ export function DeployStep({
     actor,
     applyDeployment,
     installationId,
-    platform,
-    progress.appSourceId,
+    progress.projectId,
     progress.sourceRef,
     repo,
   ]);
@@ -370,37 +374,37 @@ export function DeployStep({
     statusFailuresRef.current = 0;
     try {
       // Deploy commits against a stable source row id. The first deploy after
-      // an install has none yet, so a preflight mints it (and primes the
-      // preview); afterwards we go straight through by id.
-      let appSourceId = progress.appSourceId;
+      // an install has none yet, so preflight resolves the connected Project
+      // by repository; afterwards we go straight through by id.
+      let projectId = progress.projectId;
       let sourceRef = progress.sourceRef ?? deployment?.source?.ref;
       let targetApps = apps;
-      if (!appSourceId || !sourceRef) {
+      if (!projectId || !sourceRef) {
         const preflightResult = await launchPreflight({
-          platform,
           installationId,
           repo,
-          appSourceId,
+          projectId,
           sourceRef,
           actor,
         });
         applyDeployment(preflightResult);
-        appSourceId = preflightResult.appSourceId;
+        projectId = preflightResult.projectId;
         sourceRef =
           preflightResult.sourceRef ?? preflightResult.deployment.source?.ref;
         targetApps = preflightResult.apps;
       }
-      if (!appSourceId) {
+      if (!projectId) {
         throw new Error(
-          "Could not resolve a source to deploy. Run a preflight first.",
+          "Could not resolve a project to deploy. Run a preflight first.",
         );
       }
-      await detail?.ensureRequiredSecrets?.(targetApps, appSourceId);
+      if (!sourceRef) {
+        throw new Error("Preflight did not return an immutable source commit.");
+      }
+      await detail?.ensureRequiredSecrets?.(targetApps, projectId);
       const result = await launchDeploy({
-        platform,
-        appSourceId,
+        projectId,
         sourceRef,
-        repo,
         actor,
       });
       applyDeployment(result);
@@ -416,7 +420,7 @@ export function DeployStep({
         live: false,
       };
       if (result.installationId) patch.installationId = result.installationId;
-      if (result.appSourceId) patch.appSourceId = result.appSourceId;
+      if (result.projectId) patch.projectId = result.projectId;
       onProgress(patch);
       setPhase("building");
     } catch (e) {
@@ -434,9 +438,8 @@ export function DeployStep({
     apps,
     detail,
     installationId,
-    platform,
     onProgress,
-    progress.appSourceId,
+    progress.projectId,
     progress.sourceRef,
     repo,
     deployment,
@@ -460,9 +463,10 @@ export function DeployStep({
         const status = await launchStatus(deploymentId, platform);
         if (cancelled) return;
         statusFailuresRef.current = 0;
-        if (status.deployment) {
-          setDeployment(status.deployment);
-        }
+        const nextDeployment = status.deployment
+          ? launchDeployment(status.deployment)
+          : undefined;
+        if (nextDeployment) setDeployment(nextDeployment);
         // Update progress model with monotonic clamping
         const model = buildProgressModel(
           status.state,
@@ -475,7 +479,7 @@ export function DeployStep({
           deploymentId,
           live: false,
         };
-        if (status.deployment) patch.deployment = status.deployment;
+        if (nextDeployment) patch.deployment = nextDeployment;
         if (status.releaseTags.length > 0)
           patch.releaseTags = status.releaseTags;
         onProgress(patch);
@@ -531,12 +535,12 @@ export function DeployStep({
       for (let attempt = 0; attempt < 30; attempt += 1) {
         setVerifyAttempt(attempt + 1);
         try {
-          const result = await deploymentSources(
+          const result = await deploymentProjects(
             undefined,
-            progress.appSourceId,
+            progress.projectId,
           );
-          const source = result.sources.find(
-            (candidate) => candidate.id === progress.appSourceId,
+          const source = result.projects.find(
+            (candidate) => candidate.id === progress.projectId,
           );
           const checks = nextApps.map((name, index) =>
             source?.apps.find(
@@ -573,11 +577,11 @@ export function DeployStep({
       );
       setPhase("error");
     },
-    [apps, onProgress, progress.appSourceId, tags],
+    [apps, onProgress, progress.projectId, tags],
   );
 
   const activate = useCallback(async () => {
-    if (!progress.appSourceId) {
+    if (!progress.projectId) {
       setError("App source is missing; rerun deployment before activation.");
       setPhase("error");
       return;
@@ -586,8 +590,7 @@ export function DeployStep({
     setError(null);
     try {
       const result = await launchActivate({
-        platform,
-        appSourceId: progress.appSourceId,
+        projectId: progress.projectId,
         releaseTags: tags,
         apps,
         actor,
@@ -615,15 +618,7 @@ export function DeployStep({
       }
       setPhase("error");
     }
-  }, [
-    actor,
-    apps,
-    onProgress,
-    platform,
-    progress.appSourceId,
-    tags,
-    verifyLive,
-  ]);
+  }, [actor, apps, onProgress, progress.projectId, tags, verifyLive]);
 
   const reset = useCallback(() => {
     setError(null);
@@ -912,7 +907,7 @@ function DeploymentSummary({
   const ciUrl = platform?.ciUrl;
   const prNumber = platform?.prNumber;
   const prUrl = platform?.prUrl;
-  const sourceBranch = platform?.sourceBranch;
+  const platformBranch = platform?.platformBranch;
   const target = apps[0]?.target;
   const fileCount = apps.reduce((sum, app) => {
     return sum + (app.files?.length ?? 0);
@@ -923,7 +918,7 @@ function DeploymentSummary({
       <div className="grid gap-3 sm:grid-cols-3">
         <SummaryTile
           label="Source"
-          value={source?.ownerRepoName ?? source?.repositoryLink ?? "Repo"}
+          value={source?.repositoryLink ?? "Repo"}
           detail={
             source?.commitHash
               ? `${source.commitHash.slice(0, 12)} from ${
@@ -935,7 +930,7 @@ function DeploymentSummary({
         <SummaryTile
           label="Build"
           value={ciStatus ? ciStatusLabel(ciStatus) : statusLabel(phase)}
-          detail={sourceBranch ?? platform?.repository}
+          detail={platformBranch ?? platform?.repository}
           tone={
             ciStatus === "passed"
               ? "good"

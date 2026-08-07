@@ -13,8 +13,7 @@ const eslintConfig = [
     // Client/shared code must not import server-only modules. The `server-only`
     // poison pill already fails the build at runtime; this catches it at lint
     // time with a clearer message. Server code (app/api/**, app/**/{page,layout},
-    // src/server/**) is intentionally out of scope. `allowTypeImports` lets
-    // features/launch use `import type { UserSource } from "@aomi-labs/deploy"`.
+    // src/server/**) is intentionally out of scope.
     files: [
       "src/components/**/*.{ts,tsx}",
       "src/hooks/**/*.{ts,tsx}",

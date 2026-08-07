@@ -5,7 +5,7 @@ import type { QueryClient } from "@tanstack/react-query";
 import {
   deploymentFeed,
   deploymentSdkStatus,
-  deploymentSources,
+  deploymentProjects,
 } from "@build/features/launch/client";
 import {
   buildQueryKeys,
@@ -36,12 +36,11 @@ const OPERATE_ROUTES: Record<string, OperateKind> = {
 export function prefetchProjectDetail(
   queryClient: QueryClient,
   accountKey: string,
-  sourceId: number,
-  platform?: string | null,
+  projectId: number,
 ) {
   void queryClient.prefetchQuery({
-    queryKey: buildQueryKeys.projectSource(accountKey, sourceId, platform),
-    queryFn: () => deploymentSources(platform ?? undefined, sourceId),
+    queryKey: buildQueryKeys.projectSource(accountKey, projectId),
+    queryFn: () => deploymentProjects(undefined, projectId),
     staleTime: buildQueryStaleTime.projects,
     retry: false,
   });
@@ -52,8 +51,8 @@ export function prefetchProjectDetail(
     retry: false,
   });
   void queryClient.prefetchQuery({
-    queryKey: buildQueryKeys.operate(accountKey, "usage", sourceId, platform),
-    queryFn: () => operateFetch("usage", { sourceId, platform }),
+    queryKey: buildQueryKeys.operate(accountKey, "usage", projectId),
+    queryFn: () => operateFetch("usage", { projectId }),
     staleTime: buildQueryStaleTime.operate,
     retry: false,
   });
@@ -75,39 +74,25 @@ export function prefetchControlPlaneRoute(
   const detailMatch = path.match(/^\/operate\/observability\/([1-9]\d*)$/);
   if (detailMatch) {
     const applicationId = Number(detailMatch[1]);
-    const project = Number(searchParams.get("project"));
-    const platform = searchParams.get("platform");
-    if (Number.isSafeInteger(project) && project > 0) {
-      void queryClient.prefetchQuery({
-        queryKey: buildQueryKeys.operateDetail(
-          accountKey,
-          project,
-          applicationId,
-          platform,
-        ),
-        queryFn: () => operateAppDetailFetch(project, applicationId, platform),
-        staleTime: buildQueryStaleTime.operate,
-        retry: false,
-      });
-      return true;
-    }
+    void queryClient.prefetchQuery({
+      queryKey: buildQueryKeys.applicationDetail(accountKey, applicationId),
+      queryFn: () => operateAppDetailFetch(applicationId),
+      staleTime: buildQueryStaleTime.operate,
+      retry: false,
+    });
+    return true;
   }
 
   const projectMatch = path.match(/^\/projects\/([1-9]\d*)$/);
   if (projectMatch) {
-    prefetchProjectDetail(
-      queryClient,
-      accountKey,
-      Number(projectMatch[1]),
-      searchParams.get("platform"),
-    );
+    prefetchProjectDetail(queryClient, accountKey, Number(projectMatch[1]));
     return true;
   }
 
   if (path === "/projects") {
     void queryClient.prefetchQuery({
       queryKey: buildQueryKeys.projects(accountKey),
-      queryFn: () => deploymentSources(),
+      queryFn: () => deploymentProjects(),
       staleTime: buildQueryStaleTime.projects,
       retry: false,
     });
@@ -123,7 +108,7 @@ export function prefetchControlPlaneRoute(
   if (path === "/overview" || path === "/operate/deployments") {
     void queryClient.prefetchQuery({
       queryKey: buildQueryKeys.projects(accountKey),
-      queryFn: () => deploymentSources(),
+      queryFn: () => deploymentProjects(),
       staleTime: buildQueryStaleTime.projects,
       retry: false,
     });
@@ -146,13 +131,9 @@ export function prefetchControlPlaneRoute(
   }
 
   if (path === "/integrations") {
-    // The bot list is builder-wide, but the apps it can be pointed at come
-    // from platform-bound sources — so the read is platform-scoped and the
-    // key has to say which one, or a partner-platform visit warms Community.
-    const platform = searchParams.get("platform");
     void queryClient.prefetchQuery({
-      queryKey: buildQueryKeys.bots(accountKey, platform),
-      queryFn: () => operateFetch("bots", { platform }),
+      queryKey: buildQueryKeys.bots(accountKey),
+      queryFn: () => operateFetch("bots"),
       staleTime: buildQueryStaleTime.operate,
       retry: false,
     });
@@ -171,20 +152,18 @@ export function prefetchControlPlaneRoute(
 
   const kind = OPERATE_ROUTES[path];
   if (!kind) return false;
-  const sourceId = Number(searchParams.get("project"));
-  const scopedSourceId =
-    Number.isSafeInteger(sourceId) && sourceId > 0 ? sourceId : null;
-  const platform = searchParams.get("platform");
+  const projectId = Number(searchParams.get("project"));
+  const scopedProjectId =
+    Number.isSafeInteger(projectId) && projectId > 0 ? projectId : null;
   void queryClient.prefetchQuery({
     queryKey:
       kind === "bots"
-        ? buildQueryKeys.bots(accountKey, platform)
-        : buildQueryKeys.operate(accountKey, kind, scopedSourceId, platform),
+        ? buildQueryKeys.bots(accountKey)
+        : buildQueryKeys.operate(accountKey, kind, scopedProjectId),
     queryFn: () =>
-      operateFetch(kind, {
-        sourceId: scopedSourceId,
-        platform,
-      }),
+      kind === "bots"
+        ? operateFetch(kind)
+        : operateFetch(kind, { projectId: scopedProjectId }),
     staleTime: buildQueryStaleTime.operate,
     retry: false,
   });

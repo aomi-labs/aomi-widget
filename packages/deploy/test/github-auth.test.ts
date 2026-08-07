@@ -3,10 +3,12 @@
 // "Sign in with GitHub" auth route factory.
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { DeploymentClient } from "../src/client";
-import { createGitHubSessionCodec } from "../src/bff/github-session";
-import { createGitHubAuthRoutes } from "../src/bff/github-auth-routes";
-import { readCookie } from "../src/bff/cookies";
+import { BackendClient } from "../src/backend";
+import {
+  createGitHubAuthRoutes,
+  createGitHubSessionCodec,
+} from "../src/bff/auth";
+import { readCookie } from "../src/bff/http";
 
 const SECRET = "test-secret-at-least-16-chars";
 
@@ -17,7 +19,7 @@ function codec() {
 function authRoutes() {
   return createGitHubAuthRoutes({
     client: () =>
-      new DeploymentClient({
+      new BackendClient({
         aomi: {
           backendUrl: "http://127.0.0.1:8080",
           activationToken: "service-token",
@@ -74,7 +76,7 @@ describe("createGitHubSessionCodec", () => {
   it("reads the session from a request cookie header", async () => {
     const c = codec();
     const token = await c.issue({ githubUserId: "42", githubLogin: "alice" });
-    const req = new Request("http://localhost:3000/api/bff/launch/sources", {
+    const req = new Request("http://localhost:3000/api/bff/launch/projects", {
       headers: { cookie: `other=1; aomi_github=${encodeURIComponent(token)}` },
     });
     const session = await c.fromRequest(req);

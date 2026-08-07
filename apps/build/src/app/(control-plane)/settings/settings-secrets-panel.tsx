@@ -10,8 +10,8 @@ import {
   LoadingPanel,
 } from "@build/features/launch/components/deployments/ui/state-panels";
 
-function environmentHref(sourceId: number) {
-  return `/projects/${sourceId}?tab=environment`;
+function environmentHref(projectId: number) {
+  return `/projects/${projectId}?tab=environment`;
 }
 
 function projectLabel(source: {
@@ -36,7 +36,7 @@ export function SettingsSecretsPanel() {
     return <ErrorPanel message={state.error} />;
   }
 
-  if (state.sources.length === 0) {
+  if (state.projects.length === 0) {
     return (
       <div className="rounded-lg border border-border bg-surface-1 p-4">
         <div className="text-sm font-medium text-foreground">
@@ -55,8 +55,8 @@ export function SettingsSecretsPanel() {
     );
   }
 
-  if (state.sources.length === 1) {
-    const only = state.sources[0]!;
+  if (state.projects.length === 1) {
+    const only = state.projects[0]!;
     const label = projectLabel(only);
 
     return (
@@ -94,7 +94,7 @@ export function SettingsSecretsPanel() {
       </div>
 
       <ul className="divide-border overflow-hidden rounded-lg border border-border bg-surface-1 divide-y">
-        {state.sources.map((source) => (
+        {state.projects.map((source) => (
           <li key={source.id}>
             <Link
               href={environmentHref(source.id)}

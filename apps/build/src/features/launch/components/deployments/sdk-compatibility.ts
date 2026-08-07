@@ -1,8 +1,8 @@
-import type { UserSource } from "@aomi-labs/deploy";
+import type { UserProject } from "@aomi-labs/deploy";
 
 export type SdkCompatibility = "current" | "outdated" | "unknown";
 
-export function sourceSdkVersion(source: UserSource): string | null {
+export function sourceSdkVersion(source: UserProject): string | null {
   return (
     source.sdkVersion ??
     source.latestDeployment?.sdkVersion ??

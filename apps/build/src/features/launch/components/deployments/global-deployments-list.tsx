@@ -53,7 +53,7 @@ export function GlobalDeploymentsList() {
   const {
     projectsState,
     recordsState,
-    sources,
+    projects,
     reload,
     loadMore,
     hasMore,
@@ -82,7 +82,7 @@ export function GlobalDeploymentsList() {
     return deployments.filter((deployment) => {
       if (
         sourceFilter !== "all" &&
-        String(deployment.sourceId) !== sourceFilter
+        String(deployment.projectId) !== sourceFilter
       ) {
         return false;
       }
@@ -108,7 +108,7 @@ export function GlobalDeploymentsList() {
             (deployment) =>
               deployment.deploymentId === selectedDeploymentId &&
               (projectParam == null ||
-                String(deployment.sourceId) === projectParam),
+                String(deployment.projectId) === projectParam),
           )
         : null,
     [deployments, projectParam, selectedDeploymentId],
@@ -151,7 +151,7 @@ export function GlobalDeploymentsList() {
               className="border-border bg-surface-1 h-8 rounded-md border px-2 text-sm"
             >
               <option value="all">All projects</option>
-              {sources.map((source) => (
+              {projects.map((source) => (
                 <option key={source.id} value={source.id}>
                   {source.repositoryLink ?? `Project ${source.id}`}
                 </option>
@@ -201,7 +201,7 @@ export function GlobalDeploymentsList() {
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   <Link
-                    href={`/projects/${selectedDeployment.sourceId}`}
+                    href={`/projects/${selectedDeployment.projectId}`}
                     prefetch={false}
                     className="border-border bg-surface-1 hover:bg-accent-hover inline-flex h-8 items-center rounded-md border px-3 text-xs font-medium"
                   >
@@ -246,8 +246,8 @@ export function GlobalDeploymentsList() {
             <div className="divide-border divide-y">
               {filtered.map((deployment) => (
                 <Link
-                  key={`${deployment.sourceId}-${deployment.deploymentId}`}
-                  href={`/operate/deployments?project=${deployment.sourceId}&deployment=${encodeURIComponent(deployment.deploymentId)}`}
+                  key={`${deployment.projectId}-${deployment.deploymentId}`}
+                  href={`/operate/deployments?project=${deployment.projectId}&deployment=${encodeURIComponent(deployment.deploymentId)}`}
                   prefetch={false}
                   className="hover:bg-accent-hover grid min-h-[76px] grid-cols-[minmax(0,1fr)_auto] items-center gap-4 px-4 py-3"
                 >

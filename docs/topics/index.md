@@ -38,6 +38,10 @@ Use `./scripts/repowiki list` to enumerate topics and `./scripts/repowiki look <
 
 - [development/facts/workspace.md](development/facts/workspace.md): workspace package graph and build flows
 
+## Deploy
+
+- [deploy/facts/projects.md](deploy/facts/projects.md): canonical project types, account/platform read scopes, and removed compatibility surfaces
+
 ## Supporting References
 
 - [../index.md](../index.md): repo wiki entrypoint and policy

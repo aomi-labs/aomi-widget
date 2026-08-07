@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { UserSource } from "@aomi-labs/deploy";
+import type { UserProject } from "@aomi-labs/deploy";
 import {
-  deploymentSources,
+  deploymentProjects,
   deploymentSdkStatus,
 } from "@portal/features/launch/client";
 import type { LaunchSdkStatus } from "@portal/features/launch/contracts";
@@ -17,7 +17,7 @@ export type ProjectsState =
   | { status: "signed_out"; sdk: LaunchSdkStatus | null }
   | {
       status: "ready";
-      sources: UserSource[];
+      projects: UserProject[];
       sdk: LaunchSdkStatus | null;
       github: GitHubSessionInfo;
     }
@@ -37,8 +37,8 @@ export function useProjects() {
         setState({ status: "signed_out", sdk });
         return;
       }
-      const { sources } = await deploymentSources();
-      setState({ status: "ready", sources, sdk, github });
+      const { projects } = await deploymentProjects();
+      setState({ status: "ready", projects, sdk, github });
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Failed to load projects";

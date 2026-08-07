@@ -80,7 +80,7 @@ export function OneshotWizard({
       patch({
         installationId: result.installationId,
         repo: result.repo,
-        appSourceId: result.appSourceId,
+        projectId: result.projectId,
         sourceRef: result.sourceRef,
       });
     } catch (err) {

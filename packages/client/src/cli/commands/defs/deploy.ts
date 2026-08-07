@@ -17,12 +17,11 @@ export const deployDef = defineCommand({
       description:
         "Platform activation token (required; or set AOMI_DEPLOY_TOKEN env)",
     },
-    "app-source-id": {
+    "project-id": {
       type: "string",
-      description:
-        "Backend app source ID (required; or set AOMI_APP_SOURCE_ID env)",
+      description: "Backend project ID (required; or set AOMI_PROJECT_ID env)",
     },
-    "preflight": {
+    preflight: {
       type: "boolean",
       description: "Preview the deployment manifest without applying it",
     },
@@ -35,15 +34,10 @@ export const deployDef = defineCommand({
       type: "string",
       description: "Deploy a specific commit SHA instead of a branch tip",
     },
-    "aomi-toml-paths": {
-      type: "string",
-      description:
-        "Comma-separated paths to aomi.toml files (default: discover)",
-    },
     platform: {
       type: "string",
       description:
-        "Deploy platform (default: community; or set AOMI_DEPLOY_PLATFORM env)",
+        "Authentication platform for browser login (the Project determines the deployment platform)",
     },
   },
   async run({ args }) {

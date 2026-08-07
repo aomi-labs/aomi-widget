@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { DeploymentClient } from "../src/client";
+import { BackendClient } from "../src/backend";
 import { DeployError } from "../src/errors";
 import type { AuditEvent } from "../src/types";
 
@@ -10,7 +10,7 @@ function client(opts?: {
   adminBearer?: string;
   onAudit?: (event: AuditEvent) => void;
 }) {
-  return new DeploymentClient({
+  return new BackendClient({
     aomi: {
       backendUrl: "https://staging-api.example.com/",
       activationToken: opts?.activationToken,
@@ -24,7 +24,7 @@ function jsonOnce(fetchMock: ReturnType<typeof vi.fn>, body: unknown) {
   fetchMock.mockResolvedValueOnce(Response.json(body));
 }
 
-describe("DeploymentClient bootstrap — tokens", () => {
+describe("BackendClient bootstrap — tokens", () => {
   let fetchMock: ReturnType<typeof vi.fn>;
   beforeEach(() => {
     fetchMock = vi.fn();
@@ -151,7 +151,7 @@ describe("DeploymentClient bootstrap — tokens", () => {
   });
 });
 
-describe("DeploymentClient bootstrap — sources", () => {
+describe("BackendClient bootstrap — projects", () => {
   let fetchMock: ReturnType<typeof vi.fn>;
   beforeEach(() => {
     fetchMock = vi.fn();
@@ -159,53 +159,50 @@ describe("DeploymentClient bootstrap — sources", () => {
   });
   afterEach(() => vi.unstubAllGlobals());
 
-  const sourceBody = {
+  const projectBody = {
     ok: true,
-    source: {
+    project: {
       id: 99,
       installation_id: 555,
       repository_id: 111,
       repository_link: "https://github.com/alice/alice-bot",
-      source_ref: "abc1234def5678",
-      commit_hash: "abc1234def5678",
-      github_account: "alice",
-      github_user_id: 222,
-      bound_platform_id: 3,
+      platform_id: 3,
+      owner_builder_id: 222,
+      created_at: 1,
+      updated_at: 2,
     },
   };
 
-  it("syncs an installed source and maps to camelCase", async () => {
-    jsonOnce(fetchMock, sourceBody);
-    const src = await client({ activationToken: "plat-tok" }).syncSource({
+  it("creates an installed project and maps to camelCase", async () => {
+    jsonOnce(fetchMock, projectBody);
+    const src = await client({ activationToken: "plat-tok" }).createProject({
       platform: "playground",
       repo: "alice/alice-bot",
+      githubUserId: "222",
     });
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe(
-      "https://staging-api.example.com/api/platforms/playground/sources/sync-installed",
+      "https://staging-api.example.com/api/platforms/playground/projects",
     );
     expect(JSON.parse((init as RequestInit).body as string)).toEqual({
       repo: "alice/alice-bot",
+      github_user_id: "222",
     });
     expect(src).toEqual({
       id: 99,
       installationId: 555,
       repositoryId: 111,
       repositoryLink: "https://github.com/alice/alice-bot",
-      sourceRef: "abc1234def5678",
-      commitHash: "abc1234def5678",
-      githubAccount: "alice",
-      githubUserId: 222,
-      boundPlatformId: 3,
-      boundPlatformName: null,
-      createdBy: null,
-      templateRepo: null,
+      platformId: 3,
+      ownerBuilderId: 222,
+      createdAt: 1,
+      updatedAt: 2,
     });
   });
 
   it("binds an installed source to the signed-in GitHub user when provided", async () => {
-    jsonOnce(fetchMock, sourceBody);
-    await client({ activationToken: "plat-tok" }).syncSource({
+    jsonOnce(fetchMock, projectBody);
+    await client({ activationToken: "plat-tok" }).createProject({
       platform: "playground",
       repo: "alice/alice-bot",
       githubUserId: "222",
@@ -219,7 +216,7 @@ describe("DeploymentClient bootstrap — sources", () => {
   });
 
   it("scaffolds from the caller-provided template and maps the source", async () => {
-    jsonOnce(fetchMock, sourceBody);
+    jsonOnce(fetchMock, projectBody);
     const src = await client({ activationToken: "plat-tok" }).scaffold({
       platform: "playground",
       installationId: 555,
@@ -229,7 +226,7 @@ describe("DeploymentClient bootstrap — sources", () => {
     });
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe(
-      "https://staging-api.example.com/api/integrations/github-app/platforms/playground/sources/create-from-template",
+      "https://staging-api.example.com/api/integrations/github-app/platforms/playground/projects/create-from-template",
     );
     expect(JSON.parse((init as RequestInit).body as string)).toEqual({
       installation_id: 555,
@@ -242,7 +239,7 @@ describe("DeploymentClient bootstrap — sources", () => {
   });
 });
 
-describe("DeploymentClient bootstrap — apps", () => {
+describe("BackendClient bootstrap — apps", () => {
   let fetchMock: ReturnType<typeof vi.fn>;
   beforeEach(() => {
     fetchMock = vi.fn();
@@ -250,8 +247,10 @@ describe("DeploymentClient bootstrap — apps", () => {
   });
   afterEach(() => vi.unstubAllGlobals());
 
-  it("lists apps and maps to camelCase", async () => {
+  it("reads a project's apps and maps to camelCase", async () => {
     jsonOnce(fetchMock, {
+      project: { id: 99, installation_id: 555 },
+      platform: "playground",
       apps: [
         {
           id: 5,
@@ -259,44 +258,34 @@ describe("DeploymentClient bootstrap — apps", () => {
           label: "My Bot",
           is_active: true,
           is_public: true,
-          app_source_id: 99,
+          project_id: 99,
           app_release_tag: "apps-555-r1-my-bot-abc1234",
           target_tags: ["staging"],
           loaded: true,
         },
       ],
     });
-    const apps = await client({ activationToken: "plat-tok" }).listApps({
-      platform: "playground",
-    });
-    expect(apps[0]).toEqual({
+    const result = await client({
+      activationToken: "plat-tok",
+    }).listUserProjectApps({ githubUserId: "42", projectId: 99 });
+    const [url] = fetchMock.mock.calls[0];
+    expect(String(url)).toBe(
+      "https://staging-api.example.com/api/integrations/github-app/user/projects/99/apps?github_user_id=42",
+    );
+    expect(result.platform).toBe("playground");
+    expect(result.apps[0]).toEqual({
       id: 5,
       name: "my-bot",
       label: "My Bot",
       platform: null,
       isActive: true,
       isPublic: true,
-      appSourceId: 99,
+      projectId: 99,
       appReleaseTag: "apps-555-r1-my-bot-abc1234",
       artifactReady: false,
       targetTags: ["staging"],
       loaded: true,
       pricing: null,
     });
-  });
-
-  it("gets a single app", async () => {
-    jsonOnce(fetchMock, {
-      app: { id: 5, name: "my-bot", is_active: true, loaded: true },
-    });
-    const app = await client({ activationToken: "plat-tok" }).getApp({
-      platform: "playground",
-      app: "my-bot",
-    });
-    const [url] = fetchMock.mock.calls[0];
-    expect(url).toBe(
-      "https://staging-api.example.com/api/platforms/playground/apps/my-bot",
-    );
-    expect(app).toMatchObject({ id: 5, name: "my-bot", loaded: true });
   });
 });

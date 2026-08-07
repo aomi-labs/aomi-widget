@@ -4,9 +4,9 @@
 // injected client/session seams instead of portal module mocks.
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { DeploymentClient } from "../src/client";
+import { BackendClient } from "../src/backend";
 import { createLaunchRoutes } from "../src/bff/launch-routes";
-import type { GitHubSession } from "../src/bff/github-session";
+import type { GitHubSession } from "../src/bff/auth";
 
 const BACKEND = "http://127.0.0.1:8080";
 
@@ -15,7 +15,7 @@ const session = vi.fn<() => Promise<GitHubSession | null>>(async () => null);
 function routes() {
   return createLaunchRoutes({
     client: () =>
-      new DeploymentClient({
+      new BackendClient({
         aomi: { backendUrl: BACKEND, activationToken: "service-token" },
       }),
     session: () => session(),
@@ -39,14 +39,31 @@ function readReq(path: string, query = "") {
   );
 }
 
-function activationSource(id = 99) {
+function ownedProjects(id = 99, platformName = "community") {
   return Response.json({
-    sources: [
+    projects: [
       {
         id,
         installation_id: 555,
+        repository_link: "alice/bot",
+        platform_name: platformName,
+        apps: [],
+      },
+    ],
+  });
+}
+
+function activationProject(id = 99) {
+  return Response.json({
+    projects: [
+      {
+        id,
+        installation_id: 555,
+        repository_link: "alice/bot",
+        platform_name: "community",
         apps: [
           {
+            id: 77,
             name: "my-bot",
             app_release_tag: "apps-555-r1-my-bot-abc",
           },
@@ -56,11 +73,14 @@ function activationSource(id = 99) {
   });
 }
 
-function sourceDeployments() {
+function projectDeployments() {
   return Response.json({
     deployments: [
       {
         deployment_id: "dep_1",
+        project_id: 99,
+        repository_link: "alice/bot",
+        created_at: 1,
         release_tags: ["apps-555-r1-my-bot-abc"],
         apps: [{ name: "my-bot", release_tag: "apps-555-r1-my-bot-abc" }],
       },
@@ -68,22 +88,26 @@ function sourceDeployments() {
   });
 }
 
-/** Like `activationSource`, but with a `latestDeployment.platformRepo` so the
+/** Like `activationProject`, but with a `latestDeployment.platformRepo` so the
  *  required-secrets check has a manifest to read. */
-function activationSourceWithRepo(platformRepo: string, id = 99) {
+function activationProjectWithRepo(platformRepo: string, id = 99) {
   return Response.json({
-    sources: [
+    projects: [
       {
         id,
         installation_id: 555,
+        repository_link: "alice/bot",
+        platform_name: "community",
         apps: [
           {
+            id: 77,
             name: "my-bot",
             app_release_tag: "apps-555-r1-my-bot-abc",
           },
         ],
         latest_deployment: {
           platform_repo: platformRepo,
+          created_at: 1,
           apps: [{ name: "my-bot", release_tag: "apps-555-r1-my-bot-abc" }],
         },
       },
@@ -99,45 +123,45 @@ afterEach(() => {
 
 describe("createLaunchRoutes deploy/preflight", () => {
   it("propagates BackendError status codes (400-599)", async () => {
-    const fetchMock = vi.fn().mockResolvedValueOnce(
-      new Response(JSON.stringify({ error: "deploy rejected" }), {
-        status: 409,
-        headers: { "Content-Type": "application/json" },
-      }),
-    );
+    session.mockResolvedValueOnce({ githubUserId: "42", githubLogin: "alice" });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(ownedProjects(123))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: "deploy rejected" }), {
+          status: 409,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
     vi.stubGlobal("fetch", fetchMock);
 
     const res = await routes().deploy(
-      writeReq("deploy", { appSourceId: 123, sourceRef: "abc1234def5678" }),
+      writeReq("deploy", {
+        projectId: 123,
+        sourceRef: "abc1234def5678",
+      }),
     );
     const body = await res.json();
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(res.status).toBe(409);
     expect(body).toEqual({ error: "deploy rejected" });
   });
 
-  it("preflight mints the source row by repo, then previews by app source id", async () => {
+  it("preflight resolves the existing Project by repo and its immutable commit", async () => {
     session.mockResolvedValueOnce({ githubUserId: "42", githubLogin: "alice" });
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(
-        Response.json({
-          ok: true,
-          source: {
-            id: 123,
-            installation_id: 555,
-            repository_link: "alice/bot",
-            source_ref: "abc1234def5678",
-          },
-        }),
-      )
+      .mockResolvedValueOnce(ownedProjects(123))
       .mockResolvedValueOnce(
         Response.json({
           ok: true,
           deployment: {
             id: "dep_555_rabc1234_deadbeef",
-            source: { repository_link: "alice/bot" },
+            source: {
+              repository_link: "alice/bot",
+              commit_hash: "abc1234def5678",
+            },
             platform: { apps: [] },
           },
         }),
@@ -153,23 +177,23 @@ describe("createLaunchRoutes deploy/preflight", () => {
     expect(body.repo).toBe("alice/bot");
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
-      `${BACKEND}/api/platforms/community/sources/sync-installed`,
+      `${BACKEND}/api/integrations/github-app/user/projects?github_user_id=42`,
       expect.objectContaining({
-        method: "POST",
-        body: JSON.stringify({ repo: "alice/bot", github_user_id: "42" }),
+        method: "GET",
       }),
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
-      `${BACKEND}/api/platforms/community/deploy`,
+      `${BACKEND}/api/projects/123/deploy`,
       expect.objectContaining({
         method: "POST",
-        body: expect.stringContaining('"source_ref":"abc1234def5678"'),
+        body: JSON.stringify({ preflight: true }),
       }),
     );
   });
 
-  it("real deploy rejects a repo-only request without an app source id", async () => {
+  it("real deploy rejects a repo-only request without a project id", async () => {
+    session.mockResolvedValueOnce({ githubUserId: "42", githubLogin: "alice" });
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
 
@@ -180,22 +204,29 @@ describe("createLaunchRoutes deploy/preflight", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("deploys directly by appSourceId when the source identity is already known", async () => {
-    const fetchMock = vi.fn().mockResolvedValueOnce(
-      Response.json({
-        ok: true,
-        deployment: {
-          id: "dep_999_rabc1234_deadbeef",
-          source: { installation_id: 999, repository_link: "alice/bot" },
-          platform: { apps: [] },
-        },
-      }),
-    );
+  it("deploys directly by projectId when the project identity is already known", async () => {
+    session.mockResolvedValueOnce({ githubUserId: "42", githubLogin: "alice" });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(ownedProjects(777))
+      .mockResolvedValueOnce(
+        Response.json({
+          ok: true,
+          deployment: {
+            id: "dep_999_rabc1234_deadbeef",
+            source: {
+              installation_id: 999,
+              repository_link: "alice/bot",
+            },
+            platform: { apps: [] },
+          },
+        }),
+      );
     vi.stubGlobal("fetch", fetchMock);
 
     const res = await routes().deploy(
       writeReq("deploy", {
-        appSourceId: 777,
+        projectId: 777,
         sourceRef: "abc1234def5678",
         installationId: "555",
         repo: "alice/bot",
@@ -204,10 +235,10 @@ describe("createLaunchRoutes deploy/preflight", () => {
     const body = await res.json();
 
     expect(res.status).toBe(202);
-    expect(body).toMatchObject({ repo: "alice/bot", appSourceId: 777 });
+    expect(body).toMatchObject({ repo: "alice/bot", projectId: 777 });
     expect(fetchMock).toHaveBeenNthCalledWith(
-      1,
-      `${BACKEND}/api/platforms/community/deploy`,
+      2,
+      `${BACKEND}/api/projects/777/deploy`,
       expect.objectContaining({
         method: "POST",
         body: expect.stringContaining('"source_ref":"abc1234def5678"'),
@@ -215,19 +246,61 @@ describe("createLaunchRoutes deploy/preflight", () => {
     );
   });
 
-  it("rejects deploy requests when no source commit is supplied or resolved", async () => {
-    const fetchMock = vi.fn();
+  it("deploys by Project identity without a client-selected platform", async () => {
+    session.mockResolvedValueOnce({ githubUserId: "42", githubLogin: "alice" });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(ownedProjects(777, "somm.finance"))
+      .mockResolvedValueOnce(
+        Response.json({
+          ok: true,
+          deployment: {
+            id: "dep_999_rabc1234_deadbeef",
+            source: { repository_link: "alice/bot" },
+            platform: { apps: [] },
+          },
+        }),
+      );
     vi.stubGlobal("fetch", fetchMock);
 
-    const res = await routes().deploy(writeReq("deploy", { appSourceId: 777 }));
+    const res = await routes().deploy(
+      writeReq("deploy", { projectId: 777, sourceRef: "abc1234def5678" }),
+    );
+
+    expect(res.status).toBe(202);
+    expect(String(fetchMock.mock.calls[1][0])).toBe(
+      `${BACKEND}/api/projects/777/deploy`,
+    );
+  });
+
+  it("404s a deploy for a project the session user does not own", async () => {
+    session.mockResolvedValueOnce({ githubUserId: "42", githubLogin: "alice" });
+    const fetchMock = vi.fn().mockResolvedValueOnce(ownedProjects(1));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await routes().deploy(
+      writeReq("deploy", { projectId: 777, sourceRef: "abc1234def5678" }),
+    );
+
+    expect(res.status).toBe(404);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects deploy requests when no source commit is supplied or resolved", async () => {
+    session.mockResolvedValueOnce({ githubUserId: "42", githubLogin: "alice" });
+    const fetchMock = vi.fn().mockResolvedValueOnce(ownedProjects(777));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await routes().deploy(writeReq("deploy", { projectId: 777 }));
     const body = await res.json();
 
     expect(res.status).toBe(400);
     expect(body.error).toContain("missing source commit");
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it("rejects a request without appSourceId or repo before calling the backend", async () => {
+  it("rejects a request without projectId or repo before calling the backend", async () => {
+    session.mockResolvedValueOnce({ githubUserId: "42", githubLogin: "alice" });
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
 
@@ -235,6 +308,18 @@ describe("createLaunchRoutes deploy/preflight", () => {
       writeReq("deploy", { installationId: "555" }),
     );
     expect(res.status).toBe(400);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("401s a deploy without a GitHub session", async () => {
+    session.mockResolvedValueOnce(null);
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await routes().deploy(
+      writeReq("deploy", { projectId: 777, sourceRef: "abc1234def5678" }),
+    );
+    expect(res.status).toBe(401);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -250,11 +335,15 @@ describe("createLaunchRoutes deploy/preflight", () => {
   });
 
   it("returns 502 for non-BackendError exceptions", async () => {
+    session.mockResolvedValueOnce({ githubUserId: "42", githubLogin: "alice" });
     const fetchMock = vi.fn().mockRejectedValueOnce(new Error("network down"));
     vi.stubGlobal("fetch", fetchMock);
 
     const res = await routes().deploy(
-      writeReq("deploy", { appSourceId: 123, sourceRef: "abc1234def5678" }),
+      writeReq("deploy", {
+        projectId: 123,
+        sourceRef: "abc1234def5678",
+      }),
     );
     // A thrown fetch becomes BackendError(status 0) — not a client 4xx.
     expect(res.status).toBe(502);
@@ -270,7 +359,7 @@ describe("createLaunchRoutes deploy/preflight", () => {
         origin: "http://evil.example",
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ appSourceId: 123, sourceRef: "abc1234def5678" }),
+      body: JSON.stringify({ projectId: 123, sourceRef: "abc1234def5678" }),
     });
     const res = await routes().deploy(req);
     expect(res.status).toBe(403);
@@ -283,10 +372,12 @@ describe("createLaunchRoutes redeploy", () => {
     session.mockResolvedValueOnce({ githubUserId: "42", githubLogin: "alice" });
     const fetchMock = vi
       .fn()
+      .mockResolvedValueOnce(ownedProjects(99))
       .mockResolvedValueOnce(
         Response.json({
           latest_deployment: {
             deployment_id: "dep_1",
+            created_at: 1,
             platform_repo: "aomi-labs/community-apps",
             ci_run_id: "123456",
             ci_url:
@@ -307,52 +398,55 @@ describe("createLaunchRoutes redeploy", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const res = await routes().redeploy(
-      writeReq("redeploy", { appSourceId: 99 }),
+      writeReq("redeploy", { projectId: 99 }),
     );
     const body = await res.json();
 
     expect(res.status).toBe(200);
     expect(body).toMatchObject({
       ok: true,
-      appSourceId: 99,
+      projectId: 99,
       platformRepo: "aomi-labs/community-apps",
       ciRunId: "123456",
     });
     // The rerun call goes to the Aomi backend, never to api.github.com.
-    expect(String(fetchMock.mock.calls[1][0])).toContain(
+    expect(String(fetchMock.mock.calls[2][0])).toContain(
       "/api/platforms/community/deployments/dep_1/rerun?github_user_id=42",
     );
-    expect(fetchMock.mock.calls[1][1]).toMatchObject({ method: "POST" });
-    expect(String(fetchMock.mock.calls[0][0])).toContain(
-      "/api/integrations/github-app/user/sources/99/latest-deployment?github_user_id=42&platform=community",
+    expect(fetchMock.mock.calls[2][1]).toMatchObject({ method: "POST" });
+    expect(String(fetchMock.mock.calls[1][0])).toContain(
+      "/api/integrations/github-app/user/projects/99/latest-deployment?github_user_id=42",
     );
   });
 
-  it("refuses redeploy when the source has no backend-owned deployment yet", async () => {
+  it("refuses redeploy when the project has no backend-owned deployment yet", async () => {
     session.mockResolvedValueOnce({ githubUserId: "42", githubLogin: "alice" });
     const fetchMock = vi
       .fn()
+      .mockResolvedValueOnce(ownedProjects(99))
       .mockResolvedValueOnce(Response.json({ latest_deployment: null }));
     vi.stubGlobal("fetch", fetchMock);
 
     const res = await routes().redeploy(
-      writeReq("redeploy", { appSourceId: 99 }),
+      writeReq("redeploy", { projectId: 99 }),
     );
     const body = await res.json();
 
     expect(res.status).toBe(409);
     expect(body.error).toContain("No backend-owned deployment");
-    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("propagates a backend rerun rejection instead of masking it", async () => {
     session.mockResolvedValueOnce({ githubUserId: "42", githubLogin: "alice" });
     const fetchMock = vi
       .fn()
+      .mockResolvedValueOnce(ownedProjects(99))
       .mockResolvedValueOnce(
         Response.json({
           latest_deployment: {
             deployment_id: "dep_1",
+            created_at: 1,
             platform_repo: "aomi-labs/community-apps",
             ci_run_id: "123456",
             ci_url:
@@ -372,7 +466,7 @@ describe("createLaunchRoutes redeploy", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const res = await routes().redeploy(
-      writeReq("redeploy", { appSourceId: 99 }),
+      writeReq("redeploy", { projectId: 99 }),
     );
     const body = await res.json();
 
@@ -451,25 +545,26 @@ describe("createLaunchRoutes status", () => {
   });
 });
 
-describe("createLaunchRoutes sources", () => {
+describe("createLaunchRoutes projects", () => {
   it("401s when there is no GitHub session", async () => {
     session.mockResolvedValueOnce(null);
-    const res = await routes().sources(
-      new Request("http://localhost:3000/api/bff/launch/sources"),
+    const res = await routes().projects(
+      new Request("http://localhost:3000/api/bff/launch/projects"),
     );
     expect(res.status).toBe(401);
   });
 
-  it("returns the session user's sources, scoped to the cookie's github_user_id", async () => {
+  it("returns the session user's projects, scoped to the cookie's github_user_id", async () => {
     session.mockResolvedValueOnce({ githubUserId: "42", githubLogin: "alice" });
     const fetchMock = vi.fn(async () =>
       Response.json({
-        sources: [
+        projects: [
           {
             id: 99,
             installation_id: 555,
             repository_link: "https://github.com/alice/bot",
             github_user_id: "42",
+            platform_name: "community",
             apps: [
               {
                 id: 5,
@@ -485,13 +580,13 @@ describe("createLaunchRoutes sources", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    const res = await routes().sources(
-      new Request("http://localhost:3000/api/bff/launch/sources"),
+    const res = await routes().projects(
+      new Request("http://localhost:3000/api/bff/launch/projects"),
     );
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.githubLogin).toBe("alice");
-    expect(body.sources[0]).toMatchObject({
+    expect(body.projects[0]).toMatchObject({
       id: 99,
       installationId: 555,
       apps: [{ id: 5, name: "bot", isActive: true, loaded: true }],
@@ -499,8 +594,9 @@ describe("createLaunchRoutes sources", () => {
 
     const [url] = fetchMock.mock.calls[0];
     expect(String(url)).toContain(
-      "/api/integrations/github-app/user/sources?github_user_id=42&platform=community",
+      "/api/integrations/github-app/user/projects?github_user_id=42",
     );
+    expect(String(url)).not.toContain("platform=");
   });
 });
 
@@ -512,7 +608,7 @@ describe("createLaunchRoutes activate/app security", () => {
 
     const res = await routes().activate(
       writeReq("activate", {
-        appSourceId: 99,
+        projectId: 99,
         apps: ["my-bot"],
         releaseTags: ["apps-555-r1-my-bot-abc"],
       }),
@@ -522,7 +618,7 @@ describe("createLaunchRoutes activate/app security", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("requires activate appSourceId and app/tag pairs", async () => {
+  it("requires activate projectId and app/tag pairs", async () => {
     session.mockResolvedValue({ githubUserId: "42", githubLogin: "alice" });
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
@@ -541,7 +637,7 @@ describe("createLaunchRoutes activate/app security", () => {
       (
         await routes().activate(
           writeReq("activate", {
-            appSourceId: 99,
+            projectId: 99,
             releaseTags: ["apps-555-r1-my-bot-abc"],
           }),
         )
@@ -554,13 +650,13 @@ describe("createLaunchRoutes activate/app security", () => {
     session.mockResolvedValueOnce({ githubUserId: "42", githubLogin: "alice" });
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(activationSource())
-      .mockResolvedValueOnce(sourceDeployments());
+      .mockResolvedValueOnce(activationProject())
+      .mockResolvedValueOnce(projectDeployments());
     vi.stubGlobal("fetch", fetchMock);
 
     const res = await routes().activate(
       writeReq("activate", {
-        appSourceId: 99,
+        projectId: 99,
         apps: ["my-bot"],
         releaseTags: ["apps-555-r1-my-bot-wrong"],
       }),
@@ -575,8 +671,8 @@ describe("createLaunchRoutes activate/app security", () => {
     vi.stubEnv("GITHUB_TOKEN", "gh-token");
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(activationSourceWithRepo("aomi-labs/my-bot-app"))
-      .mockResolvedValueOnce(sourceDeployments())
+      .mockResolvedValueOnce(activationProjectWithRepo("aomi-labs/my-bot-app"))
+      .mockResolvedValueOnce(projectDeployments())
       .mockResolvedValueOnce(
         Response.json({
           by_app: { "my-bot": ["$SECRET:APP:my-bot::MY_BOT_API_KEY"] },
@@ -611,7 +707,7 @@ describe("createLaunchRoutes activate/app security", () => {
 
     const res = await routes().activate(
       writeReq("activate", {
-        appSourceId: 99,
+        projectId: 99,
         apps: ["my-bot"],
         releaseTags: ["apps-555-r1-my-bot-abc"],
       }),
@@ -631,8 +727,8 @@ describe("createLaunchRoutes activate/app security", () => {
     vi.stubEnv("GITHUB_TOKEN", "gh-token");
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(activationSourceWithRepo("aomi-labs/my-bot-app"))
-      .mockResolvedValueOnce(sourceDeployments())
+      .mockResolvedValueOnce(activationProjectWithRepo("aomi-labs/my-bot-app"))
+      .mockResolvedValueOnce(projectDeployments())
       .mockResolvedValueOnce(Response.json({ by_app: {} }))
       .mockResolvedValueOnce(Response.json({ assets: [] }))
       .mockResolvedValueOnce(
@@ -642,7 +738,7 @@ describe("createLaunchRoutes activate/app security", () => {
 
     const res = await routes().activate(
       writeReq("activate", {
-        appSourceId: 99,
+        projectId: 99,
         apps: ["my-bot"],
         releaseTags: ["apps-555-r1-my-bot-abc"],
       }),
@@ -657,11 +753,14 @@ describe("createLaunchRoutes activate/app security", () => {
     vi.stubEnv("GITHUB_TOKEN", "gh-token");
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(activationSource())
-      .mockResolvedValueOnce(sourceDeployments())
+      .mockResolvedValueOnce(activationProject())
+      .mockResolvedValueOnce(projectDeployments())
       .mockResolvedValueOnce(
         Response.json({
-          latest_deployment: { platform_repo: "aomi-labs/community" },
+          latest_deployment: {
+            platform_repo: "aomi-labs/community",
+            created_at: 1,
+          },
         }),
       )
       .mockResolvedValueOnce(Response.json({ by_app: {} }))
@@ -673,7 +772,7 @@ describe("createLaunchRoutes activate/app security", () => {
 
     const res = await routes().activate(
       writeReq("activate", {
-        appSourceId: 99,
+        projectId: 99,
         apps: ["my-bot"],
         releaseTags: ["apps-555-r1-my-bot-abc"],
       }),
@@ -703,7 +802,7 @@ describe("createLaunchRoutes activate/app security", () => {
 
     vi.restoreAllMocks();
     session.mockResolvedValueOnce({ githubUserId: "42", githubLogin: "alice" });
-    fetchMock = vi.fn().mockResolvedValueOnce(activationSource());
+    fetchMock = vi.fn().mockResolvedValueOnce(activationProject());
     vi.stubGlobal("fetch", fetchMock);
     res = await routes().app(readReq("app", "name=other"));
     expect(res.status).toBe(404);

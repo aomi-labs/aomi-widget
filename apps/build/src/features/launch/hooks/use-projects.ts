@@ -2,10 +2,10 @@
 
 import { useCallback, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import type { UserSource } from "@aomi-labs/deploy";
+import type { UserProject } from "@aomi-labs/deploy";
 import { useGitHubSession } from "@build/components/control-plane/github-session-context";
 import {
-  deploymentSources,
+  deploymentProjects,
   deploymentSdkStatus,
 } from "@build/features/launch/client";
 import type { LaunchSdkStatus } from "@build/features/launch/contracts";
@@ -21,7 +21,7 @@ export type ProjectsState =
   | { status: "signed_out"; sdk: LaunchSdkStatus | null }
   | {
       status: "ready";
-      sources: UserSource[];
+      projects: UserProject[];
       sdk: LaunchSdkStatus | null;
       github: GitHubSessionInfo;
     }
@@ -40,7 +40,7 @@ export function useProjects(platform?: string) {
   });
   const projects = useQuery({
     queryKey: buildQueryKeys.projects(accountKey ?? "unavailable", platform),
-    queryFn: () => deploymentSources(platform),
+    queryFn: () => deploymentProjects(platform),
     enabled: account.signedIn && accountKey !== null,
     staleTime: buildQueryStaleTime.projects,
   });
@@ -69,7 +69,7 @@ export function useProjects(platform?: string) {
     // freshly connected repo with no apps yet is a real project, not noise.
     return {
       status: "ready",
-      sources: projects.data?.sources ?? [],
+      projects: projects.data?.projects ?? [],
       sdk: sdk.data ?? null,
       github,
     };

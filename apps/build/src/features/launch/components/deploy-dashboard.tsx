@@ -19,8 +19,8 @@ import {
 import { Button } from "@aomi-labs/widget-lib";
 import {
   fetchGitHubSession,
-  fetchUserSources,
-  hasSourceForLaunchUrlContext,
+  fetchUserProjects,
+  hasProjectForLaunchUrlContext,
   launchActivate,
   launchRedeploy,
   launchSdkStatus,
@@ -35,9 +35,9 @@ import {
   type LaunchProgress,
   type LaunchSdkStatus,
 } from "@build/features/launch";
-import type { SecretSlot, UserSource } from "@aomi-labs/deploy";
+import type { SecretSlot, UserProject } from "@aomi-labs/deploy";
 import {
-  deploymentLifecycleFromSource,
+  deploymentLifecycleFromProject,
   deploymentLifecycleFromStatus,
   deploymentIdFromReleaseTag,
   failedActivationApp,
@@ -50,13 +50,13 @@ import { DeployStep } from "./deploy-step";
 import { Onboarding } from "./onboarding";
 
 // The subset of `useProjectDetail`'s return value the deploy dashboard needs
-// to gate Activate on required secrets — kept narrow (structural typing) so
-// this legacy flow doesn't have to mock the whole hook in tests.
+// to gate Activate on required secrets. Structural typing keeps component
+// tests focused on this contract instead of the entire hook.
 export type SecretsGateDetail = {
   hasMissingSecrets: (app: string) => boolean;
   requiredSecrets: Record<
     string,
-    { slots: SecretSlot[]; missing: string[] }
+    { applicationId: number; slots: SecretSlot[]; missing: string[] }
   > | null;
   loadRequiredSecrets: () => void;
 };
@@ -166,7 +166,7 @@ function SignedInDashboard({
   sessionInstallationId: string | null;
   onSignOut: () => void;
 }) {
-  const [sources, setSources] = useState<UserSource[] | null>(null);
+  const [projects, setSources] = useState<UserProject[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sdkStatus, setSdkStatus] = useState<LaunchSdkStatus | null>(null);
   const [sdkError, setSdkError] = useState<string | null>(null);
@@ -192,8 +192,8 @@ function SignedInDashboard({
     setLoading(true);
     setError(null);
     try {
-      const result = await fetchUserSources();
-      setSources(result.sources);
+      const result = await fetchUserProjects();
+      setSources(result.projects);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -222,7 +222,7 @@ function SignedInDashboard({
     };
   }, []);
 
-  if (loading && sources === null) {
+  if (loading && projects === null) {
     return <CenteredSpinner label="Loading your repositories…" />;
   }
 
@@ -231,9 +231,9 @@ function SignedInDashboard({
   );
 
   if (
-    sources !== null &&
+    projects !== null &&
     urlContext &&
-    !hasSourceForLaunchUrlContext(sources, urlContext)
+    !hasProjectForLaunchUrlContext(projects, urlContext)
   ) {
     return (
       <div className="space-y-6">
@@ -255,13 +255,13 @@ function SignedInDashboard({
   if (
     showInstall ||
     resumingWizard ||
-    (sources !== null && sources.length === 0)
+    (projects !== null && projects.length === 0)
   ) {
     return (
       <div className="space-y-6">
         {header}
         <SdkStatusPanel status={sdkStatus} error={sdkError} />
-        {showInstall && sources && sources.length > 0 && (
+        {showInstall && projects && projects.length > 0 && (
           <button
             type="button"
             onClick={() => setShowInstall(false)}
@@ -272,7 +272,7 @@ function SignedInDashboard({
         )}
         <Onboarding
           hideWizardBack
-          knownSources={sources ?? []}
+          knownSources={projects ?? []}
           sessionInstallationId={sessionInstallationId}
         />
       </div>
@@ -297,7 +297,7 @@ function SignedInDashboard({
         </Button>
       </div>
       <div className="space-y-4">
-        {(sources ?? []).map((source) => (
+        {(projects ?? []).map((source) => (
           <SourceCard key={source.id} source={source} />
         ))}
       </div>
@@ -463,14 +463,14 @@ function LaunchContextMismatch({
 
 // ── Page 3 card + Page 4 chat ────────────────────────────────────────────────
 
-function SourceCard({ source }: { source: UserSource }) {
+function SourceCard({ source }: { source: UserProject }) {
   const detail = useProjectDetail(source.id);
   const [localLiveApp, setLocalLiveApp] = useState<{
     name: string;
     applicationId?: number;
   } | null>(null);
   const lifecycle = useMemo(
-    () => deploymentLifecycleFromSource(source),
+    () => deploymentLifecycleFromProject(source),
     [source],
   );
   const [statusLifecycle, setStatusLifecycle] =
@@ -499,8 +499,8 @@ function SourceCard({ source }: { source: UserSource }) {
   const [progress, setProgress] = useState<LaunchProgress>(() => ({
     installationId: String(source.installationId),
     repo: lifecycle.repo,
-    appSourceId: source.id,
-    sourceRef: source.sourceRef ?? source.commitHash ?? undefined,
+    projectId: source.id,
+    sourceRef: lifecycle.commitHash ?? undefined,
     apps: lifecycle.appNames,
     releaseTags: lifecycle.releaseTags,
     live: visibleLifecycle.kind === "live",
@@ -571,7 +571,7 @@ function SourceCard({ source }: { source: UserSource }) {
         />
       ) : (
         <LifecyclePanel
-          appSourceId={source.id}
+          projectId={source.id}
           lifecycle={visibleLifecycle}
           onLifecycleChange={setStatusLifecycle}
           onLive={setLocalLiveApp}
@@ -619,13 +619,13 @@ function shouldShowChatForLifecycle(lifecycle: DeploymentLifecycle): boolean {
 }
 
 export function LifecyclePanel({
-  appSourceId,
+  projectId,
   lifecycle,
   onLifecycleChange,
   onLive,
   detail,
 }: {
-  appSourceId: number;
+  projectId: number;
   lifecycle: DeploymentLifecycle;
   onLifecycleChange: (lifecycle: DeploymentLifecycle) => void;
   onLive: (app: { name: string; applicationId?: number }) => void;
@@ -663,7 +663,7 @@ export function LifecyclePanel({
     setAction("activating");
     try {
       const result = await launchActivate({
-        appSourceId,
+        projectId,
         releaseTags: lifecycle.releaseTags,
         apps: lifecycle.appNames,
       });
@@ -708,19 +708,19 @@ export function LifecyclePanel({
       }
       setAction("idle");
     }
-  }, [appSourceId, lifecycle, onLifecycleChange, onLive]);
+  }, [projectId, lifecycle, onLifecycleChange, onLive]);
 
   const redeploy = useCallback(async () => {
     setError(null);
     setAction("redeploying");
     try {
-      await launchRedeploy({ appSourceId });
+      await launchRedeploy({ projectId });
       setAction("redeploy_done");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setAction("idle");
     }
-  }, [appSourceId]);
+  }, [projectId]);
 
   return (
     <div className="space-y-4 text-sm">
@@ -855,7 +855,7 @@ function LifecycleDetails({ lifecycle }: { lifecycle: DeploymentLifecycle }) {
       <SummaryTile
         label="Build"
         value={lifecycle.ciStatus ?? lifecycle.statusLabel}
-        detail={lifecycle.deployBranch ?? lifecycle.platformRepo ?? undefined}
+        detail={lifecycle.platformBranch ?? lifecycle.platformRepo ?? undefined}
         tone={
           lifecycle.ciStatus === "passed"
             ? "good"

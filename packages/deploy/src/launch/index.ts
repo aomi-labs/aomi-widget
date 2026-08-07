@@ -13,16 +13,18 @@ export {
   type LaunchClient,
   type LaunchClientOptions,
   type GitHubSessionInfo,
-  type UserSourcesResult,
+  type UserProjectsResult,
   type GithubAppOAuthStartResponse,
-  type UserSource,
-} from "./client";
+  type UserProject,
+} from "./browser-client";
 
 export {
   DEFAULT_TEMPLATE_REPO,
   resolveTemplateRepo,
   templateRepoUrl,
   templateGenerateUrl,
+  MissingRequiredSecretsError,
+  missingRequiredSecrets,
   type LaunchPath,
   type LaunchDeployPayload,
   type LaunchProgress,
@@ -35,7 +37,7 @@ export {
   type LaunchAppStatus,
   type LaunchRedeployResult,
   type LaunchSdkStatus,
-  type DeploymentSourcesResult,
+  type DeploymentProjectsResult,
   type DeploymentHistoryResult,
   type DeploymentFeedResult,
   type DeploymentSecretsResult,
@@ -43,16 +45,6 @@ export {
   type RequiredSecretsByApp,
   type RequiredSecretsResult,
 } from "./contracts";
-
-export {
-  MissingRequiredSecretsError,
-  missingRequiredSecrets,
-} from "./required-secrets";
-
-export {
-  connectionResult,
-  type RepositoryConnectionResult,
-} from "./connection-result";
 
 export {
   loadLaunch,
@@ -70,10 +62,17 @@ export {
   installationStatusLabel,
   GITHUB_REDIRECT_KEYS,
   ONESHOT_STEPS,
+  readLaunchUrlContext,
+  projectMatchesLaunchUrlContext,
+  hasProjectForLaunchUrlContext,
+  platformParam,
+  connectionResult,
   type LaunchState,
   type PendingInstall,
   type GithubRedirect,
   type OneshotStep,
+  type LaunchUrlContext,
+  type RepositoryConnectionResult,
 } from "./state";
 
 export {
@@ -82,11 +81,3 @@ export {
   watchDeploymentLoop,
   type WatchLoopOptions,
 } from "./watch";
-
-export {
-  readLaunchUrlContext,
-  sourceMatchesLaunchUrlContext,
-  hasSourceForLaunchUrlContext,
-  platformParam,
-  type LaunchUrlContext,
-} from "./url-context";

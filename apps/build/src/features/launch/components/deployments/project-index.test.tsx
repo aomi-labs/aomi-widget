@@ -5,12 +5,12 @@ vi.mock("@build/features/launch/hooks/use-projects", () => ({
   useProjects: vi.fn(() => ({
     state: {
       status: "ready",
-      sources: [
+      projects: [
         {
           id: 3,
           installationId: 1,
           repositoryLink: "alice/bot",
-          boundPlatformName: "somm.finance",
+          platformName: "somm.finance",
           apps: [],
           latestDeployment: null,
         },
@@ -41,7 +41,7 @@ describe("ProjectIndex", () => {
     await waitFor(() =>
       expect(screen.getByRole("link", { name: /alice\/bot/ })).toHaveAttribute(
         "href",
-        "/projects/3?platform=somm.finance",
+        "/projects/3",
       ),
     );
     expect(useProjects).toHaveBeenCalledWith("somm.finance");

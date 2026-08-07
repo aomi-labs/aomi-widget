@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { DeployStep } from "./deploy-step";
 import {
+  launchDeploy,
   launchPreflight,
   type LaunchDeployPayload,
   type LaunchProgress,
@@ -14,7 +15,7 @@ vi.mock("@build/features/launch", () => ({
   launchDeploy: vi.fn(),
   launchStatus: vi.fn(),
   launchActivate: vi.fn(),
-  deploymentSources: vi.fn(),
+  deploymentProjects: vi.fn(),
 }));
 
 vi.mock("@aomi-labs/widget-lib", () => ({
@@ -70,15 +71,47 @@ describe("DeployStep", () => {
     ).toBeInTheDocument();
   });
 
-  it("keeps the selected platform on preflight", async () => {
+  it("does not send the shell platform during project preflight", async () => {
     vi.mocked(launchPreflight).mockRejectedValueOnce(new Error("stop"));
     render(<DeployStep {...defaultProps} platform="somm.finance" />);
 
     fireEvent.click(screen.getByRole("button", { name: "Preflight" }));
 
+    await waitFor(() => expect(launchPreflight).toHaveBeenCalledOnce());
+    const input = vi.mocked(launchPreflight).mock.calls[0]?.[0];
+    expect(input).toMatchObject({ installationId: "12345", repo: "alice/bot" });
+    expect(input).not.toHaveProperty("platform");
+  });
+
+  it("deploys the immutable commit returned by preflight", async () => {
+    vi.mocked(launchPreflight).mockResolvedValueOnce({
+      repo: "alice/bot",
+      projectId: 42,
+      sourceRef: "abc1234",
+      deployment: {
+        id: "preview",
+        status: "preflight",
+        source: {
+          ref: "abc1234",
+        },
+        platform: {
+          apps: [],
+        },
+      },
+      releaseTags: [],
+      apps: [],
+    } as never);
+    vi.mocked(launchDeploy).mockRejectedValueOnce(new Error("stop"));
+    render(<DeployStep {...defaultProps} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Deploy" }));
+
     await waitFor(() =>
-      expect(launchPreflight).toHaveBeenCalledWith(
-        expect.objectContaining({ platform: "somm.finance" }),
+      expect(launchDeploy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          projectId: 42,
+          sourceRef: "abc1234",
+        }),
       ),
     );
   });
@@ -104,10 +137,8 @@ describe("DeployStep", () => {
           installationId: 12345,
           repositoryId: 1,
           repositoryLink: "a/b",
-          ownerRepoName: "a/b",
           ref: "abc123",
           commitHash: "abc123",
-          aomiTomlPaths: ["aomi.toml"],
         },
         platform: {
           platform: "community",
@@ -153,7 +184,11 @@ describe("DeployStep", () => {
     const detail = {
       hasMissingSecrets: (app: string) => app === "binance",
       requiredSecrets: {
-        binance: { slots: [], missing: ["BINANCE_API_KEY"] },
+        binance: {
+          applicationId: 17,
+          slots: [],
+          missing: ["BINANCE_API_KEY"],
+        },
       },
       loadRequiredSecrets: vi.fn(),
     };
@@ -172,7 +207,9 @@ describe("DeployStep", () => {
   it("does not show the required-secrets banner when nothing is missing", () => {
     const detail = {
       hasMissingSecrets: () => false,
-      requiredSecrets: { binance: { slots: [], missing: [] } },
+      requiredSecrets: {
+        binance: { applicationId: 17, slots: [], missing: [] },
+      },
       loadRequiredSecrets: vi.fn(),
     };
     render(

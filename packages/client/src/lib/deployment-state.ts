@@ -4,7 +4,7 @@ import { join } from "path";
 export interface DeploymentState {
   deploymentId: string;
   platform: string;
-  appSourceId: number;
+  projectId: number;
   releaseTags: string[];
   apps: string[];
   timestamp: string; // ISO 8601

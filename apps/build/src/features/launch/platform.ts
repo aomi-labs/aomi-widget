@@ -45,18 +45,12 @@ export function platformParam(value: string | string[] | undefined): string {
   return rawPlatformParam(value) ?? DEFAULT_DEPLOY_PLATFORM;
 }
 
-/** Routes that understand `?platform=`. Anything else is left alone. */
+/**
+ * Routes where the user chooses a platform before a Project exists. Project
+ * detail and account-wide operate routes resolve it from the canonical Project.
+ */
 function isPlatformScoped(href: string): boolean {
-  return (
-    href === "/projects" ||
-    href === "/operate/deployments/new" ||
-    // A bot's app picker lists the builder's sources, and a source is bound to
-    // exactly one platform — so which apps a bot can be pointed at is a
-    // platform-scoped question like any other.
-    href === "/integrations" ||
-    href === "/operate/bots" ||
-    href.startsWith("/projects/")
-  );
+  return href === "/projects" || href === "/operate/deployments/new";
 }
 
 /** Re-attach the active platform to a platform-scoped href. */

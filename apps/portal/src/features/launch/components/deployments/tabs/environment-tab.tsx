@@ -9,21 +9,19 @@ import {
 } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { useProjectDetail } from "@portal/features/launch/hooks/use-project-detail";
-import { LoadingPanel } from "../ui/state-panels";
 
 type Detail = ReturnType<typeof useProjectDetail>;
 type Row = { key: string; value: string };
 
 export function EnvironmentTab({ detail }: { detail: Detail }) {
-  useEffect(() => {
-    detail.loadSecrets();
-  }, [detail]);
-
-  const appNames = useMemo(
-    () => (detail.source?.apps ?? []).map((a) => a.name),
+  const { loadSecrets } = detail;
+  const applications = useMemo(
+    () => detail.source?.apps ?? [],
     [detail.source],
   );
-  const [app, setApp] = useState<string>("");
+  const [selectedApplicationId, setSelectedApplicationId] = useState<
+    number | null
+  >(null);
   const [envRows, setEnvRows] = useState<Row[]>([{ key: "", value: "" }]);
   const [secretRows, setSecretRows] = useState<Row[]>([{ key: "", value: "" }]);
   const [status, setStatus] = useState<{
@@ -31,15 +29,18 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
     message: string;
   }>({ kind: "idle", message: "" });
 
+  const application =
+    applications.find(({ id }) => id === selectedApplicationId) ??
+    applications[0] ??
+    null;
+  const app = application?.name ?? "";
   useEffect(() => {
-    if ((!app || !appNames.includes(app)) && appNames.length > 0) {
-      setApp(appNames[0]);
-    }
-  }, [app, appNames]);
-
-  if (detail.secretsByApp === null && !detail.secretsError) {
-    return <LoadingPanel label="Loading environment…" />;
-  }
+    if (application) loadSecrets(application.id);
+  }, [application, loadSecrets]);
+  const secretsLoading =
+    Boolean(app) &&
+    detail.secretsByApp?.[app] === undefined &&
+    !detail.secretsError;
 
   // Handle names read back from the vault (values are never returned). The
   // backend keys these by `$SECRET:APP:<app>::<KEY>`; strip that for display.
@@ -59,7 +60,7 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
     }
     setStatus({ kind: "saving", message: "Saving…" });
     try {
-      const result = await detail.setEnvVars(app, values);
+      const result = await detail.setEnvVars(application!.id, values);
       setStatus({
         kind: "done",
         message: `Saved ${result.keys.length} variable(s).`,
@@ -77,7 +78,7 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
   const remove = async (key: string) => {
     setStatus({ kind: "saving", message: `Removing ${key}…` });
     try {
-      await detail.deleteEnvVar(app, key);
+      await detail.deleteEnvVar(application!.id, key);
       setStatus({ kind: "done", message: `Removed ${key}.` });
     } catch (err) {
       setStatus({
@@ -92,25 +93,25 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
       <div className="px-4 py-3">
         <div className="flex items-center justify-between gap-3">
           <div className="text-sm font-medium">Environment variables</div>
-          {appNames.length === 1 && (
+          {applications.length === 1 && (
             <span className="rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1 font-mono text-xs text-zinc-600">
-              {appNames[0]}
+              {applications[0].name}
             </span>
           )}
         </div>
-        {appNames.length > 1 && (
+        {applications.length > 1 && (
           <div
             role="tablist"
             aria-label="Application environment scope"
             className="mt-3 flex flex-wrap gap-1 rounded-md bg-zinc-100 p-1"
           >
-            {appNames.map((name) => (
+            {applications.map(({ id, name }) => (
               <button
-                key={name}
+                key={id}
                 type="button"
                 role="tab"
                 aria-selected={app === name}
-                onClick={() => setApp(name)}
+                onClick={() => setSelectedApplicationId(id)}
                 className={`h-7 rounded px-2.5 font-mono text-xs font-medium ${
                   app === name
                     ? "bg-white text-zinc-950 shadow-sm"
@@ -122,7 +123,7 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
             ))}
           </div>
         )}
-        {appNames.length === 0 && (
+        {applications.length === 0 && (
           <div className="mt-3 rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-500">
             No applications are attached to this project yet.
           </div>
@@ -137,6 +138,11 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
           <div className="mt-3 rounded-md border border-red-100 bg-red-50 px-3 py-2 text-xs text-red-700">
             {detail.secretsError}
           </div>
+        )}
+        {secretsLoading && (
+          <p className="mt-3 text-xs text-zinc-400">
+            Checking configured values…
+          </p>
         )}
       </div>
       <div className="px-4 py-3">

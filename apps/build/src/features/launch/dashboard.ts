@@ -1,12 +1,12 @@
 // Client seam for the GitHub-signed-in deploy dashboard. Talks only to the
-// same-origin Aomi Build BFF (`/api/bff/auth/github/*`, `/api/bff/launch/sources`);
+// same-origin Aomi Build BFF (`/api/bff/auth/github/*`, `/api/bff/launch/projects`);
 // the GitHub session cookie + service bearer stay server-side.
 
 import { API_PATHS } from "@build/lib/api-paths";
-import type { UserSource } from "@aomi-labs/deploy";
+import type { UserProject } from "@aomi-labs/deploy";
 import { resetLaunch } from "./state";
 
-export type { UserSource };
+export type { UserProject };
 
 export interface GitHubSessionInfo {
   signedIn: boolean;
@@ -42,24 +42,24 @@ export async function signOutGitHub(): Promise<void> {
   }
 }
 
-export interface UserSourcesResult {
-  sources: UserSource[];
+export interface UserProjectsResult {
+  projects: UserProject[];
   githubLogin: string | null;
 }
 
-export async function fetchUserSources(): Promise<UserSourcesResult> {
-  const res = await fetch(API_PATHS.bff.launch.sources(), {
+export async function fetchUserProjects(): Promise<UserProjectsResult> {
+  const res = await fetch(API_PATHS.bff.launch.projects(), {
     cache: "no-store",
   });
   const json = (await res.json().catch(() => ({}))) as
-    | UserSourcesResult
+    | UserProjectsResult
     | { error?: string };
   if (!res.ok) {
     const message =
       "error" in json && json.error
         ? json.error
-        : `failed to load sources (${res.status})`;
+        : `failed to load projects (${res.status})`;
     throw new Error(message);
   }
-  return json as UserSourcesResult;
+  return json as UserProjectsResult;
 }

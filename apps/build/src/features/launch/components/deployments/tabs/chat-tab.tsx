@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { ExternalLink, MessageSquare } from "lucide-react";
-import { deploymentLifecycleFromSource } from "@aomi-labs/deploy/lifecycle";
+import { deploymentLifecycleFromProject } from "@aomi-labs/deploy/lifecycle";
 import { useProjectDetail } from "@build/features/launch/hooks/use-project-detail";
 import { chatAppUrl } from "@build/lib/chat-url";
 import { EmptyPanel } from "../ui/state-panels";
@@ -16,7 +16,7 @@ export function ChatTab({ detail }: { detail: Detail }) {
     return <EmptyPanel>Project not found.</EmptyPanel>;
   }
 
-  const lifecycle = deploymentLifecycleFromSource(source);
+  const lifecycle = deploymentLifecycleFromProject(source);
   const requiredSdk = detail.sdk?.sdkStatus.requiredVersion ?? null;
   if (sdkCompatibility(sourceSdkVersion(source), requiredSdk) === "outdated") {
     return (

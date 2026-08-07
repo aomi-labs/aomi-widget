@@ -2,9 +2,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
-const { push, deploymentSources } = vi.hoisted(() => ({
+const { push, deploymentProjects } = vi.hoisted(() => ({
   push: vi.fn(),
-  deploymentSources: vi.fn(),
+  deploymentProjects: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -15,7 +15,7 @@ vi.mock("next/navigation", () => ({
 vi.mock("@build/features/launch/client", async (importOriginal) => {
   const original =
     await importOriginal<typeof import("@build/features/launch/client")>();
-  return { ...original, deploymentSources };
+  return { ...original, deploymentProjects };
 });
 vi.mock("@build/components/control-plane/github-session-context", () => ({
   useGitHubSession: () => ({
@@ -48,12 +48,12 @@ function renderSwitcher(currentPlatform: string | null = null) {
 describe("PlatformSwitcher", () => {
   beforeEach(() => {
     push.mockReset();
-    deploymentSources.mockReset();
+    deploymentProjects.mockReset();
   });
 
   it("switches only after an exact platform source lookup succeeds", async () => {
-    const result = { sources: [] };
-    deploymentSources.mockResolvedValue(result);
+    const result = { projects: [] };
+    deploymentProjects.mockResolvedValue(result);
     const client = renderSwitcher();
     const input = screen.getByRole("textbox", { name: "Platform name" });
 
@@ -63,15 +63,15 @@ describe("PlatformSwitcher", () => {
     await waitFor(() =>
       expect(push).toHaveBeenCalledWith("/projects?platform=somm.finance"),
     );
-    expect(deploymentSources).toHaveBeenCalledWith("somm.finance");
+    expect(deploymentProjects).toHaveBeenCalledWith("somm.finance");
     expect(
       client.getQueryData(buildQueryKeys.projects("alice", "somm.finance")),
     ).toEqual(result);
   });
 
   it("keeps the current platform when the exact name is not found", async () => {
-    deploymentSources.mockRejectedValue(
-      new LaunchRequestError("deployment sources failed", 404, {}),
+    deploymentProjects.mockRejectedValue(
+      new LaunchRequestError("deployment projects failed", 404, {}),
     );
     renderSwitcher("community");
     const input = screen.getByRole("textbox", { name: "Platform name" });
@@ -97,7 +97,7 @@ describe("PlatformSwitcher", () => {
     fireEvent.click(screen.getByRole("button", { name: "Use Community" }));
 
     expect(push).toHaveBeenCalledWith("/projects?platform=community");
-    expect(deploymentSources).not.toHaveBeenCalled();
+    expect(deploymentProjects).not.toHaveBeenCalled();
   });
 
   it("disables Switch until a platform name is entered", () => {

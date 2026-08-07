@@ -34,7 +34,7 @@ entry points are **server-only**:
 
 | Import | Runs | Holds |
 | --- | --- | --- |
-| `@aomi-labs/deploy` | **server only** | `DeploymentClient` + the activation bearer |
+| `@aomi-labs/deploy` | **server only** | `BackendClient` + the activation bearer |
 | `@aomi-labs/deploy/bff` | **server only** | route factories that mint/inject the bearer |
 | `@aomi-labs/deploy/launch` | browser | typed fetch client to your own BFF routes — no secrets |
 | `@aomi-labs/deploy/lifecycle` | browser | pure helpers projecting deploy records into UI state |
@@ -70,10 +70,10 @@ import {
   createGitHubAuthRoutes,
   createGitHubSessionCodec,
 } from "@aomi-labs/deploy/bff";
-import { DeploymentClient } from "@aomi-labs/deploy";
+import { BackendClient } from "@aomi-labs/deploy";
 
 const client = () =>
-  new DeploymentClient({
+  new BackendClient({
     aomi: {
       backendUrl: process.env.AOMI_BACKEND_URL!,
       activationToken: process.env.AOMI_ACTIVATION_TOKEN!, // stays here
@@ -109,7 +109,7 @@ Mount them (Next.js App Router shown; any fetch server maps the same):
 // app/api/bff/launch/redeploy/route.ts    → export const POST = launch.redeploy;
 // app/api/bff/launch/status/route.ts      → export const GET  = launch.status;
 // app/api/bff/launch/app/route.ts         → export const GET  = launch.app;
-// app/api/bff/launch/sources/route.ts     → export const GET  = launch.sources;
+// app/api/bff/launch/projects/route.ts    → export const GET  = launch.projects;
 // app/api/bff/auth/github/login/route.ts    → export const GET  = githubAuth.login;
 // app/api/bff/auth/github/callback/route.ts → export const GET  = githubAuth.callback;
 // app/api/bff/auth/github/status/route.ts   → export const GET  = githubAuth.status;
@@ -147,16 +147,17 @@ createRepo({installationId, repoName}) → scaffold from the template
 preflight(input) / deploy(input)       → dry-run / apply
 status({deploymentId})       → one poll: building | releasing | ready | failed
 watch({deploymentId}, onEvent)         → poll to completion, backoff, never throws
-activate({releaseTags, apps})→ promote the built release to live
+activate({projectId, releaseTags, apps}) → promote the built release to live
 appStatus({name, releaseTag})→ confirm the app is loaded & live
-sources()                    → the signed-in user's deployed agents
+projects()                   → the signed-in user's projects
 platform / forPlatform(name) → the bound platform; a client scoped to another
-deployments.*                → project console (sources, history, secrets, promote, …)
+deployments.*                → project console (projects, history, secrets, promote, …)
 ```
 
 Targeting a named partner platform? Bind it once —
-`createLaunchClient({ platform: "somm.finance" })` — rather than passing it on
-every call; omitting it on one call silently falls back to the host default.
+`createLaunchClient({ platform: "somm.finance" })` — the binding applies to
+project creation and wizard status polls. Project-scoped calls never send a
+platform: the BFF derives each project's bound platform from the project row.
 
 ## Step 3 — Build the UI (in your stack)
 
@@ -170,8 +171,8 @@ The **smallest useful flow** (the entire happy path) is:
 
 1. `fetchGitHubSession()` → if not signed in, link to `githubSigninUrl`.
 2. If `installationId` is null, send the user to `githubAppInstallUrl({app:2})`.
-3. `createRepo({ installationId, repoName })` → get `appSourceId` + `sourceRef`.
-4. `deploy({ appSourceId, sourceRef })` → get `deploymentId`.
+3. `createRepo({ installationId, repoName })` → get `projectId` + `sourceRef`.
+4. `deploy({ projectId, sourceRef })` → get `deploymentId`.
 5. Poll `status(deploymentId)` until `ready` (or `failed`).
 6. `activate({ releaseTags, apps })` (both come off the deploy result / status).
 7. `appStatus(...)` until live, then embed chat:
@@ -208,7 +209,7 @@ page you'll have to hand-reconcile on every upstream change.
   the template, users only supply config) — that is a backend arrangement; ask
   Aomi rather than working around it client-side.
 - **Immutable source ref.** `deploy` takes a git commit SHA, never a branch.
-  `createRepo`/`preflight` resolve it for you; if you deploy by `appSourceId`
+  `createRepo`/`preflight` resolve it for you; if you deploy by `projectId`
   directly, pass the SHA.
 - **Secrets are write-only.** App env-vars/secrets, where supported, return
   key *names* only — values are never read back.
@@ -218,6 +219,6 @@ page you'll have to hand-reconcile on every upstream change.
 - **Not yet in the browser client:** operator lifecycle (deactivate/"stop",
   promote/rollback, deploy history) exists at the SDK layer but is not exposed
   through `createLaunchClient` yet. If you need a "stop my agent" button, add a
-  BFF route over `DeploymentClient` and a client method — ask Aomi for the
+  BFF route over `BackendClient` and a client method — ask Aomi for the
   current shape.
 ```

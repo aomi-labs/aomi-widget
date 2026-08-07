@@ -59,7 +59,7 @@ function StatCard({
 
 export function OverviewDashboard() {
   const { account } = useGitHubSession();
-  const { projectsState, recordsState, sources, reload } =
+  const { projectsState, recordsState, projects, reload } =
     useGlobalDeploymentRecords();
   const accountKey = githubAccountKey(account.githubLogin);
   const usageQuery = useQuery({
@@ -97,7 +97,7 @@ export function OverviewDashboard() {
 
   // Only the (fast) session check blocks the page. While the project list is
   // still loading, the shell renders immediately with placeholder stats so the
-  // user never stares at a full-page spinner waiting for sources.
+  // user never stares at a full-page spinner waiting for projects.
   if (account.loading) {
     return <LoadingPanel label="Loading overview..." />;
   }
@@ -146,8 +146,8 @@ export function OverviewDashboard() {
       <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <StatCard
           label="Projects"
-          value={projectsLoading ? "—" : String(sources.length)}
-          helper="App sources on GitHub"
+          value={projectsLoading ? "—" : String(projects.length)}
+          helper="App projects on GitHub"
         />
         <StatCard
           label="Live deployments"
@@ -202,8 +202,8 @@ export function OverviewDashboard() {
             <div className="divide-border divide-y">
               {deployments.slice(0, 5).map((deployment) => (
                 <ControlPlaneLink
-                  key={`${deployment.sourceId}-${deployment.deploymentId}`}
-                  href={projectHref(deployment.sourceId, "deployments")}
+                  key={`${deployment.projectId}-${deployment.deploymentId}`}
+                  href={projectHref(deployment.projectId, "deployments")}
                   className="hover:bg-accent-hover flex items-center justify-between gap-3 px-4 py-3 text-sm"
                 >
                   <div className="min-w-0">

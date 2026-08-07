@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import fc from "fast-check";
 
-import { DeploymentClient } from "../src/client";
+import { BackendClient } from "../src/backend";
 import type {
   DeploymentProgressEvent,
   DeploymentStatus,
@@ -12,7 +12,7 @@ import { backoffDelay, deploymentProgress } from "../src/launch/watch";
 
 describe("watchDeployment — property-based", () => {
   it("buildProgressModel produces monotonic completed", () => {
-    const client = new DeploymentClient({
+    const client = new BackendClient({
       aomi: {
         backendUrl: "https://staging-api.example.com",
         activationToken: "act-token",
@@ -52,7 +52,7 @@ describe("watchDeployment — property-based", () => {
   });
 
   it("backoffDelay doubles each failure up to maxDelayMs", () => {
-    const client = new DeploymentClient({
+    const client = new BackendClient({
       aomi: {
         backendUrl: "https://staging-api.example.com",
         activationToken: "act-token",
@@ -86,7 +86,7 @@ describe("watchDeployment — property-based", () => {
   });
 
   it("terminal states (ready, failed) are detected correctly", () => {
-    const client = new DeploymentClient({
+    const client = new BackendClient({
       aomi: {
         backendUrl: "https://staging-api.example.com",
         activationToken: "act-token",
@@ -161,7 +161,7 @@ describe("watchDeployment — property-based", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     try {
-      const client = new DeploymentClient({
+      const client = new BackendClient({
         aomi: {
           backendUrl: "https://staging-api.example.com",
           activationToken: "act-token",
@@ -208,7 +208,7 @@ describe("watchDeployment — property-based", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     try {
-      const client = new DeploymentClient({
+      const client = new BackendClient({
         aomi: {
           backendUrl: "https://staging-api.example.com",
           activationToken: "act-token",
@@ -239,7 +239,7 @@ describe("watchDeployment — property-based", () => {
   });
 
   it("progress model labels are non-empty strings", () => {
-    const client = new DeploymentClient({
+    const client = new BackendClient({
       aomi: {
         backendUrl: "https://staging-api.example.com",
         activationToken: "act-token",

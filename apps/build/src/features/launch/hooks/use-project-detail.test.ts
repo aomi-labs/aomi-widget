@@ -12,12 +12,13 @@ vi.mock("@build/features/launch/dashboard", () => ({
 }));
 
 vi.mock("@build/features/launch/client", () => ({
-  deploymentSources: vi.fn(async () => ({
-    sources: [
+  deploymentProjects: vi.fn(async () => ({
+    projects: [
       {
         id: 7,
         installationId: 5,
         repositoryLink: "a/b",
+        platformName: "community",
         apps: [{ name: "my-bot" }],
         latestDeployment: null,
       },
@@ -26,7 +27,13 @@ vi.mock("@build/features/launch/client", () => ({
   deploymentSdkStatus: vi.fn(async () => null),
   deploymentHistory: vi.fn(async () => ({
     deployments: [
-      { deploymentId: "dep_1", apps: [], releaseTags: [], state: "recorded" },
+      {
+        deploymentId: "dep_1",
+        apps: [],
+        releaseTags: [],
+        state: "recorded",
+        createdAt: 1,
+      },
     ],
   })),
   deploymentSecrets: vi.fn(async () => ({
@@ -72,7 +79,7 @@ import {
   deploymentHistory,
   deploymentSecrets,
   deploymentRequiredSecrets,
-  deploymentSources,
+  deploymentProjects,
   launchDeploy,
   launchPreflight,
 } from "@build/features/launch/client";
@@ -121,7 +128,7 @@ describe("useProjectDetail", () => {
     expect(deploymentRecords).toHaveBeenCalledTimes(1);
     expect(deploymentRecords).toHaveBeenCalledWith({
       app: "my-bot",
-      appSourceId: 7,
+      projectId: 7,
     });
   });
 
@@ -152,6 +159,7 @@ describe("useProjectDetail", () => {
             apps: [],
             releaseTags: [],
             state: "recorded",
+            createdAt: 1,
           },
         ],
       });
@@ -197,7 +205,13 @@ describe("useProjectDetail", () => {
 
   it("exposes the missing required secrets per app", async () => {
     vi.mocked(deploymentRequiredSecrets).mockResolvedValue({
-      byApp: { binance: { slots: [], missing: ["BINANCE_SECRET_KEY"] } },
+      byApp: {
+        binance: {
+          applicationId: 17,
+          slots: [],
+          missing: ["BINANCE_SECRET_KEY"],
+        },
+      },
     });
     const { result } = renderHook(() => useProjectDetail(42), {
       wrapper: wrapper(),
@@ -225,24 +239,26 @@ describe("useProjectDetail", () => {
     // the page never saw. The gate then fails for that app — and the banner and
     // Environment tab list apps from `source`, so a stale source leaves the
     // user with a missing-secret error and nowhere to enter the value.
-    vi.mocked(deploymentSources)
+    vi.mocked(deploymentProjects)
       .mockResolvedValueOnce({
-        sources: [
+        projects: [
           {
             id: 7,
             installationId: 5,
             repositoryLink: "a/b",
+            platformName: "community",
             apps: [{ name: "my-bot" }],
             latestDeployment: null,
           },
         ],
       } as never)
       .mockResolvedValue({
-        sources: [
+        projects: [
           {
             id: 7,
             installationId: 5,
             repositoryLink: "a/b",
+            platformName: "community",
             apps: [{ name: "my-bot" }, { name: "my-bot-2" }],
             latestDeployment: null,
           },
@@ -250,13 +266,13 @@ describe("useProjectDetail", () => {
       } as never);
     vi.mocked(launchPreflight).mockResolvedValue({
       ok: true,
-      appSourceId: 7,
+      projectId: 7,
       sourceRef: "abc1234",
       apps: ["my-bot", "my-bot-2"],
     } as never);
     vi.mocked(deploymentRequiredSecrets).mockResolvedValue({
       byApp: {
-        "my-bot": { slots: [], missing: [] },
+        "my-bot": { applicationId: 19, slots: [], missing: [] },
         "my-bot-2": {
           slots: [
             {

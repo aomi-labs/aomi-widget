@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { UserSource, UserSourceLatestDeployment } from "@aomi-labs/deploy";
+import type { UserProject, UserProjectLatestDeployment } from "@aomi-labs/deploy";
 import {
-  deploymentSources,
+  deploymentProjects,
   deploymentHistory,
   deploymentSecrets,
   deploymentSetSecrets,
@@ -35,12 +35,12 @@ export type DeployFlowState =
 const DEPLOY_POLL_MS = 4000;
 const DEPLOY_TIMEOUT_MS = 8 * 60 * 1000;
 
-export function useProjectDetail(sourceId: number) {
-  const [source, setSource] = useState<UserSource | null>(null);
+export function useProjectDetail(projectId: number) {
+  const [source, setSource] = useState<UserProject | null>(null);
   const [sdk, setSdk] = useState<LaunchSdkStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [history, setHistory] = useState<UserSourceLatestDeployment[] | null>(
+  const [history, setHistory] = useState<UserProjectLatestDeployment[] | null>(
     null,
   );
   const [historyError, setHistoryError] = useState<string | null>(null);
@@ -57,25 +57,25 @@ export function useProjectDetail(sourceId: number) {
     phase: "idle",
   });
   const historyReq = useRef(false);
-  const secretsReq = useRef(false);
+  const secretsReq = useRef(new Set<number>());
   const recordsReq = useRef(false);
 
   const reload = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [{ sources }, sdkStatus] = await Promise.all([
-        deploymentSources(),
+      const [{ projects }, sdkStatus] = await Promise.all([
+        deploymentProjects(),
         deploymentSdkStatus().catch(() => null),
       ]);
-      setSource(sources.find((s) => s.id === sourceId) ?? null);
+      setSource(projects.find((s) => s.id === projectId) ?? null);
       setSdk(sdkStatus);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load project");
     } finally {
       setLoading(false);
     }
-  }, [sourceId]);
+  }, [projectId]);
 
   useEffect(() => {
     void reload();
@@ -85,7 +85,7 @@ export function useProjectDetail(sourceId: number) {
     if (historyReq.current || history !== null) return;
     historyReq.current = true;
     setHistoryError(null);
-    void deploymentHistory({ appSourceId: sourceId, limit: 20 })
+    void deploymentHistory({ projectId: projectId, limit: 20 })
       .then((r) => setHistory(r.deployments))
       .catch((err) => {
         setHistoryError(
@@ -93,29 +93,31 @@ export function useProjectDetail(sourceId: number) {
         );
         historyReq.current = false;
       });
-  }, [sourceId, history]);
+  }, [projectId, history]);
 
-  const loadSecrets = useCallback(() => {
-    if (secretsReq.current || secretsByApp !== null) return;
-    secretsReq.current = true;
+  const loadSecrets = useCallback((applicationId: number) => {
+    if (secretsReq.current.has(applicationId)) return;
+    secretsReq.current.add(applicationId);
     setSecretsError(null);
-    void deploymentSecrets({ appSourceId: sourceId })
-      .then((r) => setSecrets(r.byApp))
+    void deploymentSecrets({ applicationId })
+      .then((r) =>
+        setSecrets((current) => ({ ...(current ?? {}), ...r.byApp })),
+      )
       .catch((err) => {
         setSecretsError(
           err instanceof Error
             ? err.message
             : "Failed to load environment variables",
         );
-        secretsReq.current = false;
+        secretsReq.current.delete(applicationId);
       });
-  }, [sourceId, secretsByApp]);
+  }, []);
 
-  const refreshSecrets = useCallback(async () => {
+  const refreshSecrets = useCallback(async (applicationId: number) => {
     setSecretsError(null);
     try {
-      const r = await deploymentSecrets({ appSourceId: sourceId });
-      setSecrets(r.byApp);
+      const r = await deploymentSecrets({ applicationId });
+      setSecrets((current) => ({ ...(current ?? {}), ...r.byApp }));
     } catch (err) {
       setSecretsError(
         err instanceof Error
@@ -124,44 +126,42 @@ export function useProjectDetail(sourceId: number) {
       );
       throw err;
     }
-  }, [sourceId]);
+  }, []);
 
   const setEnvVars = useCallback(
-    async (app: string, secrets: Record<string, string>) => {
+    async (applicationId: number, secrets: Record<string, string>) => {
       const result = await deploymentSetSecrets({
-        app,
-        appSourceId: sourceId,
+        applicationId,
         secrets,
       });
-      await refreshSecrets();
+      await refreshSecrets(applicationId);
       return result;
     },
-    [sourceId, refreshSecrets],
+    [refreshSecrets],
   );
 
   const deleteEnvVar = useCallback(
-    async (app: string, name: string) => {
+    async (applicationId: number, name: string) => {
       const result = await deploymentDeleteSecret({
-        app,
-        appSourceId: sourceId,
+        applicationId,
         name,
       });
-      await refreshSecrets();
+      await refreshSecrets(applicationId);
       return result;
     },
-    [sourceId, refreshSecrets],
+    [refreshSecrets],
   );
 
   // Fetch the DB activation timeline for every app on this source (per-app but
   // all DB reads — no GitHub fan-out). `force` re-fetches after an operation.
-  const fetchRecords = useCallback(async (src: UserSource) => {
+  const fetchRecords = useCallback(async (src: UserProject) => {
     setRecordsError(null);
     try {
       const entries = await Promise.all(
         src.apps.map(async (app) => {
           const result = await deploymentRecords({
             app: app.name,
-            appSourceId: src.id,
+            projectId: src.id,
           });
           return [app.name, result.records] as const;
         }),
@@ -193,13 +193,13 @@ export function useProjectDetail(sourceId: number) {
 
   const promote = useCallback(
     (deploymentId: string): Promise<DeploymentPromoteResult> =>
-      deploymentPromote({ deploymentId, appSourceId: sourceId }),
-    [sourceId],
+      deploymentPromote({ deploymentId, projectId: projectId }),
+    [projectId],
   );
 
   const deactivate = useCallback(
-    (apps: string[]) => deploymentDeactivate({ appSourceId: sourceId, apps }),
-    [sourceId],
+    (apps: string[]) => deploymentDeactivate({ projectId: projectId, apps }),
+    [projectId],
   );
 
   // Deploy the source repo's current HEAD and activate the resulting release
@@ -216,13 +216,15 @@ export function useProjectDetail(sourceId: number) {
         phase: "deploying",
         message: "Resolving latest commit…",
       });
-      const pre = await launchPreflight({ repo });
-      const appSourceId = pre.appSourceId ?? sourceId;
+      const pre = await launchPreflight({ repo, projectId });
+      const targetProjectId = pre.projectId ?? projectId;
+      if (!pre.sourceRef) {
+        throw new Error("Preflight did not return an immutable source commit.");
+      }
       setDeployFlow({ phase: "deploying", message: "Deploying new version…" });
       const deployed = await launchDeploy({
-        appSourceId,
+        projectId: targetProjectId,
         sourceRef: pre.sourceRef,
-        repo,
       });
       const deploymentId = deployed.deployment.id;
 
@@ -258,8 +260,10 @@ export function useProjectDetail(sourceId: number) {
       }
 
       setDeployFlow({ phase: "activating", message: "Activating release…" });
+      // Activate the SAME project the deploy targeted — `targetProjectId`
+      // is preflight-resolved and can differ from the page's `projectId`.
       const activated = await launchActivate({
-        appSourceId,
+        projectId: targetProjectId,
         releaseTags,
         apps,
       });
@@ -278,7 +282,7 @@ export function useProjectDetail(sourceId: number) {
         message: err instanceof Error ? err.message : "Deploy failed",
       });
     }
-  }, [source, sourceId, reload, refreshRecords]);
+  }, [source, projectId, reload, refreshRecords]);
 
   return {
     source,

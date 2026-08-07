@@ -10,7 +10,7 @@ const detail = {
     id: 1,
     installationId: 5,
     repositoryLink: "a/b",
-    apps: [{ name: "demo", isActive: true, loaded: true }],
+    apps: [{ id: 77, name: "demo", isActive: true, loaded: true }],
     latestDeployment: null,
   },
   loadSecrets: vi.fn(),
@@ -30,6 +30,24 @@ describe("EnvironmentTab", () => {
     expect(screen.getByText("EXISTING_KEY")).toBeInTheDocument();
     expect(screen.getByText("Env")).toBeInTheDocument();
     expect(screen.getAllByText("Secret").length).toBeGreaterThan(0);
+    expect(
+      screen.getByRole("button", { name: /save values/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps the editor stable while configured values load", () => {
+    render(
+      <EnvironmentTab
+        detail={
+          {
+            ...detail,
+            secretsByApp: null,
+            secretsError: null,
+          } as typeof detail
+        }
+      />,
+    );
+    expect(screen.getByText("Checking configured values…")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /save values/i }),
     ).toBeInTheDocument();
@@ -56,7 +74,7 @@ describe("EnvironmentTab", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: /save values/i }));
     await waitFor(() =>
-      expect(setEnvVars).toHaveBeenCalledWith("demo", {
+      expect(setEnvVars).toHaveBeenCalledWith(77, {
         API_KEY: "public",
         TOKEN: "secret",
       }),
@@ -67,7 +85,7 @@ describe("EnvironmentTab", () => {
     render(<EnvironmentTab detail={detail} />);
     fireEvent.click(screen.getByTitle("Remove EXISTING_KEY"));
     await waitFor(() =>
-      expect(deleteEnvVar).toHaveBeenCalledWith("demo", "EXISTING_KEY"),
+      expect(deleteEnvVar).toHaveBeenCalledWith(77, "EXISTING_KEY"),
     );
   });
 

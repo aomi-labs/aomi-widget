@@ -2,9 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import type { UserSource, UserSourceLatestDeployment } from "@aomi-labs/deploy";
+import type {
+  UserProject,
+  UserProjectLatestDeployment,
+} from "@aomi-labs/deploy";
 import {
-  deploymentSources,
+  deploymentProjects,
   deploymentHistory,
   deploymentSecrets,
   deploymentSetSecrets,
@@ -29,7 +32,7 @@ import {
 import type {
   DeploymentPromoteResult,
   DeploymentRecord,
-  DeploymentSourcesResult,
+  DeploymentProjectsResult,
 } from "@build/features/launch/contracts";
 import { useGitHubSession } from "@build/components/control-plane/github-session-context";
 import {
@@ -50,26 +53,18 @@ export type DeployFlowState =
 const DEPLOY_POLL_MS = 4000;
 const DEPLOY_TIMEOUT_MS = 8 * 60 * 1000;
 
-export function useProjectDetail(sourceId: number, platform?: string) {
+export function useProjectDetail(projectId: number) {
   const { account } = useGitHubSession();
   const accountKey = githubAccountKey(account.githubLogin);
   const queryClient = useQueryClient();
   const sourceKey = useMemo(
-    () =>
-      buildQueryKeys.projectSource(
-        accountKey ?? "unavailable",
-        sourceId,
-        platform,
-      ),
-    [accountKey, platform, sourceId],
+    () => buildQueryKeys.projectSource(accountKey ?? "unavailable", projectId),
+    [accountKey, projectId],
   );
-  const projectsKey = buildQueryKeys.projects(
-    accountKey ?? "unavailable",
-    platform,
-  );
+  const projectsKey = buildQueryKeys.projects(accountKey ?? "unavailable");
 
   // Source + SDK status live in react-query. The source is a server-filtered
-  // single-source read (`appSourceId` on the sources BFF route) — a project
+  // single-source read (`projectId` on the projects BFF route) — a project
   // page never transfers the whole account. Warm navigations skip even that:
   // `initialData` seeds from the `/projects` list the index already fetched,
   // stamped with that list's own freshness, so list → project paints from
@@ -77,16 +72,16 @@ export function useProjectDetail(sourceId: number, platform?: string) {
   // `enabled: !account.loading` fires the read once the session is known
   // (signed-out surfaces the auth error, as the hand-rolled version did),
   // never gating on the SDK badge.
-  const sourcesQuery = useQuery({
+  const projectsQuery = useQuery({
     queryKey: sourceKey,
-    queryFn: () => deploymentSources(platform, sourceId),
+    queryFn: () => deploymentProjects(undefined, projectId),
     enabled: !account.loading,
     staleTime: buildQueryStaleTime.projects,
     initialData: () => {
       const list =
-        queryClient.getQueryData<DeploymentSourcesResult>(projectsKey);
-      const seeded = list?.sources.find((s) => s.id === sourceId);
-      return seeded ? { ...list, sources: [seeded] } : undefined;
+        queryClient.getQueryData<DeploymentProjectsResult>(projectsKey);
+      const seeded = list?.projects.find((s) => s.id === projectId);
+      return seeded ? { ...list, projects: [seeded] } : undefined;
     },
     initialDataUpdatedAt: () =>
       queryClient.getQueryState(projectsKey)?.dataUpdatedAt,
@@ -98,18 +93,19 @@ export function useProjectDetail(sourceId: number, platform?: string) {
     staleTime: buildQueryStaleTime.sdkStatus,
   });
   const source = useMemo(
-    () => sourcesQuery.data?.sources.find((s) => s.id === sourceId) ?? null,
-    [sourcesQuery.data, sourceId],
+    () => projectsQuery.data?.projects.find((s) => s.id === projectId) ?? null,
+    [projectsQuery.data, projectId],
   );
+  const projectPlatform = source ? source.platformName.trim() : undefined;
   const sdk = sdkQuery.data ?? null;
-  const loading = account.loading || sourcesQuery.isPending;
-  const error = sourcesQuery.error
-    ? sourcesQuery.error instanceof Error
-      ? sourcesQuery.error.message
+  const loading = account.loading || projectsQuery.isPending;
+  const error = projectsQuery.error
+    ? projectsQuery.error instanceof Error
+      ? projectsQuery.error.message
       : "Failed to load project"
     : null;
 
-  const [history, setHistory] = useState<UserSourceLatestDeployment[] | null>(
+  const [history, setHistory] = useState<UserProjectLatestDeployment[] | null>(
     null,
   );
   const [historyError, setHistoryError] = useState<string | null>(null);
@@ -131,7 +127,7 @@ export function useProjectDetail(sourceId: number, platform?: string) {
     phase: "idle",
   });
   const historyReq = useRef(false);
-  const secretsReq = useRef(false);
+  const secretsReq = useRef<Set<number>>(new Set());
   const recordsReq = useRef(false);
   const requiredSecretsReq = useRef(false);
 
@@ -164,13 +160,16 @@ export function useProjectDetail(sourceId: number, platform?: string) {
     historyReq.current = false;
     setHistory(null);
     setHistoryError(null);
-  }, [sourceId, platform]);
+    secretsReq.current.clear();
+    setSecrets(null);
+    setSecretsError(null);
+  }, [projectId]);
 
   const loadHistory = useCallback(() => {
     if (historyReq.current || history !== null) return;
     historyReq.current = true;
     setHistoryError(null);
-    void deploymentHistory({ appSourceId: sourceId, limit: 20, platform })
+    void deploymentHistory({ projectId, limit: 20 })
       .then((r) => setHistory(r.deployments))
       .catch((err) => {
         setHistoryError(
@@ -178,32 +177,31 @@ export function useProjectDetail(sourceId: number, platform?: string) {
         );
         historyReq.current = false;
       });
-  }, [history, platform, sourceId]);
+  }, [history, projectId]);
 
-  const loadSecrets = useCallback(() => {
-    if (secretsReq.current || secretsByApp !== null) return;
-    secretsReq.current = true;
+  const loadSecrets = useCallback((applicationId: number) => {
+    if (secretsReq.current.has(applicationId)) return;
+    secretsReq.current.add(applicationId);
     setSecretsError(null);
-    void deploymentSecrets({ appSourceId: sourceId, platform })
-      .then((r) => setSecrets(r.byApp))
+    void deploymentSecrets({ applicationId })
+      .then((r) =>
+        setSecrets((current) => ({ ...(current ?? {}), ...r.byApp })),
+      )
       .catch((err) => {
         setSecretsError(
           err instanceof Error
             ? err.message
             : "Failed to load environment variables",
         );
-        secretsReq.current = false;
+        secretsReq.current.delete(applicationId);
       });
-  }, [platform, secretsByApp, sourceId]);
+  }, []);
 
   const refreshRequiredSecrets = useCallback(async () => {
     requiredSecretsReq.current = true;
     setRequiredSecretsError(null);
     try {
-      const result = await deploymentRequiredSecrets({
-        appSourceId: sourceId,
-        platform,
-      });
+      const result = await deploymentRequiredSecrets({ projectId });
       setRequiredSecrets(result.byApp);
       return result.byApp;
     } catch (err) {
@@ -213,7 +211,7 @@ export function useProjectDetail(sourceId: number, platform?: string) {
       requiredSecretsReq.current = false;
       throw err;
     }
-  }, [platform, sourceId]);
+  }, [projectId]);
 
   const loadRequiredSecrets = useCallback(() => {
     if (requiredSecretsReq.current || requiredSecrets !== null) return;
@@ -221,18 +219,17 @@ export function useProjectDetail(sourceId: number, platform?: string) {
   }, [refreshRequiredSecrets, requiredSecrets]);
 
   const ensureRequiredSecrets = useCallback(
-    async (apps: string[], appSourceIdOverride?: number) => {
+    async (apps: string[], projectIdOverride?: number) => {
       try {
         const byApp =
-          appSourceIdOverride === undefined
+          projectIdOverride === undefined
             ? await refreshRequiredSecrets()
             : (
                 await deploymentRequiredSecrets({
-                  appSourceId: appSourceIdOverride,
-                  platform,
+                  projectId: projectIdOverride,
                 })
               ).byApp;
-        if (appSourceIdOverride !== undefined) setRequiredSecrets(byApp);
+        if (projectIdOverride !== undefined) setRequiredSecrets(byApp);
         const missing = missingRequiredSecrets(byApp, apps);
         if (Object.keys(missing).length > 0) {
           throw new MissingRequiredSecretsError(missing);
@@ -249,7 +246,7 @@ export function useProjectDetail(sourceId: number, platform?: string) {
         throw err;
       }
     },
-    [platform, refreshRequiredSecrets],
+    [refreshRequiredSecrets],
   );
 
   const hasMissingSecrets = useCallback(
@@ -257,11 +254,11 @@ export function useProjectDetail(sourceId: number, platform?: string) {
     [requiredSecrets],
   );
 
-  const refreshSecrets = useCallback(async () => {
+  const refreshSecrets = useCallback(async (applicationId: number) => {
     setSecretsError(null);
     try {
-      const r = await deploymentSecrets({ appSourceId: sourceId, platform });
-      setSecrets(r.byApp);
+      const r = await deploymentSecrets({ applicationId });
+      setSecrets((current) => ({ ...(current ?? {}), ...r.byApp }));
     } catch (err) {
       setSecretsError(
         err instanceof Error
@@ -270,66 +267,58 @@ export function useProjectDetail(sourceId: number, platform?: string) {
       );
       throw err;
     }
-  }, [platform, sourceId]);
+  }, []);
 
   const setEnvVars = useCallback(
-    async (app: string, secrets: Record<string, string>) => {
+    async (applicationId: number, secrets: Record<string, string>) => {
       const result = await deploymentSetSecrets({
-        app,
-        appSourceId: sourceId,
-        platform,
+        applicationId,
         secrets,
       });
-      await refreshSecrets();
+      await refreshSecrets(applicationId);
       await refreshRequiredSecrets();
       return result;
     },
-    [platform, refreshRequiredSecrets, refreshSecrets, sourceId],
+    [refreshRequiredSecrets, refreshSecrets],
   );
 
   const deleteEnvVar = useCallback(
-    async (app: string, name: string) => {
+    async (applicationId: number, name: string) => {
       const result = await deploymentDeleteSecret({
-        app,
-        appSourceId: sourceId,
-        platform,
+        applicationId,
         name,
       });
-      await refreshSecrets();
+      await refreshSecrets(applicationId);
       return result;
     },
-    [platform, refreshSecrets, sourceId],
+    [refreshSecrets],
   );
 
   // Fetch the DB activation timeline for every app on this source (per-app but
   // all DB reads — no GitHub fan-out). `force` re-fetches after an operation.
-  const fetchRecords = useCallback(
-    async (src: UserSource) => {
-      setRecordsError(null);
-      try {
-        const entries = await Promise.all(
-          src.apps.map(async (app) => {
-            const result = await deploymentRecords({
-              app: app.name,
-              appSourceId: src.id,
-              platform,
-            });
-            return [app.name, result.records] as const;
-          }),
-        );
-        setRecords(Object.fromEntries(entries));
-      } catch (err) {
-        const message =
-          err instanceof Error
-            ? err.message
-            : "Failed to load deployment activity";
-        setRecordsError(message);
-        setRecords({});
-        throw err;
-      }
-    },
-    [platform],
-  );
+  const fetchRecords = useCallback(async (src: UserProject) => {
+    setRecordsError(null);
+    try {
+      const entries = await Promise.all(
+        src.apps.map(async (app) => {
+          const result = await deploymentRecords({
+            app: app.name,
+            projectId: src.id,
+          });
+          return [app.name, result.records] as const;
+        }),
+      );
+      setRecords(Object.fromEntries(entries));
+    } catch (err) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : "Failed to load deployment activity";
+      setRecordsError(message);
+      setRecords({});
+      throw err;
+    }
+  }, []);
 
   const loadRecords = useCallback(() => {
     if (recordsReq.current || recordsByApp !== null || !source) return;
@@ -346,14 +335,13 @@ export function useProjectDetail(sourceId: number, platform?: string) {
 
   const promote = useCallback(
     (deploymentId: string): Promise<DeploymentPromoteResult> =>
-      deploymentPromote({ deploymentId, appSourceId: sourceId, platform }),
-    [platform, sourceId],
+      deploymentPromote({ deploymentId, projectId }),
+    [projectId],
   );
 
   const deactivate = useCallback(
-    (apps: string[]) =>
-      deploymentDeactivate({ appSourceId: sourceId, apps, platform }),
-    [platform, sourceId],
+    (apps: string[]) => deploymentDeactivate({ projectId, apps }),
+    [projectId],
   );
 
   // Deploy the source repo's current HEAD and activate the resulting release
@@ -370,8 +358,11 @@ export function useProjectDetail(sourceId: number, platform?: string) {
         phase: "deploying",
         message: "Resolving latest commit…",
       });
-      const pre = await launchPreflight({ repo, platform });
-      const appSourceId = pre.appSourceId ?? sourceId;
+      const pre = await launchPreflight({
+        repo,
+        projectId,
+      });
+      const targetProjectId = pre.projectId ?? projectId;
       // Preflight re-syncs the source from the repo, so HEAD's `aomi.toml` can
       // register apps this page never saw. Refresh the source before gating:
       // the required-secret check runs against `pre.apps`, and both the gate
@@ -379,13 +370,14 @@ export function useProjectDetail(sourceId: number, platform?: string) {
       // this the check can fail for an app the UI has no row for — the user is
       // told a secret is missing with nowhere to enter it.
       await reload();
-      await ensureRequiredSecrets(pre.apps, appSourceId);
+      await ensureRequiredSecrets(pre.apps, targetProjectId);
+      if (!pre.sourceRef) {
+        throw new Error("Preflight did not return an immutable source commit.");
+      }
       setDeployFlow({ phase: "deploying", message: "Deploying new version…" });
       const deployed = await launchDeploy({
-        appSourceId,
-        platform,
+        projectId: targetProjectId,
         sourceRef: pre.sourceRef,
-        repo,
       });
       const deploymentId = deployed.deployment.id;
 
@@ -394,7 +386,7 @@ export function useProjectDetail(sourceId: number, platform?: string) {
       let apps = deployed.apps;
       // Poll CI until the release is published.
       for (;;) {
-        const status = await launchStatus(deploymentId, platform);
+        const status = await launchStatus(deploymentId, projectPlatform);
         releaseTags = status.releaseTags?.length
           ? status.releaseTags
           : releaseTags;
@@ -421,9 +413,10 @@ export function useProjectDetail(sourceId: number, platform?: string) {
       }
 
       setDeployFlow({ phase: "activating", message: "Activating release…" });
+      // Activate the SAME project the deploy targeted — `targetProjectId`
+      // is preflight-resolved and can differ from the page's `projectId`.
       const activated = await launchActivate({
-        appSourceId,
-        platform,
+        projectId: targetProjectId,
         releaseTags,
         apps,
       });
@@ -456,23 +449,23 @@ export function useProjectDetail(sourceId: number, platform?: string) {
     }
   }, [
     ensureRequiredSecrets,
-    platform,
+    projectPlatform,
     refreshRecords,
     reload,
     source,
-    sourceId,
+    projectId,
   ]);
 
   const upgradeSdk = useCallback(
-    () => deploymentUpgradeSdk({ appSourceId: sourceId, platform }),
-    [platform, sourceId],
+    () => deploymentUpgradeSdk({ projectId }),
+    [projectId],
   );
 
   // Cheap merge-poll counterpart to upgradeSdk: one GitHub-backed read, no
   // repo tarball or branch refresh, safe to call on the 45s recheck loop.
   const checkSdkUpgradeStatus = useCallback(
-    () => deploymentSdkUpgradeStatus({ appSourceId: sourceId, platform }),
-    [platform, sourceId],
+    () => deploymentSdkUpgradeStatus({ projectId }),
+    [projectId],
   );
 
   return {

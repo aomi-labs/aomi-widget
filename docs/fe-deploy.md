@@ -1,5 +1,14 @@
 # Portal onboarding deploy — workflows
 
+> **SUPERSEDED (2026-08-04, canonical Project refactor).** This document
+> describes the retired `app_source`/`/sources` model. The persisted identity
+> is now the platform-bound **Project** (`projectId`); there is no
+> `app_source_id`, no `/api/launch/sources`, no `sync-installed`, and no
+> client-side manifest-path forwarding, and project-scoped reads never accept
+> a caller platform. Current wire truth:
+> `docs/topics/deploy/facts/projects.md` and
+> `docs/topics/bff/facts/endpoints.md`. Kept for the flow narrative only.
+
 How the **Deploy** tab takes a developer from "nothing" to "my agent is live in
 chat", for both onboarding paths. Backend is owned end-to-end via a GitHub App;
 the browser never holds GitHub tokens or service credentials.

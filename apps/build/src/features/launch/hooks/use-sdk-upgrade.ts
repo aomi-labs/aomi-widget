@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type {
-  SourceSdkUpgradeResult,
-  SourceSdkUpgradeStatusResult,
+  ProjectSdkUpgradeResult,
+  ProjectSdkUpgradeStatusResult,
 } from "@aomi-labs/deploy";
 
 /**
@@ -31,14 +31,14 @@ export type SdkUpgradeState =
 /** Re-check cadence while a PR is open and the tab is visible. */
 const MERGE_POLL_MS = 45_000;
 const SKIP_CONFIRM_KEY = "aomi-build:sdk-upgrade-skip-confirm";
-const railKey = (sourceId: number) => `aomi-build:sdk-upgrade:${sourceId}`;
+const railKey = (projectId: number) => `aomi-build:sdk-upgrade:${projectId}`;
 
 function readStoredPr(
-  sourceId: number | null,
+  projectId: number | null,
 ): { prUrl: string; prNumber: number } | null {
-  if (sourceId === null || typeof window === "undefined") return null;
+  if (projectId === null || typeof window === "undefined") return null;
   try {
-    const raw = window.localStorage.getItem(railKey(sourceId));
+    const raw = window.localStorage.getItem(railKey(projectId));
     if (!raw) return null;
     const parsed = JSON.parse(raw) as { prUrl?: unknown; prNumber?: unknown };
     if (typeof parsed.prUrl !== "string" || typeof parsed.prNumber !== "number")
@@ -50,13 +50,13 @@ function readStoredPr(
 }
 
 function writeStoredPr(
-  sourceId: number | null,
+  projectId: number | null,
   pr: { prUrl: string; prNumber: number } | null,
 ) {
-  if (sourceId === null || typeof window === "undefined") return;
+  if (projectId === null || typeof window === "undefined") return;
   try {
-    if (pr) window.localStorage.setItem(railKey(sourceId), JSON.stringify(pr));
-    else window.localStorage.removeItem(railKey(sourceId));
+    if (pr) window.localStorage.setItem(railKey(projectId), JSON.stringify(pr));
+    else window.localStorage.removeItem(railKey(projectId));
   } catch {
     // Storage may be unavailable (private mode); the rail just won't survive reloads.
   }
@@ -72,20 +72,20 @@ export function skipUpgradeConfirm(): boolean {
 }
 
 export function useSdkUpgrade({
-  sourceId,
+  projectId,
   upgrade,
   checkStatus,
   onAlreadyCurrent,
 }: {
-  sourceId: number | null;
+  projectId: number | null;
   /** The BFF call that opens/reuses the upgrade PR (idempotent server-side). */
-  upgrade: () => Promise<SourceSdkUpgradeResult>;
+  upgrade: () => Promise<ProjectSdkUpgradeResult>;
   /**
    * The cheap merge poll: one GitHub-backed read of the upgrade PR's state,
    * no repo tarball or branch refresh. Used by the recheck loop in place of
    * re-calling {@link upgrade}.
    */
-  checkStatus: () => Promise<SourceSdkUpgradeStatusResult>;
+  checkStatus: () => Promise<ProjectSdkUpgradeStatusResult>;
   /**
    * First-click shortcut: the repo already satisfies the required SDK, so
    * there is no PR to wait on — the caller kicks the redeploy directly.
@@ -93,7 +93,7 @@ export function useSdkUpgrade({
   onAlreadyCurrent?: () => void;
 }) {
   const [state, setState] = useState<SdkUpgradeState>(() => {
-    const stored = readStoredPr(sourceId);
+    const stored = readStoredPr(projectId);
     return stored
       ? { phase: "pr-open", ...stored, checking: false }
       : { phase: "idle" };
@@ -106,40 +106,40 @@ export function useSdkUpgrade({
 
   // A different source means a different rail: reset from that source's storage.
   useEffect(() => {
-    const stored = readStoredPr(sourceId);
+    const stored = readStoredPr(projectId);
     setState(
       stored
         ? { phase: "pr-open", ...stored, checking: false }
         : { phase: "idle" },
     );
-  }, [sourceId]);
+  }, [projectId]);
 
   const applyResult = useCallback(
-    (result: SourceSdkUpgradeResult, from: "open" | "recheck") => {
+    (result: ProjectSdkUpgradeResult, from: "open" | "recheck") => {
       if (result.status === "pull_request") {
         const pr = {
           prUrl: result.pullRequest.url,
           prNumber: result.pullRequest.number,
         };
-        writeStoredPr(sourceId, pr);
+        writeStoredPr(projectId, pr);
         setState({ phase: "pr-open", ...pr, checking: false });
         return;
       }
       if (result.status === "current") {
-        writeStoredPr(sourceId, null);
+        writeStoredPr(projectId, null);
         const alreadyCurrent = from === "open";
         setState({ phase: "merged", alreadyCurrent });
         if (alreadyCurrent) alreadyCurrentRef.current?.();
         return;
       }
-      writeStoredPr(sourceId, null);
+      writeStoredPr(projectId, null);
       setState({
         phase: "manual",
         reason: result.reason,
         command: result.command,
       });
     },
-    [sourceId],
+    [projectId],
   );
 
   const openPr = useCallback(async () => {
@@ -194,7 +194,7 @@ export function useSdkUpgrade({
     try {
       const status = await checkStatus();
       if (status.status === "merged") {
-        writeStoredPr(sourceId, null);
+        writeStoredPr(projectId, null);
         setState({ phase: "merged", alreadyCurrent: false });
       } else if (status.status === "open") {
         setState((prev) =>
@@ -211,12 +211,12 @@ export function useSdkUpgrade({
     } finally {
       inFlight.current = false;
     }
-  }, [applyResult, checkStatus, upgrade, sourceId]);
+  }, [applyResult, checkStatus, upgrade, projectId]);
 
   const dismiss = useCallback(() => {
-    writeStoredPr(sourceId, null);
+    writeStoredPr(projectId, null);
     setState({ phase: "idle" });
-  }, [sourceId]);
+  }, [projectId]);
 
   // Merge poll: only while a PR is open and the page is visible.
   const prOpen = state.phase === "pr-open";
