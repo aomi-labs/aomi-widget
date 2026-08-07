@@ -11,7 +11,7 @@ import {
   clearLaunchReadCache,
   activateLaunchRoute,
   createLaunchRepoRoute,
-  launchAppRoute,
+  launchAppsRoute,
   launchDeployRoute,
   launchSdkStatusRoute,
   launchStatusRoute,
@@ -1679,36 +1679,55 @@ describe("requiredSecretsRoute", () => {
   });
 });
 
-describe("launchAppRoute", () => {
+describe("launchAppsRoute", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     getGitHubSession.mockReset();
   });
 
-  it("401s without a session and 404s for an unowned app", async () => {
-    getGitHubSession.mockResolvedValue(null);
-    let fetchMock = vi.fn();
-    vi.stubGlobal("fetch", fetchMock);
-    let res = await launchAppRoute(
-      new Request("http://localhost:3000/api/bff/launch/app?name=my-bot"),
-    );
-    expect(res.status).toBe(401);
-    expect(fetchMock).not.toHaveBeenCalled();
-
-    vi.restoreAllMocks();
+  it("returns runtime status for an owned project in one batch", async () => {
     getGitHubSession.mockResolvedValue({
       githubUserId: "42",
       githubLogin: "alice",
     });
-    fetchMock = vi
+    const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(sourceWithApps(1, [{ name: "other-bot" }]));
+      .mockResolvedValueOnce(sourceWithApps(1578, [{ id: 77, name: "my-bot" }]))
+      .mockResolvedValueOnce(
+        Response.json({
+          apps: [
+            {
+              id: 77,
+              name: "my-bot",
+              is_active: true,
+              loaded: false,
+              app_release_tag: "release-2",
+            },
+          ],
+        }),
+      );
     vi.stubGlobal("fetch", fetchMock);
-    res = await launchAppRoute(
-      new Request("http://localhost:3000/api/bff/launch/app?name=my-bot"),
+
+    const res = await launchAppsRoute(
+      new Request("http://localhost:3000/api/bff/launch/apps?projectId=1578"),
     );
-    expect(res.status).toBe(404);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({
+      ok: true,
+      projectId: 1578,
+      state: "pending",
+      apps: [
+        {
+          id: 77,
+          name: "my-bot",
+          is_active: true,
+          loaded: false,
+          app_release_tag: "release-2",
+        },
+      ],
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });
 

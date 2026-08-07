@@ -1,8 +1,13 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { DeployStep } from "./deploy-step";
-import type { LaunchDeployPayload } from "@portal/features/launch";
-import type { LaunchProgress } from "@portal/features/launch";
+import {
+  launchActivate,
+  launchAppsStatus,
+  launchStatus,
+  type LaunchDeployPayload,
+  type LaunchProgress,
+} from "@portal/features/launch";
 
 const noop = () => {};
 
@@ -11,6 +16,7 @@ vi.mock("@portal/features/launch", () => ({
   launchDeploy: vi.fn(),
   launchStatus: vi.fn(),
   launchActivate: vi.fn(),
+  launchAppsStatus: vi.fn(),
   deploymentProjects: vi.fn(),
 }));
 
@@ -110,6 +116,70 @@ describe("DeployStep", () => {
   it("disables activate when phase is not ready", () => {
     render(<DeployStep {...defaultProps} />);
     expect(screen.getByRole("button", { name: "Activate" })).toBeDisabled();
+  });
+
+  it("waits for the project runtime after activation reports an unloaded app", async () => {
+    const onProgress = vi.fn();
+    vi.mocked(launchStatus).mockResolvedValueOnce({
+      state: "ready",
+      releaseTags: ["release-2"],
+    });
+    vi.mocked(launchActivate).mockResolvedValueOnce({
+      ok: true,
+      activation: {
+        apps: [
+          {
+            applicationId: 17,
+            name: "playground-example",
+            releaseTag: "release-2",
+            isActive: true,
+            loaded: false,
+          },
+        ],
+      },
+    } as never);
+    vi.mocked(launchAppsStatus).mockResolvedValueOnce({
+      ok: true,
+      projectId: 42,
+      state: "live",
+      apps: [
+        {
+          id: 17,
+          name: "playground-example",
+          app_release_tag: "release-2",
+          is_active: true,
+          loaded: true,
+        },
+      ],
+    });
+
+    render(
+      <DeployStep
+        {...defaultProps}
+        progress={{
+          ...baseProgress(),
+          projectId: 42,
+          deploymentId: "dep_1",
+          apps: ["playground-example"],
+          releaseTags: ["release-2"],
+        }}
+        onProgress={onProgress}
+      />,
+    );
+
+    const activate = await waitFor(() => {
+      const button = screen.getByRole("button", { name: "Activate" });
+      expect(button).not.toBeDisabled();
+      return button;
+    });
+    fireEvent.click(activate);
+
+    await waitFor(() =>
+      expect(launchAppsStatus).toHaveBeenCalledWith({ projectId: 42 }),
+    );
+    expect(onProgress).toHaveBeenCalledWith(
+      expect.objectContaining({ live: true, applicationId: "17" }),
+    );
   });
 
   it("shows the idle phase hint text", () => {

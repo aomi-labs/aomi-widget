@@ -43,7 +43,8 @@ const eslintConfig = [
               allowTypeImports: true,
             },
             {
-              regex: "^@aomi-labs/deploy$|^@aomi-labs/deploy/(?!lifecycle$).+",
+              regex:
+                "^@aomi-labs/deploy$|^@aomi-labs/deploy/(?!lifecycle$|launch$).+",
               message:
                 "Node-only packages must not be imported from client/shared code.",
               allowTypeImports: true,

@@ -246,6 +246,44 @@ describe("createLaunchRoutes deploy/preflight", () => {
     );
   });
 
+  it("returns no activation targets for an incomplete deployment manifest", async () => {
+    session.mockResolvedValueOnce({ githubUserId: "42", githubLogin: "alice" });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(ownedProjects(777))
+      .mockResolvedValueOnce(
+        Response.json({
+          ok: true,
+          deployment: {
+            id: "dep_999_rabc1234_deadbeef",
+            source: {
+              repository_link: "alice/bot",
+              commit_hash: "abc1234def5678",
+            },
+            platform: {
+              apps: [
+                { name: "complete", release_tag: "release-complete" },
+                { name: "missing-release" },
+              ],
+            },
+          },
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await routes().deploy(
+      writeReq("deploy", {
+        projectId: 777,
+        sourceRef: "abc1234def5678",
+      }),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(202);
+    expect(body.apps).toEqual([]);
+    expect(body.releaseTags).toEqual([]);
+  });
+
   it("deploys by Project identity without a client-selected platform", async () => {
     session.mockResolvedValueOnce({ githubUserId: "42", githubLogin: "alice" });
     const fetchMock = vi
@@ -600,7 +638,62 @@ describe("createLaunchRoutes projects", () => {
   });
 });
 
-describe("createLaunchRoutes activate/app security", () => {
+describe("createLaunchRoutes runtime apps", () => {
+  it("returns one project's live runtime statuses", async () => {
+    session.mockResolvedValueOnce({ githubUserId: "42", githubLogin: "alice" });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(ownedProjects(99))
+      .mockResolvedValueOnce(
+        Response.json({
+          project: { id: 99, platform_name: "community", apps: [] },
+          platform: "community",
+          apps: [
+            {
+              id: 5,
+              name: "bot",
+              is_active: true,
+              loaded: true,
+              app_release_tag: "release-2",
+            },
+          ],
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await routes().apps(readReq("apps", "projectId=99"));
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({
+      ok: true,
+      projectId: 99,
+      state: "live",
+      apps: [
+        {
+          id: 5,
+          name: "bot",
+          is_active: true,
+          loaded: true,
+          app_release_tag: "release-2",
+        },
+      ],
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("rejects an invalid project id before backend calls", async () => {
+    session.mockResolvedValueOnce({ githubUserId: "42", githubLogin: "alice" });
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await routes().apps(readReq("apps", "projectId=nope"));
+
+    expect(res.status).toBe(400);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("createLaunchRoutes activation security", () => {
   it("rejects activate without a GitHub session before backend calls", async () => {
     session.mockResolvedValueOnce(null);
     const fetchMock = vi.fn();
@@ -790,22 +883,5 @@ describe("createLaunchRoutes activate/app security", () => {
         apps: ["my-bot"],
       }),
     });
-  });
-
-  it("scopes app reads to the GitHub session", async () => {
-    session.mockResolvedValueOnce(null);
-    let fetchMock = vi.fn();
-    vi.stubGlobal("fetch", fetchMock);
-    let res = await routes().app(readReq("app", "name=my-bot"));
-    expect(res.status).toBe(401);
-    expect(fetchMock).not.toHaveBeenCalled();
-
-    vi.restoreAllMocks();
-    session.mockResolvedValueOnce({ githubUserId: "42", githubLogin: "alice" });
-    fetchMock = vi.fn().mockResolvedValueOnce(activationProject());
-    vi.stubGlobal("fetch", fetchMock);
-    res = await routes().app(readReq("app", "name=other"));
-    expect(res.status).toBe(404);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

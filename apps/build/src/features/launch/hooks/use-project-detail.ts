@@ -23,7 +23,13 @@ import {
   launchDeploy,
   launchStatus,
   launchActivate,
+  launchAppsStatus,
 } from "@build/features/launch/client";
+import {
+  isFatalLaunchRequestError,
+  waitForAppsToLoad,
+  waitForDeploymentReady,
+} from "@aomi-labs/deploy/launch";
 import {
   MissingRequiredSecretsError,
   missingRequiredSecrets,
@@ -51,7 +57,8 @@ export type DeployFlowState =
   | { phase: "error"; message: string };
 
 const DEPLOY_POLL_MS = 4000;
-const DEPLOY_TIMEOUT_MS = 8 * 60 * 1000;
+const DEPLOYMENT_READY_TIMEOUT_MS = 8 * 60 * 1000;
+const RUNTIME_READY_TIMEOUT_MS = 8 * 60 * 1000;
 
 export function useProjectDetail(projectId: number) {
   const { account } = useGitHubSession();
@@ -130,10 +137,18 @@ export function useProjectDetail(projectId: number) {
   const secretsReq = useRef<Set<number>>(new Set());
   const recordsReq = useRef(false);
   const requiredSecretsReq = useRef(false);
+  const projectEpochRef = useRef(0);
+  const deployAbortRef = useRef<AbortController | null>(null);
+  // Advance the generation after a project navigation commits. Async reads
+  // capture the generation they started in and cannot write into a later page.
+  useEffect(() => {
+    projectEpochRef.current += 1;
+  }, [projectId]);
 
   // Refetch source + SDK status. Kept stable (keyed via the query client, not
   // the query objects) so callbacks depending on it don't churn every render.
   const reload = useCallback(async () => {
+    const requestEpoch = projectEpochRef.current;
     // Clear the records latch so "Refresh" actually recovers a failed
     // deployment-activity load. On error `fetchRecords` sets `recordsByApp` to
     // `{}` (non-null), which otherwise makes `loadRecords` no-op forever and
@@ -148,6 +163,7 @@ export function useProjectDetail(projectId: number) {
       queryClient.refetchQueries({ queryKey: sourceKey }),
       queryClient.refetchQueries({ queryKey: buildQueryKeys.sdkStatus() }),
     ]);
+    if (projectEpochRef.current !== requestEpoch) return;
   }, [queryClient, sourceKey]);
 
   // Reset deployment-activity latches when the project changes so a same-route
@@ -163,15 +179,32 @@ export function useProjectDetail(projectId: number) {
     secretsReq.current.clear();
     setSecrets(null);
     setSecretsError(null);
+    requiredSecretsReq.current = false;
+    setRequiredSecrets(null);
+    setRequiredSecretsError(null);
+    setDeployFlow({ phase: "idle" });
+    deployAbortRef.current?.abort();
+    deployAbortRef.current = null;
   }, [projectId]);
+
+  useEffect(
+    () => () => {
+      deployAbortRef.current?.abort();
+    },
+    [],
+  );
 
   const loadHistory = useCallback(() => {
     if (historyReq.current || history !== null) return;
+    const requestEpoch = projectEpochRef.current;
     historyReq.current = true;
     setHistoryError(null);
     void deploymentHistory({ projectId, limit: 20 })
-      .then((r) => setHistory(r.deployments))
+      .then((r) => {
+        if (projectEpochRef.current === requestEpoch) setHistory(r.deployments);
+      })
       .catch((err) => {
+        if (projectEpochRef.current !== requestEpoch) return;
         setHistoryError(
           err instanceof Error ? err.message : "Failed to load history",
         );
@@ -181,13 +214,16 @@ export function useProjectDetail(projectId: number) {
 
   const loadSecrets = useCallback((applicationId: number) => {
     if (secretsReq.current.has(applicationId)) return;
+    const requestEpoch = projectEpochRef.current;
     secretsReq.current.add(applicationId);
     setSecretsError(null);
     void deploymentSecrets({ applicationId })
-      .then((r) =>
-        setSecrets((current) => ({ ...(current ?? {}), ...r.byApp })),
-      )
+      .then((r) => {
+        if (projectEpochRef.current !== requestEpoch) return;
+        setSecrets((current) => ({ ...(current ?? {}), ...r.byApp }));
+      })
       .catch((err) => {
+        if (projectEpochRef.current !== requestEpoch) return;
         setSecretsError(
           err instanceof Error
             ? err.message
@@ -198,17 +234,24 @@ export function useProjectDetail(projectId: number) {
   }, []);
 
   const refreshRequiredSecrets = useCallback(async () => {
+    const requestEpoch = projectEpochRef.current;
     requiredSecretsReq.current = true;
     setRequiredSecretsError(null);
     try {
       const result = await deploymentRequiredSecrets({ projectId });
-      setRequiredSecrets(result.byApp);
+      if (projectEpochRef.current === requestEpoch) {
+        setRequiredSecrets(result.byApp);
+      }
       return result.byApp;
     } catch (err) {
-      setRequiredSecretsError(
-        err instanceof Error ? err.message : "Failed to load required secrets",
-      );
-      requiredSecretsReq.current = false;
+      if (projectEpochRef.current === requestEpoch) {
+        setRequiredSecretsError(
+          err instanceof Error
+            ? err.message
+            : "Failed to load required secrets",
+        );
+        requiredSecretsReq.current = false;
+      }
       throw err;
     }
   }, [projectId]);
@@ -220,6 +263,7 @@ export function useProjectDetail(projectId: number) {
 
   const ensureRequiredSecrets = useCallback(
     async (apps: string[], projectIdOverride?: number) => {
+      const requestEpoch = projectEpochRef.current;
       try {
         const byApp =
           projectIdOverride === undefined
@@ -229,13 +273,23 @@ export function useProjectDetail(projectId: number) {
                   projectId: projectIdOverride,
                 })
               ).byApp;
-        if (projectIdOverride !== undefined) setRequiredSecrets(byApp);
+        if (
+          projectIdOverride !== undefined &&
+          projectEpochRef.current === requestEpoch
+        ) {
+          setRequiredSecrets(byApp);
+        }
+        if (projectEpochRef.current !== requestEpoch)
+          throw new Error("Project changed while checking required secrets.");
         const missing = missingRequiredSecrets(byApp, apps);
         if (Object.keys(missing).length > 0) {
           throw new MissingRequiredSecretsError(missing);
         }
       } catch (err) {
-        if (!(err instanceof MissingRequiredSecretsError)) {
+        if (
+          projectEpochRef.current === requestEpoch &&
+          !(err instanceof MissingRequiredSecretsError)
+        ) {
           setRequiredSecretsError(
             err instanceof Error
               ? err.message
@@ -255,27 +309,35 @@ export function useProjectDetail(projectId: number) {
   );
 
   const refreshSecrets = useCallback(async (applicationId: number) => {
+    const requestEpoch = projectEpochRef.current;
     setSecretsError(null);
     try {
       const r = await deploymentSecrets({ applicationId });
-      setSecrets((current) => ({ ...(current ?? {}), ...r.byApp }));
+      if (projectEpochRef.current === requestEpoch) {
+        setSecrets((current) => ({ ...(current ?? {}), ...r.byApp }));
+      }
     } catch (err) {
-      setSecretsError(
-        err instanceof Error
-          ? err.message
-          : "Failed to load environment variables",
-      );
+      if (projectEpochRef.current === requestEpoch) {
+        setSecretsError(
+          err instanceof Error
+            ? err.message
+            : "Failed to load environment variables",
+        );
+      }
       throw err;
     }
   }, []);
 
   const setEnvVars = useCallback(
     async (applicationId: number, secrets: Record<string, string>) => {
+      const requestEpoch = projectEpochRef.current;
       const result = await deploymentSetSecrets({
         applicationId,
         secrets,
       });
+      if (projectEpochRef.current !== requestEpoch) return result;
       await refreshSecrets(applicationId);
+      if (projectEpochRef.current !== requestEpoch) return result;
       await refreshRequiredSecrets();
       return result;
     },
@@ -284,10 +346,12 @@ export function useProjectDetail(projectId: number) {
 
   const deleteEnvVar = useCallback(
     async (applicationId: number, name: string) => {
+      const requestEpoch = projectEpochRef.current;
       const result = await deploymentDeleteSecret({
         applicationId,
         name,
       });
+      if (projectEpochRef.current !== requestEpoch) return result;
       await refreshSecrets(applicationId);
       return result;
     },
@@ -297,6 +361,7 @@ export function useProjectDetail(projectId: number) {
   // Fetch the DB activation timeline for every app on this source (per-app but
   // all DB reads — no GitHub fan-out). `force` re-fetches after an operation.
   const fetchRecords = useCallback(async (src: UserProject) => {
+    const requestEpoch = projectEpochRef.current;
     setRecordsError(null);
     try {
       const entries = await Promise.all(
@@ -308,14 +373,18 @@ export function useProjectDetail(projectId: number) {
           return [app.name, result.records] as const;
         }),
       );
-      setRecords(Object.fromEntries(entries));
+      if (projectEpochRef.current === requestEpoch) {
+        setRecords(Object.fromEntries(entries));
+      }
     } catch (err) {
-      const message =
-        err instanceof Error
-          ? err.message
-          : "Failed to load deployment activity";
-      setRecordsError(message);
-      setRecords({});
+      if (projectEpochRef.current === requestEpoch) {
+        const message =
+          err instanceof Error
+            ? err.message
+            : "Failed to load deployment activity";
+        setRecordsError(message);
+        setRecords({});
+      }
       throw err;
     }
   }, []);
@@ -348,9 +417,15 @@ export function useProjectDetail(projectId: number) {
   // once CI publishes it. GitHub is read only here (status polling) — the
   // "update deployment" operation — never on the passive tab render.
   const redeploySource = useCallback(async () => {
+    const requestEpoch = projectEpochRef.current;
+    const isCurrent = () => projectEpochRef.current === requestEpoch;
     const repo = source?.repositoryLink;
+    deployAbortRef.current?.abort();
+    const controller = new AbortController();
+    deployAbortRef.current = controller;
     if (!repo) {
       setDeployFlow({ phase: "error", message: "Source repo is unknown." });
+      deployAbortRef.current = null;
       return;
     }
     try {
@@ -362,6 +437,7 @@ export function useProjectDetail(projectId: number) {
         repo,
         projectId,
       });
+      if (!isCurrent()) return;
       const targetProjectId = pre.projectId ?? projectId;
       // Preflight re-syncs the source from the repo, so HEAD's `aomi.toml` can
       // register apps this page never saw. Refresh the source before gating:
@@ -370,7 +446,9 @@ export function useProjectDetail(projectId: number) {
       // this the check can fail for an app the UI has no row for — the user is
       // told a secret is missing with nowhere to enter it.
       await reload();
+      if (!isCurrent()) return;
       await ensureRequiredSecrets(pre.apps, targetProjectId);
+      if (!isCurrent()) return;
       if (!pre.sourceRef) {
         throw new Error("Preflight did not return an immutable source commit.");
       }
@@ -379,38 +457,34 @@ export function useProjectDetail(projectId: number) {
         projectId: targetProjectId,
         sourceRef: pre.sourceRef,
       });
+      if (!isCurrent()) return;
       const deploymentId = deployed.deployment.id;
 
-      const deadline = Date.now() + DEPLOY_TIMEOUT_MS;
       let releaseTags = deployed.releaseTags;
-      let apps = deployed.apps;
-      // Poll CI until the release is published.
-      for (;;) {
-        const status = await launchStatus(deploymentId, projectPlatform);
-        releaseTags = status.releaseTags?.length
-          ? status.releaseTags
-          : releaseTags;
-        if (status.state === "ready") break;
-        if (status.state === "failed") {
-          setDeployFlow({
-            phase: "error",
-            message: "Build failed; see the platform CI run.",
-          });
-          return;
-        }
-        if (Date.now() > deadline) {
-          setDeployFlow({
-            phase: "error",
-            message: "Timed out waiting for the build; retry later.",
-          });
-          return;
-        }
-        setDeployFlow({
-          phase: "building",
-          message: `Building… (${status.state})`,
-        });
-        await new Promise((r) => setTimeout(r, DEPLOY_POLL_MS));
-      }
+      const apps = deployed.apps;
+      const ready = await waitForDeploymentReady(
+        () => launchStatus(deploymentId, projectPlatform),
+        {
+          signal: controller.signal,
+          intervalMs: DEPLOY_POLL_MS,
+          timeoutMs: DEPLOYMENT_READY_TIMEOUT_MS,
+          isFatal: isFatalLaunchRequestError,
+          onProgress: (status) => {
+            if (!isCurrent()) return;
+            releaseTags = status.releaseTags?.length
+              ? status.releaseTags
+              : releaseTags;
+            if (status.state !== "ready") {
+              setDeployFlow({
+                phase: "building",
+                message: `Building… (${status.state})`,
+              });
+            }
+          },
+        },
+      );
+      releaseTags = ready.releaseTags?.length ? ready.releaseTags : releaseTags;
+      if (!isCurrent()) return;
 
       setDeployFlow({ phase: "activating", message: "Activating release…" });
       // Activate the SAME project the deploy targeted — `targetProjectId`
@@ -420,6 +494,7 @@ export function useProjectDetail(projectId: number) {
         releaseTags,
         apps,
       });
+      if (!isCurrent()) return;
       // A rejected/partial activation still returns apps (with `error` set), and
       // a malformed response may omit `activation` entirely — surface the real
       // reason instead of throwing into the generic "Deploy failed" catch.
@@ -432,20 +507,59 @@ export function useProjectDetail(projectId: number) {
         });
         return;
       }
+      if (apps.length > 0 && activatedApps.length === 0) {
+        setDeployFlow({
+          phase: "error",
+          message: "Activation returned no application statuses.",
+        });
+        return;
+      }
       const unloaded = activatedApps.filter((app) => !app.loaded);
-      setDeployFlow({
-        phase: unloaded.length ? "error" : "done",
-        message: unloaded.length
-          ? `Release selected, but ${unloaded.map((app) => app.name).join(", ")} is not loaded in this runtime.`
-          : "New version is live.",
-      });
+      if (unloaded.length > 0) {
+        setDeployFlow({
+          phase: "activating",
+          message: "Loading app runtime…",
+        });
+        try {
+          await waitForAppsToLoad(
+            () => launchAppsStatus({ projectId: targetProjectId }),
+            unloaded.map((app) => ({
+              name: app.name,
+              releaseTag: app.releaseTag ?? undefined,
+            })),
+            {
+              signal: controller.signal,
+              intervalMs: DEPLOY_POLL_MS,
+              timeoutMs: RUNTIME_READY_TIMEOUT_MS,
+              isFatal: isFatalLaunchRequestError,
+              onProgress: ({ ready, total }) => {
+                if (isCurrent()) {
+                  setDeployFlow({
+                    phase: "activating",
+                    message: `Loading app runtime… (${ready}/${total})`,
+                  });
+                }
+              },
+            },
+          );
+        } catch (err) {
+          if (controller.signal.aborted) return;
+          throw err;
+        }
+        if (!isCurrent()) return;
+      }
+      setDeployFlow({ phase: "done", message: "New version is live." });
       await reload();
+      if (!isCurrent()) return;
       refreshRecords();
     } catch (err) {
+      if (controller.signal.aborted || !isCurrent()) return;
       setDeployFlow({
         phase: "error",
         message: err instanceof Error ? err.message : "Deploy failed",
       });
+    } finally {
+      if (deployAbortRef.current === controller) deployAbortRef.current = null;
     }
   }, [
     ensureRequiredSecrets,

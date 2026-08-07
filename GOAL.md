@@ -15,7 +15,7 @@ backend's canonical platform-bound Project model, with no compatibility path.
   project's bound platform, and Telegram receives eligible applications across
   every bound platform.
 - Preflight resolves and returns an immutable commit; apply requires it.
-- The breaking shared packages are versioned as `@aomi-labs/deploy@0.6.0` and
+- The breaking shared packages are versioned as `@aomi-labs/deploy@0.7.0` and
   `@aomi-labs/client@0.4.0`.
 - Project and Application identities are now separate in every touched path:
   Project owns deployment/provider administration, while environment,
@@ -33,6 +33,35 @@ backend's canonical platform-bound Project model, with no compatibility path.
 - The published TypeScript CLI now sends deploys to the V2
   `/api/projects/:projectId/deploy` route, omits client-selected platform data,
   and persists the platform resolved by the backend response.
+
+## Deployment Lifecycle Cleanup
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-07** — make
+deployment completion mean that the selected release is actually active and
+loaded in the project runtime, while removing the stale name-scoped readiness
+path and keeping app/release identities paired end to end.
+
+- Added one shared, cancellable deployment/runtime polling contract used by
+  Build and Portal onboarding plus project redeploy flows. Permanent 4xx
+  failures stop immediately; transient failures retain their final diagnostic.
+- Replaced the ambiguous per-app `/launch/app` route and browser method with a
+  project-owned batch runtime snapshot, with no compatibility route.
+- Centralized deployment target extraction, progress mapping, and browser
+  fatal-error classification in `@aomi-labs/deploy`, deleting the duplicated
+  Build/Portal implementations and preventing independently filtered app and
+  release-tag arrays from drifting.
+- Routed both dashboards' GitHub session, sign-out, and launch-project reads
+  through that same browser client and removed their unused launch URL maps;
+  Build retains its intentional local wizard reset after sign-out.
+- Review follow-up named the CI and runtime deadlines independently, made
+  transient runtime failures advance watcher progress while preserving the
+  last snapshot, simplified stale-project error guards, and added route-level
+  coverage for malformed deployment manifests producing no activation targets.
+- Versioned the changed publishable contract as `@aomi-labs/deploy@0.7.0` and
+  verified its build and focused tests, full Build/Portal tests and lint, Build
+  type-check, and Portal type-check through the known unrelated missing Para
+  connector dependency.
+
 ## Telegram Para Mini App
 
 Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-06** — use one
@@ -48,6 +77,7 @@ through the canonical Session contract.
 - Kept the public BotFather contract aligned to `/start`, `/thread`,
   `/wallet`, `/permission`, `/tx`, `/app`, `/model`, `/network`, and
   `/disconnect`.
+
 ## Chat Composer Parity
 
 Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-05** — keep the active-thread

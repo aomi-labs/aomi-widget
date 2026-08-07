@@ -18,7 +18,7 @@ import type {
   DeploymentSecretsResult,
   DeploymentProjectsResult,
   LaunchActivateResult,
-  LaunchAppStatus,
+  LaunchAppStatusesResult,
   LaunchCreateRepoResult,
   LaunchDeployInput,
   LaunchDeployResult,
@@ -59,6 +59,15 @@ export class LaunchRequestError extends Error {
     this.status = status;
     this.body = body;
   }
+}
+
+/** Browser request failures that polling cannot recover from. */
+export function isFatalLaunchRequestError(error: unknown): boolean {
+  return (
+    error instanceof LaunchRequestError &&
+    error.status >= 400 &&
+    error.status < 500
+  );
 }
 
 export interface GitHubSessionInfo {
@@ -407,10 +416,7 @@ function createBaseClient(options: LaunchClientOptions) {
       watchOptions: WatchLoopOptions = {},
     ): Promise<void> {
       return watchDeploymentLoop(() => status(input), onEvent, {
-        isFatal: (err) =>
-          err instanceof LaunchRequestError &&
-          err.status >= 400 &&
-          err.status < 500,
+        isFatal: isFatalLaunchRequestError,
         ...watchOptions,
       });
     },
@@ -432,13 +438,13 @@ function createBaseClient(options: LaunchClientOptions) {
       return postJson(`${basePath}/activate`, "launch activation", input);
     },
 
-    appStatus(input: {
-      name: string;
-      releaseTag?: string;
-    }): Promise<LaunchAppStatus> {
-      const params = new URLSearchParams({ name: input.name });
-      if (input.releaseTag) params.set("releaseTag", input.releaseTag);
-      return launchFetch(`${basePath}/app?${params}`, "launch app status");
+    appStatuses(input: {
+      projectId: number;
+    }): Promise<LaunchAppStatusesResult> {
+      const params = new URLSearchParams({
+        projectId: String(input.projectId),
+      });
+      return launchFetch(`${basePath}/apps?${params}`, "launch app statuses");
     },
 
     async fetchGitHubSession(): Promise<GitHubSessionInfo> {
@@ -484,6 +490,7 @@ function createBaseClient(options: LaunchClientOptions) {
     async githubAppInstallUrl(args: {
       platform?: string;
       repo?: string;
+      mode?: "install" | "authorize";
       app?: number;
       /** Validated Aomi Build page the OAuth callback should land back on. */
       returnTo?: string;
@@ -493,6 +500,7 @@ function createBaseClient(options: LaunchClientOptions) {
       if (platform) params.set("platform", platform);
       const repo = args.repo ? normalizeRepo(args.repo) : null;
       if (repo) params.set("repo", repo);
+      if (args.mode === "authorize") params.set("mode", "authorize");
       if (args.app && args.app !== 1) params.set("app", String(args.app));
       const returnTo = args.returnTo?.trim();
       if (returnTo) params.set("return_to", returnTo);

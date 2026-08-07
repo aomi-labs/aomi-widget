@@ -36,29 +36,6 @@ export const API_PATHS = {
       exchange: `${BFF}/cli/exchange`,
       status: `${BFF}/cli/status`,
     },
-    launch: {
-      preflight: `${BFF}/launch/preflight`,
-      deploy: `${BFF}/launch/deploy`,
-      redeploy: `${BFF}/launch/redeploy`,
-      create: `${BFF}/launch/create`,
-      activate: `${BFF}/launch/activate`,
-      projects: (platform?: string, projectId?: number) =>
-        withPlatform(
-          projectsPath(`${BFF}/launch/projects`, projectId),
-          platform,
-        ),
-      sdkStatus: `${BFF}/launch/sdk-status`,
-      status: (deploymentId: string, platform?: string) =>
-        withPlatform(
-          `${BFF}/launch/status?deploymentId=${encodeURIComponent(deploymentId)}`,
-          platform,
-        ),
-      app: (name: string, releaseTag?: string) => {
-        const params = new URLSearchParams({ name });
-        if (releaseTag) params.set("releaseTag", releaseTag);
-        return `${BFF}/launch/app?${params}`;
-      },
-    },
     deployments: {
       preflight: `${BFF}/deployments/preflight`,
       deploy: `${BFF}/deployments/deploy`,

@@ -13,11 +13,18 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { Button } from "@aomi-labs/widget-lib";
-import type { DeployPayload, SecretSlot } from "@aomi-labs/deploy";
+import type { ProgressModel, SecretSlot } from "@aomi-labs/deploy";
 import {
-  deploymentProjects,
+  deploymentProgress,
+  deploymentTargets,
+  isFatalLaunchRequestError,
+  waitForAppsToLoad,
+  waitForDeploymentReady,
+} from "@aomi-labs/deploy/launch";
+import {
   launchActivate,
   launchDeploy,
+  launchAppsStatus,
   launchPreflight,
   launchStatus,
   type LaunchDeployPayload,
@@ -58,12 +65,6 @@ type Phase =
   | "live"
   | "error";
 
-type ProgressModel = {
-  completed: number;
-  total: number;
-  label: string;
-};
-
 type StepStatus = "todo" | "active" | "done";
 
 const BUSY_PHASES: Phase[] = [
@@ -79,58 +80,8 @@ function deploymentApps(deployment?: LaunchDeployPayload) {
   return deployment?.platform?.apps ?? [];
 }
 
-function launchDeployment(next: DeployPayload): LaunchDeployPayload {
-  return next;
-}
-
-function releaseTags(deployment?: LaunchDeployPayload): string[] {
-  return deploymentApps(deployment)
-    .map((app) => app.releaseTag)
-    .map((tag) => tag?.trim())
-    .filter((tag): tag is string => Boolean(tag));
-}
-
-function appNames(deployment?: LaunchDeployPayload): string[] {
-  return deploymentApps(deployment)
-    .map((app) => app.name?.trim())
-    .filter((name): name is string => Boolean(name));
-}
-
-const BACKOFF_BASE_MS = 3000;
-const MAX_BACKOFF_MS = 30000;
-const DEPLOY_TIMEOUT_MS = 30 * 60 * 1000; // 30-minute hard limit
-
-function backoffDelay(failureCount: number): number {
-  const delay = BACKOFF_BASE_MS * Math.pow(2, failureCount);
-  return Math.min(delay, MAX_BACKOFF_MS);
-}
-
-function buildProgressModel(
-  state: string,
-  lastCompleted: number,
-): ProgressModel {
-  const stateToSteps: Record<
-    string,
-    { completed: number; total: number; label: string }
-  > = {
-    pending: { completed: 1, total: 8, label: "Waiting for build" },
-    building: { completed: 2, total: 8, label: "Building CI" },
-    releasing: { completed: 5, total: 8, label: "Verifying release assets" },
-    ready: { completed: 8, total: 8, label: "Build ready" },
-    no_ci: { completed: lastCompleted, total: 8, label: "No CI" },
-    failed: { completed: lastCompleted, total: 8, label: "Build failed" },
-  };
-  const mapped = stateToSteps[state] ?? {
-    completed: lastCompleted,
-    total: 8,
-    label: "In progress",
-  };
-  return {
-    completed: Math.max(mapped.completed, lastCompleted),
-    total: mapped.total,
-    label: mapped.label,
-  };
-}
+const DEPLOYMENT_READY_TIMEOUT_MS = 30 * 60 * 1000;
+const RUNTIME_READY_TIMEOUT_MS = 30 * 60 * 1000;
 
 function initialPhase(progress: LaunchProgress): Phase {
   if (progress.live) return "live";
@@ -210,30 +161,39 @@ export function DeployStep({
   const [showManifest, setShowManifest] = useState(false);
   const [verifyAttempt, setVerifyAttempt] = useState(0);
   const [copied, setCopied] = useState(false);
-  const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const statusFailuresRef = useRef(0);
-  const startTimeRef = useRef<number | null>(null);
+  const runtimeAbortRef = useRef<AbortController | null>(null);
+  const onProgressRef = useRef(onProgress);
   const [progressModel, setProgressModel] = useState<ProgressModel | null>(
     null,
   );
   const lastCompletedRef = useRef(0);
 
+  const targets = useMemo(() => deploymentTargets(deployment), [deployment]);
   const tags = useMemo(
-    () => progress.releaseTags ?? releaseTags(deployment),
-    [deployment, progress.releaseTags],
+    () => progress.releaseTags ?? targets.map((target) => target.releaseTag),
+    [progress.releaseTags, targets],
   );
   const apps = useMemo(
-    () => progress.apps ?? appNames(deployment),
-    [deployment, progress.apps],
+    () => progress.apps ?? targets.map((target) => target.name),
+    [progress.apps, targets],
   );
   const manifestJson = useMemo(
     () => (deployment ? JSON.stringify(deployment, null, 2) : ""),
     [deployment],
   );
+  const loadRequiredSecrets = detail?.loadRequiredSecrets;
 
   useEffect(() => {
-    detail?.loadRequiredSecrets();
-  }, [detail]);
+    onProgressRef.current = onProgress;
+  }, [onProgress]);
+
+  useEffect(() => {
+    loadRequiredSecrets?.();
+  }, [loadRequiredSecrets]);
+
+  useEffect(() => {
+    return () => runtimeAbortRef.current?.abort();
+  }, []);
 
   // Gate on the apps this step is about to deploy or activate. After a
   // preflight, `apps` comes from the resolved deployment manifest even before
@@ -323,8 +283,10 @@ export function DeployStep({
       releaseTags?: string[];
       apps?: string[];
     }) => {
-      const nextTags = next.releaseTags ?? releaseTags(next.deployment);
-      const nextApps = next.apps ?? appNames(next.deployment);
+      const nextTargets = deploymentTargets(next.deployment);
+      const nextTags =
+        next.releaseTags ?? nextTargets.map((target) => target.releaseTag);
+      const nextApps = next.apps ?? nextTargets.map((target) => target.name);
       setDeployment(next.deployment);
       setShowManifest(false);
       const patch: Partial<LaunchProgress> = {
@@ -344,7 +306,6 @@ export function DeployStep({
   const preflight = useCallback(async () => {
     setPhase("preflight_running");
     setError(null);
-    statusFailuresRef.current = 0;
     try {
       const result = await launchPreflight({
         installationId,
@@ -371,7 +332,6 @@ export function DeployStep({
   const deploy = useCallback(async () => {
     setPhase("deploying");
     setError(null);
-    statusFailuresRef.current = 0;
     try {
       // Deploy commits against a stable source row id. The first deploy after
       // an install has none yet, so preflight resolves the connected Project
@@ -446,136 +406,106 @@ export function DeployStep({
   ]);
 
   useEffect(() => {
-    if (
-      !deploymentId ||
-      (phase !== "building" && phase !== "deploying" && phase !== "releasing")
-    )
-      return;
+    if (!deploymentId || progress.live) return;
+    const controller = new AbortController();
     let cancelled = false;
-    if (startTimeRef.current === null) startTimeRef.current = Date.now();
-    const tick = async () => {
-      if (Date.now() - (startTimeRef.current ?? 0) > DEPLOY_TIMEOUT_MS) {
-        setPhase("error");
-        setError("Deploy timed out after 30 minutes.");
-        return;
-      }
+    const watch = async () => {
       try {
-        const status = await launchStatus(deploymentId, platform);
-        if (cancelled) return;
-        statusFailuresRef.current = 0;
-        const nextDeployment = status.deployment
-          ? launchDeployment(status.deployment)
-          : undefined;
-        if (nextDeployment) setDeployment(nextDeployment);
-        // Update progress model with monotonic clamping
-        const model = buildProgressModel(
-          status.state,
-          lastCompletedRef.current,
-        );
-        lastCompletedRef.current = model.completed;
-        setProgressModel(model);
+        await waitForDeploymentReady(
+          () => launchStatus(deploymentId, platform),
+          {
+            signal: controller.signal,
+            intervalMs: 4000,
+            timeoutMs: DEPLOYMENT_READY_TIMEOUT_MS,
+            isFatal: isFatalLaunchRequestError,
+            onProgress: (status) => {
+              if (cancelled) return;
+              const nextDeployment = status.deployment;
+              if (nextDeployment) setDeployment(nextDeployment);
+              const model = deploymentProgress(
+                status,
+                lastCompletedRef.current,
+              );
+              lastCompletedRef.current = model.completed;
+              setProgressModel(model);
 
-        const patch: Partial<LaunchProgress> = {
-          deploymentId,
-          live: false,
-        };
-        if (nextDeployment) patch.deployment = nextDeployment;
-        if (status.releaseTags.length > 0)
-          patch.releaseTags = status.releaseTags;
-        onProgress(patch);
-        if (status.state === "ready") {
-          setPhase("ready");
-          return;
-        }
-        if (status.state === "releasing") {
-          setPhase("releasing");
-          pollRef.current = setTimeout(tick, 3000);
-          return;
-        }
-        if (status.state === "pending") {
-          setPhase("building");
-          pollRef.current = setTimeout(tick, 6000);
-          return;
-        }
-        if (status.state === "failed" || status.state === "no_ci") {
-          setError(
-            status.message ??
-              (status.state === "no_ci"
-                ? "No CI ran for this deployment."
-                : "Deploy CI failed."),
-          );
-          setPhase("error");
-          return;
-        }
-        setPhase("building");
-        pollRef.current = setTimeout(tick, 5000);
+              const patch: Partial<LaunchProgress> = {
+                deploymentId,
+                live: false,
+              };
+              if (nextDeployment) patch.deployment = nextDeployment;
+              if (status.releaseTags.length > 0)
+                patch.releaseTags = status.releaseTags;
+              onProgressRef.current(patch);
+              if (status.state === "releasing") setPhase("releasing");
+              else if (status.state !== "ready") setPhase("building");
+            },
+          },
+        );
+        if (!cancelled) setPhase("ready");
       } catch (e) {
-        if (cancelled) return;
-        statusFailuresRef.current += 1;
-        if (statusFailuresRef.current < 8) {
-          setPhase("building");
-          const delay = backoffDelay(statusFailuresRef.current);
-          pollRef.current = setTimeout(tick, delay);
-          return;
-        }
+        if (cancelled || controller.signal.aborted) return;
         setError(e instanceof Error ? e.message : String(e));
         setPhase("error");
       }
     };
-    pollRef.current = setTimeout(tick, phase === "deploying" ? 1500 : 4000);
+    void watch();
     return () => {
       cancelled = true;
-      if (pollRef.current) clearTimeout(pollRef.current);
+      controller.abort();
     };
-  }, [deploymentId, onProgress, phase, platform]);
+  }, [deploymentId, platform, progress.live]);
 
   const verifyLive = useCallback(
     async (nextApps = apps, nextTags = tags) => {
       setPhase("verifying");
-      for (let attempt = 0; attempt < 30; attempt += 1) {
-        setVerifyAttempt(attempt + 1);
-        try {
-          const result = await deploymentProjects(
-            undefined,
-            progress.projectId,
-          );
-          const source = result.projects.find(
-            (candidate) => candidate.id === progress.projectId,
-          );
-          const checks = nextApps.map((name, index) =>
-            source?.apps.find(
-              (app) =>
-                app.name === name &&
-                (!nextTags[index] || app.appReleaseTag === nextTags[index]),
-            ),
-          );
-          if (
-            checks.length > 0 &&
-            checks.every((app) => app?.isActive && app.loaded)
-          ) {
-            const firstApplicationId = checks
-              .find((app) => app?.id)
-              ?.id.toString();
-            onProgress({
-              live: true,
-              applicationId: firstApplicationId,
-            });
-            setPhase("live");
-            return;
-          }
-        } catch (e) {
-          if (attempt === 29) {
-            setError(e instanceof Error ? e.message : String(e));
-            setPhase("error");
-            return;
-          }
-        }
-        await new Promise((resolve) => setTimeout(resolve, 3000));
+      if (!progress.projectId) {
+        setError("Project is missing; rerun deployment before activation.");
+        setPhase("error");
+        return;
       }
-      setError(
-        "Activation was accepted, but the app artifact did not become ready.",
-      );
-      setPhase("error");
+
+      if (nextApps.length === 0) {
+        setError("Activation did not return any apps to verify.");
+        setPhase("error");
+        return;
+      }
+
+      runtimeAbortRef.current?.abort();
+      const controller = new AbortController();
+      runtimeAbortRef.current = controller;
+      try {
+        const snapshot = await waitForAppsToLoad(
+          () => launchAppsStatus({ projectId: progress.projectId! }),
+          nextApps.map((name, index) => ({
+            name,
+            releaseTag: nextTags[index],
+          })),
+          {
+            signal: controller.signal,
+            timeoutMs: RUNTIME_READY_TIMEOUT_MS,
+            intervalMs: 3000,
+            isFatal: isFatalLaunchRequestError,
+            onProgress: ({ attempt }) => setVerifyAttempt(attempt),
+          },
+        );
+        const firstApplicationId = snapshot.apps
+          .find((app) => app.id)
+          ?.id?.toString();
+        onProgress({
+          live: true,
+          applicationId: firstApplicationId,
+        });
+        setPhase("live");
+      } catch (e) {
+        if (controller.signal.aborted) return;
+        setError(e instanceof Error ? e.message : String(e));
+        setPhase("error");
+      } finally {
+        if (runtimeAbortRef.current === controller) {
+          runtimeAbortRef.current = null;
+        }
+      }
     },
     [apps, onProgress, progress.projectId, tags],
   );
@@ -621,9 +551,9 @@ export function DeployStep({
   }, [actor, apps, onProgress, progress.projectId, tags, verifyLive]);
 
   const reset = useCallback(() => {
+    runtimeAbortRef.current?.abort();
+    runtimeAbortRef.current = null;
     setError(null);
-    statusFailuresRef.current = 0;
-    startTimeRef.current = null;
     lastCompletedRef.current = 0;
     setProgressModel(null);
     setVerifyAttempt(0);
@@ -850,7 +780,7 @@ export function DeployStep({
         {phase === "activating" &&
           "Promoting the built release into the live branch."}
         {phase === "verifying" &&
-          `Checking runtime... attempt ${verifyAttempt}/30`}
+          `Checking runtime... attempt ${verifyAttempt}`}
         {phase === "live" && "App artifact is ready."}
       </div>
 

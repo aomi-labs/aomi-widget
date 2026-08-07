@@ -1,3 +1,5 @@
+/* eslint-disable no-restricted-imports -- Server-only widget CORS helper. */
+
 import { observedWidgetOrigin } from "@aomi-labs/account/widget-auth";
 
 const ALLOWED_HEADERS = [

@@ -1,3 +1,5 @@
+/* eslint-disable no-restricted-imports -- Server-only portal principal resolver. */
+
 import {
   hasWidgetSessionBearer,
   observedWidgetOrigin,
@@ -140,10 +142,7 @@ function canonicalPortalOrigin(): string | null {
 }
 
 function forwardedOrigin(request: Request): string | null {
-  const host = request.headers
-    .get("x-forwarded-host")
-    ?.split(",")[0]
-    ?.trim();
+  const host = request.headers.get("x-forwarded-host")?.split(",")[0]?.trim();
   if (!host) return null;
   const proto =
     request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim() ||
