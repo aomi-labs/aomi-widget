@@ -246,6 +246,44 @@ describe("createLaunchRoutes deploy/preflight", () => {
     );
   });
 
+  it("returns no activation targets for an incomplete deployment manifest", async () => {
+    session.mockResolvedValueOnce({ githubUserId: "42", githubLogin: "alice" });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(ownedProjects(777))
+      .mockResolvedValueOnce(
+        Response.json({
+          ok: true,
+          deployment: {
+            id: "dep_999_rabc1234_deadbeef",
+            source: {
+              repository_link: "alice/bot",
+              commit_hash: "abc1234def5678",
+            },
+            platform: {
+              apps: [
+                { name: "complete", release_tag: "release-complete" },
+                { name: "missing-release" },
+              ],
+            },
+          },
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await routes().deploy(
+      writeReq("deploy", {
+        projectId: 777,
+        sourceRef: "abc1234def5678",
+      }),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(202);
+    expect(body.apps).toEqual([]);
+    expect(body.releaseTags).toEqual([]);
+  });
+
   it("deploys by Project identity without a client-selected platform", async () => {
     session.mockResolvedValueOnce({ githubUserId: "42", githubLogin: "alice" });
     const fetchMock = vi

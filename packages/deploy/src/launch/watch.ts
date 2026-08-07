@@ -230,6 +230,8 @@ export type AppRuntimeWatchProgress = {
   ready: number;
   total: number;
   snapshot: AppRuntimeSnapshot;
+  /** Present when this attempt could not read a runtime snapshot. */
+  error?: unknown;
 };
 
 export type AppRuntimeWatchOptions = {
@@ -318,12 +320,14 @@ export async function waitForAppsToLoad(
   const deadline = Date.now() + timeoutMs;
   let attempt = 0;
   let lastError: unknown;
+  let lastSnapshot: AppRuntimeSnapshot = { apps: [] };
 
   for (;;) {
     if (options.signal?.aborted) throw abortError();
     attempt += 1;
     try {
       const snapshot = await poll();
+      lastSnapshot = snapshot;
       options.onProgress?.({
         attempt,
         ready: runtimeReadyCount(snapshot, expected),
@@ -334,6 +338,13 @@ export async function waitForAppsToLoad(
     } catch (error) {
       lastError = error;
       if (options.isFatal?.(error)) throw error;
+      options.onProgress?.({
+        attempt,
+        ready: runtimeReadyCount(lastSnapshot, expected),
+        total: expected.length,
+        snapshot: lastSnapshot,
+        error,
+      });
       // Keep transient ownership/runtime reads inside the same deadline.
     }
 

@@ -53,6 +53,10 @@ path and keeping app/release identities paired end to end.
 - Routed both dashboards' GitHub session, sign-out, and launch-project reads
   through that same browser client and removed their unused launch URL maps;
   Build retains its intentional local wizard reset after sign-out.
+- Review follow-up named the CI and runtime deadlines independently, made
+  transient runtime failures advance watcher progress while preserving the
+  last snapshot, simplified stale-project error guards, and added route-level
+  coverage for malformed deployment manifests producing no activation targets.
 - Versioned the changed publishable contract as `@aomi-labs/deploy@0.7.0` and
   verified its build and focused tests, full Build/Portal tests and lint, Build
   type-check, and Portal type-check through the known unrelated missing Para

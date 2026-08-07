@@ -42,7 +42,8 @@ export type DeployFlowState =
   | { phase: "error"; message: string };
 
 const DEPLOY_POLL_MS = 4000;
-const DEPLOY_TIMEOUT_MS = 8 * 60 * 1000;
+const DEPLOYMENT_READY_TIMEOUT_MS = 8 * 60 * 1000;
+const RUNTIME_READY_TIMEOUT_MS = 8 * 60 * 1000;
 
 export function useProjectDetail(projectId: number) {
   const [source, setSource] = useState<UserProject | null>(null);
@@ -168,12 +169,13 @@ export function useProjectDetail(projectId: number) {
         setSecrets((current) => ({ ...(current ?? {}), ...r.byApp }));
       }
     } catch (err) {
-      if (projectEpochRef.current !== requestEpoch) throw err;
-      setSecretsError(
-        err instanceof Error
-          ? err.message
-          : "Failed to load environment variables",
-      );
+      if (projectEpochRef.current === requestEpoch) {
+        setSecretsError(
+          err instanceof Error
+            ? err.message
+            : "Failed to load environment variables",
+        );
+      }
       throw err;
     }
   }, []);
@@ -225,13 +227,14 @@ export function useProjectDetail(projectId: number) {
         setRecords(Object.fromEntries(entries));
       }
     } catch (err) {
-      if (projectEpochRef.current !== requestEpoch) throw err;
-      const message =
-        err instanceof Error
-          ? err.message
-          : "Failed to load deployment activity";
-      setRecordsError(message);
-      setRecords({});
+      if (projectEpochRef.current === requestEpoch) {
+        const message =
+          err instanceof Error
+            ? err.message
+            : "Failed to load deployment activity";
+        setRecordsError(message);
+        setRecords({});
+      }
       throw err;
     }
   }, []);
@@ -301,7 +304,7 @@ export function useProjectDetail(projectId: number) {
         {
           signal: controller.signal,
           intervalMs: DEPLOY_POLL_MS,
-          timeoutMs: DEPLOY_TIMEOUT_MS,
+          timeoutMs: DEPLOYMENT_READY_TIMEOUT_MS,
           isFatal: isFatalLaunchRequestError,
           onProgress: (status) => {
             if (!isCurrent()) return;
@@ -361,7 +364,7 @@ export function useProjectDetail(projectId: number) {
             {
               signal: controller.signal,
               intervalMs: DEPLOY_POLL_MS,
-              timeoutMs: DEPLOY_TIMEOUT_MS,
+              timeoutMs: RUNTIME_READY_TIMEOUT_MS,
               isFatal: isFatalLaunchRequestError,
               onProgress: ({ ready, total }) => {
                 if (isCurrent()) {

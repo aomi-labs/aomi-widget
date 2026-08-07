@@ -59,7 +59,8 @@ function deploymentApps(deployment?: LaunchDeployPayload) {
   return deployment?.platform?.apps ?? [];
 }
 
-const DEPLOY_TIMEOUT_MS = 30 * 60 * 1000; // 30-minute hard limit
+const DEPLOYMENT_READY_TIMEOUT_MS = 30 * 60 * 1000;
+const RUNTIME_READY_TIMEOUT_MS = 30 * 60 * 1000;
 
 function initialPhase(progress: LaunchProgress): Phase {
   if (progress.live) return "live";
@@ -290,7 +291,7 @@ export function DeployStep({
         await waitForDeploymentReady(() => launchStatus(deploymentId), {
           signal: controller.signal,
           intervalMs: 4000,
-          timeoutMs: DEPLOY_TIMEOUT_MS,
+          timeoutMs: DEPLOYMENT_READY_TIMEOUT_MS,
           isFatal: isFatalLaunchRequestError,
           onProgress: (status) => {
             if (cancelled) return;
@@ -352,7 +353,7 @@ export function DeployStep({
           })),
           {
             signal: controller.signal,
-            timeoutMs: DEPLOY_TIMEOUT_MS,
+            timeoutMs: RUNTIME_READY_TIMEOUT_MS,
             intervalMs: 3000,
             isFatal: isFatalLaunchRequestError,
             onProgress: ({ attempt }) => setVerifyAttempt(attempt),

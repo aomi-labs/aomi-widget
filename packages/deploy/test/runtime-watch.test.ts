@@ -96,6 +96,27 @@ describe("runtime readiness watcher", () => {
       "Timed out waiting for playground-example to load in this runtime. Last error: backend temporarily unavailable",
     );
   });
+
+  it("reports transient failures as polling attempts", async () => {
+    const error = new Error("runtime temporarily unavailable");
+    const poll = vi
+      .fn<() => Promise<ReturnType<typeof snapshot>>>()
+      .mockRejectedValueOnce(error)
+      .mockResolvedValueOnce(snapshot(true));
+    const progress: Array<{ attempt: number; error?: unknown }> = [];
+
+    await waitForAppsToLoad(poll, expected, {
+      intervalMs: 0,
+      timeoutMs: 1000,
+      onProgress: ({ attempt, error: progressError }) =>
+        progress.push({ attempt, error: progressError }),
+    });
+
+    expect(progress).toEqual([
+      { attempt: 1, error },
+      { attempt: 2, error: undefined },
+    ]);
+  });
 });
 
 describe("deployment readiness watcher", () => {
