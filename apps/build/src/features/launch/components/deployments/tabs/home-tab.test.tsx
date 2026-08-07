@@ -78,8 +78,7 @@ describe("HomeTab", () => {
     expect(loadRequiredSecrets).toHaveBeenCalled();
     expect(screen.getByText("Project home")).toBeInTheDocument();
     expect(screen.getByText("Not live")).toBeInTheDocument();
-    // Nothing declares a required key here, so this is not a fault.
-    expect(screen.getByText("No keys required")).toBeInTheDocument();
+    expect(screen.getByText("No apps yet")).toBeInTheDocument();
     expect(screen.queryByText("Keys missing")).not.toBeInTheDocument();
     expect(
       await screen.findByRole("link", {
