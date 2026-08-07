@@ -123,6 +123,15 @@ export type LaunchAppStatus = {
   };
 };
 
+export type LaunchAppStatusApp = NonNullable<LaunchAppStatus["app"]>;
+
+export type LaunchAppStatusesResult = {
+  ok: boolean;
+  projectId: number;
+  state: "pending" | "live";
+  apps: LaunchAppStatusApp[];
+};
+
 export type LaunchRedeployResult = {
   ok: boolean;
   projectId: number;

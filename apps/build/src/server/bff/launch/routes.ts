@@ -668,6 +668,60 @@ export async function launchAppRoute(req: Request) {
   }
 }
 
+export async function launchAppsRoute(req: Request) {
+  const auth = await authorize(req);
+  if ("response" in auth) return auth.response;
+  const { session } = auth;
+
+  const projectId = Number(new URL(req.url).searchParams.get("projectId"));
+  if (!isValidProjectId(projectId)) {
+    return NextResponse.json(
+      { error: "missing or invalid `projectId`" },
+      { status: 400 },
+    );
+  }
+
+  try {
+    const client = await backendClient();
+    const owner = await findOwnedProject(
+      client,
+      session.githubUserId,
+      projectId,
+    );
+    if (!owner) {
+      return NextResponse.json(
+        { error: "project not found for this user" },
+        { status: 404 },
+      );
+    }
+    const result = await client.listUserProjectApps({
+      githubUserId: session.githubUserId,
+      projectId: owner.id,
+    });
+    const apps = result.apps.map((app) => ({
+      id: app.id,
+      name: app.name,
+      is_active: app.isActive,
+      loaded: app.loaded,
+      app_release_tag: app.appReleaseTag,
+    }));
+    const live =
+      apps.length > 0 && apps.every((app) => app.is_active && app.loaded);
+    return NextResponse.json({
+      ok: true,
+      projectId: owner.id,
+      state: live ? "live" : "pending",
+      apps,
+    });
+  } catch (err) {
+    return buildFailures.handle({
+      source: "launch",
+      error: err,
+      context: launchErrorContext(req, "launch.apps"),
+    }).response;
+  }
+}
+
 export async function launchSdkStatusRoute(req: Request) {
   try {
     const client = await backendClient();

@@ -18,6 +18,7 @@ import { sessionScopedFetch } from "@build/lib/settings-api";
 import {
   type LaunchActivateResult,
   type LaunchAppStatus,
+  type LaunchAppStatusesResult,
   type LaunchCreateRepoResult,
   type DeploymentHistoryResult,
   type DeploymentFeedResult,
@@ -193,4 +194,10 @@ export function launchAppStatus(input: {
   releaseTag?: string;
 }): Promise<LaunchAppStatus> {
   return client.appStatus(input);
+}
+
+export function launchAppsStatus(input: {
+  projectId: number;
+}): Promise<LaunchAppStatusesResult> {
+  return client.appStatuses(input);
 }

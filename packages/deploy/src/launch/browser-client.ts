@@ -19,6 +19,7 @@ import type {
   DeploymentProjectsResult,
   LaunchActivateResult,
   LaunchAppStatus,
+  LaunchAppStatusesResult,
   LaunchCreateRepoResult,
   LaunchDeployInput,
   LaunchDeployResult,
@@ -441,6 +442,15 @@ function createBaseClient(options: LaunchClientOptions) {
       return launchFetch(`${basePath}/app?${params}`, "launch app status");
     },
 
+    appStatuses(input: {
+      projectId: number;
+    }): Promise<LaunchAppStatusesResult> {
+      const params = new URLSearchParams({
+        projectId: String(input.projectId),
+      });
+      return launchFetch(`${basePath}/apps?${params}`, "launch app statuses");
+    },
+
     async fetchGitHubSession(): Promise<GitHubSessionInfo> {
       try {
         const res = await doFetch(`${authBasePath}/status`, {
@@ -484,6 +494,7 @@ function createBaseClient(options: LaunchClientOptions) {
     async githubAppInstallUrl(args: {
       platform?: string;
       repo?: string;
+      mode?: "install" | "authorize";
       app?: number;
       /** Validated Aomi Build page the OAuth callback should land back on. */
       returnTo?: string;
@@ -493,6 +504,7 @@ function createBaseClient(options: LaunchClientOptions) {
       if (platform) params.set("platform", platform);
       const repo = args.repo ? normalizeRepo(args.repo) : null;
       if (repo) params.set("repo", repo);
+      if (args.mode === "authorize") params.set("mode", "authorize");
       if (args.app && args.app !== 1) params.set("app", String(args.app));
       const returnTo = args.returnTo?.trim();
       if (returnTo) params.set("return_to", returnTo);

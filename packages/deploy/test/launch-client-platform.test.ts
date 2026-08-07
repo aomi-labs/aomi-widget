@@ -101,4 +101,12 @@ describe("createLaunchClient — bound platform", () => {
     expect(calls[0]?.url).toContain("/api/bff/launch/status");
     expect(calls[1]?.url).toContain("/api/bff/deployments/status");
   });
+
+  it("reads all runtime statuses through the project-scoped batch route", async () => {
+    const { client, calls } = recordingClient("community");
+
+    await client.appStatuses({ projectId: 1578 });
+
+    expect(calls[0]?.url).toBe("/api/bff/launch/apps?projectId=1578");
+  });
 });

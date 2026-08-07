@@ -1,150 +1,117 @@
 "use client";
 
-import { API_PATHS } from "@portal/lib/api-paths";
-import { sessionScopedFetch } from "@portal/lib/settings-api";
+// Portal and Build share the same browser launch client. The host-specific
+// session fetcher is the only difference; route contracts, error handling, and
+// project-scoped status calls stay in @aomi-labs/deploy/launch.
+
 import {
-  type LaunchActivateResult,
-  type LaunchAppStatus,
-  type LaunchCreateRepoResult,
-  type DeploymentHistoryResult,
-  type DeploymentSecretsResult,
-  type ListDeploymentRecordsResult,
-  type DeploymentPromoteResult,
-  type DeploymentProjectsResult,
-  type LaunchDeployInput,
-  type LaunchDeployResult,
-  type LaunchPreflightInput,
-  type LaunchRedeployResult,
-  type LaunchSdkStatus,
-  type LaunchStatus,
+  createLaunchClient,
+  LaunchRequestError,
+  type GithubAppOAuthStartResponse,
+} from "@aomi-labs/deploy/launch";
+import { sessionScopedFetch } from "@portal/lib/settings-api";
+import type {
+  LaunchActivateResult,
+  LaunchAppStatus,
+  LaunchAppStatusesResult,
+  LaunchCreateRepoResult,
+  DeploymentHistoryResult,
+  DeploymentSecretsResult,
+  ListDeploymentRecordsResult,
+  DeploymentPromoteResult,
+  DeploymentProjectsResult,
+  LaunchDeployInput,
+  LaunchDeployResult,
+  LaunchPreflightInput,
+  LaunchRedeployResult,
+  LaunchSdkStatus,
+  LaunchStatus,
 } from "./contracts";
-import { normalizeRepo } from "./state";
 
-export type GithubAppOAuthStartResponse = {
-  ok: boolean;
-  install_url?: string;
-};
+export { LaunchRequestError };
+export type { GithubAppOAuthStartResponse };
 
-export async function githubAppInstallUrl(args: {
+const client = createLaunchClient({
+  backendFetch: sessionScopedFetch,
+});
+
+export function githubAppInstallUrl(args: {
   platform?: string;
   repo?: string;
   mode?: "install" | "authorize";
   app?: number;
+  returnTo?: string;
 }): Promise<string> {
-  const params = new URLSearchParams();
-  const platform = args.platform?.trim();
-  if (platform) params.set("platform", platform);
-  const repo = args.repo ? normalizeRepo(args.repo) : null;
-  if (repo) params.set("repo", repo);
-  if (args.mode === "authorize") params.set("mode", "authorize");
-  if (args.app && args.app !== 1) params.set("app", String(args.app));
-  const query = params.toString();
-  const result = await sessionScopedFetch<GithubAppOAuthStartResponse>(
-    `/api/integrations/github-app/oauth/start${query ? `?${query}` : ""}`,
-  );
-  if (!result.install_url) {
-    throw new Error("GitHub App install URL was not returned by the backend.");
-  }
-  return result.install_url;
-}
-
-// Every launch BFF route returns the payload on success or `{ error }` on
-// failure. Centralize that contract so each call site stays a one-liner.
-async function launchFetch<T>(
-  path: string,
-  label: string,
-  init?: RequestInit,
-): Promise<T> {
-  const res = await fetch(path, init);
-  const json = (await res.json().catch(() => ({}))) as T & { error?: string };
-  if (!res.ok) {
-    throw new Error(json.error || `${label} failed (${res.status})`);
-  }
-  return json;
-}
-
-function postJson<T>(path: string, label: string, input: unknown): Promise<T> {
-  return launchFetch<T>(path, label, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-  });
+  return client.githubAppInstallUrl(args);
 }
 
 export function launchPreflight(
   input: LaunchPreflightInput,
 ): Promise<LaunchDeployResult> {
-  return postJson(API_PATHS.bff.launch.preflight, "launch preflight", input);
+  return client.preflight(input);
 }
 
 export function launchDeploy(
   input: LaunchDeployInput,
 ): Promise<LaunchDeployResult> {
-  return postJson(API_PATHS.bff.launch.deploy, "launch deploy", input);
+  return client.deploy(input);
 }
 
 export function launchRedeploy(input: {
   projectId: number;
 }): Promise<LaunchRedeployResult> {
-  return postJson(API_PATHS.bff.launch.redeploy, "launch redeploy", input);
+  return client.redeploy(input);
 }
 
 export function launchCreateRepo(input: {
+  platform?: string;
   installationId: string;
   repoName?: string;
 }): Promise<LaunchCreateRepoResult> {
-  return postJson(API_PATHS.bff.launch.create, "launch repo creation", input);
+  return client.createRepo(input);
 }
 
-export function launchStatus(deploymentId: string): Promise<LaunchStatus> {
-  return launchFetch(
-    API_PATHS.bff.launch.status(deploymentId),
-    "launch status",
-  );
+export function launchStatus(
+  deploymentId: string,
+  platform?: string,
+): Promise<LaunchStatus> {
+  return client.status({ deploymentId, platform });
 }
 
 export function launchSdkStatus(): Promise<LaunchSdkStatus> {
-  return launchFetch(API_PATHS.bff.launch.sdkStatus, "launch SDK status");
+  return client.sdkStatus();
 }
 
-export function deploymentProjects(): Promise<DeploymentProjectsResult> {
-  return launchFetch(API_PATHS.bff.deployments.projects, "deployment projects");
+export function deploymentProjects(
+  platform?: string,
+  projectId?: number,
+): Promise<DeploymentProjectsResult> {
+  return client.deployments.projects({ platform, projectId });
 }
 
 export function deploymentSdkStatus(): Promise<LaunchSdkStatus> {
-  return launchFetch(
-    API_PATHS.bff.deployments.sdkStatus,
-    "deployment SDK status",
-  );
+  return client.sdkStatus();
 }
 
 export function deploymentHistory(input: {
   projectId: number;
   limit?: number;
 }): Promise<DeploymentHistoryResult> {
-  return launchFetch(
-    API_PATHS.bff.deployments.history(input.projectId, input.limit),
-    "deployment history",
-  );
+  return client.deployments.history(input);
 }
 
 export function deploymentSecrets(input: {
   applicationId: number;
 }): Promise<DeploymentSecretsResult> {
-  return launchFetch(
-    API_PATHS.bff.deployments.secrets(input.applicationId),
-    "deployment secrets",
-  );
+  return client.deployments.secrets(input);
 }
 
 export function deploymentRecords(input: {
   app: string;
   projectId?: number;
+  platform?: string;
 }): Promise<ListDeploymentRecordsResult> {
-  return launchFetch(
-    API_PATHS.bff.deployments.records(input.app, input.projectId),
-    "deployment records",
-  );
+  return client.deployments.records(input);
 }
 
 export function deploymentPromote(input: {
@@ -153,11 +120,7 @@ export function deploymentPromote(input: {
   apps?: string[];
   actor?: string;
 }): Promise<DeploymentPromoteResult> {
-  return postJson(
-    API_PATHS.bff.deployments.promote,
-    "deployment promote",
-    input,
-  );
+  return client.deployments.promote(input);
 }
 
 export function launchActivate(input: {
@@ -166,52 +129,39 @@ export function launchActivate(input: {
   apps: string[];
   actor?: string;
 }): Promise<LaunchActivateResult> {
-  return postJson(API_PATHS.bff.launch.activate, "launch activation", input);
+  return client.activate(input);
 }
 
 export function deploymentDeactivate(input: {
   projectId: number;
   apps: string[];
 }): Promise<{ ok: boolean; apps: string[] }> {
-  return postJson(
-    API_PATHS.bff.deployments.deactivate,
-    "deployment deactivate",
-    input,
-  );
+  return client.deployments.deactivate(input);
 }
 
 export function deploymentSetSecrets(input: {
   applicationId: number;
   secrets: Record<string, string>;
 }): Promise<{ ok: boolean; keys: string[] }> {
-  return postJson(
-    API_PATHS.bff.deployments.secrets(input.applicationId),
-    "set environment variables",
-    input,
-  );
+  return client.deployments.setSecrets(input);
 }
 
 export function deploymentDeleteSecret(input: {
   applicationId: number;
   name: string;
 }): Promise<{ ok: boolean; removed: boolean }> {
-  return launchFetch(
-    API_PATHS.bff.deployments.secrets(input.applicationId),
-    "delete environment variable",
-    {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(input),
-    },
-  );
+  return client.deployments.deleteSecret(input);
 }
 
 export function launchAppStatus(input: {
   name: string;
   releaseTag?: string;
 }): Promise<LaunchAppStatus> {
-  return launchFetch(
-    API_PATHS.bff.launch.app(input.name, input.releaseTag),
-    "launch app status",
-  );
+  return client.appStatus(input);
+}
+
+export function launchAppsStatus(input: {
+  projectId: number;
+}): Promise<LaunchAppStatusesResult> {
+  return client.appStatuses(input);
 }

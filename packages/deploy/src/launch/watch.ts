@@ -151,3 +151,181 @@ export async function watchDeploymentLoop(
     error: new Error(message),
   });
 }
+
+export type DeploymentReadyWatchOptions = {
+  intervalMs?: number;
+  timeoutMs?: number;
+  signal?: AbortSignal;
+  onProgress?: (status: DeploymentStatus) => void;
+  isFatal?: (error: unknown) => boolean;
+};
+
+/**
+ * Poll a deployment until CI publishes its release. Successful status reads
+ * are reported to the caller; transient reads stay inside one deadline so each
+ * UI does not need to maintain its own retry/timeout loop.
+ */
+export async function waitForDeploymentReady(
+  poll: () => Promise<DeploymentStatus>,
+  options: DeploymentReadyWatchOptions = {},
+): Promise<DeploymentStatus> {
+  const intervalMs = options.intervalMs ?? 4000;
+  const timeoutMs = options.timeoutMs ?? 8 * 60 * 1000;
+  const deadline = Date.now() + timeoutMs;
+
+  for (;;) {
+    if (options.signal?.aborted) throw abortError();
+    let status: DeploymentStatus | null = null;
+    try {
+      status = await poll();
+    } catch (error) {
+      if (options.isFatal?.(error)) throw error;
+    }
+
+    if (status) {
+      options.onProgress?.(status);
+      if (status.state === "ready") return status;
+      if (status.state === "failed" || status.state === "no_ci") {
+        throw new Error(
+          status.message ??
+            (status.state === "no_ci"
+              ? "No CI ran for this deployment."
+              : "Deploy CI failed."),
+        );
+      }
+    }
+
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) {
+      throw new Error("Timed out waiting for the deployment to become ready.");
+    }
+    await sleepWithAbort(Math.min(intervalMs, remaining), options.signal);
+  }
+}
+
+export type AppRuntimeExpectation = {
+  name: string;
+  releaseTag?: string;
+};
+
+export type AppRuntimeSnapshotApp = {
+  id?: number;
+  name: string;
+  app_release_tag?: string | null;
+  is_active: boolean;
+  loaded: boolean;
+};
+
+export type AppRuntimeSnapshot = {
+  apps: readonly AppRuntimeSnapshotApp[];
+};
+
+export type AppRuntimeWatchProgress = {
+  attempt: number;
+  ready: number;
+  total: number;
+  snapshot: AppRuntimeSnapshot;
+};
+
+export type AppRuntimeWatchOptions = {
+  intervalMs?: number;
+  timeoutMs?: number;
+  signal?: AbortSignal;
+  onProgress?: (progress: AppRuntimeWatchProgress) => void;
+};
+
+function runtimeAppMatches(
+  app: AppRuntimeSnapshotApp,
+  expected: AppRuntimeExpectation,
+): boolean {
+  return (
+    app.name === expected.name &&
+    (!expected.releaseTag || app.app_release_tag === expected.releaseTag) &&
+    app.is_active &&
+    app.loaded
+  );
+}
+
+export function runtimeAppsReady(
+  snapshot: AppRuntimeSnapshot,
+  expected: readonly AppRuntimeExpectation[],
+): boolean {
+  return (
+    expected.length > 0 &&
+    expected.every((target) =>
+      snapshot.apps.some((app) => runtimeAppMatches(app, target)),
+    )
+  );
+}
+
+function runtimeReadyCount(
+  snapshot: AppRuntimeSnapshot,
+  expected: readonly AppRuntimeExpectation[],
+): number {
+  return expected.filter((target) =>
+    snapshot.apps.some((app) => runtimeAppMatches(app, target)),
+  ).length;
+}
+
+function abortError(): Error {
+  const error = new Error("Runtime watch cancelled");
+  error.name = "AbortError";
+  return error;
+}
+
+function sleepWithAbort(ms: number, signal?: AbortSignal): Promise<void> {
+  if (signal?.aborted) return Promise.reject(abortError());
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", onAbort);
+      reject(abortError());
+    };
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
+}
+
+/**
+ * Poll a project-scoped runtime snapshot until every expected release is live.
+ * Transient read failures stay inside the same deadline; navigation or reset
+ * can cancel the loop through the supplied AbortSignal.
+ */
+export async function waitForAppsToLoad(
+  poll: () => Promise<AppRuntimeSnapshot>,
+  expected: readonly AppRuntimeExpectation[],
+  options: AppRuntimeWatchOptions = {},
+): Promise<AppRuntimeSnapshot> {
+  const intervalMs = options.intervalMs ?? 4000;
+  const timeoutMs = options.timeoutMs ?? 8 * 60 * 1000;
+  const deadline = Date.now() + timeoutMs;
+  let attempt = 0;
+
+  for (;;) {
+    if (options.signal?.aborted) throw abortError();
+    attempt += 1;
+    try {
+      const snapshot = await poll();
+      options.onProgress?.({
+        attempt,
+        ready: runtimeReadyCount(snapshot, expected),
+        total: expected.length,
+        snapshot,
+      });
+      if (runtimeAppsReady(snapshot, expected)) return snapshot;
+    } catch {
+      // Keep transient ownership/runtime reads inside the same deadline.
+    }
+
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) {
+      throw new Error(
+        `Timed out waiting for ${expected.map((app) => app.name).join(", ")} to load in this runtime.`,
+      );
+    }
+    await sleepWithAbort(Math.min(intervalMs, remaining), options.signal);
+  }
+}

@@ -1,0 +1,85 @@
+// @vitest-environment node
+import { describe, expect, it, vi } from "vitest";
+
+import {
+  runtimeAppsReady,
+  waitForAppsToLoad,
+  waitForDeploymentReady,
+} from "../src/launch/watch";
+
+const expected = [{ name: "playground-example", releaseTag: "release-2" }];
+
+function snapshot(loaded: boolean) {
+  return {
+    apps: [
+      {
+        id: 17,
+        name: "playground-example",
+        app_release_tag: "release-2",
+        is_active: true,
+        loaded,
+      },
+    ],
+  };
+}
+
+describe("runtime readiness watcher", () => {
+  it("does not treat an accepted but unloaded activation as live", () => {
+    expect(runtimeAppsReady(snapshot(false), expected)).toBe(false);
+    expect(runtimeAppsReady(snapshot(true), expected)).toBe(true);
+  });
+
+  it("polls until the expected release is loaded", async () => {
+    const poll = vi
+      .fn<() => Promise<ReturnType<typeof snapshot>>>()
+      .mockResolvedValueOnce(snapshot(false))
+      .mockResolvedValueOnce(snapshot(true));
+    const progress: number[] = [];
+
+    const result = await waitForAppsToLoad(poll, expected, {
+      intervalMs: 0,
+      timeoutMs: 1000,
+      onProgress: ({ ready, total }) => progress.push(ready / total),
+    });
+
+    expect(poll).toHaveBeenCalledTimes(2);
+    expect(progress).toEqual([0, 1]);
+    expect(result.apps[0]?.loaded).toBe(true);
+  });
+
+  it("can be cancelled while waiting for the runtime", async () => {
+    const controller = new AbortController();
+    const poll = vi.fn(async () => snapshot(false));
+    const pending = waitForAppsToLoad(poll, expected, {
+      intervalMs: 1000,
+      timeoutMs: 5000,
+      signal: controller.signal,
+    });
+
+    await Promise.resolve();
+    controller.abort();
+
+    await expect(pending).rejects.toMatchObject({ name: "AbortError" });
+  });
+});
+
+describe("deployment readiness watcher", () => {
+  it("shares CI polling and returns the ready status", async () => {
+    const poll = vi
+      .fn<
+        () => Promise<{ state: "pending" | "ready"; releaseTags: string[] }>
+      >()
+      .mockResolvedValueOnce({ state: "pending", releaseTags: [] })
+      .mockResolvedValueOnce({ state: "ready", releaseTags: ["release-2"] });
+    const states: string[] = [];
+
+    const result = await waitForDeploymentReady(poll, {
+      intervalMs: 0,
+      timeoutMs: 1000,
+      onProgress: (status) => states.push(status.state),
+    });
+
+    expect(result.state).toBe("ready");
+    expect(states).toEqual(["pending", "ready"]);
+  });
+});

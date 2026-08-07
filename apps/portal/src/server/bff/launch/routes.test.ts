@@ -7,6 +7,7 @@ import {
   deploymentPromoteRoute,
   activateLaunchRoute,
   launchAppRoute,
+  launchAppsRoute,
   launchDeployRoute,
   launchSdkStatusRoute,
   launchStatusRoute,
@@ -1379,6 +1380,58 @@ describe("launchAppRoute", () => {
     );
     expect(res.status).toBe(404);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("launchAppsRoute", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    getGitHubSession.mockReset();
+  });
+
+  it("returns runtime status for an owned project in one batch", async () => {
+    getGitHubSession.mockResolvedValue({
+      githubUserId: "42",
+      githubLogin: "alice",
+    });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(sourceWithApps(1578, [{ id: 77, name: "my-bot" }]))
+      .mockResolvedValueOnce(
+        Response.json({
+          apps: [
+            {
+              id: 77,
+              name: "my-bot",
+              is_active: true,
+              loaded: false,
+              app_release_tag: "release-2",
+            },
+          ],
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await launchAppsRoute(
+      new Request("http://localhost:3000/api/bff/launch/apps?projectId=1578"),
+    );
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({
+      ok: true,
+      projectId: 1578,
+      state: "pending",
+      apps: [
+        {
+          id: 77,
+          name: "my-bot",
+          is_active: true,
+          loaded: false,
+          app_release_tag: "release-2",
+        },
+      ],
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });
 
