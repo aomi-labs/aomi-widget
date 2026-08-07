@@ -12,23 +12,22 @@ import { ThreadModeControl } from "./thread-mode-control";
 export type BotThreadMode = "single" | "multi";
 
 /** The /setcommands list we tell builders to paste into BotFather. The
- *  `sessions` line follows the bot's thread mode: single-thread bots render a
+ *  `thread` line follows the bot's thread mode: single-thread bots render a
  *  read-only conversation view (the panel blocks switching with a toast), so
  *  only multi-thread bots may advertise switching. */
 export function botfatherCommands(threadMode: BotThreadMode): string {
   return [
     "start - Start the bot",
     threadMode === "multi"
-      ? "sessions - View and switch threads"
-      : "sessions - View your conversation",
+      ? "thread - View and switch threads"
+      : "thread - View your conversation",
     "wallet - Connect or manage wallet",
     "permission - View or change what the agent may sign",
     "tx - Review pending transactions",
-    "sign - Sign selected transactions",
     "app - View or change app",
     "model - View or change model",
-    "network - View or switch network",
-    "settings - Open bot settings",
+    "network - View or select network",
+    "disconnect - Disconnect this thread",
   ].join("\n");
 }
 
@@ -158,7 +157,7 @@ export function TelegramHowItWorks() {
               onChange={(next) =>
                 setThreadMode(next === "multi" ? "multi" : "single")
               }
-              tooltip="Match your bot's thread mode — the command list on the right follows it. Single thread keeps the bot to one conversation, so /sessions only views it; multiple threads lets users create and switch threads with /sessions."
+              tooltip="Match your bot's thread mode — the command list on the right follows it. Single thread keeps the bot to one conversation, so /thread only views it; multiple threads lets users create and switch threads with /thread."
             />
           </div>
         </div>

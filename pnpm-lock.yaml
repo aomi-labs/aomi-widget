@@ -845,6 +845,9 @@ importers:
 
   apps/telegram:
     dependencies:
+      '@aomi-labs/account':
+        specifier: workspace:*
+        version: link:../../packages/account
       '@aomi-labs/client':
         specifier: workspace:*
         version: link:../../packages/client

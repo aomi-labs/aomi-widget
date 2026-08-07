@@ -33,6 +33,21 @@ backend's canonical platform-bound Project model, with no compatibility path.
 - The published TypeScript CLI now sends deploys to the V2
   `/api/projects/:projectId/deploy` route, omits client-selected platform data,
   and persists the platform resolved by the backend response.
+## Telegram Para Mini App
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-06** — use one
+Para Mini App page for verified Telegram login and canonical wallet requests,
+with Portal issuing the account bearer only after Telegram session ownership
+and Para identity verification agree. The Mini App no longer owns a Telegram
+relay or legacy operation pages; transaction and EIP-712 acknowledgements flow
+through the canonical Session contract.
+
+- Added the shared Telegram Ed25519 launch verifier to `@aomi-labs/account` and
+  a Portal exchange route that safely claims an unowned/same-owner thread,
+  links Para to that canonical user, and issues an origin-bound widget session.
+- Kept the public BotFather contract aligned to `/start`, `/thread`,
+  `/wallet`, `/permission`, `/tx`, `/app`, `/model`, `/network`, and
+  `/disconnect`.
 
 ## BFF Sentry Observability
 

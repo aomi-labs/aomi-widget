@@ -6,6 +6,7 @@ export {
   ensureAccountSchema,
   deactivateAomiAccount,
   fetchAttestedProviderWallets,
+  claimTelegramSessionOwner,
   getAccountResponseForBetterAuthSession,
   getAccountResponseForWidgetSession,
   getOrCreateAomiUserForSiwe,

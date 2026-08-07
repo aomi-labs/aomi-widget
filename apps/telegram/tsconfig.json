@@ -18,6 +18,7 @@
       }
     ],
     "paths": {
+      "@aomi-labs/account/*": ["../../packages/account/src/*"],
       "@aomi-labs/client": ["../../packages/client/src/index.ts"],
       "@aomi-labs/client/*": ["../../packages/client/src/*"],
       "@/*": ["./src/*"]

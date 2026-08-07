@@ -58,7 +58,11 @@ export type ProviderExchangeResult =
   | (SignalResolution & { status: "conflict" | "noop" });
 
 type ProviderLinkResult =
-  | { status: "linked"; user: DbAomiUser | null }
+  | {
+      status: "linked";
+      user: DbAomiUser | null;
+      identity: DbAomiAuthIdentity;
+    }
   | (SignalResolution & { status: "conflict" });
 
 type ProviderSignInResult =
@@ -116,7 +120,11 @@ export async function signInWithVerifiedProviderCredential(input: {
   });
   return resolution.status === "conflict"
     ? resolution
-    : { status: "linked", user: resolution.user };
+    : {
+        status: "linked",
+        user: resolution.user,
+        identity: resolution.identity,
+      };
 }
 
 export async function signInWithVerifiedProviderIdentity(input: {
@@ -174,7 +182,7 @@ export async function linkVerifiedProviderIdentityForUser(input: {
   await ensureAccountSchema();
   const wallets = [...(input.wallets ?? input.identity.walletAttestations)];
   try {
-    await attachVerifiedProviderIdentityToUser({
+    const identity = await attachVerifiedProviderIdentityToUser({
       userId: input.userId,
       identity: input.identity,
       policy: input.policy,
@@ -198,6 +206,7 @@ export async function linkVerifiedProviderIdentityForUser(input: {
     return {
       status: "linked",
       user: await findAomiUserById(input.userId),
+      identity,
     };
   } catch (error) {
     return providerConflict(error);

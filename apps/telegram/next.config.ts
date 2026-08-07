@@ -6,6 +6,9 @@ const appRoot = path.dirname(fileURLToPath(import.meta.url));
 const workspaceRoot = path.resolve(appRoot, "../..");
 const appNodeModules = path.join(appRoot, "node_modules");
 
+// Para consumes React Query through a peer dependency. Pin both sides to the
+// app copy so the provider and Para hooks share the same runtime context.
+
 const nextConfig: NextConfig = {
   agentRules: false,
   reactStrictMode: true,
@@ -19,6 +22,7 @@ const nextConfig: NextConfig = {
       "@getpara/user-management-client":
         "./node_modules/@getpara/user-management-client",
       "@getpara/web-sdk": "./node_modules/@getpara/web-sdk",
+      "@tanstack/react-query": "./node_modules/@tanstack/react-query",
     },
   },
   webpack: (config) => {
@@ -35,6 +39,10 @@ const nextConfig: NextConfig = {
         "@getpara/user-management-client",
       ),
       "@getpara/web-sdk": path.join(appNodeModules, "@getpara/web-sdk"),
+      "@tanstack/react-query": path.join(
+        appNodeModules,
+        "@tanstack/react-query",
+      ),
     };
     return config;
   },

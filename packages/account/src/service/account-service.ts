@@ -10,6 +10,7 @@ import {
   deleteBetterAuthSiwsWallet,
   findAuthIdentityById,
   findAomiUserById,
+  claimTelegramSessionOwner as claimTelegramSessionOwnerQuery,
   findSignalOwner,
   findWalletById,
   listBetterAuthSiweWallets,
@@ -77,6 +78,14 @@ export async function ensureAccountSchema(): Promise<void> {
     });
   }
   await accountSchemaReady;
+}
+
+export async function claimTelegramSessionOwner(input: {
+  sessionId: string;
+  telegramUserId: string;
+}): Promise<AomiUserId | null> {
+  await ensureAccountSchema();
+  return claimTelegramSessionOwnerQuery(input);
 }
 
 export async function getOrCreateAomiUserForBetterAuthSession(input: {
