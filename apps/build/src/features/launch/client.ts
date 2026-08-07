@@ -13,11 +13,12 @@ import {
   createLaunchClient,
   LaunchRequestError,
   type GithubAppOAuthStartResponse,
+  type GitHubSessionInfo,
+  type UserProjectsResult,
 } from "@aomi-labs/deploy/launch";
 import { sessionScopedFetch } from "@build/lib/settings-api";
 import {
   type LaunchActivateResult,
-  type LaunchAppStatus,
   type LaunchAppStatusesResult,
   type LaunchCreateRepoResult,
   type DeploymentHistoryResult,
@@ -41,6 +42,20 @@ export type { GithubAppOAuthStartResponse };
 const client = createLaunchClient({
   backendFetch: sessionScopedFetch,
 });
+
+export const githubSigninUrl = client.githubSigninUrl;
+
+export function launchFetchGitHubSession(): Promise<GitHubSessionInfo> {
+  return client.fetchGitHubSession();
+}
+
+export function launchSignOutGitHub(): Promise<void> {
+  return client.signOutGitHub();
+}
+
+export function launchProjects(): Promise<UserProjectsResult> {
+  return client.projects();
+}
 
 export function githubAppInstallUrl(args: {
   platform?: string;
@@ -187,13 +202,6 @@ export function deploymentDeleteSecret(input: {
   name: string;
 }): Promise<{ ok: boolean; removed: boolean }> {
   return client.deployments.deleteSecret(input);
-}
-
-export function launchAppStatus(input: {
-  name: string;
-  releaseTag?: string;
-}): Promise<LaunchAppStatus> {
-  return client.appStatus(input);
 }
 
 export function launchAppsStatus(input: {

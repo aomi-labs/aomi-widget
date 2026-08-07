@@ -24,9 +24,9 @@ import {
   launchStatus,
   launchActivate,
   launchAppsStatus,
-  LaunchRequestError,
 } from "@build/features/launch/client";
 import {
+  isFatalLaunchRequestError,
   waitForAppsToLoad,
   waitForDeploymentReady,
 } from "@aomi-labs/deploy/launch";
@@ -460,10 +460,7 @@ export function useProjectDetail(projectId: number) {
           signal: controller.signal,
           intervalMs: DEPLOY_POLL_MS,
           timeoutMs: DEPLOY_TIMEOUT_MS,
-          isFatal: (error) =>
-            error instanceof LaunchRequestError &&
-            error.status >= 400 &&
-            error.status < 500,
+          isFatal: isFatalLaunchRequestError,
           onProgress: (status) => {
             if (!isCurrent()) return;
             releaseTags = status.releaseTags?.length
@@ -526,10 +523,7 @@ export function useProjectDetail(projectId: number) {
               signal: controller.signal,
               intervalMs: DEPLOY_POLL_MS,
               timeoutMs: DEPLOY_TIMEOUT_MS,
-              isFatal: (error) =>
-                error instanceof LaunchRequestError &&
-                error.status >= 400 &&
-                error.status < 500,
+              isFatal: isFatalLaunchRequestError,
               onProgress: ({ ready, total }) => {
                 if (isCurrent()) {
                   setDeployFlow({

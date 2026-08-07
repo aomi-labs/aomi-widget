@@ -7,13 +7,13 @@ import { TimedPromiseCache } from "@build/server/bff/timed-promise-cache";
 import { configuredBackendUrl } from "@build/server/backend-url";
 import { buildFailures } from "@build/server/bff/failures";
 import { launchConfig, resolveLaunchPlatform } from "./config";
-import { appNamesFromDeployment, releaseTagsFromDeployment } from "./mappers";
 import {
   launchAppStatusesResult,
   missingSecretsForActivation,
   RequiredSecretsCheckError,
 } from "@aomi-labs/deploy/bff";
 import { BackendError, missingRequiredSecrets } from "@aomi-labs/deploy";
+import { deploymentTargets } from "@aomi-labs/deploy/launch";
 import {
   isValidDeploymentId,
   isValidInstallationId,
@@ -375,6 +375,7 @@ export function launchDeployRoute(preflight: boolean) {
       clearLaunchReadCache();
       const projectUrl = new URL(`/projects/${projectId}`, req.url);
       projectUrl.searchParams.set("tab", "deployments");
+      const targets = deploymentTargets(deployment);
       return NextResponse.json(
         {
           ok: true,
@@ -385,8 +386,8 @@ export function launchDeployRoute(preflight: boolean) {
           projectId,
           sourceRef: deployment.source.commitHash,
           deployment,
-          releaseTags: releaseTagsFromDeployment(deployment),
-          apps: appNamesFromDeployment(deployment),
+          releaseTags: targets.map((target) => target.releaseTag),
+          apps: targets.map((target) => target.name),
           projectUrl: projectUrl.toString(),
         },
         { status: preflight ? 200 : 202 },
@@ -488,7 +489,9 @@ export async function launchStatusRoute(req: Request) {
     });
     return NextResponse.json({
       ...result,
-      releaseTags: releaseTagsFromDeployment(result.deployment),
+      releaseTags: deploymentTargets(result.deployment).map(
+        (target) => target.releaseTag,
+      ),
     });
   } catch (err) {
     return buildFailures.handle({
@@ -599,72 +602,6 @@ export async function activateLaunchRoute(req: Request) {
       source: "launch",
       error: err,
       context: launchErrorContext(req, "launch.activate"),
-    }).response;
-  }
-}
-
-export async function launchAppRoute(req: Request) {
-  const auth = await authorize(req);
-  if ("response" in auth) return auth.response;
-  const { session } = auth;
-
-  const params = new URL(req.url).searchParams;
-  const name = params.get("name")?.trim();
-  const releaseTag = params.get("releaseTag")?.trim();
-  if (!name) {
-    return NextResponse.json({ error: "missing `name`" }, { status: 400 });
-  }
-
-  try {
-    const client = await backendClient();
-    const projects = await cachedUserProjects(client, session.githubUserId);
-    const owner = projects.find((project) =>
-      project.apps.some(
-        (app) =>
-          app.name === name &&
-          (!releaseTag || app.appReleaseTag === releaseTag),
-      ),
-    );
-    if (!owner) {
-      return NextResponse.json(
-        { error: "app not found for this user" },
-        { status: 404 },
-      );
-    }
-    // Fresh per-project read — the project-scoped replacement for the
-    // retired platform-door `GET /:platform/apps/:app`.
-    const { apps } = await client.listUserProjectApps({
-      githubUserId: session.githubUserId,
-      projectId: owner.id,
-    });
-    const app = apps.find(
-      (candidate) =>
-        candidate.name === name &&
-        (!releaseTag || candidate.appReleaseTag === releaseTag),
-    );
-    if (!app) {
-      return NextResponse.json(
-        { error: "app not found for this user" },
-        { status: 404 },
-      );
-    }
-    const live = app.isActive && app.loaded;
-    return NextResponse.json({
-      ok: true,
-      state: live ? "live" : "pending",
-      app: {
-        id: app.id,
-        name: app.name,
-        is_active: app.isActive,
-        loaded: app.loaded,
-        app_release_tag: app.appReleaseTag,
-      },
-    });
-  } catch (err) {
-    return buildFailures.handle({
-      source: "launch",
-      error: err,
-      context: launchErrorContext(req, "launch.app"),
     }).response;
   }
 }

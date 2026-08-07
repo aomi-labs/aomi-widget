@@ -655,7 +655,7 @@ describe("createLaunchRoutes runtime apps", () => {
   });
 });
 
-describe("createLaunchRoutes activate/app security", () => {
+describe("createLaunchRoutes activation security", () => {
   it("rejects activate without a GitHub session before backend calls", async () => {
     session.mockResolvedValueOnce(null);
     const fetchMock = vi.fn();
@@ -845,22 +845,5 @@ describe("createLaunchRoutes activate/app security", () => {
         apps: ["my-bot"],
       }),
     });
-  });
-
-  it("scopes app reads to the GitHub session", async () => {
-    session.mockResolvedValueOnce(null);
-    let fetchMock = vi.fn();
-    vi.stubGlobal("fetch", fetchMock);
-    let res = await routes().app(readReq("app", "name=my-bot"));
-    expect(res.status).toBe(401);
-    expect(fetchMock).not.toHaveBeenCalled();
-
-    vi.restoreAllMocks();
-    session.mockResolvedValueOnce({ githubUserId: "42", githubLogin: "alice" });
-    fetchMock = vi.fn().mockResolvedValueOnce(activationProject());
-    vi.stubGlobal("fetch", fetchMock);
-    res = await routes().app(readReq("app", "name=other"));
-    expect(res.status).toBe(404);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

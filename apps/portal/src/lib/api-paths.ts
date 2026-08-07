@@ -20,22 +20,6 @@ export const API_PATHS = {
         devSession: `${BFF}/auth/github/dev-session`,
       },
     },
-    launch: {
-      preflight: `${BFF}/launch/preflight`,
-      deploy: `${BFF}/launch/deploy`,
-      redeploy: `${BFF}/launch/redeploy`,
-      create: `${BFF}/launch/create`,
-      activate: `${BFF}/launch/activate`,
-      projects: `${BFF}/launch/projects`,
-      sdkStatus: `${BFF}/launch/sdk-status`,
-      status: (deploymentId: string) =>
-        `${BFF}/launch/status?deploymentId=${encodeURIComponent(deploymentId)}`,
-      app: (name: string, releaseTag?: string) => {
-        const params = new URLSearchParams({ name });
-        if (releaseTag) params.set("releaseTag", releaseTag);
-        return `${BFF}/launch/app?${params}`;
-      },
-    },
     deployments: {
       preflight: `${BFF}/deployments/preflight`,
       deploy: `${BFF}/deployments/deploy`,

@@ -48,6 +48,35 @@ export function resolveTemplateRepo(templateRepo?: string): string {
 
 export type LaunchDeployPayload = DeployPayload;
 
+export type DeploymentTarget = { name: string; releaseTag: string };
+
+type DeploymentWithApps = {
+  platform?: {
+    apps?: readonly {
+      name?: string | null;
+      releaseTag?: string | null;
+      release_tag?: string | null;
+    }[];
+  };
+};
+
+/**
+ * Return complete app/release pairs in their original order. An incomplete
+ * manifest yields no targets so independently filtered arrays cannot drift.
+ */
+export function deploymentTargets(
+  deployment?: DeploymentWithApps,
+): DeploymentTarget[] {
+  const targets = (deployment?.platform?.apps ?? []).map((app) => ({
+    name: app.name?.trim() ?? "",
+    releaseTag: (app.releaseTag ?? app.release_tag)?.trim() ?? "",
+  }));
+  return targets.length > 0 &&
+    targets.every((target) => target.name && target.releaseTag)
+    ? targets
+    : [];
+}
+
 export type LaunchProgress = {
   installationId?: string;
   installationStatus?: string;
@@ -111,19 +140,13 @@ export type LaunchStatus = DeploymentStatus;
 
 export type LaunchActivateResult = ActivateResult;
 
-export type LaunchAppStatus = {
-  ok: boolean;
-  state: "pending" | "live";
-  app?: {
-    id?: number;
-    name: string;
-    app_release_tag?: string | null;
-    is_active: boolean;
-    loaded: boolean;
-  };
+export type LaunchAppStatusApp = {
+  id?: number;
+  name: string;
+  app_release_tag?: string | null;
+  is_active: boolean;
+  loaded: boolean;
 };
-
-export type LaunchAppStatusApp = NonNullable<LaunchAppStatus["app"]>;
 
 export type LaunchAppStatusesResult = {
   ok: boolean;

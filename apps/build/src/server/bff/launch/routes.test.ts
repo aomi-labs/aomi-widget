@@ -11,7 +11,6 @@ import {
   clearLaunchReadCache,
   activateLaunchRoute,
   createLaunchRepoRoute,
-  launchAppRoute,
   launchAppsRoute,
   launchDeployRoute,
   launchSdkStatusRoute,
@@ -1677,39 +1676,6 @@ describe("requiredSecretsRoute", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(telemetry.capture).not.toHaveBeenCalled();
     expect(telemetry.log).toHaveBeenCalledOnce();
-  });
-});
-
-describe("launchAppRoute", () => {
-  afterEach(() => {
-    vi.restoreAllMocks();
-    getGitHubSession.mockReset();
-  });
-
-  it("401s without a session and 404s for an unowned app", async () => {
-    getGitHubSession.mockResolvedValue(null);
-    let fetchMock = vi.fn();
-    vi.stubGlobal("fetch", fetchMock);
-    let res = await launchAppRoute(
-      new Request("http://localhost:3000/api/bff/launch/app?name=my-bot"),
-    );
-    expect(res.status).toBe(401);
-    expect(fetchMock).not.toHaveBeenCalled();
-
-    vi.restoreAllMocks();
-    getGitHubSession.mockResolvedValue({
-      githubUserId: "42",
-      githubLogin: "alice",
-    });
-    fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(sourceWithApps(1, [{ name: "other-bot" }]));
-    vi.stubGlobal("fetch", fetchMock);
-    res = await launchAppRoute(
-      new Request("http://localhost:3000/api/bff/launch/app?name=my-bot"),
-    );
-    expect(res.status).toBe(404);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
 

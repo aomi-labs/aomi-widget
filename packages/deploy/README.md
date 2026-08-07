@@ -78,7 +78,7 @@ export const GET = githubAuth.login;
 ```
 
 Mount the full set: `launch.{preflight,deploy,create,activate,redeploy}` as
-`POST`, `launch.{status,app,sources}` as `GET`, and
+`POST`, `launch.{status,apps,projects}` as `GET`, and
 `githubAuth.{login,callback,status}` as `GET` + `githubAuth.signout` as `POST`
 under `/api/bff/auth/github/*`.
 
@@ -90,7 +90,7 @@ Defaults you can override: rate limiting + same-origin CSRF guards
 
 Point a `createLaunchClient` at the routes and drive them. The whole happy
 path is: `fetchGitHubSession` → `githubAppInstallUrl` → `createRepo` →
-`deploy` → `watch` → `activate` → `appStatus` → embed chat. Render it however
+`deploy` → `watch` → `activate` → project-scoped `appStatuses` → embed chat. Render it however
 your product needs — often just a button, a status line, and a chat embed.
 
 ```ts

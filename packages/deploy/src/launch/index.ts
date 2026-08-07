@@ -6,6 +6,7 @@
 
 export {
   createLaunchClient,
+  isFatalLaunchRequestError,
   LaunchRequestError,
   DEFAULT_LAUNCH_BASE_PATH,
   DEFAULT_DEPLOYMENTS_BASE_PATH,
@@ -23,6 +24,7 @@ export {
   resolveTemplateRepo,
   templateRepoUrl,
   templateGenerateUrl,
+  deploymentTargets,
   MissingRequiredSecretsError,
   missingRequiredSecrets,
   type LaunchPath,
@@ -34,9 +36,9 @@ export {
   type LaunchCreateRepoResult,
   type LaunchStatus,
   type LaunchActivateResult,
-  type LaunchAppStatus,
   type LaunchAppStatusApp,
   type LaunchAppStatusesResult,
+  type DeploymentTarget,
   type LaunchRedeployResult,
   type LaunchSdkStatus,
   type DeploymentProjectsResult,

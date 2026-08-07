@@ -18,7 +18,6 @@ import type {
   DeploymentSecretsResult,
   DeploymentProjectsResult,
   LaunchActivateResult,
-  LaunchAppStatus,
   LaunchAppStatusesResult,
   LaunchCreateRepoResult,
   LaunchDeployInput,
@@ -60,6 +59,15 @@ export class LaunchRequestError extends Error {
     this.status = status;
     this.body = body;
   }
+}
+
+/** Browser request failures that polling cannot recover from. */
+export function isFatalLaunchRequestError(error: unknown): boolean {
+  return (
+    error instanceof LaunchRequestError &&
+    error.status >= 400 &&
+    error.status < 500
+  );
 }
 
 export interface GitHubSessionInfo {
@@ -408,10 +416,7 @@ function createBaseClient(options: LaunchClientOptions) {
       watchOptions: WatchLoopOptions = {},
     ): Promise<void> {
       return watchDeploymentLoop(() => status(input), onEvent, {
-        isFatal: (err) =>
-          err instanceof LaunchRequestError &&
-          err.status >= 400 &&
-          err.status < 500,
+        isFatal: isFatalLaunchRequestError,
         ...watchOptions,
       });
     },
@@ -431,15 +436,6 @@ function createBaseClient(options: LaunchClientOptions) {
       actor?: string;
     }): Promise<LaunchActivateResult> {
       return postJson(`${basePath}/activate`, "launch activation", input);
-    },
-
-    appStatus(input: {
-      name: string;
-      releaseTag?: string;
-    }): Promise<LaunchAppStatus> {
-      const params = new URLSearchParams({ name: input.name });
-      if (input.releaseTag) params.set("releaseTag", input.releaseTag);
-      return launchFetch(`${basePath}/app?${params}`, "launch app status");
     },
 
     appStatuses(input: {

@@ -13,12 +13,15 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { Button } from "@aomi-labs/widget-lib";
+import type { ProgressModel } from "@aomi-labs/deploy";
 import {
+  deploymentProgress,
+  deploymentTargets,
+  isFatalLaunchRequestError,
   waitForAppsToLoad,
   waitForDeploymentReady,
 } from "@aomi-labs/deploy/launch";
 import {
-  LaunchRequestError,
   launchAppsStatus,
   launchActivate,
   launchDeploy,
@@ -41,12 +44,6 @@ type Phase =
   | "live"
   | "error";
 
-type ProgressModel = {
-  completed: number;
-  total: number;
-  label: string;
-};
-
 type StepStatus = "todo" | "active" | "done";
 
 const BUSY_PHASES: Phase[] = [
@@ -62,57 +59,7 @@ function deploymentApps(deployment?: LaunchDeployPayload) {
   return deployment?.platform?.apps ?? [];
 }
 
-type DeploymentTarget = { name: string; releaseTag: string };
-
-function deploymentTargets(
-  deployment?: LaunchDeployPayload,
-): DeploymentTarget[] {
-  const targets = deploymentApps(deployment).map((app) => ({
-    name: app.name?.trim() ?? "",
-    releaseTag: app.releaseTag?.trim() ?? "",
-  }));
-  return targets.length > 0 &&
-    targets.every((target) => target.name && target.releaseTag)
-    ? targets
-    : [];
-}
-
-function releaseTags(deployment?: LaunchDeployPayload): string[] {
-  return deploymentTargets(deployment).map((target) => target.releaseTag);
-}
-
-function appNames(deployment?: LaunchDeployPayload): string[] {
-  return deploymentTargets(deployment).map((target) => target.name);
-}
-
 const DEPLOY_TIMEOUT_MS = 30 * 60 * 1000; // 30-minute hard limit
-
-function buildProgressModel(
-  state: string,
-  lastCompleted: number,
-): ProgressModel {
-  const stateToSteps: Record<
-    string,
-    { completed: number; total: number; label: string }
-  > = {
-    pending: { completed: 1, total: 8, label: "Waiting for build" },
-    building: { completed: 2, total: 8, label: "Building CI" },
-    releasing: { completed: 5, total: 8, label: "Verifying release assets" },
-    ready: { completed: 8, total: 8, label: "Build ready" },
-    no_ci: { completed: lastCompleted, total: 8, label: "No CI" },
-    failed: { completed: lastCompleted, total: 8, label: "Build failed" },
-  };
-  const mapped = stateToSteps[state] ?? {
-    completed: lastCompleted,
-    total: 8,
-    label: "In progress",
-  };
-  return {
-    completed: Math.max(mapped.completed, lastCompleted),
-    total: mapped.total,
-    label: mapped.label,
-  };
-}
 
 function initialPhase(progress: LaunchProgress): Phase {
   if (progress.live) return "live";
@@ -184,19 +131,20 @@ export function DeployStep({
   const [verifyAttempt, setVerifyAttempt] = useState(0);
   const [copied, setCopied] = useState(false);
   const runtimeAbortRef = useRef<AbortController | null>(null);
-  const phaseRef = useRef<Phase>(phase);
+  const onProgressRef = useRef(onProgress);
   const [progressModel, setProgressModel] = useState<ProgressModel | null>(
     null,
   );
   const lastCompletedRef = useRef(0);
 
+  const targets = useMemo(() => deploymentTargets(deployment), [deployment]);
   const tags = useMemo(
-    () => progress.releaseTags ?? releaseTags(deployment),
-    [deployment, progress.releaseTags],
+    () => progress.releaseTags ?? targets.map((target) => target.releaseTag),
+    [progress.releaseTags, targets],
   );
   const apps = useMemo(
-    () => progress.apps ?? appNames(deployment),
-    [deployment, progress.apps],
+    () => progress.apps ?? targets.map((target) => target.name),
+    [progress.apps, targets],
   );
   const manifestJson = useMemo(
     () => (deployment ? JSON.stringify(deployment, null, 2) : ""),
@@ -204,12 +152,12 @@ export function DeployStep({
   );
 
   useEffect(() => {
-    return () => runtimeAbortRef.current?.abort();
-  }, []);
+    onProgressRef.current = onProgress;
+  }, [onProgress]);
 
   useEffect(() => {
-    phaseRef.current = phase;
-  }, [phase]);
+    return () => runtimeAbortRef.current?.abort();
+  }, []);
 
   const applyDeployment = useCallback(
     (next: {
@@ -221,8 +169,10 @@ export function DeployStep({
       releaseTags?: string[];
       apps?: string[];
     }) => {
-      const nextTags = next.releaseTags ?? releaseTags(next.deployment);
-      const nextApps = next.apps ?? appNames(next.deployment);
+      const nextTargets = deploymentTargets(next.deployment);
+      const nextTags =
+        next.releaseTags ?? nextTargets.map((target) => target.releaseTag);
+      const nextApps = next.apps ?? nextTargets.map((target) => target.name);
       setDeployment(next.deployment);
       setShowManifest(false);
       const patch: Partial<LaunchProgress> = {
@@ -332,8 +282,7 @@ export function DeployStep({
   ]);
 
   useEffect(() => {
-    if (!deploymentId || progress.live || phaseRef.current !== "building")
-      return;
+    if (!deploymentId || progress.live) return;
     const controller = new AbortController();
     let cancelled = false;
     const watch = async () => {
@@ -342,17 +291,11 @@ export function DeployStep({
           signal: controller.signal,
           intervalMs: 4000,
           timeoutMs: DEPLOY_TIMEOUT_MS,
-          isFatal: (error) =>
-            error instanceof LaunchRequestError &&
-            error.status >= 400 &&
-            error.status < 500,
+          isFatal: isFatalLaunchRequestError,
           onProgress: (status) => {
             if (cancelled) return;
             if (status.deployment) setDeployment(status.deployment);
-            const model = buildProgressModel(
-              status.state,
-              lastCompletedRef.current,
-            );
+            const model = deploymentProgress(status, lastCompletedRef.current);
             lastCompletedRef.current = model.completed;
             setProgressModel(model);
 
@@ -363,7 +306,7 @@ export function DeployStep({
             if (status.deployment) patch.deployment = status.deployment;
             if (status.releaseTags.length > 0)
               patch.releaseTags = status.releaseTags;
-            onProgress(patch);
+            onProgressRef.current(patch);
             if (status.state === "releasing") setPhase("releasing");
             else if (status.state !== "ready") setPhase("building");
           },
@@ -380,7 +323,7 @@ export function DeployStep({
       cancelled = true;
       controller.abort();
     };
-  }, [deploymentId, onProgress, progress.live]);
+  }, [deploymentId, progress.live]);
 
   const verifyLive = useCallback(
     async (nextApps = apps, nextTags = tags) => {
@@ -411,10 +354,7 @@ export function DeployStep({
             signal: controller.signal,
             timeoutMs: DEPLOY_TIMEOUT_MS,
             intervalMs: 3000,
-            isFatal: (error) =>
-              error instanceof LaunchRequestError &&
-              error.status >= 400 &&
-              error.status < 500,
+            isFatal: isFatalLaunchRequestError,
             onProgress: ({ attempt }) => setVerifyAttempt(attempt),
           },
         );
@@ -614,7 +554,7 @@ export function DeployStep({
         {phase === "activating" &&
           "Promoting the built release into the live branch."}
         {phase === "verifying" &&
-          `Checking runtime... attempt ${verifyAttempt}/30`}
+          `Checking runtime... attempt ${verifyAttempt}`}
         {phase === "live" && "App artifact is ready."}
       </div>
 
