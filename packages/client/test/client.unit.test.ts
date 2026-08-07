@@ -11,7 +11,7 @@ describe("AomiClient route manifest", () => {
         `${endpoint.method} ${endpoint.path} [${endpoint.auth.join(", ")}]`,
     );
 
-    expect(routeKeys).toHaveLength(84);
+    expect(routeKeys).toHaveLength(117);
     expect(new Set(routeKeys).size).toBe(routeKeys.length);
     expect(routeKeys).toContain("GET /api/account/statement [account]");
     // Public placement probe. Kept distinct from GET /health, which stays a
@@ -36,11 +36,23 @@ describe("AomiClient route manifest", () => {
     expect(routeKeys).toContain("GET /api/thread/apps [thread]");
     expect(routeKeys).toContain("GET /api/_internal/secrets [service]");
     expect(routeKeys).toContain("DELETE /api/_internal/secrets [service]");
-    expect(routeKeys.some((route) => route.includes("/user/sources"))).toBe(
-      false,
+    expect(routeKeys).toContain(
+      "GET /api/integrations/github-app/user/sources/:id/deployments [service]",
     );
-    expect(routeKeys.some((route) => route.includes("/:name/deploy"))).toBe(
-      false,
+    expect(routeKeys).toContain(
+      "GET /api/integrations/github-app/user/sources/:id/observability [service]",
+    );
+    expect(routeKeys).toContain(
+      "GET /api/platforms/:name/apps/:app/records [activation]",
+    );
+    expect(routeKeys).toContain(
+      "POST /api/platforms/:name/deploy [activation]",
+    );
+    expect(routeKeys).toContain(
+      "POST /api/platforms/:name/deployments/:deployment/promote [activation]",
+    );
+    expect(routeKeys).toContain(
+      "POST /api/platforms/:name/deployments/:deployment/rerun [activation]",
     );
     expect(routeKeys).toContain(
       "GET /api/platforms/:name/telegram/handover/:bot/:id [activation]",
@@ -77,17 +89,19 @@ describe("AomiClient route manifest", () => {
     });
 
     await expect(
-      client.request("POST", "/api/thread/chat", {
+      client.request("POST", "/api/platforms/community/deploy", {
         sessionId: "session-1",
-        query: { stream: true, empty: null },
-        body: { message: "hello" },
+        query: { preflight: true, empty: null },
+        body: { source: "github" },
       }),
     ).resolves.toEqual({ ok: true });
 
     const [url, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe("http://unit.test/api/thread/chat?stream=true");
+    expect(url).toBe(
+      "http://unit.test/api/platforms/community/deploy?preflight=true",
+    );
     expect(init.method).toBe("POST");
-    expect(JSON.parse(init.body as string)).toEqual({ message: "hello" });
+    expect(JSON.parse(init.body as string)).toEqual({ source: "github" });
 
     const headers = new Headers(init.headers);
     expect(headers.get("X-Session-Id")).toBe("session-1");
