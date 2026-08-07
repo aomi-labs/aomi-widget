@@ -10,11 +10,8 @@ import {
   sepolia,
   linea,
   lineaSepolia,
-  megaeth,
   foundry,
 } from "viem/chains";
-
-export { megaeth };
 
 export type ChainInfo = {
   id: number;
@@ -82,6 +79,27 @@ export const robinhood = defineChain({
     default: {
       name: "Robinhood Chain Explorer",
       url: "https://robinhoodchain.blockscout.com",
+    },
+  },
+});
+
+export const megaeth = defineChain({
+  id: 4326,
+  name: "MegaETH",
+  nativeCurrency: {
+    name: "Ether",
+    symbol: "ETH",
+    decimals: 18,
+  },
+  rpcUrls: {
+    default: {
+      http: ["https://mainnet.megaeth.com/rpc"],
+    },
+  },
+  blockExplorers: {
+    default: {
+      name: "MegaETH Explorer",
+      url: "https://mega.etherscan.io",
     },
   },
 });

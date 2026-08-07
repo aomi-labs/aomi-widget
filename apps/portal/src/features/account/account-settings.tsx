@@ -25,7 +25,7 @@ export function AccountSettings() {
         {acl.error ?? "Couldn't load your account."}
         <button
           onClick={() => void acl.refresh()}
-          className="ml-2 underline underline-offset-2 hover:text-aomi-fg"
+          className="hover:text-aomi-fg ml-2 underline underline-offset-2"
         >
           Retry
         </button>
@@ -44,6 +44,8 @@ export function AccountSettings() {
       onProvisionParaAgentWallet={acl.provisionParaAgentWallet}
       onRevokeGrant={acl.revokeGrant}
       onStopAllAuto={acl.stopAllAuto}
+      canConnectPrivy={acl.canConnectPrivy}
+      onConnectPrivy={acl.connectPrivy}
       onRegrant={acl.regrant}
       blockedReason={acl.blockedReason}
     />

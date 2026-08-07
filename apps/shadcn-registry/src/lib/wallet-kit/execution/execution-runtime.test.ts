@@ -36,4 +36,62 @@ describe("buildEvmExecutionRuntime", () => {
     });
     expect(signMessageAsync).not.toHaveBeenCalled();
   });
+
+  it("signs an AA personal_sign request as raw bytes in provider order", async () => {
+    const signMessage = vi.fn().mockResolvedValue("0xowner-signature");
+    const getWalletClientFor = vi.fn().mockResolvedValue({ signMessage });
+    const evm = {
+      activeAccount: {
+        id: "owner",
+        address: "0x1111111111111111111111111111111111111111",
+      },
+      activeConnector: { id: "wallet" },
+      activeEvmConnection: { chainId: 4326 },
+      chainsById: {},
+      getWalletClientFor,
+      sendCallsSyncAsync: undefined,
+      sendTransactionAsync: undefined,
+      shouldUseExternalSigner: false,
+      signMessageAsync: undefined,
+      signMessageForAccount: vi.fn(),
+      signTypedDataAsync: undefined,
+      switchChainAsync: undefined,
+      walletClient: undefined,
+    } as unknown as EvmWalletRuntime;
+
+    const runtime = buildEvmExecutionRuntime(evm);
+    await expect(
+      runtime.signAaRequests?.({
+        chain_family: "evm",
+        chain_id: 4326,
+        signer: "0x1111111111111111111111111111111111111111",
+        executor: "0x1111111111111111111111111111111111111111",
+        aa_mode: "7702",
+        tx_ids: [4],
+        signature_requests: [
+          {
+            kind: "personal_sign",
+            message:
+              "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            raw_payload:
+              "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          },
+        ],
+        description: "Test AA action",
+        sponsored: true,
+      }),
+    ).resolves.toEqual({ signatures: ["0xowner-signature"] });
+
+    expect(getWalletClientFor).toHaveBeenCalledWith({
+      connector: evm.activeConnector,
+      chainId: 4326,
+    });
+    expect(signMessage).toHaveBeenCalledWith({
+      account: "0x1111111111111111111111111111111111111111",
+      message: {
+        raw: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      },
+    });
+    expect(evm.signMessageForAccount).not.toHaveBeenCalled();
+  });
 });

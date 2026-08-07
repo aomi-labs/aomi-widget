@@ -211,6 +211,7 @@ export function AomiWalletKitComposer({
       sendTransaction: execution.evm.sendTransaction,
       signTypedData: execution.evm.signTypedData,
       signMessage: execution.evm.signMessage,
+      signAaRequests: execution.evm.signAaRequests,
       getAccountCredential:
         auth.status === "authenticated" ? auth.getCredential : undefined,
       getAccountBearer: account.getAccountBearer,

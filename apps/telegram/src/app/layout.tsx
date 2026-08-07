@@ -1,26 +1,38 @@
-import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
-import './globals.css';
+import type { Metadata } from "next";
+import { Geist } from "next/font/google";
+import Script from "next/script";
+import { Providers } from "./providers";
+import "./globals.css";
 
-const inter = Inter({ subsets: ['latin'] });
+const geistSans = Geist({
+  variable: "--font-geist-sans",
+  subsets: ["latin"],
+});
 
 export const metadata: Metadata = {
-  title: 'Aomi - Connect Wallet',
-  description: 'Connect your wallet to Aomi',
+  title: "Aomi Wallet",
+  description: "Approve Aomi wallet requests with Para in Telegram.",
+  icons: {
+    icon: "/favicon.svg",
+    shortcut: "/favicon.svg",
+  },
 };
 
 export default function RootLayout({
   children,
-}: {
+}: Readonly<{
   children: React.ReactNode;
-}) {
+}>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
-        <script src="https://telegram.org/js/telegram-web-app.js"></script>
+        <Script
+          src="https://telegram.org/js/telegram-web-app.js?59"
+          strategy="beforeInteractive"
+        />
       </head>
-      <body className={inter.className}>
-        {children}
+      <body className={geistSans.variable}>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

@@ -74,6 +74,10 @@ export {
 } from "./lib/wallet-kit";
 export { AomiWalletProvider } from "./lib/wallet-kit/providers";
 export {
+  usePrivyDelegation,
+  type PrivyDelegationContextValue,
+} from "./lib/wallet-kit/providers/privy/privy-delegation-context";
+export {
   AomiBaseAccountProvider,
   type AomiBaseAccountProviderProps,
   type BaseAccountSponsorshipOptions,

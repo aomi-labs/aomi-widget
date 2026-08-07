@@ -3,6 +3,7 @@
 import { useMemo, type ReactNode } from "react";
 import { paraConnector } from "@getpara/wagmi-v2-connector";
 import type ParaWeb from "@getpara/react-sdk";
+import type { Config } from "wagmi";
 import {
   createAomiEvmConfig,
   type ResolvedEvmWalletsConfig,
@@ -13,7 +14,7 @@ import { useSafeParaClient } from "./para-auth";
 export function createAomiParaEvmConfig(
   config: ResolvedEvmWalletsConfig,
   para: ParaWeb | null,
-) {
+): Config {
   return createAomiEvmConfig({
     ...config,
     connectors: [

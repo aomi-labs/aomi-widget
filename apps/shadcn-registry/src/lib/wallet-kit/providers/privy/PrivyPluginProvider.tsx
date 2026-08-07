@@ -7,8 +7,11 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import type { Chain, Hex } from "viem";
-import type { WalletEip712Payload } from "@aomi-labs/react";
+import { serializeSignature, type Chain, type Hex } from "viem";
+import type {
+  WalletAaSignPayload,
+  WalletEip712Payload,
+} from "@aomi-labs/react";
 import { toViemSignTypedDataArgs } from "@aomi-labs/react";
 import { AomiWalletKitComposer } from "../../composer/AomiWalletKitComposer";
 import type { AuthRuntime, ExecutionRuntime } from "../../composer/types";
@@ -31,7 +34,10 @@ import {
   useSafeSvmWallets,
   useSafeWallets,
 } from "./privy-auth";
-import type { PrivyClientConfig } from "@privy-io/react-auth";
+import {
+  useSign7702Authorization,
+  type PrivyClientConfig,
+} from "@privy-io/react-auth";
 import { buildPrivySvmWalletState } from "./privy-svm";
 import { sendPrivySmartWalletTransaction } from "./privy-execution";
 import { useEmbeddedSessionSource } from "../sources/embedded-session-source";
@@ -58,6 +64,7 @@ export function AomiPrivyPluginProvider({
     useSafeSmartWallets();
   const { wallets: solanaWallets } = useSafeSvmWallets();
   const { wallets: connectedWallets } = useSafeWallets();
+  const { signAuthorization } = useSign7702Authorization();
   const [activeSolanaAddress, setActiveSolanaAddress] = useState<
     string | undefined
   >();
@@ -232,6 +239,48 @@ export function AomiPrivyPluginProvider({
     () => ({
       sponsorship: {},
       evm: buildEvmExecutionRuntime(evmRuntime, {
+        signAaRequests:
+          embeddedEvmWallet && embeddedEvmAddress
+            ? async (payload: WalletAaSignPayload) => {
+                if (
+                  embeddedEvmAddress.toLowerCase() !==
+                  payload.signer.toLowerCase()
+                ) {
+                  throw new Error(
+                    "The active Privy wallet is not the prepared AA owner",
+                  );
+                }
+                const signatures: string[] = [];
+                for (const request of payload.signature_requests) {
+                  if (request.kind === "personal_sign") {
+                    // Privy's high-level hook accepts only a string and can
+                    // therefore encode "0x…" as text. The provider's
+                    // `personal_sign` method preserves Alchemy's raw bytes.
+                    const provider =
+                      await embeddedEvmWallet.getEthereumProvider();
+                    const signature = await provider.request({
+                      method: "personal_sign",
+                      params: [request.message, embeddedEvmAddress],
+                    });
+                    if (typeof signature !== "string") {
+                      throw new Error("Privy returned an invalid AA signature");
+                    }
+                    signatures.push(signature);
+                  } else {
+                    const authorization = await signAuthorization(
+                      {
+                        contractAddress: request.contract_address as Hex,
+                        chainId: request.chain_id,
+                        nonce: request.nonce,
+                      },
+                      { address: embeddedEvmAddress },
+                    );
+                    signatures.push(serializeSignature(authorization));
+                  }
+                }
+                return { signatures };
+              }
+            : undefined,
         sendTransaction:
           execution?.aa === "off"
             ? undefined
@@ -257,7 +306,16 @@ export function AomiPrivyPluginProvider({
           : undefined,
       }),
     }),
-    [evmRuntime, execution, getClientForChain, smartAddress, smartWalletClient],
+    [
+      embeddedEvmAddress,
+      embeddedEvmWallet,
+      evmRuntime,
+      execution,
+      getClientForChain,
+      signAuthorization,
+      smartAddress,
+      smartWalletClient,
+    ],
   );
   const accountRuntime = useResolvedAccountRuntime({
     account,

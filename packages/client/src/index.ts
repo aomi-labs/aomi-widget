@@ -50,6 +50,7 @@ export type {
   AomiHttpMethod,
   AomiAccessApproval,
   AomiAccountProfile,
+  AomiAuthPurpose,
   AomiAuthIdentity,
   AomiCreateApprovalRequest,
   AomiIdentityWallet,
@@ -128,6 +129,8 @@ export type {
   SessionEventMap,
   SendResult,
   WalletRequest,
+  WalletAaSignPayload,
+  WalletAaSignatureRequest,
   WalletRequestKind,
   WalletRequestResult,
 } from "./session";
@@ -180,9 +183,9 @@ export {
   CHAINS_BY_ID,
   SUPPORTED_CHAINS,
   SUPPORTED_CHAIN_IDS,
-  megaeth,
   monad,
   monadTestnet,
+  megaeth,
   robinhood,
 } from "./chains";
 export type { ChainInfo } from "./chains";

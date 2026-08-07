@@ -54,7 +54,7 @@ describe("supported chain metadata", () => {
     });
   });
 
-  it("defines MegaETH mainnet from viem's canonical chain metadata", () => {
+  it("defines MegaETH mainnet metadata", () => {
     expect(CHAINS_BY_ID[4326]).toMatchObject({
       id: 4326,
       name: "MegaETH",
