@@ -402,56 +402,70 @@ export function usePerThreadControlImpl({
     }
   }, []);
 
-  const syncCurrentThreadControl = useCallback(async (options?: {
-    ignoreProcessing?: boolean;
-  }) => {
-    const threadId = sessionIdRef.current;
-    const currentControl =
-      getThreadMetadataRef.current(threadId)?.control ?? initThreadControl();
+  const syncCurrentThreadControl = useCallback(
+    async (options?: { ignoreProcessing?: boolean }) => {
+      const threadId = sessionIdRef.current;
+      const currentControl =
+        getThreadMetadataRef.current(threadId)?.control ?? initThreadControl();
 
-    if (
-      !currentControl.controlDirty ||
-      (!options?.ignoreProcessing && currentControl.isProcessing) ||
-      !currentControl.model
-    ) {
-      return;
-    }
+      if (
+        !currentControl.controlDirty ||
+        (!options?.ignoreProcessing && currentControl.isProcessing) ||
+        !currentControl.model
+      ) {
+        return;
+      }
 
-    const selectedApp = resolveAuthorizedApp(
-      currentControl.app,
-      currentControl.applicationId,
-      authorizedAppsRef.current,
-      appDescriptorsRef.current,
-      defaultAppRef.current,
-    ) ?? { name: "default" };
-
-    await aomiClientRef.current.setModel(threadId, currentControl.model, {
-      app: selectedApp.name,
-      applicationId: normalizeApplicationId(selectedApp.applicationId),
-      apiKey: apiKeyRef.current ?? undefined,
-      clientId: clientIdRef.current ?? undefined,
-    });
-
-    const latestControl =
-      getThreadMetadataRef.current(threadId)?.control ?? currentControl;
-    if (
-      latestControl.model === currentControl.model &&
-      latestControl.app === currentControl.app &&
-      sameApplicationId(
-        latestControl.applicationId,
+      const selectedApp = resolveAuthorizedApp(
+        currentControl.app,
         currentControl.applicationId,
-      )
-    ) {
-      updateThreadMetadataRef.current(threadId, {
-        control: {
-          ...latestControl,
+        authorizedAppsRef.current,
+        appDescriptorsRef.current,
+        defaultAppRef.current,
+      ) ?? { name: "default" };
+
+      try {
+        await aomiClientRef.current.setModel(threadId, currentControl.model, {
           app: selectedApp.name,
           applicationId: normalizeApplicationId(selectedApp.applicationId),
-          controlDirty: false,
-        },
-      });
-    }
-  }, []);
+          apiKey: apiKeyRef.current ?? undefined,
+          clientId: clientIdRef.current ?? undefined,
+        });
+      } catch (error) {
+        if (currentControl.modelMode === "manual") throw error;
+
+        // Auto is a presentation preference, not a prerequisite for a chat
+        // turn. The backend already owns the default model and the chat request
+        // carries the selected application, so a transient model-sync failure
+        // must not discard the user's message.
+        console.warn(
+          "[per-thread-control] auto model sync failed; using backend default",
+          error,
+        );
+      }
+
+      const latestControl =
+        getThreadMetadataRef.current(threadId)?.control ?? currentControl;
+      if (
+        latestControl.model === currentControl.model &&
+        latestControl.app === currentControl.app &&
+        sameApplicationId(
+          latestControl.applicationId,
+          currentControl.applicationId,
+        )
+      ) {
+        updateThreadMetadataRef.current(threadId, {
+          control: {
+            ...latestControl,
+            app: selectedApp.name,
+            applicationId: normalizeApplicationId(selectedApp.applicationId),
+            controlDirty: false,
+          },
+        });
+      }
+    },
+    [],
+  );
 
   // Auto-effect: fill in a missing model from stored preference, or
   // re-align an "auto" thread to the latest available default after the

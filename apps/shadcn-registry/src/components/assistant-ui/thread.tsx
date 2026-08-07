@@ -532,6 +532,14 @@ const AssistantActionBar: FC = () => {
 
 const UserMessage: FC = () => {
   const isEmpty = useMessage((state) => state.content.length === 0);
+  const sendFailure = useMessage((state) => {
+    const custom = state.metadata?.custom as
+      | { aomiSendStatus?: string; aomiSendError?: string }
+      | undefined;
+    return custom?.aomiSendStatus === "failed"
+      ? (custom.aomiSendError ?? "Message failed to send")
+      : null;
+  });
 
   return (
     <MessagePrimitive.Root asChild>
@@ -553,6 +561,15 @@ const UserMessage: FC = () => {
             </div>
           )}
         </div>
+
+        {sendFailure && (
+          <p
+            role="alert"
+            className="aui-user-message-error text-destructive col-start-2 max-w-[32rem] justify-self-end text-xs"
+          >
+            Message wasn&apos;t sent. {sendFailure}
+          </p>
+        )}
 
         <BranchPicker className="aui-user-branch-picker col-span-full col-start-1 row-start-3 -mr-1 justify-end" />
       </div>
