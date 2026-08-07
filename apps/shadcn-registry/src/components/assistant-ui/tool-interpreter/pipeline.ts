@@ -28,6 +28,7 @@ import { matchJupiterSwapPrep } from "./families/jupiter";
 import { matchSvmContext, matchSvmTokenHoldings } from "./families/svm";
 import { matchSvmPendingApproval, matchSvmSimulation } from "./families/svm-tx";
 import { matchEvmCall } from "./families/evm-call";
+import { matchTaskDelegation } from "./families/task";
 import { presentOperation } from "./present";
 import type {
   InterpretedToolStep,
@@ -37,6 +38,7 @@ import type {
 } from "./types";
 
 const matchers: ToolMatcher[] = [
+  matchTaskDelegation,
   matchWebSearch,
   matchSkillActivation,
   matchSvmContext,

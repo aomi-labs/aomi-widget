@@ -640,14 +640,14 @@ function createSseSubscriber({
         if (subscription.lastEventId) {
           headers.set("Last-Event-ID", subscription.lastEventId);
         }
-        const updatesUrl = new URL(`${backendUrl}/api/thread/updates`);
+        const normalizedBase = backendUrl === "/" ? "" : backendUrl.replace(/\/+$/, "");
+        const params = new URLSearchParams();
         if (subscription.applicationId) {
-          updatesUrl.searchParams.set(
-            "application_id",
-            subscription.applicationId
-          );
+          params.set("application_id", subscription.applicationId);
         }
-        const response = await fetchImpl(updatesUrl.toString(), {
+        const query = params.toString();
+        const updatesUrl = `${normalizedBase}/api/thread/updates${query ? `?${query}` : ""}`;
+        const response = await fetchImpl(updatesUrl, {
           headers,
           signal: controller.signal
         });
@@ -1394,9 +1394,19 @@ ${body}` : ""}`
   }
   /**
    * Create a new thread. The client generates the session ID.
+   *
+   * Passing `rig` (and optionally `app`/`applicationId`/`platform`/`clientId`)
+   * binds the model selection in the same request — the fast path that saves
+   * the follow-up `setModel` round-trip on a fresh chat.
    */
-  async createThread(threadId) {
-    const url = buildApiUrl(this.baseUrl, "/api/threads");
+  async createThread(threadId, options) {
+    const url = buildApiUrl(this.baseUrl, "/api/threads", {
+      rig: options == null ? void 0 : options.rig,
+      app: options == null ? void 0 : options.app,
+      application_id: (options == null ? void 0 : options.applicationId) === void 0 ? void 0 : String(options.applicationId),
+      platform: options == null ? void 0 : options.platform,
+      client_id: options == null ? void 0 : options.clientId
+    });
     const response = await this.fetchImpl(url, {
       method: "POST",
       headers: withSessionHeader(threadId)
@@ -2357,6 +2367,52 @@ function safeEnv(read) {
 }
 
 // src/types.ts
+var AOMI_TASK_EVENT_TYPES = [
+  "task_started",
+  "task_activity",
+  "task_completed"
+];
+function isAomiTaskEventType(type) {
+  return AOMI_TASK_EVENT_TYPES.includes(type);
+}
+var asString = (value) => typeof value === "string" ? value : void 0;
+function parseAomiTaskEvent(event) {
+  var _a, _b, _c, _d;
+  const raw = event;
+  const type = asString(raw.type);
+  if (!type || !isAomiTaskEventType(type)) return null;
+  const agentId = asString(raw.agent_id);
+  if (!agentId) return null;
+  const callId = (_a = asString(raw.call_id)) != null ? _a : "";
+  if (type === "task_started") {
+    return __spreadValues(__spreadValues({
+      type,
+      call_id: callId,
+      agent_id: agentId,
+      label: (_b = asString(raw.label)) != null ? _b : "",
+      app: (_c = asString(raw.app)) != null ? _c : null,
+      resumed: raw.resumed === true
+    }, asString(raw.session_id) ? { session_id: raw.session_id } : null), asString(raw.thread_id) ? { thread_id: raw.thread_id } : null);
+  }
+  if (type === "task_activity") {
+    const childSeq = raw.child_seq;
+    if (typeof childSeq !== "number" || !Number.isFinite(childSeq)) return null;
+    const kind = raw.kind === "note" ? "note" : "tool_call";
+    return __spreadValues(__spreadValues(__spreadValues(__spreadValues(__spreadValues(__spreadValues({
+      type,
+      call_id: callId,
+      agent_id: agentId,
+      kind,
+      child_seq: childSeq
+    }, asString(raw.tool_name) ? { tool_name: raw.tool_name } : null), raw.args !== void 0 ? { args: raw.args } : null), asString(raw.result_preview) ? { result_preview: raw.result_preview } : null), asString(raw.text) ? { text: raw.text } : null), asString(raw.session_id) ? { session_id: raw.session_id } : null), asString(raw.thread_id) ? { thread_id: raw.thread_id } : null);
+  }
+  return __spreadValues(__spreadValues(__spreadValues(__spreadValues(__spreadValues(__spreadValues({
+    type,
+    call_id: callId,
+    agent_id: agentId,
+    status: (_d = asString(raw.status)) != null ? _d : "completed"
+  }, asString(raw.message) ? { message: raw.message } : null), typeof raw.staged_count === "number" ? { staged_count: raw.staged_count } : null), typeof raw.steps === "number" ? { steps: raw.steps } : null), typeof raw.duration_ms === "number" ? { duration_ms: raw.duration_ms } : null), asString(raw.session_id) ? { session_id: raw.session_id } : null), asString(raw.thread_id) ? { thread_id: raw.thread_id } : null);
+}
 function isInlineCall(event) {
   return "InlineCall" in event;
 }
@@ -2943,6 +2999,48 @@ function handleSessionSSEEvent(event, deps) {
     deps.emit("tool_update", event);
   } else if (event.type === "tool_complete") {
     deps.emit("tool_complete", event);
+  } else if (isAomiTaskEventType(event.type)) {
+    const taskEvent = parseAomiTaskEvent(event);
+    if (taskEvent) {
+      if (taskEvent.type === "task_started") {
+        deps.emit("task_started", taskEvent);
+      } else if (taskEvent.type === "task_activity") {
+        deps.emit("task_activity", taskEvent);
+      } else {
+        deps.emit("task_completed", taskEvent);
+      }
+    }
+  } else if (event.type === "wallet_tx_request" || event.type === "wallet_eip712_request" || event.type.startsWith("wallet::solana_")) {
+    dispatchSystemEvents(
+      [
+        {
+          InlineCall: {
+            type: event.type,
+            payload: event.payload
+          }
+        }
+      ],
+      deps
+    );
+  }
+}
+function dispatchSolanaRequest(request, deps) {
+  let queued;
+  if (request.kind === "solana_sign_message") {
+    queued = deps.walletController.enqueue(request.kind, request.payload);
+    deps.emit("wallet_solana_sign_message_request", queued);
+  } else if (request.kind === "solana_sign") {
+    queued = deps.walletController.enqueue("solana_sign", request.payload);
+    deps.emit("wallet_solana_sign_request", queued);
+  } else if (request.kind === "solana_send") {
+    queued = deps.walletController.enqueue("solana_send", request.payload);
+    deps.emit("wallet_solana_send_request", queued);
+  } else {
+    queued = deps.walletController.enqueue(
+      "solana_sign_and_send",
+      request.payload
+    );
+    deps.emit("wallet_solana_sign_and_send_request", queued);
   }
 }
 function dispatchSystemEvents(events, deps) {
@@ -2961,31 +3059,7 @@ function dispatchSystemEvents(events, deps) {
         (_a = unwrapped.payload) != null ? _a : {}
       );
       if (solanaRequest) {
-        if (solanaRequest.kind === "solana_sign_message") {
-          const req = deps.walletController.enqueue(
-            "solana_sign_message",
-            solanaRequest.payload
-          );
-          deps.emit("wallet_solana_sign_message_request", req);
-        } else if (solanaRequest.kind === "solana_send") {
-          const req = deps.walletController.enqueue(
-            "solana_send",
-            solanaRequest.payload
-          );
-          deps.emit("wallet_solana_send_request", req);
-        } else if (solanaRequest.kind === "solana_sign_and_send") {
-          const req = deps.walletController.enqueue(
-            "solana_sign_and_send",
-            solanaRequest.payload
-          );
-          deps.emit("wallet_solana_sign_and_send_request", req);
-        } else {
-          const req = deps.walletController.enqueue(
-            "solana_sign",
-            solanaRequest.payload
-          );
-          deps.emit("wallet_solana_sign_request", req);
-        }
+        dispatchSolanaRequest(solanaRequest, deps);
         continue;
       }
       const normalizedPayload = normalizeTxPayload(unwrapped.payload);
@@ -3003,31 +3077,7 @@ function dispatchSystemEvents(events, deps) {
         (_c = unwrapped.payload) != null ? _c : {}
       );
       if (solanaRequest) {
-        if (solanaRequest.kind === "solana_sign_message") {
-          const req2 = deps.walletController.enqueue(
-            "solana_sign_message",
-            solanaRequest.payload
-          );
-          deps.emit("wallet_solana_sign_message_request", req2);
-        } else if (solanaRequest.kind === "solana_send") {
-          const req2 = deps.walletController.enqueue(
-            "solana_send",
-            solanaRequest.payload
-          );
-          deps.emit("wallet_solana_send_request", req2);
-        } else if (solanaRequest.kind === "solana_sign_and_send") {
-          const req2 = deps.walletController.enqueue(
-            "solana_sign_and_send",
-            solanaRequest.payload
-          );
-          deps.emit("wallet_solana_sign_and_send_request", req2);
-        } else {
-          const req2 = deps.walletController.enqueue(
-            "solana_sign",
-            solanaRequest.payload
-          );
-          deps.emit("wallet_solana_sign_request", req2);
-        }
+        dispatchSolanaRequest(solanaRequest, deps);
         continue;
       }
       const payload = normalizeSolanaSignPayload((_d = unwrapped.payload) != null ? _d : {});
@@ -3267,6 +3317,7 @@ var SessionWalletController = class {
     if (this.resolvingRequestIds.has(requestId)) return;
     this.resolvingRequestIds.add(requestId);
     try {
+      const send = (type, payload) => this.deps.sendSystemEvent(type, payload);
       if (req.kind === "transaction" && result.kind === "transaction") {
         await this.resolveTransaction(req.payload, result);
       } else if (req.kind === "aa_sign" && result.kind === "aa_sign") {
@@ -3276,30 +3327,27 @@ var SessionWalletController = class {
           signatures: result.signatures
         });
       } else if (req.kind === "eip712_sign" && result.kind === "eip712_sign") {
-        await this.deps.sendSystemEvent("wallet_eip712_response", __spreadValues({
+        await send("wallet_eip712_response", __spreadValues({
           status: "success",
           signature: result.signature,
           description: req.payload.description
         }, req.payload.eip712Id !== void 0 ? { pending_eip712_id: req.payload.eip712Id } : {}));
       } else if (req.kind === "solana_sign" && result.kind === "solana_sign") {
-        await this.deps.sendSystemEvent("wallet::solana_sign_complete", __spreadValues(__spreadProps(__spreadValues({
+        await send("wallet::solana_sign_complete", __spreadValues(__spreadProps(__spreadValues({
           status: "signed",
           signed_tx: result.signedTx
         }, req.payload.unsignedTx !== void 0 ? { unsigned_tx: req.payload.unsignedTx } : {}), {
           description: req.payload.description
         }), solanaPendingIdFields(req.payload)));
       } else if (req.kind === "solana_sign_message" && result.kind === "solana_sign_message") {
-        await this.deps.sendSystemEvent(
-          "wallet::solana_sign_message_complete",
-          __spreadValues(__spreadProps(__spreadValues({
-            status: "signed",
-            signature: result.signature
-          }, req.payload.message !== void 0 ? { message: req.payload.message } : {}), {
-            description: req.payload.description
-          }), solanaPendingIdFields(req.payload))
-        );
+        await send("wallet::solana_sign_message_complete", __spreadValues(__spreadProps(__spreadValues({
+          status: "signed",
+          signature: result.signature
+        }, req.payload.message !== void 0 ? { message: req.payload.message } : {}), {
+          description: req.payload.description
+        }), solanaPendingIdFields(req.payload)));
       } else if (req.kind === "solana_send" && result.kind === "solana_send") {
-        await this.deps.sendSystemEvent("wallet::solana_send_complete", __spreadValues(__spreadProps(__spreadValues({
+        await send("wallet::solana_send_complete", __spreadValues(__spreadProps(__spreadValues({
           status: "submitted",
           signature: result.signature,
           signed_tx: result.signedTx
@@ -3307,16 +3355,13 @@ var SessionWalletController = class {
           description: req.payload.description
         }), solanaPendingIdFields(req.payload)));
       } else if (req.kind === "solana_sign_and_send" && result.kind === "solana_sign_and_send") {
-        await this.deps.sendSystemEvent(
-          "wallet::solana_sign_and_send_complete",
-          __spreadValues(__spreadProps(__spreadValues({
-            status: "submitted",
-            signature: result.signature,
-            signed_tx: result.signedTx
-          }, req.payload.unsignedTx !== void 0 ? { unsigned_tx: req.payload.unsignedTx } : {}), {
-            description: req.payload.description
-          }), solanaPendingIdFields(req.payload))
-        );
+        await send("wallet::solana_sign_and_send_complete", __spreadValues(__spreadProps(__spreadValues({
+          status: "submitted",
+          signature: result.signature,
+          signed_tx: result.signedTx
+        }, req.payload.unsignedTx !== void 0 ? { unsigned_tx: req.payload.unsignedTx } : {}), {
+          description: req.payload.description
+        }), solanaPendingIdFields(req.payload)));
       }
       this.finishRequest(req);
     } finally {
@@ -3331,12 +3376,13 @@ var SessionWalletController = class {
     if (this.resolvingRequestIds.has(requestId)) return;
     this.resolvingRequestIds.add(requestId);
     try {
+      const send = (type, payload) => this.deps.sendSystemEvent(type, payload);
       if (req.kind === "transaction") {
         const pendingTxIds = txIdsFromPayload(req.payload);
         const requestedMode = aaRequestedModeFromPreference(
           req.payload.aaPreference
         );
-        await this.deps.sendSystemEvent("wallet:tx_complete", {
+        await send("wallet:tx_complete", {
           txHash: "",
           status: "failed",
           error: reason != null ? reason : "Request rejected",
@@ -3354,45 +3400,39 @@ var SessionWalletController = class {
           signatures: []
         });
       } else if (req.kind === "eip712_sign") {
-        await this.deps.sendSystemEvent("wallet_eip712_response", __spreadValues({
+        await send("wallet_eip712_response", __spreadValues({
           status: "failed",
           error: reason != null ? reason : "Request rejected",
           description: req.payload.description
         }, req.payload.eip712Id !== void 0 ? { pending_eip712_id: req.payload.eip712Id } : {}));
       } else if (req.kind === "solana_sign") {
-        await this.deps.sendSystemEvent("wallet::solana_sign_complete", __spreadValues(__spreadProps(__spreadValues({
+        await send("wallet::solana_sign_complete", __spreadValues(__spreadProps(__spreadValues({
           status: "rejected",
           error: reason != null ? reason : "Request rejected"
         }, req.payload.unsignedTx !== void 0 ? { unsigned_tx: req.payload.unsignedTx } : {}), {
           description: req.payload.description
         }), solanaPendingIdFields(req.payload)));
       } else if (req.kind === "solana_sign_message") {
-        await this.deps.sendSystemEvent(
-          "wallet::solana_sign_message_complete",
-          __spreadValues(__spreadProps(__spreadValues({
-            status: "rejected",
-            error: reason != null ? reason : "Request rejected"
-          }, req.payload.message !== void 0 ? { message: req.payload.message } : {}), {
-            description: req.payload.description
-          }), solanaPendingIdFields(req.payload))
-        );
+        await send("wallet::solana_sign_message_complete", __spreadValues(__spreadProps(__spreadValues({
+          status: "rejected",
+          error: reason != null ? reason : "Request rejected"
+        }, req.payload.message !== void 0 ? { message: req.payload.message } : {}), {
+          description: req.payload.description
+        }), solanaPendingIdFields(req.payload)));
       } else if (req.kind === "solana_send") {
-        await this.deps.sendSystemEvent("wallet::solana_send_complete", __spreadValues(__spreadProps(__spreadValues({
+        await send("wallet::solana_send_complete", __spreadValues(__spreadProps(__spreadValues({
           status: "rejected",
           error: reason != null ? reason : "Request rejected"
         }, req.payload.unsignedTx !== void 0 ? { unsigned_tx: req.payload.unsignedTx } : {}), {
           description: req.payload.description
         }), solanaPendingIdFields(req.payload)));
       } else {
-        await this.deps.sendSystemEvent(
-          "wallet::solana_sign_and_send_complete",
-          __spreadValues(__spreadProps(__spreadValues({
-            status: "rejected",
-            error: reason != null ? reason : "Request rejected"
-          }, req.payload.unsignedTx !== void 0 ? { unsigned_tx: req.payload.unsignedTx } : {}), {
-            description: req.payload.description
-          }), solanaPendingIdFields(req.payload))
-        );
+        await send("wallet::solana_sign_and_send_complete", __spreadValues(__spreadProps(__spreadValues({
+          status: "rejected",
+          error: reason != null ? reason : "Request rejected"
+        }, req.payload.unsignedTx !== void 0 ? { unsigned_tx: req.payload.unsignedTx } : {}), {
+          description: req.payload.description
+        }), solanaPendingIdFields(req.payload)));
       }
       this.finishRequest(req);
     } finally {
@@ -3590,35 +3630,47 @@ var SessionWalletController = class {
     }
   }
   requestId(kind, payload) {
+    let id;
     if (kind === "transaction") {
       const txPayload = payload;
       if (typeof txPayload.requestId === "string" && txPayload.requestId.length > 0) {
-        return `txreq-${txPayload.requestId}`;
+        id = `txreq-${txPayload.requestId}`;
       }
       const txIds = txIdsFromPayload(txPayload);
-      if (txIds.length > 0) return `tx-${txIds.join("-")}`;
+      if (!id && txIds.length > 0) id = `tx-${txIds.join("-")}`;
     } else if (kind === "aa_sign") {
       const { tx_ids: txIds } = payload;
-      if (txIds.length > 0) return `aa-${txIds.join("-")}`;
+      if (txIds.length > 0) id = `aa-${txIds.join("-")}`;
     } else if (kind === "eip712_sign") {
       const { eip712Id } = payload;
-      if (typeof eip712Id === "number") return `eip712-${eip712Id}`;
+      if (typeof eip712Id === "number") id = `eip712-${eip712Id}`;
     } else {
       const { pendingSolanaId } = payload;
       if (typeof pendingSolanaId === "number")
-        return `${kind}-${pendingSolanaId}`;
+        id = `${kind}-${pendingSolanaId}`;
     }
-    return `wreq-${this.nextId++}`;
+    id != null ? id : id = `wreq-${this.nextId++}`;
+    return id;
   }
   request(kind, payload, id, timestamp2) {
     if (kind === "transaction") {
-      return { id, kind, payload, timestamp: timestamp2 };
+      return {
+        id,
+        kind,
+        payload,
+        timestamp: timestamp2
+      };
     }
     if (kind === "aa_sign") {
       return { id, kind, payload, timestamp: timestamp2 };
     }
     if (kind === "eip712_sign") {
-      return { id, kind, payload, timestamp: timestamp2 };
+      return {
+        id,
+        kind,
+        payload,
+        timestamp: timestamp2
+      };
     }
     if (kind === "solana_sign_message") {
       return {
@@ -3628,7 +3680,12 @@ var SessionWalletController = class {
         timestamp: timestamp2
       };
     }
-    return { id, kind, payload, timestamp: timestamp2 };
+    return {
+      id,
+      kind,
+      payload,
+      timestamp: timestamp2
+    };
   }
   dedupeTransactionRequests(req) {
     if (req.kind !== "transaction") return;
@@ -4008,9 +4065,16 @@ var ClientSession = class extends TypedEventEmitter {
   // ===========================================================================
   handleSSEEvent(event) {
     handleSessionSSEEvent(event, {
+      userState: () => this.userState,
+      resolveUserState: (userState) => this.resolveUserState(userState),
+      setMessages: (messages) => {
+        this._messages = messages;
+      },
+      getMessages: () => this.getMessages(),
       setTitle: (title) => {
         this._title = title;
       },
+      walletController: this.walletController,
       emit: (type, payload) => this.emit(type, payload)
     });
   }
@@ -4543,6 +4607,7 @@ function appendFeeCallToPayload(payload, fee, defaultChainId, options) {
 }
 export {
   ALCHEMY_CHAIN_SLUGS,
+  AOMI_TASK_EVENT_TYPES,
   AccountCredentialUnavailableError,
   AomiClient,
   CHAINS_BY_ID,
@@ -4572,6 +4637,7 @@ export {
   executeWalletCalls,
   handlePaymentChallenges,
   hydrateTxPayloadFromUserState,
+  isAomiTaskEventType,
   isAsyncCallback,
   isInlineCall,
   isSystemError,
@@ -4588,6 +4654,7 @@ export {
   normalizeSolanaSignPayload,
   normalizeSolanaWalletRequest,
   normalizeTxPayload,
+  parseAomiTaskEvent,
   parseChainId3 as parseChainId,
   posterFromClient,
   robinhood,

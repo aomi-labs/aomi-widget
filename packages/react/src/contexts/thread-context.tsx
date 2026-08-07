@@ -9,7 +9,14 @@ import {
 } from "react";
 import type { ReactNode, SetStateAction } from "react";
 import type { ThreadMessageLike } from "@assistant-ui/react";
-import { ThreadMetadata, ThreadStore } from "../state/thread-store";
+import type { AomiTaskEvent } from "@aomi-labs/client";
+import {
+  EMPTY_TASK_RUNS,
+  ThreadMetadata,
+  ThreadStore,
+  type TaskRunState,
+  type ThreadTaskRuns,
+} from "../state/thread-store";
 
 export type ThreadContext = {
   currentThreadId: string;
@@ -33,6 +40,11 @@ export type ThreadContext = {
     threadId: string,
     updates: Partial<ThreadMetadata>,
   ) => void;
+  /** Orchestrator delegation sidecar: threadId → (agentId → TaskRunState). */
+  allThreadTaskRuns: Map<string, ThreadTaskRuns>;
+  getThreadTaskRuns: (threadId: string) => ThreadTaskRuns;
+  applyTaskEvent: (threadId: string, event: AomiTaskEvent) => void;
+  clearThreadTaskRuns: (threadId: string) => void;
   resetToDefault: () => string;
 };
 
@@ -90,4 +102,27 @@ export function useCurrentThreadMetadata(): ThreadMetadata | undefined {
     () => getThreadMetadata(currentThreadId),
     [currentThreadId, getThreadMetadata],
   );
+}
+
+/**
+ * Live delegation state for a thread, keyed by agent id. Defaults to the
+ * current thread. Joined to the transcript through
+ * `metadata.custom.aomiTask.agentId` on the `task` tool-call part.
+ */
+export function useThreadTaskRuns(threadId?: string): ThreadTaskRuns {
+  const { currentThreadId, allThreadTaskRuns } = useThreadContext();
+  const resolvedThreadId = threadId ?? currentThreadId;
+  return useMemo(
+    () => allThreadTaskRuns.get(resolvedThreadId) ?? EMPTY_TASK_RUNS,
+    [allThreadTaskRuns, resolvedThreadId],
+  );
+}
+
+/** A single agent's run, or `undefined` when no sidecar exists (e.g. reload). */
+export function useTaskRun(
+  agentId: string | undefined,
+  threadId?: string,
+): TaskRunState | undefined {
+  const taskRuns = useThreadTaskRuns(threadId);
+  return agentId ? taskRuns[agentId] : undefined;
 }
