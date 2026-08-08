@@ -1,22 +1,9 @@
 import { runCommand, runMain } from "citty";
-import { root } from "./root";
+import { root, SUBCOMMAND_NAMES } from "./root";
 import { CliExit, DeployCliError } from "./errors";
 import packageJson from "../../package.json";
 
-const ROOT_SUBCOMMANDS = new Set([
-  "chat",
-  "tx",
-  "session",
-  "model",
-  "app",
-  "chain",
-  "wallet",
-  "account",
-  "logout",
-  "config",
-  "secret",
-  "deploy",
-]);
+const ROOT_SUBCOMMANDS = SUBCOMMAND_NAMES;
 
 function isPnpmExecWrapper(): boolean {
   const npmCommand = process.env.npm_command ?? "";
@@ -112,7 +99,7 @@ function printRootHelp(): void {
   console.log("  config                       CLI configuration");
   console.log("  secret                       Secret management");
   console.log(
-    "  deploy                       Deploy your app (requires --activation-token)",
+    "  deploy                       Deploy your app (also: deploy status, deploy activate)",
   );
   console.log("");
   console.log("Use aomi <command> --help for command-specific details.");
