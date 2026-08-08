@@ -2,6 +2,94 @@
 
 ## Last Updated
 
+2026-08-08 — DEPLOY-SURFACE BUGS, BE SIDE (product-mono worktree
+  `~/Code/product-mono-worktrees/deploy-feed-platform-scope`, branch
+  `claude/deploy-feed-platform-scope` off origin/main f5d421933; all changes
+  uncommitted). Root causes established by probing staging directly with a
+  portal-minted service bearer (apps/portal/.env.local).
+  - ENVIRONMENT TAB `list_secrets failed (503)`: the 503 is the Cloudflare
+    Worker's, not the backend's. With APP_AVAILABILITY_ROUTING on, ANY
+    `/api/*?application_id=N` request is availability-probed and hard-503s
+    when no origin has the app's artifact loaded — which is every deactivated
+    app (staging probe: 4 of Cecilia's 5 apps 503'd; only the loaded
+    world-markets passed). `infra/cloudflare/worker/src/index.js` now exempts
+    `/api/_internal/*` (service traffic ABOUT an app, not TO it). Worker tests
+    37/37, new test mutation-checked.
+  - FEED vs PROJECT HISTORY (4 vs 1): on main both reads are projection-only
+    by project_id and CONSISTENT; the data itself is gone — migration
+    `20260806010000_project_model.sql` ran `DELETE FROM deployments;` and the
+    promised import migration never existed. Pre-cutover manifests also fail
+    strict deserialization (no `project_id`) and are silently skipped. Added
+    the explicit recovery door: `SourceRecord.project_id` is `#[serde(default)]`,
+    the projection writer rejects `project_id <= 0`, and new service-only
+    `POST /api/integrations/github-app/user/projects/:id/deployments/import`
+    (`Project::import_deployments`) scans the platform repo's deployment
+    branches + deploy branch, stamps the owning project, and idempotently
+    upserts. Route + route-manifest test + Worker manager-route pattern + test.
+  - REQUIRED-SECRETS 500 ON LEGACY TAGS: staging audit showed
+    `GET /user/projects/:id/required-secrets` 500ing with "invalid platform
+    release tag `latest`" for any project holding a legacy `app_release_tag`
+    DEFAULT-'latest' row — one bad row failed the WHOLE Environment/deploy
+    gate ("Required secrets could not be verified"). `Project::required_secrets`
+    now degrades an unparseable tag to "no release ⇒ no slots" (warn-logged);
+    the "no deployment projection" 500 for parseable tags is kept — that one
+    is real integrity signal and is what the import door repairs.
+  - APP-STATUS 403 (aomi-build CLI): `PlatformHandler::get_app()` authorized
+    `Action::ReadPlatform`, which app-scoped activation tokens are forbidden
+    from. It now resolves the named app row first and authorizes
+    `Action::ReadApps { app_ids: [app.id] }` — the lattice's app-token rules
+    for ReadApps are already unit-tested in activator.rs.
+  - Verified with ALL three fixes (fresh build after the disk-space incident):
+    cargo check -p manager clean; cargo test -p manager 138 passed/19 failed
+    == clean-main baseline (the 19 are the hosted-DB guard refusing an
+    exported hosted DATABASE_URL — pre-existing, environmental); worker tests
+    37/37. PENDING after deploy: re-probe staging (secrets reads should 200),
+    then invoke the import for world-markets (project 1646) to restore its
+    history. NOT a bug: the "0.3.2 vs 3.1.0" report — 3.1.0 is the required
+    aomi-sdk crate version (workspace pins =3.1.0); 0.3.2 is the world-markets
+    app's own DynManifest.version. The stale-descriptor issue behind it is the
+    runtime dlopen hot-reload seam (backend reconcile.rs), owned by another
+    Codex session mid-experiment — deliberately not touched here.
+
+2026-08-08 — OPERATE PAGES IGNORED THE SELECTED PLATFORM (apps/build, working
+
+2026-08-08 — OPERATE PAGES IGNORED THE SELECTED PLATFORM (apps/build, working
+  tree on `claude/deployment-records-mismatch-79b0a0`). Observability listed 5
+  projects across platforms while `/projects` listed the 2 on
+  `world-market-apps`. The account-wide manager batches (observability,
+  transactions, usage, logs, payments) are deliberately unscoped — the
+  per-project read rejects partner-bound projects as not launch-relevant on the
+  default platform — but the BFF read `?platform=` only as a **cache key** and
+  never narrowed the response.
+  - `operateSession` gains `platformProjects()` alongside `projects()`:
+    `listUserProjects({ platform })`, i.e. the exact list `/projects` renders.
+    `projects()` stays account-wide because ownership checks need it.
+  - The five account-wide routes now filter their rows through `onPlatform()`
+    against that id set. The manager call stays account-wide; only the response
+    is scoped, so a partner-bound project is still reachable — on its own
+    platform's page. Rows with no project (shared partner settlements) are kept.
+  - `operatePaymentsRoute` now reads the source list (in `Promise.all`, off the
+    cache the snapshot warmed) where it previously never did.
+  - Settings → Secrets had the same fault one layer up:
+    `settings-secrets-panel.tsx` called `useProjects()` with NO platform (the
+    only such call site left), so it listed all 5 account projects and a row
+    for an off-platform project led to an Environment tab whose secrets read
+    503s. It now takes `usePlatform()` and routes through `platformHref()`, so
+    following a row keeps the platform instead of dropping to Community.
+  - Verified: apps/build vitest 419 passed/1 skipped, tsc/eslint/prettier clean.
+    6 scoping tests mutation-checked (they fail when `onPlatform` is a no-op /
+    when the panel drops its platform argument).
+    The 4 pre-existing failing test FILES (deploy-dashboard, deploy-step,
+    live-panel, oneshot-wizard — collection errors) are unrelated and unchanged.
+  PENDING (backend, product-mono — NOT fixed here): the global deployments feed
+  and a project's Deployments tab are structurally different reads, so they
+  disagree. `user_source_deployments` (github_app.rs:988-1043) is DB projection
+  **plus a GitHub manifest fallback**; `user_deployments` (github_app.rs:1047+)
+  is projection-only and explicitly "never scans GitHub", filtered on
+  `deployments.platform`. Any deployment with no projection row under the
+  queried platform shows on the project page and is invisible in the feed —
+  which is why world-markets showed 4 deployments and the feed showed 1.
+
 2026-08-04 — PROJECT HOME "KEYS MISSING" FALSE ALARM (apps/build, committed
   on `feat/build-new-app-two-starts`). The Environment card warned whenever no
   key was set
