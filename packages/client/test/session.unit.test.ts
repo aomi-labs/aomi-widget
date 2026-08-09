@@ -833,7 +833,7 @@ describe("ClientSession ext helpers", () => {
     session.close();
   });
 
-  it("round-trips an ordered first-use 7702 signature handoff", async () => {
+  it("enqueues an operation-scoped 4337 request without backend verification payloads", async () => {
     const { client, sendMessage, sendSystemMessage } = createMockClient();
     const session = new Session(client, { sessionId: "session-unit-aa-sign" });
 
@@ -845,29 +845,20 @@ describe("ClientSession ext helpers", () => {
           InlineCall: {
             type: "wallet_aa_sign_request",
             payload: {
-              chain_family: "evm",
-              chain_id: 4326,
-              signer: "0x1111111111111111111111111111111111111111",
+              operationId: "operation-7",
+              chainId: 4326,
+              owner: "0x1111111111111111111111111111111111111111",
               executor: "0x1111111111111111111111111111111111111111",
-              aa_mode: "7702",
-              tx_ids: [7, 8, 9],
-              signature_requests: [
-                {
-                  kind: "eip7702_authorization",
-                  contract_address:
-                    "0x0000000000000000000000000000000000007702",
-                  chain_id: 4326,
-                  nonce: 0,
-                  raw_payload: `0x${"11".repeat(32)}`,
-                },
+              expiresAt: "2026-08-08T00:00:00Z",
+              callsDigest: `0x${"11".repeat(32)}`,
+              calls: [],
+              fees: [],
+              signatureRequests: [
                 {
                   kind: "personal_sign",
-                  message: "0xprepared-user-operation",
-                  raw_payload: `0x${"22".repeat(32)}`,
+                  message: `0x${"22".repeat(32)}`,
                 },
               ],
-              description: "Execute three calls",
-              sponsored: true,
             },
           },
         },
@@ -881,36 +872,22 @@ describe("ClientSession ext helpers", () => {
     const request = await requestPromise;
 
     expect(request).toMatchObject({
-      id: "aa-7-8-9",
+      id: "aa-operation-7",
       kind: "aa_sign",
       payload: {
-        chain_id: 4326,
-        aa_mode: "7702",
-        tx_ids: [7, 8, 9],
+        operationId: "operation-7",
+        chainId: 4326,
+        signatureRequests: [
+          { kind: "personal_sign", message: `0x${"22".repeat(32)}` },
+        ],
       },
     });
-
-    await session.resolve((request as { id: string }).id, {
-      kind: "aa_sign",
-      signatures: ["0xauthorization", "0xuserop"],
-    });
-
-    expect(sendSystemMessage).toHaveBeenCalledWith(
-      "session-unit-aa-sign",
-      JSON.stringify({
-        type: "wallet:aa_sign_complete",
-        payload: {
-          status: "signed",
-          tx_ids: [7, 8, 9],
-          signatures: ["0xauthorization", "0xuserop"],
-        },
-      }),
-      { app: "default" },
-    );
+    expect(JSON.stringify(request)).not.toContain("raw_payload");
+    expect(sendSystemMessage).not.toHaveBeenCalled();
     session.close();
   });
 
-  it("rebuilds the attended AA request from a parked handoff", async () => {
+  it("does not rebuild AA authority from parked user state", async () => {
     const { client, fetchState } = createMockClient();
     const session = new Session(client, {
       sessionId: "session-unit-aa-resync",
@@ -957,26 +934,7 @@ describe("ClientSession ext helpers", () => {
 
     await session.fetchCurrentState();
 
-    expect(session.getPendingRequests()).toEqual([
-      expect.objectContaining({
-        id: "aa-7",
-        kind: "aa_sign",
-        payload: expect.objectContaining({
-          chain_family: "evm",
-          chain_id: 4326,
-          signer: "0x1111111111111111111111111111111111111111",
-          executor: "0x1111111111111111111111111111111111111111",
-          aa_mode: "7702",
-          tx_ids: [7],
-          description: "Execute three calls",
-          sponsored: true,
-          signature_requests: [
-            expect.objectContaining({ kind: "eip7702_authorization" }),
-            expect.objectContaining({ kind: "personal_sign" }),
-          ],
-        }),
-      }),
-    ]);
+    expect(session.getPendingRequests()).toEqual([]);
     session.close();
   });
 

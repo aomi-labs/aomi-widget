@@ -206,6 +206,16 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     this.resumeAfterWalletResponse();
   }
 
+  /**
+   * Drop a pending wallet request without emitting a resolve/reject wire
+   * event. Used by operation-scoped flows (AA) that acknowledge completion
+   * through a dedicated HTTP endpoint instead of the session event channel.
+   */
+  dismiss(requestId: string): void {
+    this.walletController.dismiss(requestId);
+    this.resumeAfterWalletResponse();
+  }
+
   // ===========================================================================
   // Public API — Control
   // ===========================================================================

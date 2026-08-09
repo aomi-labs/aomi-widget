@@ -5,18 +5,26 @@ import type { AomiClientOptions } from "@aomi-labs/react";
 import { AomiFrame, type AomiFrameControlBarProps } from "./aomi-frame";
 import { AomiWalletKitProvider, useAomiWalletKit } from "../lib/wallet-kit";
 import type {
-  AccountConfig,
-  AomiWidgetAuthConfig,
   AuthConfig,
-  ExecutionConfig,
   ProvidersConfig,
   WalletsConfig,
 } from "../lib/wallet-kit/config/types";
+import { BackendAaProvider } from "../lib/wallet-kit/execution/backend-aa-context";
+import { BackendAaProvisioner } from "./backend-aa-provisioner";
 
-export type { AomiWidgetAuthConfig } from "../lib/wallet-kit/config/types";
+export type CrossOriginWidgetAuth =
+  | { kind: "browser_wallet" }
+  | {
+      kind: "embedded_wallet";
+      provider: "para" | "privy";
+      environment: string;
+    };
+
+export type WalletPresentationConfig = WalletsConfig;
 
 export type AomiWidgetProps = {
   children?: ReactNode;
+  applicationId: string;
   apiUrl: string;
   width?: CSSProperties["width"];
   height?: CSSProperties["height"];
@@ -31,41 +39,37 @@ export type AomiWidgetProps = {
   persistThread?: boolean;
   threadPersistenceKey?: string;
   threadPersistenceScope?: string | null;
-  auth?: AomiWidgetAuthConfig;
-  providers?: ProvidersConfig;
-  wallets?: WalletsConfig;
-  execution?: ExecutionConfig;
-  account?: AccountConfig;
+  auth: CrossOriginWidgetAuth;
+  wallets?: WalletPresentationConfig;
 };
 
 export function AomiWidget(props: AomiWidgetProps) {
   const resolvedApiUrl = props.apiUrl.replace(/\/+$/, "");
-  const resolved = resolveWidgetAuth(props.auth, props.providers);
-  const account =
-    props.account === undefined
-      ? {
-          mode: "aomi-backend" as const,
-          baseUrl: resolvedApiUrl,
-          widgetAuth: props.auth
-            ? {
-                mode: "provider" as const,
-                provider: props.auth.provider,
-                environment: props.auth.environment,
-              }
-            : { mode: "wallet" as const },
-        }
-      : props.account;
+  const resolved = resolveWidgetAuth(props.auth);
+  const account = {
+    mode: "aomi-backend" as const,
+    baseUrl: resolvedApiUrl,
+    widgetAuth:
+      props.auth.kind === "embedded_wallet"
+        ? {
+            mode: "provider" as const,
+            provider: props.auth.provider,
+            environment: props.auth.environment,
+          }
+        : { mode: "wallet" as const },
+  };
 
   return (
     <AomiWalletKitProvider
       auth={resolved.auth}
       providers={resolved.providers}
       wallets={props.wallets}
-      execution={props.execution ?? { aa: "optional" }}
+      execution={{ aa: "off", sponsorship: { mode: "disabled" } }}
       account={account}
     >
       <WidgetFrame
         apiUrl={resolvedApiUrl}
+        applicationId={props.applicationId}
         width={props.width}
         height={props.height}
         className={props.className}
@@ -100,10 +104,11 @@ type WidgetFrameProps = Pick<
   | "persistThread"
   | "threadPersistenceKey"
   | "threadPersistenceScope"
-> & { apiUrl: string };
+> & { apiUrl: string; applicationId: string };
 
 function WidgetFrame({
   apiUrl,
+  applicationId,
   width = "100%",
   height = "80vh",
   className,
@@ -120,47 +125,61 @@ function WidgetFrame({
 }: WidgetFrameProps) {
   const walletKit = useAomiWalletKit();
   return (
-    <AomiFrame.Root
-      key={walletKit.accountUser?.id ?? "anonymous"}
-      backendUrl={apiUrl}
-      accountSessionAvailable={Boolean(walletKit.accountUser)}
-      clientOptions={{
-        ...clientOptions,
-        getAccountBearer: walletKit.getAccountBearer,
-      }}
-      width={width}
-      height={height}
-      className={className}
-      style={style}
-      walletPosition={walletPosition}
-      walletFamilies={walletFamilies}
-      showSidebar={showSidebar}
-      persistThread={persistThread}
-      threadPersistenceKey={threadPersistenceKey}
-      threadPersistenceScope={threadPersistenceScope}
+    <BackendAaProvider
+      value={{ apiUrl, getAccountBearer: walletKit.getAccountBearer }}
     >
-      {showHeader ? (
-        <AomiFrame.Header showSidebarTrigger={showSidebar} />
-      ) : null}
-      <AomiFrame.Composer
-        withControl
-        controlBarProps={{
-          hideApiKey: true,
-          hideNetwork: false,
-          ...controlBarProps,
+      <AomiFrame.Root
+        key={walletKit.accountUser?.id ?? "anonymous"}
+        backendUrl={apiUrl}
+        applicationId={applicationId}
+        accountSessionAvailable={Boolean(walletKit.accountUser)}
+        clientOptions={{
+          ...clientOptions,
+          getAccountBearer: walletKit.getAccountBearer,
         }}
-      />
-    </AomiFrame.Root>
+        width={width}
+        height={height}
+        className={className}
+        style={style}
+        walletPosition={walletPosition}
+        walletFamilies={walletFamilies}
+        showSidebar={showSidebar}
+        persistThread={persistThread}
+        threadPersistenceKey={threadPersistenceKey}
+        threadPersistenceScope={threadPersistenceScope}
+      >
+        <BackendAaProvisioner applicationId={applicationId} />
+        {showHeader ? (
+          <AomiFrame.Header showSidebarTrigger={showSidebar} />
+        ) : null}
+        <AomiFrame.Composer
+          withControl
+          controlBarProps={{
+            hideApiKey: true,
+            hideNetwork: false,
+            ...controlBarProps,
+          }}
+        />
+      </AomiFrame.Root>
+    </BackendAaProvider>
   );
 }
 
-function resolveWidgetAuth(
-  auth: AomiWidgetAuthConfig | undefined,
-  providers: ProvidersConfig | undefined,
-): { auth: AuthConfig; providers?: ProvidersConfig } {
-  if (!auth) return { auth: false, providers };
+function resolveWidgetAuth(auth: CrossOriginWidgetAuth): {
+  auth: AuthConfig;
+  providers?: ProvidersConfig;
+} {
+  if (auth.kind === "browser_wallet") return { auth: false };
   return {
-    auth: { provider: auth.provider, methods: auth.methods },
-    providers: { ...providers, ...auth.providers },
+    auth: { provider: auth.provider },
+    providers:
+      auth.provider === "para"
+        ? {
+            para: {
+              environment:
+                auth.environment.toUpperCase() === "PROD" ? "PROD" : "BETA",
+            },
+          }
+        : { privy: {} },
   };
 }

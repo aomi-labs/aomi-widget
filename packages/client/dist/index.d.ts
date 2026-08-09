@@ -1234,27 +1234,29 @@ declare function toViemSignMessageArgs(payload: WalletEip712Payload): ViemSignMe
 type WalletRequestKind = "transaction" | "aa_sign" | "eip712_sign" | "solana_sign" | "solana_sign_message" | "solana_send" | "solana_sign_and_send";
 type WalletAaSignatureRequest = {
     kind: "personal_sign";
-    message: string;
-    raw_payload: string;
-} | {
-    kind: "eip7702_authorization";
-    contract_address: string;
-    chain_id: number;
-    nonce: number;
-    raw_payload: string;
+    message: `0x${string}`;
+};
+type WalletAaDisplayCall = {
+    to: `0x${string}`;
+    value: string;
+    data?: `0x${string}`;
+};
+type WalletAaFeeDisclosure = {
+    asset: unknown;
+    amount: string;
+    recipient: `0x${string}`;
+    call: WalletAaDisplayCall;
 };
 type WalletAaSignPayload = {
-    chain_family: "evm";
-    chain_id: number;
-    signer: string;
-    executor: string;
-    aa_mode: "4337" | "7702";
-    tx_ids: number[];
-    signature_requests: WalletAaSignatureRequest[];
-    description: string;
-    sponsored: boolean;
-    tx_id?: string;
-    timestamp?: string;
+    operationId: string;
+    chainId: number;
+    owner: `0x${string}`;
+    executor: `0x${string}`;
+    expiresAt: string;
+    callsDigest: `0x${string}`;
+    calls: WalletAaDisplayCall[];
+    fees: WalletAaFeeDisclosure[];
+    signatureRequests: WalletAaSignatureRequest[];
 };
 type WalletRequest = {
     id: string;
@@ -1321,9 +1323,6 @@ type WalletRequestResult = {
     completedTxIds?: number[];
     failedTxIds?: number[];
     failureReason?: string;
-} | {
-    kind: "aa_sign";
-    signatures: string[];
 } | {
     kind: "eip712_sign";
     signature: string;
@@ -1474,6 +1473,12 @@ declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
      * Sends an error to the backend and resumes polling.
      */
     reject(requestId: string, reason?: string): Promise<void>;
+    /**
+     * Drop a pending wallet request without emitting a resolve/reject wire
+     * event. Used by operation-scoped flows (AA) that acknowledge completion
+     * through a dedicated HTTP endpoint instead of the session event channel.
+     */
+    dismiss(requestId: string): void;
     /**
      * Cancel the AI's current response.
      */

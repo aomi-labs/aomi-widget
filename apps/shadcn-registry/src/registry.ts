@@ -24,7 +24,10 @@ export const registry: RegistryComponent[] = [
   },
   {
     name: "aomi-widget",
-    file: "components/aomi-widget.tsx",
+    file: [
+      "components/aomi-widget.tsx",
+      "components/backend-aa-provisioner.tsx",
+    ],
     dependencies: ["@aomi-labs/client", "@aomi-labs/react"],
     registryDependencies: [aomi("aomi-frame"), aomi("aomi-wallet-kit")],
     description:
@@ -71,7 +74,9 @@ export const registry: RegistryComponent[] = [
       "lib/wallet-kit/config/provider-auth.ts",
       "lib/wallet-kit/config/types.ts",
       "lib/wallet-kit/providers/plugin-registry.ts",
+      "lib/wallet-kit/execution/backend-aa-context.tsx",
       "lib/wallet-kit/execution/execution-runtime.ts",
+      "lib/wallet-kit/execution/owner-signer.ts",
       "lib/wallet-kit/execution/wallet-execution.ts",
       "lib/wallet-kit/full-testnet-config.ts",
       "lib/wallet-kit/full-testnet-wallet-routing.tsx",

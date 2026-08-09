@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ShieldCheck } from "lucide-react";
 import { Connection as SolanaConnection } from "@solana/web3.js";
 import { normalizeSolanaCluster } from "@aomi-labs/client";
@@ -16,6 +16,7 @@ import {
   type WalletTxPayload,
 } from "@aomi-labs/react";
 import { useAomiWalletKit } from "../lib/wallet-kit";
+import { useBackendAa } from "../lib/wallet-kit/execution/backend-aa-context";
 import { walletDebug } from "../lib/wallet-kit/wallet-debug";
 import { Button } from "./ui/button";
 import {
@@ -26,6 +27,24 @@ import {
   DialogHeader,
   DialogTitle,
 } from "./ui/dialog";
+
+// Mirrors the backend `AaOperationState` enum (serde snake_case). Keep in sync.
+type AaOperationState =
+  | "preparing"
+  | "awaiting_signature"
+  | "submitting"
+  | "submitted"
+  | "confirmed"
+  | "rejected"
+  | "failed"
+  | "expired";
+
+type AaOperationView = {
+  operationId: string;
+  state: AaOperationState;
+  txHashes: `0x${string}`[];
+  failureCode?: string;
+};
 
 function hasHydratedCalls(payload: WalletTxPayload): boolean {
   return Array.isArray(payload.calls) && payload.calls.length > 0;
@@ -78,14 +97,16 @@ function toSimulationTransactions(payload: WalletTxPayload): Array<{
 export function RuntimeTxHandler() {
   const {
     user,
+    currentThreadId,
     pendingWalletRequests,
-    startWalletRequest,
+    dismissWalletRequest,
     resolveWalletRequest,
     rejectWalletRequest,
     simulateBatchTransactions,
     showNotification,
   } = useAomiRuntime();
   const adapter = useAomiWalletKit();
+  const backendAa = useBackendAa();
   const { chainId: currentChainId } = adapter.identity;
   const processingRef = useRef(false);
   const [isSigningAa, setIsSigningAa] = useState(false);
@@ -93,6 +114,98 @@ export function RuntimeTxHandler() {
     pendingWalletRequests[0]?.kind === "aa_sign"
       ? pendingWalletRequests[0]
       : null;
+
+  const requestAaOperation = useCallback(
+    async (
+      path: string,
+      init?: { method?: "GET" | "POST"; body?: unknown },
+    ): Promise<AaOperationView> => {
+      const bearer = await backendAa.getAccountBearer?.();
+      if (!bearer) throw new Error("Widget session is not ready");
+      const response = await fetch(
+        `${backendAa.apiUrl}/api/widget/v1/aa-operations/${path}`,
+        {
+          method: init?.method ?? "GET",
+          credentials: "omit",
+          headers: {
+            authorization: `Bearer ${bearer}`,
+            ...(init?.body === undefined
+              ? {}
+              : { "content-type": "application/json" }),
+            "x-thread-id": currentThreadId,
+          },
+          body:
+            init?.body === undefined ? undefined : JSON.stringify(init.body),
+        },
+      );
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as {
+          error?: string;
+          error_code?: string;
+        } | null;
+        throw new Error(
+          payload?.error ??
+            payload?.error_code ??
+            "AA operation request failed",
+        );
+      }
+      return (await response.json()) as AaOperationView;
+    },
+    [backendAa.apiUrl, backendAa.getAccountBearer, currentThreadId],
+  );
+
+  const getAaOperation = useCallback(
+    (operationId: string) => requestAaOperation(operationId),
+    [requestAaOperation],
+  );
+
+  const postAaOperation = useCallback(
+    (path: string, body: unknown) =>
+      requestAaOperation(path, { method: "POST", body }),
+    [requestAaOperation],
+  );
+
+  // Surface a terminal operation state to the user. Returns true when the
+  // state was terminal (and a notification fired), so callers know to stop
+  // polling — and so a terminal state returned synchronously from the
+  // signatures POST is not silently swallowed behind the "submitted" notice.
+  const notifyAaTerminalState = useCallback(
+    (operation: AaOperationView): boolean => {
+      if (operation.state === "confirmed") {
+        showNotification({
+          type: "success",
+          title: "Sponsored operation confirmed",
+          duration: 6000,
+        });
+        return true;
+      }
+      if (
+        operation.state === "failed" ||
+        operation.state === "rejected" ||
+        operation.state === "expired"
+      ) {
+        showNotification({
+          type: "error",
+          title: operation.failureCode ?? `AA operation ${operation.state}`,
+          duration: 6000,
+        });
+        return true;
+      }
+      return false;
+    },
+    [showNotification],
+  );
+
+  const watchAaOperation = useCallback(
+    async (operationId: string) => {
+      for (let attempt = 0; attempt < 45; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 2_000));
+        const operation = await getAaOperation(operationId);
+        if (notifyAaTerminalState(operation)) return;
+      }
+    },
+    [getAaOperation, notifyAaTerminalState],
+  );
 
   useEffect(() => {
     if (!pendingWalletRequests.length) return;
@@ -143,6 +256,7 @@ export function RuntimeTxHandler() {
 
     async function processRequest(req: WalletRequest) {
       try {
+        if (req.kind === "aa_sign") return;
         if (req.kind === "transaction") {
           // `req.payload` narrows to WalletTxPayload via the discriminated union.
           const payload = hasHydratedCalls(req.payload)
@@ -441,50 +555,94 @@ export function RuntimeTxHandler() {
     showNotification,
   ]);
 
+  useEffect(() => {
+    if (!aaRequest) return;
+    let cancelled = false;
+    void getAaOperation(aaRequest.payload.operationId)
+      .then((operation) => {
+        if (!cancelled && operation.state !== "awaiting_signature") {
+          dismissWalletRequest(aaRequest.id);
+        }
+      })
+      .catch(() => {
+        // The operation event can arrive before the first read is visible.
+        // Approval still revalidates all state through the signature endpoint.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [aaRequest, dismissWalletRequest, getAaOperation]);
+
+  const rejectAa = async () => {
+    if (!aaRequest || isSigningAa) return;
+    setIsSigningAa(true);
+    try {
+      await postAaOperation(`${aaRequest.payload.operationId}/reject`, {});
+    } catch (error) {
+      showNotification({
+        type: "error",
+        title: error instanceof Error ? error.message : "AA rejection failed",
+        duration: 6000,
+      });
+    } finally {
+      // Dismiss even when the reject POST fails: the operation expires
+      // server-side, and leaving the request pending would trap the user in a
+      // modal that cannot be closed.
+      dismissWalletRequest(aaRequest.id);
+      setIsSigningAa(false);
+    }
+  };
+
   const approveAa = async () => {
     if (!aaRequest || isSigningAa) return;
     if (!adapter.signAaRequests) {
-      await rejectWalletRequest(
-        aaRequest.id,
-        "This wallet cannot sign account-abstraction requests",
-      );
+      showNotification({
+        type: "error",
+        title: "This wallet cannot sign account-abstraction requests",
+        duration: 6000,
+      });
+      // Reject through the operation endpoint — the generic reject path throws
+      // for aa_sign requests.
+      await rejectAa();
       return;
     }
     setIsSigningAa(true);
-    startWalletRequest(aaRequest.id);
     try {
       const result = await adapter.signAaRequests(aaRequest.payload);
-      await resolveWalletRequest(aaRequest.id, {
-        kind: "aa_sign",
-        signatures: result.signatures,
-      });
-    } catch (error) {
-      await rejectWalletRequest(
-        aaRequest.id,
-        error instanceof Error ? error.message : "AA signing failed",
+      const operation = await postAaOperation(
+        `${aaRequest.payload.operationId}/signatures`,
+        { signatures: result.signatures },
       );
+      dismissWalletRequest(aaRequest.id);
+      // A fast backend may return a terminal state directly; surface it instead
+      // of the transient "submitted" notice, and only poll while still pending.
+      if (!notifyAaTerminalState(operation)) {
+        showNotification({
+          type: "notice",
+          title: "Sponsored operation submitted",
+          duration: 4000,
+        });
+        void watchAaOperation(operation.operationId).catch((error) => {
+          console.warn("[RuntimeTxHandler] AA status polling failed", error);
+        });
+      }
+    } catch (error) {
+      showNotification({
+        type: "error",
+        title: error instanceof Error ? error.message : "AA signing failed",
+        duration: 6000,
+      });
     } finally {
       setIsSigningAa(false);
     }
   };
 
-  const rejectAa = async () => {
-    if (!aaRequest || isSigningAa) return;
-    await rejectWalletRequest(aaRequest.id, "User rejected AA signing");
-  };
-
   if (aaRequest) {
     const chainName =
       adapter.supportedChains?.find(
-        (chain) => chain.id === aaRequest.payload.chain_id,
-      )?.name ?? `Chain ${aaRequest.payload.chain_id}`;
-    const signatureCount = aaRequest.payload.signature_requests.length;
-    // EIP-7702's protocol-level code authorization is not the Privy provider
-    // delegation that enables Auto. This remains a user-clicked Manual
-    // transaction approval and never creates an Aomi signing grant.
-    const includes7702Authorization = aaRequest.payload.signature_requests.some(
-      (request) => request.kind === "eip7702_authorization",
-    );
+        (chain) => chain.id === aaRequest.payload.chainId,
+      )?.name ?? `Chain ${aaRequest.payload.chainId}`;
+    const signatureCount = aaRequest.payload.signatureRequests.length;
     return (
       <Dialog open onOpenChange={(open) => !open && void rejectAa()}>
         <DialogContent showCloseButton={false} className="sm:max-w-md">
@@ -494,20 +652,12 @@ export function RuntimeTxHandler() {
             </div>
             <DialogTitle>Approve account action</DialogTitle>
             <DialogDescription>
-              Review this sponsored {aaRequest.payload.aa_mode} action before
-              your wallet signs it. Aomi cannot sign on your behalf in Manual
-              mode.
+              Review the exact application calls and mandatory Aomi fees. Your
+              wallet signs; Aomi sponsors and broadcasts the ERC-4337 operation
+              from the backend.
             </DialogDescription>
           </DialogHeader>
           <div className="bg-muted/40 grid gap-3 rounded-xl border p-4 text-sm">
-            {aaRequest.payload.description ? (
-              <div className="flex items-start justify-between gap-4">
-                <span className="text-muted-foreground">Action</span>
-                <span className="text-right font-medium">
-                  {aaRequest.payload.description}
-                </span>
-              </div>
-            ) : null}
             <div className="flex items-center justify-between gap-4">
               <span className="text-muted-foreground">Network</span>
               <span className="font-medium">{chainName}</span>
@@ -515,27 +665,43 @@ export function RuntimeTxHandler() {
             <div className="flex items-center justify-between gap-4">
               <span className="text-muted-foreground">Account</span>
               <span className="font-mono text-xs">
-                {aaRequest.payload.signer.slice(0, 8)}…
-                {aaRequest.payload.signer.slice(-6)}
+                {aaRequest.payload.owner.slice(0, 8)}…
+                {aaRequest.payload.owner.slice(-6)}
+              </span>
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-muted-foreground">Executor</span>
+              <span className="font-mono text-xs">
+                {aaRequest.payload.executor.slice(0, 8)}…
+                {aaRequest.payload.executor.slice(-6)}
               </span>
             </div>
             <div className="flex items-center justify-between gap-4">
               <span className="text-muted-foreground">Operations</span>
               <span className="font-medium">
-                {aaRequest.payload.tx_ids.length}
+                {aaRequest.payload.calls.length}
               </span>
+            </div>
+            <div className="border-t pt-3">
+              <p className="text-muted-foreground mb-2 text-xs font-medium uppercase tracking-wide">
+                Aomi fees
+              </p>
+              {aaRequest.payload.fees.map((fee, index) => (
+                <div
+                  key={`${fee.recipient}-${index}`}
+                  className="flex items-center justify-between gap-4 text-xs"
+                >
+                  <span className="font-mono">{String(fee.amount)}</span>
+                  <span className="text-muted-foreground font-mono">
+                    {fee.recipient.slice(0, 8)}…{fee.recipient.slice(-6)}
+                  </span>
+                </div>
+              ))}
             </div>
             <div className="flex items-center justify-between gap-4">
               <span className="text-muted-foreground">Wallet approvals</span>
               <span className="font-medium">{signatureCount}</span>
             </div>
-            {includes7702Authorization ? (
-              <p className="text-muted-foreground border-t pt-3 text-xs leading-relaxed">
-                The first approval installs the 7702 smart-account code for this
-                network. The second approves this action. Future actions
-                normally need one approval.
-              </p>
-            ) : null}
           </div>
           <DialogFooter>
             <Button

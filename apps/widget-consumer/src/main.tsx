@@ -1,13 +1,13 @@
 import { StrictMode, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { AomiWidget, useAomiWalletKit } from "@aomi-labs/widget-lib";
-import { paraAuth } from "@aomi-labs/widget-lib/providers/para";
+import "@aomi-labs/widget-lib/providers/para";
 import "@aomi-labs/widget-lib/styles.css";
 import "./styles.css";
 
 const apiUrl =
   import.meta.env.VITE_AOMI_API_URL?.trim() || "http://localhost:3000";
-const apiKey = import.meta.env.VITE_PARA_API_KEY?.trim();
+const applicationId = import.meta.env.VITE_AOMI_APPLICATION_ID?.trim();
 const environment =
   import.meta.env.VITE_PARA_ENVIRONMENT === "PROD" ? "PROD" : "BETA";
 const SAFE_SIGNING_MESSAGE = "AOMI_WIDGET_SAFE_SIGNING_CHECK_2026_07_22";
@@ -55,11 +55,11 @@ function SafeSigningCheck() {
 }
 
 function App() {
-  if (!apiKey) {
+  if (!applicationId) {
     return (
       <main className="setup">
         <h1>Aomi widget consumer</h1>
-        <p>Copy .env.example to .env.local and set VITE_PARA_API_KEY.</p>
+        <p>Copy .env.example to .env.local and set VITE_AOMI_APPLICATION_ID.</p>
       </main>
     );
   }
@@ -76,14 +76,13 @@ function App() {
         </p>
       </header>
       <AomiWidget
+        applicationId={applicationId}
         apiUrl={apiUrl}
-        auth={paraAuth({
-          apiKey,
+        auth={{
+          kind: "embedded_wallet",
+          provider: "para",
           environment,
-          appName: "Aomi Widget Consumer",
-          appDescription: "Standalone cross-origin authentication fixture",
-          appUrl: window.location.origin,
-        })}
+        }}
         height="min(780px, calc(100vh - 230px))"
       >
         <SafeSigningCheck />

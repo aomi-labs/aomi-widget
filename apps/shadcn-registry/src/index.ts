@@ -7,8 +7,9 @@ export {
 } from "./components/assistant-ui/threadlist-sidebar";
 export {
   AomiWidget,
-  type AomiWidgetAuthConfig,
   type AomiWidgetProps,
+  type CrossOriginWidgetAuth,
+  type WalletPresentationConfig,
 } from "./components/aomi-widget";
 
 // Dual-wallet UI

@@ -629,6 +629,7 @@ export function AomiRuntimeCore({
       pendingWalletRequests: walletHandler.pendingRequests,
       hasBlockingWalletRequests: walletHandler.hasBlockingWalletRequests,
       startWalletRequest: walletHandler.startRequest,
+      dismissWalletRequest: walletHandler.dismissRequest,
       resolveWalletRequest: walletHandler.resolveRequest,
       rejectWalletRequest: walletHandler.rejectRequest,
       simulateBatchTransactions,

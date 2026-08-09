@@ -25,32 +25,34 @@ export type WalletRequestKind =
   | "solana_send"
   | "solana_sign_and_send";
 
-export type WalletAaSignatureRequest =
-  | {
-      kind: "personal_sign";
-      message: string;
-      raw_payload: string;
-    }
-  | {
-      kind: "eip7702_authorization";
-      contract_address: string;
-      chain_id: number;
-      nonce: number;
-      raw_payload: string;
-    };
+export type WalletAaSignatureRequest = {
+  kind: "personal_sign";
+  message: `0x${string}`;
+};
+
+export type WalletAaDisplayCall = {
+  to: `0x${string}`;
+  value: string;
+  data?: `0x${string}`;
+};
+
+export type WalletAaFeeDisclosure = {
+  asset: unknown;
+  amount: string;
+  recipient: `0x${string}`;
+  call: WalletAaDisplayCall;
+};
 
 export type WalletAaSignPayload = {
-  chain_family: "evm";
-  chain_id: number;
-  signer: string;
-  executor: string;
-  aa_mode: "4337" | "7702";
-  tx_ids: number[];
-  signature_requests: WalletAaSignatureRequest[];
-  description: string;
-  sponsored: boolean;
-  tx_id?: string;
-  timestamp?: string;
+  operationId: string;
+  chainId: number;
+  owner: `0x${string}`;
+  executor: `0x${string}`;
+  expiresAt: string;
+  callsDigest: `0x${string}`;
+  calls: WalletAaDisplayCall[];
+  fees: WalletAaFeeDisclosure[];
+  signatureRequests: WalletAaSignatureRequest[];
 };
 
 /** @deprecated Wallet callbacks are session-owned as of client 0.4.0. */
@@ -135,10 +137,6 @@ export type WalletRequestResult =
       completedTxIds?: number[];
       failedTxIds?: number[];
       failureReason?: string;
-    }
-  | {
-      kind: "aa_sign";
-      signatures: string[];
     }
   | {
       kind: "eip712_sign";

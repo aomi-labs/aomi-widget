@@ -52,6 +52,8 @@ export type WalletHandlerApi = {
   setRequests: (requests: WalletRequest[]) => void;
   /** Mark a request as in-flight so it is not replayed while awaiting backend ack. */
   startRequest: (id: string) => void;
+  /** Remove a request after an operation-specific API acknowledged it. */
+  dismissRequest: (id: string) => void;
   /**
    * Complete a request successfully — sends the response wire event to
    * the backend via ClientSession. The `result.kind` discriminator must
@@ -146,6 +148,22 @@ export function useWalletHandler({
     [getSession, startRequest, syncVisibleRequests],
   );
 
+  const dismissRequest = useCallback(
+    (id: string) => {
+      // Drop it from the ClientSession too, otherwise `sync()` preserves the
+      // request in the controller and re-feeds it on the next snapshot, keeping
+      // `hasBlockingWalletRequests` stuck true with no visible dialog.
+      getSession()?.dismiss(id);
+      requestsRef.current = requestsRef.current.filter(
+        (request) => request.id !== id,
+      );
+      inFlightRequestSetRef.current.delete(id);
+      suppressedRequestSetRef.current.add(id);
+      syncVisibleRequests();
+    },
+    [getSession, syncVisibleRequests],
+  );
+
   const rejectRequest = useCallback(
     async (id: string, error?: string) => {
       const session = getSession();
@@ -178,6 +196,7 @@ export function useWalletHandler({
     hasBlockingWalletRequests,
     setRequests,
     startRequest,
+    dismissRequest,
     resolveRequest,
     rejectRequest,
   };

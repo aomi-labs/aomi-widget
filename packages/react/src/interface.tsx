@@ -91,6 +91,8 @@ export type AomiRuntimeApi = {
   hasBlockingWalletRequests: boolean;
   /** Mark a wallet request as in-flight — suppresses it from the pending list until acked */
   startWalletRequest: (id: string) => void;
+  /** Dismiss after an operation-specific endpoint acknowledged completion. */
+  dismissWalletRequest: (id: string) => void;
   /** Complete a wallet request after the backend acknowledges the response */
   resolveWalletRequest: (
     id: string,

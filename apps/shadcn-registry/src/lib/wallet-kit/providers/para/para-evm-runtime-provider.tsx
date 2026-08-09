@@ -22,7 +22,11 @@ export function createAomiParaEvmConfig(
       ...(para
         ? [
             paraConnector({
-              para,
+              // `@getpara/react-sdk`'s `ParaWeb` and the client type bundled in
+              // `@getpara/wagmi-v2-connector` have drifted across versions, so
+              // the `para` arg no longer structurally matches. `as never` is a
+              // deliberate cross-package cast, not a masked local error.
+              para: para as never,
               chains: [...config.chains],
               disableModal: true,
               appName: config.appName ?? "Aomi",
@@ -31,7 +35,9 @@ export function createAomiParaEvmConfig(
             }),
           ]
         : []),
-    ],
+      // paraConnector()'s return type isn't assignable to wagmi's
+      // `readonly CreateConnectorFn[]` under the current SDK versions.
+    ] as ResolvedEvmWalletsConfig["connectors"],
   });
 }
 

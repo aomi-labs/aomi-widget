@@ -2902,6 +2902,19 @@ function useWalletHandler({
     },
     [getSession, startRequest, syncVisibleRequests]
   );
+  const dismissRequest = (0, import_react12.useCallback)(
+    (id) => {
+      var _a;
+      (_a = getSession()) == null ? void 0 : _a.dismiss(id);
+      requestsRef.current = requestsRef.current.filter(
+        (request) => request.id !== id
+      );
+      inFlightRequestSetRef.current.delete(id);
+      suppressedRequestSetRef.current.add(id);
+      syncVisibleRequests();
+    },
+    [getSession, syncVisibleRequests]
+  );
   const rejectRequest = (0, import_react12.useCallback)(
     async (id, error) => {
       const session = getSession();
@@ -2931,6 +2944,7 @@ function useWalletHandler({
     hasBlockingWalletRequests,
     setRequests,
     startRequest,
+    dismissRequest,
     resolveRequest,
     rejectRequest
   };
@@ -3943,6 +3957,7 @@ function AomiRuntimeCore({
       pendingWalletRequests: walletHandler.pendingRequests,
       hasBlockingWalletRequests: walletHandler.hasBlockingWalletRequests,
       startWalletRequest: walletHandler.startRequest,
+      dismissWalletRequest: walletHandler.dismissRequest,
       resolveWalletRequest: walletHandler.resolveRequest,
       rejectWalletRequest: walletHandler.rejectRequest,
       simulateBatchTransactions,

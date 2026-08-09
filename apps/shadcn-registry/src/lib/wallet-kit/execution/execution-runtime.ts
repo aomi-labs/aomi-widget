@@ -5,13 +5,13 @@ import {
   toViemSignMessageArgs,
   toViemSignTypedDataArgs,
 } from "@aomi-labs/react";
-import { serializeSignature, type Address, type Hex } from "viem";
 import type { EvmExecutionRuntime } from "../composer/types";
 import type { EvmWalletRuntime } from "../runtime/evm/wallet-runtime";
 import {
   executeWalletKitTransaction,
   getPreferredRpcUrl,
 } from "./wallet-execution";
+import { WagmiOwnerSigner, signBackendAaRequest } from "./owner-signer";
 
 /**
  * Map a shared `EvmWalletRuntime` into the composer's `EvmExecutionRuntime`
@@ -48,55 +48,25 @@ export function buildEvmExecutionRuntime(
     payload: WalletAaSignPayload,
   ): Promise<{ signatures: string[] }> => {
     const active = evm.activeAccount;
-    if (
-      !active ||
-      active.address.toLowerCase() !== payload.signer.toLowerCase()
-    ) {
+    if (!active || !runtime.currentChainId) {
       throw new Error("The active wallet is not the prepared AA owner");
     }
-    const walletClient = (await runtime.getWalletClientFor({
-      connector: runtime.activeConnector,
-      chainId: payload.chain_id,
-    })) as {
-      signMessage?: (args: unknown) => Promise<Hex>;
-      signAuthorization?: (args: unknown) => Promise<{
-        r: Hex;
-        s: Hex;
-        yParity: number;
-      }>;
-    } | null;
-    const signatures: string[] = [];
-    for (const request of payload.signature_requests) {
-      if (request.kind === "personal_sign") {
-        if (walletClient?.signMessage) {
-          signatures.push(
-            await walletClient.signMessage({
-              account: payload.signer as Address,
-              // Alchemy's `signatureRequest.data.raw` is bytes, not the
-              // textual characters "0x…". Viem must receive the raw form or
-              // the recovered signer will not match `rawPayload`.
-              message: { raw: request.message as Hex },
-            }),
-          );
-        } else {
-          throw new Error("The active wallet cannot sign the AA UserOperation");
-        }
-      } else {
-        if (!walletClient?.signAuthorization) {
-          throw new Error(
-            "The active wallet does not support EIP-7702 authorization",
-          );
-        }
-        const authorization = await walletClient.signAuthorization({
-          account: payload.signer as Address,
-          contractAddress: request.contract_address as Address,
-          chainId: request.chain_id,
-          nonce: request.nonce,
-        });
-        signatures.push(serializeSignature(authorization));
-      }
-    }
-    return { signatures };
+    return signBackendAaRequest(
+      new WagmiOwnerSigner(
+        {
+          address: active.address as `0x${string}`,
+          chainId: runtime.currentChainId,
+        },
+        () =>
+          runtime.getWalletClientFor({
+            connector: runtime.activeConnector,
+            chainId: payload.chainId,
+          }) as Promise<{
+            signMessage?: (args: unknown) => Promise<`0x${string}`>;
+          } | null>,
+      ),
+      payload,
+    );
   };
 
   return {

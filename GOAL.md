@@ -1,5 +1,30 @@
 # Auth BFF BetterAuth Cleanup Goal
 
+## Backend-Owned Sponsored ERC-4337
+
+Current session goal: **IMPLEMENTED AND MERGE-GATED 2026-08-09** — make
+the cross-origin widget an authentication and owner-signing client while the
+backend owns smart-account provisioning, mandatory Aomi fee construction,
+sponsorship, broadcast, confirmation, and revenue receipts.
+
+- Replaced partner-controlled AA/paymaster configuration with the required
+  `applicationId`, `apiUrl`, and authentication-only browser/Para/Privy
+  contract.
+- Added a single ordered `WalletOwnerSigner` boundary for browser EOAs and
+  Para/Privy embedded EOAs; the widget receives only display-safe calls and
+  signing messages, never Alchemy preparation blobs or credentials.
+- Added explicit origin-bound operation signature/reject requests with
+  `credentials: "omit"`, plus automatic backend provisioning after owner and
+  chain resolution.
+- Removed legacy `aa_handoff` rehydration and generic thread callbacks for AA;
+  operation replay now resolves against backend state.
+- Versioned the breaking publishable packages and verified client/react/widget
+  builds, account and Portal type-checks, the full root suite (1,454 passing),
+  and focused registry signing/runtime tests.
+- Proved the server-owned prepare/sign/send path with sponsored Base Sepolia
+  transaction
+  `0xb426a23e41ccba02a11fc2346992fd6fbd449e59f26d6a0c6d7c2c9ea4cb14bd`.
+
 ## Canonical Build Projects Refactor
 
 Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED

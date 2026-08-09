@@ -269,6 +269,8 @@ type WalletHandlerApi = {
     setRequests: (requests: WalletRequest[]) => void;
     /** Mark a request as in-flight so it is not replayed while awaiting backend ack. */
     startRequest: (id: string) => void;
+    /** Remove a request after an operation-specific API acknowledged it. */
+    dismissRequest: (id: string) => void;
     /**
      * Complete a request successfully — sends the response wire event to
      * the backend via ClientSession. The `result.kind` discriminator must
@@ -337,6 +339,8 @@ type AomiRuntimeApi = {
     hasBlockingWalletRequests: boolean;
     /** Mark a wallet request as in-flight — suppresses it from the pending list until acked */
     startWalletRequest: (id: string) => void;
+    /** Dismiss after an operation-specific endpoint acknowledged completion. */
+    dismissWalletRequest: (id: string) => void;
     /** Complete a wallet request after the backend acknowledges the response */
     resolveWalletRequest: (id: string, result: WalletRequestResult) => Promise<void>;
     /** Fail a wallet request after the backend acknowledges the error */

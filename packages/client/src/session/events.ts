@@ -64,29 +64,24 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/**
+ * A `0x`-prefixed hex string. AA owner/executor addresses, the calls digest,
+ * and the signing messages are all cast to `` `0x${string}` `` downstream and
+ * fed into the owner-equality guard and `signMessage({ message: { raw } })`, so
+ * a malformed value must be rejected here rather than trusted by the dialog.
+ */
+function isHexString(value: unknown): value is `0x${string}` {
+  return typeof value === "string" && /^0x[0-9a-fA-F]*$/.test(value);
+}
+
 function normalizeAaSignatureRequest(
   value: unknown,
 ): WalletAaSignatureRequest | null {
-  if (!isRecord(value) || typeof value.raw_payload !== "string") return null;
-  if (value.kind === "personal_sign" && typeof value.message === "string") {
+  if (!isRecord(value)) return null;
+  if (value.kind === "personal_sign" && isHexString(value.message)) {
     return {
       kind: value.kind,
       message: value.message,
-      raw_payload: value.raw_payload,
-    };
-  }
-  if (
-    value.kind === "eip7702_authorization" &&
-    typeof value.contract_address === "string" &&
-    typeof value.chain_id === "number" &&
-    typeof value.nonce === "number"
-  ) {
-    return {
-      kind: value.kind,
-      contract_address: value.contract_address,
-      chain_id: value.chain_id,
-      nonce: value.nonce,
-      raw_payload: value.raw_payload,
     };
   }
   return null;
@@ -94,38 +89,33 @@ function normalizeAaSignatureRequest(
 
 function normalizeAaSignPayload(value: unknown): WalletAaSignPayload | null {
   if (!isRecord(value)) return null;
-  const requests = Array.isArray(value.signature_requests)
-    ? value.signature_requests.map(normalizeAaSignatureRequest)
+  const requests = Array.isArray(value.signatureRequests)
+    ? value.signatureRequests.map(normalizeAaSignatureRequest)
     : [];
   if (
-    value.chain_family !== "evm" ||
-    typeof value.chain_id !== "number" ||
-    typeof value.signer !== "string" ||
-    typeof value.executor !== "string" ||
-    (value.aa_mode !== "4337" && value.aa_mode !== "7702") ||
-    !Array.isArray(value.tx_ids) ||
-    !value.tx_ids.every((id) => typeof id === "number") ||
+    typeof value.operationId !== "string" ||
+    typeof value.chainId !== "number" ||
+    !isHexString(value.owner) ||
+    !isHexString(value.executor) ||
+    typeof value.expiresAt !== "string" ||
+    !isHexString(value.callsDigest) ||
+    !Array.isArray(value.calls) ||
+    !Array.isArray(value.fees) ||
     requests.length === 0 ||
-    requests.some((request) => request === null) ||
-    typeof value.description !== "string" ||
-    typeof value.sponsored !== "boolean"
+    requests.some((request) => request === null)
   ) {
     return null;
   }
   return {
-    chain_family: "evm",
-    chain_id: value.chain_id,
-    signer: value.signer,
+    operationId: value.operationId,
+    chainId: value.chainId,
+    owner: value.owner,
     executor: value.executor,
-    aa_mode: value.aa_mode,
-    tx_ids: [...value.tx_ids],
-    signature_requests: requests as WalletAaSignatureRequest[],
-    description: value.description,
-    sponsored: value.sponsored,
-    ...(typeof value.tx_id === "string" ? { tx_id: value.tx_id } : {}),
-    ...(typeof value.timestamp === "string"
-      ? { timestamp: value.timestamp }
-      : {}),
+    expiresAt: value.expiresAt,
+    callsDigest: value.callsDigest,
+    calls: value.calls as WalletAaSignPayload["calls"],
+    fees: value.fees as WalletAaSignPayload["fees"],
+    signatureRequests: requests as WalletAaSignatureRequest[],
   };
 }
 

@@ -15,68 +15,12 @@ import {
 import type {
   WalletRequest,
   WalletAaSignPayload,
-  WalletAaSignatureRequest,
   WalletRequestKind,
   WalletRequestResult,
 } from "./types";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function isAaSignatureRequest(
-  value: unknown,
-): value is WalletAaSignatureRequest {
-  if (!isRecord(value) || typeof value.raw_payload !== "string") return false;
-  if (value.kind === "personal_sign") return typeof value.message === "string";
-  if (value.kind === "eip7702_authorization") {
-    return (
-      typeof value.contract_address === "string" &&
-      typeof value.chain_id === "number" &&
-      typeof value.nonce === "number"
-    );
-  }
-  return false;
-}
-
-/**
- * Project a parked anchor record's `aa_handoff` back into the wallet request
- * the backend originally emitted. `null` when any signing-critical field is
- * missing or malformed — a partial rebuild must never reach the wallet.
- */
-function aaSignPayloadFromRecord(
-  record: Record<string, unknown>,
-): WalletAaSignPayload | null {
-  const handoff = isRecord(record.aa_handoff) ? record.aa_handoff : undefined;
-  if (!handoff) return null;
-  const txIds = Array.isArray(handoff.tx_ids)
-    ? handoff.tx_ids.filter((id): id is number => typeof id === "number")
-    : [];
-  const rawRequests = Array.isArray(handoff.signature_requests)
-    ? handoff.signature_requests
-    : [];
-  const requests = rawRequests.filter(isAaSignatureRequest);
-  if (
-    txIds.length === 0 ||
-    requests.length === 0 ||
-    requests.length !== rawRequests.length ||
-    typeof record.from !== "string" ||
-    typeof record.chain_id !== "number"
-  ) {
-    return null;
-  }
-  return {
-    chain_family: "evm",
-    chain_id: record.chain_id,
-    signer: record.from,
-    executor:
-      typeof handoff.executor === "string" ? handoff.executor : record.from,
-    aa_mode: handoff.aa_mode === "4337" ? "4337" : "7702",
-    tx_ids: txIds,
-    signature_requests: requests,
-    description: typeof record.label === "string" ? record.label : "",
-    sponsored: true,
-  };
 }
 
 export function txIdsFromPayload(payload: WalletTxPayload): number[] {
@@ -201,8 +145,6 @@ export class SessionWalletController {
         : undefined;
 
     const next: WalletRequest[] = [];
-    // Before plain transactions so a rebuilt AA dialog keeps queue priority.
-    this.syncAaSign(next, pendingTxs);
     this.syncTransactions(next, pendingTxs);
     this.syncEip712(next, pendingEip712s);
     this.syncSolana(next, pendingSolanaTxs);
@@ -243,12 +185,6 @@ export class SessionWalletController {
         this.deps.sendSystemEvent(type, payload);
       if (req.kind === "transaction" && result.kind === "transaction") {
         await this.resolveTransaction(req.payload, result);
-      } else if (req.kind === "aa_sign" && result.kind === "aa_sign") {
-        await this.deps.sendSystemEvent("wallet:aa_sign_complete", {
-          status: "signed",
-          tx_ids: req.payload.tx_ids,
-          signatures: result.signatures,
-        });
       } else if (req.kind === "eip712_sign" && result.kind === "eip712_sign") {
         await send("wallet_eip712_response", {
           status: "success",
@@ -340,12 +276,9 @@ export class SessionWalletController {
           call_count: pendingTxIds.length,
         });
       } else if (req.kind === "aa_sign") {
-        await this.deps.sendSystemEvent("wallet:aa_sign_complete", {
-          status: "rejected",
-          error: reason ?? "Request rejected",
-          tx_ids: req.payload.tx_ids,
-          signatures: [],
-        });
+        throw new Error(
+          "AA requests must be rejected through the operation endpoint",
+        );
       } else if (req.kind === "eip712_sign") {
         await send("wallet_eip712_response", {
           status: "failed",
@@ -400,6 +333,20 @@ export class SessionWalletController {
     } finally {
       this.resolvingRequestIds.delete(requestId);
     }
+  }
+
+  /**
+   * Drop a request locally without emitting a resolve/reject wire event.
+   * Operation-scoped flows (AA) acknowledge completion through their own HTTP
+   * endpoints, so the generic events must not fire — but the request must still
+   * leave the controller. We route through `finishRequest` so the id is marked
+   * resolved and neither `sync()` nor a repeated `enqueue()` re-offers it (which
+   * would otherwise keep `hasBlockingWalletRequests` stuck true forever).
+   */
+  dismiss(requestId: string): void {
+    const req = this.find(requestId);
+    if (!req) return;
+    this.finishRequest(req);
   }
 
   private async resolveTransaction(
@@ -531,36 +478,6 @@ export class SessionWalletController {
     this.remove(request.id);
     this.resolvedRequestIds.add(request.id);
     this.clearResolvedSolanaPending(request);
-  }
-
-  /**
-   * Rebuild attended-AA signing requests from user state. The backend parks
-   * the request's projection on the batch anchor (`aa_handoff`) while it
-   * awaits owner signatures, so a reloaded client recovers the exact dialog
-   * it lost instead of orphaning the prepared batch.
-   */
-  private syncAaSign(
-    next: WalletRequest[],
-    pendingTxs: Record<string, unknown> | undefined,
-  ): void {
-    for (const [, raw] of Object.entries(pendingTxs ?? {})) {
-      if (!isRecord(raw) || raw.current_lifecycle !== "awaiting_aa_signature")
-        continue;
-      // Only the batch anchor carries the handoff; other members are covered
-      // by its tx_ids.
-      const payload = aaSignPayloadFromRecord(raw);
-      if (!payload) continue;
-      const requestId = this.requestId("aa_sign", payload);
-      if (this.resolvedRequestIds.has(requestId)) continue;
-      next.push({
-        id: requestId,
-        kind: "aa_sign",
-        payload,
-        timestamp:
-          this.requests.find((request) => request.id === requestId)
-            ?.timestamp ?? Date.now(),
-      });
-    }
   }
 
   private syncTransactions(
@@ -706,8 +623,8 @@ export class SessionWalletController {
       const txIds = txIdsFromPayload(txPayload);
       if (!id && txIds.length > 0) id = `tx-${txIds.join("-")}`;
     } else if (kind === "aa_sign") {
-      const { tx_ids: txIds } = payload as WalletAaSignPayload;
-      if (txIds.length > 0) id = `aa-${txIds.join("-")}`;
+      const { operationId } = payload as WalletAaSignPayload;
+      if (operationId) id = `aa-${operationId}`;
     } else if (kind === "eip712_sign") {
       const { eip712Id } = payload as WalletEip712Payload;
       if (typeof eip712Id === "number") id = `eip712-${eip712Id}`;

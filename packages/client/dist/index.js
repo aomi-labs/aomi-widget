@@ -2935,43 +2935,36 @@ function aomiMessagesEqual(a, b) {
 function isRecord(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
+function isHexString(value) {
+  return typeof value === "string" && /^0x[0-9a-fA-F]*$/.test(value);
+}
 function normalizeAaSignatureRequest(value) {
-  if (!isRecord(value) || typeof value.raw_payload !== "string") return null;
-  if (value.kind === "personal_sign" && typeof value.message === "string") {
+  if (!isRecord(value)) return null;
+  if (value.kind === "personal_sign" && isHexString(value.message)) {
     return {
       kind: value.kind,
-      message: value.message,
-      raw_payload: value.raw_payload
-    };
-  }
-  if (value.kind === "eip7702_authorization" && typeof value.contract_address === "string" && typeof value.chain_id === "number" && typeof value.nonce === "number") {
-    return {
-      kind: value.kind,
-      contract_address: value.contract_address,
-      chain_id: value.chain_id,
-      nonce: value.nonce,
-      raw_payload: value.raw_payload
+      message: value.message
     };
   }
   return null;
 }
 function normalizeAaSignPayload(value) {
   if (!isRecord(value)) return null;
-  const requests = Array.isArray(value.signature_requests) ? value.signature_requests.map(normalizeAaSignatureRequest) : [];
-  if (value.chain_family !== "evm" || typeof value.chain_id !== "number" || typeof value.signer !== "string" || typeof value.executor !== "string" || value.aa_mode !== "4337" && value.aa_mode !== "7702" || !Array.isArray(value.tx_ids) || !value.tx_ids.every((id) => typeof id === "number") || requests.length === 0 || requests.some((request) => request === null) || typeof value.description !== "string" || typeof value.sponsored !== "boolean") {
+  const requests = Array.isArray(value.signatureRequests) ? value.signatureRequests.map(normalizeAaSignatureRequest) : [];
+  if (typeof value.operationId !== "string" || typeof value.chainId !== "number" || !isHexString(value.owner) || !isHexString(value.executor) || typeof value.expiresAt !== "string" || !isHexString(value.callsDigest) || !Array.isArray(value.calls) || !Array.isArray(value.fees) || requests.length === 0 || requests.some((request) => request === null)) {
     return null;
   }
-  return __spreadValues(__spreadValues({
-    chain_family: "evm",
-    chain_id: value.chain_id,
-    signer: value.signer,
+  return {
+    operationId: value.operationId,
+    chainId: value.chainId,
+    owner: value.owner,
     executor: value.executor,
-    aa_mode: value.aa_mode,
-    tx_ids: [...value.tx_ids],
-    signature_requests: requests,
-    description: value.description,
-    sponsored: value.sponsored
-  }, typeof value.tx_id === "string" ? { tx_id: value.tx_id } : {}), typeof value.timestamp === "string" ? { timestamp: value.timestamp } : {});
+    expiresAt: value.expiresAt,
+    callsDigest: value.callsDigest,
+    calls: value.calls,
+    fees: value.fees,
+    signatureRequests: requests
+  };
 }
 function applySessionState(state, deps) {
   var _a;
@@ -3195,35 +3188,6 @@ function aaModeFromExecutionKind(executionKind) {
 function isRecord3(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
-function isAaSignatureRequest(value) {
-  if (!isRecord3(value) || typeof value.raw_payload !== "string") return false;
-  if (value.kind === "personal_sign") return typeof value.message === "string";
-  if (value.kind === "eip7702_authorization") {
-    return typeof value.contract_address === "string" && typeof value.chain_id === "number" && typeof value.nonce === "number";
-  }
-  return false;
-}
-function aaSignPayloadFromRecord(record) {
-  const handoff = isRecord3(record.aa_handoff) ? record.aa_handoff : void 0;
-  if (!handoff) return null;
-  const txIds = Array.isArray(handoff.tx_ids) ? handoff.tx_ids.filter((id) => typeof id === "number") : [];
-  const rawRequests = Array.isArray(handoff.signature_requests) ? handoff.signature_requests : [];
-  const requests = rawRequests.filter(isAaSignatureRequest);
-  if (txIds.length === 0 || requests.length === 0 || requests.length !== rawRequests.length || typeof record.from !== "string" || typeof record.chain_id !== "number") {
-    return null;
-  }
-  return {
-    chain_family: "evm",
-    chain_id: record.chain_id,
-    signer: record.from,
-    executor: typeof handoff.executor === "string" ? handoff.executor : record.from,
-    aa_mode: handoff.aa_mode === "4337" ? "4337" : "7702",
-    tx_ids: txIds,
-    signature_requests: requests,
-    description: typeof record.label === "string" ? record.label : "",
-    sponsored: true
-  };
-}
 function txIdsFromPayload(payload) {
   if (Array.isArray(payload.txIds) && payload.txIds.length > 0) {
     return [...payload.txIds];
@@ -3289,7 +3253,6 @@ var SessionWalletController = class {
     const pendingSolanaTxs = isRecord3(pending == null ? void 0 : pending.solana_txs) ? pending.solana_txs : isRecord3(pending == null ? void 0 : pending.svm_ixs) ? pending.svm_ixs : void 0;
     const pendingSolanaSigs = isRecord3(pending == null ? void 0 : pending.solana_sigs) ? pending.solana_sigs : isRecord3(pending == null ? void 0 : pending.svm_sigs) ? pending.svm_sigs : void 0;
     const next = [];
-    this.syncAaSign(next, pendingTxs);
     this.syncTransactions(next, pendingTxs);
     this.syncEip712(next, pendingEip712s);
     this.syncSolana(next, pendingSolanaTxs);
@@ -3320,12 +3283,6 @@ var SessionWalletController = class {
       const send = (type, payload) => this.deps.sendSystemEvent(type, payload);
       if (req.kind === "transaction" && result.kind === "transaction") {
         await this.resolveTransaction(req.payload, result);
-      } else if (req.kind === "aa_sign" && result.kind === "aa_sign") {
-        await this.deps.sendSystemEvent("wallet:aa_sign_complete", {
-          status: "signed",
-          tx_ids: req.payload.tx_ids,
-          signatures: result.signatures
-        });
       } else if (req.kind === "eip712_sign" && result.kind === "eip712_sign") {
         await send("wallet_eip712_response", __spreadValues({
           status: "success",
@@ -3393,12 +3350,9 @@ var SessionWalletController = class {
           call_count: pendingTxIds.length
         });
       } else if (req.kind === "aa_sign") {
-        await this.deps.sendSystemEvent("wallet:aa_sign_complete", {
-          status: "rejected",
-          error: reason != null ? reason : "Request rejected",
-          tx_ids: req.payload.tx_ids,
-          signatures: []
-        });
+        throw new Error(
+          "AA requests must be rejected through the operation endpoint"
+        );
       } else if (req.kind === "eip712_sign") {
         await send("wallet_eip712_response", __spreadValues({
           status: "failed",
@@ -3438,6 +3392,19 @@ var SessionWalletController = class {
     } finally {
       this.resolvingRequestIds.delete(requestId);
     }
+  }
+  /**
+   * Drop a request locally without emitting a resolve/reject wire event.
+   * Operation-scoped flows (AA) acknowledge completion through their own HTTP
+   * endpoints, so the generic events must not fire — but the request must still
+   * leave the controller. We route through `finishRequest` so the id is marked
+   * resolved and neither `sync()` nor a repeated `enqueue()` re-offers it (which
+   * would otherwise keep `hasBlockingWalletRequests` stuck true forever).
+   */
+  dismiss(requestId) {
+    const req = this.find(requestId);
+    if (!req) return;
+    this.finishRequest(req);
   }
   async resolveTransaction(payload, result) {
     var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j;
@@ -3521,29 +3488,6 @@ var SessionWalletController = class {
     this.remove(request.id);
     this.resolvedRequestIds.add(request.id);
     this.clearResolvedSolanaPending(request);
-  }
-  /**
-   * Rebuild attended-AA signing requests from user state. The backend parks
-   * the request's projection on the batch anchor (`aa_handoff`) while it
-   * awaits owner signatures, so a reloaded client recovers the exact dialog
-   * it lost instead of orphaning the prepared batch.
-   */
-  syncAaSign(next, pendingTxs) {
-    var _a, _b;
-    for (const [, raw] of Object.entries(pendingTxs != null ? pendingTxs : {})) {
-      if (!isRecord3(raw) || raw.current_lifecycle !== "awaiting_aa_signature")
-        continue;
-      const payload = aaSignPayloadFromRecord(raw);
-      if (!payload) continue;
-      const requestId = this.requestId("aa_sign", payload);
-      if (this.resolvedRequestIds.has(requestId)) continue;
-      next.push({
-        id: requestId,
-        kind: "aa_sign",
-        payload,
-        timestamp: (_b = (_a = this.requests.find((request) => request.id === requestId)) == null ? void 0 : _a.timestamp) != null ? _b : Date.now()
-      });
-    }
   }
   syncTransactions(next, pendingTxs) {
     var _a, _b;
@@ -3639,8 +3583,8 @@ var SessionWalletController = class {
       const txIds = txIdsFromPayload(txPayload);
       if (!id && txIds.length > 0) id = `tx-${txIds.join("-")}`;
     } else if (kind === "aa_sign") {
-      const { tx_ids: txIds } = payload;
-      if (txIds.length > 0) id = `aa-${txIds.join("-")}`;
+      const { operationId } = payload;
+      if (operationId) id = `aa-${operationId}`;
     } else if (kind === "eip712_sign") {
       const { eip712Id } = payload;
       if (typeof eip712Id === "number") id = `eip712-${eip712Id}`;
@@ -3825,6 +3769,15 @@ var ClientSession = class extends TypedEventEmitter {
    */
   async reject(requestId, reason) {
     await this.walletController.reject(requestId, reason);
+    this.resumeAfterWalletResponse();
+  }
+  /**
+   * Drop a pending wallet request without emitting a resolve/reject wire
+   * event. Used by operation-scoped flows (AA) that acknowledge completion
+   * through a dedicated HTTP endpoint instead of the session event channel.
+   */
+  dismiss(requestId) {
+    this.walletController.dismiss(requestId);
     this.resumeAfterWalletResponse();
   }
   // ===========================================================================
