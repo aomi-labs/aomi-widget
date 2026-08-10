@@ -708,7 +708,7 @@ describe("User API", () => {
 
       expect(getApi().user.connection?.is_connected).toBe(false);
       expect(getApi().user.evm?.address).toBeUndefined();
-      expect(getApi().user.evm?.chain_id).toBeUndefined();
+      expect(getApi().user.evm?.chain_id).toBe(1);
       expect(getApi().user.evm?.ens_name).toBeUndefined();
     });
 

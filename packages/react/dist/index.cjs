@@ -1513,8 +1513,10 @@ function mergeRecords(previous, incoming) {
 }
 function dropWalletBlocks(state) {
   var _a;
+  const chainId = import_client2.UserState.chainId(state);
   return (_a = import_client2.UserState.normalize({
     connection: { is_connected: false },
+    evm: chainId === void 0 ? void 0 : { chain_id: chainId },
     pending: state.pending,
     ext: state.ext,
     preferences: state.preferences
@@ -1911,6 +1913,8 @@ var getNetworkName = (chainId) => {
       return "monad-testnet";
     case 4326:
       return "megaeth";
+    case 5042002:
+      return "arc-testnet";
     case 1337:
     case 31337:
       return "testnet";

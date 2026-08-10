@@ -106,7 +106,7 @@ import {
   lineaSepolia,
   foundry
 } from "viem/chains";
-var monad, monadTestnet, robinhood, megaeth, SUPPORTED_CHAINS, SUPPORTED_CHAIN_IDS, CHAIN_NAMES;
+var monad, monadTestnet, robinhood, megaeth, arcTestnet, SUPPORTED_CHAINS, SUPPORTED_CHAIN_IDS, CHAIN_NAMES;
 var init_chains = __esm({
   "src/chains.ts"() {
     "use strict";
@@ -191,6 +191,34 @@ var init_chains = __esm({
         }
       }
     });
+    arcTestnet = defineChain({
+      id: 5042002,
+      name: "Arc Testnet",
+      nativeCurrency: {
+        name: "USDC",
+        symbol: "USDC",
+        // Arc RPC quantities use 18-decimal native precision, but EIP-3085 chain
+        // metadata uses USDC's 6 display decimals. Callers handling raw
+        // eth_getBalance/msg.value must retain the 18-decimal internal boundary.
+        decimals: 6
+      },
+      rpcUrls: {
+        default: {
+          http: [
+            "https://rpc.testnet.arc.io",
+            "https://rpc.drpc.testnet.arc.io",
+            "https://rpc.quicknode.testnet.arc.io"
+          ]
+        }
+      },
+      blockExplorers: {
+        default: {
+          name: "ArcScan",
+          url: "https://testnet.arcscan.app"
+        }
+      },
+      testnet: true
+    });
     SUPPORTED_CHAINS = [
       { id: 1, name: "Ethereum", ticker: "ETH" },
       { id: 137, name: "Polygon", ticker: "MATIC" },
@@ -205,6 +233,7 @@ var init_chains = __esm({
       { id: 10143, name: "Monad Testnet", ticker: "MON" },
       { id: 4663, name: "Robinhood Chain", ticker: "ETH" },
       { id: 4326, name: "MegaETH", ticker: "ETH" },
+      { id: 5042002, name: "Arc Testnet", ticker: "USDC" },
       { id: 31337, name: "Anvil (local)", ticker: "ETH" }
     ];
     SUPPORTED_CHAIN_IDS = SUPPORTED_CHAINS.map((chain) => chain.id);
@@ -11311,7 +11340,7 @@ init_shared();
 // package.json
 var package_default = {
   name: "@aomi-labs/client",
-  version: "0.4.4",
+  version: "0.4.5",
   description: "Platform-agnostic TypeScript client for the Aomi backend API",
   type: "module",
   main: "./dist/index.cjs",
