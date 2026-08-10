@@ -126,6 +126,8 @@ export interface AomiChatResponse {
   title?: string | null;
   is_processing?: boolean;
   user_state?: UserState | null;
+  /** Opaque correlation id for the accepted browser turn. */
+  turn_id?: string | null;
 }
 
 /**
@@ -337,6 +339,14 @@ export type AomiSSEEvent = {
   thread_id?: string;
   new_title?: string;
   [key: string]: unknown;
+};
+
+/** First user-displayable text for a locally pending browser turn. */
+export type AomiAssistantTextStartedEvent = AomiSSEEvent & {
+  type: "assistant_text_started";
+  turn_id: string;
+  text: string;
+  truncated: boolean;
 };
 
 // =============================================================================

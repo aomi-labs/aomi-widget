@@ -45,6 +45,14 @@ export type {
   WalletRequestResult,
 } from "./types";
 
+/**
+ * Floor between poll starts triggered by SSE activity or send completion.
+ * Keeps event-driven reconciliation prompt while bounding the request rate:
+ * without it, a tool-heavy turn's SSE events would drive back-to-back
+ * /api/thread/state fetches limited only by network latency.
+ */
+const MIN_IMMEDIATE_POLL_GAP_MS = 250;
+
 export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   readonly client: AomiClient;
   readonly sessionId: string;
@@ -59,7 +67,12 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   private pollIntervalMs: number;
   private logger?: { debug: (...args: unknown[]) => void };
 
-  private pollTimer: ReturnType<typeof setInterval> | null = null;
+  private pollTimer: ReturnType<typeof setTimeout> | null = null;
+  private pollingActive = false;
+  private pollInFlight = false;
+  private pollAgainImmediately = false;
+  private pollFailureCount = 0;
+  private lastPollStartedAt = 0;
   private unsubscribeSSE: (() => void) | null = null;
   private isSSEActive = false;
   private _isProcessing = false;
@@ -70,6 +83,9 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   private closed = false;
 
   private pendingResolve: ((result: SendResult) => void) | null = null;
+  private pendingTurnIds = new Set<string>();
+  private awaitingChatTurnIds = new Set<string>();
+  private provisionalTurnText = new Map<string, string>();
 
   constructor(
     clientOrOptions: AomiClient | AomiClientOptions,
@@ -128,17 +144,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   async send(message: string): Promise<SendResult> {
     this.assertOpen();
 
-    const response = await this.client.sendMessage(this.sessionId, message, {
-      app: this.app,
-      applicationId: this.applicationId,
-      apiKey: this.apiKey,
-      userState: this.userState,
-      clientId: this.clientId,
-      paymentMethod: this.paymentMethod,
-    });
-
-    this.assertUserStateAligned(response.user_state);
-    this.applyState(response);
+    const response = await this.submitChat(message);
 
     if (!response.is_processing && this.walletController.length === 0) {
       return { messages: this._messages, title: this._title };
@@ -160,17 +166,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   async sendAsync(message: string): Promise<AomiChatResponse> {
     this.assertOpen();
 
-    const response = await this.client.sendMessage(this.sessionId, message, {
-      app: this.app,
-      applicationId: this.applicationId,
-      apiKey: this.apiKey,
-      userState: this.userState,
-      clientId: this.clientId,
-      paymentMethod: this.paymentMethod,
-    });
-
-    this.assertUserStateAligned(response.user_state);
-    this.applyState(response);
+    const response = await this.submitChat(message);
 
     if (response.is_processing) {
       this._isProcessing = true;
@@ -236,6 +232,9 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     this.unsubscribeSSE?.();
     this.unsubscribeSSE = null;
     this.isSSEActive = false;
+    this.pendingTurnIds.clear();
+    this.awaitingChatTurnIds.clear();
+    this.provisionalTurnText.clear();
     this.resolvePending();
     this.removeAllListeners();
   }
@@ -387,7 +386,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
 
   /** Whether the session is currently polling for state updates. */
   getIsPolling(): boolean {
-    return this.pollTimer !== null;
+    return this.pollingActive;
   }
 
   /**
@@ -407,7 +406,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     this.assertUserStateAligned(state.user_state);
     this.applyState(state);
 
-    if (state.is_processing && !this.pollTimer) {
+    if (state.is_processing && !this.pollingActive) {
       this._isProcessing = true;
       this.emit("processing_start", undefined);
       this.startPolling();
@@ -421,26 +420,42 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
    * Useful for resuming polling after resolving a wallet request.
    */
   startPolling(): void {
-    if (this.pollTimer || this.closed) return;
+    if (this.pollingActive || this.closed) return;
 
+    this.pollingActive = true;
     this._backendWasProcessing = true;
     this.logger?.debug("[session] polling started", this.sessionId);
-    this.pollTimer = setInterval(() => {
-      void this.pollTick();
-    }, this.pollIntervalMs);
+    if (typeof document !== "undefined") {
+      document.addEventListener(
+        "visibilitychange",
+        this.handleVisibilityChange,
+      );
+    }
+    this.schedulePoll(this.currentPollInterval());
   }
 
   /** Stop polling for state updates. Idempotent — no-op if not polling. */
   stopPolling(): void {
+    this.pollingActive = false;
+    this.pollAgainImmediately = false;
     if (this.pollTimer) {
-      clearInterval(this.pollTimer);
+      clearTimeout(this.pollTimer);
       this.pollTimer = null;
-      this.logger?.debug("[session] polling stopped", this.sessionId);
     }
+    if (typeof document !== "undefined") {
+      document.removeEventListener(
+        "visibilitychange",
+        this.handleVisibilityChange,
+      );
+    }
+    this.logger?.debug("[session] polling stopped", this.sessionId);
   }
 
   private async pollTick(): Promise<void> {
-    if (!this.pollTimer) return;
+    if (!this.pollingActive || this.pollInFlight) return;
+    this.pollTimer = null;
+    this.pollInFlight = true;
+    this.lastPollStartedAt = Date.now();
 
     try {
       const state = await this.client.fetchState(
@@ -451,8 +466,9 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       );
 
       // Guard: polling may have been stopped while awaiting fetch
-      if (!this.pollTimer) return;
+      if (!this.pollingActive) return;
 
+      this.pollFailureCount = 0;
       this.assertUserStateAligned(state.user_state);
       this.applyState(state);
 
@@ -471,10 +487,61 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
         this.resolvePending();
       }
     } catch (error) {
+      this.pollFailureCount += 1;
       this.logger?.debug("[session] poll error", error);
       this.emit("error", { error });
+    } finally {
+      this.pollInFlight = false;
+      if (this.pollingActive) {
+        const delay = this.pollAgainImmediately
+          ? this.immediatePollDelay()
+          : Math.min(
+              this.currentPollInterval() * 2 ** this.pollFailureCount,
+              5_000,
+            );
+        this.pollAgainImmediately = false;
+        this.schedulePoll(delay);
+      }
     }
   }
+
+  private currentPollInterval(): number {
+    return typeof document !== "undefined" && document.hidden
+      ? 2_000
+      : this.pollIntervalMs;
+  }
+
+  private schedulePoll(delayMs: number): void {
+    if (!this.pollingActive || this.closed) return;
+    if (this.pollTimer) clearTimeout(this.pollTimer);
+    this.pollTimer = setTimeout(() => {
+      void this.pollTick();
+    }, delayMs);
+  }
+
+  /** Delay for an "immediate" poll, clamped to the minimum inter-poll gap. */
+  private immediatePollDelay(): number {
+    return Math.max(
+      0,
+      MIN_IMMEDIATE_POLL_GAP_MS - (Date.now() - this.lastPollStartedAt),
+    );
+  }
+
+  private requestImmediatePoll(): void {
+    if (this.closed) return;
+    if (!this.pollingActive) this.startPolling();
+    if (this.pollInFlight) {
+      this.pollAgainImmediately = true;
+      return;
+    }
+    this.schedulePoll(this.immediatePollDelay());
+  }
+
+  private handleVisibilityChange = (): void => {
+    if (typeof document !== "undefined" && !document.hidden) {
+      this.requestImmediatePoll();
+    }
+  };
 
   // ===========================================================================
   // Internal — State Application
@@ -499,6 +566,12 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       walletController: this.walletController,
       emit: (type, payload) => this.emit(type, payload),
     });
+    if (state.is_processing) {
+      this.applyProvisionalFirstText();
+    } else if (state.is_processing === false) {
+      this.pendingTurnIds.clear();
+      this.provisionalTurnText.clear();
+    }
   }
 
   // ===========================================================================
@@ -508,6 +581,21 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   private handleSSEEvent(
     event: Parameters<typeof handleSessionSSEEvent>[0],
   ): void {
+    if (event.thread_id && event.thread_id !== this.sessionId) return;
+    if (
+      event.type === "assistant_text_started" &&
+      typeof event.turn_id === "string" &&
+      typeof event.text === "string"
+    ) {
+      if (!this.pendingTurnIds.has(event.turn_id)) return;
+      this.provisionalTurnText.set(event.turn_id, event.text);
+      this.applyProvisionalFirstText();
+      if (!this.awaitingChatTurnIds.has(event.turn_id)) {
+        this.requestImmediatePoll();
+      }
+      return;
+    }
+
     handleSessionSSEEvent(event, {
       userState: () => this.userState,
       resolveUserState: (userState) => this.resolveUserState(userState),
@@ -521,6 +609,9 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       walletController: this.walletController,
       emit: (type, payload) => this.emit(type, payload),
     });
+    if (event.type === "tool_update" || event.type === "tool_complete") {
+      this.requestImmediatePoll();
+    }
   }
 
   // ===========================================================================
@@ -533,6 +624,89 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       app: this.app,
       applicationId: this.applicationId,
     });
+  }
+
+  /** Shared completion path for send()/sendAsync() after the chat POST. */
+  private async submitChat(message: string): Promise<AomiChatResponse> {
+    const { response, requestedTurnId } = await this.postChatMessage(message);
+
+    this.assertUserStateAligned(response.user_state);
+    this.applyState(response);
+    this.awaitingChatTurnIds.delete(requestedTurnId);
+    if (this.provisionalTurnText.size > 0) {
+      this.requestImmediatePoll();
+    }
+
+    return response;
+  }
+
+  private async postChatMessage(message: string): Promise<{
+    response: AomiChatResponse;
+    requestedTurnId: string;
+  }> {
+    const requestedTurnId = crypto.randomUUID();
+    this.pendingTurnIds.add(requestedTurnId);
+    this.awaitingChatTurnIds.add(requestedTurnId);
+    try {
+      const response = await this.client.sendMessage(this.sessionId, message, {
+        app: this.app,
+        applicationId: this.applicationId,
+        apiKey: this.apiKey,
+        userState: this.userState,
+        clientId: this.clientId,
+        paymentMethod: this.paymentMethod,
+        turnId: requestedTurnId,
+      });
+      if (response.turn_id && response.turn_id !== requestedTurnId) {
+        this.pendingTurnIds.delete(requestedTurnId);
+        this.pendingTurnIds.add(response.turn_id);
+      } else if (!response.turn_id) {
+        // Old backend: no first-text event will be correlated, so polling is
+        // the complete compatibility path.
+        this.pendingTurnIds.delete(requestedTurnId);
+      }
+      return { response, requestedTurnId };
+    } catch (error) {
+      this.awaitingChatTurnIds.delete(requestedTurnId);
+      this.pendingTurnIds.delete(requestedTurnId);
+      this.provisionalTurnText.delete(requestedTurnId);
+      throw error;
+    }
+  }
+
+  private applyProvisionalFirstText(): void {
+    const entries = Array.from(this.provisionalTurnText.entries());
+    let entry: [string, string] | undefined;
+    for (let index = entries.length - 1; index >= 0; index -= 1) {
+      if (this.pendingTurnIds.has(entries[index][0])) {
+        entry = entries[index];
+        break;
+      }
+    }
+    if (!entry) return;
+    const [, text] = entry;
+    const messages = [...this._messages];
+    let streamingIndex = -1;
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      if (
+        messages[index].sender === "agent" &&
+        messages[index].is_streaming === true
+      ) {
+        streamingIndex = index;
+        break;
+      }
+    }
+    if (streamingIndex >= 0) {
+      if (messages[streamingIndex].content?.trim()) return;
+      messages[streamingIndex] = {
+        ...messages[streamingIndex],
+        content: text,
+      };
+    } else {
+      messages.push({ sender: "agent", content: text, is_streaming: true });
+    }
+    this._messages = messages;
+    this.emit("messages", messages);
   }
 
   private resumeAfterWalletResponse(): void {

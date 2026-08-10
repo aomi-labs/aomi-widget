@@ -1160,7 +1160,8 @@ ${body}` : ""}`
       message,
       user_state: normalizedUserState ? JSON.stringify(normalizedUserState) : void 0,
       client_id: options == null ? void 0 : options.clientId,
-      payment_method: (_d = options == null ? void 0 : options.paymentMethod) != null ? _d : void 0
+      payment_method: (_d = options == null ? void 0 : options.paymentMethod) != null ? _d : void 0,
+      turn_id: options == null ? void 0 : options.turnId
     });
     (_e = this.logger) == null ? void 0 : _e.debug("[aomi][client] POST /api/thread/chat prepared", {
       sessionId,
@@ -3710,11 +3711,17 @@ var SessionWalletController = class {
 };
 
 // src/session/index.ts
+var MIN_IMMEDIATE_POLL_GAP_MS = 250;
 var ClientSession = class extends TypedEventEmitter {
   constructor(clientOrOptions, sessionOptions) {
     var _a, _b, _c, _d, _e;
     super();
     this.pollTimer = null;
+    this.pollingActive = false;
+    this.pollInFlight = false;
+    this.pollAgainImmediately = false;
+    this.pollFailureCount = 0;
+    this.lastPollStartedAt = 0;
     this.unsubscribeSSE = null;
     this.isSSEActive = false;
     this._isProcessing = false;
@@ -3722,6 +3729,14 @@ var ClientSession = class extends TypedEventEmitter {
     this._messages = [];
     this.closed = false;
     this.pendingResolve = null;
+    this.pendingTurnIds = /* @__PURE__ */ new Set();
+    this.awaitingChatTurnIds = /* @__PURE__ */ new Set();
+    this.provisionalTurnText = /* @__PURE__ */ new Map();
+    this.handleVisibilityChange = () => {
+      if (typeof document !== "undefined" && !document.hidden) {
+        this.requestImmediatePoll();
+      }
+    };
     this.client = clientOrOptions instanceof AomiClient ? clientOrOptions : new AomiClient(clientOrOptions);
     this.sessionId = (_a = sessionOptions == null ? void 0 : sessionOptions.sessionId) != null ? _a : crypto.randomUUID();
     this.app = (_b = sessionOptions == null ? void 0 : sessionOptions.app) != null ? _b : "default";
@@ -3762,16 +3777,7 @@ var ClientSession = class extends TypedEventEmitter {
    */
   async send(message) {
     this.assertOpen();
-    const response = await this.client.sendMessage(this.sessionId, message, {
-      app: this.app,
-      applicationId: this.applicationId,
-      apiKey: this.apiKey,
-      userState: this.userState,
-      clientId: this.clientId,
-      paymentMethod: this.paymentMethod
-    });
-    this.assertUserStateAligned(response.user_state);
-    this.applyState(response);
+    const response = await this.submitChat(message);
     if (!response.is_processing && this.walletController.length === 0) {
       return { messages: this._messages, title: this._title };
     }
@@ -3788,16 +3794,7 @@ var ClientSession = class extends TypedEventEmitter {
    */
   async sendAsync(message) {
     this.assertOpen();
-    const response = await this.client.sendMessage(this.sessionId, message, {
-      app: this.app,
-      applicationId: this.applicationId,
-      apiKey: this.apiKey,
-      userState: this.userState,
-      clientId: this.clientId,
-      paymentMethod: this.paymentMethod
-    });
-    this.assertUserStateAligned(response.user_state);
-    this.applyState(response);
+    const response = await this.submitChat(message);
     if (response.is_processing) {
       this._isProcessing = true;
       this.emit("processing_start", void 0);
@@ -3856,6 +3853,9 @@ var ClientSession = class extends TypedEventEmitter {
     (_a = this.unsubscribeSSE) == null ? void 0 : _a.call(this);
     this.unsubscribeSSE = null;
     this.isSSEActive = false;
+    this.pendingTurnIds.clear();
+    this.awaitingChatTurnIds.clear();
+    this.provisionalTurnText.clear();
     this.resolvePending();
     this.removeAllListeners();
   }
@@ -3968,7 +3968,7 @@ var ClientSession = class extends TypedEventEmitter {
   // ===========================================================================
   /** Whether the session is currently polling for state updates. */
   getIsPolling() {
-    return this.pollTimer !== null;
+    return this.pollingActive;
   }
   /**
    * Fetch the current state from the backend (one-shot).
@@ -3984,7 +3984,7 @@ var ClientSession = class extends TypedEventEmitter {
     );
     this.assertUserStateAligned(state.user_state);
     this.applyState(state);
-    if (state.is_processing && !this.pollTimer) {
+    if (state.is_processing && !this.pollingActive) {
       this._isProcessing = true;
       this.emit("processing_start", void 0);
       this.startPolling();
@@ -3998,25 +3998,41 @@ var ClientSession = class extends TypedEventEmitter {
    */
   startPolling() {
     var _a;
-    if (this.pollTimer || this.closed) return;
+    if (this.pollingActive || this.closed) return;
+    this.pollingActive = true;
     this._backendWasProcessing = true;
     (_a = this.logger) == null ? void 0 : _a.debug("[session] polling started", this.sessionId);
-    this.pollTimer = setInterval(() => {
-      void this.pollTick();
-    }, this.pollIntervalMs);
+    if (typeof document !== "undefined") {
+      document.addEventListener(
+        "visibilitychange",
+        this.handleVisibilityChange
+      );
+    }
+    this.schedulePoll(this.currentPollInterval());
   }
   /** Stop polling for state updates. Idempotent — no-op if not polling. */
   stopPolling() {
     var _a;
+    this.pollingActive = false;
+    this.pollAgainImmediately = false;
     if (this.pollTimer) {
-      clearInterval(this.pollTimer);
+      clearTimeout(this.pollTimer);
       this.pollTimer = null;
-      (_a = this.logger) == null ? void 0 : _a.debug("[session] polling stopped", this.sessionId);
     }
+    if (typeof document !== "undefined") {
+      document.removeEventListener(
+        "visibilitychange",
+        this.handleVisibilityChange
+      );
+    }
+    (_a = this.logger) == null ? void 0 : _a.debug("[session] polling stopped", this.sessionId);
   }
   async pollTick() {
     var _a;
-    if (!this.pollTimer) return;
+    if (!this.pollingActive || this.pollInFlight) return;
+    this.pollTimer = null;
+    this.pollInFlight = true;
+    this.lastPollStartedAt = Date.now();
     try {
       const state = await this.client.fetchState(
         this.sessionId,
@@ -4024,7 +4040,8 @@ var ClientSession = class extends TypedEventEmitter {
         this.clientId,
         { app: this.app, applicationId: this.applicationId }
       );
-      if (!this.pollTimer) return;
+      if (!this.pollingActive) return;
+      this.pollFailureCount = 0;
       this.assertUserStateAligned(state.user_state);
       this.applyState(state);
       if (this._backendWasProcessing && !state.is_processing) {
@@ -4038,9 +4055,46 @@ var ClientSession = class extends TypedEventEmitter {
         this.resolvePending();
       }
     } catch (error) {
+      this.pollFailureCount += 1;
       (_a = this.logger) == null ? void 0 : _a.debug("[session] poll error", error);
       this.emit("error", { error });
+    } finally {
+      this.pollInFlight = false;
+      if (this.pollingActive) {
+        const delay = this.pollAgainImmediately ? this.immediatePollDelay() : Math.min(
+          this.currentPollInterval() * 2 ** this.pollFailureCount,
+          5e3
+        );
+        this.pollAgainImmediately = false;
+        this.schedulePoll(delay);
+      }
     }
+  }
+  currentPollInterval() {
+    return typeof document !== "undefined" && document.hidden ? 2e3 : this.pollIntervalMs;
+  }
+  schedulePoll(delayMs) {
+    if (!this.pollingActive || this.closed) return;
+    if (this.pollTimer) clearTimeout(this.pollTimer);
+    this.pollTimer = setTimeout(() => {
+      void this.pollTick();
+    }, delayMs);
+  }
+  /** Delay for an "immediate" poll, clamped to the minimum inter-poll gap. */
+  immediatePollDelay() {
+    return Math.max(
+      0,
+      MIN_IMMEDIATE_POLL_GAP_MS - (Date.now() - this.lastPollStartedAt)
+    );
+  }
+  requestImmediatePoll() {
+    if (this.closed) return;
+    if (!this.pollingActive) this.startPolling();
+    if (this.pollInFlight) {
+      this.pollAgainImmediately = true;
+      return;
+    }
+    this.schedulePoll(this.immediatePollDelay());
   }
   // ===========================================================================
   // Internal — State Application
@@ -4059,11 +4113,27 @@ var ClientSession = class extends TypedEventEmitter {
       walletController: this.walletController,
       emit: (type, payload) => this.emit(type, payload)
     });
+    if (state.is_processing) {
+      this.applyProvisionalFirstText();
+    } else if (state.is_processing === false) {
+      this.pendingTurnIds.clear();
+      this.provisionalTurnText.clear();
+    }
   }
   // ===========================================================================
   // Internal — SSE Handling
   // ===========================================================================
   handleSSEEvent(event) {
+    if (event.thread_id && event.thread_id !== this.sessionId) return;
+    if (event.type === "assistant_text_started" && typeof event.turn_id === "string" && typeof event.text === "string") {
+      if (!this.pendingTurnIds.has(event.turn_id)) return;
+      this.provisionalTurnText.set(event.turn_id, event.text);
+      this.applyProvisionalFirstText();
+      if (!this.awaitingChatTurnIds.has(event.turn_id)) {
+        this.requestImmediatePoll();
+      }
+      return;
+    }
     handleSessionSSEEvent(event, {
       userState: () => this.userState,
       resolveUserState: (userState) => this.resolveUserState(userState),
@@ -4077,6 +4147,9 @@ var ClientSession = class extends TypedEventEmitter {
       walletController: this.walletController,
       emit: (type, payload) => this.emit(type, payload)
     });
+    if (event.type === "tool_update" || event.type === "tool_complete") {
+      this.requestImmediatePoll();
+    }
   }
   // ===========================================================================
   // Internal — Helpers
@@ -4087,6 +4160,76 @@ var ClientSession = class extends TypedEventEmitter {
       app: this.app,
       applicationId: this.applicationId
     });
+  }
+  /** Shared completion path for send()/sendAsync() after the chat POST. */
+  async submitChat(message) {
+    const { response, requestedTurnId } = await this.postChatMessage(message);
+    this.assertUserStateAligned(response.user_state);
+    this.applyState(response);
+    this.awaitingChatTurnIds.delete(requestedTurnId);
+    if (this.provisionalTurnText.size > 0) {
+      this.requestImmediatePoll();
+    }
+    return response;
+  }
+  async postChatMessage(message) {
+    const requestedTurnId = crypto.randomUUID();
+    this.pendingTurnIds.add(requestedTurnId);
+    this.awaitingChatTurnIds.add(requestedTurnId);
+    try {
+      const response = await this.client.sendMessage(this.sessionId, message, {
+        app: this.app,
+        applicationId: this.applicationId,
+        apiKey: this.apiKey,
+        userState: this.userState,
+        clientId: this.clientId,
+        paymentMethod: this.paymentMethod,
+        turnId: requestedTurnId
+      });
+      if (response.turn_id && response.turn_id !== requestedTurnId) {
+        this.pendingTurnIds.delete(requestedTurnId);
+        this.pendingTurnIds.add(response.turn_id);
+      } else if (!response.turn_id) {
+        this.pendingTurnIds.delete(requestedTurnId);
+      }
+      return { response, requestedTurnId };
+    } catch (error) {
+      this.awaitingChatTurnIds.delete(requestedTurnId);
+      this.pendingTurnIds.delete(requestedTurnId);
+      this.provisionalTurnText.delete(requestedTurnId);
+      throw error;
+    }
+  }
+  applyProvisionalFirstText() {
+    var _a;
+    const entries = Array.from(this.provisionalTurnText.entries());
+    let entry;
+    for (let index = entries.length - 1; index >= 0; index -= 1) {
+      if (this.pendingTurnIds.has(entries[index][0])) {
+        entry = entries[index];
+        break;
+      }
+    }
+    if (!entry) return;
+    const [, text] = entry;
+    const messages = [...this._messages];
+    let streamingIndex = -1;
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      if (messages[index].sender === "agent" && messages[index].is_streaming === true) {
+        streamingIndex = index;
+        break;
+      }
+    }
+    if (streamingIndex >= 0) {
+      if ((_a = messages[streamingIndex].content) == null ? void 0 : _a.trim()) return;
+      messages[streamingIndex] = __spreadProps(__spreadValues({}, messages[streamingIndex]), {
+        content: text
+      });
+    } else {
+      messages.push({ sender: "agent", content: text, is_streaming: true });
+    }
+    this._messages = messages;
+    this.emit("messages", messages);
   }
   resumeAfterWalletResponse() {
     if (!this._isProcessing) {
