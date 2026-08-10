@@ -75,11 +75,25 @@ const nextConfig: NextConfig = {
   turbopack: {
     resolveAlias: turbopackAliases,
   },
+  // Dev parity for the Mintlify docs proxy. In production the same rewrites
+  // live in the root vercel.json (plus legacy-path redirects) and fire at the
+  // edge; `next dev` doesn't read vercel.json, so without these local /docs
+  // would 404.
   async rewrites() {
     return [
-      // Markdown mirrors of /docs/* — agent-friendly plain text views.
-      // /docs/build/overview.md → /api/docs-md/build/overview
-      { source: "/docs/:slug+.md", destination: "/api/docs-md/:slug+" },
+      {
+        source: "/_mintlify/:path*",
+        destination: "https://aomilabs.mintlify.dev/_mintlify/:path*",
+      },
+      { source: "/docs", destination: "https://aomilabs.mintlify.dev/docs" },
+      {
+        source: "/docs/:path*",
+        destination: "https://aomilabs.mintlify.dev/docs/:path*",
+      },
+      {
+        source: "/mintlify-assets/:path+",
+        destination: "https://aomilabs.mintlify.dev/mintlify-assets/:path+",
+      },
     ];
   },
   // Webpack aliases (production builds)

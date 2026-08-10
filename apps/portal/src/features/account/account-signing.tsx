@@ -377,7 +377,7 @@ export function AccountSigningView({
             <SettingRow
               className="pt-4"
               title="Stop all auto-signing"
-              desc="Revokes every provider grant. Wallets set to Aomi auto will fall back to manual until renewed."
+              desc="Revokes every provider grant. Wallets set to Bypass permissions will fall back to manual until renewed."
             >
               <button
                 type="button"

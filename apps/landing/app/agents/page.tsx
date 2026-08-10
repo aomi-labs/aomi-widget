@@ -101,7 +101,7 @@ export default function AgentsPage() {
             library.
           </p>
           <p className="font-geist mt-4 text-sm">
-            <Link className="underline" href="/docs/build/integration-guide">
+            <Link className="underline" href="/docs/guides/integration">
               Integration guide
             </Link>
           </p>
