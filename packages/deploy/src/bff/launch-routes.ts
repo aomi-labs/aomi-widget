@@ -508,7 +508,6 @@ export function createLaunchRoutes(options: LaunchRoutesOptions): LaunchRoutes {
         );
       }
 
-      const cfg = config();
       const client = await getClient();
       const project = await ownedProject(
         client,

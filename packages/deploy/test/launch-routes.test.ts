@@ -73,21 +73,6 @@ function activationProject(id = 99) {
   });
 }
 
-function projectDeployments() {
-  return Response.json({
-    deployments: [
-      {
-        deployment_id: "dep_1",
-        project_id: 99,
-        repository_link: "alice/bot",
-        created_at: 1,
-        release_tags: ["apps-555-r1-my-bot-abc"],
-        apps: [{ name: "my-bot", release_tag: "apps-555-r1-my-bot-abc" }],
-      },
-    ],
-  });
-}
-
 /** Like `activationProject`, but with a `latestDeployment.platformRepo` so the
  *  required-secrets check has a manifest to read. */
 function activationProjectWithRepo(platformRepo: string, id = 99) {
@@ -739,12 +724,15 @@ describe("createLaunchRoutes activation security", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("rejects unmatched activate app/tag pairs", async () => {
+  it("relays Manager's rejection for an unmatched activate app/tag pair", async () => {
     session.mockResolvedValueOnce({ githubUserId: "42", githubLogin: "alice" });
+    vi.stubEnv("GITHUB_TOKEN", "gh-token");
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(activationProject())
-      .mockResolvedValueOnce(projectDeployments());
+      .mockResolvedValueOnce(activationProjectWithRepo("aomi-labs/community"))
+      .mockResolvedValueOnce(Response.json({ by_app: {} }))
+      .mockResolvedValueOnce(Response.json({ assets: [] }))
+      .mockResolvedValueOnce(Response.json({ error: "release not found" }, { status: 404 }));
     vi.stubGlobal("fetch", fetchMock);
 
     const res = await routes().activate(
@@ -755,8 +743,11 @@ describe("createLaunchRoutes activation security", () => {
       }),
     );
 
+    // The sequence is intentionally Project lookup → secret state → GitHub
+    // release manifest → Project activation; keep this assertion next to the
+    // Manager-rejection regression.
+    expect(fetchMock).toHaveBeenCalledTimes(4);
     expect(res.status).toBe(404);
-    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("409s when a required secret is unfilled", async () => {
@@ -765,7 +756,6 @@ describe("createLaunchRoutes activation security", () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(activationProjectWithRepo("aomi-labs/my-bot-app"))
-      .mockResolvedValueOnce(projectDeployments())
       .mockResolvedValueOnce(
         Response.json({
           by_app: { "my-bot": ["$SECRET:APP:my-bot::MY_BOT_API_KEY"] },
@@ -812,7 +802,7 @@ describe("createLaunchRoutes activation security", () => {
       error: "missing required secrets",
       missing: { "my-bot": ["MY_BOT_SECRET_KEY"] },
     });
-    expect(fetchMock).toHaveBeenCalledTimes(5);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
   });
 
   it("activates when the release manifest declares no secrets for the app", async () => {
@@ -821,7 +811,6 @@ describe("createLaunchRoutes activation security", () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(activationProjectWithRepo("aomi-labs/my-bot-app"))
-      .mockResolvedValueOnce(projectDeployments())
       .mockResolvedValueOnce(Response.json({ by_app: {} }))
       .mockResolvedValueOnce(Response.json({ assets: [] }))
       .mockResolvedValueOnce(
@@ -838,7 +827,7 @@ describe("createLaunchRoutes activation security", () => {
     );
 
     expect(res.status).toBe(200);
-    expect(fetchMock).toHaveBeenCalledTimes(5);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
   });
 
   it("activates an owned app/tag pair", async () => {
@@ -847,7 +836,6 @@ describe("createLaunchRoutes activation security", () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(activationProject())
-      .mockResolvedValueOnce(projectDeployments())
       .mockResolvedValueOnce(
         Response.json({
           latest_deployment: {
@@ -872,14 +860,11 @@ describe("createLaunchRoutes activation security", () => {
     );
 
     expect(res.status).toBe(200);
-    expect(fetchMock).toHaveBeenCalledTimes(6);
-    expect(fetchMock.mock.calls[5][1]).toMatchObject({
+    expect(fetchMock).toHaveBeenCalledTimes(5);
+    expect(fetchMock.mock.calls[4][1]).toMatchObject({
       method: "POST",
       body: JSON.stringify({
-        target: {
-          kind: "release_tags",
-          value: ["apps-555-r1-my-bot-abc"],
-        },
+        release_tags: ["apps-555-r1-my-bot-abc"],
         apps: ["my-bot"],
       }),
     });
