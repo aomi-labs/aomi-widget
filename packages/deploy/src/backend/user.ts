@@ -30,6 +30,8 @@ import type {
   ListUserProjectTransactionsInput,
   ListUserProjectsInput,
   ListUserTransactionsInput,
+  ActivateResult,
+  PromoteResult,
   OperateAppDetailResult,
   OperateLogsResult,
   OperateObservabilityResult,
@@ -306,7 +308,7 @@ export class BackendClient extends BackendPlatformClient {
 
   async promoteUserProjectDeployment(
     input: PromoteUserProjectDeploymentInput,
-  ): Promise<import("../types").PromoteResult> {
+  ): Promise<PromoteResult> {
     const deploymentId = required(input.deploymentId, "deploymentId");
     const { projectId, params, bearer } = this.ownedOperateRequest(input);
     const raw = await this.post<Record<string, unknown>>(
@@ -324,15 +326,16 @@ export class BackendClient extends BackendPlatformClient {
       bearer,
     );
     await this.audit("promote", input.actor, { projectId, apps: input.apps ?? [] });
+    const ok = raw.ok === true;
     const activation = camelActivateResult(raw).activation;
     return {
-      ok: raw.ok === true,
+      ok,
       promote: {
         deploymentId,
         releaseTags: activation.apps
           .map((app) => app.releaseTag)
           .filter((tag): tag is string => Boolean(tag)),
-        status: raw.ok === true ? "promoted" : "blocked",
+        status: ok ? "promoted" : "blocked",
         activation,
       },
     };
@@ -340,7 +343,7 @@ export class BackendClient extends BackendPlatformClient {
 
   async activateUserProjectReleases(
     input: ActivateUserProjectReleasesInput,
-  ): Promise<import("../types").ActivateResult> {
+  ): Promise<ActivateResult> {
     const { projectId, params, bearer } = this.ownedOperateRequest(input);
     const raw = await this.post<Record<string, unknown>>(
       this.ownedProjectPath(projectId, "releases/activate", params),

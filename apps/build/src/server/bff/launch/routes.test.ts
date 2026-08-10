@@ -1496,17 +1496,28 @@ describe("activateLaunchRoute", () => {
       ).status,
     ).toBe(404);
 
+    // Unmatched pair: the route no longer pre-authorizes against a listing;
+    // Manager's Project-scoped rejection is relayed as-is. Clear the read
+    // cache so this part re-fetches ownership instead of riding part one's
+    // cached (foreign-only) project list straight to a 404.
     vi.restoreAllMocks();
+    clearLaunchReadCache();
     getGitHubSession.mockResolvedValue({
       githubUserId: "42",
       githubLogin: "alice",
     });
+    vi.stubEnv("GITHUB_TOKEN", "gh-token");
     vi.stubGlobal(
       "fetch",
       vi
         .fn()
         .mockResolvedValueOnce(activationSource())
-        .mockResolvedValueOnce(Response.json({ error: "release not found" }, { status: 404 })),
+        .mockResolvedValueOnce(latestDeploymentResponse("aomi-labs/community"))
+        .mockResolvedValueOnce(Response.json({ by_app: {} }))
+        .mockResolvedValueOnce(Response.json({ assets: [] }))
+        .mockResolvedValueOnce(
+          Response.json({ error: "release not found" }, { status: 404 }),
+        ),
     );
     expect(
       (

@@ -109,8 +109,6 @@ async function findOwnedProject(
   return projects.find((project) => project.id === projectId) ?? null;
 }
 
-type ActivationPair = { app: string; releaseTag: string };
-
 function defaultRepoName() {
   const normalized = CREATED_REPO_PREFIX.trim()
     .toLowerCase()
@@ -827,7 +825,6 @@ export async function deploymentPromoteRoute(req: Request) {
       : undefined;
 
   try {
-    const config = launchConfig();
     const client = await backendClient();
 
     // Authorize the signed-in user at the Project boundary first; the exact
@@ -859,9 +856,11 @@ export async function deploymentPromoteRoute(req: Request) {
     // projection. Promotion history is empty before the first promote and is
     // therefore never an authorization source or a secret-gate source.
     const selectedApps = apps ?? deployment.apps.map((app) => app.name);
-    const pairs = deployment.apps
-      .filter((app) => selectedApps.includes(app.name) && app.releaseTag)
-      .map((app) => ({ app: app.name, releaseTag: app.releaseTag! }));
+    const pairs = deployment.apps.flatMap((app) =>
+      selectedApps.includes(app.name) && app.releaseTag
+        ? [{ app: app.name, releaseTag: app.releaseTag }]
+        : [],
+    );
     if (pairs.length !== selectedApps.length) {
       return NextResponse.json(
         { error: "deployment does not contain all requested apps" },

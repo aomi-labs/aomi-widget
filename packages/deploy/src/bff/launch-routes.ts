@@ -22,7 +22,7 @@
 // =============================================================================
 
 import type { BackendClient } from "../backend";
-import type { PlatformApp, UserProject } from "../types";
+import type { PlatformApp } from "../types";
 import { assertServerOnly } from "../backend";
 import {
   DEFAULT_TEMPLATE_REPO,
@@ -228,7 +228,6 @@ function sourceRef(value: unknown): string | null {
 type OwnedProject = Awaited<
   ReturnType<BackendClient["listUserProjects"]>
 >[number];
-type ActivationPair = { app: string; releaseTag: string };
 
 /**
  * Prove the signed-in user owns `projectId` and return the project row. The
