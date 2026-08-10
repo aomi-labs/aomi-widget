@@ -223,6 +223,13 @@ mistaken for another supported environment.
 
 Progress:
 
+- 2026-08-10 Build staging import hand-off: kept the Connect control disabled
+  after navigation starts (instead of briefly re-enabling it before GitHub
+  loads), while retaining retry after a failed hand-off. The manager now
+  rejects duplicate repository imports atomically, and platform branch commits
+  rebase their tree update and retry a concurrent fast-forward race up to three
+  times.
+
 - 2026-08-05 MegaETH chain support: completed chain 4326 coverage in React
   network naming, server-side smart-account SIWE verification, and the Landing,
   Docs, wallet-kit, and Privy default network registries. Publishable packages
