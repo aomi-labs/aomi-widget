@@ -214,6 +214,8 @@ interface AomiChatResponse {
     title?: string | null;
     is_processing?: boolean;
     user_state?: UserState | null;
+    /** @deprecated Retained for compatibility with backends that return turn correlation metadata. */
+    turn_id?: string | null;
 }
 /**
  * POST /api/system
@@ -573,6 +575,8 @@ declare class AomiClient {
         userState?: UserState;
         clientId?: string;
         paymentMethod?: string | null;
+        /** @deprecated Accepted as a no-op for compatibility with client 0.4.3. */
+        turnId?: string;
     }): Promise<AomiChatResponse>;
     /**
      * Send a system-level message (e.g. wallet state changes, context switches).
