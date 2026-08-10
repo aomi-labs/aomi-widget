@@ -545,7 +545,6 @@ export class AomiClient {
       userState?: UserStateShape;
       clientId?: string;
       paymentMethod?: string | null;
-      turnId?: string;
     },
   ): Promise<AomiChatResponse> {
     const app = options?.app ?? "default";
@@ -563,7 +562,6 @@ export class AomiClient {
         : undefined,
       client_id: options?.clientId,
       payment_method: options?.paymentMethod ?? undefined,
-      turn_id: options?.turnId,
     });
 
     this.logger?.debug("[aomi][client] POST /api/thread/chat prepared", {

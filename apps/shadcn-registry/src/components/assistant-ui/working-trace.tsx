@@ -41,8 +41,8 @@ import {
  * sweeping whenever the turn is running, including the common case where a tool
  * call has finished and we're just waiting on the model to say what's next. When
  * the turn completes the trace collapses to "Worked for Ns" and the answer is
- * revealed. Plain replies surface provisional display text inside Working,
- * then promote it to the final answer once the turn settles.
+ * revealed. Plain replies with no tool calls remain buffered while running,
+ * then render immediately once the turn settles.
  */
 
 const formatDuration = (seconds: number): string => {
@@ -522,20 +522,13 @@ export const WorkingTrace: FC<{
   );
 };
 
-export const MinimalWorkingTrace: FC<{ text?: string }> = ({ text }) => (
+const MinimalWorkingTrace: FC = () => (
   <div className="aui-working-trace border-aomi-border mb-3 flex flex-col overflow-hidden rounded-xl border">
     <div className="aui-working-trace-header bg-aomi-surface flex items-center gap-2.5 px-3.5 py-[11px] text-sm">
       <span className="aui-working-shimmer text-[13px] font-medium">
         Working
       </span>
     </div>
-    {text && (
-      <div className="border-aomi-border text-aomi-muted border-t px-3.5 py-3 text-sm">
-        <TextMessagePartProvider text={text}>
-          <MarkdownText />
-        </TextMessagePartProvider>
-      </div>
-    )}
   </div>
 );
 
@@ -582,8 +575,8 @@ const RenderedText: FC<{ text: string }> = ({ text }) => {
  * everything up to and including it is the Working trace (tool steps + muted
  * interstitial notes, in order); the trailing `text` run is the final answer,
  * buffered out of view until the turn finishes so only it streams out below.
- * A plain reply with no tool calls is shown provisionally inside Working while
- * running, then promoted directly once it is known to be the final answer.
+ * A plain reply with no tool calls remains buffered while running, then renders
+ * directly once it is known to be the final answer.
  *
  * Delegations are the one row that does not come from the transcript alone: a
  * running child has no `task` part yet, so its row is rendered synthetically
@@ -682,19 +675,6 @@ export const AssistantTurnParts: FC<{
     });
   }
 
-  const trailingAnswerText = collectText(
-    content
-      .slice(traceEnd)
-      .filter((part): part is TextMessagePart => part.type === "text"),
-  );
-  if (running && items.length > 0 && trailingAnswerText.length > 0) {
-    items.push({
-      kind: "note",
-      text: trailingAnswerText,
-      key: "provisional-answer",
-    });
-  }
-
   // "Orchestrator-ness" is a property of the turn, never of the currently
   // selected app — so scrollback still reads correctly after an app switch. A
   // `task` part that carries no join key (an older transcript) still counts.
@@ -746,21 +726,22 @@ export const AssistantTurnParts: FC<{
       content.filter((part): part is TextMessagePart => part.type === "text"),
     );
 
-    // Before the first tool call, text is provisional. Show it inside Working
-    // immediately; if a tool arrives it remains working context, otherwise it
-    // promotes to the final answer when processing ends.
+    // Before the first tool call, text is provisional: a later tool can move it
+    // into the Working trace. Keep it buffered until the turn settles.
     if (running) {
-      return answerText.length > 0 ||
-        turnPhase === "working" ||
-        workingFallback ? (
-        <MinimalWorkingTrace text={answerText || undefined} />
+      return turnPhase === "working" || workingFallback ? (
+        <MinimalWorkingTrace />
       ) : null;
     }
 
     return answerText.length > 0 ? <RenderedText text={answerText} /> : null;
   }
 
-  const answerText = trailingAnswerText;
+  const answerText = collectText(
+    content
+      .slice(traceEnd)
+      .filter((part): part is TextMessagePart => part.type === "text"),
+  );
 
   // Hold the answer until the trace has fully caught up, so the steps finish
   // cascading before it fades in — nothing moves between the two regions.

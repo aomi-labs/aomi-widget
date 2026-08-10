@@ -28,13 +28,6 @@ import {
   writePersistedThreadId,
 } from "./thread-persistence";
 
-/**
- * Upper bound on serial control-sync passes before a send is admitted anyway.
- * Each pass only repeats when the selection was re-dirtied mid-sync, so the
- * cap is unreachable in normal use; it exists to guarantee termination.
- */
-const MAX_CONTROL_SYNC_PASSES = 5;
-
 /** Deduplicate in-flight async work keyed by thread id. */
 async function runSingleFlight(
   flights: Map<string, Promise<void>>,
@@ -185,7 +178,6 @@ export function AomiRuntimeCore({
   const warmedThreadIdsRef = useRef(new Set<string>());
   const warmPromisesRef = useRef(new Map<string, Promise<void>>());
   const preparePromisesRef = useRef(new Map<string, Promise<void>>());
-  const prewarmGenerationRef = useRef(0);
   const [isThreadLoading, setIsThreadLoading] = useState(false);
 
   const warmThread = useCallback(
@@ -212,7 +204,6 @@ export function AomiRuntimeCore({
     async (threadId: string) => {
       if (remoteThreadIdsRef.current.has(threadId)) return;
 
-      const generation = prewarmGenerationRef.current;
       await runSingleFlight(warmPromisesRef.current, threadId, async () => {
         // Fast path: carry the selected model/app on create so a fresh chat
         // normally binds in one round trip. The control sync below remains a
@@ -225,12 +216,8 @@ export function AomiRuntimeCore({
           applicationId: control?.applicationId ?? undefined,
           clientId: getControlState().clientId ?? undefined,
         });
-        // The create has succeeded on the backend, so record it even when
-        // this runtime instance was torn down mid-flight — these refs are
-        // ground truth for "exists remotely" and gate duplicate creates.
         remoteThreadIdsRef.current.add(threadId);
         warmedThreadIdsRef.current.add(threadId);
-        if (generation !== prewarmGenerationRef.current) return;
 
         if (created?.rig && control?.model) {
           const latest = threadContextRef.current.getThreadMetadata(threadId);
@@ -256,18 +243,14 @@ export function AomiRuntimeCore({
         await ensureBackendThread(threadId);
         if (threadContextRef.current.currentThreadId !== threadId) return;
 
-        // A selection can change while create/setModel is in flight. Keep
-        // applying the latest dirty snapshot serially until the active thread
-        // is fully synchronized before admitting chat. Bounded so selections
-        // churning faster than the network can never spin this loop forever
-        // and block chat admission; the chat request itself still carries the
-        // selected application, so a leftover dirty flag is recoverable.
-        for (let pass = 0; pass < MAX_CONTROL_SYNC_PASSES; pass += 1) {
+        // If the selection changes during the first sync, apply the newest
+        // value once more before admitting chat.
+        await syncCurrentThreadControl({ ignoreProcessing: true });
+        if (threadContextRef.current.currentThreadId !== threadId) return;
+        const latest =
+          threadContextRef.current.getThreadMetadata(threadId)?.control;
+        if (latest?.controlDirty && latest.model) {
           await syncCurrentThreadControl({ ignoreProcessing: true });
-          if (threadContextRef.current.currentThreadId !== threadId) return;
-          const latest =
-            threadContextRef.current.getThreadMetadata(threadId)?.control;
-          if (!latest?.controlDirty || !latest.model) return;
         }
       });
     },
@@ -559,7 +542,6 @@ export function AomiRuntimeCore({
   // ---------------------------------------------------------------------------
   useEffect(() => {
     return () => {
-      prewarmGenerationRef.current += 1;
       warmPromisesRef.current.clear();
       preparePromisesRef.current.clear();
       closeAllSessions();
