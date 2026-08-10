@@ -45,7 +45,7 @@ export function Hero() {
               Apps
             </a>
             <a
-              href="/docs/build/overview"
+              href="/docs"
               className="font-geist text-xs font-medium text-white/70 drop-shadow-sm transition-colors hover:text-white"
             >
               Documentation
@@ -167,7 +167,7 @@ export function Hero() {
                 Apps
               </a>
               <a
-                href="/docs/build/overview"
+                href="/docs"
                 onClick={() => setMobileMenuOpen(false)}
                 className="font-geist rounded-xl px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-white/10"
               >
