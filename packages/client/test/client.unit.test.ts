@@ -358,47 +358,18 @@ describe("AomiClient account profile", () => {
       await client.sendMessage("session-1", "swap 20 mon to usdc", {
         app: "default",
         clientId: "client-1",
+        turnId: "legacy-turn-id",
       });
 
       const [url, init] = nativeFetch.mock.calls[0] ?? [];
       expect(String(url)).toBe(
         "http://unit.test/api/thread/chat?app=default&message=swap+20+mon+to+usdc&client_id=client-1",
       );
+      expect(String(url)).not.toContain("turn_id");
       expect((init as RequestInit | undefined)?.body).toBeUndefined();
       expect(
         new Headers((init as RequestInit).headers).get("X-Session-Id"),
       ).toBe("session-1");
-    } finally {
-      vi.stubGlobal("fetch", originalFetch);
-    }
-  });
-
-  it("sends a browser turn ID as correlation metadata", async () => {
-    const response = {
-      ok: true,
-      status: 200,
-      statusText: "OK",
-      json: vi.fn(async () => ({
-        messages: [],
-        is_processing: true,
-        turn_id: "5d9645d3-d2f8-46d2-b6f8-b952c52a6611",
-      })),
-    } as unknown as Response;
-    const nativeFetch = vi.fn(async () => response);
-    const originalFetch = globalThis.fetch;
-    vi.stubGlobal("fetch", nativeFetch);
-
-    try {
-      const client = new AomiClient({ baseUrl: "http://unit.test" });
-
-      await client.sendMessage("session-1", "hello", {
-        app: "default",
-        turnId: "5d9645d3-d2f8-46d2-b6f8-b952c52a6611",
-      });
-
-      expect(String(nativeFetch.mock.calls[0]?.[0])).toBe(
-        "http://unit.test/api/thread/chat?app=default&message=hello&turn_id=5d9645d3-d2f8-46d2-b6f8-b952c52a6611",
-      );
     } finally {
       vi.stubGlobal("fetch", originalFetch);
     }

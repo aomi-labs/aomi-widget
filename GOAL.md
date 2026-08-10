@@ -1,46 +1,26 @@
 # Auth BFF BetterAuth Cleanup Goal
 
-## Browser Time-to-First-Token
+## Browser Response Latency
 
-Current session goal: **IMPLEMENTED, REVIEWED, AND STAGING-VERIFIED; FRONTEND
-ROLLOUT PENDING 2026-08-10** — reduce browser chat admission and rendering latency without
-changing the Thread, AccountBearer, AppGate, widget-session, origin-binding, or
-x402 authorization boundaries.
+Current session goal: **SIMPLIFIED AND LOCALLY VERIFIED 2026-08-10** — improve
+browser chat responsiveness without adding a backend streaming protocol.
 
-- Browser sends carry a correlation-only UUID turn id; locally pending turns
-  can render the backend's replayable first-display-text SSE event immediately.
-- Empty threads prewarm through one shared create/control promise, remain
-  durable across x402 retries, and serialize a latest-selection follow-up when
-  app/model control changes during the warm.
-- Reconciliation is single-flight, visibility-aware, failure-backed-off, and
-  remains the compatibility path for old backends or unavailable SSE.
-- Provisional text uses the existing safe Markdown renderer inside Working and
-  promotes directly to the normal answer without the artificial completion
-  stream.
-- Only Portal Thread-authorized state/SSE reads skip AccountBearer lookup
-  (`auth: "none"`). Same-origin reads remain thread-id capability reads;
-  cross-origin requests must first pass the existing origin-bound widget-session
-  validation before the proxy strips browser credentials and forwards only the
-  Thread credential. All chat/create/control admissions are unchanged.
-- Publishable versions are `@aomi-labs/client@0.4.3`,
-  `@aomi-labs/react@0.5.10`, and `@aomi-labs/widget-lib@1.4.25`.
-- The real-Chromium deterministic browser gate ran 5 warm-up and 50 measured
-  correlated SSE-to-visible-DOM turns at 25.1 ms p95 against the 250 ms limit.
-- Backend PR #948 deployed merge `900a0b009` to both staging hosts. A
-  baseline-subtracted 15-turn warm batch measured pre-provider dispatch at
-  210 ms average / 242.5 ms p95, provider TTFT at 1.52 s average / 4.06 s p95,
-  and end-to-first-text at 1.73 s average / 4.06 s p95.
-- New-client/old-backend and old-client/new-backend compatibility both passed.
-  The live response echoed its requested turn UUID, first text rendered
-  provisionally and promoted, and the SSE-only event was absent from canonical
-  `system_events`.
-- Staging Thread reads returned 200 with no AccountBearer and with spoofed
-  same-origin browser credentials (which the proxy strips); missing or spoofed
-  cross-origin widget authorization returned 401 for state and updates.
-- Production rollout remains separate and is not claimed here.
-- Review additionally fixed exactly-once outcome accounting (including
-  cancellation) and normalized the bounded model-family label instead of
-  reporting a provider name as a model family.
+- Empty drafts prewarm through one shared create/control promise; send awaits
+  the same work and retries a failed speculative warm.
+- A model change during prewarm gets at most one follow-up control sync.
+- State polling uses one timeout and one in-flight request, slows in hidden
+  tabs, reconciles when the tab becomes visible, and backs off after failures.
+- Completed text renders immediately instead of replaying a synthetic 500 ms
+  typewriter animation.
+- Thread state/SSE reads remain bearer-independent at the Portal proxy, while
+  the existing origin-bound widget-session check still gates cross-origin
+  requests and spoofed browser authorization/cookies are stripped.
+- No turn ID or `assistant_text_started` client protocol is included; the
+  frontend continues to work with the existing backend and polling contract.
+- Publishable versions are `@aomi-labs/client@0.4.4`,
+  `@aomi-labs/react@0.5.11`, and `@aomi-labs/widget-lib@1.4.26`.
+- All 1,467 root tests plus the configured registry trace suite, repository
+  lint, client typecheck, and all three publishable package builds pass.
 
 ## Canonical Build Projects Refactor
 

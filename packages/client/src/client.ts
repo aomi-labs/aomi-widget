@@ -545,6 +545,7 @@ export class AomiClient {
       userState?: UserStateShape;
       clientId?: string;
       paymentMethod?: string | null;
+      /** @deprecated Accepted as a no-op for compatibility with client 0.4.3. */
       turnId?: string;
     },
   ): Promise<AomiChatResponse> {
@@ -563,7 +564,6 @@ export class AomiClient {
         : undefined,
       client_id: options?.clientId,
       payment_method: options?.paymentMethod ?? undefined,
-      turn_id: options?.turnId,
     });
 
     this.logger?.debug("[aomi][client] POST /api/thread/chat prepared", {

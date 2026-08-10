@@ -214,7 +214,7 @@ interface AomiChatResponse {
     title?: string | null;
     is_processing?: boolean;
     user_state?: UserState | null;
-    /** Opaque correlation id for the accepted browser turn. */
+    /** @deprecated Retained for compatibility with backends that return turn correlation metadata. */
     turn_id?: string | null;
 }
 /**
@@ -575,6 +575,7 @@ declare class AomiClient {
         userState?: UserState;
         clientId?: string;
         paymentMethod?: string | null;
+        /** @deprecated Accepted as a no-op for compatibility with client 0.4.3. */
         turnId?: string;
     }): Promise<AomiChatResponse>;
     /**
@@ -1442,9 +1443,7 @@ declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
     private pollTimer;
     private pollingActive;
     private pollInFlight;
-    private pollAgainImmediately;
     private pollFailureCount;
-    private lastPollStartedAt;
     private unsubscribeSSE;
     private isSSEActive;
     private _isProcessing;
@@ -1454,9 +1453,6 @@ declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
     private _title?;
     private closed;
     private pendingResolve;
-    private pendingTurnIds;
-    private awaitingChatTurnIds;
-    private provisionalTurnText;
     constructor(clientOrOptions: AomiClient | AomiClientOptions, sessionOptions?: SessionOptions);
     /**
      * Send a message and wait for the AI to finish processing.
@@ -1538,17 +1534,12 @@ declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
     private pollTick;
     private currentPollInterval;
     private schedulePoll;
-    /** Delay for an "immediate" poll, clamped to the minimum inter-poll gap. */
-    private immediatePollDelay;
-    private requestImmediatePoll;
     private handleVisibilityChange;
     private applyState;
     private handleSSEEvent;
     private sendSystemEvent;
     /** Shared completion path for send()/sendAsync() after the chat POST. */
     private submitChat;
-    private postChatMessage;
-    private applyProvisionalFirstText;
     private resumeAfterWalletResponse;
     private resolvePending;
     private assertOpen;
