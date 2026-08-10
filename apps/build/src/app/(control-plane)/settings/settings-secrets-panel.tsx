@@ -4,25 +4,29 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 
 import { useProjects } from "@build/features/launch/hooks/use-projects";
+import { platformHref } from "@build/features/launch/platform";
+import { usePlatform } from "@build/features/launch/use-platform";
 import {
   ErrorPanel,
   GitHubSignInPanel,
   LoadingPanel,
 } from "@build/features/launch/components/deployments/ui/state-panels";
 
-function environmentHref(projectId: number) {
-  return `/projects/${projectId}?tab=environment`;
+function environmentHref(projectId: number, platform: string) {
+  return platformHref(`/projects/${projectId}?tab=environment`, platform);
 }
 
-function projectLabel(source: {
-  id: number;
-  repositoryLink?: string | null;
-}) {
+function projectLabel(source: { id: number; repositoryLink?: string | null }) {
   return source.repositoryLink?.trim() || `Project ${source.id}`;
 }
 
 export function SettingsSecretsPanel() {
-  const { state } = useProjects();
+  // Settings carries no `?platform=`, but its project list is not an exception
+  // to the platform model: an unscoped read here listed every project the
+  // account owns, including ones this platform cannot open — following one of
+  // those rows lands on an Environment tab whose secrets read fails.
+  const platform = usePlatform();
+  const { state } = useProjects(platform);
 
   if (state.status === "loading") {
     return <LoadingPanel label="Loading projects…" />;
@@ -38,16 +42,16 @@ export function SettingsSecretsPanel() {
 
   if (state.projects.length === 0) {
     return (
-      <div className="rounded-lg border border-border bg-surface-1 p-4">
-        <div className="text-sm font-medium text-foreground">
+      <div className="border-border bg-surface-1 rounded-lg border p-4">
+        <div className="text-foreground text-sm font-medium">
           No projects yet
         </div>
-        <p className="mt-2 text-[13px] text-dim">
+        <p className="text-dim mt-2 text-[13px]">
           Create an app first, then set secrets on its Environment tab.
         </p>
         <Link
-          href="/operate/deployments/new"
-          className="mt-4 inline-flex h-8 items-center rounded-md bg-primary px-3 text-[12px] font-medium text-primary-foreground transition hover:bg-brand-hover"
+          href={platformHref("/operate/deployments/new", platform)}
+          className="bg-primary text-primary-foreground hover:bg-brand-hover mt-4 inline-flex h-8 items-center rounded-md px-3 text-[12px] font-medium transition"
         >
           New app
         </Link>
@@ -61,18 +65,18 @@ export function SettingsSecretsPanel() {
 
     return (
       <div className="space-y-3">
-        <div className="rounded-lg border border-border bg-surface-1 p-4">
-          <div className="text-sm font-medium text-foreground">
+        <div className="border-border bg-surface-1 rounded-lg border p-4">
+          <div className="text-foreground text-sm font-medium">
             Per-project secrets
           </div>
-          <p className="mt-2 text-[13px] text-dim">
+          <p className="text-dim mt-2 text-[13px]">
             Edit environment values for{" "}
-            <span className="text-foreground font-medium">{label}</span> on
-            the project Environment tab.
+            <span className="text-foreground font-medium">{label}</span> on the
+            project Environment tab.
           </p>
           <Link
-            href={environmentHref(only.id)}
-            className="mt-4 inline-flex h-8 items-center gap-1.5 rounded-md bg-primary px-3 text-[12px] font-medium text-primary-foreground transition hover:bg-brand-hover"
+            href={environmentHref(only.id, platform)}
+            className="bg-primary text-primary-foreground hover:bg-brand-hover mt-4 inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-[12px] font-medium transition"
           >
             Open Environment
             <ArrowRight className="size-3.5" aria-hidden />
@@ -84,20 +88,20 @@ export function SettingsSecretsPanel() {
 
   return (
     <div className="space-y-3">
-      <div className="rounded-lg border border-border bg-surface-1 p-4">
-        <div className="text-sm font-medium text-foreground">
+      <div className="border-border bg-surface-1 rounded-lg border p-4">
+        <div className="text-foreground text-sm font-medium">
           Per-project secrets
         </div>
-        <p className="mt-2 text-[13px] text-dim">
+        <p className="text-dim mt-2 text-[13px]">
           Choose a project to open its Environment tab.
         </p>
       </div>
 
-      <ul className="divide-border overflow-hidden rounded-lg border border-border bg-surface-1 divide-y">
+      <ul className="divide-border border-border bg-surface-1 divide-y overflow-hidden rounded-lg border">
         {state.projects.map((source) => (
           <li key={source.id}>
             <Link
-              href={environmentHref(source.id)}
+              href={environmentHref(source.id, platform)}
               className="hover:bg-accent-hover flex items-center justify-between gap-3 px-4 py-3 transition"
             >
               <div className="min-w-0">

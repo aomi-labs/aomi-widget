@@ -1,7 +1,5 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { source } from "@/lib/source";
-import { readDocAsMarkdown } from "@/lib/agents-md";
 
 export const dynamic = "force-static";
 
@@ -34,8 +32,9 @@ export async function GET() {
   parts.push(
     `# Aomi — full agent corpus\n\n` +
       `Generated from https://aomi.dev. ` +
-      `This file concatenates the agent onboarding page, every documentation page, ` +
-      `and the canonical aomi-labs/skills SKILL.md files for one-fetch ingestion.\n\n` +
+      `This file concatenates the agent onboarding page ` +
+      `and the canonical aomi-labs/skills SKILL.md files for one-fetch ingestion. ` +
+      `The full documentation corpus lives at https://aomi.dev/docs/llms-full.txt.\n\n` +
       `Safety mantra: Read by default. Simulate before sign. Credentials never round-trip.\n`,
   );
 
@@ -44,15 +43,6 @@ export async function GET() {
 
   parts.push(section("FAQ — /faq.md"));
   parts.push(await readAgentFile("faq.md"));
-
-  parts.push(section("DOCUMENTATION — /docs/**"));
-  const params = source.generateParams();
-  for (const { slug } of params) {
-    const md = await readDocAsMarkdown(slug ?? []);
-    if (md === null) continue;
-    parts.push(md);
-    parts.push("\n");
-  }
 
   parts.push(section("SKILLS — github.com/aomi-labs/skills"));
   for (const rel of SKILL_FILES) {

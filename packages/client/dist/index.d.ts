@@ -214,6 +214,8 @@ interface AomiChatResponse {
     title?: string | null;
     is_processing?: boolean;
     user_state?: UserState | null;
+    /** @deprecated Retained for compatibility with backends that return turn correlation metadata. */
+    turn_id?: string | null;
 }
 /**
  * POST /api/system
@@ -573,6 +575,8 @@ declare class AomiClient {
         userState?: UserState;
         clientId?: string;
         paymentMethod?: string | null;
+        /** @deprecated Accepted as a no-op for compatibility with client 0.4.3. */
+        turnId?: string;
     }): Promise<AomiChatResponse>;
     /**
      * Send a system-level message (e.g. wallet state changes, context switches).
@@ -1437,6 +1441,9 @@ declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
     private pollIntervalMs;
     private logger?;
     private pollTimer;
+    private pollingActive;
+    private pollInFlight;
+    private pollFailureCount;
     private unsubscribeSSE;
     private isSSEActive;
     private _isProcessing;
@@ -1525,9 +1532,14 @@ declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
     /** Stop polling for state updates. Idempotent — no-op if not polling. */
     stopPolling(): void;
     private pollTick;
+    private currentPollInterval;
+    private schedulePoll;
+    private handleVisibilityChange;
     private applyState;
     private handleSSEEvent;
     private sendSystemEvent;
+    /** Shared completion path for send()/sendAsync() after the chat POST. */
+    private submitChat;
     private resumeAfterWalletResponse;
     private resolvePending;
     private assertOpen;

@@ -59,7 +59,10 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   private pollIntervalMs: number;
   private logger?: { debug: (...args: unknown[]) => void };
 
-  private pollTimer: ReturnType<typeof setInterval> | null = null;
+  private pollTimer: ReturnType<typeof setTimeout> | null = null;
+  private pollingActive = false;
+  private pollInFlight = false;
+  private pollFailureCount = 0;
   private unsubscribeSSE: (() => void) | null = null;
   private isSSEActive = false;
   private _isProcessing = false;
@@ -128,17 +131,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   async send(message: string): Promise<SendResult> {
     this.assertOpen();
 
-    const response = await this.client.sendMessage(this.sessionId, message, {
-      app: this.app,
-      applicationId: this.applicationId,
-      apiKey: this.apiKey,
-      userState: this.userState,
-      clientId: this.clientId,
-      paymentMethod: this.paymentMethod,
-    });
-
-    this.assertUserStateAligned(response.user_state);
-    this.applyState(response);
+    const response = await this.submitChat(message);
 
     if (!response.is_processing && this.walletController.length === 0) {
       return { messages: this._messages, title: this._title };
@@ -160,17 +153,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   async sendAsync(message: string): Promise<AomiChatResponse> {
     this.assertOpen();
 
-    const response = await this.client.sendMessage(this.sessionId, message, {
-      app: this.app,
-      applicationId: this.applicationId,
-      apiKey: this.apiKey,
-      userState: this.userState,
-      clientId: this.clientId,
-      paymentMethod: this.paymentMethod,
-    });
-
-    this.assertUserStateAligned(response.user_state);
-    this.applyState(response);
+    const response = await this.submitChat(message);
 
     if (response.is_processing) {
       this._isProcessing = true;
@@ -387,7 +370,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
 
   /** Whether the session is currently polling for state updates. */
   getIsPolling(): boolean {
-    return this.pollTimer !== null;
+    return this.pollingActive;
   }
 
   /**
@@ -407,7 +390,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     this.assertUserStateAligned(state.user_state);
     this.applyState(state);
 
-    if (state.is_processing && !this.pollTimer) {
+    if (state.is_processing && !this.pollingActive) {
       this._isProcessing = true;
       this.emit("processing_start", undefined);
       this.startPolling();
@@ -421,26 +404,40 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
    * Useful for resuming polling after resolving a wallet request.
    */
   startPolling(): void {
-    if (this.pollTimer || this.closed) return;
+    if (this.pollingActive || this.closed) return;
 
+    this.pollingActive = true;
     this._backendWasProcessing = true;
     this.logger?.debug("[session] polling started", this.sessionId);
-    this.pollTimer = setInterval(() => {
-      void this.pollTick();
-    }, this.pollIntervalMs);
+    if (typeof document !== "undefined") {
+      document.addEventListener(
+        "visibilitychange",
+        this.handleVisibilityChange,
+      );
+    }
+    this.schedulePoll(this.currentPollInterval());
   }
 
   /** Stop polling for state updates. Idempotent — no-op if not polling. */
   stopPolling(): void {
+    this.pollingActive = false;
     if (this.pollTimer) {
-      clearInterval(this.pollTimer);
+      clearTimeout(this.pollTimer);
       this.pollTimer = null;
-      this.logger?.debug("[session] polling stopped", this.sessionId);
     }
+    if (typeof document !== "undefined") {
+      document.removeEventListener(
+        "visibilitychange",
+        this.handleVisibilityChange,
+      );
+    }
+    this.logger?.debug("[session] polling stopped", this.sessionId);
   }
 
   private async pollTick(): Promise<void> {
-    if (!this.pollTimer) return;
+    if (!this.pollingActive || this.pollInFlight) return;
+    this.pollTimer = null;
+    this.pollInFlight = true;
 
     try {
       const state = await this.client.fetchState(
@@ -451,8 +448,9 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       );
 
       // Guard: polling may have been stopped while awaiting fetch
-      if (!this.pollTimer) return;
+      if (!this.pollingActive) return;
 
+      this.pollFailureCount = 0;
       this.assertUserStateAligned(state.user_state);
       this.applyState(state);
 
@@ -471,10 +469,45 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
         this.resolvePending();
       }
     } catch (error) {
+      this.pollFailureCount += 1;
       this.logger?.debug("[session] poll error", error);
       this.emit("error", { error });
+    } finally {
+      this.pollInFlight = false;
+      if (this.pollingActive) {
+        this.schedulePoll(
+          Math.min(
+            this.currentPollInterval() * 2 ** this.pollFailureCount,
+            5_000,
+          ),
+        );
+      }
     }
   }
+
+  private currentPollInterval(): number {
+    return typeof document !== "undefined" && document.hidden
+      ? 2_000
+      : this.pollIntervalMs;
+  }
+
+  private schedulePoll(delayMs: number): void {
+    if (!this.pollingActive || this.closed) return;
+    if (this.pollTimer) clearTimeout(this.pollTimer);
+    this.pollTimer = setTimeout(() => {
+      void this.pollTick();
+    }, delayMs);
+  }
+
+  private handleVisibilityChange = (): void => {
+    if (
+      typeof document !== "undefined" &&
+      !document.hidden &&
+      !this.pollInFlight
+    ) {
+      this.schedulePoll(0);
+    }
+  };
 
   // ===========================================================================
   // Internal — State Application
@@ -533,6 +566,22 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       app: this.app,
       applicationId: this.applicationId,
     });
+  }
+
+  /** Shared completion path for send()/sendAsync() after the chat POST. */
+  private async submitChat(message: string): Promise<AomiChatResponse> {
+    const response = await this.client.sendMessage(this.sessionId, message, {
+      app: this.app,
+      applicationId: this.applicationId,
+      apiKey: this.apiKey,
+      userState: this.userState,
+      clientId: this.clientId,
+      paymentMethod: this.paymentMethod,
+    });
+
+    this.assertUserStateAligned(response.user_state);
+    this.applyState(response);
+    return response;
   }
 
   private resumeAfterWalletResponse(): void {

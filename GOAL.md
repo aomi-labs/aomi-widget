@@ -1,5 +1,27 @@
 # Auth BFF BetterAuth Cleanup Goal
 
+## Browser Response Latency
+
+Current session goal: **SIMPLIFIED AND LOCALLY VERIFIED 2026-08-10** — improve
+browser chat responsiveness without adding a backend streaming protocol.
+
+- Empty drafts prewarm through one shared create/control promise; send awaits
+  the same work and retries a failed speculative warm.
+- A model change during prewarm gets at most one follow-up control sync.
+- State polling uses one timeout and one in-flight request, slows in hidden
+  tabs, reconciles when the tab becomes visible, and backs off after failures.
+- Completed text renders immediately instead of replaying a synthetic 500 ms
+  typewriter animation.
+- Thread state/SSE reads remain bearer-independent at the Portal proxy, while
+  the existing origin-bound widget-session check still gates cross-origin
+  requests and spoofed browser authorization/cookies are stripped.
+- No turn ID or `assistant_text_started` client protocol is included; the
+  frontend continues to work with the existing backend and polling contract.
+- Publishable versions are `@aomi-labs/client@0.4.4`,
+  `@aomi-labs/react@0.5.11`, and `@aomi-labs/widget-lib@1.4.26`.
+- All 1,467 root tests plus the configured registry trace suite, repository
+  lint, client typecheck, and all three publishable package builds pass.
+
 ## Canonical Build Projects Refactor
 
 Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED

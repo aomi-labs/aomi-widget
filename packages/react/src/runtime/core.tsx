@@ -28,6 +28,36 @@ import {
   writePersistedThreadId,
 } from "./thread-persistence";
 
+/** Deduplicate in-flight async work keyed by thread id. */
+async function runSingleFlight(
+  flights: Map<string, Promise<void>>,
+  threadId: string,
+  work: () => Promise<void>,
+): Promise<void> {
+  const existing = flights.get(threadId);
+  if (existing) return existing;
+
+  const promise = work();
+  flights.set(threadId, promise);
+  try {
+    await promise;
+  } finally {
+    if (flights.get(threadId) === promise) {
+      flights.delete(threadId);
+    }
+  }
+}
+
+function appendMessageText(message: AppendMessage): string {
+  return message.content
+    .filter(
+      (part): part is Extract<typeof part, { type: "text" }> =>
+        part.type === "text",
+    )
+    .map((part) => part.text)
+    .join("\n");
+}
+
 // =============================================================================
 // Core Props
 // =============================================================================
@@ -100,11 +130,7 @@ export function AomiRuntimeCore({
     getApiKey: () => getControlState().apiKey,
     getClientId: () => getControlState().clientId ?? undefined,
     prepareThreadForSend: async (threadId) => {
-      const wasCreated = await ensureBackendThread(threadId);
-      if (wasCreated) {
-        threadsMaterializedForSendRef.current.add(threadId);
-      }
-      await syncCurrentThreadControl({ ignoreProcessing: true });
+      await prepareBackendThread(threadId);
     },
     onSendSuccess: (threadId) => {
       const wasRemote = remoteThreadIdsRef.current.has(threadId);
@@ -113,17 +139,13 @@ export function AomiRuntimeCore({
       if (threadPersistenceKey) {
         writePersistedThreadId(threadPersistenceKey, threadId);
       }
-      threadsMaterializedForSendRef.current.delete(threadId);
       if (!wasRemote && threadContextRef.current.currentThreadId === threadId) {
         void syncCurrentThreadControl().catch((error) => {
           console.error("Failed to sync thread controls:", error);
         });
       }
     },
-    onSendError: async (threadId, error) => {
-      const wasMaterializedForSend =
-        threadsMaterializedForSendRef.current.has(threadId);
-      threadsMaterializedForSendRef.current.delete(threadId);
+    onSendError: (_threadId, error) => {
       const httpStatus = getHttpStatus(error);
 
       if (httpStatus === 402) {
@@ -137,17 +159,9 @@ export function AomiRuntimeCore({
         });
       }
 
-      if (httpStatus !== 402 || !wasMaterializedForSend) {
-        return;
-      }
-
-      try {
-        await aomiClientRef.current.deleteThread(threadId);
-        remoteThreadIdsRef.current.delete(threadId);
-        warmedThreadIdsRef.current.delete(threadId);
-      } catch (deleteError) {
-        console.error("Failed to delete quota-blocked thread:", deleteError);
-      }
+      // Prewarmed empty threads are intentionally durable. A quota failure
+      // keeps the same thread so payment setup can retry without another
+      // create/model round trip.
     },
     onPendingRequestsChange: walletHandler.setRequests,
     onEvent: (event) => eventContext.dispatch(event),
@@ -163,7 +177,7 @@ export function AomiRuntimeCore({
   const remoteThreadIdsRef = useRef(new Set<string>());
   const warmedThreadIdsRef = useRef(new Set<string>());
   const warmPromisesRef = useRef(new Map<string, Promise<void>>());
-  const threadsMaterializedForSendRef = useRef(new Set<string>());
+  const preparePromisesRef = useRef(new Map<string, Promise<void>>());
   const [isThreadLoading, setIsThreadLoading] = useState(false);
 
   const warmThread = useCallback(
@@ -175,23 +189,10 @@ export function AomiRuntimeCore({
         return;
       }
 
-      const existingPromise = warmPromisesRef.current.get(threadId);
-      if (existingPromise) {
-        return existingPromise;
-      }
-
-      const warmPromise = (async () => {
+      await runSingleFlight(warmPromisesRef.current, threadId, async () => {
         await aomiClientRef.current.createThread(threadId);
         warmedThreadIdsRef.current.add(threadId);
-      })();
-
-      warmPromisesRef.current.set(threadId, warmPromise);
-
-      try {
-        await warmPromise;
-      } finally {
-        warmPromisesRef.current.delete(threadId);
-      }
+      });
     },
     [aomiClientRef],
   );
@@ -201,40 +202,59 @@ export function AomiRuntimeCore({
   // ---------------------------------------------------------------------------
   const ensureBackendThread = useCallback(
     async (threadId: string) => {
-      if (remoteThreadIdsRef.current.has(threadId)) return false;
+      if (remoteThreadIdsRef.current.has(threadId)) return;
 
-      // Fast path: carry the thread's selected model/app on the create so a
-      // fresh chat binds in one round-trip instead of create + setModel.
-      const control =
-        threadContextRef.current.getThreadMetadata(threadId)?.control;
-      const created = await aomiClientRef.current.createThread(threadId, {
-        rig: control?.model ?? undefined,
-        app: control?.app ?? undefined,
-        applicationId: control?.applicationId ?? undefined,
-        clientId: getControlState().clientId ?? undefined,
-      });
-      remoteThreadIdsRef.current.add(threadId);
-      warmedThreadIdsRef.current.add(threadId);
+      await runSingleFlight(warmPromisesRef.current, threadId, async () => {
+        // Fast path: carry the selected model/app on create so a fresh chat
+        // normally binds in one round trip. The control sync below remains a
+        // compatibility fallback for older backends.
+        const control =
+          threadContextRef.current.getThreadMetadata(threadId)?.control;
+        const created = await aomiClientRef.current.createThread(threadId, {
+          rig: control?.model ?? undefined,
+          app: control?.app ?? undefined,
+          applicationId: control?.applicationId ?? undefined,
+          clientId: getControlState().clientId ?? undefined,
+        });
+        remoteThreadIdsRef.current.add(threadId);
+        warmedThreadIdsRef.current.add(threadId);
 
-      if (created?.rig && control?.model) {
-        // The create bound the selection. Clear the dirty flag (only if the
-        // control hasn't changed meanwhile) so the send path's
-        // syncCurrentThreadControl no-ops instead of re-posting it.
-        const latest = threadContextRef.current.getThreadMetadata(threadId);
-        if (
-          latest?.control.controlDirty &&
-          latest.control.model === control.model &&
-          latest.control.app === control.app &&
-          latest.control.applicationId === control.applicationId
-        ) {
-          threadContextRef.current.updateThreadMetadata(threadId, {
-            control: { ...latest.control, controlDirty: false },
-          });
+        if (created?.rig && control?.model) {
+          const latest = threadContextRef.current.getThreadMetadata(threadId);
+          if (
+            latest?.control.controlDirty &&
+            latest.control.model === control.model &&
+            latest.control.app === control.app &&
+            latest.control.applicationId === control.applicationId
+          ) {
+            threadContextRef.current.updateThreadMetadata(threadId, {
+              control: { ...latest.control, controlDirty: false },
+            });
+          }
         }
-      }
-      return true;
+      });
     },
     [aomiClientRef, getControlState],
+  );
+
+  const prepareBackendThread = useCallback(
+    async (threadId: string) => {
+      await runSingleFlight(preparePromisesRef.current, threadId, async () => {
+        await ensureBackendThread(threadId);
+        if (threadContextRef.current.currentThreadId !== threadId) return;
+
+        // If the selection changes during the first sync, apply the newest
+        // value once more before admitting chat.
+        await syncCurrentThreadControl({ ignoreProcessing: true });
+        if (threadContextRef.current.currentThreadId !== threadId) return;
+        const latest =
+          threadContextRef.current.getThreadMetadata(threadId)?.control;
+        if (latest?.controlDirty && latest.model) {
+          await syncCurrentThreadControl({ ignoreProcessing: true });
+        }
+      });
+    },
+    [ensureBackendThread, syncCurrentThreadControl],
   );
 
   const getRuntimeSession = useCallback(
@@ -273,6 +293,54 @@ export function AomiRuntimeCore({
     accountSessionAvailable,
     threadPersistence,
   });
+  const activeThreadControl = threadContext.getThreadMetadata(
+    threadContext.currentThreadId,
+  )?.control;
+
+  // Materialize the active empty draft as soon as account/thread hydration has
+  // settled. Send awaits this same promise, so a fast submit never duplicates
+  // create/model work. A failed speculative warm remains retryable on send.
+  useEffect(() => {
+    if (isThreadListLoading) return;
+    const threadId = threadContext.currentThreadId;
+    if (
+      remoteThreadIdsRef.current.has(threadId) &&
+      !activeThreadControl?.controlDirty
+    ) {
+      return;
+    }
+    if (
+      accountSessionAvailable &&
+      threadListError &&
+      restoredThreadId === threadId
+    ) {
+      // Never recreate an unverified persisted id after account-list failure;
+      // that could cross an authenticated identity boundary.
+      return;
+    }
+
+    let cancelled = false;
+    void prepareBackendThread(threadId).catch((error) => {
+      if (!cancelled) {
+        console.debug("Thread prewarm deferred until send:", error);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    accountSessionAvailable,
+    activeThreadControl?.app,
+    activeThreadControl?.applicationId,
+    activeThreadControl?.controlDirty,
+    activeThreadControl?.model,
+    isThreadListLoading,
+    prepareBackendThread,
+    restoredThreadId,
+    threadContext.currentThreadId,
+    threadListError,
+  ]);
 
   // ---------------------------------------------------------------------------
   // Initial state fetch on thread change (skip for local-only threads)
@@ -354,11 +422,6 @@ export function AomiRuntimeCore({
   // ---------------------------------------------------------------------------
   // Thread list adapter
   // ---------------------------------------------------------------------------
-  const isRemoteThread = useCallback(
-    (threadId: string) => remoteThreadIdsRef.current.has(threadId),
-    [],
-  );
-
   const threadListAdapter = useMemo(
     () =>
       buildThreadListAdapter({
@@ -367,12 +430,11 @@ export function AomiRuntimeCore({
         setIsRunning,
         isLoading: isThreadListLoading,
         getInitialControl: getPreferredThreadControl,
-        isRemoteThread,
+        isRemoteThread: (threadId) => remoteThreadIdsRef.current.has(threadId),
       }),
     [
       aomiClientRef,
       getPreferredThreadControl,
-      isRemoteThread,
       isThreadListLoading,
       setIsRunning,
       threadContext,
@@ -438,13 +500,7 @@ export function AomiRuntimeCore({
       threadContext.setThreadMessages(threadContext.currentThreadId, [...msgs]),
     isRunning,
     onNew: async (message: AppendMessage) => {
-      const text = message.content
-        .filter(
-          (part): part is Extract<typeof part, { type: "text" }> =>
-            part.type === "text",
-        )
-        .map((part) => part.text)
-        .join("\n");
+      const text = appendMessageText(message);
       if (text) {
         try {
           await orchestratorSendMessage(text, threadContext.currentThreadId);
@@ -454,18 +510,11 @@ export function AomiRuntimeCore({
       }
     },
     onEdit: async (message: AppendMessage) => {
-      const text = message.content
-        .filter(
-          (part): part is Extract<typeof part, { type: "text" }> =>
-            part.type === "text",
-        )
-        .map((part) => part.text)
-        .join("\n");
       try {
         await orchestratorRegenerateMessage(
           threadContext.currentThreadId,
           message.sourceId ?? message.parentId,
-          text,
+          appendMessageText(message),
         );
       } catch (error) {
         console.error("Failed to edit message:", error);
@@ -493,6 +542,8 @@ export function AomiRuntimeCore({
   // ---------------------------------------------------------------------------
   useEffect(() => {
     return () => {
+      warmPromisesRef.current.clear();
+      preparePromisesRef.current.clear();
       closeAllSessions();
     };
   }, [closeAllSessions]);
@@ -545,20 +596,6 @@ export function AomiRuntimeCore({
     [closeSession, threadListAdapter, threadPersistenceKey],
   );
 
-  const renameThread = useCallback(
-    async (threadId: string, title: string) => {
-      await threadListAdapter.onRename(threadId, title);
-    },
-    [threadListAdapter],
-  );
-
-  const archiveThread = useCallback(
-    async (threadId: string) => {
-      await threadListAdapter.onArchive(threadId);
-    },
-    [threadListAdapter],
-  );
-
   const selectThread = useCallback(
     (threadId: string) => {
       if (threadContext.allThreadsMetadata.has(threadId)) {
@@ -574,9 +611,7 @@ export function AomiRuntimeCore({
     AomiRuntimeApi["simulateBatchTransactions"]
   >(
     async (transactions, options) => {
-      const session =
-        sessionManagerRef.current?.get(threadContext.currentThreadId) ??
-        getSession(threadContext.currentThreadId);
+      const session = getRuntimeSession(threadContext.currentThreadId);
       if (!session) {
         throw new Error("runtime_session_unavailable");
       }
@@ -588,7 +623,7 @@ export function AomiRuntimeCore({
       );
       return response.result;
     },
-    [getSession, threadContext.currentThreadId],
+    [getRuntimeSession, threadContext.currentThreadId],
   );
 
   const aomiRuntimeApi: AomiRuntimeApi = useMemo(
@@ -609,8 +644,9 @@ export function AomiRuntimeCore({
       getThreadMetadata: threadContext.getThreadMetadata,
       createThread,
       deleteThread,
-      renameThread,
-      archiveThread,
+      renameThread: (threadId, title) =>
+        threadListAdapter.onRename(threadId, title),
+      archiveThread: (threadId) => threadListAdapter.onArchive(threadId),
       selectThread,
 
       // Chat API
@@ -653,8 +689,7 @@ export function AomiRuntimeCore({
       threadListError,
       createThread,
       deleteThread,
-      renameThread,
-      archiveThread,
+      threadListAdapter,
       selectThread,
       isRunning,
       getMessages,

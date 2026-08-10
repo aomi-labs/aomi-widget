@@ -34,6 +34,94 @@ describe("Chat API", () => {
   });
 
   describe("sendMessage", () => {
+    it("prewarms an empty thread and deduplicates a concurrent first send", async () => {
+      let resolveCreate: ((value: { session_id: string }) => void) | undefined;
+      const createThread = vi.fn(
+        (threadId: string) =>
+          new Promise<{ session_id: string }>((resolve) => {
+            resolveCreate = resolve;
+          }),
+      );
+      const postChatMessage = vi.fn(
+        async (): Promise<AomiChatResponse> => ({
+          is_processing: false,
+          messages: [],
+        }),
+      );
+      setAomiClientConfig({ createThread, postChatMessage });
+
+      const { api } = renderRuntime();
+      await waitFor(() => expect(createThread).toHaveBeenCalledTimes(1));
+
+      let sendPromise: Promise<void>;
+      await act(async () => {
+        sendPromise = api.sendMessage("Send while warming");
+        await Promise.resolve();
+      });
+      expect(createThread).toHaveBeenCalledTimes(1);
+      expect(postChatMessage).not.toHaveBeenCalled();
+
+      await act(async () => {
+        resolveCreate?.({ session_id: api.currentThreadId });
+        await sendPromise!;
+      });
+
+      expect(createThread).toHaveBeenCalledTimes(1);
+      expect(postChatMessage).toHaveBeenCalledTimes(1);
+    });
+
+    it("prewarms an explicitly opened new thread", async () => {
+      const createThread = vi.fn(async (threadId: string) => ({
+        session_id: threadId,
+      }));
+      setAomiClientConfig({ createThread });
+
+      const { api, getApi } = renderRuntime();
+      await waitFor(() => expect(createThread).toHaveBeenCalledTimes(1));
+      const initialThreadId = api.currentThreadId;
+
+      await act(async () => {
+        await api.createThread();
+      });
+
+      const nextThreadId = getApi().currentThreadId;
+      expect(nextThreadId).not.toBe(initialThreadId);
+      await waitFor(() =>
+        expect(createThread).toHaveBeenCalledWith(nextThreadId),
+      );
+      expect(
+        createThread.mock.calls.filter(
+          ([threadId]) => threadId === nextThreadId,
+        ),
+      ).toHaveLength(1);
+    });
+
+    it("retries a failed speculative prewarm on the first send", async () => {
+      const createThread = vi
+        .fn<(threadId: string) => Promise<{ session_id: string }>>()
+        .mockRejectedValueOnce(new Error("temporary prewarm failure"))
+        .mockImplementation(async (threadId) => ({ session_id: threadId }));
+      const postChatMessage = vi.fn(
+        async (): Promise<AomiChatResponse> => ({
+          is_processing: false,
+          messages: [],
+        }),
+      );
+      const debug = vi.spyOn(console, "debug").mockImplementation(() => {});
+      setAomiClientConfig({ createThread, postChatMessage });
+
+      const { api } = renderRuntime();
+      await waitFor(() => expect(createThread).toHaveBeenCalledTimes(1));
+
+      await act(async () => {
+        await api.sendMessage("Retry the warm");
+      });
+
+      expect(createThread).toHaveBeenCalledTimes(2);
+      expect(postChatMessage).toHaveBeenCalledTimes(1);
+      debug.mockRestore();
+    });
+
     it("sends message to backend", async () => {
       const postChatMessage = vi.fn(
         async (): Promise<AomiChatResponse> => ({
@@ -262,11 +350,7 @@ describe("Chat API", () => {
         await control.getAvailableModels();
       });
 
-      await waitFor(() => {
-        expect(
-          api.getThreadMetadata(api.currentThreadId)?.control.controlDirty,
-        ).toBe(true);
-      });
+      await waitFor(() => expect(setModel).toHaveBeenCalled());
 
       await act(async () => {
         await expect(api.sendMessage("Need quota")).rejects.toThrow("HTTP 402");
@@ -310,7 +394,7 @@ describe("Chat API", () => {
       expect(setModel.mock.invocationCallOrder[0]).toBeLessThan(
         postChatMessage.mock.invocationCallOrder[0],
       );
-      expect(deleteThread).toHaveBeenCalledWith(api.currentThreadId);
+      expect(deleteThread).not.toHaveBeenCalled();
     });
 
     it("syncs dirty control state before the first message on a new thread", async () => {
@@ -337,11 +421,7 @@ describe("Chat API", () => {
         await control.getAvailableModels();
       });
 
-      await waitFor(() => {
-        expect(
-          api.getThreadMetadata(api.currentThreadId)?.control.controlDirty,
-        ).toBe(true);
-      });
+      await waitFor(() => expect(setModel).toHaveBeenCalled());
 
       await act(async () => {
         await api.sendMessage("Use selected model");

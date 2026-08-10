@@ -763,7 +763,9 @@ describe("operateObservabilityRoute live data", () => {
       },
       {
         // A partner-bound source the per-source fan-out could never read
-        // under the default platform — the batch covers it.
+        // under the default platform. The batch still covers it — the read
+        // stays account-wide — but this page is scoped to `community`, so it
+        // must not render here. Its own platform's page shows it.
         project: { id: 1620 },
         platform: "somm.finance",
         scope: "owned_applications",
@@ -804,8 +806,80 @@ describe("operateObservabilityRoute live data", () => {
     expect(body.payments).toBeUndefined();
     expect(
       body.apps.map((app: { application: string }) => app.application),
-    ).toEqual(["real-bot", "somm-agent"]);
+    ).toEqual(["real-bot"]);
     expect(body.monitoring.status).toBe("ok");
+  });
+
+  /** The read is account-wide, the page is not. Observability must show the
+   *  same projects `/projects` lists for the selected platform — a card for a
+   *  project the console cannot even open reads as someone else's account. */
+  it("scopes the account-wide batch to the selected platform's projects", async () => {
+    setSession({ githubUserId: "gh-1" });
+    client.listUserProjects.mockImplementation(async ({ platform }) =>
+      platform === "somm.finance"
+        ? [
+            {
+              id: 1620,
+              repositoryLink: "o/somm",
+              platformName: "somm.finance",
+              apps: [],
+            },
+          ]
+        : [
+            {
+              id: 900,
+              repositoryLink: "o/r",
+              platformName: "community",
+              apps: [],
+            },
+          ],
+    );
+    const snapshot = (id: number, platform: string, application: string) => ({
+      project: { id },
+      platform,
+      scope: "owned_applications",
+      monitoring: {
+        provider: "grafana_prometheus",
+        status: "ok",
+        windowSeconds: 900,
+      },
+      apps: [
+        {
+          applicationId: id,
+          application,
+          active: true,
+          loaded: true,
+          status: "healthy",
+          metrics: null,
+        },
+      ],
+      payments: emptyPayments(),
+      dashboardLinks: [],
+      platformMetrics: [],
+    });
+    client.getUserObservability.mockResolvedValue([
+      snapshot(900, "community", "real-bot"),
+      snapshot(1620, "somm.finance", "somm-agent"),
+    ]);
+
+    const res = await operateObservabilityRoute(
+      new Request(
+        "http://localhost:3000/api/bff/operate/observability?platform=somm.finance",
+      ),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    // Still one account-wide read — only the response is narrowed.
+    expect(client.getUserObservability).toHaveBeenCalledWith(
+      expect.objectContaining({ githubUserId: "gh-1" }),
+    );
+    expect(
+      body.apps.map((app: { application: string }) => app.application),
+    ).toEqual(["somm-agent"]);
+    expect(body.projects.map((project: { id: number }) => project.id)).toEqual([
+      1620,
+    ]);
   });
 
   it("does not restore the per-source fan-out when the batch route is missing", async () => {
@@ -979,6 +1053,57 @@ describe("account-wide batch reads", () => {
     });
   });
 
+  /** The merged page spans every platform the account owns; the page it feeds
+   *  is scoped to one. Rows for a project this platform does not list are
+   *  dropped, and the global cursor still carries the reader forward. */
+  it("scopes the merged transactions page to the selected platform", async () => {
+    client.listUserProjects.mockResolvedValue([
+      { id: 900, repositoryLink: "o/one", platformName: "community", apps: [] },
+    ]);
+    client.listUserTransactions.mockResolvedValue({
+      projects: [
+        {
+          project: { id: 900, repositoryLink: "o/one" },
+          platform: "community",
+        },
+        {
+          project: { id: 1620, repositoryLink: "partner/app" },
+          platform: "somm.finance",
+        },
+      ],
+      transactions: [
+        {
+          id: "tx:b",
+          createdAt: 1_700_000_100,
+          projectId: 1620,
+          platform: "somm.finance",
+        },
+        {
+          id: "tx:a",
+          createdAt: 1_700_000_000,
+          projectId: 900,
+          platform: "community",
+        },
+      ],
+      nextCursor: { createdAt: 1_700_000_000, id: "tx:a" },
+    });
+    client.getUserStatements.mockResolvedValue([]);
+
+    const body = await (
+      await operateTransactionsRoute(transactionsReq())
+    ).json();
+
+    expect(body.transactions.map((tx: { id: string }) => tx.id)).toEqual([
+      "tx:a",
+    ]);
+    expect(body.projects.map((project: { id: number }) => project.id)).toEqual([
+      900,
+    ]);
+    expect(body.nextCursor).toEqual({
+      batch: { createdAt: 1_700_000_000, id: "tx:a" },
+    });
+  });
+
   it("passes the batch cursor through and skips statements past page one", async () => {
     client.listUserTransactions.mockResolvedValue({
       projects: [],
@@ -1094,6 +1219,62 @@ describe("account-wide batch reads", () => {
         id: "settle:shared",
       },
     });
+  });
+
+  /** The merged stream spans every platform the account owns. Rows for a
+   *  project this platform does not list are dropped; account-level rows
+   *  (a shared partner settlement has no project) belong to every view. */
+  it("scopes the merged log stream to the selected platform", async () => {
+    client.listUserProjects.mockResolvedValue([
+      { id: 900, repositoryLink: "o/one", platformName: "community", apps: [] },
+    ]);
+    client.listUserLogs.mockResolvedValue({
+      projects: [
+        {
+          project: { id: 900, repositoryLink: "o/one" },
+          platform: "community",
+        },
+        {
+          project: { id: 1620, repositoryLink: "o/somm" },
+          platform: "somm.finance",
+        },
+      ],
+      logs: [
+        {
+          id: "log:mine",
+          eventType: "transaction",
+          occurredAt: 1_700_000_002,
+          details: {},
+          projectId: 900,
+          platform: "community",
+        },
+        {
+          id: "log:other-platform",
+          eventType: "transaction",
+          occurredAt: 1_700_000_001,
+          details: {},
+          projectId: 1620,
+          platform: "somm.finance",
+        },
+        {
+          id: "settle:shared",
+          eventType: "usage",
+          occurredAt: 1_700_000_000,
+          details: { source: "partner_settlement" },
+          projectId: null,
+          platform: null,
+        },
+      ],
+      nextCursor: null,
+      invocationsAvailable: true,
+    });
+
+    const body = await (await operateLogsRoute(logsReq())).json();
+
+    expect(body.logs.map((log: { id: string }) => log.id)).toEqual([
+      "log:mine",
+      "settle:shared",
+    ]);
   });
 
   it("keeps a single-source view on the per-source read", async () => {
@@ -1241,20 +1422,57 @@ describe("account-wide reads do not waterfall behind listUserProjects", () => {
     await expect(res.json()).resolves.toMatchObject({ projects: [{ id: 42 }] });
   });
 
-  /** The payments response is derived entirely from the ledger read, so an
-   *  unfiltered request must not read the source list at all — not even in
-   *  parallel. A regression here is a wasted manager round trip per poll. */
-  it("never reads the source list for an unfiltered payments request", async () => {
+  /** The ledger read is account-wide, so the source list is what scopes it to
+   *  the selected platform. It must never be a waterfall in front of the
+   *  ledger read — a regression there is a serial manager hop per poll. */
+  it("reads the source list alongside, not ahead of, an unfiltered payments request", async () => {
     setSession({ githubUserId: "gh-1" });
-    client.getUserPayments.mockResolvedValue([]);
+    const { release } = pendingSources();
+    let ledgerStarted = false;
+    client.getUserPayments.mockImplementation(async () => {
+      ledgerStarted = true;
+      return [];
+    });
+
+    const pending = operatePaymentsRoute(
+      new Request("http://localhost:3000/api/bff/operate/payments"),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(ledgerStarted).toBe(true);
+
+    release([{ id: 42, repositoryLink: "o/r", apps: [] }]);
+    const res = await pending;
+
+    expect(res.status).toBe(200);
+    expect(client.getUserPayments).toHaveBeenCalledOnce();
+  });
+
+  /** A ledger row for a project on another platform must not surface here —
+   *  the payment card sits on a page scoped to one platform. */
+  it("scopes unfiltered payments to the selected platform's projects", async () => {
+    setSession({ githubUserId: "gh-1" });
+    oneSource();
+    const withResource = (application: string) => ({
+      ...emptyPayments(),
+      resources: [{ application, priced: true }],
+    });
+    client.getUserPayments.mockResolvedValue([
+      { project: { id: 900 }, payments: withResource("real-bot") },
+      { project: { id: 1620 }, payments: withResource("somm-agent") },
+    ]);
 
     const res = await operatePaymentsRoute(
       new Request("http://localhost:3000/api/bff/operate/payments"),
     );
+    const body = await res.json();
 
     expect(res.status).toBe(200);
     expect(client.getUserPayments).toHaveBeenCalledOnce();
-    expect(client.listUserProjects).not.toHaveBeenCalled();
+    expect(
+      body.payments.resources.map(
+        (r: { application: string }) => r.application,
+      ),
+    ).toEqual(["real-bot"]);
   });
 
   /** …but a source-scoped request still must, because that is where

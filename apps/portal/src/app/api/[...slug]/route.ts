@@ -3,8 +3,9 @@ import { resolveCanonicalUserId } from "@portal/server/canonical-session";
 import { launchConfig } from "@portal/server/bff/launch/config";
 import { portalFailures } from "@portal/server/bff/failures";
 import { widgetPreflight, widgetRoute } from "@portal/lib/widget-auth/response";
+import { requireCrossOriginWidgetSession } from "@portal/lib/widget-auth/principal";
 
-const ALLOWED_ROUTES: AllowedRoute[] = [
+export const ALLOWED_ROUTES: AllowedRoute[] = [
   {
     pattern: /^\/api\/account(\/.*)?$/,
     methods: new Set(["GET", "POST", "PATCH", "PUT", "DELETE"]),
@@ -17,7 +18,7 @@ const ALLOWED_ROUTES: AllowedRoute[] = [
   {
     pattern: /^\/api\/thread\/state$/,
     methods: new Set(["GET"]),
-    auth: "optional",
+    auth: "none",
   },
   {
     pattern: /^\/api\/thread\/chat$/,
@@ -35,7 +36,7 @@ const ALLOWED_ROUTES: AllowedRoute[] = [
   {
     pattern: /^\/api\/thread\/updates$/,
     methods: new Set(["GET"]),
-    auth: "optional",
+    auth: "none",
   },
   {
     pattern: /^\/api\/threads$/,
@@ -142,7 +143,16 @@ const proxy = createBackendProxy({
   },
 });
 
-export const GET = widgetRoute(proxy.GET, "proxy.request");
+async function guardedGet(...args: Parameters<typeof proxy.GET>) {
+  const [request] = args;
+  const pathname = new URL(request.url).pathname;
+  if (pathname === "/api/thread/state" || pathname === "/api/thread/updates") {
+    await requireCrossOriginWidgetSession(request);
+  }
+  return proxy.GET(...args);
+}
+
+export const GET = widgetRoute(guardedGet, "proxy.request");
 export const POST = widgetRoute(proxy.POST, "proxy.request");
 export const PUT = widgetRoute(proxy.PUT, "proxy.request");
 export const PATCH = widgetRoute(proxy.PATCH, "proxy.request");
