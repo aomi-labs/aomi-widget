@@ -151,7 +151,7 @@ describe("User API", () => {
       });
     });
 
-    it("does not send wallet state changes to empty draft threads", async () => {
+    it("prewarms empty drafts and syncs wallet state after materialization", async () => {
       const createThread = vi.fn(async (threadId: string) => ({
         session_id: threadId,
       }));
@@ -160,6 +160,8 @@ describe("User API", () => {
       setAomiClientConfig({ createThread, postSystemMessage });
 
       const { api } = renderRuntime();
+
+      await waitFor(() => expect(createThread).toHaveBeenCalled());
 
       await act(async () => {
         api.setUser({
@@ -170,8 +172,8 @@ describe("User API", () => {
         await flushPromises();
       });
 
-      expect(createThread).not.toHaveBeenCalled();
-      expect(postSystemMessage).not.toHaveBeenCalled();
+      expect(createThread).toHaveBeenCalledWith(api.currentThreadId);
+      await waitFor(() => expect(postSystemMessage).toHaveBeenCalled());
     });
 
     it("sends wallet state changes to materialized threads", async () => {
@@ -197,7 +199,8 @@ describe("User API", () => {
         await flushPromises();
       });
 
-      expect(postSystemMessage).not.toHaveBeenCalled();
+      await waitFor(() => expect(postSystemMessage).toHaveBeenCalled());
+      postSystemMessage.mockClear();
 
       await act(async () => {
         await api.sendMessage("Materialize this thread");
@@ -386,6 +389,8 @@ describe("User API", () => {
         await flushPromises();
       });
 
+      postSystemMessage.mockClear();
+
       await act(async () => {
         getApi().setUser({
           address: "0xBBB",
@@ -431,6 +436,8 @@ describe("User API", () => {
         });
         await flushPromises();
       });
+
+      postSystemMessage.mockClear();
 
       await act(async () => {
         await api.sendMessage("hello");

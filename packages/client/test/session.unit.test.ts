@@ -1,7 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AomiClient, Session } from "../src/index";
-import type { AomiChatResponse, AomiStateResponse } from "../src/index";
+import type {
+  AomiChatResponse,
+  AomiSSEEvent,
+  AomiStateResponse,
+} from "../src/index";
 import { CLIENT_TYPE_WEB_UI, UserState } from "../src/index";
 
 function createSerializedSolanaTransactionBase64(): string {
@@ -93,6 +97,181 @@ describe("ClientSession SSE lifecycle", () => {
       expect.any(Function),
       { applicationId: 20 },
     );
+
+    session.close();
+  });
+
+  it("renders first text received before the chat acknowledgement", async () => {
+    const client = new AomiClient({ baseUrl: "http://unit.test" });
+    let emitSSE: ((event: AomiSSEEvent) => void) | undefined;
+    vi.spyOn(client, "subscribeSSE").mockImplementation((_id, onEvent) => {
+      emitSSE = onEvent;
+      return () => {};
+    });
+    let resolveChat: ((response: AomiChatResponse) => void) | undefined;
+    const sendMessage = vi.spyOn(client, "sendMessage").mockImplementation(
+      () =>
+        new Promise<AomiChatResponse>((resolve) => {
+          resolveChat = resolve;
+        }),
+    );
+    vi.spyOn(client, "fetchState").mockResolvedValue({
+      is_processing: false,
+      messages: [{ sender: "agent", content: "First visible text" }],
+    });
+    const session = new Session(client, { sessionId: "session-first-text" });
+    session.setSSEActive(true);
+
+    const sending = session.sendAsync("hello");
+    await vi.waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(1));
+    const turnId = sendMessage.mock.calls[0][2]?.turnId;
+    expect(turnId).toMatch(/^[0-9a-f-]{36}$/);
+
+    emitSSE?.({
+      type: "assistant_text_started",
+      thread_id: "session-first-text",
+      turn_id: turnId,
+      text: "First visible text",
+      truncated: false,
+    });
+
+    expect(session.getMessages()).toEqual([
+      {
+        sender: "agent",
+        content: "First visible text",
+        is_streaming: true,
+      },
+    ]);
+
+    resolveChat?.({
+      is_processing: true,
+      messages: [{ sender: "agent", content: "", is_streaming: true }],
+      turn_id: turnId,
+    });
+    await sending;
+
+    expect(session.getMessages()[0]?.content).toBe("First visible text");
+    session.close();
+  });
+
+  it("ignores unknown, cross-thread, and duplicate first-text events", async () => {
+    const client = new AomiClient({ baseUrl: "http://unit.test" });
+    let emitSSE: ((event: AomiSSEEvent) => void) | undefined;
+    vi.spyOn(client, "subscribeSSE").mockImplementation((_id, onEvent) => {
+      emitSSE = onEvent;
+      return () => {};
+    });
+    const sendMessage = vi
+      .spyOn(client, "sendMessage")
+      .mockImplementation(async (_sessionId, _message, options) => ({
+        is_processing: true,
+        messages: [{ sender: "agent", content: "", is_streaming: true }],
+        turn_id: options?.turnId,
+      }));
+    vi.spyOn(client, "fetchState").mockResolvedValue({
+      is_processing: false,
+      messages: [{ sender: "agent", content: "Accepted" }],
+    });
+    const session = new Session(client, { sessionId: "session-isolation" });
+    session.setSSEActive(true);
+    await session.sendAsync("hello");
+    const turnId = sendMessage.mock.calls[0][2]?.turnId;
+
+    emitSSE?.({
+      type: "assistant_text_started",
+      thread_id: "another-thread",
+      turn_id: turnId,
+      text: "Cross-thread",
+      truncated: false,
+    });
+    emitSSE?.({
+      type: "assistant_text_started",
+      thread_id: "session-isolation",
+      turn_id: crypto.randomUUID(),
+      text: "Unknown",
+      truncated: false,
+    });
+    expect(session.getMessages()[0]?.content).toBe("");
+
+    const accepted = {
+      type: "assistant_text_started",
+      thread_id: "session-isolation",
+      turn_id: turnId,
+      text: "Accepted",
+      truncated: false,
+    } satisfies AomiSSEEvent;
+    emitSSE?.(accepted);
+    emitSSE?.(accepted);
+
+    expect(session.getMessages()).toHaveLength(1);
+    expect(session.getMessages()[0]?.content).toBe("Accepted");
+    session.close();
+  });
+
+  it("keeps fallback polling single-flight", async () => {
+    vi.useFakeTimers();
+    const client = new AomiClient({ baseUrl: "http://unit.test" });
+    vi.spyOn(client, "subscribeSSE").mockImplementation(() => () => {});
+    let resolveFirstPoll: ((response: AomiStateResponse) => void) | undefined;
+    const fetchState = vi
+      .spyOn(client, "fetchState")
+      .mockImplementationOnce(
+        () =>
+          new Promise<AomiStateResponse>((resolve) => {
+            resolveFirstPoll = resolve;
+          }),
+      )
+      .mockResolvedValue({ is_processing: false, messages: [] });
+    const session = new Session(client, {
+      sessionId: "session-single-flight",
+      pollIntervalMs: 10,
+    });
+
+    session.startPolling();
+    await vi.advanceTimersByTimeAsync(10);
+    expect(fetchState).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(100);
+    expect(fetchState).toHaveBeenCalledTimes(1);
+
+    resolveFirstPoll?.({ is_processing: true, messages: [] });
+    await Promise.resolve();
+    await vi.advanceTimersByTimeAsync(10);
+    expect(fetchState).toHaveBeenCalledTimes(2);
+
+    session.close();
+    vi.useRealTimers();
+  });
+
+  it("uses hidden-tab cadence and reconciles promptly when visible", async () => {
+    vi.useFakeTimers();
+    const hidden = vi.spyOn(document, "hidden", "get").mockReturnValue(true);
+    const client = new AomiClient({ baseUrl: "http://unit.test" });
+    vi.spyOn(client, "subscribeSSE").mockImplementation(() => () => {});
+    const fetchState = vi
+      .spyOn(client, "fetchState")
+      .mockResolvedValueOnce({ is_processing: true, messages: [] })
+      .mockResolvedValue({ is_processing: false, messages: [] });
+    const session = new Session(client, { sessionId: "session-visibility" });
+
+    session.startPolling();
+    await vi.advanceTimersByTimeAsync(1_999);
+    expect(fetchState).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(fetchState).toHaveBeenCalledTimes(1);
+
+    hidden.mockReturnValue(false);
+    document.dispatchEvent(new Event("visibilitychange"));
+    // Immediate polls are clamped to the minimum inter-poll gap (250ms since
+    // the previous poll started) so SSE/visibility bursts cannot fan out into
+    // back-to-back state fetches.
+    await vi.advanceTimersByTimeAsync(249);
+    expect(fetchState).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(fetchState).toHaveBeenCalledTimes(2);
+
+    session.close();
+    hidden.mockRestore();
+    vi.useRealTimers();
   });
 });
 

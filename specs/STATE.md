@@ -89,6 +89,62 @@
   `deployments.platform`. Any deployment with no projection row under the
   queried platform shows on the project page and is invisible in the feed —
   which is why world-markets showed 4 deployments and the feed showed 1.
+2026-08-10 — ts-function-reducer on `packages/react/src/runtime/core.tsx`
+  (behavior-preserving call-graph shrink; uncommitted). Invariant kept:
+  prewarm/prepare single-flight create + bounded control sync; warm vs ensure
+  policies; public `AomiRuntimeApi` surface; unmount generation cancel.
+  - Extracted `runSingleFlight` (shared by warm/ensure/prepare) and
+    `appendMessageText` (onNew/onEdit).
+  - Deleted `isRemoteThread` / `renameThread` / `archiveThread` useCallback
+    forwarders; inlined at the real call sites. `simulateBatchTransactions`
+    reuses `getRuntimeSession`.
+  - Left alone: warm vs ensure (different policies), prepare composite,
+    send/cancel/getMessages public binders.
+  - Verified: `tsc --noEmit -p packages/react`, vitest runtime suite 140/140.
+  - Net: ~780 → 737 LoC in core.tsx.
+
+2026-08-10 — BROWSER TTFT: REVIEW FIXES (committed on
+  `codex/ttft-browser-perf`, on top of the 2026-08-08 TTFT work below). A
+  recall-biased review of the uncommitted diff surfaced 8 findings; all fixed:
+  - `packages/react/src/runtime/core.tsx`: `prepareBackendThread`'s control-
+    sync loop is now bounded (`MAX_CONTROL_SYNC_PASSES = 5`) so selections
+    churning faster than the network can never spin forever and block chat
+    admission; `ensureBackendThread` records `remoteThreadIdsRef`/
+    `warmedThreadIdsRef` BEFORE the prewarm-generation guard (the create
+    already succeeded on the backend — ground truth must be recorded even if
+    the runtime instance was torn down mid-flight, else a remount re-creates
+    the thread); dead `.then()` body removed from the prewarm effect.
+  - `packages/client/src/session/index.ts`: immediate polls (SSE
+    tool_update/tool_complete, first-text reconcile, visibility return) are
+    clamped to `MIN_IMMEDIATE_POLL_GAP_MS = 250` since the last poll start —
+    bounds the /api/thread/state rate at ≤4/s during tool-heavy turns instead
+    of network-latency-bound back-to-back fetches; the duplicated post-chat
+    block in `send()`/`sendAsync()` is now one `submitChat()` helper.
+  - `packages/react/src/runtime/orchestrator.ts` + `state/thread-store.ts`:
+    removed the write-only `lastCompletedAt` field and the `completed` option
+    of `updateTurnPhase` (its only reader was deleted with the fake-stream
+    removal).
+  - Review found and repaired a proxy-boundary regression: the two
+    `auth: "none"` Thread reads now explicitly require the existing
+    origin-bound widget session for cross-origin requests before proxying.
+    Same-origin reads remain Thread capability reads. Browser cookies and
+    user-supplied AccountBearer headers continue to be stripped.
+  - Verified: client 84 tests, react 171 tests, portal api 28 tests,
+    working-trace 4 tests (incl. the 250ms p95 gate) all green; tsc clean in
+    both packages; repo eslint 0 errors (6 pre-existing widget-auth
+    warnings); client+react `dist/` rebuilt via per-package tsup.
+  - STAGING VERIFIED 2026-08-10 after backend PR #948 merged and deployed as
+    `900a0b009` to both hosts: new-client/old-backend and
+    old-client/new-backend compatibility passed; the live response echoed its
+    requested UUID; provisional text rendered and promoted; the SSE-only event
+    stayed out of `system_events`; same-origin Thread reads returned 200 while
+    missing/spoofed cross-origin credentials returned 401. A baseline-delta
+    batch of 15 warm Haiku turns measured pre-provider dispatch at 210 ms
+    average / 242.5 ms p95, provider TTFT at 1.52 s average / 4.06 s p95, and
+    end-to-first-text at 1.73 s average / 4.06 s p95. The real-Chromium 5+50
+    SSE-response-start-to-visible-DOM gate measured 25.1 ms p95. The session
+    visibility test also asserts the 250 ms immediate-poll clamp. Frontend PR,
+    CI, and merge remain pending; production is not claimed.
 
 2026-08-04 — PROJECT HOME "KEYS MISSING" FALSE ALARM (apps/build, committed
   on `feat/build-new-app-two-starts`). The Environment card warned whenever no

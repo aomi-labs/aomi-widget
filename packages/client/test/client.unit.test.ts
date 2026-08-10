@@ -373,6 +373,37 @@ describe("AomiClient account profile", () => {
     }
   });
 
+  it("sends a browser turn ID as correlation metadata", async () => {
+    const response = {
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      json: vi.fn(async () => ({
+        messages: [],
+        is_processing: true,
+        turn_id: "5d9645d3-d2f8-46d2-b6f8-b952c52a6611",
+      })),
+    } as unknown as Response;
+    const nativeFetch = vi.fn(async () => response);
+    const originalFetch = globalThis.fetch;
+    vi.stubGlobal("fetch", nativeFetch);
+
+    try {
+      const client = new AomiClient({ baseUrl: "http://unit.test" });
+
+      await client.sendMessage("session-1", "hello", {
+        app: "default",
+        turnId: "5d9645d3-d2f8-46d2-b6f8-b952c52a6611",
+      });
+
+      expect(String(nativeFetch.mock.calls[0]?.[0])).toBe(
+        "http://unit.test/api/thread/chat?app=default&message=hello&turn_id=5d9645d3-d2f8-46d2-b6f8-b952c52a6611",
+      );
+    } finally {
+      vi.stubGlobal("fetch", originalFetch);
+    }
+  });
+
   it("passes chat payment method as a query param", async () => {
     const response = {
       ok: true,
