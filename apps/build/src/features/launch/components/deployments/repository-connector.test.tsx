@@ -80,6 +80,22 @@ describe("RepositoryConnector", () => {
     expect(navigate).toHaveBeenCalledWith(
       "https://github.com/apps/aomi-build/installations/new",
     );
+    expect(screen.getByRole("button", { name: "Connecting…" })).toBeDisabled();
+  });
+
+  it("restores Connect when the GitHub hand-off cannot start", async () => {
+    githubAppInstallUrl.mockRejectedValueOnce(new Error("GitHub unavailable"));
+    render(<RepositoryConnector platform="somm.finance" navigate={vi.fn()} />);
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "GitHub repository" }),
+      { target: { value: "PeggyJV/somm-agent" } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Connect" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "GitHub unavailable",
+    );
+    expect(screen.getByRole("button", { name: "Connect" })).toBeEnabled();
   });
 
   it("explains invalid repository input without opening GitHub", () => {
