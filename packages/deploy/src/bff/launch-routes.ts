@@ -230,56 +230,6 @@ type OwnedProject = Awaited<
 >[number];
 type ActivationPair = { app: string; releaseTag: string };
 
-function releaseTagForApp(app: {
-  releaseTag?: string | null;
-  appReleaseTag?: string | null;
-}): string | null {
-  return app.releaseTag?.trim() || app.appReleaseTag?.trim() || null;
-}
-
-function deploymentContainsPair(
-  deployment: NonNullable<UserProject["latestDeployment"]>,
-  pair: ActivationPair,
-): boolean {
-  return deployment.apps.some(
-    (app) => app.name === pair.app && releaseTagForApp(app) === pair.releaseTag,
-  );
-}
-
-function projectContainsCurrentPair(
-  project: OwnedProject,
-  pair: ActivationPair,
-): boolean {
-  return (
-    (project.latestDeployment
-      ? deploymentContainsPair(project.latestDeployment, pair)
-      : false) ||
-    project.apps.some(
-      (app) =>
-        app.name === pair.app && releaseTagForApp(app) === pair.releaseTag,
-    )
-  );
-}
-
-async function activationPairsBelongToProject(
-  client: BackendClient,
-  githubUserId: string,
-  project: OwnedProject,
-  pairs: ActivationPair[],
-): Promise<boolean> {
-  const deployments = await client.listUserProjectDeployments({
-    githubUserId,
-    projectId: project.id,
-    limit: 100,
-  });
-  return pairs.every(
-    (pair) =>
-      deployments.some((deployment) =>
-        deploymentContainsPair(deployment, pair),
-      ) || projectContainsCurrentPair(project, pair),
-  );
-}
-
 /**
  * Prove the signed-in user owns `projectId` and return the project row. The
  * lookup is account-wide — partner-bound projects included — so ownership
@@ -568,20 +518,10 @@ export function createLaunchRoutes(options: LaunchRoutesOptions): LaunchRoutes {
       if (!project) {
         return jsonResponse({ error: "project not found for this user" }, 404);
       }
-      const platform = platformOf(project);
       const pairs = apps.map((app, index) => ({
         app,
         releaseTag: releaseTags[index],
       }));
-      const authorized = await activationPairsBelongToProject(
-        client,
-        session.githubUserId,
-        project,
-        pairs,
-      );
-      if (!authorized) {
-        return jsonResponse({ error: "release not found for this user" }, 404);
-      }
       const missingByApp = await missingSecretsForActivation({
         client,
         githubUserId: session.githubUserId,
@@ -594,11 +534,11 @@ export function createLaunchRoutes(options: LaunchRoutesOptions): LaunchRoutes {
           409,
         );
       }
-      const result = await client.activate({
-        platform,
-        target: { kind: "release_tags", value: releaseTags },
+      const result = await client.activateUserProjectReleases({
+        githubUserId: session.githubUserId,
+        projectId: project.id,
+        releaseTags,
         apps,
-        targetTags: cfg.targetTags,
         actor: typeof body.actor === "string" ? body.actor : undefined,
       });
       return jsonResponse(result, 200);

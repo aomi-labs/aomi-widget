@@ -14,8 +14,10 @@ import type {
   GetBuilderApplicationInput,
   GetUserProjectInput,
   GetUserObservabilityInput,
+  ActivateUserProjectReleasesInput,
   GetUserPaymentsInput,
   GetUserProjectLatestDeploymentInput,
+  GetUserProjectDeploymentInput,
   GetUserProjectRequiredSecretsInput,
   GetUserProjectUsageInput,
   GetUserStatementsInput,
@@ -23,6 +25,7 @@ import type {
   ListUserDeploymentsInput,
   ListUserLogsInput,
   ListUserProjectDeploymentsInput,
+  PromoteUserProjectDeploymentInput,
   ListUserProjectLogsInput,
   ListUserProjectTransactionsInput,
   ListUserProjectsInput,
@@ -53,6 +56,7 @@ import type {
 } from "../types";
 import {
   camelBotRegistration,
+  camelActivateResult,
   camelBuilderModelKey,
   camelLogCursor,
   camelLogRow,
@@ -286,6 +290,70 @@ export class BackendClient extends BackendPlatformClient {
           ),
       (params) => setLimit(params, input.limit),
     );
+  }
+
+  async getUserProjectDeployment(
+    input: GetUserProjectDeploymentInput,
+  ): Promise<UserProjectLatestDeployment | null> {
+    const deploymentId = required(input.deploymentId, "deploymentId");
+    return this.ownedGetLoose(
+      input,
+      `deployments/${encodeURIComponent(deploymentId)}`,
+      "get_user_project_deployment",
+      (raw) => camelUserProjectLatestDeployment(raw.deployment) ?? null,
+    );
+  }
+
+  async promoteUserProjectDeployment(
+    input: PromoteUserProjectDeploymentInput,
+  ): Promise<import("../types").PromoteResult> {
+    const deploymentId = required(input.deploymentId, "deploymentId");
+    const { projectId, params, bearer } = this.ownedOperateRequest(input);
+    const raw = await this.post<Record<string, unknown>>(
+      this.ownedProjectPath(
+        projectId,
+        `deployments/${encodeURIComponent(deploymentId)}/promote`,
+        params,
+      ),
+      {
+        mode: input.mode,
+        ...(input.apps?.length ? { apps: input.apps } : {}),
+        ...(input.actor ? { actor: input.actor } : {}),
+      },
+      "promote",
+      bearer,
+    );
+    await this.audit("promote", input.actor, { projectId, apps: input.apps ?? [] });
+    const activation = camelActivateResult(raw).activation;
+    return {
+      ok: raw.ok === true,
+      promote: {
+        deploymentId,
+        releaseTags: activation.apps
+          .map((app) => app.releaseTag)
+          .filter((tag): tag is string => Boolean(tag)),
+        status: raw.ok === true ? "promoted" : "blocked",
+        activation,
+      },
+    };
+  }
+
+  async activateUserProjectReleases(
+    input: ActivateUserProjectReleasesInput,
+  ): Promise<import("../types").ActivateResult> {
+    const { projectId, params, bearer } = this.ownedOperateRequest(input);
+    const raw = await this.post<Record<string, unknown>>(
+      this.ownedProjectPath(projectId, "releases/activate", params),
+      {
+        release_tags: input.releaseTags,
+        apps: input.apps,
+        ...(input.actor ? { actor: input.actor } : {}),
+      },
+      "activate",
+      bearer,
+    );
+    await this.audit("activate", input.actor, { projectId, apps: input.apps });
+    return camelActivateResult(raw);
   }
 
   /** One project's apps with live flags — the project-scoped replacement
