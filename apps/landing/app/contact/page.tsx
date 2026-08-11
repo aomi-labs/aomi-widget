@@ -143,7 +143,7 @@ export default function ContactPage() {
 
               {/* Discord Card */}
               <a
-                href="https://discord.gg/Ngz4KXgn"
+                href="https://discord.gg/uk5ZAMuepJ"
                 target="_blank"
                 rel="noreferrer"
                 className="group flex flex-col items-center gap-4 bg-black/20 p-8 text-center transition-all hover:bg-black/30"
