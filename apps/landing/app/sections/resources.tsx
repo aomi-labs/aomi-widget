@@ -1,3 +1,5 @@
+import { AomiLogo } from "../components/aomi-logo";
+
 export function Resources() {
   return (
     <>
@@ -162,14 +164,10 @@ export function Resources() {
           <div className="mb-12 flex w-full flex-col items-start justify-between md:flex-row md:gap-4">
             <div className="flex flex-col gap-4">
               <div className="flex items-center gap-2 text-white">
-                <img
-                  src="/assets/images/bubble.svg"
-                  alt="Aomi"
-                  className="h-5 w-5 invert"
+                <AomiLogo
+                  className="text-[20px] text-stone-100"
+                  markClassName="h-5 w-5 invert"
                 />
-                <span className="font-geist font-semibold tracking-tight text-stone-100">
-                  Aomi
-                </span>
               </div>
               <p className="font-geist max-w-xs text-xs leading-relaxed text-neutral-100">
                 The Best Blockchain Harness for Agentic Web. Top-security,
