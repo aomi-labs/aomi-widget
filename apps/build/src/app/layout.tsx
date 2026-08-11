@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, PT_Serif } from "next/font/google";
+import { ColorThemeInitializer } from "@build/components/control-plane/color-theme-initializer";
 import { COLOR_THEME_INIT_SCRIPT } from "@build/lib/color-theme";
 import "./globals.css";
 
@@ -42,6 +43,7 @@ export default function RootLayout({
         className="min-h-full font-sans antialiased"
         suppressHydrationWarning
       >
+        <ColorThemeInitializer />
         {children}
       </body>
     </html>

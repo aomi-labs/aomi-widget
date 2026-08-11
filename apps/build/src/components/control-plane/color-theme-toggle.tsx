@@ -13,7 +13,17 @@ export function ColorThemeToggle() {
   const [theme, setTheme] = useState<ColorTheme | null>(null);
 
   useEffect(() => {
-    setTheme(readColorTheme());
+    const root = document.documentElement;
+    const syncTheme = () => setTheme(readColorTheme());
+    const observer = new MutationObserver(syncTheme);
+
+    syncTheme();
+    observer.observe(root, {
+      attributes: true,
+      attributeFilter: ["class", "data-theme"],
+    });
+
+    return () => observer.disconnect();
   }, []);
 
   function toggleTheme() {

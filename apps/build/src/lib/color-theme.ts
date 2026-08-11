@@ -30,6 +30,35 @@ export function saveColorTheme(theme: ColorTheme) {
   }
 }
 
+function readStoredColorTheme(): string | null {
+  try {
+    return window.localStorage.getItem(COLOR_THEME_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function watchColorTheme(): () => void {
+  const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+  const syncTheme = () => {
+    applyColorTheme(
+      resolveColorTheme(readStoredColorTheme(), mediaQuery.matches),
+    );
+  };
+  const syncStoredTheme = (event: StorageEvent) => {
+    if (event.key === COLOR_THEME_STORAGE_KEY) syncTheme();
+  };
+
+  syncTheme();
+  mediaQuery.addEventListener("change", syncTheme);
+  window.addEventListener("storage", syncStoredTheme);
+
+  return () => {
+    mediaQuery.removeEventListener("change", syncTheme);
+    window.removeEventListener("storage", syncStoredTheme);
+  };
+}
+
 export const COLOR_THEME_INIT_SCRIPT = `(() => {
   const root = document.documentElement;
   let stored = null;

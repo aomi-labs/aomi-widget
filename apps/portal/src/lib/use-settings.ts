@@ -2,9 +2,13 @@
 
 import { useState, useEffect, useCallback } from "react";
 
-const SETTINGS_STORAGE_KEY = "aomi_settings";
+import {
+  resolveColorMode,
+  SETTINGS_STORAGE_KEY,
+  type ColorMode,
+} from "./color-theme";
 
-export type ColorMode = "light" | "dark" | "auto";
+export type { ColorMode } from "./color-theme";
 
 export interface Settings {
   incognitoMode: boolean;
@@ -54,12 +58,13 @@ export function useSettings() {
 
     const root = document.documentElement;
     const applyTheme = () => {
-      if (settings.colorMode === "auto") {
-        const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-        root.classList.toggle("dark", prefersDark);
-      } else {
-        root.classList.toggle("dark", settings.colorMode === "dark");
-      }
+      const prefersDark = window.matchMedia(
+        "(prefers-color-scheme: dark)",
+      ).matches;
+      const theme = resolveColorMode(settings.colorMode, prefersDark);
+      root.classList.toggle("dark", theme === "dark");
+      root.dataset.theme = theme;
+      root.style.colorScheme = theme;
     };
 
     applyTheme();

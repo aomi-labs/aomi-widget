@@ -315,6 +315,13 @@ Progress:
   source records as internal import/ownership metadata and only surfaces
   sources that contain at least one Aomi app, removing historical repositories
   that were bound to a platform but never became Build projects.
+
+- 2026-07-27 Cross-app system theme alignment: restored the shared “What
+  should happen on-chain?” title in the Landing demo, made Landing's
+  system-theme contract explicit, applied Portal's stored System preference
+  before hydration, and kept Build synchronized with live OS theme changes
+  until a user selects an explicit Light or Dark override.
+
 - 2026-07-27 cross-platform project discovery: the Projects index now uses the
   backend's platform-agnostic, GitHub-user-scoped source list instead of
   silently defaulting to `community`, and project links preserve each source's

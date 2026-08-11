@@ -6,6 +6,7 @@ import { CookieConsent } from "@portal/components/analytics/cookie-consent";
 import { GoogleAnalytics } from "@portal/components/analytics/google-analytics";
 import { SettingsInitializer } from "@portal/components/providers/settings-initializer";
 import { WalletProviders } from "@portal/components/providers/wallet-providers";
+import { COLOR_MODE_INIT_SCRIPT } from "@portal/lib/color-theme";
 import {
   E2E_WALLET_COOKIE,
   verifyE2EWalletCookie,
@@ -50,9 +51,13 @@ export default async function RootLayout({
   );
 
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: COLOR_MODE_INIT_SCRIPT }} />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${ptSerif.variable} font-sans antialiased`}
+        suppressHydrationWarning
       >
         <GoogleAnalytics />
         <WalletProviders
