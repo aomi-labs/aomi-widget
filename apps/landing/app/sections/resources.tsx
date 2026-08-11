@@ -273,7 +273,7 @@ export function Resources() {
                 </svg>
               </a>
               <a
-                href="https://discord.gg/YK2sqKDBYh"
+                href="https://discord.gg/uk5ZAMuepJ"
                 target="_blank"
                 rel="noreferrer"
                 className="text-neutral-200 transition-colors hover:text-white"
