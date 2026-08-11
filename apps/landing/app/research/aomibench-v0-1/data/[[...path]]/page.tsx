@@ -169,7 +169,7 @@ export default async function AomiBenchDataPage({
           aria-label="Aomi home"
           className="flex items-center gap-2 font-serif text-xl font-bold tracking-tight text-foreground"
         >
-          <AomiLogo className="text-[20px]" markClassName="h-5 w-5 dark:invert" />
+          <AomiLogo className="text-[14px]" markClassName="h-3.5 w-3.5 dark:invert" />
         </Link>
       </div>
 

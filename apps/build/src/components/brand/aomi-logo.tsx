@@ -43,7 +43,7 @@ export function AomiLogo({
   const content = (
     <div
       className={cn(
-        "flex min-w-0 items-center",
+        "flex min-w-0 items-center text-[11px]",
         markOnly ? "justify-center" : "gap-[0.34em]",
         className,
       )}
@@ -58,7 +58,7 @@ export function AomiLogo({
             aomi
           </span>
           {showBuildLabel ? (
-            <span className="bg-surface-2 text-subtle shrink-0 rounded-sm px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide">
+            <span className="bg-surface-2 text-subtle flex h-[11px] shrink-0 items-center rounded-sm px-1 text-[7px] font-medium uppercase leading-none tracking-wide">
               Build
             </span>
           ) : null}
