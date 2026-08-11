@@ -54,7 +54,13 @@ export {
   SUPPORTED_CHAINS,
 } from "@aomi-labs/react";
 export { ExtUserProvider, useUser, UserState } from "@aomi-labs/react";
-export { megaeth, monad, monadTestnet, robinhood } from "@aomi-labs/client";
+export {
+  arcTestnet,
+  megaeth,
+  monad,
+  monadTestnet,
+  robinhood,
+} from "@aomi-labs/client";
 export type {
   AomiWalletKit,
   AomiWalletKit as AomiAuthAdapter,

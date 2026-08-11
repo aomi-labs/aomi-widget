@@ -388,6 +388,8 @@ export const getNetworkName = (
       return "monad-testnet";
     case 4326:
       return "megaeth";
+    case 5042002:
+      return "arc-testnet";
     case 1337:
     case 31337:
       return "testnet";

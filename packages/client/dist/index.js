@@ -4247,6 +4247,34 @@ var megaeth = defineChain({
     }
   }
 });
+var arcTestnet = defineChain({
+  id: 5042002,
+  name: "Arc Testnet",
+  nativeCurrency: {
+    name: "USDC",
+    symbol: "USDC",
+    // Arc RPC quantities use 18-decimal native precision, but EIP-3085 chain
+    // metadata uses USDC's 6 display decimals. Callers handling raw
+    // eth_getBalance/msg.value must retain the 18-decimal internal boundary.
+    decimals: 6
+  },
+  rpcUrls: {
+    default: {
+      http: [
+        "https://rpc.testnet.arc.io",
+        "https://rpc.drpc.testnet.arc.io",
+        "https://rpc.quicknode.testnet.arc.io"
+      ]
+    }
+  },
+  blockExplorers: {
+    default: {
+      name: "ArcScan",
+      url: "https://testnet.arcscan.app"
+    }
+  },
+  testnet: true
+});
 var SUPPORTED_CHAINS = [
   { id: 1, name: "Ethereum", ticker: "ETH" },
   { id: 137, name: "Polygon", ticker: "MATIC" },
@@ -4261,6 +4289,7 @@ var SUPPORTED_CHAINS = [
   { id: 10143, name: "Monad Testnet", ticker: "MON" },
   { id: 4663, name: "Robinhood Chain", ticker: "ETH" },
   { id: 4326, name: "MegaETH", ticker: "ETH" },
+  { id: 5042002, name: "Arc Testnet", ticker: "USDC" },
   { id: 31337, name: "Anvil (local)", ticker: "ETH" }
 ];
 var SUPPORTED_CHAIN_IDS = SUPPORTED_CHAINS.map((chain) => chain.id);
@@ -4294,6 +4323,7 @@ var CHAINS_BY_ID = {
   10143: monadTestnet,
   4663: robinhood,
   4326: megaeth,
+  5042002: arcTestnet,
   31337: foundry
 };
 
@@ -4663,6 +4693,7 @@ export {
   aaModeFromExecutionKind,
   appIdentityKey,
   appendFeeCallToPayload,
+  arcTestnet,
   authorizationChallenge,
   authorizationCommit,
   buildFeeAAWalletCall,

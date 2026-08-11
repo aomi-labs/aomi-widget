@@ -1,5 +1,17 @@
 # Auth BFF BetterAuth Cleanup Goal
 
+## Arc Testnet staging support
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED; STAGING ROLLOUT IN
+PROGRESS 2026-08-10** — add Arc Testnet (`5042002`) across the shared chain
+catalog, wallet providers, server-side SIWE verification, and Portal network
+selection. Disconnected read-only chat retains the selected chain instead of
+falling back to Ethereum. Arc is represented as USDC-native with 6 display
+decimals while backend RPC accounting retains 18-decimal native precision.
+Publishable packages are patch-bumped to `@aomi-labs/account@0.1.12`,
+`@aomi-labs/client@0.4.5`, `@aomi-labs/react@0.5.12`, and
+`@aomi-labs/widget-lib@1.4.27`.
+
 ## Browser Response Latency
 
 Current session goal: **SIMPLIFIED AND LOCALLY VERIFIED 2026-08-10** — improve

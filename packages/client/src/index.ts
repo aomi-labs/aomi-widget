@@ -193,6 +193,7 @@ export {
   CHAINS_BY_ID,
   SUPPORTED_CHAINS,
   SUPPORTED_CHAIN_IDS,
+  arcTestnet,
   monad,
   monadTestnet,
   megaeth,

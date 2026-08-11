@@ -15,6 +15,7 @@ import {
 } from "@getpara/react-sdk";
 import { defineChain, http, type Chain, type Transport } from "viem";
 import {
+  arcTestnet,
   megaeth,
   monad,
   monadTestnet,
@@ -65,6 +66,7 @@ const defaultNetworks = [
   monadTestnet,
   robinhood,
   megaeth,
+  arcTestnet,
 ] as const;
 
 export const networks = (

@@ -77,7 +77,9 @@ export function selectEvmIdentity(
         walletName: activeConnection.walletName,
         walletSource,
       }
-    : {};
+    : selectedChainId === undefined
+      ? {}
+      : { chainId: selectedChainId };
   const explicitDisconnect = Boolean(
     state.evmGrace.last?.address &&
     state.intents.droppedAddresses.includes(
