@@ -8,12 +8,17 @@ import {
   Wallet as WalletIcon,
 } from "lucide-react";
 import type { CatalogPackage } from "./packages-catalog";
+import {
+  ARC_TESTNET_CHAIN_ID,
+  isPackageAvailableOnChain,
+} from "./packages-catalog";
 
 interface PackageRowProps {
   app: CatalogPackage;
   installed: boolean;
   busy: boolean;
   disabled: boolean;
+  activeChainId?: number;
   onInstall: () => void;
   onUninstall: () => void;
 }
@@ -23,14 +28,26 @@ export function PackageRow({
   installed,
   busy,
   disabled,
+  activeChainId,
   onInstall,
   onUninstall,
 }: PackageRowProps) {
+  const chainAvailable = isPackageAvailableOnChain(app, activeChainId);
+  const arcOnly =
+    app.chainIds.length === 1 && app.chainIds[0] === ARC_TESTNET_CHAIN_ID;
+
   return (
     <article className="border-aomi-border group flex min-h-[72px] items-center gap-3 border-b py-3">
       <PackageIcon app={app} />
       <div className="min-w-0 flex-1">
-        <h3 className="truncate text-[13px] font-semibold">{app.name}</h3>
+        <h3 className="flex items-center gap-1.5 truncate text-[13px] font-semibold">
+          <span className="truncate">{app.name}</span>
+          {arcOnly ? (
+            <span className="border-aomi-border text-aomi-muted shrink-0 rounded-full border px-1.5 py-0.5 text-[10px] font-medium">
+              Arc only
+            </span>
+          ) : null}
+        </h3>
         <p className="text-aomi-muted mt-0.5 truncate text-xs">
           {app.description}
         </p>
@@ -67,7 +84,17 @@ export function PackageRow({
         <button
           type="button"
           onClick={onInstall}
-          disabled={disabled}
+          disabled={disabled || !chainAvailable}
+          title={
+            chainAvailable
+              ? `Install ${app.name}`
+              : `Switch to Arc Testnet to install ${app.name}`
+          }
+          aria-label={
+            chainAvailable
+              ? `Install ${app.name}`
+              : `Switch to Arc Testnet to install ${app.name}`
+          }
           className="border-aomi-border hover:bg-aomi-hover flex w-[82px] flex-shrink-0 items-center justify-center rounded-lg border px-3 py-2 text-[13px] font-medium transition-colors disabled:opacity-50"
         >
           {busy ? <Loader2 size={14} className="animate-spin" /> : "Install"}

@@ -740,7 +740,7 @@ function createSseSubscriber({
 
 // src/app-descriptor.ts
 function normalizeAppDescriptor(item) {
-  var _a, _b;
+  var _a, _b, _c;
   if (typeof item === "string") {
     const name2 = item.trim();
     return name2 ? { name: name2 } : null;
@@ -779,13 +779,24 @@ function normalizeAppDescriptor(item) {
     descriptor.artifactReady = raw.artifact_ready;
   }
   descriptor.secrets = Array.isArray(raw.secrets) ? raw.secrets : [];
+  const rawChainIds = (_c = raw.chainIds) != null ? _c : raw.chain_ids;
+  if (Array.isArray(rawChainIds)) {
+    descriptor.chainIds = [
+      ...new Set(
+        rawChainIds.filter(
+          (chainId3) => typeof chainId3 === "number" && Number.isSafeInteger(chainId3) && chainId3 > 0
+        )
+      )
+    ].sort((left, right) => left - right);
+  }
   for (const key of [
     "id",
     "application_id",
     "app_release_tag",
     "is_active",
     "is_public",
-    "artifact_ready"
+    "artifact_ready",
+    "chain_ids"
   ]) {
     delete descriptor[key];
   }

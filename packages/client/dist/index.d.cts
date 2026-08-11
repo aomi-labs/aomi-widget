@@ -507,6 +507,8 @@ interface AomiAppDescriptor {
     isPublic?: boolean | null;
     artifactReady?: boolean | null;
     secrets?: AomiSecretSlot[];
+    /** Exact EVM chain IDs declared by the official app release. */
+    chainIds?: number[];
 }
 type AomiSSEEventType = "title_changed" | "tool_update" | "tool_complete" | "system_notice" | AomiTaskEventType;
 /**

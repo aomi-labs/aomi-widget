@@ -9,8 +9,12 @@ selection. Disconnected read-only chat retains the selected chain instead of
 falling back to Ethereum. Arc is represented as USDC-native with 6 display
 decimals while backend RPC accounting retains 18-decimal native precision.
 Publishable packages are patch-bumped to `@aomi-labs/account@0.1.12`,
-`@aomi-labs/client@0.4.5`, `@aomi-labs/react@0.5.12`, and
+`@aomi-labs/client@0.4.6`, `@aomi-labs/react@0.5.12`, and
 `@aomi-labs/widget-lib@1.4.27`.
+
+The official package catalog now accepts exact chain IDs from release
+metadata. Circle StableFX is decorated as an Arc-only package, remains visible
+on other networks, and cannot be installed until Arc Testnet is selected.
 
 ## Browser Response Latency
 

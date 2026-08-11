@@ -13,7 +13,9 @@ import type { AomiAppDescriptor } from "./types";
  * object) into a single camelCase {@link AomiAppDescriptor}. Returns null for
  * anything without a usable `name`.
  */
-export function normalizeAppDescriptor(item: unknown): AomiAppDescriptor | null {
+export function normalizeAppDescriptor(
+  item: unknown,
+): AomiAppDescriptor | null {
   if (typeof item === "string") {
     const name = item.trim();
     return name ? { name } : null;
@@ -55,6 +57,19 @@ export function normalizeAppDescriptor(item: unknown): AomiAppDescriptor | null 
     descriptor.artifactReady = raw.artifact_ready;
   }
   descriptor.secrets = Array.isArray(raw.secrets) ? raw.secrets : [];
+  const rawChainIds = raw.chainIds ?? raw.chain_ids;
+  if (Array.isArray(rawChainIds)) {
+    descriptor.chainIds = [
+      ...new Set(
+        rawChainIds.filter(
+          (chainId): chainId is number =>
+            typeof chainId === "number" &&
+            Number.isSafeInteger(chainId) &&
+            chainId > 0,
+        ),
+      ),
+    ].sort((left, right) => left - right);
+  }
   // Drop the source twins carried over by the spread so the descriptor exposes
   // a single camelCase identity (no `id`/`application_id`/`applicationId`
   // triplets downstream).
@@ -65,6 +80,7 @@ export function normalizeAppDescriptor(item: unknown): AomiAppDescriptor | null 
     "is_active",
     "is_public",
     "artifact_ready",
+    "chain_ids",
   ]) {
     delete (descriptor as unknown as Record<string, unknown>)[key];
   }
