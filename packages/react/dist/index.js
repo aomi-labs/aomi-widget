@@ -3019,7 +3019,7 @@ function useWalletStateSync(context, sessions, remoteThreads) {
   const lastWalletStateRef = useRef8(walletSnapshot(getUserState()));
   useEffect7(() => {
     lastWalletStateRef.current = walletSnapshot(getUserState());
-    const unsubscribe = onUserStateChange(async (newUser) => {
+    const unsubscribe = onUserStateChange((newUser) => {
       var _a, _b;
       const nextWalletState = walletSnapshot(newUser);
       const prevWalletState = lastWalletStateRef.current;
@@ -3048,8 +3048,10 @@ function useWalletStateSync(context, sessions, remoteThreads) {
         type: "wallet:state_changed",
         payload: nextWalletState
       });
-      await aomiClientRef.current.sendSystemMessage(sessionId, message, {
+      void aomiClientRef.current.sendSystemMessage(sessionId, message, {
         app: getCurrentThreadApp()
+      }).catch((error) => {
+        console.warn("Failed to sync wallet state:", error);
       });
     });
     return unsubscribe;

@@ -1,5 +1,15 @@
 # Auth BFF BetterAuth Cleanup Goal
 
+## Safari wallet-state sync containment
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED; STAGING ROLLOUT IN
+PROGRESS 2026-08-10** — keep a
+best-effort wallet-state notification failure from becoming an unhandled
+promise rejection when an anonymous user changes networks. The regression was
+reproduced in WebKit by selecting Arc Testnet and receiving an expected 401
+from `/api/system`; the React package is patch-bumped to
+`@aomi-labs/react@0.5.13`.
+
 ## Arc Testnet staging support
 
 Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED; STAGING ROLLOUT IN
