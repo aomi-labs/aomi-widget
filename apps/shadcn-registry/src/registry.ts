@@ -76,7 +76,6 @@ export const registry: RegistryComponent[] = [
       "lib/wallet-kit/providers/plugin-registry.ts",
       "lib/wallet-kit/execution/backend-aa-context.tsx",
       "lib/wallet-kit/execution/execution-runtime.ts",
-      "lib/wallet-kit/execution/owner-signer.ts",
       "lib/wallet-kit/execution/wallet-execution.ts",
       "lib/wallet-kit/full-testnet-config.ts",
       "lib/wallet-kit/full-testnet-wallet-routing.tsx",

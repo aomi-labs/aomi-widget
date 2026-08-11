@@ -139,8 +139,8 @@ export type {
   SessionEventMap,
   SendResult,
   WalletRequest,
-  WalletAaSignPayload,
-  WalletAaSignatureRequest,
+  WalletSignablePayload,
+  WalletSigningPayload,
   WalletRequestKind,
   WalletRequestResult,
 } from "./session";

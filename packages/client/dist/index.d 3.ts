@@ -1141,7 +1141,7 @@ type WalletEip712Payload = {
     chainId?: number;
 };
 /**
- * Legacy internal SVM payload projected into the public `wallet_signing_request`.
+ * Wire payload for `wallet::solana_sign_request`. Mirrors `WalletEip712Payload`
  * in shape — singular sign-only — but carries a base64-encoded serialized
  * Solana transaction instead of EIP-712 typed data.
  *
@@ -1203,7 +1203,7 @@ declare function parseChainId(value: unknown): number | undefined;
 declare function normalizeTxPayload(payload: unknown): WalletTxPayload | null;
 declare function hydrateTxPayloadFromUserState(payload: WalletTxPayload, userState: unknown, options?: HydrateTxPayloadOptions): WalletTxPayload;
 /**
- * Normalize a legacy internal SVM request into a consistent shape.
+ * Normalize a `wallet::solana_sign_request` payload into a consistent shape.
  *
  * Accepts the various nesting levels the backend can ship: top-level args,
  * `{ args: { ... } }`, snake_case (`unsigned_tx`, `pending_solana_id`) or
@@ -1468,9 +1468,9 @@ declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
      */
     reject(requestId: string, reason?: string): Promise<void>;
     /**
-     * Drop a pending wallet request locally without completing it. Hosts should
-     * normally use `resolve` or `reject`; this is reserved for externally
-     * acknowledged lifecycle cleanup.
+     * Drop a pending wallet request without emitting a resolve/reject wire
+     * event. Used by operation-scoped flows (AA) that acknowledge completion
+     * through a dedicated HTTP endpoint instead of the session event channel.
      */
     dismiss(requestId: string): void;
     /**

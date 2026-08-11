@@ -9,26 +9,24 @@ import type {
   AomiClientType,
   UserState as UserStateShape,
 } from "../user-state";
-import type {
-  WalletEip712Payload,
-  WalletSolanaSignMessagePayload,
-  WalletSolanaSignPayload,
-  WalletTxPayload,
-} from "../wallet-utils";
+import type { WalletSolanaSignPayload, WalletTxPayload } from "../wallet-utils";
 
 export type WalletRequestKind =
   | "transaction"
-  | "aa_sign"
-  | "eip712_sign"
-  | "solana_sign"
-  | "solana_sign_message"
+  | "signing"
   | "solana_send"
   | "solana_sign_and_send";
 
-export type WalletAaSignatureRequest = {
-  kind: "personal_sign";
-  message: `0x${string}`;
-};
+export type WalletSignablePayload =
+  | { kind: "evm_personal"; message: `0x${string}` }
+  | {
+      kind: "evm_typed_data";
+      typedData: NonNullable<
+        import("../wallet-utils").WalletEip712Payload["typed_data"]
+      >;
+    }
+  | { kind: "svm_message"; messageBase64: string }
+  | { kind: "svm_transaction"; transactionBase64: string };
 
 export type WalletAaDisplayCall = {
   to: `0x${string}`;
@@ -43,16 +41,23 @@ export type WalletAaFeeDisclosure = {
   call: WalletAaDisplayCall;
 };
 
-export type WalletAaSignPayload = {
-  operationId: string;
-  chainId: number;
-  owner: `0x${string}`;
-  executor: `0x${string}`;
-  expiresAt: string;
-  callsDigest: `0x${string}`;
-  calls: WalletAaDisplayCall[];
-  fees: WalletAaFeeDisclosure[];
-  signatureRequests: WalletAaSignatureRequest[];
+export type WalletSigningPayload = {
+  requestId: string;
+  chainFamily: "evm" | "svm";
+  executionKind: "message" | "transaction" | "erc4337";
+  signer: string;
+  chainId?: number;
+  cluster?: string;
+  description: string;
+  payloads: WalletSignablePayload[];
+  broadcaster?: string;
+  operationId?: string;
+  executor?: `0x${string}`;
+  expiresAt?: string;
+  callsDigest?: `0x${string}`;
+  calls?: WalletAaDisplayCall[];
+  fees?: WalletAaFeeDisclosure[];
+  sponsorship?: "required";
 };
 
 /** @deprecated Wallet callbacks are session-owned as of client 0.4.0. */
@@ -72,26 +77,8 @@ export type WalletRequest =
     }
   | {
       id: string;
-      kind: "aa_sign";
-      payload: WalletAaSignPayload;
-      timestamp: number;
-    }
-  | {
-      id: string;
-      kind: "eip712_sign";
-      payload: WalletEip712Payload;
-      timestamp: number;
-    }
-  | {
-      id: string;
-      kind: "solana_sign";
-      payload: WalletSolanaSignPayload;
-      timestamp: number;
-    }
-  | {
-      id: string;
-      kind: "solana_sign_message";
-      payload: WalletSolanaSignMessagePayload;
+      kind: "signing";
+      payload: WalletSigningPayload;
       timestamp: number;
     }
   | {
@@ -139,17 +126,8 @@ export type WalletRequestResult =
       failureReason?: string;
     }
   | {
-      kind: "eip712_sign";
-      signature: string;
-    }
-  | {
-      kind: "solana_sign";
-      /** Base64 of the full signed Solana transaction bytes. */
-      signedTx: string;
-    }
-  | {
-      kind: "solana_sign_message";
-      signature: string;
+      kind: "signing";
+      signatures: string[];
     }
   | {
       kind: "solana_send";
@@ -206,10 +184,7 @@ export type SessionRuntimeOptions = {
 
 export type SessionEventMap = {
   wallet_tx_request: WalletRequest;
-  wallet_aa_sign_request: WalletRequest;
-  wallet_eip712_request: WalletRequest;
-  wallet_solana_sign_request: WalletRequest;
-  wallet_solana_sign_message_request: WalletRequest;
+  wallet_signing_request: WalletRequest;
   wallet_solana_send_request: WalletRequest;
   wallet_solana_sign_and_send_request: WalletRequest;
   system_notice: { message: string };

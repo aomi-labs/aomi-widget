@@ -8,12 +8,10 @@ import type {
 } from "../types";
 import type { UserState as UserStateShape } from "../user-state";
 import type { SessionEventMap } from "./types";
-import type { WalletAaSignPayload, WalletAaSignatureRequest } from "./types";
+import type { WalletSignablePayload, WalletSigningPayload } from "./types";
 import type { SessionWalletController } from "./wallet";
 import {
   hydrateTxPayloadFromUserState,
-  normalizeEip712Payload,
-  normalizeSolanaSignMessagePayload,
   normalizeSolanaSignPayload,
   normalizeSolanaWalletRequest,
   normalizeTxPayload,
@@ -74,48 +72,95 @@ function isHexString(value: unknown): value is `0x${string}` {
   return typeof value === "string" && /^0x[0-9a-fA-F]*$/.test(value);
 }
 
-function normalizeAaSignatureRequest(
+function isOpaqueSigningRequestId(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    /^sign:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      value,
+    )
+  );
+}
+
+function normalizeSignablePayload(
   value: unknown,
-): WalletAaSignatureRequest | null {
+): WalletSignablePayload | null {
   if (!isRecord(value)) return null;
-  if (value.kind === "personal_sign" && isHexString(value.message)) {
-    return {
-      kind: value.kind,
-      message: value.message,
-    };
+  if (value.kind === "evm_personal" && isHexString(value.message)) {
+    return { kind: value.kind, message: value.message };
+  }
+  if (value.kind === "evm_typed_data" && isRecord(value.typed_data)) {
+    return { kind: value.kind, typedData: value.typed_data };
+  }
+  if (
+    value.kind === "svm_message" &&
+    typeof value.message_base64 === "string"
+  ) {
+    return { kind: value.kind, messageBase64: value.message_base64 };
+  }
+  if (
+    value.kind === "svm_transaction" &&
+    typeof value.transaction_base64 === "string"
+  ) {
+    return { kind: value.kind, transactionBase64: value.transaction_base64 };
   }
   return null;
 }
 
-function normalizeAaSignPayload(value: unknown): WalletAaSignPayload | null {
+function normalizeSigningPayload(value: unknown): WalletSigningPayload | null {
   if (!isRecord(value)) return null;
-  const requests = Array.isArray(value.signatureRequests)
-    ? value.signatureRequests.map(normalizeAaSignatureRequest)
+  const payloads = Array.isArray(value.payloads)
+    ? value.payloads.map(normalizeSignablePayload)
     : [];
   if (
-    typeof value.operationId !== "string" ||
-    typeof value.chainId !== "number" ||
-    !isHexString(value.owner) ||
-    !isHexString(value.executor) ||
-    typeof value.expiresAt !== "string" ||
-    !isHexString(value.callsDigest) ||
-    !Array.isArray(value.calls) ||
-    !Array.isArray(value.fees) ||
-    requests.length === 0 ||
-    requests.some((request) => request === null)
+    !isOpaqueSigningRequestId(value.requestId) ||
+    (value.chainFamily !== "evm" && value.chainFamily !== "svm") ||
+    (value.executionKind !== "message" &&
+      value.executionKind !== "transaction" &&
+      value.executionKind !== "erc4337") ||
+    (value.executionKind === "erc4337" && value.chainFamily !== "evm") ||
+    typeof value.signer !== "string" ||
+    typeof value.description !== "string" ||
+    payloads.length === 0 ||
+    payloads.some((payload) => payload === null) ||
+    payloads.some((payload) =>
+      value.chainFamily === "evm"
+        ? !payload?.kind.startsWith("evm_")
+        : !payload?.kind.startsWith("svm_"),
+    )
   ) {
     return null;
   }
   return {
-    operationId: value.operationId,
-    chainId: value.chainId,
-    owner: value.owner,
-    executor: value.executor,
-    expiresAt: value.expiresAt,
-    callsDigest: value.callsDigest,
-    calls: value.calls as WalletAaSignPayload["calls"],
-    fees: value.fees as WalletAaSignPayload["fees"],
-    signatureRequests: requests as WalletAaSignatureRequest[],
+    requestId: value.requestId,
+    chainFamily: value.chainFamily,
+    executionKind: value.executionKind,
+    signer: value.signer,
+    description: value.description,
+    payloads: payloads as WalletSignablePayload[],
+    ...(typeof value.chainId === "number" ? { chainId: value.chainId } : {}),
+    ...(typeof value.cluster === "string" ? { cluster: value.cluster } : {}),
+    ...(typeof value.broadcaster === "string"
+      ? { broadcaster: value.broadcaster }
+      : {}),
+    ...(typeof value.operationId === "string"
+      ? { operationId: value.operationId }
+      : {}),
+    ...(isHexString(value.executor) ? { executor: value.executor } : {}),
+    ...(typeof value.expiresAt === "string"
+      ? { expiresAt: value.expiresAt }
+      : {}),
+    ...(isHexString(value.callsDigest)
+      ? { callsDigest: value.callsDigest }
+      : {}),
+    ...(Array.isArray(value.calls)
+      ? { calls: value.calls as WalletSigningPayload["calls"] }
+      : {}),
+    ...(Array.isArray(value.fees)
+      ? { fees: value.fees as WalletSigningPayload["fees"] }
+      : {}),
+    ...(value.sponsorship === "required"
+      ? { sponsorship: "required" as const }
+      : {}),
   };
 }
 
@@ -175,7 +220,7 @@ export function handleSessionSSEEvent(
     }
   } else if (
     event.type === "wallet_tx_request" ||
-    event.type === "wallet_eip712_request" ||
+    event.type === "wallet_signing_request" ||
     event.type.startsWith("wallet::solana_")
   ) {
     dispatchSystemEvents(
@@ -197,13 +242,7 @@ function dispatchSolanaRequest(
   deps: StateDeps,
 ): void {
   let queued: WalletRequest;
-  if (request.kind === "solana_sign_message") {
-    queued = deps.walletController.enqueue(request.kind, request.payload);
-    deps.emit("wallet_solana_sign_message_request", queued);
-  } else if (request.kind === "solana_sign") {
-    queued = deps.walletController.enqueue("solana_sign", request.payload);
-    deps.emit("wallet_solana_sign_request", queued);
-  } else if (request.kind === "solana_send") {
+  if (request.kind === "solana_send") {
     queued = deps.walletController.enqueue("solana_send", request.payload);
     deps.emit("wallet_solana_send_request", queued);
   } else {
@@ -223,11 +262,11 @@ function dispatchSystemEvents(
     const unwrapped = unwrapSystemEvent(event);
     if (!unwrapped) continue;
 
-    if (unwrapped.type === "wallet_aa_sign_request") {
-      const payload = normalizeAaSignPayload(unwrapped.payload);
+    if (unwrapped.type === "wallet_signing_request") {
+      const payload = normalizeSigningPayload(unwrapped.payload);
       if (payload) {
-        const req = deps.walletController.enqueue("aa_sign", payload);
-        deps.emit("wallet_aa_sign_request", req);
+        const req = deps.walletController.enqueue("signing", payload);
+        deps.emit("wallet_signing_request", req);
       }
     } else if (unwrapped.type === "wallet_tx_request") {
       const solanaRequest = normalizeSolanaWalletRequest(
@@ -246,28 +285,6 @@ function dispatchSystemEvents(
         const req = deps.walletController.enqueue("transaction", payload);
         deps.emit("wallet_tx_request", req);
       }
-    } else if (unwrapped.type === "wallet_eip712_request") {
-      const payload = normalizeEip712Payload(unwrapped.payload ?? {});
-      const req = deps.walletController.enqueue("eip712_sign", payload);
-      deps.emit("wallet_eip712_request", req);
-    } else if (unwrapped.type === "wallet::solana_sign_request") {
-      const solanaRequest = normalizeSolanaWalletRequest(
-        unwrapped.payload ?? {},
-      );
-      if (solanaRequest) {
-        dispatchSolanaRequest(solanaRequest, deps);
-        continue;
-      }
-
-      const payload = normalizeSolanaSignPayload(unwrapped.payload ?? {});
-      const req = deps.walletController.enqueue("solana_sign", payload);
-      deps.emit("wallet_solana_sign_request", req);
-    } else if (unwrapped.type === "wallet::solana_sign_message_request") {
-      const payload = normalizeSolanaSignMessagePayload(
-        unwrapped.payload ?? {},
-      );
-      const req = deps.walletController.enqueue("solana_sign_message", payload);
-      deps.emit("wallet_solana_sign_message_request", req);
     } else if (unwrapped.type === "wallet::solana_send_request") {
       const payload = normalizeSolanaSignPayload(unwrapped.payload ?? {});
       const req = deps.walletController.enqueue("solana_send", payload);

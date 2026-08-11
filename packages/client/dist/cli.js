@@ -2665,9 +2665,6 @@ function parseBoolean(value) {
   if (normalized === "false" || normalized === "0") return false;
   return void 0;
 }
-function parseString(value) {
-  return typeof value === "string" ? value : void 0;
-}
 function isHexBytes(value) {
   return /^0x(?:[0-9a-fA-F]{2})*$/.test(value);
 }
@@ -2836,33 +2833,6 @@ function normalizeSolanaWalletRequest(payload) {
   const normalized = normalizeSolanaSignPayload(payload);
   return normalized.unsignedTx ? { kind, payload: normalized } : null;
 }
-function normalizeEip712Payload(payload) {
-  var _a3, _b, _c, _d, _e;
-  const args = getToolArgs(payload);
-  const typedDataRaw = (_b = (_a3 = args.typed_data) != null ? _a3 : args["712_typed_data"]) != null ? _b : args.typedData;
-  const nonTypedData = parseString((_c = args.non_typed_data) != null ? _c : args.nonTypedData);
-  let typedData;
-  if (typeof typedDataRaw === "string") {
-    try {
-      const parsed = JSON.parse(typedDataRaw);
-      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-        typedData = parsed;
-      }
-    } catch (e) {
-      typedData = void 0;
-    }
-  } else if (typedDataRaw && typeof typedDataRaw === "object" && !Array.isArray(typedDataRaw)) {
-    typedData = typedDataRaw;
-  }
-  const description = typeof args.description === "string" ? args.description : void 0;
-  const eip712Id = (_e = (_d = parsePendingId(args.eip712Id)) != null ? _d : parsePendingId(args.pending_eip712_id)) != null ? _e : parsePendingId(args.pendingEip712Id);
-  return {
-    typed_data: typedData,
-    non_typed_data: nonTypedData,
-    description,
-    eip712Id
-  };
-}
 function toAAWalletCalls(payload, defaultChainId = 1) {
   var _a3, _b;
   const calls = ((_a3 = payload.calls) == null ? void 0 : _a3.length) ? payload.calls : payload.to ? [
@@ -2949,33 +2919,36 @@ function isRecord(value) {
 function isHexString(value) {
   return typeof value === "string" && /^0x[0-9a-fA-F]*$/.test(value);
 }
-function normalizeAaSignatureRequest(value) {
+function normalizeSignablePayload(value) {
   if (!isRecord(value)) return null;
-  if (value.kind === "personal_sign" && isHexString(value.message)) {
-    return {
-      kind: value.kind,
-      message: value.message
-    };
+  if (value.kind === "evm_personal" && isHexString(value.message)) {
+    return { kind: value.kind, message: value.message };
+  }
+  if (value.kind === "evm_typed_data" && isRecord(value.typed_data)) {
+    return { kind: value.kind, typedData: value.typed_data };
+  }
+  if (value.kind === "svm_message" && typeof value.message_base64 === "string") {
+    return { kind: value.kind, messageBase64: value.message_base64 };
+  }
+  if (value.kind === "svm_transaction" && typeof value.transaction_base64 === "string") {
+    return { kind: value.kind, transactionBase64: value.transaction_base64 };
   }
   return null;
 }
-function normalizeAaSignPayload(value) {
+function normalizeSigningPayload(value) {
   if (!isRecord(value)) return null;
-  const requests = Array.isArray(value.signatureRequests) ? value.signatureRequests.map(normalizeAaSignatureRequest) : [];
-  if (typeof value.operationId !== "string" || typeof value.chainId !== "number" || !isHexString(value.owner) || !isHexString(value.executor) || typeof value.expiresAt !== "string" || !isHexString(value.callsDigest) || !Array.isArray(value.calls) || !Array.isArray(value.fees) || requests.length === 0 || requests.some((request) => request === null)) {
+  const payloads = Array.isArray(value.payloads) ? value.payloads.map(normalizeSignablePayload) : [];
+  if (typeof value.requestId !== "string" || !value.requestId.startsWith("sign:") || value.requestId.includes("evm_sig") || value.requestId.includes("svm_sig") || value.requestId.includes("aa:") || value.chainFamily !== "evm" && value.chainFamily !== "svm" || value.executionKind !== "message" && value.executionKind !== "transaction" && value.executionKind !== "erc4337" || value.executionKind === "erc4337" && value.chainFamily !== "evm" || typeof value.signer !== "string" || typeof value.description !== "string" || payloads.length === 0 || payloads.some((payload) => payload === null)) {
     return null;
   }
-  return {
-    operationId: value.operationId,
-    chainId: value.chainId,
-    owner: value.owner,
-    executor: value.executor,
-    expiresAt: value.expiresAt,
-    callsDigest: value.callsDigest,
-    calls: value.calls,
-    fees: value.fees,
-    signatureRequests: requests
-  };
+  return __spreadValues(__spreadValues(__spreadValues(__spreadValues(__spreadValues(__spreadValues(__spreadValues(__spreadValues(__spreadValues(__spreadValues({
+    requestId: value.requestId,
+    chainFamily: value.chainFamily,
+    executionKind: value.executionKind,
+    signer: value.signer,
+    description: value.description,
+    payloads
+  }, typeof value.chainId === "number" ? { chainId: value.chainId } : {}), typeof value.cluster === "string" ? { cluster: value.cluster } : {}), typeof value.broadcaster === "string" ? { broadcaster: value.broadcaster } : {}), typeof value.operationId === "string" ? { operationId: value.operationId } : {}), isHexString(value.executor) ? { executor: value.executor } : {}), typeof value.expiresAt === "string" ? { expiresAt: value.expiresAt } : {}), isHexString(value.callsDigest) ? { callsDigest: value.callsDigest } : {}), Array.isArray(value.calls) ? { calls: value.calls } : {}), Array.isArray(value.fees) ? { fees: value.fees } : {}), value.sponsorship === "required" ? { sponsorship: "required" } : {});
 }
 function applySessionState(state, deps) {
   var _a3;
@@ -3014,7 +2987,7 @@ function handleSessionSSEEvent(event, deps) {
         deps.emit("task_completed", taskEvent);
       }
     }
-  } else if (event.type === "wallet_tx_request" || event.type === "wallet_eip712_request" || event.type.startsWith("wallet::solana_")) {
+  } else if (event.type === "wallet_tx_request" || event.type === "wallet_signing_request" || event.type.startsWith("wallet::solana_")) {
     dispatchSystemEvents(
       [
         {
@@ -3030,13 +3003,7 @@ function handleSessionSSEEvent(event, deps) {
 }
 function dispatchSolanaRequest(request, deps) {
   let queued;
-  if (request.kind === "solana_sign_message") {
-    queued = deps.walletController.enqueue(request.kind, request.payload);
-    deps.emit("wallet_solana_sign_message_request", queued);
-  } else if (request.kind === "solana_sign") {
-    queued = deps.walletController.enqueue("solana_sign", request.payload);
-    deps.emit("wallet_solana_sign_request", queued);
-  } else if (request.kind === "solana_send") {
+  if (request.kind === "solana_send") {
     queued = deps.walletController.enqueue("solana_send", request.payload);
     deps.emit("wallet_solana_send_request", queued);
   } else {
@@ -3048,15 +3015,15 @@ function dispatchSolanaRequest(request, deps) {
   }
 }
 function dispatchSystemEvents(events, deps) {
-  var _a3, _b, _c, _d, _e, _f, _g;
+  var _a3, _b, _c;
   for (const event of events) {
     const unwrapped = unwrapSystemEvent(event);
     if (!unwrapped) continue;
-    if (unwrapped.type === "wallet_aa_sign_request") {
-      const payload = normalizeAaSignPayload(unwrapped.payload);
+    if (unwrapped.type === "wallet_signing_request") {
+      const payload = normalizeSigningPayload(unwrapped.payload);
       if (payload) {
-        const req = deps.walletController.enqueue("aa_sign", payload);
-        deps.emit("wallet_aa_sign_request", req);
+        const req = deps.walletController.enqueue("signing", payload);
+        deps.emit("wallet_signing_request", req);
       }
     } else if (unwrapped.type === "wallet_tx_request") {
       const solanaRequest = normalizeSolanaWalletRequest(
@@ -3072,33 +3039,12 @@ function dispatchSystemEvents(events, deps) {
         const req = deps.walletController.enqueue("transaction", payload);
         deps.emit("wallet_tx_request", req);
       }
-    } else if (unwrapped.type === "wallet_eip712_request") {
-      const payload = normalizeEip712Payload((_b = unwrapped.payload) != null ? _b : {});
-      const req = deps.walletController.enqueue("eip712_sign", payload);
-      deps.emit("wallet_eip712_request", req);
-    } else if (unwrapped.type === "wallet::solana_sign_request") {
-      const solanaRequest = normalizeSolanaWalletRequest(
-        (_c = unwrapped.payload) != null ? _c : {}
-      );
-      if (solanaRequest) {
-        dispatchSolanaRequest(solanaRequest, deps);
-        continue;
-      }
-      const payload = normalizeSolanaSignPayload((_d = unwrapped.payload) != null ? _d : {});
-      const req = deps.walletController.enqueue("solana_sign", payload);
-      deps.emit("wallet_solana_sign_request", req);
-    } else if (unwrapped.type === "wallet::solana_sign_message_request") {
-      const payload = normalizeSolanaSignMessagePayload(
-        (_e = unwrapped.payload) != null ? _e : {}
-      );
-      const req = deps.walletController.enqueue("solana_sign_message", payload);
-      deps.emit("wallet_solana_sign_message_request", req);
     } else if (unwrapped.type === "wallet::solana_send_request") {
-      const payload = normalizeSolanaSignPayload((_f = unwrapped.payload) != null ? _f : {});
+      const payload = normalizeSolanaSignPayload((_b = unwrapped.payload) != null ? _b : {});
       const req = deps.walletController.enqueue("solana_send", payload);
       deps.emit("wallet_solana_send_request", req);
     } else if (unwrapped.type === "wallet::solana_sign_and_send_request") {
-      const payload = normalizeSolanaSignPayload((_g = unwrapped.payload) != null ? _g : {});
+      const payload = normalizeSolanaSignPayload((_c = unwrapped.payload) != null ? _c : {});
       const req = deps.walletController.enqueue(
         "solana_sign_and_send",
         payload
@@ -3286,17 +3232,13 @@ var init_wallet = __esm({
         const userState = this.deps.getUserState();
         const pending = isRecord3(userState == null ? void 0 : userState.pending) ? userState.pending : void 0;
         const pendingTxs = isRecord3(pending == null ? void 0 : pending.evm_txs) ? pending.evm_txs : void 0;
-        const pendingEip712s = isRecord3(pending == null ? void 0 : pending.evm_sigs) ? pending.evm_sigs : void 0;
         const pendingSolanaTxs = isRecord3(pending == null ? void 0 : pending.solana_txs) ? pending.solana_txs : isRecord3(pending == null ? void 0 : pending.svm_ixs) ? pending.svm_ixs : void 0;
-        const pendingSolanaSigs = isRecord3(pending == null ? void 0 : pending.solana_sigs) ? pending.solana_sigs : isRecord3(pending == null ? void 0 : pending.svm_sigs) ? pending.svm_sigs : void 0;
         const next = [];
         this.syncTransactions(next, pendingTxs);
-        this.syncEip712(next, pendingEip712s);
         this.syncSolana(next, pendingSolanaTxs);
-        this.syncSolana(next, pendingSolanaSigs);
         const nextIdSet = new Set(next.map((request) => request.id));
         for (const existing of this.requests) {
-          if (existing.kind !== "transaction" && existing.kind !== "eip712_sign" && !nextIdSet.has(existing.id) && !this.resolvedRequestIds.has(existing.id)) {
+          if (existing.kind !== "transaction" && !nextIdSet.has(existing.id) && !this.resolvedRequestIds.has(existing.id)) {
             next.push(existing);
           }
         }
@@ -3320,26 +3262,11 @@ var init_wallet = __esm({
           const send = (type, payload) => this.deps.sendSystemEvent(type, payload);
           if (req.kind === "transaction" && result.kind === "transaction") {
             await this.resolveTransaction(req.payload, result);
-          } else if (req.kind === "eip712_sign" && result.kind === "eip712_sign") {
-            await send("wallet_eip712_response", __spreadValues({
-              status: "success",
-              signature: result.signature,
-              description: req.payload.description
-            }, req.payload.eip712Id !== void 0 ? { pending_eip712_id: req.payload.eip712Id } : {}));
-          } else if (req.kind === "solana_sign" && result.kind === "solana_sign") {
-            await send("wallet::solana_sign_complete", __spreadValues(__spreadProps(__spreadValues({
+          } else if (req.kind === "signing" && result.kind === "signing") {
+            await this.deps.completeSigningRequest(req.payload.requestId, {
               status: "signed",
-              signed_tx: result.signedTx
-            }, req.payload.unsignedTx !== void 0 ? { unsigned_tx: req.payload.unsignedTx } : {}), {
-              description: req.payload.description
-            }), solanaPendingIdFields(req.payload)));
-          } else if (req.kind === "solana_sign_message" && result.kind === "solana_sign_message") {
-            await send("wallet::solana_sign_message_complete", __spreadValues(__spreadProps(__spreadValues({
-              status: "signed",
-              signature: result.signature
-            }, req.payload.message !== void 0 ? { message: req.payload.message } : {}), {
-              description: req.payload.description
-            }), solanaPendingIdFields(req.payload)));
+              signatures: result.signatures
+            });
           } else if (req.kind === "solana_send" && result.kind === "solana_send") {
             await send("wallet::solana_send_complete", __spreadValues(__spreadProps(__spreadValues({
               status: "submitted",
@@ -3386,30 +3313,11 @@ var init_wallet = __esm({
               batched: pendingTxIds.length > 1,
               call_count: pendingTxIds.length
             });
-          } else if (req.kind === "aa_sign") {
-            throw new Error(
-              "AA requests must be rejected through the operation endpoint"
-            );
-          } else if (req.kind === "eip712_sign") {
-            await send("wallet_eip712_response", __spreadValues({
-              status: "failed",
-              error: reason != null ? reason : "Request rejected",
-              description: req.payload.description
-            }, req.payload.eip712Id !== void 0 ? { pending_eip712_id: req.payload.eip712Id } : {}));
-          } else if (req.kind === "solana_sign") {
-            await send("wallet::solana_sign_complete", __spreadValues(__spreadProps(__spreadValues({
+          } else if (req.kind === "signing") {
+            await this.deps.completeSigningRequest(req.payload.requestId, {
               status: "rejected",
-              error: reason != null ? reason : "Request rejected"
-            }, req.payload.unsignedTx !== void 0 ? { unsigned_tx: req.payload.unsignedTx } : {}), {
-              description: req.payload.description
-            }), solanaPendingIdFields(req.payload)));
-          } else if (req.kind === "solana_sign_message") {
-            await send("wallet::solana_sign_message_complete", __spreadValues(__spreadProps(__spreadValues({
-              status: "rejected",
-              error: reason != null ? reason : "Request rejected"
-            }, req.payload.message !== void 0 ? { message: req.payload.message } : {}), {
-              description: req.payload.description
-            }), solanaPendingIdFields(req.payload)));
+              reason
+            });
           } else if (req.kind === "solana_send") {
             await send("wallet::solana_send_complete", __spreadValues(__spreadProps(__spreadValues({
               status: "rejected",
@@ -3430,14 +3338,7 @@ var init_wallet = __esm({
           this.resolvingRequestIds.delete(requestId);
         }
       }
-      /**
-       * Drop a request locally without emitting a resolve/reject wire event.
-       * Operation-scoped flows (AA) acknowledge completion through their own HTTP
-       * endpoints, so the generic events must not fire — but the request must still
-       * leave the controller. We route through `finishRequest` so the id is marked
-       * resolved and neither `sync()` nor a repeated `enqueue()` re-offers it (which
-       * would otherwise keep `hasBlockingWalletRequests` stuck true forever).
-       */
+      /** Drop a request locally after an out-of-band host acknowledgement. */
       dismiss(requestId) {
         const req = this.find(requestId);
         if (!req) return;
@@ -3493,14 +3394,10 @@ var init_wallet = __esm({
         const userState = this.deps.getUserState();
         const pending = isRecord3(userState == null ? void 0 : userState.pending) ? userState.pending : void 0;
         if (!userState || !pending) return;
-        if (request.kind === "transaction" || request.kind === "aa_sign" || request.kind === "eip712_sign")
-          return;
+        if (request.kind === "transaction" || request.kind === "signing") return;
         const ids = "pendingSolanaIds" in request.payload && Array.isArray(request.payload.pendingSolanaIds) && request.payload.pendingSolanaIds.length > 0 ? request.payload.pendingSolanaIds : request.payload.pendingSolanaId !== void 0 ? [request.payload.pendingSolanaId] : [];
         if (ids.length === 0) return;
-        const targets = request.kind === "solana_sign" || request.kind === "solana_sign_message" ? [
-          ["svm_sigs", ids],
-          ["solana_sigs", ids]
-        ] : [
+        const targets = [
           ["svm_ixs", ids],
           ["solana_txs", ids]
         ];
@@ -3571,23 +3468,6 @@ var init_wallet = __esm({
           });
         }
       }
-      syncEip712(next, pendingEip712s) {
-        var _a3, _b;
-        for (const [id, raw] of Object.entries(pendingEip712s != null ? pendingEip712s : {}).sort(
-          (left, right) => Number(left[0]) - Number(right[0])
-        )) {
-          const payload = normalizeEip712Payload(__spreadProps(__spreadValues({}, isRecord3(raw) ? raw : {}), {
-            pending_eip712_id: Number(id)
-          }));
-          const requestId = this.requestId("eip712_sign", payload);
-          next.push({
-            id: requestId,
-            kind: "eip712_sign",
-            payload,
-            timestamp: (_b = (_a3 = this.requests.find((request) => request.id === requestId)) == null ? void 0 : _a3.timestamp) != null ? _b : Date.now()
-          });
-        }
-      }
       syncSolana(next, pendingSolanaRequests) {
         var _a3, _b;
         for (const [id, raw] of Object.entries(pendingSolanaRequests != null ? pendingSolanaRequests : {}).sort(
@@ -3597,7 +3477,8 @@ var init_wallet = __esm({
             chain_kind: "svm",
             pending_solana_id: Number(id)
           }));
-          if (!normalized) continue;
+          if (!normalized || normalized.kind !== "solana_send" && normalized.kind !== "solana_sign_and_send")
+            continue;
           const requestId = this.requestId(normalized.kind, normalized.payload);
           if (this.resolvedRequestIds.has(requestId)) continue;
           next.push(
@@ -3619,12 +3500,8 @@ var init_wallet = __esm({
           }
           const txIds = txIdsFromPayload(txPayload);
           if (!id && txIds.length > 0) id = `tx-${txIds.join("-")}`;
-        } else if (kind === "aa_sign") {
-          const { operationId } = payload;
-          if (operationId) id = `aa-${operationId}`;
-        } else if (kind === "eip712_sign") {
-          const { eip712Id } = payload;
-          if (typeof eip712Id === "number") id = `eip712-${eip712Id}`;
+        } else if (kind === "signing") {
+          id = payload.requestId;
         } else {
           const { pendingSolanaId } = payload;
           if (typeof pendingSolanaId === "number")
@@ -3642,18 +3519,7 @@ var init_wallet = __esm({
             timestamp: timestamp2
           };
         }
-        if (kind === "aa_sign") {
-          return { id, kind, payload, timestamp: timestamp2 };
-        }
-        if (kind === "eip712_sign") {
-          return {
-            id,
-            kind,
-            payload,
-            timestamp: timestamp2
-          };
-        }
-        if (kind === "solana_sign_message") {
+        if (kind === "signing") {
           return {
             id,
             kind,
@@ -3740,6 +3606,7 @@ var init_session = __esm({
           getUserState: () => this.userState,
           resolveUserState: (userState) => this.resolveUserState(userState),
           sendSystemEvent: (type, payload) => this.sendSystemEvent(type, payload),
+          completeSigningRequest: (requestId, body) => this.completeSigningRequest(requestId, body),
           onChange: (requests) => this.emit("wallet_requests_changed", requests),
           syncPendingTxRequestsFromUserState: this.syncPendingTxRequestsFromUserState
         });
@@ -3804,9 +3671,8 @@ var init_session = __esm({
       // Public API — Wallet Request Resolution
       // ===========================================================================
       /**
-       * Resolve a pending wallet request (transaction, EIP-712, or Solana
-       * sign). The `result.kind` discriminator must match the originating
-       * request's kind — sending a `transaction` result for an `eip712_sign`
+       * Resolve a pending wallet request. The `result.kind` discriminator must
+       * match the originating request's kind — sending a `transaction` result for a `signing`
        * request would post the wrong wire event with empty fields, so we
        * fail fast at runtime instead.
        */
@@ -3823,9 +3689,9 @@ var init_session = __esm({
         this.resumeAfterWalletResponse();
       }
       /**
-       * Drop a pending wallet request without emitting a resolve/reject wire
-       * event. Used by operation-scoped flows (AA) that acknowledge completion
-       * through a dedicated HTTP endpoint instead of the session event channel.
+       * Drop a pending wallet request locally without completing it. Hosts should
+       * normally use `resolve` or `reject`; this is reserved for externally
+       * acknowledged lifecycle cleanup.
        */
       dismiss(requestId) {
         this.walletController.dismiss(requestId);
@@ -4091,6 +3957,16 @@ var init_session = __esm({
           app: this.app,
           applicationId: this.applicationId
         });
+      }
+      async completeSigningRequest(requestId, body) {
+        await this.client.request(
+          "POST",
+          `/api/widget/v1/signing-requests/${encodeURIComponent(requestId)}`,
+          {
+            sessionId: this.sessionId,
+            body
+          }
+        );
       }
       resumeAfterWalletResponse() {
         if (!this._isProcessing) {

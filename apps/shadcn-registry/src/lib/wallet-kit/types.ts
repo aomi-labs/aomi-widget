@@ -3,7 +3,6 @@
 import type { Chain } from "viem";
 import type {
   WalletEip712Payload,
-  WalletAaSignPayload,
   WalletSolanaSignMessagePayload,
   WalletSolanaSignPayload,
   WalletTxPayload,
@@ -378,10 +377,6 @@ export type AomiWalletKit = {
   signMessage?: (
     payload: WalletEip712Payload,
   ) => Promise<{ signature: string }>;
-  /** Sign a backend-prepared AA handoff without broadcasting from the browser. */
-  signAaRequests?: (
-    payload: WalletAaSignPayload,
-  ) => Promise<{ signatures: string[] }>;
   /**
    * Sign a Solana transaction with the user's wallet. Singular and
    * sign-only — apps submit the returned signed tx through their own

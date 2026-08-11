@@ -3,8 +3,8 @@
 import { useCallback, useRef, useState } from "react";
 import type {
   WalletEip712Payload,
-  WalletAaSignPayload,
-  WalletAaSignatureRequest,
+  WalletSignablePayload,
+  WalletSigningPayload,
   WalletSolanaSignMessagePayload,
   WalletSolanaSignPayload,
   WalletTxPayload,
@@ -23,8 +23,8 @@ export type {
   WalletRequestResult,
   WalletTxPayload,
   WalletEip712Payload,
-  WalletAaSignPayload,
-  WalletAaSignatureRequest,
+  WalletSignablePayload,
+  WalletSigningPayload,
   WalletSolanaSignMessagePayload,
   WalletSolanaSignPayload,
   ViemSignMessageArgs,
@@ -40,8 +40,8 @@ export type WalletHandlerConfig = {
 export type WalletHandlerApi = {
   /**
    * All queued wallet requests across every supported kind: EVM txs
-   * (`kind: "transaction"`), EIP-712 signs (`kind: "eip712_sign"`), and
-   * Solana signs (`kind: "solana_sign"`). Consumers should narrow on
+   * (`kind: "transaction"`), opaque sign-only handoffs (`kind: "signing"`),
+   * and Solana send requests. Consumers should narrow on
    * `request.kind` before reading `request.payload` — the discriminated
    * union auto-narrows the payload type.
    */
@@ -57,8 +57,8 @@ export type WalletHandlerApi = {
   /**
    * Complete a request successfully — sends the response wire event to
    * the backend via ClientSession. The `result.kind` discriminator must
-   * match the originating request's kind (e.g. `{ kind: "solana_sign",
-   * signedTx: "..." }` for a Solana request); ClientSession runtime-checks
+   * match the originating request's kind (e.g. `{ kind: "signing",
+   * signatures: ["..."] }` for a sign-only request); ClientSession runtime-checks
    * this and throws on mismatch.
    */
   resolveRequest: (id: string, result: WalletRequestResult) => Promise<void>;

@@ -38,8 +38,8 @@ export type {
   SessionOptions,
   SessionRuntimeOptions,
   WalletRequest,
-  WalletAaSignPayload,
-  WalletAaSignatureRequest,
+  WalletSignablePayload,
+  WalletSigningPayload,
   WalletRequestKind,
   WalletRequestTarget,
   WalletRequestResult,
@@ -107,6 +107,8 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       getUserState: () => this.userState,
       resolveUserState: (userState) => this.resolveUserState(userState),
       sendSystemEvent: (type, payload) => this.sendSystemEvent(type, payload),
+      completeSigningRequest: (requestId, body) =>
+        this.completeSigningRequest(requestId, body),
       onChange: (requests) => this.emit("wallet_requests_changed", requests),
       syncPendingTxRequestsFromUserState:
         this.syncPendingTxRequestsFromUserState,
@@ -186,9 +188,8 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   // ===========================================================================
 
   /**
-   * Resolve a pending wallet request (transaction, EIP-712, or Solana
-   * sign). The `result.kind` discriminator must match the originating
-   * request's kind — sending a `transaction` result for an `eip712_sign`
+   * Resolve a pending wallet request. The `result.kind` discriminator must
+   * match the originating request's kind — sending a `transaction` result for a `signing`
    * request would post the wrong wire event with empty fields, so we
    * fail fast at runtime instead.
    */
@@ -207,9 +208,9 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   }
 
   /**
-   * Drop a pending wallet request without emitting a resolve/reject wire
-   * event. Used by operation-scoped flows (AA) that acknowledge completion
-   * through a dedicated HTTP endpoint instead of the session event channel.
+   * Drop a pending wallet request locally without completing it. Hosts should
+   * normally use `resolve` or `reject`; this is reserved for externally
+   * acknowledged lifecycle cleanup.
    */
   dismiss(requestId: string): void {
     this.walletController.dismiss(requestId);
@@ -543,6 +544,22 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       app: this.app,
       applicationId: this.applicationId,
     });
+  }
+
+  private async completeSigningRequest(
+    requestId: string,
+    body:
+      | { status: "signed"; signatures: string[] }
+      | { status: "rejected"; reason?: string },
+  ): Promise<void> {
+    await this.client.request(
+      "POST",
+      `/api/widget/v1/signing-requests/${encodeURIComponent(requestId)}`,
+      {
+        sessionId: this.sessionId,
+        body,
+      },
+    );
   }
 
   private resumeAfterWalletResponse(): void {

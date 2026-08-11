@@ -85,13 +85,13 @@ export type AomiRuntimeApi = {
   // -------------------------------------------------------------------------
   // WALLET API
   // -------------------------------------------------------------------------
-  /** All queued wallet requests (tx + eip712 signing) */
+  /** All queued wallet requests (broadcast transactions + generic signing) */
   pendingWalletRequests: WalletRequest[];
   /** True while switching wallets or networks could lose an unresolved request. */
   hasBlockingWalletRequests: boolean;
   /** Mark a wallet request as in-flight — suppresses it from the pending list until acked */
   startWalletRequest: (id: string) => void;
-  /** Dismiss after an operation-specific endpoint acknowledged completion. */
+  /** Locally dismiss an externally acknowledged request. */
   dismissWalletRequest: (id: string) => void;
   /** Complete a wallet request after the backend acknowledges the response */
   resolveWalletRequest: (

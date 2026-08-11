@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  type WalletAaSignPayload,
   toViemSignMessageArgs,
   toViemSignTypedDataArgs,
 } from "@aomi-labs/react";
@@ -11,7 +10,6 @@ import {
   executeWalletKitTransaction,
   getPreferredRpcUrl,
 } from "./wallet-execution";
-import { WagmiOwnerSigner, signBackendAaRequest } from "./owner-signer";
 
 /**
  * Map a shared `EvmWalletRuntime` into the composer's `EvmExecutionRuntime`
@@ -44,34 +42,8 @@ export function buildEvmExecutionRuntime(
   const signTypedDataAsync = runtime.signTypedDataAsync;
   const switchChainAsync = runtime.switchChainAsync;
 
-  const signAaRequests = async (
-    payload: WalletAaSignPayload,
-  ): Promise<{ signatures: string[] }> => {
-    const active = evm.activeAccount;
-    if (!active || !runtime.currentChainId) {
-      throw new Error("The active wallet is not the prepared AA owner");
-    }
-    return signBackendAaRequest(
-      new WagmiOwnerSigner(
-        {
-          address: active.address as `0x${string}`,
-          chainId: runtime.currentChainId,
-        },
-        () =>
-          runtime.getWalletClientFor({
-            connector: runtime.activeConnector,
-            chainId: payload.chainId,
-          }) as Promise<{
-            signMessage?: (args: unknown) => Promise<`0x${string}`>;
-          } | null>,
-      ),
-      payload,
-    );
-  };
-
   return {
     ...runtime,
-    signAaRequests: runtime.signAaRequests ?? signAaRequests,
     sendTransaction:
       runtime.sendTransaction ??
       (sendTransactionAsync

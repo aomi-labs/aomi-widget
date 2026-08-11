@@ -54,10 +54,14 @@ export type WalletEip712Payload = {
   non_typed_data?: string;
   description?: string;
   eip712Id?: number;
+  /** Expected EOA for an opaque signing request. */
+  signer?: string;
+  /** Requested EVM chain when the signature is execution-bound. */
+  chainId?: number;
 };
 
 /**
- * Wire payload for `wallet::solana_sign_request`. Mirrors `WalletEip712Payload`
+ * Legacy internal SVM payload projected into the public `wallet_signing_request`.
  * in shape — singular sign-only — but carries a base64-encoded serialized
  * Solana transaction instead of EIP-712 typed data.
  *
@@ -456,7 +460,7 @@ export function hydrateTxPayloadFromUserState(
 }
 
 /**
- * Normalize a `wallet::solana_sign_request` payload into a consistent shape.
+ * Normalize a legacy internal SVM request into a consistent shape.
  *
  * Accepts the various nesting levels the backend can ship: top-level args,
  * `{ args: { ... } }`, snake_case (`unsigned_tx`, `pending_solana_id`) or
