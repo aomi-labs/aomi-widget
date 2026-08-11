@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, PT_Serif } from "next/font/google";
+import { Geist, Geist_Mono, PT_Serif, Source_Serif_4 } from "next/font/google";
 import { COLOR_THEME_INIT_SCRIPT } from "@build/lib/color-theme";
 import "./globals.css";
 
@@ -19,6 +19,12 @@ const ptSerif = PT_Serif({
   variable: "--font-pt-serif",
 });
 
+const sourceSerif = Source_Serif_4({
+  subsets: ["latin"],
+  weight: ["600"],
+  variable: "--font-source-serif-4",
+});
+
 export const metadata: Metadata = {
   title: "Aomi Build",
   description: "Build, deploy, and operate Aomi apps",
@@ -32,7 +38,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`h-full ${geistSans.variable} ${geistMono.variable} ${ptSerif.variable}`}
+      className={`h-full ${geistSans.variable} ${geistMono.variable} ${ptSerif.variable} ${sourceSerif.variable}`}
       suppressHydrationWarning
     >
       <head>

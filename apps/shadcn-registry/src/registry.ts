@@ -249,7 +249,11 @@ export const registry: RegistryComponent[] = [
   },
   {
     name: "assistant-threadlist-sidebar",
-    file: "components/assistant-ui/threadlist-sidebar.tsx",
+    file: [
+      "components/assistant-ui/threadlist-sidebar.tsx",
+      "components/aomi-logo.tsx",
+      "components/aomi-mark.tsx",
+    ],
     dependencies: ["lucide-react"],
     registryDependencies: [aomi("assistant-thread-list"), "sidebar"],
     description: "Sidebar shell for thread navigation and wallet footer slot.",

@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import nodePath from "node:path";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { AomiLogo } from "../../../../components/aomi-logo";
 import { notFound } from "next/navigation";
 
 const DATA_ROOT = nodePath.join(
@@ -168,12 +169,7 @@ export default async function AomiBenchDataPage({
           aria-label="Aomi home"
           className="flex items-center gap-2 font-serif text-xl font-bold tracking-tight text-foreground"
         >
-          <img
-            src="/assets/images/bubble.svg"
-            alt=""
-            className="h-5 w-5 dark:invert"
-          />
-          <span>aomi</span>
+          <AomiLogo className="text-[20px]" markClassName="h-5 w-5 dark:invert" />
         </Link>
       </div>
 

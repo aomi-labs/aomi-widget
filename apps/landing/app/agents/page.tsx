@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { AomiLogo } from "../components/aomi-logo";
 
 export const metadata: Metadata = {
   title: "Aomi for Agents",
@@ -31,12 +32,7 @@ export default function AgentsPage() {
           aria-label="Aomi home"
           className="flex items-center justify-end gap-2 pr-5 font-serif text-xl font-bold tracking-tight text-foreground"
         >
-          <img
-            src="/assets/images/bubble.svg"
-            alt=""
-            className="h-5 w-5 dark:invert"
-          />
-          <span>aomi</span>
+          <AomiLogo className="text-[20px]" markClassName="h-5 w-5 dark:invert" />
         </Link>
         <div className="mt-8 space-y-4">
           <h1 className="font-serif text-4xl tracking-tight text-foreground md:text-5xl">

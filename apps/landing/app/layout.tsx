@@ -1,7 +1,14 @@
 import type { Metadata } from "next";
 import { GoogleAnalytics } from "@next/third-parties/google";
+import { Source_Serif_4 } from "next/font/google";
 import "./globals.css";
 import { Provider } from "./provider";
+
+const sourceSerif = Source_Serif_4({
+  subsets: ["latin"],
+  weight: ["600"],
+  variable: "--font-source-serif-4",
+});
 
 export const metadata: Metadata = {
   title: "Best Blockchain Harness for Agentic AI | Aomi",
@@ -52,7 +59,7 @@ export default function RootLayout({
       className="bg-background text-foreground"
       suppressHydrationWarning
     >
-      <body className="min-h-screen antialiased">
+      <body className={`${sourceSerif.variable} min-h-screen antialiased`}>
         <Provider>{children}</Provider>
       </body>
       {GA_MEASUREMENT_ID && GA_MEASUREMENT_ID !== "G-XXXXXXXXXX" && (

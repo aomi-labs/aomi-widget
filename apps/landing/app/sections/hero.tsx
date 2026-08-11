@@ -2,6 +2,7 @@
 
 import { useState, type CSSProperties } from "react";
 import { AomiFrame } from "@aomi-labs/widget-lib";
+import { AomiLogo } from "../components/aomi-logo";
 import { LandingWalletKitProvider } from "../components/landing-wallet-kit-provider";
 import styles from "./hero.module.css";
 
@@ -15,14 +16,10 @@ export function Hero() {
     <>
       <nav className="fixed top-6 right-0 left-0 z-50 flex items-center justify-center gap-x-4 gap-y-4 pr-4 pl-4">
         <div className="flex items-center gap-x-2 gap-y-2 rounded-full bg-black/20 pt-2.5 pr-5 pb-2.5 pl-5 shadow-[0_8px_32px_0_rgba(0,0,0,0.1)] ring-1 ring-white/20 backdrop-blur-[80px] transition-all duration-300">
-          <img
-            src="/assets/images/bubble.svg"
-            alt="Aomi"
-            className="h-6 w-6 drop-shadow-sm invert"
+          <AomiLogo
+            className="text-[24px] text-white drop-shadow-sm"
+            markClassName="h-6 w-6 invert"
           />
-          <span className="font-geist text-sm font-semibold tracking-tight text-white drop-shadow-sm">
-            Aomi
-          </span>
         </div>
         <div className="flex hidden items-center gap-x-6 gap-y-6 rounded-full bg-black/20 pt-1.5 pr-1.5 pb-1.5 pl-6 shadow-[0_8px_32px_0_rgba(0,0,0,0.1)] ring-1 ring-white/20 backdrop-blur-[80px] transition-all md:flex">
           <div className="flex items-center gap-6 pr-2">
@@ -284,6 +281,7 @@ export function Hero() {
                   <AomiFrame.Header />
                   <AomiFrame.Composer
                     withControl
+                    welcomeTitle="What should happen on-chain?"
                     controlBarProps={{ hideApiKey: true, hideNetwork: false }}
                   />
                 </AomiFrame.Root>
