@@ -238,6 +238,31 @@ describe("User API", () => {
       });
     });
 
+    it("contains rejected wallet state syncs", async () => {
+      const syncError = new Error("HTTP 401");
+      const postSystemMessage = vi.fn(async () => {
+        throw syncError;
+      });
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      setAomiClientConfig({ postSystemMessage });
+
+      const { api } = renderRuntime();
+
+      await act(async () => {
+        api.setUser({ chainId: 5042002 });
+        await flushPromises();
+      });
+
+      await waitFor(() => {
+        expect(warn).toHaveBeenCalledWith(
+          "Failed to sync wallet state:",
+          syncError,
+        );
+      });
+      warn.mockRestore();
+    });
+
     it("keeps a materialized thread remote after a stale list fetch resolves", async () => {
       let resolveListThreads:
         | ((threads: AomiThread[] | PromiseLike<AomiThread[]>) => void)
