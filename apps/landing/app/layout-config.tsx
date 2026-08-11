@@ -28,7 +28,7 @@ export const navTabs = [
 export const baseLayoutOptions: BaseLayoutProps = {
   githubUrl: "https://github.com/aomi-labs/aomi-widget",
   nav: {
-    title: <AomiLogo className="text-[20px]" markClassName="h-5 w-5" />,
+    title: <AomiLogo className="text-[14px]" markClassName="h-3.5 w-3.5" />,
     url: "https://aomi.dev",
     transparentMode: "none",
   },

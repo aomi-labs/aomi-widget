@@ -165,8 +165,8 @@ export function Resources() {
             <div className="flex flex-col gap-4">
               <div className="flex items-center gap-2 text-white">
                 <AomiLogo
-                  className="text-[20px] text-stone-100"
-                  markClassName="h-5 w-5 invert"
+                  className="text-[14px] text-stone-100"
+                  markClassName="h-3.5 w-3.5 invert"
                 />
               </div>
               <p className="font-geist max-w-xs text-xs leading-relaxed text-neutral-100">

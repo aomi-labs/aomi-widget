@@ -73,11 +73,11 @@ function ProductSwitcher({
   const wordmark = (
     <>
       <AomiLogo
-        className="aomi-sidebar-header-logo text-[24px]"
+        className="aomi-sidebar-header-logo text-[17px]"
         markClassName="aomi-sidebar-header-icon"
       />
       {current?.badge && (
-        <span className="bg-aomi-surface-2 text-aomi-muted rounded-sm px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide">
+        <span className="bg-aomi-surface-2 text-aomi-muted flex h-[17px] items-center rounded-sm px-1.5 text-[10px] font-medium uppercase leading-none tracking-wide">
           {current.badge}
         </span>
       )}
@@ -166,7 +166,7 @@ export function ThreadListSidebar({
             />
           ) : (
             <AomiLogo
-              className="aomi-sidebar-header-logo text-[24px]"
+              className="aomi-sidebar-header-logo text-[17px]"
               markClassName="aomi-sidebar-header-icon"
             />
           )}

@@ -27,8 +27,8 @@ export default function PrivacyPage() {
           className="flex items-center gap-x-2 gap-y-2 rounded-full bg-black/20 pt-2.5 pr-5 pb-2.5 pl-5 shadow-[0_8px_32px_0_rgba(0,0,0,0.1)] ring-1 ring-white/20 backdrop-blur-[80px] transition-all duration-300 hover:bg-black/30"
         >
           <AomiLogo
-            className="text-[24px] text-white drop-shadow-sm"
-            markClassName="h-6 w-6 invert"
+            className="text-[17px] text-white drop-shadow-sm"
+            markClassName="h-[17px] w-[17px] invert"
           />
         </Link>
       </nav>
