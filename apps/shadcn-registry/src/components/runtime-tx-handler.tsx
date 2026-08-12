@@ -141,6 +141,25 @@ export function RuntimeTxHandler() {
       }
     }
 
+    async function maybeSwitchEvmChain(targetChainId: number): Promise<void> {
+      if (!targetChainId || targetChainId === currentChainId) return;
+
+      const supported = adapter.supportedNetworks?.evm?.some(
+        (network) => parseChainId(network.id) === targetChainId,
+      );
+      if (supported === false) {
+        throw new Error(
+          `This wallet does not support chain ${targetChainId}. Reconnect with a wallet that does.`,
+        );
+      }
+      if (!adapter.switchChain) {
+        throw new Error(
+          `Cannot switch the wallet to chain ${targetChainId}. Switch networks manually and retry.`,
+        );
+      }
+      await adapter.switchChain(targetChainId);
+    }
+
     async function processRequest(req: WalletRequest) {
       try {
         if (req.kind === "transaction") {
@@ -161,6 +180,7 @@ export function RuntimeTxHandler() {
             payload.calls?.[0]?.chainId ??
             currentChainId ??
             1;
+          await maybeSwitchEvmChain(defaultChainId);
           const simulationResult = await simulateBatchTransactions(
             toSimulationTransactions(payload),
             {

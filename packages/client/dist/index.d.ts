@@ -1080,7 +1080,7 @@ interface NativeWalletExecutionPolicy {
 }
 interface ExecuteWalletCallsParams {
     callList: AAWalletCall[];
-    currentChainId: number;
+    currentChainId: number | undefined;
     capabilities: Record<string, WalletCapabilities> | undefined;
     localPrivateKey: `0x${string}` | null;
     nativeWalletExecution?: NativeWalletExecutionPolicy;
