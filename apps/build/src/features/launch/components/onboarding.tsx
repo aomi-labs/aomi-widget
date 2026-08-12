@@ -15,7 +15,7 @@ import {
   GITHUB_REDIRECT_KEYS,
   type LaunchState,
   type LaunchProgress,
-  type UserSource,
+  type UserProject,
 } from "@build/features/launch";
 import { readPlatform } from "@build/features/launch/platform";
 import { DEFAULT_DEPLOY_PLATFORM } from "@build/lib/deploy-platform";
@@ -30,7 +30,7 @@ export function Onboarding({
   sessionInstallationId = null,
 }: {
   hideWizardBack?: boolean;
-  knownSources?: UserSource[];
+  knownSources?: UserProject[];
   platform?: string;
   /**
    * Installation id from the signed-in GitHub session — present when the App is

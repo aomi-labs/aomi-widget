@@ -1,8 +1,18 @@
-node_modules/
-.next/
-.env
-.env.local
-*.log
-.tmp-test-dist/
-memory/
-.vercel
+# Dependencies
+/node_modules
+
+# Next.js and Vercel output
+/.next/
+/out/
+/.vercel/
+
+# Local environment and logs
+.env*
+!.env.example
+*-debug.log*
+
+# Generated caches
+*.tsbuildinfo
+
+# OS files
+.DS_Store

@@ -2,7 +2,11 @@ import { describe, it, expect, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { DeployStep } from "./deploy-step";
 import {
+  launchActivate,
+  launchAppsStatus,
+  launchDeploy,
   launchPreflight,
+  launchStatus,
   type LaunchDeployPayload,
   type LaunchProgress,
 } from "@build/features/launch";
@@ -14,7 +18,8 @@ vi.mock("@build/features/launch", () => ({
   launchDeploy: vi.fn(),
   launchStatus: vi.fn(),
   launchActivate: vi.fn(),
-  deploymentSources: vi.fn(),
+  launchAppsStatus: vi.fn(),
+  deploymentProjects: vi.fn(),
 }));
 
 vi.mock("@aomi-labs/widget-lib", () => ({
@@ -70,15 +75,47 @@ describe("DeployStep", () => {
     ).toBeInTheDocument();
   });
 
-  it("keeps the selected platform on preflight", async () => {
+  it("does not send the shell platform during project preflight", async () => {
     vi.mocked(launchPreflight).mockRejectedValueOnce(new Error("stop"));
     render(<DeployStep {...defaultProps} platform="somm.finance" />);
 
     fireEvent.click(screen.getByRole("button", { name: "Preflight" }));
 
+    await waitFor(() => expect(launchPreflight).toHaveBeenCalledOnce());
+    const input = vi.mocked(launchPreflight).mock.calls[0]?.[0];
+    expect(input).toMatchObject({ installationId: "12345", repo: "alice/bot" });
+    expect(input).not.toHaveProperty("platform");
+  });
+
+  it("deploys the immutable commit returned by preflight", async () => {
+    vi.mocked(launchPreflight).mockResolvedValueOnce({
+      repo: "alice/bot",
+      projectId: 42,
+      sourceRef: "abc1234",
+      deployment: {
+        id: "preview",
+        status: "preflight",
+        source: {
+          ref: "abc1234",
+        },
+        platform: {
+          apps: [],
+        },
+      },
+      releaseTags: [],
+      apps: [],
+    } as never);
+    vi.mocked(launchDeploy).mockRejectedValueOnce(new Error("stop"));
+    render(<DeployStep {...defaultProps} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Deploy" }));
+
     await waitFor(() =>
-      expect(launchPreflight).toHaveBeenCalledWith(
-        expect.objectContaining({ platform: "somm.finance" }),
+      expect(launchDeploy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          projectId: 42,
+          sourceRef: "abc1234",
+        }),
       ),
     );
   });
@@ -104,10 +141,8 @@ describe("DeployStep", () => {
           installationId: 12345,
           repositoryId: 1,
           repositoryLink: "a/b",
-          ownerRepoName: "a/b",
           ref: "abc123",
           commitHash: "abc123",
-          aomiTomlPaths: ["aomi.toml"],
         },
         platform: {
           platform: "community",
@@ -132,6 +167,70 @@ describe("DeployStep", () => {
     expect(screen.getByRole("button", { name: "Activate" })).toBeDisabled();
   });
 
+  it("waits for the project runtime after activation reports an unloaded app", async () => {
+    const onProgress = vi.fn();
+    vi.mocked(launchStatus).mockResolvedValueOnce({
+      state: "ready",
+      releaseTags: ["release-2"],
+    });
+    vi.mocked(launchActivate).mockResolvedValueOnce({
+      ok: true,
+      activation: {
+        apps: [
+          {
+            applicationId: 17,
+            name: "playground-example",
+            releaseTag: "release-2",
+            isActive: true,
+            loaded: false,
+          },
+        ],
+      },
+    } as never);
+    vi.mocked(launchAppsStatus).mockResolvedValueOnce({
+      ok: true,
+      projectId: 42,
+      state: "live",
+      apps: [
+        {
+          id: 17,
+          name: "playground-example",
+          app_release_tag: "release-2",
+          is_active: true,
+          loaded: true,
+        },
+      ],
+    });
+
+    render(
+      <DeployStep
+        {...defaultProps}
+        progress={{
+          ...baseProgress(),
+          projectId: 42,
+          deploymentId: "dep_1",
+          apps: ["playground-example"],
+          releaseTags: ["release-2"],
+        }}
+        onProgress={onProgress}
+      />,
+    );
+
+    const activate = await waitFor(() => {
+      const button = screen.getByRole("button", { name: "Activate" });
+      expect(button).not.toBeDisabled();
+      return button;
+    });
+    fireEvent.click(activate);
+
+    await waitFor(() =>
+      expect(launchAppsStatus).toHaveBeenCalledWith({ projectId: 42 }),
+    );
+    expect(onProgress).toHaveBeenCalledWith(
+      expect.objectContaining({ live: true, applicationId: "17" }),
+    );
+  });
+
   it("shows the idle phase hint text", () => {
     render(<DeployStep {...defaultProps} />);
     expect(screen.getByText(/Run a preflight/)).toBeInTheDocument();
@@ -149,11 +248,51 @@ describe("DeployStep", () => {
     ).toBeInTheDocument();
   });
 
+  it("clears the pinned source revision before retrying", async () => {
+    const onProgress = vi.fn();
+    vi.mocked(launchPreflight).mockRejectedValueOnce(new Error("stale source"));
+    render(
+      <DeployStep
+        {...defaultProps}
+        progress={{
+          ...baseProgress(),
+          projectId: 42,
+          sourceRef: "old-commit",
+          deployment: {
+            id: "preview",
+            status: "preflight",
+            source: { ref: "old-commit" },
+            platform: { apps: [] },
+          } as LaunchDeployPayload,
+        }}
+        onProgress={onProgress}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Preflight" }));
+    await screen.findByText("stale source");
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+    expect(onProgress).toHaveBeenLastCalledWith({
+      deployment: undefined,
+      deploymentId: undefined,
+      sourceRef: undefined,
+      releaseTags: undefined,
+      apps: undefined,
+      live: false,
+    });
+    expect(screen.getByText(/Run a preflight/)).toBeInTheDocument();
+  });
+
   it("shows the required-secrets banner and keeps Activate disabled when the target app is missing one", () => {
     const detail = {
       hasMissingSecrets: (app: string) => app === "binance",
       requiredSecrets: {
-        binance: { slots: [], missing: ["BINANCE_API_KEY"] },
+        binance: {
+          applicationId: 17,
+          slots: [],
+          missing: ["BINANCE_API_KEY"],
+        },
       },
       loadRequiredSecrets: vi.fn(),
     };
@@ -172,7 +311,9 @@ describe("DeployStep", () => {
   it("does not show the required-secrets banner when nothing is missing", () => {
     const detail = {
       hasMissingSecrets: () => false,
-      requiredSecrets: { binance: { slots: [], missing: [] } },
+      requiredSecrets: {
+        binance: { applicationId: 17, slots: [], missing: [] },
+      },
       loadRequiredSecrets: vi.fn(),
     };
     render(

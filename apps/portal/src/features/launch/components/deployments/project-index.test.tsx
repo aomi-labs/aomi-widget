@@ -5,7 +5,7 @@ vi.mock("@portal/features/launch/hooks/use-projects", () => ({
   useProjects: () => ({
     state: {
       status: "ready",
-      sources: [
+      projects: [
         {
           id: 3,
           installationId: 1,

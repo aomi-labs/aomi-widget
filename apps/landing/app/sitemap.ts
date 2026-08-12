@@ -1,5 +1,5 @@
 import type { MetadataRoute } from "next";
-import { source, examples, playground } from "@/lib/source";
+import { examples, playground } from "@/lib/source";
 
 const SITE = "https://aomi.dev";
 
@@ -94,27 +94,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
     },
   ];
 
-  // Docs: HTML page + .md mirror for each.
-  const docsEntries: MetadataRoute.Sitemap = source
-    .generateParams()
-    .flatMap(({ slug = [] }) => {
-      const path = slug.join("/");
-      const url = `${SITE}/docs/${path}`;
-      return [
-        {
-          url,
-          lastModified: now,
-          changeFrequency: "weekly" as const,
-          priority: 0.8,
-        },
-        {
-          url: `${url}.md`,
-          lastModified: now,
-          changeFrequency: "weekly" as const,
-          priority: 0.7,
-        },
-      ];
-    });
+  // Docs live on Mintlify (proxied at /docs) and publish their own sitemap
+  // at /docs/sitemap.xml — see robots.ts.
 
   // Examples and playground content (HTML only — no .md mirrors yet).
   const exampleEntries: MetadataRoute.Sitemap = examples
@@ -135,10 +116,5 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.6,
     }));
 
-  return [
-    ...staticEntries,
-    ...docsEntries,
-    ...exampleEntries,
-    ...playgroundEntries,
-  ];
+  return [...staticEntries, ...exampleEntries, ...playgroundEntries];
 }

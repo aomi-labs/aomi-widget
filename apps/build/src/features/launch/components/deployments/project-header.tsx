@@ -1,4 +1,4 @@
-import type { UserSource, UserSourceLatestDeployment } from "@aomi-labs/deploy";
+import type { UserProject, UserProjectLatestDeployment } from "@aomi-labs/deploy";
 import { Github } from "lucide-react";
 import { StatusPill } from "./ui/status-pill";
 
@@ -9,8 +9,8 @@ export function ProjectHeader({
   backHref = "/operate/deployments",
   backLabel = "Deployments",
 }: {
-  source: UserSource | null;
-  latest: UserSourceLatestDeployment | null;
+  source: UserProject | null;
+  latest: UserProjectLatestDeployment | null;
   onRefresh: () => void;
   backHref?: string;
   backLabel?: string;

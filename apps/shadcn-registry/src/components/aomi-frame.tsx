@@ -69,6 +69,8 @@ type RootProps = {
   defaultSidebarOpen?: boolean;
   /** Backend URL for the Aomi runtime */
   backendUrl?: string;
+  /** Concrete hosted application used to isolate runtime and persisted threads. */
+  applicationId?: number | string | null;
   /** Optional runtime client overrides. */
   clientOptions?: Omit<AomiClientOptions, "baseUrl">;
   /** Whether an account session can load thread history without a wallet. */
@@ -126,6 +128,7 @@ const Root: FC<RootProps> = ({
   showSidebar = true,
   defaultSidebarOpen = true,
   backendUrl,
+  applicationId,
   clientOptions,
   accountSessionAvailable,
   persistThread,
@@ -141,6 +144,7 @@ const Root: FC<RootProps> = ({
   return (
     <AomiRuntimeProvider
       backendUrl={resolvedBackendUrl}
+      applicationId={applicationId}
       clientOptions={clientOptions}
       accountSessionAvailable={accountSessionAvailable}
       persistThread={persistThread}

@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 export const runtime = "nodejs";
 
 import { API_PATHS } from "@portal/lib/api-paths";
-import { deploymentClient } from "@portal/server/bff/backend";
+import { backendClient } from "@portal/server/bff/backend";
 import { portalFailures } from "@portal/server/bff/failures";
 import { setGitHubSessionCookie } from "@portal/server/cookies/github";
 
@@ -39,7 +39,7 @@ export async function GET(req: Request) {
   }
 
   try {
-    const client = await deploymentClient();
+    const client = await backendClient();
     const identity = await client.exchangeGitHubCode({
       code,
       app: LOGIN_APP_INDEX,

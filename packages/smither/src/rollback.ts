@@ -1,11 +1,11 @@
 import {
-  DeploymentClient,
+  BackendClient,
   type ListDeploymentRecordsResult,
 } from "@aomi-labs/deploy";
 import { resolveActivationCredential } from "./commands";
 
 export type RollbackClient = Pick<
-  DeploymentClient,
+  BackendClient,
   "listDeploymentRecords" | "promote"
 >;
 
@@ -63,7 +63,7 @@ export async function rollbackClientFromEnv(options: {
   env?: NodeJS.ProcessEnv;
   activationToken?: string;
   backendUrl?: string;
-}): Promise<DeploymentClient> {
+}): Promise<BackendClient> {
   const env = options.env ?? process.env;
   const backendUrl = options.backendUrl ?? env.AOMI_BACKEND_URL;
   if (!backendUrl) {
@@ -80,7 +80,7 @@ export async function rollbackClientFromEnv(options: {
       "No activation token found. Set AOMI_APP_ACTIVATION_TOKEN or pass --activation-token.",
     );
   }
-  return new DeploymentClient({
+  return new BackendClient({
     aomi: { backendUrl, activationToken: activation.token },
   });
 }

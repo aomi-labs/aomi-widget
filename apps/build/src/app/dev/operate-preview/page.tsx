@@ -174,7 +174,7 @@ function logWire(log: LogRecord, index: number) {
 }
 
 const OBSERVABILITY = {
-  sources: [SOURCE],
+  projects: [SOURCE],
   scope: "owned_applications",
   monitoring: {
     provider: "grafana_prometheus",
@@ -237,7 +237,7 @@ const OBSERVABILITY = {
 };
 
 const TRANSACTIONS = {
-  sources: [SOURCE],
+  projects: [SOURCE],
   transactions: [
     {
       id: `partner-payout:${SOMM_RECEIPT}`,
@@ -291,7 +291,7 @@ const TRANSACTIONS = {
 };
 
 const LOGS = {
-  sources: [SOURCE],
+  projects: [SOURCE],
   logs: [
     {
       occurredAt: 1_785_119_866,
@@ -358,7 +358,7 @@ const LOGS = {
 };
 
 const USAGE = {
-  sources: [SOURCE],
+  projects: [SOURCE],
   range: { fromDate: "2026-07-01", toDate: "2026-07-15", maxDays: 31 },
   daily: [],
   breakdown: [

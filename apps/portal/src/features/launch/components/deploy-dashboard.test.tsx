@@ -18,9 +18,9 @@ vi.mock("@portal/features/launch", () => ({
     signedIn: true,
     githubLogin: "alice",
   })),
-  fetchUserSources: vi.fn(async () => ({
+  fetchUserProjects: vi.fn(async () => ({
     githubLogin: "alice",
-    sources: [
+    projects: [
       {
         id: 99,
         installationId: 555,
@@ -30,7 +30,7 @@ vi.mock("@portal/features/launch", () => ({
       },
     ],
   })),
-  hasSourceForLaunchUrlContext: vi.fn(() => true),
+  hasProjectForLaunchUrlContext: vi.fn(() => true),
   launchActivate: vi.fn(),
   launchRedeploy: vi.fn(),
   launchStatus: vi.fn(),
@@ -43,7 +43,7 @@ vi.mock("@portal/features/launch", () => ({
 }));
 
 vi.mock("@aomi-labs/deploy/lifecycle", () => ({
-  deploymentLifecycleFromSource: vi.fn(() => ({
+  deploymentLifecycleFromProject: vi.fn(() => ({
     kind: "live",
     repo: "alice/bot",
     statusLabel: "Live",

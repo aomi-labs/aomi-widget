@@ -361,7 +361,7 @@ function composePlan(
 ): BuildPlan {
   const root = sdkRootOverride ?? sdkRoot();
   // An app that already carries a discovered/curated spec resumes idempotently
-  // (gen-* keeps curated sources); a fresh app goes through spec discovery.
+  // (gen-* keeps curated projects); a fresh app goes through spec discovery.
   const hasSpec = sdkRootOverride
     ? false
     : existsSync(path.join(root, "apps", app, "openapi.yaml"));

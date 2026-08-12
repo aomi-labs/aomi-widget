@@ -1,6 +1,6 @@
-import type { UserSource } from "@aomi-labs/deploy";
+import type { UserProject } from "@aomi-labs/deploy";
 import {
-  deploymentLifecycleFromSource,
+  deploymentLifecycleFromProject,
   type DeploymentLifecycle,
 } from "@aomi-labs/deploy/lifecycle";
 
@@ -16,12 +16,12 @@ export type ProjectDeploymentStatus = {
 
 /**
  * One deployment story for Projects list, Home, and Deployments.
- * Always derived from `deploymentLifecycleFromSource` (same as Chat / Home).
+ * Always derived from `deploymentLifecycleFromProject` (same as Chat / Home).
  */
 export function projectDeploymentStatus(
-  source: UserSource,
+  source: UserProject,
 ): ProjectDeploymentStatus {
-  const lifecycle = deploymentLifecycleFromSource(source);
+  const lifecycle = deploymentLifecycleFromProject(source);
   const hasRecordedDeployment =
     source.latestDeployment != null ||
     source.apps.some((app) => app.appReleaseTag != null);

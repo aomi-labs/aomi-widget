@@ -1,6 +1,6 @@
-import type { DeploymentClient } from "../client";
+import type { BackendClient } from "../backend";
 import { BackendError } from "../errors";
-import type { ReleaseManifest, SecretSlot, UserSource } from "../types";
+import type { ReleaseManifest, SecretSlot, UserProject } from "../types";
 import { missingRequiredSecrets } from "../secrets";
 
 const GITHUB_API = "https://api.github.com";
@@ -133,20 +133,19 @@ async function mapWithConcurrency<T, R>(
  * therefore one fetch. Awaiting them one pair at a time put every app's GitHub
  * latency end-to-end in front of the user's Activate click.
  *
- * `input.source` normally comes from `listUserSources`, and the backend
+ * `input.project` normally comes from `listUserProjects`, and the backend
  * deliberately returns `latest_deployment: null` on that list endpoint (it's
- * lazy there). So `input.source.latestDeployment?.platformRepo` is checked
+ * lazy there). So `input.project.latestDeployment?.platformRepo` is checked
  * first as a cheap path (in case a caller ever passes an already-populated
- * source), but the real value comes from the per-source latest-deployment
+ * project), but the real value comes from the per-project latest-deployment
  * detail endpoint, which does populate `platformRepo`. `platformRepo` is a
- * platform-level constant across a source's deployments, so the latest
+ * platform-level constant across a project's deployments, so the latest
  * deployment's value is correct for any release tag being gated here.
  */
 export async function missingSecretsForActivation(input: {
-  client: DeploymentClient;
+  client: BackendClient;
   githubUserId: string;
-  platform: string;
-  source: UserSource;
+  project: UserProject;
   pairs: { app: string; releaseTag: string }[];
   githubToken?: string;
 }): Promise<Record<string, string[]>> {
@@ -155,13 +154,12 @@ export async function missingSecretsForActivation(input: {
   const githubToken = input.githubToken ?? process.env.GITHUB_TOKEN?.trim();
   if (!githubToken) throw new RequiredSecretsCheckError();
 
-  let platformRepo = input.source.latestDeployment?.platformRepo ?? undefined;
+  let platformRepo = input.project.latestDeployment?.platformRepo ?? undefined;
   if (!platformRepo) {
     try {
-      const latest = await input.client.getUserSourceLatestDeployment({
+      const latest = await input.client.getUserProjectLatestDeployment({
         githubUserId: input.githubUserId,
-        platform: input.platform,
-        appSourceId: input.source.id,
+        projectId: input.project.id,
       });
       platformRepo = latest?.platformRepo ?? undefined;
     } catch (error) {
@@ -178,10 +176,21 @@ export async function missingSecretsForActivation(input: {
 
   // Kept after the platform-repo resolution on purpose: when that fails the
   // gate is already closed, and this read must not fire anyway.
-  const configured = await input.client.listAppSecrets({
-    githubUserId: input.githubUserId,
-    sourceId: String(input.source.id),
-  });
+  const configured = Object.fromEntries(
+    await mapWithConcurrency(input.pairs, MANIFEST_CONCURRENCY, async (pair) => {
+      const application = input.project.apps.find((app) => app.name === pair.app);
+      if (!application) {
+        throw new RequiredSecretsCheckError({
+          cause: new Error(`Application identity is unavailable for ${pair.app}`),
+          upstream: "rust",
+        });
+      }
+      const result = await input.client.listAppSecrets({
+        applicationId: application.id,
+      });
+      return [pair.app, result.byApp[pair.app] ?? []] as const;
+    }),
+  );
 
   const releaseTags = [...new Set(input.pairs.map((pair) => pair.releaseTag))];
   const manifests = await mapWithConcurrency(
@@ -197,7 +206,7 @@ export async function missingSecretsForActivation(input: {
   const missing: Record<string, string[]> = {};
   for (const pair of input.pairs) {
     const slots = slotsByTag.get(pair.releaseTag) ?? {};
-    const configuredKeys = (configured.byApp[pair.app] ?? []).map(
+    const configuredKeys = (configured[pair.app] ?? []).map(
       (handle) => handle.split("::").pop() ?? handle,
     );
     const unfilled = missingRequiredSecrets(slots[pair.app], configuredKeys);

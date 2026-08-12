@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { AomiLogo } from "../components/aomi-logo";
 
 export default function TermsPage() {
   return (
@@ -25,14 +26,10 @@ export default function TermsPage() {
           href="/"
           className="flex items-center gap-x-2 gap-y-2 rounded-full bg-black/20 pt-2.5 pr-5 pb-2.5 pl-5 shadow-[0_8px_32px_0_rgba(0,0,0,0.1)] ring-1 ring-white/20 backdrop-blur-[80px] transition-all duration-300 hover:bg-black/30"
         >
-          <img
-            src="/assets/images/bubble.svg"
-            alt="Aomi"
-            className="h-6 w-6 drop-shadow-sm invert"
+          <AomiLogo
+            className="text-[17px] text-white drop-shadow-sm"
+            markClassName="h-[17px] w-[17px] invert"
           />
-          <span className="font-geist text-sm font-semibold tracking-tight text-white drop-shadow-sm">
-            Aomi
-          </span>
         </Link>
       </nav>
 

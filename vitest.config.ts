@@ -34,9 +34,10 @@ export default defineConfig({
     include: [
       "packages/**/*.{test,spec}.{ts,tsx,mjs,cjs,js,jsx}",
       "apps/build/src/**/*.{test,spec}.{ts,tsx}",
+      "apps/telegram/src/**/*.{test,spec}.{ts,tsx}",
       "apps/portal/src/{app,server}/mcp/**/*.{test,spec}.{ts,tsx}",
       "apps/portal/src/lib/widget-auth/**/*.{test,spec}.{ts,tsx}",
-      "apps/portal/src/app/api/*/route.{test,spec}.{ts,tsx}",
+      "apps/portal/src/app/api/**/route.{test,spec}.{ts,tsx}",
     ],
     exclude: [".claude/**", "**/.claude/**", "**/node_modules/**", "dist/**"],
     restoreMocks: true,

@@ -1,4 +1,5 @@
 import { unwrapSystemEvent } from "../event";
+import { isAomiTaskEventType, parseAomiTaskEvent } from "../types";
 import type {
   AomiMessage,
   AomiSSEEvent,
@@ -16,7 +17,9 @@ import {
   normalizeSolanaSignPayload,
   normalizeSolanaWalletRequest,
   normalizeTxPayload,
+  type NormalizedSolanaWalletRequest,
 } from "../wallet-utils";
+import type { WalletRequest } from "./types";
 
 type Emit = <K extends keyof SessionEventMap & string>(
   type: K,
@@ -158,7 +161,7 @@ export function applySessionState(
 
 export function handleSessionSSEEvent(
   event: AomiSSEEvent,
-  deps: Pick<StateDeps, "setTitle" | "emit">,
+  deps: StateDeps,
 ): void {
   if (event.type === "title_changed" && event.new_title) {
     deps.setTitle(event.new_title);
@@ -167,6 +170,58 @@ export function handleSessionSSEEvent(
     deps.emit("tool_update", event);
   } else if (event.type === "tool_complete") {
     deps.emit("tool_complete", event);
+  } else if (isAomiTaskEventType(event.type)) {
+    // Orchestrator delegation events are re-emitted as-is (like tool_update):
+    // no session-state mutation, the React runtime owns the taskRuns sidecar.
+    const taskEvent = parseAomiTaskEvent(event);
+    if (taskEvent) {
+      if (taskEvent.type === "task_started") {
+        deps.emit("task_started", taskEvent);
+      } else if (taskEvent.type === "task_activity") {
+        deps.emit("task_activity", taskEvent);
+      } else {
+        deps.emit("task_completed", taskEvent);
+      }
+    }
+  } else if (
+    event.type === "wallet_tx_request" ||
+    event.type === "wallet_eip712_request" ||
+    event.type.startsWith("wallet::solana_")
+  ) {
+    dispatchSystemEvents(
+      [
+        {
+          InlineCall: {
+            type: event.type,
+            payload: event.payload,
+          },
+        },
+      ],
+      deps,
+    );
+  }
+}
+
+function dispatchSolanaRequest(
+  request: NormalizedSolanaWalletRequest,
+  deps: StateDeps,
+): void {
+  let queued: WalletRequest;
+  if (request.kind === "solana_sign_message") {
+    queued = deps.walletController.enqueue(request.kind, request.payload);
+    deps.emit("wallet_solana_sign_message_request", queued);
+  } else if (request.kind === "solana_sign") {
+    queued = deps.walletController.enqueue("solana_sign", request.payload);
+    deps.emit("wallet_solana_sign_request", queued);
+  } else if (request.kind === "solana_send") {
+    queued = deps.walletController.enqueue("solana_send", request.payload);
+    deps.emit("wallet_solana_send_request", queued);
+  } else {
+    queued = deps.walletController.enqueue(
+      "solana_sign_and_send",
+      request.payload,
+    );
+    deps.emit("wallet_solana_sign_and_send_request", queued);
   }
 }
 
@@ -189,31 +244,7 @@ function dispatchSystemEvents(
         unwrapped.payload ?? {},
       );
       if (solanaRequest) {
-        if (solanaRequest.kind === "solana_sign_message") {
-          const req = deps.walletController.enqueue(
-            "solana_sign_message",
-            solanaRequest.payload,
-          );
-          deps.emit("wallet_solana_sign_message_request", req);
-        } else if (solanaRequest.kind === "solana_send") {
-          const req = deps.walletController.enqueue(
-            "solana_send",
-            solanaRequest.payload,
-          );
-          deps.emit("wallet_solana_send_request", req);
-        } else if (solanaRequest.kind === "solana_sign_and_send") {
-          const req = deps.walletController.enqueue(
-            "solana_sign_and_send",
-            solanaRequest.payload,
-          );
-          deps.emit("wallet_solana_sign_and_send_request", req);
-        } else {
-          const req = deps.walletController.enqueue(
-            "solana_sign",
-            solanaRequest.payload,
-          );
-          deps.emit("wallet_solana_sign_request", req);
-        }
+        dispatchSolanaRequest(solanaRequest, deps);
         continue;
       }
 
@@ -234,31 +265,7 @@ function dispatchSystemEvents(
         unwrapped.payload ?? {},
       );
       if (solanaRequest) {
-        if (solanaRequest.kind === "solana_sign_message") {
-          const req = deps.walletController.enqueue(
-            "solana_sign_message",
-            solanaRequest.payload,
-          );
-          deps.emit("wallet_solana_sign_message_request", req);
-        } else if (solanaRequest.kind === "solana_send") {
-          const req = deps.walletController.enqueue(
-            "solana_send",
-            solanaRequest.payload,
-          );
-          deps.emit("wallet_solana_send_request", req);
-        } else if (solanaRequest.kind === "solana_sign_and_send") {
-          const req = deps.walletController.enqueue(
-            "solana_sign_and_send",
-            solanaRequest.payload,
-          );
-          deps.emit("wallet_solana_sign_and_send_request", req);
-        } else {
-          const req = deps.walletController.enqueue(
-            "solana_sign",
-            solanaRequest.payload,
-          );
-          deps.emit("wallet_solana_sign_request", req);
-        }
+        dispatchSolanaRequest(solanaRequest, deps);
         continue;
       }
 

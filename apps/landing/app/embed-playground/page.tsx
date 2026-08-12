@@ -27,28 +27,55 @@ export default async function EmbedPlaygroundPage(props: {
     >
       <PlaygroundConfigurator forceEmbed={isEmbed} />
       <style>{`
+        /* Aomi brand roles (aomi-design inventory: cool neutral ramp, sky accent).
+           These shadcn-named vars are what fumadocs' --color-fd-* aliases read,
+           so setting them here rethemes every fd-* utility in the chrome. */
         .embed-playground-root {
           color-scheme: light dark;
-          background: light-dark(oklch(0.985 0 0), #0f0f0f);
-          --background: light-dark(oklch(1 0 0), oklch(0.141 0.005 285.823));
-          --foreground: light-dark(oklch(0.141 0.005 285.823), oklch(0.985 0 0));
-          --card: light-dark(oklch(1 0 0), oklch(0.21 0.006 285.885));
-          --card-foreground: light-dark(oklch(0.141 0.005 285.823), oklch(0.985 0 0));
-          --popover: light-dark(oklch(1 0 0), oklch(0.21 0.006 285.885));
-          --popover-foreground: light-dark(oklch(0.141 0.005 285.823), oklch(0.985 0 0));
-          --primary: light-dark(oklch(0.21 0.006 285.885), oklch(0.92 0.004 286.32));
-          --primary-foreground: light-dark(oklch(0.985 0 0), oklch(0.21 0.006 285.885));
-          --secondary: light-dark(oklch(0.967 0.001 286.375), oklch(0.274 0.006 286.033));
-          --secondary-foreground: light-dark(oklch(0.21 0.006 285.885), oklch(0.985 0 0));
-          --muted: light-dark(oklch(0.967 0.001 286.375), oklch(0.274 0.006 286.033));
-          --muted-foreground: light-dark(oklch(0.552 0.016 285.938), oklch(0.705 0.015 286.067));
-          --accent: light-dark(oklch(0.967 0.001 286.375), oklch(0.274 0.006 286.033));
-          --accent-foreground: light-dark(oklch(0.21 0.006 285.885), oklch(0.985 0 0));
-          --destructive: light-dark(oklch(0.577 0.245 27.325), oklch(0.704 0.191 22.216));
-          --border: light-dark(oklch(0.92 0.004 286.32), oklch(1 0 0 / 10%));
-          --input: light-dark(oklch(0.92 0.004 286.32), oklch(0.6 0 0 / 15%));
-          --ring: light-dark(oklch(0.705 0.015 286.067), oklch(0.552 0.016 285.938));
+          font-family: "Geist", ui-sans-serif, system-ui, sans-serif;
+          background: light-dark(#fafafa, #09090b);
+          --background: light-dark(#ffffff, #09090b);
+          --foreground: light-dark(#09090b, #fafafa);
+          --card: light-dark(#ffffff, #18181b);
+          --card-foreground: light-dark(#09090b, #fafafa);
+          --popover: light-dark(#ffffff, #202024);
+          --popover-foreground: light-dark(#09090b, #fafafa);
+          --primary: light-dark(#5288c2, #7facd6);
+          --primary-foreground: light-dark(#ffffff, #09090b);
+          --secondary: light-dark(#f4f4f5, #27272a);
+          --secondary-foreground: light-dark(#09090b, #fafafa);
+          --muted: light-dark(#f4f4f5, #202024);
+          --muted-foreground: light-dark(#71717a, #a1a1aa);
+          --accent: light-dark(#e2eef8, #28354a);
+          --accent-foreground: light-dark(#416cac, #aecbe8);
+          --destructive: light-dark(#c34255, #b8394a);
+          --border: light-dark(#e4e4e7, #3f3f46);
+          --input: light-dark(#e4e4e7, #3f3f46);
+          --ring: light-dark(#5288c2, #7facd6);
           --radius: 0.625rem;
+          /* inventory roles with no shadcn equivalent */
+          --surface-2: light-dark(#f4f4f5, #2e2e33);
+          --accent-strong: light-dark(#416cac, #5288c2);
+          --on-accent: light-dark(#ffffff, #09090b);
+          /* fumadocs' fd aliases resolve var(--primary) at :root (registered
+             properties inherit computed values), so re-declare them here to pick
+             up the brand roles above. */
+          --color-fd-background: var(--background);
+          --color-fd-foreground: var(--foreground);
+          --color-fd-muted: var(--muted);
+          --color-fd-muted-foreground: var(--muted-foreground);
+          --color-fd-popover: var(--popover);
+          --color-fd-popover-foreground: var(--popover-foreground);
+          --color-fd-card: var(--card);
+          --color-fd-card-foreground: var(--card-foreground);
+          --color-fd-border: var(--border);
+          --color-fd-primary: var(--primary);
+          --color-fd-primary-foreground: var(--primary-foreground);
+          --color-fd-secondary: var(--secondary);
+          --color-fd-secondary-foreground: var(--secondary-foreground);
+          --color-fd-accent: var(--accent);
+          --color-fd-accent-foreground: var(--accent-foreground);
+          --color-fd-ring: var(--ring);
         }
       `}</style>
     </div>

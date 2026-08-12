@@ -65,7 +65,7 @@ describe("OperateView transactions", () => {
 
   it("renders denser columns from wire fields and truncates addresses", async () => {
     operateFetch.mockResolvedValue({
-      sources: [],
+      projects: [],
       transactions: [
         {
           id: "1",
@@ -102,7 +102,7 @@ describe("OperateView transactions", () => {
 
   it("shows a clearer empty state when there are no transactions", async () => {
     operateFetch.mockResolvedValue({
-      sources: [],
+      projects: [],
       transactions: [],
       nextCursor: null,
     });
@@ -131,7 +131,7 @@ describe("OperateView transactions", () => {
       },
     });
     operateFetch.mockResolvedValue({
-      sources: [],
+      projects: [],
       monitoring: { status: "ok", windowSeconds: 900 },
       apps: [
         {
@@ -204,7 +204,7 @@ describe("OperateView transactions", () => {
 
   it("links an owned app card to its live detail by stable ids", async () => {
     operateFetch.mockResolvedValue({
-      sources: [],
+      projects: [],
       example: true,
       monitoring: { status: "unconfigured", windowSeconds: 300 },
       apps: [
@@ -212,7 +212,7 @@ describe("OperateView transactions", () => {
           applicationId: 2_937_099,
           application: "playground-example",
           exampleFixture: "goal-digger",
-          source: { id: 1586 },
+          project: { id: 1586 },
           status: "healthy",
           metrics: { chats24h: 47 },
         },
@@ -227,12 +227,12 @@ describe("OperateView transactions", () => {
       await screen.findByRole("link", {
         name: "Open playground-example observability details",
       }),
-    ).toHaveAttribute("href", "/operate/observability/2937099?project=1586");
+    ).toHaveAttribute("href", "/operate/observability/2937099");
   });
 
   it("falls back to the legacy live tiles when trend data is absent", async () => {
     operateFetch.mockResolvedValue({
-      sources: [],
+      projects: [],
       monitoring: { status: "ok", windowSeconds: 300 },
       apps: [
         {
@@ -265,7 +265,7 @@ describe("OperateView transactions", () => {
 
   it("expands a tx row into the receipt detail with SVM vocabulary", async () => {
     operateFetch.mockResolvedValue({
-      sources: [],
+      projects: [],
       transactions: [
         {
           id: "tx-svm",
@@ -309,7 +309,7 @@ describe("OperateView transactions", () => {
 
   it("renders invocation log records dense and expands args/result", async () => {
     operateFetch.mockResolvedValue({
-      sources: [],
+      projects: [],
       logs: [
         {
           id: "log-1",
@@ -353,7 +353,7 @@ describe("OperateView transactions", () => {
 
   it("shows the builder model key on funded usage logs", async () => {
     operateFetch.mockResolvedValue({
-      sources: [],
+      projects: [],
       logs: [
         {
           id: "usage-1",
@@ -379,7 +379,7 @@ describe("OperateView transactions", () => {
 
   it("renders the statement when present, meter otherwise", async () => {
     operateFetch.mockResolvedValue({
-      sources: [],
+      projects: [],
       daily: [],
       breakdown: [],
       // BFF filled the statement from example fixtures (BE not live yet).
@@ -520,7 +520,7 @@ describe("OperateView transactions", () => {
 
   it("renders partner settlement receipts as transaction records", async () => {
     operateFetch.mockResolvedValue({
-      sources: [],
+      projects: [],
       transactions: [
         {
           id: "partner-payout:settle:proof",
@@ -575,7 +575,7 @@ describe("OperateView transactions", () => {
 
   it("filters and expands partner payment ledger records in logs", async () => {
     operateFetch.mockResolvedValue({
-      sources: [],
+      projects: [],
       logs: [
         {
           id: "usage:fee",
@@ -642,7 +642,7 @@ describe("OperateView transactions", () => {
 
   it("falls back to the token meter without a statement", async () => {
     operateFetch.mockResolvedValue({
-      sources: [],
+      projects: [],
       daily: [
         {
           periodUtcDay: "2026-07-15",
@@ -666,7 +666,7 @@ describe("OperateView transactions", () => {
   it("honors ?project= when loading operate data", async () => {
     searchParams.current = new URLSearchParams("project=42");
     operateFetch.mockResolvedValue({
-      sources: [{ id: 42, repositoryLink: "a/b", apps: [] }],
+      projects: [{ id: 42, repositoryLink: "a/b", apps: [] }],
       daily: [],
       breakdown: [],
     });
@@ -675,18 +675,17 @@ describe("OperateView transactions", () => {
 
     await waitFor(() => {
       expect(operateFetch).toHaveBeenCalledWith("usage", {
-        sourceId: 42,
-        platform: undefined,
+        projectId: 42,
       });
     });
   });
 
-  it("keeps ?platform= on project-scoped operate reads", async () => {
+  it("ignores stale ?platform= on Project-scoped operate reads", async () => {
     searchParams.current = new URLSearchParams(
       "project=1620&platform=somm.finance",
     );
     operateFetch.mockResolvedValue({
-      sources: [{ id: 1620, repositoryLink: "aomi/somm-agent", apps: [] }],
+      projects: [{ id: 1620, repositoryLink: "aomi/somm-agent", apps: [] }],
       daily: [],
       breakdown: [],
     });
@@ -695,15 +694,14 @@ describe("OperateView transactions", () => {
 
     await waitFor(() => {
       expect(operateFetch).toHaveBeenCalledWith("usage", {
-        sourceId: 1620,
-        platform: "somm.finance",
+        projectId: 1620,
       });
     });
   });
 
   it("reuses fresh operate data when returning to a tab", async () => {
     operateFetch.mockResolvedValue({
-      sources: [],
+      projects: [],
       transactions: [],
       nextCursor: null,
     });
@@ -736,7 +734,7 @@ describe("OperateView failure and empty states", () => {
   });
 
   it("shows the normal empty state when the account has no transactions", async () => {
-    operateFetch.mockResolvedValue({ sources: [], transactions: [] });
+    operateFetch.mockResolvedValue({ projects: [], transactions: [] });
 
     render(<OperateView kind="transactions" />);
 

@@ -101,7 +101,7 @@ flowchart TD
 
 | Endpoint | Returns | Build home |
 |---|---|---|
-| `GET …/sources/:id/usage` | Daily credits/tokens + breakdown | **Operate → Usage** (live) |
+| `GET …/projects/:id/usage` | Daily credits/tokens + breakdown | **Operate → Usage** (live) |
 | `GET /api/account/usage` | Tier `credit_used` vs `credit_paid` (cap) + per-app | Portal / optional Build mirror |
 | `GET /api/account/payment` | `{ byok, streams }` — **methods only** | Account → Billing (can wire next) |
 
@@ -131,7 +131,7 @@ flowchart TB
   end
 
   subgraph api [HTTP today]
-    U1["sources/:id/usage"]
+    U1["projects/:id/usage"]
     U2["/api/account/usage"]
     P1["/api/account/payment"]
   end

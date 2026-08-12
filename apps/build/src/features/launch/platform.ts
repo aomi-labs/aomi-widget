@@ -45,17 +45,18 @@ export function platformParam(value: string | string[] | undefined): string {
   return rawPlatformParam(value) ?? DEFAULT_DEPLOY_PLATFORM;
 }
 
-/** Routes that understand `?platform=`. Anything else is left alone. */
+/**
+ * Routes whose navigation stays inside one platform. Project detail still
+ * derives authority from the canonical Project; carrying the query here keeps
+ * surrounding links and the return path in the same visible scope.
+ */
 function isPlatformScoped(href: string): boolean {
   return (
+    href === "/overview" ||
     href === "/projects" ||
-    href === "/operate/deployments/new" ||
-    // A bot's app picker lists the builder's sources, and a source is bound to
-    // exactly one platform — so which apps a bot can be pointed at is a
-    // platform-scoped question like any other.
-    href === "/integrations" ||
-    href === "/operate/bots" ||
-    href.startsWith("/projects/")
+    href.startsWith("/projects/") ||
+    href === "/operate/deployments" ||
+    href === "/operate/deployments/new"
   );
 }
 
@@ -64,6 +65,10 @@ export function platformHref(
   href: string,
   platform: string | null | undefined,
 ): string {
-  if (!platform || href.includes("?") || !isPlatformScoped(href)) return href;
-  return `${href}?platform=${encodeURIComponent(platform)}`;
+  if (!platform) return href;
+  const [pathname, query = ""] = href.split("?", 2);
+  if (!isPlatformScoped(pathname)) return href;
+  const params = new URLSearchParams(query);
+  params.set("platform", platform);
+  return `${pathname}?${params}`;
 }

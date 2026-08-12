@@ -1,3 +1,5 @@
+/* eslint-disable no-restricted-imports -- Server-only widget credential exchange. */
+
 import {
   getWidgetProvider,
   widgetCredentialWireSchema,

@@ -20,31 +20,15 @@ export const API_PATHS = {
         devSession: `${BFF}/auth/github/dev-session`,
       },
     },
-    launch: {
-      preflight: `${BFF}/launch/preflight`,
-      deploy: `${BFF}/launch/deploy`,
-      redeploy: `${BFF}/launch/redeploy`,
-      create: `${BFF}/launch/create`,
-      activate: `${BFF}/launch/activate`,
-      sources: `${BFF}/launch/sources`,
-      sdkStatus: `${BFF}/launch/sdk-status`,
-      status: (deploymentId: string) =>
-        `${BFF}/launch/status?deploymentId=${encodeURIComponent(deploymentId)}`,
-      app: (name: string, releaseTag?: string) => {
-        const params = new URLSearchParams({ name });
-        if (releaseTag) params.set("releaseTag", releaseTag);
-        return `${BFF}/launch/app?${params}`;
-      },
-    },
     deployments: {
       preflight: `${BFF}/deployments/preflight`,
       deploy: `${BFF}/deployments/deploy`,
       redeploy: `${BFF}/deployments/redeploy`,
       promote: `${BFF}/deployments/promote`,
-      sources: `${BFF}/deployments/sources`,
-      history: (appSourceId: number, limit?: number) => {
+      projects: `${BFF}/deployments/projects`,
+      history: (projectId: number, limit?: number) => {
         const params = new URLSearchParams({
-          appSourceId: String(appSourceId),
+          projectId: String(projectId),
         });
         if (limit) params.set("limit", String(limit));
         return `${BFF}/deployments/history?${params}`;
@@ -52,11 +36,11 @@ export const API_PATHS = {
       sdkStatus: `${BFF}/deployments/sdk-status`,
       status: (deploymentId: string) =>
         `${BFF}/deployments/status?deploymentId=${encodeURIComponent(deploymentId)}`,
-      secrets: (appSourceId: number) =>
-        `${BFF}/deployments/secrets?appSourceId=${appSourceId}`,
-      records: (app: string, appSourceId?: number) =>
+      secrets: (applicationId: number) =>
+        `${BFF}/deployments/secrets?applicationId=${applicationId}`,
+      records: (app: string, projectId?: number) =>
         `${BFF}/deployments/records?app=${encodeURIComponent(app)}${
-          appSourceId != null ? `&appSourceId=${appSourceId}` : ""
+          projectId != null ? `&projectId=${projectId}` : ""
         }`,
       deactivate: `${BFF}/deployments/deactivate`,
     },

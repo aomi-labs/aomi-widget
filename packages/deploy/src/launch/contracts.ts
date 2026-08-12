@@ -1,7 +1,8 @@
 // =============================================================================
-// Launch client contracts — the shapes the launch BFF routes return.
+// Launch client contracts — the shapes the launch BFF routes return, plus the
+// required-secrets gate that blocks a deploy when env keys are missing.
 //
-// Browser-safe: types plus a few pure helpers, no env reads and no secrets.
+// Browser-safe: types plus a few pure helpers, no secrets.
 // =============================================================================
 
 import type {
@@ -12,8 +13,8 @@ import type {
   SdkVersionStatus,
   SecretSlot,
   UserDeploymentsPage,
-  UserSource,
-  UserSourceLatestDeployment,
+  UserProject,
+  UserProjectLatestDeployment,
 } from "../types";
 
 // One-click is the only launch path: the host forks the template and deploys
@@ -47,13 +48,42 @@ export function resolveTemplateRepo(templateRepo?: string): string {
 
 export type LaunchDeployPayload = DeployPayload;
 
+export type DeploymentTarget = { name: string; releaseTag: string };
+
+type DeploymentWithApps = {
+  platform?: {
+    apps?: readonly {
+      name?: string | null;
+      releaseTag?: string | null;
+      release_tag?: string | null;
+    }[];
+  };
+};
+
+/**
+ * Return complete app/release pairs in their original order. An incomplete
+ * manifest yields no targets so independently filtered arrays cannot drift.
+ */
+export function deploymentTargets(
+  deployment?: DeploymentWithApps,
+): DeploymentTarget[] {
+  const targets = (deployment?.platform?.apps ?? []).map((app) => ({
+    name: app.name?.trim() ?? "",
+    releaseTag: (app.releaseTag ?? app.release_tag)?.trim() ?? "",
+  }));
+  return targets.length > 0 &&
+    targets.every((target) => target.name && target.releaseTag)
+    ? targets
+    : [];
+}
+
 export type LaunchProgress = {
   installationId?: string;
   installationStatus?: string;
   repo?: string;
-  /** Cached source row id from create/sync/dashboard responses. */
-  appSourceId?: number;
-  /** Immutable source commit returned by source sync/create. */
+  /** Cached project id from create/dashboard responses. */
+  projectId?: number;
+  /** Immutable source commit returned by preflight. */
   sourceRef?: string;
   deploymentId?: string;
   deployment?: LaunchDeployPayload;
@@ -64,29 +94,26 @@ export type LaunchProgress = {
 };
 
 /**
- * Preflight / preview input. This is the one place a repo may stand in for a
- * source row: the preflight materializes the backend source and returns its
- * `appSourceId`.
+ * Preflight / preview input. A repo may stand in for its already-connected
+ * Project; preflight never creates one.
  */
 export type LaunchPreflightInput = {
-  /** Exact platform the deploy targets; the host's default when omitted. */
-  platform?: string;
-  appSourceId?: number;
+  projectId?: number;
   sourceRef?: string;
-  /** GitHub App installation that owns the source repo. Wizard context only. */
+  /** GitHub App installation that owns the project repo. Wizard context only. */
   installationId?: string;
-  /** `owner/name` repo used to mint the backend source when appSourceId is absent. */
+  /** `owner/name` repo used to resolve the existing Project. */
   repo?: string;
   actor?: string;
 };
 
-/** Commit a deploy against a stable, already-resolved source row. */
+/**
+ * Commit a deploy against a stable project and immutable source revision.
+ * No platform: the BFF derives the project's bound platform.
+ */
 export type LaunchDeployInput = {
-  /** Exact platform the deploy targets; the host's default when omitted. */
-  platform?: string;
-  appSourceId: number;
-  sourceRef?: string;
-  repo?: string;
+  projectId: number;
+  sourceRef: string;
   actor?: string;
 };
 
@@ -94,7 +121,7 @@ export type LaunchDeployResult = {
   projectUrl?: string;
   repo: string;
   installationId?: string;
-  appSourceId?: number;
+  projectId?: number;
   sourceRef?: string;
   deployment: LaunchDeployPayload;
   releaseTags: string[];
@@ -105,7 +132,7 @@ export type LaunchCreateRepoResult = {
   ok: boolean;
   repo: string;
   installationId: string;
-  appSourceId?: number;
+  projectId?: number;
   sourceRef?: string;
 };
 
@@ -113,21 +140,24 @@ export type LaunchStatus = DeploymentStatus;
 
 export type LaunchActivateResult = ActivateResult;
 
-export type LaunchAppStatus = {
+export type LaunchAppStatusApp = {
+  id?: number;
+  name: string;
+  app_release_tag?: string | null;
+  is_active: boolean;
+  loaded: boolean;
+};
+
+export type LaunchAppStatusesResult = {
   ok: boolean;
+  projectId: number;
   state: "pending" | "live";
-  app?: {
-    id?: number;
-    name: string;
-    app_release_tag?: string | null;
-    is_active: boolean;
-    loaded: boolean;
-  };
+  apps: LaunchAppStatusApp[];
 };
 
 export type LaunchRedeployResult = {
   ok: boolean;
-  appSourceId: number;
+  projectId: number;
   platformRepo: string | null;
   ciRunId: string | null;
   ciUrl: string | null;
@@ -139,13 +169,13 @@ export type LaunchSdkStatus = {
   sdkStatus: SdkVersionStatus;
 };
 
-export type DeploymentSourcesResult = {
-  sources: UserSource[];
+export type DeploymentProjectsResult = {
+  projects: UserProject[];
   githubLogin?: string;
 };
 
 export type DeploymentHistoryResult = {
-  deployments: UserSourceLatestDeployment[];
+  deployments: UserProjectLatestDeployment[];
 };
 
 export type DeploymentFeedResult = UserDeploymentsPage;
@@ -158,9 +188,33 @@ export type DeploymentPromoteResult = PromoteResult;
 
 export type RequiredSecretsByApp = Record<
   string,
-  { slots: SecretSlot[]; missing: string[] }
+  { applicationId: number; slots: SecretSlot[]; missing: string[] }
 >;
 
 export type RequiredSecretsResult = {
   byApp: RequiredSecretsByApp;
 };
+
+export class MissingRequiredSecretsError extends Error {
+  readonly missing: Record<string, string[]>;
+
+  constructor(missing: Record<string, string[]>) {
+    const names = Object.entries(missing)
+      .map(([app, keys]) => `${app}: ${keys.join(", ")}`)
+      .join("; ");
+    super(`Missing required secrets — ${names}`);
+    this.name = "MissingRequiredSecretsError";
+    this.missing = missing;
+  }
+}
+
+export function missingRequiredSecrets(
+  byApp: RequiredSecretsByApp,
+  apps: string[],
+): Record<string, string[]> {
+  return Object.fromEntries(
+    apps
+      .map((app) => [app, byApp[app]?.missing ?? []] as const)
+      .filter(([, missing]) => missing.length > 0),
+  );
+}

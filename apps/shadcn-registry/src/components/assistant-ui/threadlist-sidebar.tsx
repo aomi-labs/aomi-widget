@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/popover";
 import { ThreadList } from "@/components/assistant-ui/thread-list";
 import { ConnectButton } from "@/components/control-bar/connect-button";
+import { AomiLogo } from "@/components/aomi-logo";
 import { AomiMark } from "@/components/aomi-mark";
 import type { WalletAccountMenuOptions } from "@/components/control-bar/account-menu-types";
 
@@ -71,10 +72,12 @@ function ProductSwitcher({
 
   const wordmark = (
     <>
-      <AomiMark className="aomi-sidebar-header-icon size-6" />
-      <span className="text-[15px] font-semibold tracking-[-0.01em]">Aomi</span>
+      <AomiLogo
+        className="aomi-sidebar-header-logo text-[17px]"
+        markClassName="aomi-sidebar-header-icon"
+      />
       {current?.badge && (
-        <span className="bg-aomi-surface-2 text-aomi-muted rounded-sm px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide">
+        <span className="bg-aomi-surface-2 text-aomi-muted flex h-[17px] items-center rounded-sm px-1.5 text-[10px] font-medium uppercase leading-none tracking-wide">
           {current.badge}
         </span>
       )}
@@ -162,12 +165,10 @@ export function ThreadListSidebar({
               currentProductId={currentProductId}
             />
           ) : (
-            <div className="flex items-center gap-2">
-              <AomiMark className="aomi-sidebar-header-icon size-6" />
-              <span className="text-[15px] font-semibold tracking-[-0.01em]">
-                Aomi
-              </span>
-            </div>
+            <AomiLogo
+              className="aomi-sidebar-header-logo text-[17px]"
+              markClassName="aomi-sidebar-header-icon"
+            />
           )}
           {walletPosition === "header" && (
             <ConnectButton families={walletFamilies} accountMenu={walletAccountMenu} />

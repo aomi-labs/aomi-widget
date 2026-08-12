@@ -3,7 +3,7 @@ import {
   fetchReleaseSecretSlots,
   missingSecretsForActivation,
 } from "../src/bff/release-manifest";
-import type { DeploymentClient } from "../src/client";
+import type { BackendClient } from "../src/backend";
 
 function fakeFetch(routes: Record<string, { status: number; body: unknown }>) {
   return vi.fn(async (input: RequestInfo | URL) => {
@@ -207,30 +207,29 @@ describe("missingSecretsForActivation", () => {
       listAppSecrets: vi.fn(async () => ({
         byApp: { binance: ["$SECRET:APP:binance::BINANCE_API_KEY"] },
       })),
-      // Production shape: `listUserSources` (the source of `input.source`)
+      // Production shape: `listUserProjects` (the source of `input.source`)
       // deliberately returns `latest_deployment: null` — the helper must
       // resolve `platformRepo` itself via the detail endpoint.
-      getUserSourceLatestDeployment: vi.fn(async () => ({
+      getUserProjectLatestDeployment: vi.fn(async () => ({
         platformRepo: "aomi-labs/community",
       })),
-    } as unknown as DeploymentClient;
+    } as unknown as BackendClient;
 
     const missing = await missingSecretsForActivation({
       client,
       githubUserId: "gh-1",
-      platform: "community",
       githubToken: "t",
-      source: {
+      project: {
         id: 42,
         latestDeployment: null,
+        apps: [{ id: 17, name: "binance" }],
       } as never,
       pairs: [{ app: "binance", releaseTag: "v1" }],
     });
     expect(missing).toEqual({ binance: ["BINANCE_SECRET_KEY"] });
-    expect(client.getUserSourceLatestDeployment).toHaveBeenCalledWith({
+    expect(client.getUserProjectLatestDeployment).toHaveBeenCalledWith({
       githubUserId: "gh-1",
-      platform: "community",
-      appSourceId: 42,
+      projectId: 42,
     });
   });
 
@@ -242,15 +241,14 @@ describe("missingSecretsForActivation", () => {
     // returns null, so the release manifest cannot be verified.
     const client = {
       listAppSecrets: vi.fn(),
-      getUserSourceLatestDeployment: vi.fn(async () => null),
-    } as unknown as DeploymentClient;
+      getUserProjectLatestDeployment: vi.fn(async () => null),
+    } as unknown as BackendClient;
     await expect(
       missingSecretsForActivation({
         client,
         githubUserId: "gh-1",
-        platform: "community",
         githubToken: "t",
-        source: { id: 42, latestDeployment: null } as never,
+        project: { id: 42, latestDeployment: null } as never,
         pairs: [{ app: "binance", releaseTag: "v1" }],
       }),
     ).rejects.toMatchObject({ code: "REQUIRED_SECRETS_CHECK_UNAVAILABLE" });
@@ -265,45 +263,43 @@ describe("missingSecretsForActivation", () => {
 
     const client = {
       listAppSecrets: vi.fn(),
-      getUserSourceLatestDeployment: vi.fn(async () => ({
+      getUserProjectLatestDeployment: vi.fn(async () => ({
         platformRepo: "aomi-labs/community",
       })),
-    } as unknown as DeploymentClient;
+    } as unknown as BackendClient;
 
     await expect(
       missingSecretsForActivation({
         client,
         githubUserId: "gh-1",
-        platform: "community",
         githubToken: undefined,
-        source: { id: 42, latestDeployment: null } as never,
+        project: { id: 42, latestDeployment: null } as never,
         pairs: [{ app: "binance", releaseTag: "v1" }],
       }),
     ).rejects.toMatchObject({ code: "REQUIRED_SECRETS_CHECK_UNAVAILABLE" });
-    expect(client.getUserSourceLatestDeployment).not.toHaveBeenCalled();
+    expect(client.getUserProjectLatestDeployment).not.toHaveBeenCalled();
     expect(client.listAppSecrets).not.toHaveBeenCalled();
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
-  it("blocks when getUserSourceLatestDeployment rejects", async () => {
+  it("blocks when getUserProjectLatestDeployment rejects", async () => {
     const fetchImpl = vi.fn();
     vi.stubGlobal("fetch", fetchImpl);
 
     const backendError = new Error("backend unavailable");
     const client = {
       listAppSecrets: vi.fn(),
-      getUserSourceLatestDeployment: vi.fn(async () => {
+      getUserProjectLatestDeployment: vi.fn(async () => {
         throw backendError;
       }),
-    } as unknown as DeploymentClient;
+    } as unknown as BackendClient;
 
     await expect(
       missingSecretsForActivation({
         client,
         githubUserId: "gh-1",
-        platform: "community",
         githubToken: "t",
-        source: { id: 42, latestDeployment: null } as never,
+        project: { id: 42, latestDeployment: null } as never,
         pairs: [{ app: "binance", releaseTag: "v1" }],
       }),
     ).rejects.toMatchObject({
@@ -355,17 +351,23 @@ describe("missingSecretsForActivation", () => {
 
     const client = {
       listAppSecrets: vi.fn(async () => ({ byApp: {} })),
-      getUserSourceLatestDeployment: vi.fn(async () => ({
+      getUserProjectLatestDeployment: vi.fn(async () => ({
         platformRepo: "aomi-labs/community",
       })),
-    } as unknown as DeploymentClient;
+    } as unknown as BackendClient;
 
     const missing = await missingSecretsForActivation({
       client,
       githubUserId: "gh-1",
-      platform: "community",
       githubToken: "t",
-      source: { id: 42, latestDeployment: null } as never,
+      project: {
+        id: 42,
+        latestDeployment: null,
+        apps: ["alpha", "beta", "gamma"].map((name, index) => ({
+          id: index + 1,
+          name,
+        })),
+      } as never,
       pairs: ["alpha", "beta", "gamma"].map((app) => ({
         app,
         releaseTag: "v1",
@@ -429,17 +431,20 @@ describe("missingSecretsForActivation", () => {
 
     const client = {
       listAppSecrets: vi.fn(async () => ({ byApp: {} })),
-      getUserSourceLatestDeployment: vi.fn(async () => ({
+      getUserProjectLatestDeployment: vi.fn(async () => ({
         platformRepo: "aomi-labs/community",
       })),
-    } as unknown as DeploymentClient;
+    } as unknown as BackendClient;
 
     const missing = await missingSecretsForActivation({
       client,
       githubUserId: "gh-1",
-      platform: "community",
       githubToken: "t",
-      source: { id: 42, latestDeployment: null } as never,
+      project: {
+        id: 42,
+        latestDeployment: null,
+        apps: apps.map((name, index) => ({ id: index + 1, name })),
+      } as never,
       pairs: apps.map((app) => ({ app, releaseTag: `tag-${app}` })),
     });
 
@@ -463,18 +468,24 @@ describe("missingSecretsForActivation", () => {
 
     const client = {
       listAppSecrets: vi.fn(async () => ({ byApp: {} })),
-      getUserSourceLatestDeployment: vi.fn(async () => ({
+      getUserProjectLatestDeployment: vi.fn(async () => ({
         platformRepo: "aomi-labs/community",
       })),
-    } as unknown as DeploymentClient;
+    } as unknown as BackendClient;
 
     await expect(
       missingSecretsForActivation({
         client,
         githubUserId: "gh-1",
-        platform: "community",
         githubToken: "t",
-        source: { id: 42, latestDeployment: null } as never,
+        project: {
+          id: 42,
+          latestDeployment: null,
+          apps: [
+            { id: 1, name: "ok" },
+            { id: 2, name: "broken" },
+          ],
+        } as never,
         pairs: [
           { app: "ok", releaseTag: "good" },
           { app: "broken", releaseTag: "bad" },

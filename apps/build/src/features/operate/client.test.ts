@@ -18,24 +18,21 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("operate client platform scope", () => {
-  it("sends the project platform with usage reads", async () => {
-    await operateFetch("usage", {
-      sourceId: 1620,
-      platform: "somm.finance",
-    });
+describe("operate client Project identity", () => {
+  it("addresses usage by Project without a platform override", async () => {
+    await operateFetch("usage", { projectId: 1620 });
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "/api/bff/operate/usage?appSourceId=1620&platform=somm.finance",
+      "/api/bff/operate/usage?projectId=1620",
       { signal: expect.any(AbortSignal) },
     );
   });
 
-  it("sends the project platform with application detail reads", async () => {
-    await operateAppDetailFetch(1620, 2938032, "somm.finance");
+  it("addresses application detail by its canonical application id", async () => {
+    await operateAppDetailFetch(2938032);
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "/api/bff/operate/observability/detail?appSourceId=1620&applicationId=2938032&platform=somm.finance",
+      "/api/bff/operate/observability/detail?applicationId=2938032",
       { signal: expect.any(AbortSignal) },
     );
   });

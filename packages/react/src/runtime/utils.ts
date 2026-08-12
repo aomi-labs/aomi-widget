@@ -213,6 +213,46 @@ export function toInboundMessage(
     return null;
   }
 
+  return buildInboundMessage(msg, txOutcomes);
+}
+
+/**
+ * UI-only join key attached to a completed `task` tool-call part. The trace uses
+ * it to pair the transcript part with the live `TaskRunState` sidecar (see
+ * `state/thread-store.ts`). Survives `fromThreadMessageLike` because unknown
+ * tool-call properties are spread through unchanged.
+ */
+export type AomiTaskPartMetadata = { agentId: string };
+
+const TASK_TOOL_NAME = "task";
+
+/** Read `metadata.custom.aomiTask.agentId` off a tool-call part, if present. */
+export function readTaskPartAgentId(part: unknown): string | undefined {
+  const custom = (
+    part as
+      | { metadata?: { custom?: { aomiTask?: { agentId?: unknown } } } }
+      | undefined
+  )?.metadata?.custom?.aomiTask?.agentId;
+  return typeof custom === "string" && custom.length > 0 ? custom : undefined;
+}
+
+const asPlainObject = (value: unknown): Record<string, unknown> | undefined =>
+  typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
+
+/** The `task` tool returns `{agent_id, status, staged_count}` (public projection). */
+const readTaskAgentId = (result: unknown): string | undefined => {
+  const agentId = asPlainObject(result)?.agent_id;
+  return typeof agentId === "string" && agentId.length > 0
+    ? agentId
+    : undefined;
+};
+
+function buildInboundMessage(
+  msg: AomiMessage,
+  txOutcomes?: TxOutcomes | null,
+): ThreadMessageLike | null {
   const content: MessageContentPart[] = [];
   const role: ThreadMessageLike["role"] =
     msg.sender === "user" ? "user" : "assistant";
@@ -222,19 +262,27 @@ export function toInboundMessage(
   }
 
   const [topic, toolContent] = parseToolResult(msg.tool_result) ?? [];
-  if (topic && toolContent) {
+  // `tool_name` is the tool the backend actually ran; `tool_result[0]` is only
+  // a display topic. Prefer the former when the backend supplies it.
+  const toolName = msg.tool_name?.trim() || topic;
+  if (toolName && toolContent) {
+    const result = (() => {
+      try {
+        return JSON.parse(toolContent);
+      } catch {
+        return { args: toolContent };
+      }
+    })();
+    const agentId =
+      toolName === TASK_TOOL_NAME ? readTaskAgentId(result) : undefined;
+
     content.push({
       type: "tool-call" as const,
       toolCallId: `tool_${Date.now()}`,
-      toolName: topic,
-      args: undefined,
+      toolName,
+      args: asPlainObject(msg.tool_arguments),
       result: (() => {
-        let parsed: unknown;
-        try {
-          parsed = JSON.parse(toolContent);
-        } catch {
-          return { args: toolContent };
-        }
+        const parsed: unknown = result;
         // Reconcile the step with its async outcome: a staged tx records
         // `current_lifecycle: "queued"` and is never touched again, so the
         // trace would show Queued/✓ forever. The interpreter reads
@@ -264,7 +312,15 @@ export function toInboundMessage(
         }
         return parsed;
       })(),
-    });
+      // Only `task` calls carry the sidecar join key.
+      ...(agentId
+        ? {
+            metadata: {
+              custom: { aomiTask: { agentId } satisfies AomiTaskPartMetadata },
+            },
+          }
+        : null),
+    } as MessageContentPart);
   }
 
   if (content.length === 0 && role === "assistant" && !msg.is_streaming) {
@@ -330,6 +386,10 @@ export const getNetworkName = (
       return "monad";
     case 10143:
       return "monad-testnet";
+    case 4326:
+      return "megaeth";
+    case 5042002:
+      return "arc-testnet";
     case 1337:
     case 31337:
       return "testnet";

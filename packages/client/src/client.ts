@@ -197,6 +197,10 @@ type ThreadWire = {
   title?: string | null;
   is_archived?: boolean;
   last_active_at?: number | string;
+  /** Bound rig slug — present only on the create fast path (`?rig=...`). */
+  rig?: string;
+  /** Bound baml client — present only on the create fast path. */
+  baml?: string;
 };
 
 function normalizeThreadWire(wire: ThreadWire): AomiThread {
@@ -541,6 +545,8 @@ export class AomiClient {
       userState?: UserStateShape;
       clientId?: string;
       paymentMethod?: string | null;
+      /** @deprecated Accepted as a no-op for compatibility with client 0.4.3. */
+      turnId?: string;
     },
   ): Promise<AomiChatResponse> {
     const app = options?.app ?? "default";
@@ -861,9 +867,31 @@ export class AomiClient {
 
   /**
    * Create a new thread. The client generates the session ID.
+   *
+   * Passing `rig` (and optionally `app`/`applicationId`/`platform`/`clientId`)
+   * binds the model selection in the same request — the fast path that saves
+   * the follow-up `setModel` round-trip on a fresh chat.
    */
-  async createThread(threadId: string): Promise<AomiCreateThreadResponse> {
-    const url = buildApiUrl(this.baseUrl, "/api/threads");
+  async createThread(
+    threadId: string,
+    options?: {
+      rig?: string;
+      app?: string;
+      applicationId?: number | string;
+      platform?: string;
+      clientId?: string;
+    },
+  ): Promise<AomiCreateThreadResponse> {
+    const url = buildApiUrl(this.baseUrl, "/api/threads", {
+      rig: options?.rig,
+      app: options?.app,
+      application_id:
+        options?.applicationId === undefined
+          ? undefined
+          : String(options.applicationId),
+      platform: options?.platform,
+      client_id: options?.clientId,
+    });
     const response = await this.fetchImpl(url, {
       method: "POST",
       headers: withSessionHeader(threadId),

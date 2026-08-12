@@ -10,6 +10,7 @@ describe("ProjectRow", () => {
           id: 42,
           installationId: 1,
           repositoryLink: "alice/bot",
+          platformName: "community",
           apps: [],
           latestDeployment: null,
         }}
@@ -17,7 +18,7 @@ describe("ProjectRow", () => {
       />,
     );
     const link = screen.getByRole("link", { name: /alice\/bot/ });
-    expect(link).toHaveAttribute("href", "/projects/42");
+    expect(link).toHaveAttribute("href", "/projects/42?platform=community");
   });
 
   it("shows deployment status instead of a live app count", () => {
@@ -27,6 +28,7 @@ describe("ProjectRow", () => {
           id: 42,
           installationId: 1,
           repositoryLink: "alice/bot",
+          platformName: "community",
           apps: [
             {
               name: "my-bot",
@@ -39,6 +41,7 @@ describe("ProjectRow", () => {
             state: "recorded",
             sdkVersion: "3.0.1",
             apps: [],
+            createdAt: 1,
           },
         }}
         requiredSdk="3.0.1"
@@ -57,6 +60,7 @@ describe("ProjectRow", () => {
           id: 42,
           installationId: 1,
           repositoryLink: "alice/bot",
+          platformName: "community",
           apps: [
             {
               name: "playground-example",
@@ -81,7 +85,7 @@ describe("ProjectRow", () => {
           id: 42,
           installationId: 1,
           repositoryLink: "alice/bot",
-          boundPlatformName: "somm.finance",
+          platformName: "somm.finance",
           sdkVersion: "3.0.2",
           apps: [
             {
@@ -111,6 +115,7 @@ describe("ProjectRow", () => {
           id: 42,
           installationId: 1,
           repositoryLink: "alice/bot",
+          platformName: "community",
           sdkVersions: ["3.0.3", "3.0.4"],
           apps: [],
           latestDeployment: null,
@@ -122,7 +127,7 @@ describe("ProjectRow", () => {
     expect(screen.getByText("Outdated")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Upgrade" })).toHaveAttribute(
       "href",
-      "/projects/42?tab=deployments",
+      "/projects/42?platform=community&tab=deployments",
     );
   });
 });

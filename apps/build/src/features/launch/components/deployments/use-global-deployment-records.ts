@@ -17,7 +17,7 @@ import {
 } from "../../query-keys";
 
 export type GlobalDeployment = TimelineDeployment & {
-  sourceId: number;
+  projectId: number;
   repositoryLink: string | null;
 };
 
@@ -37,28 +37,29 @@ function globalDeployment(deployment: UserDeployment): GlobalDeployment | null {
     current: deployment.apps.some((app) => app.isActive),
     actor: null,
     sdkVersion: deployment.sdkVersion ?? null,
-    createdAt: deployment.createdAt ?? 0,
-    sourceId: deployment.sourceId,
+    createdAt: deployment.createdAt,
+    projectId: deployment.projectId,
     repositoryLink: deployment.repositoryLink,
   };
 }
 
-export function useGlobalDeploymentRecords() {
-  const { state: projectsState, reload: reloadProjects } = useProjects();
+export function useGlobalDeploymentRecords(platform: string) {
+  const { state: projectsState, reload: reloadProjects } =
+    useProjects(platform);
   const { account } = useGitHubSession();
   const accountKey = githubAccountKey(account.githubLogin);
   const feed = useInfiniteQuery({
-    queryKey: buildQueryKeys.deployments(accountKey ?? "unavailable"),
+    queryKey: buildQueryKeys.deployments(accountKey ?? "unavailable", platform),
     queryFn: ({ pageParam }) =>
-      deploymentFeed({ limit: 50, cursor: pageParam }),
+      deploymentFeed({ platform, limit: 50, cursor: pageParam }),
     initialPageParam: null as UserDeploymentsCursor | null,
     getNextPageParam: (page) => page.nextCursor ?? undefined,
     enabled: account.signedIn && accountKey !== null,
     staleTime: buildQueryStaleTime.deployments,
   });
 
-  const sources = useMemo(
-    () => (projectsState.status === "ready" ? projectsState.sources : []),
+  const projects = useMemo(
+    () => (projectsState.status === "ready" ? projectsState.projects : []),
     [projectsState],
   );
 
@@ -95,7 +96,7 @@ export function useGlobalDeploymentRecords() {
   return {
     projectsState,
     recordsState,
-    sources,
+    projects,
     reload,
     loadMore: () => void feed.fetchNextPage(),
     hasMore: feed.hasNextPage,

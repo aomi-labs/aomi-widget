@@ -53,23 +53,23 @@ vi.mock("@build/server/bff/failures", async () => {
 });
 
 const client = {
-  listUserSources: vi.fn(),
-  listUserSourceBots: vi.fn(),
-  createUserSourceBot: vi.fn(),
-  deleteUserSourceBot: vi.fn(),
+  listUserProjects: vi.fn(),
+  listUserProjectBots: vi.fn(),
+  createUserProjectBot: vi.fn(),
+  deleteUserProjectBot: vi.fn(),
   listUserBots: vi.fn(),
   createUserBot: vi.fn(),
   updateUserBot: vi.fn(),
   deleteUserBot: vi.fn(),
-  getUserSourceUsage: vi.fn(),
-  getUserSourceStatement: vi.fn(),
+  getUserProjectUsage: vi.fn(),
+  getUserProjectStatement: vi.fn(),
   getUserObservability: vi.fn(),
   getUserPayments: vi.fn(),
-  getUserSourceObservability: vi.fn(),
-  getUserSourceAppDetail: vi.fn(),
-  listUserSourceTransactions: vi.fn(),
-  listUserSourceLogs: vi.fn(),
-  listUserSourceDeployments: vi.fn(),
+  getUserProjectObservability: vi.fn(),
+  getBuilderApplicationDetail: vi.fn(),
+  listUserProjectTransactions: vi.fn(),
+  listUserProjectLogs: vi.fn(),
+  listUserProjectDeployments: vi.fn(),
   listUserTransactions: vi.fn(),
   getUserStatements: vi.fn(),
   getUserUsage: vi.fn(),
@@ -77,7 +77,7 @@ const client = {
 };
 
 vi.mock("@build/server/bff/backend", () => ({
-  deploymentClient: async () => client,
+  backendClient: async () => client,
 }));
 
 const getGitHubSession = vi.fn();
@@ -119,27 +119,27 @@ function clearSession() {
 
 beforeEach(() => {
   clearOperateCachesForTesting();
-  client.listUserSources.mockReset();
-  client.listUserSourceBots.mockReset();
-  client.createUserSourceBot.mockReset();
-  client.deleteUserSourceBot.mockReset();
+  client.listUserProjects.mockReset();
+  client.listUserProjectBots.mockReset();
+  client.createUserProjectBot.mockReset();
+  client.deleteUserProjectBot.mockReset();
   client.listUserBots.mockReset();
   client.createUserBot.mockReset();
   client.updateUserBot.mockReset();
   client.deleteUserBot.mockReset();
-  client.getUserSourceUsage.mockReset();
-  client.getUserSourceStatement.mockReset();
+  client.getUserProjectUsage.mockReset();
+  client.getUserProjectStatement.mockReset();
   client.getUserObservability.mockReset();
   client.getUserPayments.mockReset();
   client.listUserTransactions.mockReset();
   client.getUserStatements.mockReset();
   client.getUserUsage.mockReset();
   client.listUserLogs.mockReset();
-  client.getUserSourceObservability.mockReset();
-  client.getUserSourceAppDetail.mockReset();
-  client.listUserSourceTransactions.mockReset();
-  client.listUserSourceLogs.mockReset();
-  client.listUserSourceDeployments.mockReset();
+  client.getUserProjectObservability.mockReset();
+  client.getBuilderApplicationDetail.mockReset();
+  client.listUserProjectTransactions.mockReset();
+  client.listUserProjectLogs.mockReset();
+  client.listUserProjectDeployments.mockReset();
   getGitHubSession.mockReset();
   telemetry.capture.mockReset();
   telemetry.log.mockReset();
@@ -155,13 +155,18 @@ describe("operateBotsRoute", () => {
     clearSession();
     const res = await operateBotsRoute(getReq());
     expect(res.status).toBe(401);
-    expect(client.listUserSources).not.toHaveBeenCalled();
+    expect(client.listUserProjects).not.toHaveBeenCalled();
   });
 
-  it("lists builder-wide bots once", async () => {
+  it("lists builder-wide bots with applications from every bound platform", async () => {
     setSession({ githubUserId: "gh-1" });
-    client.listUserSources.mockResolvedValue([
-      { id: 42, repositoryLink: "o/r", apps: [] },
+    client.listUserProjects.mockResolvedValue([
+      {
+        id: 42,
+        repositoryLink: "o/world-markets",
+        platformName: "world-markets",
+        apps: [{ id: 77, name: "world-markets" }],
+      },
     ]);
     client.listUserBots.mockResolvedValue([
       { id: "b1", platformUsername: "mybot" },
@@ -169,7 +174,17 @@ describe("operateBotsRoute", () => {
     const res = await operateBotsRoute(getReq());
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toMatchObject({
+      projects: [
+        {
+          platformName: "world-markets",
+          apps: [{ id: 77, name: "world-markets" }],
+        },
+      ],
       bots: [{ id: "b1", platformUsername: "mybot" }],
+    });
+    expect(client.listUserProjects).toHaveBeenCalledWith({
+      githubUserId: "gh-1",
+      platform: undefined,
     });
     expect(client.listUserBots).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -180,7 +195,7 @@ describe("operateBotsRoute", () => {
 
   it("does not fan out over every owned source", async () => {
     setSession({ githubUserId: "gh-1" });
-    client.listUserSources.mockResolvedValue([
+    client.listUserProjects.mockResolvedValue([
       { id: 1, apps: [] },
       { id: 2, apps: [] },
     ]);
@@ -196,7 +211,7 @@ describe("operateBotsRoute", () => {
 
   it("logs an owned-source Rust 5xx without creating a BFF Issue", async () => {
     setSession({ githubUserId: "gh-1" });
-    client.listUserSources.mockRejectedValue(
+    client.listUserProjects.mockRejectedValue(
       new BackendError(
         "list_user_sources",
         503,
@@ -237,7 +252,7 @@ describe("operateBotsCreateRoute", () => {
 
   it("rejects a create for apps the user does not own", async () => {
     setSession({ githubUserId: "gh-1" });
-    client.listUserSources.mockResolvedValue([{ id: 42, apps: [] }]);
+    client.listUserProjects.mockResolvedValue([{ id: 42, apps: [] }]);
     const res = await operateBotsCreateRoute(
       postJson({
         applicationIds: [1],
@@ -251,7 +266,7 @@ describe("operateBotsCreateRoute", () => {
 
   it("400s an invalid body before calling the backend", async () => {
     setSession({ githubUserId: "gh-1" });
-    client.listUserSources.mockResolvedValue([{ id: 42, apps: [] }]);
+    client.listUserProjects.mockResolvedValue([{ id: 42, apps: [] }]);
     let res = await operateBotsCreateRoute(
       postJson({
         applicationIds: "nope",
@@ -274,7 +289,7 @@ describe("operateBotsCreateRoute", () => {
 
   it("creates a bot with owned cross-source app mappings", async () => {
     setSession({ githubUserId: "gh-1" });
-    client.listUserSources.mockResolvedValue([{ id: 42, apps: [{ id: 7 }] }]);
+    client.listUserProjects.mockResolvedValue([{ id: 42, apps: [{ id: 7 }] }]);
     client.createUserBot.mockResolvedValue({
       id: "b1",
       platform: "telegram",
@@ -305,7 +320,7 @@ describe("operateBotsCreateRoute", () => {
 
   it("never logs or echoes the credential value on failure paths", async () => {
     setSession({ githubUserId: "gh-1" });
-    client.listUserSources.mockResolvedValue([{ id: 42, apps: [{ id: 7 }] }]);
+    client.listUserProjects.mockResolvedValue([{ id: 42, apps: [{ id: 7 }] }]);
     client.createUserBot.mockRejectedValue(new Error("backend down"));
     const res = await operateBotsCreateRoute(
       postJson({
@@ -329,7 +344,7 @@ describe("operateBotsDeleteRoute", () => {
 
   it("400s a delete missing botId", async () => {
     setSession({ githubUserId: "gh-1" });
-    client.listUserSources.mockResolvedValue([{ id: 42, apps: [] }]);
+    client.listUserProjects.mockResolvedValue([{ id: 42, apps: [] }]);
     const res = await operateBotsDeleteRoute(deleteReq(""));
     expect(res.status).toBe(400);
     expect(client.deleteUserBot).not.toHaveBeenCalled();
@@ -337,7 +352,7 @@ describe("operateBotsDeleteRoute", () => {
 
   it("deletes a bot for an owned source", async () => {
     setSession({ githubUserId: "gh-1" });
-    client.listUserSources.mockResolvedValue([{ id: 42, apps: [] }]);
+    client.listUserProjects.mockResolvedValue([{ id: 42, apps: [] }]);
     client.deleteUserBot.mockResolvedValue(undefined);
     const res = await operateBotsDeleteRoute(deleteReq("?botId=b1"));
     expect(res.status).toBe(200);
@@ -363,20 +378,20 @@ function transactionsReq(qs = "") {
 function logsReq(qs = "") {
   return new Request(`http://localhost:3000/api/bff/operate/logs${qs}`);
 }
-function appDetailReq(qs = "?appSourceId=900&applicationId=77") {
+function appDetailReq(qs = "?applicationId=77") {
   return new Request(
     `http://localhost:3000/api/bff/operate/observability/detail${qs}`,
   );
 }
 
-const oneSource = () =>
-  client.listUserSources.mockResolvedValue([
-    { id: 900, repositoryLink: "o/r", apps: [] },
+const oneSource = (platformName = "community") =>
+  client.listUserProjects.mockResolvedValue([
+    { id: 900, repositoryLink: "o/r", platformName, apps: [] },
   ]);
 
 // The route consumes the deploy client's already-camelCased results.
 const emptyUsage = {
-  source: { id: 900 },
+  project: { id: 900 },
   platform: "community",
   range: { fromDate: "2026-07-01", toDate: "2026-07-15", maxDays: 31 },
   daily: [],
@@ -443,67 +458,70 @@ function sharedSettlementPayments(applicationId: number | null = null) {
 }
 
 describe("operateUsageRoute statement fallback", () => {
-  it("uses an allowed partner platform for ownership and usage reads", async () => {
+  it("uses the canonical Project platform for ownership and usage reads", async () => {
     vi.stubEnv("APP_DEPLOY_PLATFORMS", "community,somm.finance");
     setSession({ githubUserId: "gh-1" });
-    oneSource();
-    client.getUserSourceUsage.mockResolvedValue({
+    oneSource("somm.finance");
+    client.getUserProjectUsage.mockResolvedValue({
       ...emptyUsage,
       platform: "somm.finance",
     });
-    client.getUserSourceStatement.mockRejectedValue(new Error("404"));
+    client.getUserProjectStatement.mockRejectedValue(new Error("404"));
 
     const res = await operateUsageRoute(
-      usageReq("?appSourceId=900&platform=somm.finance"),
+      usageReq("?projectId=900&platform=somm.finance"),
     );
 
     expect(res.status).toBe(200);
-    expect(client.listUserSources).toHaveBeenCalledWith({
+    expect(client.listUserProjects).toHaveBeenCalledWith({
       githubUserId: "gh-1",
-      platform: "somm.finance",
+      platform: undefined,
     });
-    expect(client.getUserSourceUsage).toHaveBeenCalledWith(
+    // Per-project reads carry no platform: the backend derives the
+    // project's bound platform from the row.
+    expect(client.getUserProjectUsage).toHaveBeenCalledWith(
       expect.objectContaining({
-        appSourceId: 900,
+        projectId: 900,
         githubUserId: "gh-1",
-        platform: "somm.finance",
       }),
     );
-    expect(client.getUserSourceStatement).toHaveBeenCalledWith(
+    expect(client.getUserProjectUsage).toHaveBeenCalledWith(
+      expect.not.objectContaining({ platform: expect.anything() }),
+    );
+    expect(client.getUserProjectStatement).toHaveBeenCalledWith(
       expect.objectContaining({
-        appSourceId: 900,
+        projectId: 900,
         githubUserId: "gh-1",
-        platform: "somm.finance",
       }),
     );
   });
 
-  it("lets the backend resolve an exact platform outside the defaults", async () => {
+  it("ignores a URL platform once a canonical Project ID exists", async () => {
     vi.stubEnv("APP_DEPLOY_PLATFORMS", "community");
     setSession({ githubUserId: "gh-1" });
-    oneSource();
-    client.getUserSourceUsage.mockResolvedValue(emptyUsage);
-    client.getUserSourceStatement.mockRejectedValue(new Error("404"));
+    oneSource("known.partner");
+    client.getUserProjectUsage.mockResolvedValue(emptyUsage);
+    client.getUserProjectStatement.mockRejectedValue(new Error("404"));
 
     const res = await operateUsageRoute(
-      usageReq("?appSourceId=900&platform=known.partner"),
+      usageReq("?projectId=900&platform=known.partner"),
     );
 
     expect(res.status).toBe(200);
-    expect(client.listUserSources).toHaveBeenCalledWith({
+    expect(client.listUserProjects).toHaveBeenCalledWith({
       githubUserId: "gh-1",
-      platform: "known.partner",
+      platform: undefined,
     });
   });
 
   it("serves the example statement (example: true) when the manager has none", async () => {
     setSession({ githubUserId: "gh-1" });
     oneSource();
-    client.getUserSourceUsage.mockResolvedValue(emptyUsage);
+    client.getUserProjectUsage.mockResolvedValue(emptyUsage);
     // No statement endpoint yet → the client throws → source drops out.
-    client.getUserSourceStatement.mockRejectedValue(new Error("404"));
+    client.getUserProjectStatement.mockRejectedValue(new Error("404"));
 
-    const res = await operateUsageRoute(usageReq("?appSourceId=900"));
+    const res = await operateUsageRoute(usageReq("?projectId=900"));
     const body = await res.json();
 
     expect(res.status).toBe(200);
@@ -517,9 +535,9 @@ describe("operateUsageRoute statement fallback", () => {
   it("drops a statement the backend reports as unavailable", async () => {
     setSession({ githubUserId: "gh-1" });
     oneSource();
-    client.getUserSourceUsage.mockResolvedValue(emptyUsage);
-    client.getUserSourceStatement.mockResolvedValue({
-      source: { id: 900 },
+    client.getUserProjectUsage.mockResolvedValue(emptyUsage);
+    client.getUserProjectStatement.mockResolvedValue({
+      project: { id: 900 },
       platform: "community",
       range: { fromDate: "2026-07-01", toDate: "2026-07-15" },
       available: false,
@@ -529,7 +547,7 @@ describe("operateUsageRoute statement fallback", () => {
       entries: [],
     });
 
-    const res = await operateUsageRoute(usageReq("?appSourceId=900"));
+    const res = await operateUsageRoute(usageReq("?projectId=900"));
     const body = await res.json();
     expect(body.example).toBe(true); // fell back to example
   });
@@ -537,9 +555,9 @@ describe("operateUsageRoute statement fallback", () => {
   it("uses the real statement (no example flag) when the manager returns one", async () => {
     setSession({ githubUserId: "gh-1" });
     oneSource();
-    client.getUserSourceUsage.mockResolvedValue(emptyUsage);
-    client.getUserSourceStatement.mockResolvedValue({
-      source: { id: 900 },
+    client.getUserProjectUsage.mockResolvedValue(emptyUsage);
+    client.getUserProjectStatement.mockResolvedValue({
+      project: { id: 900 },
       platform: "community",
       range: { fromDate: "2026-07-01", toDate: "2026-07-15" },
       available: true,
@@ -565,7 +583,7 @@ describe("operateUsageRoute statement fallback", () => {
       payments: emptyPayments(),
     });
 
-    const res = await operateUsageRoute(usageReq("?appSourceId=900"));
+    const res = await operateUsageRoute(usageReq("?projectId=900"));
     const body = await res.json();
 
     expect(res.status).toBe(200);
@@ -574,23 +592,23 @@ describe("operateUsageRoute statement fallback", () => {
     expect(body.statement.revenue[0].application).toBe("real-bot");
   });
 
-  it.skip("deduplicates a recipient-bucket settlement shared by two sources", async () => {
+  it.skip("deduplicates a recipient-bucket settlement shared by two projects", async () => {
     setSession({ githubUserId: "gh-1" });
-    client.listUserSources.mockResolvedValue([
+    client.listUserProjects.mockResolvedValue([
       { id: 900, repositoryLink: "o/one", apps: [] },
       { id: 901, repositoryLink: "o/two", apps: [] },
     ]);
-    client.getUserSourceUsage.mockImplementation(({ appSourceId }) =>
+    client.getUserProjectUsage.mockImplementation(({ projectId }) =>
       Promise.resolve({
         ...emptyUsage,
-        source: { id: appSourceId },
+        project: { id: projectId },
       }),
     );
     const payment = sharedSettlementPayments();
     payment.buckets[0].outstandingCredits = 25;
-    client.getUserSourceStatement.mockImplementation(({ appSourceId }) =>
+    client.getUserProjectStatement.mockImplementation(({ projectId }) =>
       Promise.resolve({
-        source: { id: appSourceId },
+        project: { id: projectId },
         platform: "community",
         range: { fromDate: "2026-07-01", toDate: "2026-07-15" },
         available: true,
@@ -619,176 +637,13 @@ describe("operateUsageRoute statement fallback", () => {
   });
 });
 
-describe.skip("obsolete source fan-out settlement aggregation", () => {
-  beforeEach(() => {
-    setSession({ githubUserId: "gh-1" });
-    client.listUserSources.mockResolvedValue([
-      { id: 900, repositoryLink: "o/one", apps: [] },
-      { id: 901, repositoryLink: "o/two", apps: [] },
-    ]);
-  });
-
-  it("renders one recipient-bucket payout across affected projects", async () => {
-    client.listUserSourceTransactions.mockImplementation(({ appSourceId }) =>
-      Promise.resolve({
-        source: { id: appSourceId },
-        platform: "community",
-        transactions: [],
-        nextCursor: null,
-      }),
-    );
-    client.getUserSourceStatement.mockImplementation(({ appSourceId }) =>
-      Promise.resolve({
-        source: { id: appSourceId },
-        platform: "community",
-        range: { fromDate: "2026-07-01", toDate: "2026-07-15" },
-        available: true,
-        summary: {
-          grossRevenue: 0,
-          platformFees: 0,
-          serviceCharges: 0,
-          net: 0,
-        },
-        revenue: [],
-        charges: [],
-        entries: [],
-        payments: sharedSettlementPayments(appSourceId),
-      }),
-    );
-
-    const body = await (
-      await operateTransactionsRoute(transactionsReq())
-    ).json();
-
-    expect(body.transactions).toHaveLength(1);
-    expect(body.transactions[0]).toMatchObject({
-      id: "partner-payout:settle:shared",
-      application: "Partner payout",
-      description: "Partner settlement via Coinbase",
-      fromLabel: null,
-      method: "Coinbase x402",
-      transfers: [],
-    });
-  });
-
-  it("pages app transactions independently of the payout overlay", async () => {
-    oneSource();
-    const transactions = [
-      { id: "tx:1", application: "demo", createdAt: 1_700_000_008 },
-      { id: "tx:2", application: "demo", createdAt: 1_700_000_007 },
-      { id: "tx:3", application: "demo", createdAt: 1_700_000_006 },
-    ];
-    client.listUserSourceTransactions.mockImplementation(({ cursor }) =>
-      Promise.resolve({
-        source: { id: 900 },
-        platform: "community",
-        transactions: cursor ? transactions.slice(2) : transactions.slice(0, 2),
-        nextCursor: cursor ? null : { createdAt: 1_700_000_007, id: "tx:2" },
-      }),
-    );
-    const payments = sharedSettlementPayments(42);
-    payments.events = [1, 2].map((id) => ({
-      ...payments.events[0],
-      id: `settle:${id}`,
-      occurredAt: 1_700_000_011 - id,
-    }));
-    client.getUserSourceStatement.mockResolvedValue({
-      source: { id: 900 },
-      platform: "community",
-      payments,
-    });
-
-    const first = await (
-      await operateTransactionsRoute(transactionsReq("?limit=2"))
-    ).json();
-    const second = await (
-      await operateTransactionsRoute(
-        transactionsReq(
-          `?limit=2&cursor=${encodeURIComponent(JSON.stringify(first.nextCursor))}`,
-        ),
-      )
-    ).json();
-
-    expect(
-      first.transactions.map((transaction: { id: string }) => transaction.id),
-    ).toEqual([
-      "partner-payout:settle:1",
-      "partner-payout:settle:2",
-      "tx:1",
-      "tx:2",
-    ]);
-    expect(first.nextCursor).toEqual({
-      perSource: { "900": { createdAt: 1_700_000_007, id: "tx:2" } },
-    });
-    expect(
-      second.transactions.map((transaction: { id: string }) => transaction.id),
-    ).toEqual(["tx:3"]);
-    expect(second.nextCursor).toBeNull();
-    expect(client.listUserSourceTransactions).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        cursor: { createdAt: 1_700_000_007, id: "tx:2" },
-      }),
-    );
-    expect(client.getUserSourceStatement).toHaveBeenCalledTimes(1);
-  });
-
-  it("deduplicates settlement logs and advances every source cursor", async () => {
-    client.listUserSourceLogs.mockImplementation(({ appSourceId }) =>
-      Promise.resolve({
-        source: { id: appSourceId },
-        platform: "community",
-        logs: [
-          {
-            occurredAt: 1_700_000_000,
-            eventType: "usage",
-            id: "settle:shared",
-            application: "partner-settlement",
-            applicationId: null,
-            summary: "Partner settlement confirmed · 100 credits",
-            details: { source: "partner_settlement" },
-            kind: "event",
-            status: "info",
-            tool: null,
-            durationMs: null,
-            retries: null,
-            threadId: null,
-            args: null,
-            result: null,
-          },
-        ],
-        nextCursor: {
-          occurredAt: 1_699_999_999,
-          eventType: "usage",
-          id: "old",
-        },
-      }),
-    );
-
-    const body = await (await operateLogsRoute(logsReq("?limit=1"))).json();
-
-    expect(body.logs).toHaveLength(1);
-    expect(body.nextCursor.perSource).toEqual({
-      "900": {
-        occurredAt: 1_700_000_000,
-        eventType: "usage",
-        id: "settle:shared",
-      },
-      "901": {
-        occurredAt: 1_700_000_000,
-        eventType: "usage",
-        id: "settle:shared",
-      },
-    });
-  });
-});
-
 describe("operateObservabilityRoute live data", () => {
   it("reuses a recent account-scoped manager read", async () => {
     setSession({ githubUserId: "gh-1" });
     oneSource();
     client.getUserObservability.mockResolvedValue([
       {
-        source: { id: 900 },
+        project: { id: 900 },
         platform: "community",
         scope: "owned_applications",
         monitoring: null,
@@ -811,7 +666,7 @@ describe("operateObservabilityRoute live data", () => {
     oneSource();
     client.getUserObservability.mockResolvedValue([
       {
-        source: { id: 900 },
+        project: { id: 900 },
         platform: "community",
         scope: "owned_applications",
         monitoring: {
@@ -860,7 +715,7 @@ describe("operateObservabilityRoute live data", () => {
     oneSource();
     client.getUserObservability.mockResolvedValue([
       {
-        source: { id: 900 },
+        project: { id: 900 },
         platform: "community",
         scope: "owned_applications",
         monitoring: null,
@@ -884,7 +739,7 @@ describe("operateObservabilityRoute live data", () => {
     oneSource();
     client.getUserObservability.mockResolvedValue([
       {
-        source: { id: 900 },
+        project: { id: 900 },
         platform: "community",
         scope: "owned_applications",
         monitoring: {
@@ -908,8 +763,10 @@ describe("operateObservabilityRoute live data", () => {
       },
       {
         // A partner-bound source the per-source fan-out could never read
-        // under the default platform — the batch covers it.
-        source: { id: 1620 },
+        // under the default platform. The batch still covers it — the read
+        // stays account-wide — but this page is scoped to `community`, so it
+        // must not render here. Its own platform's page shows it.
+        project: { id: 1620 },
         platform: "somm.finance",
         scope: "owned_applications",
         monitoring: {
@@ -942,15 +799,87 @@ describe("operateObservabilityRoute live data", () => {
     // One account-wide read, cached across requests; no per-source fan-out.
     expect(client.getUserObservability).toHaveBeenCalledTimes(1);
     expect(client.getUserObservability).toHaveBeenCalledWith(
-      expect.objectContaining({ githubUserId: "gh-1", platform: undefined }),
+      expect.objectContaining({ githubUserId: "gh-1" }),
     );
-    expect(client.getUserSourceObservability).not.toHaveBeenCalled();
+    expect(client.getUserProjectObservability).not.toHaveBeenCalled();
     expect(body.degraded).toBeUndefined();
     expect(body.payments).toBeUndefined();
     expect(
       body.apps.map((app: { application: string }) => app.application),
-    ).toEqual(["real-bot", "somm-agent"]);
+    ).toEqual(["real-bot"]);
     expect(body.monitoring.status).toBe("ok");
+  });
+
+  /** The read is account-wide, the page is not. Observability must show the
+   *  same projects `/projects` lists for the selected platform — a card for a
+   *  project the console cannot even open reads as someone else's account. */
+  it("scopes the account-wide batch to the selected platform's projects", async () => {
+    setSession({ githubUserId: "gh-1" });
+    client.listUserProjects.mockImplementation(async ({ platform }) =>
+      platform === "somm.finance"
+        ? [
+            {
+              id: 1620,
+              repositoryLink: "o/somm",
+              platformName: "somm.finance",
+              apps: [],
+            },
+          ]
+        : [
+            {
+              id: 900,
+              repositoryLink: "o/r",
+              platformName: "community",
+              apps: [],
+            },
+          ],
+    );
+    const snapshot = (id: number, platform: string, application: string) => ({
+      project: { id },
+      platform,
+      scope: "owned_applications",
+      monitoring: {
+        provider: "grafana_prometheus",
+        status: "ok",
+        windowSeconds: 900,
+      },
+      apps: [
+        {
+          applicationId: id,
+          application,
+          active: true,
+          loaded: true,
+          status: "healthy",
+          metrics: null,
+        },
+      ],
+      payments: emptyPayments(),
+      dashboardLinks: [],
+      platformMetrics: [],
+    });
+    client.getUserObservability.mockResolvedValue([
+      snapshot(900, "community", "real-bot"),
+      snapshot(1620, "somm.finance", "somm-agent"),
+    ]);
+
+    const res = await operateObservabilityRoute(
+      new Request(
+        "http://localhost:3000/api/bff/operate/observability?platform=somm.finance",
+      ),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    // Still one account-wide read — only the response is narrowed.
+    expect(client.getUserObservability).toHaveBeenCalledWith(
+      expect.objectContaining({ githubUserId: "gh-1" }),
+    );
+    expect(
+      body.apps.map((app: { application: string }) => app.application),
+    ).toEqual(["somm-agent"]);
+    expect(body.projects.map((project: { id: number }) => project.id)).toEqual([
+      1620,
+    ]);
   });
 
   it("does not restore the per-source fan-out when the batch route is missing", async () => {
@@ -963,7 +892,7 @@ describe("operateObservabilityRoute live data", () => {
 
     expect(res.status).toBe(404);
     expect(client.getUserObservability).toHaveBeenCalled();
-    expect(client.getUserSourceObservability).not.toHaveBeenCalled();
+    expect(client.getUserProjectObservability).not.toHaveBeenCalled();
   });
 
   it("surfaces non-404 batch failures instead of silently fanning out", async () => {
@@ -976,7 +905,7 @@ describe("operateObservabilityRoute live data", () => {
     const res = await operateObservabilityRoute(observabilityReq());
 
     expect(res.status).toBeGreaterThanOrEqual(500);
-    expect(client.getUserSourceObservability).not.toHaveBeenCalled();
+    expect(client.getUserProjectObservability).not.toHaveBeenCalled();
   });
 });
 
@@ -985,7 +914,7 @@ describe("operatePaymentsRoute", () => {
     setSession({ githubUserId: "gh-1" });
     oneSource();
     client.getUserPayments.mockResolvedValue([
-      { source: { id: 900 }, payments: emptyPayments() },
+      { project: { id: 900 }, payments: emptyPayments() },
     ]);
 
     const res = await operatePaymentsRoute(
@@ -997,7 +926,7 @@ describe("operatePaymentsRoute", () => {
       payments: { scope: "recipient_bucket" },
     });
     expect(client.getUserPayments).toHaveBeenCalledWith(
-      expect.objectContaining({ githubUserId: "gh-1", appSourceId: undefined }),
+      expect.objectContaining({ githubUserId: "gh-1", projectId: undefined }),
     );
     expect(client.getUserObservability).not.toHaveBeenCalled();
   });
@@ -1006,25 +935,25 @@ describe("operatePaymentsRoute", () => {
 describe("operateAppDetailRoute", () => {
   it("requires a valid application id", async () => {
     const res = await operateAppDetailRoute(
-      appDetailReq("?appSourceId=900&applicationId=nope"),
+      appDetailReq("?applicationId=nope"),
     );
     expect(res.status).toBe(400);
-    expect(client.listUserSources).not.toHaveBeenCalled();
+    expect(client.listUserProjects).not.toHaveBeenCalled();
   });
 
-  it("returns the real aggregate plus app-filtered supporting rows", async () => {
+  it("derives the parent project and bound platform from the application", async () => {
     setSession({ githubUserId: "gh-1" });
-    oneSource();
-    client.getUserSourceAppDetail.mockResolvedValue({
-      source: { id: 900 },
+    oneSource("world-markets");
+    client.getBuilderApplicationDetail.mockResolvedValue({
+      project: { id: 900 },
       platform: "community",
       app: { applicationId: 77, name: "demo" },
     });
-    client.getUserSourceObservability.mockResolvedValue({
+    client.getUserProjectObservability.mockResolvedValue({
       apps: [{ applicationId: 77, application: "demo", status: "healthy" }],
     });
-    client.listUserSourceTransactions.mockResolvedValue({
-      source: { id: 900 },
+    client.listUserProjectTransactions.mockResolvedValue({
+      project: { id: 900 },
       platform: "community",
       transactions: [
         { id: "tx-match", applicationId: 77 },
@@ -1032,8 +961,8 @@ describe("operateAppDetailRoute", () => {
       ],
       nextCursor: null,
     });
-    client.listUserSourceLogs.mockResolvedValue({
-      source: { id: 900 },
+    client.listUserProjectLogs.mockResolvedValue({
+      project: { id: 900 },
       platform: "community",
       logs: [
         { id: "log-match", applicationId: 77 },
@@ -1041,7 +970,7 @@ describe("operateAppDetailRoute", () => {
       ],
       nextCursor: null,
     });
-    client.listUserSourceDeployments.mockResolvedValue([
+    client.listUserProjectDeployments.mockResolvedValue([
       { deploymentId: "dep-1", apps: [] },
     ]);
 
@@ -1058,260 +987,32 @@ describe("operateAppDetailRoute", () => {
     expect(body.transactions).toEqual([{ id: "tx-match", applicationId: 77 }]);
     expect(body.logs).toEqual([{ id: "log-match", applicationId: 77 }]);
     expect(body.deployments).toEqual([{ deploymentId: "dep-1", apps: [] }]);
-    expect(client.getUserSourceAppDetail).toHaveBeenCalledWith({
+    expect(client.getBuilderApplicationDetail).toHaveBeenCalledWith({
       githubUserId: "gh-1",
-      platform: expect.any(String),
-      appSourceId: 900,
       applicationId: 77,
     });
-  });
-});
-
-describe.skip("obsolete account-wide source fan-out", () => {
-  const SOURCE_COUNT = 40;
-
-  beforeEach(() => {
-    setSession({ githubUserId: "gh-1" });
-    client.listUserSources.mockResolvedValue(
-      Array.from({ length: SOURCE_COUNT }, (_, index) => ({
-        id: 900 + index,
-        repositoryLink: `o/r${index}`,
-        apps: [],
-      })),
-    );
-  });
-
-  // A 111-source account fired 222 reads at once and saturated the manager's
-  // connection pool, so the page hung on "Loading" for minutes.
-  it("caps concurrent reads instead of firing one per source at once", async () => {
-    let inFlight = 0;
-    let peak = 0;
-    const track = <T>(value: T) => {
-      inFlight += 1;
-      peak = Math.max(peak, inFlight);
-      return new Promise<T>((resolve) =>
-        setTimeout(() => {
-          inFlight -= 1;
-          resolve(value);
-        }, 1),
-      );
-    };
-    client.listUserSourceTransactions.mockImplementation(({ appSourceId }) =>
-      track({
-        source: { id: appSourceId },
-        platform: "community",
-        transactions: [],
-        nextCursor: null,
-      }),
-    );
-    client.getUserSourceStatement.mockImplementation(({ appSourceId }) =>
-      track({
-        source: { id: appSourceId },
-        platform: "community",
-        payments: emptyPayments(),
-      }),
-    );
-
-    const res = await operateTransactionsRoute(transactionsReq());
-
-    expect(res.status).toBe(200);
-    expect(client.listUserSourceTransactions).toHaveBeenCalledTimes(
-      SOURCE_COUNT,
-    );
-    // Two independent fan-outs (transactions + statement) run concurrently, so
-    // the ceiling is two slots' worth — not 2 × SOURCE_COUNT.
-    expect(peak).toBeLessThanOrEqual(12);
-  });
-
-  it("drops a wedged source instead of stalling the whole page", async () => {
-    vi.useFakeTimers();
-    try {
-      client.listUserSourceTransactions.mockImplementation(({ appSourceId }) =>
-        appSourceId === 901
-          ? new Promise(() => {})
-          : Promise.resolve({
-              source: { id: appSourceId },
-              platform: "community",
-              transactions: [
-                { id: `tx:${appSourceId}`, createdAt: 1_700_000_000 },
-              ],
-              nextCursor: null,
-            }),
-      );
-      client.getUserSourceStatement.mockImplementation(({ appSourceId }) =>
-        Promise.resolve({
-          source: { id: appSourceId },
-          platform: "community",
-          payments: emptyPayments(),
-        }),
-      );
-
-      const pending = operateTransactionsRoute(transactionsReq());
-      await vi.advanceTimersByTimeAsync(30_000);
-      const body = await (await pending).json();
-
-      expect(body.transactions).toHaveLength(SOURCE_COUNT - 1);
-      expect(
-        body.transactions.some(
-          (transaction: { id: string }) => transaction.id === "tx:901",
-        ),
-      ).toBe(false);
-      expect(telemetry.capture).toHaveBeenCalledOnce();
-      expect(telemetry.capture.mock.calls[0]?.[1]).toEqual({
-        routeFamily: "/api/bff/operate",
-        operation: "operate.transactions_source",
-        method: "GET",
-        status: 502,
-      });
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-});
-
-describe.skip("obsolete account-wide source fan-out failure handling", () => {
-  beforeEach(() => {
-    setSession({ githubUserId: "gh-1" });
-    client.listUserSources.mockResolvedValue([
-      { id: 900, repositoryLink: "o/one", apps: [] },
-      { id: 901, repositoryLink: "o/two", apps: [] },
-      { id: 902, repositoryLink: "o/three", apps: [] },
-    ]);
-  });
-
-  const okTransactions = ({ appSourceId }: { appSourceId: number }) =>
-    Promise.resolve({
-      source: { id: appSourceId },
-      platform: "community",
-      transactions: [],
-      nextCursor: null,
-    });
-  const okStatement = ({ appSourceId }: { appSourceId: number }) =>
-    Promise.resolve({
-      source: { id: appSourceId },
-      platform: "community",
-      payments: emptyPayments(),
-    });
-
-  it("never emits a degraded key", async () => {
-    client.listUserSourceTransactions.mockImplementation(okTransactions);
-    client.getUserSourceStatement.mockImplementation(okStatement);
-
-    const body = await (
-      await operateTransactionsRoute(transactionsReq())
-    ).json();
-
-    expect(body).not.toHaveProperty("degraded");
-  });
-
-  it("renders the sources it could read when one drops, without a banner", async () => {
-    client.listUserSourceTransactions.mockImplementation((args) =>
-      args.appSourceId === 901
-        ? Promise.reject(new Error("boom"))
-        : okTransactions(args),
-    );
-    client.getUserSourceStatement.mockImplementation((args) =>
-      args.appSourceId === 901
-        ? Promise.reject(new Error("boom"))
-        : okStatement(args),
-    );
-
-    const res = await operateTransactionsRoute(transactionsReq());
-    const body = await res.json();
-
-    expect(res.status).toBe(200);
-    expect(body).not.toHaveProperty("degraded");
-    expect(telemetry.capture).toHaveBeenCalledTimes(2);
-    expect(telemetry.log).not.toHaveBeenCalled();
-  });
-
-  it("still lists a dropped source so the user can load it alone", async () => {
-    client.listUserSourceTransactions.mockImplementation((args) =>
-      args.appSourceId === 901
-        ? Promise.reject(new Error("boom"))
-        : okTransactions(args),
-    );
-    client.getUserSourceStatement.mockImplementation(okStatement);
-
-    const body = await (
-      await operateTransactionsRoute(transactionsReq())
-    ).json();
-
-    expect(body.sources.map((source: { id: number }) => source.id)).toEqual([
-      900, 901, 902,
-    ]);
-    expect(telemetry.capture).toHaveBeenCalledOnce();
-  });
-
-  it("logs a partial Rust 5xx without creating a BFF Issue", async () => {
-    client.listUserSourceTransactions.mockImplementation((args) =>
-      args.appSourceId === 901
-        ? Promise.reject(
-            new BackendError(
-              "transactions",
-              503,
-              "failed",
-              "private backend body",
-            ),
-          )
-        : okTransactions(args),
-    );
-    client.getUserSourceStatement.mockImplementation(okStatement);
-
-    const res = await operateTransactionsRoute(transactionsReq());
-
-    expect(res.status).toBe(200);
-    expect(telemetry.capture).not.toHaveBeenCalled();
-    expect(telemetry.log).toHaveBeenCalledOnce();
-    expect(telemetry.log).toHaveBeenCalledWith({
-      routeFamily: "/api/bff/operate",
-      operation: "operate.transactions_source",
-      method: "GET",
-      status: 503,
-      upstream: "rust",
-      upstreamStatus: 503,
-    });
-  });
-
-  // "0 of 111 sources" used to render as an empty page behind a warning
-  // banner — and Usage then presented the example statement as if it were
-  // data. A total outage must surface as an error the view can show.
-  it("503s the page when every source drops instead of rendering empty", async () => {
-    client.listUserSourceTransactions.mockRejectedValue(new Error("boom"));
-    client.getUserSourceStatement.mockRejectedValue(new Error("boom"));
-
-    const res = await operateTransactionsRoute(transactionsReq());
-
-    expect(res.status).toBe(503);
-    expect(telemetry.capture).toHaveBeenCalledTimes(6);
-  });
-
-  it("503s usage on total failure instead of serving example data", async () => {
-    client.getUserSourceUsage.mockRejectedValue(new Error("boom"));
-    client.getUserSourceStatement.mockRejectedValue(new Error("boom"));
-
-    const res = await operateUsageRoute(usageReq());
-
-    expect(res.status).toBe(503);
-    expect(telemetry.capture).toHaveBeenCalledTimes(6);
+    expect(client.listUserProjects).not.toHaveBeenCalled();
   });
 });
 
 describe("account-wide batch reads", () => {
   beforeEach(() => {
     setSession({ githubUserId: "gh-1" });
-    client.listUserSources.mockResolvedValue([
+    client.listUserProjects.mockResolvedValue([
       { id: 900, repositoryLink: "o/one", apps: [] },
       { id: 1620, repositoryLink: "partner/app", apps: [] },
     ]);
   });
 
-  it("serves transactions from one merged page and maps rows to sources", async () => {
+  it("serves transactions from one merged page and maps rows to projects", async () => {
     client.listUserTransactions.mockResolvedValue({
-      sources: [
-        { source: { id: 900, repositoryLink: "o/one" }, platform: "community" },
+      projects: [
         {
-          source: { id: 1620, repositoryLink: "partner/app" },
+          project: { id: 900, repositoryLink: "o/one" },
+          platform: "community",
+        },
+        {
+          project: { id: 1620, repositoryLink: "partner/app" },
           platform: "somm.finance",
         },
       ],
@@ -1319,13 +1020,13 @@ describe("account-wide batch reads", () => {
         {
           id: "tx:b",
           createdAt: 1_700_000_100,
-          appSourceId: 1620,
+          projectId: 1620,
           platform: "somm.finance",
         },
         {
           id: "tx:a",
           createdAt: 1_700_000_000,
-          appSourceId: 900,
+          projectId: 900,
           platform: "community",
         },
       ],
@@ -1337,14 +1038,14 @@ describe("account-wide batch reads", () => {
     const body = await res.json();
 
     expect(res.status).toBe(200);
-    expect(client.listUserSourceTransactions).not.toHaveBeenCalled();
-    expect(client.getUserSourceStatement).not.toHaveBeenCalled();
+    expect(client.listUserProjectTransactions).not.toHaveBeenCalled();
+    expect(client.getUserProjectStatement).not.toHaveBeenCalled();
     expect(body.transactions.map((tx: { id: string }) => tx.id)).toEqual([
       "tx:b",
       "tx:a",
     ]);
     // The partner-bound row resolves to its own source and platform.
-    expect(body.transactions[0].source.id).toBe(1620);
+    expect(body.transactions[0].project.id).toBe(1620);
     expect(body.transactions[0].platform).toBe("somm.finance");
     // Pagination continues through the batch's global cursor.
     expect(body.nextCursor).toEqual({
@@ -1352,9 +1053,60 @@ describe("account-wide batch reads", () => {
     });
   });
 
+  /** The merged page spans every platform the account owns; the page it feeds
+   *  is scoped to one. Rows for a project this platform does not list are
+   *  dropped, and the global cursor still carries the reader forward. */
+  it("scopes the merged transactions page to the selected platform", async () => {
+    client.listUserProjects.mockResolvedValue([
+      { id: 900, repositoryLink: "o/one", platformName: "community", apps: [] },
+    ]);
+    client.listUserTransactions.mockResolvedValue({
+      projects: [
+        {
+          project: { id: 900, repositoryLink: "o/one" },
+          platform: "community",
+        },
+        {
+          project: { id: 1620, repositoryLink: "partner/app" },
+          platform: "somm.finance",
+        },
+      ],
+      transactions: [
+        {
+          id: "tx:b",
+          createdAt: 1_700_000_100,
+          projectId: 1620,
+          platform: "somm.finance",
+        },
+        {
+          id: "tx:a",
+          createdAt: 1_700_000_000,
+          projectId: 900,
+          platform: "community",
+        },
+      ],
+      nextCursor: { createdAt: 1_700_000_000, id: "tx:a" },
+    });
+    client.getUserStatements.mockResolvedValue([]);
+
+    const body = await (
+      await operateTransactionsRoute(transactionsReq())
+    ).json();
+
+    expect(body.transactions.map((tx: { id: string }) => tx.id)).toEqual([
+      "tx:a",
+    ]);
+    expect(body.projects.map((project: { id: number }) => project.id)).toEqual([
+      900,
+    ]);
+    expect(body.nextCursor).toEqual({
+      batch: { createdAt: 1_700_000_000, id: "tx:a" },
+    });
+  });
+
   it("passes the batch cursor through and skips statements past page one", async () => {
     client.listUserTransactions.mockResolvedValue({
-      sources: [],
+      projects: [],
       transactions: [],
       nextCursor: null,
     });
@@ -1393,7 +1145,7 @@ describe("account-wide batch reads", () => {
     ]);
     client.getUserStatements.mockResolvedValue([
       {
-        source: { id: 900 },
+        project: { id: 900 },
         platform: "community",
         range: { fromDate: "2026-07-01", toDate: "2026-07-15" },
         available: true,
@@ -1412,8 +1164,8 @@ describe("account-wide batch reads", () => {
 
     const body = await (await operateUsageRoute(usageReq())).json();
 
-    expect(client.getUserSourceUsage).not.toHaveBeenCalled();
-    expect(client.getUserSourceStatement).not.toHaveBeenCalled();
+    expect(client.getUserProjectUsage).not.toHaveBeenCalled();
+    expect(client.getUserProjectStatement).not.toHaveBeenCalled();
     expect(body.example).toBeUndefined();
     expect(body.daily).toHaveLength(1);
     expect(body.statement.summary.grossRevenue).toBe(12);
@@ -1421,8 +1173,11 @@ describe("account-wide batch reads", () => {
 
   it("serves logs pre-merged with the batch cursor", async () => {
     client.listUserLogs.mockResolvedValue({
-      sources: [
-        { source: { id: 900, repositoryLink: "o/one" }, platform: "community" },
+      projects: [
+        {
+          project: { id: 900, repositoryLink: "o/one" },
+          platform: "community",
+        },
       ],
       logs: [
         {
@@ -1430,7 +1185,7 @@ describe("account-wide batch reads", () => {
           eventType: "transaction",
           occurredAt: 1_700_000_000,
           details: {},
-          appSourceId: 900,
+          projectId: 900,
           platform: "community",
         },
         {
@@ -1438,7 +1193,7 @@ describe("account-wide batch reads", () => {
           eventType: "usage",
           occurredAt: 1_699_999_999,
           details: { source: "partner_settlement" },
-          appSourceId: null,
+          projectId: null,
           platform: null,
         },
       ],
@@ -1452,11 +1207,11 @@ describe("account-wide batch reads", () => {
 
     const body = await (await operateLogsRoute(logsReq())).json();
 
-    expect(client.listUserSourceLogs).not.toHaveBeenCalled();
+    expect(client.listUserProjectLogs).not.toHaveBeenCalled();
     expect(body.logs).toHaveLength(2);
-    expect(body.logs[0].source.id).toBe(900);
+    expect(body.logs[0].project.id).toBe(900);
     // A shared settlement belongs to the account, not one project.
-    expect(body.logs[1].source).toBeNull();
+    expect(body.logs[1].project).toBeNull();
     expect(body.nextCursor).toEqual({
       batch: {
         occurredAt: 1_699_999_999,
@@ -1466,26 +1221,82 @@ describe("account-wide batch reads", () => {
     });
   });
 
+  /** The merged stream spans every platform the account owns. Rows for a
+   *  project this platform does not list are dropped; account-level rows
+   *  (a shared partner settlement has no project) belong to every view. */
+  it("scopes the merged log stream to the selected platform", async () => {
+    client.listUserProjects.mockResolvedValue([
+      { id: 900, repositoryLink: "o/one", platformName: "community", apps: [] },
+    ]);
+    client.listUserLogs.mockResolvedValue({
+      projects: [
+        {
+          project: { id: 900, repositoryLink: "o/one" },
+          platform: "community",
+        },
+        {
+          project: { id: 1620, repositoryLink: "o/somm" },
+          platform: "somm.finance",
+        },
+      ],
+      logs: [
+        {
+          id: "log:mine",
+          eventType: "transaction",
+          occurredAt: 1_700_000_002,
+          details: {},
+          projectId: 900,
+          platform: "community",
+        },
+        {
+          id: "log:other-platform",
+          eventType: "transaction",
+          occurredAt: 1_700_000_001,
+          details: {},
+          projectId: 1620,
+          platform: "somm.finance",
+        },
+        {
+          id: "settle:shared",
+          eventType: "usage",
+          occurredAt: 1_700_000_000,
+          details: { source: "partner_settlement" },
+          projectId: null,
+          platform: null,
+        },
+      ],
+      nextCursor: null,
+      invocationsAvailable: true,
+    });
+
+    const body = await (await operateLogsRoute(logsReq())).json();
+
+    expect(body.logs.map((log: { id: string }) => log.id)).toEqual([
+      "log:mine",
+      "settle:shared",
+    ]);
+  });
+
   it("keeps a single-source view on the per-source read", async () => {
-    client.listUserSourceTransactions.mockResolvedValue({
-      source: { id: 900 },
+    client.listUserProjectTransactions.mockResolvedValue({
+      project: { id: 900 },
       platform: "community",
       transactions: [],
       nextCursor: null,
     });
-    client.getUserSourceStatement.mockResolvedValue({
-      source: { id: 900 },
+    client.getUserProjectStatement.mockResolvedValue({
+      project: { id: 900 },
       platform: "community",
       payments: emptyPayments(),
     });
 
     const res = await operateTransactionsRoute(
-      transactionsReq("?appSourceId=900"),
+      transactionsReq("?projectId=900"),
     );
 
     expect(res.status).toBe(200);
     expect(client.listUserTransactions).not.toHaveBeenCalled();
-    expect(client.listUserSourceTransactions).toHaveBeenCalledTimes(1);
+    expect(client.listUserProjectTransactions).toHaveBeenCalledTimes(1);
   });
 
   it("surfaces a non-404 batch failure instead of silently fanning out", async () => {
@@ -1497,24 +1308,24 @@ describe("account-wide batch reads", () => {
     const res = await operateTransactionsRoute(transactionsReq());
 
     expect(res.status).toBeGreaterThanOrEqual(500);
-    expect(client.listUserSourceTransactions).not.toHaveBeenCalled();
+    expect(client.listUserProjectTransactions).not.toHaveBeenCalled();
   });
 });
 
 /**
  * These assert the *shape of the request graph*, not the payload. Output
- * parity would survive a refactor that quietly put `listUserSources` back on
+ * parity would survive a refactor that quietly put `listUserProjects` back on
  * the critical path, and that round trip is the whole cost this change
  * removed — so it needs a test that fails when it comes back.
  */
-describe("account-wide reads do not waterfall behind listUserSources", () => {
-  /** A `listUserSources` that never settles until the test releases it. */
+describe("account-wide reads do not waterfall behind listUserProjects", () => {
+  /** A `listUserProjects` that never settles until the test releases it. */
   function pendingSources() {
-    let release!: (sources: unknown[]) => void;
+    let release!: (projects: unknown[]) => void;
     const gate = new Promise<unknown[]>((resolve) => {
       release = resolve;
     });
-    client.listUserSources.mockReturnValue(gate);
+    client.listUserProjects.mockReturnValue(gate);
     return { release };
   }
 
@@ -1542,7 +1353,7 @@ describe("account-wide reads do not waterfall behind listUserSources", () => {
     expect(res.status).toBe(200);
     // The dropdown still gets the full list — parallel, not dropped.
     await expect(res.json()).resolves.toMatchObject({
-      sources: [{ id: 42 }],
+      projects: [{ id: 42 }],
     });
   });
 
@@ -1552,7 +1363,7 @@ describe("account-wide reads do not waterfall behind listUserSources", () => {
     let pageStarted = false;
     client.listUserLogs.mockImplementation(async () => {
       pageStarted = true;
-      return { sources: [], logs: [], nextCursor: null };
+      return { projects: [], logs: [], nextCursor: null };
     });
 
     const pending = operateLogsRoute(
@@ -1571,7 +1382,7 @@ describe("account-wide reads do not waterfall behind listUserSources", () => {
     let pageStarted = false;
     client.listUserTransactions.mockImplementation(async () => {
       pageStarted = true;
-      return { sources: [], transactions: [], nextCursor: null };
+      return { projects: [], transactions: [], nextCursor: null };
     });
     client.getUserStatements.mockResolvedValue([]);
 
@@ -1585,7 +1396,7 @@ describe("account-wide reads do not waterfall behind listUserSources", () => {
     release([{ id: 42, repositoryLink: "o/r", apps: [] }]);
     const res = await pending;
     expect(res.status).toBe(200);
-    await expect(res.json()).resolves.toMatchObject({ sources: [{ id: 42 }] });
+    await expect(res.json()).resolves.toMatchObject({ projects: [{ id: 42 }] });
   });
 
   it("starts the usage sweep while the source list is still pending", async () => {
@@ -1608,45 +1419,82 @@ describe("account-wide reads do not waterfall behind listUserSources", () => {
     release([{ id: 42, repositoryLink: "o/r", apps: [] }]);
     const res = await pending;
     expect(res.status).toBe(200);
-    await expect(res.json()).resolves.toMatchObject({ sources: [{ id: 42 }] });
+    await expect(res.json()).resolves.toMatchObject({ projects: [{ id: 42 }] });
   });
 
-  /** The payments response is derived entirely from the ledger read, so an
-   *  unfiltered request must not read the source list at all — not even in
-   *  parallel. A regression here is a wasted manager round trip per poll. */
-  it("never reads the source list for an unfiltered payments request", async () => {
+  /** The ledger read is account-wide, so the source list is what scopes it to
+   *  the selected platform. It must never be a waterfall in front of the
+   *  ledger read — a regression there is a serial manager hop per poll. */
+  it("reads the source list alongside, not ahead of, an unfiltered payments request", async () => {
     setSession({ githubUserId: "gh-1" });
-    client.getUserPayments.mockResolvedValue([]);
+    const { release } = pendingSources();
+    let ledgerStarted = false;
+    client.getUserPayments.mockImplementation(async () => {
+      ledgerStarted = true;
+      return [];
+    });
+
+    const pending = operatePaymentsRoute(
+      new Request("http://localhost:3000/api/bff/operate/payments"),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(ledgerStarted).toBe(true);
+
+    release([{ id: 42, repositoryLink: "o/r", apps: [] }]);
+    const res = await pending;
+
+    expect(res.status).toBe(200);
+    expect(client.getUserPayments).toHaveBeenCalledOnce();
+  });
+
+  /** A ledger row for a project on another platform must not surface here —
+   *  the payment card sits on a page scoped to one platform. */
+  it("scopes unfiltered payments to the selected platform's projects", async () => {
+    setSession({ githubUserId: "gh-1" });
+    oneSource();
+    const withResource = (application: string) => ({
+      ...emptyPayments(),
+      resources: [{ application, priced: true }],
+    });
+    client.getUserPayments.mockResolvedValue([
+      { project: { id: 900 }, payments: withResource("real-bot") },
+      { project: { id: 1620 }, payments: withResource("somm-agent") },
+    ]);
 
     const res = await operatePaymentsRoute(
       new Request("http://localhost:3000/api/bff/operate/payments"),
     );
+    const body = await res.json();
 
     expect(res.status).toBe(200);
     expect(client.getUserPayments).toHaveBeenCalledOnce();
-    expect(client.listUserSources).not.toHaveBeenCalled();
+    expect(
+      body.payments.resources.map(
+        (r: { application: string }) => r.application,
+      ),
+    ).toEqual(["real-bot"]);
   });
 
   /** …but a source-scoped request still must, because that is where
-   *  `appSourceId` is proven to belong to the signed-in user. */
+   *  `projectId` is proven to belong to the signed-in user. */
   it("still resolves the source list to authorize a scoped payments request", async () => {
     setSession({ githubUserId: "gh-1" });
-    client.listUserSources.mockResolvedValue([
+    client.listUserProjects.mockResolvedValue([
       { id: 42, repositoryLink: "o/r", apps: [] },
     ]);
     client.getUserPayments.mockResolvedValue([]);
 
     const ok = await operatePaymentsRoute(
       new Request(
-        "http://localhost:3000/api/bff/operate/payments?appSourceId=42",
+        "http://localhost:3000/api/bff/operate/payments?projectId=42",
       ),
     );
     expect(ok.status).toBe(200);
-    expect(client.listUserSources).toHaveBeenCalled();
+    expect(client.listUserProjects).toHaveBeenCalled();
 
     const foreign = await operatePaymentsRoute(
       new Request(
-        "http://localhost:3000/api/bff/operate/payments?appSourceId=99",
+        "http://localhost:3000/api/bff/operate/payments?projectId=99",
       ),
     );
     expect(foreign.status).toBe(404);

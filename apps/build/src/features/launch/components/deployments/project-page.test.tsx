@@ -25,7 +25,7 @@ vi.mock("@build/components/control-plane/prefetch-control-plane-route", () => ({
 }));
 
 vi.mock("@aomi-labs/deploy/lifecycle", () => ({
-  deploymentLifecycleFromSource: () => ({
+  deploymentLifecycleFromProject: () => ({
     kind: "empty",
     repo: "a/b",
     statusLabel: "No deployment",
@@ -43,6 +43,7 @@ vi.mock("@build/features/launch/hooks/use-project-detail", () => ({
       source: {
         id: 1,
         repositoryLink: "a/b",
+        platformName: "somm.finance",
         apps: [],
         latestDeployment: null,
         installationId: 5,
@@ -76,18 +77,14 @@ vi.mock("@build/features/launch/hooks/use-project-detail", () => ({
 
 import { ProjectPage } from "./project-page";
 
-function renderPage(platform?: string) {
+function renderPage() {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   return render(
     <QueryClientProvider client={client}>
       <ToastProvider>
-        <ProjectPage
-          sourceId={1}
-          platform={platform}
-          tabBaseHref="/projects/1"
-        />
+        <ProjectPage projectId={1} tabBaseHref="/projects/1" />
       </ToastProvider>
     </QueryClientProvider>,
   );
@@ -119,13 +116,13 @@ describe("ProjectPage", () => {
     expect(screen.queryByText("Project home")).not.toBeInTheDocument();
   });
 
-  it("preserves the partner platform in project reads and tab links", () => {
-    renderPage("somm.finance");
+  it("uses canonical Project identity in reads and tab links", () => {
+    renderPage();
 
-    expect(useProjectDetail).toHaveBeenCalledWith(1, "somm.finance");
+    expect(useProjectDetail).toHaveBeenCalledWith(1);
     fireEvent.click(screen.getByRole("tab", { name: /^deployments$/i }));
     expect(push).toHaveBeenCalledWith(
-      "/projects/1?platform=somm.finance&tab=deployments",
+      "/projects/1?tab=deployments&platform=somm.finance",
     );
   });
 });

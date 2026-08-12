@@ -88,15 +88,15 @@ export function RepositoryConnector({
       const returnTo = `${window.location.origin}/projects?platform=${encodeURIComponent(platform)}`;
       navigate(await githubAppInstallUrl({ platform, repo, returnTo }));
     } catch (cause) {
+      // A navigation never resolves a React lifecycle. Keep the control busy
+      // until the browser leaves this document; only a failed hand-off makes
+      // retrying meaningful.
+      setConnecting(false);
       setError(
         cause instanceof Error
           ? cause.message
           : "Could not start GitHub authorization.",
       );
-    } finally {
-      // A real `navigate` leaves the page, but it is injectable and the button
-      // should not be able to strand itself on "Connecting…".
-      setConnecting(false);
     }
   }
 

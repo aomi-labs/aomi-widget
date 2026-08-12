@@ -11,7 +11,7 @@ describe("AomiClient route manifest", () => {
         `${endpoint.method} ${endpoint.path} [${endpoint.auth.join(", ")}]`,
     );
 
-    expect(routeKeys).toHaveLength(117);
+    expect(routeKeys).toHaveLength(139);
     expect(new Set(routeKeys).size).toBe(routeKeys.length);
     expect(routeKeys).toContain("GET /api/account/statement [account]");
     // Public placement probe. Kept distinct from GET /health, which stays a
@@ -37,19 +37,16 @@ describe("AomiClient route manifest", () => {
     expect(routeKeys).toContain("GET /api/_internal/secrets [service]");
     expect(routeKeys).toContain("DELETE /api/_internal/secrets [service]");
     expect(routeKeys).toContain(
-      "GET /api/integrations/github-app/user/sources/:id/deployments [service]",
+      "GET /api/integrations/github-app/user/projects/:id/deployments [service]",
     );
     expect(routeKeys).toContain(
-      "GET /api/integrations/github-app/user/sources/:id/observability [service]",
+      "GET /api/integrations/github-app/user/projects/:id/observability [service]",
     );
     expect(routeKeys).toContain(
       "GET /api/platforms/:name/apps/:app/records [activation]",
     );
     expect(routeKeys).toContain(
-      "POST /api/platforms/:name/deploy [activation]",
-    );
-    expect(routeKeys).toContain(
-      "POST /api/platforms/:name/deployments/:deployment/promote [activation]",
+      "POST /api/projects/:project_id/deploy [activation]",
     );
     expect(routeKeys).toContain(
       "POST /api/platforms/:name/deployments/:deployment/rerun [activation]",
@@ -89,19 +86,19 @@ describe("AomiClient route manifest", () => {
     });
 
     await expect(
-      client.request("POST", "/api/platforms/community/deploy", {
+      client.request("POST", "/api/projects/42/deploy", {
         sessionId: "session-1",
         query: { preflight: true, empty: null },
-        body: { source: "github" },
+        body: { source_ref: "abc1234def5678" },
       }),
     ).resolves.toEqual({ ok: true });
 
     const [url, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe(
-      "http://unit.test/api/platforms/community/deploy?preflight=true",
-    );
+    expect(url).toBe("http://unit.test/api/projects/42/deploy?preflight=true");
     expect(init.method).toBe("POST");
-    expect(JSON.parse(init.body as string)).toEqual({ source: "github" });
+    expect(JSON.parse(init.body as string)).toEqual({
+      source_ref: "abc1234def5678",
+    });
 
     const headers = new Headers(init.headers);
     expect(headers.get("X-Session-Id")).toBe("session-1");
@@ -361,12 +358,14 @@ describe("AomiClient account profile", () => {
       await client.sendMessage("session-1", "swap 20 mon to usdc", {
         app: "default",
         clientId: "client-1",
+        turnId: "legacy-turn-id",
       });
 
       const [url, init] = nativeFetch.mock.calls[0] ?? [];
       expect(String(url)).toBe(
         "http://unit.test/api/thread/chat?app=default&message=swap+20+mon+to+usdc&client_id=client-1",
       );
+      expect(String(url)).not.toContain("turn_id");
       expect((init as RequestInit | undefined)?.body).toBeUndefined();
       expect(
         new Headers((init as RequestInit).headers).get("X-Session-Id"),

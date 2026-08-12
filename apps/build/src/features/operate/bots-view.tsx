@@ -18,23 +18,23 @@ import {
   buildQueryStaleTime,
   githubAccountKey,
 } from "@build/features/launch/query-keys";
-import { usePlatform } from "@build/features/launch/use-platform";
 import { TelegramHowItWorks } from "@build/features/integrations/how-it-works";
 import { ThreadModeControl } from "@build/features/integrations/thread-mode-control";
 import { API_PATHS } from "@build/lib/api-paths";
 import { cn } from "@build/lib/utils";
 import { operateFetch } from "./client";
 
-type BotSourceApp = {
+type BotProjectApp = {
   id: number;
   name: string;
+  isActive: boolean;
 };
 
-type BotSource = {
+type BotProject = {
   id: number;
   repositoryLink?: string | null;
   githubAccount?: string | null;
-  apps?: BotSourceApp[];
+  apps?: BotProjectApp[];
 };
 
 type Bot = {
@@ -53,22 +53,22 @@ type Bot = {
 
 type BotApp = {
   applicationId: number;
-  appSourceId: number | null;
-  sourceLabel: string | null;
+  projectId: number | null;
+  projectLabel: string | null;
   name: string;
   label: string;
   isPrimary: boolean;
 };
 
 type BotsPayload = {
-  sources?: BotSource[];
+  projects?: BotProject[];
   bots?: Bot[];
 };
 
 type AppOption = {
   applicationId: number;
   name: string;
-  sourceLabel: string;
+  projectLabel: string;
 };
 
 type Draft = {
@@ -76,8 +76,10 @@ type Draft = {
   primary: number | null;
 };
 
-function sourceLabel(source: BotSource) {
-  return source.repositoryLink || source.githubAccount || `Source ${source.id}`;
+function projectLabel(project: BotProject) {
+  return (
+    project.repositoryLink || project.githubAccount || `Project ${project.id}`
+  );
 }
 
 function displayBotName(bot: Bot): string {
@@ -103,14 +105,8 @@ function threadModeLabel(threadMode: string): string {
   return threadMode === "multi" ? "Multiple threads" : "Single thread";
 }
 
-/** Bot writes carry the active platform so they resolve the same source list
- *  the picker was populated from. */
-function botsUrl(
-  platform: string | null | undefined,
-  extra: Record<string, string> = {},
-): string {
+function botsUrl(extra: Record<string, string> = {}): string {
   const params = new URLSearchParams(extra);
-  if (platform?.trim()) params.set("platform", platform.trim());
   const query = params.toString();
   return query
     ? `${API_PATHS.bff.operate.bots}?${query}`
@@ -208,7 +204,7 @@ function AppTable({
             <tr>
               <th className={cn(TH, "w-11")} aria-label="Attached" />
               <th className={TH}>App</th>
-              <th className={TH}>Source</th>
+              <th className={TH}>Project</th>
               <th className={cn(TH, "w-24")}>Primary</th>
             </tr>
           </thead>
@@ -232,7 +228,7 @@ function AppTable({
                         checked={isChecked}
                         disabled={disabled}
                         onChange={() => toggle(app.applicationId)}
-                        aria-label={`Attach ${app.name} (${app.sourceLabel})`}
+                        aria-label={`Attach ${app.name} (${app.projectLabel})`}
                       />
                       <CheckboxGlyph checked={isChecked} />
                     </label>
@@ -246,7 +242,7 @@ function AppTable({
                     {app.name}
                   </td>
                   <td className="text-dim truncate px-3 py-2.5 font-mono text-xs">
-                    {app.sourceLabel}
+                    {app.projectLabel}
                   </td>
                   <td className="px-3 py-2.5">
                     <label
@@ -264,7 +260,7 @@ function AppTable({
                         onChange={() =>
                           onChange({ ...draft, primary: app.applicationId })
                         }
-                        aria-label={`Make ${app.name} (${app.sourceLabel}) primary`}
+                        aria-label={`Make ${app.name} (${app.projectLabel}) primary`}
                       />
                       <RadioGlyph checked={isPrimary} disabled={!isChecked} />
                     </label>
@@ -299,7 +295,7 @@ function AppTable({
                   </td>
                   <td className="text-dim truncate px-3 py-2.5">{app.name}</td>
                   <td className="text-dim truncate px-3 py-2.5 font-mono text-xs">
-                    {app.sourceLabel ?? "—"}
+                    {app.projectLabel ?? "—"}
                   </td>
                   <td className="text-warning px-3 py-2.5 text-[11px]">
                     no longer available
@@ -461,7 +457,7 @@ function BotCard({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Apps still mapped to this bot but gone from the builder's sources. They
+  // Apps still mapped to this bot but gone from the builder's projects. They
   // render as uncheckable-only rows: keeping one selected would 403 at the
   // BFF ownership check, so save stays blocked until they are unchecked.
   const ghostApps = useMemo(() => {
@@ -615,8 +611,8 @@ function BotCard({
                 <Star className="size-3 fill-current" aria-hidden />
               ) : null}
               {app.name}
-              {app.sourceLabel ? (
-                <span className="opacity-60">· {app.sourceLabel}</span>
+              {app.projectLabel ? (
+                <span className="opacity-60">· {app.projectLabel}</span>
               ) : null}
             </span>
           ))}
@@ -748,16 +744,10 @@ export function BotsView() {
   const { account } = useGitHubSession();
   const queryClient = useQueryClient();
   const accountKey = githubAccountKey(account.githubLogin);
-  // The bot list itself is builder-wide, but the apps it may be pointed at are
-  // not: a source is bound to one platform, so the picker follows the platform
-  // the shell is on. Without this a builder whose apps live on a partner
-  // platform only ever sees their Community sources — the apps they actually
-  // want to attach are invisible, on every platform, with no way to reach them.
-  const platform = usePlatform();
-  const queryKey = buildQueryKeys.bots(accountKey ?? "unavailable", platform);
+  const queryKey = buildQueryKeys.bots(accountKey ?? "unavailable");
   const botsQuery = useQuery({
     queryKey,
-    queryFn: () => operateFetch<BotsPayload>("bots", { platform }),
+    queryFn: () => operateFetch<BotsPayload>("bots"),
     enabled: account.signedIn && accountKey !== null,
     staleTime: buildQueryStaleTime.operate,
   });
@@ -775,19 +765,21 @@ export function BotsView() {
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [removeError, setRemoveError] = useState<string | null>(null);
 
-  const sources = useMemo(() => payload?.sources ?? [], [payload?.sources]);
+  const projects = useMemo(() => payload?.projects ?? [], [payload?.projects]);
   const bots = useMemo(() => payload?.bots ?? [], [payload?.bots]);
 
   const options = useMemo<AppOption[]>(
     () =>
-      sources.flatMap((source) =>
-        (source.apps ?? []).map((app) => ({
-          applicationId: app.id,
-          name: app.name,
-          sourceLabel: sourceLabel(source),
-        })),
+      projects.flatMap((project) =>
+        (project.apps ?? [])
+          .filter((app) => app.isActive)
+          .map((app) => ({
+            applicationId: app.id,
+            name: app.name,
+            projectLabel: projectLabel(project),
+          })),
       ),
-    [sources],
+    [projects],
   );
 
   const handleRegister = useCallback(
@@ -797,10 +789,7 @@ export function BotsView() {
       threadMode: string;
       draft: Draft;
     }) => {
-      // Same platform the picker listed: the BFF re-checks every id against
-      // that platform's sources, so a write scoped differently from the read
-      // would reject apps the user was just offered.
-      const res = await fetch(botsUrl(platform), {
+      const res = await fetch(botsUrl(), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -820,17 +809,17 @@ export function BotsView() {
       }
       const created = json.bot;
       queryClient.setQueryData<BotsPayload>(queryKey, (current) => ({
-        sources: current?.sources ?? sources,
+        projects: current?.projects ?? projects,
         bots: [created, ...(current?.bots ?? [])],
       }));
       setAdding(false);
     },
-    [queryClient, queryKey, sources, platform],
+    [queryClient, queryKey, projects],
   );
 
   const handleSaveApps = useCallback(
     async (bot: Bot, draft: Draft, threadMode: string) => {
-      const res = await fetch(botsUrl(platform), {
+      const res = await fetch(botsUrl(), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -849,14 +838,14 @@ export function BotsView() {
       }
       const updated = json.bot;
       queryClient.setQueryData<BotsPayload>(queryKey, (current) => ({
-        sources: current?.sources ?? sources,
+        projects: current?.projects ?? projects,
         bots: (current?.bots ?? []).map((b) =>
           b.id === updated.id ? updated : b,
         ),
       }));
       setEditingId(null);
     },
-    [queryClient, queryKey, sources, platform],
+    [queryClient, queryKey, projects],
   );
 
   const handleRemove = useCallback(
@@ -864,7 +853,7 @@ export function BotsView() {
       setRemovingId(bot.id);
       setRemoveError(null);
       try {
-        const res = await fetch(botsUrl(platform, { botId: bot.id }), {
+        const res = await fetch(botsUrl({ botId: bot.id }), {
           method: "DELETE",
         });
         const json = (await res.json().catch(() => ({}))) as {
@@ -891,7 +880,7 @@ export function BotsView() {
         setRemovingId(null);
       }
     },
-    [editingId, queryClient, queryKey, platform],
+    [editingId, queryClient, queryKey],
   );
 
   if (account.loading) {

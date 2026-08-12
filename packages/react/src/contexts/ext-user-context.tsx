@@ -39,9 +39,11 @@ function mergeRecords(
 }
 
 function dropWalletBlocks(state: UserState): UserState {
+  const chainId = UserState.chainId(state);
   return (
     UserState.normalize({
       connection: { is_connected: false },
+      evm: chainId === undefined ? undefined : { chain_id: chainId },
       pending: state.pending,
       ext: state.ext,
       preferences: state.preferences,
@@ -156,11 +158,10 @@ function ExtUserProviderImpl({ children }: { children: ReactNode }) {
           ) ?? prev;
 
         // Wallet-context fields belong to a specific connected session. On
-        // disconnect we wipe them all so that the next connection cannot
-        // inherit stale identity (address, AA mode, sponsor metadata, etc.)
-        // from the previous wallet. AomiWalletKitUserSync deliberately
-        // does not forward per-tx AA fields, so without this clear they
-        // would survive across wallet switches.
+        // disconnect we wipe identity, AA, and sponsorship so that the next
+        // connection cannot inherit state from the previous wallet. The
+        // selected chain is a wallet-independent read preference, so keep it
+        // available to chat and read-only tools while disconnected.
         let next: UserState;
         if (UserState.isConnected(normalizedData) === false) {
           next = dropWalletBlocks(merged);

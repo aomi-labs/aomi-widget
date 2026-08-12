@@ -9,10 +9,10 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("./use-global-deployment-records", () => ({
-  useGlobalDeploymentRecords: () => ({
+  useGlobalDeploymentRecords: vi.fn(() => ({
     projectsState: {
       status: "ready",
-      sources: [
+      projects: [
         {
           id: 42,
           repositoryLink: "alice/bot",
@@ -23,7 +23,7 @@ vi.mock("./use-global-deployment-records", () => ({
       status: "ready",
       deployments: [
         {
-          sourceId: 42,
+          projectId: 42,
           repositoryLink: "alice/bot",
           deploymentId: "dep_1_alice-bot_abc123",
           commit: "abc123",
@@ -36,19 +36,19 @@ vi.mock("./use-global-deployment-records", () => ({
         },
       ],
     },
-    sources: [{ id: 42, repositoryLink: "alice/bot" }],
+    projects: [{ id: 42, repositoryLink: "alice/bot" }],
     reload: vi.fn(),
     loadMore: vi.fn(),
     hasMore: false,
     loadingMore: false,
-  }),
+  })),
 }));
 
 import { GlobalDeploymentsList } from "./global-deployments-list";
 
 describe("GlobalDeploymentsList", () => {
   it("renders all deployment records read-only", () => {
-    render(<GlobalDeploymentsList />);
+    render(<GlobalDeploymentsList platform="world-market-apps" />);
 
     expect(screen.getByText("dep_1_alice-bot_abc123")).toBeInTheDocument();
     expect(screen.getAllByText("alice/bot").length).toBeGreaterThan(0);
@@ -59,7 +59,7 @@ describe("GlobalDeploymentsList", () => {
       screen.getByRole("link", { name: /view deployment/i }),
     ).toHaveAttribute(
       "href",
-      "/operate/deployments?project=42&deployment=dep_1_alice-bot_abc123",
+      "/operate/deployments?platform=world-market-apps&project=42&deployment=dep_1_alice-bot_abc123",
     );
   });
 });

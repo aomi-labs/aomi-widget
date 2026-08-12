@@ -13,6 +13,17 @@ const walletKitState = vi.hoisted(() => ({
   },
 }));
 const frameInstances = vi.hoisted(() => ({ next: 0 }));
+const requestedAppState = vi.hoisted(() => ({
+  current: {
+    app: null,
+    applicationId: null,
+    locked: false,
+  } as {
+    app: string | null;
+    applicationId: string | null;
+    locked: boolean;
+  },
+}));
 
 vi.mock("@aomi-labs/widget-lib", async () => {
   const React = await vi.importActual<typeof import("react")>("react");
@@ -20,14 +31,20 @@ vi.mock("@aomi-labs/widget-lib", async () => {
     AomiFrame: {
       Root: ({
         accountSessionAvailable,
+        applicationId,
+        showSidebar,
       }: {
         accountSessionAvailable: boolean;
+        applicationId?: string | null;
+        showSidebar?: boolean;
       }) => {
         const [instance] = React.useState(() => ++frameInstances.next);
         return (
           <div
             data-account-session-available={String(accountSessionAvailable)}
+            data-application-id={applicationId ?? ""}
             data-instance={instance}
+            data-show-sidebar={String(showSidebar)}
             data-testid="aomi-frame"
           />
         );
@@ -41,11 +58,7 @@ vi.mock("@aomi-labs/widget-lib", async () => {
 
 vi.mock("@portal/lib/portal-client-options", () => ({
   usePortalClientOptions: () => ({}),
-  useRequestedAppConfig: () => ({
-    app: null,
-    applicationId: null,
-    locked: false,
-  }),
+  useRequestedAppConfig: () => requestedAppState.current,
 }));
 
 vi.mock("@portal/lib/settings-api", () => ({
@@ -62,6 +75,11 @@ describe("PortalAomiFrame account bootstrap", () => {
     walletKitState.current = {
       accountStatus: "loading",
       accountUser: undefined,
+    };
+    requestedAppState.current = {
+      app: null,
+      applicationId: null,
+      locked: false,
     };
   });
 
@@ -163,6 +181,29 @@ describe("PortalAomiFrame account bootstrap", () => {
     expect(screen.getByTestId("aomi-frame")).not.toHaveAttribute(
       "data-instance",
       accountBInstance,
+    );
+  });
+
+  it("isolates a locked project chat to its application", () => {
+    walletKitState.current = {
+      accountStatus: "ready",
+      accountUser: { id: "acct-a" },
+    };
+    requestedAppState.current = {
+      app: "goal-digger",
+      applicationId: "2936682",
+      locked: true,
+    };
+
+    render(<PortalAomiFrame />);
+
+    expect(screen.getByTestId("aomi-frame")).toHaveAttribute(
+      "data-application-id",
+      "2936682",
+    );
+    expect(screen.getByTestId("aomi-frame")).toHaveAttribute(
+      "data-show-sidebar",
+      "false",
     );
   });
 });

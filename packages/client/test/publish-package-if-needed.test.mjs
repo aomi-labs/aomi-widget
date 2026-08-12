@@ -1,8 +1,13 @@
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { publishPackageIfNeeded } from "../../../scripts/publish-package-if-needed.mjs";
 
 const packageDirectory = path.resolve("packages/client");
+const packageManifest = JSON.parse(
+  readFileSync(path.join(packageDirectory, "package.json"), "utf8"),
+);
+const packageSpec = `${packageManifest.name}@${packageManifest.version}`;
 
 describe("publishPackageIfNeeded", () => {
   it("skips an exact version that is already published", async () => {
@@ -45,7 +50,7 @@ describe("publishPackageIfNeeded", () => {
         publishImpl,
       }),
     ).rejects.toThrow(
-      "Registry check for @aomi-labs/client@0.3.9 failed with HTTP 503",
+      `Registry check for ${packageSpec} failed with HTTP 503`,
     );
 
     expect(publishImpl).not.toHaveBeenCalled();

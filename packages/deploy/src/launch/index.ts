@@ -6,6 +6,7 @@
 
 export {
   createLaunchClient,
+  isFatalLaunchRequestError,
   LaunchRequestError,
   DEFAULT_LAUNCH_BASE_PATH,
   DEFAULT_DEPLOYMENTS_BASE_PATH,
@@ -13,16 +14,19 @@ export {
   type LaunchClient,
   type LaunchClientOptions,
   type GitHubSessionInfo,
-  type UserSourcesResult,
+  type UserProjectsResult,
   type GithubAppOAuthStartResponse,
-  type UserSource,
-} from "./client";
+  type UserProject,
+} from "./browser-client";
 
 export {
   DEFAULT_TEMPLATE_REPO,
   resolveTemplateRepo,
   templateRepoUrl,
   templateGenerateUrl,
+  deploymentTargets,
+  MissingRequiredSecretsError,
+  missingRequiredSecrets,
   type LaunchPath,
   type LaunchDeployPayload,
   type LaunchProgress,
@@ -32,10 +36,12 @@ export {
   type LaunchCreateRepoResult,
   type LaunchStatus,
   type LaunchActivateResult,
-  type LaunchAppStatus,
+  type LaunchAppStatusApp,
+  type LaunchAppStatusesResult,
+  type DeploymentTarget,
   type LaunchRedeployResult,
   type LaunchSdkStatus,
-  type DeploymentSourcesResult,
+  type DeploymentProjectsResult,
   type DeploymentHistoryResult,
   type DeploymentFeedResult,
   type DeploymentSecretsResult,
@@ -43,16 +49,6 @@ export {
   type RequiredSecretsByApp,
   type RequiredSecretsResult,
 } from "./contracts";
-
-export {
-  MissingRequiredSecretsError,
-  missingRequiredSecrets,
-} from "./required-secrets";
-
-export {
-  connectionResult,
-  type RepositoryConnectionResult,
-} from "./connection-result";
 
 export {
   loadLaunch,
@@ -70,23 +66,31 @@ export {
   installationStatusLabel,
   GITHUB_REDIRECT_KEYS,
   ONESHOT_STEPS,
+  readLaunchUrlContext,
+  projectMatchesLaunchUrlContext,
+  hasProjectForLaunchUrlContext,
+  platformParam,
+  connectionResult,
   type LaunchState,
   type PendingInstall,
   type GithubRedirect,
   type OneshotStep,
+  type LaunchUrlContext,
+  type RepositoryConnectionResult,
 } from "./state";
 
 export {
   deploymentProgress,
   isTerminalState,
+  runtimeAppsReady,
+  waitForDeploymentReady,
+  waitForAppsToLoad,
   watchDeploymentLoop,
+  type AppRuntimeExpectation,
+  type AppRuntimeSnapshot,
+  type AppRuntimeSnapshotApp,
+  type AppRuntimeWatchOptions,
+  type AppRuntimeWatchProgress,
+  type DeploymentReadyWatchOptions,
   type WatchLoopOptions,
 } from "./watch";
-
-export {
-  readLaunchUrlContext,
-  sourceMatchesLaunchUrlContext,
-  hasSourceForLaunchUrlContext,
-  platformParam,
-  type LaunchUrlContext,
-} from "./url-context";
