@@ -122,6 +122,18 @@ through the canonical Session contract.
   `/wallet`, `/permission`, `/tx`, `/app`, `/model`, `/network`, and
   `/disconnect`.
 
+## MCP Chat Parity
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-12** — make
+the OAuth MCP surface supervise the same asynchronous Aomi
+agent turns as the TS CLI. `/api/mcp` now has four chat/session tools with rich
+cursor deltas, task/tool narration, wallet-request handoff, and account-wallet
+hydration; the prior direct tool funnel remains at `/api/mcp/direct` behind the
+same OAuth resource metadata. SIWE → dynamic registration → PKCE/consent →
+refresh-token OAuth, real agent replies, resume/list/interrupt, a locally
+staged manual-wallet transaction, and the browser handoff into its exact
+conversation are all covered by the local smoke.
+
 ## Chat Composer Parity
 
 Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-05** — keep the active-thread
