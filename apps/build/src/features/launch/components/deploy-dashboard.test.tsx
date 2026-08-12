@@ -24,9 +24,9 @@ vi.mock("@build/features/launch", () => ({
     signedIn: true,
     githubLogin: "alice",
   })),
-  fetchUserSources: vi.fn(async () => ({
+  fetchUserProjects: vi.fn(async () => ({
     githubLogin: "alice",
-    sources: [
+    projects: [
       {
         id: 99,
         installationId: 555,
@@ -36,7 +36,7 @@ vi.mock("@build/features/launch", () => ({
       },
     ],
   })),
-  hasSourceForLaunchUrlContext: vi.fn(() => true),
+  hasProjectForLaunchUrlContext: vi.fn(() => true),
   launchActivate: vi.fn(),
   launchRedeploy: vi.fn(),
   launchStatus: vi.fn(),
@@ -57,7 +57,7 @@ vi.mock("@build/features/launch/hooks/use-project-detail", () => ({
 }));
 
 vi.mock("@aomi-labs/deploy/lifecycle", () => ({
-  deploymentLifecycleFromSource: vi.fn(() => ({
+  deploymentLifecycleFromProject: vi.fn(() => ({
     kind: "live",
     repo: "alice/bot",
     statusLabel: "Live",
@@ -96,7 +96,10 @@ describe("DeployDashboard", () => {
 });
 
 function makeDetail(overrides: {
-  requiredSecrets: Record<string, { slots: SecretSlot[]; missing: string[] }>;
+  requiredSecrets: Record<
+    string,
+    { applicationId: number; slots: SecretSlot[]; missing: string[] }
+  >;
 }): SecretsGateDetail {
   return {
     hasMissingSecrets: (app: string) =>
@@ -124,12 +127,18 @@ function makeLifecycle(
 describe("LifecyclePanel", () => {
   it("disables Activate while a required secret is missing", () => {
     const detail = makeDetail({
-      requiredSecrets: { binance: { slots: [], missing: ["BINANCE_API_KEY"] } },
+      requiredSecrets: {
+        binance: {
+          applicationId: 17,
+          slots: [],
+          missing: ["BINANCE_API_KEY"],
+        },
+      },
     });
     render(
       <LifecyclePanel
         detail={detail}
-        appSourceId={42}
+        projectId={42}
         lifecycle={makeLifecycle()}
         onLifecycleChange={() => {}}
         onLive={() => {}}
@@ -144,12 +153,14 @@ describe("LifecyclePanel", () => {
 
   it("enables Activate once no required secret is missing", () => {
     const detail = makeDetail({
-      requiredSecrets: { binance: { slots: [], missing: [] } },
+      requiredSecrets: {
+        binance: { applicationId: 17, slots: [], missing: [] },
+      },
     });
     render(
       <LifecyclePanel
         detail={detail}
-        appSourceId={42}
+        projectId={42}
         lifecycle={makeLifecycle()}
         onLifecycleChange={() => {}}
         onLive={() => {}}

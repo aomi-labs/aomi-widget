@@ -1,7 +1,7 @@
 // Ported from apps/portal/src/server/bff/launch/config.test.ts.
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { resolveLaunchConfig } from "../src/bff/config";
+import { resolveLaunchConfig } from "../src/bff/launch-routes";
 
 describe("resolveLaunchConfig", () => {
   afterEach(() => {

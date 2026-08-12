@@ -40,6 +40,12 @@ function state(input: StateInput = {}): WalletRegistryState {
 }
 
 describe("WalletRegistry selectors", () => {
+  it("keeps the selected EVM chain in a disconnected identity", () => {
+    expect(selectEvmIdentity(state(), 100, 5042002)).toEqual({
+      chainId: 5042002,
+    });
+  });
+
   it("selects the active EVM identity from the live registry connection", () => {
     const current = state({
       connections: [evm()],

@@ -56,7 +56,7 @@ vi.mock("@build/features/launch", () => ({
   launchDeploy: vi.fn(),
   launchStatus: vi.fn(),
   launchActivate: vi.fn(),
-  launchAppStatus: vi.fn(),
+  launchAppsStatus: vi.fn(),
   TEMPLATE_REPO: "aomi-labs/playground-example",
   TEMPLATE_REPO_URL: "https://github.com/aomi-labs/playground-example",
 }));
@@ -150,7 +150,7 @@ describe("OneshotWizard", () => {
       ok: true,
       repo: "alice/custom-playground",
       installationId: "12345",
-      appSourceId: 7,
+      projectId: 7,
       sourceRef: "abc123",
     });
     const patch = vi.fn();
@@ -178,9 +178,15 @@ describe("OneshotWizard", () => {
     });
   });
 
-  it("wires progress.appSourceId into DeployStep's required-secrets gate at the build step", async () => {
+  it("wires progress.projectId into DeployStep's required-secrets gate at the build step", async () => {
     vi.mocked(deploymentRequiredSecrets).mockResolvedValue({
-      byApp: { "my-bot": { slots: [], missing: ["MY_BOT_API_KEY"] } },
+      byApp: {
+        "my-bot": {
+          applicationId: 71,
+          slots: [],
+          missing: ["MY_BOT_API_KEY"],
+        },
+      },
     });
 
     render(
@@ -189,7 +195,7 @@ describe("OneshotWizard", () => {
         progress={{
           installationId: "12345",
           repo: "alice/bot",
-          appSourceId: 7,
+          projectId: 7,
           deploymentId: "dep_1",
           apps: ["my-bot"],
         }}
@@ -198,7 +204,7 @@ describe("OneshotWizard", () => {
 
     await waitFor(() => {
       expect(deploymentRequiredSecrets).toHaveBeenCalledWith({
-        appSourceId: 7,
+        projectId: 7,
       });
     });
     expect(
@@ -210,6 +216,7 @@ describe("OneshotWizard", () => {
     vi.mocked(deploymentRequiredSecrets).mockResolvedValue({
       byApp: {
         "my-bot": {
+          applicationId: 71,
           slots: [
             {
               name: "MY_BOT_API_KEY",
@@ -228,7 +235,7 @@ describe("OneshotWizard", () => {
         progress={{
           installationId: "12345",
           repo: "alice/bot",
-          appSourceId: 7,
+          projectId: 7,
           deploymentId: "dep_1",
           apps: ["my-bot"],
         }}
@@ -243,8 +250,7 @@ describe("OneshotWizard", () => {
 
     await waitFor(() =>
       expect(deploymentSetSecrets).toHaveBeenCalledWith({
-        app: "my-bot",
-        appSourceId: 7,
+        applicationId: 71,
         secrets: { MY_BOT_API_KEY: "secret-value" },
       }),
     );

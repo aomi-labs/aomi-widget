@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { UserSource } from "@aomi-labs/deploy";
+import type { UserProject } from "@aomi-labs/deploy";
 import { projectDeploymentStatus } from "./project-deployment-status";
 
-function source(patch: Partial<UserSource>): UserSource {
+function source(patch: Partial<UserProject>): UserProject {
   return {
     id: 1,
     installationId: 1,
@@ -54,7 +54,7 @@ describe("projectDeploymentStatus", () => {
     expect(status.label).toBe("Deactivated");
   });
 
-  it("marks empty sources as freshly connected", () => {
+  it("marks empty projects as freshly connected", () => {
     const status = projectDeploymentStatus(source({ apps: [] }));
     expect(status.isLive).toBe(false);
     expect(status.label).toBe("Connected — not deployed yet");

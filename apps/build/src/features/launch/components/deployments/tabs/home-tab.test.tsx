@@ -8,7 +8,7 @@ const loadRequiredSecrets = vi.fn();
 const operateFetch = vi.fn();
 
 vi.mock("@aomi-labs/deploy/lifecycle", () => ({
-  deploymentLifecycleFromSource: () => ({
+  deploymentLifecycleFromProject: () => ({
     kind: "empty",
     repo: "a/b",
     statusLabel: "No deployment",
@@ -74,12 +74,11 @@ describe("HomeTab", () => {
       <HomeTab detail={detail} tabHref={(tab) => `/projects/1?tab=${tab}`} />,
     );
 
-    expect(loadSecrets).toHaveBeenCalled();
+    expect(loadSecrets).not.toHaveBeenCalled();
     expect(loadRequiredSecrets).toHaveBeenCalled();
     expect(screen.getByText("Project home")).toBeInTheDocument();
     expect(screen.getByText("Not live")).toBeInTheDocument();
-    // Nothing declares a required key here, so this is not a fault.
-    expect(screen.getByText("No keys required")).toBeInTheDocument();
+    expect(screen.getByText("No apps yet")).toBeInTheDocument();
     expect(screen.queryByText("Keys missing")).not.toBeInTheDocument();
     expect(
       await screen.findByRole("link", {
@@ -98,9 +97,12 @@ describe("HomeTab", () => {
   });
 
   it("warns with the app and key names when a required key is unset", async () => {
-    (detail.source as { apps: unknown[] }).apps = [{ name: "somm-agent" }];
+    (detail.source as { apps: unknown[] }).apps = [
+      { id: 17, name: "somm-agent" },
+    ];
     (detail as { requiredSecrets: unknown }).requiredSecrets = {
       "somm-agent": {
+        applicationId: 17,
         slots: [{ name: "OPENAI_API_KEY" }],
         missing: ["OPENAI_API_KEY"],
       },
@@ -175,7 +177,7 @@ describe("HomeTab", () => {
     expect(await screen.findByText("No traffic yet")).toBeInTheDocument();
   });
 
-  it("keeps a partner project platform on usage and ledger reads", async () => {
+  it("uses canonical Project identity for usage and ledger reads", async () => {
     (detail.source as { apps: unknown[] }).apps = [
       {
         name: "somm-agent",
@@ -194,27 +196,19 @@ describe("HomeTab", () => {
     ];
 
     renderTab(
-      <HomeTab
-        detail={detail}
-        platform="somm.finance"
-        tabHref={(tab) => `/projects/1?platform=somm.finance&tab=${tab}`}
-      />,
+      <HomeTab detail={detail} tabHref={(tab) => `/projects/1?tab=${tab}`} />,
     );
 
     expect(await screen.findByText("No traffic yet")).toBeInTheDocument();
     expect(operateFetch).toHaveBeenCalledWith("usage", {
-      sourceId: 1,
-      platform: "somm.finance",
+      projectId: 1,
     });
     expect(screen.getByRole("link", { name: /^open usage$/i })).toHaveAttribute(
       "href",
-      "/operate/usage?project=1&platform=somm.finance",
+      "/operate/usage?project=1",
     );
     expect(
       screen.getByRole("link", { name: "View partner ledger" }),
-    ).toHaveAttribute(
-      "href",
-      "/operate/usage?project=1&platform=somm.finance#partner-payments",
-    );
+    ).toHaveAttribute("href", "/operate/usage?project=1#partner-payments");
   });
 });

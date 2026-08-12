@@ -1,10 +1,10 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from "vitest";
 
-import { DeploymentClient } from "../src/client";
+import { BackendClient } from "../src/backend";
 
 function client() {
-  return new DeploymentClient({
+  return new BackendClient({
     aomi: {
       backendUrl: "https://staging-api.example.com/",
       activationToken: "act-token",
@@ -12,7 +12,7 @@ function client() {
   });
 }
 
-describe("DeploymentClient.listSecrets", () => {
+describe("BackendClient.listSecrets", () => {
   it("maps by_app handles and never leaks values", async () => {
     const c = client();
     vi.spyOn(c as unknown as { get: () => unknown }, "get").mockResolvedValue({
@@ -32,8 +32,8 @@ describe("DeploymentClient.listSecrets", () => {
   });
 });
 
-describe("DeploymentClient app-scoped service secrets", () => {
-  it("passes source_id when listing app secrets", async () => {
+describe("BackendClient application-scoped service secrets", () => {
+  it("passes only application_id when listing app secrets", async () => {
     const c = client();
     const get = vi
       .spyOn(c as unknown as { get: () => unknown }, "get")
@@ -42,19 +42,18 @@ describe("DeploymentClient app-scoped service secrets", () => {
       });
 
     const result = await c.listAppSecrets({
-      githubUserId: "github-user",
-      sourceId: "42",
+      applicationId: 42,
     });
 
     expect(result.byApp).toEqual({ demo: ["API_KEY"] });
     expect(get).toHaveBeenCalledWith(
-      "/api/_internal/secrets?user_id=github-user&source_id=42",
+      "/api/_internal/secrets?application_id=42",
       "list_secrets",
       "act-token",
     );
   });
 
-  it("tags writes and deletes with source_id", async () => {
+  it("tags writes and deletes with application_id", async () => {
     const c = client();
     const post = vi
       .spyOn(c as unknown as { post: () => unknown }, "post")
@@ -64,15 +63,12 @@ describe("DeploymentClient app-scoped service secrets", () => {
       .mockResolvedValue({ removed: true });
 
     await c.ingestSecrets({
-      githubUserId: "github-user",
       app: "demo",
-      sourceId: "42",
+      applicationId: 42,
       secrets: { API_KEY: "secret" },
     });
     const removed = await c.removeAppSecret({
-      githubUserId: "github-user",
-      app: "demo",
-      sourceId: "42",
+      applicationId: 42,
       name: "API_KEY",
     });
 
@@ -80,9 +76,8 @@ describe("DeploymentClient app-scoped service secrets", () => {
     expect(post).toHaveBeenCalledWith(
       "/api/_internal/secrets",
       {
-        user_id: "github-user",
         app: "demo",
-        source_id: "42",
+        application_id: 42,
         secrets: { API_KEY: "secret" },
       },
       "ingest_secrets",
@@ -93,9 +88,7 @@ describe("DeploymentClient app-scoped service secrets", () => {
       "ingest_secrets",
       "act-token",
       {
-        user_id: "github-user",
-        app: "demo",
-        source_id: "42",
+        application_id: 42,
         name: "API_KEY",
       },
     );

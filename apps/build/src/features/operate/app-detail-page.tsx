@@ -32,29 +32,18 @@ function operateHref(
 
 export function AppDetailPage({
   applicationId,
-  project,
-  platform,
 }: {
   applicationId: number;
-  project: number;
-  platform?: string;
 }) {
   const router = useRouter();
   const { account } = useGitHubSession();
   const accountKey = githubAccountKey(account.githubLogin);
   const detailQuery = useQuery({
-    queryKey: buildQueryKeys.operateDetail(
+    queryKey: buildQueryKeys.applicationDetail(
       accountKey ?? "unavailable",
-      project,
       applicationId,
-      platform,
     ),
-    queryFn: () =>
-      operateAppDetailFetch<LiveAppDetailPayload>(
-        project,
-        applicationId,
-        platform,
-      ),
+    queryFn: () => operateAppDetailFetch<LiveAppDetailPayload>(applicationId),
     enabled: account.signedIn && accountKey !== null,
     staleTime: buildQueryStaleTime.operate,
   });
@@ -100,7 +89,7 @@ export function AppDetailPage({
 
   const view = liveAppDetailView(payload);
   const application = payload.detail.app.name;
-  const projectValue = String(project);
+  const projectValue = String(payload.detail.project.id);
   return (
     <AppDetailView
       app={view.app}
@@ -108,7 +97,6 @@ export function AppDetailPage({
         router.push(
           operateHref("/operate/observability", {
             project: projectValue,
-            platform: platform ?? null,
           }),
         )
       }
@@ -118,7 +106,6 @@ export function AppDetailPage({
             app: application,
             tool,
             project: projectValue,
-            platform: platform ?? null,
           }),
         )
       }
@@ -128,7 +115,6 @@ export function AppDetailPage({
             app: application,
             tx,
             project: projectValue,
-            platform: platform ?? null,
           }),
         )
       }

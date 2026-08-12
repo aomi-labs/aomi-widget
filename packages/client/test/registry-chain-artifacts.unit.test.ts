@@ -10,17 +10,24 @@ function readRegistryArtifact(path: string): string {
 }
 
 describe("registry chain artifacts", () => {
-  it("publishes Monad and Robinhood in the installable wallet kit", () => {
+  it("publishes Monad, Robinhood, MegaETH, and Arc in the installable wallet kit", () => {
     const kitSource = readRegistryArtifact(
       "apps/landing/public/r/aomi-wallet-kit.json",
     );
     const providerSource = readRegistryArtifact(
       "apps/landing/public/r/aomi-para-provider.json",
     );
+    const privyProviderSource = readRegistryArtifact(
+      "apps/landing/public/r/aomi-privy-provider.json",
+    );
 
     expect(kitSource).toContain("monad");
     expect(kitSource).toContain("monadTestnet");
     expect(kitSource).toContain("robinhood");
+    expect(kitSource).toContain("megaeth");
+    expect(kitSource).toContain("arcTestnet");
+    expect(privyProviderSource).toContain("megaeth");
+    expect(privyProviderSource).toContain("arcTestnet");
     expect(providerSource).toContain("supportedChains={supportedChains}");
   });
 });

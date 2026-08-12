@@ -24,7 +24,7 @@ describe("supported chain metadata", () => {
     expect(SUPPORTED_CHAIN_IDS).toEqual(
       expect.arrayContaining([
         1, 137, 42161, 8453, 84532, 10, 11155111, 59144, 59141, 143, 10143,
-        4663, 31337,
+        4663, 4326, 5042002, 31337,
       ]),
     );
   });
@@ -34,6 +34,7 @@ describe("supported chain metadata", () => {
     expect(ALCHEMY_CHAIN_SLUGS[59144]).toBe("linea-mainnet");
     expect(ALCHEMY_CHAIN_SLUGS[59141]).toBe("linea-sepolia");
     expect(ALCHEMY_CHAIN_SLUGS[4663]).toBe("robinhood-mainnet");
+    expect(ALCHEMY_CHAIN_SLUGS[4326]).toBe("megaeth-mainnet");
   });
 
   it("defines the Robinhood Chain mainnet RPC and explorer", () => {
@@ -50,6 +51,38 @@ describe("supported chain metadata", () => {
           url: "https://robinhoodchain.blockscout.com",
         },
       },
+    });
+  });
+
+  it("defines MegaETH mainnet metadata", () => {
+    expect(CHAINS_BY_ID[4326]).toMatchObject({
+      id: 4326,
+      name: "MegaETH",
+      nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+    });
+  });
+
+  it("defines Arc Testnet as a USDC-native EVM chain", () => {
+    expect(CHAINS_BY_ID[5042002]).toMatchObject({
+      id: 5042002,
+      name: "Arc Testnet",
+      nativeCurrency: { name: "USDC", symbol: "USDC", decimals: 6 },
+      rpcUrls: {
+        default: {
+          http: [
+            "https://rpc.testnet.arc.io",
+            "https://rpc.drpc.testnet.arc.io",
+            "https://rpc.quicknode.testnet.arc.io",
+          ],
+        },
+      },
+      blockExplorers: {
+        default: {
+          name: "ArcScan",
+          url: "https://testnet.arcscan.app",
+        },
+      },
+      testnet: true,
     });
   });
 });

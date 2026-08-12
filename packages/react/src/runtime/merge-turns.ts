@@ -107,6 +107,10 @@ const normalizeTextOnlyMessage = (
  * assistant-ui's `useResources` throw ("Duplicate key toolCallId-…"), crashing
  * the whole message render. Re-key by (message index, part index): unique within
  * and across messages, and stable across polls because the list is append-only.
+ *
+ * The spread preserves every other property on the part — notably the
+ * `metadata.custom.aomiTask` join key that `toInboundMessage` attaches to
+ * completed `task` calls, which the working trace needs after merging.
  */
 const reindexToolCallIds = (
   message: ThreadMessageLike,

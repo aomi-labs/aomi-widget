@@ -1,6 +1,7 @@
 "use client";
 
 import { useProjects } from "@portal/features/launch/hooks/use-projects";
+import Link from "next/link";
 import { ProjectRow } from "./project-row";
 import { SdkBadge } from "./ui/sdk-badge";
 import {
@@ -41,12 +42,12 @@ export function ProjectIndex() {
             >
               Refresh
             </button>
-            <a
+            <Link
               href="/deployments/new"
               className="inline-flex h-8 items-center justify-center rounded-md bg-zinc-900 px-3 text-sm font-medium text-white hover:bg-zinc-800"
             >
               New app
-            </a>
+            </Link>
           </div>
         </div>
 
@@ -61,7 +62,7 @@ export function ProjectIndex() {
           <div className="flex h-12 items-center justify-between border-b border-zinc-200 px-4">
             <div className="text-sm font-medium">Projects</div>
             <div className="text-xs text-zinc-500">
-              {state.status === "ready" ? state.sources.length : 0}
+              {state.status === "ready" ? state.projects.length : 0}
             </div>
           </div>
           {state.status === "loading" && (
@@ -71,11 +72,11 @@ export function ProjectIndex() {
           {state.status === "signed_out" && (
             <GitHubSignInPanel error={githubError} />
           )}
-          {state.status === "ready" && state.sources.length === 0 && (
+          {state.status === "ready" && state.projects.length === 0 && (
             <EmptyPanel>No projects yet.</EmptyPanel>
           )}
           {state.status === "ready" &&
-            state.sources.map((source) => (
+            state.projects.map((source) => (
               <ProjectRow
                 key={source.id}
                 source={source}

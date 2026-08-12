@@ -165,28 +165,22 @@ function monetizationCard(source: NonNullable<Detail["source"]>) {
   };
 }
 
-function operateUsageHref(
-  sourceId: number,
-  platform?: string,
-  anchor?: string,
-) {
-  const params = new URLSearchParams({ project: String(sourceId) });
-  if (platform) params.set("platform", platform);
+function operateUsageHref(projectId: number, anchor?: string) {
+  const params = new URLSearchParams({ project: String(projectId) });
   return `/operate/usage?${params}${anchor ? `#${anchor}` : ""}`;
 }
 
 export function HomeTab({
   detail,
   tabHref,
-  platform,
 }: {
   detail: Detail;
   tabHref?: (
     tab: "home" | "deployments" | "providers" | "environment" | "chat",
   ) => string;
-  platform?: string;
 }) {
   const source = detail.source;
+  const { loadRequiredSecrets, loadSecrets } = detail;
   // Same key as the operate usage page and the project-detail prefetch, so a
   // hover or page-mount warm-up serves this card from cache.
   const usageQuery = useQuery({
@@ -194,12 +188,11 @@ export function HomeTab({
       detail.accountKey ?? "unavailable",
       "usage",
       source?.id ?? null,
-      platform,
     ),
     queryFn: () =>
       operateFetch<{
         daily?: Array<Record<string, unknown>>;
-      }>("usage", { sourceId: source?.id, platform }),
+      }>("usage", { projectId: source?.id }),
     enabled: source !== null,
     staleTime: buildQueryStaleTime.operate,
   });
@@ -214,11 +207,11 @@ export function HomeTab({
   );
 
   useEffect(() => {
-    detail.loadSecrets();
+    for (const app of source?.apps ?? []) loadSecrets(app.id);
     // The card reports the same gate the deploy enforces, so it needs the
     // declared requirements — not just which keys happen to be set.
-    detail.loadRequiredSecrets?.();
-  }, [detail]);
+    loadRequiredSecrets?.();
+  }, [loadRequiredSecrets, loadSecrets, source?.apps]);
 
   const status = useMemo(
     () => (source ? projectDeploymentStatus(source) : null),
@@ -384,7 +377,7 @@ export function HomeTab({
               <UsageSpark spark={usage.spark} />
             ) : null
           }
-          actionHref={operateUsageHref(source.id, platform)}
+          actionHref={operateUsageHref(source.id)}
           actionLabel="Open Usage"
         />
         {monetization ? (
@@ -393,11 +386,7 @@ export function HomeTab({
             value={monetization.value}
             hint={monetization.hint}
             tone={monetization.tone}
-            actionHref={operateUsageHref(
-              source.id,
-              platform,
-              "partner-payments",
-            )}
+            actionHref={operateUsageHref(source.id, "partner-payments")}
             actionLabel="View partner ledger"
           />
         ) : null}

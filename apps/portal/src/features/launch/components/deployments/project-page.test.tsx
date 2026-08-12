@@ -32,7 +32,7 @@ import { ProjectPage } from "./project-page";
 
 describe("ProjectPage", () => {
   it("renders the tab named by ?tab=", () => {
-    render(<ProjectPage sourceId={1} />);
+    render(<ProjectPage projectId={1} />);
     expect(screen.getByRole("tab", { name: /environment/i })).toHaveAttribute(
       "aria-selected",
       "true",

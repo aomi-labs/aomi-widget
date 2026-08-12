@@ -2,7 +2,7 @@ import type {
   ActivateResult,
   ActivatedApp,
   DeploymentStatus,
-  UserSource,
+  UserProject,
 } from "./types";
 
 export type DeploymentLifecycleKind =
@@ -26,7 +26,7 @@ export type DeploymentLifecycle = {
   ciStatus?: string | null;
   ciUrl?: string | null;
   branchUrl?: string | null;
-  deployBranch?: string | null;
+  platformBranch?: string | null;
   platformRepo?: string | null;
   commitHash?: string | null;
   buildTarget?: string | null;
@@ -35,27 +35,27 @@ export type DeploymentLifecycle = {
   failureReport?: string;
 };
 
-export function sourceRepositoryLabel(source: UserSource): string {
+export function sourceRepositoryLabel(project: UserProject): string {
   return (
-    normalizeRepo(source.repositoryLink ?? "") ??
-    source.repositoryLink ??
-    `source ${source.id}`
+    normalizeRepo(project.repositoryLink ?? "") ??
+    project.repositoryLink ??
+    `project ${project.id}`
   );
 }
 
-export function deploymentLifecycleFromSource(
-  source: UserSource,
+export function deploymentLifecycleFromProject(
+  project: UserProject,
 ): DeploymentLifecycle {
-  const repo = sourceRepositoryLabel(source);
-  const latest = source.latestDeployment ?? null;
-  const appNames = namesFromSource(source);
-  const releaseTags = tagsFromSource(source);
-  const liveApp = liveAppFromSource(source);
+  const repo = sourceRepositoryLabel(project);
+  const latest = project.latestDeployment ?? null;
+  const appNames = namesFromProject(project);
+  const releaseTags = tagsFromProject(project);
+  const liveApp = liveAppFromProject(project);
   const ciStatus = clean(latest?.ciStatus);
   const state = clean(latest?.state)?.toLowerCase() ?? null;
   const deploymentId = clean(latest?.deploymentId) ?? undefined;
   const platformRepo = clean(latest?.platformRepo);
-  const deployBranch = clean(latest?.deployBranch);
+  const platformBranch = clean(latest?.platformBranch);
 
   const base = {
     repo,
@@ -64,8 +64,8 @@ export function deploymentLifecycleFromSource(
     deploymentId,
     ciStatus,
     ciUrl: clean(latest?.ciUrl),
-    branchUrl: branchUrl(platformRepo, deployBranch),
-    deployBranch,
+    branchUrl: branchUrl(platformRepo, platformBranch),
+    platformBranch,
     platformRepo,
     commitHash: clean(latest?.commitHash),
     buildTarget: clean(latest?.buildTarget ?? latest?.artifactTarget),
@@ -170,8 +170,8 @@ export function deploymentLifecycleFromStatus(
   const state = status.state;
   const platformRepo =
     clean(platform?.repository) ?? current.platformRepo ?? null;
-  const deployBranch =
-    clean(platform?.sourceBranch) ?? current.deployBranch ?? null;
+  const platformBranch =
+    clean(platform?.platformBranch) ?? current.platformBranch ?? null;
   const releaseTags =
     status.releaseTags.length > 0
       ? status.releaseTags
@@ -225,8 +225,8 @@ export function deploymentLifecycleFromStatus(
     deploymentId: deployment?.id ?? current.deploymentId,
     ciStatus,
     ciUrl: clean(status.ci?.url) ?? clean(platform?.ciUrl) ?? current.ciUrl,
-    branchUrl: branchUrl(platformRepo, deployBranch) ?? current.branchUrl,
-    deployBranch,
+    branchUrl: branchUrl(platformRepo, platformBranch) ?? current.branchUrl,
+    platformBranch,
     platformRepo,
     commitHash:
       clean(status.ci?.commitHash) ??
@@ -259,10 +259,10 @@ function clean(value: string | number | null | undefined): string | null {
   return text ? text : null;
 }
 
-function liveAppFromSource(
-  source: UserSource,
+function liveAppFromProject(
+  project: UserProject,
 ): { name: string; applicationId?: number } | null {
-  const latest = source.latestDeployment;
+  const latest = project.latestDeployment;
   const latestLive = latest?.apps.find(
     (app) => app.applicationId && app.isActive,
   );
@@ -274,26 +274,26 @@ function liveAppFromSource(
   }
   if (latest) return null;
 
-  const live = source.apps.find((app) => app.isActive);
+  const live = project.apps.find((app) => app.isActive);
   return live ? { name: live.name, applicationId: live.id } : null;
 }
 
-function namesFromSource(source: UserSource): string[] {
+function namesFromProject(project: UserProject): string[] {
   const names =
-    source.latestDeployment?.apps
+    project.latestDeployment?.apps
       .map((app) => app.name.trim())
       .filter(Boolean) ?? [];
   if (names.length > 0) return unique(names);
-  return unique(source.apps.map((app) => app.name.trim()).filter(Boolean));
+  return unique(project.apps.map((app) => app.name.trim()).filter(Boolean));
 }
 
-function tagsFromSource(source: UserSource): string[] {
-  const latestTags = source.latestDeployment?.releaseTags ?? [];
+function tagsFromProject(project: UserProject): string[] {
+  const latestTags = project.latestDeployment?.releaseTags ?? [];
   const cleanLatestTags = latestTags.map((tag) => tag.trim()).filter(Boolean);
   if (cleanLatestTags.length > 0) return unique(cleanLatestTags);
 
   return unique(
-    source.apps
+    project.apps
       .map((app) => app.appReleaseTag?.trim())
       .filter((tag): tag is string => Boolean(tag && tag !== "latest")),
   );
@@ -305,12 +305,12 @@ function unique(values: string[]): string[] {
 
 function branchUrl(
   platformRepo: string | null,
-  deployBranch: string | null,
+  platformBranch: string | null,
 ): string | null {
-  if (!platformRepo || !deployBranch) return null;
+  if (!platformRepo || !platformBranch) return null;
   const repo = normalizeRepo(platformRepo);
   if (!repo) return null;
-  return `https://github.com/${repo}/tree/${encodeURIComponent(deployBranch)}`;
+  return `https://github.com/${repo}/tree/${encodeURIComponent(platformBranch)}`;
 }
 
 function normalizeRepo(input: string): string | null {

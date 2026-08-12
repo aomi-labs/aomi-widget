@@ -1,5 +1,173 @@
 # Auth BFF BetterAuth Cleanup Goal
 
+## Safari wallet-state sync containment
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED; STAGING ROLLOUT IN
+PROGRESS 2026-08-10** — keep a
+best-effort wallet-state notification failure from becoming an unhandled
+promise rejection when an anonymous user changes networks. The regression was
+reproduced in WebKit by selecting Arc Testnet and receiving an expected 401
+from `/api/system`; the React package is patch-bumped to
+`@aomi-labs/react@0.5.13`.
+
+## Arc Testnet staging support
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED; STAGING ROLLOUT IN
+PROGRESS 2026-08-10** — add Arc Testnet (`5042002`) across the shared chain
+catalog, wallet providers, server-side SIWE verification, and Portal network
+selection. Disconnected read-only chat retains the selected chain instead of
+falling back to Ethereum. Arc is represented as USDC-native with 6 display
+decimals while backend RPC accounting retains 18-decimal native precision.
+Publishable packages are patch-bumped to `@aomi-labs/account@0.1.12`,
+`@aomi-labs/client@0.4.5`, `@aomi-labs/react@0.5.12`, and
+`@aomi-labs/widget-lib@1.4.27`.
+
+## Browser Response Latency
+
+Current session goal: **SIMPLIFIED AND LOCALLY VERIFIED 2026-08-10** — improve
+browser chat responsiveness without adding a backend streaming protocol.
+
+- Empty drafts prewarm through one shared create/control promise; send awaits
+  the same work and retries a failed speculative warm.
+- A model change during prewarm gets at most one follow-up control sync.
+- State polling uses one timeout and one in-flight request, slows in hidden
+  tabs, reconciles when the tab becomes visible, and backs off after failures.
+- Completed text renders immediately instead of replaying a synthetic 500 ms
+  typewriter animation.
+- Thread state/SSE reads remain bearer-independent at the Portal proxy, while
+  the existing origin-bound widget-session check still gates cross-origin
+  requests and spoofed browser authorization/cookies are stripped.
+- No turn ID or `assistant_text_started` client protocol is included; the
+  frontend continues to work with the existing backend and polling contract.
+- Publishable versions are `@aomi-labs/client@0.4.4`,
+  `@aomi-labs/react@0.5.11`, and `@aomi-labs/widget-lib@1.4.26`.
+- All 1,467 root tests plus the configured registry trace suite, repository
+  lint, client typecheck, and all three publishable package builds pass.
+
+## Canonical Build Projects Refactor
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED
+2026-08-03** — replace the frontend's invented source/discovery model with the
+backend's canonical platform-bound Project model, with no compatibility path.
+
+- Removed `/sources`, `app_source_id`, `AppSource`/`UserSource`, frontend
+  `.aomi/config.json` parsing, and manifest-path forwarding.
+- Project pages now consume only persisted builder-owned projects; GitHub App
+  repository access remains candidate data used only during explicit creation.
+- Deployment history uses the account-wide project feed and `projectId`.
+- Operate reads are account-wide by default; selected-project detail uses the
+  project's bound platform, and Telegram receives eligible applications across
+  every bound platform.
+- Preflight resolves and returns an immutable commit; apply requires it.
+- The breaking shared packages are versioned as `@aomi-labs/deploy@0.7.0` and
+  `@aomi-labs/client@0.4.0`.
+- Project and Application identities are now separate in every touched path:
+  Project owns deployment/provider administration, while environment,
+  observability, chat, and deactivation target canonical numeric Application
+  ids. The new service contract uses Builder vocabulary
+  (`getBuilderApplication` and `/builder/applications/:id`) rather than
+  account-user terminology.
+- Environment loading keeps the editor and declared variables mounted while
+  vault handles resolve, eliminating the tab's empty-panel flicker.
+- Local manager + Build browser E2E against an isolated migrated Postgres
+  database verified that candidate repositories never appear as projects,
+  deployment history spans platforms, World Markets opens from observability
+  overview into detail, and the Telegram picker offers World Markets even from
+  a Community shell URL.
+- The published TypeScript CLI now sends deploys to the V2
+  `/api/projects/:projectId/deploy` route, omits client-selected platform data,
+  and persists the platform resolved by the backend response.
+
+## Deployment Lifecycle Cleanup
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-07** — make
+deployment completion mean that the selected release is actually active and
+loaded in the project runtime, while removing the stale name-scoped readiness
+path and keeping app/release identities paired end to end.
+
+- Added one shared, cancellable deployment/runtime polling contract used by
+  Build and Portal onboarding plus project redeploy flows. Permanent 4xx
+  failures stop immediately; transient failures retain their final diagnostic.
+- Replaced the ambiguous per-app `/launch/app` route and browser method with a
+  project-owned batch runtime snapshot, with no compatibility route.
+- Centralized deployment target extraction, progress mapping, and browser
+  fatal-error classification in `@aomi-labs/deploy`, deleting the duplicated
+  Build/Portal implementations and preventing independently filtered app and
+  release-tag arrays from drifting.
+- Routed both dashboards' GitHub session, sign-out, and launch-project reads
+  through that same browser client and removed their unused launch URL maps;
+  Build retains its intentional local wizard reset after sign-out.
+- Review follow-up named the CI and runtime deadlines independently, made
+  transient runtime failures advance watcher progress while preserving the
+  last snapshot, simplified stale-project error guards, and added route-level
+  coverage for malformed deployment manifests producing no activation targets.
+- Versioned the changed publishable contract as `@aomi-labs/deploy@0.7.0` and
+  verified its build and focused tests, full Build/Portal tests and lint, Build
+  type-check, and Portal type-check through the known unrelated missing Para
+  connector dependency.
+
+## Telegram Para Mini App
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-06** — use one
+Para Mini App page for verified Telegram login and canonical wallet requests,
+with Portal issuing the account bearer only after Telegram session ownership
+and Para identity verification agree. The Mini App no longer owns a Telegram
+relay or legacy operation pages; transaction and EIP-712 acknowledgements flow
+through the canonical Session contract.
+
+- Added the shared Telegram Ed25519 launch verifier to `@aomi-labs/account` and
+  a Portal exchange route that safely claims an unowned/same-owner thread,
+  links Para to that canonical user, and issues an origin-bound widget session.
+- Kept the public BotFather contract aligned to `/start`, `/thread`,
+  `/wallet`, `/permission`, `/tx`, `/app`, `/model`, `/network`, and
+  `/disconnect`.
+
+## Chat Composer Parity
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-05** — keep the active-thread
+composer the same resting size as the welcome composer and place it closer to
+the bottom of the Portal viewport. Both states now share the same component
+padding and horizontal inset; Portal no longer adds chat-only input height or
+bottom-spacing overrides.
+
+## Orchestrator Working-Trace Scrolling
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-05** — keep
+the capped working-trace viewport pinned to new nested subagent steps while the
+reader is following the latest activity. Child-step growth now also refreshes
+overflow affordances; manually scrolling up still opts out of auto-follow.
+Completed agent rows no longer render serialized structured `thread_return`
+objects as prose: they extract explicit summary fields or fall back to a compact
+staged-count status, including objects clipped by the completion-event wire
+budget into invalid JSON. The compact row prefers a readable, width-truncated
+preview of the child result, and the expanded child rail ends with the full
+humanized return message. `Staged N` with the trace's staging Layers glyph is
+reserved for runs with no recoverable return. The trace status consistently says `Working`/`Worked…`;
+the blue Orchestrator badge alone identifies orchestration mode.
+
+## App Selector Semantics
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-05** — make
+the Portal app selector distinguish Basic, Orchestrator, and individual apps
+accurately. The default is now labeled `Basic` and described as running
+without a selected app; Orchestrator is described as coordinating work across
+any number of apps and keeps its bot icon in the compact selected state.
+Focused selector/metadata tests and the publishable widget build pass, with
+`@aomi-labs/widget-lib` patch-bumped to `1.4.23` and registry mirrors refreshed.
+The reported short local catalog was separately traced to GitHub API rate
+limits during per-application artifact reconciliation; production and staging
+still expose the full catalog.
+
+## Chat Model Default
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-05** — make
+GPT-5.6 Terra the default user-facing chat model across the backend and React
+frontend. The product-mono runtime now defaults its chat rig to Terra while
+retaining Luna for the separate internal BAML helper workload. React auto mode
+prefers Terra ahead of its previous Haiku fallback, with focused resolver and
+control-context coverage. Rebuilt the publishable React artifacts and
+patch-bumped `@aomi-labs/react` to `0.5.8`.
+
 ## BFF Sentry Observability
 
 Current session goal: **LOCAL IMPLEMENTATION AND REVIEW FIXES COMPLETE;
@@ -64,6 +232,18 @@ architecture guide now names both refs so a legacy third target cannot be
 mistaken for another supported environment.
 
 Progress:
+
+- 2026-08-10 Build staging import hand-off: kept the Connect control disabled
+  after navigation starts (instead of briefly re-enabling it before GitHub
+  loads), while retaining retry after a failed hand-off. The manager now
+  rejects duplicate repository imports atomically, and platform branch commits
+  rebase their tree update and retry a concurrent fast-forward race up to three
+  times.
+
+- 2026-08-05 MegaETH chain support: completed chain 4326 coverage in React
+  network naming, server-side smart-account SIWE verification, and the Landing,
+  Docs, wallet-kit, and Privy default network registries. Publishable packages
+  were patch-bumped and generated artifacts rebuilt.
 
 - 2026-08-02 PR #436 integration: merged account-level Operate observability
   and payment reads into the platform-switch branch, including the concurrent
@@ -921,3 +1101,12 @@ build`, `CI=true npx -y pnpm@10.28.0 install --frozen-lockfile`, and
   bootstrap contract to assert the new nullable pricing field. Verified root
   lint, Build type-check, deploy/client/React/registry builds, 1,390 tests, and
   the Landing production build.
+- 2026-07-31 mother-commit orchestration client: removed delegated child-wallet
+  auto-signing and child callback routing, restored every wallet request to the
+  owning session queue/callback path, retained `WalletRequestTarget` only as a
+  deprecated compatibility export, and versioned `@aomi-labs/client` at 0.4.0.
+  Replaced the v1 child-routing tests with an ordinary mother-session callback
+  test and a CLI E2E that receives a two-transaction mother batch, resolves it
+  through the normal signing API, verifies session-thread/app-scoped callback
+  delivery, and observes the resumed final state. Client build/declarations,
+  library typecheck, and all 59 focused tests passed.

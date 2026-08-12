@@ -6,31 +6,23 @@ const appRoot = path.dirname(fileURLToPath(import.meta.url));
 const workspaceRoot = path.resolve(appRoot, "../..");
 const appNodeModules = path.join(appRoot, "node_modules");
 
+// Para consumes React Query through a peer dependency. Pin both sides to the
+// app copy so the provider and Para hooks share the same runtime context.
+
 const nextConfig: NextConfig = {
+  agentRules: false,
   reactStrictMode: true,
   output: "standalone",
   outputFileTracingRoot: workspaceRoot,
-  images: {
-    unoptimized: true,
-  },
-  allowedDevOrigins: ["*.ngrok-free.dev", "*.ngrok.io", "*.trycloudflare.com"],
-  experimental: {
-    externalDir: true,
-  },
-  transpilePackages: [
-    "@aomi-labs/client",
-    "@getpara/evm-wallet-connectors",
-    "@getpara/react-sdk",
-    "@getpara/react-sdk-lite",
-    "@getpara/web-sdk",
-  ],
+  transpilePackages: ["@aomi-labs/client"],
   turbopack: {
     resolveAlias: {
       "@aomi-labs/client": "../../packages/client/src/index.ts",
+      "@getpara/core-sdk": "./node_modules/@getpara/core-sdk",
+      "@getpara/user-management-client":
+        "./node_modules/@getpara/user-management-client",
+      "@getpara/web-sdk": "./node_modules/@getpara/web-sdk",
       "@tanstack/react-query": "./node_modules/@tanstack/react-query",
-      viem: "./node_modules/viem",
-      wagmi: "./node_modules/wagmi",
-      zustand: "./node_modules/zustand",
     },
   },
   webpack: (config) => {
@@ -41,15 +33,17 @@ const nextConfig: NextConfig = {
         workspaceRoot,
         "packages/client/src/index.ts",
       ),
+      "@getpara/core-sdk": path.join(appNodeModules, "@getpara/core-sdk"),
+      "@getpara/user-management-client": path.join(
+        appNodeModules,
+        "@getpara/user-management-client",
+      ),
+      "@getpara/web-sdk": path.join(appNodeModules, "@getpara/web-sdk"),
       "@tanstack/react-query": path.join(
         appNodeModules,
         "@tanstack/react-query",
       ),
-      viem: path.join(appNodeModules, "viem"),
-      wagmi: path.join(appNodeModules, "wagmi"),
-      zustand: path.join(appNodeModules, "zustand"),
     };
-
     return config;
   },
 };

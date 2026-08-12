@@ -2,8 +2,8 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
 
 vi.mock("@portal/features/launch/client", () => ({
-  deploymentSources: vi.fn(async () => ({
-    sources: [
+  deploymentProjects: vi.fn(async () => ({
+    projects: [
       {
         id: 1,
         installationId: 5,
@@ -34,12 +34,12 @@ import { deploymentHistory } from "@portal/features/launch/client";
 describe("useProjects", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("loads sources and never fetches history", async () => {
+  it("loads projects and never fetches history", async () => {
     const { result } = renderHook(() => useProjects());
     await waitFor(() => expect(result.current.state.status).toBe("ready"));
     expect(deploymentHistory).not.toHaveBeenCalled();
     if (result.current.state.status === "ready") {
-      expect(result.current.state.sources).toHaveLength(1);
+      expect(result.current.state.projects).toHaveLength(1);
     }
   });
 });

@@ -2,8 +2,8 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { renderHook, waitFor, act } from "@testing-library/react";
 
 vi.mock("@portal/features/launch/client", () => ({
-  deploymentSources: vi.fn(async () => ({
-    sources: [
+  deploymentProjects: vi.fn(async () => ({
+    projects: [
       {
         id: 7,
         installationId: 5,
@@ -85,7 +85,7 @@ describe("useProjectDetail", () => {
     expect(deploymentRecords).toHaveBeenCalledTimes(1);
     expect(deploymentRecords).toHaveBeenCalledWith({
       app: "my-bot",
-      appSourceId: 7,
+      projectId: 7,
     });
   });
 

@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
-import type { UserSource } from "../src/launch/client";
+import type { UserProject } from "../src/launch/browser-client";
 import {
-  hasSourceForLaunchUrlContext,
+  hasProjectForLaunchUrlContext,
   readLaunchUrlContext,
-} from "../src/launch/url-context";
+} from "../src/launch/state";
 
 function source(
   installationId: number,
   repositoryLink: string | null,
-): UserSource {
+): UserProject {
   return {
     id: installationId,
     installationId,
@@ -40,14 +40,14 @@ describe("readLaunchUrlContext", () => {
   });
 });
 
-describe("hasSourceForLaunchUrlContext", () => {
+describe("hasProjectForLaunchUrlContext", () => {
   it("allows pages with no URL context", () => {
-    expect(hasSourceForLaunchUrlContext([], null)).toBe(true);
+    expect(hasProjectForLaunchUrlContext([], null)).toBe(true);
   });
 
   it("matches a copied URL against the signed-in user's sources", () => {
     expect(
-      hasSourceForLaunchUrlContext(
+      hasProjectForLaunchUrlContext(
         [source(42, "https://github.com/cecilia/agent")],
         { installationId: "42", repo: "cecilia/agent" },
       ),
@@ -56,7 +56,7 @@ describe("hasSourceForLaunchUrlContext", () => {
 
   it("rejects a repo that belongs to a different signed-in user", () => {
     expect(
-      hasSourceForLaunchUrlContext(
+      hasProjectForLaunchUrlContext(
         [source(99, "https://github.com/phoebe/agent")],
         { installationId: "42", repo: "cecilia/agent" },
       ),
@@ -65,7 +65,7 @@ describe("hasSourceForLaunchUrlContext", () => {
 
   it("matches installation-only redirects", () => {
     expect(
-      hasSourceForLaunchUrlContext([source(42, null)], {
+      hasProjectForLaunchUrlContext([source(42, null)], {
         installationId: "42",
         repo: null,
       }),

@@ -107,6 +107,9 @@
   --font-geist-mono:
     "Geist Mono", "JetBrains Mono", "IBM Plex Mono", "SFMono-Regular", Menlo,
     Monaco, Consolas, "Liberation Mono", monospace;
+  --aomi-font-wordmark:
+    var(--font-source-serif-4, "Source Serif 4"), ui-serif, Georgia, Cambria,
+    serif;
   --radius: 0.625rem;
   --background: oklch(1 0 0);
   --foreground: oklch(0.141 0.005 285.823);

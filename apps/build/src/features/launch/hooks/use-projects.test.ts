@@ -4,8 +4,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createElement, type ReactNode } from "react";
 
 vi.mock("@build/features/launch/client", () => ({
-  deploymentSources: vi.fn(async () => ({
-    sources: [
+  deploymentProjects: vi.fn(async () => ({
+    projects: [
       {
         id: 1,
         installationId: 5,
@@ -41,7 +41,7 @@ import { GitHubSessionProvider } from "@build/components/control-plane/github-se
 import { useProjects } from "./use-projects";
 import {
   deploymentFeed,
-  deploymentSources,
+  deploymentProjects,
 } from "@build/features/launch/client";
 import { fetchGitHubSession } from "@build/features/launch/dashboard";
 
@@ -61,7 +61,7 @@ function wrapper() {
 describe("useProjects", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("loads app projects off the shared session, empty sources included", async () => {
+  it("loads app projects off the shared session, empty projects included", async () => {
     const { result } = renderHook(() => useProjects(), {
       wrapper: wrapper(),
     });
@@ -72,20 +72,20 @@ describe("useProjects", () => {
     expect(deploymentFeed).not.toHaveBeenCalled();
     if (result.current.state.status === "ready") {
       // A claimed source with no apps yet (fresh connect) is a real project.
-      expect(result.current.state.sources).toHaveLength(2);
-      expect(result.current.state.sources[0]?.repositoryLink).toBe("a/b");
-      expect(result.current.state.sources[1]?.repositoryLink).toBe(
+      expect(result.current.state.projects).toHaveLength(2);
+      expect(result.current.state.projects[0]?.repositoryLink).toBe("a/b");
+      expect(result.current.state.projects[1]?.repositoryLink).toBe(
         "a/historical-repo",
       );
     }
   });
 
-  it("loads sources from an exact platform when one is selected", async () => {
+  it("loads projects from an exact platform when one is selected", async () => {
     const { result } = renderHook(() => useProjects("somm.finance"), {
       wrapper: wrapper(),
     });
 
     await waitFor(() => expect(result.current.state.status).toBe("ready"));
-    expect(deploymentSources).toHaveBeenCalledWith("somm.finance");
+    expect(deploymentProjects).toHaveBeenCalledWith("somm.finance");
   });
 });

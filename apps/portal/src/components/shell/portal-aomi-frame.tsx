@@ -160,7 +160,9 @@ export function PortalAomiFrame() {
         width="100%"
         height="100%"
         backendUrl={backendUrl}
+        applicationId={lockedApplicationId}
         accountSessionAvailable={Boolean(accountUser)}
+        showSidebar={!lockedApp}
         walletPosition="footer"
         walletFamilies={["evm", "solana"]}
         walletAccountMenu={walletAccountMenu}

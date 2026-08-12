@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { collectTxOutcomes, toInboundMessage } from "../utils";
+import {
+  collectTxOutcomes,
+  readTaskPartAgentId,
+  toInboundMessage,
+} from "../utils";
 import type { AomiMessage } from "@aomi-labs/client";
 
 const echoMessage = (
@@ -17,6 +21,11 @@ const echoMessage = (
     timestamp: "2026-07-31T00:00:00Z",
     is_streaming: false,
   }) as AomiMessage;
+
+type Part = Record<string, unknown> & { type: string };
+
+const partsOf = (message: { content: unknown } | null): Part[] =>
+  (message?.content as Part[]) ?? [];
 
 describe("toInboundMessage", () => {
   it("drops internal system-endpoint acknowledgements", () => {
@@ -43,6 +52,83 @@ describe("toInboundMessage", () => {
     });
 
     expect(message).toBeNull();
+  });
+
+  it("attaches the aomiTask join key to completed task tool calls", () => {
+    const message = toInboundMessage({
+      sender: "agent",
+      tool_name: "task",
+      tool_arguments: { label: "swap-worker", prompt: "swap 250 USDC" },
+      tool_result: [
+        "Delegation",
+        JSON.stringify({
+          agent_id: "task-agent:9f2c",
+          status: "completed",
+          staged_count: 1,
+        }),
+      ],
+      timestamp: "2026-08-03T10:00:00Z",
+      is_streaming: false,
+    });
+
+    const [part] = partsOf(message);
+    expect(part).toMatchObject({
+      type: "tool-call",
+      // tool_name wins over the tool_result topic
+      toolName: "task",
+      args: { label: "swap-worker", prompt: "swap 250 USDC" },
+      result: {
+        agent_id: "task-agent:9f2c",
+        status: "completed",
+        staged_count: 1,
+      },
+      metadata: { custom: { aomiTask: { agentId: "task-agent:9f2c" } } },
+    });
+    expect(readTaskPartAgentId(part)).toBe("task-agent:9f2c");
+  });
+
+  it("omits the aomiTask key when the task result carries no agent_id", () => {
+    const message = toInboundMessage({
+      sender: "agent",
+      tool_name: "task",
+      tool_result: ["Delegation", JSON.stringify({ status: "failed" })],
+    });
+
+    const [part] = partsOf(message);
+    expect(part).toMatchObject({ type: "tool-call", toolName: "task" });
+    expect(part!.metadata).toBeUndefined();
+    expect(readTaskPartAgentId(part)).toBeUndefined();
+  });
+
+  it("does not attach the aomiTask key to ordinary tool calls", () => {
+    const message = toInboundMessage({
+      sender: "agent",
+      tool_name: "get_balance",
+      tool_arguments: { token: "USDC" },
+      tool_result: ["Balance", JSON.stringify({ agent_id: "not-a-task" })],
+    });
+
+    const [part] = partsOf(message);
+    expect(part).toMatchObject({
+      type: "tool-call",
+      toolName: "get_balance",
+      args: { token: "USDC" },
+    });
+    expect(part!.metadata).toBeUndefined();
+  });
+
+  it("falls back to the tool_result topic when tool_name is absent", () => {
+    const message = toInboundMessage({
+      sender: "agent",
+      tool_result: ["get_quote", JSON.stringify({ ok: true })],
+    });
+
+    expect(partsOf(message)[0]).toMatchObject({
+      type: "tool-call",
+      toolName: "get_quote",
+      result: { ok: true },
+    });
+    expect(partsOf(message)[0]!.args).toBeUndefined();
   });
 
   it("drops other persisted system records from the chat projection", () => {

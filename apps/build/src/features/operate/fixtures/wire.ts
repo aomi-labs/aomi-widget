@@ -9,12 +9,12 @@
 //     and the page shows an "Example data" badge.
 //
 // Delete the BFF fallback branches (and nothing else) once the manager ships
-// `/user/sources/:id/statement` and the 24h trend fields on observability.
+// `/user/projects/:id/statement` and the 24h trend fields on observability.
 
 import { FIXTURES } from ".";
 
-/** Placeholder source for accounts that have no app sources yet. */
-export const EXAMPLE_SOURCE = { id: 0, repositoryLink: "example/apps" };
+/** Placeholder project for accounts that have no app projects yet. */
+export const EXAMPLE_PROJECT = { id: 0, repositoryLink: "example/apps" };
 
 export const EXAMPLE_RANGE = { fromDate: "2026-07-01", toDate: "2026-07-15" };
 
@@ -28,7 +28,7 @@ const CHARGE_SUBJECTS = new Set(["model", "hosting"]);
  * service_charges from |net|; earning subjects feed gross/fees; net sums
  * everything.
  */
-export function exampleStatement(source: object) {
+export function exampleStatement(project: object) {
   const summary = {
     grossRevenue: 0,
     platformFees: 0,
@@ -51,7 +51,7 @@ export function exampleStatement(source: object) {
       ...row,
       application: fixture.meta.name,
       applicationId: fixture.meta.applicationId,
-      source,
+      project,
     }));
   return {
     range: EXAMPLE_RANGE,
@@ -90,7 +90,7 @@ export function exampleAppMetrics(
 }
 
 /** Complete example app cards, for accounts with no live apps at all. */
-export function exampleAppCards(source: object) {
+export function exampleAppCards(project: object) {
   return FIXTURES.map((fixture, index) => ({
     applicationId: fixture.meta.applicationId,
     application: fixture.meta.name,
@@ -99,7 +99,7 @@ export function exampleAppCards(source: object) {
     releaseTag: fixture.meta.releaseTag,
     sdkVersion: fixture.meta.sdkVersion,
     status: fixture.meta.status,
-    source,
+    project,
     exampleFixture: fixture.meta.name,
     metrics: exampleAppMetrics(index, fixture.meta.name),
   }));

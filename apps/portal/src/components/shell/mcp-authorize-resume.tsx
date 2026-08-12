@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect } from "react";
+// This is the browser entrypoint for the auth client; the broad account
+// package restriction does not distinguish it from server-only modules.
+// eslint-disable-next-line no-restricted-imports
 import { authClient } from "@aomi-labs/account/better-auth/client";
 
 const STASH_KEY = "aomi.mcp.authorize.query";

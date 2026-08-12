@@ -21,34 +21,41 @@ describe("platformParam", () => {
 });
 
 describe("platformHref", () => {
-  it("re-attaches the platform to the routes that understand it", () => {
+  it("re-attaches the platform to project and deployment navigation", () => {
     expect(platformHref("/projects", "somm.finance")).toBe(
       "/projects?platform=somm.finance",
-    );
-    expect(platformHref("/projects/3", "somm.finance")).toBe(
-      "/projects/3?platform=somm.finance",
     );
     expect(platformHref("/operate/deployments/new", "somm.finance")).toBe(
       "/operate/deployments/new?platform=somm.finance",
     );
-    // A bot's app picker lists sources, and a source is bound to one platform.
-    expect(platformHref("/integrations", "somm.finance")).toBe(
-      "/integrations?platform=somm.finance",
+    expect(platformHref("/overview", "somm.finance")).toBe(
+      "/overview?platform=somm.finance",
     );
-    expect(platformHref("/operate/bots", "somm.finance")).toBe(
-      "/operate/bots?platform=somm.finance",
+    expect(platformHref("/operate/deployments", "somm.finance")).toBe(
+      "/operate/deployments?platform=somm.finance",
+    );
+    expect(platformHref("/projects/3", "somm.finance")).toBe(
+      "/projects/3?platform=somm.finance",
+    );
+    expect(platformHref("/projects/3?tab=environment", "somm.finance")).toBe(
+      "/projects/3?tab=environment&platform=somm.finance",
     );
   });
 
   it("leaves routes that are not platform-scoped alone", () => {
-    for (const href of ["/overview", "/settings/general", "/build"]) {
+    for (const href of [
+      "/settings/general",
+      "/build",
+      "/integrations",
+      "/operate/bots",
+    ]) {
       expect(platformHref(href, "somm.finance")).toBe(href);
     }
   });
 
-  it("does not double-append or invent a platform", () => {
+  it("replaces an existing scope and never invents one", () => {
     expect(platformHref("/projects?platform=a", "b")).toBe(
-      "/projects?platform=a",
+      "/projects?platform=b",
     );
     expect(platformHref("/projects", null)).toBe("/projects");
     expect(platformHref("/projects", undefined)).toBe("/projects");

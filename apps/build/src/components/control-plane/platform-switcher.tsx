@@ -8,7 +8,7 @@ import { Layers3, LoaderCircle } from "lucide-react";
 import { useGitHubSession } from "@build/components/control-plane/github-session-context";
 import { HelpBadge } from "@build/components/help-badge";
 import {
-  deploymentSources,
+  deploymentProjects,
   LaunchRequestError,
 } from "@build/features/launch/client";
 import {
@@ -60,7 +60,7 @@ export function PlatformSwitcher({
     setChecking(true);
     setError(null);
     try {
-      const result = await deploymentSources(platform);
+      const result = await deploymentProjects(platform);
       const accountKey = githubAccountKey(account.githubLogin);
       if (accountKey) {
         queryClient.setQueryData(

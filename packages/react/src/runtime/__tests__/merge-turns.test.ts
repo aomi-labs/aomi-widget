@@ -165,4 +165,41 @@ describe("mergeAssistantTurns", () => {
     );
     expect(ids2).toEqual(ids);
   });
+
+  it("preserves per-part metadata (the aomiTask join key) through re-keying", () => {
+    const taskPart = {
+      type: "tool-call" as const,
+      toolCallId: "tool_SAME",
+      toolName: "task",
+      args: { label: "swap-worker" },
+      result: { agent_id: "task-agent:9f2c", staged_count: 1 },
+      metadata: { custom: { aomiTask: { agentId: "task-agent:9f2c" } } },
+    };
+    const taskMessage = {
+      role: "assistant",
+      content: [taskPart],
+    } as unknown as ThreadMessageLike;
+
+    const merged = mergeAssistantTurns([
+      user("delegate it"),
+      tool("get_balance"),
+      taskMessage,
+      assistantText("Delegated and staged."),
+    ]);
+
+    const parts = merged[1]!.content as Array<
+      Record<string, unknown> & { type: string }
+    >;
+    expect(parts.map((p) => p.type)).toEqual([
+      "tool-call",
+      "tool-call",
+      "text",
+    ]);
+    expect(parts[1]).toMatchObject({
+      toolName: "task",
+      metadata: { custom: { aomiTask: { agentId: "task-agent:9f2c" } } },
+    });
+    // Re-keyed, but the metadata rode along.
+    expect(parts[1]!.toolCallId).not.toBe("tool_SAME");
+  });
 });

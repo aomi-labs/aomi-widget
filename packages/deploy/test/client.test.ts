@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { DeploymentClient } from "../src/client";
+import { BackendClient } from "../src/backend";
 import {
   BackendError,
   BrowserEnvironmentError,
@@ -10,7 +10,7 @@ import {
 import type { AuditEvent } from "../src/types";
 
 function client(onAudit?: (event: AuditEvent) => void) {
-  return new DeploymentClient({
+  return new BackendClient({
     aomi: {
       backendUrl: "https://staging-api.example.com/",
       activationToken: "act-token",
@@ -19,10 +19,12 @@ function client(onAudit?: (event: AuditEvent) => void) {
   });
 }
 
-describe("DeploymentClient deploy/preflight", () => {
+describe("BackendClient deploy/preflight", () => {
   let fetchMock: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
+    // Canonical manager wire shape: successful deploys explicitly confirm
+    // the application-level result as well as returning the deployment.
     fetchMock = vi.fn(async () =>
       Response.json({
         ok: true,
@@ -33,16 +35,15 @@ describe("DeploymentClient deploy/preflight", () => {
             installation_id: 123,
             repository_id: 987,
             repository_link: "https://github.com/alice/demo.git",
-            owner_repo_name: "alice/demo",
             ref: "abc1234def5678",
             commit_hash: "abc1234def5678",
-            aomi_toml_paths: ["aomi.toml"],
+            applications: ["aomi.toml"],
           },
           platform: {
             platform: "community",
             repository: "aomi-labs/community-apps",
             deploy_branch: "main",
-            source_branch: "alice/demo/123/abc1234def56",
+            platform_branch: "alice/demo/123/abc1234def56",
             commit_hash: null,
             pr_number: null,
             pr_url: null,
@@ -76,26 +77,20 @@ describe("DeploymentClient deploy/preflight", () => {
   it("POSTs a preflight request and maps the deployment.json response to camelCase", async () => {
     const audits: AuditEvent[] = [];
     const result = await client((event) => audits.push(event)).preflight({
-      platform: "community",
-      appSourceId: 42,
+      projectId: 42,
       sourceRef: "ABC1234DEF5678",
-      aomiTomlPaths: ["aomi.toml"],
       actor: "alice",
     });
 
     expect(fetchMock).toHaveBeenCalledOnce();
     const [url, init] = fetchMock.mock.calls[0];
-    expect(url).toBe(
-      "https://staging-api.example.com/api/platforms/community/deploy",
-    );
+    expect(url).toBe("https://staging-api.example.com/api/projects/42/deploy");
     expect((init as RequestInit).headers).toMatchObject({
       Authorization: "Bearer act-token",
       "Content-Type": "application/json",
     });
     expect(JSON.parse((init as RequestInit).body as string)).toEqual({
-      app_source_id: 42,
       source_ref: "abc1234def5678",
-      aomi_toml_paths: ["aomi.toml"],
       preflight: true,
     });
 
@@ -110,8 +105,7 @@ describe("DeploymentClient deploy/preflight", () => {
     expect(audits).toEqual([
       expect.objectContaining({
         action: "preflight",
-        platform: "community",
-        appSourceId: 42,
+        projectId: 42,
         actor: "alice",
       }),
     ]);
@@ -119,27 +113,34 @@ describe("DeploymentClient deploy/preflight", () => {
 
   it("POSTs an apply deploy request without the preflight flag", async () => {
     const result = await client().deploy({
-      platform: "community",
-      appSourceId: 42,
+      projectId: 42,
       sourceRef: "abc1234def5678",
     });
 
     expect(result.deployment.id).toBe("dep_123_abc1234");
     const [, init] = fetchMock.mock.calls[0];
     expect(JSON.parse((init as RequestInit).body as string)).toEqual({
-      app_source_id: 42,
       source_ref: "abc1234def5678",
-      aomi_toml_paths: [],
     });
+  });
+
+  it("still rejects an explicit ok:false deploy envelope", async () => {
+    fetchMock.mockResolvedValueOnce(
+      Response.json({ ok: false, deployment: { id: "dep_123_abc1234" } }),
+    );
+    await expect(
+      client().deploy({
+        projectId: 42,
+        sourceRef: "abc1234def5678",
+      }),
+    ).rejects.toThrow(/rejected by backend/);
   });
 
   it("rejects invalid deploy input before calling the backend", async () => {
     await expect(
       client().deploy({
-        platform: "community",
-        appSourceId: 0,
+        projectId: 0,
         sourceRef: "abc1234",
-        aomiTomlPaths: ["aomi.toml"],
       }),
     ).rejects.toBeInstanceOf(DeployError);
     expect(fetchMock).not.toHaveBeenCalled();
@@ -148,17 +149,15 @@ describe("DeploymentClient deploy/preflight", () => {
   it("rejects branch-like source refs before calling the backend", async () => {
     await expect(
       client().deploy({
-        platform: "community",
-        appSourceId: 42,
+        projectId: 42,
         sourceRef: "main",
-        aomiTomlPaths: ["aomi.toml"],
       }),
     ).rejects.toThrow(/git commit SHA/);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 
-describe("DeploymentClient.activate", () => {
+describe("BackendClient.activate", () => {
   let fetchMock: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
@@ -290,7 +289,7 @@ describe("DeploymentClient.activate", () => {
               {
                 name: "demo",
                 release_tag: "apps-123-demo-abc1234def56",
-                source_branch: "alice/demo/123/abc1234def56",
+                platform_branch: "alice/demo/123/abc1234def56",
                 activated_commit_hash: "ff00aa",
                 live_commit_hash: "ff00bb",
                 ci_status: "passed",
@@ -339,7 +338,7 @@ describe("DeploymentClient.activate", () => {
     expect(result.activation.target.promoted[0]).toMatchObject({
       name: "demo",
       releaseTag: "apps-123-demo-abc1234def56",
-      sourceBranch: "alice/demo/123/abc1234def56",
+      platformBranch: "alice/demo/123/abc1234def56",
       platformCommitHash: "ff00aa",
       liveCommitHash: "ff00bb",
       ciStatus: "passed",
@@ -378,7 +377,7 @@ describe("DeploymentClient.activate", () => {
   });
 });
 
-describe("DeploymentClient operate observability", () => {
+describe("BackendClient operate observability", () => {
   let fetchMock: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
@@ -471,15 +470,15 @@ describe("DeploymentClient operate observability", () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it("maps snake_case Grafana metrics into app observability fields", async () => {
-    const result = await client().getUserSourceObservability({
+    const result = await client().getUserProjectObservability({
       githubUserId: "4738254",
       platform: "community",
-      appSourceId: 42,
+      projectId: 42,
     });
 
     expect(fetchMock).toHaveBeenCalledOnce();
     expect(fetchMock.mock.calls[0][0]).toBe(
-      "https://staging-api.example.com/api/integrations/github-app/user/sources/42/observability?github_user_id=4738254&platform=community",
+      "https://staging-api.example.com/api/integrations/github-app/user/projects/42/observability?github_user_id=4738254",
     );
     expect(result.monitoring).toEqual({
       provider: "grafana_prometheus",
@@ -546,11 +545,11 @@ describe("DeploymentClient operate observability", () => {
     const result = await client().getUserObservability({
       githubUserId: "4738254",
       platform: "community",
-      appSourceId: 42,
+      projectId: 42,
     });
 
     expect(fetchMock.mock.calls[0][0]).toBe(
-      "https://staging-api.example.com/api/integrations/github-app/user/observability?github_user_id=4738254&platform=community&app_source_id=42",
+      "https://staging-api.example.com/api/integrations/github-app/user/observability?github_user_id=4738254&project_id=42",
     );
     expect(result[0]).not.toHaveProperty("payments");
   });
@@ -576,11 +575,11 @@ describe("DeploymentClient operate observability", () => {
 
     const result = await client().getUserPayments({
       githubUserId: "4738254",
-      appSourceId: 42,
+      projectId: 42,
     });
 
     expect(fetchMock.mock.calls[0][0]).toBe(
-      "https://staging-api.example.com/api/integrations/github-app/user/payments?github_user_id=4738254&app_source_id=42",
+      "https://staging-api.example.com/api/integrations/github-app/user/payments?github_user_id=4738254&project_id=42",
     );
     expect(result[0].payments.summary.pricedCalls).toBe(1);
   });
@@ -624,10 +623,10 @@ describe("DeploymentClient operate observability", () => {
       ),
     );
 
-    const result = await client().getUserSourceObservability({
+    const result = await client().getUserProjectObservability({
       githubUserId: "4738254",
       platform: "community",
-      appSourceId: 42,
+      projectId: 42,
     });
     expect(result.apps[0].metrics).toMatchObject({
       trendWindowSeconds: 86400,
@@ -645,7 +644,7 @@ describe("DeploymentClient operate observability", () => {
   });
 });
 
-describe("DeploymentClient operate logs", () => {
+describe("BackendClient operate logs", () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it("normalizes safe builder model-key attribution on usage events", async () => {
@@ -682,10 +681,10 @@ describe("DeploymentClient operate logs", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    const result = await client().listUserSourceLogs({
+    const result = await client().listUserProjectLogs({
       githubUserId: "4738254",
       platform: "community",
-      appSourceId: 42,
+      projectId: 42,
     });
 
     expect(result.logs[0]).toMatchObject({
@@ -700,8 +699,47 @@ describe("DeploymentClient operate logs", () => {
   });
 });
 
-describe("DeploymentClient operate app detail", () => {
+describe("BackendClient Builder application", () => {
   afterEach(() => vi.unstubAllGlobals());
+
+  it("loads a canonical Application from the Builder surface", async () => {
+    const fetchMock = vi.fn(async () =>
+      Response.json({
+        project: {
+          id: 42,
+          installation_id: 555,
+          repository_id: 9001,
+          repository_link: "alice/demo",
+          platform_id: 3,
+          owner_builder_id: 9,
+          created_at: 10,
+          updated_at: 11,
+        },
+        platform: "community",
+        application: {
+          id: 77,
+          name: "demo",
+          project_id: 42,
+          is_active: true,
+        },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await client().getBuilderApplication({
+      githubUserId: "4738254",
+      applicationId: 77,
+    });
+
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      "https://staging-api.example.com/api/integrations/github-app/builder/applications/77?github_user_id=4738254",
+    );
+    expect(result).toMatchObject({
+      project: { id: 42 },
+      platform: "community",
+      application: { id: 77, name: "demo", projectId: 42 },
+    });
+  });
 
   it("reads and normalizes the owned app detail aggregate", async () => {
     const fetchMock = vi.fn(async () =>
@@ -761,15 +799,13 @@ describe("DeploymentClient operate app detail", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    const result = await client().getUserSourceAppDetail({
+    const result = await client().getBuilderApplicationDetail({
       githubUserId: "4738254",
-      platform: "community",
-      appSourceId: 42,
       applicationId: 77,
     });
 
     expect(fetchMock.mock.calls[0][0]).toBe(
-      "https://staging-api.example.com/api/integrations/github-app/user/sources/42/apps/77/detail?github_user_id=4738254&platform=community",
+      "https://staging-api.example.com/api/integrations/github-app/builder/applications/77/detail?github_user_id=4738254",
     );
     expect(result).toMatchObject({
       windowSeconds: 86400,
@@ -798,7 +834,7 @@ describe("DeploymentClient operate app detail", () => {
   });
 });
 
-describe("DeploymentClient source SDK upgrade", () => {
+describe("BackendClient source SDK upgrade", () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it("POSTs the owned source request and normalizes the upgrade PR", async () => {
@@ -818,14 +854,14 @@ describe("DeploymentClient source SDK upgrade", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    const result = await client().upgradeUserSourceSdk({
+    const result = await client().upgradeUserProjectSdk({
       githubUserId: "4738254",
       platform: "community",
-      appSourceId: 42,
+      projectId: 42,
     });
 
     expect(fetchMock.mock.calls[0][0]).toBe(
-      "https://staging-api.example.com/api/integrations/github-app/user/sources/42/sdk-upgrade?github_user_id=4738254&platform=community",
+      "https://staging-api.example.com/api/integrations/github-app/user/projects/42/sdk-upgrade?github_user_id=4738254",
     );
     expect(result).toEqual({
       status: "pull_request",
@@ -860,11 +896,11 @@ describe("DeploymentClient source SDK upgrade", () => {
     const result = await client().sdkUpgradeStatus({
       githubUserId: "4738254",
       platform: "community",
-      appSourceId: 42,
+      projectId: 42,
     });
 
     expect(fetchMock.mock.calls[0][0]).toBe(
-      "https://staging-api.example.com/api/integrations/github-app/user/sources/42/sdk-upgrade-status?github_user_id=4738254&platform=community",
+      "https://staging-api.example.com/api/integrations/github-app/user/projects/42/sdk-upgrade-status?github_user_id=4738254",
     );
     expect(fetchMock.mock.calls[0][1]).toMatchObject({ method: "GET" });
     expect(result).toEqual({
@@ -894,7 +930,7 @@ describe("DeploymentClient source SDK upgrade", () => {
     const result = await client().sdkUpgradeStatus({
       githubUserId: "4738254",
       platform: "community",
-      appSourceId: 42,
+      projectId: 42,
     });
 
     expect(result).toEqual({
@@ -906,7 +942,7 @@ describe("DeploymentClient source SDK upgrade", () => {
   });
 });
 
-describe("DeploymentClient operate statement", () => {
+describe("BackendClient operate statement", () => {
   let fetchMock: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
@@ -1022,17 +1058,17 @@ describe("DeploymentClient operate statement", () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it("maps the statement wire (subjects, entries, USD floats) to camelCase", async () => {
-    const result = await client().getUserSourceStatement({
+    const result = await client().getUserProjectStatement({
       githubUserId: "4738254",
       platform: "community",
-      appSourceId: 42,
+      projectId: 42,
       fromDate: "2026-07-01",
       toDate: "2026-07-15",
     });
 
     expect(fetchMock).toHaveBeenCalledOnce();
     expect(fetchMock.mock.calls[0][0]).toBe(
-      "https://staging-api.example.com/api/integrations/github-app/user/sources/42/statement?github_user_id=4738254&platform=community&from_date=2026-07-01&to_date=2026-07-15",
+      "https://staging-api.example.com/api/integrations/github-app/user/projects/42/statement?github_user_id=4738254&from_date=2026-07-01&to_date=2026-07-15",
     );
     expect(result.range).toEqual({
       fromDate: "2026-07-01",
@@ -1125,10 +1161,10 @@ describe("DeploymentClient operate statement", () => {
       }),
     );
 
-    const result = await client().getUserSourceStatement({
+    const result = await client().getUserProjectStatement({
       githubUserId: "4738254",
       platform: "community",
-      appSourceId: 42,
+      projectId: 42,
     });
     expect(result.available).toBe(false);
     expect(result.summary.net).toBe(0);
@@ -1136,19 +1172,20 @@ describe("DeploymentClient operate statement", () => {
   });
 });
 
-describe("DeploymentClient sources", () => {
+describe("BackendClient projects", () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it("keeps the complete live SDK set from a platform-free source list", async () => {
+  it("keeps the complete live SDK set from an account-wide Project list", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () =>
         Response.json({
-          sources: [
+          projects: [
             {
               id: 42,
               installation_id: 1,
               repository_link: "alice/demo",
+              platform_name: "community",
               apps: [],
               sdk_version: null,
               sdk_versions: ["3.0.3", "3.0.4"],
@@ -1158,7 +1195,7 @@ describe("DeploymentClient sources", () => {
       ),
     );
 
-    const [source] = await client().listUserSources({ githubUserId: "42" });
+    const [source] = await client().listUserProjects({ githubUserId: "42" });
     expect(source.sdkVersion).toBeNull();
     expect(source.sdkVersions).toEqual(["3.0.3", "3.0.4"]);
   });
@@ -1168,6 +1205,7 @@ describe("DeploymentClient sources", () => {
       Response.json({
         by_app: {
           demo: {
+            application_id: 77,
             slots: [
               {
                 name: "DEMO_KEY",
@@ -1181,18 +1219,19 @@ describe("DeploymentClient sources", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    const result = await client().getUserSourceRequiredSecrets({
+    const result = await client().getUserProjectRequiredSecrets({
       githubUserId: "42",
       platform: "community",
-      appSourceId: 7,
+      projectId: 7,
     });
 
     expect(fetchMock.mock.calls[0][0]).toBe(
-      "https://staging-api.example.com/api/integrations/github-app/user/sources/7/required-secrets?github_user_id=42&platform=community",
+      "https://staging-api.example.com/api/integrations/github-app/user/projects/7/required-secrets?github_user_id=42",
     );
     expect(result).toEqual({
       byApp: {
         demo: {
+          applicationId: 77,
           slots: [
             { name: "DEMO_KEY", description: "Credential", required: true },
           ],

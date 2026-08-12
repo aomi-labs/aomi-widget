@@ -49,8 +49,8 @@ const SOURCES = [
 
 type FixtureBotApp = {
   applicationId: number;
-  appSourceId: number | null;
-  sourceLabel: string | null;
+  projectId: number | null;
+  projectLabel: string | null;
   name: string;
   label: string;
   isPrimary: boolean;
@@ -63,8 +63,8 @@ function appsFor(ids: number[], primary: number | null): FixtureBotApp[] {
         app.id,
         {
           applicationId: app.id,
-          appSourceId: source.id,
-          sourceLabel: source.repositoryLink,
+          projectId: source.id,
+          projectLabel: source.repositoryLink,
           name: app.name,
           label: app.name,
         },
@@ -74,8 +74,8 @@ function appsFor(ids: number[], primary: number | null): FixtureBotApp[] {
   return ids.map((id) => ({
     ...(known.get(id) ?? {
       applicationId: id,
-      appSourceId: null,
-      sourceLabel: "ceciliaz030/retired",
+      projectId: null,
+      projectLabel: "ceciliaz030/retired",
       name: "gone-app",
       label: "gone-app",
     }),
@@ -129,7 +129,7 @@ function stubFetch() {
 
     if (url.includes("/api/bff/operate/bots")) {
       if (method === "GET")
-        return Response.json({ sources: SOURCES, bots: BOTS });
+        return Response.json({ projects: SOURCES, bots: BOTS });
       if (method === "POST") {
         const body = JSON.parse(String(init?.body ?? "{}")) as {
           label?: string;

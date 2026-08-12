@@ -3,7 +3,7 @@ import "server-only";
 /**
  * Node loader hooks that make smithers-orchestrator importable outside Bun.
  *
- * The smithers packages publish Bun-flavored sources: raw .ts files, sibling
+ * The smithers packages publish Bun-flavored projects: raw .ts files, sibling
  * imports written as ".js", a static `bun:sqlite` import in the createSmithers
  * module (never called on the pglite/postgres backends the web engine uses),
  * and a `bun` import in the MDX plugin. next.config.ts keeps these packages in
@@ -89,7 +89,7 @@ export async function registerBunCompatHooks(): Promise<void> {
       try {
         return nextResolve(specifier, context);
       } catch (error) {
-        // Bun packages ship .ts sources but import sibling files as ".js".
+        // Bun packages ship .ts projects but import sibling files as ".js".
         if (
           (error as { code?: string })?.code === "ERR_MODULE_NOT_FOUND" &&
           specifier.endsWith(".js") &&

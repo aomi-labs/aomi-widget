@@ -2,7 +2,6 @@ import "server-only";
 
 import { NextResponse } from "next/server";
 import type { FailureInput } from "@aomi-labs/bff-observability";
-import { BackendError } from "@aomi-labs/deploy";
 import type {
   BotRegistration,
   OperateLogCursor,
@@ -10,19 +9,19 @@ import type {
   OperateAppDetailResult,
   OperateObservabilityResult,
   OperateObservabilitySnapshot,
-  OperatePaymentSourceResult,
+  OperatePaymentProjectResult,
   OperatePartnerPayments,
   OperateStatementResult,
   OperateTransactionCursor,
   OperateTransactionsResult,
   OperateUsageResult,
   UserLogsResult,
-  UserSource,
-  UserSourceLatestDeployment,
+  UserProject,
+  UserProjectLatestDeployment,
   UserTransactionsResult,
 } from "@aomi-labs/deploy";
 import {
-  EXAMPLE_SOURCE,
+  EXAMPLE_PROJECT,
   exampleStatement,
 } from "@build/features/operate/fixtures/wire";
 import {
@@ -30,7 +29,7 @@ import {
   caipChainLabel,
   creditsToUsd,
 } from "@build/features/operate/format";
-import { deploymentClient } from "@build/server/bff/backend";
+import { backendClient } from "@build/server/bff/backend";
 import { authorize } from "@build/server/bff/auth";
 import {
   launchConfig,
@@ -39,7 +38,7 @@ import {
 import { buildFailures } from "@build/server/bff/failures";
 import { TimedPromiseCache } from "@build/server/bff/timed-promise-cache";
 
-type DeploymentClientInstance = Awaited<ReturnType<typeof deploymentClient>>;
+type BackendClientInstance = Awaited<ReturnType<typeof backendClient>>;
 
 function identifyOperateFailure(
   req: Request,
@@ -57,7 +56,7 @@ function identifyOperateFailure(
   };
 }
 
-// An unbounded fan-out is a thundering herd: an account with 100+ sources fired
+// An unbounded fan-out is a thundering herd: an account with 100+ projects fired
 // every per-source read at once and saturated the manager's connection pool, so
 // most reads timed out waiting to acquire and the page hung on "Loading". Cap
 // the wave instead — the pool is the scarce resource, not our event loop.
@@ -68,7 +67,7 @@ const SOURCE_FANOUT_LIMIT = 6;
 const SOURCE_READ_TIMEOUT_MS = 8_000;
 
 // Capping concurrency alone still lets a degraded manager stretch a large
-// account over batches × timeout. Bound the whole fan-out too: sources we never
+// account over batches × timeout. Bound the whole fan-out too: projects we never
 // got to are dropped like any other failure, so the page renders what it has
 // instead of stalling. Well under the platform's function timeout.
 const SOURCE_FANOUT_BUDGET_MS = 20_000;
@@ -127,18 +126,18 @@ type Settled<T> = {
   dropped: number[];
 };
 
-// Fan out a per-source read and keep only the sources that succeed. One source
+// Fan out a per-source read and keep only the projects that succeed. One source
 // failing — a freshly scaffolded source with no deployed app, or a transient
 // backend blip — must not take down the whole operate page; drop it and render
-// the healthy sources instead of failing the entire request. Report what was
+// the healthy projects instead of failing the entire request. Report what was
 // lost: a page silently missing most of the account reads as a complete page.
 async function settleBySource<T>(
-  sources: UserSource[],
+  projects: UserProject[],
   operation: string,
-  run: (source: UserSource) => Promise<T>,
+  run: (source: UserProject) => Promise<T>,
 ): Promise<Settled<T>> {
   const deadline = Date.now() + SOURCE_FANOUT_BUDGET_MS;
-  const settled = await mapWithLimit(sources, SOURCE_FANOUT_LIMIT, (source) =>
+  const settled = await mapWithLimit(projects, SOURCE_FANOUT_LIMIT, (source) =>
     withTimeout(
       () => run(source),
       Math.min(SOURCE_READ_TIMEOUT_MS, deadline - Date.now()),
@@ -148,7 +147,7 @@ async function settleBySource<T>(
   const ok: T[] = [];
   const dropped: number[] = [];
   settled.forEach((result, index) => {
-    const source = sources[index];
+    const source = projects[index];
     if (result.status === "fulfilled") {
       ok.push(result.value);
     } else {
@@ -167,7 +166,7 @@ async function settleBySource<T>(
   return { ok, dropped };
 }
 
-// The per-source fallback can drop sources; losing every read used to render
+// The per-source fallback can drop projects; losing every read used to render
 // an empty page behind a warning banner (and Usage then swapped in the
 // example statement). An outage should look like an outage: fail the request
 // and let the view's error state own it. `ok` counts successful reads, not
@@ -175,10 +174,10 @@ async function settleBySource<T>(
 // (statements past page one) contributes an empty `ok` and is outvoted by
 // the leg that ran.
 function nothingRead(
-  sources: UserSource[],
+  projects: UserProject[],
   ...reads: Array<{ ok: unknown[] }>
 ) {
-  return sources.length > 0 && reads.every((read) => read.ok.length === 0);
+  return projects.length > 0 && reads.every((read) => read.ok.length === 0);
 }
 
 function operateUnavailableResponse() {
@@ -188,7 +187,7 @@ function operateUnavailableResponse() {
   );
 }
 
-function isValidAppSourceId(value: unknown): value is number {
+function isValidProjectId(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
 }
 
@@ -218,9 +217,9 @@ function parseCompositeCursor(value: string | null): CompositeCursor | null {
 
 function sourceCursor(
   cursor: CompositeCursor | null,
-  sourceId: number,
+  projectId: number,
 ): unknown | undefined {
-  return cursor?.perSource?.[String(sourceId)];
+  return cursor?.perSource?.[String(projectId)];
 }
 
 function transactionCursorFor(row: {
@@ -244,7 +243,7 @@ function logCursorFor(row: {
 
 function mergedPartnerPayments(
   rows: Array<{
-    source: OperatePaymentSourceResult["source"];
+    project: OperatePaymentProjectResult["project"];
     payments: OperatePartnerPayments;
   }>,
 ) {
@@ -253,7 +252,7 @@ function mergedPartnerPayments(
   const eventById = new Map<
     string,
     OperatePartnerPayments["events"][number] & {
-      source: OperatePaymentSourceResult["source"];
+      project: OperatePaymentProjectResult["project"];
     }
   >();
   for (const row of rows) {
@@ -261,7 +260,7 @@ function mergedPartnerPayments(
       const key = `${event.kind}:${event.id}`;
       const existing = eventById.get(key);
       if (!existing) {
-        eventById.set(key, { ...event, source: row.source });
+        eventById.set(key, { ...event, project: row.project });
       } else if (existing.applicationId !== event.applicationId) {
         // A recipient-bucket settlement can clear fees for apps in multiple
         // projects. It belongs to the beneficiary, not whichever project the
@@ -310,7 +309,7 @@ function mergedPartnerPayments(
     resources: rows.flatMap((row) =>
       row.payments.resources.map((resource) => ({
         ...resource,
-        source: row.source,
+        project: row.project,
       })),
     ),
     buckets,
@@ -318,7 +317,7 @@ function mergedPartnerPayments(
   };
 }
 
-function mergedNextCursor<T extends { source: { id: number } }>(
+function mergedNextCursor<T extends { project: { id: number } }>(
   previous: CompositeCursor | null,
   visible: T[],
   allRows: T[],
@@ -333,7 +332,7 @@ function mergedNextCursor<T extends { source: { id: number } }>(
     ...(previous?.perSource ?? {}),
   };
   for (const row of visible) {
-    perSource[String(row.source.id)] = cursorFor(row);
+    perSource[String(row.project.id)] = cursorFor(row);
   }
   return { perSource };
 }
@@ -342,7 +341,7 @@ function mergedNextCursor<T extends { source: { id: number } }>(
 // concurrent widgets onto one manager request.
 const CACHE_TTL_MS = 15_000;
 const readCache = {
-  sources: new TimedPromiseCache<UserSource[]>(CACHE_TTL_MS),
+  projects: new TimedPromiseCache<UserProject[]>(CACHE_TTL_MS),
   transactions: new TimedPromiseCache<OperateTransactionsResult>(CACHE_TTL_MS),
   usage: new TimedPromiseCache<OperateUsageResult>(CACHE_TTL_MS),
   statement: new TimedPromiseCache<OperateStatementResult>(CACHE_TTL_MS),
@@ -353,7 +352,7 @@ const readCache = {
   observabilityBatch: new TimedPromiseCache<OperateObservabilitySnapshot[]>(
     CACHE_TTL_MS,
   ),
-  paymentsBatch: new TimedPromiseCache<OperatePaymentSourceResult[]>(
+  paymentsBatch: new TimedPromiseCache<OperatePaymentProjectResult[]>(
     CACHE_TTL_MS,
   ),
   transactionsBatch: new TimedPromiseCache<UserTransactionsResult>(
@@ -365,7 +364,7 @@ const readCache = {
   usageBatch: new TimedPromiseCache<OperateUsageResult[]>(CACHE_TTL_MS),
   logsBatch: new TimedPromiseCache<UserLogsResult>(CACHE_TTL_MS),
   appDetail: new TimedPromiseCache<OperateAppDetailResult>(CACHE_TTL_MS),
-  deployments: new TimedPromiseCache<UserSourceLatestDeployment[]>(
+  deployments: new TimedPromiseCache<UserProjectLatestDeployment[]>(
     CACHE_TTL_MS,
   ),
 };
@@ -378,8 +377,8 @@ export function clearOperateCachesForTesting() {
 type OperateScope = {
   githubUserId: string;
   platform: string;
-  sources: UserSource[];
-  client: DeploymentClientInstance;
+  projects: UserProject[];
+  client: BackendClientInstance;
 };
 
 /** Session, platform, and a live client — everything a read needs *except* the
@@ -389,10 +388,34 @@ type OperateScope = {
 type OperateSession = {
   githubUserId: string;
   platform: string;
-  client: DeploymentClientInstance;
-  /** The signed-in user's sources, resolved lazily and cached per request. */
-  sources: () => Promise<UserSource[]>;
+  client: BackendClientInstance;
+  /** The signed-in user's account-wide projects, resolved lazily. Ownership
+   *  checks read this one: a partner-bound project must still be provable as
+   *  this user's even while another platform is selected. */
+  projects: () => Promise<UserProject[]>;
+  /** The projects the selected platform actually shows, resolved lazily —
+   *  the exact list behind `/projects`. Every page under one platform must
+   *  agree on this set, so account-wide reads narrow their results to it. */
+  platformProjects: () => Promise<UserProject[]>;
 };
+
+/** Ids of the projects visible on the selected platform. Account-wide manager
+ *  batches answer for every platform the account owns (deliberately — the
+ *  per-project read rejects partner-bound projects as not launch-relevant on
+ *  the default platform), so the platform scope is applied to the response. */
+function platformProjectIds(projects: UserProject[]): Set<number> {
+  return new Set(projects.map((project) => project.id));
+}
+
+/** Keep only the rows whose project is on the selected platform. Rows with no
+ *  project (account-level partner settlements) belong to every platform view
+ *  and are kept. */
+function onPlatform<T extends { project?: { id: number } | null }>(
+  rows: T[],
+  ids: Set<number>,
+): T[] {
+  return rows.filter((row) => !row.project || ids.has(row.project.id));
+}
 
 async function operateSession(
   req: Request,
@@ -403,10 +426,8 @@ async function operateSession(
     const { session } = auth;
     const config = launchConfig();
     const params = new URL(req.url).searchParams;
-    const platform = resolveLaunchPlatform(
-      params.get("platform") ?? undefined,
-      config,
-    );
+    const requestedPlatform = params.get("platform") ?? undefined;
+    const platform = resolveLaunchPlatform(requestedPlatform, config);
     if (!platform) {
       return {
         response: NextResponse.json(
@@ -415,14 +436,21 @@ async function operateSession(
         ),
       };
     }
-    const client = await deploymentClient();
+    const client = await backendClient();
     return {
       githubUserId: session.githubUserId,
       platform,
       client,
-      sources: () =>
-        readCache.sources.get([session.githubUserId, platform], () =>
-          client.listUserSources({
+      projects: () =>
+        readCache.projects.get([session.githubUserId, null], () =>
+          client.listUserProjects({
+            githubUserId: session.githubUserId,
+            platform: undefined,
+          }),
+        ),
+      platformProjects: () =>
+        readCache.projects.get([session.githubUserId, platform], () =>
+          client.listUserProjects({
             githubUserId: session.githubUserId,
             platform,
           }),
@@ -443,7 +471,7 @@ async function operateSession(
   }
 }
 
-/** A single-source scope: `appSourceId` is validated as this user's, so the
+/** A single-source scope: `projectId` is validated as this user's, so the
  *  source list is genuinely on the critical path. Also the scope for reads
  *  whose whole answer is the list itself (bots, model keys). */
 async function ownedSources(
@@ -453,31 +481,35 @@ async function ownedSources(
   if ("response" in session) return session;
   try {
     const params = new URL(req.url).searchParams;
-    const sources = await session.sources();
-    if (!params.has("appSourceId")) {
-      return { ...session, sources };
+    const projects = await session.projects();
+    if (!params.has("projectId")) {
+      return { ...session, projects };
     }
-    const requestedSourceId = Number(params.get("appSourceId"));
-    if (!isValidAppSourceId(requestedSourceId)) {
+    const requestedProjectId = Number(params.get("projectId"));
+    if (!isValidProjectId(requestedProjectId)) {
       return {
         response: NextResponse.json(
-          { error: "missing or invalid `appSourceId`" },
+          { error: "missing or invalid `projectId`" },
           { status: 400 },
         ),
       };
     }
-    const source = sources.find(
-      (candidate) => candidate.id === requestedSourceId,
+    const project = projects.find(
+      (candidate) => candidate.id === requestedProjectId,
     );
-    if (!source) {
+    if (!project) {
       return {
         response: NextResponse.json(
-          { error: "source not found for this user" },
+          { error: "project not found for this user" },
           { status: 404 },
         ),
       };
     }
-    return { ...session, sources: [source] };
+    return {
+      ...session,
+      platform: project.platformName,
+      projects: [project],
+    };
   } catch (err) {
     return {
       response: buildFailures.handle({
@@ -493,13 +525,13 @@ async function ownedSources(
   }
 }
 
-/** Scope for the account-wide reads. `sources` is a lazy, memoised thunk
+/** Scope for the account-wide reads. `projects` is a lazy, memoised thunk
  *  rather than a resolved list — calling it STARTS the read, so a route kicks
  *  it off before awaiting its own manager query and `Promise.all`s the two
  *  together. Routes whose response never mentions the source list (payments)
  *  simply never call it and pay nothing for it.
  *
- *  A request that names an `appSourceId` falls back to the resolved scope,
+ *  A request that names an `projectId` falls back to the resolved scope,
  *  because the id must be proven to belong to this user before it can be
  *  forwarded to the manager. */
 async function batchScope(req: Request): Promise<
@@ -507,19 +539,23 @@ async function batchScope(req: Request): Promise<
   | {
       githubUserId: string;
       platform: string;
-      client: DeploymentClientInstance;
+      client: BackendClientInstance;
       /** Set only for a single-source view; already validated as owned. */
-      appSourceId: number | undefined;
-      sources: () => Promise<UserSource[]>;
+      projectId: number | undefined;
+      projects: () => Promise<UserProject[]>;
+      platformProjects: () => Promise<UserProject[]>;
     }
 > {
-  if (new URL(req.url).searchParams.has("appSourceId")) {
+  if (new URL(req.url).searchParams.has("projectId")) {
     const owned = await ownedSources(req);
     if ("response" in owned) return owned;
+    // The named project IS the scope — it was resolved by id and carries its
+    // own platform binding, so there is nothing left to narrow.
     return {
       ...owned,
-      appSourceId: owned.sources[0]?.id,
-      sources: () => Promise.resolve(owned.sources),
+      projectId: owned.projects[0]?.id,
+      projects: () => Promise.resolve(owned.projects),
+      platformProjects: () => Promise.resolve(owned.projects),
     };
   }
   const session = await operateSession(req);
@@ -528,8 +564,9 @@ async function batchScope(req: Request): Promise<
     githubUserId: session.githubUserId,
     platform: session.platform,
     client: session.client,
-    appSourceId: undefined,
-    sources: session.sources,
+    projectId: undefined,
+    projects: session.projects,
+    platformProjects: session.platformProjects,
   };
 }
 
@@ -539,10 +576,9 @@ export async function operateBotsRoute(req: Request) {
   try {
     const bots = await owned.client.listUserBots({
       githubUserId: owned.githubUserId,
-      platform: owned.platform,
     });
     return NextResponse.json({
-      sources: owned.sources,
+      projects: owned.projects,
       bots,
     });
   } catch (err) {
@@ -581,7 +617,9 @@ export async function operateBotsCreateRoute(req: Request) {
     );
   }
   const allowedApplicationIds = new Set(
-    owned.sources.flatMap((source) => (source.apps ?? []).map((app) => app.id)),
+    owned.projects.flatMap((source) =>
+      (source.apps ?? []).map((app) => app.id),
+    ),
   );
   const applicationIds = body.applicationIds as number[];
   if (new Set(applicationIds).size !== applicationIds.length) {
@@ -603,7 +641,6 @@ export async function operateBotsCreateRoute(req: Request) {
   try {
     const bot: BotRegistration = await owned.client.createUserBot({
       githubUserId: owned.githubUserId,
-      platform: owned.platform,
       applicationIds,
       primaryApplicationId: body.primaryApplicationId,
       botPlatform: "telegram",
@@ -632,7 +669,6 @@ export async function operateBotsDeleteRoute(req: Request) {
   try {
     await owned.client.deleteUserBot({
       githubUserId: owned.githubUserId,
-      platform: owned.platform,
       botId,
     });
     return NextResponse.json({ ok: true });
@@ -676,7 +712,9 @@ export async function operateBotsUpdateRoute(req: Request) {
     );
   }
   const allowed = new Set(
-    owned.sources.flatMap((source) => (source.apps ?? []).map((app) => app.id)),
+    owned.projects.flatMap((source) =>
+      (source.apps ?? []).map((app) => app.id),
+    ),
   );
   const applicationIds = body.applicationIds as number[];
   if (new Set(applicationIds).size !== applicationIds.length) {
@@ -697,7 +735,6 @@ export async function operateBotsUpdateRoute(req: Request) {
   try {
     const bot = await owned.client.updateUserBot({
       githubUserId: owned.githubUserId,
-      platform: owned.platform,
       botId: body.botId,
       applicationIds,
       primaryApplicationId: body.primaryApplicationId,
@@ -713,8 +750,8 @@ export async function operateBotsUpdateRoute(req: Request) {
 
 // ── model keys (funder-ladder app rung, builder-owned) ─────────────────────
 
-/// GET → { sources, keys }: the builder's key inventory with grants, plus
-/// their sources (for the "apply to projects" picker). Never key material.
+/// GET → { projects, keys }: the builder's key inventory with grants, plus
+/// their projects (for the "apply to projects" picker). Never key material.
 export async function operateModelKeysRoute(req: Request) {
   const owned = await ownedSources(req);
   if ("response" in owned) return owned.response;
@@ -723,7 +760,7 @@ export async function operateModelKeysRoute(req: Request) {
       githubUserId: owned.githubUserId,
       platform: owned.platform,
     });
-    return NextResponse.json({ sources: owned.sources, keys });
+    return NextResponse.json({ projects: owned.projects, keys });
   } catch (err) {
     return buildFailures.handle(
       identifyOperateFailure(req, "operate.model_keys_read", err),
@@ -836,7 +873,7 @@ export async function operateTransactionsRoute(req: Request) {
     const scope = await batchScope(req);
     if ("response" in scope) return scope.response;
     // Started before the reads below so it overlaps them.
-    const sourcesPending = scope.sources();
+    const sourcesPending = scope.platformProjects();
     const params = new URL(req.url).searchParams;
     const limit = pageLimit(params, 50, 100);
     const cursor = parseCompositeCursor(params.get("cursor"));
@@ -847,7 +884,7 @@ export async function operateTransactionsRoute(req: Request) {
     // transactions page plus one statement sweep, instead of 2×N per-source
     // reads that saturated the manager on large accounts. Without an explicit
     // `platform`, the manager resolves each source under its own bound/loaded
-    // platform, which also covers partner-bound sources. A single-source view
+    // platform, which also covers partner-bound projects. A single-source view
     // stays on the per-source reads — one call each, and the cursor there is
     // per-source anyway.
     //
@@ -858,7 +895,7 @@ export async function operateTransactionsRoute(req: Request) {
       page: UserTransactionsResult;
       statements: OperateStatementResult[];
     } | null = null;
-    if (scope.appSourceId === undefined) {
+    if (scope.projectId === undefined) {
       const [page, statements] = await Promise.all([
         readCache.transactionsBatch.get(
           [
@@ -869,7 +906,6 @@ export async function operateTransactionsRoute(req: Request) {
           () =>
             scope.client.listUserTransactions({
               githubUserId: scope.githubUserId,
-              platform: requestedPlatform,
               limit,
               status,
               cursor: (cursor?.batch ?? undefined) as
@@ -884,39 +920,44 @@ export async function operateTransactionsRoute(req: Request) {
               () =>
                 scope.client.getUserStatements({
                   githubUserId: scope.githubUserId,
-                  platform: requestedPlatform,
                 }),
             ),
       ]);
       batch = { page, statements };
     }
-    const owned = { ...scope, sources: await sourcesPending };
+    const owned = { ...scope, projects: await sourcesPending };
 
     let appTransactions: Array<Record<string, any>>;
     let statements: OperateStatementResult[];
     let nextCursor: CompositeCursor | null;
     if (batch) {
       const sourceById = new Map(
-        batch.page.sources.map((ref) => [ref.source.id, ref.source]),
+        batch.page.projects.map((ref) => [ref.project.id, ref.project]),
       );
-      appTransactions = batch.page.transactions.map(
-        ({ appSourceId, platform, ...transaction }) => ({
-          ...transaction,
-          kind: "app_transaction",
-          source:
-            (appSourceId != null ? sourceById.get(appSourceId) : undefined) ??
-            null,
-          platform: platform ?? owned.platform,
-        }),
+      // The manager batch answers for every platform the account owns; narrow
+      // it to the platform this page is scoped to before anything is rendered.
+      const platformIds = platformProjectIds(owned.projects);
+      appTransactions = onPlatform(
+        batch.page.transactions.map(
+          ({ projectId, platform, ...transaction }) => ({
+            ...transaction,
+            kind: "app_transaction",
+            project:
+              (projectId != null ? sourceById.get(projectId) : undefined) ??
+              null,
+            platform: platform ?? owned.platform,
+          }),
+        ),
+        platformIds,
       );
-      statements = batch.statements;
+      statements = onPlatform(batch.statements, platformIds);
       nextCursor = batch.page.nextCursor
         ? { batch: batch.page.nextCursor }
         : null;
     } else {
       const [transactionReads, statementReads] = await Promise.all([
         settleBySource<OperateTransactionsResult>(
-          owned.sources,
+          owned.projects,
           "operate.transactions_source",
           (source) =>
             readCache.transactions.get(
@@ -927,10 +968,9 @@ export async function operateTransactionsRoute(req: Request) {
                 { limit, status, cursor: sourceCursor(cursor, source.id) },
               ],
               () =>
-                owned.client.listUserSourceTransactions({
+                owned.client.listUserProjectTransactions({
                   githubUserId: owned.githubUserId,
-                  platform: owned.platform,
-                  appSourceId: source.id,
+                  projectId: source.id,
                   limit,
                   status,
                   cursor: sourceCursor(cursor, source.id) as
@@ -946,21 +986,20 @@ export async function operateTransactionsRoute(req: Request) {
               dropped: [],
             } as Settled<OperateStatementResult>)
           : settleBySource<OperateStatementResult>(
-              owned.sources,
+              owned.projects,
               "operate.transactions_statement",
               (source) =>
                 readCache.statement.get(
                   [owned.githubUserId, owned.platform, source.id, null],
                   () =>
-                    owned.client.getUserSourceStatement({
+                    owned.client.getUserProjectStatement({
                       githubUserId: owned.githubUserId,
-                      platform: owned.platform,
-                      appSourceId: source.id,
+                      projectId: source.id,
                     }),
                 ),
             ),
       ]);
-      if (nothingRead(owned.sources, transactionReads, statementReads)) {
+      if (nothingRead(owned.projects, transactionReads, statementReads)) {
         return operateUnavailableResponse();
       }
       const results = transactionReads.ok;
@@ -969,7 +1008,7 @@ export async function operateTransactionsRoute(req: Request) {
           result.transactions.map((transaction) => ({
             ...transaction,
             kind: "app_transaction",
-            source: result.source,
+            project: result.project,
             platform: result.platform,
           })),
         )
@@ -978,12 +1017,12 @@ export async function operateTransactionsRoute(req: Request) {
       nextCursor = mergedNextCursor(
         cursor,
         appTransactions.slice(0, limit) as Array<{
-          source: { id: number };
+          project: { id: number };
           createdAt: number;
           id: string;
         }>,
         appTransactions as Array<{
-          source: { id: number };
+          project: { id: number };
           createdAt: number;
           id: string;
         }>,
@@ -993,7 +1032,7 @@ export async function operateTransactionsRoute(req: Request) {
     }
     const payments = mergedPartnerPayments(
       statements.map((statement) => ({
-        source: statement.source as UserSource,
+        project: statement.project as UserProject,
         payments: statement.payments,
       })),
     );
@@ -1051,7 +1090,7 @@ export async function operateTransactionsRoute(req: Request) {
                   recipient: event.recipient,
                   scope: payments.scope,
                 },
-                source: event.source,
+                project: event.project,
                 platform: owned.platform,
               };
             });
@@ -1065,7 +1104,7 @@ export async function operateTransactionsRoute(req: Request) {
     return NextResponse.json({
       // Every source the account owns, not just the ones this read covered:
       // the filter dropdown is how a user loads one source on its own.
-      sources: owned.sources,
+      projects: owned.projects,
       transactions,
       nextCursor,
     });
@@ -1081,7 +1120,7 @@ export async function operateUsageRoute(req: Request) {
     const scope = await batchScope(req);
     if ("response" in scope) return scope.response;
     // Started before the reads below so it overlaps them.
-    const sourcesPending = scope.sources();
+    const sourcesPending = scope.platformProjects();
     const params = new URL(req.url).searchParams;
     const dates = {
       fromDate: params.get("fromDate") ?? undefined,
@@ -1097,7 +1136,7 @@ export async function operateUsageRoute(req: Request) {
       usage: OperateUsageResult[];
       statements: OperateStatementResult[];
     } | null = null;
-    if (scope.appSourceId === undefined) {
+    if (scope.projectId === undefined) {
       const [usage, statements] = await Promise.all([
         readCache.usageBatch.get(
           [
@@ -1109,7 +1148,6 @@ export async function operateUsageRoute(req: Request) {
           () =>
             scope.client.getUserUsage({
               githubUserId: scope.githubUserId,
-              platform: requestedPlatform,
               ...dates,
             }),
         ),
@@ -1123,54 +1161,54 @@ export async function operateUsageRoute(req: Request) {
           () =>
             scope.client.getUserStatements({
               githubUserId: scope.githubUserId,
-              platform: requestedPlatform,
               ...dates,
             }),
         ),
       ]);
       batch = { usage, statements };
     }
-    const owned = { ...scope, sources: await sourcesPending };
+    const owned = { ...scope, projects: await sourcesPending };
 
     let results: OperateUsageResult[];
     let allStatements: OperateStatementResult[];
     if (batch) {
-      results = batch.usage;
-      allStatements = batch.statements;
+      // The manager batch answers for every platform the account owns; narrow
+      // it to the platform this page is scoped to.
+      const platformIds = platformProjectIds(owned.projects);
+      results = onPlatform(batch.usage, platformIds);
+      allStatements = onPlatform(batch.statements, platformIds);
     } else {
       const [usageReads, statementReads] = await Promise.all([
         settleBySource<OperateUsageResult>(
-          owned.sources,
+          owned.projects,
           "operate.usage_source",
           (source) =>
             readCache.usage.get(
               [owned.githubUserId, owned.platform, source.id, dates],
               () =>
-                owned.client.getUserSourceUsage({
+                owned.client.getUserProjectUsage({
                   githubUserId: owned.githubUserId,
-                  platform: owned.platform,
-                  appSourceId: source.id,
+                  projectId: source.id,
                   ...dates,
                 }),
             ),
         ),
         settleBySource<OperateStatementResult>(
-          owned.sources,
+          owned.projects,
           "operate.usage_statement",
           (source) =>
             readCache.statement.get(
               [owned.githubUserId, owned.platform, source.id, dates],
               () =>
-                owned.client.getUserSourceStatement({
+                owned.client.getUserProjectStatement({
                   githubUserId: owned.githubUserId,
-                  platform: owned.platform,
-                  appSourceId: source.id,
+                  projectId: source.id,
                   ...dates,
                 }),
             ),
         ),
       ]);
-      if (nothingRead(owned.sources, usageReads, statementReads)) {
+      if (nothingRead(owned.projects, usageReads, statementReads)) {
         return operateUnavailableResponse();
       }
       results = usageReads.ok;
@@ -1186,19 +1224,19 @@ export async function operateUsageRoute(req: Request) {
     return NextResponse.json({
       // Every source the account owns, not just the ones this read covered:
       // the filter dropdown is how a user retries a dropped source on its own.
-      sources: owned.sources,
+      projects: owned.projects,
       range: results[0]?.range ?? null,
       daily: results.flatMap((result) =>
         result.daily.map((row) => ({
           ...row,
-          source: result.source,
+          project: result.project,
           platform: result.platform,
         })),
       ),
       breakdown: results.flatMap((result) =>
         result.breakdown.map((row) => ({
           ...row,
-          source: result.source,
+          project: result.project,
           platform: result.platform,
         })),
       ),
@@ -1215,20 +1253,20 @@ export async function operateUsageRoute(req: Request) {
             revenue: statements.flatMap((statement) =>
               statement.revenue.map((row) => ({
                 ...row,
-                source: statement.source,
+                project: statement.project,
               })),
             ),
             charges: statements.flatMap((statement) =>
               statement.charges.map((row) => ({
                 ...row,
-                source: statement.source,
+                project: statement.project,
               })),
             ),
             entries: statements
               .flatMap((statement) =>
                 statement.entries.map((row) => ({
                   ...row,
-                  source: statement.source,
+                  project: statement.project,
                 })),
               )
               .sort(
@@ -1238,12 +1276,12 @@ export async function operateUsageRoute(req: Request) {
               ),
             payments: mergedPartnerPayments(
               statements.map((statement) => ({
-                source: statement.source as UserSource,
+                project: statement.project as UserProject,
                 payments: statement.payments,
               })),
             ),
           }
-        : exampleStatement(owned.sources[0] ?? EXAMPLE_SOURCE),
+        : exampleStatement(owned.projects[0] ?? EXAMPLE_PROJECT),
     });
   } catch (err) {
     return buildFailures.handle(
@@ -1265,11 +1303,11 @@ export async function operateLogsRoute(req: Request) {
     // settlement is one table row) and paginated by one global cursor, so
     // none of the per-source merge/dedupe below applies. A single-source view
     // stays on the per-source read.
-    if (!params.has("appSourceId")) {
+    if (!params.has("projectId")) {
       const scope = await batchScope(req);
       if ("response" in scope) return scope.response;
-      const sourcesPending = scope.sources();
-      const [batch, sources] = await Promise.all([
+      const sourcesPending = scope.platformProjects();
+      const [batch, projects] = await Promise.all([
         readCache.logsBatch.get(
           [
             scope.githubUserId,
@@ -1279,7 +1317,6 @@ export async function operateLogsRoute(req: Request) {
           () =>
             scope.client.listUserLogs({
               githubUserId: scope.githubUserId,
-              platform: requestedPlatform,
               limit,
               type,
               cursor: (cursor?.batch ?? undefined) as
@@ -1290,17 +1327,23 @@ export async function operateLogsRoute(req: Request) {
         sourcesPending,
       ]);
       const sourceById = new Map(
-        batch.sources.map((ref) => [ref.source.id, ref.source]),
+        batch.projects.map((ref) => [ref.project.id, ref.project]),
       );
       return NextResponse.json({
-        sources,
-        logs: batch.logs.map(({ appSourceId, platform, ...log }) => ({
-          ...log,
-          source:
-            (appSourceId != null ? sourceById.get(appSourceId) : undefined) ??
-            null,
-          platform: platform ?? scope.platform,
-        })),
+        projects,
+        // The merged stream covers every platform the account owns; narrow it
+        // to the selected one. Account-level rows (a shared partner
+        // settlement carries no projectId) stay.
+        logs: onPlatform(
+          batch.logs.map(({ projectId, platform, ...log }) => ({
+            ...log,
+            project:
+              (projectId != null ? sourceById.get(projectId) : undefined) ??
+              null,
+            platform: platform ?? scope.platform,
+          })),
+          platformProjectIds(projects),
+        ),
         nextCursor: batch.nextCursor ? { batch: batch.nextCursor } : null,
       });
     }
@@ -1308,7 +1351,7 @@ export async function operateLogsRoute(req: Request) {
     const owned = await ownedSources(req);
     if ("response" in owned) return owned.response;
     const logReads = await settleBySource<OperateLogsResult>(
-      owned.sources,
+      owned.projects,
       "operate.logs_source",
       (source) =>
         readCache.logs.get(
@@ -1319,10 +1362,9 @@ export async function operateLogsRoute(req: Request) {
             { limit, type, cursor: sourceCursor(cursor, source.id) },
           ],
           () =>
-            owned.client.listUserSourceLogs({
+            owned.client.listUserProjectLogs({
               githubUserId: owned.githubUserId,
-              platform: owned.platform,
-              appSourceId: source.id,
+              projectId: source.id,
               limit,
               type,
               cursor: sourceCursor(cursor, source.id) as
@@ -1332,33 +1374,33 @@ export async function operateLogsRoute(req: Request) {
             }),
         ),
     );
-    if (nothingRead(owned.sources, logReads)) {
+    if (nothingRead(owned.projects, logReads)) {
       return operateUnavailableResponse();
     }
     const results = logReads.ok;
     const sourcedLogs = results.flatMap((result) =>
       result.logs.map((entry) => ({
         ...entry,
-        source: result.source,
+        project: result.project,
         platform: result.platform,
       })),
     );
     const logById = new Map<
       string,
-      (typeof sourcedLogs)[number] & { cursorSources: UserSource[] }
+      (typeof sourcedLogs)[number] & { cursorSources: UserProject[] }
     >();
     for (const log of sourcedLogs) {
       const sharedSettlement = log.details.source === "partner_settlement";
       const key = sharedSettlement
         ? `partner-settlement:${log.id}`
-        : `${log.source.id}:${log.eventType}:${log.id}`;
+        : `${log.project.id}:${log.eventType}:${log.id}`;
       const existing = logById.get(key);
       if (existing) {
-        existing.cursorSources.push(log.source as UserSource);
+        existing.cursorSources.push(log.project as UserProject);
       } else {
         logById.set(key, {
           ...log,
-          cursorSources: [log.source as UserSource],
+          cursorSources: [log.project as UserProject],
         });
       }
     }
@@ -1370,12 +1412,12 @@ export async function operateLogsRoute(req: Request) {
     );
     const visible = logs.slice(0, limit);
     const cursorRows = visible.flatMap((log) =>
-      log.cursorSources.map((source) => ({ ...log, source })),
+      log.cursorSources.map((project) => ({ ...log, project })),
     );
     return NextResponse.json({
       // Every source the account owns, not just the ones this read covered:
       // the filter dropdown is how a user retries a dropped source on its own.
-      sources: owned.sources,
+      projects: owned.projects,
       logs: visible.map(({ cursorSources: _cursorSources, ...log }) => log),
       nextCursor: mergedNextCursor(
         cursor,
@@ -1398,51 +1440,53 @@ export async function operateObservabilityRoute(req: Request) {
       new URL(req.url).searchParams.get("platform") ?? undefined;
     const scope = await batchScope(req);
     if ("response" in scope) return scope.response;
-    const { appSourceId } = scope;
-    // Kick the dropdown's source list off first so it overlaps the snapshot
+    const { projectId } = scope;
+    // Kick the platform's source list off first so it overlaps the snapshot
     // below rather than following it.
-    const sourcesPending = scope.sources();
+    const sourcesPending = scope.platformProjects();
 
     // One manager request for the whole account. Without an explicit
     // `platform` filter the manager resolves each source under its own
-    // bound/loaded platform, which also covers partner-bound sources that the
+    // bound/loaded platform, which also covers partner-bound projects that the
     // per-source read rejects as not launch-relevant on the default platform.
-    const [results, sources] = await Promise.all([
+    // The platform scope is then applied here, so this page shows exactly the
+    // projects `/projects` lists rather than every platform the account owns.
+    const [results, projects] = await Promise.all([
       readCache.observabilityBatch.get(
-        [scope.githubUserId, requestedPlatform ?? null, appSourceId ?? null],
+        [scope.githubUserId, requestedPlatform ?? null, projectId ?? null],
         () =>
           scope.client.getUserObservability({
             githubUserId: scope.githubUserId,
-            platform: requestedPlatform,
-            appSourceId,
+            projectId,
           }),
       ) as Promise<OperateObservabilitySnapshot[]>,
       sourcesPending,
     ]);
-    const apps = results.flatMap((result) =>
+    const scoped = onPlatform(results, platformProjectIds(projects));
+    const apps = scoped.flatMap((result) =>
       result.apps.map((app) => ({
         ...app,
-        source: result.source,
+        project: result.project,
         platform: result.platform,
       })),
     );
     return NextResponse.json({
-      // Every source the account owns, not just the ones this read covered:
+      // Every source on this platform, not just the ones this read covered:
       // the filter dropdown is how a user loads one source on its own.
-      sources,
+      projects,
       scope: "owned_applications",
       monitoring: {
         provider: "grafana_prometheus",
-        status: results.some((result) => result.monitoring?.status === "ok")
-          ? results.some((result) => result.monitoring?.status !== "ok")
+        status: scoped.some((result) => result.monitoring?.status === "ok")
+          ? scoped.some((result) => result.monitoring?.status !== "ok")
             ? "partial"
             : "ok"
-          : (results[0]?.monitoring?.status ?? "unconfigured"),
-        windowSeconds: results[0]?.monitoring?.windowSeconds ?? 0,
+          : (scoped[0]?.monitoring?.status ?? "unconfigured"),
+        windowSeconds: scoped[0]?.monitoring?.windowSeconds ?? 0,
       },
       apps,
-      dashboardLinks: results.flatMap((result) => result.dashboardLinks),
-      platformMetrics: results[0]?.platformMetrics ?? [],
+      dashboardLinks: scoped.flatMap((result) => result.dashboardLinks),
+      platformMetrics: scoped[0]?.platformMetrics ?? [],
     });
   } catch (err) {
     return buildFailures.handle(
@@ -1452,26 +1496,32 @@ export async function operateObservabilityRoute(req: Request) {
 }
 
 /** Optional ledger card for the observability page; never blocks its snapshot.
- *  The response is derived purely from the ledger read, so the source list is
- *  never awaited here at all. */
+ *  The source list is read only to scope the ledger to the selected platform,
+ *  in parallel with it and off the same cache the snapshot already warmed. */
 export async function operatePaymentsRoute(req: Request) {
   try {
     const scope = await batchScope(req);
     if ("response" in scope) return scope.response;
     const requestedPlatform =
       new URL(req.url).searchParams.get("platform") ?? undefined;
-    const { appSourceId } = scope;
-    const results = await readCache.paymentsBatch.get(
-      [scope.githubUserId, requestedPlatform ?? null, appSourceId ?? null],
-      () =>
-        scope.client.getUserPayments({
-          githubUserId: scope.githubUserId,
-          platform: requestedPlatform,
-          appSourceId,
-        }),
-    );
+    const { projectId } = scope;
+    // The ledger read is account-wide for the same reason the observability
+    // batch is; the platform scope is applied to its rows, not to the request.
+    const [results, projects] = await Promise.all([
+      readCache.paymentsBatch.get(
+        [scope.githubUserId, requestedPlatform ?? null, projectId ?? null],
+        () =>
+          scope.client.getUserPayments({
+            githubUserId: scope.githubUserId,
+            projectId,
+          }),
+      ),
+      scope.platformProjects(),
+    ]);
     return NextResponse.json({
-      payments: mergedPartnerPayments(results),
+      payments: mergedPartnerPayments(
+        onPlatform(results, platformProjectIds(projects)),
+      ),
     });
   } catch (err) {
     return buildFailures.handle(
@@ -1483,7 +1533,7 @@ export async function operatePaymentsRoute(req: Request) {
 export async function operateAppDetailRoute(req: Request) {
   const params = new URL(req.url).searchParams;
   const applicationId = Number(params.get("applicationId"));
-  if (!isValidAppSourceId(applicationId)) {
+  if (!isValidProjectId(applicationId)) {
     return NextResponse.json(
       { error: "missing or invalid `applicationId`" },
       { status: 400 },
@@ -1491,44 +1541,43 @@ export async function operateAppDetailRoute(req: Request) {
   }
 
   try {
-    const owned = await ownedSources(req);
-    if ("response" in owned) return owned.response;
-    const source = owned.sources[0];
-    if (!source) {
-      return NextResponse.json(
-        { error: "source not found for this user" },
-        { status: 404 },
-      );
-    }
-
+    const session = await operateSession(req);
+    if ("response" in session) return session.response;
+    const detail = await readCache.appDetail.get(
+      [session.githubUserId, applicationId],
+      () =>
+        session.client.getBuilderApplicationDetail({
+          githubUserId: session.githubUserId,
+          applicationId,
+        }),
+    );
+    const projectId = detail.project.id;
     const input = {
-      githubUserId: owned.githubUserId,
-      platform: owned.platform,
-      appSourceId: source.id,
+      githubUserId: session.githubUserId,
+      projectId,
     };
-    const [detail, observability, transactionsResult, logsResult, deployments] =
+    const [observability, transactionsResult, logsResult, deployments] =
       await Promise.all([
-        readCache.appDetail.get(
-          [owned.githubUserId, owned.platform, source.id, { applicationId }],
-          () =>
-            owned.client.getUserSourceAppDetail({ ...input, applicationId }),
-        ),
         readCache.observability.get(
-          [owned.githubUserId, owned.platform, source.id],
-          () => owned.client.getUserSourceObservability(input),
+          [session.githubUserId, detail.platform, projectId],
+          () => session.client.getUserProjectObservability(input),
         ),
         readCache.transactions.get(
-          [owned.githubUserId, owned.platform, source.id, { limit: 100 }],
+          [session.githubUserId, detail.platform, projectId, { limit: 100 }],
           () =>
-            owned.client.listUserSourceTransactions({ ...input, limit: 100 }),
+            session.client.listUserProjectTransactions({
+              ...input,
+              limit: 100,
+            }),
         ),
         readCache.logs.get(
-          [owned.githubUserId, owned.platform, source.id, { limit: 200 }],
-          () => owned.client.listUserSourceLogs({ ...input, limit: 200 }),
+          [session.githubUserId, detail.platform, projectId, { limit: 200 }],
+          () => session.client.listUserProjectLogs({ ...input, limit: 200 }),
         ),
         readCache.deployments.get(
-          [owned.githubUserId, owned.platform, source.id, { limit: 20 }],
-          () => owned.client.listUserSourceDeployments({ ...input, limit: 20 }),
+          [session.githubUserId, detail.platform, projectId, { limit: 20 }],
+          () =>
+            session.client.listUserProjectDeployments({ ...input, limit: 20 }),
         ),
       ]);
 

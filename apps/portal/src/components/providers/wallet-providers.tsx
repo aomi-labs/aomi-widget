@@ -18,6 +18,7 @@ import { type Chain } from "viem";
 import {
   AomiWalletKitProvider,
   FullTestnetWalletRouter,
+  arcTestnet,
   monad,
   monadTestnet,
   megaeth,
@@ -54,6 +55,7 @@ const defaultNetworks = [
   monadTestnet,
   robinhood,
   megaeth,
+  arcTestnet,
 ] as const;
 
 export const networks = [...defaultNetworks] as readonly [Chain, ...Chain[]];

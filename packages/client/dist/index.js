@@ -640,14 +640,14 @@ function createSseSubscriber({
         if (subscription.lastEventId) {
           headers.set("Last-Event-ID", subscription.lastEventId);
         }
-        const updatesUrl = new URL(`${backendUrl}/api/thread/updates`);
+        const normalizedBase = backendUrl === "/" ? "" : backendUrl.replace(/\/+$/, "");
+        const params = new URLSearchParams();
         if (subscription.applicationId) {
-          updatesUrl.searchParams.set(
-            "application_id",
-            subscription.applicationId
-          );
+          params.set("application_id", subscription.applicationId);
         }
-        const response = await fetchImpl(updatesUrl.toString(), {
+        const query = params.toString();
+        const updatesUrl = `${normalizedBase}/api/thread/updates${query ? `?${query}` : ""}`;
+        const response = await fetchImpl(updatesUrl, {
           headers,
           signal: controller.signal
         });
@@ -1394,9 +1394,19 @@ ${body}` : ""}`
   }
   /**
    * Create a new thread. The client generates the session ID.
+   *
+   * Passing `rig` (and optionally `app`/`applicationId`/`platform`/`clientId`)
+   * binds the model selection in the same request — the fast path that saves
+   * the follow-up `setModel` round-trip on a fresh chat.
    */
-  async createThread(threadId) {
-    const url = buildApiUrl(this.baseUrl, "/api/threads");
+  async createThread(threadId, options) {
+    const url = buildApiUrl(this.baseUrl, "/api/threads", {
+      rig: options == null ? void 0 : options.rig,
+      app: options == null ? void 0 : options.app,
+      application_id: (options == null ? void 0 : options.applicationId) === void 0 ? void 0 : String(options.applicationId),
+      platform: options == null ? void 0 : options.platform,
+      client_id: options == null ? void 0 : options.clientId
+    });
     const response = await this.fetchImpl(url, {
       method: "POST",
       headers: withSessionHeader(threadId)
@@ -1566,6 +1576,7 @@ ${body}` : ""}`
    * Mint a Privy browser auth URL bound to the current backend session.
    */
   async beginPrivyAuth(sessionId, options) {
+    var _a;
     const url = buildApiUrl(this.baseUrl, "/api/auth/privy/begin");
     const response = await this.rawFetchImpl(url, {
       method: "POST",
@@ -1574,6 +1585,7 @@ ${body}` : ""}`
       }),
       body: JSON.stringify({
         application: options == null ? void 0 : options.application,
+        purpose: (_a = options == null ? void 0 : options.purpose) != null ? _a : "link_wallet",
         wallet_family: (options == null ? void 0 : options.walletFamily) === "evm" ? void 0 : options == null ? void 0 : options.walletFamily
       })
     });
@@ -1581,6 +1593,15 @@ ${body}` : ""}`
       throw new Error(`Failed to begin Privy auth: HTTP ${response.status}`);
     }
     return await response.json();
+  }
+  /**
+   * Start Privy's separate one-time delegated-signer consent. This is not a
+   * wallet-link operation and callers should label it as enabling Auto.
+   */
+  async beginPrivyDelegation(sessionId, options) {
+    return this.beginPrivyAuth(sessionId, __spreadProps(__spreadValues({}, options), {
+      purpose: "delegate_signing"
+    }));
   }
   /**
    * Get available models.
@@ -2346,6 +2367,52 @@ function safeEnv(read) {
 }
 
 // src/types.ts
+var AOMI_TASK_EVENT_TYPES = [
+  "task_started",
+  "task_activity",
+  "task_completed"
+];
+function isAomiTaskEventType(type) {
+  return AOMI_TASK_EVENT_TYPES.includes(type);
+}
+var asString = (value) => typeof value === "string" ? value : void 0;
+function parseAomiTaskEvent(event) {
+  var _a, _b, _c, _d;
+  const raw = event;
+  const type = asString(raw.type);
+  if (!type || !isAomiTaskEventType(type)) return null;
+  const agentId = asString(raw.agent_id);
+  if (!agentId) return null;
+  const callId = (_a = asString(raw.call_id)) != null ? _a : "";
+  if (type === "task_started") {
+    return __spreadValues(__spreadValues({
+      type,
+      call_id: callId,
+      agent_id: agentId,
+      label: (_b = asString(raw.label)) != null ? _b : "",
+      app: (_c = asString(raw.app)) != null ? _c : null,
+      resumed: raw.resumed === true
+    }, asString(raw.session_id) ? { session_id: raw.session_id } : null), asString(raw.thread_id) ? { thread_id: raw.thread_id } : null);
+  }
+  if (type === "task_activity") {
+    const childSeq = raw.child_seq;
+    if (typeof childSeq !== "number" || !Number.isFinite(childSeq)) return null;
+    const kind = raw.kind === "note" ? "note" : "tool_call";
+    return __spreadValues(__spreadValues(__spreadValues(__spreadValues(__spreadValues(__spreadValues({
+      type,
+      call_id: callId,
+      agent_id: agentId,
+      kind,
+      child_seq: childSeq
+    }, asString(raw.tool_name) ? { tool_name: raw.tool_name } : null), raw.args !== void 0 ? { args: raw.args } : null), asString(raw.result_preview) ? { result_preview: raw.result_preview } : null), asString(raw.text) ? { text: raw.text } : null), asString(raw.session_id) ? { session_id: raw.session_id } : null), asString(raw.thread_id) ? { thread_id: raw.thread_id } : null);
+  }
+  return __spreadValues(__spreadValues(__spreadValues(__spreadValues(__spreadValues(__spreadValues({
+    type,
+    call_id: callId,
+    agent_id: agentId,
+    status: (_d = asString(raw.status)) != null ? _d : "completed"
+  }, asString(raw.message) ? { message: raw.message } : null), typeof raw.staged_count === "number" ? { staged_count: raw.staged_count } : null), typeof raw.steps === "number" ? { steps: raw.steps } : null), typeof raw.duration_ms === "number" ? { duration_ms: raw.duration_ms } : null), asString(raw.session_id) ? { session_id: raw.session_id } : null), asString(raw.thread_id) ? { thread_id: raw.thread_id } : null);
+}
 function isInlineCall(event) {
   return "InlineCall" in event;
 }
@@ -2932,6 +2999,48 @@ function handleSessionSSEEvent(event, deps) {
     deps.emit("tool_update", event);
   } else if (event.type === "tool_complete") {
     deps.emit("tool_complete", event);
+  } else if (isAomiTaskEventType(event.type)) {
+    const taskEvent = parseAomiTaskEvent(event);
+    if (taskEvent) {
+      if (taskEvent.type === "task_started") {
+        deps.emit("task_started", taskEvent);
+      } else if (taskEvent.type === "task_activity") {
+        deps.emit("task_activity", taskEvent);
+      } else {
+        deps.emit("task_completed", taskEvent);
+      }
+    }
+  } else if (event.type === "wallet_tx_request" || event.type === "wallet_eip712_request" || event.type.startsWith("wallet::solana_")) {
+    dispatchSystemEvents(
+      [
+        {
+          InlineCall: {
+            type: event.type,
+            payload: event.payload
+          }
+        }
+      ],
+      deps
+    );
+  }
+}
+function dispatchSolanaRequest(request, deps) {
+  let queued;
+  if (request.kind === "solana_sign_message") {
+    queued = deps.walletController.enqueue(request.kind, request.payload);
+    deps.emit("wallet_solana_sign_message_request", queued);
+  } else if (request.kind === "solana_sign") {
+    queued = deps.walletController.enqueue("solana_sign", request.payload);
+    deps.emit("wallet_solana_sign_request", queued);
+  } else if (request.kind === "solana_send") {
+    queued = deps.walletController.enqueue("solana_send", request.payload);
+    deps.emit("wallet_solana_send_request", queued);
+  } else {
+    queued = deps.walletController.enqueue(
+      "solana_sign_and_send",
+      request.payload
+    );
+    deps.emit("wallet_solana_sign_and_send_request", queued);
   }
 }
 function dispatchSystemEvents(events, deps) {
@@ -2950,31 +3059,7 @@ function dispatchSystemEvents(events, deps) {
         (_a = unwrapped.payload) != null ? _a : {}
       );
       if (solanaRequest) {
-        if (solanaRequest.kind === "solana_sign_message") {
-          const req = deps.walletController.enqueue(
-            "solana_sign_message",
-            solanaRequest.payload
-          );
-          deps.emit("wallet_solana_sign_message_request", req);
-        } else if (solanaRequest.kind === "solana_send") {
-          const req = deps.walletController.enqueue(
-            "solana_send",
-            solanaRequest.payload
-          );
-          deps.emit("wallet_solana_send_request", req);
-        } else if (solanaRequest.kind === "solana_sign_and_send") {
-          const req = deps.walletController.enqueue(
-            "solana_sign_and_send",
-            solanaRequest.payload
-          );
-          deps.emit("wallet_solana_sign_and_send_request", req);
-        } else {
-          const req = deps.walletController.enqueue(
-            "solana_sign",
-            solanaRequest.payload
-          );
-          deps.emit("wallet_solana_sign_request", req);
-        }
+        dispatchSolanaRequest(solanaRequest, deps);
         continue;
       }
       const normalizedPayload = normalizeTxPayload(unwrapped.payload);
@@ -2992,31 +3077,7 @@ function dispatchSystemEvents(events, deps) {
         (_c = unwrapped.payload) != null ? _c : {}
       );
       if (solanaRequest) {
-        if (solanaRequest.kind === "solana_sign_message") {
-          const req2 = deps.walletController.enqueue(
-            "solana_sign_message",
-            solanaRequest.payload
-          );
-          deps.emit("wallet_solana_sign_message_request", req2);
-        } else if (solanaRequest.kind === "solana_send") {
-          const req2 = deps.walletController.enqueue(
-            "solana_send",
-            solanaRequest.payload
-          );
-          deps.emit("wallet_solana_send_request", req2);
-        } else if (solanaRequest.kind === "solana_sign_and_send") {
-          const req2 = deps.walletController.enqueue(
-            "solana_sign_and_send",
-            solanaRequest.payload
-          );
-          deps.emit("wallet_solana_sign_and_send_request", req2);
-        } else {
-          const req2 = deps.walletController.enqueue(
-            "solana_sign",
-            solanaRequest.payload
-          );
-          deps.emit("wallet_solana_sign_request", req2);
-        }
+        dispatchSolanaRequest(solanaRequest, deps);
         continue;
       }
       const payload = normalizeSolanaSignPayload((_d = unwrapped.payload) != null ? _d : {});
@@ -3134,6 +3195,35 @@ function aaModeFromExecutionKind(executionKind) {
 function isRecord3(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
+function isAaSignatureRequest(value) {
+  if (!isRecord3(value) || typeof value.raw_payload !== "string") return false;
+  if (value.kind === "personal_sign") return typeof value.message === "string";
+  if (value.kind === "eip7702_authorization") {
+    return typeof value.contract_address === "string" && typeof value.chain_id === "number" && typeof value.nonce === "number";
+  }
+  return false;
+}
+function aaSignPayloadFromRecord(record) {
+  const handoff = isRecord3(record.aa_handoff) ? record.aa_handoff : void 0;
+  if (!handoff) return null;
+  const txIds = Array.isArray(handoff.tx_ids) ? handoff.tx_ids.filter((id) => typeof id === "number") : [];
+  const rawRequests = Array.isArray(handoff.signature_requests) ? handoff.signature_requests : [];
+  const requests = rawRequests.filter(isAaSignatureRequest);
+  if (txIds.length === 0 || requests.length === 0 || requests.length !== rawRequests.length || typeof record.from !== "string" || typeof record.chain_id !== "number") {
+    return null;
+  }
+  return {
+    chain_family: "evm",
+    chain_id: record.chain_id,
+    signer: record.from,
+    executor: typeof handoff.executor === "string" ? handoff.executor : record.from,
+    aa_mode: handoff.aa_mode === "4337" ? "4337" : "7702",
+    tx_ids: txIds,
+    signature_requests: requests,
+    description: typeof record.label === "string" ? record.label : "",
+    sponsored: true
+  };
+}
 function txIdsFromPayload(payload) {
   if (Array.isArray(payload.txIds) && payload.txIds.length > 0) {
     return [...payload.txIds];
@@ -3199,6 +3289,7 @@ var SessionWalletController = class {
     const pendingSolanaTxs = isRecord3(pending == null ? void 0 : pending.solana_txs) ? pending.solana_txs : isRecord3(pending == null ? void 0 : pending.svm_ixs) ? pending.svm_ixs : void 0;
     const pendingSolanaSigs = isRecord3(pending == null ? void 0 : pending.solana_sigs) ? pending.solana_sigs : isRecord3(pending == null ? void 0 : pending.svm_sigs) ? pending.svm_sigs : void 0;
     const next = [];
+    this.syncAaSign(next, pendingTxs);
     this.syncTransactions(next, pendingTxs);
     this.syncEip712(next, pendingEip712s);
     this.syncSolana(next, pendingSolanaTxs);
@@ -3226,6 +3317,7 @@ var SessionWalletController = class {
     if (this.resolvingRequestIds.has(requestId)) return;
     this.resolvingRequestIds.add(requestId);
     try {
+      const send = (type, payload) => this.deps.sendSystemEvent(type, payload);
       if (req.kind === "transaction" && result.kind === "transaction") {
         await this.resolveTransaction(req.payload, result);
       } else if (req.kind === "aa_sign" && result.kind === "aa_sign") {
@@ -3235,30 +3327,27 @@ var SessionWalletController = class {
           signatures: result.signatures
         });
       } else if (req.kind === "eip712_sign" && result.kind === "eip712_sign") {
-        await this.deps.sendSystemEvent("wallet_eip712_response", __spreadValues({
+        await send("wallet_eip712_response", __spreadValues({
           status: "success",
           signature: result.signature,
           description: req.payload.description
         }, req.payload.eip712Id !== void 0 ? { pending_eip712_id: req.payload.eip712Id } : {}));
       } else if (req.kind === "solana_sign" && result.kind === "solana_sign") {
-        await this.deps.sendSystemEvent("wallet::solana_sign_complete", __spreadValues(__spreadProps(__spreadValues({
+        await send("wallet::solana_sign_complete", __spreadValues(__spreadProps(__spreadValues({
           status: "signed",
           signed_tx: result.signedTx
         }, req.payload.unsignedTx !== void 0 ? { unsigned_tx: req.payload.unsignedTx } : {}), {
           description: req.payload.description
         }), solanaPendingIdFields(req.payload)));
       } else if (req.kind === "solana_sign_message" && result.kind === "solana_sign_message") {
-        await this.deps.sendSystemEvent(
-          "wallet::solana_sign_message_complete",
-          __spreadValues(__spreadProps(__spreadValues({
-            status: "signed",
-            signature: result.signature
-          }, req.payload.message !== void 0 ? { message: req.payload.message } : {}), {
-            description: req.payload.description
-          }), solanaPendingIdFields(req.payload))
-        );
+        await send("wallet::solana_sign_message_complete", __spreadValues(__spreadProps(__spreadValues({
+          status: "signed",
+          signature: result.signature
+        }, req.payload.message !== void 0 ? { message: req.payload.message } : {}), {
+          description: req.payload.description
+        }), solanaPendingIdFields(req.payload)));
       } else if (req.kind === "solana_send" && result.kind === "solana_send") {
-        await this.deps.sendSystemEvent("wallet::solana_send_complete", __spreadValues(__spreadProps(__spreadValues({
+        await send("wallet::solana_send_complete", __spreadValues(__spreadProps(__spreadValues({
           status: "submitted",
           signature: result.signature,
           signed_tx: result.signedTx
@@ -3266,16 +3355,13 @@ var SessionWalletController = class {
           description: req.payload.description
         }), solanaPendingIdFields(req.payload)));
       } else if (req.kind === "solana_sign_and_send" && result.kind === "solana_sign_and_send") {
-        await this.deps.sendSystemEvent(
-          "wallet::solana_sign_and_send_complete",
-          __spreadValues(__spreadProps(__spreadValues({
-            status: "submitted",
-            signature: result.signature,
-            signed_tx: result.signedTx
-          }, req.payload.unsignedTx !== void 0 ? { unsigned_tx: req.payload.unsignedTx } : {}), {
-            description: req.payload.description
-          }), solanaPendingIdFields(req.payload))
-        );
+        await send("wallet::solana_sign_and_send_complete", __spreadValues(__spreadProps(__spreadValues({
+          status: "submitted",
+          signature: result.signature,
+          signed_tx: result.signedTx
+        }, req.payload.unsignedTx !== void 0 ? { unsigned_tx: req.payload.unsignedTx } : {}), {
+          description: req.payload.description
+        }), solanaPendingIdFields(req.payload)));
       }
       this.finishRequest(req);
     } finally {
@@ -3290,12 +3376,13 @@ var SessionWalletController = class {
     if (this.resolvingRequestIds.has(requestId)) return;
     this.resolvingRequestIds.add(requestId);
     try {
+      const send = (type, payload) => this.deps.sendSystemEvent(type, payload);
       if (req.kind === "transaction") {
         const pendingTxIds = txIdsFromPayload(req.payload);
         const requestedMode = aaRequestedModeFromPreference(
           req.payload.aaPreference
         );
-        await this.deps.sendSystemEvent("wallet:tx_complete", {
+        await send("wallet:tx_complete", {
           txHash: "",
           status: "failed",
           error: reason != null ? reason : "Request rejected",
@@ -3313,45 +3400,39 @@ var SessionWalletController = class {
           signatures: []
         });
       } else if (req.kind === "eip712_sign") {
-        await this.deps.sendSystemEvent("wallet_eip712_response", __spreadValues({
+        await send("wallet_eip712_response", __spreadValues({
           status: "failed",
           error: reason != null ? reason : "Request rejected",
           description: req.payload.description
         }, req.payload.eip712Id !== void 0 ? { pending_eip712_id: req.payload.eip712Id } : {}));
       } else if (req.kind === "solana_sign") {
-        await this.deps.sendSystemEvent("wallet::solana_sign_complete", __spreadValues(__spreadProps(__spreadValues({
+        await send("wallet::solana_sign_complete", __spreadValues(__spreadProps(__spreadValues({
           status: "rejected",
           error: reason != null ? reason : "Request rejected"
         }, req.payload.unsignedTx !== void 0 ? { unsigned_tx: req.payload.unsignedTx } : {}), {
           description: req.payload.description
         }), solanaPendingIdFields(req.payload)));
       } else if (req.kind === "solana_sign_message") {
-        await this.deps.sendSystemEvent(
-          "wallet::solana_sign_message_complete",
-          __spreadValues(__spreadProps(__spreadValues({
-            status: "rejected",
-            error: reason != null ? reason : "Request rejected"
-          }, req.payload.message !== void 0 ? { message: req.payload.message } : {}), {
-            description: req.payload.description
-          }), solanaPendingIdFields(req.payload))
-        );
+        await send("wallet::solana_sign_message_complete", __spreadValues(__spreadProps(__spreadValues({
+          status: "rejected",
+          error: reason != null ? reason : "Request rejected"
+        }, req.payload.message !== void 0 ? { message: req.payload.message } : {}), {
+          description: req.payload.description
+        }), solanaPendingIdFields(req.payload)));
       } else if (req.kind === "solana_send") {
-        await this.deps.sendSystemEvent("wallet::solana_send_complete", __spreadValues(__spreadProps(__spreadValues({
+        await send("wallet::solana_send_complete", __spreadValues(__spreadProps(__spreadValues({
           status: "rejected",
           error: reason != null ? reason : "Request rejected"
         }, req.payload.unsignedTx !== void 0 ? { unsigned_tx: req.payload.unsignedTx } : {}), {
           description: req.payload.description
         }), solanaPendingIdFields(req.payload)));
       } else {
-        await this.deps.sendSystemEvent(
-          "wallet::solana_sign_and_send_complete",
-          __spreadValues(__spreadProps(__spreadValues({
-            status: "rejected",
-            error: reason != null ? reason : "Request rejected"
-          }, req.payload.unsignedTx !== void 0 ? { unsigned_tx: req.payload.unsignedTx } : {}), {
-            description: req.payload.description
-          }), solanaPendingIdFields(req.payload))
-        );
+        await send("wallet::solana_sign_and_send_complete", __spreadValues(__spreadProps(__spreadValues({
+          status: "rejected",
+          error: reason != null ? reason : "Request rejected"
+        }, req.payload.unsignedTx !== void 0 ? { unsigned_tx: req.payload.unsignedTx } : {}), {
+          description: req.payload.description
+        }), solanaPendingIdFields(req.payload)));
       }
       this.finishRequest(req);
     } finally {
@@ -3441,9 +3522,34 @@ var SessionWalletController = class {
     this.resolvedRequestIds.add(request.id);
     this.clearResolvedSolanaPending(request);
   }
+  /**
+   * Rebuild attended-AA signing requests from user state. The backend parks
+   * the request's projection on the batch anchor (`aa_handoff`) while it
+   * awaits owner signatures, so a reloaded client recovers the exact dialog
+   * it lost instead of orphaning the prepared batch.
+   */
+  syncAaSign(next, pendingTxs) {
+    var _a, _b;
+    for (const [, raw] of Object.entries(pendingTxs != null ? pendingTxs : {})) {
+      if (!isRecord3(raw) || raw.current_lifecycle !== "awaiting_aa_signature")
+        continue;
+      const payload = aaSignPayloadFromRecord(raw);
+      if (!payload) continue;
+      const requestId = this.requestId("aa_sign", payload);
+      if (this.resolvedRequestIds.has(requestId)) continue;
+      next.push({
+        id: requestId,
+        kind: "aa_sign",
+        payload,
+        timestamp: (_b = (_a = this.requests.find((request) => request.id === requestId)) == null ? void 0 : _a.timestamp) != null ? _b : Date.now()
+      });
+    }
+  }
   syncTransactions(next, pendingTxs) {
     var _a, _b;
-    const entries = Object.entries(pendingTxs != null ? pendingTxs : {}).filter(([id]) => Number.isInteger(Number(id))).sort((left, right) => Number(left[0]) - Number(right[0]));
+    const entries = Object.entries(pendingTxs != null ? pendingTxs : {}).filter(([id]) => Number.isInteger(Number(id))).filter(
+      ([, raw]) => !isRecord3(raw) || raw.current_lifecycle !== "awaiting_aa_signature" && raw.current_lifecycle !== "inflight"
+    ).sort((left, right) => Number(left[0]) - Number(right[0]));
     const pendingIds = new Set(entries.map(([id]) => Number(id)));
     const covered = /* @__PURE__ */ new Set();
     const existing = this.requests.filter(
@@ -3524,35 +3630,47 @@ var SessionWalletController = class {
     }
   }
   requestId(kind, payload) {
+    let id;
     if (kind === "transaction") {
       const txPayload = payload;
       if (typeof txPayload.requestId === "string" && txPayload.requestId.length > 0) {
-        return `txreq-${txPayload.requestId}`;
+        id = `txreq-${txPayload.requestId}`;
       }
       const txIds = txIdsFromPayload(txPayload);
-      if (txIds.length > 0) return `tx-${txIds.join("-")}`;
+      if (!id && txIds.length > 0) id = `tx-${txIds.join("-")}`;
     } else if (kind === "aa_sign") {
       const { tx_ids: txIds } = payload;
-      if (txIds.length > 0) return `aa-${txIds.join("-")}`;
+      if (txIds.length > 0) id = `aa-${txIds.join("-")}`;
     } else if (kind === "eip712_sign") {
       const { eip712Id } = payload;
-      if (typeof eip712Id === "number") return `eip712-${eip712Id}`;
+      if (typeof eip712Id === "number") id = `eip712-${eip712Id}`;
     } else {
       const { pendingSolanaId } = payload;
       if (typeof pendingSolanaId === "number")
-        return `${kind}-${pendingSolanaId}`;
+        id = `${kind}-${pendingSolanaId}`;
     }
-    return `wreq-${this.nextId++}`;
+    id != null ? id : id = `wreq-${this.nextId++}`;
+    return id;
   }
   request(kind, payload, id, timestamp2) {
     if (kind === "transaction") {
-      return { id, kind, payload, timestamp: timestamp2 };
+      return {
+        id,
+        kind,
+        payload,
+        timestamp: timestamp2
+      };
     }
     if (kind === "aa_sign") {
       return { id, kind, payload, timestamp: timestamp2 };
     }
     if (kind === "eip712_sign") {
-      return { id, kind, payload, timestamp: timestamp2 };
+      return {
+        id,
+        kind,
+        payload,
+        timestamp: timestamp2
+      };
     }
     if (kind === "solana_sign_message") {
       return {
@@ -3562,7 +3680,12 @@ var SessionWalletController = class {
         timestamp: timestamp2
       };
     }
-    return { id, kind, payload, timestamp: timestamp2 };
+    return {
+      id,
+      kind,
+      payload,
+      timestamp: timestamp2
+    };
   }
   dedupeTransactionRequests(req) {
     if (req.kind !== "transaction") return;
@@ -3592,6 +3715,9 @@ var ClientSession = class extends TypedEventEmitter {
     var _a, _b, _c, _d, _e;
     super();
     this.pollTimer = null;
+    this.pollingActive = false;
+    this.pollInFlight = false;
+    this.pollFailureCount = 0;
     this.unsubscribeSSE = null;
     this.isSSEActive = false;
     this._isProcessing = false;
@@ -3599,6 +3725,11 @@ var ClientSession = class extends TypedEventEmitter {
     this._messages = [];
     this.closed = false;
     this.pendingResolve = null;
+    this.handleVisibilityChange = () => {
+      if (typeof document !== "undefined" && !document.hidden && !this.pollInFlight) {
+        this.schedulePoll(0);
+      }
+    };
     this.client = clientOrOptions instanceof AomiClient ? clientOrOptions : new AomiClient(clientOrOptions);
     this.sessionId = (_a = sessionOptions == null ? void 0 : sessionOptions.sessionId) != null ? _a : crypto.randomUUID();
     this.app = (_b = sessionOptions == null ? void 0 : sessionOptions.app) != null ? _b : "default";
@@ -3639,16 +3770,7 @@ var ClientSession = class extends TypedEventEmitter {
    */
   async send(message) {
     this.assertOpen();
-    const response = await this.client.sendMessage(this.sessionId, message, {
-      app: this.app,
-      applicationId: this.applicationId,
-      apiKey: this.apiKey,
-      userState: this.userState,
-      clientId: this.clientId,
-      paymentMethod: this.paymentMethod
-    });
-    this.assertUserStateAligned(response.user_state);
-    this.applyState(response);
+    const response = await this.submitChat(message);
     if (!response.is_processing && this.walletController.length === 0) {
       return { messages: this._messages, title: this._title };
     }
@@ -3665,16 +3787,7 @@ var ClientSession = class extends TypedEventEmitter {
    */
   async sendAsync(message) {
     this.assertOpen();
-    const response = await this.client.sendMessage(this.sessionId, message, {
-      app: this.app,
-      applicationId: this.applicationId,
-      apiKey: this.apiKey,
-      userState: this.userState,
-      clientId: this.clientId,
-      paymentMethod: this.paymentMethod
-    });
-    this.assertUserStateAligned(response.user_state);
-    this.applyState(response);
+    const response = await this.submitChat(message);
     if (response.is_processing) {
       this._isProcessing = true;
       this.emit("processing_start", void 0);
@@ -3845,7 +3958,7 @@ var ClientSession = class extends TypedEventEmitter {
   // ===========================================================================
   /** Whether the session is currently polling for state updates. */
   getIsPolling() {
-    return this.pollTimer !== null;
+    return this.pollingActive;
   }
   /**
    * Fetch the current state from the backend (one-shot).
@@ -3861,7 +3974,7 @@ var ClientSession = class extends TypedEventEmitter {
     );
     this.assertUserStateAligned(state.user_state);
     this.applyState(state);
-    if (state.is_processing && !this.pollTimer) {
+    if (state.is_processing && !this.pollingActive) {
       this._isProcessing = true;
       this.emit("processing_start", void 0);
       this.startPolling();
@@ -3875,25 +3988,39 @@ var ClientSession = class extends TypedEventEmitter {
    */
   startPolling() {
     var _a;
-    if (this.pollTimer || this.closed) return;
+    if (this.pollingActive || this.closed) return;
+    this.pollingActive = true;
     this._backendWasProcessing = true;
     (_a = this.logger) == null ? void 0 : _a.debug("[session] polling started", this.sessionId);
-    this.pollTimer = setInterval(() => {
-      void this.pollTick();
-    }, this.pollIntervalMs);
+    if (typeof document !== "undefined") {
+      document.addEventListener(
+        "visibilitychange",
+        this.handleVisibilityChange
+      );
+    }
+    this.schedulePoll(this.currentPollInterval());
   }
   /** Stop polling for state updates. Idempotent — no-op if not polling. */
   stopPolling() {
     var _a;
+    this.pollingActive = false;
     if (this.pollTimer) {
-      clearInterval(this.pollTimer);
+      clearTimeout(this.pollTimer);
       this.pollTimer = null;
-      (_a = this.logger) == null ? void 0 : _a.debug("[session] polling stopped", this.sessionId);
     }
+    if (typeof document !== "undefined") {
+      document.removeEventListener(
+        "visibilitychange",
+        this.handleVisibilityChange
+      );
+    }
+    (_a = this.logger) == null ? void 0 : _a.debug("[session] polling stopped", this.sessionId);
   }
   async pollTick() {
     var _a;
-    if (!this.pollTimer) return;
+    if (!this.pollingActive || this.pollInFlight) return;
+    this.pollTimer = null;
+    this.pollInFlight = true;
     try {
       const state = await this.client.fetchState(
         this.sessionId,
@@ -3901,7 +4028,8 @@ var ClientSession = class extends TypedEventEmitter {
         this.clientId,
         { app: this.app, applicationId: this.applicationId }
       );
-      if (!this.pollTimer) return;
+      if (!this.pollingActive) return;
+      this.pollFailureCount = 0;
       this.assertUserStateAligned(state.user_state);
       this.applyState(state);
       if (this._backendWasProcessing && !state.is_processing) {
@@ -3915,9 +4043,30 @@ var ClientSession = class extends TypedEventEmitter {
         this.resolvePending();
       }
     } catch (error) {
+      this.pollFailureCount += 1;
       (_a = this.logger) == null ? void 0 : _a.debug("[session] poll error", error);
       this.emit("error", { error });
+    } finally {
+      this.pollInFlight = false;
+      if (this.pollingActive) {
+        this.schedulePoll(
+          Math.min(
+            this.currentPollInterval() * 2 ** this.pollFailureCount,
+            5e3
+          )
+        );
+      }
     }
+  }
+  currentPollInterval() {
+    return typeof document !== "undefined" && document.hidden ? 2e3 : this.pollIntervalMs;
+  }
+  schedulePoll(delayMs) {
+    if (!this.pollingActive || this.closed) return;
+    if (this.pollTimer) clearTimeout(this.pollTimer);
+    this.pollTimer = setTimeout(() => {
+      void this.pollTick();
+    }, delayMs);
   }
   // ===========================================================================
   // Internal — State Application
@@ -3942,9 +4091,16 @@ var ClientSession = class extends TypedEventEmitter {
   // ===========================================================================
   handleSSEEvent(event) {
     handleSessionSSEEvent(event, {
+      userState: () => this.userState,
+      resolveUserState: (userState) => this.resolveUserState(userState),
+      setMessages: (messages) => {
+        this._messages = messages;
+      },
+      getMessages: () => this.getMessages(),
       setTitle: (title) => {
         this._title = title;
       },
+      walletController: this.walletController,
       emit: (type, payload) => this.emit(type, payload)
     });
   }
@@ -3957,6 +4113,20 @@ var ClientSession = class extends TypedEventEmitter {
       app: this.app,
       applicationId: this.applicationId
     });
+  }
+  /** Shared completion path for send()/sendAsync() after the chat POST. */
+  async submitChat(message) {
+    const response = await this.client.sendMessage(this.sessionId, message, {
+      app: this.app,
+      applicationId: this.applicationId,
+      apiKey: this.apiKey,
+      userState: this.userState,
+      clientId: this.clientId,
+      paymentMethod: this.paymentMethod
+    });
+    this.assertUserStateAligned(response.user_state);
+    this.applyState(response);
+    return response;
   }
   resumeAfterWalletResponse() {
     if (!this._isProcessing) {
@@ -4077,6 +4247,34 @@ var megaeth = defineChain({
     }
   }
 });
+var arcTestnet = defineChain({
+  id: 5042002,
+  name: "Arc Testnet",
+  nativeCurrency: {
+    name: "USDC",
+    symbol: "USDC",
+    // Arc RPC quantities use 18-decimal native precision, but EIP-3085 chain
+    // metadata uses USDC's 6 display decimals. Callers handling raw
+    // eth_getBalance/msg.value must retain the 18-decimal internal boundary.
+    decimals: 6
+  },
+  rpcUrls: {
+    default: {
+      http: [
+        "https://rpc.testnet.arc.io",
+        "https://rpc.drpc.testnet.arc.io",
+        "https://rpc.quicknode.testnet.arc.io"
+      ]
+    }
+  },
+  blockExplorers: {
+    default: {
+      name: "ArcScan",
+      url: "https://testnet.arcscan.app"
+    }
+  },
+  testnet: true
+});
 var SUPPORTED_CHAINS = [
   { id: 1, name: "Ethereum", ticker: "ETH" },
   { id: 137, name: "Polygon", ticker: "MATIC" },
@@ -4091,6 +4289,7 @@ var SUPPORTED_CHAINS = [
   { id: 10143, name: "Monad Testnet", ticker: "MON" },
   { id: 4663, name: "Robinhood Chain", ticker: "ETH" },
   { id: 4326, name: "MegaETH", ticker: "ETH" },
+  { id: 5042002, name: "Arc Testnet", ticker: "USDC" },
   { id: 31337, name: "Anvil (local)", ticker: "ETH" }
 ];
 var SUPPORTED_CHAIN_IDS = SUPPORTED_CHAINS.map((chain) => chain.id);
@@ -4107,7 +4306,8 @@ var ALCHEMY_CHAIN_SLUGS = {
   11155111: "eth-sepolia",
   59144: "linea-mainnet",
   59141: "linea-sepolia",
-  4663: "robinhood-mainnet"
+  4663: "robinhood-mainnet",
+  4326: "megaeth-mainnet"
 };
 var CHAINS_BY_ID = {
   1: mainnet,
@@ -4123,6 +4323,7 @@ var CHAINS_BY_ID = {
   10143: monadTestnet,
   4663: robinhood,
   4326: megaeth,
+  5042002: arcTestnet,
   31337: foundry
 };
 
@@ -4476,6 +4677,7 @@ function appendFeeCallToPayload(payload, fee, defaultChainId, options) {
 }
 export {
   ALCHEMY_CHAIN_SLUGS,
+  AOMI_TASK_EVENT_TYPES,
   AccountCredentialUnavailableError,
   AomiClient,
   CHAINS_BY_ID,
@@ -4491,6 +4693,7 @@ export {
   aaModeFromExecutionKind,
   appIdentityKey,
   appendFeeCallToPayload,
+  arcTestnet,
   authorizationChallenge,
   authorizationCommit,
   buildFeeAAWalletCall,
@@ -4505,6 +4708,7 @@ export {
   executeWalletCalls,
   handlePaymentChallenges,
   hydrateTxPayloadFromUserState,
+  isAomiTaskEventType,
   isAsyncCallback,
   isInlineCall,
   isSystemError,
@@ -4521,6 +4725,7 @@ export {
   normalizeSolanaSignPayload,
   normalizeSolanaWalletRequest,
   normalizeTxPayload,
+  parseAomiTaskEvent,
   parseChainId3 as parseChainId,
   posterFromClient,
   robinhood,

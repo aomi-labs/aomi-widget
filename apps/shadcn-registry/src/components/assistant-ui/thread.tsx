@@ -35,13 +35,17 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MarkdownText } from "@/components/assistant-ui/markdown-text";
 import { ToolFallback } from "@/components/assistant-ui/tool-fallback";
-import { AssistantTurnParts } from "@/components/assistant-ui/working-trace";
+import {
+  AssistantTurnParts,
+  useWorkingGrace,
+} from "@/components/assistant-ui/working-trace";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
 
 import {
   cn,
   useCurrentThreadMetadata,
   useThreadContext,
+  useThreadTaskRuns,
 } from "@aomi-labs/react";
 import { useComposerControl } from "@/components/aomi-frame";
 import { AomiMark } from "@/components/aomi-mark";
@@ -150,10 +154,7 @@ const ThreadWelcome: FC = () => {
         transition={{ delay: 0.05 }}
         className="w-full"
       >
-        <ComposerBox
-          variant="hero"
-          placeholder="Ask Aomi to swap, bridge, send, or deploy…"
-        />
+        <ComposerBox placeholder="Ask Aomi to swap, bridge, send, or deploy…" />
       </m.div>
       <ThreadSuggestions />
     </div>
@@ -195,10 +196,7 @@ const ThreadSuggestions: FC = () => {
     },
     {
       id: "secondary",
-      actions: [
-        ...suggestedActions.slice(2),
-        ...suggestedActions.slice(0, 2),
-      ],
+      actions: [...suggestedActions.slice(2), ...suggestedActions.slice(0, 2)],
     },
   ];
 
@@ -219,8 +217,7 @@ const ThreadSuggestions: FC = () => {
               key={duplicate ? "duplicate" : "primary"}
               className={cn(
                 "aui-thread-welcome-suggestions-group flex w-full flex-wrap justify-center gap-2.5",
-                duplicate &&
-                  "aui-thread-welcome-suggestions-duplicate hidden",
+                duplicate && "aui-thread-welcome-suggestions-duplicate hidden",
               )}
               aria-hidden={duplicate || undefined}
             >
@@ -233,8 +230,7 @@ const ThreadSuggestions: FC = () => {
                   key={`suggested-action-${row.id}-${duplicate ? "duplicate" : "primary"}-${suggestedAction.label}`}
                   className={cn(
                     "aui-thread-welcome-suggestion-display @max-md:[&:nth-child(n+3)]:hidden",
-                    index === 4 &&
-                      "aui-thread-welcome-suggestion-extra hidden",
+                    index === 4 && "aui-thread-welcome-suggestion-extra hidden",
                   )}
                 >
                   <ThreadPrimitive.Suggestion
@@ -267,20 +263,12 @@ const ThreadSuggestions: FC = () => {
  * the bottom dock (active thread). Same runtime composer either way — only the
  * placement and placeholder differ.
  */
-const ComposerBox: FC<{ variant: "hero" | "dock"; placeholder: string }> = ({
-  variant,
-  placeholder,
-}) => {
+const ComposerBox: FC<{ placeholder: string }> = ({ placeholder }) => {
   return (
-    <ComposerPrimitive.Root
-      className={cn(
-        "aui-composer-root border-aomi-border bg-aomi-surface relative flex w-full flex-col rounded-2xl border",
-        variant === "hero" ? "pt-3" : "pt-2",
-      )}
-    >
+    <ComposerPrimitive.Root className="aui-composer-root border-aomi-border bg-aomi-surface relative flex w-full flex-col rounded-2xl border pt-3">
       <ComposerPrimitive.Input
         placeholder={placeholder}
-        className="aui-composer-input text-aomi-fg placeholder:text-aomi-muted max-h-32 w-full resize-none overflow-x-hidden bg-transparent px-4 pb-2 pt-1.5 text-[13px] whitespace-pre-wrap break-words outline-none"
+        className="aui-composer-input text-aomi-fg placeholder:text-aomi-muted max-h-32 w-full resize-none overflow-x-hidden whitespace-pre-wrap break-words bg-transparent px-4 pb-2 pt-1.5 text-[13px] outline-none"
         rows={1}
         autoFocus
         aria-label="Message input"
@@ -292,9 +280,9 @@ const ComposerBox: FC<{ variant: "hero" | "dock"; placeholder: string }> = ({
 
 const Composer: FC = () => {
   return (
-    <div className="aui-composer-wrapper bg-aomi-bg mx-auto flex w-full max-w-[var(--thread-max-width)] shrink-0 flex-col gap-4 overflow-visible px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-1 md:pb-6">
+    <div className="aui-composer-wrapper bg-aomi-bg mx-auto flex w-full max-w-[var(--thread-max-width)] shrink-0 flex-col gap-4 overflow-visible px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-1 md:pb-6">
       <ThreadScrollToBottom />
-      <ComposerBox variant="dock" placeholder="Reply to Aomi…" />
+      <ComposerBox placeholder="Reply to Aomi…" />
     </div>
   );
 };
@@ -331,7 +319,7 @@ const ComposerAction: FC = () => {
               type="submit"
               variant="default"
               size="icon"
-              className="aui-composer-send bg-aomi-fg text-aomi-bg mr-2 size-8 shrink-0 rounded-full p-1 transition-opacity hover:bg-aomi-fg hover:opacity-90 md:mr-2.5"
+              className="aui-composer-send bg-aomi-fg text-aomi-bg hover:bg-aomi-fg mr-2 size-8 shrink-0 rounded-full p-1 transition-opacity hover:opacity-90 md:mr-2.5"
               aria-label="Send message"
             >
               <ArrowUpIcon className="aui-composer-send-icon size-4" />
@@ -345,7 +333,7 @@ const ComposerAction: FC = () => {
               type="button"
               variant="default"
               size="icon"
-              className="aui-composer-cancel bg-aomi-fg text-aomi-bg mr-2 size-8 shrink-0 rounded-full transition-opacity hover:bg-aomi-fg hover:opacity-90 md:mr-2.5"
+              className="aui-composer-cancel bg-aomi-fg text-aomi-bg hover:bg-aomi-fg mr-2 size-8 shrink-0 rounded-full transition-opacity hover:opacity-90 md:mr-2.5"
               aria-label="Stop generating"
             >
               <Square className="aui-composer-cancel-icon fill-aomi-bg size-3" />
@@ -426,8 +414,28 @@ const AssistantMessage: FC = () => {
     | { aomiNoticeKind?: string; aomiNoticeTitle?: string }
     | undefined;
   const isPaymentRequiredNotice = notice?.aomiNoticeKind === "payment_required";
+  // A live delegation must always reach AssistantTurnParts (which renders the
+  // agent row from the taskRuns sidecar even with no transcript parts). The
+  // turnPhase gate alone is not enough: on a thread whose metadata is not
+  // registered yet, updateTurnPhase no-ops and the phase reads "idle" for the
+  // whole run — the dot would sit on top of a fully-streaming delegation.
+  const taskRuns = useThreadTaskRuns();
+  const hasLiveTaskRun = Object.values(taskRuns).some(
+    (run) => run.status === "running",
+  );
+  // Component-local submitting→working clock. The store's turnPhase is meant
+  // to make this transition, but its write can be dropped (fresh thread with
+  // unregistered metadata, control sync racing the send) — and then the dot
+  // sits for the whole pre-stream wait. After the grace, swap to the Working
+  // chip no matter what the store says.
+  const workingGrace = useWorkingGrace(isEmpty && isRunning && isLast);
   const showLoadingDot =
-    isEmpty && isRunning && isLast && turnPhase !== "working";
+    isEmpty &&
+    isRunning &&
+    isLast &&
+    turnPhase !== "working" &&
+    !hasLiveTaskRun &&
+    !workingGrace;
   const showFinishedEmptyMessage = isEmpty && !isRunning;
 
   return (
@@ -469,7 +477,7 @@ const AssistantMessage: FC = () => {
                 {showLoadingDot ? (
                   <AssistantLoadingDot />
                 ) : (
-                  <AssistantTurnParts />
+                  <AssistantTurnParts workingFallback={workingGrace} />
                 )}
                 <MessageError />
               </div>
@@ -532,6 +540,14 @@ const AssistantActionBar: FC = () => {
 
 const UserMessage: FC = () => {
   const isEmpty = useMessage((state) => state.content.length === 0);
+  const sendFailure = useMessage((state) => {
+    const custom = state.metadata?.custom as
+      | { aomiSendStatus?: string; aomiSendError?: string }
+      | undefined;
+    return custom?.aomiSendStatus === "failed"
+      ? (custom.aomiSendError ?? "Message failed to send")
+      : null;
+  });
 
   return (
     <MessagePrimitive.Root asChild>
@@ -553,6 +569,15 @@ const UserMessage: FC = () => {
             </div>
           )}
         </div>
+
+        {sendFailure && (
+          <p
+            role="alert"
+            className="aui-user-message-error text-destructive col-start-2 max-w-[32rem] justify-self-end text-xs"
+          >
+            Message wasn&apos;t sent. {sendFailure}
+          </p>
+        )}
 
         <BranchPicker className="aui-user-branch-picker col-span-full col-start-1 row-start-3 -mr-1 justify-end" />
       </div>

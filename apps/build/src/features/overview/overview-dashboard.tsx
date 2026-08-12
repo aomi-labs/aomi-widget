@@ -22,6 +22,7 @@ import { operateFetch } from "@build/features/operate/client";
 import { BUILD_GLOSSARY } from "@build/lib/glossary";
 import { lastUsageHref, projectHref } from "@build/lib/deep-links";
 import { getLastProjectId } from "@build/lib/last-project";
+import { platformHref } from "@build/features/launch/platform";
 
 type UsagePayload = {
   daily?: Array<Record<string, any>>;
@@ -57,10 +58,10 @@ function StatCard({
   );
 }
 
-export function OverviewDashboard() {
+export function OverviewDashboard({ platform }: { platform: string }) {
   const { account } = useGitHubSession();
-  const { projectsState, recordsState, sources, reload } =
-    useGlobalDeploymentRecords();
+  const { projectsState, recordsState, projects, reload } =
+    useGlobalDeploymentRecords(platform);
   const accountKey = githubAccountKey(account.githubLogin);
   const usageQuery = useQuery({
     queryKey: buildQueryKeys.operate(accountKey ?? "unavailable", "usage"),
@@ -97,7 +98,7 @@ export function OverviewDashboard() {
 
   // Only the (fast) session check blocks the page. While the project list is
   // still loading, the shell renders immediately with placeholder stats so the
-  // user never stares at a full-page spinner waiting for sources.
+  // user never stares at a full-page spinner waiting for projects.
   if (account.loading) {
     return <LoadingPanel label="Loading overview..." />;
   }
@@ -146,8 +147,8 @@ export function OverviewDashboard() {
       <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <StatCard
           label="Projects"
-          value={projectsLoading ? "—" : String(sources.length)}
-          helper="App sources on GitHub"
+          value={projectsLoading ? "—" : String(projects.length)}
+          helper={platform ? `Projects on ${platform}` : "Projects on GitHub"}
         />
         <StatCard
           label="Live deployments"
@@ -178,7 +179,7 @@ export function OverviewDashboard() {
               <div className="text-dim text-xs">Latest project activity</div>
             </div>
             <ControlPlaneLink
-              href="/operate/deployments"
+              href={platformHref("/operate/deployments", platform)}
               className="text-dim hover:text-foreground text-sm"
             >
               View all
@@ -195,15 +196,18 @@ export function OverviewDashboard() {
             <EmptyState
               title="No deployments yet"
               description={BUILD_GLOSSARY.deployment.meaning}
-              actionHref="/operate/deployments/new"
+              actionHref={platformHref("/operate/deployments/new", platform)}
               actionLabel="New app"
             />
           ) : !recordsPending ? (
             <div className="divide-border divide-y">
               {deployments.slice(0, 5).map((deployment) => (
                 <ControlPlaneLink
-                  key={`${deployment.sourceId}-${deployment.deploymentId}`}
-                  href={projectHref(deployment.sourceId, "deployments")}
+                  key={`${deployment.projectId}-${deployment.deploymentId}`}
+                  href={platformHref(
+                    projectHref(deployment.projectId, "deployments"),
+                    platform,
+                  )}
                   className="hover:bg-accent-hover flex items-center justify-between gap-3 px-4 py-3 text-sm"
                 >
                   <div className="min-w-0">
@@ -226,7 +230,7 @@ export function OverviewDashboard() {
 
         <div className="flex flex-col gap-3">
           <ControlPlaneLink
-            href="/operate/deployments/new"
+            href={platformHref("/operate/deployments/new", platform)}
             className="border-border bg-surface-1 hover:bg-accent-hover rounded-md border p-4"
           >
             <Rocket className="text-dim size-4" aria-hidden />

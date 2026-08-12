@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
-import type { UserSource } from "@aomi-labs/deploy";
+import type { UserProject } from "@aomi-labs/deploy";
 import {
-  deploymentLifecycleFromSource,
+  deploymentLifecycleFromProject,
   deploymentLifecycleFromStatus,
   deploymentIdFromReleaseTag,
 } from "@aomi-labs/deploy/lifecycle";
 
-function source(patch: Partial<UserSource>): UserSource {
+function source(patch: Partial<UserProject>): UserProject {
   return {
     id: 1,
     installationId: 123,
@@ -22,9 +22,9 @@ function source(patch: Partial<UserSource>): UserSource {
   };
 }
 
-describe("deploymentLifecycleFromSource", () => {
+describe("deploymentLifecycleFromProject", () => {
   it("treats active and loaded as live chat state", () => {
-    const lifecycle = deploymentLifecycleFromSource(
+    const lifecycle = deploymentLifecycleFromProject(
       source({
         apps: [
           {
@@ -33,7 +33,7 @@ describe("deploymentLifecycleFromSource", () => {
             label: "bot",
             isActive: true,
             isPublic: true,
-            appSourceId: 1,
+            projectId: 1,
             appReleaseTag: "apps-123-bot-abc",
             targetTags: [],
             loaded: true,
@@ -48,7 +48,7 @@ describe("deploymentLifecycleFromSource", () => {
   });
 
   it("treats active source apps as live even when runtime loaded is false", () => {
-    const lifecycle = deploymentLifecycleFromSource(
+    const lifecycle = deploymentLifecycleFromProject(
       source({
         apps: [
           {
@@ -57,7 +57,7 @@ describe("deploymentLifecycleFromSource", () => {
             label: "bot",
             isActive: true,
             isPublic: true,
-            appSourceId: 1,
+            projectId: 1,
             appReleaseTag: "apps-123-bot-abc",
             targetTags: [],
             loaded: false,
@@ -73,7 +73,7 @@ describe("deploymentLifecycleFromSource", () => {
   });
 
   it("uses latest deployment state for build-ready cards and links", () => {
-    const lifecycle = deploymentLifecycleFromSource(
+    const lifecycle = deploymentLifecycleFromProject(
       source({
         apps: [
           {
@@ -82,7 +82,7 @@ describe("deploymentLifecycleFromSource", () => {
             label: "bot",
             isActive: true,
             isPublic: true,
-            appSourceId: 1,
+            projectId: 1,
             appReleaseTag: "apps-123-bot-old",
             targetTags: [],
             loaded: true,
@@ -91,7 +91,7 @@ describe("deploymentLifecycleFromSource", () => {
         latestDeployment: {
           deploymentId: "dep_1",
           state: "ready",
-          deployBranch: "alice/bot/123/abc",
+          platformBranch: "alice/bot/123/abc",
           platformRepo: "aomi-labs/community-apps",
           commitHash: "abc123",
           ciStatus: "passed",
@@ -119,12 +119,12 @@ describe("deploymentLifecycleFromSource", () => {
   });
 
   it("uses the latest deployment active application entry for live chat", () => {
-    const lifecycle = deploymentLifecycleFromSource(
+    const lifecycle = deploymentLifecycleFromProject(
       source({
         latestDeployment: {
           deploymentId: "dep_1",
           state: "ready",
-          deployBranch: "alice/bot/123/abc",
+          platformBranch: "alice/bot/123/abc",
           platformRepo: "aomi-labs/community-apps",
           commitHash: "abc123",
           ciStatus: "passed",
@@ -149,7 +149,7 @@ describe("deploymentLifecycleFromSource", () => {
   });
 
   it("does not downgrade an active latest deployment to runtime pending", () => {
-    const lifecycle = deploymentLifecycleFromSource(
+    const lifecycle = deploymentLifecycleFromProject(
       source({
         apps: [
           {
@@ -158,7 +158,7 @@ describe("deploymentLifecycleFromSource", () => {
             label: "bot",
             isActive: true,
             isPublic: true,
-            appSourceId: 1,
+            projectId: 1,
             appReleaseTag: "apps-123-bot-old",
             targetTags: [],
             loaded: true,
@@ -167,7 +167,7 @@ describe("deploymentLifecycleFromSource", () => {
         latestDeployment: {
           deploymentId: "dep_1",
           state: "ready",
-          deployBranch: "alice/bot/123/abc",
+          platformBranch: "alice/bot/123/abc",
           platformRepo: "aomi-labs/community-apps",
           commitHash: "abc123",
           ciStatus: "passed",
@@ -199,7 +199,7 @@ describe("deploymentLifecycleFromSource", () => {
   });
 
   it("turns skipped CI status into a failed lifecycle with links", () => {
-    const current = deploymentLifecycleFromSource(
+    const current = deploymentLifecycleFromProject(
       source({ repositoryLink: "alice/bot" }),
     );
     const lifecycle = deploymentLifecycleFromStatus(current, {
@@ -208,7 +208,7 @@ describe("deploymentLifecycleFromSource", () => {
         id: "dep_1",
         platform: {
           repository: "aomi-labs/community-apps",
-          sourceBranch: "alice/bot/123/abc",
+          platformBranch: "alice/bot/123/abc",
           ciStatus: "pending",
           ciUrl:
             "https://github.com/aomi-labs/community-apps/actions?query=branch%3Aalice/bot/123/abc",
@@ -236,7 +236,7 @@ describe("deploymentLifecycleFromSource", () => {
   });
 
   it("keeps backend-building status in progress even when GitHub CI has passed", () => {
-    const current = deploymentLifecycleFromSource(
+    const current = deploymentLifecycleFromProject(
       source({ repositoryLink: "alice/bot" }),
     );
     const lifecycle = deploymentLifecycleFromStatus(current, {
@@ -245,7 +245,7 @@ describe("deploymentLifecycleFromSource", () => {
         id: "dep_1",
         platform: {
           repository: "aomi-labs/community-apps",
-          sourceBranch: "alice/bot/123/abc",
+          platformBranch: "alice/bot/123/abc",
           apps: [{ name: "bot", releaseTag: "apps-123-r1-bot-abc" }],
         },
       },
@@ -262,7 +262,7 @@ describe("deploymentLifecycleFromSource", () => {
   });
 
   it("turns stale CI status into a failed lifecycle", () => {
-    const current = deploymentLifecycleFromSource(
+    const current = deploymentLifecycleFromProject(
       source({ repositoryLink: "alice/bot" }),
     );
     const lifecycle = deploymentLifecycleFromStatus(current, {
@@ -271,7 +271,7 @@ describe("deploymentLifecycleFromSource", () => {
         id: "dep_1",
         platform: {
           repository: "aomi-labs/community-apps",
-          sourceBranch: "alice/bot/123/abc",
+          platformBranch: "alice/bot/123/abc",
           apps: [{ name: "bot", releaseTag: "apps-123-r1-bot-abc" }],
         },
       },

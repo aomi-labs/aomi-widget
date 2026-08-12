@@ -5,29 +5,24 @@
  *   AOMI_BACKEND_URL
  *   AOMI_APP_ACTIVATION_TOKEN
  *   AOMI_PLATFORM
- *   AOMI_APP_SOURCE_ID
+ *   AOMI_PROJECT_ID
  *
  *   AOMI_SOURCE_REF=<sha>
  *
  * Optional env:
  *   AOMI_SOURCE_COMMIT=<sha> (legacy alias for AOMI_SOURCE_REF)
- *   AOMI_TOML_PATHS=aomi.toml,apps/bot/aomi.toml
  *   AOMI_ACTIVATE=1
  */
-import { DeploymentClient } from "../src/index";
+import { BackendClient } from "../src/index";
 import type { SourceRef } from "../src/index";
 
 const backendUrl = requiredEnv("AOMI_BACKEND_URL");
 const activationToken = requiredEnv("AOMI_APP_ACTIVATION_TOKEN");
 const platform = requiredEnv("AOMI_PLATFORM");
-const appSourceId = Number.parseInt(requiredEnv("AOMI_APP_SOURCE_ID"), 10);
-const aomiTomlPaths = (process.env.AOMI_TOML_PATHS ?? "")
-  .split(",")
-  .map((path) => path.trim())
-  .filter(Boolean);
+const projectId = Number.parseInt(requiredEnv("AOMI_PROJECT_ID"), 10);
 
-if (!Number.isSafeInteger(appSourceId) || appSourceId <= 0) {
-  throw new Error("AOMI_APP_SOURCE_ID must be a positive integer");
+if (!Number.isSafeInteger(projectId) || projectId <= 0) {
+  throw new Error("AOMI_PROJECT_ID must be a positive integer");
 }
 
 const sourceRef: SourceRef =
@@ -38,17 +33,12 @@ if (!sourceRef) {
   throw new Error("AOMI_SOURCE_REF or AOMI_SOURCE_COMMIT is required");
 }
 
-const dc = new DeploymentClient({
+const dc = new BackendClient({
   aomi: { backendUrl, activationToken },
   onAudit: (event) => console.log("audit", JSON.stringify(event)),
 });
 
-const deployInput = {
-  platform,
-  appSourceId,
-  sourceRef,
-  aomiTomlPaths,
-};
+const deployInput = { platform, projectId, sourceRef };
 
 const deploy =
   process.env.AOMI_ACTIVATE === "1"

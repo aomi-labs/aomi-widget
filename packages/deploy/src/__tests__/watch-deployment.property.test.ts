@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import fc from "fast-check";
 
-import { DeploymentClient } from "../client";
+import { BackendClient } from "../backend";
 import type {
   DeploymentProgressEvent,
   DeploymentStatus,
@@ -11,10 +11,10 @@ import type {
 import { backoffDelay, deploymentProgress } from "../launch/watch";
 
 // Shared client reused in unit-level property tests (Properties 4)
-let client: DeploymentClient;
+let client: BackendClient;
 
 beforeEach(() => {
-  client = new DeploymentClient({
+  client = new BackendClient({
     aomi: {
       backendUrl: "https://staging-api.example.com",
       activationToken: "act-token",

@@ -81,7 +81,7 @@ export function ThreadModeControl({
       <ThreadModeToggle value={value} onChange={onChange} disabled={disabled} />
       <HelpBadge label="About thread mode">
         {tooltip ??
-          "Single thread keeps the bot to one conversation. Multiple threads lets users switch threads with /sessions."}
+          "Single thread keeps the bot to one conversation. Multiple threads lets users switch threads with /thread."}
       </HelpBadge>
     </div>
   );

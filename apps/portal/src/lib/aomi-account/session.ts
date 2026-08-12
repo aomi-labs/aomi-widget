@@ -1,3 +1,5 @@
+/* eslint-disable no-restricted-imports -- Server-only account session helper. */
+
 import { auth } from "@aomi-labs/account/better-auth";
 import {
   getAccountResponseForBetterAuthSession,

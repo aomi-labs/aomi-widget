@@ -15,7 +15,7 @@ import {
   GITHUB_REDIRECT_KEYS,
   type LaunchState,
   type LaunchProgress,
-  type UserSource,
+  type UserProject,
 } from "@portal/features/launch";
 import { OneshotWizard } from "./oneshot-wizard";
 
@@ -27,7 +27,7 @@ export function Onboarding({
   sessionInstallationId = null,
 }: {
   hideWizardBack?: boolean;
-  knownSources?: UserSource[];
+  knownSources?: UserProject[];
   /**
    * Installation id from the signed-in GitHub session — present when the App is
    * already installed. Seeds the wizard so it skips the install step and starts

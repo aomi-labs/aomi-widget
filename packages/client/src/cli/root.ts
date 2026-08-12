@@ -9,10 +9,16 @@ import { walletDef } from "./commands/defs/wallet";
 import { accountDef } from "./commands/defs/account";
 import { configDef } from "./commands/defs/config";
 import { secretDef } from "./commands/defs/secret";
+import { deployDef } from "./commands/defs/deploy";
 import { buildCliConfig, globalArgs } from "./commands/defs/shared";
 import packageJson from "../../package.json";
 
-const SUBCOMMAND_NAMES = new Set([
+/**
+ * Every token that resolves to a root subcommand. Kept in one place because
+ * `main.ts` needs the same set for help routing — when the two lists drifted,
+ * `deploy` was advertised in `--help` while being unreachable at runtime.
+ */
+export const SUBCOMMAND_NAMES = new Set([
   "chat",
   "tx",
   "session",
@@ -24,6 +30,7 @@ const SUBCOMMAND_NAMES = new Set([
   "logout",
   "config",
   "secret",
+  "deploy",
 ]);
 
 export function hasRootSubcommand(rawArgs: string[]): boolean {
@@ -88,5 +95,6 @@ export const root = defineCommand({
     logout: logoutDef,
     config: configDef,
     secret: secretDef,
+    deploy: deployDef,
   },
 });

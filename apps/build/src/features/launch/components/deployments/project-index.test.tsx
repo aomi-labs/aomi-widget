@@ -5,12 +5,12 @@ vi.mock("@build/features/launch/hooks/use-projects", () => ({
   useProjects: vi.fn(() => ({
     state: {
       status: "ready",
-      sources: [
+      projects: [
         {
           id: 3,
           installationId: 1,
           repositoryLink: "alice/bot",
-          boundPlatformName: "somm.finance",
+          platformName: "somm.finance",
           apps: [],
           latestDeployment: null,
         },

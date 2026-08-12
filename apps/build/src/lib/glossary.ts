@@ -5,7 +5,7 @@
 export const BUILD_GLOSSARY = {
   project: {
     term: "Project",
-    meaning: "A GitHub repository connected to Build.",
+    meaning: "A platform-bound GitHub repository defined by .aomi/config.json.",
   },
   app: {
     term: "App",

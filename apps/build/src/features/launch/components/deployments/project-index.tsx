@@ -81,7 +81,8 @@ export function ProjectIndex({
           <div className="border-border flex h-12 items-center justify-between border-b px-4">
             <div className="text-sm font-medium">Projects</div>
             <div className="text-dim text-xs">
-              {state.status === "ready" ? state.sources.length : 0}
+              {state.status === "ready" ? state.projects.length : 0}
+              {platform ? ` on ${platform}` : ""}
             </div>
           </div>
           {state.status === "loading" && (
@@ -91,7 +92,7 @@ export function ProjectIndex({
           {state.status === "signed_out" && (
             <GitHubSignInPanel error={githubError} />
           )}
-          {state.status === "ready" && state.sources.length === 0 && (
+          {state.status === "ready" && state.projects.length === 0 && (
             <EmptyState
               title="No projects yet"
               description="Import a GitHub repository to deploy your first app."
@@ -100,7 +101,7 @@ export function ProjectIndex({
             />
           )}
           {state.status === "ready" &&
-            state.sources.map((source) => (
+            state.projects.map((source) => (
               <ProjectRow
                 key={source.id}
                 source={source}

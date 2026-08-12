@@ -135,7 +135,7 @@ describe("OneshotWizard", () => {
       ok: true,
       repo: "alice/custom-playground",
       installationId: "12345",
-      appSourceId: 7,
+      projectId: 7,
       sourceRef: "abc123",
     });
     const patch = vi.fn();

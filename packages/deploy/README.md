@@ -3,12 +3,12 @@
 TypeScript toolkit for the Aomi platform deploy API, in three cleanly
 separated layers:
 
-| Entry | Runs in | What it is |
-| --- | --- | --- |
-| `@aomi-labs/deploy` | server only | `DeploymentClient` — typed HTTP client holding the activation/service bearer |
-| `@aomi-labs/deploy/bff` | server only | Drop-in BFF route factories: the one-shot launch flow + "Sign in with GitHub" |
-| `@aomi-labs/deploy/launch` | browser | Typed client for the BFF routes (launch + deployments console), wizard state machine, contracts, OAuth-callback result mapping |
-| `@aomi-labs/deploy/lifecycle` | browser | Pure helpers projecting deploy records into dashboard state |
+| Entry                         | Runs in     | What it is                                                                                                                     |
+| ----------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `@aomi-labs/deploy`           | server only | `BackendClient` — typed HTTP client holding the activation/service bearer                                                      |
+| `@aomi-labs/deploy/bff`       | server only | Drop-in BFF route factories: the one-shot launch flow + "Sign in with GitHub"                                                  |
+| `@aomi-labs/deploy/launch`    | browser     | Typed client for the BFF routes (launch + deployments console), wizard state machine, contracts, OAuth-callback result mapping |
+| `@aomi-labs/deploy/lifecycle` | browser     | Pure helpers projecting deploy records into dashboard state                                                                    |
 
 **There is no UI component to install.** The deploy UI is a fast-churn page,
 not a stable primitive, so it is not published as a package you vendor — build
@@ -37,10 +37,10 @@ import {
   createGitHubAuthRoutes,
   createGitHubSessionCodec,
 } from "@aomi-labs/deploy/bff";
-import { DeploymentClient } from "@aomi-labs/deploy";
+import { BackendClient } from "@aomi-labs/deploy";
 
 const client = () =>
-  new DeploymentClient({
+  new BackendClient({
     aomi: {
       backendUrl: process.env.AOMI_BACKEND_URL!,
       activationToken: process.env.AOMI_ACTIVATION_TOKEN!, // stays server-side
@@ -78,7 +78,7 @@ export const GET = githubAuth.login;
 ```
 
 Mount the full set: `launch.{preflight,deploy,create,activate,redeploy}` as
-`POST`, `launch.{status,app,sources}` as `GET`, and
+`POST`, `launch.{status,apps,projects}` as `GET`, and
 `githubAuth.{login,callback,status}` as `GET` + `githubAuth.signout` as `POST`
 under `/api/bff/auth/github/*`.
 
@@ -90,7 +90,7 @@ Defaults you can override: rate limiting + same-origin CSRF guards
 
 Point a `createLaunchClient` at the routes and drive them. The whole happy
 path is: `fetchGitHubSession` → `githubAppInstallUrl` → `createRepo` →
-`deploy` → `watch` → `activate` → `appStatus` → embed chat. Render it however
+`deploy` → `watch` → `activate` → project-scoped `appStatuses` → embed chat. Render it however
 your product needs — often just a button, a status line, and a chat embed.
 
 ```ts
@@ -99,14 +99,14 @@ import { createLaunchClient } from "@aomi-labs/deploy/launch";
 
 const launch = createLaunchClient(); // defaults to /api/bff/launch + /api/bff/auth/github
 const { deployment, releaseTags, apps } = await launch.deploy({
-  appSourceId,
+  projectId,
   sourceRef,
 });
 
 await launch.watch({ deploymentId: deployment.id }, (event) => {
   setProgress(event.progress); // { completed, total, label }
 });
-await launch.activate({ appSourceId, releaseTags, apps });
+await launch.activate({ projectId, releaseTags, apps });
 ```
 
 See the [`aomi-deploy` skill](skills/aomi-deploy/SKILL.md) for the full flow,
@@ -142,18 +142,21 @@ rules make that work:
    you.
 
 2. **A deploy target is earned, not asserted.** A source deploys into a
-   platform because it was *claimed* there — created one-click on it, or
+   platform because it was _claimed_ there — created one-click on it, or
    connected through the GitHub OAuth ceremony below. Passing a different
    `platform` string on a later call doesn't move it; the backend rejects the
    mismatch.
 
 **Bind the platform once**, at construction — do not thread it through every
-call. Omitting it on a single call falls back to the BFF's *default* platform,
+call. Omitting it on a single call falls back to the BFF's _default_ platform,
 which is a silent wrong-platform write rather than an error:
 
 ```ts
 "use client";
-import { createLaunchClient, LaunchRequestError } from "@aomi-labs/deploy/launch";
+import {
+  createLaunchClient,
+  LaunchRequestError,
+} from "@aomi-labs/deploy/launch";
 
 // The exact name your partner gave you.
 const launch = createLaunchClient({ platform: "somm.finance" });
@@ -185,7 +188,7 @@ failures stay distinguishable.
 One-click creates a fresh repo on the user's personal account. A partner
 developer usually arrives with an **existing** repository (often under an
 org). Connecting it is a GitHub OAuth round trip that proves — with the
-*user's* token, not the App's — that the signed-in GitHub user can actually
+_user's_ token, not the App's — that the signed-in GitHub user can actually
 read that repo, then claims the source for that user and that exact platform:
 
 ```ts
@@ -212,7 +215,7 @@ didn't validate.
 import { connectionResult } from "@aomi-labs/deploy/launch";
 
 const result = connectionResult({
-  launch: params.launch,            // "bound" | "awaiting_install" | …
+  launch: params.launch, // "bound" | "awaiting_install" | …
   repo: params.repo,
   githubError: params.github_error, // capped + sanitized before display
 });
@@ -231,10 +234,10 @@ fatal, keeps `completed` monotonic so progress never jumps backwards, and
 exactly one code path:
 
 ```ts
-const { deployment } = await launch.deploy({ appSourceId, sourceRef });
+const { deployment } = await launch.deploy({ projectId, sourceRef });
 
 await launch.watch({ deploymentId: deployment.id }, (event) => {
-  setProgress(event.progress);            // { completed, total, label }
+  setProgress(event.progress); // { completed, total, label }
   if (event.kind === "terminal") setState(event.status.state);
   if (event.kind === "error") setError(event.error);
 });
@@ -248,14 +251,14 @@ Cancel with `{ signal }` from an `AbortController` when the component unmounts.
   router's searchParams value (trims; repeated params mean "no platform").
 - `LaunchState.platform` — the persisted wizard state records which platform
   its progress belongs to. Reset the wizard when the page's platform differs:
-  reusing a cached `appSourceId` from one platform inside another would route
+  reusing a cached `projectId` from one platform inside another would route
   writes to the wrong place.
 
 ```ts
 import { loadLaunch } from "@aomi-labs/deploy/launch";
 
 // Scoped load: progress saved under another platform is discarded rather than
-// returned, so a stale appSourceId can never route a write to the wrong place.
+// returned, so a stale projectId can never route a write to the wrong place.
 const state = loadLaunch(PLATFORM);
 ```
 
@@ -274,22 +277,21 @@ same handler, so there is one method.
 
 ### `preflight()`
 
-Calls `POST /api/platforms/:platform/deploy` with `app_source_id`, `source_ref`,
-optional `aomi_toml_paths`, and `preflight: true`. Returns the deployment
-record without opening or updating the platform PR. Use this to render
+Calls `POST /api/projects/:projectId/deploy` with `preflight: true`. Returns the deployment record
+without opening or updating the platform PR. Use this to render
 `deployment.json` before the user applies.
 
 ### `deploy()`
 
-Calls `POST /api/platforms/:platform/deploy` with `app_source_id`, `source_ref`,
-and optional `aomi_toml_paths`. This is the apply step: it writes the platform
-deployment branch/PR when needed and starts the CI path.
+Calls `POST /api/projects/:projectId/deploy` with an immutable source ref.
+This is the apply step: it writes the platform deployment
+branch/PR when needed and starts the CI path.
 
 `sourceRef` must be the immutable git commit SHA to deploy. Resolve branches or
 tags before calling the client; the backend does not accept mutable refs.
 
-`aomiTomlPaths` may be omitted to let the backend discover every `aomi.toml` in
-the source commit.
+The backend reads the project's committed `.aomi/config.json` itself —
+clients never parse or send project configuration.
 
 ### `activate()`
 
@@ -325,15 +327,15 @@ await dc.watchDeployment(id, "community", (event) => {
 The steps **before** deploy — the twin of the Rust `aomi-build` bootstrap
 commands. Each maps 1:1 onto a `/api/platforms/*` route.
 
-| Method                           | Route                                                                          | Purpose                                                                |
-| -------------------------------- | ------------------------------------------------------------------------------ | ---------------------------------------------------------------------- |
-| `mintToken()`                    | `POST /:p/tokens`                                                              | mint a `platform` or `app` activation token (plaintext returned once)  |
-| `listTokens()` / `revokeToken()` | `GET` / `DELETE /:p/tokens[/:id]`                                              | token lifecycle                                                         |
-| `syncSource()`                   | `POST /:p/sources/sync-installed`                                              | resolve an installed repo → `appSourceId` for deploy                    |
-| `scaffold()`                     | `POST /api/integrations/github-app/platforms/:p/sources/create-from-template`  | one-shot: create a repo from a template → source                        |
-| `listApps()` / `getApp()`        | `GET /:p/apps[/:app]`                                                          | inventory loaded apps (find `app_id` for app-scoped tokens)             |
-| `exchangeGitHubCode()`           | `GET /api/integrations/github-app/oauth/exchange`                              | GitHub OAuth code → identity (sign-in seam)                             |
-| `listUserSources()`              | `GET /api/integrations/github-app/user/sources`                                | a GitHub user's connected source repos + their apps                     |
+| Method                           | Route                                                                          | Purpose                                                               |
+| -------------------------------- | ------------------------------------------------------------------------------ | --------------------------------------------------------------------- |
+| `mintToken()`                    | `POST /:p/tokens`                                                              | mint a `platform` or `app` activation token (plaintext returned once) |
+| `listTokens()` / `revokeToken()` | `GET` / `DELETE /:p/tokens[/:id]`                                              | token lifecycle                                                       |
+| `createProject()`                | `POST /api/platforms/:p/projects`                                              | resolve an installed repo → `projectId` for deploy                    |
+| `scaffold()`                     | `POST /api/integrations/github-app/platforms/:p/projects/create-from-template` | one-shot: create a repo from a template → source                      |
+| `listApps()` / `getApp()`        | `GET /:p/apps[/:app]`                                                          | inventory loaded apps (find `app_id` for app-scoped tokens)           |
+| `exchangeGitHubCode()`           | `GET /api/integrations/github-app/oauth/exchange`                              | GitHub OAuth code → identity (sign-in seam)                           |
+| `listUserProjects()`             | `GET /api/integrations/github-app/user/projects`                               | a GitHub user's connected source repos + their apps                   |
 
 ### Credential model
 
@@ -346,7 +348,7 @@ for a token if you are integrating externally) and hand it in.
 
 ```ts
 import { AomiService } from "@aomi-labs/service";
-import { DeploymentClient } from "@aomi-labs/deploy";
+import { BackendClient } from "@aomi-labs/deploy";
 
 // 1. Sign a short-lived admin bearer (holds the EdDSA private key).
 const svc = AomiService.fromTopology({
@@ -361,7 +363,7 @@ const { accessToken: adminBearer } = await svc.mint({
 });
 
 // 2. Mint a platform activation token with it.
-const dc = new DeploymentClient({
+const dc = new BackendClient({
   aomi: { backendUrl: process.env.AOMI_BACKEND_URL!, adminBearer },
 });
 const { token } = await dc.mintToken({
@@ -370,18 +372,16 @@ const { token } = await dc.mintToken({
 });
 
 // 3. Resolve the source, then deploy with the minted token.
-const client = new DeploymentClient({
+const client = new BackendClient({
   aomi: { backendUrl: process.env.AOMI_BACKEND_URL!, activationToken: token },
 });
-const { id } = await client.syncSource({
+const { id } = await client.createProject({
   platform: "playground",
   repo: "alice/alice-bot",
 });
 await client.deploy({
-  platform: "playground",
-  appSourceId: id,
+  projectId: id,
   sourceRef: process.env.AOMI_SOURCE_REF!,
-  aomiTomlPaths: ["aomi.toml"],
 });
 ```
 
@@ -432,17 +432,16 @@ ones you'll touch first:
 ```ts
 interface DeployInput {
   platform: string;
-  appSourceId: number;
+  projectId: number;
   /** Immutable git commit SHA. Branch names are rejected by the backend. */
   sourceRef: string;
-  aomiTomlPaths?: string[];
   actor?: string;
 }
 
 interface ActivateInput {
   platform: string;
   target: { kind: "release_tags"; value: string[] };
-  apps?: string[];       // optional; backend can derive from release tags
+  apps?: string[]; // optional; backend can derive from release tags
   targetTags?: string[];
   actor?: string;
 }
@@ -472,9 +471,9 @@ import {
 ## Example
 
 ```ts
-import { DeploymentClient } from "@aomi-labs/deploy";
+import { BackendClient } from "@aomi-labs/deploy";
 
-const dc = new DeploymentClient({
+const dc = new BackendClient({
   aomi: {
     backendUrl: process.env.AOMI_BACKEND_URL!,
     activationToken: process.env.AOMI_APP_ACTIVATION_TOKEN!,
@@ -482,15 +481,13 @@ const dc = new DeploymentClient({
 });
 
 const preview = await dc.preflight({
-  platform: "community",
-  appSourceId: 42,
+  projectId: 42,
   sourceRef: process.env.AOMI_SOURCE_REF!,
 });
 console.log(JSON.stringify(preview.deployment, null, 2));
 
 const { deployment } = await dc.deploy({
-  platform: "community",
-  appSourceId: 42,
+  projectId: 42,
   sourceRef: process.env.AOMI_SOURCE_REF!,
 });
 
@@ -513,7 +510,7 @@ packages/deploy/test/
   bootstrap.test.ts            — tokens, sources, scaffold, apps
   activation-request.test.ts   — request construction
   watch-deployment.pbt.test.ts — property-based backoff/timeout
-  launch-routes.test.ts        — BFF factory: deploy/preflight/status/redeploy/sources
+  launch-routes.test.ts        — BFF factory: deploy/preflight/status/redeploy/projects
   launch-config.test.ts        — APP_DEPLOY_* env resolution
   github-auth.test.ts          — session codec + sign-in routes
   launch-state.test.ts         — wizard state machine
