@@ -2,6 +2,25 @@
 
 ## Last Updated
 
+2026-08-12 — MCP CHAT PARITY IMPLEMENTED. `/api/mcp` now exposes only
+  `aomi_chat`, `aomi_check`, `aomi_interrupt`, and `aomi_list_sessions` over a
+  shared stateless JSON-RPC shell; the unchanged direct discovery/execution
+  funnel moved to `/api/mcp/direct`. Agent turns use the canonical
+  `/api/threads` + `/api/thread/{chat,state,interrupt}` kernel paths with both
+  thread headers and BFF-minted AccountBearer. New sessions are account-bound,
+  headless turns hydrate primary EVM/SVM wallets from `public_keys`, message
+  cursors return transcript deltas without dropping the backend's drained
+  system events, and checks compress tool/task activity. Manual wallet requests
+  return `awaiting_user`, redacted request summaries, and a working portal
+  deep-link; armed auto-signing wallets need no MCP signing tool. The existing
+  origin-scoped OAuth protected-resource metadata covers both MCP routes.
+  Local E2E verification covers SIWE, dynamic OAuth registration, explicit
+  consent, PKCE exchange and refresh, both MCP tool inventories, real async
+  reply deltas, account session list/resume/interrupt, a funded local-chain
+  transaction reaching the manual-wallet approval gate, and `agent-browser`
+  opening the exact linked transcript. The message cursor deliberately holds
+  the runtime's mutable streaming tail until it becomes a completed delta.
+
 2026-08-04 — PROJECT HOME "KEYS MISSING" FALSE ALARM (apps/build, committed
   on `feat/build-new-app-two-starts`). The Environment card warned whenever no
   key was set

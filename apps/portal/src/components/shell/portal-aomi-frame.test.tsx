@@ -1,7 +1,7 @@
 import { act, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { PortalAomiFrame } from "./portal-aomi-frame";
+import { PortalAomiFrame, ThreadUrlBootstrap } from "./portal-aomi-frame";
 
 const walletKitState = vi.hoisted(() => ({
   current: {
@@ -23,6 +23,18 @@ const requestedAppState = vi.hoisted(() => ({
     applicationId: string | null;
     locked: boolean;
   },
+}));
+const runtimeState = vi.hoisted(() => ({
+  current: {
+    currentThreadId: "initial",
+    threadMetadata: new Map<string, unknown>(),
+    selectThread: vi.fn(),
+  },
+}));
+
+vi.mock("@aomi-labs/react", () => ({
+  useAomiRuntime: () => runtimeState.current,
+  usePerThreadControl: () => ({ actions: { onAppSelect: vi.fn() } }),
 }));
 
 vi.mock("@aomi-labs/widget-lib", async () => {
@@ -204,6 +216,36 @@ describe("PortalAomiFrame account bootstrap", () => {
     expect(screen.getByTestId("aomi-frame")).toHaveAttribute(
       "data-show-sidebar",
       "false",
+    );
+  });
+});
+
+describe("ThreadUrlBootstrap", () => {
+  afterEach(() => {
+    window.history.replaceState({}, "", "/");
+    runtimeState.current = {
+      currentThreadId: "initial",
+      threadMetadata: new Map<string, unknown>(),
+      selectThread: vi.fn(),
+    };
+  });
+
+  it("waits for remote metadata before selecting a linked MCP thread", async () => {
+    window.history.replaceState({}, "", "/?thread=mcp-linked");
+    const view = render(<ThreadUrlBootstrap />);
+    expect(runtimeState.current.selectThread).not.toHaveBeenCalled();
+
+    runtimeState.current = {
+      ...runtimeState.current,
+      threadMetadata: new Map([["mcp-linked", {}]]),
+    };
+    await act(async () => {
+      view.rerender(<ThreadUrlBootstrap />);
+    });
+
+    expect(runtimeState.current.selectThread).toHaveBeenCalledOnce();
+    expect(runtimeState.current.selectThread).toHaveBeenCalledWith(
+      "mcp-linked",
     );
   });
 });
