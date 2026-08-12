@@ -4,7 +4,7 @@ import { AomiLogo } from "./components/aomi-logo";
 export const navLinks: NonNullable<BaseLayoutProps["links"]> = [
   {
     text: "Documentation",
-    url: "/docs/build/overview",
+    url: "https://aomi.dev/docs/",
     active: "nested-url",
   },
   {
@@ -20,7 +20,7 @@ export const navLinks: NonNullable<BaseLayoutProps["links"]> = [
 ];
 
 export const navTabs = [
-  { title: "Documentation", url: "/docs/build/overview" },
+  { title: "Documentation", url: "https://aomi.dev/docs/" },
   { title: "Examples", url: "/examples/polymarket" },
   { title: "Playground", url: "/playground/configurator" },
 ];
