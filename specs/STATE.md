@@ -2,6 +2,18 @@
 
 ## Last Updated
 
+2026-08-12 — **Cross-chain wallet approvals now switch EVM networks automatically.**
+  `RuntimeTxHandler` compares every staged transaction's chain with the connected
+  wallet before simulation, rejects unsupported chains with actionable copy, and
+  invokes the adapter's network switch before simulating or sending. Wallets that
+  cannot switch get manual-switch guidance; a rejected wallet popup continues
+  through the existing request-rejection path. The shared AA executor now keeps an
+  unknown current chain as `undefined`, so it attempts a switch instead of masking
+  the state as already on the target chain. Added seven regression cases covering
+  switch ordering, same-chain behavior, unsupported/missing adapters, rejected
+  prompts, and unknown/current AA execution state. Joint backend work lives on
+  product-mono `feat/cross-chain-continuity` and must ship with this branch.
+
 2026-08-04 — PROJECT HOME "KEYS MISSING" FALSE ALARM (apps/build, committed
   on `feat/build-new-app-two-starts`). The Environment card warned whenever no
   key was set

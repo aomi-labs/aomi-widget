@@ -1,6 +1,6 @@
 # Wallet auto chain-switch at tx approval (W2)
 
-Status: planned, not started. Branch: `feat/wallet-auto-chain-switch`. This is the frontend workstream of the cross-chain continuity fix; the backend plan (child wallet context, bridge monitoring) lives at `product-mono/docs/plans/2026-08-12-cross-chain-orchestrator-continuity.md`. Bug 1 there is only fully fixed when both land — ship in the same release.
+Status: implemented; automated verification completed on 2026-08-12. Branch: `feat/wallet-auto-chain-switch`. This is the frontend workstream of the cross-chain continuity fix; the backend plan (child wallet context, bridge monitoring) lives at `product-mono/docs/plans/2026-08-12-cross-chain-orchestrator-continuity.md`. Bug 1 there is only fully fixed when both land — ship in the same release.
 
 ## Problem
 
