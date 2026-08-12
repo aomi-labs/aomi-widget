@@ -120,6 +120,7 @@ export const IntentComposer = forwardRef<
         )}
       >
         <textarea
+          data-testid="build-intent-composer"
           ref={textareaRef}
           value={value}
           onChange={(e) => onChange(e.target.value)}

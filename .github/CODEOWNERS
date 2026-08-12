@@ -1,0 +1,5 @@
+.github/workflows/ @h4n0 @phoebe-aomi
+.github/scripts/ @h4n0 @phoebe-aomi
+playwright.config.ts @h4n0 @phoebe-aomi
+tests/e2e/ @h4n0 @phoebe-aomi
+packages/client/test/fixtures/backend-openapi.json @h4n0 @phoebe-aomi

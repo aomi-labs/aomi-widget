@@ -11,6 +11,11 @@ import {
 import { AomiEvmRuntimeProvider } from "../../runtime/evm/provider";
 import { useSafeParaClient } from "./para-auth";
 
+type AomiConnector = NonNullable<
+  ResolvedEvmWalletsConfig["connectors"]
+>[number];
+type ConnectorPara = Parameters<typeof paraConnector>[0]["para"];
+
 export function createAomiParaEvmConfig(
   config: ResolvedEvmWalletsConfig,
   para: ParaWeb | null,
@@ -21,14 +26,18 @@ export function createAomiParaEvmConfig(
       ...(config.connectors ?? []),
       ...(para
         ? [
+            // Consumers can use a newer compatible Para SDK than widget-lib.
+            // Para's private fields make those otherwise-compatible SDK
+            // instances nominal, so normalize both Para and Wagmi types at
+            // this package boundary.
             paraConnector({
-              para,
+              para: para as unknown as ConnectorPara,
               chains: [...config.chains],
               disableModal: true,
               appName: config.appName ?? "Aomi",
               options: { shimDisconnect: true },
               transports: config.transports,
-            }),
+            }) as unknown as AomiConnector,
           ]
         : []),
     ],

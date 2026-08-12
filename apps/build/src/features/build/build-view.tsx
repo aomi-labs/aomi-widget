@@ -369,7 +369,10 @@ export function BuildView() {
     (displayStageId === "plan" || displayStageId === "generate");
 
   return (
-    <div className="flex h-[calc(100dvh-2.75rem)] min-h-0 w-full">
+    <div
+      data-testid="build-shell"
+      className="flex h-[calc(100dvh-2.75rem)] min-h-0 w-full"
+    >
       {recentOpen ? (
         <aside className="border-border flex w-[220px] shrink-0 flex-col gap-3 overflow-y-auto border-r p-3">
           <SessionHistory

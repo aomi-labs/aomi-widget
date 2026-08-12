@@ -11,7 +11,7 @@ export async function publishPackageIfNeeded(
   packageDirectory,
   {
     fetchImpl = globalThis.fetch,
-    publishImpl = publishWithPnpm,
+    publishImpl = publishWithNpm,
     registryUrl = process.env.NPM_CONFIG_REGISTRY ??
       process.env.npm_config_registry ??
       DEFAULT_REGISTRY_URL,
@@ -35,7 +35,7 @@ export async function publishPackageIfNeeded(
 
   console.log(`${packageSpec} is not published; publishing now.`);
   try {
-    await publishImpl(manifest.name);
+    await publishImpl(packageDirectory);
   } catch (error) {
     // A concurrent run may publish after our initial 404, or npm may accept a
     // PUT but return a transient error. Treat the package's durable registry
@@ -71,20 +71,15 @@ async function checkPublishedVersion({ fetchImpl, packageSpec, versionUrl }) {
   );
 }
 
-function publishWithPnpm(packageName) {
+function publishWithNpm(packageDirectory) {
   return new Promise((resolve, reject) => {
-    const child = spawn(
-      "pnpm",
-      [
-        "--filter",
-        packageName,
-        "publish",
-        "--access",
-        "public",
-        "--no-git-checks",
-      ],
-      { stdio: "inherit" },
-    );
+    const args = ["publish", "--access", "public"];
+    const distTag = process.env.NPM_DIST_TAG?.trim();
+    if (distTag) args.push("--tag", distTag);
+    const child = spawn("npm", args, {
+      cwd: path.resolve(packageDirectory),
+      stdio: "inherit",
+    });
     child.once("error", reject);
     child.once("exit", (code, signal) => {
       if (code === 0) {
@@ -93,7 +88,7 @@ function publishWithPnpm(packageName) {
       }
       reject(
         new Error(
-          `pnpm publish for ${packageName} failed${signal ? ` with signal ${signal}` : ` with exit code ${code}`}`,
+          `npm publish for ${packageDirectory} failed${signal ? ` with signal ${signal}` : ` with exit code ${code}`}`,
         ),
       );
     });

@@ -154,7 +154,10 @@ export function PortalAomiFrame() {
   }
 
   return (
-    <main className="bg-background relative h-full w-full overflow-hidden">
+    <main
+      data-testid="portal-shell"
+      className="bg-background relative h-full w-full overflow-hidden"
+    >
       <AomiFrame.Root
         key={accountFrameScope.revision}
         width="100%"

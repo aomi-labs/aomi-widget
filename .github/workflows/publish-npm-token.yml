@@ -1,0 +1,57 @@
+name: Publish npm (token)
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_sha:
+        description: Full current main SHA
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: npm-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ inputs.candidate_sha }}
+          fetch-depth: 0
+
+      - name: Verify current main and successful same-SHA CI
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+        run: .github/scripts/verify-main-ci.sh
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22.14.0
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - name: Install and build publishable packages
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm run build:packages
+
+      - name: Publish versions not already present
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          node scripts/publish-package-if-needed.mjs packages/client
+          node scripts/publish-package-if-needed.mjs packages/deploy
+          node scripts/publish-package-if-needed.mjs packages/react
+          node scripts/publish-package-if-needed.mjs apps/shadcn-registry
