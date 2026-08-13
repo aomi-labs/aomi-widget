@@ -1110,3 +1110,15 @@ build`, `CI=true npx -y pnpm@10.28.0 install --frozen-lockfile`, and
   through the normal signing API, verifies session-thread/app-scoped callback
   delivery, and observes the resumed final state. Client build/declarations,
   library typecheck, and all 59 focused tests passed.
+- 2026-08-13 launch install recovery, bfcache branch: the "Already installed —
+  continue" escape hatch was disabled by the very state it exists to escape.
+  `beginInstall` sets `installing` and navigates to GitHub; when the App is
+  already installed GitHub renders its configure page, which never redirects
+  back, so the only way out is Back — and a bfcache restore does not remount
+  Onboarding, leaving the hydrate effect unrun and `installing` stuck true.
+  Added a `pageshow`/`persisted` handler that clears the in-flight install on
+  restore only, plus a colocated RTL spec covering both branches (restore
+  clears it; an ordinary non-persisted pageshow does not). The spec was
+  mutation-tested: neutering the handler fails the restore case and passes the
+  control case. Verified with the full launch suite, 32 files / 191 tests.
+

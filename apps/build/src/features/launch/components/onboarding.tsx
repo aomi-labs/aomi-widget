@@ -181,6 +181,23 @@ export function Onboarding({
     }
   }, [state.oneshot.deploymentId]);
 
+  // --- bfcache restore ------------------------------------------------------
+  // `beginInstall` sets `installing` and then navigates to GitHub. When GitHub
+  // renders the *configure* page (App already installed) the user's only way
+  // back is Back, and a bfcache restore does NOT remount this component — the
+  // hydrate effect above never re-runs, so `installing` stays true and every
+  // install button, including the "Already installed — continue" recovery path
+  // this flow depends on, is disabled forever. `pageshow` with `persisted` is
+  // the only signal for that restore.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) setInstalling(false);
+    };
+    window.addEventListener("pageshow", onPageShow);
+    return () => window.removeEventListener("pageshow", onPageShow);
+  }, []);
+
   // --- actions handed to the wizard -----------------------------------------
   const restart = useCallback(() => {
     if (typeof window !== "undefined") {
