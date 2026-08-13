@@ -2,37 +2,22 @@ import { describe, expect, it } from "vitest";
 
 import { resolveWalletState } from "../src/session/state";
 
-describe("resolveWalletState — AA provider declaration", () => {
-  const aaOf = (state: ReturnType<typeof resolveWalletState>) =>
-    state.evm?.aa ?? {};
-
-  it("declares provider 'alchemy' for 4337", () => {
-    const state = resolveWalletState(undefined, "0xabc", 8453, {
-      aaMode: "4337",
-      smartAccount4337: "0xsmart",
-    });
-    expect(aaOf(state)).toMatchObject({
-      mode: "4337",
-      provider: "alchemy",
-      smart_account: "0xsmart",
-    });
+describe("resolveWalletState — owner/chain only", () => {
+  it("records the connected owner and chain", () => {
+    const state = resolveWalletState(undefined, "0xabc", 8453);
+    expect(state.evm?.address).toBe("0xabc");
+    expect(state.evm?.chain_id).toBe(8453);
+    expect(state.connection?.is_connected).toBe(true);
   });
 
-  it("declares provider 'alchemy' for 7702", () => {
-    const state = resolveWalletState(undefined, "0xabc", 1, {
-      aaMode: "7702",
-      delegation7702: "0xdel",
-    });
-    expect(aaOf(state)).toMatchObject({
-      mode: "7702",
-      provider: "alchemy",
-      delegation_7702: "0xdel",
-    });
+  it("defaults chain_id to 1 when unspecified", () => {
+    const state = resolveWalletState(undefined, "0xabc", undefined);
+    expect(state.evm?.chain_id).toBe(1);
   });
 
-  it("omits provider when AA is off (mode 'none')", () => {
-    const state = resolveWalletState(undefined, "0xabc", 1, { aaMode: "none" });
-    expect(aaOf(state)).toMatchObject({ mode: "none" });
-    expect(aaOf(state).provider).toBeUndefined();
+  it("never writes backend-authority aa/sponsorship into user_state", () => {
+    const state = resolveWalletState(undefined, "0xabc", 8453);
+    expect(state.evm).not.toHaveProperty("aa");
+    expect(state.evm).not.toHaveProperty("sponsorship");
   });
 });

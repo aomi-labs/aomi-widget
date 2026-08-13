@@ -8,8 +8,8 @@ import type {
 import {
   UserState,
   type AomiClientType,
+  type OwnedUserState,
   type UserState as UserStateShape,
-  type UserStateAAMode,
 } from "../user-state";
 import { TypedEventEmitter } from "../event";
 import type {
@@ -134,7 +134,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       app: this.app,
       applicationId: this.applicationId,
       apiKey: this.apiKey,
-      userState: this.userState,
+      userState: this.outboundUserState(),
       clientId: this.clientId,
       paymentMethod: this.paymentMethod,
     });
@@ -166,7 +166,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       app: this.app,
       applicationId: this.applicationId,
       apiKey: this.apiKey,
-      userState: this.userState,
+      userState: this.outboundUserState(),
       clientId: this.clientId,
       paymentMethod: this.paymentMethod,
     });
@@ -363,19 +363,18 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     }
   }
 
-  resolveWallet(
-    address: string,
-    chainId?: number,
-    aa?: {
-      aaMode?: UserStateAAMode | null;
-      smartAccount?: string | null;
-      smartAccount4337?: string | null;
-      delegation7702?: string | null;
-    },
-  ): void {
+  resolveWallet(address: string, chainId?: number): void {
     this.resolveUserState(
-      resolveWalletState(this.userState, address, chainId, aa),
+      resolveWalletState(this.userState, address, chainId),
     );
+  }
+
+  /**
+   * The subset of the stored state the client may send to the backend. Drops
+   * backend-authority `pending` (in-flight requests the client only receives).
+   */
+  private outboundUserState(): OwnedUserState | undefined {
+    return UserState.toOwned(this.userState);
   }
 
   async syncUserState(): Promise<AomiStateResponse> {
@@ -383,7 +382,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
 
     const state = await this.client.fetchState(
       this.sessionId,
-      this.userState,
+      this.outboundUserState(),
       this.clientId,
       { app: this.app, applicationId: this.applicationId },
     );
@@ -410,7 +409,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
 
     const state = await this.client.fetchState(
       this.sessionId,
-      this.userState,
+      this.outboundUserState(),
       this.clientId,
       { app: this.app, applicationId: this.applicationId },
     );
@@ -456,7 +455,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     try {
       const state = await this.client.fetchState(
         this.sessionId,
-        this.userState,
+        this.outboundUserState(),
         this.clientId,
         { app: this.app, applicationId: this.applicationId },
       );

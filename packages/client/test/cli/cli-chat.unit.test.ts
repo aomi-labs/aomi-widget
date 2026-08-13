@@ -114,9 +114,6 @@ describe("CLI chat wallet sync", () => {
         is_connected: true,
       },
       evm: {
-        aa: {
-          mode: "none",
-        },
         address: "0xnew",
         chain_id: 8453,
       },
@@ -136,9 +133,6 @@ describe("CLI chat wallet sync", () => {
           is_connected: true,
         },
         evm: {
-          aa: {
-            mode: "none",
-          },
           address: "0xnew",
           chain_id: 8453,
         },

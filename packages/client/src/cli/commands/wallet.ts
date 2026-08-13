@@ -583,10 +583,7 @@ export async function signCommand(
         );
       }
 
-      session.resolveWallet(account.address, primaryChainId, {
-        aaMode: null,
-        smartAccount: null,
-      });
+      session.resolveWallet(account.address, primaryChainId);
       await session.syncUserState();
 
       // Simulate batch to validate and compute service fee.
@@ -820,12 +817,7 @@ export async function signCommand(
 
     // Persist signer state and notify the backend with authoritative staged ids.
     cli.setPublicKey(account.address);
-    session.resolveWallet(account.address, primaryChainId, {
-      aaMode: null,
-      smartAccount: null,
-      smartAccount4337: null,
-      delegation7702: null,
-    });
+    session.resolveWallet(account.address, primaryChainId);
 
     for (const backendNotification of backendNotifications) {
       await session.client.sendSystemMessage(

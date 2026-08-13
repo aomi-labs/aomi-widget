@@ -754,17 +754,8 @@ export function syncPendingTxsFromUserState(
     state.chainId = undefined;
   }
 
-  if (walletSnapshot.aaMode !== undefined) {
-    state.aaMode = walletSnapshot.aaMode;
-  } else if (isConnected === false) {
-    state.aaMode = null;
-  }
-
-  if (walletSnapshot.smartAccount !== undefined) {
-    state.smartAccount = walletSnapshot.smartAccount;
-  } else if (isConnected === false) {
-    state.smartAccount = null;
-  }
+  // AA mode / smart account are backend authority and no longer round-tripped
+  // through user_state; the CLI keeps its own `--aa` preference locally.
 
   state.pendingTxs = pendingTxsFromBackendUserState(
     normalizedUserState,

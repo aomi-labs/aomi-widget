@@ -556,9 +556,6 @@ export class CliSession {
     session.resolveUserState(
       buildCliUserState(this.state.publicKey, this.state.chainId, {
         app: this.state.app,
-        aaProvider: this.state.aaProvider ?? config?.aaProvider ?? null,
-        aaMode: this.state.aaMode ?? null,
-        smartAccount: this.state.smartAccount ?? null,
         svmAddress: this.state.svmPublicKey,
         svmCluster: config?.svmCluster ?? this.state.svmCluster,
       }),

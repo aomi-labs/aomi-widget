@@ -233,7 +233,6 @@ export function AomiPrivyPluginProvider({
   });
   const executionRuntime = useMemo<ExecutionRuntime>(
     () => ({
-      sponsorship: {},
       evm: buildEvmExecutionRuntime(evmRuntime, {
         signMessage:
           embeddedEvmWallet && embeddedEvmAddress

@@ -200,37 +200,11 @@ function buildConnection(src, flat) {
   return Object.keys(c).length ? c : void 0;
 }
 function buildEvm(src, flat) {
-  var _a, _b;
   const e = __spreadValues({}, src != null ? src : {});
   renameKey(e, "chainId", "chain_id");
   renameKey(e, "ensName", "ens_name");
-  const aa = __spreadValues({}, (_a = asObject(e.aa)) != null ? _a : {});
   delete e.aa;
-  renameKey(aa, "smartAccount", "smart_account");
-  renameKey(aa, "delegation7702", "delegation_7702");
-  liftFlat(aa, flat, "mode", ["aa_mode", "aaMode"]);
-  liftFlat(aa, flat, "smart_account", [
-    "smart_account_4337",
-    "smartAccount4337",
-    "smart_account",
-    "smartAccount"
-  ]);
-  liftFlat(aa, flat, "delegation_7702", ["delegation_7702", "delegation7702"]);
-  if (Object.keys(aa).length) e.aa = aa;
-  const sponsorship = __spreadValues({}, (_b = asObject(e.sponsorship)) != null ? _b : {});
   delete e.sponsorship;
-  renameKey(sponsorship, "sponsorProvider", "sponsor_provider");
-  renameKey(sponsorship, "sponsorAccount", "sponsor_account");
-  liftFlat(sponsorship, flat, "sponsored", ["sponsored"]);
-  liftFlat(sponsorship, flat, "sponsor_provider", [
-    "sponsor_provider",
-    "sponsorProvider"
-  ]);
-  liftFlat(sponsorship, flat, "sponsor_account", [
-    "sponsor_account",
-    "sponsorAccount"
-  ]);
-  if (Object.keys(sponsorship).length) e.sponsorship = sponsorship;
   liftFlat(e, flat, "address", ["address"]);
   liftFlat(e, flat, "chain_id", ["chain_id", "chainId"]);
   if (e.chain_id != null) {
@@ -410,6 +384,12 @@ function reconcileUserState(previousUserState, incomingUserState) {
   }
   return stripDanglingConnection(out);
 }
+function toOwnedUserState(userState) {
+  const normalized = normalizeUserState(userState);
+  if (!normalized) return void 0;
+  const _a = normalized, { pending: _pending } = _a, owned = __objRest(_a, ["pending"]);
+  return owned;
+}
 
 // src/user-state/accessors.ts
 function asObject2(value) {
@@ -430,14 +410,6 @@ function connBlock(userState) {
   var _a;
   return asObject2((_a = normalizeUserState(userState)) == null ? void 0 : _a.connection);
 }
-function aaBlock(userState) {
-  var _a;
-  return asObject2((_a = evmBlock(userState)) == null ? void 0 : _a.aa);
-}
-function sponsorshipBlock(userState) {
-  var _a;
-  return asObject2((_a = evmBlock(userState)) == null ? void 0 : _a.sponsorship);
-}
 function parseChainId2(value) {
   if (typeof value === "number" && Number.isInteger(value) && value > 0) {
     return value;
@@ -451,10 +423,6 @@ function parseChainId2(value) {
 function optionalString(value) {
   if (value === null) return null;
   return typeof value === "string" && value.trim().length > 0 ? value : void 0;
-}
-function optionalAddress(value) {
-  if (value === null) return null;
-  return typeof value === "string" && value.length > 0 ? value : void 0;
 }
 function timestamp(value) {
   if (value === null) return null;
@@ -496,26 +464,6 @@ function ensName(userState) {
   const value = (_a = evmBlock(userState)) == null ? void 0 : _a.ens_name;
   return typeof value === "string" && value.length > 0 ? value : void 0;
 }
-function aaMode(userState) {
-  var _a;
-  const value = (_a = aaBlock(userState)) == null ? void 0 : _a.mode;
-  if (value === null) return null;
-  return value === "none" || value === "4337" || value === "7702" ? value : void 0;
-}
-function SmartAccount4337(userState) {
-  var _a;
-  return optionalAddress((_a = aaBlock(userState)) == null ? void 0 : _a.smart_account);
-}
-function Delegation7702(userState) {
-  var _a;
-  return optionalAddress((_a = aaBlock(userState)) == null ? void 0 : _a.delegation_7702);
-}
-function walletKind(userState) {
-  const addr = address2(userState);
-  if (!addr) return void 0;
-  const smartAccount = SmartAccount4337(userState);
-  return smartAccount && addr.toLowerCase() === smartAccount.toLowerCase() ? "smart-account" : "eoa";
-}
 function isConnected2(userState) {
   var _a;
   const value = (_a = connBlock(userState)) == null ? void 0 : _a.is_connected;
@@ -545,22 +493,6 @@ function authVerifiedAt(userState) {
   var _a;
   return timestamp((_a = connBlock(userState)) == null ? void 0 : _a.auth_verified_at);
 }
-function sponsored(userState) {
-  var _a;
-  const value = (_a = sponsorshipBlock(userState)) == null ? void 0 : _a.sponsored;
-  if (value === null) return null;
-  return typeof value === "boolean" ? value : void 0;
-}
-function sponsorProvider(userState) {
-  var _a;
-  const value = (_a = sponsorshipBlock(userState)) == null ? void 0 : _a.sponsor_provider;
-  if (value === null) return null;
-  return value === "alchemy" || value === "coinbase" || value === "pimlico" || value === "self" ? value : void 0;
-}
-function sponsorAccount(userState) {
-  var _a;
-  return optionalAddress((_a = sponsorshipBlock(userState)) == null ? void 0 : _a.sponsor_account);
-}
 function withExt(userState, key, value) {
   var _a, _b;
   const normalizedUserState = (_a = normalizeUserState(userState)) != null ? _a : {};
@@ -579,24 +511,18 @@ var UserState;
 ((UserState2) => {
   UserState2.normalize = normalizeUserState;
   UserState2.reconcile = reconcileUserState;
+  UserState2.toOwned = toOwnedUserState;
   UserState2.address = address2;
   UserState2.evmAddress = evmAddress;
   UserState2.svmAddress = svmAddress2;
   UserState2.chainId = chainId2;
   UserState2.ensName = ensName;
-  UserState2.aaMode = aaMode;
-  UserState2.SmartAccount4337 = SmartAccount4337;
-  UserState2.Delegation7702 = Delegation7702;
-  UserState2.walletKind = walletKind;
   UserState2.isConnected = isConnected2;
   UserState2.walletProvider = walletProvider;
   UserState2.walletProviderSubject = walletProviderSubject;
   UserState2.authMethod = authMethod;
   UserState2.authValue = authValue;
   UserState2.authVerifiedAt = authVerifiedAt;
-  UserState2.sponsored = sponsored;
-  UserState2.sponsorProvider = sponsorProvider;
-  UserState2.sponsorAccount = sponsorAccount;
   UserState2.withExt = withExt;
 })(UserState || (UserState = {}));
 
@@ -890,59 +816,6 @@ function previewText(value, max = 80) {
   if (singleLine.length <= max) return singleLine;
   return `${singleLine.slice(0, max - 1)}\u2026`;
 }
-var BULKY_PENDING_FIELDS = /* @__PURE__ */ new Set([
-  "messageBase64",
-  "message_base64",
-  "messageSha256",
-  "message_sha256",
-  "unsignedTx",
-  "unsigned_tx",
-  "typed_data",
-  "typedData",
-  "tx_data",
-  "txData",
-  "transaction",
-  "transactionBase64",
-  "transaction_base64"
-]);
-function pruneBucket(bucket) {
-  if (!bucket) return void 0;
-  const out = {};
-  for (const [id, entry] of Object.entries(bucket)) {
-    if (entry && typeof entry === "object" && !Array.isArray(entry)) {
-      const rec = entry;
-      const pruned = {};
-      for (const [k, v] of Object.entries(rec)) {
-        if (!BULKY_PENDING_FIELDS.has(k)) pruned[k] = v;
-      }
-      out[id] = pruned;
-    } else {
-      out[id] = entry;
-    }
-  }
-  return out;
-}
-function stripBulkyPendingFields(userState) {
-  if (!(userState == null ? void 0 : userState.pending)) return userState;
-  const pending = userState.pending;
-  const legacyPending = pending;
-  return __spreadProps(__spreadValues({}, userState), {
-    pending: __spreadProps(__spreadValues({}, pending), {
-      evm_txs: pruneBucket(pending.evm_txs),
-      evm_sigs: pruneBucket(pending.evm_sigs),
-      svm_ixs: pruneBucket(pending.svm_ixs),
-      solana_txs: pruneBucket(
-        legacyPending.solana_txs
-      ),
-      solana_sigs: pruneBucket(
-        legacyPending.solana_sigs
-      ),
-      svm_sigs: pruneBucket(
-        legacyPending.svm_sigs
-      )
-    })
-  });
-}
 function joinApiPath(baseUrl, path) {
   const normalizedBase = baseUrl === "/" ? "" : baseUrl.replace(/\/+$/, "");
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
@@ -1168,9 +1041,7 @@ ${body}` : ""}`
    */
   async fetchState(sessionId, userState, clientId, options) {
     var _a, _b, _c, _d;
-    const normalizedUserState = stripBulkyPendingFields(
-      UserState.normalize(userState)
-    );
+    const normalizedUserState = UserState.normalize(userState);
     const applicationId = (_a = options == null ? void 0 : options.applicationId) == null ? void 0 : _a.toString().trim();
     const stateContext = {
       app: options == null ? void 0 : options.app,
@@ -1231,9 +1102,7 @@ ${body}` : ""}`
     var _a, _b, _c, _d, _e, _f, _g;
     const app = (_a = options == null ? void 0 : options.app) != null ? _a : "default";
     const apiKey = (_b = options == null ? void 0 : options.apiKey) != null ? _b : this.apiKey;
-    const normalizedUserState = stripBulkyPendingFields(
-      UserState.normalize(options == null ? void 0 : options.userState)
-    );
+    const normalizedUserState = UserState.normalize(options == null ? void 0 : options.userState);
     const applicationId = (_c = options == null ? void 0 : options.applicationId) == null ? void 0 : _c.toString().trim();
     const url = buildApiUrl(this.baseUrl, "/api/thread/chat", {
       app,
@@ -3019,6 +2888,11 @@ function isRecord(value) {
 function isHexString(value) {
   return typeof value === "string" && /^0x[0-9a-fA-F]*$/.test(value);
 }
+function isOpaqueSigningRequestId(value) {
+  return typeof value === "string" && /^sign:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+    value
+  );
+}
 function normalizeSignablePayload(value) {
   if (!isRecord(value)) return null;
   if (value.kind === "evm_personal" && isHexString(value.message)) {
@@ -3038,7 +2912,9 @@ function normalizeSignablePayload(value) {
 function normalizeSigningPayload(value) {
   if (!isRecord(value)) return null;
   const payloads = Array.isArray(value.payloads) ? value.payloads.map(normalizeSignablePayload) : [];
-  if (typeof value.requestId !== "string" || !value.requestId.startsWith("sign:") || value.requestId.includes("evm_sig") || value.requestId.includes("svm_sig") || value.requestId.includes("aa:") || value.chainFamily !== "evm" && value.chainFamily !== "svm" || value.executionKind !== "message" && value.executionKind !== "transaction" && value.executionKind !== "erc4337" || value.executionKind === "erc4337" && value.chainFamily !== "evm" || typeof value.signer !== "string" || typeof value.description !== "string" || payloads.length === 0 || payloads.some((payload) => payload === null)) {
+  if (!isOpaqueSigningRequestId(value.requestId) || value.chainFamily !== "evm" && value.chainFamily !== "svm" || value.executionKind !== "message" && value.executionKind !== "transaction" && value.executionKind !== "erc4337" || value.executionKind === "erc4337" && value.chainFamily !== "evm" || typeof value.signer !== "string" || typeof value.description !== "string" || payloads.length === 0 || payloads.some((payload) => payload === null) || payloads.some(
+    (payload) => value.chainFamily === "evm" ? !(payload == null ? void 0 : payload.kind.startsWith("evm_")) : !(payload == null ? void 0 : payload.kind.startsWith("svm_"))
+  )) {
     return null;
   }
   return __spreadValues(__spreadValues(__spreadValues(__spreadValues(__spreadValues(__spreadValues(__spreadValues(__spreadValues(__spreadValues(__spreadValues({
@@ -3185,24 +3061,13 @@ function removeExtValue(userState, key) {
   delete nextExt[key];
   return __spreadProps(__spreadValues({}, userState), { ext: nextExt });
 }
-function resolveWalletState(userState, address3, chainId3, aa) {
-  var _a, _b, _c;
-  const resolvedAAMode = (_a = aa == null ? void 0 : aa.aaMode) != null ? _a : (aa == null ? void 0 : aa.smartAccount) === address3 ? "4337" : "none";
-  const aaBlock2 = { mode: resolvedAAMode };
-  if (resolvedAAMode === "4337" || resolvedAAMode === "7702") {
-    aaBlock2.provider = "alchemy";
-  }
-  if ((aa == null ? void 0 : aa.smartAccount4337) !== void 0 || (aa == null ? void 0 : aa.delegation7702) !== void 0) {
-    aaBlock2.smart_account = resolvedAAMode === "4337" ? (_b = aa == null ? void 0 : aa.smartAccount4337) != null ? _b : null : null;
-    aaBlock2.delegation_7702 = resolvedAAMode === "7702" ? (_c = aa == null ? void 0 : aa.delegation7702) != null ? _c : null : null;
-  }
+function resolveWalletState(userState, address3, chainId3) {
   const prevEvm = isRecord2(userState == null ? void 0 : userState.evm) ? userState == null ? void 0 : userState.evm : {};
   const prevConn = isRecord2(userState == null ? void 0 : userState.connection) ? userState == null ? void 0 : userState.connection : {};
   return __spreadProps(__spreadValues({}, userState != null ? userState : {}), {
     evm: __spreadProps(__spreadValues({}, prevEvm), {
       address: address3,
-      chain_id: chainId3 != null ? chainId3 : 1,
-      aa: aaBlock2
+      chain_id: chainId3 != null ? chainId3 : 1
     }),
     connection: __spreadProps(__spreadValues({}, prevConn), {
       is_connected: true
@@ -3225,20 +3090,6 @@ function warnIfUserStateMisaligned(expected, actual) {
       `[session] Backend user_state mismatch (non-fatal). expected subset=${expectedJson} actual=${actualJson}`
     );
   }
-}
-
-// src/aa/policy.ts
-function aaRequestedModeFromPreference(preference) {
-  if (preference === "none") return "none";
-  if (preference === "eip4337") return "4337";
-  return "7702";
-}
-function aaModeFromExecutionKind(executionKind) {
-  if (!executionKind) return void 0;
-  if (executionKind.endsWith("_4337")) return "4337";
-  if (executionKind.endsWith("_7702")) return "7702";
-  if (executionKind === "eoa") return "none";
-  return void 0;
 }
 
 // src/session/wallet.ts
@@ -3374,16 +3225,11 @@ var SessionWalletController = class {
       const send = (type, payload) => this.deps.sendSystemEvent(type, payload);
       if (req.kind === "transaction") {
         const pendingTxIds = txIdsFromPayload(req.payload);
-        const requestedMode = aaRequestedModeFromPreference(
-          req.payload.aaPreference
-        );
         await send("wallet:tx_complete", {
           txHash: "",
           status: "failed",
           error: reason != null ? reason : "Request rejected",
           pending_tx_ids: pendingTxIds,
-          aa_requested_mode: requestedMode,
-          aa_resolved_mode: requestedMode,
           batched: pendingTxIds.length > 1,
           call_count: pendingTxIds.length
         });
@@ -3419,46 +3265,23 @@ var SessionWalletController = class {
     this.finishRequest(req);
   }
   async resolveTransaction(payload, result) {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j;
+    var _a, _b, _c, _d, _e;
     const pendingTxIds = (_a = result.completedTxIds) != null ? _a : txIdsFromPayload(payload);
-    const requestedMode = (_b = result.aaRequestedMode) != null ? _b : aaRequestedModeFromPreference(payload.aaPreference);
-    const resolvedMode = (_d = (_c = result.aaResolvedMode) != null ? _c : aaModeFromExecutionKind(result.executionKind)) != null ? _d : requestedMode;
-    const userState = this.deps.getUserState();
-    const prevEvm = isRecord3(userState == null ? void 0 : userState.evm) ? userState.evm : {};
-    const prevAa = isRecord3(prevEvm.aa) ? prevEvm.aa : {};
-    this.deps.resolveUserState(__spreadProps(__spreadValues({}, userState != null ? userState : {}), {
-      evm: __spreadProps(__spreadValues({}, prevEvm), {
-        aa: __spreadProps(__spreadValues(__spreadProps(__spreadValues({}, prevAa), {
-          mode: resolvedMode
-        }), resolvedMode === "4337" || resolvedMode === "7702" ? { provider: "alchemy" } : {}), {
-          smart_account: resolvedMode === "4337" ? (_e = result.SmartAccount4337) != null ? _e : null : null,
-          delegation_7702: resolvedMode === "7702" ? (_f = result.Delegation7702) != null ? _f : null : null
-        })
-      })
-    }));
     await this.deps.sendSystemEvent("wallet:tx_complete", {
       txHash: result.txHash,
       status: "success",
       amount: result.amount,
       pending_tx_ids: pendingTxIds,
-      aa_requested_mode: requestedMode,
-      aa_resolved_mode: resolvedMode,
-      aa_fallback_reason: result.aaFallbackReason,
       execution_kind: result.executionKind,
-      batched: (_g = result.batched) != null ? _g : pendingTxIds.length > 1,
-      call_count: (_h = result.callCount) != null ? _h : pendingTxIds.length,
-      sponsored: result.sponsored,
-      smart_account_4337: result.SmartAccount4337,
-      delegation_7702: result.Delegation7702
+      batched: (_b = result.batched) != null ? _b : pendingTxIds.length > 1,
+      call_count: (_c = result.callCount) != null ? _c : pendingTxIds.length
     });
-    if ((_i = result.failedTxIds) == null ? void 0 : _i.length) {
+    if ((_d = result.failedTxIds) == null ? void 0 : _d.length) {
       await this.deps.sendSystemEvent("wallet:tx_complete", {
         txHash: "",
         status: "failed",
-        error: (_j = result.failureReason) != null ? _j : "Batch aborted after a mid-sequence failure; these legs were not executed",
+        error: (_e = result.failureReason) != null ? _e : "Batch aborted after a mid-sequence failure; these legs were not executed",
         pending_tx_ids: result.failedTxIds,
-        aa_requested_mode: requestedMode,
-        aa_resolved_mode: resolvedMode,
         batched: result.failedTxIds.length > 1,
         call_count: result.failedTxIds.length
       });
@@ -3630,6 +3453,15 @@ var SessionWalletController = class {
   }
 };
 
+// src/aa/policy.ts
+function aaModeFromExecutionKind(executionKind) {
+  if (!executionKind) return void 0;
+  if (executionKind.endsWith("_4337")) return "4337";
+  if (executionKind.endsWith("_7702")) return "7702";
+  if (executionKind === "eoa") return "none";
+  return void 0;
+}
+
 // src/session/index.ts
 var ClientSession = class extends TypedEventEmitter {
   constructor(clientOrOptions, sessionOptions) {
@@ -3688,7 +3520,7 @@ var ClientSession = class extends TypedEventEmitter {
       app: this.app,
       applicationId: this.applicationId,
       apiKey: this.apiKey,
-      userState: this.userState,
+      userState: this.outboundUserState(),
       clientId: this.clientId,
       paymentMethod: this.paymentMethod
     });
@@ -3714,7 +3546,7 @@ var ClientSession = class extends TypedEventEmitter {
       app: this.app,
       applicationId: this.applicationId,
       apiKey: this.apiKey,
-      userState: this.userState,
+      userState: this.outboundUserState(),
       clientId: this.clientId,
       paymentMethod: this.paymentMethod
     });
@@ -3876,16 +3708,23 @@ var ClientSession = class extends TypedEventEmitter {
       this.resolveUserState(next);
     }
   }
-  resolveWallet(address3, chainId3, aa) {
+  resolveWallet(address3, chainId3) {
     this.resolveUserState(
-      resolveWalletState(this.userState, address3, chainId3, aa)
+      resolveWalletState(this.userState, address3, chainId3)
     );
+  }
+  /**
+   * The subset of the stored state the client may send to the backend. Drops
+   * backend-authority `pending` (in-flight requests the client only receives).
+   */
+  outboundUserState() {
+    return UserState.toOwned(this.userState);
   }
   async syncUserState() {
     this.assertOpen();
     const state = await this.client.fetchState(
       this.sessionId,
-      this.userState,
+      this.outboundUserState(),
       this.clientId,
       { app: this.app, applicationId: this.applicationId }
     );
@@ -3908,7 +3747,7 @@ var ClientSession = class extends TypedEventEmitter {
     this.assertOpen();
     const state = await this.client.fetchState(
       this.sessionId,
-      this.userState,
+      this.outboundUserState(),
       this.clientId,
       { app: this.app, applicationId: this.applicationId }
     );
@@ -3950,7 +3789,7 @@ var ClientSession = class extends TypedEventEmitter {
     try {
       const state = await this.client.fetchState(
         this.sessionId,
-        this.userState,
+        this.outboundUserState(),
         this.clientId,
         { app: this.app, applicationId: this.applicationId }
       );

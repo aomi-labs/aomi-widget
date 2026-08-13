@@ -285,7 +285,7 @@ describe("ClientSession ext helpers", () => {
     session.close();
   });
 
-  it("preserves AA mode and smart account across partial backend user_state snapshots", async () => {
+  it("preserves owner/chain across partial backend snapshots without sending aa or pending", async () => {
     const { client, fetchState, sendMessage } = createMockClient();
     const session = new Session(client, {
       sessionId: "session-unit-5c",
@@ -293,8 +293,6 @@ describe("ClientSession ext helpers", () => {
         address: "0xabc",
         chain_id: 8453,
         is_connected: true,
-        aa_mode: "4337",
-        smart_account: "0xsmart",
       },
     });
 
@@ -309,44 +307,37 @@ describe("ClientSession ext helpers", () => {
     } satisfies AomiStateResponse);
 
     await session.syncUserState();
-    await session.sendAsync("keep aa state");
+    await session.sendAsync("keep owner state");
 
-    expect(sendMessage.mock.calls[0][2]?.userState).toMatchObject({
+    const sent = sendMessage.mock.calls[0][2]?.userState;
+    expect(sent).toMatchObject({
       connection: { is_connected: true },
-      evm: {
-        address: "0xabc",
-        chain_id: 8453,
-        aa: {
-          mode: "4337",
-          smart_account: "0xsmart",
-        },
-      },
+      evm: { address: "0xabc", chain_id: 8453 },
     });
+    // AA / sponsorship are backend authority; `pending` is backend in-flight
+    // state. Neither is ever sent back.
+    expect(sent?.evm).not.toHaveProperty("aa");
+    expect(sent).not.toHaveProperty("pending");
 
     session.close();
   });
 
-  it("normalizes camelCase AA user_state aliases", () => {
-    expect(
-      UserState.normalize({
-        address: "0xabc",
-        aaMode: "4337",
-        smartAccount: "0xsmart",
-        walletKind: "smart-account",
-        walletProvider: "baseAccount",
-        authMethod: "google",
-        sponsorProvider: "coinbase",
-        sponsorAccount: "gp_test",
-      }),
-    ).toMatchObject({
-      evm: {
-        address: "0xabc",
-        aa: {
-          mode: "4337",
-          smart_account: "0xsmart",
-        },
-      },
+  it("strips backend-authority aa/sponsorship aliases while normalizing the rest", () => {
+    const normalized = UserState.normalize({
+      address: "0xabc",
+      aaMode: "4337",
+      smartAccount: "0xsmart",
+      walletProvider: "baseAccount",
+      authMethod: "google",
+      sponsorProvider: "coinbase",
+      sponsorAccount: "gp_test",
+    } as unknown as Parameters<typeof UserState.normalize>[0]);
+    expect(normalized).toMatchObject({
+      evm: { address: "0xabc" },
+      connection: { provider: "baseAccount", auth_method: "google" },
     });
+    expect(normalized?.evm).not.toHaveProperty("aa");
+    expect(normalized?.evm).not.toHaveProperty("sponsorship");
   });
 
   it("warns when backend user_state ext mismatches expected subset", async () => {
@@ -713,12 +704,6 @@ describe("ClientSession ext helpers", () => {
     });
 
     expect(session.getUserState()).toMatchObject({
-      evm: {
-        aa: {
-          mode: "7702",
-          provider: "alchemy",
-        },
-      },
       pending: {
         evm_txs: {
           7: expect.objectContaining({
@@ -727,6 +712,9 @@ describe("ClientSession ext helpers", () => {
         },
       },
     });
+    // AA state is backend authority and is no longer written into user_state
+    // on tx completion.
+    expect(session.getUserState()?.evm?.aa).toBeUndefined();
 
     expect(sendSystemMessage).toHaveBeenCalledWith(
       "session-unit-8",
@@ -737,15 +725,9 @@ describe("ClientSession ext helpers", () => {
           status: "success",
           amount: undefined,
           pending_tx_ids: [7],
-          aa_requested_mode: "7702",
-          aa_resolved_mode: "7702",
-          aa_fallback_reason: undefined,
           execution_kind: undefined,
           batched: false,
           call_count: 1,
-          sponsored: undefined,
-          smart_account_address: undefined,
-          delegation_address: undefined,
         },
       }),
       { app: "default" },

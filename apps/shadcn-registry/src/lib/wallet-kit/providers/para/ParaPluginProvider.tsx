@@ -25,7 +25,6 @@ import { REGISTRY_STORAGE_KEY } from "../../registry/types";
 import { walletDebug } from "../../wallet-debug";
 import { buildEvmExecutionRuntime } from "../../execution/execution-runtime";
 import type { AomiAccount, SvmNetworkOption } from "../../types";
-import { resolveExecutionSponsorshipIdentity } from "../../config/execution";
 import { PARA_BRAND_KEY, PARA_SESSION_UID } from "./para-brand";
 import {
   DEFAULT_SVM_ENDPOINT,
@@ -396,16 +395,11 @@ export function AomiParaPluginProvider({
       Boolean(paraModal) && exposeParaSession && isParaEmbeddedAccount(account),
     [exposeParaSession, paraModal],
   );
-  const sponsorship = useMemo(
-    () => resolveExecutionSponsorshipIdentity(execution),
-    [execution],
-  );
   const executionRuntime = useMemo<ExecutionRuntime>(
     () => ({
-      sponsorship,
       evm: buildEvmExecutionRuntime(evmRuntime),
     }),
-    [evmRuntime, sponsorship],
+    [evmRuntime],
   );
   const accountRuntime = useResolvedAccountRuntime({
     account,

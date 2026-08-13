@@ -102,10 +102,6 @@ export type SvmExecutionRuntime = ReturnType<typeof buildSvmTransactionMethods>;
 
 export type ExecutionRuntime = {
   evm: EvmExecutionRuntime;
-  sponsorship: Pick<
-    AomiSessionIdentity,
-    "sponsored" | "sponsorProvider" | "sponsorAccount"
-  >;
 };
 
 export type AccountTransform = (accounts: AomiAccount[]) => AomiAccount[];

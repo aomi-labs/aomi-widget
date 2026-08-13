@@ -2993,7 +2993,7 @@ function useWalletStateSync(context, sessions, remoteThreads) {
   const { remoteThreadIdsRef } = remoteThreads;
   const walletSnapshot = useCallback11(
     (nextUser) => {
-      var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r;
+      var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l;
       return {
         connection: {
           is_connected: (_a = UserStateHelpers.isConnected(nextUser)) != null ? _a : false,
@@ -3007,24 +3007,14 @@ function useWalletStateSync(context, sessions, remoteThreads) {
         evm: {
           address: UserStateHelpers.address(nextUser),
           chain_id: UserStateHelpers.chainId(nextUser),
-          ens_name: typeof ((_h = nextUser.evm) == null ? void 0 : _h.ens_name) === "string" ? nextUser.evm.ens_name : void 0,
-          aa: {
-            mode: (_i = UserStateHelpers.aaMode(nextUser)) != null ? _i : void 0,
-            smart_account: (_j = UserStateHelpers.SmartAccount4337(nextUser)) != null ? _j : void 0,
-            delegation_7702: (_k = UserStateHelpers.Delegation7702(nextUser)) != null ? _k : void 0
-          },
-          sponsorship: {
-            sponsored: (_l = UserStateHelpers.sponsored(nextUser)) != null ? _l : void 0,
-            sponsor_provider: (_m = UserStateHelpers.sponsorProvider(nextUser)) != null ? _m : void 0,
-            sponsor_account: (_n = UserStateHelpers.sponsorAccount(nextUser)) != null ? _n : void 0
-          }
+          ens_name: typeof ((_h = nextUser.evm) == null ? void 0 : _h.ens_name) === "string" ? nextUser.evm.ens_name : void 0
         },
         svm: {
           address: UserStateHelpers.svmAddress(nextUser),
-          cluster: (_o = nextUser.svm) == null ? void 0 : _o.cluster,
-          wallet_name: (_p = nextUser.svm) == null ? void 0 : _p.wallet_name,
-          transport: (_q = nextUser.svm) == null ? void 0 : _q.transport,
-          capabilities: (_r = nextUser.svm) == null ? void 0 : _r.capabilities
+          cluster: (_i = nextUser.svm) == null ? void 0 : _i.cluster,
+          wallet_name: (_j = nextUser.svm) == null ? void 0 : _j.wallet_name,
+          transport: (_k = nextUser.svm) == null ? void 0 : _k.transport,
+          capabilities: (_l = nextUser.svm) == null ? void 0 : _l.capabilities
         }
       };
     },

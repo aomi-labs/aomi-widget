@@ -163,10 +163,6 @@ function identityToUserState(
     evm: {
       address: identity.address ?? undefined,
       chain_id: identity.chainId ?? undefined,
-      aa: {
-        mode: identity.aaMode ?? null,
-        smart_account: identity.SmartAccount4337 ?? null,
-      },
     },
     solana: {
       address: identity.svmAddress ?? undefined,

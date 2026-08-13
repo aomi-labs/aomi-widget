@@ -250,10 +250,7 @@ describe("CLI wallet sign simulation integration", () => {
         chainId: 1,
       },
     );
-    expect(mocks.resolveWallet).toHaveBeenCalledWith(MOCK_ADDRESS, 1, {
-      aaMode: null,
-      smartAccount: null,
-    });
+    expect(mocks.resolveWallet).toHaveBeenCalledWith(MOCK_ADDRESS, 1);
 
     // Fee call is appended and the whole batch signs with the local key.
     expect(mocks.executeWalletCalls).toHaveBeenCalledWith(

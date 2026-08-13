@@ -57,21 +57,20 @@ describe("CLI user state AA fields", () => {
     });
   });
 
-  it("round-trips 4337 smart-account context", () => {
+  it("snapshots owner/chain only and ignores backend-authority aa", () => {
     const snapshot = walletSnapshotFromUserState({
       connection: { is_connected: true },
       evm: {
         address: "0xabc",
         chain_id: 8453,
+        // aa is backend authority; even if present it must not surface here.
         aa: { mode: "4337", smart_account: "0xabc" },
       },
-    });
+    } as unknown as Parameters<typeof walletSnapshotFromUserState>[0]);
 
     expect(snapshot).toEqual({
       publicKey: "0xabc",
       chainId: 8453,
-      aaMode: "4337",
-      smartAccount: "0xabc",
     });
   });
 });

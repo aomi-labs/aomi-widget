@@ -1,7 +1,3 @@
-import {
-  aaModeFromExecutionKind,
-  aaRequestedModeFromPreference,
-} from "../aa/policy";
 import type { UserState as UserStateShape } from "../user-state";
 import {
   hydrateTxPayloadFromUserState,
@@ -216,16 +212,11 @@ export class SessionWalletController {
         this.deps.sendSystemEvent(type, payload);
       if (req.kind === "transaction") {
         const pendingTxIds = txIdsFromPayload(req.payload);
-        const requestedMode = aaRequestedModeFromPreference(
-          req.payload.aaPreference,
-        );
         await send("wallet:tx_complete", {
           txHash: "",
           status: "failed",
           error: reason ?? "Request rejected",
           pending_tx_ids: pendingTxIds,
-          aa_requested_mode: requestedMode,
-          aa_resolved_mode: requestedMode,
           batched: pendingTxIds.length > 1,
           call_count: pendingTxIds.length,
         });
@@ -279,48 +270,17 @@ export class SessionWalletController {
     // pending-tx ledger matches the chain instead of re-queuing legs that
     // already spent funds.
     const pendingTxIds = result.completedTxIds ?? txIdsFromPayload(payload);
-    const requestedMode =
-      result.aaRequestedMode ??
-      aaRequestedModeFromPreference(payload.aaPreference);
-    const resolvedMode =
-      result.aaResolvedMode ??
-      aaModeFromExecutionKind(result.executionKind) ??
-      requestedMode;
-    const userState = this.deps.getUserState();
-    const prevEvm = isRecord(userState?.evm) ? userState.evm : {};
-    const prevAa = isRecord(prevEvm.aa) ? prevEvm.aa : {};
-    this.deps.resolveUserState({
-      ...(userState ?? {}),
-      evm: {
-        ...prevEvm,
-        aa: {
-          ...prevAa,
-          mode: resolvedMode,
-          // Preserve backend AA routing across post-transaction state updates.
-          ...(resolvedMode === "4337" || resolvedMode === "7702"
-            ? { provider: "alchemy" }
-            : {}),
-          smart_account:
-            resolvedMode === "4337" ? (result.SmartAccount4337 ?? null) : null,
-          delegation_7702:
-            resolvedMode === "7702" ? (result.Delegation7702 ?? null) : null,
-        },
-      },
-    });
+    // Account-abstraction / sponsorship are backend authority; this path reports
+    // only the direct-wallet execution outcome. The backend resolves and records
+    // AA state itself (execution-profile + operation endpoints).
     await this.deps.sendSystemEvent("wallet:tx_complete", {
       txHash: result.txHash,
       status: "success",
       amount: result.amount,
       pending_tx_ids: pendingTxIds,
-      aa_requested_mode: requestedMode,
-      aa_resolved_mode: resolvedMode,
-      aa_fallback_reason: result.aaFallbackReason,
       execution_kind: result.executionKind,
       batched: result.batched ?? pendingTxIds.length > 1,
       call_count: result.callCount ?? pendingTxIds.length,
-      sponsored: result.sponsored,
-      smart_account_4337: result.SmartAccount4337,
-      delegation_7702: result.Delegation7702,
     });
 
     if (result.failedTxIds?.length) {
@@ -331,8 +291,6 @@ export class SessionWalletController {
           result.failureReason ??
           "Batch aborted after a mid-sequence failure; these legs were not executed",
         pending_tx_ids: result.failedTxIds,
-        aa_requested_mode: requestedMode,
-        aa_resolved_mode: resolvedMode,
         batched: result.failedTxIds.length > 1,
         call_count: result.failedTxIds.length,
       });

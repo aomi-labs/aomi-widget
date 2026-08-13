@@ -160,20 +160,6 @@ function useWalletStateSync(
           typeof nextUser.evm?.ens_name === "string"
             ? nextUser.evm.ens_name
             : undefined,
-        aa: {
-          mode: UserStateHelpers.aaMode(nextUser) ?? undefined,
-          smart_account:
-            UserStateHelpers.SmartAccount4337(nextUser) ?? undefined,
-          delegation_7702:
-            UserStateHelpers.Delegation7702(nextUser) ?? undefined,
-        },
-        sponsorship: {
-          sponsored: UserStateHelpers.sponsored(nextUser) ?? undefined,
-          sponsor_provider:
-            UserStateHelpers.sponsorProvider(nextUser) ?? undefined,
-          sponsor_account:
-            UserStateHelpers.sponsorAccount(nextUser) ?? undefined,
-        },
       },
       svm: {
         address: UserStateHelpers.svmAddress(nextUser),

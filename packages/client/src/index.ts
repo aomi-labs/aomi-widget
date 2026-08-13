@@ -104,9 +104,8 @@ export type {
   AomiClientType,
   UserStateAAMode,
   UserStateAuthMethod,
-  UserStateWalletKind,
   UserStateWalletProvider,
-  UserStateSponsorProvider,
+  OwnedUserState,
 } from "./user-state";
 
 // =============================================================================

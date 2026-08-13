@@ -60,10 +60,7 @@ import type {
   ProvidersConfig,
   WalletsConfig,
 } from "./types";
-import {
-  resolveExecutionSponsorshipIdentity,
-  resolveConfiguredNativeWalletExecutionPolicy,
-} from "./execution";
+import { resolveConfiguredNativeWalletExecutionPolicy } from "./execution";
 
 export type { AomiWalletKitProviderInput, AomiWalletKitProviderProps };
 
@@ -110,7 +107,6 @@ function ExternalWalletComposerProvider({
   );
   const executionRuntime = useMemo<ExecutionRuntime>(
     () => ({
-      sponsorship: resolveExecutionSponsorshipIdentity(execution),
       evm: buildEvmExecutionRuntime(evmRuntime, {
         nativeWalletExecution:
           resolveConfiguredNativeWalletExecutionPolicy(execution),

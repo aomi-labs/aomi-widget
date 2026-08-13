@@ -6,13 +6,10 @@ export type {
   UserStateAuthMethod,
   UserStateConnection,
   UserStateEvm,
-  UserStateEvmAa,
-  UserStateEvmSponsorship,
   UserStatePending,
-  UserStateSponsorProvider,
   UserStateSvm,
-  UserStateWalletKind,
   UserStateWalletProvider,
+  OwnedUserState,
   AomiClientType,
 } from "./user-state";
 export { CLIENT_TYPE_TS_CLI, CLIENT_TYPE_WEB_UI } from "./user-state";
