@@ -105,9 +105,10 @@ jobs:
             exit 1
           }
           merge_base="$(git merge-base origin/main origin/prod)"
-          if ! git diff --quiet "$merge_base^{tree}" "origin/prod^{tree}"; then
+          merge_base_tree="$(git rev-parse "${merge_base}^{tree}")"
+          if ! git diff --quiet "$merge_base_tree" "origin/prod^{tree}"; then
             echo "prod contains a tree change that has not been back-merged to main" >&2
-            git diff --stat "$merge_base^{tree}" "origin/prod^{tree}"
+            git diff --stat "$merge_base_tree" "origin/prod^{tree}"
             exit 1
           fi
           git fetch origin "pull/$PR_NUMBER/merge:refs/remotes/origin/promotion-merge" --quiet
@@ -148,9 +149,10 @@ jobs:
           set -euo pipefail
           git fetch origin main prod --quiet
           merge_base="$(git merge-base origin/main origin/prod)"
-          git diff --quiet "$merge_base^{tree}" "origin/prod^{tree}" || {
+          merge_base_tree="$(git rev-parse "${merge_base}^{tree}")"
+          git diff --quiet "$merge_base_tree" "origin/prod^{tree}" || {
             echo "prod has a tree change absent from main; merge the production hotfix first" >&2
-            git diff --stat "$merge_base^{tree}" "origin/prod^{tree}"
+            git diff --stat "$merge_base_tree" "origin/prod^{tree}"
             exit 1
           }
 
