@@ -6,17 +6,26 @@ import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 // isolation knobs:
 //   AOMI_MCP_E2E_LOCAL_DB_URL — mirror the generated canonical user into the
 //     explicitly local `aomi_local` backend database.
+//   AOMI_MCP_E2E_PRIVATE_KEY — use an existing EVM test wallet for SIWE instead
+//     of generating a throwaway key. The value is never printed.
+//   AOMI_MCP_E2E_CHAIN_ID — SIWE chain id for that wallet (default: 31337).
 //   AOMI_MCP_E2E_ANVIL_URL + AOMI_MCP_E2E_WALLET_PROMPT — fund the generated
 //     wallet on local Anvil and require a real `awaiting_user` wallet handoff.
 //   AOMI_MCP_E2E_COOKIE_FILE — write a mode-0600 Cookie header for a separate
 //     agent-browser pass; delete it immediately after the browser run.
 const origin = "http://localhost:3000";
 const redirectUri = "http://127.0.0.1:49152/callback";
-const chainId = 31337;
+const chainId = Number(process.env.AOMI_MCP_E2E_CHAIN_ID?.trim() || "31337");
 const localBackendDb = process.env.AOMI_MCP_E2E_LOCAL_DB_URL?.trim();
 const browserCookieFile = process.env.AOMI_MCP_E2E_COOKIE_FILE?.trim();
 const localAnvilUrl = process.env.AOMI_MCP_E2E_ANVIL_URL?.trim();
 const walletPrompt = process.env.AOMI_MCP_E2E_WALLET_PROMPT?.trim();
+const configuredPrivateKey = process.env.AOMI_MCP_E2E_PRIVATE_KEY?.trim();
+
+assert(
+  Number.isSafeInteger(chainId) && chainId > 0,
+  "AOMI_MCP_E2E_CHAIN_ID must be a positive integer",
+);
 
 class CookieJar {
   cookies = new Map();
@@ -89,7 +98,16 @@ Issued At: ${new Date().toISOString()}`;
 }
 
 async function signIn(jar) {
-  const account = privateKeyToAccount(generatePrivateKey());
+  const privateKey = configuredPrivateKey
+    ? configuredPrivateKey.startsWith("0x")
+      ? configuredPrivateKey
+      : `0x${configuredPrivateKey}`
+    : generatePrivateKey();
+  assert(
+    /^0x[0-9a-fA-F]{64}$/.test(privateKey),
+    "AOMI_MCP_E2E_PRIVATE_KEY must be a 32-byte hexadecimal EVM private key",
+  );
+  const account = privateKeyToAccount(privateKey);
   const nonce = await json(
     await jar.fetch("/api/auth/siwe/nonce", {
       method: "POST",

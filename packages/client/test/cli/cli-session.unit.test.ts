@@ -129,6 +129,41 @@ describe("CLI session lifecycle", () => {
     );
   });
 
+  it("imports an account-owned remote session when resume has no local match", async () => {
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const { AomiClient } = await import("../../src/client");
+    const fetchState = vi
+      .spyOn(AomiClient.prototype, "fetchState")
+      .mockResolvedValue({ messages: [], system_events: [] } as never);
+    const { CliSession } = await import("../../src/cli/cli-session");
+    const { resumeSessionCommand } =
+      await import("../../src/cli/commands/sessions");
+    const { readState } = await import("../../src/cli/state");
+
+    const current = CliSession.create({
+      baseUrl: "https://chat.aomi.dev",
+      app: "default",
+      secrets: {},
+    });
+    current.setAuthSession({
+      sessionToken: "bff-session-token",
+      expiresAt: Date.now() + 60_000,
+    });
+
+    await resumeSessionCommand("mcp-remote-thread");
+
+    expect(fetchState).toHaveBeenCalledWith(
+      "mcp-remote-thread",
+      undefined,
+      expect.any(String),
+    );
+    expect(readState()?.sessionId).toBe("mcp-remote-thread");
+    expect(readState()?.auth?.sessionToken).toBe("bff-session-token");
+    expect(logSpy).toHaveBeenCalledWith(
+      expect.stringContaining("imported remote session"),
+    );
+  });
+
   it("persists explicit wallet, chain, and backend settings on the active session", async () => {
     const { setWalletCommand, setChainCommand, setBackendCommand } =
       await import("../../src/cli/commands/preferences");

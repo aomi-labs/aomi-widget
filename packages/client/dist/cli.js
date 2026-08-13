@@ -5602,7 +5602,7 @@ var init_cli_session = __esm({
         return _CliSession.create(config);
       }
       /** Create a fresh session and persist it. */
-      static create(config, seed) {
+      static create(config, seed, sessionId = crypto.randomUUID()) {
         var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n;
         let svmPublicKey;
         if (config.solanaPrivateKey) {
@@ -5614,7 +5614,7 @@ var init_cli_session = __esm({
           }
         }
         const state = {
-          sessionId: crypto.randomUUID(),
+          sessionId,
           clientId: crypto.randomUUID(),
           baseUrl: (_b = (_a3 = config.baseUrl) != null ? _a3 : seed == null ? void 0 : seed.baseUrl) != null ? _b : DEFAULT_CLI_BASE_URL,
           app: (_c = config.app) != null ? _c : seed == null ? void 0 : seed.app,
@@ -8052,13 +8052,42 @@ function newSessionCommand(config) {
   console.log(`Active session set to ${cli.sessionId} (new).`);
   printDataFileLocation();
 }
-function resumeSessionCommand(selector) {
+async function resumeSessionCommand(selector) {
   const resumed = setActiveSession(selector);
-  if (!resumed) {
-    fatal(`No local session found for selector "${selector}".`);
+  if (resumed) {
+    console.log(
+      `Active session set to ${resumed.sessionId} (session-${resumed.localId}).`
+    );
+    printDataFileLocation();
+    return;
   }
+  const current = CliSession.load();
+  if (!current) {
+    fatal(
+      `No local session found for selector "${selector}" and no authenticated session is available to import it.`
+    );
+  }
+  const session = current.createClientSession();
+  try {
+    await session.client.fetchState(
+      selector,
+      void 0,
+      current.ensureClientId()
+    );
+  } catch (e) {
+    fatal(
+      `No account-owned local or remote session found for selector "${selector}".`
+    );
+  } finally {
+    session.close();
+  }
+  const imported = CliSession.create(
+    { secrets: {} },
+    current.toState(),
+    selector
+  );
   console.log(
-    `Active session set to ${resumed.sessionId} (session-${resumed.localId}).`
+    `Active session set to ${imported.sessionId} (imported remote session).`
   );
   printDataFileLocation();
 }
@@ -10644,7 +10673,7 @@ var sessionResumeDef = defineCommand3({
   },
   async run({ args }) {
     const { resumeSessionCommand: resumeSessionCommand2 } = await Promise.resolve().then(() => (init_sessions(), sessions_exports));
-    resumeSessionCommand2(args.id);
+    await resumeSessionCommand2(args.id);
   }
 });
 var sessionDeleteDef = defineCommand3({
@@ -11340,7 +11369,7 @@ init_shared();
 // package.json
 var package_default = {
   name: "@aomi-labs/client",
-  version: "0.4.5",
+  version: "0.4.6",
   description: "Platform-agnostic TypeScript client for the Aomi backend API",
   type: "module",
   main: "./dist/index.cjs",
