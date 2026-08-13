@@ -26,8 +26,8 @@ sponsorship, broadcast, confirmation, and revenue receipts.
   network-preference, signer/address, authorization, fee-path, and chain-switch
   regressions while deleting the obsolete legacy EIP-712 orchestrator test.
 - Verified 1,476 root tests and 347 registry tests, root lint/typecheck, Portal
-  typecheck, the widget consumer production build, and all changed publishable
-  package builds.
+  typecheck, Telegram and widget-consumer production builds, and all changed
+  publishable package builds.
 
 ## MCP explicit chain context
 

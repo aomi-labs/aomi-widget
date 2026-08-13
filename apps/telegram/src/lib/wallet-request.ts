@@ -20,8 +20,10 @@ export function requestChainId(request: WalletRequest): number | undefined {
       request.payload.chainId
     );
   }
-  if (request.kind !== "eip712_sign") return undefined;
-  return parseChainId(request.payload.typed_data?.domain?.chainId);
+  if (request.kind !== "signing" || request.payload.chainFamily !== "evm") {
+    return undefined;
+  }
+  return parseChainId(request.payload.chainId);
 }
 
 export function pendingTransactionIds(payload: WalletTxPayload): number[] {
@@ -93,39 +95,80 @@ export function describeRequest(
     return { title: "Approve transaction", fields };
   }
 
-  if (request.kind !== "eip712_sign") return null;
+  if (request.kind !== "signing" || request.payload.chainFamily !== "evm") {
+    return null;
+  }
 
-  const { typed_data: typedData, non_typed_data: message } = request.payload;
-  const fields: RequestField[] = [];
+  const fields: RequestField[] = [
+    { label: "Network", value: chain.name },
+    { label: "Signer", value: request.payload.signer, mono: true },
+  ];
   if (request.payload.description) {
-    fields.push({ label: "Action", value: request.payload.description });
+    fields.unshift({ label: "Action", value: request.payload.description });
   }
 
-  if (typedData) {
-    fields.push({ label: "Network", value: chain.name });
-    if (typedData.primaryType) {
-      fields.push({ label: "Type", value: typedData.primaryType });
+  if (request.payload.executor) {
+    fields.push({
+      label: "Executor",
+      value: request.payload.executor,
+      mono: true,
+    });
+  }
+  if (request.payload.calls?.length) {
+    fields.push({
+      label: "Calls",
+      value: JSON.stringify(request.payload.calls, null, 2),
+      mono: true,
+    });
+  }
+  if (request.payload.fees?.length) {
+    fields.push({
+      label: "Fees",
+      value: JSON.stringify(request.payload.fees, null, 2),
+      mono: true,
+    });
+  }
+
+  for (const [index, payload] of request.payload.payloads.entries()) {
+    const suffix = request.payload.payloads.length > 1 ? ` ${index + 1}` : "";
+    if (payload.kind === "evm_typed_data") {
+      const typedData = payload.typedData;
+      if (typedData.primaryType) {
+        fields.push({ label: `Type${suffix}`, value: typedData.primaryType });
+      }
+      fields.push({
+        label: `Domain${suffix}`,
+        value: JSON.stringify(typedData.domain ?? {}, null, 2),
+        mono: true,
+      });
+      fields.push({
+        label: `Types${suffix}`,
+        value: JSON.stringify(typedData.types ?? {}, null, 2),
+        mono: true,
+      });
+      fields.push({
+        label: `Message${suffix}`,
+        value: JSON.stringify(typedData.message ?? {}, null, 2),
+        mono: true,
+      });
+      continue;
     }
-    fields.push({
-      label: "Domain",
-      value: JSON.stringify(typedData.domain ?? {}, null, 2),
-      mono: true,
-    });
-    fields.push({
-      label: "Types",
-      value: JSON.stringify(typedData.types ?? {}, null, 2),
-      mono: true,
-    });
-    fields.push({
-      label: "Message",
-      value: JSON.stringify(typedData.message ?? {}, null, 2),
-      mono: true,
-    });
-    return { title: "Approve signature", fields };
+    if (payload.kind === "evm_personal") {
+      fields.push({
+        label: `Message${suffix}`,
+        value: payload.message,
+        mono: true,
+      });
+    }
   }
 
-  fields.push({ label: "Message", value: message ?? "", mono: true });
-  return { title: "Approve signature", fields };
+  return {
+    title:
+      request.payload.executionKind === "erc4337"
+        ? "Approve account action"
+        : "Approve signature",
+    fields,
+  };
 }
 
 export function errorMessage(error: unknown): string {
