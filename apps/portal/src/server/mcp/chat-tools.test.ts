@@ -72,6 +72,7 @@ describe("MCP chat tools", () => {
       "mcp-generated",
       "hello",
       "default",
+      undefined,
     );
     expect(outcome.result).toMatchObject({
       session_id: "mcp-generated",
@@ -108,7 +109,50 @@ describe("MCP chat tools", () => {
       "existing",
       "continue",
       undefined,
+      undefined,
     );
+  });
+
+  it("passes explicit Base and supported Solana contexts without defaults", async () => {
+    await dispatchChatTool(USER, "aomi_chat", {
+      message: "use Base",
+      chain_context: { family: "evm", chain_id: 8453 },
+    });
+    expect(sendChat).toHaveBeenLastCalledWith(
+      USER,
+      "mcp-generated",
+      "use Base",
+      undefined,
+      { family: "evm", chain_id: 8453 },
+    );
+
+    await dispatchChatTool(USER, "aomi_chat", {
+      message: "use Solana devnet",
+      chain_context: { family: "solana", cluster: "solana:devnet" },
+    });
+    expect(sendChat).toHaveBeenLastCalledWith(
+      USER,
+      "mcp-generated",
+      "use Solana devnet",
+      undefined,
+      { family: "solana", cluster: "solana:devnet" },
+    );
+  });
+
+  it("rejects unsupported Solana cluster context", async () => {
+    const outcome = await dispatchChatTool(USER, "aomi_chat", {
+      message: "use Solana",
+      chain_context: { family: "solana", cluster: "mainnet-beta" },
+    });
+    expect(outcome).toEqual({
+      result: {
+        error:
+          "chain_context.cluster must be solana:mainnet, solana:devnet, or solana:testnet",
+      },
+      isError: true,
+    });
+    expect(ensureThread).not.toHaveBeenCalled();
+    expect(sendChat).not.toHaveBeenCalled();
   });
 
   it("returns message deltas while treating drained events as new receipts", async () => {

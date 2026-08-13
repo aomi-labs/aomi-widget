@@ -8,9 +8,12 @@
   funnel moved to `/api/mcp/direct`. Agent turns use the canonical
   `/api/threads` + `/api/thread/{chat,state,interrupt}` kernel paths with both
   thread headers and BFF-minted AccountBearer. New sessions are account-bound,
-  headless turns hydrate primary EVM/SVM wallets from `public_keys`, message
-  cursors return transcript deltas without dropping the backend's drained
-  system events, and checks compress tool/task activity. Manual wallet requests
+  headless turns hydrate primary EVM/SVM wallet addresses from `public_keys`
+  without fabricating active mainnet networks. `aomi_chat` accepts an optional
+  authoritative EVM chain id or canonical supported Solana cluster; omission
+  leaves both network fields absent. Message cursors return transcript deltas
+  without dropping the backend's drained system events, and checks compress
+  tool/task activity. Manual wallet requests
   return `awaiting_user`, redacted request summaries, and a working portal
   deep-link; armed auto-signing wallets need no MCP signing tool. The existing
   origin-scoped OAuth protected-resource metadata covers both MCP routes.

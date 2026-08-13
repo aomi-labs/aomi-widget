@@ -363,6 +363,7 @@ async function testMcp(accessToken) {
       arguments: {
         message: "Reply with exactly: MCP chat parity works",
         app: "default",
+        chain_context: { family: "evm", chain_id: chainId },
       },
     }),
   );
@@ -430,6 +431,7 @@ async function testMcp(accessToken) {
         message: "Reply with exactly: resumed",
         session_id: started.session_id,
         app: "default",
+        chain_context: { family: "evm", chain_id: chainId },
       },
     }),
   );
@@ -477,7 +479,11 @@ async function testPendingWalletRequest(accessToken) {
   let state = toolJson(
     await rpc(accessToken, "/api/mcp", "tools/call", {
       name: "aomi_chat",
-      arguments: { message: walletPrompt, app: "default" },
+      arguments: {
+        message: walletPrompt,
+        app: "default",
+        chain_context: { family: "evm", chain_id: chainId },
+      },
     }),
   );
   for (

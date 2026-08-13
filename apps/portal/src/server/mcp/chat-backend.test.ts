@@ -55,7 +55,7 @@ describe("MCP chat backend", () => {
     expect(fetchMock.mock.calls[0][1]?.method).toBe("POST");
   });
 
-  it("hydrates primary EVM and Solana keys into the first chat turn", async () => {
+  it("hydrates wallet addresses without inventing active mainnet defaults", async () => {
     mocks.query.mockResolvedValue({
       rows: [
         { chain_type: "evm", address: "0xabc" },
@@ -74,8 +74,47 @@ describe("MCP chat backend", () => {
     expect(url.searchParams.get("app")).toBe("default");
     expect(JSON.parse(url.searchParams.get("user_state")!)).toEqual({
       connection: { is_connected: true },
-      evm: { address: "0xabc", chain_id: 1 },
-      svm: { address: "SolanaAddress", cluster: "solana:mainnet" },
+      evm: { address: "0xabc" },
+      svm: { address: "SolanaAddress" },
+      ext: { client_type: "mcp" },
+    });
+  });
+
+  it("preserves an explicit Base chain context", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("{}", { status: 200 }));
+
+    await sendChat("user-1", "mcp-new", "swap", undefined, {
+      family: "evm",
+      chain_id: 8453,
+    });
+
+    const url = new URL(String(fetchMock.mock.calls[0][0]));
+    expect(JSON.parse(url.searchParams.get("user_state")!)).toEqual({
+      connection: { is_connected: false },
+      evm: { chain_id: 8453 },
+      ext: { client_type: "mcp" },
+    });
+  });
+
+  it("preserves an explicit supported Solana cluster context", async () => {
+    mocks.query.mockResolvedValue({
+      rows: [{ chain_type: "svm", address: "SolanaAddress" }],
+    });
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("{}", { status: 200 }));
+
+    await sendChat("user-1", "mcp-new", "swap", undefined, {
+      family: "solana",
+      cluster: "solana:devnet",
+    });
+
+    const url = new URL(String(fetchMock.mock.calls[0][0]));
+    expect(JSON.parse(url.searchParams.get("user_state")!)).toEqual({
+      connection: { is_connected: true },
+      svm: { address: "SolanaAddress", cluster: "solana:devnet" },
       ext: { client_type: "mcp" },
     });
   });

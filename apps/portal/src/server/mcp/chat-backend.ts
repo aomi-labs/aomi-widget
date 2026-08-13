@@ -11,10 +11,17 @@ export type ChatBackendResult = {
   body: unknown;
 };
 
+export type McpChainContext =
+  | { family: "evm"; chain_id: number }
+  | {
+      family: "solana";
+      cluster: "solana:mainnet" | "solana:devnet" | "solana:testnet";
+    };
+
 type HeadlessUserState = {
-  connection: { is_connected: true };
-  evm?: { address: string; chain_id: number };
-  svm?: { address: string; cluster: string };
+  connection: { is_connected: boolean };
+  evm?: { address?: string; chain_id?: number };
+  svm?: { address?: string; cluster?: string };
   ext: { client_type: "mcp" };
 };
 
@@ -38,11 +45,12 @@ export async function sendChat(
   sessionId: string,
   message: string,
   app?: string,
+  chainContext?: McpChainContext,
 ): Promise<ChatBackendResult> {
   const url = new URL(`${configuredBackendUrl()}/api/thread/chat`);
   url.searchParams.set("message", message);
   if (app) url.searchParams.set("app", app);
-  const userState = await headlessUserState(canonicalUserId);
+  const userState = await headlessUserState(canonicalUserId, chainContext);
   if (userState) {
     url.searchParams.set("user_state", JSON.stringify(userState));
   }
@@ -144,7 +152,9 @@ async function backendJson(
 
 async function headlessUserState(
   canonicalUserId: string,
+  chainContext?: McpChainContext,
 ): Promise<HeadlessUserState | undefined> {
+  let rows: Array<Record<string, unknown>> = [];
   try {
     const result = await getPool().query(
       `select chain_type, address
@@ -153,29 +163,41 @@ async function headlessUserState(
         order by is_primary desc, created_at asc`,
       [canonicalUserId],
     );
-    const evm = result.rows.find(
-      (row) => String(row.chain_type).toLowerCase() === "evm",
-    );
-    const svm = result.rows.find((row) =>
-      ["svm", "solana"].includes(String(row.chain_type).toLowerCase()),
-    );
-    if (!evm && !svm) return undefined;
-    return {
-      connection: { is_connected: true },
-      ...(evm ? { evm: { address: String(evm.address), chain_id: 1 } } : {}),
-      ...(svm
-        ? {
-            svm: {
-              address: String(svm.address),
-              cluster: "solana:mainnet",
-            },
-          }
-        : {}),
-      ext: { client_type: "mcp" },
-    };
+    rows = result.rows;
   } catch {
     // Wallet hydration is advisory. The agent can still return its normal
-    // connect/authorize guidance when the account graph cannot be read.
-    return undefined;
+    // connect/authorize guidance when the account graph cannot be read. An
+    // explicit caller-supplied chain remains authoritative independently.
   }
+  const evm = rows.find(
+    (row) => String(row.chain_type).toLowerCase() === "evm",
+  );
+  const svm = rows.find((row) =>
+    ["svm", "solana"].includes(String(row.chain_type).toLowerCase()),
+  );
+  if (!evm && !svm && !chainContext) return undefined;
+  return {
+    connection: { is_connected: Boolean(evm || svm) },
+    ...(evm || chainContext?.family === "evm"
+      ? {
+          evm: {
+            ...(evm ? { address: String(evm.address) } : {}),
+            ...(chainContext?.family === "evm"
+              ? { chain_id: chainContext.chain_id }
+              : {}),
+          },
+        }
+      : {}),
+    ...(svm || chainContext?.family === "solana"
+      ? {
+          svm: {
+            ...(svm ? { address: String(svm.address) } : {}),
+            ...(chainContext?.family === "solana"
+              ? { cluster: chainContext.cluster }
+              : {}),
+          },
+        }
+      : {}),
+    ext: { client_type: "mcp" },
+  };
 }

@@ -60,7 +60,12 @@ as the thread id (same Cloudflare-worker rendezvous routing as portal chat).
 
 ### `aomi_chat`
 
-- args: `message` (required), `session_id` (optional), `app` (optional).
+- args: `message` (required), `session_id` (optional), `app` (optional), and
+  `chain_context` (optional). Chain context is an explicit union of
+  `{ family: "evm", chain_id }` or `{ family: "solana", cluster }`, where the
+  cluster is `solana:mainnet`, `solana:devnet`, or `solana:testnet`. Omission
+  means the headless session may expose the account's wallet addresses but does
+  not fabricate an active chain.
 - `session_id` omitted → generate a fresh `mcp-<uuid>` id, ensure the
   account-bound thread exists (CLI's `ensureAccountBoundThread` equivalent),
   and return it. Provided → continue that thread (any account-owned thread id

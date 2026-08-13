@@ -1,5 +1,12 @@
 # Auth BFF BetterAuth Cleanup Goal
 
+## MCP explicit chain context
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-13** —
+remove fabricated Ethereum and Solana mainnet state from headless MCP chat.
+`aomi_chat` accepts an optional explicit EVM chain or supported Solana cluster;
+omission retains account wallet identity without claiming an active network.
+
 ## Safari wallet-state sync containment
 
 Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED; STAGING ROLLOUT IN

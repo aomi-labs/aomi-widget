@@ -7,6 +7,7 @@ import {
   listThreads,
   sendChat,
   type ChatBackendResult,
+  type McpChainContext,
 } from "@portal/server/mcp/chat-backend";
 import type { McpToolDef, ToolOutcome } from "@portal/server/mcp/rpc";
 import { newMcpThreadId } from "@portal/server/mcp/thread";
@@ -15,6 +16,7 @@ export const CHAT_MCP_INSTRUCTIONS = [
   "Chat with the Aomi agent by calling aomi_chat with the user's request.",
   "aomi_chat starts an asynchronous turn and returns a self-contained cursor; continue with aomi_check using that cursor until status is complete or awaiting_user.",
   "Each aomi_check returns only new transcript messages and newly drained tool/task activity, so relay useful progress while supervising longer work.",
+  "Pass chain_context to aomi_chat only when the active EVM chain or Solana cluster is known; omit it instead of guessing a network.",
   "When status is awaiting_user, show the pending wallet request and handoff guidance to the human; do not claim the operation completed until a later check confirms it.",
   "Use aomi_interrupt to stop a running turn and aomi_list_sessions to find prior account-owned conversations.",
 ].join(" ");
@@ -50,6 +52,37 @@ export const CHAT_MCP_TOOLS: McpToolDef[] = [
         app: {
           type: "string",
           description: "Optional Aomi app name for this turn.",
+        },
+        chain_context: {
+          description:
+            "Optional authoritative active chain for this turn. Omit it when the network is unknown; Aomi will not invent a mainnet default.",
+          oneOf: [
+            {
+              type: "object",
+              properties: {
+                family: { type: "string", const: "evm" },
+                chain_id: {
+                  type: "integer",
+                  minimum: 1,
+                  maximum: Number.MAX_SAFE_INTEGER,
+                },
+              },
+              required: ["family", "chain_id"],
+              additionalProperties: false,
+            },
+            {
+              type: "object",
+              properties: {
+                family: { type: "string", const: "solana" },
+                cluster: {
+                  type: "string",
+                  enum: ["solana:mainnet", "solana:devnet", "solana:testnet"],
+                },
+              },
+              required: ["family", "cluster"],
+              additionalProperties: false,
+            },
+          ],
         },
       },
       required: ["message"],
@@ -115,6 +148,8 @@ export async function dispatchChatTool(
     case "aomi_chat": {
       const message = text(args.message);
       if (!message) return invalid("message is required");
+      const chainContext = parseChainContext(args.chain_context);
+      if (chainContext.error) return invalid(chainContext.error);
       const requestedSession = text(args.session_id);
       const sessionId = requestedSession ?? newMcpThreadId();
       if (!requestedSession) {
@@ -126,6 +161,7 @@ export async function dispatchChatTool(
         sessionId,
         message,
         text(args.app),
+        chainContext.value,
       );
       if (!response.ok) return backendError(response);
       return {
@@ -532,4 +568,46 @@ function integer(
   return parsed === undefined
     ? fallback
     : Math.min(maximum, Math.max(minimum, Math.floor(parsed)));
+}
+
+function parseChainContext(value: unknown): {
+  value?: McpChainContext;
+  error?: string;
+} {
+  if (value === undefined) return {};
+  const context = record(value);
+  if (!context) return { error: "chain_context must be an object" };
+  const keys = Object.keys(context);
+  if (context.family === "evm") {
+    if (keys.some((key) => !["family", "chain_id"].includes(key))) {
+      return { error: "EVM chain_context contains unsupported fields" };
+    }
+    const chainId = context.chain_id;
+    if (
+      typeof chainId !== "number" ||
+      !Number.isSafeInteger(chainId) ||
+      chainId <= 0
+    ) {
+      return { error: "chain_context.chain_id must be a positive integer" };
+    }
+    return { value: { family: "evm", chain_id: chainId } };
+  }
+  if (context.family === "solana") {
+    if (keys.some((key) => !["family", "cluster"].includes(key))) {
+      return { error: "Solana chain_context contains unsupported fields" };
+    }
+    const cluster = context.cluster;
+    if (
+      cluster !== "solana:mainnet" &&
+      cluster !== "solana:devnet" &&
+      cluster !== "solana:testnet"
+    ) {
+      return {
+        error:
+          "chain_context.cluster must be solana:mainnet, solana:devnet, or solana:testnet",
+      };
+    }
+    return { value: { family: "solana", cluster } };
+  }
+  return { error: "chain_context.family must be evm or solana" };
 }
