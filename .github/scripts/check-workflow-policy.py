@@ -26,7 +26,18 @@ def event_names(document: dict) -> set[str]:
 
 def permissions(document: dict, job: dict) -> dict[str, str]:
     value = job.get("permissions", document.get("permissions", {}))
-    return value if isinstance(value, dict) else {}
+    if isinstance(value, dict):
+        return value
+    if value == "write-all":
+        return {scope: "write" for scope in FORBIDDEN_WRITE}
+    return {}
+
+
+def environment_name(job: dict) -> str | None:
+    environment = job.get("environment")
+    if isinstance(environment, dict):
+        environment = environment.get("name")
+    return environment if isinstance(environment, str) else None
 
 
 def main() -> int:
@@ -34,11 +45,11 @@ def main() -> int:
     for path in sorted(WORKFLOWS.glob("*.y*ml")):
         text = path.read_text()
         document = yaml.safe_load(text) or {}
-        if "pull_request" in event_names(document):
+        if {"pull_request", "pull_request_target"} & event_names(document):
             for job_name, job in (document.get("jobs") or {}).items():
-                environment = job.get("environment")
-                if isinstance(environment, dict):
-                    environment = environment.get("name")
+                if not isinstance(job, dict):
+                    continue
+                environment = environment_name(job)
                 if environment not in (None, "pr-tests"):
                     failures.append(
                         f"{path.name}:{job_name}: forbidden PR environment {environment!r}"
