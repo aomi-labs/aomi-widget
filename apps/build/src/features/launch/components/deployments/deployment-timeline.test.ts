@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   buildActivityList,
   buildDeploymentList,
+  deploymentIsBuilding,
+  promoteBlockedReason,
   sortDeploymentsForTimeline,
 } from "./deployment-timeline";
 
@@ -155,5 +157,80 @@ describe("buildDeploymentList", () => {
       "web:dep_1_ra_new0",
       "api:dep_1_ra_old0",
     ]);
+  });
+});
+
+describe("deploymentIsBuilding", () => {
+  it("is true while GitHub CI is pending or running", () => {
+    expect(deploymentIsBuilding({ state: null, ciStatus: "running" })).toBe(
+      true,
+    );
+    expect(deploymentIsBuilding({ state: null, ciStatus: "pending" })).toBe(
+      true,
+    );
+  });
+
+  it("is true while the deployment projection is mid-flight", () => {
+    for (const state of ["building", "releasing", "pending"]) {
+      expect(deploymentIsBuilding({ state, ciStatus: null })).toBe(true);
+    }
+  });
+
+  it("is false once settled, and for a deployment with no build state", () => {
+    expect(deploymentIsBuilding({ state: "ready", ciStatus: "passed" })).toBe(
+      false,
+    );
+    expect(deploymentIsBuilding({ state: "failed", ciStatus: "failed" })).toBe(
+      false,
+    );
+    expect(deploymentIsBuilding({ state: "no_ci", ciStatus: "no_ci" })).toBe(
+      false,
+    );
+    // A deployment known only from promotion records carries no build state;
+    // it is historical, not in flight, so it must not read as building.
+    expect(deploymentIsBuilding({ state: null, ciStatus: null })).toBe(false);
+  });
+});
+
+describe("promoteBlockedReason", () => {
+  const settled = { state: "ready", ciStatus: "passed" };
+  const idle = { busy: false, secretsBlocked: false };
+
+  it("allows promotion of a settled deployment", () => {
+    expect(promoteBlockedReason(settled, idle)).toBeNull();
+  });
+
+  // The reported bug: promote stayed clickable during CI, and each click
+  // dispatched another run that queued behind the first.
+  it("blocks promotion while the deployment is still building", () => {
+    const reason = promoteBlockedReason(
+      { state: "building", ciStatus: "running" },
+      idle,
+    );
+    expect(reason).toMatch(/still building/i);
+    expect(reason).toMatch(/second CI run/i);
+  });
+
+  it("blocks promotion while another operation is running", () => {
+    expect(promoteBlockedReason(settled, { ...idle, busy: true })).toMatch(
+      /still running/i,
+    );
+  });
+
+  it("blocks promotion when required secrets are missing", () => {
+    expect(
+      promoteBlockedReason(settled, { ...idle, secretsBlocked: true }),
+    ).toMatch(/secrets/i);
+  });
+
+  // An in-flight build is the more actionable thing to say: setting secrets
+  // would not make the button work yet.
+  it("reports the build before missing secrets", () => {
+    expect(
+      promoteBlockedReason(
+        { state: "building", ciStatus: "running" },
+        { busy: false, secretsBlocked: true },
+      ),
+    ).toMatch(/still building/i);
   });
 });

@@ -38,6 +38,9 @@ function globalDeployment(deployment: UserDeployment): GlobalDeployment | null {
     actor: null,
     sdkVersion: deployment.sdkVersion ?? null,
     createdAt: deployment.createdAt,
+    state: deployment.state ?? null,
+    ciStatus: deployment.ciStatus ?? null,
+    ciUrl: deployment.ciUrl ?? null,
     projectId: deployment.projectId,
     repositoryLink: deployment.repositoryLink,
   };

@@ -15,6 +15,7 @@ import { LoadingPanel, EmptyPanel } from "../ui/state-panels";
 import {
   buildActivityList,
   buildDeploymentList,
+  promoteBlockedReason,
   sortDeploymentsForTimeline,
 } from "../deployment-timeline";
 import { formatRelativeTime } from "../format-relative-time";
@@ -486,9 +487,10 @@ export function DeploymentsTab({
         />
       ) : view === "deployments" && deployments.length > 0 ? (
         deployments.map((deployment) => {
-          const running =
-            op?.deploymentId === deployment.deploymentId &&
-            op.status === "running";
+          // Any running operation in this project blocks promotion, not only
+          // one on this row: two promotions in the same project dispatch two
+          // CI runs that queue behind each other just the same.
+          const running = op?.status === "running";
           const message =
             op?.deploymentId === deployment.deploymentId ? op.message : null;
           const hasUnloadedCurrentApp =
@@ -505,11 +507,16 @@ export function DeploymentsTab({
           const secretsBlocked = deployment.apps.some((app) =>
             detail.hasMissingSecrets(app),
           );
+          const promoteBlocked = promoteBlockedReason(deployment, {
+            busy: running,
+            secretsBlocked,
+          });
           return (
             <div key={deployment.deploymentId}>
               <TimelineDeploymentRow
                 deployment={deployment}
                 busy={running}
+                promoteBlocked={promoteBlocked}
                 message={message}
                 runtimeState={hasUnloadedCurrentApp ? "not-loaded" : "loaded"}
                 requiredSdk={requiredSdk}
