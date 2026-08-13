@@ -13,6 +13,15 @@ export type TimelineDeployment = {
   actor: string | null;
   sdkVersion: string | null;
   createdAt: number;
+  /**
+   * Build state for this deployment, carried from history so the row can tell
+   * whether work is still in flight. Promotion records describe what was
+   * *already* promoted and say nothing about CI, so both are null for a
+   * deployment known only from records.
+   */
+  state: string | null;
+  ciStatus: string | null;
+  ciUrl: string | null;
 };
 
 /** One promotion record, tagged with the app it belongs to (for the activity feed). */
@@ -48,6 +57,11 @@ export function buildDeploymentList(
           actor: row.actor,
           sdkVersion: row.sdkVersion,
           createdAt: row.createdAt,
+          // Promotion records carry no build state. History fills these in
+          // below when it knows this deployment.
+          state: null,
+          ciStatus: null,
+          ciUrl: null,
         });
         continue;
       }
@@ -88,10 +102,67 @@ export function buildDeploymentList(
       actor: existing?.actor ?? null,
       sdkVersion,
       createdAt: entry.createdAt,
+      // History is the only source that knows whether CI is still running.
+      state: entry.state ?? null,
+      ciStatus: entry.ciStatus ?? null,
+      ciUrl: entry.ciUrl ?? null,
     });
   }
 
   return [...byId.values()].sort((a, b) => b.createdAt - a.createdAt);
+}
+
+/**
+ * CI states that mean work is still in flight for a deployment.
+ *
+ * `ciStatus` is GitHub's aggregate for the commit (`no_ci | pending | running
+ * | passed | failed`); `state` is the backend's deployment projection
+ * (`no_ci | building | releasing | ready | failed | pending`). Either can be
+ * the one that knows, so both are checked.
+ */
+const CI_IN_FLIGHT = new Set(["pending", "running"]);
+const STATE_IN_FLIGHT = new Set(["pending", "building", "releasing"]);
+
+export function deploymentIsBuilding(deployment: {
+  state: string | null;
+  ciStatus: string | null;
+}): boolean {
+  return (
+    CI_IN_FLIGHT.has(deployment.ciStatus ?? "") ||
+    STATE_IN_FLIGHT.has(deployment.state ?? "")
+  );
+}
+
+/**
+ * Why promotion is unavailable, or null when it is available.
+ *
+ * Promoting a deployment whose build is still running does not queue politely:
+ * it dispatches another CI job that lands behind the first, so the click that
+ * was meant to hurry things up makes the wait longer. The window is wide —
+ * `busy` only knows about an operation *this* browser tab started, so a
+ * reload, a second tab, or a promotion by a teammate all leave the button live
+ * unless the deployment's own build state is consulted.
+ *
+ * Returned as a reason rather than a boolean because a greyed-out button with
+ * no explanation is its own bug report.
+ */
+export function promoteBlockedReason(
+  deployment: { state: string | null; ciStatus: string | null },
+  options: {
+    /** An operation this tab started, for this project, is still running. */
+    busy: boolean;
+    /** One or more of the deployment's apps is missing a required secret. */
+    secretsBlocked: boolean;
+  },
+): string | null {
+  if (options.busy) return "Another deployment operation is still running.";
+  if (deploymentIsBuilding(deployment)) {
+    return "This deployment is still building. Promoting now would queue a second CI run behind the first.";
+  }
+  if (options.secretsBlocked) {
+    return "Set the required secrets for this deployment's apps first.";
+  }
+  return null;
 }
 
 /** Current first, then newest. Used after runtime remaps `current`. */
