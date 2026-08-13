@@ -9,6 +9,7 @@ import {
   readResearchPost,
   researchPosts,
 } from "@/lib/research";
+import { ExecutionHarnessesResearch } from "./execution-harnesses-research";
 
 function textFromChildren(children: ReactNode): string {
   return Children.toArray(children)
@@ -231,8 +232,19 @@ export async function generateMetadata({
 
   return {
     title: `${post.title} | Aomi Research`,
-    description:
-      "Aomi research on benchmarked onchain execution for frontier agents.",
+    description: post.subtitle,
+    openGraph: {
+      title: `${post.title} | Aomi Research`,
+      description: post.subtitle,
+      type: "article",
+      publishedTime: post.isoDate,
+      url: `/research/${post.slug}`,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: `${post.title} | Aomi Research`,
+      description: post.subtitle,
+    },
   };
 }
 
@@ -246,6 +258,10 @@ export default async function ResearchPostPage({
 
   if (post === null) {
     notFound();
+  }
+
+  if (post.format === "execution-harnesses") {
+    return <ExecutionHarnessesResearch post={post} />;
   }
 
   const components: Components =
@@ -279,10 +295,7 @@ export default async function ResearchPostPage({
       </div>
 
       <article className="space-y-6">
-        <ReactMarkdown
-          remarkPlugins={[remarkGfm]}
-          components={components}
-        >
+        <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
           {post.body}
         </ReactMarkdown>
       </article>

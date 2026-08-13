@@ -9,10 +9,21 @@ export type ResearchPost = {
   isoDate: string;
   tag: string;
   subtitle: string;
-  fileName: string;
+  fileName?: string;
+  format?: "markdown" | "execution-harnesses";
 };
 
 export const researchPosts: ResearchPost[] = [
+  {
+    slug: "execution-harnesses-agentic-payments",
+    title: "The State of Execution Harnesses for Agentic Payments",
+    date: "August 13, 2026",
+    isoDate: "2026-08-13",
+    tag: "research",
+    subtitle:
+      "Why model progress alone will not make financial agents efficient, reliable, or operational—and why execution infrastructure becomes the next essential layer.",
+    format: "execution-harnesses",
+  },
   {
     slug: "auth-across-two-worlds",
     title:
@@ -23,6 +34,7 @@ export const researchPosts: ResearchPost[] = [
     subtitle:
       "A design study in hybrid crypto authentication: why counting users is hard onchain, the four proofs to keep separate, and the patterns — and stack — that hold them apart.",
     fileName: "auth-across-two-worlds.md",
+    format: "markdown",
   },
   {
     slug: "aomibench-v0-1",
@@ -33,6 +45,7 @@ export const researchPosts: ResearchPost[] = [
     subtitle:
       "A wallet-aware harness for measuring frontier agents on real onchain tasks, simulations, and chain-state evidence.",
     fileName: "aomibench-v0.1.md",
+    format: "markdown",
   },
 ];
 
@@ -87,6 +100,13 @@ export async function readResearchPost(slug: string) {
 
   if (post === null) {
     return null;
+  }
+
+  if (post.fileName === undefined) {
+    return {
+      ...post,
+      body: "",
+    };
   }
 
   const file = path.join(process.cwd(), "content", "research", post.fileName);
