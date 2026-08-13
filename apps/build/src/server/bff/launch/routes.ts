@@ -7,12 +7,13 @@ import { TimedPromiseCache } from "@build/server/bff/timed-promise-cache";
 import { configuredBackendUrl } from "@build/server/backend-url";
 import { buildFailures } from "@build/server/bff/failures";
 import { launchConfig, resolveLaunchPlatform } from "./config";
-import { appNamesFromDeployment, releaseTagsFromDeployment } from "./mappers";
 import {
+  launchAppStatusesResult,
   missingSecretsForActivation,
   RequiredSecretsCheckError,
 } from "@aomi-labs/deploy/bff";
 import { BackendError, missingRequiredSecrets } from "@aomi-labs/deploy";
+import { deploymentTargets } from "@aomi-labs/deploy/launch";
 import {
   isValidDeploymentId,
   isValidInstallationId,
@@ -106,137 +107,6 @@ async function findOwnedProject(
 ): Promise<OwnedProject | null> {
   const projects = await cachedUserProjects(client, githubUserId);
   return projects.find((project) => project.id === projectId) ?? null;
-}
-
-/** Every deployment id in the source's DB promotion records (all its apps).
- *  This is the same timeline the console lists, so promote authorization and
- *  what the user sees never diverge. */
-async function projectDeploymentIds(
-  client: BackendClientInstance,
-  platform: string,
-  project: OwnedProject,
-): Promise<Set<string>> {
-  const ids = new Set<string>();
-  await Promise.all(
-    project.apps.map(async (app) => {
-      const { records } = await client
-        .listDeploymentRecords({
-          platform,
-          app: app.name,
-          projectId: project.id,
-        })
-        .catch((error: unknown) => {
-          buildFailures.handle({
-            source: "launch",
-            error,
-            context: {
-              routeFamily: "/api/bff/deployments/promote",
-              operation: "deployment.ownership_records",
-              method: "POST",
-            },
-          });
-          return { records: [] };
-        });
-      for (const record of records) ids.add(record.deploymentId);
-    }),
-  );
-  return ids;
-}
-
-/** The (app, releaseTag) pairs for `deploymentId`, derived from the SAME DB
- *  promotion records used for ownership (`projectDeploymentIds`) rather than
- *  the size-limited `listUserProjectDeployments` listing — so the secret gate
- *  can never see an emptier set than the authorization check just proved. */
-async function projectDeploymentPairs(
-  client: BackendClientInstance,
-  platform: string,
-  project: OwnedProject,
-  deploymentId: string,
-  appsFilter: string[] | undefined,
-): Promise<{ app: string; releaseTag: string }[]> {
-  const pairs: { app: string; releaseTag: string }[] = [];
-  await Promise.all(
-    project.apps.map(async (app) => {
-      if (appsFilter && !appsFilter.includes(app.name)) return;
-      const { records } = await client
-        .listDeploymentRecords({
-          platform,
-          app: app.name,
-          projectId: project.id,
-        })
-        .catch((error: unknown) => {
-          buildFailures.handle({
-            source: "launch",
-            error,
-            context: {
-              routeFamily: "/api/bff/deployments/promote",
-              operation: "deployment.activation_records",
-              method: "POST",
-            },
-          });
-          return {
-            records: [] as { deploymentId: string; releaseTag: string }[],
-          };
-        });
-      const record = records.find((r) => r.deploymentId === deploymentId);
-      if (record?.releaseTag) {
-        pairs.push({ app: app.name, releaseTag: record.releaseTag });
-      }
-    }),
-  );
-  return pairs;
-}
-
-type ActivationPair = { app: string; releaseTag: string };
-
-function releaseTagForApp(app: {
-  releaseTag?: string | null;
-  appReleaseTag?: string | null;
-}): string | null {
-  return app.releaseTag?.trim() || app.appReleaseTag?.trim() || null;
-}
-
-function deploymentContainsPair(
-  deployment: NonNullable<OwnedProject["latestDeployment"]>,
-  pair: ActivationPair,
-): boolean {
-  return deployment.apps.some(
-    (app) => app.name === pair.app && releaseTagForApp(app) === pair.releaseTag,
-  );
-}
-
-function projectContainsCurrentPair(
-  project: OwnedProject,
-  pair: ActivationPair,
-): boolean {
-  return (
-    (project.latestDeployment
-      ? deploymentContainsPair(project.latestDeployment, pair)
-      : false) ||
-    project.apps.some(
-      (app) =>
-        app.name === pair.app && releaseTagForApp(app) === pair.releaseTag,
-    )
-  );
-}
-
-async function activationPairsBelongToProject(
-  client: BackendClientInstance,
-  githubUserId: string,
-  project: OwnedProject,
-  pairs: ActivationPair[],
-): Promise<boolean> {
-  const deployments = await client.listUserProjectDeployments({
-    githubUserId,
-    projectId: project.id,
-    limit: 100,
-  });
-  return pairs.every(
-    (pair) =>
-      deployments.some((deployment) =>
-        deploymentContainsPair(deployment, pair),
-      ) || projectContainsCurrentPair(project, pair),
-  );
 }
 
 function defaultRepoName() {
@@ -374,6 +244,7 @@ export function launchDeployRoute(preflight: boolean) {
       clearLaunchReadCache();
       const projectUrl = new URL(`/projects/${projectId}`, req.url);
       projectUrl.searchParams.set("tab", "deployments");
+      const targets = deploymentTargets(deployment);
       return NextResponse.json(
         {
           ok: true,
@@ -384,8 +255,8 @@ export function launchDeployRoute(preflight: boolean) {
           projectId,
           sourceRef: deployment.source.commitHash,
           deployment,
-          releaseTags: releaseTagsFromDeployment(deployment),
-          apps: appNamesFromDeployment(deployment),
+          releaseTags: targets.map((target) => target.releaseTag),
+          apps: targets.map((target) => target.name),
           projectUrl: projectUrl.toString(),
         },
         { status: preflight ? 200 : 202 },
@@ -487,7 +358,9 @@ export async function launchStatusRoute(req: Request) {
     });
     return NextResponse.json({
       ...result,
-      releaseTags: releaseTagsFromDeployment(result.deployment),
+      releaseTags: deploymentTargets(result.deployment).map(
+        (target) => target.releaseTag,
+      ),
     });
   } catch (err) {
     return buildFailures.handle({
@@ -541,7 +414,6 @@ export async function activateLaunchRoute(req: Request) {
       );
     }
 
-    const config = launchConfig();
     const client = await backendClient();
     const { session } = auth;
     const project = await findOwnedProject(
@@ -555,23 +427,10 @@ export async function activateLaunchRoute(req: Request) {
         { status: 404 },
       );
     }
-    const platform = projectPlatform(project);
     const pairs = apps.map((app, index) => ({
       app,
       releaseTag: releaseTags[index],
     }));
-    const authorized = await activationPairsBelongToProject(
-      client,
-      session.githubUserId,
-      project,
-      pairs,
-    );
-    if (!authorized) {
-      return NextResponse.json(
-        { error: "release not found for this user" },
-        { status: 404 },
-      );
-    }
     const missingByApp = await missingSecretsForActivation({
       client,
       githubUserId: session.githubUserId,
@@ -584,11 +443,11 @@ export async function activateLaunchRoute(req: Request) {
         { status: 409 },
       );
     }
-    const result = await client.activate({
-      platform,
-      target: { kind: "release_tags", value: releaseTags },
+    const result = await client.activateUserProjectReleases({
+      githubUserId: session.githubUserId,
+      projectId: project.id,
+      releaseTags,
       apps,
-      targetTags: config.targetTags,
       actor: typeof body.actor === "string" ? body.actor : undefined,
     });
     clearLaunchReadCache();
@@ -602,68 +461,42 @@ export async function activateLaunchRoute(req: Request) {
   }
 }
 
-export async function launchAppRoute(req: Request) {
+export async function launchAppsRoute(req: Request) {
   const auth = await authorize(req);
   if ("response" in auth) return auth.response;
   const { session } = auth;
 
-  const params = new URL(req.url).searchParams;
-  const name = params.get("name")?.trim();
-  const releaseTag = params.get("releaseTag")?.trim();
-  if (!name) {
-    return NextResponse.json({ error: "missing `name`" }, { status: 400 });
+  const projectId = Number(new URL(req.url).searchParams.get("projectId"));
+  if (!isValidProjectId(projectId)) {
+    return NextResponse.json(
+      { error: "missing or invalid `projectId`" },
+      { status: 400 },
+    );
   }
 
   try {
     const client = await backendClient();
-    const projects = await cachedUserProjects(client, session.githubUserId);
-    const owner = projects.find((project) =>
-      project.apps.some(
-        (app) =>
-          app.name === name &&
-          (!releaseTag || app.appReleaseTag === releaseTag),
-      ),
+    const owner = await findOwnedProject(
+      client,
+      session.githubUserId,
+      projectId,
     );
     if (!owner) {
       return NextResponse.json(
-        { error: "app not found for this user" },
+        { error: "project not found for this user" },
         { status: 404 },
       );
     }
-    // Fresh per-project read — the project-scoped replacement for the
-    // retired platform-door `GET /:platform/apps/:app`.
-    const { apps } = await client.listUserProjectApps({
+    const result = await client.listUserProjectApps({
       githubUserId: session.githubUserId,
       projectId: owner.id,
     });
-    const app = apps.find(
-      (candidate) =>
-        candidate.name === name &&
-        (!releaseTag || candidate.appReleaseTag === releaseTag),
-    );
-    if (!app) {
-      return NextResponse.json(
-        { error: "app not found for this user" },
-        { status: 404 },
-      );
-    }
-    const live = app.isActive && app.loaded;
-    return NextResponse.json({
-      ok: true,
-      state: live ? "live" : "pending",
-      app: {
-        id: app.id,
-        name: app.name,
-        is_active: app.isActive,
-        loaded: app.loaded,
-        app_release_tag: app.appReleaseTag,
-      },
-    });
+    return NextResponse.json(launchAppStatusesResult(owner.id, result.apps));
   } catch (err) {
     return buildFailures.handle({
       source: "launch",
       error: err,
-      context: launchErrorContext(req, "launch.app"),
+      context: launchErrorContext(req, "launch.apps"),
     }).response;
   }
 }
@@ -932,7 +765,6 @@ export async function deploymentRecordsRoute(req: Request) {
   }
 
   try {
-    const config = launchConfig();
     const client = await backendClient();
     const project = await findOwnedProject(
       client,
@@ -993,14 +825,10 @@ export async function deploymentPromoteRoute(req: Request) {
       : undefined;
 
   try {
-    const config = launchConfig();
     const client = await backendClient();
 
-    // Authorize the promote target against the signed-in user: the project
-    // must be theirs, and the deployment must appear in that project's DB
-    // promotion records — the same timeline the console lists. (Authorizing
-    // against the GitHub history fanout instead falsely rejected deployments
-    // that are in the DB but not on a live GitHub branch.)
+    // Authorize the signed-in user at the Project boundary first; the exact
+    // deployment projection below then proves candidate ownership.
     const project = await findOwnedProject(
       client,
       session.githubUserId,
@@ -1012,28 +840,33 @@ export async function deploymentPromoteRoute(req: Request) {
         { status: 404 },
       );
     }
-    const platform = projectPlatform(project);
-    const known = await projectDeploymentIds(client, platform, project);
-    if (!known.has(deploymentId)) {
+    const deployment = await client.getUserProjectDeployment({
+      githubUserId: session.githubUserId,
+      projectId,
+      deploymentId,
+    });
+    if (!deployment) {
       return NextResponse.json(
         { error: "deployment does not belong to this project" },
         { status: 404 },
       );
     }
 
-    // Gate promotion on required secrets, exactly as activate does — promote
-    // runs the same backend activation machinery. The gate reads the TARGET
-    // deployment's release tag from the DB promotion records (the same
-    // records used for ownership above), which may differ from the
-    // current-release manifest the UI / requiredSecretsRoute reads — this
-    // backend gate is authoritative for what's about to go live.
-    const pairs = await projectDeploymentPairs(
-      client,
-      platform,
-      project,
-      deploymentId,
-      apps,
+    // Candidate ownership and release pairs come from the exact deployment
+    // projection. Promotion history is empty before the first promote and is
+    // therefore never an authorization source or a secret-gate source.
+    const selectedApps = apps ?? deployment.apps.map((app) => app.name);
+    const pairs = deployment.apps.flatMap((app) =>
+      selectedApps.includes(app.name) && app.releaseTag
+        ? [{ app: app.name, releaseTag: app.releaseTag }]
+        : [],
     );
+    if (pairs.length !== selectedApps.length) {
+      return NextResponse.json(
+        { error: "deployment does not contain all requested apps" },
+        { status: 404 },
+      );
+    }
     const missingByApp = await missingSecretsForActivation({
       client,
       githubUserId: session.githubUserId,
@@ -1053,11 +886,12 @@ export async function deploymentPromoteRoute(req: Request) {
       typeof body.actor === "string" && body.actor.trim()
         ? body.actor
         : session.githubLogin;
-    const result = await client.promote({
-      platform,
+    const result = await client.promoteUserProjectDeployment({
+      githubUserId: session.githubUserId,
+      projectId,
       deploymentId,
-      apps,
-      targetTags: config.targetTags,
+      mode: "targeted",
+      apps: selectedApps,
       actor,
     });
     clearLaunchReadCache();

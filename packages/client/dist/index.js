@@ -3715,6 +3715,9 @@ var ClientSession = class extends TypedEventEmitter {
     var _a, _b, _c, _d, _e;
     super();
     this.pollTimer = null;
+    this.pollingActive = false;
+    this.pollInFlight = false;
+    this.pollFailureCount = 0;
     this.unsubscribeSSE = null;
     this.isSSEActive = false;
     this._isProcessing = false;
@@ -3722,6 +3725,11 @@ var ClientSession = class extends TypedEventEmitter {
     this._messages = [];
     this.closed = false;
     this.pendingResolve = null;
+    this.handleVisibilityChange = () => {
+      if (typeof document !== "undefined" && !document.hidden && !this.pollInFlight) {
+        this.schedulePoll(0);
+      }
+    };
     this.client = clientOrOptions instanceof AomiClient ? clientOrOptions : new AomiClient(clientOrOptions);
     this.sessionId = (_a = sessionOptions == null ? void 0 : sessionOptions.sessionId) != null ? _a : crypto.randomUUID();
     this.app = (_b = sessionOptions == null ? void 0 : sessionOptions.app) != null ? _b : "default";
@@ -3762,16 +3770,7 @@ var ClientSession = class extends TypedEventEmitter {
    */
   async send(message) {
     this.assertOpen();
-    const response = await this.client.sendMessage(this.sessionId, message, {
-      app: this.app,
-      applicationId: this.applicationId,
-      apiKey: this.apiKey,
-      userState: this.userState,
-      clientId: this.clientId,
-      paymentMethod: this.paymentMethod
-    });
-    this.assertUserStateAligned(response.user_state);
-    this.applyState(response);
+    const response = await this.submitChat(message);
     if (!response.is_processing && this.walletController.length === 0) {
       return { messages: this._messages, title: this._title };
     }
@@ -3788,16 +3787,7 @@ var ClientSession = class extends TypedEventEmitter {
    */
   async sendAsync(message) {
     this.assertOpen();
-    const response = await this.client.sendMessage(this.sessionId, message, {
-      app: this.app,
-      applicationId: this.applicationId,
-      apiKey: this.apiKey,
-      userState: this.userState,
-      clientId: this.clientId,
-      paymentMethod: this.paymentMethod
-    });
-    this.assertUserStateAligned(response.user_state);
-    this.applyState(response);
+    const response = await this.submitChat(message);
     if (response.is_processing) {
       this._isProcessing = true;
       this.emit("processing_start", void 0);
@@ -3968,7 +3958,7 @@ var ClientSession = class extends TypedEventEmitter {
   // ===========================================================================
   /** Whether the session is currently polling for state updates. */
   getIsPolling() {
-    return this.pollTimer !== null;
+    return this.pollingActive;
   }
   /**
    * Fetch the current state from the backend (one-shot).
@@ -3984,7 +3974,7 @@ var ClientSession = class extends TypedEventEmitter {
     );
     this.assertUserStateAligned(state.user_state);
     this.applyState(state);
-    if (state.is_processing && !this.pollTimer) {
+    if (state.is_processing && !this.pollingActive) {
       this._isProcessing = true;
       this.emit("processing_start", void 0);
       this.startPolling();
@@ -3998,25 +3988,39 @@ var ClientSession = class extends TypedEventEmitter {
    */
   startPolling() {
     var _a;
-    if (this.pollTimer || this.closed) return;
+    if (this.pollingActive || this.closed) return;
+    this.pollingActive = true;
     this._backendWasProcessing = true;
     (_a = this.logger) == null ? void 0 : _a.debug("[session] polling started", this.sessionId);
-    this.pollTimer = setInterval(() => {
-      void this.pollTick();
-    }, this.pollIntervalMs);
+    if (typeof document !== "undefined") {
+      document.addEventListener(
+        "visibilitychange",
+        this.handleVisibilityChange
+      );
+    }
+    this.schedulePoll(this.currentPollInterval());
   }
   /** Stop polling for state updates. Idempotent — no-op if not polling. */
   stopPolling() {
     var _a;
+    this.pollingActive = false;
     if (this.pollTimer) {
-      clearInterval(this.pollTimer);
+      clearTimeout(this.pollTimer);
       this.pollTimer = null;
-      (_a = this.logger) == null ? void 0 : _a.debug("[session] polling stopped", this.sessionId);
     }
+    if (typeof document !== "undefined") {
+      document.removeEventListener(
+        "visibilitychange",
+        this.handleVisibilityChange
+      );
+    }
+    (_a = this.logger) == null ? void 0 : _a.debug("[session] polling stopped", this.sessionId);
   }
   async pollTick() {
     var _a;
-    if (!this.pollTimer) return;
+    if (!this.pollingActive || this.pollInFlight) return;
+    this.pollTimer = null;
+    this.pollInFlight = true;
     try {
       const state = await this.client.fetchState(
         this.sessionId,
@@ -4024,7 +4028,8 @@ var ClientSession = class extends TypedEventEmitter {
         this.clientId,
         { app: this.app, applicationId: this.applicationId }
       );
-      if (!this.pollTimer) return;
+      if (!this.pollingActive) return;
+      this.pollFailureCount = 0;
       this.assertUserStateAligned(state.user_state);
       this.applyState(state);
       if (this._backendWasProcessing && !state.is_processing) {
@@ -4038,9 +4043,30 @@ var ClientSession = class extends TypedEventEmitter {
         this.resolvePending();
       }
     } catch (error) {
+      this.pollFailureCount += 1;
       (_a = this.logger) == null ? void 0 : _a.debug("[session] poll error", error);
       this.emit("error", { error });
+    } finally {
+      this.pollInFlight = false;
+      if (this.pollingActive) {
+        this.schedulePoll(
+          Math.min(
+            this.currentPollInterval() * 2 ** this.pollFailureCount,
+            5e3
+          )
+        );
+      }
     }
+  }
+  currentPollInterval() {
+    return typeof document !== "undefined" && document.hidden ? 2e3 : this.pollIntervalMs;
+  }
+  schedulePoll(delayMs) {
+    if (!this.pollingActive || this.closed) return;
+    if (this.pollTimer) clearTimeout(this.pollTimer);
+    this.pollTimer = setTimeout(() => {
+      void this.pollTick();
+    }, delayMs);
   }
   // ===========================================================================
   // Internal — State Application
@@ -4087,6 +4113,20 @@ var ClientSession = class extends TypedEventEmitter {
       app: this.app,
       applicationId: this.applicationId
     });
+  }
+  /** Shared completion path for send()/sendAsync() after the chat POST. */
+  async submitChat(message) {
+    const response = await this.client.sendMessage(this.sessionId, message, {
+      app: this.app,
+      applicationId: this.applicationId,
+      apiKey: this.apiKey,
+      userState: this.userState,
+      clientId: this.clientId,
+      paymentMethod: this.paymentMethod
+    });
+    this.assertUserStateAligned(response.user_state);
+    this.applyState(response);
+    return response;
   }
   resumeAfterWalletResponse() {
     if (!this._isProcessing) {
@@ -4207,6 +4247,34 @@ var megaeth = defineChain({
     }
   }
 });
+var arcTestnet = defineChain({
+  id: 5042002,
+  name: "Arc Testnet",
+  nativeCurrency: {
+    name: "USDC",
+    symbol: "USDC",
+    // Arc RPC quantities use 18-decimal native precision, but EIP-3085 chain
+    // metadata uses USDC's 6 display decimals. Callers handling raw
+    // eth_getBalance/msg.value must retain the 18-decimal internal boundary.
+    decimals: 6
+  },
+  rpcUrls: {
+    default: {
+      http: [
+        "https://rpc.testnet.arc.io",
+        "https://rpc.drpc.testnet.arc.io",
+        "https://rpc.quicknode.testnet.arc.io"
+      ]
+    }
+  },
+  blockExplorers: {
+    default: {
+      name: "ArcScan",
+      url: "https://testnet.arcscan.app"
+    }
+  },
+  testnet: true
+});
 var SUPPORTED_CHAINS = [
   { id: 1, name: "Ethereum", ticker: "ETH" },
   { id: 137, name: "Polygon", ticker: "MATIC" },
@@ -4221,6 +4289,7 @@ var SUPPORTED_CHAINS = [
   { id: 10143, name: "Monad Testnet", ticker: "MON" },
   { id: 4663, name: "Robinhood Chain", ticker: "ETH" },
   { id: 4326, name: "MegaETH", ticker: "ETH" },
+  { id: 5042002, name: "Arc Testnet", ticker: "USDC" },
   { id: 31337, name: "Anvil (local)", ticker: "ETH" }
 ];
 var SUPPORTED_CHAIN_IDS = SUPPORTED_CHAINS.map((chain) => chain.id);
@@ -4254,6 +4323,7 @@ var CHAINS_BY_ID = {
   10143: monadTestnet,
   4663: robinhood,
   4326: megaeth,
+  5042002: arcTestnet,
   31337: foundry
 };
 
@@ -4623,6 +4693,7 @@ export {
   aaModeFromExecutionKind,
   appIdentityKey,
   appendFeeCallToPayload,
+  arcTestnet,
   authorizationChallenge,
   authorizationCommit,
   buildFeeAAWalletCall,

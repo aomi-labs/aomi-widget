@@ -8,10 +8,6 @@
   margin-bottom: 1rem;
 }
 
-.demoFrame :global(.aui-thread-welcome-title) {
-  visibility: hidden;
-}
-
 .demoFrame
   :global(.aui-thread-welcome-root)
   :global(.aui-composer-root) {

@@ -106,7 +106,7 @@ import {
   lineaSepolia,
   foundry
 } from "viem/chains";
-var monad, monadTestnet, robinhood, megaeth, SUPPORTED_CHAINS, SUPPORTED_CHAIN_IDS, CHAIN_NAMES;
+var monad, monadTestnet, robinhood, megaeth, arcTestnet, SUPPORTED_CHAINS, SUPPORTED_CHAIN_IDS, CHAIN_NAMES;
 var init_chains = __esm({
   "src/chains.ts"() {
     "use strict";
@@ -191,6 +191,34 @@ var init_chains = __esm({
         }
       }
     });
+    arcTestnet = defineChain({
+      id: 5042002,
+      name: "Arc Testnet",
+      nativeCurrency: {
+        name: "USDC",
+        symbol: "USDC",
+        // Arc RPC quantities use 18-decimal native precision, but EIP-3085 chain
+        // metadata uses USDC's 6 display decimals. Callers handling raw
+        // eth_getBalance/msg.value must retain the 18-decimal internal boundary.
+        decimals: 6
+      },
+      rpcUrls: {
+        default: {
+          http: [
+            "https://rpc.testnet.arc.io",
+            "https://rpc.drpc.testnet.arc.io",
+            "https://rpc.quicknode.testnet.arc.io"
+          ]
+        }
+      },
+      blockExplorers: {
+        default: {
+          name: "ArcScan",
+          url: "https://testnet.arcscan.app"
+        }
+      },
+      testnet: true
+    });
     SUPPORTED_CHAINS = [
       { id: 1, name: "Ethereum", ticker: "ETH" },
       { id: 137, name: "Polygon", ticker: "MATIC" },
@@ -205,6 +233,7 @@ var init_chains = __esm({
       { id: 10143, name: "Monad Testnet", ticker: "MON" },
       { id: 4663, name: "Robinhood Chain", ticker: "ETH" },
       { id: 4326, name: "MegaETH", ticker: "ETH" },
+      { id: 5042002, name: "Arc Testnet", ticker: "USDC" },
       { id: 31337, name: "Anvil (local)", ticker: "ETH" }
     ];
     SUPPORTED_CHAIN_IDS = SUPPORTED_CHAINS.map((chain) => chain.id);
@@ -3766,6 +3795,9 @@ var init_session = __esm({
         var _a3, _b, _c, _d, _e;
         super();
         this.pollTimer = null;
+        this.pollingActive = false;
+        this.pollInFlight = false;
+        this.pollFailureCount = 0;
         this.unsubscribeSSE = null;
         this.isSSEActive = false;
         this._isProcessing = false;
@@ -3773,6 +3805,11 @@ var init_session = __esm({
         this._messages = [];
         this.closed = false;
         this.pendingResolve = null;
+        this.handleVisibilityChange = () => {
+          if (typeof document !== "undefined" && !document.hidden && !this.pollInFlight) {
+            this.schedulePoll(0);
+          }
+        };
         this.client = clientOrOptions instanceof AomiClient ? clientOrOptions : new AomiClient(clientOrOptions);
         this.sessionId = (_a3 = sessionOptions == null ? void 0 : sessionOptions.sessionId) != null ? _a3 : crypto.randomUUID();
         this.app = (_b = sessionOptions == null ? void 0 : sessionOptions.app) != null ? _b : "default";
@@ -3813,16 +3850,7 @@ var init_session = __esm({
        */
       async send(message) {
         this.assertOpen();
-        const response = await this.client.sendMessage(this.sessionId, message, {
-          app: this.app,
-          applicationId: this.applicationId,
-          apiKey: this.apiKey,
-          userState: this.userState,
-          clientId: this.clientId,
-          paymentMethod: this.paymentMethod
-        });
-        this.assertUserStateAligned(response.user_state);
-        this.applyState(response);
+        const response = await this.submitChat(message);
         if (!response.is_processing && this.walletController.length === 0) {
           return { messages: this._messages, title: this._title };
         }
@@ -3839,16 +3867,7 @@ var init_session = __esm({
        */
       async sendAsync(message) {
         this.assertOpen();
-        const response = await this.client.sendMessage(this.sessionId, message, {
-          app: this.app,
-          applicationId: this.applicationId,
-          apiKey: this.apiKey,
-          userState: this.userState,
-          clientId: this.clientId,
-          paymentMethod: this.paymentMethod
-        });
-        this.assertUserStateAligned(response.user_state);
-        this.applyState(response);
+        const response = await this.submitChat(message);
         if (response.is_processing) {
           this._isProcessing = true;
           this.emit("processing_start", void 0);
@@ -4019,7 +4038,7 @@ var init_session = __esm({
       // ===========================================================================
       /** Whether the session is currently polling for state updates. */
       getIsPolling() {
-        return this.pollTimer !== null;
+        return this.pollingActive;
       }
       /**
        * Fetch the current state from the backend (one-shot).
@@ -4035,7 +4054,7 @@ var init_session = __esm({
         );
         this.assertUserStateAligned(state.user_state);
         this.applyState(state);
-        if (state.is_processing && !this.pollTimer) {
+        if (state.is_processing && !this.pollingActive) {
           this._isProcessing = true;
           this.emit("processing_start", void 0);
           this.startPolling();
@@ -4049,25 +4068,39 @@ var init_session = __esm({
        */
       startPolling() {
         var _a3;
-        if (this.pollTimer || this.closed) return;
+        if (this.pollingActive || this.closed) return;
+        this.pollingActive = true;
         this._backendWasProcessing = true;
         (_a3 = this.logger) == null ? void 0 : _a3.debug("[session] polling started", this.sessionId);
-        this.pollTimer = setInterval(() => {
-          void this.pollTick();
-        }, this.pollIntervalMs);
+        if (typeof document !== "undefined") {
+          document.addEventListener(
+            "visibilitychange",
+            this.handleVisibilityChange
+          );
+        }
+        this.schedulePoll(this.currentPollInterval());
       }
       /** Stop polling for state updates. Idempotent — no-op if not polling. */
       stopPolling() {
         var _a3;
+        this.pollingActive = false;
         if (this.pollTimer) {
-          clearInterval(this.pollTimer);
+          clearTimeout(this.pollTimer);
           this.pollTimer = null;
-          (_a3 = this.logger) == null ? void 0 : _a3.debug("[session] polling stopped", this.sessionId);
         }
+        if (typeof document !== "undefined") {
+          document.removeEventListener(
+            "visibilitychange",
+            this.handleVisibilityChange
+          );
+        }
+        (_a3 = this.logger) == null ? void 0 : _a3.debug("[session] polling stopped", this.sessionId);
       }
       async pollTick() {
         var _a3;
-        if (!this.pollTimer) return;
+        if (!this.pollingActive || this.pollInFlight) return;
+        this.pollTimer = null;
+        this.pollInFlight = true;
         try {
           const state = await this.client.fetchState(
             this.sessionId,
@@ -4075,7 +4108,8 @@ var init_session = __esm({
             this.clientId,
             { app: this.app, applicationId: this.applicationId }
           );
-          if (!this.pollTimer) return;
+          if (!this.pollingActive) return;
+          this.pollFailureCount = 0;
           this.assertUserStateAligned(state.user_state);
           this.applyState(state);
           if (this._backendWasProcessing && !state.is_processing) {
@@ -4089,9 +4123,30 @@ var init_session = __esm({
             this.resolvePending();
           }
         } catch (error) {
+          this.pollFailureCount += 1;
           (_a3 = this.logger) == null ? void 0 : _a3.debug("[session] poll error", error);
           this.emit("error", { error });
+        } finally {
+          this.pollInFlight = false;
+          if (this.pollingActive) {
+            this.schedulePoll(
+              Math.min(
+                this.currentPollInterval() * 2 ** this.pollFailureCount,
+                5e3
+              )
+            );
+          }
         }
+      }
+      currentPollInterval() {
+        return typeof document !== "undefined" && document.hidden ? 2e3 : this.pollIntervalMs;
+      }
+      schedulePoll(delayMs) {
+        if (!this.pollingActive || this.closed) return;
+        if (this.pollTimer) clearTimeout(this.pollTimer);
+        this.pollTimer = setTimeout(() => {
+          void this.pollTick();
+        }, delayMs);
       }
       // ===========================================================================
       // Internal — State Application
@@ -4138,6 +4193,20 @@ var init_session = __esm({
           app: this.app,
           applicationId: this.applicationId
         });
+      }
+      /** Shared completion path for send()/sendAsync() after the chat POST. */
+      async submitChat(message) {
+        const response = await this.client.sendMessage(this.sessionId, message, {
+          app: this.app,
+          applicationId: this.applicationId,
+          apiKey: this.apiKey,
+          userState: this.userState,
+          clientId: this.clientId,
+          paymentMethod: this.paymentMethod
+        });
+        this.assertUserStateAligned(response.user_state);
+        this.applyState(response);
+        return response;
       }
       resumeAfterWalletResponse() {
         if (!this._isProcessing) {
@@ -8154,8 +8223,8 @@ async function appsCommand(config) {
   for (const descriptor of apps) {
     const name = descriptor.name;
     const marker = currentApp === name ? "  (current)" : "";
-    const required = ((_d = descriptor.secrets) != null ? _d : []).filter((s) => s.required).map((s) => s.name);
-    const requiredSuffix = required.length > 0 ? `  [requires: ${required.join(", ")}]` : "";
+    const required2 = ((_d = descriptor.secrets) != null ? _d : []).filter((s) => s.required).map((s) => s.name);
+    const requiredSuffix = required2.length > 0 ? `  [requires: ${required2.join(", ")}]` : "";
     console.log(`${name}${marker}${requiredSuffix}`);
   }
 }
@@ -9675,6 +9744,573 @@ var init_secrets = __esm({
   }
 });
 
+// src/lib/deployment-state.ts
+import { mkdir, readFile, writeFile } from "fs/promises";
+import { join as join2 } from "path";
+function statePath(cwd) {
+  return join2(cwd, DIR, FILE);
+}
+async function writeDeploymentState(state, cwd = process.cwd()) {
+  const dir = join2(cwd, DIR);
+  await mkdir(dir, { recursive: true });
+  await writeFile(statePath(cwd), JSON.stringify(state, null, 2), "utf-8");
+}
+async function readDeploymentState(cwd = process.cwd()) {
+  try {
+    const raw = await readFile(statePath(cwd), "utf-8");
+    return JSON.parse(raw);
+  } catch (e) {
+    return null;
+  }
+}
+var DIR, FILE;
+var init_deployment_state = __esm({
+  "src/lib/deployment-state.ts"() {
+    "use strict";
+    DIR = ".aomi";
+    FILE = "deployment.json";
+  }
+});
+
+// src/cli/commands/status.ts
+var status_exports = {};
+__export(status_exports, {
+  statusCommand: () => statusCommand2
+});
+function str2(value) {
+  return typeof value === "string" && value.trim() ? value.trim() : void 0;
+}
+function requireToken(args) {
+  var _a3;
+  const token = (_a3 = str2(args["activation-token"])) != null ? _a3 : process.env.AOMI_DEPLOY_TOKEN;
+  if (!token) {
+    throw new DeployCliError(
+      "VALIDATION_ERROR",
+      "`--activation-token` is required. Pass it or set the AOMI_DEPLOY_TOKEN env var."
+    );
+  }
+  return token;
+}
+function resolveBackendUrl(args) {
+  var _a3, _b;
+  return ((_b = (_a3 = str2(args["backend-url"])) != null ? _a3 : process.env.AOMI_BACKEND_URL) != null ? _b : "https://api.aomi.dev").replace(/\/+$/, "");
+}
+function resolvePlatform(args) {
+  var _a3, _b;
+  return (_b = (_a3 = str2(args.platform)) != null ? _a3 : process.env.AOMI_DEPLOY_PLATFORM) != null ? _b : "community";
+}
+async function fetchStatus(deploymentId, platform, activationToken, backendUrl) {
+  const url = `${backendUrl}/api/platforms/${encodeURIComponent(platform)}/deployments/${encodeURIComponent(deploymentId)}/status`;
+  let res;
+  try {
+    res = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${activationToken}`,
+        "Content-Type": "application/json"
+      }
+    });
+  } catch (err) {
+    throw new DeployCliError(
+      "NETWORK_ERROR",
+      "Cannot reach Aomi backend; check your connection"
+    );
+  }
+  const text = await res.text();
+  if (!res.ok) {
+    const message = (() => {
+      try {
+        const json = JSON.parse(text);
+        if (json && typeof json === "object" && json.error) return json.error;
+      } catch (e) {
+      }
+      return `${res.status} ${res.statusText}`;
+    })();
+    if (res.status === 401 || res.status === 403) {
+      throw new DeployCliError("AUTH_FAILED", "Session expired; run `aomi account login`");
+    }
+    throw new DeployCliError("BACKEND_ERROR", message);
+  }
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    throw new DeployCliError("BACKEND_ERROR", "Backend returned invalid JSON.");
+  }
+}
+function printStatus(status) {
+  var _a3, _b;
+  const CYAN2 = "\x1B[36m";
+  const DIM2 = "\x1B[2m";
+  const RESET2 = "\x1B[0m";
+  console.log(`${CYAN2}State:${RESET2} ${status.state}`);
+  if ((_a3 = status.ci) == null ? void 0 : _a3.url) {
+    console.log(`${DIM2}CI:${RESET2}    ${status.ci.url}`);
+  }
+  if (status.deployment) {
+    const platform = (_b = status.deployment) == null ? void 0 : _b.platform;
+    if (platform == null ? void 0 : platform.pr_url) {
+      console.log(`${DIM2}PR:${RESET2}    ${platform.pr_url}`);
+    }
+  }
+  if (status.apps && status.apps.length > 0) {
+    for (const app of status.apps) {
+      const tag = app.releaseTag ? ` (${app.releaseTag})` : "";
+      console.log(`${DIM2}App:${RESET2}   ${app.name}${tag}`);
+    }
+  } else if (status.releaseTags && status.releaseTags.length > 0) {
+    for (const tag of status.releaseTags) {
+      console.log(`${DIM2}Tag:${RESET2}   ${tag}`);
+    }
+  }
+  if (status.message) {
+    console.log(`${DIM2}Msg:${RESET2}   ${status.message}`);
+  }
+}
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+async function statusCommand2(args) {
+  var _a3, _b, _c;
+  const deploymentId = (_b = str2(args["deployment-id"])) != null ? _b : (_a3 = await readDeploymentState()) == null ? void 0 : _a3.deploymentId;
+  if (!deploymentId) {
+    throw new DeployCliError(
+      "VALIDATION_ERROR",
+      "No deployment ID found. Pass --deployment-id or run `aomi deploy` first."
+    );
+  }
+  const activationToken = requireToken(args);
+  const backendUrl = resolveBackendUrl(args);
+  const platform = resolvePlatform(args);
+  const watch = args.watch === true;
+  if (!watch) {
+    const status = await fetchStatus(deploymentId, platform, activationToken, backendUrl);
+    printStatus(status);
+    return;
+  }
+  const MAX_FAILURES = 8;
+  const BASE_DELAY_MS = 3e3;
+  const MAX_DELAY_MS = 3e4;
+  let failures = 0;
+  let lastCiUrl;
+  while (true) {
+    try {
+      const status = await fetchStatus(deploymentId, platform, activationToken, backendUrl);
+      if ((_c = status.ci) == null ? void 0 : _c.url) lastCiUrl = status.ci.url;
+      printStatus(status);
+      failures = 0;
+      if (status.state === "ready") {
+        process.exit(0);
+        return;
+      }
+      if (status.state === "failed") {
+        process.exit(1);
+        return;
+      }
+      await sleep(BASE_DELAY_MS);
+    } catch (err) {
+      failures++;
+      if (failures >= MAX_FAILURES) {
+        const ciSuffix = lastCiUrl ? `; check CI status at ${lastCiUrl}` : "";
+        throw new DeployCliError(
+          "BACKEND_ERROR",
+          `Deployment timed out after ${MAX_FAILURES} attempts${ciSuffix}`
+        );
+      }
+      const backoffMs = Math.min(BASE_DELAY_MS * Math.pow(2, failures), MAX_DELAY_MS);
+      await sleep(backoffMs);
+    }
+  }
+}
+var init_status = __esm({
+  "src/cli/commands/status.ts"() {
+    "use strict";
+    init_errors();
+    init_deployment_state();
+  }
+});
+
+// src/cli/commands/activate.ts
+var activate_exports = {};
+__export(activate_exports, {
+  activateCommand: () => activateCommand
+});
+function str3(value) {
+  return typeof value === "string" && value.trim() ? value.trim() : void 0;
+}
+function requireToken2(args) {
+  var _a3;
+  const token = (_a3 = str3(args["activation-token"])) != null ? _a3 : process.env.AOMI_DEPLOY_TOKEN;
+  if (!token) {
+    throw new DeployCliError(
+      "VALIDATION_ERROR",
+      "`--activation-token` is required. Pass it or set the AOMI_DEPLOY_TOKEN env var."
+    );
+  }
+  return token;
+}
+function resolveBackendUrl2(args) {
+  var _a3, _b;
+  return ((_b = (_a3 = str3(args["backend-url"])) != null ? _a3 : process.env.AOMI_BACKEND_URL) != null ? _b : "https://api.aomi.dev").replace(/\/+$/, "");
+}
+function resolvePlatform2(args) {
+  var _a3, _b;
+  return (_b = (_a3 = str3(args.platform)) != null ? _a3 : process.env.AOMI_DEPLOY_PLATFORM) != null ? _b : "community";
+}
+async function extractError(res) {
+  try {
+    const text = await res.text();
+    const json = JSON.parse(text);
+    if (json && typeof json === "object" && json.error) return json.error;
+    return text || `${res.status} ${res.statusText}`;
+  } catch (e) {
+    return `${res.status} ${res.statusText}`;
+  }
+}
+async function activateCommand(args) {
+  var _a3, _b, _c;
+  const state = await readDeploymentState();
+  const deploymentId = (_a3 = str3(args["deployment-id"])) != null ? _a3 : state == null ? void 0 : state.deploymentId;
+  const releaseTagsRaw = str3(args["release-tags"]);
+  const releaseTags = releaseTagsRaw !== void 0 ? releaseTagsRaw.split(",").map((t) => t.trim()).filter(Boolean) : (_b = state == null ? void 0 : state.releaseTags) != null ? _b : [];
+  if (!deploymentId || releaseTags.length === 0) {
+    throw new DeployCliError(
+      "VALIDATION_ERROR",
+      "No deployment found. Run `aomi deploy` first, or pass --deployment-id and --release-tags."
+    );
+  }
+  const activationToken = requireToken2(args);
+  const backendUrl = resolveBackendUrl2(args);
+  const platform = resolvePlatform2(args);
+  const url = `${backendUrl}/api/platforms/${encodeURIComponent(platform)}/apps/activate`;
+  const body = { target: { kind: "release_tags", value: releaseTags } };
+  let res;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${activationToken}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(body)
+    });
+  } catch (err) {
+    throw new DeployCliError(
+      "NETWORK_ERROR",
+      "Cannot reach Aomi backend; check your connection"
+    );
+  }
+  if (!res.ok) {
+    const msg = await extractError(res);
+    const code = res.status === 401 || res.status === 403 ? "AUTH_FAILED" : "BACKEND_ERROR";
+    if (code === "AUTH_FAILED") {
+      throw new DeployCliError(code, "Session expired; run `aomi account login`");
+    }
+    throw new DeployCliError(code, msg);
+  }
+  const resultText = await res.text();
+  const result = (() => {
+    try {
+      return JSON.parse(resultText);
+    } catch (e) {
+      return null;
+    }
+  })();
+  const activation = result == null ? void 0 : result.activation;
+  const apps = activation == null ? void 0 : activation.apps;
+  if (apps) {
+    const failures = apps.filter((a) => a.error);
+    if (failures.length > 0) {
+      console.log(" Activation completed with errors:");
+      for (const f of failures) {
+        console.log(`   ${(_c = f.name) != null ? _c : "?"}: ${f.error}`);
+      }
+    }
+  }
+  if (state) {
+    await writeDeploymentState(__spreadProps(__spreadValues({}, state), { timestamp: (/* @__PURE__ */ new Date()).toISOString() }));
+  }
+  console.log(" Activation succeeded.");
+}
+var init_activate = __esm({
+  "src/cli/commands/activate.ts"() {
+    "use strict";
+    init_errors();
+    init_deployment_state();
+  }
+});
+
+// src/cli/commands/deploy.ts
+var deploy_exports = {};
+__export(deploy_exports, {
+  deployCommand: () => deployCommand
+});
+import { execFileSync, execSync } from "child_process";
+function str4(value) {
+  return typeof value === "string" && value.trim() ? value.trim() : void 0;
+}
+function required(value, flag, env) {
+  if (value) return value;
+  throw new DeployCliError(
+    "VALIDATION_ERROR",
+    `\`--${flag}\` is required. Pass it or set the ${env} env var.`
+  );
+}
+function currentBranch() {
+  try {
+    return execSync("git rev-parse --abbrev-ref HEAD", {
+      encoding: "utf-8"
+    }).trim();
+  } catch (e) {
+    throw new DeployCliError(
+      "NOT_A_GIT_REPO",
+      "Run this from inside a git repository"
+    );
+  }
+}
+function resolveGitCommit(ref) {
+  try {
+    const commit = execFileSync(
+      "git",
+      ["rev-parse", "--verify", `${ref}^{commit}`],
+      {
+        encoding: "utf-8"
+      }
+    ).trim();
+    if (!/^[0-9a-f]{7,40}$/i.test(commit)) {
+      throw new Error(`unexpected git commit hash: ${commit}`);
+    }
+    return commit.toLowerCase();
+  } catch (e) {
+    throw new DeployCliError(
+      "VALIDATION_ERROR",
+      `Could not resolve \`${ref}\` to a git commit SHA.`
+    );
+  }
+}
+function checkGitRemote() {
+  try {
+    const remote = execSync("git remote", { encoding: "utf-8" }).trim();
+    if (!remote) {
+      throw new DeployCliError(
+        "VALIDATION_ERROR",
+        "No git remote found; push your code first"
+      );
+    }
+  } catch (err) {
+    if (err instanceof DeployCliError) throw err;
+    throw new DeployCliError(
+      "VALIDATION_ERROR",
+      "No git remote found; push your code first"
+    );
+  }
+}
+async function deviceAuthFlow(backendUrl, platform) {
+  var _a3, _b;
+  console.log(
+    "\n No activation token found. Starting browser-based GitHub auth...\n"
+  );
+  const beginRes = await fetch(`${backendUrl}/api/auth/cli/begin`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ platform })
+  });
+  if (!beginRes.ok) {
+    const text = await beginRes.text().catch(() => "");
+    throw new DeployCliError(
+      "BACKEND_ERROR",
+      `Failed to start device auth: ${beginRes.status} ${text}`
+    );
+  }
+  const { device_code, verification_uri } = await beginRes.json();
+  console.log(" \u2192 Open this URL in your browser to authenticate with GitHub:");
+  console.log(`   ${verification_uri}
+`);
+  const { platform: os } = process;
+  const openCmd = os === "darwin" ? "open" : os === "win32" ? "start" : "xdg-open";
+  try {
+    execSync(`${openCmd} "${verification_uri}"`, { stdio: "ignore" });
+    console.log(" (Browser opened automatically.)\n");
+  } catch (e) {
+  }
+  console.log(" Waiting for authorization...");
+  const pollUrl = `${backendUrl}/api/auth/cli/status?device_code=${device_code}`;
+  const start = Date.now();
+  const timeoutMs = 6e5;
+  while (Date.now() - start < timeoutMs) {
+    await new Promise((r) => setTimeout(r, 2e3));
+    const statusRes = await fetch(pollUrl);
+    if (!statusRes.ok) continue;
+    const body = await statusRes.json();
+    if (body.status === "complete" && body.activation_token) {
+      console.log(` Authenticated as @${(_a3 = body.github_login) != null ? _a3 : "?"}
+`);
+      console.log(
+        ` Tip: save your token to skip this step next time:
+   export AOMI_DEPLOY_TOKEN="${body.activation_token}"
+`
+      );
+      return {
+        token: body.activation_token,
+        githubLogin: (_b = body.github_login) != null ? _b : ""
+      };
+    }
+    if (body.status === "expired") {
+      throw new DeployCliError(
+        "AUTH_FAILED",
+        "Authorization session expired. Run `aomi deploy` again to retry."
+      );
+    }
+  }
+  throw new DeployCliError(
+    "AUTH_TIMEOUT",
+    "Authorization timed out after 10 minutes. Run `aomi deploy` again to retry."
+  );
+}
+async function deployCommand(args) {
+  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n;
+  const backendUrl = ((_b = (_a3 = str4(args["backend-url"])) != null ? _a3 : process.env.AOMI_BACKEND_URL) != null ? _b : "https://api.aomi.dev").replace(/\/+$/, "");
+  const platform = (_d = (_c = str4(args.platform)) != null ? _c : process.env.AOMI_DEPLOY_PLATFORM) != null ? _d : "community";
+  const activationToken = (_f = (_e = str4(args["activation-token"])) != null ? _e : process.env.AOMI_DEPLOY_TOKEN) != null ? _f : (await deviceAuthFlow(backendUrl, platform)).token;
+  const projectId = Number(
+    required(
+      (_g = str4(args["project-id"])) != null ? _g : process.env.AOMI_PROJECT_ID,
+      "project-id",
+      "AOMI_PROJECT_ID"
+    )
+  );
+  if (!Number.isSafeInteger(projectId) || projectId <= 0) {
+    throw new DeployCliError(
+      "VALIDATION_ERROR",
+      "`--project-id` must be a positive integer."
+    );
+  }
+  const branch = str4(args.branch);
+  const commit = str4(args.commit);
+  if (branch && commit) {
+    throw new DeployCliError(
+      "VALIDATION_ERROR",
+      "--commit and --branch are mutually exclusive. Provide one or neither."
+    );
+  }
+  const selectedRef = (_h = commit != null ? commit : branch) != null ? _h : currentBranch();
+  const sourceRef = resolveGitCommit(selectedRef);
+  if (!commit && !branch) {
+    checkGitRemote();
+  }
+  const preflight = args["preflight"] === true;
+  console.log(` Deploying to ${backendUrl}`);
+  console.log(`   project id:    ${projectId}`);
+  if (branch) console.log(`   branch:        ${branch}`);
+  console.log(`   commit:        ${sourceRef}`);
+  if (preflight) console.log("   preflight:      yes");
+  const url = `${backendUrl}/api/projects/${projectId}/deploy`;
+  const body = {
+    source_ref: sourceRef,
+    preflight
+  };
+  let res;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${activationToken}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(body)
+    });
+  } catch (err) {
+    throw new DeployCliError(
+      "NETWORK_ERROR",
+      "Cannot reach Aomi backend; check your connection"
+    );
+  }
+  const text = await res.text();
+  if (!res.ok) {
+    const message = (() => {
+      var _a4, _b2;
+      try {
+        const json = JSON.parse(text);
+        if (json && typeof json === "object")
+          return (_b2 = (_a4 = json.error) != null ? _a4 : json.reason) != null ? _b2 : `${res.status} ${res.statusText}`;
+      } catch (e) {
+      }
+      return `${res.status} ${res.statusText}`;
+    })();
+    if (res.status === 401 || res.status === 403) {
+      throw new DeployCliError(
+        "AUTH_FAILED",
+        "Session expired; run `aomi account login`"
+      );
+    }
+    throw new DeployCliError("BACKEND_ERROR", message);
+  }
+  let result;
+  try {
+    result = JSON.parse(text);
+  } catch (e) {
+    throw new DeployCliError("BACKEND_ERROR", "Backend returned invalid JSON.");
+  }
+  const deployment = result.deployment;
+  const platformInfo = deployment == null ? void 0 : deployment.platform;
+  const sourceInfo = deployment == null ? void 0 : deployment.source;
+  console.log();
+  if (preflight) {
+    console.log(" Preflight complete. Review the manifest below:");
+    console.log(`   ${JSON.stringify(result, null, 2)}`);
+    return;
+  }
+  console.log(` Deployment created: ${(_i = deployment == null ? void 0 : deployment.id) != null ? _i : "unknown"}`);
+  console.log(`   status:  ${(_j = deployment == null ? void 0 : deployment.status) != null ? _j : "unknown"}`);
+  if (sourceInfo == null ? void 0 : sourceInfo.repository_link) {
+    console.log(`   source:  ${sourceInfo.repository_link}`);
+  }
+  if (platformInfo == null ? void 0 : platformInfo.pr_url) {
+    console.log(`   PR:      ${platformInfo.pr_url}`);
+  }
+  if (platformInfo == null ? void 0 : platformInfo.ci_url) {
+    console.log(`   CI:      ${platformInfo.ci_url}`);
+  }
+  const releaseTags = [];
+  const apps = [];
+  if (platformInfo == null ? void 0 : platformInfo.apps) {
+    const appsArr = platformInfo.apps;
+    for (const app of appsArr) {
+      const name = String((_k = app.name) != null ? _k : "?");
+      const tag = String((_m = (_l = app.release_tag) != null ? _l : app.releaseTag) != null ? _m : "");
+      apps.push(name);
+      if (tag) releaseTags.push(tag);
+      console.log(`   app:     ${name}${tag ? ` (${tag})` : ""}`);
+    }
+  }
+  if (platformInfo == null ? void 0 : platformInfo.commit_hash) {
+    console.log(`   commit:  ${platformInfo.commit_hash}`);
+  }
+  const deploymentId = String((_n = deployment == null ? void 0 : deployment.id) != null ? _n : "");
+  if (deploymentId) {
+    const deployedPlatform = str4(platformInfo == null ? void 0 : platformInfo.platform);
+    if (!deployedPlatform) {
+      throw new DeployCliError(
+        "BACKEND_ERROR",
+        "Backend deployment response is missing its resolved platform."
+      );
+    }
+    await writeDeploymentState({
+      deploymentId,
+      platform: deployedPlatform,
+      projectId,
+      releaseTags,
+      apps,
+      timestamp: (/* @__PURE__ */ new Date()).toISOString()
+    });
+  }
+}
+var init_deploy = __esm({
+  "src/cli/commands/deploy.ts"() {
+    "use strict";
+    init_errors();
+    init_deployment_state();
+  }
+});
+
 // src/cli/commands/byok.ts
 function parseByokKeyArg(input2) {
   const [providerPart, byokKeyPart] = input2.split(/:(.+)/, 2);
@@ -9763,7 +10399,7 @@ __export(repl_exports, {
 });
 import { createInterface } from "readline/promises";
 import { stdin as input, stdout as output } from "process";
-function str2(value) {
+function str5(value) {
   return typeof value === "string" && value.trim() ? value : void 0;
 }
 function printReplHelp() {
@@ -9883,9 +10519,9 @@ async function runInteractiveCli(config, options) {
 }
 async function runRootCli(args) {
   let config = buildCliConfig(args);
-  const prompt = str2(args.prompt);
+  const prompt = str5(args.prompt);
   const showTool = args["show-tool"] === true;
-  const byokKey = str2(args["provider-key"]);
+  const byokKey = str5(args["provider-key"]);
   if (byokKey) {
     await saveByokKeyCommand(config, byokKey, { printLocation: false });
     config = __spreadProps(__spreadValues({}, config), { freshSession: false });
@@ -9912,7 +10548,7 @@ var init_repl = __esm({
 import { runCommand, runMain } from "citty";
 
 // src/cli/root.ts
-import { defineCommand as defineCommand11 } from "citty";
+import { defineCommand as defineCommand14 } from "citty";
 
 // src/cli/commands/defs/chat.ts
 init_shared();
@@ -10019,10 +10655,7 @@ var sessionListDef = defineCommand3({
   }
 });
 var sessionNewDef = defineCommand3({
-  meta: {
-    name: "new",
-    description: "Start a fresh session and make it active"
-  },
+  meta: { name: "new", description: "Start a fresh session and make it active" },
   args: __spreadValues({}, globalArgs),
   async run({ args }) {
     const { newSessionCommand: newSessionCommand2 } = await Promise.resolve().then(() => (init_sessions(), sessions_exports));
@@ -10061,8 +10694,8 @@ var sessionStatusDef = defineCommand3({
   meta: { name: "status", description: "Show current session state" },
   args: __spreadValues({}, globalArgs),
   async run({ args }) {
-    const { statusCommand: statusCommand2 } = await Promise.resolve().then(() => (init_control(), control_exports));
-    await statusCommand2(buildCliConfig(args));
+    const { statusCommand: statusCommand3 } = await Promise.resolve().then(() => (init_control(), control_exports));
+    await statusCommand3(buildCliConfig(args));
   }
 });
 var sessionLogDef = defineCommand3({
@@ -10611,13 +11244,132 @@ var secretDef = defineCommand10({
   }
 });
 
+// src/cli/commands/defs/deploy.ts
+import { defineCommand as defineCommand13 } from "citty";
+
+// src/cli/commands/defs/status.ts
+import { defineCommand as defineCommand11 } from "citty";
+var statusDef = defineCommand11({
+  meta: {
+    name: "status",
+    description: "Show current deployment status"
+  },
+  args: {
+    "deployment-id": {
+      type: "string",
+      description: "Deployment ID (reads .aomi/deployment.json if absent)"
+    },
+    watch: {
+      type: "boolean",
+      description: "Poll until a terminal state is reached"
+    },
+    "activation-token": {
+      type: "string",
+      description: "Platform activation token (or set AOMI_DEPLOY_TOKEN env)"
+    },
+    "backend-url": {
+      type: "string",
+      description: "Backend URL (default: https://api.aomi.dev)"
+    },
+    platform: {
+      type: "string",
+      description: "Deploy platform (default: community; or set AOMI_DEPLOY_PLATFORM env)"
+    }
+  },
+  async run({ args }) {
+    const { statusCommand: statusCommand3 } = await Promise.resolve().then(() => (init_status(), status_exports));
+    await statusCommand3(args);
+  }
+});
+
+// src/cli/commands/defs/activate.ts
+import { defineCommand as defineCommand12 } from "citty";
+var activateDef = defineCommand12({
+  meta: {
+    name: "activate",
+    description: "Activate a deployment by promoting release tags"
+  },
+  args: {
+    "deployment-id": {
+      type: "string",
+      description: "Deployment ID (reads .aomi/deployment.json if absent)"
+    },
+    "release-tags": {
+      type: "string",
+      description: "Comma-separated release tags to activate (reads .aomi/deployment.json if absent)"
+    },
+    "activation-token": {
+      type: "string",
+      description: "Platform activation token (or set AOMI_DEPLOY_TOKEN env)"
+    },
+    "backend-url": {
+      type: "string",
+      description: "Backend URL (default: https://api.aomi.dev)"
+    },
+    platform: {
+      type: "string",
+      description: "Deploy platform (default: community; or set AOMI_DEPLOY_PLATFORM env)"
+    }
+  },
+  async run({ args }) {
+    const { activateCommand: activateCommand2 } = await Promise.resolve().then(() => (init_activate(), activate_exports));
+    await activateCommand2(args);
+  }
+});
+
+// src/cli/commands/defs/deploy.ts
+var deployDef = defineCommand13({
+  meta: {
+    name: "deploy",
+    description: "Deploy your app to the Aomi platform"
+  },
+  args: {
+    "backend-url": {
+      type: "string",
+      description: "Backend URL (default: https://api.aomi.dev)"
+    },
+    "activation-token": {
+      type: "string",
+      description: "Platform activation token (required; or set AOMI_DEPLOY_TOKEN env)"
+    },
+    "project-id": {
+      type: "string",
+      description: "Backend project ID (required; or set AOMI_PROJECT_ID env)"
+    },
+    preflight: {
+      type: "boolean",
+      description: "Preview the deployment manifest without applying it"
+    },
+    branch: {
+      type: "string",
+      description: "Git branch to deploy (default: current branch via git rev-parse)"
+    },
+    commit: {
+      type: "string",
+      description: "Deploy a specific commit SHA instead of a branch tip"
+    },
+    platform: {
+      type: "string",
+      description: "Authentication platform for browser login (the Project determines the deployment platform)"
+    }
+  },
+  async run({ args }) {
+    const { deployCommand: deployCommand2 } = await Promise.resolve().then(() => (init_deploy(), deploy_exports));
+    await deployCommand2(args);
+  },
+  subCommands: {
+    status: statusDef,
+    activate: activateDef
+  }
+});
+
 // src/cli/root.ts
 init_shared();
 
 // package.json
 var package_default = {
   name: "@aomi-labs/client",
-  version: "0.4.3",
+  version: "0.4.6",
   description: "Platform-agnostic TypeScript client for the Aomi backend API",
   type: "module",
   main: "./dist/index.cjs",
@@ -10674,12 +11426,13 @@ var SUBCOMMAND_NAMES = /* @__PURE__ */ new Set([
   "account",
   "logout",
   "config",
-  "secret"
+  "secret",
+  "deploy"
 ]);
 function hasRootSubcommand(rawArgs) {
   return rawArgs.some((arg) => SUBCOMMAND_NAMES.has(arg));
 }
-var logoutDef = defineCommand11({
+var logoutDef = defineCommand14({
   meta: {
     name: "logout",
     description: "Sign out and clear the CLI auth session"
@@ -10690,7 +11443,7 @@ var logoutDef = defineCommand11({
     await logoutCommand2(buildCliConfig(args));
   }
 });
-var root = defineCommand11({
+var root = defineCommand14({
   meta: {
     name: "aomi",
     version: package_default.version,
@@ -10729,26 +11482,14 @@ var root = defineCommand11({
     account: accountDef,
     logout: logoutDef,
     config: configDef,
-    secret: secretDef
+    secret: secretDef,
+    deploy: deployDef
   }
 });
 
 // src/cli/main.ts
 init_errors();
-var ROOT_SUBCOMMANDS = /* @__PURE__ */ new Set([
-  "chat",
-  "tx",
-  "session",
-  "model",
-  "app",
-  "chain",
-  "wallet",
-  "account",
-  "logout",
-  "config",
-  "secret",
-  "deploy"
-]);
+var ROOT_SUBCOMMANDS = SUBCOMMAND_NAMES;
 function isPnpmExecWrapper() {
   var _a3, _b;
   const npmCommand = (_a3 = process.env.npm_command) != null ? _a3 : "";
@@ -10841,7 +11582,7 @@ function printRootHelp() {
   console.log("  config                       CLI configuration");
   console.log("  secret                       Secret management");
   console.log(
-    "  deploy                       Deploy your app (requires --activation-token)"
+    "  deploy                       Deploy your app (also: deploy status, deploy activate)"
   );
   console.log("");
   console.log("Use aomi <command> --help for command-specific details.");

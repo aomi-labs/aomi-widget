@@ -73,21 +73,6 @@ function activationProject(id = 99) {
   });
 }
 
-function projectDeployments() {
-  return Response.json({
-    deployments: [
-      {
-        deployment_id: "dep_1",
-        project_id: 99,
-        repository_link: "alice/bot",
-        created_at: 1,
-        release_tags: ["apps-555-r1-my-bot-abc"],
-        apps: [{ name: "my-bot", release_tag: "apps-555-r1-my-bot-abc" }],
-      },
-    ],
-  });
-}
-
 /** Like `activationProject`, but with a `latestDeployment.platformRepo` so the
  *  required-secrets check has a manifest to read. */
 function activationProjectWithRepo(platformRepo: string, id = 99) {
@@ -244,6 +229,44 @@ describe("createLaunchRoutes deploy/preflight", () => {
         body: expect.stringContaining('"source_ref":"abc1234def5678"'),
       }),
     );
+  });
+
+  it("returns no activation targets for an incomplete deployment manifest", async () => {
+    session.mockResolvedValueOnce({ githubUserId: "42", githubLogin: "alice" });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(ownedProjects(777))
+      .mockResolvedValueOnce(
+        Response.json({
+          ok: true,
+          deployment: {
+            id: "dep_999_rabc1234_deadbeef",
+            source: {
+              repository_link: "alice/bot",
+              commit_hash: "abc1234def5678",
+            },
+            platform: {
+              apps: [
+                { name: "complete", release_tag: "release-complete" },
+                { name: "missing-release" },
+              ],
+            },
+          },
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await routes().deploy(
+      writeReq("deploy", {
+        projectId: 777,
+        sourceRef: "abc1234def5678",
+      }),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(202);
+    expect(body.apps).toEqual([]);
+    expect(body.releaseTags).toEqual([]);
   });
 
   it("deploys by Project identity without a client-selected platform", async () => {
@@ -600,7 +623,62 @@ describe("createLaunchRoutes projects", () => {
   });
 });
 
-describe("createLaunchRoutes activate/app security", () => {
+describe("createLaunchRoutes runtime apps", () => {
+  it("returns one project's live runtime statuses", async () => {
+    session.mockResolvedValueOnce({ githubUserId: "42", githubLogin: "alice" });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(ownedProjects(99))
+      .mockResolvedValueOnce(
+        Response.json({
+          project: { id: 99, platform_name: "community", apps: [] },
+          platform: "community",
+          apps: [
+            {
+              id: 5,
+              name: "bot",
+              is_active: true,
+              loaded: true,
+              app_release_tag: "release-2",
+            },
+          ],
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await routes().apps(readReq("apps", "projectId=99"));
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({
+      ok: true,
+      projectId: 99,
+      state: "live",
+      apps: [
+        {
+          id: 5,
+          name: "bot",
+          is_active: true,
+          loaded: true,
+          app_release_tag: "release-2",
+        },
+      ],
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("rejects an invalid project id before backend calls", async () => {
+    session.mockResolvedValueOnce({ githubUserId: "42", githubLogin: "alice" });
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await routes().apps(readReq("apps", "projectId=nope"));
+
+    expect(res.status).toBe(400);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("createLaunchRoutes activation security", () => {
   it("rejects activate without a GitHub session before backend calls", async () => {
     session.mockResolvedValueOnce(null);
     const fetchMock = vi.fn();
@@ -646,12 +724,15 @@ describe("createLaunchRoutes activate/app security", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("rejects unmatched activate app/tag pairs", async () => {
+  it("relays Manager's rejection for an unmatched activate app/tag pair", async () => {
     session.mockResolvedValueOnce({ githubUserId: "42", githubLogin: "alice" });
+    vi.stubEnv("GITHUB_TOKEN", "gh-token");
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(activationProject())
-      .mockResolvedValueOnce(projectDeployments());
+      .mockResolvedValueOnce(activationProjectWithRepo("aomi-labs/community"))
+      .mockResolvedValueOnce(Response.json({ by_app: {} }))
+      .mockResolvedValueOnce(Response.json({ assets: [] }))
+      .mockResolvedValueOnce(Response.json({ error: "release not found" }, { status: 404 }));
     vi.stubGlobal("fetch", fetchMock);
 
     const res = await routes().activate(
@@ -662,8 +743,11 @@ describe("createLaunchRoutes activate/app security", () => {
       }),
     );
 
+    // The sequence is intentionally Project lookup → secret state → GitHub
+    // release manifest → Project activation; keep this assertion next to the
+    // Manager-rejection regression.
+    expect(fetchMock).toHaveBeenCalledTimes(4);
     expect(res.status).toBe(404);
-    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("409s when a required secret is unfilled", async () => {
@@ -672,7 +756,6 @@ describe("createLaunchRoutes activate/app security", () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(activationProjectWithRepo("aomi-labs/my-bot-app"))
-      .mockResolvedValueOnce(projectDeployments())
       .mockResolvedValueOnce(
         Response.json({
           by_app: { "my-bot": ["$SECRET:APP:my-bot::MY_BOT_API_KEY"] },
@@ -719,7 +802,7 @@ describe("createLaunchRoutes activate/app security", () => {
       error: "missing required secrets",
       missing: { "my-bot": ["MY_BOT_SECRET_KEY"] },
     });
-    expect(fetchMock).toHaveBeenCalledTimes(5);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
   });
 
   it("activates when the release manifest declares no secrets for the app", async () => {
@@ -728,7 +811,6 @@ describe("createLaunchRoutes activate/app security", () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(activationProjectWithRepo("aomi-labs/my-bot-app"))
-      .mockResolvedValueOnce(projectDeployments())
       .mockResolvedValueOnce(Response.json({ by_app: {} }))
       .mockResolvedValueOnce(Response.json({ assets: [] }))
       .mockResolvedValueOnce(
@@ -745,7 +827,7 @@ describe("createLaunchRoutes activate/app security", () => {
     );
 
     expect(res.status).toBe(200);
-    expect(fetchMock).toHaveBeenCalledTimes(5);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
   });
 
   it("activates an owned app/tag pair", async () => {
@@ -754,7 +836,6 @@ describe("createLaunchRoutes activate/app security", () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(activationProject())
-      .mockResolvedValueOnce(projectDeployments())
       .mockResolvedValueOnce(
         Response.json({
           latest_deployment: {
@@ -779,33 +860,13 @@ describe("createLaunchRoutes activate/app security", () => {
     );
 
     expect(res.status).toBe(200);
-    expect(fetchMock).toHaveBeenCalledTimes(6);
-    expect(fetchMock.mock.calls[5][1]).toMatchObject({
+    expect(fetchMock).toHaveBeenCalledTimes(5);
+    expect(fetchMock.mock.calls[4][1]).toMatchObject({
       method: "POST",
       body: JSON.stringify({
-        target: {
-          kind: "release_tags",
-          value: ["apps-555-r1-my-bot-abc"],
-        },
+        release_tags: ["apps-555-r1-my-bot-abc"],
         apps: ["my-bot"],
       }),
     });
-  });
-
-  it("scopes app reads to the GitHub session", async () => {
-    session.mockResolvedValueOnce(null);
-    let fetchMock = vi.fn();
-    vi.stubGlobal("fetch", fetchMock);
-    let res = await routes().app(readReq("app", "name=my-bot"));
-    expect(res.status).toBe(401);
-    expect(fetchMock).not.toHaveBeenCalled();
-
-    vi.restoreAllMocks();
-    session.mockResolvedValueOnce({ githubUserId: "42", githubLogin: "alice" });
-    fetchMock = vi.fn().mockResolvedValueOnce(activationProject());
-    vi.stubGlobal("fetch", fetchMock);
-    res = await routes().app(readReq("app", "name=other"));
-    expect(res.status).toBe(404);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

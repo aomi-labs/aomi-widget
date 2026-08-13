@@ -22,9 +22,13 @@
 // =============================================================================
 
 import type { BackendClient } from "../backend";
-import type { DeployPayload, UserProject } from "../types";
+import type { PlatformApp } from "../types";
 import { assertServerOnly } from "../backend";
-import { DEFAULT_TEMPLATE_REPO } from "../launch/contracts";
+import {
+  DEFAULT_TEMPLATE_REPO,
+  deploymentTargets,
+  type LaunchAppStatusesResult,
+} from "../launch/contracts";
 import { launchErrorResponse } from "./errors";
 import {
   createDefaultGuards,
@@ -156,27 +160,27 @@ export function resolveLaunchConfig(
   };
 }
 
-// Tolerant of both snake_case (raw backend) and camelCase (BackendClient)
-// app records, since status payloads have carried both shapes.
-type AppsLike = { platform?: { apps?: Array<Record<string, unknown>> } };
-
-export function releaseTagsFromDeployment(
-  deployment?: DeployPayload | AppsLike,
-): string[] {
-  const apps = (deployment as AppsLike | undefined)?.platform?.apps ?? [];
-  return apps
-    .map((app) => (app.release_tag ?? app.releaseTag) as string | undefined)
-    .map((tag) => tag?.trim())
-    .filter((tag): tag is string => Boolean(tag));
-}
-
-export function appNamesFromDeployment(
-  deployment?: DeployPayload | AppsLike,
-): string[] {
-  const apps = (deployment as AppsLike | undefined)?.platform?.apps ?? [];
-  return apps
-    .map((app) => (app.name as string | undefined)?.trim())
-    .filter((name): name is string => Boolean(name));
+/** Map BackendClient app flags to the browser-safe project runtime contract. */
+export function launchAppStatusesResult(
+  projectId: number,
+  apps: readonly PlatformApp[],
+): LaunchAppStatusesResult {
+  const runtimeApps = apps.map((app) => ({
+    id: app.id,
+    name: app.name,
+    is_active: app.isActive,
+    loaded: app.loaded,
+    app_release_tag: app.appReleaseTag,
+  }));
+  const live =
+    runtimeApps.length > 0 &&
+    runtimeApps.every((app) => app.is_active && app.loaded);
+  return {
+    ok: true,
+    projectId,
+    state: live ? "live" : "pending",
+    apps: runtimeApps,
+  };
 }
 
 export type LaunchRouteHandler = (req: Request) => Promise<Response>;
@@ -192,8 +196,8 @@ export type LaunchRoutes = {
   activate: LaunchRouteHandler;
   /** GET `?deploymentId=` — deployment status; CI resolved by the backend. */
   status: LaunchRouteHandler;
-  /** GET `?name=&releaseTag=` — one app's live/pending state. */
-  app: LaunchRouteHandler;
+  /** GET `?projectId=` — one project's live/pending app runtime states. */
+  apps: LaunchRouteHandler;
   /** POST — re-run the recorded CI run for a project's latest deployment. */
   redeploy: LaunchRouteHandler;
   /** GET — the signed-in user's projects + their apps. */
@@ -224,57 +228,6 @@ function sourceRef(value: unknown): string | null {
 type OwnedProject = Awaited<
   ReturnType<BackendClient["listUserProjects"]>
 >[number];
-type ActivationPair = { app: string; releaseTag: string };
-
-function releaseTagForApp(app: {
-  releaseTag?: string | null;
-  appReleaseTag?: string | null;
-}): string | null {
-  return app.releaseTag?.trim() || app.appReleaseTag?.trim() || null;
-}
-
-function deploymentContainsPair(
-  deployment: NonNullable<UserProject["latestDeployment"]>,
-  pair: ActivationPair,
-): boolean {
-  return deployment.apps.some(
-    (app) => app.name === pair.app && releaseTagForApp(app) === pair.releaseTag,
-  );
-}
-
-function projectContainsCurrentPair(
-  project: OwnedProject,
-  pair: ActivationPair,
-): boolean {
-  return (
-    (project.latestDeployment
-      ? deploymentContainsPair(project.latestDeployment, pair)
-      : false) ||
-    project.apps.some(
-      (app) =>
-        app.name === pair.app && releaseTagForApp(app) === pair.releaseTag,
-    )
-  );
-}
-
-async function activationPairsBelongToProject(
-  client: BackendClient,
-  githubUserId: string,
-  project: OwnedProject,
-  pairs: ActivationPair[],
-): Promise<boolean> {
-  const deployments = await client.listUserProjectDeployments({
-    githubUserId,
-    projectId: project.id,
-    limit: 100,
-  });
-  return pairs.every(
-    (pair) =>
-      deployments.some((deployment) =>
-        deploymentContainsPair(deployment, pair),
-      ) || projectContainsCurrentPair(project, pair),
-  );
-}
 
 /**
  * Prove the signed-in user owns `projectId` and return the project row. The
@@ -408,6 +361,7 @@ export function createLaunchRoutes(options: LaunchRoutesOptions): LaunchRoutes {
               sourceRef: deploySourceRef!,
               actor,
             });
+        const targets = deploymentTargets(deployment);
         return jsonResponse(
           {
             ok: true,
@@ -418,8 +372,8 @@ export function createLaunchRoutes(options: LaunchRoutesOptions): LaunchRoutes {
             projectId,
             sourceRef: deployment.source.commitHash,
             deployment,
-            releaseTags: releaseTagsFromDeployment(deployment),
-            apps: appNamesFromDeployment(deployment),
+            releaseTags: targets.map((target) => target.releaseTag),
+            apps: targets.map((target) => target.name),
           },
           preflight ? 200 : 202,
         );
@@ -504,7 +458,9 @@ export function createLaunchRoutes(options: LaunchRoutesOptions): LaunchRoutes {
       return jsonResponse(
         {
           ...result,
-          releaseTags: releaseTagsFromDeployment(result.deployment),
+          releaseTags: deploymentTargets(result.deployment).map(
+            (target) => target.releaseTag,
+          ),
         },
         200,
       );
@@ -551,7 +507,6 @@ export function createLaunchRoutes(options: LaunchRoutesOptions): LaunchRoutes {
         );
       }
 
-      const cfg = config();
       const client = await getClient();
       const project = await ownedProject(
         client,
@@ -561,20 +516,10 @@ export function createLaunchRoutes(options: LaunchRoutesOptions): LaunchRoutes {
       if (!project) {
         return jsonResponse({ error: "project not found for this user" }, 404);
       }
-      const platform = platformOf(project);
       const pairs = apps.map((app, index) => ({
         app,
         releaseTag: releaseTags[index],
       }));
-      const authorized = await activationPairsBelongToProject(
-        client,
-        session.githubUserId,
-        project,
-        pairs,
-      );
-      if (!authorized) {
-        return jsonResponse({ error: "release not found for this user" }, 404);
-      }
       const missingByApp = await missingSecretsForActivation({
         client,
         githubUserId: session.githubUserId,
@@ -587,11 +532,11 @@ export function createLaunchRoutes(options: LaunchRoutesOptions): LaunchRoutes {
           409,
         );
       }
-      const result = await client.activate({
-        platform,
-        target: { kind: "release_tags", value: releaseTags },
+      const result = await client.activateUserProjectReleases({
+        githubUserId: session.githubUserId,
+        projectId: project.id,
+        releaseTags,
         apps,
-        targetTags: cfg.targetTags,
         actor: typeof body.actor === "string" ? body.actor : undefined,
       });
       return jsonResponse(result, 200);
@@ -600,7 +545,7 @@ export function createLaunchRoutes(options: LaunchRoutesOptions): LaunchRoutes {
     }
   };
 
-  const app: LaunchRouteHandler = async (req) => {
+  const apps: LaunchRouteHandler = async (req) => {
     const blocked = checkRead(req);
     if (blocked) return blocked;
 
@@ -609,57 +554,22 @@ export function createLaunchRoutes(options: LaunchRoutesOptions): LaunchRoutes {
       return jsonResponse({ error: "not signed in with GitHub" }, 401);
     }
 
-    const params = new URL(req.url).searchParams;
-    const name = params.get("name")?.trim();
-    const releaseTag = params.get("releaseTag")?.trim();
-    if (!name) {
-      return jsonResponse({ error: "missing `name`" }, 400);
+    const projectId = Number(new URL(req.url).searchParams.get("projectId"));
+    if (!isValidProjectId(projectId)) {
+      return jsonResponse({ error: "missing or invalid `projectId`" }, 400);
     }
 
     try {
       const client = await getClient();
-      const projects = await client.listUserProjects({
-        githubUserId: session.githubUserId,
-      });
-      const owner = projects.find((project) =>
-        project.apps.some(
-          (app) =>
-            app.name === name &&
-            (!releaseTag || app.appReleaseTag === releaseTag),
-        ),
-      );
+      const owner = await ownedProject(client, session.githubUserId, projectId);
       if (!owner) {
-        return jsonResponse({ error: "app not found for this user" }, 404);
+        return jsonResponse({ error: "project not found for this user" }, 404);
       }
-      // Fresh per-project read — the project-scoped replacement for the
-      // retired platform-door `GET /:platform/apps/:app`.
-      const { apps } = await client.listUserProjectApps({
+      const result = await client.listUserProjectApps({
         githubUserId: session.githubUserId,
         projectId: owner.id,
       });
-      const result = apps.find(
-        (candidate) =>
-          candidate.name === name &&
-          (!releaseTag || candidate.appReleaseTag === releaseTag),
-      );
-      if (!result) {
-        return jsonResponse({ error: "app not found for this user" }, 404);
-      }
-      const live = result.isActive && result.loaded;
-      return jsonResponse(
-        {
-          ok: true,
-          state: live ? "live" : "pending",
-          app: {
-            id: result.id,
-            name: result.name,
-            is_active: result.isActive,
-            loaded: result.loaded,
-            app_release_tag: result.appReleaseTag,
-          },
-        },
-        200,
-      );
+      return jsonResponse(launchAppStatusesResult(owner.id, result.apps), 200);
     } catch (err) {
       return launchErrorResponse(err);
     }
@@ -764,7 +674,7 @@ export function createLaunchRoutes(options: LaunchRoutesOptions): LaunchRoutes {
     create,
     activate,
     status,
-    app,
+    apps,
     redeploy,
     projects,
   };

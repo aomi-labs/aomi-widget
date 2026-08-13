@@ -8,6 +8,7 @@ import {
 } from "viem";
 import {
   arbitrum,
+  arcTestnet,
   base,
   baseSepolia,
   linea,
@@ -106,6 +107,7 @@ const VERIFY_CHAINS: readonly Chain[] = [
   linea,
   lineaSepolia,
   megaeth,
+  arcTestnet,
 ];
 
 const publicClients = new Map<number, PublicClient>();

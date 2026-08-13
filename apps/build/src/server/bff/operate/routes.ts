@@ -389,9 +389,33 @@ type OperateSession = {
   githubUserId: string;
   platform: string;
   client: BackendClientInstance;
-  /** The signed-in user's account-wide projects, resolved lazily. */
+  /** The signed-in user's account-wide projects, resolved lazily. Ownership
+   *  checks read this one: a partner-bound project must still be provable as
+   *  this user's even while another platform is selected. */
   projects: () => Promise<UserProject[]>;
+  /** The projects the selected platform actually shows, resolved lazily —
+   *  the exact list behind `/projects`. Every page under one platform must
+   *  agree on this set, so account-wide reads narrow their results to it. */
+  platformProjects: () => Promise<UserProject[]>;
 };
+
+/** Ids of the projects visible on the selected platform. Account-wide manager
+ *  batches answer for every platform the account owns (deliberately — the
+ *  per-project read rejects partner-bound projects as not launch-relevant on
+ *  the default platform), so the platform scope is applied to the response. */
+function platformProjectIds(projects: UserProject[]): Set<number> {
+  return new Set(projects.map((project) => project.id));
+}
+
+/** Keep only the rows whose project is on the selected platform. Rows with no
+ *  project (account-level partner settlements) belong to every platform view
+ *  and are kept. */
+function onPlatform<T extends { project?: { id: number } | null }>(
+  rows: T[],
+  ids: Set<number>,
+): T[] {
+  return rows.filter((row) => !row.project || ids.has(row.project.id));
+}
 
 async function operateSession(
   req: Request,
@@ -422,6 +446,13 @@ async function operateSession(
           client.listUserProjects({
             githubUserId: session.githubUserId,
             platform: undefined,
+          }),
+        ),
+      platformProjects: () =>
+        readCache.projects.get([session.githubUserId, platform], () =>
+          client.listUserProjects({
+            githubUserId: session.githubUserId,
+            platform,
           }),
         ),
     };
@@ -512,15 +543,19 @@ async function batchScope(req: Request): Promise<
       /** Set only for a single-source view; already validated as owned. */
       projectId: number | undefined;
       projects: () => Promise<UserProject[]>;
+      platformProjects: () => Promise<UserProject[]>;
     }
 > {
   if (new URL(req.url).searchParams.has("projectId")) {
     const owned = await ownedSources(req);
     if ("response" in owned) return owned;
+    // The named project IS the scope — it was resolved by id and carries its
+    // own platform binding, so there is nothing left to narrow.
     return {
       ...owned,
       projectId: owned.projects[0]?.id,
       projects: () => Promise.resolve(owned.projects),
+      platformProjects: () => Promise.resolve(owned.projects),
     };
   }
   const session = await operateSession(req);
@@ -531,6 +566,7 @@ async function batchScope(req: Request): Promise<
     client: session.client,
     projectId: undefined,
     projects: session.projects,
+    platformProjects: session.platformProjects,
   };
 }
 
@@ -837,7 +873,7 @@ export async function operateTransactionsRoute(req: Request) {
     const scope = await batchScope(req);
     if ("response" in scope) return scope.response;
     // Started before the reads below so it overlaps them.
-    const sourcesPending = scope.projects();
+    const sourcesPending = scope.platformProjects();
     const params = new URL(req.url).searchParams;
     const limit = pageLimit(params, 50, 100);
     const cursor = parseCompositeCursor(params.get("cursor"));
@@ -898,16 +934,23 @@ export async function operateTransactionsRoute(req: Request) {
       const sourceById = new Map(
         batch.page.projects.map((ref) => [ref.project.id, ref.project]),
       );
-      appTransactions = batch.page.transactions.map(
-        ({ projectId, platform, ...transaction }) => ({
-          ...transaction,
-          kind: "app_transaction",
-          project:
-            (projectId != null ? sourceById.get(projectId) : undefined) ?? null,
-          platform: platform ?? owned.platform,
-        }),
+      // The manager batch answers for every platform the account owns; narrow
+      // it to the platform this page is scoped to before anything is rendered.
+      const platformIds = platformProjectIds(owned.projects);
+      appTransactions = onPlatform(
+        batch.page.transactions.map(
+          ({ projectId, platform, ...transaction }) => ({
+            ...transaction,
+            kind: "app_transaction",
+            project:
+              (projectId != null ? sourceById.get(projectId) : undefined) ??
+              null,
+            platform: platform ?? owned.platform,
+          }),
+        ),
+        platformIds,
       );
-      statements = batch.statements;
+      statements = onPlatform(batch.statements, platformIds);
       nextCursor = batch.page.nextCursor
         ? { batch: batch.page.nextCursor }
         : null;
@@ -1077,7 +1120,7 @@ export async function operateUsageRoute(req: Request) {
     const scope = await batchScope(req);
     if ("response" in scope) return scope.response;
     // Started before the reads below so it overlaps them.
-    const sourcesPending = scope.projects();
+    const sourcesPending = scope.platformProjects();
     const params = new URL(req.url).searchParams;
     const dates = {
       fromDate: params.get("fromDate") ?? undefined,
@@ -1129,8 +1172,11 @@ export async function operateUsageRoute(req: Request) {
     let results: OperateUsageResult[];
     let allStatements: OperateStatementResult[];
     if (batch) {
-      results = batch.usage;
-      allStatements = batch.statements;
+      // The manager batch answers for every platform the account owns; narrow
+      // it to the platform this page is scoped to.
+      const platformIds = platformProjectIds(owned.projects);
+      results = onPlatform(batch.usage, platformIds);
+      allStatements = onPlatform(batch.statements, platformIds);
     } else {
       const [usageReads, statementReads] = await Promise.all([
         settleBySource<OperateUsageResult>(
@@ -1260,7 +1306,7 @@ export async function operateLogsRoute(req: Request) {
     if (!params.has("projectId")) {
       const scope = await batchScope(req);
       if ("response" in scope) return scope.response;
-      const sourcesPending = scope.projects();
+      const sourcesPending = scope.platformProjects();
       const [batch, projects] = await Promise.all([
         readCache.logsBatch.get(
           [
@@ -1285,12 +1331,19 @@ export async function operateLogsRoute(req: Request) {
       );
       return NextResponse.json({
         projects,
-        logs: batch.logs.map(({ projectId, platform, ...log }) => ({
-          ...log,
-          project:
-            (projectId != null ? sourceById.get(projectId) : undefined) ?? null,
-          platform: platform ?? scope.platform,
-        })),
+        // The merged stream covers every platform the account owns; narrow it
+        // to the selected one. Account-level rows (a shared partner
+        // settlement carries no projectId) stay.
+        logs: onPlatform(
+          batch.logs.map(({ projectId, platform, ...log }) => ({
+            ...log,
+            project:
+              (projectId != null ? sourceById.get(projectId) : undefined) ??
+              null,
+            platform: platform ?? scope.platform,
+          })),
+          platformProjectIds(projects),
+        ),
         nextCursor: batch.nextCursor ? { batch: batch.nextCursor } : null,
       });
     }
@@ -1388,14 +1441,16 @@ export async function operateObservabilityRoute(req: Request) {
     const scope = await batchScope(req);
     if ("response" in scope) return scope.response;
     const { projectId } = scope;
-    // Kick the dropdown's source list off first so it overlaps the snapshot
+    // Kick the platform's source list off first so it overlaps the snapshot
     // below rather than following it.
-    const sourcesPending = scope.projects();
+    const sourcesPending = scope.platformProjects();
 
     // One manager request for the whole account. Without an explicit
     // `platform` filter the manager resolves each source under its own
     // bound/loaded platform, which also covers partner-bound projects that the
     // per-source read rejects as not launch-relevant on the default platform.
+    // The platform scope is then applied here, so this page shows exactly the
+    // projects `/projects` lists rather than every platform the account owns.
     const [results, projects] = await Promise.all([
       readCache.observabilityBatch.get(
         [scope.githubUserId, requestedPlatform ?? null, projectId ?? null],
@@ -1407,7 +1462,8 @@ export async function operateObservabilityRoute(req: Request) {
       ) as Promise<OperateObservabilitySnapshot[]>,
       sourcesPending,
     ]);
-    const apps = results.flatMap((result) =>
+    const scoped = onPlatform(results, platformProjectIds(projects));
+    const apps = scoped.flatMap((result) =>
       result.apps.map((app) => ({
         ...app,
         project: result.project,
@@ -1415,22 +1471,22 @@ export async function operateObservabilityRoute(req: Request) {
       })),
     );
     return NextResponse.json({
-      // Every source the account owns, not just the ones this read covered:
+      // Every source on this platform, not just the ones this read covered:
       // the filter dropdown is how a user loads one source on its own.
       projects,
       scope: "owned_applications",
       monitoring: {
         provider: "grafana_prometheus",
-        status: results.some((result) => result.monitoring?.status === "ok")
-          ? results.some((result) => result.monitoring?.status !== "ok")
+        status: scoped.some((result) => result.monitoring?.status === "ok")
+          ? scoped.some((result) => result.monitoring?.status !== "ok")
             ? "partial"
             : "ok"
-          : (results[0]?.monitoring?.status ?? "unconfigured"),
-        windowSeconds: results[0]?.monitoring?.windowSeconds ?? 0,
+          : (scoped[0]?.monitoring?.status ?? "unconfigured"),
+        windowSeconds: scoped[0]?.monitoring?.windowSeconds ?? 0,
       },
       apps,
-      dashboardLinks: results.flatMap((result) => result.dashboardLinks),
-      platformMetrics: results[0]?.platformMetrics ?? [],
+      dashboardLinks: scoped.flatMap((result) => result.dashboardLinks),
+      platformMetrics: scoped[0]?.platformMetrics ?? [],
     });
   } catch (err) {
     return buildFailures.handle(
@@ -1440,8 +1496,8 @@ export async function operateObservabilityRoute(req: Request) {
 }
 
 /** Optional ledger card for the observability page; never blocks its snapshot.
- *  The response is derived purely from the ledger read, so the source list is
- *  never awaited here at all. */
+ *  The source list is read only to scope the ledger to the selected platform,
+ *  in parallel with it and off the same cache the snapshot already warmed. */
 export async function operatePaymentsRoute(req: Request) {
   try {
     const scope = await batchScope(req);
@@ -1449,16 +1505,23 @@ export async function operatePaymentsRoute(req: Request) {
     const requestedPlatform =
       new URL(req.url).searchParams.get("platform") ?? undefined;
     const { projectId } = scope;
-    const results = await readCache.paymentsBatch.get(
-      [scope.githubUserId, requestedPlatform ?? null, projectId ?? null],
-      () =>
-        scope.client.getUserPayments({
-          githubUserId: scope.githubUserId,
-          projectId,
-        }),
-    );
+    // The ledger read is account-wide for the same reason the observability
+    // batch is; the platform scope is applied to its rows, not to the request.
+    const [results, projects] = await Promise.all([
+      readCache.paymentsBatch.get(
+        [scope.githubUserId, requestedPlatform ?? null, projectId ?? null],
+        () =>
+          scope.client.getUserPayments({
+            githubUserId: scope.githubUserId,
+            projectId,
+          }),
+      ),
+      scope.platformProjects(),
+    ]);
     return NextResponse.json({
-      payments: mergedPartnerPayments(results),
+      payments: mergedPartnerPayments(
+        onPlatform(results, platformProjectIds(projects)),
+      ),
     });
   } catch (err) {
     return buildFailures.handle(

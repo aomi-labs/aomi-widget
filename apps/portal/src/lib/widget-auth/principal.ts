@@ -1,3 +1,5 @@
+/* eslint-disable no-restricted-imports -- Server-only portal principal resolver. */
+
 import {
   hasWidgetSessionBearer,
   observedWidgetOrigin,
@@ -74,6 +76,23 @@ export async function requirePortalPrincipal(
   return principal;
 }
 
+/**
+ * Keep bearer-independent Thread reads available to same-origin Portal calls,
+ * while requiring an origin-bound widget session for every cross-origin call.
+ * This is intentionally separate from AccountBearer minting: a WST proves the
+ * embedding origin/session, while the Rust `Thread` auth class consumes the
+ * opaque thread capability.
+ */
+export async function requireCrossOriginWidgetSession(
+  request: Request,
+): Promise<void> {
+  if (isFirstPartyRequest(request)) return;
+  const principal = await requirePortalPrincipal(request);
+  if (principal.kind !== "widget") {
+    throw new PortalPrincipalError("invalid_widget_session", 401);
+  }
+}
+
 export async function resolvePortalCanonicalUserId(
   request: Request,
 ): Promise<string | null> {
@@ -140,10 +159,7 @@ function canonicalPortalOrigin(): string | null {
 }
 
 function forwardedOrigin(request: Request): string | null {
-  const host = request.headers
-    .get("x-forwarded-host")
-    ?.split(",")[0]
-    ?.trim();
+  const host = request.headers.get("x-forwarded-host")?.split(",")[0]?.trim();
   if (!host) return null;
   const proto =
     request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim() ||

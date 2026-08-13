@@ -56,7 +56,7 @@ vi.mock("@build/features/launch", () => ({
   launchDeploy: vi.fn(),
   launchStatus: vi.fn(),
   launchActivate: vi.fn(),
-  launchAppStatus: vi.fn(),
+  launchAppsStatus: vi.fn(),
   TEMPLATE_REPO: "aomi-labs/playground-example",
   TEMPLATE_REPO_URL: "https://github.com/aomi-labs/playground-example",
 }));

@@ -1,5 +1,49 @@
 # Auth BFF BetterAuth Cleanup Goal
 
+## Safari wallet-state sync containment
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED; STAGING ROLLOUT IN
+PROGRESS 2026-08-10** — keep a
+best-effort wallet-state notification failure from becoming an unhandled
+promise rejection when an anonymous user changes networks. The regression was
+reproduced in WebKit by selecting Arc Testnet and receiving an expected 401
+from `/api/system`; the React package is patch-bumped to
+`@aomi-labs/react@0.5.13`.
+
+## Arc Testnet staging support
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED; STAGING ROLLOUT IN
+PROGRESS 2026-08-10** — add Arc Testnet (`5042002`) across the shared chain
+catalog, wallet providers, server-side SIWE verification, and Portal network
+selection. Disconnected read-only chat retains the selected chain instead of
+falling back to Ethereum. Arc is represented as USDC-native with 6 display
+decimals while backend RPC accounting retains 18-decimal native precision.
+Publishable packages are patch-bumped to `@aomi-labs/account@0.1.12`,
+`@aomi-labs/client@0.4.5`, `@aomi-labs/react@0.5.12`, and
+`@aomi-labs/widget-lib@1.4.27`.
+
+## Browser Response Latency
+
+Current session goal: **SIMPLIFIED AND LOCALLY VERIFIED 2026-08-10** — improve
+browser chat responsiveness without adding a backend streaming protocol.
+
+- Empty drafts prewarm through one shared create/control promise; send awaits
+  the same work and retries a failed speculative warm.
+- A model change during prewarm gets at most one follow-up control sync.
+- State polling uses one timeout and one in-flight request, slows in hidden
+  tabs, reconciles when the tab becomes visible, and backs off after failures.
+- Completed text renders immediately instead of replaying a synthetic 500 ms
+  typewriter animation.
+- Thread state/SSE reads remain bearer-independent at the Portal proxy, while
+  the existing origin-bound widget-session check still gates cross-origin
+  requests and spoofed browser authorization/cookies are stripped.
+- No turn ID or `assistant_text_started` client protocol is included; the
+  frontend continues to work with the existing backend and polling contract.
+- Publishable versions are `@aomi-labs/client@0.4.4`,
+  `@aomi-labs/react@0.5.11`, and `@aomi-labs/widget-lib@1.4.26`.
+- All 1,467 root tests plus the configured registry trace suite, repository
+  lint, client typecheck, and all three publishable package builds pass.
+
 ## Canonical Build Projects Refactor
 
 Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED
@@ -15,7 +59,7 @@ backend's canonical platform-bound Project model, with no compatibility path.
   project's bound platform, and Telegram receives eligible applications across
   every bound platform.
 - Preflight resolves and returns an immutable commit; apply requires it.
-- The breaking shared packages are versioned as `@aomi-labs/deploy@0.6.0` and
+- The breaking shared packages are versioned as `@aomi-labs/deploy@0.7.0` and
   `@aomi-labs/client@0.4.0`.
 - Project and Application identities are now separate in every touched path:
   Project owns deployment/provider administration, while environment,
@@ -33,6 +77,35 @@ backend's canonical platform-bound Project model, with no compatibility path.
 - The published TypeScript CLI now sends deploys to the V2
   `/api/projects/:projectId/deploy` route, omits client-selected platform data,
   and persists the platform resolved by the backend response.
+
+## Deployment Lifecycle Cleanup
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-07** — make
+deployment completion mean that the selected release is actually active and
+loaded in the project runtime, while removing the stale name-scoped readiness
+path and keeping app/release identities paired end to end.
+
+- Added one shared, cancellable deployment/runtime polling contract used by
+  Build and Portal onboarding plus project redeploy flows. Permanent 4xx
+  failures stop immediately; transient failures retain their final diagnostic.
+- Replaced the ambiguous per-app `/launch/app` route and browser method with a
+  project-owned batch runtime snapshot, with no compatibility route.
+- Centralized deployment target extraction, progress mapping, and browser
+  fatal-error classification in `@aomi-labs/deploy`, deleting the duplicated
+  Build/Portal implementations and preventing independently filtered app and
+  release-tag arrays from drifting.
+- Routed both dashboards' GitHub session, sign-out, and launch-project reads
+  through that same browser client and removed their unused launch URL maps;
+  Build retains its intentional local wizard reset after sign-out.
+- Review follow-up named the CI and runtime deadlines independently, made
+  transient runtime failures advance watcher progress while preserving the
+  last snapshot, simplified stale-project error guards, and added route-level
+  coverage for malformed deployment manifests producing no activation targets.
+- Versioned the changed publishable contract as `@aomi-labs/deploy@0.7.0` and
+  verified its build and focused tests, full Build/Portal tests and lint, Build
+  type-check, and Portal type-check through the known unrelated missing Para
+  connector dependency.
+
 ## Telegram Para Mini App
 
 Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-06** — use one
@@ -177,6 +250,13 @@ architecture guide now names both refs so a legacy third target cannot be
 mistaken for another supported environment.
 
 Progress:
+
+- 2026-08-10 Build staging import hand-off: kept the Connect control disabled
+  after navigation starts (instead of briefly re-enabling it before GitHub
+  loads), while retaining retry after a failed hand-off. The manager now
+  rejects duplicate repository imports atomically, and platform branch commits
+  rebase their tree update and retry a concurrent fast-forward race up to three
+  times.
 
 - 2026-08-05 MegaETH chain support: completed chain 4326 coverage in React
   network naming, server-side smart-account SIWE verification, and the Landing,

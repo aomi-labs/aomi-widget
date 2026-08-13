@@ -1,9 +1,10 @@
 import type { BaseLayoutProps } from "fumadocs-ui/layouts/shared";
+import { AomiLogo } from "./components/aomi-logo";
 
 export const navLinks: NonNullable<BaseLayoutProps["links"]> = [
   {
     text: "Documentation",
-    url: "/docs/build/overview",
+    url: "https://aomi.dev/docs/",
     active: "nested-url",
   },
   {
@@ -19,7 +20,7 @@ export const navLinks: NonNullable<BaseLayoutProps["links"]> = [
 ];
 
 export const navTabs = [
-  { title: "Documentation", url: "/docs/build/overview" },
+  { title: "Documentation", url: "https://aomi.dev/docs/" },
   { title: "Examples", url: "/examples/polymarket" },
   { title: "Playground", url: "/playground/configurator" },
 ];
@@ -27,12 +28,7 @@ export const navTabs = [
 export const baseLayoutOptions: BaseLayoutProps = {
   githubUrl: "https://github.com/aomi-labs/aomi-widget",
   nav: {
-    title: (
-      <span className="flex items-center gap-2">
-        <img src="/assets/images/bubble.svg" alt="Aomi" className="h-5 w-5" />
-        <span className="font-semibold tracking-tight">Aomi</span>
-      </span>
-    ),
+    title: <AomiLogo className="text-[14px]" markClassName="h-3.5 w-3.5" />,
     url: "https://aomi.dev",
     transparentMode: "none",
   },

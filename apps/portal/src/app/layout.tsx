@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, PT_Serif } from "next/font/google";
+import { Geist, Geist_Mono, PT_Serif, Source_Serif_4 } from "next/font/google";
 import { cookies } from "next/headers";
 import "./globals.css";
 import { CookieConsent } from "@portal/components/analytics/cookie-consent";
@@ -28,6 +28,12 @@ const ptSerif = PT_Serif({
   variable: "--font-pt-serif",
 });
 
+const sourceSerif = Source_Serif_4({
+  subsets: ["latin"],
+  weight: ["600"],
+  variable: "--font-source-serif-4",
+});
+
 export const metadata: Metadata = {
   title: "Aomi Labs",
   description:
@@ -52,7 +58,7 @@ export default async function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} ${ptSerif.variable} font-sans antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} ${ptSerif.variable} ${sourceSerif.variable} font-sans antialiased`}
       >
         <GoogleAnalytics />
         <WalletProviders

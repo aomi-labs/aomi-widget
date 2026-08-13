@@ -104,6 +104,35 @@ export const megaeth = defineChain({
   },
 });
 
+export const arcTestnet = defineChain({
+  id: 5042002,
+  name: "Arc Testnet",
+  nativeCurrency: {
+    name: "USDC",
+    symbol: "USDC",
+    // Arc RPC quantities use 18-decimal native precision, but EIP-3085 chain
+    // metadata uses USDC's 6 display decimals. Callers handling raw
+    // eth_getBalance/msg.value must retain the 18-decimal internal boundary.
+    decimals: 6,
+  },
+  rpcUrls: {
+    default: {
+      http: [
+        "https://rpc.testnet.arc.io",
+        "https://rpc.drpc.testnet.arc.io",
+        "https://rpc.quicknode.testnet.arc.io",
+      ],
+    },
+  },
+  blockExplorers: {
+    default: {
+      name: "ArcScan",
+      url: "https://testnet.arcscan.app",
+    },
+  },
+  testnet: true,
+});
+
 export const SUPPORTED_CHAINS = [
   { id: 1, name: "Ethereum", ticker: "ETH" },
   { id: 137, name: "Polygon", ticker: "MATIC" },
@@ -118,6 +147,7 @@ export const SUPPORTED_CHAINS = [
   { id: 10143, name: "Monad Testnet", ticker: "MON" },
   { id: 4663, name: "Robinhood Chain", ticker: "ETH" },
   { id: 4326, name: "MegaETH", ticker: "ETH" },
+  { id: 5042002, name: "Arc Testnet", ticker: "USDC" },
   { id: 31337, name: "Anvil (local)", ticker: "ETH" },
 ] as const satisfies readonly ChainInfo[];
 
@@ -156,5 +186,6 @@ export const CHAINS_BY_ID: Record<number, Chain> = {
   10143: monadTestnet,
   4663: robinhood,
   4326: megaeth,
+  5042002: arcTestnet,
   31337: foundry,
 };

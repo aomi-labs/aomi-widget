@@ -117,7 +117,7 @@ export function Solution() {
                 </div>
                 <div className="mt-12 mb-12">
                   <a
-                    href="/docs/about-aomi"
+                    href="/docs/build"
                     className="group font-geist relative flex w-fit items-center gap-2 overflow-hidden rounded-full bg-stone-800 pt-3 pr-6 pb-3 pl-6 text-xs font-semibold text-white shadow-md transition-all hover:shadow-lg active:scale-95"
                   >
                     <span className="relative z-10 flex items-center gap-2">

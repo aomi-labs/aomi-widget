@@ -17,8 +17,10 @@ vi.mock("@portal/server/cookies/github", () => ({
   getGitHubSession: () => getGitHubSession(),
 }));
 
-function req() {
-  return new Request("http://localhost:3000/api/bff/launch/projects");
+function req(query = "") {
+  return new Request(
+    `http://localhost:3000/api/bff/launch/projects${query ? `?${query}` : ""}`,
+  );
 }
 
 describe("userProjectsRoute", () => {
@@ -77,5 +79,48 @@ describe("userProjectsRoute", () => {
     expect(String(url)).toContain(
       "/api/integrations/github-app/user/projects?github_user_id=42",
     );
+  });
+
+  it("uses the project-scoped backend read when projectId is supplied", async () => {
+    getGitHubSession.mockResolvedValueOnce({
+      githubUserId: "42",
+      githubLogin: "alice",
+    });
+    const fetchMock = vi.fn(async () =>
+      Response.json({
+        id: 99,
+        installation_id: 555,
+        repository_link: "https://github.com/alice/bot",
+        github_user_id: "42",
+        platform_name: "community",
+        apps: [{ id: 5, name: "bot", is_active: true, loaded: true }],
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await userProjectsRoute(req("projectId=99"));
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({
+      projects: [{ id: 99, apps: [{ id: 5, name: "bot" }] }],
+    });
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain(
+      "/api/integrations/github-app/user/projects/99?github_user_id=42",
+    );
+  });
+
+  it("rejects an invalid projectId before backend calls", async () => {
+    getGitHubSession.mockResolvedValueOnce({
+      githubUserId: "42",
+      githubLogin: "alice",
+    });
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await userProjectsRoute(req("projectId=nope"));
+
+    expect(res.status).toBe(400);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

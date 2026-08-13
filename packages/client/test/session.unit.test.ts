@@ -93,6 +93,99 @@ describe("ClientSession SSE lifecycle", () => {
       expect.any(Function),
       { applicationId: 20 },
     );
+
+    session.close();
+  });
+
+  it("keeps fallback polling single-flight", async () => {
+    vi.useFakeTimers();
+    const client = new AomiClient({ baseUrl: "http://unit.test" });
+    vi.spyOn(client, "subscribeSSE").mockImplementation(() => () => {});
+    let resolveFirstPoll: ((response: AomiStateResponse) => void) | undefined;
+    const fetchState = vi
+      .spyOn(client, "fetchState")
+      .mockImplementationOnce(
+        () =>
+          new Promise<AomiStateResponse>((resolve) => {
+            resolveFirstPoll = resolve;
+          }),
+      )
+      .mockResolvedValue({ is_processing: false, messages: [] });
+    const session = new Session(client, {
+      sessionId: "session-single-flight",
+      pollIntervalMs: 10,
+    });
+
+    session.startPolling();
+    await vi.advanceTimersByTimeAsync(10);
+    expect(fetchState).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(100);
+    expect(fetchState).toHaveBeenCalledTimes(1);
+
+    resolveFirstPoll?.({ is_processing: true, messages: [] });
+    await Promise.resolve();
+    await vi.advanceTimersByTimeAsync(10);
+    expect(fetchState).toHaveBeenCalledTimes(2);
+
+    session.close();
+    vi.useRealTimers();
+  });
+
+  it("backs off after a poll failure and resets after success", async () => {
+    vi.useFakeTimers();
+    const client = new AomiClient({ baseUrl: "http://unit.test" });
+    vi.spyOn(client, "subscribeSSE").mockImplementation(() => () => {});
+    const fetchState = vi
+      .spyOn(client, "fetchState")
+      .mockRejectedValueOnce(new Error("temporary failure"))
+      .mockResolvedValueOnce({ is_processing: true, messages: [] })
+      .mockResolvedValue({ is_processing: false, messages: [] });
+    const session = new Session(client, {
+      sessionId: "session-backoff",
+      pollIntervalMs: 100,
+    });
+    session.on("error", () => {});
+
+    session.startPolling();
+    await vi.advanceTimersByTimeAsync(100);
+    expect(fetchState).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(199);
+    expect(fetchState).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(fetchState).toHaveBeenCalledTimes(2);
+
+    await vi.advanceTimersByTimeAsync(100);
+    expect(fetchState).toHaveBeenCalledTimes(3);
+
+    session.close();
+    vi.useRealTimers();
+  });
+
+  it("uses hidden-tab cadence and reconciles promptly when visible", async () => {
+    vi.useFakeTimers();
+    const hidden = vi.spyOn(document, "hidden", "get").mockReturnValue(true);
+    const client = new AomiClient({ baseUrl: "http://unit.test" });
+    vi.spyOn(client, "subscribeSSE").mockImplementation(() => () => {});
+    const fetchState = vi
+      .spyOn(client, "fetchState")
+      .mockResolvedValueOnce({ is_processing: true, messages: [] })
+      .mockResolvedValue({ is_processing: false, messages: [] });
+    const session = new Session(client, { sessionId: "session-visibility" });
+
+    session.startPolling();
+    await vi.advanceTimersByTimeAsync(1_999);
+    expect(fetchState).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(fetchState).toHaveBeenCalledTimes(1);
+
+    hidden.mockReturnValue(false);
+    document.dispatchEvent(new Event("visibilitychange"));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchState).toHaveBeenCalledTimes(2);
+
+    session.close();
+    hidden.mockRestore();
+    vi.useRealTimers();
   });
 });
 

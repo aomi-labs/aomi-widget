@@ -22,7 +22,7 @@ export type {
   LaunchCreateRepoResult,
   LaunchStatus,
   LaunchActivateResult,
-  LaunchAppStatus,
+  LaunchAppStatusesResult,
   LaunchRedeployResult,
   LaunchSdkStatus,
   DeploymentProjectsResult,

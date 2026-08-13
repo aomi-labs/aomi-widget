@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useCallback, type FC } from "react";
 import { hexToOklch, oklchToHex } from "@/lib/color-convert";
+import { Segmented } from "./controls";
 import {
   THEME_PRESETS,
   EDITABLE_COLOR_KEYS,
@@ -269,28 +270,14 @@ export const ThemeCustomizer: FC<ThemeCustomizerProps> = ({
         <legend className="text-xs font-semibold uppercase tracking-wider text-fd-muted-foreground">
           Preview Mode
         </legend>
-        <div className="flex gap-1">
-          {(["light", "dark"] as const).map((m) => (
-            <label
-              key={m}
-              className={`cursor-pointer rounded-md border px-3 py-1.5 text-xs font-medium transition-colors ${
-                state.mode === m
-                  ? "border-fd-primary bg-fd-primary/10 text-fd-primary"
-                  : "border-fd-border text-fd-muted-foreground hover:border-fd-primary/40"
-              }`}
-            >
-              <input
-                type="radio"
-                name="themeMode"
-                value={m}
-                checked={state.mode === m}
-                onChange={() => update({ mode: m })}
-                className="sr-only"
-              />
-              {m.charAt(0).toUpperCase() + m.slice(1)}
-            </label>
-          ))}
-        </div>
+        <Segmented
+          options={[
+            { value: "light", label: "Light" },
+            { value: "dark", label: "Dark" },
+          ]}
+          value={state.mode}
+          onChange={(v) => update({ mode: v as "light" | "dark" })}
+        />
       </fieldset>
 
       {/* ── Radius slider ── */}
