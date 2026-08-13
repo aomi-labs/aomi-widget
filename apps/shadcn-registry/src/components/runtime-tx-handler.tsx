@@ -2,7 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ShieldCheck } from "lucide-react";
-import { Connection as SolanaConnection } from "@solana/web3.js";
+import {
+  Connection as SolanaConnection,
+  Transaction as SolanaLegacyTransaction,
+  VersionedTransaction,
+} from "@solana/web3.js";
 import { normalizeSolanaCluster } from "@aomi-labs/client";
 import {
   UserState,
@@ -27,11 +31,61 @@ function hasHydratedCalls(payload: WalletTxPayload): boolean {
   return Array.isArray(payload.calls) && payload.calls.length > 0;
 }
 
+/**
+ * Backend-owned operations are deliberately not signed automatically: the
+ * dialog below is the user's authorization boundary. That covers EVM
+ * sponsored ERC-4337 batches and SVM sealed transactions the backend
+ * broadcasts itself; plain sign-only requests keep the silent flow.
+ */
+function isAttendedSigning(
+  payload: Extract<WalletRequest, { kind: "signing" }>["payload"],
+): boolean {
+  if (payload.executionKind === "erc4337") return true;
+  return (
+    payload.chainFamily === "svm" &&
+    payload.executionKind === "transaction" &&
+    payload.broadcaster === "hosted" &&
+    Boolean(payload.operationId)
+  );
+}
+
 function decodeBase64(value: string): Uint8Array {
   if (typeof Buffer !== "undefined") {
     return new Uint8Array(Buffer.from(value, "base64"));
   }
   return Uint8Array.from(atob(value), (char) => char.charCodeAt(0));
+}
+
+function encodeBase64(bytes: Uint8Array): string {
+  if (typeof Buffer !== "undefined") {
+    return Buffer.from(bytes).toString("base64");
+  }
+  let binary = "";
+  bytes.forEach((byte) => {
+    binary += String.fromCharCode(byte);
+  });
+  return btoa(binary);
+}
+
+/**
+ * The payer's ed25519 signature out of a wallet-signed Solana transaction,
+ * base64-encoded. The sealed signing handoff returns only the signature —
+ * the backend verifies it against the exact stored envelope and attaches it
+ * itself, so the client can never substitute different bytes.
+ */
+function extractPayerSignature(signedTxBase64: string): string {
+  const bytes = decodeBase64(signedTxBase64);
+  let signature: Uint8Array | null = null;
+  try {
+    signature = VersionedTransaction.deserialize(bytes).signatures[0] ?? null;
+  } catch {
+    const legacy = SolanaLegacyTransaction.from(bytes).signature;
+    signature = legacy ? new Uint8Array(legacy) : null;
+  }
+  if (!signature || signature.every((byte) => byte === 0)) {
+    throw new Error("The signed transaction carries no payer signature");
+  }
+  return encodeBase64(signature);
 }
 
 function toSimulationTransactions(payload: WalletTxPayload): Array<{
@@ -86,7 +140,7 @@ export function RuntimeTxHandler() {
   const [isSigningAa, setIsSigningAa] = useState(false);
   const aaRequest =
     pendingWalletRequests[0]?.kind === "signing" &&
-    pendingWalletRequests[0].payload.executionKind === "erc4337"
+    isAttendedSigning(pendingWalletRequests[0].payload)
       ? pendingWalletRequests[0]
       : null;
 
@@ -211,7 +265,16 @@ export function RuntimeTxHandler() {
               description: payload.description,
               cluster: payload.cluster,
             });
-            signatures.push(result.signedTx);
+            // Backend-owned operations take ONLY the payer signature — the
+            // backend attaches it to its stored envelope, so the client can
+            // never substitute bytes. Sign-only pending requests (the venue
+            // lane) return the full signed transaction: their consumer hands
+            // the bytes to the venue's submit tool.
+            signatures.push(
+              payload.operationId
+                ? extractPayerSignature(result.signedTx)
+                : result.signedTx,
+            );
             break;
           }
         }
@@ -225,9 +288,10 @@ export function RuntimeTxHandler() {
     if (!pendingWalletRequests.length) return;
     const next = pendingWalletRequests[0];
     if (!next || processingRef.current) return;
-    // Attended AA is deliberately not automatic. The dialog below is the
-    // user's authorization boundary; only its confirm button invokes Privy.
-    if (next.kind === "signing" && next.payload.executionKind === "erc4337") {
+    // Attended backend-owned operations are deliberately not automatic. The
+    // dialog below is the user's authorization boundary; only its confirm
+    // button invokes the wallet.
+    if (next.kind === "signing" && isAttendedSigning(next.payload)) {
       return;
     }
 
@@ -239,7 +303,7 @@ export function RuntimeTxHandler() {
     async function processRequest(req: WalletRequest) {
       try {
         if (req.kind === "signing") {
-          if (req.payload.executionKind === "erc4337") return;
+          if (isAttendedSigning(req.payload)) return;
           const signatures = await signRequestPayloads(req);
           await resolveWalletRequest(req.id, { kind: "signing", signatures });
           return;
@@ -473,10 +537,14 @@ export function RuntimeTxHandler() {
   };
 
   if (aaRequest) {
-    const chainName =
-      adapter.supportedChains?.find(
-        (chain) => chain.id === aaRequest.payload.chainId,
-      )?.name ?? `Chain ${aaRequest.payload.chainId}`;
+    const isSvm = aaRequest.payload.chainFamily === "svm";
+    const chainName = isSvm
+      ? (normalizeSolanaCluster(aaRequest.payload.cluster) ??
+        aaRequest.payload.cluster ??
+        "Solana")
+      : (adapter.supportedChains?.find(
+          (chain) => chain.id === aaRequest.payload.chainId,
+        )?.name ?? `Chain ${aaRequest.payload.chainId}`);
     const signatureCount = aaRequest.payload.payloads.length;
     return (
       <Dialog open onOpenChange={(open) => !open && void rejectAa()}>
@@ -487,9 +555,9 @@ export function RuntimeTxHandler() {
             </div>
             <DialogTitle>Approve account action</DialogTitle>
             <DialogDescription>
-              Review the exact application calls and mandatory Aomi fees. Your
-              wallet signs; Aomi sponsors and broadcasts the ERC-4337 operation
-              from the backend.
+              {isSvm
+                ? "Review the sealed transaction and mandatory Aomi fees. Your wallet signs the exact bytes; Aomi submits and watches the transaction from the backend."
+                : "Review the exact application calls and mandatory Aomi fees. Your wallet signs; Aomi sponsors and broadcasts the ERC-4337 operation from the backend."}
             </DialogDescription>
           </DialogHeader>
           <div className="bg-muted/40 grid gap-3 rounded-xl border p-4 text-sm">
@@ -504,17 +572,19 @@ export function RuntimeTxHandler() {
                 {aaRequest.payload.signer.slice(-6)}
               </span>
             </div>
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-muted-foreground">Executor</span>
-              <span className="font-mono text-xs">
-                {aaRequest.payload.executor?.slice(0, 8)}…
-                {aaRequest.payload.executor?.slice(-6)}
-              </span>
-            </div>
+            {aaRequest.payload.executor ? (
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-muted-foreground">Executor</span>
+                <span className="font-mono text-xs">
+                  {aaRequest.payload.executor.slice(0, 8)}…
+                  {aaRequest.payload.executor.slice(-6)}
+                </span>
+              </div>
+            ) : null}
             <div className="flex items-center justify-between gap-4">
               <span className="text-muted-foreground">Operations</span>
               <span className="font-medium">
-                {aaRequest.payload.calls?.length ?? 0}
+                {aaRequest.payload.calls?.length || signatureCount}
               </span>
             </div>
             <div className="border-t pt-3">

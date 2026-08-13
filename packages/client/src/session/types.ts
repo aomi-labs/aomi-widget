@@ -37,8 +37,8 @@ export type WalletAaDisplayCall = {
 export type WalletAaFeeDisclosure = {
   asset: unknown;
   amount: string;
-  recipient: `0x${string}`;
-  call: WalletAaDisplayCall;
+  /** EVM address or SVM base58 pubkey, per the request's `chainFamily`. */
+  recipient: string;
 };
 
 export type WalletSigningPayload = {
