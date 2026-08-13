@@ -30,6 +30,10 @@ const authState = vi.hoisted(() => ({
     cluster: "solana:devnet",
   },
   supportedNetworks: {
+    evm: [
+      { id: 8453, name: "Base" },
+      { id: 42161, name: "Arbitrum One" },
+    ],
     solana: [
       { id: "solana-devnet", cluster: "solana:devnet" },
       { id: "solana-mainnet", cluster: "solana:mainnet" },
@@ -45,6 +49,8 @@ const authState = vi.hoisted(() => ({
     | undefined,
   signMessage: vi.fn(),
   signAaRequests: vi.fn(),
+  sendTransaction: vi.fn(),
+  switchChain: vi.fn() as ((chainId: number) => Promise<void>) | undefined,
   supportedChains: [{ id: 4326, name: "MegaETH" }],
 }));
 
@@ -56,7 +62,10 @@ vi.mock("@aomi-labs/react", () => ({
   },
   appendFeeCallToPayload: vi.fn(),
   hydrateTxPayloadFromUserState: vi.fn((payload) => payload),
-  parseChainId: vi.fn(),
+  parseChainId: vi.fn((value: unknown) => {
+    const parsed = Number(value);
+    return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : undefined;
+  }),
   toViemSignTypedDataArgs: vi.fn(),
   toViemSignMessageArgs: vi.fn((payload: Record<string, unknown>) =>
     typeof payload.non_typed_data === "string"
@@ -87,6 +96,13 @@ describe("RuntimeTxHandler", () => {
     authState.signTypedData = undefined;
     authState.signMessage.mockReset();
     authState.signAaRequests.mockReset();
+    authState.sendTransaction.mockReset();
+    authState.switchChain = vi.fn(async () => undefined);
+    authState.identity.chainId = 8453;
+    authState.supportedNetworks.evm = [
+      { id: 8453, name: "Base" },
+      { id: 42161, name: "Arbitrum One" },
+    ];
     authState.selectedSolanaNetwork = {
       id: "solana-devnet",
       cluster: "solana:devnet",
@@ -96,6 +112,114 @@ describe("RuntimeTxHandler", () => {
 
   afterEach(() => {
     cleanup();
+  });
+
+  function stageTransaction(chainId: number) {
+    runtimeState.simulateBatchTransactions.mockResolvedValue({ fee: null });
+    authState.sendTransaction.mockResolvedValue({ txHash: "0xabc" });
+    runtimeState.pendingWalletRequests = [
+      {
+        id: `transaction-${chainId}`,
+        kind: "transaction",
+        payload: {
+          calls: [
+            {
+              txId: 1,
+              to: "0x1111111111111111111111111111111111111111",
+              value: "0",
+              data: "0x",
+              chainId,
+            },
+          ],
+        },
+        timestamp: Date.now(),
+      },
+    ];
+  }
+
+  it("switches to the staged transaction chain before simulation and send", async () => {
+    stageTransaction(42161);
+
+    render(<RuntimeTxHandler />);
+
+    await waitFor(() => {
+      expect(authState.sendTransaction).toHaveBeenCalledTimes(1);
+    });
+    expect(authState.switchChain).toHaveBeenCalledWith(42161);
+    expect(runtimeState.simulateBatchTransactions).toHaveBeenCalledWith(
+      expect.any(Array),
+      expect.objectContaining({ chainId: 42161 }),
+    );
+    expect(
+      (authState.switchChain as ReturnType<typeof vi.fn>).mock
+        .invocationCallOrder[0],
+    ).toBeLessThan(
+      runtimeState.simulateBatchTransactions.mock.invocationCallOrder[0],
+    );
+    expect(
+      runtimeState.simulateBatchTransactions.mock.invocationCallOrder[0],
+    ).toBeLessThan(authState.sendTransaction.mock.invocationCallOrder[0]);
+    expect(authState.sendTransaction).toHaveBeenCalledWith(expect.any(Object), {
+      chainIdAlreadySelected: 42161,
+    });
+  });
+
+  it("does not switch when the staged transaction is already on the wallet chain", async () => {
+    stageTransaction(8453);
+
+    render(<RuntimeTxHandler />);
+
+    await waitFor(() => {
+      expect(authState.sendTransaction).toHaveBeenCalledTimes(1);
+    });
+    expect(authState.switchChain).not.toHaveBeenCalled();
+  });
+
+  it("rejects an unsupported staged transaction chain before simulation or send", async () => {
+    stageTransaction(10);
+
+    render(<RuntimeTxHandler />);
+
+    await waitFor(() => {
+      expect(runtimeState.rejectWalletRequest).toHaveBeenCalledWith(
+        "transaction-10",
+        expect.stringContaining("does not support chain 10"),
+      );
+    });
+    expect(runtimeState.simulateBatchTransactions).not.toHaveBeenCalled();
+    expect(authState.sendTransaction).not.toHaveBeenCalled();
+  });
+
+  it("rejects with manual guidance when the adapter cannot switch chains", async () => {
+    stageTransaction(42161);
+    authState.switchChain = undefined;
+
+    render(<RuntimeTxHandler />);
+
+    await waitFor(() => {
+      expect(runtimeState.rejectWalletRequest).toHaveBeenCalledWith(
+        "transaction-42161",
+        expect.stringContaining("Switch networks manually"),
+      );
+    });
+    expect(authState.sendTransaction).not.toHaveBeenCalled();
+  });
+
+  it("routes a rejected wallet switch through the existing request rejection", async () => {
+    stageTransaction(42161);
+    authState.switchChain = vi.fn(async () => {
+      throw new Error("User rejected the request");
+    });
+
+    render(<RuntimeTxHandler />);
+
+    await waitFor(() => {
+      expect(runtimeState.rejectWalletRequest).toHaveBeenCalledWith(
+        "transaction-42161",
+        "User rejected the request",
+      );
+    });
+    expect(authState.sendTransaction).not.toHaveBeenCalled();
   });
 
   it("dispatches solana_sign requests through signSolanaTransaction", async () => {

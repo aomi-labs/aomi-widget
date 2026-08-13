@@ -10655,7 +10655,10 @@ var sessionListDef = defineCommand3({
   }
 });
 var sessionNewDef = defineCommand3({
-  meta: { name: "new", description: "Start a fresh session and make it active" },
+  meta: {
+    name: "new",
+    description: "Start a fresh session and make it active"
+  },
   args: __spreadValues({}, globalArgs),
   async run({ args }) {
     const { newSessionCommand: newSessionCommand2 } = await Promise.resolve().then(() => (init_sessions(), sessions_exports));
@@ -11369,7 +11372,7 @@ init_shared();
 // package.json
 var package_default = {
   name: "@aomi-labs/client",
-  version: "0.4.6",
+  version: "0.4.7",
   description: "Platform-agnostic TypeScript client for the Aomi backend API",
   type: "module",
   main: "./dist/index.cjs",

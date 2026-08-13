@@ -23,6 +23,22 @@
   transaction reaching the manual-wallet approval gate, and `agent-browser`
   opening the exact linked transcript. The message cursor deliberately holds
   the runtime's mutable streaming tail until it becomes a completed delta.
+
+2026-08-12 — **Cross-chain wallet approvals now switch EVM networks automatically.**
+  `RuntimeTxHandler` compares every staged transaction's chain with the connected
+  wallet before simulation, rejects unsupported chains with actionable copy, and
+  invokes the adapter's network switch before simulating or sending. Wallets that
+  cannot switch get manual-switch guidance; a rejected wallet popup continues
+  through the existing request-rejection path. The approval handler tells the
+  shared executor when it already selected the target chain, preventing a second
+  wallet prompt while direct executor callers still switch when needed. The shared
+  AA executor also keeps an unknown current chain as `undefined`, so it attempts a
+  switch instead of masking the state as already on the target chain. Regression
+  cases cover switch ordering, exactly-once selection, same-chain behavior,
+  unsupported/missing adapters, rejected prompts, and unknown/current AA execution
+  state. The joint backend work merged first in product-mono #973. Publishable
+  versions are `@aomi-labs/client@0.4.7` and `@aomi-labs/widget-lib@1.4.30`.
+
 2026-08-08 — DEPLOY-SURFACE BUGS, BE SIDE (product-mono worktree
   `~/Code/product-mono-worktrees/deploy-feed-platform-scope`, branch
   `claude/deploy-feed-platform-scope` off origin/main f5d421933; all changes
@@ -122,7 +138,6 @@
   publishable tarballs, and client/React/registry builds. Portal typecheck
   remains blocked by the existing mixed Para dependency graph
   (`@getpara/web-sdk` 2.24 vs 2.19), outside these files.
-
 2026-08-04 — PROJECT HOME "KEYS MISSING" FALSE ALARM (apps/build, committed
   on `feat/build-new-app-two-starts`). The Environment card warned whenever no
   key was set

@@ -105,11 +105,12 @@ export function buildEvmExecutionRuntime(
     sendTransaction:
       runtime.sendTransaction ??
       (sendTransactionAsync
-        ? async (payload) =>
+        ? async (payload, execution) =>
             executeWalletKitTransaction({
               payload,
               state: {
-                currentChainId: runtime.currentChainId,
+                currentChainId:
+                  execution?.chainIdAlreadySelected ?? runtime.currentChainId,
                 capabilities: runtime.capabilities,
                 nativeWalletExecution: runtime.nativeWalletExecution,
                 sendCallsSyncAsync: sendCallsSyncAsync

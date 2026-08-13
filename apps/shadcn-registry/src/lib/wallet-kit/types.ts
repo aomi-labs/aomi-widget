@@ -272,6 +272,11 @@ export type AomiTxResult = {
   Delegation7702?: string;
 };
 
+export type AomiTransactionExecution = {
+  /** Chain the caller already selected before invoking the transaction path. */
+  chainIdAlreadySelected?: number;
+};
+
 /**
  * Upstream wallet-provider credential the portal exchanges for an Aomi bearer.
  * Aliased to the client type (the same inline `@aomi-labs/client` edge already
@@ -371,7 +376,10 @@ export type AomiWalletKit = {
   switchChain?: (chainId: number) => Promise<void>;
   selectNetwork?: (target: AomiNetworkTarget) => Promise<void>;
 
-  sendTransaction?: (payload: WalletTxPayload) => Promise<AomiTxResult>;
+  sendTransaction?: (
+    payload: WalletTxPayload,
+    execution?: AomiTransactionExecution,
+  ) => Promise<AomiTxResult>;
   signTypedData?: (
     payload: WalletEip712Payload,
   ) => Promise<{ signature: string }>;

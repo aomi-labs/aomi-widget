@@ -47,6 +47,44 @@ function singleCallPayload(): WalletTxPayload {
 }
 
 describe("executeWalletKitTransaction native execution", () => {
+  it("switches when the connected wallet chain is unknown", async () => {
+    const switchChainAsync = vi.fn(async () => undefined);
+    const sendTransactionAsync = vi.fn().mockResolvedValue("0x111");
+
+    await executeWalletKitTransaction({
+      payload: singleCallPayload(),
+      state: {
+        currentChainId: undefined,
+        sendCallsSyncAsync: vi.fn(),
+        sendTransactionAsync,
+        switchChainAsync,
+        chainsById: { [mainnet.id]: mainnet },
+      },
+    });
+
+    expect(switchChainAsync).toHaveBeenCalledWith({ chainId: 1 });
+    expect(switchChainAsync.mock.invocationCallOrder[0]).toBeLessThan(
+      sendTransactionAsync.mock.invocationCallOrder[0],
+    );
+  });
+
+  it("does not switch when the connected wallet is already on the target chain", async () => {
+    const switchChainAsync = vi.fn(async () => undefined);
+
+    await executeWalletKitTransaction({
+      payload: singleCallPayload(),
+      state: {
+        currentChainId: 1,
+        sendCallsSyncAsync: vi.fn(),
+        sendTransactionAsync: vi.fn().mockResolvedValue("0x111"),
+        switchChainAsync,
+        chainsById: { [mainnet.id]: mainnet },
+      },
+    });
+
+    expect(switchChainAsync).not.toHaveBeenCalled();
+  });
+
   it("executes batches sequentially when the wallet has no atomic capability", async () => {
     const sendTransactionAsync = vi
       .fn()

@@ -1,9 +1,6 @@
 "use client";
 
-export {
-  AomiWalletKitContextProvider,
-  useAomiWalletKit,
-} from "./context";
+export { AomiWalletKitContextProvider, useAomiWalletKit } from "./context";
 export {
   AomiWalletKitProvider,
   type AomiWalletKitProviderInput,
@@ -16,6 +13,7 @@ export type {
   AomiNetworkTarget,
   AomiSessionIdentity,
   AomiSessionStatus,
+  AomiTransactionExecution,
   AomiTxResult,
   AomiWalletKit,
   AomiWalletOption,
