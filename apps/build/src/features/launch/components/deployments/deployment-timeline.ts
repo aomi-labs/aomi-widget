@@ -119,6 +119,10 @@ export function buildDeploymentList(
  * | passed | failed`); `state` is the backend's deployment projection
  * (`no_ci | building | releasing | ready | failed | pending`). Either can be
  * the one that knows, so both are checked.
+ *
+ * `pending` means waiting on CI in both vocabularies — never waiting on a
+ * person — so it belongs in flight. Promoting during it would dispatch the
+ * second run this guard exists to prevent.
  */
 const CI_IN_FLIGHT = new Set(["pending", "running"]);
 const STATE_IN_FLIGHT = new Set(["pending", "building", "releasing"]);
