@@ -1,5 +1,12 @@
 # Auth BFF BetterAuth Cleanup Goal
 
+## MCP explicit chain context
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-13** —
+remove fabricated Ethereum and Solana mainnet state from headless MCP chat.
+`aomi_chat` accepts an optional explicit EVM chain or supported Solana cluster;
+omission retains account wallet identity without claiming an active network.
+
 ## Safari wallet-state sync containment
 
 Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED; STAGING ROLLOUT IN
@@ -121,6 +128,24 @@ through the canonical Session contract.
 - Kept the public BotFather contract aligned to `/start`, `/thread`,
   `/wallet`, `/permission`, `/tx`, `/app`, `/model`, `/network`, and
   `/disconnect`.
+
+## MCP Chat Parity
+
+Current session goal: **IMPLEMENTED AND LIVE-CHAIN VERIFIED 2026-08-13** — make
+the OAuth MCP surface supervise the same asynchronous Aomi
+agent turns as the TS CLI. `/api/mcp` now has four chat/session tools with rich
+cursor deltas, task/tool narration, wallet-request handoff, and account-wallet
+hydration; the prior direct tool funnel remains at `/api/mcp/direct` behind the
+same OAuth resource metadata. SIWE → dynamic registration → PKCE/consent →
+refresh-token OAuth, real agent replies, resume/list/interrupt, a locally
+staged manual-wallet transaction, and the browser handoff into its exact
+conversation are all covered by the local smoke.
+The funded-wallet follow-up attached the local OAuth server to a fresh Codex
+process, made progress cursors self-contained after that client exposed a
+missing-session retry loop, imported the account-owned MCP thread into the CLI,
+and signed its one-wei Base self-transfer. Both the requested transaction and
+service-fee transaction confirmed, and a later MCP check returned an empty
+pending queue plus both hashes.
 
 ## Chat Composer Parity
 

@@ -313,7 +313,8 @@ function ConsentPanel({
     <Shell title={`${name} wants to connect`}>
       <p className="text-muted-foreground mt-3 text-sm">
         Allow {name} to access your Aomi account? It will be able to act as you
-        through the Aomi tools you invoke from it.
+        by chatting with the Aomi agent and supervising the sessions you invoke
+        from it.
       </p>
       <ul className="mt-5 grid gap-2">
         {scopes.map((scope) => (
