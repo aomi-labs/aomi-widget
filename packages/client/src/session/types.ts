@@ -34,8 +34,12 @@ export type WalletAaDisplayCall = {
   data?: `0x${string}`;
 };
 
+export type WalletAaFeeAsset =
+  | { kind: "native" }
+  | { kind: "token"; address: string };
+
 export type WalletAaFeeDisclosure = {
-  asset: unknown;
+  asset: WalletAaFeeAsset;
   amount: string;
   /** EVM address or SVM base58 pubkey, per the request's `chainFamily`. */
   recipient: string;

@@ -2807,6 +2807,29 @@ function isRecord(value) {
 function isHexString(value) {
   return typeof value === "string" && /^0x[0-9a-fA-F]*$/.test(value);
 }
+function isEvmAddress(value) {
+  return typeof value === "string" && /^0x[0-9a-fA-F]{40}$/.test(value);
+}
+function normalizeAaCall(value) {
+  if (!isRecord(value) || !isEvmAddress(value.to) || typeof value.value !== "string" || value.data !== void 0 && !isHexString(value.data)) {
+    return null;
+  }
+  return __spreadValues({
+    to: value.to,
+    value: value.value
+  }, value.data !== void 0 ? { data: value.data } : {});
+}
+function normalizeAaFee(value) {
+  var _a, _b, _c;
+  if (!isRecord(value) || !isRecord(value.asset) || typeof value.amount !== "string" || typeof value.recipient !== "string" || value.recipient.length === 0) {
+    return null;
+  }
+  const asset = value.asset.kind === "native" ? { kind: "native" } : (value.asset.kind === "token" || value.asset.kind === "erc20") && typeof ((_a = value.asset.address) != null ? _a : value.asset.token) === "string" && String((_b = value.asset.address) != null ? _b : value.asset.token).length > 0 ? {
+    kind: "token",
+    address: String((_c = value.asset.address) != null ? _c : value.asset.token)
+  } : null;
+  return asset ? { asset, amount: value.amount, recipient: value.recipient } : null;
+}
 function isOpaqueSigningRequestId(value) {
   return typeof value === "string" && /^sign:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
     value
@@ -2831,9 +2854,16 @@ function normalizeSignablePayload(value) {
 function normalizeSigningPayload(value) {
   if (!isRecord(value)) return null;
   const payloads = Array.isArray(value.payloads) ? value.payloads.map(normalizeSignablePayload) : [];
+  const calls = Array.isArray(value.calls) ? value.calls.map(normalizeAaCall) : [];
+  const fees = Array.isArray(value.fees) ? value.fees.map(normalizeAaFee) : [];
+  const hasInvalidCalls = value.calls !== void 0 && !Array.isArray(value.calls) || calls.some((call) => call === null);
+  const hasInvalidFees = value.fees !== void 0 && !Array.isArray(value.fees) || fees.some(
+    (fee) => fee === null || !isEvmAddress(fee.recipient) || fee.asset.kind === "token" && !isEvmAddress(fee.asset.address)
+  );
+  const isErc4337 = value.executionKind === "erc4337";
   if (!isOpaqueSigningRequestId(value.requestId) || value.chainFamily !== "evm" && value.chainFamily !== "svm" || value.executionKind !== "message" && value.executionKind !== "transaction" && value.executionKind !== "erc4337" || value.executionKind === "erc4337" && value.chainFamily !== "evm" || typeof value.signer !== "string" || typeof value.description !== "string" || payloads.length === 0 || payloads.some((payload) => payload === null) || payloads.some(
     (payload) => value.chainFamily === "evm" ? !(payload == null ? void 0 : payload.kind.startsWith("evm_")) : !(payload == null ? void 0 : payload.kind.startsWith("svm_"))
-  )) {
+  ) || hasInvalidCalls || hasInvalidFees || isErc4337 && (typeof value.operationId !== "string" || !isEvmAddress(value.executor) || typeof value.expiresAt !== "string" || typeof value.callsDigest !== "string" || !/^0x[0-9a-fA-F]{64}$/.test(value.callsDigest) || value.sponsorship !== "required" || calls.length === 0 || fees.length === 0)) {
     return null;
   }
   return __spreadValues(__spreadValues(__spreadValues(__spreadValues(__spreadValues(__spreadValues(__spreadValues(__spreadValues(__spreadValues(__spreadValues({
@@ -2843,7 +2873,7 @@ function normalizeSigningPayload(value) {
     signer: value.signer,
     description: value.description,
     payloads
-  }, typeof value.chainId === "number" ? { chainId: value.chainId } : {}), typeof value.cluster === "string" ? { cluster: value.cluster } : {}), typeof value.broadcaster === "string" ? { broadcaster: value.broadcaster } : {}), typeof value.operationId === "string" ? { operationId: value.operationId } : {}), isHexString(value.executor) ? { executor: value.executor } : {}), typeof value.expiresAt === "string" ? { expiresAt: value.expiresAt } : {}), isHexString(value.callsDigest) ? { callsDigest: value.callsDigest } : {}), Array.isArray(value.calls) ? { calls: value.calls } : {}), Array.isArray(value.fees) ? { fees: value.fees } : {}), value.sponsorship === "required" ? { sponsorship: "required" } : {});
+  }, typeof value.chainId === "number" ? { chainId: value.chainId } : {}), typeof value.cluster === "string" ? { cluster: value.cluster } : {}), typeof value.broadcaster === "string" ? { broadcaster: value.broadcaster } : {}), typeof value.operationId === "string" ? { operationId: value.operationId } : {}), isHexString(value.executor) ? { executor: value.executor } : {}), typeof value.expiresAt === "string" ? { expiresAt: value.expiresAt } : {}), isHexString(value.callsDigest) ? { callsDigest: value.callsDigest } : {}), calls.length ? { calls } : {}), fees.length ? { fees } : {}), value.sponsorship === "required" ? { sponsorship: "required" } : {});
 }
 function applySessionState(state, deps) {
   var _a;
@@ -3382,6 +3412,7 @@ function aaModeFromExecutionKind(executionKind) {
 }
 
 // src/session/index.ts
+var SIGNING_RECOVERY_MIN_INTERVAL_MS = 5e3;
 var ClientSession = class extends TypedEventEmitter {
   constructor(clientOrOptions, sessionOptions) {
     var _a, _b, _c, _d, _e;
@@ -3391,6 +3422,10 @@ var ClientSession = class extends TypedEventEmitter {
     this.isSSEActive = false;
     this._isProcessing = false;
     this._backendWasProcessing = false;
+    this.recoveringSigningRequestIds = /* @__PURE__ */ new Set();
+    this.signingRecoveryInFlight = null;
+    this.signingRecoveryTimer = null;
+    this.lastSigningRecoveryAt = 0;
     this._messages = [];
     this.closed = false;
     this.pendingResolve = null;
@@ -3421,6 +3456,7 @@ var ClientSession = class extends TypedEventEmitter {
       onChange: (requests) => this.emit("wallet_requests_changed", requests),
       syncPendingTxRequestsFromUserState: this.syncPendingTxRequestsFromUserState
     });
+    queueMicrotask(() => this.scheduleSigningRequestRecovery(true));
   }
   // ===========================================================================
   // Public API — Chat
@@ -3534,6 +3570,10 @@ var ClientSession = class extends TypedEventEmitter {
     if (this.closed) return;
     this.closed = true;
     this.stopPolling();
+    if (this.signingRecoveryTimer) {
+      clearTimeout(this.signingRecoveryTimer);
+      this.signingRecoveryTimer = null;
+    }
     (_a = this.unsubscribeSSE) == null ? void 0 : _a.call(this);
     this.unsubscribeSSE = null;
     this.isSSEActive = false;
@@ -3628,9 +3668,7 @@ var ClientSession = class extends TypedEventEmitter {
     }
   }
   resolveWallet(address3, chainId3) {
-    this.resolveUserState(
-      resolveWalletState(this.userState, address3, chainId3)
-    );
+    this.resolveUserState(resolveWalletState(this.userState, address3, chainId3));
   }
   /**
    * The subset of the stored state the client may send to the backend. Drops
@@ -3747,6 +3785,74 @@ var ClientSession = class extends TypedEventEmitter {
       walletController: this.walletController,
       emit: (type, payload) => this.emit(type, payload)
     });
+    this.scheduleSigningRequestRecovery();
+  }
+  /**
+   * Coalesce recovery behind one request and a bounded cadence. State polling
+   * may run twice per second; durable handoff recovery does not need to.
+   */
+  scheduleSigningRequestRecovery(immediate = false) {
+    if (this.closed || this.signingRecoveryInFlight) return;
+    const elapsed = Date.now() - this.lastSigningRecoveryAt;
+    const delay = immediate ? 0 : Math.max(0, SIGNING_RECOVERY_MIN_INTERVAL_MS - elapsed);
+    if (delay === 0) {
+      void this.recoverSigningRequests();
+      return;
+    }
+    if (this.signingRecoveryTimer) return;
+    this.signingRecoveryTimer = setTimeout(() => {
+      this.signingRecoveryTimer = null;
+      if (!this.closed) void this.recoverSigningRequests();
+    }, delay);
+  }
+  /**
+   * A signing event is transient, but its backend-owned operation is durable.
+   * Recover an attended handoff from the operation view when a tab reload or
+   * reconnect happens after the original event was delivered.
+   */
+  async recoverSigningRequests() {
+    if (this.signingRecoveryInFlight) {
+      await this.signingRecoveryInFlight;
+      return;
+    }
+    const recovery = this.fetchSigningRequests();
+    this.signingRecoveryInFlight = recovery;
+    try {
+      await recovery;
+    } finally {
+      this.lastSigningRecoveryAt = Date.now();
+      this.signingRecoveryInFlight = null;
+    }
+  }
+  async fetchSigningRequests() {
+    var _a, _b;
+    let response;
+    try {
+      response = await this.client.request(
+        "GET",
+        "/api/widget/v1/signing-requests",
+        { sessionId: this.sessionId }
+      );
+    } catch (error) {
+      (_a = this.logger) == null ? void 0 : _a.debug("[session] signing request recovery failed", error);
+      return;
+    }
+    for (const request of (_b = response.requests) != null ? _b : []) {
+      const requestId = typeof request === "object" && request !== null && typeof request.requestId === "string" ? request.requestId : void 0;
+      if (!requestId) continue;
+      if (this.walletController.find(requestId) || this.recoveringSigningRequestIds.has(requestId)) {
+        continue;
+      }
+      this.recoveringSigningRequestIds.add(requestId);
+      try {
+        this.handleSSEEvent({
+          type: "wallet_signing_request",
+          payload: request
+        });
+      } finally {
+        this.recoveringSigningRequestIds.delete(requestId);
+      }
+    }
   }
   // ===========================================================================
   // Internal — SSE Handling

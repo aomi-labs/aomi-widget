@@ -8,7 +8,12 @@ import type {
 } from "../types";
 import type { UserState as UserStateShape } from "../user-state";
 import type { SessionEventMap } from "./types";
-import type { WalletSignablePayload, WalletSigningPayload } from "./types";
+import type {
+  WalletAaDisplayCall,
+  WalletAaFeeDisclosure,
+  WalletSignablePayload,
+  WalletSigningPayload,
+} from "./types";
 import type { SessionWalletController } from "./wallet";
 import {
   hydrateTxPayloadFromUserState,
@@ -72,6 +77,52 @@ function isHexString(value: unknown): value is `0x${string}` {
   return typeof value === "string" && /^0x[0-9a-fA-F]*$/.test(value);
 }
 
+function isEvmAddress(value: unknown): value is `0x${string}` {
+  return typeof value === "string" && /^0x[0-9a-fA-F]{40}$/.test(value);
+}
+
+function normalizeAaCall(value: unknown): WalletAaDisplayCall | null {
+  if (
+    !isRecord(value) ||
+    !isEvmAddress(value.to) ||
+    typeof value.value !== "string" ||
+    (value.data !== undefined && !isHexString(value.data))
+  ) {
+    return null;
+  }
+  return {
+    to: value.to,
+    value: value.value,
+    ...(value.data !== undefined ? { data: value.data } : {}),
+  };
+}
+
+function normalizeAaFee(value: unknown): WalletAaFeeDisclosure | null {
+  if (
+    !isRecord(value) ||
+    !isRecord(value.asset) ||
+    typeof value.amount !== "string" ||
+    typeof value.recipient !== "string" ||
+    value.recipient.length === 0
+  ) {
+    return null;
+  }
+  const asset =
+    value.asset.kind === "native"
+      ? ({ kind: "native" } as const)
+      : (value.asset.kind === "token" || value.asset.kind === "erc20") &&
+          typeof (value.asset.address ?? value.asset.token) === "string" &&
+          String(value.asset.address ?? value.asset.token).length > 0
+        ? ({
+            kind: "token",
+            address: String(value.asset.address ?? value.asset.token),
+          } as const)
+        : null;
+  return asset
+    ? { asset, amount: value.amount, recipient: value.recipient }
+    : null;
+}
+
 function isOpaqueSigningRequestId(value: unknown): value is string {
   return (
     typeof value === "string" &&
@@ -111,6 +162,22 @@ function normalizeSigningPayload(value: unknown): WalletSigningPayload | null {
   const payloads = Array.isArray(value.payloads)
     ? value.payloads.map(normalizeSignablePayload)
     : [];
+  const calls = Array.isArray(value.calls)
+    ? value.calls.map(normalizeAaCall)
+    : [];
+  const fees = Array.isArray(value.fees) ? value.fees.map(normalizeAaFee) : [];
+  const hasInvalidCalls =
+    (value.calls !== undefined && !Array.isArray(value.calls)) ||
+    calls.some((call) => call === null);
+  const hasInvalidFees =
+    (value.fees !== undefined && !Array.isArray(value.fees)) ||
+    fees.some(
+      (fee) =>
+        fee === null ||
+        !isEvmAddress(fee.recipient) ||
+        (fee.asset.kind === "token" && !isEvmAddress(fee.asset.address)),
+    );
+  const isErc4337 = value.executionKind === "erc4337";
   if (
     !isOpaqueSigningRequestId(value.requestId) ||
     (value.chainFamily !== "evm" && value.chainFamily !== "svm") ||
@@ -126,7 +193,18 @@ function normalizeSigningPayload(value: unknown): WalletSigningPayload | null {
       value.chainFamily === "evm"
         ? !payload?.kind.startsWith("evm_")
         : !payload?.kind.startsWith("svm_"),
-    )
+    ) ||
+    hasInvalidCalls ||
+    hasInvalidFees ||
+    (isErc4337 &&
+      (typeof value.operationId !== "string" ||
+        !isEvmAddress(value.executor) ||
+        typeof value.expiresAt !== "string" ||
+        typeof value.callsDigest !== "string" ||
+        !/^0x[0-9a-fA-F]{64}$/.test(value.callsDigest) ||
+        value.sponsorship !== "required" ||
+        calls.length === 0 ||
+        fees.length === 0))
   ) {
     return null;
   }
@@ -152,12 +230,8 @@ function normalizeSigningPayload(value: unknown): WalletSigningPayload | null {
     ...(isHexString(value.callsDigest)
       ? { callsDigest: value.callsDigest }
       : {}),
-    ...(Array.isArray(value.calls)
-      ? { calls: value.calls as WalletSigningPayload["calls"] }
-      : {}),
-    ...(Array.isArray(value.fees)
-      ? { fees: value.fees as WalletSigningPayload["fees"] }
-      : {}),
+    ...(calls.length ? { calls: calls as WalletAaDisplayCall[] } : {}),
+    ...(fees.length ? { fees: fees as WalletAaFeeDisclosure[] } : {}),
     ...(value.sponsorship === "required"
       ? { sponsorship: "required" as const }
       : {}),

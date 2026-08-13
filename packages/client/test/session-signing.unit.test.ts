@@ -68,6 +68,23 @@ const cases: Array<{
       description: "Execute sponsored batch",
       operationId: "33333333-3333-4333-8333-333333333333",
       executor: "0x2222222222222222222222222222222222222222",
+      expiresAt: "2026-08-14T00:00:00Z",
+      callsDigest:
+        "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      calls: [
+        {
+          to: "0x3333333333333333333333333333333333333333",
+          value: "1000000000000000",
+          data: "0x",
+        },
+      ],
+      fees: [
+        {
+          asset: { kind: "native" },
+          amount: "10000000000000",
+          recipient: "0x4444444444444444444444444444444444444444",
+        },
+      ],
       sponsorship: "required",
       payloads: [{ kind: "evm_personal", message: "0xabcd" }],
     },
@@ -76,7 +93,10 @@ const cases: Array<{
 ];
 
 describe("opaque signing handoff", () => {
-  afterEach(() => vi.restoreAllMocks());
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
 
   for (const testCase of cases) {
     it(`completes ${testCase.label} through the generic endpoint`, async () => {
@@ -217,6 +237,101 @@ describe("opaque signing handoff", () => {
 
     await session.sendAsync("stage action");
     expect(session.getPendingRequests()).toEqual([]);
+    session.close();
+  });
+
+  it("rejects ERC-4337 requests without complete immutable disclosure", async () => {
+    const { session, sendMessage } = createSession("session-incomplete-aa");
+    sendMessage.mockResolvedValueOnce({
+      is_processing: false,
+      messages: [],
+      system_events: [
+        {
+          InlineCall: {
+            type: "wallet_signing_request",
+            payload: {
+              requestId: "sign:77777777-7777-4777-8777-777777777777",
+              chainFamily: "evm",
+              executionKind: "erc4337",
+              signer: "0x1111111111111111111111111111111111111111",
+              chainId: 8453,
+              description: "Missing fee and digest disclosure",
+              operationId: "77777777-7777-4777-8777-777777777777",
+              executor: "0x2222222222222222222222222222222222222222",
+              calls: [
+                {
+                  to: "0x3333333333333333333333333333333333333333",
+                  value: "0",
+                },
+              ],
+              sponsorship: "required",
+              payloads: [{ kind: "evm_personal", message: "0xabcd" }],
+            },
+          },
+        },
+      ],
+    } satisfies AomiChatResponse);
+
+    await session.sendAsync("stage action");
+    expect(session.getPendingRequests()).toEqual([]);
+    session.close();
+  });
+
+  it("rejects malformed disclosure on non-ERC-4337 signing requests", async () => {
+    const { session, sendMessage } = createSession(
+      "session-invalid-transaction-disclosure",
+    );
+    sendMessage.mockResolvedValueOnce({
+      is_processing: false,
+      messages: [],
+      system_events: [
+        {
+          InlineCall: {
+            type: "wallet_signing_request",
+            payload: {
+              requestId: "sign:88888888-8888-4888-8888-888888888888",
+              chainFamily: "evm",
+              executionKind: "transaction",
+              signer: "0x1111111111111111111111111111111111111111",
+              description: "Malformed optional fee disclosure",
+              fees: [null],
+              payloads: [{ kind: "evm_personal", message: "0xabcd" }],
+            },
+          },
+        },
+      ],
+    } satisfies AomiChatResponse);
+
+    await session.sendAsync("stage action");
+    expect(session.getPendingRequests()).toEqual([]);
+    session.close();
+  });
+
+  it("coalesces signing recovery while state responses are polling", async () => {
+    vi.useFakeTimers();
+    const { session, sendMessage, complete } = createSession(
+      "session-recovery-cadence",
+    );
+    const recoveryCalls = () =>
+      complete.mock.calls.filter(
+        ([method, path]) =>
+          method === "GET" && path === "/api/widget/v1/signing-requests",
+      );
+
+    await vi.runAllTicks();
+    await Promise.resolve();
+    expect(recoveryCalls()).toHaveLength(1);
+
+    await session.sendAsync("first state");
+    await session.sendAsync("second state");
+    await session.sendAsync("third state");
+    expect(sendMessage).toHaveBeenCalledTimes(3);
+    expect(recoveryCalls()).toHaveLength(1);
+
+    await vi.advanceTimersByTimeAsync(4_999);
+    expect(recoveryCalls()).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(recoveryCalls()).toHaveLength(2);
     session.close();
   });
 

@@ -13,6 +13,7 @@ const apiUrl =
   import.meta.env.VITE_AOMI_WITNESS_PORTAL_URL?.trim() ||
   "http://localhost:3002";
 const applicationId = import.meta.env.VITE_AOMI_APPLICATION_ID?.trim();
+const initialThreadId = import.meta.env.VITE_AOMI_THREAD_ID?.trim();
 const environment =
   import.meta.env.VITE_PARA_ENVIRONMENT === "PROD" ? "PROD" : "BETA";
 const SAFE_SIGNING_MESSAGE = "AOMI_WIDGET_SAFE_SIGNING_CHECK_2026_07_22";
@@ -99,6 +100,15 @@ const witnessConnector = injected({
 
 function BackendAaSmoke() {
   const walletKit = useAomiWalletKit();
+  const witnessAddress = witnessAccount.address.toLowerCase();
+  const connectedWitness = walletKit.accounts.find(
+    (account) =>
+      account.family === "evm" &&
+      account.address.toLowerCase() === witnessAddress,
+  );
+  const isWitnessActive =
+    walletKit.identity.address?.toLowerCase() === witnessAddress &&
+    walletKit.identity.chainId === baseSepolia.id;
   const [status, setStatus] = useState(
     "Connect the owner wallet, then ask Aomi for an ordinary on-chain action in chat.",
   );
@@ -110,7 +120,11 @@ function BackendAaSmoke() {
       "Connecting the Base Sepolia witness owner and establishing its origin-bound session…",
     );
     try {
-      await walletKit.connectEvmWallet?.("aomi-witness");
+      if (connectedWitness) {
+        await walletKit.selectAccount(connectedWitness.id);
+      } else {
+        await walletKit.connectEvmWallet?.("aomi-witness");
+      }
       setStatus(
         "Owner connected. Stage a normal write in chat; backend policy will select ERC-4337 automatically when enabled.",
       );
@@ -147,9 +161,9 @@ function BackendAaSmoke() {
         <button
           type="button"
           onClick={connect}
-          disabled={busy || Boolean(walletKit.identity.address)}
+          disabled={busy || isWitnessActive}
         >
-          {walletKit.identity.address
+          {isWitnessActive
             ? "Witness wallet connected"
             : "Connect witness wallet"}
         </button>
@@ -246,6 +260,7 @@ function App() {
       </header>
       <AomiWidget
         applicationId={applicationId}
+        initialThreadId={initialThreadId}
         apiUrl={apiUrl}
         auth={{ kind: "browser_wallet" }}
         wallets={{

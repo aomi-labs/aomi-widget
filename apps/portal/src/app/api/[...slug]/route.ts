@@ -105,6 +105,10 @@ const ALLOWED_ROUTES: AllowedRoute[] = [
     methods: new Set(["GET"]),
   },
   {
+    pattern: /^\/api\/widget\/v1\/signing-requests$/,
+    methods: new Set(["GET"]),
+  },
+  {
     pattern: /^\/api\/widget\/v1\/signing-requests\/sign%3A[^/]+$/i,
     methods: new Set(["POST"]),
   },

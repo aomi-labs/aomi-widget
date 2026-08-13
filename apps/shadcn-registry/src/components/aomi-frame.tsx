@@ -81,6 +81,8 @@ type RootProps = {
   threadPersistenceKey?: string;
   /** Extra key segment for tenant/user/app scoping without owning the full key. */
   threadPersistenceScope?: string | null;
+  /** Thread to open before history discovery completes. */
+  initialThreadId?: string;
 };
 
 type HeaderProps = {
@@ -134,6 +136,7 @@ const Root: FC<RootProps> = ({
   persistThread,
   threadPersistenceKey,
   threadPersistenceScope,
+  initialThreadId,
 }) => {
   const resolvedBackendUrl =
     backendUrl ??
@@ -150,6 +153,7 @@ const Root: FC<RootProps> = ({
       persistThread={persistThread}
       threadPersistenceKey={threadPersistenceKey}
       threadPersistenceScope={threadPersistenceScope}
+      initialThreadId={initialThreadId}
     >
       <SidebarProvider
         defaultOpen={defaultSidebarOpen}

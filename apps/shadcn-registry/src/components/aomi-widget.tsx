@@ -39,6 +39,7 @@ export type AomiWidgetProps = {
   persistThread?: boolean;
   threadPersistenceKey?: string;
   threadPersistenceScope?: string | null;
+  initialThreadId?: string;
   auth: CrossOriginWidgetAuth;
   wallets?: WalletPresentationConfig;
 };
@@ -83,6 +84,7 @@ export function AomiWidget(props: AomiWidgetProps) {
         persistThread={props.persistThread}
         threadPersistenceKey={props.threadPersistenceKey}
         threadPersistenceScope={props.threadPersistenceScope}
+        initialThreadId={props.initialThreadId}
       />
       {props.children}
     </AomiWalletKitProvider>
@@ -104,6 +106,7 @@ type WidgetFrameProps = Pick<
   | "persistThread"
   | "threadPersistenceKey"
   | "threadPersistenceScope"
+  | "initialThreadId"
 > & { apiUrl: string; applicationId: string };
 
 function WidgetFrame({
@@ -122,6 +125,7 @@ function WidgetFrame({
   persistThread,
   threadPersistenceKey,
   threadPersistenceScope,
+  initialThreadId,
 }: WidgetFrameProps) {
   const walletKit = useAomiWalletKit();
   return (
@@ -147,6 +151,7 @@ function WidgetFrame({
         persistThread={persistThread}
         threadPersistenceKey={threadPersistenceKey}
         threadPersistenceScope={threadPersistenceScope}
+        initialThreadId={initialThreadId}
       >
         <BackendAaProvisioner applicationId={applicationId} />
         {showHeader ? (

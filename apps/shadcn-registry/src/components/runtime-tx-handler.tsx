@@ -49,6 +49,16 @@ function isAttendedSigning(
   );
 }
 
+function aaFeeAssetLabel(asset: unknown): string {
+  if (typeof asset !== "object" || asset === null) return "Unknown asset";
+  const value = asset as { kind?: unknown; address?: unknown };
+  if (value.kind === "native") return "Native";
+  if (value.kind === "token" && typeof value.address === "string") {
+    return value.address;
+  }
+  return "Unknown asset";
+}
+
 function decodeBase64(value: string): Uint8Array {
   if (typeof Buffer !== "undefined") {
     return new Uint8Array(Buffer.from(value, "base64"));
@@ -546,9 +556,14 @@ export function RuntimeTxHandler() {
           (chain) => chain.id === aaRequest.payload.chainId,
         )?.name ?? `Chain ${aaRequest.payload.chainId}`);
     const signatureCount = aaRequest.payload.payloads.length;
+    const calls = aaRequest.payload.calls ?? [];
+    const fees = aaRequest.payload.fees ?? [];
     return (
       <Dialog open onOpenChange={(open) => !open && void rejectAa()}>
-        <DialogContent showCloseButton={false} className="sm:max-w-md">
+        <DialogContent
+          showCloseButton={false}
+          className="max-h-[90vh] overflow-y-auto sm:max-w-2xl"
+        >
           <DialogHeader>
             <div className="bg-primary/10 text-primary mb-1 flex size-10 items-center justify-center rounded-full">
               <ShieldCheck className="size-5" />
@@ -583,23 +598,70 @@ export function RuntimeTxHandler() {
             ) : null}
             <div className="flex items-center justify-between gap-4">
               <span className="text-muted-foreground">Operations</span>
-              <span className="font-medium">
-                {aaRequest.payload.calls?.length || signatureCount}
-              </span>
+              <span className="font-medium">{calls.length || 1}</span>
             </div>
+            {aaRequest.payload.sponsorship ? (
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-muted-foreground">Sponsorship</span>
+                <span className="font-medium">Required · backend only</span>
+              </div>
+            ) : null}
+            {aaRequest.payload.expiresAt ? (
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-muted-foreground">Signature expires</span>
+                <span className="font-mono text-xs">
+                  {aaRequest.payload.expiresAt}
+                </span>
+              </div>
+            ) : null}
+            {aaRequest.payload.callsDigest ? (
+              <div className="border-t pt-3">
+                <p className="text-muted-foreground mb-1 text-xs font-medium uppercase tracking-wide">
+                  Final call digest
+                </p>
+                <p className="break-all font-mono text-xs">
+                  {aaRequest.payload.callsDigest}
+                </p>
+              </div>
+            ) : null}
+            {calls.length ? (
+              <div className="border-t pt-3">
+                <p className="text-muted-foreground mb-2 text-xs font-medium uppercase tracking-wide">
+                  Application calls
+                </p>
+                <div className="grid gap-2">
+                  {calls.map((call, index) => (
+                    <div
+                      key={`${call.to}-${index}`}
+                      className="bg-background rounded-lg border p-3 text-xs"
+                    >
+                      <p className="mb-1 font-medium">Call {index + 1}</p>
+                      <p className="break-all font-mono">To: {call.to}</p>
+                      <p className="break-all font-mono">Value: {call.value}</p>
+                      <p className="break-all font-mono">
+                        Data: {call.data ?? "0x"}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
             <div className="border-t pt-3">
               <p className="text-muted-foreground mb-2 text-xs font-medium uppercase tracking-wide">
-                Aomi fees
+                Mandatory Aomi fees
               </p>
-              {(aaRequest.payload.fees ?? []).map((fee, index) => (
+              {fees.map((fee, index) => (
                 <div
                   key={`${fee.recipient}-${index}`}
-                  className="flex items-center justify-between gap-4 text-xs"
+                  className="bg-background mb-2 rounded-lg border p-3 text-xs last:mb-0"
                 >
-                  <span className="font-mono">{String(fee.amount)}</span>
-                  <span className="text-muted-foreground font-mono">
-                    {fee.recipient.slice(0, 8)}…{fee.recipient.slice(-6)}
-                  </span>
+                  <p className="break-all font-mono">
+                    Asset: {aaFeeAssetLabel(fee.asset)}
+                  </p>
+                  <p className="break-all font-mono">Amount: {fee.amount}</p>
+                  <p className="break-all font-mono">
+                    Recipient: {fee.recipient}
+                  </p>
                 </div>
               ))}
             </div>

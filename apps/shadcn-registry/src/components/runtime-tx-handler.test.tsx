@@ -271,18 +271,17 @@ describe("RuntimeTxHandler", () => {
           description: "Execute application batch",
           operationId: "operation-1",
           executor: "0x2222222222222222222222222222222222222222",
+          expiresAt: "2026-08-14T00:00:00Z",
+          callsDigest:
+            "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
           calls: [
             { to: "0x3333333333333333333333333333333333333333", value: "0" },
           ],
           fees: [
             {
-              asset: null,
+              asset: { kind: "native" },
               amount: "1000",
               recipient: "0x4444444444444444444444444444444444444444",
-              call: {
-                to: "0x4444444444444444444444444444444444444444",
-                value: "1000",
-              },
             },
           ],
           sponsorship: "required",
@@ -299,6 +298,15 @@ describe("RuntimeTxHandler", () => {
 
     expect(screen.getByText("Approve account action")).toBeInTheDocument();
     expect(screen.getByText("MegaETH")).toBeInTheDocument();
+    expect(screen.getByText("Required · backend only")).toBeInTheDocument();
+    expect(screen.getByText("Application calls")).toBeInTheDocument();
+    expect(screen.getByText("Mandatory Aomi fees")).toBeInTheDocument();
+    expect(screen.getByText("Amount: 1000")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      ),
+    ).toBeInTheDocument();
     expect(walletState.signMessage).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole("button", { name: "Review & sign (2)" }));
@@ -326,9 +334,28 @@ describe("RuntimeTxHandler", () => {
           signer: EVM_OWNER,
           chainId: 4326,
           description: "Execute application batch",
+          operationId: "operation-2",
           executor: "0x2222222222222222222222222222222222222222",
-          calls: [],
-          fees: [],
+          expiresAt: "2026-08-14T00:00:00Z",
+          callsDigest:
+            "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          calls: [
+            {
+              to: "0x3333333333333333333333333333333333333333",
+              value: "0",
+            },
+          ],
+          fees: [
+            {
+              asset: {
+                kind: "token",
+                address: "0x5555555555555555555555555555555555555555",
+              },
+              amount: "1000",
+              recipient: "0x4444444444444444444444444444444444444444",
+            },
+          ],
+          sponsorship: "required",
           payloads: [{ kind: "evm_personal", message: "0x1111" }],
         },
         timestamp: Date.now(),

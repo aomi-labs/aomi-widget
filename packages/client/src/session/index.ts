@@ -45,6 +45,8 @@ export type {
   WalletRequestResult,
 } from "./types";
 
+const SIGNING_RECOVERY_MIN_INTERVAL_MS = 5_000;
+
 export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   readonly client: AomiClient;
   readonly sessionId: string;
@@ -65,6 +67,10 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   private _isProcessing = false;
   private _backendWasProcessing = false;
   private walletController!: SessionWalletController;
+  private recoveringSigningRequestIds = new Set<string>();
+  private signingRecoveryInFlight: Promise<void> | null = null;
+  private signingRecoveryTimer: ReturnType<typeof setTimeout> | null = null;
+  private lastSigningRecoveryAt = 0;
   private _messages: AomiMessage[] = [];
   private _title?: string;
   private closed = false;
@@ -113,6 +119,9 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       syncPendingTxRequestsFromUserState:
         this.syncPendingTxRequestsFromUserState,
     });
+    // Durable backend-owned signing handoffs must resume even when loading the
+    // application runtime or thread history is slow/unavailable.
+    queueMicrotask(() => this.scheduleSigningRequestRecovery(true));
   }
 
   // ===========================================================================
@@ -244,6 +253,10 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     if (this.closed) return;
     this.closed = true;
     this.stopPolling();
+    if (this.signingRecoveryTimer) {
+      clearTimeout(this.signingRecoveryTimer);
+      this.signingRecoveryTimer = null;
+    }
     this.unsubscribeSSE?.();
     this.unsubscribeSSE = null;
     this.isSSEActive = false;
@@ -364,9 +377,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   }
 
   resolveWallet(address: string, chainId?: number): void {
-    this.resolveUserState(
-      resolveWalletState(this.userState, address, chainId),
-    );
+    this.resolveUserState(resolveWalletState(this.userState, address, chainId));
   }
 
   /**
@@ -509,6 +520,90 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       walletController: this.walletController,
       emit: (type, payload) => this.emit(type, payload),
     });
+    this.scheduleSigningRequestRecovery();
+  }
+
+  /**
+   * Coalesce recovery behind one request and a bounded cadence. State polling
+   * may run twice per second; durable handoff recovery does not need to.
+   */
+  private scheduleSigningRequestRecovery(immediate = false): void {
+    if (this.closed || this.signingRecoveryInFlight) return;
+
+    const elapsed = Date.now() - this.lastSigningRecoveryAt;
+    const delay = immediate
+      ? 0
+      : Math.max(0, SIGNING_RECOVERY_MIN_INTERVAL_MS - elapsed);
+    if (delay === 0) {
+      void this.recoverSigningRequests();
+      return;
+    }
+    if (this.signingRecoveryTimer) return;
+
+    this.signingRecoveryTimer = setTimeout(() => {
+      this.signingRecoveryTimer = null;
+      if (!this.closed) void this.recoverSigningRequests();
+    }, delay);
+  }
+
+  /**
+   * A signing event is transient, but its backend-owned operation is durable.
+   * Recover an attended handoff from the operation view when a tab reload or
+   * reconnect happens after the original event was delivered.
+   */
+  private async recoverSigningRequests(): Promise<void> {
+    if (this.signingRecoveryInFlight) {
+      await this.signingRecoveryInFlight;
+      return;
+    }
+
+    const recovery = this.fetchSigningRequests();
+    this.signingRecoveryInFlight = recovery;
+    try {
+      await recovery;
+    } finally {
+      this.lastSigningRecoveryAt = Date.now();
+      this.signingRecoveryInFlight = null;
+    }
+  }
+
+  private async fetchSigningRequests(): Promise<void> {
+    let response: { requests?: unknown[] };
+    try {
+      response = await this.client.request<{ requests?: unknown[] }>(
+        "GET",
+        "/api/widget/v1/signing-requests",
+        { sessionId: this.sessionId },
+      );
+    } catch (error) {
+      this.logger?.debug("[session] signing request recovery failed", error);
+      return;
+    }
+    for (const request of response.requests ?? []) {
+      const requestId =
+        typeof request === "object" &&
+        request !== null &&
+        typeof (request as { requestId?: unknown }).requestId === "string"
+          ? (request as { requestId: string }).requestId
+          : undefined;
+      if (!requestId) continue;
+      if (
+        this.walletController.find(requestId) ||
+        this.recoveringSigningRequestIds.has(requestId)
+      ) {
+        continue;
+      }
+
+      this.recoveringSigningRequestIds.add(requestId);
+      try {
+        this.handleSSEEvent({
+          type: "wallet_signing_request",
+          payload: request,
+        });
+      } finally {
+        this.recoveringSigningRequestIds.delete(requestId);
+      }
+    }
   }
 
   // ===========================================================================

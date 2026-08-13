@@ -1236,11 +1236,17 @@ type WalletAaDisplayCall = {
     value: string;
     data?: `0x${string}`;
 };
+type WalletAaFeeAsset = {
+    kind: "native";
+} | {
+    kind: "token";
+    address: string;
+};
 type WalletAaFeeDisclosure = {
-    asset: unknown;
+    asset: WalletAaFeeAsset;
     amount: string;
-    recipient: `0x${string}`;
-    call: WalletAaDisplayCall;
+    /** EVM address or SVM base58 pubkey, per the request's `chainFamily`. */
+    recipient: string;
 };
 type WalletSigningPayload = {
     requestId: string;
@@ -1418,6 +1424,10 @@ declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
     private _isProcessing;
     private _backendWasProcessing;
     private walletController;
+    private recoveringSigningRequestIds;
+    private signingRecoveryInFlight;
+    private signingRecoveryTimer;
+    private lastSigningRecoveryAt;
     private _messages;
     private _title?;
     private closed;
@@ -1507,6 +1517,18 @@ declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
     stopPolling(): void;
     private pollTick;
     private applyState;
+    /**
+     * Coalesce recovery behind one request and a bounded cadence. State polling
+     * may run twice per second; durable handoff recovery does not need to.
+     */
+    private scheduleSigningRequestRecovery;
+    /**
+     * A signing event is transient, but its backend-owned operation is durable.
+     * Recover an attended handoff from the operation view when a tab reload or
+     * reconnect happens after the original event was delivered.
+     */
+    private recoverSigningRequests;
+    private fetchSigningRequests;
     private handleSSEEvent;
     private sendSystemEvent;
     private completeSigningRequest;
