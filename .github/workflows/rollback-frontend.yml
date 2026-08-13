@@ -59,11 +59,31 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$VERCEL_TOKEN" || { echo "production VERCEL_TOKEN is required" >&2; exit 1; }
-          for deployment in "$PORTAL" "$BUILD" "$BASE" "$LANDING" "$TELEGRAM"; do
-            vercel rollback "$deployment" --yes --token="$VERCEL_TOKEN"
-          done
+          failures=()
+          declare -A deployments=(
+            [portal]="$PORTAL"
+            [build]="$BUILD"
+            [base]="$BASE"
+            [landing]="$LANDING"
+            [telegram]="$TELEGRAM"
+          )
           {
             echo "## Frontend production rollback"
-            echo "- Restored Portal, Build, Base, Landing, and Telegram from ledgered deployments."
-            echo "- Run production smoke and record the resulting compatibility tuple."
+            echo
+            echo "| Surface | Deployment | Result |"
+            echo "|---|---|---|"
           } >> "$GITHUB_STEP_SUMMARY"
+          for surface in portal build base landing telegram; do
+            deployment="${deployments[$surface]}"
+            if vercel rollback "$deployment" --yes --token="$VERCEL_TOKEN"; then
+              echo "| $surface | \`$deployment\` | restored |" >> "$GITHUB_STEP_SUMMARY"
+            else
+              failures+=("$surface")
+              echo "| $surface | \`$deployment\` | **failed** |" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          done
+          if [ "${#failures[@]}" -gt 0 ]; then
+            echo "Rollback is incomplete; failed surfaces: ${failures[*]}" >&2
+            exit 1
+          fi
+          echo "- All surfaces restored; run production smoke and record the resulting compatibility tuple." >> "$GITHUB_STEP_SUMMARY"
