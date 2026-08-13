@@ -123,6 +123,8 @@ export interface AomiChatResponse {
   title?: string | null;
   is_processing?: boolean;
   user_state?: UserState | null;
+  /** @deprecated Retained for compatibility with backends that return turn correlation metadata. */
+  turn_id?: string | null;
 }
 
 /**

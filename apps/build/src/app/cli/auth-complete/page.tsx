@@ -23,7 +23,7 @@ export default async function CliAuthCompletePage({
       />
       <section className="border-border bg-card animate-fade-up relative w-full max-w-md overflow-hidden rounded-2xl border p-8 text-center shadow-lg">
         <div className="flex justify-center">
-          <AomiLogo markClassName="h-7 w-7" />
+          <AomiLogo />
         </div>
 
         <div

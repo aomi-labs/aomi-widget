@@ -11,7 +11,7 @@ describe("AomiClient route manifest", () => {
         `${endpoint.method} ${endpoint.path} [${endpoint.auth.join(", ")}]`,
     );
 
-    expect(routeKeys).toHaveLength(139);
+    expect(routeKeys).toHaveLength(146);
     expect(new Set(routeKeys).size).toBe(routeKeys.length);
     expect(routeKeys).toContain("GET /api/account/statement [account]");
     // Public placement probe. Kept distinct from GET /health, which stays a
@@ -358,12 +358,14 @@ describe("AomiClient account profile", () => {
       await client.sendMessage("session-1", "swap 20 mon to usdc", {
         app: "default",
         clientId: "client-1",
+        turnId: "legacy-turn-id",
       });
 
       const [url, init] = nativeFetch.mock.calls[0] ?? [];
       expect(String(url)).toBe(
         "http://unit.test/api/thread/chat?app=default&message=swap+20+mon+to+usdc&client_id=client-1",
       );
+      expect(String(url)).not.toContain("turn_id");
       expect((init as RequestInit | undefined)?.body).toBeUndefined();
       expect(
         new Headers((init as RequestInit).headers).get("X-Session-Id"),

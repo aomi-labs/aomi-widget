@@ -6,6 +6,7 @@ import { defineChain, type Chain } from "viem";
 import { useAccount, useSwitchChain } from "wagmi";
 import {
   AomiWalletKitProvider,
+  arcTestnet,
   isFullTestnet,
   megaeth,
   monad,
@@ -67,6 +68,7 @@ const defaultNetworks = [
   monadTestnet,
   robinhood,
   megaeth,
+  arcTestnet,
 ] as const;
 
 const networks = (

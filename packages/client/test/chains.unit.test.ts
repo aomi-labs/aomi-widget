@@ -24,7 +24,7 @@ describe("supported chain metadata", () => {
     expect(SUPPORTED_CHAIN_IDS).toEqual(
       expect.arrayContaining([
         1, 137, 42161, 8453, 84532, 10, 11155111, 59144, 59141, 143, 10143,
-        4663, 4326, 31337,
+        4663, 4326, 5042002, 31337,
       ]),
     );
   });
@@ -59,6 +59,30 @@ describe("supported chain metadata", () => {
       id: 4326,
       name: "MegaETH",
       nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+    });
+  });
+
+  it("defines Arc Testnet as a USDC-native EVM chain", () => {
+    expect(CHAINS_BY_ID[5042002]).toMatchObject({
+      id: 5042002,
+      name: "Arc Testnet",
+      nativeCurrency: { name: "USDC", symbol: "USDC", decimals: 6 },
+      rpcUrls: {
+        default: {
+          http: [
+            "https://rpc.testnet.arc.io",
+            "https://rpc.drpc.testnet.arc.io",
+            "https://rpc.quicknode.testnet.arc.io",
+          ],
+        },
+      },
+      blockExplorers: {
+        default: {
+          name: "ArcScan",
+          url: "https://testnet.arcscan.app",
+        },
+      },
+      testnet: true,
     });
   });
 });

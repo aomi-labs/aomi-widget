@@ -28,7 +28,7 @@ function renderHarness() {
 }
 
 describe("ExtUserProvider.setUser", () => {
-  it("wipes all wallet-bound fields on disconnect", () => {
+  it("wipes wallet identity but preserves the selected chain on disconnect", () => {
     const ref = renderHarness();
 
     act(() => {
@@ -52,7 +52,7 @@ describe("ExtUserProvider.setUser", () => {
 
     const u = ref.current!.user;
     expect(UserState.isConnected(u)).toBe(false);
-    expect(u.evm).toBeUndefined();
+    expect(u.evm).toEqual({ chain_id: 8453 });
     expect(u.svm).toBeUndefined();
     expect(u.pending).toMatchObject({
       evm_txs: { "1": { foo: "bar" } },

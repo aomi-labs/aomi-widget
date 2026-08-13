@@ -83,7 +83,7 @@ export function Preview({
             dangerouslySetInnerHTML={{ __html: highlighted }}
           />
         ) : (
-          <pre className="rounded-b-2xl bg-[#1e1e2e] px-5 py-4 text-sm leading-relaxed text-[#cdd6f4]">
+          <pre className="rounded-b-2xl bg-[#18181b] px-5 py-4 font-mono text-sm leading-relaxed text-[#d4d4d8]">
             <code className="whitespace-pre-wrap bg-transparent text-inherit p-0">
               {code}
             </code>

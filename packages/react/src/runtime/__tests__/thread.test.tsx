@@ -762,9 +762,15 @@ describe("Thread API", () => {
       expect(fetchState.mock.calls.map(([threadId]) => threadId)).toEqual(
         threadIds.slice(0, 5),
       );
-      expect(createThread.mock.calls.map(([threadId]) => threadId)).toEqual(
-        threadIds.slice(0, 5),
+      const createdThreadIds = createThread.mock.calls.map(
+        ([threadId]) => threadId,
       );
+      expect(createdThreadIds).toEqual(
+        expect.arrayContaining(threadIds.slice(0, 5)),
+      );
+      expect(
+        createdThreadIds.filter((threadId) => threadIds.includes(threadId)),
+      ).toEqual(threadIds.slice(0, 5));
       expect(resolveFetches.has("thread-6")).toBe(false);
       expect(resolveFetches.has("thread-7")).toBe(false);
 

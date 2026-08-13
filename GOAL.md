@@ -2,10 +2,9 @@
 
 ## Backend-Owned Sponsored ERC-4337
 
-Current session goal: **IMPLEMENTED; MAIN RECONCILIATION AND MERGE IN PROGRESS
-2026-08-13** — make
-the cross-origin widget an authentication and owner-signing client while the
-backend owns smart-account provisioning, mandatory Aomi fee construction,
+Current session goal: **RECONCILED WITH MAIN AND LOCALLY VERIFIED 2026-08-13**
+— make the cross-origin widget an authentication and owner-signing client while
+the backend owns smart-account provisioning, mandatory Aomi fee construction,
 sponsorship, broadcast, confirmation, and revenue receipts.
 
 - Replaced partner-controlled AA/paymaster configuration with the required
@@ -19,16 +18,77 @@ sponsorship, broadcast, confirmation, and revenue receipts.
   chain resolution.
 - Removed legacy `aa_handoff` rehydration and generic thread callbacks for AA;
   operation replay now resolves against backend state.
-- Versioned the breaking publishable packages and verified client/react/widget
-  builds, account and Portal type-checks, the full root suite (1,454 passing),
-  and focused registry signing/runtime tests.
-- Proved the server-owned prepare/sign/send path with sponsored Base Sepolia
-  transaction
+- Versioned the breaking publishable packages and proved the server-owned
+  prepare/sign/send path with sponsored Base Sepolia transaction
   `0xb426a23e41ccba02a11fc2346992fd6fbd449e59f26d6a0c6d7c2c9ea4cb14bd`.
-- Before merging PR #469, reconcile the branch with current `main`, retain only
-  durable provider-registration, missing-provider, network-preference,
-  signer/address, authorization, and fee-path regression tests, rebuild every
-  changed publishable package, and require clean repository checks.
+- Reconciled PR #469 with current `main`, including staged EVM chain selection;
+  retained durable provider-registration, missing-provider,
+  network-preference, signer/address, authorization, fee-path, and chain-switch
+  regressions while deleting the obsolete legacy EIP-712 orchestrator test.
+- Verified 1,476 root tests and 347 registry tests, root lint/typecheck, Portal
+  typecheck, the widget consumer production build, and all changed publishable
+  package builds.
+
+## MCP explicit chain context
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-13** —
+remove fabricated Ethereum and Solana mainnet state from headless MCP chat.
+`aomi_chat` accepts an optional explicit EVM chain or supported Solana cluster;
+omission retains account wallet identity without claiming an active network.
+
+## Cross-chain wallet approval review
+
+Current session goal: **IMPLEMENTED AND REVIEW CLEANUP COMPLETE 2026-08-13** —
+switch staged EVM transactions before simulation and signing without issuing a
+second switch request from the lower executor. The handler now passes an explicit
+already-selected chain into native execution, direct executor callers retain their
+own switch behavior, the stale implementation plan was removed, the checked-in
+registry mirror was regenerated, and publishable versions are
+`@aomi-labs/client@0.4.7` and `@aomi-labs/widget-lib@1.4.30`.
+
+## Safari wallet-state sync containment
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED; STAGING ROLLOUT IN
+PROGRESS 2026-08-10** — keep a
+best-effort wallet-state notification failure from becoming an unhandled
+promise rejection when an anonymous user changes networks. The regression was
+reproduced in WebKit by selecting Arc Testnet and receiving an expected 401
+from `/api/system`; the React package is patch-bumped to
+`@aomi-labs/react@0.5.13`.
+
+## Arc Testnet staging support
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED; STAGING ROLLOUT IN
+PROGRESS 2026-08-10** — add Arc Testnet (`5042002`) across the shared chain
+catalog, wallet providers, server-side SIWE verification, and Portal network
+selection. Disconnected read-only chat retains the selected chain instead of
+falling back to Ethereum. Arc is represented as USDC-native with 6 display
+decimals while backend RPC accounting retains 18-decimal native precision.
+Publishable packages are patch-bumped to `@aomi-labs/account@0.1.12`,
+`@aomi-labs/client@0.4.5`, `@aomi-labs/react@0.5.12`, and
+`@aomi-labs/widget-lib@1.4.27`.
+
+## Browser Response Latency
+
+Current session goal: **SIMPLIFIED AND LOCALLY VERIFIED 2026-08-10** — improve
+browser chat responsiveness without adding a backend streaming protocol.
+
+- Empty drafts prewarm through one shared create/control promise; send awaits
+  the same work and retries a failed speculative warm.
+- A model change during prewarm gets at most one follow-up control sync.
+- State polling uses one timeout and one in-flight request, slows in hidden
+  tabs, reconciles when the tab becomes visible, and backs off after failures.
+- Completed text renders immediately instead of replaying a synthetic 500 ms
+  typewriter animation.
+- Thread state/SSE reads remain bearer-independent at the Portal proxy, while
+  the existing origin-bound widget-session check still gates cross-origin
+  requests and spoofed browser authorization/cookies are stripped.
+- No turn ID or `assistant_text_started` client protocol is included; the
+  frontend continues to work with the existing backend and polling contract.
+- Publishable versions are `@aomi-labs/client@0.4.4`,
+  `@aomi-labs/react@0.5.11`, and `@aomi-labs/widget-lib@1.4.26`.
+- All 1,467 root tests plus the configured registry trace suite, repository
+  lint, client typecheck, and all three publishable package builds pass.
 
 ## Canonical Build Projects Refactor
 
@@ -107,6 +167,24 @@ through the canonical Session contract.
 - Kept the public BotFather contract aligned to `/start`, `/thread`,
   `/wallet`, `/permission`, `/tx`, `/app`, `/model`, `/network`, and
   `/disconnect`.
+
+## MCP Chat Parity
+
+Current session goal: **IMPLEMENTED AND LIVE-CHAIN VERIFIED 2026-08-13** — make
+the OAuth MCP surface supervise the same asynchronous Aomi
+agent turns as the TS CLI. `/api/mcp` now has four chat/session tools with rich
+cursor deltas, task/tool narration, wallet-request handoff, and account-wallet
+hydration; the prior direct tool funnel remains at `/api/mcp/direct` behind the
+same OAuth resource metadata. SIWE → dynamic registration → PKCE/consent →
+refresh-token OAuth, real agent replies, resume/list/interrupt, a locally
+staged manual-wallet transaction, and the browser handoff into its exact
+conversation are all covered by the local smoke.
+The funded-wallet follow-up attached the local OAuth server to a fresh Codex
+process, made progress cursors self-contained after that client exposed a
+missing-session retry loop, imported the account-owned MCP thread into the CLI,
+and signed its one-wei Base self-transfer. Both the requested transaction and
+service-fee transaction confirmed, and a later MCP check returned an empty
+pending queue plus both hashes.
 
 ## Chat Composer Parity
 
@@ -218,6 +296,13 @@ architecture guide now names both refs so a legacy third target cannot be
 mistaken for another supported environment.
 
 Progress:
+
+- 2026-08-10 Build staging import hand-off: kept the Connect control disabled
+  after navigation starts (instead of briefly re-enabling it before GitHub
+  loads), while retaining retry after a failed hand-off. The manager now
+  rejects duplicate repository imports atomically, and platform branch commits
+  rebase their tree update and retry a concurrent fast-forward race up to three
+  times.
 
 - 2026-08-05 MegaETH chain support: completed chain 4326 coverage in React
   network naming, server-side smart-account SIWE verification, and the Landing,

@@ -67,6 +67,7 @@ export interface AuditEvent {
     | "get_project_sdk_upgrade_status"
     | "list_deployment_records"
     | "get_user_project_latest_deployment"
+    | "get_user_project_deployment"
     | "get_user_project_required_secrets"
     | "deactivate"
     | "ingest_secrets";
@@ -531,6 +532,28 @@ export interface ListUserProjectDeploymentsInput extends BearerOverride {
   githubUserId: string;
   projectId: number;
   limit?: number;
+}
+
+/** Exact candidate projection; unlike the paged history this is safe for
+ * authorization and for a deployment's first promotion. */
+export interface GetUserProjectDeploymentInput extends BearerOverride {
+  githubUserId: string;
+  projectId: number;
+  deploymentId: string;
+}
+
+export interface PromoteUserProjectDeploymentInput extends GetUserProjectDeploymentInput {
+  mode: "targeted" | "apply_composition";
+  apps?: string[];
+  actor?: string;
+}
+
+export interface ActivateUserProjectReleasesInput extends BearerOverride {
+  githubUserId: string;
+  projectId: number;
+  releaseTags: string[];
+  apps: string[];
+  actor?: string;
 }
 
 export interface UserDeploymentsCursor {

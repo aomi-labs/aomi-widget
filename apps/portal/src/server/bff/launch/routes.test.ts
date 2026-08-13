@@ -107,42 +107,6 @@ function sourceWithApps(id: number, apps: Array<Record<string, unknown>>) {
   });
 }
 
-/** The DB promotion-records response for one app (the promote authz source). */
-function appRecords(...deploymentIds: string[]) {
-  return Response.json({
-    app: "my-bot",
-    current_release_tag: null,
-    records: deploymentIds.map((deployment_id) => ({
-      deployment_id,
-      release_tag: `${deployment_id}-tag`,
-      actor: null,
-      created_at: 0,
-      sdk_version: "3.0.1",
-      current: false,
-    })),
-  });
-}
-
-/** Same shape as `appRecords`, but with an explicit release tag — used to
- *  derive the promote secret-gate's (app, releaseTag) pairs from the DB
- *  promotion records (the `projectDeploymentPairs` call). */
-function appRecordsWithTag(deploymentId: string, releaseTag: string) {
-  return Response.json({
-    app: "my-bot",
-    current_release_tag: null,
-    records: [
-      {
-        deployment_id: deploymentId,
-        release_tag: releaseTag,
-        actor: null,
-        created_at: 0,
-        sdk_version: "3.0.1",
-        current: false,
-      },
-    ],
-  });
-}
-
 function activationSource(id = 99) {
   return Response.json({
     projects: [
@@ -163,18 +127,21 @@ function activationSource(id = 99) {
   });
 }
 
-function projectDeployments() {
+/** Exact Project-scoped candidate response: unlike deployment_records it is
+ * present before first promotion and carries the release pair for the secret
+ * UX gate. */
+function candidateDeployment(
+  deploymentId: string,
+  releaseTag = "apps-555-r1-my-bot-abc",
+) {
   return Response.json({
-    deployments: [
-      {
-        deployment_id: "dep_1",
-        project_id: 99,
-        repository_link: "alice/bot",
-        created_at: 1,
-        release_tags: ["apps-555-r1-my-bot-abc"],
-        apps: [{ name: "my-bot", release_tag: "apps-555-r1-my-bot-abc" }],
-      },
-    ],
+    deployment: {
+      deployment_id: deploymentId,
+      project_id: 99,
+      platform_repo: "aomi-labs/my-bot-app",
+      created_at: 1,
+      apps: [{ name: "my-bot", release_tag: releaseTag }],
+    },
   });
 }
 
@@ -584,7 +551,9 @@ describe("deploymentPromoteRoute", () => {
     });
   }
 
-  it("logs a swallowed deployment-records 5xx without creating an Issue", async () => {
+  it("relays a candidate-lookup 5xx and logs it without creating an Issue", async () => {
+    // The exact projection lookup is authoritative: a backend 5xx surfaces as
+    // itself instead of being swallowed into a false "not owned" 404.
     getGitHubSession.mockResolvedValue({
       githubUserId: "42",
       githubLogin: "alice",
@@ -601,12 +570,12 @@ describe("deploymentPromoteRoute", () => {
       promoteReq({ deploymentId: DEPLOYMENT, projectId: 99 }),
     );
 
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(503);
     expect(telemetry.capture).not.toHaveBeenCalled();
     expect(telemetry.log).toHaveBeenCalledTimes(1);
     expect(telemetry.log).toHaveBeenCalledWith({
       routeFamily: "/api/bff/deployments/promote",
-      operation: "deployment.records_lookup",
+      operation: "deployment.promote",
       method: "POST",
       status: 503,
       upstream: "rust",
@@ -668,11 +637,13 @@ describe("deploymentPromoteRoute", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it("rejects a deployment absent from the source's DB records", async () => {
+  it("rejects a deployment absent from the exact Project candidate projection", async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(ownedSources(99))
-      .mockResolvedValueOnce(appRecords("dep_555_r0123abcdef_other001"));
+      .mockResolvedValueOnce(
+        Response.json({ deployment: null }, { status: 404 }),
+      );
     vi.stubGlobal("fetch", fetchMock);
 
     const res = await deploymentPromoteRoute(
@@ -681,11 +652,11 @@ describe("deploymentPromoteRoute", () => {
     const body = await res.json();
 
     expect(res.status).toBe(404);
-    expect(body.error).toContain("deployment does not belong");
+    expect(body.error).toContain("get_user_project_deployment failed (404)");
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    // The records lookup is DB, not the GitHub history fanout.
+    // Candidate authorization is an exact Project-scoped DB lookup.
     expect(String(fetchMock.mock.calls[1][0])).toContain(
-      "/apps/my-bot/records",
+      `/deployments/${DEPLOYMENT}`,
     );
   });
 
@@ -694,10 +665,7 @@ describe("deploymentPromoteRoute", () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(ownedSources(99))
-      .mockResolvedValueOnce(appRecords(DEPLOYMENT))
-      // projectDeploymentPairs re-reads the same DB records to derive the
-      // secret-gate pairs.
-      .mockResolvedValueOnce(appRecords(DEPLOYMENT))
+      .mockResolvedValueOnce(candidateDeployment(DEPLOYMENT))
       .mockResolvedValueOnce(latestDeploymentResponse("aomi-labs/community"))
       .mockResolvedValueOnce(Response.json({ by_app: {} }))
       .mockResolvedValueOnce(Response.json({ assets: [] }))
@@ -720,14 +688,12 @@ describe("deploymentPromoteRoute", () => {
     expect(res.status).toBe(202);
     expect(body.ok).toBe(true);
     expect(body.promote.deploymentId).toBe(DEPLOYMENT);
-    // Promote goes through the one activation door with a deployment target.
-    const [promoteUrl, promoteInit] = fetchMock.mock.calls[6];
-    expect(String(promoteUrl)).toContain("/apps/activate");
+    // Promote goes through the Project-scoped promotion door.
+    const [promoteUrl, promoteInit] = fetchMock.mock.calls[5];
+    expect(String(promoteUrl)).toContain(`/deployments/${DEPLOYMENT}/promote`);
     const promoteBody = JSON.parse(String(promoteInit?.body));
-    expect(promoteBody.target).toEqual({
-      kind: "deployment",
-      value: DEPLOYMENT,
-    });
+    expect(promoteBody.mode).toBe("targeted");
+    expect(promoteBody.apps).toEqual(["my-bot"]);
     expect(promoteBody.actor).toBe("alice");
   });
 
@@ -738,10 +704,7 @@ describe("deploymentPromoteRoute", () => {
       .mockResolvedValueOnce(
         activationSourceWithRepo("aomi-labs/my-bot-app", 99),
       )
-      .mockResolvedValueOnce(appRecords(DEPLOYMENT))
-      .mockResolvedValueOnce(
-        appRecordsWithTag(DEPLOYMENT, "apps-555-r1-my-bot-abc"),
-      )
+      .mockResolvedValueOnce(candidateDeployment(DEPLOYMENT))
       // missingSecretsForActivation resolves platformRepo via the per-source
       // detail endpoint since latestDeployment is null on the list response.
       .mockResolvedValueOnce(latestDeploymentResponse("aomi-labs/my-bot-app"))
@@ -786,7 +749,7 @@ describe("deploymentPromoteRoute", () => {
       error: "missing required secrets",
       missing: { "my-bot": ["MY_BOT_SECRET_KEY"] },
     });
-    expect(fetchMock).toHaveBeenCalledTimes(7);
+    expect(fetchMock).toHaveBeenCalledTimes(6);
   });
 
   it("promotes when required secrets are filled", async () => {
@@ -796,10 +759,7 @@ describe("deploymentPromoteRoute", () => {
       .mockResolvedValueOnce(
         activationSourceWithRepo("aomi-labs/my-bot-app", 99),
       )
-      .mockResolvedValueOnce(appRecords(DEPLOYMENT))
-      .mockResolvedValueOnce(
-        appRecordsWithTag(DEPLOYMENT, "apps-555-r1-my-bot-abc"),
-      )
+      .mockResolvedValueOnce(candidateDeployment(DEPLOYMENT))
       .mockResolvedValueOnce(latestDeploymentResponse("aomi-labs/my-bot-app"))
       .mockResolvedValueOnce(
         Response.json({
@@ -827,32 +787,20 @@ describe("deploymentPromoteRoute", () => {
 
     expect(res.status).toBe(202);
     expect(body.ok).toBe(true);
-    expect(fetchMock).toHaveBeenCalledTimes(7);
+    expect(fetchMock).toHaveBeenCalledTimes(6);
   });
 
-  it("gates promote by the authorized DB records, not a size-limited deployments listing (regression)", async () => {
-    // Regression for the bypass where the secret gate derived its pairs from
-    // listUserProjectDeployments (limit: 100) — a different, size-limited
-    // source than the ownership check (listDeploymentRecords, no limit). A
-    // deployment authorized via the records but absent from that limited
-    // listing yielded empty pairs and silently skipped the 409. This
-    // deployment IS authorized (present in the records used for ownership,
-    // same as `known`), so it must now fail closed on its unfilled required
-    // secret — and promote must never be called. Note there is no
-    // listUserProjectDeployments stub anywhere here: the fixed route never
-    // calls it for promote.
+  it("gates a pagination-external candidate from its exact projection (regression)", async () => {
+    // A paginated history cannot prove candidate ownership. The exact
+    // projection supplies the pair, so an old candidate still fails closed
+    // on its unfilled required secret and promote is never called.
     vi.stubEnv("GITHUB_TOKEN", "gh-token");
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(
         activationSourceWithRepo("aomi-labs/my-bot-app", 99),
       )
-      .mockResolvedValueOnce(
-        appRecordsWithTag(DEPLOYMENT, "apps-555-r1-my-bot-abc"),
-      )
-      .mockResolvedValueOnce(
-        appRecordsWithTag(DEPLOYMENT, "apps-555-r1-my-bot-abc"),
-      )
+      .mockResolvedValueOnce(candidateDeployment(DEPLOYMENT))
       .mockResolvedValueOnce(latestDeploymentResponse("aomi-labs/my-bot-app"))
       .mockResolvedValueOnce(Response.json({ by_app: {} }))
       .mockResolvedValueOnce(
@@ -886,7 +834,7 @@ describe("deploymentPromoteRoute", () => {
       error: "missing required secrets",
       missing: { "my-bot": ["MY_BOT_API_KEY"] },
     });
-    expect(fetchMock).toHaveBeenCalledTimes(7);
+    expect(fetchMock).toHaveBeenCalledTimes(6);
     expect(
       fetchMock.mock.calls.some(([url]) => String(url).includes("/promote")),
     ).toBe(false);
@@ -1160,7 +1108,6 @@ describe("activateLaunchRoute", () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(activationSourceWithRepo("aomi-labs/my-bot-app"))
-      .mockResolvedValueOnce(projectDeployments())
       .mockResolvedValueOnce(latestDeploymentResponse("aomi-labs/my-bot-app"))
       .mockResolvedValueOnce(
         Response.json({
@@ -1208,7 +1155,7 @@ describe("activateLaunchRoute", () => {
       error: "missing required secrets",
       missing: { "my-bot": ["MY_BOT_SECRET_KEY"] },
     });
-    expect(fetchMock).toHaveBeenCalledTimes(6);
+    expect(fetchMock).toHaveBeenCalledTimes(5);
   });
 
   it("activates when the release manifest declares no secrets for the app", async () => {
@@ -1216,7 +1163,6 @@ describe("activateLaunchRoute", () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(activationSourceWithRepo("aomi-labs/my-bot-app"))
-      .mockResolvedValueOnce(projectDeployments())
       .mockResolvedValueOnce(latestDeploymentResponse("aomi-labs/my-bot-app"))
       .mockResolvedValueOnce(Response.json({ by_app: {} }))
       .mockResolvedValueOnce(Response.json({ assets: [] }))
@@ -1234,7 +1180,7 @@ describe("activateLaunchRoute", () => {
     );
 
     expect(res.status).toBe(200);
-    expect(fetchMock).toHaveBeenCalledTimes(6);
+    expect(fetchMock).toHaveBeenCalledTimes(5);
   });
 
   it("requires projectId and app/tag pairs", async () => {
@@ -1288,17 +1234,25 @@ describe("activateLaunchRoute", () => {
       ).status,
     ).toBe(404);
 
+    // Unmatched pair: the route no longer pre-authorizes against a listing;
+    // Manager's Project-scoped rejection is relayed as-is.
     vi.restoreAllMocks();
     getGitHubSession.mockResolvedValue({
       githubUserId: "42",
       githubLogin: "alice",
     });
+    vi.stubEnv("GITHUB_TOKEN", "gh-token");
     vi.stubGlobal(
       "fetch",
       vi
         .fn()
         .mockResolvedValueOnce(activationSource())
-        .mockResolvedValueOnce(projectDeployments()),
+        .mockResolvedValueOnce(latestDeploymentResponse("aomi-labs/community"))
+        .mockResolvedValueOnce(Response.json({ by_app: {} }))
+        .mockResolvedValueOnce(Response.json({ assets: [] }))
+        .mockResolvedValueOnce(
+          Response.json({ error: "release not found" }, { status: 404 }),
+        ),
     );
     expect(
       (
@@ -1318,7 +1272,6 @@ describe("activateLaunchRoute", () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(activationSource())
-      .mockResolvedValueOnce(projectDeployments())
       .mockResolvedValueOnce(latestDeploymentResponse("aomi-labs/community"))
       .mockResolvedValueOnce(Response.json({ by_app: {} }))
       .mockResolvedValueOnce(Response.json({ assets: [] }))
@@ -1335,14 +1288,11 @@ describe("activateLaunchRoute", () => {
       }),
     );
     expect(res.status).toBe(200);
-    expect(fetchMock).toHaveBeenCalledTimes(6);
-    expect(fetchMock.mock.calls[5][1]).toMatchObject({
+    expect(fetchMock).toHaveBeenCalledTimes(5);
+    expect(fetchMock.mock.calls[4][1]).toMatchObject({
       method: "POST",
       body: JSON.stringify({
-        target: {
-          kind: "release_tags",
-          value: ["apps-555-r1-my-bot-abc"],
-        },
+        release_tags: ["apps-555-r1-my-bot-abc"],
         apps: ["my-bot"],
       }),
     });

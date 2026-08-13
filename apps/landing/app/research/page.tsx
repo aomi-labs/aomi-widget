@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { AomiLogo } from "../components/aomi-logo";
 import { researchPosts } from "@/lib/research";
 
 export const metadata: Metadata = {
@@ -27,12 +28,7 @@ export default function ResearchPage() {
           aria-label="Aomi home"
           className="flex items-center justify-end gap-2 pr-5 font-serif text-xl font-bold tracking-tight text-foreground"
         >
-          <img
-            src="/assets/images/bubble.svg"
-            alt=""
-            className="h-5 w-5 dark:invert"
-          />
-          <span>aomi</span>
+          <AomiLogo className="text-[14px]" markClassName="h-3.5 w-3.5 dark:invert" />
         </Link>
         <h1 className="mt-8 font-serif text-4xl tracking-tight text-foreground md:text-5xl">
           Research

@@ -72,13 +72,13 @@ export default function ChatPage() {
 
 Set `NEXT_PUBLIC_BACKEND_URL=https://api.aomi.dev` in `.env.local`.
 
-**Read this for the full quickstart:** https://aomi.dev/docs/build/quickstart.md
+**Read this for the full quickstart:** https://aomi.dev/docs/guides/widget-installation.md
 
 **For a custom UI** (your own composer, message list, tool views) using the headless React library, install `@aomi-labs/react` and read:
-- https://aomi.dev/docs/build/ui/headless/install.md
-- https://aomi.dev/docs/build/ui/headless/build-custom-ui.md
+- https://aomi.dev/docs/guides/headless-library.md
+- https://aomi.dev/docs/guides/headless/build-custom-ui.md
 
-**Decision: widget vs headless?** Use the widget when you want chat-shaped UX out of the box. Use headless when you need a different layout (sidebar, fullscreen, embedded inline) or your own components. Read https://aomi.dev/docs/build/integration-guide.md.
+**Decision: widget vs headless?** Use the widget when you want chat-shaped UX out of the box. Use headless when you need a different layout (sidebar, fullscreen, embedded inline) or your own components. Read https://aomi.dev/docs/guides/integration.md.
 
 ## Build
 
@@ -101,19 +101,19 @@ npx skills add aomi-labs/skills
 - Tool descriptions tell the model **when to call**, not just what endpoint they wrap.
 
 **Read these for SDK patterns:**
-- https://aomi.dev/docs/build/services/building-apps.md
-- https://aomi.dev/docs/build/namespaces.md
-- https://aomi.dev/docs/build/services/api-reference.md
+- https://aomi.dev/docs/build/plugins/anatomy.md
+- https://aomi.dev/docs/build/plugins/sdk.md
+- https://aomi.dev/docs/reference/api-reference.md
 
 ## Key concepts (one paragraph each)
 
 **Apps.** An Aomi App is a tool bundle plus a system prompt. The default app handles general chain reads and tx building. Switch with `--app <name>` on the CLI or `app="<name>"` in widget config. List with `aomi app list`.
 
-**Sessions.** Conversation history persists on the Aomi backend; tx state and pointers live locally under `~/.aomi/`. Use `--new-session` on the first command of a fresh task. Resume with `aomi session resume <id>`. Read https://aomi.dev/docs/build/services/sessions.md.
+**Sessions.** Conversation history persists on the Aomi backend; tx state and pointers live locally under `~/.aomi/`. Use `--new-session` on the first command of a fresh task. Resume with `aomi session resume <id>`. Read https://aomi.dev/docs/reference/sessions.md.
 
 **Simulation.** Every transaction is simulated against a fork of the live chain before signing. Multi-step batches (approve → swap) are simulated together so state-dependent steps validate correctly. Run `aomi tx simulate tx-1 tx-2` before `aomi tx sign tx-1 tx-2`. Read https://aomi.dev/docs/reference/simulation.md.
 
-**Account abstraction.** Signing defaults to AA via a zero-config Alchemy proxy. Falls through to user-side BYOK if Alchemy or Pimlico keys are configured. `--eoa` skips AA entirely. Read https://aomi.dev/docs/reference/account-abstraction.md.
+**Account abstraction.** Signing defaults to AA via a zero-config Alchemy proxy. Falls through to user-side BYOK if Alchemy or Pimlico keys are configured. `--eoa` skips AA entirely. Read https://aomi.dev/docs/trade/execution.md.
 
 **Non-custodial.** Aomi never holds private keys. The agent constructs transactions; the user's wallet signs them locally through wagmi-compatible connectors (or via the AA flow on supported chains).
 

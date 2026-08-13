@@ -507,7 +507,7 @@ export async function Apps() {
                 Build with agent
               </a>
               <a
-                href="https://aomi.dev/docs/build/overview"
+                href="https://aomi.dev/docs/"
                 className="font-geist mt-3 w-fit text-sm font-semibold text-stone-900 transition-colors hover:text-stone-700"
               >
                 Open build guide

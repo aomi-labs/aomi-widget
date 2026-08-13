@@ -12,6 +12,7 @@ import {
   UserState,
   appendFeeCallToPayload,
   hydrateTxPayloadFromUserState,
+  parseChainId,
   useAomiRuntime,
   type WalletRequest,
   type WalletTxPayload,
@@ -189,6 +190,28 @@ export function RuntimeTxHandler() {
     [adapter],
   );
 
+  const maybeSwitchEvmChain = useCallback(
+    async (targetChainId: number): Promise<void> => {
+      if (!targetChainId || targetChainId === currentChainId) return;
+
+      const supported = adapter.supportedNetworks?.evm?.some(
+        (network) => parseChainId(network.id) === targetChainId,
+      );
+      if (supported === false) {
+        throw new Error(
+          `This wallet does not support chain ${targetChainId}. Reconnect with a wallet that does.`,
+        );
+      }
+      if (!adapter.switchChain) {
+        throw new Error(
+          `Cannot switch the wallet to chain ${targetChainId}. Switch networks manually and retry.`,
+        );
+      }
+      await adapter.switchChain(targetChainId);
+    },
+    [adapter, currentChainId],
+  );
+
   const signRequestPayloads = useCallback(
     async (
       req: Extract<WalletRequest, { kind: "signing" }>,
@@ -336,6 +359,7 @@ export function RuntimeTxHandler() {
             payload.calls?.[0]?.chainId ??
             currentChainId ??
             1;
+          await maybeSwitchEvmChain(defaultChainId);
           const simulationResult = await simulateBatchTransactions(
             toSimulationTransactions(payload),
             {
@@ -371,7 +395,9 @@ export function RuntimeTxHandler() {
 
           let result;
           try {
-            result = await adapter.sendTransaction(payloadWithFee);
+            result = await adapter.sendTransaction(payloadWithFee, {
+              chainIdAlreadySelected: defaultChainId,
+            });
           } catch (error) {
             // A sequential (non-atomic) executor may have landed a PREFIX
             // of the batch before failing — adapters signal that by
@@ -501,6 +527,7 @@ export function RuntimeTxHandler() {
     rejectWalletRequest,
     simulateBatchTransactions,
     showNotification,
+    maybeSwitchEvmChain,
     maybeSwitchSolanaCluster,
     signRequestPayloads,
   ]);

@@ -104,7 +104,8 @@
       Consolas, monospace;
     /* Logo wordmark only — the "aomi" lockup, set in SemiBold 600.
        Load "Source Serif 4" (weight 600) at the app root when using <Logo>. */
-    --aomi-font-wordmark: "Source Serif 4", ui-serif, Georgia, Cambria, serif;
+    --aomi-font-wordmark: var(--font-source-serif-4, "Source Serif 4"), ui-serif,
+      Georgia, Cambria, serif;
 
     --aomi-text-xs: 0.75rem;
     --aomi-text-sm: 0.875rem;

@@ -7,6 +7,7 @@ import type {
   AomiAccount,
   AomiAccountCredential,
   AomiSessionIdentity,
+  AomiTransactionExecution,
   AomiLoginMethod,
   AomiTxResult,
   AuthProviderId,
@@ -80,7 +81,10 @@ export type SvmWalletRuntime = WalletRuntime<"svm"> & {
 };
 
 export type EvmExecutionRuntime = {
-  sendTransaction?: (p: WalletTxPayload) => Promise<AomiTxResult>;
+  sendTransaction?: (
+    payload: WalletTxPayload,
+    execution?: AomiTransactionExecution,
+  ) => Promise<AomiTxResult>;
   signTypedData?: (p: WalletEip712Payload) => Promise<{ signature: string }>;
   signMessage?: (p: WalletEip712Payload) => Promise<{ signature: string }>;
   activeConnector?: Connector;

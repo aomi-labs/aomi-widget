@@ -30,6 +30,11 @@ vi.mock("./ParaPluginProvider", () => ({
   AomiParaPluginProvider: ({ children }: { children: ReactNode }) => children,
 }));
 
+vi.mock("./para-evm-runtime-provider", () => ({
+  AomiParaEvmRuntimeProvider: ({ children }: { children: ReactNode }) =>
+    children,
+}));
+
 vi.mock("@getpara/react-sdk", async () => {
   const React = await import("react");
   return {

@@ -15,10 +15,7 @@ import {
   useThreadContext,
   type ThreadContext,
 } from "../contexts/thread-context";
-import {
-  initThreadControl,
-  type ThreadTurnPhase,
-} from "../state/thread-store";
+import { initThreadControl, type ThreadTurnPhase } from "../state/thread-store";
 import { SessionManager } from "./session-manager";
 import { collectTxOutcomes, toInboundMessage } from "./utils";
 import { mergeAssistantTurns } from "./merge-turns";
@@ -264,10 +261,9 @@ const updateTurnPhase = (
   threadContext: ThreadContext,
   threadId: string,
   turnPhase: ThreadTurnPhase,
-  options?: { completed?: boolean },
 ) => {
   const metadata = threadContext.getThreadMetadata(threadId);
-  if (metadata?.control.turnPhase === turnPhase && !options?.completed) {
+  if (metadata?.control.turnPhase === turnPhase) {
     return;
   }
 
@@ -285,7 +281,6 @@ const updateTurnPhase = (
         control: {
           ...initThreadControl(),
           turnPhase,
-          ...(options?.completed ? { lastCompletedAt: Date.now() } : null),
         },
       });
       return next;
@@ -297,7 +292,6 @@ const updateTurnPhase = (
     control: {
       ...metadata.control,
       turnPhase,
-      ...(options?.completed ? { lastCompletedAt: Date.now() } : null),
     },
   });
 };
@@ -500,9 +494,7 @@ export function useRuntimeOrchestrator(
       );
       cleanups.push(
         session.on("processing_end", () => {
-          updateTurnPhase(threadContextRef.current, threadId, "idle", {
-            completed: true,
-          });
+          updateTurnPhase(threadContextRef.current, threadId, "idle");
           if (threadContextRef.current.currentThreadId === threadId) {
             setIsRunning(false);
           }
@@ -699,9 +691,7 @@ export function useRuntimeOrchestrator(
         });
         optionsRef.current.onSendSuccess?.(threadId);
         if (!session.getIsProcessing()) {
-          updateTurnPhase(threadContextRef.current, threadId, "idle", {
-            completed: true,
-          });
+          updateTurnPhase(threadContextRef.current, threadId, "idle");
         }
         if (threadContextRef.current.currentThreadId === threadId) {
           setIsRunning(session.getIsProcessing());

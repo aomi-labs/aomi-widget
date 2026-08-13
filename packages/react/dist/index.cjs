@@ -1513,8 +1513,10 @@ function mergeRecords(previous, incoming) {
 }
 function dropWalletBlocks(state) {
   var _a;
+  const chainId = import_client2.UserState.chainId(state);
   return (_a = import_client2.UserState.normalize({
     connection: { is_connected: false },
+    evm: chainId === void 0 ? void 0 : { chain_id: chainId },
     pending: state.pending,
     ext: state.ext,
     preferences: state.preferences
@@ -1911,6 +1913,8 @@ var getNetworkName = (chainId) => {
       return "monad-testnet";
     case 4326:
       return "megaeth";
+    case 5042002:
+      return "arc-testnet";
     case 1337:
     case 31337:
       return "testnet";
@@ -2165,9 +2169,9 @@ var updateOptimisticMessage = (threadContext, threadId, messageId, status, error
     threadContext.setThreadMessages(threadId, nextMessages);
   }
 };
-var updateTurnPhase = (threadContext, threadId, turnPhase, options) => {
+var updateTurnPhase = (threadContext, threadId, turnPhase) => {
   const metadata = threadContext.getThreadMetadata(threadId);
-  if ((metadata == null ? void 0 : metadata.control.turnPhase) === turnPhase && !(options == null ? void 0 : options.completed)) {
+  if ((metadata == null ? void 0 : metadata.control.turnPhase) === turnPhase) {
     return;
   }
   if (!metadata) {
@@ -2177,18 +2181,18 @@ var updateTurnPhase = (threadContext, threadId, turnPhase, options) => {
         title: "New Chat",
         status: "regular",
         lastActiveAt: (/* @__PURE__ */ new Date()).toISOString(),
-        control: __spreadValues(__spreadProps(__spreadValues({}, initThreadControl()), {
+        control: __spreadProps(__spreadValues({}, initThreadControl()), {
           turnPhase
-        }), (options == null ? void 0 : options.completed) ? { lastCompletedAt: Date.now() } : null)
+        })
       });
       return next;
     });
     return;
   }
   threadContext.updateThreadMetadata(threadId, {
-    control: __spreadValues(__spreadProps(__spreadValues({}, metadata.control), {
+    control: __spreadProps(__spreadValues({}, metadata.control), {
       turnPhase
-    }), (options == null ? void 0 : options.completed) ? { lastCompletedAt: Date.now() } : null)
+    })
   });
 };
 var appendPaymentRequiredMessage = (threadContext, threadId) => {
@@ -2351,9 +2355,7 @@ function useRuntimeOrchestrator(aomiClient, options) {
       );
       cleanups.push(
         session.on("processing_end", () => {
-          updateTurnPhase(threadContextRef.current, threadId, "idle", {
-            completed: true
-          });
+          updateTurnPhase(threadContextRef.current, threadId, "idle");
           if (threadContextRef.current.currentThreadId === threadId) {
             setIsRunning(false);
           }
@@ -2519,9 +2521,7 @@ function useRuntimeOrchestrator(aomiClient, options) {
         });
         (_d = (_c = optionsRef.current).onSendSuccess) == null ? void 0 : _d.call(_c, threadId);
         if (!session.getIsProcessing()) {
-          updateTurnPhase(threadContextRef.current, threadId, "idle", {
-            completed: true
-          });
+          updateTurnPhase(threadContextRef.current, threadId, "idle");
         }
         if (threadContextRef.current.currentThreadId === threadId) {
           setIsRunning(session.getIsProcessing());
@@ -3039,7 +3039,7 @@ function useWalletStateSync(context, sessions, remoteThreads) {
   const lastWalletStateRef = (0, import_react13.useRef)(walletSnapshot(getUserState()));
   (0, import_react13.useEffect)(() => {
     lastWalletStateRef.current = walletSnapshot(getUserState());
-    const unsubscribe = onUserStateChange(async (newUser) => {
+    const unsubscribe = onUserStateChange((newUser) => {
       var _a, _b;
       const nextWalletState = walletSnapshot(newUser);
       const prevWalletState = lastWalletStateRef.current;
@@ -3068,8 +3068,10 @@ function useWalletStateSync(context, sessions, remoteThreads) {
         type: "wallet:state_changed",
         payload: nextWalletState
       });
-      await aomiClientRef.current.sendSystemMessage(sessionId, message, {
+      void aomiClientRef.current.sendSystemMessage(sessionId, message, {
         app: getCurrentThreadApp()
+      }).catch((error) => {
+        console.warn("Failed to sync wallet state:", error);
       });
     });
     return unsubscribe;
@@ -3483,6 +3485,24 @@ function clearPersistedThreadId(storageKey) {
 
 // src/runtime/core.tsx
 var import_jsx_runtime7 = require("react/jsx-runtime");
+async function runSingleFlight(flights, threadId, work) {
+  const existing = flights.get(threadId);
+  if (existing) return existing;
+  const promise = work();
+  flights.set(threadId, promise);
+  try {
+    await promise;
+  } finally {
+    if (flights.get(threadId) === promise) {
+      flights.delete(threadId);
+    }
+  }
+}
+function appendMessageText(message) {
+  return message.content.filter(
+    (part) => part.type === "text"
+  ).map((part) => part.text).join("\n");
+}
 function AomiRuntimeCore({
   children,
   aomiClient,
@@ -3491,6 +3511,7 @@ function AomiRuntimeCore({
   restoredThreadId,
   threadPersistenceKey
 }) {
+  var _a;
   const threadContext = useThreadContext();
   const eventContext = useEventContext();
   const notificationContext = useNotification();
@@ -3505,8 +3526,8 @@ function AomiRuntimeCore({
   const sessionManagerRef = (0, import_react14.useRef)(null);
   const walletHandler = useWalletHandler({
     getSession: () => {
-      var _a;
-      return (_a = sessionManagerRef.current) == null ? void 0 : _a.get(threadContext.currentThreadId);
+      var _a2;
+      return (_a2 = sessionManagerRef.current) == null ? void 0 : _a2.get(threadContext.currentThreadId);
     }
   });
   const {
@@ -3526,20 +3547,16 @@ function AomiRuntimeCore({
     getUserState,
     getApp: getCurrentThreadApp,
     getApplicationId: () => {
-      var _a;
-      return (_a = getCurrentThreadApplicationId()) != null ? _a : applicationId;
+      var _a2;
+      return (_a2 = getCurrentThreadApplicationId()) != null ? _a2 : applicationId;
     },
     getApiKey: () => getControlState().apiKey,
     getClientId: () => {
-      var _a;
-      return (_a = getControlState().clientId) != null ? _a : void 0;
+      var _a2;
+      return (_a2 = getControlState().clientId) != null ? _a2 : void 0;
     },
     prepareThreadForSend: async (threadId) => {
-      const wasCreated = await ensureBackendThread(threadId);
-      if (wasCreated) {
-        threadsMaterializedForSendRef.current.add(threadId);
-      }
-      await syncCurrentThreadControl({ ignoreProcessing: true });
+      await prepareBackendThread(threadId);
     },
     onSendSuccess: (threadId) => {
       const wasRemote = remoteThreadIdsRef.current.has(threadId);
@@ -3548,16 +3565,13 @@ function AomiRuntimeCore({
       if (threadPersistenceKey) {
         writePersistedThreadId(threadPersistenceKey, threadId);
       }
-      threadsMaterializedForSendRef.current.delete(threadId);
       if (!wasRemote && threadContextRef.current.currentThreadId === threadId) {
         void syncCurrentThreadControl().catch((error) => {
           console.error("Failed to sync thread controls:", error);
         });
       }
     },
-    onSendError: async (threadId, error) => {
-      const wasMaterializedForSend = threadsMaterializedForSendRef.current.has(threadId);
-      threadsMaterializedForSendRef.current.delete(threadId);
+    onSendError: (_threadId, error) => {
       const httpStatus = getHttpStatus2(error);
       if (httpStatus === 402) {
         notificationContext.showNotification({
@@ -3565,16 +3579,6 @@ function AomiRuntimeCore({
           kind: "payment_required",
           title: "You're out of funds"
         });
-      }
-      if (httpStatus !== 402 || !wasMaterializedForSend) {
-        return;
-      }
-      try {
-        await aomiClientRef.current.deleteThread(threadId);
-        remoteThreadIdsRef.current.delete(threadId);
-        warmedThreadIdsRef.current.delete(threadId);
-      } catch (deleteError) {
-        console.error("Failed to delete quota-blocked thread:", deleteError);
       }
     },
     onPendingRequestsChange: walletHandler.setRequests,
@@ -3586,59 +3590,66 @@ function AomiRuntimeCore({
   const remoteThreadIdsRef = (0, import_react14.useRef)(/* @__PURE__ */ new Set());
   const warmedThreadIdsRef = (0, import_react14.useRef)(/* @__PURE__ */ new Set());
   const warmPromisesRef = (0, import_react14.useRef)(/* @__PURE__ */ new Map());
-  const threadsMaterializedForSendRef = (0, import_react14.useRef)(/* @__PURE__ */ new Set());
+  const preparePromisesRef = (0, import_react14.useRef)(/* @__PURE__ */ new Map());
   const [isThreadLoading, setIsThreadLoading] = (0, import_react14.useState)(false);
   const warmThread = (0, import_react14.useCallback)(
     async (threadId) => {
       if (!remoteThreadIdsRef.current.has(threadId) || warmedThreadIdsRef.current.has(threadId)) {
         return;
       }
-      const existingPromise = warmPromisesRef.current.get(threadId);
-      if (existingPromise) {
-        return existingPromise;
-      }
-      const warmPromise = (async () => {
+      await runSingleFlight(warmPromisesRef.current, threadId, async () => {
         await aomiClientRef.current.createThread(threadId);
         warmedThreadIdsRef.current.add(threadId);
-      })();
-      warmPromisesRef.current.set(threadId, warmPromise);
-      try {
-        await warmPromise;
-      } finally {
-        warmPromisesRef.current.delete(threadId);
-      }
+      });
     },
     [aomiClientRef]
   );
   const ensureBackendThread = (0, import_react14.useCallback)(
     async (threadId) => {
-      var _a, _b, _c, _d, _e;
-      if (remoteThreadIdsRef.current.has(threadId)) return false;
-      const control = (_a = threadContextRef.current.getThreadMetadata(threadId)) == null ? void 0 : _a.control;
-      const created = await aomiClientRef.current.createThread(threadId, {
-        rig: (_b = control == null ? void 0 : control.model) != null ? _b : void 0,
-        app: (_c = control == null ? void 0 : control.app) != null ? _c : void 0,
-        applicationId: (_d = control == null ? void 0 : control.applicationId) != null ? _d : void 0,
-        clientId: (_e = getControlState().clientId) != null ? _e : void 0
-      });
-      remoteThreadIdsRef.current.add(threadId);
-      warmedThreadIdsRef.current.add(threadId);
-      if ((created == null ? void 0 : created.rig) && (control == null ? void 0 : control.model)) {
-        const latest = threadContextRef.current.getThreadMetadata(threadId);
-        if ((latest == null ? void 0 : latest.control.controlDirty) && latest.control.model === control.model && latest.control.app === control.app && latest.control.applicationId === control.applicationId) {
-          threadContextRef.current.updateThreadMetadata(threadId, {
-            control: __spreadProps(__spreadValues({}, latest.control), { controlDirty: false })
-          });
+      if (remoteThreadIdsRef.current.has(threadId)) return;
+      await runSingleFlight(warmPromisesRef.current, threadId, async () => {
+        var _a2, _b, _c, _d, _e;
+        const control = (_a2 = threadContextRef.current.getThreadMetadata(threadId)) == null ? void 0 : _a2.control;
+        const created = await aomiClientRef.current.createThread(threadId, {
+          rig: (_b = control == null ? void 0 : control.model) != null ? _b : void 0,
+          app: (_c = control == null ? void 0 : control.app) != null ? _c : void 0,
+          applicationId: (_d = control == null ? void 0 : control.applicationId) != null ? _d : void 0,
+          clientId: (_e = getControlState().clientId) != null ? _e : void 0
+        });
+        remoteThreadIdsRef.current.add(threadId);
+        warmedThreadIdsRef.current.add(threadId);
+        if ((created == null ? void 0 : created.rig) && (control == null ? void 0 : control.model)) {
+          const latest = threadContextRef.current.getThreadMetadata(threadId);
+          if ((latest == null ? void 0 : latest.control.controlDirty) && latest.control.model === control.model && latest.control.app === control.app && latest.control.applicationId === control.applicationId) {
+            threadContextRef.current.updateThreadMetadata(threadId, {
+              control: __spreadProps(__spreadValues({}, latest.control), { controlDirty: false })
+            });
+          }
         }
-      }
-      return true;
+      });
     },
     [aomiClientRef, getControlState]
   );
+  const prepareBackendThread = (0, import_react14.useCallback)(
+    async (threadId) => {
+      await runSingleFlight(preparePromisesRef.current, threadId, async () => {
+        var _a2;
+        await ensureBackendThread(threadId);
+        if (threadContextRef.current.currentThreadId !== threadId) return;
+        await syncCurrentThreadControl({ ignoreProcessing: true });
+        if (threadContextRef.current.currentThreadId !== threadId) return;
+        const latest = (_a2 = threadContextRef.current.getThreadMetadata(threadId)) == null ? void 0 : _a2.control;
+        if ((latest == null ? void 0 : latest.controlDirty) && latest.model) {
+          await syncCurrentThreadControl({ ignoreProcessing: true });
+        }
+      });
+    },
+    [ensureBackendThread, syncCurrentThreadControl]
+  );
   const getRuntimeSession = (0, import_react14.useCallback)(
     (threadId) => {
-      var _a, _b;
-      return (_b = (_a = sessionManagerRef.current) == null ? void 0 : _a.get(threadId)) != null ? _b : getSession(threadId);
+      var _a2, _b;
+      return (_b = (_a2 = sessionManagerRef.current) == null ? void 0 : _a2.get(threadId)) != null ? _b : getSession(threadId);
     },
     [getSession]
   );
@@ -3671,6 +3682,39 @@ function AomiRuntimeCore({
     accountSessionAvailable,
     threadPersistence
   });
+  const activeThreadControl = (_a = threadContext.getThreadMetadata(
+    threadContext.currentThreadId
+  )) == null ? void 0 : _a.control;
+  (0, import_react14.useEffect)(() => {
+    if (isThreadListLoading) return;
+    const threadId = threadContext.currentThreadId;
+    if (remoteThreadIdsRef.current.has(threadId) && !(activeThreadControl == null ? void 0 : activeThreadControl.controlDirty)) {
+      return;
+    }
+    if (accountSessionAvailable && threadListError && restoredThreadId === threadId) {
+      return;
+    }
+    let cancelled = false;
+    void prepareBackendThread(threadId).catch((error) => {
+      if (!cancelled) {
+        console.debug("Thread prewarm deferred until send:", error);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    accountSessionAvailable,
+    activeThreadControl == null ? void 0 : activeThreadControl.app,
+    activeThreadControl == null ? void 0 : activeThreadControl.applicationId,
+    activeThreadControl == null ? void 0 : activeThreadControl.controlDirty,
+    activeThreadControl == null ? void 0 : activeThreadControl.model,
+    isThreadListLoading,
+    prepareBackendThread,
+    restoredThreadId,
+    threadContext.currentThreadId,
+    threadListError
+  ]);
   (0, import_react14.useEffect)(() => {
     const threadId = threadContext.currentThreadId;
     closeIdleSessionsExcept(threadId);
@@ -3702,10 +3746,10 @@ function AomiRuntimeCore({
     warmThread
   ]);
   (0, import_react14.useEffect)(() => {
-    var _a;
+    var _a2;
     const threadId = threadContext.currentThreadId;
     const currentMeta = threadContext.getThreadMetadata(threadId);
-    const nextTurnPhase = isRunning ? (_a = currentMeta == null ? void 0 : currentMeta.control.turnPhase) != null ? _a : "working" : "idle";
+    const nextTurnPhase = isRunning ? (_a2 = currentMeta == null ? void 0 : currentMeta.control.turnPhase) != null ? _a2 : "working" : "idle";
     if (currentMeta && (currentMeta.control.isProcessing !== isRunning || currentMeta.control.turnPhase !== nextTurnPhase)) {
       threadContext.updateThreadMetadata(threadId, {
         control: __spreadProps(__spreadValues({}, currentMeta.control), {
@@ -3730,10 +3774,6 @@ function AomiRuntimeCore({
     threadContext.currentThreadId,
     threadPersistenceKey
   ]);
-  const isRemoteThread = (0, import_react14.useCallback)(
-    (threadId) => remoteThreadIdsRef.current.has(threadId),
-    []
-  );
   const threadListAdapter = (0, import_react14.useMemo)(
     () => buildThreadListAdapter({
       aomiClientRef,
@@ -3741,12 +3781,11 @@ function AomiRuntimeCore({
       setIsRunning,
       isLoading: isThreadListLoading,
       getInitialControl: getPreferredThreadControl,
-      isRemoteThread
+      isRemoteThread: (threadId) => remoteThreadIdsRef.current.has(threadId)
     }),
     [
       aomiClientRef,
       getPreferredThreadControl,
-      isRemoteThread,
       isThreadListLoading,
       setIsRunning,
       threadContext,
@@ -3793,9 +3832,7 @@ function AomiRuntimeCore({
     setMessages: (msgs) => threadContext.setThreadMessages(threadContext.currentThreadId, [...msgs]),
     isRunning,
     onNew: async (message) => {
-      const text = message.content.filter(
-        (part) => part.type === "text"
-      ).map((part) => part.text).join("\n");
+      const text = appendMessageText(message);
       if (text) {
         try {
           await orchestratorSendMessage(text, threadContext.currentThreadId);
@@ -3805,15 +3842,12 @@ function AomiRuntimeCore({
       }
     },
     onEdit: async (message) => {
-      var _a;
-      const text = message.content.filter(
-        (part) => part.type === "text"
-      ).map((part) => part.text).join("\n");
+      var _a2;
       try {
         await orchestratorRegenerateMessage(
           threadContext.currentThreadId,
-          (_a = message.sourceId) != null ? _a : message.parentId,
-          text
+          (_a2 = message.sourceId) != null ? _a2 : message.parentId,
+          appendMessageText(message)
         );
       } catch (error) {
         console.error("Failed to edit message:", error);
@@ -3837,6 +3871,8 @@ function AomiRuntimeCore({
   });
   (0, import_react14.useEffect)(() => {
     return () => {
+      warmPromisesRef.current.clear();
+      preparePromisesRef.current.clear();
       closeAllSessions();
     };
   }, [closeAllSessions]);
@@ -3875,18 +3911,6 @@ function AomiRuntimeCore({
     },
     [closeSession, threadListAdapter, threadPersistenceKey]
   );
-  const renameThread = (0, import_react14.useCallback)(
-    async (threadId, title) => {
-      await threadListAdapter.onRename(threadId, title);
-    },
-    [threadListAdapter]
-  );
-  const archiveThread = (0, import_react14.useCallback)(
-    async (threadId) => {
-      await threadListAdapter.onArchive(threadId);
-    },
-    [threadListAdapter]
-  );
   const selectThread = (0, import_react14.useCallback)(
     (threadId) => {
       if (threadContext.allThreadsMetadata.has(threadId)) {
@@ -3899,8 +3923,7 @@ function AomiRuntimeCore({
   );
   const simulateBatchTransactions = (0, import_react14.useCallback)(
     async (transactions, options) => {
-      var _a, _b;
-      const session = (_b = (_a = sessionManagerRef.current) == null ? void 0 : _a.get(threadContext.currentThreadId)) != null ? _b : getSession(threadContext.currentThreadId);
+      const session = getRuntimeSession(threadContext.currentThreadId);
       if (!session) {
         throw new Error("runtime_session_unavailable");
       }
@@ -3911,7 +3934,7 @@ function AomiRuntimeCore({
       );
       return response.result;
     },
-    [getSession, threadContext.currentThreadId]
+    [getRuntimeSession, threadContext.currentThreadId]
   );
   const aomiRuntimeApi = (0, import_react14.useMemo)(
     () => ({
@@ -3930,8 +3953,8 @@ function AomiRuntimeCore({
       getThreadMetadata: threadContext.getThreadMetadata,
       createThread,
       deleteThread,
-      renameThread,
-      archiveThread,
+      renameThread: (threadId, title) => threadListAdapter.onRename(threadId, title),
+      archiveThread: (threadId) => threadListAdapter.onArchive(threadId),
       selectThread,
       // Chat API
       isRunning,
@@ -3970,8 +3993,7 @@ function AomiRuntimeCore({
       threadListError,
       createThread,
       deleteThread,
-      renameThread,
-      archiveThread,
+      threadListAdapter,
       selectThread,
       isRunning,
       getMessages,

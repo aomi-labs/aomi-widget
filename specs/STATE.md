@@ -2,6 +2,43 @@
 
 ## Last Updated
 
+2026-08-12 — MCP CHAT PARITY IMPLEMENTED. `/api/mcp` now exposes only
+  `aomi_chat`, `aomi_check`, `aomi_interrupt`, and `aomi_list_sessions` over a
+  shared stateless JSON-RPC shell; the unchanged direct discovery/execution
+  funnel moved to `/api/mcp/direct`. Agent turns use the canonical
+  `/api/threads` + `/api/thread/{chat,state,interrupt}` kernel paths with both
+  thread headers and BFF-minted AccountBearer. New sessions are account-bound,
+  headless turns hydrate primary EVM/SVM wallet addresses from `public_keys`
+  without fabricating active mainnet networks. `aomi_chat` accepts an optional
+  authoritative EVM chain id or canonical supported Solana cluster; omission
+  leaves both network fields absent. Message cursors return transcript deltas
+  without dropping the backend's drained system events, and checks compress
+  tool/task activity. Manual wallet requests
+  return `awaiting_user`, redacted request summaries, and a working portal
+  deep-link; armed auto-signing wallets need no MCP signing tool. The existing
+  origin-scoped OAuth protected-resource metadata covers both MCP routes.
+  Local E2E verification covers SIWE, dynamic OAuth registration, explicit
+  consent, PKCE exchange and refresh, both MCP tool inventories, real async
+  reply deltas, account session list/resume/interrupt, a funded local-chain
+  transaction reaching the manual-wallet approval gate, and `agent-browser`
+  opening the exact linked transcript. The message cursor deliberately holds
+  the runtime's mutable streaming tail until it becomes a completed delta.
+
+2026-08-12 — **Cross-chain wallet approvals now switch EVM networks automatically.**
+  `RuntimeTxHandler` compares every staged transaction's chain with the connected
+  wallet before simulation, rejects unsupported chains with actionable copy, and
+  invokes the adapter's network switch before simulating or sending. Wallets that
+  cannot switch get manual-switch guidance; a rejected wallet popup continues
+  through the existing request-rejection path. The approval handler tells the
+  shared executor when it already selected the target chain, preventing a second
+  wallet prompt while direct executor callers still switch when needed. The shared
+  AA executor also keeps an unknown current chain as `undefined`, so it attempts a
+  switch instead of masking the state as already on the target chain. Regression
+  cases cover switch ordering, exactly-once selection, same-chain behavior,
+  unsupported/missing adapters, rejected prompts, and unknown/current AA execution
+  state. The joint backend work merged first in product-mono #973. Publishable
+  versions are `@aomi-labs/client@0.4.7` and `@aomi-labs/widget-lib@1.4.30`.
+
 2026-08-08 — DEPLOY-SURFACE BUGS, BE SIDE (product-mono worktree
   `~/Code/product-mono-worktrees/deploy-feed-platform-scope`, branch
   `claude/deploy-feed-platform-scope` off origin/main f5d421933; all changes
@@ -89,7 +126,18 @@
   `deployments.platform`. Any deployment with no projection row under the
   queried platform shows on the project page and is invisible in the feed —
   which is why world-markets showed 4 deployments and the feed showed 1.
-
+2026-08-10 — BROWSER RESPONSE LATENCY SIMPLIFICATION. Reduced the earlier TTFT
+  design to frontend mechanisms that work with the existing backend contract:
+  one shared empty-thread prewarm promise, a single-flight visibility-aware
+  polling timeout, and removal of the synthetic 500 ms completed-answer stream.
+  Removed turn IDs, provisional-text state, and `assistant_text_started` client
+  handling. Kept the cross-origin origin-bound widget-session guard around the
+  Portal's bearer-independent Thread state/SSE reads. Prewarmed threads remain
+  durable after x402 so retry uses the same thread. Verified all 1,467 root
+  tests, 2 configured registry trace tests, repository lint, client typecheck,
+  publishable tarballs, and client/React/registry builds. Portal typecheck
+  remains blocked by the existing mixed Para dependency graph
+  (`@getpara/web-sdk` 2.24 vs 2.19), outside these files.
 2026-08-04 — PROJECT HOME "KEYS MISSING" FALSE ALARM (apps/build, committed
   on `feat/build-new-app-two-starts`). The Environment card warned whenever no
   key was set

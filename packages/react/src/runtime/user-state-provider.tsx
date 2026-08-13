@@ -177,7 +177,7 @@ function useWalletStateSync(
   useEffect(() => {
     lastWalletStateRef.current = walletSnapshot(getUserState());
 
-    const unsubscribe = onUserStateChange(async (newUser) => {
+    const unsubscribe = onUserStateChange((newUser) => {
       const nextWalletState = walletSnapshot(newUser);
       const prevWalletState = lastWalletStateRef.current;
       const previousAddress = normalizeWalletId(prevWalletState.evm?.address);
@@ -215,9 +215,13 @@ function useWalletStateSync(
         type: "wallet:state_changed",
         payload: nextWalletState,
       });
-      await aomiClientRef.current.sendSystemMessage(sessionId, message, {
-        app: getCurrentThreadApp(),
-      });
+      void aomiClientRef.current
+        .sendSystemMessage(sessionId, message, {
+          app: getCurrentThreadApp(),
+        })
+        .catch((error) => {
+          console.warn("Failed to sync wallet state:", error);
+        });
     });
 
     return unsubscribe;

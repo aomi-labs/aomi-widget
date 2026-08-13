@@ -20,6 +20,10 @@ const routesPath = join(
   repoRoot,
   "packages/client/test/generated/backend-routes.ts",
 );
+const managerFixturePath = join(
+  repoRoot,
+  "packages/client/test/fixtures/manager-openapi.json",
+);
 const backendTmpPath = join(repoRoot, ".tmp/backend-openapi.json");
 const managerTmpPath = join(repoRoot, ".tmp/manager-openapi.json");
 
@@ -34,11 +38,13 @@ const managerOpenApi = exportManagerOpenApi(resolveProductMonoRoot());
 const openApi = mergeOpenApi(backendOpenApi, managerOpenApi);
 
 writeFileSync(fixturePath, `${JSON.stringify(openApi, null, 2)}\n`);
+writeFileSync(managerFixturePath, `${JSON.stringify(managerOpenApi, null, 2)}\n`);
 writeFileSync(routesPath, routeSourceFromOpenApi(openApi));
 rmSync(backendTmpPath, { force: true });
 rmSync(managerTmpPath, { force: true });
 
 console.log(`Updated ${fixturePath}`);
+console.log(`Updated ${managerFixturePath}`);
 console.log(`Updated ${routesPath}`);
 
 function resolveOpenApiUrl() {

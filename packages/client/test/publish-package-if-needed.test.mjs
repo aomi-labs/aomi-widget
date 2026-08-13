@@ -33,7 +33,7 @@ describe("publishPackageIfNeeded", () => {
       }),
     ).resolves.toBe("published");
 
-    expect(publishImpl).toHaveBeenCalledWith("@aomi-labs/client");
+    expect(publishImpl).toHaveBeenCalledWith(packageDirectory);
   });
 
   it("fails closed on registry errors instead of guessing that a version is missing", async () => {
@@ -49,9 +49,7 @@ describe("publishPackageIfNeeded", () => {
         ),
         publishImpl,
       }),
-    ).rejects.toThrow(
-      `Registry check for ${packageSpec} failed with HTTP 503`,
-    );
+    ).rejects.toThrow(`Registry check for ${packageSpec} failed with HTTP 503`);
 
     expect(publishImpl).not.toHaveBeenCalled();
   });

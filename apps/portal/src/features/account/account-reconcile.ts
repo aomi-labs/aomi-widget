@@ -19,7 +19,7 @@ export const SIGNER_MODES: { id: SignerMode; label: string; hint: string }[] = [
   },
   {
     id: "auto",
-    label: "Aomi auto",
+    label: "Bypass permissions",
     hint: "Aomi signs on your behalf for scheduled and background actions. Requires an active provider grant.",
   },
   {
@@ -181,7 +181,7 @@ export function reconcile(wallet: WalletPolicy): Recon {
           }
         : {
             status: "drifted",
-            detail: "Aomi auto is set, but the provider grant expired.",
+            detail: "Bypass permissions is set, but the provider grant expired.",
             action: "Renew grant",
           };
   }

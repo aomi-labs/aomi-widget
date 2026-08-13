@@ -3,6 +3,7 @@
 import { useState, useMemo, useCallback, useEffect, type FC } from "react";
 import dynamic from "next/dynamic";
 import { CopyButton } from "./CopyButton";
+import { Segmented, ToggleChip } from "./controls";
 import {
   ThemeCustomizer,
   useThemeCustomizer,
@@ -116,39 +117,16 @@ type CheckboxProps = {
 };
 
 const Checkbox: FC<CheckboxProps> = ({ label, checked, onChange }) => (
-  <label className="flex cursor-pointer items-center gap-2 text-xs text-fd-foreground">
-    <input
-      type="checkbox"
-      checked={checked}
-      onChange={(e) => onChange(e.target.checked)}
-      className="size-3.5 rounded border-fd-border accent-fd-primary"
-    />
-    {label}
-  </label>
+  <ToggleChip label={label} checked={checked} onChange={onChange} />
 );
 
-/** Pill-style tab buttons for the config sidebar & code panel. */
+/** Tab switcher for the config sidebar & code panel — same segmented recipe. */
 const TabBar: FC<{
   tabs: { value: string; label: string }[];
   active: string;
   onChange: (v: string) => void;
 }> = ({ tabs, active, onChange }) => (
-  <div className="flex gap-1">
-    {tabs.map((t) => (
-      <button
-        key={t.value}
-        type="button"
-        onClick={() => onChange(t.value)}
-        className={`rounded-md border px-3 py-1 text-xs font-medium transition-colors ${
-          active === t.value
-            ? "border-fd-primary bg-fd-primary/10 text-fd-primary"
-            : "border-fd-border text-fd-muted-foreground hover:border-fd-primary/40"
-        }`}
-      >
-        {t.label}
-      </button>
-    ))}
-  </div>
+  <Segmented options={tabs} value={active} onChange={onChange} />
 );
 
 // =============================================================================
@@ -175,36 +153,15 @@ const LayoutPanel: FC<{
           <span className="text-[10px] font-medium uppercase tracking-wider text-fd-muted-foreground/70">
             Wallet Position
           </span>
-          <div className="flex flex-wrap gap-1">
-            {(
-              [
-                { value: "header", label: "Header" },
-                { value: "footer", label: "Footer" },
-                { value: "hidden", label: "Hidden" },
-              ] as const
-            ).map((opt) => (
-              <label
-                key={opt.value}
-                className={`cursor-pointer rounded-md border px-3 py-1.5 text-xs font-medium transition-colors ${
-                  state.walletPosition === opt.value
-                    ? "border-fd-primary bg-fd-primary/10 text-fd-primary"
-                    : "border-fd-border text-fd-muted-foreground hover:border-fd-primary/40"
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="walletPosition"
-                  value={opt.value}
-                  checked={state.walletPosition === opt.value}
-                  onChange={() =>
-                    update({ walletPosition: opt.value as WalletPosition })
-                  }
-                  className="sr-only"
-                />
-                {opt.label}
-              </label>
-            ))}
-          </div>
+          <Segmented
+            options={[
+              { value: "header", label: "Header" },
+              { value: "footer", label: "Footer" },
+              { value: "hidden", label: "Hidden" },
+            ]}
+            value={state.walletPosition}
+            onChange={(v) => update({ walletPosition: v as WalletPosition })}
+          />
         </div>
       )}
     </fieldset>
@@ -214,36 +171,15 @@ const LayoutPanel: FC<{
       <legend className="text-xs font-semibold uppercase tracking-wider text-fd-muted-foreground">
         Control Panel
       </legend>
-      <div className="flex flex-wrap gap-1">
-        {(
-          [
-            { value: "header", label: "Header" },
-            { value: "composer", label: "Composer" },
-          ] as const
-        ).map((opt) => (
-          <label
-            key={opt.value}
-            className={`cursor-pointer rounded-md border px-3 py-1.5 text-xs font-medium transition-colors ${
-              state.controlPlacement === opt.value
-                ? "border-fd-primary bg-fd-primary/10 text-fd-primary"
-                : "border-fd-border text-fd-muted-foreground hover:border-fd-primary/40"
-            }`}
-          >
-            <input
-              type="radio"
-              name="controlPlacement"
-              value={opt.value}
-              checked={state.controlPlacement === opt.value}
-              onChange={() =>
-                update({ controlPlacement: opt.value as ControlPlacement })
-              }
-              className="sr-only"
-            />
-            {opt.label}
-          </label>
-        ))}
-      </div>
-      <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+      <Segmented
+        options={[
+          { value: "header", label: "Header" },
+          { value: "composer", label: "Composer" },
+        ]}
+        value={state.controlPlacement}
+        onChange={(v) => update({ controlPlacement: v as ControlPlacement })}
+      />
+      <div className="flex flex-wrap gap-1.5">
         <Checkbox
           label="Model"
           checked={state.showModel}

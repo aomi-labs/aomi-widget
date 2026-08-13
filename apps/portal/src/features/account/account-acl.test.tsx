@@ -275,7 +275,7 @@ describe("account ACL wiring", () => {
       name: /^Auto-approve/,
     });
     expect(accept).toHaveProperty("disabled", false);
-    expect(screen.getByRole("button", { name: /^Aomi auto/ })).toHaveProperty(
+    expect(screen.getByRole("button", { name: /^Bypass permissions/ })).toHaveProperty(
       "disabled",
       true,
     );

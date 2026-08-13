@@ -111,8 +111,8 @@ export default function AgentsBuildPage() {
       </section>
 
       <p className="font-geist text-sm">
-        <Link className="underline" href="https://aomi.dev/docs/build/overview">
-          Open docs/build/overview
+        <Link className="underline" href="https://aomi.dev/docs/">
+          Open docs
         </Link>{" "}
         ·{" "}
         <Link className="underline" href="https://github.com/aomi-labs/skills">

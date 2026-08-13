@@ -41,8 +41,8 @@ import {
  * sweeping whenever the turn is running, including the common case where a tool
  * call has finished and we're just waiting on the model to say what's next. When
  * the turn completes the trace collapses to "Worked for Ns" and the answer is
- * revealed. Plain replies with no tool calls buffer while running, then reveal
- * with the same final-answer fake stream once the turn settles.
+ * revealed. Plain replies with no tool calls remain buffered while running,
+ * then render immediately once the turn settles.
  */
 
 const formatDuration = (seconds: number): string => {
@@ -559,43 +559,9 @@ const collectText = (parts: TextMessagePart[]): string =>
     .join("\n\n")
     .trim();
 
-/** Total wall-clock of the synthetic typewriter for the final answer. */
-const FAKE_STREAM_MS = 500;
-
-/**
- * Reveals a finished answer with a quick synthetic typewriter (~500ms, ease-out)
- * so it feels streamed rather than pasted in. `stream={false}` (a completed turn
- * loaded from history) renders it in full at once — no replay on every reload.
- */
-const FakeStreamedText: FC<{ text: string; stream: boolean }> = ({
-  text,
-  stream,
-}) => {
-  const reduced = prefersReducedMotion();
-  const animate = stream && !reduced;
-  const [count, setCount] = useState(animate ? 0 : text.length);
-
-  useEffect(() => {
-    if (!animate) {
-      setCount(text.length);
-      return;
-    }
-    const total = text.length;
-    let raf = 0;
-    let start: number | null = null;
-    const tick = (now: number) => {
-      if (start === null) start = now;
-      const t = Math.min(1, (now - start) / FAKE_STREAM_MS);
-      const eased = 1 - (1 - t) * (1 - t); // ease-out
-      setCount(Math.max(1, Math.round(eased * total)));
-      if (t < 1) raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [text, animate]);
-
+const RenderedText: FC<{ text: string }> = ({ text }) => {
   return (
-    <TextMessagePartProvider text={text.slice(0, count)}>
+    <TextMessagePartProvider text={text}>
       <MarkdownText />
     </TextMessagePartProvider>
   );
@@ -609,8 +575,8 @@ const FakeStreamedText: FC<{ text: string; stream: boolean }> = ({
  * everything up to and including it is the Working trace (tool steps + muted
  * interstitial notes, in order); the trailing `text` run is the final answer,
  * buffered out of view until the turn finishes so only it streams out below.
- * A plain reply with no tool calls is also buffered while running, then
- * fake-streamed once it is known to be the final answer.
+ * A plain reply with no tool calls remains buffered while running, then renders
+ * directly once it is known to be the final answer.
  *
  * Delegations are the one row that does not come from the transcript alone: a
  * running child has no `task` part yet, so its row is rendered synthetically
@@ -628,8 +594,6 @@ export const AssistantTurnParts: FC<{
   const turnPhase =
     useCurrentThreadMetadata()?.control.turnPhase ??
     (running ? "working" : "idle");
-  const lastCompletedAt =
-    useCurrentThreadMetadata()?.control.lastCompletedAt ?? 0;
   const taskRuns = useThreadTaskRuns();
 
   const lastToolIndex = content.reduce(
@@ -757,41 +721,26 @@ export const AssistantTurnParts: FC<{
       ? Math.min(turnStartRef.current, earliestRunStart)
       : (turnStartRef.current ?? earliestRunStart ?? undefined);
 
-  // Whether this turn was seen working live (vs. loaded already complete). Gates
-  // the entrance/fake-stream so a reloaded thread doesn't replay the animation.
-  const liveTurnRef = useRef(running);
-  useEffect(() => {
-    if (running) liveTurnRef.current = true;
-  }, [running]);
-  const recentlyCompleted =
-    isLast && lastCompletedAt > 0 && Date.now() - lastCompletedAt < 5000;
-  const liveTurn = liveTurnRef.current || recentlyCompleted;
-
   if (items.length === 0) {
-    // While a turn is still live, text before the first tool call is provisional:
-    // a later tool call can arrive and move that text into the Working trace.
-    // Keep it buffered so it never flashes as the final answer and jumps upward.
+    const answerText = collectText(
+      content.filter((part): part is TextMessagePart => part.type === "text"),
+    );
+
+    // Before the first tool call, text is provisional: a later tool can move it
+    // into the Working trace. Keep it buffered until the turn settles.
     if (running) {
       return turnPhase === "working" || workingFallback ? (
         <MinimalWorkingTrace />
       ) : null;
     }
 
-    const answerText = collectText(
-      content.filter((p): p is TextMessagePart => p.type === "text"),
-    );
-
-    // Plain reply — no tools. Reveal it with the same short fake-stream used
-    // after tool calls, once we know it is the final answer.
-    return answerText.length > 0 ? (
-      <FakeStreamedText text={answerText} stream={liveTurn} />
-    ) : null;
+    return answerText.length > 0 ? <RenderedText text={answerText} /> : null;
   }
 
   const answerText = collectText(
     content
       .slice(traceEnd)
-      .filter((p): p is TextMessagePart => p.type === "text"),
+      .filter((part): part is TextMessagePart => part.type === "text"),
   );
 
   // Hold the answer until the trace has fully caught up, so the steps finish
@@ -809,7 +758,7 @@ export const AssistantTurnParts: FC<{
       />
       {answerReady && answerText.length > 0 && (
         <div className="aui-working-answer">
-          <FakeStreamedText text={answerText} stream={liveTurn} />
+          <RenderedText text={answerText} />
         </div>
       )}
     </>

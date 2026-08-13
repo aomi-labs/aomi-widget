@@ -106,7 +106,7 @@ import {
   lineaSepolia,
   foundry
 } from "viem/chains";
-var monad, monadTestnet, robinhood, megaeth, SUPPORTED_CHAINS, SUPPORTED_CHAIN_IDS, CHAIN_NAMES;
+var monad, monadTestnet, robinhood, megaeth, arcTestnet, SUPPORTED_CHAINS, SUPPORTED_CHAIN_IDS, CHAIN_NAMES;
 var init_chains = __esm({
   "src/chains.ts"() {
     "use strict";
@@ -191,6 +191,34 @@ var init_chains = __esm({
         }
       }
     });
+    arcTestnet = defineChain({
+      id: 5042002,
+      name: "Arc Testnet",
+      nativeCurrency: {
+        name: "USDC",
+        symbol: "USDC",
+        // Arc RPC quantities use 18-decimal native precision, but EIP-3085 chain
+        // metadata uses USDC's 6 display decimals. Callers handling raw
+        // eth_getBalance/msg.value must retain the 18-decimal internal boundary.
+        decimals: 6
+      },
+      rpcUrls: {
+        default: {
+          http: [
+            "https://rpc.testnet.arc.io",
+            "https://rpc.drpc.testnet.arc.io",
+            "https://rpc.quicknode.testnet.arc.io"
+          ]
+        }
+      },
+      blockExplorers: {
+        default: {
+          name: "ArcScan",
+          url: "https://testnet.arcscan.app"
+        }
+      },
+      testnet: true
+    });
     SUPPORTED_CHAINS = [
       { id: 1, name: "Ethereum", ticker: "ETH" },
       { id: 137, name: "Polygon", ticker: "MATIC" },
@@ -205,6 +233,7 @@ var init_chains = __esm({
       { id: 10143, name: "Monad Testnet", ticker: "MON" },
       { id: 4663, name: "Robinhood Chain", ticker: "ETH" },
       { id: 4326, name: "MegaETH", ticker: "ETH" },
+      { id: 5042002, name: "Arc Testnet", ticker: "USDC" },
       { id: 31337, name: "Anvil (local)", ticker: "ETH" }
     ];
     SUPPORTED_CHAIN_IDS = SUPPORTED_CHAINS.map((chain) => chain.id);
@@ -3431,6 +3460,9 @@ var init_session = __esm({
         var _a3, _b, _c, _d, _e;
         super();
         this.pollTimer = null;
+        this.pollingActive = false;
+        this.pollInFlight = false;
+        this.pollFailureCount = 0;
         this.unsubscribeSSE = null;
         this.isSSEActive = false;
         this._isProcessing = false;
@@ -3442,6 +3474,11 @@ var init_session = __esm({
         this._messages = [];
         this.closed = false;
         this.pendingResolve = null;
+        this.handleVisibilityChange = () => {
+          if (typeof document !== "undefined" && !document.hidden && !this.pollInFlight) {
+            this.schedulePoll(0);
+          }
+        };
         this.client = clientOrOptions instanceof AomiClient ? clientOrOptions : new AomiClient(clientOrOptions);
         this.sessionId = (_a3 = sessionOptions == null ? void 0 : sessionOptions.sessionId) != null ? _a3 : crypto.randomUUID();
         this.app = (_b = sessionOptions == null ? void 0 : sessionOptions.app) != null ? _b : "default";
@@ -3484,16 +3521,7 @@ var init_session = __esm({
        */
       async send(message) {
         this.assertOpen();
-        const response = await this.client.sendMessage(this.sessionId, message, {
-          app: this.app,
-          applicationId: this.applicationId,
-          apiKey: this.apiKey,
-          userState: this.outboundUserState(),
-          clientId: this.clientId,
-          paymentMethod: this.paymentMethod
-        });
-        this.assertUserStateAligned(response.user_state);
-        this.applyState(response);
+        const response = await this.submitChat(message);
         if (!response.is_processing && this.walletController.length === 0) {
           return { messages: this._messages, title: this._title };
         }
@@ -3510,16 +3538,7 @@ var init_session = __esm({
        */
       async sendAsync(message) {
         this.assertOpen();
-        const response = await this.client.sendMessage(this.sessionId, message, {
-          app: this.app,
-          applicationId: this.applicationId,
-          apiKey: this.apiKey,
-          userState: this.outboundUserState(),
-          clientId: this.clientId,
-          paymentMethod: this.paymentMethod
-        });
-        this.assertUserStateAligned(response.user_state);
-        this.applyState(response);
+        const response = await this.submitChat(message);
         if (response.is_processing) {
           this._isProcessing = true;
           this.emit("processing_start", void 0);
@@ -3707,7 +3726,7 @@ var init_session = __esm({
       // ===========================================================================
       /** Whether the session is currently polling for state updates. */
       getIsPolling() {
-        return this.pollTimer !== null;
+        return this.pollingActive;
       }
       /**
        * Fetch the current state from the backend (one-shot).
@@ -3723,7 +3742,7 @@ var init_session = __esm({
         );
         this.assertUserStateAligned(state.user_state);
         this.applyState(state);
-        if (state.is_processing && !this.pollTimer) {
+        if (state.is_processing && !this.pollingActive) {
           this._isProcessing = true;
           this.emit("processing_start", void 0);
           this.startPolling();
@@ -3737,25 +3756,39 @@ var init_session = __esm({
        */
       startPolling() {
         var _a3;
-        if (this.pollTimer || this.closed) return;
+        if (this.pollingActive || this.closed) return;
+        this.pollingActive = true;
         this._backendWasProcessing = true;
         (_a3 = this.logger) == null ? void 0 : _a3.debug("[session] polling started", this.sessionId);
-        this.pollTimer = setInterval(() => {
-          void this.pollTick();
-        }, this.pollIntervalMs);
+        if (typeof document !== "undefined") {
+          document.addEventListener(
+            "visibilitychange",
+            this.handleVisibilityChange
+          );
+        }
+        this.schedulePoll(this.currentPollInterval());
       }
       /** Stop polling for state updates. Idempotent — no-op if not polling. */
       stopPolling() {
         var _a3;
+        this.pollingActive = false;
         if (this.pollTimer) {
-          clearInterval(this.pollTimer);
+          clearTimeout(this.pollTimer);
           this.pollTimer = null;
-          (_a3 = this.logger) == null ? void 0 : _a3.debug("[session] polling stopped", this.sessionId);
         }
+        if (typeof document !== "undefined") {
+          document.removeEventListener(
+            "visibilitychange",
+            this.handleVisibilityChange
+          );
+        }
+        (_a3 = this.logger) == null ? void 0 : _a3.debug("[session] polling stopped", this.sessionId);
       }
       async pollTick() {
         var _a3;
-        if (!this.pollTimer) return;
+        if (!this.pollingActive || this.pollInFlight) return;
+        this.pollTimer = null;
+        this.pollInFlight = true;
         try {
           const state = await this.client.fetchState(
             this.sessionId,
@@ -3763,7 +3796,8 @@ var init_session = __esm({
             this.clientId,
             { app: this.app, applicationId: this.applicationId }
           );
-          if (!this.pollTimer) return;
+          if (!this.pollingActive) return;
+          this.pollFailureCount = 0;
           this.assertUserStateAligned(state.user_state);
           this.applyState(state);
           if (this._backendWasProcessing && !state.is_processing) {
@@ -3777,9 +3811,30 @@ var init_session = __esm({
             this.resolvePending();
           }
         } catch (error) {
+          this.pollFailureCount += 1;
           (_a3 = this.logger) == null ? void 0 : _a3.debug("[session] poll error", error);
           this.emit("error", { error });
+        } finally {
+          this.pollInFlight = false;
+          if (this.pollingActive) {
+            this.schedulePoll(
+              Math.min(
+                this.currentPollInterval() * 2 ** this.pollFailureCount,
+                5e3
+              )
+            );
+          }
         }
+      }
+      currentPollInterval() {
+        return typeof document !== "undefined" && document.hidden ? 2e3 : this.pollIntervalMs;
+      }
+      schedulePoll(delayMs) {
+        if (!this.pollingActive || this.closed) return;
+        if (this.pollTimer) clearTimeout(this.pollTimer);
+        this.pollTimer = setTimeout(() => {
+          void this.pollTick();
+        }, delayMs);
       }
       // ===========================================================================
       // Internal — State Application
@@ -3904,6 +3959,20 @@ var init_session = __esm({
             body
           }
         );
+      }
+      /** Shared completion path for send()/sendAsync() after the chat POST. */
+      async submitChat(message) {
+        const response = await this.client.sendMessage(this.sessionId, message, {
+          app: this.app,
+          applicationId: this.applicationId,
+          apiKey: this.apiKey,
+          userState: this.outboundUserState(),
+          clientId: this.clientId,
+          paymentMethod: this.paymentMethod
+        });
+        this.assertUserStateAligned(response.user_state);
+        this.applyState(response);
+        return response;
       }
       resumeAfterWalletResponse() {
         if (!this._isProcessing) {
@@ -5269,7 +5338,7 @@ var init_cli_session = __esm({
         return _CliSession.create(config);
       }
       /** Create a fresh session and persist it. */
-      static create(config, seed) {
+      static create(config, seed, sessionId = crypto.randomUUID()) {
         var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n;
         let svmPublicKey;
         if (config.solanaPrivateKey) {
@@ -5281,7 +5350,7 @@ var init_cli_session = __esm({
           }
         }
         const state = {
-          sessionId: crypto.randomUUID(),
+          sessionId,
           clientId: crypto.randomUUID(),
           baseUrl: (_b = (_a3 = config.baseUrl) != null ? _a3 : seed == null ? void 0 : seed.baseUrl) != null ? _b : DEFAULT_CLI_BASE_URL,
           app: (_c = config.app) != null ? _c : seed == null ? void 0 : seed.app,
@@ -7705,13 +7774,42 @@ function newSessionCommand(config) {
   console.log(`Active session set to ${cli.sessionId} (new).`);
   printDataFileLocation();
 }
-function resumeSessionCommand(selector) {
+async function resumeSessionCommand(selector) {
   const resumed = setActiveSession(selector);
-  if (!resumed) {
-    fatal(`No local session found for selector "${selector}".`);
+  if (resumed) {
+    console.log(
+      `Active session set to ${resumed.sessionId} (session-${resumed.localId}).`
+    );
+    printDataFileLocation();
+    return;
   }
+  const current = CliSession.load();
+  if (!current) {
+    fatal(
+      `No local session found for selector "${selector}" and no authenticated session is available to import it.`
+    );
+  }
+  const session = current.createClientSession();
+  try {
+    await session.client.fetchState(
+      selector,
+      void 0,
+      current.ensureClientId()
+    );
+  } catch (e) {
+    fatal(
+      `No account-owned local or remote session found for selector "${selector}".`
+    );
+  } finally {
+    session.close();
+  }
+  const imported = CliSession.create(
+    { secrets: {} },
+    current.toState(),
+    selector
+  );
   console.log(
-    `Active session set to ${resumed.sessionId} (session-${resumed.localId}).`
+    `Active session set to ${imported.sessionId} (imported remote session).`
   );
   printDataFileLocation();
 }
@@ -10279,7 +10377,10 @@ var sessionListDef = defineCommand3({
   }
 });
 var sessionNewDef = defineCommand3({
-  meta: { name: "new", description: "Start a fresh session and make it active" },
+  meta: {
+    name: "new",
+    description: "Start a fresh session and make it active"
+  },
   args: __spreadValues({}, globalArgs),
   async run({ args }) {
     const { newSessionCommand: newSessionCommand2 } = await Promise.resolve().then(() => (init_sessions(), sessions_exports));
@@ -10297,7 +10398,7 @@ var sessionResumeDef = defineCommand3({
   },
   async run({ args }) {
     const { resumeSessionCommand: resumeSessionCommand2 } = await Promise.resolve().then(() => (init_sessions(), sessions_exports));
-    resumeSessionCommand2(args.id);
+    await resumeSessionCommand2(args.id);
   }
 });
 var sessionDeleteDef = defineCommand3({

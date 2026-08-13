@@ -478,6 +478,8 @@ export class AomiClient {
       userState?: OwnedUserState;
       clientId?: string;
       paymentMethod?: string | null;
+      /** @deprecated Accepted as a no-op for compatibility with client 0.4.3. */
+      turnId?: string;
     },
   ): Promise<AomiChatResponse> {
     const app = options?.app ?? "default";
