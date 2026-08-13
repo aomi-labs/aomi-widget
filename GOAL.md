@@ -51,7 +51,7 @@ through the canonical Session contract.
 
 ## MCP Chat Parity
 
-Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-12** — make
+Current session goal: **IMPLEMENTED AND LIVE-CHAIN VERIFIED 2026-08-13** — make
 the OAuth MCP surface supervise the same asynchronous Aomi
 agent turns as the TS CLI. `/api/mcp` now has four chat/session tools with rich
 cursor deltas, task/tool narration, wallet-request handoff, and account-wallet
@@ -60,6 +60,12 @@ same OAuth resource metadata. SIWE → dynamic registration → PKCE/consent →
 refresh-token OAuth, real agent replies, resume/list/interrupt, a locally
 staged manual-wallet transaction, and the browser handoff into its exact
 conversation are all covered by the local smoke.
+The funded-wallet follow-up attached the local OAuth server to a fresh Codex
+process, made progress cursors self-contained after that client exposed a
+missing-session retry loop, imported the account-owned MCP thread into the CLI,
+and signed its one-wei Base self-transfer. Both the requested transaction and
+service-fee transaction confirmed, and a later MCP check returned an empty
+pending queue plus both hashes.
 
 ## Chat Composer Parity
 

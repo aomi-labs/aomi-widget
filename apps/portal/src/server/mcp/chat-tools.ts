@@ -13,7 +13,7 @@ import { newMcpThreadId } from "@portal/server/mcp/thread";
 
 export const CHAT_MCP_INSTRUCTIONS = [
   "Chat with the Aomi agent by calling aomi_chat with the user's request.",
-  "aomi_chat starts an asynchronous turn and returns a session_id plus cursor; continue with aomi_check using both values until status is complete or awaiting_user.",
+  "aomi_chat starts an asynchronous turn and returns a self-contained cursor; continue with aomi_check using that cursor until status is complete or awaiting_user.",
   "Each aomi_check returns only new transcript messages and newly drained tool/task activity, so relay useful progress while supervising longer work.",
   "When status is awaiting_user, show the pending wallet request and handoff guidance to the human; do not claim the operation completed until a later check confirms it.",
   "Use aomi_interrupt to stop a running turn and aomi_list_sessions to find prior account-owned conversations.",
@@ -26,8 +26,10 @@ const SESSION_PROPERTY = {
 
 const CURSOR_PROPERTY = {
   type: "object",
-  description: "Opaque progress cursor returned by the previous chat/check.",
+  description:
+    "Opaque progress cursor returned by the previous chat/check. It carries the session id, so it can be passed to aomi_check by itself.",
   properties: {
+    session_id: { ...SESSION_PROPERTY },
     messages: { type: "integer", minimum: 0 },
     system_events: { type: "integer", minimum: 0 },
   },
@@ -57,14 +59,13 @@ export const CHAT_MCP_TOOLS: McpToolDef[] = [
   {
     name: "aomi_check",
     description:
-      "Check a running Aomi turn. Pass the cursor from the prior chat/check to receive only new messages while still receiving every newly drained activity event.",
+      "Check a running Aomi turn. Pass the cursor from the prior chat/check; it contains the session id. The top-level session_id remains accepted for older cursors.",
     inputSchema: {
       type: "object",
       properties: {
         session_id: { ...SESSION_PROPERTY },
         cursor: { ...CURSOR_PROPERTY },
       },
-      required: ["session_id"],
       additionalProperties: false,
     },
   },
@@ -98,7 +99,11 @@ export const CHAT_MCP_TOOLS: McpToolDef[] = [
 ];
 
 type ToolArgs = Record<string, unknown>;
-type Cursor = { messages: number; system_events: number };
+type Cursor = {
+  session_id?: string;
+  messages: number;
+  system_events: number;
+};
 type UnknownRecord = Record<string, unknown>;
 
 export async function dispatchChatTool(
@@ -129,7 +134,8 @@ export async function dispatchChatTool(
       };
     }
     case "aomi_check": {
-      const sessionId = text(args.session_id);
+      const sessionId =
+        text(args.session_id) ?? text(record(args.cursor)?.session_id);
       if (!sessionId) return invalid("session_id is required");
       const response = await fetchState(canonicalUserId, sessionId);
       if (!response.ok) return backendError(response);
@@ -243,6 +249,7 @@ function stateDelta(
     pending_requests: pending,
     title: typeof state.title === "string" ? state.title : null,
     cursor: {
+      session_id: sessionId,
       messages: stableMessageCount,
       // HTTP state drains system events. The event cursor is therefore a
       // monotonic receipt count, not an index into the next response.

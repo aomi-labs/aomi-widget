@@ -62,7 +62,11 @@ export class CliSession {
   }
 
   /** Create a fresh session and persist it. */
-  static create(config: CliConfig, seed?: CliSessionState): CliSession {
+  static create(
+    config: CliConfig,
+    seed?: CliSessionState,
+    sessionId = crypto.randomUUID(),
+  ): CliSession {
     // Derive Solana public key from private key when provided.
     let svmPublicKey: string | undefined;
     if (config.solanaPrivateKey) {
@@ -76,7 +80,7 @@ export class CliSession {
     }
 
     const state: CliSessionState = {
-      sessionId: crypto.randomUUID(),
+      sessionId,
       clientId: crypto.randomUUID(),
       baseUrl: config.baseUrl ?? seed?.baseUrl ?? DEFAULT_CLI_BASE_URL,
       app: config.app ?? seed?.app,

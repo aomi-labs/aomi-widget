@@ -30,7 +30,7 @@ const sessionResumeDef = defineCommand({
   },
   async run({ args }) {
     const { resumeSessionCommand } = await import("../sessions");
-    resumeSessionCommand(args.id);
+    await resumeSessionCommand(args.id);
   },
 });
 

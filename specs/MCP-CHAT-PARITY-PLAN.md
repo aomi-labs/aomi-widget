@@ -1,13 +1,16 @@
 # MCP Chat Parity — Plan
 
-> **Implementation status (2026-08-12): complete and locally verified.** Phases
+> **Implementation status (2026-08-13): complete and live-chain verified.** Phases
 > 1–5 are implemented in the Portal MCP route/server modules. The primary route
 > exposes the four chat tools, the direct funnel is preserved at
 > `/api/mcp/direct`, manual wallet requests have a redacted portal handoff, and
 > the shared origin-scoped OAuth metadata covers both endpoints. The local E2E
 > smoke proves SIWE, OAuth registration/PKCE/consent/refresh, chat/check/list/
 > resume/interrupt, a real staged manual-wallet transaction, and the browser
-> handoff into the owning transcript.
+> handoff into the owning transcript. A fresh Codex process completed OAuth and
+> used the four-tool surface; the funded SIWE wallet then imported the MCP
+> thread into the CLI, signed its pending Base transaction, and returned both
+> confirmed transaction hashes through `aomi_check`.
 
 > Goal: the MCP server exposes the **agent path** — the upper agent (Claude,
 > ChatGPT, …) chats with the Aomi agent the same way the TS CLI does — instead
@@ -65,13 +68,16 @@ as the thread id (same Cloudflare-worker rendezvous routing as portal chat).
 - Behavior: `POST /api/thread/chat`, return immediately with
   `{ session_id, status: "processing", cursor }` (plus the final reply inline
   when the backend happened to answer synchronously). The tool description
-  tells the model to follow up with `aomi_check`.
+  tells the model to follow up with `aomi_check`. The cursor includes its
+  `session_id`, so an MCP client can pass it unchanged without reconstructing
+  arguments from sibling result fields.
 
 ### `aomi_check`
 
-- args: `session_id` (required), `cursor` (optional, from the previous
-  chat/check result — the server is stateless, so the cursor round-trips
-  through the caller; message-count + system-event offset).
+- args: `cursor` (optional, from the previous chat/check result — the server is
+  stateless, so the cursor round-trips through the caller; session id +
+  message-count + system-event offset). A top-level `session_id` remains
+  accepted for compatibility with older/count-only cursors.
 - Behavior: `GET /api/thread/state`; returns a **delta**, not the transcript:
   `{ status, new_messages, activity, pending_requests, title, cursor }`.
   - `activity`: compressed tool/task narration, same events the CLI's verbose
@@ -138,7 +144,8 @@ Consequences for the MCP chat path:
 2. **`manual` wallets stall at `awaiting_user`.** `aomi_check` returns the
    pending request payload (to/value/chain or EIP-712 summary, same fields the
    CLI prints) plus handoff guidance: sign in the portal, or
-   `aomi tx sign <id>` from a CLI logged into the same account.
+   `aomi tx sign <id>` from a CLI logged into the same account after
+   `aomi session resume <session_id>` imports the account-owned MCP thread.
 3. **v2 (explicitly deferred):** an `aomi_resolve_request` tool that accepts a
    signed tx / signature and posts the wallet system event — the `client_auto`
    role `aomi tx sign` plays — for callers that hold keys locally (e.g. Claude
@@ -181,5 +188,6 @@ Consequences for the MCP chat path:
 5. **Docs + state** — update `specs/mcp-design.md` pointer, `specs/STATE.md`,
    and the MCP connect page copy if it mentions the funnel workflow.
 
-Out of scope: the non-chat "direct tools" path beyond the move, CLI changes,
-SSE push transport, `aomi_resolve_request` (v2).
+Out of scope: the non-chat "direct tools" path beyond the move, general CLI
+changes beyond remote MCP-thread import, SSE push transport,
+`aomi_resolve_request` (v2).

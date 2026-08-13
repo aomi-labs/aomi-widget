@@ -78,8 +78,23 @@ describe("MCP chat tools", () => {
       status: "complete",
       reply: "hi",
       new_messages: [{ sender: "agent", content: "hi" }],
-      cursor: { messages: 2, system_events: 0 },
+      cursor: {
+        session_id: "mcp-generated",
+        messages: 2,
+        system_events: 0,
+      },
     });
+  });
+
+  it("polls from the self-contained cursor without repeating session_id", async () => {
+    await dispatchChatTool(USER, "aomi_check", {
+      cursor: {
+        session_id: "existing",
+        messages: 1,
+        system_events: 2,
+      },
+    });
+    expect(fetchState).toHaveBeenCalledWith(USER, "existing");
   });
 
   it("continues a supplied session without recreating it", async () => {
