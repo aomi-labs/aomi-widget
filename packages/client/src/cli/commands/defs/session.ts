@@ -11,7 +11,10 @@ const sessionListDef = defineCommand({
 });
 
 const sessionNewDef = defineCommand({
-  meta: { name: "new", description: "Start a fresh session and make it active" },
+  meta: {
+    name: "new",
+    description: "Start a fresh session and make it active",
+  },
   args: { ...globalArgs },
   async run({ args }) {
     const { newSessionCommand } = await import("../sessions");
