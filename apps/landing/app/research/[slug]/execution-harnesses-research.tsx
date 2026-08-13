@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { AomiLogo } from "../../components/aomi-logo";
 import type { ResearchPost } from "@/lib/research";
@@ -7,252 +8,279 @@ type Props = {
   post: ResearchPost & { body: string };
 };
 
-const sections = [
-  ["01", "The walking era"],
-  ["02", "What a harness is"],
-  ["03", "The market stack"],
-  ["04", "The fragmented field"],
-  ["05", "The economic argument"],
-  ["06", "How to measure it"],
-  ["07", "Where Aomi fits"],
-] as const;
-
-const harnessCapabilities = [
+const layers = [
   [
     "01",
-    "Interpret",
-    "Bind a goal to assets, counterparties, timing, budget, and desired state.",
+    "Agent surfaces",
+    "Capture goals, context, preferences, and consent",
+    "ChatGPT, Gemini, Bankr, Virtuals, partner apps",
   ],
   [
     "02",
-    "Select",
-    "Choose tools, protocols, routes, and payment methods from a controlled catalog.",
+    "Runtime and orchestration",
+    "Own the model loop, tools, state, retries, and multistep work",
+    "Aomi, AgentKit, GOAT, ElizaOS, cloud agent runtimes",
   ],
   [
     "03",
+    "Domain execution",
+    "Turn plans into exact orders, calls, transactions, and verified state changes",
+    "Aomi, 1inch, deBridge, Uniswap, Crossmint, exchanges",
+  ],
+  [
+    "04",
+    "Identity, mandates, wallets",
+    "Bind identity and delegated authority; hold credentials and refuse requests",
+    "AP2, Coinbase, MetaMask, Privy, Turnkey, Safe",
+  ],
+  [
+    "05",
+    "Payment coordination",
+    "Describe price, accepted methods, proof, and delivery",
+    "x402, MPP, ACP, UCP",
+  ],
+  [
+    "06",
+    "Money, funding, treasury",
+    "Supply balances, stablecoins, cards, FX, liquidity, and accounting",
+    "Circle, Stripe, Bridge, Coinbase, Crossmint, banks",
+  ],
+  [
+    "07",
+    "Settlement rails",
+    "Finalize value movement and record resulting state",
+    "Base, Solana, Ethereum L2s, Tempo, card and bank networks",
+  ],
+] as const;
+
+const useCases = [
+  [
+    "Pay-per-call APIs, data, inference, and compute",
+    "x402, MPP, stablecoins",
+    "Early production",
+    "Strongest current product-market fit; the good being purchased is already digital and machine-readable.",
+  ],
+  [
+    "Browser, storage, and infrastructure sessions",
+    "MPP, x402, cards, stablecoins",
+    "Early production",
+    "Metered, ephemeral resources fit machine-speed authorization and reconciliation.",
+  ],
+  [
+    "Agent-to-agent services",
+    "x402, MPP, marketplaces",
+    "Emerging",
+    "Discovery, reputation, delivery proof, and dispute handling remain weak.",
+  ],
+  [
+    "Consumer shopping, travel, and subscriptions",
+    "ACP, UCP, AP2 plus existing rails",
+    "Expanding launches",
+    "Merchant operations, refunds, tax, and fulfillment matter more than rail novelty.",
+  ],
+  [
+    "DeFi trading and portfolio execution",
+    "Agent wallets, smart accounts, chains",
+    "Live, high risk",
+    "Execution is technically mature; semantic and authorization risk remain material.",
+  ],
+  [
+    "Corporate procurement and expense",
+    "Agent cards, mandates, ERP-connected processors",
+    "Emerging enterprise",
+    "The value lies in sourcing, budget enforcement, receipt capture, and exception handling.",
+  ],
+  [
+    "Treasury, FX, and cross-border routing",
+    "Stablecoins, banks, cards, local rails",
+    "Pilot stage",
+    "High regulatory, liquidity, accounting, and liability burden.",
+  ],
+] as const;
+
+const actors = [
+  [
+    "Agent surfaces and commerce",
+    "OpenAI, Google, Amazon, PayPal, Bankr, Virtuals",
+    "Own demand, context, and distribution; increasingly initiate checkout or service procurement.",
+  ],
+  [
+    "General runtimes and toolkits",
+    "Aomi, Coinbase AgentKit, GOAT, ElizaOS, cloud frameworks",
+    "Run agents and expose actions. Lifecycle ownership ranges from tool access to full stateful execution.",
+  ],
+  [
+    "Domain execution specialists",
+    "1inch, deBridge, Uniswap, Kraken, Crossmint",
+    "Own venue, liquidity, checkout, or protocol depth; supply routes and guarantees to broader runtimes.",
+  ],
+  [
+    "Wallets and authority",
+    "Coinbase, MetaMask, OKX, Circle, Privy, Turnkey, Safe, Fireblocks",
+    "Protect keys, enforce mandates and limits, screen risk, escalate, sign, and preserve audit evidence.",
+  ],
+  [
+    "Payment and commerce protocols",
+    "x402, MPP, ACP, UCP, AP2",
+    "Standardize distinct handshakes: machine payment, commerce workflow, or delegated mandate.",
+  ],
+  [
+    "Money and orchestration",
+    "Circle, Stripe, Bridge, Coinbase, Crossmint, BVNK, Zero Hash",
+    "Provide stablecoins, accounts, onramps, treasury, reporting, tax, refunds, and cross-rail routing.",
+  ],
+  [
+    "Networks and assurance",
+    "Base, Solana, Ethereum L2s, Visa, Mastercard; Chainalysis, Blockaid, Tenderly",
+    "Provide settlement or independent risk, simulation, monitoring, and incident evidence.",
+  ],
+] as const;
+
+const harnessResponsibilities = [
+  [
+    "Interpret",
+    "Bind an adaptive goal to assets, counterparties, timing, budget, and desired state.",
+  ],
+  [
+    "Select",
+    "Choose tools, protocols, routes, and payment methods from a controlled capability set.",
+  ],
+  [
     "Construct",
     "Produce exact orders, calldata, approvals, batches, and payment payloads.",
   ],
   [
-    "04",
     "Simulate",
-    "Test the concrete action against relevant state before authority is requested.",
+    "Evaluate the concrete action against relevant state before authority is requested.",
   ],
   [
-    "05",
     "Authorize",
-    "Hand an immutable request to a wallet or policy boundary that can refuse.",
+    "Bind an immutable request to a wallet or policy boundary that can refuse.",
   ],
   [
-    "06",
     "Execute",
     "Submit once, manage idempotency, and distinguish partial from complete work.",
   ],
   [
-    "07",
     "Reconcile",
     "Compare receipts and final state with the original objective and preserve evidence.",
   ],
 ] as const;
 
-const stackLayers = [
+const references = [
   [
     "1",
-    "Agent surfaces",
-    "Capture goals and context",
-    "ChatGPT, Gemini, commerce agents, Aomi Apps",
+    "International Monetary Fund",
+    "How Agentic AI Will Reshape Payments",
+    "https://www.imf.org/en/-/media/files/publications/imf-notes/2026/english/insea2026004.pdf",
   ],
   [
     "2",
-    "Runtime and orchestration",
-    "Own sessions, tools, state, retries, and multistep work",
-    "Aomi, agent frameworks, Bankr, Virtuals",
+    "x402",
+    "Protocol introduction and payment flow",
+    "https://docs.x402.org/introduction",
   ],
   [
     "3",
-    "Domain execution",
-    "Construct exact financial and onchain operations",
-    "Aomi, AgentKit, 1inch, deBridge, Crossmint",
+    "Stripe and Tempo",
+    "Introducing the Machine Payments Protocol",
+    "https://stripe.com/blog/machine-payments-protocol",
   ],
   [
     "4",
-    "Identity, mandates, wallets",
-    "Bind authority, limits, credentials, and signing",
-    "AP2, Coinbase, MetaMask, Privy, Turnkey, Safe",
+    "Google Cloud",
+    "Announcing the Agent Payments Protocol (AP2)",
+    "https://cloud.google.com/blog/products/ai-machine-learning/announcing-agents-to-payments-ap2-protocol",
   ],
   [
     "5",
-    "Payment coordination",
-    "Describe price, acceptance, proof, and delivery",
-    "x402, MPP, ACP, UCP",
+    "Chainalysis",
+    "Inside x402's Path to Meaningful Adoption",
+    "https://www.chainalysis.com/blog/x402-agentic-payments-adoption/",
   ],
   [
     "6",
-    "Money, funding, treasury",
-    "Supply balances, cards, stablecoins, FX, and accounting",
-    "Issuers, processors, banks, onramps",
+    "Coinbase Developer Platform",
+    "AgentKit architecture",
+    "https://docs.cdp.coinbase.com/agent-kit/core-concepts/architecture-explained",
+  ],
+  ["7", "Aomi", "Runtime reference", "https://aomi.dev/docs/reference/runtime"],
+  ["8", "Aomi", "Build overview", "https://aomi.dev/docs/build/overview"],
+  [
+    "9",
+    "Stripe and OpenAI",
+    "Agentic Commerce Protocol and Instant Checkout",
+    "https://stripe.com/newsroom/news/stripe-openai-instant-checkout",
   ],
   [
-    "7",
-    "Settlement rails",
-    "Finalize value movement and record resulting state",
-    "Chains, card networks, bank rails",
+    "10",
+    "Visa",
+    "Trusted Agent Protocol specifications",
+    "https://developer.visa.com/capabilities/trusted-agent-protocol/trusted-agent-protocol-specifications/",
+  ],
+  [
+    "11",
+    "Mastercard",
+    "Mastercard Agent Pay",
+    "https://www.mastercard.com/global/en/business/artificial-intelligence/mastercard-agent-pay.html",
+  ],
+  [
+    "12",
+    "Coinbase Developer Platform",
+    "Agentic Wallets",
+    "https://www.coinbase.com/developer-platform/products/agentic-wallets",
+  ],
+  [
+    "13",
+    "MetaMask",
+    "Agent Wallet",
+    "https://metamask.io/news/metamask-launches-agent-wallet-giving-ai-agents-full-defi-access-with-default-security-on-every-transaction",
+  ],
+  ["14", "Privy", "Wallet infrastructure for AI", "https://www.privy.io/ai"],
+  [
+    "15",
+    "Turnkey",
+    "Wallet infrastructure for AI agents",
+    "https://www.turnkey.com/solutions/ai-agents",
+  ],
+  [
+    "16",
+    "Bankr",
+    "Agent runtime overview",
+    "https://docs.bankr.bot/agent/overview/",
+  ],
+  [
+    "17",
+    "Aomi Research",
+    "Agentic Payments in Crypto — Ecosystem Deep Dive",
+    "https://app.notion.com/p/3ba36be0954d816784a4e7b25ba2949b?pvs=204",
   ],
 ] as const;
 
-const protocolFamilies = [
-  {
-    title: "Tool and agent communication",
-    examples: "MCP · A2A",
-    job: "Expose capabilities and coordinate software.",
-    boundary: "Not payment rails or execution assurance.",
-  },
-  {
-    title: "Machine payments",
-    examples: "x402 · MPP",
-    job: "Let software pay for an API, resource, session, or service.",
-    boundary: "Does not determine whether the purchase is correct or safe.",
-  },
-  {
-    title: "Commerce workflows",
-    examples: "ACP · UCP",
-    job: "Coordinate discovery, cart, checkout, fulfillment, and returns.",
-    boundary: "Not wallets, money, or final settlement.",
-  },
-  {
-    title: "Mandates and trust",
-    examples: "AP2 · Visa TAP · Mastercard Agent Pay",
-    job: "Prove identity, intent, scope, and delegated authority.",
-    boundary: "Does not construct or verify the financial action itself.",
-  },
-] as const;
-
-const marketRows = [
-  [
-    "General-purpose agents",
-    "Reason across arbitrary tools and websites",
-    "Broad reach; repeated discovery and recovery work",
-    "Claude, Codex, general agent frameworks",
-  ],
-  [
-    "Crypto action toolkits",
-    "Expose wallet and protocol actions to agents",
-    "Action availability; lifecycle ownership varies",
-    "Coinbase AgentKit, GOAT, protocol MCP servers",
-  ],
-  [
-    "Payment protocols",
-    "Coordinate payment requests and acceptance",
-    "The handshake, not the whole execution path",
-    "x402, MPP",
-  ],
-  [
-    "Wallet and mandate systems",
-    "Hold credentials and enforce authority",
-    "Can refuse; usually cannot judge semantic task success",
-    "MetaMask, Coinbase, Privy, Turnkey, Safe, AP2",
-  ],
-  [
-    "Vertical execution systems",
-    "Own routes or workflows in one domain",
-    "Strong domain depth; narrower action surface",
-    "1inch, deBridge, Crossmint, Bankr",
-  ],
-  [
-    "Execution runtimes",
-    "Own state from intent through verified request and reconciliation",
-    "The emerging harness category",
-    "Aomi",
-  ],
-] as const;
-
-const benchmarkMetrics = [
-  ["Task success", "Did the requested financial state change occur?"],
-  [
-    "Tokens per verified outcome",
-    "How much model reasoning was consumed by completed work?",
-  ],
-  ["Time to completion", "How long from intent to reconciled result?"],
-  [
-    "Tool calls and retries",
-    "How much operational wandering and recovery occurred?",
-  ],
-  [
-    "Human interventions",
-    "How often did the system require rescue rather than intentional approval?",
-  ],
-  [
-    "Unsafe proposals blocked",
-    "Did the system reject structurally valid but harmful actions?",
-  ],
-  [
-    "Simulation consistency",
-    "Was the signed payload the reviewed payload, and did execution match simulation?",
-  ],
-  [
-    "Duplicate-broadcast rate",
-    "Did retries create repeated payments or transactions?",
-  ],
-] as const;
-
-function SourceLink({
-  href,
-  children,
-}: {
-  href: string;
-  children: React.ReactNode;
-}) {
+function Cite({ n }: { n: string }) {
   return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noreferrer"
-      className={styles.sourceLink}
-    >
-      {children}
-    </a>
-  );
-}
-
-function SectionHeading({
-  number,
-  label,
-  children,
-}: {
-  number: string;
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className={styles.sectionHeading}>
-      <div className={styles.sectionLabel}>
-        <b>{number}</b>
-        <span>{label}</span>
-      </div>
-      <h2>{children}</h2>
-    </div>
+    <sup className={styles.cite}>
+      <a href={`#ref-${n}`}>[{n}]</a>
+    </sup>
   );
 }
 
 function Figure({
   number,
   title,
-  subtitle,
   children,
   caption,
 }: {
   number: string;
   title: string;
-  subtitle: string;
-  children: React.ReactNode;
-  caption: React.ReactNode;
+  children: ReactNode;
+  caption: ReactNode;
 }) {
   return (
     <figure className={styles.figure}>
-      <div className={styles.figureHeader}>
+      <div className={styles.figureTopline}>
         <span>Figure {number}</span>
-        <h3>{title}</h3>
-        <p>{subtitle}</p>
+        <b>{title}</b>
       </div>
       <div className={styles.figureBody}>{children}</div>
       <figcaption>{caption}</figcaption>
@@ -260,368 +288,309 @@ function Figure({
   );
 }
 
+function Section({
+  number,
+  title,
+  children,
+  id,
+}: {
+  number: string;
+  title: string;
+  children: ReactNode;
+  id: string;
+}) {
+  return (
+    <section className={styles.section} id={id}>
+      <div className={styles.sectionRule}>
+        <span>{number}</span>
+      </div>
+      <h2>{title}</h2>
+      {children}
+    </section>
+  );
+}
+
 export function ExecutionHarnessesResearch({ post }: Props) {
   return (
     <main className={styles.page}>
-      <article>
-        <header className={styles.hero}>
-          <div className={styles.topline}>
+      <article className={styles.paper}>
+        <header className={styles.header}>
+          <div className={styles.masthead}>
             <Link href="/" aria-label="Aomi home">
               <AomiLogo
                 className={styles.logo}
                 markClassName={styles.logoMark}
               />
             </Link>
-            <span>Research · {post.date}</span>
+            <span>Aomi Research · {post.date}</span>
           </div>
-          <div className={styles.eyebrow}>
-            Agentic payments · market structure
-          </div>
+          <p className={styles.series}>
+            Research paper · Agentic financial infrastructure
+          </p>
           <h1>The State of Execution Harnesses for Agentic Payments</h1>
-          <p className={styles.dek}>
-            Why better models alone will not make financial agents efficient,
+          <p className={styles.subtitle}>
+            Why model progress alone will not make financial agents efficient,
             reliable, or operational—and why execution infrastructure becomes
             the next essential layer.
           </p>
-          <div className={styles.heroGrid}>
-            <div>
-              <p>
-                General-purpose agents can already reach financial destinations.
-                They can browse documentation, call tools, construct requests,
-                and recover from mistakes. But they often do so the way a person
-                travels on foot: one uncertain step at a time, repeatedly paying
-                in reasoning, tokens, latency, and operational risk.
-              </p>
-              <p>
-                This report argues that agentic payments are entering an{" "}
-                <b>execution-harness phase</b>. The model remains the
-                intelligence. The harness turns repeated financial reasoning
-                into tested machinery: typed actions, protocol-aware
-                construction, simulation, authorization handoffs, state
-                management, idempotency, and outcome verification.
-              </p>
-            </div>
-            <aside className={styles.thesis}>
-              <span>Research thesis</span>
-              <p>
-                As the market matures, execution harnesses become standard
-                infrastructure. Their interfaces may commoditize; execution
-                quality will not.
-              </p>
-            </aside>
+          <div className={styles.byline}>
+            <span>Aomi Research</span>
+            <span>13 August 2026</span>
+            <span>Market structure and systems analysis</span>
           </div>
-          <nav className={styles.index} aria-label="Report sections">
-            {sections.map(([number, label]) => (
-              <a key={number} href={`#s${number}`}>
-                <span>{number}</span>
-                {label}
-              </a>
-            ))}
-          </nav>
         </header>
 
-        <section className={styles.intro}>
-          <h2>Executive conclusion</h2>
+        <aside className={styles.abstract}>
+          <h2>Abstract</h2>
           <p>
-            The market has named protocols, wallets, mandates, stablecoins, and
-            settlement networks. It has not yet consistently named the system
-            responsible for getting from an agent&apos;s adaptive plan to a
-            concrete, verified financial outcome. We call that system the{" "}
-            <b>execution harness</b>.
+            Agentic payments are often described as a new payment method. This
+            framing is too narrow. They are a systems problem spanning adaptive
+            intent, tool selection, transaction construction, delegated
+            authority, funding, settlement, and reconciliation. The central
+            architectural tension is that agents reason probabilistically while
+            financial authority and settlement must remain deterministic. This
+            paper maps the emerging market into seven layers and argues that a
+            distinct execution-harness category is forming between the model and
+            the wallet. An execution harness turns repeated financial reasoning
+            into tested machinery: typed actions, protocol-aware construction,
+            simulation, immutable authorization handoffs, idempotent execution,
+            state management, and outcome verification. The category thesis is
+            testable. Holding the model and task constant, a useful harness must
+            increase verified completion while reducing tokens, latency,
+            retries, unsafe proposals, and human intervention. The paper
+            concludes that harness interfaces may standardize, but execution
+            quality will remain differentiated—and positions Aomi as an onchain
+            agent execution runtime within that emerging layer.
+          </p>
+          <p className={styles.keywords}>
+            <b>Keywords:</b> agentic payments, agentic finance, execution
+            harnesses, stablecoins, wallets, x402, MPP, AP2, onchain agents
+          </p>
+        </aside>
+
+        <nav className={styles.contents} aria-label="Contents">
+          <b>Contents</b>
+          {[
+            ["1", "Introduction", "introduction"],
+            ["2", "Definitions and method", "method"],
+            ["3", "Evidence and use cases", "evidence"],
+            ["4", "The seven-layer ecosystem", "ecosystem"],
+            ["5", "The execution-harness gap", "harness"],
+            ["6", "Actors and competitive structure", "actors"],
+            ["7", "Economics and measurement", "measurement"],
+            ["8", "Implications for Aomi", "aomi"],
+            ["9", "Risks, outlook, and conclusion", "conclusion"],
+          ].map(([n, label, id]) => (
+            <a key={id} href={`#${id}`}>
+              <span>{n}</span>
+              {label}
+            </a>
+          ))}
+        </nav>
+
+        <Section
+          number="1"
+          title="Introduction: the market has named every layer except execution"
+          id="introduction"
+        >
+          <p className={styles.lead}>
+            General-purpose agents can already reach financial destinations.
+            They can browse documentation, discover a tool, infer its schema,
+            create a payment or transaction, recover from an error, and inspect
+            a receipt. Yet they often do so the way a person travels on foot:
+            one uncertain step at a time, repeatedly paying in reasoning,
+            tokens, latency, and operational risk.
           </p>
           <p>
-            The need follows from a structural mismatch. Models are
-            probabilistic; financial authorization and settlement require
-            reproducible controls, inspectable payloads, and clear
-            accountability. The IMF&apos;s 2026 payment model formalizes this
-            separation across intent and orchestration, control and
-            authorization, and settlement. Our analysis expands the middle of
-            that journey: between intent and authority lies a large body of
-            execution work that cannot be delegated to a payment handshake or a
-            signer alone.
+            Faster models improve that walk. They do not remove the economic
+            reason to build vehicles. In mature technical systems, repeated
+            integration knowledge, safety checks, and recovery logic move out of
+            general reasoning and into software. The same transition is now
+            beginning in agentic payments. The model remains the intelligence;
+            an execution harness carries the known mechanics.
           </p>
-          <div className={styles.methodology}>
-            <div>
-              <b>Method</b>
-              <span>
-                Architecture analysis, product and protocol documentation,
-                onchain market evidence, and Aomi&apos;s operating perspective.
-              </span>
-            </div>
-            <div>
-              <b>Scope</b>
-              <span>
-                Agent-initiated payments, crypto-native financial actions,
-                wallets, mandates, runtimes, protocols, and settlement.
-              </span>
-            </div>
-            <div>
-              <b>Constraint</b>
-              <span>
-                The same-model harness advantage is a testable thesis. This
-                report defines the benchmark; it does not invent an unrun
-                result.
-              </span>
-            </div>
+          <p>
+            The market has already named many adjacent components. Machine
+            payment protocols coordinate an acceptance handshake. Wallets hold
+            credentials and enforce delegated authority. Stablecoins and cards
+            supply value. Blockchains and payment networks settle. Mandate
+            systems establish who an agent represents and what it may do. What
+            remains inconsistently named is the system responsible for moving
+            from an agent&apos;s adaptive plan to a concrete, inspectable, and
+            reconciled financial outcome.
+          </p>
+          <p>
+            This paper calls that system the <b>execution harness</b>. The term
+            is deliberately narrower than “agent platform” and broader than
+            “transaction toolkit.” A harness owns enough of the execution
+            lifecycle to make performance and failure measurable. It binds
+            intent to typed actions, chooses among supported capabilities,
+            constructs a request, tests it against state, preserves the payload
+            presented for authorization, executes without duplication, and
+            verifies the resulting state.
+          </p>
+          <div className={styles.thesisBox}>
+            <b>Central thesis</b>
+            <p>
+              As agentic finance matures, execution harnesses become standard
+              infrastructure because they increase verified outcomes per unit of
+              model reasoning, time, money, and human attention. Their
+              interfaces may commoditize; their execution quality will not.
+            </p>
           </div>
-        </section>
+        </Section>
 
-        <section className={styles.section} id="s01">
-          <SectionHeading number="01" label="The walking era">
-            The same model should travel farther with less work
-          </SectionHeading>
+        <Section
+          number="2"
+          title="Definitions, scope, and methodology"
+          id="method"
+        >
+          <h3>2.1 What counts as an agentic payment?</h3>
           <p>
-            The current agentic-payment stack is capable but fragmented. A
-            sufficiently strong model can discover a service, infer its
-            interface, choose a route, create a payment, recover from errors,
-            and verify a result. That is real progress. It is also an expensive
-            use of probabilistic intelligence for work that mature systems
-            eventually encode in software.
+            A conventional automated payment follows predetermined code: send a
+            fixed amount on a fixed date. An agentic payment contains an
+            adaptive decision step: find a compliant supplier under a budget,
+            choose a route, determine the amount or timing, and pay. The agent
+            may decide <i>what</i>, <i>when</i>, <i>where</i>, or{" "}
+            <i>how much</i>
+            within a delegated mandate.
           </p>
           <p>
-            The useful comparison is not a weak model with infrastructure
-            against a strong model without it. It is{" "}
-            <b>the same athlete on the same course</b>. If the same model
-            completes more tasks with fewer tokens, less time, fewer retries,
-            and stronger end-state evidence when using a harness, the harness
-            created measurable economic value.
+            Agentic payments overlap with two larger categories but are not
+            synonymous with either. <b>Agentic commerce</b> includes discovery,
+            comparison, ordering, fulfillment, returns, and support; payment is
+            one stage. <b>Agentic finance</b> includes trading, treasury,
+            hedging, lending, compliance, and portfolio operations; not every
+            financial action is a payment. A crypto agent that only analyzes or
+            communicates becomes a payment actor only when it can request or
+            authorize value transfer.
           </p>
-          <Figure
-            number="01"
-            title="The model is the athlete; the harness is the vehicle"
-            subtitle="A research hypothesis that holds model and task constant."
-            caption={
-              <>
-                A capable model may keep walking faster. A battle-tested vehicle
-                should still reduce the amount of cognition spent on navigation,
-                mechanics, and recovery. The claim is only credible when
-                measured with the same model, task set, signer policy, and
-                market state.
-              </>
-            }
-          >
-            <div className={styles.athleteHeader}>
-              <span>Same model</span>
-              <b>Claude · Codex · Gemini · frontier agent</b>
-            </div>
-            <div className={styles.travelGrid}>
-              <div className={styles.travelLane}>
-                <div className={styles.travelTitle}>
-                  <span>Baseline</span>
-                  <b>Walk through generic tools</b>
-                </div>
-                <div className={styles.route}>
-                  {[
-                    "discover docs",
-                    "infer schema",
-                    "choose tool",
-                    "construct",
-                    "retry",
-                    "verify",
-                  ].map((x) => (
-                    <span key={x}>{x}</span>
-                  ))}
-                </div>
-                <p>
-                  Reasoning repeatedly absorbs integration details and failure
-                  recovery.
-                </p>
-              </div>
-              <div className={`${styles.travelLane} ${styles.vehicle}`}>
-                <div className={styles.travelTitle}>
-                  <span>Harnessed</span>
-                  <b>Ride a tested execution path</b>
-                </div>
-                <div className={styles.route}>
-                  {[
-                    "intent",
-                    "typed plan",
-                    "simulate",
-                    "authorize",
-                    "execute",
-                    "reconcile",
-                  ].map((x) => (
-                    <span key={x}>{x}</span>
-                  ))}
-                </div>
-                <p>
-                  Software carries known mechanics; model reasoning concentrates
-                  on judgment.
-                </p>
-              </div>
-            </div>
-            <div className={styles.dominanceBar}>
-              <b>A good harness must earn its abstraction</b>
-              <span>
-                higher completion · fewer tokens · lower latency · fewer retries
-                · stronger evidence
-              </span>
-            </div>
-          </Figure>
-        </section>
-
-        <section className={styles.section} id="s02">
-          <SectionHeading number="02" label="What a harness is">
-            A harness owns the execution lifecycle, not merely a tool call
-          </SectionHeading>
+          <h3>2.2 The probabilistic–deterministic boundary</h3>
           <p>
-            An execution harness is the runtime machinery that converts intent
-            into a bounded, inspectable, and reconcilable financial action. A
-            toolkit can expose functions. A protocol can describe a payment
-            request. A wallet can enforce authority. A rail can settle. The
-            harness coordinates the work between those components and preserves
-            state across the full task.
+            The IMF&apos;s 2026 model separates agentic payments into intent and
+            orchestration, control and authorization, and settlement.
+            <Cite n="1" />
+            That separation captures the core safety property: an agent may
+            reason, search, negotiate, and propose, but a deterministic boundary
+            must decide whether a concrete request may use financial authority,
+            and a deterministic rail must settle without reinterpreting the
+            instruction. This paper expands the commercial and technical space
+            between those three institutional layers.
           </p>
-          <Figure
-            number="02"
-            title="The seven responsibilities of a financial execution harness"
-            subtitle="The lifecycle begins before a payment payload exists and ends after settlement."
-            caption={
-              <>
-                The critical artifact is not merely a transaction hash. It is an
-                evidence chain connecting original intent, selected tool,
-                reviewed payload, authorization decision, signer, receipt, and
-                final state.
-              </>
-            }
-          >
-            <div className={styles.capabilityRail}>
-              {harnessCapabilities.map(([number, title, copy]) => (
-                <div key={number} className={styles.capability}>
-                  <span>{number}</span>
-                  <b>{title}</b>
-                  <p>{copy}</p>
-                </div>
-              ))}
-            </div>
-            <div className={styles.boundaryBand}>
-              <span>Probabilistic selection and planning</span>
-              <span>Deterministic authority, execution, and state</span>
-            </div>
-          </Figure>
-          <div className={styles.definitionGrid}>
+          <h3>2.3 Research method</h3>
+          <p>
+            The analysis combines official protocol specifications, first-party
+            product documentation, independent onchain evidence, and Aomi&apos;s
+            operating perspective. Product capabilities are treated as vendor
+            claims unless independently demonstrated. Transaction activity is
+            evidence of technical use, not automatically evidence of durable or
+            autonomous demand. The market taxonomy is analytical: firms often
+            span multiple layers, and placement reflects the function being
+            evaluated rather than the company as a whole.
+          </p>
+          <div className={styles.methodGrid}>
             <div>
-              <b>A harness is more than a toolkit</b>
+              <b>Included</b>
               <p>
-                It owns lifecycle, state, recovery, evidence, and completion—not
-                only a catalog of callable actions.
+                Machine payments, commerce mandates, crypto wallets,
+                stablecoins, agent runtimes, DeFi execution, treasury, security,
+                and reconciliation.
               </p>
             </div>
             <div>
-              <b>A harness is broader than a policy layer</b>
+              <b>Excluded</b>
               <p>
-                Policies are essential controls inside execution, but they do
-                not construct, simulate, complete, or reconcile the task.
+                Generic AI fraud models, infrastructure with no agent-facing
+                role, and speculative tokens whose only connection is an “AI
+                agent” label.
               </p>
             </div>
             <div>
-              <b>A harness is separate from the wallet</b>
+              <b>Evidence hierarchy</b>
               <p>
-                The harness prepares and verifies a request. The wallet remains
-                the authority boundary with the power to refuse.
+                Specifications first; then official technical documentation;
+                then independent market evidence; finally internal hypotheses
+                and positioning.
+              </p>
+            </div>
+            <div>
+              <b>Research limitation</b>
+              <p>
+                The same-model execution advantage is proposed as a benchmark.
+                No unrun comparison is presented as a measured result.
               </p>
             </div>
           </div>
-        </section>
+        </Section>
 
-        <section className={styles.section} id="s03">
-          <SectionHeading number="03" label="The market stack">
-            Agentic payments are a stack, not one market
-          </SectionHeading>
-          <p>
-            The category becomes easier to reason about once each layer is
-            assigned one job. The IMF separates probabilistic intent from
-            deterministic authorization and settlement. Commercially, the stack
-            is expanding into seven layers. Execution harnesses sit primarily in
-            runtime orchestration and domain execution while integrating—without
-            replacing—wallets, protocols, money, and rails.
+        <Section
+          number="3"
+          title="Market evidence and the use cases that matter first"
+          id="evidence"
+        >
+          <p className={styles.lead}>
+            The market is real but early. The strongest live wedge is not a
+            general autonomous economy; it is software paying for digital
+            resources while completing a task.
           </p>
-          <Figure
-            number="03"
-            title="Seven layers from demand to settlement"
-            subtitle="Aomi's primary band is runtime orchestration plus domain execution."
-            caption={
-              <>
-                Initiating a task is not the same as constructing it.
-                Constructing it is not the same as authorizing it. Authorizing
-                it is not the same as settling it. Mature systems keep those
-                responsibilities explicit.
-              </>
-            }
-          >
-            <div className={styles.stack}>
-              {stackLayers.map(([n, name, job, actors]) => (
-                <div
-                  key={n}
-                  className={`${styles.layer} ${n === "2" || n === "3" ? styles.aomiLayer : ""}`}
-                >
-                  <span>{n}</span>
-                  <b>{name}</b>
-                  <p>{job}</p>
-                  <small>{actors}</small>
-                </div>
-              ))}
-            </div>
-            <div className={styles.horizontal}>
-              <b>Horizontal assurance</b>
-              <span>simulation</span>
-              <span>compliance</span>
-              <span>threat detection</span>
-              <span>observability</span>
-              <span>reconciliation</span>
-              <span>disputes</span>
-            </div>
-          </Figure>
-        </section>
-
-        <section className={styles.section} id="s04">
-          <SectionHeading number="04" label="The fragmented field">
-            Most products solve one responsibility—and should say which one
-          </SectionHeading>
           <p>
-            Several protocol families are routinely grouped together despite
-            solving different problems. MCP and A2A coordinate software. x402
-            and MPP coordinate machine payment. ACP and UCP coordinate commerce.
-            AP2 and card-network programs coordinate trust and delegated
-            authority. None independently provides the complete execution
-            lifecycle.
+            x402 revives the HTTP 402 pattern. A server returns payment
+            requirements, the client signs a payload, and the request is retried
+            with payment proof; a facilitator may verify and settle without
+            custodying the user&apos;s funds.
+            <Cite n="2" /> MPP similarly coordinates payment for APIs, MCP
+            tools, and HTTP resources, while connecting machine payments to
+            Stripe&apos;s existing support for stablecoins, cards, recurring
+            charges, tax, reporting, refunds, and merchant payouts.
+            <Cite n="3" /> These systems lower the cost of acceptance. They do
+            not decide whether the purchase is sensible, whether the action
+            produced the intended state, or whether a paid service delivered
+            correctly.
           </p>
-          <Figure
-            number="04"
-            title="Four protocol families, four jobs"
-            subtitle="Complementary standards are often mistaken for competing full-stack answers."
-            caption={
-              <>
-                x402 and MPP can make a payment easier to request and accept.
-                They do not determine whether the underlying purchase is
-                sensible, whether an onchain operation produces the intended
-                state, or whether offchain delivery occurred.
-              </>
-            }
-          >
-            <div className={styles.protocolGrid}>
-              {protocolFamilies.map((x) => (
-                <div key={x.title} className={styles.protocol}>
-                  <b>{x.title}</b>
-                  <p>{x.job}</p>
-                  <span>{x.examples}</span>
-                  <small>Not: {x.boundary}</small>
-                </div>
-              ))}
+          <p>
+            Chainalysis measured more than 100 million cumulative x402
+            transactions on Base through the first quarter of 2026. The same
+            analysis found that speculative pay-to-mint activity drove much of
+            an earlier surge and concluded that mass adoption remained distant.
+            <Cite n="5" /> The caveat is not a footnote to be separated from the
+            number; it determines what the number means. Protocol activity
+            proves that accountless machine payment works at scale. It does not
+            yet prove that recurring, economically useful autonomous demand is
+            widespread.
+          </p>
+          <div className={styles.dataNote}>
+            <strong>100M+</strong>
+            <div>
+              <b>cumulative x402 transactions on Base through Q1 2026</b>
+              <p>
+                Evidence of technical use and early demand—not a clean measure
+                of autonomous-agent adoption.
+              </p>
             </div>
-          </Figure>
+          </div>
+          <h3>3.1 Use-case maturity</h3>
+          <p>
+            Use cases mature fastest when the purchased object is digital, the
+            price is machine-readable, fulfillment is immediate, and failure is
+            reversible or low value. They mature more slowly as physical
+            fulfillment, regulated advice, custody, credit, cross-border
+            compliance, or ambiguous liability enters the workflow.
+          </p>
           <div className={styles.tableWrap}>
-            <table className={styles.marketTable}>
+            <table>
+              <caption>
+                Table 1. Representative use cases and 2026 maturity
+              </caption>
               <thead>
                 <tr>
-                  <th>Category</th>
-                  <th>Primary value</th>
-                  <th>Execution-harness boundary</th>
-                  <th>Representative actors</th>
+                  <th>Use case</th>
+                  <th>Best-fit rails</th>
+                  <th>Maturity</th>
+                  <th>Assessment</th>
                 </tr>
               </thead>
               <tbody>
-                {marketRows.map((row) => (
+                {useCases.map((row) => (
                   <tr key={row[0]}>
                     {row.map((cell, i) => (
                       <td key={cell}>{i === 0 ? <b>{cell}</b> : cell}</td>
@@ -632,427 +601,575 @@ export function ExecutionHarnessesResearch({ post }: Props) {
             </table>
           </div>
           <p>
-            This field is likely to remain modular. Wallets have distribution
-            and authority. Protocols have acceptance semantics. Vertical
-            providers have route and venue depth. General runtimes have breadth.
-            The emerging harness layer competes on how reliably it composes
-            those pieces into completed work.
+            This sequence explains crypto&apos;s early advantage. Wallets are
+            programmatic accounts; stablecoins provide internet-native value;
+            and blockchains settle globally at machine speed. Those properties
+            are especially valuable for low-value digital services and
+            crypto-native financial actions. They are less decisive in consumer
+            commerce, where merchant reach, refunds, fraud allocation, tax, and
+            fulfillment usually matter more than the novelty of the rail.
           </p>
-        </section>
+        </Section>
 
-        <section className={styles.section} id="s05">
-          <SectionHeading number="05" label="The economic argument">
-            Token efficiency turns execution architecture into product economics
-          </SectionHeading>
+        <Section
+          number="4"
+          title="Agentic payments are a seven-layer ecosystem"
+          id="ecosystem"
+        >
           <p>
-            Model tokens are not the only cost, but they expose the core
-            inefficiency. When an agent repeatedly rereads documentation,
-            reconstructs schemas, reasons through allowance mechanics, retries
-            stale routes, or determines whether a task actually finished, the
-            system is buying cognition to compensate for missing infrastructure.
-          </p>
-          <div className={styles.economicsGrid}>
-            <div>
-              <span>01</span>
-              <b>Move repeated cognition into software</b>
-              <p>
-                Stable protocol knowledge, typed interfaces, and deterministic
-                checks should not be rediscovered on every run.
-              </p>
-            </div>
-            <div>
-              <span>02</span>
-              <b>Compress the failure surface</b>
-              <p>
-                Simulation, idempotency, payload binding, and state
-                reconciliation remove entire classes of expensive recovery.
-              </p>
-            </div>
-            <div>
-              <span>03</span>
-              <b>Make operations legible</b>
-              <p>
-                Teams need receipts, traces, exceptions, and end-state
-                evidence—not only fluent agent transcripts.
-              </p>
-            </div>
-            <div>
-              <span>04</span>
-              <b>Preserve model optionality</b>
-              <p>
-                A stable harness lets operators improve or replace the athlete
-                without rebuilding the vehicle around one model.
-              </p>
-            </div>
-          </div>
-          <blockquote className={styles.pullquote}>
-            Execution harnesses will become ubiquitous. Good execution harnesses
-            will not become commodities.
-          </blockquote>
-          <p>
-            Interfaces and baseline actions will standardize. Performance will
-            continue to differ in protocol coverage, construction quality,
-            simulation fidelity, recovery behavior, latency, and semantic
-            outcome verification. Buyers will not pay merely for “agent access.”
-            They will pay for more verified outcomes per unit of time, money,
-            and human attention.
-          </p>
-        </section>
-
-        <section className={styles.section}>
-          <SectionHeading number="05A" label="Market evidence">
-            Machine payments are live; the autonomous economy remains early
-          </SectionHeading>
-          <p>
-            x402 demonstrates that machines can pay for HTTP resources at scale.
-            Chainalysis measured more than 100 million cumulative x402
-            transactions on Base through Q1 2026, while also finding that
-            meme-coin pay-to-mint activity drove much of the earlier surge. Its
-            conclusion is appropriately balanced: the protocol moved beyond
-            proof of concept, but mass adoption remained distant.
+            “Agentic payments” is frequently used as if it were one product
+            category. In practice, it is a stack. Assigning one primary job to
+            each layer prevents a protocol, wallet, runtime, or rail from being
+            mistaken for the whole system.
           </p>
           <Figure
-            number="05"
-            title="Technical usage is not the same as durable autonomous demand"
-            subtitle="The market has activity; the quality of that activity matters."
+            number="1"
+            title="Seven layers from adaptive demand to deterministic settlement"
             caption={
               <>
-                Transaction counts demonstrate technical use and early demand.
-                Durable adoption should be judged by useful services, repeat
-                purchasers, completed tasks, low intervention, merchant revenue,
-                and verifiable delivery.
+                A company may operate across several layers. The taxonomy
+                assigns functions, not permanent identities.
+                Assurance—simulation, compliance, threat detection,
+                observability, disputes, and reconciliation—cuts horizontally
+                across the stack.
               </>
             }
           >
-            <div className={styles.evidenceGrid}>
-              <div>
-                <strong>100M+</strong>
-                <span>
-                  cumulative x402 transactions on Base through Q1 2026
-                </span>
-                <small>Chainalysis</small>
-              </div>
-              <div className={styles.caveat}>
-                <b>The caveat travels with the number</b>
-                <p>
-                  Speculative loops can prove throughput without proving a
-                  durable agent economy.
-                </p>
-              </div>
-            </div>
-            <div className={styles.signalGrid}>
-              {[
-                "Recurring funded agents",
-                "Repeat service purchases",
-                "Completed tasks",
-                "Low intervention rates",
-                "Merchant revenue",
-                "Verifiable delivery",
-              ].map((x) => (
-                <span key={x}>✓ {x}</span>
+            <div className={styles.stack}>
+              {layers.map(([n, name, job, examples]) => (
+                <div
+                  className={`${styles.layer} ${n === "02" || n === "03" ? styles.focusLayer : ""}`}
+                  key={n}
+                >
+                  <span>{n}</span>
+                  <div>
+                    <b>{name}</b>
+                    <p>{job}</p>
+                  </div>
+                  <small>{examples}</small>
+                </div>
               ))}
+              <div className={styles.assurance}>
+                <b>Horizontal assurance</b>
+                <span>
+                  simulation · compliance · threat detection · observability ·
+                  reconciliation · disputes
+                </span>
+              </div>
             </div>
           </Figure>
+          <h3>4.1 Surfaces, runtimes, and domain execution</h3>
           <p>
-            The strongest current wedge remains software buying digital
-            resources while completing a task: API access, inference, data,
-            compute, storage, browser sessions, or specialist services. x402
-            makes accountless HTTP payment possible; MPP extends machine payment
-            into Stripe&apos;s existing merchant stack, including
-            microtransactions, recurring payments, stablecoins, cards,
-            reporting, tax, and refunds. These protocols make acceptance easier.
-            They increase, rather than remove, the need for reliable execution
-            around them.
+            Agent surfaces own the user or business workflow and originate
+            demand. OpenAI and Stripe&apos;s Agentic Commerce Protocol, for
+            example, allows a conversational surface to pass a structured order
+            and a scoped payment token to a merchant while the merchant retains
+            responsibility for acceptance and fulfillment.
+            <Cite n="9" /> Crypto surfaces such as Bankr combine conversation,
+            wallet access, scheduled work, trading, and paid service access in
+            one experience.
+            <Cite n="16" />
           </p>
-        </section>
-
-        <section className={styles.section} id="s06">
-          <SectionHeading number="06" label="How to measure it">
-            The same-athlete test should become the category benchmark
-          </SectionHeading>
           <p>
-            The harness thesis is falsifiable. Hold the model, prompt, task set,
-            wallet policy, starting state, and market conditions constant.
-            Compare the baseline agent with the harnessed agent. Score the
-            world&apos;s end state—not whether the transcript sounds competent.
+            Beneath the surface, runtimes own sessions, memory, tools, retries,
+            background work, and multistep state. Toolkits and runtimes should
+            be distinguished: Coinbase describes AgentKit as a modular,
+            framework- and wallet-agnostic system of action providers and wallet
+            providers.
+            <Cite n="6" /> A stateful execution runtime goes further by owning
+            the path to completion and the evidence left behind.
+            Domain-execution providers then supply the exact mechanics of a
+            swap, bridge, order, checkout, staking operation, or protocol call.
+          </p>
+          <h3>4.2 Authority, coordination, money, and rails</h3>
+          <p>
+            Wallet and mandate systems form the authority boundary.
+            Google&apos;s AP2 binds an agent&apos;s action to cryptographically
+            verifiable mandates describing identity, scope, limits, and
+            conditions.
+            <Cite n="4" />
+            Visa and Mastercard are extending tokenized credentials and network
+            trust to recognized agents.
+            <Cite n="10" />
+            <Cite n="11" /> Crypto wallets are evolving from key stores into
+            programmable authorization systems with isolated credentials, spend
+            limits, allowlists, simulation, escalation, audit, and revocation.
+            <Cite n="12" />
+            <Cite n="13" />
+          </p>
+          <p>
+            Payment coordination describes what is for sale and how it may be
+            paid. Money and treasury infrastructure supplies balances, funding,
+            conversion, accounting, and liquidity. Settlement rails finalize
+            movement. These responsibilities can be vertically integrated for
+            convenience, but they carry different competencies and liabilities.
+            Mature buyers will require the boundaries to remain inspectable even
+            when one provider bundles several layers.
+          </p>
+        </Section>
+
+        <Section number="5" title="The execution-harness gap" id="harness">
+          <p className={styles.lead}>
+            A payment protocol can coordinate a handshake, and a wallet can
+            decide whether to sign. Neither can independently establish that an
+            adaptive financial task was correctly completed.
+          </p>
+          <p>
+            Consider an instruction to bridge an asset, pay for a service on the
+            destination chain, and return a receipt. The agent must interpret
+            constraints, select a bridge and service, obtain quotes, construct
+            approvals and calls, reason about destination gas, handle changing
+            state, preserve the request reviewed by the signer, recover from a
+            partial bridge, prevent duplicate payment, verify delivery, and
+            reconcile the final balances. A wallet can enforce a spend cap. A
+            simulator can test a concrete transaction. A chain can prove
+            finality. None alone can connect the semantic objective to the whole
+            sequence of evidence.
+          </p>
+          <h3>5.1 Definition</h3>
+          <p>
+            An <b>execution harness</b> is the runtime machinery that converts
+            adaptive intent into bounded, inspectable, and reconcilable
+            financial action. It is more than a toolkit because it owns state,
+            recovery, and completion. It is broader than a policy layer because
+            policy does not construct or reconcile the task. It remains separate
+            from the wallet because the wallet must retain the independent power
+            to refuse.
           </p>
           <Figure
-            number="06"
-            title="A benchmark for execution leverage"
-            subtitle="The unit of value is a verified outcome, not a tool call or a transaction count."
+            number="2"
+            title="The execution lifecycle and its authority boundary"
             caption={
               <>
-                A harness that hides failures, increases retries, or constrains
-                a capable model without improving outcomes has not earned its
-                abstraction. The standard should be strict: same athlete,
-                measurably better system performance.
+                The critical output is an evidence chain linking original
+                intent, selected capability, constructed payload, simulation,
+                authorization decision, signer, receipt, and final state.
               </>
             }
           >
-            <div className={styles.benchmarkGrid}>
-              {benchmarkMetrics.map(([metric, question]) => (
-                <div key={metric}>
-                  <b>{metric}</b>
-                  <p>{question}</p>
+            <div className={styles.lifecycle}>
+              {harnessResponsibilities.map(([name, description], i) => (
+                <div key={name}>
+                  <span>{String(i + 1).padStart(2, "0")}</span>
+                  <b>{name}</b>
+                  <p>{description}</p>
                 </div>
               ))}
             </div>
-            <div className={styles.formula}>
-              <span>Execution leverage</span>
-              <b>verified outcomes</b>
-              <i>÷</i>
-              <b>tokens + time + failures + intervention</b>
+            <div className={styles.boundary}>
+              <span>Probabilistic interpretation and selection</span>
+              <span>Deterministic authority, execution, and state</span>
             </div>
           </Figure>
+          <h3>5.2 Why better models do not eliminate the category</h3>
           <p>
-            This framing also changes procurement. Teams should compare
-            harnesses on task suites drawn from their actual financial
-            operations: pay for a resource, complete checkout, swap, bridge,
-            approve, batch, recover from stale state, handle a rejected
-            signature, and reconcile the final portfolio. Coverage lists are
-            inputs; verified completion is the result.
+            General models will continue to improve at documentation discovery,
+            schema inference, tool use, and error recovery. That lowers the cost
+            of walking; it does not change the value of a tested route. Mature
+            systems do not ask a model to rediscover stable protocol knowledge,
+            allowance rules, idempotency semantics, receipt formats, or balance
+            assertions on every run. They encode those mechanics and reserve
+            model reasoning for decisions that are genuinely adaptive.
           </p>
-        </section>
+          <p>
+            The analogy must be applied strictly. A poor vehicle can be slower
+            than walking. A harness that hides failures, constrains a capable
+            model, increases retries, or cannot demonstrate the final state has
+            not earned its abstraction. The relevant comparison is the same
+            athlete on the same course: one model and task set, with and without
+            the harness.
+          </p>
+        </Section>
 
-        <section className={styles.section}>
-          <SectionHeading number="06A" label="The missing proof">
-            No existing component can verify the whole task alone
-          </SectionHeading>
+        <Section
+          number="6"
+          title="Actors, emerging services, and competitive structure"
+          id="actors"
+        >
+          <p>
+            Early markets reward full-stack products because developers prefer
+            one API and users prefer one trusted surface. Coinbase, Circle,
+            Crossmint, Stripe, Bankr, and OKX therefore span layers. Yet
+            specialization is likely to deepen because each layer has a distinct
+            technical competency, distribution advantage, and liability model.
+          </p>
+          <div className={styles.tableWrap}>
+            <table>
+              <caption>
+                Table 2. Actor groups and their primary control points
+              </caption>
+              <thead>
+                <tr>
+                  <th>Group</th>
+                  <th>Representative actors</th>
+                  <th>Primary control point</th>
+                </tr>
+              </thead>
+              <tbody>
+                {actors.map((row) => (
+                  <tr key={row[0]}>
+                    {row.map((cell, i) => (
+                      <td key={cell}>{i === 0 ? <b>{cell}</b> : cell}</td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <h3>6.1 Where new service sectors are forming</h3>
+          <p>
+            The first emerging sector is <b>programmable authority</b>.
+            Coinbase, MetaMask, OKX, Circle, Privy, Turnkey, Safe, Fireblocks,
+            and others are turning wallets into policy-aware accounts for
+            agents. Their differentiation will come from custody model, key
+            isolation, mandate expressiveness, escalation, simulation, chain
+            coverage, compliance, and distribution.
+            <Cite n="12" />
+            <Cite n="14" />
+            <Cite n="15" />
+          </p>
+          <p>
+            The second is <b>payment facilitation and protocol gateways</b>.
+            x402 facilitators verify payloads and submit settlement; MPP and
+            processors translate machine requests into merchant accounts,
+            reporting, tax, refunds, and normal payouts. Durable gateways will
+            support multiple protocols and rails rather than forcing every
+            merchant to operate protocol-specific infrastructure.
+          </p>
+          <p>
+            The third is{" "}
+            <b>agent-native discovery, reputation, and delivery assurance</b>.
+            Machine-readable catalogs can expose capabilities and prices, but
+            discovery without reputation becomes spam and payment without
+            delivery proof becomes fraud. Registries, attestations,
+            service-level histories, escrow, signed receipts, and insurance are
+            therefore likely to converge.
+          </p>
+          <p>
+            The fourth is <b>semantic simulation and execution assurance</b>.
+            Spend limits can block an oversized transfer but may not detect a
+            swap that strands funds, a bridge route that leaves an unsafe claim,
+            or a technically successful batch that misses the requested balance
+            outcome. Protocol-aware construction, fork simulation, outcome
+            assertions, threat scanning, and independent evidence address
+            different pieces of this problem.
+          </p>
+          <p>
+            Finally, <b>cross-rail orchestration and agent back offices</b>{" "}
+            remain underbuilt. Stablecoins dominate machine-native micropayments
+            while cards dominate merchant acceptance and consumer protection.
+            Agents will route across stablecoins, cards, banks, and local
+            networks by cost, availability, reversibility, and compliance. Every
+            autonomous spend must then be attributed to an agent, mandate, task,
+            user, delivered result, refund, and tax event.
+          </p>
+          <h3>6.2 Likely competitive boundaries</h3>
+          <p>
+            Wallets possess the strongest distribution moat because they already
+            control assets, trust, signing, and the gateway to settlement. They
+            can move upward into tools and execution. Payment platforms can move
+            inward from money movement into orchestration. Vertical providers
+            can dominate high-frequency domains through route, venue, or
+            inventory depth. General agent frameworks can move downward through
+            wallet and payment plugins. Execution runtimes must therefore prove
+            that they are materially better at generalized completion and
+            evidence, not merely better at exposing transactions to an LLM.
+          </p>
+        </Section>
+
+        <Section
+          number="7"
+          title="The economics of a harness and how to measure it"
+          id="measurement"
+        >
+          <p>
+            Model tokens are not the only operational cost, but they reveal the
+            underlying inefficiency. When an agent rereads documentation,
+            reconstructs schemas, reasons through stable allowance mechanics,
+            retries stale routes, or investigates whether a task finished, the
+            system is buying cognition to compensate for missing infrastructure.
+            Harness value comes from moving repeated cognition into software,
+            compressing the failure surface, and making operations legible.
+          </p>
+          <p>
+            This produces a stricter economic claim than “agents work better
+            with tools.” A useful harness should increase the number of verified
+            outcomes obtained from a fixed model budget. It should also preserve
+            model optionality: operators can improve or replace the model
+            without rebuilding every financial integration and control around
+            it.
+          </p>
           <Figure
-            number="07"
-            title="Wallet, simulator, and rail each prove something different"
-            subtitle="Verified execution is the connective evidence layer."
+            number="3"
+            title="A same-model benchmark for execution leverage"
             caption={
               <>
-                A payment function is insufficient. The system must connect
-                semantic intent to an immutable payload, a valid authorization,
-                a settlement record, and the resulting state.
+                Hold the model, prompt, task suite, signer policy, starting
+                state, and market conditions constant. Score the resulting world
+                state—not the fluency of the transcript.
               </>
             }
           >
-            <div className={styles.proverGrid}>
+            <div className={styles.benchmark}>
               <div>
-                <b>The wallet</b>
+                <span>Baseline</span>
+                <b>General tools</b>
                 <p>
-                  <span>CAN</span> enforce limits, allowlists, session scope,
-                  and refusal.
-                </p>
-                <p>
-                  <em>CANNOT</em> determine whether a swap&apos;s parameters
-                  satisfy the user&apos;s actual objective.
+                  Model discovers interfaces, reconstructs mechanics, recovers
+                  from failures, and verifies completion during each run.
                 </p>
               </div>
-              <div>
-                <b>The simulator</b>
-                <p>
-                  <span>CAN</span> show whether a concrete transaction succeeds
-                  against current state.
-                </p>
-                <p>
-                  <em>CANNOT</em> independently know whether success is the
-                  result the task required.
-                </p>
+              <div className={styles.versus}>
+                same model
+                <br />
+                same tasks
               </div>
-              <div>
-                <b>The settlement rail</b>
+              <div className={styles.benchmarkFocus}>
+                <span>Harnessed</span>
+                <b>Tested execution path</b>
                 <p>
-                  <span>CAN</span> prove that value movement finalized under its
-                  rules.
-                </p>
-                <p>
-                  <em>CANNOT</em> prove that an offchain service delivered the
-                  promised work.
+                  Software supplies typed actions, simulation, state, recovery,
+                  payload binding, and outcome assertions.
                 </p>
               </div>
             </div>
-            <div className={styles.verifiedBox}>
-              <b>Verified execution</b>
+            <div className={styles.formula}>
+              <b>Execution leverage</b>
+              <span>verified outcomes</span>
+              <i>÷</i>
+              <span>tokens + time + failures + intervention</span>
+            </div>
+          </Figure>
+          <h3>7.1 Proposed scorecard</h3>
+          <div className={styles.metrics}>
+            <div>
+              <b>Task success</b>
+              <p>Did the requested financial state change occur?</p>
+            </div>
+            <div>
+              <b>Tokens per verified outcome</b>
+              <p>How much model reasoning was consumed by completed work?</p>
+            </div>
+            <div>
+              <b>Time, calls, and retries</b>
+              <p>How much latency, wandering, and recovery occurred?</p>
+            </div>
+            <div>
+              <b>Human intervention</b>
               <p>
-                construction · simulation · authorization boundary · immutable
-                payload · execution state · outcome assertions · reconciliation
+                How often did the system need rescue rather than intentional
+                approval?
               </p>
             </div>
-          </Figure>
-        </section>
-
-        <section className={styles.section} id="s07">
-          <SectionHeading number="07" label="Where Aomi fits">
-            Aomi is an onchain agent execution runtime
-          </SectionHeading>
+            <div>
+              <b>Unsafe proposals blocked</b>
+              <p>Did it reject structurally valid but harmful actions?</p>
+            </div>
+            <div>
+              <b>Simulation consistency</b>
+              <p>
+                Was the signed payload the reviewed payload, and did execution
+                match simulation?
+              </p>
+            </div>
+            <div>
+              <b>Duplicate-broadcast rate</b>
+              <p>Did retries create repeated payments or transactions?</p>
+            </div>
+            <div>
+              <b>End-state evidence</b>
+              <p>
+                Can the result be tied back to intent, authority, receipts, and
+                final state?
+              </p>
+            </div>
+          </div>
           <p>
-            Aomi&apos;s primary position spans runtime orchestration and domain
-            execution. It hosts the agent loop, tools, sessions, state, and
-            multistep workflow; translates intent into typed actions and
-            transactions; simulates expected outcomes; and prepares a verified
-            request for an external signer. The wallet remains the authorization
-            boundary. The chain remains the settlement rail.
+            The benchmark should include ordinary success and adversarial state:
+            stale quotes, changed allowances, rejected signatures, insufficient
+            destination gas, partial bridge completion, delayed confirmation,
+            unavailable tools, malicious content, and repeated network requests.
+            A harness is valuable only if its advantage survives these
+            conditions.
+          </p>
+        </Section>
+
+        <Section number="8" title="Implications for Aomi" id="aomi">
+          <p className={styles.lead}>
+            Aomi&apos;s defensible category is not “agentic payments company.”
+            It is the onchain execution runtime that turns agent intent into
+            verified financial execution. Payments are one action class inside
+            that runtime.
+          </p>
+          <p>
+            Aomi primarily occupies layers two and three: runtime orchestration
+            and domain execution. It hosts the agent loop, tools, sessions,
+            persistence, and multistep state; translates intent into typed
+            actions and transactions; simulates expected outcomes; and prepares
+            a concrete request for an external signer.
+            <Cite n="7" />
+            <Cite n="8" />
+            Wallets, identity providers, compliance systems, payment protocols,
+            stablecoins, and settlement rails are integrated components rather
+            than identities Aomi should claim.
           </p>
           <Figure
-            number="08"
-            title="Intent → verified request → authority → settlement"
-            subtitle="Each responsibility stays with the component that can actually discharge it."
+            number="4"
+            title="Aomi's responsibility boundary"
             caption={
               <>
-                Protocols such as x402 become tools available to an Aomi agent.
-                Wallets provide signing and authority. Stablecoins provide
-                value. Blockchains provide settlement. Aomi coordinates the work
-                required to move safely from intent to outcome.
+                Aomi coordinates execution and evidence. The wallet retains
+                authority and the power to refuse; funding systems supply value;
+                rails provide finality.
               </>
             }
           >
-            <div className={styles.aomiFlow}>
+            <div className={styles.aomiBoundary}>
               <div>
                 <span>Demand</span>
-                <b>Agent intent</b>
-                <p>
-                  Goal, budget, timing, route constraints, and desired result.
-                </p>
+                <b>Intent</b>
+                <p>Goal, budget, timing, constraints, desired result</p>
               </div>
               <i>→</i>
               <div className={styles.aomiCore}>
                 <AomiLogo
-                  className={styles.flowLogo}
-                  markClassName={styles.flowMark}
+                  className={styles.figureLogo}
+                  markClassName={styles.figureMark}
                 />
                 <b>Execution runtime</b>
-                <p>plan · tools · construct · simulate · verify · reconcile</p>
+                <p>plan · tools · construct · simulate · execute · reconcile</p>
               </div>
               <i>→</i>
               <div>
                 <span>Authority</span>
-                <b>Wallet and policy</b>
-                <p>Identity, consent, limits, risk, and the power to refuse.</p>
+                <b>Wallet and mandate</b>
+                <p>identity, consent, limits, risk, refusal</p>
               </div>
               <i>→</i>
               <div>
                 <span>Finality</span>
-                <b>Funding and rails</b>
-                <p>Stablecoin, card, bank, or chain settlement.</p>
-              </div>
-            </div>
-            <div className={styles.ownershipGrid}>
-              <div>
-                <b>Aomi owns</b>
-                <p>
-                  Runtime, tool orchestration, construction, simulation,
-                  execution state, and evidence.
-                </p>
-              </div>
-              <div>
-                <b>Aomi integrates</b>
-                <p>
-                  Wallets, identity, compliance, payment protocols, stablecoins,
-                  treasury, and rails.
-                </p>
-              </div>
-              <div>
-                <b>Aomi is not</b>
-                <p>
-                  A custodian, issuer, payment standard, card network, or
-                  settlement chain.
-                </p>
+                <b>Money and rails</b>
+                <p>stablecoins, cards, banks, chains</p>
               </div>
             </div>
           </Figure>
+          <h3>8.1 Strategic priorities implied by the research</h3>
+          <ol className={styles.priorities}>
+            <li>
+              <b>Prove execution quality.</b> Build benchmarks around task
+              completion, dangerous-proposal blocking, simulation-to-execution
+              consistency, duplicate broadcasts, intervention, and end-state
+              correctness.
+            </li>
+            <li>
+              <b>Make evidence a product surface.</b> Preserve intent, selected
+              capability, immutable payload, simulation, policy decisions,
+              signer, receipt, and final state as one inspectable chain.
+            </li>
+            <li>
+              <b>Remain wallet- and protocol-neutral.</b> Support
+              self-custodial, embedded, and institutional authority while
+              treating x402, MPP, cards, and direct stablecoin transfer as
+              selectable capabilities.
+            </li>
+            <li>
+              <b>Compete on domain-aware execution.</b> Typed calls, protocol
+              constraints, fork simulation, balance assertions, and recovery
+              behavior should create measurable leverage over generic tool use.
+            </li>
+            <li>
+              <b>Let partners own distribution.</b> Wallets, protocols,
+              exchanges, fintechs, and vertical applications should be able to
+              retain the user relationship while Aomi provides the execution
+              environment.
+            </li>
+          </ol>
           <div className={styles.disclosure}>
-            <b>Researcher&apos;s disclosure</b>
+            <b>Researcher disclosure</b>
             <p>
-              Aomi is building in the category analyzed in this report. Our
-              position is therefore not neutral. We have separated externally
-              sourced market observations from our product thesis, avoided
-              presenting an unrun benchmark as a result, and stated the
-              conditions under which the thesis should be rejected.
+              Aomi is building in the category analyzed here. The positioning in
+              this section is therefore a company thesis, not an independent
+              market conclusion. External observations and vendor claims are
+              cited; the proposed benchmark is presented as a falsifiable test,
+              not as an already measured result.
             </p>
           </div>
-        </section>
+        </Section>
 
-        <section className={`${styles.section} ${styles.outlook}`}>
-          <h2>Outlook: from autonomous payment to accountable execution</h2>
+        <Section
+          number="9"
+          title="Risks, outlook, and conclusion"
+          id="conclusion"
+        >
+          <h3>9.1 Unresolved risks</h3>
           <p>
-            The agentic economy will not emerge simply because models receive
-            wallets. It will emerge when software can form an intent, construct
-            a valid action, operate within delegated authority, settle through
-            the appropriate rail, and produce evidence that the requested
-            outcome occurred.
+            The largest technical risks are prompt injection and tool poisoning,
+            overbroad delegation, semantic mismatch, replay and duplicate
+            execution, stale market state, and the gap between payment finality
+            and offchain delivery. Identity and reputation systems must resist
+            cheap agent creation without turning an open market into a closed
+            allowlist. Privacy is also structural: payment metadata can reveal
+            tasks, counterparties, services, and commercial intent.
           </p>
-          <div className={styles.roles}>
-            <div>
-              <b>The agent</b>
-              <span>proposes</span>
-            </div>
-            <div className={styles.hot}>
-              <b>The runtime</b>
-              <span>executes</span>
-            </div>
-            <div>
-              <b>The wallet</b>
-              <span>authorizes</span>
-            </div>
-            <div>
-              <b>The rail</b>
-              <span>settles</span>
-            </div>
-          </div>
           <p>
-            Agentic payments are the first visible use case. The larger
-            opportunity is generalized financial execution. As models improve,
-            they will become better athletes. The systems around them still need
-            reliable vehicles.
+            Liability remains fragmented across user, model provider, runtime,
+            tool, wallet, facilitator, merchant, issuer, and settlement rail.
+            Regulatory classification can also change with custody, payment
+            initiation, brokerage, advice, sanctions exposure, or jurisdiction.
+            A technically successful design may still fail if no participant
+            clearly owns refunds, disputes, exceptions, and loss.
           </p>
-        </section>
+          <h3>9.2 Outlook</h3>
+          <p>
+            Over the next year, wallets are likely to make agent-specific
+            mandates, escalation, and transaction security default features.
+            x402 and MPP will compete and coexist in paid digital services.
+            Commerce and mandate protocols will spread through merchant systems,
+            while stablecoin issuers and processors bundle wallets, discovery,
+            compliance, and low-value payment support. Independent security and
+            observability will become requirements for enterprise deployment.
+          </p>
+          <p>
+            Over a two-to-three-year horizon, agents should carry portable
+            mandates and credentials across surfaces; service catalogs should
+            expose capability, price, reputation, and delivery guarantees;
+            routers should choose among stablecoin, card, bank, and local rails;
+            and agent treasury and accounting should become standard enterprise
+            infrastructure. The durable architecture will separate proposer,
+            executor, authorizer, and settler while linking them through
+            evidence.
+          </p>
+          <h3>9.3 Conclusion</h3>
+          <p className={styles.conclusion}>
+            Agentic payments will not mature simply because models receive
+            wallets. They will mature when software can form an adaptive intent,
+            turn it into a valid and inspectable action, operate within
+            delegated authority, settle through the appropriate rail, and prove
+            that the requested outcome occurred. Better models will become
+            better athletes. Execution harnesses are the vehicles that let the
+            same athlete travel farther, faster, and with evidence.
+          </p>
+        </Section>
 
-        <section className={styles.sources}>
-          <h2>Sources and methodology notes</h2>
-          <p>
-            Research date: August 13, 2026. Product and protocol descriptions
-            were checked against first-party documentation; adoption evidence
-            was separated from product claims. Market categories are analytical
-            and companies may span multiple layers.
-          </p>
-          <div className={styles.sourceColumns}>
-            <div>
-              <b>Architecture and policy</b>
-              <SourceLink href="https://www.imf.org/en/-/media/files/publications/imf-notes/2026/english/insea2026004.pdf">
-                IMF — How Agentic AI Will Reshape Payments
-              </SourceLink>
-              <SourceLink href="https://cloud.google.com/blog/products/ai-machine-learning/announcing-agents-to-payments-ap2-protocol">
-                Google — Agent Payments Protocol
-              </SourceLink>
-            </div>
-            <div>
-              <b>Protocols and market evidence</b>
-              <SourceLink href="https://docs.x402.org/introduction">
-                x402 documentation
-              </SourceLink>
-              <SourceLink href="https://stripe.com/blog/machine-payments-protocol">
-                Stripe and Tempo — MPP
-              </SourceLink>
-              <SourceLink href="https://www.chainalysis.com/blog/x402-agentic-payments-adoption/">
-                Chainalysis — x402 adoption on Base
-              </SourceLink>
-            </div>
-            <div>
-              <b>Execution systems</b>
-              <SourceLink href="https://docs.cdp.coinbase.com/agent-kit/core-concepts/architecture-explained">
-                Coinbase AgentKit architecture
-              </SourceLink>
-              <SourceLink href="https://aomi.dev/docs/reference/runtime">
-                Aomi runtime documentation
-              </SourceLink>
-              <SourceLink href="https://aomi.dev/docs/build/overview">
-                Aomi build overview
-              </SourceLink>
-            </div>
-            <div>
-              <b>Underlying research</b>
-              <SourceLink href="https://app.notion.com/p/3ba36be0954d816784a4e7b25ba2949b?pvs=204">
-                Agentic Payments in Crypto — Ecosystem Deep Dive
-              </SourceLink>
-              <SourceLink href="https://claude.ai/code/artifact/feae900e-4638-4ece-9a6b-72a546d9dd4e">
-                Agentic Payments Are Not One Market — visual companion
-              </SourceLink>
-            </div>
+        <section className={styles.references}>
+          <div className={styles.sectionRule}>
+            <span>References</span>
           </div>
+          <h2>References</h2>
+          <ol>
+            {references.map(([n, author, title, href]) => (
+              <li id={`ref-${n}`} key={n}>
+                <span>{n}.</span>
+                <p>
+                  <b>{author}.</b>{" "}
+                  <a href={href} target="_blank" rel="noreferrer">
+                    {title}
+                  </a>
+                  . Accessed August 2026.
+                </p>
+              </li>
+            ))}
+          </ol>
         </section>
 
         <footer className={styles.footer}>
@@ -1060,15 +1177,8 @@ export function ExecutionHarnessesResearch({ post }: Props) {
             className={styles.footerLogo}
             markClassName={styles.footerMark}
           />
-          <h2>Agents do not merely need a new way to pay.</h2>
-          <p>
-            They need a trustworthy environment in which money can become
-            action.
-          </p>
-          <Link href="/docs/build/overview">
-            Explore the Aomi execution runtime <span>→</span>
-          </Link>
-          <small>Aomi Research · August 2026</small>
+          <p>Aomi Research · August 2026</p>
+          <Link href="/research">All research</Link>
         </footer>
       </article>
     </main>

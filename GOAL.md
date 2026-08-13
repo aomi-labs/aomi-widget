@@ -2,7 +2,8 @@
 
 ## Agentic Payments Execution-Harness Research
 
-Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-13** — publish a
+Current session goal: **REWRITTEN AS A RESEARCH PAPER AND LOCALLY VERIFIED
+2026-08-13** — publish a
 source-backed Aomi Research report that defines the emerging execution-harness
 category for agentic payments, separates it from models, wallets, payment
 protocols, funding, and settlement, and states Aomi's position as an onchain
