@@ -79,9 +79,11 @@ export function AomiWalletNetworkPreferencesProvider({
   children: ReactNode;
   evmChains: readonly Chain[];
   solanaNetworks: readonly SvmNetworkOption[];
-  storageKey?: string;
+  storageKey?: string | null;
 }) {
-  const [persisted] = useState(() => loadWalletNetworkPreferences(storageKey));
+  const [persisted] = useState(() =>
+    storageKey ? loadWalletNetworkPreferences(storageKey) : {},
+  );
 
   const [selectedEvmChainId, setSelectedEvmChainId] = useState<
     number | undefined
@@ -125,6 +127,7 @@ export function AomiWalletNetworkPreferencesProvider({
   }, [evmChains.length, solanaNetworks]);
 
   useEffect(() => {
+    if (!storageKey) return;
     saveWalletNetworkPreferences(storageKey, {
       selectedEvmChainId,
       selectedSolanaNetworkId,

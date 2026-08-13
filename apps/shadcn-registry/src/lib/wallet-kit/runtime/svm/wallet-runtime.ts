@@ -90,9 +90,27 @@ type SvmWalletName = Parameters<
   ReturnType<typeof useSolanaWallet>["select"]
 >[0];
 
+/**
+ * Outside a `WalletProvider`, `useWallet()` does not throw — it returns the
+ * adapter library's DEFAULT_CONTEXT, whose `publicKey`/`wallet`/`wallets` are
+ * accessor properties that `console.error` a missing-provider message on every
+ * read. A provider-supplied context value is a plain object with data
+ * properties, so an accessor on `publicKey` identifies the default context
+ * without invoking the getter (descriptor lookups do not run getters).
+ */
+function isMissingSvmProviderContext(
+  wallet: ReturnType<typeof useSolanaWallet>,
+): boolean {
+  return Boolean(Object.getOwnPropertyDescriptor(wallet, "publicKey")?.get);
+}
+
 export function useSafeSvmWallet(): SafeSvmWalletState {
+  const context = useSolanaWallet();
+  if (isMissingSvmProviderContext(context)) {
+    return DISCONNECTED_SVM_WALLET;
+  }
   try {
-    const wallet = useSolanaWallet();
+    const wallet = context;
     return {
       publicKey: wallet.publicKey?.toBase58(),
       connected: wallet.connected,

@@ -2,7 +2,8 @@
 
 ## Backend-Owned Sponsored ERC-4337
 
-Current session goal: **IMPLEMENTED AND MERGE-GATED 2026-08-09** — make
+Current session goal: **IMPLEMENTED; MAIN RECONCILIATION AND MERGE IN PROGRESS
+2026-08-13** — make
 the cross-origin widget an authentication and owner-signing client while the
 backend owns smart-account provisioning, mandatory Aomi fee construction,
 sponsorship, broadcast, confirmation, and revenue receipts.
@@ -24,6 +25,10 @@ sponsorship, broadcast, confirmation, and revenue receipts.
 - Proved the server-owned prepare/sign/send path with sponsored Base Sepolia
   transaction
   `0xb426a23e41ccba02a11fc2346992fd6fbd449e59f26d6a0c6d7c2c9ea4cb14bd`.
+- Before merging PR #469, reconcile the branch with current `main`, retain only
+  durable provider-registration, missing-provider, network-preference,
+  signer/address, authorization, and fee-path regression tests, rebuild every
+  changed publishable package, and require clean repository checks.
 
 ## Canonical Build Projects Refactor
 

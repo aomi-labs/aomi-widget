@@ -16,8 +16,18 @@ export type CrossOriginWidgetAuth =
   | { kind: "browser_wallet" }
   | {
       kind: "embedded_wallet";
-      provider: "para" | "privy";
+      provider: "para";
       environment: string;
+      /** Para public project key. Cross-origin hosts must pass it here; only
+       * Next-style hosts that inline `NEXT_PUBLIC_PARA_API_KEY` may omit it. */
+      apiKey?: string;
+    }
+  | {
+      kind: "embedded_wallet";
+      provider: "privy";
+      environment?: string;
+      /** Privy public app ID. Same contract as Para's `apiKey`. */
+      appId?: string;
     };
 
 export type WalletPresentationConfig = WalletsConfig;
@@ -55,7 +65,8 @@ export function AomiWidget(props: AomiWidgetProps) {
         ? {
             mode: "provider" as const,
             provider: props.auth.provider,
-            environment: props.auth.environment,
+            // Privy's exchange accepts only PROD; Para carries its own value.
+            environment: props.auth.environment ?? "PROD",
           }
         : { mode: "wallet" as const },
   };
@@ -175,16 +186,20 @@ function resolveWidgetAuth(auth: CrossOriginWidgetAuth): {
   providers?: ProvidersConfig;
 } {
   if (auth.kind === "browser_wallet") return { auth: false };
+  if (auth.provider === "para") {
+    return {
+      auth: { provider: "para" },
+      providers: {
+        para: {
+          apiKey: auth.apiKey,
+          environment:
+            auth.environment.toUpperCase() === "PROD" ? "PROD" : "BETA",
+        },
+      },
+    };
+  }
   return {
-    auth: { provider: auth.provider },
-    providers:
-      auth.provider === "para"
-        ? {
-            para: {
-              environment:
-                auth.environment.toUpperCase() === "PROD" ? "PROD" : "BETA",
-            },
-          }
-        : { privy: {} },
+    auth: { provider: "privy" },
+    providers: { privy: { appId: auth.appId } },
   };
 }
