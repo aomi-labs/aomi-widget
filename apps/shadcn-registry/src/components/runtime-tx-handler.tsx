@@ -216,7 +216,9 @@ export function RuntimeTxHandler() {
 
           let result;
           try {
-            result = await adapter.sendTransaction(payloadWithFee);
+            result = await adapter.sendTransaction(payloadWithFee, {
+              chainIdAlreadySelected: defaultChainId,
+            });
           } catch (error) {
             // A sequential (non-atomic) executor may have landed a PREFIX
             // of the batch before failing — adapters signal that by

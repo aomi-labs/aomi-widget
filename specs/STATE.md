@@ -29,12 +29,15 @@
   wallet before simulation, rejects unsupported chains with actionable copy, and
   invokes the adapter's network switch before simulating or sending. Wallets that
   cannot switch get manual-switch guidance; a rejected wallet popup continues
-  through the existing request-rejection path. The shared AA executor now keeps an
-  unknown current chain as `undefined`, so it attempts a switch instead of masking
-  the state as already on the target chain. Added seven regression cases covering
-  switch ordering, same-chain behavior, unsupported/missing adapters, rejected
-  prompts, and unknown/current AA execution state. Joint backend work lives on
-  product-mono `codex/cross-chain-continuity-clean` and must ship with this branch.
+  through the existing request-rejection path. The approval handler tells the
+  shared executor when it already selected the target chain, preventing a second
+  wallet prompt while direct executor callers still switch when needed. The shared
+  AA executor also keeps an unknown current chain as `undefined`, so it attempts a
+  switch instead of masking the state as already on the target chain. Regression
+  cases cover switch ordering, exactly-once selection, same-chain behavior,
+  unsupported/missing adapters, rejected prompts, and unknown/current AA execution
+  state. The joint backend work merged first in product-mono #973. Publishable
+  versions are `@aomi-labs/client@0.4.7` and `@aomi-labs/widget-lib@1.4.30`.
 
 2026-08-08 — DEPLOY-SURFACE BUGS, BE SIDE (product-mono worktree
   `~/Code/product-mono-worktrees/deploy-feed-platform-scope`, branch

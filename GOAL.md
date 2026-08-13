@@ -7,6 +7,16 @@ remove fabricated Ethereum and Solana mainnet state from headless MCP chat.
 `aomi_chat` accepts an optional explicit EVM chain or supported Solana cluster;
 omission retains account wallet identity without claiming an active network.
 
+## Cross-chain wallet approval review
+
+Current session goal: **IMPLEMENTED AND REVIEW CLEANUP COMPLETE 2026-08-13** —
+switch staged EVM transactions before simulation and signing without issuing a
+second switch request from the lower executor. The handler now passes an explicit
+already-selected chain into native execution, direct executor callers retain their
+own switch behavior, the stale implementation plan was removed, the checked-in
+registry mirror was regenerated, and publishable versions are
+`@aomi-labs/client@0.4.7` and `@aomi-labs/widget-lib@1.4.30`.
+
 ## Safari wallet-state sync containment
 
 Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED; STAGING ROLLOUT IN

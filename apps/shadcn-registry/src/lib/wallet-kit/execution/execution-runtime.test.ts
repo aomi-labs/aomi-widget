@@ -1,8 +1,46 @@
 import { describe, expect, it, vi } from "vitest";
+import { arbitrum } from "viem/chains";
 import type { EvmWalletRuntime } from "../runtime/evm/wallet-runtime";
 import { buildEvmExecutionRuntime } from "./execution-runtime";
 
 describe("buildEvmExecutionRuntime", () => {
+  it("does not switch again when the caller already selected the transaction chain", async () => {
+    const sendTransactionAsync = vi.fn().mockResolvedValue("0x111");
+    const switchChainAsync = vi.fn();
+    const evm = {
+      activeConnector: { id: "wallet" },
+      activeEvmConnection: { chainId: 8453 },
+      chainsById: { [arbitrum.id]: arbitrum },
+      getWalletClientFor: vi.fn(),
+      sendCallsSyncAsync: undefined,
+      sendTransactionAsync,
+      shouldUseExternalSigner: false,
+      signMessageAsync: undefined,
+      signTypedDataAsync: undefined,
+      switchChainAsync,
+      walletClient: undefined,
+    } as unknown as EvmWalletRuntime;
+
+    const runtime = buildEvmExecutionRuntime(evm);
+    await runtime.sendTransaction?.(
+      {
+        to: "0x1111111111111111111111111111111111111111",
+        value: "1",
+        data: "0x",
+        chainId: arbitrum.id,
+      },
+      { chainIdAlreadySelected: arbitrum.id },
+    );
+
+    expect(switchChainAsync).not.toHaveBeenCalled();
+    expect(sendTransactionAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        chainId: arbitrum.id,
+        connector: evm.activeConnector,
+      }),
+    );
+  });
+
   it("routes plain-message signing through the selected account signer", async () => {
     const signMessageForAccount = vi.fn().mockResolvedValue("0xsignature");
     const signMessageAsync = vi.fn();

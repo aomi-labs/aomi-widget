@@ -159,6 +159,9 @@ describe("RuntimeTxHandler", () => {
     expect(
       runtimeState.simulateBatchTransactions.mock.invocationCallOrder[0],
     ).toBeLessThan(authState.sendTransaction.mock.invocationCallOrder[0]);
+    expect(authState.sendTransaction).toHaveBeenCalledWith(expect.any(Object), {
+      chainIdAlreadySelected: 42161,
+    });
   });
 
   it("does not switch when the staged transaction is already on the wallet chain", async () => {
