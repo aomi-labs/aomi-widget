@@ -68,7 +68,6 @@ export async function GET(req: Request) {
           client.claimGitHubProject({
             code,
             projectId: continuation.projectId,
-            app: 1,
             redirectUri: new URL(API_PATHS.bff.auth.github.callback, url.origin).toString(),
           }),
         );

@@ -152,7 +152,6 @@ export class BackendClient extends BackendPlatformClient {
       {
         code: required(input.code, "code"),
         project_id: input.projectId,
-        app: input.app,
         redirect_uri: input.redirectUri,
       },
       "claim_github_project",
@@ -177,9 +176,6 @@ export class BackendClient extends BackendPlatformClient {
         if (input.platform?.trim()) {
           params.set("platform", input.platform.trim());
         }
-        if (input.visibilityGrant?.trim()) {
-          params.set("visibility_grant", input.visibilityGrant.trim());
-        }
       },
       { platform: input.platform },
     );
@@ -192,13 +188,13 @@ export class BackendClient extends BackendPlatformClient {
     const githubUserId = required(input.githubUserId, "githubUserId");
     const bearer = this.resolveBearer(input.bearer);
     const params = new URLSearchParams({ github_user_id: githubUserId });
-    if (input.visibilityGrant?.trim()) {
-      params.set("visibility_grant", input.visibilityGrant.trim());
-    }
     const raw = await this.get<Record<string, unknown>>(
       this.ownedProjectBasePath(input.projectId, params),
       "get_user_project",
       bearer,
+      input.visibilityGrant?.trim()
+        ? { "X-Aomi-Visibility-Grant": input.visibilityGrant.trim() }
+        : undefined,
     );
     await this.audit("get_user_project", input.actor, {
       projectId: input.projectId,

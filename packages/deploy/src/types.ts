@@ -485,7 +485,6 @@ export interface ExchangeGitHubCodeInput extends BearerOverride {
 export interface ClaimGitHubProjectInput extends BearerOverride {
   code: string;
   projectId: number;
-  app?: number;
   redirectUri?: string;
 }
 
