@@ -100,7 +100,7 @@ export async function startGitHubOAuth(
 export async function exchangeGitHubSession(
   code: string,
   origin: string,
-): Promise<GitHubSession> {
+): Promise<{ session: GitHubSession; visibilityGrant: string | null }> {
   const callback = new URL(API_PATHS.bff.auth.github.callback, origin);
   const identity = await (
     await backendClient()
@@ -113,9 +113,12 @@ export async function exchangeGitHubSession(
     throw new Error("GitHub identity could not be resolved");
   }
   return {
-    githubUserId: identity.githubUserId,
-    githubLogin: identity.githubLogin,
-    installationId: identity.installationId,
+    session: {
+      githubUserId: identity.githubUserId,
+      githubLogin: identity.githubLogin,
+      installationId: identity.installationId,
+    },
+    visibilityGrant: identity.visibilityGrant ?? null,
   };
 }
 

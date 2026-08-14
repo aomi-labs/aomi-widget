@@ -61,6 +61,12 @@ export function githubAppInstallUrl(args: {
   platform?: string;
   repo?: string;
   app?: number;
+  /**
+   * Which GitHub ceremony to ask for. The underlying client has always
+   * forwarded this; Build's wrapper simply did not expose it, so the one
+   * caller that needs `authorize` could not reach it.
+   */
+  mode?: "install" | "authorize";
   returnTo?: string;
 }): Promise<string> {
   return client.githubAppInstallUrl(args);

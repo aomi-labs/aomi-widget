@@ -5,7 +5,10 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { HelpBadge } from "@build/components/help-badge";
-import type { TimelineDeployment } from "../deployment-timeline";
+import {
+  deploymentIsBuilding,
+  type TimelineDeployment,
+} from "../deployment-timeline";
 import { formatRelativeTime } from "../format-relative-time";
 import { sdkCompatibility } from "../sdk-compatibility";
 
@@ -17,6 +20,7 @@ export function TimelineDeploymentRow({
   runtimeState,
   requiredSdk,
   secretsBlocked,
+  promoteBlocked,
   onPromote,
   onUpgrade,
   upgradePr,
@@ -28,6 +32,13 @@ export function TimelineDeploymentRow({
   runtimeState?: "loaded" | "not-loaded";
   requiredSdk?: string | null;
   secretsBlocked?: boolean;
+  /**
+   * Why promotion is unavailable, or null when it is available. Shown as the
+   * button's tooltip, so the disabled state explains itself. Undefined means
+   * the caller has not adopted this yet and the legacy busy/secrets gate
+   * applies.
+   */
+  promoteBlocked?: string | null;
   onPromote: () => void;
   onUpgrade?: () => void;
   /** Open upgrade PR: replaces the Upgrade button with a review link. */
@@ -39,6 +50,7 @@ export function TimelineDeploymentRow({
     deployment;
   const title = apps.join(", ") || "Deployment";
   const absolute = new Date(createdAt * 1000).toLocaleString();
+  const building = deploymentIsBuilding(deployment);
   const outdated =
     current && sdkCompatibility(sdkVersion, requiredSdk) === "outdated";
 
@@ -127,17 +139,26 @@ export function TimelineDeploymentRow({
         {!current && (
           <button
             type="button"
-            disabled={busy || secretsBlocked}
+            // `promoteBlocked` supersedes the older busy/secrets pair and
+            // additionally covers "this deployment is still building". The
+            // fallback keeps the previous behaviour for any call site that
+            // has not been updated to pass a reason.
+            disabled={
+              promoteBlocked !== undefined
+                ? promoteBlocked !== null
+                : busy || secretsBlocked
+            }
             onClick={onPromote}
             className="border-border bg-surface-1 text-foreground hover:bg-accent-hover inline-flex h-8 items-center justify-center gap-1.5 rounded-md border px-2.5 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-50"
             title={
-              secretsBlocked
+              promoteBlocked ??
+              (secretsBlocked
                 ? "Required secrets missing — set them in the Environment tab"
-                : "Promote this deployment to live"
+                : "Promote this deployment to live")
             }
           >
             <RotateCcw className="size-3.5" aria-hidden />
-            Promote
+            {building ? "Building…" : "Promote"}
           </button>
         )}
       </div>
