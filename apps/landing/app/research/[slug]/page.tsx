@@ -231,10 +231,10 @@ export async function generateMetadata({
   }
 
   return {
-    title: `${post.title} | Aomi Research`,
+    title: `${post.title} | Aomi Labs Research`,
     description: post.subtitle,
     openGraph: {
-      title: `${post.title} | Aomi Research`,
+      title: `${post.title} | Aomi Labs Research`,
       description: post.subtitle,
       type: "article",
       publishedTime: post.isoDate,
@@ -242,7 +242,7 @@ export async function generateMetadata({
     },
     twitter: {
       card: "summary_large_image",
-      title: `${post.title} | Aomi Research`,
+      title: `${post.title} | Aomi Labs Research`,
       description: post.subtitle,
     },
   };
