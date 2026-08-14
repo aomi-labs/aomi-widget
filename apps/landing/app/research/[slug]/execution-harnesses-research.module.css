@@ -9,19 +9,20 @@
   --pink: #df5d90;
   --font-pt-serif: "PT Serif";
   min-height: 100vh;
-  background: #eeeeef;
+  background: var(--paper);
   color: var(--ink);
   font-family: "Geist", "Inter", Arial, sans-serif;
   font-size: 17px;
   line-height: 1.72;
 }
 
+/* One white ground, no floating sheet: the hairline and the tinted gutter only
+   made sense while the page sat on grey. */
 .paper {
   width: min(1120px, calc(100% - 40px));
   margin: 0 auto;
   padding: 0 104px 72px;
   background: var(--paper);
-  box-shadow: 0 0 0 1px rgba(9, 9, 11, 0.04);
 }
 
 .header {
@@ -39,17 +40,48 @@
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
+/* The lockup is the bubble mark plus a lowercase serif wordmark. It sits inside
+   uppercase mono furniture (masthead, byline) that the wordmark would otherwise
+   inherit, which renders the brand as "AOMI" — reset the casing and let the mark
+   and wordmark scale together from one font-size per placement. */
 .logo,
-.footerLogo {
+.footerLogo,
+.figureLogo {
   width: auto;
-  height: 26px;
   color: var(--ink);
+  letter-spacing: normal;
+  text-transform: none;
 }
-.logoMark,
-.footerMark,
+/* The wordmark is a bare <span> inside the lockup, so any figure rule styling
+   `span` outranks inheritance and captures it — .aomiBoundary span did exactly
+   that, rendering the brand as 9px uppercase mono. Restate it from the lockup,
+   which outranks a single-descendant selector. */
+.logo > span,
+.footerLogo > span,
+.figureLogo > span {
+  display: inline;
+  color: inherit;
+  font-size: inherit;
+  letter-spacing: -0.025em;
+  text-transform: none;
+}
+.logo {
+  font-size: 21px;
+}
+.footerLogo {
+  font-size: 17px;
+}
+.logoMark {
+  width: 22px;
+  height: 22px;
+}
+.footerMark {
+  width: 18px;
+  height: 18px;
+}
 .figureMark {
-  width: 23px;
-  height: 23px;
+  width: 17px;
+  height: 17px;
 }
 .series {
   margin: 82px 0 18px;
@@ -258,6 +290,132 @@
   font-size: 14px;
   line-height: 1.55;
 }
+/* Section 8.1 — the market as two halves of one axis rather than a grid of cells.
+   The divider is the point: left of it is intent and planning, right of it is
+   authority and settlement, and Aomi Labs spans it. Rows are paired left/right,
+   so a node with no counterpart keeps an empty cell opposite it. */
+.posMap {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  max-width: 820px;
+  margin: 34px auto 0;
+  padding: 24px 0 8px;
+  gap: 10px 0;
+}
+.posMap::before {
+  position: absolute;
+  top: 0;
+  bottom: 30px;
+  left: 50%;
+  width: 1px;
+  background: var(--line);
+  content: "";
+  transform: translateX(-0.5px);
+}
+.posAxis {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-align: center;
+  text-transform: uppercase;
+}
+.posNode {
+  padding: 7px 16px;
+}
+.posLeft {
+  text-align: right;
+}
+.posRight {
+  text-align: left;
+}
+.posNode b {
+  display: block;
+  font-size: 15px;
+  line-height: 1.3;
+}
+.posNode span {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.posNode em {
+  display: block;
+  margin-top: 6px;
+  color: var(--sky);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 9.5px;
+  font-style: normal;
+  letter-spacing: 0.1em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+.posAomi {
+  position: relative;
+  z-index: 1;
+  grid-column: 1 / -1;
+  margin: 6px auto;
+  padding: 13px 26px;
+  border: 1.5px solid var(--sky);
+  border-radius: 11px;
+  background: var(--sky-soft);
+  text-align: center;
+}
+.posAomi b {
+  color: #416cac;
+  font-family: var(--font-pt-serif), "PT Serif", Georgia, serif;
+  font-size: 21px;
+  font-weight: 400;
+}
+.posAomi span {
+  display: block;
+  margin-top: 3px;
+  color: #5b83b3;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 11px;
+}
+.posFoot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 14px;
+  max-width: 820px;
+  margin: 12px auto 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+/* Assurance is the one entry with no position on either axis — it runs under the
+   whole map rather than sitting on a side, so it gets its own strip. */
+.posPartners {
+  max-width: 820px;
+  margin: 14px auto 0;
+  padding: 13px 18px;
+  background: var(--soft);
+}
+.posPartners b {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.posPartners span {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 11px;
+}
+
 .dataNote {
   display: flex;
   align-items: center;
@@ -320,16 +478,264 @@
   line-height: 1.55;
 }
 
+/* Finance, payments, and commerce are intentionally shown as a relationship map,
+   not a proportional market-size chart. A width floor preserves the circle geometry
+   on small screens, where the figure becomes horizontally scrollable. */
+.domainMapScroll {
+  overflow-x: auto;
+}
+.domainMap {
+  position: relative;
+  width: 70%;
+  min-width: 540px;
+  min-height: 370px;
+  margin: 0 auto;
+  overflow: hidden;
+}
+.financeDomain,
+.paymentsDomain,
+.commerceDomain {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  text-align: center;
+}
+.financeDomain {
+  position: absolute;
+  top: 0;
+  left: 12%;
+  width: 56%;
+  aspect-ratio: 1;
+  border: 2px solid #8db4db;
+  background: rgb(215 229 244 / 72%);
+}
+.domainLabel {
+  position: absolute;
+  top: 13%;
+  left: 17%;
+  width: 66%;
+}
+.domainLabel b,
+.paymentsDomain b,
+.commerceDomain b {
+  display: block;
+  font-family: var(--font-pt-serif), "PT Serif", Georgia, serif;
+  font-size: 18px;
+  line-height: 1.15;
+}
+.domainLabel p,
+.paymentsDomain p,
+.commerceDomain p {
+  margin: 8px auto 0;
+  color: #53545d;
+  font-size: 10px;
+  line-height: 1.4;
+}
+.paymentsDomain {
+  position: absolute;
+  bottom: 4%;
+  left: 27%;
+  width: 46%;
+  aspect-ratio: 1;
+  padding: 14px;
+  border: 2px solid #9f88aa;
+  background: rgb(229 218 234 / 86%);
+}
+.paymentsDomain p {
+  max-width: 130px;
+}
+.commerceDomain {
+  position: absolute;
+  top: 22%;
+  right: 2%;
+  width: 37%;
+  aspect-ratio: 1;
+  padding: 20px;
+  border: 2px solid #ed8fba;
+  background: rgb(249 223 235 / 78%);
+}
+.commerceDomain p {
+  max-width: 160px;
+}
+.domainTest {
+  position: absolute;
+  bottom: 8px;
+  left: 0;
+  z-index: 2;
+  width: 145px;
+  padding: 11px 13px;
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  background: rgb(255 255 255 / 94%);
+}
+.domainTest b {
+  font-size: 11px;
+}
+.domainTest p {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.45;
+}
+.domainLegend {
+  position: absolute;
+  right: 0;
+  bottom: 4px;
+  display: flex;
+  gap: 7px;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.domainLegend span {
+  padding: 4px 8px;
+  border-radius: 999px;
+}
+.domainLegend span:nth-child(1) {
+  background: #d7e5f4;
+  color: #477dac;
+}
+.domainLegend span:nth-child(2) {
+  background: #e5daea;
+  color: #72547d;
+}
+.domainLegend span:nth-child(3) {
+  background: #f9dfeb;
+  color: #a53c6b;
+}
+
+/* Figure 4 — maturity plot. Both axes are ordinal zones, so the chrome is bands and
+   hairlines rather than ticks. One hue for every dot: the rail split is a property of
+   the complexity zones, not of the individual point, so it is drawn once under the
+   axis instead of being double-encoded onto eleven marks. */
+.mplotWrap {
+  overflow-x: auto;
+}
+.mplot {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+  font-family: "Geist", "Inter", Arial, sans-serif;
+}
+.mgrid {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+.maxis {
+  stroke: var(--ink);
+  stroke-width: 1;
+}
+.mband {
+  fill: var(--muted);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.mzone {
+  fill: var(--muted);
+  font-size: 11px;
+}
+.maxisTitle {
+  fill: var(--ink);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 10px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+.mrailA line,
+.mrailB line {
+  stroke-width: 1.5;
+}
+.mrailA line {
+  stroke: var(--sky);
+}
+.mrailB line {
+  stroke: #b8742a;
+}
+.mrailA text,
+.mrailB text {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.mrailA text {
+  fill: var(--sky);
+}
+.mrailB text {
+  fill: #b8742a;
+}
+/* A tinted disc with a saturated ring, rather than a solid dot: at r=18 a solid
+   fill would out-weigh the axis furniture and read as the subject of the figure,
+   and the ring keeps the smallest bubbles visible at the same time. */
+.mpt circle {
+  fill: var(--bubbleFill);
+  stroke: var(--bubbleLine);
+  stroke-width: 2;
+}
+.mptEarly {
+  --bubbleFill: #e3f3ea;
+  --bubbleLine: #2f9e6e;
+}
+.mptExpanding {
+  --bubbleFill: #e6f0f9;
+  --bubbleLine: #5288c2;
+}
+.mptEmerging {
+  --bubbleFill: #fbf1dd;
+  --bubbleLine: #d09829;
+}
+.mptPilot {
+  --bubbleFill: #fdeaf1;
+  --bubbleLine: #df5d90;
+}
+.mpt text {
+  fill: var(--ink);
+  font-size: 11.5px;
+}
+.mpt:hover circle {
+  stroke-width: 3.5;
+}
+.mpt:hover text {
+  font-weight: 600;
+}
+/* Neutral grey and a smaller label keep the key from reading as data, now that it
+   sits on its own row below the plot rather than inside it. */
+.mlegend circle {
+  fill: none;
+  stroke: #c3c3ca;
+  stroke-width: 1.5;
+}
+.mlegend text {
+  fill: var(--muted);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* The caption claims assurance "cuts horizontally across the stack", so it is drawn
+   as a band spanning all seven rows rather than as a bar underneath them — a bar
+   below the stack says the opposite of the sentence describing it. */
 .stack {
   display: grid;
+  grid-template-columns: 1fr 118px;
   gap: 6px;
 }
 .layer {
   display: grid;
-  grid-template-columns: 44px 1.1fr 1fr;
+  grid-column: 1;
+  /* 1.35:1 keeps the longest layer name — "Agent surfaces and vertical
+     applications" — on one line; at 1:1.15 every other row wrapped. */
+  grid-template-columns: 36px 1.35fr 1fr;
   align-items: center;
-  min-height: 74px;
-  padding: 10px 16px;
+  min-height: 62px;
+  padding: 9px 14px;
   border: 1px solid var(--line);
   background: var(--paper);
 }
@@ -340,7 +746,8 @@
 }
 .layer b {
   font-family: var(--font-pt-serif), "PT Serif", Georgia, serif;
-  font-size: 18px;
+  font-size: 17px;
+  line-height: 1.2;
 }
 .layer p {
   margin: 2px 0 0;
@@ -348,32 +755,173 @@
   font-size: 12px;
   line-height: 1.4;
 }
-.layer small {
+.players {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.player {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px 3px 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--paper);
   color: var(--muted);
   font-size: 11px;
   line-height: 1.45;
+  white-space: nowrap;
+}
+.playerBare {
+  padding-left: 9px;
+}
+.playerAomi {
+  border-color: var(--sky);
+  background: var(--sky-soft);
+  color: #416cac;
+}
+.playerMark {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  border-radius: 3px;
+  /* Several marks are black artwork on transparency. The white plate keeps them
+     from disappearing into a dark chip and is invisible on the paper ground. */
+  background: #fff;
+  object-fit: contain;
 }
 .focusLayer {
   border-color: var(--sky);
   background: var(--sky-soft);
 }
+/* On the two tinted rows the Aomi Labs chip would sit fill-on-fill, so it swaps to
+   paper and keeps the sky border as its signal. */
+.focusLayer .playerAomi {
+  background: var(--paper);
+}
 .assurance {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  padding: 14px 16px;
+  flex-direction: column;
+  grid-column: 2;
+  grid-row: 1 / 8;
+  justify-content: center;
+  gap: 7px;
+  padding: 16px 14px;
   background: var(--ink);
   color: white;
   font-size: 11px;
 }
 .assurance b {
+  margin-bottom: 5px;
   font-family: var(--font-geist-mono), monospace;
+  font-size: 10px;
   letter-spacing: 0.08em;
+  line-height: 1.35;
   text-transform: uppercase;
 }
 .assurance span {
   color: #d4d4d8;
+  line-height: 1.3;
+}
+
+/* Figure 1 — the authorization boundary drawn through the gutter between stage 3
+   and stage 4. Seven equal tracks with no gap, so 3/7 lands exactly on the border.
+   Dashed on purpose: this is a threshold, not a gridline. */
+.flow {
+  position: relative;
+}
+.flow::before {
+  position: absolute;
+  top: -10px;
+  bottom: -10px;
+  left: 42.857%;
+  z-index: 2;
+  border-left: 2px dashed var(--ink);
+  content: "";
+  transform: translateX(-1px);
+}
+
+/* Figure 4 — two lanes. Everything the harness owns sits on the top lane; stage 4
+   drops to the lane below because authority leaves the runtime there and comes back.
+   The empty cell left behind in the top lane is the point of the diagram. */
+.track {
+  display: grid;
+  grid-template-columns: 104px repeat(7, 1fr);
+  gap: 8px 6px;
+}
+.tstep {
+  padding: 13px 12px 14px;
+  border: 1px solid var(--line);
+  background: white;
+}
+.tstepExt {
+  border-color: #b8742a;
+  background: #fdf6ee;
+}
+.tstep > span {
+  display: block;
+  margin-bottom: 16px;
+  color: var(--sky);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 10px;
+}
+.tstepExt > span {
+  color: #b8742a;
+}
+.tstep b {
+  font-family: var(--font-pt-serif), "PT Serif", Georgia, serif;
+  font-size: 17px;
+}
+.tstep p {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+.tstep small {
+  display: block;
+  margin-top: 10px;
+  color: var(--sky);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 9px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.tstepExt small {
+  color: #b8742a;
+}
+.tlaneA,
+.tlaneB {
+  display: flex;
+  grid-column: 1;
+  align-items: center;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+.tlaneA {
+  grid-row: 1;
+  color: var(--ink);
+}
+.tlaneB {
+  grid-row: 2;
+  color: #b8742a;
+}
+.thandoff {
+  display: flex;
+  grid-row: 1;
+  grid-column: 6;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed #dcc6a8;
+  color: #b8742a;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .lifecycle {
@@ -407,6 +955,15 @@
   color: var(--muted);
   font-size: 10px;
   line-height: 1.45;
+}
+.lifecycle small {
+  display: block;
+  margin-top: 10px;
+  color: var(--sky);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 9px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
 }
 .boundary {
   display: grid;
@@ -556,6 +1113,40 @@
   line-height: 1.45;
 }
 
+.serviceGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  max-width: 820px;
+  margin: 38px auto 54px;
+  border-top: 1px solid var(--ink);
+  border-left: 1px solid var(--line);
+}
+.serviceCard {
+  padding: 22px;
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  background: var(--paper);
+}
+.serviceCard h4 {
+  margin: 0;
+  font-family: var(--font-pt-serif), "PT Serif", Georgia, serif;
+  font-size: 19px;
+  line-height: 1.3;
+}
+.serviceCard p {
+  margin: 9px 0 14px;
+  color: #46464e;
+  font-size: 14px;
+  line-height: 1.55;
+}
+.serviceCard small {
+  display: block;
+  color: var(--muted);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
 .aomiBoundary {
   display: grid;
   grid-template-columns: 1fr auto 1.2fr auto 1fr auto 1fr;
@@ -597,10 +1188,8 @@
   background: var(--sky-soft) !important;
 }
 .figureLogo {
-  width: auto;
-  height: 21px;
   margin-bottom: 10px;
-  color: var(--ink);
+  font-size: 16px;
 }
 .priorities {
   max-width: 760px;
@@ -701,6 +1290,36 @@
   .lifecycle > div:nth-child(5) {
     border-left: 1px solid var(--line);
   }
+  /* 3/7 stops meaning anything once the row wraps to four columns */
+  .flow::before {
+    display: none;
+  }
+  .stack {
+    grid-template-columns: 1fr;
+  }
+  .assurance {
+    flex-flow: row wrap;
+    grid-column: 1;
+    grid-row: auto;
+    align-items: baseline;
+    gap: 6px 14px;
+  }
+  .assurance b {
+    width: 100%;
+    margin-bottom: 0;
+  }
+  .track {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .tstep {
+    grid-row: auto !important;
+    grid-column: auto !important;
+  }
+  .tlaneA,
+  .tlaneB,
+  .thandoff {
+    display: none;
+  }
   .aomiBoundary {
     grid-template-columns: 1fr;
   }
@@ -717,7 +1336,6 @@
   .paper {
     width: 100%;
     padding: 0 20px 44px;
-    box-shadow: none;
   }
   .header {
     padding-top: 26px;
@@ -772,8 +1390,27 @@
     margin-left: 0;
   }
   .methodGrid,
-  .metrics {
+  .metrics,
+  .serviceGrid {
     grid-template-columns: 1fr;
+  }
+  /* One column cannot have two sides, so the divider and the right-alignment that
+     depended on it both go, and the empty pairing cells collapse. */
+  .posMap {
+    grid-template-columns: 1fr;
+  }
+  .posMap::before {
+    display: none;
+  }
+  .posLeft {
+    text-align: left;
+  }
+  .posNode:empty {
+    display: none;
+  }
+  .posFoot {
+    flex-direction: column;
+    gap: 6px;
   }
   .dataNote {
     align-items: flex-start;
@@ -797,9 +1434,9 @@
   .layer {
     grid-template-columns: 32px 1fr;
   }
-  .layer small {
+  .players {
     grid-column: 2;
-    margin-top: 6px;
+    margin-top: 8px;
   }
   .assurance {
     align-items: flex-start;
@@ -810,6 +1447,14 @@
   }
   .lifecycle > div:nth-child(odd) {
     border-left: 1px solid var(--line);
+  }
+  .track {
+    grid-template-columns: 1fr;
+  }
+  /* SVG text is in user units, so shrinking the plot shrinks the labels below
+     legibility. Hold a floor width and let the figure scroll instead. */
+  .mplot {
+    min-width: 620px;
   }
   .boundary {
     grid-template-columns: 1fr;
@@ -845,7 +1490,6 @@
   .paper {
     width: 100%;
     padding: 0;
-    box-shadow: none;
   }
   .contents {
     break-after: page;

@@ -21,7 +21,7 @@ export const researchPosts: ResearchPost[] = [
     isoDate: "2026-08-13",
     tag: "research",
     subtitle:
-      "Why model progress alone will not make financial agents efficient, reliable, or operational—and why execution infrastructure becomes the next essential layer.",
+      "Breaking down the seven-layer agentic payments stack and identifying the missing execution harness that makes financial agents efficient, reliable, and operational.",
     format: "execution-harnesses",
   },
   {
