@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { GoogleAnalytics } from "@next/third-parties/google";
 import { Source_Serif_4 } from "next/font/google";
 import "./globals.css";
-import { Provider } from "./provider";
 
 const sourceSerif = Source_Serif_4({
   subsets: ["latin"],
@@ -60,7 +59,7 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className={`${sourceSerif.variable} min-h-screen antialiased`}>
-        <Provider>{children}</Provider>
+        {children}
       </body>
       {GA_MEASUREMENT_ID && GA_MEASUREMENT_ID !== "G-XXXXXXXXXX" && (
         <GoogleAnalytics gaId={GA_MEASUREMENT_ID} />
