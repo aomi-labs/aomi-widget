@@ -1,9 +1,7 @@
 import {
   CLIENT_TYPE_TS_CLI,
   UserState,
-  type UserStateAAMode,
   type UserStateEvm,
-  type UserStateEvmAa,
 } from "../user-state";
 import { getAddress } from "viem";
 import type { PendingSolTx, PendingTx } from "./state";
@@ -73,9 +71,6 @@ export function buildCliUserState(
   chainId?: number,
   options?: {
     app?: string;
-    aaProvider?: string | null;
-    aaMode?: UserStateAAMode | null;
-    smartAccount?: string | null;
     /** Solana public key (base58). When present, sets svm.address. */
     svmAddress?: string;
     /** Solana cluster. Defaults to "solana:mainnet" when svmAddress is present. */
@@ -112,20 +107,9 @@ export function buildCliUserState(
     evm.chain_id = chainId;
   }
 
-  if (hasEvm) {
-    if (options?.aaMode === "4337" || options?.aaMode === "7702") {
-      const aaState: UserStateEvmAa = { mode: options.aaMode };
-      if (options.aaProvider != null) {
-        aaState.provider = options.aaProvider;
-      }
-      if (options.smartAccount != null) {
-        aaState.smart_account = options.smartAccount;
-      }
-      evm.aa = aaState;
-    } else if (options?.aaMode === null) {
-      evm.aa = { mode: "none" };
-    }
-  }
+  // Account-abstraction is backend authority and no longer carried in
+  // user_state. The CLI's `--aa` preference is applied per-transaction via the
+  // execution payload, not persisted here.
 
   if (Object.keys(evm).length > 0) {
     userState.evm = evm;
@@ -418,28 +402,12 @@ export function walletSnapshotFromUserState(
 ): {
   publicKey?: string;
   chainId?: number;
-  aaMode?: UserStateAAMode | null;
-  smartAccount?: string | null;
 } {
   const address = UserState.address(userState);
   const isConnected = UserState.isConnected(userState);
-  const sessionAAMode = UserState.aaMode(userState);
-  const walletKind = UserState.walletKind(userState);
-
-  const aaMode: UserStateAAMode | null | undefined =
-    sessionAAMode === "4337" || sessionAAMode === "7702"
-      ? sessionAAMode
-      : sessionAAMode === "none"
-        ? null
-        : undefined;
-
-  const smartAccount: string | null | undefined =
-    walletKind === "smart-account" ? (address ?? null) : null;
 
   return {
     publicKey: isConnected === false ? undefined : address,
     chainId: UserState.chainId(userState),
-    aaMode,
-    smartAccount,
   };
 }

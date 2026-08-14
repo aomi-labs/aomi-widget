@@ -93,6 +93,26 @@ export const ALLOWED_ROUTES: AllowedRoute[] = [
     methods: new Set(["POST"]),
     auth: "optional",
   },
+  {
+    pattern: /^\/api\/widget\/v1\/execution-profile$/,
+    methods: new Set(["GET"]),
+  },
+  {
+    pattern: /^\/api\/widget\/v1\/aa-accounts\/[^/]+$/,
+    methods: new Set(["PUT"]),
+  },
+  {
+    pattern: /^\/api\/widget\/v1\/aa-operations\/[^/]+$/,
+    methods: new Set(["GET"]),
+  },
+  {
+    pattern: /^\/api\/widget\/v1\/signing-requests$/,
+    methods: new Set(["GET"]),
+  },
+  {
+    pattern: /^\/api\/widget\/v1\/signing-requests\/sign%3A[^/]+$/i,
+    methods: new Set(["POST"]),
+  },
 ];
 
 function rewriteLegacyThreadPath(upstreamUrl: URL): void {

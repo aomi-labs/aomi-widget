@@ -7,11 +7,8 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { serializeSignature, type Chain, type Hex } from "viem";
-import type {
-  WalletAaSignPayload,
-  WalletEip712Payload,
-} from "@aomi-labs/react";
+import type { Chain, Hex } from "viem";
+import type { WalletEip712Payload } from "@aomi-labs/react";
 import { toViemSignTypedDataArgs } from "@aomi-labs/react";
 import { AomiWalletKitComposer } from "../../composer/AomiWalletKitComposer";
 import type { AuthRuntime, ExecutionRuntime } from "../../composer/types";
@@ -34,10 +31,7 @@ import {
   useSafeSvmWallets,
   useSafeWallets,
 } from "./privy-auth";
-import {
-  useSign7702Authorization,
-  type PrivyClientConfig,
-} from "@privy-io/react-auth";
+import type { PrivyClientConfig } from "@privy-io/react-auth";
 import { buildPrivySvmWalletState } from "./privy-svm";
 import { sendPrivySmartWalletTransaction } from "./privy-execution";
 import { useEmbeddedSessionSource } from "../sources/embedded-session-source";
@@ -64,7 +58,6 @@ export function AomiPrivyPluginProvider({
     useSafeSmartWallets();
   const { wallets: solanaWallets } = useSafeSvmWallets();
   const { wallets: connectedWallets } = useSafeWallets();
-  const { signAuthorization } = useSign7702Authorization();
   const [activeSolanaAddress, setActiveSolanaAddress] = useState<
     string | undefined
   >();
@@ -102,7 +95,10 @@ export function AomiPrivyPluginProvider({
   const embeddedEvmUserWallet = pickPrivyEmbeddedEvmUserWallet(privy.user);
   const embeddedEvmAddress = (embeddedEvmWallet?.address ??
     embeddedEvmUserWallet?.address) as Hex | undefined;
-  const sessionEvmAddress = smartAddress ?? embeddedEvmAddress ?? null;
+  // Backend-owned AA treats Privy's embedded EOA as the owner and provisions
+  // its executor server-side. Never replace the owner identity with Privy's
+  // client-managed smart account when both are present.
+  const sessionEvmAddress = embeddedEvmAddress ?? smartAddress ?? null;
   const sessionReady =
     privy.authenticated &&
     Boolean(embeddedEvmWallet || embeddedEvmUserWallet || smartAddress);
@@ -237,48 +233,28 @@ export function AomiPrivyPluginProvider({
   });
   const executionRuntime = useMemo<ExecutionRuntime>(
     () => ({
-      sponsorship: {},
       evm: buildEvmExecutionRuntime(evmRuntime, {
-        signAaRequests:
+        signMessage:
           embeddedEvmWallet && embeddedEvmAddress
-            ? async (payload: WalletAaSignPayload) => {
-                if (
-                  embeddedEvmAddress.toLowerCase() !==
-                  payload.signer.toLowerCase()
-                ) {
+            ? async (payload: WalletEip712Payload) => {
+                const owner = payload.signer ?? embeddedEvmAddress;
+                if (owner.toLowerCase() !== embeddedEvmAddress.toLowerCase()) {
                   throw new Error(
-                    "The active Privy wallet is not the prepared AA owner",
+                    "The active Privy EOA is not the requested signer",
                   );
                 }
-                const signatures: string[] = [];
-                for (const request of payload.signature_requests) {
-                  if (request.kind === "personal_sign") {
-                    // Privy's high-level hook accepts only a string and can
-                    // therefore encode "0x…" as text. The provider's
-                    // `personal_sign` method preserves Alchemy's raw bytes.
-                    const provider =
-                      await embeddedEvmWallet.getEthereumProvider();
-                    const signature = await provider.request({
-                      method: "personal_sign",
-                      params: [request.message, embeddedEvmAddress],
-                    });
-                    if (typeof signature !== "string") {
-                      throw new Error("Privy returned an invalid AA signature");
-                    }
-                    signatures.push(signature);
-                  } else {
-                    const authorization = await signAuthorization(
-                      {
-                        contractAddress: request.contract_address as Hex,
-                        chainId: request.chain_id,
-                        nonce: request.nonce,
-                      },
-                      { address: embeddedEvmAddress },
-                    );
-                    signatures.push(serializeSignature(authorization));
-                  }
+                if (!payload.non_typed_data) {
+                  throw new Error("Missing non_typed_data payload");
                 }
-                return { signatures };
+                const provider = await embeddedEvmWallet.getEthereumProvider();
+                const signature = await provider.request({
+                  method: "personal_sign",
+                  params: [payload.non_typed_data, owner],
+                });
+                if (typeof signature !== "string") {
+                  throw new Error("Privy returned an invalid signature");
+                }
+                return { signature };
               }
             : undefined,
         sendTransaction:
@@ -294,16 +270,37 @@ export function AomiPrivyPluginProvider({
                     smartAddress,
                   })
               : undefined,
-        signTypedData: smartWalletClient
-          ? async (payload: WalletEip712Payload) => {
-              const args = toViemSignTypedDataArgs(payload);
-              if (!args) throw new Error("Missing typed_data payload");
-              const signature = await smartWalletClient.signTypedData(
-                args as never,
-              );
-              return { signature };
-            }
-          : undefined,
+        signTypedData:
+          embeddedEvmWallet && embeddedEvmAddress
+            ? async (payload: WalletEip712Payload) => {
+                const owner = payload.signer ?? embeddedEvmAddress;
+                if (owner.toLowerCase() !== embeddedEvmAddress.toLowerCase()) {
+                  throw new Error(
+                    "The active Privy EOA is not the requested signer",
+                  );
+                }
+                const args = toViemSignTypedDataArgs(payload);
+                if (!args) throw new Error("Missing typed_data payload");
+                const provider = await embeddedEvmWallet.getEthereumProvider();
+                const signature = await provider.request({
+                  method: "eth_signTypedData_v4",
+                  params: [owner, JSON.stringify(args)],
+                });
+                if (typeof signature !== "string") {
+                  throw new Error("Privy returned an invalid signature");
+                }
+                return { signature };
+              }
+            : smartWalletClient
+              ? async (payload: WalletEip712Payload) => {
+                  const args = toViemSignTypedDataArgs(payload);
+                  if (!args) throw new Error("Missing typed_data payload");
+                  const signature = await smartWalletClient.signTypedData(
+                    args as never,
+                  );
+                  return { signature };
+                }
+              : undefined,
       }),
     }),
     [
@@ -312,7 +309,6 @@ export function AomiPrivyPluginProvider({
       evmRuntime,
       execution,
       getClientForChain,
-      signAuthorization,
       smartAddress,
       smartWalletClient,
     ],

@@ -8,8 +8,8 @@ import type {
 import {
   UserState,
   type AomiClientType,
+  type OwnedUserState,
   type UserState as UserStateShape,
-  type UserStateAAMode,
 } from "../user-state";
 import { TypedEventEmitter } from "../event";
 import type {
@@ -38,12 +38,14 @@ export type {
   SessionOptions,
   SessionRuntimeOptions,
   WalletRequest,
-  WalletAaSignPayload,
-  WalletAaSignatureRequest,
+  WalletSignablePayload,
+  WalletSigningPayload,
   WalletRequestKind,
   WalletRequestTarget,
   WalletRequestResult,
 } from "./types";
+
+const SIGNING_RECOVERY_MIN_INTERVAL_MS = 5_000;
 
 export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   readonly client: AomiClient;
@@ -68,6 +70,10 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   private _isProcessing = false;
   private _backendWasProcessing = false;
   private walletController!: SessionWalletController;
+  private recoveringSigningRequestIds = new Set<string>();
+  private signingRecoveryInFlight: Promise<void> | null = null;
+  private signingRecoveryTimer: ReturnType<typeof setTimeout> | null = null;
+  private lastSigningRecoveryAt = 0;
   private _messages: AomiMessage[] = [];
   private _title?: string;
   private closed = false;
@@ -110,10 +116,15 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       getUserState: () => this.userState,
       resolveUserState: (userState) => this.resolveUserState(userState),
       sendSystemEvent: (type, payload) => this.sendSystemEvent(type, payload),
+      completeSigningRequest: (requestId, body) =>
+        this.completeSigningRequest(requestId, body),
       onChange: (requests) => this.emit("wallet_requests_changed", requests),
       syncPendingTxRequestsFromUserState:
         this.syncPendingTxRequestsFromUserState,
     });
+    // Durable backend-owned signing handoffs must resume even when loading the
+    // application runtime or thread history is slow/unavailable.
+    queueMicrotask(() => this.scheduleSigningRequestRecovery(true));
   }
 
   // ===========================================================================
@@ -169,9 +180,8 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   // ===========================================================================
 
   /**
-   * Resolve a pending wallet request (transaction, EIP-712, or Solana
-   * sign). The `result.kind` discriminator must match the originating
-   * request's kind — sending a `transaction` result for an `eip712_sign`
+   * Resolve a pending wallet request. The `result.kind` discriminator must
+   * match the originating request's kind — sending a `transaction` result for a `signing`
    * request would post the wrong wire event with empty fields, so we
    * fail fast at runtime instead.
    */
@@ -186,6 +196,16 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
    */
   async reject(requestId: string, reason?: string): Promise<void> {
     await this.walletController.reject(requestId, reason);
+    this.resumeAfterWalletResponse();
+  }
+
+  /**
+   * Drop a pending wallet request locally without completing it. Hosts should
+   * normally use `resolve` or `reject`; this is reserved for externally
+   * acknowledged lifecycle cleanup.
+   */
+  dismiss(requestId: string): void {
+    this.walletController.dismiss(requestId);
     this.resumeAfterWalletResponse();
   }
 
@@ -216,6 +236,10 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     if (this.closed) return;
     this.closed = true;
     this.stopPolling();
+    if (this.signingRecoveryTimer) {
+      clearTimeout(this.signingRecoveryTimer);
+      this.signingRecoveryTimer = null;
+    }
     this.unsubscribeSSE?.();
     this.unsubscribeSSE = null;
     this.isSSEActive = false;
@@ -335,19 +359,16 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     }
   }
 
-  resolveWallet(
-    address: string,
-    chainId?: number,
-    aa?: {
-      aaMode?: UserStateAAMode | null;
-      smartAccount?: string | null;
-      smartAccount4337?: string | null;
-      delegation7702?: string | null;
-    },
-  ): void {
-    this.resolveUserState(
-      resolveWalletState(this.userState, address, chainId, aa),
-    );
+  resolveWallet(address: string, chainId?: number): void {
+    this.resolveUserState(resolveWalletState(this.userState, address, chainId));
+  }
+
+  /**
+   * The subset of the stored state the client may send to the backend. Drops
+   * backend-authority `pending` (in-flight requests the client only receives).
+   */
+  private outboundUserState(): OwnedUserState | undefined {
+    return UserState.toOwned(this.userState);
   }
 
   async syncUserState(): Promise<AomiStateResponse> {
@@ -355,7 +376,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
 
     const state = await this.client.fetchState(
       this.sessionId,
-      this.userState,
+      this.outboundUserState(),
       this.clientId,
       { app: this.app, applicationId: this.applicationId },
     );
@@ -382,7 +403,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
 
     const state = await this.client.fetchState(
       this.sessionId,
-      this.userState,
+      this.outboundUserState(),
       this.clientId,
       { app: this.app, applicationId: this.applicationId },
     );
@@ -442,7 +463,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     try {
       const state = await this.client.fetchState(
         this.sessionId,
-        this.userState,
+        this.outboundUserState(),
         this.clientId,
         { app: this.app, applicationId: this.applicationId },
       );
@@ -532,6 +553,90 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       walletController: this.walletController,
       emit: (type, payload) => this.emit(type, payload),
     });
+    this.scheduleSigningRequestRecovery();
+  }
+
+  /**
+   * Coalesce recovery behind one request and a bounded cadence. State polling
+   * may run twice per second; durable handoff recovery does not need to.
+   */
+  private scheduleSigningRequestRecovery(immediate = false): void {
+    if (this.closed || this.signingRecoveryInFlight) return;
+
+    const elapsed = Date.now() - this.lastSigningRecoveryAt;
+    const delay = immediate
+      ? 0
+      : Math.max(0, SIGNING_RECOVERY_MIN_INTERVAL_MS - elapsed);
+    if (delay === 0) {
+      void this.recoverSigningRequests();
+      return;
+    }
+    if (this.signingRecoveryTimer) return;
+
+    this.signingRecoveryTimer = setTimeout(() => {
+      this.signingRecoveryTimer = null;
+      if (!this.closed) void this.recoverSigningRequests();
+    }, delay);
+  }
+
+  /**
+   * A signing event is transient, but its backend-owned operation is durable.
+   * Recover an attended handoff from the operation view when a tab reload or
+   * reconnect happens after the original event was delivered.
+   */
+  private async recoverSigningRequests(): Promise<void> {
+    if (this.signingRecoveryInFlight) {
+      await this.signingRecoveryInFlight;
+      return;
+    }
+
+    const recovery = this.fetchSigningRequests();
+    this.signingRecoveryInFlight = recovery;
+    try {
+      await recovery;
+    } finally {
+      this.lastSigningRecoveryAt = Date.now();
+      this.signingRecoveryInFlight = null;
+    }
+  }
+
+  private async fetchSigningRequests(): Promise<void> {
+    let response: { requests?: unknown[] };
+    try {
+      response = await this.client.request<{ requests?: unknown[] }>(
+        "GET",
+        "/api/widget/v1/signing-requests",
+        { sessionId: this.sessionId },
+      );
+    } catch (error) {
+      this.logger?.debug("[session] signing request recovery failed", error);
+      return;
+    }
+    for (const request of response.requests ?? []) {
+      const requestId =
+        typeof request === "object" &&
+        request !== null &&
+        typeof (request as { requestId?: unknown }).requestId === "string"
+          ? (request as { requestId: string }).requestId
+          : undefined;
+      if (!requestId) continue;
+      if (
+        this.walletController.find(requestId) ||
+        this.recoveringSigningRequestIds.has(requestId)
+      ) {
+        continue;
+      }
+
+      this.recoveringSigningRequestIds.add(requestId);
+      try {
+        this.handleSSEEvent({
+          type: "wallet_signing_request",
+          payload: request,
+        });
+      } finally {
+        this.recoveringSigningRequestIds.delete(requestId);
+      }
+    }
   }
 
   // ===========================================================================
@@ -568,13 +673,29 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     });
   }
 
+  private async completeSigningRequest(
+    requestId: string,
+    body:
+      | { status: "signed"; signatures: string[] }
+      | { status: "rejected"; reason?: string },
+  ): Promise<void> {
+    await this.client.request(
+      "POST",
+      `/api/widget/v1/signing-requests/${encodeURIComponent(requestId)}`,
+      {
+        sessionId: this.sessionId,
+        body,
+      },
+    );
+  }
+
   /** Shared completion path for send()/sendAsync() after the chat POST. */
   private async submitChat(message: string): Promise<AomiChatResponse> {
     const response = await this.client.sendMessage(this.sessionId, message, {
       app: this.app,
       applicationId: this.applicationId,
       apiKey: this.apiKey,
-      userState: this.userState,
+      userState: this.outboundUserState(),
       clientId: this.clientId,
       paymentMethod: this.paymentMethod,
     });

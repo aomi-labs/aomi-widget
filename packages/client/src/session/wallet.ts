@@ -1,82 +1,19 @@
-import {
-  aaModeFromExecutionKind,
-  aaRequestedModeFromPreference,
-} from "../aa/policy";
 import type { UserState as UserStateShape } from "../user-state";
 import {
   hydrateTxPayloadFromUserState,
-  normalizeEip712Payload,
   normalizeSolanaWalletRequest,
-  type WalletEip712Payload,
-  type WalletSolanaSignMessagePayload,
   type WalletSolanaSignPayload,
   type WalletTxPayload,
 } from "../wallet-utils";
 import type {
   WalletRequest,
-  WalletAaSignPayload,
-  WalletAaSignatureRequest,
+  WalletSigningPayload,
   WalletRequestKind,
   WalletRequestResult,
 } from "./types";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function isAaSignatureRequest(
-  value: unknown,
-): value is WalletAaSignatureRequest {
-  if (!isRecord(value) || typeof value.raw_payload !== "string") return false;
-  if (value.kind === "personal_sign") return typeof value.message === "string";
-  if (value.kind === "eip7702_authorization") {
-    return (
-      typeof value.contract_address === "string" &&
-      typeof value.chain_id === "number" &&
-      typeof value.nonce === "number"
-    );
-  }
-  return false;
-}
-
-/**
- * Project a parked anchor record's `aa_handoff` back into the wallet request
- * the backend originally emitted. `null` when any signing-critical field is
- * missing or malformed — a partial rebuild must never reach the wallet.
- */
-function aaSignPayloadFromRecord(
-  record: Record<string, unknown>,
-): WalletAaSignPayload | null {
-  const handoff = isRecord(record.aa_handoff) ? record.aa_handoff : undefined;
-  if (!handoff) return null;
-  const txIds = Array.isArray(handoff.tx_ids)
-    ? handoff.tx_ids.filter((id): id is number => typeof id === "number")
-    : [];
-  const rawRequests = Array.isArray(handoff.signature_requests)
-    ? handoff.signature_requests
-    : [];
-  const requests = rawRequests.filter(isAaSignatureRequest);
-  if (
-    txIds.length === 0 ||
-    requests.length === 0 ||
-    requests.length !== rawRequests.length ||
-    typeof record.from !== "string" ||
-    typeof record.chain_id !== "number"
-  ) {
-    return null;
-  }
-  return {
-    chain_family: "evm",
-    chain_id: record.chain_id,
-    signer: record.from,
-    executor:
-      typeof handoff.executor === "string" ? handoff.executor : record.from,
-    aa_mode: handoff.aa_mode === "4337" ? "4337" : "7702",
-    tx_ids: txIds,
-    signature_requests: requests,
-    description: typeof record.label === "string" ? record.label : "",
-    sponsored: true,
-  };
 }
 
 export function txIdsFromPayload(payload: WalletTxPayload): number[] {
@@ -90,7 +27,7 @@ export function txIdsFromPayload(payload: WalletTxPayload): number[] {
 }
 
 function solanaPendingIdFields(
-  payload: WalletSolanaSignPayload | WalletSolanaSignMessagePayload,
+  payload: WalletSolanaSignPayload,
 ): Record<string, number | number[]> {
   const fields: Record<string, number | number[]> = {};
   if (payload.pendingSolanaId !== undefined) {
@@ -110,6 +47,12 @@ type WalletControllerDeps = {
   getUserState: () => UserStateShape | undefined;
   resolveUserState: (userState: UserStateShape) => void;
   sendSystemEvent: (type: string, payload: unknown) => Promise<void>;
+  completeSigningRequest: (
+    requestId: string,
+    body:
+      | { status: "signed"; signatures: string[] }
+      | { status: "rejected"; reason?: string },
+  ) => Promise<void>;
   onChange: (requests: WalletRequest[]) => void;
   syncPendingTxRequestsFromUserState: boolean;
 };
@@ -135,25 +78,14 @@ export class SessionWalletController {
   }
 
   enqueue(kind: "transaction", payload: WalletTxPayload): WalletRequest;
-  enqueue(kind: "aa_sign", payload: WalletAaSignPayload): WalletRequest;
-  enqueue(kind: "eip712_sign", payload: WalletEip712Payload): WalletRequest;
-  enqueue(kind: "solana_sign", payload: WalletSolanaSignPayload): WalletRequest;
-  enqueue(
-    kind: "solana_sign_message",
-    payload: WalletSolanaSignMessagePayload,
-  ): WalletRequest;
+  enqueue(kind: "signing", payload: WalletSigningPayload): WalletRequest;
   enqueue(
     kind: "solana_send" | "solana_sign_and_send",
     payload: WalletSolanaSignPayload,
   ): WalletRequest;
   enqueue(
     kind: WalletRequestKind,
-    payload:
-      | WalletTxPayload
-      | WalletAaSignPayload
-      | WalletEip712Payload
-      | WalletSolanaSignPayload
-      | WalletSolanaSignMessagePayload,
+    payload: WalletTxPayload | WalletSigningPayload | WalletSolanaSignPayload,
   ): WalletRequest {
     const id = this.requestId(kind, payload);
     const existing = this.requests.find((request) => request.id === id);
@@ -186,33 +118,20 @@ export class SessionWalletController {
       ? userState.pending
       : undefined;
     const pendingTxs = isRecord(pending?.evm_txs) ? pending.evm_txs : undefined;
-    const pendingEip712s = isRecord(pending?.evm_sigs)
-      ? pending.evm_sigs
-      : undefined;
     const pendingSolanaTxs = isRecord(pending?.solana_txs)
       ? pending.solana_txs
       : isRecord(pending?.svm_ixs)
         ? pending.svm_ixs
         : undefined;
-    const pendingSolanaSigs = isRecord(pending?.solana_sigs)
-      ? pending.solana_sigs
-      : isRecord(pending?.svm_sigs)
-        ? pending.svm_sigs
-        : undefined;
 
     const next: WalletRequest[] = [];
-    // Before plain transactions so a rebuilt AA dialog keeps queue priority.
-    this.syncAaSign(next, pendingTxs);
     this.syncTransactions(next, pendingTxs);
-    this.syncEip712(next, pendingEip712s);
     this.syncSolana(next, pendingSolanaTxs);
-    this.syncSolana(next, pendingSolanaSigs);
 
     const nextIdSet = new Set(next.map((request) => request.id));
     for (const existing of this.requests) {
       if (
         existing.kind !== "transaction" &&
-        existing.kind !== "eip712_sign" &&
         !nextIdSet.has(existing.id) &&
         !this.resolvedRequestIds.has(existing.id)
       ) {
@@ -243,43 +162,10 @@ export class SessionWalletController {
         this.deps.sendSystemEvent(type, payload);
       if (req.kind === "transaction" && result.kind === "transaction") {
         await this.resolveTransaction(req.payload, result);
-      } else if (req.kind === "aa_sign" && result.kind === "aa_sign") {
-        await this.deps.sendSystemEvent("wallet:aa_sign_complete", {
+      } else if (req.kind === "signing" && result.kind === "signing") {
+        await this.deps.completeSigningRequest(req.payload.requestId, {
           status: "signed",
-          tx_ids: req.payload.tx_ids,
           signatures: result.signatures,
-        });
-      } else if (req.kind === "eip712_sign" && result.kind === "eip712_sign") {
-        await send("wallet_eip712_response", {
-          status: "success",
-          signature: result.signature,
-          description: req.payload.description,
-          ...(req.payload.eip712Id !== undefined
-            ? { pending_eip712_id: req.payload.eip712Id }
-            : {}),
-        });
-      } else if (req.kind === "solana_sign" && result.kind === "solana_sign") {
-        await send("wallet::solana_sign_complete", {
-          status: "signed",
-          signed_tx: result.signedTx,
-          ...(req.payload.unsignedTx !== undefined
-            ? { unsigned_tx: req.payload.unsignedTx }
-            : {}),
-          description: req.payload.description,
-          ...solanaPendingIdFields(req.payload),
-        });
-      } else if (
-        req.kind === "solana_sign_message" &&
-        result.kind === "solana_sign_message"
-      ) {
-        await send("wallet::solana_sign_message_complete", {
-          status: "signed",
-          signature: result.signature,
-          ...(req.payload.message !== undefined
-            ? { message: req.payload.message }
-            : {}),
-          description: req.payload.description,
-          ...solanaPendingIdFields(req.payload),
         });
       } else if (req.kind === "solana_send" && result.kind === "solana_send") {
         await send("wallet::solana_send_complete", {
@@ -326,54 +212,18 @@ export class SessionWalletController {
         this.deps.sendSystemEvent(type, payload);
       if (req.kind === "transaction") {
         const pendingTxIds = txIdsFromPayload(req.payload);
-        const requestedMode = aaRequestedModeFromPreference(
-          req.payload.aaPreference,
-        );
         await send("wallet:tx_complete", {
           txHash: "",
           status: "failed",
           error: reason ?? "Request rejected",
           pending_tx_ids: pendingTxIds,
-          aa_requested_mode: requestedMode,
-          aa_resolved_mode: requestedMode,
           batched: pendingTxIds.length > 1,
           call_count: pendingTxIds.length,
         });
-      } else if (req.kind === "aa_sign") {
-        await this.deps.sendSystemEvent("wallet:aa_sign_complete", {
+      } else if (req.kind === "signing") {
+        await this.deps.completeSigningRequest(req.payload.requestId, {
           status: "rejected",
-          error: reason ?? "Request rejected",
-          tx_ids: req.payload.tx_ids,
-          signatures: [],
-        });
-      } else if (req.kind === "eip712_sign") {
-        await send("wallet_eip712_response", {
-          status: "failed",
-          error: reason ?? "Request rejected",
-          description: req.payload.description,
-          ...(req.payload.eip712Id !== undefined
-            ? { pending_eip712_id: req.payload.eip712Id }
-            : {}),
-        });
-      } else if (req.kind === "solana_sign") {
-        await send("wallet::solana_sign_complete", {
-          status: "rejected",
-          error: reason ?? "Request rejected",
-          ...(req.payload.unsignedTx !== undefined
-            ? { unsigned_tx: req.payload.unsignedTx }
-            : {}),
-          description: req.payload.description,
-          ...solanaPendingIdFields(req.payload),
-        });
-      } else if (req.kind === "solana_sign_message") {
-        await send("wallet::solana_sign_message_complete", {
-          status: "rejected",
-          error: reason ?? "Request rejected",
-          ...(req.payload.message !== undefined
-            ? { message: req.payload.message }
-            : {}),
-          description: req.payload.description,
-          ...solanaPendingIdFields(req.payload),
+          reason,
         });
       } else if (req.kind === "solana_send") {
         await send("wallet::solana_send_complete", {
@@ -402,6 +252,13 @@ export class SessionWalletController {
     }
   }
 
+  /** Drop a request locally after an out-of-band host acknowledgement. */
+  dismiss(requestId: string): void {
+    const req = this.find(requestId);
+    if (!req) return;
+    this.finishRequest(req);
+  }
+
   private async resolveTransaction(
     payload: WalletTxPayload,
     result: Extract<WalletRequestResult, { kind: "transaction" }>,
@@ -413,48 +270,17 @@ export class SessionWalletController {
     // pending-tx ledger matches the chain instead of re-queuing legs that
     // already spent funds.
     const pendingTxIds = result.completedTxIds ?? txIdsFromPayload(payload);
-    const requestedMode =
-      result.aaRequestedMode ??
-      aaRequestedModeFromPreference(payload.aaPreference);
-    const resolvedMode =
-      result.aaResolvedMode ??
-      aaModeFromExecutionKind(result.executionKind) ??
-      requestedMode;
-    const userState = this.deps.getUserState();
-    const prevEvm = isRecord(userState?.evm) ? userState.evm : {};
-    const prevAa = isRecord(prevEvm.aa) ? prevEvm.aa : {};
-    this.deps.resolveUserState({
-      ...(userState ?? {}),
-      evm: {
-        ...prevEvm,
-        aa: {
-          ...prevAa,
-          mode: resolvedMode,
-          // Preserve backend AA routing across post-transaction state updates.
-          ...(resolvedMode === "4337" || resolvedMode === "7702"
-            ? { provider: "alchemy" }
-            : {}),
-          smart_account:
-            resolvedMode === "4337" ? (result.SmartAccount4337 ?? null) : null,
-          delegation_7702:
-            resolvedMode === "7702" ? (result.Delegation7702 ?? null) : null,
-        },
-      },
-    });
+    // Account-abstraction / sponsorship are backend authority; this path reports
+    // only the direct-wallet execution outcome. The backend resolves and records
+    // AA state itself (execution-profile + operation endpoints).
     await this.deps.sendSystemEvent("wallet:tx_complete", {
       txHash: result.txHash,
       status: "success",
       amount: result.amount,
       pending_tx_ids: pendingTxIds,
-      aa_requested_mode: requestedMode,
-      aa_resolved_mode: resolvedMode,
-      aa_fallback_reason: result.aaFallbackReason,
       execution_kind: result.executionKind,
       batched: result.batched ?? pendingTxIds.length > 1,
       call_count: result.callCount ?? pendingTxIds.length,
-      sponsored: result.sponsored,
-      smart_account_4337: result.SmartAccount4337,
-      delegation_7702: result.Delegation7702,
     });
 
     if (result.failedTxIds?.length) {
@@ -465,8 +291,6 @@ export class SessionWalletController {
           result.failureReason ??
           "Batch aborted after a mid-sequence failure; these legs were not executed",
         pending_tx_ids: result.failedTxIds,
-        aa_requested_mode: requestedMode,
-        aa_resolved_mode: resolvedMode,
         batched: result.failedTxIds.length > 1,
         call_count: result.failedTxIds.length,
       });
@@ -480,12 +304,7 @@ export class SessionWalletController {
       : undefined;
     if (!userState || !pending) return;
 
-    if (
-      request.kind === "transaction" ||
-      request.kind === "aa_sign" ||
-      request.kind === "eip712_sign"
-    )
-      return;
+    if (request.kind === "transaction" || request.kind === "signing") return;
     const ids =
       "pendingSolanaIds" in request.payload &&
       Array.isArray(request.payload.pendingSolanaIds) &&
@@ -495,16 +314,10 @@ export class SessionWalletController {
           ? [request.payload.pendingSolanaId]
           : [];
     if (ids.length === 0) return;
-    const targets: Array<[string, number[]]> =
-      request.kind === "solana_sign" || request.kind === "solana_sign_message"
-        ? [
-            ["svm_sigs", ids],
-            ["solana_sigs", ids],
-          ]
-        : [
-            ["svm_ixs", ids],
-            ["solana_txs", ids],
-          ];
+    const targets: Array<[string, number[]]> = [
+      ["svm_ixs", ids],
+      ["solana_txs", ids],
+    ];
 
     const nextPending = { ...pending };
     let changed = false;
@@ -531,36 +344,6 @@ export class SessionWalletController {
     this.remove(request.id);
     this.resolvedRequestIds.add(request.id);
     this.clearResolvedSolanaPending(request);
-  }
-
-  /**
-   * Rebuild attended-AA signing requests from user state. The backend parks
-   * the request's projection on the batch anchor (`aa_handoff`) while it
-   * awaits owner signatures, so a reloaded client recovers the exact dialog
-   * it lost instead of orphaning the prepared batch.
-   */
-  private syncAaSign(
-    next: WalletRequest[],
-    pendingTxs: Record<string, unknown> | undefined,
-  ): void {
-    for (const [, raw] of Object.entries(pendingTxs ?? {})) {
-      if (!isRecord(raw) || raw.current_lifecycle !== "awaiting_aa_signature")
-        continue;
-      // Only the batch anchor carries the handoff; other members are covered
-      // by its tx_ids.
-      const payload = aaSignPayloadFromRecord(raw);
-      if (!payload) continue;
-      const requestId = this.requestId("aa_sign", payload);
-      if (this.resolvedRequestIds.has(requestId)) continue;
-      next.push({
-        id: requestId,
-        kind: "aa_sign",
-        payload,
-        timestamp:
-          this.requests.find((request) => request.id === requestId)
-            ?.timestamp ?? Date.now(),
-      });
-    }
   }
 
   private syncTransactions(
@@ -633,29 +416,6 @@ export class SessionWalletController {
     }
   }
 
-  private syncEip712(
-    next: WalletRequest[],
-    pendingEip712s: Record<string, unknown> | undefined,
-  ): void {
-    for (const [id, raw] of Object.entries(pendingEip712s ?? {}).sort(
-      (left, right) => Number(left[0]) - Number(right[0]),
-    )) {
-      const payload = normalizeEip712Payload({
-        ...(isRecord(raw) ? raw : {}),
-        pending_eip712_id: Number(id),
-      });
-      const requestId = this.requestId("eip712_sign", payload);
-      next.push({
-        id: requestId,
-        kind: "eip712_sign",
-        payload,
-        timestamp:
-          this.requests.find((request) => request.id === requestId)
-            ?.timestamp ?? Date.now(),
-      });
-    }
-  }
-
   private syncSolana(
     next: WalletRequest[],
     pendingSolanaRequests: Record<string, unknown> | undefined,
@@ -668,7 +428,12 @@ export class SessionWalletController {
         chain_kind: "svm",
         pending_solana_id: Number(id),
       });
-      if (!normalized) continue;
+      if (
+        !normalized ||
+        (normalized.kind !== "solana_send" &&
+          normalized.kind !== "solana_sign_and_send")
+      )
+        continue;
 
       const requestId = this.requestId(normalized.kind, normalized.payload);
       if (this.resolvedRequestIds.has(requestId)) continue;
@@ -687,12 +452,7 @@ export class SessionWalletController {
 
   private requestId(
     kind: WalletRequestKind,
-    payload:
-      | WalletTxPayload
-      | WalletAaSignPayload
-      | WalletEip712Payload
-      | WalletSolanaSignPayload
-      | WalletSolanaSignMessagePayload,
+    payload: WalletTxPayload | WalletSigningPayload | WalletSolanaSignPayload,
   ): string {
     let id: string | undefined;
     if (kind === "transaction") {
@@ -705,16 +465,10 @@ export class SessionWalletController {
       }
       const txIds = txIdsFromPayload(txPayload);
       if (!id && txIds.length > 0) id = `tx-${txIds.join("-")}`;
-    } else if (kind === "aa_sign") {
-      const { tx_ids: txIds } = payload as WalletAaSignPayload;
-      if (txIds.length > 0) id = `aa-${txIds.join("-")}`;
-    } else if (kind === "eip712_sign") {
-      const { eip712Id } = payload as WalletEip712Payload;
-      if (typeof eip712Id === "number") id = `eip712-${eip712Id}`;
+    } else if (kind === "signing") {
+      id = (payload as WalletSigningPayload).requestId;
     } else {
-      const { pendingSolanaId } = payload as
-        | WalletSolanaSignPayload
-        | WalletSolanaSignMessagePayload;
+      const { pendingSolanaId } = payload as WalletSolanaSignPayload;
       if (typeof pendingSolanaId === "number")
         id = `${kind}-${pendingSolanaId}`;
     }
@@ -724,12 +478,7 @@ export class SessionWalletController {
 
   private request(
     kind: WalletRequestKind,
-    payload:
-      | WalletTxPayload
-      | WalletAaSignPayload
-      | WalletEip712Payload
-      | WalletSolanaSignPayload
-      | WalletSolanaSignMessagePayload,
+    payload: WalletTxPayload | WalletSigningPayload | WalletSolanaSignPayload,
     id: string,
     timestamp: number,
   ): WalletRequest {
@@ -741,22 +490,11 @@ export class SessionWalletController {
         timestamp,
       };
     }
-    if (kind === "aa_sign") {
-      return { id, kind, payload: payload as WalletAaSignPayload, timestamp };
-    }
-    if (kind === "eip712_sign") {
+    if (kind === "signing") {
       return {
         id,
         kind,
-        payload: payload as WalletEip712Payload,
-        timestamp,
-      };
-    }
-    if (kind === "solana_sign_message") {
-      return {
-        id,
-        kind,
-        payload: payload as WalletSolanaSignMessagePayload,
+        payload: payload as WalletSigningPayload,
         timestamp,
       };
     }

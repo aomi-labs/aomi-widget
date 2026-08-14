@@ -1,4 +1,4 @@
-import { hashMessage, parseSignature, serializeSignature } from "viem";
+import { hashMessage, isHex, parseSignature, serializeSignature } from "viem";
 import { hexToBase64 } from "../../account/encoding";
 
 type ParaSigningWallet = {
@@ -58,7 +58,12 @@ export async function signParaMessage(
 
   const result = await paraSession.signMessage({
     walletId,
-    messageBase64: hexToBase64(hashMessage(message)),
+    // Alchemy's personal_sign request carries bytes in `data.raw` and its
+    // `rawPayload` is the EIP-191 digest of those bytes. Hashing the `0x…`
+    // characters as UTF-8 produces a different signer than browser/Privy.
+    messageBase64: hexToBase64(
+      isHex(message) ? hashMessage({ raw: message }) : hashMessage(message),
+    ),
   });
   if (!("signature" in result) || !result.signature) {
     const resultKeys = Object.keys(result).sort().join(",") || "none";

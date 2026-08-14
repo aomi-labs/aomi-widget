@@ -1,5 +1,44 @@
 # Auth BFF BetterAuth Cleanup Goal
 
+## Backend-Owned Sponsored ERC-4337
+
+Current session goal: **CI REPAIR LOCALLY VERIFIED; MERGE AND END-TO-END SMOKE IN
+PROGRESS 2026-08-13**
+— make the cross-origin widget an authentication and owner-signing client while
+the backend owns smart-account provisioning, mandatory Aomi fee construction,
+sponsorship, broadcast, confirmation, and revenue receipts.
+
+- Replaced partner-controlled AA/paymaster configuration with the required
+  `applicationId`, `apiUrl`, and authentication-only browser/Para/Privy
+  contract.
+- Added a single ordered `WalletOwnerSigner` boundary for browser EOAs and
+  Para/Privy embedded EOAs; the widget receives only display-safe calls and
+  signing messages, never Alchemy preparation blobs or credentials.
+- Added explicit origin-bound operation signature/reject requests with
+  `credentials: "omit"`, plus automatic backend provisioning after owner and
+  chain resolution.
+- Removed legacy `aa_handoff` rehydration and generic thread callbacks for AA;
+  operation replay now resolves against backend state.
+- Versioned the breaking publishable packages and proved the server-owned
+  prepare/sign/send path with sponsored Base Sepolia transaction
+  `0xb426a23e41ccba02a11fc2346992fd6fbd449e59f26d6a0c6d7c2c9ea4cb14bd`.
+- Reconciled PR #469 with current `main`, including staged EVM chain selection;
+  retained durable provider-registration, missing-provider,
+  network-preference, signer/address, authorization, fee-path, and chain-switch
+  regressions while deleting the obsolete legacy EIP-712 orchestrator test.
+- Verified 1,476 root tests and 347 registry tests, root lint/typecheck, Portal
+  typecheck, Telegram and widget-consumer production builds, and all changed
+  publishable package builds.
+- After backend PR #947 merged, isolated the Portal proxy regression from local
+  signing-key configuration by mocking the proxy's actual bearer dependency.
+  Migrated all three landing Solana runtime drivers from the deleted
+  `solana_sign` arm to the generic `signing` envelope through one shared,
+  type-safe request builder, and supplied the runtime's dismiss contract.
+- Re-verified all five app typechecks and production builds, package
+  typecheck/builds, 1,477 root tests, 396 Portal tests, and 6 Telegram tests
+  with `PORTAL_SERVICE_PRIVATE_KEY` explicitly absent. The remaining workflow,
+  frontend merge, and local backend-driven AA smoke are in progress.
+
 ## MCP explicit chain context
 
 Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-13** —

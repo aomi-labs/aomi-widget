@@ -1,4 +1,4 @@
-import type { UserState } from "./index";
+import type { OwnedUserState, UserState } from "./index";
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -128,34 +128,11 @@ function buildEvm(
   renameKey(e, "chainId", "chain_id");
   renameKey(e, "ensName", "ens_name");
 
-  const aa: UnknownRecord = { ...(asObject(e.aa) ?? {}) };
+  // Account-abstraction and sponsorship are backend authority; drop any client-
+  // or legacy-supplied `evm.aa` / `evm.sponsorship` so they never enter the
+  // canonical shape or the outbound payload.
   delete e.aa;
-  renameKey(aa, "smartAccount", "smart_account");
-  renameKey(aa, "delegation7702", "delegation_7702");
-  liftFlat(aa, flat, "mode", ["aa_mode", "aaMode"]);
-  liftFlat(aa, flat, "smart_account", [
-    "smart_account_4337",
-    "smartAccount4337",
-    "smart_account",
-    "smartAccount",
-  ]);
-  liftFlat(aa, flat, "delegation_7702", ["delegation_7702", "delegation7702"]);
-  if (Object.keys(aa).length) e.aa = aa;
-
-  const sponsorship: UnknownRecord = { ...(asObject(e.sponsorship) ?? {}) };
   delete e.sponsorship;
-  renameKey(sponsorship, "sponsorProvider", "sponsor_provider");
-  renameKey(sponsorship, "sponsorAccount", "sponsor_account");
-  liftFlat(sponsorship, flat, "sponsored", ["sponsored"]);
-  liftFlat(sponsorship, flat, "sponsor_provider", [
-    "sponsor_provider",
-    "sponsorProvider",
-  ]);
-  liftFlat(sponsorship, flat, "sponsor_account", [
-    "sponsor_account",
-    "sponsorAccount",
-  ]);
-  if (Object.keys(sponsorship).length) e.sponsorship = sponsorship;
 
   liftFlat(e, flat, "address", ["address"]);
   liftFlat(e, flat, "chain_id", ["chain_id", "chainId"]);
@@ -389,4 +366,18 @@ export function reconcileUserState(
   }
 
   return stripDanglingConnection(out);
+}
+
+/**
+ * Project a stored `UserState` down to the subset the client owns and may send
+ * to the backend. `pending` is backend-authority in-flight state and is dropped
+ * so the client never echoes it back. Apply at the transport send boundary.
+ */
+export function toOwnedUserState(
+  userState?: UserState | null,
+): OwnedUserState | undefined {
+  const normalized = normalizeUserState(userState);
+  if (!normalized) return undefined;
+  const { pending: _pending, ...owned } = normalized;
+  return owned;
 }

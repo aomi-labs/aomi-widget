@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   ConnectionProvider,
   WalletProvider,
@@ -66,10 +66,7 @@ import type {
   ProvidersConfig,
   WalletsConfig,
 } from "./types";
-import {
-  resolveExecutionSponsorshipIdentity,
-  resolveConfiguredNativeWalletExecutionPolicy,
-} from "./execution";
+import { resolveConfiguredNativeWalletExecutionPolicy } from "./execution";
 
 export type { AomiWalletKitProviderInput, AomiWalletKitProviderProps };
 
@@ -117,7 +114,6 @@ function ExternalWalletComposerProvider({
   );
   const executionRuntime = useMemo<ExecutionRuntime>(
     () => ({
-      sponsorship: resolveExecutionSponsorshipIdentity(execution),
       evm: buildEvmExecutionRuntime(evmRuntime, {
         nativeWalletExecution:
           resolveConfiguredNativeWalletExecutionPolicy(execution),
@@ -382,13 +378,18 @@ function WalletKitComposerOutlet({
 function DefaultEvmRuntimeProvider({
   children,
   config,
+  reconnectOnMount,
 }: {
   children: ReactNode;
   config: ResolvedEvmWalletsConfig;
+  reconnectOnMount: boolean;
 }) {
   const wagmiConfig = useMemo(() => createAomiEvmConfig(config), [config]);
   return (
-    <AomiEvmRuntimeProvider config={wagmiConfig}>
+    <AomiEvmRuntimeProvider
+      config={wagmiConfig}
+      reconnectOnMount={reconnectOnMount}
+    >
       {children}
     </AomiEvmRuntimeProvider>
   );
@@ -417,6 +418,7 @@ function AomiEvmExternalWalletProvider({
 }) {
   const chains = evmWallets?.chains ?? defaultNetworks;
   const routing = useFullTestnet(chains);
+  const persistExternalWallet = !account || account.mode !== "aomi-backend";
   const evmConfig = useMemo(
     () => ({
       chains: routing.routedChains,
@@ -428,12 +430,19 @@ function AomiEvmExternalWalletProvider({
       appName: evmWallets?.appName,
       appLogoUrl: evmWallets?.appLogoUrl,
       transports: evmWallets?.transports,
+      persistConnections: persistExternalWallet,
     }),
-    [evmWallets, routing.routedChains],
+    [evmWallets, persistExternalWallet, routing.routedChains],
   );
   const [queryClient] = useState(() => new QueryClient());
   const authPluginAvailable =
     authPlugin?.isAvailable?.({ auth, providers }) ?? true;
+  useEffect(() => {
+    if (!authPlugin || authPluginAvailable) return;
+    console.warn(
+      `[aomi-wallet-kit] Auth provider "${authPlugin.id}" is requested by \`auth\` but unavailable: its public credential is missing (providers.${authPlugin.id} apiKey/appId, or the matching NEXT_PUBLIC_* env inlined by the host bundler). The wallet picker will show browser wallets only.`,
+    );
+  }, [authPlugin, authPluginAvailable]);
   const shouldUseAuthPlugin = Boolean(
     authPlugin?.renderComposer && authPluginAvailable,
   );
@@ -469,7 +478,10 @@ function AomiEvmExternalWalletProvider({
         children: runtimeChildren,
       })
     ) : (
-      <DefaultEvmRuntimeProvider config={evmConfig}>
+      <DefaultEvmRuntimeProvider
+        config={evmConfig}
+        reconnectOnMount={persistExternalWallet}
+      >
         {runtimeChildren}
       </DefaultEvmRuntimeProvider>
     );
@@ -583,6 +595,10 @@ export function AomiWalletKitProvider(input: AomiWalletKitProviderInput) {
     (authProvider && authPlugin?.authMode !== "additive"
       ? authProvider
       : "none");
+  const networkPreferencesStorageKey =
+    props.account && props.account.mode === "aomi-backend"
+      ? null
+      : "wallets-only";
   if (provider !== "none") {
     requireWalletProvider(provider);
   }
@@ -599,7 +615,7 @@ export function AomiWalletKitProvider(input: AomiWalletKitProviderInput) {
           props.wallets?.solana === false ? false : props.wallets?.solana,
         ).networks
       }
-      storageKey="wallets-only"
+      storageKey={networkPreferencesStorageKey}
     >
       <ExtUserProvider>
         <AomiExternalWalletProvider

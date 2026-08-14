@@ -104,9 +104,8 @@ export type {
   AomiClientType,
   UserStateAAMode,
   UserStateAuthMethod,
-  UserStateWalletKind,
   UserStateWalletProvider,
-  UserStateSponsorProvider,
+  OwnedUserState,
 } from "./user-state";
 
 // =============================================================================
@@ -139,8 +138,8 @@ export type {
   SessionEventMap,
   SendResult,
   WalletRequest,
-  WalletAaSignPayload,
-  WalletAaSignatureRequest,
+  WalletSignablePayload,
+  WalletSigningPayload,
   WalletRequestKind,
   WalletRequestResult,
 } from "./session";

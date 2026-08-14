@@ -40,7 +40,9 @@ export function createAomiParaEvmConfig(
             }) as unknown as AomiConnector,
           ]
         : []),
-    ],
+      // paraConnector()'s return type isn't assignable to wagmi's
+      // `readonly CreateConnectorFn[]` under the current SDK versions.
+    ] as ResolvedEvmWalletsConfig["connectors"],
   });
 }
 

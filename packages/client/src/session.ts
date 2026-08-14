@@ -5,8 +5,8 @@ export type {
   SessionOptions,
   SessionRuntimeOptions,
   WalletRequest,
-  WalletAaSignPayload,
-  WalletAaSignatureRequest,
+  WalletSignablePayload,
+  WalletSigningPayload,
   WalletRequestKind,
   WalletRequestResult,
 } from "./session/index";

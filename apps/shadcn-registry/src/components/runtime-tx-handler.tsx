@@ -1,22 +1,23 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ShieldCheck } from "lucide-react";
-import { Connection as SolanaConnection } from "@solana/web3.js";
+import {
+  Connection as SolanaConnection,
+  Transaction as SolanaLegacyTransaction,
+  VersionedTransaction,
+} from "@solana/web3.js";
 import { normalizeSolanaCluster } from "@aomi-labs/client";
 import {
   UserState,
   appendFeeCallToPayload,
   hydrateTxPayloadFromUserState,
   parseChainId,
-  toViemSignMessageArgs,
-  toViemSignTypedDataArgs,
   useAomiRuntime,
   type WalletRequest,
   type WalletTxPayload,
 } from "@aomi-labs/react";
 import { useAomiWalletKit } from "../lib/wallet-kit";
-import { walletDebug } from "../lib/wallet-kit/wallet-debug";
 import { Button } from "./ui/button";
 import {
   Dialog,
@@ -31,11 +32,71 @@ function hasHydratedCalls(payload: WalletTxPayload): boolean {
   return Array.isArray(payload.calls) && payload.calls.length > 0;
 }
 
+/**
+ * Backend-owned operations are deliberately not signed automatically: the
+ * dialog below is the user's authorization boundary. That covers EVM
+ * sponsored ERC-4337 batches and SVM sealed transactions the backend
+ * broadcasts itself; plain sign-only requests keep the silent flow.
+ */
+function isAttendedSigning(
+  payload: Extract<WalletRequest, { kind: "signing" }>["payload"],
+): boolean {
+  if (payload.executionKind === "erc4337") return true;
+  return (
+    payload.chainFamily === "svm" &&
+    payload.executionKind === "transaction" &&
+    payload.broadcaster === "hosted" &&
+    Boolean(payload.operationId)
+  );
+}
+
+function aaFeeAssetLabel(asset: unknown): string {
+  if (typeof asset !== "object" || asset === null) return "Unknown asset";
+  const value = asset as { kind?: unknown; address?: unknown };
+  if (value.kind === "native") return "Native";
+  if (value.kind === "token" && typeof value.address === "string") {
+    return value.address;
+  }
+  return "Unknown asset";
+}
+
 function decodeBase64(value: string): Uint8Array {
   if (typeof Buffer !== "undefined") {
     return new Uint8Array(Buffer.from(value, "base64"));
   }
   return Uint8Array.from(atob(value), (char) => char.charCodeAt(0));
+}
+
+function encodeBase64(bytes: Uint8Array): string {
+  if (typeof Buffer !== "undefined") {
+    return Buffer.from(bytes).toString("base64");
+  }
+  let binary = "";
+  bytes.forEach((byte) => {
+    binary += String.fromCharCode(byte);
+  });
+  return btoa(binary);
+}
+
+/**
+ * The payer's ed25519 signature out of a wallet-signed Solana transaction,
+ * base64-encoded. The sealed signing handoff returns only the signature —
+ * the backend verifies it against the exact stored envelope and attaches it
+ * itself, so the client can never substitute different bytes.
+ */
+function extractPayerSignature(signedTxBase64: string): string {
+  const bytes = decodeBase64(signedTxBase64);
+  let signature: Uint8Array | null = null;
+  try {
+    signature = VersionedTransaction.deserialize(bytes).signatures[0] ?? null;
+  } catch {
+    const legacy = SolanaLegacyTransaction.from(bytes).signature;
+    signature = legacy ? new Uint8Array(legacy) : null;
+  }
+  if (!signature || signature.every((byte) => byte === 0)) {
+    throw new Error("The signed transaction carries no payer signature");
+  }
+  return encodeBase64(signature);
 }
 
 function toSimulationTransactions(payload: WalletTxPayload): Array<{
@@ -70,8 +131,8 @@ function toSimulationTransactions(payload: WalletTxPayload): Array<{
 }
 
 /**
- * Invisible bridge component that processes wallet transaction and EIP-712
- * signing requests from the AI backend through the active Aomi wallet kit.
+ * Invisible bridge component that processes broadcast transactions and the
+ * chain-neutral signing handoff through the active Aomi wallet kit.
  *
  * Auto-mounted inside AomiFrame.Root.
  */
@@ -79,7 +140,6 @@ export function RuntimeTxHandler() {
   const {
     user,
     pendingWalletRequests,
-    startWalletRequest,
     resolveWalletRequest,
     rejectWalletRequest,
     simulateBatchTransactions,
@@ -90,31 +150,18 @@ export function RuntimeTxHandler() {
   const processingRef = useRef(false);
   const [isSigningAa, setIsSigningAa] = useState(false);
   const aaRequest =
-    pendingWalletRequests[0]?.kind === "aa_sign"
+    pendingWalletRequests[0]?.kind === "signing" &&
+    isAttendedSigning(pendingWalletRequests[0].payload)
       ? pendingWalletRequests[0]
       : null;
 
-  useEffect(() => {
-    if (!pendingWalletRequests.length) return;
-    const next = pendingWalletRequests[0];
-    if (!next || processingRef.current) return;
-    // Attended AA is deliberately not automatic. The dialog below is the
-    // user's authorization boundary; only its confirm button invokes Privy.
-    if (next.kind === "aa_sign") return;
-
-    processingRef.current = true;
-    processRequest(next).finally(() => {
-      processingRef.current = false;
-    });
-
-    /** Canonicalize cluster aliases and match before asking the wallet. */
-    async function maybeSwitchSolanaCluster(
-      requestedCluster: string | undefined,
-    ): Promise<void> {
+  /** Canonicalize cluster aliases and match before asking the wallet. */
+  const maybeSwitchSolanaCluster = useCallback(
+    async (requestedCluster: string | undefined): Promise<void> => {
       const normalizedCluster = normalizeSolanaCluster(requestedCluster);
       if (!normalizedCluster) return;
       const target = adapter.supportedNetworks?.solana?.find(
-        (n) => n.cluster === normalizedCluster,
+        (network) => network.cluster === normalizedCluster,
       );
       if (!target) {
         throw new Error(`Unsupported Solana cluster: ${normalizedCluster}`);
@@ -139,9 +186,12 @@ export function RuntimeTxHandler() {
           { cause: error },
         );
       }
-    }
+    },
+    [adapter],
+  );
 
-    async function maybeSwitchEvmChain(targetChainId: number): Promise<void> {
+  const maybeSwitchEvmChain = useCallback(
+    async (targetChainId: number): Promise<void> => {
       if (!targetChainId || targetChainId === currentChainId) return;
 
       const supported = adapter.supportedNetworks?.evm?.some(
@@ -158,10 +208,139 @@ export function RuntimeTxHandler() {
         );
       }
       await adapter.switchChain(targetChainId);
+    },
+    [adapter, currentChainId],
+  );
+
+  const signRequestPayloads = useCallback(
+    async (
+      req: Extract<WalletRequest, { kind: "signing" }>,
+    ): Promise<string[]> => {
+      const payload = req.payload;
+      if (payload.chainFamily === "evm") {
+        const activeOwner = adapter.identity.address;
+        if (
+          !activeOwner ||
+          activeOwner.toLowerCase() !== payload.signer.toLowerCase()
+        ) {
+          throw new Error("The active EVM wallet is not the requested signer");
+        }
+        if (
+          payload.chainId &&
+          currentChainId &&
+          payload.chainId !== currentChainId
+        ) {
+          if (!adapter.switchChain) {
+            throw new Error("The active EVM chain does not match the request");
+          }
+          await adapter.switchChain(payload.chainId);
+        }
+      } else {
+        const activeOwner = adapter.identity.svmAddress;
+        if (!activeOwner || activeOwner !== payload.signer) {
+          throw new Error("The active SVM wallet is not the requested signer");
+        }
+        await maybeSwitchSolanaCluster(payload.cluster);
+      }
+
+      const signatures: string[] = [];
+      for (const signable of payload.payloads) {
+        switch (signable.kind) {
+          case "evm_personal": {
+            if (payload.chainFamily !== "evm" || !adapter.signMessage) {
+              throw new Error("The active wallet cannot sign an EVM message");
+            }
+            const result = await adapter.signMessage({
+              non_typed_data: signable.message,
+              description: payload.description,
+              signer: payload.signer,
+              chainId: payload.chainId,
+            });
+            signatures.push(result.signature);
+            break;
+          }
+          case "evm_typed_data": {
+            if (payload.chainFamily !== "evm" || !adapter.signTypedData) {
+              throw new Error("The active wallet cannot sign EVM typed data");
+            }
+            const result = await adapter.signTypedData({
+              typed_data: signable.typedData,
+              description: payload.description,
+              signer: payload.signer,
+              chainId: payload.chainId,
+            });
+            signatures.push(result.signature);
+            break;
+          }
+          case "svm_message": {
+            if (payload.chainFamily !== "svm" || !adapter.signSolanaMessage) {
+              throw new Error("The active wallet cannot sign an SVM message");
+            }
+            const result = await adapter.signSolanaMessage({
+              message: signable.messageBase64,
+              description: payload.description,
+              cluster: payload.cluster,
+            });
+            signatures.push(result.signature);
+            break;
+          }
+          case "svm_transaction": {
+            if (
+              payload.chainFamily !== "svm" ||
+              !adapter.signSolanaTransaction
+            ) {
+              throw new Error(
+                "The active wallet cannot sign an SVM transaction",
+              );
+            }
+            const result = await adapter.signSolanaTransaction({
+              unsignedTx: signable.transactionBase64,
+              description: payload.description,
+              cluster: payload.cluster,
+            });
+            // Backend-owned operations take ONLY the payer signature — the
+            // backend attaches it to its stored envelope, so the client can
+            // never substitute bytes. Sign-only pending requests (the venue
+            // lane) return the full signed transaction: their consumer hands
+            // the bytes to the venue's submit tool.
+            signatures.push(
+              payload.operationId
+                ? extractPayerSignature(result.signedTx)
+                : result.signedTx,
+            );
+            break;
+          }
+        }
+      }
+      return signatures;
+    },
+    [adapter, currentChainId, maybeSwitchSolanaCluster],
+  );
+
+  useEffect(() => {
+    if (!pendingWalletRequests.length) return;
+    const next = pendingWalletRequests[0];
+    if (!next || processingRef.current) return;
+    // Attended backend-owned operations are deliberately not automatic. The
+    // dialog below is the user's authorization boundary; only its confirm
+    // button invokes the wallet.
+    if (next.kind === "signing" && isAttendedSigning(next.payload)) {
+      return;
     }
+
+    processingRef.current = true;
+    processRequest(next).finally(() => {
+      processingRef.current = false;
+    });
 
     async function processRequest(req: WalletRequest) {
       try {
+        if (req.kind === "signing") {
+          if (isAttendedSigning(req.payload)) return;
+          const signatures = await signRequestPayloads(req);
+          await resolveWalletRequest(req.id, { kind: "signing", signatures });
+          return;
+        }
         if (req.kind === "transaction") {
           // `req.payload` narrows to WalletTxPayload via the discriminated union.
           const payload = hasHydratedCalls(req.payload)
@@ -268,70 +447,6 @@ export function RuntimeTxHandler() {
           return;
         }
 
-        if (req.kind === "solana_sign") {
-          // No simulation or fee injection — host doesn't have a Solana
-          // fork simulator and apps own RPC routing. We DO auto-switch the
-          // active Solana cluster to match the request's cluster (mirroring
-          // what the EVM eip712_sign branch does for `domain.chainId`):
-          // otherwise a request targeted at mainnet while the wallet is on
-          // devnet silently produces a tx for the wrong network.
-          if (!adapter.signSolanaTransaction) {
-            await rejectWalletRequest(
-              req.id,
-              "Solana wallet provider is not ready",
-            );
-            return;
-          }
-          if (!req.payload.unsignedTx) {
-            await rejectWalletRequest(req.id, "Missing unsigned_tx payload");
-            return;
-          }
-          await maybeSwitchSolanaCluster(req.payload.cluster);
-
-          const result = await adapter.signSolanaTransaction(req.payload);
-          await resolveWalletRequest(req.id, {
-            kind: "solana_sign",
-            ...result,
-          });
-          return;
-        }
-
-        if (req.kind === "solana_sign_message") {
-          if (!adapter.signSolanaMessage) {
-            await rejectWalletRequest(
-              req.id,
-              "Solana wallet provider is not ready",
-            );
-            return;
-          }
-          if (!req.payload.message) {
-            await rejectWalletRequest(req.id, "Missing message payload");
-            return;
-          }
-
-          walletDebug("runtime-tx:solana-sign-message:invoke", {
-            requestId: req.id,
-            pendingSolanaId: req.payload.pendingSolanaId,
-            cluster: req.payload.cluster,
-            description: req.payload.description,
-            adapterReady: adapter.isReady,
-            svmAddress: adapter.identity.svmAddress,
-            svmWalletName: adapter.identity.svmWalletName,
-            hasSignSolanaMessage: Boolean(adapter.signSolanaMessage),
-          });
-          const result = await adapter.signSolanaMessage(req.payload);
-          walletDebug("runtime-tx:solana-sign-message:resolved", {
-            requestId: req.id,
-            pendingSolanaId: req.payload.pendingSolanaId,
-            signatureLength: result.signature?.length,
-          });
-          await resolveWalletRequest(req.id, {
-            kind: "solana_sign_message",
-            ...result,
-          });
-          return;
-        }
-
         if (req.kind === "solana_send" || req.kind === "solana_sign_and_send") {
           if (!req.payload.unsignedTx) {
             await rejectWalletRequest(req.id, "Missing unsigned_tx payload");
@@ -395,55 +510,6 @@ export function RuntimeTxHandler() {
           });
           return;
         }
-
-        // req.kind === "eip712_sign"
-        const signArgs = toViemSignTypedDataArgs(req.payload);
-        const messageArgs = toViemSignMessageArgs(req.payload);
-        if (signArgs && messageArgs) {
-          await rejectWalletRequest(
-            req.id,
-            "Signature request cannot include both typed_data and non_typed_data",
-          );
-          return;
-        }
-        if (!signArgs && !messageArgs) {
-          await rejectWalletRequest(
-            req.id,
-            "Missing typed_data or non_typed_data payload",
-          );
-          return;
-        }
-
-        if (signArgs && !adapter.signTypedData) {
-          await rejectWalletRequest(req.id, "Wallet provider is not ready");
-          return;
-        }
-        if (messageArgs && !adapter.signMessage) {
-          await rejectWalletRequest(req.id, "Wallet provider is not ready");
-          return;
-        }
-
-        const domainChainId = signArgs?.domain?.chainId;
-        const requestChainId =
-          typeof domainChainId === "number" || typeof domainChainId === "string"
-            ? parseChainId(domainChainId)
-            : undefined;
-        if (
-          requestChainId &&
-          currentChainId &&
-          requestChainId !== currentChainId &&
-          adapter.switchChain
-        ) {
-          await adapter.switchChain(requestChainId);
-        }
-
-        const result = signArgs
-          ? await adapter.signTypedData!({
-              ...req.payload,
-              typed_data: signArgs,
-            })
-          : await adapter.signMessage!(req.payload);
-        await resolveWalletRequest(req.id, { kind: "eip712_sign", ...result });
       } catch (error) {
         console.error("[RuntimeTxHandler] Request failed:", error);
         await rejectWalletRequest(
@@ -461,75 +527,82 @@ export function RuntimeTxHandler() {
     rejectWalletRequest,
     simulateBatchTransactions,
     showNotification,
+    maybeSwitchEvmChain,
+    maybeSwitchSolanaCluster,
+    signRequestPayloads,
   ]);
 
-  const approveAa = async () => {
+  const rejectAa = async () => {
     if (!aaRequest || isSigningAa) return;
-    if (!adapter.signAaRequests) {
-      await rejectWalletRequest(
-        aaRequest.id,
-        "This wallet cannot sign account-abstraction requests",
-      );
-      return;
-    }
     setIsSigningAa(true);
-    startWalletRequest(aaRequest.id);
     try {
-      const result = await adapter.signAaRequests(aaRequest.payload);
-      await resolveWalletRequest(aaRequest.id, {
-        kind: "aa_sign",
-        signatures: result.signatures,
-      });
+      await rejectWalletRequest(aaRequest.id, "Request rejected");
     } catch (error) {
-      await rejectWalletRequest(
-        aaRequest.id,
-        error instanceof Error ? error.message : "AA signing failed",
-      );
+      showNotification({
+        type: "error",
+        title: error instanceof Error ? error.message : "AA rejection failed",
+        duration: 6000,
+      });
     } finally {
       setIsSigningAa(false);
     }
   };
 
-  const rejectAa = async () => {
+  const approveAa = async () => {
     if (!aaRequest || isSigningAa) return;
-    await rejectWalletRequest(aaRequest.id, "User rejected AA signing");
+    setIsSigningAa(true);
+    try {
+      const signatures = await signRequestPayloads(aaRequest);
+      await resolveWalletRequest(aaRequest.id, {
+        kind: "signing",
+        signatures,
+      });
+      showNotification({
+        type: "notice",
+        title: "Signature accepted; Aomi is broadcasting",
+        duration: 4000,
+      });
+    } catch (error) {
+      showNotification({
+        type: "error",
+        title: error instanceof Error ? error.message : "AA signing failed",
+        duration: 6000,
+      });
+    } finally {
+      setIsSigningAa(false);
+    }
   };
 
   if (aaRequest) {
-    const chainName =
-      adapter.supportedChains?.find(
-        (chain) => chain.id === aaRequest.payload.chain_id,
-      )?.name ?? `Chain ${aaRequest.payload.chain_id}`;
-    const signatureCount = aaRequest.payload.signature_requests.length;
-    // EIP-7702's protocol-level code authorization is not the Privy provider
-    // delegation that enables Auto. This remains a user-clicked Manual
-    // transaction approval and never creates an Aomi signing grant.
-    const includes7702Authorization = aaRequest.payload.signature_requests.some(
-      (request) => request.kind === "eip7702_authorization",
-    );
+    const isSvm = aaRequest.payload.chainFamily === "svm";
+    const chainName = isSvm
+      ? (normalizeSolanaCluster(aaRequest.payload.cluster) ??
+        aaRequest.payload.cluster ??
+        "Solana")
+      : (adapter.supportedChains?.find(
+          (chain) => chain.id === aaRequest.payload.chainId,
+        )?.name ?? `Chain ${aaRequest.payload.chainId}`);
+    const signatureCount = aaRequest.payload.payloads.length;
+    const calls = aaRequest.payload.calls ?? [];
+    const fees = aaRequest.payload.fees ?? [];
     return (
       <Dialog open onOpenChange={(open) => !open && void rejectAa()}>
-        <DialogContent showCloseButton={false} className="sm:max-w-md">
+        <DialogContent
+          showCloseButton={false}
+          className="max-h-[90vh] overflow-y-auto sm:max-w-2xl"
+        >
           <DialogHeader>
             <div className="bg-primary/10 text-primary mb-1 flex size-10 items-center justify-center rounded-full">
               <ShieldCheck className="size-5" />
             </div>
             <DialogTitle>Approve account action</DialogTitle>
             <DialogDescription>
-              Review this sponsored {aaRequest.payload.aa_mode} action before
-              your wallet signs it. Aomi cannot sign on your behalf in Manual
-              mode.
+              {isSvm
+                ? "Review the sealed transaction and mandatory Aomi fees. Your wallet signs the exact bytes; Aomi submits and watches the transaction from the backend."
+                : "Review the exact application calls and mandatory Aomi fees. Your wallet signs; Aomi sponsors and broadcasts the ERC-4337 operation from the backend."}
             </DialogDescription>
           </DialogHeader>
           <div className="bg-muted/40 grid gap-3 rounded-xl border p-4 text-sm">
-            {aaRequest.payload.description ? (
-              <div className="flex items-start justify-between gap-4">
-                <span className="text-muted-foreground">Action</span>
-                <span className="text-right font-medium">
-                  {aaRequest.payload.description}
-                </span>
-              </div>
-            ) : null}
             <div className="flex items-center justify-between gap-4">
               <span className="text-muted-foreground">Network</span>
               <span className="font-medium">{chainName}</span>
@@ -541,23 +614,88 @@ export function RuntimeTxHandler() {
                 {aaRequest.payload.signer.slice(-6)}
               </span>
             </div>
+            {aaRequest.payload.executor ? (
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-muted-foreground">Executor</span>
+                <span className="font-mono text-xs">
+                  {aaRequest.payload.executor.slice(0, 8)}…
+                  {aaRequest.payload.executor.slice(-6)}
+                </span>
+              </div>
+            ) : null}
             <div className="flex items-center justify-between gap-4">
               <span className="text-muted-foreground">Operations</span>
-              <span className="font-medium">
-                {aaRequest.payload.tx_ids.length}
-              </span>
+              <span className="font-medium">{calls.length || 1}</span>
+            </div>
+            {aaRequest.payload.sponsorship ? (
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-muted-foreground">Sponsorship</span>
+                <span className="font-medium">Required · backend only</span>
+              </div>
+            ) : null}
+            {aaRequest.payload.expiresAt ? (
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-muted-foreground">Signature expires</span>
+                <span className="font-mono text-xs">
+                  {aaRequest.payload.expiresAt}
+                </span>
+              </div>
+            ) : null}
+            {aaRequest.payload.callsDigest ? (
+              <div className="border-t pt-3">
+                <p className="text-muted-foreground mb-1 text-xs font-medium uppercase tracking-wide">
+                  Final call digest
+                </p>
+                <p className="break-all font-mono text-xs">
+                  {aaRequest.payload.callsDigest}
+                </p>
+              </div>
+            ) : null}
+            {calls.length ? (
+              <div className="border-t pt-3">
+                <p className="text-muted-foreground mb-2 text-xs font-medium uppercase tracking-wide">
+                  Application calls
+                </p>
+                <div className="grid gap-2">
+                  {calls.map((call, index) => (
+                    <div
+                      key={`${call.to}-${index}`}
+                      className="bg-background rounded-lg border p-3 text-xs"
+                    >
+                      <p className="mb-1 font-medium">Call {index + 1}</p>
+                      <p className="break-all font-mono">To: {call.to}</p>
+                      <p className="break-all font-mono">Value: {call.value}</p>
+                      <p className="break-all font-mono">
+                        Data: {call.data ?? "0x"}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            <div className="border-t pt-3">
+              <p className="text-muted-foreground mb-2 text-xs font-medium uppercase tracking-wide">
+                Mandatory Aomi fees
+              </p>
+              {fees.map((fee, index) => (
+                <div
+                  key={`${fee.recipient}-${index}`}
+                  className="bg-background mb-2 rounded-lg border p-3 text-xs last:mb-0"
+                >
+                  <p className="break-all font-mono">
+                    Asset: {aaFeeAssetLabel(fee.asset)}
+                  </p>
+                  <p className="break-all font-mono">Amount: {fee.amount}</p>
+                  <p className="break-all font-mono">
+                    Recipient: {fee.recipient}
+                  </p>
+                </div>
+              ))}
             </div>
             <div className="flex items-center justify-between gap-4">
               <span className="text-muted-foreground">Wallet approvals</span>
               <span className="font-medium">{signatureCount}</span>
             </div>
-            {includes7702Authorization ? (
-              <p className="text-muted-foreground border-t pt-3 text-xs leading-relaxed">
-                The first approval installs the 7702 smart-account code for this
-                network. The second approves this action. Future actions
-                normally need one approval.
-              </p>
-            ) : null}
           </div>
           <DialogFooter>
             <Button

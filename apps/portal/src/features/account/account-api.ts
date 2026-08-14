@@ -99,16 +99,15 @@ export function grantKindLabel(kind: string): string {
 }
 
 /**
- * Normalize the kernel's `signing_mode` to the view's `SignerMode`, absorbing
- * the pre-rename wire values (`human_sync` / `agent_sync`) that `from_db` still
- * accepts — rows written before the rename are still in the table.
+ * Normalize the kernel's `signing_mode` to the view's `SignerMode`. Only the
+ * canonical ladder spellings (`denied → manual → client_auto → server_auto`)
+ * are recognized; anything else fail-safes to `manual`.
  */
 export function normalizeSignerMode(mode: string): SignerMode {
   switch (mode) {
-    case "auto":
+    case "server_auto":
       return "auto";
     case "client_auto":
-    case "agent_sync":
       return "client_auto";
     case "denied":
       return "denied";

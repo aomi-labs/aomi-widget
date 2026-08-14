@@ -5,33 +5,67 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
+import { Keypair } from "@solana/web3.js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const EVM_OWNER = "0x1111111111111111111111111111111111111111";
+const SVM_OWNER = "So11111111111111111111111111111111111111112";
+
+/**
+ * A payer-signed v0 VersionedTransaction assembled at the byte level:
+ * version prefix, header, one account (the payer), a blockhash, zero
+ * instructions, zero address-table lookups. Hand-rolled because web3.js
+ * message *serialization* breaks under vitest's browser-condition bundle;
+ * the handler only ever *deserializes* these bytes and extracts the payer
+ * signature, which no test verifies cryptographically.
+ */
+function signedSvmFixture() {
+  const payer = Keypair.generate();
+  const message = Uint8Array.from([
+    0x80, // v0 message prefix
+    1,
+    0,
+    0, // header: 1 required signature, 0 read-only signed/unsigned
+    1,
+    ...payer.publicKey.toBytes(),
+    ...new Uint8Array(32).fill(7), // recent blockhash
+    0, // instructions
+    0, // address table lookups
+  ]);
+  const signature = new Uint8Array(64).fill(42);
+  const unsigned = Uint8Array.from([1, ...new Uint8Array(64), ...message]);
+  const signed = Uint8Array.from([1, ...signature, ...message]);
+  return {
+    owner: payer.publicKey.toBase58(),
+    unsignedBase64: Buffer.from(unsigned).toString("base64"),
+    signedBase64: Buffer.from(signed).toString("base64"),
+    signatureBase64: Buffer.from(signature).toString("base64"),
+  };
+}
 
 const runtimeState = vi.hoisted(() => ({
   user: {},
   pendingWalletRequests: [] as Array<Record<string, unknown>>,
   resolveWalletRequest: vi.fn(),
   rejectWalletRequest: vi.fn(),
-  startWalletRequest: vi.fn(),
   simulateBatchTransactions: vi.fn(),
   showNotification: vi.fn(),
 }));
 
-const authState = vi.hoisted(() => ({
+const walletState = vi.hoisted(() => ({
   identity: {
-    chainId: 8453,
+    address: "0x1111111111111111111111111111111111111111",
+    chainId: 4326,
     svmAddress: "So11111111111111111111111111111111111111112",
-    solanaWalletName: "Test Wallet",
   },
   isReady: true,
-  activeFamily: "solana",
   selectedSolanaNetwork: {
     id: "solana-devnet",
     cluster: "solana:devnet",
   },
   supportedNetworks: {
     evm: [
-      { id: 8453, name: "Base" },
+      { id: 4326, name: "MegaETH" },
       { id: 42161, name: "Arbitrum One" },
     ],
     solana: [
@@ -39,84 +73,72 @@ const authState = vi.hoisted(() => ({
       { id: "solana-mainnet", cluster: "solana:mainnet" },
     ],
   },
+  supportedChains: [{ id: 4326, name: "MegaETH" }],
   selectNetwork: vi.fn(),
+  switchChain: vi.fn() as ((chainId: number) => Promise<void>) | undefined,
   solanaNetworkSwitchRequiresReconnect: false,
   signSolanaTransaction: vi.fn(),
   signSolanaMessage: vi.fn(),
   sendSolanaTransaction: vi.fn(),
-  signTypedData: undefined as
-    | ((payload: Record<string, unknown>) => Promise<{ signature: string }>)
-    | undefined,
+  signTypedData: vi.fn(),
   signMessage: vi.fn(),
-  signAaRequests: vi.fn(),
   sendTransaction: vi.fn(),
-  switchChain: vi.fn() as ((chainId: number) => Promise<void>) | undefined,
-  supportedChains: [{ id: 4326, name: "MegaETH" }],
 }));
 
 vi.mock("@aomi-labs/react", () => ({
   cn: (...values: Array<string | undefined | false>) =>
     values.filter(Boolean).join(" "),
-  UserState: {
-    address: () => undefined,
-  },
+  UserState: { address: () => undefined },
   appendFeeCallToPayload: vi.fn(),
   hydrateTxPayloadFromUserState: vi.fn((payload) => payload),
   parseChainId: vi.fn((value: unknown) => {
     const parsed = Number(value);
     return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : undefined;
   }),
-  toViemSignTypedDataArgs: vi.fn(),
-  toViemSignMessageArgs: vi.fn((payload: Record<string, unknown>) =>
-    typeof payload.non_typed_data === "string"
-      ? { message: payload.non_typed_data }
-      : null,
-  ),
   useAomiRuntime: () => runtimeState,
 }));
 
 vi.mock("../lib/wallet-kit", () => ({
-  useAomiWalletKit: () => authState,
+  useAomiWalletKit: () => walletState,
 }));
 
 import { RuntimeTxHandler } from "./runtime-tx-handler";
 
 describe("RuntimeTxHandler", () => {
   beforeEach(() => {
-    runtimeState.user = {};
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
     runtimeState.pendingWalletRequests = [];
     runtimeState.resolveWalletRequest.mockReset();
     runtimeState.rejectWalletRequest.mockReset();
-    runtimeState.startWalletRequest.mockReset();
     runtimeState.simulateBatchTransactions.mockReset();
-    authState.selectNetwork.mockReset();
-    authState.signSolanaTransaction.mockReset();
-    authState.signSolanaMessage.mockReset();
-    authState.sendSolanaTransaction.mockReset();
-    authState.signTypedData = undefined;
-    authState.signMessage.mockReset();
-    authState.signAaRequests.mockReset();
-    authState.sendTransaction.mockReset();
-    authState.switchChain = vi.fn(async () => undefined);
-    authState.identity.chainId = 8453;
-    authState.supportedNetworks.evm = [
-      { id: 8453, name: "Base" },
-      { id: 42161, name: "Arbitrum One" },
-    ];
-    authState.selectedSolanaNetwork = {
+    runtimeState.showNotification.mockReset();
+    walletState.identity.address = EVM_OWNER;
+    walletState.identity.chainId = 4326;
+    walletState.identity.svmAddress = SVM_OWNER;
+    walletState.selectedSolanaNetwork = {
       id: "solana-devnet",
       cluster: "solana:devnet",
     };
-    authState.solanaNetworkSwitchRequiresReconnect = false;
+    walletState.solanaNetworkSwitchRequiresReconnect = false;
+    walletState.selectNetwork.mockReset();
+    walletState.supportedNetworks.evm = [
+      { id: 4326, name: "MegaETH" },
+      { id: 42161, name: "Arbitrum One" },
+    ];
+    walletState.switchChain = vi.fn(async () => undefined);
+    walletState.signSolanaTransaction.mockReset();
+    walletState.signSolanaMessage.mockReset();
+    walletState.sendSolanaTransaction.mockReset();
+    walletState.signTypedData.mockReset();
+    walletState.signMessage.mockReset();
+    walletState.sendTransaction.mockReset();
   });
 
-  afterEach(() => {
-    cleanup();
-  });
+  afterEach(cleanup);
 
   function stageTransaction(chainId: number) {
     runtimeState.simulateBatchTransactions.mockResolvedValue({ fee: null });
-    authState.sendTransaction.mockResolvedValue({ txHash: "0xabc" });
+    walletState.sendTransaction.mockResolvedValue({ txHash: "0xtx" });
     runtimeState.pendingWalletRequests = [
       {
         id: `transaction-${chainId}`,
@@ -125,7 +147,7 @@ describe("RuntimeTxHandler", () => {
           calls: [
             {
               txId: 1,
-              to: "0x1111111111111111111111111111111111111111",
+              to: EVM_OWNER,
               value: "0",
               data: "0x",
               chainId,
@@ -143,39 +165,40 @@ describe("RuntimeTxHandler", () => {
     render(<RuntimeTxHandler />);
 
     await waitFor(() => {
-      expect(authState.sendTransaction).toHaveBeenCalledTimes(1);
+      expect(walletState.sendTransaction).toHaveBeenCalledTimes(1);
     });
-    expect(authState.switchChain).toHaveBeenCalledWith(42161);
+    expect(walletState.switchChain).toHaveBeenCalledWith(42161);
     expect(runtimeState.simulateBatchTransactions).toHaveBeenCalledWith(
       expect.any(Array),
       expect.objectContaining({ chainId: 42161 }),
     );
     expect(
-      (authState.switchChain as ReturnType<typeof vi.fn>).mock
+      (walletState.switchChain as ReturnType<typeof vi.fn>).mock
         .invocationCallOrder[0],
     ).toBeLessThan(
       runtimeState.simulateBatchTransactions.mock.invocationCallOrder[0],
     );
     expect(
       runtimeState.simulateBatchTransactions.mock.invocationCallOrder[0],
-    ).toBeLessThan(authState.sendTransaction.mock.invocationCallOrder[0]);
-    expect(authState.sendTransaction).toHaveBeenCalledWith(expect.any(Object), {
-      chainIdAlreadySelected: 42161,
-    });
+    ).toBeLessThan(walletState.sendTransaction.mock.invocationCallOrder[0]);
+    expect(walletState.sendTransaction).toHaveBeenCalledWith(
+      expect.any(Object),
+      { chainIdAlreadySelected: 42161 },
+    );
   });
 
-  it("does not switch when the staged transaction is already on the wallet chain", async () => {
-    stageTransaction(8453);
+  it("does not switch when the transaction is already on the wallet chain", async () => {
+    stageTransaction(4326);
 
     render(<RuntimeTxHandler />);
 
     await waitFor(() => {
-      expect(authState.sendTransaction).toHaveBeenCalledTimes(1);
+      expect(walletState.sendTransaction).toHaveBeenCalledTimes(1);
     });
-    expect(authState.switchChain).not.toHaveBeenCalled();
+    expect(walletState.switchChain).not.toHaveBeenCalled();
   });
 
-  it("rejects an unsupported staged transaction chain before simulation or send", async () => {
+  it("rejects an unsupported transaction chain before simulation or send", async () => {
     stageTransaction(10);
 
     render(<RuntimeTxHandler />);
@@ -187,12 +210,12 @@ describe("RuntimeTxHandler", () => {
       );
     });
     expect(runtimeState.simulateBatchTransactions).not.toHaveBeenCalled();
-    expect(authState.sendTransaction).not.toHaveBeenCalled();
+    expect(walletState.sendTransaction).not.toHaveBeenCalled();
   });
 
-  it("rejects with manual guidance when the adapter cannot switch chains", async () => {
+  it("gives manual guidance when the adapter cannot switch chains", async () => {
     stageTransaction(42161);
-    authState.switchChain = undefined;
+    walletState.switchChain = undefined;
 
     render(<RuntimeTxHandler />);
 
@@ -202,12 +225,12 @@ describe("RuntimeTxHandler", () => {
         expect.stringContaining("Switch networks manually"),
       );
     });
-    expect(authState.sendTransaction).not.toHaveBeenCalled();
+    expect(walletState.sendTransaction).not.toHaveBeenCalled();
   });
 
-  it("routes a rejected wallet switch through the existing request rejection", async () => {
+  it("routes a rejected chain switch through request rejection", async () => {
     stageTransaction(42161);
-    authState.switchChain = vi.fn(async () => {
+    walletState.switchChain = vi.fn(async () => {
       throw new Error("User rejected the request");
     });
 
@@ -219,201 +242,120 @@ describe("RuntimeTxHandler", () => {
         "User rejected the request",
       );
     });
-    expect(authState.sendTransaction).not.toHaveBeenCalled();
+    expect(walletState.sendTransaction).not.toHaveBeenCalled();
   });
 
-  it("dispatches solana_sign requests through signSolanaTransaction", async () => {
-    authState.signSolanaTransaction.mockResolvedValue({
-      signedTx: "SIGNED_TX",
+  it("completes an EVM message through the generic signing result", async () => {
+    walletState.signMessage.mockResolvedValue({ signature: "0xsignature" });
+    runtimeState.pendingWalletRequests = [
+      {
+        id: "sign:11111111-1111-4111-8111-111111111111",
+        kind: "signing",
+        payload: {
+          requestId: "sign:11111111-1111-4111-8111-111111111111",
+          chainFamily: "evm",
+          executionKind: "message",
+          signer: EVM_OWNER,
+          chainId: 4326,
+          description: "Sign a login proof",
+          payloads: [{ kind: "evm_personal", message: "0x1234" }],
+        },
+        timestamp: Date.now(),
+      },
+    ];
+
+    render(<RuntimeTxHandler />);
+
+    await waitFor(() => {
+      expect(walletState.signMessage).toHaveBeenCalledWith({
+        non_typed_data: "0x1234",
+        description: "Sign a login proof",
+        signer: EVM_OWNER,
+        chainId: 4326,
+      });
+    });
+    expect(runtimeState.resolveWalletRequest).toHaveBeenCalledWith(
+      "sign:11111111-1111-4111-8111-111111111111",
+      { kind: "signing", signatures: ["0xsignature"] },
+    );
+  });
+
+  it("completes a sign-only SVM transaction with the full signed bytes", async () => {
+    const fixture = signedSvmFixture();
+    walletState.identity.svmAddress = fixture.owner;
+    walletState.signSolanaTransaction.mockResolvedValue({
+      signedTx: fixture.signedBase64,
     });
     runtimeState.pendingWalletRequests = [
       {
-        id: "solana_sign-7",
-        kind: "solana_sign",
+        id: "sign:22222222-2222-4222-8222-222222222222",
+        kind: "signing",
         payload: {
-          unsignedTx: "AQID",
-          description: "Swap 1 USDC for SOL",
+          requestId: "sign:22222222-2222-4222-8222-222222222222",
+          chainFamily: "svm",
+          executionKind: "transaction",
+          signer: fixture.owner,
           cluster: "solana:devnet",
-          pendingSolanaId: 7,
-        },
-        timestamp: Date.now(),
-      },
-    ];
-
-    render(<RuntimeTxHandler />);
-
-    await waitFor(() => {
-      expect(authState.signSolanaTransaction).toHaveBeenCalledWith({
-        unsignedTx: "AQID",
-        description: "Swap 1 USDC for SOL",
-        cluster: "solana:devnet",
-        pendingSolanaId: 7,
-      });
-    });
-    expect(runtimeState.resolveWalletRequest).toHaveBeenCalledWith(
-      "solana_sign-7",
-      { kind: "solana_sign", signedTx: "SIGNED_TX" },
-    );
-    expect(runtimeState.rejectWalletRequest).not.toHaveBeenCalled();
-  });
-
-  it("dispatches solana_sign_message requests through signSolanaMessage", async () => {
-    authState.signSolanaMessage.mockResolvedValue({ signature: "SIG_BASE64" });
-    runtimeState.pendingWalletRequests = [
-      {
-        id: "solana_sign_message-9",
-        kind: "solana_sign_message",
-        payload: {
-          message: "TWVtbw==",
-          description: "Sign login proof",
-          cluster: "solana:devnet",
-          pendingSolanaId: 9,
-        },
-        timestamp: Date.now(),
-      },
-    ];
-
-    render(<RuntimeTxHandler />);
-
-    await waitFor(() => {
-      expect(authState.signSolanaMessage).toHaveBeenCalledWith({
-        message: "TWVtbw==",
-        description: "Sign login proof",
-        cluster: "solana:devnet",
-        pendingSolanaId: 9,
-      });
-    });
-    expect(runtimeState.resolveWalletRequest).toHaveBeenCalledWith(
-      "solana_sign_message-9",
-      { kind: "solana_sign_message", signature: "SIG_BASE64" },
-    );
-    expect(runtimeState.rejectWalletRequest).not.toHaveBeenCalled();
-  });
-
-  it("accepts mainnet-beta send requests and invokes the Solana wallet", async () => {
-    authState.selectedSolanaNetwork = {
-      id: "solana-mainnet",
-      cluster: "solana:mainnet",
-    };
-    authState.sendSolanaTransaction.mockResolvedValue({
-      signature: "SOLANA_SIGNATURE",
-    });
-    runtimeState.pendingWalletRequests = [
-      {
-        id: "solana_send-1",
-        kind: "solana_send",
-        payload: {
-          unsignedTx: "AQID",
-          cluster: "mainnet-beta",
-          pendingSolanaId: 1,
-          pendingSolanaIds: [1],
-        },
-        timestamp: Date.now(),
-      },
-    ];
-
-    render(<RuntimeTxHandler />);
-
-    await waitFor(() => {
-      expect(authState.sendSolanaTransaction).toHaveBeenCalledWith({
-        unsignedTx: "AQID",
-        cluster: "mainnet-beta",
-        pendingSolanaId: 1,
-        pendingSolanaIds: [1],
-      });
-    });
-    expect(authState.selectNetwork).not.toHaveBeenCalled();
-    expect(runtimeState.resolveWalletRequest).toHaveBeenCalledWith(
-      "solana_send-1",
-      { kind: "solana_send", signature: "SOLANA_SIGNATURE" },
-    );
-    expect(runtimeState.rejectWalletRequest).not.toHaveBeenCalled();
-  });
-
-  it("rejects signing when the requested cluster requires reconnecting", async () => {
-    authState.solanaNetworkSwitchRequiresReconnect = true;
-    runtimeState.pendingWalletRequests = [
-      {
-        id: "solana_sign-10",
-        kind: "solana_sign",
-        payload: {
-          unsignedTx: "AQID",
-          cluster: "solana:mainnet",
-          pendingSolanaId: 10,
-        },
-        timestamp: Date.now(),
-      },
-    ];
-
-    render(<RuntimeTxHandler />);
-
-    await waitFor(() => {
-      expect(runtimeState.rejectWalletRequest).toHaveBeenCalledWith(
-        "solana_sign-10",
-        expect.stringContaining("Reconnect"),
-      );
-    });
-    expect(authState.signSolanaTransaction).not.toHaveBeenCalled();
-  });
-
-  it("signs a plain EVM message when typed-data signing is unavailable", async () => {
-    authState.signMessage.mockResolvedValue({ signature: "0xsignature" });
-    runtimeState.pendingWalletRequests = [
-      {
-        id: "eip712_sign-11",
-        kind: "eip712_sign",
-        payload: {
-          non_typed_data: "AOMI_E2E_SAFE_SIGN",
-          description: "Sign a harmless E2E message",
-        },
-        timestamp: Date.now(),
-      },
-    ];
-
-    render(<RuntimeTxHandler />);
-
-    await waitFor(() => {
-      expect(authState.signMessage).toHaveBeenCalledWith({
-        non_typed_data: "AOMI_E2E_SAFE_SIGN",
-        description: "Sign a harmless E2E message",
-      });
-    });
-    expect(runtimeState.resolveWalletRequest).toHaveBeenCalledWith(
-      "eip712_sign-11",
-      { kind: "eip712_sign", signature: "0xsignature" },
-    );
-    expect(runtimeState.rejectWalletRequest).not.toHaveBeenCalled();
-  });
-
-  it("waits for explicit approval before asking Privy for AA signatures", async () => {
-    authState.signAaRequests.mockResolvedValue({
-      signatures: ["0xauthorization", "0xuserop"],
-    });
-    runtimeState.pendingWalletRequests = [
-      {
-        id: "aa-7-8-9",
-        kind: "aa_sign",
-        payload: {
-          chain_family: "evm",
-          chain_id: 4326,
-          signer: "0x1111111111111111111111111111111111111111",
-          executor: "0x1111111111111111111111111111111111111111",
-          aa_mode: "7702",
-          tx_ids: [7, 8, 9],
-          sponsored: true,
-          description: "Execute three calls",
-          signature_requests: [
+          description: "Sign staged instructions",
+          payloads: [
             {
-              kind: "eip7702_authorization",
-              contract_address: "0x0000000000000000000000000000000000007702",
-              chain_id: 4326,
-              nonce: 0,
-              raw_payload: `0x${"11".repeat(32)}`,
+              kind: "svm_transaction",
+              transactionBase64: fixture.unsignedBase64,
             },
+          ],
+        },
+        timestamp: Date.now(),
+      },
+    ];
+
+    render(<RuntimeTxHandler />);
+
+    await waitFor(() => {
+      expect(walletState.signSolanaTransaction).toHaveBeenCalledWith({
+        unsignedTx: fixture.unsignedBase64,
+        description: "Sign staged instructions",
+        cluster: "solana:devnet",
+      });
+    });
+    // No operationId means the backend holds no sealed envelope for this
+    // request: its consumer (the venue submit lane) needs the full signed
+    // transaction, not just the payer's signature.
+    expect(runtimeState.resolveWalletRequest).toHaveBeenCalledWith(
+      "sign:22222222-2222-4222-8222-222222222222",
+      { kind: "signing", signatures: [fixture.signedBase64] },
+    );
+  });
+
+  it("holds a sealed SVM operation for the approval dialog", async () => {
+    const fixture = signedSvmFixture();
+    walletState.identity.svmAddress = fixture.owner;
+    walletState.signSolanaTransaction.mockResolvedValue({
+      signedTx: fixture.signedBase64,
+    });
+    runtimeState.pendingWalletRequests = [
+      {
+        id: "sign:55555555-5555-4555-8555-555555555555",
+        kind: "signing",
+        payload: {
+          requestId: "sign:55555555-5555-4555-8555-555555555555",
+          chainFamily: "svm",
+          executionKind: "transaction",
+          signer: fixture.owner,
+          cluster: "devnet",
+          description: "Execute sealed Solana batch",
+          broadcaster: "hosted",
+          operationId: "operation-2",
+          fees: [
             {
-              kind: "personal_sign",
-              message: "0xprepared-user-operation",
-              raw_payload: `0x${"22".repeat(32)}`,
+              asset: { kind: "native" },
+              amount: "5000",
+              recipient: "8dHEEnEajRxLgHtSPBg1bAGNWSjooj7MK77J8ASNBrGk",
+            },
+          ],
+          payloads: [
+            {
+              kind: "svm_transaction",
+              transactionBase64: fixture.unsignedBase64,
             },
           ],
         },
@@ -424,18 +366,134 @@ describe("RuntimeTxHandler", () => {
     render(<RuntimeTxHandler />);
 
     expect(screen.getByText("Approve account action")).toBeInTheDocument();
+    expect(walletState.signSolanaTransaction).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Review & sign" }));
+
+    await waitFor(() => {
+      expect(runtimeState.resolveWalletRequest).toHaveBeenCalledWith(
+        "sign:55555555-5555-4555-8555-555555555555",
+        { kind: "signing", signatures: [fixture.signatureBase64] },
+      );
+    });
+  });
+
+  it("selects the AA disclosure from executionKind and waits for approval", async () => {
+    walletState.signMessage
+      .mockResolvedValueOnce({ signature: "0xowner-signature-1" })
+      .mockResolvedValueOnce({ signature: "0xowner-signature-2" });
+    runtimeState.pendingWalletRequests = [
+      {
+        id: "sign:33333333-3333-4333-8333-333333333333",
+        kind: "signing",
+        payload: {
+          requestId: "sign:33333333-3333-4333-8333-333333333333",
+          chainFamily: "evm",
+          executionKind: "erc4337",
+          signer: EVM_OWNER,
+          chainId: 4326,
+          description: "Execute application batch",
+          operationId: "operation-1",
+          executor: "0x2222222222222222222222222222222222222222",
+          expiresAt: "2026-08-14T00:00:00Z",
+          callsDigest:
+            "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          calls: [
+            { to: "0x3333333333333333333333333333333333333333", value: "0" },
+          ],
+          fees: [
+            {
+              asset: { kind: "native" },
+              amount: "1000",
+              recipient: "0x4444444444444444444444444444444444444444",
+            },
+          ],
+          sponsorship: "required",
+          payloads: [
+            { kind: "evm_personal", message: "0x1111" },
+            { kind: "evm_personal", message: "0x2222" },
+          ],
+        },
+        timestamp: Date.now(),
+      },
+    ];
+
+    render(<RuntimeTxHandler />);
+
+    expect(screen.getByText("Approve account action")).toBeInTheDocument();
     expect(screen.getByText("MegaETH")).toBeInTheDocument();
-    expect(screen.getByText("3")).toBeInTheDocument();
-    expect(authState.signAaRequests).not.toHaveBeenCalled();
+    expect(screen.getByText("Required · backend only")).toBeInTheDocument();
+    expect(screen.getByText("Application calls")).toBeInTheDocument();
+    expect(screen.getByText("Mandatory Aomi fees")).toBeInTheDocument();
+    expect(screen.getByText("Amount: 1000")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      ),
+    ).toBeInTheDocument();
+    expect(walletState.signMessage).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole("button", { name: "Review & sign (2)" }));
 
     await waitFor(() => {
-      expect(authState.signAaRequests).toHaveBeenCalledTimes(1);
+      expect(runtimeState.resolveWalletRequest).toHaveBeenCalledWith(
+        "sign:33333333-3333-4333-8333-333333333333",
+        {
+          kind: "signing",
+          signatures: ["0xowner-signature-1", "0xowner-signature-2"],
+        },
+      );
     });
-    expect(runtimeState.resolveWalletRequest).toHaveBeenCalledWith("aa-7-8-9", {
-      kind: "aa_sign",
-      signatures: ["0xauthorization", "0xuserop"],
+  });
+
+  it("rejects ERC-4337 through the generic signing endpoint", async () => {
+    runtimeState.pendingWalletRequests = [
+      {
+        id: "sign:44444444-4444-4444-8444-444444444444",
+        kind: "signing",
+        payload: {
+          requestId: "sign:44444444-4444-4444-8444-444444444444",
+          chainFamily: "evm",
+          executionKind: "erc4337",
+          signer: EVM_OWNER,
+          chainId: 4326,
+          description: "Execute application batch",
+          operationId: "operation-2",
+          executor: "0x2222222222222222222222222222222222222222",
+          expiresAt: "2026-08-14T00:00:00Z",
+          callsDigest:
+            "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          calls: [
+            {
+              to: "0x3333333333333333333333333333333333333333",
+              value: "0",
+            },
+          ],
+          fees: [
+            {
+              asset: {
+                kind: "token",
+                address: "0x5555555555555555555555555555555555555555",
+              },
+              amount: "1000",
+              recipient: "0x4444444444444444444444444444444444444444",
+            },
+          ],
+          sponsorship: "required",
+          payloads: [{ kind: "evm_personal", message: "0x1111" }],
+        },
+        timestamp: Date.now(),
+      },
+    ];
+
+    render(<RuntimeTxHandler />);
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    await waitFor(() => {
+      expect(runtimeState.rejectWalletRequest).toHaveBeenCalledWith(
+        "sign:44444444-4444-4444-8444-444444444444",
+        "Request rejected",
+      );
     });
   });
 });

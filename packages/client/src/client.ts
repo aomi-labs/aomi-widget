@@ -31,7 +31,7 @@ import type {
   AomiHttpMethod,
   AomiPlatformFilter,
 } from "./types";
-import { UserState, type UserState as UserStateShape } from "./user-state";
+import { UserState, type OwnedUserState } from "./user-state";
 import { createSseSubscriber, type SseSubscriber } from "./sse";
 import { normalizeAppDescriptor } from "./app-descriptor";
 
@@ -53,71 +53,6 @@ function previewText(value: string, max = 80): string {
   return `${singleLine.slice(0, max - 1)}…`;
 }
 
-// Fields the server originated and stores authoritatively. The client only
-// echoes pending state back to identify which entries it knows about; the
-// payload bodies (raw tx bytes, signing messages, etc.) should not travel
-// back across the wire.
-const BULKY_PENDING_FIELDS = new Set<string>([
-  "messageBase64",
-  "message_base64",
-  "messageSha256",
-  "message_sha256",
-  "unsignedTx",
-  "unsigned_tx",
-  "typed_data",
-  "typedData",
-  "tx_data",
-  "txData",
-  "transaction",
-  "transactionBase64",
-  "transaction_base64",
-]);
-
-function pruneBucket(
-  bucket: Record<string, unknown> | null | undefined,
-): Record<string, unknown> | undefined {
-  if (!bucket) return undefined;
-  const out: Record<string, unknown> = {};
-  for (const [id, entry] of Object.entries(bucket)) {
-    if (entry && typeof entry === "object" && !Array.isArray(entry)) {
-      const rec = entry as Record<string, unknown>;
-      const pruned: Record<string, unknown> = {};
-      for (const [k, v] of Object.entries(rec)) {
-        if (!BULKY_PENDING_FIELDS.has(k)) pruned[k] = v;
-      }
-      out[id] = pruned;
-    } else {
-      out[id] = entry;
-    }
-  }
-  return out;
-}
-
-function stripBulkyPendingFields(
-  userState: UserStateShape | undefined,
-): UserStateShape | undefined {
-  if (!userState?.pending) return userState;
-  const pending = userState.pending;
-  const legacyPending = pending as Record<string, unknown>;
-  return {
-    ...userState,
-    pending: {
-      ...pending,
-      evm_txs: pruneBucket(pending.evm_txs),
-      evm_sigs: pruneBucket(pending.evm_sigs),
-      svm_ixs: pruneBucket(pending.svm_ixs),
-      solana_txs: pruneBucket(
-        legacyPending.solana_txs as Record<string, unknown> | null | undefined,
-      ),
-      solana_sigs: pruneBucket(
-        legacyPending.solana_sigs as Record<string, unknown> | null | undefined,
-      ),
-      svm_sigs: pruneBucket(
-        legacyPending.svm_sigs as Record<string, unknown> | null | undefined,
-      ),
-    },
-  };
-}
 
 function joinApiPath(baseUrl: string, path: string): string {
   const normalizedBase = baseUrl === "/" ? "" : baseUrl.replace(/\/+$/, "");
@@ -457,13 +392,11 @@ export class AomiClient {
    */
   async fetchState(
     sessionId: string,
-    userState?: UserStateShape,
+    userState?: OwnedUserState,
     clientId?: string,
     options?: { app?: string; applicationId?: number | string | null },
   ): Promise<AomiStateResponse> {
-    const normalizedUserState = stripBulkyPendingFields(
-      UserState.normalize(userState),
-    );
+    const normalizedUserState = UserState.normalize(userState);
     const applicationId = options?.applicationId?.toString().trim();
     const stateContext = {
       app: options?.app,
@@ -542,7 +475,7 @@ export class AomiClient {
       app?: string;
       applicationId?: number | string | null;
       apiKey?: string;
-      userState?: UserStateShape;
+      userState?: OwnedUserState;
       clientId?: string;
       paymentMethod?: string | null;
       /** @deprecated Accepted as a no-op for compatibility with client 0.4.3. */
@@ -551,9 +484,7 @@ export class AomiClient {
   ): Promise<AomiChatResponse> {
     const app = options?.app ?? "default";
     const apiKey = options?.apiKey ?? this.apiKey;
-    const normalizedUserState = stripBulkyPendingFields(
-      UserState.normalize(options?.userState),
-    );
+    const normalizedUserState = UserState.normalize(options?.userState);
     const applicationId = options?.applicationId?.toString().trim();
     const url = buildApiUrl(this.baseUrl, "/api/thread/chat", {
       app,

@@ -36,18 +36,24 @@ export type WalletExecution = ExecutionState & {
   reject: () => void;
 };
 
-type EvmWalletRequest = Extract<
-  WalletRequest,
-  { kind: "transaction" | "eip712_sign" }
->;
+type EvmWalletRequest =
+  | Extract<WalletRequest, { kind: "transaction" }>
+  | (Omit<Extract<WalletRequest, { kind: "signing" }>, "payload"> & {
+      payload: Extract<WalletRequest, { kind: "signing" }>["payload"] & {
+        chainFamily: "evm";
+      };
+    });
 type EvmWalletResult =
   | Extract<WalletRequestResult, { kind: "transaction" }>
-  | Extract<WalletRequestResult, { kind: "eip712_sign" }>;
+  | Extract<WalletRequestResult, { kind: "signing" }>;
 
 const useEmbeddedParaViemClient = createParaViemClientHook();
 
 function isEvmRequest(request: WalletRequest): request is EvmWalletRequest {
-  return request.kind === "transaction" || request.kind === "eip712_sign";
+  return (
+    request.kind === "transaction" ||
+    (request.kind === "signing" && request.payload.chainFamily === "evm")
+  );
 }
 
 export function useWalletExecutor(input: {
@@ -100,28 +106,51 @@ export function useWalletExecutor(input: {
     if (!request || !session || !isEvmRequest(request)) return;
     if (!viemClient?.account || settled.current.has(request.id)) return;
 
+    const account = viemClient.account;
     settled.current.add(request.id);
     setState({ error: null, status: "awaiting_wallet" });
     const evmRequest = request;
 
     const execute = async (): Promise<EvmWalletResult> => {
-      if (evmRequest.kind === "eip712_sign") {
-        const typedData = toViemSignTypedDataArgs(evmRequest.payload);
-        if (typedData) {
-          const signature = await viemClient.signTypedData({
-            account: viemClient.account!,
-            ...typedData,
-          } as Parameters<typeof viemClient.signTypedData>[0]);
-          return { kind: "eip712_sign", signature };
+      if (evmRequest.kind === "signing") {
+        if (
+          account.address.toLowerCase() !==
+          evmRequest.payload.signer.toLowerCase()
+        ) {
+          throw new Error("active_wallet_is_not_requested_signer");
         }
 
-        const message = toViemSignMessageArgs(evmRequest.payload);
-        if (!message) throw new Error("invalid_signature_payload");
-        const signature = await viemClient.signMessage({
-          account: viemClient.account!,
-          ...message,
-        } as Parameters<typeof viemClient.signMessage>[0]);
-        return { kind: "eip712_sign", signature };
+        const signatures: string[] = [];
+        for (const payload of evmRequest.payload.payloads) {
+          if (payload.kind === "evm_typed_data") {
+            const typedData = toViemSignTypedDataArgs({
+              typed_data: payload.typedData,
+            });
+            if (!typedData) throw new Error("invalid_signature_payload");
+            signatures.push(
+              await viemClient.signTypedData({
+                account,
+                ...typedData,
+              } as Parameters<typeof viemClient.signTypedData>[0]),
+            );
+            continue;
+          }
+          if (payload.kind === "evm_personal") {
+            const message = toViemSignMessageArgs({
+              non_typed_data: payload.message,
+            });
+            if (!message) throw new Error("invalid_signature_payload");
+            signatures.push(
+              await viemClient.signMessage({
+                account,
+                ...message,
+              } as Parameters<typeof viemClient.signMessage>[0]),
+            );
+            continue;
+          }
+          throw new Error("invalid_evm_signature_payload");
+        }
+        return { kind: "signing", signatures };
       }
 
       const requestedMode = requestedAaMode(evmRequest.payload);
@@ -139,7 +168,7 @@ export function useWalletExecutor(input: {
 
       const [call] = calls;
       const txHash: Hex = await viemClient.sendTransaction({
-        account: viemClient.account!,
+        account,
         chain,
         data: call.data,
         to: call.to,

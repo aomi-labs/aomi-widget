@@ -1,5 +1,5 @@
 import { AomiPlatformFilter, AomiClientOptions, AomiClient, SessionOptions, Session, UserState, AomiTaskEvent, WalletRequest, WalletRequestResult, AomiSimulateResponse, ChainInfo, AomiAppDescriptor } from '@aomi-labs/client';
-export { AOMI_TASK_EVENT_TYPES, AomiAppDescriptor, AomiChatResponse, AomiClient, AomiClientOptions, AomiCreateThreadResponse, AomiInterruptResponse, AomiMessage, AomiPlatformFilter, AomiSSEEvent, AomiSecretSlot, AomiStateResponse, AomiSystemEvent, AomiSystemResponse, AomiTaskActivityEvent, AomiTaskActivityKind, AomiTaskCompletedEvent, AomiTaskEvent, AomiTaskEventType, AomiTaskStartedEvent, AomiTaskStatus, AomiThread, ChainInfo, MAX_AUTO_FEE_WEI, NativeWalletExecutionPolicy, NativeWalletSponsorship, SponsorshipPaymasterServiceContext, UserState, ViemSignMessageArgs, WalletAaSignPayload, WalletAaSignatureRequest, WalletCapabilities, WalletEip712Payload, WalletRequest, WalletRequestKind, WalletRequestResult, WalletSolanaSignMessagePayload, WalletSolanaSignPayload, WalletTxPayload, aaModeFromExecutionKind, appIdentityKey, appendFeeCallToPayload, buildFeeAAWalletCall, executeWalletCalls, hydrateTxPayloadFromUserState, isAomiTaskEventType, normalizeAppDescriptor, normalizeSimulatedFee, parseAomiTaskEvent, parseChainId, toAAWalletCall, toAAWalletCalls, toViemSignMessageArgs, toViemSignTypedDataArgs } from '@aomi-labs/client';
+export { AOMI_TASK_EVENT_TYPES, AomiAppDescriptor, AomiChatResponse, AomiClient, AomiClientOptions, AomiCreateThreadResponse, AomiInterruptResponse, AomiMessage, AomiPlatformFilter, AomiSSEEvent, AomiSecretSlot, AomiStateResponse, AomiSystemEvent, AomiSystemResponse, AomiTaskActivityEvent, AomiTaskActivityKind, AomiTaskCompletedEvent, AomiTaskEvent, AomiTaskEventType, AomiTaskStartedEvent, AomiTaskStatus, AomiThread, ChainInfo, MAX_AUTO_FEE_WEI, NativeWalletExecutionPolicy, NativeWalletSponsorship, SponsorshipPaymasterServiceContext, UserState, ViemSignMessageArgs, WalletCapabilities, WalletEip712Payload, WalletRequest, WalletRequestKind, WalletRequestResult, WalletSignablePayload, WalletSigningPayload, WalletSolanaSignMessagePayload, WalletSolanaSignPayload, WalletTxPayload, aaModeFromExecutionKind, appIdentityKey, appendFeeCallToPayload, buildFeeAAWalletCall, executeWalletCalls, hydrateTxPayloadFromUserState, isAomiTaskEventType, normalizeAppDescriptor, normalizeSimulatedFee, parseAomiTaskEvent, parseChainId, toAAWalletCall, toAAWalletCalls, toViemSignMessageArgs, toViemSignTypedDataArgs } from '@aomi-labs/client';
 import * as react_jsx_runtime from 'react/jsx-runtime';
 import * as react from 'react';
 import { ReactNode, SetStateAction } from 'react';
@@ -255,8 +255,8 @@ type WalletHandlerConfig = {
 type WalletHandlerApi = {
     /**
      * All queued wallet requests across every supported kind: EVM txs
-     * (`kind: "transaction"`), EIP-712 signs (`kind: "eip712_sign"`), and
-     * Solana signs (`kind: "solana_sign"`). Consumers should narrow on
+     * (`kind: "transaction"`), opaque sign-only handoffs (`kind: "signing"`),
+     * and Solana send requests. Consumers should narrow on
      * `request.kind` before reading `request.payload` — the discriminated
      * union auto-narrows the payload type.
      */
@@ -267,11 +267,13 @@ type WalletHandlerApi = {
     setRequests: (requests: WalletRequest[]) => void;
     /** Mark a request as in-flight so it is not replayed while awaiting backend ack. */
     startRequest: (id: string) => void;
+    /** Remove a request after an operation-specific API acknowledged it. */
+    dismissRequest: (id: string) => void;
     /**
      * Complete a request successfully — sends the response wire event to
      * the backend via ClientSession. The `result.kind` discriminator must
-     * match the originating request's kind (e.g. `{ kind: "solana_sign",
-     * signedTx: "..." }` for a Solana request); ClientSession runtime-checks
+     * match the originating request's kind (e.g. `{ kind: "signing",
+     * signatures: ["..."] }` for a sign-only request); ClientSession runtime-checks
      * this and throws on mismatch.
      */
     resolveRequest: (id: string, result: WalletRequestResult) => Promise<void>;
@@ -329,12 +331,14 @@ type AomiRuntimeApi = {
     dismissNotification: (id: string) => void;
     /** Clear all notifications */
     clearAllNotifications: () => void;
-    /** All queued wallet requests (tx + eip712 signing) */
+    /** All queued wallet requests (broadcast transactions + generic signing) */
     pendingWalletRequests: WalletRequest[];
     /** True while switching wallets or networks could lose an unresolved request. */
     hasBlockingWalletRequests: boolean;
     /** Mark a wallet request as in-flight — suppresses it from the pending list until acked */
     startWalletRequest: (id: string) => void;
+    /** Locally dismiss an externally acknowledged request. */
+    dismissWalletRequest: (id: string) => void;
     /** Complete a wallet request after the backend acknowledges the response */
     resolveWalletRequest: (id: string, result: WalletRequestResult) => Promise<void>;
     /** Fail a wallet request after the backend acknowledges the error */

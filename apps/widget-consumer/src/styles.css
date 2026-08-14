@@ -51,48 +51,30 @@ p {
   text-transform: uppercase;
 }
 
-.signing-check {
+.provider-fixtures {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  margin-top: 16px;
-  padding: 16px 18px;
+  gap: 8px;
+  margin: 18px 0 10px;
+}
+
+.provider-fixtures a {
+  padding: 9px 12px;
   border: 1px solid #26313f;
-  border-radius: 12px;
+  border-radius: 999px;
+  color: #aeb9c8;
   background: #10161f;
-}
-
-.signing-check strong {
-  display: block;
-  margin-bottom: 4px;
-}
-
-.signing-check p {
-  margin: 0;
   font-size: 0.875rem;
+  font-weight: 700;
+  text-decoration: none;
 }
 
-.signing-check button {
-  flex: none;
-  padding: 10px 14px;
-  border: 0;
-  border-radius: 8px;
+.provider-fixtures a.active {
+  border-color: #2e8d6f;
   color: #07120e;
   background: #7ce3bd;
-  font: inherit;
-  font-weight: 700;
-  cursor: pointer;
 }
 
-.signing-check button:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
-}
-
-@media (max-width: 640px) {
-  .signing-check {
-    align-items: stretch;
-    flex-direction: column;
-  }
+.fixture-note {
+  margin: 0;
+  font-size: 0.82rem;
 }

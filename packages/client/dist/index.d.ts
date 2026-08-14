@@ -6,33 +6,35 @@ declare function address(userState?: UserState | null): string | undefined;
 declare function svmAddress(userState?: UserState | null): string | undefined;
 declare function chainId(userState?: UserState | null): number | undefined;
 declare function ensName(userState?: UserState | null): string | undefined;
-declare function aaMode(userState?: UserState | null): UserStateAAMode | null | undefined;
-declare function SmartAccount4337(userState?: UserState | null): string | null | undefined;
-declare function Delegation7702(userState?: UserState | null): string | null | undefined;
-declare function walletKind(userState?: UserState | null): UserStateWalletKind | undefined;
 declare function isConnected(userState?: UserState | null): boolean | undefined;
 declare function walletProvider(userState?: UserState | null): UserStateWalletProvider | null | undefined;
 declare function walletProviderSubject(userState?: UserState | null): string | null | undefined;
 declare function authMethod(userState?: UserState | null): UserStateAuthMethod | null | undefined;
 declare function authValue(userState?: UserState | null): string | null | undefined;
 declare function authVerifiedAt(userState?: UserState | null): number | null | undefined;
-declare function sponsored(userState?: UserState | null): boolean | null | undefined;
-declare function sponsorProvider(userState?: UserState | null): UserStateSponsorProvider | null | undefined;
-declare function sponsorAccount(userState?: UserState | null): string | null | undefined;
 declare function withExt(userState: UserState, key: string, value: unknown): UserState;
 
 declare function normalizeUserState(userState?: UserState | null): UserState | undefined;
 declare function reconcileUserState(previousUserState?: UserState | null, incomingUserState?: UserState | null): UserState | undefined;
+/**
+ * Project a stored `UserState` down to the subset the client owns and may send
+ * to the backend. `pending` is backend-authority in-flight state and is dropped
+ * so the client never echoes it back. Apply at the transport send boundary.
+ */
+declare function toOwnedUserState(userState?: UserState | null): OwnedUserState | undefined;
 
 /**
  * Client-side user state synced with the backend.
  * Typically wallet connection info, but can be any key-value data.
+ *
+ * Account-abstraction and sponsorship are backend authority: they are resolved
+ * by the `execution-profile` endpoint and per-execution operation payloads, and
+ * are deliberately NOT part of this wire shape. The client never sends or stores
+ * them here.
  */
 type UserStateAAMode = "none" | "4337" | "7702";
-type UserStateWalletKind = "eoa" | "smart-account";
 type UserStateWalletProvider = "para" | "privy" | "baseAccount";
 type UserStateAuthMethod = "google" | "apple" | "facebook" | "x" | "discord" | "github" | "farcaster" | "telegram" | "email" | "phone" | "wagmi";
-type UserStateSponsorProvider = "alchemy" | "coinbase" | "pimlico" | "self";
 /** Session-level connection facts shared across chain families. */
 interface UserStateConnection extends Record<string, unknown> {
     is_connected?: boolean | null;
@@ -43,32 +45,11 @@ interface UserStateConnection extends Record<string, unknown> {
     auth_value?: string | null;
     auth_verified_at?: number | string | null;
 }
-/** EVM account-abstraction sub-state (`evm.aa`). */
-interface UserStateEvmAa extends Record<string, unknown> {
-    mode?: UserStateAAMode | null;
-    /** Smart-account executor address (4337). */
-    smart_account?: string | null;
-    /** 7702 delegation contract address. */
-    delegation_7702?: string | null;
-    /** Bundler / AA infra provider, e.g. "alchemy". */
-    provider?: string | null;
-}
-/** EVM sponsorship sub-state (`evm.sponsorship`). */
-interface UserStateEvmSponsorship extends Record<string, unknown> {
-    eligible?: boolean | null;
-    required?: boolean | null;
-    mode?: string | null;
-    sponsored?: boolean | null;
-    sponsor_provider?: UserStateSponsorProvider | null;
-    sponsor_account?: string | null;
-}
 /** EVM-family wallet block (`evm`). */
 interface UserStateEvm extends Record<string, unknown> {
     address?: string | null;
     chain_id?: number | string | null;
     ens_name?: string | null;
-    aa?: UserStateEvmAa | null;
-    sponsorship?: UserStateEvmSponsorship | null;
 }
 /** Solana-family wallet block (`svm`). */
 interface UserStateSvm extends Record<string, unknown> {
@@ -90,6 +71,13 @@ interface UserStatePending extends Record<string, unknown> {
     svm_ixs?: Record<string, unknown> | null;
     svm_sigs?: Record<string, unknown> | null;
 }
+/**
+ * The subset of `UserState` the client OWNS and may send to the backend.
+ * `pending` is backend-authority in-flight state; the client receives it but
+ * never echoes it back. Use {@link toOwnedUserState} to project a stored
+ * `UserState` down to this shape at the send boundary.
+ */
+type OwnedUserState = Omit<UserState, "pending">;
 /**
  * Known client surfaces that may want backend-specific UX strategies.
  * Additional string values are allowed for forward compatibility.
@@ -115,24 +103,18 @@ interface UserState extends Record<string, unknown> {
 declare namespace UserState {
     const normalize: typeof normalizeUserState;
     const reconcile: typeof reconcileUserState;
+    const toOwned: typeof toOwnedUserState;
     const address: typeof address;
     const evmAddress: typeof address;
     const svmAddress: typeof svmAddress;
     const chainId: typeof chainId;
     const ensName: typeof ensName;
-    const aaMode: typeof aaMode;
-    const SmartAccount4337: typeof SmartAccount4337;
-    const Delegation7702: typeof Delegation7702;
-    const walletKind: typeof walletKind;
     const isConnected: typeof isConnected;
     const walletProvider: typeof walletProvider;
     const walletProviderSubject: typeof walletProviderSubject;
     const authMethod: typeof authMethod;
     const authValue: typeof authValue;
     const authVerifiedAt: typeof authVerifiedAt;
-    const sponsored: typeof sponsored;
-    const sponsorProvider: typeof sponsorProvider;
-    const sponsorAccount: typeof sponsorAccount;
     const withExt: typeof withExt;
 }
 
@@ -561,7 +543,7 @@ declare class AomiClient {
     /**
      * Fetch current session state (messages, processing status, title).
      */
-    fetchState(sessionId: string, userState?: UserState, clientId?: string, options?: {
+    fetchState(sessionId: string, userState?: OwnedUserState, clientId?: string, options?: {
         app?: string;
         applicationId?: number | string | null;
     }): Promise<AomiStateResponse>;
@@ -572,7 +554,7 @@ declare class AomiClient {
         app?: string;
         applicationId?: number | string | null;
         apiKey?: string;
-        userState?: UserState;
+        userState?: OwnedUserState;
         clientId?: string;
         paymentMethod?: string | null;
         /** @deprecated Accepted as a no-op for compatibility with client 0.4.3. */
@@ -1139,9 +1121,13 @@ type WalletEip712Payload = {
     non_typed_data?: string;
     description?: string;
     eip712Id?: number;
+    /** Expected EOA for an opaque signing request. */
+    signer?: string;
+    /** Requested EVM chain when the signature is execution-bound. */
+    chainId?: number;
 };
 /**
- * Wire payload for `wallet::solana_sign_request`. Mirrors `WalletEip712Payload`
+ * Legacy internal SVM payload projected into the public `wallet_signing_request`.
  * in shape — singular sign-only — but carries a base64-encoded serialized
  * Solana transaction instead of EIP-712 typed data.
  *
@@ -1203,7 +1189,7 @@ declare function parseChainId(value: unknown): number | undefined;
 declare function normalizeTxPayload(payload: unknown): WalletTxPayload | null;
 declare function hydrateTxPayloadFromUserState(payload: WalletTxPayload, userState: unknown, options?: HydrateTxPayloadOptions): WalletTxPayload;
 /**
- * Normalize a `wallet::solana_sign_request` payload into a consistent shape.
+ * Normalize a legacy internal SVM request into a consistent shape.
  *
  * Accepts the various nesting levels the backend can ship: top-level args,
  * `{ args: { ... } }`, snake_case (`unsigned_tx`, `pending_solana_id`) or
@@ -1235,30 +1221,54 @@ declare function toViemSignTypedDataArgs(payload: WalletEip712Payload): ViemSign
  */
 declare function toViemSignMessageArgs(payload: WalletEip712Payload): ViemSignMessageArgs | null;
 
-type WalletRequestKind = "transaction" | "aa_sign" | "eip712_sign" | "solana_sign" | "solana_sign_message" | "solana_send" | "solana_sign_and_send";
-type WalletAaSignatureRequest = {
-    kind: "personal_sign";
-    message: string;
-    raw_payload: string;
+type WalletRequestKind = "transaction" | "signing" | "solana_send" | "solana_sign_and_send";
+type WalletSignablePayload = {
+    kind: "evm_personal";
+    message: `0x${string}`;
 } | {
-    kind: "eip7702_authorization";
-    contract_address: string;
-    chain_id: number;
-    nonce: number;
-    raw_payload: string;
+    kind: "evm_typed_data";
+    typedData: NonNullable<WalletEip712Payload["typed_data"]>;
+} | {
+    kind: "svm_message";
+    messageBase64: string;
+} | {
+    kind: "svm_transaction";
+    transactionBase64: string;
 };
-type WalletAaSignPayload = {
-    chain_family: "evm";
-    chain_id: number;
+type WalletAaDisplayCall = {
+    to: `0x${string}`;
+    value: string;
+    data?: `0x${string}`;
+};
+type WalletAaFeeAsset = {
+    kind: "native";
+} | {
+    kind: "token";
+    address: string;
+};
+type WalletAaFeeDisclosure = {
+    asset: WalletAaFeeAsset;
+    amount: string;
+    /** EVM address or SVM base58 pubkey, per the request's `chainFamily`. */
+    recipient: string;
+};
+type WalletSigningPayload = {
+    requestId: string;
+    chainFamily: "evm" | "svm";
+    executionKind: "message" | "transaction" | "erc4337";
     signer: string;
-    executor: string;
-    aa_mode: "4337" | "7702";
-    tx_ids: number[];
-    signature_requests: WalletAaSignatureRequest[];
+    chainId?: number;
+    cluster?: string;
     description: string;
-    sponsored: boolean;
-    tx_id?: string;
-    timestamp?: string;
+    payloads: WalletSignablePayload[];
+    broadcaster?: string;
+    operationId?: string;
+    executor?: `0x${string}`;
+    expiresAt?: string;
+    callsDigest?: `0x${string}`;
+    calls?: WalletAaDisplayCall[];
+    fees?: WalletAaFeeDisclosure[];
+    sponsorship?: "required";
 };
 type WalletRequest = {
     id: string;
@@ -1267,23 +1277,8 @@ type WalletRequest = {
     timestamp: number;
 } | {
     id: string;
-    kind: "aa_sign";
-    payload: WalletAaSignPayload;
-    timestamp: number;
-} | {
-    id: string;
-    kind: "eip712_sign";
-    payload: WalletEip712Payload;
-    timestamp: number;
-} | {
-    id: string;
-    kind: "solana_sign";
-    payload: WalletSolanaSignPayload;
-    timestamp: number;
-} | {
-    id: string;
-    kind: "solana_sign_message";
-    payload: WalletSolanaSignMessagePayload;
+    kind: "signing";
+    payload: WalletSigningPayload;
     timestamp: number;
 } | {
     id: string;
@@ -1326,18 +1321,8 @@ type WalletRequestResult = {
     failedTxIds?: number[];
     failureReason?: string;
 } | {
-    kind: "aa_sign";
+    kind: "signing";
     signatures: string[];
-} | {
-    kind: "eip712_sign";
-    signature: string;
-} | {
-    kind: "solana_sign";
-    /** Base64 of the full signed Solana transaction bytes. */
-    signedTx: string;
-} | {
-    kind: "solana_sign_message";
-    signature: string;
 } | {
     kind: "solana_send";
     signature: string;
@@ -1390,10 +1375,7 @@ type SessionRuntimeOptions = {
 };
 type SessionEventMap = {
     wallet_tx_request: WalletRequest;
-    wallet_aa_sign_request: WalletRequest;
-    wallet_eip712_request: WalletRequest;
-    wallet_solana_sign_request: WalletRequest;
-    wallet_solana_sign_message_request: WalletRequest;
+    wallet_signing_request: WalletRequest;
     wallet_solana_send_request: WalletRequest;
     wallet_solana_sign_and_send_request: WalletRequest;
     system_notice: {
@@ -1449,6 +1431,10 @@ declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
     private _isProcessing;
     private _backendWasProcessing;
     private walletController;
+    private recoveringSigningRequestIds;
+    private signingRecoveryInFlight;
+    private signingRecoveryTimer;
+    private lastSigningRecoveryAt;
     private _messages;
     private _title?;
     private closed;
@@ -1469,9 +1455,8 @@ declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
      */
     sendAsync(message: string): Promise<AomiChatResponse>;
     /**
-     * Resolve a pending wallet request (transaction, EIP-712, or Solana
-     * sign). The `result.kind` discriminator must match the originating
-     * request's kind — sending a `transaction` result for an `eip712_sign`
+     * Resolve a pending wallet request. The `result.kind` discriminator must
+     * match the originating request's kind — sending a `transaction` result for a `signing`
      * request would post the wrong wire event with empty fields, so we
      * fail fast at runtime instead.
      */
@@ -1481,6 +1466,12 @@ declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
      * Sends an error to the backend and resumes polling.
      */
     reject(requestId: string, reason?: string): Promise<void>;
+    /**
+     * Drop a pending wallet request locally without completing it. Hosts should
+     * normally use `resolve` or `reject`; this is reserved for externally
+     * acknowledged lifecycle cleanup.
+     */
+    dismiss(requestId: string): void;
     /**
      * Cancel the AI's current response.
      */
@@ -1510,12 +1501,12 @@ declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
     setClientType(clientType: AomiClientType): void;
     addExtValue(key: string, value: unknown): void;
     removeExtValue(key: string): void;
-    resolveWallet(address: string, chainId?: number, aa?: {
-        aaMode?: UserStateAAMode | null;
-        smartAccount?: string | null;
-        smartAccount4337?: string | null;
-        delegation7702?: string | null;
-    }): void;
+    resolveWallet(address: string, chainId?: number): void;
+    /**
+     * The subset of the stored state the client may send to the backend. Drops
+     * backend-authority `pending` (in-flight requests the client only receives).
+     */
+    private outboundUserState;
     syncUserState(): Promise<AomiStateResponse>;
     /** Whether the session is currently polling for state updates. */
     getIsPolling(): boolean;
@@ -1536,8 +1527,21 @@ declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
     private schedulePoll;
     private handleVisibilityChange;
     private applyState;
+    /**
+     * Coalesce recovery behind one request and a bounded cadence. State polling
+     * may run twice per second; durable handoff recovery does not need to.
+     */
+    private scheduleSigningRequestRecovery;
+    /**
+     * A signing event is transient, but its backend-owned operation is durable.
+     * Recover an attended handoff from the operation view when a tab reload or
+     * reconnect happens after the original event was delivered.
+     */
+    private recoverSigningRequests;
+    private fetchSigningRequests;
     private handleSSEEvent;
     private sendSystemEvent;
+    private completeSigningRequest;
     /** Shared completion path for send()/sendAsync() after the chat POST. */
     private submitChat;
     private resumeAfterWalletResponse;
@@ -1877,4 +1881,4 @@ declare function appendFeeCallToPayload(payload: WalletTxPayload, fee: AomiSimul
     strictAa?: boolean;
 }): WalletTxPayload;
 
-export { type AACallPayload, type AAMode, type AASponsorship, type AAWalletCall, ALCHEMY_CHAIN_SLUGS, AOMI_TASK_EVENT_TYPES, type AccountBearerProvider, type AccountBearerProviderOptions, type AccountCredentialProvider, AccountCredentialUnavailableError, type AccountSessionExchangeResponse, type AomiAccessApproval, type AomiAccountProfile, type AomiAccountResponse, type AomiAppDescriptor, type AomiAuthIdentity, type AomiAuthPurpose, type AomiAuthorizationChallenge, type AomiAuthorizationPermit, type AomiAuthorizationState, type AomiChatResponse, type AomiClearSecretsResponse, AomiClient, type AomiClientOptions, type AomiClientType, type AomiCreateApprovalRequest, type AomiCreateThreadResponse, type AomiDeleteSecretResponse, type AomiEnsureBoundResult, type AomiHttpMethod, type AomiIdentityWallet, type AomiIngestSecretsResponse, type AomiInterruptResponse, type AomiListSecretsResponse, type AomiMessage, type AomiPlatformFilter, type AomiRequestOptions, type AomiRequestQueryValue, type AomiSSEEvent, type AomiSSEEventType, type AomiSecretSlot, type AomiSimulateFee, type AomiSimulateResponse, type AomiStateResponse, type AomiSystemEvent, type AomiSystemResponse, type AomiTaskActivityEvent, type AomiTaskActivityKind, type AomiTaskCompletedEvent, type AomiTaskEvent, type AomiTaskEventType, type AomiTaskStartedEvent, type AomiTaskStatus, type AomiThread, type AomiUsageStats, type AomiUser, type AomiWalletFamily, type AtomicBatchArgs, type AuthorizationPoster, type BetterAuthAccountTokenSourceOptions, type BetterAuthTokenResponse, CHAINS_BY_ID, CHAIN_NAMES, CLIENT_TYPE_TS_CLI, CLIENT_TYPE_WEB_UI, type ChainInfo, type ExecuteWalletCallsParams, type ExecutionResult, type GetAccountBearer, type Logger, MAX_AUTO_FEE_WEI, type NativeWalletExecutionPolicy, type NativeWalletSponsorship, type NormalizedSimulatedFee, type NormalizedSolanaWalletRequest, type ProviderCredential, SUPPORTED_CHAINS, SUPPORTED_CHAIN_IDS, type SendResult, ClientSession as Session, type SessionEventMap, type SessionOptions, type SiwsChainId, type SiwsIntent, type SiwsWidgetSessionSigner, type SponsorshipPaymasterServiceContext, TypedEventEmitter, type UnwrappedEvent, UserState, type UserStateAAMode, type UserStateAuthMethod, type UserStateSponsorProvider, type UserStateWalletKind, type UserStateWalletProvider, type ViemSignMessageArgs, type ViemSignTypedDataArgs, type WalletAaSignPayload, type WalletAaSignatureRequest, type WalletAtomicCapability, type WalletCapabilities, type WalletEip712Payload, type WalletRequest, type WalletRequestKind, type WalletRequestResult, type WalletSolanaSignMessagePayload, type WalletSolanaSignPayload, type WalletTxAaPreference, type WalletTxCallPayload, type WalletTxPayload, type WidgetAuthAdapter, type WidgetAuthSession, type WidgetSession, type WidgetSessionProvider, type WidgetSessionSigner, aaModeFromExecutionKind, appIdentityKey, appendFeeCallToPayload, arcTestnet, authorizationChallenge, authorizationCommit, buildFeeAAWalletCall, buildSiwsMessage, createAccountBearerProvider, createProviderCredentialAdapter, createSiweWidgetAuthAdapter, createSiwsWidgetAuthAdapter, createWidgetSessionProvider, ensureSvmWalletBound, ensureSvmWalletBoundVia, executeWalletCalls, handlePaymentChallenges, hydrateTxPayloadFromUserState, isAomiTaskEventType, isAsyncCallback, isInlineCall, isSystemError, isSystemNotice, isUnboundWalletError, megaeth, monad, monadTestnet, normalizeAppDescriptor, normalizeEip712Payload, normalizeSimulatedFee, normalizeSolanaCluster, normalizeSolanaSignMessagePayload, normalizeSolanaSignPayload, normalizeSolanaWalletRequest, normalizeTxPayload, parseAomiTaskEvent, parseChainId, posterFromClient, robinhood, safeEnv, toAAWalletCall, toAAWalletCalls, toViemSignMessageArgs, toViemSignTypedDataArgs, unwrapSystemEvent, wrapFetchWithPaymentChallenges };
+export { type AACallPayload, type AAMode, type AASponsorship, type AAWalletCall, ALCHEMY_CHAIN_SLUGS, AOMI_TASK_EVENT_TYPES, type AccountBearerProvider, type AccountBearerProviderOptions, type AccountCredentialProvider, AccountCredentialUnavailableError, type AccountSessionExchangeResponse, type AomiAccessApproval, type AomiAccountProfile, type AomiAccountResponse, type AomiAppDescriptor, type AomiAuthIdentity, type AomiAuthPurpose, type AomiAuthorizationChallenge, type AomiAuthorizationPermit, type AomiAuthorizationState, type AomiChatResponse, type AomiClearSecretsResponse, AomiClient, type AomiClientOptions, type AomiClientType, type AomiCreateApprovalRequest, type AomiCreateThreadResponse, type AomiDeleteSecretResponse, type AomiEnsureBoundResult, type AomiHttpMethod, type AomiIdentityWallet, type AomiIngestSecretsResponse, type AomiInterruptResponse, type AomiListSecretsResponse, type AomiMessage, type AomiPlatformFilter, type AomiRequestOptions, type AomiRequestQueryValue, type AomiSSEEvent, type AomiSSEEventType, type AomiSecretSlot, type AomiSimulateFee, type AomiSimulateResponse, type AomiStateResponse, type AomiSystemEvent, type AomiSystemResponse, type AomiTaskActivityEvent, type AomiTaskActivityKind, type AomiTaskCompletedEvent, type AomiTaskEvent, type AomiTaskEventType, type AomiTaskStartedEvent, type AomiTaskStatus, type AomiThread, type AomiUsageStats, type AomiUser, type AomiWalletFamily, type AtomicBatchArgs, type AuthorizationPoster, type BetterAuthAccountTokenSourceOptions, type BetterAuthTokenResponse, CHAINS_BY_ID, CHAIN_NAMES, CLIENT_TYPE_TS_CLI, CLIENT_TYPE_WEB_UI, type ChainInfo, type ExecuteWalletCallsParams, type ExecutionResult, type GetAccountBearer, type Logger, MAX_AUTO_FEE_WEI, type NativeWalletExecutionPolicy, type NativeWalletSponsorship, type NormalizedSimulatedFee, type NormalizedSolanaWalletRequest, type OwnedUserState, type ProviderCredential, SUPPORTED_CHAINS, SUPPORTED_CHAIN_IDS, type SendResult, ClientSession as Session, type SessionEventMap, type SessionOptions, type SiwsChainId, type SiwsIntent, type SiwsWidgetSessionSigner, type SponsorshipPaymasterServiceContext, TypedEventEmitter, type UnwrappedEvent, UserState, type UserStateAAMode, type UserStateAuthMethod, type UserStateWalletProvider, type ViemSignMessageArgs, type ViemSignTypedDataArgs, type WalletAtomicCapability, type WalletCapabilities, type WalletEip712Payload, type WalletRequest, type WalletRequestKind, type WalletRequestResult, type WalletSignablePayload, type WalletSigningPayload, type WalletSolanaSignMessagePayload, type WalletSolanaSignPayload, type WalletTxAaPreference, type WalletTxCallPayload, type WalletTxPayload, type WidgetAuthAdapter, type WidgetAuthSession, type WidgetSession, type WidgetSessionProvider, type WidgetSessionSigner, aaModeFromExecutionKind, appIdentityKey, appendFeeCallToPayload, arcTestnet, authorizationChallenge, authorizationCommit, buildFeeAAWalletCall, buildSiwsMessage, createAccountBearerProvider, createProviderCredentialAdapter, createSiweWidgetAuthAdapter, createSiwsWidgetAuthAdapter, createWidgetSessionProvider, ensureSvmWalletBound, ensureSvmWalletBoundVia, executeWalletCalls, handlePaymentChallenges, hydrateTxPayloadFromUserState, isAomiTaskEventType, isAsyncCallback, isInlineCall, isSystemError, isSystemNotice, isUnboundWalletError, megaeth, monad, monadTestnet, normalizeAppDescriptor, normalizeEip712Payload, normalizeSimulatedFee, normalizeSolanaCluster, normalizeSolanaSignMessagePayload, normalizeSolanaSignPayload, normalizeSolanaWalletRequest, normalizeTxPayload, parseAomiTaskEvent, parseChainId, posterFromClient, robinhood, safeEnv, toAAWalletCall, toAAWalletCalls, toViemSignMessageArgs, toViemSignTypedDataArgs, unwrapSystemEvent, wrapFetchWithPaymentChallenges };

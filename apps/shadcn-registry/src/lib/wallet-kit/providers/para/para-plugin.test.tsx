@@ -30,6 +30,11 @@ vi.mock("./ParaPluginProvider", () => ({
   AomiParaPluginProvider: ({ children }: { children: ReactNode }) => children,
 }));
 
+vi.mock("./para-evm-runtime-provider", () => ({
+  AomiParaEvmRuntimeProvider: ({ children }: { children: ReactNode }) =>
+    children,
+}));
+
 vi.mock("@getpara/react-sdk", async () => {
   const React = await import("react");
   return {
@@ -133,5 +138,47 @@ describe("Para startup banner", () => {
     });
     expect(screen.queryByRole("alert")).toBeNull();
     expect(screen.getByText("widget-body")).toBeTruthy();
+  });
+});
+
+describe("Para availability gate", () => {
+  const envKey = "NEXT_PUBLIC_PARA_API_KEY";
+  let savedEnv: string | undefined;
+
+  beforeEach(() => {
+    savedEnv = process.env[envKey];
+    delete process.env[envKey];
+  });
+
+  afterEach(() => {
+    if (savedEnv === undefined) delete process.env[envKey];
+    else process.env[envKey] = savedEnv;
+  });
+
+  it("is available when the host passes providers.para.apiKey (no env needed)", () => {
+    expect(
+      paraPlugin.isAvailable?.({
+        auth: { provider: "para" },
+        providers: { para: { apiKey: "host-supplied-key" } },
+      }),
+    ).toBe(true);
+  });
+
+  it("is unavailable without an apiKey — the picker must not silently rely on Next-only env in cross-origin hosts", () => {
+    expect(
+      paraPlugin.isAvailable?.({
+        auth: { provider: "para" },
+        providers: { para: { environment: "BETA" } },
+      }),
+    ).toBe(false);
+  });
+
+  it("stays unavailable when auth does not request para, even with a key", () => {
+    expect(
+      paraPlugin.isAvailable?.({
+        auth: false,
+        providers: { para: { apiKey: "host-supplied-key" } },
+      }),
+    ).toBe(false);
   });
 });
