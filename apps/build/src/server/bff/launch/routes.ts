@@ -277,7 +277,7 @@ export function launchDeployRoute(preflight: boolean) {
 export async function createLaunchRepoRoute(req: Request) {
   const auth = await authorize(req, { write: true });
   if ("response" in auth) return auth.response;
-  const { session } = auth;
+  const { session, visibilityGrant } = auth;
 
   try {
     const body = (await req.json().catch(() => ({}))) as {
@@ -1058,7 +1058,7 @@ export async function redeployLaunchRoute(req: Request) {
 export async function userProjectsRoute(req: Request) {
   const auth = await authorize(req);
   if ("response" in auth) return auth.response;
-  const { session } = auth;
+  const { session, visibilityGrant } = auth;
 
   try {
     const config = launchConfig();
@@ -1088,23 +1088,25 @@ export async function userProjectsRoute(req: Request) {
     const projects =
       projectId === undefined
         ? await readCache.projects.get(
-            [session.githubUserId, listPlatform ?? null],
+            [session.githubUserId, listPlatform ?? null, visibilityGrant ?? ""],
             () =>
               timedManagerRead("list_user_projects", () =>
                 client.listUserProjects({
                   githubUserId: session.githubUserId,
                   platform: listPlatform,
+                  ...(visibilityGrant ? { visibilityGrant } : {}),
                 }),
               ),
           )
         : [
             await readCache.projectDetails.get(
-              [session.githubUserId, projectId],
+              [session.githubUserId, projectId, visibilityGrant ?? ""],
               () =>
                 timedManagerRead("get_user_project", () =>
                   client.getUserProject({
                     githubUserId: session.githubUserId,
                     projectId,
+                    ...(visibilityGrant ? { visibilityGrant } : {}),
                   }),
                 ),
             ),

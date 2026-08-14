@@ -4,6 +4,8 @@ import { NextResponse } from "next/server";
 import {
   type GitHubOAuthContinuation,
   readGitHubOAuthRequest,
+  getGitHubSession,
+  setGitHubVisibilityGrantCookie,
   setGitHubSessionCookie,
 } from "@build/server/cookies/github";
 import {
@@ -13,6 +15,7 @@ import {
   finishCliAuthorization,
 } from "@build/server/github-auth";
 import { buildFailures } from "@build/server/bff/failures";
+import { API_PATHS } from "@build/lib/api-paths";
 
 export const runtime = "nodejs";
 
@@ -54,13 +57,38 @@ export async function GET(req: Request) {
   const continuation = oauthRequest.continuation;
 
   try {
-    const session = await exchangeGitHubSession(code, url.origin);
+    if (continuation.kind === "claim") {
+      const existingSession = await getGitHubSession();
+      if (!existingSession) {
+        return oauthError(req, continuation, "not_signed_in");
+      }
+      const claimed = await (await import("@build/server/bff/backend"))
+        .backendClient()
+        .then((client) =>
+          client.claimGitHubProject({
+            code,
+            projectId: continuation.projectId,
+            app: 1,
+            redirectUri: new URL(API_PATHS.bff.auth.github.callback, url.origin).toString(),
+          }),
+        );
+      if (claimed.githubUserId !== existingSession.githubUserId) {
+        return oauthError(req, continuation, "github_account_changed");
+      }
+      const response = NextResponse.redirect(
+        new URL(`/projects/${continuation.projectId}?claim=success`, req.url),
+      );
+      clearGitHubOAuthRequest(response);
+      return response;
+    }
+    const { session, visibilityGrant } = await exchangeGitHubSession(code, url.origin);
     const response =
       continuation.kind === "cli"
         ? await finishCliAuthorization(session, continuation)
         : NextResponse.redirect(deploymentsUrl(req));
     clearGitHubOAuthRequest(response);
     await setGitHubSessionCookie(response, session);
+    setGitHubVisibilityGrantCookie(response, visibilityGrant);
     return response;
   } catch (error) {
     const failure = buildFailures.handle({

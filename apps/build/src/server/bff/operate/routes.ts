@@ -423,7 +423,7 @@ async function operateSession(
   try {
     const auth = await authorize(req);
     if ("response" in auth) return auth;
-    const { session } = auth;
+    const { session, visibilityGrant } = auth;
     const config = launchConfig();
     const params = new URL(req.url).searchParams;
     const requestedPlatform = params.get("platform") ?? undefined;
@@ -442,17 +442,19 @@ async function operateSession(
       platform,
       client,
       projects: () =>
-        readCache.projects.get([session.githubUserId, null], () =>
+        readCache.projects.get([session.githubUserId, null, visibilityGrant ?? ""], () =>
           client.listUserProjects({
             githubUserId: session.githubUserId,
             platform: undefined,
+            ...(visibilityGrant ? { visibilityGrant } : {}),
           }),
         ),
       platformProjects: () =>
-        readCache.projects.get([session.githubUserId, platform], () =>
+        readCache.projects.get([session.githubUserId, platform, visibilityGrant ?? ""], () =>
           client.listUserProjects({
             githubUserId: session.githubUserId,
             platform,
+            ...(visibilityGrant ? { visibilityGrant } : {}),
           }),
         ),
     };
