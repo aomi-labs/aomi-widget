@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Connection,
@@ -19,7 +13,6 @@ import {
   AomiRuntimeApiProvider,
   type AomiRuntimeApi,
   type WalletRequest,
-  type WalletRequestKind,
   type WalletRequestResult,
 } from "@aomi-labs/react";
 import { LandingPrivyProvider } from "../../app/components/landing-privy-provider";
@@ -28,6 +21,10 @@ import {
   useAomiWalletKit,
   type AomiWalletKit,
 } from "../../../shadcn-registry/src/lib/wallet-kit";
+import {
+  createSolanaDriverRequest,
+  type SolanaDriverRequestKind,
+} from "./solana-runtime-driver-request";
 
 type DriverMode =
   | "sign"
@@ -92,10 +89,7 @@ async function buildUnsignedSolanaTransaction(
   return encodeBase64(serialized);
 }
 
-function getRequestKindForMode(mode: DriverMode): Extract<
-  WalletRequestKind,
-  "solana_sign" | "solana_send" | "solana_sign_and_send"
-> {
+function getRequestKindForMode(mode: DriverMode): SolanaDriverRequestKind {
   switch (mode) {
     case "send_fallback":
     case "send_direct":
@@ -103,7 +97,7 @@ function getRequestKindForMode(mode: DriverMode): Extract<
     case "sign_and_send_direct":
       return "solana_sign_and_send";
     default:
-      return "solana_sign";
+      return "signing";
   }
 }
 
@@ -207,6 +201,12 @@ function PrivySolanaRuntimeDriverInner() {
     [appendLog],
   );
 
+  const dismissWalletRequest = useCallback((id: string) => {
+    setPendingWalletRequests((prev) =>
+      prev.filter((request) => request.id !== id),
+    );
+  }, []);
+
   const runtimeApi = useMemo<AomiRuntimeApi>(
     () => ({
       user: currentUserState,
@@ -236,6 +236,7 @@ function PrivySolanaRuntimeDriverInner() {
       pendingWalletRequests,
       hasBlockingWalletRequests: pendingWalletRequests.length > 0,
       startWalletRequest: () => undefined,
+      dismissWalletRequest,
       resolveWalletRequest,
       rejectWalletRequest,
       simulateBatchTransactions: async () => {
@@ -250,6 +251,7 @@ function PrivySolanaRuntimeDriverInner() {
     }),
     [
       currentUserState,
+      dismissWalletRequest,
       pendingWalletRequests,
       rejectWalletRequest,
       reportStatus,
@@ -271,8 +273,7 @@ function PrivySolanaRuntimeDriverInner() {
       }
 
       if (!adapter.identity.svmAddress) {
-        const message =
-          "Connect a Solana wallet through Privy before running";
+        const message = "Connect a Solana wallet through Privy before running";
         setReportStatus("failed");
         setLastError(message);
         appendLog("err", message);
@@ -312,24 +313,18 @@ function PrivySolanaRuntimeDriverInner() {
           appendLog,
         );
         const pendingSolanaId = requestCounterRef.current++;
-        const requestId = `${kind}-${pendingSolanaId}`;
-
         setPendingWalletRequests([
-          {
-            id: requestId,
+          createSolanaDriverRequest({
             kind,
-            payload: {
-              unsignedTx,
-              description: `Privy runtime driver ${kind}`,
-              cluster: DRIVER_CLUSTER,
-              pendingSolanaId,
-            },
-            timestamp: Date.now(),
-          } as WalletRequest,
+            unsignedTx,
+            signer: adapter.identity.svmAddress,
+            description: `Privy runtime driver ${kind}`,
+            cluster: DRIVER_CLUSTER,
+            pendingSolanaId,
+          }),
         ]);
       } catch (error) {
-        const message =
-          error instanceof Error ? error.message : String(error);
+        const message = error instanceof Error ? error.message : String(error);
         setReportStatus("failed");
         setLastError(message);
         appendLog("err", message);
@@ -538,7 +533,7 @@ function PrivySolanaRuntimeDriverInner() {
 
           <section className="grid gap-4 md:grid-cols-2">
             <div className="rounded-2xl border border-stone-800 bg-stone-900/60 p-4">
-              <h2 className="mb-3 text-sm uppercase tracking-wide text-stone-400">
+              <h2 className="mb-3 text-sm tracking-wide text-stone-400 uppercase">
                 Identity
               </h2>
               <pre className="overflow-x-auto text-xs text-stone-200">
@@ -547,7 +542,7 @@ function PrivySolanaRuntimeDriverInner() {
             </div>
 
             <div className="rounded-2xl border border-stone-800 bg-stone-900/60 p-4">
-              <h2 className="mb-3 text-sm uppercase tracking-wide text-stone-400">
+              <h2 className="mb-3 text-sm tracking-wide text-stone-400 uppercase">
                 Last Result
               </h2>
               <pre className="overflow-x-auto text-xs text-stone-200">
@@ -557,7 +552,7 @@ function PrivySolanaRuntimeDriverInner() {
           </section>
 
           <section className="rounded-2xl border border-stone-800 bg-stone-900/60 p-4">
-            <h2 className="mb-3 text-sm uppercase tracking-wide text-stone-400">
+            <h2 className="mb-3 text-sm tracking-wide text-stone-400 uppercase">
               Log
             </h2>
             {logs.length === 0 ? (

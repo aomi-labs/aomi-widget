@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Connection,
@@ -22,7 +16,6 @@ import {
   UserState,
   type AomiRuntimeApi,
   type WalletRequest,
-  type WalletRequestKind,
   type WalletRequestResult,
   type WalletSolanaSignPayload,
 } from "@aomi-labs/react";
@@ -30,6 +23,10 @@ import type { UserState as UserStateShape } from "@aomi-labs/client";
 import { RuntimeTxHandler } from "../../../shadcn-registry/src/components/runtime-tx-handler";
 import { AomiWalletKitContextProvider } from "../../../shadcn-registry/src/lib/wallet-kit/context";
 import type { AomiWalletKit } from "../../../shadcn-registry/src/lib/wallet-kit/types";
+import {
+  createSolanaDriverRequest,
+  type SolanaDriverRequestKind,
+} from "./solana-runtime-driver-request";
 
 type DriverMode =
   | "sign"
@@ -215,7 +212,10 @@ async function buildUnsignedSolanaTransaction(
   return encodeBase64(serialized);
 }
 
-async function postDriverReport(runId: string, payload: Record<string, unknown>) {
+async function postDriverReport(
+  runId: string,
+  payload: Record<string, unknown>,
+) {
   try {
     await fetch("/api/dev/solana-runtime-driver", {
       method: "POST",
@@ -232,10 +232,7 @@ async function postDriverReport(runId: string, payload: Record<string, unknown>)
   }
 }
 
-function getRequestKindForMode(mode: DriverMode): Extract<
-  WalletRequestKind,
-  "solana_sign" | "solana_send" | "solana_sign_and_send"
-> {
+function getRequestKindForMode(mode: DriverMode): SolanaDriverRequestKind {
   switch (mode) {
     case "send_fallback":
     case "send_direct":
@@ -243,7 +240,7 @@ function getRequestKindForMode(mode: DriverMode): Extract<
     case "sign_and_send_direct":
       return "solana_sign_and_send";
     default:
-      return "solana_sign";
+      return "signing";
   }
 }
 
@@ -265,7 +262,9 @@ export function SolanaRuntimeDriver() {
     WalletRequest[]
   >([]);
   const [reportStatus, setReportStatus] = useState<DriverReportStatus>("idle");
-  const [lastResult, setLastResult] = useState<WalletRequestResult | null>(null);
+  const [lastResult, setLastResult] = useState<WalletRequestResult | null>(
+    null,
+  );
   const [lastError, setLastError] = useState<string | null>(null);
   const [logs, setLogs] = useState<DriverLog[]>([]);
   const requestCounterRef = useRef(1);
@@ -414,6 +413,12 @@ export function SolanaRuntimeDriver() {
     [appendLog],
   );
 
+  const dismissWalletRequest = useCallback((id: string) => {
+    setPendingWalletRequests((prev) =>
+      prev.filter((request) => request.id !== id),
+    );
+  }, []);
+
   const runtimeApi = useMemo<AomiRuntimeApi>(
     () => ({
       user: currentUserState,
@@ -443,10 +448,13 @@ export function SolanaRuntimeDriver() {
       pendingWalletRequests,
       hasBlockingWalletRequests: pendingWalletRequests.length > 0,
       startWalletRequest: () => undefined,
+      dismissWalletRequest,
       resolveWalletRequest,
       rejectWalletRequest,
       simulateBatchTransactions: async () => {
-        throw new Error("simulateBatchTransactions is not used in Solana driver");
+        throw new Error(
+          "simulateBatchTransactions is not used in Solana driver",
+        );
       },
       subscribe: () => () => undefined,
       sendSystemCommand: async () => undefined,
@@ -455,6 +463,7 @@ export function SolanaRuntimeDriver() {
     }),
     [
       currentUserState,
+      dismissWalletRequest,
       pendingWalletRequests,
       rejectWalletRequest,
       reportStatus,
@@ -497,11 +506,8 @@ export function SolanaRuntimeDriver() {
       setDriverMode(mode);
 
       const kind = getRequestKindForMode(mode);
-      const requiresFunds = kind !== "solana_sign";
-      appendLog(
-        "info",
-        `enqueuing ${kind} request against ${DRIVER_RPC_URL}`,
-      );
+      const requiresFunds = kind !== "signing";
+      appendLog("info", `enqueuing ${kind} request against ${DRIVER_RPC_URL}`);
 
       try {
         const unsignedTx = await buildUnsignedSolanaTransaction(
@@ -511,24 +517,18 @@ export function SolanaRuntimeDriver() {
           requiresFunds,
         );
         const pendingSolanaId = requestCounterRef.current++;
-        const requestId = `${kind}-${pendingSolanaId}`;
-
         setPendingWalletRequests([
-          {
-            id: requestId,
+          createSolanaDriverRequest({
             kind,
-            payload: {
-              unsignedTx,
-              description: `Runtime driver ${kind}`,
-              cluster: DRIVER_CLUSTER,
-              pendingSolanaId,
-            },
-            timestamp: Date.now(),
-          } as WalletRequest,
+            unsignedTx,
+            signer: signer.publicKey.toBase58(),
+            description: `Runtime driver ${kind}`,
+            cluster: DRIVER_CLUSTER,
+            pendingSolanaId,
+          }),
         ]);
       } catch (error) {
-        const message =
-          error instanceof Error ? error.message : String(error);
+        const message = error instanceof Error ? error.message : String(error);
         setReportStatus("failed");
         setLastError(message);
         appendLog("err", message);
@@ -579,9 +579,7 @@ export function SolanaRuntimeDriver() {
         <main className="min-h-screen bg-stone-950 px-8 py-10 text-stone-100">
           <div className="mx-auto max-w-4xl space-y-6">
             <header className="space-y-2">
-              <h1 className="text-3xl font-semibold">
-                Solana Runtime Driver
-              </h1>
+              <h1 className="text-3xl font-semibold">Solana Runtime Driver</h1>
               <p className="max-w-2xl text-sm text-stone-400">
                 Backendless harness for the frontend Solana wallet pipeline.
                 This page injects Solana wallet requests locally, lets{" "}
@@ -664,7 +662,7 @@ export function SolanaRuntimeDriver() {
 
             <section className="grid gap-4 md:grid-cols-2">
               <div className="rounded-2xl border border-stone-800 bg-stone-900/60 p-4">
-                <h2 className="mb-3 text-sm uppercase tracking-wide text-stone-400">
+                <h2 className="mb-3 text-sm tracking-wide text-stone-400 uppercase">
                   Last Result
                 </h2>
                 <pre className="overflow-x-auto text-xs text-stone-200">
@@ -673,7 +671,7 @@ export function SolanaRuntimeDriver() {
               </div>
 
               <div className="rounded-2xl border border-stone-800 bg-stone-900/60 p-4">
-                <h2 className="mb-3 text-sm uppercase tracking-wide text-stone-400">
+                <h2 className="mb-3 text-sm tracking-wide text-stone-400 uppercase">
                   Pending Queue
                 </h2>
                 <pre className="overflow-x-auto text-xs text-stone-200">
@@ -683,7 +681,7 @@ export function SolanaRuntimeDriver() {
             </section>
 
             <section className="rounded-2xl border border-stone-800 bg-stone-900/60 p-4">
-              <h2 className="mb-3 text-sm uppercase tracking-wide text-stone-400">
+              <h2 className="mb-3 text-sm tracking-wide text-stone-400 uppercase">
                 Log
               </h2>
               {logs.length === 0 ? (

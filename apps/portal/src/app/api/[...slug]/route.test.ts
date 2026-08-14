@@ -54,19 +54,16 @@ vi.mock("@portal/server/canonical-session", () => ({
   resolveCanonicalUserId: vi.fn(async () => canonicalSessionMock.userId),
 }));
 
-// Keep the real `createBackendProxy`; only stub the mint. Requests in these
-// tests are unauthenticated, so the portal resolver returns null and the proxy
-// forwards anonymous.
-vi.mock("@aomi-labs/account", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@aomi-labs/account")>();
-  return {
-    ...actual,
-    mintAccountBearer: vi.fn(async () => ({
-      bearer: "test-bearer",
-      expiresAt: 0,
-    })),
-  };
-});
+// `createBackendProxy` imports the mint from the account package's internal
+// module, so mock that dependency directly. Mocking only the package barrel
+// leaves the proxy's lexical import real and makes this test depend on a local
+// PORTAL_SERVICE_PRIVATE_KEY that CI intentionally does not provide.
+vi.mock("../../../../../../packages/account/src/bearer", () => ({
+  mintAccountBearer: vi.fn(async () => ({
+    bearer: "test-bearer",
+    expiresAt: 0,
+  })),
+}));
 
 vi.mock("@portal/server/backend-url", () => ({
   configuredBackendUrl: () => "https://api-staging.aomi.dev",

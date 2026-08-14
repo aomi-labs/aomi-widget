@@ -2,7 +2,8 @@
 
 ## Backend-Owned Sponsored ERC-4337
 
-Current session goal: **RECONCILED WITH MAIN AND LOCALLY VERIFIED 2026-08-13**
+Current session goal: **CI REPAIR LOCALLY VERIFIED; MERGE AND END-TO-END SMOKE IN
+PROGRESS 2026-08-13**
 — make the cross-origin widget an authentication and owner-signing client while
 the backend owns smart-account provisioning, mandatory Aomi fee construction,
 sponsorship, broadcast, confirmation, and revenue receipts.
@@ -28,6 +29,15 @@ sponsorship, broadcast, confirmation, and revenue receipts.
 - Verified 1,476 root tests and 347 registry tests, root lint/typecheck, Portal
   typecheck, Telegram and widget-consumer production builds, and all changed
   publishable package builds.
+- After backend PR #947 merged, isolated the Portal proxy regression from local
+  signing-key configuration by mocking the proxy's actual bearer dependency.
+  Migrated all three landing Solana runtime drivers from the deleted
+  `solana_sign` arm to the generic `signing` envelope through one shared,
+  type-safe request builder, and supplied the runtime's dismiss contract.
+- Re-verified all five app typechecks and production builds, package
+  typecheck/builds, 1,477 root tests, 396 Portal tests, and 6 Telegram tests
+  with `PORTAL_SERVICE_PRIVATE_KEY` explicitly absent. The remaining workflow,
+  frontend merge, and local backend-driven AA smoke are in progress.
 
 ## MCP explicit chain context
 
