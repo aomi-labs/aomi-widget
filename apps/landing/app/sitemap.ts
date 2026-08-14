@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { researchPosts } from "@/lib/research";
 import { examples, playground } from "@/lib/source";
 
 const SITE = "https://aomi.dev";
@@ -63,12 +64,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.8,
     },
     {
-      url: `${SITE}/research/aomibench-v0-1`,
-      lastModified: now,
-      changeFrequency: "weekly",
-      priority: 0.7,
-    },
-    {
       url: `${SITE}/llms.txt`,
       lastModified: now,
       changeFrequency: "weekly",
@@ -97,6 +92,13 @@ export default function sitemap(): MetadataRoute.Sitemap {
   // Docs live on Mintlify (proxied at /docs) and publish their own sitemap
   // at /docs/sitemap.xml — see robots.ts.
 
+  const researchEntries: MetadataRoute.Sitemap = researchPosts.map((post) => ({
+    url: `${SITE}/research/${post.slug}`,
+    lastModified: new Date(post.isoDate),
+    changeFrequency: "monthly" as const,
+    priority: 0.7,
+  }));
+
   // Examples and playground content (HTML only — no .md mirrors yet).
   const exampleEntries: MetadataRoute.Sitemap = examples
     .generateParams()
@@ -116,5 +118,10 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.6,
     }));
 
-  return [...staticEntries, ...exampleEntries, ...playgroundEntries];
+  return [
+    ...staticEntries,
+    ...researchEntries,
+    ...exampleEntries,
+    ...playgroundEntries,
+  ];
 }
