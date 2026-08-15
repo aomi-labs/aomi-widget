@@ -14,8 +14,10 @@ function ToolMark({ src, name }: { src: string; name: string }) {
   );
 }
 
+type InstallToolId = (typeof install.tools)[number]["id"];
+
 export function InstallSection() {
-  const [active, setActive] = useState(install.tools[0].id);
+  const [active, setActive] = useState<InstallToolId>(install.tools[0].id);
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
