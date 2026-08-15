@@ -1,3 +1,6 @@
-/* Leftover in-app docs (playground / examples). Marketing routes must not import this. */
+/* Leftover in-app docs (playground / examples). Marketing routes must not import this.
+   Fumadocs CSS uses @apply; Tailwind must be present in this stylesheet entry or the
+   production build fails with "Cannot apply unknown utility class". */
+@import "tailwindcss";
 @import "fumadocs-ui/css/shadcn.css";
 @import "fumadocs-ui/css/preset.css";
