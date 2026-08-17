@@ -973,6 +973,7 @@ export function ExecutionHarnessesResearch({ post }: Props) {
               <AomiLogo
                 className={styles.logo}
                 markClassName={styles.logoMark}
+                wordmarkClassName={styles.brandWord}
               />
             </Link>
             <span>Aomi Labs Research · {post.date}</span>
@@ -2238,6 +2239,7 @@ export function ExecutionHarnessesResearch({ post }: Props) {
                 <AomiLogo
                   className={styles.figureLogo}
                   markClassName={styles.figureMark}
+                  wordmarkClassName={styles.brandWord}
                 />
                 <b>Execution runtime</b>
                 <p>plan · tools · construct · simulate · execute · reconcile</p>
@@ -2418,6 +2420,7 @@ export function ExecutionHarnessesResearch({ post }: Props) {
           <AomiLogo
             className={styles.footerLogo}
             markClassName={styles.footerMark}
+            wordmarkClassName={styles.brandWord}
           />
           <p>Aomi Labs Research · August 2026</p>
           <Link href="/research">All research</Link>

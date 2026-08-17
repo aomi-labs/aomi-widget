@@ -52,18 +52,30 @@
   letter-spacing: normal;
   text-transform: none;
 }
-/* The wordmark is a bare <span> inside the lockup, so any figure rule styling
-   `span` outranks inheritance and captures it — .aomiBoundary span did exactly
-   that, rendering the brand as 9px uppercase mono. Restate it from the lockup,
-   which outranks a single-descendant selector. */
-.logo > span,
-.footerLogo > span,
-.figureLogo > span {
+/* The wordmark needs its own class, not `> span`: figure rules like
+   `.aomiBoundary span` are also (0,1,1), so an element selector only ties with
+   them and loses on source order — which rendered the brand as 9px uppercase
+   mono. Two classes puts it out of reach. */
+.logo .brandWord,
+.footerLogo .brandWord,
+.figureLogo .brandWord {
   display: inline;
-  color: inherit;
-  font-size: inherit;
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--font-source-serif-4), "Source Serif 4", Georgia, serif;
   letter-spacing: -0.025em;
   text-transform: none;
+}
+/* Sized per placement rather than inherited: the same figure rules also capture
+   the wrapper, so inheriting would carry their 9px down into the word. */
+.logo .brandWord {
+  font-size: 21px;
+}
+.footerLogo .brandWord {
+  font-size: 17px;
+}
+.figureLogo .brandWord {
+  font-size: 16px;
 }
 .logo {
   font-size: 21px;
@@ -1187,9 +1199,16 @@
   border-color: var(--sky) !important;
   background: var(--sky-soft) !important;
 }
-.figureLogo {
+/* .aomiBoundary span captures the lockup wrapper as well as the word, and that
+   flattens its inline-flex and shrinks the em-based gap between mark and word.
+   Two classes to restate it. */
+.aomiCore .figureLogo {
+  display: inline-flex;
   margin-bottom: 10px;
+  color: var(--ink);
   font-size: 16px;
+  letter-spacing: normal;
+  text-transform: none;
 }
 .priorities {
   max-width: 760px;
