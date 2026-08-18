@@ -60,6 +60,16 @@ export const AOMI_BACKEND_ENDPOINTS = [
   },
   {
     method: "DELETE",
+    path: "/api/secrets",
+    auth: ["thread"],
+  },
+  {
+    method: "DELETE",
+    path: "/api/secrets/:name",
+    auth: ["thread"],
+  },
+  {
+    method: "DELETE",
     path: "/api/threads/:thread_id",
     auth: ["account","thread"],
   },
@@ -390,6 +400,11 @@ export const AOMI_BACKEND_ENDPOINTS = [
   },
   {
     method: "GET",
+    path: "/api/secrets",
+    auth: ["thread"],
+  },
+  {
+    method: "GET",
     path: "/api/skills",
     auth: [],
   },
@@ -431,6 +446,21 @@ export const AOMI_BACKEND_ENDPOINTS = [
   {
     method: "GET",
     path: "/api/threads/:thread_id",
+    auth: ["account","thread"],
+  },
+  {
+    method: "GET",
+    path: "/api/widget/v1/aa-operations/:operation_id",
+    auth: ["account","thread"],
+  },
+  {
+    method: "GET",
+    path: "/api/widget/v1/execution-profile",
+    auth: ["account","thread"],
+  },
+  {
+    method: "GET",
+    path: "/api/widget/v1/signing-requests",
     auth: ["account","thread"],
   },
   {
@@ -670,6 +700,11 @@ export const AOMI_BACKEND_ENDPOINTS = [
   },
   {
     method: "POST",
+    path: "/api/secrets",
+    auth: ["thread"],
+  },
+  {
+    method: "POST",
     path: "/api/system",
     auth: ["account","thread"],
   },
@@ -709,6 +744,11 @@ export const AOMI_BACKEND_ENDPOINTS = [
     auth: ["account","thread"],
   },
   {
+    method: "POST",
+    path: "/api/widget/v1/signing-requests/:request_id",
+    auth: ["account","thread"],
+  },
+  {
     method: "PUT",
     path: "/api/account/apps",
     auth: ["account"],
@@ -732,5 +772,10 @@ export const AOMI_BACKEND_ENDPOINTS = [
     method: "PUT",
     path: "/api/integrations/github-app/user/model-keys/:key_id/grants",
     auth: ["service"],
+  },
+  {
+    method: "PUT",
+    path: "/api/widget/v1/aa-accounts/:chain_id",
+    auth: ["account","thread"],
   },
 ] as const satisfies readonly AomiEndpointSpec[];
