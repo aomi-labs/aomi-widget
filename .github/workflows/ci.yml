@@ -149,7 +149,11 @@ jobs:
         run: |
           set -euo pipefail
           git fetch origin main prod --quiet
-          merge_base="$(git merge-base origin/main origin/prod)"
+          # Compare against HEAD — the pull_request merge ref — not origin/main.
+          # Reading origin/main made the guard blind to what the PR itself does,
+          # so the back-merge that clears a divergence could never pass the check
+          # demanding it. A PR that does not carry prod still fails here.
+          merge_base="$(git merge-base HEAD origin/prod)"
           merge_base_tree="$(git show -s --format=%T "$merge_base")"
           prod_tree="$(git show -s --format=%T origin/prod)"
           git diff --quiet "$merge_base_tree" "$prod_tree" || {

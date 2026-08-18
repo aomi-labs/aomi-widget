@@ -74,6 +74,7 @@ export const privyPlugin: WalletProviderPlugin = {
     auth,
     children,
     execution,
+    externalSvmWallet,
     solanaRuntimeConfig,
     supportedChains,
   }) => (
@@ -83,6 +84,7 @@ export const privyPlugin: WalletProviderPlugin = {
         isPrivyAuth(auth) ? toPrivyLoginMethods(auth.methods) : undefined
       }
       execution={execution}
+      externalSvmWallet={externalSvmWallet}
       account={account}
       preferDirectSend={solanaRuntimeConfig?.preferDirectSend}
     >

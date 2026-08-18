@@ -132,7 +132,7 @@ async function collectDirectoryParams(
 }
 
 export const metadata: Metadata = {
-  title: "AomiBench source data | Aomi Research",
+  title: "AomiBench source data | Aomi Labs Research",
 };
 
 export async function generateStaticParams() {

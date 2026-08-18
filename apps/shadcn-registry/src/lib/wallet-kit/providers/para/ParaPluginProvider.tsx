@@ -30,6 +30,7 @@ import {
   DEFAULT_SVM_ENDPOINT,
   useSafeSvmWallet,
   useSvmWalletRuntime,
+  type SafeSvmWalletState,
 } from "../../runtime/svm/wallet-runtime";
 import { useParaSessionSource } from "./sources/para-session-source";
 import { isParaEmbeddedAccount } from "./para-embedded-wallet";
@@ -65,6 +66,7 @@ export type AomiParaPluginProviderProps = {
   oAuthMethods?: readonly TOAuthMethod[];
   execution?: ExecutionConfig;
   account?: AccountConfig;
+  externalSvmWallet?: SafeSvmWalletState;
 };
 
 const PARA_EVM_CONNECT_RETRY_COOLDOWN_MS = 30_000;
@@ -98,6 +100,7 @@ export function AomiParaPluginProvider({
   oAuthMethods = defaultOAuthMethods,
   execution,
   account,
+  externalSvmWallet,
 }: AomiParaPluginProviderProps) {
   const paraAccount = useSafeParaAccount();
   const paraSession = useSafeParaClient();
@@ -107,7 +110,8 @@ export function AomiParaPluginProvider({
   );
   const paraLogout = useSafeLogout();
   const paraModal = useSafeParaModal();
-  const svmWallet = useSafeSvmWallet();
+  const contextSvmWallet = useSafeSvmWallet();
+  const svmWallet = externalSvmWallet ?? contextSvmWallet;
   const logoutParaSession = useCallback(async () => {
     if (paraLogout) {
       try {

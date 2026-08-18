@@ -1,5 +1,25 @@
 # Auth BFF BetterAuth Cleanup Goal
 
+## Generic Solana wallet restoration
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-17** —
+keep Wallet Standard Solana adapters available in the shared wallet kit
+regardless of whether Para or Privy supplies embedded wallets.
+
+- Para and Privy now compose their embedded Solana wallet state with the
+  provider-level Wallet Standard state instead of replacing it.
+- Solana options are deduplicated and routed to their owning provider, so a
+  user can switch between generic and embedded wallets.
+- Wallet Standard auto-connect is given one opportunity to begin before the
+  runtime calls `connect`, preventing the Phantom double-connect failure.
+- The publishable widget package is patch-bumped to
+  `@aomi-labs/widget-lib@2.0.2`.
+- Verified the 351-test registry suite, focused runtime regressions,
+  regenerated the affected Landing registry mirrors, and passed
+  registry/Portal/landing typechecks and builds, 27 TypeScript CLI Solana
+  tests, 200 backend SVM tests, and a local Portal browser smoke with an
+  injected Phantom Wallet Standard adapter.
+
 ## Backend-Owned Sponsored ERC-4337
 
 Current session goal: **CI REPAIR LOCALLY VERIFIED; MERGE AND END-TO-END SMOKE IN
@@ -55,6 +75,17 @@ already-selected chain into native execution, direct executor callers retain the
 own switch behavior, the stale implementation plan was removed, the checked-in
 registry mirror was regenerated, and publishable versions are
 `@aomi-labs/client@0.4.7` and `@aomi-labs/widget-lib@1.4.30`.
+
+## Agentic Payments Execution-Harness Research
+
+Current session goal: **REWRITTEN AS A RESEARCH PAPER AND LOCALLY VERIFIED
+2026-08-13** — publish a
+source-backed Aomi Research report that defines the emerging execution-harness
+category for agentic payments, separates it from models, wallets, payment
+protocols, funding, and settlement, and states Aomi's position as an onchain
+agent execution runtime. The report must preserve canonical Aomi branding,
+make its same-model harness thesis falsifiable, and pass local build plus live
+production verification.
 
 ## Safari wallet-state sync containment
 
@@ -1195,4 +1226,3 @@ build`, `CI=true npx -y pnpm@10.28.0 install --frozen-lockfile`, and
   clears it; an ordinary non-persisted pageshow does not). The spec was
   mutation-tested: neutering the handler fails the restore case and passes the
   control case. Verified with the full launch suite, 32 files / 191 tests.
-
