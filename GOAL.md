@@ -56,6 +56,17 @@ own switch behavior, the stale implementation plan was removed, the checked-in
 registry mirror was regenerated, and publishable versions are
 `@aomi-labs/client@0.4.7` and `@aomi-labs/widget-lib@1.4.30`.
 
+## Agentic Payments Execution-Harness Research
+
+Current session goal: **REWRITTEN AS A RESEARCH PAPER AND LOCALLY VERIFIED
+2026-08-13** — publish a
+source-backed Aomi Research report that defines the emerging execution-harness
+category for agentic payments, separates it from models, wallets, payment
+protocols, funding, and settlement, and states Aomi's position as an onchain
+agent execution runtime. The report must preserve canonical Aomi branding,
+make its same-model harness thesis falsifiable, and pass local build plus live
+production verification.
+
 ## Safari wallet-state sync containment
 
 Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED; STAGING ROLLOUT IN
