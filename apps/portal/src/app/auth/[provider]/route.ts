@@ -1,4 +1,4 @@
-import { type NextRequest, redirect } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 
 /**
  * OAuth wallet provider authorization redirect.
@@ -13,9 +13,12 @@ export async function GET(
   const searchParams = request.nextUrl.searchParams;
 
   // Redirect to the correct API delegation endpoint with all query parameters
-  const delegationUrl = `/api/delegation/${provider}/begin?${searchParams.toString()}`;
+  const delegationUrl = new URL(
+    `/api/delegation/${provider}/begin?${searchParams.toString()}`,
+    request.nextUrl.origin
+  );
 
-  return redirect(delegationUrl);
+  return NextResponse.redirect(delegationUrl);
 }
 
 export const runtime = "nodejs";
