@@ -16,7 +16,12 @@ import { useResolvedAccountRuntime } from "../../account/use-resolved-account-ru
 import { buildEvmExecutionRuntime } from "../../execution/execution-runtime";
 import { useAomiWalletNetworkPreferences } from "../../network-preferences";
 import { useEvmWalletRuntime } from "../../runtime/evm/wallet-runtime";
-import { useSvmWalletRuntime } from "../../runtime/svm/wallet-runtime";
+import {
+  useMergedSvmWallet,
+  useSafeSvmWallet,
+  useSvmWalletRuntime,
+  type SafeSvmWalletState,
+} from "../../runtime/svm/wallet-runtime";
 import { REGISTRY_STORAGE_KEY } from "../../registry/types";
 import type { AomiAccount, AomiAccountCredential } from "../../types";
 import type { AccountConfig, ExecutionConfig } from "../../config/types";
@@ -43,6 +48,7 @@ export type AomiPrivyPluginProviderProps = {
   execution?: ExecutionConfig;
   account?: AccountConfig;
   preferDirectSend?: boolean;
+  externalSvmWallet?: SafeSvmWalletState;
 };
 
 export function AomiPrivyPluginProvider({
@@ -52,12 +58,14 @@ export function AomiPrivyPluginProvider({
   execution,
   account,
   preferDirectSend = true,
+  externalSvmWallet,
 }: AomiPrivyPluginProviderProps) {
   const privy = useSafePrivy();
   const { client: smartWalletClient, getClientForChain } =
     useSafeSmartWallets();
   const { wallets: solanaWallets } = useSafeSvmWallets();
   const { wallets: connectedWallets } = useSafeWallets();
+  const contextSvmWallet = useSafeSvmWallet();
   const [activeSolanaAddress, setActiveSolanaAddress] = useState<
     string | undefined
   >();
@@ -105,7 +113,7 @@ export function AomiPrivyPluginProvider({
   const activeSolanaWallet =
     solanaWallets.find((wallet) => wallet.address === activeSolanaAddress) ??
     solanaWallets[0];
-  const svmWallet = useMemo(
+  const privySvmWallet = useMemo(
     () =>
       buildPrivySvmWalletState({
         wallet: activeSolanaWallet,
@@ -113,6 +121,10 @@ export function AomiPrivyPluginProvider({
         setActiveAddress: setActiveSolanaAddress,
       }),
     [activeSolanaWallet, solanaWallets],
+  );
+  const svmWallet = useMergedSvmWallet(
+    externalSvmWallet ?? contextSvmWallet,
+    privySvmWallet,
   );
 
   useEffect(() => {
