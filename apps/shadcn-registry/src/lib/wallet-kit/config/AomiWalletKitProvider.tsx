@@ -336,6 +336,7 @@ function WalletKitComposerOutlet({
   routing: ReturnType<typeof useFullTestnet<readonly [Chain, ...Chain[]]>>;
   setSelectedSolanaNetworkId: (networkId: string) => void;
 }) {
+  const externalSvmWallet = useSafeSvmWallet();
   if (authPlugin?.renderComposer) {
     return (
       <>
@@ -344,6 +345,7 @@ function WalletKitComposerOutlet({
           auth,
           children,
           execution,
+          externalSvmWallet,
           providers,
           selectedSolanaNetwork: resolvedSvm.activeNetwork,
           setSelectedSolanaNetworkId,

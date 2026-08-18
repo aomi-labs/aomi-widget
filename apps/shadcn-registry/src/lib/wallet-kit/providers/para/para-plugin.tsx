@@ -262,6 +262,7 @@ export const paraPlugin: WalletProviderPlugin = {
     auth,
     children,
     execution,
+    externalSvmWallet,
     selectedSolanaNetwork,
     setSelectedSolanaNetworkId,
     solanaRuntimeConfig,
@@ -271,6 +272,7 @@ export const paraPlugin: WalletProviderPlugin = {
     <AomiParaPluginProvider
       account={account}
       execution={execution}
+      externalSvmWallet={externalSvmWallet}
       oAuthMethods={toParaOAuthMethods(
         auth !== false && auth?.provider === "para" ? auth.methods : undefined,
       )}
