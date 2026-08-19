@@ -537,7 +537,16 @@ export interface AomiDeleteSecretResponse {
  * backend never returns raw values; only the names.
  */
 export interface AomiListSecretsResponse {
-  by_app: Record<string, string[]>;
+  /** Client-scoped handle names (`BYOK:*`, `PAYMENT:*`). */
+  names?: string[];
+  /**
+   * Retired. Per-user app-scoped secrets no longer exist — an application's
+   * Environment belongs to its Builder. A backend that predates that change
+   * still answers with this shape, and the one that follows it sends an empty
+   * object for a release so pre-deploy browser tabs do not throw, so keep
+   * reading it until every deployed backend is past the cutover.
+   */
+  by_app?: Record<string, string[]>;
 }
 
 /**

@@ -10,8 +10,9 @@
 //      `PROVIDER_KEY:` prefix.
 //
 //   2. Generic secret vault API — `ingestSecrets`, `clearSecrets`,
-//      `deleteSecret`, `listSecrets`. Used by BYOK above, but also exposed
-//      directly to apps that need to push or wipe per-app secrets.
+//      `deleteSecret`, `listSecrets`. Client-scoped only: a hosted app's
+//      Environment belongs to its Builder and is configured in Aomi Build,
+//      so there is no per-user app scope to push into.
 //
 // They're in the same hook because the BYOK actions internally call the
 // vault API (e.g. `setByok` ingests under the `PROVIDER_KEY:` prefix). If
@@ -21,6 +22,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { MutableRefObject } from "react";
 import type { AomiClient } from "@aomi-labs/client";
+import { secretNamesFrom } from "@aomi-labs/client";
 
 const BYOK_KEYS_STORAGE_KEY = "aomi_byok_keys";
 const BYOK_SECRET_PREFIX = "PROVIDER_KEY:";
@@ -38,11 +40,11 @@ export type ByokState = {
 export type SecretsActions = {
   ingestSecrets: (
     secrets: Record<string, string>,
-    app?: string,
   ) => Promise<Record<string, string>>;
-  clearSecrets: (app?: string) => Promise<void>;
-  deleteSecret: (name: string, app?: string) => Promise<void>;
-  listSecrets: () => Promise<Record<string, string[]>>;
+  clearSecrets: () => Promise<void>;
+  deleteSecret: (name: string) => Promise<void>;
+  /** Stored handle names for this client. Never values. */
+  listSecrets: () => Promise<string[]>;
 };
 
 export type ByokActions = SecretsActions & {
@@ -132,7 +134,6 @@ export function useByokImpl({
   const ingestSecrets = useCallback(
     async (
       secrets: Record<string, string>,
-      app?: string,
     ): Promise<Record<string, string>> => {
       const clientId = clientIdRef.current;
       if (!clientId) throw new Error("clientId not initialized");
@@ -140,7 +141,6 @@ export function useByokImpl({
         getControlSessionId(),
         clientId,
         secrets,
-        app,
       );
       return handles;
     },
@@ -148,40 +148,36 @@ export function useByokImpl({
   );
 
   const clearSecrets = useCallback(
-    async (app?: string): Promise<void> => {
+    async (): Promise<void> => {
       const clientId = clientIdRef.current;
       if (!clientId) return;
       await aomiClientRef.current.clearSecrets?.(
         getControlSessionId(),
         clientId,
-        app,
       );
     },
     [aomiClientRef, clientIdRef, getControlSessionId],
   );
 
   const deleteSecret = useCallback(
-    async (name: string, app?: string): Promise<void> => {
+    async (name: string): Promise<void> => {
       const clientId = clientIdRef.current;
       if (!clientId) return;
       await aomiClientRef.current.deleteSecret(
         getControlSessionId(),
         clientId,
         name,
-        app,
       );
     },
     [aomiClientRef, clientIdRef, getControlSessionId],
   );
 
-  const listSecrets = useCallback(async (): Promise<
-    Record<string, string[]>
-  > => {
-    const { by_app } = await aomiClientRef.current.listSecrets(
+  const listSecrets = useCallback(async (): Promise<string[]> => {
+    const response = await aomiClientRef.current.listSecrets(
       getControlSessionId(),
       clientIdRef.current ?? undefined,
     );
-    return by_app;
+    return secretNamesFrom(response);
   }, [aomiClientRef, clientIdRef, getControlSessionId]);
 
   // ---------------------------------------------------------------------------

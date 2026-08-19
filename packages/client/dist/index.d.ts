@@ -462,7 +462,16 @@ interface AomiDeleteSecretResponse {
  * backend never returns raw values; only the names.
  */
 interface AomiListSecretsResponse {
-    by_app: Record<string, string[]>;
+    /** Client-scoped handle names (`BYOK:*`, `PAYMENT:*`). */
+    names?: string[];
+    /**
+     * Retired. Per-user app-scoped secrets no longer exist — an application's
+     * Environment belongs to its Builder. A backend that predates that change
+     * still answers with this shape, and the one that follows it sends an empty
+     * object for a release so pre-deploy browser tabs do not throw, so keep
+     * reading it until every deployed backend is past the cutover.
+     */
+    by_app?: Record<string, string[]>;
 }
 /**
  * One per-app secret slot declared by a plugin manifest. Surfaced via
@@ -527,6 +536,17 @@ declare function isAsyncCallback(event: AomiSystemEvent): event is {
     AsyncCallback: Record<string, unknown>;
 };
 
+/**
+ * Read secret names out of a {@link AomiListSecretsResponse} whichever shape
+ * the backend sent.
+ *
+ * A backend from before per-user app secrets were retired answers
+ * `{ by_app: { <app>: [names] } }`; the one after answers `{ names: [...] }`
+ * (plus an empty `by_app` for one release). This client ships ahead of the
+ * backend, so it has to read both — and a browser tab cached across the
+ * cutover will hit each of them in turn.
+ */
+declare function secretNamesFrom(response: AomiListSecretsResponse): string[];
 declare class AomiClient {
     private readonly baseUrl;
     private readonly apiKey?;
@@ -577,29 +597,24 @@ declare class AomiClient {
         applicationId?: number | string | null;
     }): Promise<AomiInterruptResponse>;
     /**
-     * Ingest secrets for a client. Returns opaque `$SECRET:<name>` handles.
+     * Ingest client-scoped secrets. Returns opaque `$SECRET:<name>` handles.
      *
-     * When `app` is provided, the values land in the per-app store keyed by
-     * `(client_id, app)` — this is the path the Secrets settings page uses
-     * (one app at a time). When `app` is omitted, secrets land in the flat
-     * client store (used by BYOK and other cross-app pools).
+     * There is no app scope. A hosted app's Environment belongs to its Builder
+     * and is configured in Aomi Build; a per-user copy of it was a second,
+     * process-local store that answered the same handle differently depending on
+     * which fleet host served the turn. The backend answers 410 to any request
+     * that still carries one.
      */
-    ingestSecrets(sessionId: string, clientId: string, secrets: Record<string, string>, app?: string): Promise<AomiIngestSecretsResponse>;
+    ingestSecrets(sessionId: string, clientId: string, secrets: Record<string, string>): Promise<AomiIngestSecretsResponse>;
+    /** Clear every client-scoped secret and unbind the session. */
+    clearSecrets(sessionId: string, clientId: string): Promise<AomiClearSecretsResponse>;
+    /** Remove a single named client-scoped secret. */
+    deleteSecret(sessionId: string, clientId: string, name: string): Promise<AomiDeleteSecretResponse>;
     /**
-     * Clear secrets for a client. With `app`, removes every slot under that
-     * app. Without `app`, clears the entire client (legacy behavior — wipes
-     * both stores and unbinds the session).
-     */
-    clearSecrets(sessionId: string, clientId: string, app?: string): Promise<AomiClearSecretsResponse>;
-    /**
-     * Remove a single named secret. With `app`, targets the per-app store
-     * under that scope; without, targets the flat store.
-     */
-    deleteSecret(sessionId: string, clientId: string, name: string, app?: string): Promise<AomiDeleteSecretResponse>;
-    /**
-     * List currently stored secret names per app for this client. The
-     * backend never returns raw values; the settings page uses this as the
-     * source of truth instead of trusting localStorage.
+     * List the stored secret NAMES for this client — never values.
+     *
+     * Read the result with {@link secretNamesFrom}, which tolerates the
+     * pre-cutover `by_app` shape as well as the flat `names` list.
      */
     listSecrets(sessionId: string, clientId?: string): Promise<AomiListSecretsResponse>;
     /**
@@ -1881,4 +1896,4 @@ declare function appendFeeCallToPayload(payload: WalletTxPayload, fee: AomiSimul
     strictAa?: boolean;
 }): WalletTxPayload;
 
-export { type AACallPayload, type AAMode, type AASponsorship, type AAWalletCall, ALCHEMY_CHAIN_SLUGS, AOMI_TASK_EVENT_TYPES, type AccountBearerProvider, type AccountBearerProviderOptions, type AccountCredentialProvider, AccountCredentialUnavailableError, type AccountSessionExchangeResponse, type AomiAccessApproval, type AomiAccountProfile, type AomiAccountResponse, type AomiAppDescriptor, type AomiAuthIdentity, type AomiAuthPurpose, type AomiAuthorizationChallenge, type AomiAuthorizationPermit, type AomiAuthorizationState, type AomiChatResponse, type AomiClearSecretsResponse, AomiClient, type AomiClientOptions, type AomiClientType, type AomiCreateApprovalRequest, type AomiCreateThreadResponse, type AomiDeleteSecretResponse, type AomiEnsureBoundResult, type AomiHttpMethod, type AomiIdentityWallet, type AomiIngestSecretsResponse, type AomiInterruptResponse, type AomiListSecretsResponse, type AomiMessage, type AomiPlatformFilter, type AomiRequestOptions, type AomiRequestQueryValue, type AomiSSEEvent, type AomiSSEEventType, type AomiSecretSlot, type AomiSimulateFee, type AomiSimulateResponse, type AomiStateResponse, type AomiSystemEvent, type AomiSystemResponse, type AomiTaskActivityEvent, type AomiTaskActivityKind, type AomiTaskCompletedEvent, type AomiTaskEvent, type AomiTaskEventType, type AomiTaskStartedEvent, type AomiTaskStatus, type AomiThread, type AomiUsageStats, type AomiUser, type AomiWalletFamily, type AtomicBatchArgs, type AuthorizationPoster, type BetterAuthAccountTokenSourceOptions, type BetterAuthTokenResponse, CHAINS_BY_ID, CHAIN_NAMES, CLIENT_TYPE_TS_CLI, CLIENT_TYPE_WEB_UI, type ChainInfo, type ExecuteWalletCallsParams, type ExecutionResult, type GetAccountBearer, type Logger, MAX_AUTO_FEE_WEI, type NativeWalletExecutionPolicy, type NativeWalletSponsorship, type NormalizedSimulatedFee, type NormalizedSolanaWalletRequest, type OwnedUserState, type ProviderCredential, SUPPORTED_CHAINS, SUPPORTED_CHAIN_IDS, type SendResult, ClientSession as Session, type SessionEventMap, type SessionOptions, type SiwsChainId, type SiwsIntent, type SiwsWidgetSessionSigner, type SponsorshipPaymasterServiceContext, TypedEventEmitter, type UnwrappedEvent, UserState, type UserStateAAMode, type UserStateAuthMethod, type UserStateWalletProvider, type ViemSignMessageArgs, type ViemSignTypedDataArgs, type WalletAtomicCapability, type WalletCapabilities, type WalletEip712Payload, type WalletRequest, type WalletRequestKind, type WalletRequestResult, type WalletSignablePayload, type WalletSigningPayload, type WalletSolanaSignMessagePayload, type WalletSolanaSignPayload, type WalletTxAaPreference, type WalletTxCallPayload, type WalletTxPayload, type WidgetAuthAdapter, type WidgetAuthSession, type WidgetSession, type WidgetSessionProvider, type WidgetSessionSigner, aaModeFromExecutionKind, appIdentityKey, appendFeeCallToPayload, arcTestnet, authorizationChallenge, authorizationCommit, buildFeeAAWalletCall, buildSiwsMessage, createAccountBearerProvider, createProviderCredentialAdapter, createSiweWidgetAuthAdapter, createSiwsWidgetAuthAdapter, createWidgetSessionProvider, ensureSvmWalletBound, ensureSvmWalletBoundVia, executeWalletCalls, handlePaymentChallenges, hydrateTxPayloadFromUserState, isAomiTaskEventType, isAsyncCallback, isInlineCall, isSystemError, isSystemNotice, isUnboundWalletError, megaeth, monad, monadTestnet, normalizeAppDescriptor, normalizeEip712Payload, normalizeSimulatedFee, normalizeSolanaCluster, normalizeSolanaSignMessagePayload, normalizeSolanaSignPayload, normalizeSolanaWalletRequest, normalizeTxPayload, parseAomiTaskEvent, parseChainId, posterFromClient, robinhood, safeEnv, toAAWalletCall, toAAWalletCalls, toViemSignMessageArgs, toViemSignTypedDataArgs, unwrapSystemEvent, wrapFetchWithPaymentChallenges };
+export { type AACallPayload, type AAMode, type AASponsorship, type AAWalletCall, ALCHEMY_CHAIN_SLUGS, AOMI_TASK_EVENT_TYPES, type AccountBearerProvider, type AccountBearerProviderOptions, type AccountCredentialProvider, AccountCredentialUnavailableError, type AccountSessionExchangeResponse, type AomiAccessApproval, type AomiAccountProfile, type AomiAccountResponse, type AomiAppDescriptor, type AomiAuthIdentity, type AomiAuthPurpose, type AomiAuthorizationChallenge, type AomiAuthorizationPermit, type AomiAuthorizationState, type AomiChatResponse, type AomiClearSecretsResponse, AomiClient, type AomiClientOptions, type AomiClientType, type AomiCreateApprovalRequest, type AomiCreateThreadResponse, type AomiDeleteSecretResponse, type AomiEnsureBoundResult, type AomiHttpMethod, type AomiIdentityWallet, type AomiIngestSecretsResponse, type AomiInterruptResponse, type AomiListSecretsResponse, type AomiMessage, type AomiPlatformFilter, type AomiRequestOptions, type AomiRequestQueryValue, type AomiSSEEvent, type AomiSSEEventType, type AomiSecretSlot, type AomiSimulateFee, type AomiSimulateResponse, type AomiStateResponse, type AomiSystemEvent, type AomiSystemResponse, type AomiTaskActivityEvent, type AomiTaskActivityKind, type AomiTaskCompletedEvent, type AomiTaskEvent, type AomiTaskEventType, type AomiTaskStartedEvent, type AomiTaskStatus, type AomiThread, type AomiUsageStats, type AomiUser, type AomiWalletFamily, type AtomicBatchArgs, type AuthorizationPoster, type BetterAuthAccountTokenSourceOptions, type BetterAuthTokenResponse, CHAINS_BY_ID, CHAIN_NAMES, CLIENT_TYPE_TS_CLI, CLIENT_TYPE_WEB_UI, type ChainInfo, type ExecuteWalletCallsParams, type ExecutionResult, type GetAccountBearer, type Logger, MAX_AUTO_FEE_WEI, type NativeWalletExecutionPolicy, type NativeWalletSponsorship, type NormalizedSimulatedFee, type NormalizedSolanaWalletRequest, type OwnedUserState, type ProviderCredential, SUPPORTED_CHAINS, SUPPORTED_CHAIN_IDS, type SendResult, ClientSession as Session, type SessionEventMap, type SessionOptions, type SiwsChainId, type SiwsIntent, type SiwsWidgetSessionSigner, type SponsorshipPaymasterServiceContext, TypedEventEmitter, type UnwrappedEvent, UserState, type UserStateAAMode, type UserStateAuthMethod, type UserStateWalletProvider, type ViemSignMessageArgs, type ViemSignTypedDataArgs, type WalletAtomicCapability, type WalletCapabilities, type WalletEip712Payload, type WalletRequest, type WalletRequestKind, type WalletRequestResult, type WalletSignablePayload, type WalletSigningPayload, type WalletSolanaSignMessagePayload, type WalletSolanaSignPayload, type WalletTxAaPreference, type WalletTxCallPayload, type WalletTxPayload, type WidgetAuthAdapter, type WidgetAuthSession, type WidgetSession, type WidgetSessionProvider, type WidgetSessionSigner, aaModeFromExecutionKind, appIdentityKey, appendFeeCallToPayload, arcTestnet, authorizationChallenge, authorizationCommit, buildFeeAAWalletCall, buildSiwsMessage, createAccountBearerProvider, createProviderCredentialAdapter, createSiweWidgetAuthAdapter, createSiwsWidgetAuthAdapter, createWidgetSessionProvider, ensureSvmWalletBound, ensureSvmWalletBoundVia, executeWalletCalls, handlePaymentChallenges, hydrateTxPayloadFromUserState, isAomiTaskEventType, isAsyncCallback, isInlineCall, isSystemError, isSystemNotice, isUnboundWalletError, megaeth, monad, monadTestnet, normalizeAppDescriptor, normalizeEip712Payload, normalizeSimulatedFee, normalizeSolanaCluster, normalizeSolanaSignMessagePayload, normalizeSolanaSignPayload, normalizeSolanaWalletRequest, normalizeTxPayload, parseAomiTaskEvent, parseChainId, posterFromClient, robinhood, safeEnv, secretNamesFrom, toAAWalletCall, toAAWalletCalls, toViemSignMessageArgs, toViemSignTypedDataArgs, unwrapSystemEvent, wrapFetchWithPaymentChallenges };
