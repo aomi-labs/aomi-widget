@@ -225,6 +225,13 @@ export function DeployStep({
       })),
   );
 
+  // What to re-run once the missing values are supplied.
+  //
+  // Set ONLY from a structured 409 (`MissingRequiredSecretsError`), so an
+  // ordinary failure is never retried behind the builder's back, and cleared
+  // before it runs, so a second block cannot loop.
+  const resumeAfterSecrets = useRef<(() => Promise<void>) | null>(null);
+
   const saveRequiredSecrets = useCallback(
     async (valuesByApplication: Map<number, Record<string, string>>) => {
       if (!detail?.setEnvVars) return;
@@ -234,7 +241,12 @@ export function DeployStep({
           detail.setEnvVars?.(applicationId, values),
         ),
       );
+      // Throws if anything is still missing, which leaves the resume armed and
+      // surfaces the remaining slots rather than starting a doomed deploy.
       await detail.ensureRequiredSecrets?.(apps);
+      const resume = resumeAfterSecrets.current;
+      resumeAfterSecrets.current = null;
+      await resume?.();
     },
     [apps, detail],
   );
@@ -295,6 +307,10 @@ export function DeployStep({
     repo,
   ]);
 
+  // Indirection so the resume can call the latest `deploy` without the
+  // callback having to close over itself.
+  const deployRef = useRef<(() => Promise<void>) | null>(null);
+
   const deploy = useCallback(async () => {
     setPhase("deploying");
     setError(null);
@@ -351,8 +367,13 @@ export function DeployStep({
       setPhase("building");
     } catch (e) {
       if (e instanceof MissingRequiredSecretsError) {
+        // Render the slots the BFF named rather than the flattened message,
+        // and pick the deploy back up once they are filled — the builder
+        // should not have to find this button again.
         setError(e.message);
         setPhase("preflight_ready");
+        resumeAfterSecrets.current = () =>
+          deployRef.current?.() ?? Promise.resolve();
         return;
       }
       setError(e instanceof Error ? e.message : String(e));
@@ -370,6 +391,10 @@ export function DeployStep({
     repo,
     deployment,
   ]);
+
+  useEffect(() => {
+    deployRef.current = deploy;
+  }, [deploy]);
 
   useEffect(() => {
     if (!deploymentId || progress.live) return;

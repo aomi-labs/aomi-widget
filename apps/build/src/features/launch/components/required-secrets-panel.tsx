@@ -2,8 +2,15 @@
 
 import { useCallback, useState } from "react";
 
-import { Button } from "@aomi-labs/widget-lib";
 import type { SecretSlot } from "@aomi-labs/deploy";
+
+// A native button rather than widget-lib's: this panel mounts in four places,
+// two of which are tested without a PostCSS pipeline, and pulling the styled
+// component in drags a stylesheet import through every one of them. The
+// styling here is the same handful of utility classes either way.
+const buttonClass =
+  "bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50 " +
+  "inline-flex h-8 items-center rounded-full px-3 text-xs font-medium transition-opacity";
 
 export type MissingSecretSlot = {
   app: string;
@@ -131,13 +138,14 @@ export function RequiredSecretsPanel({
         <div className="flex flex-wrap items-center gap-3 text-amber-800">
           <span>{verificationError}</span>
           {onRetryVerification && (
-            <Button
+            <button
+              type="button"
               onClick={() => void retry()}
               disabled={retrying}
-              className="h-8 rounded-full px-3 text-xs font-medium"
+              className={buttonClass}
             >
               {retrying ? "Retrying…" : "Retry required secrets"}
-            </Button>
+            </button>
           )}
         </div>
       )}
@@ -175,13 +183,14 @@ export function RequiredSecretsPanel({
       {error && <div className="text-destructive">{error}</div>}
 
       {saveable.length > 0 && (
-        <Button
+        <button
+          type="button"
           onClick={() => void save()}
           disabled={saving || pending}
-          className="h-8 rounded-full px-3 text-xs font-medium"
+          className={buttonClass}
         >
           {saving ? "Saving…" : "Save required secrets"}
-        </Button>
+        </button>
       )}
     </div>
   );
