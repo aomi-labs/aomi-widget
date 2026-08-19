@@ -31,6 +31,7 @@ import {
   type LaunchProgress,
 } from "@build/features/launch";
 import { MissingRequiredSecretsError } from "@build/features/launch/required-secrets";
+import { RequiredSecretsPanel } from "@build/features/launch/components/required-secrets-panel";
 
 // The subset of `useProjectDetail`'s return value this step needs to gate
 // Activate on required secrets. Optional: the onboarding wizard renders this
@@ -153,11 +154,6 @@ export function DeployStep({
     progress.deploymentId,
   );
   const [error, setError] = useState<string | null>(null);
-  const [requiredSecretValues, setRequiredSecretValues] = useState<
-    Record<string, string>
-  >({});
-  const [savingRequiredSecrets, setSavingRequiredSecrets] = useState(false);
-  const [retryingRequiredSecrets, setRetryingRequiredSecrets] = useState(false);
   const [showManifest, setShowManifest] = useState(false);
   const [verifyAttempt, setVerifyAttempt] = useState(0);
   const [copied, setCopied] = useState(false);
@@ -222,56 +218,26 @@ export function DeployStep({
       .filter((slot) =>
         detail?.requiredSecrets?.[app]?.missing.includes(slot.name),
       )
-      .map((slot) => ({ app, slot })),
+      .map((slot) => ({
+        app,
+        slot,
+        applicationId: detail?.requiredSecrets?.[app]?.applicationId,
+      })),
   );
 
-  const saveRequiredSecrets = useCallback(async () => {
-    if (!detail?.setEnvVars || missingSecretSlots.length === 0) return;
-    const valuesByApplication = new Map<number, Record<string, string>>();
-    for (const { app, slot } of missingSecretSlots) {
-      const value = requiredSecretValues[`${app}::${slot.name}`] ?? "";
-      if (!value) {
-        setError(`Enter a value for ${slot.name}.`);
-        return;
-      }
-      const applicationId = detail.requiredSecrets?.[app]?.applicationId;
-      if (!applicationId) {
-        setError(`Application identity is unavailable for ${app}.`);
-        return;
-      }
-      const values = valuesByApplication.get(applicationId) ?? {};
-      values[slot.name] = value;
-      valuesByApplication.set(applicationId, values);
-    }
-    setSavingRequiredSecrets(true);
-    setError(null);
-    try {
+  const saveRequiredSecrets = useCallback(
+    async (valuesByApplication: Map<number, Record<string, string>>) => {
+      if (!detail?.setEnvVars) return;
+      setError(null);
       await Promise.all(
         Array.from(valuesByApplication, ([applicationId, values]) =>
           detail.setEnvVars?.(applicationId, values),
         ),
       );
-      setRequiredSecretValues({});
       await detail.ensureRequiredSecrets?.(apps);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setSavingRequiredSecrets(false);
-    }
-  }, [apps, detail, missingSecretSlots, requiredSecretValues]);
-
-  const retryRequiredSecrets = useCallback(async () => {
-    if (!detail?.refreshRequiredSecrets) return;
-    setRetryingRequiredSecrets(true);
-    setError(null);
-    try {
-      await detail.refreshRequiredSecrets();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setRetryingRequiredSecrets(false);
-    }
-  }, [detail]);
+    },
+    [apps, detail],
+  );
 
   const applyDeployment = useCallback(
     (next: {
@@ -682,73 +648,19 @@ export function DeployStep({
       </div>
 
       {secretsBlocked && (
-        <div
-          className="space-y-3 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs"
-          role="alert"
-        >
-          <div className="font-medium text-amber-800">
-            {secretsCheckPending
-              ? "Checking required secrets…"
-              : detail?.requiredSecretsError
-                ? "Required secrets could not be verified."
-                : `${missingSecretsCount} required secret${missingSecretsCount === 1 ? "" : "s"} missing.`}
-          </div>
-          {detail?.requiredSecretsError ? (
-            <div className="flex flex-wrap items-center gap-3 text-amber-800">
-              <span>{detail.requiredSecretsError}. Try again.</span>
-              {detail.refreshRequiredSecrets && (
-                <Button
-                  onClick={() => void retryRequiredSecrets()}
-                  disabled={retryingRequiredSecrets}
-                  className="h-8 rounded-full px-3 text-xs font-medium"
-                >
-                  {retryingRequiredSecrets
-                    ? "Retrying…"
-                    : "Retry required secrets"}
-                </Button>
-              )}
-            </div>
-          ) : (
-            <>
-              {missingSecretSlots.map(({ app, slot }) => (
-                <label key={`${app}::${slot.name}`} className="block">
-                  <span className="mb-1 block font-mono text-[11px] text-amber-900">
-                    {app} · {slot.name}
-                  </span>
-                  <input
-                    type="password"
-                    value={requiredSecretValues[`${app}::${slot.name}`] ?? ""}
-                    onChange={(event) =>
-                      setRequiredSecretValues((values) => ({
-                        ...values,
-                        [`${app}::${slot.name}`]: event.target.value,
-                      }))
-                    }
-                    placeholder={slot.description || "Required value"}
-                    aria-label={`${app} ${slot.name}`}
-                    disabled={savingRequiredSecrets}
-                    className="bg-input text-foreground border-border h-8 w-full rounded-md border px-2 text-xs"
-                  />
-                </label>
-              ))}
-              {missingSecretSlots.length > 0 && detail?.setEnvVars && (
-                <Button
-                  onClick={() => void saveRequiredSecrets()}
-                  disabled={savingRequiredSecrets || secretsCheckPending}
-                  className="h-8 rounded-full px-3 text-xs font-medium"
-                >
-                  {savingRequiredSecrets ? "Saving…" : "Save required secrets"}
-                </Button>
-              )}
-              {missingSecretSlots.length > 0 && !detail?.setEnvVars && (
-                <div className="text-amber-800">
-                  Set these values in the project Environment tab before
-                  activating.
-                </div>
-              )}
-            </>
-          )}
-        </div>
+        <RequiredSecretsPanel
+          slots={missingSecretSlots}
+          missingCount={missingSecretsCount}
+          verificationError={
+            detail?.requiredSecretsError
+              ? `${detail.requiredSecretsError}.`
+              : null
+          }
+          pending={secretsCheckPending}
+          onRetryVerification={detail?.refreshRequiredSecrets}
+          onSave={saveRequiredSecrets}
+          actionLabel="Deploy"
+        />
       )}
 
       <div
