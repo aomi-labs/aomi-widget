@@ -44,6 +44,7 @@ export type AccountBearerClaims = {
   role: string;
   iat: number;
   exp: number;
+  [claim: string]: unknown;
 };
 
 const DEFAULT_TTL_SECONDS = 5 * 60;
@@ -134,6 +135,8 @@ export class AomiService {
     subject: string;
     audience: string;
     ttlSeconds?: number;
+    /** Domain-specific claims; registered JWT claims and `role` cannot be overridden. */
+    claims?: Record<string, unknown>;
   }): Promise<{ accessToken: string; expiresAt: number }> {
     if (!this.self.issues.includes(args.role)) {
       throw new Error(
@@ -148,7 +151,7 @@ export class AomiService {
     const { privateKey, kid } = await this.signingKey();
     const now = Math.floor(Date.now() / 1000);
     const expiresAt = now + (args.ttlSeconds ?? DEFAULT_TTL_SECONDS);
-    const accessToken = await new SignJWT({ role: args.role })
+    const accessToken = await new SignJWT({ ...args.claims, role: args.role })
       .setProtectedHeader({ alg: ALG, kid })
       .setSubject(args.subject)
       .setIssuer(this.self.name)

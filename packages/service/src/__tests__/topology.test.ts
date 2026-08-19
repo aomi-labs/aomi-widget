@@ -25,7 +25,7 @@ beforeAll(async () => {
 [[services]]
 name = "aomi-bff"
 kid = "aomi-bff-test-1"
-issues = ["user", "service"]
+issues = ["user", "guest", "service"]
 audiences = ["aomi-backend"]
 public_key = """${bffPublicPem}"""
 
@@ -68,6 +68,33 @@ describe("AomiService topology", () => {
     expect(claims.sub).toBe("aomi-bff");
   });
 
+  it("preserves a domain profile without allowing reserved claim override", async () => {
+    const { accessToken } = await issuer().mint({
+      role: "guest",
+      subject: "guest:sess_1234567890abcdef",
+      audience: "aomi-backend",
+      claims: {
+        principal_kind: "guest",
+        session_id: "sess_1234567890abcdef",
+        application_id: "9",
+        custody: "external_signing",
+        scopes: ["agent:chat"],
+        jti: "jti-1",
+        role: "admin",
+      },
+    });
+    const claims = await verifier().verifyRole(accessToken, "guest");
+    expect(claims).toMatchObject({
+      role: "guest",
+      principal_kind: "guest",
+      session_id: "sess_1234567890abcdef",
+      application_id: "9",
+      custody: "external_signing",
+      scopes: ["agent:chat"],
+      jti: "jti-1",
+    });
+  });
+
   it("refuses to mint a role the service is not authorized for", async () => {
     await expect(
       issuer().mint({ role: "admin", subject: "x", audience: "aomi-backend" }),
@@ -104,7 +131,7 @@ describe("AomiService topology", () => {
       "aomi-backend",
       "empty-issuer",
     ]);
-    expect(mesh.services[0].issues).toEqual(["user", "service"]);
+    expect(mesh.services[0].issues).toEqual(["user", "guest", "service"]);
   });
 
   it("rejects an issuer node with no public key before importing it", async () => {

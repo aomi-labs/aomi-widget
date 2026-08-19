@@ -1,18 +1,20 @@
 const CROCKFORD_BASE32 = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
-const MAX_POSTGRES_BIGINT = (1n << 63n) - 1n;
+const ZERO = BigInt(0);
+const BASE = BigInt(32);
+const MAX_POSTGRES_BIGINT = BigInt("9223372036854775807");
 
 export type PublicApplicationId = `app_${string}`;
 
 export function encodeApplicationId(id: bigint): PublicApplicationId {
-  if (id <= 0n || id > MAX_POSTGRES_BIGINT) {
+  if (id <= ZERO || id > MAX_POSTGRES_BIGINT) {
     throw new RangeError("application id must be a positive PostgreSQL bigint");
   }
 
   let value = id;
   let encoded = "";
-  while (value > 0n) {
-    encoded = CROCKFORD_BASE32[Number(value % 32n)] + encoded;
-    value /= 32n;
+  while (value > ZERO) {
+    encoded = CROCKFORD_BASE32[Number(value % BASE)] + encoded;
+    value /= BASE;
   }
   return `app_${encoded}`;
 }
@@ -22,14 +24,14 @@ export function decodeApplicationId(value: string): bigint {
     throw new TypeError("invalid public application id");
   }
 
-  let decoded = 0n;
+  let decoded = ZERO;
   for (const character of value.slice(4)) {
-    decoded = decoded * 32n + BigInt(CROCKFORD_BASE32.indexOf(character));
+    decoded = decoded * BASE + BigInt(CROCKFORD_BASE32.indexOf(character));
     if (decoded > MAX_POSTGRES_BIGINT) {
       throw new RangeError("public application id exceeds PostgreSQL bigint");
     }
   }
-  if (decoded === 0n || encodeApplicationId(decoded) !== value) {
+  if (decoded === ZERO || encodeApplicationId(decoded) !== value) {
     throw new TypeError("non-canonical public application id");
   }
   return decoded;
