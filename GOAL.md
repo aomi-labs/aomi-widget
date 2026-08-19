@@ -1,5 +1,15 @@
 # Auth BFF BetterAuth Cleanup Goal
 
+## Build staging candidate-release secrets
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-19** —
+reconcile the Build deployment write-gate with the project Environment/Home
+read model. A candidate release's authoritative 409 missing-secret response is
+now retained (key names only) across a tab refresh, merged with the Manager's
+persisted declarations, and cleared as soon as the matching Environment value
+is saved. Deployment and promotion failures now surface the same actionable
+required-secret state instead of falling back to “No keys required”.
+
 ## Generic Solana wallet restoration
 
 Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-17** —

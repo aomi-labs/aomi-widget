@@ -198,7 +198,9 @@ export function DeploymentsTab({
 
   const missingSecretSlots = missingRequiredApps.flatMap((app) =>
     (detail.requiredSecrets?.[app]?.slots ?? [])
-      .filter((slot) => detail.requiredSecrets?.[app]?.missing.includes(slot.name))
+      .filter((slot) =>
+        detail.requiredSecrets?.[app]?.missing.includes(slot.name),
+      )
       .map((slot) => ({
         app,
         slot,
@@ -255,11 +257,18 @@ export function DeploymentsTab({
       detail.reload();
       detail.refreshRecords();
     } catch (err) {
+      const missing = (err as { body?: { missing?: Record<string, string[]> } })
+        .body?.missing;
+      if (missing) detail.noteMissingRequiredSecrets(missing);
       setOp({
         kind: "promote",
         deploymentId,
         status: "error",
-        message: err instanceof Error ? err.message : "Promote failed",
+        message: missing
+          ? "Required secrets are missing. Set them below before promoting."
+          : err instanceof Error
+            ? err.message
+            : "Promote failed",
       });
       toast({ title: "Failed. Retry", tone: "error" });
     }
