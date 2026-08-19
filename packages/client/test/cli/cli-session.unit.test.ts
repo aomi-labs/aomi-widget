@@ -85,6 +85,42 @@ describe("CLI session lifecycle", () => {
     expect(cli.findPendingSolTx("evm:tx-1")).toBeUndefined();
   });
 
+  it("journals a confirmed staged id once and removes its local pending entry", async () => {
+    const { CliSession } = await import("../../src/cli/cli-session");
+    const cli = CliSession.create({
+      baseUrl: "https://api.aomi.dev",
+      app: "default",
+      secrets: {},
+    });
+    cli.addPendingTx({
+      kind: "transaction",
+      txId: 7,
+      to: "0x1111111111111111111111111111111111111111",
+      timestamp: 1,
+      payload: {},
+    });
+    const confirmed = {
+      id: "tx-7",
+      kind: "transaction" as const,
+      pendingTxId: 7,
+      txHash: "0xconfirmed",
+      txHashes: ["0xconfirmed"],
+      executionKind: "eoa",
+      backendNotified: false,
+      timestamp: 2,
+    };
+
+    cli.addSignedTx(confirmed);
+    cli.addSignedTx(confirmed);
+
+    expect(cli.pendingTxs).toEqual([]);
+    expect(cli.signedTxs).toHaveLength(1);
+    expect(cli.findSignedTransaction("tx-7")).toMatchObject(confirmed);
+
+    cli.markSignedTxBackendNotified(7);
+    expect(cli.findSignedTransaction("tx-7")?.backendNotified).toBe(true);
+  });
+
   it("supports newSessionCommand as an explicit fresh-session command", async () => {
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     const { CliSession } = await import("../../src/cli/cli-session");

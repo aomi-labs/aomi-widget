@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const MOCK_ADDRESS = "0x1234567890abcdef1234567890abcdef12345678";
 
@@ -65,6 +65,10 @@ vi.mock("../../src/cli/state", async () => {
 import { signCommand } from "../../src/cli/commands/wallet";
 
 describe("CLI wallet sign simulation integration", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
 
@@ -118,8 +122,8 @@ describe("CLI wallet sign simulation integration", () => {
       (state) => state.pendingTxs ?? [],
     );
     mocks.executeWalletCalls.mockResolvedValue({
-      txHash: "0xabc",
-      txHashes: ["0xabc"],
+      txHash: "0xfee",
+      txHashes: ["0xabc", "0xfee"],
       executionKind: "eoa",
       batched: true,
       sponsored: false,
@@ -316,6 +320,13 @@ describe("CLI wallet sign simulation integration", () => {
       payload: {
         txHash: "0xaction",
         service_fee_tx_hash: "0xfee",
+        service_fee: {
+          status: "confirmed",
+          amount_wei: "1000000000000",
+          recipient: "0x9C7a99480c59955a635123EDa064456393e519f5",
+          tx_hash: "0xfee",
+          retryable: false,
+        },
         pending_tx_ids: [1],
         batched: false,
         call_count: 1,
@@ -323,7 +334,168 @@ describe("CLI wallet sign simulation integration", () => {
     });
   });
 
+  it("records and reports a confirmed action when the service-fee leg fails", async () => {
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    mocks.simulateBatch.mockResolvedValue({
+      result: {
+        batch_success: true,
+        stateful: true,
+        from: MOCK_ADDRESS,
+        network: "mainnet",
+        total_gas: 21_000,
+        fee: {
+          recipient: "0x9C7a99480c59955a635123EDa064456393e519f5",
+          amount_wei: "12633000000",
+          token: "native",
+        },
+        steps: [],
+      },
+    });
+    mocks.executeWalletCalls.mockRejectedValue(
+      Object.assign(
+        new Error("in-flight transaction limit reached for delegated accounts"),
+        {
+          partial: {
+            completedTxHashes: ["0xaction"],
+            failedCallIndex: 1,
+            failureReason:
+              "in-flight transaction limit reached for delegated accounts",
+          },
+        },
+      ),
+    );
+
+    await expect(
+      signCommand(
+        {
+          privateKey:
+            "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+          baseUrl: "http://127.0.0.1:8080",
+          app: "default",
+          apiKey: "test-key",
+          secrets: {},
+        },
+        ["tx-1"],
+      ),
+    ).rejects.toThrow();
+
+    expect(logSpy).toHaveBeenCalledWith(
+      "Fee:     0.000000012633 ETH (12633000000 wei) → 0x9C7a99480c59955a635123EDa064456393e519f5",
+    );
+    expect(mocks.executeWalletCalls).toHaveBeenCalledTimes(1);
+    expect(mocks.sendSystemMessage).toHaveBeenCalledTimes(1);
+    expect(
+      JSON.parse(mocks.sendSystemMessage.mock.calls[0]?.[1] as string),
+    ).toMatchObject({
+      type: "wallet:tx_complete",
+      payload: {
+        txHash: "0xaction",
+        status: "success",
+        pending_tx_ids: [1],
+        service_fee: {
+          status: "failed",
+          amount_wei: "12633000000",
+          recipient: "0x9C7a99480c59955a635123EDa064456393e519f5",
+          error: "in-flight transaction limit reached for delegated accounts",
+          retryable: false,
+        },
+      },
+    });
+
+    const journalIndex = mocks.writeState.mock.calls.findIndex(([state]) => {
+      const record = state.signedTxs?.[0];
+      return record?.txHash === "0xaction";
+    });
+    expect(journalIndex).toBeGreaterThanOrEqual(0);
+    const journalState = mocks.writeState.mock.calls[journalIndex]?.[0];
+    expect(journalState.pendingTxs).toEqual([]);
+    expect(journalState.signedTxs?.[0]).toMatchObject({
+      id: "tx-1",
+      pendingTxId: 1,
+      txHash: "0xaction",
+      backendNotified: true,
+      serviceFeeStatus: "failed",
+      serviceFeeAmountWei: "12633000000",
+    });
+    expect(
+      mocks.writeState.mock.invocationCallOrder[journalIndex],
+    ).toBeLessThan(mocks.sendSystemMessage.mock.invocationCallOrder[0]);
+  });
+
+  it("replays only the backend callback for a journaled staged id", async () => {
+    mocks.readState.mockReturnValue({
+      sessionId: "session-1",
+      baseUrl: "http://127.0.0.1:8080",
+      app: "default",
+      apiKey: "test-key",
+      publicKey: MOCK_ADDRESS,
+      chainId: 1,
+      pendingTxs: [
+        {
+          id: "tx-1",
+          kind: "transaction",
+          txId: 1,
+          to: "0x1111111111111111111111111111111111111111",
+          value: "0",
+          data: "0x",
+          chainId: 1,
+          timestamp: 1,
+          payload: { txId: 1 },
+        },
+      ],
+      signedTxs: [
+        {
+          id: "tx-1",
+          kind: "transaction",
+          pendingTxId: 1,
+          txHash: "0xaction",
+          txHashes: ["0xaction"],
+          executionKind: "eoa",
+          batched: false,
+          sponsored: false,
+          backendNotified: false,
+          serviceFeeStatus: "failed",
+          serviceFeeAmountWei: "12633000000",
+          serviceFeeRecipient: "0x9C7a99480c59955a635123EDa064456393e519f5",
+          serviceFeeError:
+            "in-flight transaction limit reached for delegated accounts",
+          timestamp: 1,
+        },
+      ],
+    });
+
+    await signCommand(
+      {
+        baseUrl: "http://127.0.0.1:8080",
+        app: "default",
+        apiKey: "test-key",
+        secrets: {},
+      },
+      ["tx-1"],
+    );
+
+    expect(mocks.executeWalletCalls).not.toHaveBeenCalled();
+    expect(mocks.sendSystemMessage).toHaveBeenCalledTimes(1);
+    expect(
+      JSON.parse(mocks.sendSystemMessage.mock.calls[0]?.[1] as string),
+    ).toMatchObject({
+      type: "wallet:tx_complete",
+      payload: {
+        txHash: "0xaction",
+        pending_tx_ids: [1],
+        status: "success",
+      },
+    });
+  });
+
   it("ignores a zero-valued fee and still signs the transaction", async () => {
+    mocks.executeWalletCalls.mockResolvedValue({
+      txHash: "0xabc",
+      txHashes: ["0xabc"],
+      executionKind: "eoa",
+      batched: false,
+      sponsored: false,
+    });
     mocks.simulateBatch.mockResolvedValue({
       result: {
         batch_success: true,
