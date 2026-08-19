@@ -13,9 +13,9 @@
 # service.toml). They hold their own private key and mint `service` bearers.
 
 [[services]]
-name = "aomi-bff"           # the portal BFF — mints user + service bearers
+name = "aomi-bff"           # the portal BFF — mints user/guest + service bearers
 kid = "aomi-bff-dev-1"
-issues = ["user", "service"]
+issues = ["user", "guest", "service"]
 audiences = ["aomi-backend"]
 public_key = """
 -----BEGIN PUBLIC KEY-----

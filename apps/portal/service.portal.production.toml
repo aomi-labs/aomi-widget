@@ -7,7 +7,7 @@
 [[services]]
 name = "aomi-bff"
 kid = "aomi-bff-prod-1"
-issues = ["user", "service"]
+issues = ["user", "guest", "service"]
 audiences = ["aomi-backend"]
 public_key = """
 -----BEGIN PUBLIC KEY-----

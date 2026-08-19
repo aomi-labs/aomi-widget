@@ -1545,7 +1545,23 @@ var init_client = __esm({
        * Prefer the typed helpers below for common chat/session/account flows.
        */
       async request(method, path, options) {
-        var _a3, _b;
+        var _a3;
+        const response = await this.requestResponse(method, path, options);
+        if (response.status === 204) {
+          return void 0;
+        }
+        const contentType = (_a3 = response.headers.get("content-type")) != null ? _a3 : "";
+        if (contentType.includes("application/json")) {
+          return await response.json();
+        }
+        return await response.text();
+      }
+      /**
+       * Authenticated raw-response transport for protocols such as public Agent
+       * SSE. It shares the exact auth, URL, and error behavior of request().
+       */
+      async requestResponse(method, path, options) {
+        var _a3;
         const url = buildApiUrl(this.baseUrl, path, normalizeQuery(options == null ? void 0 : options.query));
         const headers = new Headers(options == null ? void 0 : options.headers);
         if (options == null ? void 0 : options.sessionId) {
@@ -1574,14 +1590,7 @@ var init_client = __esm({
 ${body}` : ""}`
           );
         }
-        if (response.status === 204) {
-          return void 0;
-        }
-        const contentType = (_b = response.headers.get("content-type")) != null ? _b : "";
-        if (contentType.includes("application/json")) {
-          return await response.json();
-        }
-        return await response.text();
+        return response;
       }
       /**
        * Fetch current session state (messages, processing status, title).
@@ -3862,8 +3871,8 @@ var init_session = __esm({
       scheduleSigningRequestRecovery(immediate = false) {
         if (this.closed || this.signingRecoveryInFlight) return;
         const elapsed = Date.now() - this.lastSigningRecoveryAt;
-        const delay = immediate ? 0 : Math.max(0, SIGNING_RECOVERY_MIN_INTERVAL_MS - elapsed);
-        if (delay === 0) {
+        const delay2 = immediate ? 0 : Math.max(0, SIGNING_RECOVERY_MIN_INTERVAL_MS - elapsed);
+        if (delay2 === 0) {
           void this.recoverSigningRequests();
           return;
         }
@@ -3871,7 +3880,7 @@ var init_session = __esm({
         this.signingRecoveryTimer = setTimeout(() => {
           this.signingRecoveryTimer = null;
           if (!this.closed) void this.recoverSigningRequests();
-        }, delay);
+        }, delay2);
       }
       /**
        * A signing event is transient, but its backend-owned operation is durable.
@@ -4431,7 +4440,9 @@ function normalizeAuthSession(value) {
     walletAddress: auth.walletAddress,
     chainId: auth.chainId,
     chainScope: auth.chainScope,
-    betterAuthUserId: auth.betterAuthUserId
+    betterAuthUserId: auth.betterAuthUserId,
+    oauthRefreshToken: auth.oauthRefreshToken,
+    oauthClientId: auth.oauthClientId
   };
 }
 function readActiveLocalId() {
@@ -4717,16 +4728,59 @@ var init_siws = __esm({
 
 // src/cli/auth.ts
 import { privateKeyToAccount as privateKeyToAccount2 } from "viem/accounts";
-function createCliAuthTokenProvider(readState2, now = Date.now) {
-  return async () => {
-    var _a3;
+function createCliAuthTokenProvider(readState2, now = Date.now, options = {}) {
+  let refreshing = null;
+  return async (requestOptions) => {
+    var _a3, _b;
     const state = readState2();
     const auth = state.auth;
-    if ((auth == null ? void 0 : auth.sessionToken) && auth.expiresAt > now() + AUTH_REFRESH_SKEW_MS) {
+    if ((auth == null ? void 0 : auth.sessionToken) && auth.expiresAt > now() + AUTH_REFRESH_SKEW_MS && !(requestOptions == null ? void 0 : requestOptions.forceRefresh)) {
       return auth.sessionToken;
     }
-    return (_a3 = state.accountBearer) != null ? _a3 : state.sessionCookie;
+    if ((auth == null ? void 0 : auth.oauthRefreshToken) && auth.oauthClientId) {
+      refreshing != null ? refreshing : refreshing = refreshCliOAuthSession({
+        baseUrl: state.baseUrl,
+        auth,
+        fetch: options.fetch,
+        now
+      }).finally(() => {
+        refreshing = null;
+      });
+      const refreshed = await refreshing;
+      (_a3 = options.writeAuth) == null ? void 0 : _a3.call(options, refreshed);
+      return refreshed.sessionToken;
+    }
+    return (_b = state.accountBearer) != null ? _b : state.sessionCookie;
   };
+}
+async function refreshCliOAuthSession(input2) {
+  var _a3, _b, _c;
+  if (!input2.auth.oauthRefreshToken || !input2.auth.oauthClientId) {
+    throw new Error("CLI OAuth refresh credentials are missing");
+  }
+  const response = await ((_a3 = input2.fetch) != null ? _a3 : fetch)(
+    joinUrl(normalizeBaseUrl(input2.baseUrl), "/api/auth/oauth2/token"),
+    {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        grant_type: "refresh_token",
+        refresh_token: input2.auth.oauthRefreshToken,
+        client_id: input2.auth.oauthClientId
+      })
+    }
+  );
+  const body = await response.json().catch(() => ({}));
+  const accessToken = typeof body.access_token === "string" ? body.access_token : "";
+  const refreshToken = typeof body.refresh_token === "string" ? body.refresh_token : "";
+  if (!response.ok || !accessToken.startsWith("aomi_at_") || !refreshToken.startsWith("aomi_rt_")) {
+    throw new Error("CLI OAuth refresh failed");
+  }
+  return __spreadProps(__spreadValues({}, input2.auth), {
+    sessionToken: accessToken,
+    oauthRefreshToken: refreshToken,
+    expiresAt: ((_b = input2.now) != null ? _b : Date.now)() + Number((_c = body.expires_in) != null ? _c : 3600) * 1e3
+  });
 }
 async function signInWithCliSiwe({
   baseUrl,
@@ -5084,8 +5138,8 @@ function parseExpiresAt(value) {
   return null;
 }
 async function safeResponseText(response) {
-  const text = await response.text().catch(() => "");
-  return text ? `- ${text}` : "";
+  const text2 = await response.text().catch(() => "");
+  return text2 ? `- ${text2}` : "";
 }
 var DEFAULT_CHAIN_ID, DEFAULT_SVM_CLUSTER, DEFAULT_SESSION_TTL_MS, AUTH_REFRESH_SKEW_MS, SESSION_TOKEN_HEADERS;
 var init_auth = __esm({
@@ -5738,7 +5792,11 @@ Available: ${available}`);
             baseUrl: this.state.baseUrl,
             apiKey: this.state.apiKey,
             fetch: paymentFetch,
-            getAccountBearer: createCliAuthTokenProvider(() => this.state)
+            getAccountBearer: createCliAuthTokenProvider(
+              () => this.state,
+              Date.now,
+              { writeAuth: (auth) => this.setAuthSession(auth) }
+            )
           },
           {
             sessionId: this.state.sessionId,
@@ -8582,6 +8640,121 @@ var init_device_auth = __esm({
   }
 });
 
+// src/cli/oauth-device.ts
+import { setTimeout as delay } from "timers/promises";
+async function signInWithOAuthDevice({
+  baseUrl,
+  fetch: fetchImpl = fetch,
+  openBrowser = openUrlInBrowser2,
+  now = Date.now,
+  wait = (milliseconds) => delay(milliseconds),
+  timeoutMs = 15 * 60 * 1e3
+}) {
+  var _a3, _b, _c, _d;
+  const portalUrl = normalizeBaseUrl(baseUrl);
+  const registration = await json(
+    await fetchImpl(joinUrl(portalUrl, "/api/auth/oauth2/register"), {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        clientName: "Aomi CLI",
+        redirectUris: ["http://127.0.0.1/callback"]
+      })
+    }),
+    "OAuth client registration"
+  );
+  const clientId = text(registration.clientId);
+  if (!clientId) throw new Error("OAuth registration is missing clientId");
+  const resource = `${new URL(portalUrl).origin}/v1/agent`;
+  const challenge = await json(
+    await fetchImpl(joinUrl(portalUrl, "/api/auth/oauth2/device/code"), {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id: clientId,
+        scope: "agent profile offline_access",
+        resource
+      })
+    }),
+    "OAuth device authorization"
+  );
+  const deviceCode = text(challenge.device_code);
+  const verification = (_a3 = text(challenge.verification_uri_complete)) != null ? _a3 : text(challenge.verification_uri);
+  const interval = Math.max(Number((_b = challenge.interval) != null ? _b : 5), 1) * 1e3;
+  if (!deviceCode || !verification) {
+    throw new Error("OAuth device authorization response is incomplete");
+  }
+  await openBrowser(verification);
+  const deadline = now() + timeoutMs;
+  let pollInterval = interval;
+  while (now() < deadline) {
+    await wait(pollInterval);
+    const response = await fetchImpl(
+      joinUrl(portalUrl, "/api/auth/oauth2/token"),
+      {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          grant_type: "urn:ietf:params:oauth:grant-type:device_code",
+          device_code: deviceCode,
+          client_id: clientId
+        })
+      }
+    );
+    const body = await response.json().catch(() => ({}));
+    if (response.ok) {
+      const accessToken = text(body.access_token);
+      if (!(accessToken == null ? void 0 : accessToken.startsWith("aomi_at_"))) {
+        throw new Error("OAuth token response is missing an Aomi access token");
+      }
+      return {
+        auth: {
+          sessionToken: accessToken,
+          expiresAt: now() + Number((_c = body.expires_in) != null ? _c : 3600) * 1e3,
+          oauthRefreshToken: text(body.refresh_token),
+          oauthClientId: clientId
+        }
+      };
+    }
+    if (body.error === "slow_down") {
+      pollInterval += 5e3;
+      continue;
+    }
+    if (body.error !== "authorization_pending") {
+      throw new Error(
+        `OAuth device authorization failed: ${(_d = text(body.error)) != null ? _d : response.status}`
+      );
+    }
+  }
+  throw new Error("Timed out waiting for OAuth device authorization");
+}
+async function json(response, operation) {
+  var _a3;
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(
+      `${operation} failed: ${(_a3 = text(body.error)) != null ? _a3 : response.status}`
+    );
+  }
+  return body;
+}
+function text(value) {
+  return typeof value === "string" && value ? value : void 0;
+}
+async function openUrlInBrowser2(url) {
+  const { spawn: spawn2 } = await import("child_process");
+  const command = process.platform === "darwin" ? "open" : process.platform === "win32" ? "cmd" : "xdg-open";
+  const args = process.platform === "win32" ? ["/c", "start", "", url] : [url];
+  const child = spawn2(command, args, { detached: true, stdio: "ignore" });
+  child.unref();
+}
+var init_oauth_device = __esm({
+  "src/cli/oauth-device.ts"() {
+    "use strict";
+    init_auth();
+  }
+});
+
 // src/cli/account-graph.ts
 import { privateKeyToAccount as privateKeyToAccount7 } from "viem/accounts";
 function requireAccountGraphClient(cli) {
@@ -8848,8 +9021,34 @@ async function accountLoginCommand(config, options = {}) {
   if (rewroteLegacyBackend && !config.json) {
     console.log(`Backend updated to ${DEFAULT_CLI_BASE_URL}`);
   }
-  if (options.solana && (options.wallet || options.provider)) {
-    fatal("Choose only one of `--solana`, `--wallet`, or `--provider`.");
+  if ([
+    options.solana,
+    options.wallet,
+    Boolean(options.provider),
+    options.oauthDevice
+  ].filter(Boolean).length > 1) {
+    fatal(
+      "Choose only one of `--solana`, `--wallet`, `--provider`, or `--oauth-device`."
+    );
+  }
+  if (options.oauthDevice) {
+    const result2 = await signInWithOAuthDevice({ baseUrl: cli.baseUrl });
+    cli.setAuthSession(result2.auth);
+    if (config.json) {
+      printJson({
+        status: "signed_in",
+        provider: "oauth_device",
+        baseUrl: cli.baseUrl,
+        expiresAt: new Date(result2.auth.expiresAt).toISOString()
+      });
+    } else {
+      console.log("Signed in with OAuth device authorization");
+      console.log(
+        `Access token expires at ${new Date(result2.auth.expiresAt).toISOString()}`
+      );
+      printDataFileLocation({ verbose: config.verbose });
+    }
+    return;
   }
   if (options.solana) {
     await accountLoginWithSiws(cli, config);
@@ -9383,6 +9582,7 @@ var init_account = __esm({
     init_auth();
     init_device_auth();
     init_client_factory();
+    init_oauth_device();
     init_account_graph();
     init_sessions();
     DEFAULT_CHAIN_ID2 = 1;
@@ -9537,12 +9737,12 @@ async function fetchStatus(deploymentId, platform, activationToken, backendUrl) 
       "Cannot reach Aomi backend; check your connection"
     );
   }
-  const text = await res.text();
+  const text2 = await res.text();
   if (!res.ok) {
     const message = (() => {
       try {
-        const json = JSON.parse(text);
-        if (json && typeof json === "object" && json.error) return json.error;
+        const json2 = JSON.parse(text2);
+        if (json2 && typeof json2 === "object" && json2.error) return json2.error;
       } catch (e) {
       }
       return `${res.status} ${res.statusText}`;
@@ -9553,7 +9753,7 @@ async function fetchStatus(deploymentId, platform, activationToken, backendUrl) 
     throw new DeployCliError("BACKEND_ERROR", message);
   }
   try {
-    return JSON.parse(text);
+    return JSON.parse(text2);
   } catch (e) {
     throw new DeployCliError("BACKEND_ERROR", "Backend returned invalid JSON.");
   }
@@ -9679,10 +9879,10 @@ function resolvePlatform2(args) {
 }
 async function extractError(res) {
   try {
-    const text = await res.text();
-    const json = JSON.parse(text);
-    if (json && typeof json === "object" && json.error) return json.error;
-    return text || `${res.status} ${res.statusText}`;
+    const text2 = await res.text();
+    const json2 = JSON.parse(text2);
+    if (json2 && typeof json2 === "object" && json2.error) return json2.error;
+    return text2 || `${res.status} ${res.statusText}`;
   } catch (e) {
     return `${res.status} ${res.statusText}`;
   }
@@ -9836,10 +10036,10 @@ async function deviceAuthFlow(backendUrl, platform) {
     body: JSON.stringify({ platform })
   });
   if (!beginRes.ok) {
-    const text = await beginRes.text().catch(() => "");
+    const text2 = await beginRes.text().catch(() => "");
     throw new DeployCliError(
       "BACKEND_ERROR",
-      `Failed to start device auth: ${beginRes.status} ${text}`
+      `Failed to start device auth: ${beginRes.status} ${text2}`
     );
   }
   const { device_code, verification_uri } = await beginRes.json();
@@ -9945,14 +10145,14 @@ async function deployCommand(args) {
       "Cannot reach Aomi backend; check your connection"
     );
   }
-  const text = await res.text();
+  const text2 = await res.text();
   if (!res.ok) {
     const message = (() => {
       var _a4, _b2;
       try {
-        const json = JSON.parse(text);
-        if (json && typeof json === "object")
-          return (_b2 = (_a4 = json.error) != null ? _a4 : json.reason) != null ? _b2 : `${res.status} ${res.statusText}`;
+        const json2 = JSON.parse(text2);
+        if (json2 && typeof json2 === "object")
+          return (_b2 = (_a4 = json2.error) != null ? _a4 : json2.reason) != null ? _b2 : `${res.status} ${res.statusText}`;
       } catch (e) {
       }
       return `${res.status} ${res.statusText}`;
@@ -9967,7 +10167,7 @@ async function deployCommand(args) {
   }
   let result;
   try {
-    result = JSON.parse(text);
+    result = JSON.parse(text2);
   } catch (e) {
     throw new DeployCliError("BACKEND_ERROR", "Backend returned invalid JSON.");
   }
@@ -10668,6 +10868,10 @@ var accountLoginDef = defineCommand8({
     "no-browser": {
       type: "boolean",
       description: "Do not open provider auth; use native CLI SIWE"
+    },
+    "oauth-device": {
+      type: "boolean",
+      description: "Use the public OAuth device flow for Agent API access"
     }
   }),
   async run({ args }) {
@@ -10676,7 +10880,8 @@ var accountLoginDef = defineCommand8({
       provider: typeof args.provider === "string" ? args.provider : void 0,
       wallet: args.wallet === true,
       solana: args.solana === true,
-      noBrowser: args["no-browser"] === true
+      noBrowser: args["no-browser"] === true,
+      oauthDevice: args["oauth-device"] === true
     });
   }
 });

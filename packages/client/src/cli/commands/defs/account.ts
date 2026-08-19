@@ -24,6 +24,10 @@ const accountLoginDef = defineCommand({
       type: "boolean",
       description: "Do not open provider auth; use native CLI SIWE",
     },
+    "oauth-device": {
+      type: "boolean",
+      description: "Use the public OAuth device flow for Agent API access",
+    },
   },
   async run({ args }) {
     const { accountLoginCommand } = await import("../account");
@@ -32,6 +36,7 @@ const accountLoginDef = defineCommand({
       wallet: args.wallet === true,
       solana: args.solana === true,
       noBrowser: args["no-browser"] === true,
+      oauthDevice: args["oauth-device"] === true,
     });
   },
 });

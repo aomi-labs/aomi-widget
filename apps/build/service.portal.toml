@@ -14,7 +14,7 @@
 [[services]]
 name = "aomi-bff"           # the Aomi Build BFF — mints user + service bearers
 kid = "aomi-bff-dev-1"
-issues = ["user", "service"]
+issues = ["user", "guest", "service"]
 audiences = ["aomi-backend", "aomi-sidecar"]
 public_key = """
 -----BEGIN PUBLIC KEY-----

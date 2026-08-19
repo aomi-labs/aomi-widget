@@ -10,7 +10,7 @@ export const PORTAL_TOPOLOGIES: Record<PortalTopologyName, string> = {
 [[services]]
 name = "aomi-bff"
 kid = "aomi-bff-dev-1"
-issues = ["user", "service"]
+issues = ["user", "guest", "service"]
 audiences = ["aomi-backend", "aomi-sidecar"]
 public_key = """
 -----BEGIN PUBLIC KEY-----
@@ -42,7 +42,7 @@ public_key = ""
 [[services]]
 name = "aomi-bff"
 kid = "aomi-bff-staging-1"
-issues = ["user", "service"]
+issues = ["user", "guest", "service"]
 audiences = ["aomi-backend", "aomi-sidecar"]
 public_key = """
 -----BEGIN PUBLIC KEY-----
@@ -74,7 +74,7 @@ public_key = ""
 [[services]]
 name = "aomi-bff"
 kid = "aomi-bff-prod-1"
-issues = ["user", "service"]
+issues = ["user", "guest", "service"]
 audiences = ["aomi-backend", "aomi-sidecar"]
 public_key = """
 -----BEGIN PUBLIC KEY-----

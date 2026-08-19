@@ -546,7 +546,11 @@ export class CliSession {
         baseUrl: this.state.baseUrl,
         apiKey: this.state.apiKey,
         fetch: paymentFetch,
-        getAccountBearer: createCliAuthTokenProvider(() => this.state),
+        getAccountBearer: createCliAuthTokenProvider(
+          () => this.state,
+          Date.now,
+          { writeAuth: (auth) => this.setAuthSession(auth) },
+        ),
       },
       {
         sessionId: this.state.sessionId,

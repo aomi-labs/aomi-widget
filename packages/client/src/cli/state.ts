@@ -102,6 +102,10 @@ export type SignedSolTx = {
 export type CliAuthSession = {
   sessionToken: string;
   expiresAt: number;
+  /** Rotating public OAuth credential; never printed by CLI output. */
+  oauthRefreshToken?: string;
+  /** Public OAuth client registration bound to oauthRefreshToken. */
+  oauthClientId?: string;
   walletFamily?: "evm" | "svm";
   walletAddress?: string;
   chainId?: number;
@@ -354,6 +358,8 @@ function normalizeAuthSession(value: unknown): CliAuthSession | undefined {
     chainId: auth.chainId,
     chainScope: auth.chainScope,
     betterAuthUserId: auth.betterAuthUserId,
+    oauthRefreshToken: auth.oauthRefreshToken,
+    oauthClientId: auth.oauthClientId,
   };
 }
 

@@ -1,0 +1,1569 @@
+openapi: 3.1.0
+info:
+  title: Aomi Public API
+  version: 1.0.0
+  description: >-
+    Canonical public contract owned and served by the Portal BFF. Product-mono
+    Rust exposes a separate signed-principal-only internal interface and must
+    not serve these routes or validate these public credentials.
+servers:
+  - url: https://chat.aomi.dev
+tags:
+  - name: Discovery
+  - name: Agent
+  - name: Agent MCP
+  - name: OAuth
+paths:
+  /v1/apps:
+    get:
+      operationId: listApps
+      tags: [Discovery]
+      security:
+        - {}
+        - OAuthAgent: [agent]
+        - FirstPartyCookie: []
+        - GuestSession: []
+      responses:
+        "200":
+          description: Applications visible to the resolved public principal.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [apps]
+                properties:
+                  apps:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Application"
+        default:
+          $ref: "#/components/responses/Error"
+  /v1/apps/{application}:
+    get:
+      operationId: getApp
+      tags: [Discovery]
+      security:
+        - {}
+        - OAuthAgent: [agent]
+        - FirstPartyCookie: []
+        - GuestSession: []
+      parameters:
+        - $ref: "#/components/parameters/ApplicationId"
+      responses:
+        "200":
+          description: Application discovery record.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Application"
+        default:
+          $ref: "#/components/responses/Error"
+  /v1/chains:
+    get:
+      operationId: listChains
+      tags: [Discovery]
+      security:
+        - {}
+      responses:
+        "200":
+          description: Supported public chain capabilities.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [chains]
+                properties:
+                  chains:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Chain"
+        default:
+          $ref: "#/components/responses/Error"
+  /v1/agent/chat:
+    post:
+      operationId: startAgentTurn
+      tags: [Agent]
+      security:
+        - OAuthAgent: [agent]
+        - FirstPartyCookie: []
+        - GuestSession: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/PaymentSignature"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StartTurnRequest"
+      responses:
+        "200":
+          description: Turn accepted or an idempotently replayed response.
+          headers:
+            Payment-Response:
+              $ref: "#/components/headers/PaymentResponse"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentDelta"
+        "402":
+          description: A payable x402 challenge; never a quota response.
+          headers:
+            Payment-Required:
+              $ref: "#/components/headers/PaymentRequired"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        default:
+          $ref: "#/components/responses/Error"
+  /v1/agent/chat/{session}:
+    get:
+      operationId: readAgentDelta
+      tags: [Agent]
+      security:
+        - OAuthAgent: [agent]
+        - FirstPartyCookie: []
+        - GuestSession: []
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/Cursor"
+        - name: wait
+          in: query
+          required: false
+          description: Bounded long-poll duration in milliseconds.
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 30000
+      responses:
+        "200":
+          description: >-
+            Public projection of the authoritative Rust event sequence. JSON
+            long-poll and SSE carry equivalent deltas and cursor transitions.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentDelta"
+            text/event-stream:
+              schema:
+                $ref: "#/components/schemas/PublicEvent"
+        "410":
+          description: Session or cursor expired; cursor errors include resync.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        default:
+          $ref: "#/components/responses/Error"
+  /v1/agent/chat/{session}/actions/{action}/result:
+    post:
+      operationId: submitAgentActionResult
+      tags: [Agent]
+      security:
+        - OAuthAgent: [agent]
+        - FirstPartyCookie: []
+        - GuestSession: []
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+        - $ref: "#/components/parameters/ActionId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ActionResult"
+      responses:
+        "200":
+          description: Authoritative accepted or idempotently replayed action.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [action]
+                properties:
+                  action:
+                    $ref: "#/components/schemas/AgentAction"
+        default:
+          $ref: "#/components/responses/Error"
+  /v1/agent/chat/{session}/interrupt:
+    post:
+      operationId: interruptAgentTurn
+      tags: [Agent]
+      security:
+        - OAuthAgent: [agent]
+        - FirstPartyCookie: []
+        - GuestSession: []
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: Authoritative turn state after interruption.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [turn, cursor]
+                properties:
+                  turn:
+                    $ref: "#/components/schemas/Turn"
+                  cursor:
+                    $ref: "#/components/schemas/Cursor"
+        default:
+          $ref: "#/components/responses/Error"
+  /v1/agent/sessions:
+    get:
+      operationId: listAgentSessions
+      tags: [Agent]
+      security:
+        - OAuthAgent: [agent]
+        - FirstPartyCookie: []
+      parameters:
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: Account-owned sessions only.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [sessions]
+                properties:
+                  sessions:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Session"
+                  nextCursor:
+                    type: [string, "null"]
+        default:
+          $ref: "#/components/responses/Error"
+  /v1/agent/sessions/{session}:
+    patch:
+      operationId: updateAgentSession
+      tags: [Agent]
+      security:
+        - OAuthAgent: [agent]
+        - FirstPartyCookie: []
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                title:
+                  type: string
+                  minLength: 1
+                  maxLength: 160
+                archived:
+                  type: boolean
+              minProperties: 1
+      responses:
+        "200":
+          description: Updated account-owned session.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+        default:
+          $ref: "#/components/responses/Error"
+    delete:
+      operationId: deleteAgentSession
+      tags: [Agent]
+      security:
+        - OAuthAgent: [agent]
+        - FirstPartyCookie: []
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "204":
+          description: Session deleted.
+        default:
+          $ref: "#/components/responses/Error"
+  /v1/agent/mcp:
+    post:
+      operationId: agentMcp
+      tags: [Agent MCP]
+      security:
+        - OAuthAgent: [agent]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JsonRpcRequest"
+      responses:
+        "200":
+          description: Stateless streamable-HTTP MCP JSON-RPC response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JsonRpcResponse"
+        "401":
+          description: Canonical protected-resource OAuth challenge.
+          headers:
+            WWW-Authenticate:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        default:
+          $ref: "#/components/responses/Error"
+  /.well-known/oauth-authorization-server:
+    get:
+      operationId: oauthAuthorizationServerMetadata
+      tags: [OAuth]
+      security: []
+      responses:
+        "200":
+          description: Canonical client-neutral OAuth authorization-server metadata.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OAuthMetadata"
+  /.well-known/openid-configuration:
+    get:
+      operationId: openIdConfiguration
+      tags: [OAuth]
+      security: []
+      responses:
+        "200":
+          description: OpenID configuration for requested OIDC scopes.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OAuthMetadata"
+  /.well-known/oauth-protected-resource/v1/agent:
+    get:
+      operationId: agentProtectedResourceMetadata
+      tags: [OAuth]
+      security: []
+      responses:
+        "200":
+          description: Agent protected-resource metadata pointing to the canonical issuer.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProtectedResourceMetadata"
+  /api/auth/oauth2/register:
+    post:
+      operationId: registerOAuthClient
+      tags: [OAuth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [redirectUris]
+              properties:
+                redirectUris:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: string
+                    format: uri
+                clientName:
+                  type: string
+      responses:
+        "201":
+          description: Constrained public client registration.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [clientId, redirectUris]
+                properties:
+                  clientId:
+                    type: string
+                  redirectUris:
+                    type: array
+                    items:
+                      type: string
+                      format: uri
+        default:
+          $ref: "#/components/responses/Error"
+  /api/auth/oauth2/authorize:
+    get:
+      operationId: authorizeOAuthClient
+      tags: [OAuth]
+      security: []
+      parameters:
+        - name: response_type
+          in: query
+          required: true
+          schema:
+            const: code
+        - name: client_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: redirect_uri
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uri
+        - name: code_challenge
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: code_challenge_method
+          in: query
+          required: true
+          schema:
+            const: S256
+        - name: scope
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: resource
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uri
+        - name: state
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "302":
+          description: Redirect to `/connect` or the exact registered callback.
+        default:
+          $ref: "#/components/responses/Error"
+  /api/auth/oauth2/consent:
+    post:
+      operationId: decideOAuthConsent
+      tags: [OAuth]
+      security:
+        - FirstPartyCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [transaction, decision]
+              properties:
+                transaction:
+                  type: string
+                decision:
+                  enum: [approve, deny]
+      responses:
+        "200":
+          description: Consent transaction decision.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [redirectTo]
+                properties:
+                  redirectTo:
+                    type: string
+                    format: uri
+        default:
+          $ref: "#/components/responses/Error"
+  /api/auth/oauth2/device/code:
+    post:
+      operationId: createDeviceAuthorization
+      tags: [OAuth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [client_id, scope, resource]
+              properties:
+                client_id:
+                  type: string
+                scope:
+                  type: string
+                resource:
+                  type: string
+                  format: uri
+      responses:
+        "200":
+          description: Device authorization challenge.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceAuthorization"
+        default:
+          $ref: "#/components/responses/Error"
+  /api/auth/oauth2/token:
+    post:
+      operationId: exchangeOAuthToken
+      tags: [OAuth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/OAuthTokenRequest"
+      responses:
+        "200":
+          description: Aomi OAuth access token and optional rotating refresh token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OAuthTokenResponse"
+        default:
+          $ref: "#/components/responses/Error"
+components:
+  securitySchemes:
+    OAuthAgent:
+      type: oauth2
+      description: Public Aomi OAuth access token (`aomi_at_...`) for the Agent resource.
+      flows:
+        authorizationCode:
+          authorizationUrl: /api/auth/oauth2/authorize
+          tokenUrl: /api/auth/oauth2/token
+          refreshUrl: /api/auth/oauth2/token
+          scopes:
+            agent: Run and observe Aomi Agent sessions.
+            profile: Read the canonical account profile.
+            offline_access: Request a refresh token when client policy permits.
+    FirstPartyCookie:
+      type: apiKey
+      in: cookie
+      name: better-auth.session_token
+      description: First-party Portal Better Auth session cookie.
+    GuestSession:
+      type: http
+      scheme: guest-session
+      description: >-
+        Possession of the high-entropy `sess_...` carried by the documented
+        request session field/path. This scheme does not introduce a second
+        header or durable guest credential.
+  parameters:
+    ApplicationId:
+      name: application
+      in: path
+      required: true
+      schema:
+        $ref: "#/components/schemas/ApplicationId"
+    SessionId:
+      name: session
+      in: path
+      required: true
+      schema:
+        $ref: "#/components/schemas/SessionId"
+    ActionId:
+      name: action
+      in: path
+      required: true
+      schema:
+        $ref: "#/components/schemas/ActionId"
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 16
+        maxLength: 255
+    PaymentSignature:
+      name: Payment-Signature
+      in: header
+      required: false
+      schema:
+        type: string
+  headers:
+    PaymentRequired:
+      description: Standard x402 payment challenge.
+      schema:
+        type: string
+    PaymentResponse:
+      description: Standard x402 settlement response.
+      schema:
+        type: string
+  responses:
+    Error:
+      description: Stable public error envelope.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+  schemas:
+    ApplicationId:
+      type: string
+      pattern: "^app_[0-9A-HJKMNP-TV-Z]+$"
+      examples: [app_9]
+    SessionId:
+      type: string
+      pattern: "^sess_[A-Za-z0-9_-]{22,}$"
+    ActionId:
+      type: string
+      pattern: "^act_[A-Za-z0-9_-]+$"
+    Cursor:
+      type: string
+      pattern: "^cur_[A-Za-z0-9_-]+$"
+    Application:
+      type: object
+      additionalProperties: false
+      required: [id, name, label, platform, activeRelease, capabilities]
+      properties:
+        id:
+          $ref: "#/components/schemas/ApplicationId"
+        name:
+          type: string
+        label:
+          type: string
+        platform:
+          type: string
+        activeRelease:
+          type: [string, "null"]
+        capabilities:
+          type: array
+          items:
+            enum: [agent, evm, svm, externalSigning, hostedExecution]
+    Chain:
+      type: object
+      additionalProperties: false
+      required: [family, id, name, capabilities]
+      properties:
+        family:
+          enum: [evm, svm]
+        id:
+          oneOf:
+            - type: integer
+              minimum: 1
+            - type: string
+              minLength: 1
+        name:
+          type: string
+        capabilities:
+          type: array
+          items:
+            enum:
+              [
+                externalTransaction,
+                personalSign,
+                typedDataSign,
+                messageSign,
+                transactionSign,
+                accountAbstraction,
+              ]
+    WalletContext:
+      type: object
+      additionalProperties: false
+      properties:
+        evm:
+          type: object
+          required: [address, chainId]
+          properties:
+            address:
+              type: string
+              pattern: "^0x[0-9a-fA-F]{40}$"
+            chainId:
+              type: integer
+              minimum: 1
+        svm:
+          type: object
+          required: [address, cluster]
+          properties:
+            address:
+              type: string
+            cluster:
+              type: string
+    StartTurnRequest:
+      type: object
+      additionalProperties: false
+      required: [session, message, application]
+      properties:
+        session:
+          $ref: "#/components/schemas/SessionId"
+        message:
+          type: string
+          minLength: 1
+          maxLength: 65536
+        application:
+          $ref: "#/components/schemas/ApplicationId"
+        model:
+          type: string
+          default: default
+        wallets:
+          $ref: "#/components/schemas/WalletContext"
+    Message:
+      type: object
+      additionalProperties: false
+      required: [id, role, content, createdAt]
+      properties:
+        id:
+          type: string
+        role:
+          enum: [user, assistant, system]
+        content:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    Activity:
+      oneOf:
+        - $ref: "#/components/schemas/ToolActivity"
+        - $ref: "#/components/schemas/TaskActivity"
+        - $ref: "#/components/schemas/TurnActivity"
+      discriminator:
+        propertyName: type
+        mapping:
+          tool: "#/components/schemas/ToolActivity"
+          task: "#/components/schemas/TaskActivity"
+          turn: "#/components/schemas/TurnActivity"
+    ToolActivity:
+      type: object
+      additionalProperties: false
+      required: [type, id, name, status, createdAt]
+      properties:
+        type:
+          const: tool
+        id:
+          type: string
+        name:
+          type: string
+        status:
+          enum: [started, updated, completed, failed]
+        createdAt:
+          type: string
+          format: date-time
+        details:
+          type: object
+          additionalProperties: true
+    TaskActivity:
+      type: object
+      additionalProperties: false
+      required: [type, id, status, createdAt]
+      properties:
+        type:
+          const: task
+        id:
+          type: string
+        status:
+          enum: [started, activity, completed, failed]
+        createdAt:
+          type: string
+          format: date-time
+        details:
+          type: object
+          additionalProperties: true
+    TurnActivity:
+      type: object
+      additionalProperties: false
+      required: [type, status, createdAt]
+      properties:
+        type:
+          const: turn
+        status:
+          enum: [started, awaiting_input, completed, failed, interrupted]
+        createdAt:
+          type: string
+          format: date-time
+    Turn:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status:
+          enum: [idle, thinking, awaiting_input, completed, failed, interrupted]
+        error:
+          type: [string, "null"]
+    ActionBase:
+      type: object
+      required:
+        [
+          id,
+          type,
+          generation,
+          contextGeneration,
+          revision,
+          status,
+          createdAt,
+          description,
+        ]
+      properties:
+        id:
+          $ref: "#/components/schemas/ActionId"
+        type:
+          enum: [external_transaction, signing_request]
+        generation:
+          type: integer
+          minimum: 1
+        contextGeneration:
+          type: integer
+          minimum: 0
+        revision:
+          type: integer
+          minimum: 0
+        status:
+          enum:
+            [
+              pending,
+              verifying,
+              signed,
+              submitted,
+              confirmed,
+              finalized,
+              rejected,
+              failed,
+              expired,
+              superseded,
+            ]
+        createdAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: [string, "null"]
+          format: date-time
+        description:
+          type: string
+    AgentAction:
+      oneOf:
+        - $ref: "#/components/schemas/EvmExternalTransactionAction"
+        - $ref: "#/components/schemas/SvmExternalTransactionAction"
+        - $ref: "#/components/schemas/SigningRequestAction"
+      description: >-
+        Discriminated first by type and, for external_transaction, by
+        chainFamily. This two-field distinction avoids pretending both EVM and
+        SVM variants have different kernel action types.
+    EvmExternalTransactionAction:
+      allOf:
+        - $ref: "#/components/schemas/ActionBase"
+        - type: object
+          additionalProperties: false
+          required:
+            [
+              type,
+              chainFamily,
+              executionKind,
+              chainId,
+              signer,
+              broadcaster,
+              transactions,
+            ]
+          properties:
+            type:
+              const: external_transaction
+            chainFamily:
+              const: evm
+            executionKind:
+              const: eoa
+            chainId:
+              type: integer
+              minimum: 1
+            signer:
+              type: string
+              pattern: "^0x[0-9a-fA-F]{40}$"
+            broadcaster:
+              const: wallet
+            transactions:
+              type: array
+              minItems: 1
+              items:
+                $ref: "#/components/schemas/EvmTransactionIntent"
+    EvmTransactionIntent:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          from,
+          to,
+          value,
+          data,
+          accessList,
+          description,
+          simulation,
+          intentHash,
+        ]
+      properties:
+        id:
+          type: string
+          pattern: "^leg_[A-Za-z0-9_-]+$"
+        from:
+          type: string
+          pattern: "^0x[0-9a-fA-F]{40}$"
+        to:
+          type: string
+          pattern: "^0x[0-9a-fA-F]{40}$"
+        value:
+          $ref: "#/components/schemas/HexQuantity"
+        data:
+          type: string
+          pattern: "^0x[0-9a-fA-F]*$"
+        gas:
+          oneOf:
+            - $ref: "#/components/schemas/HexQuantity"
+            - type: "null"
+        maxFeePerGas:
+          oneOf:
+            - $ref: "#/components/schemas/HexQuantity"
+            - type: "null"
+        maxPriorityFeePerGas:
+          oneOf:
+            - $ref: "#/components/schemas/HexQuantity"
+            - type: "null"
+        gasPrice:
+          oneOf:
+            - $ref: "#/components/schemas/HexQuantity"
+            - type: "null"
+        nonce:
+          oneOf:
+            - $ref: "#/components/schemas/HexQuantity"
+            - type: "null"
+        transactionType:
+          oneOf:
+            - $ref: "#/components/schemas/HexQuantity"
+            - type: "null"
+        accessList:
+          type: array
+          items:
+            type: object
+            required: [address, storageKeys]
+            properties:
+              address:
+                type: string
+              storageKeys:
+                type: array
+                items:
+                  type: string
+        description:
+          type: string
+        simulation:
+          $ref: "#/components/schemas/Simulation"
+        intentHash:
+          type: string
+          pattern: "^0x[0-9a-fA-F]{64}$"
+    SvmExternalTransactionAction:
+      allOf:
+        - $ref: "#/components/schemas/ActionBase"
+        - type: object
+          additionalProperties: false
+          required:
+            [
+              type,
+              chainFamily,
+              executionKind,
+              cluster,
+              signer,
+              broadcaster,
+              transactions,
+            ]
+          properties:
+            type:
+              const: external_transaction
+            chainFamily:
+              const: svm
+            executionKind:
+              const: wallet
+            cluster:
+              type: string
+            signer:
+              type: string
+            broadcaster:
+              const: wallet
+            transactions:
+              type: array
+              minItems: 1
+              items:
+                $ref: "#/components/schemas/SvmTransactionIntent"
+    SvmTransactionIntent:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          unsignedTransactionBase64,
+          recentBlockhash,
+          preserveBlockhash,
+          description,
+          intentHash,
+        ]
+      properties:
+        id:
+          type: string
+          pattern: "^leg_[A-Za-z0-9_-]+$"
+        unsignedTransactionBase64:
+          type: string
+          contentEncoding: base64
+        recentBlockhash:
+          type: string
+        lastValidBlockHeight:
+          type: [integer, "null"]
+          minimum: 0
+        preserveBlockhash:
+          type: boolean
+        description:
+          type: string
+        intentHash:
+          type: string
+    SigningRequestAction:
+      allOf:
+        - $ref: "#/components/schemas/ActionBase"
+        - type: object
+          additionalProperties: false
+          required:
+            [type, chainFamily, executionKind, signer, broadcaster, payloads]
+          properties:
+            type:
+              const: signing_request
+            chainFamily:
+              enum: [evm, svm]
+            executionKind:
+              enum: [message, transaction, account_abstraction, hosted]
+            signer:
+              type: string
+            chainId:
+              type: [integer, "null"]
+              minimum: 1
+            cluster:
+              type: [string, "null"]
+            broadcaster:
+              enum: [wallet, venue, backend]
+            payloads:
+              type: array
+              minItems: 1
+              items:
+                $ref: "#/components/schemas/SignablePayload"
+            operationId:
+              type: [string, "null"]
+            executor:
+              type: [string, "null"]
+            callsDigest:
+              type: [string, "null"]
+            calls:
+              type: array
+              items:
+                $ref: "#/components/schemas/DisplayCall"
+            fees:
+              type: array
+              items:
+                $ref: "#/components/schemas/FeeDisclosure"
+            sponsorship:
+              type: [string, "null"]
+              enum: [required, null]
+    SignablePayload:
+      oneOf:
+        - $ref: "#/components/schemas/EvmPersonalPayload"
+        - $ref: "#/components/schemas/EvmTypedDataPayload"
+        - $ref: "#/components/schemas/SvmMessagePayload"
+        - $ref: "#/components/schemas/SvmTransactionPayload"
+      discriminator:
+        propertyName: kind
+        mapping:
+          evm_personal: "#/components/schemas/EvmPersonalPayload"
+          evm_typed_data: "#/components/schemas/EvmTypedDataPayload"
+          svm_message: "#/components/schemas/SvmMessagePayload"
+          svm_transaction: "#/components/schemas/SvmTransactionPayload"
+    EvmPersonalPayload:
+      type: object
+      additionalProperties: false
+      required: [id, kind, message, digest]
+      properties:
+        id:
+          type: string
+        kind:
+          const: evm_personal
+        message:
+          type: string
+          pattern: "^0x[0-9a-fA-F]*$"
+        digest:
+          type: string
+          pattern: "^0x[0-9a-fA-F]{64}$"
+    EvmTypedDataPayload:
+      type: object
+      additionalProperties: false
+      required: [id, kind, typedData, digest]
+      properties:
+        id:
+          type: string
+        kind:
+          const: evm_typed_data
+        typedData:
+          type: object
+          additionalProperties: true
+        digest:
+          type: string
+          pattern: "^0x[0-9a-fA-F]{64}$"
+    SvmMessagePayload:
+      type: object
+      additionalProperties: false
+      required: [id, kind, messageBase64, digest]
+      properties:
+        id:
+          type: string
+        kind:
+          const: svm_message
+        messageBase64:
+          type: string
+          contentEncoding: base64
+        digest:
+          type: string
+    SvmTransactionPayload:
+      type: object
+      additionalProperties: false
+      required: [id, kind, transactionBase64, digest]
+      properties:
+        id:
+          type: string
+        kind:
+          const: svm_transaction
+        transactionBase64:
+          type: string
+          contentEncoding: base64
+        digest:
+          type: string
+    DisplayCall:
+      type: object
+      additionalProperties: false
+      required: [to, value]
+      properties:
+        to:
+          type: string
+        value:
+          type: string
+        data:
+          type: string
+    FeeDisclosure:
+      type: object
+      additionalProperties: false
+      required: [asset, amount, recipient]
+      properties:
+        asset:
+          type: object
+          required: [kind]
+          properties:
+            kind:
+              enum: [native, token]
+            address:
+              type: string
+        amount:
+          type: string
+        recipient:
+          type: string
+    Simulation:
+      type: object
+      additionalProperties: false
+      required: [success]
+      properties:
+        success:
+          type: boolean
+        gasUsed:
+          oneOf:
+            - $ref: "#/components/schemas/HexQuantity"
+            - type: "null"
+        error:
+          type: [string, "null"]
+    HexQuantity:
+      type: string
+      pattern: "^0x(?:0|[1-9a-fA-F][0-9a-fA-F]*)$"
+    ActionResult:
+      oneOf:
+        - $ref: "#/components/schemas/ExternalTransactionResult"
+        - $ref: "#/components/schemas/SigningResult"
+        - $ref: "#/components/schemas/RejectedActionResult"
+      discriminator:
+        propertyName: status
+        mapping:
+          submitted: "#/components/schemas/ExternalTransactionResult"
+          signed: "#/components/schemas/SigningResult"
+          rejected: "#/components/schemas/RejectedActionResult"
+    ExternalTransactionResult:
+      type: object
+      additionalProperties: false
+      required: [status, revision, legs]
+      properties:
+        status:
+          const: submitted
+        revision:
+          type: integer
+          minimum: 0
+        legs:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/ExternalTransactionLegResult"
+    ExternalTransactionLegResult:
+      type: object
+      additionalProperties: false
+      required: [id, status]
+      properties:
+        id:
+          type: string
+        status:
+          enum: [submitted, rejected, failed, skipped]
+        transactionId:
+          type: string
+        signedTransactionBase64:
+          type: string
+          contentEncoding: base64
+        reason:
+          type: string
+    SigningResult:
+      type: object
+      additionalProperties: false
+      required: [status, revision, outputs]
+      properties:
+        status:
+          const: signed
+        revision:
+          type: integer
+          minimum: 0
+        outputs:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/SigningOutput"
+    SigningOutput:
+      type: object
+      additionalProperties: false
+      required: [id]
+      properties:
+        id:
+          type: string
+        signature:
+          type: string
+        signedTransactionBase64:
+          type: string
+          contentEncoding: base64
+      oneOf:
+        - required: [signature]
+        - required: [signedTransactionBase64]
+    RejectedActionResult:
+      type: object
+      additionalProperties: false
+      required: [status, revision, reason]
+      properties:
+        status:
+          const: rejected
+        revision:
+          type: integer
+          minimum: 0
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 512
+    AgentDelta:
+      type: object
+      additionalProperties: false
+      required: [session, turn, messages, activity, actions, cursor]
+      properties:
+        session:
+          $ref: "#/components/schemas/SessionId"
+        turn:
+          $ref: "#/components/schemas/Turn"
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/Message"
+        activity:
+          type: array
+          items:
+            $ref: "#/components/schemas/Activity"
+        actions:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgentAction"
+        cursor:
+          $ref: "#/components/schemas/Cursor"
+    PublicEvent:
+      type: object
+      additionalProperties: false
+      required: [id, event, data]
+      properties:
+        id:
+          $ref: "#/components/schemas/Cursor"
+        event:
+          enum:
+            [
+              message.created,
+              message.updated,
+              activity,
+              action.created,
+              action.updated,
+              turn.completed,
+              resync,
+            ]
+        data:
+          type: object
+          additionalProperties: true
+    Session:
+      type: object
+      additionalProperties: false
+      required: [id, application, title, archived, createdAt, updatedAt]
+      properties:
+        id:
+          $ref: "#/components/schemas/SessionId"
+        application:
+          $ref: "#/components/schemas/ApplicationId"
+        title:
+          type: string
+        archived:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    ErrorEnvelope:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          $ref: "#/components/schemas/PublicError"
+    PublicError:
+      type: object
+      additionalProperties: false
+      required: [code, message, retryable]
+      properties:
+        code:
+          enum:
+            - invalid_auth
+            - authentication_required
+            - invalid_cursor
+            - insufficient_scope
+            - custody_not_allowed
+            - app_not_authorized
+            - payment_required
+            - quota_exhausted
+            - session_not_found
+            - session_expired
+            - cursor_expired
+            - action_not_found
+            - action_expired
+            - busy
+            - action_conflict
+            - action_superseded
+            - idempotency_conflict
+            - invalid_action_result
+            - transaction_not_observed
+            - transaction_mismatch
+            - unsupported_action
+            - payload_too_large
+            - rate_limited
+            - internal_error
+        message:
+          type: string
+        retryable:
+          type: boolean
+        details:
+          type: object
+          additionalProperties: true
+    JsonRpcRequest:
+      type: object
+      additionalProperties: false
+      required: [jsonrpc, method]
+      properties:
+        jsonrpc:
+          const: "2.0"
+        id:
+          oneOf:
+            - type: string
+            - type: number
+            - type: "null"
+        method:
+          enum: [initialize, ping, tools/list, tools/call]
+        params:
+          type: object
+          additionalProperties: true
+    JsonRpcResponse:
+      type: object
+      additionalProperties: false
+      required: [jsonrpc]
+      properties:
+        jsonrpc:
+          const: "2.0"
+        id:
+          oneOf:
+            - type: string
+            - type: number
+            - type: "null"
+        result:
+          type: object
+          additionalProperties: true
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: integer
+            message:
+              type: string
+            data:
+              type: object
+              additionalProperties: true
+      oneOf:
+        - required: [result]
+        - required: [error]
+    OAuthMetadata:
+      type: object
+      additionalProperties: true
+      required: [issuer, authorization_endpoint, token_endpoint]
+      properties:
+        issuer:
+          type: string
+          format: uri
+        authorization_endpoint:
+          type: string
+          format: uri
+        token_endpoint:
+          type: string
+          format: uri
+        device_authorization_endpoint:
+          type: string
+          format: uri
+        registration_endpoint:
+          type: string
+          format: uri
+        scopes_supported:
+          type: array
+          items:
+            type: string
+    ProtectedResourceMetadata:
+      type: object
+      additionalProperties: false
+      required: [resource, authorization_servers, scopes_supported]
+      properties:
+        resource:
+          type: string
+          format: uri
+        authorization_servers:
+          type: array
+          minItems: 1
+          maxItems: 1
+          items:
+            type: string
+            format: uri
+        scopes_supported:
+          type: array
+          items:
+            type: string
+    DeviceAuthorization:
+      type: object
+      additionalProperties: false
+      required: [device_code, user_code, verification_uri, expires_in, interval]
+      properties:
+        device_code:
+          type: string
+        user_code:
+          type: string
+        verification_uri:
+          type: string
+          format: uri
+        verification_uri_complete:
+          type: string
+          format: uri
+        expires_in:
+          type: integer
+          minimum: 1
+        interval:
+          type: integer
+          minimum: 1
+    OAuthTokenRequest:
+      oneOf:
+        - type: object
+          required: [grant_type, code, client_id, redirect_uri, code_verifier]
+          properties:
+            grant_type:
+              const: authorization_code
+            code:
+              type: string
+            client_id:
+              type: string
+            redirect_uri:
+              type: string
+              format: uri
+            code_verifier:
+              type: string
+        - type: object
+          required: [grant_type, refresh_token, client_id]
+          properties:
+            grant_type:
+              const: refresh_token
+            refresh_token:
+              type: string
+              pattern: "^aomi_rt_"
+            client_id:
+              type: string
+        - type: object
+          required: [grant_type, device_code, client_id]
+          properties:
+            grant_type:
+              const: urn:ietf:params:oauth:grant-type:device_code
+            device_code:
+              type: string
+            client_id:
+              type: string
+        - type: object
+          required:
+            [grant_type, client_id, challenge, signature, scope, resource]
+          properties:
+            grant_type:
+              enum:
+                [
+                  urn:aomi:params:oauth:grant-type:siwe,
+                  urn:aomi:params:oauth:grant-type:siws,
+                ]
+            client_id:
+              type: string
+            challenge:
+              type: string
+            signature:
+              type: string
+            scope:
+              type: string
+            resource:
+              type: string
+              format: uri
+    OAuthTokenResponse:
+      type: object
+      additionalProperties: false
+      required: [access_token, token_type, expires_in, scope]
+      properties:
+        access_token:
+          type: string
+          pattern: "^aomi_at_"
+        token_type:
+          const: Bearer
+        expires_in:
+          type: integer
+          minimum: 1
+        refresh_token:
+          type: string
+          pattern: "^aomi_rt_"
+        scope:
+          type: string
