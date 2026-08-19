@@ -85,6 +85,7 @@ export type {
   AomiThread,
   Logger,
 } from "./types";
+export type { components as AomiPublicV1 } from "./generated/public-v1/types";
 export {
   createProviderCredentialAdapter,
   createSiweWidgetAuthAdapter,

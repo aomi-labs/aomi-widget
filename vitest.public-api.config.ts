@@ -17,6 +17,7 @@ export default defineConfig({
   test: {
     environment: "node",
     include: [
+      "apps/portal/src/server/agent/action-projection.test.ts",
       "apps/portal/src/server/agent/application-id.test.ts",
       "apps/portal/src/server/agent/credential-ladder.test.ts",
       "apps/portal/src/server/agent/cursor.test.ts",

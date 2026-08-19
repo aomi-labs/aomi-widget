@@ -850,11 +850,10 @@ components:
         - $ref: "#/components/schemas/EvmExternalTransactionAction"
         - $ref: "#/components/schemas/SvmExternalTransactionAction"
         - $ref: "#/components/schemas/SigningRequestAction"
-      discriminator:
-        propertyName: type
-        mapping:
-          external_transaction: "#/components/schemas/EvmExternalTransactionAction"
-          signing_request: "#/components/schemas/SigningRequestAction"
+      description: >-
+        Discriminated first by type and, for external_transaction, by
+        chainFamily. This two-field distinction avoids pretending both EVM and
+        SVM variants have different kernel action types.
     EvmExternalTransactionAction:
       allOf:
         - $ref: "#/components/schemas/ActionBase"
@@ -1079,6 +1078,11 @@ components:
         - $ref: "#/components/schemas/SvmTransactionPayload"
       discriminator:
         propertyName: kind
+        mapping:
+          evm_personal: "#/components/schemas/EvmPersonalPayload"
+          evm_typed_data: "#/components/schemas/EvmTypedDataPayload"
+          svm_message: "#/components/schemas/SvmMessagePayload"
+          svm_transaction: "#/components/schemas/SvmTransactionPayload"
     EvmPersonalPayload:
       type: object
       additionalProperties: false
