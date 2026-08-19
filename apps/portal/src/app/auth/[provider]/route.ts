@@ -13,10 +13,9 @@ export async function GET(
   const searchParams = request.nextUrl.searchParams;
 
   // Redirect to the correct API delegation endpoint with all query parameters
-  const delegationUrl = new URL(
-    `/api/delegation/${provider}/begin?${searchParams.toString()}`,
-    request.nextUrl.origin
-  );
+  const delegationUrl = new URL(request.nextUrl.origin);
+  delegationUrl.pathname = `/api/delegation/${provider}/begin`;
+  delegationUrl.search = searchParams.toString();
 
   return NextResponse.redirect(delegationUrl);
 }
