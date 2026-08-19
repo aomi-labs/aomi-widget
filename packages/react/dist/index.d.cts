@@ -505,10 +505,11 @@ type ByokState = {
     byokKeys: Record<string, StoredByokKey>;
 };
 type SecretsActions = {
-    ingestSecrets: (secrets: Record<string, string>, app?: string) => Promise<Record<string, string>>;
-    clearSecrets: (app?: string) => Promise<void>;
-    deleteSecret: (name: string, app?: string) => Promise<void>;
-    listSecrets: () => Promise<Record<string, string[]>>;
+    ingestSecrets: (secrets: Record<string, string>) => Promise<Record<string, string>>;
+    clearSecrets: () => Promise<void>;
+    deleteSecret: (name: string) => Promise<void>;
+    /** Stored handle names for this client. Never values. */
+    listSecrets: () => Promise<string[]>;
 };
 type ByokActions = SecretsActions & {
     setByok: (provider: string, apiKey: string, label?: string) => Promise<void>;
