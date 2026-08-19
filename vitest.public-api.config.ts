@@ -19,6 +19,7 @@ export default defineConfig({
     include: [
       "apps/portal/src/server/agent/application-id.test.ts",
       "apps/portal/src/server/agent/credential-ladder.test.ts",
+      "apps/portal/src/server/agent/cursor.test.ts",
       "apps/portal/src/server/agent/guest-admission.test.ts",
       "apps/portal/src/server/agent/internal-principal.test.ts",
       "apps/portal/src/server/agent/public-contract.test.ts",
