@@ -11,7 +11,7 @@ describe("AomiClient route manifest", () => {
         `${endpoint.method} ${endpoint.path} [${endpoint.auth.join(", ")}]`,
     );
 
-    expect(routeKeys).toHaveLength(146);
+    expect(routeKeys).toHaveLength(155);
     expect(new Set(routeKeys).size).toBe(routeKeys.length);
     expect(routeKeys).toContain("GET /api/account/statement [account]");
     // Public placement probe. Kept distinct from GET /health, which stays a
@@ -62,6 +62,18 @@ describe("AomiClient route manifest", () => {
     );
     expect(routeKeys).toContain(
       "POST /api/platforms/:name/telegram/handover/:bot/:id/revoke [activation]",
+    );
+    // Routes production still serves that the candidate backend no longer
+    // exports. The promotion gate requires the manifest to cover every live
+    // route, so these stay until prod stops serving them.
+    expect(routeKeys).toContain("GET /api/secrets [thread]");
+    expect(routeKeys).toContain("POST /api/secrets [thread]");
+    expect(routeKeys).toContain("DELETE /api/secrets/:name [thread]");
+    expect(routeKeys).toContain(
+      "GET /api/widget/v1/execution-profile [account, thread]",
+    );
+    expect(routeKeys).toContain(
+      "PUT /api/widget/v1/aa-accounts/:chain_id [account, thread]",
     );
     expect(routeKeys).not.toContain("GET /api/control/apps [session]");
     expect(routeKeys.some((route) => route.includes("/api/control/"))).toBe(
