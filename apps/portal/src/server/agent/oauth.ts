@@ -1,57 +1,22 @@
 import "server-only";
 
-import { randomBytes } from "node:crypto";
-
-import {
-  getOrCreateAomiUserForBetterAuthSession,
-  getPool,
-} from "@aomi-labs/account";
+import { getOrCreateAomiUserForBetterAuthSession } from "@aomi-labs/account";
 import { auth, parseSiwsMessage } from "@aomi-labs/account/better-auth";
 import { parseSiweMessage } from "viem/siwe";
 
 import type { AccountInternalPrincipal } from "./internal-principal";
+import { asRecord, type TokenPayload } from "./oauth-common";
+import {
+  PostgresOAuthPersistence,
+  type OAuthPersistence,
+} from "./oauth-persistence";
+
+export { PostgresOAuthPersistence } from "./oauth-persistence";
+export type { OAuthPersistence } from "./oauth-persistence";
 
 const ACCESS_PREFIX = "aomi_at_";
 const REFRESH_PREFIX = "aomi_rt_";
 const ALLOWED_SCOPES = new Set(["agent", "profile", "offline_access"]);
-
-type TokenPayload = {
-  access_token: string;
-  token_type: string;
-  expires_in: number;
-  refresh_token?: string;
-  scope: string;
-};
-
-type OAuthClient = {
-  clientId: string;
-  disabled: boolean;
-  directWalletGrants: string[];
-};
-
-export interface OAuthPersistence {
-  client(clientId: string): Promise<OAuthClient | null>;
-  claimRefresh(raw: string): Promise<{ id: string; claim: string } | null>;
-  finishRefresh(claim: { id: string; claim: string }): Promise<void>;
-  restoreRefresh(
-    claim: { id: string; claim: string },
-    raw: string,
-  ): Promise<void>;
-  issueFromSession(input: {
-    sessionToken: string;
-    clientId: string;
-    scopes: string[];
-  }): Promise<TokenPayload | null>;
-  access(raw: string): Promise<{
-    betterAuthUserId: string;
-    email: string | null;
-    emailVerified: boolean;
-    name: string | null;
-    image: string | null;
-    clientId: string;
-    scopes: string[];
-  } | null>;
-}
 
 export async function oauthMetadata(request: Request): Promise<Response> {
   const issuer = oauthIssuer(request);
@@ -305,150 +270,6 @@ export function oauthChallenge(request: Request, scope = "agent"): Response {
   );
 }
 
-export class PostgresOAuthPersistence implements OAuthPersistence {
-  async client(clientId: string): Promise<OAuthClient | null> {
-    const result = await getPool().query<{
-      metadata: string | null;
-      disabled: boolean;
-    }>(
-      `select metadata, disabled from ba_oauth_applications where client_id = $1`,
-      [clientId],
-    );
-    const row = result.rows[0];
-    if (!row) return null;
-    const metadata = asRecord(parseJson(row.metadata));
-    return {
-      clientId,
-      disabled: row.disabled,
-      directWalletGrants: Array.isArray(metadata?.aomiDirectWalletGrants)
-        ? metadata.aomiDirectWalletGrants.filter(
-            (value): value is string => typeof value === "string",
-          )
-        : [],
-    };
-  }
-
-  async claimRefresh(raw: string) {
-    const claim = `rotating_${token()}`;
-    const result = await getPool().query<{ id: string }>(
-      `update ba_oauth_access_tokens set refresh_token = $2, updated_at = now()
-        where refresh_token = $1 and refresh_token_expires_at > now()
-        returning id`,
-      [raw, claim],
-    );
-    return result.rows[0] ? { id: result.rows[0].id, claim } : null;
-  }
-
-  async finishRefresh(claim: { id: string; claim: string }): Promise<void> {
-    await getPool().query(
-      `delete from ba_oauth_access_tokens where id = $1 and refresh_token = $2`,
-      [claim.id, claim.claim],
-    );
-  }
-
-  async restoreRefresh(
-    claim: { id: string; claim: string },
-    raw: string,
-  ): Promise<void> {
-    await getPool().query(
-      `update ba_oauth_access_tokens set refresh_token = $3, updated_at = now()
-        where id = $1 and refresh_token = $2`,
-      [claim.id, claim.claim, raw],
-    );
-  }
-
-  async issueFromSession(input: {
-    sessionToken: string;
-    clientId: string;
-    scopes: string[];
-  }): Promise<TokenPayload | null> {
-    const db = await getPool().connect();
-    try {
-      await db.query("begin");
-      const session = await db.query<{ user_id: string }>(
-        `select s.user_id from ba_sessions s
-          join ba_oauth_applications a on a.client_id = $2 and a.disabled = false
-         where s.token = $1 and s.expires_at > now()
-         for update of s`,
-        [input.sessionToken, input.clientId],
-      );
-      const userId = session.rows[0]?.user_id;
-      if (!userId) {
-        await db.query("rollback");
-        return null;
-      }
-      const accessToken = token();
-      const refreshToken = token();
-      await db.query(
-        `insert into ba_oauth_access_tokens
-          (id, access_token, refresh_token, access_token_expires_at,
-           refresh_token_expires_at, client_id, user_id, scopes, created_at, updated_at)
-         values ($1, $2, $3, now() + interval '1 hour', now() + interval '7 days',
-                 $4, $5, $6, now(), now())`,
-        [
-          token(),
-          accessToken,
-          refreshToken,
-          input.clientId,
-          userId,
-          input.scopes.join(" "),
-        ],
-      );
-      await db.query(`delete from ba_sessions where token = $1`, [
-        input.sessionToken,
-      ]);
-      await db.query("commit");
-      return {
-        access_token: accessToken,
-        refresh_token: input.scopes.includes("offline_access")
-          ? refreshToken
-          : undefined,
-        token_type: "Bearer",
-        expires_in: 3600,
-        scope: input.scopes.join(" "),
-      };
-    } catch (error) {
-      await db.query("rollback");
-      throw error;
-    } finally {
-      db.release();
-    }
-  }
-
-  async access(raw: string) {
-    const result = await getPool().query<{
-      user_id: string;
-      email: string | null;
-      email_verified: boolean;
-      name: string | null;
-      image: string | null;
-      client_id: string;
-      scopes: string;
-    }>(
-      `select u.id as user_id, u.email, u.email_verified, u.name, u.image,
-              t.client_id, t.scopes
-         from ba_oauth_access_tokens t
-         join ba_users u on u.id = t.user_id
-         join ba_oauth_applications a on a.client_id = t.client_id
-        where t.access_token = $1 and t.access_token_expires_at > now()
-          and a.disabled = false`,
-      [raw],
-    );
-    const row = result.rows[0];
-    return row
-      ? {
-          betterAuthUserId: row.user_id,
-          email: row.email,
-          emailVerified: row.email_verified,
-          name: row.name,
-          image: row.image,
-          clientId: row.client_id,
-          scopes: row.scopes.split(/\s+/).filter(Boolean),
-        }
-      : null;
-  }
-}
-
 async function delegateAuth(
   request: Request,
   path: string,
@@ -567,10 +388,6 @@ function prefixed(value: string | undefined, prefix: string): string | null {
     : null;
 }
 
-function token(): string {
-  return randomBytes(32).toString("base64url");
-}
-
 async function form(request: Request): Promise<Record<string, string>> {
   const contentType = request.headers.get("content-type") ?? "";
   const input = contentType.includes("application/json")
@@ -602,21 +419,6 @@ function oauthError(status: number, error: string): Response {
   return oauthJson({ error, error_description: error }, status);
 }
 
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
-}
-
 function string(value: unknown): string | undefined {
   return typeof value === "string" && value ? value : undefined;
-}
-
-function parseJson(value: string | null): unknown {
-  if (!value) return null;
-  try {
-    return JSON.parse(value);
-  } catch {
-    return null;
-  }
 }
