@@ -53,6 +53,35 @@ describe("BFF-owned public API contract", () => {
     expect(Object.keys(contract.paths).sort()).toEqual(expectedPaths);
   });
 
+  it("has a physical BFF route for every canonical public operation", () => {
+    const appRoot = new URL("../../app/", import.meta.url).pathname;
+    const routes = filesBelow(appRoot)
+      .filter((path) => path.endsWith("/route.ts"))
+      .map((path) => path.slice(appRoot.length - 1));
+    expect(routes).toEqual(
+      expect.arrayContaining([
+        "/.well-known/oauth-authorization-server/route.ts",
+        "/.well-known/openid-configuration/route.ts",
+        "/.well-known/oauth-protected-resource/v1/agent/route.ts",
+        "/api/auth/oauth2/authorize/route.ts",
+        "/api/auth/oauth2/consent/route.ts",
+        "/api/auth/oauth2/device/code/route.ts",
+        "/api/auth/oauth2/register/route.ts",
+        "/api/auth/oauth2/token/route.ts",
+        "/v1/agent/chat/route.ts",
+        "/v1/agent/chat/[session]/route.ts",
+        "/v1/agent/chat/[session]/actions/[action]/result/route.ts",
+        "/v1/agent/chat/[session]/interrupt/route.ts",
+        "/v1/agent/mcp/route.ts",
+        "/v1/agent/sessions/route.ts",
+        "/v1/agent/sessions/[session]/route.ts",
+        "/v1/apps/route.ts",
+        "/v1/apps/[application]/route.ts",
+        "/v1/chains/route.ts",
+      ]),
+    );
+  });
+
   it("owns public auth without leaking the internal principal scheme", () => {
     expect(Object.keys(contract.components.securitySchemes).sort()).toEqual([
       "FirstPartyCookie",

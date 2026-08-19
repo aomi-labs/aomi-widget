@@ -14,6 +14,7 @@ import {
   type DeviceAuthProvider,
 } from "../device-auth";
 import { DEFAULT_CLI_BASE_URL } from "../client-factory";
+import { signInWithOAuthDevice } from "../oauth-device";
 import {
   buildSignedWalletLink,
   requireAccountGraphClient,
@@ -33,6 +34,7 @@ export type AccountLoginOptions = {
   wallet?: boolean;
   solana?: boolean;
   noBrowser?: boolean;
+  oauthDevice?: boolean;
 };
 
 export type AccountLinkOptions = {
@@ -63,8 +65,36 @@ export async function accountLoginCommand(
   if (rewroteLegacyBackend && !config.json) {
     console.log(`Backend updated to ${DEFAULT_CLI_BASE_URL}`);
   }
-  if (options.solana && (options.wallet || options.provider)) {
-    fatal("Choose only one of `--solana`, `--wallet`, or `--provider`.");
+  if (
+    [
+      options.solana,
+      options.wallet,
+      Boolean(options.provider),
+      options.oauthDevice,
+    ].filter(Boolean).length > 1
+  ) {
+    fatal(
+      "Choose only one of `--solana`, `--wallet`, `--provider`, or `--oauth-device`.",
+    );
+  }
+  if (options.oauthDevice) {
+    const result = await signInWithOAuthDevice({ baseUrl: cli.baseUrl });
+    cli.setAuthSession(result.auth);
+    if (config.json) {
+      printJson({
+        status: "signed_in",
+        provider: "oauth_device",
+        baseUrl: cli.baseUrl,
+        expiresAt: new Date(result.auth.expiresAt).toISOString(),
+      });
+    } else {
+      console.log("Signed in with OAuth device authorization");
+      console.log(
+        `Access token expires at ${new Date(result.auth.expiresAt).toISOString()}`,
+      );
+      printDataFileLocation({ verbose: config.verbose });
+    }
+    return;
   }
   if (options.solana) {
     await accountLoginWithSiws(cli, config);

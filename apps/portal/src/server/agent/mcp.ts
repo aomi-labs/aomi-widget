@@ -1,9 +1,15 @@
 import { randomBytes } from "node:crypto";
 
-import type { McpToolDef, ToolOutcome } from "@portal/server/mcp/rpc";
+import {
+  handleMcpPost,
+  type McpToolDef,
+  type ToolOutcome,
+} from "@portal/server/mcp/rpc";
 
 import type { AgentFacade } from "./facade";
 import { resolveApplication } from "./application-discovery";
+import type { AccountInternalPrincipal } from "./internal-principal";
+import { createAgentFacade } from "./runtime";
 
 export const AGENT_MCP_INSTRUCTIONS = [
   "Use aomi_chat to start or continue an Aomi Agent turn.",
@@ -89,6 +95,18 @@ export const AGENT_MCP_TOOLS: McpToolDef[] = [
     },
   },
 ];
+
+export function handleAgentMcp(
+  request: Request,
+  principal: AccountInternalPrincipal,
+): Promise<Response> {
+  const facade = createAgentFacade(principal);
+  return handleMcpPost(request, {
+    tools: AGENT_MCP_TOOLS,
+    instructions: AGENT_MCP_INSTRUCTIONS,
+    dispatchTool: (name, args) => dispatchAgentMcp(facade, name, args),
+  });
+}
 
 export async function dispatchAgentMcp(
   facade: AgentFacade,

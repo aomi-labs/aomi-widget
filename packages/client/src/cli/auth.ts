@@ -86,17 +86,84 @@ const SESSION_TOKEN_HEADERS = ["set-auth-token", "x-auth-token", "auth-token"];
 export function createCliAuthTokenProvider(
   readState: () => Pick<
     CliSessionState,
-    "accountBearer" | "auth" | "sessionCookie"
+    "accountBearer" | "auth" | "baseUrl" | "sessionCookie"
   >,
   now: () => number = Date.now,
+  options: {
+    fetch?: typeof fetch;
+    writeAuth?: (auth: CliAuthSession) => void;
+  } = {},
 ): GetAccountBearer {
-  return async () => {
+  let refreshing: Promise<CliAuthSession> | null = null;
+  return async (requestOptions) => {
     const state = readState();
     const auth = state.auth;
-    if (auth?.sessionToken && auth.expiresAt > now() + AUTH_REFRESH_SKEW_MS) {
+    if (
+      auth?.sessionToken &&
+      auth.expiresAt > now() + AUTH_REFRESH_SKEW_MS &&
+      !requestOptions?.forceRefresh
+    ) {
       return auth.sessionToken;
     }
+    if (auth?.oauthRefreshToken && auth.oauthClientId) {
+      refreshing ??= refreshCliOAuthSession({
+        baseUrl: state.baseUrl,
+        auth,
+        fetch: options.fetch,
+        now,
+      }).finally(() => {
+        refreshing = null;
+      });
+      const refreshed = await refreshing;
+      options.writeAuth?.(refreshed);
+      return refreshed.sessionToken;
+    }
     return state.accountBearer ?? state.sessionCookie;
+  };
+}
+
+export async function refreshCliOAuthSession(input: {
+  baseUrl: string;
+  auth: CliAuthSession;
+  fetch?: typeof fetch;
+  now?: () => number;
+}): Promise<CliAuthSession> {
+  if (!input.auth.oauthRefreshToken || !input.auth.oauthClientId) {
+    throw new Error("CLI OAuth refresh credentials are missing");
+  }
+  const response = await (input.fetch ?? fetch)(
+    joinUrl(normalizeBaseUrl(input.baseUrl), "/api/auth/oauth2/token"),
+    {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        grant_type: "refresh_token",
+        refresh_token: input.auth.oauthRefreshToken,
+        client_id: input.auth.oauthClientId,
+      }),
+    },
+  );
+  const body = (await response.json().catch(() => ({}))) as Record<
+    string,
+    unknown
+  >;
+  const accessToken =
+    typeof body.access_token === "string" ? body.access_token : "";
+  const refreshToken =
+    typeof body.refresh_token === "string" ? body.refresh_token : "";
+  if (
+    !response.ok ||
+    !accessToken.startsWith("aomi_at_") ||
+    !refreshToken.startsWith("aomi_rt_")
+  ) {
+    throw new Error("CLI OAuth refresh failed");
+  }
+  return {
+    ...input.auth,
+    sessionToken: accessToken,
+    oauthRefreshToken: refreshToken,
+    expiresAt:
+      (input.now ?? Date.now)() + Number(body.expires_in ?? 3600) * 1_000,
   };
 }
 

@@ -1,7 +1,7 @@
 import { betterAuth } from "better-auth";
 import { generateRandomString } from "better-auth/crypto";
 import { nextCookies } from "better-auth/next-js";
-import { bearer, mcp, siwe } from "better-auth/plugins";
+import { bearer, deviceAuthorization, mcp, siwe } from "better-auth/plugins";
 import { getPool } from "../db/pool";
 import { readAccountAuthEnv } from "./env";
 import { verifySiweMessage } from "./siwe";
@@ -84,6 +84,44 @@ function snakeCasedMcp(plugin: ReturnType<typeof mcp>) {
   return { ...plugin, schema };
 }
 
+function snakeCasedDevice(plugin: ReturnType<typeof deviceAuthorization>) {
+  const definition = plugin.schema!.deviceCode;
+  return {
+    ...plugin,
+    schema: {
+      deviceCode: {
+        ...definition,
+        modelName: "ba_oauth_device_codes",
+        fields: {
+          ...definition.fields,
+          deviceCode: {
+            ...definition.fields.deviceCode,
+            fieldName: "device_code",
+          },
+          userCode: {
+            ...definition.fields.userCode,
+            fieldName: "user_code",
+          },
+          userId: { ...definition.fields.userId, fieldName: "user_id" },
+          expiresAt: {
+            ...definition.fields.expiresAt,
+            fieldName: "expires_at",
+          },
+          lastPolledAt: {
+            ...definition.fields.lastPolledAt,
+            fieldName: "last_polled_at",
+          },
+          pollingInterval: {
+            ...definition.fields.pollingInterval,
+            fieldName: "polling_interval",
+          },
+          clientId: { ...definition.fields.clientId, fieldName: "client_id" },
+        },
+      },
+    },
+  };
+}
+
 export const auth = betterAuth({
   database: getPool(),
   trustedOrigins: env.trustedOrigins,
@@ -157,6 +195,22 @@ export const auth = betterAuth({
       getNonce: async () => generateRandomString(32, "a-z", "A-Z", "0-9"),
     }),
     bearer(),
+    snakeCasedDevice(
+      deviceAuthorization({
+        schema: {},
+        expiresIn: "15m",
+        interval: "5s",
+        verificationUri: "/connect/device",
+        validateClient: async (clientId) => {
+          const result = await getPool().query(
+            `select 1 from ba_oauth_applications
+              where client_id = $1 and disabled = false`,
+            [clientId],
+          );
+          return Boolean(result.rowCount);
+        },
+      }),
+    ),
     // OAuth provider for MCP clients (Claude, Codex): dynamic client
     // registration + PKCE + access tokens. `withMcpAuth` on the /api/mcp
     // route consumes the sessions this issues. /mcp/connect handles both
@@ -164,12 +218,15 @@ export const auth = betterAuth({
     // approve/deny step (consentPage → POST /oauth2/consent).
     snakeCasedMcp(
       mcp({
-        loginPage: "/mcp/connect",
+        loginPage: "/connect",
         // `mcp()` copies its own `loginPage` over this one; the field is only
         // repeated because `OIDCOptions` requires it.
         oidcConfig: {
-          loginPage: "/mcp/connect",
-          consentPage: "/mcp/connect",
+          loginPage: "/connect",
+          consentPage: "/connect",
+          defaultScope: "agent",
+          scopes: ["agent"],
+          requirePKCE: true,
           metadata: HEADLESS_MCP_AUTH_METADATA,
         },
       }),

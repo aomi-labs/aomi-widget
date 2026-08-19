@@ -20,6 +20,7 @@ const providerLabels = { privy: "Privy", para: "Para" } as const;
 const STASH_KEY = "aomi.mcp.authorize.query";
 
 const SCOPE_DESCRIPTIONS: Record<string, string> = {
+  agent: "Run and supervise Aomi Agent sessions",
   openid: "Confirm your Aomi identity",
   profile: "Read your basic profile",
   email: "Read your email address",
@@ -44,6 +45,7 @@ export function McpConnectClient({
 }) {
   const params = useSearchParams();
   const consentCode = params.get("consent_code");
+  const returnTo = safeReturnTo(params.get("return_to"));
   const isAuthorizeRequest =
     params.get("response_type") === "code" && Boolean(params.get("client_id"));
 
@@ -55,6 +57,9 @@ export function McpConnectClient({
         scopes={(params.get("scope") ?? "").split(" ").filter(Boolean)}
       />
     );
+  }
+  if (returnTo) {
+    return <SignInPanel clientName={clientName} resumePath={returnTo} />;
   }
   if (isAuthorizeRequest) {
     return <SignInPanel clientName={clientName} />;
@@ -71,7 +76,13 @@ export function McpConnectClient({
 
 // ─── Phase 1: sign in, then resume the authorize request ───────────────────
 
-function SignInPanel({ clientName }: { clientName: string | null }) {
+function SignInPanel({
+  clientName,
+  resumePath,
+}: {
+  clientName: string | null;
+  resumePath?: string;
+}) {
   const { data: session } = authClient.useSession();
   const [provider, setProvider] = useState<Provider | null>(null);
 
@@ -84,10 +95,14 @@ function SignInPanel({ clientName }: { clientName: string | null }) {
   // it comes back here as a consent request.
   useEffect(() => {
     if (!session?.session) return;
+    if (resumePath) {
+      window.location.replace(resumePath);
+      return;
+    }
     const query = sessionStorage.getItem(STASH_KEY) ?? window.location.search;
     sessionStorage.removeItem(STASH_KEY);
-    window.location.replace(`/api/auth/mcp/authorize${query}`);
-  }, [session?.session]);
+    window.location.replace(authorizePath(query));
+  }, [resumePath, session?.session]);
 
   const title = clientName
     ? `Connect ${clientName} to Aomi`
@@ -132,7 +147,11 @@ function SignInPanel({ clientName }: { clientName: string | null }) {
 
   return (
     <ProviderRuntime provider={provider}>
-      <ProviderSignIn provider={provider} title={title} />
+      <ProviderSignIn
+        provider={provider}
+        resumePath={resumePath}
+        title={title}
+      />
     </ProviderRuntime>
   );
 }
@@ -173,9 +192,11 @@ function ProviderRuntime({
 
 function ProviderSignIn({
   provider,
+  resumePath,
   title,
 }: {
   provider: Provider;
+  resumePath?: string;
   title: string;
 }) {
   const walletKit = useAomiWalletKit();
@@ -227,7 +248,7 @@ function ProviderSignIn({
         const query =
           sessionStorage.getItem(STASH_KEY) ?? window.location.search;
         sessionStorage.removeItem(STASH_KEY);
-        window.location.replace(`/api/auth/mcp/authorize${query}`);
+        window.location.replace(resumePath ?? authorizePath(query));
       } catch (error) {
         if (cancelled) return;
         setStatus(
@@ -241,7 +262,7 @@ function ProviderSignIn({
     return () => {
       cancelled = true;
     };
-  }, [complete, exchangeRequested, getAccountCredential, pending]);
+  }, [complete, exchangeRequested, getAccountCredential, pending, resumePath]);
 
   return (
     <Shell title={title}>
@@ -288,18 +309,21 @@ function ConsentPanel({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
-          body: JSON.stringify({ accept, consent_code: consentCode }),
+          body: JSON.stringify({
+            transaction: consentCode,
+            decision: accept ? "approve" : "deny",
+          }),
         });
         const body = (await response.json().catch(() => null)) as {
-          redirectURI?: string;
+          redirectTo?: string;
         } | null;
-        if (!response.ok || typeof body?.redirectURI !== "string") {
+        if (!response.ok || typeof body?.redirectTo !== "string") {
           throw new Error(`Consent failed: HTTP ${response.status}`);
         }
         setStatus(
           accept ? "Authorized. Returning to your client..." : "Denied.",
         );
-        window.location.assign(body.redirectURI);
+        window.location.assign(body.redirectTo);
       } catch (error) {
         setStatus(error instanceof Error ? error.message : "Consent failed");
         setPending(false);
@@ -364,4 +388,14 @@ function Shell({ children, title }: { children?: ReactNode; title: string }) {
       </section>
     </main>
   );
+}
+
+function authorizePath(query: string): string {
+  return query.includes("resource=")
+    ? `/api/auth/oauth2/authorize${query}`
+    : `/api/auth/mcp/authorize${query}`;
+}
+
+function safeReturnTo(value: string | null): string | undefined {
+  return value?.startsWith("/connect/device?") ? value : undefined;
 }

@@ -10,6 +10,7 @@ import {
   type CredentialValidators,
 } from "./credential-ladder";
 import { admitGuest } from "./guest-admission";
+import { validateOAuthAccessToken } from "./oauth";
 
 const GUEST_TTL_SECONDS = 60 * 60;
 const GUEST_TURN_LIMIT = 20;
@@ -37,9 +38,7 @@ function validators(
   input: { session?: string; applicationId?: bigint },
 ): CredentialValidators {
   return {
-    // P5 installs the canonical aomi_at_ verifier here. Until then an explicit
-    // public bearer fails closed and never falls through to cookies or guest.
-    oauth: async () => null,
+    oauth: validateOAuthAccessToken,
     cookie: async () => {
       const principal = await resolvePortalPrincipal(request);
       if (principal.kind === "anonymous") return null;

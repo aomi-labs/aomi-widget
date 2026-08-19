@@ -1335,6 +1335,9 @@ interface components {
             client_id: string;
             challenge: string;
             signature: string;
+            scope: string;
+            /** Format: uri */
+            resource: string;
         };
         OAuthTokenResponse: {
             access_token: string;

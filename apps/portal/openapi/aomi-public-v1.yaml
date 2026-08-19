@@ -1529,7 +1529,8 @@ components:
             client_id:
               type: string
         - type: object
-          required: [grant_type, client_id, challenge, signature]
+          required:
+            [grant_type, client_id, challenge, signature, scope, resource]
           properties:
             grant_type:
               enum:
@@ -1543,6 +1544,11 @@ components:
               type: string
             signature:
               type: string
+            scope:
+              type: string
+            resource:
+              type: string
+              format: uri
     OAuthTokenResponse:
       type: object
       additionalProperties: false
