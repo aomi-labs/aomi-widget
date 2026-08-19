@@ -80,6 +80,9 @@
     "test:portal": "pnpm --filter portal test",
     "test:telegram": "pnpm --filter telegram test:unit",
     "test:openapi": "vitest run packages/client/test/backend-openapi.contract.test.ts",
+    "generate:public-api": "node scripts/generate-public-api-contract.mjs",
+    "check:public-api": "node scripts/check-public-api-contract.mjs",
+    "test:public-api": "vitest run --config vitest.public-api.config.ts",
     "test:openapi:live": "node scripts/test-live-backend-openapi.mjs",
     "update:backend-openapi": "node scripts/update-backend-openapi.mjs",
     "check": "pnpm run lint && pnpm run typecheck && pnpm exec vitest run",
@@ -174,6 +177,7 @@
     "viem": "^2.47.11",
     "vitest": "^3.2.4",
     "wagmi": "^2.19.5",
+    "yaml": "2.9.0",
     "zustand": "^5.0.8"
   }
 }
