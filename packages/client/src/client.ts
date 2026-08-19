@@ -53,7 +53,6 @@ function previewText(value: string, max = 80): string {
   return `${singleLine.slice(0, max - 1)}…`;
 }
 
-
 function joinApiPath(baseUrl: string, path: string): string {
   const normalizedBase = baseUrl === "/" ? "" : baseUrl.replace(/\/+$/, "");
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
@@ -346,6 +345,28 @@ export class AomiClient {
     path: string,
     options?: AomiRequestOptions,
   ): Promise<T> {
+    const response = await this.requestResponse(method, path, options);
+
+    if (response.status === 204) {
+      return undefined as T;
+    }
+
+    const contentType = response.headers.get("content-type") ?? "";
+    if (contentType.includes("application/json")) {
+      return (await response.json()) as T;
+    }
+    return (await response.text()) as T;
+  }
+
+  /**
+   * Authenticated raw-response transport for protocols such as public Agent
+   * SSE. It shares the exact auth, URL, and error behavior of request().
+   */
+  async requestResponse(
+    method: AomiHttpMethod,
+    path: string,
+    options?: AomiRequestOptions,
+  ): Promise<Response> {
     const url = buildApiUrl(this.baseUrl, path, normalizeQuery(options?.query));
     const headers = new Headers(options?.headers);
     if (options?.sessionId) {
@@ -375,16 +396,7 @@ export class AomiClient {
         `HTTP ${response.status}: ${response.statusText}${body ? `\n${body}` : ""}`,
       );
     }
-
-    if (response.status === 204) {
-      return undefined as T;
-    }
-
-    const contentType = response.headers.get("content-type") ?? "";
-    if (contentType.includes("application/json")) {
-      return (await response.json()) as T;
-    }
-    return (await response.text()) as T;
+    return response;
   }
 
   /**

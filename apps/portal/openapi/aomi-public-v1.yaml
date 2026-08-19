@@ -739,6 +739,10 @@ components:
         - $ref: "#/components/schemas/TurnActivity"
       discriminator:
         propertyName: type
+        mapping:
+          tool: "#/components/schemas/ToolActivity"
+          task: "#/components/schemas/TaskActivity"
+          turn: "#/components/schemas/TurnActivity"
     ToolActivity:
       type: object
       additionalProperties: false
@@ -1192,6 +1196,10 @@ components:
         - $ref: "#/components/schemas/RejectedActionResult"
       discriminator:
         propertyName: status
+        mapping:
+          submitted: "#/components/schemas/ExternalTransactionResult"
+          signed: "#/components/schemas/SigningResult"
+          rejected: "#/components/schemas/RejectedActionResult"
     ExternalTransactionResult:
       type: object
       additionalProperties: false
@@ -1367,6 +1375,7 @@ components:
             - unsupported_action
             - payload_too_large
             - rate_limited
+            - internal_error
         message:
           type: string
         retryable:

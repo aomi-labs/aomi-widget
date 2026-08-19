@@ -7,6 +7,7 @@ var __getOwnPropNames = Object.getOwnPropertyNames;
 var __getOwnPropSymbols = Object.getOwnPropertySymbols;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
 var __propIsEnum = Object.prototype.propertyIsEnumerable;
+var __knownSymbol = (name, symbol) => (symbol = Symbol[name]) ? symbol : /* @__PURE__ */ Symbol.for("Symbol." + name);
 var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
 var __spreadValues = (a, b) => {
   for (var prop in b || (b = {}))
@@ -45,10 +46,26 @@ var __copyProps = (to, from, except, desc) => {
   return to;
 };
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
+var __await = function(promise, isYieldStar) {
+  this[0] = promise;
+  this[1] = isYieldStar;
+};
+var __asyncGenerator = (__this, __arguments, generator) => {
+  var resume = (k, v, yes, no) => {
+    try {
+      var x = generator[k](v), isAwait = (v = x.value) instanceof __await, done = x.done;
+      Promise.resolve(isAwait ? v[0] : v).then((y) => isAwait ? resume(k === "return" ? k : "next", v[1] ? { done: y.done, value: y.value } : y, yes, no) : yes({ value: y, done })).catch((e) => resume("throw", e, yes, no));
+    } catch (e) {
+      no(e);
+    }
+  }, method = (k) => it[k] = (x) => new Promise((yes, no) => resume(k, x, yes, no)), it = {};
+  return generator = generator.apply(__this, __arguments), it[__knownSymbol("asyncIterator")] = () => it, method("next"), method("throw"), method("return"), it;
+};
 
 // src/index.ts
 var index_exports = {};
 __export(index_exports, {
+  AGENT_API_MIGRATION_DISABLED: () => AGENT_API_MIGRATION_DISABLED,
   ALCHEMY_CHAIN_SLUGS: () => ALCHEMY_CHAIN_SLUGS,
   AOMI_TASK_EVENT_TYPES: () => AOMI_TASK_EVENT_TYPES,
   AccountCredentialUnavailableError: () => AccountCredentialUnavailableError,
@@ -63,6 +80,7 @@ __export(index_exports, {
   Session: () => ClientSession,
   TypedEventEmitter: () => TypedEventEmitter,
   UserState: () => UserState,
+  V1ClientSession: () => V1ClientSession,
   aaModeFromExecutionKind: () => aaModeFromExecutionKind,
   appIdentityKey: () => appIdentityKey,
   appendFeeCallToPayload: () => appendFeeCallToPayload,
@@ -999,7 +1017,23 @@ var AomiClient = class {
    * Prefer the typed helpers below for common chat/session/account flows.
    */
   async request(method, path, options) {
-    var _a, _b;
+    var _a;
+    const response = await this.requestResponse(method, path, options);
+    if (response.status === 204) {
+      return void 0;
+    }
+    const contentType = (_a = response.headers.get("content-type")) != null ? _a : "";
+    if (contentType.includes("application/json")) {
+      return await response.json();
+    }
+    return await response.text();
+  }
+  /**
+   * Authenticated raw-response transport for protocols such as public Agent
+   * SSE. It shares the exact auth, URL, and error behavior of request().
+   */
+  async requestResponse(method, path, options) {
+    var _a;
     const url = buildApiUrl(this.baseUrl, path, normalizeQuery(options == null ? void 0 : options.query));
     const headers = new Headers(options == null ? void 0 : options.headers);
     if (options == null ? void 0 : options.sessionId) {
@@ -1028,14 +1062,7 @@ var AomiClient = class {
 ${body}` : ""}`
       );
     }
-    if (response.status === 204) {
-      return void 0;
-    }
-    const contentType = (_b = response.headers.get("content-type")) != null ? _b : "";
-    if (contentType.includes("application/json")) {
-      return await response.json();
-    }
-    return await response.text();
+    return response;
   }
   /**
    * Fetch current session state (messages, processing status, title).
@@ -2040,6 +2067,114 @@ function wrapFetchWithPaymentChallenges(fetchImpl, client) {
     const response = await fetchImpl(request.clone());
     return handlePaymentChallenges(request, response, fetchImpl, client);
   };
+}
+
+// src/agent-v1-session.ts
+var V1ClientSession = class {
+  constructor(clientOrOptions, options) {
+    var _a, _b;
+    this.client = clientOrOptions instanceof AomiClient ? clientOrOptions : new AomiClient(clientOrOptions);
+    this.sessionId = (_a = options.sessionId) != null ? _a : `sess_${randomId()}`;
+    this.application = options.application;
+    this.model = (_b = options.model) != null ? _b : "default";
+    this.wallets = options.wallets;
+  }
+  async chat(message, options = {}) {
+    const delta = await this.client.request(
+      "POST",
+      "/v1/agent/chat",
+      {
+        headers: mutationHeaders(options),
+        body: __spreadValues({
+          session: this.sessionId,
+          application: this.application,
+          message,
+          model: this.model
+        }, this.wallets ? { wallets: this.wallets } : {})
+      }
+    );
+    return this.remember(delta);
+  }
+  async check(options = {}) {
+    var _a, _b;
+    const delta = await this.client.request(
+      "GET",
+      `/v1/agent/chat/${encodeURIComponent(this.sessionId)}`,
+      {
+        query: {
+          cursor: (_a = options.cursor) != null ? _a : this.cursor,
+          wait: Math.min(Math.max((_b = options.waitMs) != null ? _b : 0, 0), 3e4)
+        }
+      }
+    );
+    return this.remember(delta);
+  }
+  watch() {
+    return __asyncGenerator(this, arguments, function* (options = {}) {
+      var _a, _b;
+      while (!((_a = options.signal) == null ? void 0 : _a.aborted)) {
+        const response = yield new __await(this.client.requestResponse(
+          "GET",
+          `/v1/agent/chat/${encodeURIComponent(this.sessionId)}`,
+          {
+            headers: { accept: "text/event-stream" },
+            query: {
+              cursor: this.cursor,
+              wait: Math.min(Math.max((_b = options.waitMs) != null ? _b : 25e3, 0), 3e4)
+            }
+          }
+        ));
+        const delta = parseSseDelta(yield new __await(response.text()));
+        yield this.remember(delta);
+      }
+    });
+  }
+  async submitAction(action, result, idempotencyKey = `idem_${randomId()}`) {
+    const response = await this.client.request(
+      "POST",
+      `/v1/agent/chat/${encodeURIComponent(this.sessionId)}/actions/${encodeURIComponent(action)}/result`,
+      { headers: { "idempotency-key": idempotencyKey }, body: result }
+    );
+    return response.action;
+  }
+  async interrupt(idempotencyKey = `idem_${randomId()}`) {
+    const response = await this.client.request(
+      "POST",
+      `/v1/agent/chat/${encodeURIComponent(this.sessionId)}/interrupt`,
+      { headers: { "idempotency-key": idempotencyKey } }
+    );
+    this.cursor = response.cursor;
+    return response;
+  }
+  remember(delta) {
+    if (delta.session !== this.sessionId) {
+      throw new TypeError("Agent response session does not match the request");
+    }
+    this.cursor = delta.cursor;
+    return delta;
+  }
+};
+var AGENT_API_MIGRATION_DISABLED = {
+  chat: false,
+  externalTransaction: false,
+  signing: false,
+  sessions: false
+};
+function mutationHeaders(options) {
+  var _a;
+  return __spreadValues({
+    "idempotency-key": (_a = options.idempotencyKey) != null ? _a : `idem_${randomId()}`
+  }, options.paymentSignature ? { "payment-signature": options.paymentSignature } : {});
+}
+function randomId() {
+  return globalThis.crypto.randomUUID().replaceAll("-", "");
+}
+function parseSseDelta(payload) {
+  for (const block of payload.split(/\r?\n\r?\n/)) {
+    const data = block.split(/\r?\n/).filter((line) => line.startsWith("data:")).map((line) => line.slice(5).trimStart()).join("\n");
+    if (data) return JSON.parse(data);
+  }
+  throw new TypeError("Agent SSE response did not contain a delta event");
 }
 
 // src/widget-session.ts
@@ -4552,6 +4687,7 @@ function appendFeeCallToPayload(payload, fee, defaultChainId, options) {
 }
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
+  AGENT_API_MIGRATION_DISABLED,
   ALCHEMY_CHAIN_SLUGS,
   AOMI_TASK_EVENT_TYPES,
   AccountCredentialUnavailableError,
@@ -4566,6 +4702,7 @@ function appendFeeCallToPayload(payload, fee, defaultChainId, options) {
   Session,
   TypedEventEmitter,
   UserState,
+  V1ClientSession,
   aaModeFromExecutionKind,
   appIdentityKey,
   appendFeeCallToPayload,

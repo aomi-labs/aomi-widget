@@ -87,6 +87,14 @@ export type {
 } from "./types";
 export type { components as AomiPublicV1 } from "./generated/public-v1/types";
 export {
+  AGENT_API_MIGRATION_DISABLED,
+  V1ClientSession,
+} from "./agent-v1-session";
+export type {
+  AgentApiMigrationFlags,
+  AgentV1SessionOptions,
+} from "./agent-v1-session";
+export {
   createProviderCredentialAdapter,
   createSiweWidgetAuthAdapter,
   createSiwsWidgetAuthAdapter,

@@ -1545,7 +1545,23 @@ var init_client = __esm({
        * Prefer the typed helpers below for common chat/session/account flows.
        */
       async request(method, path, options) {
-        var _a3, _b;
+        var _a3;
+        const response = await this.requestResponse(method, path, options);
+        if (response.status === 204) {
+          return void 0;
+        }
+        const contentType = (_a3 = response.headers.get("content-type")) != null ? _a3 : "";
+        if (contentType.includes("application/json")) {
+          return await response.json();
+        }
+        return await response.text();
+      }
+      /**
+       * Authenticated raw-response transport for protocols such as public Agent
+       * SSE. It shares the exact auth, URL, and error behavior of request().
+       */
+      async requestResponse(method, path, options) {
+        var _a3;
         const url = buildApiUrl(this.baseUrl, path, normalizeQuery(options == null ? void 0 : options.query));
         const headers = new Headers(options == null ? void 0 : options.headers);
         if (options == null ? void 0 : options.sessionId) {
@@ -1574,14 +1590,7 @@ var init_client = __esm({
 ${body}` : ""}`
           );
         }
-        if (response.status === 204) {
-          return void 0;
-        }
-        const contentType = (_b = response.headers.get("content-type")) != null ? _b : "";
-        if (contentType.includes("application/json")) {
-          return await response.json();
-        }
-        return await response.text();
+        return response;
       }
       /**
        * Fetch current session state (messages, processing status, title).
