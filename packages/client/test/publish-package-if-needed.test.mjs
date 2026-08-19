@@ -9,13 +9,20 @@ const packageManifest = JSON.parse(
 );
 const packageSpec = `${packageManifest.name}@${packageManifest.version}`;
 
+// Registry manifest response for the post-publish verification fetch.
+const manifestResponse = (manifest = {}) =>
+  new Response(JSON.stringify(manifest), {
+    status: 200,
+    headers: { "content-type": "application/json" },
+  });
+
 describe("publishPackageIfNeeded", () => {
   it("skips an exact version that is already published", async () => {
     const publishImpl = vi.fn();
 
     await expect(
       publishPackageIfNeeded(packageDirectory, {
-        fetchImpl: vi.fn(async () => new Response(null, { status: 200 })),
+        fetchImpl: vi.fn(async () => manifestResponse()),
         publishImpl,
       }),
     ).resolves.toBe("skipped");
@@ -28,7 +35,10 @@ describe("publishPackageIfNeeded", () => {
 
     await expect(
       publishPackageIfNeeded(packageDirectory, {
-        fetchImpl: vi.fn(async () => new Response(null, { status: 404 })),
+        fetchImpl: vi
+          .fn()
+          .mockResolvedValueOnce(new Response(null, { status: 404 }))
+          .mockResolvedValueOnce(manifestResponse()),
         publishImpl,
       }),
     ).resolves.toBe("published");
@@ -58,7 +68,8 @@ describe("publishPackageIfNeeded", () => {
     const fetchImpl = vi
       .fn()
       .mockResolvedValueOnce(new Response(null, { status: 404 }))
-      .mockResolvedValueOnce(new Response(null, { status: 200 }));
+      .mockResolvedValueOnce(new Response(null, { status: 200 }))
+      .mockResolvedValueOnce(manifestResponse());
 
     await expect(
       publishPackageIfNeeded(packageDirectory, {
@@ -69,7 +80,47 @@ describe("publishPackageIfNeeded", () => {
       }),
     ).resolves.toBe("published");
 
-    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
+  });
+
+  // The 2.0.0 incident, encoded: a publish that reaches the registry with
+  // workspace-protocol dependencies must FAIL the job even though npm
+  // accepted the upload — the artifact is unusable and immutable, and the
+  // operator needs to know while a bump-and-republish is still cheap.
+  it("fails after publish when the registry manifest still carries workspace:*", async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(null, { status: 404 }))
+      .mockResolvedValueOnce(
+        manifestResponse({
+          dependencies: { "@aomi-labs/react": "workspace:*" },
+        }),
+      );
+
+    await expect(
+      publishPackageIfNeeded(packageDirectory, {
+        fetchImpl,
+        publishImpl: vi.fn(async () => undefined),
+      }),
+    ).rejects.toThrow(/workspace-protocol dependencies/);
+  });
+
+  it("flags a workspace:* range in any dependency field", async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(null, { status: 404 }))
+      .mockResolvedValueOnce(
+        manifestResponse({
+          peerDependencies: { "@aomi-labs/client": "workspace:^" },
+        }),
+      );
+
+    await expect(
+      publishPackageIfNeeded(packageDirectory, {
+        fetchImpl,
+        publishImpl: vi.fn(async () => undefined),
+      }),
+    ).rejects.toThrow(/peerDependencies.@aomi-labs\/client=workspace:\^/);
   });
 
   // Regression guard for the 2.0.0 release: publishing moved to `npm publish`

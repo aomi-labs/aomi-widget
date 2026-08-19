@@ -30,6 +30,7 @@ export async function publishPackageIfNeeded(
 
   if (await isPublished()) {
     console.log(`${packageSpec} is already published; skipping.`);
+    await verifyPublishedManifest({ fetchImpl, packageSpec, versionUrl });
     return "skipped";
   }
 
@@ -42,11 +43,55 @@ export async function publishPackageIfNeeded(
     // state as authoritative before failing the job.
     if (await isPublished()) {
       console.log(`${packageSpec} is now published; continuing.`);
+      await verifyPublishedManifest({ fetchImpl, packageSpec, versionUrl });
       return "published";
     }
     throw error;
   }
+  await verifyPublishedManifest({ fetchImpl, packageSpec, versionUrl });
   return "published";
+}
+
+// A green publish is not proof of a usable package: on 2026-08-14,
+// widget-lib@2.0.0 and react@0.6.0 shipped with `workspace:*` dependencies
+// intact (npm-transport publish skipped pnpm's rewrite) and both runs passed.
+// Published versions are immutable, so the only cheap place to catch this is
+// immediately after the registry write — read the manifest BACK from the
+// registry and fail the job on any workspace-protocol dependency, while the
+// operator can still bump and republish in the same sitting.
+async function verifyPublishedManifest({ fetchImpl, packageSpec, versionUrl }) {
+  const response = await fetchImpl(versionUrl, {
+    headers: { accept: "application/json" },
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (!response.ok) {
+    throw new Error(
+      `Post-publish verification for ${packageSpec} failed: registry returned HTTP ${response.status}`,
+    );
+  }
+  const manifest = await response.json();
+  const offenders = [];
+  for (const field of [
+    "dependencies",
+    "devDependencies",
+    "peerDependencies",
+    "optionalDependencies",
+  ]) {
+    for (const [name, range] of Object.entries(manifest[field] ?? {})) {
+      if (String(range).includes("workspace:")) {
+        offenders.push(`${field}.${name}=${range}`);
+      }
+    }
+  }
+  if (offenders.length > 0) {
+    throw new Error(
+      `${packageSpec} is published with unresolvable workspace-protocol dependencies ` +
+        `(${offenders.join(", ")}). npm/yarn consumers cannot install it. ` +
+        `Published versions are immutable: bump the version, publish through pnpm ` +
+        `(which rewrites workspace:*), and deprecate this one.`,
+    );
+  }
+  console.log(`${packageSpec} verified on the registry: no workspace-protocol dependencies.`);
 }
 
 async function checkPublishedVersion({ fetchImpl, packageSpec, versionUrl }) {
