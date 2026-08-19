@@ -1,12 +1,14 @@
-import { type Chain, createWalletClient, http } from "viem";
+import { type Chain, createWalletClient, formatEther, http } from "viem";
 import { Connection } from "@solana/web3.js";
 import { privateKeyToAccount } from "viem/accounts";
 import * as viemChains from "viem/chains";
 import {
   buildFeeAAWalletCall,
-  normalizeSimulatedFee,
   executeWalletCalls,
+  normalizeSimulatedFee,
+  partialWalletExecution,
   type ExecutionResult,
+  type NormalizedSimulatedFee,
 } from "../../aa";
 import {
   toViemSignMessageArgs,
@@ -406,6 +408,85 @@ async function executeCliTransaction(params: {
   });
 }
 
+function serviceFeePayload(
+  record: SignedTx,
+): Record<string, unknown> | undefined {
+  if (!record.serviceFeeStatus) return undefined;
+  return {
+    status: record.serviceFeeStatus,
+    amount_wei: record.serviceFeeAmountWei,
+    recipient: record.serviceFeeRecipient,
+    ...(record.serviceFeeTxHash ? { tx_hash: record.serviceFeeTxHash } : {}),
+    ...(record.serviceFeeError ? { error: record.serviceFeeError } : {}),
+    retryable: false,
+  };
+}
+
+function transactionCompletionPayload(
+  record: SignedTx,
+): Record<string, unknown> {
+  if (!record.txHash || record.pendingTxId === undefined) {
+    throw new Error("confirmed_transaction_missing_callback_metadata");
+  }
+  const fee = serviceFeePayload(record);
+  return {
+    txHash: record.txHash,
+    status: "success",
+    pending_tx_ids: [record.pendingTxId],
+    aa_requested_mode: "none",
+    aa_resolved_mode: "none",
+    execution_kind: record.executionKind ?? "eoa",
+    batched: record.batched ?? false,
+    call_count: record.txHashes?.length ?? 1,
+    ...(record.serviceFeeTxHash
+      ? { service_fee_tx_hash: record.serviceFeeTxHash }
+      : {}),
+    ...(fee ? { service_fee: fee } : {}),
+    sponsored: record.sponsored,
+  };
+}
+
+async function recoverConfirmedTransactions(params: {
+  cli: CliSession;
+  session: ReturnType<CliSession["createClientSession"]>;
+  records: SignedTx[];
+}): Promise<void> {
+  const { cli, session, records } = params;
+  let replayed = 0;
+  for (const record of records) {
+    if (record.pendingTxId === undefined || !record.txHash) continue;
+    const pending = cli.pendingTxs.some(
+      (tx) => tx.kind === "transaction" && tx.txId === record.pendingTxId,
+    );
+    if (!pending) {
+      cli.markSignedTxBackendNotified(record.pendingTxId);
+      continue;
+    }
+    await session.client.sendSystemMessage(
+      cli.sessionId,
+      JSON.stringify({
+        type: "wallet:tx_complete",
+        payload: transactionCompletionPayload(record),
+      }),
+      { app: cli.app },
+    );
+    cli.markSignedTxBackendNotified(record.pendingTxId);
+    replayed += 1;
+  }
+
+  if (replayed > 0) {
+    const syncedState = await session.syncUserState();
+    cli.syncPendingFromUserState(syncedState.user_state);
+    console.log(
+      `Backend notification recovered for ${replayed} confirmed transaction${replayed === 1 ? "" : "s"}; no transaction was rebroadcast.`,
+    );
+  } else {
+    console.log(
+      "Transaction already confirmed; no transaction was rebroadcast.",
+    );
+  }
+}
+
 export async function signCommand(
   config: CliConfig,
   txIds: string[],
@@ -458,18 +539,22 @@ export async function signCommand(
       (id) => cli.findPendingSolTx(id) !== undefined,
     );
     const evmIds = uniqueIds.filter(
-      (id) => cli.findPendingTx(id) !== undefined,
+      (id) =>
+        cli.findPendingTx(id) !== undefined ||
+        cli.findSignedTransaction(id) !== undefined,
     );
     const unknownIds = uniqueIds.filter(
       (id) =>
         cli.findPendingSolTx(id) === undefined &&
-        cli.findPendingTx(id) === undefined,
+        cli.findPendingTx(id) === undefined &&
+        cli.findSignedTransaction(id) === undefined,
     );
     const ambiguousIds = uniqueIds.filter(
       (id) =>
         !id.includes(":") &&
         cli.findPendingSolTx(id) !== undefined &&
-        cli.findPendingTx(id) !== undefined,
+        (cli.findPendingTx(id) !== undefined ||
+          cli.findSignedTransaction(id) !== undefined),
     );
     if (ambiguousIds.length > 0) {
       fatal(
@@ -501,6 +586,24 @@ export async function signCommand(
       for (const pendingTx of pendingSolana) {
         await signSolanaPending({ cli, session, config, pendingTx });
       }
+      return;
+    }
+
+    const confirmedRecords = uniqueIds.flatMap((id) => {
+      const record = cli.findSignedTransaction(id);
+      return record ? [record] : [];
+    });
+    if (confirmedRecords.length > 0) {
+      if (confirmedRecords.length !== uniqueIds.length) {
+        fatal(
+          "Confirmed and unconfirmed transactions cannot be mixed in one retry. Sign the remaining pending IDs separately.",
+        );
+      }
+      await recoverConfirmedTransactions({
+        cli,
+        session,
+        records: confirmedRecords,
+      });
       return;
     }
 
@@ -551,6 +654,7 @@ export async function signCommand(
       type: string;
       payload: Record<string, unknown>;
     }> = [];
+    let partialFailureReason: string | undefined;
 
     if (pendingTxs.every((tx) => tx.kind === "transaction")) {
       console.log(
@@ -612,12 +716,14 @@ export async function signCommand(
 
       // Fee validation is outside the try/catch so failures abort instead
       // of being silently swallowed.
+      let normalizedFee: NormalizedSimulatedFee | null = null;
       let autoFeeCall: ReturnType<typeof buildFeeAAWalletCall> = null;
       if (simFee) {
-        const normalizedFee = normalizeSimulatedFee(simFee);
+        normalizedFee = normalizeSimulatedFee(simFee);
         if (normalizedFee) {
-          const feeEth = (Number(normalizedFee.amountWei) / 1e18).toFixed(6);
-          console.log(`Fee:     ${feeEth} ETH → ${normalizedFee.recipient}`);
+          console.log(
+            `Fee:     ${formatEther(normalizedFee.amountWei)} ETH (${normalizedFee.amountWei} wei) → ${normalizedFee.recipient}`,
+          );
         }
         autoFeeCall = buildFeeAAWalletCall(simFee, primaryChainId);
       }
@@ -628,69 +734,118 @@ export async function signCommand(
 
       console.log("Exec:    eoa");
 
-      const execution = await executeCliTransaction({
-        privateKey: privateKey as `0x${string}`,
-        currentChainId: primaryChainId,
-        chainsById,
-        rpcUrl,
-        callList: executionCallList,
-      });
+      let execution: ExecutionResult;
+      let failedCallIndex: number | undefined;
+      try {
+        execution = await executeCliTransaction({
+          privateKey: privateKey as `0x${string}`,
+          currentChainId: primaryChainId,
+          chainsById,
+          rpcUrl,
+          callList: executionCallList,
+        });
+      } catch (error) {
+        const partial = partialWalletExecution(error);
+        if (!partial) throw error;
+        execution = {
+          txHash:
+            partial.completedTxHashes[partial.completedTxHashes.length - 1],
+          txHashes: partial.completedTxHashes,
+          executionKind: "eoa",
+          batched: partial.completedTxHashes.length > 1,
+          sponsored: false,
+        };
+        partialFailureReason = partial.failureReason;
+        failedCallIndex = partial.failedCallIndex;
+      }
+      if (
+        !partialFailureReason &&
+        execution.txHashes.length !== executionCallList.length
+      ) {
+        throw new Error("wallet_execution_hash_count_mismatch");
+      }
 
       // Local EOA execution sends calls sequentially. When the backend quoted a
       // service fee, that fee is appended after the user's calls, so the raw
       // execution's last/primary hash belongs to the fee transfer. Keep the
       // wallet-facing record and callback anchored to the requested action;
       // the fee hash remains visible separately for auditability.
-      let reportedExecution = execution;
-      let feeTxHash: string | undefined;
-      if (
-        autoFeeCall &&
-        execution.executionKind === "eoa" &&
-        execution.txHashes.length === executionCallList.length
-      ) {
-        const actionTxHashes = execution.txHashes.slice(0, baseCallList.length);
-        feeTxHash = execution.txHashes[baseCallList.length];
-        const actionTxHash = actionTxHashes[actionTxHashes.length - 1];
-        if (actionTxHash) {
-          reportedExecution = {
-            ...execution,
-            txHash: actionTxHash,
-            txHashes: actionTxHashes,
-            batched: baseCallList.length > 1,
-          };
-        }
+      const actionTxHashes = execution.txHashes.slice(0, baseCallList.length);
+      const feeTxHash = autoFeeCall
+        ? execution.txHashes[baseCallList.length]
+        : undefined;
+      const confirmedPendingTxs = pendingTxs.slice(0, actionTxHashes.length);
+      if (confirmedPendingTxs.length === 0) {
+        throw new Error(
+          partialFailureReason ?? "No requested transaction confirmed",
+        );
       }
-      console.log(`✅ Sent! Hash: ${reportedExecution.txHash}`);
-      if (reportedExecution.txHashes.length > 1) {
-        console.log(`Count:   ${reportedExecution.txHashes.length}`);
+      console.log(
+        `✅ Sent! Hash: ${actionTxHashes[actionTxHashes.length - 1]}`,
+      );
+      if (actionTxHashes.length > 1) {
+        console.log(`Count:   ${actionTxHashes.length}`);
       }
       if (feeTxHash) console.log(`Fee tx:  ${feeTxHash}`);
 
-      signedRecords = pendingTxs.map((tx, index) =>
-        toSignedTransactionRecord(
-          tx,
-          reportedExecution,
-          account.address,
-          resolvedChainIds[index],
-          Date.now(),
-        ),
-      );
-      backendNotifications = pendingTxs.map((tx) => ({
+      const feeStatus = !autoFeeCall
+        ? undefined
+        : feeTxHash
+          ? "confirmed"
+          : failedCallIndex === baseCallList.length
+            ? "failed"
+            : "not_attempted";
+      signedRecords = confirmedPendingTxs.map((tx, index) => {
+        const actionExecution: ExecutionResult = {
+          ...execution,
+          txHash: actionTxHashes[index],
+          txHashes: [actionTxHashes[index]],
+          batched: false,
+        };
+        return {
+          ...toSignedTransactionRecord(
+            tx,
+            actionExecution,
+            account.address,
+            resolvedChainIds[index],
+            Date.now(),
+          ),
+          backendNotified: false,
+          ...(normalizedFee && feeStatus
+            ? {
+                serviceFeeStatus: feeStatus,
+                serviceFeeAmountWei: normalizedFee.amountWei.toString(),
+                serviceFeeRecipient: normalizedFee.recipient,
+                serviceFeeTxHash: feeTxHash,
+                serviceFeeError:
+                  feeStatus === "confirmed" ? undefined : partialFailureReason,
+              }
+            : {}),
+        };
+      });
+      backendNotifications = signedRecords.map((record) => ({
         type: "wallet:tx_complete",
-        payload: {
-          txHash: reportedExecution.txHash,
-          status: "success",
-          pending_tx_ids: tx.txId !== undefined ? [tx.txId] : [],
-          aa_requested_mode: "none",
-          aa_resolved_mode: "none",
-          aa_fallback_reason: undefined,
-          execution_kind: execution.executionKind,
-          batched: reportedExecution.batched,
-          call_count: reportedExecution.txHashes.length,
-          ...(feeTxHash ? { service_fee_tx_hash: feeTxHash } : {}),
-          sponsored: execution.sponsored,
-        },
+        payload: transactionCompletionPayload(record),
       }));
+
+      const remainingTxIds = pendingTxs
+        .slice(confirmedPendingTxs.length)
+        .flatMap((tx) => (tx.txId === undefined ? [] : [tx.txId]));
+      if (remainingTxIds.length > 0) {
+        backendNotifications.push({
+          type: "wallet:tx_complete",
+          payload: {
+            txHash: "",
+            status: "failed",
+            error:
+              partialFailureReason ??
+              "Batch aborted after a mid-sequence failure",
+            pending_tx_ids: remainingTxIds,
+            batched: remainingTxIds.length > 1,
+            call_count: remainingTxIds.length,
+          },
+        });
+      }
     } else {
       if (pendingTxs.length > 1) {
         fatal(
@@ -815,9 +970,14 @@ export async function signCommand(
       ];
     }
 
-    // Persist signer state and notify the backend with authoritative staged ids.
+    // Persist confirmed chain outcomes before the callback. If the process or
+    // network dies after this point, a retry replays only the callback and can
+    // never rebroadcast the recorded staged id.
     cli.setPublicKey(account.address);
     session.resolveWallet(account.address, primaryChainId);
+    for (const signedRecord of signedRecords) {
+      cli.addSignedTx(signedRecord);
+    }
 
     for (const backendNotification of backendNotifications) {
       await session.client.sendSystemMessage(
@@ -825,15 +985,44 @@ export async function signCommand(
         JSON.stringify(backendNotification),
         { app: cli.app },
       );
+      const pendingTxIds = backendNotification.payload.pending_tx_ids;
+      if (
+        backendNotification.payload.status === "success" &&
+        Array.isArray(pendingTxIds)
+      ) {
+        for (const pendingTxId of pendingTxIds) {
+          if (typeof pendingTxId === "number") {
+            cli.markSignedTxBackendNotified(pendingTxId);
+          }
+        }
+      }
     }
 
     const syncedState = await session.syncUserState();
     cli.syncPendingFromUserState(syncedState.user_state);
-    for (const signedRecord of signedRecords) {
-      cli.addSignedTx(signedRecord);
-    }
-
     console.log("Backend notified.");
+    const failedFee = signedRecords.find(
+      (record) => record.serviceFeeStatus === "failed",
+    );
+    if (failedFee) {
+      fatal(
+        [
+          `⚠️  Partial execution: action confirmed as ${failedFee.txHash}; service fee failed: ${failedFee.serviceFeeError ?? "unknown error"}.`,
+          "The action is finalized and was removed from pending. Do not run `aomi tx sign` for this staged ID again.",
+          "No automatic fee-only retry is available; reconcile the fee separately with an operator using the recorded amount and recipient.",
+        ].join("\n"),
+      );
+    }
+    if (partialFailureReason) {
+      const confirmedIds = signedRecords.map((record) => record.id).join(", ");
+      fatal(
+        [
+          `⚠️  Partial execution: confirmed ${confirmedIds}; a later action failed: ${partialFailureReason}.`,
+          "Confirmed IDs were removed from pending and will not be rebroadcast.",
+          "Run `aomi tx list`, then retry only the IDs that remain pending.",
+        ].join("\n"),
+      );
+    }
   } catch (err) {
     if (err instanceof CliExit) throw err;
     const errMsg = err instanceof Error ? err.message : String(err);

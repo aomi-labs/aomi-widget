@@ -58,6 +58,7 @@ __export(index_exports, {
   CLIENT_TYPE_TS_CLI: () => CLIENT_TYPE_TS_CLI,
   CLIENT_TYPE_WEB_UI: () => CLIENT_TYPE_WEB_UI,
   MAX_AUTO_FEE_WEI: () => MAX_AUTO_FEE_WEI,
+  PartialWalletExecutionError: () => PartialWalletExecutionError,
   SUPPORTED_CHAINS: () => SUPPORTED_CHAINS,
   SUPPORTED_CHAIN_IDS: () => SUPPORTED_CHAIN_IDS,
   Session: () => ClientSession,
@@ -100,6 +101,7 @@ __export(index_exports, {
   normalizeTxPayload: () => normalizeTxPayload,
   parseAomiTaskEvent: () => parseAomiTaskEvent,
   parseChainId: () => parseChainId3,
+  partialWalletExecution: () => partialWalletExecution,
   posterFromClient: () => posterFromClient,
   robinhood: () => robinhood,
   safeEnv: () => safeEnv,
@@ -4200,6 +4202,38 @@ var import_viem4 = require("viem");
 var import_accounts = require("viem/accounts");
 var ERC20_PAYMENT_CONTEXT_KEYS = /* @__PURE__ */ new Set(["erc20", "paymasterAddress"]);
 var AA_DEBUG_STORAGE_KEYS = ["aomi:debug-aa", "AOMI_DEBUG_AA"];
+var PartialWalletExecutionError = class extends Error {
+  constructor(error, completedTxHashes, failedCallIndex) {
+    const failureReason = walletExecutionFailureReason(error);
+    super(failureReason);
+    this.name = "PartialWalletExecutionError";
+    this.partial = {
+      completedTxHashes: [...completedTxHashes],
+      failedCallIndex,
+      failureReason
+    };
+  }
+};
+function walletExecutionFailureReason(error) {
+  if (error && typeof error === "object") {
+    for (const field of ["details", "shortMessage"]) {
+      const value = error[field];
+      if (typeof value === "string" && value.trim()) return value.trim();
+    }
+  }
+  const message = error instanceof Error ? error.message : String(error);
+  return message.split(/\n(?:\n|URL:|Request body:|Request Arguments:)/, 1)[0].trim();
+}
+function partialWalletExecution(error) {
+  if (!error || typeof error !== "object" || !("partial" in error)) {
+    return void 0;
+  }
+  const partial = error.partial;
+  if (!partial || !Array.isArray(partial.completedTxHashes) || partial.completedTxHashes.length === 0 || !partial.completedTxHashes.every((hash) => typeof hash === "string") || !Number.isInteger(partial.failedCallIndex) || typeof partial.failureReason !== "string") {
+    return void 0;
+  }
+  return partial;
+}
 function normalizeRpcCallData(data) {
   return data === "0x" ? void 0 : data;
 }
@@ -4251,33 +4285,43 @@ async function executeWalletCalls(params) {
     if (requiresAtomicForBatch) {
       throw new Error("wallet_atomic_batch_required");
     }
-    for (const call of normalizedCalls) {
-      const chain = chainsById[call.chainId];
-      if (!chain) {
-        throw new Error(`Unsupported chain ${call.chainId}`);
+    for (const [callIndex, call] of normalizedCalls.entries()) {
+      try {
+        const chain = chainsById[call.chainId];
+        if (!chain) {
+          throw new Error(`Unsupported chain ${call.chainId}`);
+        }
+        const rpcUrl = getPreferredRpcUrl(chain);
+        if (!rpcUrl) {
+          throw new Error(`No RPC for chain ${call.chainId}`);
+        }
+        const account = (0, import_accounts.privateKeyToAccount)(localPrivateKey);
+        const walletClient = (0, import_viem4.createWalletClient)({
+          account,
+          chain,
+          transport: (0, import_viem4.http)(rpcUrl)
+        });
+        const hash = await walletClient.sendTransaction({
+          account,
+          to: call.to,
+          value: call.value,
+          data: call.data
+        });
+        const publicClient = (0, import_viem4.createPublicClient)({
+          chain,
+          transport: (0, import_viem4.http)(rpcUrl)
+        });
+        const receipt = await publicClient.waitForTransactionReceipt({ hash });
+        if (receipt.status !== "success") {
+          throw new Error(`Transaction ${hash} reverted`);
+        }
+        hashes.push(hash);
+      } catch (error) {
+        if (hashes.length > 0) {
+          throw new PartialWalletExecutionError(error, hashes, callIndex);
+        }
+        throw error;
       }
-      const rpcUrl = getPreferredRpcUrl(chain);
-      if (!rpcUrl) {
-        throw new Error(`No RPC for chain ${call.chainId}`);
-      }
-      const account = (0, import_accounts.privateKeyToAccount)(localPrivateKey);
-      const walletClient = (0, import_viem4.createWalletClient)({
-        account,
-        chain,
-        transport: (0, import_viem4.http)(rpcUrl)
-      });
-      const hash = await walletClient.sendTransaction({
-        account,
-        to: call.to,
-        value: call.value,
-        data: call.data
-      });
-      const publicClient = (0, import_viem4.createPublicClient)({
-        chain,
-        transport: (0, import_viem4.http)(rpcUrl)
-      });
-      await publicClient.waitForTransactionReceipt({ hash });
-      hashes.push(hash);
     }
     return {
       txHash: hashes[hashes.length - 1],
@@ -4554,6 +4598,7 @@ function appendFeeCallToPayload(payload, fee, defaultChainId, options) {
   CLIENT_TYPE_TS_CLI,
   CLIENT_TYPE_WEB_UI,
   MAX_AUTO_FEE_WEI,
+  PartialWalletExecutionError,
   SUPPORTED_CHAINS,
   SUPPORTED_CHAIN_IDS,
   Session,
@@ -4596,6 +4641,7 @@ function appendFeeCallToPayload(payload, fee, defaultChainId, options) {
   normalizeTxPayload,
   parseAomiTaskEvent,
   parseChainId,
+  partialWalletExecution,
   posterFromClient,
   robinhood,
   safeEnv,

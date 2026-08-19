@@ -121,6 +121,7 @@ export function toSignedTransactionRecord(
   return {
     id: tx.id,
     kind: "transaction",
+    pendingTxId: tx.txId,
     txHash: execution.txHash,
     txHashes: execution.txHashes,
     executionKind: execution.executionKind,
@@ -162,6 +163,9 @@ export function formatSignedTxLine(tx: SignedTx, prefix: string): string {
     if (tx.aaMode) parts.push(`mode: ${tx.aaMode}`);
     if (tx.txHashes && tx.txHashes.length > 1) {
       parts.push(`txs: ${tx.txHashes.length}`);
+    }
+    if (tx.serviceFeeStatus) {
+      parts.push(`fee: ${tx.serviceFeeStatus}`);
     }
     if (tx.sponsored) parts.push("sponsored");
     if (tx.smartAccount4337) parts.push(`4337: ${tx.smartAccount4337}`);

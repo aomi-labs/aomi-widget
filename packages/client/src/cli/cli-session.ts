@@ -405,7 +405,48 @@ export class CliSession {
 
   addSignedTx(tx: SignedTx): void {
     if (!this.state.signedTxs) this.state.signedTxs = [];
-    this.state.signedTxs.push(tx);
+    const index = this.state.signedTxs.findIndex(
+      (existing) =>
+        (tx.pendingTxId !== undefined &&
+          existing.pendingTxId === tx.pendingTxId &&
+          existing.kind === tx.kind) ||
+        (existing.id === tx.id && existing.kind === tx.kind),
+    );
+    if (index === -1) {
+      this.state.signedTxs.push(tx);
+    } else {
+      this.state.signedTxs[index] = {
+        ...this.state.signedTxs[index],
+        ...tx,
+      };
+    }
+    this.state.pendingTxs = (this.state.pendingTxs ?? []).filter(
+      (pending) =>
+        !(
+          pending.kind === tx.kind &&
+          ((tx.pendingTxId !== undefined && pending.txId === tx.pendingTxId) ||
+            pending.id === tx.id)
+        ),
+    );
+    this.save();
+  }
+
+  findSignedTransaction(txId: string): SignedTx | undefined {
+    const id = this.chainSelector(txId, "evm");
+    if (!id) return undefined;
+    return [...(this.state.signedTxs ?? [])]
+      .reverse()
+      .find((tx) => tx.kind === "transaction" && tx.id === id);
+  }
+
+  markSignedTxBackendNotified(pendingTxId: number): void {
+    const record = [...(this.state.signedTxs ?? [])]
+      .reverse()
+      .find(
+        (tx) => tx.kind === "transaction" && tx.pendingTxId === pendingTxId,
+      );
+    if (!record || record.backendNotified === true) return;
+    record.backendNotified = true;
     this.save();
   }
 
