@@ -83,6 +83,7 @@ export async function fetchReleaseSecretSlots(input: {
     });
     if (!releaseRes.ok) {
       throw new RequiredSecretsCheckError({
+        reason: "github_unavailable",
         upstream: "github",
         upstreamStatus: releaseRes.status,
       });
@@ -99,6 +100,7 @@ export async function fetchReleaseSecretSlots(input: {
     });
     if (!assetRes.ok) {
       throw new RequiredSecretsCheckError({
+        reason: "github_unavailable",
         upstream: "github",
         upstreamStatus: assetRes.status,
       });
@@ -112,7 +114,11 @@ export async function fetchReleaseSecretSlots(input: {
     return slots;
   } catch (error) {
     if (error instanceof RequiredSecretsCheckError) throw error;
-    throw new RequiredSecretsCheckError({ cause: error, upstream: "github" });
+    throw new RequiredSecretsCheckError({
+      cause: error,
+      reason: "github_unavailable",
+      upstream: "github",
+    });
   }
 }
 

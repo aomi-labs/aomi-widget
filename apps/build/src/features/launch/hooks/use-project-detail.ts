@@ -40,6 +40,7 @@ import type {
   DeploymentRecord,
   DeploymentProjectsResult,
 } from "@build/features/launch/contracts";
+import { isRetryableLaunchError } from "@aomi-labs/deploy/launch";
 import { useGitHubSession } from "@build/components/control-plane/github-session-context";
 import {
   buildQueryKeys,
@@ -127,6 +128,11 @@ export function useProjectDetail(projectId: number) {
   const [recordsError, setRecordsError] = useState<string | null>(null);
   const [requiredSecrets, setRequiredSecrets] =
     useState<RequiredSecretsByApp | null>(null);
+  // Whether the failure above is worth retrying. A missing deploy-time
+  // GITHUB_TOKEN is not: no amount of clicking Retry will conjure one, and
+  // offering the button implies otherwise.
+  const [requiredSecretsRetryable, setRequiredSecretsRetryable] =
+    useState(true);
   const [requiredSecretsError, setRequiredSecretsError] = useState<
     string | null
   >(null);
@@ -237,6 +243,7 @@ export function useProjectDetail(projectId: number) {
     const requestEpoch = projectEpochRef.current;
     requiredSecretsReq.current = true;
     setRequiredSecretsError(null);
+    setRequiredSecretsRetryable(true);
     try {
       const result = await deploymentRequiredSecrets({ projectId });
       if (projectEpochRef.current === requestEpoch) {
@@ -250,6 +257,7 @@ export function useProjectDetail(projectId: number) {
             ? err.message
             : "Failed to load required secrets",
         );
+        setRequiredSecretsRetryable(isRetryableLaunchError(err));
         requiredSecretsReq.current = false;
       }
       throw err;
@@ -597,6 +605,7 @@ export function useProjectDetail(projectId: number) {
     recordsError,
     requiredSecrets,
     requiredSecretsError,
+    requiredSecretsRetryable,
     deployFlow,
     loadHistory,
     loadSecrets,

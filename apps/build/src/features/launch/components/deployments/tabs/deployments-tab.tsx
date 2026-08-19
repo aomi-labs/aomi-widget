@@ -444,6 +444,7 @@ export function DeploymentsTab({
                 ? `${detail.requiredSecretsError}.`
                 : null
             }
+            verificationRetryable={detail.requiredSecretsRetryable ?? true}
             pending={secretsCheckPending}
             onRetryVerification={detail.refreshRequiredSecrets}
             onSave={saveRequiredSecrets}

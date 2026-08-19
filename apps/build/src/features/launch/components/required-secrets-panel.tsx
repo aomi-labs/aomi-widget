@@ -28,6 +28,11 @@ type RequiredSecretsPanelProps = {
    */
   verificationError?: string | null;
   /**
+   * Whether retrying the verification could help. False for an operator-side
+   * misconfiguration — offering Retry there implies the builder can fix it.
+   */
+  verificationRetryable?: boolean;
+  /**
    * How many values are missing. Defaults to the number of slots rendered, but
    * the two differ whenever a slot NAME is known and its manifest descriptor
    * is not — the count must report what is actually missing, not how many rows
@@ -64,6 +69,7 @@ type RequiredSecretsPanelProps = {
 export function RequiredSecretsPanel({
   slots,
   verificationError,
+  verificationRetryable = true,
   missingCount,
   pending,
   onRetryVerification,
@@ -137,7 +143,7 @@ export function RequiredSecretsPanel({
       {verificationError && (
         <div className="flex flex-wrap items-center gap-3 text-amber-800">
           <span>{verificationError}</span>
-          {onRetryVerification && (
+          {onRetryVerification && verificationRetryable && (
             <button
               type="button"
               onClick={() => void retry()}

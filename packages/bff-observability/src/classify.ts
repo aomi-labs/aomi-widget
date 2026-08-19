@@ -87,6 +87,10 @@ function decision(
     handled: failure.handled,
     responseStatus: response.status,
     responseError: response.error,
+    ...(response.code ? { responseCode: response.code } : {}),
+    ...(response.retryable !== undefined
+      ? { responseRetryable: response.retryable }
+      : {}),
     ...(failure.upstream ? { upstream: failure.upstream } : {}),
     ...(failure.upstreamStatus !== undefined
       ? { upstreamStatus: failure.upstreamStatus }

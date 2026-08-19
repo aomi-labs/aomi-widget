@@ -44,6 +44,8 @@ type SecretsGateDetail = {
     { applicationId: number; slots: SecretSlot[]; missing: string[] }
   > | null;
   requiredSecretsError?: string | null;
+  /** False when retrying the check cannot help — see use-project-detail. */
+  requiredSecretsRetryable?: boolean;
   loadRequiredSecrets: () => void;
   refreshRequiredSecrets?: () => Promise<unknown>;
   ensureRequiredSecrets?: (apps: string[], projectId?: number) => Promise<void>;
@@ -681,6 +683,7 @@ export function DeployStep({
               ? `${detail.requiredSecretsError}.`
               : null
           }
+          verificationRetryable={detail?.requiredSecretsRetryable ?? true}
           pending={secretsCheckPending}
           onRetryVerification={detail?.refreshRequiredSecrets}
           onSave={saveRequiredSecrets}
